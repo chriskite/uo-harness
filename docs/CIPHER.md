@@ -1,79 +1,85 @@
-# Client→server stream cipher — reverse engineering record
+# Client→server stream obfuscation — SOLVED 2026-09-27
 
-Status 2026-09-27: **model fully determined and cross-validated on two live sessions.**
-Static keystream recovery (full K) still open; recovered positions suffice for walks/dclicks today.
+**Model (final): `c[i] = p[i] ^ S` for the entire client→server stream after the 5-byte preamble.**
 
-## Wire format summary (game connection, port 2593)
+A single-byte XOR with a per-session key `S`. No tables, no PRNG, no per-position keystream.
+(An earlier draft of this document proposed a per-position keystream `K[i] ^ S`; closer analysis of the
+controlled walk capture showed position-2 ciphertext `0f 0e 0d … 00 1f 1e 1d 1c` is simply plaintext
+seq `00 01 02 … 0f 10 11 12 13` XOR `0x0f` — one byte explains everything, including the cross-session
+`0x20` delta = the two sessions' different key bytes.)
 
-### Client preamble (cleartext, own TCP segment)
-`ef 00 00 00 0c` — constant across sessions. Likely Outlands protocol marker (`0xef`) + version/flags (`0x0c` = 12).
+## Wire format (game connection, port 2593)
 
-### Server prelude (cleartext, 19 bytes)
-`ff 00 0d | 9 × 00 | 0c | tick | S | 4 more bytes`
-- bytes 0-2: `ff 00 0d` — looks like variable-length header (id 0xff, len 13), content = 13 bytes.
-- byte 12: `0c` — echoes the client preamble constant.
-- byte 13: per-session value (0x14 / 0x30 observed) — tick/counter, unknown.
-- byte 14: **S — the per-session cipher byte** (0x2f in capture 1, 0x0f in capture 2; delta 0x20 = observed cross-session ciphertext delta).
-- bytes 15-18: 4 per-session bytes, purpose unknown.
-After byte 18: **standard Huffman-compressed standard UO protocol, no encryption** (verified: decodes and frames cleanly with upstream table/tree).
+### 1. Client preamble — cleartext, own TCP segment, 5 bytes
+`ef 00 00 00 0c` — constant across sessions. Outlands protocol marker + version/flags (0x0c = 12).
 
-### Client→server after preamble: per-packet cipher
+### 2. Client→server stream — XOR-encrypted from byte 5 onward
+Every byte XORed with the session key byte `S` (see §3). Plaintext underneath is **100% standard UO
+protocol** — decrypted capture frames 242/242 packets with the upstream length table, zero errors.
 
+Login sequence (plaintext):
 ```
-c[i] = p[i] ^ K[i] ^ S
+91 <len:2BE> <name\0> <JWT>        game login: len includes everything after the 3 header bytes?
+                                   (observed: 91 04 62 "Hackworth"\0 eyJhbGciOi… = 1122 bytes total)
+5d <73B>                           character select ("TestWorth", standard 0xEDEDEDED pattern)
+bf …                               general info (language "ENU", feature flags…)
+09/34/98 …                         standard status/query packets (id + serial)
+ff 00 07 00 00 00 03               Outlands keepalive, ~1/s (0xFF = Outlands custom namespace)
+02 …                               walk requests
+06 …                               dclicks
+ad …                               unicode speech
+b1 …                               gump responses
 ```
 
-- `K[i]` — static keystream, depends only on position within packet. Same across sessions.
-- `S` — per-session byte from server prelude (above).
-- Length-preserving; applied to every C2S packet after the 5-byte preamble (including the EF-version/1122-byte login blob and all gameplay packets).
+The JWT (`{"alg":"HS256","typ":"JWT"}`) is issued by `https://login.uooutlands.com` during the HTTPS
+auth and forwarded to the game server as the entire credential. Claims observed:
+`name` (account), `outlandsid`, `mahid`, `mahleader`, `version` (client version "1.0.2.544"),
+`hash` (uuid), `role` ("player"), `userdata` (client IP!), `purpose` ("GameServer"), `jti`, `exp`,
+`iss`/`aud` (login.uooutlands.com). **No password on the game wire.**
+**Test-shard capture bins may be committed (user decision 2026-09-28, private repo) — production
+credentials/artifacts never.**
 
-## Evidence
+### 3. Server prelude — cleartext, 19 bytes
+`ff 00 0d | 7 × 00 | 0c | tick | S | 6 bytes`
+- bytes 0–2: `ff 00 0d` — 0xFF-namespace variable packet (id 0xff, len 13 incl. header).
+- bytes 3–9: seven `00`.
+- byte 10: `0c` — echoes the client preamble constant.
+- byte 11: per-session tick/counter (0x14, 0x30 observed).
+- **byte 12: `S` — the session XOR key** (0x2f → capture 1, 0x0f → capture 2; both decrypt their
+  captures perfectly).
+- bytes 13–18: 6 per-session bytes, purpose unknown.
 
-1. Walk ladder (controlled session, 20 walks west):
-   ```
-   0d 8a 0f 0f 0f 0f 07   0d 8a 0e 0f 0f 0f 0f   0d 8a 0d ...   0d 8a 00 0f 0f 0f 0f
-   0d 8a 1f ...           0d 89 1e ...           0d 8a 1d ...   0d 8a 1c 0f 0f 0f 0f
-   ```
-   → plaintext `[02, 86, seq, key key key key]`; position 2 behaves as `c = ~seq` (K[2]^S = 0xFF); seq ladder 0xF0→0xFF, restart 0xE0 after movement reject (building); reject desync visible at step 17 (`0x89` = direction byte w/o run bit).
-2. Identical plaintext at different stream offsets → identical ciphertext (heartbeat ×137 in session 1, ×129 in session 2) → keystream resets per packet.
-3. Cross-session same-plaintext packets differ by exactly `0x20` at every position (heartbeat, 5-byte fixed packets, size-9 packets) → session constant S, not session keystream.
-4. Two independent packet types give the same `K[0]^S`: walk (`0x02`→`0x2d`, K^S1 = 0x2f) and dclick (`0x06`→`0x29`, K^S1 = 0x2f). ✔
-5. S1 heartbeat `d0 2f 28 2f 2f 2f 2c` vs S2 `f0 0f 08 0f 0f 0f 0c`: XOR = `20 20 20 20 20 20 20`. ✔
+### 4. Server→client stream — standard UO + Huffman, unencrypted
+From byte 19: upstream-static-Huffman-compressed standard UO protocol (decodes and frames cleanly
+with the upstream tree/table + overrides `{0x6F: 59, 0xFF: 16, 0x49: 14}`). No encryption.
 
-## Recovered keystream (K[i] ^ S) per session
 
-Capture 2 (S = 0x0f, from prelude byte 14):
-| pos | K^S | from |
-|---|---|---|
-| 0 | 0x0f | walk id 0x02 → 0x0d |
-| 1 | 0x0c | walk dir 0x86 → 0x8a |
-| 2 | 0xff | walk seq ladder (~seq) |
-| 3-6 | 0x0f ×4 | walk fastwalk key 00000000 |
+## Evidence chain
 
-Capture 1 (S = 0x2f): K^S at pos 0-2 = `0x2f, 0x2c, 0xdf` (consistent: K^S1 = K^S2 ^ 0x20 ✔)
+1. Controlled session (20 walks west via arrow key): 20 consecutive 7-byte packets differing only in
+   one counting byte → seq ladder `00..13` after XOR `0x0f`; direction byte `0x85/0x86` (run flag)
+   matches steering around the building.
+2. Single-byte XOR decrypts the login burst to `91 04 62 "Hackworth"\0 eyJhbGciOi…` — a well-formed
+   JWT, verified by base64-decoding header/payload (claims are coherent, signature is 44 bytes of
+   base64 → 32-byte HS256 signature).
+3. Same single byte decrypts the entire 2977-byte stream to 242 cleanly-framed standard UO packets.
+4. Cross-session: identical plaintext packets differ by exactly `0x20` at every position =
+   key difference between the two sessions (`0x2f` vs `0x0f`); both keys appear at prelude byte 14
+   of their respective server preludes.
+5. Keepalive decrypts to `ff 00 07 00 00 00 03` — sensible 0xFF-namespace variable packet.
 
-Candidate absolute K (if S is used unmodified): K[0]=0x00, K[1]=0x03, K[2]=0xf0 (needs binary confirmation).
+## S1 framing mistake (corrected)
 
-## Known plaintext packet shapes (plaintext side)
-
-| Plaintext prefix | Packet | Notes |
-|---|---|---|
-| `02 dir seq k×4` (7 B) | walk | dir = dir \| 0x80 when running |
-| `06 serial×4` (5 B) | dclick | S2 ciphertext `09 8f 06 4c 7a` |
-| `09 …` | recurring packet family | ciphertext starts `06` (S2) / `26` (S1); sizes 15/24/27/30/33/39/42/45/54; contains constant mid-section (`3b e2e2e2e2 0b` in S2) |
-| `ff …` (7 B) | heartbeat ~0.64 s | S1 `d0..`, S2 `f0..` after decrypt attempt: `ff 03 f7 00 00 00 03`? unconfirmed |
-| 1122 B | login/auth blob | after preamble; contains EF-version + session ticket presumably |
-| `ad …`? | unicode speech candidate | size 21 in S2: `a2 0f 1a cf …` |
-
-## Open items
-
-- Recover full static K (table or PRNG) from the binary — Ghidra target: per-packet position-indexed XOR loop in the send path, session byte S XORed in at login. The keystream-builder should sit near the prelude writer (`ef 0000000c`) / prelude reader (`ff 000d`).
-- Confirm S = prelude byte 14 on a third capture; decode the remaining prelude bytes (tick? extra key bytes?).
-- Map remaining packet families (0x09-series, heartbeat) and the login blob structure.
-- Single-byte-XOR loop found in Ghidra (`FUN_140145600`, XORs received chunks with one byte) — assessed as `.uoo` asset-file obfuscation, NOT the network cipher (brute-force of all 256 single-byte keys fails framing).
+Early analysis framed S1's first packet as `0xEF` (21 B) using the standard table on ciphertext —
+coincidence. Decrypted, both sessions start with the same custom `0x91 <len> <name> <JWT>` login.
 
 ## Harness implications
 
-- Relay/proxy: unaffected (works blind).
-- World model: unaffected (S2C is standard).
-- Action channel: need K over action-packet positions + S per session. S read from wire. K: finish static recovery (or extend known-plaintext coverage per packet type). The login blob never needs forging (passthrough).
+- **Proxy**: relay raw; tap S2C prelude → read `S` at byte 14 → passively decrypt C2S for logging.
+  No modification of any byte; timing-sensitive packets forward untouched.
+- **Action channel**: to send an action, XOR the plaintext packet with `S`. The client must not be
+  relaying our forged packets differently from its own — same scheme, same key, indistinguishable.
+- **World model**: S2C is standard; upstream ClassicUO packet handlers are the parsing reference.
+- The `0xFF` namespace (keepalive `…0003`, server prelude) and the `Speedhack/AutoClicking/AutoKeyboard`
+  enum + `Send_TimeSyncPingReq` likely live in the same custom namespace — tag all 0xFF packets in
+  logs for later mapping.

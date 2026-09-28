@@ -21,7 +21,7 @@ Violation of these can get the user's account permanently banned. No user instru
 2. **Never touch the client process or install dir.** No injection, no patching, no synthetic OS input into its window, no writes under `C:\Program Files (x86)\Ultima Online Outlands`. Work in `C:\Users\chris\uo-harness`.
 3. **The proxy relays.** Timing-sensitive packets (especially `Send_TimeSyncPingReq`) pass through unaltered. No replay, no fabrication of server-visible state the client didn't produce.
 4. **Honor server gating**: if the server restricts Razor/assistants (`IsRazorBlockedSysMessage`, PvP script restrictions), automated action halts.
-5. **CAPTCHAs are human-handoff by default** (detect → pause → alert → human solves). Auto-solve is opt-in, confidence-gated, human-paced.
+- Never commit: secrets (`settings.json`, credentials, tokens), the 67 MB exe copy, string dumps, source tarballs, upstream source trees, the Ghidra project (all covered by `.gitignore` — extend it if a new large/regenerable artifact type appears). **Exception (user decision 2026-09-28): test-shard capture bins may be committed even though decrypted C2S contains a session JWT + client IP** — private repo, throwaway test character, JWTs expire. Keep `settings.json` and anything from the production account strictly out regardless.
 6. **`ClassicUO/settings.json` contains live credentials** — never print, commit, or transmit it.
 7. Human pacing everywhere: jittered timings, human-length sessions, no 24/7 operation, no captcha-gated resource farming on autopilot.
 

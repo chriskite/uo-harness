@@ -20,4 +20,6 @@ Thumbs.db
 *_fixed.pcap
 stream_dump.txt
 capture_state.txt
-c2s_s*.bin
+logs/
+logs_test/
+settings.json*

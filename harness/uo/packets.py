@@ -56,14 +56,27 @@ def build_table() -> list[int]:
 TABLE = build_table()
 
 
-def packet_length(buf: bytes | bytearray, table: list[int] = TABLE) -> int:
+
+# Outlands C2S overrides: their 0x91 login is a custom long packet
+# (id + uint16BE length + name + JWT), not the standard fixed-65 GameLogin.
+C2S_OVERRIDES: dict[int, int] = {0x91: -1}
+
+# Outlands S2C overrides: discovered by desync-search on the 2026-09-28
+# capture (discover_s2c_lengths.py); validated by clean end-to-end framing
+# and sensible login-sequence semantics (world dump -> 0x1B LoginConfirm).
+# Watch for desyncs on future captures to catch wrong guesses/protocol drift.
+S2C_OVERRIDES: dict[int, int] = {0x6F: 59, 0xFF: 16, 0x49: 14}
+
+
+def packet_length(buf: bytes | bytearray, table: list[int] = TABLE,
+                  overrides: dict[int, int] | None = None) -> int:
     """Total length of the packet at buf[0], or 0 if more bytes needed.
 
     Returns -1 if the declared length is implausible (> 0x8000) — desync signal.
     """
     if not buf:
         return 0
-    fixed = table[buf[0]]
+    fixed = (overrides or {}).get(buf[0], table[buf[0]])
     if fixed > 0:
         return fixed if len(buf) >= fixed else 0
     # variable length
@@ -75,11 +88,12 @@ def packet_length(buf: bytes | bytearray, table: list[int] = TABLE) -> int:
     return varlen if len(buf) >= varlen else 0
 
 
-def frame_take(buf: bytearray, table: list[int] = TABLE) -> list[bytes]:
+def frame_take(buf: bytearray, table: list[int] = TABLE,
+               overrides: dict[int, int] | None = None) -> list[bytes]:
     """Pop all complete packets from the front of buf."""
     out = []
     while buf:
-        plen = packet_length(buf, table)
+        plen = packet_length(buf, table, overrides)
         if plen <= 0:
             break
         out.append(bytes(buf[:plen]))
