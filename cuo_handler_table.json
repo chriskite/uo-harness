@@ -1,0 +1,502 @@
+{
+ "0x03": {
+  "name": "ClassicUO.Network.PacketHandlers.ClientTalk",
+  "va": "0x140186390",
+  "helper": "FUN_141696cfd"
+ },
+ "0x0b": {
+  "name": "ClassicUO.Network.PacketHandlers.Damage",
+  "va": "0x1401863e0",
+  "helper": "FUN_141696d10"
+ },
+ "0x11": {
+  "name": "ClassicUO.Network.PacketHandlers.CharacterStatus",
+  "va": "0x140186520",
+  "helper": "FUN_141696d23"
+ },
+ "0x15": {
+  "name": "ClassicUO.Network.PacketHandlers.FollowR",
+  "va": "0x140187860",
+  "helper": "FUN_141696d36"
+ },
+ "0x16": {
+  "name": "ClassicUO.Network.PacketHandlers.NewHealthbarUpdate",
+  "va": "0x1401878e0",
+  "helper": "FUN_141696d49"
+ },
+ "0x17": {
+  "name": "ClassicUO.Network.PacketHandlers.NewHealthbarUpdate",
+  "va": "0x1401878e0",
+  "helper": "FUN_141696d49"
+ },
+ "0x1a": {
+  "name": "ClassicUO.Network.PacketHandlers.UpdateItemOld",
+  "va": "0x140187ae0",
+  "helper": "FUN_141696d5c"
+ },
+ "0x1b": {
+  "name": "ClassicUO.Network.PacketHandlers.CreateGameScene",
+  "va": "0x140187ea0",
+  "helper": "FUN_141696d6f"
+ },
+ "0x1c": {
+  "name": "ClassicUO.Network.PacketHandlers.Talk",
+  "va": "0x140188230",
+  "helper": "FUN_141696d82"
+ },
+ "0x1d": {
+  "name": "ClassicUO.Network.PacketHandlers.DeleteObject",
+  "va": "0x1401884e0",
+  "helper": "FUN_141696d95"
+ },
+ "0x20": {
+  "name": "ClassicUO.Network.PacketHandlers.MobileUpdate",
+  "va": "0x1401888a0",
+  "helper": "FUN_141696da8"
+ },
+ "0x21": {
+  "name": "ClassicUO.Network.PacketHandlers.DenyWalk",
+  "va": "0x140189200",
+  "helper": "FUN_141696dbb"
+ },
+ "0x22": {
+  "name": "ClassicUO.Network.PacketHandlers.ConfirmWalk",
+  "va": "0x1401894e0",
+  "helper": "FUN_141696dce"
+ },
+ "0x23": {
+  "name": "ClassicUO.Network.PacketHandlers.DragAnimation",
+  "va": "0x1401895e0",
+  "helper": "FUN_141696de1"
+ },
+ "0x24": {
+  "name": "ClassicUO.Network.PacketHandlers.OpenContainer",
+  "va": "0x140189d00",
+  "helper": "FUN_141696df4"
+ },
+ "0x25": {
+  "name": "ClassicUO.Network.PacketHandlers.UpdateContainedItem",
+  "va": "0x14018a3b0",
+  "helper": "FUN_141696e07"
+ },
+ "0x27": {
+  "name": "ClassicUO.Network.PacketHandlers.DenyMoveItem",
+  "va": "0x14018a760",
+  "helper": "FUN_141696e1a"
+ },
+ "0x28": {
+  "name": "ClassicUO.Network.PacketHandlers.EndDraggingItem",
+  "va": "0x14018ac40",
+  "helper": "FUN_141696e2d"
+ },
+ "0x29": {
+  "name": "ClassicUO.Network.PacketHandlers.DropItemAccepted",
+  "va": "0x14018aca0",
+  "helper": "FUN_141696e40"
+ },
+ "0x2c": {
+  "name": "ClassicUO.Network.PacketHandlers.DeathScreen",
+  "va": "0x14018ad10",
+  "helper": "FUN_141696e53"
+ },
+ "0x2d": {
+  "name": "ClassicUO.Network.PacketHandlers.MobileAttributes",
+  "va": "0x14018ae40",
+  "helper": "FUN_141696e66"
+ },
+ "0x2e": {
+  "name": "ClassicUO.Network.PacketHandlers.EquipItem",
+  "va": "0x14018b0b0",
+  "helper": "FUN_141696e79"
+ },
+ "0x2f": {
+  "name": "ClassicUO.Network.PacketHandlers.Swing",
+  "va": "0x14018b440",
+  "helper": "FUN_141696e8c"
+ },
+ "0x32": {
+  "name": "ClassicUO.Network.PacketHandlers.Unknown_0x32",
+  "va": "0x14018b640",
+  "helper": "FUN_141696e9f"
+ },
+ "0x3a": {
+  "name": "ClassicUO.Network.PacketHandlers.UpdateSkills",
+  "va": "0x14018b660",
+  "helper": "FUN_141696eb2"
+ },
+ "0x3b": {
+  "name": "ClassicUO.Network.PacketHandlers.CloseVendorInterface",
+  "va": "0x14018c2d0",
+  "helper": "FUN_141696ed8"
+ },
+ "0x3c": {
+  "name": "ClassicUO.Network.PacketHandlers.UpdateContainedItems",
+  "va": "0x14018be00",
+  "helper": "FUN_141696ec5"
+ },
+ "0x4e": {
+  "name": "ClassicUO.Network.PacketHandlers.PersonalLightLevel",
+  "va": "0x14018c370",
+  "helper": "FUN_141696eeb"
+ },
+ "0x4f": {
+  "name": "ClassicUO.Network.PacketHandlers.LightLevel",
+  "va": "0x14018c3f0",
+  "helper": "FUN_141696efe"
+ },
+ "0x54": {
+  "name": "ClassicUO.Network.PacketHandlers.PlaySoundEffect",
+  "va": "0x14018c440",
+  "helper": "FUN_141696f11"
+ },
+ "0x55": {
+  "name": "ClassicUO.Network.PacketHandlers.LoginComplete",
+  "va": "0x14018c760",
+  "helper": "FUN_141696f37"
+ },
+ "0x56": {
+  "name": "ClassicUO.Network.PacketHandlers.MapData",
+  "va": "0x14018c8d0",
+  "helper": "FUN_141696f4a"
+ },
+ "0x5b": {
+  "name": "ClassicUO.Network.PacketHandlers.SetTime",
+  "va": "0x14018cb40",
+  "helper": "FUN_141696f5d"
+ },
+ "0x65": {
+  "name": "ClassicUO.Network.PacketHandlers.SetWeather",
+  "va": "0x14018cb60",
+  "helper": "FUN_141696f70"
+ },
+ "0x66": {
+  "name": "ClassicUO.Network.PacketHandlers.BookData",
+  "va": "0x14018cc60",
+  "helper": "FUN_141696f83"
+ },
+ "0x6c": {
+  "name": "ClassicUO.Network.PacketHandlers.TargetCursor",
+  "va": "0x140185e20",
+  "helper": "FUN_141696cd7"
+ },
+ "0x6d": {
+  "name": "ClassicUO.Network.PacketHandlers.PlayMusic",
+  "va": "0x14018c6e0",
+  "helper": "FUN_141696f24"
+ },
+ "0x6e": {
+  "name": "ClassicUO.Network.PacketHandlers.CharacterAnimation",
+  "va": "0x14018cf50",
+  "helper": "FUN_141696f96"
+ },
+ "0x6f": {
+  "name": "ClassicUO.Network.PacketHandlers.SecureTrading",
+  "va": "0x140185f30",
+  "helper": "FUN_141696cea"
+ },
+ "0x70": {
+  "name": "ClassicUO.Network.PacketHandlers.ScreenEffect",
+  "va": "0x14018d1b0",
+  "helper": "FUN_141696fa9"
+ },
+ "0x71": {
+  "name": "ClassicUO.Network.PacketHandlers.BulletinBoardData",
+  "va": "0x14018ee80",
+  "helper": "FUN_141696fe2"
+ },
+ "0x72": {
+  "name": "ClassicUO.Network.PacketHandlers.Warmode",
+  "va": "0x14018f780",
+  "helper": "FUN_141696ff5"
+ },
+ "0x74": {
+  "name": "ClassicUO.Network.PacketHandlers.BuyList",
+  "va": "0x14018f800",
+  "helper": "FUN_141697008"
+ },
+ "0x77": {
+  "name": "ClassicUO.Network.PacketHandlers.MobileMove",
+  "va": "0x14018fda0",
+  "helper": "FUN_14169701b"
+ },
+ "0x78": {
+  "name": "ClassicUO.Network.PacketHandlers.MobileDraw",
+  "va": "0x1401905e0",
+  "helper": "FUN_14169702e"
+ },
+ "0x7c": {
+  "name": "ClassicUO.Network.PacketHandlers.OpenMenu",
+  "va": "0x140191200",
+  "helper": "FUN_141697041"
+ },
+ "0x88": {
+  "name": "ClassicUO.Network.PacketHandlers.OpenPaperdoll",
+  "va": "0x1401917c0",
+  "helper": "FUN_141697054"
+ },
+ "0x89": {
+  "name": "ClassicUO.Network.PacketHandlers.CorpseEquipment",
+  "va": "0x140191a00",
+  "helper": "FUN_141697067"
+ },
+ "0x90": {
+  "name": "ClassicUO.Network.PacketHandlers.DisplayMap",
+  "va": "0x140191bc0",
+  "helper": "FUN_14169707a"
+ },
+ "0x93": {
+  "name": "ClassicUO.Network.PacketHandlers.OpenBook",
+  "va": "0x140192120",
+  "helper": "FUN_14169708d"
+ },
+ "0x95": {
+  "name": "ClassicUO.Network.PacketHandlers.DyeData",
+  "va": "0x140192690",
+  "helper": "FUN_1416970a0"
+ },
+ "0x97": {
+  "name": "ClassicUO.Network.PacketHandlers.MovePlayer",
+  "va": "0x140192870",
+  "helper": "FUN_1416970b3"
+ },
+ "0x98": {
+  "name": "ClassicUO.Network.PacketHandlers.UpdateName",
+  "va": "0x140192900",
+  "helper": "FUN_1416970c6"
+ },
+ "0x99": {
+  "name": "ClassicUO.Network.PacketHandlers.MultiPlacement",
+  "va": "0x140192aa0",
+  "helper": "FUN_1416970d9"
+ },
+ "0x9a": {
+  "name": "ClassicUO.Network.PacketHandlers.ASCIIPrompt",
+  "va": "0x140192dc0",
+  "helper": "FUN_1416970ec"
+ },
+ "0x9e": {
+  "name": "ClassicUO.Network.PacketHandlers.SellList",
+  "va": "0x140192e40",
+  "helper": "FUN_1416970ff"
+ },
+ "0xa1": {
+  "name": "ClassicUO.Network.PacketHandlers.UpdateHitpoints",
+  "va": "0x140193300",
+  "helper": "FUN_141697112"
+ },
+ "0xa2": {
+  "name": "ClassicUO.Network.PacketHandlers.UpdateMana",
+  "va": "0x140193420",
+  "helper": "FUN_141697125"
+ },
+ "0xa3": {
+  "name": "ClassicUO.Network.PacketHandlers.UpdateStamina",
+  "va": "0x140193570",
+  "helper": "FUN_141697138"
+ },
+ "0xa5": {
+  "name": "ClassicUO.Network.PacketHandlers.OpenUrl",
+  "va": "0x1401936c0",
+  "helper": "FUN_14169714b"
+ },
+ "0xa6": {
+  "name": "ClassicUO.Network.PacketHandlers.TipWindow",
+  "va": "0x140193720",
+  "helper": "FUN_14169715e"
+ },
+ "0xaa": {
+  "name": "ClassicUO.Network.PacketHandlers.AttackCharacter",
+  "va": "0x1401938b0",
+  "helper": "FUN_141697171"
+ },
+ "0xab": {
+  "name": "ClassicUO.Network.PacketHandlers.TextEntryDialog",
+  "va": "0x140193940",
+  "helper": "FUN_141697184"
+ },
+ "0xae": {
+  "name": "ClassicUO.Network.PacketHandlers.UnicodeTalk",
+  "va": "0x140193c00",
+  "helper": "FUN_141697197"
+ },
+ "0xaf": {
+  "name": "ClassicUO.Network.PacketHandlers.DisplayDeath",
+  "va": "0x140193f20",
+  "helper": "FUN_1416971aa"
+ },
+ "0xb0": {
+  "name": "ClassicUO.Network.PacketHandlers.OpenGump",
+  "va": "0x1401942a0",
+  "helper": "FUN_1416971bd"
+ },
+ "0xb7": {
+  "name": "ClassicUO.Network.PacketHandlers.Help",
+  "va": "0x1401945d0",
+  "helper": "FUN_1416971d0"
+ },
+ "0xb8": {
+  "name": "ClassicUO.Network.PacketHandlers.CharacterProfile",
+  "va": "0x1401945f0",
+  "helper": "FUN_1416971e3"
+ },
+ "0xb9": {
+  "name": "ClassicUO.Network.PacketHandlers.EnableLockedFeatures",
+  "va": "0x140194790",
+  "helper": "FUN_1416971f6"
+ },
+ "0xba": {
+  "name": "ClassicUO.Network.PacketHandlers.DisplayQuestArrow",
+  "va": "0x140194820",
+  "helper": "FUN_141697209"
+ },
+ "0xbb": {
+  "name": "ClassicUO.Network.PacketHandlers.UltimaMessengerR",
+  "va": "0x140194a80",
+  "helper": "FUN_14169721c"
+ },
+ "0xbc": {
+  "name": "ClassicUO.Network.PacketHandlers.Season",
+  "va": "0x140194aa0",
+  "helper": "FUN_14169722f"
+ },
+ "0xbf": {
+  "name": "ClassicUO.Network.PacketHandlers.ExtendedCommand",
+  "va": "0x140194bc0",
+  "helper": "FUN_141697242"
+ },
+ "0xc0": {
+  "name": "ClassicUO.Network.PacketHandlers.ParticleEffectOld",
+  "va": "0x14018d290",
+  "helper": "FUN_141696fbc"
+ },
+ "0xc1": {
+  "name": "ClassicUO.Network.PacketHandlers.DisplayClilocString",
+  "va": "0x140196760",
+  "helper": "FUN_141697255"
+ },
+ "0xc2": {
+  "name": "ClassicUO.Network.PacketHandlers.UnicodePrompt",
+  "va": "0x140196c20",
+  "helper": "FUN_141697268"
+ },
+ "0xc4": {
+  "name": "ClassicUO.Network.PacketHandlers.Semivisible",
+  "va": "0x140196ca0",
+  "helper": "FUN_14169727b"
+ },
+ "0xc6": {
+  "name": "ClassicUO.Network.PacketHandlers.InvalidMapEnable",
+  "va": "0x140196cc0",
+  "helper": "FUN_14169728e"
+ },
+ "0xc8": {
+  "name": "ClassicUO.Network.PacketHandlers.ClientViewRange",
+  "va": "0x14018ee00",
+  "helper": "FUN_141696fcf"
+ },
+ "0xca": {
+  "name": "ClassicUO.Network.PacketHandlers.GetUserServerPingGodClientR",
+  "va": "0x140196ce0",
+  "helper": "FUN_1416972a1"
+ },
+ "0xcb": {
+  "name": "ClassicUO.Network.PacketHandlers.GlobalQueCount",
+  "va": "0x140196d00",
+  "helper": "FUN_1416972b4"
+ },
+ "0xcc": {
+  "name": "ClassicUO.Network.PacketHandlers.DisplayClilocString",
+  "va": "0x140196760",
+  "helper": "FUN_141697255"
+ },
+ "0xd0": {
+  "name": "ClassicUO.Network.PacketHandlers.ConfigurationFileR",
+  "va": "0x140196d20",
+  "helper": "FUN_1416972c7"
+ },
+ "0xd1": {
+  "name": "ClassicUO.Network.PacketHandlers.Logout",
+  "va": "0x140196d40",
+  "helper": "FUN_1416972da"
+ },
+ "0xd4": {
+  "name": "ClassicUO.Network.PacketHandlers.OpenBook",
+  "va": "0x140192120",
+  "helper": "FUN_14169708d"
+ },
+ "0xd6": {
+  "name": "ClassicUO.Network.PacketHandlers.MegaCliloc",
+  "va": "0x140196d60",
+  "helper": "FUN_1416972ed"
+ },
+ "0xdb": {
+  "name": "ClassicUO.Network.PacketHandlers.CharacterTransferLog",
+  "va": "0x1401974e0",
+  "helper": "FUN_141697300"
+ },
+ "0xdc": {
+  "name": "ClassicUO.Network.PacketHandlers.OPLInfo",
+  "va": "0x140197500",
+  "helper": "FUN_141697313"
+ },
+ "0xdd": {
+  "name": "ClassicUO.Network.PacketHandlers.OpenCompressedGump",
+  "va": "0x140197520",
+  "helper": "FUN_141697326"
+ },
+ "0xde": {
+  "name": "ClassicUO.Network.PacketHandlers.UpdateMobileStatus",
+  "va": "0x140197ca0",
+  "helper": "FUN_141697339"
+ },
+ "0xdf": {
+  "name": "ClassicUO.Network.PacketHandlers.BuffDebuff",
+  "va": "0x140197d60",
+  "helper": "FUN_14169734c"
+ },
+ "0xe2": {
+  "name": "ClassicUO.Network.PacketHandlers.NewCharacterAnimation",
+  "va": "0x140198470",
+  "helper": "FUN_14169735f"
+ },
+ "0xe5": {
+  "name": "ClassicUO.Network.PacketHandlers.DisplayWaypoint",
+  "va": "0x1401991b0",
+  "helper": "FUN_141697372"
+ },
+ "0xe6": {
+  "name": "ClassicUO.Network.PacketHandlers.RemoveWaypoint",
+  "va": "0x140199450",
+  "helper": "FUN_141697385"
+ },
+ "0xf0": {
+  "name": "ClassicUO.Network.PacketHandlers.WorldMap",
+  "va": "0x1401994c0",
+  "helper": "FUN_141697398"
+ },
+ "0xf1": {
+  "name": "ClassicUO.Network.PacketHandlers.FreeshardListR",
+  "va": "0x140199840",
+  "helper": "FUN_1416973ab"
+ },
+ "0xf3": {
+  "name": "ClassicUO.Network.PacketHandlers.UpdateItemSA",
+  "va": "0x140199860",
+  "helper": "FUN_1416973be"
+ },
+ "0xf5": {
+  "name": "ClassicUO.Network.PacketHandlers.DisplayMap",
+  "va": "0x140191bc0",
+  "helper": "FUN_14169707a"
+ },
+ "0xf6": {
+  "name": "ClassicUO.Network.PacketHandlers.BoatMoving",
+  "va": "0x140199e40",
+  "helper": "FUN_1416973d1"
+ },
+ "0xff": {
+  "name": "ClassicUO.Network.PacketHandlers.OutlandsProtocol",
+  "va": "0x14019f3a0",
+  "helper": "FUN_1416973e4"
+ }
+}
