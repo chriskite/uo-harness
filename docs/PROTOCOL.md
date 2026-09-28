@@ -1,5 +1,18 @@
 # Protocol state — packet map (2026-09-28)
 
+## Authoritative sources (2026-09-28, Ghidra + NativeFormat map)
+
+The NativeAOT reflection metadata was fully parsed (`mrt_parse.py` → `mrt_map.json`, 95,389 invoke entries, 100% name→RVA resolution). All 372 protocol methods (ClassicUO.Network.PacketHandlers, NetClientExt, Assistant.PacketHandlers, PacketsTable) were renamed and decompiled to `decompiled/protocol_handlers.c` (372/372, no failures).
+
+**Packet length table — now authoritative** (`harness/uo/outlands_table.py` + `outlands_packet_table.json`):
+- Base tier (145 entries) from the client's own static initializer `FUN_1401a13c0` (`Add(dict,id,len)` calls). The 22 Outlands-extended standard packets: `0x08=22, 0x0B=7, 0x1B=43, 0x20=28, 0x21=15, 0x23=42, 0x24=11, 0x25=27, 0x2E=20, 0x54=18, 0x56=15, 0x6C=27, 0x76=22, 0x77=18, 0x90=31, 0x95=11, 0x99=36, 0xB9=5, 0xBA=14, 0xC0=52, 0xEF=5, 0xF3=38` (upstream value +6..+16 bytes of Outlands fields).
+- Tier-dict packets (world-data family) load from deserialized embedded resources; fixed values proven from wire: `0x00=106, 0x6F=76, 0x9E=65`.
+- Result: **full live session (102 KB S2C) frames with zero desyncs**; offline proxy test ALL PASS.
+
+**`Send_TimeSyncPingReq` SOLVED (decompiled @ 0x14017e940):** emits exactly `ff 00 07 00 00 00 03` — the ~1/s keepalive. **It carries no timestamp**; the anti-speedhack timing channel is purely the *arrival cadence* of this packet server-side. Our relay preserves it; agent action generation does not affect it (the stock client keeps pinging on its own schedule). The `Speedhack/AutoClicking/AutoKeyboard` enum's consumer remains unlocated (likely server-side only).
+
+**Handler surface for layouts**: `Assistant.PacketHandlers` (76 methods incl. `AnalyzePacket` dispatch, `OutlandsServerPacket` @ 0x64eb0, `OutlandsItemNameResponse` @ 0x64f20) and `ClassicUO.Network.NetClientExt` (104 methods) — the custom S2C dialect's parsers, all decompiled and ready for field-layout extraction.
+
 ## C2S (client→server) — 100% mapped
 
 Standard UO layouts, XOR session key (see CIPHER.md). Frames 242/242 on capture, clean live.

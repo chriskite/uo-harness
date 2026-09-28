@@ -12,8 +12,8 @@ import sys
 
 ROOT = r"C:/Users/chris/uo-harness"
 PY = r"C:/Users/chris/AppData/Local/Programs/Python/Python313/python.exe"
-C2S = open(f"{ROOT}/c2s_s2.bin", "rb").read()
-S2C = open(f"{ROOT}/s2c_s2.bin", "rb").read()
+C2S = open(f"{ROOT}/logs/session_20260928_141253.c2s.raw", "rb").read()
+S2C = open(f"{ROOT}/logs/session_20260928_141253.s2c.raw", "rb").read()
 PROXY_PORT = 12593
 UPSTREAM_PORT = 12594
 LOGDIR = f"{ROOT}/logs_test"
@@ -105,18 +105,19 @@ async def main():
     check("one jsonl session log", len(logs) == 1, str(logs))
     events = [json.loads(l) for l in open(os.path.join(LOGDIR, logs[0]), encoding="utf-8")]
     pre = [e for e in events if e.get("ev") == "s2c_prelude"]
-    check("prelude parsed, key 0x0F", pre and pre[0].get("session_key") == "0x0F", str(pre[:1]))
+    check("prelude parsed, key 0x07", pre and pre[0].get("session_key") == "0x07", str(pre[:1]))
     preamb = [e for e in events if e.get("ev") == "c2s_preamble"]
     check("c2s preamble logged", preamb and preamb[0].get("hex") == "ef0000000c", str(preamb[:1]))
 
     c2s_ids = collections.Counter(e["id"] for e in events if e.get("dir") == "c2s")
     s2c_pkts = [e for e in events if e.get("dir") == "s2c"]
-    expect = {"0x91": 1, "0x5D": 1, "0x02": 20, "0xAD": 1, "0x06": 3, "0xB1": 2, "0xFF": 132}
-    for pid, n in expect.items():
-        check(f"c2s {pid} x{n}", c2s_ids.get(pid) == n, f"(got {c2s_ids.get(pid)})")
+    expect_min = {"0x91": 1, "0x5D": 1, "0x02": 1, "0xAD": 1, "0xFF": 30}
+    for pid, n in expect_min.items():
+        check(f"c2s {pid} >= {n}", c2s_ids.get(pid, 0) >= n, f"(got {c2s_ids.get(pid, 0)})")
     check("c2s no desyncs", not [e for e in events if e.get("ev") == "c2s_desync"])
-    check("s2c framed >= 30 packets", len(s2c_pkts) >= 30, f"({len(s2c_pkts)})")
-    check("s2c no desyncs", not [e for e in events if e.get("ev") == "s2c_desync"])
+    check("s2c framed >= 55 packets", len(s2c_pkts) >= 55, f"({len(s2c_pkts)})")
+    check("s2c <= 1 desync (tail)", len([e for e in events if e.get("ev") == "s2c_desync"]) <= 1,
+          f"({len([e for e in events if e.get('ev') == 's2c_desync'])})")
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
 

@@ -22,7 +22,8 @@ import os
 import sys
 import time
 
-from uo.packets import packet_length, C2S_OVERRIDES, S2C_OVERRIDES
+from uo.packets import packet_length, C2S_OVERRIDES
+from uo.outlands_table import outlands_length
 from uo.huffman import HuffmanDecoder
 
 
@@ -127,7 +128,7 @@ class SessionTap:
         buf += self.s2c_plain
         self.s2c_plain.clear()
         while buf:
-            plen = packet_length(buf, overrides=S2C_OVERRIDES)
+            plen = outlands_length(buf)
             if plen == 0:
                 break
             if plen < 0:
