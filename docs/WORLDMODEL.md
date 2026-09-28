@@ -22,11 +22,12 @@ Authoritative field-layout reference extracted from the decompiled client handle
   independent corroboration of the CUO parse.
 - **Outlands protocol version gate**: many layouts branch on
   `*(uint *)(*(longlong *)(DAT_143f8bf90 + 8) + 0x68)`, a version dword written by the
-  Outlands handshake (0xF0 sub-packet 0, see §5). Observed thresholds: `>= 10` ("V10":
+  Outlands handshake (0xFF sub 0, see §5). Observed thresholds: `>= 10` ("V10":
   widened graphic/coordinate fields), `> 10` (V11: extra u8 in container records),
-  `> 11` (V12: widened/extra u32 tail fields). Current wire lengths
-  (0xF3=38, 0x25=27, 0x2E=20, 0x20=28, 0x21=15) prove the live server runs the
-  **V12** layouts; those are the ones tabulated in full, with legacy variants noted.
+  `> 11` (V12: widened/extra u32 tail fields). The gate value is **confirmed = 12** by
+  the session prelude handshake (0xFF sub 0, see §5); the matching wire lengths
+  (0xF3=38, 0x25=27, 0x2E=20, 0x20=28, 0x21=15) corroborate. The V12 layouts are
+  tabulated in full, with legacy variants noted.
 - Confidence labels:
   - **upstream** — layout documented by upstream ClassicUO/Razor source *and* the
     decompiled reads match it.
@@ -60,7 +61,7 @@ Authoritative field-layout reference extracted from the decompiled client handle
 | 0xF3 SAWorldItem | 26 | 38 | +12 (V10/V11/V12) |
 
 Variable-length (not in base table): 0x11, 0x16, 0x17, 0x1A, 0x3A, 0x3B, 0x3C, 0x89,
-0xB0, 0xBF, 0xD6, 0xDD, 0xF0.
+0xB0, 0xBF, 0xD6, 0xDD, plus the dialect/world-data ids 0xFF, 0x3F, 0x52 (§5–§6).
 
 ---
 
@@ -459,32 +460,45 @@ Handler: CUO `CloseVendorInterface` @ 0x14018c2d0.
 > 8. One C2S `0x00` 106 B packet contained two back-to-back `ff` dialect packets — possible C2S batching (or a flush-boundary artifact); open.
 >
 >
-### 0xF0 OutlandsProtocol / OutlandsServerPacket — S2C, variable length, u32 sub-id
-Packet id assignment is **inferred**: 0xF0 is the upstream Razor "protocol extension"
-slot, it is absent from the fixed-length base table (variable length), and 0xF0 appears
-in live captures as a custom S2C id (docs/PROTOCOL.md). The binary still contains
-`Assistant.PacketHandlers.RunUOProtocolExtention` @ 0x140066380 (the upstream 0xF0
-handler); which of the two is actually registered could not be confirmed statically
-(registration cctor not decompiled). See Open Questions.
+### 0xFF OutlandsProtocol / OutlandsServerPacket — dialect carrier, both directions, variable length, u32 sub-id
 
-Frame: `F0 <len u16be> <subId u32be> <payload…>`.
+**Carrier CONFIRMED = 0xFF** (supersedes the v1 0xF0 inference — no 0xF0 S2C packet
+appears in any capture; `RunUOProtocolExtention` @ 0x140066380, the upstream Razor 0xF0
+handler, is dead code in this build):
 
-CUO dispatcher: `ClassicUO.Network.PacketHandlers.OutlandsProtocol` @ 0x14019f3a0 —
-reads subId u32be @3, switches:
+- S2C: the 19-byte session prelude is exactly one dialect frame
+  `ff 00 0d | 00000000 | 0000000c 12 e7` = subId 0 handshake (see sub 0 below). The
+  payload matches `OutlandsProtocol` case 0 field-for-field (u32be version + u8 + u8),
+  and `BuildPacketTable(12)` reproduces every observed wire length (0xF3=38, 0x25=27,
+  0x2E=20, 0x20=28, 0x21=15 …). **Protocol version = 12 confirmed on the live server.**
+- C2S: 251 keepalive frames `ff 0007 00000003` (sub 3) plus sub-4/sub-9 frames in
+  session_20260928_164548 (see C2S subsection). Write side proven in
+  `NetClientExt.Send_TimeSyncPingReq` @ 0x14017e940: `GetPacketLength(0xff)` (−1 →
+  variable), stores `*(u32*)buf = 0x03000000` — LE store of bytes `00 00 00 03` =
+  subId 3 BE on the wire.
+- The CUO-side *registration* of 0xFF → `OutlandsProtocol` is still inferred (the
+  handler-table cctor is not in the decompiled selection), but the content match above
+  leaves no practical doubt.
 
-| SubId | Target | Payload layout (offsets from payload start = packet off 7) |
-|-------|--------|------------------------------------------------------------|
-| 0 | handshake (inline) | u32be **protocol version** (→ the global V10/V11/V12 gate), u8 flag (+0x71), u8 flag (+0x72); then `BuildPacketTable(version)` |
+Frame: `FF <len u16be> <subId u32be> <payload…>`. Sub-id space is **per-direction**
+(e.g. sub 9 S2C = RemoveBuff, sub 9 C2S = item-detail query).
+
+CUO S2C dispatcher: `ClassicUO.Network.PacketHandlers.OutlandsProtocol` @ 0x14019f3a0 —
+reads subId u32be @3, switches (payload offsets are from payload start = packet off 7):
+
+| SubId | Target | Payload layout |
+|-------|--------|----------------|
+| 0 | handshake (inline) | u32be **protocol version** (=12 live; → the global V10/V11/V12 gate at settings+0x68), u8 flag1 (+0x71; 0x12 observed), u8 flag2 (+0x72; 0xE7 observed — matches the session key logged by the proxy), then `BuildPacketTable(version)` |
 | 1 | `NetClientExt.Send_Info` (server polls client info) | none |
 | 2 | inline | u16be type, u32be id; type==1 opens a gump (graphic 0x0a… id) |
-| 3 | `ServerTime.TimeSyncReceived` | u64be timestamp |
-| 4 | `SpellCastManager.OnPacketResponse` | (spell-cast result; sub-parsed there) |
+| 3 | `ServerTime.TimeSyncReceived` @ 0x1401240d0 | u64be timestamp (read BE in the dispatcher, passed by value). C2S twin: sub 3 keepalive, empty payload |
+| 4 | `SpellCastManager.OnPacketResponse` @ 0x140306390 | spell-cast result; **sub-parser not in the decompiled selection — layout open** |
 | 5 | `World.ProcessDeletes` | none |
 | 6 | `ParticleEffect` @ 0x14018d980 | particle effect record |
 | 7 | `WorldSaveManager.WorldSave` | none |
 | 8 | `OutlandsBuffUpdate` @ 0x14019a600 | see below |
 | 9 | `OutlandsRemoveBuff` @ 0x14019ad20 | u32be serial, u16be buff/icon id |
-| 10 | `PartyManager.ParseMemberList` | party sub-packet |
+| 10 | `PartyManager.ParseMemberList` | party sub-packet (party parsers not in the decompiled selection) |
 | 0x0B | `PartyManager.ParseMemberRemoved` | party sub-packet |
 | 0x0C | `PartyManager.ParseMessage` | party sub-packet |
 | 0x0D | `PartyManager.ParseInvitation` | party sub-packet |
@@ -496,10 +510,10 @@ reads subId u32be @3, switches:
 | 0x14 | `OutlandsVendorMobileData` @ 0x1401a0d00 | see below |
 | 0x15 | `ItemNameRequestManager.HandleResponse` @ 0x140143900 (CUO); `Assistant…OutlandsItemNameResponse` @ 0x140064f20 | see below |
 | 0x16 | `OutlandsMobileData` @ 0x1401a0980 | see below |
-| 0x17 | `HandleScreenShake` @ 0x1401a08e0 | screen-shake params |
+| 0x17 | `HandleScreenShake` @ 0x1401a08e0 | u8 intensity/type, u16be duration → `ScreenShake(u8, u16)` |
 | 0x18 | `AnimatedItemMovement` @ 0x1401a06a0 | item movement anim |
 | 0x1A | `HandleQuestArrow` @ 0x1401a0160 | quest arrow |
-| 0x1B | `HandleWorldGumpAnchor` @ 0x14019fdd0 | world-gump anchor |
+| 0x1B | `HandleWorldGumpAnchor` @ 0x14019fdd0 | u8 (must be 0 else ignored), u32be, u32be, i8, u32be, … (anchor record; only partially consumed in decompilation) |
 | 0x1C | `HandleLightState` @ 0x14019f920 | light state |
 | 0x1D | inline | u32be → global dword DAT_143f7b76c (flag; semantics unknown) |
 | 0xDEAD | `OutlandsCorpseFlags` @ 0x14019a440 | see below |
@@ -508,6 +522,20 @@ reads subId u32be @3, switches:
 Assistant dispatcher: `Assistant.PacketHandlers.OutlandsServerPacket` @ 0x140064eb0 —
 reads the same u32be subId, handles only 0x13 / 0x14 / 0x15 (vendor + name data for
 Razor's own item/mobile model).
+
+#### C2S dialect subs (confirmed, session_20260928_164548)
+
+| SubId | Meaning | Payload | Evidence |
+|-------|---------|---------|----------|
+| 3 | TimeSyncReq keepalive | empty (frame len 7) | 251× at ~1/s: `ff 0007 00000003`; sender `Send_TimeSyncPingReq` writes sub 3 |
+| 4 | Cast spell | u8 flag (0 observed), u16be spellId (frame len 10) | `ff 000a 00000004 00 000f`; Assistant C2S viewer `OutlandsClientPacket` @ 0x1400602f0 reads sub==4 → u8 (must be 0), u16be spellId → spell-name lookup |
+| 9 | Item/object detail query | u8 0x01, u16be 0x0001, u32be serial (frame len 14) | `ff 000e 00000009 01 0001 40000d54`; fires on every vendor-item dclick/hover; the serial is item-range (≥0x40000000) |
+
+Also observed at session start: C2S `f0 0004 ff` (one 4-byte 0xF0 frame — plausibly the
+legacy Razor/RunUO 0xF0 negotiation carrying the dialect marker 0xFF; single sample,
+labeled **decomp-candidate**). And C2S `bf …` extended commands subs 0x0C / 0x13 / 0x15
+carrying entity serials (`bf 0009 000c <serial u32be>` etc.) fire alongside 0x09/0x34/
+0x98 queries — CUO's standard-channel entity-info requests.
 
 #### Sub 0x13 OutlandsVendorItemData (vendor item flags/prices)
 Both parsers agree. Payload:
@@ -533,8 +561,10 @@ CUO: serial → mobile; stores flags/value on the mobile.
 
 #### Sub 0x15 OutlandsItemNameResponse (item-name query results)
 `Assistant.PacketHandlers.OutlandsItemNameResponse` @ 0x140064f20 (CUO twin:
-`ItemNameRequestManager.HandleResponse`). Answers the C2S entity queries
-(`09`/`34`/`98` id+serial requests noted in docs/PROTOCOL.md).
+`ItemNameRequestManager.HandleResponse` @ 0x140143900). Answer path for the client's
+entity-info queries — the legacy `09`/`34`/`98` id+serial requests and the dialect C2S
+sub-9 detail query (`ff 000e 00000009 01 0001 <serial>`) all fired together on vendor
+hovers in session_20260928_164548.
 
 | Off | Size | Type | Field | Confidence |
 |-----|------|------|-------|------------|
@@ -615,38 +645,93 @@ Frame: `BF <len u16be> <subId u16be> …`. Sub-ids handled by the Assistant view
 | 0x18 | i32be count, then 2×count × i32be | map patch list | upstream |
 | 0x19 | u8 sub: **0** → u32be serial, u8 bool (Outlands-added: sets flag +0x50 on mobile); **2** → u32be serial, u8 pad, u8 stat-locks (bits 4-5 Str, 2-3 Dex, 0-1 Int) | stat locks + custom flag | upstream + decomp |
 
-### OutlandsClientPacket (C2S custom; reference only)
+### OutlandsClientPacket (C2S dialect viewer)
 `Assistant.PacketHandlers.OutlandsClientPacket` @ 0x1400602f0 views the client's own
-outbound custom packet: u32be sub-id @1, u8 @5, u16be @6. Not S2C; listed for
-symmetry with the 0xF0 dialect.
+outbound 0xFF dialect frames: reads subId u32be; only sub 4 is handled — u8 flag (must
+be 0), u16be spellId, spell-name lookup for Razor's casting display. Matches the
+captured C2S sub-4 frames byte-for-byte (see C2S subsection above).
+
+---
+
+## 6. The 0x00-family world-state stream (empirical)
+
+Wire evidence from session_20260928_164548 (Huffman-decoded s2c stream, framed with the
+authoritative length table; the jsonl side-log truncates packet hex at 64 B and
+mis-frames some embedded records — trust the raw-stream framing):
+
+| ID | Length | Observed | Role |
+|----|--------|----------|------|
+| 0x00 | fixed 106 (EXTRA table, wire-proven) | 18× in ~50 s, ~1/s | periodic world-state sync stream |
+| 0x40 | fixed 201 (base table) | 1× | world-data batch (same record stream) |
+| 0x3F | variable (absent from table) | 1×, len 13155 | large world-data dump (initial load) |
+| 0x52 | variable (absent from table) | 1×, len 30627 | large world-data dump (initial load) |
+
+Evidence that all four carry the **same sub-record stream**: the byte run
+`0f 52 40 33 4c 00 31 c7 61 82 00 18` appears verbatim both at the head of the 0x3F
+payload and inside a 106-byte 0x00 frame; the 201-byte 0x40 frame's payload similarly
+consists of the record motifs below. 0x00 frames chop a continuous record stream —
+records recur across frames with overlapping content (incremental updates).
+
+Recurring sub-record motifs (confidence: **unknown**, pattern-observed; the parser is
+not in the decompiled selection — see Open Questions):
+
+| Motif (hex) | Len | Notes |
+|-------------|-----|-------|
+| `72 40 00 00 ac` | 5 | recurs verbatim across frames (also mis-framed as top-level 0x72 by the jsonl logger) |
+| `90 00 33 00 dc 00 1b 85 00 dc 00 68 00 00` | 16 | recurs verbatim (jsonl mis-framed it as a 19-B "0x90" packet by swallowing the next record's head) |
+| `d4 00 00 83` | 4 | follows the 0x90-motif |
+| `31 00 0f 02 32 17 ca 0e 00 62 00 00 1e 00 83` | 15 | recurs verbatim |
+| `31 c7 01 1c …` / `31 c7 61 82 00 18` | ~10 | carries mobile-range serials 0x31C7011C / 0x31C76182 |
+| `00 50 01 ed 1f 55 …` / `00 50 85 00 c7 28 0a 09 00 23 00` | ~11–12 | record family with varying tails |
+| `00 40 00 6e 6e c9 00 0f 06 00` | 10 | recurs verbatim |
+
+Framing notes validated on this session:
+- 0x5C is **fixed 2** here (`5c 00` followed by a cleanly-framed 0x52 dump; treating
+  0x5C as variable desyncs immediately). This contradicts an earlier pipeline note that
+  needed `EXTRA[0x5C] = -1` — the base table's 0x5C=2 is what frames this session.
+- Genuine S2C top-level ids in the session: 0x82, 0xF6 (BoatMoving, 119 B), 0x02,
+  0x5C, 0x52, 0xBE (AssistVersion, 5 B and 10 B), 0x6A, 0x77 (**18 B** — matches the
+  Outlands-extended base-table length, not upstream 15), 0x29, 0x40, 0xDC (9 B),
+  0x00, 0x32, 0xCA (6 B), 0x1E, 0x72, 0x01. The jsonl's standalone 0x90/0x31/0x72(17 B)
+  entries are mis-frames of 0x00-family record content.
+- Validated v1 layouts against capture: 0x1D DeleteObject `1d 07720024` (serial u32be
+  ✓, 5 B); C2S 0x02 movement unchanged (dir/seq/key: `02 86 00 00000008` — dir 0x86 =
+  dir 6 | running 0x80, seq increments); C2S 0x6C target response stays 19 B standard
+  (observed `6c 00 00052cb9 01 00094375 0000 077c 00 0a24` = type 0, cursorID
+  0x00052CB9, cursorType 1, clicked serial 0x00094375, x 0, y 0x077C, z 0, graphic
+  0x0A24) — the S2C-only extension of 0x6C to 27 B does not affect C2S.
 
 ---
 
 ## Open Questions
 
-1. **0xF0 registration proof** — the OutlandsProtocol/OutlandsServerPacket → 0xF0
-   assignment is inferred (upstream Razor 0xF0 extension slot, capture evidence,
-   variable-length table hole). `RunUOProtocolExtention` @ 0x140066380 is still in the
-   binary; if it remains registered for 0xF0, the Outlands dialect rides a different id
-   (0x86 from captures is a candidate). Resolve by decompiling the Assistant/CUO
-   handler-registration cctor (not present in protocol_handlers.c) or by matching a
-   live 0xF0 frame against the sub-0 handshake layout.
-2. **0x6C TargetCursor +8 tail** (offsets 19–26) — never read by the client; purpose
+1. **0x00/0x40/0x3F/0x52 world-data record grammar + parser location** — the sub-record
+   stream above is empirical only. No handler for id 0x00 (or 0x40/0x3F/0x52) appears
+   in the decompiled selection (`protocol_handlers.c` covers PacketHandlers/NetClient/
+   NetClientExt only), and no candidate name exists in the method metadata map; the
+   parser is presumably a CUO handler outside the selected set. Next step: Ghidra-decompile
+   the function registered in the CUO handler table slot for 0x00 (registration cctor),
+   or xref-scan for a reader loop over 106-byte buffers.
+2. **CUO-side 0xFF registration** — content-matched (sub-0 prelude ↔ `OutlandsProtocol`
+   case 0 ↔ `BuildPacketTable(12)` ↔ observed wire lengths) but the handler-table cctor
+   is not decompiled; formal proof outstanding. No competing 0xFF handler exists in the
+   binary (`RunUOProtocolExtention` is the upstream 0xF0 handler and is unreferenced by
+   any capture).
+3. **0x6C TargetCursor +8 tail** (offsets 19–26) — never read by the client; purpose
    unknown (possibly targeting metadata for the CUO fork's target indicators).
-3. **0x24 OpenContainer bytes 9–10** — unread; upstream 9-byte variant had a u16 there;
-   Outlands V10 widened gumpId over bytes 5–8 leaving 9–10 unexplained.
-4. **0x25/0x3C V12 u32 tail field** — skipped by CUO, read as i32 by Razor's container
+4. **0x24 OpenContainer bytes 9–10** — unread; Outlands V10 widened gumpId over bytes
+   5–8 leaving 9–10 unexplained.
+5. **0x25/0x3C V12 u32 tail field** — skipped by CUO, read as i32 by Razor's container
    filters (feeds an item "extra data" slot); semantics unknown (price? quality?).
-5. **0xF3 byte 13–14 pair** — V11 introduced a 1-byte field passed to the item builder
+6. **0xF3 byte 13–14 pair** — V11 introduced a 1-byte field passed to the item builder
    plus one skipped byte; meaning unknown.
-6. **0xBF CUO ExtendedCommand sub-table** (@ 0x140194bc0, 7 kB) not extracted here;
-   the Assistant 0xBF viewer table above covers the overlapping cases only.
-7. **0x00 106-byte world-data family** (EXTRA table, wire-proven) — no handler for it
-   appears in the decompiled priority set; its parser was not identified.
-8. **Protocol-version field** (`DAT_143f8bf90+8 → +0x68`) — written only by the 0xF0
-   sub-0 handshake; live value (≥12) inferred from wire lengths, not yet observed
-   directly.
-9. **Sub-0x19/0 (0xBF) mobile flag +0x50** and **0xF0-sub-0x1D global dword** — set but
+7. **0xBF CUO ExtendedCommand sub-table** (@ 0x140194bc0, 7 kB) not extracted; the
+   Assistant 0xBF viewer table covers the overlapping cases only. Session shows C2S
+   0xBF subs 0x0C/0x13/0x15 carrying entity serials (entity-info queries).
+8. **S2C dialect sub 4 payload** (`SpellCastManager.OnPacketResponse` @ 0x140306390)
+   and the **PartyManager sub-parsers** (0xFF subs 10–0x0E) — not in the decompiled
+   selection.
+9. **Sub-0x19/0 (0xBF) mobile flag +0x50** and **0xFF-sub-0x1D global dword** — set but
    consumers not traced.
 10. **Assistant readers' exact start offsets** are assumed to follow the
     fixed=1 / variable=3 convention (upstream `MoveToData`); only read sequences, not
