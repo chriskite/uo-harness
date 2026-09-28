@@ -21,6 +21,8 @@ EXTRA: dict[int, int] = {
     0x00: 106,  # recurring world-data record family (clean-run proven on two streams)
     0x6F: 76,   # repeat-spacing evidence (270->346) + clean continuation
     0x9E: 65,   # continuation-validated (lands on 0x00-family + valid var-len packets)
+    0xDC: 15,   # wire-proven 15 (tier-dict overrides static table's 9; session 164548
+                # frames 45515/46227 with it, desyncs at 31216 with the table value)
 }
 
 
