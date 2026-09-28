@@ -1,0 +1,73 @@
+# uo-harness
+
+An AI agent harness that plays **Ultima Online Outlands** — targeting the **Test Shard only**.
+
+Current status: **research complete, build not started.** The anti-cheat/automation-detection investigation is finished and written up in [`ANTICHEAT.md`](ANTICHEAT.md); read it first — it defines the safety constraints every design decision follows.
+
+## Architecture (decided)
+
+```mermaid
+flowchart LR
+  subgraph Client
+    CUO[Outlands ClassicUO.exe<br/>stock, untouched]
+  end
+  subgraph Harness[Agent Harness - Python]
+    PX[Relay-only TCP proxy<br/>localhost:2593 + Huffman codec]
+    WM[World model<br/>entities / gumps / journal / stats]
+    AG[Agent runtime<br/>LLM planner + skills]
+  end
+  CUO <-->|UO protocol| PX
+  PX <-->|forward, byte-identical| SRV[play.uooutlands.com:2593<br/>Test Shard]
+  PX --> WM --> AG
+  AG -->|action packets| PX
+```
+
+- **Relay-only localhost proxy** between the stock client and the game server. No injection, no client modification, no synthetic OS input. Server sees byte-identical client traffic.
+- Client is pointed at the proxy via `ClassicUO/settings.json` (`ip`/`port` fields are plain text, editable).
+- Protocol ground truth: upstream ClassicUO source (`ClassicUO-main/` locally, not committed; fetch via codeload — see below).
+- See [`docs/PLAN.md`](docs/PLAN.md) for phases and rejected alternatives, [`docs/NOTES.md`](docs/NOTES.md) for the operational knowledge base.
+
+## Hard facts (verified 2026-09-27)
+
+| Fact | Value |
+|---|---|
+| Client | `ClassicUO.exe` STANDARD_BUILD **1.0.2.544**, NativeAOT native binary (no IL, no injection surface) |
+| Launcher | `Outlands.exe` — patcher + OutlandsID login UI, elevates (UAC), `-installed` arg |
+| Install dir | `C:\Program Files (x86)\Ultima Online Outlands` — **never write into it** |
+| Game server | `play.uooutlands.com:2593` (session observed at 74.91.115.123:2593) |
+| Auth | `https://login.uooutlands.com` (Cloudflare), JWT with `uooutlands.com/identity/claims/*` |
+| Runtime net surface | exactly 2 connections: short HTTPS auth + persistent game TCP. No telemetry/beacons |
+| Test account | shard "Test Server", character `TestWorth` (settings.json) |
+| Assistant | Razor CE fork compiled into client; scripts dir `ClassicUO/Data/Plugins/Assistant/Scripts/` |
+
+## Safety doctrine (summary — full version in ANTICHEAT.md §8)
+
+1. Never touch the client process or files. 2. Proxy relays only; `Send_TimeSyncPingReq` and timing-sensitive packets pass through unaltered. 3. Test Shard only, human pacing with jitter, human-length sessions. 4. Honor Razor-gating signals (halt when server restricts assistants). 5. No DeviceId/TPM/2FA spoofing; log in via official launcher. 6. No writes to the install dir. 7. Nothing against production. 8. CAPTCHAs: detect → pause → human solves; auto-solve only as proven opt-in.
+
+## Repo layout
+
+| Path | Content |
+|---|---|
+| `ANTICHEAT.md` | Anti-cheat/automation-detection research report (the core document) |
+| `docs/PLAN.md` | Build plan: phases, deliverables, rejected alternatives |
+| `docs/NOTES.md` | Operational knowledge base (environment, gotchas, protocol nuggets) |
+| `extract_strings.py` | ASCII+UTF-16 string extractor for native binaries |
+| `scan_ac.py` | Categorized anti-cheat string scanner + context dumper |
+| `scan_endpoints.py` | Network endpoint extractor (URLs/hosts/paths) |
+| `scan_launcher.py` | Launcher fingerprint + API surface extractor |
+| `ghidra_scripts/ACXrefs.java` | Ghidra headless xref script for flagged strings |
+| `monitor_endpoints.ps1` | Per-process TCP endpoint monitor (behavioral capture) |
+| `launch_game.ps1` | Game launcher helper (handles elevation) |
+| `api_surface.txt`, `endpoints.txt`, `grep_hits.txt`, `launcher_hits.txt`, `behavioral_endpoints.csv` | Evidence artifacts |
+
+## Not committed (regenerable / third-party)
+
+- `ClassicUO.exe` copy, `strings.txt`, `launcher_strings.txt` — regenerate with `extract_strings.py`
+- `ghidra/` — Ghidra project (re-run headless import; see NOTES.md for invocation gotchas)
+- `ClassicUO-main/`, `Razor-master/` — upstream source trees:
+  - `curl -sL https://codeload.github.com/ClassicUO/ClassicUO/tar.gz/refs/heads/main | tar xz`
+  - `curl -sL https://codeload.github.com/markdwags/Razor/tar.gz/refs/heads/master | tar xz`
+
+## Toolchain (this machine)
+
+Python `C:\Users\chris\AppData\Local\Programs\Python\Python313\python.exe` · Git `C:\Program Files\Git\cmd` · Ghidra `C:\Users\chris\ghidra_12.1.4_PUBLIC` · Java 25 (Temurin) · Wireshark `C:\Program Files\Wireshark` · git push via SSH host alias `github.com-uoharness` (deploy key `~/.ssh/uo_harness_deploy`)
