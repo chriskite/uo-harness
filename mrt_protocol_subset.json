@@ -1,0 +1,3705 @@
+{
+"imageBase": 5368709120,
+"methods": {
+"<BuffDebuff>b__107_0": [
+{
+"type": "ClassicUO.Network.PacketHandlers+<>c",
+"rva": 3747248,
+"va": "0x140392db0",
+"eeTypeRva": 52835584,
+"mdOffset": 2477889,
+"invokeFlags": 32
+}
+],
+"<BuffDebuff>b__107_1": [
+{
+"type": "ClassicUO.Network.PacketHandlers+<>c",
+"rva": 3747264,
+"va": "0x140392dc0",
+"eeTypeRva": 52835584,
+"mdOffset": 2477906,
+"invokeFlags": 32
+}
+],
+"<BuyList>b__60_0": [
+{
+"type": "ClassicUO.Network.PacketHandlers+<>c",
+"rva": 3747232,
+"va": "0x140392da0",
+"eeTypeRva": 52835584,
+"mdOffset": 2477869,
+"invokeFlags": 32
+}
+],
+"<CharacterStatus>b__18_0": [
+{
+"type": "ClassicUO.Network.PacketHandlers+<>c",
+"rva": 3747152,
+"va": "0x140392d50",
+"eeTypeRva": 52835584,
+"mdOffset": 2477832,
+"invokeFlags": 32
+}
+],
+"<ClientTextCommand>b__0": [
+{
+"type": "Assistant.PacketHandlers+<>c__DisplayClass10_0",
+"rva": 3704048,
+"va": "0x1403884f0",
+"eeTypeRva": 52821384,
+"mdOffset": 1141514,
+"invokeFlags": 32
+}
+],
+"<ContainerContent>b__0": [
+{
+"type": "Assistant.PacketHandlers+<>c__DisplayClass24_0",
+"rva": 3704144,
+"va": "0x140388550",
+"eeTypeRva": 52821624,
+"mdOffset": 1141664,
+"invokeFlags": 32
+}
+],
+"<ContainerContentUpdate>b__0": [
+{
+"type": "Assistant.PacketHandlers+<>c__DisplayClass22_0",
+"rva": 3704112,
+"va": "0x140388530",
+"eeTypeRva": 52821544,
+"mdOffset": 1141614,
+"invokeFlags": 32
+}
+],
+"<DropRequest>b__0": [
+{
+"type": "Assistant.PacketHandlers+<>c__DisplayClass20_0",
+"rva": 3704080,
+"va": "0x140388510",
+"eeTypeRva": 52821464,
+"mdOffset": 1141564,
+"invokeFlags": 32
+}
+],
+"<HandleQuestArrowClearAll>b__137_0": [
+{
+"type": "ClassicUO.Network.PacketHandlers+<>c",
+"rva": 3747280,
+"va": "0x140392dd0",
+"eeTypeRva": 52835584,
+"mdOffset": 2477923,
+"invokeFlags": 32
+}
+],
+"<LoginConfirm>b__28_0": [
+{
+"type": "Assistant.PacketHandlers+<>c",
+"rva": 3703984,
+"va": "0x1403884b0",
+"eeTypeRva": 52821328,
+"mdOffset": 1141394,
+"invokeFlags": 32
+}
+],
+"<MobileStatus>b__38_0": [
+{
+"type": "Assistant.PacketHandlers+<>c",
+"rva": 3704000,
+"va": "0x1403884c0",
+"eeTypeRva": 52821328,
+"mdOffset": 1141410,
+"invokeFlags": 32
+}
+],
+"<ResolveIP>b__76_0": [
+{
+"type": "ClassicUO.Network.NetClient+<>c",
+"rva": 3745280,
+"va": "0x140392600",
+"eeTypeRva": 52835040,
+"mdOffset": 2471051,
+"invokeFlags": 32
+}
+],
+"<Send_CreateCharacter>b__6_0": [
+{
+"type": "ClassicUO.Network.NetClientExt+<>c",
+"rva": 3747056,
+"va": "0x140392cf0",
+"eeTypeRva": 52835232,
+"mdOffset": 2473699,
+"invokeFlags": 32
+}
+],
+"<Send_ToPlugins_AllSpells>g__writeDef|92_0": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1587424,
+"va": "0x1401838e0",
+"eeTypeRva": 52705336,
+"mdOffset": 936034,
+"invokeFlags": 32
+}
+],
+"<SetSkillLock>b__0": [
+{
+"type": "Assistant.PacketHandlers+<>c__DisplayClass26_0",
+"rva": 3704176,
+"va": "0x140388570",
+"eeTypeRva": 52821704,
+"mdOffset": 1141703,
+"invokeFlags": 32
+}
+],
+"<Skills>b__2": [
+{
+"type": "Assistant.PacketHandlers+<>c__DisplayClass27_0",
+"rva": 3704224,
+"va": "0x1403885a0",
+"eeTypeRva": 52821784,
+"mdOffset": 1141753,
+"invokeFlags": 32
+}
+],
+"<Skills>b__27_0": [
+{
+"type": "Assistant.PacketHandlers+<>c",
+"rva": 3703952,
+"va": "0x140388490",
+"eeTypeRva": 52821328,
+"mdOffset": 1141362,
+"invokeFlags": 32
+}
+],
+"<Skills>b__27_1": [
+{
+"type": "Assistant.PacketHandlers+<>c",
+"rva": 3703968,
+"va": "0x1403884a0",
+"eeTypeRva": 52821328,
+"mdOffset": 1141378,
+"invokeFlags": 32
+}
+],
+"<Skills>b__3": [
+{
+"type": "Assistant.PacketHandlers+<>c__DisplayClass27_1",
+"rva": 3704272,
+"va": "0x1403885d0",
+"eeTypeRva": 52821864,
+"mdOffset": 1141791,
+"invokeFlags": 32
+}
+],
+"<UpdateSkills>b__40_0": [
+{
+"type": "ClassicUO.Network.PacketHandlers+<>c",
+"rva": 3747200,
+"va": "0x140392d80",
+"eeTypeRva": 52835584,
+"mdOffset": 2477849,
+"invokeFlags": 32
+}
+],
+"<get_Party>b__64_0": [
+{
+"type": "Assistant.PacketHandlers+<>c",
+"rva": 3704016,
+"va": "0x1403884d0",
+"eeTypeRva": 52821328,
+"mdOffset": 1141426,
+"invokeFlags": 32
+}
+],
+"ASCIIPrompt": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1650112,
+"va": "0x140192dc0",
+"eeTypeRva": 52705416,
+"mdOffset": 937398,
+"invokeFlags": 32
+}
+],
+"Add": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1590384,
+"va": "0x140184470",
+"eeTypeRva": 52705416,
+"mdOffset": 936307,
+"invokeFlags": 32
+}
+],
+"AddItemToContainer": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1684064,
+"va": "0x14019b260",
+"eeTypeRva": 52705416,
+"mdOffset": 938179,
+"invokeFlags": 32
+}
+],
+"AddMegaClilocRequest": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1596928,
+"va": "0x140185e00",
+"eeTypeRva": 52705416,
+"mdOffset": 936376,
+"invokeFlags": 32
+}
+],
+"AnalyzePacket": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1590480,
+"va": "0x1401844d0",
+"eeTypeRva": 52705416,
+"mdOffset": 936341,
+"invokeFlags": 32
+}
+],
+"AnimatedItemMovement": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1705632,
+"va": "0x1401a06a0",
+"eeTypeRva": 52705416,
+"mdOffset": 938580,
+"invokeFlags": 32
+}
+],
+"ApplyTrans": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1700480,
+"va": "0x14019f280",
+"eeTypeRva": 52705416,
+"mdOffset": 938392,
+"invokeFlags": 32
+}
+],
+"AsciiSpeech": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 414144,
+"va": "0x1400651c0",
+"eeTypeRva": 52652048,
+"mdOffset": 359973,
+"invokeFlags": 32
+}
+],
+"AttackCharacter": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1652912,
+"va": "0x1401938b0",
+"eeTypeRva": 52705416,
+"mdOffset": 937517,
+"invokeFlags": 32
+}
+],
+"AttackRequest": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 425440,
+"va": "0x140067de0",
+"eeTypeRva": 52652048,
+"mdOffset": 360411,
+"invokeFlags": 32
+}
+],
+"BeginContainerContent": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 398480,
+"va": "0x140061490",
+"eeTypeRva": 52652048,
+"mdOffset": 359514,
+"invokeFlags": 32
+}
+],
+"BeginInvoke": [
+{
+"type": "ClassicUO.Network.PacketHandlers+OnPacketBufferReader",
+"rva": 3747104,
+"va": "0x140392d20",
+"eeTypeRva": 52835312,
+"mdOffset": 2477629,
+"invokeFlags": 32
+}
+],
+"BoatMoving": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1678912,
+"va": "0x140199e40",
+"eeTypeRva": 52705416,
+"mdOffset": 938060,
+"invokeFlags": 32
+}
+],
+"BookData": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1625184,
+"va": "0x14018cc60",
+"eeTypeRva": 52705416,
+"mdOffset": 937013,
+"invokeFlags": 32
+}
+],
+"BuffDebuff": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1670496,
+"va": "0x140197d60",
+"eeTypeRva": 52705416,
+"mdOffset": 937941,
+"invokeFlags": 32
+}
+],
+"BuildPacketTable": [
+{
+"type": "ClassicUO.Network.PacketsTable",
+"rva": 1708352,
+"va": "0x1401a1140",
+"eeTypeRva": 52705472,
+"mdOffset": 938741,
+"invokeFlags": 32
+}
+],
+"BulletinBoardData": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1633920,
+"va": "0x14018ee80",
+"eeTypeRva": 52705416,
+"mdOffset": 937115,
+"invokeFlags": 32
+}
+],
+"BuyList": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1636352,
+"va": "0x14018f800",
+"eeTypeRva": 52705416,
+"mdOffset": 937148,
+"invokeFlags": 32
+}
+],
+"CalculateMinimumElementCoordinates": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1700192,
+"va": "0x14019f160",
+"eeTypeRva": 52705416,
+"mdOffset": 938374,
+"invokeFlags": 32
+}
+],
+"CharacterAnimation": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1625936,
+"va": "0x14018cf50",
+"eeTypeRva": 52705416,
+"mdOffset": 937030,
+"invokeFlags": 32
+}
+],
+"CharacterProfile": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1656304,
+"va": "0x1401945f0",
+"eeTypeRva": 52705416,
+"mdOffset": 937619,
+"invokeFlags": 32
+}
+],
+"CharacterStatus": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1598752,
+"va": "0x140186520",
+"eeTypeRva": 52705416,
+"mdOffset": 936460,
+"invokeFlags": 32
+}
+],
+"CharacterTransferLog": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1668320,
+"va": "0x1401974e0",
+"eeTypeRva": 52705416,
+"mdOffset": 937874,
+"invokeFlags": 32
+}
+],
+"ClearContainerAndRemoveItems": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1686816,
+"va": "0x14019bd20",
+"eeTypeRva": 52705416,
+"mdOffset": 938311,
+"invokeFlags": 32
+}
+],
+"ClientDoubleClick": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 389504,
+"va": "0x14005f180",
+"eeTypeRva": 52652048,
+"mdOffset": 359226,
+"invokeFlags": 32
+}
+],
+"ClientEncodedPacket": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 419680,
+"va": "0x140066760",
+"eeTypeRva": 52652048,
+"mdOffset": 360195,
+"invokeFlags": 32
+}
+],
+"ClientGumpResponse": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 416416,
+"va": "0x140065aa0",
+"eeTypeRva": 52652048,
+"mdOffset": 360081,
+"invokeFlags": 32
+}
+],
+"ClientSingleClick": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 389360,
+"va": "0x14005f0f0",
+"eeTypeRva": 52652048,
+"mdOffset": 359208,
+"invokeFlags": 32
+}
+],
+"ClientTalk": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1598352,
+"va": "0x140186390",
+"eeTypeRva": 52705416,
+"mdOffset": 936426,
+"invokeFlags": 32
+}
+],
+"ClientTextCommand": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 392512,
+"va": "0x14005fd40",
+"eeTypeRva": 52652048,
+"mdOffset": 359298,
+"invokeFlags": 32
+}
+],
+"ClientViewRange": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1633792,
+"va": "0x14018ee00",
+"eeTypeRva": 52705416,
+"mdOffset": 937098,
+"invokeFlags": 32
+}
+],
+"CloseVendorInterface": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1622736,
+"va": "0x14018c2d0",
+"eeTypeRva": 52705416,
+"mdOffset": 936864,
+"invokeFlags": 32
+}
+],
+"CompleteLogin": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 404016,
+"va": "0x140062a30",
+"eeTypeRva": 52652048,
+"mdOffset": 359622,
+"invokeFlags": 32
+}
+],
+"Complete_Minigame": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1564608,
+"va": "0x14017dfc0",
+"eeTypeRva": 52705336,
+"mdOffset": 935758,
+"invokeFlags": 32
+}
+],
+"CompressedGump": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 422304,
+"va": "0x1400671a0",
+"eeTypeRva": 52652048,
+"mdOffset": 360339,
+"invokeFlags": 32
+}
+],
+"ConfigurationFileR": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1666336,
+"va": "0x140196d20",
+"eeTypeRva": 52705416,
+"mdOffset": 937823,
+"invokeFlags": 32
+}
+],
+"ConfirmWalk": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 390864,
+"va": "0x14005f6d0",
+"eeTypeRva": 52652048,
+"mdOffset": 359262,
+"invokeFlags": 32
+},
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1610976,
+"va": "0x1401894e0",
+"eeTypeRva": 52705416,
+"mdOffset": 936628,
+"invokeFlags": 32
+}
+],
+"Connect": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1327824,
+"va": "0x1401442d0",
+"eeTypeRva": 52705200,
+"mdOffset": 931490,
+"invokeFlags": 32
+},
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1327920,
+"va": "0x140144330",
+"eeTypeRva": 52705200,
+"mdOffset": 931516,
+"invokeFlags": 32
+}
+],
+"ContainerContent": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 398752,
+"va": "0x1400615a0",
+"eeTypeRva": 52652048,
+"mdOffset": 359532,
+"invokeFlags": 32
+}
+],
+"ContainerContentUpdate": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 397536,
+"va": "0x1400610e0",
+"eeTypeRva": 52652048,
+"mdOffset": 359496,
+"invokeFlags": 32
+}
+],
+"CorpseEquipment": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1645056,
+"va": "0x140191a00",
+"eeTypeRva": 52705416,
+"mdOffset": 937279,
+"invokeFlags": 32
+}
+],
+"CreateCharacter": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 394256,
+"va": "0x140060410",
+"eeTypeRva": 52652048,
+"mdOffset": 359334,
+"invokeFlags": 32
+}
+],
+"CreateGameScene": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1605280,
+"va": "0x140187ea0",
+"eeTypeRva": 52705416,
+"mdOffset": 936528,
+"invokeFlags": 32
+}
+],
+"CreateGump": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1687008,
+"va": "0x14019bde0",
+"eeTypeRva": 52705416,
+"mdOffset": 938333,
+"invokeFlags": 32
+}
+],
+"Damage": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1598432,
+"va": "0x1401863e0",
+"eeTypeRva": 52705416,
+"mdOffset": 936443,
+"invokeFlags": 32
+}
+],
+"DeathAnimation": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 390512,
+"va": "0x14005f570",
+"eeTypeRva": 52652048,
+"mdOffset": 359244,
+"invokeFlags": 32
+}
+],
+"DeathScreen": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1617168,
+"va": "0x14018ad10",
+"eeTypeRva": 52705416,
+"mdOffset": 936746,
+"invokeFlags": 32
+}
+],
+"DecompressBuffer": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1334176,
+"va": "0x140145ba0",
+"eeTypeRva": 52705200,
+"mdOffset": 931770,
+"invokeFlags": 32
+}
+],
+"DeleteObject": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1606880,
+"va": "0x1401884e0",
+"eeTypeRva": 52705416,
+"mdOffset": 936562,
+"invokeFlags": 32
+}
+],
+"DenyMoveItem": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1615712,
+"va": "0x14018a760",
+"eeTypeRva": 52705416,
+"mdOffset": 936695,
+"invokeFlags": 32
+}
+],
+"DenyWalk": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1610240,
+"va": "0x140189200",
+"eeTypeRva": 52705416,
+"mdOffset": 936611,
+"invokeFlags": 32
+}
+],
+"Disconnect": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1328080,
+"va": "0x1401443d0",
+"eeTypeRva": 52705200,
+"mdOffset": 931568,
+"invokeFlags": 32
+}
+],
+"DisplayClilocString": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1664864,
+"va": "0x140196760",
+"eeTypeRva": 52705416,
+"mdOffset": 937721,
+"invokeFlags": 32
+}
+],
+"DisplayDeath": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1654560,
+"va": "0x140193f20",
+"eeTypeRva": 52705416,
+"mdOffset": 937568,
+"invokeFlags": 32
+}
+],
+"DisplayMap": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1645504,
+"va": "0x140191bc0",
+"eeTypeRva": 52705416,
+"mdOffset": 937296,
+"invokeFlags": 32
+}
+],
+"DisplayQuestArrow": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1656864,
+"va": "0x140194820",
+"eeTypeRva": 52705416,
+"mdOffset": 937653,
+"invokeFlags": 32
+}
+],
+"DisplayWaypoint": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1675696,
+"va": "0x1401991b0",
+"eeTypeRva": 52705416,
+"mdOffset": 937975,
+"invokeFlags": 32
+}
+],
+"DragAnimation": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1611232,
+"va": "0x1401895e0",
+"eeTypeRva": 52705416,
+"mdOffset": 936644,
+"invokeFlags": 32
+}
+],
+"DropItemAccepted": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1617056,
+"va": "0x14018aca0",
+"eeTypeRva": 52705416,
+"mdOffset": 936729,
+"invokeFlags": 32
+}
+],
+"DropRequest": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 396384,
+"va": "0x140060c60",
+"eeTypeRva": 52652048,
+"mdOffset": 359460,
+"invokeFlags": 32
+}
+],
+"DyeData": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1648272,
+"va": "0x140192690",
+"eeTypeRva": 52705416,
+"mdOffset": 937330,
+"invokeFlags": 32
+}
+],
+"EnableCompression": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1329888,
+"va": "0x140144ae0",
+"eeTypeRva": 52705200,
+"mdOffset": 931598,
+"invokeFlags": 32
+}
+],
+"EnableLockedFeatures": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1656720,
+"va": "0x140194790",
+"eeTypeRva": 52705416,
+"mdOffset": 937636,
+"invokeFlags": 32
+}
+],
+"EndDraggingItem": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1616960,
+"va": "0x14018ac40",
+"eeTypeRva": 52705416,
+"mdOffset": 936712,
+"invokeFlags": 32
+}
+],
+"EndInvoke": [
+{
+"type": "ClassicUO.Network.PacketHandlers+OnPacketBufferReader",
+"rva": 3747120,
+"va": "0x140392d30",
+"eeTypeRva": 52835312,
+"mdOffset": 2477651,
+"invokeFlags": 32
+}
+],
+"EnqueuePacketFromPlugin": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1327648,
+"va": "0x140144220",
+"eeTypeRva": 52705200,
+"mdOffset": 931470,
+"invokeFlags": 32
+}
+],
+"EquipItem": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1618096,
+"va": "0x14018b0b0",
+"eeTypeRva": 52705416,
+"mdOffset": 936779,
+"invokeFlags": 32
+}
+],
+"EquipRequest": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 395504,
+"va": "0x1400608f0",
+"eeTypeRva": 52652048,
+"mdOffset": 359442,
+"invokeFlags": 32
+}
+],
+"EquipmentUpdate": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 399808,
+"va": "0x1400619c0",
+"eeTypeRva": 52652048,
+"mdOffset": 359550,
+"invokeFlags": 32
+}
+],
+"ExtendedClientCommand": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 390992,
+"va": "0x14005f750",
+"eeTypeRva": 52652048,
+"mdOffset": 359280,
+"invokeFlags": 32
+}
+],
+"ExtendedCommand": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1657792,
+"va": "0x140194bc0",
+"eeTypeRva": 52705416,
+"mdOffset": 937704,
+"invokeFlags": 32
+}
+],
+"ExtendedPacket": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 417280,
+"va": "0x140065e00",
+"eeTypeRva": 52652048,
+"mdOffset": 360117,
+"invokeFlags": 32
+}
+],
+"ExtractPackets": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1331040,
+"va": "0x140144f60",
+"eeTypeRva": 52705200,
+"mdOffset": 931689,
+"invokeFlags": 32
+}
+],
+"Features": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 422096,
+"va": "0x1400670d0",
+"eeTypeRva": 52652048,
+"mdOffset": 360303,
+"invokeFlags": 32
+}
+],
+"FollowR": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1603680,
+"va": "0x140187860",
+"eeTypeRva": 52705416,
+"mdOffset": 936477,
+"invokeFlags": 32
+}
+],
+"FreeshardListR": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1677376,
+"va": "0x140199840",
+"eeTypeRva": 52705416,
+"mdOffset": 938026,
+"invokeFlags": 32
+}
+],
+"GameLogin": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 420048,
+"va": "0x1400668d0",
+"eeTypeRva": 52652048,
+"mdOffset": 360213,
+"invokeFlags": 32
+}
+],
+"GetPacketInfo": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1331984,
+"va": "0x140145310",
+"eeTypeRva": 52705200,
+"mdOffset": 931702,
+"invokeFlags": 32
+}
+],
+"GetPacketLength": [
+{
+"type": "ClassicUO.Network.PacketsTable",
+"rva": 1708896,
+"va": "0x1401a1360",
+"eeTypeRva": 52705472,
+"mdOffset": 938758,
+"invokeFlags": 32
+},
+{
+"type": "Assistant.PacketsTable",
+"rva": 462096,
+"va": "0x140070d10",
+"eeTypeRva": 52659000,
+"mdOffset": 363757,
+"invokeFlags": 32
+}
+],
+"GetUserServerPingGodClientR": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1666272,
+"va": "0x140196ce0",
+"eeTypeRva": 52705416,
+"mdOffset": 937789,
+"invokeFlags": 32
+}
+],
+"GlobalQueCount": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1666304,
+"va": "0x140196d00",
+"eeTypeRva": 52705416,
+"mdOffset": 937806,
+"invokeFlags": 32
+}
+],
+"HandleAddonTarget": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1683296,
+"va": "0x14019af60",
+"eeTypeRva": 52705416,
+"mdOffset": 938162,
+"invokeFlags": 32
+}
+],
+"HandleLightState": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1702176,
+"va": "0x14019f920",
+"eeTypeRva": 52705416,
+"mdOffset": 938447,
+"invokeFlags": 32
+}
+],
+"HandleNameCheckResponse": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1682992,
+"va": "0x14019ae30",
+"eeTypeRva": 52705416,
+"mdOffset": 938128,
+"invokeFlags": 32
+}
+],
+"HandlePlayerNameChanged": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1683136,
+"va": "0x14019aec0",
+"eeTypeRva": 52705416,
+"mdOffset": 938145,
+"invokeFlags": 32
+}
+],
+"HandleQuestArrow": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1704288,
+"va": "0x1401a0160",
+"eeTypeRva": 52705416,
+"mdOffset": 938516,
+"invokeFlags": 32
+}
+],
+"HandleQuestArrowCancel": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1705200,
+"va": "0x1401a04f0",
+"eeTypeRva": 52705416,
+"mdOffset": 938550,
+"invokeFlags": 32
+}
+],
+"HandleQuestArrowClearAll": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1705376,
+"va": "0x1401a05a0",
+"eeTypeRva": 52705416,
+"mdOffset": 938567,
+"invokeFlags": 32
+}
+],
+"HandleQuestArrowSet": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1704432,
+"va": "0x1401a01f0",
+"eeTypeRva": 52705416,
+"mdOffset": 938533,
+"invokeFlags": 32
+}
+],
+"HandleScreenShake": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1706208,
+"va": "0x1401a08e0",
+"eeTypeRva": 52705416,
+"mdOffset": 938597,
+"invokeFlags": 32
+}
+],
+"HandleWorldGumpAnchor": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1703376,
+"va": "0x14019fdd0",
+"eeTypeRva": 52705416,
+"mdOffset": 938481,
+"invokeFlags": 32
+}
+],
+"Help": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1656272,
+"va": "0x1401945d0",
+"eeTypeRva": 52705416,
+"mdOffset": 937602,
+"invokeFlags": 32
+}
+],
+"HitsUpdate": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 404992,
+"va": "0x140062e00",
+"eeTypeRva": 52652048,
+"mdOffset": 359676,
+"invokeFlags": 32
+}
+],
+"HueResponse": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 421152,
+"va": "0x140066d20",
+"eeTypeRva": 52652048,
+"mdOffset": 360267,
+"invokeFlags": 32
+}
+],
+"InvalidMapEnable": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1666240,
+"va": "0x140196cc0",
+"eeTypeRva": 52705416,
+"mdOffset": 937772,
+"invokeFlags": 32
+}
+],
+"Invoke": [
+{
+"type": "ClassicUO.Network.PacketHandlers+OnPacketBufferReader",
+"rva": 3747088,
+"va": "0x140392d10",
+"eeTypeRva": 52835312,
+"mdOffset": 2477613,
+"invokeFlags": 32
+}
+],
+"IsDynLength": [
+{
+"type": "Assistant.PacketsTable",
+"rva": 462144,
+"va": "0x140070d40",
+"eeTypeRva": 52659000,
+"mdOffset": 363772,
+"invokeFlags": 32
+}
+],
+"LiftReject": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 395456,
+"va": "0x1400608c0",
+"eeTypeRva": 52652048,
+"mdOffset": 359424,
+"invokeFlags": 32
+}
+],
+"LiftRequest": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 394896,
+"va": "0x140060690",
+"eeTypeRva": 52652048,
+"mdOffset": 359406,
+"invokeFlags": 32
+}
+],
+"LightLevel": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1623024,
+"va": "0x14018c3f0",
+"eeTypeRva": 52705416,
+"mdOffset": 936898,
+"invokeFlags": 32
+}
+],
+"LoginComplete": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1623904,
+"va": "0x14018c760",
+"eeTypeRva": 52705416,
+"mdOffset": 936947,
+"invokeFlags": 32
+}
+],
+"LoginConfirm": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 403360,
+"va": "0x1400627a0",
+"eeTypeRva": 52652048,
+"mdOffset": 359604,
+"invokeFlags": 32
+}
+],
+"Logout": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1666368,
+"va": "0x140196d40",
+"eeTypeRva": 52705416,
+"mdOffset": 937840,
+"invokeFlags": 32
+}
+],
+"ManaUpdate": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 405408,
+"va": "0x140062fa0",
+"eeTypeRva": 52652048,
+"mdOffset": 359712,
+"invokeFlags": 32
+}
+],
+"MapData": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1624272,
+"va": "0x14018c8d0",
+"eeTypeRva": 52705416,
+"mdOffset": 936963,
+"invokeFlags": 32
+}
+],
+"MegaCliloc": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1666400,
+"va": "0x140196d60",
+"eeTypeRva": 52705416,
+"mdOffset": 937857,
+"invokeFlags": 32
+}
+],
+"MenuResponse": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 420160,
+"va": "0x140066940",
+"eeTypeRva": 52652048,
+"mdOffset": 360231,
+"invokeFlags": 32
+}
+],
+"MobileAttributes": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1617472,
+"va": "0x14018ae40",
+"eeTypeRva": 52705416,
+"mdOffset": 936763,
+"invokeFlags": 32
+}
+],
+"MobileDraw": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1639904,
+"va": "0x1401905e0",
+"eeTypeRva": 52705416,
+"mdOffset": 937212,
+"invokeFlags": 32
+}
+],
+"MobileEquip": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 408992,
+"va": "0x140063da0",
+"eeTypeRva": 52652048,
+"mdOffset": 359802,
+"invokeFlags": 32
+},
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1642016,
+"va": "0x140190e20",
+"eeTypeRva": 52705416,
+"mdOffset": 937229,
+"invokeFlags": 32
+}
+],
+"MobileIncoming": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 409696,
+"va": "0x140064060",
+"eeTypeRva": 52652048,
+"mdOffset": 359820,
+"invokeFlags": 32
+}
+],
+"MobileMove": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1637792,
+"va": "0x14018fda0",
+"eeTypeRva": 52705416,
+"mdOffset": 937165,
+"invokeFlags": 32
+}
+],
+"MobileMoveV10": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1638896,
+"va": "0x1401901f0",
+"eeTypeRva": 52705416,
+"mdOffset": 937182,
+"invokeFlags": 32
+}
+],
+"MobileMoving": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 404432,
+"va": "0x140062bd0",
+"eeTypeRva": 52652048,
+"mdOffset": 359658,
+"invokeFlags": 32
+}
+],
+"MobileMovingV10": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 404032,
+"va": "0x140062a40",
+"eeTypeRva": 52652048,
+"mdOffset": 359640,
+"invokeFlags": 32
+}
+],
+"MobileStatInfo": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 405616,
+"va": "0x140063070",
+"eeTypeRva": 52652048,
+"mdOffset": 359730,
+"invokeFlags": 32
+}
+],
+"MobileStatus": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 406096,
+"va": "0x140063250",
+"eeTypeRva": 52652048,
+"mdOffset": 359766,
+"invokeFlags": 32
+}
+],
+"MobileUpdate": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 408304,
+"va": "0x140063af0",
+"eeTypeRva": 52652048,
+"mdOffset": 359784,
+"invokeFlags": 32
+},
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1607840,
+"va": "0x1401888a0",
+"eeTypeRva": 52705416,
+"mdOffset": 936578,
+"invokeFlags": 32
+}
+],
+"MobileUpdateV10": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1608976,
+"va": "0x140188d10",
+"eeTypeRva": 52705416,
+"mdOffset": 936594,
+"invokeFlags": 32
+}
+],
+"MovePlayer": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1648752,
+"va": "0x140192870",
+"eeTypeRva": 52705416,
+"mdOffset": 937347,
+"invokeFlags": 32
+}
+],
+"MovementRequest": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 397408,
+"va": "0x140061060",
+"eeTypeRva": 52652048,
+"mdOffset": 359478,
+"invokeFlags": 32
+}
+],
+"MultiPlacement": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1649312,
+"va": "0x140192aa0",
+"eeTypeRva": 52705416,
+"mdOffset": 937381,
+"invokeFlags": 32
+}
+],
+"NewCharacterAnimation": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1672304,
+"va": "0x140198470",
+"eeTypeRva": 52705416,
+"mdOffset": 937958,
+"invokeFlags": 32
+}
+],
+"NewHealthbarUpdate": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1603808,
+"va": "0x1401878e0",
+"eeTypeRva": 52705416,
+"mdOffset": 936494,
+"invokeFlags": 32
+}
+],
+"NewMobileStatus": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 405856,
+"va": "0x140063160",
+"eeTypeRva": 52652048,
+"mdOffset": 359748,
+"invokeFlags": 32
+}
+],
+"OPLInfo": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1668352,
+"va": "0x140197500",
+"eeTypeRva": 52705416,
+"mdOffset": 937891,
+"invokeFlags": 32
+}
+],
+"OnAssistVersion": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 417216,
+"va": "0x140065dc0",
+"eeTypeRva": 52652048,
+"mdOffset": 360099,
+"invokeFlags": 32
+}
+],
+"OnLocalizedMessage": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 414512,
+"va": "0x140065330",
+"eeTypeRva": 52652048,
+"mdOffset": 360009,
+"invokeFlags": 32
+}
+],
+"OnLocalizedMessageAffix": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 414896,
+"va": "0x1400654b0",
+"eeTypeRva": 52652048,
+"mdOffset": 360027,
+"invokeFlags": 32
+}
+],
+"OnPlayerTeleport": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1639680,
+"va": "0x140190500",
+"eeTypeRva": 52705416,
+"mdOffset": 937199,
+"invokeFlags": 32
+}
+],
+"OpenBook": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1646880,
+"va": "0x140192120",
+"eeTypeRva": 52705416,
+"mdOffset": 937313,
+"invokeFlags": 32
+}
+],
+"OpenCompressedGump": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1668384,
+"va": "0x140197520",
+"eeTypeRva": 52705416,
+"mdOffset": 937907,
+"invokeFlags": 32
+}
+],
+"OpenContainer": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1613056,
+"va": "0x140189d00",
+"eeTypeRva": 52705416,
+"mdOffset": 936661,
+"invokeFlags": 32
+}
+],
+"OpenGump": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1655456,
+"va": "0x1401942a0",
+"eeTypeRva": 52705416,
+"mdOffset": 937585,
+"invokeFlags": 32
+}
+],
+"OpenMenu": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1643008,
+"va": "0x140191200",
+"eeTypeRva": 52705416,
+"mdOffset": 937245,
+"invokeFlags": 32
+}
+],
+"OpenPaperdoll": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1644480,
+"va": "0x1401917c0",
+"eeTypeRva": 52705416,
+"mdOffset": 937262,
+"invokeFlags": 32
+}
+],
+"OpenUrl": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1652416,
+"va": "0x1401936c0",
+"eeTypeRva": 52705416,
+"mdOffset": 937483,
+"invokeFlags": 32
+}
+],
+"OutlandsBuffUpdate": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1680896,
+"va": "0x14019a600",
+"eeTypeRva": 52705416,
+"mdOffset": 938094,
+"invokeFlags": 32
+}
+],
+"OutlandsClientPacket": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 393968,
+"va": "0x1400602f0",
+"eeTypeRva": 52652048,
+"mdOffset": 359316,
+"invokeFlags": 32
+}
+],
+"OutlandsCorpseFlags": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1680448,
+"va": "0x14019a440",
+"eeTypeRva": 52705416,
+"mdOffset": 938077,
+"invokeFlags": 32
+}
+],
+"OutlandsItemNameResponse": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 413472,
+"va": "0x140064f20",
+"eeTypeRva": 52652048,
+"mdOffset": 359928,
+"invokeFlags": 32
+}
+],
+"OutlandsMobileData": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1706368,
+"va": "0x1401a0980",
+"eeTypeRva": 52705416,
+"mdOffset": 938614,
+"invokeFlags": 32
+}
+],
+"OutlandsProtocol": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1700768,
+"va": "0x14019f3a0",
+"eeTypeRva": 52705416,
+"mdOffset": 938430,
+"invokeFlags": 32
+}
+],
+"OutlandsRemoveBuff": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1682720,
+"va": "0x14019ad20",
+"eeTypeRva": 52705416,
+"mdOffset": 938111,
+"invokeFlags": 32
+}
+],
+"OutlandsServerPacket": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 413360,
+"va": "0x140064eb0",
+"eeTypeRva": 52652048,
+"mdOffset": 359910,
+"invokeFlags": 32
+}
+],
+"OutlandsVendorItemData": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 413984,
+"va": "0x140065120",
+"eeTypeRva": 52652048,
+"mdOffset": 359958,
+"invokeFlags": 32
+},
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1707808,
+"va": "0x1401a0f20",
+"eeTypeRva": 52705416,
+"mdOffset": 938647,
+"invokeFlags": 32
+}
+],
+"OutlandsVendorMobileData": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 413776,
+"va": "0x140065050",
+"eeTypeRva": 52652048,
+"mdOffset": 359943,
+"invokeFlags": 32
+},
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1707264,
+"va": "0x1401a0d00",
+"eeTypeRva": 52705416,
+"mdOffset": 938631,
+"invokeFlags": 32
+}
+],
+"ParseGumpString": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 424256,
+"va": "0x140067940",
+"eeTypeRva": 52652048,
+"mdOffset": 360375,
+"invokeFlags": 32
+}
+],
+"ParticleEffect": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1628544,
+"va": "0x14018d980",
+"eeTypeRva": 52705416,
+"mdOffset": 937081,
+"invokeFlags": 32
+}
+],
+"ParticleEffectOld": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1626768,
+"va": "0x14018d290",
+"eeTypeRva": 52705416,
+"mdOffset": 937064,
+"invokeFlags": 32
+}
+],
+"PersonalLightLevel": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1622896,
+"va": "0x14018c370",
+"eeTypeRva": 52705416,
+"mdOffset": 936881,
+"invokeFlags": 32
+}
+],
+"PingReceived": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1330208,
+"va": "0x140144c20",
+"eeTypeRva": 52705200,
+"mdOffset": 931651,
+"invokeFlags": 32
+}
+],
+"PingResponse": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 419632,
+"va": "0x140066730",
+"eeTypeRva": 52652048,
+"mdOffset": 360177,
+"invokeFlags": 32
+}
+],
+"PlayCharacter": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 394400,
+"va": "0x1400604a0",
+"eeTypeRva": 52652048,
+"mdOffset": 359352,
+"invokeFlags": 32
+}
+],
+"PlayMusic": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 427600,
+"va": "0x140068650",
+"eeTypeRva": 52652048,
+"mdOffset": 360501,
+"invokeFlags": 32
+},
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1623776,
+"va": "0x14018c6e0",
+"eeTypeRva": 52705416,
+"mdOffset": 936931,
+"invokeFlags": 32
+}
+],
+"PlayServer": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 394752,
+"va": "0x140060600",
+"eeTypeRva": 52652048,
+"mdOffset": 359388,
+"invokeFlags": 32
+}
+],
+"PlaySoundEffect": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 426512,
+"va": "0x140068210",
+"eeTypeRva": 52652048,
+"mdOffset": 360483,
+"invokeFlags": 32
+},
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1623104,
+"va": "0x14018c440",
+"eeTypeRva": 52705416,
+"mdOffset": 936915,
+"invokeFlags": 32
+}
+],
+"PrintDebug": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1332144,
+"va": "0x1401453b0",
+"eeTypeRva": 52705200,
+"mdOffset": 931731,
+"invokeFlags": 32
+}
+],
+"ProcessRecv": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1332736,
+"va": "0x140145600",
+"eeTypeRva": 52705200,
+"mdOffset": 931744,
+"invokeFlags": 32
+}
+],
+"ProcessSend": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1333632,
+"va": "0x140145980",
+"eeTypeRva": 52705200,
+"mdOffset": 931757,
+"invokeFlags": 32
+}
+],
+"ReadLightTint": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1703136,
+"va": "0x14019fce0",
+"eeTypeRva": 52705416,
+"mdOffset": 938464,
+"invokeFlags": 32
+}
+],
+"RecordRestrictedGump": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 416320,
+"va": "0x140065a40",
+"eeTypeRva": 52652048,
+"mdOffset": 360063,
+"invokeFlags": 32
+}
+],
+"Remove": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1590432,
+"va": "0x1401844a0",
+"eeTypeRva": 52705416,
+"mdOffset": 936326,
+"invokeFlags": 32
+}
+],
+"RemoveObject": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 410896,
+"va": "0x140064510",
+"eeTypeRva": 52652048,
+"mdOffset": 359838,
+"invokeFlags": 32
+}
+],
+"RemoveWaypoint": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1676368,
+"va": "0x140199450",
+"eeTypeRva": 52705416,
+"mdOffset": 937992,
+"invokeFlags": 32
+}
+],
+"RerequestItemNameIfDisplayed": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1685680,
+"va": "0x14019b8b0",
+"eeTypeRva": 52705416,
+"mdOffset": 938231,
+"invokeFlags": 32
+}
+],
+"ResetPing": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1330256,
+"va": "0x140144c50",
+"eeTypeRva": 52705200,
+"mdOffset": 931664,
+"invokeFlags": 32
+}
+],
+"ResolveIP": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1334752,
+"va": "0x140145de0",
+"eeTypeRva": 52705200,
+"mdOffset": 931790,
+"invokeFlags": 32
+}
+],
+"ResurrectionGump": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 425296,
+"va": "0x140067d50",
+"eeTypeRva": 52652048,
+"mdOffset": 360393,
+"invokeFlags": 32
+}
+],
+"RunUOProtocolExtention": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 418688,
+"va": "0x140066380",
+"eeTypeRva": 52652048,
+"mdOffset": 360135,
+"invokeFlags": 32
+}
+],
+"SAWorldItem": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 412480,
+"va": "0x140064b40",
+"eeTypeRva": 52652048,
+"mdOffset": 359892,
+"invokeFlags": 32
+}
+],
+"ScreenEffect": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1626544,
+"va": "0x14018d1b0",
+"eeTypeRva": 52705416,
+"mdOffset": 937047,
+"invokeFlags": 32
+}
+],
+"Season": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1657504,
+"va": "0x140194aa0",
+"eeTypeRva": 52705416,
+"mdOffset": 937687,
+"invokeFlags": 32
+}
+],
+"SecureTrading": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1597232,
+"va": "0x140185f30",
+"eeTypeRva": 52705416,
+"mdOffset": 936409,
+"invokeFlags": 32
+}
+],
+"SellList": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1650240,
+"va": "0x140192e40",
+"eeTypeRva": 52705416,
+"mdOffset": 937415,
+"invokeFlags": 32
+}
+],
+"Semivisible": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1666208,
+"va": "0x140196ca0",
+"eeTypeRva": 52705416,
+"mdOffset": 937755,
+"invokeFlags": 32
+}
+],
+"Send": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1329904,
+"va": "0x140144af0",
+"eeTypeRva": 52705200,
+"mdOffset": 931611,
+"invokeFlags": 32
+},
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1329984,
+"va": "0x140144b40",
+"eeTypeRva": 52705200,
+"mdOffset": 931633,
+"invokeFlags": 32
+}
+],
+"SendGump": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 415360,
+"va": "0x140065680",
+"eeTypeRva": 52652048,
+"mdOffset": 360045,
+"invokeFlags": 32
+}
+],
+"SendMegaClilocRequests": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1596896,
+"va": "0x140185de0",
+"eeTypeRva": 52705416,
+"mdOffset": 936363,
+"invokeFlags": 32
+}
+],
+"SendMenu": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 420752,
+"va": "0x140066b90",
+"eeTypeRva": 52652048,
+"mdOffset": 360249,
+"invokeFlags": 32
+}
+],
+"Send_ASCIIPromptResponse": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1438832,
+"va": "0x14015f470",
+"eeTypeRva": 52705336,
+"mdOffset": 934346,
+"invokeFlags": 32
+}
+],
+"Send_ASCIISpeechRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1380368,
+"va": "0x140151010",
+"eeTypeRva": 52705336,
+"mdOffset": 933707,
+"invokeFlags": 32
+}
+],
+"Send_AttackRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1378768,
+"va": "0x1401509d0",
+"eeTypeRva": 52705336,
+"mdOffset": 933683,
+"invokeFlags": 32
+}
+],
+"Send_BandageTarget": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1533120,
+"va": "0x1401764c0",
+"eeTypeRva": 52705336,
+"mdOffset": 935371,
+"invokeFlags": 32
+}
+],
+"Send_BookHeaderChanged": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1514880,
+"va": "0x140171d80",
+"eeTypeRva": 52705336,
+"mdOffset": 935201,
+"invokeFlags": 32
+}
+],
+"Send_BookHeaderChanged_Old": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1511808,
+"va": "0x140171180",
+"eeTypeRva": 52705336,
+"mdOffset": 935170,
+"invokeFlags": 32
+}
+],
+"Send_BookPageData": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1518592,
+"va": "0x140172c00",
+"eeTypeRva": 52705336,
+"mdOffset": 935232,
+"invokeFlags": 32
+}
+],
+"Send_BookPageDataRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1522544,
+"va": "0x140173b70",
+"eeTypeRva": 52705336,
+"mdOffset": 935263,
+"invokeFlags": 32
+}
+],
+"Send_BulletinBoardPostMessage": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1474048,
+"va": "0x140167e00",
+"eeTypeRva": 52705336,
+"mdOffset": 934764,
+"invokeFlags": 32
+}
+],
+"Send_BulletinBoardRemoveMessage": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1480592,
+"va": "0x140169790",
+"eeTypeRva": 52705336,
+"mdOffset": 934799,
+"invokeFlags": 32
+}
+],
+"Send_BulletinBoardRequestMessage": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1469808,
+"va": "0x140166d70",
+"eeTypeRva": 52705336,
+"mdOffset": 934708,
+"invokeFlags": 32
+}
+],
+"Send_BulletinBoardRequestMessageSummary": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1471920,
+"va": "0x1401675b0",
+"eeTypeRva": 52705336,
+"mdOffset": 934736,
+"invokeFlags": 32
+}
+],
+"Send_BuyRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1524928,
+"va": "0x1401744c0",
+"eeTypeRva": 52705336,
+"mdOffset": 935291,
+"invokeFlags": 32
+}
+],
+"Send_CancelCast": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1570672,
+"va": "0x14017f770",
+"eeTypeRva": 52705336,
+"mdOffset": 935837,
+"invokeFlags": 32
+}
+],
+"Send_CastSpell": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1568576,
+"va": "0x14017ef40",
+"eeTypeRva": 52705336,
+"mdOffset": 935812,
+"invokeFlags": 32
+}
+],
+"Send_CastSpellOld": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1388064,
+"va": "0x140152e20",
+"eeTypeRva": 52705336,
+"mdOffset": 933776,
+"invokeFlags": 32
+}
+],
+"Send_ChangeRaceRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1540432,
+"va": "0x140178150",
+"eeTypeRva": 52705336,
+"mdOffset": 935462,
+"invokeFlags": 32
+}
+],
+"Send_ChangeWarMode": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1367520,
+"va": "0x14014dde0",
+"eeTypeRva": 52705336,
+"mdOffset": 933537,
+"invokeFlags": 32
+}
+],
+"Send_ClickQuestArrow": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1450240,
+"va": "0x140162100",
+"eeTypeRva": 52705336,
+"mdOffset": 934487,
+"invokeFlags": 32
+}
+],
+"Send_ClickRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1377168,
+"va": "0x140150390",
+"eeTypeRva": 52705336,
+"mdOffset": 933659,
+"invokeFlags": 32
+}
+],
+"Send_ClientType": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1490000,
+"va": "0x14016bc50",
+"eeTypeRva": 52705336,
+"mdOffset": 934915,
+"invokeFlags": 32
+}
+],
+"Send_ClientViewRange": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1549456,
+"va": "0x14017a490",
+"eeTypeRva": 52705336,
+"mdOffset": 935592,
+"invokeFlags": 32
+}
+],
+"Send_CloseStatusBarGump": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1452080,
+"va": "0x140162830",
+"eeTypeRva": 52705336,
+"mdOffset": 934512,
+"invokeFlags": 32
+}
+],
+"Send_CreateCharacter": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1346176,
+"va": "0x140148a80",
+"eeTypeRva": 52705336,
+"mdOffset": 933351,
+"invokeFlags": 32
+}
+],
+"Send_DeathScreen": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1553968,
+"va": "0x14017b630",
+"eeTypeRva": 52705336,
+"mdOffset": 935663,
+"invokeFlags": 32
+}
+],
+"Send_DeleteCharacter": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1354032,
+"va": "0x14014a930",
+"eeTypeRva": 52705336,
+"mdOffset": 933376,
+"invokeFlags": 32
+}
+],
+"Send_DisarmRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1538864,
+"va": "0x140177b30",
+"eeTypeRva": 52705336,
+"mdOffset": 935441,
+"invokeFlags": 32
+}
+],
+"Send_DoubleClick": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1339008,
+"va": "0x140146e80",
+"eeTypeRva": 52705336,
+"mdOffset": 933256,
+"invokeFlags": 32
+}
+],
+"Send_DropRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1361664,
+"va": "0x14014c700",
+"eeTypeRva": 52705336,
+"mdOffset": 933462,
+"invokeFlags": 32
+}
+],
+"Send_DyeDataResponse": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1444480,
+"va": "0x140160a80",
+"eeTypeRva": 52705336,
+"mdOffset": 934405,
+"invokeFlags": 32
+}
+],
+"Send_EmoteAction": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1396288,
+"va": "0x140154e40",
+"eeTypeRva": 52705336,
+"mdOffset": 933869,
+"invokeFlags": 32
+}
+],
+"Send_EquipLastWeapon": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1503360,
+"va": "0x14016f080",
+"eeTypeRva": 52705336,
+"mdOffset": 935067,
+"invokeFlags": 32
+}
+],
+"Send_EquipRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1365360,
+"va": "0x14014d570",
+"eeTypeRva": 52705336,
+"mdOffset": 933506,
+"invokeFlags": 32
+}
+],
+"Send_GameLogin": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1343712,
+"va": "0x1401480e0",
+"eeTypeRva": 52705336,
+"mdOffset": 933322,
+"invokeFlags": 32
+}
+],
+"Send_GameWindowSize": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1467664,
+"va": "0x140166510",
+"eeTypeRva": 52705336,
+"mdOffset": 934681,
+"invokeFlags": 32
+}
+],
+"Send_GrayMenuResponse": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1408080,
+"va": "0x140157c50",
+"eeTypeRva": 52705336,
+"mdOffset": 933990,
+"invokeFlags": 32
+}
+],
+"Send_GuildMenuRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1499200,
+"va": "0x14016e040",
+"eeTypeRva": 52705336,
+"mdOffset": 935025,
+"invokeFlags": 32
+}
+],
+"Send_GumpResponse": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1398688,
+"va": "0x1401557a0",
+"eeTypeRva": 52705336,
+"mdOffset": 933893,
+"invokeFlags": 32
+}
+],
+"Send_HelpRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1369536,
+"va": "0x14014e5c0",
+"eeTypeRva": 52705336,
+"mdOffset": 933561,
+"invokeFlags": 32
+}
+],
+"Send_Info": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1342176,
+"va": "0x140147ae0",
+"eeTypeRva": 52705336,
+"mdOffset": 933301,
+"invokeFlags": 32
+}
+],
+"Send_InvokeVirtueRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1505440,
+"va": "0x14016f8a0",
+"eeTypeRva": 52705336,
+"mdOffset": 935088,
+"invokeFlags": 32
+}
+],
+"Send_ItemNameRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1580928,
+"va": "0x140181f80",
+"eeTypeRva": 52705336,
+"mdOffset": 935952,
+"invokeFlags": 32
+}
+],
+"Send_Language": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1487568,
+"va": "0x14016b2d0",
+"eeTypeRva": 52705336,
+"mdOffset": 934890,
+"invokeFlags": 32
+}
+],
+"Send_LogoutNotification": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1414528,
+"va": "0x140159580",
+"eeTypeRva": 52705336,
+"mdOffset": 934081,
+"invokeFlags": 32
+}
+],
+"Send_MapMessage": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1496016,
+"va": "0x14016d3d0",
+"eeTypeRva": 52705336,
+"mdOffset": 934988,
+"invokeFlags": 32
+}
+],
+"Send_MenuResponse": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1405424,
+"va": "0x1401571f0",
+"eeTypeRva": 52705336,
+"mdOffset": 933962,
+"invokeFlags": 32
+}
+],
+"Send_MultiMoveRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1543392,
+"va": "0x140178ce0",
+"eeTypeRva": 52705336,
+"mdOffset": 935503,
+"invokeFlags": 32
+}
+],
+"Send_NameCheck": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1578496,
+"va": "0x140181600",
+"eeTypeRva": 52705336,
+"mdOffset": 935928,
+"invokeFlags": 32
+}
+],
+"Send_NameRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1421632,
+"va": "0x14015b140",
+"eeTypeRva": 52705336,
+"mdOffset": 934168,
+"invokeFlags": 32
+}
+],
+"Send_OpenDoor": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1392704,
+"va": "0x140154040",
+"eeTypeRva": 52705336,
+"mdOffset": 933824,
+"invokeFlags": 32
+}
+],
+"Send_OpenSpellBook": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1394464,
+"va": "0x140154720",
+"eeTypeRva": 52705336,
+"mdOffset": 933845,
+"invokeFlags": 32
+}
+],
+"Send_OpenUOStore": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1551072,
+"va": "0x14017aae0",
+"eeTypeRva": 52705336,
+"mdOffset": 935617,
+"invokeFlags": 32
+}
+],
+"Send_PartyAccept": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1460128,
+"va": "0x1401647a0",
+"eeTypeRva": 52705336,
+"mdOffset": 934605,
+"invokeFlags": 32
+}
+],
+"Send_PartyChangeLootTypeRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1458048,
+"va": "0x140163f80",
+"eeTypeRva": 52705336,
+"mdOffset": 934581,
+"invokeFlags": 32
+}
+],
+"Send_PartyDecline": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1462224,
+"va": "0x140164fd0",
+"eeTypeRva": 52705336,
+"mdOffset": 934629,
+"invokeFlags": 32
+}
+],
+"Send_PartyInviteRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1453936,
+"va": "0x140162f70",
+"eeTypeRva": 52705336,
+"mdOffset": 934536,
+"invokeFlags": 32
+}
+],
+"Send_PartyMessage": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1464320,
+"va": "0x140165800",
+"eeTypeRva": 52705336,
+"mdOffset": 934653,
+"invokeFlags": 32
+}
+],
+"Send_PartyPing": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1575264,
+"va": "0x140180960",
+"eeTypeRva": 52705336,
+"mdOffset": 935887,
+"invokeFlags": 32
+}
+],
+"Send_PartyRemoveRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1455952,
+"va": "0x140163750",
+"eeTypeRva": 52705336,
+"mdOffset": 934557,
+"invokeFlags": 32
+}
+],
+"Send_PickUpRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1359792,
+"va": "0x14014bfb0",
+"eeTypeRva": 52705336,
+"mdOffset": 933435,
+"invokeFlags": 32
+}
+],
+"Send_Ping": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1337456,
+"va": "0x140146870",
+"eeTypeRva": 52705336,
+"mdOffset": 933235,
+"invokeFlags": 32
+}
+],
+"Send_PopupMenuSelection": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1493872,
+"va": "0x14016cb70",
+"eeTypeRva": 52705336,
+"mdOffset": 934960,
+"invokeFlags": 32
+}
+],
+"Send_ProfileRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1445312,
+"va": "0x140160dc0",
+"eeTypeRva": 52705336,
+"mdOffset": 934436,
+"invokeFlags": 32
+}
+],
+"Send_ProfileUpdate": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1447152,
+"va": "0x1401614f0",
+"eeTypeRva": 52705336,
+"mdOffset": 934460,
+"invokeFlags": 32
+}
+],
+"Send_QueryGuildPosition": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1484256,
+"va": "0x14016a5e0",
+"eeTypeRva": 52705336,
+"mdOffset": 934848,
+"invokeFlags": 32
+}
+],
+"Send_QueryPartyPosition": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1486016,
+"va": "0x14016acc0",
+"eeTypeRva": 52705336,
+"mdOffset": 934869,
+"invokeFlags": 32
+}
+],
+"Send_QuestArrowClick": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1583424,
+"va": "0x140182940",
+"eeTypeRva": 52705336,
+"mdOffset": 935980,
+"invokeFlags": 32
+}
+],
+"Send_QuestMenuRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1501280,
+"va": "0x14016e860",
+"eeTypeRva": 52705336,
+"mdOffset": 935046,
+"invokeFlags": 32
+}
+],
+"Send_RazorACK": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1482704,
+"va": "0x140169fd0",
+"eeTypeRva": 52705336,
+"mdOffset": 934827,
+"invokeFlags": 32
+}
+],
+"Send_RenameRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1419424,
+"va": "0x14015a8a0",
+"eeTypeRva": 52705336,
+"mdOffset": 934141,
+"invokeFlags": 32
+}
+],
+"Send_RepooledBlocks": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1572464,
+"va": "0x14017fe70",
+"eeTypeRva": 52705336,
+"mdOffset": 935858,
+"invokeFlags": 32
+}
+],
+"Send_RequestPopupMenu": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1492016,
+"va": "0x14016c430",
+"eeTypeRva": 52705336,
+"mdOffset": 934936,
+"invokeFlags": 32
+}
+],
+"Send_Resync": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1546048,
+"va": "0x140179740",
+"eeTypeRva": 52705336,
+"mdOffset": 935535,
+"invokeFlags": 32
+}
+],
+"Send_Seed": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1340608,
+"va": "0x1401474c0",
+"eeTypeRva": 52705336,
+"mdOffset": 933280,
+"invokeFlags": 32
+}
+],
+"Send_SelectCharacter": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1356176,
+"va": "0x14014b190",
+"eeTypeRva": 52705336,
+"mdOffset": 933404,
+"invokeFlags": 32
+}
+],
+"Send_SellRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1527968,
+"va": "0x1401750a0",
+"eeTypeRva": 52705336,
+"mdOffset": 935319,
+"invokeFlags": 32
+}
+],
+"Send_ShowPublicHouseContent": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1552384,
+"va": "0x14017b000",
+"eeTypeRva": 52705336,
+"mdOffset": 935638,
+"invokeFlags": 32
+}
+],
+"Send_SkillStatusChangeRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1509952,
+"va": "0x140170a40",
+"eeTypeRva": 52705336,
+"mdOffset": 935141,
+"invokeFlags": 32
+}
+],
+"Send_SkillsRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1373216,
+"va": "0x14014f420",
+"eeTypeRva": 52705336,
+"mdOffset": 933606,
+"invokeFlags": 32
+}
+],
+"Send_SkillsStatusRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1375312,
+"va": "0x14014fc50",
+"eeTypeRva": 52705336,
+"mdOffset": 933630,
+"invokeFlags": 32
+}
+],
+"Send_StatLockStateRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1507856,
+"va": "0x140170210",
+"eeTypeRva": 52705336,
+"mdOffset": 935113,
+"invokeFlags": 32
+}
+],
+"Send_StatusRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1371120,
+"va": "0x14014ebf0",
+"eeTypeRva": 52705336,
+"mdOffset": 933582,
+"invokeFlags": 32
+}
+],
+"Send_StunRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1537296,
+"va": "0x140177510",
+"eeTypeRva": 52705336,
+"mdOffset": 935420,
+"invokeFlags": 32
+}
+],
+"Send_TargetCancel": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1434624,
+"va": "0x14015e400",
+"eeTypeRva": 52705336,
+"mdOffset": 934314,
+"invokeFlags": 32
+}
+],
+"Send_TargetObject": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1425088,
+"va": "0x14015bec0",
+"eeTypeRva": 52705336,
+"mdOffset": 934221,
+"invokeFlags": 32
+}
+],
+"Send_TargetXYZ": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1429792,
+"va": "0x14015d120",
+"eeTypeRva": 52705336,
+"mdOffset": 934269,
+"invokeFlags": 32
+}
+],
+"Send_TextEntryDialogResponse": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1416080,
+"va": "0x140159b90",
+"eeTypeRva": 52705336,
+"mdOffset": 934102,
+"invokeFlags": 32
+}
+],
+"Send_TimeSyncPingReq": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1567040,
+"va": "0x14017e940",
+"eeTypeRva": 52705336,
+"mdOffset": 935791,
+"invokeFlags": 32
+}
+],
+"Send_TipRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1423232,
+"va": "0x14015b780",
+"eeTypeRva": 52705336,
+"mdOffset": 934192,
+"invokeFlags": 32
+}
+],
+"Send_ToPlugins_AllSkills": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1560896,
+"va": "0x14017d140",
+"eeTypeRva": 52705336,
+"mdOffset": 935737,
+"invokeFlags": 32
+}
+],
+"Send_ToPlugins_AllSpells": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1558432,
+"va": "0x14017c7a0",
+"eeTypeRva": 52705336,
+"mdOffset": 935716,
+"invokeFlags": 32
+}
+],
+"Send_ToggleGargoyleFlying": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1535264,
+"va": "0x140176d20",
+"eeTypeRva": 52705336,
+"mdOffset": 935399,
+"invokeFlags": 32
+}
+],
+"Send_TradeResponse": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1409376,
+"va": "0x140158160",
+"eeTypeRva": 52705336,
+"mdOffset": 934018,
+"invokeFlags": 32
+}
+],
+"Send_TradeUpdateGold": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1412096,
+"va": "0x140158c00",
+"eeTypeRva": 52705336,
+"mdOffset": 934049,
+"invokeFlags": 32
+}
+],
+"Send_UOLive_HashResponse": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1555520,
+"va": "0x14017bc40",
+"eeTypeRva": 52705336,
+"mdOffset": 935684,
+"invokeFlags": 32
+}
+],
+"Send_UnicodePromptResponse": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1441616,
+"va": "0x14015ff50",
+"eeTypeRva": 52705336,
+"mdOffset": 934374,
+"invokeFlags": 32
+}
+],
+"Send_UnicodeSpeechRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1383456,
+"va": "0x140151c20",
+"eeTypeRva": 52705336,
+"mdOffset": 933740,
+"invokeFlags": 32
+}
+],
+"Send_UseCombatAbility": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1530512,
+"va": "0x140175a90",
+"eeTypeRva": 52705336,
+"mdOffset": 935347,
+"invokeFlags": 32
+}
+],
+"Send_UseSkill": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1390176,
+"va": "0x140153660",
+"eeTypeRva": 52705336,
+"mdOffset": 933800,
+"invokeFlags": 32
+}
+],
+"Send_VirtueGumpResponse": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1403296,
+"va": "0x1401569a0",
+"eeTypeRva": 52705336,
+"mdOffset": 933934,
+"invokeFlags": 32
+}
+],
+"Send_WalkRequest": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1547360,
+"va": "0x140179c60",
+"eeTypeRva": 52705336,
+"mdOffset": 935556,
+"invokeFlags": 32
+}
+],
+"Send_WorldGumpViewDropped": [
+{
+"type": "ClassicUO.Network.NetClientExt",
+"rva": 1585552,
+"va": "0x140183190",
+"eeTypeRva": 52705336,
+"mdOffset": 936009,
+"invokeFlags": 32
+}
+],
+"ServerAddress": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 421296,
+"va": "0x140066db0",
+"eeTypeRva": 52652048,
+"mdOffset": 360285,
+"invokeFlags": 32
+}
+],
+"ServerChange": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 411280,
+"va": "0x140064690",
+"eeTypeRva": 52652048,
+"mdOffset": 359856,
+"invokeFlags": 32
+}
+],
+"ServerList": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 394560,
+"va": "0x140060540",
+"eeTypeRva": 52652048,
+"mdOffset": 359370,
+"invokeFlags": 32
+}
+],
+"ServerQuestArrowSerial": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1704240,
+"va": "0x1401a0130",
+"eeTypeRva": 52705416,
+"mdOffset": 938498,
+"invokeFlags": 32
+}
+],
+"ServerSetWarMode": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 422192,
+"va": "0x140067130",
+"eeTypeRva": 52652048,
+"mdOffset": 360321,
+"invokeFlags": 32
+}
+],
+"SetProtocol": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1328016,
+"va": "0x140144390",
+"eeTypeRva": 52705200,
+"mdOffset": 931542,
+"invokeFlags": 32
+}
+],
+"SetSkillLock": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 400336,
+"va": "0x140061bd0",
+"eeTypeRva": 52652048,
+"mdOffset": 359568,
+"invokeFlags": 32
+}
+],
+"SetTime": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1624896,
+"va": "0x14018cb40",
+"eeTypeRva": 52705416,
+"mdOffset": 936980,
+"invokeFlags": 32
+}
+],
+"SetUpdateRange": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 389264,
+"va": "0x14005f090",
+"eeTypeRva": 52652048,
+"mdOffset": 359190,
+"invokeFlags": 32
+}
+],
+"SetWeather": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1624928,
+"va": "0x14018cb60",
+"eeTypeRva": 52705416,
+"mdOffset": 936997,
+"invokeFlags": 32
+}
+],
+"Skills": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 400576,
+"va": "0x140061cc0",
+"eeTypeRva": 52652048,
+"mdOffset": 359586,
+"invokeFlags": 32
+}
+],
+"StamUpdate": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 405200,
+"va": "0x140062ed0",
+"eeTypeRva": 52652048,
+"mdOffset": 359694,
+"invokeFlags": 32
+}
+],
+"Swing": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1619008,
+"va": "0x14018b440",
+"eeTypeRva": 52705416,
+"mdOffset": 936796,
+"invokeFlags": 32
+}
+],
+"Talk": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1606192,
+"va": "0x140188230",
+"eeTypeRva": 52705416,
+"mdOffset": 936545,
+"invokeFlags": 32
+}
+],
+"TargetCursor": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1596960,
+"va": "0x140185e20",
+"eeTypeRva": 52705416,
+"mdOffset": 936392,
+"invokeFlags": 32
+}
+],
+"TextEntryDialog": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1653056,
+"va": "0x140193940",
+"eeTypeRva": 52705416,
+"mdOffset": 937534,
+"invokeFlags": 32
+}
+],
+"TipWindow": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1652512,
+"va": "0x140193720",
+"eeTypeRva": 52705416,
+"mdOffset": 937500,
+"invokeFlags": 32
+}
+],
+"TradeRequest": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 425712,
+"va": "0x140067ef0",
+"eeTypeRva": 52652048,
+"mdOffset": 360429,
+"invokeFlags": 32
+}
+],
+"TryParseGump": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 423904,
+"va": "0x1400677e0",
+"eeTypeRva": 52652048,
+"mdOffset": 360357,
+"invokeFlags": 32
+}
+],
+"UltimaMessengerR": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1657472,
+"va": "0x140194a80",
+"eeTypeRva": 52705416,
+"mdOffset": 937670,
+"invokeFlags": 32
+}
+],
+"UnicodePrompt": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1666080,
+"va": "0x140196c20",
+"eeTypeRva": 52705416,
+"mdOffset": 937738,
+"invokeFlags": 32
+}
+],
+"UnicodePromptReceived": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 426112,
+"va": "0x140068080",
+"eeTypeRva": 52652048,
+"mdOffset": 360465,
+"invokeFlags": 32
+}
+],
+"UnicodePromptSend": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 425760,
+"va": "0x140067f20",
+"eeTypeRva": 52652048,
+"mdOffset": 360447,
+"invokeFlags": 32
+}
+],
+"UnicodeSpeech": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 414320,
+"va": "0x140065270",
+"eeTypeRva": 52652048,
+"mdOffset": 359991,
+"invokeFlags": 32
+}
+],
+"UnicodeTalk": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1653760,
+"va": "0x140193c00",
+"eeTypeRva": 52705416,
+"mdOffset": 937551,
+"invokeFlags": 32
+}
+],
+"Unknown_0x32": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1619520,
+"va": "0x14018b640",
+"eeTypeRva": 52705416,
+"mdOffset": 936813,
+"invokeFlags": 32
+}
+],
+"UpdateContainedItem": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1614768,
+"va": "0x14018a3b0",
+"eeTypeRva": 52705416,
+"mdOffset": 936678,
+"invokeFlags": 32
+}
+],
+"UpdateContainedItems": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1621504,
+"va": "0x14018be00",
+"eeTypeRva": 52705416,
+"mdOffset": 936847,
+"invokeFlags": 32
+}
+],
+"UpdateHitpoints": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1651456,
+"va": "0x140193300",
+"eeTypeRva": 52705416,
+"mdOffset": 937432,
+"invokeFlags": 32
+}
+],
+"UpdateItem": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1685824,
+"va": "0x14019b940",
+"eeTypeRva": 52705416,
+"mdOffset": 938247,
+"invokeFlags": 32
+}
+],
+"UpdateItemOld": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1604320,
+"va": "0x140187ae0",
+"eeTypeRva": 52705416,
+"mdOffset": 936511,
+"invokeFlags": 32
+}
+],
+"UpdateItemSA": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1677408,
+"va": "0x140199860",
+"eeTypeRva": 52705416,
+"mdOffset": 938043,
+"invokeFlags": 32
+}
+],
+"UpdateMana": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1651744,
+"va": "0x140193420",
+"eeTypeRva": 52705416,
+"mdOffset": 937449,
+"invokeFlags": 32
+}
+],
+"UpdateMobileStatus": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1670304,
+"va": "0x140197ca0",
+"eeTypeRva": 52705416,
+"mdOffset": 937924,
+"invokeFlags": 32
+}
+],
+"UpdateName": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1648896,
+"va": "0x140192900",
+"eeTypeRva": 52705416,
+"mdOffset": 937364,
+"invokeFlags": 32
+}
+],
+"UpdateSkills": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1619552,
+"va": "0x14018b660",
+"eeTypeRva": 52705416,
+"mdOffset": 936830,
+"invokeFlags": 32
+}
+],
+"UpdateStamina": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1652080,
+"va": "0x140193570",
+"eeTypeRva": 52705416,
+"mdOffset": 937466,
+"invokeFlags": 32
+}
+],
+"Warmode": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1636224,
+"va": "0x14018f780",
+"eeTypeRva": 52705416,
+"mdOffset": 937132,
+"invokeFlags": 32
+}
+],
+"WorldItem": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 411648,
+"va": "0x140064800",
+"eeTypeRva": 52652048,
+"mdOffset": 359874,
+"invokeFlags": 32
+}
+],
+"WorldMap": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1676480,
+"va": "0x1401994c0",
+"eeTypeRva": 52705416,
+"mdOffset": 938009,
+"invokeFlags": 32
+}
+],
+"add_Disconnected": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1327168,
+"va": "0x140144040",
+"eeTypeRva": 52705200,
+"mdOffset": 931390,
+"invokeFlags": 32
+}
+],
+"add_ProtocolSet": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1327424,
+"va": "0x140144140",
+"eeTypeRva": 52705200,
+"mdOffset": 931432,
+"invokeFlags": 32
+}
+],
+"get_Handlers": [
+{
+"type": "ClassicUO.Network.PacketHandlers",
+"rva": 1590336,
+"va": "0x140184440",
+"eeTypeRva": 52705416,
+"mdOffset": 936290,
+"invokeFlags": 32
+}
+],
+"get_IgnoreGumps": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 386688,
+"va": "0x14005e680",
+"eeTypeRva": 52652048,
+"mdOffset": 359178,
+"invokeFlags": 32
+}
+],
+"get_LastCharIndex": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1326256,
+"va": "0x140143cb0",
+"eeTypeRva": 52705200,
+"mdOffset": 931221,
+"invokeFlags": 32
+}
+],
+"get_LastDataReceived": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1326512,
+"va": "0x140143db0",
+"eeTypeRva": 52705200,
+"mdOffset": 931247,
+"invokeFlags": 32
+}
+],
+"get_LastJWT": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1326272,
+"va": "0x140143cc0",
+"eeTypeRva": 52705200,
+"mdOffset": 931234,
+"invokeFlags": 32
+}
+],
+"get_LocalIP": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1326672,
+"va": "0x140143e50",
+"eeTypeRva": 52705200,
+"mdOffset": 931360,
+"invokeFlags": 32
+}
+],
+"get_Party": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 419408,
+"va": "0x140066650",
+"eeTypeRva": 52652048,
+"mdOffset": 360153,
+"invokeFlags": 32
+}
+],
+"get_PartyLeader": [
+{
+"type": "Assistant.PacketHandlers",
+"rva": 419568,
+"va": "0x1400666f0",
+"eeTypeRva": 52652048,
+"mdOffset": 360165,
+"invokeFlags": 32
+}
+],
+"get_PingInProgress": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1326224,
+"va": "0x140143c90",
+"eeTypeRva": 52705200,
+"mdOffset": 931195,
+"invokeFlags": 32
+}
+],
+"get_PingStart": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1326240,
+"va": "0x140143ca0",
+"eeTypeRva": 52705200,
+"mdOffset": 931208,
+"invokeFlags": 32
+}
+],
+"get_ProtocolVersion": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1326208,
+"va": "0x140143c80",
+"eeTypeRva": 52705200,
+"mdOffset": 931182,
+"invokeFlags": 32
+}
+],
+"get_Socket": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1326528,
+"va": "0x140143dc0",
+"eeTypeRva": 52705200,
+"mdOffset": 931260,
+"invokeFlags": 32
+}
+],
+"get_Statistics": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1327136,
+"va": "0x140144020",
+"eeTypeRva": 52705200,
+"mdOffset": 931373,
+"invokeFlags": 32
+}
+],
+"get_Status": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1326640,
+"va": "0x140143e30",
+"eeTypeRva": 52705200,
+"mdOffset": 931325,
+"invokeFlags": 32
+}
+],
+"remove_Disconnected": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1327296,
+"va": "0x1401440c0",
+"eeTypeRva": 52705200,
+"mdOffset": 931411,
+"invokeFlags": 32
+}
+],
+"remove_ProtocolSet": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1327552,
+"va": "0x1401441c0",
+"eeTypeRva": 52705200,
+"mdOffset": 931451,
+"invokeFlags": 32
+}
+],
+"set_Status": [
+{
+"type": "ClassicUO.Network.NetClient",
+"rva": 1326656,
+"va": "0x140143e40",
+"eeTypeRva": 52705200,
+"mdOffset": 931341,
+"invokeFlags": 32
+}
+]
+}
+}
