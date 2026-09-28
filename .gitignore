@@ -23,3 +23,5 @@ capture_state.txt
 logs/
 logs_test/
 settings.json*
+handle.exe
+screen.png
