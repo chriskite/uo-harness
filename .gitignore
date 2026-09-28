@@ -15,3 +15,9 @@ __pycache__/
 
 # OS
 Thumbs.db
+*.etl
+*.pcapng
+*_fixed.pcap
+stream_dump.txt
+capture_state.txt
+c2s_s*.bin

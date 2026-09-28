@@ -1,0 +1,193 @@
+external symbol: send @ EXTERNAL:00000147 (WS2_32.DLL)  
+  ref from 141787980 in no-func DATA  
+  ref from 14174986d in send @ 14174986d COMPUTED_JUMP  
+external symbol: WSARecv @ EXTERNAL:0000014f (WS2_32.DLL)  
+  ref from 1417879c0 in no-func DATA  
+  ref from 141749819 in WSARecv @ 141749819 COMPUTED_JUMP  
+external symbol: WSASend @ EXTERNAL:00000150 (WS2_32.DLL)  
+  ref from 1417879c8 in no-func DATA  
+  ref from 14174981f in WSASend @ 14174981f COMPUTED_JUMP  
+external symbol: recv @ EXTERNAL:00000155 (WS2_32.DLL)  
+  ref from 1417879f0 in no-func DATA  
+  ref from 141749861 in recv @ 141749861 COMPUTED_JUMP  
+=== decompiling 0 send/recv callers ===  
+DONE  
+thunk: WSARecv @ 141749819  
+  ref from 140755e4f in FUN_140755d80 @ 140755d80 UNCONDITIONAL_CALL  
+thunk: WSASend @ 14174981f  
+  ref from 140755fd1 in FUN_140755f10 @ 140755f10 UNCONDITIONAL_CALL  
+thunk: recv @ 141749861  
+  ref from 140755067 in FUN_140754fe0 @ 140754fe0 UNCONDITIONAL_CALL  
+thunk: send @ 14174986d  
+  ref from 140755187 in FUN_140755100 @ 140755100 UNCONDITIONAL_CALL  
+
+  
+/* WARNING: Globals starting with '_' overlap smaller symbols at the same address */  
+  
+int FUN_140754fe0(longlong param_1,char *param_2,int param_3,int param_4)  
+  
+{  
+  SOCKET s;  
+  int iVar1;  
+  DWORD DVar2;  
+  longlong lVar3;  
+  longlong *plVar4;  
+  undefined1 local_78 [40];  
+  longlong local_50;  
+  undefined8 uStack_48;  
+    
+  uStack_48 = 0;  
+  local_50 = param_1;  
+  FUN_14084eb20(0,&uStack_48);  
+  s = *(SOCKET *)(local_50 + 8);  
+  SetLastError(0);  
+  FUN_1416a96b0(local_78);  
+  iVar1 = recv(s,param_2,param_3,param_4);  
+  FUN_1416a9700(local_78);  
+  DVar2 = GetLastError();  
+  if ((char)uStack_48 != '\0') {  
+    FUN_14084eb80(local_50,0);  
+  }  
+  plVar4 = (longlong *)  
+           (*(longlong *)((longlong)ThreadLocalStoragePointer + (ulonglong)__tls_index * 8) + 0x10);  
+  lVar3 = *plVar4;  
+  if (lVar3 == 0) {  
+    lVar3 = FUN_140875b90(plVar4);  
+  }  
+  *(DWORD *)(lVar3 + 0x110) = DVar2;  
+  return iVar1;  
+}  
+  
+
+  
+/* WARNING: Globals starting with '_' overlap smaller symbols at the same address */  
+  
+int FUN_140755100(longlong param_1,char *param_2,int param_3,int param_4)  
+  
+{  
+  SOCKET s;  
+  int iVar1;  
+  DWORD DVar2;  
+  longlong lVar3;  
+  longlong *plVar4;  
+  undefined1 local_78 [40];  
+  longlong local_50;  
+  undefined8 uStack_48;  
+    
+  uStack_48 = 0;  
+  local_50 = param_1;  
+  FUN_14084eb20(0,&uStack_48);  
+  s = *(SOCKET *)(local_50 + 8);  
+  SetLastError(0);  
+  FUN_1416a96b0(local_78);  
+  iVar1 = send(s,param_2,param_3,param_4);  
+  FUN_1416a9700(local_78);  
+  DVar2 = GetLastError();  
+  if ((char)uStack_48 != '\0') {  
+    FUN_14084eb80(local_50,0);  
+  }  
+  plVar4 = (longlong *)  
+           (*(longlong *)((longlong)ThreadLocalStoragePointer + (ulonglong)__tls_index * 8) + 0x10);  
+  lVar3 = *plVar4;  
+  if (lVar3 == 0) {  
+    lVar3 = FUN_140875b90(plVar4);  
+  }  
+  *(DWORD *)(lVar3 + 0x110) = DVar2;  
+  return iVar1;  
+}  
+  
+
+  
+/* WARNING: Globals starting with '_' overlap smaller symbols at the same address */  
+  
+undefined4  
+FUN_140755f10(longlong param_1,undefined8 param_2,undefined4 param_3,undefined4 *param_4,  
+             undefined4 param_5,undefined8 param_6,undefined8 param_7)  
+  
+{  
+  undefined8 uVar1;  
+  undefined4 uVar2;  
+  DWORD DVar3;  
+  longlong lVar4;  
+  longlong *plVar5;  
+  undefined1 local_80 [40];  
+  undefined4 *local_58;  
+  longlong lStack_50;  
+  undefined8 local_48;  
+    
+  local_58 = (undefined4 *)0x0;  
+  *param_4 = 0;  
+  local_48 = 0;  
+  lStack_50 = param_1;  
+  FUN_14084eb20(0,&local_48);  
+  uVar1 = *(undefined8 *)(lStack_50 + 8);  
+  local_58 = param_4;  
+  SetLastError(0);  
+  FUN_1416a96b0(local_80);  
+  uVar2 = WSASend(uVar1,param_2,param_3,param_4,param_5,param_6,param_7);  
+  FUN_1416a9700();  
+  DVar3 = GetLastError();  
+  local_58 = (undefined4 *)0x0;  
+  if ((char)local_48 != '\0') {  
+    FUN_14084eb80(lStack_50,0);  
+  }  
+  plVar5 = (longlong *)  
+           (*(longlong *)((longlong)ThreadLocalStoragePointer + (ulonglong)__tls_index * 8) + 0x10);  
+  lVar4 = *plVar5;  
+  if (lVar4 == 0) {  
+    lVar4 = FUN_140875b90(plVar5);  
+  }  
+  *(DWORD *)(lVar4 + 0x110) = DVar3;  
+  return uVar2;  
+}  
+  
+
+  
+/* WARNING: Globals starting with '_' overlap smaller symbols at the same address */  
+  
+undefined4  
+FUN_140755d80(longlong param_1,undefined8 param_2,undefined4 param_3,undefined4 *param_4,  
+             undefined8 param_5,undefined8 param_6,undefined8 param_7)  
+  
+{  
+  undefined8 uVar1;  
+  undefined4 uVar2;  
+  DWORD DVar3;  
+  longlong lVar4;  
+  longlong *plVar5;  
+  undefined1 local_88 [40];  
+  undefined4 *local_60;  
+  undefined8 local_58;  
+  longlong lStack_50;  
+  undefined8 local_48;  
+    
+  local_60 = (undefined4 *)0x0;  
+  local_58 = 0;  
+  *param_4 = 0;  
+  local_48 = 0;  
+  lStack_50 = param_1;  
+  FUN_14084eb20(0,&local_48);  
+  local_58 = param_5;  
+  uVar1 = *(undefined8 *)(lStack_50 + 8);  
+  local_60 = param_4;  
+  SetLastError(0);  
+  FUN_1416a96b0(local_88);  
+  uVar2 = WSARecv(uVar1,param_2,param_3,param_4,param_5,param_6,param_7);  
+  FUN_1416a9700();  
+  DVar3 = GetLastError();  
+  local_60 = (undefined4 *)0x0;  
+  local_58 = 0;  
+  if ((char)local_48 != '\0') {  
+    FUN_14084eb80(lStack_50,0);  
+  }  
+  plVar5 = (longlong *)  
+           (*(longlong *)((longlong)ThreadLocalStoragePointer + (ulonglong)__tls_index * 8) + 0x10);  
+  lVar4 = *plVar5;  
+  if (lVar4 == 0) {  
+    lVar4 = FUN_140875b90(plVar5);  
+  }  
+  *(DWORD *)(lVar4 + 0x110) = DVar3;  
+  return uVar2;  
+}  
+  
+DONE  
