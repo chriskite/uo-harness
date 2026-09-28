@@ -1,0 +1,17 @@
+# Large/binary artifacts — regenerable, not committed
+ClassicUO.exe
+cuo.tar.gz
+razor.tar.gz
+ClassicUO-main/
+Razor-master/
+extracted/
+ghidra/
+strings.txt
+launcher_strings.txt
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+Thumbs.db

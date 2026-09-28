@@ -1,0 +1,636 @@
+
+===== anticheat_core (3) =====
+01be01f7  Speedhack
+01be0201  AutoClicking
+01be020e  AutoKeyboard
+
+===== detect_monitor (370) =====
+017c667a  <AssemblyConfigurationAttribute2UnverifiableCodeAttributeg{
+018641cc  Monitor
+018668c6  kTl"SecurityException*VerificationException
+01899abd  DetectHidden
+01994f10  ,DetectTextFileEncoding
+01994f79  DetectBOMBytes
+019d8806  ELEMENT_TYPE_U$ELEMENT_TYPE_FNPTR&ELEMENT_TYPE_OBJECT(ELEMENT_TYPE_SZARRAY"ELEMENT_TYPE_MVAR,ELEMENT_TYPE_CMOD_REQD*ELEMENT_TYPE_CMOD_OPT*ELEMENT_TYPE_INTERNAL ELEMENT_TYPE_MAX"*ELEMENT_TYPE_MODIFIER@*ELEMENT_TYPE_SENTINELA&ELEMENT_TYPE_PINNEDE
+019e05ec  IntegrityStream
+019e0bc6  JWaitForSentinelInHashtableToDisappear@
+019e0c6c  HVolatileReadNonSentinelFromHashtable
+019e0c99  &TryAddOrGetExisting4TryWriteSentinelToLocation@
+019e0db7  _initialSize6_fillPercentageBeforeResize@_entryInProcessOfWritingSentinel
+01a02429  DetectFormat
+01a09d73  get_TradeSkills(get_VerifyingAccount
+01a0a7d6  y VerifyingAccount
+01a4b7c3  .SDL_EVENT_POLL_SENTINEL
+01a52953  SDL_POLLSENTINEL
+01ab6131  <TaskDialogVerificationCheckBox
+01adce51  CSIDL_RESOURCES2CSIDL_RESOURCES_LOCALIZED,CSIDL_COMMON_OEM_LINKS"CSIDL_CDBURN_AREA*CSIDL_COMPUTERSNEARME"CSIDL_FLAG_CREATE,CSIDL_FLAG_DONT_VERIFY0CSIDL_FLAG_DONT_UNEXPAND&CSIDL_FLAG_NO_ALIAS0CSIDL_FLAG_PER_USER_INIT
+01ade393  .ES_E_CHALLENGE_MISMATCH
+01ade3b0  8ES_E_CHALLENGE_SIZE_MISMATCH
+01adf6b7  HTMLDLG_VERIFY8HTMLDLG_ALLOW_UNKNOWN_THREAD
+01ae1451  BHTTP_ADDREQ_FLAG_RESPONSE_HEADERSFHTTP_ADDREQ_FLAG_ALLOW_EMPTY_VALUES(HTTP_1_1_CACHE_ENTRYNHTTP_WEB_SOCKET_MAX_CLOSE_REASON_LENGTHFHTTP_WEB_SOCKET_MIN_KEEPALIVE_VALUE HTTPSPROV_ACTION4HTTPS_FINALPOLICY_FUNCTION
+01b3bdbc  RDISPID_WMPMEDIACOLLECTION_STARTMONITORING=
+01b7603e  (UpdateImeContextMode(VerifyImeModeChanged@
+01b76088  <VerifyImeRestrictedModeChanged2OnImeContextStatusChanged OnImeModeChanged
+01b8839c  System.Diagnostics.Design.ProcessModuleDesigner, System.Design, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a$PerformanceMonitor
+01b8b160  $IOControlKeepAlive
+01b8eda8  4VerificationStatusResponse
+01b8eea3  ,JVerificationStatusResponseJsonContext
+01b8ffb6  *VerifyOutlandsIDModel
+01b90023  @VerifyOutlandsIDModelJsonContext
+01b901c4  "VerifyDeviceModel
+01b9020a  8VerifyDeviceModelJsonContext
+01b9ecb9  .ResolveLocationSections.VerifyDefinitionAllowed@
+01b9ed3a  "VerifySectionName
+01ba0a93  SetMode6VerifyConsistentChangeModel
+01ba0d1a  .StrictSkipToNextElement@StrictSkipToOurParentsEndElement.VerifyIgnorableNodeType<VerifyNoUnrecognizedAttributes.VerifyRequiredAttribute@
+01ba0e16  2AddErrorReservedAttribute6AddErrorUnrecognizedElementFVerifyAndGetNonEmptyStringAttribute@
+01ba0e89  8VerifyAndGetBooleanAttribute@
+01ba4bf9  <VerifyIsAttachedToConfigRecord ForceDeclaration
+01ba519d  VerifyDesigntime VerifyIsEditable,VerifyNotParentSection,VerifySupportsLocation.VerifyIsEditableFactory
+01bab454  (VerifyAssignableType
+01baed20  TrustFailure(SecureChannelFailure.ServerProtocolViolation KeepAliveFailure4ProxyNameResolutionFailure4MessageLengthLimitExceeded$CacheEntryNotFound<RequestProhibitedByCachePolicy0RequestProhibitedByProxy
+01bb2a34  d-DSyncSuccessSentinelStateMachineBox"StateMachineBox`1E
+01bb735d  p-0s_taskCompletionSentinel.s_asyncDebuggingEnabled(s_currentActiveTasks
+01bb8b72  _sentinel
+01bbd510  DetectingHidden,EvaluatingIntelligence$ForensicEvaluation
+01bc7dc2  8<VerifyOutlandsAccount>d__63
+01bc7e25  F<CheckVerificationStatusAsync>d__68
+01bc7ea6  2<ResetPasswordStart>d__74B<OnPasswordVerificationCode>d__75.<VerifyDeviceCode>d__76:<EndGameAccountCreation>d__79
+01bc80f7  :get_VersionRestrictionsLoaded.get_IsMostRecentVersion@get_IsMostRecentGameFilesVersion4get_VerificationIdentifierNget_PasswordResetVerificationIdentifier@get_DeviceVerificationIdentifier*add_NameCheckResponse@
+01bc82ed  4StartCreateOutlandsAccount*VerifyOutlandsAccount
+01bc8358  4OnWebVerificationCompletedNOnPasswordResetWebVerificationCompleted:OnDeviceVerificationCompleted8CheckVerificationStatusAsync@
+01bc84cf  4OnPasswordVerificationCode
+01bc84f6  VerifyDeviceCode
+01bc88cd  EmailAddress._verificationIdentifierH_passwordResetVerificationIdentifier:_deviceVerificationIdentifier8CloseClientAfterPopupMessage"NameCheckResponse
+01bc8a00  ,VerificationIdentifier
+01bc8a1c  FPasswordResetVerificationIdentifier
+01bc8a45  8DeviceVerificationIdentifier
+01bc8a76  VerifyOutlandsID$DeviceVerification8DeviceVerificationProcessing
+01bc8b25  EnterGameServer6OutlandsIDCreatePromptEmail<OutlandsIDCreateSendingRequest>OutlandsIDCreateSendCredentials0OutlandsIDCreateSendCode&GameAccountCreation2VerifyGameAccountCreation
+01bc8bd7  GameAccountLink*VerifyGameAccountLink"CharacterCreation*CharacterCreationDone,CharacterDeleteConfirm0ResetPasswordPromptEmail6ResetPasswordSendingRequest ResetPasswordEnd.PrivacyPolicyAcceptanceBProcessingPrivacyPolicyAcceptance
+01c5fd3e  DetectUrls
+01c7286a  get_Verification@
+01c72883  set_Verification@
+01c72dd0  Verification@
+01c77b99  _hmonitor
+01c77bd4  s_syncLock*s_desktopChangedCount6_currentDesktopChangedCount s_primaryMonitor
+01c8f705  pnRadioButton2pfVerificationFlagChecked
+01cc2f13  PerMonitor
+01cc61a8  monitor
+01cc61b0  lprcMonitor
+01cc654d  hMonitor
+01cd2aac  (ERROR_PIPE_LISTENING&ERROR_VERIFIER_STOP"ERROR_ABIOS_ERRORi
+01cd806e  .6ERROR_INVALID_PRINT_MONITOR
+01cd9439  E8ERROR_VOLUME_NOT_SIS_ENABLEDQFPERROR_SYSTEM_INTEGRITY_ROLLBACK_DETECTED
+01cd9483  GNERROR_SYSTEM_INTEGRITY_POLICY_VIOLATION
+01cd977f  GbERROR_SYSTEM_INTEGRITY_REPUTATION_UNFRIENDLY_FILE
+01cd97b3  G\ERROR_SYSTEM_INTEGRITY_REPUTATION_UNATTAINABLE
+01cd97e4  GhERROR_SYSTEM_INTEGRITY_REPUTATION_EXPLICIT_DENY_FILE
+01cdac1d  \DERROR_CLUSTER_WATCHDOG_TERMINATING
+01cdc091  iHERROR_TRANSACTION_INTEGRITY_VIOLATED
+01cde33d  .ERROR_DS_GCVERIFY_ERROR
+01cdfcde  4ERROR_DS_ROLE_NOT_VERIFIED
+01ce2eb2  DERROR_IPSEC_INTEGRITY_CHECK_FAILEDm
+01ce53fb  JERROR_APPX_INTEGRITY_FAILURE_CLR_NGEN!
+01d15bad  ,VerifyGlyphIsInAdorner@
+01d1b4f4  $VerifyResourceName
+01d1b535  &VerifyResourceNames
+01d21616  <get_VerificationStatusResponse@
+01d2163e  BCreate_VerificationStatusResponse@
+01d2166e  DVerificationStatusResponsePropInitTVerificationStatusResponseSerializeHandler@
+01d216ce  NVerificationStatusResponseCtorParamInit6_VerificationStatusResponse
+01d22f52  2get_VerifyOutlandsIDModel@
+01d22f75  8Create_VerifyOutlandsIDModel@
+01d22fa0  :VerifyOutlandsIDModelPropInitJVerifyOutlandsIDModelSerializeHandler@
+01d22ff6  ,_VerifyOutlandsIDModel
+01d23114  *get_VerifyDeviceModel@
+01d23133  0Create_VerifyDeviceModel@
+01d2315a  2VerifyDeviceModelPropInitBVerifyDeviceModelSerializeHandler@
+01d231a8  $_VerifyDeviceModel
+01d29a49  X509StoreBX509SubjectKeyIdentifierExtension*X509VerificationFlags
+01d2f2d7  System.Configuration.Internal.IInternalConfigHost.VerifyDefinitionAllowed
+01d32f49  "AvailableSentinel"CompletedSentinel
+01d34e0c  (UseSchedulingContext(FlowExecutionContext$CompletionSentinel
+01d38276  3"emailverification
+01d47b0f  ,DeviceVerificationGump
+01d47d91  (VerificationCodeGump
+01d56a69  &FNA3D_VerifySampler
+01d56a9e  2FNA3D_VerifyVertexSampler>FNA3D_ApplyVertexBufferBindings
+01d72d61  <184 verificationText
+01d7905e  *Debug_VerifyAlignment
+01d7a18b  BDebug_VerifyAssignmentsAreCurrent
+01d7a1cb  2Debug_VerifyNoOverlapping
+01d81fcb  _uiItemRects"_readOnlyVerified(_forceRenderReadOnly
+01d947f6  fLicVerified
+01d97eef  WDA_MONITOR,WDA_EXCLUDEFROMCAPTURE
+01d98b37  pRadioButtons&nDefaultRadioButton&pszVerificationText,pszExpandedInformation,pszExpandedControlText.pszCollapsedControlText
+01d9aae2  TDN_DESTROYED0TDN_RADIO_BUTTON_CLICKED,TDN_DIALOG_CONSTRUCTED0TDN_VERIFICATION_CLICKED
+... truncated ...
+
+===== ban_enforce (135) =====
+017c19d6  EventReporter0AccessViolationException
+017da164  BandageTimerY
+017def1d  BandageTarget
+0188ca56  BandageSelf
+0188ca64  BandageLT
+01896e5d  lblCredits3 macroActionDelay,disableMacroPlayFinish$subBandageTimerTab6onlyShowBandageTimerSeconds$bandageTimerFormat showBandageTimer(bandageTimerLocation&bandageTimerSeconds*lblBandageCountFormat
+01896f9b  smartLT"bandageEndMessage&bandageStartMessage
+0189dbeb  CAPTCHA_GUMP_ID SpecialPartySent(SpecialPartyReceived0_lastSelfDeathScreenshot
+01994fe5  DDetectSuspiciousUTF8SequenceLength
+019c105b  b_^Validation_scalar_range_violation_not_different
+019c108f  c_VValidation_scalar_range_violation_not_equal
+019c10be  kc_\Validation_scalar_range_violation_not_in_range
+019c10f2  c_fValidation_scalar_range_violation_not_outside_range
+019c120a  f_JValidator_scalar_resolution_violation
+01a0d744  BanMessage
+01a1845f  BandageSelfOld
+01a30166  bandage
+01a30800  2get_DisableWhenPvpFlagged
+01a3084d  Perform*DisableWhenPvpFlagged
+01a33da8  Bandaging
+01a373c6  BandageLastTarg
+01ad3552  bAnimation
+01adbb46  $CDN_SHAREVIOLATION
+01ae9f15  StartVisualGroup$SetControlItemText OnShareViolation
+01b769db  CFD<BannerContainerThemeIdentifier6FileExplorerBannerContainer.ComboboxClassIdentifier
+01b8d023  set_Banned8<AccountName>k__BackingField8<AccessLevel>k__BackingField.<Banned>k__BackingField
+01b8d0a0  Banned
+01baed20  TrustFailure(SecureChannelFailure.ServerProtocolViolation KeepAliveFailure4ProxyNameResolutionFailure4MessageLengthLimitExceeded$CacheEntryNotFound<RequestProhibitedByCachePolicy0RequestProhibitedByProxy
+01bbe937  >wy-:<IsPvpFlagged>k__BackingField6EnablePvpScriptRestrictions
+01bbe9d3  IsPvpFlagged
+01bc02d9  Bandage
+01be64ed  default_scale8enable_mousewheel_scale_zoom@restore_scale_after_unpress_ctrl bandage_self_old&enable_screen_shake&enable_death_screen2enable_black_white_effect
+01bf81b6  0HasStationaryPenaltyFlag$TryFindSkillByName
+01bf8203  _disallowedItems*PVP_FLAG_BUFF_ICON_ID>STATIONARY_PENALTY_BUFF_ICON_ID@
+01cac19e  6FDE_SHAREVIOLATION_RESPONSE
+01cce9a3  STG_E_READFAULT(STG_E_SHAREVIOLATION&STG_E_LOCKVIOLATION.STG_E_FILEALREADYEXISTS,STG_E_INVALIDPARAMETER STG_E_MEDIUMFULL.STG_E_PROPSETMISMATCHED*STG_E_ABNORMALAPIEXIT&STG_E_INVALIDHEADER"STG_E_INVALIDNAME
+01cd0095  ERROR_SEEK$ERROR_NOT_DOS_DISK,ERROR_SECTOR_NOT_FOUND$ERROR_OUT_OF_PAPER"ERROR_WRITE_FAULT ERROR_READ_FAULT"ERROR_GEN_FAILURE.ERROR_SHARING_VIOLATION(ERROR_LOCK_VIOLATION ERROR_WRONG_DISK:ERROR_SHARING_BUFFER_EXCEEDED ERROR_HANDLE_EOF,ERROR_HANDLE_DISK_FULL&ERROR_NOT_SUPPORTED$ERROR_REM_NOT_LIST
+01cd0969  @ERROR_DEVICE_SUPPORT_IN_PROGRESS,ERROR_CANCEL_VIOLATION@ERROR_ATOMIC_LOCKS_NOT_SUPPORTED
+01cd3584  <ERROR_MULTIPLE_FAULT_VIOLATION*ERROR_SYSTEM_SHUTDOWN$ERROR_PORT_NOT_SET<ERROR_DS_VERSION_CHECK_FAILURE*ERROR_RANGE_NOT_FOUND4ERROR_NOT_SAFE_MODE_DRIVER2ERROR_FAILED_DRIVER_ENTRY
+01cd7643  4ERROR_STRICT_CFG_VIOLATION
+01cd767b  >ERROR_CROSS_PARTITION_VIOLATION
+01cd9078  EBERROR_SECUREBOOT_POLICY_VIOLATION
+01cd9483  GNERROR_SYSTEM_INTEGRITY_POLICY_VIOLATION
+01cdd014  8ERROR_DS_OBJ_CLASS_VIOLATIONQ
+01cdd2db  >ERROR_DS_INAPPROPRIATE_MATCHING:ERROR_DS_CONSTRAINT_VIOLATION.ERROR_DS_NO_SUCH_OBJECT
+01cdd3d2  2ERROR_DS_NAMING_VIOLATION
+01cded3b  @ERROR_DS_CANT_MOVE_ACCOUNT_GROUPBERROR_DS_CANT_MOVE_RESOURCE_GROUP8ERROR_DS_INVALID_SEARCH_FLAG@ERROR_DS_NO_TREE_DELETE_ABOVE_NCJERROR_DS_COULDNT_LOCK_TREE_FOR_DELETEbERROR_DS_COULDNT_IDENTIFY_OBJECTS_FOR_TREE_DELETE2ERROR_DS_SAM_INIT_FAILUREDERROR_DS_SENSITIVE_GROUP_VIOLATION
+01d1cfc3  Banyan
+01d2114c  ,<email>k__BackingField8<banneduntil>k__BackingField.<banned>k__BackingField*<role>k__BackingField
+01d211b9  banneduntil
+01d211cf  banned
+01d5293b  H<ReplaceStringInterpolations>b__17_0"<CheckPvp>b__20_0"<CheckPvp>b__21_0B<HasStationaryPenaltyFlag>b__22_0
+01d5dea0  bankData
+01d5dea9  bankDataLen
+01d6be26  banned1
+01d6be2e  banned2
+01d6be36  banned3,_owningDataGridViewRow
+01d6c1ac  bandIndex
+01e03e12  "&BandageTimerSeconds
+01e0846b  BANDS BAND_NOT_PRESENT
+01e084d1  BandCount
+01e084e0  BandFactors
+01e20dc4  5 OnFolderChange_6&OnSelectionChange_7$OnShareViolation_8
+01eb4a91  A%1, a conference moderator, has kicked you out of the conference.
+01eb4b4f  ?%1, a conference moderator, has banned you from the conference.
+01eb4e3b  )%1 has been kicked out of the conference.
+01eb5595  (You are banning %1 from this conference.
+01eb572b  *You have been banned from this conference.
+01ebba88  Your account is under review or has been suspended due to a violation of the Code of Conduct. For more information, please contact an Administrator via the official Outlands Discord or Forums.
+025fa4fe  ticamente los iconos de la bandeja
+025fa521  Alinear los iconos de la bandeja
+0275c6a9  xito no controle e seja persistente no banco de dados, manipule o evento de an
+02770911  cones de Bandeja
+0296a20d  BAncho, en p
+02982436  Icono de la bandeja del sistema.
+029c23f9  l'affichage de cette bande de menus contextuels.
+029c8fca  KSe produit lorsque la bande de menus contextuels d'une cellule est requis.
+029cc4e7  =Se produit lorsque la bande de menus contextuels est requise.
+029d485e  PImpossible d'ajouter une bande d'image plus petite que la propri
+029d4a63  RLa largeur de la bande d'images doit
+029e0daa  es dans la bande d'onglets.
+029e0e69  ,Le nombre d'onglets dans la bande d'onglets.
+02b7f8a2  o de coluna de banco de dados usada para filtrar o conjunto de linhas retornado pela fonte de dados.
+02b7fc6a  qIndica nomes de colunas de banco de dados usados para filtrar o conjunto de linhas retornado pela fonte de dados.
+02b89ede  rO nome da propriedade da fonte de dados ou da coluna de banco de dados
+02b993c2  cone a ser exibido na bandeja do sistema.
+03a45b44  bangtrimbath){
+03a46a26  bandsqueue= {};80px;cking{
+03a4c3df  bombingmailto:made in. Many carries||{};wiwork ofsynonymdefeatsfavoredopticalpageTraunless sendingleft"><comScorAll thejQuery.touristClassicfalse" Wilhelmsuburbsgenuinebishops.split(global followsbody ofnominalContactsecularleft tochiefly-hidden-banner</li>
+03a53da3  <called forsinger and.src = "//violationsthis pointconstantlyis locatedrecordingsd from thenederlandsportugu
+01f37f0e  Validation_scalar_range_violation_not_equal
+01f37fca  Validation_scalar_range_violation_not_outside_range
+01f3822a  Validator_scalar_resolution_violation
+03d9d324  , banned =
+03d9d354  , banneduntil =
+03db0ae4  Access Violation: Attempted to read or write protected memory. This is often an indication that other memory is corrupt. The application will be terminated since this platform does not support throwing an AccessViolationException.
+03dbd344  Bandage Timer
+03dbd374  Bandage: Ending
+03dbd3ac  Bandage: Starting
+03dbd3e4  Bandage: {count}s
+03dbd41c  BandageEndMessage
+03dbd48c  BandageStartMessage
+03dbd4cc  BannedYouFromTheConference
+03dbdf3c  Bengali (Bangladesh)
+03e66954  Show bandage timer
+03e66994  Show bandaging end message
+03e669e4  Show bandaging start message
+03e983c4  The underlying connection was closed: The server committed a protocol violation
+03eb6aa4  Validation_scalar_range_violation_not_different
+03eb6b8c  Validation_scalar_range_violation_not_in_range
+03ece63c  bandageEndMessage
+03ece674  bandageStartMessage
+03ece6b4  bandageTimerFormat
+03ece6f4  bandageTimerLocation
+03ece734  bandageTimerSeconds
+03ece774  bandage_self_old
+03ece7ac  bandaging
+03f14d54  {bandage}
+
+===== screen_capture (180) =====
+0178d787  :System.Drawing.Primitives.dll<System.Private.Windows.GdiPlus
+0178d83e  DSystem.Private.Windows.GdiPlus.dll4System.Reflection.Metadata
+01793344  System.Private.Windows.GdiPlus, PublicKey=00000000000000000400000000000000
+01816b1a  Gdiplus
+01816b22  gdiplus.dll
+0186959e  TakeScreenshot
+01894b73  onMacroSave$onMacroInsertSetLT0loopMacro_CheckedChanged&jump2SearchEx_Click setScnPath_Click*ReloadScreenShotsList0radioFull_CheckedChanged,radioUO_CheckedChanged@screensList_SelectedIndexChanged*screensList_MouseDown
+01896046  RenameScript$MoveScriptCategory"AddScriptCategory4openScreenshotFolder_Click
+018966fe  screenshotTab
+01897738  scriptHotkey(openScreenshotFolder"tableLayoutPanel1
+0189aaf0  &CaptureScreenToFile
+0189ab15  CaptureScreen
+0189dbeb  CAPTCHA_GUMP_ID SpecialPartySent(SpecialPartyReceived0_lastSelfDeathScreenshot
+0191ff4c  GdiplusAborted
+0191ff5c  LB&GdiplusAccessDenied
+0191ff73  kLBbGdiplusCannotCreateGraphicsFromIndexedPixelFormat
+0191ffaa  LBVGdiplusCannotSetPixelFromIndexedPixelFormat
+0191ffd9  +MBJGdiplusDestPointsInvalidParallelogram
+01920004  MB<GdiplusDestPointsInvalidLength
+01920027  MB&GdiplusFileNotFound
+0192003e  KNB2GdiplusFontFamilyNotFound
+0192005d  NB0GdiplusFontStyleNotFound
+0192007a  OB&GdiplusGenericError
+01920091  kOB2GdiplusInsufficientBuffer
+019200b0  OB.GdiplusInvalidParameter
+019200cb  +PB.GdiplusInvalidRectangle
+019200e8  PB$GdiplusInvalidSize
+019200ff  PB*GdiplusNotImplemented
+01920118  KQB*GdiplusNotInitialized
+01920133  QB,GdiplusNotTrueTypeFont
+0192014e  RB:GdiplusNotTrueTypeFont_NoName
+0192016f  kRB"GdiplusObjectBusy
+01920189  GdiplusOverflow
+01920199  +SB8GdiplusPropertyNotFoundError
+019201bb  SB@GdiplusPropertyNotSupportedError
+019201e3  GdiplusUnknown
+019201f2  KTB2GdiplusUnknownImageFormat
+01920211  TB@GdiplusUnsupportedGdiplusVersion
+01920236  UB"GdiplusWrongState
+01975570  PInvokeGdiPlus
+01a09bf5  get_Salute.get_ScreenshotStoredIn0
+01a0a656  y&ScreenshotStoredIn0
+01a0e3f6  ;pz:HideScreenshotStoredInMessage
+01a2eaf3  BitBlt
+01a4bb60  1$SDL_FOLDER_DESKTOP(SDL_FOLDER_DOCUMENTS(SDL_FOLDER_DOWNLOADS SDL_FOLDER_MUSIC&SDL_FOLDER_PICTURES,SDL_FOLDER_PUBLICSHARE*SDL_FOLDER_SAVEDGAMES,SDL_FOLDER_SCREENSHOTS(SDL_FOLDER_TEMPLATES"SDL_FOLDER_VIDEOS SDL_FOLDER_COUNT@
+01ac0c2e  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpBitmap>.get_Pointer
+01ac0ec3  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpBitmap>.Pointer
+01ac0fce  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpImage>.get_Pointer6System.IO.IRawData.get_Data
+01ac157b  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpImage>.Pointer
+01ac1c0f  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpGraphics>.get_Pointer
+01ac3b10  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpGraphics>.Pointer
+01ac3f22  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpRegion>.get_Pointer@
+01ac4170  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpRegion>.Pointer
+01ac4709  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpFontFamily>.get_Pointer
+01ac4996  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpFontFamily>.Pointer
+01ac4ecf  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpFont>.get_Pointer
+01ac5337  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpFont>.Pointer
+01ad3224  GdiPlusC
+01afb297  GdiPlusCacheE"
+01afee3d  GdiplusStartup
+01aff84a  GetDC
+01affba2  J<BitBlt>g__LocalExternFunction|8435_0^<CreateDIBSection>g__LocalExternFunction|8446_0X<GetDeviceCaps>g__LocalExternFunction|8460_0
+01b5e9f2  GdipGetDC
+01bbe1ca  Screenshot
+01be6883  hide_helmet(hide_equipment_slots$use_objects_fadingFhold_down_key_alt_to_close_anchoreddclose_all_anchored_gumps_in_group_with_right_click,hold_alt_to_move_gumpsBhide_screenshot_stored_in_message
+01c858da  targetDC
+01c8593f  refTargetDC
+01c873ba  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpMetafile>.get_Pointer@
+01c87864  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpMetafile>.Pointer
+01c87d2b  WmfBitBlt
+01c87ec4  WmfDibBitBlt
+01c88448  EmfBitBlt
+01c8afb5  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpFontCollection>.get_Pointer@
+01c8b04d  Windows.Win32.Foundation.IPointer<Windows.Win32.Graphics.GdiPlus.GpFontCollection>.Pointer
+01cf013f  GpMetafile&GdiplusStartupInput
+01cf018b  (GdiplusStartupOutput
+01cf01b6  *GdiPlusInitializationE
+01cf020b  *GdiplusStartupInputExY
+01d4295d  _gridLoot,_gridLootCloseWhenZero(_newOutlandsGridLoot<_hideScreenshotStoredInMessage*_highlightObjectsMode>_highlightObjectsColorPickerBox
+01d813e0  GdiPlusSpace MaxRecurseExpand$DotDotDotIconWidth&DotDotDotIconHeight$DownArrowIconWidth&DownArrowIconHeight
+01dcca35  EMR_BITBLT
+01dcd843  NotTrueTypeFont2UnsupportedGdiplusVersion PropertyNotFound(PropertyNotSupported
+01dcd8a3  GdiplusVersion$DebugEventCallback0SuppressBackgroundThread,SuppressExternalCodecs NotificationHook$NotificationUnhook
+01dd566d  *InitializeFromGdiPlus
+01de2d12  4GenerateSnapShotWithBitBlt
+01e11012  $GdiPlusFormatFlags
+01e11030  GdiPlusTrimming
+01e11049  &GdiPlusHotkeyPrefix
+01e11067  GdiPlusAlignment
+01e11082  (GdiPlusLineAlignment
+01e2acfc  (get_RegisterCFFailedbget_ClipboardOrDragDrop_JsonDeserializationFailedvget_ClipboardOrDragDrop_CannotJsonSerializePredefinedFormat6get_GdiplusInvalidOperation RegisterCFFailed
+01e2ae21  .GdiplusInvalidOperation
+01e2ff6d  "GdiPlusExtraSpace4_targetToolStripCollection
+01eb52f8  Screenshot stored in: {0}
+01ebcb17  #Hide "Screenshot stored in" message
+02d0d5c4  System.Private.Windows.GdiPlus, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089jSystem.Private.Windows.GdiPlus.Resources.SR.resourcesK
+01eb42dc  ScreenshotStoredIn0
+01eb8bde  HideScreenshotStoredInMessage
+01f3c844  GdiplusCannotCreateGraphicsFromIndexedPixelFormat
+01f3c906  GdiplusDestPointsInvalidLength
+01f3c996  GdiplusFileNotFound
+01f3c9f8  GdiplusFontStyleNotFound
+01f3ca58  GdiplusInsufficientBuffer
+01f3cac2  GdiplusInvalidRectangle
+01f3cb1e  GdiplusNotImplemented
+01f3cb7c  GdiplusNotTrueTypeFont
+01f3cbec  GdiplusObjectBusy
+01f3cc36  GdiplusPropertyNotFoundError
+01f3cd10  GdiplusUnsupportedGdiplusVersion
+01f45f8c  GdiplusAccessDenied
+01f45fe2  GdiplusFontFamilyNotFound
+01f4604e  GdiplusGenericError
+01f460b0  GdiplusInvalidOperation
+01f46174  GdiplusNotTrueTypeFont_NoName
+01f4623a  GdiplusPropertyNotSupportedError
+01f462a0  GdiplusUnknownImageFormat
+01f4631c  GdiplusWrongState
+01f47252  GdiplusCannotSetPixelFromIndexedPixelFormatU
+01f472ee  GdiplusDestPointsInvalidParallelogram
+01f47370  GdiplusInvalidSize
+... truncated ...
+
+===== proc_enum (27) =====
+0199c146  +:U StandardToolHelp
+01ad8c6c  GetClassName
+01afdf1b  &EnumWindowsCallback
+01afe232  EnumWindows
+01afe249  2EnumWindowsNativeCallback
+01afe38f  GetWindowText&GetWindowTextLength
+01c2a296  InvokeEditModerSystem.ComponentModel.ICustomTypeDescriptor.GetAttributespSystem.ComponentModel.ICustomTypeDescriptor.GetClassNamexSystem.ComponentModel.ICustomTypeDescriptor.GetComponentNamepSystem.ComponentModel.ICustomTypeDescriptor.GetConverter
+01e5e77e  <ThrowInvalidOperationException(EnumProcessModulesEx
+01e5f18f  <EnumProcessModulesUntilSuccess
+031ddb93  GetClassNameW
+031de255  GetWindowTextLengthW
+031de26a  GetWindowTextW
+03d82394  K32EnumProcessModulesEx
+03d823ae  K32EnumProcesses
+0230c806  StandardToolHelp
+
+===== dbg_antidbg (33) =====
+01862a82  DDebuggerGuidedStepThroughAttributeg{
+01862b3b  StackFrame8DebuggerNonUserCodeAttributeg{
+01bb5c40  *get_ParentForDebugger AddToActiveTasks
+01bb5e3d  Hget_DebuggerDisplayMethodDescription@
+01bb5ed0  @SetNotificationForWaitCompletionRNotifyDebuggerOfWaitCompletionIfNecessaryZAnyTaskRequiresNotifyDebuggerOfWaitCompletion
+01bb5f5d  bget_IsWaitNotificationEnabledOrNotRanToCompletionPget_ShouldNotifyDebuggerOfWaitCompletion:get_IsWaitNotificationEnabled<NotifyDebuggerOfWaitCompletion
+01bb720d  FGetDelegateContinuationsForDebuggerDGetDelegatesFromContinuationObject
+01bb73e2  s_ecCallback"ParentForDebugger@
+01bb740b  @DebuggerDisplayMethodDescription
+01bb746f  HShouldNotifyDebuggerOfWaitCompletion
+01bb7854  Hget_DebuggerDisplayResultDescription$DangerousSetResult&get_ResultOnSuccess
+01bb7be3  p-@DebuggerDisplayResultDescription
+01cc2f1e  PerMonitorV2&DpiUnawareGdiScaled&get_DebuggerDisplay"ThrowArgumentNull
+01cc2f76  DebuggerDisplay
+01cd37de  8ERROR_PNP_TRANSLATION_FAILED@ERROR_PNP_IRQ_TRANSLATION_FAILED(ERROR_PNP_INVALID_ID4ERROR_WAKE_SYSTEM_DEBUGGER(ERROR_HANDLES_CLOSED
+01d34c92  3NSystem.Diagnostics.Debugger.IsSupported
+01d49ea9  _scrollY
+01d4d041  get_ScrollY
+01d4d04d  set_ScrollY
+01d4d059  InternalBuild:<HasScrollbar>k__BackingField<<HasBackground>k__BackingFieldB<UseFlagScrollbar>k__BackingField0<ScrollX>k__BackingField0<ScrollY>k__BackingField
+01d4d145  ScrollY
+01e01688  scrollYOffet
+01e294ce  FACILITY_SOS2FACILITY_OCP_UPDATE_AGENT$FACILITY_DEBUGGERS
+01e7ab18  :TryGetStateMachineForDebugger
+01e7ac26  &AppendFormattedSlow>AppendOrInsertAlignmentIfNeeded$GrowThenCopyString GrowThenCopySpanNHandleNonSuccessAndDebuggerNotification
+02026745  K{0} This exception is only raised if a debugger is attached to the process.
+0291ecc9  st, wenn ein Debugger mit dem Prozess verbunden ist.
+02a2670a  associato un debugger.
+031e7c54  System.Diagnostics.Debugger.IsSupported
+03a4fedc  aisHollywoodexpansionstandards</style>
+03d82be2  IsDebuggerPresent
+03eacc4c  UOFiddler
+
+===== input_api (16) =====
+0189e559  GetAsyncKeyState
+01ad863b  BlockInput
+01ad9648  SendInput
+01ad991d  SetWindowsHookEx
+01c78138  CheckGlobalKeys6ResetKeyboardUsingSendInput
+01da0704  "MOUSE_EVENT_FLAGS
+01da0831  "KEYBD_EVENT_FLAGS
+031e6adc  SetWindowsHookExW
+
+===== net_endpoints (188) =====
+01790672  RepositoryUrl@https://github.com/dotnet/dotnet
+01796e9f  2.1.3.0\2.1.3+eadc8dbc041d1b335ecf790ce400b5e069f075deDhttps://github.com/SixLabors/Fonts
+017973b0  2.0.4.0\2.0.4+1a4324d8aa08626fa0bfeaea975614e62125c26bfhttps://github.com/cyotek/Cyotek.Drawing.BitmapFont
+01797564  3.1.11.0^3.1.11+f4a2684737732059876c13c481c856ed6b28e2c6Nhttps://github.com/SixLabors/ImageSharp
+01816c15  shlwapi.dll(UIAutomationCore.dll
+018d5bb8  SharedUrlFormatHhttps://aka.ms/winforms-warnings/{0}FDomainUpDownAccessibleObjectMessage1
+018f1b84  ;:ExDlgMsgLoadedAssembliesEntry
+019baf8d  "AllExceptIntranetDhttps://aka.ms/dotnet-warnings/{0}:SystemTextEncodingUTF7Message
+019bb5bd  BinaryFormatter serialization is obsolete and should not be used. See https://aka.ms/binaryformatter for more information.*BinaryFormatterDiagId
+019bc887  SerializationFormat.Binary is obsolete and should not be used. See https://aka.ms/serializationformat-binary-obsolete for more information.RSystemDataSerializationFormatBinaryDiagId
+019d70aa  This API should not be used to create mutable strings. See https://go.microsoft.com/fwlink/?linkid=2084035 for alternatives.
+019e54a1  WIKI_LINKVhttps://github.com/ClassicUO/ClassicUO/wiki
+01b8cbad  CLAIM_NAMESPACEJhttp://uooutlands.com/identity/claims
+01b9f1c0  xmlns,ConfigurationNamespacefhttp://schemas.microsoft.com/.NetConfiguration/v2.0"ConfigSectionsTag
+01ba7b09  (get_HasEntryAssembly$get_ApplicationUri0get_ApplicationConfigUri2get_RoamingConfigFilename4get_RoamingConfigDirectory(get_HasRoamingConfig.get_LocalConfigFilename0get_LocalConfigDirectory$get_HasLocalConfig
+01ba7ea5  HasEntryAssembly
+01bf4a66  This method has been deprecated. Use the ApplyAutoScaling method instead.  https://go.microsoft.com/fwlink/?linkid=14202
+01bf4b10  This method has been deprecated. Use the AutoScaleDimensions property instead.  https://go.microsoft.com/fwlink/?linkid=14202
+01bf4ca6  This property has been deprecated. Use the AutoScaleMode property instead.  https://go.microsoft.com/fwlink/?linkid=14202
+01cfe380  This method has been deprecated. Use the Scale(SizeF ratio) method instead. https://go.microsoft.com/fwlink/?linkid=14202
+01cfe60b  This property has been deprecated. Please use RightToLeft instead. https://go.microsoft.com/fwlink/?linkid=14202#
+01d2d3cb  BinaryFormatter serialization is obsolete and should not be used. See https://aka.ms/binaryformatter for more information.. Consider using Xml instead.
+01d63e51  This enumeration value has been deprecated. There is no replacement. https://go.microsoft.com/fwlink/?linkid=14202
+01d64872  This property has been deprecated. Use BackColor instead.  https://go.microsoft.com/fwlink/?linkid=14202
+01d66114  This method has been deprecated.  There is no replacement.  https://go.microsoft.com/fwlink/?linkid=14202
+01d736ae  This property has been deprecated. Use the AutoScaleDimensions property instead.  https://go.microsoft.com/fwlink/?linkid=14202
+01d809a1  IsEntryLabelLong@
+01dd5c3b  @http://www.w3.org/2001/XMLSchema
+01decf15  This method has been deprecated. Use InitializeExistingComponent instead.  https://go.microsoft.com/fwlink/?linkid=14202
+01decf8e  This method has been deprecated. Use InitializeNewComponent instead.  https://go.microsoft.com/fwlink/?linkid=14202
+01e34aef  This method has been deprecated. Use SerializeToExpression or GetExpression instead.  https://go.microsoft.com/fwlink/?linkid=14202
+01eb4c07  https://classicuo.eu
+01f46605  BinaryFormatter serialization and deserialization are disabled within this application. See https://aka.ms/binaryformatter for more information.
+01f4776c  System.Drawing.Common is not supported on non-Windows platforms. See https://aka.ms/systemdrawingnonwindows for more information.
+01f48643  xmlns       %URI;          #FIXED 'http://www.w3.org/1999/xhtml'
+028b7507  informace najdete na https://aka.ms/binaryformatter.
+0290e29c  Die Serialisierung und Deserialisierung von BinaryFormatter sind in dieser Anwendung deaktiviert. Weitere Informationen finden Sie unter https://aka.ms/binaryformatter.
+02966fd5  n. Consulte https://aka.ms/binaryformatter para obtener m
+029bdfeb  informations, consultez https://aka.ms/binaryformatter.
+02a16967  La serializzazione e la deserializzazione di BinaryFormatter sono disabilitate in questa applicazione. Per altre informazioni, vedere https://aka.ms/binaryformatter.
+02a6e774  https://aka.ms/binaryformatter
+02b27d60  cej informacji, zobacz https://aka.ms/binaryformatter.
+02b7ecad  o desabilitadas neste aplicativo. Consulte https://aka.ms/binaryformatter para obter mais informa
+02bd4aca  . https://aka.ms/binaryformatter.
+02c4646e  in https://aka.ms/binaryformatter sayfas
+031e670a  SHLWAPI.dll
+031e714b  dwmapi.dll
+032015b8  http://ns.adobe.com/xap/1.0/
+03a57334  nconformidadline-height:font-family:" : "http://applicationslink" href="specifically//<![CDATA[
+03a5e9c0  overflow:hidden;img src="http://addEventListenerresponsible for s.js"></script>
+03a5f040  robots" content="<div id="footer">the United States<img src="http://.jpg|right|thumb|.js"></script>
+03a5f1f9  <derived from the <img src='http://according to the
+03a5f23e  style="font-size:script language="Arial, Helvetica,</a><span class="</script><script political partiestd></tr></table><href="http://www.interpretation ofrel="stylesheet" document.write('<charset="utf-8">
+03a5fa04  <img src="http://s;text-align:centerfont-weight: bold; According to the difference between" frameborder="0" " style="position:link href="http://html4/loose.dtd">
+03a60ac0  keywords" content="w3.org/1999/xhtml"><a target="_blank" text/html; charset=" target="_blank"><table cellpadding="autocomplete="off" text-align: center;to last version by background-color: #" href="http://www./div></div><div id=<a href="#" class=""><img src="http://cript" src="http://
+03a60bde  <script language="//EN" "http://www.wencodeURIComponent(" href="javascript:<div class="contentdocument.write('<scposition: absolute;script src="http:// style="margin-top:.min.js"></script>
+03a60ccd  </html>distinction between/" target="_blank"><link href="http://encoding="utf-8"?>
+03a60d20  w.addEventListener?action="http://www.icon" href="http:// style="background:type="text/css" />
+03a60e81  <script  style="font-size:1></span><span id=gbLibrary of Congress<img src="http://imEnglish translationAcademy of Sciencesdiv style="display:construction of the.getElementById(id)in conjunction withElement('script'); <meta property="og:
+03a61549  <script type="t<a href='http://www.hortcut icon" href="</div>
+03a61976  <div cduring his lifetime,corresponding to thetype="image/x-icon" an increasing numberdiplomatic relationsare often consideredmeta charset="utf-8" <input type="text" examples include the"><img src="http://iparticipation in thethe establishment of
+03a61e40  html; charset=UTF-8" setTimeout(function()display:inline-block;<input type="submit" type = 'text/javascri<img src="http://www." "http://www.w3.org/shortcut icon" href="" autocomplete="off" </a></div><div class=</a></li>
+03a61f1c  <li class="css" type="text/css" <form action="http://xt/css" href="http://link rel="alternate"
+03a61f7d  <script type="text/ onclick="javascript:(new Date).getTime()}height="1" width="1" People's Republic of  <a href="http://www.text-decoration:underthe beginning of the </div>
+03a62078  <script src="http://option><option value=often referred to as /option>
+03a620f7  <a href="http://www</a><a href="http://w
+03a626f2  <a href="http://www.css" rel="stylesheet" </div></div><div classlanguage="javascript">aria-hidden="true">
+03a627b8  <li><a href="http://ator" aria-hidden="tru> <a href="http://www.language="javascript" /option>
+03a62d48  style="display:none;"><<li><a href="http://www. type='text/javascript'>
+03d81bc6  IPHLPAPI.DLL
+04329c77  http://ocsp.digicert.com0A
+04329c9c  5http://cacerts.digicert.com/DigiCertTrustedRootG4.crt0C
+04329ce4  2http://crl3.digicert.com/DigiCertTrustedRootG4.crl0
+0432a2d9  http://www.digicert.com/CPS0
+0432a32e  Mhttp://crl3.digicert.com/DigiCertTrustedG4CodeSigningRSA4096SHA3842021CA1.crl0S
+0432a383  Mhttp://crl4.digicert.com/DigiCertTrustedG4CodeSigningRSA4096SHA3842021CA1.crl0
+0432a3f2  http://ocsp.digicert.com0\
+0432a417  Phttp://cacerts.digicert.com/DigiCertTrustedG4CodeSigningRSA4096SHA3842021CA1.crt0
+0432add4  http://ocsp.digicert.com0]
+0432adf9  Qhttp://cacerts.digicert.com/DigiCertTrustedG4TimeStampingRSA4096SHA2562025CA1.crt0_
+0432ae5d  Nhttp://crl3.digicert.com/DigiCertTrustedG4TimeStampingRSA4096SHA2562025CA1.crl0
+0432bb60  http://ocsp.digicert.com0C
+0432bb85  7http://cacerts.digicert.com/DigiCertAssuredIDRootCA.crt0E
+0432bbcf  4http://crl3.digicert.com/DigiCertAssuredIDRootCA.crl0
+02004b8e  ExDlgMsgLoadedAssembliesEntry
+038a80c0  https://socks4:/
+03d9923c  '{0}' is missing delegate marshalling data. This can happen for code that is not compatible with AOT. Inspect and fix AOT related warnings that were generated when the app was published. For more information see https://aka.ms/nativeaot-compatibility
+03d9944c  '{0}' is missing native code or metadata. This can happen for code that is not compatible with trimming or AOT. Inspect and fix trimming and AOT related warnings that were generated when the app was published. For more information see https://aka.ms/nativeaot-compatibility
+03d99684  '{0}' is missing native code. MethodInfo.MakeGenericMethod() is not compatible with AOT compilation. Inspect and fix AOT related warnings that were generated when the app was published. For more information see https://aka.ms/nativeaot-compatibility
+03d9988c  '{0}' is missing structure marshalling data. This can happen for code that is not compatible with AOT. Inspect and fix AOT related warnings that were generated when the app was published. For more information see https://aka.ms/nativeaot-compatibility
+03dab49c  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+03dab5a0  <xsd:import namespace="http://www.w3.org/XML/1998/namespace"/>
+03dbe574  BinaryFormatter serialization and deserialization have been removed. See https://aka.ms/binaryformatter for more information.
+03dbe684  BinaryFormatter serialization is obsolete and should not be used. See https://aka.ms/binaryformatter for more information.
+03e47e04  Only the invariant culture is supported in globalization-invariant mode. See https://aka.ms/GlobalizationInvariantMode for more information.
+03e486bc  Opens link to a new page: https://uooutlands.com/privacy-policy-game/
+03e4f5d4  Prefix "xml" is reserved for use by XML and can be mapped only to namespace name "http://www.w3.org/XML/1998/namespace".
+03e7c54c  The 'xmlns' attribute is bound to the reserved namespace 'http://www.w3.org/2000/xmlns/'.
+03eda574  discord://discord.com/channels/290936867199909888/504660126305615882
+03ee40b4  http://microsoft.com/wsdl/types/
+03ee410c  http://schemas.microsoft.com/.NetConfiguration/v2.0
+03ee418c  http://schemas.microsoft.com/ws/2008/06/identity/claims/denyonlyprimarygroupsid
+03ee4244  http://schemas.microsoft.com/ws/2008/06/identity/claims/denyonlyprimarysid
+03ee42f4  http://schemas.microsoft.com/ws/2008/06/identity/claims/denyonlywindowsdevicegroup
+03ee43b4  http://schemas.microsoft.com/ws/2008/06/identity/claims/groupsid
+03ee444c  http://schemas.microsoft.com/ws/2008/06/identity/claims/primarygroupsid
+03ee44f4  http://schemas.microsoft.com/ws/2008/06/identity/claims/primarysid
+03ee4594  http://schemas.microsoft.com/ws/2008/06/identity/claims/role
+03ee4624  http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsdeviceclaim
+03ee46d4  http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsdevicegroup
+03ee4784  http://schemas.microsoft.com/ws/2008/06/identity/claims/windowssubauthority
+03ee4834  http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsuserclaim
+03ee48dc  http://schemas.xmlsoap.org/soap/encoding/
+03ee4944  http://schemas.xmlsoap.org/ws/2005/05/identity/claims/denyonlysid
+03ee49dc  http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name
+03ee4a6c  http://schemas.xmlsoap.org/wsdl/
+03ee4ac4  http://uooutlands.com/identity/claims/mahid
+03ee4b34  http://uooutlands.com/identity/claims/mahleader
+03ee4bac  http://uooutlands.com/identity/claims/outlandsid
+03ee4c24  http://uooutlands.com/identity/claims/purpose
+... truncated ...
+
+===== outlands_types (7) =====
+0188fd0e  )"OutlandsShield1HK
+0188fd22  )"OutlandsShield2HK
+0188fd36  )"OutlandsShield3HK
+0188fd4a  )"OutlandsShield4HK
+0188fd5e  )"OutlandsShield5HK
+0188fd72  )2OutlandsShieldFinisher1HK
+0188fd8e  )2OutlandsShieldFinisher2HK
+
+===== crypto_proto (70) =====
+01869eb2  HuffmanY
+019a3a4f  CompareMd5
+019a3a5a  GetMd5
+019b1e6b  stbi__huffmanS
+019b22ac  stbi__zhuffmanS
+019b30ae  stbi__jpeg_info&stbi__build_huffman
+019b3aa7  @stbi_zlib_decode_noheader_malloc@stbi_zlib_decode_noheader_buffer(stbi__zbuild_huffman
+019b3b91  <stbi__zhuffman_decode_slowpath
+019b3bc2  *stbi__zhuffman_decode
+019b3c04  2stbi__parse_huffman_block6stbi__compute_huffman_codes<stbi__parse_uncompressed_block.stbi__parse_zlib_header stbi__parse_zlib
+019bc289  SYSLIB0029*UseManagedSha1Message
+019bc2ab  HMACSHA1 always uses the algorithm implementation provided by the platform. Use a constructor without the useManagedSha1 parameter.(UseManagedSha1DiagId
+01ae0e5d  HTTP_QUERY_AGE0HTTP_QUERY_CACHE_CONTROL.HTTP_QUERY_CONTENT_BASE6HTTP_QUERY_CONTENT_LOCATION,HTTP_QUERY_CONTENT_MD50HTTP_QUERY_CONTENT_RANGE
+01b89b32  ToSha256
+01b89b3b  Sha256
+01bacf12  HMACSHA256
+01bacfdf  SHA256
+01ce0561  TDNS_ERROR_NSEC3_INCOMPATIBLE_WITH_RSA_SHA1=
+01ce093a  ^DNS_ERROR_NSEC_INCOMPATIBLE_WITH_NSEC3_RSA_SHA1
+01cfc3d6  ,HPackDecodingException0HuffmanDecodingException8HttpMetricsEnrichmentContext
+01dfbccb  HuffmanCode
+01e3a47d  LzwString$LzwTiffCompression0ModifiedHuffmanBitReader
+01e3a4b3  T4BitReader<ModifiedHuffmanTiffCompression&NoneTiffCompression,OldJpegTiffCompression.PackBitsTiffCompression"T4TiffCompression
+01e3a6f9  IJpegComponent.ArithmeticDecodingTable*ArithmeticScanDecoder IJpegScanDecoder(ArithmeticStatistics$ComponentProcessor0DirectComponentProcessor<DownScalingComponentProcessor2<DownScalingComponentProcessor4<DownScalingComponentProcessor8$HuffmanScanDecoder
+01e3a7f8  HuffmanTableS
+01e3cec8  HuffmanDecode"i_stereo_k_values
+01e45dad  Multi Profiles.Unspecified compression Modified Huffman
+01e595f9  "BuildHuffmanTable
+01e59849  ReadHuffmanCodes@
+01e59878  ReadHuffmanCode@
+01e5989d  ,ReadHuffmanCodeLengths@
+01e5acf8  @ProcessDefineHuffmanTablesMarker0ProcessStartOfScanMarker@
+01e92318  get_Sha256
+01ea60a0  HuffmanUtils
+01ea7923  0Sha1ForNonSecretPurposes*FixedBufferExtensions
+03a3bf08  _ERROR_FORMAT_SIMPLE_HUFFMAN_ALPHABET
+03a3bf30  _ERROR_FORMAT_SIMPLE_HUFFMAN_SAME
+03a3bf70  _ERROR_FORMAT_HUFFMAN_SPACE
+0432aa51  8DigiCert Trusted G4 TimeStamping RSA4096 SHA256 2025 CA10
+0432aadc  2DigiCert SHA256 RSA4096 Timestamp Responder 2026 10
+0432adf9  Qhttp://cacerts.digicert.com/DigiCertTrustedG4TimeStampingRSA4096SHA2562025CA1.crt0_
+0432ae5d  Nhttp://crl3.digicert.com/DigiCertTrustedG4TimeStampingRSA4096SHA2562025CA1.crl0
+0432bd6a  8DigiCert Trusted G4 TimeStamping RSA4096 SHA256 2025 CA1
+038a4520  Bad huffman table type: e index:Unknown component id in  has bad length  marker.Bad Quantization Table iBad sampling facInvalid image dimensionsImages w components are not supp
+038a7db8  md5-sessauth-int
+03dbcad4  Bad huffman table index:
+03dbcb1c  Bad huffman table type:
+03dbcb64  Bad huffman table.
+03dd8a2c  Content-MD5
+03df9f1c  ECDH_STD_SHA1_KDF
+03df9f54  ECDH_STD_SHA256_KDF
+03dffd3c  Error building huffman table
+03e14b14  Huffman table has excessive length.
+03e14b74  Huffman table size is zero
+03e14bc4  Huffman-coded literal string failed to decode.
+03e20eac  Invalid huffman table for component:
+03e32b7c  MD5-sess
+03ece2dc  bad huffman code
+03edb6b4  dsaSHA1
+03eeec94  md5RSA
+03eef814  missing huffman table data
+03efcb84  sha1DSA
+03efcbac  sha1ECDSA
+03efcbd4  sha1RSA
+03efcbfc  sha256
+03efcc24  sha256ECDSA
+03efcc54  sha256RSA
+
+===== razor_ac (2) =====
+01a3327a  0IsRazorBlockedSysMessage
