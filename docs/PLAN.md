@@ -18,11 +18,12 @@ Decision record + phases. Research basis: [`../ANTICHEAT.md`](../ANTICHEAT.md).
 | Local ServUO sandbox | Deferred, not rejected: useful if Test Shard access becomes a problem; protocol-compatible family, zero-risk iteration. Keep as fallback. |
 
 ## Phases
-
 ### Phase 1 — Proxy core
-Python asyncio TCP relay: client→localhost:2593→upstream. Config switch via `settings.json` (`ip`/`port`). Huffman decompression (server→client) + packet framing. Passthrough login.
+Python asyncio TCP relay: client→localhost:2593→upstream. Config switch via `-ip`/`-port` CLI args (no settings.json edit needed; upstream CUO `Main.cs` supports them). Huffman decompression (server→client) + packet framing. Passthrough login.
 **Done when**: client logs into Test Shard and plays normally through the proxy; full packet log captured.
 **Watch-items**: record every occurrence of `Send_TimeSyncPingReq` and any packet carrying the `Speedhack/AutoClicking/AutoKeyboard` categories → feed packet IDs back into ANTICHEAT.md §9.
+
+**Status 2026-09-28**: proxy built (`harness/proxy.py`) and **offline-validated** — loopback replay of a real captured session passes byte-exact relay + full decode both directions (C2S 242 pkts incl. JWT login/walks/speech, S2C 32 pkts clean, no desyncs). C2S obfuscation fully solved (`docs/CIPHER.md`). Outlands packet-length overrides established (C2S `0x91`; S2C `{0x6F,0xFF,0x49}`). Client elevation requirement discovered and documented (`docs/NOTES.md`). **Live end-to-end run pending** (first client launch through the proxy).
 
 ### Phase 2 — World model
 Parse the core packet set into a queryable state store: player stats/skills, mobile/item draw+update, container contents, gump open/close/layout, journal/sysmessages, targeting, movement acks. Ground truth: upstream `ClassicUO-main` packet handlers.
