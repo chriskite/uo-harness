@@ -159,13 +159,22 @@ async def _relay(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, tap
 
 async def handle_client(client_reader, client_writer, args):
     peer = client_writer.get_extra_info("peername")
-    try:
-        upstream_reader, upstream_writer = await asyncio.open_connection(
-            args.upstream_host, args.upstream_port)
-    except OSError as e:
+    upstream_reader = upstream_writer = None
+    last_err = None
+    for port in range(args.upstream_bind_port, args.upstream_bind_port + 21):
+        try:
+            upstream_reader, upstream_writer = await asyncio.open_connection(
+                args.upstream_host, args.upstream_port,
+                local_addr=(args.upstream_bind, port) if args.upstream_bind else None)
+            break
+        except OSError as e:
+            last_err = e
+            continue
+    if upstream_writer is None:
         client_writer.close()
-        print(f"[proxy] upstream connect failed for {peer}: {e}")
+        print(f"[proxy] upstream connect failed for {peer}: {last_err}")
         return
+
 
     os.makedirs(args.logdir, exist_ok=True)
     stamp = time.strftime("%Y%m%d_%H%M%S")
@@ -206,6 +215,10 @@ def main():
     p.add_argument("--listen-port", type=int, default=2593)
     p.add_argument("--upstream-host", default="play.uooutlands.com")
     p.add_argument("--upstream-port", type=int, default=2593)
+    p.add_argument("--upstream-bind", default="",
+                   help="local IP to bind the upstream connection to (NAT loop prevention)")
+    p.add_argument("--upstream-bind-port", type=int, default=0,
+                   help="local port for the upstream connection (NAT loop prevention)")
     p.add_argument("--logdir", default="logs")
     args = p.parse_args()
     try:

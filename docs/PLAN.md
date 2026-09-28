@@ -23,7 +23,7 @@ Python asyncio TCP relay: client→localhost:2593→upstream. Config switch via 
 **Done when**: client logs into Test Shard and plays normally through the proxy; full packet log captured.
 **Watch-items**: record every occurrence of `Send_TimeSyncPingReq` and any packet carrying the `Speedhack/AutoClicking/AutoKeyboard` categories → feed packet IDs back into ANTICHEAT.md §9.
 
-**Status 2026-09-28**: proxy built (`harness/proxy.py`) and **offline-validated** — loopback replay of a real captured session passes byte-exact relay + full decode both directions (C2S 242 pkts incl. JWT login/walks/speech, S2C 32 pkts clean, no desyncs). C2S obfuscation fully solved (`docs/CIPHER.md`). Outlands packet-length overrides established (C2S `0x91`; S2C `{0x6F,0xFF,0x49}`). Client elevation requirement discovered and documented (`docs/NOTES.md`). **Live end-to-end run pending** (first client launch through the proxy).
+**Status 2026-09-28: ✅ DONE — live.** Client logs into the Test Shard and plays normally through the proxy (TestWorth in-game 2026-09-28 14:12; full session decoded: JWT login, char select, world dump, 50+ keepalives, speech decrypted with session key 0x07). Chain: WinDivert NAT → proxy → server (`docs/INTERCEPTION.md`). Offline loopback test ALL PASS; live run has 2 S2C desyncs from unmapped custom packets → Phase 2 material. C2S obfuscation solved (`docs/CIPHER.md`). Elevation + operation runbook documented.
 
 ### Phase 2 — World model
 Parse the core packet set into a queryable state store: player stats/skills, mobile/item draw+update, container contents, gump open/close/layout, journal/sysmessages, targeting, movement acks. Ground truth: upstream `ClassicUO-main` packet handlers.
