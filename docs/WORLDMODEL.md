@@ -450,6 +450,14 @@ Handler: CUO `CloseVendorInterface` @ 0x14018c2d0.
 > 2. **The 19-byte server prelude IS the sub-0 handshake**: `ff 00 0d <subId u32be = 0> <payload>`; payload starts with **protocol version u32be = 0x0000000c (12)** — the client preamble `ef 0000000c` echoes the same version constant. **Protocol version is 12 → the V12 layouts in this document are the active ones.** The remaining prelude bytes carry the session cipher key S (byte 12) and handshake flags; the final 6 bytes (13–18) precede the Huffman stream and are not yet structurally assigned.
 > 3. **No 0xF0 packets appear in either captured session** (idle-town play: dialect subs fire on gameplay events — vendors/spells/buffs/party — not on idle). The 0xF0 outer-id assignment below therefore remains **unproven**; given (1) and (2), the S2C dialect more plausibly rides **0xFF** as well. A dialect-traffic capture (open a vendor, cast a spell, take a buff) will settle both the outer id and the sub-payload layouts.
 > 4. One 117-byte 0xFF packet observed (live @57015) does not parse under the simple frame — batching or a distinct server-side frame; defer to the dialect-traffic capture.
+> 5. **C2S dialect subs CONFIRMED (dialect session 20260928_164548):**
+>    - **sub 3** = TimeSyncReq (empty payload) — cadence ~1/s.
+>    - **sub 4** = cast spell: `ff 000a <sub=4> <spellId u16be>` (observed 0x0005, 0x000f).
+>    - **sub 9** = item/object detail query: `ff 000e <sub=9> 01 00 01 <serial u32be>` — fired on every vendor-item dclick/hover (serials match dclick targets). S2C answer is the 0x00-family record stream below.
+> 6. **Vendor buy**: C2S `3b <len> <vendorSerial u32be> …` observed (vendor serial matches nearby-NPC serial).
+> 7. **S2C 0x00-family (106 B)**: periodic bursts (~1/s) carrying repeating/overlapping world-data sub-records (`00 1b 85 00 dc`, `00 50 85 00 c7`, `00 83 0072 …` patterns recur across packets) — assessed as the live world-state sync stream for the dialect; sub-record layout still open (handler extraction next).
+> 8. One C2S `0x00` 106 B packet contained two back-to-back `ff` dialect packets — possible C2S batching (or a flush-boundary artifact); open.
+>
 >
 ### 0xF0 OutlandsProtocol / OutlandsServerPacket — S2C, variable length, u32 sub-id
 Packet id assignment is **inferred**: 0xF0 is the upstream Razor "protocol extension"
