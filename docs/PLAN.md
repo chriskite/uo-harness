@@ -69,8 +69,14 @@ LLM planner over the world model + skill library; safety rails: captcha human-ha
   - A forced pause every ~2 h of agent activity, with the interval jittered ±20 min.
   - Break length 15–30 min, jittered (default chosen by the agent; adjustable).
   - At most 8 h of agent-active time per local calendar day. Paused and break time don't count.
-  - The usage counter is persisted to disk (e.g. `harness/data/runtime_budget.json`), so restarts don't reset it.
+  - The usage counter is persisted to disk, so restarts don't reset it.
   - Enforced through the same proxy flag as pause/kill, so the planner can't bypass it. The visualizer shows the time left until the next break and the daily budget.
+  - **Implemented 2026-09-29:** `harness/agent_gate.py` (`AgentGate` plus the CLI), checked first in `InjectionHub.inject`.
+    - Controlled on the state port with `{"op":"gate","action":...}`; every state response carries `gate`.
+    - State is persisted to `<logdir>/agent_budget.json`: the live file is `logs/agent_budget.json`, and test proxies with their own logdirs never touch it.
+    - Agent-active time = the gaps of at most 60 s between accepted injections. An idle gap of at least 15 min counts as a break taken.
+    - A kill is latched and survives restarts; `rearm` is CLI-only.
+    - Proof: `harness/test_agent_gate.py`.
 - **In-game speech is allowlisted keywords/commands only** (user decision 2026-09-29). Allowed: NPC trigger words such as `bank` and `vendor buy`, `[`-commands, and a few innocuous phrases. The LLM never writes free text into the game (AGENTS.md rule 8). The wire encoding is unaffected: `say_unicode` keyword-encodes like the stock client. Free text through a filter was rejected for now, because no filter can rule out every revealing line.
 - **No handoff on nearby player speech** (user decision 2026-09-29): handing off whenever a non-NPC speaks nearby would fire too often. GM detection isn't reliable either: RunUO-style staff name hue 11 is [INFERENCE] for Outlands, hidden staff are invisible, and no staff contact has been captured. Narrower speech triggers (e.g. our character's name being said) are still open.
 - **Gating handoff struck from Phase 4 (user decision 2026-09-29):** the harness is not Razor, and PvP is out of scope, so neither `IsRazorBlockedSysMessage` nor the PvP script restrictions apply to it. There is no gating demo and no gating-signal research. AGENTS.md safety rule 4 itself is unchanged.

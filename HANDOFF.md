@@ -60,6 +60,9 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 - Live state (movement truth + world model + events): JSON lines on 127.0.0.1:25942,
   request `{"op":"state","since":N}` (proxy `--state-port`).
 - Drive walks: `python harness/walk_cli.py` (arrows=walk, space=run/walk, q=quit)
+- Agent gate (pause / kill / forced breaks / 8 h daily budget; state in `logs/agent_budget.json`):
+  `python harness/agent_gate.py [status|pause|resume|kill|rearm]`. `rearm` (clears a kill) is
+  CLI-only; the visualizer offers pause/resume/kill.
 - Bank errand: `python harness/errand_bank.py [--start x,y]`; walk memory refresh:
   `python harness/nav.py build`.
 - Visualizer: build once `cd viz && bun install && bun run build`; then
@@ -68,6 +71,7 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 - Tests: `python test_proxy.py`, `python test_movement.py`, `python test_errand.py`,
   `python harness/test_world.py`, `python harness/test_world_replay.py`,
   `python harness/test_actions.py`, `python harness/test_nav.py`, `python harness/test_viz.py`,
+  `python harness/test_agent_gate.py`,
   `cd viz && bun test && bun run typecheck` (all use private control/state ports; safe while
   the live proxy runs).
 - Push works via SSH alias `github.com-uoharness` (deploy key `~/.ssh/uo_harness_deploy`).

@@ -12,9 +12,15 @@ Agent injection: a localhost control listener (default 127.0.0.1:25941) accepts
 length-prefixed (u16be) PLAINTEXT action packets (built by harness/actions.py).
 Each accepted packet is processed exactly like client traffic (walk rewrite,
 logging, XOR) and written into the client->server relay. Every frame gets a
-u16be-prefixed reply: `OK`, or `ERR <reason>` (no session / key unknown /
-malformed packet / agent walk gated). Malformed frames also close the control
-connection; the game relay is never affected.
+u16be-prefixed reply: `OK`, or `ERR <reason>` (agent gate closed / no session /
+key unknown / malformed packet / agent walk gated). Malformed frames also close
+the control connection; the game relay is never affected.
+
+Agent gate (harness/agent_gate.py): pause, kill switch, mandatory jittered
+breaks (~2 h of agent activity) and the 8 h/day agent budget. It is checked
+first for every injected frame. It is controlled and inspected on the state
+port (`{"op": "gate", "action": ...}`), and every state response carries the
+gate status. Persisted to `<logdir>/agent_budget.json` (--budget-file).
 
 Movement (docs/MOVEMENT.md): the MoveAuthority owns seq + fastwalk key of every
 walk from both senders and follows the server's own movement packets (0xBF
@@ -28,7 +34,7 @@ Usage:
   python proxy.py [--listen-host 127.0.0.1] [--listen-port 2593]
                   [--upstream-host play.uooutlands.com] [--upstream-port 2593]
                   [--control-host 127.0.0.1] [--control-port 25941]
-                  [--logdir logs]
+                  [--state-port 25942] [--logdir logs] [--budget-file PATH]
 """
 import argparse
 import asyncio
@@ -39,6 +45,7 @@ import time
 
 from uo.packets import packet_length, C2S_OVERRIDES
 from uo.s2c import PRELUDE_LEN, S2CStream, encode_packet, prelude_keys
+from agent_gate import AgentGate
 from world.runtime import WorldRuntime, C2S, S2C
 
 CONTROL_MAX_FRAME = 4096
@@ -254,8 +261,9 @@ class InjectionHub:
     Single-client assumption (documented): the last attached session wins.
     """
 
-    def __init__(self):
+    def __init__(self, gate: AgentGate):
         self.session = None  # (SessionTap, upstream StreamWriter)
+        self.gate = gate
 
     def attach(self, tap, upstream_writer):
         self.session = (tap, upstream_writer)
@@ -269,6 +277,9 @@ class InjectionHub:
 
         Returns None on success, or a rejection reason string.
         """
+        blocked = self.gate.block_reason()
+        if blocked is not None:
+            return blocked
         if self.session is None:
             return "no active session"
         tap, writer = self.session
@@ -282,6 +293,7 @@ class InjectionHub:
                 return block
         writer.write(tap.inject_c2s(payload, "agent", now))
         await writer.drain()
+        self.gate.record_activity()
         return None
 
 
@@ -695,6 +707,10 @@ async def handle_state(reader, writer, hub):
              -> SessionTap.state(N, snapshot) + {"ok": true}
              (`snapshot: false` omits `world`: movement + new events only)
     No session -> `{"ok": false, "error": "no active session"}`.
+    Request  `{"op": "gate"}` -> gate status only; with
+             `"action": "pause"|"resume"|"kill"|"rearm"` -> applied first
+             (`{"ok": false, "error": ...}` if refused, e.g. resume while killed).
+    Every response carries `"gate"`: the agent gate status (harness/agent_gate.py).
     """
     try:
         while True:
@@ -706,8 +722,12 @@ async def handle_state(reader, writer, hub):
             except json.JSONDecodeError:
                 resp = {"ok": False, "error": "bad json"}
             else:
-                if req.get("op") != "state":
-                    resp = {"ok": False, "error": f"unknown op {req.get('op')!r}"}
+                op = req.get("op")
+                if op == "gate":
+                    err = hub.gate.apply(req["action"]) if "action" in req else None
+                    resp = {"ok": True} if err is None else {"ok": False, "error": err}
+                elif op != "state":
+                    resp = {"ok": False, "error": f"unknown op {op!r}"}
                 elif hub.session is None:
                     resp = {"ok": False, "error": "no active session"}
                 else:
@@ -715,6 +735,7 @@ async def handle_state(reader, writer, hub):
                     tap.tick(time.monotonic())
                     resp = {"ok": True, **tap.state(int(req.get("since", 0)),
                                                     snapshot=bool(req.get("snapshot", True)))}
+            resp["gate"] = hub.gate.status()
             writer.write((json.dumps(resp) + "\n").encode())
             await writer.drain()
     except (ConnectionResetError, BrokenPipeError):
@@ -727,7 +748,8 @@ async def handle_state(reader, writer, hub):
 
 
 async def amain(args):
-    args.hub = InjectionHub()
+    args.hub = InjectionHub(AgentGate(args.budget_file or os.path.join(args.logdir, "agent_budget.json")))
+    print(f"[proxy] agent gate: {args.hub.gate.status()['state']} ({args.hub.gate.path})")
     control = await asyncio.start_server(
         lambda r, w: handle_control(r, w, args.hub),
         args.control_host, args.control_port)
@@ -739,8 +761,11 @@ async def amain(args):
     print(f"[proxy] listening on {args.listen_host}:{args.listen_port}, "
           f"upstream {args.upstream_host}:{args.upstream_port}, "
           f"control {args.control_host}:{args.control_port}, state {args.control_host}:{args.state_port}")
-    async with server, control, state:
-        await server.serve_forever()
+    try:
+        async with server, control, state:
+            await server.serve_forever()
+    finally:
+        args.hub.gate.save(force=True)
 
 
 def main():
@@ -759,6 +784,8 @@ def main():
     p.add_argument("--state-port", type=int, default=25942,
                    help="localhost JSON-lines state endpoint (movement + world model)")
     p.add_argument("--logdir", default="logs")
+    p.add_argument("--budget-file", default=None,
+                   help="agent gate state (breaks, daily budget, pause/kill); default <logdir>/agent_budget.json")
     args = p.parse_args()
     try:
         asyncio.run(amain(args))
