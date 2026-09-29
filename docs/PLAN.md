@@ -57,15 +57,15 @@ Client→server action packets: walk/pathfind, dclick, use skill, cast+target, l
 Offline proof: `test_errand.py` (proxy + runner + a simulated world with a wall and two NPCs).
 
 ### Phase 4 — Agent runtime
-LLM planner over the world model + skill library; safety rails (rate limits, Razor-gating halt, captcha human-handoff per ANTICHEAT.md §8 rule 8, kill switch, session length caps).
-**Done when**: agent completes a multi-step objective from natural language (e.g. "restock reagents from the bank and return") with captcha/gating handoffs demonstrated.
+LLM planner over the world model + skill library; safety rails (rate limits, captcha human-handoff per ANTICHEAT.md §8 rule 8, kill switch, session length caps).
+**Done when**: agent completes a multi-step objective from natural language (e.g. "restock reagents from the bank and return") with the captcha handoff demonstrated.
 **Design decisions 2026-09-29 (user):**
 - **Planner = standalone Python loop on the Anthropic API (tool use)**, not an MCP server driven by an interactive session. The LLM chooses *skills* (deterministic closed-loop Python controllers generalised from `errand_bank.py`: goto, open_bank, move_items, buy, cast, use_skill…), never raw packets. Rejected: LLM picking raw actions (latency/cost, pacing becomes the model's job); LLM-authored skill code (Voyager-style), deferred.
 - **Map data: read directly from the real install dir** (map/statics/tiledata; read-only, never write). This replaces walk-memory-only navigation for unexplored ground, so exploring doesn't mean repeated server denials.
 - **Handoff alert: sound** (first version).
 - **Full autonomy**, with a **kill switch in the visualizer** (docs/VISUALIZER.md). The proxy enforces it: a halt flag that rejects all injection, so no skill can bypass it.
 - Proposed, pending confirmation: the proxy also enforces the safety rails (packet-id allowlist, per-type rate limits, session cap, agent yields while the human is acting); in-game speech is allowlisted keywords/commands only, and the LLM never writes free text into the game (AGENTS.md rule 8).
-- Gating-handoff demo: open. The trigger and wire form of `IsRazorBlockedSysMessage` and the PvP script restrictions are unknown; PvP flagging on the Test Shard conflicts with its CoC.
+- **Gating handoff struck from Phase 4 (user decision 2026-09-29):** the harness is not Razor, and PvP is out of scope, so neither `IsRazorBlockedSysMessage` nor the PvP script restrictions apply to it. There is no gating demo and no gating-signal research. AGENTS.md safety rule 4 itself is unchanged.
 
 ### Phase 5 (optional) — Production copilot
 Rules-compliant live mode: agent generates Razor scripts into `Data/Plugins/Assistant/Scripts/`; human reviews and runs them manually. No autonomy, no data extraction. Only phase allowed to touch the production shard, and only as a file generator.
