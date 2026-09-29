@@ -1,8 +1,9 @@
-# VISUALIZER.md — human view of the harness's state (design)
+# VISUALIZER.md — human view of the harness's state
 
-Status: **design, revised 2026-09-29; nothing implemented.** Supersedes the 2026-09-28 draft,
-which predated the S2C decode fix, the proxy's live world model + state port, MoveAuthority,
-walk memory and the bank errand. What changed and why is in §8.
+Status: **Phase A BUILT 2026-09-29** (M1–M5; M6 waits on Phase 4). See §9 for run instructions and
+how the build deviates from this design. The design below (revised 2026-09-29) supersedes the
+2026-09-28 draft, which predated the S2C decode fix, the proxy's live world model + state port,
+MoveAuthority, walk memory and the bank errand. What changed and why is in §8.
 
 Goal: a read-only web view showing a human exactly what the harness knows, both the **world**
 (self, mobiles, items, gumps, events) and the **harness itself** (server-true movement, agent vs
@@ -297,6 +298,53 @@ fixtures ("replay X, state at event N").
   are the integration check.
 
 ---
+
+## 9. As built (2026-09-29)
+
+**Run**
+- Build the frontend once: `cd viz && bun install && bun run build`. Bun lives at
+  `C:\Users\chris\.bun\bin\bun.exe`; `bun test` runs the tests and `bun run typecheck` runs
+  `tsc --noEmit`.
+- Live: `python harness/viz_server.py --live [--state-port 25942] [--port 8080]`, then open
+  http://127.0.0.1:8080/. It only polls the proxy's state port, never opens the control port, and
+  can be started or stopped at any time. A proxy started before this build shows world events only;
+  restart the proxy for proxy events, traffic and diagnostics.
+- Replay: `python harness/viz_server.py --replay <TAG> [--rate 8] [--paused]` (TAG =
+  `logs/session_<TAG>.*`).
+
+**Files:** `harness/viz_feed.py` (Feed base: 2000-envelope ring, SSE fanout, ≤4 Hz pump;
+`StatePortPoller`; `ReplayDriver`), `harness/viz_server.py`, `harness/test_viz.py`, and `viz/`
+(React 19 + TSX; `build.ts` bundles into `viz/dist/assets/main.{js,css}`; dev dependencies also
+include `@types/bun` so `bun:test`/`Bun.build` type-check).
+
+**Deviations from and additions to the design**
+- **Late-joiner state** (found during the build): click labels and traffic counts existed only as
+  events, so a viewer or agent connecting after they scrolled out of the ring lost them. Fixed in
+  the state itself: `world.labels` (the latest type-6 click label per serial, e.g.
+  `"0x000001EA": "Len the banker"`) and a top-level `traffic` block
+  (`{proxy_events: {ev: n}, c2s: [[src, id, n]]}`, cumulative for the session). The errand runner
+  also reads banker labels from `world.labels` now.
+- **Replay timers.** A fixed simulated tick grid produced a spurious third re-anchor on 163420 (a
+  0.531 s walk gap against REANCHOR_IDLE_S = 0.5, i.e. phase-dependent). So the ReplayDriver
+  replays timer decisions (walk_rejected, resync_ignored, reanchor_client) at the recorded jsonl
+  `t` and ticks before each agent packet. Anything not reproduced is counted in
+  `health.timer_divergences` (0 on 163420). SessionTap takes injectable `wall`/`mono` clocks.
+- **Replay limit:** raw C2S is written after rewriting, so a client walk's original seq/key is
+  lost. Client-side `c2s_token_*` and `s2c_confirm_rewritten` events cannot be reproduced;
+  agent-side ones are.
+- **SSE:** `?since=N` works as well as `Last-Event-ID`. A proxy session restart resets seqs to 0;
+  the frontend detects `next` going backwards and refetches.
+- **Verified in a real browser** (headless Chromium, 1600×900) on the 163420 replay:
+  - the amber trail follows the errand to "Len the banker" and back
+  - the true marker ends at (1963, 2597) E, while the world-model ghost sits at (1964, 2594) with
+    a DIVERGED badge (the dead-reckoning gap §1.1 predicted, now visible)
+  - Traffic shows 54 agent walks, 1 agent speech, 54 confirms hidden
+  - the bank box 0x44D78CA8 is OPEN
+  - step advances playback; state frames arrive in 27–95 ms
+  - no page errors
+
+**Known gap:** world-model self dead reckoning diverges during agent walking (above). Agents and
+the viz must use `movement.pos`.
 
 ## 8. Changes from the 2026-09-28 draft
 

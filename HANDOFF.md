@@ -44,10 +44,10 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 3. **Next: Phase 4 (agent runtime)**, an LLM planner over the state port + action/skill library,
    with safety rails (docs/PLAN.md).
 4. Optional: map-based z for re-anchors (stairs/slopes).
-5. Visualizer (docs/VISUALIZER.md, revised 2026-09-29, not built): a read-only
-   `viz_server.py` on the state port (live) or an offline SessionTap replay; React + TSX
-   frontend built with Bun (installed). M1 starts with small proxy additions (proxy
-   events + timestamps in the state-port event log, diagnostics).
+5. ~~Visualizer~~ **Phase A BUILT (docs/VISUALIZER.md §9)**: read-only `viz_server.py`
+   (live on the state port, or an exact offline replay of a capture) plus a React + TSX frontend
+   built with Bun. The live proxy needs a restart to serve proxy events, traffic, labels and
+   diagnostics (it was started before these landed; a restart disconnects the client).
 
 ## Operate
 
@@ -62,10 +62,14 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 - Drive walks: `python harness/walk_cli.py` (arrows=walk, space=run/walk, q=quit)
 - Bank errand: `python harness/errand_bank.py [--start x,y]`; walk memory refresh:
   `python harness/nav.py build`.
+- Visualizer: build once `cd viz && bun install && bun run build`; then
+  `python harness/viz_server.py --live` (or `--replay <TAG> [--rate 8]`) → http://127.0.0.1:8080/.
+  Read-only; start/stop any time.
 - Tests: `python test_proxy.py`, `python test_movement.py`, `python test_errand.py`,
   `python harness/test_world.py`, `python harness/test_world_replay.py`,
-  `python harness/test_actions.py`, `python harness/test_nav.py` (all use private
-  control/state ports; safe while the live proxy runs).
+  `python harness/test_actions.py`, `python harness/test_nav.py`, `python harness/test_viz.py`,
+  `cd viz && bun test && bun run typecheck` (all use private control/state ports; safe while
+  the live proxy runs).
 - Push works via SSH alias `github.com-uoharness` (deploy key `~/.ssh/uo_harness_deploy`).
 
 ## Doc map

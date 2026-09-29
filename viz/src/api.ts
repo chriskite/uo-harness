@@ -1,0 +1,97 @@
+// viz_server client (docs/VISUALIZER.md §2.1): initial REST fetch, SSE stream
+// with resume, periodic walk-memory refresh, playback control.
+import type { VizStore } from "./store.ts";
+import type { EventEnvelope, PlaybackAction, StateResponse, WalkMemoryFile } from "./types.ts";
+
+const WALKMEM_REFRESH_MS = 10_000;
+const RECONNECT_MS = 2_000;
+
+export async function fetchState(): Promise<StateResponse> {
+  const r = await fetch("/api/state", { cache: "no-store" });
+  if (!r.ok) throw new Error(`/api/state: HTTP ${r.status}`);
+  return (await r.json()) as StateResponse;
+}
+
+/** Raw file text too, so an unchanged file is not re-parsed into a new object. */
+async function fetchWalkmem(): Promise<{ text: string; data: WalkMemoryFile } | null> {
+  const r = await fetch("/api/walkmem", { cache: "no-store" });
+  if (!r.ok) return null;
+  const text = await r.text();
+  return { text, data: JSON.parse(text) as WalkMemoryFile };
+}
+
+export async function postPlayback(action: PlaybackAction): Promise<void> {
+  const r = await fetch("/api/playback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(action),
+  });
+  if (!r.ok) throw new Error(`/api/playback: HTTP ${r.status} ${await r.text()}`);
+}
+
+/** Start feeding `store`; returns a stop function. */
+export function connect(store: VizStore): () => void {
+  let stopped = false;
+  let source: EventSource | null = null;
+  let reconnect: Timer | undefined;
+  let walkText = "";
+
+  const loadState = async () => {
+    try {
+      const resp = await fetchState();
+      if (!stopped) store.setState(resp);
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  const applyState = (resp: StateResponse) => {
+    // A reset means the server restarted its seq numbering; the SSE resume
+    // already skipped the new ring as "seen", so pull it via REST.
+    if (store.setState(resp)) void loadState();
+  };
+
+  const open = () => {
+    if (stopped) return;
+    const since = store.getSnapshot().lastSeq + 1;
+    const es = new EventSource(since > 0 ? `/api/events?since=${since}` : "/api/events");
+    source = es;
+    es.onopen = () => store.setConnected(true);
+    es.addEventListener("state", (m) => applyState(JSON.parse((m as MessageEvent<string>).data) as StateResponse));
+    es.addEventListener("world_event", (m) =>
+      store.ingest([JSON.parse((m as MessageEvent<string>).data) as EventEnvelope]),
+    );
+    es.onerror = () => {
+      store.setConnected(false);
+      // CONNECTING: the browser retries itself, resuming via Last-Event-ID.
+      // CLOSED: it gave up; reopen with ?since= (a new EventSource has no Last-Event-ID).
+      if (es.readyState === EventSource.CLOSED) {
+        clearTimeout(reconnect);
+        reconnect = setTimeout(open, RECONNECT_MS);
+      }
+    };
+  };
+
+  const refreshWalkmem = async () => {
+    try {
+      const w = await fetchWalkmem();
+      if (w && w.text !== walkText && !stopped) {
+        walkText = w.text;
+        store.setWalkmem(w.data);
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  void loadState().then(open);
+  void refreshWalkmem();
+  const walkTimer = setInterval(refreshWalkmem, WALKMEM_REFRESH_MS);
+
+  return () => {
+    stopped = true;
+    clearTimeout(reconnect);
+    clearInterval(walkTimer);
+    source?.close();
+  };
+}
