@@ -289,3 +289,13 @@ All of the following was proven with live injections on the Test Shard:
 4. **Sustained autonomous walking** = a series of single `walk(dir, seq=0, key=1)` injections at ~600–700 ms intervals (one per resync cycle). Validated: 6 consecutive injected steps moved the character ~6 tiles with no manual input at all.
 5. **Resync suppression (dropping client `22 0000`) was tested and is WRONG** — it deadlocks the client's own movement recovery after agent activity. Proxy comment documents this; suppression removed.
 6. Anti-cheat note: the resync-per-external-walk behavior means an agent that walks leaves a distinctive resync cadence in the logs — visible to server-side behavioral analysis. Human pacing and mixed manual play remain the mitigation.
+
+## Acceptance gate discovered (2026-09-29, continued validation)
+
+- The fastwalk key field is effectively ignored on continuations (user walks show seq 0,1,2 all with key 1 accepted; key 0 also accepted). Token values 8 (login) and 1 (re-arm) matter only for the FIRST walk of a cycle.
+- **The binding constraint is a behavioral gate on walk trains without interleaved client activity**: short injected bursts following client activity (manual walks or a fresh resync) are accepted; long uninterrupted injected trains (10+ steps) are silently rejected wholesale (no turn, no step, no resync). This is consistent with server-side artificial-input detection (rules §4).
+- Practical recipes:
+  - **Attended bursts**: user activity, then ≤ ~6 injected steps — reliable.
+  - **Closed-loop tasks**: interleave manual/client activity with agent bursts (the out-and-back proved this works).
+  - Full-autonomy sustained walking needs the proxy-side seq/key rewrite + activity interleaving strategy (Phase 4 work, flagged as a detection-surface item for ANTICHEAT.md).
+- The client movement-resync (`22 0000`) fires ~50–500 ms after any accepted external walk and is rate-limited (~5 s). It resets the expected seq to 0 and re-arms the token (value 1).
