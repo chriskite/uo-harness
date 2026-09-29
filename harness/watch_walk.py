@@ -1,6 +1,6 @@
-"""Watch-and-mirror: on each client walk seen in the proxy log, inject a
-mirror step (same direction, seq+1, same key) — the 'inject like the client
-would' test. Prints CLIENT vs INJECT lines side by side.
+"""Watch-and-mirror: on each CLIENT-ORIGINATED walk seen in the proxy log,
+inject a mirror step (same direction, seq+1, same key). Its own injections
+are tracked and skipped so it cannot mirror itself (recursion bug fix).
 
 Run: python watch_walk.py [--delay 0.2]
 """
@@ -30,6 +30,7 @@ def main():
     sock = socket.create_connection(("127.0.0.1", 25941), timeout=10)
     print(f"watch_walk: mirroring client walks with +{DELAY}s delay (Ctrl+C to quit)")
     path, pos = None, 0
+    last_injected = None
     while True:
         cur = latest_log()
         if cur != path:
@@ -49,13 +50,15 @@ def main():
                 continue
             if e.get("dir") == "c2s" and e.get("id") == "0x02":
                 hx = e["hex"]
+                if hx == last_injected:
+                    continue  # our own injection echoing back — never mirror it
                 pkt = bytes.fromhex(hx)
-                # mirror: same dir, seq+1 (mod 256, skip 0), same key
                 new_seq = (pkt[2] + 1) & 0xFF or 1
                 mirror = bytes([pkt[0], pkt[1], new_seq]) + pkt[3:]
                 print(f"CLIENT {hx}", flush=True)
                 time.sleep(DELAY)
                 resp = send(sock, mirror)
+                last_injected = mirror.hex()
                 print(f"INJECT {mirror.hex()} -> {resp}", flush=True)
         time.sleep(0.15)
 
