@@ -37,7 +37,16 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 1. ~~Live-verify fix B~~ **VALIDATED (session_20260929_161433):** CLI and client
    walking both fully work; 0 resyncs, 0 proxy-originated server packets. Blocked
    moves get a real server `0x21` deny (handled).
-2. Closed-loop bank run (Phase 3 done-criterion), then Phase 4 (agent runtime).
+2. **Bank errand built, offline-proven, live run pending** (`harness/errand_bank.py`;
+   `test_errand.py` runs proxy + runner + a simulated world end to end). It works like this:
+   - find the banker (labels, or stock-style clicks `09`+`34`)
+   - walk using walk memory (`harness/nav.py`, `harness/data/walkmem.json`); denies teach blocked moves
+   - say "bank", keyword-encoded byte-identically to the stock client (`harness/uo/speech.py`)
+   - verify the bank box opened (`0x24` on the self layer-0x1D item, matching the real reply in 161433)
+   - walk back to the start tile
+
+   Live: log in, then `python harness/errand_bank.py --start 1963,2597`.
+   Then Phase 4 (agent runtime).
 3. Optional: map-based z for re-anchors (stairs/slopes).
 
 ## Operate
@@ -48,10 +57,15 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 - Divert NAT (needed, elevated): `powershell -Verb RunAs restart_divert.ps1`
 - Launch game (elevated): `powershell -Verb RunAs launch_game.ps1`
 - Watch packets: `python harness/tail_log.py`
+- Live state (movement truth + world model + events): JSON lines on 127.0.0.1:25942,
+  request `{"op":"state","since":N}` (proxy `--state-port`).
 - Drive walks: `python harness/walk_cli.py` (arrows=walk, space=run/walk, q=quit)
-- Tests: `python test_proxy.py`, `python test_movement.py`, `python harness/test_world.py`,
-  `python harness/test_world_replay.py`, `python harness/test_actions.py` (all use their own
-  control ports; safe while the live proxy runs).
+- Bank errand: `python harness/errand_bank.py [--start x,y]`; walk memory refresh:
+  `python harness/nav.py build`.
+- Tests: `python test_proxy.py`, `python test_movement.py`, `python test_errand.py`,
+  `python harness/test_world.py`, `python harness/test_world_replay.py`,
+  `python harness/test_actions.py`, `python harness/test_nav.py` (all use private
+  control/state ports; safe while the live proxy runs).
 - Push works via SSH alias `github.com-uoharness` (deploy key `~/.ssh/uo_harness_deploy`).
 
 ## Doc map
