@@ -98,9 +98,9 @@ def test_sequencer():
     w = actions.WalkSequencer(start=255)
     pkt1 = w.walk(2)
     pkt2 = w.walk(2)
-    check("seq wrap 255->0", pkt1[2] == 255 and pkt2[2] == 0,
+    check("seq wrap 255->1 (never 0)", pkt1[2] == 255 and pkt2[2] == 1,
           f"({pkt1[2]}, {pkt2[2]})")
-    check("seq consumed once per walk", w.seq == 1)
+    check("seq consumed once per walk", w.seq == 2)
 
 
 def test_dclick():

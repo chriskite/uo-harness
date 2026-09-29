@@ -178,29 +178,62 @@ class SessionTap:
             self._log(dir="c2s", id=f"0x{pkt[0]:02X}", len=plen, hex=hexd(pkt))
 
     # ---- server -> client ----
+
     def tap_s2c(self, data: bytes):
         self.raw_s2c.write(data)
         if not self.s2c_prelude_done:
-            need = SERVER_PRELUDE_LEN - len(self.s2c_buf)
-            head, data = data[:need], data[need:]
-            self.s2c_buf += head
-            if len(self.s2c_buf) < SERVER_PRELUDE_LEN:
+            self.s2c_buf += data
+            # stage 1: as soon as the 13-byte ff handshake packet is in, take the
+            # session key (byte 12) so injections/C2S decrypt work immediately
+            if self.key is None and len(self.s2c_buf) >= 13:
+                head = bytes(self.s2c_buf)
+                if head[0] == 0xFF and head[10] == 0x0C:
+                    self.key = head[12]
+                    self._log(ev="s2c_key", session_key=f"0x{self.key:02X}", tick=head[11])
+                    if self.c2s_plain:
+                        self._drain_c2s()
+                else:
+                    self._log(ev="s2c_prelude_unexpected", hex=head[:13].hex())
+                    self.s2c_prelude_done = True
+                    self.s2c_buf.clear()
+                    data = head
+                    self.s2c_plain += self.huff.decompress(data)
+                    self._drain_s2c()
+                    return
+            # stage 2: decide the huffman start once enough data exists to
+            # validate against (13B ff-packet + variable trailer + compressed data)
+            if self.key is None or len(self.s2c_buf) < 48:
                 return
-            pre = bytes(self.s2c_buf)
+            head = bytes(self.s2c_buf)
             self.s2c_prelude_done = True
             self.s2c_buf.clear()
-            if pre[0] == 0xFF and pre[10] == 0x0C:
-                self.key = pre[12]
-                self._log(ev="s2c_prelude", hex=pre.hex(), session_key=f"0x{self.key:02X}",
-                          tick=pre[11], tail=pre[13:].hex())
-                if self.c2s_plain:
-                    self._drain_c2s()
-            else:
-                self._log(ev="s2c_prelude_unexpected", hex=pre.hex())
+            start = self._find_huffman_start(head)
+            self._log(ev="s2c_prelude", hex=head[:start].hex(),
+                      session_key=f"0x{self.key:02X}", tick=head[11],
+                      trailer=head[13:start].hex(), huffman_start=start)
+            data = head[start:]
             if not data:
                 return
         self.s2c_plain += self.huff.decompress(data)
         self._drain_s2c()
+
+
+    @staticmethod
+    def _find_huffman_start(head: bytes) -> int:
+        """Prelude = 13B ff-packet + variable trailer; find the huffman start
+        by trial-decoding each candidate and keeping the longest clean run."""
+        best_start, best_score = SERVER_PRELUDE_LEN, 0
+        for start in range(SERVER_PRELUDE_LEN, min(len(head) - 8, 33)):
+            plain = HuffmanDecoder().decompress(head[start:])
+            off = 0
+            while True:
+                plen = outlands_length(plain, off)
+                if plen <= 0:
+                    break
+                off += plen
+            if off > best_score:
+                best_start, best_score = start, off
+        return best_start
 
     def _drain_s2c(self):
         buf = getattr(self, "_s2c_framing", None)

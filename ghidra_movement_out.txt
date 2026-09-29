@@ -1,0 +1,541 @@
+INFO  Using log config file: jar:file:/C:/Users/chris/ghidra_12.1.4_PUBLIC/Ghidra/Framework/Generic/lib/Generic.jar!/generic.log4j.xml (LoggingInitialization)  
+INFO  Using log file: C:\Users\chris\AppData\Roaming\ghidra\ghidra_12.1.4_PUBLIC\application.log (LoggingInitialization)  
+INFO  Loading user preferences: C:\Users\chris\AppData\Roaming\ghidra\ghidra_12.1.4_PUBLIC\preferences (Preferences)  
+INFO  Searching for classes... (ClassSearcher)  
+INFO  Class search complete (508 ms) (ClassSearcher)  
+INFO  Initializing SSL Context (DefaultSSLContextInitializer)  
+INFO  Initializing Random Number Generator... (SecureRandomFactory)  
+INFO  Random Number Generator initialization complete: SHA1PRNG (SecureRandomFactory)  
+INFO  Trust manager disabled, cacerts have not been set (DefaultTrustManagerFactory)  
+INFO  Headless startup complete (1346 ms) (AnalyzeHeadless)  
+INFO  Class searcher loaded 59 extension points (20 false positives) (ClassSearcher)  
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::staticFieldOffset has been called by org.apache.felix.framework.util.SecureAction (file:/C:/Users/chris/ghidra_12.1.4_PUBLIC/Ghidra/Features/Base/lib/org.apache.felix.framework-7.0.5.jar)
+WARNING: Please consider reporting this to the maintainers of class org.apache.felix.framework.util.SecureAction
+WARNING: sun.misc.Unsafe::staticFieldOffset will be removed in a future release
+INFO  HEADLESS Script Paths:
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Debug\Debugger\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\SystemEmulation\ghidra_scripts
+    C:\Users\chris\uo-harness\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\BytePatterns\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\PyGhidra\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\Base\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\Decompiler\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\WildcardAssembler\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\DecompilerDependent\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\FileFormats\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Processors\JVM\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\MicrosoftCodeAnalyzer\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\PDB\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Processors\DATA\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\FunctionID\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\GnuDemangler\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\VersionTracking\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\BSim\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Features\SwiftDemangler\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Processors\Atmel\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Debug\Debugger-rmi-trace\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Processors\8051\ghidra_scripts
+    C:\Users\chris\ghidra_12.1.4_PUBLIC\Ghidra\Processors\PIC\ghidra_scripts (HeadlessAnalyzer)  
+INFO  HEADLESS: execution starts (HeadlessAnalyzer)  
+INFO  Opening existing project: C:\Users\chris\uo-harness\ghidra\UOProject (HeadlessAnalyzer)  
+INFO  Opening project: C:\Users\chris\uo-harness\ghidra\UOProject (HeadlessProject)  
+INFO  REPORT: Processing project file: /ClassicUO.exe (HeadlessAnalyzer)  
+INFO  REPORT: Execute script: DecompileMovement.java  (HeadlessAnalyzer)  
+INFO  SCRIPT: C:\Users\chris\uo-harness\ghidra_scripts\DecompileMovement.java (HeadlessAnalyzer)  
+INFO  DecompileMovement.java> === VA 0x140327d40 : FUN_140327c40 size=407 === (GhidraScript)  
+INFO  DecompileMovement.java> 
+undefined8 FUN_140327c40(undefined8 param_1,undefined4 param_2,undefined4 param_3)
+
+{
+  uint uVar1;
+  undefined8 uVar2;
+  int iVar3;
+  undefined8 uVar4;
+  longlong lVar5;
+  longlong local_38;
+  undefined8 uStack_30;
+  ulonglong local_28;
+  
+  local_38 = 0;
+  uStack_30 = 0;
+  local_28 = 0;
+  uVar4 = FUN_1416a7aa0(&DAT_1435a0be0);
+  if (PTR_FUN_143f7b880 != (undefined *)0x0) {
+    FUN_1416812c0();
+  }
+  uVar2 = *(undefined8 *)(DAT_143f8c2e8 + 8);
+  FUN_141698fe4(uVar4,param_1);
+  uVar4 = FUN_1414c5b80(&PTR_DAT_1431961e8,uVar2,uVar4);
+  lVar5 = *(longlong *)(DAT_143f8c780 + 0x10);
+  if (lVar5 == 0) {
+    lVar5 = FUN_1416a7aa0(&DAT_143458658);
+    FUN_141689b04(lVar5,&PTR_DAT_143f61a40);
+    FUN_1416a80d0(DAT_143f8c780 + 0x10,lVar5);
+  }
+  uVar4 = FUN_14156cc00(&PTR_DAT_1431720a0,uVar4,lVar5);
+  lVar5 = FUN_14156caf0(&PTR_DAT_143172090,uVar4);
+  uVar4 = FUN_1403195c0(param_1,0x15);
+  *(int *)(lVar5 + 0x14) = *(int *)(lVar5 + 0x14) + 1;
+  uVar1 = *(uint *)(lVar5 + 0x10);
+  if (uVar1 < *(uint *)(*(longlong *)(lVar5 + 8) + 8)) {
+    *(uint *)(lVar5 + 0x10) = uVar1 + 1;
+    FUN_140841a80(*(longlong *)(lVar5 + 8),uVar1,uVar4);
+  }
+  else {
+    FUN_141375ff0(lVar5);
+  }
+  uStack_30 = 0;
+  local_28 = (ulonglong)*(uint *)(lVar5 + 0x14);
+  local_38 = lVar5;
+  iVar3 = FUN_14137ad00(&local_38,&DAT_143458270);
+  while( true ) {
+    if (iVar3 == 0) {
+      return 0;
+    }
+    uVar4 = FUN_140327de0(param_1,uStack_30,param_2,param_3);
+    iVar3 = FUN_14076e370(uVar4,0);
+    if (iVar3 == 0) break;
+    iVar3 = FUN_14137ad00(&local_38,&DAT_143458270);
+  }
+  return uVar4;
+}
+
+ (GhidraScript)  
+INFO  DecompileMovement.java> === VA 0x14030aec0 : FUN_14030aec0 size=519 === (GhidraScript)  
+INFO  DecompileMovement.java> 
+void FUN_14030aec0(longlong param_1,char param_2)
+
+{
+  undefined8 *puVar1;
+  undefined4 *puVar2;
+  undefined8 *puVar3;
+  int iVar4;
+  int iVar5;
+  longlong lVar6;
+  undefined8 uVar7;
+  undefined4 uVar8;
+  undefined4 uVar9;
+  undefined4 uVar10;
+  undefined4 uVar11;
+  uint uVar12;
+  uint uVar13;
+  undefined8 uVar14;
+  ulonglong uVar15;
+  longlong lVar16;
+  uint uVar17;
+  bool bVar18;
+  bool bVar19;
+  int local_30;
+  int iStack_2c;
+  
+  if (*(int *)(param_1 + 0x28) != 0) {
+    *(int *)(param_1 + 0x28) = *(int *)(param_1 + 0x28) + -1;
+  }
+  uVar17 = 0;
+  uVar15 = 0;
+  uVar13 = *(uint *)(param_1 + 0x24);
+  if (0 < (int)uVar13) {
+    do {
+      if (*(uint *)(*(longlong *)(param_1 + 0x10) + 8) <= (uint)uVar15) goto LAB_14030b0c2;
+      if (*(char *)(*(longlong *)(param_1 + 0x10) + 0x12 + uVar15 * 0x20) == param_2) break;
+      uVar17 = uVar17 + 1;
+      uVar12 = (uint)uVar15 + 1;
+      uVar15 = (ulonglong)uVar12;
+    } while ((int)uVar12 < (int)uVar13);
+  }
+  bVar18 = uVar17 == uVar13;
+  bVar19 = false;
+  if (bVar18) {
+LAB_14030b006:
+    if (!bVar19) goto LAB_14030b077;
+  }
+  else {
+    if ((int)uVar17 < (int)(uint)*(byte *)(param_1 + 0x2c)) {
+      if (uVar17 == 0) {
+        lVar6 = *(longlong *)(param_1 + 0x10);
+        if (*(int *)(lVar6 + 8) == 0) goto LAB_14030b0c2;
+        iVar4 = *(int *)(lVar6 + 0x20);
+        iVar5 = *(int *)(lVar6 + 0x24);
+        uVar7 = *(undefined8 *)(lVar6 + 0x20);
+        uVar14 = FUN_140213b10();
+        local_30 = (int)uVar14;
+        if (local_30 == iVar4) {
+          iStack_2c = (int)((ulonglong)uVar14 >> 0x20);
+          bVar19 = iStack_2c == iVar5;
+        }
+        else {
+          bVar19 = false;
+        }
+        bVar19 = !bVar19;
+        FUN_140213b40(uVar7);
+        uVar15 = 1;
+        iVar4 = *(int *)(param_1 + 0x24);
+        if (1 < iVar4) {
+          do {
+            lVar6 = *(longlong *)(param_1 + 0x10);
+            uVar13 = (uint)uVar15;
+            if (*(uint *)(lVar6 + 8) <= uVar13) goto LAB_14030b0c2;
+            puVar1 = (undefined8 *)(lVar6 + 0x10 + uVar15 * 0x20);
+            uVar7 = puVar1[1];
+            puVar2 = (undefined4 *)(lVar6 + 0x20 + uVar15 * 0x20);
+            uVar8 = *puVar2;
+            uVar9 = puVar2[1];
+            uVar10 = puVar2[2];
+            uVar11 = puVar2[3];
+            if (*(uint *)(lVar6 + 8) <= uVar13 - 1) goto LAB_14030b0c2;
+            lVar16 = (ulonglong)(uVar13 - 1) * 0x20;
+            puVar3 = (undefined8 *)(lVar6 + 0x10 + lVar16);
+            *puVar3 = *puVar1;
+            puVar3[1] = uVar7;
+            puVar2 = (undefined4 *)(lVar6 + 0x20 + lVar16);
+            *puVar2 = uVar8;
+            puVar2[1] = uVar9;
+            puVar2[2] = uVar10;
+            puVar2[3] = uVar11;
+            uVar15 = (ulonglong)(uVar13 + 1);
+          } while ((int)(uVar13 + 1) < iVar4);
+        }
+        *(int *)(param_1 + 0x24) = iVar4 + -1;
+        *(char *)(param_1 + 0x2c) = *(char *)(param_1 + 0x2c) + -1;
+      }
+      else {
+        bVar18 = true;
+      }
+      goto LAB_14030b006;
+    }
+    if (*(uint *)(*(longlong *)(param_1 + 0x10) + 8) <= uVar17) {
+LAB_14030b0c2:
+                    /* WARNING: Subroutine does not return */
+      FUN_140879890();
+    }
+    lVar6 = *(longlong *)(param_1 + 0x10) + 0x10 + (ulonglong)uVar17 * 0x20;
+    *(undefined1 *)(lVar6 + 3) = 1;
+    iVar4 = *(int *)(lVar6 + 0x10);
+    iVar5 = *(int *)(lVar6 + 0x14);
+    uVar7 = *(undefined8 *)(lVar6 + 0x10);
+    uVar14 = FUN_140213b10();
+    local_30 = (int)uVar14;
+    if (local_30 == iVar4) {
+      iStack_2c = (int)((ulonglong)uVar14 >> 0x20);
+      bVar19 = iStack_2c == iVar5;
+    }
+    else {
+      bVar19 = false;
+    }
+    FUN_140213b40(uVar7);
+    if (bVar19) goto LAB_14030b077;
+  }
+  FUN_1402df900(5);
+LAB_14030b077:
+  if (bVar18) {
+    if (*(char *)(param_1 + 0x2d) == '\0') {
+      if (PTR_FUN_143f7b300 != (undefined *)0x0) {
+        FUN_141680ca6();
+      }
+      ClassicUO_Network_NetClientExt_Send_Resync(*(undefined8 *)(DAT_143f8bf90 + 8));
+      *(undefined1 *)(param_1 + 0x2d) = 1;
+    }
+    *(undefined1 *)(param_1 + 0x2e) = 1;
+    *(undefined4 *)(param_1 + 0x24) = 0;
+    *(undefined1 *)(param_1 + 0x2c) = 0;
+  }
+  return;
+}
+
+ (GhidraScript)  
+INFO  DecompileMovement.java> === VA 0x14030ae40 : FUN_14030ae40 size=123 === (GhidraScript)  
+INFO  DecompileMovement.java> 
+void FUN_14030ae40(undefined8 param_1,undefined8 param_2,int param_3,undefined4 param_4,
+                  undefined4 param_5)
+
+{
+  longlong lVar1;
+  
+  if (PTR_FUN_143f7b4c0 != (undefined *)0x0) {
+    FUN_141680e48();
+  }
+  lVar1 = DAT_143f8c0d0;
+  FUN_14031a440();
+  FUN_14030b130(param_1);
+  if (param_3 == -1) {
+    return;
+  }
+  FUN_140213b40(CONCAT44(param_4,param_3));
+  FUN_1403114d0(*(undefined8 *)(lVar1 + 0x18),param_3,param_4,param_5);
+  return;
+}
+
+ (GhidraScript)  
+INFO  DecompileMovement.java> === VA 0x14030ad40 : FUN_14030ad40 size=76 === (GhidraScript)  
+INFO  DecompileMovement.java> 
+void FUN_14030ad40(longlong param_1,undefined4 param_2)
+
+{
+  int iVar1;
+  longlong lVar2;
+  uint uVar3;
+  ulonglong uVar4;
+  
+  uVar3 = 0;
+  uVar4 = 0;
+  lVar2 = *(longlong *)(param_1 + 8);
+  if (*(uint *)(lVar2 + 8) != 0) {
+    iVar1 = *(int *)(lVar2 + 0x10);
+    while( true ) {
+      if (iVar1 == 0) {
+        *(undefined4 *)(lVar2 + 0x10 + (ulonglong)uVar3 * 4) = param_2;
+        return;
+      }
+      uVar3 = (int)uVar4 + 1;
+      uVar4 = (ulonglong)uVar3;
+      if (4 < (int)uVar3) {
+        return;
+      }
+      if (*(uint *)(lVar2 + 8) <= uVar3) break;
+      iVar1 = *(int *)(lVar2 + 0x10 + uVar4 * 4);
+    }
+  }
+                    /* WARNING: Subroutine does not return */
+  FUN_140879890();
+}
+
+ (GhidraScript)  
+INFO  DecompileMovement.java> === VA 0x140311260 : FUN_140311260 size=235 === (GhidraScript)  
+INFO  DecompileMovement.java> 
+void FUN_140311260(longlong param_1,int param_2,int param_3)
+
+{
+  longlong lVar1;
+  longlong lVar2;
+  
+  if (PTR_FUN_143f7b4c0 != (undefined *)0x0) {
+    FUN_141680e48();
+  }
+  if (*(longlong *)(DAT_143f8c0d0 + 0x58) == 0) {
+    lVar2 = 0;
+  }
+  else {
+    lVar2 = FUN_1402d84a0(*(longlong *)(DAT_143f8c0d0 + 0x58),param_2,param_3,1);
+  }
+  lVar1 = *(longlong *)(param_1 + 0x38);
+  if (lVar1 != 0) {
+    FUN_1416a80d0(lVar1 + 0x30,*(undefined8 *)(param_1 + 0x30));
+  }
+  if (*(longlong *)(param_1 + 0x30) != 0) {
+    FUN_1416a80d0(*(longlong *)(param_1 + 0x30) + 0x38,lVar1);
+  }
+  *(undefined8 *)(param_1 + 0x30) = 0;
+  *(undefined8 *)(param_1 + 0x38) = 0;
+  if ((*(char *)(param_1 + 0x68) == '\0') && (lVar2 != 0)) {
+    FUN_1402d7980(lVar2,param_1,param_2 - ((param_2 >> 0x1f & 7U) + param_2 & 0xfffffff8),
+                  param_3 - ((param_3 >> 0x1f & 7U) + param_3 & 0xfffffff8));
+    return;
+  }
+  return;
+}
+
+ (GhidraScript)  
+INFO  DecompileMovement.java> === VA 0x14020f640 : FUN_14020f3a0 size=812 === (GhidraScript)  
+INFO  DecompileMovement.java> 
+undefined4 FUN_14020f3a0(longlong param_1)
+
+{
+  undefined4 uVar1;
+  longlong lVar2;
+  longlong lVar3;
+  int iVar4;
+  int iVar5;
+  uint uVar6;
+  uint uVar7;
+  
+  iVar4 = FUN_140214250();
+  if (iVar4 != 0) {
+    if (PTR_FUN_143f7b4c0 != (undefined *)0x0) {
+      FUN_141680e48();
+    }
+    if (*(char *)(*(longlong *)(DAT_143f8c0d0 + 0x18) + 0x21e) != '\0') {
+      iVar4 = 1;
+      goto LAB_14020f3e5;
+    }
+  }
+  iVar4 = 0;
+LAB_14020f3e5:
+  if (DAT_143f7b7ac == '\0') {
+    iVar5 = FUN_1403089b0();
+    if ((iVar5 == 0) && (*(char *)(param_1 + 0x4e) == '\0')) {
+      if (*(char *)(param_1 + 0x4d) == '\0') {
+        if (PTR_FUN_143f7b7b8 != (undefined *)0x0) {
+          FUN_14168118c();
+        }
+        lVar2 = DAT_143f8c260;
+        if (((*(longlong **)(DAT_143f8c260 + 0x38) == (longlong *)0x0) ||
+            (iVar5 = (**(code **)(**(longlong **)(DAT_143f8c260 + 0x38) + 0x50))(), iVar5 == 0)) ||
+           (*(char *)(*(longlong *)(lVar2 + 0x38) + 0xc6) == '\0')) {
+          if (PTR_FUN_143f7b4a8 != (undefined *)0x0) {
+            FUN_141680e1c();
+          }
+          lVar3 = DAT_143f8c0b8;
+          lVar2 = *(longlong *)(DAT_143f8c0b8 + 8);
+          uVar7 = iVar4 - *(int *)(lVar2 + 0x18);
+          if (uVar7 < *(uint *)(lVar2 + 0x10)) {
+            uVar6 = 9 - *(int *)(lVar2 + 0x1c);
+            if (uVar6 < *(uint *)(lVar2 + 0x14)) {
+              uVar1 = *(undefined4 *)
+                       (lVar2 + 0x20 + (ulonglong)(uVar6 + uVar7 * *(int *)(lVar2 + 0x14)) * 4);
+              iVar5 = FUN_1403086b0();
+              if ((iVar5 == 0) || (*(longlong *)(DAT_143f8c348 + 8) == 0)) {
+                return uVar1;
+              }
+              lVar2 = *(longlong *)(*(longlong *)(*(longlong *)(DAT_143f8beb8 + 0x10) + 0x100) + 8);
+              lVar3 = *(longlong *)(lVar3 + 8);
+              iVar5 = FUN_14020f6d0(*(int *)(lVar2 + 0xac) + (*(int *)(lVar2 + 0xb4) >> 1),
+                                    *(int *)(lVar2 + 0xb0) + (*(int *)(lVar2 + 0xb8) >> 1),
+                                    DAT_143ffb240,DAT_143ffb244,1);
+              uVar7 = iVar4 - *(int *)(lVar3 + 0x18);
+              if (uVar7 < *(uint *)(lVar3 + 0x10)) {
+                uVar6 = iVar5 - *(int *)(lVar3 + 0x1c);
+                if (uVar6 < *(uint *)(lVar3 + 0x14)) {
+                  return *(undefined4 *)
+                          (lVar3 + 0x20 + (ulonglong)(uVar7 * *(int *)(lVar3 + 0x14) + uVar6) * 4);
+                }
+              }
+            }
+          }
+        }
+        else {
+          if (PTR_FUN_143f7b4a8 != (undefined *)0x0) {
+            FUN_141680e1c();
+          }
+          lVar2 = *(longlong *)(DAT_143f8c0b8 + 8);
+          uVar7 = iVar4 - *(int *)(lVar2 + 0x18);
+          if (uVar7 < *(uint *)(lVar2 + 0x10)) {
+            uVar6 = 0xe - *(int *)(lVar2 + 0x1c);
+            if (uVar6 < *(uint *)(lVar2 + 0x14)) {
+              return *(undefined4 *)
+                      (lVar2 + 0x20 + (ulonglong)(uVar7 * *(int *)(lVar2 + 0x14) + uVar6) * 4);
+            }
+          }
+        }
+      }
+      else {
+        if (PTR_FUN_143f7b4a8 != (undefined *)0x0) {
+          FUN_141680e1c();
+        }
+        lVar2 = *(longlong *)(DAT_143f8c0b8 + 8);
+        uVar7 = iVar4 - *(int *)(lVar2 + 0x18);
+        if (uVar7 < *(uint *)(lVar2 + 0x10)) {
+          uVar6 = 0xd - *(int *)(lVar2 + 0x1c);
+          if (uVar6 < *(uint *)(lVar2 + 0x14)) {
+            return *(undefined4 *)
+                    (lVar2 + 0x20 + (ulonglong)(uVar7 * *(uint *)(lVar2 + 0x14) + uVar6) * 4);
+          }
+        }
+      }
+    }
+    else {
+      if (PTR_FUN_143f7b4a8 != (undefined *)0x0) {
+        FUN_141680e1c();
+      }
+      lVar2 = *(longlong *)(DAT_143f8c0b8 + 8);
+      uVar7 = iVar4 - *(int *)(lVar2 + 0x18);
+      if (uVar7 < *(uint *)(lVar2 + 0x10)) {
+        uVar6 = 8 - *(int *)(lVar2 + 0x1c);
+        if (uVar6 < *(uint *)(lVar2 + 0x14)) {
+          return *(undefined4 *)
+                  (lVar2 + 0x20 + (ulonglong)(uVar7 * *(uint *)(lVar2 + 0x14) + uVar6) * 4);
+        }
+      }
+    }
+  }
+  else {
+    if (PTR_FUN_143f7b4a8 != (undefined *)0x0) {
+      FUN_141680e1c();
+    }
+    lVar2 = *(longlong *)(DAT_143f8c0b8 + 8);
+    uVar7 = iVar4 - *(int *)(lVar2 + 0x18);
+    if (uVar7 < *(uint *)(lVar2 + 0x10)) {
+      uVar6 = 0xc - *(int *)(lVar2 + 0x1c);
+      if (uVar6 < *(uint *)(lVar2 + 0x14)) {
+        return *(undefined4 *)
+                (lVar2 + 0x20 + (ulonglong)(uVar7 * *(int *)(lVar2 + 0x14) + uVar6) * 4);
+      }
+    }
+  }
+                    /* WARNING: Subroutine does not return */
+  FUN_140879890();
+}
+
+ (GhidraScript)  
+INFO  DecompileMovement.java> === VA 0x1401a2ba0 : FUN_1401a2ba0 size=363 === (GhidraScript)  
+INFO  DecompileMovement.java> 
+bool FUN_1401a2ba0(longlong *param_1,undefined4 *param_2)
+
+{
+  undefined1 uVar1;
+  undefined8 *puVar2;
+  int iVar3;
+  int iVar4;
+  undefined4 uVar5;
+  longlong lVar6;
+  undefined8 uVar7;
+  longlong lVar8;
+  longlong lVar9;
+  bool bVar10;
+  
+  bVar10 = true;
+  lVar8 = *param_1;
+  if ((lVar8 == 0) || (*(int *)(lVar8 + 8) == 0)) {
+    lVar9 = 0;
+  }
+  else {
+    lVar9 = lVar8 + 0x10;
+  }
+  if (*(int *)(lVar8 + 8) != 0) {
+    uVar1 = *(undefined1 *)(lVar8 + 0x10);
+    iVar3 = FUN_14006cb40(uVar1);
+    iVar4 = FUN_14006cc20(uVar1);
+    if (iVar3 == 0) {
+      if (iVar4 != 0) {
+        lVar9 = *param_1;
+        uVar5 = *param_2;
+        lVar6 = FUN_1416a7aa0(&DAT_1432368f8);
+        iVar3 = Assistant_PacketsTable_GetPacketLength(uVar1);
+        FUN_140068c10(lVar6,lVar9,uVar5,iVar3 == -1,lVar8);
+        iVar3 = FUN_14006ca60(uVar1,0,lVar6);
+        bVar10 = iVar3 == 0;
+        uVar7 = FUN_140068d70(lVar6);
+        FUN_1416a8140(param_1,uVar7);
+        puVar2 = *(undefined8 **)(lVar6 + 8);
+        if (((undefined *)*puVar2 == &DAT_1432dde00) || ((undefined *)*puVar2 != &DAT_1432dea38)) {
+          uVar5 = FUN_14082ab20();
+        }
+        else {
+          if (*(char *)(puVar2[7] + 0x44) == '\0') {
+                    /* WARNING: Subroutine does not return */
+            FUN_1407b1fa0(0);
+          }
+          uVar5 = (undefined4)*(undefined8 *)(puVar2[7] + 0x30);
+        }
+        *param_2 = uVar5;
+      }
+    }
+    else {
+      uVar5 = *param_2;
+      lVar8 = FUN_1416a7aa0(&DAT_143236930);
+      iVar3 = Assistant_PacketsTable_GetPacketLength(uVar1);
+      *(longlong *)(lVar8 + 8) = lVar9;
+      *(undefined4 *)(lVar8 + 0x14) = uVar5;
+      *(undefined4 *)(lVar8 + 0x10) = 0;
+      *(bool *)(lVar8 + 0x18) = iVar3 == -1;
+      iVar3 = FUN_14006ca60(uVar1,lVar8,0);
+      bVar10 = iVar3 == 0;
+    }
+    return bVar10;
+  }
+                    /* WARNING: Subroutine does not return */
+  FUN_140879890();
+}
+
+ (GhidraScript)  
+INFO  REPORT: Save succeeded for processed file: /ClassicUO.exe (HeadlessAnalyzer)  

@@ -56,8 +56,9 @@ SPEECH_LANG = b"ENU\x00"
 class WalkSequencer:
     """Movement sequence-byte owner for 0x02 walk packets.
 
-    Starts at 0, increments once per walk, wraps 255 -> 0. Share one
-    instance across all agent-driven walks for a session.
+    Starts at 0, increments once per walk, wraps 0xFF -> 1 (never 0, per the
+    client movement code). Share one instance across all agent-driven walks
+    for a session.
     """
 
     def __init__(self, start: int = 0):
@@ -66,9 +67,9 @@ class WalkSequencer:
         self.seq = start
 
     def next(self) -> int:
-        """Return the current seq and advance (wrapping at 256)."""
+        """Return the current seq and advance (0xFF -> 1, never 0)."""
         s = self.seq
-        self.seq = (self.seq + 1) & 0xFF
+        self.seq = self.seq + 1 if self.seq < 0xFF else 1
         return s
 
     def walk(self, direction: int, run: bool = False,
