@@ -318,6 +318,21 @@ async def e2e():
         steps = [(e["from"], e["to"]) for e in log if e.get("ev") == "step"]
         check("jsonl step events for confirmed moves (turn logs none)",
               steps == [([100, 200], [100, 199]), ([100, 199], [100, 198]), ([100, 198], [101, 198])], str(steps))
+        envs = state.get("events", [])
+        psteps = [(e["data"]["from"], e["data"]["to"]) for e in envs
+                  if e.get("origin") == "proxy" and e["data"].get("ev") == "step"
+                  and isinstance(e.get("t"), (int, float))]
+        check("state events: proxy-origin step envelopes with numeric t, as in the jsonl",
+              psteps == steps, str(psteps))
+        check("state events: seqs are 0..next-1 in order",
+              [e.get("seq") for e in envs] == list(range(state.get("next", -1))), str(state.get("next")))
+        agent_c2s = [e["data"]["id"] for e in envs if e["origin"] == "proxy" and e["data"]["ev"] == "c2s"]
+        check("state events: one c2s summary per agent packet (none for client packets)",
+              agent_c2s == ["0x02", "0x02"], str(agent_c2s))
+        check("state events: agent confirms hidden, re-anchor reported",
+              [e["data"]["seq"] for e in envs if e["data"].get("ev") == "s2c_confirm_hidden"] == [2, 3]
+              and [(e["data"]["x"], e["data"]["y"]) for e in envs if e["data"].get("ev") == "reanchor_client"]
+              == [(101, 198)], str([e["data"] for e in envs if e["origin"] == "proxy"]))
     finally:
         proxy.terminate()
         server.close()

@@ -88,7 +88,7 @@ class Link:
         resp = json.loads(self.st_file.readline())
         if not resp.get("ok"):
             raise Abort(f"state port: {resp.get('error')}")
-        self.events.extend(resp["events"])
+        self.events.extend(env["data"] for env in resp["events"] if env["origin"] == "world")
         self.since = resp["next"]
         self.last = resp
         return resp
@@ -236,7 +236,7 @@ class Errand:
     def find_banker(self):
         st = self.link.state()
         mobiles = st["world"]["mobiles"]
-        known = self._banker_from_labels(mobiles)
+        known = self._banker_from_labels(st["world"])
         if known:
             return known
         me = tuple(self.pos(st)[:2])
@@ -270,13 +270,12 @@ class Errand:
                 return ev.get("text")
         return None
 
-    def _banker_from_labels(self, mobiles):
-        for ev in self.link.events:
-            if ev.get("ev") == "speech_heard" and "the banker" in (ev.get("text") or "").lower():
-                serial = _serial(ev["serial"])
-                m = mobiles.get(f"0x{serial:08X}")
-                if m and m.get("x") is not None:
-                    return serial, ev["text"], (m["x"], m["y"])
+    def _banker_from_labels(self, world):
+        """A positioned mobile whose latest click label (world.labels) names it a banker."""
+        for key, text in world.get("labels", {}).items():
+            m = world["mobiles"].get(key)
+            if "the banker" in text.lower() and m and m.get("x") is not None:
+                return _serial(key), text, (m["x"], m["y"])
         return None
 
     def banker_pos(self, serial: int, fallback):

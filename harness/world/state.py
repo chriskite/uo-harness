@@ -177,6 +177,8 @@ class StateStore:
         self.target = TargetState()
         self.census = EntityCensus()
         self.names: dict[int, str] = {}
+        # latest click label per serial (S2C 0x1C type 6, e.g. "Len the banker")
+        self.labels: dict[int, str] = {}
         self.buffs: dict[int, dict[int, dict]] = {}  # serial -> icon id -> info
         self.containers: set[int] = set()
         self.protocol_version: int | None = None
@@ -232,6 +234,7 @@ class StateStore:
             "target": self.target.to_dict(),
             "census": self.census.to_dict(),
             "names": {_h(s): n for s, n in sorted(self.names.items())},
+            "labels": {_h(s): t for s, t in sorted(self.labels.items())},
             "buffs": {_h(s): {str(i): b for i, b in sorted(v.items())}
                       for s, v in sorted(self.buffs.items())},
             "containers": [_h(s) for s in sorted(self.containers)],

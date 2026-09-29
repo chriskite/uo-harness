@@ -32,6 +32,7 @@ Usage:
 """
 import argparse
 import asyncio
+import collections
 import json
 import os
 import time
@@ -43,7 +44,8 @@ from world.runtime import WorldRuntime, C2S, S2C
 CONTROL_MAX_FRAME = 4096
 CLIENT_PREAMBLE_LEN = 5
 RESYNC = b"\x22\x00\x00"
-EVENT_CAP = 5000  # world events kept for state-port readers
+EVENT_CAP = 5000  # event envelopes kept for state-port readers
+DIAG_TOP = 20     # packet_counts entries in the state response's diagnostics
 
 # Movement timing (docs/MOVEMENT.md, sessions 20260929_142237/_143051/_144541):
 RESYNC_REPLY_TIMEOUT_S = 1.5  # client resync: no 0xBF sub1 seed by then -> the server ignored it
@@ -322,14 +324,21 @@ class SessionTap:
 
     Also runs the world model live: every C2S packet (after rewrite, as the
     server sees it) and every S2C packet (as the server sent it, before
-    client-side filtering) is fed to a WorldRuntime; its events are kept in an
-    indexed log for state-port readers (`state()`).
+    client-side filtering) is fed to a WorldRuntime. Its events, plus the
+    proxy's own movement decisions and agent-sent packet summaries, are kept
+    in one event log of envelopes `{"seq", "t", "origin": "world"|"proxy",
+    "data"}` for state-port readers (`state()`; docs/VISUALIZER.md §1.4).
+
+    `wall`/`mono` are the clocks (time.time / time.monotonic); an offline
+    driver (viz_feed.ReplayDriver) substitutes a simulated clock.
     """
 
     def __init__(self, logf, raw_c2s, raw_s2c):
         self.logf = logf
         self.raw_c2s = raw_c2s
         self.raw_s2c = raw_s2c
+        self.wall = time.time
+        self.mono = time.monotonic
         self.key = None                  # C2S XOR key (prelude byte 12)
         self.c2s_buf = bytearray()       # client preamble accumulator
         self.c2s_preamble_done = False
@@ -339,22 +348,44 @@ class SessionTap:
         self.s2c_passthrough = False     # unexpected prelude: relay S2C undecoded
         self.moveauth = MoveAuthority()
         self.world = WorldRuntime()
-        self.events = []                 # world events; absolute index = events_base + i
+        self.events = []                 # envelopes; seq = events_base + list index
         self.events_base = 0
         self.world_errors = 0
+        # cumulative since session start, so late readers don't depend on the event ring
+        self.traffic_events = collections.Counter()   # proxy event name -> count
+        self.traffic_c2s = collections.Counter()      # (src, "0xNN") -> count, src != client
 
     def _log(self, **kw):
-        kw["t"] = round(time.time(), 3)
+        kw["t"] = round(self.wall(), 3)
         self.logf.write(json.dumps(kw) + "\n")
         self.logf.flush()
+
+    def _append(self, origin: str, items, t: float):
+        """Append event data dicts to the event log as envelopes."""
+        for data in items:
+            self.events.append({"seq": self.events_base + len(self.events), "t": t,
+                                "origin": origin, "data": data})
+        over = len(self.events) - EVENT_CAP
+        if over > 0:
+            del self.events[:over]
+            self.events_base += over
+
+    def _proxy_event(self, ev: str, **fields):
+        """A proxy decision for state-port readers (the jsonl log is separate)."""
+        self.traffic_events[ev] += 1
+        if ev == "c2s":
+            self.traffic_c2s[(fields["src"], fields["id"])] += 1
+        self._append("proxy", ({"ev": ev, **fields},), round(self.wall(), 3))
 
     def tick(self, now: float):
         for ev, note in self.moveauth.expire(now):
             self._log(ev=ev, note=note)
+            self._proxy_event(ev, note=note)
 
     # ---- live world model ----
     def _world(self, direction: str, pkt: bytes):
         """Feed the world model; never lets a model bug touch the relay."""
+        t = round(self.wall(), 3)
         try:
             self.world.feed_packet(direction, pkt)
         except Exception as e:  # noqa: BLE001 - relay must survive any model bug
@@ -363,18 +394,25 @@ class SessionTap:
                 self._log(ev="world_error", note=f"{direction} 0x{pkt[0]:02X}: {type(e).__name__}: {e}")
         new = self.world.drain_events()
         if new:
-            self.events.extend(new)
-            over = len(self.events) - EVENT_CAP
-            if over > 0:
-                del self.events[:over]
-                self.events_base += over
+            self._append("world", new, t)
 
-    def state(self, since: int = 0) -> dict:
-        """Snapshot for state-port readers: movement truth, world model, and
-        world events with absolute index >= since."""
+    def diagnostics(self) -> dict:
+        """World-model coverage counters (meta-information, not world state)."""
+        w = self.world
+        return {
+            "packet_counts": [[d, f"0x{pid:02X}", n] for (d, pid), n in w.packet_counts.most_common(DIAG_TOP)],
+            "unhandled": [[d, f"0x{pid:02X}", n] for (d, pid), n in w.unhandled.most_common()],
+            "parse_failures": w.parse_failures,
+            "anomalies": dict(w.anomalies),
+            "world_errors": self.world_errors,
+        }
+
+    def state(self, since: int = 0, snapshot: bool = True) -> dict:
+        """Response for state-port readers: movement truth, world model (unless
+        snapshot=False), event envelopes with seq >= since, diagnostics."""
         ma = self.moveauth
         start = max(since - self.events_base, 0)
-        return {
+        out = {
             "movement": {
                 "pos": ma.pos, "self_serial": ma.self_serial,
                 "inflight": len(ma.inflight), "next_seq": ma.next_seq,
@@ -383,11 +421,20 @@ class SessionTap:
                 "stalled": ma.rejects_in_row >= STALL_REJECTS,
                 "client_stale": ma.client_stale,
             },
-            "world": self.world.state.snapshot(),
+        }
+        if snapshot:
+            out["world"] = self.world.state.snapshot()
+        out.update({
             "events": self.events[start:],
             "next": self.events_base + len(self.events),
             "world_errors": self.world_errors,
-        }
+            "diagnostics": self.diagnostics(),
+            "traffic": {
+                "proxy_events": dict(self.traffic_events),
+                "c2s": [[src, pid, n] for (src, pid), n in sorted(self.traffic_c2s.items())],
+            },
+        })
+        return out
 
     # ---- client -> server ----
     def _c2s_packet(self, pkt: bytearray, src: str, now: float) -> bytes:
@@ -396,10 +443,14 @@ class SessionTap:
             note = self.moveauth.on_c2s_walk(pkt, src, now)
             if note is not None:
                 self._log(ev=note[0], src=src, note=note[1])
+                self._proxy_event(note[0], src=src, note=note[1])
         elif bytes(pkt) == RESYNC:
             self.moveauth.on_c2s_resync(now)
             self._log(ev="c2s_resync_seen", src=src)
+            self._proxy_event("c2s_resync_seen", src=src)
         self._log(dir="c2s", src=src, id=f"0x{pkt[0]:02X}", len=len(pkt), hex=hexd(bytes(pkt)))
+        if src != "client":
+            self._proxy_event("c2s", src=src, id=f"0x{pkt[0]:02X}")
         self._world(C2S, bytes(pkt))
         enc = bytes(b ^ self.key for b in pkt)
         self.raw_c2s.write(enc)
@@ -411,7 +462,7 @@ class SessionTap:
         Independent of the client's partial-packet buffer: only complete client
         packets are ever forwarded, so an injection never splits one.
         """
-        out = self._c2s_packet(bytearray(payload), src, time.monotonic() if now is None else now)
+        out = self._c2s_packet(bytearray(payload), src, self.mono() if now is None else now)
         self.raw_c2s.flush()
         return out
 
@@ -441,7 +492,7 @@ class SessionTap:
                 self._log(ev="c2s_prekey", note=f"{len(self.c2s_wire)}B buffered until session key arrives")
             return bytes(out)
         plain = bytes(b ^ self.key for b in self.c2s_wire)
-        now = time.monotonic()
+        now = self.mono()
         i = 0
         while i < len(plain):
             plen = packet_length(plain[i:], overrides=C2S_OVERRIDES)
@@ -488,7 +539,7 @@ class SessionTap:
             out += head[:PRELUDE_LEN]
             self._world(S2C, head[:PRELUDE_LEN])
             data = head[PRELUDE_LEN:]
-        now = time.monotonic()
+        now = self.mono()
         for wire, pkt in self.s2c.feed(data):
             out += self._s2c_packet(wire, pkt, now)
         return bytes(out)
@@ -504,16 +555,20 @@ class SessionTap:
             action, client_seq = ma.on_confirm(pkt[1])
             if before is not None and (ma.pos[0], ma.pos[1]) != before[:2]:
                 self._log(ev="step", **{"from": list(before[:2])}, to=ma.pos[:2], z=ma.pos[2])
+                self._proxy_event("step", **{"from": list(before[:2])}, to=ma.pos[:2], z=ma.pos[2])
             if action == "hide":
                 self._log(ev="s2c_confirm_hidden", note=f"agent walk seq {pkt[1]} confirmed")
+                self._proxy_event("s2c_confirm_hidden", seq=pkt[1])
                 return b""
             if action == "rewrite":
                 self._log(ev="s2c_confirm_rewritten", note=f"seq {pkt[1]} -> client seq {client_seq}")
+                self._proxy_event("s2c_confirm_rewritten", seq=pkt[1], client_seq=client_seq)
                 return encode_packet(bytes([0x22, client_seq, pkt[2]]), self.s2c.key)
         elif pid == 0x21 and len(pkt) == 15:
             entry = ma.inflight.get(pkt[1])
             if entry is not None and ma.pos is not None:
                 self._log(ev="blocked", **{"from": ma.pos[:2]}, dir=entry[2], src=entry[0])
+                self._proxy_event("blocked", **{"from": ma.pos[:2]}, dir=entry[2], src=entry[0])
             ma.on_deny()
             ma.on_self_position(_u32(pkt, 2), _u32(pkt, 6), _i32(pkt, 11), pkt[10])
             self._log(ev="s2c_deny", note="walk denied; ladder reset to 0")
@@ -548,6 +603,7 @@ class SessionTap:
             return b""
         x, y, z, facing = self.moveauth.pos
         self._log(ev="reanchor_client", note=f"fabricated 0x21 to client: x={x} y={y} z={z} dir={facing}")
+        self._proxy_event("reanchor_client", x=x, y=y, z=z, dir=facing)
         self._log(dir="s2c", src="proxy", id="0x21", len=len(pkt), hex=hexd(pkt))
         return encode_packet(pkt, self.s2c.key)
 
@@ -635,7 +691,9 @@ async def handle_client(client_reader, client_writer, args):
 async def handle_state(reader, writer, hub):
     """One state connection: JSON-lines request/response (localhost only).
 
-    Request  `{"op": "state", "since": N}`  -> SessionTap.state(N) + {"ok": true}
+    Request  `{"op": "state", "since": N, "snapshot": true}`
+             -> SessionTap.state(N, snapshot) + {"ok": true}
+             (`snapshot: false` omits `world`: movement + new events only)
     No session -> `{"ok": false, "error": "no active session"}`.
     """
     try:
@@ -655,7 +713,8 @@ async def handle_state(reader, writer, hub):
                 else:
                     tap = hub.session[0]
                     tap.tick(time.monotonic())
-                    resp = {"ok": True, **tap.state(int(req.get("since", 0)))}
+                    resp = {"ok": True, **tap.state(int(req.get("since", 0)),
+                                                    snapshot=bool(req.get("snapshot", True)))}
             writer.write((json.dumps(resp) + "\n").encode())
             await writer.drain()
     except (ConnectionResetError, BrokenPipeError):

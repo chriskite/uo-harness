@@ -173,7 +173,11 @@ def _h_mobile_equip(rt, f):
 
 
 def _h_talk(rt, f):
-    """0x1C / 0xAE: speech or system text heard by the client."""
+    """0x1C / 0xAE: speech or system text heard by the client. Type 6 is a
+    click label (the server's answer to 0x09, e.g. "Len the banker"); the
+    latest one per entity is kept in state.labels."""
+    if f["type"] == 6 and f["serial"] not in (0, 0xFFFFFFFF):
+        rt.state.labels[f["serial"]] = f["text"]
     rt._emit("speech_heard", serial=f["serial"], name=f["name"],
              type=f["type"], hue=f["hue"], text=f["text"])
 

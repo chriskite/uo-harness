@@ -1,0 +1,253 @@
+"""Read-only visualizer backend (docs/VISUALIZER.md §2): REST + SSE on localhost.
+
+  python harness/viz_server.py --live [--state-port 25942] [--port 8080]
+  python harness/viz_server.py --replay 20260929_163420 [--rate 1] [--paused] [--port 8080]
+
+Routes:
+  GET  /api/state     latest state-port response (+ `viz` block); `events` = the ring (≤2000)
+  GET  /api/events    SSE: `event: world_event` (id = envelope seq) + `event: state`
+                      (response without events, ≤4 Hz, only when changed). Resume with
+                      the Last-Event-ID header (seq > id) or ?since=N (seq >= N).
+  GET  /api/walkmem   harness/data/walkmem.json verbatim (re-read when it changes)
+  GET  /api/health    mode, session, order, poll lag, connection, diagnostics
+  POST /api/playback  replay only: {"action": "play"|"pause"|"step"|"rate", "rate": R}
+  GET  /, /assets/*   the built frontend (viz/dist)
+
+Live mode only ever opens the proxy's state port (JSON lines, read-only). It
+never connects to the control port and never injects anything (ANTICHEAT §8:
+the viz is an observer).
+"""
+import argparse
+import json
+import os
+import sys
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlsplit, parse_qs
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import viz_feed  # noqa: E402
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SSE_KEEPALIVE_S = 15.0
+CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "application/javascript; charset=utf-8",
+                 ".css": "text/css; charset=utf-8", ".json": "application/json", ".map": "application/json",
+                 ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon",
+                 ".txt": "text/plain; charset=utf-8"}
+
+
+class WalkMemFile:
+    """The walk-memory file, served verbatim; re-read when mtime/size change."""
+
+    def __init__(self, path: str):
+        self.path = path
+        self.lock = threading.Lock()
+        self.key = None
+        self.body = None
+
+    def get(self) -> bytes | None:
+        try:
+            st = os.stat(self.path)
+        except OSError:
+            return None
+        key = (st.st_mtime_ns, st.st_size)
+        with self.lock:
+            if key != self.key:
+                with open(self.path, "rb") as f:
+                    self.body = f.read()
+                self.key = key
+            return self.body
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "uo-viz/1"
+    protocol_version = "HTTP/1.1"
+
+    # -- helpers
+    def log_message(self, fmt, *args):  # quiet; errors still go through log_error
+        pass
+
+    def _send(self, code: int, body: bytes, ctype: str = "application/json"):
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+    def _json(self, code: int, obj):
+        self._send(code, json.dumps(obj).encode())
+
+    # -- routes
+    def do_HEAD(self):
+        self.do_GET()
+
+    def do_GET(self):
+        url = urlsplit(self.path)
+        feed = self.server.feed
+        if url.path == "/api/state":
+            self._send(200, feed.state_body().encode())
+        elif url.path == "/api/events":
+            self._sse(url)
+        elif url.path == "/api/walkmem":
+            body = self.server.walkmem.get()
+            if body is None:
+                self._json(404, {"error": f"no walk memory file at {self.server.walkmem.path}"})
+            else:
+                self._send(200, body)
+        elif url.path == "/api/health":
+            self._json(200, feed.health())
+        elif url.path.startswith("/api/"):
+            self._json(404, {"error": f"unknown route {url.path}"})
+        else:
+            self._static(url.path)
+
+    def do_POST(self):
+        url = urlsplit(self.path)
+        if url.path != "/api/playback":
+            self._json(404, {"error": f"unknown route {url.path}"})
+            return
+        n = int(self.headers.get("Content-Length") or 0)
+        try:
+            req = json.loads(self.rfile.read(n) or b"{}")
+        except json.JSONDecodeError:
+            self._json(400, {"error": "bad json"})
+            return
+        feed = self.server.feed
+        if not isinstance(feed, viz_feed.ReplayDriver):
+            self._json(409, {"error": "playback control is replay-only"})
+            return
+        action = req.get("action")
+        try:
+            if action == "play":
+                feed.play()
+            elif action == "pause":
+                feed.pause()
+            elif action == "step":
+                feed.step()
+            elif action == "rate":
+                feed.set_rate(float(req.get("rate")))
+            else:
+                self._json(400, {"error": f"unknown action {action!r}"})
+                return
+        except (TypeError, ValueError) as e:
+            self._json(400, {"error": str(e)})
+            return
+        self._json(200, {"ok": True, **feed.viz()})
+
+    def _sse(self, url):
+        feed = self.server.feed
+        since = None
+        last_id = self.headers.get("Last-Event-ID")
+        qs = parse_qs(url.query)
+        try:
+            if last_id not in (None, ""):
+                since = int(last_id) + 1
+            elif "since" in qs:
+                since = int(qs["since"][0])
+        except ValueError:
+            since = None
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+        q = feed.subscribe(since)
+        try:
+            self.wfile.write(b"retry: 1000\n\n")
+            self.wfile.flush()
+            while not q.closed and not self.server.stopping:
+                frames = q.drain(SSE_KEEPALIVE_S)
+                self.wfile.write(("".join(frames) if frames else ": keepalive\n\n").encode())
+                self.wfile.flush()
+        except (ConnectionError, OSError):
+            pass
+        finally:
+            feed.unsubscribe(q)
+
+    def _static(self, path: str):
+        dist = os.path.realpath(self.server.dist)
+        rel = "index.html" if path in ("", "/") else path.lstrip("/")
+        full = os.path.realpath(os.path.join(dist, rel))
+        try:
+            inside = os.path.commonpath([full, dist]) == dist
+        except ValueError:  # different drive
+            inside = False
+        if not inside or not os.path.isfile(full):
+            if not os.path.isdir(dist):
+                self._send(404, f"frontend not built: {dist} missing (cd viz && bun run build)\n".encode(),
+                           "text/plain; charset=utf-8")
+            else:
+                self._send(404, b"not found\n", "text/plain; charset=utf-8")
+            return
+        with open(full, "rb") as f:
+            body = f.read()
+        self._send(200, body, CONTENT_TYPES.get(os.path.splitext(full)[1].lower(), "application/octet-stream"))
+
+
+class VizServer(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = False
+
+    def __init__(self, addr, feed, dist: str, walkmem: str):
+        super().__init__(addr, Handler)
+        self.feed = feed
+        self.dist = dist
+        self.walkmem = WalkMemFile(walkmem)
+        self.stopping = False
+
+    def shutdown(self):
+        self.stopping = True
+        for q in list(self.feed.subscribers):
+            q.closed = True
+            q.notify()
+        super().shutdown()
+
+
+def build_feed(args):
+    if args.replay:
+        feed = viz_feed.ReplayDriver(args.replay, args.logdir)
+        feed.set_rate(args.rate)
+        if not args.paused:
+            feed.play()
+    else:
+        feed = viz_feed.StatePortPoller(args.state_host, args.state_port)
+    feed.run()
+    return feed
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    mode = p.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--live", action="store_true", help="poll the running proxy's state port")
+    mode.add_argument("--replay", metavar="TAG", help="replay logs/session_TAG.* offline")
+    p.add_argument("--state-host", default="127.0.0.1")
+    p.add_argument("--state-port", type=int, default=25942)
+    p.add_argument("--logdir", default=os.path.join(ROOT, "logs"))
+    p.add_argument("--rate", type=float, default=1.0, help="replay speed (1 = real cadence)")
+    p.add_argument("--paused", action="store_true", help="replay: start paused at the first packet")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8080)
+    p.add_argument("--dist", default=os.path.join(ROOT, "viz", "dist"))
+    p.add_argument("--walkmem", default=os.path.join(ROOT, "harness", "data", "walkmem.json"))
+    args = p.parse_args()
+
+    feed = build_feed(args)
+    srv = VizServer((args.host, args.port), feed, os.path.abspath(args.dist), args.walkmem)
+    what = (f"replay {args.replay} ({feed.order} order, {len(feed.items)} items)" if args.replay
+            else f"live state port {args.state_host}:{args.state_port}")
+    print(f"[viz] {what}; http://{args.host}:{args.port}/", flush=True)
+    try:
+        srv.serve_forever(poll_interval=0.25)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        feed.stop()
+        srv.server_close()
+
+
+if __name__ == "__main__":
+    main()
