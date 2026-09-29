@@ -81,4 +81,5 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 `docs/INTERCEPTION.md` (NAT chain) · `docs/CIPHER.md` (crypto) · `docs/MOVEMENT.md`
 (movement protocol + current state) · `docs/PROTOCOL.md` (packets) ·
 `docs/WORLDMODEL.md` (state layouts) · `docs/PLAN.md` (phases) ·
+`docs/LUMBER_LOOP.md` (proposed first agent loop) ·
 `docs/NOTES.md` (ops gotchas) · `ANTICHEAT.md` (detection surfaces)

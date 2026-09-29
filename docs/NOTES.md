@@ -40,6 +40,13 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 - Triggers: lumberjacking, mining, fishing, forensic evaluation, sheep shearing, lockpicking chests — every 5–10 min of activity. (Land fishing currently exempt.)
 - Mechanics: enter the dotted digits, click Okay twice; success suppresses next captcha for 10–15 min. Fail ×3 = 6 h harvest block (scales with priors). Same captcha persists across relog until solved; closing it cancels the harvest attempt.
 - Digits are fixed shapes with dots displaced — template-matching territory.
+- Loop-relevant mechanics (wiki, read 2026-09-29; details and links in docs/LUMBER_LOOP.md §2):
+  - Lumberjacking uses Smart Harvest: double-click the hatchet to auto-harvest nearby trees. The Smart Harvest page instead says to self-target non-pickaxe tools; verify on the wire.
+  - Harvesting is blocked in town regions, except Shelter Island while Young.
+  - 60 s harvest lockout after recall, gate, hike, teleport or rope.
+  - Log/board weight is 0.025 st.
+  - Commodity deeds (5 gp at a banker) list boards (5 000 regular / 2 500 colored), not logs.
+  - Rental rooms: say `rent`/`room`/`house` to an innkeeper. You exit to a random inn room. No recall in. Floor items decay after 1 h unless locked down or secured.
 
 ## Test Shard
 
