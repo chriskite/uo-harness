@@ -15,6 +15,7 @@ plausible next ID -- for the proxy we log-and-forward regardless.
 """
 
 from ._generated_tables import PACKET_LENGTHS_BASE as _BASE
+from .outlands_table import OUTLANDS_BASE as _OUTLANDS
 
 
 def build_table() -> list[int]:
@@ -56,10 +57,21 @@ def build_table() -> list[int]:
 TABLE = build_table()
 
 
-
-# Outlands C2S overrides: their 0x91 login is a custom long packet
-# (id + uint16BE length + name + JWT), not the standard fixed-65 GameLogin.
-C2S_OVERRIDES: dict[int, int] = {0x91: -1}
+# C2S framing = the Outlands client's own table. Every NetClientExt.Send_*
+# sizes and zero-pads its packet with PacketsTable.GetPacketLength(id), the
+# same version-12 table as S2C (outlands_packet_table.json: base + V10/V11/V12
+# tiers from FUN_1401a13c0, BuildPacketTable @ 0x1401a1140). So every id where
+# that table differs from the upstream TABLE is overridden here, e.g.
+#   0x08 = 22  Send_DropRequest @ 0x14014c700, V10+ branch: u32 x/y/z
+#   0x6C = 27  Send_TargetObject @ 0x14015bec0; captured client target
+#              `6c 00 00052cb9 01 00094375 0000077c 00000a24 00000000 00000190`
+#              (session_20260928_164548; also 141253)
+#   0x91 = var Outlands login: id + u16be len + name + JWT (not fixed-65)
+# Under the upstream 19-byte 0x6C the rest of the captured target became an
+# 0x00 "packet" of 106 bytes that swallowed the following client traffic.
+C2S_OVERRIDES: dict[int, int] = {
+    pid: _OUTLANDS.get(pid, -1) for pid in range(256)
+    if _OUTLANDS.get(pid, -1) != TABLE[pid]}
 
 
 def packet_length(buf: bytes | bytearray, table: list[int] = TABLE,

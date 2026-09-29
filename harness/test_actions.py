@@ -238,26 +238,237 @@ def test_gump_response():
     check("gump response matches capture",
           got == bytes.fromhex("b1001700215ad2907fc735000000050000000000000000"),
           got.hex())
+    # capture (same session): one empty text entry, id 2
+    got = actions.gump_response(0x00215AB3, 0x6B147227, 0, text_entries=[(2, "")])
+    check("gump response with empty text entry matches capture",
+          got == bytes.fromhex("b1001b00215ab36b147227000000000000000000000001"
+                               "00020000"), got.hex())
+    # Send_GumpResponse @ 0x1401557a0: n switches u32 each, then per entry
+    # id u16, UTF-16 unit count u16, UTF-16BE text; '\n' -> '\x1f'
+    got = actions.gump_response(1, 2, 3, switches=[7, 0x10001],
+                                text_entries=[(5, "a\nb")])
+    check("gump response switches + text entry layout",
+          got == bytes.fromhex("b10029" "00000001" "00000002" "00000003"
+                               "00000002" "00000007" "00010001"
+                               "00000001" "0005" "0003" "0061001f0062"),
+          got.hex())
+    try:
+        actions.gump_response(1, 2, 3, text_entries=[(1, "x" * 0x801)])
+        check("gump text entry over 0x800 units rejected", False)
+    except ValueError:
+        check("gump text entry over 0x800 units rejected", True)
+    try:
+        actions.gump_response(1, 2, 3, switches=range(0x2000))
+        check("gump response over 0x8000 bytes rejected", False)
+    except ValueError:
+        check("gump response over 0x8000 bytes rejected", True)
+
+
+def test_text_entry_response():
+    print("== text_entry_response ==")
+    # Send_TextEntryDialogResponse @ 0x140159b90: serial, parent, button,
+    # ok u8, len(text)+1 u16, ASCII text + NUL
+    got = actions.text_entry_response(0x40001234, 1, 2, "Bob")
+    check("text entry response layout",
+          got == bytes.fromhex("ac0010" "40001234" "01" "02" "01" "0004"
+                               "426f6200"), got.hex())
+    check("text entry cancel clears ok byte",
+          actions.text_entry_response(1, 1, 2, "", ok=False)[9] == 0)
+    try:
+        actions.text_entry_response(1, 1, 2, "caf\u00e9")
+        check("text entry non-ASCII rejected", False)
+    except ValueError:
+        check("text entry non-ASCII rejected", True)
 
 
 def test_lift_drop():
     print("== lift / drop ==")
-    # layouts per upstream OutgoingPackets.cs Send_PickUpRequest/Send_DropRequest
+    # Send_PickUpRequest @ 0x14014bfb0: serial u32, amount u16 (table 7)
     check("lift",
           actions.lift(0x40000D54, 1) == bytes.fromhex("0740000d540001"))
-    check("drop to ground",
+    # Send_DropRequest @ 0x14014c700, protocol >= 10 branch: u32 x/y/z,
+    # grid u8, container u32 = 22 B = the client's table length for 0x08
+    check("drop to ground (22 B V10+ form)",
           actions.drop(0x40000D54, 100, 200, 5)
-          == bytes.fromhex("0840000d54006400c80500ffffffff"),
+          == bytes.fromhex("0840000d54" "00000064" "000000c8" "00000005"
+                           "00" "ffffffff"),
           actions.drop(0x40000D54, 100, 200, 5).hex())
-    check("drop into container with grid slot",
+    check("drop into container with grid slot, negative z",
           actions.drop(0x40000D54, 0xFFFF, 0xFFFF, -5, grid=3,
                        container_serial=0x40001111)
-          == bytes.fromhex("0840000d54fffffffffb0340001111"))
+          == bytes.fromhex("0840000d54" "0000ffff" "0000ffff" "fffffffb"
+                           "03" "40001111"))
     try:
         actions.drop(1, 0, 0, 128)
         check("drop z=128 rejected", False)
     except ValueError:
         check("drop z=128 rejected", True)
+    try:
+        actions.lift(1, 0x10000)
+        check("lift amount 0x10000 rejected", False)
+    except ValueError:
+        check("lift amount 0x10000 rejected", True)
+
+
+def _capture_c2s(stem):
+    """All C2S packets of a capture, framed with the proxy's C2S table."""
+    c2s = open(f"{ROOT}/logs/{stem}.c2s.raw", "rb").read()
+    key = open(f"{ROOT}/logs/{stem}.s2c.raw", "rb").read()[12]
+    buf = bytearray(b ^ key for b in c2s[5:])
+    pkts = []
+    while buf:
+        plen = packet_length(buf, overrides=C2S_OVERRIDES)
+        if plen <= 0:
+            break
+        pkts.append(bytes(buf[:plen]))
+        del buf[:plen]
+    return pkts, len(buf)
+
+
+def test_targets():
+    print("== target_object / target_xyz / target_cancel ==")
+    # ground truth: the stock client targeting the player (serial 0x94375,
+    # body 0x190) under the server cursor 0x521a5 (beneficial, type 2)
+    pkts, left = _capture_c2s("session_20260928_141253")
+    check("capture 141253 frames end-to-end under C2S_OVERRIDES", left == 0,
+          f"({left} B left)")
+    targets = [p for p in pkts if p[0] == 0x6C]
+    check("capture holds one 27-byte client target", [len(p) for p in targets] == [27],
+          str([p.hex() for p in targets]))
+    check("no phantom 0x00 packet after the target",
+          not any(p[0] == 0x00 for p in pkts))
+    got = actions.target_object(0x000521A5, 0x00094375, 0x793, 0xA1B, 1,
+                                0x190, cursor_type=2)
+    check("target_object reproduces captured target (141253)",
+          bool(targets) and got == targets[0], got.hex())
+    # session_20260928_164548: harmful cursor 0x52cb9
+    got = actions.target_object(0x00052CB9, 0x00094375, 0x77C, 0xA24, 0,
+                                0x190, cursor_type=1)
+    check("target_object reproduces captured target (164548)",
+          got == bytes.fromhex("6c0000052cb901000943750000077c00000a24"
+                               "0000000000000190"), got.hex())
+    # Send_TargetXYZ @ 0x14015d120 V10+: type 1, serial 0, u32 x/y/z/graphic
+    got = actions.target_xyz(0x00052CB9, 0x77C, 0xA24, -2, graphic=0x0519)
+    check("target_xyz layout",
+          got == bytes.fromhex("6c01" "00052cb9" "00" "00000000" "0000077c"
+                               "00000a24" "fffffffe" "00000519"), got.hex())
+    # Send_TargetCancel @ 0x14015e400 V10+: 3 x 7fffffff then 0
+    got = actions.target_cancel(0x00052CB9, target_type=1, cursor_type=1)
+    check("target_cancel layout",
+          got == bytes.fromhex("6c01" "00052cb9" "01" "00000000" "7fffffff"
+                               "7fffffff" "7fffffff" "00000000"), got.hex())
+    try:
+        actions.target_object(1, 2, 0, 0, 0, 0, cursor_type=256)
+        check("target cursor_type 256 rejected", False)
+    except ValueError:
+        check("target cursor_type 256 rejected", True)
+    try:
+        actions.target_xyz(1, 0, 0, -129)
+        check("target_xyz z=-129 rejected", False)
+    except ValueError:
+        check("target_xyz z=-129 rejected", True)
+
+
+def test_vendor():
+    print("== buy_request / sell_request ==")
+    # capture session_20260928_164548: 1 item from vendor 0x1e2
+    check("buy_request matches capture",
+          actions.buy_request(0x1E2, [(0x450A6EAC, 1)])
+          == bytes.fromhex("3b000f000001e2021a450a6eac0001"))
+    # Send_BuyRequest @ 0x1401744c0: empty list -> flag 00, no entries
+    check("buy_request empty list",
+          actions.buy_request(0x1E2, []) == bytes.fromhex("3b0008000001e200"))
+    # Send_SellRequest @ 0x1401750a0: count u16, (serial u32, amount u16)*
+    got = actions.sell_request(0x1E2, [(0x40000001, 2), (0x40000002, 0x10)])
+    check("sell_request layout",
+          got == bytes.fromhex("9f0015000001e20002" "400000010002"
+                               "400000020010"), got.hex())
+    try:
+        actions.buy_request(1, [(2, 0x10000)])
+        check("buy amount 0x10000 rejected", False)
+    except ValueError:
+        check("buy amount 0x10000 rejected", True)
+
+
+def test_misc_actions():
+    print("== skills / doors / equip / combat / popups / prompts ==")
+    # Send_UseSkill @ 0x140153660: 24 + ASCII "<id> 0" + NUL
+    check("use_skill 21 (hiding)",
+          actions.use_skill(21) == bytes.fromhex("120009" "24" "32312030" "00"))
+    # capture session_20260928_164548
+    check("open_door matches capture",
+          actions.open_door() == bytes.fromhex("1200055800"))
+    # Send_EquipRequest @ 0x14014d570
+    check("equip_request layout",
+          actions.equip_request(0x40000D54, 0x02, 0x00094375)
+          == bytes.fromhex("1340000d540200094375"))
+    # Send_ChangeWarMode @ 0x14014dde0: flag, 32, 00, table pad to 5
+    check("war_mode on/off",
+          actions.war_mode(True) == bytes.fromhex("7201320000")
+          and actions.war_mode(False) == bytes.fromhex("7200320000"))
+    check("attack", actions.attack(0x1E2) == bytes.fromhex("05000001e2"))
+    # captures session_20260928_141253 (standard BF, no 0xFF-dialect variant)
+    check("request_popup matches capture",
+          actions.request_popup(0x0008AAE0) == bytes.fromhex("bf000900130008aae0"))
+    check("popup_selection matches capture",
+          actions.popup_selection(0x0008AAE0, 2)
+          == bytes.fromhex("bf000b00150008aae00002"))
+    # Send_ASCIIPromptResponse @ 0x14015f470: u64 prompt data, u32 !cancel,
+    # ASCII + NUL
+    check("ascii_prompt_response layout",
+          actions.ascii_prompt_response(0x40000001, 7, "hi")
+          == bytes.fromhex("9a0012" "40000001" "00000007" "00000001" "686900"))
+    check("ascii_prompt_response cancel flag 0",
+          actions.ascii_prompt_response(1, 2, "", cancel=True)[11:15] == bytes(4))
+    # Send_UnicodePromptResponse @ 0x14015ff50: lang ascii[3] + 00, UTF-16LE
+    check("unicode_prompt_response layout",
+          actions.unicode_prompt_response(0x40000001, 7, "hi")
+          == bytes.fromhex("c20017" "40000001" "00000007" "00000001"
+                           "454e5500" "68006900"))
+    # Send_SkillsRequest @ 0x14014f420
+    check("skills_request",
+          actions.skills_request(0x00094375) == bytes.fromhex("34edededed0500094375"))
+    try:
+        actions.unicode_prompt_response(1, 2, "x", lang="EN")
+        check("prompt lang of 2 chars rejected", False)
+    except ValueError:
+        check("prompt lang of 2 chars rejected", True)
+    try:
+        actions.equip_request(1, 0x100, 2)
+        check("equip layer 0x100 rejected", False)
+    except ValueError:
+        check("equip layer 0x100 rejected", True)
+
+
+def test_c2s_framing():
+    print("== builders frame under the proxy's C2S table ==")
+    built = {
+        "lift": actions.lift(1, 1),
+        "drop": actions.drop(1, 2, 3, 4),
+        "target_object": actions.target_object(1, 2, 3, 4, 5, 6),
+        "target_xyz": actions.target_xyz(1, 2, 3, 4),
+        "target_cancel": actions.target_cancel(1),
+        "gump_response": actions.gump_response(1, 2, 3, [4], [(5, "text")]),
+        "text_entry_response": actions.text_entry_response(1, 2, 3, "abc"),
+        "buy_request": actions.buy_request(1, [(2, 3), (4, 5)]),
+        "sell_request": actions.sell_request(1, [(2, 3)]),
+        "use_skill": actions.use_skill(46),
+        "open_door": actions.open_door(),
+        "equip_request": actions.equip_request(1, 2, 3),
+        "war_mode": actions.war_mode(True),
+        "attack": actions.attack(1),
+        "request_popup": actions.request_popup(1),
+        "popup_selection": actions.popup_selection(1, 2),
+        "ascii_prompt_response": actions.ascii_prompt_response(1, 2, "abc"),
+        "unicode_prompt_response": actions.unicode_prompt_response(1, 2, "abc"),
+        "skills_request": actions.skills_request(1),
+    }
+    for name, pkt in built.items():
+        # followed by a keepalive: framing must end exactly at the builder's
+        # last byte, as the proxy's frame loop sees it
+        n = packet_length(pkt + bytes.fromhex("ff000700000003"),
+                          overrides=C2S_OVERRIDES)
+        check(f"{name} frames as {len(pkt)} B", n == len(pkt), f"(got {n})")
 
 
 # ---------------------------------------------------------------------------
@@ -341,6 +552,8 @@ async def injection_test():
             actions.gump_response(0x00215AD2, 0x907FC735, 5),
             actions.lift(0x40000D54, 1),
             actions.drop(0x40000D54, 100, 200, 5),
+            actions.target_object(0x00052CB9, 0x00094375, 0x77C, 0xA24, 0,
+                                  0x190, cursor_type=1),
         ]
         cr, cw = await asyncio.open_connection("127.0.0.1", CONTROL_PORT)
 
@@ -354,7 +567,7 @@ async def injection_test():
             reply = await ctl_inject(p)
             if reply != b"OK":
                 check(f"inject {p.hex()} accepted", False, reply)
-        check("all 8 injections accepted", True)
+        check(f"all {len(payloads)} injections accepted", True)
         # an immediate second agent walk violates step pacing (0.2 s run) and
         # is refused, never relayed
         reply = await ctl_inject(actions.walk(6, run=True))
@@ -403,7 +616,7 @@ async def injection_test():
         c2s = [e for e in events if e.get("dir") == "c2s"]
         ids = collections.Counter(e["id"] for e in c2s)
         for pid, n in {"0x02": 1, "0x06": 1, "0xAD": 1, "0xFF": 4,
-                       "0xB1": 1, "0x07": 1, "0x08": 1}.items():
+                       "0xB1": 1, "0x07": 1, "0x08": 1, "0x6C": 1}.items():
             check(f"log c2s {pid} == {n}", ids.get(pid, 0) == n,
                   f"(got {ids.get(pid, 0)})")
         walk_logs = [e["hex"] for e in c2s if e["id"] == "0x02"]
@@ -479,7 +692,12 @@ def main():
     test_cast_spell()
     test_item_query()
     test_gump_response()
+    test_text_entry_response()
     test_lift_drop()
+    test_targets()
+    test_vendor()
+    test_misc_actions()
+    test_c2s_framing()
     print("== proxy injection ==")
     asyncio.run(injection_test())
     test_replay_actions()

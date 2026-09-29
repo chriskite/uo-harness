@@ -17,20 +17,37 @@ The NativeAOT reflection metadata was fully parsed (`mrt_parse.py` → `mrt_map.
 
 ## C2S (client→server) — 100% mapped
 
-Standard UO layouts, XOR session key (see CIPHER.md). Frames 242/242 on capture, clean live.
+Standard UO layouts with the Outlands V10+ widenings, XOR session key (see CIPHER.md). **C2S framing uses the client's own version-12 length table** (the same one as S2C): every `NetClientExt.Send_*` sizes and zero-pads its packet with `PacketsTable.GetPacketLength(id)`, whose tiers (base + V10/V11/V12, `FUN_1401a13c0`, applied by `BuildPacketTable` @ 0x1401a1140) give e.g. `0x08=22`, `0x6C=27`. `harness/uo/packets.py` `C2S_OVERRIDES` = every id where that table differs from upstream, so `packet_length(buf, overrides=C2S_OVERRIDES)` frames all 18 C2S captures end-to-end (19 773 packets, 0 desyncs). Before 2026-09-29 the overrides were only `{0x91: -1}`: the captured 27-byte client target framed as 19 bytes and the remaining `00000001 00000190 ff…` became a 106-byte `0x00` "packet" that swallowed the following keepalives (sessions 141253 and 164548), and the proxy rejected correct 22-byte drops and 27-byte targets.
+
+Senders branch on the protocol version at settings+0x68 (live = 12): `< 10` writes the upstream u16/i8 coordinates, `>= 10` writes u32 x/y/z/graphic. The captured targets are the `>= 10` form.
 
 | ID | Meaning | Notes |
 |---|---|---|
 | `91 <len:2BE> <name\0> <JWT>` | game login | Outlands custom (length-prefixed, ~1122B) |
 | `5D` 73B | character select | standard, `0xEDEDEDED` pattern |
-| `BF` | general info | standard |
-| `09` 5B / `34` 10B / `98` 7B | entity queries (id + serial) | repeated per nearby entity; likely name/info query (cf. `OutlandsItemNameResponse` in client metadata) |
+| `09` 5B / `34` 10B / `98` 7B | entity queries (id + serial) | repeated per nearby entity; `34` type 4 = status, type 5 = skills (`Send_SkillsRequest` @ 0x14014f420) |
 | `02` 7B | walk | standard |
+| `05` 5B | attack | `Send_AttackRequest` @ 0x1401509d0 |
 | `06` 5B | dclick | standard |
+| `07` 7B | lift | `07 <serial> <amount u16>` (`Send_PickUpRequest` @ 0x14014bfb0) |
+| `08` **22B** | drop | `08 <serial> <x u32> <y u32> <z i32> <grid u8> <container u32>` (`Send_DropRequest` @ 0x14014c700 V10+ branch; upstream 15B is the < V10 branch) |
+| `12` var | text command | `12 <len> 24 "<skill> 0" 00` use skill (`Send_UseSkill` @ 0x140153660, the only skill sender); `12 0005 58 00` open door (captured) |
+| `13` 10B | equip | `13 <serial> <layer u8> <wearer u32>` (`Send_EquipRequest` @ 0x14014d570) |
+| `3B` var | vendor buy | `3b <len> <vendor> 02 n×(1a <item u32> <amount u16>)`; captured `3b 000f 000001e2 02 1a 450a6eac 0001` |
+| `6C` **27B** | target response | object: `6c 00 <cursor u32> <flags u8> <serial> <x u32> <y u32> <z i32> <graphic u32>`, captured `6c 00 00052cb9 01 00094375 0000077c 00000a24 00000000 00000190`; ground: type `01`, serial 0, graphic 0 for land (`Send_TargetXYZ` @ 0x14015d120); cancel: `6c <type> <cursor> <flags> 00000000 7fffffff×3 00000000` (`Send_TargetCancel` @ 0x14015e400) |
+| `72` 5B | war mode | `72 <on> 32 00 00` (`Send_ChangeWarMode` @ 0x14014dde0) |
+| `9A` var | ASCII prompt reply | `9a <len> <serial u32> <prompt id u32> <!cancel u32> <ascii> 00` (u64 echoed from the server's 0x9A) |
+| `9F` var | vendor sell | `9f <len> <vendor> <n u16> n×(<item u32> <amount u16>)` |
+| `AC` var | text entry dialog reply | `ac <len> <serial> <parent u8> <button u8> <ok u8> <len+1 u16> <ascii> 00` |
 | `AD` | unicode speech | standard. **Keyword-encoded when speech.mul matches** (client `Send_UnicodeSpeechRequest` @ 0x140151c20, `IsMatch` @ 0x1401bba40 = upstream algorithm): type `\|= 0xC0`, then 12-bit count + 12-bit ids nibble-packed, then UTF-8 text + `00`; else UTF-16BE + `0000`. Capture 20260929_161433 "bank" = `ad 0016 c0 02b2 0003 454e5500 0020020020 62616e6b 00` (ids [2, 2]). NPCs (banker) key off these ids. Port: `harness/uo/speech.py` |
-| `B1` | gump response | standard |
+| `B1` var | gump response | `b1 <len> <serial> <gump> <button> <n u32> n×<switch u32> <m u32> m×(<id u16> <chars u16> <utf16be>)`; the client replaces `\n` with `\x1f` and caps an entry at 0x800 units; captured with one empty entry `… 00000001 0002 0000` |
+| `BF` var | extended | captured subs (upstream names): `0005` window size, `000b` language, `000c` close status gump, `000f` client type, `0013` context-menu request `bf 0009 0013 <serial>`, `0015` context-menu pick `bf 000b 0015 <serial> <index u16>` (standard BF, no `0xFF`-dialect substitute) |
+| `C2` var | unicode prompt reply | `c2 <len> <serial> <prompt id> <!cancel u32> <lang[3]> 00 <utf16le text>` (no terminator) |
 | `C8` 2B, `F0` 4B, `32` 2B | misc standard | |
-| `ff 00 07 00 00 00 03` | **Outlands keepalive ~1/s** | 0xFF namespace; prime `Send_TimeSyncPingReq` suspect |
+| `D7` var | encoded command | captured `d7 000a 00094375 0032 00` (not built) |
+| `ff 00 07 00 00 00 03` | **Outlands keepalive ~1/s** | `Send_TimeSyncPingReq`; relay only, never injected |
+
+Action builders (all rows except login, character select, `D7`, the keepalive and the misc row): `harness/actions.py`; its module docstring lists layout + evidence per builder.
 
 ## S2C (server→client) — standard UO content, Outlands-widened layouts
 
