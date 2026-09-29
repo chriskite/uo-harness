@@ -5,7 +5,7 @@ how the build deviates from this design. The design below (revised 2026-09-29) s
 2026-09-28 draft, which predated the S2C decode fix, the proxy's live world model + state port,
 MoveAuthority, walk memory and the bank errand. What changed and why is in §8.
 
-Goal: a read-only web view showing a human exactly what the harness knows, both the **world**
+Goal: a web view, read-only except for the agent gate (§2.2), showing a human exactly what the harness knows, both the **world**
 (self, mobiles, items, gumps, events) and the **harness itself** (server-true movement, agent vs
 client traffic, hidden/rewritten confirms, client re-anchors, walk memory). It works against the
 **live proxy** or a **captured session replay**, with identical data in both.
@@ -105,11 +105,13 @@ channels.
                         └──HTTP :8080 (same API)──► browser
 ```
 
-- **`viz_server.py` is a separate, read-only process.** In live mode it polls the state port
-  (~4 Hz, `since` cursor) and fans out to the browser via SSE. It never touches the control port
-  and never injects anything (ANTICHEAT §8: the viz is an observer). A viz crash cannot affect the
-  game connection. The 2026-09-28 draft embedded the relay in the viz server; that is rejected
-  now that the proxy already runs the world model.
+- **`viz_server.py` is a separate process that observes, plus one switch.** In live mode it polls
+  the state port (~4 Hz, `since` cursor) and fans out to the browser via SSE. It never touches the
+  control port, never injects anything and never sends anything toward the game server
+  (ANTICHEAT §8). Its only write is the proxy's agent gate (§2.2), which decides whether agent
+  injections are refused; that is the one thing a human can do from the viz. A viz crash cannot
+  affect the game connection. The 2026-09-28 draft embedded the relay in the viz server; that is
+  rejected now that the proxy already runs the world model.
 - **Replay runs the proxy's own `SessionTap` offline**, not a separate decoder. The driver feeds
   the capture's packets into a `SessionTap` (dummy writers) in their original interleave, so
   replay `tap.state()` is exactly what live would have served. That includes MoveAuthority truth,
@@ -137,11 +139,49 @@ channels.
 | `GET /api/walkmem` | `harness/data/walkmem.json` (tiles, edges, blocked), re-read when the file changes |
 | `GET /api/health` | viz_server mode (live/replay + session tag + order quality), poll lag, connection status, proxy diagnostics |
 | `POST /api/playback` | replay only: `{play,pause,rate,step}` |
+| `GET /api/gate` | live only: the proxy's agent gate (`{"op":"gate"}` on the state port), verbatim |
+| `POST /api/gate` | live only: `{"action": "pause"\|"resume"\|"kill"}`, forwarded as `{"op":"gate","action":...}` (§2.2) |
 | `GET /`, `/assets/*` | built frontend (`viz/dist/`) |
 
 SSE rather than WebSocket: the flow is strictly server→browser, the browser `EventSource` gives
 reconnect and resume for free, and it adds no dependencies. Full snapshots, not diffs: the store
 is last-write-wins and small.
+
+### 2.2 Agent gate controls
+
+The proxy's agent gate (`harness/agent_gate.py`): a manual pause, a kill switch, forced jittered
+breaks after ~2 h of agent-active time, and an 8 h/day agent-active cap. While it is closed every
+agent injection on the control port gets `ERR <reason>`; client traffic and the relay are
+untouched. Every state-port response (including `{"ok": false, "error": "no active session"}`)
+carries a top-level `gate` object (`state` running/paused/break/budget_exhausted/killed with
+precedence killed > paused > break > budget_exhausted, `blocked`, `reason`, `paused`, `killed`,
+`break_until`, `next_break_in_s`, `active_today_s`, `daily_cap_s`, `daily_remaining_s`, `day`,
+`now`), so the viz reads it from the state frames it already streams.
+
+**Route.** `POST /api/gate` with `{"action": "pause"|"resume"|"kill"}` opens a short-lived
+state-port connection of its own (the poller's connection and `since` cursor are untouched), sends
+`{"op":"gate","action":...}`, and returns the proxy's JSON: **200** when `ok`, **409** otherwise
+(e.g. `resume` while killed; the reply still carries `gate`). It then wakes the poller so the next
+state frame carries the new gate. Any other action, **`rearm` included, is 400 and never
+forwarded**: rearming after a kill is CLI-only by policy (`python harness/agent_gate.py rearm`).
+Replay has no gate: **409** `no gate in replay`. Proxy unreachable: **502**. `GET /api/gate`
+forwards `{"op":"gate"}` the same way.
+
+**UI** (header, live only; nothing in replay; `gate ?` when the state carries no gate, i.e.
+proxy down or a pre-gate proxy):
+- state badge (running green, paused amber, break blue, daily cap amber, KILLED red) and the
+  `reason` text agents get;
+- Pause/Resume toggle (Resume while manually paused; it clears only the manual pause, not a break
+  or the cap). Pause and Kill stay available during a break or at the cap;
+- Kill with a confirm step (`■ kill` → `confirm kill` / `cancel`, auto-cancels after 5 s). Once
+  killed both buttons are disabled and the header shows
+  `rearm is CLI-only: python harness/agent_gate.py rearm`;
+- `next break in H:MM:SS active`: agent-active time left, so it only runs down while the agent
+  works; during a break, `break until HH:MM:SS (M:SS left)` instead;
+- `today 3:12 / 8:00`: agent-active time today against the cap.
+
+After a press, the reply's gate is shown at once (`VizStore.setGate`); a state frame polled before
+the press (older gate `now`) does not undo it.
 
 ---
 
@@ -164,6 +204,7 @@ fixtures ("replay X, state at event N").
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ header: LIVE :25942 | REPLAY <tag> (exact|approx order) • conn • ⏯ ⏩ step   │
+│         gate: state+reason • ⏸/▶ • ■ kill • next break / break end • today  │
 ├────────────────┬───────────────────────────────────────┬───────────────────┤
 │ SelfPanel      │                                       │ EventLog          │
 │────────────────│              MapGrid                  │ (world + proxy    │
@@ -243,11 +284,12 @@ fixtures ("replay X, state at event N").
 |---|---|
 | `harness/proxy.py` | §1.4 additions: proxy events + envelope in the event log, `diagnostics`, `snapshot:false` |
 | `harness/viz_feed.py` | `StatePortPoller` (live) and `ReplayDriver` (offline SessionTap; jsonl interleave recovery; exact/approx badge; playback control) |
-| `harness/viz_server.py` | `--live [--state-port 25942]` / `--replay TAG`; routes §2.1; SSE ring + resume; walkmem file watch; serves `viz/dist` |
+| `harness/viz_server.py` | `--live [--state-port 25942]` / `--replay TAG`; routes §2.1; SSE ring + resume; walkmem file watch; agent gate forwarding (§2.2); serves `viz/dist` |
 | `harness/test_viz.py` | backend tests (§7) |
 | `viz/package.json`, `bun.lock`, `tsconfig.json`, `index.html` | scaffold; scripts `build` (`bun build src/main.tsx --outdir dist`), `watch`, `test`, `typecheck` |
 | `viz/src/types.ts` | TS types for §1 (StateResponse, Movement, Snapshot, Mobile, Item, Gump, EventEnvelope, WalkMemory) |
 | `viz/src/api.ts`, `store.ts`, `serial.ts` | SSE client + resume; `useSyncExternalStore` store; int↔hex serial normalization and entity lookup |
+| `viz/src/gate.ts`, `components/GateControls.tsx` | agent gate badge vocabulary and button rules; the header gate controls (§2.2) |
 | `viz/src/App.tsx`, `components/*.tsx`, `App.css` | §4 panels |
 
 ### Milestones
@@ -291,11 +333,17 @@ fixtures ("replay X, state at event N").
   - Coalescing: a burst yields one `state` message.
   - Live poller against a proxy subprocess fed by the `test_errand.py`-style fake server; also
     asserts **zero C2S packets with `src` other than client/agent**, so the viz never injects.
+  - Agent gate: `/api/gate` 409 in replay, 400 for `rearm`, 502 with the proxy down; live pause
+    (the proxy's own `{"op":"gate"}` reports paused, and a control-port injection from the test
+    gets `ERR agent paused`), resume, kill, and resume-while-killed 409. The proxy's control-port
+    log shows only the test's own connection.
 - **Proxy:** extend `test_movement.py` to check that proxy events and envelopes appear in the
   state-port event log.
 - **Frontend (`bun test`), pure helpers only:** serial normalization, entity lookup precedence,
   EventLog filters, ContainerTree builder, walk-memory layer builder, true-vs-dead-reckoned
-  divergence rule. `bunx tsc --noEmit` must pass. No DOM snapshot tests; M2–M4 acceptance runs
+  divergence rule, duration formatting, gate button rules per state, and the store keeping a
+  newer gate over an older state frame.
+  `bunx tsc --noEmit` must pass. No DOM snapshot tests; M2–M4 acceptance runs
   are the integration check.
 
 ---
@@ -307,8 +355,8 @@ fixtures ("replay X, state at event N").
   `C:\Users\chris\.bun\bin\bun.exe`; `bun test` runs the tests and `bun run typecheck` runs
   `tsc --noEmit`.
 - Live: `python harness/viz_server.py --live [--state-port 25942] [--port 8080]`, then open
-  http://127.0.0.1:8080/. It only polls the proxy's state port, never opens the control port, and
-  can be started or stopped at any time. A proxy started before this build shows world events only;
+  http://127.0.0.1:8080/. It only talks to the proxy's state port (polling, plus the agent-gate
+  ops of §2.2), never opens the control port, and can be started or stopped at any time. A proxy started before this build shows world events only;
   restart the proxy for proxy events, traffic and diagnostics.
 - Replay: `python harness/viz_server.py --replay <TAG> [--rate 8] [--paused]` (TAG =
   `logs/session_<TAG>.*`).

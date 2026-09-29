@@ -3,6 +3,7 @@ import { postPlayback } from "../api.ts";
 import type { VizSnapshot } from "../store.ts";
 import type { PlaybackAction } from "../types.ts";
 import { Badge } from "./common.tsx";
+import { GateControls } from "./GateControls.tsx";
 
 const RATES = [0.25, 0.5, 1, 2, 4, 8, 16, 32];
 
@@ -71,6 +72,7 @@ export function Header({ viz }: { viz: VizSnapshot }) {
           </span>
         </span>
       )}
+      {info && <GateControls gate={viz.state?.gate} live={info.mode === "live"} />}
       {error && <span className="error">{error}</span>}
       <span className="spacer" />
       {viz.state && (

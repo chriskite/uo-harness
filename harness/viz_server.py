@@ -1,4 +1,4 @@
-"""Read-only visualizer backend (docs/VISUALIZER.md §2): REST + SSE on localhost.
+"""Visualizer backend (docs/VISUALIZER.md §2): REST + SSE on localhost.
 
   python harness/viz_server.py --live [--state-port 25942] [--port 8080]
   python harness/viz_server.py --replay 20260929_163420 [--rate 1] [--paused] [--port 8080]
@@ -11,15 +11,23 @@ Routes:
   GET  /api/walkmem   harness/data/walkmem.json verbatim (re-read when it changes)
   GET  /api/health    mode, session, order, poll lag, connection, diagnostics
   POST /api/playback  replay only: {"action": "play"|"pause"|"step"|"rate", "rate": R}
+  GET  /api/gate      live only: the proxy's agent gate ({"op": "gate"}), verbatim
+  POST /api/gate      live only: {"action": "pause"|"resume"|"kill"} -> {"op": "gate",
+                      "action": ...}; the proxy's JSON, 200 if ok else 409. Any other
+                      action (rearm included: CLI-only, harness/agent_gate.py) -> 400;
+                      replay -> 409; state port unreachable -> 502
   GET  /, /assets/*   the built frontend (viz/dist)
 
-Live mode only ever opens the proxy's state port (JSON lines, read-only). It
-never connects to the control port and never injects anything (ANTICHEAT §8:
-the viz is an observer).
+Live mode only ever opens the proxy's state port (JSON lines). It never connects
+to the control port and never injects or sends anything toward the game server
+(ANTICHEAT §8). Its one write is the agent gate: pause/resume/kill flip the
+proxy's gate, which only decides whether agent injections on the control port
+are rejected. Everything else is observation.
 """
 import argparse
 import json
 import os
+import socket
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -31,6 +39,8 @@ import viz_feed  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SSE_KEEPALIVE_S = 15.0
+GATE_ACTIONS = ("pause", "resume", "kill")   # "rearm" is CLI-only by policy (harness/agent_gate.py)
+GATE_TIMEOUT_S = 3.0
 CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "application/javascript; charset=utf-8",
                  ".css": "text/css; charset=utf-8", ".json": "application/json", ".map": "application/json",
                  ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon",
@@ -99,6 +109,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, body)
         elif url.path == "/api/health":
             self._json(200, feed.health())
+        elif url.path == "/api/gate":
+            self._gate(None)
         elif url.path.startswith("/api/"):
             self._json(404, {"error": f"unknown route {url.path}"})
         else:
@@ -106,7 +118,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         url = urlsplit(self.path)
-        if url.path != "/api/playback":
+        if url.path not in ("/api/playback", "/api/gate"):
             self._json(404, {"error": f"unknown route {url.path}"})
             return
         n = int(self.headers.get("Content-Length") or 0)
@@ -115,6 +127,15 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             self._json(400, {"error": "bad json"})
             return
+        if not isinstance(req, dict):
+            self._json(400, {"error": "body must be a JSON object"})
+            return
+        if url.path == "/api/gate":
+            self._gate(req.get("action"))
+        else:
+            self._playback(req)
+
+    def _playback(self, req: dict):
         feed = self.server.feed
         if not isinstance(feed, viz_feed.ReplayDriver):
             self._json(409, {"error": "playback control is replay-only"})
@@ -136,6 +157,27 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"error": str(e)})
             return
         self._json(200, {"ok": True, **feed.viz()})
+
+    def _gate(self, action):
+        """GET (action None) or POST /api/gate: one gate op on a short-lived state-port
+        connection, so the feed's connection and since cursor are untouched."""
+        if self.command == "POST" and action not in GATE_ACTIONS:
+            self._json(400, {"ok": False, "error": f"unknown gate action {action!r}"
+                             + (" (rearm is CLI-only: python harness/agent_gate.py rearm)"
+                                if action == "rearm" else "")})
+            return
+        feed = self.server.feed
+        if not isinstance(feed, viz_feed.StatePortPoller):
+            self._json(409, {"ok": False, "error": "no gate in replay"})
+            return
+        try:
+            resp = gate_request(feed.host, feed.port, action)
+        except (OSError, ValueError) as e:
+            self._json(502, {"ok": False, "error": f"state port unreachable: {type(e).__name__}: {e}"})
+            return
+        if action is not None:
+            feed.wake()   # push the new gate in the next state frame
+        self._json(200 if resp.get("ok") else 409, resp)
 
     def _sse(self, url):
         feed = self.server.feed
@@ -186,6 +228,21 @@ class Handler(BaseHTTPRequestHandler):
         with open(full, "rb") as f:
             body = f.read()
         self._send(200, body, CONTENT_TYPES.get(os.path.splitext(full)[1].lower(), "application/octet-stream"))
+
+
+def gate_request(host: str, port: int, action: str | None = None) -> dict:
+    """`{"op": "gate"[, "action": A]}` on a fresh state-port connection."""
+    req = {"op": "gate"} if action is None else {"op": "gate", "action": action}
+    with socket.create_connection((host, port), timeout=GATE_TIMEOUT_S) as s:
+        s.sendall((json.dumps(req) + "\n").encode())
+        with s.makefile("rb") as f:
+            line = f.readline()
+    if not line:
+        raise ConnectionResetError("state port closed the connection")
+    resp = json.loads(line)
+    if not isinstance(resp, dict):
+        raise ValueError("state port reply is not a JSON object")
+    return resp
 
 
 class VizServer(ThreadingHTTPServer):

@@ -60,7 +60,7 @@ function buildScene(viz: VizSnapshot, layer: WalkLayer): Scene {
   }
   return {
     truth,
-    facing: st?.movement.pos ? st.movement.pos[3] & 7 : self?.position_absolute ? self.direction & 7 : null,
+    facing: st?.movement?.pos ? st.movement.pos[3] & 7 : self?.position_absolute ? self.direction & 7 : null,
     selfSerial,
     selfName: self?.name ?? null,
     ghost: div.diverged && self ? [self.x, self.y] : null,

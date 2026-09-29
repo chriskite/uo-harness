@@ -191,6 +191,43 @@ export interface StateResponse {
   diagnostics?: Diagnostics;
   traffic?: TrafficCounts;
   viz?: VizInfo;
+  /** The proxy's agent gate; present on every response of a gate-aware proxy (also ok:false). */
+  gate?: Gate;
+}
+
+/** Precedence killed > paused > break > budget_exhausted > running. */
+export type GateState = "running" | "paused" | "break" | "budget_exhausted" | "killed";
+
+/** The proxy's agent gate (harness/agent_gate.py). While blocked, every agent
+ * injection on the control port gets `ERR <reason>`; nothing reaches the server. */
+export interface Gate {
+  state: GateState;
+  blocked: boolean;
+  /** The ERR text agents get; null while running. */
+  reason: string | null;
+  paused: boolean;
+  killed: boolean;
+  /** Wall-clock (epoch s) end of the current scheduled break. */
+  break_until: number | null;
+  /** Agent-active seconds left before the next forced break; null during a break. */
+  next_break_in_s: number | null;
+  active_today_s: number;
+  daily_cap_s: number;
+  daily_remaining_s: number;
+  /** YYYY-MM-DD */
+  day: string;
+  /** Proxy wall clock (epoch s) when the gate was read. */
+  now: number;
+}
+
+/** What the viz may ask of the gate. `rearm` is CLI-only by policy. */
+export type GateAction = "pause" | "resume" | "kill";
+
+/** `/api/gate` reply: the proxy's JSON verbatim, or viz_server's own error. */
+export interface GateResponse {
+  ok: boolean;
+  error?: string;
+  gate?: Gate;
 }
 
 export type Tile = [number, number];

@@ -11,6 +11,9 @@
 - live: viz_server --live against a proxy subprocess (fake upstream, private
   ports), started before the proxy (proxy down -> connected=false); asserts
   the viz never connects to the proxy's control port and adds no C2S packets
+- agent gate via /api/gate: replay 409, rearm 400, proxy down 502; live pause
+  (proxy reports paused, control-port injection gets ERR ...paused), resume,
+  kill, resume-while-killed 409
 """
 import collections
 import json
@@ -65,6 +68,45 @@ def pinned_capture() -> str:
 def get(url, timeout=5):
     with urllib.request.urlopen(url, timeout=timeout) as r:
         return json.loads(r.read())
+
+
+def post(url, body: dict, timeout=5) -> tuple[int, dict]:
+    """POST JSON; (status, parsed reply) for 2xx and HTTP errors alike."""
+    req = urllib.request.Request(url, method="POST", data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read())
+
+
+def state_port(req: dict) -> dict:
+    """One request straight to the test proxy's state port (bypassing the viz)."""
+    with socket.create_connection(("127.0.0.1", STATE_PORT), timeout=5) as s:
+        s.sendall((json.dumps(req) + "\n").encode())
+        with s.makefile("rb") as f:
+            return json.loads(f.readline())
+
+
+def recv_exact(sock, n: int) -> bytes:
+    buf = b""
+    while len(buf) < n:
+        d = sock.recv(n - len(buf))
+        if not d:
+            raise ConnectionError("closed")
+        buf += d
+    return buf
+
+
+def wait_state(base: str, pred, timeout=3.0) -> bool:
+    """Poll the viz's /api/state until pred(state) holds."""
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        if pred(get(base + "/api/state")):
+            return True
+        time.sleep(0.1)
+    return False
 
 
 def serve(feed, port):
@@ -187,14 +229,13 @@ def test_replay_parity(logdir):
         wm = urllib.request.urlopen(f"http://127.0.0.1:{SERVER_PORT}/api/walkmem").read()
         with open(os.path.join(ROOT, "harness", "data", "walkmem.json"), "rb") as f:
             check("/api/walkmem serves the file verbatim", wm == f.read())
-        req = urllib.request.Request(f"http://127.0.0.1:{SERVER_PORT}/api/playback", method="POST",
-                                     data=b'{"action": "rate", "rate": 0}')
-        try:
-            urllib.request.urlopen(req)
-            code = 200
-        except urllib.error.HTTPError as e:
-            code = e.code
+        code, _ = post(f"http://127.0.0.1:{SERVER_PORT}/api/playback", {"action": "rate", "rate": 0})
         check("POST /api/playback rejects rate 0", code == 400, str(code))
+        code, resp = post(f"http://127.0.0.1:{SERVER_PORT}/api/gate", {"action": "pause"})
+        check("POST /api/gate in replay: 409 no gate", code == 409 and resp["error"] == "no gate in replay",
+              f"{code} {resp}")
+        code, resp = post(f"http://127.0.0.1:{SERVER_PORT}/api/gate", {"action": "rearm"})
+        check("POST /api/gate rearm: 400 (CLI-only)", code == 400, f"{code} {resp}")
     finally:
         srv.shutdown()
         srv.server_close()
@@ -331,6 +372,7 @@ def test_live():
     viz = subprocess.Popen([PY, "-u", os.path.join(HERE, "viz_server.py"), "--live", "--state-port", str(STATE_PORT),
                             "--port", str(VIZ_PORT)], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     proxy = None
+    ctl_peer = None
     stop = threading.Event()
     base = f"http://127.0.0.1:{VIZ_PORT}"
     try:
@@ -344,6 +386,8 @@ def test_live():
         st = get(base + "/api/state")
         check("proxy down: served, connected=false", st["viz"]["connected"] is False and st["ok"] is False
               and st["viz"]["mode"] == "live", str(st.get("viz")))
+        code, resp = post(base + "/api/gate", {"action": "pause"})
+        check("proxy down: POST /api/gate 502", code == 502 and resp["ok"] is False, f"{code} {resp}")
 
         ready = threading.Event()
         threading.Thread(target=fake_upstream, args=(ready, stop), daemon=True).start()
@@ -379,6 +423,37 @@ def test_live():
         s.close()
         check("live SSE: gapless ring + state", has_state(fr)
               and [int(f["id"]) for f in fr if f["event"] == "world_event"] == list(range(st["next"])))
+
+        # agent gate through the viz (the proxy's budget file lives in the private logdir)
+        check("state responses carry the gate", (st.get("gate") or {}).get("state") == "running", str(st.get("gate")))
+        g = get(base + "/api/gate")
+        check("GET /api/gate: running", g.get("ok") is True and g["gate"]["state"] == "running", str(g))
+        code, resp = post(base + "/api/gate", {"action": "pause"})
+        check("POST /api/gate pause: 200, paused", code == 200 and resp["ok"] is True
+              and resp["gate"]["state"] == "paused" and resp["gate"]["paused"] is True, f"{code} {resp}")
+        g = state_port({"op": "gate"})
+        check("proxy's own gate reports paused", g["gate"]["state"] == "paused" and g["gate"]["blocked"] is True,
+              str(g))
+        check("viz state picks up the pause", wait_state(base, lambda s: (s.get("gate") or {}).get("paused") is True))
+        ctl = socket.create_connection(("127.0.0.1", CONTROL_PORT), timeout=5)
+        ctl_peer = ctl.getsockname()
+        click = bytes([0x09]) + SELF.to_bytes(4, "big")
+        ctl.sendall(len(click).to_bytes(2, "big") + click)
+        reply = recv_exact(ctl, int.from_bytes(recv_exact(ctl, 2), "big")).decode()
+        ctl.close()
+        check("paused: control-port injection gets ERR ... paused", reply.startswith("ERR") and "paused" in reply,
+              reply)
+        code, resp = post(base + "/api/gate", {"action": "resume"})
+        check("POST /api/gate resume: 200, running", code == 200 and resp["gate"]["state"] == "running"
+              and resp["gate"]["paused"] is False, f"{code} {resp}")
+        code, resp = post(base + "/api/gate", {"action": "rearm"})
+        check("POST /api/gate rearm: 400, not forwarded", code == 400 and resp["ok"] is False
+              and state_port({"op": "gate"})["gate"]["state"] == "running", f"{code} {resp}")
+        code, resp = post(base + "/api/gate", {"action": "kill"})
+        check("POST /api/gate kill: 200, killed", code == 200 and resp["gate"]["state"] == "killed", f"{code} {resp}")
+        code, resp = post(base + "/api/gate", {"action": "resume"})
+        check("resume while killed: 409 with the proxy's error + gate", code == 409 and resp["ok"] is False
+              and resp.get("error") and resp["gate"]["killed"] is True, f"{code} {resp}")
         client.close()
         time.sleep(0.5)
     finally:
@@ -393,8 +468,9 @@ def test_live():
            for l in open(os.path.join(logdir, f), encoding="utf-8")]
     srcs = {e.get("src") for e in log if e.get("dir") == "c2s"}
     check("proxy jsonl: every C2S packet from the client (viz injected nothing)", srcs == {"client"}, str(srcs))
-    check("proxy saw no control-port connection (viz is read-only)", "[proxy] control" not in out,
-          out.strip()[-300:])
+    ctl_lines = [l for l in out.splitlines() if l.startswith("[proxy] control")]
+    check("proxy saw only the test's own control connection (viz never opens it)",
+          ctl_lines == [f"[proxy] control {ctl_peer} closed"], str(ctl_lines))
     shutil.rmtree(logdir, ignore_errors=True)
 
 

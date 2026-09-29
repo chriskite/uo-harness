@@ -77,3 +77,25 @@ export function fmtTime(t: number): string {
   const p = (n: number, w = 2) => String(n).padStart(w, "0");
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
 }
+
+/** Wall-clock seconds -> local HH:MM:SS. */
+export function fmtClock(t: number): string {
+  const d = new Date(t * 1000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/** Seconds -> "H:MM:SS", or "M:SS" under an hour (truncated; negatives clamp to 0). */
+export function fmtDuration(s: number): string {
+  const t = Math.max(0, Math.floor(s));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const ss = String(t % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+}
+
+/** Seconds -> "H:MM" (truncated to the minute; negatives clamp to 0), e.g. 11520 -> "3:12". */
+export function fmtHM(s: number): string {
+  const m = Math.floor(Math.max(0, s) / 60);
+  return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+}

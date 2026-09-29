@@ -3,7 +3,7 @@
 // and running aggregates folded from every event seen.
 import { useSyncExternalStore } from "react";
 import { EVENT_RING, cloneAggregates, emptyAggregates, foldEvent, type Aggregates } from "./events.ts";
-import type { EventEnvelope, HexSerial, StateResponse, WalkMemoryFile } from "./types.ts";
+import type { EventEnvelope, Gate, HexSerial, StateResponse, WalkMemoryFile } from "./types.ts";
 
 export interface VizSnapshot {
   /** Latest state-port response, without `events`. */
@@ -62,6 +62,8 @@ export class VizStore {
     const sessionChanged = prev?.viz && rest.viz && prev.viz.session !== rest.viz.session;
     const reset = rest.next < this.snap.lastSeq + 1 || Boolean(sessionChanged);
     if (reset) this.clearEvents();
+    // A state frame polled before a gate button's reply must not undo it (proxy clock).
+    if (prev?.gate && rest.gate && rest.gate.now < prev.gate.now) rest.gate = prev.gate;
     this.patch({ state: rest });
     if (events) this.ingest(events);
     return reset;
@@ -88,6 +90,12 @@ export class VizStore {
 
   setWalkmem(walkmem: WalkMemoryFile | null): void {
     this.patch({ walkmem });
+  }
+
+  /** Show a gate from a /api/gate reply at once; the next state frame carries it too. */
+  setGate(gate: Gate): void {
+    const state = this.snap.state;
+    if (state) this.patch({ state: { ...state, gate } });
   }
 
   select = (selected: HexSerial | null): void => {

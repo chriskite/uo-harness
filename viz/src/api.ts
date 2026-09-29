@@ -1,7 +1,7 @@
 // viz_server client (docs/VISUALIZER.md §2.1): initial REST fetch, SSE stream
-// with resume, periodic walk-memory refresh, playback control.
+// with resume, periodic walk-memory refresh, playback and agent-gate control.
 import type { VizStore } from "./store.ts";
-import type { EventEnvelope, PlaybackAction, StateResponse, WalkMemoryFile } from "./types.ts";
+import type { EventEnvelope, Gate, GateAction, GateResponse, PlaybackAction, StateResponse, WalkMemoryFile } from "./types.ts";
 
 const WALKMEM_REFRESH_MS = 10_000;
 const RECONNECT_MS = 2_000;
@@ -27,6 +27,25 @@ export async function postPlayback(action: PlaybackAction): Promise<void> {
     body: JSON.stringify(action),
   });
   if (!r.ok) throw new Error(`/api/playback: HTTP ${r.status} ${await r.text()}`);
+}
+
+/** Pause/resume/kill the agent gate (live only). Resolves to the proxy's new gate;
+ * throws with the proxy's (or viz_server's) error text otherwise. */
+export async function postGate(action: GateAction): Promise<Gate | undefined> {
+  const r = await fetch("/api/gate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action }),
+  });
+  const text = await r.text();
+  let resp: GateResponse | null = null;
+  try {
+    resp = JSON.parse(text) as GateResponse;
+  } catch {
+    // not JSON: fall through with the raw text
+  }
+  if (!r.ok || !resp?.ok) throw new Error(`gate ${action}: ${resp?.error ?? `HTTP ${r.status} ${text}`}`);
+  return resp.gate;
 }
 
 /** Start feeding `store`; returns a stop function. */

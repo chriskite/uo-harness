@@ -188,6 +188,9 @@ h4 {
   padding: 0 4px;
   border-bottom: 1px solid var(--border);
 }
+.header > * {
+  white-space: nowrap;
+}
 .title {
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -219,6 +222,29 @@ h4 {
 }
 .playback progress {
   width: 140px;
+}
+.gate {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.gate > * {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.gate-reason {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+  font-size: 12px;
+}
+button.danger {
+  color: #fecaca;
+  border-color: #991b1b;
 }
 
 .badge {

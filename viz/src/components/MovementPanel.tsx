@@ -23,7 +23,7 @@ function describe(d: EventData): string {
 }
 
 export function MovementPanel({ state, agg }: { state: StateResponse | null; agg: Aggregates }) {
-  if (!state) return <Panel title="Movement">no state yet</Panel>;
+  if (!state?.ok) return <Panel title="Movement">no state yet</Panel>;
   const m = state.movement;
   const self = state.world.self;
   const div = divergence(m, self);

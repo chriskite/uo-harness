@@ -38,7 +38,7 @@ function Node({ node, selected, depth }: { node: TreeNode; selected: HexSerial |
 
 export function ContainerTree({ state, selected }: { state: StateResponse | null; selected: HexSerial | null }) {
   const world = state?.world ?? null;
-  const origin = state ? truePosition(state.movement, state.world.self) : null;
+  const origin = world ? truePosition(state?.movement, world.self) : null;
   const tree = useMemo(() => (world ? buildContainerTree(world, origin) : null), [world, origin?.[0], origin?.[1]]);
   if (!world || !tree) return <Panel title="Containers">no state yet</Panel>;
 
