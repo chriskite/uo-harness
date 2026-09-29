@@ -68,8 +68,8 @@ class InjectionHub:
         if tap.key is None or not tap.c2s_preamble_done:
             return "session key not known yet"
         enc = bytes(b ^ tap.key for b in payload)
-        tap.tap_c2s(enc)          # logged/framed exactly like client traffic
-        writer.write(enc)
+        out = tap.tap_c2s(enc)      # taps and seq-rewrites exactly like client traffic
+        writer.write(out)
         await writer.drain()
         return None
 
@@ -118,6 +118,28 @@ def hexd(b, limit=64):
     return b[:limit].hex()
 
 
+class SeqAuthority:
+    """Owns the single movement-sequence counter for the session.
+
+    The proxy rewrites the seq byte of every C2S walk packet (0x02) from BOTH
+    the client and agent injections to one monotonic ladder, so the two senders
+    never desync each other. Server expects last+1, wrap 0xFF -> 1; resync
+    (C2S 22 0000) and login reset to 0.
+    """
+
+    __slots__ = ("next_seq",)
+
+    def __init__(self):
+        self.next_seq = 0
+
+    def reset(self):
+        self.next_seq = 0
+
+    def next(self) -> int:
+        s = self.next_seq
+        self.next_seq = self.next_seq + 1 if self.next_seq < 0xFF else 1
+        return s
+
 class SessionTap:
     """Passive per-connection protocol analyzer."""
 
@@ -134,6 +156,8 @@ class SessionTap:
         self.s2c_plain = bytearray()     # decompressed, unframed
         self.c2s_preamble_done = False
         self.s2c_prelude_done = False
+        self.c2s_wire = bytearray()      # wire bytes pending packet-aligned rewrite
+        self.seqauth = SeqAuthority()    # single movement seq ladder (proxy-owned)
 
     def _log(self, **kw):
         kw["t"] = round(time.time(), 3)
@@ -142,46 +166,62 @@ class SessionTap:
 
     # ---- client -> server ----
     def tap_c2s(self, data: bytes):
-        # NOTE: resync suppression was tested (2026-09-29) and REMOVED — blocking
-        # the client's 22 0000 resync deadlocks its movement recovery after
-        # agent-injected walks. Keep client resyncs flowing.
+        """Tap + normalize C2S traffic; returns the bytes to forward upstream.
 
-        self.raw_c2s.write(data)
+        Every walk packet (0x02) gets its seq byte rewritten to the proxy-owned
+        SeqAuthority ladder (wire-level: wire[2] = next ^ key). Everything else
+        passes through unchanged. raw_c2s records the rewritten (server-truth) wire.
+        """
+        out = bytearray()
         if not self.c2s_preamble_done:
             need = CLIENT_PREAMBLE_LEN - len(self.c2s_buf)
             head, data = data[:need], data[need:]
             self.c2s_buf += head
+            out += head
             if len(self.c2s_buf) < CLIENT_PREAMBLE_LEN:
-                return
+                self.raw_c2s.write(bytes(out))
+                return bytes(out)
             self._log(ev="c2s_preamble", hex=self.c2s_buf.hex())
             self.c2s_preamble_done = True
+            self.seqauth.reset()
             self.c2s_buf.clear()
-            if not data:
-                return
-        self.c2s_plain += data  # decrypt later if key unknown yet
-        if self.key is not None:
-            self._drain_c2s()
-        # if key unknown, bytes accumulate; drained when prelude arrives
-
-    def _drain_c2s(self):
-        # decrypt everything pending, frame, log
-        plain = bytes(b ^ self.key for b in self.c2s_plain)
-        self.c2s_plain.clear()
-        buf = getattr(self, "_c2s_framing", None)
-        if buf is None:
-            buf = self._c2s_framing = bytearray()
-        buf += plain
-        while buf:
-            plen = packet_length(buf, overrides=C2S_OVERRIDES)
+        self.c2s_wire += data
+        if self.key is None:
+            # Forward only what's already queued in `out` (e.g. the client preamble);
+            # keep post-preamble data buffered in c2s_wire until the key arrives.
+            if out:
+                self._log(ev="c2s_prekey", note=f"{len(self.c2s_wire)}B buffered until session key arrives")
+                self.raw_c2s.write(bytes(out))
+            return bytes(out)
+        # decrypt the buffered stream, frame on plaintext, rewrite walk seqs
+        plain = bytes(b ^ self.key for b in self.c2s_wire)
+        out = bytearray()
+        i = 0
+        while i < len(plain):
+            plen = packet_length(plain[i:], overrides=C2S_OVERRIDES)
             if plen == 0:
-                break
+                break  # incomplete packet; wait for more bytes
             if plen < 0:
-                self._log(ev="c2s_desync", at=buf[0], note="implausible length; dropping 1 byte")
-                del buf[0]
+                self._log(ev="c2s_desync", at=plain[i],
+                          note="implausible length; forwarding 1 byte anyway")
+                out.append(self.c2s_wire[i])
+                i += 1
                 continue
-            pkt = bytes(buf[:plen])
-            del buf[:plen]
-            self._log(dir="c2s", id=f"0x{pkt[0]:02X}", len=plen, hex=hexd(pkt))
+            pkt = bytearray(plain[i:i + plen])
+            if pkt[0] == 0x02 and plen == 7:
+                pkt[2] = self.seqauth.next()
+            elif bytes(pkt) == b"\x22\x00\x00":
+                self.seqauth.reset()
+                self._log(ev="c2s_resync_seen", note="client movement resync; seq reset to 0")
+            self._log(dir="c2s", id=f"0x{pkt[0]:02X}", len=plen, hex=hexd(bytes(pkt)))
+            out += bytes(b ^ self.key for b in pkt)
+            i += plen
+        self.c2s_wire = self.c2s_wire[i:]
+        self.raw_c2s.write(bytes(out))
+        return bytes(out)
+
+    def _drain_c2s(self):  # retained for API compat; framing now happens inline in tap_c2s
+        pass
 
     # ---- server -> client ----
 
@@ -269,7 +309,7 @@ async def _relay(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, tap
             suppress = tap(data)
             if suppress is SUPPRESS:
                 continue
-            writer.write(data)
+            writer.write(suppress if suppress is not None else data)
             await writer.drain()
     except (ConnectionResetError, asyncio.IncompleteReadError, BrokenPipeError):
         pass
