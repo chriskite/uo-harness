@@ -6,7 +6,7 @@ flagged). Only fields with upstream/decomp confidence are encoded; bytes the
 client itself never reads are `skip:N`.
 
 Field entry: (name, type, offset). Types:
-  u8, i8, u16be, u16le, u32be, u32le   integers
+  u8, i8, u16be, u16le, u32be, i32be, u32le   integers
   bytes:N                              raw N bytes
   ascii:N                              fixed-width ASCII, NUL-stripped
   utf16:N                              fixed-width UTF-16BE, NUL-stripped
@@ -48,12 +48,22 @@ LAYOUTS_S2C: dict[int, list[tuple[str, str, int]]] = {
            ("current", "u16be", 7)],
     # 0x72 Warmode (5): classic padding 00 32 00 unread
     0x72: [("flag", "u8", 1), ("skip", "skip:3", 2)],
-    # 0x20 UpdatePlayer V10 (28) — read widths verified against
-    # MobileUpdateV10 @ 0x140188d10 (4,4,1,2,1,4,4,skip2,1,4)
+    # 0x20 UpdatePlayer / MobileUpdate V10 (28) — read widths verified against
+    # MobileUpdateV10 @ 0x140188d10 (4,4,1,2,1,4,4,skip2,1,4). Carries ANY
+    # mobile, not just the player (handler looks the serial up when it is not
+    # self; real captures: self `20 00094375 00000190 01 83ea 20 000007ab
+    # 00000a25 0000 80 00000000`, NPC 0x1E3 with notoriety 7). z is read as
+    # a 32-bit int (signed here; real values 0..41).
     0x20: [("serial", "u32be", 1), ("graphic", "u32be", 5),
            ("notoriety", "u8", 9), ("hue", "u16be", 10),
            ("flags", "u8", 12), ("x", "u32be", 13), ("y", "u32be", 17),
-           ("skip", "skip:2", 21), ("dir", "u8", 23), ("z", "u32be", 24)],
+           ("skip", "skip:2", 21), ("dir", "u8", 23), ("z", "i32be", 24)],
+    # 0x77 MobileMove V10 (18) — decomp MobileMoveV10 @ 0x1401901f0 reads
+    # u32 serial, u32 x, u32 y, u32 z, u8 dir (&7; bit 0x80 = running). No
+    # graphic/hue/flags/notoriety (upstream 0x77 has them). Real self sample:
+    # `77 00094375 000007ab 00000a25 00000000 80` (7423 packets, all 18 B).
+    0x77: [("serial", "u32be", 1), ("x", "u32be", 5), ("y", "u32be", 9),
+           ("z", "i32be", 13), ("dir", "u8", 17)],
     # 0xF3 UpdateItemSA V12 (38) — decomp-verified, see module docstring
     0xF3: [("skip", "skip:2", 1), ("data_type", "u8", 3),
            ("serial", "u32be", 4), ("graphic", "u32be", 8),
@@ -87,9 +97,13 @@ LAYOUTS_S2C: dict[int, list[tuple[str, str, int]]] = {
            ("frames", "u16be", 7), ("repeat", "u16be", 9),
            ("backward", "i8", 11), ("repeat_flag", "i8", 12),
            ("delay", "u8", 13)],
-    # 0x1B LoginConfirm (43): WORLDMODEL.md has no field table for this id;
-    # only the serial u32be@1 (universal upstream prefix) is encoded.
-    0x1B: [("serial", "u32be", 1)],
+    # 0x1B LoginConfirm (43) — Assistant.PacketHandlers.LoginConfirm
+    # @ 0x1400627a0 (V10 branch): serial u32, u32 (unread), graphic u32,
+    # x/y/z i32, dir u8. Real: `1b 00094375 00000000 00000190 000007ab
+    # 00000a25 00000000 80 …` (bytes 26..42, map-size area upstream, unread).
+    0x1B: [("serial", "u32be", 1), ("skip", "skip:4", 5),
+           ("graphic", "u32be", 9), ("x", "u32be", 13), ("y", "u32be", 17),
+           ("z", "i32be", 21), ("dir", "u8", 25)],
 }
 
 LAYOUTS_C2S: dict[int, list[tuple[str, str, int]]] = {

@@ -161,8 +161,8 @@ runtime (the only change to existing code — see §6).
 
 Splitting the proxy and the viz server into two processes (and tailing the
 `.jsonl` log) was considered and **rejected**: the jsonl side-log truncates
-packet hex at 64 bytes (WORLDSTATE.md §"Captures" note) and re-framing from it
-would silently corrupt the 0x00-family stream. The live tap must see full framed
+packet hex at 64 bytes, and re-framing from it would silently corrupt large
+packets (e.g. 0xDD gumps, 0x3A skill lists). The live tap must see full framed
 packets, which only the in-process `SessionTap` has.
 
 ### 2.2 Backend stack — stdlib only

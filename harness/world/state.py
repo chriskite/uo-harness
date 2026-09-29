@@ -21,7 +21,8 @@ class SelfState:
     name: str | None = None
     account: str | None = None
     # dead-reckoned from C2S walks until an absolute server position arrives
-    # (0x20 UpdatePlayer / 0x21 DenyWalk); starts relative at (0, 0)
+    # (0x1B LoginConfirm / 0x20 MobileUpdate / 0x77 MobileMove / 0x21
+    # DenyWalk); starts relative at (0, 0)
     x: int = 0
     y: int = 0
     z: int = 0
@@ -77,6 +78,10 @@ class Mobile:
     notoriety: int | None = None
     poisoned: bool | None = None
     flags: int | None = None
+    x: int | None = None
+    y: int | None = None
+    z: int | None = None
+    direction: int | None = None
 
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items() if v is not None
@@ -175,6 +180,7 @@ class StateStore:
         self.buffs: dict[int, dict[int, dict]] = {}  # serial -> icon id -> info
         self.containers: set[int] = set()
         self.protocol_version: int | None = None
+        self.characters: list[str] = []  # 0xA9 character-list slot names
 
     # -- lazy name merge (both orders) -------------------------------------
     def apply_names(self, entries):
@@ -217,6 +223,7 @@ class StateStore:
         return {
             "self": self.self.to_dict(),
             "protocol_version": self.protocol_version,
+            "characters": self.characters,
             "mobiles": {_h(s): m.to_dict()
                         for s, m in sorted(self.mobiles.items())},
             "items": {_h(s): it.to_dict()

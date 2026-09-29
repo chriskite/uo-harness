@@ -38,8 +38,9 @@ def eq(name, got, want):
 # Ground-truth packets from the captures (decrypted/deflated hex)
 # ---------------------------------------------------------------------------
 
-# session_20260928_164548 server prelude = 0xFF sub-0 dialect handshake
-PRELUDE = bytes.fromhex("ff000d000000000000000c12e7a11b6b2181c2")
+# session_20260928_164548 13-byte server prelude = 0xFF sub-0 dialect
+# handshake (version 12, S2C key 0x12, C2S key 0xE7)
+PRELUDE = bytes.fromhex("ff000d000000000000000c12e7")
 # session_20260928_164548 first C2S walk (doc §6: dir 0x86 = dir 6 | run 0x80)
 WALK = bytes.fromhex("02860000000008")
 # session_20260928_141253 C2S unicode speech "howdy"
@@ -59,6 +60,34 @@ TARGETRESP = bytes.fromhex("6c0000052cb901000943750000077c00000a24")
 LOGIN91 = bytes.fromhex("910462") + b"Hackworth\x00" + b"eyJhbGciOiJ9" + b"\x00" * 4
 # character select: 0xEDEDEDED pattern, name ascii[30] @5
 CHARSELECT = bytes.fromhex("5dedededed") + b"TestWorth\x00" + b"\x00" * 20 + b"\x00" * 38
+# Real S2C packets (XOR + per-packet Huffman decode via uo/s2c.py)
+# 0x11 type 5 without tithing, 87 B (session_20260928_141253)
+REAL_11_87 = (
+    "1100570009437554657374576f727468000000000000000000000000000000000000"
+    "000000005000500005000050000f0041000f000f00410041000000000009003a023a"
+    "01000000050000000000000000000000020008")
+# 0xFF sub 8 buff update with empty title -> cliloc, 78 B (session_164548)
+BUFF_REAL = bytes.fromhex(
+    "ff004e0000000800094375002d75620000000000000001411666660000000039535b"
+    "cd000000003951870d00000f7d8841726d6f7220526174696e6720496e6372656173"
+    "65000000000100000000")
+# 0x78 MobileEquip with one record / with none (session captures)
+MOBILE_EQUIP_1 = bytes.fromhex(
+    "78001a000001e9400011770000152e1804200000002000000000")
+MOBILE_EQUIP_0 = bytes.fromhex("78000b0008a90500000000")
+# 0x1C ASCII talk "Vorn" and 0xAE unicode talk "howdy" by TestWorth
+TALK_1C = bytes.fromhex(
+    "1c0031000076ed01900600590003566f726e00000000000000000000000000000000"
+    "00000000000000000000566f726e00")
+TALK_AE = bytes.fromhex(
+    "ae003c0009437501900002b20003454e550054657374576f72746800000000000000"
+    "00000000000000000000000000000068006f0077006400790000")
+# 0x98 S2C name response and 0xA9 character list (5 slots x 30 B names)
+NAME_98 = bytes.fromhex(
+    "9800250009437554657374576f72746800000000000000000000000000000000000000"
+    "0000")
+CHARLIST_A9 = bytes.fromhex(
+    "a900a10554657374576f727468" + "00" * 21 + "00" * 120 + "0000000008ffff")
 
 
 # ---------------------------------------------------------------------------
@@ -153,9 +182,28 @@ def test_fixed_s2c():
     eq("0x6E", f, {"serial": 0x04050607, "action": 0x0809, "frames": 0x0A0B,
                    "repeat": 0x0C0D, "backward": 1, "repeat_flag": 0,
                    "delay": 5})
-    # 0x1B LoginConfirm (43): only the serial u32@1 is documented-safe
-    f = parse_fixed(0x1B, bytes.fromhex("1b" "00094375" + "00" * 38))
-    eq("0x1B", f, {"serial": 0x00094375})
+    # 0x1B LoginConfirm (43), real packet from session_20260929_144541:
+    # serial u32@1, unread u32@5, graphic u32@9, x/y u32@13/17, z i32@21,
+    # dir u8@25; bytes 26..42 unread
+    f = parse_fixed(0x1B, bytes.fromhex(
+        "1b" "00094375" "00000000" "00000190" "000007ab" "00000a25"
+        "00000000" "80" "00ffffffff" "00000000" "2a00" "1800" "00000000"))
+    eq("0x1B real", f, {"serial": 0x00094375, "graphic": 0x190,
+                        "x": 0x7AB, "y": 0xA25, "z": 0, "dir": 0x80})
+    # 0x20 real self sample (same session) and z as a signed 32-bit int
+    f = parse_fixed(0x20, bytes.fromhex(
+        "20" "00094375" "00000190" "01" "83ea" "20" "000007ab" "00000a25"
+        "0000" "80" "00000000"))
+    eq("0x20 real self", f, {"serial": 0x00094375, "graphic": 0x190,
+                             "notoriety": 1, "hue": 0x83EA, "flags": 0x20,
+                             "x": 0x7AB, "y": 0xA25, "dir": 0x80, "z": 0})
+    f = parse_fixed(0x20, bytes.fromhex("20" + "00" * 23 + "fffffffb"))
+    eq("0x20 negative z", f["z"], -5)
+    # 0x77 MobileMove V10 (18): serial u32@1, x/y u32@5/9, z i32@13, dir u8@17
+    f = parse_fixed(0x77, bytes.fromhex(
+        "77" "00094375" "000007ab" "00000a25" "fffffffe" "85"))
+    eq("0x77", f, {"serial": 0x00094375, "x": 0x7AB, "y": 0xA25, "z": -2,
+                   "dir": 0x85})
     # no layout registered -> None
     eq("0x99 no layout", parse_fixed(0x99, b"\x99\x01\x02"), None)
 
@@ -242,6 +290,14 @@ def test_character_status_11():
     f = parse_packet("s2c", pkt(tail))
     eq("0x11 type6 block", [f[f"extra_{i}"] for i in range(15)],
        [0x30 + i for i in range(15)])
+    # real type-5 form without the tithing u32 (87 B, session_20260928_141253)
+    real87 = bytes.fromhex(REAL_11_87)
+    eq("0x11 real87 len", len(real87), 87)
+    f = parse_packet("s2c", real87)
+    check("0x11 real87 parsed without tithing",
+          f["name"] == "TestWorth" and f["str"] == 80 and f["int"] == 65
+          and f["weight_max"] == 570 and f["followers_max"] == 5
+          and f["damage_max"] == 8 and "tithing" not in f, str(f))
 
 
 def test_skills_3a():
@@ -278,6 +334,14 @@ def test_skills_3a():
     eq("0x3A names", f, {"type": 0xFE, "names": [
         {"have_button": 1, "name": "Melee"},
         {"have_button": 0, "name": "Taming"}]})
+    # type 2 (full list with caps) as real servers send it: records then a
+    # trailing u16 0 (session_20260928_141253 492-byte form, shortened)
+    pkt = bytes.fromhex("3a" "0016" "02" "0001" "0000" "0000" "00" "03e8"
+                        "000b" "0258" "0258" "00" "03e8" "0000")
+    f = parse_packet("s2c", pkt)
+    eq("0x3A type2 real form", f, {"type": 2, "skills": [
+        {"id": 0, "value": 0, "base": 0, "lock": 0, "cap": 1000},
+        {"id": 10, "value": 600, "base": 600, "lock": 0, "cap": 1000}]})
 
 
 def test_world_item_1a():
@@ -374,29 +438,37 @@ def test_gumps_b0_dd():
                         "0003" "fffe00" "0000")
     f = parse_packet("s2c", bad)
     check("0xB0 garbage layout no crash", isinstance(f["layout"], str))
-    # 0xDD: same content, two zlib blocks (text lines are UTF-16LE per doc §4)
+    # 0xDD (upstream CompressedGump): zlib layout block, u32 line count,
+    # then (if count > 0) a zlib block of (u16be char count, UTF-16BE) lines
     comp_layout = zlib.compress(layout)
-    raw_lines = (2).to_bytes(2, "big") + \
-        (5).to_bytes(2, "big") + "hello".encode("utf-16-le") + \
-        (5).to_bytes(2, "big") + "world".encode("utf-16-le")
+    raw_lines = (5).to_bytes(2, "big") + "hello".encode("utf-16-be") + \
+        (5).to_bytes(2, "big") + "world".encode("utf-16-be")
     comp_lines = zlib.compress(raw_lines)
-    payload = ("04050607" "08090a0b" "00000064" "00000032") + \
+    head = ("04050607" "08090a0b" "00000064" "00000032") + \
         (4 + len(comp_layout)).to_bytes(4, "big").hex() + \
-        len(layout).to_bytes(4, "big").hex() + comp_layout.hex() + \
-        (4 + len(comp_lines)).to_bytes(4, "big").hex() + \
-        len(raw_lines).to_bytes(4, "big").hex() + comp_lines.hex()
-    pkt = bytes.fromhex("dd") + (3 + len(bytes.fromhex(payload))).to_bytes(2, "big") \
-        + bytes.fromhex(payload)
+        len(layout).to_bytes(4, "big").hex() + comp_layout.hex()
+
+    def dd(payload):
+        return bytes.fromhex("dd") + \
+            (3 + len(bytes.fromhex(payload))).to_bytes(2, "big") + \
+            bytes.fromhex(payload)
+    pkt = dd(head + "00000002" +
+             (4 + len(comp_lines)).to_bytes(4, "big").hex() +
+             len(raw_lines).to_bytes(4, "big").hex() + comp_lines.hex() +
+             "00000000")
     f = parse_packet("s2c", pkt)
     eq("0xDD", f, {"serial": 0x04050607, "gump_id": 0x08090A0B,
                    "x": 100, "y": 50,
                    "layout": "{ page 0 }{ button 10 10 1 2 }",
                    "lines": ["hello", "world"], "compressed": True})
+    f = parse_packet("s2c", dd(head + "00000000"))
+    eq("0xDD no lines", f["lines"], [])
 
 
 def test_dialect_ff():
     print("== 0xFF dialect ==")
-    # ground truth: sub-0 prelude handshake -> version 12, flags 0x12/0xE7
+    # ground truth: 13-byte sub-0 prelude handshake -> version 12,
+    # flag1/flag2 = S2C/C2S XOR keys 0x12/0xE7 (session_20260928_164548)
     f = parse_packet("s2c", PRELUDE)
     eq("FF sub0 prelude", f, {"sub": 0, "version": 12, "flag1": 0x12,
                               "flag2": 0xE7})
@@ -416,27 +488,33 @@ def test_dialect_ff():
     eq("FF sub15 names", f, {"sub": 0x15, "mode": 0, "entries": [
         {"serial": 0x04050607, "name": "Sweat"},
         {"serial": 0x08090A0B, "name": "Pant"}]})
-    # sub 8 S2C: buff update (doc §5 layout)
+    # sub 8 S2C: buff update — 12-byte timers (f32 BE seconds, u64 end)
     title = b"BuffTitle\x00"
     desc = b"BuffDesc\x00"
     payload = ("04050607" "0809" "0001" "0002" "0003" "0004"
                "0001"                              # 1 timer
-               "0000403f"                          # f32le 0.75
+               "3f400000"                          # f32 BE 0.75
                "0102030405060708"                  # u64be end ts
-               "090a0b0c"                          # u32be aux
                "0d0e0f1011121314"                  # u64be timestamp
-               ) + title.hex() + desc.hex() + "0005" "0006" "0000803f"
+               ) + title.hex() + desc.hex() + "0005" "0006" "3f800000"
     pkt = bytes.fromhex("ff") + (7 + len(bytes.fromhex(payload))).to_bytes(2, "big") \
         + bytes.fromhex("00000008") + bytes.fromhex(payload)
     f = parse_packet("s2c", pkt)
     want = {"sub": 8, "serial": 0x04050607, "icon_id": 0x0809,
             "f1": 1, "f2": 2, "f3": 3, "f4": 4,
-            "timers": [{"seconds": 0.75, "end": 0x0102030405060708,
-                        "aux": 0x090A0B0C}],
+            "timers": [{"seconds": 0.75, "end": 0x0102030405060708}],
             "timestamp": 0x0D0E0F1011121314,
             "title": "BuffTitle", "description": "BuffDesc",
             "category": 5, "mode": 6, "scalar": 1.0}
     eq("FF sub8 buff", f, want)
+    # real sub 8 with empty title -> cliloc (session_20260928_164548, 78 B)
+    f = parse_packet("s2c", BUFF_REAL)
+    check("FF sub8 real cliloc form",
+          f["serial"] == 0x00094375 and f["icon_id"] == 0x2D
+          and abs(f["timers"][0]["seconds"] - 9.4) < 1e-5
+          and f["title"] == "" and f["cliloc"] == 1015176
+          and f["description"] == "Armor Rating Increase"
+          and f["mode"] == 1 and f["scalar"] == 0.0, str(f))
     # unknown sub: reported, not fatal
     f = parse_packet("s2c", bytes.fromhex("ff" "0009" "00000063" "aabb"))
     eq("FF unknown sub", f, {"sub": 0x63})
@@ -495,7 +573,8 @@ def test_truncation():
         ("s2c", bytes.fromhex("20" "04050607")),       # 0x20 head only
         ("s2c", bytes.fromhex("f3" "0001" "02")),      # 0xF3 head only
         ("s2c", bytes.fromhex("11" "002b" "0405")),    # 0x11 mid-serial
-        ("s2c", bytes.fromhex("3a" "0013" "00" "0005")),  # 0x3A mid-record
+        ("s2c", bytes.fromhex("3a" "0013" "00" "0005" "02")),  # 0x3A mid-record
+        ("s2c", bytes.fromhex("78" "001a" "000001e9" "40001177" "0000")),  # 0x78
         ("s2c", bytes.fromhex("1a" "0018" "84050607")),   # 0x1A flags promise more
         ("s2c", bytes.fromhex("3c" "001f" "0002" "0405")),  # 0x3C short record
         ("s2c", bytes.fromhex("89" "0014" "04050607" "01")),  # 0x89 mid-pair
@@ -562,6 +641,66 @@ def test_runtime_edges():
     eq("LWW mobile hits", rt.state.mobiles[0x01020304].hits, 0x63)
 
 
+def test_mobile_parsers():
+    print("== 0x78 / 0x1C / 0xAE / 0x98 / 0xA9 (real packets) ==")
+    eq("0x78 one record", parse_packet("s2c", MOBILE_EQUIP_1),
+       {"serial": 0x1E9, "equipment": [
+           {"serial": 0x40001177, "graphic": 0x152E, "layer": 0x18,
+            "hue": 0x0420, "v12": 0x20}]})
+    eq("0x78 no records", parse_packet("s2c", MOBILE_EQUIP_0),
+       {"serial": 0x0008A905, "equipment": []})
+    eq("0x1C", parse_packet("s2c", TALK_1C),
+       {"serial": 0x76ED, "graphic": 0x190, "type": 6, "hue": 0x59,
+        "font": 3, "name": "Vorn", "text": "Vorn"})
+    eq("0xAE", parse_packet("s2c", TALK_AE),
+       {"serial": 0x00094375, "graphic": 0x190, "type": 0, "hue": 0x02B2,
+        "font": 3, "lang": "ENU", "name": "TestWorth", "text": "howdy"})
+    eq("0x98 s2c", parse_packet("s2c", NAME_98),
+       {"serial": 0x00094375, "name": "TestWorth"})
+    f = parse_packet("s2c", CHARLIST_A9)
+    eq("0xA9 len", len(CHARLIST_A9), 161)
+    eq("0xA9", f, {"names": ["TestWorth", "", "", "", ""]})
+
+
+def test_mobile_routing():
+    print("== mobile routing (0x1B / 0x20 / 0x77 / 0x78) ==")
+    rt = WorldRuntime()
+    rt.feed_packet("s2c", bytes.fromhex(
+        "1b" "00094375" "00000000" "00000190" "000007ab" "00000a25"
+        "00000000" "80" + "00" * 17))
+    s = rt.state.self
+    eq("0x1B sets self", (s.serial, s.x, s.y, s.position_absolute),
+       (0x00094375, 0x7AB, 0xA25, True))
+    # 0x20 for another serial (vendor, notoriety 7) is a mobile, not self
+    rt.feed_packet("s2c", bytes.fromhex(
+        "20" "000001e3" "00000190" "07" "0401" "00" "0000079c" "00000a15"
+        "0000" "02" "00000001"))
+    m = rt.state.mobiles.get(0x1E3)
+    check("0x20 other -> mobile", m is not None and (m.x, m.y, m.z,
+          m.direction, m.notoriety) == (0x79C, 0xA15, 1, 2, 7), repr(m))
+    eq("0x20 other leaves self", (s.x, s.y), (0x7AB, 0xA25))
+    eq("0x20 other no anomaly", dict(rt.anomalies), {})
+    # 0x77 self move (running bit masked off) and other-mobile move
+    rt.feed_packet("s2c", bytes.fromhex(
+        "77" "00094375" "000007ac" "00000a24" "00000000" "81"))
+    eq("0x77 self", (s.x, s.y, s.direction), (0x7AC, 0xA24, 1))
+    rt.feed_packet("s2c", bytes.fromhex(
+        "77" "000001e3" "0000079d" "00000a16" "00000005" "04"))
+    eq("0x77 other", (m.x, m.y, m.z, m.direction), (0x79D, 0xA16, 5, 4))
+    # 0x78 equipment parented to the mobile
+    rt.feed_packet("s2c", MOBILE_EQUIP_1)
+    it = rt.state.items[0x40001177]
+    eq("0x78 item parent/layer", (it.container, it.layer), (0x1E9, 0x18))
+    # 0x98 name lands on the mobile; 0x1B for another serial is an anomaly
+    rt.feed_packet("s2c", bytes.fromhex("98" "0025" "000001e3") +
+                   b"Jake".ljust(30, b"\x00"))
+    eq("0x98 names mobile", m.name, "Jake")
+    rt.feed_packet("s2c", bytes.fromhex("1b" "00000001") + b"\x00" * 38)
+    eq("0x1B mismatch anomaly", rt.anomalies["login_confirm_mismatch"], 1)
+    eq("0x1B mismatch keeps self", s.serial, 0x00094375)
+
+
+
 def test_event_semantics():
     print("== event semantics ==")
     import json
@@ -608,8 +747,9 @@ def test_event_semantics():
 TESTS = [test_fixed_s2c, test_fixed_c2s, test_character_status_11,
          test_skills_3a, test_world_item_1a, test_container_content_3c,
          test_corpse_equipment_89, test_healthbar_16_17, test_gumps_b0_dd,
-         test_dialect_ff, test_c2s_procedural, test_truncation,
-         test_runtime_edges, test_event_semantics]
+         test_dialect_ff, test_c2s_procedural, test_mobile_parsers,
+         test_mobile_routing, test_truncation, test_runtime_edges,
+         test_event_semantics]
 
 
 def main():

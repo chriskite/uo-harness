@@ -9,12 +9,11 @@ C2S is a first-class input: walks dead-reckon the player's position, entity
 queries feed the census (salience), and the login-time self-status query
 establishes the player's serial (see _adopt_self_serial).
 
-Identity guards: 0x20 UpdatePlayer and 0x1B LoginConfirm only ever carry the
-player serial, so a mismatch against the known self serial means the packet
-was mis-framed out of the 0x00-family world-data stream (docs/WORLDMODEL.md
-§6/Open Question #1 — naive top-level framing chops that record stream and
-record content can surface under covered ids). Mismatches are counted in
-`anomalies` and ignored, mirroring the client's own no-op behavior.
+Identity: 0x1B LoginConfirm names the player serial (the C2S login-burst
+query adopts it earlier in replay order; a disagreeing 0x1B is counted in
+`anomalies`). 0x20 MobileUpdate and 0x77 MobileMove carry ANY mobile (the
+client's handlers look non-self serials up in the mobile table), so they
+update self only when the serial matches and otherwise upsert a mobile.
 """
 import collections
 
@@ -24,10 +23,6 @@ from .state import StateStore, GumpState
 # direction constants
 C2S = "c2s"
 S2C = "s2c"
-
-# doc §6: the 0x00-family carries the (unparsed) world-data record stream.
-# Registered as known-but-unparsed so they don't count as unhandled ids.
-WORLD_DATA_S2C = {0x00, 0x3F, 0x40, 0x52}
 
 # UO direction deltas: 0=N 1=NE 2=E 3=SE 4=S 5=SW 6=W 7=NW
 _DELTAS = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
@@ -65,8 +60,6 @@ class WorldRuntime:
             return
         pid = payload[0]
         self.packet_counts[(direction, pid)] += 1
-        if direction == S2C and pid in WORLD_DATA_S2C:
-            return  # known world-data carrier, grammar open (doc §6)
         handler = (_C2S_HANDLERS if direction == C2S
                    else _S2C_HANDLERS).get(pid)
         if handler is None:
@@ -137,20 +130,61 @@ def _h_warmode(rt, f):
     rt.state.self.warmode = f["flag"] != 0
 
 
-def _h_update_player(rt, f):
-    s = rt.state.self
-    if s.serial is None:
-        s.serial = f["serial"]  # doc §1: only ever carries the player serial
-    elif s.serial != f["serial"]:
-        rt.anomalies["update_player_mismatch"] += 1
-        return
+def _set_self_position(s, f):
     s.x, s.y, s.z = f["x"], f["y"], f["z"]
     s.direction = f["dir"] & 7
     s.position_absolute = True
-    s.stats["graphic"] = f["graphic"]
-    s.stats["hue"] = f["hue"]
-    s.stats["flags"] = f["flags"]
-    s.notoriety = f["notoriety"]
+
+
+def _h_update_player(rt, f):
+    """0x20: self when the serial matches, otherwise a nearby mobile."""
+    s = rt.state.self
+    if s.serial == f["serial"]:
+        _set_self_position(s, f)
+        s.stats["graphic"] = f["graphic"]
+        s.stats["hue"] = f["hue"]
+        s.stats["flags"] = f["flags"]
+        s.notoriety = f["notoriety"]
+        return
+    rt.state.upsert_mobile(f["serial"], graphic=f["graphic"], hue=f["hue"],
+                           flags=f["flags"], notoriety=f["notoriety"],
+                           x=f["x"], y=f["y"], z=f["z"],
+                           direction=f["dir"] & 7)
+
+
+def _h_mobile_move(rt, f):
+    """0x77: position/direction update for self or a nearby mobile."""
+    s = rt.state.self
+    if s.serial == f["serial"]:
+        _set_self_position(s, f)
+    else:
+        rt.state.upsert_mobile(f["serial"], x=f["x"], y=f["y"], z=f["z"],
+                               direction=f["dir"] & 7)
+
+
+def _h_mobile_equip(rt, f):
+    """0x78: a mobile's equipment list (items parented to the mobile)."""
+    if rt.state.self.serial != f["serial"]:
+        rt.state.upsert_mobile(f["serial"])
+    for e in f["equipment"]:
+        rt.state.upsert_item(e["serial"], graphic=e["graphic"],
+                             layer=e["layer"], hue=e["hue"], v12=e["v12"],
+                             container=f["serial"])
+
+
+def _h_talk(rt, f):
+    """0x1C / 0xAE: speech or system text heard by the client."""
+    rt._emit("speech_heard", serial=f["serial"], name=f["name"],
+             type=f["type"], hue=f["hue"], text=f["text"])
+
+
+def _h_update_name(rt, f):
+    rt.state.apply_names([{"serial": f["serial"], "name": f["name"]}])
+
+
+def _h_character_list(rt, f):
+    rt.state.characters = [n for n in f["names"] if n]
+    rt._emit("character_list", names=rt.state.characters)
 
 
 def _h_update_item_sa(rt, f):
@@ -222,6 +256,9 @@ def _h_login_confirm(rt, f):
         s.serial = f["serial"]
     elif s.serial != f["serial"]:
         rt.anomalies["login_confirm_mismatch"] += 1
+        return
+    _set_self_position(s, f)
+    s.stats["graphic"] = f["graphic"]
 
 
 def _h_character_status(rt, f):
@@ -419,6 +456,12 @@ _S2C_HANDLERS = {
     0xB0: _gump_open,
     0xDD: _gump_open,
     0xFF: _h_dialect_s2c,
+    0x77: _h_mobile_move,
+    0x78: _h_mobile_equip,
+    0x1C: _h_talk,
+    0xAE: _h_talk,
+    0x98: _h_update_name,
+    0xA9: _h_character_list,
 }
 
 _C2S_HANDLERS = {

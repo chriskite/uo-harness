@@ -61,12 +61,6 @@ TABLE = build_table()
 # (id + uint16BE length + name + JWT), not the standard fixed-65 GameLogin.
 C2S_OVERRIDES: dict[int, int] = {0x91: -1}
 
-# Outlands S2C overrides: discovered by desync-search on the 2026-09-28
-# capture (discover_s2c_lengths.py); validated by clean end-to-end framing
-# and sensible login-sequence semantics (world dump -> 0x1B LoginConfirm).
-# Watch for desyncs on future captures to catch wrong guesses/protocol drift.
-S2C_OVERRIDES: dict[int, int] = {0x6F: 59, 0xFF: 16, 0x49: 14}
-
 
 def packet_length(buf: bytes | bytearray, table: list[int] = TABLE,
                   overrides: dict[int, int] | None = None) -> int:

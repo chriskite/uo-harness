@@ -16,8 +16,8 @@ stream is XORed with prelude byte 11 before Huffman (client: `ProcessRecv @
 0x140145600`). The prelude is 13 bytes, not 19. Old decodes produced garbage that docs called a
 "custom dialect". Corrected decoder: `harness/uo/s2c.py`; 53 277/53 277 packets frame
 exactly across all captures. The content is standard UO. See docs/CIPHER.md §4. The world
-model + replay + WORLDSTATE/PROTOCOL/WORLDMODEL docs were built on garbage and are
-being migrated (see git log / docs for status).
+model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 parse failures;
+9 parser layouts fixed; docs/WORLDMODEL.md, PROTOCOL.md corrected; WORLDSTATE.md superseded).
 
 **Movement (real S2C, docs/MOVEMENT.md "▶ Current model"):**
 - Walk = `02 <dir|run> <seq> <key u32be>`. Token = the latest `BF 0001` seed

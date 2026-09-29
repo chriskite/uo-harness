@@ -2,17 +2,21 @@
 
 Declarative packets are walked from the field tables in layouts.py. The
 procedural parsers hand-code the layouts that are inherently non-tabular:
-count-driven (0x3A, 0x3C, 0x89, 0x16/0x17, sub-0x15), bit-flag-driven (0x1A),
-type-gated (0x11), layout-text (0xB0, 0xDD), and the 0xFF dialect dispatch.
+count-driven (0x3A, 0x3C, 0x89, 0x16/0x17, 0xA9, sub-0x15), list-driven
+(0x78), bit-flag-driven (0x1A), type-gated (0x11), text (0x1C, 0xAE),
+layout-text (0xB0, 0xDD), and the 0xFF dialect dispatch.
 
 Every parser is bounds-checked: a short buffer raises PacketIncomplete (the
 runtime counts it and moves on — a truncated packet is never fatal). Declared
 length prefixes are not trusted for reads; the actual buffer bounds govern.
+Where the client's own reader tolerates a short packet (its cursor returns 0
+past the end) and real servers send the short form, the parser mirrors that
+(0x11 trailing blocks, 0x3A list end).
 
-Text-length conventions (neither appears in the captures; doc gives no
-semantics — chosen to match upstream reader idioms, flagged here):
-  0xB0 text lines: u16be byte count, UTF-16BE text.
-  0xDD text lines: u16be code-unit count, UTF-16LE text (doc §4 says UTF-16LE).
+Text-length conventions:
+  0xB0 text lines: u16be byte count, UTF-16BE text (no capture sample yet).
+  0xDD text lines: u16be code-unit count, UTF-16BE text (upstream
+  CompressedGump; 77 real packets across the captures decode cleanly).
   0xB1 text entries: u16be byte count INCLUDING its own 2 bytes (standard UO),
   UTF-16BE text.
 """
@@ -60,12 +64,19 @@ class _Reader:
     def u32(self):
         return int.from_bytes(self.take(4), "big")
 
+    def i32(self):
+        return int.from_bytes(self.take(4), "big", signed=True)
+
     def u64(self):
         return int.from_bytes(self.take(8), "big")
 
-    def f32le(self):
-        # Outlands dialect embeds little-endian float32 (doc §conventions)
-        return struct.unpack("<f", self.take(4))[0]
+    def f32(self):
+        # dialect floats decode big-endian on the wire (0xFF sub 8 timer
+        # seconds 40400000 = 3.0, 41166666 = 9.4 in real captures)
+        return struct.unpack(">f", self.take(4))[0]
+
+    def remaining(self):
+        return len(self.b) - self.p
 
     def asciiz(self):
         end = self.b.find(b"\x00", self.p)
@@ -104,6 +115,8 @@ def read_layout(layout, pkt):
             out[name] = int.from_bytes(r.take(2), "little")
         elif ftype == "u32be":
             out[name] = _Reader(pkt, off).u32()
+        elif ftype == "i32be":
+            out[name] = _Reader(pkt, off).i32()
         elif ftype == "u32le":
             r = _Reader(pkt, off)
             out[name] = int.from_bytes(r.take(4), "little")
@@ -182,10 +195,15 @@ def _p_character_status(pkt):
             d["luck"] = r.u16()
             d["damage_min"] = r.u16()
             d["damage_max"] = r.u16()
-            d["tithing"] = r.u32()
+            # Real servers send type-5 packets both with (91 B) and without
+            # (87 B, e.g. session_20260928_141253) the tithing u32; the
+            # client's cursor reads 0 past the end, so it is optional here.
+            if r.remaining() >= 4:
+                d["tithing"] = r.u32()
         if t >= 6:
+            # each read bounds-guarded in the client (Position+2 > Length -> 0)
             for i in range(15):
-                d[f"extra_{i}"] = r.u16()
+                d[f"extra_{i}"] = r.u16() if r.remaining() >= 2 else 0
     return d
 
 
@@ -206,6 +224,8 @@ def _p_skills(pkt):
     skills = []
     while r.p < len(pkt):
         sid = r.u16()
+        if r.p >= len(pkt):
+            break  # trailing u16 0 terminator (upstream: id read at end)
         if t == 0 and sid == 0:
             break  # full-list terminator
         e = {"id": sid - 1 if t in (0, 2) else sid,
@@ -313,10 +333,13 @@ def _p_open_gump(pkt):
 
 
 def _p_compressed_gump(pkt):
-    """0xDD CompressedGump — two zlib blocks (doc §4).
+    """0xDD CompressedGump — zlib layout block + optional zlib lines block.
 
-    Each compressed length prefix includes its own 4 bytes (same convention
-    the doc states for the layout block; assumed symmetric for the text block).
+    Upstream CompressedGump, proven on all 77 real 0xDD packets: each
+    compressed length prefix counts the following decompressed-length u32
+    (so the zlib data is clen-4 bytes); the lines block is preceded by a u32
+    line count and omitted when that count is 0; each line is a u16be
+    code-unit count + UTF-16BE text. Real packets end with 4 zero bytes.
     """
     r = _Reader(pkt)
     r.take(1)
@@ -330,18 +353,85 @@ def _p_compressed_gump(pkt):
     except zlib.error as exc:
         raise PacketIncomplete(f"bad gump layout zlib block: {exc}") from exc
     d["layout"] = raw.decode("ascii", "replace")
-    clen2 = r.u32()
-    r.u32()
-    try:
-        raw2 = zlib.decompress(r.take(clen2 - 4))
-    except zlib.error as exc:
-        raise PacketIncomplete(f"bad gump lines zlib block: {exc}") from exc
-    rr = _Reader(raw2)
     lines = []
-    for _ in range(rr.u16()):
-        lines.append(rr.take(rr.u16() * 2).decode("utf-16-le", "replace"))
+    nlines = r.u32()
+    if nlines:
+        clen2 = r.u32()
+        r.u32()
+        try:
+            raw2 = zlib.decompress(r.take(clen2 - 4))
+        except zlib.error as exc:
+            raise PacketIncomplete(f"bad gump lines zlib block: {exc}") from exc
+        rr = _Reader(raw2)
+        for _ in range(nlines):
+            lines.append(rr.take(rr.u16() * 2).decode("utf-16-be", "replace"))
     d["lines"] = lines
     return d
+
+
+def _p_mobile_equip(pkt):
+    """0x78 MobileEquip (V12 form of MobileIncoming, decomp MobileEquip
+    @ 0x140190e20): serial u32be @3, then records until a 0 item serial:
+    item serial u32be, graphic u32be, layer u8, hue u16be, V12 u32be tail.
+    No graphic/position/notoriety fields (those arrive via 0x20). All 597
+    real 0x78 packets consume exactly under this grammar."""
+    r = _Reader(pkt)
+    r.take(1)
+    r.u16()
+    d = {"serial": r.u32(), "equipment": []}
+    while True:
+        item = r.u32()
+        if item == 0:
+            break
+        d["equipment"].append({"serial": item, "graphic": r.u32(),
+                               "layer": r.u8(), "hue": r.u16(),
+                               "v12": r.u32()})
+    return d
+
+
+def _p_talk(pkt):
+    """0x1C Talk (ASCII): serial, graphic u16, type, hue, font, name[30],
+    NUL-terminated ASCII text — upstream layout, unchanged in Outlands."""
+    r = _Reader(pkt)
+    r.take(1)
+    r.u16()
+    d = {"serial": r.u32(), "graphic": r.u16(), "type": r.u8(),
+         "hue": r.u16(), "font": r.u16(), "name": _ascii(r.take(30))}
+    d["text"] = _ascii(r.take(r.remaining())).split("\x00", 1)[0]
+    return d
+
+
+def _p_unicode_talk(pkt):
+    """0xAE UnicodeTalk: serial, graphic u16, type, hue, font, lang[4],
+    name[30], NUL-terminated UTF-16BE text — upstream layout."""
+    r = _Reader(pkt)
+    r.take(1)
+    r.u16()
+    d = {"serial": r.u32(), "graphic": r.u16(), "type": r.u8(),
+         "hue": r.u16(), "font": r.u16(), "lang": _ascii(r.take(4)),
+         "name": _ascii(r.take(30))}
+    raw = r.take(r.remaining() & ~1)
+    d["text"] = raw.decode("utf-16-be", "replace").split("\x00", 1)[0]
+    return d
+
+
+def _p_character_list(pkt):
+    """0xA9 CharacterList (Outlands): u8 slot count @3, then count x
+    ascii[30] names — no password field (5 slots x 30 B + 4 = 154 of the
+    161-byte real packet). The 7-byte tail (`00 00000008 ffff` in every
+    capture) is left unparsed."""
+    r = _Reader(pkt)
+    r.take(1)
+    r.u16()
+    return {"names": [_ascii(r.take(30)) for _ in range(r.u8())]}
+
+
+def _p_update_name(pkt):
+    """0x98 UpdateName (S2C, 37 B): serial u32be @3, name ascii[30] @7."""
+    r = _Reader(pkt)
+    r.take(1)
+    r.u16()
+    return {"serial": r.u32(), "name": _ascii(r.take(30))}
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +439,13 @@ def _p_compressed_gump(pkt):
 # ---------------------------------------------------------------------------
 
 def _p_buff_update(r, d):
-    """0xFF sub 8 S2C OutlandsBuffUpdate (doc §5)."""
+    """0xFF sub 8 S2C OutlandsBuffUpdate (decomp @ 0x14019a600).
+
+    Timer records are 12 bytes on the wire (f32 seconds + u64 end): the
+    decomp's 16-byte stride is the in-memory struct, not the wire. Proven on
+    all 121 real sub-8 packets (lengths 144/129/78/57 all consume exactly,
+    titles read as text: "Stationary Penalty", or "" + cliloc 1015176).
+    """
     d["serial"] = r.u32()
     d["icon_id"] = r.i16()
     d["f1"] = r.u16()
@@ -358,7 +454,7 @@ def _p_buff_update(r, d):
     d["f4"] = r.i16()
     timers = []
     for _ in range(r.i16()):
-        timers.append({"seconds": r.f32le(), "end": r.u64(), "aux": r.u32()})
+        timers.append({"seconds": r.f32(), "end": r.u64()})
     d["timers"] = timers
     d["timestamp"] = r.u64()
     d["title"] = r.asciiz()
@@ -367,7 +463,7 @@ def _p_buff_update(r, d):
     d["description"] = r.asciiz()
     d["category"] = r.i16()
     d["mode"] = r.i16()
-    d["scalar"] = r.f32le()
+    d["scalar"] = r.f32()
     return d
 
 
@@ -389,7 +485,8 @@ def _p_dialect(direction, pkt):
     sub = r.u32()
     d = {"sub": sub}
     if direction == "s2c":
-        if sub == 0:  # session handshake (the 19-byte prelude is one frame)
+        if sub == 0:  # session handshake (the 13-byte prelude is one frame;
+            # flag1/flag2 = the S2C/C2S XOR keys, see uo/s2c.py)
             d["version"] = r.u32()
             d["flag1"] = r.u8()
             d["flag2"] = r.u8()
@@ -473,6 +570,11 @@ _PROC_S2C = {
     0x17: _p_healthbar,
     0xB0: _p_open_gump,
     0xDD: _p_compressed_gump,
+    0x78: _p_mobile_equip,
+    0x1C: _p_talk,
+    0xAE: _p_unicode_talk,
+    0xA9: _p_character_list,
+    0x98: _p_update_name,
 }
 
 _PROC_C2S = {

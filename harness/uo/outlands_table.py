@@ -1,9 +1,18 @@
-"""Authoritative Outlands packet length table.
+"""Authoritative Outlands S2C packet length table.
 
 Base tier (145 entries) extracted from the client's own static table initializer
 (FUN_1401a13c0, decompiled — Add(dict, id, len) calls; later duplicates win).
-EXTRA entries resolved from wire captures (repeat-spacing / clean-framing evidence).
 Everything not listed here is variable-length (uint16 BE at bytes 1-2).
+
+Verified 2026-09-29 against the correctly decoded captures (uo/s2c.py: XOR
+s2c_key + per-packet Huffman, one flush segment == one packet): all 53,277
+S2C packets across the 18 logs/session_*.s2c.raw captures have exactly the
+length this table assigns.
+
+There are no wire-derived extras any more. The former EXTRA entries
+(0x00=106, 0x6F=76, 0x9E=65, 0xDC=15) came from framing the old garbage
+decode (Huffman started at byte 19 without the XOR layer); none of those ids
+occurs in any correctly decoded capture, so they were removed.
 
 Source of truth for updates: docs/PROTOCOL.md + decompiled/xref_add_fn.c.
 """
@@ -16,22 +25,12 @@ with open(_base_path, encoding="utf-8") as _f:
 
 OUTLANDS_BASE: dict[int, int] = {int(k, 16): v for k, v in _raw.items()}
 
-# Wire-proven fixed lengths absent from the client-side dict (tier-dict packets).
-EXTRA: dict[int, int] = {
-    0x00: 106,  # recurring world-data record family (clean-run proven on two streams)
-    0x6F: 76,   # repeat-spacing evidence (270->346) + clean continuation
-    0x9E: 65,   # continuation-validated (lands on 0x00-family + valid var-len packets)
-    0xDC: 15,   # wire-proven 15 (tier-dict overrides static table's 9; session 164548
-                # frames 45515/46227 with it, desyncs at 31216 with the table value)
-}
-
 
 def outlands_length(buf, off=0):
     """Packet length at buf[off] under the authoritative table, or 0/-1 as packet_length()."""
     if off >= len(buf):
         return 0
-    pid = buf[off]
-    fixed = EXTRA.get(pid, OUTLANDS_BASE.get(pid))
+    fixed = OUTLANDS_BASE.get(buf[off])
     if fixed is not None and fixed > 0:
         return fixed if off + fixed <= len(buf) else 0
     if off + 3 > len(buf):

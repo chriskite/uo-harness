@@ -26,14 +26,18 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import actions
 import replay as replay_mod
 from uo.packets import packet_length, C2S_OVERRIDES
+from uo.s2c import PRELUDE_LEN, encode_packet
 from world.runtime import C2S
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PY = sys.executable
 C2S_RAW = open(f"{ROOT}/logs/session_20260928_141253.c2s.raw", "rb").read()
 S2C_RAW = open(f"{ROOT}/logs/session_20260928_141253.s2c.raw", "rb").read()
-SESSION_KEY = S2C_RAW[12]  # prelude byte 12 (0x07 in this capture)
-PRELUDE = S2C_RAW[:19]
+SESSION_KEY = S2C_RAW[12]  # prelude byte 12: C2S key (0x07 in this capture)
+# real 13-byte prelude + the login fastwalk seed (token 8) the server sends at
+# login; the proxy arms the walk token from it (docs/MOVEMENT.md)
+PRELUDE = S2C_RAW[:PRELUDE_LEN] + encode_packet(
+    bytes.fromhex("bf001d0001 00000008") + bytes(20), S2C_RAW[11])
 
 PROXY_PORT = 12595
 UPSTREAM_PORT = 12596
@@ -269,19 +273,19 @@ async def injection_test():
             if reply != b"OK":
                 check(f"inject {p.hex()} accepted", False, reply)
         check("all 8 injections accepted", True)
-        # a second agent walk in the same movement cycle is gated (its server
-        # confirm would lock the client's walker) and never relayed
+        # an immediate second agent walk violates step pacing (0.2 s run) and
+        # is refused, never relayed
         reply = await ctl_inject(actions.walk(6, run=True))
-        check("second agent walk in cycle gated",
-              reply.startswith(b"ERR walk gated"), reply)
+        check("immediate second agent walk refused by pacing",
+              reply.startswith(b"ERR walk gated: pacing"), reply)
 
         # ordering probe: real client keepalive interleaved after injections
         keepalive_plain = bytes.fromhex("ff000700000003")
         game_writer.write(bytes(b ^ SESSION_KEY for b in keepalive_plain))
         await game_writer.drain()
         await asyncio.sleep(0.5)
-        # the proxy's MoveAuthority stamps the login cycle token (8) into the
-        # first walk of the session; everything else relays byte-for-byte
+        # the proxy's MoveAuthority stamps the seed token (8) into the first
+        # walk of the session; everything else relays byte-for-byte
         relayed = [payloads[0][:3] + (8).to_bytes(4, "big")] + payloads[1:]
         expected = b"".join(
             bytes(b ^ SESSION_KEY for b in p) for p in relayed

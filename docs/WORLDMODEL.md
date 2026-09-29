@@ -4,7 +4,14 @@ Authoritative field-layout reference extracted from the decompiled client handle
 `decompiled/protocol_handlers.c`, cross-referenced against the upstream sources
 (`ClassicUO-main/src/ClassicUO.Client/Network/PacketHandlers.cs`,
 `Razor-master/Razor/Network/Handlers.cs`) and the authoritative length tables
-(`outlands_packet_table.json` base tier + `harness/uo/outlands_table.py` EXTRA).
+(`outlands_packet_table.json` base tier via `harness/uo/outlands_table.py`).
+
+> **Wire validation (2026-09-29).** Every layout below that the harness parses was
+> re-checked against the *correctly* decoded captures (`harness/uo/s2c.py`: prelude
+> keys, XOR, per-packet Huffman — docs/CIPHER.md §4). Earlier wire evidence in this
+> file came from the broken decode (no XOR, Huffman from byte 19) and has been
+> replaced. Real-packet fixtures live in `harness/test_world_units.py`; every S2C
+> packet of all 18 captures parses with 0 failures (`harness/test_world_replay.py`).
 
 ## Conventions and reading the evidence
 
@@ -36,9 +43,9 @@ Authoritative field-layout reference extracted from the decompiled client handle
   - **unknown** — bytes consumed/skipped by length but semantics unresolved.
 - `asciiz` = NUL-terminated ASCII (`FUN_1401a5ae0(param_1, sb, -1, 1, 0)`);
   `ascii[N]` = fixed-width ASCII (same call with explicit length).
-- Exception to BE rule: the Outlands custom dialect embeds **little-endian float32**
-  fields (read via `FUN_1407f4200`, a `MemoryMarshal.Read<float>`-style helper with no
-  byte swap). Flagged per-field.
+- Dialect float32 fields are read via `FUN_1407f4200`. This was earlier assumed to be a
+  no-swap little-endian read; the real wire values decode only as **big-endian**
+  (0xFF sub 8: `40400000` = 3.0 s), so all fields here are BE, floats included.
 
 ## Outlands length deltas vs upstream (priority set)
 
@@ -60,8 +67,8 @@ Authoritative field-layout reference extracted from the decompiled client handle
 | 0x1D DeleteObject | 5 | 5 | — |
 | 0xF3 SAWorldItem | 26 | 38 | +12 (V10/V11/V12) |
 
-Variable-length (not in base table): 0x11, 0x16, 0x17, 0x1A, 0x3A, 0x3B, 0x3C, 0x89,
-0xB0, 0xBF, 0xD6, 0xDD, plus the dialect/world-data ids 0xFF, 0x3F, 0x52 (§5–§6).
+Variable-length (not in base table): 0x11, 0x16, 0x17, 0x1A, 0x3A, 0x3B, 0x3C, 0x78,
+0x89, 0x98, 0xA9, 0xAE, 0xB0, 0xBF, 0xD6, 0xDD, and the dialect carrier 0xFF (§5).
 
 ---
 
@@ -108,6 +115,12 @@ corroborated by `Assistant.PacketHandlers.MobileStatus` @ 0x140063250 (Razor 0x1
 
 Offsets 44+ assume type ≥ 5 (i.e. 44 = 43+1; the absolute offsets shift if type==0).
 The decompiled walk matches upstream field-for-field; no Outlands-specific fields.
+**Wire (2026-09-29):** the self status arrives as type 5 in two sizes: 91 B (with
+TithingPoints) and **87 B — ends after DamageMax, no TithingPoints**
+(session_20260928_141253). The client's cursor reads 0 past the end, so the harness
+treats TithingPoints (like the type-6 block) as optional. Real self values: hits
+80/80, str 80, dex 15, int 65, weight 58/570, followers 0/5, damage 2–8. Other
+mobiles arrive as type 0 (43 B, name + hits only).
 Razor's `MobileStatus` reads the identical sequence (serial, name[30], hits pair, flag
 byte, str/dex/int, stam/mana pairs, gold u32, armor i16, weight, …).
 
@@ -127,7 +140,17 @@ Handlers: `ClassicUO.Network.PacketHandlers.MobileUpdate` @ 0x1401888a0 (legacy 
 dispatches to V10 when version > 9) and `MobileUpdateV10` @ 0x140188d10.
 Corroborated by `Assistant.PacketHandlers.MobileUpdate` @ 0x140063af0 (same
 version-gated two-variant structure).
-Only ever carries the player serial (handler no-ops for other serials).
+**Carries any mobile, not only the player.** The V10 handler compares the serial with
+the player's and otherwise looks the mobile up (`FUN_140215150`) and updates it; real
+captures send 0x20 for NPCs (e.g. serial 0x1E3 "Jake the barkeep", notoriety 7).
+(Earlier text here said "only ever carries the player serial" — wrong.)
+
+Real self sample (session_20260929_144541):
+`20 00094375 00000190 01 83ea 20 000007ab 00000a25 0000 80 00000000` → body 0x190,
+notoriety 1, hue 0x83EA, flags 0x20, x 0x7AB, y 0xA25, dir 0 + running bit 0x80, z 0.
+Byte 9 is stored to mobile +0xC1, the same slot 0xDEAD CorpseFlags writes as
+notoriety; values seen: 1 (self), 7 (vendors). z values seen: 0..41 (read as a
+32-bit int; the harness treats it as signed).
 
 **V10 layout (live, 28 B):**
 
@@ -157,6 +180,42 @@ Handlers: CUO `ConfirmWalk` @ 0x1401894e0; `Assistant.PacketHandlers.ConfirmWalk
 | 1 | 1 | u8 | walk sequence | upstream |
 | 2 | 1 | u8 | notoriety (`& 0xbf`; 0 or >7 coerced to 1) | upstream |
 
+Wire: `22 <seq> 01` — on sessions without harness-injected walks every C2S 0x02 gets
+exactly one 0x22 (141253: 84/84, 164548: 165/165, 20260929_144541: 33/33).
+
+### 0x1B LoginConfirm — S2C, fixed 43
+Handler: `Assistant.PacketHandlers.LoginConfirm` @ 0x1400627a0 (V10 branch; the CUO
+handler slot 0x1B is `CreateGameScene`).
+
+| Off | Size | Type | Field | Confidence |
+|-----|------|------|-------|------------|
+| 1 | 4 | u32be | player serial | upstream + wire |
+| 5 | 4 | u32be | unread (0 on the wire) | decomp |
+| 9 | 4 | u32be | body/graphic (V10; legacy u16) | decomp + wire |
+| 13 | 4 | i32be | x | decomp + wire |
+| 17 | 4 | i32be | y | decomp + wire |
+| 21 | 4 | i32be | z | decomp + wire |
+| 25 | 1 | u8 | direction (+ 0x80 flag) | decomp + wire |
+| 26 | 17 | | not read by the Assistant handler (`00 ffffffff 00000000 2a00 1800 00000000` on the wire; upstream has map width/height here) | unknown |
+
+Real (session_20260929_144541): `1b 00094375 00000000 00000190 000007ab 00000a25
+00000000 80 …` → serial 0x00094375, body 0x190, login position (0x7AB, 0xA25, 0).
+
+### 0x77 MobileMove — S2C, fixed 18 (V10; upstream 17 with a different layout)
+Handler: CUO `MobileMoveV10` @ 0x1401901f0 (reads u32, u32, u32, u32, u8).
+Self when the serial is the player's, otherwise a nearby mobile.
+
+| Off | Size | Type | Field | Confidence |
+|-----|------|------|-------|------------|
+| 1 | 4 | u32be | serial | decomp + wire |
+| 5 | 4 | u32be | x | decomp + wire |
+| 9 | 4 | u32be | y | decomp + wire |
+| 13 | 4 | i32be | z | decomp + wire |
+| 17 | 1 | u8 | direction (`& 7`), bit 0x80 = running (stored +0x16e) | decomp + wire |
+
+No graphic/hue/flags/notoriety (upstream 0x77 has them). Real:
+`77 00094375 000007ab 00000a25 00000000 80`. The most frequent S2C id (7 423 packets).
+
 ### 0x21 DenyWalk — S2C, fixed 15 (V10+; legacy 8)
 Handler: CUO `DenyWalk` @ 0x140189200.
 
@@ -182,6 +241,11 @@ Handlers: CUO `UpdateSkills` @ 0x14018b660; corroborated by
 | 3 | 1 | u8 | type: 0=full (caps absent), 1/3=full with caps, 2=single no-cap?, 0xFF=single update, 0xDF=single with cap, 0xFE=skill-name table | upstream |
 | 4 | … | | **type 0xFE**: u16be count, then count × (i8 haveButton, u8 nameLen, ascii[nameLen]) — rebuilds the skill list (Outlands custom skills use this) | upstream |
 | 4 | … | | **other types**, repeating until end: u16be id (0 ends when type==0; id decremented for types 0/2), u16be value (fixed-point ×10), u16be base (×10), u8 lock, [u16be cap — present iff type ∈ {1,2,3,0xDF}] | upstream |
+
+Wire: the login skill list is **type 2** (full list with caps, 54 × 9-byte records)
+terminated by a trailing u16 `0000` read as an id at end-of-packet (upstream stops when
+the cursor reaches the end after the id read). Single updates are type 0xDF (13 B,
+id not decremented).
 
 ### 0x2D MobileAttributes — S2C, fixed 17
 Handlers: CUO `MobileAttributes` @ 0x14018ae40; corroborated by
@@ -256,6 +320,34 @@ Handler: CUO `DeleteObject` @ 0x1401884e0 (Assistant `RemoveObject` @ 0x14006451
 | Off | Size | Type | Field | Confidence |
 |-----|------|------|-------|------------|
 | 1 | 4 | u32be | serial to delete | upstream |
+
+### 0x78 MobileEquip (V12 MobileIncoming) — S2C, variable length
+Handlers: CUO `MobileDraw` @ 0x1401905e0 delegates to `MobileEquip` @ 0x140190e20 when
+the protocol version > 9. **No graphic/position/notoriety fields** (those come via
+0x20); only the equipment list.
+
+| Off | Size | Type | Field | Confidence |
+|-----|------|------|-------|------------|
+| 1 | 2 | u16be | packet length | upstream |
+| 3 | 4 | u32be | mobile serial | decomp + wire |
+| 7 | 15×n | | records until an item serial of 0: u32be item serial, u32be graphic, u8 layer, u16be hue, u32be V12 tail (version ≥ 12; u8 before) | decomp + wire |
+| — | 4 | u32be | 0 terminator | decomp + wire |
+
+All 597 real 0x78 packets consume exactly. Real: `78 001a 000001e9 | 40001177 0000152e
+18 0420 00000020 | 00000000`. The V12 tail matches 0x2E bytes 9–12 for the same item
+(0x200 backpack, 0x20 worn items).
+
+### 0x1C Talk / 0xAE UnicodeTalk / 0x98 UpdateName / 0xA9 CharacterList — S2C
+Standard upstream layouts, confirmed on the wire:
+- **0x1C**: serial u32 @3, graphic u16 @7, type u8 @9, hue u16 @10, font u16 @12,
+  name ascii[30] @14, NUL-terminated ASCII text @44 (NPC labels "Jake the barkeep",
+  system text).
+- **0xAE**: same head, lang ascii[4] @14, name ascii[30] @18, NUL-terminated UTF-16BE
+  text @48 (`Welcome TestWorth!`, own speech "howdy").
+- **0x98** (37 B, variable-length id): serial u32 @3, name ascii[30] @7.
+- **0xA9**: slot count u8 @3, then count × ascii[30] names — **no password field**
+  (5 × 30 + 4 = 154 of 161 B); 7-byte tail `00 00000008 ffff` unparsed (upstream:
+  city count + flags). Real: 5 slots, "TestWorth" + 4 empty.
 
 ### 0xF3 UpdateItemSA / SAWorldItem — S2C, fixed 38 (V12)
 Handler: CUO `UpdateItemSA` @ 0x140199860; corroborated by
@@ -411,9 +503,14 @@ Handler: CUO `OpenCompressedGump` @ 0x140197520; corroborated by
 | 19 | 4 | u32be | compressed layout length (includes its own 4 bytes; `len-4` data follows) | upstream |
 | 23 | 4 | u32be | decompressed layout length | upstream |
 | 27 | … | u8[] | zlib-compressed layout text | upstream |
-| — | 4 | u32be | compressed text-lines length | upstream |
-| — | 4 | u32be | decompressed text-lines length | upstream |
-| — | … | u8[] | zlib block: u16be line count, then count × (u16be len + UTF-16LE text) | upstream |
+| — | 4 | u32be | text line count (0 → no text block follows) | upstream + wire |
+| — | 4 | u32be | compressed text-lines length (includes the following 4 bytes) | upstream + wire |
+| — | 4 | u32be | decompressed text-lines length | upstream + wire |
+| — | … | u8[] | zlib block: count × (u16be char count + UTF-16**BE** text) | upstream + wire |
+
+Wire: all 77 real 0xDD packets parse under this layout and end with 4 zero bytes
+(e.g. lines "Guide", "Aspect Mastery", "Charges"). An earlier version of this table
+omitted the line-count u32 and said UTF-16LE — both wrong.
 
 ### 0xB0 OpenGump / SendGump (+ CreateGump builder) — S2C, variable length
 Handlers: CUO `OpenGump` @ 0x1401942a0; Assistant `SendGump` @ 0x140065680
@@ -445,40 +542,33 @@ Handler: CUO `CloseVendorInterface` @ 0x14018c2d0.
 
 ## 5. Outlands custom dialect
 
-> ### Verification addendum (2026-09-28, post-extraction)
+> ### Verification (2026-09-29, correctly decoded captures)
 >
-> 1. **C2S dialect frame CONFIRMED**: `ff <len u16be> <subId u32be> <payload>`. `Send_TimeSyncPingReq` writes id `0xff`, len placeholder, then LE `0x3000000` (= wire bytes `00 00 00 03` = subId 3 BE) → sub 3 = TimeSyncReq, matching the sub-table.
-> 2. **The 19-byte server prelude IS the sub-0 handshake**: `ff 00 0d <subId u32be = 0> <payload>`; payload starts with **protocol version u32be = 0x0000000c (12)** — the client preamble `ef 0000000c` echoes the same version constant. **Protocol version is 12 → the V12 layouts in this document are the active ones.** The remaining prelude bytes carry the session cipher key S (byte 12) and handshake flags; the final 6 bytes (13–18) precede the Huffman stream and are not yet structurally assigned.
-> 3. **No 0xF0 packets appear in either captured session** (idle-town play: dialect subs fire on gameplay events — vendors/spells/buffs/party — not on idle). The 0xF0 outer-id assignment below therefore remains **unproven**; given (1) and (2), the S2C dialect more plausibly rides **0xFF** as well. A dialect-traffic capture (open a vendor, cast a spell, take a buff) will settle both the outer id and the sub-payload layouts.
-> 4. One 117-byte 0xFF packet observed (live @57015) does not parse under the simple frame — batching or a distinct server-side frame; defer to the dialect-traffic capture.
-> 5. **C2S dialect subs CONFIRMED (dialect session 20260928_164548):**
->    - **sub 3** = TimeSyncReq (empty payload) — cadence ~1/s.
->    - **sub 4** = cast spell: `ff 000a <sub=4> <spellId u16be>` (observed 0x0005, 0x000f).
->    - **sub 9** = item/object detail query: `ff 000e <sub=9> 01 00 01 <serial u32be>` — fired on every vendor-item dclick/hover (serials match dclick targets). S2C answer is the 0x00-family record stream below.
-> 6. **Vendor buy**: C2S `3b <len> <vendorSerial u32be> …` observed (vendor serial matches nearby-NPC serial).
-> 7. **S2C 0x00-family (106 B)**: periodic bursts (~1/s) carrying repeating/overlapping world-data sub-records (`00 1b 85 00 dc`, `00 50 85 00 c7`, `00 83 0072 …` patterns recur across packets) — assessed as the live world-state sync stream for the dialect; sub-record layout still open (handler extraction next).
-> 8. One C2S `0x00` 106 B packet contained two back-to-back `ff` dialect packets — possible C2S batching (or a flush-boundary artifact); open.
+> 1. **C2S dialect frame**: `ff <len u16be> <subId u32be> <payload>`. `Send_TimeSyncPingReq` writes id `0xff`, len placeholder, then LE `0x3000000` (= wire bytes `00 00 00 03` = subId 3 BE) → sub 3 = TimeSyncReq.
+> 2. **The 13-byte server prelude IS the sub-0 handshake**: `ff 00 0d | 00000000 | 0000000c | <s2c_key> <c2s_key>` — protocol version 12 (the client preamble `ef 0000000c` echoes it), flag1 = the S2C XOR key, flag2 = the C2S XOR key (docs/CIPHER.md §4). Everything after byte 12 is XOR+Huffman packet data. (Earlier text said "19-byte prelude"; bytes 13–18 are the first compressed packet.)
+> 3. **S2C dialect subs on the wire** (all 18 captures, 37 299 0xFF packets): sub 1 (7 B, 205×), sub 3 (15 B, TimeSync reply, 12 331×), sub 4 (16 B, 4×), sub 5 (7 B, ProcessDeletes, 23 915×), sub 7 (16 B, 28×), sub 8 (buff update, 121×), sub 9 (13 B, remove buff, 16×), sub 0x15 (item names, 44×), sub 0x16 (mobile data, 26 B mostly, 579×), sub 0x1C (50 B, 36×), sub 0x1D (11 B, 18×), sub 0xDEAD (corpse flags, 2×). Subs 0/3/8/9/0x15 parse on every sample.
+> 4. **C2S dialect subs (session 20260928_164548):** sub 3 = TimeSyncReq (empty payload, ~1/s); sub 4 = cast spell `ff 000a <sub=4> 00 <spellId u16be>` (observed 0x0005, 0x000f); sub 9 = item/object detail query `ff 000e <sub=9> 01 0001 <serial u32be>` on vendor-item dclick/hover — answered by S2C sub 0x15 (e.g. `44adb584 "bandage : 100"`).
+> 5. **Vendor buy**: C2S `3b <len> <vendorSerial u32be> …` (vendor serial matches a nearby NPC); S2C 0x74 carries the price/name list.
+> 6. S2C 0xF0 does occur (`f0 000c fe 00000000 07628000`, once per login, 18×) but is not the dialect carrier; payload unparsed.
 >
->
+> The former items about a "0x00-family world-state stream" and an unparsable 117-byte
+> 0xFF packet were artifacts of the broken decode (docs/WORLDSTATE.md).
+
 ### 0xFF OutlandsProtocol / OutlandsServerPacket — dialect carrier, both directions, variable length, u32 sub-id
 
-**Carrier CONFIRMED = 0xFF** (supersedes the v1 0xF0 inference — no 0xF0 S2C packet
-appears in any capture; `RunUOProtocolExtention` @ 0x140066380, the upstream Razor 0xF0
+**Carrier = 0xFF** (`RunUOProtocolExtention` @ 0x140066380, the upstream Razor 0xF0
 handler, is dead code in this build):
 
-- S2C: the 19-byte session prelude is exactly one dialect frame
-  `ff 00 0d | 00000000 | 0000000c 12 e7` = subId 0 handshake (see sub 0 below). The
-  payload matches `OutlandsProtocol` case 0 field-for-field (u32be version + u8 + u8),
-  and `BuildPacketTable(12)` reproduces every observed wire length (0xF3=38, 0x25=27,
-  0x2E=20, 0x20=28, 0x21=15 …). **Protocol version = 12 confirmed on the live server.**
-- C2S: 251 keepalive frames `ff 0007 00000003` (sub 3) plus sub-4/sub-9 frames in
-  session_20260928_164548 (see C2S subsection). Write side proven in
-  `NetClientExt.Send_TimeSyncPingReq` @ 0x14017e940: `GetPacketLength(0xff)` (−1 →
-  variable), stores `*(u32*)buf = 0x03000000` — LE store of bytes `00 00 00 03` =
+- S2C: the 13-byte session prelude is one dialect frame
+  `ff 00 0d | 00000000 | 0000000c 12 e7` (session 164548) = subId 0 handshake (see sub 0
+  below), and `BuildPacketTable(12)` reproduces every wire length (0xF3=38, 0x25=27,
+  0x2E=20, 0x20=28, 0x1B=43, 0x77=18 …). **Protocol version = 12 on the live server.**
+- C2S: keepalive frames `ff 0007 00000003` (sub 3) plus sub-4/sub-9 frames. Write side
+  proven in `NetClientExt.Send_TimeSyncPingReq` @ 0x14017e940: `GetPacketLength(0xff)`
+  (−1 → variable), stores `*(u32*)buf = 0x03000000` — LE store of bytes `00 00 00 03` =
   subId 3 BE on the wire.
-- The CUO-side *registration* of 0xFF → `OutlandsProtocol` is still inferred (the
-  handler-table cctor is not in the decompiled selection), but the content match above
-  leaves no practical doubt.
+- CUO registration: slot 0xFF → `OutlandsProtocol` in the extracted 100-slot handler
+  table (`cuo_handler_table.json`, docs/WORLDSTATE.md §2).
 
 Frame: `FF <len u16be> <subId u32be> <payload…>`. Sub-id space is **per-direction**
 (e.g. sub 9 S2C = RemoveBuff, sub 9 C2S = item-detail query).
@@ -488,7 +578,7 @@ reads subId u32be @3, switches (payload offsets are from payload start = packet 
 
 | SubId | Target | Payload layout |
 |-------|--------|----------------|
-| 0 | handshake (inline) | u32be **protocol version** (=12 live; → the global V10/V11/V12 gate at settings+0x68), u8 flag1 (+0x71; 0x12 observed), u8 flag2 (+0x72; 0xE7 observed — matches the session key logged by the proxy), then `BuildPacketTable(version)` |
+| 0 | handshake (inline) | u32be **protocol version** (=12 live; → the global V10/V11/V12 gate at settings+0x68), u8 flag1 (+0x71 = the S2C XOR key NetClient uses in `ProcessRecv`; 0x12 in session 164548), u8 flag2 (+0x72 = the C2S XOR key; 0xE7), then `BuildPacketTable(version)`. Sent as the cleartext 13-byte prelude |
 | 1 | `NetClientExt.Send_Info` (server polls client info) | none |
 | 2 | inline | u16be type, u32be id; type==1 opens a gump (graphic 0x0a… id) |
 | 3 | `ServerTime.TimeSyncReceived` @ 0x1401240d0 | u64be timestamp (read BE in the dispatcher, passed by value). C2S twin: sub 3 keepalive, empty payload |
@@ -584,13 +674,21 @@ CUO @ 0x14019a600. Payload:
 | 10 | 2 | u16be | field | decomp |
 | 12 | 2 | i16be | field | decomp |
 | 14 | 2 | i16be | timer-list count N | decomp |
-| 16 | 16×N | | per timer: **f32le** seconds, u64be end-timestamp (0 → ∞), u32be aux | decomp |
-| — | 8 | u64be | buff start/end timestamp | decomp |
-| — | … | asciiz | title; **if empty**: u32be cliloc id (looked up instead) | decomp |
-| — | … | asciiz | description text | decomp |
-| — | 2 | i16be | category/type | decomp |
-| — | 2 | i16be | mode (== 5 flips a display flag) | decomp |
-| — | 4 | f32le | scalar (0 → default constant) | decomp |
+| 16 | 12×N | | per timer: f32 seconds, u64be end-timestamp (0 → ∞) | decomp + wire |
+| — | 8 | u64be | buff start/end timestamp | decomp + wire |
+| — | … | asciiz | title; **if empty**: u32be cliloc id (looked up instead) | decomp + wire |
+| — | … | asciiz | description text | decomp + wire |
+| — | 2 | i16be | category/type | decomp + wire |
+| — | 2 | i16be | mode (== 5 flips a display flag) | decomp + wire |
+| — | 4 | f32 | scalar (0 → default constant) | decomp + wire |
+
+**Wire corrections (2026-09-29, 121 real sub-8 packets, all four sizes 144/129/78/57 B
+consume exactly):** a timer is **12 bytes** on the wire — the decomp reads a 4-byte
+float (`FUN_1407f4200`) and a u64; the 16-byte stride is the in-memory list element,
+not a wire u32 "aux" (earlier text). The floats decode as **big-endian** (timer seconds
+`40400000` = 3.0, `41166666` = 9.4, `3d75c28f` = 0.06; as little-endian they are
+denormals). Real title forms: `"Stationary Penalty"` + description, or empty title +
+cliloc 1015176 + `"Armor Rating Increase"`.
 
 #### Sub 9 OutlandsRemoveBuff
 u32be mobile serial, u16be buff/icon id (both BE). decomp.
@@ -653,86 +751,51 @@ captured C2S sub-4 frames byte-for-byte (see C2S subsection above).
 
 ---
 
-## 6. The 0x00-family world-state stream (empirical)
+## 6. Wire validation summary (2026-09-29)
 
-Wire evidence from session_20260928_164548 (Huffman-decoded s2c stream, framed with the
-authoritative length table; the jsonl side-log truncates packet hex at 64 B and
-mis-frames some embedded records — trust the raw-stream framing):
+The former §6 ("the 0x00-family world-state stream") described decode garbage and was
+removed; see docs/WORLDSTATE.md for what went wrong. Replacement evidence, from all 18
+correctly decoded captures (53 277 S2C packets, 0 length-table mismatches):
 
-| ID | Length | Observed | Role |
-|----|--------|----------|------|
-| 0x00 | fixed 106 (EXTRA table, wire-proven) | 18× in ~50 s, ~1/s | periodic world-state sync stream |
-| 0x40 | fixed 201 (base table) | 1× | world-data batch (same record stream) |
-| 0x3F | variable (absent from table) | 1×, len 13155 | large world-data dump (initial load) |
-| 0x52 | variable (absent from table) | 1×, len 30627 | large world-data dump (initial load) |
-
-Evidence that all four carry the **same sub-record stream**: the byte run
-`0f 52 40 33 4c 00 31 c7 61 82 00 18` appears verbatim both at the head of the 0x3F
-payload and inside a 106-byte 0x00 frame; the 201-byte 0x40 frame's payload similarly
-consists of the record motifs below. 0x00 frames chop a continuous record stream —
-records recur across frames with overlapping content (incremental updates).
-
-Recurring sub-record motifs (confidence: **unknown**, pattern-observed; the parser is
-not in the decompiled selection — see Open Questions):
-
-| Motif (hex) | Len | Notes |
-|-------------|-----|-------|
-| `72 40 00 00 ac` | 5 | recurs verbatim across frames (also mis-framed as top-level 0x72 by the jsonl logger) |
-| `90 00 33 00 dc 00 1b 85 00 dc 00 68 00 00` | 16 | recurs verbatim (jsonl mis-framed it as a 19-B "0x90" packet by swallowing the next record's head) |
-| `d4 00 00 83` | 4 | follows the 0x90-motif |
-| `31 00 0f 02 32 17 ca 0e 00 62 00 00 1e 00 83` | 15 | recurs verbatim |
-| `31 c7 01 1c …` / `31 c7 61 82 00 18` | ~10 | carries mobile-range serials 0x31C7011C / 0x31C76182 |
-| `00 50 01 ed 1f 55 …` / `00 50 85 00 c7 28 0a 09 00 23 00` | ~11–12 | record family with varying tails |
-| `00 40 00 6e 6e c9 00 0f 06 00` | 10 | recurs verbatim |
-
-Framing notes validated on this session:
-- 0x5C is **fixed 2** here (`5c 00` followed by a cleanly-framed 0x52 dump; treating
-  0x5C as variable desyncs immediately). This contradicts an earlier pipeline note that
-  needed `EXTRA[0x5C] = -1` — the base table's 0x5C=2 is what frames this session.
-- Genuine S2C top-level ids in the session: 0x82, 0xF6 (BoatMoving, 119 B), 0x02,
-  0x5C, 0x52, 0xBE (AssistVersion, 5 B and 10 B), 0x6A, 0x77 (**18 B** — matches the
-  Outlands-extended base-table length, not upstream 15), 0x29, 0x40, 0xDC (9 B),
-  0x00, 0x32, 0xCA (6 B), 0x1E, 0x72, 0x01. The jsonl's standalone 0x90/0x31/0x72(17 B)
-  entries are mis-frames of 0x00-family record content.
-- Validated v1 layouts against capture: 0x1D DeleteObject `1d 07720024` (serial u32be
-  ✓, 5 B); C2S 0x02 movement unchanged (dir/seq/key: `02 86 00 00000008` — dir 0x86 =
-  dir 6 | running 0x80, seq increments); C2S 0x6C target response stays 19 B standard
-  (observed `6c 00 00052cb9 01 00094375 0000 077c 00 0a24` = type 0, cursorID
-  0x00052CB9, cursorType 1, clicked serial 0x00094375, x 0, y 0x077C, z 0, graphic
-  0x0A24) — the S2C-only extension of 0x6C to 27 B does not affect C2S.
+- Ids 0x00, 0x3F, 0x40, 0x52, 0x6F, 0x9E, 0xDC never occur. The top S2C ids are 0xFF
+  (37 299), 0x77 (7 423), 0x6E (2 571), 0xF3 (903), 0x11 (709), 0x20 (607), 0x78 (597),
+  0x22 (533), 0x1C (524). Full id/length census: docs/PROTOCOL.md.
+- Layout fixes made against real packets: 0x11 (optional TithingPoints), 0x1B (full
+  V10 layout), 0x20 (any mobile, signed z), 0x3A (type-2 end terminator), 0x77 (new),
+  0x78 (new), 0xDD (line-count u32, UTF-16BE), 0xFF sub 8 (12-byte timers, BE floats),
+  0x1C/0xAE/0x98/0xA9 (new, upstream layouts). Unchanged and confirmed by values:
+  0x1D (`1d 000001e8`), 0x22, 0x24, 0x25, 0x2E, 0x3C, 0x6C, 0x6E, 0x72, 0xA1–A3, 0xF3,
+  0x89, 0xFF subs 3/9/0x15.
+- C2S (decode was always correct): 0x02 movement dir/seq/key (`02 86 00 00000008` —
+  dir 0x86 = dir 6 | running 0x80); C2S 0x6C target response stays 19 B standard
+  (`6c 00 00052cb9 01 00094375 0000 077c 00 0a24`).
+- Replay (`harness/replay.py 20260929_144541`) yields self serial 0x00094375, name
+  TestWorth, login position (0x7AB, 0xA25, 0) from 0x1B and final position
+  (0x7A6, 0xA25, 0) from the last self 0x20/0x77 — from S2C alone.
 
 ---
 
 ## Open Questions
 
-1. **0x00/0x40/0x3F/0x52 world-data record grammar + parser location** — the sub-record
-   stream above is empirical only. No handler for id 0x00 (or 0x40/0x3F/0x52) appears
-   in the decompiled selection (`protocol_handlers.c` covers PacketHandlers/NetClient/
-   NetClientExt only), and no candidate name exists in the method metadata map; the
-   parser is presumably a CUO handler outside the selected set. Next step: Ghidra-decompile
-   the function registered in the CUO handler table slot for 0x00 (registration cctor),
-   or xref-scan for a reader loop over 106-byte buffers.
-2. **CUO-side 0xFF registration** — content-matched (sub-0 prelude ↔ `OutlandsProtocol`
-   case 0 ↔ `BuildPacketTable(12)` ↔ observed wire lengths) but the handler-table cctor
-   is not decompiled; formal proof outstanding. No competing 0xFF handler exists in the
-   binary (`RunUOProtocolExtention` is the upstream 0xF0 handler and is unreferenced by
-   any capture).
-3. **0x6C TargetCursor +8 tail** (offsets 19–26) — never read by the client; purpose
+1. **0x6C TargetCursor +8 tail** (offsets 19–26) — never read by the client; purpose
    unknown (possibly targeting metadata for the CUO fork's target indicators).
-4. **0x24 OpenContainer bytes 9–10** — unread; Outlands V10 widened gumpId over bytes
-   5–8 leaving 9–10 unexplained.
-5. **0x25/0x3C V12 u32 tail field** — skipped by CUO, read as i32 by Razor's container
-   filters (feeds an item "extra data" slot); semantics unknown (price? quality?).
-6. **0xF3 byte 13–14 pair** — V11 introduced a 1-byte field passed to the item builder
-   plus one skipped byte; meaning unknown.
-7. **0xBF CUO ExtendedCommand sub-table** (@ 0x140194bc0, 7 kB) not extracted; the
-   Assistant 0xBF viewer table covers the overlapping cases only. Session shows C2S
-   0xBF subs 0x0C/0x13/0x15 carrying entity serials (entity-info queries).
-8. **S2C dialect sub 4 payload** (`SpellCastManager.OnPacketResponse` @ 0x140306390)
-   and the **PartyManager sub-parsers** (0xFF subs 10–0x0E) — not in the decompiled
-   selection.
-9. **Sub-0x19/0 (0xBF) mobile flag +0x50** and **0xFF-sub-0x1D global dword** — set but
+2. **0x24 OpenContainer bytes 9–10** — unread; Outlands V10 widened gumpId over bytes
+   5–8 leaving 9–10 unexplained (wire: `00 7d`).
+3. **0x25/0x3C/0x78/0x2E V12 u32 tail field** — skipped by CUO, read as i32 by Razor's
+   container filters; wire values 0x20 (worn/contained items), 0x22, 0x200 (backpack),
+   0x220; looks like a flag word, semantics unknown.
+4. **0xF3 byte 13–14 pair and byte 29** — V11 1-byte field + one skipped byte; byte 29
+   (tabulated as `dir`) is 0x2B on 901 of 903 real packets — meaning unknown.
+5. **0xBF CUO ExtendedCommand sub-table** (@ 0x140194bc0, 7 kB) not extracted. S2C subs
+   on the wire: 0x01 (fastwalk seeds), 0x08 (map), 0x14 (context menu), 0x19 (stat
+   locks); C2S subs 0x0C/0x13/0x15 carry entity serials.
+6. **S2C dialect sub 4 payload** (`SpellCastManager.OnPacketResponse` @ 0x140306390),
+   the **PartyManager sub-parsers** (0xFF subs 10–0x0E), and the payloads of the
+   frequent subs 5 (7 B, no payload), 0x16 (26 B), 0x1C (50 B), 7 and 1 — not parsed.
+7. **Sub-0x19/0 (0xBF) mobile flag +0x50** and **0xFF-sub-0x1D global dword** — set but
    consumers not traced.
-10. **Assistant readers' exact start offsets** are assumed to follow the
-    fixed=1 / variable=3 convention (upstream `MoveToData`); only read sequences, not
-    absolute reader positions, were verified for Assistant handlers.
+8. **0x1B bytes 26–42**, **0xA9 7-byte tail**, **S2C 0xF0 `f0 000c fe …`** — unread /
+   unparsed; 0x11 StatsCap reads 0 for the test character (real, or a shifted field?).
+9. **Assistant readers' exact start offsets** are assumed to follow the
+   fixed=1 / variable=3 convention (upstream `MoveToData`); only read sequences, not
+   absolute reader positions, were verified for Assistant handlers.

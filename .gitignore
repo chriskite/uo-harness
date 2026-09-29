@@ -22,6 +22,7 @@ stream_dump.txt
 capture_state.txt
 logs/
 logs_test/
+logs_test_actions/
 settings.json*
 handle.exe
 screen.png
