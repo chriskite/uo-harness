@@ -165,7 +165,7 @@ class SessionTap:
         self.logf.flush()
 
     # ---- client -> server ----
-    def tap_c2s(self, data: bytes):
+    def tap_c2s(self, data: bytes, src: str = "client"):
         """Tap + normalize C2S traffic; returns the bytes to forward upstream.
 
         Every walk packet (0x02) gets its seq byte rewritten to the proxy-owned
