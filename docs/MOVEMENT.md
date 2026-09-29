@@ -64,6 +64,15 @@ Consequences, all visible in the captures:
 - Agent gates: pacing (0.2 s run / 0.4 s walk, the Speedhack surface); waiting for the server's reply
   to a client resync; stall after 3 rejections.
 
+**Fix B VALIDATED LIVE (session_20260929_161433, user-confirmed 2026-09-29).** 57 agent walks (walk_cli)
+plus 30 client walks, mixed. 55 agent confirms hidden, 5 client re-anchors via fabricated `0x21` (the
+character snapped to its true position each time), **0 resyncs from client or proxy, 0 proxy-originated
+C2S packets**, client arrow keys fully working throughout. **New evidence: blocked moves ARE denied.**
+An agent walk into a blocked tile got a real server `21 37 000007a3 00000a0f 80 00000000` (the rejected
+seq + the server position). The proxy reset the ladder to 0 and forwarded the deny, and the client
+repositioned itself. So Outlands keeps stock deny semantics for movement failures; the silent
+rejections seen earlier (142237/143051) are specific to wrong seq/token.
+
 ---
 
 ## 1. Wire format (proven)
@@ -397,11 +406,10 @@ Fix options: (A) proxy gates agent walks to one per resync cycle, after the rese
 **Fix A VALIDATED LIVE (session_20260929_144541).** 6 agent walks via walk_cli, each a cycle opener (token 8, then token 1 ×5). Every one was followed ~50 ms later by a client resync, spaced 6.72 / 7.92 / 6.24 / 5.56 / 13.75 s apart. The user saw every walk step. Afterwards the client's own arrow keys worked: 27 client walks at the normal 0.1–0.2 s cadence (seq 0 → 0x1A). The first opened the cycle with the client's own token 1, passed with no `c2s_token_mismatch`, which confirms the re-arm value 1 live. This supports the resync-spacing explanation: 2.64 s ignored, ≥ 5.56 s honored, so the server threshold lies somewhere in (2.64, 5.56] s. The client-side lockout explanation also holds up: with spacing respected, no lockout. Cost: ~1 agent step per 5 s plus the resync-per-step signature.
 
 ### Next steps
-See "▶ Current model" at the top: fix B is implemented and offline-proven.
-1. Live-verify fix B (attended): walk_cli bursts at human pace. Expected: no client freeze, the
-   character snaps to its true position ~0.5 s after the burst (fabricated client-only 0x21),
-   and the client's arrow keys work throughout, including mixed with agent steps.
-2. Then the closed-loop bank run, and Phase 4 (agent runtime).
+Fix B is live-validated (see "▶ Current model" at the top).
+1. Closed-loop bank run (Phase 3 done-criterion), then Phase 4 (agent runtime).
+2. Optional: map-based z for the re-anchor (read client map/statics/tiledata read-only) if height
+   drift shows up on stairs/slopes.
 
 ### Tooling notes
 - `walk_cli.py`: terminal arrow-key walker (arrows=walk, space=run/walk, q=quit).

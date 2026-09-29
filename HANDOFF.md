@@ -34,10 +34,11 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 
 ## Next steps (in order)
 
-1. Live-verify fix B (attended): walk_cli bursts; no client freeze; character
-   snaps to its true position ~0.5 s after each burst (`reanchor_client` in
-   tail_log, and no PROXY-sourced c2s rows); arrow keys keep working.
-2. Closed-loop bank run, then Phase 4.
+1. ~~Live-verify fix B~~ **VALIDATED (session_20260929_161433):** CLI and client
+   walking both fully work; 0 resyncs, 0 proxy-originated server packets. Blocked
+   moves get a real server `0x21` deny (handled).
+2. Closed-loop bank run (Phase 3 done-criterion), then Phase 4 (agent runtime).
+3. Optional: map-based z for re-anchors (stairs/slopes).
 
 ## Operate
 
