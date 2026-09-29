@@ -34,3 +34,5 @@ mrt_map.json
 ref/
 decompiled/
 *.png
+viz/node_modules/
+viz/dist/
