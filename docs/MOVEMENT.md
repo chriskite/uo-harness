@@ -322,8 +322,22 @@ All of the following was proven with live injections on the Test Shard:
 ### Open risk: ladder drift after a rejected walk
 Stock RunUO resets `state.Sequence = 0` on any rejected walk (§2); Outlands rejects silently (no `0x21`), so the proxy cannot see rejections and its ladder keeps counting. **[INFERENCE]** After a rejected walk (blocked tile, gate), the ladder is ahead of the server until the next client resync resets both. Watch for this in live runs: a chain that stops stepping mid-burst with no resync in the log is the signature. Fix direction if it bites: detect acceptance from S2C (needs the decoder desync fixed) or force a resync-equivalent re-anchor.
 
+### Live result + client lockout mechanism (session_20260929_142237)
+Live run of walk_cli with MoveAuthority: 3 agent cycle openers (`seq 0 key 8`, `seq 0 key 1` ×2, ~1.1 s apart; first two each followed ~50 ms later by a client `22 0000`), then 12 agent continuations (seq 1–0x0C, 0.25–0.5 s apart) with **no further resync**. User saw one turn and no steps; afterwards **the client's own arrow keys emitted no walk packets at all** (zero client `0x02` in the whole session).
+
+Mechanism **[CODE upstream `ClassicUO-main/.../WalkerManager.cs:125-198`, `PlayerMobile.cs:525`; same functions in the Outlands fork per §8 table — `WalkerManager.ConfirmWalk @ 0x14030aec0`, `Reset @ 0x14030b130`]**:
+1. The server confirms accepted walks with S2C `22 <seq> <noto>`, and it cannot tell agent walks from client walks. **[INFERENCE — strong]** The client must receive confirms (with none it stalls at `MAX_STEP_COUNT` = 5 pending steps, yet 165-walk client runs exist), even though the lossy S2C decoder rarely surfaces them (this session: one `22 01 00` hit at t=11.58, could be a misframe).
+2. A confirm whose seq matches none of the client's pending steps is a **bad step**: `WalkingFailed = true`, pending steps cleared, and **one** `Send_Resync` guarded by the `ResendPacketResync` latch.
+3. `PlayerMobile.Walk` returns false while `WalkingFailed` is set, so the client stops sending walks entirely. Only `WalkerManager.Reset` (S2C DenyWalk, `BF sub1` seed → `OnPlayerTeleport`, legacy `0x20` UpdatePlayer) clears `WalkingFailed` and the latch. The server's response to a resync evidently includes the reset (the client restarts at seq 0 with token 1 afterwards).
+4. So: **the ~50 ms client resync after each external walk is this bad-step path**, not operator action (corrects §5's attribution). The single-step-per-resync recipe worked because each resync response reset the client. A train of agent walks produces more foreign confirms than the reset cycle can clear. Once the latch is set with no reset pending, the client is stuck: no walks, no resync. That is the "manual-input lockout" previously attributed to a server penalty (ANTICHEAT §8.9, now reinterpreted).
+5. Why the resyncs stopped after the 3rd opener is unresolved. Either that walk was rejected silently and the ladder drifted (see Open risk), or the latch was set while a reset was pending. Resolving it needs S2C visibility.
+
+Recovery: relog (fresh `WalkerManager`), or anything that makes the server reset the walker (e.g. a client-initiated resync from the stock client's own UI, if available).
+
+Fix options: (A) proxy gates agent walks to one per resync cycle, after the reset has landed (no new capability; ~1 step per 0.7 s; keeps the resync-per-step signature). (B) Hide agent confirms from the client (S2C rewrite) and re-anchor it deliberately. Clean, but blocked on S2C framing. **Huffman flush markers do not align with packets** (session 113311: 7289 flush segments; 0x22-led segments of 5/10/14 B), so filtering at the compressed-segment level is impossible. B needs plaintext framing fixed (probe P1) plus a Huffman re-encoder.
+
 ### Next steps (walking reliability first)
-1. **Live-verify** (attended): fresh login → walk_cli arrows with no client walk first → character should step on the first press (`c2s_token_stamped … token 8` in tail_log), continuations step, and after the client's resync the next press opens with seq 0 / key 1.
+1. Choose lockout fix (A now / B after S2C framing), implement, live-verify.
 2. Then the closed-loop bank run, and Phase 4 (agent runtime).
 
 ### Tooling notes

@@ -29,12 +29,18 @@ item queries.
 - **Open risk:** silent server rejections (blocked tile) likely reset the
   server's seq to 0 while the ladder keeps counting → drift until next resync.
   See docs/MOVEMENT.md "Open risk".
+- **Live test failed (session_20260929_142237):** one turn, no steps, then the
+  client's own arrow keys went dead. Cause: the server's ConfirmWalk (`22 seq`)
+  for agent walks trips the client's bad-step path (`WalkingFailed`, latched
+  single resync). The client stays frozen until a server walker reset. Agent
+  walk trains outrun the resync→reset cycle. Recover by relogging.
+  Details: docs/MOVEMENT.md "client lockout mechanism".
 
 ## Next steps (in order)
 
-1. Live-verify (attended): fresh login, walk_cli arrows with no client walk
-   first → steps on first press (`c2s_token_stamped … token 8` in tail_log);
-   after the client resync, next press opens seq 0 / key 1 and steps.
+1. Pick the lockout fix: (A) proxy gates agent walks to one per resync cycle,
+   or (B) hide agent confirms from the client (needs S2C framing fixed plus a
+   Huffman re-encoder; flush segments ≠ packets). Implement, live-verify.
 2. Closed-loop bank run, then Phase 4 (agent runtime).
 
 ## Operate
