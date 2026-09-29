@@ -42,7 +42,8 @@ def fmt(e):
     if pid == "0x02" and len(hx) >= 14:
         direction = int(hx[2:4], 16) & 7
         extra = f" dir={direction} seq={int(hx[4:6],16)} key=0x{int(hx[6:14],16):08x}"
-    src = "AGENT" if e.get("src") == "agent" else ""
+    src = e.get("src") or "client"
+    src = "" if src == "client" else src.upper()
     return f"{t}.{ms:03d}  {d:4s} {src:5s} {pid} {name:11s} len={e.get('len','?'):<4} {extra} {hx[:32]}"
 
 

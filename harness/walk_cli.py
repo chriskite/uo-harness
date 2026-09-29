@@ -6,12 +6,12 @@ Focus a terminal, then:
   space       — toggle run/walk mode (default: run)
   q           — quit
 
-Seq and the cycle token are owned by the proxy's MoveAuthority — this tool
-always sends seq 0 / key 0; the proxy assigns the true ladder position and
-stamps the cycle token (8 after login, 1 after a client resync) into the first
-walk of each movement cycle. The proxy allows ONE agent step per cycle, and
-only >= 5 s after the client's last resync (the server ignores closer
-resyncs); presses in between answer `ERR walk gated: ...` and are not sent.
+Seq and fastwalk key are owned by the proxy's MoveAuthority — this tool always
+sends seq 0 / key 0. The proxy hides the server's confirms of these walks from
+the client (so its walker never freezes), paces steps (0.2 s run / 0.4 s walk;
+faster presses answer `ERR walk gated: pacing ...`), and ~0.5 s after the last
+press re-anchors the client with one resync, so the character on screen jumps
+to its true position (docs/MOVEMENT.md).
 """
 import msvcrt
 import socket

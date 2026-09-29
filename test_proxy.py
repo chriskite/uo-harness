@@ -56,6 +56,7 @@ async def main():
         [PY, f"{ROOT}/harness/proxy.py",
          "--listen-port", str(PROXY_PORT),
          "--upstream-host", "127.0.0.1", "--upstream-port", str(UPSTREAM_PORT),
+         "--control-port", "12595",
          "--logdir", LOGDIR],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     await asyncio.sleep(1.0)
@@ -105,7 +106,8 @@ async def main():
     check("one jsonl session log", len(logs) == 1, str(logs))
     events = [json.loads(l) for l in open(os.path.join(LOGDIR, logs[0]), encoding="utf-8")]
     pre = [e for e in events if e.get("ev") == "s2c_prelude"]
-    check("prelude parsed, key 0x07", pre and pre[0].get("session_key") == "0x07", str(pre[:1]))
+    check("prelude parsed: c2s key 0x07, s2c key 0x84",
+          pre and pre[0].get("c2s_key") == "0x07" and pre[0].get("s2c_key") == "0x84", str(pre[:1]))
     preamb = [e for e in events if e.get("ev") == "c2s_preamble"]
     check("c2s preamble logged", preamb and preamb[0].get("hex") == "ef0000000c", str(preamb[:1]))
 
@@ -115,9 +117,12 @@ async def main():
     for pid, n in expect_min.items():
         check(f"c2s {pid} >= {n}", c2s_ids.get(pid, 0) >= n, f"(got {c2s_ids.get(pid, 0)})")
     check("c2s no desyncs", not [e for e in events if e.get("ev") == "c2s_desync"])
-    check("s2c framed >= 55 packets", len(s2c_pkts) >= 55, f"({len(s2c_pkts)})")
-    check("s2c <= 1 desync (tail)", len([e for e in events if e.get("ev") == "s2c_desync"]) <= 1,
-          f"({len([e for e in events if e.get('ev') == 's2c_desync'])})")
+    s2c_ids = collections.Counter(e["id"] for e in s2c_pkts)
+    check("s2c framed 2835 packets (whole capture)", len(s2c_pkts) == 2835, f"({len(s2c_pkts)})")
+    login = [e for e in s2c_pkts if e["id"] == "0x1B"]
+    check("s2c 0x1B login confirm carries player serial 0x00094375",
+          login and login[0]["hex"].startswith("1b00094375"), str(login[:1]))
+    check("s2c fastwalk seeds seen", any(e.get("ev") == "s2c_fastwalk_seed" for e in events))
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
 

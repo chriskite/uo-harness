@@ -2,7 +2,7 @@
 
 An AI agent harness that plays **Ultima Online Outlands** — targeting the **Test Shard only**.
 
-Current status: **Phases 1–2 done; Phase 3 (actions) live-validated incl. agent movement at ~1 step per 5 s.** Interception, cipher, world model, and injected speech/dclick/gumps/spells/walks work live. Movement is owned by the proxy's `MoveAuthority` (seq + cycle-token rewriting + agent walk gate). Normal-speed agent movement needs S2C rewriting (fix B). See [`HANDOFF.md`](HANDOFF.md) and [`docs/MOVEMENT.md`](docs/MOVEMENT.md). Read [`ANTICHEAT.md`](ANTICHEAT.md) first — it defines the safety constraints every design decision follows.
+Current status: **Phase 1 done; Phase 2 (world model) reopened after a S2C decode correction; Phase 3 actions live-validated, agent movement fix B (normal-speed walking) implemented and pending live test.** The server→client stream turned out to be XORed with prelude byte 11 before Huffman (`docs/CIPHER.md` §4); with that fixed, the proxy sees the server's movement packets and hides agent walk confirms from the client. See [`HANDOFF.md`](HANDOFF.md) and [`docs/MOVEMENT.md`](docs/MOVEMENT.md). Read [`ANTICHEAT.md`](ANTICHEAT.md) first — it defines the safety constraints every design decision follows.
 
 ## Architecture (decided)
 

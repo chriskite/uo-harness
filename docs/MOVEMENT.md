@@ -10,6 +10,45 @@ Reference implementation + replay validation: `harness/movement_driver.py`
 (run `python harness/movement_driver.py` — mirrors 289 client walks from all
 four sessions byte-for-byte).
 
+## ▶ Current model — from real S2C (2026-09-29). Supersedes conflicting text below.
+
+Everything before this date inferred server behavior from C2S only, because the S2C decode was broken
+(missing XOR, docs/CIPHER.md §4). With the corrected decode, the server's movement packets are
+visible. **[CAPTURE]** sessions 20260929_142237 / _143051 / _144541:
+
+| Event | Server packets (in order) |
+|---|---|
+| Login | four `BF 0001` seeds, tokens 5, 6, 7, **8** (last wins → "login token 8") |
+| Accepted walk | `22 <seq> 01` ConfirmWalk, for agent and client walks alike |
+| Honored client resync `22 0000` | `BF 0001` seed [token **1**] (resets the client walker) + `0x20` player update (re-anchors position) |
+| Resync < ~5 s after the previous honored one | **nothing** (ignored: 2.64 s ignored, 5.56 s honored) |
+| Rejected walk | **nothing**: no confirm, no `0x21`, and the server's expected seq does NOT reset (unlike stock RunUO) |
+
+Consequences, all visible in the captures:
+- **Token = the latest seed's value.** The next walk must carry it; continuations carry 0.
+- **Seq resets only on an honored resync (seed).** After an ignored resync the server still expects
+  last+1. Resetting the ladder on every C2S resync caused walk 3's rejection in 142237 and 143051.
+- **Client lockout:** a confirm for a step the client didn't send → bad step → `WalkingFailed` + one
+  latched resync. An honored resync brings back the seed reset. An ignored one leaves the client
+  frozen. In 142237 the server confirmed 12 agent continuations (seq 1–12) while the frozen client drew
+  nothing, so **no server-side walk-train gate was observed**.
+- Server truth for agent steps: the player `0x20` x went `7ab → 7aa → … → 7a6` for 5 steps west
+  (144541).
+
+**Fix B (implemented, `harness/proxy.py` `MoveAuthority`; offline-proven by `test_movement.py`):**
+- The seq ladder follows seeds (reset to 0) and denies. On an ignored resync (no seed within 1.5 s),
+  the ladder is kept.
+- The token is taken from seeds (and `BF 0002` pushes) and stamped into the next walk if its key is 0.
+  The client's spent copy is zeroed later.
+- **Agent confirms are hidden from the client** (their segment is dropped). **Client confirms are
+  rewritten to the client's own seq** when the ladder differs, so agent and client walks can mix
+  freely.
+- **Re-anchor:** 0.5 s after the last agent step (with agent confirms landed), the proxy sends one
+  resync, spaced ≥ 5.6 s from the previous resync/seed. The server's seed + `0x20` snaps the client
+  to its true position.
+- Agent gates: pacing (0.2 s run / 0.4 s walk, the Speedhack surface); waiting for a resync reply; a
+  desync, which means an agent walk went unconfirmed for 1.5 s and forces a re-anchor.
+
 ---
 
 ## 1. Wire format (proven)
@@ -342,10 +381,15 @@ Fix options: (A) proxy gates agent walks to one per resync cycle, after the rese
 
 **Fix A VALIDATED LIVE (session_20260929_144541).** 6 agent walks via walk_cli, each a cycle opener (token 8, then token 1 ×5). Every one was followed ~50 ms later by a client resync, spaced 6.72 / 7.92 / 6.24 / 5.56 / 13.75 s apart. The user saw every walk step. Afterwards the client's own arrow keys worked: 27 client walks at the normal 0.1–0.2 s cadence (seq 0 → 0x1A). The first opened the cycle with the client's own token 1, passed with no `c2s_token_mismatch`, which confirms the re-arm value 1 live. This supports the resync-spacing explanation: 2.64 s ignored, ≥ 5.56 s honored, so the server threshold lies somewhere in (2.64, 5.56] s. The client-side lockout explanation also holds up: with spacing respected, no lockout. Cost: ~1 agent step per 5 s plus the resync-per-step signature.
 
-### Next steps (walking reliability first)
-1. B: fix S2C plaintext framing (probe P1), add a Huffman re-encoder, then drop agent ConfirmWalks toward the client and re-anchor it deliberately. Then lift the gate. B's first deliverable is reliable S2C framing, which also turns the ladder-drift risk and the re-arm timing into observable facts.
-2. Then the closed-loop bank run (feasible now under A, slowly), and Phase 4 (agent runtime).
+### Next steps
+See "▶ Current model" at the top: fix B is implemented and offline-proven.
+1. Live-verify fix B (attended): walk_cli bursts at human pace. Expected: no client freeze, the
+   character snaps to its true position ~0.5 s after the burst (≥ 5.6 s after the previous resync),
+   and the client's arrow keys work throughout, including mixed with agent steps.
+2. Then the closed-loop bank run, and Phase 4 (agent runtime).
 
 ### Tooling notes
-- `walk_cli.py`: terminal arrow-key walker (arrows=walk, space=run/walk, q=quit). The manual 8/1 token keys were removed — the proxy stamps tokens.
-- `tail_log.py`: readable live packet tail of the active session; `AGENT` marks injected packets.
+- `walk_cli.py`: terminal arrow-key walker (arrows=walk, space=run/walk, q=quit).
+- `tail_log.py`: readable live packet tail of the active session; `AGENT` / `PROXY` mark non-client
+  packets. Movement events: `s2c_fastwalk_seed`, `s2c_confirm_hidden`, `s2c_confirm_rewritten`,
+  `reanchor_resync`, `resync_ignored`, `walk_unconfirmed`.

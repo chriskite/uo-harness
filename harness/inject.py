@@ -2,8 +2,8 @@
 
 Usage: python inject.py <action> [args...]
   say <text>            — unicode speech
-  walk <dir> <n> [run]  — n steps in direction (0-7), one per movement cycle
-                          (the proxy gates agent walks; gated sends are retried)
+  walk <dir> <n> [run]  — n steps in direction (0-7) at the proxy's pace
+                          (gated sends — pacing/resync reply — are retried)
   cast <spellid>        — dialect sub-4 cast
   dclick <serial>       — hex or decimal serial
   query <serial>        — item detail query (sub 9)

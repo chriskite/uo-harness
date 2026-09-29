@@ -39,19 +39,35 @@ auth and forwarded to the game server as the entire credential. Claims observed:
 **Test-shard capture bins may be committed (user decision 2026-09-28, private repo) — production
 credentials/artifacts never.**
 
-### 3. Server prelude — cleartext, 19 bytes
-`ff 00 0d | 7 × 00 | 0c | tick | S | 6 bytes`
+### 3. Server prelude — cleartext, 13 bytes
+`ff 00 0d | 7 × 00 | 0c | K | S`
 - bytes 0–2: `ff 00 0d` — 0xFF-namespace variable packet (id 0xff, len 13 incl. header).
 - bytes 3–9: seven `00`.
 - byte 10: `0c` — echoes the client preamble constant.
-- byte 11: per-session tick/counter (0x14, 0x30 observed).
-- **byte 12: `S` — the session XOR key** (0x2f → capture 1, 0x0f → capture 2; both decrypt their
+- **byte 11: `K` — the server→client XOR key** (earlier notes called it a "tick/counter"; corrected
+  2026-09-29, §4).
+- **byte 12: `S` — the client→server XOR key** (0x2f → capture 1, 0x0f → capture 2; both decrypt their
   captures perfectly).
-- bytes 13–18: 6 per-session bytes, purpose unknown.
+- The "6 per-session trailer bytes" that earlier notes put at bytes 13–18 are **not prelude**: they
+  are the first compressed bytes of the S2C stream.
 
-### 4. Server→client stream — standard UO + Huffman, unencrypted
-From byte 19: upstream-static-Huffman-compressed standard UO protocol (decodes and frames cleanly
-with the upstream tree/table + overrides `{0x6F: 59, 0xFF: 16, 0x49: 14}`). No encryption.
+### 4. Server→client stream — XOR `K`, then static Huffman, one flush per packet (CORRECTED 2026-09-29)
+From byte 13, every byte is XORed with `K` (prelude byte 11), then decoded with the standard UO static
+Huffman tree. Each server packet is compressed separately and ends with the flush symbol, zero-padded to
+a byte boundary, so **one flush segment is exactly one packet**.
+- Client code: `NetClient.ProcessRecv @ 0x140145600` XORs every received byte with the byte at
+  `NetClient+0x71` before `DecompressBuffer` (`decompiled/netclient_recv.c:56-69`); upstream ClassicUO
+  has no such step.
+- Proof: all 18 session captures, 53 277 flush segments → every segment is exactly one packet under
+  `harness/uo/outlands_table.py`, with 0 leftover bytes. The content is standard UO: `0x1B` login confirm
+  with player serial `0x00094375`, `0xA9` char list "TestWorth", `0x78`/`0x77`/`0x20`, `0x22` walk
+  confirms, `0xBF` sub1 fastwalk seeds. Re-encoding each decoded packet with the static code table
+  reproduces the wire bytes exactly (0 mismatches), so the zero padding is confirmed.
+- **Earlier notes were wrong:** they decoded from byte 19 without the XOR. That produced garbage that
+  was misread as a "custom Outlands S2C dialect" (PROTOCOL.md, WORLDSTATE.md). Every S2C finding made
+  before 2026-09-29 is suspect unless re-verified with the corrected decode.
+- Implementation: `harness/uo/s2c.py` (`prelude_keys`, streaming `S2CStream` yielding
+  `(wire_segment, packet)`, `encode_packet`).
 
 
 ## Evidence chain
@@ -75,11 +91,14 @@ coincidence. Decrypted, both sessions start with the same custom `0x91 <len> <na
 
 ## Harness implications
 
-- **Proxy**: relay raw; tap S2C prelude → read `S` at byte 14 → passively decrypt C2S for logging.
-  No modification of any byte; timing-sensitive packets forward untouched.
+- **Proxy**: tap the S2C prelude → `K` (byte 11) and `S` (byte 12). Decrypt C2S with `S`; decode S2C
+  packet by packet with `K`. Because one flush segment is one packet, the proxy can drop or replace a
+  single S2C packet (used to hide agent walk confirms, docs/MOVEMENT.md). Timing-sensitive packets
+  still forward untouched.
 - **Action channel**: to send an action, XOR the plaintext packet with `S`. The client must not be
   relaying our forged packets differently from its own — same scheme, same key, indistinguishable.
-- **World model**: S2C is standard; upstream ClassicUO packet handlers are the parsing reference.
+- **World model**: S2C is standard UO (with Outlands length widenings); upstream ClassicUO packet
+  handlers are the parsing reference.
 - The `0xFF` namespace (keepalive `…0003`, server prelude) and the `Speedhack/AutoClicking/AutoKeyboard`
   enum + `Send_TimeSyncPingReq` likely live in the same custom namespace — tag all 0xFF packets in
   logs for later mapping.

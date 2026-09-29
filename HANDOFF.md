@@ -8,42 +8,32 @@ mentions), then this file, then the docs below as needed.
 
 ## State (2026-09-29)
 
-**Works, proven live:** interception, cipher (single-byte session XOR, key from
-server prelude byte 12), framing (authoritative table), world model runtime
-(118-check suite green), and injected actions — speech, dclick, gumps, spells,
-item queries.
+**Works, proven live:** interception, cipher, injected actions (speech, dclick,
+gumps, spells, item queries), agent walking under fix A (~1 step per 5 s).
 
-**Movement:**
-- Protocol: walk = `02 <dir|run> <seq> <key u32be>`. First walk of a cycle needs
-  the session token (**8 = login, 1 = after resync**); continuations use key 0.
-  Every external (non-client) walk triggers a client resync (`22 0000`) which
-  re-arms token 1 and resets seq.
-- Proxy **MoveAuthority** (`harness/proxy.py`, offline-tested): owns seq AND key
-  of every walk (client + injected) — one seq ladder; armed cycle token stamped
-  into each cycle opener; agent continuation keys forced to 0; the client's
-  copy of a token the proxy already spent is zeroed (no spent-token replay).
-  Tools send seq 0 / key 0 always.
-- walk_cli failure root-caused (session_20260929_134149): key-0 injections
-  before any client walk → token never presented; client's token walk then
-  landed at ladder seq 5 → everything rejected. Token stamping fixes this.
-- **Open risk:** silent server rejections (blocked tile) likely reset the
-  server's seq to 0 while the ladder keeps counting → drift until next resync.
-  See docs/MOVEMENT.md "Open risk".
-- **Live test failed (session_20260929_142237):** one turn, no steps, then the
-  client's own arrow keys went dead. Cause: the server's ConfirmWalk (`22 seq`)
-  for agent walks trips the client's bad-step path (`WalkingFailed`, latched
-  single resync). The client stays frozen until a server walker reset. Agent
-  walk trains outrun the resync→reset cycle. Recover by relogging.
-  Details: docs/MOVEMENT.md "client lockout mechanism".
+**2026-09-29, major correction: the S2C decode was wrong from day one.** The server→client
+stream is XORed with prelude byte 11 before Huffman (client: `ProcessRecv @
+0x140145600`). The prelude is 13 bytes, not 19. Old decodes produced garbage that docs called a
+"custom dialect". Corrected decoder: `harness/uo/s2c.py`; 53 277/53 277 packets frame
+exactly across all captures. The content is standard UO. See docs/CIPHER.md §4. The world
+model + replay + WORLDSTATE/PROTOCOL/WORLDMODEL docs were built on garbage and are
+being migrated (see git log / docs for status).
+
+**Movement (real S2C, docs/MOVEMENT.md "▶ Current model"):**
+- Walk = `02 <dir|run> <seq> <key u32be>`. Token = the latest `BF 0001` seed
+  (login seeds 5,6,7,8; resync reply seed 1). Server confirms walks with `22 seq 01`.
+  Rejections are silent and don't reset the server's seq. Resyncs < ~5 s apart are ignored.
+- Client lockout: foreign confirms → client bad step → frozen walker.
+- **Fix B implemented (`harness/proxy.py` MoveAuthority), offline-proven
+  (`test_movement.py`):** hide agent confirms from the client, map client confirms
+  back to client seqs, ladder follows seeds, pacing 0.2/0.4 s, one re-anchor resync
+  ~0.5 s after an agent burst (≥ 5.6 s spacing).
 
 ## Next steps (in order)
 
-1. ~~Live-verify fix A~~ **VALIDATED (session_20260929_144541):** 6/6 agent
-   steps at ≥5 s resync spacing, then 27 normal client walks, no lockout.
-   Agent walking works at ~1 step per 5 s.
-2. Fix B: S2C framing (probe P1) + Huffman re-encoder → hide agent
-   ConfirmWalks from the client, re-anchor deliberately, lift the gate.
-3. Closed-loop bank run (possible now under A, slowly), then Phase 4.
+1. Live-verify fix B (attended): walk_cli bursts; no client freeze; character
+   snaps to its true position after each burst; arrow keys keep working.
+2. Closed-loop bank run, then Phase 4.
 
 ## Operate
 
@@ -54,8 +44,9 @@ item queries.
 - Launch game (elevated): `powershell -Verb RunAs launch_game.ps1`
 - Watch packets: `python harness/tail_log.py`
 - Drive walks: `python harness/walk_cli.py` (arrows=walk, space=run/walk, q=quit)
-- Tests: `python test_proxy.py`, `python harness/test_world.py`, `python harness/test_actions.py`, `python test_seq_rewrite.py`
-  — `test_seq_rewrite.py` binds the control port 25941: **stop the live proxy first** (else bind error / connection refused).
+- Tests: `python test_proxy.py`, `python test_movement.py`, `python harness/test_world.py`,
+  `python harness/test_world_replay.py`, `python harness/test_actions.py` (all use their own
+  control ports; safe while the live proxy runs).
 - Push works via SSH alias `github.com-uoharness` (deploy key `~/.ssh/uo_harness_deploy`).
 
 ## Doc map
