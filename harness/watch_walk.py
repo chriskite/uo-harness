@@ -52,9 +52,10 @@ def main():
                 hx = e["hex"]
                 if hx == last_injected:
                     continue  # our own injection echoing back — never mirror it
-                pkt = bytes.fromhex(hx)
                 new_seq = (pkt[2] + 1) & 0xFF or 1
-                mirror = bytes([pkt[0], pkt[1], new_seq]) + pkt[3:]
+                # continuation key is 0 (token from the client's walk is single-use,
+                # already spent — reusing it gets rejected)
+                mirror = bytes([pkt[0], pkt[1], new_seq]) + b"\x00\x00\x00\x00"
                 print(f"CLIENT {hx}", flush=True)
                 time.sleep(DELAY)
                 resp = send(sock, mirror)
