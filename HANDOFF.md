@@ -18,10 +18,11 @@ item queries.
   the session token (**8 = login, 1 = after resync**); continuations use key 0.
   Every external (non-client) walk triggers a client resync (`22 0000`) which
   re-arms token 1 and resets seq.
-- Proxy **MoveAuthority** (`harness/proxy.py`, offline-tested): rewrites every
-  walk (client + injected) — seq onto one ladder, and stamps the armed cycle
-  token into the first walk of each cycle when its key is 0. Tools send seq 0 /
-  key 0 always.
+- Proxy **MoveAuthority** (`harness/proxy.py`, offline-tested): owns seq AND key
+  of every walk (client + injected) — one seq ladder; armed cycle token stamped
+  into each cycle opener; agent continuation keys forced to 0; the client's
+  copy of a token the proxy already spent is zeroed (no spent-token replay).
+  Tools send seq 0 / key 0 always.
 - walk_cli failure root-caused (session_20260929_134149): key-0 injections
   before any client walk → token never presented; client's token walk then
   landed at ladder seq 5 → everything rejected. Token stamping fixes this.

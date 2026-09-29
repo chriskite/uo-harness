@@ -123,21 +123,31 @@ REARM_TOKEN = 1   # cycle token armed by each client movement resync (22 0000)
 
 
 class MoveAuthority:
-    """Owns the session's movement acceptance state: seq ladder + cycle token.
+    """Owns the session's movement acceptance state: seq ladder + key field.
 
     The proxy rewrites every C2S walk (0x02) from BOTH the client and agent
-    injections, so the two senders never desync each other:
+    injections, so the server sees one coherent walker regardless of sender:
 
     - seq: one monotonic ladder. Server expects last+1, wrap 0xFF -> 1;
-      login and client resync (C2S 22 0000) reset it to 0.
+      login and client resync (C2S 22 0000) reset it to 0. Sender seqs are
+      always overwritten.
     - key: the first walk of a movement cycle must carry the cycle token
       (LOGIN_TOKEN after login, REARM_TOKEN after a resync); it is single-use.
-      A cycle-opening walk with key 0 gets the armed token stamped in; one that
-      already carries a non-zero key (the client's own token) is left as-is.
-      Continuation keys pass through untouched (server ignores them).
+      * Cycle opener from the agent, or from the client with key 0: the armed
+        token is stamped in. The client still holds (or will receive) its own
+        copy of that token -> remembered as `stale_token`.
+      * Cycle opener from the client with its own key: passed through (it is
+        server-issued truth; a value != armed token is logged as a mismatch).
+      * Continuations: agent keys are forced to 0 (the agent has no token
+        source). A client key equal to `stale_token` is the client's copy of a
+        token the proxy already spent -> zeroed once, so the server never sees
+        a consumed token re-presented. Any other client key is a genuine
+        mid-cycle server push (seen in session_20260928_223537) -> passed.
+      Login/resync clear `stale_token` (the server's seed overwrites the
+      client's token stack).
     """
 
-    __slots__ = ("next_seq", "armed_token")
+    __slots__ = ("next_seq", "armed_token", "stale_token")
 
     def __init__(self):
         self.on_login()
@@ -145,27 +155,45 @@ class MoveAuthority:
     def on_login(self):
         self.next_seq = 0
         self.armed_token = LOGIN_TOKEN
+        self.stale_token = None
 
     def on_resync(self):
         self.next_seq = 0
         self.armed_token = REARM_TOKEN
+        self.stale_token = None
 
-    def rewrite(self, pkt: bytearray) -> int | None:
-        """Rewrite a plaintext 7-byte walk in place.
+    def rewrite(self, pkt: bytearray, src: str) -> tuple[str, str] | None:
+        """Rewrite a plaintext 7-byte walk in place (seq + key).
 
-        Returns the cycle token this walk consumed (whether stamped by us or
-        carried by the sender), or None for a continuation walk.
+        Returns (log_event, note) when the key decision is worth logging.
         """
         s = self.next_seq
         self.next_seq = s + 1 if s < 0xFF else 1
         pkt[2] = s
+        sent = int.from_bytes(pkt[3:7], "big")
         tok = self.armed_token
-        if tok is None:
-            return None
-        self.armed_token = None
-        if pkt[3:7] == b"\x00\x00\x00\x00":
+        if tok is not None:  # cycle opener
+            self.armed_token = None
+            if src == "client" and sent != 0:
+                if sent != tok:
+                    return ("c2s_token_mismatch",
+                            f"client cycle opener carries key {sent}, armed token was {tok}")
+                return None
             pkt[3:7] = tok.to_bytes(4, "big")
-        return tok
+            self.stale_token = tok
+            return ("c2s_token_stamped", f"cycle opener stamped with token {tok}")
+        if sent == 0:
+            return None
+        if src != "client":
+            pkt[3:7] = b"\x00\x00\x00\x00"
+            return ("c2s_agent_key_cleared", f"agent continuation key {sent} forced to 0")
+        if sent == self.stale_token:
+            pkt[3:7] = b"\x00\x00\x00\x00"
+            self.stale_token = None
+            return ("c2s_stale_token_dropped",
+                    f"client re-presented spent token {sent}; forced to 0")
+        return ("c2s_token_passthrough",
+                f"client continuation key {sent} passed (presumed server push)")
 
 
 class SessionTap:
@@ -238,15 +266,9 @@ class SessionTap:
                 continue
             pkt = bytearray(plain[i:i + plen])
             if pkt[0] == 0x02 and plen == 7:
-                sent_key = int.from_bytes(pkt[3:7], "big")
-                tok = self.moveauth.rewrite(pkt)
-                if tok is not None:
-                    if sent_key == 0:
-                        self._log(ev="c2s_token_stamped", src=src,
-                                  note=f"cycle-opening walk stamped with token {tok}")
-                    elif sent_key != tok:
-                        self._log(ev="c2s_token_mismatch", src=src,
-                                  note=f"cycle-opening walk carries key {sent_key}, armed token was {tok}")
+                note = self.moveauth.rewrite(pkt, src)
+                if note is not None:
+                    self._log(ev=note[0], src=src, note=note[1])
             elif bytes(pkt) == b"\x22\x00\x00":
                 self.moveauth.on_resync()
                 self._log(ev="c2s_resync_seen",
