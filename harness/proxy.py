@@ -111,6 +111,8 @@ async def handle_control(reader, writer, hub):
 CLIENT_PREAMBLE_LEN = 5
 SERVER_PRELUDE_LEN = 19
 
+SUPPRESS = object()  # tap return sentinel: drop this frame from the relay
+
 
 def hexd(b, limit=64):
     return b[:limit].hex()
@@ -140,6 +142,10 @@ class SessionTap:
 
     # ---- client -> server ----
     def tap_c2s(self, data: bytes):
+        # NOTE: resync suppression was tested (2026-09-29) and REMOVED — blocking
+        # the client's 22 0000 resync deadlocks its movement recovery after
+        # agent-injected walks. Keep client resyncs flowing.
+
         self.raw_c2s.write(data)
         if not self.c2s_preamble_done:
             need = CLIENT_PREAMBLE_LEN - len(self.c2s_buf)
@@ -260,7 +266,9 @@ async def _relay(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, tap
             data = await reader.read(65536)
             if not data:
                 break
-            tap(data)
+            suppress = tap(data)
+            if suppress is SUPPRESS:
+                continue
             writer.write(data)
             await writer.drain()
     except (ConnectionResetError, asyncio.IncompleteReadError, BrokenPipeError):

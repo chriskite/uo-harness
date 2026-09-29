@@ -278,3 +278,14 @@ are decoder-hidden — §3).
 | V10 DrawPlayer (0x20, 28 B) doesn't reset walker | `MobileUpdateV10 @ 0x140188d10` (`protocol_handlers.c:18323`) |
 | 0x30/0x95 handler-less / companion channel | `cuo_handler_table.json`; captures (login + both resync clusters) |
 | Captures | `logs/session_20260928_{141253,164548,211622,223537}.jsonl` (walk streams replayed by `harness/movement_driver.py`) |
+
+## Validated live model (2026-09-29, session 20260929_113311)
+
+All of the following was proven with live injections on the Test Shard:
+
+1. **Token values are constants**: login = **8**, re-arm (after each client movement-resync `22 0000`) = **1**. Not random, not per-session random. The first walk of a cycle must carry the current token; it is consumed on acceptance.
+2. **Continuation walks** (after a valid token walk, before the next re-arm) work with **key 0** and a **continuing seq** — including injected walks (proven: 4-step west drive rubber-banded the character).
+3. **Every accepted injected walk triggers a client movement-resync** (C2S `22 0000`) ~50–500 ms later, because the server reports movement the client didn't initiate. The resync re-arms the token requirement (new value 1) and resets the seq counter to 0.
+4. **Sustained autonomous walking** = a series of single `walk(dir, seq=0, key=1)` injections at ~600–700 ms intervals (one per resync cycle). Validated: 6 consecutive injected steps moved the character ~6 tiles with no manual input at all.
+5. **Resync suppression (dropping client `22 0000`) was tested and is WRONG** — it deadlocks the client's own movement recovery after agent activity. Proxy comment documents this; suppression removed.
+6. Anti-cheat note: the resync-per-external-walk behavior means an agent that walks leaves a distinctive resync cadence in the logs — visible to server-side behavioral analysis. Human pacing and mixed manual play remain the mitigation.
