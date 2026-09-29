@@ -44,6 +44,10 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 3. **Next: Phase 4 (agent runtime)**, an LLM planner over the state port + action/skill library,
    with safety rails (docs/PLAN.md).
 4. Optional: map-based z for re-anchors (stairs/slopes).
+5. Visualizer (docs/VISUALIZER.md, revised 2026-09-29, not built): a read-only
+   `viz_server.py` on the state port (live) or an offline SessionTap replay; React + TSX
+   frontend built with Bun (installed). M1 starts with small proxy additions (proxy
+   events + timestamps in the state-port event log, diagnostics).
 
 ## Operate
 

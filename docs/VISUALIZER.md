@@ -100,13 +100,11 @@ channels.
 
  REPLAY:  logs/session_*.{c2s.raw,s2c.raw,jsonl}
               └──► viz_server.py: offline SessionTap driver (same class as the proxy)
-  - **Interleave recovery.** For captures made by the fixed proxy (session 20260929_161433
-    onward; decode fix = commit 5eb2138), jsonl rows map 1:1, in order, onto the raw packets per
-    direction: c2s rows onto framed raw C2S (post-rewrite, as sent), s2c rows onto
-    `uo.s2c.S2CStream` packets. Verified on 163420: 3655/3655 s2c and 879/879 c2s rows match
-    their packets' hex. Each jsonl row carries `t` and `src`. Merge by `t` and replay with real
-    cadence and the correct `src`, which the MoveAuthority needs. The driver verifies `id`/`len`
-    agreement row by row and fails loudly on a mismatch.
+                        └──HTTP :8080 (same API)──► browser
+```
+
+- **`viz_server.py` is a separate, read-only process.** In live mode it polls the state port
+  (~4 Hz, `since` cursor) and fans out to the browser via SSE. It never touches the control port
   and never injects anything (ANTICHEAT §8: the viz is an observer). A viz crash cannot affect the
   game connection. The 2026-09-28 draft embedded the relay in the viz server; that is rejected
   now that the proxy already runs the world model.
@@ -114,12 +112,13 @@ channels.
   the capture's packets into a `SessionTap` (dummy writers) in their original interleave, so
   replay `tap.state()` is exactly what live would have served. That includes MoveAuthority truth,
   which the world-model-only replay (`replay.py`) cannot reproduce.
-  - **Interleave recovery.** For captures made after the decode fix (session 20260929_150111
-    onward, commit 5eb2138), jsonl rows map 1:1, in order, onto the raw packets per direction:
-    c2s rows onto framed raw C2S (post-rewrite, as sent), s2c rows onto `uo.s2c.S2CStream`
-    packets. Each jsonl row carries `t` and `src`. Merge by `t` and replay with real cadence and
-    the correct `src`, which the MoveAuthority needs. The driver verifies `id`/`len` agreement
-    row by row and fails loudly on a mismatch.
+  - **Interleave recovery.** For captures made by the fixed proxy (session 20260929_161433
+    onward; decode fix = commit 5eb2138), jsonl rows map 1:1, in order, onto the raw packets per
+    direction: c2s rows onto framed raw C2S (post-rewrite, as sent), s2c rows onto
+    `uo.s2c.S2CStream` packets. Verified on 163420: 3655/3655 s2c and 879/879 c2s rows match
+    their packets' hex. Each jsonl row carries `t` and `src`. Merge by `t` and replay with real
+    cadence and the correct `src`, which the MoveAuthority needs. The driver verifies `id`/`len`
+    agreement row by row and fails loudly on a mismatch.
   - **Older captures** have garbage s2c jsonl rows (pre-fix decode) and, for three sessions,
     empty c2s.raw. They replay in canonical order (all C2S then all S2C, as `replay.py` does),
     badged "approximate order". Their movement truth is unreliable, and the UI says so.
