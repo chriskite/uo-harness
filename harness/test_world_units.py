@@ -534,6 +534,11 @@ def test_c2s_procedural():
     f = parse_packet("c2s", SPEECH_HOWDY)
     eq("AD howdy", f, {"type": 0, "hue": 0x02B2, "font": 3, "lang": "ENU\x00",
                        "text": "howdy"})
+    # ground truth: the stock client's keyword-encoded "bank" (session
+    # 20260929_161433): type|0xC0, ids [2, 2] (speech.mul lists *bank* twice), UTF-8
+    f = parse_packet("c2s", bytes.fromhex("ad0016c002b20003454e5500002002002062616e6b00"))
+    eq("AD bank keyword-encoded", f, {"type": 0, "hue": 0x02B2, "font": 3, "lang": "ENU\x00",
+                                      "keywords": [2, 2], "text": "bank"})
     # ground truth: gump response, button 3, no switches/text
     f = parse_packet("c2s", GUMPRESP)
     eq("B1 ground", f, {"serial": 0x00215A42, "gump_id": 0xC16E0192,

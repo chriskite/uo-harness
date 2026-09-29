@@ -27,7 +27,7 @@ Standard UO layouts, XOR session key (see CIPHER.md). Frames 242/242 on capture,
 | `09` 5B / `34` 10B / `98` 7B | entity queries (id + serial) | repeated per nearby entity; likely name/info query (cf. `OutlandsItemNameResponse` in client metadata) |
 | `02` 7B | walk | standard |
 | `06` 5B | dclick | standard |
-| `AD` | unicode speech | standard |
+| `AD` | unicode speech | standard. **Keyword-encoded when speech.mul matches** (client `Send_UnicodeSpeechRequest` @ 0x140151c20, `IsMatch` @ 0x1401bba40 = upstream algorithm): type `\|= 0xC0`, then 12-bit count + 12-bit ids nibble-packed, then UTF-8 text + `00`; else UTF-16BE + `0000`. Capture 20260929_161433 "bank" = `ad 0016 c0 02b2 0003 454e5500 0020020020 62616e6b 00` (ids [2, 2]). NPCs (banker) key off these ids. Port: `harness/uo/speech.py` |
 | `B1` | gump response | standard |
 | `C8` 2B, `F0` 4B, `32` 2B | misc standard | |
 | `ff 00 07 00 00 00 03` | **Outlands keepalive ~1/s** | 0xFF namespace; prime `Send_TimeSyncPingReq` suspect |

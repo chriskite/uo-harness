@@ -56,7 +56,7 @@ async def main():
         [PY, f"{ROOT}/harness/proxy.py",
          "--listen-port", str(PROXY_PORT),
          "--upstream-host", "127.0.0.1", "--upstream-port", str(UPSTREAM_PORT),
-         "--control-port", "12599",
+         "--control-port", "12599", "--state-port", "12600",
          "--logdir", LOGDIR],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     await asyncio.sleep(1.0)

@@ -24,6 +24,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions
+from uo import speech
 import replay as replay_mod
 from uo.packets import packet_length, C2S_OVERRIDES
 from uo.s2c import PRELUDE_LEN, encode_packet
@@ -112,6 +113,11 @@ def test_dclick():
     # capture: {"id": "0x06", "hex": "0640005913"}
     check("dclick 0x40005913",
           actions.dclick(0x40005913) == bytes.fromhex("0640005913"))
+    # capture (session_20260929_161433, stock client clicking NPC 0x1E2):
+    # 09 000001e2 / 34 edededed 04 000001e2 / 98 0007 000001e2
+    check("single_click 0x1E2", actions.single_click(0x1E2) == bytes.fromhex("09000001e2"))
+    check("status_request 0x1E2", actions.status_request(0x1E2) == bytes.fromhex("34edededed04000001e2"))
+    check("name_request 0x1E2", actions.name_request(0x1E2) == bytes.fromhex("980007000001e2"))
 
 
 def test_say_unicode():
@@ -125,11 +131,86 @@ def test_say_unicode():
     expect2 = bytes.fromhex("ad001c0002b20003454e5500005b0061007300700065006300740000")
     check('say "[aspect" matches capture',
           actions.say_unicode("[aspect") == expect2)
+    # "[pouch" as sent by the stock client (session_20260929_161433, src=client)
+    expect3 = bytes.fromhex("ad001a0002b20003454e5500005b0070006f0075006300680000")
+    check('say "[pouch" matches capture',
+          actions.say_unicode("[pouch") == expect3)
+    # the stock client sent these UNENCODED, so no speech.mul keyword matches
+    for t in ("howdy", "[aspect", "[pouch"):
+        kw = speech.get_keywords(t)
+        check(f'no keywords for "{t}"', kw == [], str(kw))
+    # "hello" is speech.mul entry 59 (exact-match keyword, no '*'). The
+    # unencoded "hello" in session_20260928_211622 was a harness injection by
+    # the pre-keyword say_unicode, NOT stock output: the Outlands client's
+    # IsMatch (@ 0x1401bba40) is the upstream algorithm, so it would encode it.
+    # count 1 -> 00 | (1<<4 | 0x03B>>8)=10 | 3b; then utf8 "hello" 00
+    check('"hello" keywords == [59]', speech.get_keywords("hello") == [59])
+    check('say "hello" is encoded',
+          actions.say_unicode("hello") == bytes.fromhex(
+              "ad0015c002b20003454e550000103b") + b"hello\x00",
+          actions.say_unicode("hello").hex())
+    check('"hello there" does not match exact-only entry 59',
+          59 not in speech.get_keywords("hello there"))
     try:
         actions.say_unicode("x", lang=b"EN")
         check("bad lang rejected", False)
     except ValueError:
         check("bad lang rejected", True)
+
+
+def test_speech_keywords():
+    print("== speech keywords (speech.mul) ==")
+    n = len(speech.load())
+    check("speech.mul parsed", n > 0, f"({n} entries)")
+    kw = speech.get_keywords("bank")
+    print(f"    'bank' -> {[hex(k) for k in kw]}")
+    # 0x0002 is the RunUO bank keyword; speech.mul lists "*bank*" twice
+    check('"bank" keywords contain 0x0002', 0x0002 in kw, str(kw))
+    check('"bank" keywords == [2, 2]', kw == [2, 2], str(kw))
+    check("case-insensitive, trims spaces",
+          speech.get_keywords("  BaNk ") == kw)
+    check("word boundary: 'banker' is not 'bank'",
+          0x0002 not in speech.get_keywords("banker"))
+    check("punctuation is a boundary: 'bank!'",
+          0x0002 in speech.get_keywords("bank!"))
+
+    # encode_keywords, hand-packed per OutgoingPackets.cs:992-1033:
+    # byte count>>4; pending = count&15; per id alternately
+    #   even slot: ((pending<<4) | (id>>8 & 15)), (id & 0xFF)
+    #   odd slot:  (id>>4), pending = id&15
+    # trailing (pending<<4) only if the id count is even.
+    # 1 id [0xABC]: 00 | (1<<4|0xA)=1a | bc                    -> 00 1a bc
+    check("encode 1 id", speech.encode_keywords([0xABC]) == bytes.fromhex("001abc"))
+    # 2 ids [0x123,0x456]: 00 | (2<<4|1)=21 | 23 | 0x456>>4=45, pending 6
+    #   | pad 6<<4=60                                           -> 00 21 23 45 60
+    check("encode 2 ids", speech.encode_keywords([0x123, 0x456])
+          == bytes.fromhex("0021234560"))
+    # 3 ids [0x123,0x456,0x789]: 00 21 23 45 | (6<<4|7)=67 | 89, no pad
+    #   (count 3 -> first nibble byte 0x31)                   -> 00 31 23 45 67 89
+    check("encode 3 ids", speech.encode_keywords([0x123, 0x456, 0x789])
+          == bytes.fromhex("003123456789"))
+    # 17 ids: count 0x011 -> first byte 0x01, pending nibble 1
+    check("encode count >= 16 uses the high count byte",
+          speech.encode_keywords([0] * 17)[:2] == bytes.fromhex("0110"))
+
+    # encoded "bank" packet, default hue/font/lang
+    pkt = actions.say_unicode("bank")
+    print(f"    'bank' -> {pkt.hex()}")
+    check("bank: length field == len(pkt)",
+          int.from_bytes(pkt[1:3], "big") == len(pkt) == 0x16, pkt.hex())
+    check("bank: type 0xC0 (encoded)", pkt[3] == 0xC0)
+    check("bank: hue/font/lang",
+          pkt[4:12] == bytes.fromhex("02b20003") + b"ENU\x00")
+    check("bank: keyword bytes 00 20 02 00 20 (count 2, ids 2, 2)",
+          pkt[12:17] == bytes.fromhex("0020020020"))
+    check("bank: utf8 text + NUL", pkt[17:] == b"bank\x00")
+    # stock client capture (logs/session_20260929_161433.c2s.raw)
+    check('say "bank" matches stock-client capture byte-for-byte',
+          pkt == bytes.fromhex("ad0016c002b20003454e5500002002002062616e6b00"))
+    # type/hue parameters flow into the encoded form (type |= 0xC0)
+    yell = actions.say_unicode("bank", hue=0x0035, msg_type=0x09)
+    check("encoded yell keeps base type bits", yell[3] == 0xC9 and
+          yell[4:6] == bytes.fromhex("0035"), yell.hex())
 
 
 def test_cast_spell():
@@ -227,6 +308,7 @@ async def injection_test():
          "--listen-port", str(PROXY_PORT),
          "--upstream-host", "127.0.0.1", "--upstream-port", str(UPSTREAM_PORT),
          "--control-port", str(CONTROL_PORT),
+         "--state-port", "12603",
          "--logdir", LOGDIR],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     await asyncio.sleep(1.0)
@@ -393,6 +475,7 @@ def main():
     test_sequencer()
     test_dclick()
     test_say_unicode()
+    test_speech_keywords()
     test_cast_spell()
     test_item_query()
     test_gump_response()

@@ -38,10 +38,12 @@ import time
 
 from uo.packets import packet_length, C2S_OVERRIDES
 from uo.s2c import PRELUDE_LEN, S2CStream, encode_packet, prelude_keys
+from world.runtime import WorldRuntime, C2S, S2C
 
 CONTROL_MAX_FRAME = 4096
 CLIENT_PREAMBLE_LEN = 5
 RESYNC = b"\x22\x00\x00"
+EVENT_CAP = 5000  # world events kept for state-port readers
 
 # Movement timing (docs/MOVEMENT.md, sessions 20260929_142237/_143051/_144541):
 RESYNC_REPLY_TIMEOUT_S = 1.5  # client resync: no 0xBF sub1 seed by then -> the server ignored it
@@ -316,7 +318,13 @@ async def handle_control(reader, writer, hub):
 
 
 class SessionTap:
-    """Per-connection protocol processor for both directions."""
+    """Per-connection protocol processor for both directions.
+
+    Also runs the world model live: every C2S packet (after rewrite, as the
+    server sees it) and every S2C packet (as the server sent it, before
+    client-side filtering) is fed to a WorldRuntime; its events are kept in an
+    indexed log for state-port readers (`state()`).
+    """
 
     def __init__(self, logf, raw_c2s, raw_s2c):
         self.logf = logf
@@ -330,6 +338,10 @@ class SessionTap:
         self.s2c = None                  # S2CStream once the prelude is parsed
         self.s2c_passthrough = False     # unexpected prelude: relay S2C undecoded
         self.moveauth = MoveAuthority()
+        self.world = WorldRuntime()
+        self.events = []                 # world events; absolute index = events_base + i
+        self.events_base = 0
+        self.world_errors = 0
 
     def _log(self, **kw):
         kw["t"] = round(time.time(), 3)
@@ -339,6 +351,43 @@ class SessionTap:
     def tick(self, now: float):
         for ev, note in self.moveauth.expire(now):
             self._log(ev=ev, note=note)
+
+    # ---- live world model ----
+    def _world(self, direction: str, pkt: bytes):
+        """Feed the world model; never lets a model bug touch the relay."""
+        try:
+            self.world.feed_packet(direction, pkt)
+        except Exception as e:  # noqa: BLE001 - relay must survive any model bug
+            self.world_errors += 1
+            if self.world_errors <= 20:
+                self._log(ev="world_error", note=f"{direction} 0x{pkt[0]:02X}: {type(e).__name__}: {e}")
+        new = self.world.drain_events()
+        if new:
+            self.events.extend(new)
+            over = len(self.events) - EVENT_CAP
+            if over > 0:
+                del self.events[:over]
+                self.events_base += over
+
+    def state(self, since: int = 0) -> dict:
+        """Snapshot for state-port readers: movement truth, world model, and
+        world events with absolute index >= since."""
+        ma = self.moveauth
+        start = max(since - self.events_base, 0)
+        return {
+            "movement": {
+                "pos": ma.pos, "self_serial": ma.self_serial,
+                "inflight": len(ma.inflight), "next_seq": ma.next_seq,
+                "resync_pending": ma.resync_sent_at is not None,
+                "rejects_in_row": ma.rejects_in_row,
+                "stalled": ma.rejects_in_row >= STALL_REJECTS,
+                "client_stale": ma.client_stale,
+            },
+            "world": self.world.state.snapshot(),
+            "events": self.events[start:],
+            "next": self.events_base + len(self.events),
+            "world_errors": self.world_errors,
+        }
 
     # ---- client -> server ----
     def _c2s_packet(self, pkt: bytearray, src: str, now: float) -> bytes:
@@ -351,6 +400,7 @@ class SessionTap:
             self.moveauth.on_c2s_resync(now)
             self._log(ev="c2s_resync_seen", src=src)
         self._log(dir="c2s", src=src, id=f"0x{pkt[0]:02X}", len=len(pkt), hex=hexd(bytes(pkt)))
+        self._world(C2S, bytes(pkt))
         enc = bytes(b ^ self.key for b in pkt)
         self.raw_c2s.write(enc)
         return enc
@@ -361,10 +411,18 @@ class SessionTap:
         Independent of the client's partial-packet buffer: only complete client
         packets are ever forwarded, so an injection never splits one.
         """
-        return self._c2s_packet(bytearray(payload), src, time.monotonic() if now is None else now)
+        out = self._c2s_packet(bytearray(payload), src, time.monotonic() if now is None else now)
+        self.raw_c2s.flush()
+        return out
 
     def tap_c2s(self, data: bytes) -> bytes:
-        """Frame + normalize client traffic; returns the bytes to forward upstream."""
+        """Frame + normalize client traffic; returns the bytes to forward upstream.
+        Raw capture is flushed every call so a killed proxy loses nothing."""
+        out = self._tap_c2s(data)
+        self.raw_c2s.flush()
+        return out
+
+    def _tap_c2s(self, data: bytes) -> bytes:
         out = bytearray()
         if not self.c2s_preamble_done:
             need = CLIENT_PREAMBLE_LEN - len(self.c2s_buf)
@@ -406,6 +464,7 @@ class SessionTap:
         """Decode server traffic packet by packet; returns the bytes to forward
         to the client (an incomplete trailing packet is held until complete)."""
         self.raw_s2c.write(data)
+        self.raw_s2c.flush()
         if self.s2c_passthrough:
             return data
         out = bytearray()
@@ -427,6 +486,7 @@ class SessionTap:
             self._log(ev="s2c_prelude", hex=head[:PRELUDE_LEN].hex(),
                       s2c_key=f"0x{s2c_key:02X}", c2s_key=f"0x{c2s_key:02X}")
             out += head[:PRELUDE_LEN]
+            self._world(S2C, head[:PRELUDE_LEN])
             data = head[PRELUDE_LEN:]
         now = time.monotonic()
         for wire, pkt in self.s2c.feed(data):
@@ -437,9 +497,13 @@ class SessionTap:
         """Log one S2C packet, update movement state; return the wire bytes to forward."""
         pid = pkt[0]
         self._log(dir="s2c", id=f"0x{pid:02X}", len=len(pkt), hex=hexd(pkt))
+        self._world(S2C, pkt)
         ma = self.moveauth
         if pid == 0x22 and len(pkt) == 3:
+            before = tuple(ma.pos) if ma.pos is not None else None
             action, client_seq = ma.on_confirm(pkt[1])
+            if before is not None and (ma.pos[0], ma.pos[1]) != before[:2]:
+                self._log(ev="step", **{"from": list(before[:2])}, to=ma.pos[:2], z=ma.pos[2])
             if action == "hide":
                 self._log(ev="s2c_confirm_hidden", note=f"agent walk seq {pkt[1]} confirmed")
                 return b""
@@ -447,6 +511,9 @@ class SessionTap:
                 self._log(ev="s2c_confirm_rewritten", note=f"seq {pkt[1]} -> client seq {client_seq}")
                 return encode_packet(bytes([0x22, client_seq, pkt[2]]), self.s2c.key)
         elif pid == 0x21 and len(pkt) == 15:
+            entry = ma.inflight.get(pkt[1])
+            if entry is not None and ma.pos is not None:
+                self._log(ev="blocked", **{"from": ma.pos[:2]}, dir=entry[2], src=entry[0])
             ma.on_deny()
             ma.on_self_position(_u32(pkt, 2), _u32(pkt, 6), _i32(pkt, 11), pkt[10])
             self._log(ev="s2c_deny", note="walk denied; ladder reset to 0")
@@ -565,17 +632,55 @@ async def handle_client(client_reader, client_writer, args):
         print(f"[proxy] {peer} closed")
 
 
+async def handle_state(reader, writer, hub):
+    """One state connection: JSON-lines request/response (localhost only).
+
+    Request  `{"op": "state", "since": N}`  -> SessionTap.state(N) + {"ok": true}
+    No session -> `{"ok": false, "error": "no active session"}`.
+    """
+    try:
+        while True:
+            line = await reader.readline()
+            if not line:
+                break
+            try:
+                req = json.loads(line)
+            except json.JSONDecodeError:
+                resp = {"ok": False, "error": "bad json"}
+            else:
+                if req.get("op") != "state":
+                    resp = {"ok": False, "error": f"unknown op {req.get('op')!r}"}
+                elif hub.session is None:
+                    resp = {"ok": False, "error": "no active session"}
+                else:
+                    tap = hub.session[0]
+                    tap.tick(time.monotonic())
+                    resp = {"ok": True, **tap.state(int(req.get("since", 0)))}
+            writer.write((json.dumps(resp) + "\n").encode())
+            await writer.drain()
+    except (ConnectionResetError, BrokenPipeError):
+        pass
+    finally:
+        try:
+            writer.close()
+        except Exception:
+            pass
+
+
 async def amain(args):
     args.hub = InjectionHub()
     control = await asyncio.start_server(
         lambda r, w: handle_control(r, w, args.hub),
         args.control_host, args.control_port)
+    state = await asyncio.start_server(
+        lambda r, w: handle_state(r, w, args.hub),
+        args.control_host, args.state_port)
     server = await asyncio.start_server(
         lambda r, w: handle_client(r, w, args), args.listen_host, args.listen_port)
     print(f"[proxy] listening on {args.listen_host}:{args.listen_port}, "
           f"upstream {args.upstream_host}:{args.upstream_port}, "
-          f"control {args.control_host}:{args.control_port}")
-    async with server, control:
+          f"control {args.control_host}:{args.control_port}, state {args.control_host}:{args.state_port}")
+    async with server, control, state:
         await server.serve_forever()
 
 
@@ -592,6 +697,8 @@ def main():
     p.add_argument("--control-host", default="127.0.0.1")
     p.add_argument("--control-port", type=int, default=25941,
                    help="localhost control listener for agent action injection")
+    p.add_argument("--state-port", type=int, default=25942,
+                   help="localhost JSON-lines state endpoint (movement + world model)")
     p.add_argument("--logdir", default="logs")
     args = p.parse_args()
     try:

@@ -518,14 +518,28 @@ def _p_dialect(direction, pkt):
 # ---------------------------------------------------------------------------
 
 def _p_speech(pkt):
-    """0xAD unicode speech: type, hue, font, language, NUL-terminated text."""
+    """0xAD unicode speech: type, hue, font, language, then either UTF-16BE
+    text (plain) or, when type & 0xC0 (keyword-encoded, as the client sends
+    speech containing speech.mul keywords), packed 12-bit keyword ids (count
+    first) followed by NUL-terminated UTF-8 text."""
     r = _Reader(pkt)
     r.take(1)
     r.u16()
     d = {"type": r.u8(), "hue": r.u16(), "font": r.u16(),
          "lang": r.take(4).decode("ascii", "replace")}
-    d["text"] = r.take(len(pkt) - r.p).decode(
-        "utf-16-be", "replace").rstrip("\x00")
+    if d["type"] & 0xC0 == 0xC0:
+        head = r.take(2)
+        count = (head[0] << 4) | (head[1] >> 4)
+        nbytes = (3 * (count + 1) + 1) // 2  # 12 bits per value incl. the count
+        packed = head + r.take(nbytes - 2)
+        nib = [n for b in packed for n in (b >> 4, b & 0xF)]
+        d["keywords"] = [(nib[3 * i] << 8) | (nib[3 * i + 1] << 4) | nib[3 * i + 2]
+                         for i in range(1, count + 1)]
+        d["type"] &= ~0xC0 & 0xFF
+        d["text"] = r.take(len(pkt) - r.p).split(b"\x00", 1)[0].decode("utf-8", "replace")
+    else:
+        d["text"] = r.take(len(pkt) - r.p).decode(
+            "utf-16-be", "replace").rstrip("\x00")
     return d
 
 

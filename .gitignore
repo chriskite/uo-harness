@@ -23,6 +23,7 @@ capture_state.txt
 logs/
 logs_test/
 logs_test_actions/
+logs_test_errand/
 settings.json*
 handle.exe
 screen.png

@@ -12,11 +12,22 @@ time). Only wire-proven layouts are implemented:
                           (dir u8, seq u8, fastwalk key u32be — on Outlands the
                           cycle token; the proxy's MoveAuthority stamps it)
   dclick        0x06  5B   id, serial u32be (capture: `06 40005913`)
+  single_click  0x09  5B   id, serial u32be (capture: `09 000001e2`)
+  status_request 0x34 10B  id, 0xEDEDEDED, type u8 (4 = mobile status), serial
+                          (capture `34 edededed 04 000001e2`; the stock client
+                          sends it right after a 0x09 on the same serial in
+                          518/523 clicks across captures)
+  name_request  0x98  7B   id, len u16be=7, serial (capture `98 0007 000001e2`;
+                          follows a click when the name is not known yet)
   say_unicode   0xAD  var  id, len u16be, type u8=0, hue u16be=0x02B2,
-                          font u16be=0x0003, lang "ENU\\0", utf16be text,
-                          0x0000 terminator
+                          font u16be=0x0003, lang "ENU\\0", then either
+                          utf16be text + 0x0000 (no speech.mul keyword), or
+                          (type|0xC0) packed keyword ids + utf8 text + 0x00
+                          (uo/speech.py, ported from ClassicUO)
                           ground truth: logs/session_20260928_141253.jsonl
-                          `ad 0018 0002 b200 0003 454e5500 <"howdy"> 0000`
+                          `ad 0018 0002 b200 0003 454e5500 <"howdy"> 0000`;
+                          encoded: logs/session_20260929_161433 "bank" =
+                          `ad 0016 c0 02b2 0003 454e5500 0020020020 <bank> 00`
   cast_spell    0xFF  10B  dialect sub 4: ff 000a 00000004 00 <spellId u16be>
                           (docs/WORLDMODEL.md §5 C2S table; capture
                           `ff 000a 00000004 00 000f`; client-side viewer
@@ -44,10 +55,13 @@ future phase may rewrite seq proxy-side.
 """
 import struct
 
+from uo import speech
+
 RUN_FLAG = 0x80
 
 # say_unicode defaults, taken from the captured live session
 SPEECH_TYPE = 0x00
+SPEECH_ENCODED = 0xC0  # MessageType.Encoded, OR'd in when keywords match
 SPEECH_HUE = 0x02B2
 SPEECH_FONT = 0x0003
 SPEECH_LANG = b"ENU\x00"
@@ -118,16 +132,44 @@ def dclick(serial: int) -> bytes:
 
 
 def say_unicode(text: str, hue: int = SPEECH_HUE, font: int = SPEECH_FONT,
-                lang: bytes = SPEECH_LANG) -> bytes:
-    """0xAD unicode speech (layout per live capture, see module docstring)."""
+                lang: bytes = SPEECH_LANG, msg_type: int = SPEECH_TYPE) -> bytes:
+    """0xAD unicode speech, byte-identical to the stock client's
+    Send_UnicodeSpeechRequest: if speech.mul keywords match `text`, the
+    encoded form (type|0xC0, keyword ids, UTF-8 + NUL); else UTF-16BE + NUL16.
+    """
+    _check_u8(msg_type, "msg_type")
     _check_u16(hue, "hue")
     _check_u16(font, "font")
     if len(lang) != 4:
         raise ValueError("lang must be exactly 4 bytes (e.g. b'ENU\\x00')")
-    body = text.encode("utf-16-be") + b"\x00\x00"
+    ids = speech.get_keywords(text)
+    if ids:
+        msg_type |= SPEECH_ENCODED
+        body = speech.encode_keywords(ids) + text.encode("utf-8") + b"\x00"
+    else:
+        body = text.encode("utf-16-be") + b"\x00\x00"
     length = 1 + 2 + 1 + 2 + 2 + 4 + len(body)
-    return (struct.pack(">BHBHH", 0xAD, length, SPEECH_TYPE, hue, font)
+    return (struct.pack(">BHBHH", 0xAD, length, msg_type, hue, font)
             + lang + body)
+
+
+def single_click(serial: int) -> bytes:
+    """0x09 single click (LookRequest): `09 <serial u32be>`."""
+    _check_u32(serial, "serial")
+    return struct.pack(">BI", 0x09, serial)
+
+
+def status_request(serial: int, status_type: int = 4) -> bytes:
+    """0x34 status request: `34 edededed <type u8> <serial u32be>` (4 = mobile status)."""
+    _check_u8(status_type, "status_type")
+    _check_u32(serial, "serial")
+    return struct.pack(">BIBI", 0x34, 0xEDEDEDED, status_type, serial)
+
+
+def name_request(serial: int) -> bytes:
+    """0x98 name request: `98 0007 <serial u32be>`."""
+    _check_u32(serial, "serial")
+    return struct.pack(">BHI", 0x98, 0x0007, serial)
 
 
 def cast_spell(spell_id: int) -> bytes:

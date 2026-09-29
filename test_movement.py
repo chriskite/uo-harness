@@ -10,6 +10,7 @@
    traffic reaching the server.
 """
 import asyncio
+import json
 import os
 import socket
 import subprocess
@@ -171,7 +172,7 @@ def test_real_capture():
 
 # ---------------------------------------------------------------- end-to-end
 
-PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT = 12593, 12594, 12598
+PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT = 12593, 12594, 12598, 12602
 LOGDIR = f"{ROOT}/logs_test"
 C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
@@ -222,7 +223,7 @@ async def e2e():
     proxy = subprocess.Popen(
         [PY, f"{ROOT}/harness/proxy.py", "--listen-port", str(PROXY_PORT),
          "--upstream-host", "127.0.0.1", "--upstream-port", str(UPSTREAM_PORT),
-         "--control-port", str(CONTROL_PORT), "--logdir", LOGDIR],
+         "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--logdir", LOGDIR],
         stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     srv = FakeServer()
     server = await asyncio.start_server(srv.handle, "127.0.0.1", UPSTREAM_PORT)
@@ -281,6 +282,13 @@ async def e2e():
         denies_mid = [p for p in client_rx if p[0] == 0x21]
         await asyncio.sleep(P.REANCHOR_IDLE_S + 0.5)
         denies = [p for p in client_rx if p[0] == 0x21]
+        st_sock = socket.create_connection(("127.0.0.1", STATE_PORT), timeout=10)
+        st_sock.sendall(b'{"op": "state", "since": 0}\n')
+        st_buf = b""
+        while not st_buf.endswith(b"\n"):
+            st_buf += st_sock.recv(65536)
+        st_sock.close()
+        state = json.loads(st_buf)
         ctl.close()
         writer.close()
         await asyncio.sleep(0.3)
@@ -299,6 +307,17 @@ async def e2e():
               str([deny_fields(d) for d in denies]))
         check("server received no proxy-originated packets (only walks)", srv.other == [], str(srv.other))
         check("client prelude relayed", bytes(got_prelude) == PRELUDE, got_prelude.hex())
+        mv = state.get("movement", {})
+        check("state endpoint: movement pos = tracked true position",
+              state.get("ok") and mv.get("pos") == [101, 198, 5, 2], str(mv))
+        check("state endpoint: live world model knows self serial",
+              state.get("world", {}).get("self", {}).get("serial") in (SERIAL, f"0x{SERIAL:08X}"),
+              str(state.get("world", {}).get("self", {}).get("serial")))
+        log = [json.loads(l) for f in os.listdir(LOGDIR) if f.endswith(".jsonl")
+               for l in open(os.path.join(LOGDIR, f), encoding="utf-8")]
+        steps = [(e["from"], e["to"]) for e in log if e.get("ev") == "step"]
+        check("jsonl step events for confirmed moves (turn logs none)",
+              steps == [([100, 200], [100, 199]), ([100, 199], [100, 198]), ([100, 198], [101, 198])], str(steps))
     finally:
         proxy.terminate()
         server.close()
