@@ -137,6 +137,10 @@ def test_replay_parity(logdir):
     check("timeline fully applied", d.position == len(d.items), f"{d.position}/{len(d.items)}")
     pos = st["movement"]["pos"]
     check("final movement.pos == [1963, 2597, 0, facing]", pos is not None and pos[:3] == [1963, 2597, 0], str(pos))
+    ws = st["world"]["self"]
+    check("world-model self == movement truth after the errand (confirm-driven, turns don't move)",
+          pos is not None and [ws["x"], ws["y"], ws["direction"]] == [pos[0], pos[1], pos[3]],
+          f"world {(ws['x'], ws['y'], ws['direction'])} vs truth {pos}")
     items = st["world"]["items"]
     me = st["world"]["self"]["serial"]
     bank = [int(k, 16) for k, v in items.items() if v.get("layer") == 0x1D and v.get("container") == me]

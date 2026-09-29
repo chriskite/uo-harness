@@ -137,8 +137,12 @@ def test_session_144541_full():
     print("== replay session_20260929_144541 ==")
     result = replay.replay_session(*S3)
     s = result.state.self
-    check("server position wins over dead reckoning",
-          (s.x, s.y) == (0x7A6, 0xA25), f"(got {(s.x, s.y)})")
+    # last server anchor = self 0x77 at (0x7A6, 0xA25); the user then walked 27
+    # more server-confirmed steps with no further anchor. Self follows those
+    # confirms (a new direction only turns) and ends at (1955, 2608), the same
+    # result as the confirm/walk reconstruction in harness/nav.py.
+    check("self follows server-confirmed walks past the last anchor",
+          (s.x, s.y) == (1955, 2608), f"(got {(s.x, s.y)})")
     _walks_confirmed(result.events)
 
 

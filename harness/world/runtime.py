@@ -5,9 +5,10 @@ registered handler are counted in `unhandled` (visibility into coverage gaps)
 and otherwise ignored; truncated/corrupt packets increment `parse_failures`
 and are dropped — neither is ever fatal.
 
-C2S is a first-class input: walks dead-reckon the player's position, entity
-queries feed the census (salience), and the login-time self-status query
-establishes the player's serial (see _adopt_self_serial).
+C2S is a first-class input: walk requests are held as pending and move the
+player only when the server confirms them (0x22; a walk in a new direction only
+turns), entity queries feed the census (salience), and the login-time
+self-status query establishes the player's serial (see _adopt_self_serial).
 
 Identity: 0x1B LoginConfirm names the player serial (the C2S login-burst
 query adopts it earlier in replay order; a disagreeing 0x1B is counted in
@@ -26,6 +27,7 @@ S2C = "s2c"
 
 # UO direction deltas: 0=N 1=NE 2=E 3=SE 4=S 5=SW 6=W 7=NW
 _DELTAS = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
+PENDING_WALKS_MAX = 64  # unconfirmed walk requests kept for confirm matching
 
 
 class WorldRuntime:
@@ -37,6 +39,8 @@ class WorldRuntime:
         self.dialect_unhandled = collections.Counter()  # (direction, subId)
         self.parse_failures = 0
         self.anomalies = collections.Counter()
+        # walk requests awaiting the server's 0x22 confirm: [(seq, direction)]
+        self.pending_walks: list[tuple[int, int]] = []
 
     def drain_events(self):
         out, self.events = self.events, []
@@ -85,18 +89,40 @@ def _h_damage(rt, f):
 
 
 def _h_confirm_walk(rt, f):
+    """S2C 0x22: the server accepted walk `seq`. Apply it to self: a walk in a
+    new direction only turns, otherwise it moves one tile. Pending walks sent
+    before the confirmed one got no confirm, so the server rejected them:
+    they are dropped without moving self."""
+    s = rt.state.self
     noto = f["notoriety"] & 0xBF
     if noto == 0 or noto > 7:
         noto = 1
-    rt.state.self.notoriety = noto
-    rt._emit("walk_confirm", seq=f["seq"], notoriety=noto)
+    s.notoriety = noto
+    moved = False
+    idx = next((i for i, (seq, _) in enumerate(rt.pending_walks) if seq == f["seq"]), None)
+    if idx is not None:
+        direction = rt.pending_walks[idx][1]
+        del rt.pending_walks[:idx + 1]
+        if s.direction != direction:
+            s.direction = direction
+        else:
+            dx, dy = _DELTAS[direction]
+            s.x += dx
+            s.y += dy
+            s.position_changes += 1
+            moved = True
+    rt._emit("walk_confirm", seq=f["seq"], notoriety=noto, x=s.x, y=s.y,
+             direction=s.direction, moved=moved)
 
 
 def _h_deny_walk(rt, f):
+    """S2C 0x21: walk rejected; snap to the server position. The server resets
+    its walker, so walks still pending will not be confirmed."""
     s = rt.state.self
     s.x, s.y, s.z = f["x"], f["y"], f["z"]
-    s.direction = f["dir"]
+    s.direction = f["dir"] & 7
     s.position_absolute = True
+    rt.pending_walks.clear()
     rt._emit("walk_deny", seq=f["seq"], x=s.x, y=s.y, z=s.z,
              direction=s.direction)
 
@@ -376,16 +402,17 @@ def _h_dialect_c2s(rt, f):
 # ---------------------------------------------------------------------------
 
 def _h_walk(rt, f):
+    """C2S 0x02: a walk REQUEST. Self does not move yet: the walk is recorded
+    as pending and applied when the server confirms its seq (_h_confirm_walk),
+    the same rule as the proxy's MoveAuthority (docs/MOVEMENT.md)."""
     s = rt.state.self
     direction = f["dir"] & 7
-    dx, dy = _DELTAS[direction]
-    s.x += dx
-    s.y += dy
-    s.direction = direction
+    rt.pending_walks.append((f["seq"], direction))
+    if len(rt.pending_walks) > PENDING_WALKS_MAX:
+        del rt.pending_walks[0]
     s.walk_seq = f["seq"]
-    s.position_changes += 1
     rt._emit("walk", dir=direction, run=bool(f["dir"] & 0x80), seq=f["seq"],
-             x=s.x, y=s.y, moved=True)
+             x=s.x, y=s.y, moved=False)
 
 
 def _h_dclick(rt, f):

@@ -20,9 +20,9 @@ class SelfState:
     serial: int | None = None
     name: str | None = None
     account: str | None = None
-    # dead-reckoned from C2S walks until an absolute server position arrives
-    # (0x1B LoginConfirm / 0x20 MobileUpdate / 0x77 MobileMove / 0x21
-    # DenyWalk); starts relative at (0, 0)
+    # absolute from 0x1B LoginConfirm / 0x20 / 0x77 / 0x21 about self, then
+    # advanced by server-confirmed walks (0x22; a new direction only turns);
+    # starts relative at (0, 0)
     x: int = 0
     y: int = 0
     z: int = 0

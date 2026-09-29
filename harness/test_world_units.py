@@ -730,10 +730,20 @@ def test_event_semantics():
     except TypeError:
         ok = False
     check("events json-serializable", ok)
-    # walk dead-reckoning: two walks west (dir 6) from (0,0)
+    # walk requests don't move self; the server's confirm does (a walk in a new
+    # direction only turns, a walk in the facing direction moves one tile)
     rt.feed_packet("c2s", WALK)                                  # dir 6, seq 0
     rt.feed_packet("c2s", bytes.fromhex("02860100000000"))       # dir 6, seq 1
-    eq("walk integration", (rt.state.self.x, rt.state.self.y), (-2, 0))
+    rt.feed_packet("c2s", bytes.fromhex("02860200000000"))       # dir 6, seq 2 (rejected)
+    rt.feed_packet("c2s", bytes.fromhex("02860300000000"))       # dir 6, seq 3
+    eq("walk request does not move self", (rt.state.self.x, rt.state.self.y), (0, 0))
+    rt.feed_packet("s2c", bytes.fromhex("220001"))                # confirm seq 0: turn to W
+    eq("confirmed walk in a new direction only turns",
+       (rt.state.self.x, rt.state.self.y, rt.state.self.direction), (0, 0, 6))
+    rt.feed_packet("s2c", bytes.fromhex("220101"))                # confirm seq 1: move W
+    rt.feed_packet("s2c", bytes.fromhex("220301"))                # confirm seq 3: seq 2 never confirmed
+    eq("confirmed walks move; the unconfirmed (rejected) one does not",
+       (rt.state.self.x, rt.state.self.y), (-2, 0))
     eq("walk run flag", rt.state.self.direction, 6)
     # deny walk snaps to the server position
     rt.feed_packet("s2c", bytes.fromhex("21" "01" "00001000" "00002000"

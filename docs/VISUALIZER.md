@@ -38,14 +38,15 @@ today, the Phase 4 agent later). There is no privileged channel (§3).
 ### 1.1 `movement` = server truth
 Built by the proxy's `MoveAuthority` from the server's own packets: self anchors from
 0x1B/0x20/0x77/0x21, plus each ConfirmWalk (a walk in a new direction only turns). **This is the
-player position to draw.** `world.self.x/y` is the world model's dead reckoning from C2S walks.
-It can diverge (it can't see hidden or rejected walks), and replay ordering distorts it: replaying
-163420 leaves it at the login spot (1961, 2605) while the truth was (1963, 2597). The UI shows
-both and badges any disagreement.
+player position to draw.** `world.self.x/y` is the world model's own estimate. Since 2026-09-29
+it moves only on server confirms with the same turn rule as the proxy, and in exact replay of 163420
+it equals `movement.pos` at all 23,652 settled points (0 mismatches). It can still differ while
+walks are in flight, or in approximate-order replays (all C2S before all S2C). The UI shows both
+and badges any disagreement.
 
 ### 1.2 `world` = `StateStore.snapshot()`
 Serial keys are `0x%08X` strings. `None` fields are omitted. Current facts:
-- `self`: serial, name, x/y/z/direction (dead-reckoned, absolute from 0x1B), vitals, stats,
+- `self`: serial, name, x/y/z/direction (absolute from 0x1B, advanced by confirmed walks), vitals, stats,
   skills, gold, weight, warmode, notoriety.
 - `mobiles`: now carry **x/y/z/direction** from 0x20/0x77/0x78 (163420: 14 of 15 have a
   position), plus name, graphic, hue, vitals, notoriety, flags.
@@ -336,15 +337,18 @@ include `@types/bun` so `bun:test`/`Bun.build` type-check).
   the frontend detects `next` going backwards and refetches.
 - **Verified in a real browser** (headless Chromium, 1600×900) on the 163420 replay:
   - the amber trail follows the errand to "Len the banker" and back
-  - the true marker ends at (1963, 2597) E, while the world-model ghost sits at (1964, 2594) with
-    a DIVERGED badge (the dead-reckoning gap §1.1 predicted, now visible)
+  - the true marker ends at (1963, 2597) E, while the world-model ghost sat at (1964, 2594) with
+    a DIVERGED badge: the old request-based dead reckoning counted turns as steps (fixed, below)
   - Traffic shows 54 agent walks, 1 agent speech, 54 confirms hidden
   - the bank box 0x44D78CA8 is OPEN
   - step advances playback; state frames arrive in 27–95 ms
   - no page errors
 
-**Known gap:** world-model self dead reckoning diverges during agent walking (above). Agents and
-the viz must use `movement.pos`.
+**Resolved 2026-09-29:** the world model used to move self on every walk *request*, counting
+turns and rejected walks as steps, so it diverged during agent walking. It now moves only on
+server confirms, with the turn rule (runtime.py `_h_walk` / `_h_confirm_walk`). On the 163420
+exact replay it matches `movement.pos` at every settled point. `movement.pos` remains the
+authoritative field for agents (it is also correct while confirms are in flight).
 
 ## 8. Changes from the 2026-09-28 draft
 
