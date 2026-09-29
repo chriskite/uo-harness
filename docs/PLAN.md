@@ -64,7 +64,9 @@ LLM planner over the world model + skill library; safety rails (rate limits, cap
 - **Map data: read directly from the real install dir** (map/statics/tiledata; read-only, never write). This replaces walk-memory-only navigation for unexplored ground, so exploring doesn't mean repeated server denials.
 - **Handoff alert: sound** (first version).
 - **Full autonomy**, with a **kill switch in the visualizer** (docs/VISUALIZER.md). The proxy enforces it: a halt flag that rejects all injection, so no skill can bypass it.
-- Proposed, pending confirmation: the proxy also enforces the safety rails (packet-id allowlist, per-type rate limits, session cap, agent yields while the human is acting); in-game speech is allowlisted keywords/commands only, and the LLM never writes free text into the game (AGENTS.md rule 8).
+- Proposed, pending confirmation: the proxy also enforces the safety rails (packet-id allowlist, per-type rate limits, session cap, agent yields while the human is acting).
+- **In-game speech is allowlisted keywords/commands only** (user decision 2026-09-29). Allowed: NPC trigger words such as `bank` and `vendor buy`, `[`-commands, and a few innocuous phrases. The LLM never writes free text into the game (AGENTS.md rule 8). The wire encoding is unaffected: `say_unicode` keyword-encodes like the stock client. Free text through a filter was rejected for now, because no filter can rule out every revealing line.
+- **No handoff on nearby player speech** (user decision 2026-09-29): handing off whenever a non-NPC speaks nearby would fire too often. GM detection isn't reliable either: RunUO-style staff name hue 11 is [INFERENCE] for Outlands, hidden staff are invisible, and no staff contact has been captured. Narrower speech triggers (e.g. our character's name being said) are still open.
 - **Gating handoff struck from Phase 4 (user decision 2026-09-29):** the harness is not Razor, and PvP is out of scope, so neither `IsRazorBlockedSysMessage` nor the PvP script restrictions apply to it. There is no gating demo and no gating-signal research. AGENTS.md safety rule 4 itself is unchanged.
 
 ### Phase 5 (optional) — Production copilot
