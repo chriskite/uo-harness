@@ -38,13 +38,12 @@ item queries.
 
 ## Next steps (in order)
 
-1. Live-verify fix A with 5 s spacing (session_20260929_143051: only the first
-   agent step worked, because the 2nd client resync, 2.6 s after the 1st, got no
-   server reset; [INFERENCE] the server ignores resyncs < ~5 s apart). Relog
-   first. One press per ≥5 s should step each time; arrow keys must keep working.
+1. ~~Live-verify fix A~~ **VALIDATED (session_20260929_144541):** 6/6 agent
+   steps at ≥5 s resync spacing, then 27 normal client walks, no lockout.
+   Agent walking works at ~1 step per 5 s.
 2. Fix B: S2C framing (probe P1) + Huffman re-encoder → hide agent
    ConfirmWalks from the client, re-anchor deliberately, lift the gate.
-3. Closed-loop bank run, then Phase 4 (agent runtime).
+3. Closed-loop bank run (possible now under A, slowly), then Phase 4.
 
 ## Operate
 
