@@ -21,7 +21,8 @@ walk from both senders and follows the server's own movement packets (0xBF
 sub1 seeds, 0x22 confirms, 0x21 denies). ConfirmWalks for agent walks are
 hidden from the client (it would treat them as bad steps and freeze its
 walker); confirms for client walks are mapped back to the client's own seq.
-After an agent burst the proxy re-anchors the client with one resync.
+Once walking is quiet, the proxy re-anchors the client with a fabricated S2C
+0x21 at the player's server-true position. It never sends a packet of its own to the server.
 
 Usage:
   python proxy.py [--listen-host 127.0.0.1] [--listen-port 2593]
@@ -43,59 +44,70 @@ CLIENT_PREAMBLE_LEN = 5
 RESYNC = b"\x22\x00\x00"
 
 # Movement timing (docs/MOVEMENT.md, sessions 20260929_142237/_143051/_144541):
-RESYNC_REPLY_TIMEOUT_S = 1.5  # no 0xBF sub1 seed by then -> the server ignored the resync
-RESYNC_MIN_S = 5.6            # server ignores resyncs closer together: 2.64 s ignored, 5.56 s honored
-REANCHOR_IDLE_S = 0.5         # agent quiet this long -> burst over, re-anchor the client
-CONFIRM_TIMEOUT_S = 1.5       # agent walk unconfirmed this long -> ladder desync
+RESYNC_REPLY_TIMEOUT_S = 1.5  # client resync: no 0xBF sub1 seed by then -> the server ignored it
+REANCHOR_IDLE_S = 0.5         # no walk in flight and quiet this long -> re-anchor the client
+CONFIRM_TIMEOUT_S = 1.5       # walk unconfirmed this long -> the server rejected it
+STALL_REJECTS = 3             # this many rejections in a row -> stop agent walks
 RUN_STEP_S = 0.2              # minimum agent step spacing, on-foot run / walk
 WALK_STEP_S = 0.4             # (the server has a Speedhack violation category)
+
+# UO direction -> (dx, dy): 0=N 1=NE 2=E 3=SE 4=S 5=SW 6=W 7=NW
+DIR_DELTA = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
 
 
 def hexd(b, limit=64):
     return b[:limit].hex()
 
 
+def _u32(b: bytes, off: int) -> int:
+    return int.from_bytes(b[off:off + 4], "big")
+
+
+def _i32(b: bytes, off: int) -> int:
+    return int.from_bytes(b[off:off + 4], "big", signed=True)
+
+
 class MoveAuthority:
     """Owns the session's movement state: seq ladder, fastwalk key, walk
-    confirmation routing, agent pacing and client re-anchoring.
+    confirmation routing, the player's server-true position, agent pacing and
+    client re-anchoring. Sends nothing to the server on its own.
 
     - seq: every C2S walk (client + agent) is rewritten onto one ladder
-      (last+1, wrap 0xFF -> 1). A server 0xBF sub1 seed (sent at login and in
-      answer to an honored resync) resets it to 0; so does a 0x21 deny. A
-      resync the server ignores (no seed within RESYNC_REPLY_TIMEOUT_S) leaves
-      the server's expectation - and the ladder - unchanged.
+      (last+1, wrap 0xFF -> 1). A server 0xBF sub1 seed (login / honored
+      client resync) resets it to 0, and so does a server 0x21 deny. A rejected walk
+      (no confirm within CONFIRM_TIMEOUT_S) leaves the server's expectation
+      unchanged (session 142237), so the ladder rewinds to that walk's seq.
     - key: the first walk after a seed must carry the seed's token (single
-      use). A walk with key 0 in that position gets it stamped in; the client
+      use). A walk with key 0 in that position gets it stamped in. The client
       then still holds its own copy (`stale_token`), which is zeroed once when
-      the client presents it later, so the server never sees a spent token
-      re-presented. Other client continuation keys pass (genuine server pushes,
-      0xBF sub2, also arm the token).
+      the client presents it, so the server never sees a spent token.
     - confirms: the server confirms every accepted walk (S2C `22 <seq> ..`).
       The client treats a confirm for a step it never sent as a bad step
-      (WalkingFailed + latched resync -> frozen walker), so agent confirms are
-      hidden, and client confirms are rewritten to the client's own seq.
+      (frozen walker), so agent confirms are hidden, and client confirms are
+      rewritten to the client's own seq.
+    - position: anchored by the server's self 0x1B/0x20/0x77/0x21, advanced by
+      each confirmed walk (a walk in a new direction only turns).
     - re-anchor: hidden confirms mean the client doesn't see agent movement.
-      Once an agent burst is over (or an agent walk went unconfirmed), the
-      proxy sends one resync, spaced >= RESYNC_MIN_S from the previous one; the
-      server answers with a seed + player 0x20, re-anchoring the client.
+      Once walking is quiet, the proxy hands the CLIENT a fabricated 0x21
+      DenyWalk with the true position and facing. The client's DenyWalk
+      handler resets its walker and places the player there. Nothing reaches
+      the server. z is the last server-reported z (confirms carry none).
     """
 
-    __slots__ = ("next_seq", "armed_token", "stale_token", "inflight",
-                 "resync_sent_at", "last_resync_at", "last_seed_at",
-                 "last_walk_at", "last_agent_walk_at", "client_stale", "desync")
+    __slots__ = ("next_seq", "armed_token", "stale_token", "inflight", "resync_sent_at",
+                 "last_walk_at", "client_stale", "rejects_in_row", "self_serial", "pos")
 
     def __init__(self):
         self.next_seq = 0
-        self.armed_token = None      # token the next walk must carry (from the latest seed/push)
+        self.armed_token = None      # token the next walk must carry (latest seed/push)
         self.stale_token = None      # client's copy of a token the proxy already spent
-        self.inflight = {}           # ladder seq -> (src, sender's own seq, sent_at)
-        self.resync_sent_at = None   # a resync awaits the server's seed
-        self.last_resync_at = None   # any resync sent (spacing)
-        self.last_seed_at = None
+        self.inflight = {}           # ladder seq -> (src, sender's own seq, direction, sent_at)
+        self.resync_sent_at = None   # a client resync awaits the server's seed
         self.last_walk_at = None
-        self.last_agent_walk_at = None
-        self.client_stale = False    # agent moved the character since the last re-anchor
-        self.desync = False          # an agent walk went unconfirmed
+        self.client_stale = False    # client display may differ from the server position
+        self.rejects_in_row = 0
+        self.self_serial = None
+        self.pos = None              # [x, y, z, facing 0-7], server truth
 
     # ---- C2S ----
     def on_c2s_walk(self, pkt: bytearray, src: str, now: float) -> tuple[str, str] | None:
@@ -105,11 +117,10 @@ class MoveAuthority:
         """
         s = self.next_seq
         self.next_seq = s + 1 if s < 0xFF else 1
-        self.inflight[s] = (src, pkt[2], now)
+        self.inflight[s] = (src, pkt[2], pkt[1] & 7, now)
         pkt[2] = s
         self.last_walk_at = now
         if src != "client":
-            self.last_agent_walk_at = now
             self.client_stale = True
         sent = int.from_bytes(pkt[3:7], "big")
         tok = self.armed_token
@@ -137,19 +148,21 @@ class MoveAuthority:
 
     def on_c2s_resync(self, now: float):
         self.resync_sent_at = now
-        self.last_resync_at = now
 
     # ---- S2C ----
-    def on_seed(self, token: int | None, now: float):
-        """0xBF sub1: server reset the walker (login / honored resync)."""
+    def on_self_position(self, x: int, y: int, z: int, direction: int):
+        """Server-reported player position (0x1B/0x20/0x77/0x21 about self)."""
+        self.pos = [x, y, z, direction & 7]
+
+    def on_seed(self, token: int | None):
+        """0xBF sub1: the server reset the walker (login / honored resync)."""
         self.next_seq = 0
         self.armed_token = token
         self.stale_token = None
         self.inflight.clear()
         self.resync_sent_at = None
-        self.last_seed_at = now
-        self.client_stale = False  # the seed arrives with the player 0x20 re-anchor
-        self.desync = False
+        self.client_stale = False  # the seed arrives with the server's own re-anchor
+        self.rejects_in_row = 0
 
     def on_push(self, token: int):
         """0xBF sub2: one more token; the next walk must carry it."""
@@ -157,11 +170,20 @@ class MoveAuthority:
             self.armed_token = token
 
     def on_confirm(self, seq: int) -> tuple[str, int | None]:
-        """Route a server ConfirmWalk: ("forward"|"hide"|"rewrite", client seq)."""
+        """Route a server ConfirmWalk ("forward"|"hide"|"rewrite", client seq)
+        and advance the tracked position."""
         entry = self.inflight.pop(seq, None)
         if entry is None:
             return ("forward", None)
-        src, sent_seq, _ = entry
+        src, sent_seq, direction, _ = entry
+        self.rejects_in_row = 0
+        if self.pos is not None:
+            if self.pos[3] != direction:
+                self.pos[3] = direction           # turn only
+            else:
+                dx, dy = DIR_DELTA[direction]
+                self.pos[0] += dx
+                self.pos[1] += dy
         if src != "client":
             return ("hide", None)
         if sent_seq != seq:
@@ -169,50 +191,57 @@ class MoveAuthority:
         return ("forward", None)
 
     def on_deny(self):
-        """0x21: server rejected a walk; stock semantics reset both walkers
-        (the client also repositions itself from the deny)."""
+        """Server 0x21: rejected walk; both walkers reset (the client also
+        repositions itself from the deny)."""
         self.next_seq = 0
         self.inflight.clear()
         self.client_stale = False
-        self.desync = False
 
     # ---- timers / gates ----
     def expire(self, now: float) -> list[tuple[str, str]]:
-        """Time out resync replies and walk confirms; returns log notes."""
+        """Time out client-resync replies and walk confirms; returns log notes."""
         notes = []
         if self.resync_sent_at is not None and now - self.resync_sent_at > RESYNC_REPLY_TIMEOUT_S:
             self.resync_sent_at = None
             notes.append(("resync_ignored", "no fastwalk seed in reply; server state unchanged"))
-        for s, (src, _, t) in list(self.inflight.items()):
-            if now - t > CONFIRM_TIMEOUT_S:
-                del self.inflight[s]
-                if src != "client":
-                    self.desync = True
-                notes.append(("walk_unconfirmed", f"{src} walk seq {s} got no confirm"))
+        late = [(t, s, src) for s, (src, _, _, t) in self.inflight.items() if now - t > CONFIRM_TIMEOUT_S]
+        if late:
+            _, s, src = min(late)
+            # the server did not advance past the rejected walk, so later walks
+            # in flight were sent with seqs it will reject too
+            dropped = len(self.inflight)
+            self.inflight.clear()
+            self.next_seq = s
+            self.rejects_in_row += 1
+            self.client_stale = True  # also clears the client's stuck pending steps
+            notes.append(("walk_rejected",
+                          f"{src} walk seq {s} got no confirm; ladder rewound to {s} "
+                          f"({dropped} in flight dropped, {self.rejects_in_row} in a row)"))
         return notes
 
     def agent_walk_block(self, now: float, run: bool) -> str | None:
         """Reason an agent walk must be refused right now, or None if allowed."""
         if self.resync_sent_at is not None:
-            return "walk gated: awaiting the server's reply to a resync"
-        if self.desync:
-            return "walk gated: seq desync after an unconfirmed walk; re-anchor pending"
+            return "walk gated: awaiting the server's reply to a client resync"
+        if self.rejects_in_row >= STALL_REJECTS:
+            return f"walk gated: movement stalled ({self.rejects_in_row} walks in a row rejected)"
         step = RUN_STEP_S if run else WALK_STEP_S
         if self.last_walk_at is not None and now - self.last_walk_at < step:
             return f"walk gated: pacing ({step:.1f}s between steps)"
         return None
 
-    def reanchor_due(self, now: float) -> bool:
-        """True when the proxy should send a resync to re-anchor the client."""
-        if self.resync_sent_at is not None or not (self.client_stale or self.desync):
-            return False
-        if not self.desync:
-            if self.last_agent_walk_at is not None and now - self.last_agent_walk_at < REANCHOR_IDLE_S:
-                return False
-            if any(src != "client" for src, _, _ in self.inflight.values()):
-                return False  # let pending agent confirms land first
-        last = max((t for t in (self.last_seed_at, self.last_resync_at) if t is not None), default=None)
-        return last is None or now - last >= RESYNC_MIN_S
+    def reanchor_packet(self, now: float) -> bytes | None:
+        """A fabricated S2C 0x21 placing the client at the server-true position,
+        when due (client stale, position known, no walk or resync in flight,
+        walking quiet for REANCHOR_IDLE_S), else None. Marks the client fresh."""
+        if not self.client_stale or self.pos is None or self.inflight or self.resync_sent_at is not None:
+            return None
+        if self.last_walk_at is not None and now - self.last_walk_at < REANCHOR_IDLE_S:
+            return None
+        self.client_stale = False
+        x, y, z, facing = self.pos
+        return (b"\x21\x00" + (x & 0xFFFFFFFF).to_bytes(4, "big") + (y & 0xFFFFFFFF).to_bytes(4, "big")
+                + bytes([facing]) + z.to_bytes(4, "big", signed=True))
 
 
 class InjectionHub:
@@ -417,22 +446,43 @@ class SessionTap:
             if action == "rewrite":
                 self._log(ev="s2c_confirm_rewritten", note=f"seq {pkt[1]} -> client seq {client_seq}")
                 return encode_packet(bytes([0x22, client_seq, pkt[2]]), self.s2c.key)
-        elif pid == 0x21:
+        elif pid == 0x21 and len(pkt) == 15:
             ma.on_deny()
+            ma.on_self_position(_u32(pkt, 2), _u32(pkt, 6), _i32(pkt, 11), pkt[10])
             self._log(ev="s2c_deny", note="walk denied; ladder reset to 0")
+        elif pid == 0x1B and len(pkt) >= 26:
+            ma.self_serial = _u32(pkt, 1)
+            ma.on_self_position(_u32(pkt, 13), _u32(pkt, 17), _i32(pkt, 21), pkt[25])
+        elif pid == 0x20 and len(pkt) == 28 and _u32(pkt, 1) == ma.self_serial:
+            ma.on_self_position(_u32(pkt, 13), _u32(pkt, 17), _i32(pkt, 24), pkt[23])
+        elif pid == 0x77 and len(pkt) == 18 and _u32(pkt, 1) == ma.self_serial:
+            ma.on_self_position(_u32(pkt, 5), _u32(pkt, 9), _i32(pkt, 13), pkt[17])
         elif pid == 0xBF and len(pkt) >= 9:
             sub = int.from_bytes(pkt[3:5], "big")
             if sub == 1:
                 keys = [int.from_bytes(pkt[5 + 4 * i:9 + 4 * i], "big")
                         for i in range(min(5, (len(pkt) - 5) // 4))]
                 token = next((k for k in keys if k), None)
-                ma.on_seed(token, now)
+                ma.on_seed(token)
                 self._log(ev="s2c_fastwalk_seed", note=f"walker reset; token {token}")
             elif sub == 2:
                 token = int.from_bytes(pkt[5:9], "big")
                 ma.on_push(token)
                 self._log(ev="s2c_fastwalk_push", note=f"token {token}")
         return wire
+
+    def reanchor_client(self, now: float) -> bytes:
+        """Wire bytes of a fabricated S2C 0x21 re-anchoring the client, or b"".
+        Client-only: logged as src=proxy, never written to raw_s2c (server truth)."""
+        if self.s2c is None:
+            return b""
+        pkt = self.moveauth.reanchor_packet(now)
+        if pkt is None:
+            return b""
+        x, y, z, facing = self.moveauth.pos
+        self._log(ev="reanchor_client", note=f"fabricated 0x21 to client: x={x} y={y} z={z} dir={facing}")
+        self._log(dir="s2c", src="proxy", id="0x21", len=len(pkt), hex=hexd(pkt))
+        return encode_packet(pkt, self.s2c.key)
 
 
 async def _relay(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, tap):
@@ -454,18 +504,19 @@ async def _relay(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, tap
             pass
 
 
-async def _movement_timer(tap: SessionTap, upstream_writer: asyncio.StreamWriter):
-    """Expire movement timeouts and send the client re-anchor resync when due."""
+async def _movement_timer(tap: SessionTap, client_writer: asyncio.StreamWriter):
+    """Expire movement timeouts; re-anchor the client (fabricated S2C 0x21) when due.
+
+    Writes land between whole S2C packets: tap_s2c only ever emits complete ones.
+    """
     while True:
         await asyncio.sleep(0.1)
         now = time.monotonic()
         tap.tick(now)
-        if tap.key is not None and tap.c2s_preamble_done and tap.moveauth.reanchor_due(now):
-            ma = tap.moveauth
-            why = "unconfirmed agent walk" if ma.desync else "agent burst over"
-            tap._log(ev="reanchor_resync", note=f"{why}; resyncing to re-anchor the client")
-            upstream_writer.write(tap.inject_c2s(RESYNC, "proxy", now))
-            await upstream_writer.drain()
+        pkt = tap.reanchor_client(now)
+        if pkt:
+            client_writer.write(pkt)
+            await client_writer.drain()
 
 
 async def handle_client(client_reader, client_writer, args):
@@ -497,7 +548,7 @@ async def handle_client(client_reader, client_writer, args):
     tap._log(ev="open", peer=str(peer), upstream=f"{args.upstream_host}:{args.upstream_port}")
     print(f"[proxy] {peer} connected -> {args.upstream_host}:{args.upstream_port} (log session_{stamp}.jsonl)")
 
-    timer = asyncio.create_task(_movement_timer(tap, upstream_writer))
+    timer = asyncio.create_task(_movement_timer(tap, client_writer))
     try:
         args.hub.attach(tap, upstream_writer)
         await asyncio.gather(

@@ -36,18 +36,33 @@ Consequences, all visible in the captures:
   (144541).
 
 **Fix B (implemented, `harness/proxy.py` `MoveAuthority`; offline-proven by `test_movement.py`):**
-- The seq ladder follows seeds (reset to 0) and denies. On an ignored resync (no seed within 1.5 s),
-  the ladder is kept.
+- The seq ladder follows seeds (reset to 0) and denies. On an ignored client resync (no seed within
+  1.5 s), the ladder is kept. On a **silent rejection** (no confirm within 1.5 s), the ladder rewinds
+  to the rejected walk's seq (the server doesn't advance, 142237). After 3 rejections in a row,
+  agent walks stall until a walk is confirmed or a seed/deny arrives.
 - The token is taken from seeds (and `BF 0002` pushes) and stamped into the next walk if its key is 0.
   The client's spent copy is zeroed later.
 - **Agent confirms are hidden from the client** (their segment is dropped). **Client confirms are
   rewritten to the client's own seq** when the ladder differs, so agent and client walks can mix
   freely.
-- **Re-anchor:** 0.5 s after the last agent step (with agent confirms landed), the proxy sends one
-  resync, spaced ≥ 5.6 s from the previous resync/seed. The server's seed + `0x20` snaps the client
-  to its true position.
-- Agent gates: pacing (0.2 s run / 0.4 s walk, the Speedhack surface); waiting for a resync reply; a
-  desync, which means an agent walk went unconfirmed for 1.5 s and forces a re-anchor.
+- **Position tracking:** anchored by the server's self `0x1B` (x@13 y@17 z@21 dir@25), `0x20`
+  (x@13 y@17 dir@23 z@24), `0x77` (x@5 y@9 z@13 dir@17) and `0x21` (x@2 y@6 dir@10 z@11), then
+  advanced per confirmed walk. A walk whose direction differs from the facing only turns; otherwise
+  it moves one tile. Verified on 144541: the 0x1B anchor plus 6 agent walks W equals the server's
+  final self `0x77` (0x7A6, 0xA25).
+- **Re-anchor, client-only (user decision 2026-09-29):** once nothing is in flight and walking has
+  been quiet 0.5 s, the proxy writes a **fabricated S2C `0x21` DenyWalk** (`21 00 x:u32 y:u32 dir:u8
+  z:i32`, 15 B) to the client only. Client code: `PacketHandlers.DenyWalk @ 0x140189200` (V10 branch
+  reads u32 x, u32 y, u8 dir, i32 z) → `WalkerManager.DenyWalk @ 0x14030ae40` (clear steps, reset the
+  walker, SetInWorldTile) + facing = dir & 7. **Nothing goes to the server.** A fabricated self `0x20`
+  would NOT work: `MobileUpdateV10` ignores position for the player (`protocol_handlers.c:18520`
+  branch). The real resync reply positions via its self `0x77` + seed. **Known limit:** confirms
+  carry no z, so the re-anchor uses the last server-reported z. On stairs or slopes the client may
+  show a wrong height until the next real server update. **Race:** a client key press whose walk
+  crosses the fabricated deny in flight gets a confirm the client no longer has pending. That is a
+  bad step, which makes the client send its own resync (client-produced) and recover.
+- Agent gates: pacing (0.2 s run / 0.4 s walk, the Speedhack surface); waiting for the server's reply
+  to a client resync; stall after 3 rejections.
 
 ---
 
@@ -384,7 +399,7 @@ Fix options: (A) proxy gates agent walks to one per resync cycle, after the rese
 ### Next steps
 See "▶ Current model" at the top: fix B is implemented and offline-proven.
 1. Live-verify fix B (attended): walk_cli bursts at human pace. Expected: no client freeze, the
-   character snaps to its true position ~0.5 s after the burst (≥ 5.6 s after the previous resync),
+   character snaps to its true position ~0.5 s after the burst (fabricated client-only 0x21),
    and the client's arrow keys work throughout, including mixed with agent steps.
 2. Then the closed-loop bank run, and Phase 4 (agent runtime).
 
@@ -392,4 +407,5 @@ See "▶ Current model" at the top: fix B is implemented and offline-proven.
 - `walk_cli.py`: terminal arrow-key walker (arrows=walk, space=run/walk, q=quit).
 - `tail_log.py`: readable live packet tail of the active session; `AGENT` / `PROXY` mark non-client
   packets. Movement events: `s2c_fastwalk_seed`, `s2c_confirm_hidden`, `s2c_confirm_rewritten`,
-  `reanchor_resync`, `resync_ignored`, `walk_unconfirmed`.
+  `reanchor_client`, `resync_ignored`, `walk_rejected`. The fabricated deny is logged as an s2c row
+  with `src: proxy`.

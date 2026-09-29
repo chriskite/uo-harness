@@ -3,7 +3,7 @@
 Usage: python inject.py <action> [args...]
   say <text>            — unicode speech
   walk <dir> <n> [run]  — n steps in direction (0-7) at the proxy's pace
-                          (gated sends — pacing/resync reply — are retried)
+                          (gated sends — pacing, stall — are retried)
   cast <spellid>        — dialect sub-4 cast
   dclick <serial>       — hex or decimal serial
   query <serial>        — item detail query (sub 9)
@@ -40,14 +40,14 @@ def main():
     elif cmd == "walk":
         d = int(sys.argv[2]); n = int(sys.argv[3]); run = len(sys.argv) > 4
         for _ in range(n):
-            deadline = time.monotonic() + 8.0  # > RESYNC_SPACING_S (5 s) + resync latency
+            deadline = time.monotonic() + 3.0
             resp = send_packet(sock, walk(d, run=run))
             while resp.startswith("ERR walk gated") and time.monotonic() < deadline:
                 time.sleep(0.1)
                 resp = send_packet(sock, walk(d, run=run))
             print(resp)
             if resp != "OK":
-                break  # no client resync arrived: the last step likely didn't execute
+                break  # still gated (stalled after rejections): stop
     elif cmd == "cast":
         print(send_packet(sock, cast_spell(int(sys.argv[2]))))
     elif cmd == "dclick":

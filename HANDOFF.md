@@ -26,13 +26,17 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 - Client lockout: foreign confirms → client bad step → frozen walker.
 - **Fix B implemented (`harness/proxy.py` MoveAuthority), offline-proven
   (`test_movement.py`):** hide agent confirms from the client, map client confirms
-  back to client seqs, ladder follows seeds, pacing 0.2/0.4 s, one re-anchor resync
-  ~0.5 s after an agent burst (≥ 5.6 s spacing).
+  back to client seqs, ladder follows seeds (rewinds on silent rejection), pacing
+  0.2/0.4 s. **Re-anchor is client-only (user decision 2026-09-29):** ~0.5 s after
+  walking stops, the proxy hands the client a fabricated S2C `0x21` DenyWalk at the
+  tracked server-true position. **The proxy sends nothing to the server on its own.**
+  Known limit: z = last server-reported z.
 
 ## Next steps (in order)
 
 1. Live-verify fix B (attended): walk_cli bursts; no client freeze; character
-   snaps to its true position after each burst; arrow keys keep working.
+   snaps to its true position ~0.5 s after each burst (`reanchor_client` in
+   tail_log, and no PROXY-sourced c2s rows); arrow keys keep working.
 2. Closed-loop bank run, then Phase 4.
 
 ## Operate

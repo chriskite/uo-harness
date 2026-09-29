@@ -9,9 +9,9 @@ Focus a terminal, then:
 Seq and fastwalk key are owned by the proxy's MoveAuthority — this tool always
 sends seq 0 / key 0. The proxy hides the server's confirms of these walks from
 the client (so its walker never freezes), paces steps (0.2 s run / 0.4 s walk;
-faster presses answer `ERR walk gated: pacing ...`), and ~0.5 s after the last
-press re-anchors the client with one resync, so the character on screen jumps
-to its true position (docs/MOVEMENT.md).
+faster presses answer `ERR walk gated: pacing ...`). ~0.5 s after walking stops,
+the proxy hands the client a fabricated 0x21 with the true position, so the
+character on screen jumps there. Nothing extra goes to the server (docs/MOVEMENT.md).
 """
 import msvcrt
 import socket

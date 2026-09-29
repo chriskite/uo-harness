@@ -1,10 +1,13 @@
 """Movement tests for the proxy's MoveAuthority (docs/MOVEMENT.md).
 
-1. Unit (fake clock): seq ladder, token stamping, confirm routing, resync
-   honored vs ignored, agent pacing/gating, desync, re-anchor timing.
-2. End-to-end: proxy subprocess between a fake client and a fake server that
-   speaks the real S2C wire format (uo/s2c.py): confirm hiding/rewriting on the
-   client side, walk rewriting upstream, the automatic re-anchor resync.
+1. Unit (fake clock): seq ladder, token stamping, confirm routing, position
+   tracking, rejection rewind, agent pacing/gating, client re-anchor packet.
+2. Real capture: position tracked from session 20260929_144541's own 0x1B plus
+   its six agent walks equals the server's last self report.
+3. End-to-end: proxy subprocess between a fake client and a fake server that
+   speaks the real S2C wire format (uo/s2c.py): confirm hiding/rewriting, the
+   fabricated 0x21 re-anchor reaching the client, and NO proxy-originated
+   traffic reaching the server.
 """
 import asyncio
 import os
@@ -17,7 +20,7 @@ PY = r"C:/Users/chris/AppData/Local/Programs/Python/Python313/python.exe"
 sys.path.insert(0, f"{ROOT}/harness")
 
 import proxy as P  # noqa: E402
-from uo.s2c import S2CStream, encode_packet  # noqa: E402
+from uo.s2c import S2CStream, encode_packet, prelude_keys  # noqa: E402
 
 FAILURES = []
 
@@ -36,12 +39,24 @@ def seed_pkt(token):
     return bytes.fromhex("bf001d0001") + token.to_bytes(4, "big") + bytes(20)
 
 
+def login_pkt(serial, x, y, z, direction):
+    body = (serial.to_bytes(4, "big") + bytes(4) + (0x190).to_bytes(4, "big")
+            + x.to_bytes(4, "big") + y.to_bytes(4, "big") + z.to_bytes(4, "big", signed=True)
+            + bytes([direction]))
+    return b"\x1b" + body + bytes(43 - 1 - len(body))
+
+
+def deny_fields(pkt):
+    return (P._u32(pkt, 2), P._u32(pkt, 6), P._i32(pkt, 11), pkt[10])
+
+
 # ----------------------------------------------------------------- unit tests
 
 def test_unit():
     print("== MoveAuthority (unit, fake clock) ==")
     ma = P.MoveAuthority()
-    ma.on_seed(8, 0.0)
+    ma.on_seed(8)
+    ma.on_self_position(100, 200, 5, 0x80)
 
     p = walk(0x80, 5)
     ma.on_c2s_walk(p, "client", 1.0)
@@ -58,71 +73,100 @@ def test_unit():
     check("unknown confirm forwarded", ma.on_confirm(0) == ("forward", None))
     ma.on_confirm(1)
     ma.on_confirm(2)
+    check("confirmed walks N (facing N) move 3 tiles", ma.pos == [100, 197, 5, 0], str(ma.pos))
 
-    p = walk(0x80, 0, key=9)
-    ev = ma.on_c2s_walk(p, "agent", 2.0)
+    p = walk(0x82, 0, key=9)
+    ma.on_c2s_walk(p, "agent", 2.0)
     check("agent continuation: next ladder seq, key forced 0", p[2] == 3 and p[3:7] == bytes(4), p.hex())
     check("agent confirm hidden", ma.on_confirm(3) == ("hide", None))
-
-    # ignored resync: no seed arrives -> ladder must continue (session 142237)
-    ma.on_c2s_resync(3.0)
-    check("agent gated while a resync awaits its reply",
-          (ma.agent_walk_block(3.5, run=True) or "").startswith("walk gated: awaiting"))
-    notes = ma.expire(3.0 + P.RESYNC_REPLY_TIMEOUT_S + 0.1)
-    check("ignored resync detected", any(n[0] == "resync_ignored" for n in notes), str(notes))
-    p = walk(0x80, 0)
-    ma.on_c2s_walk(p, "agent", 5.0)
-    check("ladder unchanged by an ignored resync", p[2] == 4, p.hex())
+    check("walk in a new direction only turns", ma.pos == [100, 197, 5, 2], str(ma.pos))
+    p = walk(0x82, 0)
+    ma.on_c2s_walk(p, "agent", 2.3)
     ma.on_confirm(4)
-
-    # honored resync: seed -> ladder 0, new token
-    ma.on_c2s_resync(6.0)
-    ma.on_seed(1, 6.05)
-    p = walk(0x80, 0)
-    ma.on_c2s_walk(p, "agent", 7.0)
-    check("seed resets ladder; agent opener carries the new token",
-          p[2] == 0 and p[3:7] == b"\x00\x00\x00\x01", p.hex())
-    ma.on_confirm(0)
+    check("next walk E moves", ma.pos == [101, 197, 5, 2], str(ma.pos))
 
     # pacing
     check("run step 0.1 s after the last walk is gated",
-          (ma.agent_walk_block(7.1, run=True) or "").startswith("walk gated: pacing"))
-    check("run step 0.2 s after the last walk allowed", ma.agent_walk_block(7.2, run=True) is None)
+          (ma.agent_walk_block(2.4, run=True) or "").startswith("walk gated: pacing"))
+    check("run step 0.2 s after the last walk allowed", ma.agent_walk_block(2.5, run=True) is None)
     check("walk step 0.3 s after the last walk is gated",
-          (ma.agent_walk_block(7.3, run=False) or "").startswith("walk gated: pacing"))
+          (ma.agent_walk_block(2.6, run=False) or "").startswith("walk gated: pacing"))
 
-    # re-anchor timing after the burst (last agent walk 7.0, last seed 6.05)
-    check("no re-anchor while the burst is fresh", not ma.reanchor_due(7.2))
-    check("no re-anchor within RESYNC_MIN_S of the last seed", not ma.reanchor_due(10.0))
-    check("re-anchor due once idle and spaced", ma.reanchor_due(6.05 + P.RESYNC_MIN_S + 0.01))
-    p = walk(0x80, 0)
-    ma.on_c2s_walk(p, "agent", 12.0)
-    check("no re-anchor while an agent confirm is pending", not ma.reanchor_due(13.0))
+    # re-anchor: client-only 0x21 with the tracked position, once walking is quiet
+    check("no re-anchor while walking is fresh", ma.reanchor_packet(2.5) is None)
+    pkt = ma.reanchor_packet(2.3 + P.REANCHOR_IDLE_S + 0.01)
+    check("re-anchor is a 15-byte 0x21 at the tracked position",
+          pkt is not None and len(pkt) == 15 and pkt[0] == 0x21 and deny_fields(pkt) == (101, 197, 5, 2),
+          pkt.hex() if pkt else "None")
+    check("re-anchor only once", ma.reanchor_packet(10.0) is None)
+    p = walk(0x82, 0)
+    ma.on_c2s_walk(p, "agent", 11.0)
+    check("no re-anchor while a walk is in flight", ma.reanchor_packet(12.0) is None)
+    ma.on_confirm(p[2])
 
-    # unconfirmed agent walk -> desync: agent gated, re-anchor forced
-    notes = ma.expire(12.0 + P.CONFIRM_TIMEOUT_S + 0.1)
-    check("unconfirmed agent walk reported", any(n[0] == "walk_unconfirmed" for n in notes), str(notes))
-    check("agent gated on desync",
-          (ma.agent_walk_block(14.0, run=True) or "").startswith("walk gated: seq desync"))
-    check("desync forces a re-anchor", ma.reanchor_due(14.0))
-    ma.on_c2s_resync(14.0)
-    ma.on_seed(1, 14.05)
-    check("seed clears desync and staleness",
-          not ma.desync and not ma.client_stale and ma.agent_walk_block(14.5, run=True) is None)
+    # client resync: honored (seed) vs ignored
+    ma.on_c2s_resync(13.0)
+    check("agent gated while a client resync awaits its reply",
+          (ma.agent_walk_block(13.5, run=True) or "").startswith("walk gated: awaiting"))
+    notes = ma.expire(13.0 + P.RESYNC_REPLY_TIMEOUT_S + 0.1)
+    check("ignored resync detected", any(n[0] == "resync_ignored" for n in notes), str(notes))
+    p = walk(0x82, 0)
+    ma.on_c2s_walk(p, "agent", 15.0)
+    check("ladder unchanged by an ignored resync", p[2] == 6, p.hex())
+    ma.on_confirm(6)
+    ma.on_c2s_resync(16.0)
+    ma.on_seed(1)
+    p = walk(0x82, 0)
+    ma.on_c2s_walk(p, "agent", 17.0)
+    check("seed resets ladder; next walk carries the new token",
+          p[2] == 0 and p[3:7] == b"\x00\x00\x00\x01", p.hex())
 
-    # unconfirmed CLIENT walk is logged but does not trigger proxy traffic
-    p = walk(0x80, 0, key=1)
-    ma.on_c2s_walk(p, "client", 20.0)
-    ma.expire(20.0 + P.CONFIRM_TIMEOUT_S + 0.1)
-    check("unconfirmed client walk: no desync, no re-anchor", not ma.desync and not ma.reanchor_due(40.0))
+    # rejection: no confirm -> ladder rewinds to the rejected seq, client re-anchored
+    before = list(ma.pos)
+    p2 = walk(0x82, 0)
+    ma.on_c2s_walk(p2, "agent", 17.3)  # seq 1, also sent before the timeout
+    notes = ma.expire(17.0 + P.CONFIRM_TIMEOUT_S + 0.1)
+    check("rejected walk reported", any(n[0] == "walk_rejected" for n in notes), str(notes))
+    p = walk(0x82, 0)
+    ma.on_c2s_walk(p, "agent", 19.0)
+    check("ladder rewound to the rejected walk's seq", p[2] == 0, p.hex())
+    check("rejected walks did not move the tracked position", ma.pos == before, f"{ma.pos} vs {before}")
+    ma.expire(19.0 + P.CONFIRM_TIMEOUT_S + 0.1)
+    p = walk(0x82, 0)
+    ma.on_c2s_walk(p, "agent", 21.0)
+    ma.expire(21.0 + P.CONFIRM_TIMEOUT_S + 0.1)
+    check("3 rejections in a row stall agent walks",
+          (ma.agent_walk_block(30.0, run=True) or "").startswith("walk gated: movement stalled"))
+    check("stalled state still re-anchors the client", ma.reanchor_packet(30.0) is not None)
+    p = walk(0x82, 0)
+    ma.on_c2s_walk(p, "client", 31.0)
+    ma.on_confirm(p[2])
+    check("a confirmed walk clears the stall", ma.agent_walk_block(32.0, run=True) is None)
 
-    # deny resets the ladder
-    p = walk(0x80, 1)
-    ma.on_c2s_walk(p, "client", 41.0)
+    # server deny resets the ladder
     ma.on_deny()
-    p = walk(0x80, 0)
-    ma.on_c2s_walk(p, "client", 42.0)
-    check("deny resets ladder to 0", p[2] == 0, p.hex())
+    p = walk(0x82, 0)
+    ma.on_c2s_walk(p, "client", 40.0)
+    check("server deny resets ladder to 0", p[2] == 0, p.hex())
+
+
+def test_real_capture():
+    print("== position tracking vs real capture (session 20260929_144541) ==")
+    raw = open(f"{ROOT}/logs/session_20260929_144541.s2c.raw", "rb").read()
+    key, _ = prelude_keys(raw[:13])
+    pkts = [p for _, p in S2CStream(key).feed(raw[13:])]
+    login = next(p for p in pkts if p[0] == 0x1B)
+    ma = P.MoveAuthority()
+    ma.self_serial = P._u32(login, 1)
+    ma.on_self_position(P._u32(login, 13), P._u32(login, 17), P._i32(login, 21), login[25])
+    for i in range(6):  # the session's six agent walks: run W (the first only turns)
+        w = walk(0x86, 0)
+        ma.on_c2s_walk(w, "agent", float(i))
+        ma.on_confirm(w[2])
+    last = [p for p in pkts if p[0] == 0x77 and P._u32(p, 1) == ma.self_serial][-1]
+    server = [P._u32(last, 5), P._u32(last, 9), P._i32(last, 13), last[17] & 7]
+    check("tracked position equals the server's last self 0x77", ma.pos == server,
+          f"{[hex(v) for v in ma.pos]} vs {[hex(v) for v in server]}")
 
 
 # ---------------------------------------------------------------- end-to-end
@@ -131,6 +175,7 @@ PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT = 12593, 12594, 12598
 LOGDIR = f"{ROOT}/logs_test"
 C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
+SERIAL = 0x00094375
 
 
 def xor(bs, k):
@@ -141,13 +186,14 @@ class FakeServer:
     def __init__(self):
         self.writer = None
         self.walks = []     # (seq, key) as received upstream
-        self.resyncs = 0
+        self.other = []     # any non-walk C2S packet bytes
         self.ready = asyncio.Event()
 
     async def handle(self, reader, writer):
         await reader.readexactly(5)
         self.writer = writer
-        writer.write(PRELUDE + encode_packet(seed_pkt(8), S2C_KEY))
+        writer.write(PRELUDE + encode_packet(login_pkt(SERIAL, 100, 200, 5, 0x80), S2C_KEY)
+                     + encode_packet(seed_pkt(8), S2C_KEY))
         await writer.drain()
         self.ready.set()
         buf = bytearray()
@@ -156,15 +202,12 @@ class FakeServer:
             if not d:
                 break
             buf += xor(d, C2S_KEY)
-            while buf:
-                if buf[0] == 0x02 and len(buf) >= 7:
-                    self.walks.append((buf[2], int.from_bytes(buf[3:7], "big")))
-                    del buf[:7]
-                elif buf[0] == 0x22 and len(buf) >= 3:
-                    self.resyncs += 1
-                    del buf[:3]
-                else:
-                    break
+            while len(buf) >= 7 and buf[0] == 0x02:
+                self.walks.append((buf[2], int.from_bytes(buf[3:7], "big")))
+                del buf[:7]
+            if buf and buf[0] != 0x02:
+                self.other.append(bytes(buf))
+                buf.clear()
 
     async def send(self, pkt):
         self.writer.write(encode_packet(pkt, S2C_KEY))
@@ -208,8 +251,8 @@ async def e2e():
 
         rt = asyncio.create_task(client_read())
 
-        async def client_walk(seq, key=0):
-            writer.write(xor(walk(0x80, seq, key), C2S_KEY))
+        async def client_walk(dirb, seq, key=0):
+            writer.write(xor(walk(dirb, seq, key), C2S_KEY))
             await writer.drain()
             await asyncio.sleep(0.25)
 
@@ -220,44 +263,41 @@ async def e2e():
             n = int.from_bytes(ctl.recv(2), "big")
             return ctl.recv(n).decode()
 
-        # client walks with its own seqs 5, 9 -> ladder 0 (token 8), 1
-        await client_walk(5)
-        await client_walk(9)
+        # client walks N twice with its own seqs 5, 9 -> ladder 0 (token 8), 1
+        await client_walk(0x80, 5)
+        await client_walk(0x80, 9)
         await srv.send(b"\x22\x00\x01")
         await srv.send(b"\x22\x01\x01")
         await asyncio.sleep(0.3)
-        # agent walk -> ladder 2; its confirm must not reach the client
-        r1 = inject(bytes(walk(0x80, 77)))
-        r2 = inject(bytes(walk(0x80, 78)))  # immediately again -> pacing
+        # agent: E (turn), E (move); confirms hidden; immediate repeat is paced
+        r1 = inject(bytes(walk(0x82, 77)))
+        r2 = inject(bytes(walk(0x82, 78)))
         await srv.send(b"\x22\x02\x01")
-        await asyncio.sleep(0.3)
-        confirms_at_client = [p[1] for p in client_rx if p[0] == 0x22]
-
-        # wait for the automatic re-anchor resync (RESYNC_MIN_S after the login seed)
-        for _ in range(80):
-            if srv.resyncs:
-                break
-            await asyncio.sleep(0.1)
-        resyncs = srv.resyncs
-        await srv.send(seed_pkt(1))
-        await asyncio.sleep(0.3)
-        r3 = inject(bytes(walk(0x80, 0)))
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(0.25)
+        r3 = inject(bytes(walk(0x82, 0)))
+        await srv.send(b"\x22\x03\x01")
+        await asyncio.sleep(0.2)
+        confirms_mid = [p[1] for p in client_rx if p[0] == 0x22]
+        denies_mid = [p for p in client_rx if p[0] == 0x21]
+        await asyncio.sleep(P.REANCHOR_IDLE_S + 0.5)
+        denies = [p for p in client_rx if p[0] == 0x21]
         ctl.close()
         writer.close()
         await asyncio.sleep(0.3)
         rt.cancel()
 
         check("client walks rewritten upstream: (0,8), (1,0)", srv.walks[:2] == [(0, 8), (1, 0)], str(srv.walks))
-        check("client received its confirms under its own seqs 5, 9",
-              confirms_at_client == [5, 9], str(confirms_at_client))
-        check("agent walk accepted and sent as ladder seq 2", r1 == "OK" and srv.walks[2:3] == [(2, 0)],
-              f"{r1} {srv.walks}")
+        check("client received its confirms under its own seqs 5, 9", confirms_mid == [5, 9], str(confirms_mid))
+        check("agent walks accepted as ladder seqs 2, 3", r1 == "OK" and r3 == "OK"
+              and srv.walks[2:4] == [(2, 0), (3, 0)], f"{r1} {r3} {srv.walks}")
         check("agent walk right after is paced", r2.startswith("ERR walk gated: pacing"), r2)
-        check("agent confirm hidden from the client", 2 not in confirms_at_client, str(confirms_at_client))
-        check("proxy re-anchored the client with exactly one resync", resyncs == 1, str(resyncs))
-        check("after the seed, agent walk opens with seq 0 + token 1",
-              r3 == "OK" and srv.walks[3:4] == [(0, 1)], f"{r3} {srv.walks}")
+        check("agent confirms hidden from the client", 2 not in confirms_mid and 3 not in confirms_mid,
+              str(confirms_mid))
+        check("no re-anchor while walking is fresh", not denies_mid, str(denies_mid))
+        check("client got exactly one fabricated 0x21 at the true position (x101 y198 z5 E)",
+              len(denies) == 1 and deny_fields(denies[0]) == (101, 198, 5, 2),
+              str([deny_fields(d) for d in denies]))
+        check("server received no proxy-originated packets (only walks)", srv.other == [], str(srv.other))
         check("client prelude relayed", bytes(got_prelude) == PRELUDE, got_prelude.hex())
     finally:
         proxy.terminate()
@@ -266,6 +306,7 @@ async def e2e():
 
 def main():
     test_unit()
+    test_real_capture()
     asyncio.run(e2e())
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)
