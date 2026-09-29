@@ -33,6 +33,7 @@ Parse the core packet set into a queryable state store: player stats/skills, mob
 ### Phase 3 — Action API
 Client→server action packets: walk/pathfind, dclick, use skill, cast+target, lift/drop, gump button/text responses, say, `[`-commands (Test Shard has `[TestRes`, `[TestBlessedGear`, `[Go` for fast iteration).
 **Done when**: scripted closed-loop task (e.g. bank run or recall to location + back) completes unattended on Test Shard with human-like pacing.
+**Status 2026-09-28: code-complete, live validation pending.** `harness/actions.py` (8 proven builders + WalkSequencer) and the proxy `InjectionHub` (control listener :25941; session-key XOR; tap-integrated; malformed-frame isolation). All suites green (actions/world/proxy). Live checklist staged: inject speech → walks → dclick → cast → lift/drop while watching the keepalive cadence stay untouched. Closed-loop unattended task = Phase 4 acceptance.
 
 ### Phase 4 — Agent runtime
 LLM planner over the world model + skill library; safety rails (rate limits, Razor-gating halt, captcha human-handoff per ANTICHEAT.md §8 rule 8, kill switch, session length caps).
