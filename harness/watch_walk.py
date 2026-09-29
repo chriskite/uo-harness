@@ -30,11 +30,11 @@ def main():
     sock = socket.create_connection(("127.0.0.1", 25941), timeout=10)
     print(f"watch_walk: mirroring client walks with +{DELAY}s delay (Ctrl+C to quit)")
     path, pos = None, 0
-    last_injected = None
+    injected_hexes = set()  # every packet we injected — skip when they echo
     while True:
         cur = latest_log()
         if cur != path:
-            path, pos = cur, 0
+            path, pos = cur, os.path.getsize(cur)  # tail from end; no backlog replay
             print(f"--- following {os.path.basename(path)}")
         try:
             with open(path, encoding="utf-8") as f:
@@ -50,7 +50,7 @@ def main():
                 continue
             if e.get("dir") == "c2s" and e.get("id") == "0x02":
                 hx = e["hex"]
-                if hx == last_injected:
+                if hx in injected_hexes:
                     continue  # our own injection echoing back — never mirror it
                 pkt = bytes.fromhex(hx)
                 new_seq = (pkt[2] + 1) & 0xFF or 1
@@ -60,7 +60,7 @@ def main():
                 print(f"CLIENT {hx}", flush=True)
                 time.sleep(DELAY)
                 resp = send(sock, mirror)
-                last_injected = mirror.hex()
+                injected_hexes.add(mirror.hex())
                 print(f"INJECT {mirror.hex()} -> {resp}", flush=True)
         time.sleep(0.15)
 
