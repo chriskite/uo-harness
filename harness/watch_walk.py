@@ -13,6 +13,7 @@ import time
 
 LOGDIR = r"C:/Users/chris/uo-harness/logs"
 DELAY = float(sys.argv[sys.argv.index("--delay") + 1]) if "--delay" in sys.argv else 0.2
+STEPS = int(sys.argv[sys.argv.index("--steps") + 1]) if "--steps" in sys.argv else 2
 
 
 def latest_log():
