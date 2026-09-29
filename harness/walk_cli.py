@@ -9,7 +9,9 @@ Focus a terminal, then:
 Seq and the cycle token are owned by the proxy's MoveAuthority — this tool
 always sends seq 0 / key 0; the proxy assigns the true ladder position and
 stamps the cycle token (8 after login, 1 after a client resync) into the first
-walk of each movement cycle.
+walk of each movement cycle. The proxy allows ONE agent step per cycle (a new
+cycle opens ~0.65 s after the client's resync); presses in between answer
+`ERR walk gated: ...` and are not sent.
 """
 import msvcrt
 import socket

@@ -2,7 +2,8 @@
 
 Usage: python inject.py <action> [args...]
   say <text>            — unicode speech
-  walk <dir> <n> [run]  — n steps in direction (0-7), ~250ms apart
+  walk <dir> <n> [run]  — n steps in direction (0-7), one per movement cycle
+                          (the proxy gates agent walks; gated sends are retried)
   cast <spellid>        — dialect sub-4 cast
   dclick <serial>       — hex or decimal serial
   query <serial>        — item detail query (sub 9)
@@ -12,7 +13,7 @@ import sys
 import time
 
 sys.path.insert(0, r"C:/Users/chris/uo-harness/harness")
-from actions import WalkSequencer, walk, dclick, say_unicode, cast_spell, item_query
+from actions import walk, dclick, say_unicode, cast_spell, item_query
 
 HOST, PORT = "127.0.0.1", 25941
 
@@ -38,10 +39,15 @@ def main():
         print(send_packet(sock, say_unicode(sys.argv[2])))
     elif cmd == "walk":
         d = int(sys.argv[2]); n = int(sys.argv[3]); run = len(sys.argv) > 4
-        seq = WalkSequencer()
         for _ in range(n):
-            print(send_packet(sock, seq.walk(d, run=run)))
-            time.sleep(0.25)
+            deadline = time.monotonic() + 5.0
+            resp = send_packet(sock, walk(d, run=run))
+            while resp.startswith("ERR walk gated") and time.monotonic() < deadline:
+                time.sleep(0.1)
+                resp = send_packet(sock, walk(d, run=run))
+            print(resp)
+            if resp != "OK":
+                break  # no client resync arrived: the last step likely didn't execute
     elif cmd == "cast":
         print(send_packet(sock, cast_spell(int(sys.argv[2]))))
     elif cmd == "dclick":

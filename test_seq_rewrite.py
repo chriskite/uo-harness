@@ -78,24 +78,29 @@ async def main():
         payload = bytes([0x02, 0x80, seq]) + key.to_bytes(4, "big")
         ctl.sendall(len(payload).to_bytes(2, "big") + payload)
         n = int.from_bytes(ctl.recv(2), "big")
-        ctl.recv(n)
+        return ctl.recv(n).decode()
 
     async def client(pkt):
         writer.write(pkt)
         await writer.drain()
         await asyncio.sleep(0.1)
 
-    # agent continuation with a bogus seq
-    inject(99)
+    replies = {}
+    # the client opened the login cycle -> an agent walk would be a
+    # continuation (foreign ConfirmWalk -> client lockout) -> refused
+    replies["open"] = inject(99)
     # the client presents its own copy of the login token the proxy already
     # stamped into walk #0 -> must be zeroed
     await client(walk(0x80, 4, key=8))
 
-    # resync -> seq 0, token 1 armed; agent opens the cycle, then an agent
-    # continuation with a bogus non-zero key
+    # resync -> seq 0, token 1 armed; an immediate agent walk is refused
+    # (server reset not landed yet); after the settle window it opens the
+    # cycle, its bogus key replaced by the token; a second one is refused
     await client(xor(b"\x22\x00\x00", KEY))
-    inject(77)
-    inject(55, key=5)
+    replies["settling"] = inject(77)
+    await asyncio.sleep(0.7)
+    replies["opener"] = inject(77, key=5)
+    replies["second"] = inject(55)
     # client's spent copy of token 1 -> zeroed; a second key 1 is a genuine
     # server push -> passed
     await client(walk(0x80, 0, key=1))
@@ -134,18 +139,24 @@ async def main():
         ok = ok and bool(cond)
 
     print(f"upstream walks (seq, key): {walks}")
-    check("12 walks relayed", len(walks) == 12, str(len(walks)))
+    print(f"agent replies: {replies}")
+    check("10 walks relayed", len(walks) == 10, str(len(walks)))
     check("client seqs normalized 0,1,2,3", seqs[:4] == [0, 1, 2, 3], str(seqs[:4]))
     check("login cycle opener stamped with token 8", keys[0] == 8, str(keys[:1]))
     check("login continuations keep key 0", keys[1:4] == [0, 0, 0], str(keys[1:4]))
-    check("injected continuation: seq 99 -> 4, key 0", walks[4:5] == [(4, 0)], str(walks[4:5]))
-    check("client's spent login token zeroed: seq 5, key 0", walks[5:6] == [(5, 0)], str(walks[5:6]))
-    check("post-resync injection opens cycle: seq 0, token 1", walks[6:7] == [(0, 1)], str(walks[6:7]))
-    check("agent continuation key forced to 0: seq 1", walks[7:8] == [(1, 0)], str(walks[7:8]))
-    check("client's spent token 1 zeroed: seq 2, key 0", walks[8:9] == [(2, 0)], str(walks[8:9]))
-    check("second client key 1 (server push) passed: seq 3", walks[9:10] == [(3, 1)], str(walks[9:10]))
-    check("client's own opener token passes: seq 0, key 1", walks[10:11] == [(0, 1)], str(walks[10:11]))
-    check("unspent client continuation key passes: seq 1, key 8", walks[11:12] == [(1, 8)], str(walks[11:12]))
+    check("agent walk refused while client's cycle is open",
+          replies["open"].startswith("ERR walk gated: movement cycle already open"), replies["open"])
+    check("client's spent login token zeroed: seq 4, key 0", walks[4:5] == [(4, 0)], str(walks[4:5]))
+    check("agent walk refused right after resync",
+          replies["settling"].startswith("ERR walk gated: client resync still settling"), replies["settling"])
+    check("settled agent walk accepted", replies["opener"] == "OK", replies["opener"])
+    check("agent opener: seq 0, token 1 replaces its key", walks[5:6] == [(0, 1)], str(walks[5:6]))
+    check("second agent walk in the same cycle refused",
+          replies["second"].startswith("ERR walk gated: movement cycle already open"), replies["second"])
+    check("client's spent token 1 zeroed: seq 1, key 0", walks[6:7] == [(1, 0)], str(walks[6:7]))
+    check("second client key 1 (server push) passed: seq 2", walks[7:8] == [(2, 1)], str(walks[7:8]))
+    check("client's own opener token passes: seq 0, key 1", walks[8:9] == [(0, 1)], str(walks[8:9]))
+    check("unspent client continuation key passes: seq 1, key 8", walks[9:10] == [(1, 8)], str(walks[9:10]))
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
 

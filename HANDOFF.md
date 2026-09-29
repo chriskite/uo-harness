@@ -38,10 +38,13 @@ item queries.
 
 ## Next steps (in order)
 
-1. Pick the lockout fix: (A) proxy gates agent walks to one per resync cycle,
-   or (B) hide agent confirms from the client (needs S2C framing fixed plus a
-   Huffman re-encoder; flush segments ≠ packets). Implement, live-verify.
-2. Closed-loop bank run, then Phase 4 (agent runtime).
+1. Live-verify fix A (implemented: the proxy lets through only one agent step
+   per movement cycle; others get `ERR walk gated`). Relog first (the old
+   session's walker is locked). Presses should step one tile each; client arrow
+   keys must keep working.
+2. Fix B: S2C framing (probe P1) + Huffman re-encoder → hide agent
+   ConfirmWalks from the client, re-anchor deliberately, lift the gate.
+3. Closed-loop bank run, then Phase 4 (agent runtime).
 
 ## Operate
 
@@ -53,6 +56,7 @@ item queries.
 - Watch packets: `python harness/tail_log.py`
 - Drive walks: `python harness/walk_cli.py` (arrows=walk, space=run/walk, q=quit)
 - Tests: `python test_proxy.py`, `python harness/test_world.py`, `python harness/test_actions.py`, `python test_seq_rewrite.py`
+  — `test_seq_rewrite.py` binds the control port 25941: **stop the live proxy first** (else bind error / connection refused).
 - Push works via SSH alias `github.com-uoharness` (deploy key `~/.ssh/uo_harness_deploy`).
 
 ## Doc map

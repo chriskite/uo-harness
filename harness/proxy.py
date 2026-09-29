@@ -15,11 +15,12 @@ session key, tapped (so it appears in the session log as a c2s packet exactly
 like client-originated traffic), and written into the client->server relay
 in order. The control protocol answers every frame with a u16be-prefixed
 reply: `OK` on accept, `ERR <reason>` on reject (no session / key unknown /
-malformed packet). Malformed frames also close the control connection; the
-game relay is never affected.
+malformed packet / agent walk gated). Malformed frames also close the control
+connection; the game relay is never affected.
 
-Nothing else is modified, buffered-to-delay, or injected. Relay first, tap
-second, injection third.
+Walks (0x02) from both senders are rewritten by the MoveAuthority (seq ladder
+and cycle token). Agent walks are gated to one per movement cycle (see
+MoveAuthority.agent_walk_block). Relay first, tap second, injection third.
 
 Usage:
   python proxy.py [--listen-host 127.0.0.1] [--listen-port 2593]
@@ -67,6 +68,10 @@ class InjectionHub:
         tap, writer = self.session
         if tap.key is None or not tap.c2s_preamble_done:
             return "session key not known yet"
+        if payload[0] == 0x02 and len(payload) == 7:
+            block = tap.moveauth.agent_walk_block(time.monotonic())
+            if block is not None:
+                return block
         enc = bytes(b ^ tap.key for b in payload)
         out = tap.tap_c2s(enc, src="agent")  # taps + walk-rewrites exactly like client traffic
         writer.write(out)
@@ -120,10 +125,16 @@ def hexd(b, limit=64):
 
 LOGIN_TOKEN = 8   # cycle token armed at login (validated live, docs/MOVEMENT.md)
 REARM_TOKEN = 1   # cycle token armed by each client movement resync (22 0000)
+# Delay after a client resync before an agent walk may open the new cycle: the
+# server's resync response (walker reset: clears the client's WalkingFailed and
+# ResendPacketResync latch) must land first. 0.65 s after the resync matches the
+# ~0.7 s one-step-per-cycle cadence validated live (session_20260929_113311).
+AGENT_SETTLE_S = 0.65
 
 
 class MoveAuthority:
-    """Owns the session's movement acceptance state: seq ladder + key field.
+    """Owns the session's movement acceptance state: seq ladder + key field,
+    and gates agent walks.
 
     The proxy rewrites every C2S walk (0x02) from BOTH the client and agent
     injections, so the server sees one coherent walker regardless of sender:
@@ -138,16 +149,23 @@ class MoveAuthority:
         copy of that token -> remembered as `stale_token`.
       * Cycle opener from the client with its own key: passed through (it is
         server-issued truth; a value != armed token is logged as a mismatch).
-      * Continuations: agent keys are forced to 0 (the agent has no token
-        source). A client key equal to `stale_token` is the client's copy of a
-        token the proxy already spent -> zeroed once, so the server never sees
-        a consumed token re-presented. Any other client key is a genuine
+      * Client continuations: a key equal to `stale_token` is the client's
+        copy of a token the proxy already spent -> zeroed once, so the server
+        never sees a consumed token re-presented. Any other key is a genuine
         mid-cycle server push (seen in session_20260928_223537) -> passed.
       Login/resync clear `stale_token` (the server's seed overwrites the
       client's token stack).
+    - agent gate: the server confirms every accepted walk (S2C 0x22); a
+      confirm for a step the client didn't send trips the client's bad-step
+      path (WalkingFailed, latched single resync) and freezes its walking
+      until a server walker reset (docs/MOVEMENT.md "client lockout
+      mechanism"). The client resync that follows each agent walk earns that
+      reset, so agent walks are allowed ONLY as cycle openers, and after a
+      resync only once AGENT_SETTLE_S has passed. Agent continuations never
+      reach the rewrite.
     """
 
-    __slots__ = ("next_seq", "armed_token", "stale_token")
+    __slots__ = ("next_seq", "armed_token", "stale_token", "armed_at")
 
     def __init__(self):
         self.on_login()
@@ -156,11 +174,21 @@ class MoveAuthority:
         self.next_seq = 0
         self.armed_token = LOGIN_TOKEN
         self.stale_token = None
+        self.armed_at = None  # login seed resets the client walker; no settle
 
     def on_resync(self):
         self.next_seq = 0
         self.armed_token = REARM_TOKEN
         self.stale_token = None
+        self.armed_at = time.monotonic()
+
+    def agent_walk_block(self, now: float) -> str | None:
+        """Reason an agent walk must be refused right now, or None if allowed."""
+        if self.armed_token is None:
+            return "walk gated: movement cycle already open; wait for the client resync"
+        if self.armed_at is not None and now - self.armed_at < AGENT_SETTLE_S:
+            return "walk gated: client resync still settling"
+        return None
 
     def rewrite(self, pkt: bytearray, src: str) -> tuple[str, str] | None:
         """Rewrite a plaintext 7-byte walk in place (seq + key).
@@ -184,9 +212,6 @@ class MoveAuthority:
             return ("c2s_token_stamped", f"cycle opener stamped with token {tok}")
         if sent == 0:
             return None
-        if src != "client":
-            pkt[3:7] = b"\x00\x00\x00\x00"
-            return ("c2s_agent_key_cleared", f"agent continuation key {sent} forced to 0")
         if sent == self.stale_token:
             pkt[3:7] = b"\x00\x00\x00\x00"
             self.stale_token = None

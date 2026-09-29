@@ -246,10 +246,8 @@ async def injection_test():
         await asyncio.sleep(0.3)  # let the proxy tap parse the prelude
 
         # --- inject one of every action type
-        seq = actions.WalkSequencer()
         payloads = [
-            seq.walk(6, run=True),
-            seq.walk(6, run=True),
+            actions.walk(6, run=True),
             actions.dclick(0x40005913),
             actions.say_unicode("howdy"),
             actions.cast_spell(15),
@@ -259,15 +257,23 @@ async def injection_test():
             actions.drop(0x40000D54, 100, 200, 5),
         ]
         cr, cw = await asyncio.open_connection("127.0.0.1", CONTROL_PORT)
-        for p in payloads:
+
+        async def ctl_inject(p):
             cw.write(len(p).to_bytes(2, "big") + p)
             await cw.drain()
-            hdr = await cr.readexactly(2)
-            n = int.from_bytes(hdr, "big")
-            reply = await cr.readexactly(n)
+            n = int.from_bytes(await cr.readexactly(2), "big")
+            return await cr.readexactly(n)
+
+        for p in payloads:
+            reply = await ctl_inject(p)
             if reply != b"OK":
                 check(f"inject {p.hex()} accepted", False, reply)
-        check("all 9 injections accepted", True)
+        check("all 8 injections accepted", True)
+        # a second agent walk in the same movement cycle is gated (its server
+        # confirm would lock the client's walker) and never relayed
+        reply = await ctl_inject(actions.walk(6, run=True))
+        check("second agent walk in cycle gated",
+              reply.startswith(b"ERR walk gated"), reply)
 
         # ordering probe: real client keepalive interleaved after injections
         keepalive_plain = bytes.fromhex("ff000700000003")
@@ -310,13 +316,13 @@ async def injection_test():
                   for l in open(os.path.join(LOGDIR, logs[0]), encoding="utf-8")]
         c2s = [e for e in events if e.get("dir") == "c2s"]
         ids = collections.Counter(e["id"] for e in c2s)
-        for pid, n in {"0x02": 2, "0x06": 1, "0xAD": 1, "0xFF": 4,
+        for pid, n in {"0x02": 1, "0x06": 1, "0xAD": 1, "0xFF": 4,
                        "0xB1": 1, "0x07": 1, "0x08": 1}.items():
             check(f"log c2s {pid} == {n}", ids.get(pid, 0) == n,
                   f"(got {ids.get(pid, 0)})")
         walk_logs = [e["hex"] for e in c2s if e["id"] == "0x02"]
-        check("logged walks are the relayed plaintext",
-              walk_logs == [p.hex() for p in relayed[:2]], str(walk_logs))
+        check("logged walk is the relayed plaintext",
+              walk_logs == [relayed[0].hex()], str(walk_logs))
         speech = [e for e in c2s if e["id"] == "0xAD"]
         check("logged speech matches capture format",
               speech and speech[0]["hex"]

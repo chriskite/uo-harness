@@ -336,9 +336,12 @@ Recovery: relog (fresh `WalkerManager`), or anything that makes the server reset
 
 Fix options: (A) proxy gates agent walks to one per resync cycle, after the reset has landed (no new capability; ~1 step per 0.7 s; keeps the resync-per-step signature). (B) Hide agent confirms from the client (S2C rewrite) and re-anchor it deliberately. Clean, but blocked on S2C framing. **Huffman flush markers do not align with packets** (session 113311: 7289 flush segments; 0x22-led segments of 5/10/14 B), so filtering at the compressed-segment level is impossible. B needs plaintext framing fixed (probe P1) plus a Huffman re-encoder.
 
+**Decision (user, 2026-09-29): A now, then B.** A is implemented in `MoveAuthority.agent_walk_block`: an agent walk is refused (`ERR walk gated: …`, not relayed) unless a movement cycle is armed (no walk since login/resync), and after a resync only once `AGENT_SETTLE_S` = 0.65 s have passed. So agent walks are always cycle openers (seq 0 + stamped token), never continuations. Client walks are never gated. Once the agent opens a cycle, the next agent step waits for the client's bad-step resync. If that resync never comes (the walk was rejected silently), the agent stays gated until the client walks or resyncs, which is the safe failure. `inject.py walk` retries gated sends for up to 5 s per step. Offline proof: `test_seq_rewrite.py` (14 checks) and `harness/test_actions.py` ("second agent walk in cycle gated").
+
 ### Next steps (walking reliability first)
-1. Choose lockout fix (A now / B after S2C framing), implement, live-verify.
-2. Then the closed-loop bank run, and Phase 4 (agent runtime).
+1. Live-verify A (attended, after relog to clear the locked walker): walk_cli presses step one tile each, with presses faster than ~0.7 s answering `ERR walk gated`. Client arrow keys must keep working throughout.
+2. B: fix S2C plaintext framing (probe P1), add a Huffman re-encoder, then drop agent ConfirmWalks toward the client and re-anchor it deliberately. Then lift the gate.
+3. Then the closed-loop bank run, and Phase 4 (agent runtime).
 
 ### Tooling notes
 - `walk_cli.py`: terminal arrow-key walker (arrows=walk, space=run/walk, q=quit). The manual 8/1 token keys were removed — the proxy stamps tokens.
