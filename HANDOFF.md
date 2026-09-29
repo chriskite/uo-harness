@@ -37,17 +37,13 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 1. ~~Live-verify fix B~~ **VALIDATED (session_20260929_161433):** CLI and client
    walking both fully work; 0 resyncs, 0 proxy-originated server packets. Blocked
    moves get a real server `0x21` deny (handled).
-2. **Bank errand built, offline-proven, live run pending** (`harness/errand_bank.py`;
-   `test_errand.py` runs proxy + runner + a simulated world end to end). It works like this:
-   - find the banker (labels, or stock-style clicks `09`+`34`)
-   - walk using walk memory (`harness/nav.py`, `harness/data/walkmem.json`); denies teach blocked moves
-   - say "bank", keyword-encoded byte-identically to the stock client (`harness/uo/speech.py`)
-   - verify the bank box opened (`0x24` on the self layer-0x1D item, matching the real reply in 161433)
-   - walk back to the start tile
-
-   Live: log in, then `python harness/errand_bank.py --start 1963,2597`.
-   Then Phase 4 (agent runtime).
-3. Optional: map-based z for re-anchors (stairs/slopes).
+2. ~~Closed-loop bank run~~ **DONE LIVE (session_20260929_163420), Phase 3 complete.**
+   `harness/errand_bank.py --start 1963,2597`: start → banker (label heard) → 13 steps →
+   "bank" → bank box opened → 13 steps back to exactly the start; 26 s, 0 blocked, 0 resyncs,
+   0 proxy-originated server packets. Offline: `test_errand.py`.
+3. **Next: Phase 4 (agent runtime)**, an LLM planner over the state port + action/skill library,
+   with safety rails (docs/PLAN.md).
+4. Optional: map-based z for re-anchors (stairs/slopes).
 
 ## Operate
 
