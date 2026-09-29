@@ -299,3 +299,26 @@ All of the following was proven with live injections on the Test Shard:
   - **Closed-loop tasks**: interleave manual/client activity with agent bursts (the out-and-back proved this works).
   - Full-autonomy sustained walking needs the proxy-side seq/key rewrite + activity interleaving strategy (Phase 4 work, flagged as a detection-surface item for ANTICHEAT.md).
 - The client movement-resync (`22 0000`) fires ~50–500 ms after any accepted external walk and is rate-limited (~5 s). It resets the expected seq to 0 and re-arms the token (value 1).
+
+## Session state & next steps (2026-09-29, end of day)
+
+### What is proven to work
+- Full protocol stack: interception (WinDivert NAT), cipher (single-byte session XOR), framing (authoritative table), world model, and actions — speech, dclick, gumps, spells, item queries all execute via injection.
+- **Movement in attended mode (validated repeatedly):** after the client opens a movement cycle with a manual walk (carrying the cycle token — 8 at login, 1 after resync/idle), injected continuation walks (key 0, correct continuing seq) execute and the client rubber-bands to the true position.
+- **Proxy-side SeqAuthority** (committed `1d0ad23`): the proxy rewrites every walk's seq byte (client + injected) to one monotonic ladder; resets on login and client resync (22 0000). Proven offline (`test_seq_rewrite.py` ALL PASS: out-of-order client seqs normalized, injections continue ladder, resync resets).
+
+### What is currently broken
+- **walk_cli.py (arrow-key CLI) walks did not execute live.** Prime suspect: the CLI sends `fastwalk_key=0` by default — after login the cycle-start walk needs the login token (8), and after a resync/idle it needs the re-arm token (1). The CLI must send a token walk first (its `8`/`1` keys exist for this) or the client must open the cycle first. Untested after the authority went live.
+- Client walks worked a few times then stopped — consistent with token-cycle dynamics (after external walks trigger a client resync, the cycle re-arms and the next walk needs the re-arm token again) and/or the authority's counter drifting from the server's expectation when packets are missed.
+- The walk mirror tool was retired (feedback-loop class of bugs; with the authority its injected hex was indistinguishable from client walks in the log).
+
+### Next steps (walking reliability first)
+1. **Make the CLI cycle-aware**: auto-send the login token (8) on the first walk after login and the re-arm token (1) on the first walk after a client resync; key 0 otherwise. Alternatively, have the proxy track the current token from client first-walks and inject it into agent walks automatically (better: zero user burden).
+2. Live-verify: CLI token walk → continuations chain (watch the shared ladder in tail_log).
+3. Decide token tracking location: proxy-side (authority injects current token into key field of agent walks, mirroring how it owns seq) — then ALL tools get movement for free.
+4. Then the closed-loop bank run, and Phase 4 (agent runtime).
+
+### Tooling notes
+- `walk_cli.py`: terminal arrow-key walker (arrows=walk, space=run/walk, 8/1=token walk, q=quit).
+- `tail_log.py`: readable live packet tail of the active session.
+- The seq authority means tools send seq 0 always; the proxy assigns the true value.
