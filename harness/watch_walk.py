@@ -52,6 +52,7 @@ def main():
                 hx = e["hex"]
                 if hx == last_injected:
                     continue  # our own injection echoing back — never mirror it
+                pkt = bytes.fromhex(hx)
                 new_seq = (pkt[2] + 1) & 0xFF or 1
                 # continuation key is 0 (token from the client's walk is single-use,
                 # already spent — reusing it gets rejected)
