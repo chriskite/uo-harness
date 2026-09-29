@@ -1,4 +1,4 @@
-"""UO Outlands agent-harness proxy — Phase 1.
+"""UO Outlands agent-harness proxy — Phase 1 + Phase 3 injection.
 
 Byte-exact TCP relay between the stock Outlands ClassicUO client and the game
 server, with a passive protocol tap:
@@ -8,11 +8,23 @@ server, with a passive protocol tap:
   C2S (XOR S)                      -> passively decrypted, framed, logged
   S2C (Huffman)                    -> decompressed, framed, logged
 
-Nothing is modified, buffered-to-delay, or injected. Relay first, tap second.
+Phase 3 adds an agent injection path: a localhost control listener (default
+127.0.0.1:25941) accepts length-prefixed (u16be) PLAINTEXT action packets
+(built by harness/actions.py). Each accepted packet is XORed with the current
+session key, tapped (so it appears in the session log as a c2s packet exactly
+like client-originated traffic), and written into the client->server relay
+in order. The control protocol answers every frame with a u16be-prefixed
+reply: `OK` on accept, `ERR <reason>` on reject (no session / key unknown /
+malformed packet). Malformed frames also close the control connection; the
+game relay is never affected.
+
+Nothing else is modified, buffered-to-delay, or injected. Relay first, tap
+second, injection third.
 
 Usage:
   python proxy.py [--listen-host 127.0.0.1] [--listen-port 2593]
                   [--upstream-host play.uooutlands.com] [--upstream-port 2593]
+                  [--control-host 127.0.0.1] [--control-port 25941]
                   [--logdir logs]
 """
 import argparse
@@ -25,6 +37,75 @@ import time
 from uo.packets import packet_length, C2S_OVERRIDES
 from uo.outlands_table import outlands_length
 from uo.huffman import HuffmanDecoder
+
+CONTROL_MAX_FRAME = 4096
+
+
+class InjectionHub:
+    """Tracks the one active game session for control-channel injection.
+
+    Single-client assumption (documented): the last attached session wins.
+    """
+
+    def __init__(self):
+        self.session = None  # (SessionTap, upstream StreamWriter)
+
+    def attach(self, tap, upstream_writer):
+        self.session = (tap, upstream_writer)
+
+    def detach(self, tap):
+        if self.session is not None and self.session[0] is tap:
+            self.session = None
+
+    async def inject(self, payload: bytes) -> str | None:
+        """XOR payload with the session key, tap it as c2s, relay it upstream.
+
+        Returns None on success, or a rejection reason string.
+        """
+        if self.session is None:
+            return "no active session"
+        tap, writer = self.session
+        if tap.key is None or not tap.c2s_preamble_done:
+            return "session key not known yet"
+        enc = bytes(b ^ tap.key for b in payload)
+        tap.tap_c2s(enc)          # logged/framed exactly like client traffic
+        writer.write(enc)
+        await writer.drain()
+        return None
+
+
+async def handle_control(reader, writer, hub):
+    """One control connection: u16be-length-prefixed plaintext action packets."""
+    peer = writer.get_extra_info("peername")
+
+    def reply(msg: bytes):
+        writer.write(len(msg).to_bytes(2, "big") + msg)
+
+    try:
+        while True:
+            hdr = await reader.readexactly(2)
+            n = int.from_bytes(hdr, "big")
+            if n == 0 or n > CONTROL_MAX_FRAME:
+                reply(b"ERR bad frame length")
+                break
+            payload = await reader.readexactly(n)
+            plen = packet_length(payload, overrides=C2S_OVERRIDES)
+            if plen <= 0 or plen != n:
+                reply(b"ERR malformed packet")
+                break
+            err = await hub.inject(payload)
+            if err is not None:
+                reply(f"ERR {err}".encode())
+                continue  # clean rejection; connection stays usable
+            reply(b"OK")
+    except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
+        pass
+    finally:
+        try:
+            writer.close()
+        except Exception:
+            pass
+        print(f"[proxy] control {peer} closed")
 
 
 CLIENT_PREAMBLE_LEN = 5
@@ -189,11 +270,13 @@ async def handle_client(client_reader, client_writer, args):
     print(f"[proxy] {peer} connected -> {args.upstream_host}:{args.upstream_port} (log session_{stamp}.jsonl)")
 
     try:
+        args.hub.attach(tap, upstream_writer)
         await asyncio.gather(
             _relay(client_reader, upstream_writer, tap.tap_c2s),
             _relay(upstream_reader, client_writer, tap.tap_s2c),
         )
     finally:
+        args.hub.detach(tap)
         tap._log(ev="close")
         logf.close()
         tap.raw_c2s.close()
@@ -202,11 +285,16 @@ async def handle_client(client_reader, client_writer, args):
 
 
 async def amain(args):
+    args.hub = InjectionHub()
+    control = await asyncio.start_server(
+        lambda r, w: handle_control(r, w, args.hub),
+        args.control_host, args.control_port)
     server = await asyncio.start_server(
         lambda r, w: handle_client(r, w, args), args.listen_host, args.listen_port)
     print(f"[proxy] listening on {args.listen_host}:{args.listen_port}, "
-          f"upstream {args.upstream_host}:{args.upstream_port}")
-    async with server:
+          f"upstream {args.upstream_host}:{args.upstream_port}, "
+          f"control {args.control_host}:{args.control_port}")
+    async with server, control:
         await server.serve_forever()
 
 
@@ -220,6 +308,9 @@ def main():
                    help="local IP to bind the upstream connection to (NAT loop prevention)")
     p.add_argument("--upstream-bind-port", type=int, default=0,
                    help="local port for the upstream connection (NAT loop prevention)")
+    p.add_argument("--control-host", default="127.0.0.1")
+    p.add_argument("--control-port", type=int, default=25941,
+                   help="localhost control listener for agent action injection")
     p.add_argument("--logdir", default="logs")
     args = p.parse_args()
     try:
