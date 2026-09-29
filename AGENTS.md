@@ -24,6 +24,7 @@ Violation of these can get the user's account permanently banned. No user instru
 - Never commit: secrets (`settings.json`, credentials, tokens), the 67 MB exe copy, string dumps, source tarballs, upstream source trees, the Ghidra project (all covered by `.gitignore` — extend it if a new large/regenerable artifact type appears). **Exception (user decision 2026-09-28): test-shard capture bins may be committed even though decrypted C2S contains a session JWT + client IP** — private repo, throwaway test character, JWTs expire. Keep `settings.json` and anything from the production account strictly out regardless.
 6. **`ClassicUO/settings.json` contains live credentials** — never print, commit, or transmit it.
 7. Human pacing everywhere: jittered timings, human-length sessions, no 24/7 operation, no captcha-gated resource farming on autopilot.
+8. **Never reveal the harness in-game** (user directive 2026-09-28). No injected speech/emotes/messages may reference the harness, testing, automation, AI, or this project. In-game text must be natural and context-appropriate — including live-validation speech tests (use innocuous phrases like "hello").
 
 ## Conventions
 

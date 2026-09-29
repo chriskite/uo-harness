@@ -31,3 +31,4 @@ divert.log
 mrt_map.json
 ref/
 decompiled/
+*.png
