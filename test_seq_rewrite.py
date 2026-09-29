@@ -93,12 +93,13 @@ async def main():
     # stamped into walk #0 -> must be zeroed
     await client(walk(0x80, 4, key=8))
 
-    # resync -> seq 0, token 1 armed; an immediate agent walk is refused
-    # (server reset not landed yet); after the settle window it opens the
-    # cycle, its bogus key replaced by the token; a second one is refused
+    # resync -> seq 0, token 1 armed; an agent walk within RESYNC_SPACING_S
+    # is refused (its own resync would be ignored by the server); after the
+    # spacing it opens the cycle, its bogus key replaced by the token; a
+    # second one is refused
     await client(xor(b"\x22\x00\x00", KEY))
     replies["settling"] = inject(77)
-    await asyncio.sleep(0.7)
+    await asyncio.sleep(5.1)
     replies["opener"] = inject(77, key=5)
     replies["second"] = inject(55)
     # client's spent copy of token 1 -> zeroed; a second key 1 is a genuine
@@ -147,9 +148,9 @@ async def main():
     check("agent walk refused while client's cycle is open",
           replies["open"].startswith("ERR walk gated: movement cycle already open"), replies["open"])
     check("client's spent login token zeroed: seq 4, key 0", walks[4:5] == [(4, 0)], str(walks[4:5]))
-    check("agent walk refused right after resync",
-          replies["settling"].startswith("ERR walk gated: client resync still settling"), replies["settling"])
-    check("settled agent walk accepted", replies["opener"] == "OK", replies["opener"])
+    check("agent walk refused within resync spacing",
+          replies["settling"].startswith("ERR walk gated: last client resync"), replies["settling"])
+    check("agent walk accepted after resync spacing", replies["opener"] == "OK", replies["opener"])
     check("agent opener: seq 0, token 1 replaces its key", walks[5:6] == [(0, 1)], str(walks[5:6]))
     check("second agent walk in the same cycle refused",
           replies["second"].startswith("ERR walk gated: movement cycle already open"), replies["second"])

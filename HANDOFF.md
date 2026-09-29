@@ -38,10 +38,10 @@ item queries.
 
 ## Next steps (in order)
 
-1. Live-verify fix A (implemented: the proxy lets through only one agent step
-   per movement cycle; others get `ERR walk gated`). Relog first (the old
-   session's walker is locked). Presses should step one tile each; client arrow
-   keys must keep working.
+1. Live-verify fix A with 5 s spacing (session_20260929_143051: only the first
+   agent step worked, because the 2nd client resync, 2.6 s after the 1st, got no
+   server reset; [INFERENCE] the server ignores resyncs < ~5 s apart). Relog
+   first. One press per ≥5 s should step each time; arrow keys must keep working.
 2. Fix B: S2C framing (probe P1) + Huffman re-encoder → hide agent
    ConfirmWalks from the client, re-anchor deliberately, lift the gate.
 3. Closed-loop bank run, then Phase 4 (agent runtime).

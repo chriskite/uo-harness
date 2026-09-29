@@ -125,11 +125,15 @@ def hexd(b, limit=64):
 
 LOGIN_TOKEN = 8   # cycle token armed at login (validated live, docs/MOVEMENT.md)
 REARM_TOKEN = 1   # cycle token armed by each client movement resync (22 0000)
-# Delay after a client resync before an agent walk may open the new cycle: the
-# server's resync response (walker reset: clears the client's WalkingFailed and
-# ResendPacketResync latch) must land first. 0.65 s after the resync matches the
-# ~0.7 s one-step-per-cycle cadence validated live (session_20260929_113311).
-AGENT_SETTLE_S = 0.65
+# Minimum time between the last client resync and an agent walk. Each agent
+# walk makes the client resync ~50 ms later (bad-step path), and only a server
+# walker reset in answer to that resync unfreezes the client. In all three
+# agent-walk sessions the SECOND resync (0.76 / 1.14 / 2.64 s after the first)
+# got no reset back: the client stayed latched and never resynced again
+# (sessions 20260929_113311 / _142237 / _143051). [INFERENCE] The server
+# ignores resyncs closer than ~5 s apart, matching the client's own 5000 ms
+# TriggerClientResync throttle (docs/MOVEMENT.md).
+RESYNC_SPACING_S = 5.0
 
 
 class MoveAuthority:
@@ -161,8 +165,9 @@ class MoveAuthority:
       until a server walker reset (docs/MOVEMENT.md "client lockout
       mechanism"). The client resync that follows each agent walk earns that
       reset, so agent walks are allowed ONLY as cycle openers, and after a
-      resync only once AGENT_SETTLE_S has passed. Agent continuations never
-      reach the rewrite.
+      resync only once RESYNC_SPACING_S has passed (so the resync the agent
+      walk triggers is not ignored). Agent continuations never reach the
+      rewrite.
     """
 
     __slots__ = ("next_seq", "armed_token", "stale_token", "armed_at")
@@ -186,8 +191,9 @@ class MoveAuthority:
         """Reason an agent walk must be refused right now, or None if allowed."""
         if self.armed_token is None:
             return "walk gated: movement cycle already open; wait for the client resync"
-        if self.armed_at is not None and now - self.armed_at < AGENT_SETTLE_S:
-            return "walk gated: client resync still settling"
+        if self.armed_at is not None and now - self.armed_at < RESYNC_SPACING_S:
+            return (f"walk gated: last client resync {now - self.armed_at:.1f}s ago; "
+                    f"need {RESYNC_SPACING_S:.0f}s spacing")
         return None
 
     def rewrite(self, pkt: bytearray, src: str) -> tuple[str, str] | None:

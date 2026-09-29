@@ -40,7 +40,7 @@ def main():
     elif cmd == "walk":
         d = int(sys.argv[2]); n = int(sys.argv[3]); run = len(sys.argv) > 4
         for _ in range(n):
-            deadline = time.monotonic() + 5.0
+            deadline = time.monotonic() + 8.0  # > RESYNC_SPACING_S (5 s) + resync latency
             resp = send_packet(sock, walk(d, run=run))
             while resp.startswith("ERR walk gated") and time.monotonic() < deadline:
                 time.sleep(0.1)
