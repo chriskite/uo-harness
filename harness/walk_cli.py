@@ -4,14 +4,12 @@ Run:  python walk_cli.py
 Focus a terminal, then:
   arrow keys  — walk in that direction (up=N, right=E, down=S, left=W)
   space       — toggle run/walk mode (default: run)
-  8           — send a cycle-start walk with token 8 (login token)
-  1           — send a cycle-start walk with token 1 (re-arm token)
   q           — quit
 
-Seq is managed by the proxy's SeqAuthority — this tool always sends seq 0 and
-the proxy assigns the true ladder position. Keys 8/1 are for opening a fresh
-movement cycle (first walk after login/resync) when no client walk has opened
-one yet.
+Seq and the cycle token are owned by the proxy's MoveAuthority — this tool
+always sends seq 0 / key 0; the proxy assigns the true ladder position and
+stamps the cycle token (8 after login, 1 after a client resync) into the first
+walk of each movement cycle.
 """
 import msvcrt
 import socket
@@ -39,7 +37,7 @@ def main():
         print(f"cannot reach proxy control at {HOST}:{PORT} ({e})")
         sys.exit(1)
     run_mode = True
-    print("walk_cli: arrows=walk, space=run/walk toggle, 8/1=token walk, q=quit")
+    print("walk_cli: arrows=walk, space=run/walk toggle, q=quit")
     try:
         while True:
             ch = msvcrt.getwch()
@@ -53,12 +51,6 @@ def main():
             elif ch == " ":
                 run_mode = not run_mode
                 print(f"  mode: {'run' if run_mode else 'walk'}")
-            elif ch == "8":
-                resp = send(sock, walk(0, run=run_mode, seq=0, fastwalk_key=8))
-                print(f"  token-8 walk N -> {resp}")
-            elif ch == "1":
-                resp = send(sock, walk(0, run=run_mode, seq=0, fastwalk_key=1))
-                print(f"  token-1 walk N -> {resp}")
             elif ch in ("q", "Q", "\x03"):
                 break
     finally:

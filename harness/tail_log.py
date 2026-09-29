@@ -31,7 +31,7 @@ def fmt(e):
     ms = int((e["t"] % 1) * 1000)
     ev = e.get("ev")
     if ev:
-        return f"{t}.{ms:03d}  [event] {ev} {e.get('hex','') or e.get('session_key','')}"
+        return f"{t}.{ms:03d}  [event] {ev} {e.get('hex','') or e.get('session_key','') or e.get('note','')}"
     d = e.get("dir", "?")
     pid = e.get("id", "??")
     if pid == "0xFF" and d == "c2s" and not SHOW_FF:
@@ -42,7 +42,8 @@ def fmt(e):
     if pid == "0x02" and len(hx) >= 14:
         direction = int(hx[2:4], 16) & 7
         extra = f" dir={direction} seq={int(hx[4:6],16)} key=0x{int(hx[6:14],16):08x}"
-    return f"{t}.{ms:03d}  {d:4s} {pid} {name:11s} len={e.get('len','?'):<4} {extra} {hx[:32]}"
+    src = "AGENT" if e.get("src") == "agent" else ""
+    return f"{t}.{ms:03d}  {d:4s} {src:5s} {pid} {name:11s} len={e.get('len','?'):<4} {extra} {hx[:32]}"
 
 
 def main():

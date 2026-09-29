@@ -68,7 +68,7 @@ class InjectionHub:
         if tap.key is None or not tap.c2s_preamble_done:
             return "session key not known yet"
         enc = bytes(b ^ tap.key for b in payload)
-        out = tap.tap_c2s(enc)      # taps and seq-rewrites exactly like client traffic
+        out = tap.tap_c2s(enc, src="agent")  # taps + walk-rewrites exactly like client traffic
         writer.write(out)
         await writer.drain()
         return None
@@ -118,27 +118,55 @@ def hexd(b, limit=64):
     return b[:limit].hex()
 
 
-class SeqAuthority:
-    """Owns the single movement-sequence counter for the session.
+LOGIN_TOKEN = 8   # cycle token armed at login (validated live, docs/MOVEMENT.md)
+REARM_TOKEN = 1   # cycle token armed by each client movement resync (22 0000)
 
-    The proxy rewrites the seq byte of every C2S walk packet (0x02) from BOTH
-    the client and agent injections to one monotonic ladder, so the two senders
-    never desync each other. Server expects last+1, wrap 0xFF -> 1; resync
-    (C2S 22 0000) and login reset to 0.
+
+class MoveAuthority:
+    """Owns the session's movement acceptance state: seq ladder + cycle token.
+
+    The proxy rewrites every C2S walk (0x02) from BOTH the client and agent
+    injections, so the two senders never desync each other:
+
+    - seq: one monotonic ladder. Server expects last+1, wrap 0xFF -> 1;
+      login and client resync (C2S 22 0000) reset it to 0.
+    - key: the first walk of a movement cycle must carry the cycle token
+      (LOGIN_TOKEN after login, REARM_TOKEN after a resync); it is single-use.
+      A cycle-opening walk with key 0 gets the armed token stamped in; one that
+      already carries a non-zero key (the client's own token) is left as-is.
+      Continuation keys pass through untouched (server ignores them).
     """
 
-    __slots__ = ("next_seq",)
+    __slots__ = ("next_seq", "armed_token")
 
     def __init__(self):
-        self.next_seq = 0
+        self.on_login()
 
-    def reset(self):
+    def on_login(self):
         self.next_seq = 0
+        self.armed_token = LOGIN_TOKEN
 
-    def next(self) -> int:
+    def on_resync(self):
+        self.next_seq = 0
+        self.armed_token = REARM_TOKEN
+
+    def rewrite(self, pkt: bytearray) -> int | None:
+        """Rewrite a plaintext 7-byte walk in place.
+
+        Returns the cycle token this walk consumed (whether stamped by us or
+        carried by the sender), or None for a continuation walk.
+        """
         s = self.next_seq
-        self.next_seq = self.next_seq + 1 if self.next_seq < 0xFF else 1
-        return s
+        self.next_seq = s + 1 if s < 0xFF else 1
+        pkt[2] = s
+        tok = self.armed_token
+        if tok is None:
+            return None
+        self.armed_token = None
+        if pkt[3:7] == b"\x00\x00\x00\x00":
+            pkt[3:7] = tok.to_bytes(4, "big")
+        return tok
+
 
 class SessionTap:
     """Passive per-connection protocol analyzer."""
@@ -157,7 +185,7 @@ class SessionTap:
         self.c2s_preamble_done = False
         self.s2c_prelude_done = False
         self.c2s_wire = bytearray()      # wire bytes pending packet-aligned rewrite
-        self.seqauth = SeqAuthority()    # single movement seq ladder (proxy-owned)
+        self.moveauth = MoveAuthority()  # seq ladder + cycle token (proxy-owned)
 
     def _log(self, **kw):
         kw["t"] = round(time.time(), 3)
@@ -168,9 +196,10 @@ class SessionTap:
     def tap_c2s(self, data: bytes, src: str = "client"):
         """Tap + normalize C2S traffic; returns the bytes to forward upstream.
 
-        Every walk packet (0x02) gets its seq byte rewritten to the proxy-owned
-        SeqAuthority ladder (wire-level: wire[2] = next ^ key). Everything else
-        passes through unchanged. raw_c2s records the rewritten (server-truth) wire.
+        Every walk packet (0x02) is rewritten by the MoveAuthority (seq ladder +
+        cycle-token stamping). Everything else passes through unchanged.
+        raw_c2s records the rewritten (server-truth) wire. `src` ("client" or
+        "agent") is logged on each framed packet.
         """
         out = bytearray()
         if not self.c2s_preamble_done:
@@ -183,7 +212,7 @@ class SessionTap:
                 return bytes(out)
             self._log(ev="c2s_preamble", hex=self.c2s_buf.hex())
             self.c2s_preamble_done = True
-            self.seqauth.reset()
+            self.moveauth.on_login()
             self.c2s_buf.clear()
         self.c2s_wire += data
         if self.key is None:
@@ -209,11 +238,20 @@ class SessionTap:
                 continue
             pkt = bytearray(plain[i:i + plen])
             if pkt[0] == 0x02 and plen == 7:
-                pkt[2] = self.seqauth.next()
+                sent_key = int.from_bytes(pkt[3:7], "big")
+                tok = self.moveauth.rewrite(pkt)
+                if tok is not None:
+                    if sent_key == 0:
+                        self._log(ev="c2s_token_stamped", src=src,
+                                  note=f"cycle-opening walk stamped with token {tok}")
+                    elif sent_key != tok:
+                        self._log(ev="c2s_token_mismatch", src=src,
+                                  note=f"cycle-opening walk carries key {sent_key}, armed token was {tok}")
             elif bytes(pkt) == b"\x22\x00\x00":
-                self.seqauth.reset()
-                self._log(ev="c2s_resync_seen", note="client movement resync; seq reset to 0")
-            self._log(dir="c2s", id=f"0x{pkt[0]:02X}", len=plen, hex=hexd(bytes(pkt)))
+                self.moveauth.on_resync()
+                self._log(ev="c2s_resync_seen",
+                          note=f"client movement resync; seq reset to 0, token {REARM_TOKEN} armed")
+            self._log(dir="c2s", src=src, id=f"0x{pkt[0]:02X}", len=plen, hex=hexd(bytes(pkt)))
             out += bytes(b ^ self.key for b in pkt)
             i += plen
         self.c2s_wire = self.c2s_wire[i:]

@@ -274,9 +274,11 @@ async def injection_test():
         game_writer.write(bytes(b ^ SESSION_KEY for b in keepalive_plain))
         await game_writer.drain()
         await asyncio.sleep(0.5)
-
+        # the proxy's MoveAuthority stamps the login cycle token (8) into the
+        # first walk of the session; everything else relays byte-for-byte
+        relayed = [payloads[0][:3] + (8).to_bytes(4, "big")] + payloads[1:]
         expected = b"".join(
-            bytes(b ^ SESSION_KEY for b in p) for p in payloads
+            bytes(b ^ SESSION_KEY for b in p) for p in relayed
         ) + bytes(b ^ SESSION_KEY for b in keepalive_plain)
         check("upstream received exactly XOR(key) of injections + keepalive",
               bytes(GOT_UPSTREAM) == expected,
@@ -313,8 +315,8 @@ async def injection_test():
             check(f"log c2s {pid} == {n}", ids.get(pid, 0) == n,
                   f"(got {ids.get(pid, 0)})")
         walk_logs = [e["hex"] for e in c2s if e["id"] == "0x02"]
-        check("logged walks are the injected plaintext",
-              walk_logs == [p.hex() for p in payloads[:2]], str(walk_logs))
+        check("logged walks are the relayed plaintext",
+              walk_logs == [p.hex() for p in relayed[:2]], str(walk_logs))
         speech = [e for e in c2s if e["id"] == "0xAD"]
         check("logged speech matches capture format",
               speech and speech[0]["hex"]

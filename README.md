@@ -2,7 +2,7 @@
 
 An AI agent harness that plays **Ultima Online Outlands** — targeting the **Test Shard only**.
 
-Current status: **research complete, build not started.** The anti-cheat/automation-detection investigation is finished and written up in [`ANTICHEAT.md`](ANTICHEAT.md); read it first — it defines the safety constraints every design decision follows.
+Current status: **Phases 1–2 done; Phase 3 (actions) live-validated except unattended closed-loop movement.** Interception, cipher, world model, and injected speech/dclick/gumps/spells work live; movement is owned by the proxy's `MoveAuthority` (seq + cycle-token rewriting) — see [`HANDOFF.md`](HANDOFF.md) and [`docs/MOVEMENT.md`](docs/MOVEMENT.md). Read [`ANTICHEAT.md`](ANTICHEAT.md) first — it defines the safety constraints every design decision follows.
 
 ## Architecture (decided)
 

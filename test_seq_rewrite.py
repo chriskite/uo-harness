@@ -1,5 +1,7 @@
-"""End-to-end test of the proxy SeqAuthority: client and injected walks from
-both senders must arrive upstream on ONE monotonic seq ladder.
+"""End-to-end test of the proxy MoveAuthority: client and injected walks from
+both senders must arrive upstream on ONE monotonic seq ladder, and the first
+walk of each movement cycle (login / after client resync) must carry the cycle
+token (8 / 1) — stamped by the proxy when the sender left key 0.
 """
 import asyncio
 import os
@@ -77,15 +79,27 @@ async def main():
     n = int.from_bytes(ctl.recv(2), "big")
     ctl.recv(n)
 
-    # client resync -> seq must reset to 0
+    # client resync -> seq resets to 0, token 1 armed; agent walks (key 0)
     writer.write(xor(b"\x22\x00\x00", KEY))
     await writer.drain()
     await asyncio.sleep(0.2)
-    payload2 = bytes([0x02, 0x80, 77]) + b"\x00\x00\x00\x00"
-    ctl.sendall(len(payload2).to_bytes(2, "big") + payload2)
-    n = int.from_bytes(ctl.recv(2), "big")
-    ctl.recv(n)
+    for bogus in (77, 55):
+        payload2 = bytes([0x02, 0x80, bogus]) + b"\x00\x00\x00\x00"
+        ctl.sendall(len(payload2).to_bytes(2, "big") + payload2)
+        n = int.from_bytes(ctl.recv(2), "big")
+        ctl.recv(n)
     ctl.close()
+
+    # client resync, then the client opens the cycle with its own token and
+    # sends a stale-key continuation: both keys must pass through unchanged
+    writer.write(xor(b"\x22\x00\x00", KEY))
+    await writer.drain()
+    await asyncio.sleep(0.2)
+    writer.write(walk(0x80, 3, key=1))
+    await writer.drain()
+    await asyncio.sleep(0.05)
+    writer.write(walk(0x80, 4, key=8))
+    await writer.drain()
 
     await asyncio.sleep(0.5)
     writer.close()
@@ -94,25 +108,34 @@ async def main():
     upstream.cancel()
 
     # parse upstream-received walks (skip 5-byte preamble)
-    seqs = []
+    walks = []  # (seq, key)
     buf = bytearray(GOT[5:])
     i = 0
     while i + 7 <= len(buf):
         if buf[i] == (0x02 ^ KEY):
-            seqs.append(buf[i + 2] ^ KEY)
+            plain = xor(buf[i:i + 7], KEY)
+            walks.append((plain[2], int.from_bytes(plain[3:7], "big")))
             i += 7
         else:
             i += 1
+    seqs = [s for s, _ in walks]
+    keys = [k for _, k in walks]
     ok = True
     def check(name, cond, extra=""):
         nonlocal ok
         print(f"  [{'OK' if cond else 'FAIL'}] {name} {extra}")
         ok = ok and bool(cond)
 
-    print(f"upstream walk seqs: {seqs}")
+    print(f"upstream walks (seq, key): {walks}")
+    check("9 walks relayed", len(walks) == 9, str(len(walks)))
     check("client seqs normalized 0,1,2,3", seqs[:4] == [0, 1, 2, 3], str(seqs[:4]))
-    check("injected seq 99 -> 4", seqs[4] == 4, str(seqs[4:5]))
-    check("post-resync injection -> 0", seqs[5] == 0, str(seqs[5:6]))
+    check("login cycle opener stamped with token 8", keys[0] == 8, str(keys[:1]))
+    check("login continuations keep key 0", keys[1:4] == [0, 0, 0], str(keys[1:4]))
+    check("injected continuation: seq 99 -> 4, key 0", walks[4:5] == [(4, 0)], str(walks[4:5]))
+    check("post-resync injection opens cycle: seq 0, token 1", walks[5:6] == [(0, 1)], str(walks[5:6]))
+    check("next injection is a continuation: seq 1, key 0", walks[6:7] == [(1, 0)], str(walks[6:7]))
+    check("client's own token passes through: seq 0, key 1", walks[7:8] == [(0, 1)], str(walks[7:8]))
+    check("client continuation key untouched: seq 1, key 8", walks[8:9] == [(1, 8)], str(walks[8:9]))
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
 

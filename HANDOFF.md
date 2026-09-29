@@ -13,28 +13,28 @@ server prelude byte 12), framing (authoritative table), world model runtime
 (118-check suite green), and injected actions — speech, dclick, gumps, spells,
 item queries.
 
-**Movement: 90% solved.**
+**Movement:**
 - Protocol: walk = `02 <dir|run> <seq> <key u32be>`. First walk of a cycle needs
-  the session token (**8 = login, 1 = after resync/idle**); continuations use key 0.
+  the session token (**8 = login, 1 = after resync**); continuations use key 0.
   Every external (non-client) walk triggers a client resync (`22 0000`) which
   re-arms token 1 and resets seq.
-- Proxy has a **SeqAuthority** (committed, offline-tested): rewrites every walk's
-  seq (client + injected) to one monotonic ladder. Tools send seq 0 always.
-- **Known-good recipe (attended):** user steps once (opens cycle), then injected
-  key-0 continuations with correct seq move the character (rubber-band confirmed).
-
-**Broken (prime suspect named):** `harness/walk_cli.py` walks didn't execute —
-the CLI defaults to key 0, but the first walk of a cycle needs the token (8/1).
-Client walks also degrade after external activity (cycle re-arms).
+- Proxy **MoveAuthority** (`harness/proxy.py`, offline-tested): rewrites every
+  walk (client + injected) — seq onto one ladder, and stamps the armed cycle
+  token into the first walk of each cycle when its key is 0. Tools send seq 0 /
+  key 0 always.
+- walk_cli failure root-caused (session_20260929_134149): key-0 injections
+  before any client walk → token never presented; client's token walk then
+  landed at ladder seq 5 → everything rejected. Token stamping fixes this.
+- **Open risk:** silent server rejections (blocked tile) likely reset the
+  server's seq to 0 while the ladder keeps counting → drift until next resync.
+  See docs/MOVEMENT.md "Open risk".
 
 ## Next steps (in order)
 
-1. **Make movement token-aware like seq is**: either (a) CLI auto-sends token 8 at
-   login / token 1 after resync, or better (b) the proxy tracks the current token
-   from client first-walks and stamps it into injected walks' key field — then
-   movement works for every tool with zero bookkeeping.
-2. Live-verify one clean chain: token walk → continuations (watch via `tail_log.py`).
-3. Closed-loop bank run, then Phase 4 (agent runtime).
+1. Live-verify (attended): fresh login, walk_cli arrows with no client walk
+   first → steps on first press (`c2s_token_stamped … token 8` in tail_log);
+   after the client resync, next press opens seq 0 / key 1 and steps.
+2. Closed-loop bank run, then Phase 4 (agent runtime).
 
 ## Operate
 
@@ -44,7 +44,7 @@ Client walks also degrade after external activity (cycle re-arms).
 - Divert NAT (needed, elevated): `powershell -Verb RunAs restart_divert.ps1`
 - Launch game (elevated): `powershell -Verb RunAs launch_game.ps1`
 - Watch packets: `python harness/tail_log.py`
-- Drive walks: `python harness/walk_cli.py` (arrows=walk, space=run/walk, 8/1=token, q=quit)
+- Drive walks: `python harness/walk_cli.py` (arrows=walk, space=run/walk, q=quit)
 - Tests: `python test_proxy.py`, `python harness/test_world.py`, `python harness/test_actions.py`, `python test_seq_rewrite.py`
 - Push works via SSH alias `github.com-uoharness` (deploy key `~/.ssh/uo_harness_deploy`).
 

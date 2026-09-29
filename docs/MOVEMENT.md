@@ -305,20 +305,20 @@ All of the following was proven with live injections on the Test Shard:
 ### What is proven to work
 - Full protocol stack: interception (WinDivert NAT), cipher (single-byte session XOR), framing (authoritative table), world model, and actions — speech, dclick, gumps, spells, item queries all execute via injection.
 - **Movement in attended mode (validated repeatedly):** after the client opens a movement cycle with a manual walk (carrying the cycle token — 8 at login, 1 after resync/idle), injected continuation walks (key 0, correct continuing seq) execute and the client rubber-bands to the true position.
-- **Proxy-side SeqAuthority** (committed `1d0ad23`): the proxy rewrites every walk's seq byte (client + injected) to one monotonic ladder; resets on login and client resync (22 0000). Proven offline (`test_seq_rewrite.py` ALL PASS: out-of-order client seqs normalized, injections continue ladder, resync resets).
+- **Proxy-side MoveAuthority** (supersedes the seq-only `SeqAuthority` of `1d0ad23`): the proxy rewrites every walk (client + injected) — seq onto one monotonic ladder, and the **cycle token** stamped into the first walk of each movement cycle (8 after login, 1 after a client resync `22 0000`) when the sender left key 0. A cycle opener that already carries a non-zero key (the client's own token) is left untouched; continuation keys pass through (server ignores them, §"Acceptance gate"). Tools send seq 0 / key 0 always. Proven offline (`test_seq_rewrite.py` ALL PASS, 9 checks: login opener stamped 8, continuations key 0, post-resync injection opens with seq 0 / key 1, client-carried tokens and stale continuation keys untouched). Log events: `c2s_token_stamped`, `c2s_token_mismatch` (client opener key ≠ armed token — would falsify the constant-token model); every c2s row carries `src` (`client`/`agent`), shown as `AGENT` in `tail_log.py`.
 
-### What is currently broken
-- **walk_cli.py (arrow-key CLI) walks did not execute live.** Prime suspect: the CLI sends `fastwalk_key=0` by default — after login the cycle-start walk needs the login token (8), and after a resync/idle it needs the re-arm token (1). The CLI must send a token walk first (its `8`/`1` keys exist for this) or the client must open the cycle first. Untested after the authority went live.
-- Client walks worked a few times then stopped — consistent with token-cycle dynamics (after external walks trigger a client resync, the cycle re-arms and the next walk needs the re-arm token again) and/or the authority's counter drifting from the server's expectation when packets are missed.
-- The walk mirror tool was retired (feedback-loop class of bugs; with the authority its injected hex was indistinguishable from client walks in the log).
+### Root cause of the walk_cli failure (session_20260929_134149, confirmed from the log)
+- walk_cli injected 5 walks (ladder seq 0–4) with key 0 before any client walk → the login cycle opener carried no token → rejected.
+- The client's own first walk (key 8) then got ladder seq 5, but the server still expected seq 0 → rejected, and every later walk (seq 6…0x22) was off-ladder → all rejected until the session ended. No resync occurred to heal it.
+- Fixed by the token stamping above: the first injected walk now carries 8.
+
+### Open risk: ladder drift after a rejected walk
+Stock RunUO resets `state.Sequence = 0` on any rejected walk (§2); Outlands rejects silently (no `0x21`), so the proxy cannot see rejections and its ladder keeps counting. **[INFERENCE]** After a rejected walk (blocked tile, gate), the ladder is ahead of the server until the next client resync resets both. Watch for this in live runs: a chain that stops stepping mid-burst with no resync in the log is the signature. Fix direction if it bites: detect acceptance from S2C (needs the decoder desync fixed) or force a resync-equivalent re-anchor.
 
 ### Next steps (walking reliability first)
-1. **Make the CLI cycle-aware**: auto-send the login token (8) on the first walk after login and the re-arm token (1) on the first walk after a client resync; key 0 otherwise. Alternatively, have the proxy track the current token from client first-walks and inject it into agent walks automatically (better: zero user burden).
-2. Live-verify: CLI token walk → continuations chain (watch the shared ladder in tail_log).
-3. Decide token tracking location: proxy-side (authority injects current token into key field of agent walks, mirroring how it owns seq) — then ALL tools get movement for free.
-4. Then the closed-loop bank run, and Phase 4 (agent runtime).
+1. **Live-verify** (attended): fresh login → walk_cli arrows with no client walk first → character should step on the first press (`c2s_token_stamped … token 8` in tail_log), continuations step, and after the client's resync the next press opens with seq 0 / key 1.
+2. Then the closed-loop bank run, and Phase 4 (agent runtime).
 
 ### Tooling notes
-- `walk_cli.py`: terminal arrow-key walker (arrows=walk, space=run/walk, 8/1=token walk, q=quit).
-- `tail_log.py`: readable live packet tail of the active session.
-- The seq authority means tools send seq 0 always; the proxy assigns the true value.
+- `walk_cli.py`: terminal arrow-key walker (arrows=walk, space=run/walk, q=quit). The manual 8/1 token keys were removed — the proxy stamps tokens.
+- `tail_log.py`: readable live packet tail of the active session; `AGENT` marks injected packets.

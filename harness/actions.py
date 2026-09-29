@@ -9,8 +9,8 @@ time). Only wire-proven layouts are implemented:
                           (e.g. `02 86 3f 00000000` = run dir 6, seq 0x3f);
                           layout per upstream ClassicUO-main
                           src/ClassicUO.Client/Network/OutgoingPackets.cs
-                          (dir u8, seq u8, fastwalk key u32be — 0 when the
-                          fastwalk prevention toggle is off, as in captures)
+                          (dir u8, seq u8, fastwalk key u32be — on Outlands the
+                          cycle token; the proxy's MoveAuthority stamps it)
   dclick        0x06  5B   id, serial u32be (capture: `06 40005913`)
   say_unicode   0xAD  var  id, len u16be, type u8=0, hue u16be=0x02B2,
                           font u16be=0x0003, lang "ENU\\0", utf16be text,
@@ -99,8 +99,9 @@ def walk(direction: int, run: bool = False, seq: int = 0,
     """0x02 walk request: `02 <dir> <seq> <fastwalk key u32be>`.
 
     direction 0-7 (0=N .. 7=NW); run sets the 0x80 flag bit on the
-    direction byte. fastwalk_key is 0 unless the server's fastwalk
-    prevention negotiated a key (all captures show 0).
+    direction byte. Leave seq/fastwalk_key 0 when injecting through the
+    proxy: its MoveAuthority assigns the seq and stamps the cycle token
+    (docs/MOVEMENT.md).
     """
     if not 0 <= direction <= 7:
         raise ValueError(f"direction {direction} out of range 0-7")
