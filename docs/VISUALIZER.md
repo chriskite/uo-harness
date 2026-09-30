@@ -336,6 +336,23 @@ rows, 3 junctures (1 acked) and a heartbeat 5 minutes old):
 
 ---
 
+### 2.6 Overseer memory in the timeline (added 2026-09-30, user request)
+
+Chat rows of kind `memory` (every `ctl know` call, docs/OVERSEER.md §2) render as a foldable
+item.
+- **recall** (teal): search, brief, get and review. The headline is e.g. "recalled 'where do I
+  buy recall scrolls': 2 result(s)" or "briefed: 1 relevant, 2 standing". Below it are the
+  ranked entries, each with #id, a kind badge, the topic, the content, score and confidence.
+  A brief is split into "relevant here" and "standing rules".
+- **memory** (amber): remembered, confirmed, updated or retracted. For an add, the content is
+  the headline, and the list shows only **related (possible conflicts)**, with similarity. For
+  other writes it shows the entry.
+- Items with ≤ 4 entries start open. Superseded and retracted entries are struck through.
+- `viz/src/overseer.ts` `memoryView()` is the pure model (bun tests); `OverseerPanel.tsx`
+  `MemoryItem` draws it.
+- Verified in headless Chromium on a temp store with four writes, a search and a brief. The
+  150 vs 200 gp recall-scroll prices showed up as a related conflict.
+
 ### 2.5 Alive or dead (added 2026-09-30, user request)
 
 `world.self.dead` (and `body`) comes from the world model, which uses the client's own rule:

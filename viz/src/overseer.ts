@@ -3,7 +3,7 @@
 // chat + juncture timeline the panel renders.
 
 export type ChatRole = "user" | "overseer" | "system";
-export type ChatKind = "message" | "thought" | "action";
+export type ChatKind = "message" | "thought" | "action" | "memory";
 export type Severity = "info" | "attention" | "urgent";
 
 export interface ChatRow {
@@ -134,4 +134,61 @@ export function chatError(text: string): string | null {
 export function thoughtPreview(text: string, max = 90): string {
   const line = text.trim().split(/\r?\n/, 1)[0] ?? "";
   return line.length > max ? `${line.slice(0, max - 1)}…` : line;
+}
+
+/** A knowledge entry as carried in a memory row (harness/ctl.py `_compact`). */
+export interface MemoryEntry {
+  id: number;
+  kind: string;
+  topic: string;
+  content: string;
+  confidence?: number;
+  importance?: number;
+  score?: number;
+  status?: string;
+  similarity?: number;
+}
+
+export interface MemoryView {
+  op: string;
+  /** "recall" (search/brief/get/review: reading memory) or "write" (add/update/confirm/retract). */
+  mode: "recall" | "write";
+  headline: string;
+  /** Result lists to show, in order; empty groups are left out. */
+  groups: { label: string; entries: MemoryEntry[] }[];
+  /** Number of entries across groups (for the collapsed summary). */
+  count: number;
+}
+
+const RECALL_OPS: Record<string, true> = { search: true, brief: true, get: true, review: true };
+
+function entries(v: unknown): MemoryEntry[] {
+  return Array.isArray(v) ? (v.filter((e) => e && typeof e === "object" && "id" in e) as MemoryEntry[]) : [];
+}
+
+/** How a `memory` chat row (a `ctl know` call) is shown: a headline (the row's
+ * text) and its entry lists: results for a lookup; the entry plus related ones
+ * for a write. */
+export function memoryView(row: ChatRow): MemoryView {
+  const d = row.data ?? {};
+  const op = typeof d.op === "string" ? d.op : "?";
+  const groups: { label: string; entries: MemoryEntry[] }[] = [];
+  if (op === "brief") {
+    groups.push({ label: "relevant here", entries: entries(d.relevant) });
+    groups.push({ label: "standing rules", entries: entries(d.standing) });
+  } else if (op === "search" || op === "review") {
+    groups.push({ label: op === "review" ? "unconfirmed guesses" : "results", entries: entries(d.results) });
+  } else {
+    // an add's headline already carries the content; other writes (confirm/update/retract/get) show the entry
+    if (d.entry && op !== "add") groups.push({ label: "entry", entries: entries([d.entry]) });
+    groups.push({ label: "related (possible conflicts)", entries: entries(d.related) });
+  }
+  const shown = groups.filter((g) => g.entries.length > 0);
+  return {
+    op,
+    mode: RECALL_OPS[op] ? "recall" : "write",
+    headline: row.text,
+    groups: shown,
+    count: shown.reduce((n, g) => n + g.entries.length, 0),
+  };
 }

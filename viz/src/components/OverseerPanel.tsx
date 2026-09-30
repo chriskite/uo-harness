@@ -5,6 +5,7 @@ import {
   CHAT_MAX_CHARS,
   EMPTY_OVERSEER,
   chatError,
+  memoryView,
   mergeOverseer,
   overseerStatus,
   thoughtPreview,
@@ -15,6 +16,8 @@ import {
 } from "../overseer.ts";
 
 const POLL_MS = 2_000;
+/** Memory rows with at most this many entries start expanded. */
+const MEMORY_OPEN_MAX = 4;
 
 export interface OverseerFeed {
   state: OverseerState;
@@ -61,8 +64,43 @@ export function useOverseer(): OverseerFeed {
 
 const SEVERITY_LABEL: Record<string, string> = { info: "info", attention: "attention", urgent: "URGENT" };
 
+/** A `ctl know` call: lookups show their query and ranked results, writes the
+ * entry and any related (possibly conflicting) ones. Short lists open by default. */
+function MemoryItem({ row }: { row: ChatRow }) {
+  const v = memoryView(row);
+  return (
+    <details className={`ov-item ov-memory ov-memory-${v.mode}`} open={v.count > 0 && v.count <= MEMORY_OPEN_MAX}>
+      <summary>
+        <span className="mono dim ov-time">{fmtClock(row.t)}</span>{" "}
+        <span className="ov-tag ov-mem-tag">{v.mode === "recall" ? "recall" : "memory"}</span>{" "}
+        <span className="ov-text">{v.headline}</span>
+      </summary>
+      {v.groups.map((g) => (
+        <div key={g.label} className="ov-mem-group">
+          <div className="ov-mem-label dim">{g.label}</div>
+          <ol className="ov-mem-list">
+            {g.entries.map((e) => (
+              <li key={`${g.label}-${e.id}`} className={e.status && e.status !== "active" ? "inactive" : ""}>
+                <span className="mono dim">#{e.id}</span> <span className={`ov-mem-kind k-${e.kind}`}>{e.kind}</span>{" "}
+                <span className="ov-mem-topic">{e.topic}</span> <span className="ov-mem-content">{e.content}</span>
+                <span className="mono dim ov-mem-meta">
+                  {e.score !== undefined && ` score ${e.score.toFixed(2)}`}
+                  {e.confidence !== undefined && ` conf ${e.confidence.toFixed(2)}`}
+                  {e.similarity !== undefined && ` sim ${e.similarity.toFixed(2)}`}
+                  {e.status && e.status !== "active" && ` ${e.status}`}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ))}
+    </details>
+  );
+}
+
 function ChatItem({ row }: { row: ChatRow }) {
   const time = <span className="mono dim ov-time">{fmtClock(row.t)}</span>;
+  if (row.kind === "memory") return <MemoryItem row={row} />;
   if (row.kind === "thought") {
     return (
       <details className="ov-item ov-thought">

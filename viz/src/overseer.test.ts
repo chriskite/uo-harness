@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  memoryView,
   EMPTY_OVERSEER,
   chatError,
   fmtAgo,
@@ -109,5 +110,37 @@ describe("chatError / thoughtPreview", () => {
   test("first line, cut with an ellipsis", () => {
     expect(thoughtPreview("  plan: go north\nthen chop")).toBe("plan: go north");
     expect(thoughtPreview("abcdefghij", 5)).toBe("abcd…");
+  });
+});
+
+describe("memoryView", () => {
+  const row = (data: Record<string, unknown>, text = "t"): ChatRow => ({ id: 1, t: 1, role: "overseer", kind: "memory", text, data });
+  const e = (id: number) => ({ id, kind: "fact", topic: `t${id}`, content: `c${id}`, score: 1 });
+  test("a search is a recall with its ranked results", () => {
+    const v = memoryView(row({ op: "search", query: "room", results: [e(3), e(1)] }, "recalled 'room': 2 result(s)"));
+    expect([v.mode, v.headline, v.count, v.groups.map((g) => [g.label, g.entries.map((x) => x.id)])]).toEqual([
+      "recall",
+      "recalled 'room': 2 result(s)",
+      2,
+      [["results", [3, 1]]],
+    ]);
+  });
+  test("a brief shows relevant and standing lists; empty lists are dropped", () => {
+    const v = memoryView(row({ op: "brief", relevant: [e(1)], standing: [] }));
+    expect(v.groups.map((g) => g.label)).toEqual(["relevant here"]);
+    expect(memoryView(row({ op: "brief", relevant: [e(1)], standing: [e(2)] })).count).toBe(2);
+  });
+  test("an add shows only related entries (its content is the headline); other writes show the entry", () => {
+    const v = memoryView(row({ op: "add", action: "added", entry: e(5), related: [e(2)] }));
+    expect([v.mode, v.groups.map((g) => [g.label, g.entries.map((x) => x.id)])]).toEqual([
+      "write",
+      [["related (possible conflicts)", [2]]],
+    ]);
+    expect(memoryView(row({ op: "add", entry: e(5), related: [] })).count).toBe(0);
+    expect(memoryView(row({ op: "confirm", entry: e(5) })).groups.map((g) => g.label)).toEqual(["entry"]);
+  });
+  test("malformed data doesn't break the view", () => {
+    const v = memoryView(row({ results: "nope", related: [null, 3] }));
+    expect([v.op, v.count]).toEqual(["?", 0]);
   });
 });

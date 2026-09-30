@@ -959,6 +959,76 @@ ol.lines {
   text-transform: uppercase;
   color: #c4b5fd;
 }
+/* ctl know: recalls (teal) and memory writes (amber) */
+.ov-memory {
+  align-self: stretch;
+  font-size: 12px;
+  border-left: 3px solid #14b8a6;
+  background: #0f2323;
+}
+.ov-memory-write {
+  border-left-color: #d97706;
+  background: #231a0d;
+}
+.ov-memory > summary {
+  cursor: pointer;
+}
+.ov-memory[open] > summary {
+  margin-bottom: 4px;
+}
+.ov-mem-tag {
+  color: #5eead4;
+}
+.ov-memory-write .ov-mem-tag {
+  color: #fcd34d;
+}
+.ov-mem-group + .ov-mem-group {
+  margin-top: 4px;
+}
+.ov-mem-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ov-mem-list {
+  margin: 2px 0 0;
+  padding-left: 18px;
+}
+.ov-mem-list li {
+  margin: 2px 0;
+  line-height: 1.35;
+}
+.ov-mem-list li.inactive {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.ov-mem-kind {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #334155;
+}
+.ov-mem-kind.k-procedure {
+  background: #1e3a8a;
+}
+.ov-mem-kind.k-preference {
+  background: #7c2d12;
+}
+.ov-mem-kind.k-episode {
+  background: #4c1d95;
+}
+.ov-mem-kind.k-insight {
+  background: #14532d;
+}
+.ov-mem-topic {
+  font-weight: 600;
+}
+.ov-mem-meta {
+  font-size: 10.5px;
+  margin-left: 4px;
+}
 .ov-juncture {
   border: 1px solid;
   border-left-width: 4px;

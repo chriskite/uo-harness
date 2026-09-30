@@ -918,55 +918,100 @@ def _situation(a, mem) -> dict:
     return sit
 
 
+MEMORY_ROW_RESULTS = 12              # entries per memory row in the chat (the viz folds them)
+
+
+def _compact(e: dict) -> dict:
+    """A knowledge entry as shown in a chat memory row (content cut to 300)."""
+    out = {k: e.get(k) for k in ("id", "kind", "topic", "confidence", "importance") if k in e}
+    out["content"] = (e.get("content") or "")[:300]
+    for k in ("score", "status", "similarity"):
+        if e.get(k) is not None:
+            out[k] = e[k]
+    return out
+
+
 def cmd_know(a, mem):
-    """The overseer's long-term memory (harness/knowledge.py; docs/MEMORY.md)."""
+    """The overseer's long-term memory (harness/knowledge.py; docs/MEMORY.md).
+    Every operation but `stats` posts one chat row of kind `memory` so the viz
+    shows lookups with their results and writes with what changed:
+    data = {cmd: "know", op, ...} with, by op, `query`, `results`, `relevant`,
+    `standing`, `related`, `entry`, `id`, `action`, `reason`, `counts`."""
     kmod, k = _knowledge(mem)
     heartbeat(mem)
+    op = a.know_op
+    row = None                                    # (text, data) of the memory chat row
     try:
-        op = a.know_op
         if op == "add":
-            out = k.add(a.kind, a.topic, " ".join(a.content), tags=a.tags or (), entities=a.entity or (),
+            content = " ".join(a.content)
+            out = k.add(a.kind, a.topic, content, tags=a.tags or (), entities=a.entity or (),
                         at=tuple(a.at) if a.at else None, source=a.source, ref=a.ref,
                         confidence=a.confidence, importance=a.importance, supersedes=a.supersedes)
-            mem.chat_post("overseer", f"know {out['action']} #{out['id']} {a.kind} [{a.topic}]: "
-                          f"{' '.join(a.content)}"[:500], "action", data={"cmd": "know", **out})
+            verb = {"added": "remembered", "confirmed": "confirmed", "superseded": "remembered"}[out["action"]]
+            row = (f"{verb} #{out['id']} {a.kind} [{a.topic}]: {content}"
+                   + (f" (supersedes #{a.supersedes})" if a.supersedes else ""),
+                   {"id": out["id"], "action": out["action"], "entry": _compact(k.get(out["id"])),
+                    "related": [_compact(r) for r in out["related"]], "supersedes": a.supersedes})
         elif op == "update":
             out = k.update(a.id, content=" ".join(a.content) if a.content else None, topic=a.topic,
                            tags=a.tags, at=tuple(a.at) if a.at else None, confidence=a.confidence,
                            importance=a.importance, source=a.source, ref=a.ref)
-            mem.chat_post("overseer", f"know {out['action']} #{a.id}"
-                          + (f" -> #{out['id']}" if out["id"] != a.id else ""), "action",
-                          data={"cmd": "know", **out})
+            new = out["id"] != a.id
+            row = (f"updated #{a.id}" + (f" -> new version #{out['id']}" if new else ""),
+                   {"id": out["id"], "action": out["action"], "entry": _compact(k.get(out["id"])),
+                    "supersedes": a.id if new else None, "related": [_compact(r) for r in out.get("related", [])]})
         elif op == "confirm":
             out = k.confirm(a.id, source=a.source, ref=a.ref)
+            row = (f"confirmed #{a.id} (confidence {out['confidence']}, {out['confirmations']}x)",
+                   {"id": a.id, "action": "confirmed", "entry": _compact(k.get(a.id))})
         elif op == "retract":
             out = k.retract(a.id, a.reason)
-            mem.chat_post("overseer", f"know retracted #{a.id}: {a.reason}"[:500], "action",
-                          data={"cmd": "know", **out})
+            row = (f"retracted #{a.id}: {a.reason}", {"id": a.id, "action": "retracted", "reason": a.reason,
+                                                       "entry": _compact(k.get(a.id))})
         elif op == "get":
             e = k.get(a.id, history=a.history)
             if e is None:
                 raise CtlError(f"no knowledge entry #{a.id}")
             out = {"entry": e}
+            row = (f"looked up #{a.id} [{e['topic']}]", {"id": a.id, "entry": _compact(e),
+                                                          "history": e.get("history", [])})
         elif op == "search":
             near = None
             if a.near:
-                near = tuple(a.near)
+                near = tuple(a.near) if len(a.near) == 3 else (0, a.near[0], a.near[1])
             elif a.here:
                 sit = _situation(a, mem)
                 if sit.get("pos"):
                     near = (sit.get("facet") or 0, sit["pos"][0], sit["pos"][1])
-            res = k.search(" ".join(a.query) or None, kind=a.kind, tags=a.tag or (), near=near,
+            query = " ".join(a.query)
+            res = k.search(query or None, kind=a.kind, tags=a.tag or (), near=near,
                            limit=a.limit, include_inactive=a.all)
             out = {"results": [kmod._brief(e) | {"status": e["status"]} for e in res]}
+            filters = " ".join(f for f in (f"kind={a.kind}" if a.kind else "",
+                                           *(f"tag={t}" for t in (a.tag or ())),
+                                           f"near {near[1]},{near[2]}" if near else "") if f)
+            row = (f"recalled '{query}'" + (f" ({filters})" if filters else "") + f": {len(res)} result(s)",
+                   {"query": query, "filters": filters, "near": list(near) if near else None,
+                    "results": [_compact(e) for e in res[:MEMORY_ROW_RESULTS]]})
         elif op == "brief":
             out = k.brief(_situation(a, mem), limit=a.limit)
+            row = (f"briefed: {len(out['relevant'])} relevant, {len(out['standing'])} standing",
+                   {"query": out["query"], "near": out["near"],
+                    "relevant": [_compact(e) for e in out["relevant"][:MEMORY_ROW_RESULTS]],
+                    "standing": [_compact(e) for e in out["standing"][:MEMORY_ROW_RESULTS]]})
         elif op == "review":
             out = k.review(stale_days=a.stale_days)
+            counts = {"unconfirmed_inferences": len(out["unconfirmed_inferences"]), "stale": len(out["stale"]),
+                      "topics_with_several_facts": len(out["topics_with_several_facts"])}
+            row = ("reviewed memory: " + ", ".join(f"{n} {name.replace('_', ' ')}" for name, n in counts.items()),
+                   {"counts": counts, "results": [_compact(e) for e in out["unconfirmed_inferences"][:6]]})
         else:
             out = k.stats()
     except kmod.KnowledgeError as e:
         raise CtlError(str(e))
+    if row is not None:
+        text, data = row
+        mem.chat_post("overseer", text[:500], "memory", data={"cmd": "know", "op": op, **data})
     return {"ok": True, **out}
 
 

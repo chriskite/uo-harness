@@ -20,7 +20,7 @@ Tables
                     aborted or finished, a captcha handoff, a threat, a theft
                     suspicion); acked once the overseer has handled them
   chat              the viz chat and the overseer's visible thinking:
-                    role user|overseer|system, kind message|thought|action
+                    role user|overseer|system, kind message|thought|action|memory
   job_events        job analytics facts other than trips: death, theft
                     (suspected loss), pk_seen, flee, mob_attack, resurrect, ...
   teleporters       invisible server teleporter tiles learned by walking onto
@@ -290,7 +290,7 @@ class Memory:
         return cur.rowcount == 1
 
     CHAT_ROLES = ("user", "overseer", "system")
-    CHAT_KINDS = ("message", "thought", "action")
+    CHAT_KINDS = ("message", "thought", "action", "memory")
 
     def chat_post(self, role: str, text: str, kind: str = "message", data: dict | None = None,
                   t: float | None = None) -> int:

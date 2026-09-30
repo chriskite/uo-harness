@@ -651,19 +651,34 @@ def test_know(proxy):
     check("know add -> added, written to the store", code == 0 and out.get("action") == "added", str(out))
     m = Memory(db)
     rows = m.chat(role="overseer")
-    check("a knowledge write shows in the chat as an overseer action",
-          rows and rows[-1]["kind"] == "action" and "know added #1 fact [innkeeper]" in rows[-1]["text"],
-          str(rows[-1:]))
+    check("a knowledge write shows in the chat as a memory row with the entry",
+          rows and rows[-1]["kind"] == "memory" and rows[-1]["text"].startswith("remembered #1 fact [innkeeper]")
+          and rows[-1]["data"]["op"] == "add" and rows[-1]["data"]["entry"]["id"] == 1, str(rows[-1:]))
     m.close()
     code, out = c("know", "search", "room", "--near", "1930", "2590")
     check("know search finds it (stemmed), with location", code == 0 and out["results"][0]["id"] == 1
           and out["results"][0]["at"] == [0, 1932, 2595], str(out))
+    m = Memory(db)
+    r = m.chat(role="overseer")[-1]
+    m.close()
+    check("a lookup shows in the chat with its query and ranked results",
+          r["kind"] == "memory" and r["data"]["op"] == "search" and r["data"]["query"] == "room"
+          and [e["id"] for e in r["data"]["results"]] == [1] and "score" in r["data"]["results"][0]
+          and r["text"] == "recalled 'room' (near 1930,2590): 1 result(s)", str(r))
     proxy.pos = [1933, 2596, 0, 2]
     code, out = c("know", "brief")
     check("know brief uses the live situation (position from the proxy)",
           code == 0 and out["near"] == [0, 1933, 2596] and [e["id"] for e in out["relevant"]] == [1], str(out))
+    m = Memory(db)
+    r = m.chat(role="overseer")[-1]
+    m.close()
+    check("the brief shows in the chat with its relevant/standing lists",
+          r["data"]["op"] == "brief" and [e["id"] for e in r["data"]["relevant"]] == [1]
+          and r["data"]["standing"] == [], str(r))
+    n = len(Memory(db).chat())
     code, out = c("know", "retract", "1", "--reason", "")
-    check("errors come back as JSON (retract without a reason)", code == 1 and "reason" in out["error"], str(out))
+    check("errors come back as JSON (retract without a reason), and post nothing",
+          code == 1 and "reason" in out["error"] and len(Memory(db).chat()) == n, str(out))
     proxy.pos = [100, 100, 0, 2]
 
 

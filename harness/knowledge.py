@@ -246,7 +246,7 @@ class Knowledge:
                 continue
             sim = jaccard(c["content"], content)
             if c["topic"].lower() == topic.lower() or sim >= RELATED_JACCARD:
-                out.append({"id": c["id"], "topic": c["topic"], "content": c["content"],
+                out.append({"id": c["id"], "kind": c["kind"], "topic": c["topic"], "content": c["content"],
                             "confidence": c["confidence"], "similarity": round(sim, 2)})
         return out[:limit]
 

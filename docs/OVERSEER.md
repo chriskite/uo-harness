@@ -162,10 +162,18 @@ sessions in the memory store's `knowledge` table (docs/MEMORY.md). Kinds:
 
 | Command | Does |
 |---|---|
-| `know add --kind K --topic T [--tags a,b] [--entity NAME]… [--at X Y \| F X Y] [--source observed\|user\|wiki\|doc\|inferred] [--ref EVIDENCE] [--confidence C] [--importance 1-10] [--supersedes ID] CONTENT…` | Stores an entry. The same content again **confirms** the existing entry (confidence up) instead of adding a copy. The reply lists `related` entries (same topic or similar wording), so you can see a conflict and supersede. Posts a chat action row |
+| `know add --kind K --topic T [--tags a,b] [--entity NAME]… [--at X Y \| F X Y] [--source observed\|user\|wiki\|doc\|inferred] [--ref EVIDENCE] [--confidence C] [--importance 1-10] [--supersedes ID] CONTENT…` | Stores an entry. The same content again **confirms** the existing entry (confidence up) instead of adding a copy. The reply lists `related` entries (same topic or similar wording), so you can see a conflict and supersede |
 | `know update ID [CONTENT…] [--topic] [--tags] [--at] [--confidence] [--importance] [--source --ref]` | A content or topic change makes a **new version** that supersedes the old one (history kept); other fields change in place |
 | `know confirm ID [--source --ref]` | Seen true again: confirmations += 1, confidence up |
 | `know retract ID --reason R` | It was wrong: retracted with the reason, never deleted |
+
+Every `know` call except `stats` posts one chat row of kind **`memory`**: lookups (search, brief,
+get, review) with their query and ranked results, and writes (add, update, confirm, retract)
+with the entry and any related ones. The viz Overseer tab shows them as **recall** (teal) and
+**memory** (amber) items (VISUALIZER.md §2.6), so the user sees what the overseer looked up and
+what it chose to remember. Row data is `{cmd: "know", op, …}` with `query`, `results`,
+`relevant`/`standing`, `entry`, `related`, `id`, `action`, `reason`, `counts` (entries
+compacted, at most 12 per list).
 | `know get ID [--history]` | One entry, with its version chain |
 | `know search [WORDS…] [--kind] [--tag]… [--near X Y \| --here] [--limit] [--all]` | Ranked recall: stemmed full-text relevance, recency (14-day half-life), importance, confidence and nearness. Counts as an access |
 | `know brief [--limit]` | What to remember **now**: entries relevant to your position, nearby NPCs, open junctures, intent and task, plus standing procedures/preferences of importance ≥ 7 |
