@@ -223,6 +223,24 @@ class StateConn:
     def mark(self) -> int:
         return self.events(1 << 62)[1]
 
+    def intent(self, text: str | None, kind: str | None = None, target=None, target_serial=None) -> bool:
+        """Tell the viz what the overseer is doing (proxy-side only; SessionTap.set_intent).
+        target: (x, y) tile; target_serial: an entity the marker follows. Never fails the act."""
+        body = None
+        if text is not None:
+            body = {"text": text[:200], "loop": "overseer"}
+            if kind:
+                body["kind"] = kind
+            if target is not None and None not in tuple(target)[:2]:
+                body["target"] = [int(target[0]), int(target[1])]
+            if target_serial is not None:
+                body["target_serial"] = f"0x{_serial(target_serial):08X}"
+        try:
+            self.sock.sendall((json.dumps({"op": "intent", "intent": body}) + "\n").encode())
+            return bool(json.loads(self.f.readline() or b"{}").get("ok"))
+        except (OSError, ValueError):
+            return False
+
     def wait_events(self, since: int, pred, timeout: float = EVENT_WAIT_S) -> list:
         """World events after `since` until pred(events) holds or timeout."""
         end, got = time.monotonic() + timeout, []
@@ -780,6 +798,7 @@ def _act_combat(a) -> dict:
                 raise CtlError("warmode on|off")
             on = a.args[0] == "on"
             resp = ctl.send(actions.war_mode(on))
+            stc.intent("Ready to fight (war mode)" if on else "Standing down (peace mode)", "ready" if on else "idle")
             if resp != "OK":
                 return {"ok": False, "reply": resp}
             end = time.monotonic() + EVENT_WAIT_S
@@ -816,6 +835,7 @@ def _act_combat(a) -> dict:
             turned_on = True
             Human(a.human, seed=a.seed).wait("use")
         resp = ctl.send(actions.attack(serial))
+        stc.intent(f"Attacking {label or mob.get('name') or key}", "attack", (mob["x"], mob["y"]), serial)
         got = stc.wait_events(mark, lambda evs: False, timeout=1.5)
         return {"ok": resp == "OK", "reply": resp, "warmode_turned_on": turned_on,
                 "target": {"serial": key, "name": label or mob.get("name"), "kind": kind, "notoriety": noto,
@@ -861,6 +881,7 @@ def _act_loot(a) -> dict:
         noto_before = world["self"].get("notoriety")
         mark = stc.mark()
         human = Human(a.human, seed=a.seed)
+        stc.intent(f"Looting {name or 'a corpse'}", "loot", (corpse["x"], corpse["y"]), serial)
         resp = ctl.send(actions.dclick(serial))
         if resp != "OK":
             return {"ok": False, "reply": resp}
@@ -981,6 +1002,9 @@ def _act_target(a) -> dict:
         mark = stc.mark()
         resp = ctl.send(actions.target_object(cur["cursor_id"], serial, x, y, z, graphic,
                                               cur.get("cursor_type") or 0))
+        on_map = a.args[0].lower() == "self" or f"0x{serial:08X}" in world["mobiles"]
+        stc.intent(f"Targeting {what}", "target", (x, y) if on_map else None,
+                   serial if on_map and a.args[0].lower() != "self" else None)
         got = stc.wait_events(mark, lambda evs: False, timeout=1.5)
         return {"ok": resp == "OK", "reply": resp, "targeted": what,
                 "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
@@ -1011,6 +1035,7 @@ def _act_cast(a) -> dict:
     ctl, stc = _connect(a)
     try:
         mark = stc.mark()
+        stc.intent(f"Casting {MAGERY_SPELLS[sid - 1]}", "cast")
         resp = ctl.send(actions.cast_spell(sid))
         if resp != "OK":
             return {"ok": False, "reply": resp}
@@ -1072,6 +1097,7 @@ def _act_use(a) -> dict:
                            f"or use the graphic")
         k, it, name = min(cands, key=lambda c: (c[1].get("amount") or 1, c[0]))
         mark = stc.mark()
+        stc.intent(f"Using {name or k}", "use")
         resp = ctl.send(actions.dclick(_serial(k)))
         got = stc.wait_events(mark, lambda evs: any(e.get("ev") == "target" for e in evs), timeout=1.5)
         cur = stc.state()["world"].get("target") or {}
@@ -1113,6 +1139,9 @@ def _act_buy(a, mem) -> dict:
             raise CtlError(f"the vendor is {dist} tiles away; get within {VENDOR_RANGE} (goto {vkey})")
         human = Human(a.human, seed=a.seed)
         mark = stc.mark()
+        vname = (world.get("labels") or {}).get(vkey) or mob.get("name") or vkey
+        stc.intent(f"Buying {want} from {vname}" if want else f"Browsing {vname}'s wares", "buy",
+                   (mob["x"], mob["y"]), vendor)
         if ctl.send(actions.request_popup(vendor)) != "OK":
             raise CtlError("context menu request refused")
         evs = stc.wait_events(mark, lambda e: any(x.get("ev") == "popup" for x in e))
@@ -1385,7 +1414,7 @@ def _act_goto(a, mem) -> dict:
             def center():
                 return target
             label, text = f"to {target[0]},{target[1]}", f"Walking to {target[0]},{target[1]}"
-        link.intent(text, "goto", center(), loop="overseer")
+        link.intent(text, "goto", center(), loop="overseer", target_serial=key if isinstance(target, int) else None)
         start = link.pos()
         try:
             mover.walk_to(center, radius, label, max_moves=a.max_moves, z_ok=z_ok)
@@ -1393,6 +1422,9 @@ def _act_goto(a, mem) -> dict:
         except agent_link.Abort as e:
             ok, err = False, str(e)
         end = link.pos()
+        where = text.removeprefix("Walking to ")
+        link.intent(f"Arrived at {where}" if ok else f"Stopped walking to {where}: {err}"[:200],
+                    "arrived" if ok else "stopped", end[:2], loop="overseer")
     out = {"ok": ok, "from": start, "to": end, "steps": mover.steps, "blocked": mover.blocked_count,
            "doors_opened": mover.doors_opened,
            "reply": f"{'arrived' if ok else 'stopped'} at {end[0]},{end[1]} after {mover.steps} steps"}
@@ -1550,6 +1582,28 @@ def cmd_know(a, mem):
     return {"ok": True, **out}
 
 
+def cmd_intent(a, mem):
+    """Tell the viz what the overseer is trying to do at a higher level
+    ("Hunting mongbats for 100 gold"), or clear it (--clear). Acts report
+    their own step-level intents; this is for goals between them."""
+    heartbeat(mem)
+    try:
+        stc = StateConn(a.state_port)
+    except OSError as e:
+        raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
+    try:
+        text = None if a.clear else " ".join(a.text).strip()
+        if not a.clear and not text:
+            raise CtlError("intent <text…> [--kind K] [--target X Y] | intent --clear")
+        ok = stc.intent(text, a.kind or "goal", tuple(a.target) if a.target else None,
+                        _parse_serial(a.follow) if a.follow else None)
+    finally:
+        stc.close()
+    if not ok:
+        raise CtlError("the proxy didn't take the intent (no game session?)")
+    return {"ok": True, "intent": text}
+
+
 def cmd_screenshot(a, mem):
     """A PNG of the game window (harness/screen.py: Windows Graphics Capture,
     passive). Read the file to look at it."""
@@ -1647,6 +1701,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--z", type=int, default=None, help="with --to: arrive at this level")
     p.add_argument("--range", type=int, default=0, help="with --to: stop within this many tiles")
     p.set_defaults(fn=cmd_map)
+    p = sub.add_parser("intent", help="tell the viz what you're trying to do (a goal between acts)")
+    p.add_argument("text", nargs="*")
+    p.add_argument("--kind", help="short phase key shown as the badge (default: goal)")
+    p.add_argument("--target", type=int, nargs=2, metavar=("X", "Y"), help="a tile to mark on the map")
+    p.add_argument("--follow", help="a mobile/item serial the map marker follows")
+    p.add_argument("--clear", action="store_true")
+    p.set_defaults(fn=cmd_intent)
     p = sub.add_parser("screenshot", help="PNG of the game window (passive capture; see harness/screen.py)")
     p.add_argument("--out", default=None, help="default logs/screens/screen_<time>.png")
     p.add_argument("--crop", type=int, nargs=4, metavar=("X", "Y", "W", "H"),

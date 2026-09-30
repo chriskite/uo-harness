@@ -435,7 +435,8 @@ class SessionTap:
 
     def set_intent(self, intent) -> str | None:
         """The agent's current intent, for readers only (never sent anywhere):
-        {"text": str, "kind"?: str, "target"?: [x, y], "loop"?: str, "trip"?: int,
+        {"text": str, "kind"?: str, "target"?: [x, y], "target_serial"?: "0x..." (an entity
+        the viz follows, e.g. the mob being fought), "loop"?: str, "trip"?: int,
         "trips"?: int} or None to clear. Stamped with `since`, logged to the jsonl
         (so replays reproduce it) and emitted as proxy event `agent_intent`.
 
@@ -456,9 +457,14 @@ class SessionTap:
             tgt = intent.get("target")
             if isinstance(tgt, list) and len(tgt) == 2 and all(isinstance(v, int) for v in tgt):
                 clean["target"] = tgt
+            ts = intent.get("target_serial")                 # an entity to follow (e.g. the mob being fought)
+            if isinstance(ts, int) and 0 < ts <= 0xFFFFFFFF:
+                clean["target_serial"] = f"0x{ts:08X}"
+            elif isinstance(ts, str) and re.fullmatch(r"0x[0-9A-Fa-f]{1,8}", ts):
+                clean["target_serial"] = f"0x{int(ts, 16):08X}"
             cur = self.intent
             same = (cur is not None and clean.get("kind") is not None
-                    and all(cur.get(k) == clean.get(k) for k in ("kind", "target", "loop", "trip")))
+                    and all(cur.get(k) == clean.get(k) for k in ("kind", "target", "target_serial", "loop", "trip")))
             clean["since"] = cur["since"] if same else now
             intent = clean
         else:

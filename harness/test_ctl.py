@@ -77,6 +77,7 @@ class FakeProxy:
         self.buy_list = None      # {"container": int, "items": [{"price", "name"}]} sent on a menu pick
         self.buy_content = None   # [[container, [serials in 0x3C packet order]]] sent just before it
         self.prices = {}          # item serial -> price charged by a 0x3B
+        self.intents = []         # intents posted on the state port (op "intent")
         self.events = []          # event envelopes; seq = index
         self.lock = threading.Lock()
         cs, ss = free_port(12710), free_port(12910)
@@ -180,7 +181,11 @@ class FakeProxy:
         try:
             for line in f:
                 req = json.loads(line)
-                if req.get("op") != "state":
+                if req.get("op") == "intent":
+                    with self.lock:
+                        self.intents.append(req.get("intent"))
+                    resp = {"ok": True}
+                elif req.get("op") != "state":
                     resp = {"ok": False, "error": "op"}
                 else:
                     resp = self.snapshot()
@@ -595,6 +600,10 @@ def test_overseer_acts(proxy):
     check("goto x y: the Mover walks there (2D fallback in this test)",
           code == 0 and out.get("to", [])[:2] == [104, 100] and out.get("steps") == 4, str(out))
     check("goto sends only stock walks", fr and all(p[0] == 0x02 for _, p in fr), str(fr[:3]))
+    it = [i for i in proxy.intents if i][-2:]
+    check("goto reports 'Walking to' then 'Arrived at' (so the viz doesn't stay on Walking)",
+          [(i["kind"], i["text"]) for i in it] == [("goto", "Walking to 104,100"), ("arrived", "Arrived at 104,100")],
+          str(it))
     proxy.fixed_mobiles = {"0x00000004": {"x": 110, "y": 100, "z": 0, "name": "Zara", "notoriety": 7}}
     code, out = c("act", "goto", "0x00000004", "--human", "off", "--no-map")
     check("goto mobile: walks until within 2 tiles of it",
@@ -666,6 +675,10 @@ def test_combat(proxy):
     check("attack a monster: war mode on first, then the stock 0x05 (Tab, double-click)",
           code == 0 and fr == [actions.war_mode(True), actions.attack(0x10)] and out["warmode_turned_on"]
           and out["target"]["kind"] == "monster", f"{out} {fr}")
+    last = proxy.intents[-1] or {}
+    check("attack reports an 'attack' intent that follows the mob (target_serial)",
+          last.get("kind") == "attack" and last.get("target_serial") == "0x00000010"
+          and last.get("text") == "Attacking a mongbat", str(last))
     code, out = c("act", "attack", "0x00000010", "--human", "off")
     check("already in war mode: only the attack", code == 0 and [p for _, p in proxy.take()]
           == [actions.attack(0x10)] and not out["warmode_turned_on"], str(out))
@@ -703,6 +716,20 @@ def test_combat(proxy):
           f"{out} {fr}")
     proxy.ground_items = {}
     proxy.take()
+
+
+def test_intent_cmd(proxy):
+    print("== ctl intent (the overseer's goal) ==")
+    tmp = tempfile.mkdtemp()
+    c = Ctl(os.path.join(tmp, "harness.db"), os.path.join(tmp, "tasks"), proxy)
+    code, out = c("intent", "Hunting", "mongbats", "for", "100", "gold", "--follow", "0x10")
+    check("intent posts a goal with a followed serial",
+          code == 0 and proxy.intents[-1] == {"text": "Hunting mongbats for 100 gold", "loop": "overseer",
+                                              "kind": "goal", "target_serial": "0x00000010"}, str(proxy.intents[-1:]))
+    code, out = c("intent", "--clear")
+    check("intent --clear clears it", code == 0 and proxy.intents[-1] is None, str(proxy.intents[-1:]))
+    code, out = c("intent")
+    check("intent without text refused", code == 1, str(out))
 
 
 def test_heal_buy(proxy):
@@ -897,6 +924,7 @@ def main():
     test_know(proxy)
     test_combat(proxy)
     test_heal_buy(proxy)
+    test_intent_cmd(proxy)
     reset_events(proxy)
     test_overseer_acts(proxy)
     if FAILURES:

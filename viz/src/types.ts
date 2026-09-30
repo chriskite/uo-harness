@@ -214,6 +214,8 @@ export interface AgentIntent {
   kind?: string;
   /** Tile the agent is heading to / working on. */
   target?: Tile;
+  /** An entity the marker follows (e.g. the mob being fought); wins over `target` while the world knows it. */
+  target_serial?: HexSerial;
   loop?: string;
   trip?: number;
   trips?: number;

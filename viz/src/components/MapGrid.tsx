@@ -3,6 +3,7 @@ import { entityCaption, labelOf } from "../events.ts";
 import { DIR_NAMES, NOTORIETY, UNKNOWN_NOTORIETY_COLOR } from "../format.ts";
 import { FacetChunks, chunksInView, fetchFacetMeta, type FacetMeta } from "../facet.ts";
 import { screenDeltaToWorld, toScreen, toWorld, worldBounds, type Projection } from "../projection.ts";
+import { hpColor, hpFraction, intentGoal } from "../intent.ts";
 import { vizStore, type VizSnapshot } from "../store.ts";
 import type { HexSerial, Tile } from "../types.ts";
 import { DIR_DELTAS, buildWalkLayer, divergence, truePosition, type WalkLayer } from "../walk.ts";
@@ -23,13 +24,22 @@ interface Dot {
 interface MobileDot extends Dot {
   color: string;
   caption: string;
+  /** Health 0..1 (other mobiles' hits arrive as percentages), or null when unknown. */
+  hp: number | null;
 }
+
+/** Map marker colours per intent kind (the rest use the default blue). */
+const GOAL_COLORS: Record<string, { ring: string; line: string; text: string }> = {
+  attack: { ring: "#ef4444", line: "rgba(239, 68, 68, 0.8)", text: "#fca5a5" },
+};
+const DEFAULT_GOAL_COLOR = { ring: "#60a5fa", line: "rgba(96, 165, 250, 0.8)", text: "#93c5fd" };
 
 interface Scene {
   truth: Tile | null;
   facing: number | null;
   selfSerial: HexSerial | null;
   selfName: string | null;
+  selfHp: number | null;
   /** world.self position when it disagrees with the truth. */
   ghost: Tile | null;
   layer: WalkLayer;
@@ -59,6 +69,7 @@ function buildScene(viz: VizSnapshot, layer: WalkLayer): Scene {
       y: m.y,
       color: noto?.color ?? UNKNOWN_NOTORIETY_COLOR,
       caption: entityCaption(m.name, labelOf(world, viz.agg.labels, serial)) ?? serial,
+      hp: hpFraction(m.hits, m.hits_max),
     });
   }
   const items: Dot[] = [];
@@ -70,14 +81,15 @@ function buildScene(viz: VizSnapshot, layer: WalkLayer): Scene {
     facing: st?.movement?.pos ? st.movement.pos[3] & 7 : self?.position_absolute ? self.direction & 7 : null,
     selfSerial,
     selfName: self?.name ?? null,
+    selfHp: hpFraction(self?.hits, self?.hits_max),
     ghost: div.diverged && self ? [self.x, self.y] : null,
     layer,
     trail: viz.agg.trail,
     mobiles,
     items,
     selected: viz.selected,
-    goal: st?.intent?.target ?? null,
-    goalKind: st?.intent?.target ? (st.intent.kind ?? "target") : null,
+    goal: intentGoal(st?.intent, world),
+    goalKind: st?.intent && intentGoal(st.intent, world) ? (st.intent.kind ?? "target") : null,
   };
 }
 
@@ -272,6 +284,8 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
       ctx.lineWidth = 1;
       ctx.strokeStyle = "#0a0e13";
       ctx.stroke();
+      // healthbar under the dot: always when hurt, at readable zoom when full
+      if (m.hp !== null && (m.hp < 1 || z >= 8)) healthbar(ctx, ...C(m.x, m.y), mr, m.hp);
     }
     const rank = (m: MobileDot) => (m.serial === s.selected ? 0 : m.serial === hovered ? 1 : 2);
     const placed: Array<[number, number, number, number]> = [];
@@ -338,14 +352,16 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
       ctx.strokeStyle = "#ecfeff";
       ctx.stroke();
       label(s.selfName ?? "self", px + r + 3, py - r, "#a5f3fc");
+      if (s.selfHp !== null) healthbar(ctx, px, py, r, s.selfHp);
     }
 
     // Agent intent: where it's heading / what it's working on.
     if (s.goal && visible(s.goal[0], s.goal[1])) {
+      const col = GOAL_COLORS[s.goalKind ?? ""] ?? DEFAULT_GOAL_COLOR;
       const [gx, gy] = C(s.goal[0], s.goal[1]);
       if (s.truth) {
         ctx.setLineDash([6, 4]);
-        ctx.strokeStyle = "rgba(96, 165, 250, 0.8)";
+        ctx.strokeStyle = col.line;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(...C(s.truth[0], s.truth[1]));
@@ -354,7 +370,7 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
         ctx.setLineDash([]);
       }
       const gr = Math.max(6, z * 0.6);
-      ctx.strokeStyle = "#60a5fa";
+      ctx.strokeStyle = col.ring;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(gx, gy, gr, 0, Math.PI * 2);
@@ -364,7 +380,7 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
       }
       ctx.stroke();
       // above-right, clear of mobile captions (which sit right of their dot)
-      label(s.goalKind ?? "target", gx + gr * 1.1, gy - gr * 1.4 - 3, "#93c5fd");
+      label(s.goalKind ?? "target", gx + gr * 1.1, gy - gr * 1.4 - 3, col.text);
     }
     // Selection ring.
     const sel = s.selected ? findDot(s, s.selected) : null;
@@ -568,6 +584,20 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
       </div>
     </div>
   );
+}
+
+/** A small game-style healthbar centred under a dot of radius r at (x, y). */
+function healthbar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, hp: number) {
+  const w = Math.max(10, r * 2.6);
+  const h = Math.max(2.5, r * 0.35);
+  const left = x - w / 2;
+  const top = y + r + 2;
+  ctx.fillStyle = "rgba(10, 14, 19, 0.85)";
+  ctx.fillRect(left - 1, top - 1, w + 2, h + 2);
+  ctx.fillStyle = "#3f1d1d";
+  ctx.fillRect(left, top, w, h);
+  ctx.fillStyle = hpColor(hp);
+  ctx.fillRect(left, top, w * hp, h);
 }
 
 function findDot(s: Scene, serial: HexSerial): Tile | null {

@@ -1,18 +1,21 @@
 // Agent intent (StateResponse.intent / intents) -> what the Agent panel and the map show.
 import { fmtDuration } from "./format.ts";
-import type { AgentIntent, EventEnvelope, StateResponse } from "./types.ts";
+import type { AgentIntent, EventEnvelope, Snapshot, StateResponse, Tile } from "./types.ts";
 
 export type IntentTone = "ok" | "warn" | "bad" | "info" | "dim";
 /** spin: working on it; wait: blocked on the human or a timer; idle: finished or stopped. */
 export type IntentActivity = "spin" | "wait" | "idle";
 
-/** Badge tone per phase kind: waiting on the human stands out, stops are red. */
+/** Badge tone per phase kind: waiting on the human stands out, fights and stops are red. */
 const TONE: Record<string, IntentTone> = {
   captcha: "warn",
   lockout: "dim",
   stopped: "bad",
+  attack: "bad",
   done: "ok",
   trip_done: "ok",
+  arrived: "ok",
+  idle: "dim",
 };
 
 const ACTIVITY: Record<string, IntentActivity> = {
@@ -21,7 +24,32 @@ const ACTIVITY: Record<string, IntentActivity> = {
   stopped: "idle",
   done: "idle",
   trip_done: "idle",
+  arrived: "idle",
+  idle: "idle",
 };
+
+/** Where the map marker goes: the followed entity's current tile (a mob moves
+ * while being fought) when the world knows it, else the intent's fixed tile. */
+export function intentGoal(intent: AgentIntent | null | undefined, world: Snapshot | undefined): Tile | null {
+  if (!intent) return null;
+  const s = intent.target_serial;
+  if (s && world) {
+    const e = world.mobiles?.[s] ?? world.items?.[s];
+    if (e && e.x !== undefined && e.y !== undefined) return [e.x, e.y];
+  }
+  return intent.target ?? null;
+}
+
+/** Health fraction 0..1 of an entity, or null when unknown (hits_max 0 or missing). */
+export function hpFraction(hits: number | undefined, hitsMax: number | undefined): number | null {
+  if (hits === undefined || !hitsMax) return null;
+  return Math.max(0, Math.min(1, hits / hitsMax));
+}
+
+/** Healthbar colour like the game's: green, then yellow below 50%, red below 25%. */
+export function hpColor(f: number): string {
+  return f < 0.25 ? "#ef4444" : f < 0.5 ? "#eab308" : "#22c55e";
+}
 
 export interface IntentView {
   text: string;

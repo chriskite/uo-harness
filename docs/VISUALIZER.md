@@ -217,6 +217,19 @@ The runners report what they are trying to do right now on the proxy's state por
   - `trip_done`, `done`, `stopped` (abort or crash reason)
 - **Kinds (bank errand):** `to_start`, `find_banker`, `to_bank`, `open_bank`, `home`, `done`,
   `stopped`.
+- **Kinds (overseer, via `ctl`; added 2026-09-30):**
+  - `goto` (then `arrived` or `stopped`), `attack` (red), `loot`, `cast`, `target`, `use`, `buy`
+  - `ready`/`idle` (war/peace mode)
+  - `goal`: `ctl intent`, the overseer's own "Hunting mongbats for 100 gold"
+- **`target_serial`** (optional, e.g. the mob being fought): the map marker follows that
+  entity's current tile while the world model knows it; otherwise it stays on `target`.
+  - Before this, only `goto` reported anything, so a finished walk stayed "Walking to …" while
+    the overseer fought (user report 2026-09-30).
+  - The proxy accepts `target_serial` from the 2026-09-30 build on. Older proxies drop it, and
+    the marker then stays on the tile.
+- **Healthbars:** under TestWorth and under every mobile whose hits are known (other mobiles'
+  hits arrive as percentages). Hurt mobiles always show one; full ones from 8 px/tile zoom up.
+  Colours: green, yellow below 50%, red below 25%. The attack marker is red.
 
 **UI:**
 - The **Agent** panel sits at the top of the left column. It shows the text, a kind badge (captcha

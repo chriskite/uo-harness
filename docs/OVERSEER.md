@@ -78,6 +78,12 @@ Whitelist, built with the existing `harness/actions.py` builders and framed exac
 Every packet act waits ~1.5 s and returns `heard`: the server's replies as a player would read
 them (messages with clilocs rendered, gumps with text/buttons/closable, menus, vendor lists).
 
+Every act also reports an **intent** to the viz Agent panel and map: `goto` ("Walking to …",
+then "Arrived at …" or "Stopped …"), `attack` ("Attacking a mongbat"; the red map marker follows
+the mob), `loot`, `cast`, `target`, `use`, `buy`, and `warmode` (ready/idle). For goals between
+acts use **`ctl intent <text…> [--kind K] [--target X Y] [--follow SERIAL] | --clear`**, e.g.
+`ctl intent Hunting mongbats for 100 gold`.
+
 Refused, and nothing sent: any other name (no raw packets), speech outside the allowlist, any act
 while a task runs (no interleaving with a runner), and the gump cases above. Gate refusals
 (`ERR agent paused` …) are returned, not waited out. Every act, refused or not, posts a chat row

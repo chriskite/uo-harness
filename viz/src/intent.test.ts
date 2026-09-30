@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { fmtAgo, intentClock, intentView, recentIntents } from "./intent.ts";
-import type { AgentIntent, EventEnvelope, StateResponse } from "./types.ts";
+import { fmtAgo, hpColor, hpFraction, intentClock, intentGoal, intentView, recentIntents } from "./intent.ts";
+import type { AgentIntent, EventEnvelope, Snapshot, StateResponse } from "./types.ts";
 
 const chop: AgentIntent = {
   text: "Chopping tree at 1925,2580 (10/15 logs)",
@@ -98,5 +98,35 @@ describe("recentIntents", () => {
   test("a cleared intent (last entry closed) shows up as recent", () => {
     const cleared = [...history.slice(0, 3), { ...history[3]!, until: 1020 }];
     expect(recentIntents(cleared, 1020)[0]).toMatchObject({ kind: "convert", ago: "0s ago", took: "0:08" });
+  });
+});
+
+describe("intentGoal (map marker)", () => {
+  const world = { mobiles: { "0x00000010": { x: 7, y: 8 } }, items: { "0x40000001": { x: 1, y: 2 } } } as unknown as Snapshot;
+  test("follows the target serial's current position (a moving mob), items too", () => {
+    const attack: AgentIntent = { text: "Attacking a mongbat", kind: "attack", target: [1, 1], target_serial: "0x00000010", since: 0 };
+    expect(intentGoal(attack, world)).toEqual([7, 8]);
+    expect(intentGoal({ ...attack, target_serial: "0x40000001" }, world)).toEqual([1, 2]);
+  });
+  test("falls back to the fixed tile when the entity is gone, or none", () => {
+    expect(intentGoal({ text: "x", target: [3, 4], target_serial: "0x00000099", since: 0 }, world)).toEqual([3, 4]);
+    expect(intentGoal({ text: "x", since: 0 }, world)).toBeNull();
+    expect(intentGoal(null, world)).toBeNull();
+  });
+  test("fights are red; a finished walk doesn't spin", () => {
+    expect(intentView({ text: "Attacking", kind: "attack", since: 0 }, 0)).toMatchObject({ tone: "bad", activity: "spin" });
+    expect(intentView({ text: "Arrived at x", kind: "arrived", since: 0 }, 0)).toMatchObject({ tone: "ok", activity: "idle" });
+  });
+});
+
+describe("healthbars", () => {
+  test("fraction clamps and needs a max", () => {
+    expect(hpFraction(50, 100)).toBe(0.5);
+    expect(hpFraction(120, 100)).toBe(1);
+    expect(hpFraction(5, 0)).toBeNull();
+    expect(hpFraction(undefined, 100)).toBeNull();
+  });
+  test("game colours: green, yellow below half, red below a quarter", () => {
+    expect([hpColor(0.9), hpColor(0.49), hpColor(0.2)]).toEqual(["#22c55e", "#eab308", "#ef4444"]);
   });
 });
