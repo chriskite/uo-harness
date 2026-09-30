@@ -79,6 +79,7 @@ class FakeProxy:
         self.prices = {}          # item serial -> price charged by a 0x3B
         self.intents = []         # intents posted on the state port (op "intent")
         self.buffs = {}           # icon id (str) -> buff record (world.buffs for self)
+        self.opened = []          # world.containers: serials the server opened (0x24)
         self.stats = {}           # extra self stats (0x11 fields)
         self.deny_jumps = {}      # tile -> destination: a teleporter that denies the step, then moves you
         self.pending_jump, self.jump_polls = None, 0
@@ -192,7 +193,8 @@ class FakeProxy:
                               "0x40000014": {"graphic": 0x1BD7, "amount": 99, "x": 1, "y": 1},
                               **self.ground_items},
                     "target": dict(self.target), "gumps": list(self.gumps),
-                    "buffs": {"0x00000001": dict(self.buffs)}},
+                    "buffs": {"0x00000001": dict(self.buffs)},
+                    "containers": list(self.opened)},
                 "events": [], "next": len(self.events),
                 "gate": {"state": "open"},
                 "intent": {"text": "idle"}, "intents": [{"text": f"i{k}"} for k in range(7)],
@@ -944,6 +946,22 @@ def test_drop(proxy):
     check("part of a stack into a bag in the bank (--amount)", code == 0 and out["moved"]
           and proxy.ground_items["0x40000502"]["amount"] == 6
           and [p for _, p in proxy.take()][0] == actions.lift(0x40000502, 4), str(out))
+    proxy.ground_items["0x40000507"] = {"graphic": 0x2006, "amount": 0x27, "x": 5, "y": 5}          # a corpse
+    proxy.ground_items["0x40000508"] = {"graphic": 0x0EED, "amount": 22, "container": "0x40000507"}
+    proxy.ground_items["0x40000509"] = {"graphic": 0x0E75, "layer": 0x1A, "container": "0x00000009"}  # vendor stock
+    proxy.opened = [0x40000507, 0x40000509, proxy.PACK]
+    code, out = c("status")
+    boxes = {b["serial"]: b for b in out.get("containers", [])}
+    bank_rows = {r["serial"]: r for r in boxes.get(bank, {}).get("items", [])}
+    check("status.containers: the bank box with its items at any depth (sub-bag noted)",
+          boxes.get(bank, {}).get("kind") == "bank" and bank_rows.get("0x4000FFFF", {}).get("amount") == 4
+          and bank_rows.get("0x40000505", {}).get("in") == "0x40000504", str(boxes.get(bank)))
+    check("status.containers: an opened corpse listed; the backpack and vendor stock left out",
+          set(boxes) == {bank, "0x40000507"} and boxes["0x40000507"]["kind"] == "corpse"
+          and boxes["0x40000507"]["items"][0]["amount"] == 22, str(sorted(boxes)))
+    proxy.opened = []
+    for s in ("0x40000507", "0x40000508", "0x40000509"):
+        del proxy.ground_items[s]
     code, out = c("act", "drop", "0x40000505", pack, "--human", "off")
     check("from a bag in the bank into the backpack (bank -> pack, overseer request)",
           code == 0 and out["from"] == "bank" and out["into"] == "backpack"

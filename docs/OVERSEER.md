@@ -108,6 +108,11 @@ lists, target cursors, facet changes) from the proxy's event ring, newest last. 
   Testing editor puts "Fill Spellbook" at button 53 (label 87 px left of it), "Reset Stats and
   Skills" at 47 and "Apply Stats and Skill Values" at 46.
 - nearby `ground_items` (≤ 12 tiles, named from tiledata, e.g. "blue moongate")
+- `containers`: contents of your **bank box** (once opened this session) and every other
+  container the server opened for you (chests, corpses; not vendor stock), items at any bag
+  depth with serial, graphic, name, amount and `in` (sub-bag). Contents are as last shown,
+  so a container you walked away from may be stale. Bank checks show as "bank check"; use
+  `single_click` for their value.
 
 **Teleporters** are invisible server objects, not in the map files. When a step lands somewhere
 other than the next tile, `goto` reports it and replans instead of failing. The source tile

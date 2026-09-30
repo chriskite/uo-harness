@@ -92,6 +92,7 @@ ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
         "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot",
         "target", "cast", "buy", "use", "drop")
 PACK_ITEMS_MAX = 60                  # status.backpack.items
+CONTAINER_ITEMS_MAX = 60             # status.containers[].items
 # Combat (user decision 2026-09-30): hostile monsters may be fought and looted; players never
 # (Test Shard CoC, ANTICHEAT.md §8.17). Notoriety 3-6 is attackable without a criminal flag;
 # 1 (innocent: players' pets) and 2 (ally) are criminal to attack, 7 is invulnerable.
@@ -406,10 +407,41 @@ def summarize(resp: dict) -> dict:
         "mobiles": mobiles[:NEARBY_MAX],
         "backpack": {"serial": None if pack is None else f"0x{pack:08X}", "counts": counts,
                      "items": pack_items[:PACK_ITEMS_MAX]},
+        "containers": _containers(world, items, self_serial, pack),
         "target": world.get("target"),
         "gumps_open": gumps,
         "ground_items": ground[:GROUND_MAX],
     }
+
+
+def _containers(world: dict, items: dict, me, pack) -> list:
+    """Contents of containers other than the backpack that the server has shown
+    us: your bank box (once opened), and every container opened this session
+    (0x24: chests, corpses; vendor stock excluded). Items at any bag depth:
+    serial, graphic, name, amount, and `in` when inside a sub-bag. Contents are
+    as last shown, so a container you walked away from may be stale."""
+    roots = []
+    for key, it in items.items():
+        if it.get("layer") == LAYER_BANK and it.get("container") is not None and _serial(it["container"]) == me:
+            roots.append((_serial(key), "bank"))
+    for s in world.get("containers") or []:
+        s = _serial(s)
+        it = items.get(f"0x{s:08X}")
+        if s == pack or it is None or s in (r[0] for r in roots) or 0x1A <= (it.get("layer") or 0) <= 0x1C:
+            continue                          # the backpack is listed already; 0x1A-0x1C are vendor stock
+        roots.append((s, "corpse" if it.get("graphic") == CORPSE_GRAPHIC else
+                      ("ground" if it.get("x") is not None and it.get("container") is None else "container")))
+    out = []
+    for root, kind in roots:
+        box = items.get(f"0x{root:08X}") or {}
+        rows = [{"serial": k, "graphic": f"0x{it['graphic']:04X}", "name": item_label(it),
+                 "amount": it.get("amount") or 1,
+                 "in": None if _serial(it["container"]) == root else it["container"]}
+                for k, it in _pack_items(items, root)]
+        out.append({"serial": f"0x{root:08X}", "kind": kind,
+                    "name": item_label(box) if box.get("graphic") is not None else None,
+                    "count": len(rows), "items": rows[:CONTAINER_ITEMS_MAX]})
+    return out
 
 
 def _stats(me: dict) -> dict:
