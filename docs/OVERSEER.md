@@ -90,6 +90,13 @@ while a task runs (no interleaving with a runner), and the gump cases above. Gat
 (`ERR agent paused` …) are returned, not waited out. Every act, refused or not, posts a chat row
 (role `overseer`, kind `action`) with the result in `data`.
 
+`npcs [WORDS…] [--limit 20]`: **every mobile the world model knows**, the same set the viz map
+draws, not just the 18-tile view that `status` lists. It keeps NPCs seen earlier, e.g. every
+mage and scribe in Prevalia after walking past. Search by name or title words (`npcs mage`,
+`npcs the scribe`, `npcs Sherwin`), nearest first. `in_view` false means the position is where
+it was last seen; NPCs wander, so `goto <serial>` walks there and re-checks. Use it before
+searching an area by walking.
+
 `journal [--n 30]`: the recent world events a player reads (speech, clilocs, gumps, menus, vendor
 lists, target cursors, facet changes) from the proxy's event ring, newest last. `status` shows:
 - `dead` and `body` (the client's ghost-body rule)
@@ -277,7 +284,8 @@ Paste this (or point the session at this section) to start an overseer.
 >      to answer.
 >    - user chat: answer with `ctl say`; do what they ask within these rules.
 >    Before deciding, `ctl know search <the situation>` (or `know brief`). What you already
->    learned beats guessing.
+>    learned beats guessing. Looking for an NPC or vendor? `ctl npcs <title>` first: the world
+>    model remembers everyone seen so far, so don't wander to find them.
 > 4. `ctl ack <id>` every juncture you have handled; `ctl note-action` anything you did outside
 >    `ctl`.
 > 5. **Remember what you learned** (`ctl know add`). Kinds:

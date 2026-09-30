@@ -80,6 +80,7 @@ class FakeProxy:
         self.intents = []         # intents posted on the state port (op "intent")
         self.buffs = {}           # icon id (str) -> buff record (world.buffs for self)
         self.opened = []          # world.containers: serials the server opened (0x24)
+        self.labels = {}          # world.labels: serial -> clicked title ("Sherwin the mage")
         self.stats = {}           # extra self stats (0x11 fields)
         self.deny_jumps = {}      # tile -> destination: a teleporter that denies the step, then moves you
         self.pending_jump, self.jump_polls = None, 0
@@ -193,7 +194,7 @@ class FakeProxy:
                               "0x40000014": {"graphic": 0x1BD7, "amount": 99, "x": 1, "y": 1},
                               **self.ground_items},
                     "target": dict(self.target), "gumps": list(self.gumps),
-                    "buffs": {"0x00000001": dict(self.buffs)},
+                    "buffs": {"0x00000001": dict(self.buffs)}, "labels": dict(self.labels),
                     "containers": list(self.opened)},
                 "events": [], "next": len(self.events),
                 "gate": {"state": "open"},
@@ -796,6 +797,26 @@ def test_combat(proxy):
     proxy.take()
 
 
+def test_npcs(proxy):
+    print("== npcs: every known mobile, not just the ones in view ==")
+    tmp = tempfile.mkdtemp()
+    c = Ctl(os.path.join(tmp, "harness.db"), os.path.join(tmp, "tasks"), proxy)
+    proxy.fixed_mobiles = {"0x00000020": {"x": proxy.pos[0] - 40, "y": proxy.pos[1], "name": "Sherwin",
+                                          "notoriety": 7}}
+    proxy.labels = {"0x00000020": "Sherwin the mage"}
+    code, out = c("status")
+    check("status keeps to the view range (the far mage isn't there)",
+          "0x00000020" not in {m["serial"] for m in out["mobiles"]}, str(out["mobiles"]))
+    code, out = c("npcs", "mage")
+    check("npcs finds the far mage by title, with its last-seen position and in_view False",
+          code == 0 and [(r["serial"], r["label"], r["dist"], r["in_view"]) for r in out["npcs"]]
+          == [("0x00000020", "Sherwin the mage", 40, False)], str(out))
+    code, out = c("npcs")
+    check("npcs without words: everything known but you, nearest first",
+          [r["serial"] for r in out["npcs"]] == ["0x00000002", "0x00000020", "0x00000003"], str(out["npcs"]))
+    proxy.fixed_mobiles, proxy.labels = {}, {}
+
+
 def test_intent_cmd(proxy):
     print("== ctl intent (the overseer's goal) ==")
     tmp = tempfile.mkdtemp()
@@ -1064,6 +1085,7 @@ def main():
     test_combat(proxy)
     test_heal_buy(proxy)
     test_intent_cmd(proxy)
+    test_npcs(proxy)
     test_drop(proxy)
     reset_events(proxy)
     test_overseer_acts(proxy)

@@ -1834,6 +1834,40 @@ def cmd_screenshot(a, mem):
         raise CtlError(str(e))
 
 
+def cmd_npcs(a, mem):
+    """Every mobile the world model knows (what the viz map shows), not just the
+    ones in view: search by name/title words, nearest first. Beyond the view
+    range the position is where it was last seen, and NPCs wander, so `goto
+    <serial>` walks there and re-checks on arrival."""
+    try:
+        stc = StateConn(a.state_port)
+    except OSError as e:
+        raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
+    try:
+        resp = stc.state()
+    finally:
+        stc.close()
+    world, mv = resp.get("world") or {}, resp.get("movement") or {}
+    pos, me = mv.get("pos"), mv.get("self_serial")
+    labels = world.get("labels") or {}
+    words = [w.lower() for w in a.words]
+    rows = []
+    for key, m in (world.get("mobiles") or {}).items():
+        if m.get("x") is None or _serial(key) == me:
+            continue
+        label = labels.get(key) or m.get("name") or ""
+        if words and not all(w in label.lower() for w in words):
+            continue
+        dist = nav.chebyshev((m["x"], m["y"]), (pos[0], pos[1])) if pos else None
+        rows.append({"serial": key, "label": label or None, "name": m.get("name"),
+                     "notoriety": m.get("notoriety"), "notoriety_name": NOTORIETY.get(m.get("notoriety")),
+                     "x": m["x"], "y": m["y"], "z": m.get("z"), "dist": dist,
+                     "in_view": dist is not None and dist <= NEARBY_RANGE})
+    rows.sort(key=lambda r: (r["dist"] is None, r["dist"] or 0))
+    return {"ok": True, "pos": pos, "matches": len(rows), "npcs": rows[:a.limit],
+            "note": f"in_view = within {NEARBY_RANGE} tiles (live position); others are last seen there"}
+
+
 def cmd_journal(a, mem):
     """Recent world events a player reads: messages, gumps, menus, vendor
     lists (the proxy's event ring), newest last."""
@@ -1916,6 +1950,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("journal")
     p.add_argument("--n", type=int, default=30)
     p.set_defaults(fn=cmd_journal)
+    p = sub.add_parser("npcs", help="search every mobile the world model knows (the viz map), nearest first")
+    p.add_argument("words", nargs="*", help="name/title words, e.g. mage, 'the scribe', Sherwin")
+    p.add_argument("--limit", type=int, default=20)
+    p.set_defaults(fn=cmd_npcs)
     p = sub.add_parser("map", help="ASCII map around you: levels, reachability, doors, trees, items, mobiles")
     p.add_argument("--radius", type=int, default=12)
     p.add_argument("--to", type=int, nargs=2, metavar=("X", "Y"), help="also plan and draw a route there")
