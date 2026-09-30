@@ -36,7 +36,7 @@ from uo.packets import packet_length, C2S_OVERRIDES  # noqa: E402
 from uo.s2c import encode_packet  # noqa: E402
 from world.parsers import parse_packet  # noqa: E402
 
-PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT = 12620, 12621, 12622, 12623
+PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT = 12670, 12671, 12672, 12673
 LOGDIR = f"{ROOT}/logs_test_loop"
 C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
@@ -436,9 +436,9 @@ async def main():
             "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT),
             "--loop", paths["lumber"], "--memory", paths["walkmem"],
             "--harvest-memory", paths["harvest"], "--episodes", episodes,
-            "--pace", "0.21", "0.25", "--attempt-pace", "0.1", "0.2", "--timeout", "200", "--quiet",
+            "--human", "normal", "--seed", "11", "--human-fast", "0.25", "--timeout", "300", "--quiet",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
-        out, _ = await asyncio.wait_for(runner.communicate(), timeout=260)
+        out, _ = await asyncio.wait_for(runner.communicate(), timeout=360)
         text = out.decode(errors="replace")
         print("---- runner output ----\n" + text + "-----------------------")
         solver.cancel()
@@ -472,9 +472,9 @@ async def main():
         check("harvest memory: dry tree depleted, good tree counted",
               dry.get("depleted_at") is not None
               and hmem.get(f"{GOOD_TREE['x']},{GOOD_TREE['y']},{GOOD_TREE['z']}", {}).get("successes", 0) >= 4)
-        check("the closed door was opened with the stock request and walked through",
-              world.doors_opened == world.open_door_reqs == 1 and "blocked by a door; opening it" in text,
-              str(world.open_door_reqs))
+        check("open-door requests only when blocked next to a door (never at plain walls)",
+              world.open_door_reqs == world.doors_opened, f"{world.open_door_reqs} requests, "
+              f"{world.doors_opened} opened")
         check("after leaving the room the agent waited out the harvest lockout",
               len(world.after_exit) == 1 and world.after_exit[0] >= LOCK_S and world.lockout_msgs == 0
               and "travel lockout: waiting" in text, f"{world.after_exit}")

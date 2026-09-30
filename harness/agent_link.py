@@ -10,7 +10,6 @@
   item stands on the blocked tile, so closed doors aren't learned as walls.
 """
 import json
-import random
 import socket
 import time
 
@@ -35,10 +34,6 @@ def log(msg: str):
 
 def cheb(a, b) -> int:
     return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
-
-
-def pace(lo: float, hi: float):
-    time.sleep(random.uniform(lo, hi))
 
 
 def serial_of(v) -> int:
@@ -118,21 +113,24 @@ class Link:
 
 
 class Mover:
-    """Walks over walk memory with server-confirmed steps.
+    """Walks over walk memory with server-confirmed steps, with human texture
+    from a humanize.Human: per-plan route noise, run/walk routes, lognormal
+    step rhythm, pauses and occasional sidesteps onto known tiles.
 
     guard(st) is called after every step outcome (timeouts, HP, stalls...)."""
 
-    def __init__(self, link: Link, memory: nav.WalkMemory, pace_s=(0.28, 0.45),
+    def __init__(self, link: Link, memory: nav.WalkMemory, human,
                  max_blocked: int = 12, guard=None, doors: bool = False):
         self.link = link
         self.mem = memory
-        self.pace_s = pace_s
+        self.human = human
         self.max_blocked = max_blocked
         self.guard = guard or (lambda st: None)
         self.doors = doors
         self.steps = 0
         self.blocked_count = 0
         self.doors_opened = 0
+        self.bumps = 0
 
     def step(self, d: int, run: bool = True) -> str:
         """Send one walk; wait for its outcome. Returns 'moved', 'turned' or 'blocked'."""
@@ -178,14 +176,52 @@ class Mover:
         return any(it.get("container") is None and (it.get("x"), it.get("y")) == tuple(tile)
                    and it.get("graphic") in DOOR_GRAPHICS for it in st["world"]["items"].values())
 
-    def _try_door(self, cur, d) -> bool:
+    def _try_door(self, cur, d, run) -> bool:
         """Blocked by a door: send the stock open-door request once for this
         door and retry the move. True if the retry moved."""
         log(f"move {d} from {cur} blocked by a door; opening it")
         self.link.act(actions.open_door())
         self.doors_opened += 1
-        pace(0.5, 1.0)
-        return self.step(d) == "moved"
+        self.human.wait("read")
+        return self.step(d, run) == "moved"
+
+    def _sidestep(self, cur, avoid, run) -> bool:
+        """Human wander: one step onto a known-walkable neighbour off the route."""
+        occupied = self.occupied()
+        options = [nav.step(cur, d) for d in range(8)
+                   if (cur, d) not in self.mem.blocked and nav.step(cur, d) in self.mem.tiles
+                   and nav.step(cur, d) not in occupied and nav.step(cur, d) not in avoid]
+        if not options:
+            return False
+        side = self.human.choice(options)
+        d = nav.direction(cur, side)
+        outcome = self.step(d, run)
+        if outcome == "turned":
+            time.sleep(self.human.step_delay(run))
+            outcome = self.step(d, run)
+        if outcome == "moved":
+            self.mem.add_step(cur, tuple(self.link.pos()[:2]))
+            return True
+        return False
+
+    def obstacle_ahead(self, cur, d) -> bool:
+        """A known obstacle one step from `cur` in direction `d` (walk memory's
+        server-denied moves; map data plugs in here later)."""
+        return (cur, d) in self.mem.blocked
+
+    def _bump(self, cur, d, run, label) -> str:
+        """Missed the turn: run straight into the obstacle ahead. Returns the
+        step outcome ('blocked' as expected; 'moved' if memory was wrong)."""
+        outcome = self.step(d, run)
+        if outcome == "blocked":
+            self.bumps += 1
+            log(f"{label}: (ran into the obstacle at {nav.step(cur, d)}, turning)")
+            time.sleep(self.human.reaction("read") * 0.5)
+        elif outcome == "moved":
+            new = tuple(self.link.pos()[:2])
+            self.mem.add_step(cur, new)
+            log(f"{label}: (overshot the turn to {new}; replanning)")
+        return outcome
 
     def walk_to(self, center_fn, radius: int, label: str, max_moves: int = 250):
         """Walk until within `radius` (Chebyshev) of center_fn(), re-evaluated
@@ -193,6 +229,7 @@ class Mover:
         replans = 0
         start_steps = self.steps
         tried_doors = set()
+        run = self.human.route_runs()
         while True:
             st = self.link.state()
             cur = tuple(self.link.pos(st)[:2])
@@ -200,31 +237,47 @@ class Mover:
             if goal(cur):
                 log(f"{label}: arrived at {cur}")
                 return
-            path = nav.plan(self.mem, cur, goal, extra_blocked=self.occupied(st) - {cur})
+            path = nav.plan(self.mem, cur, goal, extra_blocked=self.occupied(st) - {cur},
+                            cost_scale=self.human.cost_scale())
             if path is None:
                 raise Abort(f"{label}: no route from {cur}")
-            log(f"{label}: route {len(path) - 1} steps from {cur}")
-            for nxt in path[1:]:
+            log(f"{label}: route {len(path) - 1} steps from {cur}{'' if run else ' (walking)'}")
+            replan = False
+            prev_d = None
+            for i, nxt in enumerate(path[1:], start=1):
                 cur = tuple(self.link.pos()[:2])
                 d = nav.direction(cur, nxt)
-                outcome = self.step(d)
+                if prev_d is not None and d != prev_d and self.obstacle_ahead(cur, prev_d) \
+                        and self.human.bump():
+                    if self._bump(cur, prev_d, run, label) == "moved":
+                        replan = True
+                        break
+                prev_d = d
+                outcome = self.step(d, run)
                 if outcome == "turned":
-                    pace(*self.pace_s)
-                    outcome = self.step(d)
+                    time.sleep(self.human.step_delay(run))
+                    outcome = self.step(d, run)
                 if outcome == "blocked" and self.doors and nxt not in tried_doors \
                         and self.door_at(nxt):
                     tried_doors.add(nxt)
-                    if self._try_door(cur, d):
+                    if self._try_door(cur, d, run):
                         outcome = "moved"
                 if outcome == "moved":
                     new = tuple(self.link.pos()[:2])
                     self.mem.add_step(cur, new)
                     if new != nxt:
                         log(f"{label}: landed on {new}, expected {nxt}; replanning")
+                        replan = True
                         break
                     if self.steps - start_steps > max_moves:
                         raise Abort(f"{label}: exceeded {max_moves} moves")
-                    pace(*self.pace_s)
+                    time.sleep(self.human.step_delay(run))
+                    self.human.after_step()
+                    if len(path) - i > 3 and self.human.wander():
+                        if self._sidestep(new, set(path[i:i + 2]), run):
+                            log(f"{label}: sidestepped at {new}; replanning")
+                            time.sleep(self.human.step_delay(run))
+                            break
                     continue
                 self.blocked_count += 1
                 if nxt in self.occupied():
@@ -234,8 +287,10 @@ class Mover:
                     log(f"{label}: move {d} from {cur} blocked ({self.blocked_count} total); replanning")
                 if self.blocked_count > self.max_blocked:
                     raise Abort(f"too many blocked moves ({self.blocked_count})")
-                pace(0.6, 1.2)
+                self.human.wait("read")
+                replan = True
                 break
-            replans += 1
+            if replan:
+                replans += 1
             if replans > 30:
                 raise Abort(f"{label}: too many replans")

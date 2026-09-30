@@ -28,9 +28,10 @@ LAYOUTS_S2C: dict[int, list[tuple[str, str, int]]] = {
     0x0B: [("serial", "u32be", 1), ("amount", "u16be", 5)],
     # 0x22 ConfirmWalk (3)
     0x22: [("seq", "u8", 1), ("notoriety", "u8", 2)],
-    # 0x21 DenyWalk V10 (15): only the high byte of the z u32 is used (i8)
+    # 0x21 DenyWalk V10 (15): z is an i32 at 11 (real: `21 fb 00000778 000009fd
+    # 80 ffffffec` = z -20; the proxy's re-anchor writes the same form)
     0x21: [("seq", "u8", 1), ("x", "u32be", 2), ("y", "u32be", 6),
-           ("dir", "u8", 10), ("z", "i8", 11), ("skip", "skip:3", 12)],
+           ("dir", "u8", 10), ("z", "i32be", 11)],
     # 0x2D MobileAttributes (17)
     0x2D: [("serial", "u32be", 1), ("hits_max", "u16be", 5),
            ("hits", "u16be", 7), ("mana_max", "u16be", 9),

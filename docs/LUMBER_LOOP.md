@@ -420,6 +420,42 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   trigger it.
 - **Guards:** overall timeout, HP loss, movement stall, and the agent gate (pause/break → wait;
   kill/budget → abort).
+- **Human texture (user request 2026-09-29; `harness/humanize.py`, used by every runner via
+  `Mover` and `Human`):**
+  - Seeded `Human` profiles: `normal` (default) and `off` (deterministic tests).
+  - Reaction delays are lognormal per action kind, not uniform. Measured medians and p90s: aim
+    0.95 s (p90 1.55), menu 1.3 s (p90 2.15), between attempts 2.2 s (p90 3.6).
+  - A 12 %/h fatigue drift lengthens delays over a session.
+  - Running steps: median 0.30 s, never under the proxy's 0.2 s floor.
+  - Routes:
+    - per-plan edge-cost noise (×1–1.45): 20 plans of the same 38-step route gave 10 distinct
+      paths of 38–39 steps
+    - 7 % of routes walked instead of run
+    - per-step micro-pauses (2.5 %) and rare 3–9 s look-around pauses (0.4 %)
+    - 1.2 % chance per step of a sidestep onto a known-walkable tile, then a replan
+    - **missed turns (user request):** at a turn where a known obstacle is straight ahead
+      (walk memory's server-denied move; map data later), 15 % of the time the walker keeps going,
+      runs into it (server deny), pauses briefly, then turns. If the "obstacle" turns out to be
+      walkable, it replans from there. Bumps don't count toward the blocked-move abort limit and
+      are recorded per trip (`bumps`).
+  - Hands:
+    - 2.5 % of tool uses hesitate: the cursor is cancelled with the stock Esc packet and the
+      hatchet used again
+    - 5 % chance at a task boundary of an idle fidget: open the backpack, or look at a nearby
+      mobile with the stock `09` + `34` sequence
+  - Randomness (tree order, waits) comes from the same seeded RNG.
+  - Everything added is stock-client traffic or waiting; the agent only ever gets slower or
+    less direct.
+  - Per-session counters appear in each episode row (`human_session`).
+  - `test_loop_lumber.py` now runs the `normal` profile (seed 11, delays ×0.25) and still
+    passes every check. In that run: 1 sidestep, 4 fidgets, 3 pauses. Hesitation wasn't drawn;
+    the code path is simple and uses the decompile-grounded `actions.target_cancel`.
+    `test_errand.py` uses `--human off`. A throwaway run that forced `bump_p` = 1 and
+    `hesitate_p` = 0.5 still completed both trips, with 15 hesitations.
+    `harness/test_mover.py` checks the bump deterministically on a fake grid: one deny at the
+    known wall, then the turn and arrival, counted as a bump rather than a block. It also checks
+    that the `off` profile never bumps, and that a closed door gets exactly one open-door
+    request.
 - **Data:**
   - `harness/data/harvestmem.json`: per tree, attempts/successes/logs/depleted_at
   - `harness/data/episodes/lumber.jsonl`: one row per trip with phase durations, steps, blocks,
@@ -433,7 +469,7 @@ connection. It runs 2 trips and checks:
 - the only agent gump replies are 2 room enters and 2 exits
 - all 18 logs end up as boards in the box
 - the dry tree is tried once per trip
-- exactly one open-door request, at the door
+- open-door requests only happen when a door blocks the move (none at plain walls)
 - the post-exit lockout is waited out, with no lockout message provoked
 - the only speech is `room`
 - two episode rows

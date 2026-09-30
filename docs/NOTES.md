@@ -14,14 +14,15 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 - **Map data in the install dir (surveyed read-only 2026-09-29).**
   - Outlands ships its world data in **proprietary `.uoo` containers**, not the standard MUL/UOP files: `map0.uoo`–`map5.uoo` (map0 = 585 MB, updated 2026-09-27), `art.uoo`, `artdata.uoo`, `landdata.uoo`, `landtiles.uoo`, `texmaps.uoo`, `gumps.uoo`, `anim.uoo`, `fonts.uoo`. There are no `statics*.mul`, `staidx*.mul` or `tiledata.mul` files.
   - The magic numbers differ: `map0.uoo` starts `3f3632e5 01000000`; `art`/`artdata`/`landdata.uoo` start `6dab7f1e 01000000`. The art entries look compressed.
-  - Decoding `.uoo` is unmapped work: the client's loader would have to be reverse-engineered with Ghidra.
+  - **Decoded 2026-09-29, see docs/MAP.md.** The reader is `harness/uomap.py` (read-only mmap; `python harness/uomap.py tile X Y [--map N]`), tested by `harness/test_uomap.py`. In `mapN.uoo` land is 6 B/cell (u32 id, **i16 z**), blocks are row-major `by*W+bx`, and there is an i64 statics LUT with 9 B records (cell delta, u32 graphic, u16 hue, i16 z). `landdata.uoo` has 48 B records and `artdata.uoo` 72 B (u64 flags, weight @8, height u32 @32, name[36] @36). Flags are upstream TileFlag plus four Outlands-only high bits.
+  - map2/map3 are blank placeholders. **Rental rooms are on facet 3** (0xBF/0x08), and map3.uoo has no geometry for them. Doors (e.g. the Shelter inn's) are dynamic 0xF3 items, not statics.
   - Standard files present: `hues.mul`, `radarcol.mul`, `multi.idx/.mul`, `Multimap.rle`, `facet00.mul`–`facet05.mul`, `speech.mul`, `skills.mul`, `light.mul`, `sound.mul`, `cliloc.*`.
 - **`facet00.mul` is a ready-made 1 px/tile top-down picture of Outlands map 0** (dated 2024-12-21, so it may predate recent map edits).
   - Format as in upstream `MultiMapLoader.LoadFacet`: `u16 width, u16 height`, then per row an `i32` byte count followed by `(u8 run, u16 ARGB1555 color)` runs.
   - The file is 10752×6144 and decodes exactly: all bytes consumed, every row sums to the width, 2.9 s in pure Python.
   - The 1 px/tile scale was proven with all 40 facet-0 markers in `Data/Client/Banks_and_Healers.xml`: each one lands on a non-water pixel at scale 1.0, versus ≤57% at scales 1.25–2.0.
   - Shelter Island (the bank run's area, 1963,2597) renders as the town plaza next to the bank.
-  - Implication [INFERENCE]: Outlands facet 0 is 10752×6144 tiles, larger than the standard 7168×4096. To confirm once `map0.uoo` is decoded.
+  - Confirmed: map0.uoo's header is 1344×768 blocks = 10752×6144 tiles.
 
 ## Login & identity
 
@@ -46,7 +47,8 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 - C2S `0x6C` (27 B, u32 x/y/z/graphic at 11/15/19/23) and `0xB1` text entries (UTF-16 unit count) are parsed with the client's layouts since 2026-09-29. The old 19-byte/u16 and byte-count readings came from mis-framed captures.
 - **Cliloc** (2026-09-29): `Cliloc.enu` in the install root is **uncompressed** (byte 3 ≠ 0x8E): header i32+i16, then `i32 number | u8 flag | i16 len | utf8`. 107 922 entries, 500000–3011032. S2C `0xC1` = serial, graphic, type, hue, font, cliloc u32, name[30], args UTF-16**LE**; `0xCC` adds affix flags u8 after the number and an affix asciiz after the name, with args UTF-16**BE**. The Outlands handler `DisplayClilocString @ 0x140196760` reads exactly like upstream. Harvest messages: 500498 "You put some logs into your backpack.", 500488/500493 "There's not enough wood here to harvest.", 500495/500496 "…fail to produce any useable wood.", 1072540+ "You chop some … logs…". Render with `harness/uo/cliloc.py`.
 - S2C `0xBF` sub 0x14 context menus arrive in mode 2 (cliloc u32, index u16, flags u16); e.g. "Giles the thief": 3006123 Open Paperdoll, 3006103 Buy, 3006104 Sell, … (session 141253). S2C `0x74` buy list = container u32, count u8, (price u32, u8 len, name incl. NUL). C2S `0x3B` buy = vendor u32, flag 2, (layer 0x1A, serial u32, amount u16)…
-- Outlands map/art files aren't the stock names: `facet00.mul`–`facet05.mul`, `art.uoo`, `artdata.uoo`, `anim.uoo` in the install root. A map reader has to handle these formats. Not decoded yet.
+- Outlands map/art files aren't the stock names: `facet00.mul`–`facet05.mul`, `art.uoo`, `artdata.uoo`, `anim.uoo` in the install root. The map and tiledata formats are decoded in docs/MAP.md (art pixels are not).
+- **S2C 0x21 move-reject is 15 B with z = i32be at offset 11** (`seq, x u32, y u32, dir, z i32`). For example `21 fb 00000778 000009fd 80 ffffffec` is z −20 (found while validating docs/MAP.md). `harness/world/layouts.py` read i8@11, which gave 0 for z 0…255; **fixed 2026-09-29** (tests use the real packet). The proxy's re-anchor already wrote the i32 form.
 - Frontend toolchain: **Bun 1.4.2** installed 2026-09-29 (user-level, `irm bun.sh/install.ps1 | iex`) at `C:\Users\chris\.bun\bin\bun.exe`, added to the user PATH (new terminals only; in the agent's git-bash shell call it via PowerShell or the full path). There is no Node/npm on this machine. The visualizer frontend (docs/VISUALIZER.md) uses Bun for install/bundle/test: React + TSX.
 
 ## CAPTCHA facts (wiki)

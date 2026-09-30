@@ -163,6 +163,13 @@ Draft — to be finalized after §6/§7:
 
     The digits are machine-readable from the layout, so auto-solving wouldn't need OCR. Rule 8's opt-in bar is unchanged. The decoys show the server is actively set up to catch naive automation.
 
+14. **Behavioural texture (2026-09-29, user request).** Mitigation for the §8.3 statistics surface. Every agent runner draws its timing and route choices from `harness/humanize.py`:
+    - lognormal reaction times per action kind, with fatigue drift
+    - per-plan route noise instead of the one optimal path, occasional walked routes, pauses and sidesteps, and missed turns that run into a known obstacle (a server deny, as players get) before turning
+    - occasional cursor hesitation (stock Esc cancel) and idle fidgets (backpack, looking at a mobile)
+
+    Constraints: only stock-identical packets or waiting. It never beats the proxy's pacing floor or the gate. No free-text speech (PLAN.md speech allowlist). [INFERENCE] Whether Outlands' server models these statistics is unknown. The texture is cheap insurance, not a guarantee.
+
 ## 9. Open questions
 
 - ~~What exactly does `Send_UOLive_HashResponse` hash?~~ **Answered: map-block CRC16s for UltimaLive world sync (upstream source).**

@@ -338,7 +338,8 @@ def move_cost(memory: WalkMemory, a: Tile, b: Tile) -> float:
 
 
 def plan(memory: WalkMemory, start: Tile, goal_fn: Callable[[Tile], bool],
-         extra_blocked: Iterable = (), max_expand: int = 20000) -> list[Tile] | None:
+         extra_blocked: Iterable = (), max_expand: int = 20000,
+         cost_scale: Callable[[Tile, Tile], float] | None = None) -> list[Tile] | None:
     """Cheapest 8-neighbour tile path from start to the first tile satisfying
     goal_fn, including start; None if unreachable within max_expand expansions.
 
@@ -346,6 +347,8 @@ def plan(memory: WalkMemory, start: Tile, goal_fn: Callable[[Tile], bool],
     entering tiles listed in extra_blocked as bare `(x, y)`, and diagonals whose
     either orthogonal component move from the same tile is blocked (no corner
     cutting). Heuristic: goal_fn.heuristic if present (see `within`), else 0.
+    cost_scale(a, b) >= 1 multiplies each step's cost (humanize.Human route
+    noise); it keeps the heuristic admissible.
     """
     start = (int(start[0]), int(start[1]))
     blocked_moves = set(memory.blocked)
@@ -387,7 +390,7 @@ def plan(memory: WalkMemory, start: Tile, goal_fn: Callable[[Tile], bool],
             nxt = step(cur, d)
             if nxt in closed or nxt in blocked_tiles:
                 continue
-            ng = g + move_cost(memory, cur, nxt)
+            ng = g + move_cost(memory, cur, nxt) * (cost_scale(cur, nxt) if cost_scale else 1.0)
             if ng < g_best.get(nxt, float("inf")):
                 g_best[nxt] = ng
                 parent[nxt] = cur

@@ -111,9 +111,9 @@ def test_fixed_s2c():
     eq("0x22", f, {"seq": 0x0A, "notoriety": 0x03})
     # 0x21 DenyWalk V10 (15): seq@1, x u32@2, y u32@6, dir u8@10 (&7),
     # z = i8 of byte 11 only; bytes 12-14 discarded
-    f = parse_fixed(0x21, bytes.fromhex("21070304050608090a0b820cffffff"))
-    eq("0x21", f, {"seq": 0x07, "x": 0x03040506, "y": 0x08090A0B,
-                   "dir": 0x82 & 7, "z": 0x0C})
+    # 0x21 DenyWalk (15), real reject (MAP.md): z is an i32 at 11
+    f = parse_fixed(0x21, bytes.fromhex("21fb00000778000009fd80ffffffec"))
+    eq("0x21", f, {"seq": 0xFB, "x": 0x778, "y": 0x9FD, "dir": 0x80 & 7, "z": -20})
     # 0x2D MobileAttributes (17): serial@1 then 6x u16be (max,cur pairs)
     f = parse_fixed(0x2D, bytes.fromhex("2d04050607" "0100" "0200" "0300" "0400"
                                         "0500" "0600"))
@@ -844,7 +844,7 @@ def test_event_semantics():
     eq("walk run flag", rt.state.self.direction, 6)
     # deny walk snaps to the server position
     rt.feed_packet("s2c", bytes.fromhex("21" "01" "00001000" "00002000"
-                                        "03" "fb" "000000"))
+                                        "03" "fffffffb"))
     eq("deny walk snap", (rt.state.self.x, rt.state.self.y, rt.state.self.z),
        (0x1000, 0x2000, -5))
     # snapshot is json-serializable

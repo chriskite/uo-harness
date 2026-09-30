@@ -28,7 +28,6 @@ Run:  python harness/loop_lumber.py [--trips 1] [--logs-per-trip 15]
 import argparse
 import json
 import os
-import random
 import sys
 import time
 
@@ -36,7 +35,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
 import nav  # noqa: E402
-from agent_link import Abort, Link, Mover, cheb, log, pace, serial_of  # noqa: E402
+from agent_link import Abort, Link, Mover, cheb, log, serial_of  # noqa: E402
+from humanize import PROFILES, Human  # noqa: E402
 from uo.gumps import parse_layout  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -97,7 +97,8 @@ class LumberLoop:
         self.args = args
         self.deadline = time.monotonic() + args.timeout
         self.start_hits = None
-        self.mover = Mover(link, memory, pace_s=args.pace, max_blocked=args.max_blocked,
+        self.human = Human(args.human, seed=args.seed, fast=args.human_fast, log=log)
+        self.mover = Mover(link, memory, self.human, max_blocked=args.max_blocked,
                            guard=self.check_guards, doors=True)
         self.hmem = HarvestMemory(args.harvest_memory)
         self.t_exit = None           # wall time of the last teleport out of the room
@@ -204,7 +205,7 @@ class LumberLoop:
                 waited = time.monotonic() - t0
                 self.stats["captcha_wait_s"] = self.stats.get("captcha_wait_s", 0.0) + waited
                 log(f"captcha solved by the human after {waited:.0f} s; resuming")
-                pace(1.5, 3.5)
+                self.human.wait("read")
                 return
             now = time.monotonic()
             if now - t0 > self.args.captcha_timeout:
@@ -216,16 +217,26 @@ class LumberLoop:
 
     # ------------------------------------------------------------ using the hatchet
     def use_hatchet(self):
-        """dclick the hatchet; returns the target-cursor event (captchas handled)."""
-        st = self.state()
-        mark = len(self.link.events)
-        self.link.act(actions.dclick(self.hatchet(st)))
-        st = self.link.wait(lambda s: self.cursor(mark) or self.real_captcha(mark) is not None, 4.0)
-        cap = self.real_captcha(mark)
-        if cap is not None:
-            self.captcha_handoff(cap)
-            return None
-        return self.cursor(mark)
+        """dclick the hatchet; returns the target-cursor event (captchas handled).
+        Now and then the human hesitates: cancels the cursor (stock Esc packet)
+        and uses the hatchet again."""
+        for attempt in range(2):
+            self.human.wait("use")
+            st = self.state()
+            mark = len(self.link.events)
+            self.link.act(actions.dclick(self.hatchet(st)))
+            self.link.wait(lambda s: self.cursor(mark) or self.real_captcha(mark) is not None, 4.0)
+            cap = self.real_captcha(mark)
+            if cap is not None:
+                self.captcha_handoff(cap)
+                return None
+            cur = self.cursor(mark)
+            if cur is None or attempt == 1 or not self.human.hesitate():
+                return cur
+            log("(hesitating: cancelling the cursor)")
+            self.human.wait("aim")
+            self.link.act(actions.target_cancel(cur["cursor_id"], cur["target_type"], cur["cursor_type"]))
+        return None
 
     # ------------------------------------------------------------ harvesting
     def outcome(self, mark):
@@ -256,7 +267,7 @@ class LumberLoop:
         cur = self.use_hatchet()
         if cur is None:
             return ("captcha", 0)
-        pace(0.7, 1.6)                       # aim time
+        self.human.wait("aim")
         mark = len(self.link.events)
         self.link.act(actions.target_xyz(cur["cursor_id"], tree["x"], tree["y"], tree["z"],
                                          h(tree["graphic"]), cursor_type=cur["cursor_type"]))
@@ -285,7 +296,7 @@ class LumberLoop:
             return
         left = self.k["travel_lockout"]["seconds"] - (time.time() - self.t_exit)
         if left > 0:
-            wait = left + random.uniform(1.0, 4.0)
+            wait = left + self.human.reaction("read") + self.human.rng.uniform(0.5, 3.0)
             log(f"travel lockout: waiting {wait:.0f} s before harvesting")
             time.sleep(wait)
 
@@ -294,7 +305,7 @@ class LumberLoop:
                  if self.hmem.available(t, self.args.regrow_min * 60, time.time())]
         if not trees:
             raise Abort("every known tree is depleted (regrowth window not over)")
-        random.shuffle(trees)
+        self.human.rng.shuffle(trees)
         gained = attempts = successes = unknown = 0
         for tree in trees:
             if gained >= self.args.logs_per_trip:
@@ -321,7 +332,7 @@ class LumberLoop:
                     log(f"{label}: depleted")
                     break
                 elif out == "lockout":
-                    wait = n + random.uniform(1.0, 3.0)
+                    wait = n + self.human.rng.uniform(1.0, 3.0)
                     log(f"travel lockout reported: waiting {wait:.0f} s")
                     time.sleep(wait)
                     continue
@@ -332,7 +343,8 @@ class LumberLoop:
                     log(f"{label}: no recognised outcome ({unknown})")
                     if unknown > 3:
                         raise Abort("harvest attempts keep ending without a known outcome")
-                pace(*self.args.attempt_pace)
+                self.human.wait("between")
+                self.human.fidget(self.link, self.link.state(), self.backpack(self.link.state()))
             self.hmem.save()
         self.stats.update(attempts=attempts, successes=successes, logs=gained)
         return gained
@@ -349,7 +361,7 @@ class LumberLoop:
             cur = self.use_hatchet()
             if cur is None:
                 continue
-            pace(0.6, 1.4)
+            self.human.wait("aim")
             mark = len(self.link.events)
             self.link.act(actions.target_object(cur["cursor_id"], serial, it.get("x") or 0,
                                                 it.get("y") or 0, 0, it["graphic"],
@@ -357,7 +369,7 @@ class LumberLoop:
             if self.link.wait(lambda s: self.heard(mark, text=ok_text), 5.0) is None:
                 raise Abort(f"log stack 0x{serial:08X} did not convert")
             log(f"converted {it.get('amount') or 1} logs to boards")
-            pace(0.8, 1.8)
+            self.human.wait("between")
         raise Abort("logs left after 4 conversions")
 
     # ------------------------------------------------------------ the room
@@ -374,11 +386,11 @@ class LumberLoop:
     def enter_room(self):
         room, inn = self.k["room"], self.k["npcs"]["innkeeper"]
         self.mover.walk_to(lambda: inn["stand"], self.args.inn_radius, "to the innkeeper")
-        pace(0.8, 1.6)
+        self.human.wait("speak")
         mark = len(self.link.events)
         self.link.act(actions.say_unicode("room"))
         g = self.room_menu(mark)
-        pace(1.0, 2.2)
+        self.human.wait("menu")
         mark = len(self.link.events)
         self.link.act(actions.gump_response(g["serial"], g["gump_id"], room["enter_button"]))
         if self.link.wait(lambda s: self.heard(mark, text=room["enter_text"]), 5.0) is None:
@@ -398,9 +410,9 @@ class LumberLoop:
         stored = 0
         for serial, it in self.in_pack(self.state(), BOARDS):
             amount = it.get("amount") or 1
-            pace(0.8, 1.8)
+            self.human.wait("use")
             self.link.act(actions.lift(serial, amount))
-            pace(0.4, 0.9)
+            self.human.wait("drag")
             self.link.act(actions.drop(serial, DROP_AUTO, DROP_AUTO, 0, 0, box))
             pack = self.backpack(self.link.state())
             moved = self.link.wait(
@@ -419,18 +431,19 @@ class LumberLoop:
         if self.link.wait(lambda s: self.item(s, door) is not None, 3.0) is None:
             raise Abort(f"room door 0x{door:08X} not known")
         self.mover.walk_to(lambda: room["door"]["pos"][:2], 1, "to the door")
-        pace(0.6, 1.4)
+        self.human.wait("use")
         mark = len(self.link.events)
         self.link.act(actions.dclick(door))
         g = self.room_menu(mark)
-        pace(0.8, 1.8)
+        self.human.wait("menu")
         mark = len(self.link.events)
         self.link.act(actions.gump_response(g["serial"], g["gump_id"], room["exit_button"]))
         if self.link.wait(lambda s: self.heard(mark, text=room["exit_text"]), 5.0) is None:
             raise Abort("did not leave the rental room")
         self.t_exit = time.time()
         log("left the rental room")
-        pace(0.8, 1.6)
+        self.human.wait("read")
+        self.human.fidget(self.link, self.link.state(), self.backpack(self.link.state()))
 
     def in_room(self, st) -> bool:
         return cheb(self.link.pos(st), self.k["room"]["inside_pos"]) <= 12
@@ -462,7 +475,8 @@ class LumberLoop:
         row = {"loop": "lumber", "venue": self.k["venue"], "trip": n, "t_start": round(t0, 1),
                "t_end": round(time.time(), 1), "phases_s": phases,
                "steps": self.mover.steps - s0, "blocked": self.mover.blocked_count - b0,
-               "doors_opened": self.mover.doors_opened, **self.stats}
+               "doors_opened": self.mover.doors_opened, "bumps": self.mover.bumps,
+               "human_session": dict(self.human.stats), **self.stats}
         self.episode(row)
         log(f"trip {n} done: {row}")
 
@@ -490,15 +504,17 @@ def main():
     ap.add_argument("--regrow-min", type=float, default=20.0,
                     help="skip a tree for this long after it was depleted")
     ap.add_argument("--attempt-timeout", type=float, default=10.0)
-    ap.add_argument("--attempt-pace", type=float, nargs=2, default=(1.5, 4.0), metavar=("MIN", "MAX"))
+    ap.add_argument("--human", choices=sorted(PROFILES), default="normal",
+                    help="human-texture profile (humanize.py); 'off' for deterministic tests")
+    ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--human-fast", type=float, default=1.0,
+                    help="scale human delays (offline tests of the normal profile only)")
     ap.add_argument("--captcha-timeout", type=float, default=600.0)
     ap.add_argument("--captcha-beep-s", type=float, default=30.0)
     ap.add_argument("--quiet", action="store_true", help="no handoff sound (tests)")
     ap.add_argument("--inn-radius", type=int, default=2)
     ap.add_argument("--timeout", type=float, default=3600.0)
     ap.add_argument("--max-blocked", type=int, default=20)
-    ap.add_argument("--pace", type=float, nargs=2, default=(0.28, 0.45), metavar=("MIN", "MAX"),
-                    help="seconds between steps (run)")
     ap.add_argument("--control-port", type=int, default=25941)
     ap.add_argument("--state-port", type=int, default=25942)
     ap.add_argument("--loop", default=os.path.join(DATA, "loops", "lumber.json"))

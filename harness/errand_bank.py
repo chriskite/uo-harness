@@ -26,7 +26,8 @@ import time
 sys.path.insert(0, r"C:/Users/chris/uo-harness/harness")
 import actions  # noqa: E402
 import nav  # noqa: E402
-from agent_link import Abort, Link, Mover, cheb, log, pace, serial_of  # noqa: E402
+from agent_link import Abort, Link, Mover, cheb, log, serial_of  # noqa: E402
+from humanize import PROFILES, Human  # noqa: E402
 
 MEMORY_PATH = r"C:/Users/chris/uo-harness/harness/data/walkmem.json"
 BANKBOX_LAYER = 0x1D
@@ -41,7 +42,8 @@ class Errand:
         self.deadline = time.monotonic() + args.timeout
         self.start_hits = None
         self.heard_upto = 0
-        self.mover = Mover(link, memory, pace_s=args.pace, max_blocked=args.max_blocked,
+        self.human = Human(args.human, seed=args.seed, log=log)
+        self.mover = Mover(link, memory, self.human, max_blocked=args.max_blocked,
                            guard=self.check_guards)
 
     # ---- guards ----
@@ -97,7 +99,7 @@ class Errand:
         cands.sort()
         log(f"banker search: {len(cands)} nearby NPCs to look at")
         for dist, serial, name in cands[: self.args.max_clicks]:
-            pace(0.8, 1.6)
+            self.human.wait("use")
             mark = len(self.link.events)
             self.look_at(serial, known_name=bool(name))
             st = self.link.wait(lambda s: self._label_for(serial, mark) is not None, timeout=1.5)
@@ -129,7 +131,7 @@ class Errand:
     # ---- bank ----
     def open_bank(self) -> int:
         mark = len(self.link.events)
-        pace(0.6, 1.2)
+        self.human.wait("speak")
         resp = self.link.send(actions.say_unicode("bank"))
         if resp != "OK":
             raise Abort(f"speech refused: {resp}")
@@ -159,7 +161,7 @@ class Errand:
         if st is None:
             raise Abort("proxy has no player position yet (log in first)")
         self.check_guards(st)
-        pace(1.0, 2.5)
+        self.human.wait("between")
         if self.args.start:
             target = self.args.start
             self.mover.walk_to(lambda: target, 0, "to start")
@@ -170,7 +172,7 @@ class Errand:
         self.mover.walk_to(lambda: self.banker_pos(serial, bpos), self.args.range, "to bank")
         box = self.open_bank()
         log(f"bank box opened (0x{box:08X})")
-        pace(1.5, 3.0)
+        self.human.wait("between")
         self.mover.walk_to(lambda: home, 0, "home")
         final = tuple(self.pos()[:2])
         if final != home:
@@ -187,8 +189,9 @@ def main():
     ap.add_argument("--max-blocked", type=int, default=12)
     ap.add_argument("--search-radius", type=int, default=18)
     ap.add_argument("--max-clicks", type=int, default=12)
-    ap.add_argument("--pace", type=float, nargs=2, default=(0.28, 0.45), metavar=("MIN", "MAX"),
-                    help="seconds between steps (run)")
+    ap.add_argument("--human", choices=sorted(PROFILES), default="normal",
+                    help="human-texture profile (humanize.py); 'off' for deterministic tests")
+    ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--control-port", type=int, default=25941)
     ap.add_argument("--state-port", type=int, default=25942)
     ap.add_argument("--memory", default=MEMORY_PATH)

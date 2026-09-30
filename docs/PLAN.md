@@ -80,6 +80,12 @@ LLM planner over the world model + skill library; safety rails: captcha human-ha
     - Proof: `harness/test_agent_gate.py`.
 - **In-game speech is allowlisted keywords/commands only** (user decision 2026-09-29). Allowed: NPC trigger words such as `bank` and `vendor buy`, `[`-commands, and a few innocuous phrases. The LLM never writes free text into the game (AGENTS.md rule 8). The wire encoding is unaffected: `say_unicode` keyword-encodes like the stock client. Free text through a filter was rejected for now, because no filter can rule out every revealing line.
 - **No handoff on nearby player speech** (user decision 2026-09-29): handing off whenever a non-NPC speaks nearby would fire too often. GM detection isn't reliable either: RunUO-style staff name hue 11 is [INFERENCE] for Outlands, hidden staff are invisible, and no staff contact has been captured. Narrower speech triggers (e.g. our character's name being said) are still open.
+- **Human-like inefficiency in every runner (user request 2026-09-29):** `harness/humanize.py` `Human`, shared by the runners through `Mover`, adds:
+  - lognormal reaction times with fatigue drift
+  - per-plan route noise, walked routes, pauses, sidesteps, and missed turns that run into a known obstacle before turning
+  - occasional cursor hesitation and idle fidgets (backpack open, look at a mobile)
+
+  All of it is stock-client traffic or waiting, and it's seeded. Profile `off` is for deterministic tests. Rationale: server-side detection is behavioural statistics (ANTICHEAT.md §8.3), and optimal routes and uniform click timing are signatures. Details: LUMBER_LOOP.md §13.
 - **Gating handoff struck from Phase 4 (user decision 2026-09-29):** the harness is not Razor, and PvP is out of scope, so neither `IsRazorBlockedSysMessage` nor the PvP script restrictions apply to it. There is no gating demo and no gating-signal research. AGENTS.md safety rule 4 itself is unchanged.
 - **First workload: lumberjack → boards → inn-room storage → commodity deed loop** (proposed and accepted 2026-09-29), see [`LUMBER_LOOP.md`](LUMBER_LOOP.md). Approach:
   - learn by one user demonstration; `harness/loop_mine.py timeline` turns the capture into evidence, and `harness/data/loops/lumber.json` is written from it
