@@ -90,7 +90,8 @@ NOTORIETY = {1: "innocent", 2: "ally", 3: "attackable", 4: "criminal", 5: "enemy
              6: "murderer", 7: "invulnerable"}
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
         "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot",
-        "target", "cast", "buy")
+        "target", "cast", "buy", "use")
+PACK_ITEMS_MAX = 60                  # status.backpack.items
 # Combat (user decision 2026-09-30): hostile monsters may be fought and looted; players never
 # (Test Shard CoC, ANTICHEAT.md §8.17). Notoriety 3-6 is attackable without a criminal flag;
 # 1 (innocent: players' pets) and 2 (ally) are criminal to attack, 7 is invulnerable.
@@ -317,18 +318,15 @@ def summarize(resp: dict) -> dict:
     pack = next((_serial(k) for k, it in items.items()
                  if it.get("layer") == LAYER_BACKPACK and it.get("container") is not None
                  and _serial(it["container"]) == self_serial), None)
-    counts = {}
+    counts, pack_items = {}, []
     if pack is not None:
-        parent = {_serial(k): (_serial(it["container"]) if it.get("container") else None)
-                  for k, it in items.items()}
-        for k, it in items.items():
-            c, depth = parent[_serial(k)], 0
-            while c is not None and c != pack and depth < 8:
-                c, depth = parent.get(c), depth + 1
-            if c == pack and it.get("graphic") is not None:
-                g = counts.setdefault(f"0x{it['graphic']:04X}", {"stacks": 0, "amount": 0})
-                g["stacks"] += 1
-                g["amount"] += it.get("amount") or 1
+        for k, it in _pack_items(items, pack):
+            g = counts.setdefault(f"0x{it['graphic']:04X}", {"stacks": 0, "amount": 0})
+            g["stacks"] += 1
+            g["amount"] += it.get("amount") or 1
+            pack_items.append({"serial": k, "graphic": f"0x{it['graphic']:04X}",
+                               "name": item_label(it), "amount": it.get("amount") or 1,
+                               "in": None if _serial(it["container"]) == pack else it["container"]})
     gumps = [gump_view(g) for g in world.get("gumps") or [] if g.get("open")]
     ground = []
     if pos:
@@ -361,7 +359,8 @@ def summarize(resp: dict) -> dict:
         "gate": resp.get("gate"),
         "intent": resp.get("intent"), "intents": (resp.get("intents") or [])[-5:],
         "mobiles": mobiles[:NEARBY_MAX],
-        "backpack": {"serial": None if pack is None else f"0x{pack:08X}", "counts": counts},
+        "backpack": {"serial": None if pack is None else f"0x{pack:08X}", "counts": counts,
+                     "items": pack_items[:PACK_ITEMS_MAX]},
         "target": world.get("target"),
         "gumps_open": gumps,
         "ground_items": ground[:GROUND_MAX],
@@ -385,6 +384,23 @@ def _skills(me: dict) -> dict:
             i = int(sid)
             out[names[i] if i < len(names) else f"skill #{i}"] = sk["value"] / 10
     return dict(sorted(out.items(), key=lambda kv: -kv[1]))
+
+
+def _pack_items(items: dict, pack: int):
+    """(serial key, item) for everything in the backpack, any bag depth."""
+    parent = {_serial(k): (_serial(it["container"]) if it.get("container") else None) for k, it in items.items()}
+    for k, it in items.items():
+        c, depth = parent[_serial(k)], 0
+        while c is not None and c != pack and depth < 8:
+            c, depth = parent.get(c), depth + 1
+        if c == pack and it.get("graphic") is not None:
+            yield k, it
+
+
+def item_label(it: dict) -> str | None:
+    """What an item is called: its clicked name, else the tiledata name."""
+    name = it.get("name") or _tile_name(it.get("graphic")) or ""
+    return item_name(name) or None
 
 
 def _tile_name(graphic):
@@ -654,6 +670,8 @@ def _act(a, mem) -> dict:
         return _act_cast(a)
     if a.name == "buy":
         return _act_buy(a, mem)
+    if a.name == "use":
+        return _act_use(a)
     pkt = None
     if a.name == "say":
         text = " ".join(a.args).strip().lower()
@@ -1023,6 +1041,50 @@ def _daily_cap() -> int | None:
     return gold.get("daily_cap_gp") if gold.get("may_spend") else 0
 
 
+def _act_use(a) -> dict:
+    """use <name words | 0xGRAPHIC>: double-click the matching item in your
+    backpack (drink a potion, apply a bandage: then `target self`). Among
+    several stacks of the same thing, the smallest goes first."""
+    if not a.args:
+        raise CtlError("use <item name words | 0xGRAPHIC>")
+    want = " ".join(a.args).strip().lower()
+    ctl, stc = _connect(a)
+    try:
+        st = stc.state()
+        items = st["world"]["items"]
+        pack = _backpack(items, st["movement"].get("self_serial"))
+        if pack is None:
+            raise CtlError("backpack not known to the world model")
+        cands = []
+        for k, it in _pack_items(items, pack):
+            name = (item_label(it) or "").lower()
+            if want.startswith("0x"):
+                ok = f"0x{it['graphic']:04x}" == want
+            else:
+                ok = all(w in name for w in want.split())
+            if ok:
+                cands.append((k, it, name))
+        if not cands:
+            raise CtlError(f"nothing matching {want!r} in your backpack")
+        kinds = {(it["graphic"], it.get("hue")) for _, it, _ in cands}
+        if len(kinds) > 1:
+            raise CtlError(f"{want!r} matches different items: {sorted({n for _, _, n in cands})}; be more specific "
+                           f"or use the graphic")
+        k, it, name = min(cands, key=lambda c: (c[1].get("amount") or 1, c[0]))
+        mark = stc.mark()
+        resp = ctl.send(actions.dclick(_serial(k)))
+        got = stc.wait_events(mark, lambda evs: any(e.get("ev") == "target" for e in evs), timeout=1.5)
+        cur = stc.state()["world"].get("target") or {}
+        return {"ok": resp == "OK", "reply": resp, "used": {"serial": k, "name": name,
+                                                             "graphic": f"0x{it['graphic']:04X}",
+                                                             "amount": it.get("amount") or 1},
+                "cursor": bool(cur.get("active")),
+                "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
+    finally:
+        ctl.close()
+        stc.close()
+
+
 def _act_buy(a, mem) -> dict:
     """buy <vendor serial> [ITEM WORDS…] [--amount N]: opens the vendor's Buy
     list through the context menu (like the stock client) and, when an item
@@ -1068,8 +1130,15 @@ def _act_buy(a, mem) -> dict:
             raise CtlError("the vendor sent no price list")
         items = stc.state()["world"]["items"]
         cont = _serial(bl["container"])
-        inside = [(k, v) for k, v in items.items()
-                  if v.get("container") is not None and _serial(v["container"]) == cont]
+        # the container's display order = its latest 0x3C, which the vendor sends right before the list
+        order = None
+        for e in evs:
+            if e.get("ev") == "buy_list":
+                break
+            for c, serials in (e.get("containers") or []) if e.get("ev") == "container_content" else []:
+                if _serial(c) == cont:
+                    order = [f"0x{_serial(s):08X}" for s in serials]
+        inside = [(k, items.get(k) or {}) for k in order] if order is not None else []
         cinfo = items.get(f"0x{cont:08X}") or {}
         if cinfo.get("graphic") == SORTED_BUY_CONTAINER:
             inside.sort(key=lambda kv: kv[1].get("x") or 0)
@@ -1081,9 +1150,17 @@ def _act_buy(a, mem) -> dict:
             offers.append({"name": item_name(row.get("name")), "price": row.get("price"), "serial": k,
                            "stock": v.get("amount"), "graphic": None if v.get("graphic") is None
                            else f"0x{v['graphic']:04X}"})
+        mapped = order is not None and len(inside) == len(bl.get("items") or [])
         if not want:
-            return {"ok": True, "vendor": vkey, "list": offers,
-                    "note": "nothing bought; the shop window stays open for the user to close"}
+            out = {"ok": True, "vendor": vkey, "list": offers,
+                   "note": "nothing bought; the shop window stays open for the user to close"}
+            if not mapped:
+                out["warning"] = "no matching container packet before the list: item serials/stock unknown"
+            return out
+        if not mapped:
+            raise CtlError("can't match the price list to the vendor's items (no container packet with the same "
+                           f"count before the list: {0 if order is None else len(order)} items vs "
+                           f"{len(bl.get('items') or [])} prices); not buying on a guess")
         hits = [o for o in offers if o["serial"] and all(w in o["name"].lower() for w in want.split())]
         exact = [o for o in hits if o["name"].lower() == want]
         if not hits:

@@ -738,6 +738,15 @@ def test_vendor_popup_command():
         "items": [{"layer": 0x1A, "serial": 0x450A6EAC, "amount": 1}]})
     eq("C2S 0x3B builder", parse_packet("c2s", actions.buy_request(0x1E2, [(5, 7), (6, 8)]))["items"],
        [{"layer": 0x1A, "serial": 5, "amount": 7}, {"layer": 0x1A, "serial": 6, "amount": 8}])
+    # 0x3C event carries each container's items in packet order (the client's display order,
+    # which a 0x74 price list refers to; ctl buy relies on it)
+    rt = WorldRuntime()
+    rec = lambda s, c: s.to_bytes(4, "big") + bytes.fromhex("00000f0c" "00" "0001" "0000" "0000" "00") \
+        + c.to_bytes(4, "big") + bytes.fromhex("0000" "00000000")  # noqa: E731  (26-byte V12 record)
+    body = (3).to_bytes(2, "big") + rec(0x403, 0x4000) + rec(0x401, 0x4000) + rec(0x9, 0x5000)
+    rt.feed_packet("s2c", bytes([0x3C]) + (3 + len(body)).to_bytes(2, "big") + body)
+    ev = [e for e in rt.drain_events() if e["ev"] == "container_content"]
+    eq("0x3C: per-container packet order", ev[0]["containers"], [[0x4000, [0x403, 0x401]], [0x5000, [0x9]]])
     eq("C2S 0x12 open door", parse_packet("c2s", bytes.fromhex("1200055800")),
        {"type": 0x58, "text": ""})
     eq("C2S 0x12 use skill", parse_packet("c2s", actions.use_skill(44)),

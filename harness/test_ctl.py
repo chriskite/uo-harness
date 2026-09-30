@@ -75,6 +75,7 @@ class FakeProxy:
         self.self_noto = 1
         self.gold = 110
         self.buy_list = None      # {"container": int, "items": [{"price", "name"}]} sent on a menu pick
+        self.buy_content = None   # [[container, [serials in 0x3C packet order]]] sent just before it
         self.prices = {}          # item serial -> price charged by a 0x3B
         self.events = []          # event envelopes; seq = index
         self.lock = threading.Lock()
@@ -116,7 +117,9 @@ class FakeProxy:
                         s = int.from_bytes(pkt[5:9], "big")
                         self.add_event({"ev": "popup", "serial": s, "entries": [
                             {"cliloc": 3006123, "index": 0, "flags": 0}, {"cliloc": 3006103, "index": 1, "flags": 0}]})
-                    elif pkt[:5] == bytes.fromhex("bf000b0015") and self.buy_list:   # menu pick -> buy list
+                    elif pkt[:5] == bytes.fromhex("bf000b0015") and self.buy_list:   # menu pick -> 0x3C, 0x74
+                        if self.buy_content is not None:
+                            self.add_event({"ev": "container_content", "count": 0, "containers": self.buy_content})
                         self.add_event({"ev": "buy_list", **self.buy_list})
                     elif pkt[0] == 0x3B:                              # buy: charge the configured price
                         n = len(pkt)
@@ -737,11 +740,13 @@ def test_heal_buy(proxy):
     vendor, cont = 0x00087D3B, 0x40000200
     proxy.fixed_mobiles = {f"0x{vendor:08X}": {"x": proxy.pos[0] + 2, "y": proxy.pos[1], "graphic": 0x191,
                                                 "notoriety": 7, "name": "Minka"}}
-    # container insertion order is the reverse of the price list (capture 164548)
+    # The world model's item order (first seen) differs from the vendor's latest 0x3C order, which
+    # is what the price list refers to, reversed (ClassicUO; live bug 2026-09-30: heal/refresh swapped).
     proxy.ground_items = {f"0x{cont:08X}": {"graphic": 0x0E75, "layer": 0x1A, "container": f"0x{vendor:08X}"},
-                          "0x40000203": {"graphic": 0x0F0B, "amount": 20, "container": f"0x{cont:08X}"},
                           "0x40000202": {"graphic": 0x0F0C, "amount": 20, "container": f"0x{cont:08X}"},
-                          "0x40000201": {"graphic": 0x0E21, "amount": 100, "container": f"0x{cont:08X}"}}
+                          "0x40000201": {"graphic": 0x0E21, "amount": 100, "container": f"0x{cont:08X}"},
+                          "0x40000203": {"graphic": 0x0F0B, "amount": 20, "container": f"0x{cont:08X}"}}
+    proxy.buy_content = [[cont, [0x40000203, 0x40000202, 0x40000201]]]
     proxy.buy_list = {"container": cont, "items": [{"price": 3, "name": "Bandage"},
                                                    {"price": 10, "name": "Lesser Heal Potion"},
                                                    {"price": 10, "name": "Refresh Potion"}]}
@@ -774,8 +779,36 @@ def test_heal_buy(proxy):
     code, out = c("act", "buy", f"0x{vendor:08X}", "bandage", "--amount", "10", "--human", "off")
     check("the policy's daily cap refuses (49990 + 30 > 50000)", code == 1 and "daily gold cap" in out.get("error", "")
           and not any(p[0] == 0x3B for _, p in proxy.take()), str(out))
+    proxy.buy_content = None
+    code, out = c("act", "buy", f"0x{vendor:08X}", "bandage", "--human", "off")
+    check("no container packet before the list: refuses to buy on a guess",
+          code == 1 and "not buying on a guess" in out.get("error", "")
+          and not any(p[0] == 0x3B for _, p in proxy.take()), str(out))
     proxy.fixed_mobiles, proxy.ground_items, proxy.buy_list, proxy.prices = {}, {}, None, {}
     proxy.take()
+
+    pack = f"0x{proxy.PACK:08X}"
+    proxy.ground_items = {"0x40000301": {"graphic": 0x0F0C, "amount": 3, "container": pack, "name": "Lesser Heal Potion"},
+                          "0x40000302": {"graphic": 0x0F0C, "amount": 1, "container": pack, "name": "Lesser Heal Potion"},
+                          "0x40000303": {"graphic": 0x0F0B, "amount": 2, "container": pack, "name": "Refresh Potion"}}
+    code, out = c("status")
+    rows = {r["serial"]: r for r in out["backpack"]["items"]}
+    check("status.backpack.items: serials with names, amounts and the sub-bag",
+          rows.get("0x40000301", {}).get("name") == "Lesser Heal Potion" and rows["0x40000301"]["in"] is None
+          and rows.get("0x40000013", {}).get("in") == "0x40000012" and rows["0x40000013"]["amount"] == 10,
+          str(out["backpack"]["items"]))
+    code, out = c("act", "use", "heal", "potion")
+    check("use by name: double-clicks the smallest matching stack",
+          code == 0 and out["used"]["serial"] == "0x40000302"
+          and [p for _, p in proxy.take()] == [actions.dclick(0x40000302)], str(out))
+    code, out = c("act", "use", "0x0F0B")
+    check("use by graphic", code == 0 and [p for _, p in proxy.take()] == [actions.dclick(0x40000303)], str(out))
+    code, out = c("act", "use", "potion")
+    check("a name matching different items is refused", code == 1 and "different items" in out.get("error", "")
+          and proxy.take() == [], str(out))
+    code, out = c("act", "use", "dragon", "scale")
+    check("nothing matching refused", code == 1 and proxy.take() == [], str(out))
+    proxy.ground_items = {}
 
 
 def reset_events(proxy):

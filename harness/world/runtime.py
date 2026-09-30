@@ -269,13 +269,20 @@ def _h_contained_item(rt, f):
 
 
 def _h_container_content(rt, f):
+    """0x3C: items of one or more containers. The client clears the first
+    container and re-adds the items in packet order (ClassicUO
+    UpdateContainedItems / AddItemToContainer), so that order is the
+    container's display order, which e.g. a vendor's 0x74 price list refers to.
+    The event carries it per container: [[container, [serials...]], ...]."""
+    order = {}
     for rec in f["items"]:
         rt.state.upsert_item(
             rec["serial"], graphic=rec["graphic"], amount=rec["amount"],
             x=rec["x"], y=rec["y"], grid=rec["grid"],
             container=rec["container"], hue=rec["hue"], v11=rec["v11"],
             v12=rec["v12"])
-    rt._emit("container_content", count=len(f["items"]))
+        order.setdefault(rec["container"], []).append(rec["serial"])
+    rt._emit("container_content", count=len(f["items"]), containers=[[c, s] for c, s in order.items()])
 
 
 def _h_target_cursor(rt, f):
