@@ -393,6 +393,28 @@ A **Paperdoll** panel in the left column shows the character as the game's paper
 - Verified live in headless Chromium: TestWorth in the grey robe with the hatchet, hair
   (hue 1102) and backpack, matching the in-game paperdoll from a screenshot.
 
+### 2.8 Live view (added 2026-09-30, user request)
+
+A **Live view** panel in the left column (live mode only) streams the game window around the
+character.
+- Off by default ("watch" / "stop"). Zoom: wide 1600×1200 / medium 960×720 / close 640×480
+  crop, always served at 640×480. "⤢" opens the stream larger in a new tab.
+- `GET /api/live.mjpeg?zoom=1-3&fps=1-10` (`multipart/x-mixed-replace`, played by an `<img>`)
+  and `GET /api/live.jpg` (one frame). Both return 503 JSON with the reason when there's no
+  game window; `--no-live` disables them.
+- `harness/liveview.py`:
+  - The same passive Windows Graphics Capture as `ctl screenshot` (ANTICHEAT §8.16), throttled
+    by WGC to 10 fps.
+  - Each frame copies only the kept box around the character.
+  - One capture for all viewers, started by the first request and stopped 15 s after the last.
+  - JPEG encoding via OpenCV (installed with `windows-capture`) takes about 3 ms.
+- **Where the character is:** ClassicUO draws the player on the centre tile of the game
+  viewport. With the viewport filling the window (this machine's layout) that is the
+  client-area centre, sprite about 40 px higher (measured 2026-09-30). A viewport laid out
+  differently would need another centre `[INFERENCE]`.
+- Verified live: the panel showed TestWorth centred in the rental room at 6 frames/s, and
+  stopping closed the stream.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see
