@@ -1,7 +1,7 @@
 {
   "decided": "2026-09-30 by the user (docs/ROADMAP.md 'Answers')",
   "home_town": "Horseshoe Bay",
-  "runebook": "supplied by the user after leaving Shelter",
+  "runebook": "the overseer obtains one itself on the Test Shard (craft via Inscription, or from the Test Shard resources); user 2026-09-30",
   "death": {
     "self_resurrect": true,
     "use_testres": false,
@@ -23,6 +23,12 @@
     "attack_players": false,
     "why": "user 2026-09-30: fight hostile mobs (e.g. mongbats) for gold; PvP is banned on the Test Shard and gives Heat of Battle",
     "enforced_by": "ctl act attack/loot guards (monster kind + notoriety 3-6, no human corpses, hits >= 30% to start)"
+  },
+  "test_shard_resources": {
+    "use_freely": true,
+    "what": "the Player Testing statue buttons (Maximum Wealth, Storage Shelf (Filled), Resource Stockpile (Filled), All Tomes, Complete All Codexes, Level All Aspects), the player editor, and the public shelves/stockpiles/trunks",
+    "why": "user 2026-09-30: 'It can absolutely use those buttons on its own'",
+    "still_ask": "Reset Stats and Skills (editor button 47), and [TestRes (death policy)"
   },
   "young_demos_by_overseer": true,
   "leaving_shelter": "the human does it, after the Young demos; then sets up the runebook and shelf"
