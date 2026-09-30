@@ -226,6 +226,41 @@ Draft — to be finalized after §6/§7:
 - When does `Send_TimeSyncPingReq` fire and what timestamps does it carry? → same method; proxy must pass it through unaltered.
 - Is `TPMModel` actual TPM attestation? (low priority — login-time account security, out of harness scope)
 
+## 10. Detection-surface audit (2026-09-30)
+
+Code + docs + all tagged session logs (11 fully aligned sessions 20260929_163420 … 20260930_123206:
+63 441 C2S, of which 10 503 agent). Wire claims are measured; server-side *use* of any of them is
+[INFERENCE].
+
+**Clean on the wire:** keepalive/TimeSync never injected, dropped or delayed (median gap 1.054–1.075 s
+with or without agent packets in the gap; RTT 47–63 ms); 0 C2S framing desyncs; every agent packet
+matches the client's own layout; 0 seq gaps; agent deny rate 2.5 % vs human 2.0 %; agent step rate
+never above the stock throttle; 0 agent packets referencing serials the server never sent; 0 agent 0x6C
+without a server cursor; 0 replies to 127 decoy captchas or to the 6 real ones (human answered in
+7.7–17.5 s); 0 server messages about macro/AFK/GM/jail/Razor across 4 126 decoded messages.
+
+**Server-visible deviations from a stock client (open):**
+
+| # | Deviation | Evidence | Fix direction |
+|---|---|---|---|
+| A1 | Client answers an agent-consumed target cursor again: after the agent's 0x6C, the client's cursor stays up, and a later server cancel makes it send a 0x6C for the same cursor id. A stock client can't reply to one cursor twice. | 4× in 20260930_123206 (ln 28303, 57061, 76114, 96710); proxy.py has no 0x6C handling (cf. the 0xB1 close at proxy.py:320-325) | Track agent-answered cursor ids; drop the client's later 0x6C for them |
+| A2 | Late walk confirms (2.0–2.3 s) arrive after `CONFIRM_TIMEOUT_S` = 1.5 s, get forwarded to the client (`on_confirm` → "forward" for an unknown seq) and cause client bad-step resyncs `22 0000`. Also one re-sent seq 109. Human sessions: 0 resyncs. | 123206 ln 33028/33037, 59106/59112, 91403; 091704 ln 17256 | Tombstone expired agent seqs and still hide their confirms; raise the timeout |
+| A3 | Context-menu request with no 0x09 precursor. The stock right-click sends `09 <serial>` then `bf 0013` (DelayedObjectClickManager.cs:34-44). | Human 30/30 with 0x09, agent 0/15 (ctl.py:799-804, `_act_buy`, errand_bank) | Send `single_click` first |
+| A4 | Interaction with out-of-view entities: `ctl npcs`/`menu`/`dclick`/`menu_pick` accept any serial with no range, freshness or open-menu check. | `bf0013` to Zara the scribe 33 tiles away (091704 ln 13344) | Require in-view (≤ 18), fresh position; `menu_pick` only from an open 0xBF 0x14 |
+| A5 | Walk into a map-known obstacle ("bump" texture, humanize §8.14). The stock client never sends it: `PlayerMobile.Walk` returns false when `Pathfinder.CanWalk` fails (PlayerMobile.cs:572-575). Doors: 78/78 agent OpenDoor came after a 0x21 deny, while stock `TryOpenDoors` opens before stepping. | agent_link.py:344-356, 438-442, 304-311 | Drop static bumps (keep mobile shoves); open doors before the step |
+| A6 | 0xB1 without the gump's text entries: the stock client always sends every entry (Gump.cs:136-167). | 5 agent replies in 123206 (ln 34741-35571), one drew "That is not a valid number." Fixed in ctl since ln 37271; loop_lumber.py:524, 576 still bypass `gump_reply_fields` (room gump has no entries today) | Route every 0xB1 through `gump_reply_fields` |
+| A7 | Stock companion packets missing: `single_click` without the 0x34 the client pairs with it (97-99 % in captures); attack without 0x34; `dclick` on a mobile in war mode (stock sends 0x34+0x05 instead, GameActions.cs:299-309); `warmode` sends a non-flipping 0x72. | ctl.py:799-804, 897-937 | Mirror the stock shapes |
+| A8 | Movement texture: run-flagged steps at a lognormal ~0.40 s (0 intervals in 180-220 ms) where a held run key gives quantized 0.200 s; 37 % of agent walk packets are heading changes (staircase paths) vs 21 % human. | 9 505 agent intervals; human baseline 204225 | Stock 0.2 s cadence within segments, humanize between segments; smooth paths |
+| A9 | No GM/staff handling in the runners: nothing reacts to staff speech, notoriety-7 humans are classed `npc` (threats.py:264), unsolicited teleports just replan; loop_lumber lacks errand_bank's `GATING_WORDS` guard (rule 4). A break mid-walk aborts (agent_link.py:218-232, ~200 s bound) and strands the character in the field. | code | Halt + alert on staff signatures, teleports and restriction messages in every runner; break at a safe place |
+| A10 | Session shape: 20260930_123206 was 4.6 h connected with 6 377 agent C2S and essentially no human input except 2 captchas. Captcha cadence is the only attendance check. | log counts | Human-length sessions; operator-liveness requirement |
+
+**Other gaps:** nothing verifies the connected shard is the Test Shard. divert_nat.py hardcodes
+74.91.115.123, the JWT carries no shard claim, and whether production resolves to the same IP is
+unknown. The installed client was patched to 1.0.2.550 on 2026-09-28 (JWT `version`), while the RE
+behind `actions.py` is from 1.0.2.544. Captured 550 traffic frames cleanly, but nothing guards against
+a future layout change. README.md ("relay-only, no injection, byte-identical") and INTERCEPTION.md
+("byte-exact relay") are stale.
+
 ---
 
 ### Appendix A — Evidence artifacts (local)
