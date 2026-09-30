@@ -103,6 +103,10 @@ While still Young: **done by the overseer, 2026-09-30.** Results are in
 [`missions/YOUNG_DEMOS.md`](missions/YOUNG_DEMOS.md#results-run-by-the-overseer-live-2026-09-30-0918-1025-the-user-watched).
 The renounce prompt wasn't reached. Next: the user takes TestWorth off Shelter and sets up the
 runebook and shelf; then the overseer runs the demos below.
+
+**Left Shelter (2026-09-30 12:09):** the user told the overseer to go to Horseshoe Bay and
+renounced Young themselves in the client (the overseer's gump guard only lets it close a
+renounce prompt). The overseer took the Shelter moongate.
 - death → resurrection gump (cancel once, then accept) → corpse loot
 - NPC buy lists (mage, scribe, the hatchet seller): open Buy, then cancel
 - single-click the hatchet before and after ~20 chops (wear)

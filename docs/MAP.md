@@ -137,8 +137,8 @@ no low bits set, so it is harmless.
 | 10 | 2 B | padding | always 0 |
 | 12 | i32 | count / quantity | [INFERENCE] upstream `Count` |
 | 16 | i32 | anim id | [INFERENCE] backpack 0x1A6, cloak 0x1D4 |
-| 20 | i32 | male gump | [INFERENCE] = 50000 + anim in 2006/2293 records |
-| 24 | i32 | female gump | [INFERENCE] = 60000 + anim (1750) or 0 (541) |
+| 20 | i32 | male paperdoll gump | = 50000 + anim in 2006/2293 records; confirmed 2026-09-30 by rendering the gumps (harness/paperdoll.py) |
+| 24 | i32 | female paperdoll gump | = 60000 + anim (1750) or 0 (541; use the male gump). Confirmed as above |
 | 28 | u16 | hue? | [INFERENCE] non-zero in 38 records |
 | 30 | u16 | ? | equals the layer byte in 71,034/71,292 records [INFERENCE: quality/light index] |
 | 32 | u32 | height | `ArtTile.get_CalcHeight` @ 0x141061b70 `p[8]` (uint index 8 = byte 32), halved if Bridge. Pathfinder reads `*(int*)(itemdata+0x20)` |
@@ -197,6 +197,24 @@ their upstream values but are unverified for Outlands.
 `UOOFile.ReadIndex` @ 0x141063ec0: `u32 magic 0x1E7FAB6D, u32 version`, then a chain of
 `u32 id, i32 length, payload[length]`, ending at `length == 0` (or EOF). texmaps.uoo holds
 3,338 ids between 1 and 16379. Only the id set matters here. See land stretch below.
+
+**gumps.uoo** (decoded 2026-09-30, `harness/paperdoll.py`): 7018 ids from 0 to 62727. Each
+payload is:
+
+| Off | Type | Field |
+|---|---|---|
+| 0 | u16 | width |
+| 2 | u16 | height |
+| 4 | 4×u16 | a rectangle (x, y, w, h); equal to (0, 0, width, height) on the entries checked, unused |
+| 12 | u32 | n = payload length − 16 |
+| 16 | n bytes | **raw deflate** (zlib wbits −15) of width×height u16 pixels, row-major, **RGB555, 0 = transparent** |
+
+Every entry decompresses to exactly width×height×2 bytes. The paperdoll body is gump 12 (male)
+or 13 (female), 260×237, and item overlays are the full canvas size.
+
+**hues.mul** is stock: groups of u32 header + 8 × (32 u16 colours, u16 start, u16 end, 20-byte
+name). A pixel is hued as `table[pixel red 5 bits]`, only grey pixels for PartialHue items
+(ClassicUO HuesLoader GetColor16 / GetPartialHueColor).
 
 ## Client semantics that matter for walking
 

@@ -577,6 +577,20 @@ table.evtable {
   touch-action: none;
   border-radius: 6px;
 }
+.paperdoll .panel-body {
+  display: flex;
+  justify-content: center;
+}
+.paperdoll-img {
+  display: block;
+  image-rendering: pixelated;
+  background: radial-gradient(ellipse at 45% 55%, #2a2f38 0%, #11151b 70%);
+  border-radius: 4px;
+}
+.paperdoll-img.dead {
+  filter: grayscale(1) brightness(0.85);
+}
+
 /* Dead: the UO client drains the world of colour for a ghost; so does the map. */
 .mapgrid.dead canvas {
   filter: grayscale(1) brightness(0.85);

@@ -377,6 +377,22 @@ item.
 - Verified in headless Chromium on a temp store with four writes, a search and a brief. The
   150 vs 200 gp recall-scroll prices showed up as a related conflict.
 
+### 2.7 Paperdoll (added 2026-09-30, user request)
+
+A **Paperdoll** panel in the left column shows the character as the game's paperdoll does.
+- `GET /api/paperdoll.png` (`harness/paperdoll.py`) renders it server-side from the current
+  state: body gump 12/13 with the skin hue, then each worn item's paperdoll gump from the item
+  data, in the classic paperdoll layer order, hued like the client (partial hues only on grey
+  pixels). The mount isn't drawn.
+- The art comes read-only from the install dir: `gumps.uoo` and `hues.mul`, formats in
+  docs/MAP.md.
+- Renders are cached per body, hue and gear (about 0.02 s uncached). The panel refetches only
+  when `paperdollKey(world)` (viz/src/paperdoll.ts) changes.
+- It's grayscale while dead. Without install data the endpoint returns 404 and the panel says
+  so.
+- Verified live in headless Chromium: TestWorth in the grey robe with the hatchet, hair
+  (hue 1102) and backpack, matching the in-game paperdoll from a screenshot.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see

@@ -22,12 +22,12 @@ import argparse
 import ctypes
 import json
 import os
-import struct
 import sys
 import threading
 import time
-import zlib
 from ctypes import wintypes
+
+from pngenc import png_bytes
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -121,24 +121,6 @@ def grab_window(hwnd, timeout: float = FRAME_TIMEOUT_S):
     if not done.wait(timeout) or not got:
         raise ScreenError(f"no frame within {timeout:.0f} s (is the window minimized?)")
     return got["w"], got["h"], got["data"]
-
-
-def png_bytes(w: int, h: int, bgra: bytes) -> bytes:
-    """A truecolour PNG (8-bit RGB) from top-down BGRA."""
-    stride = w * 4
-    raw = bytearray()
-    row_rgb = bytearray(w * 3)
-    for y in range(h):
-        row = bgra[y * stride:(y + 1) * stride]
-        row_rgb[0::3] = row[2::4]
-        row_rgb[1::3] = row[1::4]
-        row_rgb[2::3] = row[0::4]
-        raw += b"\x00" + row_rgb
-
-    def chunk(kind, data):
-        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
-    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
-            + chunk(b"IDAT", zlib.compress(bytes(raw), 6)) + chunk(b"IEND", b""))
 
 
 def screenshot(out: str | None = None, crop=None, title_prefix: str = TITLE_PREFIX) -> dict:

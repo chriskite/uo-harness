@@ -9,7 +9,8 @@ Format spec, evidence and open questions: docs/MAP.md.
     m.iter_statics(x0, y0, x1, y1)  # -> (x, y, Static) over a rectangle
     td = m.tiledata                 # TileData (landdata.uoo + artdata.uoo)
     td.land(tile_id)                # -> LandTile(id, flags, tex_id, name)
-    td.item(graphic)                # -> ItemTile(id, flags, weight, layer, count, anim_id, height, name)
+    td.item(graphic)                # -> ItemTile(id, flags, weight, layer, count, anim_id, height, name,
+                                    #             gump_male, gump_female)
 
 Everything is opened read-only via mmap(ACCESS_READ); nothing is loaded
 wholesale. land() is one struct.unpack_from on the mapping (no cache
@@ -124,7 +125,7 @@ class LandTile(collections.namedtuple("LandTile", "id flags tex_id name")):
 
 
 class ItemTile(collections.namedtuple(
-        "ItemTile", "id flags weight layer count anim_id height name")):
+        "ItemTile", "id flags weight layer count anim_id height name gump_male gump_female")):
     __slots__ = ()
     impassable = property(lambda s: bool(s.flags & IMPASSABLE))
     surface = property(lambda s: bool(s.flags & SURFACE))
@@ -195,10 +196,10 @@ class TileData:
             if not 0 <= graphic < self.item_count:
                 raise IndexError(f"item graphic {graphic:#x} out of range")
             o = DATA_HEADER + graphic * ITEM_REC
-            (flags, weight, layer, count, anim, _g1, _g2, _u1, _u2,
+            (flags, weight, layer, count, anim, gump_m, gump_f, _u1, _u2,
              height) = _ITEM_TD.unpack_from(self._art, o)
             t = ItemTile(graphic, flags, weight, layer, count, anim, height,
-                         _cstr(self._art[o + 36:o + 72]))
+                         _cstr(self._art[o + 36:o + 72]), gump_m, gump_f)
             self._item_cache[graphic] = t
         return t
 

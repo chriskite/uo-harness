@@ -11,6 +11,7 @@ import { JobsPage } from "./components/JobsPage.tsx";
 import { MapGrid } from "./components/MapGrid.tsx";
 import { MovementPanel } from "./components/MovementPanel.tsx";
 import { OverseerPanel, useOverseer } from "./components/OverseerPanel.tsx";
+import { PaperdollPanel } from "./components/PaperdollPanel.tsx";
 import { SelfPanel } from "./components/SelfPanel.tsx";
 import { TrafficPanel } from "./components/TrafficPanel.tsx";
 import { useViz } from "./store.ts";
@@ -64,6 +65,7 @@ export function App() {
       <aside className="left">
         <IntentPanel viz={viz} />
         <SelfPanel world={world} />
+        <PaperdollPanel viz={viz} />
         <MovementPanel state={viz.state} agg={viz.agg} />
         <TrafficPanel traffic={viz.state?.traffic} lastAgent={viz.agg.lastAgent} world={world} />
       </aside>

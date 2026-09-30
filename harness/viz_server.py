@@ -10,6 +10,9 @@ Routes:
                       the Last-Event-ID header (seq > id) or ?since=N (seq >= N).
   GET  /api/walkmem   walk memory (facet 0) from the harness memory store, in the
                       nav.WalkMemory JSON format (docs/MEMORY.md)
+  GET  /api/paperdoll.png  the player's paperdoll from the current state (body, skin hue,
+                      worn items), drawn from the client's gump art (harness/paperdoll.py);
+                      404 JSON when the state has no player or the install data is missing
   GET  /api/health    mode, session, order, poll lag, connection, diagnostics
   POST /api/playback  replay only: {"action": "play"|"pause"|"step"|"rate", "rate": R}
   GET  /api/gate      live only: the proxy's agent gate ({"op": "gate"}), verbatim
@@ -173,6 +176,26 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "uo-viz/1"
     protocol_version = "HTTP/1.1"
 
+    def _paperdoll(self):
+        import paperdoll
+        try:
+            spec = paperdoll.from_state(json.loads(self.server.feed.state_body()))
+        except ValueError:
+            spec = None
+        if spec is None:
+            self._json(404, {"error": "no player in the current state"})
+            return
+        srv = self.server
+        try:
+            with srv.paperdoll_lock:
+                if srv.paperdoll is None:
+                    srv.paperdoll = paperdoll.Paperdoll()
+                data = srv.paperdoll.png(*spec)
+        except (OSError, ValueError) as e:
+            self._json(404, {"error": f"paperdoll unavailable: {e}"})
+            return
+        self._send(200, data, "image/png")
+
     # -- helpers
     def log_message(self, fmt, *args):  # quiet; errors still go through log_error
         pass
@@ -206,6 +229,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(404, {"error": f"no harness memory store at {self.server.walkmem.path}"})
             else:
                 self._send(200, body)
+        elif url.path == "/api/paperdoll.png":
+            self._paperdoll()
         elif url.path == "/api/health":
             self._json(200, feed.health())
         elif url.path == "/api/gate":
@@ -411,6 +436,8 @@ class VizServer(ThreadingHTTPServer):
         self.feed = feed
         self.dist = dist
         self.walkmem = WalkMemDB(memory_db)
+        self.paperdoll = None            # paperdoll.Paperdoll, created on first use
+        self.paperdoll_lock = threading.Lock()
         self.overseer = OverseerDB(memory_db)
         self.facet = None
         self.facet_error = "disabled (--no-facet)" if facet_path is None else None
