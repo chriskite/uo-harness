@@ -882,6 +882,17 @@ def cmd_map(a, mem):
                            to_range=a.range or 0, umap=uomap.UoMap(0 if facet is None else facet))
 
 
+def cmd_screenshot(a, mem):
+    """A PNG of the game window (harness/screen.py: Windows Graphics Capture,
+    passive). Read the file to look at it."""
+    import screen
+    heartbeat(mem)
+    try:
+        return screen.screenshot(a.out, tuple(a.crop) if a.crop else None)
+    except screen.ScreenError as e:
+        raise CtlError(str(e))
+
+
 def cmd_journal(a, mem):
     """Recent world events a player reads: messages, gumps, menus, vendor
     lists (the proxy's event ring), newest last."""
@@ -966,6 +977,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--z", type=int, default=None, help="with --to: arrive at this level")
     p.add_argument("--range", type=int, default=0, help="with --to: stop within this many tiles")
     p.set_defaults(fn=cmd_map)
+    p = sub.add_parser("screenshot", help="PNG of the game window (passive capture; see harness/screen.py)")
+    p.add_argument("--out", default=None, help="default logs/screens/screen_<time>.png")
+    p.add_argument("--crop", type=int, nargs=4, metavar=("X", "Y", "W", "H"),
+                   help="only this part of the game view (client pixels), e.g. a gump")
+    p.set_defaults(fn=cmd_screenshot)
     return ap
 
 

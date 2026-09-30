@@ -63,6 +63,8 @@ import os
 import time
 from dataclasses import asdict, dataclass, field
 
+from world.state import GHOST_BODIES  # ClassicUO Mobile.IsDead
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 WOODS_JSON = os.path.join(HERE, "data", "woods.json")
 
@@ -70,7 +72,6 @@ LAYER_BACKPACK = 0x15            # ClassicUO Game/Data/Layers.cs:28
 LOG_GRAPHICS = tuple(range(0x1BDD, 0x1BE3))     # loop_lumber.LOGS
 BOARD_GRAPHICS = (0x1BD7,)                       # loop_lumber.BOARDS
 CORPSE_GRAPHIC = 0x2006
-GHOST_BODIES = frozenset([0x192, 0x193, 0x25F, 0x260, 0x2B6, 0x2B7])
 MAX_DEPTH = 8                    # nested-container recursion bound
 
 

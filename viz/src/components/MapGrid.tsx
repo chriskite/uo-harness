@@ -456,7 +456,12 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
   };
 
   return (
-    <div className="mapgrid" ref={wrapRef}>
+    <div className={viz.state?.world?.self?.dead ? "mapgrid dead" : "mapgrid"} ref={wrapRef}>
+      {viz.state?.world?.self?.dead && (
+        <div className="map-dead" title="the character's body is a ghost (the client's Mobile.IsDead rule)">
+          You are dead
+        </div>
+      )}
       <canvas
         ref={canvasRef}
         onPointerDown={(e) => {

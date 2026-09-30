@@ -29,6 +29,11 @@ export function SelfPanel({ world }: { world: Snapshot | null }) {
       }
       extra={
         <span>
+          {s.dead === undefined ? null : s.dead ? (
+            <Badge kind="bad">DEAD</Badge>
+          ) : (
+            <Badge kind="ok">alive</Badge>
+          )}{" "}
           {s.warmode ? <Badge kind="bad">WAR</Badge> : <Badge kind="dim">peace</Badge>}{" "}
           {noto && (
             <span className="noto" style={{ color: noto.color }}>

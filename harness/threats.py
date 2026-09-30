@@ -94,6 +94,8 @@ import re
 import time
 from dataclasses import asdict, dataclass, field
 
+from world.state import GHOST_BODIES  # ClassicUO Mobile.IsDead
+
 NOTORIETY = {0: "unknown", 1: "innocent", 2: "ally", 3: "gray", 4: "criminal",
              5: "enemy", 6: "murderer", 7: "invulnerable"}
 KIND_BY_NOTORIETY = {1: "blue", 2: "blue", 3: "grey", 4: "grey", 5: "orange",
@@ -103,8 +105,6 @@ KIND_BY_NOTORIETY = {1: "blue", 2: "blue", 3: "grey", 4: "grey", 5: "orange",
 HUMAN_BODIES = frozenset([*range(0x190, 0x194), *range(0xB7, 0xBB),
                           *range(0x25D, 0x261), 0x29A, 0x29B, 0x2B6, 0x2B7,
                           0x3DB, 0x3DF, 0x3E2, 0x2E8, 0x2E9, 0x4E5])
-# ClassicUO Mobile.IsDead (GameObjects/Mobile.cs:132-140)
-GHOST_BODIES = frozenset([0x192, 0x193, 0x25F, 0x260, 0x2B6, 0x2B7])
 LAYER_MOUNT = 0x19               # ClassicUO Game/Data/Layers.cs:32
 FLAG_PLAYER_HINT = 0x20          # EntityFlags.Movable; players only in captures
 FLAG_WARMODE = 0x40              # EntityFlags.WarMode (EntityFlags.cs:18)

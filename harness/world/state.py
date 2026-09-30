@@ -15,6 +15,11 @@ def _h(serial):
     return f"0x{serial:08X}"
 
 
+# Ghost bodies: ClassicUO Mobile.IsDead (Game/GameObjects/Mobile.cs:132-140). On
+# Outlands only S2C 0x20 carries a body graphic (0x77 has none; layouts.py).
+GHOST_BODIES = frozenset([0x192, 0x193, 0x25F, 0x260, 0x2B6, 0x2B7])
+
+
 @dataclass
 class SelfState:
     serial: int | None = None
@@ -45,6 +50,15 @@ class SelfState:
     skills: dict = field(default_factory=dict)
     skill_names: list = field(default_factory=list)
 
+    @property
+    def body(self) -> int | None:
+        return self.stats.get("graphic")
+
+    @property
+    def dead(self) -> bool:
+        """The client's own rule: the body is a ghost."""
+        return self.body in GHOST_BODIES
+
     def to_dict(self):
         return {k: v for k, v in {
             "serial": _h(self.serial) if self.serial is not None else None,
@@ -58,6 +72,7 @@ class SelfState:
             "stam": self.stam, "stam_max": self.stam_max,
             "gold": self.gold, "weight": self.weight,
             "warmode": self.warmode, "notoriety": self.notoriety, "map": self.map,
+            "body": self.body, "dead": self.dead,
             "stats": self.stats,
             "skills": {str(k): v for k, v in sorted(self.skills.items())},
             "skill_names": self.skill_names,

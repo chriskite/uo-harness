@@ -336,6 +336,17 @@ rows, 3 junctures (1 acked) and a heartbeat 5 minutes old):
 
 ---
 
+### 2.5 Alive or dead (added 2026-09-30, user request)
+
+`world.self.dead` (and `body`) comes from the world model, which uses the client's own rule:
+the body graphic from S2C 0x20 is a ghost body (ClassicUO `Mobile.IsDead`; docs/WORLDMODEL.md).
+- The Self panel shows **alive** (green) or **DEAD** (red) next to the war/peace badge.
+- While dead, the map turns grayscale and darker, like the game screen, with a "You are dead"
+  banner on top.
+- Verified in headless Chromium against a stub state port serving a live snapshot with the
+  body set to 0x192.
+- A proxy started before this change doesn't send `dead`, so the badge is hidden.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see

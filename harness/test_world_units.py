@@ -802,6 +802,21 @@ def test_mobile_routing():
     rt.feed_packet("s2c", bytes.fromhex("1b" "00000001") + b"\x00" * 38)
     eq("0x1B mismatch anomaly", rt.anomalies["login_confirm_mismatch"], 1)
     eq("0x1B mismatch keeps self", s.serial, 0x00094375)
+    # self 0x20 with a ghost body: dead + `death`; human body again: `resurrect`
+    rt.drain_events()
+    self20 = lambda body: bytes.fromhex(  # noqa: E731
+        "20" "00094375" + f"{body:08x}" + "01" "83ea" "20" "000007ac" "00000a24" "0000" "01" "00000000")
+    rt.feed_packet("s2c", self20(0x190))
+    eq("self alive (human body)", (s.body, s.dead, [e["ev"] for e in rt.drain_events()]), (0x190, False, []))
+    rt.feed_packet("s2c", self20(0x192))
+    ev = [e for e in rt.drain_events() if e["ev"] in ("death", "resurrect")]
+    eq("ghost body -> dead + death event", (s.dead, [(e["ev"], e["body"]) for e in ev]), (True, [("death", 0x192)]))
+    eq("snapshot says dead", (rt.state.self.to_dict()["dead"], rt.state.self.to_dict()["body"]), (True, 0x192))
+    rt.feed_packet("s2c", self20(0x192))
+    eq("still a ghost: no second death event", [e["ev"] for e in rt.drain_events() if e["ev"] == "death"], [])
+    rt.feed_packet("s2c", self20(0x190))
+    eq("human body again -> resurrect", (s.dead, [e["ev"] for e in rt.drain_events()
+                                                   if e["ev"] in ("death", "resurrect")]), (False, ["resurrect"]))
 
 
 def _var(pid, body_hex):

@@ -97,6 +97,17 @@ planned route is drawn (`o`, goal `X`), with steps and waypoints. Use it when `g
 route`, when heights confuse you, or before walking somewhere new. The z in `status`/`map` is
 right while walking (the proxy computes it per step; docs/NOTES.md).
 
+`screenshot [--out F] [--crop X Y W H]` is how the overseer sees the game window itself
+(`harness/screen.py`). It writes a PNG of the client area (the game view, no title bar) to
+`logs/screens/`, and the overseer reads the file to look at it. `--crop` takes client pixels,
+e.g. a gump or the status bar.
+- It works when other windows cover the game (Windows Graphics Capture).
+- It can't capture a minimized window.
+- It is passive: no message or input goes to the client. See ANTICHEAT.md §8.16.
+
+Use it to check what the packets can't show: gumps drawn on screen, what the player sees
+around them, anything the user points at.
+
 **Policy:** the user's standing decisions are in `harness/data/policy.json`:
 - home town Horseshoe Bay
 - death: self-resurrect, no `[TestRes`, no corpse runs

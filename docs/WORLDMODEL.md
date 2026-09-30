@@ -135,6 +135,15 @@ Handler: `ClassicUO.Network.PacketHandlers.Damage` @ 0x1401863e0.
 Outlands uses the old fixed 7-byte form; the modern variable form (type byte @1,
 len 266) is *not* in use (table pins 0x0B=7 and the handler reads no type byte).
 
+**Self body, dead/alive (2026-09-30).** On Outlands only S2C 0x20 carries a body graphic. 0x77
+has none, and 0x78 carries equipment only. For self, the world model keeps it as
+`self.stats.graphic` and exposes `self.body` and `self.dead` (the body is a ghost: 0x192,
+0x193, 0x25F, 0x260, 0x2B6, 0x2B7, ClassicUO `Mobile.IsDead`, Mobile.cs:132-140;
+`world.state.GHOST_BODIES`, also used by threats.py and ledger.py). A self 0x20 that flips the
+body to or from a ghost emits `death` or `resurrect` {body, x, y, z}. Live death
+(2026-09-30 10:18, New Player Dungeon): no death gump, the ghost stayed where it died, and the
+corpse ("the remains of TestWorth", cliloc 1046414) took the gold.
+
 ### 0x20 UpdatePlayer ("MobileUpdate") — S2C, fixed 28 (V10+; legacy 19)
 Handlers: `ClassicUO.Network.PacketHandlers.MobileUpdate` @ 0x1401888a0 (legacy path,
 dispatches to V10 when version > 9) and `MobileUpdateV10` @ 0x140188d10.

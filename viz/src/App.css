@@ -577,6 +577,27 @@ table.evtable {
   touch-action: none;
   border-radius: 6px;
 }
+/* Dead: the UO client drains the world of colour for a ghost; so does the map. */
+.mapgrid.dead canvas {
+  filter: grayscale(1) brightness(0.85);
+  transition: filter 0.6s ease;
+}
+.map-dead {
+  position: absolute;
+  top: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 3px 12px;
+  border: 1px solid #6b7280;
+  border-radius: 4px;
+  background: rgba(17, 24, 39, 0.85);
+  color: #e5e7eb;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
 .map-controls {
   position: absolute;
   top: 6px;

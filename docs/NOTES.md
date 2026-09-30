@@ -133,6 +133,13 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 - `ls -l` / directory listings show **stale sizes (even 0 B) for capture files the live proxy still has open**. NTFS updates the directory entry lazily. Use `wc -c` or open the file to measure it (seen on session_20260929_204225 while it was live).
 - Git remote: SSH host alias `github.com-uoharness` in `~/.ssh/config` pins deploy key `~/.ssh/uo_harness_deploy` (repo: `chriskite/uo-harness`).
 - **Harness memory store (docs/MEMORY.md):** `harness/data/harness.db` is SQLite in WAL mode, which puts `-wal`/`-shm` files next to it (gitignored). The proxy commits every 0.25 s or 500 rows. `Popen.terminate()` on Windows is TerminateProcess, so the proxy's shutdown `flush()` doesn't run, and the last ≤0.25 s of events can be lost. That's why the e2e tests sleep 1 s before reading the store and stop the proxy only afterwards. Ctrl-C and a normal exit do flush. Ingesting three captures (≈29k events) takes about 3.6 s.
+- **Game-window screenshots (`harness/screen.py`, `ctl screenshot`):** these use Windows
+  Graphics Capture via the `windows-capture` package (PyPI 2.0.1; `pip install --user`; it pulls
+  in numpy and opencv-python). A plain desktop BitBlt only sees what is on top: the game window
+  was 100% covered by the viz and the terminal on this machine, and the capture showed those.
+  WGC gets the window's own content, including the elevated ClassicUO window. The game window
+  caption is `UO - <character> - <version>`, with a 2560×1494 client area here. Frames cover the
+  DWM frame bounds, title bar included, so screen.py crops to the client area.
 
 ## Network observations
 

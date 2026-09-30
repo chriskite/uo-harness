@@ -163,14 +163,19 @@ def _set_self_position(s, f):
 
 
 def _h_update_player(rt, f):
-    """0x20: self when the serial matches, otherwise a nearby mobile."""
+    """0x20: self when the serial matches, otherwise a nearby mobile. For self
+    it carries the body: a change to or from a ghost body emits `death` /
+    `resurrect` (ClassicUO Mobile.IsDead)."""
     s = rt.state.self
     if s.serial == f["serial"]:
+        was_dead = s.dead if s.body is not None else None
         _set_self_position(s, f)
         s.stats["graphic"] = f["graphic"]
         s.stats["hue"] = f["hue"]
         s.stats["flags"] = f["flags"]
         s.notoriety = f["notoriety"]
+        if was_dead is not None and was_dead != s.dead:
+            rt._emit("resurrect" if was_dead else "death", body=s.body, x=s.x, y=s.y, z=s.z)
         return
     rt.state.upsert_mobile(f["serial"], graphic=f["graphic"], hue=f["hue"],
                            flags=f["flags"], notoriety=f["notoriety"],

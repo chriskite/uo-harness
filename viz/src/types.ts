@@ -43,6 +43,10 @@ export interface SelfState {
   weight?: number;
   warmode: boolean;
   notoriety?: number;
+  /** Body graphic (from S2C 0x20). */
+  body?: number;
+  /** The body is a ghost (the client's own Mobile.IsDead rule); absent on older proxies. */
+  dead?: boolean;
   stats: Record<string, number>;
   skills: Record<string, SkillEntry>;
   skill_names: string[];

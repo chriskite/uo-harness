@@ -180,8 +180,21 @@ Draft — to be finalized after §6/§7:
     - harvest targets need the standing body to overlap the target vertically
     - NPC interactions happen within one storey of the NPC
 
-    The Mover tracks z from the map because the proxy's z is stale during walks (NOTES.md).
-    Tests: `harness/test_pathfind.py` (real map) and `harness/test_mover.py`.
+    The proxy computes z per confirmed step from the map (NOTES.md), so goals and planning use
+    the true height. Tests: `harness/test_pathfind.py` (real map) and `harness/test_mover.py`.
+
+16. **Seeing the game window: passive capture only (2026-09-30, user request).** `harness/screen.py`
+    uses Windows Graphics Capture: DWM hands over the window's composited frames, the way OBS
+    "Window Capture" does.
+    - Nothing goes to the client: no injection, no PrintWindow (that sends WM_PRINT into the
+      client), no WindowFromPoint (hit-test messages).
+    - The window is found by caption via EnumWindows/GetWindowTextW. For another process's
+      window, GetWindowTextW reads the stored caption without WM_GETTEXT.
+    - No capture border, no cursor.
+    - The client has no screen-capture detection we know of: no process-scan imports, and no
+      reporting channel outside the game connection (§4, §7).
+    - Verified live on the elevated ClassicUO window while it was fully covered.
+    - Screen *input* stays forbidden (§8.1). The screenshot is for looking.
 
 ## 9. Open questions
 
