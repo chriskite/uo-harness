@@ -28,7 +28,6 @@ GATE_POLL_S = 5.0
 # Classic UO door art (0x0675-0x06F4). Shelter's inn doors in the demonstration
 # capture (0x06A5, 0x06AD, 0x06ED, 0x06EF) and the rental-room door (0x06E5) are in it.
 DOOR_GRAPHICS = range(0x0675, 0x06F5)
-MAP_FACETS = (0, 1, 4, 5)     # facets with geometry in mapN.uoo (2 and 3 are blank; docs/MAP.md)
 # Mobiles: shoving through one needs stamina (UOO; threshold unknown, RunUO needs
 # full stamina [INFERENCE]). Plans prefer going around (entering a mobile's tile
 # costs MOBILE_COST_X normal steps); after a denied shove that tile is a wall for
@@ -178,33 +177,18 @@ class Mover:
         self.guard = guard or (lambda st: None)
         self.doors = doors
         self.use_map = use_map
-        self._walks = {}
+        self.walkers = pathfind.Walkers()
         self.denied = set()          # (x, y, d) server denies seen this session (map planner)
         self.shove_denied = {}       # (x, y) -> monotonic time a shove into it was denied
         self.steps = 0
         self.blocked_count = 0
         self.doors_opened = 0
         self.bumps = 0
-        self._walk = None            # map walker of the current plan (None: 2D walk memory)
-        # ((x, y), z, proxy_z): our own z after a confirmed step, computed with the
-        # client's walk rules on the map (walk confirms carry no z, so the proxy's
-        # z only changes on server re-anchors); proxy_z detects such a re-anchor.
-        self._track = None
-
-    def z_now(self, st) -> int:
-        """Best standing z: our map-tracked z while the proxy hasn't re-anchored
-        us since, else the proxy's (server) z."""
-        pos = st["movement"]["pos"]
-        t = self._track
-        if t is not None and t[0] == (pos[0], pos[1]) and t[2] == pos[2]:
-            return t[1]
-        return pos[2]
 
     def step(self, d: int, run: bool = True) -> str:
         """Send one walk; wait for its outcome. Returns 'moved', 'turned' or 'blocked'."""
         st = self.link.state()
         before = self.link.pos(st)
-        z0 = self.z_now(st)
         pkt = actions.walk(d, run=run)
         for _ in range(40):  # retry pacing / resync-reply gates
             resp = self.link.send(pkt)
@@ -227,9 +211,6 @@ class Mover:
         after = self.link.pos(st)
         if after[:2] != before[:2]:
             self.steps += 1
-            nxt = self._walk.can_walk(before[0], before[1], z0, d) if self._walk is not None else None
-            self._track = (((after[0], after[1]), nxt[2], after[2])
-                           if nxt is not None and (nxt[0], nxt[1]) == (after[0], after[1]) else None)
             return "moved"
         if after[3] != before[3]:
             return "turned"
@@ -248,21 +229,9 @@ class Mover:
         Ground items from the world model are added as dynamic objects."""
         if not self.use_map:
             return None
-        facet = st["world"]["self"].get("map")
-        facet = 0 if facet is None else facet
-        if facet not in MAP_FACETS:
-            return None
-        w = self._walks.get(facet)
-        if w is None:
-            w = pathfind.Walk(uomap.UoMap(facet))
-            self._walks[facet] = w
-        ground = {}
-        for it in st["world"]["items"].values():
-            if it.get("container") is None and it.get("x") is not None and it.get("graphic") is not None:
-                ground.setdefault((it["x"], it["y"]), []).append((it["graphic"], it.get("z") or 0))
-        w.dynamic = lambda x, y: ground.get((x, y), ())
-        w.clear()
-        return w
+        return self.walkers.get(st["world"]["self"].get("map"), (
+            (it.get("x"), it.get("y"), it.get("graphic"), it.get("z"))
+            for it in st["world"]["items"].values() if it.get("container") is None))
 
     def door_at(self, tile, st=None) -> bool:
         """A ground item that is a door (tiledata Door flag, or classic door art)
@@ -359,9 +328,8 @@ class Mover:
 
         self.mem = self.mem_for(st["world"]["self"].get("map"))
         walk = self.walk_map(st)
-        self._walk = walk
         if walk is not None:
-            path = pathfind.plan(walk, (pos[0], pos[1], self.z_now(st)), goal,
+            path = pathfind.plan(walk, (pos[0], pos[1], pos[2]), goal,
                                  blocked_moves=self.denied, occupied=hard, cost_scale=cost)
             return (None if path is None else [(x, y) for x, y, _ in path]), walk
         return nav.plan(self.mem, cur, goal, extra_blocked=hard, cost_scale=cost), None
@@ -381,7 +349,7 @@ class Mover:
             self.guard(st)
             cur = tuple(self.link.pos(st)[:2])
             goal = nav.within(tuple(center_fn()), radius, z_ok)
-            if goal(cur) and (z_ok is None or self.walk_map(st) is None or z_ok(self.z_now(st))):
+            if goal(cur) and (z_ok is None or self.walk_map(st) is None or z_ok(self.link.pos(st)[2])):
                 log(f"{label}: arrived at {cur}")
                 return
             path, walk = self.plan(st, goal)
@@ -404,7 +372,7 @@ class Mover:
             for i, nxt in enumerate(path[1:], start=1):
                 st = self.link.state()
                 pos = self.link.pos(st)
-                cur, z = (pos[0], pos[1]), self.z_now(st)
+                cur, z = (pos[0], pos[1]), pos[2]
                 d = nav.direction(cur, nxt)
                 if prev_d is not None and d != prev_d and self.obstacle_ahead(cur, prev_d, walk, z) \
                         and self.human.bump():
@@ -434,7 +402,7 @@ class Mover:
                     self.human.after_step()
                     if len(path) - i > 3 and self.human.wander():
                         st = self.link.state()
-                        if self._sidestep(new, set(path[i:i + 2]), run, walk, self.z_now(st)):
+                        if self._sidestep(new, set(path[i:i + 2]), run, walk, self.link.pos(st)[2]):
                             log(f"{label}: sidestepped at {new}; replanning")
                             time.sleep(self.human.step_delay(run))
                             break

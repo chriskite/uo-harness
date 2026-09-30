@@ -28,7 +28,7 @@ def check(name, cond, detail=""):
 class FakeLink:
     """A grid server: walls deny, doors deny until opened (0x12 0x58 next to them)."""
 
-    def __init__(self, start, facing, walls=(), doors=(), mobiles=(), can_shove=True, z=0):
+    def __init__(self, start, facing, walls=(), doors=(), mobiles=(), can_shove=True, z=0, z_walk=None):
         self.here = list(start)
         self.facing = facing
         self.walls = set(walls)
@@ -39,7 +39,8 @@ class FakeLink:
         self.shoved = []
         self.denies = []
         self.events = []
-        self.z = z          # like the proxy: set by anchors only, never by walk confirms
+        self.z = z
+        self.z_walk = z_walk  # like the proxy's map z (MoveAuthority.z_fn): z after each confirmed step
 
     def send(self, pkt):
         if pkt[0] == 0x02:
@@ -56,6 +57,8 @@ class FakeLink:
                     self.denies.append(nxt)
                     return "OK"
                 self.shoved.append(nxt)
+            if self.z_walk is not None:
+                self.z = self.z_walk.can_walk(self.here[0], self.here[1], self.z, d)[2]
             self.here = list(nxt)
         elif pkt[0] == 0x12 and pkt[3] == 0x58:
             for door in self.doors:
@@ -145,7 +148,7 @@ class GridWalk:
 
 def map_mover(link, open_tiles):
     mv = Mover(link, nav.WalkMemory(), Human("off"), use_map=True)
-    mv._walks[0] = GridWalk(open_tiles)
+    mv.walkers.put(0, GridWalk(open_tiles))
     return mv
 
 
@@ -215,25 +218,20 @@ class LayeredWalk:
 
 
 def test_height_goal():
-    print("== tree above a cave: chop from the tree's level, track z while the proxy's is stale ==")
+    print("== tree above a cave: chop from the tree's level, not from the cave below it ==")
     # cave z -20 along y=0 (x 0..6), stairs at (0,1) z -8, surface z 5 along y=2 (x 0..7).
     # The tree (6,1) z 5 is adjacent to cave tiles (5,0),(6,0) — directly below its level.
     levels = {(x, 0): {-20} for x in range(7)}
     levels[(0, 1)] = {-8}
     levels.update({(x, 2): {5} for x in range(8)})
     walls = {(x, y) for x in range(-1, 9) for y in range(-1, 4)} - set(levels)
-    link = FakeLink((3, 0), facing=2, walls=walls, z=-20)
+    layered = LayeredWalk(levels)
+    link = FakeLink((3, 0), facing=2, walls=walls, z=-20, z_walk=layered)
     mv = Mover(link, nav.WalkMemory(), Human("off"), use_map=True)
-    mv._walks[0] = LayeredWalk(levels)
+    mv.walkers.put(0, layered)
     mv.walk_to(lambda: (6, 1), 1, "t", z_ok=agent_link.reach_z(5, 20))
-    st = link.state()
     check("ended beside the tree on the surface, not in the cave below it",
-          tuple(link.here) in {(5, 2), (6, 2), (7, 2)}, str(link.here))
-    check("the mover tracked z up the stairs (5) though the proxy still says -20",
-          mv.z_now(st) == 5 and st["movement"]["pos"][2] == -20, f"{mv.z_now(st)} / {st['movement']['pos'][2]}")
-    link.z = 25                                 # a server re-anchor on the same tile with another z
-    check("a server re-anchor overrides the tracked z", mv.z_now(link.state()) == 25,
-          str(mv.z_now(link.state())))
+          tuple(link.here) in {(5, 2), (6, 2), (7, 2)} and link.z == 5, f"{link.here} z {link.z}")
 
 
 if __name__ == "__main__":

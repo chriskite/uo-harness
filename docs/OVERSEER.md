@@ -61,7 +61,7 @@ Whitelist, built with the existing `harness/actions.py` builders and framed exac
 | `dclick` / `single_click` | `<serial>` (hex `0x…` or decimal) | `0x06` / `0x09` |
 | `open_door` | – | `0x12` type `0x58` |
 | `target_cancel` | – | `0x6C` cancel for the cursor that is up now (refused if none) |
-| `goto` | `<x> <y>` or `<mobile serial>`, `--range R` (default 0 / 2), `--max-moves` (400) | Walks with `agent_link.Mover`: map pathfinding, doors, shoving, human pacing, height-aware (a mobile target means staying within one storey of it). Returns `from`, `to`, `steps`, `blocked`, `doors_opened`, or `error` (`no route`, too many blocks). Reports an intent (`goto`) to the viz |
+| `goto` | `<x> <y>` or `<serial>` (mobile or ground item), `--z Z`, `--range R` (default 0 for a tile or item, 2 for a mobile), `--max-moves` (400) | Walks with `agent_link.Mover`: map pathfinding, doors, shoving, human pacing, height-aware. A mobile target means staying within one storey of it; a ground item (e.g. the moongate) means its tile on its level; `--z Z` means arriving within 10 of Z (the hill, not the cave under it). Without `--z`, a tile target takes the cheapest level, which may be a cave under it. Returns `from`, `to`, `steps`, `blocked`, `doors_opened`, or `error` (`no route`, too many blocks). Reports an intent (`goto`) to the viz |
 | `menu` | `<serial>` | `0xBF` sub `0x13` context-menu request; waits for the server's menu and returns its entries `{index, text (cliloc rendered), disabled}` |
 | `menu_pick` | `<serial> <index>` | `0xBF` sub `0x15` selection, e.g. a vendor's **Buy** entry (the vendor list then shows in `heard`/`journal`). Opening a Buy list sends nothing further: the stock client sends no packet when the shop window is closed without buying (ClassicUO ShopGump.cs:590-610). The window stays open on the user's screen until they close it |
 | `gump` | `<serial> <button>` | `0xB1` reply, **guarded**. It refuses: the captcha (gump id 1; always the human's, ANTICHEAT.md §8.8); a gump without reply buttons (the decoy/honeypot shape, §8.13); a button the layout doesn't offer; button 0 on a `noclose` gump; and **anything but button 0 (close) on a gump whose text mentions renouncing** (Young status is the human's decision) |
@@ -76,8 +76,24 @@ while a task runs (no interleaving with a runner), and the gump cases above. Gat
 
 `journal [--n 30]`: the recent world events a player reads (speech, clilocs, gumps, menus, vendor
 lists, target cursors, facet changes) from the proxy's event ring, newest last. `status` lists
-mobiles with their click `label` (e.g. "Zara the scribe") and open gumps in full (texts, buttons,
-closable).
+mobiles with their click `label` (e.g. "Zara the scribe"), open gumps in full (texts, buttons,
+closable) and nearby `ground_items` (≤ 12 tiles, named from tiledata, e.g. "blue moongate").
+
+`map [--radius 12] [--to X Y [--z Z] [--range R]]` is how the overseer sees the terrain
+(`harness/localmap.py`). It's an ASCII grid, north up, each row prefixed with its y and two
+header rows of x digits, with:
+- `@` you; `a..z` mobiles (listed with label, dz, and whether you can reach their level)
+- `.` reachable at your level; `,` reachable at your level with another level above it (you are
+  in a cave, under a roof, or under a hill)
+- `+`/`-` reachable higher/lower (stairs and ramps show as runs of these)
+- `^`/`v`/`:` standable but not reachable within the view
+- `#` nothing to stand on
+- `D` doors, `T` trees, `*` ground items (listed)
+
+It also reports `under_cover`, `levels_above_you` and `levels_below_you`. With `--to`, the
+planned route is drawn (`o`, goal `X`), with steps and waypoints. Use it when `goto` says `no
+route`, when heights confuse you, or before walking somewhere new. The z in `status`/`map` is
+right while walking (the proxy computes it per step; docs/NOTES.md).
 
 **Policy:** the user's standing decisions are in `harness/data/policy.json`:
 - home town Horseshoe Bay

@@ -28,6 +28,38 @@ POF_BRIDGE = 4
 DEFAULT_BLOCK_HEIGHT = 16
 DX = (0, 1, 1, 1, 0, -1, -1, -1)
 DY = (-1, -1, 0, 1, 1, 1, 0, -1)
+MAP_FACETS = (0, 1, 4, 5)     # facets with geometry in mapN.uoo (2 and 3 are blank; docs/MAP.md)
+
+
+class Walkers:
+    """One Walk per facet with map geometry (lazily built), refreshed with the
+    current ground items. Shared by the proxy (z per confirmed step), the
+    Mover (planning) and ctl (local map)."""
+
+    def __init__(self):
+        self._walks = {}
+
+    def get(self, facet, ground=()) -> "Walk | None":
+        """The Walk for `facet` (None: no geometry there), with `ground` =
+        iterable of (x, y, graphic, z) ground items as dynamic objects."""
+        facet = 0 if facet is None else facet
+        if facet not in MAP_FACETS:
+            return None
+        w = self._walks.get(facet)
+        if w is None:
+            w = Walk(uomap.UoMap(facet))
+            self._walks[facet] = w
+        index = {}
+        for x, y, g, z in ground:
+            if x is not None and g is not None:
+                index.setdefault((x, y), []).append((g, z or 0))
+        w.dynamic = lambda x, y: index.get((x, y), ())
+        w.clear()
+        return w
+
+    def put(self, facet, walk: "Walk"):
+        """Use `walk` for `facet` (tests with synthetic geometry)."""
+        self._walks[facet] = walk
 
 
 def _skip_land(graphic: int) -> bool:

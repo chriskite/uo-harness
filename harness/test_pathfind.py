@@ -96,6 +96,28 @@ def main():
     check("innkeeper from the cave: ends within one storey of her (ground floor or up)",
           inn is not None and inn[-1][2] >= 0, str(inn and inn[-1]))
 
+    print("== proxy z per confirmed step matches the server (walk confirms carry no z) ==")
+    import proxy
+    import viz_feed
+    seen = []                                     # (facet, predicted z, server z) at the predicted tile
+    orig = proxy.MoveAuthority.on_self_position
+
+    def spy(ma, x, y, z, d):
+        if ma.pos is not None and (ma.pos[0], ma.pos[1]) == (x, y):
+            seen.append((drv.tap.world.state.self.map, ma.pos[2], z))
+        return orig(ma, x, y, z, d)
+    proxy.MoveAuthority.on_self_position = spy
+    try:
+        drv = viz_feed.ReplayDriver("20260929_204225", os.path.join(ROOT, "logs"))
+        drv.run_to_end()
+    finally:
+        proxy.MoveAuthority.on_self_position = orig
+    mapped = [s for s in seen if s[0] in pathfind.MAP_FACETS]
+    wrong = [s for s in mapped if s[1] != s[2]]
+    check("demo capture: every server anchor on a mapped facet agrees with the map-computed z "
+          "(the old anchor-only z missed 6 of 103 here; live 2026-09-30, 12 of 57)",
+          len(mapped) >= 80 and not wrong, f"{len(mapped)} anchors, wrong {wrong[:5]}")
+
     print(f"\npathfind: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     return 0 if not FAILURES else 1
 

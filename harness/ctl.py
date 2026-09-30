@@ -86,6 +86,9 @@ ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
 CAPTCHA_GUMP_ID = 0x00000001          # lumber.json captcha.gump_id; human-only
 RENOUNCE_WORDS = ("renounce",)        # Young renounce prompt (clilocs 502085/3006307): close only
 GOTO_MAX_MOVES = 400
+GOTO_Z_TOL = 10                      # goto --z / ground item: stand within this of the target z
+GROUND_RANGE = 12                    # status: ground items within this many tiles
+GROUND_MAX = 20
 EVENT_WAIT_S = 3.0
 # What `journal` shows: what a player reads on screen (messages, gumps, menus).
 JOURNAL_EVS = ("speech_heard", "cliloc", "gump_open", "gump_response", "popup", "buy_list",
@@ -293,6 +296,18 @@ def summarize(resp: dict) -> dict:
                 g["stacks"] += 1
                 g["amount"] += it.get("amount") or 1
     gumps = [gump_view(g) for g in world.get("gumps") or [] if g.get("open")]
+    ground = []
+    if pos:
+        for key, it in items.items():
+            x, y = it.get("x"), it.get("y")
+            if it.get("container") is not None or x is None:
+                continue
+            dist = nav.chebyshev((x, y), (pos[0], pos[1]))
+            if dist <= GROUND_RANGE:
+                ground.append({"serial": key, "name": it.get("name") or _tile_name(it.get("graphic")),
+                               "graphic": None if it.get("graphic") is None else f"0x{it['graphic']:04X}",
+                               "x": x, "y": y, "z": it.get("z"), "amount": it.get("amount"), "dist": dist})
+        ground.sort(key=lambda g: g["dist"])
     hp = lambda a, b: None if me.get(a) is None else [me.get(a), me.get(b)]  # noqa: E731
     return {
         "name": me.get("name"), "serial": me.get("serial"),
@@ -306,7 +321,20 @@ def summarize(resp: dict) -> dict:
         "backpack": {"serial": None if pack is None else f"0x{pack:08X}", "counts": counts},
         "target": world.get("target"),
         "gumps_open": gumps,
+        "ground_items": ground[:GROUND_MAX],
     }
+
+
+def _tile_name(graphic):
+    """Tiledata name of an item graphic (install dir, read-only), or None."""
+    if graphic is None:
+        return None
+    try:
+        import uomap
+        it = uomap.tiledata().item(graphic)
+    except (OSError, ValueError):
+        return None
+    return it.name if it else None
 
 
 # ------------------------------------------------------------------ commands
@@ -657,11 +685,14 @@ def gump_reply(state: dict, serial_arg: str, button_arg: str) -> bytes:
 
 
 def _act_goto(a, mem) -> dict:
-    """Walk with the Mover (map pathfinding, doors, shoving, human pacing) to
-    a tile (`goto x y`) or a mobile (`goto 0xSERIAL`, which follows it and
-    stays within one storey of it)."""
+    """Walk with the Mover (map pathfinding, doors, shoving, human pacing) to a
+    tile (`goto x y [--z Z]`), a mobile (`goto 0xSERIAL`: follows it and stays
+    within one storey of it) or a ground item (`goto 0xSERIAL`: its tile or next
+    to it, on its level). --z Z: arrive standing within 10 of Z (the hill, not
+    the cave under it)."""
     import contextlib
     import agent_link
+    usage = "goto <x> <y> [--z Z] | goto <mobile or ground item serial>"
     if len(a.args) == 1:
         target = _parse_serial(a.args[0])
         key = f"0x{target:08X}"
@@ -669,9 +700,10 @@ def _act_goto(a, mem) -> dict:
         try:
             target = (int(a.args[0]), int(a.args[1]))
         except ValueError:
-            raise CtlError("goto <x> <y> | goto <mobile serial>")
+            raise CtlError(usage)
     else:
-        raise CtlError("goto <x> <y> | goto <mobile serial>")
+        raise CtlError(usage)
+    level = lambda z0: (lambda z: abs(z - z0) <= GOTO_Z_TOL)  # noqa: E731
     with contextlib.redirect_stdout(sys.stderr):          # stdout is the one JSON reply
         try:
             link = agent_link.Link(a.control_port, a.state_port)
@@ -679,19 +711,31 @@ def _act_goto(a, mem) -> dict:
             raise CtlError(f"proxy unreachable: {e}")
         mover = agent_link.Mover(link, mem, Human(a.human, seed=a.seed), max_blocked=20, doors=True,
                                  use_map=not a.no_map)
-        z_ok = None
+        z_ok = None if a.z is None else level(a.z)
         if isinstance(target, int):
-            mob = link.state()["world"]["mobiles"].get(key)
-            if not mob or mob.get("x") is None:
-                raise CtlError(f"mobile {key} not known to the world model")
-            radius = 2 if a.range is None else a.range
-            if mob.get("z") is not None:
-                z_ok = agent_link.same_floor(mob["z"])
+            world = link.state()["world"]
+            mob = world["mobiles"].get(key)
+            item = world["items"].get(key)
+            if mob and mob.get("x") is not None:
+                radius = 2 if a.range is None else a.range
+                if a.z is None and mob.get("z") is not None:
+                    z_ok = agent_link.same_floor(mob["z"])
 
-            def center():
-                m = link.state()["world"]["mobiles"].get(key) or mob
-                return (m["x"], m["y"])
-            label, text = f"to {key}", f"Walking to {mob.get('name') or key}"
+                def center():
+                    m = link.state()["world"]["mobiles"].get(key) or mob
+                    return (m["x"], m["y"])
+                label, text = f"to {key}", f"Walking to {mob.get('name') or key}"
+            elif item and item.get("container") is None and item.get("x") is not None:
+                radius = 0 if a.range is None else a.range
+                if a.z is None and item.get("z") is not None:
+                    z_ok = level(item["z"])
+                spot = (item["x"], item["y"])
+
+                def center():
+                    return spot
+                label, text = f"to {key}", f"Walking to {item.get('name') or key}"
+            else:
+                raise CtlError(f"{key} is neither a mobile nor a ground item the world model knows")
         else:
             radius = 0 if a.range is None else a.range
 
@@ -712,6 +756,36 @@ def _act_goto(a, mem) -> dict:
     if err:
         out["error"] = err
     return out
+
+
+def cmd_map(a, mem):
+    """The local map around the player (localmap.render): levels, what is
+    reachable, doors, trees, ground items, mobiles; with --to, the planned
+    route there."""
+    import localmap
+    import pathfind
+    import uomap
+    try:
+        stc = StateConn(a.state_port)
+    except OSError as e:
+        raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
+    try:
+        st = stc.state()
+    finally:
+        stc.close()
+    if not st["movement"].get("pos"):
+        raise CtlError("position unknown (not logged in?)")
+    facet = (st["world"].get("self") or {}).get("map")
+    walk = pathfind.Walkers().get(facet, (
+        (it.get("x"), it.get("y"), it.get("graphic"), it.get("z"))
+        for it in st["world"]["items"].values() if it.get("container") is None))
+    if walk is None:
+        raise CtlError(f"no map geometry for facet {facet} (rental rooms are blank; use status/journal)")
+    to = None
+    if a.to:
+        to = (a.to[0], a.to[1])
+    return localmap.render(st, walk, radius=max(3, min(a.radius, 30)), to=to, to_z=a.z,
+                           to_range=a.range or 0, umap=uomap.UoMap(0 if facet is None else facet))
 
 
 def cmd_journal(a, mem):
@@ -785,11 +859,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--range", type=int, default=None,
                    help="goto: stop within this many tiles (default 0 for a tile, 2 for a mobile)")
     p.add_argument("--max-moves", type=int, default=GOTO_MAX_MOVES)
+    p.add_argument("--z", type=int, default=None,
+                   help="goto x y: arrive standing within 10 of this z (a hill vs the cave under it)")
     p.add_argument("--no-map", action="store_true", help=argparse.SUPPRESS)   # offline tests only
     p.set_defaults(fn=cmd_act)
     p = sub.add_parser("journal")
     p.add_argument("--n", type=int, default=30)
     p.set_defaults(fn=cmd_journal)
+    p = sub.add_parser("map", help="ASCII map around you: levels, reachability, doors, trees, items, mobiles")
+    p.add_argument("--radius", type=int, default=12)
+    p.add_argument("--to", type=int, nargs=2, metavar=("X", "Y"), help="also plan and draw a route there")
+    p.add_argument("--z", type=int, default=None, help="with --to: arrive at this level")
+    p.add_argument("--range", type=int, default=0, help="with --to: stop within this many tiles")
+    p.set_defaults(fn=cmd_map)
     return ap
 
 

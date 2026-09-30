@@ -54,11 +54,20 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   and costs 10 `[INFERENCE]`. A denied shove comes back as a normal walk reject (0x21), and
   `Mover` logs the stamina with each one. Live attempt 2 failed because the planner treated NPCs
   in the inn's one-tile upstairs hallway as walls (LUMBER_LOOP.md §13).
-- **The proxy's `movement.pos` z is stale while walking:** ConfirmWalk (0x22) carries no z, so
-  MoveAuthority updates z only on server anchors (0x1B/0x20/0x77/0x21). Consumers that need
-  height must derive it from the map with the client's walk rules, as `Mover.z_now` does
-  (`Walk.can_walk` after each confirmed step). The stock client does the same (CalculateNewZ).
-  Stored `step`/`blocked` z values in logs and the memory store carry this staleness too.
+- **z while walking comes from the map (since 2026-09-30):** ConfirmWalk (0x22) carries no z. So
+  the proxy's MoveAuthority computes z after each confirmed step with the client's walk rules
+  (`SessionTap._step_z` → `pathfind.Walk.can_walk`, with the world model's ground items), the way
+  the stock client does (CalculateNewZ). Server anchors (0x1B/0x20/0x77/0x21) still overwrite
+  it.
+  - Before this, z changed only on anchors. It was wrong on 12 of 57 anchors in the live session
+    20260930_091704, and wrong in the client re-anchor (the fabricated 0x21 carries our z). That
+    broke `ctl goto` ("no route" right after arriving) and had the overseer believe it was in the
+    moongate cave when it was on the hill.
+  - Map z matched all 57 there, and every mapped anchor of the demo capture (`test_pathfind.py`).
+  - Steps the rules can't place count as `movement.z_misses`, and z stays until the next
+    anchor.
+  - Facets without map data (rental rooms, facet 3) keep the anchor-only z.
+  - `--no-map-z` turns it off.
 - **Shelter has a cave/cellar level at z −20** under the inn and the forest west of it
   (`cave floor` statics 0x053B–0x053F under land at z 5). Harvest and vendor ranges are
   accepted across it (2D) `[INFERENCE]`. Goals must be height-aware (LUMBER_LOOP.md §13,

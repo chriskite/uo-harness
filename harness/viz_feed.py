@@ -43,6 +43,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import pathfind  # noqa: E402
 import proxy  # noqa: E402
 from uo.packets import packet_length, C2S_OVERRIDES  # noqa: E402
 from uo.s2c import PRELUDE_LEN, S2CStream, prelude_keys  # noqa: E402
@@ -362,7 +363,7 @@ class ReplayDriver(Feed):
             print(f"[viz_feed] {tag}: {self.order_note}", file=sys.stderr)
             self.items, self.t_end = self._approx(rows)
             self.order = "approx"
-        self.tap = proxy.SessionTap(_Null(), _Null(), _Null())
+        self.tap = proxy.SessionTap(_Null(), _Null(), _Null(), walkers=pathfind.Walkers())
         self.t0 = self.items[0][0] if self.items else 0.0
         self.now = self.t0
         self.tap.wall = self.tap.mono = lambda: self.now

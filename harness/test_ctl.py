@@ -28,6 +28,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+INSTALL_TILEDATA = "C:/Program Files (x86)/Ultima Online Outlands/artdata.uoo"   # tiledata items; read-only
 
 import actions  # noqa: E402
 import ctl  # noqa: E402
@@ -68,6 +69,7 @@ class FakeProxy:
         self.target = {"active": False, "target_type": None, "cursor_id": None, "cursor_type": None}
         self.gumps = []           # world.gumps rows
         self.fixed_mobiles = {}   # extra mobiles at fixed positions (goto tests)
+        self.ground_items = {}    # extra ground items (goto/map tests)
         self.events = []          # event envelopes; seq = index
         self.lock = threading.Lock()
         cs, ss = free_port(12710), free_port(12910)
@@ -132,7 +134,8 @@ class FakeProxy:
                               "0x40000011": {"graphic": 0x1BDD, "amount": 5, "container": p},
                               "0x40000012": {"graphic": 0x0E76, "container": p},
                               "0x40000013": {"graphic": 0x1BD7, "amount": 10, "container": "0x40000012"},
-                              "0x40000014": {"graphic": 0x1BD7, "amount": 99, "x": 1, "y": 1}},
+                              "0x40000014": {"graphic": 0x1BD7, "amount": 99, "x": 1, "y": 1},
+                              **self.ground_items},
                     "target": dict(self.target), "gumps": list(self.gumps)},
                 "events": [], "next": len(self.events),
                 "gate": {"state": "open"},
@@ -564,7 +567,41 @@ def test_overseer_acts(proxy):
     proxy.fixed_mobiles = {}
     proxy.take()
     code, out = c("act", "goto", "0x00000099", "--no-map")
-    check("goto unknown mobile refused", code == 1 and proxy.take() == [], str(out))
+    check("goto unknown serial refused", code == 1 and proxy.take() == [], str(out))
+    gate = "0x40000099"
+    proxy.ground_items = {gate: {"graphic": 0x0F6C, "x": 113, "y": 100, "z": 0}}
+    code, out = c("act", "goto", gate, "--human", "off", "--no-map")
+    check("goto ground item: onto its tile", code == 0 and out.get("to", [])[:2] == [113, 100], str(out))
+    code, out = c("status")
+    g = next((i for i in out.get("ground_items", []) if i["serial"] == gate), None)
+    check("status lists nearby ground items, named from tiledata",
+          g is not None and g["dist"] == 0 and (g["name"] == "blue moongate" or not os.path.exists(INSTALL_TILEDATA)),
+          str(out.get("ground_items")))
+    proxy.ground_items = {}
+    proxy.take()
+
+
+def test_map(proxy):
+    print("== map: the cave under the Shelter moongate (real map) ==")
+    if not os.path.exists(INSTALL_TILEDATA):
+        print("  (skipped: no install dir)")
+        return
+    tmp = tempfile.mkdtemp()
+    c = Ctl(os.path.join(tmp, "harness.db"), os.path.join(tmp, "tasks"), proxy)
+    proxy.pos = [1989, 2535, 0, 0]                   # live 2026-09-30: the overseer ended up here
+    proxy.ground_items = {"0x40000099": {"graphic": 0x0F6C, "x": 1985, "y": 2533, "z": 40}}
+    code, out = c("map", "--radius", "8", "--to", "1985", "2533", "--z", "40")
+    rows = out.get("map", [])
+    check("map: you are under cover with the hill (z 40) above",
+          code == 0 and out.get("under_cover") and out.get("levels_above_you") == [40], str(out)[:300])
+    check("map: 2 header rows + 17 rows of 17 tiles, '@' at the centre",
+          len(rows) == 19 and all(len(r) == 6 + 17 for r in rows) and rows[2 + 8][6 + 8] == "@", str(rows[:3]))
+    check("map: the route to the gate at z 40 is found and leaves the cave (ends at z 40)",
+          (out.get("route") or {}).get("found") and out["route"]["end"][2] >= 30, str(out.get("route"))[:300])
+    check("map: the moongate is listed as a ground item",
+          any(i["name"] == "blue moongate" for i in out.get("items", [])), str(out.get("items")))
+    proxy.ground_items = {}
+    proxy.pos = [100, 100, 0, 2]
 
 
 def main():
@@ -574,6 +611,7 @@ def main():
     test_wait(proxy)
     test_status(proxy)
     test_run_act(proxy)
+    test_map(proxy)
     test_overseer_acts(proxy)
     if FAILURES:
         print(f"FAILED: {len(FAILURES)}: {FAILURES}")

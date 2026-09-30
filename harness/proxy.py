@@ -47,6 +47,7 @@ from uo.packets import packet_length, C2S_OVERRIDES
 from uo.s2c import PRELUDE_LEN, S2CStream, encode_packet, prelude_keys
 from agent_gate import AgentGate
 from memory import MemoryWriter
+import pathfind
 from world.runtime import WorldRuntime, C2S, S2C
 
 CONTROL_MAX_FRAME = 4096
@@ -100,16 +101,22 @@ class MoveAuthority:
       (frozen walker), so agent confirms are hidden, and client confirms are
       rewritten to the client's own seq.
     - position: anchored by the server's self 0x1B/0x20/0x77/0x21, advanced by
-      each confirmed walk (a walk in a new direction only turns).
+      each confirmed walk (a walk in a new direction only turns). Confirms
+      carry no z, so `z_fn(x, y, z, direction)` (the client's walk rules on the
+      map, SessionTap._step_z) gives the z after each step, as the client
+      computes it itself (Pathfinder CalculateNewZ). Without it (no map for the
+      facet, or the rules disagree with the server) z keeps its last value
+      until the next server anchor.
     - re-anchor: hidden confirms mean the client doesn't see agent movement.
       Once walking is quiet, the proxy hands the CLIENT a fabricated 0x21
       DenyWalk with the true position and facing. The client's DenyWalk
       handler resets its walker and places the player there. Nothing reaches
-      the server. z is the last server-reported z (confirms carry none).
+      the server. z is the tracked z above.
     """
 
     __slots__ = ("next_seq", "armed_token", "stale_token", "inflight", "resync_sent_at",
-                 "last_walk_at", "client_stale", "rejects_in_row", "self_serial", "pos")
+                 "last_walk_at", "client_stale", "rejects_in_row", "self_serial", "pos",
+                 "z_fn", "z_misses")
 
     def __init__(self):
         self.next_seq = 0
@@ -122,6 +129,8 @@ class MoveAuthority:
         self.rejects_in_row = 0
         self.self_serial = None
         self.pos = None              # [x, y, z, facing 0-7], server truth
+        self.z_fn = None             # (x, y, z, direction) -> z after the step, or None
+        self.z_misses = 0            # confirmed moves the map rules couldn't place
 
     # ---- C2S ----
     def on_c2s_walk(self, pkt: bytearray, src: str, now: float) -> tuple[str, str] | None:
@@ -195,9 +204,15 @@ class MoveAuthority:
             if self.pos[3] != direction:
                 self.pos[3] = direction           # turn only
             else:
+                x, y, z = self.pos[0], self.pos[1], self.pos[2]
+                nz = self.z_fn(x, y, z, direction) if self.z_fn is not None else None
                 dx, dy = DIR_DELTA[direction]
                 self.pos[0] += dx
                 self.pos[1] += dy
+                if nz is not None:
+                    self.pos[2] = nz
+                elif self.z_fn is not None:
+                    self.z_misses += 1
         if src != "client":
             return ("hide", None)
         if sent_seq != seq:
@@ -348,7 +363,7 @@ class SessionTap:
     driver (viz_feed.ReplayDriver) substitutes a simulated clock.
     """
 
-    def __init__(self, logf, raw_c2s, raw_s2c):
+    def __init__(self, logf, raw_c2s, raw_s2c, walkers=None):
         self.logf = logf
         self.raw_c2s = raw_c2s
         self.raw_s2c = raw_s2c
@@ -363,6 +378,9 @@ class SessionTap:
         self.s2c_passthrough = False     # unexpected prelude: relay S2C undecoded
         self.moveauth = MoveAuthority()
         self.world = WorldRuntime()
+        self.walkers = walkers           # pathfind.Walkers: z per confirmed step, or None
+        if walkers is not None:
+            self.moveauth.z_fn = self._step_z
         self.events = []                 # envelopes; seq = events_base + list index
         self.events_base = 0
         self.sink = None                 # durable event sink (memory.MemoryWriter), or None
@@ -389,6 +407,19 @@ class SessionTap:
         if over > 0:
             del self.events[:over]
             self.events_base += over
+
+    def _step_z(self, x: int, y: int, z: int, direction: int) -> int | None:
+        """z after a server-confirmed step from (x, y, z), by the client's walk
+        rules on the map with the ground items the world model knows (doors
+        excluded). None: no map for the facet, or the rules say the step can't
+        be walked (the server knows better; z stays until its next anchor)."""
+        items = self.world.state.items.values()
+        walk = self.walkers.get(self.world.state.self.map, (
+            (it.x, it.y, it.graphic, it.z) for it in items if it.container is None))
+        if walk is None:
+            return None
+        nxt = walk.can_walk(x, y, z, direction)
+        return None if nxt is None else nxt[2]
 
     def _proxy_event(self, ev: str, **fields):
         """A proxy decision for state-port readers (the jsonl log is separate)."""
@@ -480,6 +511,7 @@ class SessionTap:
                 "inflight": len(ma.inflight), "next_seq": ma.next_seq,
                 "resync_pending": ma.resync_sent_at is not None,
                 "rejects_in_row": ma.rejects_in_row,
+                "z_misses": ma.z_misses,
                 "stalled": ma.rejects_in_row >= STALL_REJECTS,
                 "client_stale": ma.client_stale,
             },
@@ -731,6 +763,7 @@ async def handle_client(client_reader, client_writer, args):
         logf,
         open(os.path.join(args.logdir, f"session_{stamp}.c2s.raw"), "ab"),
         open(os.path.join(args.logdir, f"session_{stamp}.s2c.raw"), "ab"),
+        walkers=args.walkers,
     )
     tap._log(ev="open", peer=str(peer), upstream=f"{args.upstream_host}:{args.upstream_port}")
     if args.memory_writer is not None:
@@ -813,8 +846,9 @@ async def handle_state(reader, writer, hub):
 async def amain(args):
     args.hub = InjectionHub(AgentGate(args.budget_file or os.path.join(args.logdir, "agent_budget.json")))
     args.memory_writer = MemoryWriter(args.memory_db) if args.memory_db else None
+    args.walkers = None if args.no_map_z else pathfind.Walkers()
     print(f"[proxy] agent gate: {args.hub.gate.status()['state']} ({args.hub.gate.path}); "
-          f"memory: {args.memory_db or 'off'}")
+          f"memory: {args.memory_db or 'off'}; map z: {'off' if args.no_map_z else 'on'}")
     control = await asyncio.start_server(
         lambda r, w: handle_control(r, w, args.hub),
         args.control_host, args.control_port)
@@ -856,6 +890,9 @@ def main():
     p.add_argument("--memory-db", default="",
                    help="durable harness memory (SQLite, docs/MEMORY.md), e.g. harness/data/harness.db; "
                         "off when empty (tests)")
+    p.add_argument("--no-map-z", action="store_true",
+                   help="don't compute z per confirmed step from the map (z then changes only on server "
+                        "anchors); for tests on synthetic coordinates")
     args = p.parse_args()
     try:
         asyncio.run(amain(args))
