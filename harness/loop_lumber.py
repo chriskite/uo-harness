@@ -589,6 +589,9 @@ class LumberLoop:
         self.memory.episode("lumber", row)
 
     def trip(self, n):
+        """One trip, ending in the safety of the rental room: (leave the room if
+        we're in it) -> harvest -> convert -> enter the room -> store. The room
+        is only left at the start of the next trip, so a run ends inside it."""
         self.stats = {}
         self.trip_n = n
         t0, s0, b0 = time.time(), self.mover.steps, self.mover.blocked_count
@@ -600,11 +603,12 @@ class LumberLoop:
             phases[name] = round(time.time() - t, 1)
             return r
 
+        if self.in_room(self.state()):
+            timed("exit", self.exit_room)
         timed("harvest", self.harvest_trip)
         timed("convert", self.convert)
         timed("to_room", self.enter_room)
         timed("store", self.store)
-        timed("exit", self.exit_room)
         row = {"loop": "lumber", "venue": self.k["venue"], "trip": n, "t_start": round(t0, 1),
                "t_end": round(time.time(), 1), "phases_s": phases,
                "steps": self.mover.steps - s0, "blocked": self.mover.blocked_count - b0,
@@ -625,11 +629,10 @@ class LumberLoop:
         if self.in_room(st):
             log("starting inside the rental room")
             self.store()
-            self.exit_room()
         for n in range(1, self.args.trips + 1):
             self.trip(n)
-        log(f"loop complete: {self.args.trips} trip(s)")
-        self.doing("done", f"Finished: {self.args.trips} trip(s)")
+        log(f"loop complete: {self.args.trips} trip(s); resting in the rental room")
+        self.doing("done", f"Finished: {self.args.trips} trip(s); resting in the rental room")
 
 
 def stop_intent(loop, text):

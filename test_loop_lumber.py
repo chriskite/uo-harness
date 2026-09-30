@@ -500,8 +500,10 @@ async def main():
               str([(r.get("logs"), r.get("woods")) for r in rows]))
         check("decoy gumps were shown and never answered",
               len(world.decoys) >= 4 and world.decoy_replies == 0, f"{len(world.decoys)} decoys")
-        check("agent gump replies = rental-room menu only (2 enters + 2 exits)",
-              len(b1_agent) == 4 and world.rooms_entered == 2 and world.rooms_left == 2, str(len(b1_agent)))
+        check("agent gump replies = rental-room menu only (2 enters + 1 exit, between the trips)",
+              len(b1_agent) == 3 and world.rooms_entered == 2 and world.rooms_left == 1, str(len(b1_agent)))
+        check("the run ends in the safety of the rental room (never exits after the last trip)",
+              world.in_room and "resting in the rental room" in text, str(world.in_room))
         check("walked to the innkeeper's live position: never 'too far' (knowledge pos is 14 tiles off)",
               world.too_far == 0, str(world.too_far))
         check("every harvested log not stolen ended in the secure container as boards",
@@ -533,12 +535,14 @@ async def main():
         check("malformed intents rejected by the proxy (and not recorded)",
               all(not r["ok"] for r in bad_intents) and all(i and i.get("text") for i in intents),
               str(bad_intents))
-        phase = ["to_tree", "chop", "convert", "to_inn", "enter_room", "to_box", "store", "exit_room",
-                 "trip_done"]
+        phase = ["to_tree", "chop", "convert", "to_inn", "enter_room", "to_box", "store", "trip_done"]
         for n in (1, 2):
             seq = [i["kind"] for i in intents if i and i.get("trip") == n]
-            check(f"trip {n}: intents follow the loop's phases in order",
-                  is_subsequence(phase, seq), str(dedupe(seq)))
+            want = (["exit_room"] if n == 2 else []) + phase
+            check(f"trip {n}: intents follow the loop's phases in order"
+                  + (" (leaving the room first)" if n == 2 else "") + ", ending in the room",
+                  is_subsequence(want, seq) and "exit_room" not in seq[seq.index("store"):]
+                  and (n == 2) == ("exit_room" in seq), str(dedupe(seq)))
         t2 = [i["kind"] for i in intents if i and i.get("trip") == 2]
         check("trip 2 reports the post-exit lockout wait before chopping",
               "lockout" in t2 and t2.index("lockout") < t2.index("chop"), str(dedupe(t2)))

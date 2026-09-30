@@ -398,15 +398,18 @@ stock lives and whether to raise skill first) comes after the proof.
 Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports, gate-aware
 `act()`) and `Mover` (walking, learned blocks, doors). `errand_bank.py` uses it too.
 
-- **Trip:**
-  1. Harvest the known trees (shuffled; trees depleted in the last `--regrow-min` are skipped).
-  2. Convert every log stack.
-  3. Walk to the innkeeper and say `room`; press Enter (button 4).
-  4. Lift each board stack and drop it into the secure container (auto-position; stacking merges
+- **Trip** (since 2026-09-30, user decision: a run ends in the safety of the inn room):
+  1. If inside the rental room: walk to the door, dclick it, press Exit (button 4).
+  2. Harvest the known trees (shuffled; trees depleted in the last `--regrow-min` are skipped).
+  3. Convert every log stack.
+  4. Walk to the innkeeper and say `room`; press Enter (button 4).
+  5. Lift each board stack and drop it into the secure container (auto-position; stacking merges
      are fine).
-  5. Walk to the door, dclick it, press Exit (button 4).
 
-  If the runner starts inside the room, it stores and exits first.
+  So the room is only left at the start of the next trip, and the last trip ends inside it.
+  If the runner starts inside the room, it stores what it carries first. Before this change
+  every trip ended by exiting, which left TestWorth standing outside the Shelter inn (the room
+  exits to the town it was rented in).
 - **Harvest attempt:**
   - dclick the hatchet, wait for the cursor, pause for "aim" time, send `target_xyz` at the
     tree's (x, y, z, static graphic), wait for the outcome.
