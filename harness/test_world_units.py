@@ -16,6 +16,7 @@ import zlib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import actions
 from world.parsers import PacketIncomplete, parse_packet, parse_fixed
 from world.runtime import WorldRuntime
 
@@ -54,8 +55,14 @@ ITEMQUERY = bytes.fromhex("ff000e0000000901000140000d54")
 KEEPALIVE = bytes.fromhex("ff000700000003")
 # session_20260928_141253 C2S gump response (button 3, no switches/texts)
 GUMPRESP = bytes.fromhex("b1001700215a42c16e0192000000030000000000000000")
-# session_20260928_164548 C2S target response (clicked serial = player)
-TARGETRESP = bytes.fromhex("6c0000052cb901000943750000077c00000a24")
+# session_20260928_164548 C2S target response (clicked serial = player), the
+# Outlands V10+ 27-byte form (u32 x/y/z/graphic)
+TARGETRESP = bytes.fromhex("6c0000052cb901000943750000077c00000a240000000000000190")
+# session_20260929_110455 S2C 0xC1 cliloc 1046414 "the remains of ~1_NAME~",
+# args UTF-16LE "Bresh Fiscuits"
+CLILOC_C1 = bytes.fromhex(
+    "c1004e454e279820060600590003000ff78e" + "00" * 30 +
+    "420072006500730068002000460069007300630075006900740073000000")
 # session login: 0x91 head carries the account name as asciiz @3
 LOGIN91 = bytes.fromhex("910462") + b"Hackworth\x00" + b"eyJhbGciOiJ9" + b"\x00" * 4
 # character select: 0xEDEDEDED pattern, name ascii[30] @5
@@ -227,12 +234,22 @@ def test_fixed_c2s():
     # 0x5D PlayCharacter (73): pattern u32@1, name ascii[30]@5
     f = parse_fixed(0x5D, CHARSELECT, "c2s")
     eq("C2S 0x5D", f, {"name": "TestWorth"})
-    # 0x6C target response C2S (19): type@1, cursor u32@2, ctype@6,
-    # serial u32@7, x u16@11, y u16@13, z u16@15, graphic u16@17
+    # 0x6C target response C2S (27): type@1, cursor u32@2, ctype@6,
+    # serial u32@7, x u32@11, y u32@15, z i32@19, graphic u32@23
     f = parse_packet("c2s", TARGETRESP)
     eq("C2S 0x6C", f, {"target_type": 0, "cursor_id": 0x00052CB9,
                        "cursor_type": 1, "serial": 0x00094375,
-                       "x": 0x0000, "y": 0x077C, "z": 0, "graphic": 0x0A24})
+                       "x": 0x077C, "y": 0x0A24, "z": 0, "graphic": 0x0190})
+    # lift / drop / equip: the actions builders (decompile-grounded senders)
+    # must parse back field for field
+    eq("C2S 0x07", parse_packet("c2s", actions.lift(0x04050607, 0x0809)),
+       {"serial": 0x04050607, "amount": 0x0809})
+    eq("C2S 0x08", parse_packet("c2s", actions.drop(
+        0x04050607, 0x0809, 0x0A0B, -3, 0x0C, 0x0D0E0F10)),
+       {"serial": 0x04050607, "x": 0x0809, "y": 0x0A0B, "z": -3, "grid": 0x0C,
+        "container": 0x0D0E0F10})
+    eq("C2S 0x13", parse_packet("c2s", actions.equip_request(0x04050607, 0x02, 0x08090A0B)),
+       {"serial": 0x04050607, "layer": 0x02, "container": 0x08090A0B})
 
 
 # ---------------------------------------------------------------------------
@@ -543,11 +560,11 @@ def test_c2s_procedural():
     f = parse_packet("c2s", GUMPRESP)
     eq("B1 ground", f, {"serial": 0x00215A42, "gump_id": 0xC16E0192,
                         "button_id": 3, "switches": [], "texts": []})
-    # B1 with switches and text entries (text length includes its own 2 bytes)
+    # B1 with switches and text entries (text length = UTF-16 units)
     text = "abc".encode("utf-16-be")
     body = ("04050607" "08090a0b" "0000002a"
             "00000002" "00000001" "00000002"
-            "00000001" "0009" + (2 + len(text)).to_bytes(2, "big").hex()
+            "00000001" "0009" + (len(text) // 2).to_bytes(2, "big").hex()
             ) + text.hex()
     pkt = bytes.fromhex("b1") + (3 + len(bytes.fromhex(body))).to_bytes(2, "big") \
         + bytes.fromhex(body)
@@ -555,6 +572,10 @@ def test_c2s_procedural():
     eq("B1 full", f, {"serial": 0x04050607, "gump_id": 0x08090A0B,
                       "button_id": 0x2A, "switches": [1, 2],
                       "texts": [{"id": 9, "text": "abc"}]})
+    # the client's own encoder (actions.gump_response) parses back
+    f = parse_packet("c2s", actions.gump_response(1, 2, 3, [4], [(5, "1234"), (6, "")]))
+    eq("B1 round trip", (f["switches"], f["texts"]),
+       ([4], [{"id": 5, "text": "1234"}, {"id": 6, "text": ""}]))
     # ground truth (session_20260928_141253): text entry with length 0
     f = parse_packet("c2s", bytes.fromhex(
         "b1001b00215ab36b14722700000000000000000000000100020000"))
@@ -589,6 +610,7 @@ def test_truncation():
         ("s2c", bytes.fromhex("ff" "000f" "00000003" "0102")),  # sub3 short
         ("c2s", bytes.fromhex("ad" "0018" "00" "02b2")),  # speech truncated
         ("c2s", bytes.fromhex("b1" "0028" "04050607")),  # B1 truncated
+        ("s2c", bytes.fromhex("c1" "0030" "04050607" "0809")),  # 0xC1 head only
         # count=max with no payload must fail cleanly, not hang or allocate
         ("s2c", bytes.fromhex("3c" "0005" "ffff")),
         ("s2c", bytes.fromhex("16" "0009" "04050607" "ffff")),
@@ -665,6 +687,81 @@ def test_mobile_parsers():
     f = parse_packet("s2c", CHARLIST_A9)
     eq("0xA9 len", len(CHARLIST_A9), 161)
     eq("0xA9", f, {"names": ["TestWorth", "", "", "", ""]})
+
+
+def test_cliloc():
+    print("== 0xC1 / 0xCC cliloc ==")
+    eq("0xC1 real", parse_packet("s2c", CLILOC_C1),
+       {"serial": 0x454E2798, "graphic": 0x2006, "type": 6, "hue": 0x0059,
+        "font": 3, "cliloc": 1046414, "affix_flags": 0, "name": "",
+        "affix": "", "args": "Bresh Fiscuits"})
+    # 0xCC: affix flags u8 after the number, affix asciiz after the name,
+    # args UTF-16BE
+    args = "a\tb".encode("utf-16-be")
+    body = ("04050607" "0809" "0a" "0b0c" "0d0e" "000f4240" "02"
+            + b"Name".ljust(30, b"\x00").hex() + b" x\x00".hex() + args.hex())
+    pkt = bytes.fromhex("cc") + (3 + len(bytes.fromhex(body))).to_bytes(2, "big") \
+        + bytes.fromhex(body)
+    eq("0xCC", parse_packet("s2c", pkt),
+       {"serial": 0x04050607, "graphic": 0x0809, "type": 0x0A, "hue": 0x0B0C,
+        "font": 0x0D0E, "cliloc": 1000000, "affix_flags": 2, "name": "Name",
+        "affix": " x", "args": "a\tb"})
+    rt = WorldRuntime()
+    rt.feed_packet("s2c", CLILOC_C1)
+    ev = rt.drain_events()
+    eq("cliloc event", [(e["ev"], e["cliloc"], e["args"]) for e in ev],
+       [("cliloc", 1046414, "Bresh Fiscuits")])
+    from uo import cliloc
+    table = {1: "the remains of ~1_NAME~", 2: "~2_B~ then ~1_A~", 3: "Iron",
+             4: "made of ~1_MAT~"}
+    eq("translate one arg", cliloc.translate(table, 1, "Bresh"), "the remains of Bresh")
+    eq("translate arg order", cliloc.translate(table, 2, "x\ty"), "y then x")
+    eq("translate #ref arg", cliloc.translate(table, 4, "#3"), "made of Iron")
+    eq("translate missing arg", cliloc.translate(table, 2, "x"), " then x")
+    eq("translate unknown number", cliloc.translate(table, 99, "q"), "#99 [q]")
+    raw = (b"\x02\x00\x00\x00\x01\x00" + (500000).to_bytes(4, "little") + b"\x00"
+           + (3).to_bytes(2, "little") + b"abc")
+    eq("parse table", cliloc.parse(raw), {500000: "abc"})
+
+
+def test_vendor_popup_command():
+    print("== 0x74 / 0x3B / 0x12 / 0xBF context menu (real packets) ==")
+    # session_20260928_164548: Dusty the cook's buy list and the buy attempt
+    eq("0x74", parse_packet("s2c", bytes.fromhex(
+        "7400324029604f030000001908536b696c6c657400000000190c526f6c6c696e67"
+        "2050696e00000000030743686565736500")),
+       {"container": 0x4029604F, "items": [
+           {"price": 25, "name": "Skillet"}, {"price": 25, "name": "Rolling Pin"},
+           {"price": 3, "name": "Cheese"}]})
+    eq("C2S 0x3B", parse_packet("c2s", bytes.fromhex("3b000f000001e2021a450a6eac0001")),
+       {"vendor": 0x1E2, "flag": 2,
+        "items": [{"layer": 0x1A, "serial": 0x450A6EAC, "amount": 1}]})
+    eq("C2S 0x3B builder", parse_packet("c2s", actions.buy_request(0x1E2, [(5, 7), (6, 8)]))["items"],
+       [{"layer": 0x1A, "serial": 5, "amount": 7}, {"layer": 0x1A, "serial": 6, "amount": 8}])
+    eq("C2S 0x12 open door", parse_packet("c2s", bytes.fromhex("1200055800")),
+       {"type": 0x58, "text": ""})
+    eq("C2S 0x12 use skill", parse_packet("c2s", actions.use_skill(44)),
+       {"type": 0x24, "text": "44 0"})
+    # session_20260928_141253: context menu (mode 2) on 0x0008AAE0, 12 entries
+    f = parse_packet("s2c", bytes.fromhex(
+        "bf006c001400020008aae00c002ddeab00000000002dde9700010000002dde9800"
+        "0200000010b7a900030000000f9c5b00040000002dde3e00050000002dde450006"
+        "0000002dde4800070000002dde4c00080000002dde4e00090000002dde51000a00"
+        "00002dde5f000b0000"))
+    eq("BF 0x14 head", (f["sub"], f["serial"], f["mode"], len(f["entries"])),
+       (0x14, 0x0008AAE0, 2, 12))
+    eq("BF 0x14 entries", (f["entries"][0], f["entries"][11]),
+       ({"cliloc": 3006123, "index": 0, "flags": 0},
+        {"cliloc": 3006047, "index": 11, "flags": 0}))
+    eq("BF 0x13", parse_packet("c2s", bytes.fromhex("bf000900130008aae0")),
+       {"sub": 0x13, "serial": 0x0008AAE0})
+    eq("BF 0x15", parse_packet("c2s", bytes.fromhex("bf000b00150008aae00002")),
+       {"sub": 0x15, "serial": 0x0008AAE0, "index": 2})
+    rt = WorldRuntime()
+    rt.feed_packet("c2s", bytes.fromhex("bf000b00150008aae00002"))
+    rt.feed_packet("s2c", bytes.fromhex("bf0006000800"))  # sub 8: not a menu
+    eq("BF events", [e["ev"] for e in rt.drain_events()], ["popup_select"])
+    eq("BF other sub counted unhandled", rt.unhandled[("s2c", 0xBF)], 1)
 
 
 def test_mobile_routing():
@@ -762,7 +859,8 @@ def test_event_semantics():
 TESTS = [test_fixed_s2c, test_fixed_c2s, test_character_status_11,
          test_skills_3a, test_world_item_1a, test_container_content_3c,
          test_corpse_equipment_89, test_healthbar_16_17, test_gumps_b0_dd,
-         test_dialect_ff, test_c2s_procedural, test_mobile_parsers,
+         test_dialect_ff, test_c2s_procedural, test_mobile_parsers, test_cliloc,
+         test_vendor_popup_command,
          test_mobile_routing, test_truncation, test_runtime_edges,
          test_event_semantics]
 

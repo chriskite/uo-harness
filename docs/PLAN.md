@@ -80,13 +80,20 @@ LLM planner over the world model + skill library; safety rails: captcha human-ha
 - **In-game speech is allowlisted keywords/commands only** (user decision 2026-09-29). Allowed: NPC trigger words such as `bank` and `vendor buy`, `[`-commands, and a few innocuous phrases. The LLM never writes free text into the game (AGENTS.md rule 8). The wire encoding is unaffected: `say_unicode` keyword-encodes like the stock client. Free text through a filter was rejected for now, because no filter can rule out every revealing line.
 - **No handoff on nearby player speech** (user decision 2026-09-29): handing off whenever a non-NPC speaks nearby would fire too often. GM detection isn't reliable either: RunUO-style staff name hue 11 is [INFERENCE] for Outlands, hidden staff are invisible, and no staff contact has been captured. Narrower speech triggers (e.g. our character's name being said) are still open.
 - **Gating handoff struck from Phase 4 (user decision 2026-09-29):** the harness is not Razor, and PvP is out of scope, so neither `IsRazorBlockedSysMessage` nor the PvP script restrictions apply to it. There is no gating demo and no gating-signal research. AGENTS.md safety rule 4 itself is unchanged.
-- **Proposed first workload (2026-09-29, pending user decisions): lumberjack → commodity deed → inn-room storage loop**, see [`LUMBER_LOOP.md`](LUMBER_LOOP.md). Approach:
-  - learn by one user demonstration mined into `harness/data/loops/lumber.json`
+- **First workload: lumberjack → boards → inn-room storage → commodity deed loop** (proposed and accepted 2026-09-29), see [`LUMBER_LOOP.md`](LUMBER_LOOP.md). Approach:
+  - learn by one user demonstration; `harness/loop_mine.py timeline` turns the capture into evidence, and `harness/data/loops/lumber.json` is written from it
   - a deterministic routine runner with no LLM in the steady state
   - the LLM only for composing, repairing and post-session reflection
-  - optimization of boards per active hour through spot bandits and the return trigger, with pacing, breaks and captcha handoff as fixed constraints
+  - optimization of banked boards per active hour, with pacing, breaks and captcha handoff as fixed constraints
 
   Rejected: learning the loop by live exploration. It costs captchas and deaths, and it guesses gump and button ids that one capture gives exactly. Also rejected: LLM calls per cycle (cost and latency, nothing to decide in the steady state).
+
+  **User decisions 2026-09-29:**
+  - Venue: Shelter Island first (TestWorth is Young; the capture shows the Young-only welcome gump), the overworld later as a user-initiated move. Leaving Shelter renounces Young permanently, so the agent never travels off the island and never confirms a renounce gump.
+  - Logs must become boards for commodity deeds.
+  - The return trigger trades carried-goods PK risk against trip overhead, including the 60 s harvest lockout after recall/teleport (LUMBER_LOOP.md §6: `Q* = r·sqrt(2T/h)`). Shelter has no hostile player actions, so `h = 0` there and trips end on breaks; the overworld uses a per-region Bayesian hazard plus an immediate return on a hostile sighting.
+  - Boards bank in the room every trip; a deed is made when the room stock reaches the quantum.
+  - Optimizer autonomy: statistics update automatically within bounds; structural changes are user-approved.
 
 ### Phase 5 (optional) — Production copilot
 Rules-compliant live mode: agent generates Razor scripts into `Data/Plugins/Assistant/Scripts/`; human reviews and runs them manually. No autonomy, no data extraction. Only phase allowed to touch the production shard, and only as a file generator.

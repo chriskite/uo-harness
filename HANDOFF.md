@@ -42,7 +42,10 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
    "bank" → bank box opened → 13 steps back to exactly the start; 26 s, 0 blocked, 0 resyncs,
    0 proxy-originated server packets. Offline: `test_errand.py`.
 3. **Next: Phase 4 (agent runtime)**, an LLM planner over the state port + action/skill library,
-   with safety rails (docs/PLAN.md).
+   with safety rails (docs/PLAN.md). First workload: the lumberjack → inn-room loop
+   (docs/LUMBER_LOOP.md). **Waiting on the user:** one-time setup + demonstration run
+   (LUMBER_LOOP.md §10). Then run `loop_mine.py timeline <tag>`, write `lumber.json`, and pin
+   the facts in a replay test.
 4. Optional: map-based z for re-anchors (stairs/slopes).
 5. ~~Visualizer~~ **Phase A BUILT (docs/VISUALIZER.md §9)**: read-only `viz_server.py`
    (live on the state port, or an exact offline replay of a capture) plus a React + TSX frontend
@@ -65,6 +68,9 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
   CLI-only; the visualizer offers pause/resume/kill.
 - Bank errand: `python harness/errand_bank.py [--start x,y]`; walk memory refresh:
   `python harness/nav.py build`.
+- Demonstration timeline (offline, read-only): `python harness/loop_mine.py timeline <TAG>
+  [--labels]`. Replays `logs/session_<TAG>.*` and prints actions, gumps, menus, cliloc
+  messages rendered from Cliloc.enu, and container amount changes.
 - Visualizer: build once `cd viz && bun install && bun run build`; then
   `python harness/viz_server.py --live` (or `--replay <TAG> [--rate 8]`) → http://127.0.0.1:8080/.
   Read-only; start/stop any time.

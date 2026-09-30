@@ -65,9 +65,11 @@ normalizes). Vocabulary (`runtime.py` `_emit`):
 - Movement: `walk`, `walk_confirm`, `walk_deny`
 - Entities: `query`, `item_query`, `names`, `item_seen`, `delete`, `animation`
 - Text: `speech` (C2S; now includes `keywords` for encoded speech), `speech_heard` (S2C
-  0x1C/0xAE; type 6 = click labels such as "Len the banker")
+  0x1C/0xAE; type 6 = click labels such as "Len the banker"), `cliloc` (S2C 0xC1/0xCC:
+  `cliloc` number + tab-separated `args`; render with `harness/uo/cliloc.py`)
 - Interaction: `dclick`, `container_open`, `container_content`, `gump_open`, `gump_response`,
-  `target`, `target_response`
+  `target`, `target_response`, `lift`, `drop`, `equip_request`, `command` (C2S 0x12),
+  `popup` / `popup_request` / `popup_select` (context menus), `buy_list` / `buy` (vendors)
 - Combat and buffs: `damage`, `swing`, `spell_cast`, `buff_update`, `buff_remove`
 
 Session 163420 produced 1204 events, 719 of them `keepalive`, hidden by default in the UI.

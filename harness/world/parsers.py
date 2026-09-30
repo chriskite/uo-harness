@@ -17,8 +17,9 @@ Text-length conventions:
   0xB0 text lines: u16be byte count, UTF-16BE text (no capture sample yet).
   0xDD text lines: u16be code-unit count, UTF-16BE text (upstream
   CompressedGump; 77 real packets across the captures decode cleanly).
-  0xB1 text entries: u16be byte count INCLUDING its own 2 bytes (standard UO),
-  UTF-16BE text.
+  0xB1 text entries: u16be UTF-16 unit count, UTF-16BE text (Outlands
+  Send_GumpResponse; the old "byte count incl. its own 2 bytes" was wrong).
+  0xC1/0xCC cliloc args: to the end of the packet, UTF-16LE / UTF-16BE.
 """
 import struct
 import zlib
@@ -544,7 +545,9 @@ def _p_speech(pkt):
 
 
 def _p_gump_response(pkt):
-    """0xB1 gump response: button, switch list, text entry list."""
+    """0xB1 gump response: button, switch list, text entry list. Entry text
+    length is a UTF-16 unit count (Send_GumpResponse @ 0x1401557a0, same as
+    actions.gump_response)."""
     r = _Reader(pkt)
     r.take(1)
     r.u16()
@@ -553,16 +556,94 @@ def _p_gump_response(pkt):
     texts = []
     for _ in range(r.u32()):
         eid = r.u16()
-        ln = r.u16()
-        if ln == 0:
-            # observed on the wire (session_20260928_141253): empty entry
-            texts.append({"id": eid, "text": ""})
-            continue
-        if ln < 2:
-            raise PacketIncomplete(f"gump text entry length {ln} < 2")
+        units = r.u16()
         texts.append({"id": eid,
-                      "text": r.take(ln - 2).decode("utf-16-be", "replace")})
+                      "text": r.take(2 * units).decode("utf-16-be", "replace")})
     d["texts"] = texts
+    return d
+
+
+def _p_cliloc(pkt):
+    """0xC1 / 0xCC cliloc message (DisplayClilocString @ 0x140196760, same
+    reads as upstream): serial u32, graphic u16, type u8, hue u16, font u16,
+    cliloc u32, [0xCC: affix flags u8], name ascii[30], [0xCC: affix asciiz],
+    then args to the end: UTF-16LE for 0xC1, UTF-16BE for 0xCC ('\\t'
+    separated; uo/cliloc.translate renders them)."""
+    r = _Reader(pkt)
+    pid = r.u8()
+    r.u16()
+    d = {"serial": r.u32(), "graphic": r.u16(), "type": r.u8(),
+         "hue": r.u16(), "font": r.u16(), "cliloc": r.u32()}
+    d["affix_flags"] = r.u8() if pid == 0xCC else 0
+    d["name"] = _ascii(r.take(30))
+    d["affix"] = r.asciiz() if pid == 0xCC else ""
+    rest = r.take(r.remaining())
+    enc = "utf-16-be" if pid == 0xCC else "utf-16-le"
+    d["args"] = rest[:len(rest) & ~1].decode(enc, "replace").split("\x00", 1)[0]
+    return d
+
+
+def _p_buy_list(pkt):
+    """S2C 0x74 vendor buy list (upstream BuyList): container serial, count
+    u8, then per item price u32 + name (u8 length incl. NUL, ASCII). Real
+    (164548): `74 0032 4029604f 03 | 00000019 08 "Skillet\\0" | ...`."""
+    r = _Reader(pkt)
+    r.take(3)
+    d = {"container": r.u32(), "items": []}
+    for _ in range(r.u8()):
+        price = r.u32()
+        d["items"].append({"price": price, "name": _ascii(r.take(r.u8()))})
+    return d
+
+
+def _p_buy_request(pkt):
+    """C2S 0x3B buy request (Send_BuyRequest, actions.buy_request): vendor
+    u32, flag u8 (2 = list follows, 0 = empty), then (layer u8, serial u32,
+    amount u16) records to the end."""
+    r = _Reader(pkt)
+    r.take(3)
+    d = {"vendor": r.u32(), "flag": r.u8(), "items": []}
+    while r.remaining() >= 7:
+        d["items"].append({"layer": r.u8(), "serial": r.u32(), "amount": r.u16()})
+    return d
+
+
+def _p_text_command(pkt):
+    """C2S 0x12 text command: type u8 (0x24 use skill, 0x56 cast, 0x58 open
+    door, ...), ASCII argument to the NUL."""
+    r = _Reader(pkt)
+    r.take(3)
+    return {"type": r.u8(),
+            "text": r.take(r.remaining()).split(b"\x00", 1)[0].decode("ascii", "replace")}
+
+
+def _p_extended(pkt):
+    """0xBF extended command, sub u16 @3. Parsed subs: S2C 0x14 context menu
+    (mode u16, serial u32, count u8, entries; mode 2 = cliloc u32, index u16,
+    flags u16 [+ hue u16 if flags & 0x20]; mode 1 = index u16, cliloc u16
+    (+3000000), flags u16 [+ hue]), C2S 0x13 menu request (serial), C2S 0x15
+    menu selection (serial, index u16). Other subs: {"sub": n} only."""
+    r = _Reader(pkt)
+    r.take(3)
+    sub = r.u16()
+    d = {"sub": sub}
+    if sub == 0x14:
+        mode, d["serial"] = r.u16(), r.u32()
+        entries = []
+        for _ in range(r.u8()):
+            if mode >= 2:
+                e = {"cliloc": r.u32(), "index": r.u16(), "flags": r.u16()}
+            else:
+                idx, num = r.u16(), r.u16()
+                e = {"cliloc": num + 3000000, "index": idx, "flags": r.u16()}
+            if e["flags"] & 0x20:
+                e["hue"] = r.u16()
+            entries.append(e)
+        d["mode"], d["entries"] = mode, entries
+    elif sub == 0x13:
+        d["serial"] = r.u32()
+    elif sub == 0x15:
+        d["serial"], d["index"] = r.u32(), r.u16()
     return d
 
 
@@ -589,12 +670,19 @@ _PROC_S2C = {
     0xAE: _p_unicode_talk,
     0xA9: _p_character_list,
     0x98: _p_update_name,
+    0xC1: _p_cliloc,
+    0xCC: _p_cliloc,
+    0x74: _p_buy_list,
+    0xBF: _p_extended,
 }
 
 _PROC_C2S = {
     0xAD: _p_speech,
     0xB1: _p_gump_response,
     0x91: _p_login,
+    0x3B: _p_buy_request,
+    0x12: _p_text_command,
+    0xBF: _p_extended,
 }
 
 

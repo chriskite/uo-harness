@@ -107,12 +107,22 @@ LAYOUTS_S2C: dict[int, list[tuple[str, str, int]]] = {
 }
 
 LAYOUTS_C2S: dict[int, list[tuple[str, str, int]]] = {
-    # 0x6C target response (19) — standard C2S form (z is 2 bytes here, not
-    # the i8 of the S2C form; wire-validated in doc §6: z 0, graphic 0x0A24)
+    # 0x6C target response, Outlands V10+ form (27; Send_TargetObject
+    # @ 0x14015bec0, same as actions.target_object): type@1, cursor u32@2,
+    # ctype@6, serial u32@7, x u32@11, y u32@15, z i32@19, graphic u32@23.
+    # Real (164548): 6c 00 00052cb9 01 00094375 0000077c 00000a24 00000000 00000190
     0x6C: [("target_type", "u8", 1), ("cursor_id", "u32be", 2),
            ("cursor_type", "u8", 6), ("serial", "u32be", 7),
-           ("x", "u16be", 11), ("y", "u16be", 13), ("z", "u16be", 15),
-           ("graphic", "u16be", 17)],
+           ("x", "u32be", 11), ("y", "u32be", 15), ("z", "i32be", 19),
+           ("graphic", "u32be", 23)],
+    # 0x07 pick-up request (7; Send_PickUpRequest @ 0x14014bfb0)
+    0x07: [("serial", "u32be", 1), ("amount", "u16be", 5)],
+    # 0x08 drop request, V10+ form (22; Send_DropRequest @ 0x14014c700):
+    # container 0xFFFFFFFF = ground at x/y/z
+    0x08: [("serial", "u32be", 1), ("x", "u32be", 5), ("y", "u32be", 9),
+           ("z", "i32be", 13), ("grid", "u8", 17), ("container", "u32be", 18)],
+    # 0x13 equip request (10; Send_EquipRequest @ 0x14014d570)
+    0x13: [("serial", "u32be", 1), ("layer", "u8", 5), ("container", "u32be", 6)],
     0x02: [("dir", "u8", 1), ("seq", "u8", 2), ("key", "u32be", 3)],
     # 0x06 double click (5)
     0x06: [("serial", "u32be", 1)],

@@ -1,65 +1,81 @@
-# LUMBER_LOOP.md — first repeatable game loop: chop trees → deed → store in inn room
+# LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → deed → store in inn room
 
-Status: **PROPOSED 2026-09-29, open decisions in §7.** Builds on Phase 4 (docs/PLAN.md). This loop is
-the proposed Phase 4 workload: the planner, the skill library, the rails and the captcha handoff all
-get exercised by it.
+Status (2026-09-29): **decisions made (§7); M0 tooling built; waiting on the user's one-time setup and
+demonstration run (§10).** Builds on Phase 4 (docs/PLAN.md). This loop is the Phase 4 workload: the
+planner, the skill library, the rails and the captcha handoff all get exercised by it.
 
 ## 1. Goal and hard constraints
 
-The agent should **learn** the loop, **run** it, and **improve** it over sessions: chop trees, turn the
-wood into commodity deeds, walk back to the inn, enter the rental room, and store the deeds in a
-secure container. Test Shard only, character TestWorth.
+The agent should **learn** the loop, **run** it, and **improve** it over sessions:
+- chop trees
+- convert the logs to boards
+- walk back to the inn and enter the rental room
+- store the boards, and turn them into commodity deeds, in a secure container
+
+Test Shard only, character TestWorth. Venue: Shelter Island first, the regular overworld later (§7).
 
 These constraints come from existing docs and aren't optimization targets:
 - **Captcha = attended loop.** Lumberjacking triggers a captcha every 5–10 min, and a solved one buys
   10–15 min. Per AGENTS.md rule 7 / ANTICHEAT.md §8.3 and §8.8, the loop runs only while the user is
-  present: detect → pause → sound → human solves → resume. Expect ~4–6 handoffs per hour. Auto-solve
-  stays out of scope until the §8.8 accuracy bar is met.
+  present: detect → pause → sound → human solves → resume. Expect ~4–6 handoffs per hour (derived
+  from the wiki cadence). Auto-solve stays out of scope until the §8.8 accuracy bar is met.
 - **Pacing is a floor, not a knob.** The optimizer never tightens jitter, proxy walk pacing
   (0.2/0.4 s), break schedule or daily cap (PLAN.md Phase 4).
 - **Speech allowlist.** The loop needs one new trigger word near the innkeeper (`room`). Securing a
   container ("I wish to secure this") is one-time human setup, so it stays off the list.
 - **Nothing server-visible that a stock client wouldn't send.** Skills use the existing
   `actions.py` builders only.
+- **Never renounce Young status (Shelter phase).** Leaving Shelter Island by moongate, hike, recall
+  or gate first asks the player to confirm renouncing Young status, and that is permanent
+  ([Shelter Island](https://wiki.uooutlands.com/Shelter_Island)). The agent never uses travel on
+  Shelter, and any gump that mentions renouncing Young aborts the loop without a reply. Moving to
+  the overworld is a user action.
 
 ## 2. Game mechanics (wiki, read 2026-09-29; unverified in-game unless marked)
 
 | Fact | Source | Loop consequence |
 |---|---|---|
 | Smart Harvest: double-click the equipped hatchet → auto-harvests every nearby tree with wood left | [Lumberjacking](https://wiki.uooutlands.com/Lumberjacking) | Harvest = one dclick per spot, then wait for depletion. No per-tree targeting. **Conflict:** [Smart Harvest](https://wiki.uooutlands.com/Smart_Harvest) says tools other than pickaxes need a self-target → verify on the wire |
-| Lumberjacking is blocked in town regions, except Shelter Island while Young | Lumberjacking | Choose harvest spots outside the town region, or use Shelter Island if TestWorth is Young |
-| 60 s harvest lockout after recall / moongate / hike / teleport / rope | [Harvesting](https://wiki.uooutlands.com/Harvesting) | Walk, don't recall. Leaving the room teleports you → [INFERENCE] probably triggers the lockout. Walking to the trees usually covers it |
+| Harvesting on Shelter Island needs Young status. Harvest chance there is 50 % of normal, and skills cap at 80 | [Shelter Island](https://wiki.uooutlands.com/Shelter_Island) | Shelter yield is half the overworld's, so the r measured there doesn't transfer (§6). Lumberjacking is otherwise blocked in town regions |
+| No hostile player actions on Shelter Island. Bank and vendors need Young status | Shelter Island | PK hazard on Shelter = 0 (§6). Bank and banker purchases work only while Young |
+| **TestWorth is Young (capture evidence, 2026-09-29).** The client received the Young-only login gump "Welcome to Shelter Island" (`0xC16E0192`) in sessions 163420 and 202723 | Shelter Island + `loop_mine.py timeline 20260929_163420` | Venue decision holds |
+| 60 s harvest lockout after recall / moongate / hike / teleport / rope | [Harvesting](https://wiki.uooutlands.com/Harvesting) | Walk, don't recall (Shelter: never recall, §1). Leaving the room teleports you → [INFERENCE] probably triggers the lockout; the demo checks it |
 | Captcha: 5–10 min cadence; 3 fails = 6 h harvest block; closing it cancels the harvest; the same captcha persists across relog | [Captcha](https://wiki.uooutlands.com/Captcha) | Handoff state; the loop never closes or answers a captcha |
-| Log/board weight 0.025 st | Harvesting | Weight isn't binding until thousands of logs; the trip trigger is the deed quantum or the break schedule, not weight |
-| Double-click logs with a hatchet in the pack → boards | Harvesting, Lumberjacking | Conversion step; can run in the field |
+| Log/board weight 0.025 st | Harvesting | Weight isn't binding until thousands; the return trigger is risk/overhead (§6) |
+| Double-click logs with a hatchet in the pack → boards (**user-confirmed: deeds need boards**) | Harvesting, Lumberjacking | Conversion is a loop step; can run in the field |
 | Blank commodity deed: 5 gp at a banker; double-click the deed, target the resource | [Commodities](https://wiki.uooutlands.com/Commodities) | Needs gold + the target-cursor flow (S2C `0x6C` → `actions.target_object`) |
-| Commodity table lists **boards** (5 000 regular / 2 500 colored per deed), not logs | Commodities | "Log deeds" probably means board deeds → verify. Unknown: partial stacks allowed? Must the resource sit in the bank box (the RunUO rule, [INFERENCE] for Outlands)? |
-| Rental room: say `rent`/`room`/`house` near an Innkeeper (or use context menu "Rent") → room gump → Enter Room. Exit: dclick the front door → Exit to Town → **random room at the inn** | [Rental Room System](https://wiki.uooutlands.com/Rental_Room_System) | Two gump flows to learn. After exiting, the start position varies, so plan from the live position |
+| 5 000 regular boards (2 500 colored) per commodity deed | Commodities | Unknown: partial stacks allowed? Must the boards sit in the bank box (RunUO rule, [INFERENCE] for Outlands)? The demo tests it |
+| Rental room: say `rent`/`room`/`house` near an Innkeeper (or context menu "Rent") → room gump → Enter Room. Exit: dclick the front door → Exit to Town → **random room at the inn** | [Rental Room System](https://wiki.uooutlands.com/Rental_Room_System) | Two gump flows to learn. After exiting, the start position varies, so plan from the live position. Renting on Shelter while Young keeps Young |
 | No recall/gate into a room; no access within 2 min of PvP | Rental Room System | Walking return is the only way in |
-| Floor items decay after 1 h unless locked down; secure containers don't decay | Rental Room System | Deeds go into a secure container (one-time human setup) |
-| Commodities aren't blessed and can be looted | Commodities | Carrying deeds is a risk; store them promptly |
+| Floor items decay after 1 h unless locked down; secure containers don't decay | Rental Room System | Boards and deeds go into a secure container (one-time human setup) |
+| Commodities aren't blessed and can be looted | Commodities | Whatever is carried is at risk; §6 prices that |
 
 ## 3. The loop as a state machine
 
 ```mermaid
 stateDiagram-v2
   [*] --> Prep
-  Prep --> TravelOut: hatchet equipped, deeds in pack
+  Prep --> TravelOut: hatchet equipped
   TravelOut --> Harvest
   Harvest --> Harvest: spot depleted → next spot
-  Harvest --> Convert: return trigger
+  Harvest --> Convert: return trigger (§6)
+  Harvest --> Convert: hostile player sighted (overworld)
   Convert --> TravelBack
-  TravelBack --> Deed: at bank (if deeding needs the bank box)
   TravelBack --> EnterRoom
-  Deed --> EnterRoom
-  EnterRoom --> Store
-  Store --> ExitRoom
+  EnterRoom --> Store: boards into the secure container
+  Store --> Deed: stock ≥ deed quantum
+  Store --> ExitRoom: stock < quantum
+  Deed --> ExitRoom
   ExitRoom --> Prep
   Harvest --> CaptchaHandoff: captcha gump
   CaptchaHandoff --> Harvest: human solved
 ```
 
-Any state can be pre-empted by a proxy-enforced pause, break or kill (Phase 4 rails), or by a failure
+The trip threshold and the deed quantum are decoupled. Boards bank in the room every trip; a deed is
+made once the room stock reaches the quantum. If the demo shows that deeding needs the bank box,
+Deed becomes "take the quantum to the banker" and moves before EnterRoom.
+
+Any state can be pre-empted by a proxy-enforced pause, break or kill (agent gate), or by a failure
 (HP loss, movement stall, unknown gump). A failure goes to the LLM planner (§5).
 
 ## 4. Learn
@@ -68,15 +84,25 @@ The existing pattern is that knowledge is mined from captures and persisted as d
 `nav.py build` → `walkmem.json`. The loop follows it:
 
 1. **Learning by demonstration (first).** The user plays one full loop by hand through the proxy,
-   which already captures everything. An offline miner (`harness/loop_mine.py`) extracts it into
-   `harness/data/loops/lumber.json`:
+   which already captures everything (§10). `harness/loop_mine.py timeline <TAG>` (**built**)
+   replays the capture through the proxy's own SessionTap and prints what the player did and what
+   the server answered:
+   - dclicks, lifts, drops, target cursors and responses
+   - gumps with reply-button and text-entry ids, context menus, vendor lists, purchases
+   - cliloc messages rendered from Cliloc.enu
+   - amount changes in the backpack, bank box and opened containers
+   - every entity acted on
+   - the packet ids still unparsed
+
+   From that evidence, `harness/data/loops/lumber.json` is written. It holds:
    - serials: hatchet, innkeeper, door, secure container
    - gump ids and button ids: room menu, door menu, captcha
-   - the message ids for chop success, "not enough wood", failure and captcha
-   - the deed flow as a packet sequence (dclick deed → S2C `0x6C` cursor → C2S target on the stack)
-   - the route (walk memory)
-   Replay tests assert that the miner reproduces the file from the capture. This settles the §2
-   unknowns with evidence instead of guesses.
+   - cliloc numbers for chop success, "not enough wood", failure and captcha
+   - the deed and conversion flows
+   - the route
+
+   A replay test pins those facts to the capture. Extracting them automatically before seeing a
+   demo would mean guessing at their shape; after the demo they're read off the timeline.
 2. **World memory (online).** `harness/data/harvestmem.json`, keyed by the standing tile of each
    Smart Harvest spot:
    - trees in reach (from statics + tiledata, read-only from the install dir; Phase 4 decision)
@@ -89,6 +115,7 @@ The existing pattern is that knowledge is mined from captures and persisted as d
    - boards gained
    - steps, denies and reanchors
    - captchas, with human solve latency
+   - hostile sightings, deaths, losses
    - failures and their type
    The optimizer and the reflection step read this log and nothing else.
 
@@ -97,7 +124,7 @@ The existing pattern is that knowledge is mined from captures and persisted as d
 - **Skills** (deterministic Python controllers generalised from `errand_bank.py`; each skill has
   preconditions, a success check against world-model evidence, a timeout and a typed failure):
   `goto`, `smart_harvest(spot)`, `convert_logs`, `buy_blank_deeds`, `make_deed`, `enter_room`,
-  `store_in_container`, `exit_room`.
+  `store_in_container`, `take_from_container`, `exit_room`.
 - **Routine runner:** executes §3 from `lumber.json` with no LLM call in the steady state, so every
   cycle costs 0 API calls.
 - **LLM planner (Phase 4)** is called in three cases:
@@ -106,68 +133,135 @@ The existing pattern is that knowledge is mined from captures and persisted as d
   - after a session, for reflection (§6)
 
   It picks skills only (PLAN.md decision). LLM-authored skill code stays deferred.
-- **Rails:** captcha → pause + sound; visualizer pause/kill; breaks and daily cap. The runner
-  schedules the return so a forced break starts inside the room, which is safe and looks natural.
+- **Rails:**
+  - captcha → pause + sound
+  - visualizer pause/kill
+  - breaks and daily cap
+  - never renounce Young (§1)
+  - the runner schedules the return so a forced break starts inside the room, which is safe and looks natural
 
 ## 6. Optimize
 
-Objective: **boards per agent-active hour**, subject to §1.
+Objective: **boards banked per agent-active hour, net of expected losses**, subject to §1.
+
+### Return trigger: carried-value risk vs. trip overhead (user decision 2026-09-29)
+
+Carrying more goods means a bigger loss if a PK kills you. Going home more often costs overhead. And
+recall-hopping isn't free, because each recall or teleport adds a 60 s harvest lockout. Model per
+trip, with the quantities measured from the episode log:
+
+- `r`: boards per minute while harvesting (includes conversion, captcha pauses, spot moves)
+- `T`: round-trip overhead in minutes (walk back, room in/out, walk out, and any 60 s lockout after
+  a recall or the room exit)
+- `h`: hazard of losing the carried goods, per minute in the field (PK encounters × P(death))
+
+If a trip returns at `Q` boards, the carried load grows linearly, so the expected loss per trip is
+about `h·Q²/(2r)`, plus `h·Q·T_back` on the way home. Cost per banked board:
+
+$$c(Q) = \frac{rT}{Q} + \frac{hQ}{2r} + h\,T_{back} \quad\Rightarrow\quad Q^* = r\sqrt{2T/h}$$
+
+- **Shelter Island: `h = 0`** (no hostile player actions, wiki). `Q*` is unbounded, so the trip ends
+  on the next forced break (so the break is spent in the room), the weight cap or the session end.
+  Shelter trips are where `r` and `T` get measured. Shelter halves harvest chance, so its `r` does
+  not carry over to the overworld.
+- **Overworld (later):** `h` per region, estimated Bayesian-ly: a Gamma prior the user sets per region
+  (e.g. "PK-heavy forest"), updated with observed encounters over time spent (Gamma-Poisson:
+  `α + k`, `β + minutes`). `Q*` recomputes each trip. Deaths are rare, so the prior dominates for a
+  long time, and that's intended.
+- **Hazard spike overrides the threshold:** in the overworld, a sighted non-NPC player that isn't
+  friendly (notoriety from the world model) ends the trip immediately: convert, go home. On Shelter
+  it's not needed.
+- **Recall as a knob (overworld, later):** a recall home cuts `T_back` but adds a 60 s lockout on the
+  way back out. The model takes it when `T` drops.
+
+### Other knobs
 
 | Knob | Method |
 |---|---|
 | Which spot next | Bandit (Thompson sampling) over harvest-memory spots. Reward = yield ÷ (travel + harvest time); a spot is eligible only once its regrowth estimate has passed |
 | Spot order within a trip | Greedy nearest-eligible, with random tie-breaks among near-equal options |
-| Return trigger | Deed quantum (5 000 boards, or the smaller verified quantum), capped by time to the next forced break |
 | Where to convert/deed | Pick from measured episode times once §2 is verified (field vs. room vs. bank) |
 | Route | A* over map data plus learned denies. Sample among near-optimal paths so trips don't repeat tile for tile |
 
 Loop between sessions:
 - `harness/loop_report.py` computes metrics from the episode log.
 - The LLM reflection reads the report and proposes a diff to `lumber.json` parameters.
-- Spot statistics update automatically within bounds. Structural changes (new states, different
-  deed location) need user approval (§7 decision 3).
+- Spot statistics and the return-trigger estimates (`r`, `T`, `h`) update automatically within bounds.
+  Structural changes (new states, deed location, venue) need user approval.
 
 Anti-pattern guard: optimizing toward one identical path and cadence is itself a behavioral
 signature (ANTICHEAT.md §8.3). Variation is required, not an inefficiency to remove.
 
-## 7. Open decisions (user)
+## 7. Decisions (user, 2026-09-29)
 
-1. **Venue:** Shelter Island (if TestWorth is Young, in-town harvesting is allowed and the inn is
-   close) vs. a mainland town with forest outside the guard zone. Proposal: Shelter Island if eligible.
-2. **Deed flow:** depends on the §2 verification. Either stash boards in the room and deed once
-   ≥ 5 000 have accumulated, or deed per trip if partial stacks are allowed.
-3. **Optimizer autonomy:** proposal: spot and threshold statistics update automatically within
-   bounds; structural routine changes are user-approved per session.
-4. **Demonstration run:** needs ~1 manual loop by the user through the proxy, plus one-time setup:
-   - rent a room
-   - place and secure a container
-   - equip a hatchet
-   - have gold for blank deeds
-   - have enough Lumberjacking skill (a Test Shard template sets 60)
+1. **Venue:** start on Shelter Island (TestWorth is Young, confirmed by capture, §2). The regular
+   overworld comes later and is a user-initiated move, because leaving Shelter renounces Young.
+2. **Deed/return:** logs must be converted to boards for commodity deeds. The return trigger is the
+   §6 risk/overhead trade-off (PK loss vs. trip overhead, including the 60 s post-recall/teleport
+   harvest lockout). Boards bank in the room every trip; deeds are made at the quantum.
+3. **Optimizer autonomy:** as proposed. Spot and trigger statistics update automatically within
+   bounds; structural routine changes are user-approved per session. Grow later.
+4. **Setup + demonstration:** the user does it once the tooling is in place (§10).
 
-## 8. Prerequisites (current repo gaps)
+## 8. Prerequisites
 
-1. **Cliloc messages aren't parsed.** `world/parsers.py` `_PROC_S2C` has no `0xC1`/`0xCC`, so harvest
-   outcomes are invisible. Add them, plus a read-only `Cliloc.enu` lookup.
+1. ~~Cliloc messages aren't parsed~~ **done:**
+   - S2C `0xC1`/`0xCC` → `cliloc` event (number + args)
+   - `harness/uo/cliloc.py` renders from Cliloc.enu, read-only; 107 922 entries (e.g. 500498
+     "You put some logs into your backpack.", 500493 "There's not enough wood here to harvest.")
+   - also parsed now: vendor buy list/purchase (`0x74`/`0x3B`), context menus (`0xBF` 0x13/0x14/0x15),
+     text commands (`0x12`), lift/drop/equip (`0x07`/`0x08`/`0x13`)
+   - C2S `0x6C` and `0xB1` corrected to the Outlands layouts
 2. **Captcha detection.** The `CAPTCHA_GUMP_ID` value is unknown; get it from the demonstration
-   capture (0xB0/0xDD gump id + layout).
+   capture (gump id + layout in the timeline).
 3. ~~Pause/kill/break proxy flag + budget file~~ **built** (commit 2ffb29a: the proxy-enforced agent
    gate, `harness/agent_gate.py`). The routine runner has to honor gate refusals as a typed
    `paused` failure and resume cleanly.
-4. **Map/statics/tiledata reader** (Phase 4 decision, not built). Needed for tree positions and for
-   pathing beyond walk memory.
+4. **Map/statics/tiledata reader** (Phase 4 decision, not built). Outlands ships its own formats:
+   `facet0N.mul`, `art.uoo`, `artdata.uoo`, not `map0.mul`/`artLegacyMUL.uop`. The reader has to
+   handle them. Needed for tree positions and pathing beyond walk memory; not needed for the demo.
 5. **Live validation of target / lift / drop.** Builders exist (`actions.target_object`, `lift`,
    `drop`). HANDOFF lists speech, dclick, gumps, spells and item queries as proven live, not these.
-6. Add `room` to the speech allowlist.
+   The demonstration capture provides the stock-client reference packets to compare against.
+6. Add `room` to the speech allowlist (built with the agent runtime; not needed for the demo).
 
 ## 9. Milestones
 
 | # | Deliverable | Done when |
 |---|---|---|
-| M0 | Demonstration capture + `loop_mine.py` + `lumber.json` | §2 unknowns answered with capture evidence; miner replay test green |
-| M1 | Perception: cliloc parsing, captcha gump detection, harvest events | Replay of the demonstration yields every harvest outcome and the captcha as events |
+| M0 | Demonstration capture + `loop_mine.py timeline` (built) + `lumber.json` | §2 unknowns answered with capture evidence; replay test pins the loop facts |
+| M1 | Perception: cliloc parsing (built), captcha gump detection, harvest events | Replay of the demonstration yields every harvest outcome and the captcha as events |
 | M2 | Skills, each offline-tested (simulated world like `test_errand.py`), then live one at a time, attended | Each skill passes live on the Test Shard |
 | M3 | Routine runner, full loop | 1 cycle unattended except captcha handoffs; then N cycles across a forced break |
-| M4 | Harvest memory, episode log, report | Report reproduces from the logs; regrowth estimates exist for visited spots |
+| M4 | Harvest memory, episode log, report | Report reproduces from the logs; `r`, `T` and regrowth estimates exist |
 | M5 | Bandit + return trigger + reflection | Boards/active-hour improves over a baseline session on the same venue without violating §1 |
 | M6 | LLM planner composes and repairs the routine | Phase 4 done criterion: NL objective → loop run, with the captcha handoff demonstrated |
+
+## 10. Demonstration runbook (user)
+
+**Setup (one-time, by hand, can be done through the proxy):**
+1. Start the chain as in HANDOFF.md "Operate": proxy (restart it so the live state port has the new
+   parsers), divert NAT, launch the game.
+2. Check Young: single-click yourself; the label shows `(Young)`.
+3. Rent a room: say `rent` (or `room`) near the Shelter innkeeper, click Rent Room three times.
+   Enter, drop a container on the floor, say "I wish to secure this" and target it. Exit.
+4. Equip a hatchet. Carry some gold for blank commodity deeds (5 gp each).
+5. Note TestWorth's Lumberjacking skill; if it's low, a Test Shard template can set 60.
+
+**Demonstration (one continuous session through the proxy, ~20–30 min so a captcha shows up):**
+1. At the banker, buy a few blank commodity deeds, the way you normally would.
+2. Walk to trees where harvesting works. Double-click the hatchet (if a target cursor appears, target
+   yourself). Harvest until the spot is empty, move to another spot, keep going.
+3. When the captcha appears, solve it normally.
+4. Convert logs to boards (double-click the logs).
+5. Walk to the inn, say `room`, Enter Room.
+6. Try a deed: double-click a blank deed and target the boards in your backpack, even though it's
+   fewer than 5 000; the message tells us whether partial stacks or the backpack are allowed. If
+   it's refused, try with the boards in the bank box on a later trip.
+7. Put the boards (and any deed) into the secure container.
+8. Exit via the door (Exit to Town). Walk out and double-click the hatchet straight away. A lockout
+   message confirms the teleport lockout.
+9. Tell me the session tag (`logs/session_<tag>.*`). I run `python harness/loop_mine.py timeline
+   <tag>`, write `lumber.json`, and pin the facts in a replay test.
+
+Nothing in the harness injects during the demonstration; the proxy only relays and records.

@@ -767,8 +767,20 @@ correctly decoded captures (53 277 S2C packets, 0 length-table mismatches):
   0x1D (`1d 000001e8`), 0x22, 0x24, 0x25, 0x2E, 0x3C, 0x6C, 0x6E, 0x72, 0xA1–A3, 0xF3,
   0x89, 0xFF subs 3/9/0x15.
 - C2S (decode was always correct): 0x02 movement dir/seq/key (`02 86 00 00000008` —
-  dir 0x86 = dir 6 | running 0x80); C2S 0x6C target response stays 19 B standard
-  (`6c 00 00052cb9 01 00094375 0000 077c 00 0a24`).
+  dir 0x86 = dir 6 | running 0x80). **Corrected 2026-09-29:** C2S 0x6C target response is
+  the Outlands 27-byte form, u32 x/y/z/graphic (`6c 00 00052cb9 01 00094375 0000077c
+  00000a24 00000000 00000190`). The earlier "19 B standard" reading came from mis-framed
+  captures (docs/NOTES.md). C2S 0xB1 text-entry lengths are UTF-16 unit counts.
+- **Added 2026-09-29 (docs/LUMBER_LOOP.md §8):**
+  - S2C 0xC1/0xCC cliloc messages (upstream layout, same reads as `DisplayClilocString
+    @ 0x140196760`; 11 real 0xC1 across 3 captures)
+  - S2C 0x74 buy list and 0xBF sub 0x14 context menu (real packets)
+  - C2S 0x3B buy, 0x12 text command, 0xBF subs 0x13/0x15 (real packets)
+  - C2S 0x07 lift, 0x08 drop (22 B V10+), 0x13 equip (decompile-grounded senders, same
+    layouts as `harness/actions.py`)
+
+  Events: `cliloc`, `buy_list`, `buy`, `command`, `popup`, `popup_request`,
+  `popup_select`, `lift`, `drop`, `equip_request`.
 - Replay (`harness/replay.py 20260929_144541`) yields self serial 0x00094375, name
   TestWorth, login position (0x7AB, 0xA25, 0) from 0x1B and final position
   (0x7A6, 0xA25, 0) from the last self 0x20/0x77 — from S2C alone.

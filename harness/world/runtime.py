@@ -208,6 +208,14 @@ def _h_talk(rt, f):
              type=f["type"], hue=f["hue"], text=f["text"])
 
 
+def _h_cliloc(rt, f):
+    """0xC1 / 0xCC: cliloc message. Consumers match on the number; the text is
+    rendered on demand from Cliloc.enu (uo/cliloc.py)."""
+    rt._emit("cliloc", serial=f["serial"], name=f["name"], type=f["type"],
+             hue=f["hue"], cliloc=f["cliloc"], args=f["args"],
+             affix=f["affix"], affix_flags=f["affix_flags"])
+
+
 def _h_update_name(rt, f):
     rt.state.apply_names([{"serial": f["serial"], "name": f["name"]}])
 
@@ -458,6 +466,48 @@ def _h_target_response(rt, f):
              graphic=f["graphic"])
 
 
+def _h_lift(rt, f):
+    rt._emit("lift", serial=f["serial"], amount=f["amount"])
+
+
+def _h_drop(rt, f):
+    rt._emit("drop", serial=f["serial"], x=f["x"], y=f["y"], z=f["z"],
+             grid=f["grid"], container=f["container"])
+
+
+def _h_equip_request(rt, f):
+    rt._emit("equip_request", serial=f["serial"], layer=f["layer"],
+             container=f["container"])
+
+
+def _h_buy_list(rt, f):
+    rt._emit("buy_list", container=f["container"], items=f["items"])
+
+
+def _h_buy_request(rt, f):
+    rt._emit("buy", vendor=f["vendor"], items=f["items"])
+
+
+def _h_text_command(rt, f):
+    rt._emit("command", type=f["type"], text=f["text"])
+
+
+def _extended_handler(direction):
+    """0xBF: context menu subs become events; other subs are counted as
+    unhandled 0xBF (as before this parser existed)."""
+    def h(rt, f):
+        sub = f["sub"]
+        if sub == 0x14 and direction == S2C:
+            rt._emit("popup", serial=f["serial"], entries=f["entries"])
+        elif sub == 0x13 and direction == C2S:
+            rt._emit("popup_request", serial=f["serial"])
+        elif sub == 0x15 and direction == C2S:
+            rt._emit("popup_select", serial=f["serial"], index=f["index"])
+        else:
+            rt.unhandled[(direction, 0xBF)] += 1
+    return h
+
+
 _S2C_HANDLERS = {
     0x0B: _h_damage,
     0x22: _h_confirm_walk,
@@ -493,6 +543,10 @@ _S2C_HANDLERS = {
     0xAE: _h_talk,
     0x98: _h_update_name,
     0xA9: _h_character_list,
+    0xC1: _h_cliloc,
+    0xCC: _h_cliloc,
+    0x74: _h_buy_list,
+    0xBF: _extended_handler(S2C),
 }
 
 _C2S_HANDLERS = {
@@ -506,5 +560,11 @@ _C2S_HANDLERS = {
     0xAD: _h_speech,
     0xB1: _h_gump_response,
     0x6C: _h_target_response,
+    0x07: _h_lift,
+    0x08: _h_drop,
+    0x13: _h_equip_request,
+    0x3B: _h_buy_request,
+    0x12: _h_text_command,
+    0xBF: _extended_handler(C2S),
     0xFF: _h_dialect_c2s,
 }
