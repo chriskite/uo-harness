@@ -31,7 +31,7 @@ Rejected:
 - A server database (Postgres). It needs a service, which is too much for one local harness.
 - DuckDB. It's analytics-first, not in the stdlib, and has a single-writer file lock.
 
-## Schema (v1, `memory.SCHEMA`)
+## Schema (v2, `memory.SCHEMA`)
 
 | Table | Key | Contents |
 |---|---|---|
@@ -41,7 +41,10 @@ Rejected:
 | `harvest_nodes` | (`facet`, `x`, `y`, `z`) | `graphic`, `attempts`, `successes`, `yield`, `depleted_at`, `unreachable_at`, `not_tree` |
 | `harvest_attempts` | (append) | `t`, node, `outcome` (success/fail/depleted/not_tree/unreachable), `amount`. Index by node and time (regrowth and yield statistics) |
 | `episodes` | `id` | `loop`, `t_start`, `t_end`, `data` (the trip row JSON) |
-| `meta` | `key` | `schema_version` |
+| `junctures` | `id` | v2. Overseer wake-ups: `t`, `source` (runner or `ctl`), `kind` (task_done, task_failed, captcha, stuck, threat, theft_suspected, death, low_supplies, …), `severity` (info/attention/urgent), `summary`, `data`, `acked_t`. See docs/OVERSEER.md |
+| `chat` | `id` | v2. The viz chat and the overseer's visible thinking: `role` (user/overseer/system), `kind` (message/thought/action), `text`, `data` |
+| `job_events` | `id` | v2. Job analytics facts other than trips: `job`, `kind` (death with `data.cause`, theft, pk_seen, flee, …), `facet`/`x`/`y`, `data` |
+| `meta` | `key` | `schema_version`; overseer bus (docs/OVERSEER.md): `tasks` (running task entries), `task_stop`, `overseer_juncture_cursor`, `overseer_chat_cursor`, `overseer_heartbeat` (epoch s) |
 
 ## Who writes what
 

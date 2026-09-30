@@ -435,6 +435,40 @@ def _p_update_name(pkt):
     return {"serial": r.u32(), "name": _ascii(r.take(30))}
 
 
+def _p_open_menu(pkt):
+    """S2C 0x7C OpenMenu: item/question menu (the classic Tracking category
+    menu and other skill menus). Mirrors the client read-for-read: decomp
+    PacketHandlers.OpenMenu @ 0x140191200 (decompiled/protocol_handlers.c:
+    20838-21083); upstream PacketHandlers.cs:2956-3057.
+    serial u32, menu_id u16, title (u8 length + ASCII), count u8, then a PEEK
+    at the next u16, which is not consumed (decomp :20922-20941):
+      nonzero: item menu. Per entry: graphic (u32 at protocol >= 10, u16
+               below; decomp :20999-21033), hue u16, name (u8 length +
+               ASCII).
+      zero:    gray question menu. Per entry: 4 bytes the client skips (kept
+               here as `unread`), name (u8 length + ASCII).
+    The harness runs protocol 12 (u32 graphics). There the peek sees the first
+    graphic's high half, so a graphic below 0x10000 selects the gray branch,
+    exactly as the client would read it. No 0x7C was seen in the 27
+    captures."""
+    r = _Reader(pkt)
+    r.take(3)
+    d = {"serial": r.u32(), "menu_id": r.u16()}
+    d["title"] = _ascii(r.take(r.u8())).split("\x00", 1)[0]
+    count = r.u8()
+    d["gray"] = r.remaining() < 2 or int.from_bytes(pkt[r.p:r.p + 2], "big") == 0
+    entries = []
+    for _ in range(count):
+        if d["gray"]:
+            e = {"unread": r.u32()}
+        else:
+            e = {"graphic": r.u32(), "hue": r.u16()}
+        e["name"] = _ascii(r.take(r.u8())).split("\x00", 1)[0]
+        entries.append(e)
+    d["entries"] = entries
+    return d
+
+
 # ---------------------------------------------------------------------------
 # 0xFF Outlands dialect (both directions; sub-id space is per-direction)
 # ---------------------------------------------------------------------------
@@ -478,6 +512,33 @@ def _p_name_response(r, d):
     return d
 
 
+def _p_quest_arrow(r, d):
+    """0xFF sub 0x1A S2C HandleQuestArrow @ 0x1401a0160 (decompiled/
+    protocol_handlers.c:14307-14341): mode u8.
+      0 set (HandleQuestArrowSet @ 0x1401a01f0, :14430-14582): arrow_id u16,
+        1 byte the client skips, type u8, v16 u16, then four u32 and an
+        asciiz text. [INFERENCE] The names `type`, `x` and `y` are guesses:
+        x and y by analogy with 0xBA, whose arrow ctor gets (serial, x, y)
+        (:10240). The set ctor gets the four u32 first (:14575).
+      1 cancel (HandleQuestArrowCancel @ 0x1401a04f0, :14349-14387): arrow_id u16.
+      2 clear all (@ 0x1401a05a0): no payload.
+    [INFERENCE] Outlands' Tracking arrow probably uses this path (the wiki
+    shows a custom arrow and Hunting mode). No sub 0x1A was seen in the
+    captures."""
+    d["mode"] = r.u8()
+    if d["mode"] == 0:
+        d["arrow_id"] = r.u16()
+        r.u8()
+        d["type"] = r.u8()
+        d["v16"] = r.u16()
+        d["x"], d["y"], d["p3"], d["p4"] = r.u32(), r.u32(), r.u32(), r.u32()
+        rest = r.take(r.remaining())
+        d["text"] = rest.split(b"\x00", 1)[0].decode("ascii", "replace")
+    elif d["mode"] == 1:
+        d["arrow_id"] = r.u16()
+    return d
+
+
 def _p_dialect(direction, pkt):
     """0xFF frame: <len u16be> <subId u32be> <payload> (doc §5)."""
     r = _Reader(pkt)
@@ -500,6 +561,8 @@ def _p_dialect(direction, pkt):
             d["buff_id"] = r.u16()
         elif sub == 0x15:
             _p_name_response(r, d)
+        elif sub == 0x1A:
+            _p_quest_arrow(r, d)
         # all other subs: sub id reported, payload unparsed (doc §5 table)
     else:
         if sub == 3:
@@ -672,6 +735,7 @@ _PROC_S2C = {
     0xAE: _p_unicode_talk,
     0xA9: _p_character_list,
     0x98: _p_update_name,
+    0x7C: _p_open_menu,
     0xC1: _p_cliloc,
     0xCC: _p_cliloc,
     0x74: _p_buy_list,

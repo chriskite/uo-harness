@@ -1,0 +1,115 @@
+{
+  "source": "https://wiki.uooutlands.com/Lumberjacking (names, min_skill, base_chance_pct) ; https://wiki.uooutlands.com/Commodities (commodity_qty) ; https://wiki.uooutlands.com/New_Player_Guide (ordinary board ~9-10 gp) ; https://outlands.uorazorscripts.com/script/23d5660a-f8fd-491d-97b3-1afa3d73c84d ('Material Type Hues') + https://outlands.uorazorscripts.com/script/c87ec994-4970-4e52-8035-5191a8c51552 (colored-wood hues, community) ; harness capture 20260929_204225 + Outlands artdata.uoo (graphics, ordinary hue 0). Details and confidence: docs/research/ECONOMY.md",
+  "woods": [
+    {
+      "name": "ordinary",
+      "log_graphics": ["0x1BDD", "0x1BDE", "0x1BDF", "0x1BE0", "0x1BE1", "0x1BE2"],
+      "log_hue": 0,
+      "board_hue": 0,
+      "min_skill": 0.0,
+      "value_gp": 9.5,
+      "base_chance_pct": 81.75,
+      "commodity_qty": 5000,
+      "notes": "Outlands wiki calls it 'Regular'. Captured in-game: log 0x1BDD hue 0, board 0x1BD7 hue 0 (session 20260929_204225). 0x1BDE-0x1BE2 are the other artdata 'log(s)' graphics, not seen on the wire. value_gp = midpoint of the wiki's player-to-player 'around 9-10 gp' per board (live shard, undated)."
+    },
+    {
+      "name": "dullwood",
+      "log_graphics": ["0x1BDD"],
+      "log_hue": 2419,
+      "board_hue": 2419,
+      "min_skill": 65.0,
+      "value_gp": null,
+      "base_chance_pct": 4.0,
+      "commodity_qty": 2500,
+      "notes": "Hue from two community Razor scripts (shared with Dull Copper / Dullhide); not yet seen in a capture. Colored logs share the ordinary graphic per community scripts (findtype 7133 + hue != 0). Crafting bonus tier 1 of 9 (wiki Modifiers)."
+    },
+    {
+      "name": "shadowwood",
+      "log_graphics": ["0x1BDD"],
+      "log_hue": 2406,
+      "board_hue": 2406,
+      "min_skill": 70.0,
+      "value_gp": null,
+      "base_chance_pct": 3.5,
+      "commodity_qty": 2500,
+      "notes": "Hue from community Razor scripts (shared with Shadow Iron); not yet captured."
+    },
+    {
+      "name": "copperwood",
+      "log_graphics": ["0x1BDD"],
+      "log_hue": 2413,
+      "board_hue": 2413,
+      "min_skill": 75.0,
+      "value_gp": null,
+      "base_chance_pct": 3.0,
+      "commodity_qty": 2500,
+      "notes": "Hue from community Razor scripts (shared with Copper); not yet captured."
+    },
+    {
+      "name": "bronzewood",
+      "log_graphics": ["0x1BDD"],
+      "log_hue": 2418,
+      "board_hue": 2418,
+      "min_skill": 80.0,
+      "value_gp": null,
+      "base_chance_pct": 2.5,
+      "commodity_qty": 2500,
+      "notes": "Hue from community Razor scripts (shared with Bronze); not yet captured. Shelter Island caps skills at 80."
+    },
+    {
+      "name": "goldenwood",
+      "log_graphics": ["0x1BDD"],
+      "log_hue": 2213,
+      "board_hue": 2213,
+      "min_skill": 85.0,
+      "value_gp": null,
+      "base_chance_pct": 2.0,
+      "commodity_qty": 2500,
+      "notes": "Hue from community Razor scripts (shared with Gold); not yet captured."
+    },
+    {
+      "name": "rosewood",
+      "log_graphics": ["0x1BDD"],
+      "log_hue": 2425,
+      "board_hue": 2425,
+      "min_skill": 90.0,
+      "value_gp": null,
+      "base_chance_pct": 1.5,
+      "commodity_qty": 2500,
+      "notes": "Hue from community Razor scripts (shared with Agapite); not yet captured."
+    },
+    {
+      "name": "verewood",
+      "log_graphics": ["0x1BDD"],
+      "log_hue": 2207,
+      "board_hue": 2207,
+      "min_skill": 95.0,
+      "value_gp": null,
+      "base_chance_pct": 1.0,
+      "commodity_qty": 2500,
+      "notes": "Hue from community Razor scripts (shared with Verite); not yet captured."
+    },
+    {
+      "name": "valewood",
+      "log_graphics": ["0x1BDD"],
+      "log_hue": 2219,
+      "board_hue": 2219,
+      "min_skill": 99.0,
+      "value_gp": null,
+      "base_chance_pct": 0.5,
+      "commodity_qty": 2500,
+      "notes": "Hue from community Razor scripts (shared with Valorite); not yet captured."
+    },
+    {
+      "name": "avarwood",
+      "log_graphics": ["0x1BDD"],
+      "log_hue": 1763,
+      "board_hue": 1763,
+      "min_skill": 110.0,
+      "value_gp": null,
+      "base_chance_pct": 0.25,
+      "commodity_qty": 2500,
+      "notes": "Hue from community Razor scripts (shared with Avarite); not yet captured. Needs a skill cap above 100 (Skill Mastery scrolls)."
+    }
+  ]
+}

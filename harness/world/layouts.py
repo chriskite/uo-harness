@@ -105,6 +105,15 @@ LAYOUTS_S2C: dict[int, list[tuple[str, str, int]]] = {
     0x1B: [("serial", "u32be", 1), ("skip", "skip:4", 5),
            ("graphic", "u32be", 9), ("x", "u32be", 13), ("y", "u32be", 17),
            ("z", "i32be", 21), ("dir", "u8", 25)],
+    # 0xBA DisplayQuestArrow V10 (14; the client's own length table,
+    # decompiled/xref_packets_table.c:323) — decomp DisplayQuestArrow
+    # @ 0x140194820 (decompiled/protocol_handlers.c:10115-10248): display u8,
+    # then x/y as u32 at protocol >= 10 (u16 below), then serial u32. Upstream
+    # PacketHandlers.cs:4042-4075 has the u16 form. Tracking's on-screen
+    # arrow is a quest arrow on UO servers. [INFERENCE] Outlands' Tracking
+    # arrow may come here or via the dialect sub 0x1A instead (parsers.py).
+    0xBA: [("display", "u8", 1), ("x", "u32be", 2), ("y", "u32be", 6),
+           ("serial", "u32be", 10)],
 }
 
 LAYOUTS_C2S: dict[int, list[tuple[str, str, int]]] = {

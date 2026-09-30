@@ -356,6 +356,19 @@ def _gump_open(rt, f):
              layout=g.layout, lines=g.lines)
 
 
+def _h_open_menu(rt, f):
+    """0x7C item/question menu (Tracking categories on classic servers). The
+    menu is reported as an event; answering it (C2S 0x7D) is not built."""
+    rt._emit("menu", serial=f["serial"], menu_id=f["menu_id"], title=f["title"],
+             gray=f["gray"], entries=f["entries"])
+
+
+def _h_quest_arrow(rt, f):
+    """0xBA quest arrow on/off (display 0 = remove)."""
+    rt._emit("quest_arrow", display=bool(f["display"]), x=f["x"], y=f["y"],
+             serial=f["serial"])
+
+
 # ---------------------------------------------------------------------------
 # 0xFF dialect sub-dispatch
 # ---------------------------------------------------------------------------
@@ -380,6 +393,13 @@ def _d_s2c(rt, f):
     elif sub == 0x15:
         rt.state.apply_names(f["entries"])
         rt._emit("names", count=len(f["entries"]), entries=f["entries"])
+    elif sub == 0x1A and f.get("mode") == 0:
+        rt._emit("quest_arrow_set", **{k: f[k] for k in (
+            "arrow_id", "type", "v16", "x", "y", "p3", "p4", "text")})
+    elif sub == 0x1A and f.get("mode") == 1:
+        rt._emit("quest_arrow_cancel", arrow_id=f["arrow_id"])
+    elif sub == 0x1A and f.get("mode") == 2:
+        rt._emit("quest_arrow_clear")
     else:
         rt.dialect_unhandled[(S2C, sub)] += 1
 
@@ -550,6 +570,8 @@ _S2C_HANDLERS = {
     0xCC: _h_cliloc,
     0x74: _h_buy_list,
     0xBF: _extended_handler(S2C),
+    0x7C: _h_open_menu,
+    0xBA: _h_quest_arrow,
 }
 
 _C2S_HANDLERS = {

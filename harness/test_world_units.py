@@ -804,6 +804,84 @@ def test_mobile_routing():
     eq("0x1B mismatch keeps self", s.serial, 0x00094375)
 
 
+def _var(pid, body_hex):
+    body = bytes.fromhex(body_hex)
+    return bytes([pid]) + (3 + len(body)).to_bytes(2, "big") + body
+
+
+def _asc(s):
+    b = s.encode("ascii")
+    return f"{len(b):02x}" + b.hex()
+
+
+def test_tracking_packets():
+    print("== 0x7C menu / 0xBA quest arrow / 0xFF sub 0x1A (hand-built) ==")
+    # 0xBA V10 (14): display, x u32, y u32, serial u32
+    pkt = bytes.fromhex("ba" "01" "04050607" "08090a0b" "0c0d0e0f")
+    eq("0xBA fields", parse_packet("s2c", pkt),
+       {"display": 1, "x": 0x04050607, "y": 0x08090A0B, "serial": 0x0C0D0E0F})
+    rt = WorldRuntime()
+    rt.feed_packet("s2c", pkt)
+    rt.feed_packet("s2c", bytes.fromhex("ba" "00" "00000000" "00000000" "0c0d0e0f"))
+    eq("0xBA events", rt.drain_events(), [
+        {"ev": "quest_arrow", "display": True, "x": 0x04050607, "y": 0x08090A0B,
+         "serial": 0x0C0D0E0F},
+        {"ev": "quest_arrow", "display": False, "x": 0, "y": 0, "serial": 0x0C0D0E0F}])
+    eq("0xBA handled", rt.unhandled[("s2c", 0xBA)], 0)
+    check("0xBA short -> incomplete", _raises(bytes.fromhex("ba01040506070809")))
+
+    # 0x7C item menu: peeked u16 (first graphic's high half) nonzero -> u32
+    # graphic + hue u16 + name per entry
+    item = _var(0x7C, "04050607" "0809" + _asc("Track") + "02" +
+                "00010203" "0405" + _asc("Animals") +
+                "00010a0b" "0c0d" + _asc("Players"))
+    eq("0x7C item menu", parse_packet("s2c", item),
+       {"serial": 0x04050607, "menu_id": 0x0809, "title": "Track", "gray": False,
+        "entries": [{"graphic": 0x00010203, "hue": 0x0405, "name": "Animals"},
+                    {"graphic": 0x00010A0B, "hue": 0x0C0D, "name": "Players"}]})
+    # gray menu: peeked u16 zero -> 4 unread bytes + name per entry (the
+    # branch a protocol-12 client takes for any graphic < 0x10000)
+    gray = _var(0x7C, "04050607" "0809" + _asc("What?") + "02" +
+                "00000102" + _asc("Yes") + "00000304" + _asc("No"))
+    f = parse_packet("s2c", gray)
+    eq("0x7C gray menu", f,
+       {"serial": 0x04050607, "menu_id": 0x0809, "title": "What?", "gray": True,
+        "entries": [{"unread": 0x0102, "name": "Yes"}, {"unread": 0x0304, "name": "No"}]})
+    empty = _var(0x7C, "04050607" "0809" + _asc("") + "00")
+    eq("0x7C no entries", parse_packet("s2c", empty)["entries"], [])
+    check("0x7C count beyond buffer -> incomplete", _raises(
+        _var(0x7C, "04050607" "0809" + _asc("T") + "02" + "00000102" + _asc("Yes"))))
+    rt = WorldRuntime()
+    rt.feed_packet("s2c", gray)
+    eq("0x7C event", rt.drain_events(), [{"ev": "menu", **f}])
+
+    # 0xFF sub 0x1A: mode 0 set / 1 cancel / 2 clear all
+    setp = _var(0xFF, "0000001a" "00" "0102" "ee" "03" "0405"
+                "00000706" "00000a09" "0b0c0d0e" "0f101112" + b"a deer\x00".hex())
+    eq("sub 0x1A set", parse_packet("s2c", setp),
+       {"sub": 0x1A, "mode": 0, "arrow_id": 0x0102, "type": 3, "v16": 0x0405,
+        "x": 0x706, "y": 0xA09, "p3": 0x0B0C0D0E, "p4": 0x0F101112, "text": "a deer"})
+    cancel = _var(0xFF, "0000001a" "01" "0102")
+    clear = _var(0xFF, "0000001a" "02")
+    odd = _var(0xFF, "0000001a" "07")
+    rt = WorldRuntime()
+    for p in (setp, cancel, clear, odd):
+        rt.feed_packet("s2c", p)
+    eq("sub 0x1A events", [e["ev"] for e in rt.drain_events()],
+       ["quest_arrow_set", "quest_arrow_cancel", "quest_arrow_clear"])
+    eq("sub 0x1A unknown mode counted", rt.dialect_unhandled[("s2c", 0x1A)], 1)
+    check("sub 0x1A set truncated -> incomplete", _raises(
+        _var(0xFF, "0000001a" "00" "0102" "ee" "03" "0405" "00000706")))
+
+
+def _raises(pkt):
+    try:
+        parse_packet("s2c", pkt)
+    except PacketIncomplete:
+        return True
+    return False
+
+
 
 def test_event_semantics():
     print("== event semantics ==")
@@ -862,7 +940,7 @@ TESTS = [test_fixed_s2c, test_fixed_c2s, test_character_status_11,
          test_skills_3a, test_world_item_1a, test_container_content_3c,
          test_corpse_equipment_89, test_healthbar_16_17, test_gumps_b0_dd,
          test_dialect_ff, test_c2s_procedural, test_mobile_parsers, test_cliloc,
-         test_vendor_popup_command,
+         test_vendor_popup_command, test_tracking_packets,
          test_mobile_routing, test_truncation, test_runtime_edges,
          test_event_semantics]
 

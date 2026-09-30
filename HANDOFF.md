@@ -53,6 +53,13 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
    - The visualizer shows what the agent is trying to do ("Heading to tree at …", "Chopping …",
      "Going home: …") in the **Agent** panel and as a map reticle (VISUALIZER.md §2.3). The live
      proxy must be restarted once to carry intents; the runners work either way.
+   - **Next phase planned (2026-09-29 night): [`docs/ROADMAP.md`](docs/ROADMAP.md).** Built:
+     - the overseer bus + `harness/ctl.py` (docs/OVERSEER.md)
+     - the viz Overseer tab and Jobs page
+     - `threats.py`, `ledger.py` and the Tracking parsers
+     - loop guards: captcha, threat, theft and death junctures
+
+     The ROADMAP ends with the user's open questions and the demo captures needed.
 4. Optional: map-based z for re-anchors (stairs/slopes).
 5. ~~Visualizer~~ **Phase A BUILT (docs/VISUALIZER.md §9)**: read-only `viz_server.py`
    (live on the state port, or an exact offline replay of a capture) plus a React + TSX frontend

@@ -56,6 +56,7 @@ WALLS = {(122, y) for y in range(190, 211)} - {DOOR}
 MENU_ID = 0x8EAEFBDB
 LOCK_S = 25                                              # longer than the walk back out
 LOGS_PER_SUCCESS = 3
+STOLEN = 2                                               # a pickpocket's take, once (the loop must carry on)
 GOOD_VISIT = 6                                           # attempts before the good tree runs dry
 DD = nav.DIR_DELTA
 FAILURES = []
@@ -163,6 +164,7 @@ class World:
         self.pending_attempt = None
         self.good_n = 0
         self.logs_serial, self.logs = None, 0
+        self.stolen = 0
         self.board_serial = 0x45000100
         self.pack_boards = {}             # serial -> amount
         self.box_stack = None             # (serial, amount)
@@ -247,6 +249,10 @@ class World:
         self.harvested += LOGS_PER_SUCCESS
         self.later(0.3, [contained(self.logs_serial, 0x1BDD, self.logs, BACKPACK),
                          sys_text("You chop some logs and put them in your backpack.")])
+        if self.good_n == 4:                 # a pickpocket lifts part of the stack once, unannounced
+            self.logs -= STOLEN
+            self.stolen += STOLEN
+            self.later(0.8, [contained(self.logs_serial, 0x1BDD, self.logs, BACKPACK)])
 
     def convert(self, serial):
         if serial != self.logs_serial:
@@ -476,15 +482,32 @@ async def main():
         check("the runner recognised the real captcha (submit id not the demo's) and handed it off",
               text.count("CAPTCHA: please solve it in the client") == 1
               and sum(r.get("captchas", 0) for r in rows) == 1, str([r.get("captchas") for r in rows]))
+        caps = [j for j in store.junctures() if j["kind"] == "captcha"]
+        check("captcha juncture posted for the overseer (urgent) and acked once the human solved it",
+              len(caps) == 1 and caps[0]["severity"] == "urgent" and caps[0]["acked_t"] is not None, str(caps))
+        alarms = [j for j in store.junctures() if j["kind"] in ("threat", "death")]
+        thefts = [j for j in store.junctures() if j["kind"] == "theft_suspected"]
+        tev = [e for e in store.job_events("lumber") if e["kind"] == "theft"]
+        check("no false threat/death alarms (conversion and storing declared to the ledger)",
+              not alarms, str(alarms)[:300])
+        check("the pickpocket: one theft_suspected juncture + one theft job event with the stolen amount",
+              len(thefts) == 1 and len(tev) == 1 and tev[0]["data"]["amount"] == STOLEN,
+              f"{len(thefts)} junctures, {[e['data'].get('amount') for e in tev]}")
+        check("the loop carried on after the theft (both trips complete)", "loop complete: 2 trip(s)" in text)
+        check("trip rows carry logs by wood type; the pack's logs at conversion (after the theft)",
+              all("ordinary" in (r.get("woods") or {}) for r in rows)
+              and sum(sum(r["woods"].values()) for r in rows) == sum(r["logs"] for r in rows) - STOLEN,
+              str([(r.get("logs"), r.get("woods")) for r in rows]))
         check("decoy gumps were shown and never answered",
               len(world.decoys) >= 4 and world.decoy_replies == 0, f"{len(world.decoys)} decoys")
         check("agent gump replies = rental-room menu only (2 enters + 2 exits)",
               len(b1_agent) == 4 and world.rooms_entered == 2 and world.rooms_left == 2, str(len(b1_agent)))
         check("walked to the innkeeper's live position: never 'too far' (knowledge pos is 14 tiles off)",
               world.too_far == 0, str(world.too_far))
-        check("every harvested log ended in the secure container as boards",
-              world.box_stack is not None and world.box_stack[1] == world.harvested == 2 * 3 * LOGS_PER_SUCCESS,
-              f"box {world.box_stack}, harvested {world.harvested}")
+        check("every harvested log not stolen ended in the secure container as boards",
+              world.box_stack is not None and world.harvested == 2 * 3 * LOGS_PER_SUCCESS
+              and world.box_stack[1] == world.harvested - world.stolen,
+              f"box {world.box_stack}, harvested {world.harvested}, stolen {world.stolen}")
         check("nothing left in the backpack", world.logs == 0 and not world.pack_boards)
         check("each trip tried the dry tree once, then moved on",
               world.dry_attempts == 2, str(world.dry_attempts))

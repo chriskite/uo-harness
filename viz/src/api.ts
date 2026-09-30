@@ -1,5 +1,8 @@
 // viz_server client (docs/VISUALIZER.md §2.1): initial REST fetch, SSE stream
-// with resume, periodic walk-memory refresh, playback and agent-gate control.
+// with resume, periodic walk-memory refresh, playback and agent-gate control,
+// job analytics and the overseer chat (§2.4).
+import type { JobsResponse } from "./jobs.ts";
+import type { OverseerResponse } from "./overseer.ts";
 import type { VizStore } from "./store.ts";
 import type { EventEnvelope, Gate, GateAction, GateResponse, PlaybackAction, StateResponse, WalkMemoryFile } from "./types.ts";
 
@@ -27,6 +30,32 @@ export async function postPlayback(action: PlaybackAction): Promise<void> {
     body: JSON.stringify(action),
   });
   if (!r.ok) throw new Error(`/api/playback: HTTP ${r.status} ${await r.text()}`);
+}
+
+/** Job analytics (harness/jobs.py); `tz` = minutes east of UTC for the per-day split. */
+export async function fetchJobs(job: string, tz: number): Promise<JobsResponse> {
+  const r = await fetch(`/api/jobs?job=${encodeURIComponent(job)}&tz=${tz}`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`/api/jobs: HTTP ${r.status} ${await r.text()}`);
+  return (await r.json()) as JobsResponse;
+}
+
+/** Chat rows and junctures above the cursors (0 = the newest 200), open junctures, heartbeat. */
+export async function fetchOverseer(afterChat: number, afterJuncture: number): Promise<OverseerResponse> {
+  const r = await fetch(`/api/overseer?after_chat=${afterChat}&after_juncture=${afterJuncture}`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`/api/overseer: HTTP ${r.status} ${await r.text()}`);
+  return (await r.json()) as OverseerResponse;
+}
+
+/** A user chat message for the overseer; resolves to its row id. */
+export async function postChat(text: string): Promise<number> {
+  const r = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  const body = (await r.json().catch(() => null)) as { ok?: boolean; id?: number; error?: string } | null;
+  if (!r.ok || !body?.ok || typeof body.id !== "number") throw new Error(`chat: ${body?.error ?? `HTTP ${r.status}`}`);
+  return body.id;
 }
 
 /** Pause/resume/kill the agent gate (live only). Resolves to the proxy's new gate;

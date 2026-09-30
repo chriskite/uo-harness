@@ -14,6 +14,12 @@
 - agent gate via /api/gate: replay 409, rearm 400, proxy down 502; live pause
   (proxy reports paused, control-port injection gets ERR ...paused), resume,
   kill, resume-while-killed 409
+- job analytics (harness/jobs.py): trip rows, totals, per-day split, rolling
+  logs/hr, deaths by cause, thefts, value from woods, since filter, determinism
+- /api/jobs, /api/overseer (cursors, newest-200 window, open junctures,
+  heartbeat), POST /api/chat (stored as a user row; empty / whitespace / too
+  long / non-string -> 400); a missing memory store is not created by GETs;
+  live mode serves the same routes with the proxy down
 """
 import collections
 import json
@@ -32,6 +38,7 @@ ROOT = os.path.dirname(HERE)
 PY = sys.executable
 sys.path.insert(0, HERE)
 
+import jobs  # noqa: E402
 import memory  # noqa: E402
 import viz_feed  # noqa: E402
 import viz_server  # noqa: E402
@@ -41,6 +48,7 @@ TAG = "20260929_163420"
 TAG_COMMIT = "5f8c228"      # "Phase 3 DONE: unattended bank run ... session_20260929_163420"
 OLD_TAG = "20260928_141253"
 SERVER_PORT = 12630
+OVERSEER_PORT = 12764      # .. 12766: overseer/jobs route servers
 PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT, VIZ_PORT = 12620, 12621, 12622, 12623, 12624
 C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
@@ -123,10 +131,225 @@ def seeded_memory_db() -> str:
 MEMORY_DB = seeded_memory_db()
 
 
-def serve(feed, port):
-    srv = viz_server.VizServer(("127.0.0.1", port), feed, os.path.join(ROOT, "viz", "dist"), MEMORY_DB)
+def serve(feed, port, memory_db=None):
+    srv = viz_server.VizServer(("127.0.0.1", port), feed, os.path.join(ROOT, "viz", "dist"), memory_db or MEMORY_DB)
     threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
     return srv
+
+
+def get_status(url, timeout=5) -> tuple[int, dict]:
+    """GET JSON; (status, parsed reply) for 2xx and HTTP errors alike."""
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read())
+
+
+DAY = 86400.0
+WOODS = {"ordinary": {"name": "ordinary", "value_gp": 9.5}, "oak": {"name": "oak", "value_gp": None}}
+
+
+def seed_jobs(m: memory.Memory):
+    """Three lumber trips over two UTC days (1970-01-01/02), an errand row, job events
+    of every kind, harvest attempts, chat, junctures and an overseer heartbeat."""
+    m.episode("lumber", {"trip": 1, "t_start": 1000.0, "t_end": 2800.0, "logs": 20, "stored": 20, "captchas": 1,
+                         "captcha_wait_s": 12.5, "attempts": 10, "successes": 4,
+                         "phases_s": {"harvest": 1500.0, "convert": 60.0, "to_room": 200.0, "store": 20.0, "exit": 20.0}})
+    m.episode("errand", {"t_start": 1500.0, "t_end": 1600.0, "logs": 999})
+    m.episode("lumber", {"trip": 2, "t_start": 5000.0, "t_end": 6200.0, "logs": 30, "stored": 25,
+                         "woods": {"ordinary": 20, "oak": 10}, "attempts": 12, "successes": 6})
+    m.episode("lumber", {"trip": 1, "t_start": DAY + 100, "t_end": DAY + 700, "logs": 12, "stored": 12})
+    m.job_event("lumber", "death", {"cause": "pk", "name": "Bob"}, 0, 10, 20, t=1500.0)
+    m.job_event("lumber", "death", {"cause": "mob"}, t=5100.0)
+    m.job_event("lumber", "death", {"cause": "fall"}, t=7000.0)
+    m.job_event("lumber", "theft", {"items": {"board": 7}}, t=6000.0)
+    m.job_event("lumber", "theft", {"amount": 5}, t=DAY + 200)
+    m.job_event("lumber", "pk_seen", {"name": "Bob"}, t=1400.0)
+    m.job_event("lumber", "pk_seen", {}, t=DAY + 300)
+    m.job_event("lumber", "flee", {"reason": "pk"}, t=1450.0)
+    m.job_event("mining", "death", {"cause": "pk"}, t=1600.0)
+    for i, (outcome, amount) in enumerate([("success", 5), ("success", 6), ("fail", 0), ("success", 7),
+                                           ("fail", 0), ("depleted", 0)]):
+        m.harvest_record(0, 100 + i, 200, 0, 0x0CD0, outcome, amount, t=1100.0 + i)
+
+
+def test_jobs():
+    print("== job analytics (harness/jobs.py) ==")
+    path = os.path.join(tempfile.mkdtemp(), "harness.db")
+    m = memory.Memory(path)
+    seed_jobs(m)
+    a = jobs.analytics(m, "lumber", 0, woods=WOODS)
+    t = a["totals"]
+    check("totals: 3 lumber trips (errand row ignored), 62 logs, 57 stored",
+          (t["trips"], t["logs"], t["stored"]) == (3, 62, 57), str({k: t[k] for k in ("trips", "logs", "stored")}))
+    check("active time = sum of trip durations (1800+1200+600 s = 1 h), gaps excluded",
+          t["active_s"] == 3600.0 and t["active_hours"] == 1.0, f"{t['active_s']} {t['active_hours']}")
+    check("logs/hr 62.0, logs/trip 20.67, chop success 10/22",
+          (t["logs_per_hour"], t["logs_per_trip"], t["success_rate"]) == (62.0, 20.67, 0.45), str(t))
+    check("captchas 1, 12.5 s wait", (t["captchas"], t["captcha_wait_s"]) == (1, 12.5))
+    check("deaths by cause: pk 1, mob 1, other ('fall') 1; other jobs' events excluded",
+          t["deaths"] == {"pk": 1, "mob": 1, "other": 1, "total": 3}, str(t["deaths"]))
+    check("thefts: 2, loss 7 (items) + 5 (amount) = 12", t["thefts"] == {"count": 2, "amount": 12, "items": {"board": 7}},
+          str(t["thefts"]))
+    check("pk_seen 2, flees 1", (t["pk_seen"], t["flees"]) == (2, 1))
+    check("value: 52 ordinary logs x 9.5 (unbroken-down trips count as ordinary) = 494, 10 oak unpriced",
+          t["value_gp"] == 494.0 and t["value_unpriced_logs"] == 10, f"{t['value_gp']} {t['value_unpriced_logs']}")
+    check("wood breakdown from the rows that carry one", t["woods"] == {"ordinary": 20, "oak": 10}, str(t["woods"]))
+    check("span first/last", (t["first_t"], t["last_t"]) == (1000.0, DAY + 700), str((t["first_t"], t["last_t"])))
+    tr = a["trips"]
+    check("trip rows in start order: n, duration, logs/hr",
+          [(r["n"], r["duration_s"], r["logs_per_hour"]) for r in tr] == [(1, 1800.0, 40.0), (2, 1200.0, 90.0),
+                                                                          (3, 600.0, 72.0)],
+          str([(r["n"], r["duration_s"], r["logs_per_hour"]) for r in tr]))
+    check("trip phases and value per trip", tr[0]["phases_s"]["harvest"] == 1500.0
+          and [r["value_gp"] for r in tr] == [190.0, 190.0, 114.0], str([r["value_gp"] for r in tr]))
+    check("events attributed to the trip they fell in (pk death in #1; mob death + theft in #2)",
+          [r["events"] for r in tr] == [{"death": 1, "pk_seen": 1, "flee": 1}, {"death": 1, "theft": 1},
+                                        {"theft": 1, "pk_seen": 1}],
+          str([r["events"] for r in tr]))
+    days = {d["day"]: d for d in a["days"]}
+    check("per-day (UTC): 1970-01-01 two trips 50 logs 3000 s = 60/hr; 01-02 one trip",
+          list(days) == ["1970-01-01", "1970-01-02"] and days["1970-01-01"]["logs"] == 50
+          and days["1970-01-01"]["logs_per_hour"] == 60.0 and days["1970-01-02"]["trips"] == 1, str(list(days)))
+    check("per-day events: day 1 has all three deaths, day 2 the 5-loss theft",
+          days["1970-01-01"]["deaths"]["total"] == 3 and days["1970-01-02"]["thefts"]["amount"] == 5
+          and days["1970-01-02"]["deaths"]["total"] == 0)
+    shifted = jobs.analytics(m, "lumber", 0, woods=WOODS, utc_offset_s=23 * 3600)
+    check("utc offset moves the day boundary (+23 h: trip #2 lands on 01-02)",
+          [(d["day"], d["trips"]) for d in shifted["days"]] == [("1970-01-01", 1), ("1970-01-02", 2)],
+          str([(d["day"], d["trips"]) for d in shifted["days"]]))
+    roll = [(p["n"], p["logs_per_hour"], p["cum_logs_per_hour"], p["window_trips"]) for p in a["rolling"]]
+    check("rolling 1 h window at each trip end: 40 -> (20+30)/3000 s = 60 -> #3 alone 72; cumulative 40, 60, 62",
+          roll == [(1, 40.0, 40.0, 1), (2, 60.0, 60.0, 2), (3, 72.0, 62.0, 1)], str(roll))
+    check("harvest outcomes: 3 success (yield 18), 2 fail, 1 depleted, 60% land",
+          {k: a["harvest"][k] for k in ("success", "fail", "depleted", "yield", "success_rate")}
+          == {"success": 3, "fail": 2, "depleted": 1, "yield": 18, "success_rate": 0.6}, str(a["harvest"]))
+    check("timeline: 8 lumber events in time order",
+          [e["kind"] for e in a["events"]] == ["pk_seen", "flee", "death", "death", "theft", "death", "theft", "pk_seen"],
+          str([e["kind"] for e in a["events"]]))
+    check("wood rows: ordinary priced, oak known without a value",
+          [(w["name"], w["logs"], w["total_gp"]) for w in a["woods"]] == [("oak", 10, None), ("ordinary", 20, 190.0)],
+          str(a["woods"]))
+    since = jobs.analytics(m, "lumber", 4000, woods=WOODS)
+    check("since=4000: trips #2 and #3, events from t>=4000",
+          since["totals"]["trips"] == 2 and since["totals"]["logs"] == 42 and since["totals"]["deaths"]["total"] == 2
+          and since["harvest"]["success"] == 0, str(since["totals"]["trips"]))
+    nowoods = jobs.analytics(m, "lumber", 0, woods=None)
+    check("no woods.json: value null, every log unpriced",
+          nowoods["totals"]["value_gp"] is None and nowoods["totals"]["value_unpriced_logs"] == 62
+          and nowoods["woods_file"] is False)
+    again = jobs.analytics(m, "lumber", 0, woods=WOODS)
+    check("deterministic: same store, same answer", json.dumps(again, sort_keys=True) == json.dumps(a, sort_keys=True))
+    empty = jobs.compute([], [], [], None)
+    check("empty data: zeros and nulls, no division errors",
+          empty["totals"]["trips"] == 0 and empty["totals"]["logs_per_hour"] is None
+          and empty["totals"]["logs_per_trip"] is None and empty["rolling"] == [] and empty["days"] == []
+          and empty["harvest"]["success_rate"] is None, str(empty["totals"]))
+    check("theft item shapes", jobs.theft_loss({"items": [{"name": "board", "amount": 4}, {"graphic": "0x1BDD"}, "axe"]})
+          == (6, {"board": 4, "0x1BDD": 1, "axe": 1}))
+    missing = jobs.load_woods(os.path.join(tempfile.mkdtemp(), "woods.json"))
+    check("load_woods: absent file -> None", missing is None)
+    m.close()
+
+
+def test_overseer_routes(logdir):
+    print("== /api/jobs, /api/overseer, POST /api/chat ==")
+    path = os.path.join(tempfile.mkdtemp(), "harness.db")
+    m = memory.Memory(path)
+    seed_jobs(m)
+    m.chat_post("system", "overseer started")
+    m.chat_post("overseer", "I will watch the lumber loop", t=100.0)
+    m.chat_post("overseer", "trip 1 looks slow", kind="thought", t=101.0)
+    m.chat_post("overseer", "ctl pause", kind="action", t=102.0)
+    j1 = m.juncture("lumber", "captcha", "Captcha: solve it in the client", "urgent", t=103.0)
+    j2 = m.juncture("lumber", "trip_done", "Trip 1 done", "info", t=104.0)
+    m.con.execute("INSERT OR REPLACE INTO meta VALUES('overseer_heartbeat', '1790742202.14')")
+    m.con.commit()
+    want = jobs.analytics(m, "lumber", 0, utc_offset_s=0)
+    d = viz_feed.ReplayDriver(TAG, logdir)
+    port = OVERSEER_PORT
+    base = f"http://127.0.0.1:{port}"
+    srv = serve(d, port, path)
+    try:
+        got = get(base + "/api/jobs?job=lumber&tz=0")
+        check("GET /api/jobs == jobs.analytics(store) + store flag",
+              got.pop("store") is True and json.dumps(got, sort_keys=True) == json.dumps(want, sort_keys=True))
+        code, _ = get_status(base + "/api/jobs?tz=abc")
+        check("GET /api/jobs bad tz: 400", code == 400, str(code))
+        code, _ = get_status(base + "/api/jobs?since=soon")
+        check("GET /api/jobs bad since: 400", code == 400, str(code))
+        ov = get(base + "/api/overseer")
+        check("GET /api/overseer: all chat rows oldest first, roles/kinds kept",
+              [(c["role"], c["kind"]) for c in ov["chat"]] == [("system", "message"), ("overseer", "message"),
+                                                               ("overseer", "thought"), ("overseer", "action")],
+              str(ov["chat"]))
+        check("junctures with severity, 2 open, heartbeat as a float",
+              [(j["id"], j["severity"]) for j in ov["junctures"]] == [(j1, "urgent"), (j2, "info")]
+              and ov["open"] == 2 and ov["open_ids"] == [j1, j2] and ov["heartbeat"] == 1790742202.14
+              and ov["store"] is True, str({k: ov[k] for k in ("open", "open_ids", "heartbeat")}))
+        m.juncture_ack(j1)
+        last_chat = ov["chat"][-1]["id"]
+        code, resp = post(base + "/api/chat", {"text": "  please head to the forest  "})
+        check("POST /api/chat: 200 with the row id", code == 200 and resp["ok"] is True
+              and resp["id"] == last_chat + 1, f"{code} {resp}")
+        ov2 = get(base + f"/api/overseer?after_chat={last_chat}&after_juncture={j2}")
+        check("cursors: only the new user row (trimmed), no old junctures; ack reflected in open",
+              [(c["role"], c["kind"], c["text"]) for c in ov2["chat"]] == [("user", "message", "please head to the forest")]
+              and ov2["junctures"] == [] and ov2["open"] == 1 and ov2["open_ids"] == [j2], str(ov2))
+        check("the overseer reads it through Memory.chat(role='user')",
+              [c["text"] for c in m.chat(role="user")] == ["please head to the forest"])
+        for name, body in [("empty", {"text": ""}), ("whitespace", {"text": " \n\t "}), ("missing", {}),
+                           ("not a string", {"text": 42}), ("2001 chars", {"text": "x" * 2001})]:
+            code, resp = post(base + "/api/chat", body)
+            check(f"POST /api/chat {name}: 400", code == 400 and resp["ok"] is False, f"{code} {resp}")
+        code, resp = post(base + "/api/chat", {"text": "y" * 2000})
+        check("POST /api/chat exactly 2000 chars: 200", code == 200, str(code))
+        check("rejected posts stored nothing", len(m.chat(role="user")) == 2, str(len(m.chat(role="user"))))
+        code, _ = get_status(base + "/api/overseer?after_chat=x")
+        check("GET /api/overseer bad cursor: 400", code == 400, str(code))
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        d.stop()
+
+    # newest-200 window on first load
+    for i in range(205):
+        m.chat_post("overseer", f"n{i}", t=200.0 + i)
+    top = m.con.execute("SELECT MAX(id) FROM chat").fetchone()[0]
+    m.close()
+    port += 1
+    base = f"http://127.0.0.1:{port}"
+    srv = serve(viz_feed.ReplayDriver(TAG, logdir), port, path)
+    try:
+        ov = get(base + "/api/overseer")
+        ids = [c["id"] for c in ov["chat"]]
+        check("after_chat=0 returns the newest 200 rows, oldest first", ids == list(range(top - 199, top + 1)),
+              f"{ids[:2]}..{ids[-2:]}")
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+    # no store yet: GETs answer empty and create nothing; the first chat creates it
+    missing = os.path.join(tempfile.mkdtemp(), "harness.db")
+    port += 1
+    base = f"http://127.0.0.1:{port}"
+    srv = serve(viz_feed.ReplayDriver(TAG, logdir), port, missing)
+    try:
+        jb = get(base + "/api/jobs?job=lumber")
+        ov = get(base + "/api/overseer")
+        check("no store: /api/jobs empty with store=false", jb["store"] is False and jb["trips"] == []
+              and jb["totals"]["trips"] == 0, str(jb["totals"]["trips"]))
+        check("no store: /api/overseer empty, heartbeat null", ov["store"] is False and ov["chat"] == []
+              and ov["open"] == 0 and ov["heartbeat"] is None)
+        check("GETs did not create the store", not os.path.exists(missing))
+        code, resp = post(base + "/api/chat", {"text": "hello?"})
+        ov = get(base + "/api/overseer")
+        check("first chat creates the store and is served back", code == 200 and os.path.exists(missing)
+              and [c["text"] for c in ov["chat"]] == ["hello?"], f"{code} {resp}")
+    finally:
+        srv.shutdown()
+        srv.server_close()
 
 
 class SSE:
@@ -382,8 +605,13 @@ def fake_upstream(ready: threading.Event, stop: threading.Event):
 def test_live():
     print("== live: viz_server --live against a proxy subprocess ==")
     logdir = tempfile.mkdtemp(prefix="viz_live_")
+    live_db = os.path.join(tempfile.mkdtemp(), "harness.db")
+    lm = memory.Memory(live_db)
+    seed_jobs(lm)
+    lm.close()
     viz = subprocess.Popen([PY, "-u", os.path.join(HERE, "viz_server.py"), "--live", "--state-port", str(STATE_PORT),
-                            "--port", str(VIZ_PORT)], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+                            "--port", str(VIZ_PORT), "--memory-db", live_db],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     proxy = None
     ctl_peer = None
     stop = threading.Event()
@@ -401,6 +629,12 @@ def test_live():
               and st["viz"]["mode"] == "live", str(st.get("viz")))
         code, resp = post(base + "/api/gate", {"action": "pause"})
         check("proxy down: POST /api/gate 502", code == 502 and resp["ok"] is False, f"{code} {resp}")
+        code, resp = post(base + "/api/chat", {"text": "live hello"})
+        ov = get(base + "/api/overseer")
+        jb = get(base + "/api/jobs?job=lumber&tz=0")
+        check("live, proxy down: chat post + overseer + jobs served from the memory store",
+              code == 200 and [c["text"] for c in ov["chat"]] == ["live hello"] and jb["totals"]["trips"] == 3,
+              f"{code} {resp} {jb['totals']['trips']}")
 
         ready = threading.Event()
         threading.Thread(target=fake_upstream, args=(ready, stop), daemon=True).start()
@@ -493,6 +727,8 @@ def main():
         test_replay_parity(logdir)
         test_order_fallback()
         test_sse(logdir)
+        test_jobs()
+        test_overseer_routes(logdir)
         test_live()
     finally:
         shutil.rmtree(logdir, ignore_errors=True)

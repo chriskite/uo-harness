@@ -133,6 +133,24 @@ LLM planner over the world model + skill library; safety rails: captcha human-ha
        - Candidates are tried nearest first, with human noise.
        - Harvest memory learns `not_tree` (500489), `unreachable_at` and `depleted_at`.
 
+### Phase 4b — Overworld lumber job under an AI overseer (planned 2026-09-29, night)
+User brief of 10 items: overseer AI, PK escape, thieves, rune library, jobs dashboard, monsters,
+death recovery, shelf restock, wood values, vendor prices. The plan, status, questions and demos
+are in [`ROADMAP.md`](ROADMAP.md); research is in `docs/research/`.
+
+**Decision: the overseer is an omp session driving `harness/ctl.py`** (docs/OVERSEER.md), with
+the memory store as the bus:
+- runners post junctures
+- `ctl wait` blocks until a juncture or a viz chat message arrives; that is how the AI "yields"
+  and gets woken
+- `ctl say`/`think` show in the viz Overseer tab
+
+Rejected for now: a custom API-driven daemon. It needs an API key and cost decisions; it can
+replace omp later on the same bus.
+
+**Standing rule: no PvP.** The Test Shard CoC bans it, and Heat of Battle blocks recall and
+entering the room (THREATS.md §6). Threats are escaped, never fought.
+
 ### Phase 5 (optional) — Production copilot
 Rules-compliant live mode: agent generates Razor scripts into `Data/Plugins/Assistant/Scripts/`; human reviews and runs them manually. No autonomy, no data extraction. Only phase allowed to touch the production shard, and only as a file generator.
 

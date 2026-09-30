@@ -47,6 +47,7 @@ These constraints come from existing docs and aren't optimization targets:
 | No hostile player actions on Shelter Island. Bank and vendors need Young status | Shelter Island | PK hazard on Shelter = 0 (§6). Bank and banker purchases work only while Young |
 | **TestWorth is Young (capture evidence, 2026-09-29).** The client received the Young-only login gump "Welcome to Shelter Island" (`0xC16E0192`) in sessions 163420 and 202723 | Shelter Island + `loop_mine.py timeline 20260929_163420` | Venue decision holds |
 | 60 s harvest lockout after recall / moongate / hike / teleport / rope | [Harvesting](https://wiki.uooutlands.com/Harvesting) | Walk, don't recall (Shelter: never recall, §1). Leaving the room teleports you → [INFERENCE] probably triggers the lockout; the demo checks it |
+| **Stationary Harvest Penalty** (patch 2025-01-25): after a recall, or after 5 min standing still, harvesting fails until you walk 5 steps | docs/research/THREATS.md §7 T4 | The Shelter loop moves between trees, but a long visit to one tree can pass 5 min. It needs a "walk 5 steps every < 5 min" rule (not built yet) |
 | Captcha: 5–10 min cadence; 3 fails = 6 h harvest block; closing it cancels the harvest; the same captcha persists across relog | [Captcha](https://wiki.uooutlands.com/Captcha) | Handoff state; the loop never closes or answers a captcha |
 | Log/board weight 0.025 st | Harvesting | Weight isn't binding until thousands; the return trigger is risk/overhead (§6) |
 | Double-click logs with a hatchet in the pack → boards (**user-confirmed: deeds need boards**) | Harvesting, Lumberjacking | Conversion is a loop step; can run in the field |
@@ -286,6 +287,11 @@ signature (ANTICHEAT.md §8.3). Variation is required, not an inefficiency to re
 Nothing in the harness injects during the demonstration; the proxy only relays and records.
 
 ## 11. Deferred: come back to these before the overworld (noted 2026-09-29)
+
+**Update 2026-09-29 (night):** the overworld brief is planned in `docs/ROADMAP.md`, with research
+in `docs/research/` (ECONOMY, TRAVEL_DEATH, THREATS). The threat classifier, pack ledger and
+overseer bus are built (`harness/threats.py`, `harness/ledger.py`, `harness/ctl.py`); the escape,
+death-recovery and restock actions wait for demo captures (ROADMAP "Demos").
 
 1. **Hazard learning pipeline.** Episode-log schema for exposure and hazard events per region;
    the Gamma-Poisson `h` estimator; the report showing `h` and its uncertainty per region; how the

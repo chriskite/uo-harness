@@ -40,8 +40,12 @@ import uomap  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from uo.gumps import parse_layout  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
+import ledger as ledger_mod  # noqa: E402
+import threats  # noqa: E402
 
 TREE_FACET = 0                # harvest areas are on map0 (Shelter)
+RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
+THREAT_MARGIN_S = 1.0         # reaction + packet latency on top of the cast
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "harness", "data")
@@ -83,6 +87,14 @@ class LumberLoop:
         self.t_exit = None           # wall time of the last teleport out of the room
         self.stats = {}
         self.trip_n = None
+        # Shelter's wildlife isn't hostile; elsewhere creatures count as aggressive
+        # until known otherwise (threats.Params).
+        params = (threats.Params(monster_default_aggressive=False) if know.get("venue") == "shelter_island"
+                  else threats.Params())
+        self.watch = threats.Watch(params)
+        self.last_threats = None
+        self.seen_hostiles = set()
+        self.ledger = ledger_mod.Ledger()
         self._intent = None          # last reported (kind, text, target), restored after a captcha
 
     def doing(self, kind: str, text: str, target=None):
@@ -97,12 +109,64 @@ class LumberLoop:
         mv = st["movement"]
         if mv["stalled"]:
             raise Abort(f"movement stalled ({mv['rejects_in_row']} walks rejected in a row)")
+        self.check_threats(st)
+        self.check_ledger(st)
         hits = st["world"]["self"].get("hits")
         if hits is not None:
             if self.start_hits is None:
                 self.start_hits = hits
             elif hits < self.start_hits:
                 raise Abort(f"hit points dropped ({self.start_hits} -> {hits}); stopping")
+
+    def _where(self, st):
+        pos = st["movement"]["pos"] or [None, None]
+        return {"facet": st["world"]["self"].get("map"), "x": pos[0], "y": pos[1]}
+
+    def check_threats(self, st):
+        """threats.py over every state read: log hostile players once each
+        (pk_seen); stop on a flee-level threat or when hurt. There is no escape
+        yet (recall needs the runebook demo), so stopping and waking the
+        overseer is the response."""
+        a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+        self.last_threats = a
+        if a.dead:
+            self.died(st, "ghost body")
+        for t in a.threats:
+            if t.hostile and t.player and t.serial not in self.seen_hostiles:
+                self.seen_hostiles.add(t.serial)
+                self.memory.job_event("lumber", "pk_seen", t.to_dict(), **self._where(st))
+        if a.flee or a.under_attack:
+            worst = a.flee[0] if a.flee else None
+            summary = (f"{worst.kind} {worst.name or hex(worst.serial)} at {worst.distance} tiles "
+                       f"(ETA {worst.eta_s:.1f} s)" if worst else "taking damage")
+            data = a.to_dict()
+            self.memory.juncture("lumber", "threat", f"Threat: {summary}", "urgent", data)
+            self.memory.job_event("lumber", "flee", data, **self._where(st))
+            raise Abort(f"threat: {summary}; stopping (no escape action yet)")
+
+    def check_ledger(self, st):
+        """ledger.py over every state read: unexplained pack losses are
+        reported as suspected theft (the loop carries on); death stops."""
+        d = self.ledger.observe(st)
+        if d.death:
+            self.died(st, d.death_reason or "pack emptied")
+        if d.theft_suspected:
+            lost = d.unexplained_losses
+            n = sum(e.get("amount") or 1 for e in lost)
+            what = ", ".join(sorted({e.get("wood") or f"0x{e['graphic']:04X}" for e in lost}))
+            self.memory.juncture("lumber", "theft_suspected", f"{n} item(s) left the pack unexplained: {what}",
+                                 "attention", d.to_dict())
+            self.memory.job_event("lumber", "theft", {"amount": n, "items": lost}, **self._where(st))
+            log(f"pack lost {n} item(s) without a cause ({what}); suspected theft, carrying on")
+
+    def died(self, st, reason):
+        a = self.last_threats
+        players = [t for t in (a.threats if a else []) if t.hostile and t.player]
+        cause = "pk" if players else ("mob" if a and a.under_attack else "unknown")
+        data = {"reason": reason, "cause": cause, "threats": a.to_dict() if a else None}
+        self.memory.juncture("lumber", "death", f"Died ({cause}): {reason}", "urgent", data)
+        self.memory.job_event("lumber", "death", data, **self._where(st))
+        raise Abort(f"died ({cause}): {reason}")
 
     def state(self):
         st = self.link.state()
@@ -187,6 +251,8 @@ class LumberLoop:
         log("CAPTCHA: please solve it in the client; the agent is waiting")
         resume = self._intent
         self.doing("captcha", "Waiting for you to solve the captcha in the client")
+        jid = self.memory.juncture("lumber", "captcha", "Captcha is waiting for the human in the client",
+                                   "urgent", {"trip": self.trip_n})
         alert(not self.args.quiet)
         next_beep = t0 + self.args.captcha_beep_s
         while True:
@@ -195,6 +261,7 @@ class LumberLoop:
                 waited = time.monotonic() - t0
                 self.stats["captcha_wait_s"] = self.stats.get("captcha_wait_s", 0.0) + waited
                 log(f"captcha solved by the human after {waited:.0f} s; resuming")
+                self.memory.juncture_ack(jid)          # handled by the human; nothing left for the overseer
                 self.human.wait("read")
                 if resume is not None:
                     self.doing(*resume)
@@ -390,12 +457,15 @@ class LumberLoop:
             if not stacks:
                 return
             serial, it = stacks[0]
+            if "woods" not in self.stats:           # this trip's logs by wood type (ledger.py, woods.json)
+                self.stats["woods"] = self.ledger.summary(kind="log")
             self.doing("convert", f"Making boards from {it.get('amount') or 1} logs")
             cur = self.use_hatchet()
             if cur is None:
                 continue
             self.human.wait("aim")
             mark = len(self.link.events)
+            self.ledger.expect(("consumed", serial))     # the log stack becomes boards: not theft
             self.link.act(actions.target_object(cur["cursor_id"], serial, it.get("x") or 0,
                                                 it.get("y") or 0, 0, it["graphic"],
                                                 cursor_type=cur["cursor_type"]))
@@ -477,6 +547,7 @@ class LumberLoop:
             amount = it.get("amount") or 1
             self.doing("store", f"Storing {amount} boards in the secure container", bpos[:2])
             self.human.wait("use")
+            self.ledger.expect(("moved_out", serial))    # stored in the secure container: not theft
             self.link.act(actions.lift(serial, amount))
             self.human.wait("drag")
             self.link.act(actions.drop(serial, DROP_AUTO, DROP_AUTO, 0, 0, box))

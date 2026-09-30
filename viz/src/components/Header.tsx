@@ -7,7 +7,10 @@ import { GateControls } from "./GateControls.tsx";
 
 const RATES = [0.25, 0.5, 1, 2, 4, 8, 16, 32];
 
-export function Header({ viz }: { viz: VizSnapshot }) {
+export const PAGES = ["Live", "Jobs"] as const;
+export type Page = (typeof PAGES)[number];
+
+export function Header({ viz, page, onPage }: { viz: VizSnapshot; page: Page; onPage: (p: Page) => void }) {
   const info = viz.state?.viz;
   const pb = info?.playback ?? null;
   const [error, setError] = useState<string | null>(null);
@@ -22,6 +25,13 @@ export function Header({ viz }: { viz: VizSnapshot }) {
   return (
     <header className="header">
       <span className="title">uo-harness viz</span>
+      <nav className="page-switch" aria-label="page">
+        {PAGES.map((p) => (
+          <button key={p} type="button" className={p === page ? "active" : undefined} onClick={() => onPage(p)}>
+            {p}
+          </button>
+        ))}
+      </nav>
       {!info ? (
         <Badge kind="dim">no state</Badge>
       ) : info.mode === "live" ? (

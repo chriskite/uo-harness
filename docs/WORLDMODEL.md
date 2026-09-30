@@ -538,6 +538,17 @@ Handler: CUO `CloseVendorInterface` @ 0x14018c2d0.
 | 3 | 4 | u32be | vendor serial (shop gump to close) | upstream |
 | 7 | 1+4n | | u8 count, then count × u32be item serials — **not read by CUO** (upstream Razor/CUO format) | upstream |
 
+### 0x7C OpenMenu / 0xBA DisplayQuestArrow — S2C (Tracking-related; added 2026-09-29, parse only)
+- **0x7C** mirrors the client read for read: `protocol_handlers.c:20838-21083` (Outlands
+  OpenMenu @0x140191200), upstream `PacketHandlers.cs:2956-3057`. Event `menu` {serial,
+  menu_id, title, gray, entries}; item entries are {graphic (u32 at protocol ≥ 10), hue, name}.
+  Caveat: at protocol 12 the client's peek reads the high half of the u32 graphic, so graphics
+  below 0x10000 take the gray branch. The parser does the same as the client.
+- **0xBA** is 14 bytes on Outlands (`xref_packets_table.c:323`): display u8, x u32, y u32,
+  serial u32 (`protocol_handlers.c:10115-10248`; upstream uses u16 x/y). Event `quest_arrow`
+  {display, x, y, serial}.
+- Neither appears in the 27 captures. Answering a menu (C2S 0x7D) isn't built.
+
 ---
 
 ## 5. Outlands custom dialect
@@ -711,6 +722,17 @@ CUO @ 0x1401a0980. Payload:
 #### Sub 0xDEAD OutlandsCorpseFlags
 CUO @ 0x14019a440. Payload: u32be corpse serial, u32be flags (+0xdc), u8 notoriety
 (+0xc1), asciiz corpse name (+0xa0). decomp.
+
+#### Sub 0x1A HandleQuestArrow (Outlands dialect arrow; added 2026-09-29, parse only)
+`protocol_handlers.c:14307-14582`.
+- mode 0: event `quest_arrow_set` {arrow_id, type, v16, x, y, p3, p4, text}. The names
+  type/x/y are [INFERENCE].
+- mode 1: `quest_arrow_cancel` {arrow_id}.
+- mode 2: `quest_arrow_clear`.
+- Other modes count as dialect_unhandled.
+
+Not seen in any capture yet. The Outlands wiki's Tracking arrow is probably this sub plus a gump
+(0xDD) [INFERENCE]; capture it (docs/research/THREATS.md D3).
 
 ### 0xD6 EncodedPacket (S2C) / 0xD7 ClientEncodedPacket (C2S)
 Razor registers S2C 0xD6 → `EncodedPacket` (mega-cliloc viewer; not in priority set)

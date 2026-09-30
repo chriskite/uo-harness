@@ -20,13 +20,22 @@ Routes:
   GET  /api/facet     facet picture metadata ({"available": false, "error"} without one)
   GET  /api/facet/<cx>/<cy>.png  256x256-tile chunk of the 1 px/tile facet picture
                       (harness/facet.py; read-only from the install dir)
+  GET  /api/jobs?job=lumber[&since=T][&tz=M]  job analytics from the memory store
+                      (harness/jobs.py; tz = minutes east of UTC for the per-day split,
+                      default the server's local offset), cached 2 s
+  GET  /api/overseer?after_chat=N&after_juncture=M  {chat, junctures, open, open_ids,
+                      heartbeat}: rows with id above the cursors (the newest 200 when 0),
+                      the open-juncture count and ids, the overseer's last heartbeat
+  POST /api/chat      {"text": T} (1..2000 chars after trimming) -> Memory.chat_post(
+                      "user", T) -> {"ok": true, "id": N}; 400 otherwise
   GET  /, /assets/*   the built frontend (viz/dist)
 
 Live mode only ever opens the proxy's state port (JSON lines). It never connects
 to the control port and never injects or sends anything toward the game server
-(ANTICHEAT §8). Its one write is the agent gate: pause/resume/kill flip the
-proxy's gate, which only decides whether agent injections on the control port
-are rejected. Everything else is observation.
+(ANTICHEAT §8). Its one write toward the proxy is the agent gate: pause/resume/kill
+flip the proxy's gate, which only decides whether agent injections on the control
+port are rejected. Its one write to the memory store is a user chat row (POST
+/api/chat) for the overseer AI to read. Everything else is observation.
 """
 import argparse
 import json
@@ -43,6 +52,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import viz_feed  # noqa: E402
 import facet as facet_mod  # noqa: E402
+import jobs as jobs_mod  # noqa: E402
 import memory as memory_mod  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -53,6 +63,8 @@ CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "application/javasc
                  ".css": "text/css; charset=utf-8", ".json": "application/json", ".map": "application/json",
                  ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon",
                  ".txt": "text/plain; charset=utf-8"}
+MAX_BODY = 64 * 1024
+CHAT_MAX_CHARS = 2000
 
 
 class WalkMemDB:
@@ -80,6 +92,81 @@ class WalkMemDB:
                     mem.close()
                 self.at = now
             return self.body
+
+
+class OverseerDB:
+    """Overseer chat + junctures and job analytics from the harness memory store
+    (docs/OVERSEER.md, harness/jobs.py). One Memory connection, opened lazily and
+    shared by the HTTP threads under a lock: WAL readers see every commit, and the
+    schema bookkeeping write happens once, not per poll. GETs never create the
+    store; POST /api/chat does."""
+
+    JOBS_CACHE_S = 2.0
+    PAGE = 200
+
+    def __init__(self, path: str):
+        self.path = path
+        self.lock = threading.Lock()
+        self.mem = None
+        self.jobs_cache = {}
+
+    def _open(self, create: bool):
+        if self.mem is None and (create or os.path.exists(self.path)):
+            self.mem = memory_mod.Memory(self.path)
+        return self.mem
+
+    def close(self):
+        with self.lock:
+            if self.mem is not None:
+                self.mem.close()
+                self.mem = None
+
+    def jobs(self, job: str, since: float, utc_offset_s: int) -> bytes:
+        key = (job, since, utc_offset_s)
+        with self.lock:
+            now = time.monotonic()
+            hit = self.jobs_cache.get(key)
+            if hit is not None and now - hit[0] < self.JOBS_CACHE_S:
+                return hit[1]
+            mem = self._open(False)
+            if mem is None:
+                out = jobs_mod.compute([], [], None, jobs_mod.load_woods(), job, since, utc_offset_s)
+            else:
+                out = jobs_mod.analytics(mem, job, since, utc_offset_s=utc_offset_s)
+            out["store"] = mem is not None
+            body = json.dumps(out).encode()
+            if len(self.jobs_cache) > 16:
+                self.jobs_cache.clear()
+            self.jobs_cache[key] = (now, body)
+            return body
+
+    def overseer(self, after_chat: int, after_juncture: int) -> dict:
+        """Rows with id above the cursors, oldest first; a 0 cursor starts at the
+        newest PAGE rows. `open`/`open_ids`: junctures not yet acked (any age)."""
+        with self.lock:
+            mem = self._open(False)
+            if mem is None:
+                return {"chat": [], "junctures": [], "open": 0, "open_ids": [], "heartbeat": None,
+                        "now": time.time(), "store": False}
+            c = mem.con
+            if after_chat <= 0:
+                after_chat = max(0, (c.execute("SELECT MAX(id) FROM chat").fetchone()[0] or 0) - self.PAGE)
+            if after_juncture <= 0:
+                after_juncture = max(0, (c.execute("SELECT MAX(id) FROM junctures").fetchone()[0] or 0) - self.PAGE)
+            open_ids = [i for (i,) in c.execute("SELECT id FROM junctures WHERE acked_t IS NULL ORDER BY id")]
+            hb = c.execute("SELECT value FROM meta WHERE key = 'overseer_heartbeat'").fetchone()
+            try:
+                heartbeat = float(hb[0]) if hb and hb[0] is not None else None
+            except ValueError:
+                heartbeat = None
+            return {"chat": mem.chat(after_chat, limit=self.PAGE),
+                    "junctures": mem.junctures(after_juncture, limit=self.PAGE),
+                    "open": len(open_ids), "open_ids": open_ids, "heartbeat": heartbeat,
+                    "now": time.time(), "store": True}
+
+    def post_chat(self, text: str) -> int:
+        with self.lock:
+            return self._open(True).chat_post("user", text)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -128,6 +215,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, fp.meta() if fp else {"available": False, "error": self.server.facet_error})
         elif url.path.startswith("/api/facet/") and url.path.endswith(".png"):
             self._facet_chunk(url.path[len("/api/facet/"):-len(".png")])
+        elif url.path == "/api/jobs":
+            self._jobs(parse_qs(url.query))
+        elif url.path == "/api/overseer":
+            self._overseer(parse_qs(url.query))
         elif url.path.startswith("/api/"):
             self._json(404, {"error": f"unknown route {url.path}"})
         else:
@@ -146,15 +237,49 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._send(200, png, "image/png")
 
+    def _jobs(self, qs: dict):
+        job = qs.get("job", ["lumber"])[0]
+        try:
+            since = float(qs.get("since", ["0"])[0])
+            tz = qs.get("tz", [None])[0]
+            utc_offset_s = time.localtime().tm_gmtoff if tz is None else int(tz) * 60
+        except ValueError:
+            self._json(400, {"error": "since must be a number, tz whole minutes east of UTC"})
+            return
+        if not (0 < len(job) <= 64) or abs(utc_offset_s) > 24 * 3600:
+            self._json(400, {"error": "job must be 1..64 chars, |tz| <= 1440"})
+            return
+        self._send(200, self.server.overseer.jobs(job, since, utc_offset_s))
+
+    def _overseer(self, qs: dict):
+        try:
+            after_chat = int(qs.get("after_chat", ["0"])[0])
+            after_juncture = int(qs.get("after_juncture", ["0"])[0])
+        except ValueError:
+            self._json(400, {"error": "after_chat / after_juncture must be integers"})
+            return
+        self._json(200, self.server.overseer.overseer(after_chat, after_juncture))
+
+    def _chat(self, req: dict):
+        text = req.get("text")
+        if not isinstance(text, str) or not (0 < len(text.strip()) <= CHAT_MAX_CHARS):
+            self._json(400, {"ok": False, "error": f"text must be a string of 1..{CHAT_MAX_CHARS} characters"})
+            return
+        self._json(200, {"ok": True, "id": self.server.overseer.post_chat(text.strip())})
+
     def do_POST(self):
         url = urlsplit(self.path)
-        if url.path not in ("/api/playback", "/api/gate"):
+        if url.path not in ("/api/playback", "/api/gate", "/api/chat"):
             self._json(404, {"error": f"unknown route {url.path}"})
             return
         n = int(self.headers.get("Content-Length") or 0)
+        if n > MAX_BODY:
+            self.close_connection = True
+            self._json(413, {"error": f"body over {MAX_BODY} bytes"})
+            return
         try:
             req = json.loads(self.rfile.read(n) or b"{}")
-        except json.JSONDecodeError:
+        except ValueError:
             self._json(400, {"error": "bad json"})
             return
         if not isinstance(req, dict):
@@ -162,6 +287,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if url.path == "/api/gate":
             self._gate(req.get("action"))
+        elif url.path == "/api/chat":
+            self._chat(req)
         else:
             self._playback(req)
 
@@ -284,6 +411,7 @@ class VizServer(ThreadingHTTPServer):
         self.feed = feed
         self.dist = dist
         self.walkmem = WalkMemDB(memory_db)
+        self.overseer = OverseerDB(memory_db)
         self.facet = None
         self.facet_error = "disabled (--no-facet)" if facet_path is None else None
         if facet_path is not None:
@@ -299,6 +427,10 @@ class VizServer(ThreadingHTTPServer):
             q.closed = True
             q.notify()
         super().shutdown()
+
+    def server_close(self):
+        super().server_close()
+        self.overseer.close()
 
 
 def build_feed(args):
@@ -327,7 +459,7 @@ def main():
     p.add_argument("--port", type=int, default=8080)
     p.add_argument("--dist", default=os.path.join(ROOT, "viz", "dist"))
     p.add_argument("--memory-db", default=memory_mod.DEFAULT_DB,
-                   help="harness memory store for the walk layer (docs/MEMORY.md)")
+                   help="harness memory store: walk layer, overseer chat/junctures, job analytics (docs/MEMORY.md)")
     p.add_argument("--facet", default=facet_mod.DEFAULT_PATH,
                    help="facet picture drawn under the map (read-only; install dir facet00.mul)")
     p.add_argument("--no-facet", action="store_true", help="don't load a facet picture")

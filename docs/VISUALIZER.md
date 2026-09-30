@@ -143,6 +143,9 @@ channels.
 | `POST /api/playback` | replay only: `{play,pause,rate,step}` |
 | `GET /api/gate` | live only: the proxy's agent gate (`{"op":"gate"}` on the state port), verbatim |
 | `POST /api/gate` | live only: `{"action": "pause"\|"resume"\|"kill"}`, forwarded as `{"op":"gate","action":...}` (§2.2) |
+| `GET /api/jobs?job=lumber[&since=T][&tz=M]` | job analytics from the memory store (`harness/jobs.py`, §2.4), cached 2 s |
+| `GET /api/overseer?after_chat=N&after_juncture=M` | overseer chat rows and junctures above the cursors, open junctures, heartbeat (§2.4) |
+| `POST /api/chat` | `{"text": T}` → a `user` chat row for the overseer (§2.4) |
 | `GET /`, `/assets/*` | built frontend (`viz/dist/`) |
 
 SSE rather than WebSocket: the flow is strictly server→browser, the browser `EventSource` gives
@@ -232,6 +235,104 @@ The runners report what they are trying to do right now on the proxy's state por
 Verified in headless Chromium on a `test_loop_lumber.py` capture: the spinner showed next to
 "Chopping tree at 111,200", with history rows such as "0s ago · Waiting out the travel lockout… ·
 0:19", "20s ago · Heading to tree at 111,200… · 0:07", and "Trip 1 done…" in green.
+
+### 2.4 Overseer panel + Jobs page (added 2026-09-29, user request)
+
+Both read the harness memory store (`--memory-db`, default `harness/data/harness.db`; schema in
+docs/MEMORY.md). The routes are the same in live and replay mode: they never touch the feed, the
+proxy or the game. `viz_server` holds one lazily opened `Memory` connection shared by the HTTP
+threads under a lock (WAL readers see every commit; the schema bookkeeping write happens once,
+not per poll). **GETs never create the store**; the first `POST /api/chat` does.
+
+**Routes**
+- `GET /api/overseer?after_chat=N&after_juncture=M` →
+  `{chat, junctures, open, open_ids, heartbeat, now, store}`.
+  - `chat` / `junctures`: rows with id above the cursor, oldest first, at most 200. A 0 cursor
+    starts at the newest 200, so a first load shows the recent tail, not the oldest rows.
+  - `open` / `open_ids`: every juncture not yet acked, of any age, so acks show up on rows the
+    client already has.
+  - `heartbeat`: meta `overseer_heartbeat` (epoch seconds, written by the overseer's `ctl` on every
+    poll; docs/OVERSEER.md) as a float, or null. `now` is the server clock to measure it against.
+  - `store: false` when the store file does not exist (all empty).
+- `POST /api/chat {"text": T}` → `Memory.chat_post("user", T.strip())` → `{"ok": true, "id": N}`.
+  Text must be a string of 1..2000 characters after trimming; anything else is **400**, and bodies
+  over 64 KiB are **413**. This is the viz's only write to the store.
+- `GET /api/jobs?job=lumber[&since=T][&tz=M]` → `harness/jobs.py` `analytics()` plus `store`.
+  `tz` is minutes east of UTC for the per-day split (the browser sends its own; default the server's
+  local offset). Cached 2 s per (job, since, tz).
+
+**Analytics (`harness/jobs.py`, pure: `compute()` reads no clock).** Inputs: `Memory.episodes(job)`
+(trip rows), `Memory.job_events(job, since)`, the `harvest_attempts` outcomes (lumber only; the
+table has no job column) and `harness/data/woods.json` when present.
+- **Per trip:** start/end, duration, logs, stored, logs/hr, captchas and wait, chop attempts and
+  successes, phase times, the `woods: {name: n}` breakdown when the row has one, estimated value,
+  and the job events that fell inside the trip.
+- **Totals and per day** (a trip counts on the day its start falls on): trips, logs, stored,
+  active hours, logs/hr, logs/trip, captchas, deaths by cause (`death` events, `data.cause` `pk` /
+  `mob` / anything else → `other`), thefts (`theft` events: `data.amount` when numeric, else the
+  summed `data.items`, which may be `{name: n}`, `[{name|graphic, amount}]` or `[name]`), PK
+  sightings (`pk_seen`), flees (`flee`) and estimated value.
+- **Active time** is the sum of trip durations, so idle time between runs doesn't dilute logs/hr.
+- **Rolling series:** one point per trip end, with logs/hr over the trips that ended in the last
+  hour of wall time (active time only) plus cumulative logs/hr.
+- **Value:** `value_gp` per log of that wood from woods.json [INFERENCE: per unit; the economy
+  research defines the unit]. A trip without a `woods` breakdown counts all its logs as
+  `ordinary`, since the Shelter Island loop only chops ordinary trees. Logs of a wood with no known
+  value are counted in `value_unpriced_logs` and never priced by guess. The value is null when no
+  log could be priced, including when woods.json is absent.
+- CLI: `python harness/jobs.py [--db PATH] [--job lumber] [--since T]` prints totals, days and
+  harvest outcomes.
+
+**UI**
+- **Page switch** in the header: `Live` (the layout of §4) and `Jobs`. The page is kept in the URL
+  hash (`#jobs`), so a reload or a link keeps it.
+- **Overseer panel:** a tab next to **Events** in the right column. The tab shows the number of
+  open junctures even while Events is in front. It polls `/api/overseer` every 2 s with the
+  cursors, and it polls whichever page is showing. One time-ordered timeline holds:
+  - user messages (right, blue) and overseer messages (left, teal); system rows are centred and dim;
+  - `thought` rows: dashed, italic, labelled THINKING, and collapsed to their first line (click to
+    expand);
+  - `action` rows: a purple bar with the command in monospace;
+  - open junctures, coloured by severity (info blue, attention amber, URGENT red), as
+    `source/kind` plus the summary. An `acked junctures` checkbox also shows acked ones, dimmed.
+  - The header shows `overseer active` (green) while the heartbeat is under 90 s old. Otherwise it
+    shows `no overseer running (last seen 5m ago / never seen)`, and the compose box carries the
+    hint that the overseer replies only while an overseer session is running (docs/OVERSEER.md)
+    and that messages wait in the store until then.
+  - Compose: Enter sends, Shift+Enter adds a new line, with an `n/2000` counter. It uses the same
+    validation as the server.
+- **Jobs page:** a dashboard for the lumber job, refreshed every 15 s or with ↻:
+  - KPI tiles: logs/hr, logs/trip (with the chop success rate), trips, active hours, deaths to PKs
+    (with PK sightings), deaths to mobs, loss to thieves, captchas (with the wait time). Safety
+    tiles are green at 0, red or amber otherwise.
+  - A line under the tiles: the estimated value (and how many logs are unpriced) and the chop
+    outcomes from `harvest_attempts`.
+  - Charts, plain SVG with no chart library (`viz/src/chart.ts`):
+    - logs/hr over time (rolling and cumulative);
+    - logs per trip as bars, with the stored-boards mark, captcha dots, death marks and the mean;
+    - a trips-and-events strip, with the event list below it.
+  - A wood-type breakdown when the trip rows carry one, and the woods.json status.
+  - The per-trip table (newest first) and a per-day table.
+  - With no data, every chart shows a dashed "no trips yet" frame and the tiles show `—` or 0. A
+    missing store is badged `no memory store: nothing recorded yet`.
+
+**Verified in headless Chromium, 2026-09-29** (1600×1000; `--replay 20260929_163420 --port 12760
+--no-facet`, on a temp copy of the store holding the 5 real Shelter Island trips, plus seeded chat
+rows, 3 junctures (1 acked) and a heartbeat 5 minutes old):
+- **Jobs tiles:** 376 logs/hr (89 logs · 118 stored), 17.8 logs/trip (29% chops land), 5 trips,
+  0.24 h, 0 deaths, 0 thefts, 1 captcha (0:10 waiting). Estimated value 846 gp.
+- **Jobs charts:** the rolling line runs 342, 304, 327, 353, 376 logs/hr from 22:30 to 23:08.
+  Cumulative is identical here, since all 5 trips fall within one hour. The logs-per-trip bars
+  show trip #1's stored mark at 46 and the captcha dot on #2.
+- **Job events:** with 4 job events added (PK seen, flee, PK death, a 12-board theft), the PK
+  tile turned red (1, with the PK sighting underneath), the thieves tile turned amber (12), a ✕ appeared over
+  bar #2, and the events showed on the strip, in the list and in the trip rows.
+- **Empty store:** all charts showed their empty frames, and the store file was not created.
+- **Overseer tab:** the tab was badged 2. The panel showed the system row, the overseer message, a
+  collapsible THINKING row, the ACTION row, the URGENT captcha and INFO trip_done junctures (the
+  acked one hidden), and "no overseer running (last seen 5m ago)" with the hint.
+- **Sending:** a message typed in the UI and sent with Enter appeared as a YOU bubble within one
+  poll. No page errors.
 
 ---
 
@@ -354,6 +455,9 @@ fixtures ("replay X, state at event N").
 | `viz/src/api.ts`, `store.ts`, `serial.ts` | SSE client + resume; `useSyncExternalStore` store; int↔hex serial normalization and entity lookup |
 | `viz/src/gate.ts`, `components/GateControls.tsx` | agent gate badge vocabulary and button rules; the header gate controls (§2.2) |
 | `viz/src/intent.ts`, `components/IntentPanel.tsx` | agent intent view (tone, trip context, age against the live or replay clock) and the Agent panel (§2.3) |
+| `harness/jobs.py` | job analytics over the memory store (§2.4) |
+| `viz/src/overseer.ts`, `components/OverseerPanel.tsx` | overseer timeline model (cursor merge, heartbeat status, chat validation) and the Overseer tab (§2.4) |
+| `viz/src/jobs.ts`, `chart.ts`, `components/JobsPage.tsx`, `components/Charts.tsx` | Jobs page view model (KPIs, event wording, theft rule, wood shares), SVG chart geometry, the dashboard and its charts (§2.4) |
 | `viz/src/App.tsx`, `components/*.tsx`, `App.css` | §4 panels |
 
 ### Milestones
@@ -405,10 +509,19 @@ fixtures ("replay X, state at event N").
   state-port event log.
 - **Frontend (`bun test`), pure helpers only:** serial normalization, entity lookup precedence,
   EventLog filters, ContainerTree builder, walk-memory layer builder, true-vs-dead-reckoned
-  divergence rule, duration formatting, gate button rules per state, and the store keeping a
-  newer gate over an older state frame.
+  divergence rule, duration formatting, gate button rules per state, the store keeping a
+  newer gate over an older state frame, and (§2.4) chart scales/ticks/bars, KPI tiles and tones,
+  event wording, the theft-loss rule, wood shares, overseer cursor merging, timeline order,
+  heartbeat status and chat validation.
   `bunx tsc --noEmit` must pass. No DOM snapshot tests; M2–M4 acceptance runs
   are the integration check.
+- **Jobs and overseer (`harness/test_viz.py`):** `jobs.analytics` numbers on a seeded store
+  (totals, per-day split and UTC offset, rolling series, deaths by cause, thefts, value with and
+  without woods, `since`, determinism, empty data); `/api/jobs` equals `jobs.analytics`;
+  `/api/overseer` cursors, the newest-200 window, open ids after an ack, and heartbeat;
+  `POST /api/chat` stores a trimmed `user` row and rejects empty, whitespace, missing,
+  non-string and 2001-character text with 400; a missing store answers empty without being
+  created; live mode serves the same routes while the proxy is down.
 
 ---
 
