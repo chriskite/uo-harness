@@ -137,13 +137,20 @@ class FakeProxy:
                             self.gold -= self.prices.get(s, 0) * int.from_bytes(pkt[off + 5:off + 7], "big")
                     elif pkt[0] == 0x72:
                         self.warmode = bool(pkt[1])
+                    elif pkt[0] == 0x07:
+                        self.lifted = (f"0x{int.from_bytes(pkt[1:5], 'big'):08X}", int.from_bytes(pkt[5:7], "big"))
                     elif pkt[0] == 0x08 and len(pkt) == 22:          # drop into a container
                         key = f"0x{int.from_bytes(pkt[1:5], 'big'):08X}"
+                        dest = f"0x{int.from_bytes(pkt[18:22], 'big'):08X}"
                         it = self.ground_items.get(key)
-                        if it is not None and it.get("graphic") == 0x0EED:
+                        n = self.lifted[1] if getattr(self, "lifted", (None,))[0] == key else None
+                        if it is not None and n is not None and n < (it.get("amount") or 1):
+                            it["amount"] -= n                         # a partial lift: the rest stays
+                            self.ground_items["0x4000FFFF"] = {**it, "amount": n, "container": dest}
+                        elif it is not None and it.get("graphic") == 0x0EED:
                             del self.ground_items[key]                # gold merges into the pack's pile
                         elif it is not None:
-                            it.update(container=f"0x{int.from_bytes(pkt[18:22], 'big'):08X}", layer=None)
+                            it.update(container=dest, layer=None)
                     elif pkt[0] == 0x13:                              # equip request
                         it = self.ground_items.get(f"0x{int.from_bytes(pkt[1:5], 'big'):08X}")
                         if it is not None:
@@ -913,6 +920,39 @@ def reset_events(proxy):
         proxy.events.clear()
 
 
+def test_drop(proxy):
+    print("== drop: backpack items into your own containers ==")
+    tmp = tempfile.mkdtemp()
+    c = Ctl(os.path.join(tmp, "harness.db"), os.path.join(tmp, "tasks"), proxy)
+    pack, bank = f"0x{proxy.PACK:08X}", "0x40000500"
+    proxy.ground_items = {
+        bank: {"graphic": 0x0E7C, "layer": 0x1D, "container": "0x00000001"},
+        "0x40000501": {"graphic": 0x0EED, "amount": 98, "container": pack, "name": "Gold"},
+        "0x40000502": {"graphic": 0x1BD7, "amount": 10, "container": pack, "name": "Boards"},
+        "0x40000503": {"graphic": 0x0E75, "container": "0x00000009"},                 # someone else's bag
+        "0x40000504": {"graphic": 0x0E75, "container": bank},                          # a bag in the bank
+        "0x40000505": {"graphic": 0x0F0C, "amount": 1, "container": "0x40000504"},    # an item in the bank
+    }
+    proxy.take()
+    code, out = c("act", "drop", "0x40000501", bank, "--human", "off")
+    fr = [p for _, p in proxy.take()]
+    check("gold into the open bank box: stock lift + drop into the box; merged gold counts as moved",
+          code == 0 and out["into"] == "bank" and out["moved"]
+          and fr == [actions.lift(0x40000501, 98), actions.drop(0x40000501, ctl.DROP_AUTO, ctl.DROP_AUTO, 0, 0,
+                                                                0x40000500)], f"{out} {fr}")
+    code, out = c("act", "drop", "0x40000502", "0x40000504", "--amount", "4", "--human", "off")
+    check("part of a stack into a bag in the bank (--amount)", code == 0 and out["moved"]
+          and proxy.ground_items["0x40000502"]["amount"] == 6
+          and [p for _, p in proxy.take()][0] == actions.lift(0x40000502, 4), str(out))
+    for args, why in ((("0x40000502", "0x40000503"), "isn't one of your containers"),
+                      (("0x40000505", pack), "isn't an item in your backpack"),
+                      (("0x40000502", "0x40009999"), "not known"),
+                      (("0x40000502", pack, "--amount", "7"), "--amount must be 1..6")):
+        code, out = c("act", "drop", *args, "--human", "off")
+        check(f"drop refused: {why}", code == 1 and why in out.get("error", "") and proxy.take() == [], str(out))
+    proxy.ground_items = {}
+
+
 def uomap_layer(graphic):
     import uomap
     return uomap.tiledata().item(graphic).layer
@@ -994,6 +1034,7 @@ def main():
     test_combat(proxy)
     test_heal_buy(proxy)
     test_intent_cmd(proxy)
+    test_drop(proxy)
     reset_events(proxy)
     test_overseer_acts(proxy)
     if FAILURES:

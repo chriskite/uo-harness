@@ -90,7 +90,7 @@ NOTORIETY = {1: "innocent", 2: "ally", 3: "attackable", 4: "criminal", 5: "enemy
              6: "murderer", 7: "invulnerable"}
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
         "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot",
-        "target", "cast", "buy", "use")
+        "target", "cast", "buy", "use", "drop")
 PACK_ITEMS_MAX = 60                  # status.backpack.items
 # Combat (user decision 2026-09-30): hostile monsters may be fought and looted; players never
 # (Test Shard CoC, ANTICHEAT.md §8.17). Notoriety 3-6 is attackable without a criminal flag;
@@ -102,6 +102,9 @@ CORPSE_GRAPHIC = 0x2006
 LOOT_RANGE = 2                       # tiles; the server's own limit is similar [INFERENCE]
 LOOT_MAX_ITEMS = 25
 GOLD_GRAPHIC = 0x0EED
+LAYER_BANK = 0x1D
+DROP_RANGE = 2                       # tiles to a ground container (secure container)
+LOOP_PATH = os.path.join(HERE, "data", "loops", "lumber.json")   # the rental room's secure container
 # ClassicUO Game/Data/SpellsMagery.cs (ids 1-64); the Outlands client casts with 0xFF sub 4
 # (observed live, session 20260928_164548: ids 5 and 15)
 MAGERY_SPELLS = (
@@ -755,6 +758,8 @@ def _act(a, mem) -> dict:
         return _act_buy(a, mem)
     if a.name == "use":
         return _act_use(a)
+    if a.name == "drop":
+        return _act_drop(a)
     pkt = None
     if a.name == "say":
         text = " ".join(a.args).strip().lower()
@@ -1129,6 +1134,106 @@ def _daily_cap() -> int | None:
     except (OSError, ValueError):
         return None
     return gold.get("daily_cap_gp") if gold.get("may_spend") else 0
+
+
+def _in_tree(items: dict, key: str, root: int) -> bool:
+    """Is item `key` the container `root` or inside it (any bag depth)?"""
+    s, depth = _serial(key), 0
+    while s is not None and depth < 10:
+        if s == root:
+            return True
+        s = (items.get(f"0x{s:08X}") or {}).get("container")
+        s = _serial(s) if s is not None else None
+        depth += 1
+    return False
+
+
+def _secure_container() -> int | None:
+    try:
+        with open(LOOP_PATH, encoding="utf-8") as f:
+            return _serial(json.load(f)["room"]["secure_container"]["serial"])
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def _act_drop(a) -> dict:
+    """drop <item serial> <container serial> [--amount N]: move something from
+    your backpack into one of your containers: the backpack or a bag in it,
+    your bank box (open it first: say bank) or a bag in it, or the rental
+    room's secure container (within 2 tiles). 0x07 lift (N of a stack), human
+    pause, 0x08 drop into the container (auto-position), like dragging it in
+    the client. Never someone else's container, never the ground."""
+    if len(a.args) != 2:
+        raise CtlError("drop <item serial> <container serial> [--amount N]")
+    item_s, cont_s = _parse_serial(a.args[0]), _parse_serial(a.args[1])
+    ikey, ckey = f"0x{item_s:08X}", f"0x{cont_s:08X}"
+    ctl, stc = _connect(a)
+    try:
+        st = stc.state()
+        items, me = st["world"]["items"], st["movement"].get("self_serial")
+        pack = _backpack(items, me)
+        if pack is None:
+            raise CtlError("backpack not known to the world model")
+        it = items.get(ikey)
+        if it is None or not _in_tree(items, ikey, pack) or item_s == pack:
+            raise CtlError(f"{ikey} isn't an item in your backpack")
+        cont = items.get(ckey)
+        if cont is None:
+            raise CtlError(f"container {ckey} not known to the world model (open it first)")
+        bank = next((_serial(k) for k, v in items.items() if v.get("layer") == LAYER_BANK
+                     and v.get("container") is not None and _serial(v["container"]) == me), None)
+        where = None
+        if _in_tree(items, ckey, pack):
+            where = "backpack"
+        elif bank is not None and _in_tree(items, ckey, bank):
+            where = "bank"
+        elif cont_s == _secure_container():
+            pos = st["movement"]["pos"]
+            if cont.get("x") is None or nav.chebyshev(tuple(pos[:2]), (cont["x"], cont["y"])) > DROP_RANGE:
+                raise CtlError(f"the secure container is out of reach; walk within {DROP_RANGE} tiles first")
+            where = "secure container"
+        if where is None:
+            raise CtlError(f"{ckey} isn't one of your containers (backpack, open bank box or the rental "
+                           "room's secure container)")
+        if _in_tree(items, ckey, item_s):
+            raise CtlError("can't drop a container into itself")
+        have = it.get("amount") or 1
+        amount = have if a.amount is None else a.amount
+        if not 1 <= amount <= have:
+            raise CtlError(f"--amount must be 1..{have}")
+        name = item_label(it)
+        stc.intent(f"Putting {amount} {name or ikey} into the {where}", "store")
+        mark = stc.mark()
+        resp = ctl.send(actions.lift(item_s, amount))
+        if resp != "OK":
+            return {"ok": False, "reply": resp}
+        Human(a.human, seed=a.seed).wait("drag")
+        resp = ctl.send(actions.drop(item_s, DROP_AUTO, DROP_AUTO, 0, 0, cont_s))
+        if resp != "OK":
+            return {"ok": False, "reply": resp,
+                    "error": "lifted but the drop was refused; the item may be on the cursor"}
+
+        def moved():
+            v = stc.state()["world"]["items"].get(ikey)
+            if v is None:                          # merged into a stack there (gold)
+                return True
+            if amount < have:                      # a partial lift leaves the rest behind
+                return (v.get("amount") or 1) == have - amount
+            return v.get("container") is not None and _serial(v["container"]) == cont_s
+        end = time.monotonic() + EVENT_WAIT_S
+        ok = moved()
+        while not ok and time.monotonic() < end:
+            time.sleep(0.1)
+            ok = moved()
+        got = stc.wait_events(mark, lambda evs: False, timeout=0.5)
+        out = {"ok": ok, "reply": resp, "moved": ok, "item": name, "amount": amount, "into": where,
+               "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
+        if not ok:
+            out["error"] = "the world model doesn't show the item moved (check journal/status)"
+        return out
+    finally:
+        ctl.close()
+        stc.close()
 
 
 def _act_use(a) -> dict:
