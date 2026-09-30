@@ -157,7 +157,9 @@ Draft — to be finalized after §6/§7:
     The human sees nothing, and the stock client can't answer it. Any gump response for one of these ids can only come from automation, so a response is a near-certain detection signal. The **real** captcha is gump id `0x00000001`: a `textentrylimited` (id 2, max 3 chars) plus reply button 594, with the digits drawn as `tilepic` dot glyphs (graphics 572/6255) at layout coordinates. The human's answer was `b1 … button 594, text entry 2 = "326"` → "Captcha successful."
 
     Harness rules:
-    - Captcha detection keys on the gump id plus the entry/button structure, **never on text**.
+    - Captcha detection keys on the gump id plus the entry/button structure, **never on text and never on a fixed button id**.
+
+    **Update (live 2026-09-29, session 20260929_220932): the submit button id is random per captcha.** The demo's captcha used 594; the next one used **843**. Its dot glyphs were also different graphics (11695 and 2457). Guide button 1 and text entry 2 were the same both times. The first detector required button 594, so it missed the second captcha. There was no handoff and no beep, and the user solved it unprompted. Detection now requires gump id 1, text entry 2 and a reply button other than Guide 1, and the offline e2e uses a submit id other than 594. [INFERENCE] The randomisation targets bots that replay a fixed button id.
     - The agent never sends a gump response for a gump that offers no reply button.
     - Captcha handoff stays human (rule 8).
 

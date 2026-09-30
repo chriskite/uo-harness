@@ -152,13 +152,15 @@ class LumberLoop:
         return None
 
     def real_captcha(self, mark):
-        """The real captcha: lumber.json's gump id with the text entry and submit
-        button. Decoys (same words, no buttons) never match."""
+        """The real captcha: lumber.json's gump id with the text entry and a
+        reply button besides Guide (the submit id is random per captcha).
+        Decoys (same words, no buttons) never match."""
         cap = self.k["captcha"]
         for i, ev in enumerate(self.since(mark)):
             if ev.get("ev") == "gump_open" and ev.get("gump_id") == h(cap["gump_id"]):
                 lay = parse_layout(ev.get("layout", ""))
-                if cap["answer_entry_id"] in lay["entries"] and cap["submit_button"] in lay["buttons"]:
+                if cap["answer_entry_id"] in lay["entries"] \
+                        and any(b != cap["guide_button"] for b in lay["buttons"]):
                     return mark + i
         return None
 
@@ -393,9 +395,20 @@ class LumberLoop:
             raise Abort("the room menu offers no rented room (Test Shard wipe?); rent it again by hand")
         return g
 
+    def innkeeper_pos(self):
+        """Where the innkeeper stands now (world model), else the demo position."""
+        inn = self.k["npcs"]["innkeeper"]
+        m = self.link.state()["world"]["mobiles"].get(inn["serial"])
+        if m and m.get("x") is not None:
+            return (m["x"], m["y"])
+        return tuple(inn["pos"][:2])
+
     def enter_room(self):
         room, inn = self.k["room"], self.k["npcs"]["innkeeper"]
-        self.mover.walk_to(lambda: inn["stand"], self.args.inn_radius, "to the innkeeper")
+        # The room menu opens by speech from 13 tiles, but its buttons need the
+        # vendor in range (11 tiles worked, 13 = "That vendor is too far away
+        # from you.", live 2026-09-29): walk up to where the innkeeper is now.
+        self.mover.walk_to(self.innkeeper_pos, self.args.inn_range, "to the innkeeper")
         self.human.wait("speak")
         mark = len(self.link.events)
         self.link.act(actions.say_unicode("room"))
@@ -403,8 +416,11 @@ class LumberLoop:
         self.human.wait("menu")
         mark = len(self.link.events)
         self.link.act(actions.gump_response(g["serial"], g["gump_id"], room["enter_button"]))
-        if self.link.wait(lambda s: self.heard(mark, text=room["enter_text"]), 5.0) is None:
-            raise Abort("did not enter the rental room")
+        texts = (room["enter_text"], room["too_far_text"])
+        self.link.wait(lambda s: any(self.heard(mark, text=t) for t in texts), 5.0)
+        if self.heard(mark, text=room["enter_text"]) is None:
+            far = self.heard(mark, text=room["too_far_text"]) is not None
+            raise Abort("did not enter the rental room" + (" (vendor too far away)" if far else ""))
         log("entered the rental room")
         self.link.wait(lambda s: s["movement"]["pos"] is not None
                        and cheb(s["movement"]["pos"], room["inside_pos"]) <= 12, 3.0)
@@ -521,7 +537,8 @@ def main():
     ap.add_argument("--captcha-timeout", type=float, default=600.0)
     ap.add_argument("--captcha-beep-s", type=float, default=30.0)
     ap.add_argument("--quiet", action="store_true", help="no handoff sound (tests)")
-    ap.add_argument("--inn-radius", type=int, default=2)
+    ap.add_argument("--inn-range", type=int, default=4,
+                    help="walk to within this many tiles of the innkeeper's current position")
     ap.add_argument("--timeout", type=float, default=3600.0)
     ap.add_argument("--max-blocked", type=int, default=20)
     ap.add_argument("--control-port", type=int, default=25941)

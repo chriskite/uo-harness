@@ -529,3 +529,27 @@ skipped for 20 min, so a trip may end with fewer logs; the loop still completes.
     by a wait, a denied shove where the NPC never moves, and a walled-off goal.
 - Open: UOO's shove threshold and its stamina cost. RunUO needs full stamina and costs 10
   `[INFERENCE]`. The denial logs will tell.
+
+**Live attempt 2b (22:17, after the shove fix): harvest and convert proven live; aborted at room entry.**
+- Worked:
+  - The agent walked out of the upstairs inn room on the 3D planner: 3 stock open-door requests
+    and 1 learned block.
+  - It chopped 2 trees: 8 + 5 logs, then depleted (500493), then 9 more.
+  - It correctly skipped 2 trees that walls cut off.
+  - It converted 29 logs to boards, walked 47 steps to the innkeeper with a sidestep and a bump,
+    and said `room`.
+  - The menu opened with button 7 (rented) present.
+- Failed: after Enter (button 4), the server said "That vendor is too far away from you."
+  - The agent stood at (1945, 2594), within `--inn-radius` 2 of the demo's stand tile
+    (1943, 2596), which is 13 tiles from Jayne at (1932, 2595, 21).
+  - Speech opened the menu from 13 tiles, and the demo worked from 11, so the buttons' vendor
+    range is 11–12 tiles `[INFERENCE: exact bound]`.
+  - Fix: `enter_room` walks to within `--inn-range` (4) of the innkeeper's **current** world-model
+    position. The demo stand tile is removed from lumber.json, and the too-far text is recorded
+    there. The simulator now rejects Enter beyond 12 tiles, and its innkeeper knowledge position
+    is 14 tiles stale, so a runner that walked to the knowledge position fails the e2e.
+- **Captcha submit id is random** (ANTICHEAT.md §8.13 update): this captcha's submit button was
+  843, not 594. The detector keyed on 594 and missed it, and the user solved it unprompted. The
+  detector now keys on gump id 1 + entry 2 + any reply button besides Guide 1.
+- State left: TestWorth at (1945, 2594, 0) with the boards in the backpack. The next run
+  harvests first, then stores everything.

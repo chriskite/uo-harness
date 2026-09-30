@@ -5,7 +5,7 @@ texts of the demonstration capture (logs/session_20260929_204225):
 
 - hatchet dclick → cliloc 1010018 + location cursor; tree target → a decoy
   "Captcha" gump (no buttons) on every attempt, the real captcha (gump id 1,
-  entry 2, button 594) on the first one, then fail/success results; a second
+  entry 2, Guide button 1 + a submit button whose id isn't the demo's) on the first one, then fail/success results; a second
   tree answers "not enough wood" (depleted)
 - log stack target → "You shape the logs into boards." (1:1)
 - "room" near the innkeeper → rental-room gump 0x8EAEFBDB; button 4 teleports
@@ -46,7 +46,8 @@ BOX, DOOR_ITEM, INNKEEPER = 0x44ADB583, 0x45757DCB, 0x000001E5
 START = (100, 200)
 GOOD_TREE = {"x": 111, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [110, 200]}
 DRY_TREE = {"x": 105, "y": 194, "z": 0, "graphic": "0x0CE0", "stand": [105, 195]}
-INN_POS, INN_STAND = (120, 207), [118, 207]
+INN_POS = (120, 207)                                     # where the innkeeper actually stands
+INN_KNOWN = (106, 207)      # knowledge from an older demo: 14 tiles off (NPCs move; vendor range ≤ 12)
 ROOM_IN, BOX_POS, DOOR_POS = (39, 65), (39, 66), (39, 69)
 EXIT_TO = (125, 200)
 DOOR = (122, 200)                                        # a closed town door
@@ -136,9 +137,10 @@ def buttons(ids):
     return "".join(f"{{ button 10 {20 * i} 2094 2095 1 0 {b} }}" for i, b in enumerate(ids))
 
 
+CAPTCHA_SUBMIT = 843        # random per captcha on the server (demo 594, live 843); never 594 here
 CAPTCHA_LAYOUT = ("{ resizepic 27 25 11571 391 278 }{ button 21 19 2094 2095 1 0 1 }"
                   "{ tilepic 84 150 572 }{ textentrylimited 163 251 40 20 2655 2 2 3 }"
-                  "{ button 222 248 247 249 1 0 594 }")
+                  f"{{ button 222 248 247 249 1 0 {CAPTCHA_SUBMIT} }}")
 DECOY_LAYOUT = ("{ nomove }{ noclose }{ nodispose }{ noresize }{ page 0 }{ page 1 }"
                 "{ croppedtext -324 -203 1 1 0 0 }{ croppedtext -393 -158 1 1 0 1 }")
 
@@ -173,6 +175,7 @@ class World:
         self.awaiting_first = False
         self.menu_gumps = {}              # gump serial -> "inn" | "door"
         self.rooms_entered = 0
+        self.too_far = 0
         self.rooms_left = 0
         self.harvested = 0
         self.dry_attempts = 0
@@ -303,13 +306,16 @@ class World:
             f = parse_packet("c2s", p)
             if f["serial"] in self.decoys:
                 self.decoy_replies += 1
-            elif f["serial"] == self.captcha_open and f["button_id"] == 594:
+            elif f["serial"] == self.captcha_open and f["button_id"] == CAPTCHA_SUBMIT:
                 self.captcha_answers += 1
                 self.captcha_open = None
                 self.send(sys_text("Captcha successful."))
                 if self.pending_attempt:
                     self.pending_attempt = None
                     self.result()
+            elif self.menu_gumps.get(f["serial"]) == "inn" and f["button_id"] == 4 and self.cheb(INN_POS) > 12:
+                self.too_far += 1                     # live 2026-09-29: 13 tiles → this, 11 tiles worked
+                self.send(sys_text("That vendor is too far away from you."))
             elif self.menu_gumps.get(f["serial"]) == "inn" and f["button_id"] == 4:
                 self.in_room = True
                 self.rooms_entered += 1
@@ -381,7 +387,7 @@ def knowledge(path):
     with open(f"{ROOT}/harness/data/loops/lumber.json", encoding="utf-8") as f:
         k = json.load(f)
     k["harvest"]["trees"] = [GOOD_TREE, DRY_TREE]
-    k["npcs"]["innkeeper"].update(serial=f"0x{INNKEEPER:08X}", pos=[*INN_POS, 0], stand=INN_STAND)
+    k["npcs"]["innkeeper"].update(serial=f"0x{INNKEEPER:08X}", pos=[*INN_KNOWN, 0])
     k["room"].update(inside_pos=[*ROOM_IN, 1],
                      door={"serial": f"0x{DOOR_ITEM:08X}", "graphic": "0x06E5", "pos": [*DOOR_POS, 1]},
                      secure_container={"serial": f"0x{BOX:08X}", "graphic": "0x0E76", "pos": [*BOX_POS, 2]})
@@ -422,7 +428,8 @@ async def main():
                 await asyncio.sleep(0.2)
                 if world.captcha_open is not None:
                     await asyncio.sleep(1.0)
-                    pkt = actions.gump_response(world.captcha_open, 0x00000001, 594, text_entries=[(2, "326")])
+                    pkt = actions.gump_response(world.captcha_open, 0x00000001, CAPTCHA_SUBMIT,
+                                                text_entries=[(2, "326")])
                     writer.write(bytes(b ^ C2S_KEY for b in pkt))
                     await writer.drain()
                     await asyncio.sleep(0.5)
@@ -462,10 +469,15 @@ async def main():
         check("two trips completed", "loop complete: 2 trip(s)" in text)
         check("one real captcha, answered once, by the client (human) only",
               world.captcha_shown == 1 and world.captcha_answers == 1 and len(b1_client) == 1)
+        check("the runner recognised the real captcha (submit id not the demo's) and handed it off",
+              text.count("CAPTCHA: please solve it in the client") == 1
+              and sum(r.get("captchas", 0) for r in rows) == 1, str([r.get("captchas") for r in rows]))
         check("decoy gumps were shown and never answered",
               len(world.decoys) >= 4 and world.decoy_replies == 0, f"{len(world.decoys)} decoys")
         check("agent gump replies = rental-room menu only (2 enters + 2 exits)",
               len(b1_agent) == 4 and world.rooms_entered == 2 and world.rooms_left == 2, str(len(b1_agent)))
+        check("walked to the innkeeper's live position: never 'too far' (knowledge pos is 14 tiles off)",
+              world.too_far == 0, str(world.too_far))
         check("every harvested log ended in the secure container as boards",
               world.box_stack is not None and world.box_stack[1] == world.harvested == 2 * 3 * LOGS_PER_SUCCESS,
               f"box {world.box_stack}, harvested {world.harvested}")

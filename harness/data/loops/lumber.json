@@ -11,7 +11,7 @@
   },
   "npcs": {
     "banker": {"serial": "0x000001EA", "name": "Len the banker", "pos": [1953, 2581, 20], "stand": [1955, 2584]},
-    "innkeeper": {"serial": "0x000001E5", "name": "Jayne the innkeeper", "pos": [1932, 2595, 21], "stand": [1943, 2596]}
+    "innkeeper": {"serial": "0x000001E5", "name": "Jayne the innkeeper", "pos": [1932, 2595, 21]}
   },
   "vendor": {
     "banker_context_menu": {"buy_index": 1, "sell_index": 2},
@@ -52,7 +52,9 @@
   },
   "room": {
     "menu_gump_id": "0x8EAEFBDB",
-    "open_menu": "say 'room' within range of the innkeeper (worked from 11 tiles), or context menu index 1 'Rent'",
+    "open_menu": "say 'room' within range of the innkeeper (worked from 11 and 13 tiles), or context menu index 1 'Rent'",
+    "button_range": "menu buttons need the innkeeper in vendor range: 11 tiles worked (demo), 13 tiles got too_far_text (live 2026-09-29)",
+    "too_far_text": "That vendor is too far away from you.",
     "rent_button": 4,
     "rent_clicks": 3,
     "rent_ok_text": "You are now renting a room.",
@@ -75,8 +77,9 @@
     "gump_id": "0x00000001",
     "answer_entry_id": 2,
     "answer_max_len": 3,
-    "submit_button": 594,
+    "guide_button": 1,
+    "submit_button": "random per captcha: 594 in the demo, 843 live 2026-09-29; the one reply button besides guide_button (last in the layout)",
     "ok_text": "Captcha successful.",
-    "decoy_gumps": "every harvest attempt also opens a gump with lines ['Captcha','Guide','Type the Value','Click when complete'], a random gump id, no buttons, offscreen text, noclose/nodispose. Never reply to it; detect the real captcha by gump id + text entry + submit button, never by text."
+    "decoy_gumps": "every harvest attempt also opens a gump with lines ['Captcha','Guide','Type the Value','Click when complete'], a random gump id, no buttons, offscreen text, noclose/nodispose. Never reply to it; detect the real captcha by gump id + text entry + a reply button besides guide_button, never by text or a fixed button id."
   }
 }

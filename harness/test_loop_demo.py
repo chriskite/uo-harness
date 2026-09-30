@@ -75,12 +75,13 @@ def main():
     real = [(t, e) for t, e in gumps if e["gump_id"] == h(cap["gump_id"])]
     check("real captcha gump seen", len(real) >= 1)
     lay = parse_layout(real[0][1]["layout"]) if real else {}
-    check("real captcha: answer entry + submit button",
-          lay.get("entries") == [cap["answer_entry_id"]] and lay.get("buttons")[-1:] == [cap["submit_button"]],
-          repr(lay))
+    check("real captcha: answer entry, Guide button + one submit button",
+          lay.get("entries") == [cap["answer_entry_id"]] and len(lay.get("buttons", [])) == 2
+          and lay["buttons"][0] == cap["guide_button"], repr(lay))
+    submit = lay["buttons"][-1] if lay else None
     reply = next((e for t, e in evs if e["ev"] == "gump_response" and e["gump_id"] == h(cap["gump_id"])), None)
-    check("human answer used the entry and button",
-          reply is not None and reply["button_id"] == cap["submit_button"]
+    check("human answer used the entry and the submit button",
+          reply is not None and reply["button_id"] == submit
           and [x["id"] for x in reply["texts"]] == [cap["answer_entry_id"]])
     check("answer acknowledged", cap["ok_text"] in said)
     decoys = [e for _, e in gumps if e["lines"][:1] == ["Captcha"] and e["gump_id"] != h(cap["gump_id"])]
