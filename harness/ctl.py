@@ -202,6 +202,7 @@ class StateConn:
     """Persistent state-port connection for step outcomes."""
 
     def __init__(self, port: int):
+        self.port = port
         self.sock = socket.create_connection((HOST, port), timeout=10)
         self.f = self.sock.makefile("rb")
 
@@ -225,7 +226,9 @@ class StateConn:
 
     def intent(self, text: str | None, kind: str | None = None, target=None, target_serial=None) -> bool:
         """Tell the viz what the overseer is doing (proxy-side only; SessionTap.set_intent).
-        target: (x, y) tile; target_serial: an entity the marker follows. Never fails the act."""
+        target: (x, y) tile; target_serial: an entity the marker follows. Never fails the act:
+        if the proxy drops the connection (a proxy that can't take the intent), this reconnects
+        and retries without target_serial, so the act can go on using this connection."""
         body = None
         if text is not None:
             body = {"text": text[:200], "loop": "overseer"}
@@ -235,11 +238,26 @@ class StateConn:
                 body["target"] = [int(target[0]), int(target[1])]
             if target_serial is not None:
                 body["target_serial"] = f"0x{_serial(target_serial):08X}"
+        tries = [body] + ([{k: v for k, v in body.items() if k != "target_serial"}]
+                          if body and "target_serial" in body else [])
+        for b in tries:
+            try:
+                self.sock.sendall((json.dumps({"op": "intent", "intent": b}) + "\n").encode())
+                line = self.f.readline()
+                if line:
+                    return bool(json.loads(line).get("ok"))
+            except (OSError, ValueError):
+                pass
+            self._reconnect()
+        return False
+
+    def _reconnect(self):
         try:
-            self.sock.sendall((json.dumps({"op": "intent", "intent": body}) + "\n").encode())
-            return bool(json.loads(self.f.readline() or b"{}").get("ok"))
-        except (OSError, ValueError):
-            return False
+            self.sock.close()
+        except OSError:
+            pass
+        self.sock = socket.create_connection((HOST, self.port), timeout=10)
+        self.f = self.sock.makefile("rb")
 
     def wait_events(self, since: int, pred, timeout: float = EVENT_WAIT_S) -> list:
         """World events after `since` until pred(events) holds or timeout."""

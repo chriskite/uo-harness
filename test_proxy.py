@@ -123,6 +123,22 @@ async def main():
     check("s2c 0x1B login confirm carries player serial 0x00094375",
           login and login[0]["hex"].startswith("1b00094375"), str(login[:1]))
     check("s2c fastwalk seeds seen", any(e.get("ev") == "s2c_fastwalk_seed" for e in events))
+
+    # SessionTap.set_intent (the state port's `intent` op). The first target_serial build
+    # crashed here (NameError, `re` not imported) and the proxy dropped the ctl connection.
+    sys.path.insert(0, f"{ROOT}/harness")
+    import io
+    import proxy
+    tap = proxy.SessionTap(io.StringIO(), io.BytesIO(), io.BytesIO())
+    base = {"text": "Attacking a mongbat", "kind": "attack", "target": [1, 2]}
+    err = tap.set_intent({**base, "target_serial": "0x87d3b"})
+    check("intent target_serial (hex string) normalised", err is None
+          and tap.intent.get("target_serial") == "0x00087D3B", str(tap.intent))
+    tap.set_intent({**base, "target_serial": 0x10})
+    check("intent target_serial (int) normalised", tap.intent.get("target_serial") == "0x00000010", str(tap.intent))
+    tap.set_intent({**base, "target_serial": "0x; drop"})
+    check("malformed target_serial dropped, intent kept", tap.intent.get("text") == base["text"]
+          and "target_serial" not in tap.intent, str(tap.intent))
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
 

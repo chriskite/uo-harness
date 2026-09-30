@@ -75,6 +75,7 @@ class Link:
 
     def __init__(self, control_port: int, state_port: int):
         self.ctl = socket.create_connection((HOST, control_port), timeout=10)
+        self.state_port = state_port
         self.st = socket.create_connection((HOST, state_port), timeout=10)
         self.st_file = self.st.makefile("rb")
         self.since = 0
@@ -127,7 +128,9 @@ class Link:
     def intent(self, text: str | None, kind: str | None = None, target=None, **extra):
         """Report what the agent is trying to do now (the visualizer shows it).
         Proxy-side only: nothing reaches the server. None clears it. A display
-        failure never stops the agent: it's logged and ignored."""
+        failure never stops the agent: it's logged and ignored. If the proxy
+        drops the state connection (one that can't take an optional field such
+        as target_serial), this reconnects and retries without the extras."""
         body = None
         if text is not None:
             body = {"text": text, **{k: v for k, v in extra.items() if v is not None}}
@@ -135,10 +138,23 @@ class Link:
                 body["kind"] = kind
             if target is not None and None not in tuple(target)[:2]:
                 body["target"] = [int(target[0]), int(target[1])]
-        self.st.sendall((json.dumps({"op": "intent", "intent": body}) + "\n").encode())
-        resp = json.loads(self.st_file.readline())
-        if not resp.get("ok"):
-            log(f"intent not shown: {resp.get('error')}")
+        plain = None if body is None else {k: v for k, v in body.items()
+                                          if k in ("text", "kind", "target", "loop", "trip", "trips")}
+        for b in ([body, plain] if body != plain else [body]):
+            try:
+                self.st.sendall((json.dumps({"op": "intent", "intent": b}) + "\n").encode())
+                line = self.st_file.readline()
+            except OSError:
+                line = b""
+            if line:
+                resp = json.loads(line)
+                if not resp.get("ok"):
+                    log(f"intent not shown: {resp.get('error')}")
+                return
+            self.st.close()
+            self.st = socket.create_connection((HOST, self.state_port), timeout=10)
+            self.st_file = self.st.makefile("rb")
+        log("intent not shown: the proxy dropped the state connection")
 
     def wait(self, pred, timeout: float, poll: float = 0.1):
         end = time.monotonic() + timeout

@@ -41,6 +41,7 @@ import asyncio
 import collections
 import json
 import os
+import re
 import time
 
 from uo.packets import packet_length, C2S_OVERRIDES
@@ -830,7 +831,10 @@ async def handle_state(reader, writer, hub):
                 elif hub.session is None:
                     resp = {"ok": False, "error": "no active session"}
                 elif op == "intent":
-                    err = hub.session[0].set_intent(req.get("intent"))
+                    try:
+                        err = hub.session[0].set_intent(req.get("intent"))
+                    except Exception as e:  # noqa: BLE001  (a display-only op must never drop the connection)
+                        err = f"intent failed: {type(e).__name__}: {e}"
                     resp = {"ok": True} if err is None else {"ok": False, "error": err}
                 else:
                     tap = hub.session[0]
