@@ -9,7 +9,9 @@
   elsewhere (the blank rental-room facet) it falls back to 2D walk memory
   (harness/nav.py). Either way it learns blocked moves from server denies,
   replans, and sends the stock open-door request once when a door blocks the
-  step, so closed doors aren't learned as walls.
+  step, so closed doors aren't learned as walls. Mobiles are not walls: UOO
+  lets you shove through them with enough stamina (user, 2026-09-29), so a
+  mobile's tile only costs extra; a denied shove blocks that tile for a while.
 """
 import json
 import socket
@@ -27,6 +29,13 @@ GATE_POLL_S = 5.0
 # capture (0x06A5, 0x06AD, 0x06ED, 0x06EF) and the rental-room door (0x06E5) are in it.
 DOOR_GRAPHICS = range(0x0675, 0x06F5)
 MAP_FACETS = (0, 1, 4, 5)     # facets with geometry in mapN.uoo (2 and 3 are blank; docs/MAP.md)
+# Mobiles: shoving through one needs stamina (UOO; threshold unknown, RunUO needs
+# full stamina [INFERENCE]). Plans prefer going around (entering a mobile's tile
+# costs MOBILE_COST_X normal steps); after a denied shove that tile is a wall for
+# SHOVE_RETRY_S. A route cut only by such tiles is waited out up to MOBILE_WAIT_S.
+MOBILE_COST_X = 4.0
+SHOVE_RETRY_S = 15.0
+MOBILE_WAIT_S = 90.0
 
 
 class Abort(Exception):
@@ -138,6 +147,7 @@ class Mover:
         self.use_map = use_map
         self._walks = {}
         self.denied = set()          # (x, y, d) server denies seen this session (map planner)
+        self.shove_denied = {}       # (x, y) -> monotonic time a shove into it was denied
         self.steps = 0
         self.blocked_count = 0
         self.doors_opened = 0
@@ -175,7 +185,7 @@ class Mover:
         return "blocked"
 
     def occupied(self, st=None) -> set:
-        """Tiles currently occupied by other mobiles (cannot be walked through)."""
+        """Tiles currently occupied by other mobiles."""
         st = st or self.link.state()
         me = st["movement"]["self_serial"]
         return {(m["x"], m["y"]) for key, m in st["world"]["mobiles"].items()
@@ -280,21 +290,29 @@ class Mover:
             self._mems[facet] = m
         return m
 
-    def plan(self, st, goal):
+    def plan(self, st, goal, mobiles: bool = True):
         """(path of (x, y) tiles including the start, walk or None). Also points
-        self.mem at the current facet's walk memory."""
+        self.mem at the current facet's walk memory. Mobiles' tiles cost
+        MOBILE_COST_X (shove through them if going around is longer); tiles
+        where a shove was denied in the last SHOVE_RETRY_S are walls unless
+        mobiles=False (is the route only temporarily cut?)."""
         pos = st["movement"]["pos"]
         cur = (pos[0], pos[1])
         occ = self.occupied(st) - {cur}
+        now = time.monotonic()
+        hard = {t for t in occ if now - self.shove_denied.get(t, -1e9) < SHOVE_RETRY_S} if mobiles else set()
+        noise = self.human.cost_scale()
+
+        def cost(a, b):
+            return (noise(a, b) if noise else 1.0) * (MOBILE_COST_X if b in occ else 1.0)
+
         self.mem = self.mem_for(st["world"]["self"].get("map"))
         walk = self.walk_map(st)
         if walk is not None:
             path = pathfind.plan(walk, (pos[0], pos[1], pos[2]), goal,
-                                 blocked_moves=self.denied, occupied=occ,
-                                 cost_scale=self.human.cost_scale())
+                                 blocked_moves=self.denied, occupied=hard, cost_scale=cost)
             return (None if path is None else [(x, y) for x, y, _ in path]), walk
-        return nav.plan(self.mem, cur, goal, extra_blocked=occ,
-                        cost_scale=self.human.cost_scale()), None
+        return nav.plan(self.mem, cur, goal, extra_blocked=hard, cost_scale=cost), None
 
     def walk_to(self, center_fn, radius: int, label: str, max_moves: int = 250):
         """Walk until within `radius` (Chebyshev) of center_fn(), re-evaluated
@@ -303,8 +321,10 @@ class Mover:
         start_steps = self.steps
         tried_doors = set()
         run = self.human.route_runs()
+        mobile_wait_until = None
         while True:
             st = self.link.state()
+            self.guard(st)
             cur = tuple(self.link.pos(st)[:2])
             goal = nav.within(tuple(center_fn()), radius)
             if goal(cur):
@@ -312,7 +332,17 @@ class Mover:
                 return
             path, walk = self.plan(st, goal)
             if path is None:
-                raise Abort(f"{label}: no route from {cur}")
+                if self.plan(st, goal, mobiles=False)[0] is None:
+                    raise Abort(f"{label}: no route from {cur}")
+                now = time.monotonic()
+                if mobile_wait_until is None:
+                    mobile_wait_until = now + MOBILE_WAIT_S
+                    log(f"{label}: route from {cur} cut by mobiles we couldn't shove; waiting")
+                elif now > mobile_wait_until:
+                    raise Abort(f"{label}: route from {cur} cut by mobiles for {MOBILE_WAIT_S:.0f} s")
+                self.human.wait("between")
+                continue
+            mobile_wait_until = None
             log(f"{label}: route {len(path) - 1} steps from {cur}{'' if run else ' (walking)'}"
                 f"{'' if walk is not None else ' [walk memory]'}")
             replan = False
@@ -355,7 +385,10 @@ class Mover:
                     continue
                 self.blocked_count += 1
                 if nxt in self.occupied():
-                    log(f"{label}: {nxt} occupied by a mobile; replanning")
+                    self.shove_denied[nxt] = time.monotonic()
+                    me = self.link.state()["world"]["self"]
+                    log(f"{label}: shove into {nxt} denied (stamina {me.get('stam')}/{me.get('stam_max')}); "
+                        f"replanning")
                 else:
                     if walk is not None:
                         self.denied.add((cur[0], cur[1], d))   # z-aware plans; don't pollute 2D memory

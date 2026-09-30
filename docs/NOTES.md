@@ -49,6 +49,11 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 - S2C `0xBF` sub 0x14 context menus arrive in mode 2 (cliloc u32, index u16, flags u16); e.g. "Giles the thief": 3006123 Open Paperdoll, 3006103 Buy, 3006104 Sell, … (session 141253). S2C `0x74` buy list = container u32, count u8, (price u32, u8 len, name incl. NUL). C2S `0x3B` buy = vendor u32, flag 2, (layer 0x1A, serial u32, amount u16)…
 - Outlands map/art files aren't the stock names: `facet00.mul`–`facet05.mul`, `art.uoo`, `artdata.uoo`, `anim.uoo` in the install root. The map and tiledata formats are decoded in docs/MAP.md (art pixels are not).
 - **S2C 0x21 move-reject is 15 B with z = i32be at offset 11** (`seq, x u32, y u32, dir, z i32`). For example `21 fb 00000778 000009fd 80 ffffffec` is z −20 (found while validating docs/MAP.md). `harness/world/layouts.py` read i8@11, which gave 0 for z 0…255; **fixed 2026-09-29** (tests use the real packet). The proxy's re-anchor already wrote the i32 form.
+- **Mobiles don't block walking in UOO:** you shove through them with enough stamina (user,
+  2026-09-29). The threshold and the stamina cost aren't measured yet; RunUO requires full stamina
+  and costs 10 `[INFERENCE]`. A denied shove comes back as a normal walk reject (0x21), and
+  `Mover` logs the stamina with each one. Live attempt 2 failed because the planner treated NPCs
+  in the inn's one-tile upstairs hallway as walls (LUMBER_LOOP.md §13).
 - Frontend toolchain: **Bun 1.4.2** installed 2026-09-29 (user-level, `irm bun.sh/install.ps1 | iex`) at `C:\Users\chris\.bun\bin\bun.exe`, added to the user PATH (new terminals only; in the agent's git-bash shell call it via PowerShell or the full path). There is no Node/npm on this machine. The visualizer frontend (docs/VISUALIZER.md) uses Bun for install/bundle/test: React + TSX.
 
 ## CAPTCHA facts (wiki)

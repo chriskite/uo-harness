@@ -506,3 +506,26 @@ skipped for 20 min, so a trip may end with fewer logs; the loop still completes.
   its own pathfinding and to find trees to harvest. Map-data reverse engineering is under way
   (docs/MAP.md, `harness/uomap.py`). Next come a 3D walkability model and a port of ClassicUO's
   Pathfinder, replacing 2D walk memory as the planner. Walk memory stays as evidence.
+
+**Live attempt 2 (2026-09-29 22:10, user at the client; proxy with `--memory-db`): aborted at planning, nothing sent.**
+- Start: (1937, 2583, z 20), upstairs in the inn, facet 0. The 3D map planner routes from here to
+  the ground floor; that part of attempt 1 is solved.
+- Failed:
+  - Within 0.8 s, all 8 candidate trees were declared "unreachable", then `ABORTED: to the
+    innkeeper: no route`. No walk, click or speech reached the server.
+  - Cause: NPCs (Dusty, Giles) stood in the one-tile upstairs hallway, and `Mover.plan` treated
+    tiles occupied by mobiles as walls. Reproduced offline from the live state: routes exist with
+    the mobiles ignored, and none exist with them as walls.
+  - The false "unreachable" rows written to the memory store were deleted.
+- **User fact:** in UOO you shove through mobiles when you have enough stamina.
+- **Fix (`agent_link.Mover`):**
+  - A mobile's tile costs `MOBILE_COST_X` (4×) a step, so the walker goes around when that's cheap
+    and shoves otherwise.
+  - A shove the server denies makes that tile a wall for `SHOVE_RETRY_S` (15 s). It is not
+    learned as a wall, and the log records the stamina at the moment of the denial.
+  - A route cut only by such tiles is waited out, for up to `MOBILE_WAIT_S` (90 s).
+  - A route cut by walls still reports `no route`.
+  - Tests: `harness/test_mover.py` covers shoving through, going around, a denied shove followed
+    by a wait, a denied shove where the NPC never moves, and a walled-off goal.
+- Open: UOO's shove threshold and its stamina cost. RunUO needs full stamina and costs 10
+  `[INFERENCE]`. The denial logs will tell.
