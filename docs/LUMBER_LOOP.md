@@ -637,3 +637,20 @@ in that cave can't see or click a tree on the surface, so it's an inhuman signal
   - The server sent no self-z anchor while it was chopping, so the surface z rests on the
     planner plus the user's observation.
   - 22 logs → 22 boards stored in 2 min 47 s: 5 doors, 1 block, 1 bump.
+
+**First overworld runs (2026-09-30, Horseshoe Bay, run by the overseer with the user watching):**
+- Setup: a temporary copy of lumber.json (`--loop`) with innkeeper Devi (1980,2199,z20), tree
+  area centre (2108,2258) radius 22, just past the town's south-east guard edge. No trees stand
+  near the inn or the moongate.
+- Three trips: 22, 63 and 147 boards stored (the last included 5 copperwood, the first
+  non-ordinary wood). Lumberjacking was 61 for the first two; the user had it set to 100 in the
+  Test Shard player editor before the third. At 100, 9 of 9 chops succeeded, 5–10 logs each.
+- Two trips aborted on passive wildlife (a walrus, a goat). Fixed in `threats.py`: unknown
+  creatures count as threats only in war mode (NOTES.md).
+- **Open, blocks multi-trip runs from Horseshoe Bay:** the rental room always exits to the town
+  it was rented in. The room was rented on Shelter, so every trip ends at the Shelter inn and
+  needs a moongate back (about 5 min). Options: rent a room at the Horseshoe Bay inn (the
+  user's call: rent is gold), or a runner step that travels back after each exit.
+- **Open:** the runner has no venue settings other than the whole `--loop` file (innkeeper, tree
+  area), so every non-Shelter spot needs its own copy. A committed file per venue, or CLI
+  overrides, would fix that.
