@@ -17,6 +17,8 @@ Routes:
   GET  /api/live.mjpeg?zoom=&fps=  the same as a continuous stream (multipart/x-mixed-replace),
                       harness/liveview.py; passive window capture, only while someone watches;
                       503 JSON when there's no game window (or --no-live)
+  GET  /api/skillnames  skill names by id from the client's skills.mul (uomap.skill_names; the
+                      viz's fallback when the server sent no name list this session)
   GET  /api/health    mode, session, order, poll lag, connection, diagnostics
   POST /api/playback  replay only: {"action": "play"|"pause"|"step"|"rate", "rate": R}
   GET  /api/gate      live only: the proxy's agent gate ({"op": "gate"}), verbatim
@@ -265,6 +267,15 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
             pass
 
+    def _skillnames(self):
+        try:
+            import uomap
+            names = uomap.skill_names()
+        except OSError as e:
+            self._json(404, {"error": f"skills.mul unavailable: {e}"})
+            return
+        self._json(200, {"names": names, "source": "client skills.mul"})
+
     # -- helpers
     def log_message(self, fmt, *args):  # quiet; errors still go through log_error
         pass
@@ -304,6 +315,8 @@ class Handler(BaseHTTPRequestHandler):
             self._live_frame(parse_qs(url.query))
         elif url.path == "/api/live.mjpeg":
             self._live_stream(parse_qs(url.query))
+        elif url.path == "/api/skillnames":
+            self._skillnames()
         elif url.path == "/api/health":
             self._json(200, feed.health())
         elif url.path == "/api/gate":

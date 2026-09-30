@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NOTORIETY } from "../format.ts";
+import { fetchClientSkillNames, skillName } from "../skills.ts";
 import type { Snapshot } from "../types.ts";
 import { Badge, Bar, Panel } from "./common.tsx";
 
@@ -9,6 +10,11 @@ const HIDDEN_STATS: Record<string, true> = { graphic: true, hue: true, flags: tr
 
 export function SelfPanel({ world }: { world: Snapshot | null }) {
   const [allSkills, setAllSkills] = useState(false);
+  const [clientNames, setClientNames] = useState<string[] | null>(null);
+  const needNames = !world?.self?.skill_names?.length;
+  useEffect(() => {
+    if (needNames) void fetchClientSkillNames().then(setClientNames);
+  }, [needNames]);
   const s = world?.self;
   if (!world || !s) return <Panel title="Self">no state yet</Panel>;
 
@@ -96,7 +102,7 @@ export function SelfPanel({ world }: { world: Snapshot | null }) {
         </summary>
         {shown.map((sk) => (
           <div key={sk.id} className="skill-row">
-            <span>{s.skill_names[sk.id] ?? `skill #${sk.id}`}</span>
+            <span>{skillName(sk.id, s.skill_names, clientNames)}</span>
             <span className="mono">
               {(sk.value / 10).toFixed(1)}
               <span className="dim"> /{(sk.cap / 10).toFixed(0)}</span>
