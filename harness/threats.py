@@ -65,10 +65,15 @@ red on foot gives 12 + 25 = 37 tiles. That is beyond the ~18-tile update range
 Hostile means kind red/grey/orange (Params.hostile_kinds), or a monster judged
 aggressive. [INFERENCE] Creature notoriety doesn't show aggression: captured
 blood apes were 1 (innocent), sheep and zombies were both 3. So aggression
-comes, in order, from: war-mode flag 0x40 (EntityFlags.cs:18; a captured
-mongbat in war mode), `aggressive_bodies`, `passive_bodies`/`passive_names`,
-notoriety 6 (`aggressive_notoriety`), then `monster_default_aggressive`
-(True: unknown creatures count as dangerous).
+comes, in order, from: war-mode flag 0x40 (EntityFlags.cs:18), `aggressive_bodies`,
+`passive_bodies`/`passive_names`, notoriety 6 (`aggressive_notoriety`), then
+`monster_default_aggressive`. The default is False (2026-09-30): a creature that
+goes for you enters war mode. In the NPD capture 20260930_110946, 10 of 15
+mongbats (the ones that fought) showed 0x40, while sheep, giant rats, hinds,
+an eagle, a great hart, zombies and a harpy never did and never attacked.
+Treating every unknown creature as dangerous stopped lumber trips for a
+wandering goat and a walrus. The HP-damage guard still catches anything the
+flag misses.
 
 Other actions:
   - non-hostile players (blue) within watch_radius: `watch`. They could be
@@ -129,11 +134,12 @@ class Params:
     # creature aggression (see module docstring)
     aggressive_bodies: frozenset = frozenset()
     # [INFERENCE] passive in stock UO, captured on Outlands: sheep 0xCF,
-    # hind 0xED, great hart 0xEA, eagle/seagull 0x05, magpie/crow 0x06
-    passive_bodies: frozenset = frozenset({0xCF, 0xED, 0xEA, 0x05, 0x06})
+    # hind 0xED, great hart 0xEA, eagle/seagull 0x05, magpie/crow 0x06;
+    # observed harmless near lumber trips (2026-09-30): goat 0xD1, walrus 0xDD
+    passive_bodies: frozenset = frozenset({0xCF, 0xED, 0xEA, 0x05, 0x06, 0xD1, 0xDD})
     passive_names: frozenset = frozenset()   # lower-case labels, e.g. "a sheep"
     aggressive_notoriety: frozenset = frozenset({6})
-    monster_default_aggressive: bool = True
+    monster_default_aggressive: bool = False
     # self damage
     damage_window_s: float = 10.0
     damage_threshold: int = 1

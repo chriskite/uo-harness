@@ -136,30 +136,34 @@ def test_monsters():
     far_ape = mob(0x303, 20, 0, body=0x1D, noto=1, flags=0)
     labels = {0x300: "a blood ape", 0x301: "a sheep", 0x302: "a sheep", 0x303: "a blood ape"}
     st = state([ape, sheep, angry_sheep, far_ape], labels=labels)
+    aggressive = Params(monster_default_aggressive=True)
     a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW)
-    eq("unknown creature -> default aggressive -> flee",
-       (one(a, 0x300).kind, one(a, 0x300).aggressive, one(a, 0x300).action),
-       ("monster", True, "flee"))
-    eq("monster eta (3 - 1) * 0.4", one(a, 0x300).eta_s, 0.8)
+    eq("unknown creature, not in war mode -> not aggressive by default -> ignore",
+       (one(a, 0x300).kind, one(a, 0x300).aggressive, one(a, 0x300).action), ("monster", False, "ignore"))
     eq("passive body (sheep) -> ignore", one(a, 0x301).action, "ignore")
-    eq("sheep in war mode -> aggressive flee", one(a, 0x302).action, "flee")
+    eq("sheep in war mode -> aggressive flee (default params)", one(a, 0x302).action, "flee")
+    goat = mob(0x304, 2, 0, body=0xD1, noto=3, flags=0)
+    walrus = mob(0x305, 2, 0, body=0xDD, noto=3, flags=0)
+    a = assess(state([goat, walrus]), recall_s=4.0, margin_s=1.0, now=NOW, params=aggressive)
+    eq("goat and walrus are passive even when unknown creatures count as dangerous (live aborts)",
+       (one(a, 0x304).action, one(a, 0x305).action), ("ignore", "ignore"))
+    a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW, params=aggressive)
+    eq("monster_default_aggressive=True: unknown creature -> flee",
+       (one(a, 0x300).aggressive, one(a, 0x300).action), (True, "flee"))
+    eq("monster eta (3 - 1) * 0.4", one(a, 0x300).eta_s, 0.8)
     eq("far aggressive monster -> watch (eta 7.6 > 5)", (one(a, 0x303).eta_s,
                                                          one(a, 0x303).action), (7.6, "watch"))
-    calm = Params(passive_bodies=frozenset({0x1D, 0xCF}))
+    calm = Params(monster_default_aggressive=True, passive_bodies=frozenset({0x1D, 0xCF}))
     a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW, params=calm)
     eq("passive_bodies param -> ignore", one(a, 0x300).action, "ignore")
     eq("war mode beats passive_bodies", one(a, 0x302).action, "flee")
-    a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW,
-               params=Params(monster_default_aggressive=False))
-    eq("default passive -> ignore", one(a, 0x300).action, "ignore")
-    a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW,
-               params=Params(monster_default_aggressive=False,
-                             aggressive_bodies=frozenset({0x1D})))
+    a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW, params=Params(aggressive_bodies=frozenset({0x1D})))
     eq("aggressive_bodies param -> flee", one(a, 0x300).action, "flee")
     a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW,
-               params=Params(passive_names=frozenset({"a blood ape"})))
+               params=Params(monster_default_aggressive=True, passive_names=frozenset({"a blood ape"})))
     eq("passive_names param -> ignore", one(a, 0x300).action, "ignore")
-    a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW, params=Params(monster_s_per_tile=0.2))
+    a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW,
+               params=Params(monster_default_aggressive=True, monster_s_per_tile=0.2))
     eq("faster monsters param -> far ape flees (eta 3.8)", one(a, 0x303).action, "flee")
 
 

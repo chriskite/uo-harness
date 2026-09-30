@@ -87,11 +87,9 @@ class LumberLoop:
         self.t_exit = None           # wall time of the last teleport out of the room
         self.stats = {}
         self.trip_n = None
-        # Shelter's wildlife isn't hostile; elsewhere creatures count as aggressive
-        # until known otherwise (threats.Params).
-        params = (threats.Params(monster_default_aggressive=False) if know.get("venue") == "shelter_island"
-                  else threats.Params())
-        self.watch = threats.Watch(params)
+        # a creature is a threat when it's in war mode, murderer-red or known aggressive
+        # (threats.Params); a wandering goat isn't
+        self.watch = threats.Watch(threats.Params())
         self.last_threats = None
         self.seen_hostiles = set()
         self.ledger = ledger_mod.Ledger()

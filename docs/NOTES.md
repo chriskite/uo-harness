@@ -70,6 +70,12 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   it; ClassicUO PacketHandlers.cs:4154-4183). It's client-only like the 0x21 re-anchor and
   covered by `test_movement.py`. Seen live: the moongate menu stayed drawn after the overseer's
   Travel.
+- **A creature that goes for you shows the war-mode flag (0x40)** in its mobile updates. In the
+  NPD capture 20260930_110946, 10 of 15 mongbats had it (the ones that fought). Sheep, giant
+  rats, hinds, an eagle, a great hart, zombies and a harpy never did and never attacked. So
+  `threats.Params` treats unknown creatures as harmless unless they're in war mode, murderer-red
+  or known aggressive. Before 2026-09-30 it counted every unknown creature off Shelter as
+  dangerous, which stopped lumber trips at Horseshoe Bay for a goat and a walrus.
 - **z while walking comes from the map (since 2026-09-30):** ConfirmWalk (0x22) carries no z. So
   the proxy's MoveAuthority computes z after each confirmed step with the client's walk rules
   (`SessionTap._step_z` → `pathfind.Walk.can_walk`, with the world model's ground items), the way
