@@ -333,6 +333,9 @@ def test_status(proxy):
     check("backpack counts include nested bags, not ground items",
           out["backpack"]["counts"].get("0x1BDD") == {"stacks": 1, "amount": 5}
           and out["backpack"]["counts"].get("0x1BD7") == {"stacks": 1, "amount": 10}, str(out["backpack"]))
+    check("equipment lists worn items by layer name (the backpack is worn, pack contents aren't)",
+          set(out["equipment"]) == {"backpack"} and out["equipment"]["backpack"]["graphic"] == "0x0E75",
+          str(out["equipment"]))
     check("last 5 intents", [i["text"] for i in out["intents"]] == ["i2", "i3", "i4", "i5", "i6"])
     check("tasks + open juncture count", out["tasks"] == [] and out["open_junctures"] == 0)
     dead = free_port(13100)

@@ -31,7 +31,7 @@ Rejected:
 - A server database (Postgres). It needs a service, which is too much for one local harness.
 - DuckDB. It's analytics-first, not in the stdlib, and has a single-writer file lock.
 
-## Schema (v2, `memory.SCHEMA`)
+## Schema (v3, `memory.SCHEMA`)
 
 | Table | Key | Contents |
 |---|---|---|
@@ -44,6 +44,7 @@ Rejected:
 | `junctures` | `id` | v2. Overseer wake-ups: `t`, `source` (runner or `ctl`), `kind` (task_done, task_failed, captcha, stuck, threat, theft_suspected, death, low_supplies, …), `severity` (info/attention/urgent), `summary`, `data`, `acked_t`. See docs/OVERSEER.md |
 | `chat` | `id` | v2. The viz chat and the overseer's visible thinking: `role` (user/overseer/system), `kind` (message/thought/action), `text`, `data` |
 | `job_events` | `id` | v2. Job analytics facts other than trips: `job`, `kind` (death with `data.cause`, theft, pk_seen, flee, …), `facet`/`x`/`y`, `data` |
+| `teleporters` | (`facet`, `x`, `y`) | v3. Invisible server teleporter tiles learned by stepping onto one: `to_facet`/`to_x`/`to_y`/`to_z`, `n`, `first_t`, `last_t`. The Mover plans around them (docs/OVERSEER.md) |
 | `meta` | `key` | `schema_version`; overseer bus (docs/OVERSEER.md): `tasks` (running task entries), `task_stop`, `overseer_juncture_cursor`, `overseer_chat_cursor`, `overseer_heartbeat` (epoch s) |
 
 ## Who writes what

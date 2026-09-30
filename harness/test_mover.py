@@ -28,7 +28,9 @@ def check(name, cond, detail=""):
 class FakeLink:
     """A grid server: walls deny, doors deny until opened (0x12 0x58 next to them)."""
 
-    def __init__(self, start, facing, walls=(), doors=(), mobiles=(), can_shove=True, z=0, z_walk=None):
+    def __init__(self, start, facing, walls=(), doors=(), mobiles=(), can_shove=True, z=0, z_walk=None,
+                 teleports=None):
+        self.teleports = dict(teleports or {})   # tile -> where stepping onto it puts you
         self.here = list(start)
         self.facing = facing
         self.walls = set(walls)
@@ -59,7 +61,7 @@ class FakeLink:
                 self.shoved.append(nxt)
             if self.z_walk is not None:
                 self.z = self.z_walk.can_walk(self.here[0], self.here[1], self.z, d)[2]
-            self.here = list(nxt)
+            self.here = list(self.teleports.get(nxt, nxt))
         elif pkt[0] == 0x12 and pkt[3] == 0x58:
             for door in self.doors:
                 if nav.chebyshev(door, tuple(self.here)) <= 1:
@@ -234,6 +236,36 @@ def test_height_goal():
           tuple(link.here) in {(5, 2), (6, 2), (7, 2)} and link.z == 5, f"{link.here} z {link.z}")
 
 
+def test_teleporter():
+    print("== invisible teleporter on the route: survive it, remember it, route around it next time ==")
+    import tempfile
+    import memory
+    store = memory.Memory(os.path.join(tempfile.mkdtemp(), "harness.db"))
+    far = (5536, 530)                              # live 2026-09-30: (1912,2557) -> the NPD
+    link = FakeLink((0, 0), facing=2, teleports={(3, 0): far})
+    # a corridor along y=0 whose short way crosses (3, 0); a longer detour via y=1..2 exists
+    open_tiles = {(x, 0) for x in range(-1, 8)} | {(2, 1), (2, 2), (3, 2), (4, 2), (4, 1)} | {far}
+    mv = Mover(link, store, Human("off"), use_map=True)
+    mv.walkers.put(0, GridWalk(open_tiles))
+    msg = walk_msg(mv, (6, 0))
+    check("the teleport doesn't crash the walk; it ends in 'no route' from the far side",
+          "no route" in msg and tuple(link.here) == far and mv.teleports == 1, f"{msg} at {link.here}")
+    check("remembered in the memory store: source tile -> destination",
+          store.teleporters(0) == {(3, 0): (None, far[0], far[1], 0)}, str(store.teleporters(0)))
+    link2 = FakeLink((0, 0), facing=2, teleports={(3, 0): far})
+    mv2 = Mover(link2, store, Human("off"), use_map=True)            # the next goto: a fresh Mover
+    mv2.walkers.put(0, GridWalk(open_tiles))
+    msg = walk_msg(mv2, (6, 0))
+    check("the next walk routes around the teleporter tile and arrives",
+          msg == "arrived" and tuple(link2.here) == (6, 0) and mv2.teleports == 0, f"{msg} at {link2.here}")
+    link3 = FakeLink((0, 0), facing=2, teleports={(3, 0): far})
+    mv3 = Mover(link3, store, Human("off"), use_map=True)
+    mv3.walkers.put(0, GridWalk(open_tiles))
+    walk_msg(mv3, (3, 0))
+    check("walking onto the teleporter on purpose (it is the goal) is allowed", tuple(link3.here) == far,
+          str(link3.here))
+
+
 if __name__ == "__main__":
     assert PROFILES["off"].bump_p == 0.0
     test_bump()
@@ -243,5 +275,6 @@ if __name__ == "__main__":
     test_go_around_when_cheap()
     test_shove_denied()
     test_height_goal()
+    test_teleporter()
     print(f"\nmover: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     sys.exit(0 if not FAILURES else 1)

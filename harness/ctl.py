@@ -78,6 +78,12 @@ WALK_MAX_STEPS = 20
 LAYER_BACKPACK = 0x15
 DROP_AUTO = 0x7FFFFFFF               # drop-into-container auto position (demo capture 204225, loop_lumber)
 DIR_NAMES = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+# ClassicUO Game/Data/Layers.cs (0x1A-0x1C are vendor containers; 0x1D is the bank box)
+LAYER_NAMES = {1: "one_handed", 2: "two_handed", 3: "shoes", 4: "pants", 5: "shirt", 6: "helmet",
+               7: "gloves", 8: "ring", 9: "talisman", 0x0A: "necklace", 0x0B: "hair", 0x0C: "waist",
+               0x0D: "torso", 0x0E: "bracelet", 0x0F: "face", 0x10: "beard", 0x11: "tunic",
+               0x12: "earrings", 0x13: "arms", 0x14: "cloak", 0x15: "backpack", 0x16: "robe",
+               0x17: "skirt", 0x18: "legs", 0x19: "mount", 0x1D: "bank"}
 # RunUO Notoriety constants (Innocent 1 .. Invulnerable 7) [INFERENCE: not in the
 # local ClassicUO tree; the client only switches on the named enum].
 NOTORIETY = {1: "innocent", 2: "ally", 3: "attackable", 4: "criminal", 5: "enemy",
@@ -310,11 +316,19 @@ def summarize(resp: dict) -> dict:
                                "x": x, "y": y, "z": it.get("z"), "amount": it.get("amount"), "dist": dist})
         ground.sort(key=lambda g: g["dist"])
     hp = lambda a, b: None if me.get(a) is None else [me.get(a), me.get(b)]  # noqa: E731
+    equipment = {}
+    for key, it in items.items():
+        if it.get("container") is not None and _serial(it["container"]) == self_serial and it.get("layer"):
+            equipment[LAYER_NAMES.get(it["layer"], f"layer_0x{it['layer']:02X}")] = {
+                "serial": key, "graphic": None if it.get("graphic") is None else f"0x{it['graphic']:04X}",
+                "name": it.get("name") or _tile_name(it.get("graphic"))}
     return {
         "name": me.get("name"), "serial": me.get("serial"),
         "pos": pos, "facet": me.get("map"),
+        "dead": me.get("dead"), "body": None if me.get("body") is None else f"0x{me['body']:04X}",
         "hits": hp("hits", "hits_max"), "stam": hp("stam", "stam_max"), "mana": hp("mana", "mana_max"),
         "weight": me.get("weight"), "gold": me.get("gold"), "warmode": me.get("warmode"),
+        "equipment": dict(sorted(equipment.items())),
         "movement": {k: mv.get(k) for k in ("inflight", "stalled", "resync_pending", "client_stale")},
         "gate": resp.get("gate"),
         "intent": resp.get("intent"), "intents": (resp.get("intents") or [])[-5:],

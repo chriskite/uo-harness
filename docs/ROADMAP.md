@@ -97,7 +97,10 @@ Ground rules that shape everything below:
 
 ## Demos to record (proxy running, you playing; none attacks anyone)
 
-While still Young:
+While still Young: **done by the overseer, 2026-09-30.** Results are in
+[`missions/YOUNG_DEMOS.md`](missions/YOUNG_DEMOS.md#results-run-by-the-overseer-live-2026-09-30-0918-1025-the-user-watched).
+The renounce prompt wasn't reached. Next: the user takes TestWorth off Shelter and sets up the
+runebook and shelf; then the overseer runs the demos below.
 - death → resurrection gump (cancel once, then accept) → corpse loot
 - NPC buy lists (mage, scribe, the hatchet seller): open Buy, then cancel
 - single-click the hatchet before and after ~20 chops (wear)

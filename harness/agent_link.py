@@ -184,11 +184,16 @@ class Mover:
         self.blocked_count = 0
         self.doors_opened = 0
         self.bumps = 0
+        self.teleports = 0
+        self._teleporters = {}       # facet -> {(x, y)} known teleporter tiles (store + session)
 
     def step(self, d: int, run: bool = True) -> str:
-        """Send one walk; wait for its outcome. Returns 'moved', 'turned' or 'blocked'."""
+        """Send one walk; wait for its outcome. Returns 'moved', 'turned',
+        'blocked' or 'teleported' (the step landed us somewhere other than the
+        next tile: an invisible server teleporter, remembered and avoided)."""
         st = self.link.state()
         before = self.link.pos(st)
+        facet_before = st["world"]["self"].get("map")
         pkt = actions.walk(d, run=run)
         for _ in range(40):  # retry pacing / resync-reply gates
             resp = self.link.send(pkt)
@@ -211,10 +216,34 @@ class Mover:
         after = self.link.pos(st)
         if after[:2] != before[:2]:
             self.steps += 1
+            facet_after = st["world"]["self"].get("map")
+            if nav.chebyshev(tuple(before[:2]), tuple(after[:2])) > 1 or facet_after != facet_before:
+                self._teleported(facet_before, nav.step(tuple(before[:2]), d), facet_after, after)
+                return "teleported"
             return "moved"
         if after[3] != before[3]:
             return "turned"
         return "blocked"
+
+    def _teleported(self, facet, tile, to_facet, after):
+        """Walking onto `tile` put us at `after`: remember the teleporter so
+        plans stop walking over it by accident."""
+        self.teleports += 1
+        self.teleporter_tiles(facet).add(tuple(tile))
+        if hasattr(self._source, "teleporter_record"):
+            self._source.teleporter_record(facet, tile[0], tile[1], to_facet, after[0], after[1], after[2])
+        log(f"teleported: stepping onto {tuple(tile)} put us at {tuple(after[:3])} (facet {to_facet}); "
+            f"remembered, replanning")
+
+    def teleporter_tiles(self, facet) -> set:
+        """Known teleporter tiles on facet (memory store + this session)."""
+        facet = 0 if facet is None else facet
+        s = self._teleporters.get(facet)
+        if s is None:
+            src = self._source
+            s = set(src.teleporters(facet)) if hasattr(src, "teleporters") else set()
+            self._teleporters[facet] = s
+        return s
 
     def occupied(self, st=None) -> set:
         """Tiles currently occupied by other mobiles."""
@@ -264,7 +293,8 @@ class Mover:
         else:
             options = [nav.step(cur, d) for d in range(8)
                        if (cur, d) not in self.mem.blocked and nav.step(cur, d) in self.mem.tiles]
-        options = [t for t in options if t not in occupied and t not in avoid]
+        tele = self.teleporter_tiles(self.link.state()["world"]["self"].get("map"))
+        options = [t for t in options if t not in occupied and t not in avoid and t not in tele]
         if not options:
             return False
         side = self.human.choice(options)
@@ -276,7 +306,7 @@ class Mover:
         if outcome == "moved":
             self.mem.add_step(cur, tuple(self.link.pos()[:2]))
             return True
-        return False
+        return outcome == "teleported"
 
     def obstacle_ahead(self, cur, d, walk=None, z=0) -> bool:
         """An obstacle one step from `cur` in direction `d`: the map says the
@@ -326,7 +356,11 @@ class Mover:
         def cost(a, b):
             return (noise(a, b) if noise else 1.0) * (MOBILE_COST_X if b in occ else 1.0)
 
-        self.mem = self.mem_for(st["world"]["self"].get("map"))
+        facet = st["world"]["self"].get("map")
+        self.mem = self.mem_for(facet)
+        # never walk over a known teleporter tile by accident (only onto one as the goal)
+        goal_tile = getattr(goal, "center", None) if getattr(goal, "radius", None) == 0 else None
+        hard = hard | (self.teleporter_tiles(facet) - {goal_tile})
         walk = self.walk_map(st)
         if walk is not None:
             path = pathfind.plan(walk, (pos[0], pos[1], pos[2]), goal,
@@ -376,7 +410,7 @@ class Mover:
                 d = nav.direction(cur, nxt)
                 if prev_d is not None and d != prev_d and self.obstacle_ahead(cur, prev_d, walk, z) \
                         and self.human.bump():
-                    if self._bump(cur, prev_d, run, label) == "moved":
+                    if self._bump(cur, prev_d, run, label) in ("moved", "teleported"):
                         replan = True
                         break
                 prev_d = d
@@ -389,6 +423,9 @@ class Mover:
                     tried_doors.add(nxt)
                     if self._try_door(cur, d, run):
                         outcome = "moved"
+                if outcome == "teleported":
+                    replan = True
+                    break
                 if outcome == "moved":
                     new = tuple(self.link.pos()[:2])
                     self.mem.add_step(cur, new)

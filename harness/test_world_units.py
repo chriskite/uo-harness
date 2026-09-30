@@ -914,7 +914,16 @@ def test_event_semantics():
     events = rt.drain_events()
     kinds = [e["ev"] for e in events]
     eq("event order", kinds, ["dclick", "gump_open", "gump_response"])
-    eq("gump state open", rt.state.gumps[(0x00215A42, 0xC16E0192)].open, True)
+    eq("the client's response closes the gump", rt.state.gumps[(0x00215A42, 0xC16E0192)].open, False)
+    rt.feed_packet("s2c", gump_open)                                    # reopened
+    rt.feed_packet("s2c", bytes.fromhex("bf" "000f" "0004" "c16e0192" "00000000"))   # server closes it
+    closes = [e for e in rt.drain_events() if e["ev"] == "gump_close"]
+    eq("server 0xBF sub 4 closes by gump id", (rt.state.gumps[(0x00215A42, 0xC16E0192)].open,
+                                              [(c["gump_id"], c["closed"]) for c in closes]),
+       (False, [(0xC16E0192, 1)]))
+    rt.feed_packet("c2s", bytes.fromhex("bf" "0008" "0004" "00" "0005"))   # C2S sub 4 = cast spell: not a close
+    eq("C2S 0xBF sub 4 (cast spell) is not a gump close",
+       [e["ev"] for e in rt.drain_events() if e["ev"] == "gump_close"], [])
     # every event payload is dict-serializable
     try:
         json.dumps(events)

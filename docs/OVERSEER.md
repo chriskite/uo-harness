@@ -77,9 +77,19 @@ while a task runs (no interleaving with a runner), and the gump cases above. Gat
 (role `overseer`, kind `action`) with the result in `data`.
 
 `journal [--n 30]`: the recent world events a player reads (speech, clilocs, gumps, menus, vendor
-lists, target cursors, facet changes) from the proxy's event ring, newest last. `status` lists
-mobiles with their click `label` (e.g. "Zara the scribe"), open gumps in full (texts, buttons,
-closable) and nearby `ground_items` (≤ 12 tiles, named from tiledata, e.g. "blue moongate").
+lists, target cursors, facet changes) from the proxy's event ring, newest last. `status` shows:
+- `dead` and `body` (the client's ghost-body rule)
+- `equipment` by layer name (e.g. `two_handed`: the hatchet, `robe` after a resurrection)
+- mobiles with their click `label` (e.g. "Zara the scribe")
+- open gumps in full (texts, buttons, closable); a gump counts as closed once it is answered or
+  the server closes it
+- nearby `ground_items` (≤ 12 tiles, named from tiledata, e.g. "blue moongate")
+
+**Teleporters** are invisible server objects, not in the map files. When a step lands somewhere
+other than the next tile, `goto` reports it and replans instead of failing. The source tile
+goes into the memory store's `teleporters` table, and later plans walk around it (unless it is
+the goal). Known: the New Player Dungeon entrance (1912,2557) → (5536,530), and its exit
+(5535,529) → (1912,2556,z-20).
 
 `map [--radius 12] [--to X Y [--z Z] [--range R]]` is how the overseer sees the terrain
 (`harness/localmap.py`). It's an ASCII grid, north up, each row prefixed with its y and two

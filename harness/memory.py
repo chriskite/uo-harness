@@ -23,6 +23,8 @@ Tables
                     role user|overseer|system, kind message|thought|action
   job_events        job analytics facts other than trips: death, theft
                     (suspected loss), pk_seen, flee, mob_attack, resurrect, ...
+  teleporters       invisible server teleporter tiles learned by walking onto
+                    one: source tile -> where it put us (the planner avoids them)
 
 Writers
   - the proxy: MemoryWriter, a background thread with batched commits, fed from
@@ -52,7 +54,7 @@ import nav  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DB = os.path.join(ROOT, "harness", "data", "harness.db")
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 UNKNOWN_Z = -32768
 
 SCHEMA = """
@@ -92,6 +94,11 @@ CREATE TABLE IF NOT EXISTS job_events(
     id INTEGER PRIMARY KEY, t REAL NOT NULL, job TEXT NOT NULL, kind TEXT NOT NULL,
     facet INTEGER, x INTEGER, y INTEGER, data TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS job_events_job_t ON job_events(job, t);
+CREATE TABLE IF NOT EXISTS teleporters(
+    facet INTEGER NOT NULL, x INTEGER NOT NULL, y INTEGER NOT NULL,
+    to_facet INTEGER, to_x INTEGER NOT NULL, to_y INTEGER NOT NULL, to_z INTEGER,
+    n INTEGER NOT NULL, first_t REAL NOT NULL, last_t REAL NOT NULL,
+    PRIMARY KEY (facet, x, y));
 """
 
 
@@ -302,6 +309,24 @@ class Memory:
             out.append(d)
         return out
 
+    # -- teleporters ----------------------------------------------------------------
+    def teleporter_record(self, facet, x, y, to_facet, to_x, to_y, to_z, t: float | None = None):
+        """Walking onto (facet, x, y) put us at (to_facet, to_x, to_y, to_z)."""
+        t = time.time() if t is None else t
+        self.con.execute(
+            "INSERT INTO teleporters(facet, x, y, to_facet, to_x, to_y, to_z, n, first_t, last_t) "
+            "VALUES(?,?,?,?,?,?,?,1,?,?) ON CONFLICT(facet, x, y) DO UPDATE SET "
+            "to_facet=excluded.to_facet, to_x=excluded.to_x, to_y=excluded.to_y, to_z=excluded.to_z, "
+            "n=n+1, last_t=excluded.last_t",
+            (0 if facet is None else facet, x, y, to_facet, to_x, to_y, to_z, t, t))
+        self.con.commit()
+
+    def teleporters(self, facet) -> dict:
+        """{(x, y): (to_facet, to_x, to_y, to_z)} known teleporter tiles on facet."""
+        return {(x, y): (tf, tx, ty, tz) for x, y, tf, tx, ty, tz in self.con.execute(
+            "SELECT x, y, to_facet, to_x, to_y, to_z FROM teleporters WHERE facet = ?",
+            (0 if facet is None else facet,))}
+
 
 # ----------------------------------------------------------------------- writer
 class MemoryWriter:
@@ -459,7 +484,7 @@ def stats(db: str) -> dict:
     con = connect(db)
     out = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
            for t in ("sessions", "events", "walk_moves", "harvest_nodes", "harvest_attempts", "episodes",
-                     "junctures", "chat", "job_events")}
+                     "junctures", "chat", "job_events", "teleporters")}
     con.close()
     return out
 

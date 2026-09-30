@@ -709,6 +709,8 @@ def _p_extended(pkt):
         d["map"] = r.u8()
     elif sub == 0x15:
         d["serial"], d["index"] = r.u32(), r.u16()
+    elif sub == 0x04 and r.remaining() >= 8:      # S2C close generic gump (C2S sub 4 = 3-byte cast spell)
+        d["gump_id"], d["button"] = r.u32(), r.u32()   # ClassicUO PacketHandlers.cs:4154-4156
     return d
 
 

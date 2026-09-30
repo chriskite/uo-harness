@@ -476,9 +476,12 @@ def _h_speech(rt, f):
 
 
 def _h_gump_response(rt, f):
+    """C2S 0xB1: the client (or agent) answered a gump, which closes it (the
+    stock client disposes the gump when it sends the response)."""
     g = rt.state.gumps.get((f["serial"], f["gump_id"]))
     if g is not None:
         g.responses += 1
+        g.open = False
     rt._emit("gump_response", serial=f["serial"], gump_id=f["gump_id"],
              button_id=f["button_id"], switches=f["switches"],
              texts=f["texts"])
@@ -527,6 +530,13 @@ def _extended_handler(direction):
         elif sub == 0x08 and direction == S2C and "map" in f:
             rt.state.self.map = f["map"]
             rt._emit("map_change", map=f["map"])
+        elif sub == 0x04 and direction == S2C and "gump_id" in f:
+            closed = 0
+            for g in rt.state.gumps.values():
+                if g.gump_id == f["gump_id"] and g.open:
+                    g.open = False
+                    closed += 1
+            rt._emit("gump_close", gump_id=f["gump_id"], button=f["button"], closed=closed, by="server")
         elif sub == 0x13 and direction == C2S:
             rt._emit("popup_request", serial=f["serial"])
         elif sub == 0x15 and direction == C2S:
