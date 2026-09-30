@@ -227,6 +227,11 @@ fixtures ("replay X, state at event N").
   packet id, confirms hidden and rewritten, fabricated client packets, and the last agent action.
   The one-glance answer to "what is the agent doing, and what did the proxy change".
 - **MapGrid.** One `<canvas>`, centered on the true position, wheel zoom, drag pan.
+  - **iso toggle** (2026-09-29): rotates the grid 45° clockwise into UO's own view: east goes
+    down-right, south down-left, north up-right, and tiles are drawn as diamonds. UO's 44×44 tiles
+    are squares turned 45°, so a pure rotation matches it (elevation isn't drawn). Labels stay upright.
+    The choice persists in localStorage (`viz.mapProjection`). The projection math is in
+    `viz/src/projection.ts` and is tested in `projection.test.ts`.
   - **Underlay: walk memory** (`/api/walkmem`, plus live `step`/`blocked` events): known-walkable
     tiles shaded, confirmed edges faint, blocked moves as red ticks. It is the best geography
     available until map files are decoded (Phase B), and it shows the planner's world directly.
