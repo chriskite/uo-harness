@@ -17,6 +17,13 @@
     "harvest_mounted": false,
     "note": "the user believes you can't harvest while mounted; a mount totem is likely useful later"
   },
+  "combat": {
+    "attack_monsters": true,
+    "loot_monster_corpses": true,
+    "attack_players": false,
+    "why": "user 2026-09-30: fight hostile mobs (e.g. mongbats) for gold; PvP is banned on the Test Shard and gives Heat of Battle",
+    "enforced_by": "ctl act attack/loot guards (monster kind + notoriety 3-6, no human corpses, hits >= 30% to start)"
+  },
   "young_demos_by_overseer": true,
   "leaving_shelter": "the human does it, after the Young demos; then sets up the runebook and shelf"
 }

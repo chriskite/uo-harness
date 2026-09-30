@@ -89,7 +89,16 @@ LAYER_NAMES = {1: "one_handed", 2: "two_handed", 3: "shoes", 4: "pants", 5: "shi
 NOTORIETY = {1: "innocent", 2: "ally", 3: "attackable", 4: "criminal", 5: "enemy",
              6: "murderer", 7: "invulnerable"}
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
-        "goto", "menu", "menu_pick", "gump", "unequip", "equip")
+        "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot")
+# Combat (user decision 2026-09-30): hostile monsters may be fought and looted; players never
+# (Test Shard CoC, ANTICHEAT.md §8.17). Notoriety 3-6 is attackable without a criminal flag;
+# 1 (innocent: players' pets) and 2 (ally) are criminal to attack, 7 is invulnerable.
+ATTACKABLE_NOTORIETY = frozenset([3, 4, 5, 6])
+ATTACK_MIN_HP = 0.3                  # refuse to start a fight below this share of max hits
+CORPSE_GRAPHIC = 0x2006
+LOOT_RANGE = 2                       # tiles; the server's own limit is similar [INFERENCE]
+LOOT_MAX_ITEMS = 25
+GOLD_GRAPHIC = 0x0EED
 CAPTCHA_GUMP_ID = 0x00000001          # lumber.json captcha.gump_id; human-only
 RENOUNCE_WORDS = ("renounce",)        # Young renounce prompt (clilocs 502085/3006307): close only
 GOTO_MAX_MOVES = 400
@@ -597,6 +606,10 @@ def _act(a, mem) -> dict:
         return _act_goto(a, mem)
     if a.name in ("unequip", "equip"):
         return _act_wear(a)
+    if a.name in ("warmode", "attack"):
+        return _act_combat(a)
+    if a.name == "loot":
+        return _act_loot(a)
     pkt = None
     if a.name == "say":
         text = " ".join(a.args).strip().lower()
@@ -671,6 +684,181 @@ def _act(a, mem) -> dict:
         stc.close()
 
 
+def _backpack(items: dict, me) -> int | None:
+    return next((_serial(k) for k, v in items.items() if v.get("layer") == LAYER_BACKPACK
+                 and v.get("container") is not None and _serial(v["container"]) == me), None)
+
+
+def _connect(a):
+    try:
+        ctl = Control(a.control_port)
+    except OSError as e:
+        raise CtlError(f"proxy control port {a.control_port} unreachable: {e}")
+    try:
+        return ctl, StateConn(a.state_port)
+    except OSError as e:
+        ctl.close()
+        raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
+
+
+def _act_combat(a) -> dict:
+    """warmode on|off: 0x72, the stock Tab toggle. attack <serial>: a hostile
+    monster only (never a player, a player's pet, an NPC or anything with a
+    human body; threats.identify + notoriety 3-6). Like the stock client (Tab,
+    then double-click the target) it turns war mode on first, then sends 0x05.
+    Refused below ATTACK_MIN_HP of max hits."""
+    import threats
+    ctl, stc = _connect(a)
+    try:
+        st = stc.state()
+        world = st["world"]
+        me = world["self"]
+        if a.name == "warmode":
+            if len(a.args) != 1 or a.args[0] not in ("on", "off"):
+                raise CtlError("warmode on|off")
+            on = a.args[0] == "on"
+            resp = ctl.send(actions.war_mode(on))
+            if resp != "OK":
+                return {"ok": False, "reply": resp}
+            end = time.monotonic() + EVENT_WAIT_S
+            while time.monotonic() < end and bool(stc.state()["world"]["self"].get("warmode")) != on:
+                time.sleep(0.1)
+            now_on = bool(stc.state()["world"]["self"].get("warmode"))
+            out = {"ok": now_on == on, "reply": resp, "warmode": now_on}
+            if now_on != on:
+                out["error"] = "the server didn't confirm the war mode change"
+            return out
+        if len(a.args) != 1:
+            raise CtlError("attack <mobile serial>")
+        serial = _parse_serial(a.args[0])
+        key = f"0x{serial:08X}"
+        mob = world["mobiles"].get(key)
+        if mob is None or mob.get("x") is None:
+            raise CtlError(f"mobile {key} not known to the world model")
+        if serial == _serial(me.get("serial")):
+            raise CtlError("that is you")
+        label = (world.get("labels") or {}).get(key)
+        kind, player, evidence = threats.identify(mob, label)
+        noto = mob.get("notoriety")
+        if kind != "monster" or player:
+            raise CtlError(f"{key} ({label or mob.get('name')}) is not a hostile monster ({kind}; "
+                           f"{', '.join(evidence)}): only monsters may be attacked, never players or NPCs")
+        if noto not in ATTACKABLE_NOTORIETY:
+            raise CtlError(f"{key} has notoriety {noto} ({NOTORIETY.get(noto, '?')}): likely someone's "
+                           f"pet or a protected creature; attacking it is a criminal act")
+        hits, hits_max = me.get("hits"), me.get("hits_max")
+        if hits is not None and hits_max and hits < ATTACK_MIN_HP * hits_max:
+            raise CtlError(f"hits {hits}/{hits_max} are below {ATTACK_MIN_HP:.0%}: heal or get away first")
+        pos = st["movement"]["pos"]
+        mark = stc.mark()
+        turned_on = False
+        if not me.get("warmode"):
+            resp = ctl.send(actions.war_mode(True))
+            if resp != "OK":
+                return {"ok": False, "reply": resp}
+            turned_on = True
+            Human(a.human, seed=a.seed).wait("use")
+        resp = ctl.send(actions.attack(serial))
+        got = stc.wait_events(mark, lambda evs: False, timeout=1.5)
+        return {"ok": resp == "OK", "reply": resp, "warmode_turned_on": turned_on,
+                "target": {"serial": key, "name": label or mob.get("name"), "kind": kind, "notoriety": noto,
+                           "hits": [mob.get("hits"), mob.get("hits_max")],
+                           "dist": nav.chebyshev(tuple(pos[:2]), (mob["x"], mob["y"])) if pos else None},
+                "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
+    finally:
+        ctl.close()
+        stc.close()
+
+
+def _act_loot(a) -> dict:
+    """loot <corpse serial>: open a monster's corpse within LOOT_RANGE tiles
+    (0x06 double click) and move what's in it into your backpack, one item
+    at a time (0x07 lift, pause, 0x08 drop), gold first, at most
+    --max-items, stopping at your weight limit. Refuses corpses with a human
+    body (players, human NPCs, your own: policy, no corpse runs)."""
+    import threats
+    if len(a.args) != 1:
+        raise CtlError("loot <corpse serial>")
+    serial = _parse_serial(a.args[0])
+    key = f"0x{serial:08X}"
+    ctl, stc = _connect(a)
+    try:
+        st = stc.state()
+        world, pos = st["world"], st["movement"]["pos"]
+        me_serial = st["movement"].get("self_serial")
+        corpse = world["items"].get(key)
+        if corpse is None or corpse.get("graphic") != CORPSE_GRAPHIC or corpse.get("container") is not None:
+            raise CtlError(f"{key} isn't a corpse on the ground")
+        body = corpse.get("amount")                       # a corpse's amount is the body it was
+        name = corpse.get("name") or ""
+        if body in threats.HUMAN_BODIES or "remains of" in name.lower():
+            raise CtlError(f"{key} ({name or f'body 0x{body:X}'}) is a human corpse (a player, a human NPC or "
+                           "you): not looted (criminal, and policy: no corpse runs)")
+        dist = nav.chebyshev(tuple(pos[:2]), (corpse["x"], corpse["y"]))
+        if dist > LOOT_RANGE:
+            raise CtlError(f"the corpse is {dist} tiles away; walk within {LOOT_RANGE} first "
+                           f"(goto {key} --range 1)")
+        pack = _backpack(world["items"], me_serial)
+        if pack is None:
+            raise CtlError("backpack not known to the world model")
+        noto_before = world["self"].get("notoriety")
+        mark = stc.mark()
+        human = Human(a.human, seed=a.seed)
+        resp = ctl.send(actions.dclick(serial))
+        if resp != "OK":
+            return {"ok": False, "reply": resp}
+
+        def contents():
+            items = stc.state()["world"]["items"]
+            return {k: v for k, v in items.items()
+                    if v.get("container") is not None and _serial(v["container"]) == serial}
+        end = time.monotonic() + EVENT_WAIT_S
+        inside = contents()
+        while not inside and time.monotonic() < end:
+            time.sleep(0.1)
+            inside = contents()
+        order = sorted(inside.items(), key=lambda kv: (kv[1].get("graphic") != GOLD_GRAPHIC, kv[0]))
+        taken, failed, stopped = [], [], None
+        for k, it in order[:a.max_items]:
+            me = stc.state()["world"]["self"]
+            if me.get("weight") is not None and me.get("weight_max") and me["weight"] >= me["weight_max"]:
+                stopped = f"weight {me['weight']}/{me['weight_max']}"
+                break
+            human.wait("drag")
+            s = _serial(k)
+            if ctl.send(actions.lift(s, it.get("amount") or 1)) != "OK" \
+                    or ctl.send(actions.drop(s, DROP_AUTO, DROP_AUTO, 0, 0, pack)) != "OK":
+                failed.append(k)
+                continue
+            end = time.monotonic() + EVENT_WAIT_S
+            moved = False
+            while time.monotonic() < end and not moved:
+                v = stc.state()["world"]["items"].get(k)
+                moved = v is not None and v.get("container") is not None and _serial(v["container"]) == pack
+                if not moved:
+                    time.sleep(0.1)
+            row = {"serial": k, "graphic": None if it.get("graphic") is None else f"0x{it['graphic']:04X}",
+                   "name": it.get("name") or _tile_name(it.get("graphic")), "amount": it.get("amount")}
+            (taken if moved else failed).append(row if moved else k)
+        got = stc.wait_events(mark, lambda evs: False, timeout=0.5)
+        noto_after = stc.state()["world"]["self"].get("notoriety")
+        out = {"ok": not failed, "corpse": {"serial": key, "name": name or None,
+                                            "body": None if body is None else f"0x{body:04X}", "dist": dist},
+               "taken": taken, "failed": failed, "left": max(0, len(inside) - len(taken)),
+               "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
+        if stopped:
+            out["stopped"] = stopped
+        if noto_after != noto_before:
+            out["warning"] = (f"your notoriety changed {noto_before} -> {noto_after} "
+                              f"({NOTORIETY.get(noto_after, '?')}) after looting")
+        if failed:
+            out["error"] = "some items didn't move (check journal/status; one may be on the cursor)"
+        return out
+    finally:
+        ctl.close()
+        stc.close()
+
+
 def _act_wear(a) -> dict:
     """unequip <serial>: an item you wear -> your backpack (0x07 lift, pause,
     0x08 drop into the pack). equip <serial>: an item in your backpack (any
@@ -697,8 +885,7 @@ def _act_wear(a) -> dict:
         it = items.get(key)
         if it is None:
             raise CtlError(f"item {key} not known to the world model")
-        pack = next((_serial(k) for k, v in items.items() if v.get("layer") == LAYER_BACKPACK
-                     and v.get("container") is not None and _serial(v["container"]) == me), None)
+        pack = _backpack(items, me)
         if pack is None:
             raise CtlError("backpack not known to the world model")
         worn = it.get("container") is not None and _serial(it["container"]) == me and bool(it.get("layer"))
@@ -1097,6 +1284,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--range", type=int, default=None,
                    help="goto: stop within this many tiles (default 0 for a tile, 2 for a mobile)")
     p.add_argument("--max-moves", type=int, default=GOTO_MAX_MOVES)
+    p.add_argument("--max-items", type=int, default=LOOT_MAX_ITEMS, help="loot: at most this many items")
     p.add_argument("--z", type=int, default=None,
                    help="goto x y: arrive standing within 10 of this z (a hill vs the cave under it)")
     p.add_argument("--no-map", action="store_true", help=argparse.SUPPRESS)   # offline tests only

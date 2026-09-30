@@ -70,6 +70,9 @@ class FakeProxy:
         self.gumps = []           # world.gumps rows
         self.fixed_mobiles = {}   # extra mobiles at fixed positions (goto tests)
         self.ground_items = {}    # extra ground items (goto/map tests)
+        self.warmode = False
+        self.self_hits = 50
+        self.self_noto = 1
         self.events = []          # event envelopes; seq = index
         self.lock = threading.Lock()
         cs, ss = free_port(12710), free_port(12910)
@@ -110,6 +113,8 @@ class FakeProxy:
                         s = int.from_bytes(pkt[5:9], "big")
                         self.add_event({"ev": "popup", "serial": s, "entries": [
                             {"cliloc": 3006123, "index": 0, "flags": 0}, {"cliloc": 3006103, "index": 1, "flags": 0}]})
+                    elif pkt[0] == 0x72:
+                        self.warmode = bool(pkt[1])
                     elif pkt[0] == 0x08 and len(pkt) == 22:          # drop into a container
                         it = self.ground_items.get(f"0x{int.from_bytes(pkt[1:5], 'big'):08X}")
                         if it is not None:
@@ -131,8 +136,9 @@ class FakeProxy:
                 "movement": {"pos": list(self.pos), "self_serial": self.SELF, "inflight": 0,
                              "stalled": False, "resync_pending": False, "client_stale": False},
                 "world": {
-                    "self": {"serial": "0x00000001", "name": "TestWorth", "hits": 50, "hits_max": 60,
-                             "stam": 40, "stam_max": 45, "mana": 20, "mana_max": 25, "weight": 123, "map": 0},
+                    "self": {"serial": "0x00000001", "name": "TestWorth", "hits": self.self_hits, "hits_max": 60,
+                             "stam": 40, "stam_max": 45, "mana": 20, "mana_max": 25, "weight": 123, "map": 0,
+                             "warmode": self.warmode, "notoriety": self.self_noto},
                     "mobiles": {"0x00000001": {"x": self.pos[0], "y": self.pos[1], "notoriety": 1},
                                 "0x00000002": {"x": self.pos[0] + 3, "y": self.pos[1], "name": "a PK",
                                                "notoriety": 6, "graphic": 400},
@@ -613,6 +619,73 @@ def test_overseer_acts(proxy):
     proxy.ground_items = {}
 
 
+def test_combat(proxy):
+    print("== combat: attack monsters only, warmode, loot monster corpses ==")
+    tmp = tempfile.mkdtemp()
+    c = Ctl(os.path.join(tmp, "harness.db"), os.path.join(tmp, "tasks"), proxy)
+    x, y = proxy.pos[:2]
+    proxy.fixed_mobiles = {
+        "0x00000010": {"x": x + 1, "y": y, "graphic": 0x27, "notoriety": 3, "name": "a mongbat"},
+        "0x00000011": {"x": x + 1, "y": y + 1, "graphic": 0xC9, "notoriety": 1, "name": "a cat"},   # a pet
+        "0x00000012": {"x": x, "y": y + 1, "graphic": 0x190, "notoriety": 7, "name": "Minka"},
+        "0x00000013": {"x": x - 1, "y": y, "graphic": 0x191, "notoriety": 1, "name": "Someone"},  # a player
+    }
+    proxy.take()
+    for serial, why in (("0x00000013", "not a hostile monster"), ("0x00000002", "not a hostile monster"),
+                        ("0x00000012", "not a hostile monster"), ("0x00000011", "notoriety 1"),
+                        ("0x00000099", "not known")):
+        code, out = c("act", "attack", serial)
+        check(f"attack refused ({why}): {serial}", code == 1 and why in out.get("error", "")
+              and proxy.take() == [], str(out))
+    proxy.self_hits = 10
+    code, out = c("act", "attack", "0x00000010")
+    check("attack refused below 30% hits", code == 1 and "below" in out.get("error", "") and proxy.take() == [],
+          str(out))
+    proxy.self_hits = 50
+    code, out = c("act", "attack", "0x00000010", "--human", "off")
+    fr = [p for _, p in proxy.take()]
+    check("attack a monster: war mode on first, then the stock 0x05 (Tab, double-click)",
+          code == 0 and fr == [actions.war_mode(True), actions.attack(0x10)] and out["warmode_turned_on"]
+          and out["target"]["kind"] == "monster", f"{out} {fr}")
+    code, out = c("act", "attack", "0x00000010", "--human", "off")
+    check("already in war mode: only the attack", code == 0 and [p for _, p in proxy.take()]
+          == [actions.attack(0x10)] and not out["warmode_turned_on"], str(out))
+    code, out = c("act", "warmode", "off")
+    check("warmode off: 0x72 and confirmed", code == 0 and out["warmode"] is False
+          and [p for _, p in proxy.take()] == [actions.war_mode(False)], str(out))
+    proxy.fixed_mobiles = {}
+
+    corpse, far, human = 0x40000100, 0x40000101, 0x40000102
+    proxy.ground_items = {
+        f"0x{corpse:08X}": {"graphic": 0x2006, "amount": 0x27, "x": x + 1, "y": y, "name": "a mongbat corpse"},
+        "0x40000110": {"graphic": 0x1F03, "container": f"0x{corpse:08X}"},
+        "0x40000111": {"graphic": 0x0EED, "amount": 12, "container": f"0x{corpse:08X}"},
+        f"0x{far:08X}": {"graphic": 0x2006, "amount": 0x27, "x": x + 5, "y": y},
+        f"0x{human:08X}": {"graphic": 0x2006, "amount": 0x190, "x": x, "y": y + 1},
+    }
+    code, out = c("act", "loot", f"0x{far:08X}")
+    check("loot refused: corpse out of reach", code == 1 and "tiles away" in out.get("error", "")
+          and proxy.take() == [], str(out))
+    code, out = c("act", "loot", f"0x{human:08X}")
+    check("loot refused: a human corpse", code == 1 and "human corpse" in out.get("error", "")
+          and proxy.take() == [], str(out))
+    code, out = c("act", "loot", "0x40000014")
+    check("loot refused: not a corpse", code == 1 and proxy.take() == [], str(out))
+    code, out = c("act", "loot", f"0x{corpse:08X}", "--human", "off")
+    fr = [p for _, p in proxy.take()]
+    pack = proxy.PACK
+    check("loot: open the corpse, then gold first, each lifted and dropped into the backpack",
+          code == 0 and fr == [actions.dclick(corpse),
+                               actions.lift(0x40000111, 12), actions.drop(0x40000111, ctl.DROP_AUTO, ctl.DROP_AUTO,
+                                                                          0, 0, pack),
+                               actions.lift(0x40000110, 1), actions.drop(0x40000110, ctl.DROP_AUTO, ctl.DROP_AUTO,
+                                                                         0, 0, pack)]
+          and [t["serial"] for t in out["taken"]] == ["0x40000111", "0x40000110"] and out["left"] == 0,
+          f"{out} {fr}")
+    proxy.ground_items = {}
+    proxy.take()
+
+
 def uomap_layer(graphic):
     import uomap
     return uomap.tiledata().item(graphic).layer
@@ -691,6 +764,7 @@ def main():
     test_run_act(proxy)
     test_map(proxy)
     test_know(proxy)
+    test_combat(proxy)
     test_overseer_acts(proxy)
     if FAILURES:
         print(f"FAILED: {len(FAILURES)}: {FAILURES}")

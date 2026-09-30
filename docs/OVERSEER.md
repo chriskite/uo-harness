@@ -67,6 +67,9 @@ Whitelist, built with the existing `harness/actions.py` builders and framed exac
 | `gump` | `<serial> <button>` | `0xB1` reply, **guarded**. It refuses: the captcha (gump id 1; always the human's, ANTICHEAT.md §8.8); a gump without reply buttons (the decoy/honeypot shape, §8.13); a button the layout doesn't offer; button 0 on a `noclose` gump; and **anything but button 0 (close) on a gump whose text mentions renouncing** (Young status is the human's decision) |
 | `unequip` | `<item serial>` | An item you wear goes to your backpack: `0x07` lift, human "drag" pause, `0x08` drop into the pack (the auto-position form from the demo capture). It waits until the world model shows it in the pack; it refuses items you don't wear and the backpack itself |
 | `equip` | `<item serial>` | An item in your backpack (any bag depth) is worn again: `0x07` lift, pause, `0x13` equip request on its tiledata layer. It waits until worn; it refuses items not in your pack, items already worn, and items without a wearable layer |
+| `warmode` | `on\|off` | `0x72` war mode request (the stock Tab toggle); waits until the server confirms |
+| `attack` | `<mobile serial>` | **Hostile monsters only** (user decision 2026-09-30). It refuses anything `threats.identify` doesn't call a monster: players, NPCs, human bodies. It also refuses notoriety outside 3–6 (1 innocent / 2 ally are players' pets: a criminal act; 7 invulnerable), and starting a fight below 30% of max hits. Like the stock client (Tab, then double-click the target), it turns war mode on first, then sends `0x05`. Swings are automatic while in range, so `goto <serial> --range 1` to close in, and `warmode off` after |
+| `loot` | `<corpse serial>` `[--max-items 25]` | A monster's corpse (ground item graphic `0x2006`; its `amount` is the dead creature's body) within 2 tiles. Opens it (`0x06`) and moves its contents into your backpack, gold first: `0x07` lift, human pause, `0x08` drop, stopping at your weight limit. It refuses human corpses (players, human NPCs, your own: policy, no corpse runs) and reports `warning` if your notoriety changes (e.g. criminal from looting someone else's kill) |
 
 Every packet act waits ~1.5 s and returns `heard`: the server's replies as a player would read
 them (messages with clilocs rendered, gumps with text/buttons/closable, menus, vendor lists).
@@ -270,8 +273,11 @@ Paste this (or point the session at this section) to start an overseer.
 > **Safety.** One task at a time; never `act` while a task runs (ctl refuses anyway). Only the
 > `act` whitelist and only allowlisted speech; never free text in game. Gump replies only through
 > `act gump`, whose guards you must not try to work around: the captcha is always the human's,
-> never reply to button-less gumps, and a renounce-Young prompt may only be closed. Never attack
-> anything or anyone: no PvP on the Test Shard, and Heat of Battle blocks recall and the inn room.
+> never reply to button-less gumps, and a renounce-Young prompt may only be closed. **Never
+> attack players, their pets or NPCs** (no PvP on the Test Shard; attacking a player also gives
+> Heat of Battle, which blocks recall and the inn room). Hostile monsters you may fight and loot
+> (`act attack`, `act loot`): one weak monster at a time, watch your hits, and back off below
+> about half.
 > Keep actions few and human-paced. The agent gate (pause, kill, breaks, daily cap) outranks you:
 > if it is closed, wait. If anything looks like a GM, a jail, or a server message about
 > automation, stop the task and call the human. Follow `harness/data/policy.json`.

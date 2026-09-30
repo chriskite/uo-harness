@@ -28,8 +28,10 @@ The overseer design is in `docs/OVERSEER.md`. The Shelter loop remains the provi
 
 Ground rules that shape everything below:
 - **No PvP ever.** The Test Shard Code of Conduct bans unsanctioned PvP (THREATS §6), and
-  attacking gives *Heat of Battle*, which blocks recall and entering the inn room. So even a grey
-  thief is avoided, never attacked. That answers the "grab a sword" idea in item 3.
+  attacking a player gives *Heat of Battle*, which blocks recall and entering the inn room. So
+  even a grey thief is avoided, never attacked. That answers the "grab a sword" idea in item 3.
+  **Hostile monsters may be fought and looted** (user, 2026-09-30); that is item 6's "fight weak
+  aggressors" answered yes.
 - **The captcha stays human.** The overseer's job is to wake you (ANTICHEAT §8.8).
 - **Human pacing and human-length sessions.** No 24/7 operation (AGENTS.md).
 - **Only act on what a player could see.** Targets must be on your level (ANTICHEAT §8.15).

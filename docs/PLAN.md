@@ -148,8 +148,11 @@ the memory store as the bus:
 Rejected for now: a custom API-driven daemon. It needs an API key and cost decisions; it can
 replace omp later on the same bus.
 
-**Standing rule: no PvP.** The Test Shard CoC bans it, and Heat of Battle blocks recall and
-entering the room (THREATS.md §6). Threats are escaped, never fought.
+**Standing rule: no PvP.** The Test Shard CoC bans it, and Heat of Battle (from any aggressive
+act against a *player*) blocks recall and entering the room (THREATS.md §6). Hostile players are
+escaped, never fought. **Monsters may be fought and looted** (user decision 2026-09-30:
+`ctl act attack|loot`, guarded to monsters only; monster combat doesn't cause Heat of Battle,
+TRAVEL_DEATH.md).
 
 ### Phase 5 (optional) — Production copilot
 Rules-compliant live mode: agent generates Razor scripts into `Data/Plugins/Assistant/Scripts/`; human reviews and runs them manually. No autonomy, no data extraction. Only phase allowed to touch the production shard, and only as a file generator.

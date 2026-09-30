@@ -9,7 +9,8 @@ you learned with `ctl say`, keeping it factual: packet/gump ids, texts, numbers,
 guesses as guesses.
 
 Rules: docs/OVERSEER.md §5 and `harness/data/policy.json`.
-- Never attack anything or anyone.
+- Never attack anything or anyone. (The rule then; since 2026-09-30 later that day, monsters may be
+  fought, but never players. See docs/OVERSEER.md §5.)
 - Never answer the captcha.
 - A renounce-Young prompt may only be closed.
 - Stop and call the user (`ctl say "@user …"`) on anything unexpected: GM contact, jail, automation
