@@ -59,7 +59,8 @@ stateDiagram-v2
   TravelOut --> Harvest
   Harvest --> Harvest: spot depleted → next spot
   Harvest --> Convert: return trigger (§6)
-  Harvest --> Convert: hostile player sighted (overworld)
+  Harvest --> Escape: red name sighted (overworld) → recall out (§11)
+  Escape --> EnterRoom: walk from the recall point to the innkeeper
   Convert --> TravelBack
   TravelBack --> EnterRoom
   EnterRoom --> Store: boards into the secure container
@@ -164,15 +165,18 @@ $$c(Q) = \frac{rT}{Q} + \frac{hQ}{2r} + h\,T_{back} \quad\Rightarrow\quad Q^* = 
   on the next forced break (so the break is spent in the room), the weight cap or the session end.
   Shelter trips are where `r` and `T` get measured. Shelter halves harvest chance, so its `r` does
   not carry over to the overworld.
-- **Overworld (later):** `h` per region, estimated Bayesian-ly: a Gamma prior the user sets per region
-  (e.g. "PK-heavy forest"), updated with observed encounters over time spent (Gamma-Poisson:
-  `α + k`, `β + minutes`). `Q*` recomputes each trip. Deaths are rare, so the prior dominates for a
-  long time, and that's intended.
-- **Hazard spike overrides the threshold:** in the overworld, a sighted non-NPC player that isn't
-  friendly (notoriety from the world model) ends the trip immediately: convert, go home. On Shelter
-  it's not needed.
-- **Recall as a knob (overworld, later):** a recall home cuts `T_back` but adds a 60 s lockout on the
-  way back out. The model takes it when `T` drops.
+- **Overworld (later): `h` is learned from our own data.** The episode log records exposure
+  (minutes in the field per region) and hazard events (red/grey player sightings, attacks,
+  deaths, goods lost). `h` per region comes from a Gamma-Poisson estimate: a user-set prior
+  (e.g. "PK-heavy forest"), then `α + k` events over `β + minutes` exposed. It sharpens as sessions
+  accumulate and could later split by time of day. `Q*` recomputes each trip. Deaths are rare, so
+  early on the prior dominates; sighting counts carry information much sooner than deaths.
+- **Red name → recall out immediately (user decision 2026-09-29; design deferred, see §11).** In the
+  overworld, a sighted murderer (red, notoriety 6) or an unfriendly grey player ends the trip at
+  once: recall home, not walk. The 60 s harvest lockout is irrelevant at that point. On Shelter it's
+  not needed (no hostile player actions).
+- **Recall as a knob (overworld, later):** a routine recall home cuts `T_back` but adds a 60 s
+  lockout on the way back out. The model takes it when `T` drops.
 
 ### Other knobs
 
@@ -265,3 +269,24 @@ signature (ANTICHEAT.md §8.3). Variation is required, not an inefficiency to re
    <tag>`, write `lumber.json`, and pin the facts in a replay test.
 
 Nothing in the harness injects during the demonstration; the proxy only relays and records.
+
+## 11. Deferred: come back to these before the overworld (noted 2026-09-29)
+
+1. **Hazard learning pipeline.** Episode-log schema for exposure and hazard events per region;
+   the Gamma-Poisson `h` estimator; the report showing `h` and its uncertainty per region; how the
+   user sets priors.
+2. **Red-name escape by recall.** Needs Magery (or recall scrolls), reagents and a rune/runebook
+   marked home: town/inn, since recall into the rental room is impossible. Open questions:
+   - cast time vs. how fast a PK closes in
+   - interruption by damage
+   - fallback when fizzled or out of reagents: run, drop the harvest, or hide
+   - escape latency budget from sighting to cast
+   The agent cast path exists (`actions.cast_spell` + target, proven live); the rune target flow
+   isn't captured yet.
+3. **Detection range: do we need Tracking?** The world model only knows mobiles the server sends
+   (0x20/0x77/0x78 with notoriety), so detection range = the server's update range. That's about
+   18 tiles for UO servers ([INFERENCE] for Outlands; measure from captures as the distance at
+   which mobiles first appear). The Tracking skill may reveal players beyond that range. To check:
+   Outlands Tracking mechanics (range, what it reports, cooldown, whether its result arrives as a
+   gump/cliloc the world model can read), and whether the earlier warning is worth the skill
+   points. Hidden/stealthed PKs are invisible either way.

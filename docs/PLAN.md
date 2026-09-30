@@ -92,9 +92,13 @@ LLM planner over the world model + skill library; safety rails: captcha human-ha
   **User decisions 2026-09-29:**
   - Venue: Shelter Island first (TestWorth is Young; the capture shows the Young-only welcome gump), the overworld later as a user-initiated move. Leaving Shelter renounces Young permanently, so the agent never travels off the island and never confirms a renounce gump.
   - Logs must become boards for commodity deeds.
-  - The return trigger trades carried-goods PK risk against trip overhead, including the 60 s harvest lockout after recall/teleport (LUMBER_LOOP.md §6: `Q* = r·sqrt(2T/h)`). Shelter has no hostile player actions, so `h = 0` there and trips end on breaks; the overworld uses a per-region Bayesian hazard plus an immediate return on a hostile sighting.
+  - The return trigger trades carried-goods PK risk against trip overhead, including the 60 s harvest lockout after recall/teleport (LUMBER_LOOP.md §6: `Q* = r·sqrt(2T/h)`). Shelter has no hostile player actions, so `h = 0` there and trips end on breaks. The overworld learns `h` per region from our own data, and a red name means an immediate recall out.
   - Boards bank in the room every trip; a deed is made when the room stock reaches the quantum.
   - Optimizer autonomy: statistics update automatically within bounds; structural changes are user-approved.
+  - **Come back to before the overworld (user note 2026-09-29, LUMBER_LOOP.md §11):**
+    - `h` learned from our own exposure and hazard data per region
+    - recall out the moment a red name appears
+    - whether the Tracking skill is needed to see reds beyond the server's update range
 
 ### Phase 5 (optional) — Production copilot
 Rules-compliant live mode: agent generates Razor scripts into `Data/Plugins/Assistant/Scripts/`; human reviews and runs them manually. No autonomy, no data extraction. Only phase allowed to touch the production shard, and only as a file generator.
