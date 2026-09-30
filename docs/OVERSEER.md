@@ -61,12 +61,31 @@ Whitelist, built with the existing `harness/actions.py` builders and framed exac
 | `dclick` / `single_click` | `<serial>` (hex `0x…` or decimal) | `0x06` / `0x09` |
 | `open_door` | – | `0x12` type `0x58` |
 | `target_cancel` | – | `0x6C` cancel for the cursor that is up now (refused if none) |
+| `goto` | `<x> <y>` or `<mobile serial>`, `--range R` (default 0 / 2), `--max-moves` (400) | Walks with `agent_link.Mover`: map pathfinding, doors, shoving, human pacing, height-aware (a mobile target means staying within one storey of it). Returns `from`, `to`, `steps`, `blocked`, `doors_opened`, or `error` (`no route`, too many blocks). Reports an intent (`goto`) to the viz |
+| `menu` | `<serial>` | `0xBF` sub `0x13` context-menu request; waits for the server's menu and returns its entries `{index, text (cliloc rendered), disabled}` |
+| `menu_pick` | `<serial> <index>` | `0xBF` sub `0x15` selection, e.g. a vendor's **Buy** entry (the vendor list then shows in `heard`/`journal`). Opening a Buy list sends nothing further: the stock client sends no packet when the shop window is closed without buying (ClassicUO ShopGump.cs:590-610). The window stays open on the user's screen until they close it |
+| `gump` | `<serial> <button>` | `0xB1` reply, **guarded**. It refuses: the captcha (gump id 1; always the human's, ANTICHEAT.md §8.8); a gump without reply buttons (the decoy/honeypot shape, §8.13); a button the layout doesn't offer; button 0 on a `noclose` gump; and **anything but button 0 (close) on a gump whose text mentions renouncing** (Young status is the human's decision) |
 
-Refused, and nothing sent: any other name (no gump responses, ever: the captcha is always solved
-by a human, ANTICHEAT.md §8.8, and §8.13's decoy captcha gumps flag any bot reply; no raw
-packets); speech outside the allowlist; any act while a task runs (no interleaving with a runner).
-Gate refusals (`ERR agent paused` …) are returned, not waited out. Every act, refused or not,
-posts a chat row (role `overseer`, kind `action`) with the result in `data`.
+Every packet act waits ~1.5 s and returns `heard`: the server's replies as a player would read
+them (messages with clilocs rendered, gumps with text/buttons/closable, menus, vendor lists).
+
+Refused, and nothing sent: any other name (no raw packets), speech outside the allowlist, any act
+while a task runs (no interleaving with a runner), and the gump cases above. Gate refusals
+(`ERR agent paused` …) are returned, not waited out. Every act, refused or not, posts a chat row
+(role `overseer`, kind `action`) with the result in `data`.
+
+`journal [--n 30]`: the recent world events a player reads (speech, clilocs, gumps, menus, vendor
+lists, target cursors, facet changes) from the proxy's event ring, newest last. `status` lists
+mobiles with their click `label` (e.g. "Zara the scribe") and open gumps in full (texts, buttons,
+closable).
+
+**Policy:** the user's standing decisions are in `harness/data/policy.json`:
+- home town Horseshoe Bay
+- death: self-resurrect, no `[TestRes`, no corpse runs
+- gold: may spend, daily cap 50 000 gp
+- no harvesting mounted
+
+The overseer follows it.
 
 **Speech allowlist.** docs/PLAN.md decides "in-game speech is allowlisted keywords/commands only"
 and LUMBER_LOOP.md adds `room`, but no allowlist existed in code. `ctl.SPEECH_ALLOWLIST` is now
@@ -159,10 +178,13 @@ Paste this (or point the session at this section) to start an overseer.
 >    again.
 >
 > **Safety.** One task at a time; never `act` while a task runs (ctl refuses anyway). Only the
-> `act` whitelist, only allowlisted speech, never gump responses (captcha is always the
-> human's), never free text in game. Keep actions few and human-paced. The agent gate (pause,
-> kill, breaks, daily cap) outranks you: if it is closed, wait. If anything looks like a GM, a
-> jail, or a server message about automation, stop the task and call the human.
+> `act` whitelist and only allowlisted speech; never free text in game. Gump replies only through
+> `act gump`, whose guards you must not try to work around: the captcha is always the human's,
+> never reply to button-less gumps, and a renounce-Young prompt may only be closed. Never attack
+> anything or anyone: no PvP on the Test Shard, and Heat of Battle blocks recall and the inn room.
+> Keep actions few and human-paced. The agent gate (pause, kill, breaks, daily cap) outranks you:
+> if it is closed, wait. If anything looks like a GM, a jail, or a server message about
+> automation, stop the task and call the human. Follow `harness/data/policy.json`.
 >
 > **Calling the human.** `ctl say "@user <what, where, what you need>"` and, for urgent cases
 > (captcha, death, GM contact, server restriction, repeated failure you can't explain), also

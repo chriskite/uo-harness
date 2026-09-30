@@ -19,14 +19,21 @@ Usage: python harness/ctl.py [--db P] [--state-port N] [--control-port N] <cmd> 
   act <name> [args]           one stock action through the proxy control port:
                               walk <dir 0-7> [n] [--run], say <allowlisted>,
                               dclick <serial>, single_click <serial>, open_door,
-                              target_cancel
+                              target_cancel, goto <x> <y> | goto <mobile serial>
+                              [--range R], menu <serial>, menu_pick <serial> <index>,
+                              gump <serial> <button>
+  journal [--n N]             recent server messages, gumps, menus, vendor lists
 Every call prints exactly one JSON object on stdout; exit 0 iff "ok" is true.
 Global options go before the command.
 
-Safety: `act` never sends gump responses (the captcha is always a human's,
-ANTICHEAT.md §8.8; §8.13 decoy captcha gumps flag any bot reply) or raw
-packets; speech is allowlisted; nothing is sent while a task runs (one
-character, no interleaving).
+Safety: `act gump` refuses the captcha (it is always a human's, ANTICHEAT.md
+§8.8), refuses gumps without reply buttons (§8.13 decoys flag any bot reply),
+refuses buttons the layout doesn't offer, and on a gump that mentions
+renouncing Young status allows only closing it (button 0). No raw packets;
+speech is allowlisted; nothing is sent while a task runs (one character, no
+interleaving). Opening a vendor's Buy list sends nothing further: the stock
+client sends no packet when a shop window is closed without buying
+(ClassicUO ShopGump.cs:590-610, Send_BuyRequest only on Accept).
 """
 import argparse
 import json
@@ -46,6 +53,8 @@ import nav  # noqa: E402
 import task_wrap as tw  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
+from uo import cliloc as cliloc_mod  # noqa: E402
+from uo.gumps import parse_layout  # noqa: E402
 
 HOST = "127.0.0.1"
 TASKS = {"lumber": os.path.join(HERE, "loop_lumber.py"),
@@ -72,7 +81,15 @@ DIR_NAMES = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 # local ClassicUO tree; the client only switches on the named enum].
 NOTORIETY = {1: "innocent", 2: "ally", 3: "attackable", 4: "criminal", 5: "enemy",
              6: "murderer", 7: "invulnerable"}
-ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel")
+ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
+        "goto", "menu", "menu_pick", "gump")
+CAPTCHA_GUMP_ID = 0x00000001          # lumber.json captcha.gump_id; human-only
+RENOUNCE_WORDS = ("renounce",)        # Young renounce prompt (clilocs 502085/3006307): close only
+GOTO_MAX_MOVES = 400
+EVENT_WAIT_S = 3.0
+# What `journal` shows: what a player reads on screen (messages, gumps, menus).
+JOURNAL_EVS = ("speech_heard", "cliloc", "gump_open", "gump_response", "popup", "buy_list",
+               "menu", "quest_arrow", "quest_arrow_set", "target", "map_change")
 
 
 class CtlError(Exception):
@@ -157,8 +174,81 @@ class StateConn:
             raise CtlError(f"state port: {resp.get('error')}")
         return resp
 
+    def events(self, since: int) -> tuple[list, int]:
+        """(event envelopes with seq >= since, next cursor), no world snapshot."""
+        self.sock.sendall((json.dumps({"op": "state", "since": since, "snapshot": False}) + "\n").encode())
+        resp = json.loads(self.f.readline() or b"{}")
+        if not resp.get("ok"):
+            raise CtlError(f"state port: {resp.get('error')}")
+        return resp.get("events") or [], resp.get("next", since)
+
+    def mark(self) -> int:
+        return self.events(1 << 62)[1]
+
+    def wait_events(self, since: int, pred, timeout: float = EVENT_WAIT_S) -> list:
+        """World events after `since` until pred(events) holds or timeout."""
+        end, got = time.monotonic() + timeout, []
+        while True:
+            evs, since = self.events(since)
+            got += [e["data"] for e in evs if e.get("origin") == "world"]
+            if pred(got) or time.monotonic() > end:
+                return got
+            time.sleep(0.1)
+
     def close(self):
         self.sock.close()
+
+
+_CLILOC = None
+
+
+def cliloc_text(number, args="") -> str:
+    """Render a cliloc like the client (install-dir Cliloc.enu, read-only)."""
+    global _CLILOC
+    if _CLILOC is None:
+        try:
+            _CLILOC = cliloc_mod.load()
+        except OSError:
+            _CLILOC = {}
+    return cliloc_mod.translate(_CLILOC, int(number), args or "")
+
+
+def gump_view(g: dict) -> dict:
+    """What the overseer needs to reason about a gump: ids, text, clilocs
+    rendered, reply buttons, whether it can be closed."""
+    lay = parse_layout(g.get("layout") or "")
+    texts = [t for t in (g.get("lines") or []) if t] + [cliloc_text(c) for c in lay["clilocs"]]
+    serial, gid = g.get("serial"), g.get("gump_id")
+    return {"serial": f"0x{_serial(serial):08X}" if serial is not None else None,
+            "gump_id": f"0x{_serial(gid):08X}" if gid is not None else None,
+            "texts": texts, "buttons": lay["buttons"], "entries": lay["entries"],
+            "closable": "noclose" not in (g.get("layout") or "").lower()}
+
+
+def journal_view(d: dict) -> dict:
+    """One world event as the player would read it."""
+    ev = d.get("ev")
+    if ev == "speech_heard":
+        return {"ev": ev, "from": d.get("name"), "text": d.get("text")}
+    if ev == "cliloc":
+        return {"ev": ev, "from": d.get("name"), "cliloc": d.get("cliloc"),
+                "text": cliloc_text(d.get("cliloc"), d.get("args"))}
+    if ev == "gump_open":
+        return {"ev": ev, **gump_view(d)}
+    if ev == "popup":
+        return {"ev": ev, "serial": f"0x{_serial(d['serial']):08X}",
+                "entries": [{"index": e.get("index"), "text": cliloc_text(e.get("cliloc")),
+                             "disabled": bool((e.get("flags") or 0) & 0x01)} for e in d.get("entries") or []]}
+    if ev == "buy_list":
+        return {"ev": ev, "container": d.get("container"),
+                "items": [{"name": item_name(i.get("name")), "price": i.get("price")} for i in d.get("items") or []]}
+    return {k: v for k, v in d.items() if k not in ("layout",)}
+
+
+def item_name(name: str) -> str:
+    """Vendor list names are often cliloc numbers sent as text."""
+    s = (name or "").strip("\x00").strip()
+    return cliloc_text(int(s)) if s.isdigit() else s
 
 
 def _serial(v) -> int:
@@ -171,6 +261,7 @@ def summarize(resp: dict) -> dict:
     me = world.get("self") or {}
     pos = mv.get("pos")
     self_serial = mv.get("self_serial")
+    labels = world.get("labels") or {}
     mobiles = []
     for key, m in (world.get("mobiles") or {}).items():
         s = _serial(key)
@@ -179,7 +270,8 @@ def summarize(resp: dict) -> dict:
         dist = nav.chebyshev((m["x"], m["y"]), (pos[0], pos[1])) if pos else None
         if dist is not None and dist > NEARBY_RANGE:
             continue
-        mobiles.append({"serial": f"0x{s:08X}", "name": m.get("name"), "graphic": m.get("graphic"),
+        mobiles.append({"serial": f"0x{s:08X}", "name": m.get("name"), "label": labels.get(key),
+                        "graphic": m.get("graphic"),
                         "notoriety": m.get("notoriety"), "notoriety_name": NOTORIETY.get(m.get("notoriety")),
                         "hits": m.get("hits"), "hits_max": m.get("hits_max"),
                         "x": m["x"], "y": m["y"], "z": m.get("z"), "dist": dist})
@@ -200,8 +292,7 @@ def summarize(resp: dict) -> dict:
                 g = counts.setdefault(f"0x{it['graphic']:04X}", {"stacks": 0, "amount": 0})
                 g["stacks"] += 1
                 g["amount"] += it.get("amount") or 1
-    gumps = [{"serial": g.get("serial"), "gump_id": g.get("gump_id")}
-             for g in world.get("gumps") or [] if g.get("open")]
+    gumps = [gump_view(g) for g in world.get("gumps") or [] if g.get("open")]
     hp = lambda a, b: None if me.get(a) is None else [me.get(a), me.get(b)]  # noqa: E731
     return {
         "name": me.get("name"), "serial": me.get("serial"),
@@ -453,17 +544,28 @@ def _act(a, mem) -> dict:
     alive = running_tasks(mem)
     if alive:
         raise CtlError(f"task {alive[0]['task_id']} is running; no interleaved actions (stop it first)")
+    if a.name == "goto":
+        return _act_goto(a, mem)
     pkt = None
     if a.name == "say":
         text = " ".join(a.args).strip().lower()
         if text not in SPEECH_ALLOWLIST:
             raise CtlError(f"speech not allowlisted: {' '.join(a.args)!r}; allowed: {list(SPEECH_ALLOWLIST)}")
         pkt = actions.say_unicode(text)
-    elif a.name in ("dclick", "single_click"):
+    elif a.name in ("dclick", "single_click", "menu"):
         if len(a.args) != 1:
             raise CtlError(f"{a.name} <serial>")
         s = _parse_serial(a.args[0])
-        pkt = actions.dclick(s) if a.name == "dclick" else actions.single_click(s)
+        pkt = {"dclick": actions.dclick, "single_click": actions.single_click,
+               "menu": actions.request_popup}[a.name](s)
+    elif a.name == "menu_pick":
+        if len(a.args) != 2:
+            raise CtlError("menu_pick <serial> <entry index>")
+        try:
+            idx = int(a.args[1], 0)
+        except ValueError:
+            raise CtlError("menu_pick: entry index must be an integer")
+        pkt = actions.popup_selection(_parse_serial(a.args[0]), idx)
     elif a.name == "open_door":
         if a.args:
             raise CtlError("open_door takes no arguments")
@@ -471,19 +573,21 @@ def _act(a, mem) -> dict:
     elif a.name == "target_cancel":
         if a.args:
             raise CtlError("target_cancel takes no arguments")
+    elif a.name == "gump":
+        if len(a.args) != 2:
+            raise CtlError("gump <serial> <button>")
     elif a.name != "walk":
         raise CtlError(f"unknown act {a.name!r}; allowed: {list(ACTS)}")
     try:
         ctl = Control(a.control_port)
     except OSError as e:
         raise CtlError(f"proxy control port {a.control_port} unreachable: {e}")
-    stc = None
     try:
-        if a.name in ("walk", "target_cancel"):
-            try:
-                stc = StateConn(a.state_port)
-            except OSError as e:
-                raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
+        stc = StateConn(a.state_port)
+    except OSError as e:
+        ctl.close()
+        raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
+    try:
         if a.name == "walk":
             return _act_walk(a, ctl, stc)
         if a.name == "target_cancel":
@@ -492,12 +596,132 @@ def _act(a, mem) -> dict:
                 raise CtlError("no target cursor is up")
             pkt = actions.target_cancel(cur["cursor_id"], cur.get("target_type") or 0,
                                         cur.get("cursor_type") or 0)
+        if a.name == "gump":
+            pkt = gump_reply(stc.state(), a.args[0], a.args[1])
+        mark = stc.mark()
         resp = ctl.send(pkt)
-        return {"ok": resp == "OK", "reply": resp}
+        if resp != "OK":
+            return {"ok": False, "reply": resp}
+        if a.name == "menu":           # wait for the server's context menu
+            got = stc.wait_events(mark, lambda evs: any(e.get("ev") == "popup" for e in evs))
+        else:                          # what the server answered, as the player would read it
+            got = stc.wait_events(mark, lambda evs: False, timeout=1.5)
+        heard = [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]
+        out = {"ok": True, "reply": resp, "heard": heard}
+        if a.name == "menu":
+            menu = next((h for h in heard if h["ev"] == "popup"), None)
+            out["ok"] = menu is not None
+            out["menu"] = menu
+            if menu is None:
+                out["error"] = "no context menu came back"
+        return out
     finally:
         ctl.close()
-        if stc is not None:
-            stc.close()
+        stc.close()
+
+
+def gump_reply(state: dict, serial_arg: str, button_arg: str) -> bytes:
+    """A 0xB1 reply the overseer may send, or CtlError. Refuses: the captcha
+    (human-only), gumps without reply buttons (decoys: any reply flags a bot),
+    buttons the layout doesn't offer, closing (0) a noclose gump, and anything
+    but closing on a gump that mentions renouncing Young status."""
+    serial = _parse_serial(serial_arg)
+    try:
+        button = int(button_arg, 0)
+    except ValueError:
+        raise CtlError("gump: button must be an integer")
+    gumps = [g for g in (state.get("world") or {}).get("gumps") or []
+             if g.get("open") and _serial(g.get("serial")) == serial]
+    if not gumps:
+        raise CtlError(f"no open gump with serial 0x{serial:08X}")
+    g = gumps[-1]
+    view = gump_view(g)
+    if _serial(g.get("gump_id")) == CAPTCHA_GUMP_ID:
+        raise CtlError("that is the captcha: only the human answers it (ANTICHEAT.md §8.8)")
+    if not view["buttons"]:
+        raise CtlError("gump has no reply buttons (decoy/honeypot shape, ANTICHEAT.md §8.13): never reply")
+    if any(w in t.lower() for t in view["texts"] for w in RENOUNCE_WORDS) and button != 0:
+        raise CtlError("gump mentions renouncing Young status: only closing it (button 0) is allowed; "
+                       "leaving Shelter is the human's decision")
+    if button == 0 and not view["closable"]:
+        raise CtlError("gump is noclose; button 0 isn't available")
+    if button != 0 and button not in view["buttons"]:
+        raise CtlError(f"button {button} not in the gump's reply buttons {view['buttons']}")
+    return actions.gump_response(serial, _serial(g.get("gump_id")), button)
+
+
+def _act_goto(a, mem) -> dict:
+    """Walk with the Mover (map pathfinding, doors, shoving, human pacing) to
+    a tile (`goto x y`) or a mobile (`goto 0xSERIAL`, which follows it and
+    stays within one storey of it)."""
+    import contextlib
+    import agent_link
+    if len(a.args) == 1:
+        target = _parse_serial(a.args[0])
+        key = f"0x{target:08X}"
+    elif len(a.args) == 2:
+        try:
+            target = (int(a.args[0]), int(a.args[1]))
+        except ValueError:
+            raise CtlError("goto <x> <y> | goto <mobile serial>")
+    else:
+        raise CtlError("goto <x> <y> | goto <mobile serial>")
+    with contextlib.redirect_stdout(sys.stderr):          # stdout is the one JSON reply
+        try:
+            link = agent_link.Link(a.control_port, a.state_port)
+        except OSError as e:
+            raise CtlError(f"proxy unreachable: {e}")
+        mover = agent_link.Mover(link, mem, Human(a.human, seed=a.seed), max_blocked=20, doors=True,
+                                 use_map=not a.no_map)
+        z_ok = None
+        if isinstance(target, int):
+            mob = link.state()["world"]["mobiles"].get(key)
+            if not mob or mob.get("x") is None:
+                raise CtlError(f"mobile {key} not known to the world model")
+            radius = 2 if a.range is None else a.range
+            if mob.get("z") is not None:
+                z_ok = agent_link.same_floor(mob["z"])
+
+            def center():
+                m = link.state()["world"]["mobiles"].get(key) or mob
+                return (m["x"], m["y"])
+            label, text = f"to {key}", f"Walking to {mob.get('name') or key}"
+        else:
+            radius = 0 if a.range is None else a.range
+
+            def center():
+                return target
+            label, text = f"to {target[0]},{target[1]}", f"Walking to {target[0]},{target[1]}"
+        link.intent(text, "goto", center(), loop="overseer")
+        start = link.pos()
+        try:
+            mover.walk_to(center, radius, label, max_moves=a.max_moves, z_ok=z_ok)
+            ok, err = True, None
+        except agent_link.Abort as e:
+            ok, err = False, str(e)
+        end = link.pos()
+    out = {"ok": ok, "from": start, "to": end, "steps": mover.steps, "blocked": mover.blocked_count,
+           "doors_opened": mover.doors_opened,
+           "reply": f"{'arrived' if ok else 'stopped'} at {end[0]},{end[1]} after {mover.steps} steps"}
+    if err:
+        out["error"] = err
+    return out
+
+
+def cmd_journal(a, mem):
+    """Recent world events a player reads: messages, gumps, menus, vendor
+    lists (the proxy's event ring), newest last."""
+    try:
+        stc = StateConn(a.state_port)
+    except OSError as e:
+        raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
+    try:
+        evs, _ = stc.events(0)
+    finally:
+        stc.close()
+    rows = [{"t": e.get("t"), **journal_view(e["data"])} for e in evs
+            if e.get("origin") == "world" and e["data"].get("ev") in JOURNAL_EVS]
+    return {"ok": True, "journal": rows[-a.n:]}
 
 
 # ---------------------------------------------------------------------- main
@@ -552,7 +776,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--run", action="store_true", help="walk: run instead of walk")
     p.add_argument("--human", choices=sorted(PROFILES), default="normal", help="walk pacing profile")
     p.add_argument("--seed", type=int, default=None)
+    p.add_argument("--range", type=int, default=None,
+                   help="goto: stop within this many tiles (default 0 for a tile, 2 for a mobile)")
+    p.add_argument("--max-moves", type=int, default=GOTO_MAX_MOVES)
+    p.add_argument("--no-map", action="store_true", help=argparse.SUPPRESS)   # offline tests only
     p.set_defaults(fn=cmd_act)
+    p = sub.add_parser("journal")
+    p.add_argument("--n", type=int, default=30)
+    p.set_defaults(fn=cmd_journal)
     return ap
 
 

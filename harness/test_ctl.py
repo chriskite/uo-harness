@@ -66,6 +66,9 @@ class FakeProxy:
         self.frames = []          # (declared length, packet bytes)
         self.pos = [100, 100, 0, 2]
         self.target = {"active": False, "target_type": None, "cursor_id": None, "cursor_type": None}
+        self.gumps = []           # world.gumps rows
+        self.fixed_mobiles = {}   # extra mobiles at fixed positions (goto tests)
+        self.events = []          # event envelopes; seq = index
         self.lock = threading.Lock()
         cs, ss = free_port(12710), free_port(12910)
         self.control_port, self.state_port = cs.getsockname()[1], ss.getsockname()[1]
@@ -101,6 +104,10 @@ class FakeProxy:
                             self.pos[3] = d                      # a new direction only turns
                         else:
                             self.pos[0], self.pos[1] = nav.step(tuple(self.pos[:2]), d)
+                    elif pkt[:5] == bytes.fromhex("bf00090013"):  # context menu request -> menu (mode 2)
+                        s = int.from_bytes(pkt[5:9], "big")
+                        self.add_event({"ev": "popup", "serial": s, "entries": [
+                            {"cliloc": 3006123, "index": 0, "flags": 0}, {"cliloc": 3006103, "index": 1, "flags": 0}]})
                 reply = b"OK"
                 c.sendall(len(reply).to_bytes(2, "big") + reply)
         except (EOFError, OSError):
@@ -119,14 +126,15 @@ class FakeProxy:
                     "mobiles": {"0x00000001": {"x": self.pos[0], "y": self.pos[1], "notoriety": 1},
                                 "0x00000002": {"x": self.pos[0] + 3, "y": self.pos[1], "name": "a PK",
                                                "notoriety": 6, "graphic": 400},
-                                "0x00000003": {"x": self.pos[0] + 50, "y": self.pos[1], "name": "far"}},
+                                "0x00000003": {"x": self.pos[0] + 50, "y": self.pos[1], "name": "far"},
+                                **self.fixed_mobiles},
                     "items": {p: {"graphic": 0x0E75, "layer": 0x15, "container": "0x00000001"},
                               "0x40000011": {"graphic": 0x1BDD, "amount": 5, "container": p},
                               "0x40000012": {"graphic": 0x0E76, "container": p},
                               "0x40000013": {"graphic": 0x1BD7, "amount": 10, "container": "0x40000012"},
                               "0x40000014": {"graphic": 0x1BD7, "amount": 99, "x": 1, "y": 1}},
-                    "target": dict(self.target), "gumps": []},
-                "events": [], "next": 0,
+                    "target": dict(self.target), "gumps": list(self.gumps)},
+                "events": [], "next": len(self.events),
                 "gate": {"state": "open"},
                 "intent": {"text": "idle"}, "intents": [{"text": f"i{k}"} for k in range(7)],
             }
@@ -136,7 +144,15 @@ class FakeProxy:
         try:
             for line in f:
                 req = json.loads(line)
-                resp = self.snapshot() if req.get("op") == "state" else {"ok": False, "error": "op"}
+                if req.get("op") != "state":
+                    resp = {"ok": False, "error": "op"}
+                else:
+                    resp = self.snapshot()
+                    if req.get("snapshot") is False:
+                        del resp["world"]
+                    since = req.get("since", 0)
+                    with self.lock:
+                        resp["events"] = [e for e in self.events if e["seq"] >= since]
                 c.sendall((json.dumps(resp) + "\n").encode())
         except OSError:
             pass
@@ -147,6 +163,10 @@ class FakeProxy:
         with self.lock:
             out, self.frames = self.frames, []
         return out
+
+    def add_event(self, data, origin="world"):
+        """Append an event envelope (call with self.lock held or from tests)."""
+        self.events.append({"seq": len(self.events), "t": time.time(), "origin": origin, "data": data})
 
 
 def env_with(tasks=None):
@@ -468,6 +488,81 @@ def test_run_act(proxy):
     m.close()
 
 
+def gump_row(serial, gump_id, layout, lines=()):
+    return {"serial": f"0x{serial:08X}", "gump_id": f"0x{gump_id:08X}", "layout": layout,
+            "lines": list(lines), "open": True}
+
+
+def test_overseer_acts(proxy):
+    print("== journal / menu / gump / goto ==")
+    tmp = tempfile.mkdtemp()
+    db = os.path.join(tmp, "harness.db")
+    c = Ctl(db, os.path.join(tmp, "tasks"), proxy)
+    have_cliloc = os.path.exists("C:/Program Files (x86)/Ultima Online Outlands/Cliloc.enu")
+
+    with proxy.lock:
+        proxy.add_event({"ev": "speech_heard", "name": "System", "text": "(500 uses remaining)"})
+        proxy.add_event({"ev": "cliloc", "name": "System", "cliloc": 500495, "args": ""})
+        proxy.add_event({"ev": "step", "from": [1, 1], "to": [1, 2]}, origin="proxy")
+        proxy.add_event({"ev": "keepalive"})
+    code, out = c("journal", "--n", "10")
+    j = out.get("journal", [])
+    check("journal: what a player reads (speech, rendered cliloc), no proxy/keepalive noise",
+          code == 0 and [r["ev"] for r in j] == ["speech_heard", "cliloc"]
+          and j[0]["text"] == "(500 uses remaining)", str(j))
+    if have_cliloc:
+        check("journal renders cliloc text like the client", "useable wood" in j[1]["text"], j[1]["text"])
+
+    proxy.take()
+    code, out = c("act", "menu", "0x000001E5")
+    fr = proxy.take()
+    check("menu sends the stock popup request", [p for _, p in fr] == [actions.request_popup(0x1E5)], str(fr))
+    ents = (out.get("menu") or {}).get("entries", [])
+    check("menu returns the server's entries with index", code == 0 and [e["index"] for e in ents] == [0, 1],
+          str(out))
+    if have_cliloc:
+        check("menu entries rendered (Buy)", ents[1]["text"] == "Buy", str(ents))
+    code, out = c("act", "menu_pick", "0x000001E5", "1")
+    check("menu_pick sends the stock popup selection",
+          code == 0 and [p for _, p in proxy.take()] == [actions.popup_selection(0x1E5, 1)], str(out))
+
+    btns = "{ button 10 10 1 2 1 0 1 }{ button 10 30 1 2 1 0 2 }"
+    proxy.gumps = [
+        gump_row(0x100, 0x00000001, "{ textentrylimited 1 1 40 20 0 2 2 3 }" + btns),        # captcha
+        gump_row(0x101, 0x5E11A1, "{ noclose }{ croppedtext -300 -200 1 1 0 0 }", ["Captcha"]),  # decoy
+        gump_row(0x102, 0x22, btns, ["You have chosen to renounce your Young player status?"]),
+        gump_row(0x103, 0x33, "{ noclose }" + btns, ["Resurrection"]),
+    ]
+    for serial, button, why in ((0x100, 2, "captcha"), (0x101, 0, "no reply buttons"), (0x102, 1, "renounce"),
+                                (0x103, 0, "noclose"), (0x103, 9, "not in the gump's reply buttons"),
+                                (0x104, 1, "no open gump")):
+        code, out = c("act", "gump", f"0x{serial:X}", str(button))
+        check(f"gump refused: {why}", code == 1 and proxy.take() == [], str(out))
+    code, out = c("act", "gump", "0x102", "0")
+    check("renounce prompt: closing it (button 0) is allowed",
+          code == 0 and [p for _, p in proxy.take()] == [actions.gump_response(0x102, 0x22, 0)], str(out))
+    code, out = c("act", "gump", "0x103", "1")
+    check("a normal gump: an offered button is sent as the stock 0xB1",
+          code == 0 and [p for _, p in proxy.take()] == [actions.gump_response(0x103, 0x33, 1)], str(out))
+    proxy.gumps = []
+
+    proxy.pos = [100, 100, 0, 2]
+    code, out = c("act", "goto", "104", "100", "--human", "off", "--no-map")
+    fr = proxy.take()
+    check("goto x y: the Mover walks there (2D fallback in this test)",
+          code == 0 and out.get("to", [])[:2] == [104, 100] and out.get("steps") == 4, str(out))
+    check("goto sends only stock walks", fr and all(p[0] == 0x02 for _, p in fr), str(fr[:3]))
+    proxy.fixed_mobiles = {"0x00000004": {"x": 110, "y": 100, "z": 0, "name": "Zara", "notoriety": 7}}
+    code, out = c("act", "goto", "0x00000004", "--human", "off", "--no-map")
+    check("goto mobile: walks until within 2 tiles of it",
+          code == 0 and nav.chebyshev(tuple(out["to"][:2]), (110, 100)) <= 2
+          and nav.chebyshev(tuple(out["from"][:2]), (110, 100)) > 2, str(out))
+    proxy.fixed_mobiles = {}
+    proxy.take()
+    code, out = c("act", "goto", "0x00000099", "--no-map")
+    check("goto unknown mobile refused", code == 1 and proxy.take() == [], str(out))
+
+
 def main():
     proxy = FakeProxy()
     for port in (proxy.control_port, proxy.state_port):
@@ -475,6 +570,7 @@ def main():
     test_wait(proxy)
     test_status(proxy)
     test_run_act(proxy)
+    test_overseer_acts(proxy)
     if FAILURES:
         print(f"FAILED: {len(FAILURES)}: {FAILURES}")
         sys.exit(1)

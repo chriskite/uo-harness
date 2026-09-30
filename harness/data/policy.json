@@ -1,0 +1,22 @@
+{
+  "decided": "2026-09-30 by the user (docs/ROADMAP.md 'Answers')",
+  "home_town": "Horseshoe Bay",
+  "runebook": "supplied by the user after leaving Shelter",
+  "death": {
+    "self_resurrect": true,
+    "use_testres": false,
+    "corpse_runs": false,
+    "why_no_corpse_runs": "a PK took the loot; a mob is probably still at the corpse"
+  },
+  "gold": {
+    "may_spend": true,
+    "daily_cap_gp": 50000,
+    "enforcement": "no agent code spends gold yet (ctl act has no buy); the first buy action must check this cap against today's spend"
+  },
+  "mount": {
+    "harvest_mounted": false,
+    "note": "the user believes you can't harvest while mounted; a mount totem is likely useful later"
+  },
+  "young_demos_by_overseer": true,
+  "leaving_shelter": "the human does it, after the Young demos; then sets up the runebook and shelf"
+}

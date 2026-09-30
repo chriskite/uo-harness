@@ -1,5 +1,23 @@
 # ROADMAP.md: Phase 5, the overworld lumber job under an AI overseer
 
+## Answers (user, 2026-09-30)
+
+Recorded in `harness/data/policy.json`:
+
+- **Mount:** you probably can't harvest while mounted. A mount totem is likely useful later.
+- **Home town:** Horseshoe Bay.
+- **Runebook:** the user supplies it.
+- **Death:** the agent may resurrect itself. No `[TestRes`. No corpse runs: a PK took the loot,
+  and a mob is probably still at the corpse.
+- **Gold:** may spend, with a configurable daily cap starting at 50 000 gp.
+- **Young demos:** the overseer runs them itself (docs/missions/YOUNG_DEMOS.md), so the user can
+  see it work. Then the user takes TestWorth off Shelter and sets up the runebook and shelf, and
+  the overseer attempts the remaining demos.
+
+Still open: Q1 (template: Magery, Tracking, Resist), Q7 (react to blues closing in), Q8 (escape
+items), Q9 (fight weak monsters?), Q11 (colored-wood values), Q12 (deeds), Q13 (carry cap / locked
+box), Q14 (staged PvP captures).
+
 Written 2026-09-29 (night) from the user's 10-point brief. Research is in `docs/research/`:
 - **ECONOMY**: tools, woods, shelf, deeds, prices
 - **TRAVEL_DEATH**: recall, runebooks, moongates, Young, death, resurrection, towns
