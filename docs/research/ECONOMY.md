@@ -217,6 +217,28 @@ Test Shard's public shelves or one of our own in the rental room.
 - The gump layout, gump id and button ids are **not captured**. The harness can't drive the shelf
   until a human demo is recorded (§8).
 
+### 4.1a Getting items on the Test Shard (researched 2026-09-30, user question)
+
+- **There is no item-creation command.** The Test Shard commands are `[TestRes`,
+  `[TestIgnoreMaxDamageCap`, `[TestMaxMeleeDamageRolls`, `[TestMaxSpellDamageRolls`,
+  `[TestBlessedGear` and `[Go` ([Template:CommandsTestShard](https://wiki.uooutlands.com/Template:CommandsTestShard),
+  rev 29011). H
+- **Items come from fully stocked public objects** at the North Prevalia fountain (two sets) and
+  Corpse Creek ([Test Shard](https://wiki.uooutlands.com/Test_Shard), rev 29137). H
+  - Resource Stockpile: crafting ingredients, Arcane Essence
+  - Storage Shelf: crafted armour, weapons, tools, consumables
+  - Prevalia Trunk: Prevalia Merchant items
+  - Magic Item Vault, Trophy Hutch, Wardrobe, Flooring Rack, Landscaping Tilebox
+- **Player editor statues** (the overseer, live): besides skills and stats, a "Player Testing"
+  page (gump 0xB04DBB14, statue 0x40042777) offers buttons Maximum Wealth (100), Storage Shelf
+  (Filled) (101), Resource Stockpile (Filled) (102), All Tomes (103), Complete All Codexes (104)
+  and Level All Aspects (105). `[INFERENCE]` These give the character those items or states. Not
+  pressed yet; the user decides.
+- **Runebook:** crafted with Inscription ([Runebook](https://wiki.uooutlands.com/Runebook)). It
+  needs arcane scrolls, which are loot-only on live
+  ([Arcane Scroll](https://wiki.uooutlands.com/Arcane_Scroll)). `[INFERENCE]` On the Test Shard
+  the Resource Stockpile is the likely source (the wiki doesn't list its contents).
+
 ### 4.2 Supplies and where they come from
 
 | Item | Purpose | Source / price | Conf. |
