@@ -49,6 +49,10 @@ These constraints come from existing docs and aren't optimization targets:
 | No recall/gate into a room; no access within 2 min of PvP | Rental Room System | Walking return is the only way in |
 | Floor items decay after 1 h unless locked down; secure containers don't decay | Rental Room System | Boards and deeds go into a secure container (one-time human setup) |
 | Commodities aren't blessed and can be looted | Commodities | Whatever is carried is at risk; §6 prices that |
+| **Test Shard: all houses and inn rooms are cleared every 24 h at midnight UTC** | [Test Shard](https://wiki.uooutlands.com/Test_Shard) | Room contents are ephemeral on the Test Shard. The loop needs a "room missing → re-rent + re-secure" path, or stored goods are treated as a daily scratch pad. Test Shard state also re-mirrors from live saves occasionally |
+| Renting costs gold (small room 5 000 gp/week, from the bank box); the first character on an account gets a 10 000 gp Rental Room Credit Deed | Rental Room System | TestWorth has 0 gold (2026-09-29). Renting works only if it holds a credit deed; otherwise gold comes first |
+| NPC vendors on Shelter didn't buy what TestWorth offered ("You have nothing I would be interested in", sessions 141253/164548). The wiki's earning advice for resources is selling to players (~9–10 gp per board) | captures + [New Player Guide](https://wiki.uooutlands.com/New_Player_Guide) | No NPC gold sink for boards; boards are the stored product, not an income source |
+| Test Shard resource stockpiles are in North Prevalia and Corpse Creek | Test Shard | Off-island: reaching them renounces Young, so they're out of reach during the Shelter phase |
 
 ## 3. The loop as a state machine
 
@@ -253,7 +257,8 @@ signature (ANTICHEAT.md §8.3). Variation is required, not an inefficiency to re
 5. Note TestWorth's Lumberjacking skill; if it's low, a Test Shard template can set 60.
 
 **Demonstration (one continuous session through the proxy, ~20–30 min so a captcha shows up):**
-1. At the banker, buy a few blank commodity deeds, the way you normally would.
+1. If you have gold: at the banker, buy a few blank commodity deeds, the way you normally would.
+   With 0 gold, skip this step and step 6; the rest of the demo doesn't depend on them.
 2. Walk to trees where harvesting works. Double-click the hatchet (if a target cursor appears, target
    yourself). Harvest until the spot is empty, move to another spot, keep going.
 3. When the captcha appears, solve it normally.
