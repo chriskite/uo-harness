@@ -622,3 +622,12 @@ in that cave can't see or click a tree on the surface, so it's an inhuman signal
   - On the real map, both trees are now reached at z 5 beside them via the inn's door; the
     route is longer (66–76 steps). From the cave, the innkeeper goal ends on the ground floor
     (z 1).
+- **Confirmed live (run 4, 23:05, 1 trip, exit 0; user watching the client: "we didn't chop trees
+  from inside a cave this time").**
+  - The agent left the inn by its south door and walked around outside (via (1943, 2598)) to the
+    trees west of the inn: 68 steps planned, where the height-blind route into the cave was 53.
+  - It chopped (1924, 2588), (1924, 2591) and (1923, 2594) at z 5/5/4 from (1924, 2589),
+    (1925, 2590) and (1924, 2593). Each of those tiles has standing heights −20 and 5.
+  - The server sent no self-z anchor while it was chopping, so the surface z rests on the
+    planner plus the user's observation.
+  - 22 logs → 22 boards stored in 2 min 47 s: 5 doors, 1 block, 1 bump.
