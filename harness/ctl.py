@@ -54,7 +54,7 @@ import task_wrap as tw  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 from uo import cliloc as cliloc_mod  # noqa: E402
-from uo.gumps import parse_layout  # noqa: E402
+from uo.gumps import controls as gump_controls, parse_layout, reply_fields as gump_reply_fields  # noqa: E402
 
 HOST = "127.0.0.1"
 TASKS = {"lumber": os.path.join(HERE, "loop_lumber.py"),
@@ -120,6 +120,7 @@ VENDOR_RANGE = 12                    # 13 tiles got "too far away" live (docs/LU
 SORTED_BUY_CONTAINER = 0x2AF8        # ClassicUO BuyList: this container sorts by x; others map reversed
 POLICY_PATH = os.path.join(HERE, "data", "policy.json")
 CAPTCHA_GUMP_ID = 0x00000001          # lumber.json captcha.gump_id; human-only
+GUMP_TEXT_MAX = 239                  # chars per gump text entry (the client's text box limit)
 RENOUNCE_WORDS = ("renounce",)        # Young renounce prompt (clilocs 502085/3006307): close only
 GOTO_MAX_MOVES = 400
 GOTO_Z_TOL = 10                      # goto --z / ground item: stand within this of the target z
@@ -290,14 +291,18 @@ def cliloc_text(number, args="") -> str:
 
 def gump_view(g: dict) -> dict:
     """What the overseer needs to reason about a gump: ids, text, clilocs
-    rendered, reply buttons, whether it can be closed."""
-    lay = parse_layout(g.get("layout") or "")
+    rendered, reply buttons, whether it can be closed, and `controls`: where
+    each button and text entry is with the texts on its row (uo.gumps.controls;
+    `near[].dx` > 0 means the text is right of the control)."""
+    layout = g.get("layout") or ""
+    lay = parse_layout(layout)
     texts = [t for t in (g.get("lines") or []) if t] + [cliloc_text(c) for c in lay["clilocs"]]
     serial, gid = g.get("serial"), g.get("gump_id")
     return {"serial": f"0x{_serial(serial):08X}" if serial is not None else None,
             "gump_id": f"0x{_serial(gid):08X}" if gid is not None else None,
             "texts": texts, "buttons": lay["buttons"], "entries": lay["entries"],
-            "closable": "noclose" not in (g.get("layout") or "").lower()}
+            "controls": gump_controls(layout, g.get("lines") or [], cliloc_text),
+            "closable": "noclose" not in layout.lower()}
 
 
 def journal_view(d: dict) -> dict:
@@ -801,7 +806,7 @@ def _act(a, mem) -> dict:
             pkt = actions.target_cancel(cur["cursor_id"], cur.get("target_type") or 0,
                                         cur.get("cursor_type") or 0)
         if a.name == "gump":
-            pkt = gump_reply(stc.state(), a.args[0], a.args[1])
+            pkt = gump_reply(stc.state(), a.args[0], a.args[1], a.text or ())
         mark = stc.mark()
         resp = ctl.send(pkt)
         if resp != "OK":
@@ -1386,11 +1391,14 @@ def _tile_layer(graphic):
     return it.layer if it else None
 
 
-def gump_reply(state: dict, serial_arg: str, button_arg: str) -> bytes:
-    """A 0xB1 reply the overseer may send, or CtlError. Refuses: the captcha
-    (human-only), gumps without reply buttons (decoys: any reply flags a bot),
-    buttons the layout doesn't offer, closing (0) a noclose gump, and anything
-    but closing on a gump that mentions renouncing Young status."""
+def gump_reply(state: dict, serial_arg: str, button_arg: str, texts=()) -> bytes:
+    """A 0xB1 reply the overseer may send, or CtlError. Like the stock client it
+    carries every text entry (current text, or the overseer's --text ID=VALUE)
+    and the switches that start checked. Refuses: the captcha (human-only),
+    gumps without reply buttons (decoys: any reply flags a bot), buttons the
+    layout doesn't offer, closing (0) a noclose gump, anything but closing on a
+    gump that mentions renouncing Young status, and text for an entry the gump
+    doesn't have or longer than its limit."""
     serial = _parse_serial(serial_arg)
     try:
         button = int(button_arg, 0)
@@ -1413,7 +1421,27 @@ def gump_reply(state: dict, serial_arg: str, button_arg: str) -> bytes:
         raise CtlError("gump is noclose; button 0 isn't available")
     if button != 0 and button not in view["buttons"]:
         raise CtlError(f"button {button} not in the gump's reply buttons {view['buttons']}")
-    return actions.gump_response(serial, _serial(g.get("gump_id")), button)
+    entries, switches = gump_reply_fields(g.get("layout") or "", g.get("lines") or [])
+    limits = {e["id"]: e.get("limit") for e in view["controls"]["entries"]}
+    overrides = {}
+    for spec in texts or ():
+        eid, sep, value = spec.partition("=")
+        try:
+            eid = int(eid, 0)
+        except ValueError:
+            eid = None
+        if not sep or eid is None:
+            raise CtlError(f"--text needs ID=VALUE, got {spec!r}")
+        if eid not in limits:
+            raise CtlError(f"text entry {eid} not in the gump's entries {sorted(limits)}")
+        lim = limits[eid]
+        if lim and len(value) > lim:
+            raise CtlError(f"text for entry {eid} is {len(value)} chars; its limit is {lim}")
+        if len(value) > GUMP_TEXT_MAX or any(ord(c) < 32 for c in value):
+            raise CtlError(f"text for entry {eid}: printable text up to {GUMP_TEXT_MAX} chars only")
+        overrides[eid] = value
+    return actions.gump_response(serial, _serial(g.get("gump_id")), button, switches=switches,
+                                 text_entries=[(eid, overrides.get(eid, v)) for eid, v in entries])
 
 
 def _act_goto(a, mem) -> dict:
@@ -1748,6 +1776,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-moves", type=int, default=GOTO_MAX_MOVES)
     p.add_argument("--max-items", type=int, default=LOOT_MAX_ITEMS, help="loot: at most this many items")
     p.add_argument("--amount", type=int, default=None, help="buy: how many (default 1)")
+    p.add_argument("--text", action="append", metavar="ID=VALUE",
+                   help="gump: set text entry ID (repeatable); other entries keep their current text")
     p.add_argument("--z", type=int, default=None,
                    help="goto x y: arrive standing within 10 of this z (a hill vs the cave under it)")
     p.add_argument("--no-map", action="store_true", help=argparse.SUPPRESS)   # offline tests only

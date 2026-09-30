@@ -632,6 +632,35 @@ def test_overseer_acts(proxy):
     code, out = c("act", "gump", "0x103", "1")
     check("a normal gump: an offered button is sent as the stock 0xB1",
           code == 0 and [p for _, p in proxy.take()] == [actions.gump_response(0x103, 0x33, 1)], str(out))
+    # Retrieve Items-style gump (live 0xBEC6217A): an amount entry (id 1, default "", limit 5),
+    # a label to its left, a checked checkbox (id 7) and an OKAY button (2)
+    shelf = ("{ text 58 99 2599 3 18 0 1 0 0 0 }{ textentrylimited 147 100 78 20 2655 1 4 5 2 2 }"
+             "{ textentrylimited 147 130 78 20 2655 9 5 5 2 2 }{ checkbox 20 20 210 211 1 7 }"
+             "{ button 158 134 247 248 1 0 2 }")
+    proxy.gumps = [gump_row(0x105, 0xBEC6217A, shelf, ["Retrieve Items", "Available", "170", "Retrieve", "", "x"]),
+                   proxy.gumps[0]]
+    code, out = c("act", "gump", "0x105", "2", "--text", "1=20")
+    check("--text: every entry sent like the stock client (the edited one overridden) + checked switches",
+          code == 0 and [p for _, p in proxy.take()]
+          == [actions.gump_response(0x105, 0xBEC6217A, 2, switches=[7], text_entries=[(1, "20"), (9, "x")])],
+          str(out))
+    code, out = c("act", "gump", "0x105", "2")
+    check("no --text: entries still sent with their current text",
+          code == 0 and [p for _, p in proxy.take()]
+          == [actions.gump_response(0x105, 0xBEC6217A, 2, switches=[7], text_entries=[(1, ""), (9, "x")])],
+          str(out))
+    for spec, why in (("3=5", "not in the gump's entries"), ("1=123456", "limit is 5"), ("1", "ID=VALUE")):
+        code, out = c("act", "gump", "0x105", "2", "--text", spec)
+        check(f"--text refused: {why}", code == 1 and why in out.get("error", "") and proxy.take() == [], str(out))
+    code, out = c("act", "gump", "0x100", "2", "--text", "2=326")
+    check("the captcha stays refused with --text", code == 1 and "captcha" in out.get("error", "")
+          and proxy.take() == [], str(out))
+    code, out = c("status")
+    view = next(g for g in out["gumps_open"] if g["serial"] == "0x00000105")
+    ent = {e["id"]: e for e in view["controls"]["entries"]}
+    check("status controls: entry value, limit and the label left of it",
+          ent[1]["value"] == "" and ent[1]["limit"] == 5 and ent[1]["near"][0] == {"text": "Retrieve", "dx": -89,
+                                                                                     "dy": -1}, str(view["controls"]))
     proxy.gumps = []
 
     proxy.pos = [100, 100, 0, 2]

@@ -64,7 +64,7 @@ Whitelist, built with the existing `harness/actions.py` builders and framed exac
 | `goto` | `<x> <y>` or `<serial>` (mobile or ground item), `--z Z`, `--range R` (default 0 for a tile or item, 2 for a mobile), `--max-moves` (400) | Walks with `agent_link.Mover`: map pathfinding, doors, shoving, human pacing, height-aware. A mobile target means staying within one storey of it; a ground item (e.g. the moongate) means its tile on its level; `--z Z` means arriving within 10 of Z (the hill, not the cave under it). Without `--z`, a tile target takes the cheapest level, which may be a cave under it. Returns `from`, `to`, `steps`, `blocked`, `doors_opened`, or `error` (`no route`, too many blocks). Reports an intent (`goto`) to the viz |
 | `menu` | `<serial>` | `0xBF` sub `0x13` context-menu request; waits for the server's menu and returns its entries `{index, text (cliloc rendered), disabled}` |
 | `menu_pick` | `<serial> <index>` | `0xBF` sub `0x15` selection, e.g. a vendor's **Buy** entry (the vendor list then shows in `heard`/`journal`). Opening a Buy list sends nothing further: the stock client sends no packet when the shop window is closed without buying (ClassicUO ShopGump.cs:590-610). The window stays open on the user's screen until they close it |
-| `gump` | `<serial> <button>` | `0xB1` reply, **guarded**. It refuses: the captcha (gump id 1; always the human's, ANTICHEAT.md §8.8); a gump without reply buttons (the decoy/honeypot shape, §8.13); a button the layout doesn't offer; button 0 on a `noclose` gump; and **anything but button 0 (close) on a gump whose text mentions renouncing** (Young status is the human's decision) |
+| `gump` | `<serial> <button> [--text ID=VALUE]…` | `0xB1` reply, **guarded**. Like the stock client (ClassicUO Gump.OnButtonClick) it carries **every text entry** in layout order, with its current text unless overridden by `--text`, and the switches (checkboxes/radios) that start checked. So editing one entry never blanks the others. It refuses: the captcha (gump id 1; always the human's, ANTICHEAT.md §8.8), even with `--text`; a gump without reply buttons (the decoy/honeypot shape, §8.13); a button the layout doesn't offer; button 0 on a `noclose` gump; **anything but button 0 (close) on a gump whose text mentions renouncing** (Young status is the human's decision); and `--text` for an entry the gump doesn't have, longer than its limit, or non-printable. Examples: Storage Shelf "Retrieve Items" amount = `--text 1=20`; Player Testing editor skill entries 100–114, Str/Dex/Int 90–92 |
 | `unequip` | `<item serial>` | An item you wear goes to your backpack: `0x07` lift, human "drag" pause, `0x08` drop into the pack (the auto-position form from the demo capture). It waits until the world model shows it in the pack; it refuses items you don't wear and the backpack itself |
 | `equip` | `<item serial>` | An item in your backpack (any bag depth) is worn again: `0x07` lift, pause, `0x13` equip request on its tiledata layer. It waits until worn; it refuses items not in your pack, items already worn, and items without a wearable layer |
 | `warmode` | `on\|off` | `0x72` war mode request (the stock Tab toggle); waits until the server confirms |
@@ -100,7 +100,12 @@ lists, target cursors, facet changes) from the proxy's event ring, newest last. 
   description; `raw` holds the numbers that aren't decoded yet (f2 looks like the count)
 - mobiles with their click `label` (e.g. "Zara the scribe")
 - open gumps in full (texts, buttons, closable); a gump counts as closed once it is answered or
-  the server closes it
+  the server closes it. Each has **`controls`**: every reply button and text entry with its
+  position and the texts on its row (`near`: text, `dx`, `dy`; `dx` > 0 means the text is to
+  its right, and labels may sit on either side), and each entry's current `value` and `limit`.
+  Read it before pressing a button in a gump with several similar-looking ones. The Player
+  Testing editor puts "Fill Spellbook" at button 53 (label 87 px left of it), "Reset Stats and
+  Skills" at 47 and "Apply Stats and Skill Values" at 46.
 - nearby `ground_items` (≤ 12 tiles, named from tiledata, e.g. "blue moongate")
 
 **Teleporters** are invisible server objects, not in the map files. When a step lands somewhere
