@@ -541,12 +541,16 @@ def test_run_act(proxy):
         print("  SKIP  say bank (speech.mul not installed)")
 
     proxy.pos = [100, 100, 0, 2]
-    code, out = c("act", "walk", "2", "3", "--human", "off")
+    code, out = c("act", "walk", "2", "1", "--human", "off")
+    check("a step the map rules refuse is never sent (the client checks CanWalk first; (101,100) is off the map)",
+          out.get("outcomes") == ["blocked"] and "map" in (out.get("stopped") or "") and proxy.take() == [],
+          str(out))
+    code, out = c("act", "walk", "2", "3", "--human", "off", "--no-map")
     fr = proxy.take()
     check("walk 3 east: moved 3", code == 0 and out.get("moved") == 3 and out.get("to")[:2] == [103, 100], str(out))
     check("walk frames: 3 x 0x02 dir 2, length-prefixed like Link.send",
           fr == [(7, actions.walk(2))] * 3 and actions.walk(2) == bytes.fromhex("02020000000000"), str(fr))
-    code, out = c("act", "walk", "4", "1", "--human", "off", "--run")
+    code, out = c("act", "walk", "4", "1", "--human", "off", "--run", "--no-map")
     fr = proxy.take()
     check("walk with a turn: turn + step, run flag set",
           out.get("outcomes") == ["turned", "moved"] and [p for _, p in fr] == [actions.walk(4, run=True)] * 2,
@@ -559,7 +563,7 @@ def test_run_act(proxy):
     x0, y0 = proxy.pos[:2]
     proxy.pos[3] = 4
     proxy.deny_jumps = {(x0, y0 + 1): (1911, 2556)}
-    code, out = c("act", "walk", "4", "--human", "off")
+    code, out = c("act", "walk", "4", "--human", "off", "--no-map")
     check("walk onto a teleporter that denies, then moves you: reported as teleported (NPD exit, live)",
           code == 0 and out["outcomes"] == ["teleported"] and out["to"][:2] == [1911, 2556], str(out))
     proxy.deny_jumps = {}
@@ -571,7 +575,17 @@ def test_run_act(proxy):
     code, out = c("act", "dclick", "0x40000011")
     check("dclick frame", code == 0 and [p for _, p in proxy.take()] == [bytes.fromhex("0640000011")], str(out))
     code, out = c("act", "single_click", "2")
-    check("single_click frame", code == 0 and [p for _, p in proxy.take()] == [bytes.fromhex("0900000002")], str(out))
+    check("single_click on a mobile: 0x09 with its 0x34 status request, as the client pairs them",
+          code == 0 and [p for _, p in proxy.take()] == [bytes.fromhex("0900000002"),
+                                                         actions.status_request(2)], str(out))
+    code, out = c("act", "single_click", "0x40000011")
+    check("single_click on an item: 0x09 only", code == 0 and [p for _, p in proxy.take()]
+          == [actions.single_click(0x40000011)], str(out))
+    for serial, why in (("3", "tiles away"), ("0x00000099", "not in the client's world"),
+                        ("0x40000077", "not in the client's world")):
+        code, out = c("act", "dclick", serial)
+        check(f"dclick refused ({why}): {serial}", code == 1 and why in out.get("error", "")
+              and proxy.take() == [], str(out))
     code, out = c("act", "open_door")
     check("open_door frame", code == 0 and [p for _, p in proxy.take()] == [actions.open_door()], str(out))
     code, out = c("act", "target_cancel")
@@ -612,17 +626,28 @@ def test_overseer_acts(proxy):
         check("journal renders cliloc text like the client", "useable wood" in j[1]["text"], j[1]["text"])
 
     proxy.take()
+    proxy.fixed_mobiles = {"0x000001E5": {"x": proxy.pos[0] + 2, "y": proxy.pos[1], "name": "Len"}}
+    code, out = c("act", "menu_pick", "0x000001E5", "1")
+    check("menu_pick without an open context menu refused", code == 1 and "no context menu" in out.get("error", "")
+          and proxy.take() == [], str(out))
+    code, out = c("act", "menu", "0x00000003")
+    check("menu on a mobile beyond view range refused", code == 1 and "tiles away" in out.get("error", "")
+          and proxy.take() == [], str(out))
     code, out = c("act", "menu", "0x000001E5")
     fr = proxy.take()
-    check("menu sends the stock popup request", [p for _, p in fr] == [actions.request_popup(0x1E5)], str(fr))
+    check("menu sends the stock right-click: 0x09 then the popup request",
+          [p for _, p in fr] == [actions.single_click(0x1E5), actions.request_popup(0x1E5)], str(fr))
     ents = (out.get("menu") or {}).get("entries", [])
     check("menu returns the server's entries with index", code == 0 and [e["index"] for e in ents] == [0, 1],
           str(out))
-    if have_cliloc:
+    if have_cliloc and len(ents) > 1:
         check("menu entries rendered (Buy)", ents[1]["text"] == "Buy", str(ents))
+    code, out = c("act", "menu_pick", "0x000001E5", "7")
+    check("menu_pick of an index the menu doesn't offer refused", code == 1 and proxy.take() == [], str(out))
     code, out = c("act", "menu_pick", "0x000001E5", "1")
     check("menu_pick sends the stock popup selection",
           code == 0 and [p for _, p in proxy.take()] == [actions.popup_selection(0x1E5, 1)], str(out))
+    proxy.fixed_mobiles = {}
 
     btns = "{ button 10 10 1 2 1 0 1 }{ button 10 30 1 2 1 0 2 }"
     proxy.gumps = [
@@ -751,16 +776,23 @@ def test_combat(proxy):
     proxy.self_hits = 50
     code, out = c("act", "attack", "0x00000010", "--human", "off")
     fr = [p for _, p in proxy.take()]
-    check("attack a monster: war mode on first, then the stock 0x05 (Tab, double-click)",
-          code == 0 and fr == [actions.war_mode(True), actions.attack(0x10)] and out["warmode_turned_on"]
-          and out["target"]["kind"] == "monster", f"{out} {fr}")
+    check("attack a monster: war mode on first, then 0x34 (hits unknown) and 0x05 (Tab, double-click)",
+          code == 0 and fr == [actions.war_mode(True), actions.status_request(0x10), actions.attack(0x10)]
+          and out["warmode_turned_on"] and out["target"]["kind"] == "monster", f"{out} {fr}")
     last = proxy.intents[-1] or {}
     check("attack reports an 'attack' intent that follows the mob (target_serial)",
           last.get("kind") == "attack" and last.get("target_serial") == "0x00000010"
           and last.get("text") == "Attacking a mongbat", str(last))
+    proxy.fixed_mobiles["0x00000010"].update(hits=4, hits_max=4)
     code, out = c("act", "attack", "0x00000010", "--human", "off")
-    check("already in war mode: only the attack", code == 0 and [p for _, p in proxy.take()]
+    check("already in war mode, hits known: only the attack", code == 0 and [p for _, p in proxy.take()]
           == [actions.attack(0x10)] and not out["warmode_turned_on"], str(out))
+    code, out = c("act", "dclick", "0x00000010")
+    check("dclick on a mobile in war mode refused (the client would attack)",
+          code == 1 and "war mode" in out.get("error", "") and proxy.take() == [], str(out))
+    code, out = c("act", "warmode", "on")
+    check("warmode on while already on: nothing sent (Tab only flips it)",
+          code == 0 and out["warmode"] is True and proxy.take() == [], str(out))
     code, out = c("act", "warmode", "off")
     check("warmode off: 0x72 and confirmed", code == 0 and out["warmode"] is False
           and [p for _, p in proxy.take()] == [actions.war_mode(False)], str(out))
@@ -888,8 +920,8 @@ def test_heal_buy(proxy):
     code, out = c("act", "buy", f"0x{vendor:08X}", "heal", "potion", "--amount", "3", "--human", "off")
     fr = [p for _, p in proxy.take()]
     check("buy 3 Lesser Heal Potions: popup, Buy entry, then the stock 0x3B for that item",
-          code == 0 and fr == [actions.request_popup(vendor), actions.popup_selection(vendor, 1),
-                               actions.buy_request(vendor, [(0x40000202, 3)])]
+          code == 0 and fr == [actions.single_click(vendor), actions.request_popup(vendor),
+                               actions.popup_selection(vendor, 1), actions.buy_request(vendor, [(0x40000202, 3)])]
           and out["paid"] == 30 and out["gold"] == 80, f"{out} {fr}")
     spends = Memory(db).job_events("gold")
     check("the spend is recorded for the daily cap", [(e["kind"], e["data"]["total"]) for e in spends]

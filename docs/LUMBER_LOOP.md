@@ -153,7 +153,7 @@ runtime data, AGENTS.md Rule 0):
   - visualizer pause/kill
   - breaks and daily cap
   - never renounce Young (§1)
-  - the runner schedules the return so a forced break starts inside the room, which is safe and looks natural
+  - forced breaks: **not scheduled** (2026-09-30 audit). The runner doesn't read the gate status, so a break can start mid-route; `Mover.step` waits out a break for up to ~200 s and then aborts the run where the character stands (ANTICHEAT.md §10 A9)
 
 ## 6. Optimize
 
@@ -445,18 +445,23 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - Reaction delays are lognormal per action kind, not uniform. Measured medians and p90s: aim
     0.95 s (p90 1.55), menu 1.3 s (p90 2.15), between attempts 2.2 s (p90 3.6).
   - A 12 %/h fatigue drift lengthens delays over a session.
-  - Running steps: median 0.30 s, never under the proxy's 0.2 s floor.
+  - Steps at the stock client's held-key cadence: 200 ms (run) / 400 ms (walk) after the
+    previous send plus 3–15 ms jitter (`Human.step_gap`), never under the proxy's floor. Until
+    2026-09-30 steps were lognormal around 0.30 s after each confirm (~0.40 s on the wire, none at
+    200–220 ms), which a held key never produces (ANTICHEAT.md §10 A8).
   - Routes:
-    - per-plan edge-cost noise (×1–1.45): 20 plans of the same 38-step route gave 10 distinct
-      paths of 38–39 steps
+    - per-plan route noise (×1–1.45) per 6×6-tile map cell, so whole areas get cheaper or dearer
+      and routes vary between plans while staying straight; zig-zag stretches are regrouped into
+      two straight runs (`nav.straighten`). Shelter routes: ~20 % heading changes (human 21 %;
+      per-step noise gave 37 %)
     - 7 % of routes walked instead of run
     - per-step micro-pauses (2.5 %) and rare 3–9 s look-around pauses (0.4 %)
     - 1.2 % chance per step of a sidestep onto a known-walkable tile, then a replan
-    - **missed turns (user request):** at a turn where a known obstacle is straight ahead
-      (walk memory's server-denied move; map data later), 15 % of the time the walker keeps going,
-      runs into it (server deny), pauses briefly, then turns. If the "obstacle" turns out to be
-      walkable, it replans from there. Bumps don't count toward the blocked-move abort limit and
-      are recorded per trip (`bumps`).
+    - doors are opened like the client's auto-open: right after the turn or step that faces a
+      door on the next tile, before stepping into it
+    - the first version also missed turns on purpose and ran into a known obstacle (a server
+      deny). Removed 2026-09-30: the stock client never sends a step its own map check refuses
+      (ANTICHEAT.md §8.14, §10 A5)
   - Hands:
     - 2.5 % of tool uses hesitate: the cursor is cancelled with the stock Esc packet and the
       hatchet used again
@@ -469,12 +474,10 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - `test_loop_lumber.py` now runs the `normal` profile (seed 11, delays ×0.25) and still
     passes every check. In that run: 1 sidestep, 4 fidgets, 3 pauses. Hesitation wasn't drawn;
     the code path is simple and uses the decompile-grounded `actions.target_cancel`.
-    `test_errand.py` uses `--human off`. A throwaway run that forced `bump_p` = 1 and
-    `hesitate_p` = 0.5 still completed both trips, with 15 hesitations.
-    `harness/test_mover.py` checks the bump deterministically on a fake grid: one deny at the
-    known wall, then the turn and arrival, counted as a bump rather than a block. It also checks
-    that the `off` profile never bumps, and that a closed door gets exactly one open-door
-    request.
+    `test_errand.py` uses `--human off`. A throwaway run that forced `hesitate_p` = 0.5 still
+    completed both trips, with 15 hesitations. `harness/test_mover.py` checks on a fake grid
+    that a known wall at a turn gets no step into it, and that a closed door gets exactly one
+    open-door request, sent from the tile before it while facing it, with no deny at the door.
 - **Data:** the harness memory store (docs/MEMORY.md):
   - `harvest_nodes` and `harvest_attempts`: per tree, attempts/successes/yield/depleted/
     unreachable/not-a-tree, and every attempt

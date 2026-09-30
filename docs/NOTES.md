@@ -5,7 +5,7 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 ## Environment & client
 
 - Install root: `C:\Program Files (x86)\Ultima Online Outlands`. `Outlands.exe` = launcher/patcher (args `-installed`, config `Outlands.exe.json` → PatchSettings). Real client: `ClassicUO\ClassicUO.exe`.
-- Client version string: `ClassicUO [STANDARD_BUILD] - 1.0.2.544` (from `ClassicUO/Logs/*_network-disconnects.txt`, which also record disconnect stack traces).
+- Client version string: `ClassicUO [STANDARD_BUILD] - 1.0.2.544` (from `ClassicUO/Logs/*_network-disconnects.txt`, which also record disconnect stack traces). The launcher patched the installed client to **1.0.2.550** on 2026-09-28 14:21 (file time; the JWT `version` claim says 550 from then on). The workspace `ClassicUO.exe` copy used for Ghidra is still 544 (sha256 `127ce6a8…`; installed 550 is `743abdea…`). Its traffic still frames with the 544 table (0 desyncs in 11 audited sessions).
 - Both binaries are **NativeAOT**: no CLR header, no `coreclr`/`hostfxr`/`runtimeconfig` strings, `Rhp*` Redhawk symbols, one embedded `ReadyToRun` header, `BSJB` managed-metadata blob in `.rdata`. No embedded DLLs to carve — assemblies are compiled into the binary. ILSpy/dnSpy/dnfile are useless here; Ghidra (native) is the tool.
 - `ClassicUO/settings.json` holds plain-text `ip`/`port` (proxy insertion point), `loginserver` (`https://login.uooutlands.com`), shard/character selection, and **live account credentials** (`email`, obfuscated `outlandsid_pw`). Treat the file as a secret; never commit or log it.
 - Native DLLs shipped beside the exe: SDL3, FNA3D, FAudio, cimgui, libtheorafile, zlib, vcruntime, WPF `_cor3` DLLs (used by the Razor assistant UI).
@@ -100,6 +100,20 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   (`cave floor` statics 0x053B–0x053F under land at z 5). Harvest and vendor ranges are
   accepted across it (2D) `[INFERENCE]`. Goals must be height-aware (LUMBER_LOOP.md §13,
   run 3 finding).
+- **Stock-client shapes the agent must copy (2026-09-30, human captures):**
+  - a right-click is `09 <serial>` then `bf 0009 0013 <serial>` 0-1 ms apart (30/30); Outlands
+    has tooltips off, so ClassicUO's DelayedObjectClickManager sends the click first
+  - a click on a mobile is `09` then `34 edededed 04 <serial>` 0 ms apart (1834/1834 in the
+    audited captures)
+  - held run key: steps every 200 ms (565 of 1102 intervals in 200-220 ms, session 204225);
+    human walks change heading on 21 % of walk packets
+  - auto-open doors: `12 0005 58 00` 55-101 ms after the walk that faces the door, before the
+    step into it
+  - server cursor cancel: `6c 00 00000000 03` + zero padding (27 B); the client answers it with a
+    cancel carrying its *old* cursor id if it was still targeting
+- **Server hitches confirm walks late:** 2.0-2.3 s after the send in 20260930_123206 and 091704
+  (normal RTT ~50 ms); in 091704 the server sent nothing at all for those 2.3 s. The proxy waits
+  3 s (`CONFIRM_TIMEOUT_S`) and still recognizes a confirm up to 5 s after that (docs/MOVEMENT.md).
 - Frontend toolchain: **Bun 1.4.2** installed 2026-09-29 (user-level, `irm bun.sh/install.ps1 | iex`) at `C:\Users\chris\.bun\bin\bun.exe`, added to the user PATH (new terminals only; in the agent's git-bash shell call it via PowerShell or the full path). There is no Node/npm on this machine. The visualizer frontend (docs/VISUALIZER.md) uses Bun for install/bundle/test: React + TSX.
 
 ## CAPTCHA facts (wiki)

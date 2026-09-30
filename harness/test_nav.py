@@ -244,10 +244,32 @@ def test_generated_memory():
     eq("A* cost == Dijkstra cost", path_cost(mem, back), path_cost(mem, dijkstra))
 
 
+def test_straighten():
+    print("straighten: zig-zags regrouped into straight runs")
+    free = lambda s, d: step(s, d)  # noqa: E731
+    zig = [(0, 0)]
+    for d in (2, 1, 2, 1, 2, 1, 2):          # E NE E NE E NE E
+        zig.append(step(zig[-1], d))
+    for first, want in ((True, [1, 1, 1, 2, 2, 2, 2]), (False, [2, 2, 2, 2, 1, 1, 1])):
+        s = nav.straighten(zig, free, lambda f=first: f)
+        dirs = [direction(a, b) for a, b in zip(s, s[1:])]
+        eq(f"one heading change, {'diagonal' if first else 'straight'} run first", dirs, want)
+        check("same start, end and length", s[0] == zig[0] and s[-1] == zig[-1] and len(s) == len(zig), f"{s}")
+    wall = {(1, -1), (4, 0)}                 # blocks both regroupings
+    s = nav.straighten(zig, lambda st, d: None if step(st, d) in wall else step(st, d))
+    eq("a stretch that can't be regrouped stays as it was", s, zig)
+    s = nav.straighten(zig, free, lambda: True, avoid={(1, -1)})
+    eq("regrouping avoids tiles the original stretch didn't use (mobiles, teleporters)",
+       [direction(a, b) for a, b in zip(s, s[1:])], [2, 2, 2, 2, 1, 1, 1])
+    z = [(0, 0, 0), (1, 0, 0), (2, -1, 5), (3, -1, 5), (4, -2, 5)]
+    s = nav.straighten(z, lambda st, d: (*step(st[:2], d), 0))
+    eq("a regrouping that ends on another level (z) is rejected", s, z)
+
+
 TESTS = [test_direction, test_reconstruct_144541, test_reconstruct_garbage,
          test_jsonl_rows_and_build, test_save_load, test_plan_prefers_known,
          test_plan_blocked, test_plan_no_corner_cut, test_plan_enclosed,
-         test_plan_unknown, test_generated_memory]
+         test_plan_unknown, test_generated_memory, test_straighten]
 
 
 def main():

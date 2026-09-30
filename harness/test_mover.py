@@ -44,6 +44,7 @@ class FakeLink:
         self.can_shove = can_shove                    # stamina sufficient for the server's shove rule
         self.shoved = []
         self.denies = []
+        self.door_reqs = []                           # where we stood when each open-door request came
         self.events = []
         self.z = z
         self.z_walk = z_walk  # like the proxy's map z (MoveAuthority.z_fn): z after each confirmed step
@@ -70,6 +71,7 @@ class FakeLink:
                 self.z = self.z_walk.can_walk(self.here[0], self.here[1], self.z, d)[2]
             self.here = list(self.teleports.get(nxt, nxt))
         elif pkt[0] == 0x12 and pkt[3] == 0x58:
+            self.door_reqs.append((tuple(self.here), self.facing))
             for door in self.doors:
                 if nav.chebyshev(door, tuple(self.here)) <= 1:
                     self.doors[door] = True
@@ -103,29 +105,10 @@ class FakeLink:
         return [*self.here, self.z, self.facing]
 
 
-def test_bump():
-    print("== missed turn: run into the known obstacle, then turn ==")
-    # East along y=0 to x=3, then north: (4, 0) is a wall the walker already
-    # knows (walk memory holds the denied move (3, 0) -> east), and the known
-    # wall north of (2, 0) forbids cutting the corner diagonally.
-    link = FakeLink((0, 0), facing=2, walls={(4, 1), (4, 0), (4, -1)})
-    mem = nav.WalkMemory()
-    for x in range(3):
-        mem.add_step((x, 0), (x + 1, 0))
-    for y in range(0, -5, -1):
-        mem.add_step((3, y), (3, y - 1))
-    mem.add_blocked((3, 0), 2)
-    mem.add_blocked((2, 0), 0)
-    mv = Mover(link, mem, Human(Human.with_overrides("off", bump_p=1.0), seed=1), use_map=False)
-    mv.walk_to(lambda: (3, -5), 0, "t")
-    check("arrived", tuple(link.here) == (3, -5), str(link.here))
-    check("ran into the known wall exactly once", link.denies == [(4, 0)], str(link.denies))
-    check("bump counted as a bump, not as a blocked move",
-          mv.bumps == 1 and mv.blocked_count == 0, f"bumps {mv.bumps} blocked {mv.blocked_count}")
-
-
-def test_no_bump_when_off():
-    print("== profile off: no bumps ==")
+def test_no_walk_into_known_wall():
+    print("== a turn with a known wall straight ahead: turn, never step into the wall ==")
+    # The stock client checks each step and sends nothing into a wall it knows
+    # (PlayerMobile.Walk -> Pathfinder.CanWalk), so neither may the agent.
     link = FakeLink((0, 0), facing=2, walls={(4, 1), (4, 0), (4, -1)})
     mem = nav.WalkMemory()
     mem.add_blocked((3, 0), 2)
@@ -136,13 +119,23 @@ def test_no_bump_when_off():
 
 
 def test_door():
-    print("== closed door on the route: one open-door request, then through ==")
+    print("== closed door on the route: opened ahead, like the client's auto-open, then through ==")
     link = FakeLink((0, 0), facing=2, walls={(2, y) for y in range(-3, 4)} - {(2, 0)},
                     doors=[(2, 0)])
     mv = Mover(link, nav.WalkMemory(), Human("off"), doors=True, use_map=False)
     mv.walk_to(lambda: (4, 0), 0, "t")
     check("arrived through the door", tuple(link.here) == (4, 0), str(link.here))
-    check("one open-door request", mv.doors_opened == 1, str(mv.doors_opened))
+    check("one open-door request, sent facing the door from the next tile (TryOpenDoors)",
+          mv.doors_opened == 1 and link.door_reqs == [((1, 0), 2)], str(link.door_reqs))
+    check("never walked into the closed door (walls it didn't know yet may deny)",
+          (2, 0) not in link.denies, str(link.denies))
+    link = FakeLink((1, 1), facing=4, walls={(2, y) for y in range(-3, 4)} - {(2, 0)},
+                    doors=[(2, 0)])
+    mv = Mover(link, nav.WalkMemory(), Human("off"), doors=True, use_map=False)
+    mv.walk_to(lambda: (3, 0), 0, "t")
+    check("a door reached by turning toward it is opened right after the turn",
+          link.door_reqs == [((1, 1), 1)] and link.denies == [] and tuple(link.here) == (3, 0),
+          f"{link.door_reqs} {link.denies} {link.here}")
 
 
 class GridWalk:
@@ -291,9 +284,7 @@ def test_teleporter():
 
 
 if __name__ == "__main__":
-    assert PROFILES["off"].bump_p == 0.0
-    test_bump()
-    test_no_bump_when_off()
+    test_no_walk_into_known_wall()
     test_door()
     test_shove_through()
     test_go_around_when_cheap()

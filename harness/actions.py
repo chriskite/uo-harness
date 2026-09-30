@@ -114,7 +114,7 @@ future phase may rewrite seq proxy-side.
 """
 import struct
 
-from uo import speech
+from uo import gumps, speech
 
 RUN_FLAG = 0x80
 
@@ -303,6 +303,20 @@ def gump_response(serial: int, gump_id: int, button_id: int,
                              f"{GUMP_TEXT_MAX} UTF-16 units")
         body += struct.pack(">HH", entry_id, chars) + raw
     return _var(0xB1, bytes(body))
+
+
+def gump_reply(serial: int, gump_id: int, button_id: int, layout: str, lines=(),
+               texts: dict | None = None) -> bytes:
+    """0xB1 for a gump as the stock client answers it (ClassicUO
+    Gump.OnButtonClick): every text entry of the layout, in layout order, with
+    its current text (or `texts[entry id]`), and every switch that starts
+    checked. Build every reply with this, never a bare gump_response: a reply
+    missing the gump's entries is a shape the client never sends (live
+    20260930_123206: "That is not a valid number.")."""
+    entries, switches = gumps.reply_fields(layout, lines)
+    texts = texts or {}
+    return gump_response(serial, gump_id, button_id, switches=switches,
+                         text_entries=[(eid, texts.get(eid, v)) for eid, v in entries])
 
 
 def text_entry_response(serial: int, parent_id: int, button_id: int,

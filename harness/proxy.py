@@ -30,6 +30,11 @@ walker); confirms for client walks are mapped back to the client's own seq.
 Once walking is quiet, the proxy re-anchors the client with a fabricated S2C
 0x21 at the player's server-true position. It never sends a packet of its own to the server.
 
+Client-only fixes after an agent answer (ANTICHEAT.md §8.11, §8.18): a gump the
+agent answered gets a fabricated 0xBF sub 4 close; a target cursor the agent
+answered gets a fabricated 0x6C cancel, and the client's reply to that spent
+cursor is dropped (the only client packet the proxy ever drops).
+
 Usage:
   python proxy.py [--listen-host 127.0.0.1] [--listen-port 2593]
                   [--upstream-host play.uooutlands.com] [--upstream-port 2593]
@@ -62,7 +67,10 @@ INTENT_HISTORY = 30    # recent agent intents kept in the state (set_intent)
 # Movement timing (docs/MOVEMENT.md, sessions 20260929_142237/_143051/_144541):
 RESYNC_REPLY_TIMEOUT_S = 1.5  # client resync: no 0xBF sub1 seed by then -> the server ignored it
 REANCHOR_IDLE_S = 0.5         # no walk in flight and quiet this long -> re-anchor the client
-CONFIRM_TIMEOUT_S = 1.5       # walk unconfirmed this long -> the server rejected it
+CONFIRM_TIMEOUT_S = 3.0       # walk unconfirmed this long -> treated as rejected (live max 2.31 s,
+                              # server hitches; 20260930_123206, 091704)
+LATE_CONFIRM_GRACE_S = 5.0    # a "rejected" walk's confirm is still recognized this long after
+MAX_STEPS_IN_FLIGHT = 5       # stock client: Constants.MAX_STEP_COUNT unconfirmed steps at most
 STALL_REJECTS = 3             # this many rejections in a row -> stop agent walks
 RUN_STEP_S = 0.2              # minimum agent step spacing, on-foot run / walk
 WALK_STEP_S = 0.4             # (the server has a Speedhack violation category)
@@ -84,6 +92,12 @@ def close_gump_packet(gump_id: int) -> bytes:
     return bytes.fromhex("bf000d0004") + gump_id.to_bytes(4, "big") + bytes(4)
 
 
+# S2C 0x6C target cancel, byte-identical to the server's own (session 20260930_123206):
+# `6c 00 00000000 03` + zero padding to the version-12 length of 27
+TARGET_CANCEL_S2C = bytes.fromhex("6c000000000003") + bytes(20)
+CURSOR_CANCEL = 3                 # 0x6C cursor type byte: 3 = cancel
+
+
 def _i32(b: bytes, off: int) -> int:
     return int.from_bytes(b[off:off + 4], "big", signed=True)
 
@@ -98,6 +112,12 @@ class MoveAuthority:
       client resync) resets it to 0, and so does a server 0x21 deny. A rejected walk
       (no confirm within CONFIRM_TIMEOUT_S) leaves the server's expectation
       unchanged (session 142237), so the ladder rewinds to that walk's seq.
+      The expired walks stay in `late` for LATE_CONFIRM_GRACE_S: a server hitch
+      can confirm them after the timeout (20260930_123206: 2.0-2.3 s). A late
+      confirm is hidden from the client (its walker was reset by the re-anchor, so
+      it would be a bad step and a resync) and moves the ladder past that seq.
+      Agent walks wait while `late` is non-empty, so the agent never re-sends a
+      seq the server may still confirm (091704: seq 109 went out twice).
     - key: the first walk after a seed must carry the seed's token (single
       use). A walk with key 0 in that position gets it stamped in. The client
       then still holds its own copy (`stale_token`), which is zeroed once when
@@ -120,15 +140,17 @@ class MoveAuthority:
       the server. z is the tracked z above.
     """
 
-    __slots__ = ("next_seq", "armed_token", "stale_token", "inflight", "resync_sent_at",
-                 "last_walk_at", "client_stale", "rejects_in_row", "self_serial", "pos",
-                 "z_fn", "z_misses")
+    __slots__ = ("next_seq", "armed_token", "stale_token", "inflight", "late", "late_until",
+                 "resync_sent_at", "last_walk_at", "client_stale", "rejects_in_row", "self_serial",
+                 "pos", "z_fn", "z_misses")
 
     def __init__(self):
         self.next_seq = 0
         self.armed_token = None      # token the next walk must carry (latest seed/push)
         self.stale_token = None      # client's copy of a token the proxy already spent
         self.inflight = {}           # ladder seq -> (src, sender's own seq, direction, sent_at)
+        self.late = {}               # expired in-flight walks whose confirm may still come
+        self.late_until = None       # when `late` is dropped (then they were rejected)
         self.resync_sent_at = None   # a client resync awaits the server's seed
         self.last_walk_at = None
         self.client_stale = False    # client display may differ from the server position
@@ -189,6 +211,7 @@ class MoveAuthority:
         self.armed_token = token
         self.stale_token = None
         self.inflight.clear()
+        self.late.clear()
         self.resync_sent_at = None
         self.client_stale = False  # the seed arrives with the server's own re-anchor
         self.rejects_in_row = 0
@@ -202,6 +225,12 @@ class MoveAuthority:
         """Route a server ConfirmWalk ("forward"|"hide"|"rewrite", client seq)
         and advance the tracked position."""
         entry = self.inflight.pop(seq, None)
+        late = entry is None and seq in self.late
+        if late:
+            entry = self.late.pop(seq)
+            if self.next_seq == seq:             # accepted after all: the ladder moves past it
+                self.next_seq = seq + 1 if seq < 0xFF else 1
+            self.client_stale = True             # the client must see the step it moved
         if entry is None:
             return ("forward", None)
         src, sent_seq, direction, _ = entry
@@ -219,7 +248,7 @@ class MoveAuthority:
                     self.pos[2] = nz
                 elif self.z_fn is not None:
                     self.z_misses += 1
-        if src != "client":
+        if src != "client" or late:
             return ("hide", None)
         if sent_seq != seq:
             return ("rewrite", sent_seq)
@@ -230,6 +259,7 @@ class MoveAuthority:
         repositions itself from the deny)."""
         self.next_seq = 0
         self.inflight.clear()
+        self.late.clear()
         self.client_stale = False
 
     # ---- timers / gates ----
@@ -239,12 +269,17 @@ class MoveAuthority:
         if self.resync_sent_at is not None and now - self.resync_sent_at > RESYNC_REPLY_TIMEOUT_S:
             self.resync_sent_at = None
             notes.append(("resync_ignored", "no fastwalk seed in reply; server state unchanged"))
+        if self.late_until is not None and now >= self.late_until:
+            self.late.clear()
+            self.late_until = None
         late = [(t, s, src) for s, (src, _, _, t) in self.inflight.items() if now - t > CONFIRM_TIMEOUT_S]
         if late:
             _, s, src = min(late)
             # the server did not advance past the rejected walk, so later walks
             # in flight were sent with seqs it will reject too
             dropped = len(self.inflight)
+            self.late.update(self.inflight)
+            self.late_until = now + LATE_CONFIRM_GRACE_S
             self.inflight.clear()
             self.next_seq = s
             self.rejects_in_row += 1
@@ -260,6 +295,10 @@ class MoveAuthority:
             return "walk gated: awaiting the server's reply to a client resync"
         if self.rejects_in_row >= STALL_REJECTS:
             return f"walk gated: movement stalled ({self.rejects_in_row} walks in a row rejected)"
+        if self.late and self.late_until is not None and now < self.late_until:
+            return "walk gated: an expired walk may still be confirmed"
+        if len(self.inflight) >= MAX_STEPS_IN_FLIGHT:
+            return f"walk gated: {MAX_STEPS_IN_FLIGHT} walks unconfirmed (the stock client's limit)"
         step = RUN_STEP_S if run else WALK_STEP_S
         if self.last_walk_at is not None and now - self.last_walk_at < step:
             return f"walk gated: pacing ({step:.1f}s between steps)"
@@ -322,6 +361,12 @@ class InjectionHub:
             close = tap.close_gump_client(_u32(payload, 7))
             if close:
                 client.write(close)
+                await client.drain()
+        elif payload[0] == 0x6C and len(payload) >= 6 and client is not None:
+            # the agent answered the cursor the client still shows: cancel the client's copy
+            cancel = tap.release_client_cursor(_u32(payload, 2))
+            if cancel:
+                client.write(cancel)
                 await client.drain()
         self.gate.record_activity()
         return None
@@ -402,6 +447,10 @@ class SessionTap:
         self.traffic_c2s = collections.Counter()      # (src, "0xNN") -> count, src != client
         self.intent = None               # the agent's current intent (set_intent), or None
         self.intents = collections.deque(maxlen=INTENT_HISTORY)   # recent intents, oldest first
+        # target cursors (0x6C): the id the client currently shows (last server cursor it
+        # hasn't answered), and ids the agent answered while the client still showed them
+        self.client_cursor = None
+        self.spent_cursors = set()
 
     def _log(self, **kw):
         kw["t"] = round(self.wall(), 3)
@@ -619,7 +668,9 @@ class SessionTap:
                 self.raw_c2s.write(self.c2s_wire[i:i + 1])
                 i += 1
                 continue
-            out += self._c2s_packet(bytearray(plain[i:i + plen]), "client", now)
+            pkt = plain[i:i + plen]
+            if not (pkt[0] == 0x6C and len(pkt) >= 6 and self._spent_cursor_reply(pkt)):
+                out += self._c2s_packet(bytearray(pkt), "client", now)
             i += plen
         del self.c2s_wire[:i]
         return bytes(out)
@@ -705,7 +756,51 @@ class SessionTap:
                 token = int.from_bytes(pkt[5:9], "big")
                 ma.on_push(token)
                 self._log(ev="s2c_fastwalk_push", note=f"token {token}")
+        elif pid == 0x6C and len(pkt) >= 7:
+            cursor = _u32(pkt, 2)
+            if pkt[6] < CURSOR_CANCEL:          # a new cursor: the client shows it
+                self.client_cursor = cursor
+                self.spent_cursors.discard(cursor)
+            else:                               # server cancel: the client drops its cursor
+                self.client_cursor = None
         return wire
+
+    def release_client_cursor(self, cursor_id: int) -> bytes:
+        """Wire bytes of a fabricated S2C 0x6C target cancel for the CLIENT, after the
+        agent answered the cursor the client still shows, else b"".
+
+        The stock client clears its cursor when it answers one itself. When the agent
+        answers, the client keeps the cursor, and its next cancel or click would be a
+        second reply to a cursor the server already consumed (session 20260930_123206:
+        4 late client cancels). The client answers this cancel with its own C2S cancel
+        for the old cursor id (TargetManager.SetTargeting -> CancelTarget); that reply,
+        and any other client 0x6C for the id, is dropped (`_spent_cursor_reply`).
+        Client-only like the 0x21 re-anchor: logged src=proxy, never in raw_s2c."""
+        if self.s2c is None or cursor_id != self.client_cursor:
+            return b""
+        self.client_cursor = None
+        if len(self.spent_cursors) >= 64:  # replies that never came (client not targeting)
+            self.spent_cursors.clear()
+        self.spent_cursors.add(cursor_id)
+        pkt = TARGET_CANCEL_S2C
+        self._log(ev="target_cancel_client", note=f"fabricated 0x6C cancel to client: cursor 0x{cursor_id:08X}")
+        self._proxy_event("target_cancel_client", cursor_id=cursor_id)
+        self._log(dir="s2c", src="proxy", id="0x6C", len=len(pkt), hex=hexd(pkt))
+        return encode_packet(pkt, self.s2c.key)
+
+    def _spent_cursor_reply(self, pkt: bytes) -> bool:
+        """A client C2S 0x6C: True if it answers a cursor the agent already answered
+        (dropped: the server never sees a second reply), else False (forward it)."""
+        cursor = _u32(pkt, 2)
+        if cursor in self.spent_cursors:
+            self.spent_cursors.discard(cursor)
+            self._log(ev="c2s_spent_cursor_dropped", src="client", hex=hexd(bytes(pkt)),
+                      note=f"client reply to cursor 0x{cursor:08X} the agent already answered")
+            self._proxy_event("c2s_spent_cursor_dropped", cursor_id=cursor)
+            return True
+        if cursor == self.client_cursor:
+            self.client_cursor = None
+        return False
 
     def close_gump_client(self, gump_id: int) -> bytes:
         """Wire bytes of a fabricated S2C 0xBF sub 4 (close generic gump, button 0)

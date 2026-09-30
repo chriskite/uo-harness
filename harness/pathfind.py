@@ -9,7 +9,7 @@ the same decision the client makes before it sends a walk request.
 
 Differences from the client, on purpose:
 - Doors (dynamic items with the Door flag) don't block planning. The walker
-  opens them when a step is actually denied (agent_link.Mover).
+  opens them ahead, like the client's auto-open (agent_link.Mover).
 - Mobiles are handled by the caller as blocked tiles (they move).
 - The A* is a plain heap-based search over (x, y, z) with per-plan
   cost noise (humanize.Human.cost_scale); diagonal and straight steps cost

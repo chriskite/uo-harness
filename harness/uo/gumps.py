@@ -1,9 +1,10 @@
 """Gump layout parsing (UO gump command syntax, `{ cmd args... }`).
 
 Shared by the demonstration miner (loop_mine.py), the loop runner
-(loop_lumber.py) and ctl (gump views): reply buttons, text entries, text-line
-references, cliloc numbers, and (controls) where each button and text entry
-sits with the texts next to it.
+(loop_lumber.py), ctl (gump views) and actions.gump_reply (every 0xB1 the
+agent sends): reply buttons, text entries, text-line references, cliloc
+numbers, and (controls) where each button and text entry sits with the texts
+next to it.
 
 Argument layouts (ClassicUO GumpBuilder; Outlands appends extra fields to
 `text`, e.g. `{ text 82 40 2655 2 18 0 1 0 0 0 }`, so the line index is a

@@ -10,19 +10,20 @@ Everything it adds is stock-client traffic or plain waiting.
   lengthens them over a session.
 - Routes: every plan gets its own random edge-cost noise, so walks pick among
   near-optimal routes instead of the one optimal path. Now and then the walker
-  steps to a side tile it knows is walkable and replans from there, and at a
-  turn with a known obstacle straight ahead it sometimes misses the turn and
-  runs into the obstacle (the server denies the step) before turning.
-- Walking rhythm: occasional short pauses, rare longer "look around" pauses,
-  and whole routes walked instead of run.
+  steps to a side tile it knows is walkable and replans from there.
+- Walking rhythm: within a straight walk, steps go out at the stock client's
+  held-key cadence (ClassicUO MovementSpeed: 200 ms run, 400 ms walk) plus
+  frame jitter, like a player holding the key; the texture sits between
+  segments: occasional short pauses, rare longer "look around" pauses, and
+  whole routes walked instead of run.
 - Hands: occasional hesitation (a tool cursor cancelled and re-used), and
   small fidgets between tasks: opening the backpack, or looking at a nearby
   mobile with the stock single-click sequence.
 
 The proxy still enforces its minimum step spacing; this layer only ever makes
-the agent slower or less direct, never faster. Profiles: "normal" for live
-play, "off" for deterministic tests (no pauses, noise, wandering or fidgets;
-fixed short delays).
+the agent slower or less direct than the stock client, never faster.
+Profiles: "normal" for live play, "off" for deterministic tests (no pauses,
+noise, wandering or fidgets; fixed short delays).
 """
 import math
 import random
@@ -42,22 +43,23 @@ REACTION_MEDIAN = {
     "speak": 1.1,       # arrived -> typed speech sent
     "between": 2.2,     # between harvest attempts
 }
+# the stock client's step cadence for a held key, unmounted (ClassicUO MovementSpeed)
+STEP_CADENCE_RUN = 0.200
+STEP_CADENCE_WALK = 0.400
+NOISE_CELL = 6                     # route noise granularity in tiles (cost_scale)
 
 
 @dataclass(frozen=True)
 class Profile:
     reaction_sigma: float = 0.38
-    step_median_run: float = 0.30        # proxy floor 0.2 s
-    step_median_walk: float = 0.47       # proxy floor 0.4 s
-    step_sigma: float = 0.22
+    step_jitter: tuple = (0.003, 0.015)  # added to the stock step cadence (human bins: 200-220 ms)
     walk_route_p: float = 0.07           # whole route walked instead of run
     micro_pause_p: float = 0.025         # per step
     micro_pause_median: float = 1.1
     look_around_p: float = 0.004         # per step
     look_around_range: tuple = (3.0, 9.0)
-    path_noise: float = 0.45             # edge cost x uniform(1, 1 + noise), per plan
+    path_noise: float = 0.45             # cost x uniform(1, 1 + noise) per map cell, per plan
     wander_p: float = 0.012              # per step: sidestep to a known tile, then replan
-    bump_p: float = 0.15                 # per turn with a known obstacle straight ahead: run into it
     hesitate_p: float = 0.025            # per tool use: cancel the cursor and use again
     fidget_p: float = 0.05               # per task boundary
     fatigue_per_hour: float = 0.12       # delays grow 12 %/h of activity
@@ -66,8 +68,8 @@ class Profile:
 
 PROFILES = {
     "normal": Profile(),
-    "off": Profile(reaction_sigma=0.0, step_sigma=0.0, walk_route_p=0.0, micro_pause_p=0.0,
-                   look_around_p=0.0, path_noise=0.0, wander_p=0.0, bump_p=0.0, hesitate_p=0.0,
+    "off": Profile(reaction_sigma=0.0, walk_route_p=0.0, micro_pause_p=0.0,
+                   look_around_p=0.0, path_noise=0.0, wander_p=0.0, hesitate_p=0.0,
                    fidget_p=0.0, fatigue_per_hour=0.0, enabled=False),
 }
 
@@ -82,7 +84,7 @@ class Human:
         self.t0 = time.monotonic()
         self.log = log or (lambda msg: None)
         self.plan_salt = 0
-        self.stats = {"pauses": 0, "pause_s": 0.0, "wanders": 0, "bumps": 0, "hesitations": 0,
+        self.stats = {"pauses": 0, "pause_s": 0.0, "wanders": 0, "hesitations": 0,
                       "fidgets": 0, "walked_routes": 0}
 
     def _fatigue(self) -> float:
@@ -102,12 +104,19 @@ class Human:
     def wait(self, kind: str):
         time.sleep(self.reaction(kind))
 
-    def step_delay(self, run: bool) -> float:
+    def step_gap(self, run: bool) -> float:
+        """Seconds from one step's send to the next along a straight walk: the stock
+        client's held-key cadence (MovementSpeed.STEP_DELAY_RUN / _WALK, unmounted)
+        plus frame jitter. Human captures (20260929_204225): run steps median 200 ms,
+        565 of 1102 intervals in 200-220 ms. Never below the proxy floor (0.2 / 0.4 s)."""
+        base = STEP_CADENCE_RUN if run else STEP_CADENCE_WALK
         if not self.p.enabled:
-            return 0.22 if run else 0.42
-        med = self.p.step_median_run if run else self.p.step_median_walk
-        d = self._lognormal(med, self.p.step_sigma) * self._fatigue() * self.fast
-        return max(d, 0.21 if run else 0.41)
+            return base + 0.01
+        return base + self.rng.uniform(*self.p.step_jitter)
+
+    def pace_step(self, run: bool, sent_at: float):
+        """Sleep until the next step is due, `sent_at` being when the last one went out."""
+        time.sleep(max(0.0, sent_at + self.step_gap(run) - time.monotonic()))
 
     # ---------------------------------------------------------------- walking
     def route_runs(self) -> bool:
@@ -118,15 +127,20 @@ class Human:
         return True
 
     def cost_scale(self):
-        """Per-plan edge-cost noise: a deterministic multiplier in [1, 1+noise]
-        for each directed step, different for every plan."""
+        """Per-plan route noise: a deterministic cost multiplier in [1, 1+noise]
+        per NOISE_CELL x NOISE_CELL block of the map (by the step's destination
+        tile), different for every plan. Whole areas get cheaper or dearer, so
+        routes vary at the scale of streets and clearings while staying straight
+        inside a block. Per-step noise made every route zig-zag (37 % heading
+        changes vs a human's 21 %, 20260930_123206); with 6-tile cells plus
+        nav.straighten, Shelter routes come out at ~21 %."""
         self.plan_salt += 1
         if self.p.path_noise <= 0:
             return None
         salt, noise, seed = self.plan_salt, self.p.path_noise, self.rng.random()
 
         def scale(a, b):
-            key = f"{seed}:{salt}:{a[0]},{a[1]}>{b[0]},{b[1]}".encode()
+            key = f"{seed}:{salt}:{b[0] // NOISE_CELL},{b[1] // NOISE_CELL}".encode()
             return 1.0 + noise * (zlib.crc32(key) / 0xFFFFFFFF)
         return scale
 
@@ -147,14 +161,6 @@ class Human:
     def wander(self) -> bool:
         if self.rng.random() < self.p.wander_p:
             self.stats["wanders"] += 1
-            return True
-        return False
-
-    def bump(self) -> bool:
-        """At a turn with an obstacle straight ahead: miss the turn and run
-        into it (the server denies the step), like players do."""
-        if self.rng.random() < self.p.bump_p:
-            self.stats["bumps"] += 1
             return True
         return False
 

@@ -138,10 +138,11 @@ Draft — to be finalized after §6/§7:
 5. **Device/account infrastructure is out of scope**: do not attempt to spoof `DeviceId`/TPM/2FA; log in through the official launcher normally.
 6. **Keep files stock**: `VersionRestrictions`/`IsMostRecentGameFilesVersion` means modified game files may block login outright; the harness must never write into the install dir (work in `C:\Users\chris\uo-harness`).
 7. **Test Shard only**: run nothing against production; the Test Shard CoC explicitly supports experimentation, and `[TestRes]/[TestBlessedGear]/[Go` commands exist for safe iteration.
-9. **Behavioral walk-train gate — CONFIRMED LIVE (2026-09-29).** The server detects movement trains without interleaved client activity: short injected bursts following client activity are accepted; ~10+ uninterrupted injected walks are rejected wholesale; and **after repeated solo trains the character's movement was gated even for the human user's own arrow-key input** (recovery pending relog test). First directly-observed punitive anti-automation mechanism beyond silent rejection. Harness rule: **never run long uninterrupted movement trains**; interleave client activity, keep bursts ≤ ~6 steps, and treat any solo-train lockout as a detection event to stop on immediately.
-   **Reinterpretation (2026-09-29, sessions 20260929_142237 / _143051 / _144541):** the arrow-key lockout was client-side, with no server penalty involved. The server's ConfirmWalk for walks the client didn't send trips the client's bad-step path (`WalkingFailed = true`, latched single resync), and the client stays frozen until a server walker reset. The server apparently ignores resyncs < ~5 s apart, so fast agent steps outran the reset (docs/MOVEMENT.md). **Live-supported:** with agent steps spaced ≥ 5 s, 6/6 stepped and the user's own arrow keys kept working. The "trains rejected wholesale" observation is likely the same mechanism plus ladder drift, not a behavioral gate. Keep the ≤ ~6-step rule anyway until S2C visibility can rule out a server-side gate.
-   **S2C evidence (2026-09-29, corrected decode, docs/CIPHER.md §4):** in session 142237 the server *confirmed* all 12 agent continuation walks (`22 01..0c 01`) of a solo train while the frozen client drew nothing. **No server-side rejection of walk trains exists.** The lockout was 100% client-side. Server-side *passive* behavioral analysis can't be ruled out from the wire, so the harness still keeps agent movement human-paced: 0.2 s run / 0.4 s walk minimum step spacing, enforced by the proxy, and bursts interleaved with normal play.
-10. **Spent-token re-presentation — closed by the proxy (2026-09-29).** When the proxy stamps the cycle token into an injected opener, the client still holds its own copy and would present it on its next walk — a spent token re-presented, which a stock client never does and a server log could flag. `MoveAuthority` tracks that copy (`stale_token`) and zeroes it once, so the server sees exactly one presentation per token. Other client keys on continuations pass through because genuine mid-cycle server pushes exist (docs/MOVEMENT.md). Residual surface: the resync-per-external-walk cadence (§8.9 class) — mitigate via mixed manual play and short attended bursts.
+9. **Walk-train "gate" (observed 2026-09-29; superseded the same day, see below: it was the client's own walker, not the server).** First reading at the time: the server detects movement trains without interleaved client activity; ~10+ uninterrupted injected walks were rejected wholesale, and after repeated solo trains even the human's arrow keys stopped working. The rule drawn from it (bursts ≤ ~6 steps, interleaved with client activity) is **not implemented**: runners walk whole routes (see the status note after the S2C evidence).
+   **Reinterpretation (2026-09-29, sessions 20260929_142237 / _143051 / _144541):** the arrow-key lockout was client-side, with no server penalty involved. The server's ConfirmWalk for walks the client didn't send trips the client's bad-step path (`WalkingFailed = true`, latched single resync), and the client stays frozen until a server walker reset. The server apparently ignores resyncs < ~5 s apart, so fast agent steps outran the reset (docs/MOVEMENT.md). **Live-supported:** with agent steps spaced ≥ 5 s, 6/6 stepped and the user's own arrow keys kept working. The "trains rejected wholesale" observation is likely the same mechanism plus ladder drift, not a behavioral gate.
+   **S2C evidence (2026-09-29, corrected decode, docs/CIPHER.md §4):** in session 142237 the server *confirmed* all 12 agent continuation walks (`22 01..0c 01`) of a solo train while the frozen client drew nothing. **No server-side rejection of walk trains exists.** The lockout was 100% client-side. Server-side *passive* behavioral analysis can't be ruled out from the wire, so the harness keeps agent movement at the stock client's own pace: the proxy enforces 0.2 s run / 0.4 s walk minimum step spacing and at most 5 unconfirmed walks (the client's `MAX_STEP_COUNT`), and the Mover steps at the held-key cadence (§8.14).
+   **Status 2026-09-30:** runners walk whole routes as agent-only trains (e.g. 6 028 agent walks in 20260930_123206, none rejected as a train); no burst cap exists in code. The residual is passive statistics only.
+10. **Spent-token re-presentation — closed by the proxy (2026-09-29).** When the proxy stamps the cycle token into an injected opener, the client still holds its own copy and would present it on its next walk — a spent token re-presented, which a stock client never does and a server log could flag. `MoveAuthority` tracks that copy (`stale_token`) and zeroes it once, so the server sees exactly one presentation per token. Other client keys on continuations pass through because genuine mid-cycle server pushes exist (docs/MOVEMENT.md). The resync-per-external-walk cadence of the fix-A era is gone since fix B (§8.11): the audited sessions show client resyncs only after late walk confirms, closed by §10 A2.
 11. **Fix B detection surfaces (2026-09-29; revised same day by user decision).** (a) The proxy drops/rewrites S2C `0x22` ConfirmWalk packets toward the client, and re-anchors the client with a **fabricated S2C `0x21` DenyWalk**. Both are client-side only and invisible to the server. The client code has no integrity check on the S2C stream beyond decoding. (b) **The proxy sends no packets of its own to the server.** The earlier design's proxy-originated resync after each agent burst was removed, because it was a pattern a stock client never produces. Server-visible C2S is now exactly the client's own traffic plus the agent's walks/actions (seq/key rewritten to be consistent). (c) Agent step pacing is enforced proxy-side (Speedhack category). Residual server-visible surface: agent walks themselves (timing and paths), and the absence of the client resyncs that fix A produced.
     **Addendum 2026-09-30:** a second client-only fabrication. After the agent answers a gump
     (`0xB1`), the proxy sends the client S2C `0xBF` sub 4 (close generic gump, button 0) for that
@@ -172,10 +173,14 @@ Draft — to be finalized after §6/§7:
 
 14. **Behavioural texture (2026-09-29, user request).** Mitigation for the §8.3 statistics surface. Every agent runner draws its timing and route choices from `harness/humanize.py`:
     - lognormal reaction times per action kind, with fatigue drift
-    - per-plan route noise instead of the one optimal path, occasional walked routes, pauses and sidesteps, and missed turns that run into a known obstacle (a server deny, as players get) before turning
+    - per-plan route noise at the scale of 6×6-tile map cells instead of the one optimal path, with zig-zag stretches regrouped into straight runs (`nav.straighten`), occasional walked routes, pauses and sidesteps
+    - steps at the stock client's held-key cadence (200 ms run / 400 ms walk plus frame jitter, measured from the previous send); the pauses sit between stretches, not inside them
+    - doors opened like the client's auto-open (`PlayerMobile.TryOpenDoors`): the open-door request goes out right after the turn or step that faces a door on the next tile, before stepping into it
     - occasional cursor hesitation (stock Esc cancel) and idle fidgets (backpack, looking at a mobile)
 
     Constraints: only stock-identical packets or waiting. It never beats the proxy's pacing floor or the gate. No free-text speech (PLAN.md speech allowlist). [INFERENCE] Whether Outlands' server models these statistics is unknown. The texture is cheap insurance, not a guarantee.
+
+    **Correction 2026-09-30 (§10 A5, A8).** The first version also "missed turns" on purpose and ran into a map-known obstacle. The stock client never sends that walk (`PlayerMobile.Walk` returns false when `Pathfinder.CanWalk` fails, PlayerMobile.cs:572-575), so it was removed, and `ctl act walk` refuses a step the map says can't be walked. The earlier lognormal step rhythm (~0.40 s median on the wire, none at 200-220 ms) and per-step route noise (37 % heading changes) didn't look like a held key either. Measured offline after the change (not yet live): the pacing loop with a simulated 60 ms confirm sends steps 203-215 ms apart, and 24 Shelter routes planned with the new noise have ~20 % heading changes (human: 200-220 ms, 21 %).
 
 15. **Only act on what a player could see from where they stand (2026-09-29, found by the user
     watching live run 3).** The server accepted harvesting surface trees (z 5) and talking to the
@@ -217,6 +222,16 @@ Draft — to be finalized after §6/§7:
     - Every action uses the stock client's packet sequence (war mode then attack; context menu
       Buy then 0x3B; cast 0xFF sub 4 then 0x6C), so the server sees what a player's client sends.
 
+18. **Target cursors the agent answered (2026-09-30, §10 A1).** When the agent answers a server
+    target cursor (`0x6C`) the client still shows, the proxy hands the client the server's own
+    cancel shape (`6c 00 00000000 03` + padding) so the cursor goes away, and drops the client's
+    answer to that cancel (a `0x6C` cancel carrying the spent cursor id; ClassicUO
+    TargetManager.SetTargeting → CancelTarget). Before, a later server cancel made the client
+    answer a cursor the agent had already answered: a second reply to one cursor, which a stock
+    client can't produce (4× in 20260930_123206). This is the only client packet the proxy ever
+    drops, and only for a cursor id it saw the agent answer while the client showed it; a new
+    server cursor with that id clears it. Test: `test_movement.py` e2e.
+
 ## 9. Open questions
 
 - ~~What exactly does `Send_UOLive_HashResponse` hash?~~ **Answered: map-block CRC16s for UltimaLive world sync (upstream source).**
@@ -239,7 +254,7 @@ never above the stock throttle; 0 agent packets referencing serials the server n
 without a server cursor; 0 replies to 127 decoy captchas or to the 6 real ones (human answered in
 7.7–17.5 s); 0 server messages about macro/AFK/GM/jail/Razor across 4 126 decoded messages.
 
-**Server-visible deviations from a stock client (open):**
+**Server-visible deviations from a stock client:**
 
 | # | Deviation | Evidence | Fix direction |
 |---|---|---|---|
@@ -254,12 +269,27 @@ without a server cursor; 0 replies to 127 decoy captchas or to the 6 real ones (
 | A9 | No GM/staff handling in the runners: nothing reacts to staff speech, notoriety-7 humans are classed `npc` (threats.py:264), unsolicited teleports just replan; loop_lumber lacks errand_bank's `GATING_WORDS` guard (rule 4). A break mid-walk aborts (agent_link.py:218-232, ~200 s bound) and strands the character in the field. | code | Halt + alert on staff signatures, teleports and restriction messages in every runner; break at a safe place |
 | A10 | Session shape: 20260930_123206 was 4.6 h connected with 6 377 agent C2S and essentially no human input except 2 captchas. Captcha cadence is the only attendance check. | log counts | Human-length sessions; operator-liveness requirement |
 
+**Status (2026-09-30, same day):** A1–A8 fixed in code, offline-tested; not yet run live.
+
+| # | Fix | Test |
+|---|---|---|
+| A1 | client-only cancel + drop of the client's reply for the spent cursor (§8.18; `SessionTap.release_client_cursor`) | `test_movement.py` e2e |
+| A2 | `CONFIRM_TIMEOUT_S` 3.0 s; expired walks stay recognizable for 5 s (`MoveAuthority.late`): a late confirm is hidden and moves the ladder past its seq; agent walks wait out that window instead of re-sending the seq; agent walks also stop at 5 unconfirmed (stock `MAX_STEP_COUNT`) | `test_movement.py` unit |
+| A3 | `menu` and `buy` send `09` then `bf 0013` back to back (`ctl.context_menu_packets`) | `harness/test_ctl.py` |
+| A4 | `dclick`/`single_click`/`menu`/`menu_pick`/`attack` need the entity (or the mobile/ground item holding it) in the world model within 18 tiles (`ctl.not_clickable`); `menu_pick` needs that serial's context menu open with that index | `harness/test_ctl.py` |
+| A5 | bump texture removed; doors opened ahead (§8.14); `ctl act walk` never sends a step the map rules refuse | `harness/test_mover.py` |
+| A6 | every 0xB1 is built by `actions.gump_reply` from the gump's layout (ctl and the lumber room menu) | `harness/test_actions.py` |
+| A7 | `single_click` on a mobile adds its `0x34`; `attack` sends `0x34` while the mob's hits are unknown; `dclick` on a mobile in war mode is refused; `warmode` sends nothing when already in that state | `harness/test_ctl.py` |
+| A8 | stock held-key cadence, cell-scale route noise, `nav.straighten` (§8.14) | `harness/test_nav.py` + offline route measurement |
+
+A9 and A10 remain open.
+
 **Other gaps:** nothing verifies the connected shard is the Test Shard. divert_nat.py hardcodes
 74.91.115.123, the JWT carries no shard claim, and whether production resolves to the same IP is
 unknown. The installed client was patched to 1.0.2.550 on 2026-09-28 (JWT `version`), while the RE
 behind `actions.py` is from 1.0.2.544. Captured 550 traffic frames cleanly, but nothing guards against
-a future layout change. README.md ("relay-only, no injection, byte-identical") and INTERCEPTION.md
-("byte-exact relay") are stale.
+a future layout change. README.md and INTERCEPTION.md no longer claim a byte-identical relay
+(corrected 2026-09-30).
 
 ---
 

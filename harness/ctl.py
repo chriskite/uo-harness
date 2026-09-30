@@ -54,7 +54,7 @@ import task_wrap as tw  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 from uo import cliloc as cliloc_mod  # noqa: E402
-from uo.gumps import controls as gump_controls, parse_layout, reply_fields as gump_reply_fields  # noqa: E402
+from uo.gumps import controls as gump_controls, parse_layout  # noqa: E402
 
 HOST = "127.0.0.1"
 TASKS = {"lumber": os.path.join(HERE, "loop_lumber.py"),
@@ -73,6 +73,7 @@ CHAT_CURSOR_KEY = "overseer_chat_cursor"
 SEVERITY_RANK = {"info": 0, "attention": 1, "urgent": 2}
 WAIT_MAX_EVENTS = 20
 NEARBY_RANGE = 18
+VIEW_RANGE = 18                      # ClassicUO ClientViewRange: the client drops objects beyond it
 NEARBY_MAX = 30
 WALK_MAX_STEPS = 20
 LAYER_BACKPACK = 0x15
@@ -99,6 +100,8 @@ CONTAINER_ITEMS_MAX = 60             # status.containers[].items
 ATTACKABLE_NOTORIETY = frozenset([3, 4, 5, 6])
 ATTACK_MIN_HP = 0.3                  # refuse to start a fight below this share of max hits
 DENY_TELEPORT_GRACE_S = 0.4           # after a walk deny, a teleporter may still move us (agent_link)
+MOVE_GATE_WAIT_S = 10.0               # self-clearing proxy walk gates (agent_link.MOVE_GATE_WAIT_S)
+WALK_OUTCOME_WAIT_S = 5.0             # confirm/deny, else the proxy's 3 s rejection (agent_link)
 CORPSE_GRAPHIC = 0x2006
 LOOT_RANGE = 2                       # tiles; the server's own limit is similar [INFERENCE]
 LOOT_MAX_ITEMS = 25
@@ -707,17 +710,33 @@ def _act_walk(a, ctl: Control, stc: StateConn) -> dict:
         raise CtlError("player position unknown")
     start, moved, outcomes, stop = list(pos), 0, [], None
     pkt = actions.walk(d, run=a.run)
+    walk = None
+    if not a.no_map:
+        import pathfind
+        st = stc.state()
+        walk = pathfind.Walkers().get(st["world"]["self"].get("map"), (
+            (it.get("x"), it.get("y"), it.get("graphic"), it.get("z"))
+            for it in st["world"]["items"].values() if it.get("container") is None))
+    sent_at = 0.0
     for _ in range(n + 2):          # a turn costs one extra send
         before = pos
-        for _ in range(40):          # proxy pacing / resync gates, like Mover.step
+        if walk is not None and len(pos) > 3 and pos[3] == d and walk.can_walk(pos[0], pos[1], pos[2], d) is None:
+            # the stock client checks the step itself and sends nothing (PlayerMobile.Walk -> CanWalk)
+            outcomes.append("blocked")
+            stop = "blocked (the map says the step can't be walked; the client wouldn't send it)"
+            break
+        human.pace_step(a.run, sent_at)
+        deadline = time.monotonic() + MOVE_GATE_WAIT_S
+        while True:                  # proxy walk gates that clear on their own, like Mover.step
             resp = ctl.send(pkt)
-            if not resp.startswith(("ERR walk gated: pacing", "ERR walk gated: awaiting")):
+            if not resp.startswith("ERR walk gated:") or "stalled" in resp or time.monotonic() > deadline:
                 break
-            time.sleep(0.1)
+            time.sleep(0.02 if "pacing" in resp else 0.1)
         if resp != "OK":
             stop = resp
             break
-        end = time.monotonic() + 3.0
+        sent_at = time.monotonic()
+        end = time.monotonic() + WALK_OUTCOME_WAIT_S
         while True:
             st = stc.state()
             if st["movement"].get("inflight", 0) == 0 or time.monotonic() > end:
@@ -745,7 +764,6 @@ def _act_walk(a, ctl: Control, stc: StateConn) -> dict:
             break
         if moved >= n:
             break
-        time.sleep(human.step_delay(a.run))
         human.after_step()
     return {"ok": moved == n, "dir": d, "dir_name": DIR_NAMES[d], "steps": n, "moved": moved,
             "outcomes": outcomes, "from": start, "to": pos, "stopped": stop}
@@ -791,6 +809,7 @@ def _act(a, mem) -> dict:
     if a.name == "drop":
         return _act_drop(a)
     pkt = None
+    serial = None
     if a.name == "say":
         text = " ".join(a.args).strip().lower()
         if text not in SPEECH_ALLOWLIST:
@@ -799,9 +818,7 @@ def _act(a, mem) -> dict:
     elif a.name in ("dclick", "single_click", "menu"):
         if len(a.args) != 1:
             raise CtlError(f"{a.name} <serial>")
-        s = _parse_serial(a.args[0])
-        pkt = {"dclick": actions.dclick, "single_click": actions.single_click,
-               "menu": actions.request_popup}[a.name](s)
+        serial = _parse_serial(a.args[0])
     elif a.name == "menu_pick":
         if len(a.args) != 2:
             raise CtlError("menu_pick <serial> <entry index>")
@@ -809,7 +826,7 @@ def _act(a, mem) -> dict:
             idx = int(a.args[1], 0)
         except ValueError:
             raise CtlError("menu_pick: entry index must be an integer")
-        pkt = actions.popup_selection(_parse_serial(a.args[0]), idx)
+        serial = _parse_serial(a.args[0])
     elif a.name == "open_door":
         if a.args:
             raise CtlError("open_door takes no arguments")
@@ -834,18 +851,22 @@ def _act(a, mem) -> dict:
     try:
         if a.name == "walk":
             return _act_walk(a, ctl, stc)
+        pkts = [pkt]
+        if serial is not None:
+            pkts = _click_packets(a.name, serial, stc, idx if a.name == "menu_pick" else None)
         if a.name == "target_cancel":
             cur = (stc.state().get("world") or {}).get("target") or {}
             if not cur.get("active") or cur.get("cursor_id") is None:
                 raise CtlError("no target cursor is up")
-            pkt = actions.target_cancel(cur["cursor_id"], cur.get("target_type") or 0,
-                                        cur.get("cursor_type") or 0)
+            pkts = [actions.target_cancel(cur["cursor_id"], cur.get("target_type") or 0,
+                                          cur.get("cursor_type") or 0)]
         if a.name == "gump":
-            pkt = gump_reply(stc.state(), a.args[0], a.args[1], a.text or ())
+            pkts = [gump_reply(stc.state(), a.args[0], a.args[1], a.text or ())]
         mark = stc.mark()
-        resp = ctl.send(pkt)
-        if resp != "OK":
-            return {"ok": False, "reply": resp}
+        for p in pkts:                 # companion packets go out back to back, as the client sends them
+            resp = ctl.send(p)
+            if resp != "OK":
+                return {"ok": False, "reply": resp}
         if a.name == "menu":           # wait for the server's context menu
             got = stc.wait_events(mark, lambda evs: any(e.get("ev") == "popup" for e in evs))
         else:                          # what the server answered, as the player would read it
@@ -862,6 +883,91 @@ def _act(a, mem) -> dict:
     finally:
         ctl.close()
         stc.close()
+
+
+def not_clickable(world: dict, pos, serial: int) -> str | None:
+    """Why the stock client couldn't click `serial` right now, else None.
+
+    The client can only click what it has on screen: the entity must be in the
+    world model, and it (or, for an item in a container, the mobile or ground
+    item holding it) within VIEW_RANGE of the player. The client drops objects
+    beyond its view range (ClassicUO World.Update), so a serial known from a
+    last-seen position (`ctl npcs`) isn't clickable from afar (live 20260930_091704:
+    a context-menu request to a vendor 33 tiles away)."""
+    me = world["self"].get("serial")
+    me = _serial(me) if me is not None else None
+    if serial == me:
+        return None
+    key = f"0x{serial:08X}"
+    ent = world["mobiles"].get(key) or world["items"].get(key)
+    if ent is None:
+        return f"{key} is not in the client's world (never seen, or gone)"
+    seen = set()
+    while ent.get("container") is not None:
+        parent = _serial(ent["container"])
+        if parent == me:
+            return None
+        pkey = f"0x{parent:08X}"
+        ent = None if parent in seen else world["mobiles"].get(pkey) or world["items"].get(pkey)
+        if ent is None:
+            return f"{key} is inside {pkey}, which the client doesn't have"
+        seen.add(parent)
+    if ent.get("x") is None or ent.get("y") is None or not pos:
+        return f"{key} has no known position"
+    dist = nav.chebyshev(tuple(pos[:2]), (ent["x"], ent["y"]))
+    if dist > VIEW_RANGE:
+        return f"{key} is {dist} tiles away, beyond the client's {VIEW_RANGE}-tile view (goto it first)"
+    return None
+
+
+def open_popup(events: list) -> dict | None:
+    """The context menu the client shows, from world event envelopes: the latest
+    server menu (0xBF 0x14) with no selection or new menu request after it
+    (the client shows one context menu at a time)."""
+    menu = None
+    for e in events:
+        d = e.get("data") or {}
+        if e.get("origin") == "world" and d.get("ev") in ("popup", "popup_request", "popup_select"):
+            menu = d if d["ev"] == "popup" else None
+    return menu
+
+
+def context_menu_packets(serial: int) -> list[bytes]:
+    """A right-click as the stock client sends it: 0x09 then 0xBF 0x13, back to
+    back (DelayedObjectClickManager.Update: SingleClick, then OpenPopupMenu, the
+    click because Outlands has tooltips off; human captures 30/30, 0-1 ms apart)."""
+    return [actions.single_click(serial), actions.request_popup(serial)]
+
+
+def _click_packets(name: str, serial: int, stc: "StateConn", index: int | None) -> list[bytes]:
+    """Packets for dclick / single_click / menu / menu_pick on `serial`, shaped like
+    the stock client's, or CtlError when the client couldn't do it right now."""
+    st = stc.state()
+    world = st["world"]
+    why = not_clickable(world, st["movement"].get("pos"), serial)
+    if why is not None:
+        raise CtlError(why)
+    key = f"0x{serial:08X}"
+    me = world["self"]
+    mobile = key in world["mobiles"] and _serial(me.get("serial") or 0) != serial
+    if name == "dclick":
+        if mobile and me.get("warmode"):
+            # the stock client never sends 0x06 for a mobile in war mode: it attacks (GameActions.DoubleClick)
+            raise CtlError("in war mode a double-click on a mobile attacks; use `act attack` or `act warmode off`")
+        return [actions.dclick(serial)]
+    if name == "single_click":
+        # a mobile's click comes with its status request (captures: 1834 of 1834 0x09 on a mobile, 0 ms apart)
+        return [actions.single_click(serial)] + ([actions.status_request(serial)] if mobile else [])
+    if name == "menu":
+        return context_menu_packets(serial)
+    menu = open_popup(stc.events(0)[0])
+    if menu is None or _serial(menu.get("serial")) != serial:
+        raise CtlError(f"no context menu of {key} is open (`act menu {key}` first)")
+    if index not in [e.get("index") for e in menu.get("entries") or []]:
+        raise CtlError(f"entry {index} is not in {key}'s context menu: "
+                       f"{[e.get('index') for e in menu.get('entries') or []]}")
+    return [actions.popup_selection(serial, index)]
+
 
 
 def _backpack(items: dict, me) -> int | None:
@@ -882,11 +988,13 @@ def _connect(a):
 
 
 def _act_combat(a) -> dict:
-    """warmode on|off: 0x72, the stock Tab toggle. attack <serial>: a hostile
-    monster only (never a player, a player's pet, an NPC or anything with a
-    human body; threats.identify + notoriety 3-6). Like the stock client (Tab,
-    then double-click the target) it turns war mode on first, then sends 0x05.
-    Refused below ATTACK_MIN_HP of max hits."""
+    """warmode on|off: 0x72, the stock Tab toggle (so nothing is sent when war
+    mode is already in that state: Tab only ever flips it). attack <serial>: a
+    hostile monster only (never a player, a player's pet, an NPC or anything with
+    a human body; threats.identify + notoriety 3-6), on screen. Like the stock
+    client (Tab, then double-click the target: GameActions.DoubleClick) it turns
+    war mode on first, then sends 0x34 (only while the mob's hits are unknown,
+    RequestMobileStatus) and 0x05. Refused below ATTACK_MIN_HP of max hits."""
     import threats
     ctl, stc = _connect(a)
     try:
@@ -897,6 +1005,8 @@ def _act_combat(a) -> dict:
             if len(a.args) != 1 or a.args[0] not in ("on", "off"):
                 raise CtlError("warmode on|off")
             on = a.args[0] == "on"
+            if bool(me.get("warmode")) == on:
+                return {"ok": True, "reply": "already", "warmode": on}
             resp = ctl.send(actions.war_mode(on))
             stc.intent("Ready to fight (war mode)" if on else "Standing down (peace mode)", "ready" if on else "idle")
             if resp != "OK":
@@ -918,6 +1028,9 @@ def _act_combat(a) -> dict:
         ok, why = _attackable(world, key)
         if not ok:
             raise CtlError(why)
+        why = not_clickable(world, st["movement"].get("pos"), serial)
+        if why is not None:
+            raise CtlError(why)
         mob = world["mobiles"][key]
         label = (world.get("labels") or {}).get(key)
         kind, _player, _ev = threats.identify(mob, label)
@@ -934,7 +1047,11 @@ def _act_combat(a) -> dict:
                 return {"ok": False, "reply": resp}
             turned_on = True
             Human(a.human, seed=a.seed).wait("use")
-        resp = ctl.send(actions.attack(serial))
+        resp = "OK"
+        if mob.get("hits_max") is None:
+            resp = ctl.send(actions.status_request(serial))
+        if resp == "OK":
+            resp = ctl.send(actions.attack(serial))
         stc.intent(f"Attacking {label or mob.get('name') or key}", "attack", (mob["x"], mob["y"]), serial)
         got = stc.wait_events(mark, lambda evs: False, timeout=1.5)
         return {"ok": resp == "OK", "reply": resp, "warmode_turned_on": turned_on,
@@ -950,7 +1067,8 @@ def _act_combat(a) -> dict:
 def _act_loot(a) -> dict:
     """loot <corpse serial>: open a monster's corpse within LOOT_RANGE tiles
     (0x06 double click) and move what's in it into your backpack, one item
-    at a time (0x07 lift, pause, 0x08 drop), gold first, at most
+    at a time (a human pause, then 0x07 lift and 0x08 drop back to back, the
+    stock GrabItem shape, GameActions.cs:819-852), gold first, at most
     --max-items, stopping at your weight limit. Refuses corpses with a human
     body (players, human NPCs, your own: policy, no corpse runs)."""
     import threats
@@ -1338,8 +1456,9 @@ def _act_buy(a, mem) -> dict:
         vname = (world.get("labels") or {}).get(vkey) or mob.get("name") or vkey
         stc.intent(f"Buying {want} from {vname}" if want else f"Browsing {vname}'s wares", "buy",
                    (mob["x"], mob["y"]), vendor)
-        if ctl.send(actions.request_popup(vendor)) != "OK":
-            raise CtlError("context menu request refused")
+        for p in context_menu_packets(vendor):
+            if ctl.send(p) != "OK":
+                raise CtlError("context menu request refused")
         evs = stc.wait_events(mark, lambda e: any(x.get("ev") == "popup" for x in e))
         menu = next((e for e in evs if e.get("ev") == "popup" and _serial(e.get("serial")) == vendor), None)
         entry = next((x for x in (menu or {}).get("entries") or [] if x.get("cliloc") == BUY_CLILOC), None)
@@ -1552,7 +1671,6 @@ def gump_reply(state: dict, serial_arg: str, button_arg: str, texts=()) -> bytes
         raise CtlError("gump is noclose; button 0 isn't available")
     if button != 0 and button not in view["buttons"]:
         raise CtlError(f"button {button} not in the gump's reply buttons {view['buttons']}")
-    entries, switches = gump_reply_fields(g.get("layout") or "", g.get("lines") or [])
     limits = {e["id"]: e.get("limit") for e in view["controls"]["entries"]}
     overrides = {}
     for spec in texts or ():
@@ -1571,8 +1689,8 @@ def gump_reply(state: dict, serial_arg: str, button_arg: str, texts=()) -> bytes
         if len(value) > GUMP_TEXT_MAX or any(ord(c) < 32 for c in value):
             raise CtlError(f"text for entry {eid}: printable text up to {GUMP_TEXT_MAX} chars only")
         overrides[eid] = value
-    return actions.gump_response(serial, _serial(g.get("gump_id")), button, switches=switches,
-                                 text_entries=[(eid, overrides.get(eid, v)) for eid, v in entries])
+    return actions.gump_reply(serial, _serial(g.get("gump_id")), button, g.get("layout") or "",
+                              g.get("lines") or [], overrides)
 
 
 def _act_goto(a, mem) -> dict:

@@ -518,7 +518,7 @@ async def main():
               and good_node.get("yield") == world.harvested, f"{dry_node} {good_node}")
         check("walk memory (store): the proxy recorded the agent's walks, incl. the room's facet-less tiles",
               len(walked.edges) >= 20 and (39, 65) in walked.tiles, str(walked.stats()))
-        check("open-door requests only when blocked next to a door (never at plain walls)",
+        check("open-door requests only next to a door, like the client's auto-open (never at plain walls)",
               world.open_door_reqs == world.doors_opened, f"{world.open_door_reqs} requests, "
               f"{world.doors_opened} opened")
         check("after leaving the room the agent waited out the harvest lockout",

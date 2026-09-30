@@ -6,7 +6,7 @@ Decision record + phases. Research basis: [`../ANTICHEAT.md`](../ANTICHEAT.md).
 
 **Test Shard only** (user decision, 2026-09-27). Rationale: full autonomy on the production shard violates rules §3.3/§4 (automation, programmatic data extraction, artificial input) and risks the OutlandsID; the Test Shard CoC explicitly exists for "testing, bug-checking, and experimentation". Production use is permanently out of scope for this harness.
 
-## Why a relay-only proxy (alternatives considered)
+## Why a localhost proxy (alternatives considered)
 
 | Approach | Verdict |
 |---|---|
@@ -82,7 +82,7 @@ LLM planner over the world model + skill library; safety rails: captcha human-ha
 - **No handoff on nearby player speech** (user decision 2026-09-29): handing off whenever a non-NPC speaks nearby would fire too often. GM detection isn't reliable either: RunUO-style staff name hue 11 is [INFERENCE] for Outlands, hidden staff are invisible, and no staff contact has been captured. Narrower speech triggers (e.g. our character's name being said) are still open.
 - **Human-like inefficiency in every runner (user request 2026-09-29):** `harness/humanize.py` `Human`, shared by the runners through `Mover`, adds:
   - lognormal reaction times with fatigue drift
-  - per-plan route noise, walked routes, pauses, sidesteps, and missed turns that run into a known obstacle before turning
+  - per-plan route noise (per 6×6-tile cell, so routes vary but stay straight), walked routes, pauses and sidesteps; steps at the stock held-key cadence (200/400 ms); doors opened ahead like the client's auto-open. The first version's missed turns into known obstacles were removed on 2026-09-30 (a step the stock client never sends; see the stock-fidelity decision below)
   - occasional cursor hesitation and idle fidgets (backpack open, look at a mobile)
 
   All of it is stock-client traffic or waiting, and it's seeded. Profile `off` is for deterministic tests. Rationale: server-side detection is behavioural statistics (ANTICHEAT.md §8.3), and optimal routes and uniform click timing are signatures. Details: LUMBER_LOOP.md §13.
@@ -127,7 +127,7 @@ LLM planner over the world model + skill library; safety rails: captcha human-ha
        - all 1249 server-confirmed walk-memory moves are walkable under the model
        - all 20 non-door agent denies upstairs in the inn are walls in the model
        - a 3D route from the inn's upstairs (z 20) down to the innkeeper's floor exists
-    3. ✅ `Mover` plans on the map when the facet has geometry (0/1/4/5). The blank rental-room facet 3 falls back to walk memory. The player's facet comes from S2C 0xBF sub 8, now tracked by the world model. Denies are kept z-aware per session. The obstacle model feeds the missed-turn bumps.
+    3. ✅ `Mover` plans on the map when the facet has geometry (0/1/4/5). The blank rental-room facet 3 falls back to walk memory. The player's facet comes from S2C 0xBF sub 8, now tracked by the world model. Denies are kept z-aware per session.
     4. ✅ Harvest-node discovery:
        - `UoMap.find_trees` finds impassable statics named "tree" in `lumber.json` `harvest.area` (177 on Shelter).
        - Candidates are tried nearest first, with human noise.
@@ -153,6 +153,22 @@ act against a *player*) blocks recall and entering the room (THREATS.md §6). Ho
 escaped, never fought. **Monsters may be fought and looted** (user decision 2026-09-30:
 `ctl act attack|loot`, guarded to monsters only; monster combat doesn't cause Heat of Battle,
 TRAVEL_DEATH.md).
+
+**Decision 2026-09-30: agent traffic mirrors the stock client's shapes, not just its layouts**
+(user request after the detection audit, ANTICHEAT.md §10 A1–A8). Byte-correct packets weren't
+enough: the audit found sequences the client can't produce (a context menu without its click,
+replies with missing entries, a cursor answered twice, steps into walls, walk rhythm and path
+shape unlike a held key). Rule: every agent action reproduces what the client sends for the same
+UI gesture, derived from ClassicUO source and checked against human captures, and is refused when
+the client couldn't do it right now (entity off screen, no menu open, war mode). Choices:
+- A1: client-only cancel plus dropping the client's reply for that spent cursor. Rejected: a
+  client-only cancel alone (the client answers it with a C2S cancel, TargetManager.CancelTarget),
+  and leaving the cursor up (the human's next click would be a second reply).
+- A2: 3 s confirm timeout, a 5 s late-confirm window, the stock 5-unconfirmed cap. Rejected: a
+  proxy resync to heal the ladder (server-visible, §8.11).
+- A8: stock cadence inside a stretch, texture between stretches; route noise per 6-tile map cell
+  plus `nav.straighten` (measured on 24 Shelter routes: ~20 % heading changes, human 21 %).
+  Rejected: a turn-penalty A* (8× the search states; not tried, since the above already matches).
 
 ### Phase 5 (optional) — Production copilot
 Rules-compliant live mode: agent generates Razor scripts into `Data/Plugins/Assistant/Scripts/`; human reviews and runs them manually. No autonomy, no data extraction. Only phase allowed to touch the production shard, and only as a file generator.

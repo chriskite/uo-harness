@@ -37,9 +37,18 @@ Consequences, all visible in the captures:
 
 **Fix B (implemented, `harness/proxy.py` `MoveAuthority`; offline-proven by `test_movement.py`):**
 - The seq ladder follows seeds (reset to 0) and denies. On an ignored client resync (no seed within
-  1.5 s), the ladder is kept. On a **silent rejection** (no confirm within 1.5 s), the ladder rewinds
-  to the rejected walk's seq (the server doesn't advance, 142237). After 3 rejections in a row,
-  agent walks stall until a walk is confirmed or a seed/deny arrives.
+  1.5 s), the ladder is kept. On a **silent rejection** (no confirm within `CONFIRM_TIMEOUT_S` = 3 s),
+  the ladder rewinds to the rejected walk's seq (the server doesn't advance, 142237). After 3
+  rejections in a row, agent walks stall until a walk is confirmed or a seed/deny arrives.
+- **Late confirms (2026-09-30).** A server hitch can confirm a walk 2.0–2.3 s after it was sent
+  (20260930_123206, 091704). With the old 1.5 s timeout the confirm arrived after the proxy had
+  given up: it was forwarded to the client as a confirm it never asked for (bad step → client resync
+  `22 0000`, 3× in 123206), and once the agent re-sent the "rejected" seq (091704 seq 109 went out
+  twice). Now expired walks stay in `MoveAuthority.late` for 5 s: a late confirm is hidden from the
+  client (its walker was reset by the re-anchor), moves the tracked position and moves the ladder
+  past that seq; agent walks wait until the window closes instead of re-sending the seq.
+- **At most 5 walks unconfirmed**, like the stock client (`Constants.MAX_STEP_COUNT`,
+  PlayerMobile.Walk): an agent walk beyond that is refused (`ERR walk gated: 5 walks unconfirmed`).
 - The token is taken from seeds (and `BF 0002` pushes) and stamped into the next walk if its key is 0.
   The client's spent copy is zeroed later.
 - **Agent confirms are hidden from the client** (their segment is dropped). **Client confirms are
@@ -62,7 +71,11 @@ Consequences, all visible in the captures:
   crosses the fabricated deny in flight gets a confirm the client no longer has pending. That is a
   bad step, which makes the client send its own resync (client-produced) and recover.
 - Agent gates: pacing (0.2 s run / 0.4 s walk, the Speedhack surface); waiting for the server's reply
-  to a client resync; stall after 3 rejections.
+  to a client resync; stall after 3 rejections; an expired walk's 5 s late-confirm window; 5 walks
+  unconfirmed. `agent_link.Mover` and `ctl act walk` retry the self-clearing gates for up to 10 s.
+- **Agent step rhythm (2026-09-30):** the Mover sends each step at the stock held-key cadence, 200 ms
+  (run) / 400 ms (walk) after the previous send plus 3–15 ms jitter (`humanize.Human.step_gap`), and
+  it never sends a step the map rules refuse (the client wouldn't: PlayerMobile.Walk → CanWalk).
 
 **Fix B VALIDATED LIVE (session_20260929_161433, user-confirmed 2026-09-29).** 57 agent walks (walk_cli)
 plus 30 client walks, mixed. 55 agent confirms hidden, 5 client re-anchors via fabricated `0x21` (the
@@ -342,7 +355,11 @@ are decoder-hidden — §3).
 | 0x30/0x95 handler-less / companion channel | `cuo_handler_table.json`; captures (login + both resync clusters) |
 | Captures | `logs/session_20260928_{141253,164548,211622,223537}.jsonl` (walk streams replayed by `harness/movement_driver.py`) |
 
-## Validated live model (2026-09-29, session 20260929_113311)
+## Validated live model (2026-09-29, session 20260929_113311) — superseded by "▶ Current model"
+
+Points 3, 4 and 6 describe the fix-A era: since fix B the client never sees a foreign confirm, so
+no resync follows an agent walk (0 in 161433 and in the 11 sessions audited on 2026-09-30, apart
+from the late-confirm case now closed).
 
 All of the following was proven with live injections on the Test Shard:
 
@@ -353,7 +370,11 @@ All of the following was proven with live injections on the Test Shard:
 5. **Resync suppression (dropping client `22 0000`) was tested and is WRONG** — it deadlocks the client's own movement recovery after agent activity. Proxy comment documents this; suppression removed.
 6. Anti-cheat note: the resync-per-external-walk behavior means an agent that walks leaves a distinctive resync cadence in the logs — visible to server-side behavioral analysis. Human pacing and mixed manual play remain the mitigation.
 
-## Acceptance gate discovered (2026-09-29, continued validation)
+## Acceptance gate discovered (2026-09-29, continued validation) — refuted
+
+The "behavioral gate" below was the client's own walker: the corrected S2C decode shows the server
+confirmed all 12 agent walks of a solo train in 142237 (▶ Current model; ANTICHEAT.md §8.9). The
+≤ ~6-step recipe is not implemented; the lines are kept as the record of what was believed then.
 
 - The fastwalk key field is effectively ignored on continuations (user walks show seq 0,1,2 all with key 1 accepted; key 0 also accepted). Token values 8 (login) and 1 (re-arm) matter only for the FIRST walk of a cycle.
 - **The binding constraint is a behavioral gate on walk trains without interleaved client activity**: short injected bursts following client activity (manual walks or a fresh resync) are accepted; long uninterrupted injected trains (10+ steps) are silently rejected wholesale (no turn, no step, no resync). This is consistent with server-side artificial-input detection (rules §4).

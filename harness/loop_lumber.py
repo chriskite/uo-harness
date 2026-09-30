@@ -521,7 +521,8 @@ class LumberLoop:
         g = self.room_menu(mark)
         self.human.wait("menu")
         mark = len(self.link.events)
-        self.link.act(actions.gump_response(g["serial"], g["gump_id"], room["enter_button"]))
+        self.link.act(actions.gump_reply(g["serial"], g["gump_id"], room["enter_button"],
+                                         g.get("layout", ""), g.get("lines") or []))
         texts = (room["enter_text"], room["too_far_text"])
         self.link.wait(lambda s: any(self.heard(mark, text=t) for t in texts), 5.0)
         if self.heard(mark, text=room["enter_text"]) is None:
@@ -573,7 +574,8 @@ class LumberLoop:
         g = self.room_menu(mark)
         self.human.wait("menu")
         mark = len(self.link.events)
-        self.link.act(actions.gump_response(g["serial"], g["gump_id"], room["exit_button"]))
+        self.link.act(actions.gump_reply(g["serial"], g["gump_id"], room["exit_button"],
+                                         g.get("layout", ""), g.get("lines") or []))
         if self.link.wait(lambda s: self.heard(mark, text=room["exit_text"]), 5.0) is None:
             raise Abort("did not leave the rental room")
         self.t_exit = time.time()
@@ -612,7 +614,7 @@ class LumberLoop:
         row = {"loop": "lumber", "venue": self.k["venue"], "trip": n, "t_start": round(t0, 1),
                "t_end": round(time.time(), 1), "phases_s": phases,
                "steps": self.mover.steps - s0, "blocked": self.mover.blocked_count - b0,
-               "doors_opened": self.mover.doors_opened, "bumps": self.mover.bumps,
+               "doors_opened": self.mover.doors_opened,
                "human_session": dict(self.human.stats), **self.stats}
         self.episode(row)
         log(f"trip {n} done: {row}")

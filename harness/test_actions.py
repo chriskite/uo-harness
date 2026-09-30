@@ -262,6 +262,19 @@ def test_gump_response():
         check("gump response over 0x8000 bytes rejected", False)
     except ValueError:
         check("gump response over 0x8000 bytes rejected", True)
+    # Every reply carries the gump's entries and checked switches, like the stock client
+    # (live 20260930_123206: an entry-less reply to 'Retrieve Items' -> "That is not a valid number.")
+    shelf = ("{ text 58 99 2599 3 }{ textentrylimited 147 100 78 20 2655 1 0 5 }"
+             "{ checkbox 10 10 210 211 1 7 }{ checkbox 10 30 210 211 0 8 }"
+             "{ textentry 147 130 78 20 2655 9 1 }{ button 200 200 247 248 1 0 2 }")
+    got = actions.gump_reply(0x25954A, 0xBEC6217A, 2, shelf, ["", "x"])
+    check("gump_reply: all entries (current text) and the checked switch, as the client sends",
+          got == actions.gump_response(0x25954A, 0xBEC6217A, 2, switches=[7],
+                                       text_entries=[(1, ""), (9, "x")]), got.hex())
+    got = actions.gump_reply(0x25954A, 0xBEC6217A, 2, shelf, ["", "x"], {1: "20"})
+    check("gump_reply: an override replaces only its entry",
+          got == actions.gump_response(0x25954A, 0xBEC6217A, 2, switches=[7],
+                                       text_entries=[(1, "20"), (9, "x")]), got.hex())
 
 
 def test_text_entry_response():
@@ -649,17 +662,22 @@ def test_replay_actions():
     x0, y0, pc0 = s.x, s.y, s.position_changes
 
     seq = actions.WalkSequencer()
-    # 2x east (dir 2: +1,+0), 1x west (dir 6: -1,+0) -> net (+1, 0)
+    # 2x east (dir 2) then 1x west (dir 6), each confirmed by the server.
+    # Self moves only on confirms; a walk in a new direction only turns:
+    # E turn, E move (+1), W turn -> net (+1, 0), 1 position change
+    s.direction = 0
     for d in (2, 2, 6):
-        rt.feed_packet(C2S, seq.walk(d))
+        pkt = seq.walk(d)
+        rt.feed_packet(C2S, pkt)
+        rt.feed_packet("s2c", bytes([0x22, pkt[2], 0x01]))
     rt.feed_packet(C2S, actions.cast_spell(15))
     rt.feed_packet(C2S, actions.item_query(0x40000D54))
     rt.feed_packet(C2S, actions.dclick(0x40005913))
     rt.feed_packet(C2S, actions.say_unicode("howdy"))
 
-    check("injected walks moved self (+1, 0)",
+    check("confirmed walks moved self (+1, 0)",
           (s.x, s.y) == (x0 + 1, y0), f"({x0},{y0}) -> ({s.x},{s.y})")
-    check("position_changes +3", s.position_changes == pc0 + 3,
+    check("position_changes +1 (turns don't count)", s.position_changes == pc0 + 1,
           f"({pc0} -> {s.position_changes})")
     check("walk seq tracked", s.walk_seq == 2, f"(got {s.walk_seq})")
 

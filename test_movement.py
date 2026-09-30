@@ -150,6 +150,45 @@ def test_unit():
     ma.on_c2s_walk(p, "client", 40.0)
     check("server deny resets ladder to 0", p[2] == 0, p.hex())
 
+    # late confirm (server hitch past the timeout): hidden from the client, the ladder moves
+    # past it, and the agent re-sends nothing while that confirm may still come (20260930_123206)
+    ma = P.MoveAuthority()
+    ma.on_self_position(100, 200, 5, 2)
+    ma.on_seed(8)
+    p = walk(0x82, 0)
+    ma.on_c2s_walk(p, "agent", 50.0)
+    t_exp = 50.0 + P.CONFIRM_TIMEOUT_S + 0.1
+    ma.expire(t_exp)
+    check("agent gated while an expired walk may still be confirmed",
+          (ma.agent_walk_block(t_exp + 1.0, run=True) or "").startswith("walk gated: an expired walk"))
+    check("late confirm of an agent walk is hidden", ma.on_confirm(0) == ("hide", None))
+    check("late confirm moves the tracked position", ma.pos[:2] == [101, 200], str(ma.pos))
+    check("late confirm reopens agent walks", ma.agent_walk_block(t_exp + 1.0, run=True) is None)
+    p = walk(0x82, 0)
+    ma.on_c2s_walk(p, "agent", t_exp + 1.0)
+    check("ladder continues past the late-confirmed seq (no seq sent twice)", p[2] == 1, p.hex())
+    p = walk(0x82, 7)
+    ma.on_c2s_walk(p, "client", t_exp + 1.5)           # seq 2, from the client
+    ma.expire(t_exp + 1.5 + P.CONFIRM_TIMEOUT_S + 0.1)  # both expire
+    check("late confirms: agent seq 1 and client seq 2 both hidden (the re-anchor reset the "
+          "client's walker, so a forwarded confirm would be a bad step)",
+          ma.on_confirm(1) == ("hide", None) and ma.on_confirm(2) == ("hide", None) and ma.client_stale)
+    p = walk(0x82, 0)
+    t = t_exp + 8.0
+    ma.on_c2s_walk(p, "agent", t)                        # seq 3, never confirmed
+    ma.expire(t + P.CONFIRM_TIMEOUT_S + 0.1)
+    ma.expire(t + P.CONFIRM_TIMEOUT_S + P.LATE_CONFIRM_GRACE_S + 0.2)
+    check("after the grace period an unconfirmed walk is rejected for good",
+          p[2] == 3 and ma.on_confirm(3) == ("forward", None) and not ma.late, p.hex())
+
+    # the stock client never has more than MAX_STEP_COUNT (5) unconfirmed steps
+    ma = P.MoveAuthority()
+    ma.on_seed(8)
+    for i in range(P.MAX_STEPS_IN_FLIGHT):
+        ma.on_c2s_walk(walk(0x82, 0), "agent", 60.0 + i * 0.3)
+    check("agent gated at 5 unconfirmed walks",
+          "unconfirmed" in (ma.agent_walk_block(62.0, run=True) or ""))
+
 
 def test_real_capture():
     print("== position tracking vs real capture (session 20260929_144541) ==")
@@ -295,6 +334,29 @@ async def e2e():
         r_gump = inject(bytes.fromhex("b1001700001234" "e0e675b8" "00000002" "00000000" "00000000"))
         await asyncio.sleep(0.3)
         closes = [p for p in client_rx[before:] if p[:5] == bytes.fromhex("bf000d0004")]
+        # the agent answers the target cursor the client shows: the client gets a cancel, and
+        # its reply for that (spent) cursor never reaches the server; a later cursor still works
+        cursor = bytes.fromhex("6c01" "0005d96a" "00") + bytes(20)
+        await srv.send(cursor)
+        await asyncio.sleep(0.2)
+        before = len(client_rx)
+        n_other = len(srv.other)
+        r_target = inject(bytes.fromhex("6c01" "0005d96a" "00" "00000000" "00000100" "00000200"
+                                        "00000000" "00000cd0"))
+        await asyncio.sleep(0.3)
+        cancels = [p for p in client_rx[before:] if p[0] == 0x6C]
+        writer.write(xor(bytes.fromhex("6c00" "0005d96a" "03") + bytes(4) + bytes.fromhex("7fffffff" * 3)
+                         + bytes(4), C2S_KEY))
+        await writer.drain()
+        await asyncio.sleep(0.3)
+        after_spent = srv.other[n_other:]
+        await srv.send(bytes.fromhex("6c01" "0005d96b" "00") + bytes(20))
+        await asyncio.sleep(0.2)
+        writer.write(xor(bytes.fromhex("6c01" "0005d96b" "00" "00000000" "00000101" "00000201"
+                                       "00000000" "00000cd0"), C2S_KEY))
+        await writer.drain()
+        await asyncio.sleep(0.3)
+        after_fresh = srv.other[n_other:]
         ctl.close()
         writer.close()
         await asyncio.sleep(0.3)
@@ -311,8 +373,8 @@ async def e2e():
         check("client got exactly one fabricated 0x21 at the true position (x101 y198 z5 E)",
               len(denies) == 1 and deny_fields(denies[0]) == (101, 198, 5, 2),
               str([deny_fields(d) for d in denies]))
-        check("server received no proxy-originated packets (only walks and the agent's gump reply)",
-              [p for p in srv.other if p[0] != 0xB1] == [], str(srv.other))
+        check("server received no proxy-originated packets (only walks, the gump reply and target replies)",
+              [p for p in srv.other if p[0] not in (0xB1, 0x6C)] == [], str(srv.other))
         check("client prelude relayed", bytes(got_prelude) == PRELUDE, got_prelude.hex())
         mv = state.get("movement", {})
         check("state endpoint: movement pos = tracked true position",
@@ -343,6 +405,12 @@ async def e2e():
         check("agent gump reply: relayed upstream, and the client's copy closed (gump 0xE0E675B8, button 0)",
               r_gump == "OK" and any(p[0] == 0xB1 for p in srv.other)
               and closes == [bytes.fromhex("bf000d0004" "e0e675b8" "00000000")], f"{r_gump} {closes} {srv.other}")
+        check("agent target reply: the client gets the server's own cancel shape for its copy",
+              r_target == "OK" and cancels == [P.TARGET_CANCEL_S2C], f"{r_target} {[c.hex() for c in cancels]}")
+        check("client's reply to the spent cursor is not relayed; its reply to a new cursor is",
+              [p[:6] for p in after_spent] == [bytes.fromhex("6c01" "0005d96a")]
+              and [p[:6] for p in after_fresh] == [bytes.fromhex("6c01" "0005d96a"), bytes.fromhex("6c01" "0005d96b")],
+              f"{[p.hex() for p in after_spent]} / {[p.hex() for p in after_fresh]}")
     finally:
         proxy.terminate()
         server.close()

@@ -75,6 +75,64 @@ def chebyshev(a: Tile, b: Tile) -> int:
     return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
 
 
+def _turns(dirs) -> int:
+    return sum(1 for a, b in zip(dirs, dirs[1:]) if a != b)
+
+
+def straighten(path: list, can_step: Callable, diagonal_first: Callable[[], bool] | None = None,
+               avoid: Iterable = ()) -> list:
+    """The same route with fewer heading changes, as a player steering toward a
+    point walks it: every stretch that zig-zags between two neighbouring
+    headings (e.g. E, NE, E, NE, E) is regrouped into two straight runs
+    (NE, NE, E, E, E or E, E, E, NE, NE) ending on the same state.
+
+    path: states whose first two fields are the tile ((x, y) or (x, y, z)).
+    can_step(state, d) -> the next state or None (the planner's own step rule).
+    diagonal_first() picks which run comes first (random: human texture);
+    default: the diagonal. A regrouped stretch may not enter an `avoid` tile the
+    original stretch didn't use. A stretch that can't be regrouped stays as it was.
+    Agent paths had 37 % heading changes vs 21 % for a human (20260930_123206)."""
+    if len(path) < 3:
+        return list(path)
+    avoid = set(avoid)
+    dirs = [direction(a[:2], b[:2]) for a, b in zip(path, path[1:])]
+    out = [path[0]]
+    i = 0
+    while i < len(dirs):
+        a, b, j = dirs[i], None, i + 1
+        while j < len(dirs):
+            if dirs[j] == a or dirs[j] == b:
+                j += 1
+            elif b is None and (dirs[j] - a) % 8 in (1, 7):
+                b = dirs[j]
+                j += 1
+            else:
+                break
+        regrouped = None
+        if b is not None and _turns(dirs[i:j]) > 1:
+            seg = dirs[i:j]
+            diag, straight = (a, b) if a & 1 else (b, a)
+            first = [diag] * seg.count(diag) + [straight] * seg.count(straight)
+            second = [straight] * seg.count(straight) + [diag] * seg.count(diag)
+            orders = (first, second) if diagonal_first is None or diagonal_first() else (second, first)
+            used = {p[:2] for p in path[i:j + 1]}
+            for cand in orders:
+                cur, states = out[-1], []
+                for d in cand:
+                    cur = can_step(cur, d)
+                    if cur is None or (cur[:2] in avoid and cur[:2] not in used):
+                        break
+                    states.append(cur)
+                else:
+                    if tuple(states[-1]) == tuple(path[j]):
+                        regrouped = states
+                        break
+        out += regrouped if regrouped is not None else path[i + 1:j + 1]
+        i = j
+    return out
+
+
+
 class WalkMemory:
     """Server-proven walkability: tiles stood on, directed confirmed moves,
     and server-denied (tile, dir) moves."""

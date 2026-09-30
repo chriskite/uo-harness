@@ -12,18 +12,19 @@ flowchart LR
     CUO[Outlands ClassicUO.exe<br/>stock, untouched]
   end
   subgraph Harness[Agent Harness - Python]
-    PX[Relay-only TCP proxy<br/>localhost:2593 + Huffman codec]
+    PX[Rewriting TCP proxy<br/>localhost:2593 + Huffman codec<br/>+ agent injection]
     WM[World model<br/>entities / gumps / journal / stats]
     AG[Agent runtime<br/>LLM planner + skills]
   end
-  CUO <-->|UO protocol| PX
-  PX <-->|forward, byte-identical| SRV[play.uooutlands.com:2593<br/>Test Shard]
+  CUO <-->|UO protocol, via WinDivert NAT| PX
+  PX <-->|client traffic + agent packets,<br/>walk seq/key on one ladder| SRV[74.91.115.123:2593<br/>Test Shard]
   PX --> WM --> AG
   AG -->|action packets| PX
 ```
 
-- **Relay-only localhost proxy** between the stock client and the game server. No injection, no client modification, no synthetic OS input. Server sees byte-identical client traffic.
-- Client is pointed at the proxy via `ClassicUO/settings.json` (`ip`/`port` fields are plain text, editable).
+- **Localhost proxy** between the stock client and the game server; the client reaches it through a WinDivert NAT ([`docs/INTERCEPTION.md`](docs/INTERCEPTION.md)), `settings.json` is untouched. No client modification, no synthetic OS input.
+- **What the server sees:** the client's own traffic plus the agent's injected packets, each built in the stock client's shape (layouts from the client's own packet table, companion packets and ordering as the client sends them). Walks from both senders share one seq/fastwalk-key ladder (docs/MOVEMENT.md). The proxy never originates a packet of its own; it drops one kind of client packet: a reply to a target cursor the agent already answered (ANTICHEAT.md §8.18).
+- **What only the client sees:** agent walk confirms are hidden; the proxy hands the client fabricated 0x21 re-anchors, gump closes and target cancels so its screen matches the server (ANTICHEAT.md §8.11, §8.18).
 - Protocol ground truth: upstream ClassicUO source (`ClassicUO-main/` locally, not committed; fetch via codeload — see below).
 - See [`docs/PLAN.md`](docs/PLAN.md) for phases and rejected alternatives, [`docs/NOTES.md`](docs/NOTES.md) for the operational knowledge base.
 
@@ -31,10 +32,10 @@ flowchart LR
 
 | Fact | Value |
 |---|---|
-| Client | `ClassicUO.exe` STANDARD_BUILD **1.0.2.544**, NativeAOT native binary (no IL, no injection surface) |
+| Client | `ClassicUO.exe` STANDARD_BUILD **1.0.2.544** at analysis time (2026-09-27); the launcher patched it to **1.0.2.550** on 2026-09-28 (JWT `version` claim). NativeAOT native binary (no IL, no injection surface) |
 | Launcher | `Outlands.exe` — patcher + OutlandsID login UI, elevates (UAC), `-installed` arg |
 | Install dir | `C:\Program Files (x86)\Ultima Online Outlands` — **never write into it** |
-| Game server | `play.uooutlands.com:2593` (session observed at 74.91.115.123:2593) |
+| Game server | literal IP from the HTTPS login response: 74.91.115.123:2593 (`play.uooutlands.com` does not resolve) |
 | Auth | `https://login.uooutlands.com` (Cloudflare), JWT with `uooutlands.com/identity/claims/*` |
 | Runtime net surface | exactly 2 connections: short HTTPS auth + persistent game TCP. No telemetry/beacons |
 | Test account | shard "Test Server", character `TestWorth` (settings.json) |
@@ -42,7 +43,7 @@ flowchart LR
 
 ## Safety doctrine (summary — full version in ANTICHEAT.md §8)
 
-1. Never touch the client process or files. 2. Proxy relays only; `Send_TimeSyncPingReq` and timing-sensitive packets pass through unaltered. 3. Test Shard only, human pacing with jitter, human-length sessions. 4. Honor Razor-gating signals (halt when server restricts assistants). 5. No DeviceId/TPM/2FA spoofing; log in via official launcher. 6. No writes to the install dir. 7. Nothing against production. 8. CAPTCHAs: detect → pause → human solves; auto-solve only as proven opt-in.
+1. Never touch the client process or files. 2. The proxy never originates server-visible packets; `Send_TimeSyncPingReq`/keepalives pass through unaltered; agent packets are stock-shaped. 3. Test Shard only, human pacing with jitter, human-length sessions. 4. Honor Razor-gating signals (halt when server restricts assistants). 5. No DeviceId/TPM/2FA spoofing; log in via official launcher. 6. No writes to the install dir. 7. Nothing against production. 8. CAPTCHAs: detect → pause → human solves; auto-solve only as proven opt-in.
 
 ## Repo layout
 
