@@ -590,6 +590,33 @@ table.evtable {
 .paperdoll-img.dead {
   filter: grayscale(1) brightness(0.85);
 }
+.live-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #000;
+  border-radius: 4px;
+}
+.live-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.live-controls select {
+  font-size: 11px;
+}
+.live-controls a {
+  text-decoration: none;
+}
+.live-controls button.on {
+  color: #fca5a5;
+}
+.live-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 
 /* Dead: the UO client drains the world of colour for a ghost; so does the map. */
 .mapgrid.dead canvas {

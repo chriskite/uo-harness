@@ -8,6 +8,7 @@ import { GumpViewer } from "./components/GumpViewer.tsx";
 import { Header, type Page } from "./components/Header.tsx";
 import { IntentPanel } from "./components/IntentPanel.tsx";
 import { JobsPage } from "./components/JobsPage.tsx";
+import { LivePanel } from "./components/LivePanel.tsx";
 import { MapGrid } from "./components/MapGrid.tsx";
 import { MovementPanel } from "./components/MovementPanel.tsx";
 import { OverseerPanel, useOverseer } from "./components/OverseerPanel.tsx";
@@ -66,6 +67,7 @@ export function App() {
         <IntentPanel viz={viz} />
         <SelfPanel world={world} />
         <PaperdollPanel viz={viz} />
+        <LivePanel viz={viz} />
         <MovementPanel state={viz.state} agg={viz.agg} />
         <TrafficPanel traffic={viz.state?.traffic} lastAgent={viz.agg.lastAgent} world={world} />
       </aside>

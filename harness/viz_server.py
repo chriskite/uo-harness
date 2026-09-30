@@ -13,6 +13,10 @@ Routes:
   GET  /api/paperdoll.png  the player's paperdoll from the current state (body, skin hue,
                       worn items), drawn from the client's gump art (harness/paperdoll.py);
                       404 JSON when the state has no player or the install data is missing
+  GET  /api/live.jpg?zoom=1-3      one JPEG of the character cropped from the game window
+  GET  /api/live.mjpeg?zoom=&fps=  the same as a continuous stream (multipart/x-mixed-replace),
+                      harness/liveview.py; passive window capture, only while someone watches;
+                      503 JSON when there's no game window (or --no-live)
   GET  /api/health    mode, session, order, poll lag, connection, diagnostics
   POST /api/playback  replay only: {"action": "play"|"pause"|"step"|"rate", "rate": R}
   GET  /api/gate      live only: the proxy's agent gate ({"op": "gate"}), verbatim
@@ -196,6 +200,71 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._send(200, data, "image/png")
 
+    # -- live view (harness/liveview.py): the character, cropped from the game window
+    def _live_args(self, q):
+        def num(key, default, lo, hi):
+            try:
+                return max(lo, min(hi, int(q.get(key, [default])[0])))
+            except ValueError:
+                return default
+        return num("zoom", 2, 1, 3), num("fps", 5, 1, 10)
+
+    def _live_source(self):
+        srv = self.server
+        with srv.live_lock:
+            if srv.live is None:
+                if srv.live_factory is None:
+                    return None, "live view disabled"
+                try:
+                    srv.live = srv.live_factory()
+                except Exception as e:  # noqa: BLE001  (missing windows-capture, non-Windows host)
+                    srv.live_factory = None
+                    return None, f"live view unavailable: {e}"
+            return srv.live, None
+
+    def _live_frame(self, q):
+        import liveview
+        zoom, _fps = self._live_args(q)
+        src, err = self._live_source()
+        img, info = (None, err) if src is None else src.latest()
+        if img is None:
+            self._json(503, {"error": info})
+            return
+        self._send(200, liveview.render_jpeg(img, zoom), "image/jpeg")
+
+    def _live_stream(self, q):
+        """multipart/x-mixed-replace JPEG stream (an <img> plays it); ends when the
+        viewer disconnects or the server stops."""
+        import liveview
+        zoom, fps = self._live_args(q)
+        src, err = self._live_source()
+        img, info = (None, err) if src is None else src.latest()
+        if img is None:
+            self._json(503, {"error": info})
+            return
+        boundary = "uoframe"
+        self.send_response(200)
+        self.send_header("Content-Type", f"multipart/x-mixed-replace; boundary={boundary}")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+        if self.command == "HEAD":
+            return
+        period = 1.0 / fps
+        try:
+            while not self.server.stopping:
+                t0 = time.monotonic()
+                img, _age = src.latest()
+                if img is not None:
+                    data = liveview.render_jpeg(img, zoom)
+                    self.wfile.write(f"--{boundary}\r\nContent-Type: image/jpeg\r\n"
+                                     f"Content-Length: {len(data)}\r\n\r\n".encode() + data + b"\r\n")
+                    self.wfile.flush()
+                time.sleep(max(0.0, period - (time.monotonic() - t0)))
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+            pass
+
     # -- helpers
     def log_message(self, fmt, *args):  # quiet; errors still go through log_error
         pass
@@ -231,6 +300,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, body)
         elif url.path == "/api/paperdoll.png":
             self._paperdoll()
+        elif url.path == "/api/live.jpg":
+            self._live_frame(parse_qs(url.query))
+        elif url.path == "/api/live.mjpeg":
+            self._live_stream(parse_qs(url.query))
         elif url.path == "/api/health":
             self._json(200, feed.health())
         elif url.path == "/api/gate":
@@ -431,13 +504,17 @@ class VizServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
 
-    def __init__(self, addr, feed, dist: str, memory_db: str, facet_path: str | None = None):
+    def __init__(self, addr, feed, dist: str, memory_db: str, facet_path: str | None = None,
+                 live_factory=None):
         super().__init__(addr, Handler)
         self.feed = feed
         self.dist = dist
         self.walkmem = WalkMemDB(memory_db)
         self.paperdoll = None            # paperdoll.Paperdoll, created on first use
         self.paperdoll_lock = threading.Lock()
+        self.live = None                 # liveview.LiveCapture, created on first view
+        self.live_lock = threading.Lock()
+        self.live_factory = live_factory
         self.overseer = OverseerDB(memory_db)
         self.facet = None
         self.facet_error = "disabled (--no-facet)" if facet_path is None else None
@@ -458,6 +535,9 @@ class VizServer(ThreadingHTTPServer):
     def server_close(self):
         super().server_close()
         self.overseer.close()
+        with self.live_lock:
+            if self.live is not None:
+                self.live.stop_locked()
 
 
 def build_feed(args):
@@ -490,11 +570,17 @@ def main():
     p.add_argument("--facet", default=facet_mod.DEFAULT_PATH,
                    help="facet picture drawn under the map (read-only; install dir facet00.mul)")
     p.add_argument("--no-facet", action="store_true", help="don't load a facet picture")
+    p.add_argument("--no-live", action="store_true", help="disable the live game-window view")
     args = p.parse_args()
 
     feed = build_feed(args)
+    live_factory = None
+    if not args.no_live:
+        def live_factory():
+            import liveview
+            return liveview.LiveCapture()
     srv = VizServer((args.host, args.port), feed, os.path.abspath(args.dist), args.memory_db,
-                    None if args.no_facet else args.facet)
+                    None if args.no_facet else args.facet, live_factory=live_factory)
     what = (f"replay {args.replay} ({feed.order} order, {len(feed.items)} items)" if args.replay
             else f"live state port {args.state_host}:{args.state_port}")
     print(f"[viz] {what}; http://{args.host}:{args.port}/", flush=True)
