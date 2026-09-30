@@ -107,6 +107,12 @@ LLM planner over the world model + skill library; safety rails: captcha human-ha
 
     User decision 2026-09-29: prove the loop live first (no deeds, room as daily scratch storage), then optimize. The runner `harness/loop_lumber.py` is offline-proven by `test_loop_lumber.py` (LUMBER_LOOP.md §13); the live proof is next.
 
+    **User directive 2026-09-29 (after live attempt 1 died upstairs in the inn, LUMBER_LOOP.md §13):** the harness is only useful with full map knowledge, like the real client: x/y/z land, statics and tiledata. With that it does its own pathfinding and finds its own trees. Plan:
+    1. Decode the Outlands `.uoo` map/tiledata files, read-only from the install dir (subagent, docs/MAP.md).
+    2. Build a 3D walkability model and port ClassicUO's `Pathfinder.cs` (z steps, surfaces, bridges, doors).
+    3. Move `Mover` onto it (walk memory becomes evidence and a stale-map correction).
+    4. Harvest-node discovery from tree statics near a spot, instead of the two demo trees.
+
 ### Phase 5 (optional) — Production copilot
 Rules-compliant live mode: agent generates Razor scripts into `Data/Plugins/Assistant/Scripts/`; human reviews and runs them manually. No autonomy, no data extraction. Only phase allowed to touch the production shard, and only as a file generator.
 

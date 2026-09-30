@@ -441,3 +441,22 @@ connection. It runs 2 trips and checks:
 **Live proof, run by the user or the agent while the user is at the client:**
 `python harness/loop_lumber.py --trips 1`. Only two trees are known (§12.1). A depleted tree is
 skipped for 20 min, so a trip may end with fewer logs; the loop still completes.
+
+**Live attempt 1 (2026-09-29 21:23, user at the client): aborted during the walk out; map data is required.**
+- Worked:
+  - The runner started inside the room and walked to the door.
+  - It dclicked the door, checked the menu (rented) and pressed Exit → "You exit the rental
+    room."
+- Failed:
+  - The exit put TestWorth in a random inn room **upstairs**: (1938, 2584, **z 20**). The
+    demo's exit was (1932, 2589, z 20), also upstairs.
+  - Walk memory is 2D and knows the ground floor at those x,y, so A* kept routing through
+    upstairs walls.
+  - 21 blocked moves (2 door openings among them), then `ABORTED: too many blocked moves`.
+    TestWorth was left at (1937, 2583, 20).
+  - The 40 blocked moves it learned upstairs would poison ground-floor routes, so that
+    walkmem.json change was reverted.
+- **User directive:** the harness needs the full x/y/z Outlands map, like the client has, for
+  its own pathfinding and to find trees to harvest. Map-data reverse engineering is under way
+  (docs/MAP.md, `harness/uomap.py`). Next come a 3D walkability model and a port of ClassicUO's
+  Pathfinder, replacing 2D walk memory as the planner. Walk memory stays as evidence.
