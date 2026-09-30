@@ -56,7 +56,12 @@ Rejected:
   - Runners never write walk moves; the proxy already has them.
 - **Ingest:** `python harness/memory.py ingest [--logdir logs] [TAG ...]` replays captures that
   aren't in the store yet through the proxy's own SessionTap (viz_feed.ReplayDriver) and
-  derives the same rows. Three captures (≈29k events) take about 3.5 s.
+  derives the same rows. Captures from before the proxy emitted `step` events (before
+  2026-09-29 16:14) get their confirmed moves from the raw packet pair instead
+  (`nav.reconstruct_session`: no denies, z unknown, the facet the session ended on). All 25
+  captures (70.6k events) take 7.7 s. Afterwards facet 0 has 861 tiles, 1294 edges and 33
+  blocked moves, a superset of the old capture-built walk memory (849 tiles; its 4 extra tiles
+  are the rental room, which the store keeps on facet 3).
 
 ## Who reads what
 

@@ -321,6 +321,8 @@ def ingest(db: str, logdir: str, tags=None, verbose=True) -> dict:
                     n_walk += len(rows)
                 n_ev += 1
             cursor = tap.events_base + len(tap.events)
+        if n_walk == 0:
+            n_walk = _ingest_raw_walks(cur, logdir, tag, drv.tap.world.state.self.map, drv.t0)
         cur.execute("UPDATE sessions SET ended=? WHERE id=?", (drv.now, sid))
         con.commit()
         out["sessions"] += 1
@@ -330,6 +332,27 @@ def ingest(db: str, logdir: str, tags=None, verbose=True) -> dict:
             print(f"  {tag}: {n_ev} events, {n_walk} walk rows ({drv.order} order)")
     con.close()
     return out
+
+
+def _ingest_raw_walks(cur, logdir, tag, facet, t) -> int:
+    """Captures from before the proxy emitted `step` events: confirmed moves
+    recovered from the raw packet pair (nav.reconstruct_session: walk confirms
+    matched to C2S walks; no denies, no z). One facet per capture, the one the
+    session ended on: no such capture visits a second facet (rooms came later)."""
+    try:
+        with open(os.path.join(logdir, f"session_{tag}.c2s.raw"), "rb") as f:
+            c2s = f.read()
+        with open(os.path.join(logdir, f"session_{tag}.s2c.raw"), "rb") as f:
+            s2c = f.read()
+    except OSError:
+        return 0
+    if not c2s:
+        return 0
+    mem = nav.reconstruct_session(c2s, s2c)
+    f = 0 if facet is None else facet
+    rows = [(f, a[0], a[1], UNKNOWN_Z, nav.direction(a, b), 1, t or 0.0) for a, b in sorted(mem.edges)]
+    _upsert_walk(cur, rows)
+    return len(rows)
 
 
 def stats(db: str) -> dict:
