@@ -289,6 +289,12 @@ async def e2e():
             st_buf += st_sock.recv(65536)
         st_sock.close()
         state = json.loads(st_buf)
+        # the agent answers a gump: the server gets the 0xB1, the client gets a close for that gump
+        # id (0xBF sub 4, button 0), so it doesn't keep drawing a gump the server already closed
+        before = len(client_rx)
+        r_gump = inject(bytes.fromhex("b1001700001234" "e0e675b8" "00000002" "00000000" "00000000"))
+        await asyncio.sleep(0.3)
+        closes = [p for p in client_rx[before:] if p[:5] == bytes.fromhex("bf000d0004")]
         ctl.close()
         writer.close()
         await asyncio.sleep(0.3)
@@ -305,7 +311,8 @@ async def e2e():
         check("client got exactly one fabricated 0x21 at the true position (x101 y198 z5 E)",
               len(denies) == 1 and deny_fields(denies[0]) == (101, 198, 5, 2),
               str([deny_fields(d) for d in denies]))
-        check("server received no proxy-originated packets (only walks)", srv.other == [], str(srv.other))
+        check("server received no proxy-originated packets (only walks and the agent's gump reply)",
+              [p for p in srv.other if p[0] != 0xB1] == [], str(srv.other))
         check("client prelude relayed", bytes(got_prelude) == PRELUDE, got_prelude.hex())
         mv = state.get("movement", {})
         check("state endpoint: movement pos = tracked true position",
@@ -333,6 +340,9 @@ async def e2e():
               [e["data"]["seq"] for e in envs if e["data"].get("ev") == "s2c_confirm_hidden"] == [2, 3]
               and [(e["data"]["x"], e["data"]["y"]) for e in envs if e["data"].get("ev") == "reanchor_client"]
               == [(101, 198)], str([e["data"] for e in envs if e["origin"] == "proxy"]))
+        check("agent gump reply: relayed upstream, and the client's copy closed (gump 0xE0E675B8, button 0)",
+              r_gump == "OK" and any(p[0] == 0xB1 for p in srv.other)
+              and closes == [bytes.fromhex("bf000d0004" "e0e675b8" "00000000")], f"{r_gump} {closes} {srv.other}")
     finally:
         proxy.terminate()
         server.close()

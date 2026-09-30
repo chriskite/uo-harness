@@ -286,11 +286,14 @@ def _h_container_content(rt, f):
 
 
 def _h_target_cursor(rt, f):
+    """S2C 0x6C. A cursor is up only while cursor_type < 3; type 3 is the
+    server cancelling it (ClassicUO TargetManager.SetTargeting:
+    IsTargeting = cursorType < TargetType.Cancel)."""
     t = rt.state.target
-    t.active, t.target_type = True, f["target_type"]
+    t.active, t.target_type = f["cursor_type"] < 3, f["target_type"]
     t.cursor_id, t.cursor_type = f["cursor_id"], f["cursor_type"]
     rt._emit("target", target_type=t.target_type, cursor_id=t.cursor_id,
-             cursor_type=t.cursor_type)
+             cursor_type=t.cursor_type, active=t.active)
 
 
 def _h_animation(rt, f):
@@ -318,8 +321,9 @@ def _h_character_status(rt, f):
             s.name = f["name"]
         s.hits, s.hits_max = f["hits"], f["hits_max"]
         for k, v in f.items():
-            if k in ("str", "dex", "int", "stam", "stam_max", "mana",
-                     "mana_max", "gold", "weight"):
+            # str/dex/int go to stats (exported); SelfState has no fields for them, so the
+            # old setattr kept them out of every snapshot
+            if k in ("stam", "stam_max", "mana", "mana_max", "gold", "weight"):
                 setattr(s, k, v)
             elif k not in ("serial", "name", "hits", "hits_max", "renamable",
                            "type"):

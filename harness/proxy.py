@@ -79,6 +79,11 @@ def _u32(b: bytes, off: int) -> int:
     return int.from_bytes(b[off:off + 4], "big")
 
 
+def close_gump_packet(gump_id: int) -> bytes:
+    """S2C 0xBF sub 4 close generic gump: `bf 000d 0004 <gump id u32> <button u32 = 0>`."""
+    return bytes.fromhex("bf000d0004") + gump_id.to_bytes(4, "big") + bytes(4)
+
+
 def _i32(b: bytes, off: int) -> int:
     return int.from_bytes(b[off:off + 4], "big", signed=True)
 
@@ -281,11 +286,11 @@ class InjectionHub:
     """
 
     def __init__(self, gate: AgentGate):
-        self.session = None  # (SessionTap, upstream StreamWriter)
+        self.session = None  # (SessionTap, upstream StreamWriter, client StreamWriter or None)
         self.gate = gate
 
-    def attach(self, tap, upstream_writer):
-        self.session = (tap, upstream_writer)
+    def attach(self, tap, upstream_writer, client_writer=None):
+        self.session = (tap, upstream_writer, client_writer)
 
     def detach(self, tap):
         if self.session is not None and self.session[0] is tap:
@@ -301,7 +306,7 @@ class InjectionHub:
             return blocked
         if self.session is None:
             return "no active session"
-        tap, writer = self.session
+        tap, writer, client = self.session
         if tap.key is None or not tap.c2s_preamble_done:
             return "session key not known yet"
         now = time.monotonic()
@@ -312,6 +317,12 @@ class InjectionHub:
                 return block
         writer.write(tap.inject_c2s(payload, "agent", now))
         await writer.drain()
+        if payload[0] == 0xB1 and len(payload) >= 11 and client is not None:
+            # the agent answered a gump the client still shows: close the client's copy
+            close = tap.close_gump_client(_u32(payload, 7))
+            if close:
+                client.write(close)
+                await client.drain()
         self.gate.record_activity()
         return None
 
@@ -696,6 +707,21 @@ class SessionTap:
                 self._log(ev="s2c_fastwalk_push", note=f"token {token}")
         return wire
 
+    def close_gump_client(self, gump_id: int) -> bytes:
+        """Wire bytes of a fabricated S2C 0xBF sub 4 (close generic gump, button 0)
+        for the CLIENT, after the agent answered that gump: without it the
+        client keeps drawing a gump the server already closed (seen live
+        2026-09-30, the moongate menu). Button 0 only disposes the client's
+        copy; no packet goes back (ClassicUO PacketHandlers.cs:4154-4183).
+        Client-only like the 0x21 re-anchor: logged src=proxy, never in raw_s2c."""
+        if self.s2c is None:
+            return b""
+        pkt = close_gump_packet(gump_id)
+        self._log(ev="gump_close_client", note=f"fabricated 0xBF/4 to client: gump 0x{gump_id:08X}")
+        self._proxy_event("gump_close_client", gump_id=gump_id)
+        self._log(dir="s2c", src="proxy", id="0xBF", len=len(pkt), hex=hexd(pkt))
+        return encode_packet(pkt, self.s2c.key)
+
     def reanchor_client(self, now: float) -> bytes:
         """Wire bytes of a fabricated S2C 0x21 re-anchoring the client, or b"".
         Client-only: logged as src=proxy, never written to raw_s2c (server truth)."""
@@ -780,7 +806,7 @@ async def handle_client(client_reader, client_writer, args):
 
     timer = asyncio.create_task(_movement_timer(tap, client_writer))
     try:
-        args.hub.attach(tap, upstream_writer)
+        args.hub.attach(tap, upstream_writer, client_writer)
         await asyncio.gather(
             _relay(client_reader, upstream_writer, tap.tap_c2s),
             _relay(upstream_reader, client_writer, tap.tap_s2c),

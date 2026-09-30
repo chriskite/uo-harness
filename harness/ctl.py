@@ -391,6 +391,8 @@ def summarize(resp: dict) -> dict:
         "weight": me.get("weight"), "gold": me.get("gold"), "warmode": me.get("warmode"),
         "equipment": dict(sorted(equipment.items())),
         "skills": _skills(me),
+        "stats": _stats(me),
+        "buffs": _buffs(world, me),
         "movement": {k: mv.get(k) for k in ("inflight", "stalled", "resync_pending", "client_stale")},
         "gate": resp.get("gate"),
         "intent": resp.get("intent"), "intents": (resp.get("intents") or [])[-5:],
@@ -401,6 +403,35 @@ def summarize(resp: dict) -> dict:
         "gumps_open": gumps,
         "ground_items": ground[:GROUND_MAX],
     }
+
+
+def _stats(me: dict) -> dict:
+    """Base stats and the rest of the 0x11 status: Str/Dex/Int, stat cap, luck,
+    resists, damage, followers, max weight (absent until the server sends them)."""
+    s = me.get("stats") or {}
+    out = {k: s[k] for k in ("str", "dex", "int", "stats_cap", "luck", "weight_max", "tithing") if k in s}
+    res = {k.removesuffix("_resist"): s[k] for k in ("physical_resist", "fire_resist", "cold_resist",
+                                                      "poison_resist", "energy_resist") if k in s}
+    if res:
+        out["resists"] = res
+    if "damage_min" in s:
+        out["damage"] = [s["damage_min"], s.get("damage_max")]
+    if "followers" in s:
+        out["followers"] = [s["followers"], s.get("followers_max")]
+    return out
+
+
+def _buffs(world: dict, me: dict) -> list:
+    """Your active buffs/debuffs (Outlands 0xFF sub 8, e.g. "Stationary Penalty").
+    `description` is the server's text with its {value} placeholder; `raw` keeps
+    the numeric fields whose meaning isn't decoded yet (f2 looks like a count)."""
+    out = []
+    for icon, b in ((world.get("buffs") or {}).get(me.get("serial") or "", {}) or {}).items():
+        title = b.get("title") or (cliloc_text(b["cliloc"]) if b.get("cliloc") else "")
+        out.append({"icon": int(icon), "title": title, "description": b.get("description") or None,
+                    "timers_s": [t.get("seconds") for t in b.get("timers") or []],
+                    "raw": {k: b.get(k) for k in ("f1", "f2", "f3", "f4", "category", "mode", "scalar")}})
+    return sorted(out, key=lambda b: b["icon"])
 
 
 def _skills(me: dict) -> dict:

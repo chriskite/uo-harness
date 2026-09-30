@@ -183,6 +183,13 @@ def test_fixed_s2c():
         "6c" "01" "04050607" "02" "00" * 12 + "00" * 8))
     eq("0x6C", f, {"target_type": 0x01, "cursor_id": 0x04050607,
                    "cursor_type": 0x02})
+    # a cursor is up only for cursor_type < 3; type 3 is the server cancelling it
+    # (ClassicUO TargetManager; live 2026-09-30 after a moongate Travel: status showed it as up)
+    rt = WorldRuntime()
+    rt.feed_packet("s2c", bytes.fromhex("6c" "01" "04050607" "02" + "00" * 20))
+    up = rt.state.target.active
+    rt.feed_packet("s2c", bytes.fromhex("6c" "00" "00000000" "03" + "00" * 20))
+    eq("0x6C: type 2 is up, type 3 (cancel) takes it down", (up, rt.state.target.active), (True, False))
     # 0x6E CharacterAnimation (14)
     f = parse_fixed(0x6E, bytes.fromhex(
         "6e" "04050607" "0809" "0a0b" "0c0d" "01" "00" "05"))
@@ -315,6 +322,13 @@ def test_character_status_11():
           f["name"] == "TestWorth" and f["str"] == 80 and f["int"] == 65
           and f["weight_max"] == 570 and f["followers_max"] == 5
           and f["damage_max"] == 8 and "tithing" not in f, str(f))
+    rt = WorldRuntime()
+    rt.state.self.serial = f["serial"]
+    rt.feed_packet("s2c", real87)
+    st = rt.state.self.to_dict()["stats"]
+    eq("0x11 for self: Str/Dex/Int exported in the snapshot's stats",
+       (st.get("str"), st.get("dex"), st.get("int"), rt.state.self.to_dict()["weight"]),
+       (f["str"], f["dex"], f["int"], f["weight"]))
 
 
 def test_skills_3a():

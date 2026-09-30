@@ -95,6 +95,9 @@ lists, target cursors, facet changes) from the proxy's event ring, newest last. 
 - `equipment` by layer name (e.g. `two_handed`: the hatchet, `robe` after a resurrection)
 - `skills` {name: value} above 0. Names come from the server's list, or else from the client's
   `skills.mul` (`uomap.skill_names`).
+- `stats`: Str/Dex/Int, stat cap, luck, resists, damage, followers, max weight (0x11)
+- `buffs`: your active buffs/debuffs (Outlands 0xFF sub 8), e.g. "Stationary Penalty" with its
+  description; `raw` holds the numbers that aren't decoded yet (f2 looks like the count)
 - mobiles with their click `label` (e.g. "Zara the scribe")
 - open gumps in full (texts, buttons, closable); a gump counts as closed once it is answered or
   the server closes it

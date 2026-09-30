@@ -78,6 +78,8 @@ class FakeProxy:
         self.buy_content = None   # [[container, [serials in 0x3C packet order]]] sent just before it
         self.prices = {}          # item serial -> price charged by a 0x3B
         self.intents = []         # intents posted on the state port (op "intent")
+        self.buffs = {}           # icon id (str) -> buff record (world.buffs for self)
+        self.stats = {}           # extra self stats (0x11 fields)
         self.events = []          # event envelopes; seq = index
         self.lock = threading.Lock()
         cs, ss = free_port(12710), free_port(12910)
@@ -158,7 +160,8 @@ class FakeProxy:
                              "warmode": self.warmode, "notoriety": self.self_noto, "gold": self.gold,
                              "body": 0x190, "skill_names": [],
                              "skills": {"25": {"value": 600, "base": 600, "lock": 0, "cap": 1000},
-                                        "17": {"value": 0, "base": 0, "lock": 0, "cap": 1000}}},
+                                        "17": {"value": 0, "base": 0, "lock": 0, "cap": 1000}},
+                             "stats": dict(self.stats)},
                     "mobiles": {"0x00000001": {"x": self.pos[0], "y": self.pos[1], "notoriety": 1},
                                 "0x00000002": {"x": self.pos[0] + 3, "y": self.pos[1], "name": "a PK",
                                                "notoriety": 6, "graphic": 400},
@@ -170,7 +173,8 @@ class FakeProxy:
                               "0x40000013": {"graphic": 0x1BD7, "amount": 10, "container": "0x40000012"},
                               "0x40000014": {"graphic": 0x1BD7, "amount": 99, "x": 1, "y": 1},
                               **self.ground_items},
-                    "target": dict(self.target), "gumps": list(self.gumps)},
+                    "target": dict(self.target), "gumps": list(self.gumps),
+                    "buffs": {"0x00000001": dict(self.buffs)}},
                 "events": [], "next": len(self.events),
                 "gate": {"state": "open"},
                 "intent": {"text": "idle"}, "intents": [{"text": f"i{k}"} for k in range(7)],
@@ -368,6 +372,22 @@ def test_status(proxy):
           str(out["equipment"]))
     check("last 5 intents", [i["text"] for i in out["intents"]] == ["i2", "i3", "i4", "i5", "i6"])
     check("tasks + open juncture count", out["tasks"] == [] and out["open_junctures"] == 0)
+    proxy.stats = {"str": 80, "dex": 21, "int": 72, "stats_cap": 225, "luck": 0, "physical_resist": 9,
+                   "fire_resist": 1, "damage_min": 17, "damage_max": 32, "followers": 0, "followers_max": 5}
+    proxy.buffs = {"277": {"icon_id": 277, "f1": 4620, "f2": 1, "f3": 0, "f4": 0,
+                           "timers": [{"seconds": 5.0, "end": 0}], "title": "Stationary Penalty",
+                           "description": "Move {value} more steps", "category": 0, "mode": 1, "scalar": 0.0},
+                   "140": {"icon_id": 140, "f2": 2, "timers": [], "title": "", "cliloc": 1075655}}
+    code, out = c("status")
+    check("status.stats: Str/Dex/Int, cap, luck, resists, damage, followers",
+          out.get("stats") == {"str": 80, "dex": 21, "int": 72, "stats_cap": 225, "luck": 0,
+                               "resists": {"physical": 9, "fire": 1}, "damage": [17, 32], "followers": [0, 5]},
+          str(out.get("stats")))
+    b = out.get("buffs") or []
+    check("status.buffs: your buffs by icon, titles from text or cliloc, with the raw numbers",
+          [x["icon"] for x in b] == [140, 277] and b[1]["title"] == "Stationary Penalty"
+          and b[1]["timers_s"] == [5.0] and b[1]["raw"]["f2"] == 1 and b[0]["title"], str(b))
+    proxy.stats, proxy.buffs = {}, {}
     dead = free_port(13100)
     port = dead.getsockname()[1]
     dead.close()

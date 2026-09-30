@@ -54,6 +54,22 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   and costs 10 `[INFERENCE]`. A denied shove comes back as a normal walk reject (0x21), and
   `Mover` logs the stamina with each one. Live attempt 2 failed because the planner treated NPCs
   in the inn's one-tile upstairs hallway as walls (LUMBER_LOOP.md §13).
+- **S2C 0x6C with cursor type 3 is a cancel, not a cursor** (ClassicUO TargetManager:
+  IsTargeting = cursorType < 3). The server sent one after a moongate Travel reply. The world
+  model showed it as an active cursor until 2026-09-30.
+- **Buffs on Outlands arrive as 0xFF sub 8/9** (OutlandsBuffUpdate/RemoveBuff), not 0xDF (none
+  in the live session). Examples: "Stationary Penalty", with the description "All damage is
+  reduced to 1. Move {value} more steps to remove this effect", 5 s timer, f2 = 1; and a buff
+  titled by cliloc 1075655. How `{value}` is filled isn't decoded; `ctl status` shows the raw
+  numbers.
+- **Str/Dex/Int** from 0x11 were parsed but dropped by the world model (set as attributes the
+  snapshot doesn't export). Fixed 2026-09-30; they're now in `self.stats`.
+- **Agent gump replies leave the client's copy on screen:** the stock client closes a gump
+  itself when it answers, but an agent `0xB1` bypasses the client. So since 2026-09-30 the proxy
+  also sends the client a close for that gump id (S2C 0xBF sub 4, button 0, which only disposes
+  it; ClassicUO PacketHandlers.cs:4154-4183). It's client-only like the 0x21 re-anchor and
+  covered by `test_movement.py`. Seen live: the moongate menu stayed drawn after the overseer's
+  Travel.
 - **z while walking comes from the map (since 2026-09-30):** ConfirmWalk (0x22) carries no z. So
   the proxy's MoveAuthority computes z after each confirmed step with the client's walk rules
   (`SessionTap._step_z` → `pathfind.Walk.can_walk`, with the world model's ground items), the way
