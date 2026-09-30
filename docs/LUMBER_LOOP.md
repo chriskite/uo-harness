@@ -1,11 +1,12 @@
 # LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → deed → store in inn room
 
-Status (2026-09-29): **M0 done; the loop runner is built and offline-proven; the live proof is next.**
+Status (2026-09-29): **M0 done; the loop (minus deeds) ran end to end live on 2026-09-29 22:27
+(attempt 2c, §13).** Open: exercising the fixed captcha detector's handoff live.
 - M0: the user's demonstration run (`logs/session_20260929_204225`) is mined into
   `harness/data/loops/lumber.json` and pinned by `harness/test_loop_demo.py`; findings are in §12.
 - Current goal (user decision, §12.4): prove the agent can run the loop minus deed creation on
   Shelter, then optimize.
-- Runner: `harness/loop_lumber.py`, proven offline by `test_loop_lumber.py` (§13).
+- Runner: `harness/loop_lumber.py`, proven offline by `test_loop_lumber.py` and live (§13).
 
 Builds on Phase 4 (docs/PLAN.md). This loop is the Phase 4 workload: the planner, the skill
 library, the rails and the captcha handoff all get exercised by it.
@@ -248,8 +249,8 @@ signature (ANTICHEAT.md §8.3). Variation is required, not an inefficiency to re
 |---|---|---|
 | M0 ✅ | Demonstration capture (`20260929_204225`) + `loop_mine.py timeline` + `lumber.json` | Done 2026-09-29: §12; `test_loop_demo.py` pins the facts. Still open: Smart Harvest self-target, deed from a 5 000 backpack stack |
 | M1 (runner-level) | Perception: cliloc parsing, captcha gump detection (gump id + entry + button; decoys ignored), harvest outcomes | Built into `loop_lumber.py`; offline-proven (§13). A reusable perception layer comes with M6 |
-| M2 | Skills: goto with door opening, harvest attempt, convert, enter room, store, exit room; offline in `test_loop_lumber.py`, then live, attended | Offline ✅; live pending |
-| M3 | Routine runner, full loop (no deeds) | Offline ✅ (2 trips); live: 1 trip, captcha handed off, boards stored |
+| M2 | Skills: goto with door opening, harvest attempt, convert, enter room, store, exit room; offline in `test_loop_lumber.py`, then live, attended | Offline ✅; live ✅ (attempt 2c, 2026-09-29) |
+| M3 | Routine runner, full loop (no deeds) | Offline ✅ (2 trips); live ✅ 1 trip, 46 boards stored (attempt 2c). The live captcha handoff with the fixed detector is still to be exercised (2c got no captcha) |
 | M4 | Harvest memory, episode log, report | Report reproduces from the logs; `r`, `T` and regrowth estimates exist |
 | M5 | Bandit + return trigger + reflection | Boards/active-hour improves over a baseline session on the same venue without violating §1 |
 | M6 | LLM planner composes and repairs the routine | Phase 4 done criterion: NL objective → loop run, with the captcha handoff demonstrated |
@@ -553,3 +554,22 @@ skipped for 20 min, so a trip may end with fewer logs; the loop still completes.
   detector now keys on gump id 1 + entry 2 + any reply button besides Guide 1.
 - State left: TestWorth at (1945, 2594, 0) with the boards in the backpack. The next run
   harvests first, then stores everything.
+
+**Live attempt 2c (22:27, after both fixes): ✅ full loop, 1 trip, exit 0.**
+- From (1945, 2594), the agent walked 47 steps to tree (1925, 2580). On the way it hit known
+  obstacles twice and sidestepped twice. It paused 10 times, 26 s in total, plus one idle look
+  at a mobile.
+- It harvested 17 logs (+10, +7) in 7 attempts and converted them to boards.
+- It walked 56 steps to the innkeeper, opening 1 door, and arrived at (1936, 2595), 4 tiles
+  from Jayne.
+- `room` → Enter → "You enter the rental room." → stored 46 boards (17 new + 29 from 2b) in the
+  secure container → door menu → Exit.
+- Trip phases: harvest 108.8 s, convert 4.1 s, to room 58.2 s, store 1.8 s, exit 6.1 s. There
+  were 108 steps and 0 blocked moves.
+- No captcha this trip: a solved captcha suppresses the next one for 10–15 min (wiki), and the
+  last one was solved at 22:18.
+- Memory store afterwards:
+  - `harvest_nodes`: 5 trees. One is depleted; two are unreachable, and those two are genuinely
+    cut off by walls.
+  - `harvest_attempts`: 17. `episodes`: 1.
+  - Live walk evidence: facet 0 grew to 949 tiles and 1462 edges.

@@ -2,7 +2,7 @@
 
 An AI agent harness that plays **Ultima Online Outlands** — targeting the **Test Shard only**.
 
-Current status: **Phases 1 and 3 done; Phase 2 (world model) re-validated offline after an S2C decode correction; next: Phase 4 (agent runtime).** Phase 3's acceptance task, an unattended bank run (walk to the banker, open the bank box, walk back), completed live on the Test Shard on 2026-09-29. The proxy runs the world model live (state port), hides agent walk confirms from the client and re-anchors it client-side, and never sends anything of its own to the server. See [`HANDOFF.md`](HANDOFF.md), [`docs/MOVEMENT.md`](docs/MOVEMENT.md), [`docs/CIPHER.md`](docs/CIPHER.md). Read [`ANTICHEAT.md`](ANTICHEAT.md) first — it defines the safety constraints every design decision follows.
+Current status: **Phases 1 and 3 done; Phase 2 (world model) re-validated offline after an S2C decode correction; Phase 4 (agent runtime) under way: the lumberjack loop (harvest → boards → inn rental room storage, no deeds) ran end to end live on the Test Shard on 2026-09-29** ([`docs/LUMBER_LOOP.md`](docs/LUMBER_LOOP.md) §13). Phase 3's acceptance task, an unattended bank run (walk to the banker, open the bank box, walk back), completed live on the Test Shard on 2026-09-29. The proxy runs the world model live (state port), records durable harness memory ([`docs/MEMORY.md`](docs/MEMORY.md)), hides agent walk confirms from the client and re-anchors it client-side, and never sends anything of its own to the server. See [`HANDOFF.md`](HANDOFF.md), [`docs/MOVEMENT.md`](docs/MOVEMENT.md), [`docs/CIPHER.md`](docs/CIPHER.md). Read [`ANTICHEAT.md`](ANTICHEAT.md) first — it defines the safety constraints every design decision follows.
 
 ## Architecture (decided)
 

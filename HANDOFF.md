@@ -47,8 +47,9 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
    - M0 done: the demo `20260929_204225` → `harness/data/loops/lumber.json`, pinned by
      `harness/test_loop_demo.py`.
    - Runner `harness/loop_lumber.py` built and offline-proven (`test_loop_lumber.py`).
-   - **Next: the live proof, 1 trip with no deeds, while the user is at the client for the
-     captcha** (LUMBER_LOOP.md §13).
+   - **Live proof ✅ (2026-09-29 22:27, attempt 2c):** 1 trip with no deeds, 46 boards stored
+     (LUMBER_LOOP.md §13). Next: exercise the fixed captcha handoff live (the submit id is
+     random, ANTICHEAT.md §8.13), then multi-trip runs and optimization (§6).
 4. Optional: map-based z for re-anchors (stairs/slopes).
 5. ~~Visualizer~~ **Phase A BUILT (docs/VISUALIZER.md §9)**: read-only `viz_server.py`
    (live on the state port, or an exact offline replay of a capture) plus a React + TSX frontend

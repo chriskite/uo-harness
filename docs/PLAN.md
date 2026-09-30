@@ -118,7 +118,7 @@ LLM planner over the world model + skill library; safety rails: captcha human-ha
     - 60 s lockout after the room exit confirmed
     - real captcha gump `0x00000001`, plus decoy "Captcha" gumps (ANTICHEAT.md §8.13)
 
-    User decision 2026-09-29: prove the loop live first (no deeds, room as daily scratch storage), then optimize. The runner `harness/loop_lumber.py` is offline-proven by `test_loop_lumber.py` (LUMBER_LOOP.md §13); the live proof is next.
+    User decision 2026-09-29: prove the loop live first (no deeds, room as daily scratch storage), then optimize. The runner `harness/loop_lumber.py` is offline-proven by `test_loop_lumber.py`. **Live proof ✅ 2026-09-29 22:27 (attempt 2c): 1 full trip, 46 boards stored.** Attempts 2 and 2b first exposed two problems. Mobiles were planned as walls; UOO shoves through them with stamina. And the vendor range for the room menu buttons is 11–12 tiles. They also exposed a third: the captcha submit button id is random per captcha. See LUMBER_LOOP.md §13 and ANTICHEAT.md §8.13.
 
     **User directive 2026-09-29 (after live attempt 1 died upstairs in the inn, LUMBER_LOOP.md §13):** the harness is only useful with full map knowledge, like the real client: x/y/z land, statics and tiledata. With that it does its own pathfinding and finds its own trees. Plan:
     1. ✅ Decode the Outlands `.uoo` map/tiledata files, read-only from the install dir (docs/MAP.md, `harness/uomap.py`).
