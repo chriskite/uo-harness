@@ -1,7 +1,7 @@
 """Tests for harness/uomap.py: Outlands .uoo map + tiledata reader.
 
 Ground truth is server-confirmed capture evidence (logs/session_*.jsonl) and
-the committed walk memory (harness/data/walkmem.json):
+walk memory built from the committed captures (nav.build_from_logs):
   * C2S 0x6C target responses (tree at 1898,2622 z10 graphic 0x0CE0),
   * S2C self positions with z: 0x1B login, 0x20 draw-player, 0x77 self move,
     0x21 move-reject (15 B: seq u8, x u32, y u32, dir u8, z i32 -- z is i32be
@@ -220,8 +220,8 @@ def test_inn(m, positions, items):
 
 def test_walkmem(m, positions):
     print("walk memory tiles")
-    with open(os.path.join(ROOT, "harness", "data", "walkmem.json")) as fh:
-        tiles = [tuple(t) for t in json.load(fh)["tiles"]]
+    import nav
+    tiles = sorted(nav.build_from_logs(LOGS).tiles)
     # server-authoritative absolute positions only (0x21 z anomalies, MAP.md)
     known = {}
     for kind, facet, x, y, z in positions:
@@ -241,8 +241,8 @@ def test_walkmem(m, positions):
 
 
 # Walk-memory tiles from the rental-room walk (session DEMO; facet 3 per
-# 0xBF/0x08, 0x77 at 39,65 z1 and 0x21 at 39,68 / 40,67). walkmem.json has no
-# facet, so these are excluded from the facet-0 checks.
+# 0xBF/0x08, 0x77 at 39,65 z1 and 0x21 at 39,68 / 40,67). Capture-built walk
+# memory has no facet, so these are excluded from the facet-0 checks.
 RENTAL_TILES = {(39, 65), (39, 68), (40, 66), (40, 67)}
 
 

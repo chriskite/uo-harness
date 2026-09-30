@@ -25,18 +25,17 @@ import time
 
 sys.path.insert(0, r"C:/Users/chris/uo-harness/harness")
 import actions  # noqa: E402
-import nav  # noqa: E402
 from agent_link import Abort, Link, Mover, cheb, log, serial_of  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
+from memory import DEFAULT_DB, Memory  # noqa: E402
 
-MEMORY_PATH = r"C:/Users/chris/uo-harness/harness/data/walkmem.json"
 BANKBOX_LAYER = 0x1D
 HUMAN_BODIES = (0x190, 0x191)
 GATING_WORDS = ("razor", "assistant", "macro", "script")
 
 
 class Errand:
-    def __init__(self, link: Link, memory: nav.WalkMemory, args):
+    def __init__(self, link: Link, memory: Memory, args):
         self.link = link
         self.args = args
         self.deadline = time.monotonic() + args.timeout
@@ -196,10 +195,11 @@ def main():
                     help="plan on walk memory only (offline tests against simulated worlds)")
     ap.add_argument("--control-port", type=int, default=25941)
     ap.add_argument("--state-port", type=int, default=25942)
-    ap.add_argument("--memory", default=MEMORY_PATH)
+    ap.add_argument("--memory", default=DEFAULT_DB,
+                    help="harness memory (SQLite, docs/MEMORY.md); the proxy records the walks")
     args = ap.parse_args()
 
-    memory = nav.WalkMemory.load(args.memory)
+    memory = Memory(args.memory)
     link = Link(args.control_port, args.state_port)
     errand = Errand(link, memory, args)
     code = 0
@@ -209,8 +209,7 @@ def main():
         log(f"ABORTED: {e}")
         code = 1
     finally:
-        memory.save(args.memory)
-        log(f"walk memory saved ({len(memory.tiles)} tiles, {len(memory.blocked)} blocked moves)")
+        memory.close()
     sys.exit(code)
 
 

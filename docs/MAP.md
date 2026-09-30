@@ -250,7 +250,7 @@ gives 0 for any z in 0…255 and −1 for small negative z.
   floor, over land z 0. The inn doors at (1933,2589,z20) and (1935,2588,z0) come in as 0xF3
   items 0x6AD/0x6A5 (tiledata `wooden door`, Door flag). Neither tile has a door static:
   **doors are dynamic, not in the map file.**
-- Walk memory: all 838 facet-0 tiles in `harness/data/walkmem.json` have a standing height
+- Walk memory (built from the committed captures): all 838 facet-0 tiles have a standing height
   (land avg z or surface top) with no Impassable static overlapping a 16-high body. The 15
   tiles with capture z from 0x1B/0x20/0x77 all sit on such a height.
 - Self positions from 0x1B/0x20/0x77, 16 distinct on facet 0, including z 20 upstairs, z 21 on

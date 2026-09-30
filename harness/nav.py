@@ -1,29 +1,30 @@
-"""Walk memory + route planner for the 8-neighbour UO tile grid.
+"""2D walk memory + optimistic route planner for the 8-neighbour UO tile grid.
 
-There is no map/collision data in the harness. The only evidence of
-walkability is movement the server confirmed in past sessions:
+Since the map is decoded (docs/MAP.md, harness/pathfind.py), this is the
+fallback planner for facets without map geometry (the rental rooms on facet 3)
+and the visualizer's walk layer. Its evidence is movement the server
+confirmed:
 
-  * raw captures (logs/session_*.{c2s,s2c}.raw): replay the S2C packets in
-    order, tracking our position from self anchors (0x1B login confirm sets
-    the self serial; 0x20 / 0x77 carrying the self serial; 0x21 walk deny).
-    Each walk confirm `22 <seq> ..` is matched to the next C2S walk
-    `02 <dir|0x80> <seq> <key>` with that seq, in C2S order (walks skipped
+  * durable: the harness memory store's walk_moves (docs/MEMORY.md), fed by
+    the proxy from every `step` / `blocked` event (memory.Memory.walk_memory)
+  * offline, from raw captures (build_from_logs / reconstruct_session): replay
+    the S2C packets in order, tracking our position from self anchors (0x1B
+    login confirm sets the self serial; 0x20 / 0x77 carrying the self serial;
+    0x21 walk deny). Each walk confirm `22 <seq> ..` is matched to the next C2S
+    walk `02 <dir|0x80> <seq> <key>` with that seq, in C2S order (walks skipped
     over were rejected). A walk whose direction differs from the facing only
     turns; otherwise it moves one tile: record both tiles and the directed
     edge. Server denies in raw captures are NOT turned into blocked moves: a
     deny can be pacing/sequence related, and a false wall would cut real
-    routes. Blocked moves come only from the proxy's explicit rows.
-  * proxy jsonl rows `{"ev":"step","from":[x,y],"to":[x,y],"z":z}` (a
-    confirmed move) and `{"ev":"blocked","from":[x,y],"dir":d}` (a
-    server-denied move).
+    routes. Blocked moves come only from the proxy's explicit rows (`step` /
+    `blocked` in the jsonl).
 
 `plan()` is an optimistic A*: a known edge (either direction) costs 1, a known
 tile 1.5, an unknown tile 4, so it prefers proven ground but still routes
 through the unknown when it must.
 
 CLI:
-  python harness/nav.py build [--logdir logs] [--out harness/data/walkmem.json]
-  python harness/nav.py plan x1,y1 x2,y2 [--radius R] [--mem harness/data/walkmem.json]
+  python harness/nav.py plan x1,y1 x2,y2 [--radius R] [--facet F] [--db harness/data/harness.db]
 """
 from __future__ import annotations
 
@@ -43,7 +44,6 @@ from uo.s2c import PRELUDE_LEN, S2CStream, prelude_keys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_LOGDIR = os.path.join(ROOT, "logs")
-DEFAULT_MEM = os.path.join(ROOT, "harness", "data", "walkmem.json")
 CLIENT_PREAMBLE_LEN = 5
 
 # 0=N 1=NE 2=E 3=SE 4=S 5=SW 6=W 7=NW
@@ -417,31 +417,18 @@ def _tile_arg(s: str) -> Tile:
 
 
 def main(argv=None) -> int:
+    import memory
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    b = sub.add_parser("build", help="rebuild walk memory from logs")
-    b.add_argument("--logdir", default=DEFAULT_LOGDIR)
-    b.add_argument("--out", default=DEFAULT_MEM)
-    p = sub.add_parser("plan", help="plan a route x1,y1 -> x2,y2")
+    p = sub.add_parser("plan", help="plan a route x1,y1 -> x2,y2 on the stored walk memory")
     p.add_argument("start", type=_tile_arg)
     p.add_argument("goal", type=_tile_arg)
     p.add_argument("--radius", type=int, default=0, help="Chebyshev goal radius")
-    p.add_argument("--mem", default=DEFAULT_MEM)
+    p.add_argument("--facet", type=int, default=0)
+    p.add_argument("--db", default=memory.DEFAULT_DB)
     args = ap.parse_args(argv)
 
-    if args.cmd == "build":
-        st: dict = {}
-        mem = build_from_logs(args.logdir, st)
-        mem.save(args.out)
-        s = mem.stats()
-        print(f"raw moves {st.get('moves', 0)} (committed {st.get('committed', 0)}, "
-              f"dropped {st.get('dropped', 0)} over {st.get('drifts', 0)} anchor drifts); "
-              f"jsonl rows {st['rows']}")
-        print(f"tiles {s['tiles']}  edges {s['edges']}  blocked {s['blocked']}  "
-              f"bbox {s['bbox']}  -> {args.out}")
-        return 0
-
-    mem = WalkMemory.load(args.mem)
+    mem = memory.Memory(args.db).walk_memory(args.facet)
     path = plan(mem, args.start, within(args.goal, args.radius))
     if path is None:
         print(f"no route {args.start} -> {args.goal} (radius {args.radius})")

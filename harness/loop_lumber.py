@@ -6,9 +6,10 @@ container → leave by the door. No deed creation (user decision 2026-09-29:
 prove the loop first).
 
 Knowledge comes from harness/data/loops/lumber.json (mined from the user's
-demonstration). Harvest memory (per-tree attempts/yield/depletion) is kept in
-harness/data/harvestmem.json; one row per trip goes to
-harness/data/episodes/lumber.jsonl.
+demonstration). What the loop learns lives in the harness memory store
+(harness/memory.py, docs/MEMORY.md): per-tree attempts/yield/depletion/
+reachability, every attempt, and one episode row per trip. Walk memory is
+recorded by the proxy.
 
 Captcha = human handoff (ANTICHEAT.md §8.8/§8.13). The real captcha is the
 gump with lumber.json's id plus a text entry and the submit button. The
@@ -34,10 +35,12 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
-import nav  # noqa: E402
 from agent_link import Abort, Link, Mover, cheb, log, serial_of  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from uo.gumps import parse_layout  # noqa: E402
+from memory import DEFAULT_DB, Memory  # noqa: E402
+
+TREE_FACET = 0                # harvest areas are on map0 (Shelter)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "harness", "data")
@@ -65,42 +68,8 @@ def alert(sound: bool = True):
         print("\a", end="", flush=True)
 
 
-class HarvestMemory:
-    """Per-tree stats keyed "x,y,z": attempts, successes, logs, depleted_at,
-    plus what was learned about candidates found on the map: not_tree (the
-    server answered 500489) and unreachable_at (no route)."""
-
-    def __init__(self, path):
-        self.path = path
-        self.trees = {}
-        if path and os.path.exists(path):
-            with open(path, encoding="utf-8") as f:
-                self.trees = json.load(f)
-
-    def row(self, tree):
-        key = f"{tree['x']},{tree['y']},{tree['z']}"
-        return self.trees.setdefault(key, {"attempts": 0, "successes": 0, "logs": 0, "depleted_at": None})
-
-    def available(self, tree, regrow_s, now):
-        r = self.trees.get(f"{tree['x']},{tree['y']},{tree['z']}")
-        if r is None:
-            return True
-        if r.get("not_tree"):
-            return False
-        for key in ("depleted_at", "unreachable_at"):
-            if r.get(key) is not None and now - r[key] < regrow_s:
-                return False
-        return True
-
-    def save(self):
-        if self.path:
-            os.makedirs(os.path.dirname(self.path), exist_ok=True)
-            with open(self.path, "w", encoding="utf-8") as f:
-                json.dump(self.trees, f, indent=1, sort_keys=True)
-
-
 class LumberLoop:
-    def __init__(self, link: Link, memory: nav.WalkMemory, know: dict, args):
+    def __init__(self, link: Link, memory: Memory, know: dict, args):
         self.link = link
         self.k = know
         self.args = args
@@ -109,7 +78,7 @@ class LumberLoop:
         self.human = Human(args.human, seed=args.seed, fast=args.human_fast, log=log)
         self.mover = Mover(link, memory, self.human, max_blocked=args.max_blocked,
                            guard=self.check_guards, doors=True, use_map=not args.no_map)
-        self.hmem = HarvestMemory(args.harvest_memory)
+        self.memory = memory
         self.t_exit = None           # wall time of the last teleport out of the room
         self.stats = {}
 
@@ -328,7 +297,8 @@ class LumberLoop:
                 seen.add((t["x"], t["y"]))
                 trees.append(t)
         now = time.time()
-        trees = [t for t in trees if self.hmem.available(t, self.args.regrow_min * 60, now)]
+        trees = [t for t in trees if self.memory.harvest_available(
+            TREE_FACET, t["x"], t["y"], t["z"], self.args.regrow_min * 60, now)]
         pos = st["movement"]["pos"]
         trees.sort(key=lambda t: cheb(pos, (t["x"], t["y"])) * self.human.rng.uniform(1.0, 1.6))
         return trees[: self.args.max_trees]
@@ -342,7 +312,7 @@ class LumberLoop:
             if gained >= self.args.logs_per_trip:
                 break
             label = f"tree {tree['x']},{tree['y']}"
-            row = self.hmem.row(tree)
+            node = (TREE_FACET, tree["x"], tree["y"], tree["z"], h(tree["graphic"]))
             try:
                 if "stand" in tree:
                     self.mover.walk_to(lambda: tree["stand"], 0, f"to {label}")
@@ -351,7 +321,7 @@ class LumberLoop:
             except Abort as e:
                 if "no route" not in str(e):
                     raise
-                row["unreachable_at"] = time.time()
+                self.memory.harvest_record(*node, "unreachable")
                 log(f"{label}: unreachable; trying the next tree")
                 continue
             self.wait_lockout()
@@ -361,15 +331,13 @@ class LumberLoop:
                 if out in ("success", "fail"):
                     tries += 1
                     attempts += 1
-                    row["attempts"] += 1
+                    self.memory.harvest_record(*node, out, n)
                     if out == "success":
                         successes += 1
                         gained += n
-                        row["successes"] += 1
-                        row["logs"] += n
                         log(f"{label}: +{n} logs ({gained}/{self.args.logs_per_trip})")
                 elif out == "depleted":
-                    row["depleted_at"] = time.time()
+                    self.memory.harvest_record(*node, "depleted")
                     log(f"{label}: depleted")
                     break
                 elif out == "lockout":
@@ -378,7 +346,7 @@ class LumberLoop:
                     time.sleep(wait)
                     continue
                 elif out == "not_tree":
-                    row["not_tree"] = True
+                    self.memory.harvest_record(*node, "not_tree")
                     log(f"{label}: the server says this is not a tree; remembered")
                     break
                 elif out == "none":
@@ -388,7 +356,6 @@ class LumberLoop:
                         raise Abort("harvest attempts keep ending without a known outcome")
                 self.human.wait("between")
                 self.human.fidget(self.link, self.link.state(), self.backpack(self.link.state()))
-            self.hmem.save()
         self.stats.update(attempts=attempts, successes=successes, logs=gained)
         return gained
 
@@ -493,11 +460,7 @@ class LumberLoop:
 
     # ------------------------------------------------------------ trips
     def episode(self, row):
-        path = self.args.episodes
-        if path:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(row) + "\n")
+        self.memory.episode("lumber", row)
 
     def trip(self, n):
         self.stats = {}
@@ -564,14 +527,13 @@ def main():
     ap.add_argument("--control-port", type=int, default=25941)
     ap.add_argument("--state-port", type=int, default=25942)
     ap.add_argument("--loop", default=os.path.join(DATA, "loops", "lumber.json"))
-    ap.add_argument("--memory", default=os.path.join(DATA, "walkmem.json"))
-    ap.add_argument("--harvest-memory", default=os.path.join(DATA, "harvestmem.json"))
-    ap.add_argument("--episodes", default=os.path.join(DATA, "episodes", "lumber.jsonl"))
+    ap.add_argument("--memory", default=DEFAULT_DB,
+                    help="harness memory (SQLite, docs/MEMORY.md): walk memory, harvest nodes, episodes")
     args = ap.parse_args()
 
     with open(args.loop, encoding="utf-8") as f:
         know = json.load(f)
-    memory = nav.WalkMemory.load(args.memory)
+    memory = Memory(args.memory)
     link = Link(args.control_port, args.state_port)
     loop = LumberLoop(link, memory, know, args)
     code = 0
@@ -581,9 +543,7 @@ def main():
         log(f"ABORTED: {e}")
         code = 1
     finally:
-        memory.save(args.memory)
-        loop.hmem.save()
-        log(f"walk memory saved ({len(memory.tiles)} tiles, {len(memory.blocked)} blocked moves)")
+        memory.close()
     sys.exit(code)
 
 

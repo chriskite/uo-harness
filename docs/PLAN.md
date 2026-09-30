@@ -86,6 +86,13 @@ LLM planner over the world model + skill library; safety rails: captcha human-ha
   - occasional cursor hesitation and idle fidgets (backpack open, look at a mobile)
 
   All of it is stock-client traffic or waiting, and it's seeded. Profile `off` is for deterministic tests. Rationale: server-side detection is behavioural statistics (ANTICHEAT.md §8.3), and optimal routes and uniform click timing are signatures. Details: LUMBER_LOOP.md §13.
+- **Harness memory = one SQLite store (user request + Rule 0 clarification, 2026-09-29):** `harness/memory.py`, `harness/data/harness.db` (WAL), gitignored. It holds:
+  - every event (the proxy's `MemoryWriter`, batched commits, never blocks the relay; the in-memory ring stays as the hot cache)
+  - facet- and z-aware walk evidence derived from `step`/`blocked`
+  - harvest nodes and attempts
+  - episodes
+
+  Runtime memory is not engineering knowledge and is not committed (AGENTS.md Rule 0, restated). Rejected: JSON files (2D walkmem, whole-file rewrites), Postgres (a service), DuckDB (not stdlib, analytics-first). Details: docs/MEMORY.md.
 - **Gating handoff struck from Phase 4 (user decision 2026-09-29):** the harness is not Razor, and PvP is out of scope, so neither `IsRazorBlockedSysMessage` nor the PvP script restrictions apply to it. There is no gating demo and no gating-signal research. AGENTS.md safety rule 4 itself is unchanged.
 - **First workload: lumberjack → boards → inn-room storage → commodity deed loop** (proposed and accepted 2026-09-29), see [`LUMBER_LOOP.md`](LUMBER_LOOP.md). Approach:
   - learn by one user demonstration; `harness/loop_mine.py timeline` turns the capture into evidence, and `harness/data/loops/lumber.json` is written from it

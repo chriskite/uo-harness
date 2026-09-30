@@ -32,6 +32,7 @@ ROOT = os.path.dirname(HERE)
 PY = sys.executable
 sys.path.insert(0, HERE)
 
+import memory  # noqa: E402
 import viz_feed  # noqa: E402
 import viz_server  # noqa: E402
 from uo.s2c import encode_packet  # noqa: E402
@@ -109,9 +110,21 @@ def wait_state(base: str, pred, timeout=3.0) -> bool:
     return False
 
 
+def seeded_memory_db() -> str:
+    """A temp harness memory store with one confirmed move and one deny."""
+    path = os.path.join(tempfile.mkdtemp(), "harness.db")
+    con = memory.connect(path)
+    memory._upsert_walk(con.cursor(), [(0, 10, 10, 0, 2, 1, 1.0), (0, 11, 10, 0, 2, 0, 2.0)])
+    con.commit()
+    con.close()
+    return path
+
+
+MEMORY_DB = seeded_memory_db()
+
+
 def serve(feed, port):
-    srv = viz_server.VizServer(("127.0.0.1", port), feed, os.path.join(ROOT, "viz", "dist"),
-                               os.path.join(ROOT, "harness", "data", "walkmem.json"))
+    srv = viz_server.VizServer(("127.0.0.1", port), feed, os.path.join(ROOT, "viz", "dist"), MEMORY_DB)
     threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
     return srv
 
@@ -226,9 +239,9 @@ def test_replay_parity(logdir):
         h = get(f"http://127.0.0.1:{SERVER_PORT}/api/health")
         check("health: mode/order/diagnostics", h["mode"] == "replay" and h["order"] == "exact"
               and h["diagnostics"]["packet_counts"][0][2] > 0, str({k: h[k] for k in ("mode", "order", "ring")}))
-        wm = urllib.request.urlopen(f"http://127.0.0.1:{SERVER_PORT}/api/walkmem").read()
-        with open(os.path.join(ROOT, "harness", "data", "walkmem.json"), "rb") as f:
-            check("/api/walkmem serves the file verbatim", wm == f.read())
+        wm = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{SERVER_PORT}/api/walkmem").read())
+        check("/api/walkmem serves the store's projection (edge + deny)",
+              wm["edges"] == [[10, 10, 11, 10]] and wm["blocked"] == [[11, 10, 2]], str(wm))
         code, _ = post(f"http://127.0.0.1:{SERVER_PORT}/api/playback", {"action": "rate", "rate": 0})
         check("POST /api/playback rejects rate 0", code == 400, str(code))
         code, resp = post(f"http://127.0.0.1:{SERVER_PORT}/api/gate", {"action": "pause"})

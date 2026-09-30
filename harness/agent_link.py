@@ -128,7 +128,9 @@ class Mover:
     def __init__(self, link: Link, memory: nav.WalkMemory, human,
                  max_blocked: int = 12, guard=None, doors: bool = False, use_map: bool = True):
         self.link = link
-        self.mem = memory
+        self._source = memory        # memory.Memory (per-facet projection) or a fixed nav.WalkMemory
+        self._mems = {}
+        self.mem = self.mem_for(0)
         self.human = human
         self.max_blocked = max_blocked
         self.guard = guard or (lambda st: None)
@@ -267,11 +269,24 @@ class Mover:
             log(f"{label}: (overshot the turn to {new}; replanning)")
         return outcome
 
+    def mem_for(self, facet) -> nav.WalkMemory:
+        """Session walk memory for the 2D fallback planner on `facet`: the durable
+        store's projection (docs/MEMORY.md) plus what this session learned."""
+        facet = 0 if facet is None else facet
+        m = self._mems.get(facet)
+        if m is None:
+            src = self._source
+            m = src.walk_memory(facet) if hasattr(src, "walk_memory") else src
+            self._mems[facet] = m
+        return m
+
     def plan(self, st, goal):
-        """(path of (x, y) tiles including the start, walk or None)."""
+        """(path of (x, y) tiles including the start, walk or None). Also points
+        self.mem at the current facet's walk memory."""
         pos = st["movement"]["pos"]
         cur = (pos[0], pos[1])
         occ = self.occupied(st) - {cur}
+        self.mem = self.mem_for(st["world"]["self"].get("map"))
         walk = self.walk_map(st)
         if walk is not None:
             path = pathfind.plan(walk, (pos[0], pos[1], pos[2]), goal,

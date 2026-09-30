@@ -58,7 +58,8 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 ## Operate
 
 - Proxy (needed, restart if down):
-  `python harness/proxy.py --upstream-host 74.91.115.123 --upstream-bind 0.0.0.0 --upstream-bind-port 25940 --logdir logs`
+  `python harness/proxy.py --upstream-host 74.91.115.123 --upstream-bind 0.0.0.0 --upstream-bind-port 25940 --logdir logs --memory-db harness/data/harness.db`
+  (`--memory-db` = the durable harness memory, docs/MEMORY.md; gitignored runtime data)
   (Python is at `C:\Users\chris\AppData\Local\Programs\Python\Python313\python.exe`)
 - Divert NAT (needed, elevated): `powershell -Verb RunAs restart_divert.ps1`
 - Launch game (elevated): `powershell -Verb RunAs launch_game.ps1`
@@ -69,11 +70,13 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 - Agent gate (pause / kill / forced breaks / 8 h daily budget; state in `logs/agent_budget.json`):
   `python harness/agent_gate.py [status|pause|resume|kill|rearm]`. `rearm` (clears a kill) is
   CLI-only; the visualizer offers pause/resume/kill.
-- Bank errand: `python harness/errand_bank.py [--start x,y]`; walk memory refresh:
-  `python harness/nav.py build`.
+- Bank errand: `python harness/errand_bank.py [--start x,y]`.
+- Harness memory: `python harness/memory.py stats`; backfill captures the store hasn't seen with
+  `python harness/memory.py ingest`; 2D plan on stored walk evidence:
+  `python harness/nav.py plan x1,y1 x2,y2 [--facet F]`.
 - Lumber loop (the user must be at the client to solve captchas):
   `python harness/loop_lumber.py --trips 1`. It beeps on a captcha and waits for the human's
-  answer. Episodes are written to `harness/data/episodes/lumber.jsonl`.
+  answer. Harvest outcomes and episodes go to the memory store.
 - Demonstration timeline (offline, read-only): `python harness/loop_mine.py timeline <TAG>
   [--labels]`. Replays `logs/session_<TAG>.*` and prints actions, gumps, menus, cliloc
   messages rendered from Cliloc.enu, and container amount changes.

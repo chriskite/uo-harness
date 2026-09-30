@@ -8,7 +8,8 @@ Routes:
   GET  /api/events    SSE: `event: world_event` (id = envelope seq) + `event: state`
                       (response without events, ≤4 Hz, only when changed). Resume with
                       the Last-Event-ID header (seq > id) or ?since=N (seq >= N).
-  GET  /api/walkmem   harness/data/walkmem.json verbatim (re-read when it changes)
+  GET  /api/walkmem   walk memory (facet 0) from the harness memory store, in the
+                      nav.WalkMemory JSON format (docs/MEMORY.md)
   GET  /api/health    mode, session, order, poll lag, connection, diagnostics
   POST /api/playback  replay only: {"action": "play"|"pause"|"step"|"rate", "rate": R}
   GET  /api/gate      live only: the proxy's agent gate ({"op": "gate"}), verbatim
@@ -34,6 +35,7 @@ import socket
 import struct
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, parse_qs
 
@@ -41,6 +43,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import viz_feed  # noqa: E402
 import facet as facet_mod  # noqa: E402
+import memory as memory_mod  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SSE_KEEPALIVE_S = 15.0
@@ -52,26 +55,30 @@ CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "application/javasc
                  ".txt": "text/plain; charset=utf-8"}
 
 
-class WalkMemFile:
-    """The walk-memory file, served verbatim; re-read when mtime/size change."""
+class WalkMemDB:
+    """Walk memory projection from the harness memory store (read-only use),
+    rebuilt at most every CACHE_S seconds."""
+
+    CACHE_S = 2.0
 
     def __init__(self, path: str):
         self.path = path
         self.lock = threading.Lock()
-        self.key = None
+        self.at = 0.0
         self.body = None
 
     def get(self) -> bytes | None:
-        try:
-            st = os.stat(self.path)
-        except OSError:
+        if not os.path.exists(self.path):
             return None
-        key = (st.st_mtime_ns, st.st_size)
         with self.lock:
-            if key != self.key:
-                with open(self.path, "rb") as f:
-                    self.body = f.read()
-                self.key = key
+            now = time.monotonic()
+            if self.body is None or now - self.at >= self.CACHE_S:
+                mem = memory_mod.Memory(self.path)
+                try:
+                    self.body = mem.walkmem_json(0)
+                finally:
+                    mem.close()
+                self.at = now
             return self.body
 
 
@@ -109,7 +116,7 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/api/walkmem":
             body = self.server.walkmem.get()
             if body is None:
-                self._json(404, {"error": f"no walk memory file at {self.server.walkmem.path}"})
+                self._json(404, {"error": f"no harness memory store at {self.server.walkmem.path}"})
             else:
                 self._send(200, body)
         elif url.path == "/api/health":
@@ -272,11 +279,11 @@ class VizServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
 
-    def __init__(self, addr, feed, dist: str, walkmem: str, facet_path: str | None = None):
+    def __init__(self, addr, feed, dist: str, memory_db: str, facet_path: str | None = None):
         super().__init__(addr, Handler)
         self.feed = feed
         self.dist = dist
-        self.walkmem = WalkMemFile(walkmem)
+        self.walkmem = WalkMemDB(memory_db)
         self.facet = None
         self.facet_error = "disabled (--no-facet)" if facet_path is None else None
         if facet_path is not None:
@@ -319,14 +326,15 @@ def main():
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8080)
     p.add_argument("--dist", default=os.path.join(ROOT, "viz", "dist"))
-    p.add_argument("--walkmem", default=os.path.join(ROOT, "harness", "data", "walkmem.json"))
+    p.add_argument("--memory-db", default=memory_mod.DEFAULT_DB,
+                   help="harness memory store for the walk layer (docs/MEMORY.md)")
     p.add_argument("--facet", default=facet_mod.DEFAULT_PATH,
                    help="facet picture drawn under the map (read-only; install dir facet00.mul)")
     p.add_argument("--no-facet", action="store_true", help="don't load a facet picture")
     args = p.parse_args()
 
     feed = build_feed(args)
-    srv = VizServer((args.host, args.port), feed, os.path.abspath(args.dist), args.walkmem,
+    srv = VizServer((args.host, args.port), feed, os.path.abspath(args.dist), args.memory_db,
                     None if args.no_facet else args.facet)
     what = (f"replay {args.replay} ({feed.order} order, {len(feed.items)} items)" if args.replay
             else f"live state port {args.state_host}:{args.state_port}")

@@ -25,6 +25,12 @@ logs_test/
 logs_test_actions/
 logs_test_errand/
 logs_test_loop/
+# harness runtime memory (AGENTS.md Rule 0, docs/MEMORY.md)
+harness/data/*.db
+harness/data/*.db-wal
+harness/data/*.db-shm
+harness/data/harvestmem.json
+harness/data/episodes/
 settings.json*
 handle.exe
 screen.png

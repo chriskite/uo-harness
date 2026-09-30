@@ -138,7 +138,7 @@ channels.
 |---|---|
 | `GET /api/state` | the latest state-port response, verbatim (movement + world + recent events + diagnostics) |
 | `GET /api/events` | SSE: `event: state` (full response, dirty-checked, ≤4 Hz) and `event: world_event` (each event envelope verbatim); `id:` = event seq; `Last-Event-ID` resume from a 2000-entry ring |
-| `GET /api/walkmem` | `harness/data/walkmem.json` (tiles, edges, blocked), re-read when the file changes |
+| `GET /api/walkmem` | walk memory (facet 0) projected from the harness memory store (docs/MEMORY.md), in the `nav.WalkMemory` JSON format (tiles, edges, blocked), cached 2 s |
 | `GET /api/health` | viz_server mode (live/replay + session tag + order quality), poll lag, connection status, proxy diagnostics |
 | `POST /api/playback` | replay only: `{play,pause,rate,step}` |
 | `GET /api/gate` | live only: the proxy's agent gate (`{"op":"gate"}` on the state port), verbatim |
@@ -299,7 +299,7 @@ fixtures ("replay X, state at event N").
 |---|---|
 | `harness/proxy.py` | §1.4 additions: proxy events + envelope in the event log, `diagnostics`, `snapshot:false` |
 | `harness/viz_feed.py` | `StatePortPoller` (live) and `ReplayDriver` (offline SessionTap; jsonl interleave recovery; exact/approx badge; playback control) |
-| `harness/viz_server.py` | `--live [--state-port 25942]` / `--replay TAG`; routes §2.1; SSE ring + resume; walkmem file watch; agent gate forwarding (§2.2); serves `viz/dist` |
+| `harness/viz_server.py` | `--live [--state-port 25942]` / `--replay TAG`; routes §2.1; SSE ring + resume; walk layer from the memory store (`--memory-db`); agent gate forwarding (§2.2); serves `viz/dist` |
 | `harness/test_viz.py` | backend tests (§7) |
 | `viz/package.json`, `bun.lock`, `tsconfig.json`, `index.html` | scaffold; scripts `build` (`bun build src/main.tsx --outdir dist`), `watch`, `test`, `typecheck` |
 | `viz/src/types.ts` | TS types for §1 (StateResponse, Movement, Snapshot, Mobile, Item, Gump, EventEnvelope, WalkMemory) |

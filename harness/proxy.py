@@ -46,6 +46,7 @@ import time
 from uo.packets import packet_length, C2S_OVERRIDES
 from uo.s2c import PRELUDE_LEN, S2CStream, encode_packet, prelude_keys
 from agent_gate import AgentGate
+from memory import MemoryWriter
 from world.runtime import WorldRuntime, C2S, S2C
 
 CONTROL_MAX_FRAME = 4096
@@ -362,6 +363,7 @@ class SessionTap:
         self.world = WorldRuntime()
         self.events = []                 # envelopes; seq = events_base + list index
         self.events_base = 0
+        self.sink = None                 # durable event sink (memory.MemoryWriter), or None
         self.world_errors = 0
         # cumulative since session start, so late readers don't depend on the event ring
         self.traffic_events = collections.Counter()   # proxy event name -> count
@@ -375,8 +377,10 @@ class SessionTap:
     def _append(self, origin: str, items, t: float):
         """Append event data dicts to the event log as envelopes."""
         for data in items:
-            self.events.append({"seq": self.events_base + len(self.events), "t": t,
-                                "origin": origin, "data": data})
+            env = {"seq": self.events_base + len(self.events), "t": t, "origin": origin, "data": data}
+            self.events.append(env)
+            if self.sink is not None:
+                self.sink(env, self.world.state.self.map)
         over = len(self.events) - EVENT_CAP
         if over > 0:
             del self.events[:over]
@@ -579,8 +583,8 @@ class SessionTap:
         elif pid == 0x21 and len(pkt) == 15:
             entry = ma.inflight.get(pkt[1])
             if entry is not None and ma.pos is not None:
-                self._log(ev="blocked", **{"from": ma.pos[:2]}, dir=entry[2], src=entry[0])
-                self._proxy_event("blocked", **{"from": ma.pos[:2]}, dir=entry[2], src=entry[0])
+                self._log(ev="blocked", **{"from": ma.pos[:2]}, dir=entry[2], src=entry[0], z=ma.pos[2])
+                self._proxy_event("blocked", **{"from": ma.pos[:2]}, dir=entry[2], src=entry[0], z=ma.pos[2])
             ma.on_deny()
             ma.on_self_position(_u32(pkt, 2), _u32(pkt, 6), _i32(pkt, 11), pkt[10])
             self._log(ev="s2c_deny", note="walk denied; ladder reset to 0")
@@ -681,6 +685,9 @@ async def handle_client(client_reader, client_writer, args):
         open(os.path.join(args.logdir, f"session_{stamp}.s2c.raw"), "ab"),
     )
     tap._log(ev="open", peer=str(peer), upstream=f"{args.upstream_host}:{args.upstream_port}")
+    if args.memory_writer is not None:
+        args.memory_writer.open_session(stamp)
+        tap.sink = lambda env, facet: args.memory_writer.record(stamp, env, facet)
     print(f"[proxy] {peer} connected -> {args.upstream_host}:{args.upstream_port} (log session_{stamp}.jsonl)")
 
     timer = asyncio.create_task(_movement_timer(tap, client_writer))
@@ -694,6 +701,8 @@ async def handle_client(client_reader, client_writer, args):
         timer.cancel()
         args.hub.detach(tap)
         tap._log(ev="close")
+        if args.memory_writer is not None:
+            args.memory_writer.close_session(stamp)
         logf.close()
         tap.raw_c2s.close()
         tap.raw_s2c.close()
@@ -749,7 +758,9 @@ async def handle_state(reader, writer, hub):
 
 async def amain(args):
     args.hub = InjectionHub(AgentGate(args.budget_file or os.path.join(args.logdir, "agent_budget.json")))
-    print(f"[proxy] agent gate: {args.hub.gate.status()['state']} ({args.hub.gate.path})")
+    args.memory_writer = MemoryWriter(args.memory_db) if args.memory_db else None
+    print(f"[proxy] agent gate: {args.hub.gate.status()['state']} ({args.hub.gate.path}); "
+          f"memory: {args.memory_db or 'off'}")
     control = await asyncio.start_server(
         lambda r, w: handle_control(r, w, args.hub),
         args.control_host, args.control_port)
@@ -766,6 +777,8 @@ async def amain(args):
             await server.serve_forever()
     finally:
         args.hub.gate.save(force=True)
+        if args.memory_writer is not None:
+            args.memory_writer.flush()
 
 
 def main():
@@ -786,6 +799,9 @@ def main():
     p.add_argument("--logdir", default="logs")
     p.add_argument("--budget-file", default=None,
                    help="agent gate state (breaks, daily budget, pause/kill); default <logdir>/agent_budget.json")
+    p.add_argument("--memory-db", default="",
+                   help="durable harness memory (SQLite, docs/MEMORY.md), e.g. harness/data/harness.db; "
+                        "off when empty (tests)")
     args = p.parse_args()
     try:
         asyncio.run(amain(args))

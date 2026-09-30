@@ -91,8 +91,9 @@ Any state can be pre-empted by a proxy-enforced pause, break or kill (agent gate
 
 ## 4. Learn
 
-The existing pattern is that knowledge is mined from captures and persisted as data, like
-`nav.py build` → `walkmem.json`. The loop follows it:
+Knowledge about the loop's mechanics is mined from captures into curated files (lumber.json).
+What the loop learns while playing goes into the harness memory store (docs/MEMORY.md; gitignored
+runtime data, AGENTS.md Rule 0):
 
 1. **Learning by demonstration (first).** The user plays one full loop by hand through the proxy,
    which already captures everything (§10). `harness/loop_mine.py timeline <TAG>` (**built**)
@@ -114,14 +115,15 @@ The existing pattern is that knowledge is mined from captures and persisted as d
 
    A replay test pins those facts to the capture. Extracting them automatically before seeing a
    demo would mean guessing at their shape; after the demo they're read off the timeline.
-2. **World memory (online).** `harness/data/harvestmem.json`, keyed by the standing tile of each
-   Smart Harvest spot:
+2. **World memory (online):** the store's `harvest_nodes` and `harvest_attempts` tables, keyed by
+   facet and tree tile:
    - trees in reach (from statics + tiledata, read-only from the install dir; Phase 4 decision)
    - per-attempt yield
    - depletion time
    - estimated regrowth (time from depletion until the spot yields again)
-   Blocked moves keep feeding walk memory as today.
-3. **Episode log.** Every cycle appends one row to `harness/data/episodes/lumber.jsonl`:
+   Walk evidence (`walk_moves`, with facet and z) is recorded by the proxy from every confirmed
+   move and deny.
+3. **Episode log:** every cycle appends one row to the store's `episodes` table:
    - time spent in each state
    - boards gained
    - steps, denies and reanchors
@@ -463,10 +465,11 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     known wall, then the turn and arrival, counted as a bump rather than a block. It also checks
     that the `off` profile never bumps, and that a closed door gets exactly one open-door
     request.
-- **Data:**
-  - `harness/data/harvestmem.json`: per tree, attempts/successes/logs/depleted_at
-  - `harness/data/episodes/lumber.jsonl`: one row per trip with phase durations, steps, blocks,
-    doors, captchas and human wait, attempts, successes, logs, stored
+- **Data:** the harness memory store (docs/MEMORY.md):
+  - `harvest_nodes` and `harvest_attempts`: per tree, attempts/successes/yield/depleted/
+    unreachable/not-a-tree, and every attempt
+  - `episodes` (loop `lumber`): one row per trip with phase durations, steps, blocks, doors,
+    captchas and human wait, attempts, successes, logs, stored
 
 Offline proof, `test_loop_lumber.py`: the real proxy plus a simulated Shelter server with the
 demo's packet shapes and texts, and a "human" that answers the captcha through the client

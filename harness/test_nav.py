@@ -1,8 +1,9 @@
 """Tests for harness/nav.py: walk-memory reconstruction and the A* planner.
 
 Ground truth: logs/session_20260929_144541.* (committed capture; its first six
-walks go west from the login spot 0x7AB,0xA25 to 0x7A6,0xA25) and the committed
-harness/data/walkmem.json. Planner tests use small hand-built memories.
+walks go west from the login spot 0x7AB,0xA25 to 0x7A6,0xA25) and walk memory
+built from the committed captures in logs/. Planner tests use small hand-built
+memories.
 
 Run: python harness/test_nav.py   (no network, well under 5 s)
 """
@@ -226,8 +227,8 @@ def test_plan_unknown():
 
 
 def test_generated_memory():
-    print("generated harness/data/walkmem.json")
-    mem = WalkMemory.load(nav.DEFAULT_MEM)
+    print("walk memory built from the captures in logs/")
+    mem = nav.build_from_logs(LOGS)
     check("memory non-trivial", len(mem.tiles) > 300 and len(mem.edges) > 350, f"{mem.stats()}")
     login, bank = (1963, 2597), (1954, 2581)
     check("login spot is known ground", login in mem.tiles)

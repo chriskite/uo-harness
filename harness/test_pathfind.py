@@ -1,8 +1,8 @@
 """Tests for harness/pathfind.py on the real Outlands map (read-only install files).
 
 Ground truth is server evidence:
-- every server-confirmed move in walk memory (harness/data/walkmem.json,
-  facet 0) must be walkable under the client rules from some standing z
+- every server-confirmed move in walk memory built from the committed
+  captures (logs/, facet 0) must be walkable under the client rules from some standing z
 - the live agent run of 2026-09-29 was put upstairs in the Shelter inn at
   (1938, 2584, z 20) and could not get out on 2D walk memory; a 3D route
   down to the innkeeper's floor must exist
@@ -38,7 +38,7 @@ def standing_zs(walk, x, y):
 def main():
     walk = pathfind.Walk(uomap.UoMap(0))
     print("== walk memory agrees with the client rules ==")
-    mem = nav.WalkMemory.load(os.path.join(ROOT, "harness", "data", "walkmem.json"))
+    mem = nav.build_from_logs(os.path.join(ROOT, "logs"))
     edges = [(a, b) for a, b in mem.edges if a[0] >= 1000]      # facet 0 (rooms are facet 3)
     bad = []
     for a, b in edges:

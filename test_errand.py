@@ -25,6 +25,7 @@ PY = r"C:/Users/chris/AppData/Local/Programs/Python/Python313/python.exe"
 sys.path.insert(0, f"{ROOT}/harness")
 
 import actions  # noqa: E402
+import memory  # noqa: E402
 import nav  # noqa: E402
 from uo.packets import packet_length, C2S_OVERRIDES  # noqa: E402
 from uo.s2c import encode_packet  # noqa: E402
@@ -154,15 +155,15 @@ async def main():
     os.makedirs(LOGDIR, exist_ok=True)
     for f in os.listdir(LOGDIR):
         os.remove(os.path.join(LOGDIR, f))
-    mem_path = os.path.join(tempfile.mkdtemp(), "walkmem.json")
-    nav.WalkMemory().save(mem_path)
+    mem_path = os.path.join(tempfile.mkdtemp(), "harness.db")
 
     world = World()
     server = await asyncio.start_server(world.handle, "127.0.0.1", UPSTREAM_PORT)
     proxy = subprocess.Popen(
         [PY, f"{ROOT}/harness/proxy.py", "--listen-port", str(PROXY_PORT),
          "--upstream-host", "127.0.0.1", "--upstream-port", str(UPSTREAM_PORT),
-         "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--logdir", LOGDIR],
+         "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--logdir", LOGDIR,
+         "--memory-db", mem_path],
         stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     try:
         await asyncio.sleep(1.0)
@@ -186,7 +187,8 @@ async def main():
         writer.close()
         drainer.cancel()
 
-        mem = nav.WalkMemory.load(mem_path)
+        await asyncio.sleep(1.0)                        # proxy memory writer: batched commits
+        mem = memory.Memory(mem_path).walk_memory(0)
         clicks = [p for p in world.c2s if p[0] == 0x09]
         speech = [p for p in world.c2s if p[0] == 0xAD]
         log = [json.loads(l) for f in os.listdir(LOGDIR) if f.endswith(".jsonl")
@@ -206,9 +208,9 @@ async def main():
               all(any(q == actions.status_request(int.from_bytes(c[1:5], "big")) for q in world.c2s)
                   for c in clicks))
         check("server denied at least one move into the wall", world.denies >= 1, str(world.denies))
-        check("wall learned into walk memory (blocked moves saved)",
+        check("wall learned by the proxy into the memory store (blocked moves)",
               any(nav.step(a, d) in WALLS for a, d in mem.blocked), str(sorted(mem.blocked)))
-        check("walked tiles learned into walk memory", len(mem.edges) >= 4, str(len(mem.edges)))
+        check("walked moves learned into the memory store", len(mem.edges) >= 4, str(len(mem.edges)))
         check("every C2S packet came from the client or the agent (none from the proxy)",
               srcs <= {"client", "agent"}, str(srcs))
     finally:

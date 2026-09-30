@@ -31,6 +31,7 @@ PY = r"C:/Users/chris/AppData/Local/Programs/Python/Python313/python.exe"
 sys.path.insert(0, f"{ROOT}/harness")
 
 import actions  # noqa: E402
+import memory  # noqa: E402
 import nav  # noqa: E402
 from uo.packets import packet_length, C2S_OVERRIDES  # noqa: E402
 from uo.s2c import encode_packet  # noqa: E402
@@ -394,9 +395,7 @@ async def main():
     for f in os.listdir(LOGDIR):
         os.remove(os.path.join(LOGDIR, f))
     tmp = tempfile.mkdtemp()
-    paths = {k: os.path.join(tmp, f"{k}.json") for k in ("walkmem", "lumber", "harvest")}
-    episodes = os.path.join(tmp, "episodes.jsonl")
-    nav.WalkMemory().save(paths["walkmem"])
+    paths = {"lumber": os.path.join(tmp, "lumber.json"), "db": os.path.join(tmp, "harness.db")}
     knowledge(paths["lumber"])
 
     world = World()
@@ -404,7 +403,8 @@ async def main():
     proxy = subprocess.Popen(
         [PY, f"{ROOT}/harness/proxy.py", "--listen-port", str(PROXY_PORT),
          "--upstream-host", "127.0.0.1", "--upstream-port", str(UPSTREAM_PORT),
-         "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--logdir", LOGDIR],
+         "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--logdir", LOGDIR,
+         "--memory-db", paths["db"]],
         stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     try:
         await asyncio.sleep(1.0)
@@ -434,8 +434,7 @@ async def main():
             PY, f"{ROOT}/harness/loop_lumber.py", "--trips", "2", "--logs-per-trip", "100",
             "--regrow-min", "0.05",
             "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT),
-            "--loop", paths["lumber"], "--memory", paths["walkmem"],
-            "--harvest-memory", paths["harvest"], "--episodes", episodes,
+            "--loop", paths["lumber"], "--memory", paths["db"],
             "--human", "normal", "--seed", "11", "--human-fast", "0.25", "--timeout", "300", "--quiet",
             "--no-map",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
@@ -446,8 +445,12 @@ async def main():
         writer.close()
         drainer.cancel()
 
-        rows = [json.loads(l) for l in open(episodes, encoding="utf-8")] if os.path.exists(episodes) else []
-        hmem = json.load(open(paths["harvest"], encoding="utf-8")) if os.path.exists(paths["harvest"]) else {}
+        await asyncio.sleep(1.0)                        # proxy memory writer: batched commits
+        store = memory.Memory(paths["db"])
+        rows = store.episodes("lumber")
+        dry_node = store.harvest_node(0, DRY_TREE["x"], DRY_TREE["y"], DRY_TREE["z"]) or {}
+        good_node = store.harvest_node(0, GOOD_TREE["x"], GOOD_TREE["y"], GOOD_TREE["z"]) or {}
+        walked = store.walk_memory(0)
         speech = [p for p in world.c2s if p[0] == 0xAD]
         log = [json.loads(l) for f in os.listdir(LOGDIR) if f.endswith(".jsonl")
                for l in open(os.path.join(LOGDIR, f), encoding="utf-8")]
@@ -469,10 +472,11 @@ async def main():
         check("nothing left in the backpack", world.logs == 0 and not world.pack_boards)
         check("each trip tried the dry tree once, then moved on",
               world.dry_attempts == 2, str(world.dry_attempts))
-        dry = hmem.get(f"{DRY_TREE['x']},{DRY_TREE['y']},{DRY_TREE['z']}", {})
-        check("harvest memory: dry tree depleted, good tree counted",
-              dry.get("depleted_at") is not None
-              and hmem.get(f"{GOOD_TREE['x']},{GOOD_TREE['y']},{GOOD_TREE['z']}", {}).get("successes", 0) >= 4)
+        check("harvest memory (store): dry tree depleted, good tree counted",
+              dry_node.get("depleted_at") is not None and good_node.get("successes", 0) >= 4
+              and good_node.get("yield") == world.harvested, f"{dry_node} {good_node}")
+        check("walk memory (store): the proxy recorded the agent's walks, incl. the room's facet-less tiles",
+              len(walked.edges) >= 20 and (39, 65) in walked.tiles, str(walked.stats()))
         check("open-door requests only when blocked next to a door (never at plain walls)",
               world.open_door_reqs == world.doors_opened, f"{world.open_door_reqs} requests, "
               f"{world.doors_opened} opened")
