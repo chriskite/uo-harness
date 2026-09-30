@@ -200,6 +200,10 @@ Draft — to be finalized after §6/§7:
       reporting channel outside the game connection (§4, §7).
     - Verified live on the elevated ClassicUO window while it was fully covered.
     - Screen *input* stays forbidden (§8.1). The screenshot is for looking.
+    - **Addendum 2026-09-30:** the viz Live view (`harness/liveview.py`) uses the same capture
+      continuously, at up to 10 fps, and only while someone watches. It is still passive:
+      nothing is sent to the client, and there's no border or cursor. OBS-style window capture
+      is ordinary for streamers, so it isn't an automation signal either.
 
 17. **Combat: monsters yes, players never (2026-09-30, user decision).** The overseer may fight
     hostile monsters, loot their corpses, heal itself (spells, potions, bandages) and buy supplies.
