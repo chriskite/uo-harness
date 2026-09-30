@@ -65,6 +65,8 @@ Whitelist, built with the existing `harness/actions.py` builders and framed exac
 | `menu` | `<serial>` | `0xBF` sub `0x13` context-menu request; waits for the server's menu and returns its entries `{index, text (cliloc rendered), disabled}` |
 | `menu_pick` | `<serial> <index>` | `0xBF` sub `0x15` selection, e.g. a vendor's **Buy** entry (the vendor list then shows in `heard`/`journal`). Opening a Buy list sends nothing further: the stock client sends no packet when the shop window is closed without buying (ClassicUO ShopGump.cs:590-610). The window stays open on the user's screen until they close it |
 | `gump` | `<serial> <button>` | `0xB1` reply, **guarded**. It refuses: the captcha (gump id 1; always the human's, ANTICHEAT.md §8.8); a gump without reply buttons (the decoy/honeypot shape, §8.13); a button the layout doesn't offer; button 0 on a `noclose` gump; and **anything but button 0 (close) on a gump whose text mentions renouncing** (Young status is the human's decision) |
+| `unequip` | `<item serial>` | An item you wear goes to your backpack: `0x07` lift, human "drag" pause, `0x08` drop into the pack (the auto-position form from the demo capture). It waits until the world model shows it in the pack; it refuses items you don't wear and the backpack itself |
+| `equip` | `<item serial>` | An item in your backpack (any bag depth) is worn again: `0x07` lift, pause, `0x13` equip request on its tiledata layer. It waits until worn; it refuses items not in your pack, items already worn, and items without a wearable layer |
 
 Every packet act waits ~1.5 s and returns `heard`: the server's replies as a player would read
 them (messages with clilocs rendered, gumps with text/buttons/closable, menus, vendor lists).
