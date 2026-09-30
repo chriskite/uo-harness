@@ -921,7 +921,7 @@ def reset_events(proxy):
 
 
 def test_drop(proxy):
-    print("== drop: backpack items into your own containers ==")
+    print("== drop: move items between containers (no harness-side container limits) ==")
     tmp = tempfile.mkdtemp()
     c = Ctl(os.path.join(tmp, "harness.db"), os.path.join(tmp, "tasks"), proxy)
     pack, bank = f"0x{proxy.PACK:08X}", "0x40000500"
@@ -944,8 +944,20 @@ def test_drop(proxy):
     check("part of a stack into a bag in the bank (--amount)", code == 0 and out["moved"]
           and proxy.ground_items["0x40000502"]["amount"] == 6
           and [p for _, p in proxy.take()][0] == actions.lift(0x40000502, 4), str(out))
-    for args, why in ((("0x40000502", "0x40000503"), "isn't one of your containers"),
-                      (("0x40000505", pack), "isn't an item in your backpack"),
+    code, out = c("act", "drop", "0x40000505", pack, "--human", "off")
+    check("from a bag in the bank into the backpack (bank -> pack, overseer request)",
+          code == 0 and out["from"] == "bank" and out["into"] == "backpack"
+          and proxy.ground_items["0x40000505"]["container"] == pack
+          and [p for _, p in proxy.take()][0] == actions.lift(0x40000505, 1), str(out))
+    proxy.ground_items["0x40000506"] = {"graphic": 0x0EED, "amount": 5, "container": "0x40000503"}
+    code, out = c("act", "drop", "0x40000506", pack, "--human", "off")
+    check("from any other container (user: no container limits; the server decides)",
+          code == 0 and out["from"] == "0x00000009" and out["into"] == "backpack"
+          and [p for _, p in proxy.take()][0] == actions.lift(0x40000506, 5), str(out))
+    proxy.ground_items["0x40000504"]["container"] = bank
+    for args, why in ((("0x40000504", "0x40000504"), "into itself"),
+                      ((bank, "0x40000504"), "into itself"),
+                      (("0x40009998", pack), "not known"),
                       (("0x40000502", "0x40009999"), "not known"),
                       (("0x40000502", pack, "--amount", "7"), "--amount must be 1..6")):
         code, out = c("act", "drop", *args, "--human", "off")

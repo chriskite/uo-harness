@@ -103,8 +103,6 @@ LOOT_RANGE = 2                       # tiles; the server's own limit is similar 
 LOOT_MAX_ITEMS = 25
 GOLD_GRAPHIC = 0x0EED
 LAYER_BANK = 0x1D
-DROP_RANGE = 2                       # tiles to a ground container (secure container)
-LOOP_PATH = os.path.join(HERE, "data", "loops", "lumber.json")   # the rental room's secure container
 # ClassicUO Game/Data/SpellsMagery.cs (ids 1-64); the Outlands client casts with 0xFF sub 4
 # (observed live, session 20260928_164548: ids 5 and 15)
 MAGERY_SPELLS = (
@@ -1148,53 +1146,48 @@ def _in_tree(items: dict, key: str, root: int) -> bool:
     return False
 
 
-def _secure_container() -> int | None:
-    try:
-        with open(LOOP_PATH, encoding="utf-8") as f:
-            return _serial(json.load(f)["room"]["secure_container"]["serial"])
-    except (OSError, ValueError, KeyError):
-        return None
+def _where(items: dict, key: str, me) -> str:
+    """A readable name for where an item or container is: your backpack, your
+    bank box, a corpse, the ground, or another container's serial."""
+    pack, s, depth = _backpack(items, me), _serial(key), 0
+    while s is not None and depth < 10:
+        v = items.get(f"0x{s:08X}") or {}
+        if s == pack:
+            return "backpack"
+        if v.get("layer") == LAYER_BANK:
+            return "bank"
+        if v.get("graphic") == CORPSE_GRAPHIC:
+            return "corpse"
+        c = v.get("container")
+        if c is None:
+            return "ground container" if v.get("x") is not None else f"0x{s:08X}"
+        s, depth = _serial(c), depth + 1
+    return key
 
 
 def _act_drop(a) -> dict:
-    """drop <item serial> <container serial> [--amount N]: move something from
-    your backpack into one of your containers: the backpack or a bag in it,
-    your bank box (open it first: say bank) or a bag in it, or the rental
-    room's secure container (within 2 tiles). 0x07 lift (N of a stack), human
-    pause, 0x08 drop into the container (auto-position), like dragging it in
-    the client. Never someone else's container, never the ground."""
+    """drop <item serial> <container serial> [--amount N]: move an item into a
+    container, from anywhere the world model knows it (your backpack, the open
+    bank box, a chest, a corpse, the ground...) into any container (user
+    decision 2026-09-30: no harness-side container limits; the server decides
+    what you may take or reach). 0x07 lift (N of a stack), human pause, 0x08
+    drop into the container (auto-position), like dragging it in the client."""
     if len(a.args) != 2:
         raise CtlError("drop <item serial> <container serial> [--amount N]")
     item_s, cont_s = _parse_serial(a.args[0]), _parse_serial(a.args[1])
     ikey, ckey = f"0x{item_s:08X}", f"0x{cont_s:08X}"
+    if item_s == cont_s:
+        raise CtlError("can't drop a container into itself")
     ctl, stc = _connect(a)
     try:
         st = stc.state()
         items, me = st["world"]["items"], st["movement"].get("self_serial")
-        pack = _backpack(items, me)
-        if pack is None:
-            raise CtlError("backpack not known to the world model")
         it = items.get(ikey)
-        if it is None or not _in_tree(items, ikey, pack) or item_s == pack:
-            raise CtlError(f"{ikey} isn't an item in your backpack")
+        if it is None:
+            raise CtlError(f"item {ikey} not known to the world model")
         cont = items.get(ckey)
         if cont is None:
             raise CtlError(f"container {ckey} not known to the world model (open it first)")
-        bank = next((_serial(k) for k, v in items.items() if v.get("layer") == LAYER_BANK
-                     and v.get("container") is not None and _serial(v["container"]) == me), None)
-        where = None
-        if _in_tree(items, ckey, pack):
-            where = "backpack"
-        elif bank is not None and _in_tree(items, ckey, bank):
-            where = "bank"
-        elif cont_s == _secure_container():
-            pos = st["movement"]["pos"]
-            if cont.get("x") is None or nav.chebyshev(tuple(pos[:2]), (cont["x"], cont["y"])) > DROP_RANGE:
-                raise CtlError(f"the secure container is out of reach; walk within {DROP_RANGE} tiles first")
-            where = "secure container"
-        if where is None:
-            raise CtlError(f"{ckey} isn't one of your containers (backpack, open bank box or the rental "
-                           "room's secure container)")
         if _in_tree(items, ckey, item_s):
             raise CtlError("can't drop a container into itself")
         have = it.get("amount") or 1
@@ -1202,7 +1195,8 @@ def _act_drop(a) -> dict:
         if not 1 <= amount <= have:
             raise CtlError(f"--amount must be 1..{have}")
         name = item_label(it)
-        stc.intent(f"Putting {amount} {name or ikey} into the {where}", "store")
+        src, where = _where(items, ikey, me), _where(items, ckey, me)
+        stc.intent(f"Moving {amount} {name or ikey} from the {src} to the {where}", "store")
         mark = stc.mark()
         resp = ctl.send(actions.lift(item_s, amount))
         if resp != "OK":
@@ -1226,7 +1220,7 @@ def _act_drop(a) -> dict:
             time.sleep(0.1)
             ok = moved()
         got = stc.wait_events(mark, lambda evs: False, timeout=0.5)
-        out = {"ok": ok, "reply": resp, "moved": ok, "item": name, "amount": amount, "into": where,
+        out = {"ok": ok, "reply": resp, "moved": ok, "item": name, "amount": amount, "from": src, "into": where,
                "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
         if not ok:
             out["error"] = "the world model doesn't show the item moved (check journal/status)"
