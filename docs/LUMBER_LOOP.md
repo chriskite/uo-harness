@@ -1,9 +1,14 @@
 # LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → deed → store in inn room
 
-Status (2026-09-29): **M0 done.** The user's demonstration run (`logs/session_20260929_204225`) is
-mined into `harness/data/loops/lumber.json` and pinned by `harness/test_loop_demo.py`; findings are in
-§12. Open: the storage decision in §12.4. Builds on Phase 4 (docs/PLAN.md). This loop is the Phase 4
-workload: the planner, the skill library, the rails and the captcha handoff all get exercised by it.
+Status (2026-09-29): **M0 done; the loop runner is built and offline-proven; the live proof is next.**
+- M0: the user's demonstration run (`logs/session_20260929_204225`) is mined into
+  `harness/data/loops/lumber.json` and pinned by `harness/test_loop_demo.py`; findings are in §12.
+- Current goal (user decision, §12.4): prove the agent can run the loop minus deed creation on
+  Shelter, then optimize.
+- Runner: `harness/loop_lumber.py`, proven offline by `test_loop_lumber.py` (§13).
+
+Builds on Phase 4 (docs/PLAN.md). This loop is the Phase 4 workload: the planner, the skill
+library, the rails and the captcha handoff all get exercised by it.
 
 ## 1. Goal and hard constraints
 
@@ -240,9 +245,9 @@ signature (ANTICHEAT.md §8.3). Variation is required, not an inefficiency to re
 | # | Deliverable | Done when |
 |---|---|---|
 | M0 ✅ | Demonstration capture (`20260929_204225`) + `loop_mine.py timeline` + `lumber.json` | Done 2026-09-29: §12; `test_loop_demo.py` pins the facts. Still open: Smart Harvest self-target, deed from a 5 000 backpack stack |
-| M1 | Perception: cliloc parsing (built), captcha gump detection, harvest events | Replay of the demonstration yields every harvest outcome and the captcha as events |
-| M2 | Skills, each offline-tested (simulated world like `test_errand.py`), then live one at a time, attended | Each skill passes live on the Test Shard |
-| M3 | Routine runner, full loop | 1 cycle unattended except captcha handoffs; then N cycles across a forced break |
+| M1 (runner-level) | Perception: cliloc parsing, captcha gump detection (gump id + entry + button; decoys ignored), harvest outcomes | Built into `loop_lumber.py`; offline-proven (§13). A reusable perception layer comes with M6 |
+| M2 | Skills: goto with door opening, harvest attempt, convert, enter room, store, exit room; offline in `test_loop_lumber.py`, then live, attended | Offline ✅; live pending |
+| M3 | Routine runner, full loop (no deeds) | Offline ✅ (2 trips); live: 1 trip, captcha handed off, boards stored |
 | M4 | Harvest memory, episode log, report | Report reproduces from the logs; `r`, `T` and regrowth estimates exist |
 | M5 | Bandit + return trigger + reflection | Boards/active-hour improves over a baseline session on the same venue without violating §1 |
 | M6 | LLM planner composes and repairs the routine | Phase 4 done criterion: NL objective → loop run, with the captcha handoff demonstrated |
@@ -373,12 +378,66 @@ Source: `python harness/loop_mine.py timeline 20260929_204225`. Every fact below
 - After the room exit, the 60 s lockout overlaps the walk out. The loop waits only for the rest.
 - `r` on Shelter (~6 logs/min by hand) makes the 5 000 quantum ≈ 14 h of harvesting. [INFERENCE]
 
-### 12.4 Open decision (user): where the stock lives on the Test Shard
-The Test Shard clears rooms daily at 00:00 UTC (§2), and the agent runs ≤ 8 h/day. At the demo
-rate, room stock will never reach a deed on the Test Shard. Options:
-1. Keep the room as specified and treat it as daily scratch storage. The loop is exercised
-   end-to-end; deeds happen only after a faster venue or skill.
-2. Bank the boards instead, and deed from the bank box. Whether the bank survives the Test Shard
-   wipe is [INFERENCE: likely, since only houses and rooms are named]; re-mirrors from live saves
-   can still reset it.
-3. Raise Lumberjacking first (Shelter caps it at 80), so `r` grows before the loop targets deeds.
+### 12.4 Decided (user, 2026-09-29): prove the loop first, no deeds
+The Test Shard clears rooms daily at 00:00 UTC (§2), and the agent runs ≤ 8 h/day, so room stock
+won't reach a deed at the demo rate. Decision: first prove the agent runs the loop minus deed
+creation on Shelter, with the room as daily scratch storage. Efficiency (and with it where the
+stock lives and whether to raise skill first) comes after the proof.
+
+## 13. Runner (`harness/loop_lumber.py`, built 2026-09-29)
+
+Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports, gate-aware
+`act()`) and `Mover` (walking, learned blocks, doors). `errand_bank.py` uses it too.
+
+- **Trip:**
+  1. Harvest the known trees (shuffled; trees depleted in the last `--regrow-min` are skipped).
+  2. Convert every log stack.
+  3. Walk to the innkeeper and say `room`; press Enter (button 4).
+  4. Lift each board stack and drop it into the secure container (auto-position; stacking merges
+     are fine).
+  5. Walk to the door, dclick it, press Exit (button 4).
+
+  If the runner starts inside the room, it stores and exits first.
+- **Harvest attempt:**
+  - dclick the hatchet, wait for the cursor, pause for "aim" time, send `target_xyz` at the
+    tree's (x, y, z, static graphic), wait for the outcome.
+  - Outcomes: success text (gain measured from the backpack count), fail 500495, depleted
+    500488/500493, not-a-tree 500489 (abort: bad knowledge), lockout text (wait the stated
+    seconds), or none (≤ 3, then abort).
+  - The first attempt after a room exit waits out the rest of the 60 s lockout itself.
+- **Captcha:**
+  - The trigger is the gump with lumber.json's id plus text entry 2 and button 594. Decoys never
+    match.
+  - The runner beeps (`winsound`, every 30 s) and waits up to 10 min for the human to answer in
+    the client and for "Captcha successful.". Then it resumes the same attempt.
+  - The runner never sends a gump reply except Enter/Exit on the room menu.
+- **Room menu safety:** the innkeeper/door menu must contain button 7, which only a rented room
+  shows. Otherwise the runner aborts instead of pressing button 4, which would start renting after
+  a Test Shard wipe.
+- **Doors:** a blocked move whose target tile holds a ground item with door art (0x0675–0x06F4;
+  the demo's inn doors 0x06A5/0x06AD/0x06ED/0x06EF and the room door 0x06E5 are in the range)
+  gets one stock open-door request (`12 0005 58 00`), then the move is retried. Plain walls never
+  trigger it.
+- **Guards:** overall timeout, HP loss, movement stall, and the agent gate (pause/break → wait;
+  kill/budget → abort).
+- **Data:**
+  - `harness/data/harvestmem.json`: per tree, attempts/successes/logs/depleted_at
+  - `harness/data/episodes/lumber.jsonl`: one row per trip with phase durations, steps, blocks,
+    doors, captchas and human wait, attempts, successes, logs, stored
+
+Offline proof, `test_loop_lumber.py`: the real proxy plus a simulated Shelter server with the
+demo's packet shapes and texts, and a "human" that answers the captcha through the client
+connection. It runs 2 trips and checks:
+- one real captcha, answered only by the human
+- 16 decoys, none answered
+- the only agent gump replies are 2 room enters and 2 exits
+- all 18 logs end up as boards in the box
+- the dry tree is tried once per trip
+- exactly one open-door request, at the door
+- the post-exit lockout is waited out, with no lockout message provoked
+- the only speech is `room`
+- two episode rows
+
+**Live proof, run by the user or the agent while the user is at the client:**
+`python harness/loop_lumber.py --trips 1`. Only two trees are known (§12.1). A depleted tree is
+skipped for 20 min, so a trip may end with fewer logs; the loop still completes.

@@ -43,9 +43,12 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
    0 proxy-originated server packets. Offline: `test_errand.py`.
 3. **Next: Phase 4 (agent runtime)**, an LLM planner over the state port + action/skill library,
    with safety rails (docs/PLAN.md). First workload: the lumberjack → inn-room loop
-   (docs/LUMBER_LOOP.md). **Waiting on the user:** one-time setup + demonstration run
-   (LUMBER_LOOP.md §10). Then run `loop_mine.py timeline <tag>`, write `lumber.json`, and pin
-   the facts in a replay test.
+   (docs/LUMBER_LOOP.md):
+   - M0 done: the demo `20260929_204225` → `harness/data/loops/lumber.json`, pinned by
+     `harness/test_loop_demo.py`.
+   - Runner `harness/loop_lumber.py` built and offline-proven (`test_loop_lumber.py`).
+   - **Next: the live proof, 1 trip with no deeds, while the user is at the client for the
+     captcha** (LUMBER_LOOP.md §13).
 4. Optional: map-based z for re-anchors (stairs/slopes).
 5. ~~Visualizer~~ **Phase A BUILT (docs/VISUALIZER.md §9)**: read-only `viz_server.py`
    (live on the state port, or an exact offline replay of a capture) plus a React + TSX frontend
@@ -68,6 +71,9 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
   CLI-only; the visualizer offers pause/resume/kill.
 - Bank errand: `python harness/errand_bank.py [--start x,y]`; walk memory refresh:
   `python harness/nav.py build`.
+- Lumber loop (the user must be at the client to solve captchas):
+  `python harness/loop_lumber.py --trips 1`. It beeps on a captcha and waits for the human's
+  answer. Episodes are written to `harness/data/episodes/lumber.jsonl`.
 - Demonstration timeline (offline, read-only): `python harness/loop_mine.py timeline <TAG>
   [--labels]`. Replays `logs/session_<TAG>.*` and prints actions, gumps, menus, cliloc
   messages rendered from Cliloc.enu, and container amount changes.
@@ -79,6 +85,7 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
   `python harness/test_world.py`, `python harness/test_world_replay.py`,
   `python harness/test_actions.py`, `python harness/test_nav.py`, `python harness/test_viz.py`,
   `python harness/test_agent_gate.py`, `python harness/test_loop_demo.py`, `python harness/test_facet.py`,
+  `python test_loop_lumber.py` (~1.5 min),
   `cd viz && bun test && bun run typecheck` (all use private control/state ports; safe while
   the live proxy runs).
 - Push works via SSH alias `github.com-uoharness` (deploy key `~/.ssh/uo_harness_deploy`).

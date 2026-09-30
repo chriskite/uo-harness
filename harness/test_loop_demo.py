@@ -16,7 +16,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import loop_mine  # noqa: E402
+from uo.gumps import parse_layout  # noqa: E402
 import viz_feed  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -74,7 +74,7 @@ def main():
     gumps = [(t, e) for t, e in evs if e["ev"] == "gump_open"]
     real = [(t, e) for t, e in gumps if e["gump_id"] == h(cap["gump_id"])]
     check("real captcha gump seen", len(real) >= 1)
-    lay = loop_mine.parse_gump_layout(real[0][1]["layout"]) if real else {}
+    lay = parse_layout(real[0][1]["layout"]) if real else {}
     check("real captcha: answer entry + submit button",
           lay.get("entries") == [cap["answer_entry_id"]] and lay.get("buttons")[-1:] == [cap["submit_button"]],
           repr(lay))
@@ -86,7 +86,7 @@ def main():
     decoys = [e for _, e in gumps if e["lines"][:1] == ["Captcha"] and e["gump_id"] != h(cap["gump_id"])]
     check("decoy Captcha gumps opened on harvest attempts", len(decoys) >= 10, str(len(decoys)))
     check("decoys have no reply buttons",
-          all(loop_mine.parse_gump_layout(e["layout"])["buttons"] == [] for e in decoys))
+          all(parse_layout(e["layout"])["buttons"] == [] for e in decoys))
     check("decoys draw their text offscreen",
           all(re.search(r"croppedtext -\d+ -\d+", e["layout"]) for e in decoys))
     check("decoy gump ids are all different", len({e["gump_id"] for e in decoys}) == len(decoys))

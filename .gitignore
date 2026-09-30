@@ -24,6 +24,7 @@ logs/
 logs_test/
 logs_test_actions/
 logs_test_errand/
+logs_test_loop/
 settings.json*
 handle.exe
 screen.png

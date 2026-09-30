@@ -20,100 +20,29 @@ stall, hit-point loss, or an assistant-restriction system message
 Run:  python harness/errand_bank.py [--start 1963,2597] [--range 8]
 """
 import argparse
-import json
-import random
-import socket
 import sys
 import time
 
 sys.path.insert(0, r"C:/Users/chris/uo-harness/harness")
 import actions  # noqa: E402
 import nav  # noqa: E402
+from agent_link import Abort, Link, Mover, cheb, log, pace, serial_of  # noqa: E402
 
-HOST = "127.0.0.1"
 MEMORY_PATH = r"C:/Users/chris/uo-harness/harness/data/walkmem.json"
 BANKBOX_LAYER = 0x1D
 HUMAN_BODIES = (0x190, 0x191)
 GATING_WORDS = ("razor", "assistant", "macro", "script")
 
 
-class Abort(Exception):
-    pass
-
-
-def log(msg: str):
-    print(time.strftime("%H:%M:%S"), msg, flush=True)
-
-
-def cheb(a, b) -> int:
-    return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
-
-
-def pace(lo: float, hi: float):
-    time.sleep(random.uniform(lo, hi))
-
-
-def _serial(v) -> int:
-    return int(v, 16) if isinstance(v, str) else int(v)
-
-
-class Link:
-    """Control-port actions + state-port feedback, with an event cursor."""
-
-    def __init__(self, control_port: int, state_port: int):
-        self.ctl = socket.create_connection((HOST, control_port), timeout=10)
-        self.st = socket.create_connection((HOST, state_port), timeout=10)
-        self.st_file = self.st.makefile("rb")
-        self.since = 0
-        self.events = []
-        self.last = None
-
-    def send(self, pkt: bytes) -> str:
-        self.ctl.sendall(len(pkt).to_bytes(2, "big") + pkt)
-        n = int.from_bytes(self._recv(self.ctl, 2), "big")
-        return self._recv(self.ctl, n).decode()
-
-    @staticmethod
-    def _recv(sock, n: int) -> bytes:
-        buf = b""
-        while len(buf) < n:
-            chunk = sock.recv(n - len(buf))
-            if not chunk:
-                raise Abort("proxy closed the control connection")
-            buf += chunk
-        return buf
-
-    def state(self) -> dict:
-        self.st.sendall((json.dumps({"op": "state", "since": self.since}) + "\n").encode())
-        resp = json.loads(self.st_file.readline())
-        if not resp.get("ok"):
-            raise Abort(f"state port: {resp.get('error')}")
-        self.events.extend(env["data"] for env in resp["events"] if env["origin"] == "world")
-        self.since = resp["next"]
-        self.last = resp
-        return resp
-
-    def wait(self, pred, timeout: float, poll: float = 0.1):
-        end = time.monotonic() + timeout
-        while True:
-            st = self.state()
-            if pred(st):
-                return st
-            if time.monotonic() > end:
-                return None
-            time.sleep(poll)
-
-
 class Errand:
     def __init__(self, link: Link, memory: nav.WalkMemory, args):
         self.link = link
-        self.mem = memory
         self.args = args
         self.deadline = time.monotonic() + args.timeout
         self.start_hits = None
-        self.blocked_count = 0
-        self.steps = 0
         self.heard_upto = 0
+        self.mover = Mover(link, memory, pace_s=args.pace, max_blocked=args.max_blocked,
+                           guard=self.check_guards)
 
     # ---- guards ----
     def check_guards(self, st: dict):
@@ -137,92 +66,7 @@ class Errand:
         self.heard_upto = len(self.link.events)
 
     def pos(self, st=None):
-        st = st or self.link.state()
-        p = st["movement"]["pos"]
-        if p is None:
-            raise Abort("player position unknown (no login/anchor seen by the proxy)")
-        return p
-
-    # ---- walking ----
-    def step(self, d: int, run: bool = True) -> str:
-        """Send one walk; wait for its outcome. Returns 'moved', 'turned' or 'blocked'."""
-        st = self.link.state()
-        before = self.pos(st)
-        pkt = actions.walk(d, run=run)
-        for _ in range(40):  # retry pacing / resync-reply gates
-            resp = self.link.send(pkt)
-            if resp == "OK":
-                break
-            if resp.startswith("ERR walk gated: pacing") or resp.startswith("ERR walk gated: awaiting"):
-                time.sleep(0.1)
-                continue
-            raise Abort(f"walk refused: {resp}")
-        else:
-            raise Abort("walk gated too long")
-        st = self.link.wait(lambda s: s["movement"]["inflight"] == 0, timeout=3.0, poll=0.05)
-        if st is None:
-            raise Abort("walk outcome never arrived")
-        self.check_guards(st)
-        after = self.pos(st)
-        if after[:2] != before[:2]:
-            self.steps += 1
-            return "moved"
-        if after[3] != before[3]:
-            return "turned"
-        return "blocked"
-
-    def occupied(self, st=None) -> set:
-        """Tiles currently occupied by other mobiles (cannot be walked through)."""
-        st = st or self.link.state()
-        me = st["movement"]["self_serial"]
-        return {(m["x"], m["y"]) for key, m in st["world"]["mobiles"].items()
-                if m.get("x") is not None and _serial(key) != me}
-
-    def walk_to(self, center_fn, radius: int, label: str, max_moves: int = 150):
-        """Walk until within `radius` (Chebyshev) of center_fn(), re-evaluated
-        on every replan (the banker may wander)."""
-        replans = 0
-        while True:
-            st = self.link.state()
-            cur = tuple(self.pos(st)[:2])
-            goal = nav.within(tuple(center_fn()), radius)
-            if goal(cur):
-                log(f"{label}: arrived at {cur}")
-                return
-            path = nav.plan(self.mem, cur, goal, extra_blocked=self.occupied(st) - {cur})
-            if path is None:
-                raise Abort(f"{label}: no route from {cur}")
-            log(f"{label}: route {len(path) - 1} steps from {cur}")
-            for nxt in path[1:]:
-                cur = tuple(self.pos()[:2])
-                d = nav.direction(cur, nxt)
-                outcome = self.step(d)
-                if outcome == "turned":
-                    pace(*self.args.pace)
-                    outcome = self.step(d)
-                if outcome == "moved":
-                    new = tuple(self.pos()[:2])
-                    self.mem.add_step(cur, new)
-                    if new != nxt:
-                        log(f"{label}: landed on {new}, expected {nxt}; replanning")
-                        break
-                    if self.steps > max_moves:
-                        raise Abort(f"{label}: exceeded {max_moves} moves")
-                    pace(*self.args.pace)
-                    continue
-                self.blocked_count += 1
-                if nxt in self.occupied():
-                    log(f"{label}: {nxt} occupied by a mobile; replanning")
-                else:
-                    self.mem.add_blocked(cur, d)
-                    log(f"{label}: move {d} from {cur} blocked ({self.blocked_count} total); replanning")
-                if self.blocked_count > self.args.max_blocked:
-                    raise Abort(f"too many blocked moves ({self.blocked_count})")
-                pace(0.6, 1.2)
-                break
-            replans += 1
-            if replans > 30:
-                raise Abort(f"{label}: too many replans")
+        return self.link.pos(st)
 
     def look_at(self, serial: int, known_name: bool):
         """Single-click an entity exactly like the stock client: 0x09, then
@@ -244,7 +88,7 @@ class Errand:
         for key, m in mobiles.items():
             if m.get("x") is None or m.get("graphic") not in HUMAN_BODIES:
                 continue
-            serial = _serial(key)
+            serial = serial_of(key)
             if serial == st["movement"]["self_serial"]:
                 continue
             dist = cheb(me, (m["x"], m["y"]))
@@ -275,7 +119,7 @@ class Errand:
         for key, text in world.get("labels", {}).items():
             m = world["mobiles"].get(key)
             if "the banker" in text.lower() and m and m.get("x") is not None:
-                return _serial(key), text, (m["x"], m["y"])
+                return serial_of(key), text, (m["x"], m["y"])
         return None
 
     def banker_pos(self, serial: int, fallback):
@@ -301,10 +145,10 @@ class Errand:
         for ev in self.link.events[since_idx:]:
             if ev.get("ev") != "container_open":
                 continue
-            serial = _serial(ev["serial"])
+            serial = serial_of(ev["serial"])
             it = items.get(f"0x{serial:08X}") or {}
             parent = it.get("container")
-            if it.get("layer") == BANKBOX_LAYER and parent is not None and _serial(parent) == self_serial:
+            if it.get("layer") == BANKBOX_LAYER and parent is not None and serial_of(parent) == self_serial:
                 return serial
         return None
 
@@ -318,20 +162,20 @@ class Errand:
         pace(1.0, 2.5)
         if self.args.start:
             target = self.args.start
-            self.walk_to(lambda: target, 0, "to start")
+            self.mover.walk_to(lambda: target, 0, "to start")
         home = tuple(self.pos()[:2])
         log(f"errand start at {home}")
         serial, label, bpos = self.find_banker()
         log(f"banker: {label} at {bpos}")
-        self.walk_to(lambda: self.banker_pos(serial, bpos), self.args.range, "to bank")
+        self.mover.walk_to(lambda: self.banker_pos(serial, bpos), self.args.range, "to bank")
         box = self.open_bank()
         log(f"bank box opened (0x{box:08X})")
         pace(1.5, 3.0)
-        self.walk_to(lambda: home, 0, "home")
+        self.mover.walk_to(lambda: home, 0, "home")
         final = tuple(self.pos()[:2])
         if final != home:
             raise Abort(f"ended at {final}, not {home}")
-        log(f"errand complete: back at {home}; {self.steps} moves, {self.blocked_count} blocked")
+        log(f"errand complete: back at {home}; {self.mover.steps} moves, {self.mover.blocked_count} blocked")
 
 
 def main():

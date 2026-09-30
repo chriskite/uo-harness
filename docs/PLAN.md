@@ -105,7 +105,7 @@ LLM planner over the world model + skill library; safety rails: captcha human-ha
     - 60 s lockout after the room exit confirmed
     - real captcha gump `0x00000001`, plus decoy "Captcha" gumps (ANTICHEAT.md §8.13)
 
-    Open user decision: where the stock lives, given the Test Shard's daily room wipe (§12.4).
+    User decision 2026-09-29: prove the loop live first (no deeds, room as daily scratch storage), then optimize. The runner `harness/loop_lumber.py` is offline-proven by `test_loop_lumber.py` (LUMBER_LOOP.md §13); the live proof is next.
 
 ### Phase 5 (optional) — Production copilot
 Rules-compliant live mode: agent generates Razor scripts into `Data/Plugins/Assistant/Scripts/`; human reviews and runs them manually. No autonomy, no data extraction. Only phase allowed to touch the production shard, and only as a file generator.

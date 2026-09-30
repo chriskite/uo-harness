@@ -27,7 +27,6 @@ Reads captures and Cliloc.enu only; sends nothing anywhere.
 import argparse
 import collections
 import os
-import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -35,6 +34,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import viz_feed  # noqa: E402
 from nav import DIR_DELTA  # noqa: E402
 from uo import cliloc  # noqa: E402
+from uo.gumps import parse_layout  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHUNK = 50               # replay items applied between event drains
@@ -43,32 +43,6 @@ LAYER_BANK = 0x1D
 # world events that carry no player-level information for the timeline
 SKIP = {"keepalive", "query", "item_query", "names", "item_seen", "animation",
         "walk", "container_content", "census", "dialect_handshake"}
-_GUMP_ENTRY = re.compile(r"\{\s*([a-z]+)([^}]*)\}", re.I)
-
-
-def _ints(s):
-    return [int(x) for x in re.findall(r"-?\d+", s)]
-
-
-def parse_gump_layout(layout: str) -> dict:
-    """Reply buttons, text entries, text-line refs and cliloc numbers of a
-    gump layout string (UO gump command syntax)."""
-    out = {"buttons": [], "entries": [], "line_refs": [], "clilocs": []}
-    for cmd, rest in _GUMP_ENTRY.findall(layout or ""):
-        cmd, n = cmd.lower(), _ints(rest)
-        if cmd in ("button", "buttontileart") and len(n) >= 7 and n[4] == 1:
-            out["buttons"].append(n[6])          # x y up down quit=1 page id
-        elif cmd in ("textentry", "textentrylimited") and len(n) >= 6:
-            out["entries"].append(n[5])          # x y w h hue id ...
-        elif cmd in ("text", "croppedtext") and n:
-            out["line_refs"].append(n[-1])
-        elif cmd in ("htmlgump",) and len(n) >= 5:
-            out["line_refs"].append(n[4])
-        elif cmd.startswith("xmfhtml") and len(n) >= 5:
-            out["clilocs"].append(n[4])          # x y w h cliloc ...
-        elif cmd == "tooltip" and n:
-            out["clilocs"].append(n[0])
-    return out
 
 
 class Timeline:
@@ -286,7 +260,7 @@ class Timeline:
         return self.emit(t, f"{ev} {fields}")
 
     def _gump(self, t, d):
-        g = parse_gump_layout(d.get("layout", ""))
+        g = parse_layout(d.get("layout", ""))
         lines = d.get("lines") or []
         texts = list(dict.fromkeys(lines[i] for i in g["line_refs"] if 0 <= i < len(lines)))
         clis = [cliloc.translate(self.table, n) if self.table else f"#{n}"
