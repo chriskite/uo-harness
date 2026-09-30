@@ -232,8 +232,9 @@ Test Shard's public shelves or one of our own in the rental room.
 - **Player editor statues** (the overseer, live): besides skills and stats, a "Player Testing"
   page (gump 0xB04DBB14, statue 0x40042777) offers buttons Maximum Wealth (100), Storage Shelf
   (Filled) (101), Resource Stockpile (Filled) (102), All Tomes (103), Complete All Codexes (104)
-  and Level All Aspects (105). `[INFERENCE]` These give the character those items or states. Not
-  pressed yet; the user decides.
+  and Level All Aspects (105). `[INFERENCE]` These give the character those items or states.
+  **User decision (2026-09-30): the overseer may use them on its own** (`harness/data/policy.json`
+  `test_shard_resources`).
 - **Runebook:** crafted with Inscription ([Runebook](https://wiki.uooutlands.com/Runebook)). It
   needs arcane scrolls, which are loot-only on live
   ([Arcane Scroll](https://wiki.uooutlands.com/Arcane_Scroll)). `[INFERENCE]` On the Test Shard
