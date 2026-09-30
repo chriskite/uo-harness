@@ -382,6 +382,10 @@ def test_run_act(proxy):
         check("the task gets the user args first", any("['a', 'b']" in ln for ln in d["tail"]), str(d["tail"]))
     check("finished task leaves the running list", wait_for(lambda: meta(db, tw.TASKS_KEY) == "[]", 5) is not None,
           str(meta(db, tw.TASKS_KEY)))
+    if j:
+        code, w = c("wait", "--timeout", "3", "--poll", "0.1")
+        check("a finished task wakes a plain `wait` (no --include-info; live 2026-09-30 regression)",
+              (w.get("event") or {}).get("id") == j["id"], str(w))
 
     code, out = c("run", "fail")
     j = task_juncture(db, out.get("task_id"))

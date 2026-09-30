@@ -403,11 +403,17 @@ def cmd_stop(a, mem):
     return {"ok": True, "task_id": tid, "forced": True, "juncture": _task_juncture(mem, tid)}
 
 
+# A task's end always wakes `wait`, whatever its severity: it answers the
+# overseer's own `run` (task_done is `info`; live 2026-09-30 the overseer sat in
+# `wait` after its trip had finished).
+ALWAYS_WAKE = ("task_done", "task_failed")
+
+
 def _open_junctures(mem, after_id, min_rank, limit):
     sev = [s for s, r in SEVERITY_RANK.items() if r >= min_rank]
-    q = ("SELECT id FROM junctures WHERE id > ? AND acked_t IS NULL AND severity IN (%s) "
-         "ORDER BY id LIMIT ?" % ",".join("?" * len(sev)))
-    ids = [r[0] for r in mem.con.execute(q, (after_id, *sev, limit))]
+    q = ("SELECT id FROM junctures WHERE id > ? AND acked_t IS NULL AND (severity IN (%s) OR kind IN (%s)) "
+         "ORDER BY id LIMIT ?" % (",".join("?" * len(sev)), ",".join("?" * len(ALWAYS_WAKE))))
+    ids = [r[0] for r in mem.con.execute(q, (after_id, *sev, *ALWAYS_WAKE, limit))]
     return [mem.junctures(after_id=i - 1, limit=1)[0] for i in ids]
 
 

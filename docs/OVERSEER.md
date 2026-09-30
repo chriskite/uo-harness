@@ -113,8 +113,10 @@ is sent). Extending it is a user decision.
 
 ## 3. Juncture vocabulary
 
-`junctures(source, kind, severity, summary, data)`. `wait` wakes on `attention` and `urgent`;
-`info` rows are history (visible with `ctl junctures`, or `wait --include-info`).
+`junctures(source, kind, severity, summary, data)`. `wait` wakes on `attention` and `urgent`, and
+**always on `task_done`/`task_failed`**, since they answer the overseer's own `run`. In the first
+live session (2026-09-30), `task_done` (`info`) didn't wake `wait` and the overseer sat idle after
+its trip. Other `info` rows are history (`ctl junctures`, or `wait --include-info`).
 
 | Kind | Severity | Posted by | Meaning / `data` |
 |---|---|---|---|
