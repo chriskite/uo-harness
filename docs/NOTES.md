@@ -68,6 +68,12 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
     anchor.
   - Facets without map data (rental rooms, facet 3) keep the anchor-only z.
   - `--no-map-z` turns it off.
+- **The server auto-retaliates (live 2026-09-30, New Player Dungeon):** when monsters (mongbats)
+  attacked TestWorth, it fought back and killed them with war mode off. In the 10 minutes before,
+  no C2S attack (0x05) or war-mode (0x72) packet came from the agent or the client (session
+  20260930 after 10:02, proxy jsonl). So "never attack" means never *initiate*; auto-defence is
+  server-side and normal for any player. It also means weak monsters won't kill a standing
+  character (death demo).
 - **Shelter has a cave/cellar level at z −20** under the inn and the forest west of it
   (`cave floor` statics 0x053B–0x053F under land at z 5). Harvest and vendor ranges are
   accepted across it (2D) `[INFERENCE]`. Goals must be height-aware (LUMBER_LOOP.md §13,
