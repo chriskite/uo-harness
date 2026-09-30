@@ -89,7 +89,8 @@ LAYER_NAMES = {1: "one_handed", 2: "two_handed", 3: "shoes", 4: "pants", 5: "shi
 NOTORIETY = {1: "innocent", 2: "ally", 3: "attackable", 4: "criminal", 5: "enemy",
              6: "murderer", 7: "invulnerable"}
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
-        "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot")
+        "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot",
+        "target", "cast", "buy")
 # Combat (user decision 2026-09-30): hostile monsters may be fought and looted; players never
 # (Test Shard CoC, ANTICHEAT.md §8.17). Notoriety 3-6 is attackable without a criminal flag;
 # 1 (innocent: players' pets) and 2 (ally) are criminal to attack, 7 is invulnerable.
@@ -99,6 +100,23 @@ CORPSE_GRAPHIC = 0x2006
 LOOT_RANGE = 2                       # tiles; the server's own limit is similar [INFERENCE]
 LOOT_MAX_ITEMS = 25
 GOLD_GRAPHIC = 0x0EED
+# ClassicUO Game/Data/SpellsMagery.cs (ids 1-64); the Outlands client casts with 0xFF sub 4
+# (observed live, session 20260928_164548: ids 5 and 15)
+MAGERY_SPELLS = (
+    "Clumsy", "Create Food", "Feeblemind", "Heal", "Magic Arrow", "Night Sight", "Reactive Armor", "Weaken",
+    "Agility", "Cunning", "Cure", "Harm", "Magic Trap", "Magic Untrap", "Protection", "Strength",
+    "Bless", "Fireball", "Magic Lock", "Poison", "Telekinesis", "Teleport", "Unlock", "Wall of Stone",
+    "Arch Cure", "Arch Protection", "Curse", "Fire Field", "Greater Heal", "Lightning", "Mana Drain", "Recall",
+    "Blade Spirits", "Dispel Field", "Incognito", "Magic Reflection", "Mind Blast", "Paralyze", "Poison Field",
+    "Summon Creature", "Dispel", "Energy Bolt", "Explosion", "Invisibility", "Mark", "Mass Curse",
+    "Paralyze Field", "Reveal", "Chain Lightning", "Energy Field", "Flamestrike", "Gate Travel", "Mana Vampire",
+    "Mass Dispel", "Meteor Swarm", "Polymorph", "Earthquake", "Energy Vortex", "Resurrection", "Air Elemental",
+    "Summon Daemon", "Earth Elemental", "Fire Elemental", "Water Elemental")
+CAST_CURSOR_WAIT_S = 4.0             # a spell's target cursor comes after its cast delay
+BUY_CLILOC = 3006103                 # context menu "Buy"
+VENDOR_RANGE = 12                    # 13 tiles got "too far away" live (docs/LUMBER_LOOP.md §13)
+SORTED_BUY_CONTAINER = 0x2AF8        # ClassicUO BuyList: this container sorts by x; others map reversed
+POLICY_PATH = os.path.join(HERE, "data", "policy.json")
 CAPTCHA_GUMP_ID = 0x00000001          # lumber.json captcha.gump_id; human-only
 RENOUNCE_WORDS = ("renounce",)        # Young renounce prompt (clilocs 502085/3006307): close only
 GOTO_MAX_MOVES = 400
@@ -338,6 +356,7 @@ def summarize(resp: dict) -> dict:
         "hits": hp("hits", "hits_max"), "stam": hp("stam", "stam_max"), "mana": hp("mana", "mana_max"),
         "weight": me.get("weight"), "gold": me.get("gold"), "warmode": me.get("warmode"),
         "equipment": dict(sorted(equipment.items())),
+        "skills": _skills(me),
         "movement": {k: mv.get(k) for k in ("inflight", "stalled", "resync_pending", "client_stale")},
         "gate": resp.get("gate"),
         "intent": resp.get("intent"), "intents": (resp.get("intents") or [])[-5:],
@@ -347,6 +366,25 @@ def summarize(resp: dict) -> dict:
         "gumps_open": gumps,
         "ground_items": ground[:GROUND_MAX],
     }
+
+
+def _skills(me: dict) -> dict:
+    """{skill name: value} for skills above 0 (the server sends tenths). Names
+    from the server's own list if this session got one, else from the
+    client's skills.mul (uomap.skill_names; install dir, read-only)."""
+    names = me.get("skill_names") or []
+    if not names:
+        try:
+            import uomap
+            names = uomap.skill_names()
+        except OSError:
+            names = []
+    out = {}
+    for sid, sk in (me.get("skills") or {}).items():
+        if sk.get("value"):
+            i = int(sid)
+            out[names[i] if i < len(names) else f"skill #{i}"] = sk["value"] / 10
+    return dict(sorted(out.items(), key=lambda kv: -kv[1]))
 
 
 def _tile_name(graphic):
@@ -610,6 +648,12 @@ def _act(a, mem) -> dict:
         return _act_combat(a)
     if a.name == "loot":
         return _act_loot(a)
+    if a.name == "target":
+        return _act_target(a)
+    if a.name == "cast":
+        return _act_cast(a)
+    if a.name == "buy":
+        return _act_buy(a, mem)
     pkt = None
     if a.name == "say":
         text = " ".join(a.args).strip().lower()
@@ -732,20 +776,15 @@ def _act_combat(a) -> dict:
             raise CtlError("attack <mobile serial>")
         serial = _parse_serial(a.args[0])
         key = f"0x{serial:08X}"
-        mob = world["mobiles"].get(key)
-        if mob is None or mob.get("x") is None:
-            raise CtlError(f"mobile {key} not known to the world model")
         if serial == _serial(me.get("serial")):
             raise CtlError("that is you")
+        ok, why = _attackable(world, key)
+        if not ok:
+            raise CtlError(why)
+        mob = world["mobiles"][key]
         label = (world.get("labels") or {}).get(key)
-        kind, player, evidence = threats.identify(mob, label)
+        kind, _player, _ev = threats.identify(mob, label)
         noto = mob.get("notoriety")
-        if kind != "monster" or player:
-            raise CtlError(f"{key} ({label or mob.get('name')}) is not a hostile monster ({kind}; "
-                           f"{', '.join(evidence)}): only monsters may be attacked, never players or NPCs")
-        if noto not in ATTACKABLE_NOTORIETY:
-            raise CtlError(f"{key} has notoriety {noto} ({NOTORIETY.get(noto, '?')}): likely someone's "
-                           f"pet or a protected creature; attacking it is a criminal act")
         hits, hits_max = me.get("hits"), me.get("hits_max")
         if hits is not None and hits_max and hits < ATTACK_MIN_HP * hits_max:
             raise CtlError(f"hits {hits}/{hits_max} are below {ATTACK_MIN_HP:.0%}: heal or get away first")
@@ -834,7 +873,8 @@ def _act_loot(a) -> dict:
             moved = False
             while time.monotonic() < end and not moved:
                 v = stc.state()["world"]["items"].get(k)
-                moved = v is not None and v.get("container") is not None and _serial(v["container"]) == pack
+                # a stack dropped onto a pile of the same kind (gold) merges: the lifted serial is deleted
+                moved = v is None or (v.get("container") is not None and _serial(v["container"]) == pack)
                 if not moved:
                     time.sleep(0.1)
             row = {"serial": k, "graphic": None if it.get("graphic") is None else f"0x{it['graphic']:04X}",
@@ -853,6 +893,237 @@ def _act_loot(a) -> dict:
                               f"({NOTORIETY.get(noto_after, '?')}) after looting")
         if failed:
             out["error"] = "some items didn't move (check journal/status; one may be on the cursor)"
+        return out
+    finally:
+        ctl.close()
+        stc.close()
+
+
+def _attackable(world: dict, key: str) -> tuple[bool, str]:
+    """(ok, why not): the monsters-only rule shared by attack and target."""
+    import threats
+    mob = world["mobiles"].get(key)
+    if mob is None or mob.get("x") is None:
+        return False, f"mobile {key} not known to the world model"
+    label = (world.get("labels") or {}).get(key)
+    kind, player, evidence = threats.identify(mob, label)
+    if kind != "monster" or player:
+        return False, (f"{key} ({label or mob.get('name')}) is not a hostile monster ({kind}; "
+                       f"{', '.join(evidence)}): only monsters, never players or NPCs")
+    noto = mob.get("notoriety")
+    if noto not in ATTACKABLE_NOTORIETY:
+        return False, (f"{key} has notoriety {noto} ({NOTORIETY.get(noto, '?')}): likely someone's pet or a "
+                       f"protected creature")
+    return True, ""
+
+
+def _act_target(a) -> dict:
+    """target self | target <serial>: answer the target cursor that is up now
+    (after a spell or using a bandage/potion) with 0x6C on an entity. Allowed
+    targets: yourself, a hostile monster (same rule as attack), or an item in
+    your backpack. Never a player, their pet or an NPC."""
+    if len(a.args) != 1:
+        raise CtlError("target self | target <serial>")
+    ctl, stc = _connect(a)
+    try:
+        st = stc.state()
+        world = st["world"]
+        cur = world.get("target") or {}
+        if not cur.get("active") or cur.get("cursor_id") is None:
+            raise CtlError("no target cursor is up (cast or use something first)")
+        me_serial = st["movement"].get("self_serial")
+        if a.args[0].lower() == "self":
+            pos = st["movement"]["pos"]
+            serial, x, y, z = me_serial, pos[0], pos[1], pos[2]
+            graphic = world["self"].get("body") or 0
+            what = "yourself"
+        else:
+            serial = _parse_serial(a.args[0])
+            key = f"0x{serial:08X}"
+            if serial == me_serial:
+                raise CtlError("use `target self`")
+            it = world["items"].get(key)
+            if it is not None:
+                pack = _backpack(world["items"], me_serial)
+                c, depth = it.get("container"), 0
+                while c is not None and _serial(c) != pack and depth < 8:
+                    c, depth = (world["items"].get(f"0x{_serial(c):08X}") or {}).get("container"), depth + 1
+                if pack is None or c is None or _serial(c) != pack:
+                    raise CtlError(f"{key} isn't in your backpack")
+                # the client sends a contained item's container-local x/y and z (actions.target_object)
+                x, y, z = it.get("x") or 0, it.get("y") or 0, it.get("z") or 0
+                graphic, what = it.get("graphic") or 0, it.get("name") or _tile_name(it.get("graphic"))
+            else:
+                ok, why = _attackable(world, key)
+                if not ok:
+                    raise CtlError(why)
+                m = world["mobiles"][key]
+                x, y, z, graphic = m["x"], m["y"], m.get("z") or 0, m.get("graphic") or 0
+                what = (world.get("labels") or {}).get(key) or m.get("name")
+        mark = stc.mark()
+        resp = ctl.send(actions.target_object(cur["cursor_id"], serial, x, y, z, graphic,
+                                              cur.get("cursor_type") or 0))
+        got = stc.wait_events(mark, lambda evs: False, timeout=1.5)
+        return {"ok": resp == "OK", "reply": resp, "targeted": what,
+                "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
+    finally:
+        ctl.close()
+        stc.close()
+
+
+def spell_id(text: str) -> int:
+    """A Magery spell by number (1-64) or name (case and spacing ignored)."""
+    t = text.strip()
+    if t.isdigit() and 1 <= int(t) <= len(MAGERY_SPELLS):
+        return int(t)
+    key = "".join(t.lower().split()).replace("_", "")
+    for i, name in enumerate(MAGERY_SPELLS, 1):
+        if "".join(name.lower().split()) == key:
+            return i
+    raise CtlError(f"unknown spell {text!r}; Magery spells: {', '.join(MAGERY_SPELLS)}")
+
+
+def _act_cast(a) -> dict:
+    """cast <spell name or 1-64>: the Outlands client's cast request (0xFF sub
+    4). Waits for the spell's target cursor, if it has one; answer it with
+    `target self|<serial>`."""
+    if not a.args:
+        raise CtlError("cast <spell name or number>")
+    sid = spell_id(" ".join(a.args))
+    ctl, stc = _connect(a)
+    try:
+        mark = stc.mark()
+        resp = ctl.send(actions.cast_spell(sid))
+        if resp != "OK":
+            return {"ok": False, "reply": resp}
+        got = stc.wait_events(mark, lambda evs: any(e.get("ev") in ("target", "cliloc") for e in evs),
+                              timeout=CAST_CURSOR_WAIT_S)
+        cur = stc.state()["world"].get("target") or {}
+        return {"ok": True, "reply": resp, "spell": MAGERY_SPELLS[sid - 1], "spell_id": sid,
+                "cursor": bool(cur.get("active")), "target_type": cur.get("cursor_type"),
+                "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
+    finally:
+        ctl.close()
+        stc.close()
+
+
+def _spent_today(mem) -> int:
+    lt = time.localtime()
+    midnight = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1))
+    return sum(int(e["data"].get("total") or 0) for e in mem.job_events("gold", since=midnight)
+               if e["kind"] == "spend")
+
+
+def _daily_cap() -> int | None:
+    try:
+        with open(POLICY_PATH, encoding="utf-8") as f:
+            gold = json.load(f).get("gold") or {}
+    except (OSError, ValueError):
+        return None
+    return gold.get("daily_cap_gp") if gold.get("may_spend") else 0
+
+
+def _act_buy(a, mem) -> dict:
+    """buy <vendor serial> [ITEM WORDS…] [--amount N]: opens the vendor's Buy
+    list through the context menu (like the stock client) and, when an item
+    is named, sends the 0x3B buy request for it, checking your gold and the
+    policy's daily cap (harness/data/policy.json, spends recorded as job
+    events `gold/spend`). Without an item it only returns the price list.
+    The price list maps to the vendor container's items in reverse order
+    (ClassicUO BuyList; pinned by the capture 20260928_164548 purchase)."""
+    if not a.args:
+        raise CtlError("buy <vendor serial> [item words...] [--amount N]")
+    vendor = _parse_serial(a.args[0])
+    vkey = f"0x{vendor:08X}"
+    want = " ".join(a.args[1:]).strip().lower()
+    amount = a.amount or 1
+    if amount < 1:
+        raise CtlError("--amount must be >= 1")
+    ctl, stc = _connect(a)
+    try:
+        st = stc.state()
+        world, pos = st["world"], st["movement"]["pos"]
+        mob = world["mobiles"].get(vkey)
+        if mob is None or mob.get("x") is None:
+            raise CtlError(f"vendor {vkey} not known to the world model")
+        dist = nav.chebyshev(tuple(pos[:2]), (mob["x"], mob["y"]))
+        if dist > VENDOR_RANGE:
+            raise CtlError(f"the vendor is {dist} tiles away; get within {VENDOR_RANGE} (goto {vkey})")
+        human = Human(a.human, seed=a.seed)
+        mark = stc.mark()
+        if ctl.send(actions.request_popup(vendor)) != "OK":
+            raise CtlError("context menu request refused")
+        evs = stc.wait_events(mark, lambda e: any(x.get("ev") == "popup" for x in e))
+        menu = next((e for e in evs if e.get("ev") == "popup" and _serial(e.get("serial")) == vendor), None)
+        entry = next((x for x in (menu or {}).get("entries") or [] if x.get("cliloc") == BUY_CLILOC), None)
+        if entry is None:
+            raise CtlError("no Buy entry in the vendor's context menu")
+        human.wait("menu")
+        mark = stc.mark()
+        if ctl.send(actions.popup_selection(vendor, entry["index"])) != "OK":
+            raise CtlError("menu selection refused")
+        evs = stc.wait_events(mark, lambda e: any(x.get("ev") == "buy_list" for x in e))
+        bl = next((e for e in evs if e.get("ev") == "buy_list"), None)
+        if bl is None:
+            raise CtlError("the vendor sent no price list")
+        items = stc.state()["world"]["items"]
+        cont = _serial(bl["container"])
+        inside = [(k, v) for k, v in items.items()
+                  if v.get("container") is not None and _serial(v["container"]) == cont]
+        cinfo = items.get(f"0x{cont:08X}") or {}
+        if cinfo.get("graphic") == SORTED_BUY_CONTAINER:
+            inside.sort(key=lambda kv: kv[1].get("x") or 0)
+        else:
+            inside.reverse()
+        offers = []
+        for i, row in enumerate(bl.get("items") or []):
+            k, v = inside[i] if i < len(inside) else (None, {})
+            offers.append({"name": item_name(row.get("name")), "price": row.get("price"), "serial": k,
+                           "stock": v.get("amount"), "graphic": None if v.get("graphic") is None
+                           else f"0x{v['graphic']:04X}"})
+        if not want:
+            return {"ok": True, "vendor": vkey, "list": offers,
+                    "note": "nothing bought; the shop window stays open for the user to close"}
+        hits = [o for o in offers if o["serial"] and all(w in o["name"].lower() for w in want.split())]
+        exact = [o for o in hits if o["name"].lower() == want]
+        if not hits:
+            raise CtlError(f"no {want!r} in the list: {[o['name'] for o in offers]}")
+        if len(hits) > 1 and len(exact) != 1:
+            raise CtlError(f"{want!r} is ambiguous: {[o['name'] for o in hits]}")
+        offer = exact[0] if exact else hits[0]
+        if offer["stock"] is not None and amount > offer["stock"]:
+            raise CtlError(f"the vendor has only {offer['stock']} {offer['name']}")
+        total = offer["price"] * amount
+        me = stc.state()["world"]["self"]
+        gold_before = me.get("gold")
+        if gold_before is not None and total > gold_before:
+            raise CtlError(f"{amount} {offer['name']} cost {total} gp; you have {gold_before}")
+        cap, spent = _daily_cap(), _spent_today(mem)
+        if cap is not None and spent + total > cap:
+            raise CtlError(f"daily gold cap: {spent} spent today + {total} > {cap} (harness/data/policy.json)")
+        human.wait("menu")
+        mark = stc.mark()
+        resp = ctl.send(actions.buy_request(vendor, [(_serial(offer["serial"]), amount)]))
+        if resp != "OK":
+            return {"ok": False, "reply": resp}
+        end = time.monotonic() + EVENT_WAIT_S
+        gold_after = gold_before
+        while time.monotonic() < end:
+            gold_after = stc.state()["world"]["self"].get("gold")
+            if gold_before is None or gold_after != gold_before:
+                break
+            time.sleep(0.1)
+        got = stc.wait_events(mark, lambda evs: False, timeout=0.5)
+        paid = (gold_before - gold_after) if gold_before is not None and gold_after is not None else None
+        out = {"ok": paid is None or paid > 0, "reply": resp, "vendor": vkey, "bought": offer["name"],
+               "amount": amount, "price": offer["price"], "total": total, "paid": paid,
+               "gold": gold_after, "spent_today": spent + (paid if paid and paid > 0 else 0), "daily_cap": cap,
+               "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
+        if paid is not None and paid > 0:
+            mem.job_event("gold", "spend", {"vendor": vkey, "item": offer["name"], "amount": amount,
+                                            "price": offer["price"], "total": paid})
+        elif paid is not None:
+            out["error"] = "your gold didn't change: the purchase probably failed (see heard)"
         return out
     finally:
         ctl.close()
@@ -1285,6 +1556,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="goto: stop within this many tiles (default 0 for a tile, 2 for a mobile)")
     p.add_argument("--max-moves", type=int, default=GOTO_MAX_MOVES)
     p.add_argument("--max-items", type=int, default=LOOT_MAX_ITEMS, help="loot: at most this many items")
+    p.add_argument("--amount", type=int, default=None, help="buy: how many (default 1)")
     p.add_argument("--z", type=int, default=None,
                    help="goto x y: arrive standing within 10 of this z (a hill vs the cave under it)")
     p.add_argument("--no-map", action="store_true", help=argparse.SUPPRESS)   # offline tests only

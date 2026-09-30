@@ -233,6 +233,31 @@ def tiledata(root=INSTALL):
     return td
 
 
+_SKILL_NAMES = {}
+
+
+def skill_names(root=INSTALL) -> list[str]:
+    """Skill names by id, as the client loads them (ClassicUO SkillsLoader.cs:31-55):
+    Skills.idx = 12-byte entries (offset i32, length i32, extra i32); each
+    skills.mul record is a u8 has-action flag then the ASCII name (length - 1
+    bytes, NUL-terminated). Entries with length <= 0 are skipped, and ids count
+    the valid ones in order."""
+    names = _SKILL_NAMES.get(root)
+    if names is None:
+        with open(os.path.join(root, "Skills.idx"), "rb") as f:
+            idx = f.read()
+        with open(os.path.join(root, "skills.mul"), "rb") as f:
+            data = f.read()
+        names = []
+        for i in range(0, len(idx) - 11, 12):
+            off, length, _extra = struct.unpack_from("<iii", idx, i)
+            if length <= 0 or off < 0 or off + length > len(data):
+                continue
+            names.append(data[off + 1:off + length].split(b"\0", 1)[0].decode("ascii", "replace"))
+        _SKILL_NAMES[root] = names
+    return names
+
+
 class UoMap:
     """One mapN.uoo facet. Coordinates outside the map return None."""
 

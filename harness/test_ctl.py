@@ -73,6 +73,9 @@ class FakeProxy:
         self.warmode = False
         self.self_hits = 50
         self.self_noto = 1
+        self.gold = 110
+        self.buy_list = None      # {"container": int, "items": [{"price", "name"}]} sent on a menu pick
+        self.prices = {}          # item serial -> price charged by a 0x3B
         self.events = []          # event envelopes; seq = index
         self.lock = threading.Lock()
         cs, ss = free_port(12710), free_port(12910)
@@ -113,11 +116,21 @@ class FakeProxy:
                         s = int.from_bytes(pkt[5:9], "big")
                         self.add_event({"ev": "popup", "serial": s, "entries": [
                             {"cliloc": 3006123, "index": 0, "flags": 0}, {"cliloc": 3006103, "index": 1, "flags": 0}]})
+                    elif pkt[:5] == bytes.fromhex("bf000b0015") and self.buy_list:   # menu pick -> buy list
+                        self.add_event({"ev": "buy_list", **self.buy_list})
+                    elif pkt[0] == 0x3B:                              # buy: charge the configured price
+                        n = len(pkt)
+                        for off in range(8, n, 7):
+                            s = f"0x{int.from_bytes(pkt[off + 1:off + 5], 'big'):08X}"
+                            self.gold -= self.prices.get(s, 0) * int.from_bytes(pkt[off + 5:off + 7], "big")
                     elif pkt[0] == 0x72:
                         self.warmode = bool(pkt[1])
                     elif pkt[0] == 0x08 and len(pkt) == 22:          # drop into a container
-                        it = self.ground_items.get(f"0x{int.from_bytes(pkt[1:5], 'big'):08X}")
-                        if it is not None:
+                        key = f"0x{int.from_bytes(pkt[1:5], 'big'):08X}"
+                        it = self.ground_items.get(key)
+                        if it is not None and it.get("graphic") == 0x0EED:
+                            del self.ground_items[key]                # gold merges into the pack's pile
+                        elif it is not None:
                             it.update(container=f"0x{int.from_bytes(pkt[18:22], 'big'):08X}", layer=None)
                     elif pkt[0] == 0x13:                              # equip request
                         it = self.ground_items.get(f"0x{int.from_bytes(pkt[1:5], 'big'):08X}")
@@ -138,7 +151,10 @@ class FakeProxy:
                 "world": {
                     "self": {"serial": "0x00000001", "name": "TestWorth", "hits": self.self_hits, "hits_max": 60,
                              "stam": 40, "stam_max": 45, "mana": 20, "mana_max": 25, "weight": 123, "map": 0,
-                             "warmode": self.warmode, "notoriety": self.self_noto},
+                             "warmode": self.warmode, "notoriety": self.self_noto, "gold": self.gold,
+                             "body": 0x190, "skill_names": [],
+                             "skills": {"25": {"value": 600, "base": 600, "lock": 0, "cap": 1000},
+                                        "17": {"value": 0, "base": 0, "lock": 0, "cap": 1000}}},
                     "mobiles": {"0x00000001": {"x": self.pos[0], "y": self.pos[1], "notoriety": 1},
                                 "0x00000002": {"x": self.pos[0] + 3, "y": self.pos[1], "name": "a PK",
                                                "notoriety": 6, "graphic": 400},
@@ -686,6 +702,88 @@ def test_combat(proxy):
     proxy.take()
 
 
+def test_heal_buy(proxy):
+    print("== skills, cast, target, buy (self-healing supplies) ==")
+    tmp = tempfile.mkdtemp()
+    db = os.path.join(tmp, "harness.db")
+    c = Ctl(db, os.path.join(tmp, "tasks"), proxy)
+    code, out = c("status")
+    if os.path.exists(INSTALL_TILEDATA):
+        check("status: skills by name from the client's skills.mul, only those above 0",
+              out.get("skills") == {"Magery": 60.0}, str(out.get("skills")))
+    proxy.take()
+    code, out = c("act", "cast", "greater", "heal")
+    check("cast by name: the Outlands cast request (0xFF sub 4) for Greater Heal (29)",
+          code == 0 and out["spell_id"] == 29 and [p for _, p in proxy.take()] == [actions.cast_spell(29)], str(out))
+    code, out = c("act", "cast", "Fireballz")
+    check("unknown spell refused", code == 1 and proxy.take() == [], str(out))
+    proxy.target = {"active": False, "target_type": None, "cursor_id": None, "cursor_type": None}
+    code, out = c("act", "target", "self")
+    check("target with no cursor up refused", code == 1 and "no target cursor" in out.get("error", ""), str(out))
+    proxy.target = {"active": True, "target_type": 0, "cursor_id": 0x77, "cursor_type": 2}
+    x, y, z = proxy.pos[:3]
+    code, out = c("act", "target", "self")
+    check("target self: 0x6C on your own serial, position and body",
+          code == 0 and [p for _, p in proxy.take()] == [actions.target_object(0x77, 1, x, y, z, 0x190, 2)], str(out))
+    code, out = c("act", "target", "0x00000002")
+    check("target a player refused", code == 1 and "not a hostile monster" in out.get("error", "")
+          and proxy.take() == [], str(out))
+    code, out = c("act", "target", "0x40000011")
+    check("target an item in your backpack: 0x6C with its container-local coordinates",
+          code == 0 and [p for _, p in proxy.take()] == [actions.target_object(0x77, 0x40000011, 0, 0, 0,
+                                                                               0x1BDD, 2)], str(out))
+    proxy.target = {"active": False, "target_type": None, "cursor_id": None, "cursor_type": None}
+
+    vendor, cont = 0x00087D3B, 0x40000200
+    proxy.fixed_mobiles = {f"0x{vendor:08X}": {"x": proxy.pos[0] + 2, "y": proxy.pos[1], "graphic": 0x191,
+                                                "notoriety": 7, "name": "Minka"}}
+    # container insertion order is the reverse of the price list (capture 164548)
+    proxy.ground_items = {f"0x{cont:08X}": {"graphic": 0x0E75, "layer": 0x1A, "container": f"0x{vendor:08X}"},
+                          "0x40000203": {"graphic": 0x0F0B, "amount": 20, "container": f"0x{cont:08X}"},
+                          "0x40000202": {"graphic": 0x0F0C, "amount": 20, "container": f"0x{cont:08X}"},
+                          "0x40000201": {"graphic": 0x0E21, "amount": 100, "container": f"0x{cont:08X}"}}
+    proxy.buy_list = {"container": cont, "items": [{"price": 3, "name": "Bandage"},
+                                                   {"price": 10, "name": "Lesser Heal Potion"},
+                                                   {"price": 10, "name": "Refresh Potion"}]}
+    proxy.prices = {"0x40000201": 3, "0x40000202": 10, "0x40000203": 10}
+    proxy.gold = 110
+    proxy.take()
+    code, out = c("act", "buy", f"0x{vendor:08X}", "--human", "off")
+    check("buy without an item: the price list mapped to the container items (reversed), nothing bought",
+          code == 0 and [(o["name"], o["price"], o["serial"]) for o in out["list"]]
+          == [("Bandage", 3, "0x40000201"), ("Lesser Heal Potion", 10, "0x40000202"),
+              ("Refresh Potion", 10, "0x40000203")]
+          and not any(p[0] == 0x3B for _, p in proxy.take()), str(out))
+    code, out = c("act", "buy", f"0x{vendor:08X}", "heal", "potion", "--amount", "3", "--human", "off")
+    fr = [p for _, p in proxy.take()]
+    check("buy 3 Lesser Heal Potions: popup, Buy entry, then the stock 0x3B for that item",
+          code == 0 and fr == [actions.request_popup(vendor), actions.popup_selection(vendor, 1),
+                               actions.buy_request(vendor, [(0x40000202, 3)])]
+          and out["paid"] == 30 and out["gold"] == 80, f"{out} {fr}")
+    spends = Memory(db).job_events("gold")
+    check("the spend is recorded for the daily cap", [(e["kind"], e["data"]["total"]) for e in spends]
+          == [("spend", 30)], str(spends))
+    code, out = c("act", "buy", f"0x{vendor:08X}", "potion", "--human", "off")
+    check("ambiguous item refused", code == 1 and "ambiguous" in out.get("error", ""), str(out))
+    code, out = c("act", "buy", f"0x{vendor:08X}", "bandage", "--amount", "50", "--human", "off")
+    check("not enough gold refused (50 x 3 > 80)", code == 1 and "you have 80" in out.get("error", "")
+          and not any(p[0] == 0x3B for _, p in proxy.take()), str(out))
+    m = Memory(db)
+    m.job_event("gold", "spend", {"total": 49990})
+    m.close()
+    code, out = c("act", "buy", f"0x{vendor:08X}", "bandage", "--amount", "10", "--human", "off")
+    check("the policy's daily cap refuses (49990 + 30 > 50000)", code == 1 and "daily gold cap" in out.get("error", "")
+          and not any(p[0] == 0x3B for _, p in proxy.take()), str(out))
+    proxy.fixed_mobiles, proxy.ground_items, proxy.buy_list, proxy.prices = {}, {}, None, {}
+    proxy.take()
+
+
+def reset_events(proxy):
+    """Drop the fake's event ring (tests that read `journal` expect only their own events)."""
+    with proxy.lock:
+        proxy.events.clear()
+
+
 def uomap_layer(graphic):
     import uomap
     return uomap.tiledata().item(graphic).layer
@@ -765,6 +863,8 @@ def main():
     test_map(proxy)
     test_know(proxy)
     test_combat(proxy)
+    test_heal_buy(proxy)
+    reset_events(proxy)
     test_overseer_acts(proxy)
     if FAILURES:
         print(f"FAILED: {len(FAILURES)}: {FAILURES}")

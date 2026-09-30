@@ -196,6 +196,18 @@ Draft — to be finalized after §6/§7:
     - Verified live on the elevated ClassicUO window while it was fully covered.
     - Screen *input* stays forbidden (§8.1). The screenshot is for looking.
 
+
+17. **Combat: monsters yes, players never (2026-09-30, user decision).** The overseer may fight
+    hostile monsters, loot their corpses, heal itself (spells, potions, bandages) and buy supplies.
+    - PvP stays forbidden: the Test Shard Code of Conduct, plus Heat of Battle (recall and inn
+      room blocked).
+    - It's enforced in `ctl`, not left to the model:
+      - `attack` and `target` accept only mobiles `threats.identify` calls monsters, with
+        notoriety 3–6. Blue/green are players' pets, and attacking them is a criminal act.
+      - `loot` refuses human corpses.
+      - `buy` is capped by `policy.json`.
+    - Every action uses the stock client's packet sequence (war mode then attack; context menu
+      Buy then 0x3B; cast 0xFF sub 4 then 0x6C), so the server sees what a player's client sends.
 ## 9. Open questions
 
 - ~~What exactly does `Send_UOLive_HashResponse` hash?~~ **Answered: map-block CRC16s for UltimaLive world sync (upstream source).**
