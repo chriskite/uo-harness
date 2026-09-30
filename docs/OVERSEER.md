@@ -166,6 +166,11 @@ sessions in the memory store's `knowledge` table (docs/MEMORY.md). Kinds:
 | `know update ID [CONTENT…] [--topic] [--tags] [--at] [--confidence] [--importance] [--source --ref]` | A content or topic change makes a **new version** that supersedes the old one (history kept); other fields change in place |
 | `know confirm ID [--source --ref]` | Seen true again: confirmations += 1, confidence up |
 | `know retract ID --reason R` | It was wrong: retracted with the reason, never deleted |
+| `know get ID [--history]` | One entry, with its version chain |
+| `know search [WORDS…] [--kind] [--tag]… [--near X Y \| --here] [--limit] [--all]` | Ranked recall: stemmed full-text relevance, recency (14-day half-life), importance, confidence and nearness. Counts as an access |
+| `know brief [--limit]` | What to remember **now**: entries relevant to your position, nearby NPCs, open junctures, intent and task, plus standing procedures/preferences of importance ≥ 7 |
+| `know review [--stale-days 30]` | Maintenance: unconfirmed inferences, entries never recalled in 30 days, topics with several active facts (possible contradictions) |
+| `know stats` | Counts by kind and status |
 
 Every `know` call except `stats` posts one chat row of kind **`memory`**: lookups (search, brief,
 get, review) with their query and ranked results, and writes (add, update, confirm, retract)
@@ -174,11 +179,6 @@ with the entry and any related ones. The viz Overseer tab shows them as **recall
 what it chose to remember. Row data is `{cmd: "know", op, …}` with `query`, `results`,
 `relevant`/`standing`, `entry`, `related`, `id`, `action`, `reason`, `counts` (entries
 compacted, at most 12 per list).
-| `know get ID [--history]` | One entry, with its version chain |
-| `know search [WORDS…] [--kind] [--tag]… [--near X Y \| --here] [--limit] [--all]` | Ranked recall: stemmed full-text relevance, recency (14-day half-life), importance, confidence and nearness. Counts as an access |
-| `know brief [--limit]` | What to remember **now**: entries relevant to your position, nearby NPCs, open junctures, intent and task, plus standing procedures/preferences of importance ≥ 7 |
-| `know review [--stale-days 30]` | Maintenance: unconfirmed inferences, entries never recalled in 30 days, topics with several active facts (possible contradictions) |
-| `know stats` | Counts by kind and status |
 
 Seeded 2026-09-30 with the user's decisions (`preference`, source `user`) and the Young-demo
 results (`observed`, ref `docs/missions/YOUNG_DEMOS.md`).
