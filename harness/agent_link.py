@@ -35,6 +35,10 @@ DOOR_GRAPHICS = range(0x0675, 0x06F5)
 MOBILE_COST_X = 4.0
 SHOVE_RETRY_S = 15.0
 MOBILE_WAIT_S = 90.0
+# Some teleporters deny the step and then move you (S2C 0x21 at the current tile, then the
+# new position; the New Player Dungeon exit, live 2026-09-30). After a deny, look this long
+# for such a jump before calling the step blocked.
+DENY_TELEPORT_GRACE_S = 0.4
 # Heights (z units). A body is 16 high (ClassicUO DEFAULT_CHARACTER_HEIGHT); a
 # storey is ~20 (Shelter inn: ground floor planks z 0-1, upstairs boards z 20-21).
 BODY_HEIGHT = 16
@@ -230,6 +234,12 @@ class Mover:
             raise Abort("walk outcome never arrived")
         self.guard(st)
         after = self.link.pos(st)
+        if after[:2] == before[:2] and after[3] == before[3]:
+            # denied: a teleporter may be about to move us (its position packet follows the deny)
+            jumped = self.link.wait(lambda s: tuple(self.link.pos(s)[:2]) != tuple(before[:2]),
+                                    timeout=DENY_TELEPORT_GRACE_S, poll=0.05)
+            if jumped is not None:
+                st, after = jumped, self.link.pos(jumped)
         if after[:2] != before[:2]:
             self.steps += 1
             facet_after = st["world"]["self"].get("map")
@@ -424,6 +434,7 @@ class Mover:
                 pos = self.link.pos(st)
                 cur, z = (pos[0], pos[1]), pos[2]
                 d = nav.direction(cur, nxt)
+                occupied_at_step = self.occupied(st)       # who stood there when we tried (a shove)
                 if prev_d is not None and d != prev_d and self.obstacle_ahead(cur, prev_d, walk, z) \
                         and self.human.bump():
                     if self._bump(cur, prev_d, run, label) in ("moved", "teleported"):
@@ -461,7 +472,7 @@ class Mover:
                             break
                     continue
                 self.blocked_count += 1
-                if nxt in self.occupied():
+                if nxt in occupied_at_step:
                     self.shove_denied[nxt] = time.monotonic()
                     me = self.link.state()["world"]["self"]
                     log(f"{label}: shove into {nxt} denied (stamina {me.get('stam')}/{me.get('stam_max')}); "

@@ -97,6 +97,7 @@ PACK_ITEMS_MAX = 60                  # status.backpack.items
 # 1 (innocent: players' pets) and 2 (ally) are criminal to attack, 7 is invulnerable.
 ATTACKABLE_NOTORIETY = frozenset([3, 4, 5, 6])
 ATTACK_MIN_HP = 0.3                  # refuse to start a fight below this share of max hits
+DENY_TELEPORT_GRACE_S = 0.4           # after a walk deny, a teleporter may still move us (agent_link)
 CORPSE_GRAPHIC = 0x2006
 LOOT_RANGE = 2                       # tiles; the server's own limit is similar [INFERENCE]
 LOOT_MAX_ITEMS = 25
@@ -685,8 +686,18 @@ def _act_walk(a, ctl: Control, stc: StateConn) -> dict:
                 break
             time.sleep(0.05)
         pos = st["movement"].get("pos") or before
+        if list(pos[:2]) == list(before[:2]) and not (len(pos) > 3 and len(before) > 3 and pos[3] != before[3]):
+            # denied: a teleporter may move us right after the deny (agent_link.DENY_TELEPORT_GRACE_S)
+            end = time.monotonic() + DENY_TELEPORT_GRACE_S
+            while time.monotonic() < end and list(pos[:2]) == list(before[:2]):
+                time.sleep(0.05)
+                pos = stc.state()["movement"].get("pos") or before
         if list(pos[:2]) != list(before[:2]):
             moved += 1
+            if nav.chebyshev(tuple(before[:2]), tuple(pos[:2])) > 1:
+                outcomes.append("teleported")
+                stop = "teleported"
+                break
             outcomes.append("moved")
         elif len(pos) > 3 and len(before) > 3 and pos[3] != before[3]:
             outcomes.append("turned")

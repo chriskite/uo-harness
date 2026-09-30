@@ -29,8 +29,12 @@ class FakeLink:
     """A grid server: walls deny, doors deny until opened (0x12 0x58 next to them)."""
 
     def __init__(self, start, facing, walls=(), doors=(), mobiles=(), can_shove=True, z=0, z_walk=None,
-                 teleports=None):
+                 teleports=None, deny_teleports=None):
         self.teleports = dict(teleports or {})   # tile -> where stepping onto it puts you
+        # tile -> destination for teleporters that deny the step and move you a moment later
+        # (the New Player Dungeon exit, live 2026-09-30): the jump shows from the second state poll
+        self.deny_teleports = dict(deny_teleports or {})
+        self.pending_jump, self.jump_armed = None, False
         self.here = list(start)
         self.facing = facing
         self.walls = set(walls)
@@ -51,6 +55,9 @@ class FakeLink:
                 self.facing = d
                 return "OK"
             nxt = nav.step(tuple(self.here), d)
+            if nxt in self.deny_teleports:
+                self.pending_jump, self.jump_armed = self.deny_teleports[nxt], False
+                return "OK"
             if nxt in self.walls or self.doors.get(nxt) is False:
                 self.denies.append(nxt)
                 return "OK"
@@ -73,6 +80,11 @@ class FakeLink:
 
     def state(self):
         self.polls += 1
+        if self.pending_jump is not None:
+            if self.jump_armed:
+                self.here, self.pending_jump = list(self.pending_jump), None
+            else:
+                self.jump_armed = True
         for m in self.mobiles:
             m[2] -= 1
         items = {f"0x{0x40000000 + i:08X}": {"graphic": 0x06AD, "x": d[0], "y": d[1]}
@@ -264,6 +276,18 @@ def test_teleporter():
     walk_msg(mv3, (3, 0))
     check("walking onto the teleporter on purpose (it is the goal) is allowed", tuple(link3.here) == far,
           str(link3.here))
+
+    print("== a teleporter that denies the step, then moves you (NPD exit) ==")
+    store2 = memory.Memory(os.path.join(tempfile.mkdtemp(), "harness.db"))
+    home = (1911, 2556)
+    link4 = FakeLink((0, 0), facing=2, deny_teleports={(3, 0): home})
+    mv4 = Mover(link4, store2, Human("off"), use_map=True)
+    mv4.walkers.put(0, GridWalk(open_tiles | {home}))
+    msg = walk_msg(mv4, (6, 0))
+    check("the jump after the deny counts as a teleport (not a wall at the source tile)",
+          tuple(link4.here) == home and mv4.teleports == 1 and not mv4.denied, f"{msg} {link4.here} {mv4.denied}")
+    check("and the teleporter is remembered", store2.teleporters(0) == {(3, 0): (None, home[0], home[1], 0)},
+          str(store2.teleporters(0)))
 
 
 if __name__ == "__main__":

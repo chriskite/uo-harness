@@ -80,6 +80,8 @@ class FakeProxy:
         self.intents = []         # intents posted on the state port (op "intent")
         self.buffs = {}           # icon id (str) -> buff record (world.buffs for self)
         self.stats = {}           # extra self stats (0x11 fields)
+        self.deny_jumps = {}      # tile -> destination: a teleporter that denies the step, then moves you
+        self.pending_jump, self.jump_polls = None, 0
         self.events = []          # event envelopes; seq = index
         self.lock = threading.Lock()
         cs, ss = free_port(12710), free_port(12910)
@@ -115,7 +117,11 @@ class FakeProxy:
                         if d != self.pos[3]:
                             self.pos[3] = d                      # a new direction only turns
                         else:
-                            self.pos[0], self.pos[1] = nav.step(tuple(self.pos[:2]), d)
+                            nxt = nav.step(tuple(self.pos[:2]), d)
+                            if nxt in self.deny_jumps:            # denied, then moved a moment later
+                                self.pending_jump, self.jump_polls = self.deny_jumps[nxt], 0
+                            else:
+                                self.pos[0], self.pos[1] = nxt
                     elif pkt[:5] == bytes.fromhex("bf00090013"):  # context menu request -> menu (mode 2)
                         s = int.from_bytes(pkt[5:9], "big")
                         self.add_event({"ev": "popup", "serial": s, "entries": [
@@ -150,6 +156,11 @@ class FakeProxy:
     def snapshot(self):
         p = f"0x{self.PACK:08X}"
         with self.lock:
+            if self.pending_jump is not None:
+                self.jump_polls += 1
+                if self.jump_polls > 1:
+                    self.pos[0], self.pos[1] = self.pending_jump
+                    self.pending_jump = None
             return {
                 "ok": True,
                 "movement": {"pos": list(self.pos), "self_serial": self.SELF, "inflight": 0,
@@ -535,6 +546,15 @@ def test_run_act(proxy):
           and rows[-1]["text"].startswith("act walk 4 1") and rows[-1]["data"].get("moved") == 1, str(rows[-1]))
     code, out = c("act", "walk", "9")
     check("walk dir out of range refused", code == 1 and proxy.take() == [], str(out))
+    x0, y0 = proxy.pos[:2]
+    proxy.pos[3] = 4
+    proxy.deny_jumps = {(x0, y0 + 1): (1911, 2556)}
+    code, out = c("act", "walk", "4", "--human", "off")
+    check("walk onto a teleporter that denies, then moves you: reported as teleported (NPD exit, live)",
+          code == 0 and out["outcomes"] == ["teleported"] and out["to"][:2] == [1911, 2556], str(out))
+    proxy.deny_jumps = {}
+    proxy.pos = [x0, y0, 0, 2]
+    proxy.take()
     code, out = c("act", "walk", "2", "50")
     check("walk step cap", code == 1 and proxy.take() == [], str(out))
 
