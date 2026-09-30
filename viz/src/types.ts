@@ -196,6 +196,9 @@ export interface StateResponse {
   /** What the agent runner says it is trying to do (state-port `intent` op);
    * null/absent when no runner has reported one this session. */
   intent?: AgentIntent | null;
+  /** Recent intents, oldest first (at most 30); updates of the same step are merged,
+   * past steps carry `until`. The last entry is the current intent unless it was cleared. */
+  intents?: AgentIntent[];
 }
 
 /** An agent runner's current intent (harness/proxy.py SessionTap.set_intent).
@@ -210,8 +213,10 @@ export interface AgentIntent {
   loop?: string;
   trip?: number;
   trips?: number;
-  /** Proxy wall clock (epoch s) when it was reported. */
+  /** Proxy wall clock (epoch s) when this step started (kept across merged updates). */
   since: number;
+  /** History entries only: when the next intent replaced it (or it was cleared). */
+  until?: number;
 }
 
 /** Precedence killed > paused > break > budget_exhausted > running. */

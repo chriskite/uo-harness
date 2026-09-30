@@ -55,6 +55,7 @@ RESYNC = b"\x22\x00\x00"
 EVENT_CAP = 5000  # event envelopes kept for state-port readers
 DIAG_TOP = 20     # packet_counts entries in the state response's diagnostics
 INTENT_TEXT_MAX = 200  # chars of an agent intent's text (set_intent)
+INTENT_HISTORY = 30    # recent agent intents kept in the state (set_intent)
 
 # Movement timing (docs/MOVEMENT.md, sessions 20260929_142237/_143051/_144541):
 RESYNC_REPLY_TIMEOUT_S = 1.5  # client resync: no 0xBF sub1 seed by then -> the server ignored it
@@ -370,6 +371,7 @@ class SessionTap:
         self.traffic_events = collections.Counter()   # proxy event name -> count
         self.traffic_c2s = collections.Counter()      # (src, "0xNN") -> count, src != client
         self.intent = None               # the agent's current intent (set_intent), or None
+        self.intents = collections.deque(maxlen=INTENT_HISTORY)   # recent intents, oldest first
 
     def _log(self, **kw):
         kw["t"] = round(self.wall(), 3)
@@ -405,7 +407,13 @@ class SessionTap:
         {"text": str, "kind"?: str, "target"?: [x, y], "loop"?: str, "trip"?: int,
         "trips"?: int} or None to clear. Stamped with `since`, logged to the jsonl
         (so replays reproduce it) and emitted as proxy event `agent_intent`.
-        Returns an error string for a malformed intent."""
+
+        Also kept in `intents` (the last INTENT_HISTORY, oldest first) so late
+        readers see recent history. An update of the same step (same kind,
+        target, loop and trip; e.g. the log count while chopping) replaces the
+        text and keeps `since`; any other intent (or None) closes the previous
+        entry with `until`. Returns an error string for a malformed intent."""
+        now = round(self.wall(), 3)
         if intent is not None:
             if not isinstance(intent, dict) or not isinstance(intent.get("text"), str) \
                     or not 0 < len(intent["text"]) <= INTENT_TEXT_MAX:
@@ -417,8 +425,20 @@ class SessionTap:
             tgt = intent.get("target")
             if isinstance(tgt, list) and len(tgt) == 2 and all(isinstance(v, int) for v in tgt):
                 clean["target"] = tgt
-            clean["since"] = round(self.wall(), 3)
+            cur = self.intent
+            same = (cur is not None and clean.get("kind") is not None
+                    and all(cur.get(k) == clean.get(k) for k in ("kind", "target", "loop", "trip")))
+            clean["since"] = cur["since"] if same else now
             intent = clean
+        else:
+            same = False
+        if self.intents and "until" not in self.intents[-1] and not same:
+            self.intents[-1] = {**self.intents[-1], "until": now}
+        if intent is not None:
+            if same:
+                self.intents[-1] = dict(intent)
+            else:
+                self.intents.append(dict(intent))
         self.intent = intent
         self._log(ev="agent_intent", intent=intent)
         self._proxy_event("agent_intent", intent=intent)
@@ -476,6 +496,7 @@ class SessionTap:
                 "c2s": [[src, pid, n] for (src, pid), n in sorted(self.traffic_c2s.items())],
             },
             "intent": self.intent,
+            "intents": list(self.intents),
         })
         return out
 

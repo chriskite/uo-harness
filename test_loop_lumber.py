@@ -451,6 +451,7 @@ async def main():
         print("---- runner output ----\n" + text + "-----------------------")
         bad_intents = [state_req({"op": "intent", "intent": b})
                        for b in ({"text": ""}, {"text": 5}, ["not", "a", "dict"], {"text": "x" * 201})]
+        live_hist = state_req({"op": "state", "since": 0, "snapshot": False}).get("intents") or []
         solver.cancel()
         writer.close()
         drainer.cancel()
@@ -530,10 +531,25 @@ async def main():
         tag = next(f for f in os.listdir(LOGDIR) if f.endswith(".jsonl"))[len("session_"):-len(".jsonl")]
         drv = viz_feed.ReplayDriver(tag, LOGDIR)
         drv.run_to_end()
-        got = drv.query(0).get("intent") or {}
+        replayed = drv.query(0)
+        got = replayed.get("intent") or {}
         check("a replay of the capture reproduces the final intent (viz replay)",
               {k: got.get(k) for k in ("kind", "text", "trips")}
               == {k: intents[-1].get(k) for k in ("kind", "text", "trips")}, str(got))
+        key = lambda i: tuple(json.dumps(i.get(k)) for k in ("kind", "target", "loop", "trip"))  # noqa: E731
+        check("intent history: repeated updates of one step merged (one entry per step)",
+              0 < len(live_hist) < len(intents)
+              and all(key(a) != key(b) for a, b in zip(live_hist, live_hist[1:])),
+              f"{len(live_hist)} entries for {len(intents)} updates")
+        check("intent history: every past step closed with until >= since, the current one open",
+              all(h.get("until", -1) >= h["since"] for h in live_hist[:-1]) and "until" not in live_hist[-1]
+              and live_hist[-1]["text"] == intents[-1]["text"], str(live_hist[-2:]))
+        check("intent history: merged chop entry shows the latest count and keeps its start",
+              any(h["kind"] == "chop" and h["text"].endswith("logs)") and h["until"] > h["since"]
+                  for h in live_hist[:-1]))
+        check("intent history reproduced by the replay",
+              [(h["kind"], h["text"]) for h in replayed.get("intents", [])]
+              == [(h["kind"], h["text"]) for h in live_hist], str(len(replayed.get("intents", []))))
     finally:
         proxy.terminate()
         server.close()

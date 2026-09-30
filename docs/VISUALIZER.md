@@ -199,6 +199,14 @@ The runners report what they are trying to do right now on the proxy's state por
   - It rejects malformed intents: `text` must be 1–200 chars, and unknown or ill-typed fields
     are dropped.
   - Nothing reaches the server.
+  - **History:** it keeps the last 30 intents as top-level `intents` in every state response
+    (oldest first), in the state itself so late joiners get it. The same late-joiner rule as
+    `world.labels` and `traffic` applies.
+    - An update of the same step (same `kind`, `target`, `loop` and `trip`, e.g. the log count
+      while chopping) replaces the entry's text and keeps its `since`, so `since` is when the
+      step began.
+    - Any other intent, or a clear, closes the previous entry with `until`.
+    - In the e2e run, 38 updates made 26 entries. The replay reproduces them exactly.
 - **Kinds (lumber loop):**
   - `to_tree`, `chop` (text carries the log count), `captcha` (the previous intent is restored
     afterwards), `lockout`, `convert`
@@ -209,10 +217,21 @@ The runners report what they are trying to do right now on the proxy's state por
 
 **UI:**
 - The **Agent** panel sits at the top of the left column. It shows the text, a kind badge (captcha
-  amber, stopped red, done green), `→ x,y`, the age (`for M:SS`; in replay measured against the
-  newest event time, not the wall clock) and `loop · trip n/N`.
+  amber, stopped red, done green), `→ x,y`, the age (`for M:SS` since the step began; in replay
+  measured against the newest event time, not the wall clock) and `loop · trip n/N`.
+- **Activity indicator** next to the current text:
+  - a spinning ring while working, with a soft breathing glow on the panel
+  - a pulsing amber dot while waiting on the human or a timer (`captcha`, `lockout`)
+  - a static dim dot when finished or stopped (`done`, `trip_done`, `stopped`)
+  - animations are off under `prefers-reduced-motion`
+- **Recent steps** below, newest first (up to 10, scrollable): `6s ago` (when the step ended),
+  the text, and how long it took (`0:42`). Tone colours follow the badges.
 - On the map, a dashed line runs from the true position to a blue reticle on the target tile,
   labelled with the kind.
+
+Verified in headless Chromium on a `test_loop_lumber.py` capture: the spinner showed next to
+"Chopping tree at 111,200", with history rows such as "0s ago · Waiting out the travel lockout… ·
+0:19", "20s ago · Heading to tree at 111,200… · 0:07", and "Trip 1 done…" in green.
 
 ---
 

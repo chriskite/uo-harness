@@ -181,10 +181,73 @@ h4 {
 .intent {
   border-color: #1e40af;
 }
+.intent.busy-spin {
+  animation: intent-breathe 2.4s ease-in-out infinite;
+}
+.intent.busy-wait {
+  border-color: #92400e;
+}
+@keyframes intent-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(96, 165, 250, 0);
+  }
+  50% {
+    box-shadow: 0 0 10px 1px rgba(96, 165, 250, 0.35);
+  }
+}
+.intent-now {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
 .intent-text {
   font-size: 15px;
   font-weight: 600;
   line-height: 1.3;
+}
+.intent-activity {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border-radius: 50%;
+}
+.activity-spin {
+  border: 2px solid rgba(96, 165, 250, 0.25);
+  border-top-color: var(--info);
+  animation: intent-spin 0.9s linear infinite;
+}
+.activity-wait {
+  background: var(--warn);
+  animation: intent-pulse 1.4s ease-in-out infinite;
+}
+.activity-idle {
+  background: var(--dim);
+  transform: scale(0.6);
+}
+@keyframes intent-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes intent-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(0.75);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .intent.busy-spin,
+  .activity-spin,
+  .activity-wait {
+    animation: none;
+  }
 }
 .intent-meta {
   display: flex;
@@ -192,6 +255,40 @@ h4 {
   gap: 8px;
   margin-top: 6px;
   flex-wrap: wrap;
+}
+.intent-history {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--border);
+  max-height: 150px;
+  overflow-y: auto;
+}
+.intent-past {
+  display: grid;
+  grid-template-columns: 58px 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 1px 0;
+  font-size: 12px;
+  color: #aab4c0;
+}
+.intent-past .ago {
+  text-align: right;
+}
+.intent-past .past-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.intent-past.tone-warn .past-text {
+  color: #fcd34d;
+}
+.intent-past.tone-bad .past-text {
+  color: #fca5a5;
+}
+.intent-past.tone-ok .past-text {
+  color: #86efac;
 }
 
 /* ---------------------------------------------------------------- header */
