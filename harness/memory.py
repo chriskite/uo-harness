@@ -16,6 +16,13 @@ Tables
                     reachability, not-a-tree
   harvest_attempts  every harvest attempt outcome (regrowth / yield statistics)
   episodes          one row per loop trip (phase times, human texture, results)
+  junctures         moments that should wake the overseer AI (a task stuck,
+                    aborted or finished, a captcha handoff, a threat, a theft
+                    suspicion); acked once the overseer has handled them
+  chat              the viz chat and the overseer's visible thinking:
+                    role user|overseer|system, kind message|thought|action
+  job_events        job analytics facts other than trips: death, theft
+                    (suspected loss), pk_seen, flee, mob_attack, resurrect, ...
 
 Writers
   - the proxy: MemoryWriter, a background thread with batched commits, fed from
@@ -45,7 +52,7 @@ import nav  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DB = os.path.join(ROOT, "harness", "data", "harness.db")
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 UNKNOWN_Z = -32768
 
 SCHEMA = """
@@ -74,6 +81,17 @@ CREATE TABLE IF NOT EXISTS harvest_attempts(
 CREATE INDEX IF NOT EXISTS harvest_attempts_node ON harvest_attempts(facet, x, y, t);
 CREATE TABLE IF NOT EXISTS episodes(
     id INTEGER PRIMARY KEY, loop TEXT NOT NULL, t_start REAL, t_end REAL, data TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS junctures(
+    id INTEGER PRIMARY KEY, t REAL NOT NULL, source TEXT NOT NULL, kind TEXT NOT NULL,
+    severity TEXT NOT NULL, summary TEXT NOT NULL, data TEXT NOT NULL, acked_t REAL);
+CREATE INDEX IF NOT EXISTS junctures_open ON junctures(acked_t, id);
+CREATE TABLE IF NOT EXISTS chat(
+    id INTEGER PRIMARY KEY, t REAL NOT NULL, role TEXT NOT NULL, kind TEXT NOT NULL,
+    text TEXT NOT NULL, data TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS job_events(
+    id INTEGER PRIMARY KEY, t REAL NOT NULL, job TEXT NOT NULL, kind TEXT NOT NULL,
+    facet INTEGER, x INTEGER, y INTEGER, data TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS job_events_job_t ON job_events(job, t);
 """
 
 
@@ -83,7 +101,7 @@ def connect(path: str) -> sqlite3.Connection:
     con.execute("PRAGMA journal_mode=WAL")
     con.execute("PRAGMA synchronous=NORMAL")
     con.executescript(SCHEMA)
-    con.execute("INSERT OR IGNORE INTO meta VALUES('schema_version', ?)", (str(SCHEMA_VERSION),))
+    con.execute("INSERT OR REPLACE INTO meta VALUES('schema_version', ?)", (str(SCHEMA_VERSION),))
     con.commit()
     return con
 
@@ -201,6 +219,88 @@ class Memory:
     def episodes(self, loop: str):
         return [json.loads(d) for (d,) in self.con.execute(
             "SELECT data FROM episodes WHERE loop=? ORDER BY id", (loop,))]
+
+    # -- overseer bus (docs/OVERSEER.md) -----------------------------------------
+    SEVERITIES = ("info", "attention", "urgent")
+
+    def juncture(self, source: str, kind: str, summary: str, severity: str = "attention",
+                 data: dict | None = None, t: float | None = None) -> int:
+        """Post a juncture for the overseer (never blocks the caller for long)."""
+        if severity not in self.SEVERITIES:
+            raise ValueError(f"severity must be one of {self.SEVERITIES}")
+        cur = self.con.execute(
+            "INSERT INTO junctures(t, source, kind, severity, summary, data) VALUES(?,?,?,?,?,?)",
+            (time.time() if t is None else t, source, kind, severity, summary, json.dumps(data or {})))
+        self.con.commit()
+        return cur.lastrowid
+
+    def junctures(self, after_id: int = 0, open_only: bool = False, limit: int = 100) -> list[dict]:
+        """Junctures with id > after_id, oldest first."""
+        q = ("SELECT id, t, source, kind, severity, summary, data, acked_t FROM junctures WHERE id > ?"
+             + (" AND acked_t IS NULL" if open_only else "") + " ORDER BY id LIMIT ?")
+        keys = ("id", "t", "source", "kind", "severity", "summary", "data", "acked_t")
+        out = []
+        for row in self.con.execute(q, (after_id, limit)):
+            d = dict(zip(keys, row))
+            d["data"] = json.loads(d["data"])
+            out.append(d)
+        return out
+
+    def juncture_ack(self, jid: int, t: float | None = None) -> bool:
+        cur = self.con.execute("UPDATE junctures SET acked_t=? WHERE id=? AND acked_t IS NULL",
+                               (time.time() if t is None else t, jid))
+        self.con.commit()
+        return cur.rowcount == 1
+
+    CHAT_ROLES = ("user", "overseer", "system")
+    CHAT_KINDS = ("message", "thought", "action")
+
+    def chat_post(self, role: str, text: str, kind: str = "message", data: dict | None = None,
+                  t: float | None = None) -> int:
+        if role not in self.CHAT_ROLES or kind not in self.CHAT_KINDS:
+            raise ValueError(f"role in {self.CHAT_ROLES}, kind in {self.CHAT_KINDS}")
+        if not text:
+            raise ValueError("empty chat text")
+        cur = self.con.execute("INSERT INTO chat(t, role, kind, text, data) VALUES(?,?,?,?,?)",
+                               (time.time() if t is None else t, role, kind, text, json.dumps(data or {})))
+        self.con.commit()
+        return cur.lastrowid
+
+    def chat(self, after_id: int = 0, limit: int = 200, role: str | None = None) -> list[dict]:
+        """Chat rows with id > after_id, oldest first (optionally one role)."""
+        q = "SELECT id, t, role, kind, text, data FROM chat WHERE id > ?"
+        args: list = [after_id]
+        if role is not None:
+            q += " AND role = ?"
+            args.append(role)
+        q += " ORDER BY id LIMIT ?"
+        args.append(limit)
+        keys = ("id", "t", "role", "kind", "text", "data")
+        out = []
+        for row in self.con.execute(q, args):
+            d = dict(zip(keys, row))
+            d["data"] = json.loads(d["data"])
+            out.append(d)
+        return out
+
+    # -- job analytics ------------------------------------------------------------
+    def job_event(self, job: str, kind: str, data: dict | None = None, facet=None, x=None, y=None,
+                  t: float | None = None) -> int:
+        cur = self.con.execute(
+            "INSERT INTO job_events(t, job, kind, facet, x, y, data) VALUES(?,?,?,?,?,?,?)",
+            (time.time() if t is None else t, job, kind, facet, x, y, json.dumps(data or {})))
+        self.con.commit()
+        return cur.lastrowid
+
+    def job_events(self, job: str, since: float = 0.0) -> list[dict]:
+        keys = ("id", "t", "job", "kind", "facet", "x", "y", "data")
+        out = []
+        for row in self.con.execute("SELECT id, t, job, kind, facet, x, y, data FROM job_events "
+                                    "WHERE job = ? AND t >= ? ORDER BY t, id", (job, since)):
+            d = dict(zip(keys, row))
+            d["data"] = json.loads(d["data"])
+            out.append(d)
+        return out
 
 
 # ----------------------------------------------------------------------- writer
@@ -358,7 +458,8 @@ def _ingest_raw_walks(cur, logdir, tag, facet, t) -> int:
 def stats(db: str) -> dict:
     con = connect(db)
     out = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-           for t in ("sessions", "events", "walk_moves", "harvest_nodes", "harvest_attempts", "episodes")}
+           for t in ("sessions", "events", "walk_moves", "harvest_nodes", "harvest_attempts", "episodes",
+                     "junctures", "chat", "job_events")}
     con.close()
     return out
 
