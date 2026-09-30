@@ -284,6 +284,22 @@ without a server cursor; 0 replies to 127 decoy captchas or to the 6 real ones (
 
 A9 and A10 remain open.
 
+**Live run 2026-09-30 18:28-18:56 (session 20260930_182751, overseer 10-log lumber trip at Horseshoe
+Bay):**
+- 657 agent walks: step gaps p10/median/p90 207/212/217 ms (min 203), 20 % heading changes
+- 0 client resyncs, 0 `walk_rejected`
+- 2 agent denies. One at (2003,2227) S, on a tile the map rules call walkable (cause unknown).
+  One diagonal NW at (2027,2218) through the corner of a closed double door (below).
+- 6 open-door requests, 5 of them with no deny before them. The sixth was the auto-open after the
+  turn that followed that diagonal deny.
+- 3 agent target answers, 3 client-only cancels, 3 client replies dropped; 0 client `0x6C`
+  reached the server
+- 4 gump closes, 24 re-anchors
+
+**New finding from that run:** the planner treats doors as passable, and the auto-open only covers
+the facing tile. So a diagonal step past a closed door on a corner tile is sent and denied. The
+stock client's CanWalk counts a closed door as a wall and wouldn't send that step. [open]
+
 **Other gaps:** nothing verifies the connected shard is the Test Shard. divert_nat.py hardcodes
 74.91.115.123, the JWT carries no shard claim, and whether production resolves to the same IP is
 unknown. The installed client was patched to 1.0.2.550 on 2026-09-28 (JWT `version`), while the RE
