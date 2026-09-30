@@ -1,8 +1,9 @@
 # LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → deed → store in inn room
 
-Status (2026-09-29): **decisions made (§7); M0 tooling built; waiting on the user's one-time setup and
-demonstration run (§10).** Builds on Phase 4 (docs/PLAN.md). This loop is the Phase 4 workload: the
-planner, the skill library, the rails and the captcha handoff all get exercised by it.
+Status (2026-09-29): **M0 done.** The user's demonstration run (`logs/session_20260929_204225`) is
+mined into `harness/data/loops/lumber.json` and pinned by `harness/test_loop_demo.py`; findings are in
+§12. Open: the storage decision in §12.4. Builds on Phase 4 (docs/PLAN.md). This loop is the Phase 4
+workload: the planner, the skill library, the rails and the captcha handoff all get exercised by it.
 
 ## 1. Goal and hard constraints
 
@@ -220,8 +221,9 @@ signature (ANTICHEAT.md §8.3). Variation is required, not an inefficiency to re
    - also parsed now: vendor buy list/purchase (`0x74`/`0x3B`), context menus (`0xBF` 0x13/0x14/0x15),
      text commands (`0x12`), lift/drop/equip (`0x07`/`0x08`/`0x13`)
    - C2S `0x6C` and `0xB1` corrected to the Outlands layouts
-2. **Captcha detection.** The `CAPTCHA_GUMP_ID` value is unknown; get it from the demonstration
-   capture (gump id + layout in the timeline).
+2. ~~Captcha detection~~ **known from the demo (§12.2):** real captcha = gump id `0x00000001` with
+   text entry 2 and submit button 594. Decoy "Captcha" gumps open on every attempt and must never
+   be answered. The runner's handoff trigger keys on the gump id + entry + button, never on text.
 3. ~~Pause/kill/break proxy flag + budget file~~ **built** (commit 2ffb29a: the proxy-enforced agent
    gate, `harness/agent_gate.py`). The routine runner has to honor gate refusals as a typed
    `paused` failure and resume cleanly.
@@ -237,7 +239,7 @@ signature (ANTICHEAT.md §8.3). Variation is required, not an inefficiency to re
 
 | # | Deliverable | Done when |
 |---|---|---|
-| M0 | Demonstration capture + `loop_mine.py timeline` (built) + `lumber.json` | §2 unknowns answered with capture evidence; replay test pins the loop facts |
+| M0 ✅ | Demonstration capture (`20260929_204225`) + `loop_mine.py timeline` + `lumber.json` | Done 2026-09-29: §12; `test_loop_demo.py` pins the facts. Still open: Smart Harvest self-target, deed from a 5 000 backpack stack |
 | M1 | Perception: cliloc parsing (built), captcha gump detection, harvest events | Replay of the demonstration yields every harvest outcome and the captcha as events |
 | M2 | Skills, each offline-tested (simulated world like `test_errand.py`), then live one at a time, attended | Each skill passes live on the Test Shard |
 | M3 | Routine runner, full loop | 1 cycle unattended except captcha handoffs; then N cycles across a forced break |
@@ -295,3 +297,88 @@ Nothing in the harness injects during the demonstration; the proxy only relays a
    Outlands Tracking mechanics (range, what it reports, cooldown, whether its result arrives as a
    gump/cliloc the world model can read), and whether the earlier warning is worth the skill
    points. Hidden/stealthed PKs are invisible either way.
+
+## 12. Demonstration findings (session 20260929_204225, user-played)
+
+Source: `python harness/loop_mine.py timeline 20260929_204225`. Every fact below is pinned by
+`harness/test_loop_demo.py`.
+
+### 12.1 Mechanics verified in-game
+- **Harvesting = one attempt per use.**
+  - Double-click the equipped hatchet → cliloc 1010018 "What do you want to use this item on?" plus
+    a location cursor (type 1).
+  - Target the tree (a static: 0x0CE0 at (1898, 2622, 10)).
+  - The result arrives about 4.1 s later: fail cliloc 500495, success plain text "You chop some
+    logs and put them in your backpack." (+5 and +7 logs).
+  - Nothing auto-repeated, because the demo targeted trees, not the character. Whether targeting
+    yourself starts Smart Harvest is still **untested**.
+  - Yield on Shelter at Lumberjacking 60.2: 2 successes in 12 attempts, 12 logs, one attempt about
+    every 9.5 s by hand, so about 6 logs/min. [INFERENCE from a small sample]
+- **Conversion:**
+  - Double-click the hatchet, target the log stack → "You shape the logs into boards."
+  - The ratio is **1 log → 1 board**. Logs of one kind stack, so a trip needs one conversion per
+    stack.
+- **Weight: logs and boards weigh the same.** The status weight moved +1 for +5 logs, 0 on 5 logs →
+  5 boards, +1 for +7 logs, and −1 when the 7 logs merged into the 5-board stack. That matches
+  0.025 st each with the server rounding each stack up to whole stones. Max weight is 570 st, so
+  weight never limits a trip.
+  → **Convert once per trip, just before storing.** Converting during harvesting gains nothing: same
+  weight, same loss if killed, same number of actions.
+- **Deed:** double-click the blank commodity → "What resource to you wish to create a commodity
+  for?" → target the boards → "Commodity for that item must be of at least 5000." (12 boards in the
+  backpack). So the quantum is confirmed. Whether a backpack stack is acceptable at 5 000 is still
+  open, because the quantity check fired first.
+- **Travel lockout confirmed:**
+  - "You exit the rental room." at 13:17.7
+  - "…must wait 19 seconds…" at 13:59.2
+  - 41.5 s + 19 s = 60 s from the room exit
+- **Banker purchase:** context menu index 1 (Buy, 3006103) on Len → buy list "Blank Commodity 5gp,
+  Vendor Rental Contract 100gp". Backpack gold is used (21 → 16). With 0 gold the answer is cliloc
+  500191.
+- **Rental room:**
+  - Context menu "Rent" (index 1) on Jayne the innkeeper, or saying `room` from 11 tiles away,
+    opens gump `0x8EAEFBDB`. Button 4 three times rents (paid with 5 000 rental credits), then
+    button 4 enters.
+  - Inside you land at (39, 65, 1). The door `0x45757DCB` opens the same gump; button 4 exits to
+    (1932, 2589).
+  - Securing: drop the container on the floor, say "I wish to secure this", target it →
+    "Secures Used: 1 / 2".
+  - Drops into a container use x = y = 0x7FFFFFFF (client auto-position).
+
+### 12.2 Captcha: the real gump and decoys (see ANTICHEAT.md §8.13)
+- **Real captcha:**
+  - It appeared on the **first** harvest attempt, not after 5–10 min.
+  - gump id `0x00000001`: `textentrylimited` id 2 (max 3 chars) and one reply button, 594.
+  - The digits are drawn as `tilepic` dot glyphs (graphics 572 and 6255) at layout coordinates.
+  - The human answered `326` with button 594 → "Captcha successful."
+  - No further real captcha appeared in the ~12 min that followed. Most of that time was spent
+    elsewhere, not harvesting.
+- **Decoys:** every harvest attempt also opens a gump with the same words ("Captcha", "Type the
+  Value", "Click when complete"):
+  - a random gump id each time (≥ 10 distinct)
+  - `nomove/noclose/nodispose`
+  - **no buttons**
+  - all text as `croppedtext` at negative, offscreen coordinates
+  - `xmfhtmlgump` with nonexistent cliloc numbers
+
+  A human never sees or answers them. A bot matching on text would answer them. The handoff
+  trigger is therefore gump id + text entry + submit button, and the agent never replies to any
+  gump without a reply button.
+
+### 12.3 Consequences for the loop
+- The §3 Harvest state is: dclick hatchet → target the next tree tile → wait for the result
+  message, repeated per tree until the depleted cliloc (500488/500493), then the next tree. Trees
+  come from the demo now, and from the map reader later.
+- Conversion happens once per trip, before Store.
+- After the room exit, the 60 s lockout overlaps the walk out. The loop waits only for the rest.
+- `r` on Shelter (~6 logs/min by hand) makes the 5 000 quantum ≈ 14 h of harvesting. [INFERENCE]
+
+### 12.4 Open decision (user): where the stock lives on the Test Shard
+The Test Shard clears rooms daily at 00:00 UTC (§2), and the agent runs ≤ 8 h/day. At the demo
+rate, room stock will never reach a deed on the Test Shard. Options:
+1. Keep the room as specified and treat it as daily scratch storage. The loop is exercised
+   end-to-end; deeds happen only after a faster venue or skill.
+2. Bank the boards instead, and deed from the bank box. Whether the bank survives the Test Shard
+   wipe is [INFERENCE: likely, since only houses and rooms are named]; re-mirrors from live saves
+   can still reset it.
+3. Raise Lumberjacking first (Shelter caps it at 80), so `r` grows before the loop targets deeds.

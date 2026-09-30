@@ -1,0 +1,80 @@
+{
+  "_doc": "Lumber loop knowledge (docs/LUMBER_LOOP.md). Every value comes from the user's demonstration capture logs/session_20260929_204225 (loop_mine.py timeline) and is pinned by harness/test_loop_demo.py. Serials are Test Shard, TestWorth, Shelter Island; rooms are wiped daily at 00:00 UTC, so room serials change after a wipe.",
+  "source_session": "20260929_204225",
+  "venue": "shelter_island",
+  "character": {"name": "TestWorth", "serial": "0x00094375", "backpack": "0x44ADA059", "weight_max": 570, "lumberjacking_x10": 602},
+  "items": {
+    "hatchet": {"serial": "0x44ADB57A", "graphic": "0x0F44", "layer": 2},
+    "log": {"graphic": "0x1BDD", "hue": 0},
+    "board": {"graphic": "0x1BD7", "hue": 0},
+    "blank_commodity": {"graphic": "0x1E23", "hue": 2241, "name": "blank commodity"}
+  },
+  "npcs": {
+    "banker": {"serial": "0x000001EA", "name": "Len the banker", "pos": [1953, 2581, 20], "stand": [1955, 2584]},
+    "innkeeper": {"serial": "0x000001E5", "name": "Jayne the innkeeper", "pos": [1932, 2595, 21], "stand": [1943, 2596]}
+  },
+  "vendor": {
+    "banker_context_menu": {"buy_index": 1, "sell_index": 2},
+    "blank_commodity_price": 5,
+    "buy_ok_text": "The total of thy purchase is 5 gold.  My thanks for the patronage.",
+    "buy_no_funds_cliloc": 500191,
+    "gold_source": "backpack gold is used (21 -> 16)"
+  },
+  "harvest": {
+    "use_tool": "dclick the equipped hatchet, then target the tree (location target, static graphic)",
+    "prompt_cliloc": 1010018,
+    "cursor_target_type": 1,
+    "attempt_seconds": 4.1,
+    "trees": [
+      {"x": 1898, "y": 2622, "z": 10, "graphic": "0x0CE0", "stand": [1898, 2621]},
+      {"x": 1984, "y": 2602, "z": 0, "graphic": "0x0000", "stand": [1983, 2602]}
+    ],
+    "success_text": "You chop some logs and put them in your backpack.",
+    "fail_cliloc": 500495,
+    "depleted_clilocs": [500488, 500493],
+    "not_a_tree_cliloc": 500489,
+    "demo_yield": {"attempts": 12, "successes": 2, "logs": [5, 7]},
+    "smart_harvest_self_target": "untested: the demo targeted trees, one attempt per dclick"
+  },
+  "convert": {
+    "use_tool": "dclick the hatchet, target the log stack",
+    "ok_text": "You shape the logs into boards.",
+    "ratio": 1,
+    "note": "logs and boards weigh the same (0.025 st, per-stack ceiling in the status weight); convert once per stack"
+  },
+  "deed": {
+    "use": "dclick a blank commodity, target the board stack",
+    "prompt_text": "What resource to you wish to create a commodity for?",
+    "too_few_text": "Commodity for that item must be of at least 5000.",
+    "quantum": 5000
+  },
+  "room": {
+    "menu_gump_id": "0x8EAEFBDB",
+    "open_menu": "say 'room' within range of the innkeeper (worked from 11 tiles), or context menu index 1 'Rent'",
+    "rent_button": 4,
+    "rent_clicks": 3,
+    "rent_ok_text": "You are now renting a room.",
+    "enter_button": 4,
+    "enter_text": "You enter the rental room.",
+    "inside_pos": [39, 65, 1],
+    "door": {"serial": "0x45757DCB", "graphic": "0x06E5", "pos": [39, 69, 1]},
+    "exit_button": 4,
+    "exit_text": "You exit the rental room.",
+    "exit_arrival_example": [1932, 2589],
+    "secure_container": {"serial": "0x44ADB583", "graphic": "0x0E76", "pos": [39, 66, 2]},
+    "drop_into_container_xy": 2147483647
+  },
+  "travel_lockout": {
+    "seconds": 60,
+    "after": "room exit (teleport)",
+    "text_prefix": "You have recently traveled and must wait"
+  },
+  "captcha": {
+    "gump_id": "0x00000001",
+    "answer_entry_id": 2,
+    "answer_max_len": 3,
+    "submit_button": 594,
+    "ok_text": "Captcha successful.",
+    "decoy_gumps": "every harvest attempt also opens a gump with lines ['Captcha','Guide','Type the Value','Click when complete'], a random gump id, no buttons, offscreen text, noclose/nodispose. Never reply to it; detect the real captcha by gump id + text entry + submit button, never by text."
+  }
+}

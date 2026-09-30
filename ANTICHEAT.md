@@ -147,6 +147,22 @@ Draft — to be finalized after §6/§7:
 
 12. **Injected speech must be keyword-encoded like the stock client (2026-09-29).** The stock client encodes any speech that matches a `speech.mul` keyword (type |= 0xC0, 12-bit ids, UTF-8). The Outlands encoder `Send_UnicodeSpeechRequest @ 0x140151c20`, `GetKeywords @ 0x1401bbc60` and `IsMatch @ 0x1401bba40` are the upstream algorithm. The harness's old `say_unicode` always sent plain UTF-16. So the **"hello" injected during the Phase 3 live test (session 20260928_211622) was not client-identical**: speech.mul id 59 = "hello", and a stock client would have sent it encoded. Server-side, a keyword word arriving unencoded is a detectable anomaly [INFERENCE on whether it is checked]. Fixed: `harness/uo/speech.py` + `actions.say_unicode` now reproduce the stock client exactly (verified against the real client's "bank" `ad0016c0…62616e6b00`, session 20260929_161433). Likewise, "look at NPC" now sends the stock sequence `09` + `34 …04` (+ `98` for unnamed), as seen in 518/523 real clicks.
 
+13. **Decoy "Captcha" gumps: a honeypot for text-matching bots (2026-09-29, session 20260929_204225; structure confirmed, purpose [INFERENCE, high]).** Every lumberjacking attempt opens a gump that contains the captcha's words ("Captcha", "Type the Value", "Click when complete"). Each one has:
+    - a fresh random gump id (≥ 10 distinct in one session)
+    - `nomove/noclose/nodispose`
+    - **no reply button**
+    - its text as `croppedtext` at negative (offscreen) coordinates
+    - `xmfhtmlgump` entries with cliloc numbers that don't exist in Cliloc.enu
+
+    The human sees nothing, and the stock client can't answer it. Any gump response for one of these ids can only come from automation, so a response is a near-certain detection signal. The **real** captcha is gump id `0x00000001`: a `textentrylimited` (id 2, max 3 chars) plus reply button 594, with the digits drawn as `tilepic` dot glyphs (graphics 572/6255) at layout coordinates. The human's answer was `b1 … button 594, text entry 2 = "326"` → "Captcha successful."
+
+    Harness rules:
+    - Captcha detection keys on the gump id plus the entry/button structure, **never on text**.
+    - The agent never sends a gump response for a gump that offers no reply button.
+    - Captcha handoff stays human (rule 8).
+
+    The digits are machine-readable from the layout, so auto-solving wouldn't need OCR. Rule 8's opt-in bar is unchanged. The decoys show the server is actively set up to catch naive automation.
+
 ## 9. Open questions
 
 - ~~What exactly does `Send_UOLive_HashResponse` hash?~~ **Answered: map-block CRC16s for UltimaLive world sync (upstream source).**

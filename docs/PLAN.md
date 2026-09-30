@@ -99,6 +99,13 @@ LLM planner over the world model + skill library; safety rails: captcha human-ha
     - `h` learned from our own exposure and hazard data per region
     - recall out the moment a red name appears
     - whether the Tracking skill is needed to see reds beyond the server's update range
+  - **M0 done 2026-09-29:** the demonstration capture `20260929_204225` is mined into `harness/data/loops/lumber.json` and pinned by `harness/test_loop_demo.py` (LUMBER_LOOP.md §12). Findings:
+    - 1 log → 1 board, same weight, so convert once per trip
+    - deed quantum 5 000 confirmed
+    - 60 s lockout after the room exit confirmed
+    - real captcha gump `0x00000001`, plus decoy "Captcha" gumps (ANTICHEAT.md §8.13)
+
+    Open user decision: where the stock lives, given the Test Shard's daily room wipe (§12.4).
 
 ### Phase 5 (optional) — Production copilot
 Rules-compliant live mode: agent generates Razor scripts into `Data/Plugins/Assistant/Scripts/`; human reviews and runs them manually. No autonomy, no data extraction. Only phase allowed to touch the production shard, and only as a file generator.
