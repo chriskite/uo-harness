@@ -76,13 +76,14 @@ NEARBY_RANGE = 18
 NEARBY_MAX = 30
 WALK_MAX_STEPS = 20
 LAYER_BACKPACK = 0x15
+DROP_AUTO = 0x7FFFFFFF               # drop-into-container auto position (demo capture 204225, loop_lumber)
 DIR_NAMES = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 # RunUO Notoriety constants (Innocent 1 .. Invulnerable 7) [INFERENCE: not in the
 # local ClassicUO tree; the client only switches on the named enum].
 NOTORIETY = {1: "innocent", 2: "ally", 3: "attackable", 4: "criminal", 5: "enemy",
              6: "murderer", 7: "invulnerable"}
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
-        "goto", "menu", "menu_pick", "gump")
+        "goto", "menu", "menu_pick", "gump", "unequip", "equip")
 CAPTCHA_GUMP_ID = 0x00000001          # lumber.json captcha.gump_id; human-only
 RENOUNCE_WORDS = ("renounce",)        # Young renounce prompt (clilocs 502085/3006307): close only
 GOTO_MAX_MOVES = 400
@@ -580,6 +581,8 @@ def _act(a, mem) -> dict:
         raise CtlError(f"task {alive[0]['task_id']} is running; no interleaved actions (stop it first)")
     if a.name == "goto":
         return _act_goto(a, mem)
+    if a.name in ("unequip", "equip"):
+        return _act_wear(a)
     pkt = None
     if a.name == "say":
         text = " ".join(a.args).strip().lower()
@@ -652,6 +655,97 @@ def _act(a, mem) -> dict:
     finally:
         ctl.close()
         stc.close()
+
+
+def _act_wear(a) -> dict:
+    """unequip <serial>: an item you wear -> your backpack (0x07 lift, pause,
+    0x08 drop into the pack). equip <serial>: an item in your backpack (any
+    bag depth) -> worn on its tiledata layer (0x07 lift, pause, 0x13 equip
+    request). The stock client's drag sequences; waits for the world model to
+    show the move."""
+    if len(a.args) != 1:
+        raise CtlError(f"{a.name} <item serial>")
+    serial = _parse_serial(a.args[0])
+    key = f"0x{serial:08X}"
+    try:
+        ctl = Control(a.control_port)
+    except OSError as e:
+        raise CtlError(f"proxy control port {a.control_port} unreachable: {e}")
+    try:
+        stc = StateConn(a.state_port)
+    except OSError as e:
+        ctl.close()
+        raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
+    try:
+        st = stc.state()
+        me = st["movement"].get("self_serial")
+        items = st["world"]["items"]
+        it = items.get(key)
+        if it is None:
+            raise CtlError(f"item {key} not known to the world model")
+        pack = next((_serial(k) for k, v in items.items() if v.get("layer") == LAYER_BACKPACK
+                     and v.get("container") is not None and _serial(v["container"]) == me), None)
+        if pack is None:
+            raise CtlError("backpack not known to the world model")
+        worn = it.get("container") is not None and _serial(it["container"]) == me and bool(it.get("layer"))
+        if a.name == "unequip":
+            if not worn:
+                raise CtlError(f"{key} isn't worn by you")
+            if it.get("layer") == LAYER_BACKPACK:
+                raise CtlError("that is your backpack")
+            second = actions.drop(serial, DROP_AUTO, DROP_AUTO, 0, 0, pack)
+            target = pack
+        else:
+            if worn:
+                raise CtlError(f"{key} is already worn")
+            c, depth = it.get("container"), 0
+            while c is not None and _serial(c) != pack and depth < 8:
+                c, depth = (items.get(f"0x{_serial(c):08X}") or {}).get("container"), depth + 1
+            if c is None or _serial(c) != pack:
+                raise CtlError(f"{key} isn't in your backpack")
+            layer = _tile_layer(it.get("graphic"))
+            if not layer:
+                raise CtlError(f"{key} (graphic {it.get('graphic')}) has no wearable layer in tiledata")
+            second = actions.equip_request(serial, layer, me)
+            target = me
+
+        def done():
+            v = stc.state()["world"]["items"].get(key)
+            return v is not None and v.get("container") is not None and _serial(v["container"]) == target
+        mark = stc.mark()
+        resp = ctl.send(actions.lift(serial, it.get("amount") or 1))
+        if resp != "OK":
+            return {"ok": False, "reply": resp}
+        Human(a.human, seed=a.seed).wait("drag")
+        resp = ctl.send(second)
+        if resp != "OK":
+            return {"ok": False, "reply": resp,
+                    "error": "lifted but the second packet was refused; the item may be on the cursor"}
+        end = time.monotonic() + EVENT_WAIT_S
+        while time.monotonic() < end and not done():
+            time.sleep(0.1)
+        moved = done()
+        got = stc.wait_events(mark, lambda evs: False, timeout=0.5)
+        out = {"ok": moved, "reply": resp, "moved": moved,
+               "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
+        if not moved:
+            out["error"] = "the world model doesn't show the item moved (check journal/status)"
+        return out
+    finally:
+        ctl.close()
+        stc.close()
+
+
+def _tile_layer(graphic):
+    """Tiledata layer of an item graphic (install dir, read-only), or None."""
+    if graphic is None:
+        return None
+    try:
+        import uomap
+        it = uomap.tiledata().item(graphic)
+    except (OSError, ValueError):
+        return None
+    return it.layer if it else None
 
 
 def gump_reply(state: dict, serial_arg: str, button_arg: str) -> bytes:

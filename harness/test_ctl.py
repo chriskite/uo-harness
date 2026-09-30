@@ -110,6 +110,14 @@ class FakeProxy:
                         s = int.from_bytes(pkt[5:9], "big")
                         self.add_event({"ev": "popup", "serial": s, "entries": [
                             {"cliloc": 3006123, "index": 0, "flags": 0}, {"cliloc": 3006103, "index": 1, "flags": 0}]})
+                    elif pkt[0] == 0x08 and len(pkt) == 22:          # drop into a container
+                        it = self.ground_items.get(f"0x{int.from_bytes(pkt[1:5], 'big'):08X}")
+                        if it is not None:
+                            it.update(container=f"0x{int.from_bytes(pkt[18:22], 'big'):08X}", layer=None)
+                    elif pkt[0] == 0x13:                              # equip request
+                        it = self.ground_items.get(f"0x{int.from_bytes(pkt[1:5], 'big'):08X}")
+                        if it is not None:
+                            it.update(container=f"0x{int.from_bytes(pkt[6:10], 'big'):08X}", layer=pkt[5])
                 reply = b"OK"
                 c.sendall(len(reply).to_bytes(2, "big") + reply)
         except (EOFError, OSError):
@@ -579,6 +587,32 @@ def test_overseer_acts(proxy):
           str(out.get("ground_items")))
     proxy.ground_items = {}
     proxy.take()
+
+    print("== unequip / equip (the hatchet) ==")
+    hatchet, pack = 0x44ADB57A, proxy.PACK
+    proxy.ground_items = {f"0x{hatchet:08X}": {"graphic": 0x0F43, "container": "0x00000001", "layer": 2}}
+    code, out = c("act", "unequip", f"0x{hatchet:08X}", "--human", "off")
+    fr = [p for _, p in proxy.take()]
+    check("unequip: stock lift + drop into the backpack, item now in the pack",
+          code == 0 and out.get("moved") and fr == [actions.lift(hatchet, 1),
+                                                    actions.drop(hatchet, ctl.DROP_AUTO, ctl.DROP_AUTO, 0, 0, pack)],
+          f"{out} {fr}")
+    code, out = c("act", "unequip", f"0x{hatchet:08X}")
+    check("unequip refused for an item you don't wear", code == 1 and proxy.take() == [], str(out))
+    code, out = c("act", "equip", f"0x{hatchet:08X}", "--human", "off")
+    fr = [p for _, p in proxy.take()]
+    layer = uomap_layer(0x0F43)
+    check("equip: stock lift + 0x13 on the tiledata layer, item worn again",
+          code == 0 and out.get("moved") and layer == 2
+          and fr == [actions.lift(hatchet, 1), actions.equip_request(hatchet, 2, proxy.SELF)], f"{out} {fr}")
+    code, out = c("act", "unequip", f"0x{pack:08X}")
+    check("the backpack itself can't be unequipped", code == 1 and proxy.take() == [], str(out))
+    proxy.ground_items = {}
+
+
+def uomap_layer(graphic):
+    import uomap
+    return uomap.tiledata().item(graphic).layer
 
 
 def test_map(proxy):
