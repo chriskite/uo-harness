@@ -185,6 +185,35 @@ proxy down or a pre-gate proxy):
 After a press, the reply's gate is shown at once (`VizStore.setGate`); a state frame polled before
 the press (older gate `now`) does not undo it.
 
+### 2.3 Agent intent (added 2026-09-29, user request)
+
+The runners report what they are trying to do right now on the proxy's state port:
+
+- **Request:** `{"op":"intent","intent":{"text":"Heading to tree at 1925,2580 (0/15 logs)","kind":"to_tree","target":[1925,2580],"loop":"lumber","trip":1,"trips":3}}`,
+  or `"intent": null` to clear. `agent_link.Link.intent()` sends it.
+- **Proxy handling:** `SessionTap.set_intent` stores it for the session with a `since` stamp.
+  - It returns it as top-level `intent` in every state response.
+  - It writes a jsonl `agent_intent` row and emits a proxy event `agent_intent`, so the event
+    log, the memory store and replays all carry it. `ReplayDriver` re-applies these rows
+    (exact order).
+  - It rejects malformed intents: `text` must be 1–200 chars, and unknown or ill-typed fields
+    are dropped.
+  - Nothing reaches the server.
+- **Kinds (lumber loop):**
+  - `to_tree`, `chop` (text carries the log count), `captcha` (the previous intent is restored
+    afterwards), `lockout`, `convert`
+  - `to_inn` ("Going home: …"), `enter_room`, `to_box`, `store`, `exit_room`
+  - `trip_done`, `done`, `stopped` (abort or crash reason)
+- **Kinds (bank errand):** `to_start`, `find_banker`, `to_bank`, `open_bank`, `home`, `done`,
+  `stopped`.
+
+**UI:**
+- The **Agent** panel sits at the top of the left column. It shows the text, a kind badge (captcha
+  amber, stopped red, done green), `→ x,y`, the age (`for M:SS`; in replay measured against the
+  newest event time, not the wall clock) and `loop · trip n/N`.
+- On the map, a dashed line runs from the true position to a blue reticle on the target tile,
+  labelled with the kind.
+
 ---
 
 ## 3. Parity principle
@@ -305,6 +334,7 @@ fixtures ("replay X, state at event N").
 | `viz/src/types.ts` | TS types for §1 (StateResponse, Movement, Snapshot, Mobile, Item, Gump, EventEnvelope, WalkMemory) |
 | `viz/src/api.ts`, `store.ts`, `serial.ts` | SSE client + resume; `useSyncExternalStore` store; int↔hex serial normalization and entity lookup |
 | `viz/src/gate.ts`, `components/GateControls.tsx` | agent gate badge vocabulary and button rules; the header gate controls (§2.2) |
+| `viz/src/intent.ts`, `components/IntentPanel.tsx` | agent intent view (tone, trip context, age against the live or replay clock) and the Agent panel (§2.3) |
 | `viz/src/App.tsx`, `components/*.tsx`, `App.css` | §4 panels |
 
 ### Milestones
@@ -372,7 +402,9 @@ fixtures ("replay X, state at event N").
 - Live: `python harness/viz_server.py --live [--state-port 25942] [--port 8080]`, then open
   http://127.0.0.1:8080/. It only talks to the proxy's state port (polling, plus the agent-gate
   ops of §2.2), never opens the control port, and can be started or stopped at any time. A proxy started before this build shows world events only;
-  restart the proxy for proxy events, traffic and diagnostics.
+  restart the proxy for proxy events, traffic and diagnostics. Likewise a proxy started before
+  2026-09-29 23:00 rejects the `intent` op (`unknown op`; runners log it and carry on), so the
+  Agent panel stays empty until the proxy is restarted.
 - Replay: `python harness/viz_server.py --replay <TAG> [--rate 8] [--paused]` (TAG =
   `logs/session_<TAG>.*`).
 
@@ -406,6 +438,11 @@ include `@types/bun` so `bun:test`/`Bun.build` type-check).
   - the bank box 0x44D78CA8 is OPEN
   - step advances playback; state frames arrive in 27–95 ms
   - no page errors
+
+- **Agent intent (§2.3), verified in headless Chromium** on the `test_loop_lumber.py` capture
+  (replay, stepped). The panel showed "Going home: heading to the innkeeper" (`to_inn`,
+  → 120,207, `lumber · trip 2/2`), "Waiting for you to solve the captcha in the client" (amber
+  `captcha`) and "Chopping tree at 111,200" with the reticle on the tree next to the player.
 
 **Resolved 2026-09-29:** the world model used to move self on every walk *request*, counting
 turns and rejected walks as steps, so it diverged during agent walking. It now moves only on

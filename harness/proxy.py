@@ -54,6 +54,7 @@ CLIENT_PREAMBLE_LEN = 5
 RESYNC = b"\x22\x00\x00"
 EVENT_CAP = 5000  # event envelopes kept for state-port readers
 DIAG_TOP = 20     # packet_counts entries in the state response's diagnostics
+INTENT_TEXT_MAX = 200  # chars of an agent intent's text (set_intent)
 
 # Movement timing (docs/MOVEMENT.md, sessions 20260929_142237/_143051/_144541):
 RESYNC_REPLY_TIMEOUT_S = 1.5  # client resync: no 0xBF sub1 seed by then -> the server ignored it
@@ -368,6 +369,7 @@ class SessionTap:
         # cumulative since session start, so late readers don't depend on the event ring
         self.traffic_events = collections.Counter()   # proxy event name -> count
         self.traffic_c2s = collections.Counter()      # (src, "0xNN") -> count, src != client
+        self.intent = None               # the agent's current intent (set_intent), or None
 
     def _log(self, **kw):
         kw["t"] = round(self.wall(), 3)
@@ -397,6 +399,30 @@ class SessionTap:
         for ev, note in self.moveauth.expire(now):
             self._log(ev=ev, note=note)
             self._proxy_event(ev, note=note)
+
+    def set_intent(self, intent) -> str | None:
+        """The agent's current intent, for readers only (never sent anywhere):
+        {"text": str, "kind"?: str, "target"?: [x, y], "loop"?: str, "trip"?: int,
+        "trips"?: int} or None to clear. Stamped with `since`, logged to the jsonl
+        (so replays reproduce it) and emitted as proxy event `agent_intent`.
+        Returns an error string for a malformed intent."""
+        if intent is not None:
+            if not isinstance(intent, dict) or not isinstance(intent.get("text"), str) \
+                    or not 0 < len(intent["text"]) <= INTENT_TEXT_MAX:
+                return f"intent needs a 'text' string of 1..{INTENT_TEXT_MAX} chars"
+            clean = {"text": intent["text"]}
+            for k, typ in (("kind", str), ("loop", str), ("trip", int), ("trips", int)):
+                if isinstance(intent.get(k), typ):
+                    clean[k] = intent[k]
+            tgt = intent.get("target")
+            if isinstance(tgt, list) and len(tgt) == 2 and all(isinstance(v, int) for v in tgt):
+                clean["target"] = tgt
+            clean["since"] = round(self.wall(), 3)
+            intent = clean
+        self.intent = intent
+        self._log(ev="agent_intent", intent=intent)
+        self._proxy_event("agent_intent", intent=intent)
+        return None
 
     # ---- live world model ----
     def _world(self, direction: str, pkt: bytes):
@@ -449,6 +475,7 @@ class SessionTap:
                 "proxy_events": dict(self.traffic_events),
                 "c2s": [[src, pid, n] for (src, pid), n in sorted(self.traffic_c2s.items())],
             },
+            "intent": self.intent,
         })
         return out
 
@@ -719,6 +746,9 @@ async def handle_state(reader, writer, hub):
     Request  `{"op": "gate"}` -> gate status only; with
              `"action": "pause"|"resume"|"kill"|"rearm"` -> applied first
              (`{"ok": false, "error": ...}` if refused, e.g. resume while killed).
+    Request  `{"op": "intent", "intent": {"text": ..., ...} | null}` -> the
+             agent's current intent for readers (SessionTap.set_intent); never
+             reaches the server. Needs a session.
     Every response carries `"gate"`: the agent gate status (harness/agent_gate.py).
     """
     try:
@@ -735,10 +765,13 @@ async def handle_state(reader, writer, hub):
                 if op == "gate":
                     err = hub.gate.apply(req["action"]) if "action" in req else None
                     resp = {"ok": True} if err is None else {"ok": False, "error": err}
-                elif op != "state":
+                elif op not in ("state", "intent"):
                     resp = {"ok": False, "error": f"unknown op {op!r}"}
                 elif hub.session is None:
                     resp = {"ok": False, "error": "no active session"}
+                elif op == "intent":
+                    err = hub.session[0].set_intent(req.get("intent"))
+                    resp = {"ok": True} if err is None else {"ok": False, "error": err}
                 else:
                     tap = hub.session[0]
                     tap.tick(time.monotonic())

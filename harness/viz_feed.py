@@ -323,8 +323,9 @@ class ReplayDriver(Feed):
     """REPLAY feed: an offline proxy SessionTap driven by a capture.
 
     Timeline items: (t, kind, a, b) with kind "c2s_wire" (client bytes through
-    the tap's framing), "c2s" (a=src, b=plaintext packet), "s2c" (a=wire) or
-    "timer" (a=the recorded timer decision's ev name).
+    the tap's framing), "c2s" (a=src, b=plaintext packet), "s2c" (a=wire),
+    "timer" (a=the recorded timer decision's ev name) or "intent" (a=the
+    agent intent the runner reported on the state port, exact order only).
     """
 
     mode = "replay"
@@ -412,6 +413,8 @@ class ReplayDriver(Feed):
                 si += 1
             elif ev in TIMER_EVENTS:
                 items.append((t, "timer", ev, None))
+            elif ev == "agent_intent":
+                items.append((t, "intent", row.get("intent"), None))
             t_end = t
         if not any(it[1] == "s2c" and it[2] is self.prelude for it in items):
             raise ReplayMismatch("no s2c_prelude row")
@@ -446,6 +449,8 @@ class ReplayDriver(Feed):
             tap.tap_c2s(a)
         elif kind == "s2c":
             tap.tap_s2c(a)
+        elif kind == "intent":
+            tap.set_intent(a)
         elif kind == "timer":  # proxy._movement_timer: tick, then re-anchor when due
             mark = tap.events_base + len(tap.events)
             tap.tick(self.now)

@@ -81,6 +81,13 @@ class LumberLoop:
         self.memory = memory
         self.t_exit = None           # wall time of the last teleport out of the room
         self.stats = {}
+        self.trip_n = None
+        self._intent = None          # last reported (kind, text, target), restored after a captcha
+
+    def doing(self, kind: str, text: str, target=None):
+        """Tell the visualizer what the agent is trying to do (proxy-side only)."""
+        self._intent = (kind, text, target)
+        self.link.intent(text, kind, target, loop="lumber", trip=self.trip_n, trips=self.args.trips)
 
     # ------------------------------------------------------------ guards
     def check_guards(self, st: dict):
@@ -177,6 +184,8 @@ class LumberLoop:
         self.stats["captchas"] = self.stats.get("captchas", 0) + 1
         t0 = time.monotonic()
         log("CAPTCHA: please solve it in the client; the agent is waiting")
+        resume = self._intent
+        self.doing("captcha", "Waiting for you to solve the captcha in the client")
         alert(not self.args.quiet)
         next_beep = t0 + self.args.captcha_beep_s
         while True:
@@ -186,6 +195,8 @@ class LumberLoop:
                 self.stats["captcha_wait_s"] = self.stats.get("captcha_wait_s", 0.0) + waited
                 log(f"captcha solved by the human after {waited:.0f} s; resuming")
                 self.human.wait("read")
+                if resume is not None:
+                    self.doing(*resume)
                 return
             now = time.monotonic()
             if now - t0 > self.args.captcha_timeout:
@@ -278,6 +289,7 @@ class LumberLoop:
         if left > 0:
             wait = left + self.human.reaction("read") + self.human.rng.uniform(0.5, 3.0)
             log(f"travel lockout: waiting {wait:.0f} s before harvesting")
+            self.doing("lockout", f"Waiting out the travel lockout ({wait:.0f} s) before chopping")
             time.sleep(wait)
 
     def candidate_trees(self, st):
@@ -315,6 +327,9 @@ class LumberLoop:
                 break
             label = f"tree {tree['x']},{tree['y']}"
             node = (TREE_FACET, tree["x"], tree["y"], tree["z"], h(tree["graphic"]))
+            spot = (tree["x"], tree["y"])
+            quota = f"{gained}/{self.args.logs_per_trip} logs"
+            self.doing("to_tree", f"Heading to tree at {spot[0]},{spot[1]} ({quota})", spot)
             try:
                 if "stand" in tree:
                     self.mover.walk_to(lambda: tree["stand"], 0, f"to {label}")
@@ -329,6 +344,8 @@ class LumberLoop:
             self.wait_lockout()
             tries = 0
             while tries < self.args.max_attempts_per_tree and gained < self.args.logs_per_trip:
+                self.doing("chop", f"Chopping tree at {spot[0]},{spot[1]} "
+                                   f"({gained}/{self.args.logs_per_trip} logs)", spot)
                 out, n = self.attempt(tree)
                 if out in ("success", "fail"):
                     tries += 1
@@ -345,6 +362,7 @@ class LumberLoop:
                 elif out == "lockout":
                     wait = n + self.human.rng.uniform(1.0, 3.0)
                     log(f"travel lockout reported: waiting {wait:.0f} s")
+                    self.doing("lockout", f"Waiting out the travel lockout ({wait:.0f} s)", spot)
                     time.sleep(wait)
                     continue
                 elif out == "not_tree":
@@ -370,6 +388,7 @@ class LumberLoop:
             if not stacks:
                 return
             serial, it = stacks[0]
+            self.doing("convert", f"Making boards from {it.get('amount') or 1} logs")
             cur = self.use_hatchet()
             if cur is None:
                 continue
@@ -408,7 +427,9 @@ class LumberLoop:
         # The room menu opens by speech from 13 tiles, but its buttons need the
         # vendor in range (11 tiles worked, 13 = "That vendor is too far away
         # from you.", live 2026-09-29): walk up to where the innkeeper is now.
+        self.doing("to_inn", "Going home: heading to the innkeeper", self.innkeeper_pos())
         self.mover.walk_to(self.innkeeper_pos, self.args.inn_range, "to the innkeeper")
+        self.doing("enter_room", "Asking the innkeeper to enter the rental room", self.innkeeper_pos())
         self.human.wait("speak")
         mark = len(self.link.events)
         self.link.act(actions.say_unicode("room"))
@@ -432,10 +453,12 @@ class LumberLoop:
         if st is None:
             raise Abort(f"secure container 0x{box:08X} not in the room")
         bpos = room["secure_container"]["pos"]
+        self.doing("to_box", "Walking to the secure container", bpos[:2])
         self.mover.walk_to(lambda: bpos, 1, "to the secure container")
         stored = 0
         for serial, it in self.in_pack(self.state(), BOARDS):
             amount = it.get("amount") or 1
+            self.doing("store", f"Storing {amount} boards in the secure container", bpos[:2])
             self.human.wait("use")
             self.link.act(actions.lift(serial, amount))
             self.human.wait("drag")
@@ -456,6 +479,7 @@ class LumberLoop:
         door = h(room["door"]["serial"])
         if self.link.wait(lambda s: self.item(s, door) is not None, 3.0) is None:
             raise Abort(f"room door 0x{door:08X} not known")
+        self.doing("exit_room", "Leaving the rental room", room["door"]["pos"][:2])
         self.mover.walk_to(lambda: room["door"]["pos"][:2], 1, "to the door")
         self.human.wait("use")
         mark = len(self.link.events)
@@ -480,6 +504,7 @@ class LumberLoop:
 
     def trip(self, n):
         self.stats = {}
+        self.trip_n = n
         t0, s0, b0 = time.time(), self.mover.steps, self.mover.blocked_count
         phases = {}
 
@@ -501,6 +526,8 @@ class LumberLoop:
                "human_session": dict(self.human.stats), **self.stats}
         self.episode(row)
         log(f"trip {n} done: {row}")
+        self.doing("trip_done", f"Trip {n} done: {self.stats.get('logs', 0)} logs, "
+                                f"{self.stats.get('stored', 0)} boards stored")
 
     def run(self):
         st = self.link.wait(lambda s: s["movement"]["pos"] is not None
@@ -516,6 +543,15 @@ class LumberLoop:
         for n in range(1, self.args.trips + 1):
             self.trip(n)
         log(f"loop complete: {self.args.trips} trip(s)")
+        self.doing("done", f"Finished: {self.args.trips} trip(s)")
+
+
+def stop_intent(loop, text):
+    """Last words for the visualizer; the proxy may already be gone."""
+    try:
+        loop.doing("stopped", text[:200])
+    except (OSError, ValueError, Abort):
+        pass
 
 
 def main():
@@ -559,6 +595,10 @@ def main():
     except Abort as e:
         log(f"ABORTED: {e}")
         code = 1
+        stop_intent(loop, f"Stopped: {e}")
+    except BaseException as e:
+        stop_intent(loop, f"Crashed: {type(e).__name__}: {e}")
+        raise
     finally:
         memory.close()
     sys.exit(code)

@@ -108,6 +108,22 @@ class Link:
         self.last = resp
         return resp
 
+    def intent(self, text: str | None, kind: str | None = None, target=None, **extra):
+        """Report what the agent is trying to do now (the visualizer shows it).
+        Proxy-side only: nothing reaches the server. None clears it. A display
+        failure never stops the agent: it's logged and ignored."""
+        body = None
+        if text is not None:
+            body = {"text": text, **{k: v for k, v in extra.items() if v is not None}}
+            if kind is not None:
+                body["kind"] = kind
+            if target is not None and None not in tuple(target)[:2]:
+                body["target"] = [int(target[0]), int(target[1])]
+        self.st.sendall((json.dumps({"op": "intent", "intent": body}) + "\n").encode())
+        resp = json.loads(self.st_file.readline())
+        if not resp.get("ok"):
+            log(f"intent not shown: {resp.get('error')}")
+
     def wait(self, pred, timeout: float, poll: float = 0.1):
         end = time.monotonic() + timeout
         while True:

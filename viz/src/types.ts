@@ -193,6 +193,25 @@ export interface StateResponse {
   viz?: VizInfo;
   /** The proxy's agent gate; present on every response of a gate-aware proxy (also ok:false). */
   gate?: Gate;
+  /** What the agent runner says it is trying to do (state-port `intent` op);
+   * null/absent when no runner has reported one this session. */
+  intent?: AgentIntent | null;
+}
+
+/** An agent runner's current intent (harness/proxy.py SessionTap.set_intent).
+ * Proxy-side display data only; nothing reaches the server. */
+export interface AgentIntent {
+  text: string;
+  /** Phase key, e.g. to_tree, chop, captcha, lockout, convert, to_inn, enter_room,
+   * to_box, store, exit_room, trip_done, done, stopped. */
+  kind?: string;
+  /** Tile the agent is heading to / working on. */
+  target?: Tile;
+  loop?: string;
+  trip?: number;
+  trips?: number;
+  /** Proxy wall clock (epoch s) when it was reported. */
+  since: number;
 }
 
 /** Precedence killed > paused > break > budget_exhausted > running. */

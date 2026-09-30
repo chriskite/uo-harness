@@ -36,6 +36,7 @@ import nav  # noqa: E402
 from uo.packets import packet_length, C2S_OVERRIDES  # noqa: E402
 from uo.s2c import encode_packet  # noqa: E402
 from world.parsers import parse_packet  # noqa: E402
+import viz_feed  # noqa: E402
 
 PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT = 12670, 12671, 12672, 12673
 LOGDIR = f"{ROOT}/logs_test_loop"
@@ -448,6 +449,8 @@ async def main():
         out, _ = await asyncio.wait_for(runner.communicate(), timeout=360)
         text = out.decode(errors="replace")
         print("---- runner output ----\n" + text + "-----------------------")
+        bad_intents = [state_req({"op": "intent", "intent": b})
+                       for b in ({"text": ""}, {"text": 5}, ["not", "a", "dict"], {"text": "x" * 201})]
         solver.cancel()
         writer.close()
         drainer.cancel()
@@ -501,9 +504,55 @@ async def main():
               len(rows) == 2 and all(r.get("logs", 0) >= 6 and r.get("stored", 0) >= 6 for r in rows), str(rows))
         check("every C2S packet came from the client or the agent (none from the proxy)",
               srcs <= {"client", "agent"}, str(srcs))
+        intents = [e["intent"] for e in log if e.get("ev") == "agent_intent"]
+        kinds = [i["kind"] for i in intents if i]
+        check("malformed intents rejected by the proxy (and not recorded)",
+              all(not r["ok"] for r in bad_intents) and all(i and i.get("text") for i in intents),
+              str(bad_intents))
+        phase = ["to_tree", "chop", "convert", "to_inn", "enter_room", "to_box", "store", "exit_room",
+                 "trip_done"]
+        for n in (1, 2):
+            seq = [i["kind"] for i in intents if i and i.get("trip") == n]
+            check(f"trip {n}: intents follow the loop's phases in order",
+                  is_subsequence(phase, seq), str(dedupe(seq)))
+        t2 = [i["kind"] for i in intents if i and i.get("trip") == 2]
+        check("trip 2 reports the post-exit lockout wait before chopping",
+              "lockout" in t2 and t2.index("lockout") < t2.index("chop"), str(dedupe(t2)))
+        cap = [k for k, i in enumerate(intents) if i and i["kind"] == "captcha"]
+        check("captcha intent shown once, then the previous intent restored",
+              len(cap) == 1 and 0 < cap[0] < len(intents) - 1
+              and intents[cap[0] + 1]["text"] == intents[cap[0] - 1]["text"], str(cap))
+        check("heading/chopping intents carry the tree as target",
+              all(i.get("target") for i in intents if i and i["kind"] in ("to_tree", "chop")))
+        check("last intent: finished, lumber loop, 2 trips",
+              intents and intents[-1]["kind"] == "done" and intents[-1]["loop"] == "lumber"
+              and intents[-1]["trips"] == 2, str(intents[-1:]))
+        tag = next(f for f in os.listdir(LOGDIR) if f.endswith(".jsonl"))[len("session_"):-len(".jsonl")]
+        drv = viz_feed.ReplayDriver(tag, LOGDIR)
+        drv.run_to_end()
+        got = drv.query(0).get("intent") or {}
+        check("a replay of the capture reproduces the final intent (viz replay)",
+              {k: got.get(k) for k in ("kind", "text", "trips")}
+              == {k: intents[-1].get(k) for k in ("kind", "text", "trips")}, str(got))
     finally:
         proxy.terminate()
         server.close()
+
+
+def state_req(req):
+    import socket
+    with socket.create_connection(("127.0.0.1", STATE_PORT), timeout=5) as s:
+        s.sendall((json.dumps(req) + "\n").encode())
+        return json.loads(s.makefile("rb").readline())
+
+
+def dedupe(seq):
+    return [k for i, k in enumerate(seq) if i == 0 or seq[i - 1] != k]
+
+
+def is_subsequence(want, seq):
+    it = iter(seq)
+    return all(any(k == w for k in it) for w in want)
 
 
 if __name__ == "__main__":

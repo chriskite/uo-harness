@@ -163,20 +163,26 @@ class Errand:
         self.human.wait("between")
         if self.args.start:
             target = self.args.start
+            self.link.intent("Walking to the errand's start", "to_start", target, loop="bank")
             self.mover.walk_to(lambda: target, 0, "to start")
         home = tuple(self.pos()[:2])
         log(f"errand start at {home}")
+        self.link.intent("Looking for a banker", "find_banker", loop="bank")
         serial, label, bpos = self.find_banker()
         log(f"banker: {label} at {bpos}")
+        self.link.intent(f"Heading to {label}", "to_bank", self.banker_pos(serial, bpos), loop="bank")
         self.mover.walk_to(lambda: self.banker_pos(serial, bpos), self.args.range, "to bank")
+        self.link.intent("Opening the bank box", "open_bank", loop="bank")
         box = self.open_bank()
         log(f"bank box opened (0x{box:08X})")
         self.human.wait("between")
+        self.link.intent("Heading back to where the errand started", "home", home, loop="bank")
         self.mover.walk_to(lambda: home, 0, "home")
         final = tuple(self.pos()[:2])
         if final != home:
             raise Abort(f"ended at {final}, not {home}")
         log(f"errand complete: back at {home}; {self.mover.steps} moves, {self.mover.blocked_count} blocked")
+        self.link.intent("Finished: bank errand complete", "done", loop="bank")
 
 
 def main():
@@ -208,6 +214,10 @@ def main():
     except Abort as e:
         log(f"ABORTED: {e}")
         code = 1
+        try:
+            link.intent(f"Stopped: {e}"[:200], "stopped", loop="bank")
+        except (OSError, ValueError, Abort):
+            pass
     finally:
         memory.close()
     sys.exit(code)

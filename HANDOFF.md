@@ -50,6 +50,9 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
    - **Live proof ✅ (2026-09-29 22:27, attempt 2c):** 1 trip with no deeds, 46 boards stored
      (LUMBER_LOOP.md §13). Next: exercise the fixed captcha handoff live (the submit id is
      random, ANTICHEAT.md §8.13), then multi-trip runs and optimization (§6).
+   - The visualizer shows what the agent is trying to do ("Heading to tree at …", "Chopping …",
+     "Going home: …") in the **Agent** panel and as a map reticle (VISUALIZER.md §2.3). The live
+     proxy must be restarted once to carry intents; the runners work either way.
 4. Optional: map-based z for re-anchors (stairs/slopes).
 5. ~~Visualizer~~ **Phase A BUILT (docs/VISUALIZER.md §9)**: read-only `viz_server.py`
    (live on the state port, or an exact offline replay of a capture) plus a React + TSX frontend

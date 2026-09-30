@@ -6,6 +6,7 @@ import { EntityInspector } from "./components/EntityInspector.tsx";
 import { EventLog } from "./components/EventLog.tsx";
 import { GumpViewer } from "./components/GumpViewer.tsx";
 import { Header } from "./components/Header.tsx";
+import { IntentPanel } from "./components/IntentPanel.tsx";
 import { MapGrid } from "./components/MapGrid.tsx";
 import { MovementPanel } from "./components/MovementPanel.tsx";
 import { SelfPanel } from "./components/SelfPanel.tsx";
@@ -28,6 +29,7 @@ export function App() {
     <div className="app">
       <Header viz={viz} />
       <aside className="left">
+        <IntentPanel viz={viz} />
         <SelfPanel world={world} />
         <MovementPanel state={viz.state} agg={viz.agg} />
         <TrafficPanel traffic={viz.state?.traffic} lastAgent={viz.agg.lastAgent} world={world} />

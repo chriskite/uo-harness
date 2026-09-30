@@ -178,6 +178,21 @@ h4 {
   border: none;
   height: 100%;
 }
+.intent {
+  border-color: #1e40af;
+}
+.intent-text {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.intent-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
 
 /* ---------------------------------------------------------------- header */
 

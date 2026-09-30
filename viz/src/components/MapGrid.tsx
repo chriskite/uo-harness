@@ -37,6 +37,9 @@ interface Scene {
   mobiles: MobileDot[];
   items: Dot[];
   selected: HexSerial | null;
+  /** The agent intent's target tile and phase kind (state-port `intent`). */
+  goal: Tile | null;
+  goalKind: string | null;
 }
 
 function buildScene(viz: VizSnapshot, layer: WalkLayer): Scene {
@@ -73,6 +76,8 @@ function buildScene(viz: VizSnapshot, layer: WalkLayer): Scene {
     mobiles,
     items,
     selected: viz.selected,
+    goal: st?.intent?.target ?? null,
+    goalKind: st?.intent?.target ? (st.intent.kind ?? "target") : null,
   };
 }
 
@@ -335,6 +340,32 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
       label(s.selfName ?? "self", px + r + 3, py - r, "#a5f3fc");
     }
 
+    // Agent intent: where it's heading / what it's working on.
+    if (s.goal && visible(s.goal[0], s.goal[1])) {
+      const [gx, gy] = C(s.goal[0], s.goal[1]);
+      if (s.truth) {
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = "rgba(96, 165, 250, 0.8)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(...C(s.truth[0], s.truth[1]));
+        ctx.lineTo(gx, gy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      const gr = Math.max(6, z * 0.6);
+      ctx.strokeStyle = "#60a5fa";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(gx, gy, gr, 0, Math.PI * 2);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        ctx.moveTo(gx + dx * gr * 0.5, gy + dy * gr * 0.5);
+        ctx.lineTo(gx + dx * gr * 1.4, gy + dy * gr * 1.4);
+      }
+      ctx.stroke();
+      // above-right, clear of mobile captions (which sit right of their dot)
+      label(s.goalKind ?? "target", gx + gr * 1.1, gy - gr * 1.4 - 3, "#93c5fd");
+    }
     // Selection ring.
     const sel = s.selected ? findDot(s, s.selected) : null;
     if (sel) {
