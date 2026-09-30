@@ -54,6 +54,15 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   and costs 10 `[INFERENCE]`. A denied shove comes back as a normal walk reject (0x21), and
   `Mover` logs the stamina with each one. Live attempt 2 failed because the planner treated NPCs
   in the inn's one-tile upstairs hallway as walls (LUMBER_LOOP.md §13).
+- **The proxy's `movement.pos` z is stale while walking:** ConfirmWalk (0x22) carries no z, so
+  MoveAuthority updates z only on server anchors (0x1B/0x20/0x77/0x21). Consumers that need
+  height must derive it from the map with the client's walk rules, as `Mover.z_now` does
+  (`Walk.can_walk` after each confirmed step). The stock client does the same (CalculateNewZ).
+  Stored `step`/`blocked` z values in logs and the memory store carry this staleness too.
+- **Shelter has a cave/cellar level at z −20** under the inn and the forest west of it
+  (`cave floor` statics 0x053B–0x053F under land at z 5). Harvest and vendor ranges are
+  accepted across it (2D) `[INFERENCE]`. Goals must be height-aware (LUMBER_LOOP.md §13,
+  run 3 finding).
 - Frontend toolchain: **Bun 1.4.2** installed 2026-09-29 (user-level, `irm bun.sh/install.ps1 | iex`) at `C:\Users\chris\.bun\bin\bun.exe`, added to the user PATH (new terminals only; in the agent's git-bash shell call it via PowerShell or the full path). There is no Node/npm on this machine. The visualizer frontend (docs/VISUALIZER.md) uses Bun for install/bundle/test: React + TSX.
 
 ## CAPTCHA facts (wiki)

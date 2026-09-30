@@ -599,3 +599,26 @@ stored in 8 min 25 s, exit 0.**
   (1932, 2574) 18 logs from 12 attempts and (1924, 2588) 16 from 5.
 - The viz Agent panel showed the live intent and history throughout. It ended on "Finished: 3
   trip(s)" with 30 history entries.
+
+**Finding after run 3 (user, watching the client): the agent chopped from a cave under the
+trees.** Trips 2 and 3 stood at (1925, 2592) and (1925, 2589) at **z −20**, on `cave floor`
+statics in a cellar/cave level under the inn and the forest west of it. From there they chopped
+the walnut and cedar at **z 5** on the surface above, and trip 2 also said `room` to Jayne (z 21)
+from the cave. The server accepted all of it (its range checks look 2D `[INFERENCE]`). A player
+in that cave can't see or click a tree on the surface, so it's an inhuman signal.
+- **Cause 1:** tree and NPC goals were 2D (`within((x, y), r)`). On the real map, the cheapest
+  tile "adjacent" to both trees, from the room exit and from upstairs, is the cave tile below
+  (`test_pathfind.py` reproduces this).
+- **Cause 2:** walk confirms carry no z, so the proxy's `movement.pos` z changes only on server
+  re-anchors. Planning started from a stale z, which is why the step log shows 20 → −20 in one
+  "step".
+- **Fix:**
+  - Goals can carry `z_ok`, which `pathfind.plan` and `Mover`'s arrival check honour.
+  - Trees use `agent_link.reach_z(tree_z, tile height)`: the 16-high body must overlap the tree
+    vertically.
+  - The innkeeper and banker use `same_floor(npc_z)` (±22).
+  - `Mover` tracks its own z after every confirmed step with the client's walk rules
+    (`Walk.can_walk`). It plans from that z, and a server re-anchor overrides it.
+  - On the real map, both trees are now reached at z 5 beside them via the inn's door; the
+    route is longer (66–76 steps). From the cave, the innkeeper goal ends on the ground floor
+    (z 1).

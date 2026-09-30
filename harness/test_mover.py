@@ -28,7 +28,7 @@ def check(name, cond, detail=""):
 class FakeLink:
     """A grid server: walls deny, doors deny until opened (0x12 0x58 next to them)."""
 
-    def __init__(self, start, facing, walls=(), doors=(), mobiles=(), can_shove=True):
+    def __init__(self, start, facing, walls=(), doors=(), mobiles=(), can_shove=True, z=0):
         self.here = list(start)
         self.facing = facing
         self.walls = set(walls)
@@ -39,6 +39,7 @@ class FakeLink:
         self.shoved = []
         self.denies = []
         self.events = []
+        self.z = z          # like the proxy: set by anchors only, never by walk confirms
 
     def send(self, pkt):
         if pkt[0] == 0x02:
@@ -72,7 +73,7 @@ class FakeLink:
         items = {f"0x{0x40000000 + i:08X}": {"graphic": 0x06AD, "x": d[0], "y": d[1]}
                  for i, d in enumerate(self.doors)}
         mobiles = {f"0x{0x100 + i:08X}": {"x": m[0], "y": m[1]} for i, m in enumerate(self.mobiles) if m[2] > 0}
-        return {"movement": {"pos": [*self.here, 0, self.facing], "inflight": 0, "self_serial": 1,
+        return {"movement": {"pos": [*self.here, self.z, self.facing], "inflight": 0, "self_serial": 1,
                              "stalled": False, "rejects_in_row": 0},
                 "world": {"mobiles": mobiles, "items": items,
                           "self": {"stam": 50 if self.can_shove else 3, "stam_max": 50}}}
@@ -82,7 +83,7 @@ class FakeLink:
         return st if pred(st) else None
 
     def pos(self, st=None):
-        return [*self.here, 0, self.facing]
+        return [*self.here, self.z, self.facing]
 
 
 def test_bump():
@@ -196,6 +197,45 @@ def test_shove_denied():
     check("a goal walls cut off is still 'no route' (mobiles or not)", "no route" in msg, msg)
 
 
+class LayeredWalk:
+    """Stand-in for pathfind.Walk with heights: `levels` {(x, y): {z, ...}};
+    a step reaches a level on the next tile within 13 z (stairs), like the client."""
+
+    def __init__(self, levels):
+        self.levels = levels
+        self.dynamic = None
+
+    def clear(self):
+        pass
+
+    def can_walk(self, x, y, z, d):
+        nx, ny = nav.step((x, y), d)
+        zs = [nz for nz in self.levels.get((nx, ny), ()) if abs(nz - z) <= 13]
+        return (nx, ny, min(zs, key=lambda nz: abs(nz - z))) if zs else None
+
+
+def test_height_goal():
+    print("== tree above a cave: chop from the tree's level, track z while the proxy's is stale ==")
+    # cave z -20 along y=0 (x 0..6), stairs at (0,1) z -8, surface z 5 along y=2 (x 0..7).
+    # The tree (6,1) z 5 is adjacent to cave tiles (5,0),(6,0) — directly below its level.
+    levels = {(x, 0): {-20} for x in range(7)}
+    levels[(0, 1)] = {-8}
+    levels.update({(x, 2): {5} for x in range(8)})
+    walls = {(x, y) for x in range(-1, 9) for y in range(-1, 4)} - set(levels)
+    link = FakeLink((3, 0), facing=2, walls=walls, z=-20)
+    mv = Mover(link, nav.WalkMemory(), Human("off"), use_map=True)
+    mv._walks[0] = LayeredWalk(levels)
+    mv.walk_to(lambda: (6, 1), 1, "t", z_ok=agent_link.reach_z(5, 20))
+    st = link.state()
+    check("ended beside the tree on the surface, not in the cave below it",
+          tuple(link.here) in {(5, 2), (6, 2), (7, 2)}, str(link.here))
+    check("the mover tracked z up the stairs (5) though the proxy still says -20",
+          mv.z_now(st) == 5 and st["movement"]["pos"][2] == -20, f"{mv.z_now(st)} / {st['movement']['pos'][2]}")
+    link.z = 25                                 # a server re-anchor on the same tile with another z
+    check("a server re-anchor overrides the tracked z", mv.z_now(link.state()) == 25,
+          str(mv.z_now(link.state())))
+
+
 if __name__ == "__main__":
     assert PROFILES["off"].bump_p == 0.0
     test_bump()
@@ -204,5 +244,6 @@ if __name__ == "__main__":
     test_shove_through()
     test_go_around_when_cheap()
     test_shove_denied()
+    test_height_goal()
     print(f"\nmover: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     sys.exit(0 if not FAILURES else 1)

@@ -172,6 +172,17 @@ Draft — to be finalized after §6/§7:
 
     Constraints: only stock-identical packets or waiting. It never beats the proxy's pacing floor or the gate. No free-text speech (PLAN.md speech allowlist). [INFERENCE] Whether Outlands' server models these statistics is unknown. The texture is cheap insurance, not a guarantee.
 
+15. **Only act on what a player could see from where they stand (2026-09-29, found by the user
+    watching live run 3).** The server accepted harvesting surface trees (z 5) and talking to the
+    innkeeper from a cave 25–41 z below (its range checks look 2D `[INFERENCE]`). A human there
+    couldn't see or click those targets, so the action pattern is impossible for a real client
+    and would stand out to a GM or a log review. Rule: every target goal is height-aware:
+    - harvest targets need the standing body to overlap the target vertically
+    - NPC interactions happen within one storey of the NPC
+
+    The Mover tracks z from the map because the proxy's z is stale during walks (NOTES.md).
+    Tests: `harness/test_pathfind.py` (real map) and `harness/test_mover.py`.
+
 ## 9. Open questions
 
 - ~~What exactly does `Send_UOLive_HashResponse` hash?~~ **Answered: map-block CRC16s for UltimaLive world sync (upstream source).**

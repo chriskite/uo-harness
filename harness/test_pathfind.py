@@ -9,6 +9,10 @@ Ground truth is server evidence:
 - the demo's tree (1898, 2622, static 0x0CE0) is not walkable
 - the demo's harvest stand (1898, 2621) lands at z 10, the z the server
   reported there (0x20/0x77 in session 20260929_204225)
+- live run 3 (session 20260929_224710) chopped the surface trees (1924, 2591)
+  and (1924, 2588) (z 5) from a cave under them (z -20, "cave floor" statics)
+  and asked the innkeeper for the room from there: height-aware goals
+  (agent_link.reach_z / same_floor) must end on the target's level
 
 Run: python harness/test_pathfind.py   (a few seconds)
 """
@@ -75,6 +79,22 @@ def main():
     check("the demo tree tile is not walkable", walk.can_walk(1898, 2621, 10, 4) is None)
     stand = walk.new_z(1898, 2621, 10, 4)
     check("the demo harvest stand is walkable at the server's z 10", stand == 10, str(stand))
+
+    print("== height-aware goals: not from the cave under the trees (live run 3) ==")
+    import agent_link
+    td = uomap.tiledata()
+    exit_tile = (1930, 2589, 20)                  # where the room exit put the agent
+    for tx, ty, g in ((1924, 2591, 0x0CE0), (1924, 2588, 0x0CD8)):
+        flat = pathfind.plan(walk, exit_tile, nav.within((tx, ty), 1))
+        check(f"tree {tx},{ty}: a height-blind goal ends in the cave (the live hazard)",
+              flat is not None and flat[-1][2] == -20, str(flat and flat[-1]))
+        path = pathfind.plan(walk, exit_tile, nav.within((tx, ty), 1, agent_link.reach_z(5, td.item(g).height)))
+        check(f"tree {tx},{ty}: the height-aware goal ends beside it on the surface",
+              path is not None and path[-1][2] == 5 and nav.chebyshev(path[-1][:2], (tx, ty)) == 1,
+              str(path and path[-1]))
+    inn = pathfind.plan(walk, (1925, 2592, -20), nav.within((1932, 2595), 4, agent_link.same_floor(21)))
+    check("innkeeper from the cave: ends within one storey of her (ground floor or up)",
+          inn is not None and inn[-1][2] >= 0, str(inn and inn[-1]))
 
     print(f"\npathfind: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     return 0 if not FAILURES else 1

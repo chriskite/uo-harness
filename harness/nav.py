@@ -312,13 +312,16 @@ def build_from_logs(logdir: str = DEFAULT_LOGDIR, stats: dict | None = None) -> 
 
 class within:
     """Goal predicate: Chebyshev distance to `center` <= `radius`. Carries an
-    admissible `heuristic` that plan() uses; a bare callable goal gets h = 0."""
+    admissible `heuristic` that plan() uses; a bare callable goal gets h = 0.
+    `z_ok(z)`, if given, also constrains the standing height: the 3D planner
+    (pathfind.plan) and Mover's arrival check honour it; 2D plans can't."""
 
-    __slots__ = ("center", "radius")
+    __slots__ = ("center", "radius", "z_ok")
 
-    def __init__(self, center: Tile, radius: int = 0):
+    def __init__(self, center: Tile, radius: int = 0, z_ok: Callable[[int], bool] | None = None):
         self.center = (int(center[0]), int(center[1]))
         self.radius = int(radius)
+        self.z_ok = z_ok
 
     def __call__(self, t: Tile) -> bool:
         return chebyshev(t, self.center) <= self.radius

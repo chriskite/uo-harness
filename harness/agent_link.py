@@ -36,6 +36,23 @@ MAP_FACETS = (0, 1, 4, 5)     # facets with geometry in mapN.uoo (2 and 3 are bl
 MOBILE_COST_X = 4.0
 SHOVE_RETRY_S = 15.0
 MOBILE_WAIT_S = 90.0
+# Heights (z units). A body is 16 high (ClassicUO DEFAULT_CHARACTER_HEIGHT); a
+# storey is ~20 (Shelter inn: ground floor planks z 0-1, upstairs boards z 20-21).
+BODY_HEIGHT = 16
+FLOOR_SPAN = 22
+
+
+def reach_z(obj_z: int, obj_height: int):
+    """z_ok for working an object (a tree): the standing body must overlap it
+    vertically, i.e. stand on its level, as a player who can see and click it
+    would. A cave below it or a floor above it doesn't count (live 2026-09-29:
+    the agent chopped surface trees at z 5 from a cave at z -20)."""
+    return lambda z: obj_z - BODY_HEIGHT < z < obj_z + max(obj_height, 1)
+
+
+def same_floor(ref_z: int):
+    """z_ok for dealing with an NPC: at most one storey above or below it."""
+    return lambda z: abs(z - ref_z) <= FLOOR_SPAN
 
 
 class Abort(Exception):
@@ -168,11 +185,26 @@ class Mover:
         self.blocked_count = 0
         self.doors_opened = 0
         self.bumps = 0
+        self._walk = None            # map walker of the current plan (None: 2D walk memory)
+        # ((x, y), z, proxy_z): our own z after a confirmed step, computed with the
+        # client's walk rules on the map (walk confirms carry no z, so the proxy's
+        # z only changes on server re-anchors); proxy_z detects such a re-anchor.
+        self._track = None
+
+    def z_now(self, st) -> int:
+        """Best standing z: our map-tracked z while the proxy hasn't re-anchored
+        us since, else the proxy's (server) z."""
+        pos = st["movement"]["pos"]
+        t = self._track
+        if t is not None and t[0] == (pos[0], pos[1]) and t[2] == pos[2]:
+            return t[1]
+        return pos[2]
 
     def step(self, d: int, run: bool = True) -> str:
         """Send one walk; wait for its outcome. Returns 'moved', 'turned' or 'blocked'."""
         st = self.link.state()
         before = self.link.pos(st)
+        z0 = self.z_now(st)
         pkt = actions.walk(d, run=run)
         for _ in range(40):  # retry pacing / resync-reply gates
             resp = self.link.send(pkt)
@@ -195,6 +227,9 @@ class Mover:
         after = self.link.pos(st)
         if after[:2] != before[:2]:
             self.steps += 1
+            nxt = self._walk.can_walk(before[0], before[1], z0, d) if self._walk is not None else None
+            self._track = (((after[0], after[1]), nxt[2], after[2])
+                           if nxt is not None and (nxt[0], nxt[1]) == (after[0], after[1]) else None)
             return "moved"
         if after[3] != before[3]:
             return "turned"
@@ -324,15 +359,18 @@ class Mover:
 
         self.mem = self.mem_for(st["world"]["self"].get("map"))
         walk = self.walk_map(st)
+        self._walk = walk
         if walk is not None:
-            path = pathfind.plan(walk, (pos[0], pos[1], pos[2]), goal,
+            path = pathfind.plan(walk, (pos[0], pos[1], self.z_now(st)), goal,
                                  blocked_moves=self.denied, occupied=hard, cost_scale=cost)
             return (None if path is None else [(x, y) for x, y, _ in path]), walk
         return nav.plan(self.mem, cur, goal, extra_blocked=hard, cost_scale=cost), None
 
-    def walk_to(self, center_fn, radius: int, label: str, max_moves: int = 250):
+    def walk_to(self, center_fn, radius: int, label: str, max_moves: int = 250, z_ok=None):
         """Walk until within `radius` (Chebyshev) of center_fn(), re-evaluated
-        on every replan (NPCs wander)."""
+        on every replan (NPCs wander). `z_ok(z)` also requires the standing
+        height (same level as the target, not a cave below or a floor above);
+        only the map planner can honour it."""
         replans = 0
         start_steps = self.steps
         tried_doors = set()
@@ -342,8 +380,8 @@ class Mover:
             st = self.link.state()
             self.guard(st)
             cur = tuple(self.link.pos(st)[:2])
-            goal = nav.within(tuple(center_fn()), radius)
-            if goal(cur):
+            goal = nav.within(tuple(center_fn()), radius, z_ok)
+            if goal(cur) and (z_ok is None or self.walk_map(st) is None or z_ok(self.z_now(st))):
                 log(f"{label}: arrived at {cur}")
                 return
             path, walk = self.plan(st, goal)
@@ -364,8 +402,9 @@ class Mover:
             replan = False
             prev_d = None
             for i, nxt in enumerate(path[1:], start=1):
-                pos = self.link.pos()
-                cur, z = (pos[0], pos[1]), pos[2]
+                st = self.link.state()
+                pos = self.link.pos(st)
+                cur, z = (pos[0], pos[1]), self.z_now(st)
                 d = nav.direction(cur, nxt)
                 if prev_d is not None and d != prev_d and self.obstacle_ahead(cur, prev_d, walk, z) \
                         and self.human.bump():
@@ -394,7 +433,8 @@ class Mover:
                     time.sleep(self.human.step_delay(run))
                     self.human.after_step()
                     if len(path) - i > 3 and self.human.wander():
-                        if self._sidestep(new, set(path[i:i + 2]), run, walk, self.link.pos()[2]):
+                        st = self.link.state()
+                        if self._sidestep(new, set(path[i:i + 2]), run, walk, self.z_now(st)):
                             log(f"{label}: sidestepped at {new}; replanning")
                             time.sleep(self.human.step_delay(run))
                             break

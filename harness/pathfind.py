@@ -182,10 +182,13 @@ class Walk:
 def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=None,
          max_expand: int = 30000):
     """A* over (x, y, z): the cheapest route from start (x, y, z) to the first
-    tile satisfying goal_fn((x, y)), as [(x, y, z), ...] including start, or
-    None. blocked_moves: {(x, y, d)} learned server denies. occupied: {(x, y)}."""
+    tile satisfying goal_fn((x, y)) (and goal_fn.z_ok(z) when the goal has one:
+    a tile below or above the target, e.g. a cave under a tree, isn't the
+    target's), as [(x, y, z), ...] including start, or None. blocked_moves:
+    {(x, y, d)} learned server denies. occupied: {(x, y)}."""
     start = (int(start[0]), int(start[1]), int(start[2]))
     h = getattr(goal_fn, "heuristic", None) or (lambda t: 0)
+    z_ok = getattr(goal_fn, "z_ok", None)
     blocked = set(blocked_moves)
     occ = set(occupied)
     tie = itertools.count()
@@ -198,7 +201,7 @@ def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=N
         _, _, cur = heapq.heappop(heap)
         if cur in closed:
             continue
-        if goal_fn(cur[:2]):
+        if goal_fn(cur[:2]) and (z_ok is None or z_ok(cur[2])):
             path = [cur]
             while cur in parent:
                 cur = parent[cur]

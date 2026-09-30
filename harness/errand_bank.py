@@ -25,7 +25,7 @@ import time
 
 sys.path.insert(0, r"C:/Users/chris/uo-harness/harness")
 import actions  # noqa: E402
-from agent_link import Abort, Link, Mover, cheb, log, serial_of  # noqa: E402
+from agent_link import Abort, Link, Mover, cheb, log, same_floor, serial_of  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 
@@ -127,6 +127,11 @@ class Errand:
         m = self.link.state()["world"]["mobiles"].get(f"0x{serial:08X}") or {}
         return (m["x"], m["y"]) if m.get("x") is not None else fallback
 
+    def banker_z_ok(self, serial: int):
+        """Speak to the banker from his floor (±1 storey), not from a cave under him."""
+        z = (self.link.state()["world"]["mobiles"].get(f"0x{serial:08X}") or {}).get("z")
+        return same_floor(z) if z is not None else None
+
     # ---- bank ----
     def open_bank(self) -> int:
         mark = len(self.link.events)
@@ -171,7 +176,8 @@ class Errand:
         serial, label, bpos = self.find_banker()
         log(f"banker: {label} at {bpos}")
         self.link.intent(f"Heading to {label}", "to_bank", self.banker_pos(serial, bpos), loop="bank")
-        self.mover.walk_to(lambda: self.banker_pos(serial, bpos), self.args.range, "to bank")
+        self.mover.walk_to(lambda: self.banker_pos(serial, bpos), self.args.range, "to bank",
+                           z_ok=self.banker_z_ok(serial))
         self.link.intent("Opening the bank box", "open_bank", loop="bank")
         box = self.open_bank()
         log(f"bank box opened (0x{box:08X})")

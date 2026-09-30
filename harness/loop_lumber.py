@@ -35,7 +35,8 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
-from agent_link import Abort, Link, Mover, cheb, log, serial_of  # noqa: E402
+from agent_link import Abort, Link, Mover, cheb, log, reach_z, same_floor, serial_of  # noqa: E402
+import uomap  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from uo.gumps import parse_layout  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
@@ -330,11 +331,12 @@ class LumberLoop:
             spot = (tree["x"], tree["y"])
             quota = f"{gained}/{self.args.logs_per_trip} logs"
             self.doing("to_tree", f"Heading to tree at {spot[0]},{spot[1]} ({quota})", spot)
+            z_ok = self.tree_z_ok(tree)
             try:
                 if "stand" in tree:
-                    self.mover.walk_to(lambda: tree["stand"], 0, f"to {label}")
+                    self.mover.walk_to(lambda: tree["stand"], 0, f"to {label}", z_ok=z_ok)
                 else:
-                    self.mover.walk_to(lambda: (tree["x"], tree["y"]), 1, f"to {label}")
+                    self.mover.walk_to(lambda: (tree["x"], tree["y"]), 1, f"to {label}", z_ok=z_ok)
             except Abort as e:
                 if "no route" not in str(e):
                     raise
@@ -414,13 +416,27 @@ class LumberLoop:
             raise Abort("the room menu offers no rented room (Test Shard wipe?); rent it again by hand")
         return g
 
+    def tree_z_ok(self, tree):
+        """Stand on the tree's level (not in a cave under it); map planner only."""
+        if not self.mover.use_map:
+            return None
+        it = uomap.tiledata().item(h(tree["graphic"]))
+        return reach_z(tree["z"], it.height if it else 0)
+
+    def innkeeper_mobile(self):
+        inn = self.k["npcs"]["innkeeper"]
+        return self.link.state()["world"]["mobiles"].get(inn["serial"]) or {}
+
     def innkeeper_pos(self):
         """Where the innkeeper stands now (world model), else the demo position."""
-        inn = self.k["npcs"]["innkeeper"]
-        m = self.link.state()["world"]["mobiles"].get(inn["serial"])
-        if m and m.get("x") is not None:
+        m = self.innkeeper_mobile()
+        if m.get("x") is not None:
             return (m["x"], m["y"])
-        return tuple(inn["pos"][:2])
+        return tuple(self.k["npcs"]["innkeeper"]["pos"][:2])
+
+    def innkeeper_z(self) -> int:
+        z = self.innkeeper_mobile().get("z")
+        return z if z is not None else self.k["npcs"]["innkeeper"]["pos"][2]
 
     def enter_room(self):
         room, inn = self.k["room"], self.k["npcs"]["innkeeper"]
@@ -428,7 +444,8 @@ class LumberLoop:
         # vendor in range (11 tiles worked, 13 = "That vendor is too far away
         # from you.", live 2026-09-29): walk up to where the innkeeper is now.
         self.doing("to_inn", "Going home: heading to the innkeeper", self.innkeeper_pos())
-        self.mover.walk_to(self.innkeeper_pos, self.args.inn_range, "to the innkeeper")
+        self.mover.walk_to(self.innkeeper_pos, self.args.inn_range, "to the innkeeper",
+                           z_ok=same_floor(self.innkeeper_z()))
         self.doing("enter_room", "Asking the innkeeper to enter the rental room", self.innkeeper_pos())
         self.human.wait("speak")
         mark = len(self.link.events)
