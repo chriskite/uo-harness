@@ -642,6 +642,8 @@ def _p_extended(pkt):
         d["mode"], d["entries"] = mode, entries
     elif sub == 0x13:
         d["serial"] = r.u32()
+    elif sub == 0x08 and r.remaining() >= 1:      # S2C map change (real: bf 0006 0008 00)
+        d["map"] = r.u8()
     elif sub == 0x15:
         d["serial"], d["index"] = r.u32(), r.u16()
     return d

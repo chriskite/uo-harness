@@ -358,6 +358,21 @@ class UoMap:
                 n += 1
         return n
 
+    def find_trees(self, x0, y0, x1, y1):
+        """Tree statics in the rectangle: impassable statics whose tiledata name
+        says tree (not potted trees or stumps). Harvestability is learned by the
+        harvester (a non-tree answers cliloc 500489). -> [(x, y, z, graphic)]"""
+        td = self.tiledata
+        out = []
+        for x, y, s in self.iter_statics(x0, y0, x1, y1):
+            it = td.item(s.graphic)
+            if it is None or not it.flags & IMPASSABLE:
+                continue
+            name = it.name.lower()
+            if "tree" in name and "potted" not in name and "stump" not in name:
+                out.append((x, y, s.z, s.graphic))
+        return out
+
 
 # -- CLI -------------------------------------------------------------------
 def describe_tile(m, x, y):

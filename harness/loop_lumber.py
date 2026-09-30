@@ -66,7 +66,9 @@ def alert(sound: bool = True):
 
 
 class HarvestMemory:
-    """Per-tree stats keyed "x,y,z": attempts, successes, logs, depleted_at."""
+    """Per-tree stats keyed "x,y,z": attempts, successes, logs, depleted_at,
+    plus what was learned about candidates found on the map: not_tree (the
+    server answered 500489) and unreachable_at (no route)."""
 
     def __init__(self, path):
         self.path = path
@@ -80,8 +82,15 @@ class HarvestMemory:
         return self.trees.setdefault(key, {"attempts": 0, "successes": 0, "logs": 0, "depleted_at": None})
 
     def available(self, tree, regrow_s, now):
-        d = self.row(tree)["depleted_at"]
-        return d is None or now - d >= regrow_s
+        r = self.trees.get(f"{tree['x']},{tree['y']},{tree['z']}")
+        if r is None:
+            return True
+        if r.get("not_tree"):
+            return False
+        for key in ("depleted_at", "unreachable_at"):
+            if r.get(key) is not None and now - r[key] < regrow_s:
+                return False
+        return True
 
     def save(self):
         if self.path:
@@ -99,7 +108,7 @@ class LumberLoop:
         self.start_hits = None
         self.human = Human(args.human, seed=args.seed, fast=args.human_fast, log=log)
         self.mover = Mover(link, memory, self.human, max_blocked=args.max_blocked,
-                           guard=self.check_guards, doors=True)
+                           guard=self.check_guards, doors=True, use_map=not args.no_map)
         self.hmem = HarvestMemory(args.harvest_memory)
         self.t_exit = None           # wall time of the last teleport out of the room
         self.stats = {}
@@ -300,20 +309,52 @@ class LumberLoop:
             log(f"travel lockout: waiting {wait:.0f} s before harvesting")
             time.sleep(wait)
 
+    def candidate_trees(self, st):
+        """Seed trees (lumber.json) plus trees found on the map in the harvest
+        area, minus what harvest memory rules out, nearest first with human
+        noise, at most --max-trees per trip."""
+        seeds = list(self.k["harvest"]["trees"])
+        found = []
+        area = self.k["harvest"].get("area")
+        walk = self.mover.walk_map(st)
+        if area and walk is not None:
+            cx, cy = area["center"]
+            r = area["radius"]
+            found = [{"x": x, "y": y, "z": z, "graphic": f"0x{g:04X}"}
+                     for x, y, z, g in walk.m.find_trees(cx - r, cy - r, cx + r, cy + r)]
+        seen, trees = set(), []
+        for t in seeds + found:
+            if (t["x"], t["y"]) not in seen:
+                seen.add((t["x"], t["y"]))
+                trees.append(t)
+        now = time.time()
+        trees = [t for t in trees if self.hmem.available(t, self.args.regrow_min * 60, now)]
+        pos = st["movement"]["pos"]
+        trees.sort(key=lambda t: cheb(pos, (t["x"], t["y"])) * self.human.rng.uniform(1.0, 1.6))
+        return trees[: self.args.max_trees]
+
     def harvest_trip(self) -> int:
-        trees = [t for t in self.k["harvest"]["trees"]
-                 if self.hmem.available(t, self.args.regrow_min * 60, time.time())]
+        trees = self.candidate_trees(self.state())
         if not trees:
-            raise Abort("every known tree is depleted (regrowth window not over)")
-        self.human.rng.shuffle(trees)
+            raise Abort("no harvestable tree available (all depleted, unreachable or ruled out)")
         gained = attempts = successes = unknown = 0
         for tree in trees:
             if gained >= self.args.logs_per_trip:
                 break
             label = f"tree {tree['x']},{tree['y']}"
-            self.mover.walk_to(lambda: tree["stand"], 0, f"to {label}")
-            self.wait_lockout()
             row = self.hmem.row(tree)
+            try:
+                if "stand" in tree:
+                    self.mover.walk_to(lambda: tree["stand"], 0, f"to {label}")
+                else:
+                    self.mover.walk_to(lambda: (tree["x"], tree["y"]), 1, f"to {label}")
+            except Abort as e:
+                if "no route" not in str(e):
+                    raise
+                row["unreachable_at"] = time.time()
+                log(f"{label}: unreachable; trying the next tree")
+                continue
+            self.wait_lockout()
             tries = 0
             while tries < self.args.max_attempts_per_tree and gained < self.args.logs_per_trip:
                 out, n = self.attempt(tree)
@@ -337,7 +378,9 @@ class LumberLoop:
                     time.sleep(wait)
                     continue
                 elif out == "not_tree":
-                    raise Abort(f"{label}: the server says this is not a tree (bad lumber.json entry)")
+                    row["not_tree"] = True
+                    log(f"{label}: the server says this is not a tree; remembered")
+                    break
                 elif out == "none":
                     unknown += 1
                     log(f"{label}: no recognised outcome ({unknown})")
@@ -501,12 +544,15 @@ def main():
     ap.add_argument("--trips", type=int, default=1)
     ap.add_argument("--logs-per-trip", type=int, default=15)
     ap.add_argument("--max-attempts-per-tree", type=int, default=25)
+    ap.add_argument("--max-trees", type=int, default=8, help="candidate trees tried per trip")
     ap.add_argument("--regrow-min", type=float, default=20.0,
                     help="skip a tree for this long after it was depleted")
     ap.add_argument("--attempt-timeout", type=float, default=10.0)
     ap.add_argument("--human", choices=sorted(PROFILES), default="normal",
                     help="human-texture profile (humanize.py); 'off' for deterministic tests")
     ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--no-map", action="store_true",
+                    help="plan on walk memory only (offline tests against simulated worlds)")
     ap.add_argument("--human-fast", type=float, default=1.0,
                     help="scale human delays (offline tests of the normal profile only)")
     ap.add_argument("--captcha-timeout", type=float, default=600.0)

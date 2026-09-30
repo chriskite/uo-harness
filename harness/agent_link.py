@@ -4,10 +4,12 @@
   model, events), with an event cursor. Actions refused by the agent gate
   while it is paused or on a scheduled break wait for it to reopen; a kill or
   an exhausted daily budget aborts.
-- Mover: server-confirmed walking over walk memory (harness/nav.py):
-  optimistic A*, learns blocked moves from server denies, replans, and
-  (optionally) sends the stock client's open-door request once when a door
-  item stands on the blocked tile, so closed doors aren't learned as walls.
+- Mover: server-confirmed walking. On facets with map data (harness/uomap.py)
+  it plans in 3D with the client's walkability rules (harness/pathfind.py);
+  elsewhere (the blank rental-room facet) it falls back to 2D walk memory
+  (harness/nav.py). Either way it learns blocked moves from server denies,
+  replans, and sends the stock open-door request once when a door blocks the
+  step, so closed doors aren't learned as walls.
 """
 import json
 import socket
@@ -15,6 +17,8 @@ import time
 
 import actions
 import nav
+import pathfind
+import uomap
 
 HOST = "127.0.0.1"
 GATE_WAIT = ("ERR agent paused", "ERR scheduled break")  # reopen on their own
@@ -22,6 +26,7 @@ GATE_POLL_S = 5.0
 # Classic UO door art (0x0675-0x06F4). Shelter's inn doors in the demonstration
 # capture (0x06A5, 0x06AD, 0x06ED, 0x06EF) and the rental-room door (0x06E5) are in it.
 DOOR_GRAPHICS = range(0x0675, 0x06F5)
+MAP_FACETS = (0, 1, 4, 5)     # facets with geometry in mapN.uoo (2 and 3 are blank; docs/MAP.md)
 
 
 class Abort(Exception):
@@ -113,20 +118,24 @@ class Link:
 
 
 class Mover:
-    """Walks over walk memory with server-confirmed steps, with human texture
-    from a humanize.Human: per-plan route noise, run/walk routes, lognormal
-    step rhythm, pauses and occasional sidesteps onto known tiles.
+    """Server-confirmed walking with human texture from a humanize.Human:
+    per-plan route noise, run/walk routes, lognormal step rhythm, pauses,
+    sidesteps and missed-turn bumps. Plans on map data when the facet has it
+    (use_map), else on walk memory.
 
     guard(st) is called after every step outcome (timeouts, HP, stalls...)."""
 
     def __init__(self, link: Link, memory: nav.WalkMemory, human,
-                 max_blocked: int = 12, guard=None, doors: bool = False):
+                 max_blocked: int = 12, guard=None, doors: bool = False, use_map: bool = True):
         self.link = link
         self.mem = memory
         self.human = human
         self.max_blocked = max_blocked
         self.guard = guard or (lambda st: None)
         self.doors = doors
+        self.use_map = use_map
+        self._walks = {}
+        self.denied = set()          # (x, y, d) server denies seen this session (map planner)
         self.steps = 0
         self.blocked_count = 0
         self.doors_opened = 0
@@ -170,11 +179,40 @@ class Mover:
         return {(m["x"], m["y"]) for key, m in st["world"]["mobiles"].items()
                 if m.get("x") is not None and serial_of(key) != me}
 
+    # ---------------------------------------------------------------- map
+    def walk_map(self, st):
+        """pathfind.Walk for the player's facet, or None (no map data there).
+        Ground items from the world model are added as dynamic objects."""
+        if not self.use_map:
+            return None
+        facet = st["world"]["self"].get("map")
+        facet = 0 if facet is None else facet
+        if facet not in MAP_FACETS:
+            return None
+        w = self._walks.get(facet)
+        if w is None:
+            w = pathfind.Walk(uomap.UoMap(facet))
+            self._walks[facet] = w
+        ground = {}
+        for it in st["world"]["items"].values():
+            if it.get("container") is None and it.get("x") is not None and it.get("graphic") is not None:
+                ground.setdefault((it["x"], it["y"]), []).append((it["graphic"], it.get("z") or 0))
+        w.dynamic = lambda x, y: ground.get((x, y), ())
+        w.clear()
+        return w
+
     def door_at(self, tile, st=None) -> bool:
-        """A ground item with door art stands on `tile` (world model)."""
+        """A ground item that is a door (tiledata Door flag, or classic door art)
+        stands on `tile` (world model)."""
         st = st or self.link.state()
-        return any(it.get("container") is None and (it.get("x"), it.get("y")) == tuple(tile)
-                   and it.get("graphic") in DOOR_GRAPHICS for it in st["world"]["items"].values())
+        td = uomap.tiledata() if self.use_map else None
+        for it in st["world"]["items"].values():
+            if it.get("container") is None and (it.get("x"), it.get("y")) == tuple(tile):
+                g = it.get("graphic")
+                if g in DOOR_GRAPHICS or (td is not None and g is not None and td.item(g)
+                                          and td.item(g).flags & uomap.DOOR):
+                    return True
+        return False
 
     def _try_door(self, cur, d, run) -> bool:
         """Blocked by a door: send the stock open-door request once for this
@@ -185,12 +223,16 @@ class Mover:
         self.human.wait("read")
         return self.step(d, run) == "moved"
 
-    def _sidestep(self, cur, avoid, run) -> bool:
-        """Human wander: one step onto a known-walkable neighbour off the route."""
+    def _sidestep(self, cur, avoid, run, walk=None, z=0) -> bool:
+        """Human wander: one step onto a walkable neighbour off the route."""
         occupied = self.occupied()
-        options = [nav.step(cur, d) for d in range(8)
-                   if (cur, d) not in self.mem.blocked and nav.step(cur, d) in self.mem.tiles
-                   and nav.step(cur, d) not in occupied and nav.step(cur, d) not in avoid]
+        if walk is not None:
+            options = [(x, y) for x, y, _ in filter(None, (walk.can_walk(cur[0], cur[1], z, d)
+                                                             for d in range(8)))]
+        else:
+            options = [nav.step(cur, d) for d in range(8)
+                       if (cur, d) not in self.mem.blocked and nav.step(cur, d) in self.mem.tiles]
+        options = [t for t in options if t not in occupied and t not in avoid]
         if not options:
             return False
         side = self.human.choice(options)
@@ -204,14 +246,16 @@ class Mover:
             return True
         return False
 
-    def obstacle_ahead(self, cur, d) -> bool:
-        """A known obstacle one step from `cur` in direction `d` (walk memory's
-        server-denied moves; map data plugs in here later)."""
+    def obstacle_ahead(self, cur, d, walk=None, z=0) -> bool:
+        """An obstacle one step from `cur` in direction `d`: the map says the
+        step isn't walkable, or (no map) walk memory holds a server deny."""
+        if walk is not None:
+            return walk.can_walk(cur[0], cur[1], z, d) is None
         return (cur, d) in self.mem.blocked
 
     def _bump(self, cur, d, run, label) -> str:
         """Missed the turn: run straight into the obstacle ahead. Returns the
-        step outcome ('blocked' as expected; 'moved' if memory was wrong)."""
+        step outcome ('blocked' as expected; 'moved' if the obstacle wasn't one)."""
         outcome = self.step(d, run)
         if outcome == "blocked":
             self.bumps += 1
@@ -222,6 +266,20 @@ class Mover:
             self.mem.add_step(cur, new)
             log(f"{label}: (overshot the turn to {new}; replanning)")
         return outcome
+
+    def plan(self, st, goal):
+        """(path of (x, y) tiles including the start, walk or None)."""
+        pos = st["movement"]["pos"]
+        cur = (pos[0], pos[1])
+        occ = self.occupied(st) - {cur}
+        walk = self.walk_map(st)
+        if walk is not None:
+            path = pathfind.plan(walk, (pos[0], pos[1], pos[2]), goal,
+                                 blocked_moves=self.denied, occupied=occ,
+                                 cost_scale=self.human.cost_scale())
+            return (None if path is None else [(x, y) for x, y, _ in path]), walk
+        return nav.plan(self.mem, cur, goal, extra_blocked=occ,
+                        cost_scale=self.human.cost_scale()), None
 
     def walk_to(self, center_fn, radius: int, label: str, max_moves: int = 250):
         """Walk until within `radius` (Chebyshev) of center_fn(), re-evaluated
@@ -237,17 +295,18 @@ class Mover:
             if goal(cur):
                 log(f"{label}: arrived at {cur}")
                 return
-            path = nav.plan(self.mem, cur, goal, extra_blocked=self.occupied(st) - {cur},
-                            cost_scale=self.human.cost_scale())
+            path, walk = self.plan(st, goal)
             if path is None:
                 raise Abort(f"{label}: no route from {cur}")
-            log(f"{label}: route {len(path) - 1} steps from {cur}{'' if run else ' (walking)'}")
+            log(f"{label}: route {len(path) - 1} steps from {cur}{'' if run else ' (walking)'}"
+                f"{'' if walk is not None else ' [walk memory]'}")
             replan = False
             prev_d = None
             for i, nxt in enumerate(path[1:], start=1):
-                cur = tuple(self.link.pos()[:2])
+                pos = self.link.pos()
+                cur, z = (pos[0], pos[1]), pos[2]
                 d = nav.direction(cur, nxt)
-                if prev_d is not None and d != prev_d and self.obstacle_ahead(cur, prev_d) \
+                if prev_d is not None and d != prev_d and self.obstacle_ahead(cur, prev_d, walk, z) \
                         and self.human.bump():
                     if self._bump(cur, prev_d, run, label) == "moved":
                         replan = True
@@ -274,7 +333,7 @@ class Mover:
                     time.sleep(self.human.step_delay(run))
                     self.human.after_step()
                     if len(path) - i > 3 and self.human.wander():
-                        if self._sidestep(new, set(path[i:i + 2]), run):
+                        if self._sidestep(new, set(path[i:i + 2]), run, walk, self.link.pos()[2]):
                             log(f"{label}: sidestepped at {new}; replanning")
                             time.sleep(self.human.step_delay(run))
                             break
@@ -283,7 +342,10 @@ class Mover:
                 if nxt in self.occupied():
                     log(f"{label}: {nxt} occupied by a mobile; replanning")
                 else:
-                    self.mem.add_blocked(cur, d)
+                    if walk is not None:
+                        self.denied.add((cur[0], cur[1], d))   # z-aware plans; don't pollute 2D memory
+                    else:
+                        self.mem.add_blocked(cur, d)
                     log(f"{label}: move {d} from {cur} blocked ({self.blocked_count} total); replanning")
                 if self.blocked_count > self.max_blocked:
                     raise Abort(f"too many blocked moves ({self.blocked_count})")

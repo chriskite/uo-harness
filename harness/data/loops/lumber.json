@@ -34,7 +34,9 @@
     "depleted_clilocs": [500488, 500493],
     "not_a_tree_cliloc": 500489,
     "demo_yield": {"attempts": 12, "successes": 2, "logs": [5, 7]},
-    "smart_harvest_self_target": "untested: the demo targeted trees, one attempt per dclick"
+    "smart_harvest_self_target": "untested: the demo targeted trees, one attempt per dclick",
+    "area": {"center": [1935, 2605], "radius": 60,
+             "note": "Shelter Island (Young may harvest in town). Candidates are tree statics from map0.uoo; harvest memory learns which ones answer, run dry or can't be reached."}
   },
   "convert": {
     "use_tool": "dclick the hatchet, target the log stack",

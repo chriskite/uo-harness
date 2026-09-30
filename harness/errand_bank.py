@@ -44,7 +44,7 @@ class Errand:
         self.heard_upto = 0
         self.human = Human(args.human, seed=args.seed, log=log)
         self.mover = Mover(link, memory, self.human, max_blocked=args.max_blocked,
-                           guard=self.check_guards)
+                           guard=self.check_guards, use_map=not args.no_map)
 
     # ---- guards ----
     def check_guards(self, st: dict):
@@ -192,6 +192,8 @@ def main():
     ap.add_argument("--human", choices=sorted(PROFILES), default="normal",
                     help="human-texture profile (humanize.py); 'off' for deterministic tests")
     ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--no-map", action="store_true",
+                    help="plan on walk memory only (offline tests against simulated worlds)")
     ap.add_argument("--control-port", type=int, default=25941)
     ap.add_argument("--state-port", type=int, default=25942)
     ap.add_argument("--memory", default=MEMORY_PATH)

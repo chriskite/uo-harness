@@ -759,8 +759,10 @@ def test_vendor_popup_command():
        {"sub": 0x15, "serial": 0x0008AAE0, "index": 2})
     rt = WorldRuntime()
     rt.feed_packet("c2s", bytes.fromhex("bf000b00150008aae00002"))
-    rt.feed_packet("s2c", bytes.fromhex("bf0006000800"))  # sub 8: not a menu
-    eq("BF events", [e["ev"] for e in rt.drain_events()], ["popup_select"])
+    rt.feed_packet("s2c", bytes.fromhex("bf0006000803"))  # sub 8: map change to facet 3
+    rt.feed_packet("s2c", bytes.fromhex("bf0006001900"))  # sub 0x19: not handled
+    eq("BF events", [e["ev"] for e in rt.drain_events()], ["popup_select", "map_change"])
+    eq("BF sub 8 sets the facet", rt.state.self.map, 3)
     eq("BF other sub counted unhandled", rt.unhandled[("s2c", 0xBF)], 1)
 
 

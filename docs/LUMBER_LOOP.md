@@ -414,8 +414,15 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
 - **Room menu safety:** the innkeeper/door menu must contain button 7, which only a rented room
   shows. Otherwise the runner aborts instead of pressing button 4, which would start renting after
   a Test Shard wipe.
-- **Doors:** a blocked move whose target tile holds a ground item with door art (0x0675–0x06F4;
-  the demo's inn doors 0x06A5/0x06AD/0x06ED/0x06EF and the room door 0x06E5 are in the range)
+- **Walking (since 2026-09-29, after live attempt 1):** `Mover` plans in 3D on the real map
+  (`harness/pathfind.py`, the client's walkability rules) whenever the facet has geometry. In the
+  rental room (blank facet 3) it falls back to walk memory.
+- **Trees:** candidates are the lumber.json seeds plus every tree static in `harvest.area`,
+  tried nearest first with noise, up to `--max-trees` per trip. A tree without a route is
+  skipped for the regrowth window. A tree the server rejects (500489) is remembered as not a
+  tree.
+- **Doors:** a blocked move whose target tile holds a door (tiledata Door flag, or classic door
+  art 0x0675–0x06F4: the demo's inn doors 0x06A5/0x06AD/0x06ED/0x06EF and the room door 0x06E5)
   gets one stock open-door request (`12 0005 58 00`), then the move is retried. Plain walls never
   trigger it.
 - **Guards:** overall timeout, HP loss, movement stall, and the agent gate (pause/break → wait;

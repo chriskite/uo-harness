@@ -114,10 +114,17 @@ LLM planner over the world model + skill library; safety rails: captcha human-ha
     User decision 2026-09-29: prove the loop live first (no deeds, room as daily scratch storage), then optimize. The runner `harness/loop_lumber.py` is offline-proven by `test_loop_lumber.py` (LUMBER_LOOP.md §13); the live proof is next.
 
     **User directive 2026-09-29 (after live attempt 1 died upstairs in the inn, LUMBER_LOOP.md §13):** the harness is only useful with full map knowledge, like the real client: x/y/z land, statics and tiledata. With that it does its own pathfinding and finds its own trees. Plan:
-    1. Decode the Outlands `.uoo` map/tiledata files, read-only from the install dir (subagent, docs/MAP.md).
-    2. Build a 3D walkability model and port ClassicUO's `Pathfinder.cs` (z steps, surfaces, bridges, doors).
-    3. Move `Mover` onto it (walk memory becomes evidence and a stale-map correction).
-    4. Harvest-node discovery from tree statics near a spot, instead of the two demo trees.
+    1. ✅ Decode the Outlands `.uoo` map/tiledata files, read-only from the install dir (docs/MAP.md, `harness/uomap.py`).
+    2. ✅ Build a 3D walkability model and port ClassicUO's `Pathfinder.cs` (`harness/pathfind.py`: CreateItemList/CalculateMinMaxZ/CalculateNewZ/CanWalk, z as int, doors passable for planning).
+       Evidence in `harness/test_pathfind.py`:
+       - all 1249 server-confirmed walk-memory moves are walkable under the model
+       - all 20 non-door agent denies upstairs in the inn are walls in the model
+       - a 3D route from the inn's upstairs (z 20) down to the innkeeper's floor exists
+    3. ✅ `Mover` plans on the map when the facet has geometry (0/1/4/5). The blank rental-room facet 3 falls back to walk memory. The player's facet comes from S2C 0xBF sub 8, now tracked by the world model. Denies are kept z-aware per session. The obstacle model feeds the missed-turn bumps.
+    4. ✅ Harvest-node discovery:
+       - `UoMap.find_trees` finds impassable statics named "tree" in `lumber.json` `harvest.area` (177 on Shelter).
+       - Candidates are tried nearest first, with human noise.
+       - Harvest memory learns `not_tree` (500489), `unreachable_at` and `depleted_at`.
 
 ### Phase 5 (optional) — Production copilot
 Rules-compliant live mode: agent generates Razor scripts into `Data/Plugins/Assistant/Scripts/`; human reviews and runs them manually. No autonomy, no data extraction. Only phase allowed to touch the production shard, and only as a file generator.

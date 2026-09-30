@@ -499,6 +499,9 @@ def _extended_handler(direction):
         sub = f["sub"]
         if sub == 0x14 and direction == S2C:
             rt._emit("popup", serial=f["serial"], entries=f["entries"])
+        elif sub == 0x08 and direction == S2C and "map" in f:
+            rt.state.self.map = f["map"]
+            rt._emit("map_change", map=f["map"])
         elif sub == 0x13 and direction == C2S:
             rt._emit("popup_request", serial=f["serial"])
         elif sub == 0x15 and direction == C2S:

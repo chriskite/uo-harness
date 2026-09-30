@@ -437,6 +437,7 @@ async def main():
             "--loop", paths["lumber"], "--memory", paths["walkmem"],
             "--harvest-memory", paths["harvest"], "--episodes", episodes,
             "--human", "normal", "--seed", "11", "--human-fast", "0.25", "--timeout", "300", "--quiet",
+            "--no-map",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
         out, _ = await asyncio.wait_for(runner.communicate(), timeout=360)
         text = out.decode(errors="replace")

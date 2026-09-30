@@ -178,7 +178,7 @@ async def main():
         await asyncio.sleep(0.5)
         runner = await asyncio.create_subprocess_exec(
             PY, f"{ROOT}/harness/errand_bank.py", "--control-port", str(CONTROL_PORT),
-            "--state-port", str(STATE_PORT), "--memory", mem_path, "--human", "off",
+            "--state-port", str(STATE_PORT), "--memory", mem_path, "--human", "off", "--no-map",
             "--timeout", "90", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
         out, _ = await asyncio.wait_for(runner.communicate(), timeout=120)
         text = out.decode(errors="replace")

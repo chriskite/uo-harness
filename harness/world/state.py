@@ -40,6 +40,7 @@ class SelfState:
     weight: int | None = None
     warmode: bool = False
     notoriety: int | None = None
+    map: int | None = None           # facet index from S2C 0xBF sub 8 (0 = map0.uoo)
     stats: dict = field(default_factory=dict)
     skills: dict = field(default_factory=dict)
     skill_names: list = field(default_factory=list)
@@ -56,7 +57,7 @@ class SelfState:
             "mana": self.mana, "mana_max": self.mana_max,
             "stam": self.stam, "stam_max": self.stam_max,
             "gold": self.gold, "weight": self.weight,
-            "warmode": self.warmode, "notoriety": self.notoriety,
+            "warmode": self.warmode, "notoriety": self.notoriety, "map": self.map,
             "stats": self.stats,
             "skills": {str(k): v for k, v in sorted(self.skills.items())},
             "skill_names": self.skill_names,
