@@ -896,6 +896,80 @@ def cmd_map(a, mem):
                            to_range=a.range or 0, umap=uomap.UoMap(0 if facet is None else facet))
 
 
+def _knowledge(mem):
+    import knowledge
+    return knowledge, knowledge.Knowledge(mem.con)
+
+
+def _situation(a, mem) -> dict:
+    """The current situation for knowledge recall: position, nearby NPCs,
+    open junctures, intent, running task (proxy parts only when it answers)."""
+    sit = {"junctures": [f"{j['kind']} {j['summary']}" for j in mem.junctures(open_only=True, limit=10)],
+           "task": " ".join(t["task"] for t in running_tasks(mem))}
+    try:
+        resp = state_query(a.state_port)
+    except (OSError, ValueError):
+        return sit
+    if resp.get("ok"):
+        s = summarize(resp)
+        sit.update(pos=s["pos"], facet=s["facet"],
+                   mobiles=[m["label"] or m["name"] for m in s["mobiles"][:10] if m["label"] or m["name"]],
+                   intent=(s.get("intent") or {}).get("text"))
+    return sit
+
+
+def cmd_know(a, mem):
+    """The overseer's long-term memory (harness/knowledge.py; docs/MEMORY.md)."""
+    kmod, k = _knowledge(mem)
+    heartbeat(mem)
+    try:
+        op = a.know_op
+        if op == "add":
+            out = k.add(a.kind, a.topic, " ".join(a.content), tags=a.tags or (), entities=a.entity or (),
+                        at=tuple(a.at) if a.at else None, source=a.source, ref=a.ref,
+                        confidence=a.confidence, importance=a.importance, supersedes=a.supersedes)
+            mem.chat_post("overseer", f"know {out['action']} #{out['id']} {a.kind} [{a.topic}]: "
+                          f"{' '.join(a.content)}"[:500], "action", data={"cmd": "know", **out})
+        elif op == "update":
+            out = k.update(a.id, content=" ".join(a.content) if a.content else None, topic=a.topic,
+                           tags=a.tags, at=tuple(a.at) if a.at else None, confidence=a.confidence,
+                           importance=a.importance, source=a.source, ref=a.ref)
+            mem.chat_post("overseer", f"know {out['action']} #{a.id}"
+                          + (f" -> #{out['id']}" if out["id"] != a.id else ""), "action",
+                          data={"cmd": "know", **out})
+        elif op == "confirm":
+            out = k.confirm(a.id, source=a.source, ref=a.ref)
+        elif op == "retract":
+            out = k.retract(a.id, a.reason)
+            mem.chat_post("overseer", f"know retracted #{a.id}: {a.reason}"[:500], "action",
+                          data={"cmd": "know", **out})
+        elif op == "get":
+            e = k.get(a.id, history=a.history)
+            if e is None:
+                raise CtlError(f"no knowledge entry #{a.id}")
+            out = {"entry": e}
+        elif op == "search":
+            near = None
+            if a.near:
+                near = tuple(a.near)
+            elif a.here:
+                sit = _situation(a, mem)
+                if sit.get("pos"):
+                    near = (sit.get("facet") or 0, sit["pos"][0], sit["pos"][1])
+            res = k.search(" ".join(a.query) or None, kind=a.kind, tags=a.tag or (), near=near,
+                           limit=a.limit, include_inactive=a.all)
+            out = {"results": [kmod._brief(e) | {"status": e["status"]} for e in res]}
+        elif op == "brief":
+            out = k.brief(_situation(a, mem), limit=a.limit)
+        elif op == "review":
+            out = k.review(stale_days=a.stale_days)
+        else:
+            out = k.stats()
+    except kmod.KnowledgeError as e:
+        raise CtlError(str(e))
+    return {"ok": True, **out}
+
+
 def cmd_screenshot(a, mem):
     """A PNG of the game window (harness/screen.py: Windows Graphics Capture,
     passive). Read the file to look at it."""
@@ -996,7 +1070,55 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--crop", type=int, nargs=4, metavar=("X", "Y", "W", "H"),
                    help="only this part of the game view (client pixels), e.g. a gump")
     p.set_defaults(fn=cmd_screenshot)
+    _know_parser(sub)
     return ap
+
+
+def _know_parser(sub):
+    import knowledge
+    p = sub.add_parser("know", help="long-term memory: facts, procedures, episodes, preferences, insights")
+    ks = p.add_subparsers(dest="know_op", required=True)
+    for name in ("add", "update"):
+        q = ks.add_parser(name)
+        if name == "update":
+            q.add_argument("id", type=int)
+            q.add_argument("--topic")
+        else:
+            q.add_argument("--kind", required=True, choices=knowledge.KINDS)
+            q.add_argument("--topic", required=True)
+            q.add_argument("--entity", action="append", help="NPC/player/item/place it's about (repeatable)")
+            q.add_argument("--supersedes", type=int)
+        q.add_argument("content", nargs="*" if name == "update" else "+")
+        q.add_argument("--tags", help="comma-separated")
+        q.add_argument("--at", type=int, nargs="+", metavar="N", help="X Y or FACET X Y")
+        q.add_argument("--source", choices=tuple(knowledge.SOURCES), default="observed" if name == "add" else None)
+        q.add_argument("--ref", help="evidence: capture tag, chat#id, juncture#id, URL, screenshot path")
+        q.add_argument("--confidence", type=float)
+        q.add_argument("--importance", type=int, default=5 if name == "add" else None)
+    q = ks.add_parser("confirm")
+    q.add_argument("id", type=int)
+    q.add_argument("--source", choices=tuple(knowledge.SOURCES), default="observed")
+    q.add_argument("--ref")
+    q = ks.add_parser("retract")
+    q.add_argument("id", type=int)
+    q.add_argument("--reason", required=True)
+    q = ks.add_parser("get")
+    q.add_argument("id", type=int)
+    q.add_argument("--history", action="store_true")
+    q = ks.add_parser("search")
+    q.add_argument("query", nargs="*")
+    q.add_argument("--kind", choices=knowledge.KINDS)
+    q.add_argument("--tag", action="append")
+    q.add_argument("--near", type=int, nargs="+", metavar="N", help="X Y or FACET X Y")
+    q.add_argument("--here", action="store_true", help="boost entries near where you stand")
+    q.add_argument("--limit", type=int, default=10)
+    q.add_argument("--all", action="store_true", help="include superseded/retracted")
+    q = ks.add_parser("brief", help="what to remember now (position, NPCs, junctures, intent)")
+    q.add_argument("--limit", type=int, default=12)
+    q = ks.add_parser("review", help="unconfirmed inferences, stale entries, topics with several facts")
+    q.add_argument("--stale-days", type=float, default=30.0)
+    ks.add_parser("stats")
+    p.set_defaults(fn=cmd_know)
 
 
 def main(argv=None) -> int:

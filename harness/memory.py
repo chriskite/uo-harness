@@ -25,6 +25,9 @@ Tables
                     (suspected loss), pk_seen, flee, mob_attack, resurrect, ...
   teleporters       invisible server teleporter tiles learned by walking onto
                     one: source tile -> where it put us (the planner avoids them)
+  knowledge         the overseer's long-term memory (harness/knowledge.py): facts,
+                    procedures, episodes, user preferences, insights with
+                    provenance, confidence, importance, versions; FTS5-indexed
 
 Writers
   - the proxy: MemoryWriter, a background thread with batched commits, fed from
@@ -54,7 +57,7 @@ import nav  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DB = os.path.join(ROOT, "harness", "data", "harness.db")
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 UNKNOWN_Z = -32768
 
 SCHEMA = """
@@ -99,6 +102,33 @@ CREATE TABLE IF NOT EXISTS teleporters(
     to_facet INTEGER, to_x INTEGER NOT NULL, to_y INTEGER NOT NULL, to_z INTEGER,
     n INTEGER NOT NULL, first_t REAL NOT NULL, last_t REAL NOT NULL,
     PRIMARY KEY (facet, x, y));
+CREATE TABLE IF NOT EXISTS knowledge(
+    id INTEGER PRIMARY KEY, kind TEXT NOT NULL, topic TEXT NOT NULL, content TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '', entities TEXT NOT NULL DEFAULT '[]',
+    facet INTEGER, x INTEGER, y INTEGER,
+    source_type TEXT NOT NULL, source_ref TEXT,
+    confidence REAL NOT NULL, importance INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active', supersedes INTEGER, superseded_by INTEGER, retract_reason TEXT,
+    content_hash TEXT NOT NULL, confirmations INTEGER NOT NULL DEFAULT 0,
+    created_t REAL NOT NULL, updated_t REAL NOT NULL, last_access_t REAL, access_count INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS knowledge_status_kind ON knowledge(status, kind);
+CREATE INDEX IF NOT EXISTS knowledge_hash ON knowledge(content_hash);
+CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts USING fts5(
+    topic, content, tags, entities, content='knowledge', content_rowid='id', tokenize='porter unicode61');
+CREATE TRIGGER IF NOT EXISTS knowledge_ai AFTER INSERT ON knowledge BEGIN
+    INSERT INTO knowledge_fts(rowid, topic, content, tags, entities)
+    VALUES (new.id, new.topic, new.content, new.tags, new.entities);
+END;
+CREATE TRIGGER IF NOT EXISTS knowledge_ad AFTER DELETE ON knowledge BEGIN
+    INSERT INTO knowledge_fts(knowledge_fts, rowid, topic, content, tags, entities)
+    VALUES ('delete', old.id, old.topic, old.content, old.tags, old.entities);
+END;
+CREATE TRIGGER IF NOT EXISTS knowledge_au AFTER UPDATE OF topic, content, tags, entities ON knowledge BEGIN
+    INSERT INTO knowledge_fts(knowledge_fts, rowid, topic, content, tags, entities)
+    VALUES ('delete', old.id, old.topic, old.content, old.tags, old.entities);
+    INSERT INTO knowledge_fts(rowid, topic, content, tags, entities)
+    VALUES (new.id, new.topic, new.content, new.tags, new.entities);
+END;
 """
 
 
@@ -484,7 +514,7 @@ def stats(db: str) -> dict:
     con = connect(db)
     out = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
            for t in ("sessions", "events", "walk_moves", "harvest_nodes", "harvest_attempts", "episodes",
-                     "junctures", "chat", "job_events", "teleporters")}
+                     "junctures", "chat", "job_events", "teleporters", "knowledge")}
     con.close()
     return out
 

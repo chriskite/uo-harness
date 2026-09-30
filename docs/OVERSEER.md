@@ -150,6 +150,31 @@ is sent). Extending it is a user decision.
 | `overseer_juncture_cursor`, `overseer_chat_cursor` | `wait` cursors (decimal ids). |
 | `overseer_heartbeat` | Epoch seconds as a decimal string (`"1790742202.14"`). Written on every `wait` poll (~1 s) and by `say`, `think`, `note-action`, `act`, `run`, `stop`, `ack`. The viz shows "overseer active" while it is < 90 s old. |
 
+### Long-term memory: `ctl know` (harness/knowledge.py)
+
+What the overseer learns about the game and its dealings with players and the user, kept across
+sessions in the memory store's `knowledge` table (docs/MEMORY.md). Kinds:
+- `fact`: prices, places, rules
+- `procedure`: how to do X
+- `episode`: what happened
+- `preference`: a user directive
+- `insight`: a lesson learned
+
+| Command | Does |
+|---|---|
+| `know add --kind K --topic T [--tags a,b] [--entity NAME]… [--at X Y \| F X Y] [--source observed\|user\|wiki\|doc\|inferred] [--ref EVIDENCE] [--confidence C] [--importance 1-10] [--supersedes ID] CONTENT…` | Stores an entry. The same content again **confirms** the existing entry (confidence up) instead of adding a copy. The reply lists `related` entries (same topic or similar wording), so you can see a conflict and supersede. Posts a chat action row |
+| `know update ID [CONTENT…] [--topic] [--tags] [--at] [--confidence] [--importance] [--source --ref]` | A content or topic change makes a **new version** that supersedes the old one (history kept); other fields change in place |
+| `know confirm ID [--source --ref]` | Seen true again: confirmations += 1, confidence up |
+| `know retract ID --reason R` | It was wrong: retracted with the reason, never deleted |
+| `know get ID [--history]` | One entry, with its version chain |
+| `know search [WORDS…] [--kind] [--tag]… [--near X Y \| --here] [--limit] [--all]` | Ranked recall: stemmed full-text relevance, recency (14-day half-life), importance, confidence and nearness. Counts as an access |
+| `know brief [--limit]` | What to remember **now**: entries relevant to your position, nearby NPCs, open junctures, intent and task, plus standing procedures/preferences of importance ≥ 7 |
+| `know review [--stale-days 30]` | Maintenance: unconfirmed inferences, entries never recalled in 30 days, topics with several active facts (possible contradictions) |
+| `know stats` | Counts by kind and status |
+
+Seeded 2026-09-30 with the user's decisions (`preference`, source `user`) and the Young-demo
+results (`observed`, ref `docs/missions/YOUNG_DEMOS.md`).
+
 ## 3. Juncture vocabulary
 
 `junctures(source, kind, severity, summary, data)`. `wait` wakes on `attention` and `urgent`, and
@@ -199,7 +224,8 @@ Paste this (or point the session at this section) to start an overseer.
 > shift; never touch the proxy/viz services, the client, or the install dir.
 >
 > **Loop.**
-> 1. `ctl status` and `ctl junctures --open` to orient; `ctl say` a one-line hello.
+> 1. `ctl status`, `ctl junctures --open` and **`ctl know brief`** to orient; `ctl say` a one-line
+>    hello.
 > 2. Start `ctl wait --timeout 900` as a **background** shell job (shell timeout > 900 s), then
 >    stop making tool calls. Its completion wakes you.
 > 3. On wake, read `events`. For each: `ctl think` your reading of it (this is the only way the
@@ -213,9 +239,24 @@ Paste this (or point the session at this section) to start an overseer.
 >    - `captcha`, `server_restriction`: **call the human immediately**, stop the task, never try
 >      to answer.
 >    - user chat: answer with `ctl say`; do what they ask within these rules.
+>    Before deciding, `ctl know search <the situation>` (or `know brief`). What you already
+>    learned beats guessing.
 > 4. `ctl ack <id>` every juncture you have handled; `ctl note-action` anything you did outside
 >    `ctl`.
-> 5. Go back to step 2. A timeout (`event: null`) is a heartbeat: glance at `status`, then wait
+> 5. **Remember what you learned** (`ctl know add`). Kinds:
+>    - facts you observed (prices, places, what a gump offers)
+>    - procedures that worked
+>    - episodes worth recalling (a death, a theft, a player interaction)
+>    - user directives, as `preference` with source `user`
+>
+>    Rules:
+>    - Give provenance (`--source`, `--ref` chat#/juncture#/screenshot path) and honest
+>      importance.
+>    - Label guesses `--source inferred`.
+>    - When the reply lists `related` entries that your new fact contradicts, supersede
+>      (`--supersedes ID`) or retract the old one.
+>    - When something known proves true again, `know confirm` it.
+> 6. Go back to step 2. A timeout (`event: null`) is a heartbeat: glance at `status`, then wait
 >    again.
 >
 > **Safety.** One task at a time; never `act` while a task runs (ctl refuses anyway). Only the

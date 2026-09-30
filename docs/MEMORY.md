@@ -31,7 +31,7 @@ Rejected:
 - A server database (Postgres). It needs a service, which is too much for one local harness.
 - DuckDB. It's analytics-first, not in the stdlib, and has a single-writer file lock.
 
-## Schema (v3, `memory.SCHEMA`)
+## Schema (v4, `memory.SCHEMA`)
 
 | Table | Key | Contents |
 |---|---|---|
@@ -45,6 +45,7 @@ Rejected:
 | `chat` | `id` | v2. The viz chat and the overseer's visible thinking: `role` (user/overseer/system), `kind` (message/thought/action), `text`, `data` |
 | `job_events` | `id` | v2. Job analytics facts other than trips: `job`, `kind` (death with `data.cause`, theft, pk_seen, flee, …), `facet`/`x`/`y`, `data` |
 | `teleporters` | (`facet`, `x`, `y`) | v3. Invisible server teleporter tiles learned by stepping onto one: `to_facet`/`to_x`/`to_y`/`to_z`, `n`, `first_t`, `last_t`. The Mover plans around them (docs/OVERSEER.md) |
+| `knowledge` + `knowledge_fts` | `id` | v4. The overseer's long-term memory (below): `kind`, `topic`, `content`, `tags`, `entities`, optional `facet`/`x`/`y`, `source_type`/`source_ref`, `confidence`, `importance`, `status` (active/superseded/retracted), `supersedes`/`superseded_by`, `retract_reason`, `content_hash`, `confirmations`, `created_t`/`updated_t`/`last_access_t`/`access_count`. FTS5 (porter stemming) over topic, content, tags and entities, kept in sync by triggers |
 | `meta` | `key` | `schema_version`; overseer bus (docs/OVERSEER.md): `tasks` (running task entries), `task_stop`, `overseer_juncture_cursor`, `overseer_chat_cursor`, `overseer_heartbeat` (epoch s) |
 
 ## Who writes what
@@ -88,6 +89,46 @@ Rejected:
 - `harness/data/harvestmem.json` and `harness/data/episodes/lumber.jsonl`.
 - Runner and viz flags: `--memory` (runners) and `--memory-db` (proxy, viz) now point at the
   store.
+
+## Knowledge: the overseer's long-term memory (v4, 2026-09-30)
+
+The other tables record *events*. `knowledge` holds what the agent *concluded*: game knowledge
+and its dealings with players and the user, kept across sessions. It is exposed as `ctl know`
+(docs/OVERSEER.md §2) and implemented in `harness/knowledge.py`. The practices it follows:
+
+- **Typed entries.**
+  - `fact` (semantic)
+  - `procedure` (how-to)
+  - `episode` (what happened)
+  - `preference` (user directives)
+  - `insight` (lessons generalised from episodes)
+- **Provenance on every entry.**
+  - `source_type`: observed / user / doc / wiki / inferred.
+  - `source_ref`: capture tag, chat#, juncture#, URL or screenshot.
+  - Confidence defaults by source: user 0.95, observed 0.9, doc 0.8, wiki 0.7, inferred 0.5.
+- **No silent duplicates.** The same normalised content, or ≥ 85% word overlap on the same topic,
+  confirms the existing entry: confirmations += 1, and confidence closes half the gap to 1,
+  capped by the new evidence's source. Every write returns `related` entries (same topic or
+  ≥ 35% overlap), so the writer sees a conflict before it piles up.
+- **History, not overwrites.** A content change makes a new version that supersedes the old
+  one. Wrong entries are retracted with a reason. Nothing is deleted.
+- **Ranked recall** (Generative Agents style), as a score:
+  - 1.0 × BM25 relevance (normalised within the result set; topic weighted 3×, tags and
+    entities 2×)
+  - \+ 0.4 × recency (14-day half-life from the last update or access)
+  - \+ 0.5 × importance/10
+  - \+ 0.3 × confidence
+  - \+ 0.6 × nearness (fades to 0 at 40 tiles on the same facet)
+
+  Results count as accesses. Queries are reduced to quoted words, so FTS syntax in them is
+  harmless.
+- **Situational brief.** `brief` builds the query from where the agent is (position, nearby NPC
+  labels, open junctures, intent, task) and always adds preferences/procedures of importance ≥ 7.
+- **Maintenance.** `review` lists unconfirmed inferences, entries never recalled for 30 days, and
+  topics with several active facts.
+
+Not built: embeddings (FTS5 + stemming is enough at this size and needs no model or network), and
+automatic summarisation of episodes into insights. The overseer writes insights itself.
 
 ## Next
 

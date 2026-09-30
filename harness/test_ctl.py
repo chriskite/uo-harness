@@ -641,6 +641,32 @@ def test_map(proxy):
     proxy.pos = [100, 100, 0, 2]
 
 
+def test_know(proxy):
+    print("== know (long-term memory via ctl) ==")
+    tmp = tempfile.mkdtemp()
+    db = os.path.join(tmp, "harness.db")
+    c = Ctl(db, os.path.join(tmp, "tasks"), proxy)
+    code, out = c("know", "add", "--kind", "fact", "--topic", "innkeeper", "--entity", "Jayne", "--at", "1932",
+                  "2595", "--ref", "chat#12", "--importance", "7", "Jayne", "rents", "rooms")
+    check("know add -> added, written to the store", code == 0 and out.get("action") == "added", str(out))
+    m = Memory(db)
+    rows = m.chat(role="overseer")
+    check("a knowledge write shows in the chat as an overseer action",
+          rows and rows[-1]["kind"] == "action" and "know added #1 fact [innkeeper]" in rows[-1]["text"],
+          str(rows[-1:]))
+    m.close()
+    code, out = c("know", "search", "room", "--near", "1930", "2590")
+    check("know search finds it (stemmed), with location", code == 0 and out["results"][0]["id"] == 1
+          and out["results"][0]["at"] == [0, 1932, 2595], str(out))
+    proxy.pos = [1933, 2596, 0, 2]
+    code, out = c("know", "brief")
+    check("know brief uses the live situation (position from the proxy)",
+          code == 0 and out["near"] == [0, 1933, 2596] and [e["id"] for e in out["relevant"]] == [1], str(out))
+    code, out = c("know", "retract", "1", "--reason", "")
+    check("errors come back as JSON (retract without a reason)", code == 1 and "reason" in out["error"], str(out))
+    proxy.pos = [100, 100, 0, 2]
+
+
 def main():
     proxy = FakeProxy()
     for port in (proxy.control_port, proxy.state_port):
@@ -649,6 +675,7 @@ def main():
     test_status(proxy)
     test_run_act(proxy)
     test_map(proxy)
+    test_know(proxy)
     test_overseer_acts(proxy)
     if FAILURES:
         print(f"FAILED: {len(FAILURES)}: {FAILURES}")
