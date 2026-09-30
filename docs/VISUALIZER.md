@@ -234,9 +234,17 @@ fixtures ("replay X, state at event N").
     are squares turned 45°, so a pure rotation matches it (elevation isn't drawn). Labels stay upright.
     The choice persists in localStorage (`viz.mapProjection`). The projection math is in
     `viz/src/projection.ts` and is tested in `projection.test.ts`.
+  - **Terrain underlay** (2026-09-29, `terrain` toggle, on by default, persisted as `viz.mapTerrain`)
+    is the client's own `facet00.mul` from the install dir, read-only.
+    - It's a 1 px/tile top-down colour picture (10752×6144), decoded by `harness/facet.py`.
+    - `viz_server` serves it as 256-tile PNG chunks at `/api/facet/<cx>/<cy>.png`, with metadata at
+      `/api/facet`. Flags: `--facet PATH` and `--no-facet`.
+    - The browser fetches only the chunks in view and draws them unsmoothed, rotated in iso.
+    - The 1 px/tile scale was verified on 40 bank markers (docs/NOTES.md).
+    - It's colour only: no heights, no walkability. The file is dated 2024-12 and may miss recent map edits.
+    - Tests: `harness/test_facet.py` (synthetic file) and `viz/src/facet.test.ts`.
   - **Underlay: walk memory** (`/api/walkmem`, plus live `step`/`blocked` events): known-walkable
-    tiles shaded, confirmed edges faint, blocked moves as red ticks. It is the best geography
-    available until map files are decoded (Phase B), and it shows the planner's world directly.
+    tiles shaded, confirmed edges faint, blocked moves as red ticks. It shows the planner's world directly.
   - Overlay: ground items (dots), **mobiles at their positions**, labeled with name plus title
     from type-6 `speech_heard` labels (e.g. "Len the banker"), notoriety colored; self at the true
     position with a facing arrow, and a hollow ghost marker at the world-model position when

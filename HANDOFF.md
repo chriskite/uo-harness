@@ -73,11 +73,12 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
   messages rendered from Cliloc.enu, and container amount changes.
 - Visualizer: build once `cd viz && bun install && bun run build`; then
   `python harness/viz_server.py --live` (or `--replay <TAG> [--rate 8]`) → http://127.0.0.1:8080/.
-  Read-only; start/stop any time.
+  Terrain underlay comes from the install dir's `facet00.mul` (read-only; `--no-facet` to skip).
+  The viz only observes, except for the agent-gate buttons.
 - Tests: `python test_proxy.py`, `python test_movement.py`, `python test_errand.py`,
   `python harness/test_world.py`, `python harness/test_world_replay.py`,
   `python harness/test_actions.py`, `python harness/test_nav.py`, `python harness/test_viz.py`,
-  `python harness/test_agent_gate.py`, `python harness/test_loop_demo.py`,
+  `python harness/test_agent_gate.py`, `python harness/test_loop_demo.py`, `python harness/test_facet.py`,
   `cd viz && bun test && bun run typecheck` (all use private control/state ports; safe while
   the live proxy runs).
 - Push works via SSH alias `github.com-uoharness` (deploy key `~/.ssh/uo_harness_deploy`).

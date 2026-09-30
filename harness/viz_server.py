@@ -16,6 +16,9 @@ Routes:
                       "action": ...}; the proxy's JSON, 200 if ok else 409. Any other
                       action (rearm included: CLI-only, harness/agent_gate.py) -> 400;
                       replay -> 409; state port unreachable -> 502
+  GET  /api/facet     facet picture metadata ({"available": false, "error"} without one)
+  GET  /api/facet/<cx>/<cy>.png  256x256-tile chunk of the 1 px/tile facet picture
+                      (harness/facet.py; read-only from the install dir)
   GET  /, /assets/*   the built frontend (viz/dist)
 
 Live mode only ever opens the proxy's state port (JSON lines). It never connects
@@ -28,6 +31,7 @@ import argparse
 import json
 import os
 import socket
+import struct
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -36,6 +40,7 @@ from urllib.parse import urlsplit, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import viz_feed  # noqa: E402
+import facet as facet_mod  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SSE_KEEPALIVE_S = 15.0
@@ -111,10 +116,28 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, feed.health())
         elif url.path == "/api/gate":
             self._gate(None)
+        elif url.path == "/api/facet":
+            fp = self.server.facet
+            self._json(200, fp.meta() if fp else {"available": False, "error": self.server.facet_error})
+        elif url.path.startswith("/api/facet/") and url.path.endswith(".png"):
+            self._facet_chunk(url.path[len("/api/facet/"):-len(".png")])
         elif url.path.startswith("/api/"):
             self._json(404, {"error": f"unknown route {url.path}"})
         else:
             self._static(url.path)
+
+    def _facet_chunk(self, spec: str):
+        fp = self.server.facet
+        try:
+            cx, cy = (int(v) for v in spec.split("/"))
+        except ValueError:
+            self._json(400, {"error": f"bad chunk {spec!r}"})
+            return
+        png = fp.chunk_png(cx, cy) if fp else None
+        if png is None:
+            self._json(404, {"error": "no facet picture" if fp is None else f"chunk {cx},{cy} out of range"})
+            return
+        self._send(200, png, "image/png")
 
     def do_POST(self):
         url = urlsplit(self.path)
@@ -249,11 +272,18 @@ class VizServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
 
-    def __init__(self, addr, feed, dist: str, walkmem: str):
+    def __init__(self, addr, feed, dist: str, walkmem: str, facet_path: str | None = None):
         super().__init__(addr, Handler)
         self.feed = feed
         self.dist = dist
         self.walkmem = WalkMemFile(walkmem)
+        self.facet = None
+        self.facet_error = "disabled (--no-facet)" if facet_path is None else None
+        if facet_path is not None:
+            try:
+                self.facet = facet_mod.FacetPicture(facet_path)
+            except (OSError, ValueError, struct.error) as e:
+                self.facet_error = f"{facet_path}: {e}"
         self.stopping = False
 
     def shutdown(self):
@@ -290,13 +320,19 @@ def main():
     p.add_argument("--port", type=int, default=8080)
     p.add_argument("--dist", default=os.path.join(ROOT, "viz", "dist"))
     p.add_argument("--walkmem", default=os.path.join(ROOT, "harness", "data", "walkmem.json"))
+    p.add_argument("--facet", default=facet_mod.DEFAULT_PATH,
+                   help="facet picture drawn under the map (read-only; install dir facet00.mul)")
+    p.add_argument("--no-facet", action="store_true", help="don't load a facet picture")
     args = p.parse_args()
 
     feed = build_feed(args)
-    srv = VizServer((args.host, args.port), feed, os.path.abspath(args.dist), args.walkmem)
+    srv = VizServer((args.host, args.port), feed, os.path.abspath(args.dist), args.walkmem,
+                    None if args.no_facet else args.facet)
     what = (f"replay {args.replay} ({feed.order} order, {len(feed.items)} items)" if args.replay
             else f"live state port {args.state_host}:{args.state_port}")
     print(f"[viz] {what}; http://{args.host}:{args.port}/", flush=True)
+    print(f"[viz] facet: {f'{srv.facet.width}x{srv.facet.height} from {srv.facet.path}' if srv.facet else srv.facet_error}",
+          flush=True)
     try:
         srv.serve_forever(poll_interval=0.25)
     except KeyboardInterrupt:

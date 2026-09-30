@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { entityCaption, labelOf } from "../events.ts";
 import { DIR_NAMES, NOTORIETY, UNKNOWN_NOTORIETY_COLOR } from "../format.ts";
+import { FacetChunks, chunksInView, fetchFacetMeta, type FacetMeta } from "../facet.ts";
 import { screenDeltaToWorld, toScreen, toWorld, worldBounds, type Projection } from "../projection.ts";
 import { vizStore, type VizSnapshot } from "../store.ts";
 import type { HexSerial, Tile } from "../types.ts";
@@ -11,6 +12,7 @@ const MAX_ZOOM = 64;
 const DEFAULT_ZOOM = 16;
 const CLICK_SLOP_PX = 4;
 const PROJECTION_KEY = "viz.mapProjection";
+const TERRAIN_KEY = "viz.mapTerrain";
 
 interface Dot {
   serial: HexSerial;
@@ -112,6 +114,12 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
   });
   const [follow, setFollow] = useState(true);
   const [proj, setProj] = useState<Projection>(initialProj);
+  const initialTerrain = localStorage.getItem(TERRAIN_KEY) !== "off";
+  const terrainOn = useRef(initialTerrain);
+  const [terrain, setTerrain] = useState(initialTerrain);
+  const facet = useRef<FacetMeta>({ available: false });
+  const [facetInfo, setFacetInfo] = useState<FacetMeta | null>(null);
+  const chunks = useRef<FacetChunks | null>(null);
 
   const layer = useMemo(() => buildWalkLayer(viz.walkmem, viz.agg.live), [viz.walkmem, viz.agg.live]);
   const scene = useMemo(() => buildScene(viz, layer), [viz, layer]);
@@ -143,6 +151,22 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = "#0a0e13";
     ctx.fillRect(0, 0, W, H);
+
+    // Underlay: the client's own 1 px/tile facet picture (/api/facet), chunk by chunk.
+    if (terrainOn.current && chunks.current && facet.current.chunk) {
+      const c = facet.current.chunk;
+      ctx.imageSmoothingEnabled = false;
+      for (const [cx, cy] of chunksInView(facet.current, { x0, x1, y0, y1 })) {
+        const img = chunks.current.get(cx, cy);
+        if (!img) continue;
+        ctx.save();
+        ctx.translate(...P(cx * c, cy * c));
+        if (v.proj === "iso") ctx.rotate(Math.PI / 4); // same 45° clockwise as toScreen
+        // +0.5 px hides hairline seams between neighbouring chunks
+        ctx.drawImage(img, 0, 0, img.naturalWidth * z + 0.5, img.naturalHeight * z + 0.5);
+        ctx.restore();
+      }
+    }
 
     if (z >= 10) {
       // top-down lines snap to the pixel grid; rotated lines can't
@@ -342,6 +366,15 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
     ctx.fillText(text, 12, 20);
   }, []);
 
+  useEffect(() => {
+    chunks.current = new FacetChunks(draw);
+    void fetchFacetMeta().then((m) => {
+      facet.current = m;
+      setFacetInfo(m);
+      draw();
+    });
+  }, [draw]);
+
   useEffect(draw, [scene, draw]);
 
   // Size the backing store to the container (device pixels).
@@ -468,6 +501,25 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
           }}
         >
           iso
+        </button>
+        <button
+          type="button"
+          className={terrain && facetInfo?.available ? "active" : ""}
+          disabled={!facetInfo?.available}
+          title={
+            facetInfo?.available
+              ? `terrain from the client's ${facetInfo.source} (1 px/tile, file dated ${new Date((facetInfo.mtime ?? 0) * 1000).toISOString().slice(0, 10)})`
+              : `no facet picture: ${facetInfo?.error ?? "loading"}`
+          }
+          onClick={() => {
+            const next = !terrainOn.current;
+            terrainOn.current = next;
+            localStorage.setItem(TERRAIN_KEY, next ? "on" : "off");
+            setTerrain(next);
+            draw();
+          }}
+        >
+          terrain
         </button>
       </div>
       <div className="map-legend">
