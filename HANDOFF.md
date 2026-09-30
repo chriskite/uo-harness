@@ -47,9 +47,9 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
    - M0 done: the demo `20260929_204225` → `harness/data/loops/lumber.json`, pinned by
      `harness/test_loop_demo.py`.
    - Runner `harness/loop_lumber.py` built and offline-proven (`test_loop_lumber.py`).
-   - **Live proof ✅ (2026-09-29 22:27, attempt 2c):** 1 trip with no deeds, 46 boards stored
-     (LUMBER_LOOP.md §13). Next: exercise the fixed captcha handoff live (the submit id is
-     random, ANTICHEAT.md §8.13), then multi-trip runs and optimization (§6).
+   - **Live proof ✅:** attempt 2c (22:27), 1 trip, 46 boards. **Run 3 (22:47): 3 trips, 50
+     boards in 8.4 min, live captcha handoff works** (LUMBER_LOOP.md §13). Next: optimization
+     (§6) from the memory store's episodes and yields (baseline ≈355 boards/active hour).
    - The visualizer shows what the agent is trying to do ("Heading to tree at …", "Chopping …",
      "Going home: …") in the **Agent** panel and as a map reticle (VISUALIZER.md §2.3). The live
      proxy must be restarted once to carry intents; the runners work either way.

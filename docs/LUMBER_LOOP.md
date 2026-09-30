@@ -1,7 +1,7 @@
 # LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → deed → store in inn room
 
-Status (2026-09-29): **M0 done; the loop (minus deeds) ran end to end live on 2026-09-29 22:27
-(attempt 2c, §13).** Open: exercising the fixed captcha detector's handoff live.
+Status (2026-09-29): **M0 done; the loop (minus deeds) runs live: 3 trips, 50 boards, captcha
+handed off to the human and resumed (run 3, 22:47, §13).**
 - M0: the user's demonstration run (`logs/session_20260929_204225`) is mined into
   `harness/data/loops/lumber.json` and pinned by `harness/test_loop_demo.py`; findings are in §12.
 - Current goal (user decision, §12.4): prove the agent can run the loop minus deed creation on
@@ -250,7 +250,7 @@ signature (ANTICHEAT.md §8.3). Variation is required, not an inefficiency to re
 | M0 ✅ | Demonstration capture (`20260929_204225`) + `loop_mine.py timeline` + `lumber.json` | Done 2026-09-29: §12; `test_loop_demo.py` pins the facts. Still open: Smart Harvest self-target, deed from a 5 000 backpack stack |
 | M1 (runner-level) | Perception: cliloc parsing, captcha gump detection (gump id + entry + button; decoys ignored), harvest outcomes | Built into `loop_lumber.py`; offline-proven (§13). A reusable perception layer comes with M6 |
 | M2 | Skills: goto with door opening, harvest attempt, convert, enter room, store, exit room; offline in `test_loop_lumber.py`, then live, attended | Offline ✅; live ✅ (attempt 2c, 2026-09-29) |
-| M3 | Routine runner, full loop (no deeds) | Offline ✅ (2 trips); live ✅ 1 trip, 46 boards stored (attempt 2c). The live captcha handoff with the fixed detector is still to be exercised (2c got no captcha) |
+| M3 | Routine runner, full loop (no deeds) | Offline ✅ (2 trips); live ✅ run 3: 3 trips, 50 boards, live captcha handoff (§13) |
 | M4 | Harvest memory, episode log, report | Report reproduces from the logs; `r`, `T` and regrowth estimates exist |
 | M5 | Bandit + return trigger + reflection | Boards/active-hour improves over a baseline session on the same venue without violating §1 |
 | M6 | LLM planner composes and repairs the routine | Phase 4 done criterion: NL objective → loop run, with the captcha handoff demonstrated |
@@ -573,3 +573,29 @@ skipped for 20 min, so a trip may end with fewer logs; the loop still completes.
     cut off by walls.
   - `harvest_attempts`: 17. `episodes`: 1.
   - Live walk evidence: facet 0 grew to 949 tiles and 1462 edges.
+
+**Live run 3 (2026-09-29 22:47–22:56, `--trips 3`, user at the client): ✅ 3 trips, 50 boards
+stored in 8 min 25 s, exit 0.**
+- **The captcha handoff works live with the fixed detector.** A captcha appeared on trip 1's
+  first chop. The runner detected it (submit id random, ANTICHEAT.md §8.13), beeped, and showed
+  "Waiting for you to solve the captcha" in the viz. The user solved it in 10 s and the runner
+  resumed. No captcha came up in trips 2 and 3 (the 10–15 min suppression).
+- Per trip: 18/16/16 logs → boards, 12/7/5 attempts, 2 successes each.
+  - Trip 1 started upstairs at (1938, 2584, 20): 118 steps, 3 doors, 5 bumps.
+  - Trips 2 and 3 chose trees just west of the inn: (1924, 2591) and (1924, 2588), 5–6 tiles
+    from the inn's west door. Each took 59–60 steps, and to_room took only 5–6 s.
+  - The 60 s post-exit travel lockout was waited out for 22–25 s once the agent reached the tree,
+    most of it already spent walking.
+- Phase times:
+  - harvest 170/127/104 s (it dominates)
+  - convert 3–7 s
+  - to_room 52/5/6 s
+  - store about 2 s
+  - exit about 6 s
+- Human texture over the run: 8 bumps into known obstacles, 2 hesitations, 2 fidgets, 1 sidestep,
+  1 walked route, 5 pauses. Doors: 9 stock open-door requests, 3 learned blocks in total.
+- **Baseline for §6:** about 355 boards per agent-active hour on Shelter, near-inn trees, 15 logs
+  per trip. The memory store now holds 4 episodes and per-tree yields, for example
+  (1932, 2574) 18 logs from 12 attempts and (1924, 2588) 16 from 5.
+- The viz Agent panel showed the live intent and history throughout. It ended on "Finished: 3
+  trip(s)" with 30 history entries.
