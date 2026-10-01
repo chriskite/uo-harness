@@ -6,6 +6,7 @@ export const GATE_BADGE: Record<GateState, { label: string; kind: "ok" | "warn" 
   running: { label: "agent running", kind: "ok" },
   paused: { label: "agent paused", kind: "warn" },
   break: { label: "agent on break", kind: "info" },
+  break_due: { label: "break due", kind: "warn" },
   budget_exhausted: { label: "daily cap reached", kind: "warn" },
   killed: { label: "agent KILLED", kind: "bad" },
 };

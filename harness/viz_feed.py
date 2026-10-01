@@ -364,6 +364,10 @@ class ReplayDriver(Feed):
             self.items, self.t_end = self._approx(rows)
             self.order = "approx"
         self.tap = proxy.SessionTap(_Null(), _Null(), _Null(), walkers=pathfind.Walkers())
+        # a capture whose re-anchors all came after quiet (made before the per-step re-anchor,
+        # ANTICHEAT.md §10 A11) replays with that behaviour, so its recorded decisions reproduce
+        reanchors = [r for r in rows if r.get("ev") == "reanchor_client"]
+        self.tap.reanchor_on_confirm = not reanchors or any(r.get("on") == "confirm" for r in reanchors)
         self.t0 = self.items[0][0] if self.items else 0.0
         self.now = self.t0
         self.tap.wall = self.tap.mono = lambda: self.now
@@ -412,7 +416,7 @@ class ReplayDriver(Feed):
                                          f"row says {row.get('id')}/{row.get('len')}")
                 items.append((t, "s2c", wire, None))
                 si += 1
-            elif ev in TIMER_EVENTS:
+            elif ev in TIMER_EVENTS and row.get("on") != "confirm":   # on-confirm re-anchors come from the s2c row
                 items.append((t, "timer", ev, None))
             elif ev == "agent_intent":
                 items.append((t, "intent", row.get("intent"), None))

@@ -33,6 +33,10 @@ MOVE_GATE = "ERR walk gated:"
 MOVE_GATE_WAIT_S = 10.0
 # A walk's outcome: confirm or deny, else the proxy's CONFIRM_TIMEOUT_S (3 s) rejection.
 OUTCOME_WAIT_S = 5.0
+# Facing a door after a step: how long to give the client's own auto-open (it follows the
+# character via the proxy's per-step re-anchor) before sending ours. Human client: 55-101 ms
+# after the walk (session 20260929_204225).
+CLIENT_AUTO_OPEN_WAIT_S = 0.15
 # Classic UO door art (0x0675-0x06F4). Shelter's inn doors in the demonstration
 # capture (0x06A5, 0x06AD, 0x06ED, 0x06EF) and the rental-room door (0x06E5) are in it.
 DOOR_GRAPHICS = range(0x0675, 0x06F5)
@@ -211,6 +215,8 @@ class Mover:
         self.steps = 0
         self.blocked_count = 0
         self.doors_opened = 0
+        self.client_doors_opened = 0 # doors the client's own auto-open handled (we sent nothing)
+        self.send_mark = 0           # len(link.events) when the last walk went out
         self.sent_at = 0.0           # monotonic time the last walk went out (step cadence)
         self.refused_steps = 0       # steps not sent: the map with current objects refused them
         self.teleports = 0
@@ -227,6 +233,7 @@ class Mover:
         deadline = time.monotonic() + MOVE_GATE_WAIT_S
         gate_waits = 0
         while True:
+            self.send_mark = len(self.link.events)
             resp = self.link.send(pkt)
             if resp == "OK":
                 self.sent_at = time.monotonic()
@@ -326,16 +333,36 @@ class Mover:
                     return True
         return False
 
+    def _client_opened_door(self) -> bool:
+        """The client sent its own open-door request (`12 0005 58 00`, world event
+        `command` type 0x58) since our last walk went out. With the proxy
+        re-anchoring the client after every agent step, a client with Auto Open
+        Doors on does what it does when its player walks (PlayerMobile.TryOpenDoors
+        on the position/direction change)."""
+        return any(e.get("ev") == "command" and e.get("type") == 0x58
+                   for e in self.link.events[self.send_mark:])
+
     def _open_ahead(self, tile, z, opened: set, label: str, st=None):
         """The client's auto-open: facing a door on the next tile (right after the
-        turn or step that faces it), send the stock open-door request, once per
-        door per route (PlayerMobile.TryOpenDoors on direction/position change)."""
+        turn or step that faces it), the stock open-door request, once per door per
+        route (PlayerMobile.TryOpenDoors on direction/position change). The client
+        itself sends it when Auto Open Doors is on (it follows the character step by
+        step): give it CLIENT_AUTO_OPEN_WAIT_S, and send ours only if it didn't. Two
+        requests would toggle the door shut again."""
         if not self.doors or tile in opened or not self.door_at(tile, st, z):
             return
         opened.add(tile)
-        log(f"{label}: facing the door at {tile}; opening it")
-        self.link.act(actions.open_door())
-        self.doors_opened += 1
+        end = time.monotonic() + CLIENT_AUTO_OPEN_WAIT_S
+        while not self._client_opened_door():
+            if time.monotonic() >= end:
+                log(f"{label}: facing the door at {tile}; opening it")
+                self.link.act(actions.open_door())
+                self.doors_opened += 1
+                return
+            time.sleep(0.03)
+            self.link.state()
+        self.client_doors_opened += 1
+        log(f"{label}: facing the door at {tile}; the client opened it (auto-open)")
 
     def _try_door(self, cur, d, run) -> bool:
         """A door still denied the step (closed again, or unseen): after a player's

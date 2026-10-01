@@ -282,7 +282,9 @@ without a server cursor; 0 replies to 127 decoy captchas or to the 6 real ones (
 | A7 | `single_click` on a mobile adds its `0x34`; `attack` sends `0x34` unless the client has an outstanding status request for the mob (corrected 2026-10-01: not "hits unknown", see §10 A7); `dclick` on a mobile in war mode is refused; `warmode` sends nothing when already in that state | `harness/test_ctl.py` |
 | A8 | stock held-key cadence, cell-scale route noise, `nav.straighten` (§8.14) | `harness/test_nav.py` + offline route measurement |
 
-A9 and A10 remain open.
+A9 and A10 remain open, except A9's break-in-the-field part: since 2026-10-01 a due break gives a
+10-minute grace and wakes the overseer (`break_due` juncture), which can head home and `ctl break`
+(agent_gate.py, docs/OVERSEER.md).
 
 **Live verification (session 20260930_182751, 18:28-19:04 local):** an overseer lumber trip at
 Horseshoe Bay, a recall to Prevalia with a hatchet bought from a provisioner, and renting a room
@@ -300,7 +302,7 @@ divergences) and every agent packet was checked against the world state at that 
 | A7 | **verified live 2026-10-01** (same session, combat test) | Attack 1 (13 tiles): `72 01` → server `72 01` → 0.55 s later `34 … 000f88ff` and `05 000f88ff`, 0 ms apart (stock Tab, then double-click: RequestMobileStatus + Attack). Attack 2 (adjacent, 46.7 s later): `34` + `05` again. That is stock-correct: the client's own `09`/`34`/`bf 000c` bursts for the mob had left no status request outstanding (the original "hits unknown" rule was wrong; corrected to the client's status-request state, commit e095bb3). `warmode off` after the death sent nothing: the server had already turned war mode off. Single-click on a mobile and the war-mode double-click refusal weren't exercised. |
 | A8 | **verified** for run | 693 run steps: gaps p10/median/p90 207/213/218 ms (min 203); 21 % heading changes. No walked route was drawn, so the 400 ms walk cadence is unverified |
 
-**A11 (found 2026-10-01, open, high): the client's display lags the character during agent walks,
+**A11 (found 2026-10-01, high; fixed the same day, offline-tested, not yet live): the client's display lags the character during agent walks,
 and its own packets show it.** Agent walk confirms are hidden from the client, and the client is
 re-anchored only after 0.5 s without a walk. In session 182751 that left it standing where each
 walking stretch began: stretches ran up to 102 steps / 21.7 s, and the display lagged the true
@@ -315,6 +317,17 @@ long stretch the client lacks objects the server believes it sent, and `ctl`'s o
 (the client-only `0x21`) after every confirmed agent step once nothing is in flight, instead of
 after 0.5 s of quiet, so the display trails by at most a tile. Then re-measure the click → close
 delays.
+
+**A11 fix:** the proxy now hands the client the re-anchor in place of every hidden agent confirm
+(nothing else in flight), so the display follows the character tile by tile (`SessionTap.reanchor_client(on_confirm=True)`;
+the 0.5 s timer stays for rejections and late confirms). A consequence the stock client shows too: with Auto
+Open Doors on (the user's client has it: 3 client door opens 55-101 ms after human walks in
+204225), `DenyWalk` → `SetInWorldTile`/direction change fires the client's own `TryOpenDoors`.
+So the Mover now gives the client 150 ms to open the door it faces and sends its own request
+only if the client didn't. Two requests would toggle the door shut again. Tests:
+`test_movement.py` e2e (one re-anchor per confirmed agent step) and `harness/test_mover.py` (the
+client's auto-open is used, no second request). Re-measure click → close delays on the next live
+walk.
 
 Unchanged: keepalive median gap 1.057 s, p99 1.087 s (2 075 keepalives); C2S senders only client
 and agent; 0 server messages about macro/AFK/jail/Razor/automation in 266 decoded messages.

@@ -153,7 +153,7 @@ runtime data, AGENTS.md Rule 0):
   - visualizer pause/kill
   - breaks and daily cap
   - never renounce Young (§1)
-  - forced breaks: **not scheduled** (2026-09-30 audit). The runner doesn't read the gate status, so a break can start mid-route; `Mover.step` waits out a break for up to ~200 s and then aborts the run where the character stands (ANTICHEAT.md §10 A9)
+  - forced breaks: the runner itself still doesn't read the gate. But since 2026-10-01 a due break waits up to 10 min and wakes the overseer (`break_due` juncture), which can stop the run, get home and `ctl break` (docs/OVERSEER.md). Without an overseer the break starts when the grace runs out; `Mover.step` then waits it out for up to ~200 s and aborts the run where the character stands (ANTICHEAT.md §10 A9)
 
 ## 6. Optimize
 
@@ -433,10 +433,13 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   tried nearest first with noise, up to `--max-trees` per trip. A tree without a route is
   skipped for the regrowth window. A tree the server rejects (500489) is remembered as not a
   tree.
-- **Doors:** a blocked move whose target tile holds a door (tiledata Door flag, or classic door
-  art 0x0675–0x06F4: the demo's inn doors 0x06A5/0x06AD/0x06ED/0x06EF and the room door 0x06E5)
-  gets one stock open-door request (`12 0005 58 00`), then the move is retried. Plain walls never
-  trigger it.
+- **Doors** (tiledata Door flag, or classic door art 0x0675–0x06F4: the demo's inn doors
+  0x06A5/0x06AD/0x06ED/0x06EF and the room door 0x06E5): opened ahead, like the client's auto-open.
+  When a step or turn leaves the character facing a door on the next tile, the client (re-anchored
+  every step, Auto Open Doors on) usually sends the open-door request itself. The Mover waits 150 ms
+  for it and sends the stock `12 0005 58 00` only if it didn't come. A step a door still denies gets
+  one more request after a reaction time. Routes never cut diagonally past a door. Plain walls never
+  trigger a request.
 - **Guards:** overall timeout, HP loss, movement stall, and the agent gate (pause/break → wait;
   kill/budget → abort).
 - **Human texture (user request 2026-09-29; `harness/humanize.py`, used by every runner via

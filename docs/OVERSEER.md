@@ -44,6 +44,7 @@ Global options go **before** the command. Every call prints exactly one JSON obj
 | `stop [task_id]` | Asks the wrapper to terminate the task; it ends with a `task_failed` juncture marked `stopped`. If the wrapper doesn't report within `--grace` (20 s), ctl kills both processes itself and posts the juncture (`source: ctl`, "(forced)"). |
 | `wait [--timeout S] [--include-info]` | Blocks (polling ~1 s) until there is an **open** juncture with id > the juncture cursor and severity ≥ `attention` (any severity with `--include-info`), or a `user` chat row with id > the chat cursor. Returns `{"ok":true,"event":<first>,"events":[…up to 20…],"cursors":{…}}` and advances the cursors past what it returned. Timeout (default 1800 s; ≤ 0 = forever) → `{"ok":true,"event":null}`. Events are `{"type":"juncture",id,t,source,kind,severity,summary,data,acked_t}` or `{"type":"chat",id,t,role,kind,text,data}`. |
 | `ack <id>` | Closes a juncture (`acked_t`). |
+| `break` | Starts the agent gate's scheduled break now (`{"op":"gate","action":"break"}`), e.g. once the character is home after a `break_due` juncture. Refused while already on a break. Returns the gate (`break_until`). |
 | `junctures [--open] [--after N] [--limit N]` | Lists junctures. |
 | `chat [--after N] [--limit N] [--role R]` | Lists chat rows. |
 | `say <text>` / `think <text>` / `note-action <text>` | Chat row, role `overseer`, kind `message` / `thought` / `action`. |
@@ -184,6 +185,7 @@ is sent). Extending it is a user decision.
 | `tasks` | JSON list of `{task_id, task, args, pid, pid_created, child_pid, child_created, started, log}`. `pid` is the wrapper. `*_created` is the OS process creation time, checked so a recycled pid is never taken for (or killed as) our task. An entry whose wrapper is gone is removed by the next `ctl` call and reported once as `task_failed` (`source: ctl`, "ended without a report"). |
 | `task_stop` | `{task_id, t}`: stop request the wrapper polls every 0.5 s. |
 | `overseer_juncture_cursor`, `overseer_chat_cursor` | `wait` cursors (decimal ids). |
+| `gate_break_due_notified` | `break_due_at` of the last due break `wait` announced (one `break_due` juncture per break). |
 | `overseer_heartbeat` | Epoch seconds as a decimal string (`"1790742202.14"`). Written on every `wait` poll (~1 s) and by `say`, `think`, `note-action`, `act`, `run`, `stop`, `ack`. The viz shows "overseer active" while it is < 90 s old. |
 
 ### Long-term memory: `ctl know` (harness/knowledge.py)
@@ -238,6 +240,7 @@ its trip. Other `info` rows are history (`ctl junctures`, or `wait --include-inf
 | `death` | urgent | runner | Hits 0 / ghost body. `{pos, facet}` |
 | `low_supplies` | attention | runner | Tools, reagents or gold below the trip's needs. `{item, have, need}` |
 | `gate_closed` | info | runner | Agent gate paused or on a scheduled break (reopens by itself). |
+| `break_due` | attention | ctl (`wait`) | The agent gate's break interval is used up. The agent can still act for up to 10 min (`break_starts_in_s`), then the break starts by itself wherever the character stands. `{break_due_at, break_starts_in_s, starts_at}`. `wait` checks the gate every 5 s and posts one per break. |
 | `server_restriction` | urgent | runner | Server gating text (AGENTS.md rule 4): all automation halts. |
 
 As of 2026-09-29 only `task_done` and `task_failed` are emitted (by `task_wrap.py`/`ctl.py`); the
@@ -280,6 +283,11 @@ Paste this (or point the session at this section) to start an overseer.
 >      otherwise fix the situation with small `ctl act` steps or call the human.
 >    - `threat`, `theft_suspected`, `death`, `low_supplies`: follow the runner's data. When in
 >      doubt, stop the task and call the human.
+>    - `break_due`: the break starts by itself at `starts_at`, wherever the character is (a
+>      motionless character in the field is what a GM looks for). If it's out in the field,
+>      `ctl stop` the task (or let a trip that ends in the room finish if it will in time), walk
+>      or recall home to the rental room, then `ctl break`. If it's already somewhere safe,
+>      `ctl break` now.
 >    - `captcha`, `server_restriction`: **call the human immediately**, stop the task, never try
 >      to answer.
 >    - user chat: answer with `ctl say`; do what they ask within these rules.

@@ -72,6 +72,8 @@ class FakeProxy:
         self.ground_items = {}    # extra ground items (goto/map tests)
         self.warmode = False
         self.status_requested = []   # world.status_requested (the client's outstanding 0x34s)
+        self.gate = {"state": "open"}
+        self.gate_actions = []
         self.self_hits = 50
         self.self_noto = 1
         self.gold = 110
@@ -198,7 +200,7 @@ class FakeProxy:
                     "buffs": {"0x00000001": dict(self.buffs)}, "labels": dict(self.labels),
                     "containers": list(self.opened), "status_requested": list(self.status_requested)},
                 "events": [], "next": len(self.events),
-                "gate": {"state": "open"},
+                "gate": dict(self.gate),
                 "intent": {"text": "idle"}, "intents": [{"text": f"i{k}"} for k in range(7)],
             }
 
@@ -211,6 +213,13 @@ class FakeProxy:
                     with self.lock:
                         self.intents.append(req.get("intent"))
                     resp = {"ok": True}
+                elif req.get("op") == "gate":
+                    with self.lock:
+                        if req.get("action") == "break":
+                            self.gate = {**self.gate, "state": "break", "blocked": True, "break_due_at": None,
+                                         "break_starts_in_s": None, "break_until": time.time() + 900}
+                            self.gate_actions.append("break")
+                        resp = {"ok": True, "gate": dict(self.gate)}
                 elif req.get("op") != "state":
                     resp = {"ok": False, "error": "op"}
                 else:
@@ -348,6 +357,22 @@ def test_wait(proxy):
     code, out = c("wait", "--timeout", "1", "--poll", "0.1")
     check("everything pending comes back in one wake",
           [(e["type"], e["id"]) for e in out.get("events", [])] == [("juncture", j2), ("chat", c2)], str(out))
+
+    print("== break due: wait wakes once, the overseer starts the break ==")
+    due = time.time()
+    proxy.gate = {"state": "break_due", "blocked": False, "reason": None, "break_due_at": due,
+                  "break_starts_in_s": 540.0, "break_until": None}
+    code, out = c("wait", "--timeout", "3", "--poll", "0.1")
+    ev = out.get("event") or {}
+    check("a due break wakes a plain `wait` with a break_due juncture (attention) and when it starts by itself",
+          ev.get("type") == "juncture" and ev.get("kind") == "break_due" and ev.get("severity") == "attention"
+          and "starts by itself" in ev.get("summary", ""), str(out))
+    code, out = c("wait", "--timeout", "1", "--poll", "0.1")
+    check("the same due break is announced once", out.get("event") is None, str(out))
+    code, out = c("break")
+    check("`ctl break` starts the break through the gate", code == 0 and out.get("ok")
+          and proxy.gate_actions == ["break"] and out["gate"]["state"] == "break", str(out))
+    proxy.gate = {"state": "open"}
 
     before = time.time()
     code, out = c("say", "all good")

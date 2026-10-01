@@ -158,9 +158,11 @@ The proxy's agent gate (`harness/agent_gate.py`): a manual pause, a kill switch,
 breaks after ~2 h of agent-active time, and an 8 h/day agent-active cap. While it is closed every
 agent injection on the control port gets `ERR <reason>`; client traffic and the relay are
 untouched. Every state-port response (including `{"ok": false, "error": "no active session"}`)
-carries a top-level `gate` object (`state` running/paused/break/budget_exhausted/killed with
-precedence killed > paused > break > budget_exhausted, `blocked`, `reason`, `paused`, `killed`,
-`break_until`, `next_break_in_s`, `active_today_s`, `daily_cap_s`, `daily_remaining_s`, `day`,
+carries a top-level `gate` object (`state` running/paused/break/budget_exhausted/break_due/killed with
+precedence killed > paused > break > budget_exhausted > break_due, `blocked`, `reason`, `paused`, `killed`,
+`break_until`, `break_due_at` and `break_starts_in_s` (a due break: still open, starts by itself
+when the grace runs out unless `ctl break` starts it; the header shows "break starts in …"),
+`next_break_in_s`, `active_today_s`, `daily_cap_s`, `daily_remaining_s`, `day`,
 `now`), so the viz reads it from the state frames it already streams.
 
 **Route.** `POST /api/gate` with `{"action": "pause"|"resume"|"kill"}` opens a short-lived

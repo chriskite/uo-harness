@@ -27,8 +27,10 @@ walk from both senders and follows the server's own movement packets (0xBF
 sub1 seeds, 0x22 confirms, 0x21 denies). ConfirmWalks for agent walks are
 hidden from the client (it would treat them as bad steps and freeze its
 walker); confirms for client walks are mapped back to the client's own seq.
-Once walking is quiet, the proxy re-anchors the client with a fabricated S2C
-0x21 at the player's server-true position. It never sends a packet of its own to the server.
+Each hidden agent confirm is replaced, toward the client, by a fabricated S2C
+0x21 at the player's server-true position, so the client's display follows the
+character step by step (and, after quiet, once more if a rejection or late
+confirm left it behind). It never sends a packet of its own to the server.
 
 Client-only fixes after an agent answer (ANTICHEAT.md §8.11, §8.18): a gump the
 agent answered gets a fabricated 0xBF sub 4 close; a target cursor the agent
@@ -66,7 +68,7 @@ INTENT_HISTORY = 30    # recent agent intents kept in the state (set_intent)
 
 # Movement timing (docs/MOVEMENT.md, sessions 20260929_142237/_143051/_144541):
 RESYNC_REPLY_TIMEOUT_S = 1.5  # client resync: no 0xBF sub1 seed by then -> the server ignored it
-REANCHOR_IDLE_S = 0.5         # no walk in flight and quiet this long -> re-anchor the client
+REANCHOR_IDLE_S = 0.5         # timer re-anchor (after rejections/late confirms): quiet this long first
 CONFIRM_TIMEOUT_S = 3.0       # walk unconfirmed this long -> treated as rejected (live max 2.31 s,
                               # server hitches; 20260930_123206, 091704)
 LATE_CONFIRM_GRACE_S = 5.0    # a "rejected" walk's confirm is still recognized this long after
@@ -134,10 +136,12 @@ class MoveAuthority:
       facet, or the rules disagree with the server) z keeps its last value
       until the next server anchor.
     - re-anchor: hidden confirms mean the client doesn't see agent movement.
-      Once walking is quiet, the proxy hands the CLIENT a fabricated 0x21
-      DenyWalk with the true position and facing. The client's DenyWalk
-      handler resets its walker and places the player there. Nothing reaches
-      the server. z is the tracked z above.
+      In place of each hidden agent confirm (nothing else in flight), the
+      proxy hands the CLIENT a fabricated 0x21 DenyWalk with the true position
+      and facing; the movement timer does the same after REANCHOR_IDLE_S of
+      quiet when a rejection or late confirm left the client stale. The
+      client's DenyWalk handler resets its walker and places the player there.
+      Nothing reaches the server. z is the tracked z above.
     """
 
     __slots__ = ("next_seq", "armed_token", "stale_token", "inflight", "late", "late_until",
@@ -304,13 +308,13 @@ class MoveAuthority:
             return f"walk gated: pacing ({step:.1f}s between steps)"
         return None
 
-    def reanchor_packet(self, now: float) -> bytes | None:
+    def reanchor_packet(self, now: float, quiet_s: float = REANCHOR_IDLE_S) -> bytes | None:
         """A fabricated S2C 0x21 placing the client at the server-true position,
         when due (client stale, position known, no walk or resync in flight,
-        walking quiet for REANCHOR_IDLE_S), else None. Marks the client fresh."""
+        walking quiet for quiet_s), else None. Marks the client fresh."""
         if not self.client_stale or self.pos is None or self.inflight or self.resync_sent_at is not None:
             return None
-        if self.last_walk_at is not None and now - self.last_walk_at < REANCHOR_IDLE_S:
+        if self.last_walk_at is not None and now - self.last_walk_at < quiet_s:
             return None
         self.client_stale = False
         x, y, z, facing = self.pos
@@ -451,6 +455,9 @@ class SessionTap:
         # hasn't answered), and ids the agent answered while the client still showed them
         self.client_cursor = None
         self.spent_cursors = set()
+        # re-anchor the client on each hidden agent confirm (ANTICHEAT.md §10 A11); replays of
+        # captures made before that switch it off to reproduce what the proxy did then
+        self.reanchor_on_confirm = True
 
     def _log(self, **kw):
         kw["t"] = round(self.wall(), 3)
@@ -724,7 +731,9 @@ class SessionTap:
             if action == "hide":
                 self._log(ev="s2c_confirm_hidden", note=f"agent walk seq {pkt[1]} confirmed")
                 self._proxy_event("s2c_confirm_hidden", seq=pkt[1])
-                return b""
+                # keep the client's display on the character, step by step (ANTICHEAT.md §10 A11):
+                # a client left behind drops the mobiles it is shown and closes their status at once
+                return self.reanchor_client(now, on_confirm=True) if self.reanchor_on_confirm else b""
             if action == "rewrite":
                 self._log(ev="s2c_confirm_rewritten", note=f"seq {pkt[1]} -> client seq {client_seq}")
                 self._proxy_event("s2c_confirm_rewritten", seq=pkt[1], client_seq=client_seq)
@@ -817,17 +826,24 @@ class SessionTap:
         self._log(dir="s2c", src="proxy", id="0xBF", len=len(pkt), hex=hexd(pkt))
         return encode_packet(pkt, self.s2c.key)
 
-    def reanchor_client(self, now: float) -> bytes:
+    def reanchor_client(self, now: float, on_confirm: bool = False) -> bytes:
         """Wire bytes of a fabricated S2C 0x21 re-anchoring the client, or b"".
-        Client-only: logged as src=proxy, never written to raw_s2c (server truth)."""
+
+        on_confirm: right after a hidden agent confirm, with nothing else in flight
+        (no quiet period): the client follows the character step by step, so its
+        view range, the mobiles it keeps and its own auto-open of doors match a
+        client that walked there itself (ANTICHEAT.md §10 A11). Otherwise the
+        movement timer's call after REANCHOR_IDLE_S of quiet (rejections, late
+        confirms). Client-only: logged as src=proxy, never written to raw_s2c."""
         if self.s2c is None:
             return b""
-        pkt = self.moveauth.reanchor_packet(now)
+        pkt = self.moveauth.reanchor_packet(now, 0.0 if on_confirm else REANCHOR_IDLE_S)
         if pkt is None:
             return b""
         x, y, z, facing = self.moveauth.pos
-        self._log(ev="reanchor_client", note=f"fabricated 0x21 to client: x={x} y={y} z={z} dir={facing}")
-        self._proxy_event("reanchor_client", x=x, y=y, z=z, dir=facing)
+        extra = {"on": "confirm"} if on_confirm else {}
+        self._log(ev="reanchor_client", note=f"fabricated 0x21 to client: x={x} y={y} z={z} dir={facing}", **extra)
+        self._proxy_event("reanchor_client", x=x, y=y, z=z, dir=facing, **extra)
         self._log(dir="s2c", src="proxy", id="0x21", len=len(pkt), hex=hexd(pkt))
         return encode_packet(pkt, self.s2c.key)
 
@@ -926,8 +942,10 @@ async def handle_state(reader, writer, hub):
              (`snapshot: false` omits `world`: movement + new events only)
     No session -> `{"ok": false, "error": "no active session"}`.
     Request  `{"op": "gate"}` -> gate status only; with
-             `"action": "pause"|"resume"|"kill"|"rearm"` -> applied first
-             (`{"ok": false, "error": ...}` if refused, e.g. resume while killed).
+             `"action": "pause"|"resume"|"kill"|"rearm"|"break"` -> applied first
+             (`{"ok": false, "error": ...}` if refused, e.g. resume while killed;
+             `break` starts the scheduled break now, e.g. once a due break's
+             character is somewhere safe).
     Request  `{"op": "intent", "intent": {"text": ..., ...} | null}` -> the
              agent's current intent for readers (SessionTap.set_intent); never
              reaches the server. Needs a session.

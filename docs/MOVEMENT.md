@@ -59,8 +59,9 @@ Consequences, all visible in the captures:
   advanced per confirmed walk. A walk whose direction differs from the facing only turns; otherwise
   it moves one tile. Verified on 144541: the 0x1B anchor plus 6 agent walks W equals the server's
   final self `0x77` (0x7A6, 0xA25).
-- **Re-anchor, client-only (user decision 2026-09-29):** once nothing is in flight and walking has
-  been quiet 0.5 s, the proxy writes a **fabricated S2C `0x21` DenyWalk** (`21 00 x:u32 y:u32 dir:u8
+- **Re-anchor, client-only (user decision 2026-09-29; per step since 2026-10-01):** in place of each
+  hidden agent confirm (nothing else in flight), and after 0.5 s of quiet when a rejection or late
+  confirm left the client behind, the proxy writes a **fabricated S2C `0x21` DenyWalk** (`21 00 x:u32 y:u32 dir:u8
   z:i32`, 15 B) to the client only. Client code: `PacketHandlers.DenyWalk @ 0x140189200` (V10 branch
   reads u32 x, u32 y, u8 dir, i32 z) → `WalkerManager.DenyWalk @ 0x14030ae40` (clear steps, reset the
   walker, SetInWorldTile) + facing = dir & 7. **Nothing goes to the server.** A fabricated self `0x20`
@@ -69,7 +70,11 @@ Consequences, all visible in the captures:
   carry no z, so the re-anchor uses the last server-reported z. On stairs or slopes the client may
   show a wrong height until the next real server update. **Race:** a client key press whose walk
   crosses the fabricated deny in flight gets a confirm the client no longer has pending. That is a
-  bad step, which makes the client send its own resync (client-produced) and recover.
+  bad step, which makes the client send its own resync (client-produced) and recover. **Per step**
+  (ANTICHEAT.md §10 A11): with re-anchors only after quiet, the client stood up to 53 tiles behind
+  and dropped every mobile the server sent near the character (instant `bf 000c` close-status, 93 %
+  vs 1-5 % for humans). The client's DenyWalk also runs its own auto-open of doors (`TryOpenDoors`
+  on the position and direction change), which `agent_link.Mover` waits for before sending its own.
 - Agent gates: pacing (0.2 s run / 0.4 s walk, the Speedhack surface); waiting for the server's reply
   to a client resync; stall after 3 rejections; an expired walk's 5 s late-confirm window; 5 walks
   unconfirmed. `agent_link.Mover` and `ctl act walk` retry the self-clearing gates for up to 10 s.

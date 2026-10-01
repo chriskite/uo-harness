@@ -225,8 +225,10 @@ export interface AgentIntent {
   until?: number;
 }
 
-/** Precedence killed > paused > break > budget_exhausted > running. */
-export type GateState = "running" | "paused" | "break" | "budget_exhausted" | "killed";
+/** Precedence killed > paused > break > budget_exhausted > break_due > running.
+ * `break_due` is open (agents still act): the break starts by itself at the end of its
+ * grace unless the overseer starts it earlier (`ctl break`). */
+export type GateState = "running" | "paused" | "break" | "budget_exhausted" | "break_due" | "killed";
 
 /** The proxy's agent gate (harness/agent_gate.py). While blocked, every agent
  * injection on the control port gets `ERR <reason>`; nothing reaches the server. */
@@ -239,6 +241,10 @@ export interface Gate {
   killed: boolean;
   /** Wall-clock (epoch s) end of the current scheduled break. */
   break_until: number | null;
+  /** Wall-clock (epoch s) the break became due; null when none is due (optional: older proxies). */
+  break_due_at?: number | null;
+  /** Seconds until a due break starts by itself; null when none is due. */
+  break_starts_in_s?: number | null;
   /** Agent-active seconds left before the next forced break; null during a break. */
   next_break_in_s: number | null;
   active_today_s: number;

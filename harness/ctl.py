@@ -10,7 +10,10 @@ Usage: python harness/ctl.py [--db P] [--state-port N] [--control-port N] <cmd> 
   run <task> [args...]        start a whitelisted task (lumber, bank) detached
   stop [task_id]              stop the running task (-> task_failed juncture)
   wait [--timeout S] [--include-info]
-                              block until a juncture (>= attention) or user chat
+                              block until a juncture (>= attention) or user chat; also
+                              posts a `break_due` juncture when the agent gate's break
+                              is due (grace before it starts by itself)
+  break                       start the agent gate's break now (e.g. once home)
   ack <juncture_id>           close a juncture
   junctures [--open] [--after N] [--limit N]
   chat [--after N] [--limit N] [--role R]
@@ -70,6 +73,8 @@ SPEECH_ALLOWLIST = ("bank", "room", "hello")
 HEARTBEAT_KEY = "overseer_heartbeat"
 JUNCTURE_CURSOR_KEY = "overseer_juncture_cursor"
 CHAT_CURSOR_KEY = "overseer_chat_cursor"
+BREAK_NOTIFIED_KEY = "gate_break_due_notified"   # break_due_at of the last announced break
+GATE_CHECK_S = 5.0                               # ctl wait: gate poll period
 SEVERITY_RANK = {"info": 0, "attention": 1, "urgent": 2}
 WAIT_MAX_EVENTS = 20
 NEARBY_RANGE = 18
@@ -632,13 +637,62 @@ def _open_junctures(mem, after_id, min_rank, limit):
     return [mem.junctures(after_id=i - 1, limit=1)[0] for i in ids]
 
 
+def gate_query(port: int, action: str | None = None, timeout: float = 3.0) -> dict:
+    """The proxy's agent gate ({"op": "gate"}[, action]): its JSON response."""
+    req = {"op": "gate", **({"action": action} if action else {})}
+    with socket.create_connection((HOST, port), timeout=timeout) as s:
+        s.sendall((json.dumps(req) + "\n").encode())
+        return json.loads(s.makefile("rb").readline() or b"{}")
+
+
+def check_break_due(mem, port: int):
+    """Post one `break_due` juncture (attention) for each due break of the agent
+    gate, so a waiting overseer wakes while the agent can still act: it may stop
+    the task, head somewhere safe and `ctl break`. Otherwise the break starts by
+    itself when the grace runs out, wherever the character stands."""
+    try:
+        gate = gate_query(port).get("gate") or {}
+    except (OSError, ValueError):
+        return                                       # proxy down: nothing to announce
+    due = gate.get("break_due_at")
+    if gate.get("state") != "break_due" or due is None \
+            or tw.meta_get(mem, BREAK_NOTIFIED_KEY, "") == f"{due:.3f}":
+        return
+    starts = gate.get("break_starts_in_s") or 0.0
+    at = time.strftime("%H:%M", time.localtime(time.time() + starts))
+    mem.juncture("gate", "break_due",
+                 f"Scheduled break is due: it starts by itself at {at} (in {starts / 60:.0f} min) wherever "
+                 f"the character is. Stop or finish the task, get somewhere safe, then `ctl break`.",
+                 severity="attention",
+                 data={"break_due_at": due, "break_starts_in_s": starts, "starts_at": at})
+    tw.meta_set(mem, BREAK_NOTIFIED_KEY, f"{due:.3f}")
+
+
+def cmd_break(a, mem):
+    heartbeat(mem)
+    try:
+        resp = gate_query(a.state_port, "break")
+    except OSError as e:
+        raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
+    gate = resp.get("gate") or {}
+    if not resp.get("ok"):
+        raise CtlError(f"break refused: {resp.get('error')}")
+    until = time.strftime("%H:%M", time.localtime(gate["break_until"])) if gate.get("break_until") else "?"
+    mem.chat_post("overseer", f"break: started, until {until}", "action", data={"cmd": "break", "gate": gate})
+    return {"ok": True, "gate": gate, "break_until": until}
+
+
 def cmd_wait(a, mem):
     jcur = int(tw.meta_get(mem, JUNCTURE_CURSOR_KEY, "0"))
     ccur = int(tw.meta_get(mem, CHAT_CURSOR_KEY, "0"))
     min_rank = 0 if a.include_info else SEVERITY_RANK["attention"]
     end = None if a.timeout <= 0 else time.monotonic() + a.timeout
+    next_gate = 0.0
     while True:
         heartbeat(mem)
+        if time.monotonic() >= next_gate:
+            check_break_due(mem, a.state_port)
+            next_gate = time.monotonic() + GATE_CHECK_S
         js = _open_junctures(mem, jcur, min_rank, WAIT_MAX_EVENTS)
         cs = mem.chat(after_id=ccur, limit=WAIT_MAX_EVENTS, role="user")
         if js or cs:
@@ -2031,6 +2085,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("task_id", nargs="?")
     p.add_argument("--grace", type=float, default=20.0, help="seconds to let the wrapper report")
     p.set_defaults(fn=cmd_stop)
+    sub.add_parser("break").set_defaults(fn=cmd_break)
     p = sub.add_parser("wait")
     p.add_argument("--timeout", type=float, default=1800.0, help="seconds; <= 0 waits forever")
     p.add_argument("--include-info", action="store_true")

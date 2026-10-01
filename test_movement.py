@@ -369,10 +369,12 @@ async def e2e():
         check("agent walk right after is paced", r2.startswith("ERR walk gated: pacing"), r2)
         check("agent confirms hidden from the client", 2 not in confirms_mid and 3 not in confirms_mid,
               str(confirms_mid))
-        check("no re-anchor while walking is fresh", not denies_mid, str(denies_mid))
-        check("client got exactly one fabricated 0x21 at the true position (x101 y198 z5 E)",
-              len(denies) == 1 and deny_fields(denies[0]) == (101, 198, 5, 2),
-              str([deny_fields(d) for d in denies]))
+        check("each confirmed agent walk re-anchors the client right away (turn E, then step E): it follows "
+              "the character instead of lagging until walking stops (ANTICHEAT §10 A11)",
+              [deny_fields(d) for d in denies_mid] == [(100, 198, 5, 2), (101, 198, 5, 2)],
+              str([deny_fields(d) for d in denies_mid]))
+        check("no further re-anchor once walking is quiet (the client is already there)",
+              len(denies) == len(denies_mid), str([deny_fields(d) for d in denies]))
         check("server received no proxy-originated packets (only walks, the gump reply and target replies)",
               [p for p in srv.other if p[0] not in (0xB1, 0x6C)] == [], str(srv.other))
         check("client prelude relayed", bytes(got_prelude) == PRELUDE, got_prelude.hex())
@@ -398,10 +400,11 @@ async def e2e():
         agent_c2s = [e["data"]["id"] for e in envs if e["origin"] == "proxy" and e["data"]["ev"] == "c2s"]
         check("state events: one c2s summary per agent packet (none for client packets)",
               agent_c2s == ["0x02", "0x02"], str(agent_c2s))
-        check("state events: agent confirms hidden, re-anchor reported",
+        check("state events: agent confirms hidden, a re-anchor on each",
               [e["data"]["seq"] for e in envs if e["data"].get("ev") == "s2c_confirm_hidden"] == [2, 3]
-              and [(e["data"]["x"], e["data"]["y"]) for e in envs if e["data"].get("ev") == "reanchor_client"]
-              == [(101, 198)], str([e["data"] for e in envs if e["origin"] == "proxy"]))
+              and [(e["data"]["x"], e["data"]["y"], e["data"].get("on")) for e in envs
+                   if e["data"].get("ev") == "reanchor_client"]
+              == [(100, 198, "confirm"), (101, 198, "confirm")], str([e["data"] for e in envs if e["origin"] == "proxy"]))
         check("agent gump reply: relayed upstream, and the client's copy closed (gump 0xE0E675B8, button 0)",
               r_gump == "OK" and any(p[0] == 0xB1 for p in srv.other)
               and closes == [bytes.fromhex("bf000d0004" "e0e675b8" "00000000")], f"{r_gump} {closes} {srv.other}")

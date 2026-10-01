@@ -61,26 +61,51 @@ def unit_tests(tmp):
     # a morning start so the whole 8 h run stays on one local day
     t0 = datetime.datetime.combine(datetime.date.today(), datetime.time(6, 0)).timestamp()
 
-    print("forced break")
+    print("forced break: due, grace, then the break")
     g, c = fresh(tmp, "brk.json", t0)
     first_interval = g.next_break_after_s
     check("interval jittered within 2h +-20min",
           ag.BREAK_EVERY_S - ag.BREAK_JITTER_S <= first_interval <= ag.BREAK_EVERY_S + ag.BREAK_JITTER_S)
+    while g.status()["state"] == "running":
+        g.record_activity()
+        c.t += 30.0
+    st = g.status()
+    check("the used-up interval makes the break due, not blocked (the agent may still get home)",
+          st["state"] == "break_due" and not st["blocked"] and st["reason"] is None, st)
+    check("active time at due ~ the drawn interval",
+          first_interval <= g.since_break_s < first_interval + 30.0, g.since_break_s)
+    check("status says when it starts by itself",
+          ag.BREAK_GRACE_S - 31 <= st["break_starts_in_s"] <= ag.BREAK_GRACE_S, st["break_starts_in_s"])
+    due_at = st["break_due_at"]
     run_until_blocked(g, c)
     st = g.status()
-    check("break starts once the interval of active time is used", st["state"] == "break", st)
-    check("active time at break ~ the drawn interval",
-          first_interval <= g.since_break_s < first_interval + 30.0, g.since_break_s)
+    check("unless started earlier, the break starts by itself when the grace runs out",
+          st["state"] == "break" and ag.BREAK_GRACE_S <= c.t - due_at < ag.BREAK_GRACE_S + 60.0,
+          (st["state"], c.t - due_at))
     brk = st["break_until"] - g.last_active
-    check("break length within 15-30 min", ag.BREAK_LEN_S[0] <= brk <= ag.BREAK_LEN_S[1], brk)
+    check("break length within 15-30 min", ag.BREAK_LEN_S[0] <= brk <= ag.BREAK_LEN_S[1] + 30.0, brk)
     check("reason names the break", "scheduled break" in (st["reason"] or ""), st["reason"])
     check("resume cannot end a break", g.apply("resume") is None and g.status()["state"] == "break")
     c.t = st["break_until"] + 1
     st = g.status()
-    check("gate reopens after the break", st["state"] == "running", st)
+    check("gate reopens after the break", st["state"] == "running" and st["break_due_at"] is None, st)
     check("break clock restarts with a new jittered interval",
           ag.BREAK_EVERY_S - ag.BREAK_JITTER_S <= st["next_break_in_s"] <= ag.BREAK_EVERY_S + ag.BREAK_JITTER_S,
           st["next_break_in_s"])
+
+    print("the overseer starts a due break itself (once home)")
+    g, c = fresh(tmp, "brk_now.json", t0)
+    while g.status()["state"] == "running":
+        g.record_activity()
+        c.t += 30.0
+    c.t += 120.0                                    # two minutes of the grace used to walk home
+    check("`break` starts it at once", g.apply("break") is None and g.status()["state"] == "break")
+    check("a second `break` is refused", g.apply("break") == "already on a break")
+    g2 = ag.AgentGate(os.path.join(tmp, "brk_now.json"), rng=random.Random(7), clock=c)
+    check("the break survives a restart", g2.status()["state"] == "break")
+    c.t = g.break_until + 1
+    check("after it: running with a fresh interval",
+          g.status()["state"] == "running" and g.status()["next_break_in_s"] >= ag.BREAK_EVERY_S - ag.BREAK_JITTER_S)
 
     print("idle time")
     g, c = fresh(tmp, "idle.json", t0)

@@ -14,6 +14,15 @@ Closed when (precedence order):
   budget_exhausted  DAILY_CAP_S of agent-active time used on this local
                     calendar day; reopens at local midnight
 
+Open but announced:
+  break_due         the break interval is used up. The agent may still act for
+                    up to BREAK_GRACE_S, so the overseer (woken by a `break_due`
+                    juncture from `ctl wait`) can finish or stop the task and
+                    get somewhere safe, then start the break itself with the
+                    `break` action (`ctl break`). Otherwise the break starts by
+                    itself when the grace runs out, wherever the character is.
+                    `break` also starts a break early at any time.
+
 Agent-active time: the gaps between consecutive accepted injections that are
 at most ACTIVE_GAP_S apart. Idle time, paused time and breaks don't count. A
 gap of at least the minimum break length counts as a break taken (the break
@@ -39,10 +48,11 @@ DAILY_CAP_S = 8 * 3600.0
 BREAK_EVERY_S = 2 * 3600.0
 BREAK_JITTER_S = 20 * 60.0
 BREAK_LEN_S = (15 * 60.0, 30 * 60.0)
+BREAK_GRACE_S = 10 * 60.0
 ACTIVE_GAP_S = 60.0
 SAVE_EVERY_S = 10.0
 
-ACTIONS = ("pause", "resume", "kill", "rearm")
+ACTIONS = ("pause", "resume", "kill", "rearm", "break")
 REARM_HINT = "python harness/agent_gate.py rearm"
 
 
@@ -61,6 +71,7 @@ class AgentGate:
         self.since_break_s = 0.0
         self.next_break_after_s = self._draw_interval()
         self.break_until: float | None = None
+        self.break_due_at: float | None = None   # break interval used up; grace until +BREAK_GRACE_S
         self.last_active: float | None = None
         self.paused = False
         self.killed = False
@@ -70,7 +81,7 @@ class AgentGate:
 
     # -- persistence -----------------------------------------------------------
     _FIELDS = ("day", "active_today_s", "since_break_s", "next_break_after_s",
-               "break_until", "last_active", "paused", "killed")
+               "break_until", "break_due_at", "last_active", "paused", "killed")
 
     def _load(self):
         try:
@@ -101,14 +112,22 @@ class AgentGate:
     def _break_taken(self):
         self.since_break_s = 0.0
         self.next_break_after_s = self._draw_interval()
+        self.break_due_at = None
+
+    def _start_break(self, now: float):
+        self.break_until = now + self.rng.uniform(*BREAK_LEN_S)
+        self.break_due_at = None
+        self.save(force=True)
 
     def _settle(self, now: float):
-        """Apply day rollover and break expiry."""
+        """Apply day rollover, the end of a due break's grace, and break expiry."""
         today = local_day(now)
         if today != self.day:
             self.day = today
             self.active_today_s = 0.0
             self._dirty = True
+        if self.break_due_at is not None and self.break_until is None and now >= self.break_due_at + BREAK_GRACE_S:
+            self._start_break(now)
         if self.break_until is not None and now >= self.break_until:
             self.break_until = None
             self._break_taken()
@@ -131,8 +150,8 @@ class AgentGate:
                 self._break_taken()
         self.last_active = now
         self._dirty = True
-        if self.since_break_s >= self.next_break_after_s:
-            self.break_until = now + self.rng.uniform(*BREAK_LEN_S)
+        if self.since_break_s >= self.next_break_after_s and self.break_due_at is None and self.break_until is None:
+            self.break_due_at = now
             self.save(force=True)
         elif self.active_today_s >= DAILY_CAP_S:
             self.save(force=True)
@@ -141,7 +160,7 @@ class AgentGate:
 
     # -- controls --------------------------------------------------------------
     def apply(self, action: str) -> str | None:
-        """pause / resume / kill / rearm; returns an error string or None."""
+        """pause / resume / kill / rearm / break; returns an error string or None."""
         if action == "pause":
             self.paused = True
         elif action == "resume":
@@ -152,6 +171,13 @@ class AgentGate:
             self.killed = True
         elif action == "rearm":
             self.killed = False
+        elif action == "break":
+            now = self.clock()
+            self._settle(now)
+            if self.break_until is not None:
+                return "already on a break"
+            self._start_break(now)
+            return None
         else:
             return f"unknown gate action {action!r}"
         self.save(force=True)
@@ -172,12 +198,17 @@ class AgentGate:
             state = "budget_exhausted"
             reason = (f"daily agent budget exhausted ({DAILY_CAP_S / 3600:g} h); "
                       "reopens at local midnight")
+        elif self.break_due_at is not None:
+            state, reason = "break_due", None
         else:
             state, reason = "running", None
         return {
             "state": state, "blocked": reason is not None, "reason": reason,
             "paused": self.paused, "killed": self.killed,
             "break_until": self.break_until,
+            "break_due_at": self.break_due_at,
+            "break_starts_in_s": None if self.break_due_at is None
+            else max(0.0, self.break_due_at + BREAK_GRACE_S - now),
             "next_break_in_s": None if in_break
             else max(0.0, self.next_break_after_s - self.since_break_s),
             "active_today_s": self.active_today_s, "daily_cap_s": DAILY_CAP_S,
