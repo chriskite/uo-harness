@@ -74,7 +74,8 @@ Consequences, all visible in the captures:
   (ANTICHEAT.md §10 A11): with re-anchors only after quiet, the client stood up to 53 tiles behind
   and dropped every mobile the server sent near the character (instant `bf 000c` close-status, 93 %
   vs 1-5 % for humans). The client's DenyWalk also runs its own auto-open of doors (`TryOpenDoors`
-  on the position and direction change), which `agent_link.Mover` waits for before sending its own.
+  on the position and direction change) when Auto Open Doors is on, so that setting must be off:
+  `agent_link.Mover` sends the open-door request itself (user decision 2026-10-01).
 - Agent gates: pacing (0.2 s run / 0.4 s walk, the Speedhack surface); waiting for the server's reply
   to a client resync; stall after 3 rejections; an expired walk's 5 s late-confirm window; 5 walks
   unconfirmed. `agent_link.Mover` and `ctl act walk` retry the self-clearing gates for up to 10 s.

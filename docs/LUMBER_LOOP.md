@@ -435,11 +435,11 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   tree.
 - **Doors** (tiledata Door flag, or classic door art 0x0675–0x06F4: the demo's inn doors
   0x06A5/0x06AD/0x06ED/0x06EF and the room door 0x06E5): opened ahead, like the client's auto-open.
-  When a step or turn leaves the character facing a door on the next tile, the client (re-anchored
-  every step, Auto Open Doors on) usually sends the open-door request itself. The Mover waits 150 ms
-  for it and sends the stock `12 0005 58 00` only if it didn't come. A step a door still denies gets
-  one more request after a reaction time. Routes never cut diagonally past a door. Plain walls never
-  trigger a request.
+  When a step or turn leaves the character facing a door on the next tile, the Mover sends the
+  stock `12 0005 58 00` (the client's Auto Open Doors must be off: re-anchored every step, it would
+  send a second request and shut the door again). A step a door still denies gets one more request
+  after a reaction time. Routes never cut diagonally past a door. Plain walls never trigger a
+  request.
 - **Guards:** overall timeout, HP loss, movement stall, and the agent gate (pause/break → wait;
   kill/budget → abort).
 - **Human texture (user request 2026-09-29; `harness/humanize.py`, used by every runner via
@@ -457,7 +457,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
       and routes vary between plans while staying straight; zig-zag stretches are regrouped into
       two straight runs (`nav.straighten`). Shelter routes: ~20 % heading changes (human 21 %;
       per-step noise gave 37 %)
-    - 7 % of routes walked instead of run
+    - routes always run, like the client's Always Run (until 2026-10-01, 7 % were walked)
     - per-step micro-pauses (2.5 %) and rare 3–9 s look-around pauses (0.4 %)
     - 1.2 % chance per step of a sidestep onto a known-walkable tile, then a replan
     - doors are opened like the client's auto-open: right after the turn or step that faces a

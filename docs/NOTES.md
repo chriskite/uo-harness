@@ -23,6 +23,7 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   - The 1 px/tile scale was proven with all 40 facet-0 markers in `Data/Client/Banks_and_Healers.xml`: each one lands on a non-water pixel at scale 1.0, versus ≤57% at scales 1.25–2.0.
   - Shelter Island (the bank run's area, 1963,2597) renders as the town plaza next to the bank.
   - Confirmed: map0.uoo's header is 1344×768 blocks = 10752×6144 tiles.
+- **Client settings the harness assumes (user, 2026-10-01):** Always Run **on** (the client default; agent routes always run, `ctl act walk` runs unless `--walk`) and Auto Open Doors **off**. With the proxy re-anchoring the client after every agent step, Auto Open Doors would send a second open-door request next to the Mover's and shut the door again (ANTICHEAT.md §10 A11).
 
 ## Login & identity
 

@@ -20,7 +20,7 @@ Usage: python harness/ctl.py [--db P] [--state-port N] [--control-port N] <cmd> 
   say <text> | think <text> | note-action <text>
                               chat rows (role overseer; message/thought/action)
   act <name> [args]           one stock action through the proxy control port:
-                              walk <dir 0-7> [n] [--run], say <allowlisted>,
+                              walk <dir 0-7> [n] [--walk], say <allowlisted>,
                               dclick <serial>, single_click <serial>, open_door,
                               target_cancel, goto <x> <y> | goto <mobile serial>
                               [--range R], menu <serial>, menu_pick <serial> <index>,
@@ -763,7 +763,7 @@ def _act_walk(a, ctl: Control, stc: StateConn) -> dict:
     if pos is None:
         raise CtlError("player position unknown")
     start, moved, outcomes, stop = list(pos), 0, [], None
-    pkt = actions.walk(d, run=a.run)
+    pkt = actions.walk(d, run=not a.walk)
     walkers = None
     if not a.no_map:
         import pathfind
@@ -782,7 +782,7 @@ def _act_walk(a, ctl: Control, stc: StateConn) -> dict:
                 outcomes.append("blocked")
                 stop = "blocked (the map says the step can't be walked; the client wouldn't send it)"
                 break
-        human.pace_step(a.run, sent_at)
+        human.pace_step(not a.walk, sent_at)
         deadline = time.monotonic() + MOVE_GATE_WAIT_S
         while True:                  # proxy walk gates that clear on their own, like Mover.step
             resp = ctl.send(pkt)
@@ -2111,7 +2111,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("act")
     p.add_argument("name", help=f"one of {', '.join(ACTS)}")
     p.add_argument("args", nargs="*")
-    p.add_argument("--run", action="store_true", help="walk: run instead of walk")
+    p.add_argument("--walk", action="store_true",
+                   help="walk: walk instead of run (the client's Always Run is on, so the default is run)")
     p.add_argument("--human", choices=sorted(PROFILES), default="normal", help="walk pacing profile")
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--range", type=int, default=None,

@@ -29,11 +29,7 @@ class FakeLink:
     """A grid server: walls deny, doors deny until opened (0x12 0x58 next to them)."""
 
     def __init__(self, start, facing, walls=(), doors=(), mobiles=(), can_shove=True, z=0, z_walk=None,
-                 teleports=None, deny_teleports=None, client_auto_open=False):
-        # the client follows the character (proxy re-anchors) and, with Auto Open Doors on,
-        # sends its own open-door request when it ends up facing a closed door
-        self.client_auto_open = client_auto_open
-        self.client_door_reqs = []
+                 teleports=None, deny_teleports=None):
         self.teleports = dict(teleports or {})   # tile -> where stepping onto it puts you
         # tile -> destination for teleporters that deny the step and move you a moment later
         # (the New Player Dungeon exit, live 2026-09-30): the jump shows from the second state poll
@@ -58,7 +54,6 @@ class FakeLink:
             d = pkt[1] & 7
             if d != self.facing:
                 self.facing = d
-                self._client_auto_open()
                 return "OK"
             nxt = nav.step(tuple(self.here), d)
             if nxt in self.deny_teleports:
@@ -75,20 +70,12 @@ class FakeLink:
             if self.z_walk is not None:
                 self.z = self.z_walk.can_walk(self.here[0], self.here[1], self.z, d)[2]
             self.here = list(self.teleports.get(nxt, nxt))
-            self._client_auto_open()
         elif pkt[0] == 0x12 and pkt[3] == 0x58:
             self.door_reqs.append((tuple(self.here), self.facing))
             for door in self.doors:
                 if nav.chebyshev(door, tuple(self.here)) <= 1:
                     self.doors[door] = True
         return "OK"
-
-    def _client_auto_open(self):
-        ahead = nav.step(tuple(self.here), self.facing)
-        if self.client_auto_open and self.doors.get(ahead) is False:
-            self.doors[ahead] = True
-            self.client_door_reqs.append(ahead)
-            self.events.append({"ev": "command", "type": 0x58, "text": ""})
 
     def act(self, pkt):
         self.send(pkt)
@@ -149,14 +136,6 @@ def test_door():
     check("a door reached by turning toward it is opened right after the turn",
           link.door_reqs == [((1, 1), 1)] and link.denies == [] and tuple(link.here) == (3, 0),
           f"{link.door_reqs} {link.denies} {link.here}")
-    link = FakeLink((0, 0), facing=2, walls={(2, y) for y in range(-3, 4)} - {(2, 0)},
-                    doors=[(2, 0)], client_auto_open=True)
-    mv = Mover(link, nav.WalkMemory(), Human("off"), doors=True, use_map=False)
-    mv.walk_to(lambda: (4, 0), 0, "t")
-    check("the client's own auto-open handles the door: no second request (it would shut it again)",
-          link.client_door_reqs == [(2, 0)] and link.door_reqs == [] and mv.client_doors_opened == 1
-          and (2, 0) not in link.denies and tuple(link.here) == (4, 0),
-          f"client {link.client_door_reqs} agent {link.door_reqs} denies {link.denies} at {link.here}")
 
 
 class GridWalk:

@@ -14,8 +14,8 @@ Everything it adds is stock-client traffic or plain waiting.
 - Walking rhythm: within a straight walk, steps go out at the stock client's
   held-key cadence (ClassicUO MovementSpeed: 200 ms run, 400 ms walk) plus
   frame jitter, like a player holding the key; the texture sits between
-  segments: occasional short pauses, rare longer "look around" pauses, and
-  whole routes walked instead of run.
+  segments: occasional short pauses and rare longer "look around" pauses.
+  Routes are always run (the client's Always Run is on).
 - Hands: occasional hesitation (a tool cursor cancelled and re-used), and
   small fidgets between tasks: opening the backpack, or looking at a nearby
   mobile with the stock single-click sequence.
@@ -53,7 +53,6 @@ NOISE_CELL = 6                     # route noise granularity in tiles (cost_scal
 class Profile:
     reaction_sigma: float = 0.38
     step_jitter: tuple = (0.003, 0.015)  # added to the stock step cadence (human bins: 200-220 ms)
-    walk_route_p: float = 0.07           # whole route walked instead of run
     micro_pause_p: float = 0.025         # per step
     micro_pause_median: float = 1.1
     look_around_p: float = 0.004         # per step
@@ -68,7 +67,7 @@ class Profile:
 
 PROFILES = {
     "normal": Profile(),
-    "off": Profile(reaction_sigma=0.0, walk_route_p=0.0, micro_pause_p=0.0,
+    "off": Profile(reaction_sigma=0.0, micro_pause_p=0.0,
                    look_around_p=0.0, path_noise=0.0, wander_p=0.0, hesitate_p=0.0,
                    fidget_p=0.0, fatigue_per_hour=0.0, enabled=False),
 }
@@ -85,7 +84,7 @@ class Human:
         self.log = log or (lambda msg: None)
         self.plan_salt = 0
         self.stats = {"pauses": 0, "pause_s": 0.0, "wanders": 0, "hesitations": 0,
-                      "fidgets": 0, "walked_routes": 0}
+                      "fidgets": 0}
 
     def _fatigue(self) -> float:
         hours = (time.monotonic() - self.t0) / 3600.0
@@ -117,14 +116,6 @@ class Human:
     def pace_step(self, run: bool, sent_at: float):
         """Sleep until the next step is due, `sent_at` being when the last one went out."""
         time.sleep(max(0.0, sent_at + self.step_gap(run) - time.monotonic()))
-
-    # ---------------------------------------------------------------- walking
-    def route_runs(self) -> bool:
-        """Run (True) or walk this whole route."""
-        if self.rng.random() < self.p.walk_route_p:
-            self.stats["walked_routes"] += 1
-            return False
-        return True
 
     def cost_scale(self):
         """Per-plan route noise: a deterministic cost multiplier in [1, 1+noise]

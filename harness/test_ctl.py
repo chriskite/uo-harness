@@ -574,12 +574,13 @@ def test_run_act(proxy):
     code, out = c("act", "walk", "2", "3", "--human", "off", "--no-map")
     fr = proxy.take()
     check("walk 3 east: moved 3", code == 0 and out.get("moved") == 3 and out.get("to")[:2] == [103, 100], str(out))
-    check("walk frames: 3 x 0x02 dir 2, length-prefixed like Link.send",
-          fr == [(7, actions.walk(2))] * 3 and actions.walk(2) == bytes.fromhex("02020000000000"), str(fr))
-    code, out = c("act", "walk", "4", "1", "--human", "off", "--run", "--no-map")
+    check("walk frames: 3 x 0x02 dir 2 with the run flag (the client's Always Run), length-prefixed like Link.send",
+          fr == [(7, actions.walk(2, run=True))] * 3 and actions.walk(2, run=True) == bytes.fromhex("02820000000000"),
+          str(fr))
+    code, out = c("act", "walk", "4", "1", "--human", "off", "--walk", "--no-map")
     fr = proxy.take()
-    check("walk with a turn: turn + step, run flag set",
-          out.get("outcomes") == ["turned", "moved"] and [p for _, p in fr] == [actions.walk(4, run=True)] * 2,
+    check("walk with a turn: turn + step; --walk clears the run flag",
+          out.get("outcomes") == ["turned", "moved"] and [p for _, p in fr] == [actions.walk(4)] * 2,
           str(out))
     rows = m.chat(role="overseer")
     check("every act posts an overseer action row", rows[-1]["kind"] == "action"

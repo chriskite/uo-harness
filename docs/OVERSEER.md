@@ -57,7 +57,7 @@ Whitelist, built with the existing `harness/actions.py` builders and framed exac
 
 | Act | Args | Packet |
 |---|---|---|
-| `walk` | `<dir 0-7> [n=1]` (n ≤ 20), `--run`, `--human normal\|off` | `0x02` per step at the stock held-key cadence (`humanize.Human.step_gap`: 200 ms run / 400 ms walk after the previous send, plus jitter) + `after_step`; retries the proxy's self-clearing walk gates like `Mover.step`; a new direction first only turns; never sends a step the map rules refuse (the client wouldn't) and stops there or at the first blocked step. |
+| `walk` | `<dir 0-7> [n=1]` (n ≤ 20), `--walk` (default is run, like the client's Always Run), `--human normal\|off` | `0x02` per step at the stock held-key cadence (`humanize.Human.step_gap`: 200 ms run / 400 ms walk after the previous send, plus jitter) + `after_step`; retries the proxy's self-clearing walk gates like `Mover.step`; a new direction first only turns; never sends a step the map rules refuse (the client wouldn't) and stops there or at the first blocked step. |
 | `say` | an allowlisted phrase | `0xAD` keyword-encoded like the stock client. |
 | `dclick` / `single_click` | `<serial>` (hex `0x…` or decimal) | `0x06` / `0x09`, plus `0x34` after a click on a mobile (the client pairs them). Only for what the client has on screen: the entity (or the mobile/ground item holding it) in the world model within 18 tiles; otherwise refused (`goto` first). `dclick` on a mobile in war mode is refused: the client would attack instead |
 | `open_door` | – | `0x12` type `0x58` |

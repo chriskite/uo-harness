@@ -173,7 +173,7 @@ Draft — to be finalized after §6/§7:
 
 14. **Behavioural texture (2026-09-29, user request).** Mitigation for the §8.3 statistics surface. Every agent runner draws its timing and route choices from `harness/humanize.py`:
     - lognormal reaction times per action kind, with fatigue drift
-    - per-plan route noise at the scale of 6×6-tile map cells instead of the one optimal path, with zig-zag stretches regrouped into straight runs (`nav.straighten`), occasional walked routes, pauses and sidesteps
+    - per-plan route noise at the scale of 6×6-tile map cells instead of the one optimal path, with zig-zag stretches regrouped into straight runs (`nav.straighten`), pauses and sidesteps. Routes are always run: the user's client has Always Run on, so a walked route would be the odd one out (user, 2026-10-01; walked routes were 7 % before)
     - steps at the stock client's held-key cadence (200 ms run / 400 ms walk plus frame jitter, measured from the previous send); the pauses sit between stretches, not inside them
     - doors opened like the client's auto-open (`PlayerMobile.TryOpenDoors`): the open-door request goes out right after the turn or step that faces a door on the next tile, before stepping into it. Routes never cut diagonally past a door, and every step is re-checked against the objects the client has right then (§10, fixed 2026-10-01)
     - occasional cursor hesitation (stock Esc cancel) and idle fidgets (backpack, looking at a mobile)
@@ -320,14 +320,16 @@ delays.
 
 **A11 fix:** the proxy now hands the client the re-anchor in place of every hidden agent confirm
 (nothing else in flight), so the display follows the character tile by tile (`SessionTap.reanchor_client(on_confirm=True)`;
-the 0.5 s timer stays for rejections and late confirms). A consequence the stock client shows too: with Auto
-Open Doors on (the user's client has it: 3 client door opens 55-101 ms after human walks in
-204225), `DenyWalk` → `SetInWorldTile`/direction change fires the client's own `TryOpenDoors`.
-So the Mover now gives the client 150 ms to open the door it faces and sends its own request
-only if the client didn't. Two requests would toggle the door shut again. Tests:
-`test_movement.py` e2e (one re-anchor per confirmed agent step) and `harness/test_mover.py` (the
-client's auto-open is used, no second request). Re-measure click → close delays on the next live
-walk.
+the 0.5 s timer stays for rejections and late confirms). A consequence: with Auto Open Doors on
+(the user's client had it: 3 client door opens 55-101 ms after human walks in 204225),
+`DenyWalk` → `SetInWorldTile`/direction change would fire the client's own `TryOpenDoors` as well
+as the Mover's request, and two requests toggle the door shut again. **User decision
+2026-10-01: Auto Open Doors is turned off in the client; the Mover alone opens doors** (a human
+who clicks or uses a hotkey to open doors sends the same single request). A first version that
+waited 150 ms for the client's request and sent its own only if none came was dropped. If the
+setting comes back on, the door-deny retry still gets the character through (one extra request).
+Test: `test_movement.py` e2e (one re-anchor per confirmed agent step). Re-measure click → close
+delays on the next live walk.
 
 Unchanged: keepalive median gap 1.057 s, p99 1.087 s (2 075 keepalives); C2S senders only client
 and agent; 0 server messages about macro/AFK/jail/Razor/automation in 266 decoded messages.

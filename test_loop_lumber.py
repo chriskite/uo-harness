@@ -54,7 +54,7 @@ EXIT_TO = (125, 200)
 DOOR = (122, 200)                                        # a closed town door
 WALLS = {(122, y) for y in range(190, 211)} - {DOOR}
 MENU_ID = 0x8EAEFBDB
-LOCK_S = 25                                              # longer than the walk back out
+LOCK_S = 60                                              # longer than the walk back out (even along the wall)
 LOGS_PER_SUCCESS = 3
 STOLEN = 2                                               # a pickpocket's take, once (the loop must carry on)
 GOOD_VISIT = 6                                           # attempts before the good tree runs dry
@@ -450,7 +450,9 @@ async def main():
             "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT),
             "--loop", paths["lumber"], "--memory", paths["db"],
             "--human", "normal", "--seed", "11", "--human-fast", "0.25", "--timeout", "300", "--quiet",
-            "--no-map",
+            # --no-map: walk memory only, and the town wall (21 tiles) is unknown; per-plan route
+            # noise can send the agent along it, learning one denied edge per try (up to 3 a tile)
+            "--no-map", "--max-blocked", "80",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
         out, _ = await asyncio.wait_for(runner.communicate(), timeout=360)
         text = out.decode(errors="replace")
