@@ -33,7 +33,8 @@ flowchart LR
 
 ## 2. `ctl.py` reference
 
-`python harness/ctl.py [--db P] [--state-port 25942] [--control-port 25941] [--log-dir logs/tasks] <cmd>`.
+`./ctl.cmd [--db P] [--state-port 25942] [--control-port 25941] [--log-dir logs/tasks] <cmd>` from the
+repo root (`ctl.cmd` runs `harness/ctl.py` with the Python 3.13 install; override with `UO_PY`).
 Global options go **before** the command. Every call prints exactly one JSON object on stdout
 (usage errors too: `{"ok": false, "error": "usage: …"}`); the exit code is 0 iff `ok` is true.
 
@@ -265,8 +266,7 @@ Paste this (or point the session at this section) to start an overseer.
 
 > You are the **overseer** of the uo-harness agent playing Ultima Online Outlands, **Test
 > Shard only**, as TestWorth. Programmatic tasks do the work; you supervise them through
-> `python harness/ctl.py …` from `C:/Users/chris/uo-harness` (Python:
-> `C:/Users/chris/AppData/Local/Programs/Python/Python313/python.exe`). Read AGENTS.md,
+> `./ctl.cmd …` from `C:/Users/chris/uo-harness` (it runs `harness/ctl.py` with Python 3.13). Read AGENTS.md,
 > ANTICHEAT.md §8 and docs/OVERSEER.md first. Never edit code or restart services during a
 > shift; never touch the proxy/viz services, the client, or the install dir.
 >

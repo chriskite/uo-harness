@@ -5,7 +5,8 @@ supervises them through this CLI. There is no daemon: the SQLite store
 (harness/memory.py) is the bus. Runners and task_wrap.py post junctures, the
 user posts chat, and `ctl wait` blocks until one of them needs the overseer.
 
-Usage: python harness/ctl.py [--db P] [--state-port N] [--control-port N] <cmd> ...
+Usage: ./ctl.cmd [--db P] [--state-port N] [--control-port N] <cmd> ...
+       (= python harness/ctl.py ...; ctl.cmd picks the Python 3.13 install, override with UO_PY)
   status                      proxy snapshot + running tasks + open junctures
   run <task> [args...]        start a whitelisted task (lumber, bank) detached
   stop [task_id]              stop the running task (-> task_failed juncture)
