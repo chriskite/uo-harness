@@ -302,7 +302,7 @@ divergences) and every agent packet was checked against the world state at that 
 | A7 | **verified live 2026-10-01** (same session, combat test) | Attack 1 (13 tiles): `72 01` → server `72 01` → 0.55 s later `34 … 000f88ff` and `05 000f88ff`, 0 ms apart (stock Tab, then double-click: RequestMobileStatus + Attack). Attack 2 (adjacent, 46.7 s later): `34` + `05` again. That is stock-correct: the client's own `09`/`34`/`bf 000c` bursts for the mob had left no status request outstanding (the original "hits unknown" rule was wrong; corrected to the client's status-request state, commit e095bb3). `warmode off` after the death sent nothing: the server had already turned war mode off. Single-click on a mobile and the war-mode double-click refusal weren't exercised. |
 | A8 | **verified** for run | 693 run steps: gaps p10/median/p90 207/213/218 ms (min 203); 21 % heading changes. No walked route was drawn, so the 400 ms walk cadence is unverified |
 
-**A11 (found 2026-10-01, high; fixed the same day, offline-tested, not yet live): the client's display lags the character during agent walks,
+**A11 (found 2026-10-01, high; fixed the same day, verified live in session 20260930_201411): the client's display lags the character during agent walks,
 and its own packets show it.** Agent walk confirms are hidden from the client, and the client is
 re-anchored only after 0.5 s without a walk. In session 182751 that left it standing where each
 walking stretch began: stretches ran up to 102 steps / 21.7 s, and the display lagged the true
@@ -328,8 +328,15 @@ as the Mover's request, and two requests toggle the door shut again. **User deci
 who clicks or uses a hotkey to open doors sends the same single request). A first version that
 waited 150 ms for the client's request and sent its own only if none came was dropped. If the
 setting comes back on, the door-deny retry still gets the character through (one extra request).
-Test: `test_movement.py` e2e (one re-anchor per confirmed agent step). Re-measure click → close
-delays on the next live walk.
+Test: `test_movement.py` e2e (one re-anchor per confirmed agent step).
+
+**Live verification (session 20260930_201411, overseer walk room → Horseshoe Bay town → room,
+Auto Open Doors off):** 237 agent steps, all run packets, 0 blocked; every hidden confirm got its
+on-confirm re-anchor (237/237). Client `34` type 4 → `bf 000c` close delays during agent walking:
+**0 of 10 within 10 ms, median 9.9 s** (before: 173/189 = 92 %, median 0.00 s; human sessions
+7.7–7.9 s). The 2 door opens came from the agent only: the client sent no open-door request, no
+walk and no resync. Small sample (the town's 3 NPCs plus passers-by); re-check on a longer walk
+with more mobiles.
 
 Unchanged: keepalive median gap 1.057 s, p99 1.087 s (2 075 keepalives); C2S senders only client
 and agent; 0 server messages about macro/AFK/jail/Razor/automation in 266 decoded messages.
