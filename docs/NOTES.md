@@ -205,6 +205,7 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
 - **VPN exit nodes are SYN-dropped** on the game port (network-layer, no RST) while Cloudflare HTTPS accepts them. Direct IP required to play. Repeated failed attempts are logged server-side — don't hammer.
 - Game server observed at `74.91.115.123` (NFOservers). Auth at `104.26.0.46` (Cloudflare).
+- 2026-09-30 22:14: the client connected straight to `35.71.142.123:2593` and bypassed the NAT, whose filter matched only 74.91.115.123. Which shard that IP serves is unconfirmed. `divert_nat.py` and `start_proxy_nat.ps1` now target 35.71.142.123. To check whether a session goes through the proxy, run `Get-NetTCPConnection -OwningProcess <ClassicUO pid>`: a remote of the real server IP is expected either way because the NAT is invisible to the socket. Proof is the proxy's upstream connection, from a local port in 25940–25960 to the server, owned by the proxy pid, together with a new `logs/session_*.jsonl`.
 
 ## Links
 

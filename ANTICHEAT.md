@@ -377,9 +377,11 @@ nothing. Equip/unequip with the client-opened backpack re-opened nothing either.
 worn item (`unequip`) needs the paperdoll open in a stock client; the harness doesn't open it
 (not a container, not addressed).
 
-**Other gaps:** divert_nat.py hardcodes 74.91.115.123 and the JWT carries no shard claim, so
-nothing in the harness distinguishes which shard a session is on; whether production resolves to
-the same IP is unknown. The installed client was patched to 1.0.2.550 on 2026-09-28 (JWT `version`), while the RE
+**Other gaps:** divert_nat.py hardcodes one server IP (74.91.115.123, the Test Shard, until
+2026-09-30; now 35.71.142.123), and the JWT carries no shard claim, so nothing in the harness
+distinguishes which shard a session is on. On 2026-09-30 22:14 the client connected to 35.71.142.123
+and bypassed the NAT. Which shard that IP serves is unconfirmed, and production may well be one of
+the two. The installed client was patched to 1.0.2.550 on 2026-09-28 (JWT `version`), while the RE
 behind `actions.py` is from 1.0.2.544. Captured 550 traffic frames cleanly, but nothing guards against
 a future layout change. README.md and INTERCEPTION.md no longer claim a byte-identical relay
 (corrected 2026-09-30).

@@ -13,12 +13,13 @@ Status: **WORKING LIVE** (2026-09-28, TestWorth in-game through the full chain).
 ## The chain
 
 ```
-ClassicUO.exe ──TCP to 74.91.115.123:2593──> [WinDivert NAT] ──loopback──> [harness proxy :2593] ──> 74.91.115.123:2593
+ClassicUO.exe ──TCP to 35.71.142.123:2593──> [WinDivert NAT] ──loopback──> [harness proxy :2593] ──> 35.71.142.123:2593
 ```
 
 1. **`harness/divert_nat.py`** (elevated; WinDivert 2.2.2 driver, files in `harness/`):
-   - **forward rule**: `outbound and dst==74.91.115.123:2593 and srcport∉[25940..25960]` → rewrite src AND dst to `127.0.0.1` (dst port unchanged).
-   - **return rule**: `src==127.0.0.1:2593` → rewrite src to `74.91.115.123:2593`, dst back to the client's real IP (learned from forward packets).
+   - **forward rule**: `outbound and dst==35.71.142.123:2593 and srcport∉[25940..25960]` → rewrite src AND dst to `127.0.0.1` (dst port unchanged).
+   - **return rule**: `src==127.0.0.1:2593` → rewrite src to `35.71.142.123:2593`, dst back to the client's real IP (learned from forward packets).
+   - **Target switched 2026-09-30** from 74.91.115.123 (Test Shard, every capture up to then) to 35.71.142.123, where the client connected on 2026-09-30 22:14. The NAT matches one IP only: a client that connects to any other server bypasses the proxy, with no error shown.
    - **Both legs must be full loopback**: rewriting only the destination gets the packet martian-dropped by the Windows stack (loopback dst + non-loopback src = dropped). src+dst rewrite makes it genuine loopback traffic.
    - Return-path loopback packets ARE visible to WinDivert 2.2 on Win11 (verified; `loopback=True` in logs).
 2. **`harness/proxy.py`** on `127.0.0.1:2593`: relay + decode. Since Phase 3 it also injects agent packets, rewrites every walk's seq/key onto one ladder, hides agent walk confirms from the client and fabricates client-only packets (docs/MOVEMENT.md, ANTICHEAT.md §8.11, §8.18). Upstream leg binds to source ports 25940–25960 (retry loop over the range on bind failure — fixed single port hits TIME_WAIT, WinError 52) and the divert excludes that range to prevent loops.
@@ -27,7 +28,7 @@ ClassicUO.exe ──TCP to 74.91.115.123:2593──> [WinDivert NAT] ──loopb
 ## Operation runbook
 
 0. Shortcut for steps 1–2: `powershell -ExecutionPolicy Bypass -File start_proxy_nat.ps1` (non-elevated; one UAC prompt for the NAT). It skips whatever is already up; `-RestartProxy` / `-RestartNat` force a restart. The proxy gets its own console window (Ctrl-C there flushes the memory store); the NAT runs in a minimized elevated window.
-1. Start proxy: `python harness/proxy.py --upstream-host 74.91.115.123 --upstream-bind 0.0.0.0 --upstream-bind-port 25940 --logdir logs`
+1. Start proxy: `python harness/proxy.py --upstream-host 35.71.142.123 --upstream-bind 0.0.0.0 --upstream-bind-port 25940 --logdir logs`
 2. Start NAT (elevated): `powershell -Verb RunAs restart_divert.ps1` (kills old divert_nat instances, starts fresh, logs to `divert.log`)
 3. Launch client (elevated): `powershell -Verb RunAs launch_game.ps1` — log in normally.
 4. Session lands in `logs/session_<ts>.jsonl` (+ `.c2s.raw`/`.s2c.raw`).

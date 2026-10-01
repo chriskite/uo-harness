@@ -4,15 +4,15 @@ The client connects to the literal game-server IP (from the HTTPS login response
 Full source+dest NAT through loopback (both legs must look like genuine loopback
 traffic, otherwise Windows martian-drops the rewritten packets):
 
-  forward: client -> 74.91.115.123:2593  =>  src+dst 127.0.0.1  (to proxy)
-  return:  proxy(127.0.0.1:2593) -> client =>  src 74.91.115.123:2593, dst <client-ip>
+  forward: client -> 35.71.142.123:2593  =>  src+dst 127.0.0.1  (to proxy)
+  return:  proxy(127.0.0.1:2593) -> client =>  src 35.71.142.123:2593, dst <client-ip>
 
 The proxy's upstream leg binds to source port 25940 and is excluded (loop prevention).
 Must run elevated (WinDivert driver load). Logs to stdout.
 """
 import pydivert
 
-SERVER_IP = "74.91.115.123"
+SERVER_IP = "35.71.142.123"   # was 74.91.115.123 (Test Shard) until 2026-09-30
 SERVER_PORT = 2593
 PROXY_IP = "127.0.0.1"
 PROXY_PORT = 2593
