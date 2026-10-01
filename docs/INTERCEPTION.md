@@ -26,6 +26,7 @@ ClassicUO.exe ──TCP to 74.91.115.123:2593──> [WinDivert NAT] ──loopb
 
 ## Operation runbook
 
+0. Shortcut for steps 1–2: `powershell -ExecutionPolicy Bypass -File start_proxy_nat.ps1` (non-elevated; one UAC prompt for the NAT). It skips whatever is already up; `-RestartProxy` / `-RestartNat` force a restart. The proxy gets its own console window (Ctrl-C there flushes the memory store); the NAT runs in a minimized elevated window.
 1. Start proxy: `python harness/proxy.py --upstream-host 74.91.115.123 --upstream-bind 0.0.0.0 --upstream-bind-port 25940 --logdir logs`
 2. Start NAT (elevated): `powershell -Verb RunAs restart_divert.ps1` (kills old divert_nat instances, starts fresh, logs to `divert.log`)
 3. Launch client (elevated): `powershell -Verb RunAs launch_game.ps1` — log in normally.
@@ -35,6 +36,7 @@ ClassicUO.exe ──TCP to 74.91.115.123:2593──> [WinDivert NAT] ──loopb
 
 - **WinError 52 "duplicate name"** = upstream bind port in TIME_WAIT; use a port range + retry loop.
 - Elevated processes can't be killed from a medium-integrity shell — kill them from an elevated script (`restart_divert.ps1` pattern).
+- A medium-integrity shell can't see whether divert_nat is running. `Win32_Process.CommandLine` and `Get-Process .Path` come back empty for elevated processes (verified 2026-09-30). The `WinDivert` driver service also proves nothing, because per the WinDivert 2.2 docs it stays loaded until `sc stop`/reboot. So `start_proxy_nat.ps1` does the check in its elevated `-NatWorker` step, which exits 3 when divert_nat is already up. It avoids restarting a live NAT because client segments sent during the gap would reach the real server outside the proxy [INFERENCE].
 - `netsh int ip add address` on a DHCP interface flips it to static and **kills the lease** — don't alias NICs this way; the port-based exclusion made the alias unnecessary.
 - `Set-Content -Encoding UTF8` writes a BOM — PowerShell 5.1 gotcha when touching JSON configs.
 - pktmon captures duplicate every packet on Wi-Fi (dedupe by TCP seq when reassembling).

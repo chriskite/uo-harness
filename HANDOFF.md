@@ -68,6 +68,8 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 
 ## Operate
 
+- Proxy + divert NAT in one go (skips whatever is already up; one UAC prompt):
+  `powershell -ExecutionPolicy Bypass -File start_proxy_nat.ps1 [-RestartProxy] [-RestartNat]`
 - Proxy (needed, restart if down):
   `python harness/proxy.py --upstream-host 74.91.115.123 --upstream-bind 0.0.0.0 --upstream-bind-port 25940 --logdir logs --memory-db harness/data/harness.db`
   (`--memory-db` = the durable harness memory, docs/MEMORY.md; gitignored runtime data)
