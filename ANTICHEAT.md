@@ -357,8 +357,8 @@ and agent; 0 server messages about macro/AFK/jail/Razor/automation in 266 decode
   step onto the door's own tile stays plannable, since the door is opened ahead. Test:
   `harness/test_pathfind.py`, with the live door state.
 
-**Closed containers (found 2026-10-01 in the gap review, fixed the same day; offline-tested, live
-no-regression check only).** The agent lifted, used and targeted items in containers the client
+**Closed containers (found 2026-10-01 in the gap review, fixed the same day; verified live in
+session 20260930_201411).** The agent lifted, used and targeted items in containers the client
 had never opened, and dropped into containers whose gump was never open. A stock client can only
 reach an item through an open container gump, and opening one is a C2S `0x06` the server answers
 with `0x24`, so the server can see "took from a container it never showed this client". In the
@@ -370,9 +370,12 @@ Used by every ctl act that reaches into a container and by `loop_lumber` (backpa
 targeting logs, secure box before storing). A closed bank box is refused (only `bank` speech opens
 it); `target` into a closed bag is refused (with a cursor up a click targets). Tests:
 `harness/test_ctl.py` (outermost first, opened once, closed bank refused), `test_loop_lumber.py`
-(backpack then box, each once). Live (session 201411): equip/unequip of the dagger with the
-client-opened backpack re-opened nothing. Limit: lifting a worn item (`unequip`) needs the
-paperdoll open in a stock client; the harness doesn't open it (not a container, not addressed).
+(backpack then box, each once). **Live (201411):** a freshly bought bag (never opened) as the
+destination of `drop <dagger> <bag>`: `06 45ce64a1` → server `24 45ce64a1` 70 ms later → `07`
+dagger 1.0 s after that → `08` into the bag; reported `opened: [bag]`. Moving it back re-opened
+nothing. Equip/unequip with the client-opened backpack re-opened nothing either. Limit: lifting a
+worn item (`unequip`) needs the paperdoll open in a stock client; the harness doesn't open it
+(not a container, not addressed).
 
 **Other gaps:** nothing verifies the connected shard is the Test Shard. divert_nat.py hardcodes
 74.91.115.123, the JWT carries no shard claim, and whether production resolves to the same IP is
