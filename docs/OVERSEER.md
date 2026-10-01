@@ -236,7 +236,7 @@ its trip. Other `info` rows are history (`ctl junctures`, or `wait --include-inf
 | `task_failed` | attention | task_wrap, ctl | Non-zero exit, stopped (`stopped: true`), or the wrapper vanished. Same data. |
 | `trip_done` | info | runner | One loop trip finished (episode row summary). |
 | `stuck` | attention | runner | No progress: route blocked, too many replans, stalled movement. `{pos, target, reason}` |
-| `captcha` | urgent | runner | Real captcha up (gump id 1, text entry 2). Interim: the runner pauses and alerts the user. Auto-solve from the gump layout is the intended path (the digits are machine-readable from the layout coordinates, no OCR needed). |
+| `captcha` | urgent | runner | A real captcha the auto-solver couldn't read (or rejected answers). The runner pauses and alerts; the overseer waits for the solve path rather than improvising a reply. Readable captchas are auto-solved (`harness/captcha.py`) and post no juncture. |
 | `threat` | urgent (PK/red, aggressor) / attention (monster) | runner | Hostile nearby or attacking. `{serial, name, notoriety, dist, hits}` |
 | `theft_suspected` | attention | runner | Backpack count dropped without our action, or a snoop message. `{graphic, before, after}` |
 | `death` | urgent | runner | Hits 0 / ghost body. `{pos, facet}` |
@@ -315,8 +315,8 @@ Paste this (or point the session at this section) to start an overseer.
 >        line, and get the human.
 >      - Reply after a human-like pause (a few seconds), not instantly; never more than one line
 >        per thing they said.
->    - `captcha`: interim pending auto-solve — the runner pauses and alerts; stop the task and
->      wait for the solve path rather than improvising a reply. `server_restriction`: **call the
+>    - `captcha`: the auto-solver couldn't read it — stop the task and let the solve path
+>      handle it rather than improvising a reply. `server_restriction`: **call the
 >      human immediately**, stop the task.
 >    - user chat: answer with `ctl say`; do what they ask within these rules.
 >    Before deciding, `ctl know search <the situation>` (or `know brief`). What you already
@@ -341,7 +341,7 @@ Paste this (or point the session at this section) to start an overseer.
 >    again.
 >
 > **Safety.** One task at a time; never `act` while a task runs (ctl refuses anyway).  Gump replies only through
-> `act gump`, whose guards you must not try to work around: the captcha stays refused until auto-solve lands (interim),
+> `act gump`, whose guards you must not try to work around: the captcha is refused (the runner's solver owns it),
 > never reply to button-less gumps, and a renounce-Young prompt may only be closed. **Never
 > attack players, their pets or NPCs (except trainers)**. Hostile monsters you may fight and loot
 > (`act attack`, `act loot`): one weak monster at a time, watch your hits, and back off below

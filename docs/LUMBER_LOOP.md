@@ -22,11 +22,10 @@ The agent should **learn** the loop, **run** it, and **improve** it over session
 Character TestWorth. Venue: Shelter Island first, the regular overworld later (§7).
 
 These constraints come from existing docs and aren't optimization targets:
-- **Captcha = auto-solve target.** Lumberjacking triggers a captcha every 5–10 min, and a solved one
-  buys 10–15 min. The digits are machine-readable from the gump layout (tilepic dot glyphs at layout
-  coordinates), so auto-solve is the intended path (ANTICHEAT.md §8.8, auto-solve by design; §8.13).
-  The current runner pauses and beeps as interim behavior pending auto-solve. Expect ~4–6 captchas
-  per hour (derived from the wiki cadence).
+- **Captcha = auto-solved (implemented 2026-09-30).** Lumberjacking triggers a captcha every 5–10 min, and a solved one
+  buys 10–15 min. The runner solves it itself: `harness/captcha.py` reads the digits from the gump
+  layout's tilepic dot clusters (ANTICHEAT.md §8.8/§8.13), margin-gated with a pause + beep fallback.
+  Expect ~4–6 captchas per hour (derived from the wiki cadence).
 - **Pacing is a floor, not a knob.** The optimizer never tightens jitter, proxy walk pacing
   (0.2/0.4 s), break schedule or daily cap (PLAN.md Phase 4).
 - **Speech allowlist.** The loop needs one new trigger word near the innkeeper (`room`). Securing a
@@ -49,7 +48,7 @@ These constraints come from existing docs and aren't optimization targets:
 | **TestWorth is Young (capture evidence, 2026-09-29).** The client received the Young-only login gump "Welcome to Shelter Island" (`0xC16E0192`) in sessions 163420 and 202723 | Shelter Island + `loop_mine.py timeline 20260929_163420` | Venue decision holds |
 | 60 s harvest lockout after recall / moongate / hike / teleport / rope | [Harvesting](https://wiki.uooutlands.com/Harvesting) | Walk, don't recall (Shelter: never recall, §1). Leaving the room teleports you → [INFERENCE] probably triggers the lockout; the demo checks it |
 | **Stationary Harvest Penalty** (patch 2025-01-25): after a recall, or after 5 min standing still, harvesting fails until you walk 5 steps | docs/research/THREATS.md §7 T4 | The Shelter loop moves between trees, but a long visit to one tree can pass 5 min. It needs a "walk 5 steps every < 5 min" rule (not built yet) |
-| Captcha: 5–10 min cadence; 3 fails = 6 h harvest block; closing it cancels the harvest; the same captcha persists across relog | [Captcha](https://wiki.uooutlands.com/Captcha) | Interim pending auto-solve (§1): the runner pauses and never closes or answers a captcha |
+| Captcha: 5–10 min cadence; 3 fails = 6 h harvest block; closing it cancels the harvest; the same captcha persists across relog | [Captcha](https://wiki.uooutlands.com/Captcha) | Auto-solved from the layout (§1); the runner never closes a captcha, and answers with the stock 0xB1 |
 | Log/board weight 0.025 st | Harvesting | Weight isn't binding until thousands; the return trigger is risk/overhead (§6) |
 | Double-click logs with a hatchet in the pack → boards (**user-confirmed: deeds need boards**) | Harvesting, Lumberjacking | Conversion is a loop step; can run in the field |
 | Blank commodity deed: 5 gp at a banker; double-click the deed, target the resource | [Commodities](https://wiki.uooutlands.com/Commodities) | Needs gold + the target-cursor flow (S2C `0x6C` → `actions.target_object`) |
@@ -152,7 +151,7 @@ runtime data, AGENTS.md Rule 0):
 
   It picks skills only (PLAN.md decision). LLM-authored skill code stays deferred.
 - **Rails:**
-  - captcha → solve (auto-solve pending: pause + sound)
+  - captcha → auto-solve (margin-gated; fallback: pause + sound)
   - visualizer pause/kill
   - breaks and daily cap
   - never renounce Young (§1)

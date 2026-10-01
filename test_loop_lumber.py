@@ -4,8 +4,10 @@ A simulated Shelter server behind the real proxy, with the packet shapes and
 texts of the demonstration capture (logs/session_20260929_204225):
 
 - hatchet dclick → cliloc 1010018 + location cursor; tree target → a decoy
-  "Captcha" gump (no buttons) on every attempt, the real captcha (gump id 1,
-  entry 2, Guide button 1 + a submit button whose id isn't the demo's) on the first one, then fail/success results; a second
+  "Captcha" gump (no buttons) on every attempt and a real captcha (gump id 1,
+  entry 2, Guide button 1 + a submit button whose id isn't the demo's) once per
+  trip: trip 1's is a captured solver-readable layout (the runner answers it
+  itself), trip 2's is unreadable (pause + beep fallback), then fail/success results; a second
   tree answers "not enough wood" (depleted)
 - log stack target → "You shape the logs into boards." (1:1)
 - "room" near the innkeeper → rental-room gump 0x8EAEFBDB; button 4 teleports
@@ -14,7 +16,7 @@ texts of the demonstration capture (logs/session_20260929_204225):
 - a closed door on the walk back out that opens on the stock open-door request
 - a 3 s post-teleport harvest lockout (the real one is 60 s)
 
-The "human" answers the captcha through the client connection. Two trips run.
+The "human" answers the unreadable (fallback) captcha through the client connection. Two trips run.
 
 Run: python test_loop_lumber.py   (~1-2 min; private ports; safe while the live proxy runs)
 """
@@ -26,7 +28,7 @@ import sys
 import tempfile
 import time
 
-ROOT = r"C:/Users/chris/uo-harness"
+ROOT = os.path.dirname(os.path.abspath(__file__))
 PY = r"C:/Users/chris/AppData/Local/Programs/Python/Python313/python.exe"
 sys.path.insert(0, f"{ROOT}/harness")
 
@@ -158,9 +160,18 @@ def buttons(ids):
 
 
 CAPTCHA_SUBMIT = 843        # random per captcha on the server (demo 594, live 843); never 594 here
-CAPTCHA_LAYOUT = ("{ resizepic 27 25 11571 391 278 }{ button 21 19 2094 2095 1 0 1 }"
-                  "{ tilepic 84 150 572 }{ textentrylimited 163 251 40 20 2655 2 2 3 }"
-                  f"{{ button 222 248 247 249 1 0 {CAPTCHA_SUBMIT} }}")
+# a real captured captcha layout (session 20260929_204225, accepted answer "326"),
+# with the demo's submit button id swapped for CAPTCHA_SUBMIT
+_cap_sample = next(s for s in json.load(open(os.path.join(ROOT, "harness", "data", "captcha_samples.json")))
+                   if s["tag"] == "20260929_204225")
+REAL_CAPTCHA_LAYOUT = _cap_sample["layout"].replace("{ button 222 248 247 249 1 0 594 }",
+                                                    f"{{ button 222 248 247 249 1 0 {CAPTCHA_SUBMIT} }}")
+REAL_CAPTCHA_ANSWER = "326"
+# captcha-shaped but unreadable (no digit dots): the solver refuses it and the
+# runner falls back to pause + beep
+UNREADABLE_CAPTCHA_LAYOUT = ("{ resizepic 27 25 11571 391 278 }{ button 21 19 2094 2095 1 0 1 }"
+                             "{ tilepic 84 150 572 }{ textentrylimited 163 251 40 20 2655 2 2 3 }"
+                             f"{{ button 222 248 247 249 1 0 {CAPTCHA_SUBMIT} }}")
 DECOY_LAYOUT = ("{ nomove }{ noclose }{ nodispose }{ noresize }{ page 0 }{ page 1 }"
                 "{ croppedtext -324 -203 1 1 0 0 }{ croppedtext -393 -158 1 1 0 1 }")
 
@@ -181,6 +192,8 @@ class World:
         self.captcha_shown = 0
         self.captcha_answers = 0
         self.captcha_open = None
+        self.captcha_auto = False         # trip-1 captcha is solver-readable
+        self.auto_answers = []            # the texts the agent's solver submitted
         self.pending_attempt = None
         self.good_n = 0
         self.logs_serial, self.logs = None, 0
@@ -251,10 +264,12 @@ class World:
             self.later(0.3, [cliloc(500493)])
             return
         self.good_left -= 1
-        if self.captcha_shown == 0:
+        if self.captcha_shown < 2:
             self.captcha_shown += 1
             self.captcha_open = self.next_gump()
-            self.send(gump(self.captcha_open, 0x00000001, CAPTCHA_LAYOUT, ["Guide", "Captcha", "", "Type The Value"]))
+            self.captcha_auto = self.captcha_shown == 1     # trip 1: auto-solved; trip 2: fallback
+            lay = REAL_CAPTCHA_LAYOUT if self.captcha_auto else UNREADABLE_CAPTCHA_LAYOUT
+            self.send(gump(self.captcha_open, 0x00000001, lay, ["Guide", "Captcha", "", "Type The Value"]))
             self.pending_attempt = True
             return
         self.result()
@@ -345,6 +360,14 @@ class World:
             if f["serial"] in self.decoys:
                 self.decoy_replies += 1
             elif f["serial"] == self.captcha_open and f["button_id"] == CAPTCHA_SUBMIT:
+                text = next((t["text"] for t in f.get("texts", []) if t["id"] == 2), "")
+                if self.captcha_auto:
+                    self.auto_answers.append(text)
+                    if text != REAL_CAPTCHA_ANSWER:      # wrong: strike, fresh captcha opens
+                        self.captcha_open = self.next_gump()
+                        self.send(gump(self.captcha_open, 0x00000001, REAL_CAPTCHA_LAYOUT,
+                                       ["Guide", "Captcha", "", "Type The Value"]))
+                        return
                 self.captcha_answers += 1
                 self.captcha_open = None
                 self.send(sys_text("Captcha successful."))
@@ -461,10 +484,11 @@ async def main():
                 pass
 
         async def human():
-            """Answers the real captcha through the client, like the user would."""
+            """Answers the fallback (unreadable) captcha through the client. The
+            trip-1 captcha is solver-readable: the agent must answer it itself."""
             while True:
                 await asyncio.sleep(0.2)
-                if world.captcha_open is not None:
+                if world.captcha_open is not None and not world.captcha_auto:
                     await asyncio.sleep(1.0)
                     pkt = actions.gump_response(world.captcha_open, 0x00000001, CAPTCHA_SUBMIT,
                                                 text_entries=[(2, "326")])
@@ -532,13 +556,20 @@ async def main():
 
         check("runner exited 0", runner.returncode == 0, str(runner.returncode))
         check("two trips completed", "loop complete: 2 trip(s)" in text)
-        check("one real captcha, answered once, by the client only",
-              world.captcha_shown == 1 and world.captcha_answers == 1 and len(b1_client) == 1)
-        check("the runner recognised the real captcha (submit id not the demo's) and paused",
-              text.count("CAPTCHA up: agent paused, waiting for the solve") == 1
-              and sum(r.get("captchas", 0) for r in rows) == 1, str([r.get("captchas") for r in rows]))
+        check("two captchas shown (trip 1 readable, trip 2 unreadable), two answers",
+              world.captcha_shown == 2 and world.captcha_answers == 2,
+              f"{world.captcha_shown} shown, {world.captcha_answers} answered")
+        check("trip 1 captcha auto-solved by the agent: stock 0xB1, correct digits, random submit id",
+              world.auto_answers == ["326"]
+              and "captcha answered '326' (auto-solved from the layout)" in text
+              and len([e for e in b1_agent]) >= 1, f"{world.auto_answers}")
+        check("the client answers only the unreadable (fallback) captcha",
+              len(b1_client) == 1, str(len(b1_client)))
+        check("trip 2 captcha fell back to pause + beep",
+              text.count("CAPTCHA up: agent paused") == 1
+              and sum(r.get("captchas", 0) for r in rows) == 2, str([r.get("captchas") for r in rows]))
         caps = [j for j in store.junctures() if j["kind"] == "captcha"]
-        check("captcha juncture posted for the overseer (urgent) and acked once solved",
+        check("captcha juncture only for the fallback (urgent), acked once solved",
               len(caps) == 1 and caps[0]["severity"] == "urgent" and caps[0]["acked_t"] is not None, str(caps))
         alarms = [j for j in store.junctures() if j["kind"] in ("threat", "death")]
         thefts = [j for j in store.junctures() if j["kind"] == "theft_suspected"]
@@ -576,8 +607,8 @@ async def main():
               str([(r.get("logs"), r.get("woods")) for r in rows]))
         check("decoy gumps were shown and never answered",
               len(world.decoys) >= 4 and world.decoy_replies == 0, f"{len(world.decoys)} decoys")
-        check("agent gump replies = rental-room menu only (2 enters + 1 exit, between the trips)",
-              len(b1_agent) == 3 and world.rooms_entered == 2 and world.rooms_left == 1, str(len(b1_agent)))
+        check("agent gump replies = rental-room menu (2 enters + 1 exit) + the auto-solved captcha",
+              len(b1_agent) == 4 and world.rooms_entered == 2 and world.rooms_left == 1, str(len(b1_agent)))
         check("the run ends in the safety of the rental room (never exits after the last trip)",
               world.in_room and "resting in the rental room" in text, str(world.in_room))
         check("walked to the innkeeper's live position: never 'too far' (knowledge pos is 14 tiles off)",
@@ -626,9 +657,9 @@ async def main():
         check("trip 2 reports the post-exit lockout wait before chopping",
               "lockout" in t2 and t2.index("lockout") < t2.index("chop"), str(dedupe(t2)))
         cap = [k for k, i in enumerate(intents) if i and i["kind"] == "captcha"]
-        check("captcha intent shown once, then the previous intent restored",
-              len(cap) == 1 and 0 < cap[0] < len(intents) - 1
-              and intents[cap[0] + 1]["text"] == intents[cap[0] - 1]["text"], str(cap))
+        check("captcha intent shown per captcha, then the previous intent restored",
+              len(cap) == 2 and all(0 < k < len(intents) - 1
+                                    and intents[k + 1]["text"] == intents[k - 1]["text"] for k in cap), str(cap))
         check("heading/chopping intents carry the tree as target",
               all(i.get("target") for i in intents if i and i["kind"] in ("to_tree", "chop")))
         check("last intent: finished, lumber loop, 2 trips",
