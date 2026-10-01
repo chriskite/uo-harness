@@ -43,6 +43,7 @@ REACTION_MEDIAN = {
     "find": 1.2,        # container gump opened -> item found and grabbed (demo 204225: 2.7 s, one sample)
     "speak": 1.1,       # arrived -> typed speech sent
     "between": 2.2,     # between harvest attempts
+    "captcha": 11.5,    # captcha shown -> answer submitted (measured human solves: 7.7-17.5 s)
 }
 # the stock client's step cadence for a held key, unmounted (ClassicUO MovementSpeed)
 STEP_CADENCE_RUN = 0.200

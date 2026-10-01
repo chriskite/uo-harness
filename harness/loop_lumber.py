@@ -12,13 +12,14 @@ reachability, every attempt, and one episode row per trip. Walk memory is
 recorded by the proxy.
 
 Captcha (ANTICHEAT.md §8.8/§8.13). The real captcha is the
-gump with lumber.json's id plus a text entry and the submit button. Auto-solve
-from the gump layout is the intended path; the current interim behavior is to
-stop acting, beep, and wait until the solve is observed in the client and the
-server said "Captcha successful." The runner never replies to the
-captcha, and never to any gump without a reply button (the decoys).
+gump with lumber.json's id plus a text entry and the submit button. The runner
+auto-solves it: captcha.solve reads the digits from the gump layout
+(harness/captcha.py, ANTICHEAT.md §8.8) and answers with the stock 0xB1. If the
+layout is unreadable or answers get rejected, it falls back to pausing and
+beeping until a solve is observed in the client. The runner never replies to a
+gump without a reply button (the decoys).
 
-The only gump the runner answers is the rental-room menu, and only with
+The only other gump the runner answers is the rental-room menu, and only with
 Enter/Exit: an innkeeper menu without the rented-room buttons (Test Shard
 wipe) aborts instead of clicking Rent. The only speech is "room".
 
@@ -45,6 +46,7 @@ import ledger as ledger_mod  # noqa: E402
 import threats  # noqa: E402
 from speech_guard import SpeechGuard, staff_hints  # noqa: E402
 import alerts  # noqa: E402
+import captcha  # noqa: E402
 
 TREE_FACET = 0                # harvest areas are on map0 (Shelter)
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
@@ -304,17 +306,55 @@ class LumberLoop:
                 return ev
         return None
 
-    # ------------------------------------------------------------ captcha handoff
+    # ------------------------------------------------------------ captcha
     def captcha_handoff(self, idx):
-        """Interim handoff: the runner stops, beeps, and waits for the captcha
-        solve observed in the client; auto-solve is the intended path."""
+        """Auto-solve: captcha.solve reads the digits from the gump layout
+        (harness/captcha.py, ANTICHEAT.md §8.8) and the runner answers with the
+        stock 0xB1 after a human-plausible delay. A wrong answer costs a strike
+        (the server re-opens a fresh captcha); unreadable layouts and repeated
+        strikes fall back to pause + beep until a solve is observed."""
         cap = self.k["captcha"]
         self.stats["captchas"] = self.stats.get("captchas", 0) + 1
         t0 = time.monotonic()
-        log("CAPTCHA up: agent paused, waiting for the solve (auto-solve pending)")
         resume = self._intent
+        strikes = 0
+        ev = self.link.events[idx]
+        while strikes <= self.args.captcha_max_strikes:
+            digits = captcha.solve(ev.get("layout", ""))
+            submit = captcha.submit_button(ev.get("layout", ""), cap["guide_button"])
+            if digits is None or submit is None:
+                break                          # unreadable: fallback below
+            self.doing("captcha", "Solving the captcha")
+            self.human.wait("captcha")
+            mark = len(self.link.events)
+            self.link.act(actions.gump_reply(ev["serial"], h(cap["gump_id"]), submit,
+                                             ev.get("layout", ""), ev.get("lines") or [],
+                                             texts={cap["answer_entry_id"]: digits}))
+            log(f"captcha answered {digits!r} (auto-solved from the layout)")
+            end = time.monotonic() + 12.0
+            while time.monotonic() < end:
+                self.link.state()
+                if self.heard(mark, text=cap["ok_text"]):
+                    waited = time.monotonic() - t0
+                    self.stats["captcha_wait_s"] = self.stats.get("captcha_wait_s", 0.0) + waited
+                    log(f"captcha solved in {waited:.0f} s (auto); resuming")
+                    self.human.wait("read")
+                    if resume is not None:
+                        self.doing(*resume)
+                    return
+                nxt = self.real_captcha(mark)
+                if nxt is not None:            # rejected: a fresh captcha opened
+                    strikes += 1
+                    log(f"captcha answer rejected (strike {strikes})")
+                    ev = self.link.events[nxt]
+                    break
+                time.sleep(0.3)
+            else:
+                raise Abort("captcha answer got no server reply within 12 s")
+        # fallback: pause + beep until a solve is observed in the client
+        log("CAPTCHA up: agent paused, waiting for the solve (auto-solve could not read it)")
         self.doing("captcha", "Captcha up — paused until it is solved")
-        jid = self.memory.juncture("lumber", "captcha", "Captcha up; agent paused until solved (auto-solve pending)",
+        jid = self.memory.juncture("lumber", "captcha", "Captcha up; agent paused until solved (auto-solve could not read it)",
                                    "urgent", {"trip": self.trip_n})
         alert(not self.args.quiet)
         next_beep = t0 + self.args.captcha_beep_s
@@ -740,6 +780,8 @@ def main():
     ap.add_argument("--human-fast", type=float, default=1.0,
                     help="scale human delays (offline tests of the normal profile only)")
     ap.add_argument("--captcha-timeout", type=float, default=600.0)
+    ap.add_argument("--captcha-max-strikes", type=int, default=2,
+                    help="wrong auto-solve answers tolerated before the pause + beep fallback")
     ap.add_argument("--captcha-beep-s", type=float, default=30.0)
     ap.add_argument("--quiet", action="store_true", help="no handoff sound (tests)")
     ap.add_argument("--inn-range", type=int, default=4,
