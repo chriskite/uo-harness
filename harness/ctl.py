@@ -15,7 +15,9 @@ Usage: ./ctl.cmd [--db P] [--state-port N] [--control-port N] <cmd> ...
                               posts a `break_due` juncture when the agent gate's break
                               is due (grace before it starts by itself)
   break                       start the agent gate's break now (e.g. once home)
-  ack <juncture_id>           close a juncture
+  alert <why> [--serial S]    possible staff (GM): gm_suspected juncture + staff alarm for
+                              the human; repeats (runner hold, `wait`) until acked
+  ack <juncture_id>           close a juncture (acking gm_suspected stops the alarm)
   junctures [--open] [--after N] [--limit N]
   chat [--after N] [--limit N] [--role R]
   say <text> | think <text> | note-action <text>
@@ -56,6 +58,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
 import actions  # noqa: E402
+import alerts  # noqa: E402
 import nav  # noqa: E402
 import task_wrap as tw  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
@@ -706,6 +709,7 @@ def cmd_wait(a, mem):
         if time.monotonic() >= next_gate:
             check_break_due(mem, a.state_port)
             next_gate = time.monotonic() + GATE_CHECK_S
+        alerts.staff_alarm_due(mem)                  # repeats while a gm_suspected juncture is open
         js = _open_junctures(mem, jcur, min_rank, WAIT_MAX_EVENTS)
         cs = mem.chat(after_id=ccur, limit=WAIT_MAX_EVENTS, role="user")
         if js or cs:
@@ -722,6 +726,26 @@ def cmd_wait(a, mem):
         if end is not None and time.monotonic() >= end:
             return {"ok": True, "event": None, "cursors": {"juncture": jcur, "chat": ccur}}
         time.sleep(a.poll)
+
+
+def cmd_alert(a, mem):
+    """The overseer suspects staff (a GM): post `gm_suspected` (urgent) and sound
+    the staff alarm for the human at the PC. It repeats every alerts.STAFF_REPEAT_S
+    from a holding runner and from `ctl wait` until the juncture is acked."""
+    heartbeat(mem)
+    reason = " ".join(a.reason).strip()
+    if not reason:
+        raise CtlError("alert <why you suspect staff> [--serial S]")
+    data = {"reason": reason, "serial": None if a.serial is None else f"0x{_parse_serial(a.serial):08X}"}
+    if alerts.open_gm(mem):
+        jid = alerts.open_gm(mem)[0]
+        alerts.staff(True)
+        out = {"ok": True, "id": jid, "already_open": True}
+    else:
+        jid = alerts.post_gm(mem, "ctl", reason, data)
+        out = {"ok": True, "id": jid}
+    mem.chat_post("overseer", f"alert: possible staff: {reason}", "action", data={"cmd": "alert", "id": jid, **data})
+    return out
 
 
 def cmd_ack(a, mem):
@@ -2186,6 +2210,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--grace", type=float, default=20.0, help="seconds to let the wrapper report")
     p.set_defaults(fn=cmd_stop)
     sub.add_parser("break").set_defaults(fn=cmd_break)
+    p = sub.add_parser("alert")
+    p.add_argument("reason", nargs="+")
+    p.add_argument("--serial", default=None)
+    p.set_defaults(fn=cmd_alert)
     p = sub.add_parser("wait")
     p.add_argument("--timeout", type=float, default=1800.0, help="seconds; <= 0 waits forever")
     p.add_argument("--include-info", action="store_true")

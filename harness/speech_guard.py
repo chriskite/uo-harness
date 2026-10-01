@@ -82,6 +82,16 @@ def speaker(world: dict, ev: dict) -> dict | None:
     return info
 
 
+STAFF_HINTS = ("GM body", "staff-like name", "not on screen")
+
+
+def staff_hints(who: dict) -> list[str]:
+    """The evidence entries that suggest staff (a GM body, a staff-like name, a
+    speaker not on screen: hidden staff speak without a body) [INFERENCE: no
+    Outlands staff seen yet]."""
+    return [e for e in who.get("evidence") or [] if e.startswith(STAFF_HINTS)]
+
+
 class SpeechGuard:
     """Scans a runner's world events (agent_link.Link.events / .event_t) for
     characters speaking near us."""

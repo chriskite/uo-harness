@@ -60,6 +60,8 @@ STOLEN = 2                                               # a pickpocket's take, 
 PASSERBY = 0x0000ABCD                                    # a player who walks up and says hello mid-harvest
 GREETING = "hail! good trees here?"
 HOLD_S = 3.0                                             # the test overseer's all-clear comes this long after
+HIDDEN = 0x0000BEEF                                      # speaks during the hold, never on screen (hidden GM?)
+GM_EXTRA_S = 2.0                                         # the GM suspicion is acked this long after the all-clear
 GOOD_VISIT = 6                                           # attempts before the good tree runs dry
 DD = nav.DIR_DELTA
 FAILURES = []
@@ -276,6 +278,8 @@ class World:
             self.spoke_at = time.time() + 1.0
             self.later(0.5, [player_update(PASSERBY, self.pos[0] + 2, self.pos[1])])
             self.later(1.0, [player_says(PASSERBY, "Vorn", GREETING)])
+            # during the hold, someone the client can't see speaks: a possible hidden GM
+            self.later(2.0, [player_says(HIDDEN, "Ann", "what are you up to?")])
 
     def convert(self, serial):
         if serial != self.logs_serial:
@@ -473,7 +477,8 @@ async def main():
         held = {}
 
         async def overseer():
-            """Gives the all-clear (acks the speech juncture) HOLD_S after it appears."""
+            """Gives the all-clear (acks the speech juncture) HOLD_S after it appears and
+            stands the staff alarm down (acks gm_suspected) GM_EXTRA_S after that."""
             store = memory.Memory(paths["db"])
             while True:
                 await asyncio.sleep(0.2)
@@ -484,6 +489,11 @@ async def main():
                     await asyncio.sleep(HOLD_S)
                     held["ack"] = time.time()
                     store.juncture_ack(row[0])
+                    await asyncio.sleep(GM_EXTRA_S)
+                    for (gid,) in store.con.execute("SELECT id FROM junctures WHERE kind='gm_suspected' "
+                                                    "AND acked_t IS NULL").fetchall():
+                        held["gm_ack"] = time.time()
+                        store.juncture_ack(gid)
         clearer = asyncio.create_task(overseer())
         await asyncio.sleep(0.5)
         runner = await asyncio.create_subprocess_exec(
@@ -546,13 +556,20 @@ async def main():
               and sp.get("serial") == f"0x{PASSERBY:08X}" and sp.get("text") == GREETING
               and "player flag 0x20" in sp.get("evidence", []), str(holds))
         quiet = [p.hex() for p, t in zip(world.c2s, world.c2s_t)
-                 if held.get("t") is not None and held["t"] + 0.3 < t < held.get("ack", 0)]
-        check(f"nothing sent while held (the overseer's all-clear came {HOLD_S:.0f} s later)",
-              "ack" in held and world.spoke_at is not None and held["t"] - world.spoke_at < 3.0 and quiet == [],
+                 if held.get("t") is not None and held["t"] + 0.3 < t < held.get("gm_ack", 0)]
+        check(f"nothing sent while held, even after the speech all-clear ({HOLD_S:.0f} s) while the GM "
+              f"suspicion stayed open ({GM_EXTRA_S:.0f} s more)",
+              "gm_ack" in held and world.spoke_at is not None and held["t"] - world.spoke_at < 3.0 and quiet == [],
               f"held {held} spoke {world.spoke_at} sent {quiet[:5]}")
-        check("resumed after the all-clear and counted the pause",
+        gms = [j for j in store.junctures() if j["kind"] == "gm_suspected"]
+        check("the hidden speaker raised one urgent gm_suspected juncture from the runner (not on screen)",
+              len(gms) == 1 and gms[0]["source"] == "lumber" and gms[0]["severity"] == "urgent"
+              and gms[0]["data"]["speakers"][0]["serial"] == f"0x{HIDDEN:08X}"
+              and "not on screen" in gms[0]["summary"], str(gms))
+        check("resumed after both all-clears and counted the pause",
               "all-clear after" in text and sum(r.get("speech_holds", 0) for r in rows) == 1
-              and sum(r.get("speech_wait_s", 0) for r in rows) >= HOLD_S, str([r.get("speech_wait_s") for r in rows]))
+              and sum(r.get("speech_wait_s", 0) for r in rows) >= HOLD_S + GM_EXTRA_S,
+              str([r.get("speech_wait_s") for r in rows]))
         check("trip rows carry logs by wood type; the pack's logs at conversion (after the theft)",
               all("ordinary" in (r.get("woods") or {}) for r in rows)
               and sum(sum(r["woods"].values()) for r in rows) == sum(r["logs"] for r in rows) - STOLEN,

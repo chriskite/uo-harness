@@ -28,6 +28,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+os.environ["UO_QUIET"] = "1"        # alerts.QUIET_ENV: no alarm sounds from the ctl subprocesses
 INSTALL_TILEDATA = "C:/Program Files (x86)/Ultima Online Outlands/artdata.uoo"   # tiledata items; read-only
 
 import actions  # noqa: E402
@@ -378,6 +379,26 @@ def test_wait(proxy):
     code, out = c("break")
     check("`ctl break` starts the break through the gate", code == 0 and out.get("ok")
           and proxy.gate_actions == ["break"] and out["gate"]["state"] == "break", str(out))
+
+    print("== alert: the overseer suspects staff ==")
+    code, out = c("alert", "asked", "if", "I'm", "at", "my", "keyboard", "--serial", "0xBEEF")
+    g = m.junctures(after_id=out.get("id", 1) - 1, limit=1)[0] if out.get("id") else {}
+    check("`ctl alert` posts an urgent gm_suspected juncture with the reason and speaker, and stamps the alarm",
+          code == 0 and g.get("kind") == "gm_suspected" and g.get("severity") == "urgent"
+          and g["data"] == {"reason": "asked if I'm at my keyboard", "serial": "0x0000BEEF"}
+          and meta(db, "gm_alarm_t") is not None, f"{out} {g}")
+    code, out2 = c("alert", "still", "talking")
+    check("a second alert while one is open re-sounds, posts nothing new",
+          code == 0 and out2.get("already_open") and out2.get("id") == out.get("id")
+          and len([j for j in m.junctures() if j["kind"] == "gm_suspected"]) == 1, str(out2))
+    tw.meta_set(m, "gm_alarm_t", "0")
+    c("wait", "--timeout", "0.5", "--poll", "0.1")
+    check("`wait` sounds it again while it stays open (the alarm repeats)",
+          float(meta(db, "gm_alarm_t") or 0) > time.time() - 30, meta(db, "gm_alarm_t"))
+    m.juncture_ack(out["id"])
+    tw.meta_set(m, "gm_alarm_t", "0")
+    c("wait", "--timeout", "0.5", "--poll", "0.1")
+    check("acked: `wait` stays silent", meta(db, "gm_alarm_t") == "0", meta(db, "gm_alarm_t"))
     proxy.gate = {"state": "open"}
 
     before = time.time()

@@ -8,10 +8,13 @@ Run: python harness/test_speech_guard.py   (pure, < 1 s)
 """
 import os
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from speech_guard import CLEAR_S, SpeechGuard, speaker  # noqa: E402
+import alerts  # noqa: E402
+from memory import Memory  # noqa: E402
+from speech_guard import CLEAR_S, SpeechGuard, speaker, staff_hints  # noqa: E402
 
 FAILURES = []
 ME, PLAYER, VENDOR, PET, MOB, STAFF = 0x00094375, 0x0000ABCD, 0x00000B8D, 0x0000C001, 0x0000C002, 0x0000D00D
@@ -100,8 +103,31 @@ def test_scan():
     check("until it runs out", [x["text"] for x in g.scan(w, events, times)] == ["hello?"])
 
 
+def test_staff():
+    print("== staff hints and the repeating staff alarm ==")
+    w = world()
+    check("no staff hints for an ordinary player", staff_hints(speaker(w, said(PLAYER, "hi"))) == [])
+    check("GM body + staff-like name are hints",
+          staff_hints(speaker(w, said(STAFF, "Hello there", name="GM Kemp"))) == ["GM body 0x03DB", "staff-like name"])
+    check("a speaker not on screen is a hint (hidden staff speak without a body)",
+          staff_hints(speaker(w, said(0x00001234, "hm"))) == ["not on screen (hidden or out of view)"])
+    os.environ[alerts.QUIET_ENV] = "1"
+    m = Memory(os.path.join(tempfile.mkdtemp(), "harness.db"))
+    check("nothing open: no alarm", alerts.staff_alarm_due(m, now=1000.0) is False)
+    jid = alerts.post_gm(m, "lumber", "GM Kemp: GM body", {})
+    t0 = float(alerts.tw.meta_get(m, alerts.LAST_STAFF_KEY))
+    check("posting sounds it at once (no repeat right after)", alerts.staff_alarm_due(m, now=t0 + 1) is False)
+    check("repeats after STAFF_REPEAT_S", alerts.staff_alarm_due(m, now=t0 + alerts.STAFF_REPEAT_S) is True)
+    check("and not again within the next interval",
+          alerts.staff_alarm_due(m, now=t0 + alerts.STAFF_REPEAT_S + 5) is False)
+    m.juncture_ack(jid)
+    check("acked: silent", alerts.staff_alarm_due(m, now=t0 + 10 * alerts.STAFF_REPEAT_S) is False)
+    m.close()
+
+
 if __name__ == "__main__":
     test_speaker()
     test_scan()
+    test_staff()
     print("ALL PASS" if not FAILURES else f"FAILED: {len(FAILURES)}: {FAILURES}")
     sys.exit(1 if FAILURES else 0)

@@ -42,7 +42,8 @@ from uo.gumps import parse_layout  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 import ledger as ledger_mod  # noqa: E402
 import threats  # noqa: E402
-from speech_guard import SpeechGuard  # noqa: E402
+from speech_guard import SpeechGuard, staff_hints  # noqa: E402
+import alerts  # noqa: E402
 
 TREE_FACET = 0                # harvest areas are on map0 (Shelter)
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
@@ -64,15 +65,8 @@ def h(v) -> int:
 
 
 def alert(sound: bool = True):
-    """Sound for the human (PLAN.md Phase 4: handoff alert = sound)."""
-    if not sound:
-        return
-    try:
-        import winsound
-        for _ in range(3):
-            winsound.Beep(880, 250)
-    except (ImportError, RuntimeError):
-        print("\a", end="", flush=True)
+    """Handoff sound for the human (alerts.handoff)."""
+    alerts.handoff(sound)
 
 
 class LumberLoop:
@@ -170,9 +164,12 @@ class LumberLoop:
 
     def speech_hold(self, who, st):
         """Send nothing until the overseer gives the all-clear (acks the
-        `speech_nearby` juncture). Threats and death still end the job. The
-        overseer may talk to the speaker meanwhile (ctl allows `act say` and
-        `single_click` while a task holds), or stop the job."""
+        `speech_nearby` juncture) and no `gm_suspected` juncture is open.
+        Threats and death still end the job. The overseer may talk to the
+        speaker meanwhile (ctl allows `act say` and `single_click` while a task
+        holds), or stop the job. A speaker with staff hints (speech_guard.
+        staff_hints) raises `gm_suspected` and the staff alarm, which repeats
+        (alerts.STAFF_REPEAT_S) until that juncture is acked."""
         first = who[0]
         name = first["label"] or first["name"] or first["serial"]
         log(f"SPEECH: {name}: {first['text']!r}; pausing for the overseer")
@@ -183,18 +180,22 @@ class LumberLoop:
                                    f"{name} said {first['text']!r} nearby; harvesting paused until the "
                                    f"all-clear (ack)"[:300], "urgent", data)
         self.memory.job_event("lumber", "speech_hold", data, **self._where(st))
-        alert(not self.args.quiet)
+        if not self.suspect_staff(who, st):
+            alert(not self.args.quiet)
         t0, heard = time.monotonic(), {w["serial"] for w in who}
         while True:
             time.sleep(SPEECH_POLL_S)
             st = self.link.state()
             self.check_threats(st)
             self.check_ledger(st)
-            for w in self.speech.scan(st["world"], self.link.events, self.link.event_t):
+            new = self.speech.scan(st["world"], self.link.events, self.link.event_t)
+            for w in new:
                 log(f"SPEECH (paused): {w['label'] or w['name'] or w['serial']}: {w['text']!r}")
                 heard.add(w["serial"])
+            self.suspect_staff(new, st)
+            alerts.staff_alarm_due(self.memory, not self.args.quiet)
             j = self.memory.junctures(after_id=jid - 1, limit=1)
-            if j and j[0]["acked_t"] is not None:
+            if j and j[0]["acked_t"] is not None and not alerts.open_gm(self.memory):
                 break
         waited = time.monotonic() - t0
         self.deadline += waited                      # the pause isn't the job's time
@@ -205,6 +206,19 @@ class LumberLoop:
         self.human.wait("read")
         if resume is not None:
             self.doing(*resume)
+
+    def suspect_staff(self, who, st) -> bool:
+        """Raise gm_suspected (urgent, staff alarm) for speakers with staff hints,
+        unless one is already open. True when one is open afterwards."""
+        hinted = [w for w in who if staff_hints(w)]
+        if hinted and not alerts.open_gm(self.memory):
+            w = hinted[0]
+            name = w["label"] or w["name"] or w["serial"]
+            log(f"POSSIBLE STAFF: {name} ({', '.join(staff_hints(w))}); staff alarm")
+            alerts.post_gm(self.memory, "lumber", f"{name}: {', '.join(staff_hints(w))}",
+                           {"task": "lumber", "trip": self.trip_n, "speakers": hinted, **self._where(st)},
+                           not self.args.quiet)
+        return bool(alerts.open_gm(self.memory))
 
     def died(self, st, reason):
         a = self.last_threats

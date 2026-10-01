@@ -44,7 +44,8 @@ Global options go **before** the command. Every call prints exactly one JSON obj
 | `run <task> [args…]` | Starts a whitelisted task detached: `lumber` → `loop_lumber.py`, `bank` → `errand_bank.py`. `args` pass through; `--control-port/--state-port/--memory` are appended from ctl's options unless given. Refused while a task runs (one character). Returns `task_id`, `pid`, `log`. |
 | `stop [task_id]` | Asks the wrapper to terminate the task; it ends with a `task_failed` juncture marked `stopped`. If the wrapper doesn't report within `--grace` (20 s), ctl kills both processes itself and posts the juncture (`source: ctl`, "(forced)"). |
 | `wait [--timeout S] [--include-info]` | Blocks (polling ~1 s) until there is an **open** juncture with id > the juncture cursor and severity ≥ `attention` (any severity with `--include-info`), or a `user` chat row with id > the chat cursor. Returns `{"ok":true,"event":<first>,"events":[…up to 20…],"cursors":{…}}` and advances the cursors past what it returned. Timeout (default 1800 s; ≤ 0 = forever) → `{"ok":true,"event":null}`. Events are `{"type":"juncture",id,t,source,kind,severity,summary,data,acked_t}` or `{"type":"chat",id,t,role,kind,text,data}`. |
-| `ack <id>` | Closes a juncture (`acked_t`). |
+| `ack <id>` | Closes a juncture (`acked_t`). Acking `gm_suspected` stops the staff alarm. |
+| `alert <why> [--serial S]` | **Possible staff (GM).** Posts an urgent `gm_suspected` juncture (`{reason, serial}`) and sounds the staff alarm (two-tone, distinct from the handoff beeps) so the human at the PC comes to check. It repeats every 30 s from a holding harvest job and from `wait` until the juncture is acked; a holding job won't resume while one is open. Allowed while a task runs. A second `alert` while one is open re-sounds it (`already_open`). |
 | `break` | Starts the agent gate's scheduled break now (`{"op":"gate","action":"break"}`), e.g. once the character is home after a `break_due` juncture. Refused while already on a break. Returns the gate (`break_until`). |
 | `junctures [--open] [--after N] [--limit N]` | Lists junctures. |
 | `chat [--after N] [--limit N] [--role R]` | Lists chat rows. |
@@ -252,6 +253,7 @@ its trip. Other `info` rows are history (`ctl junctures`, or `wait --include-inf
 | `gate_closed` | info | runner | Agent gate paused or on a scheduled break (reopens by itself). |
 | `break_due` | attention | ctl (`wait`) | The agent gate's break interval is used up. The agent can still act for up to 10 min (`break_starts_in_s`), then the break starts by itself wherever the character stands. `{break_due_at, break_starts_in_s, starts_at}`. `wait` checks the gate every 5 s and posts one per break. |
 | `speech_nearby` | urgent | runner (harvest jobs) | A character spoke near us during a harvest job (`speech_guard.py`). The job **holds**: it sends nothing until you ack the juncture (the all-clear), then carries on; that speaker is then ignored for 15 min. While it holds, `act say` (free text, filtered) and `act single_click` work; other acts stay refused. `{hold, task, trip, facet, x, y, speakers: [{serial, name, label, text, type, hue, on_screen, body, notoriety, flags, x, y, evidence}]}`; `evidence` notes a GM body or a staff-like name. Not posted for vendors, pets, damage numbers, click echoes (titles/guild tags) or anyone outside a harvest job. |
+| `gm_suspected` | urgent | runner (speech hold) or ctl (`alert`) | Possible staff nearby; the human is called with the staff alarm (`harness/alerts.py`), repeated every 30 s until acked. The runner raises it when a speaker has staff hints (`speech_guard.staff_hints`: GM body, staff-like name, speaking while not on screen); the overseer raises it with `ctl alert` when the conversation suggests staff. A holding job stays held until it's acked, even after the speech all-clear. `{task, trip, facet, x, y, speakers}` (runner) or `{reason, serial}` (ctl). |
 | `server_restriction` | urgent | runner | Server gating text (AGENTS.md rule 4): all automation halts. |
 
 As of 2026-09-29 only `task_done` and `task_failed` are emitted (by `task_wrap.py`/`ctl.py`); the
@@ -301,12 +303,28 @@ Paste this (or point the session at this section) to start an overseer.
 >    - `speech_nearby`: the harvest job is holding; nothing happens until you act. Read what was
 >      said (`ctl journal`, the juncture's `speakers`), look at the speaker if needed (`act
 >      single_click <serial>`: name, title, guild). A player passing by or chatting: answer only
->      if a reply is natural ("hi", a short friendly line, via `act say`), then `ctl ack <id>` (the
->      all-clear; the job resumes). Possible staff (a GM body, a staff-like name, a speaker not on
->      screen, someone asking what you're doing or whether you're there): tell the human in this
->      session right away, answer briefly and naturally as the player would, never mention
->      anything rule 8 forbids, and `ctl stop` the task if they keep talking. Don't ack while
->      a possible GM is still talking to you.
+>      if a reply is natural (see "Talking in game" below), then `ctl ack <id>` (the all-clear;
+>      the job resumes).
+>    - **Possible staff** (a `gm_suspected` juncture, or anything that smells like it: a GM body,
+>      a staff-like name, a speaker not on screen, someone asking what you're doing, whether
+>      you're there, or to say or do something specific, a sudden teleport): **first `ctl alert
+>      <why> --serial <s>`** (skip it if `gm_suspected` is already open: the alarm is running),
+>      then tell the human in this session. Then answer like a player (below). If they ask you to
+>      do something simple (step over here, say a word, open a trade), you may do it once the job
+>      is stopped. `ctl stop` the task if the conversation goes on for more than a line or two.
+>      Never ack `speech_nearby` or `gm_suspected` while a possible GM is still talking. Ack
+>      `gm_suspected` only when the human says so or the speaker has clearly gone.
+>    - **Talking in game** (rule 8 and the word filter apply on top):
+>      - One short line, the way people type in UO: lowercase, little punctuation, no full
+>        sentences or polished phrasing ("hey", "just chopping some logs", "yeah im here", "lol").
+>      - Don't volunteer details, explanations or excuses, and don't sound defensive. Never claim
+>        anything checkable you can't back up (where you live, how long you've played, who you
+>        know).
+>      - A plausible reason for being there is the obvious one: you're chopping wood for boards.
+>      - If unsure what to say, stall in a natural way ("sec", "one sec") rather than risk a bad
+>        line, and get the human.
+>      - Reply after a human-like pause (a few seconds), not instantly; never more than one line
+>        per thing they said.
 >    - `captcha`, `server_restriction`: **call the human immediately**, stop the task, never try
 >      to answer.
 >    - user chat: answer with `ctl say`; do what they ask within these rules.
