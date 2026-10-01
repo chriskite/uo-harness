@@ -1,9 +1,9 @@
 """Lumber loop runner, Shelter phase (docs/LUMBER_LOOP.md §3, §12).
 
-One trip = harvest known trees → convert logs to boards → walk to the inn →
-say "room" → enter the rental room → drop the boards into the secure
-container → leave by the door. No deed creation (user decision 2026-09-29:
-prove the loop first).
+One trip = harvest trees → convert logs to boards → walk to the banker →
+say "bank" → drop the boards into the bank box. The run ends at the bank. No
+rental room and no deed creation (user decision 2026-10-01: bank the boards,
+Shelter Island, a fresh Young character; Shelter's bank needs Young status).
 
 Knowledge comes from harness/data/loops/lumber.json (mined from the user's
 demonstration). What the loop learns lives in the harness memory store
@@ -21,9 +21,7 @@ the stock 0xB1; an unreadable layout or rejected answers fall back to the
 human wait. The runner never replies to a gump without a reply button (the
 decoys).
 
-The only other gump the runner answers is the rental-room menu, and only with
-Enter/Exit: an innkeeper menu without the rented-room buttons (Test Shard
-wipe) aborts instead of clicking Rent. The only speech is "room".
+The runner answers no other gump. The only speech is "bank".
 
 Guards: jittered pacing, overall timeout, HP loss, movement stall, the agent
 gate (pause/break wait, kill/budget abort), bounded retries everywhere.
@@ -39,7 +37,8 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
-from agent_link import Abort, Link, Mover, cheb, containers_to_open, log, reach_z, same_floor, serial_of  # noqa: E402
+from agent_link import (Abort, Link, Mover, bank_opened, cheb, containers_to_open, log, reach_z,  # noqa: E402
+                        same_floor, serial_of)
 import uomap  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from uo.gumps import parse_layout  # noqa: E402
@@ -62,7 +61,6 @@ HATCHETS = (0x0F43, 0x0F44)
 LOGS = tuple(range(0x1BDD, 0x1BE3))
 BOARDS = (0x1BD7,)
 DROP_AUTO = 0x7FFFFFFF        # client drop-into-container auto-position (demo)
-ROOM_RENTED_BUTTON = 7        # present in the innkeeper/door menu only while a room is rented
 
 
 def h(v) -> int:
@@ -85,7 +83,6 @@ class LumberLoop:
         self.mover = Mover(link, memory, self.human, max_blocked=args.max_blocked,
                            guard=self.check_guards, doors=True, use_map=not args.no_map)
         self.memory = memory
-        self.t_exit = None           # wall time of the last teleport out of the room
         self.stats = {}
         self.trip_n = None
         # a creature is a threat when it's in war mode, murderer-red or known aggressive
@@ -497,17 +494,6 @@ class LumberLoop:
             time.sleep(0.15)
         return ("none", 0)
 
-    def wait_lockout(self):
-        """The server blocks harvesting for 60 s after a teleport (room exit)."""
-        if self.t_exit is None:
-            return
-        left = self.k["travel_lockout"]["seconds"] - (time.time() - self.t_exit)
-        if left > 0:
-            wait = left + self.human.reaction("read") + self.human.rng.uniform(0.5, 3.0)
-            log(f"travel lockout: waiting {wait:.0f} s before harvesting")
-            self.doing("lockout", f"Waiting out the travel lockout ({wait:.0f} s) before chopping")
-            time.sleep(wait)
-
     def candidate_trees(self, st):
         """Seed trees (lumber.json) plus trees found on the map in the harvest
         area, minus what harvest memory rules out, nearest first with human
@@ -558,7 +544,6 @@ class LumberLoop:
                 self.memory.harvest_record(*node, "unreachable")
                 log(f"{label}: unreachable; trying the next tree")
                 continue
-            self.wait_lockout()
             tries = 0
             while tries < self.args.max_attempts_per_tree and gained < self.args.logs_per_trip:
                 self.doing("chop", f"Chopping tree at {spot[0]},{spot[1]} "
@@ -633,17 +618,6 @@ class LumberLoop:
         if todo:
             self.link.open_containers(todo, self.human)
 
-    # ------------------------------------------------------------ the room
-    def room_menu(self, mark):
-        room = self.k["room"]
-        st = self.link.wait(lambda s: self.gump(mark, h(room["menu_gump_id"])), 5.0)
-        if st is None:
-            raise Abort("rental-room menu did not open")
-        g = self.gump(mark, h(room["menu_gump_id"]))
-        if ROOM_RENTED_BUTTON not in parse_layout(g.get("layout", ""))["buttons"]:
-            raise Abort("the room menu offers no rented room (Test Shard wipe?); rent it again by hand")
-        return g
-
     def tree_z_ok(self, tree):
         """Stand on the tree's level (not in a cave under it); map planner only."""
         if not self.mover.use_map:
@@ -651,65 +625,52 @@ class LumberLoop:
         it = uomap.tiledata().item(h(tree["graphic"]))
         return reach_z(tree["z"], it.height if it else 0)
 
-    def innkeeper_mobile(self):
-        inn = self.k["npcs"]["innkeeper"]
-        return self.link.state()["world"]["mobiles"].get(inn["serial"]) or {}
+    # ------------------------------------------------------------ the bank
+    def banker_mobile(self):
+        return self.link.state()["world"]["mobiles"].get(self.k["npcs"]["banker"]["serial"]) or {}
 
-    def innkeeper_pos(self):
-        """Where the innkeeper stands now (world model), else the demo position."""
-        m = self.innkeeper_mobile()
+    def banker_pos(self):
+        """Where the banker stands now (world model), else the demo position."""
+        m = self.banker_mobile()
         if m.get("x") is not None:
             return (m["x"], m["y"])
-        return tuple(self.k["npcs"]["innkeeper"]["pos"][:2])
+        return tuple(self.k["npcs"]["banker"]["pos"][:2])
 
-    def innkeeper_z(self) -> int:
-        z = self.innkeeper_mobile().get("z")
-        return z if z is not None else self.k["npcs"]["innkeeper"]["pos"][2]
+    def banker_z(self) -> int:
+        z = self.banker_mobile().get("z")
+        return z if z is not None else self.k["npcs"]["banker"]["pos"][2]
 
-    def enter_room(self):
-        room, inn = self.k["room"], self.k["npcs"]["innkeeper"]
-        # The room menu opens by speech from 13 tiles, but its buttons need the
-        # vendor in range (11 tiles worked, 13 = "That vendor is too far away
-        # from you.", live 2026-09-29): walk up to where the innkeeper is now.
-        self.doing("to_inn", "Going home: heading to the innkeeper", self.innkeeper_pos())
-        self.mover.walk_to(self.innkeeper_pos, self.args.inn_range, "to the innkeeper",
-                           z_ok=same_floor(self.innkeeper_z()))
-        self.doing("enter_room", "Asking the innkeeper to enter the rental room", self.innkeeper_pos())
+    def open_bank(self) -> int:
+        """Walk up to where the banker stands now and say "bank"; the bank box
+        serial once the server has opened it (0x24). NPCs move, so the demo
+        position is only the fallback (the innkeeper's lesson, LUMBER_LOOP.md §13)."""
+        self.doing("to_bank", "Going to the bank: heading to the banker", self.banker_pos())
+        self.mover.walk_to(self.banker_pos, self.args.bank_range, "to the banker",
+                           z_ok=same_floor(self.banker_z()))
+        self.doing("open_bank", "Opening the bank box", self.banker_pos())
         self.human.wait("speak")
         mark = len(self.link.events)
-        self.link.act(actions.say_unicode("room"))
-        g = self.room_menu(mark)
-        self.human.wait("menu")
-        mark = len(self.link.events)
-        self.link.act(actions.gump_reply(g["serial"], g["gump_id"], room["enter_button"],
-                                         g.get("layout", ""), g.get("lines") or []))
-        texts = (room["enter_text"], room["too_far_text"])
-        self.link.wait(lambda s: any(self.heard(mark, text=t) for t in texts), 5.0)
-        if self.heard(mark, text=room["enter_text"]) is None:
-            far = self.heard(mark, text=room["too_far_text"]) is not None
-            raise Abort("did not enter the rental room" + (" (vendor too far away)" if far else ""))
-        log("entered the rental room")
-        self.link.wait(lambda s: s["movement"]["pos"] is not None
-                       and cheb(s["movement"]["pos"], room["inside_pos"]) <= 12, 3.0)
-
-    def store(self) -> int:
-        room = self.k["room"]
-        box = h(room["secure_container"]["serial"])
-        st = self.link.wait(lambda s: self.item(s, box) is not None, 4.0)
+        self.link.act(actions.say_unicode("bank"))
+        st = self.link.wait(lambda s: bank_opened(s["world"], self.self_serial(s), self.since(mark)), 5.0)
         if st is None:
-            raise Abort(f"secure container 0x{box:08X} not in the room")
-        bpos = room["secure_container"]["pos"]
-        self.doing("to_box", "Walking to the secure container", bpos[:2])
-        self.mover.walk_to(lambda: bpos, 1, "to the secure container")
+            raise Abort("the bank box did not open (no banker in range?)")
+        box = bank_opened(st["world"], self.self_serial(st), self.since(mark))
+        log(f"bank box opened (0x{box:08X})")
+        return box
+
+    def deposit(self, box: int) -> int:
+        """Drag every board stack from the open backpack into the open bank box,
+        right after it opened: no step in between (moving closes a bank box in
+        RunUO [INFERENCE for Outlands])."""
         stored = 0
         stacks = self.in_pack(self.state(), BOARDS)
-        if stacks:  # boards are dragged from the open backpack into the open secure container
-            self.open_for(*[(serial, False) for serial, _ in stacks], (box, True))
+        if stacks:  # the bank gump is open from the speech; the backpack may still need opening
+            self.open_for(*[(serial, False) for serial, _ in stacks])
         for serial, it in stacks:
             amount = it.get("amount") or 1
-            self.doing("store", f"Storing {amount} boards in the secure container", bpos[:2])
+            self.doing("store", f"Banking {amount} boards", self.banker_pos())
             self.human.wait("use")
-            self.ledger.expect(("moved_out", serial))    # stored in the secure container: not theft
+            self.ledger.expect(("moved_out", serial))    # into the bank box: not theft
             self.link.act(actions.lift(serial, amount))
             self.human.wait("drag")
             self.link.act(actions.drop(serial, DROP_AUTO, DROP_AUTO, 0, 0, box))
@@ -720,43 +681,17 @@ class LumberLoop:
             if moved is None:
                 raise Abort(f"board stack 0x{serial:08X} did not leave the backpack")
             stored += amount
-            log(f"stored {amount} boards in the secure container")
+            log(f"banked {amount} boards")
         self.stats["stored"] = self.stats.get("stored", 0) + stored
         return stored
-
-    def exit_room(self):
-        room = self.k["room"]
-        door = h(room["door"]["serial"])
-        if self.link.wait(lambda s: self.item(s, door) is not None, 3.0) is None:
-            raise Abort(f"room door 0x{door:08X} not known")
-        self.doing("exit_room", "Leaving the rental room", room["door"]["pos"][:2])
-        self.mover.walk_to(lambda: room["door"]["pos"][:2], 1, "to the door")
-        self.human.wait("use")
-        mark = len(self.link.events)
-        self.link.act(actions.dclick(door))
-        g = self.room_menu(mark)
-        self.human.wait("menu")
-        mark = len(self.link.events)
-        self.link.act(actions.gump_reply(g["serial"], g["gump_id"], room["exit_button"],
-                                         g.get("layout", ""), g.get("lines") or []))
-        if self.link.wait(lambda s: self.heard(mark, text=room["exit_text"]), 5.0) is None:
-            raise Abort("did not leave the rental room")
-        self.t_exit = time.time()
-        log("left the rental room")
-        self.human.wait("read")
-        self.human.fidget(self.link, self.link.state(), self.backpack(self.link.state()))
-
-    def in_room(self, st) -> bool:
-        return cheb(self.link.pos(st), self.k["room"]["inside_pos"]) <= 12
 
     # ------------------------------------------------------------ trips
     def episode(self, row):
         self.memory.episode("lumber", row)
 
     def trip(self, n):
-        """One trip, ending in the safety of the rental room: (leave the room if
-        we're in it) -> harvest -> convert -> enter the room -> store. The room
-        is only left at the start of the next trip, so a run ends inside it."""
+        """One trip: harvest -> convert -> walk to the banker and open the bank
+        box -> bank the boards. The run ends at the bank."""
         self.stats = {}
         self.trip_n = n
         t0, s0, b0 = time.time(), self.mover.steps, self.mover.blocked_count
@@ -768,12 +703,10 @@ class LumberLoop:
             phases[name] = round(time.time() - t, 1)
             return r
 
-        if self.in_room(self.state()):
-            timed("exit", self.exit_room)
         timed("harvest", self.harvest_trip)
         timed("convert", self.convert)
-        timed("to_room", self.enter_room)
-        timed("store", self.store)
+        box = timed("to_bank", self.open_bank)
+        timed("store", lambda: self.deposit(box))
         row = {"loop": "lumber", "venue": self.k["venue"], "trip": n, "t_start": round(t0, 1),
                "t_end": round(time.time(), 1), "phases_s": phases,
                "steps": self.mover.steps - s0, "blocked": self.mover.blocked_count - b0,
@@ -782,7 +715,7 @@ class LumberLoop:
         self.episode(row)
         log(f"trip {n} done: {row}")
         self.doing("trip_done", f"Trip {n} done: {self.stats.get('logs', 0)} logs, "
-                                f"{self.stats.get('stored', 0)} boards stored")
+                                f"{self.stats.get('stored', 0)} boards banked")
 
     def run(self):
         st = self.link.wait(lambda s: s["movement"]["pos"] is not None
@@ -791,13 +724,10 @@ class LumberLoop:
             raise Abort("proxy has no player position yet (log in first)")
         self.check_guards(st)
         self.hatchet(st)
-        if self.in_room(st):
-            log("starting inside the rental room")
-            self.store()
         for n in range(1, self.args.trips + 1):
             self.trip(n)
-        log(f"loop complete: {self.args.trips} trip(s); resting in the rental room")
-        self.doing("done", f"Finished: {self.args.trips} trip(s); resting in the rental room")
+        log(f"loop complete: {self.args.trips} trip(s); waiting at the bank")
+        self.doing("done", f"Finished: {self.args.trips} trip(s); waiting at the bank")
 
 
 def stop_intent(loop, text):
@@ -829,8 +759,8 @@ def main():
                     help="wrong auto-solve answers tolerated before the pause + beep fallback")
     ap.add_argument("--captcha-beep-s", type=float, default=30.0)
     ap.add_argument("--quiet", action="store_true", help="no handoff sound (tests)")
-    ap.add_argument("--inn-range", type=int, default=4,
-                    help="walk to within this many tiles of the innkeeper's current position")
+    ap.add_argument("--bank-range", type=int, default=4,
+                    help="walk to within this many tiles of the banker's current position")
     ap.add_argument("--timeout", type=float, default=3600.0)
     ap.add_argument("--max-blocked", type=int, default=20)
     ap.add_argument("--control-port", type=int, default=25941)

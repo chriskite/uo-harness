@@ -115,7 +115,7 @@ export interface JobsResponse {
   harvest: HarvestStats | null;
 }
 
-export const PHASES = ["harvest", "convert", "to_room", "store", "exit"] as const;
+export const PHASES = ["harvest", "convert", "to_bank", "store"] as const;
 
 /** Number or an em dash for unknown; `digits` decimals, trailing zeros dropped. */
 export function fmtNum(v: number | null | undefined, digits = 1): string {

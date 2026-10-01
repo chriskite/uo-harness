@@ -238,7 +238,8 @@ The runners report what they are trying to do right now on the proxy's state por
 - **Kinds (lumber loop):**
   - `to_tree`, `chop` (text carries the log count), `captcha` (the previous intent is restored
     afterwards), `lockout`, `convert`
-  - `to_inn` ("Going home: …"), `enter_room`, `to_box`, `store`, `exit_room`
+  - `to_bank` ("Going to the bank: …"), `open_bank`, `store` (since 2026-10-01; the room-era
+    kinds were `to_inn`, `enter_room`, `to_box`, `store`, `exit_room`)
   - `trip_done`, `done`, `stopped` (abort or crash reason)
 - **Kinds (bank errand):** `to_start`, `find_banker`, `to_bank`, `open_bank`, `home`, `done`,
   `stopped`.

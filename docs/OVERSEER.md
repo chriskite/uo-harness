@@ -288,8 +288,8 @@ Paste this (or point the session at this section) to start an overseer.
 >      doubt, stop the task and call the human.
 >    - `break_due`: the break starts by itself at `starts_at`, wherever the character is (a
 >      motionless character in the field is what a GM looks for). If it's out in the field,
->      `ctl stop` the task (or let a trip that ends in the room finish if it will in time), walk
->      or recall home to the rental room, then `ctl break`. If it's already somewhere safe,
+>      `ctl stop` the task (or let a trip that ends at the bank finish if it will in time), walk
+>      or recall to the bank, then `ctl break`. If it's already somewhere safe,
 >      `ctl break` now.
 >    - `speech_nearby`: the harvest job is holding; nothing happens until you act. Read what was
 >      said (`ctl journal`, the juncture's `speakers`), look at the speaker if needed (`act

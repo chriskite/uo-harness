@@ -158,7 +158,7 @@ export function JobsPage() {
                   <th className="num">logs/hr</th>
                   <th className="num">chops</th>
                   <th className="num">captchas</th>
-                  <th>phases (harvest · convert · to room · store · exit)</th>
+                  <th>phases (harvest · convert · to bank · store)</th>
                   <th>events</th>
                   <th className="num">value</th>
                 </tr>

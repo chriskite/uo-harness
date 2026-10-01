@@ -10,11 +10,10 @@ texts of the demonstration capture (logs/session_20260929_204225):
   itself), trip 2's is unreadable (pause + beep fallback), then fail/success results; a second
   tree answers "not enough wood" (depleted)
 - log stack target → "You shape the logs into boards." (1:1)
-- "room" near the innkeeper → rental-room gump 0x8EAEFBDB; button 4 teleports
-  into the room (secure container + door) / out again (door gump)
-- lift + drop into the container, merging stacks like RunUO
-- a closed door on the walk back out that opens on the stock open-door request
-- a 3 s post-teleport harvest lockout (the real one is 60 s)
+- "bank" within 12 tiles of the banker → the bank box (layer 0x1D) opens (0x24); any step
+  closes it again (RunUO); lift + drop into the open box, merging stacks like RunUO
+- a closed town door between the trees and the bank that opens on the stock open-door
+  request and swings shut once the agent is past it
 
 The "human" answers the unreadable (fallback) captcha through the client connection. Two trips run.
 
@@ -45,18 +44,14 @@ LOGDIR = f"{ROOT}/logs_test_loop"
 C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
 SELF, BACKPACK, HATCHET = 0x00094375, 0x44ADA059, 0x44ADB57A
-BOX, DOOR_ITEM, INNKEEPER = 0x44ADB583, 0x45757DCB, 0x000001E5
+BANKBOX, BANKER = 0x40000B0B, 0x000001EA
 START = (100, 200)
 GOOD_TREE = {"x": 111, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [110, 200]}
 DRY_TREE = {"x": 105, "y": 194, "z": 0, "graphic": "0x0CE0", "stand": [105, 195]}
-INN_POS = (120, 207)                                     # where the innkeeper actually stands
-INN_KNOWN = (106, 207)      # knowledge from an older demo: 14 tiles off (NPCs move; vendor range ≤ 12)
-ROOM_IN, BOX_POS, DOOR_POS = (39, 65), (39, 66), (39, 69)
-EXIT_TO = (125, 200)
+BANK_POS = (127, 200)                                    # where the banker actually stands: past the town door
+BANK_KNOWN = (107, 200)     # knowledge from an older demo: 20 tiles off (NPCs move; speech range 12)
 DOOR = (122, 200)                                        # a closed town door
-WALLS = {(122, y) for y in range(190, 211)} - {DOOR}
-MENU_ID = 0x8EAEFBDB
-LOCK_S = 60                                              # longer than the walk back out (even along the wall)
+WALLS = {(122, y) for y in range(180, 236)} - {DOOR}     # long enough that going round costs more than the door
 LOGS_PER_SUCCESS = 3
 STOLEN = 2                                               # a pickpocket's take, once (the loop must carry on)
 PASSERBY = 0x0000ABCD                                    # a player who walks up and says hello mid-harvest
@@ -200,24 +195,20 @@ class World:
         self.stolen = 0
         self.board_serial = 0x45000100
         self.pack_boards = {}             # serial -> amount
-        self.box_stack = None             # (serial, amount)
+        self.bank_stack = None            # (serial, amount)
         self.lifted = None
         self.door_open = False
         self.open_door_reqs = 0
-        self.in_room = False
-        self.t_exit = None
-        self.lockout_msgs = 0
-        self.after_exit = []              # seconds from each room exit to the next harvest target
-        self.awaiting_first = False
-        self.menu_gumps = {}              # gump serial -> "inn" | "door"
-        self.rooms_entered = 0
-        self.too_far = 0
-        self.rooms_left = 0
+        self.bank_open = False
+        self.bank_opens = 0
+        self.far_bank_speech = 0          # "bank" said out of the banker's range
+        self.bank_dclicks = 0             # a dclick can't open a bank box; the stock client never sends one
+        self.drops_refused = 0
         self.harvested = 0
         self.dry_attempts = 0
         self.good_left = GOOD_VISIT
         self.doors_opened = 0
-        self.containers_opened = []                          # 0x06 on the backpack / secure box, in order
+        self.containers_opened = []                          # 0x06 on the backpack, in order
 
     def send(self, pkt):
         self.writer.write(encode_packet(pkt, S2C_KEY))
@@ -243,18 +234,9 @@ class World:
 
     # ---- harvest ----
     def harvest(self, x, y):
-        now = time.monotonic()
-        if self.awaiting_first:
-            self.awaiting_first = False
-            self.after_exit.append(now - self.t_exit)
         self.decoys.add(self.next_gump())
         self.send(gump(self.gump_serial, 0x50000000 + self.gump_serial, DECOY_LAYOUT,
                        ["Captcha", "Guide", "Type the Value", "Click when complete"]))
-        if self.t_exit is not None and now - self.t_exit < LOCK_S:
-            self.lockout_msgs += 1
-            left = int(LOCK_S - (now - self.t_exit)) + 1
-            self.send(sys_text(f"You have recently traveled and must wait {left} seconds before you may begin harvesting."))
-            return
         if (x, y) == (DRY_TREE["x"], DRY_TREE["y"]):
             self.dry_attempts += 1
             self.later(0.3, [cliloc(500493)])
@@ -319,12 +301,15 @@ class World:
                 return
             nx, ny = self.pos[0] + DD[d][0], self.pos[1] + DD[d][1]
             blocked = (nx, ny) in WALLS or ((nx, ny) == DOOR and not self.door_open) \
-                or (nx, ny) == INN_POS
+                or (nx, ny) == BANK_POS
             if blocked:
                 self.send(b"\x21" + bytes([seq]) + u32(self.pos[0]) + u32(self.pos[1])
                           + bytes([self.facing]) + u32(0))
                 return
             self.pos = [nx, ny]
+            self.bank_open = False                       # moving closes the bank box (RunUO)
+            if self.door_open and self.cheb(DOOR) > 2:   # the door swings shut behind the agent
+                self.door_open = False
             self.send(bytes([0x22, seq, 0x01]))
         elif pid == 0x12 and p[3] == 0x58:
             self.open_door_reqs += 1
@@ -339,11 +324,9 @@ class World:
                 self.cursor_for = self.cid
                 self.send(cliloc(1010018))
                 self.send(cursor(self.cid))
-            elif serial == DOOR_ITEM and self.in_room and self.cheb(DOOR_POS) <= 2:
-                g = self.next_gump()
-                self.menu_gumps[g] = "door"
-                self.send(gump(g, MENU_ID, buttons([1, 3, 7, 4, 5]), ["Guide"]))
-            elif serial == BACKPACK or (serial == BOX and self.in_room):
+            elif serial == BANKBOX:
+                self.bank_dclicks += 1
+            elif serial == BACKPACK:
                 self.containers_opened.append(serial)
                 self.send(b"\x24" + u32(serial) + bytes.fromhex("0000003c007d"))   # as captured (204225)
         elif pid == 0x6C:
@@ -374,48 +357,36 @@ class World:
                 if self.pending_attempt:
                     self.pending_attempt = None
                     self.result()
-            elif self.menu_gumps.get(f["serial"]) == "inn" and f["button_id"] == 4 and self.cheb(INN_POS) > 12:
-                self.too_far += 1                     # live 2026-09-29: 13 tiles → this, 11 tiles worked
-                self.send(sys_text("That vendor is too far away from you."))
-            elif self.menu_gumps.get(f["serial"]) == "inn" and f["button_id"] == 4:
-                self.in_room = True
-                self.rooms_entered += 1
-                self.teleport(*ROOM_IN)
-                self.send(sys_text("You enter the rental room."))
-                self.send(ground_item(BOX, 0x0E76, *BOX_POS, 2))
-                self.send(ground_item(DOOR_ITEM, 0x06E5, *DOOR_POS, 1))
-                if self.box_stack:
-                    self.send(contained(self.box_stack[0], 0x1BD7, self.box_stack[1], BOX))
-            elif self.menu_gumps.get(f["serial"]) == "door" and f["button_id"] == 4:
-                self.in_room = False
-                self.rooms_left += 1
-                self.door_open = False                   # doors swing shut again
-                self.teleport(*EXIT_TO)
-                self.send(sys_text("You exit the rental room."))
-                self.t_exit = time.monotonic()
-                self.awaiting_first = True
         elif pid == 0xAD:
             f = parse_packet("c2s", p)
-            if f.get("text") == "room" and not self.in_room and self.cheb(INN_POS) <= 12:
-                g = self.next_gump()
-                self.menu_gumps[g] = "inn"
-                self.send(gump(g, MENU_ID, buttons([1, 3, 7, 4, 5, 6]), ["Guide"]))
+            if f.get("text") != "bank":
+                return
+            if self.cheb(BANK_POS) > 12:
+                self.far_bank_speech += 1
+                return
+            self.bank_open = True
+            self.bank_opens += 1
+            self.send(equip(BANKBOX, 0x0E7C, 0x1D))
+            self.send(b"\x24" + u32(BANKBOX) + bytes.fromhex("0000004a007d"))
+            if self.bank_stack:
+                self.send(contained(self.bank_stack[0], 0x1BD7, self.bank_stack[1], BANKBOX))
         elif pid == 0x07:
             self.lifted = parse_packet("c2s", p)
         elif pid == 0x08:
             f = parse_packet("c2s", p)
             lf, self.lifted = self.lifted, None
-            if lf is None or lf["serial"] != f["serial"] or f["container"] != BOX \
-                    or not self.in_room or self.cheb(BOX_POS) > 2:
+            if lf is None or lf["serial"] != f["serial"] or f["container"] != BANKBOX \
+                    or not self.bank_open or self.cheb(BANK_POS) > 12:
+                self.drops_refused += 1
                 return
             amount = self.pack_boards.pop(f["serial"], 0)
-            if self.box_stack is None:
-                self.box_stack = (f["serial"], amount)
-                self.send(contained(f["serial"], 0x1BD7, amount, BOX))
+            if self.bank_stack is None:
+                self.bank_stack = (f["serial"], amount)
+                self.send(contained(f["serial"], 0x1BD7, amount, BANKBOX))
             else:                                        # RunUO stacks with the existing pile
-                self.box_stack = (self.box_stack[0], self.box_stack[1] + amount)
+                self.bank_stack = (self.bank_stack[0], self.bank_stack[1] + amount)
                 self.send(delete(f["serial"]))
-                self.send(contained(self.box_stack[0], 0x1BD7, self.box_stack[1], BOX))
+                self.send(contained(self.bank_stack[0], 0x1BD7, self.bank_stack[1], BANKBOX))
 
     async def handle(self, reader, writer):
         await reader.readexactly(5)
@@ -426,7 +397,7 @@ class World:
             self.send(seed_pkt(token))
         self.send(equip(BACKPACK, 0x0E75, 0x15))
         self.send(equip(HATCHET, 0x0F44, 0x02))
-        self.send(mobile_pkt(INNKEEPER, *INN_POS))
+        self.send(mobile_pkt(BANKER, *BANK_POS))
         self.send(ground_item(0x40005CE3, 0x06AD, *DOOR, 0))     # the town door (demo art)
         await writer.drain()
         buf = bytearray()
@@ -448,11 +419,7 @@ def knowledge(path):
     with open(f"{ROOT}/harness/data/loops/lumber.json", encoding="utf-8") as f:
         k = json.load(f)
     k["harvest"]["trees"] = [GOOD_TREE, DRY_TREE]
-    k["npcs"]["innkeeper"].update(serial=f"0x{INNKEEPER:08X}", pos=[*INN_KNOWN, 0])
-    k["room"].update(inside_pos=[*ROOM_IN, 1],
-                     door={"serial": f"0x{DOOR_ITEM:08X}", "graphic": "0x06E5", "pos": [*DOOR_POS, 1]},
-                     secure_container={"serial": f"0x{BOX:08X}", "graphic": "0x0E76", "pos": [*BOX_POS, 2]})
-    k["travel_lockout"]["seconds"] = LOCK_S
+    k["npcs"]["banker"].update(serial=f"0x{BANKER:08X}", pos=[*BANK_KNOWN, 0])
     with open(path, "w", encoding="utf-8") as f:
         json.dump(k, f)
 
@@ -464,6 +431,11 @@ async def main():
     tmp = tempfile.mkdtemp()
     paths = {"lumber": os.path.join(tmp, "lumber.json"), "db": os.path.join(tmp, "harness.db")}
     knowledge(paths["lumber"])
+    # captcha mode `auto` (the viz toggle; the default is `human`): trip 1's readable captcha is
+    # the solver's, trip 2's unreadable one falls back to the human wait
+    store = memory.Memory(paths["db"])
+    store.set_captcha_mode("auto")
+    store.close()
 
     world = World()
     server = await asyncio.start_server(world.handle, "127.0.0.1", UPSTREAM_PORT)
@@ -607,37 +579,41 @@ async def main():
               str([(r.get("logs"), r.get("woods")) for r in rows]))
         check("decoy gumps were shown and never answered",
               len(world.decoys) >= 4 and world.decoy_replies == 0, f"{len(world.decoys)} decoys")
-        check("agent gump replies = rental-room menu (2 enters + 1 exit) + the auto-solved captcha",
-              len(b1_agent) == 4 and world.rooms_entered == 2 and world.rooms_left == 1, str(len(b1_agent)))
-        check("the run ends in the safety of the rental room (never exits after the last trip)",
-              world.in_room and "resting in the rental room" in text, str(world.in_room))
-        check("walked to the innkeeper's live position: never 'too far' (knowledge pos is 14 tiles off)",
-              world.too_far == 0, str(world.too_far))
-        check("every harvested log not stolen ended in the secure container as boards",
-              world.box_stack is not None and world.harvested == 2 * 3 * LOGS_PER_SUCCESS
-              and world.box_stack[1] == world.harvested - world.stolen,
-              f"box {world.box_stack}, harvested {world.harvested}, stolen {world.stolen}")
+        check("agent gump replies = the auto-solved captcha only (no room menu any more)",
+              len(b1_agent) == 1, str(len(b1_agent)))
+        check("each trip opened the bank box by saying 'bank' next to the banker; the run ends at the bank",
+              world.bank_opens == 2 and world.cheb(BANK_POS) <= 4 and "waiting at the bank" in text,
+              f"{world.bank_opens} opens, at {world.pos}")
+        check("walked to the banker's live position: never spoke out of range (knowledge pos is 20 tiles off)",
+              world.far_bank_speech == 0, str(world.far_bank_speech))
+        check("every harvested log not stolen ended in the bank box as boards; no drop refused",
+              world.bank_stack is not None and world.harvested == 2 * 3 * LOGS_PER_SUCCESS
+              and world.bank_stack[1] == world.harvested - world.stolen and world.drops_refused == 0,
+              f"bank {world.bank_stack}, harvested {world.harvested}, stolen {world.stolen}, "
+              f"refused {world.drops_refused}")
         check("nothing left in the backpack", world.logs == 0 and not world.pack_boards)
         check("each trip tried the dry tree once, then moved on",
               world.dry_attempts == 2, str(world.dry_attempts))
         check("harvest memory (store): dry tree depleted, good tree counted",
               dry_node.get("depleted_at") is not None and good_node.get("successes", 0) >= 4
               and good_node.get("yield") == world.harvested, f"{dry_node} {good_node}")
-        check("walk memory (store): the proxy recorded the agent's walks, incl. the room's facet-less tiles",
-              len(walked.edges) >= 20 and (39, 65) in walked.tiles, str(walked.stats()))
+        check("walk memory (store): the proxy recorded the agent's walks",
+              len(walked.edges) >= 20, str(walked.stats()))
         check("open-door requests only next to a door, like the client's auto-open (never at plain walls)",
               world.open_door_reqs == world.doors_opened, f"{world.open_door_reqs} requests, "
               f"{world.doors_opened} opened")
-        check("like a player, the agent opened the backpack before targeting the logs in it and the secure "
-              "container before storing; each once (opened stays open as far as the server knows)",
-              world.containers_opened == [BACKPACK, BOX], str(world.containers_opened))
-        check("after leaving the room the agent waited out the harvest lockout",
-              len(world.after_exit) == 1 and world.after_exit[0] >= LOCK_S and world.lockout_msgs == 0
-              and "travel lockout: waiting" in text, f"{world.after_exit}")
-        check("only speech: 'room', stock-encoded",
-              speech and all(p == actions.say_unicode("room") for p in speech), str(len(speech)))
-        check("two episode rows with logs and stored boards",
-              len(rows) == 2 and all(r.get("logs", 0) >= 6 and r.get("stored", 0) >= 6 for r in rows), str(rows))
+        check("the town door opened on each of the 3 crossings (to the bank, back out, to the bank)",
+              world.doors_opened >= 3, str(world.doors_opened))
+        check("like a player, the agent opened the backpack once before targeting the logs in it; the bank "
+              "box is never double-clicked (only 'bank' opens it)",
+              world.containers_opened == [BACKPACK] and world.bank_dclicks == 0,
+              f"{world.containers_opened} bank dclicks {world.bank_dclicks}")
+        check("only speech: 'bank', stock-encoded, once per trip",
+              len(speech) == 2 and all(p == actions.say_unicode("bank") for p in speech), str(len(speech)))
+        check("two episode rows with logs and banked boards",
+              len(rows) == 2 and all(r.get("logs", 0) >= 6 and r.get("stored", 0) >= 6
+                                     and set(r["phases_s"]) == {"harvest", "convert", "to_bank", "store"}
+                                     for r in rows), str(rows))
         check("every C2S packet came from the client or the agent (none from the proxy)",
               srcs <= {"client", "agent"}, str(srcs))
         intents = [e["intent"] for e in log if e.get("ev") == "agent_intent"]
@@ -645,17 +621,11 @@ async def main():
         check("malformed intents rejected by the proxy (and not recorded)",
               all(not r["ok"] for r in bad_intents) and all(i and i.get("text") for i in intents),
               str(bad_intents))
-        phase = ["to_tree", "chop", "convert", "to_inn", "enter_room", "to_box", "store", "trip_done"]
+        phase = ["to_tree", "chop", "convert", "to_bank", "open_bank", "store", "trip_done"]
         for n in (1, 2):
             seq = [i["kind"] for i in intents if i and i.get("trip") == n]
-            want = (["exit_room"] if n == 2 else []) + phase
-            check(f"trip {n}: intents follow the loop's phases in order"
-                  + (" (leaving the room first)" if n == 2 else "") + ", ending in the room",
-                  is_subsequence(want, seq) and "exit_room" not in seq[seq.index("store"):]
-                  and (n == 2) == ("exit_room" in seq), str(dedupe(seq)))
-        t2 = [i["kind"] for i in intents if i and i.get("trip") == 2]
-        check("trip 2 reports the post-exit lockout wait before chopping",
-              "lockout" in t2 and t2.index("lockout") < t2.index("chop"), str(dedupe(t2)))
+            check(f"trip {n}: intents follow the loop's phases in order",
+                  is_subsequence(phase, seq), str(dedupe(seq)))
         cap = [k for k, i in enumerate(intents) if i and i["kind"] == "captcha"]
         check("captcha intent shown per captcha, then the previous intent restored",
               len(cap) == 2 and all(0 < k < len(intents) - 1

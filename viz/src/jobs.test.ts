@@ -119,13 +119,12 @@ describe("woodShares / phaseList", () => {
     expect(woodShares([])).toEqual([]);
   });
   test("phases in loop order, missing as 0, extras after", () => {
-    expect(phaseList({ store: 1.8, harvest: 108.8, bank: 3 })).toEqual([
+    expect(phaseList({ store: 1.8, harvest: 108.8, exit: 3 })).toEqual([
       ["harvest", 108.8],
       ["convert", 0],
-      ["to_room", 0],
+      ["to_bank", 0],
       ["store", 1.8],
-      ["exit", 0],
-      ["bank", 3],
+      ["exit", 3],
     ]);
   });
 });

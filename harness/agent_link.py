@@ -121,6 +121,20 @@ def closed_bank(world: dict, serials) -> int | None:
     return None
 
 
+def bank_opened(world: dict, self_serial: int, events) -> int | None:
+    """The bank box serial when `events` hold the server's 0x24 for it (the
+    layer-0x1D item on `self_serial`), which saying `bank` near a banker gets."""
+    for ev in events:
+        if ev.get("ev") != "container_open":
+            continue
+        serial = serial_of(ev["serial"])
+        it = world["items"].get(f"0x{serial:08X}") or {}
+        if it.get("layer") == LAYER_BANK and it.get("container") is not None \
+                and serial_of(it["container"]) == self_serial:
+            return serial
+    return None
+
+
 class Link:
     """Control-port actions + state-port feedback, with an event cursor."""
 

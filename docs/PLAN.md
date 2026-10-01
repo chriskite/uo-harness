@@ -107,7 +107,7 @@ LLM planner over the world model + skill library; safety rails: captcha auto-sol
   - Venue: Shelter Island first (TestWorth is Young; the capture shows the Young-only welcome gump), the overworld later as a user-initiated move. Leaving Shelter renounces Young permanently, so the agent never travels off the island and never confirms a renounce gump.
   - Logs must become boards for commodity deeds.
   - The return trigger trades carried-goods PK risk against trip overhead, including the 60 s harvest lockout after recall/teleport (LUMBER_LOOP.md §6: `Q* = r·sqrt(2T/h)`). Shelter has no hostile player actions, so `h = 0` there and trips end on breaks. The overworld learns `h` per region from our own data, and a red name means an immediate recall out.
-  - Boards bank in the room every trip; a deed is made when the room stock reaches the quantum.
+  - Boards bank in the room every trip; a deed is made when the room stock reaches the quantum. **Superseded 2026-10-01 (user decision, LUMBER_LOOP.md §12.5):** boards go into the bank box every trip and the rental room is out of the loop. This drops the rent, the daily room wipe, the hand-secured container and the 60 s post-exit harvest lockout, and works in any town with a banker. It still runs on Shelter, with a fresh Young character (the Shelter bank needs Young).
   - Optimizer autonomy: statistics update automatically within bounds; structural changes are user-approved.
   - **Come back to before the overworld (user note 2026-09-29, LUMBER_LOOP.md §11):**
     - `h` learned from our own exposure and hazard data per region

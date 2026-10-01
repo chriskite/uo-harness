@@ -25,11 +25,10 @@ import time
 
 sys.path.insert(0, r"C:/Users/chris/uo-harness/harness")
 import actions  # noqa: E402
-from agent_link import Abort, Link, Mover, cheb, log, same_floor, serial_of  # noqa: E402
+from agent_link import Abort, Link, Mover, bank_opened, cheb, log, same_floor, serial_of  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 
-BANKBOX_LAYER = 0x1D
 HUMAN_BODIES = (0x190, 0x191)
 GATING_WORDS = ("razor", "assistant", "macro", "script")
 
@@ -140,23 +139,11 @@ class Errand:
         if resp != "OK":
             raise Abort(f"speech refused: {resp}")
         log('said "bank"')
-        st = self.link.wait(lambda s: self._bank_opened(s, mark) is not None, timeout=5.0)
+        opened = lambda s: bank_opened(s["world"], s["movement"]["self_serial"], self.link.events[mark:])  # noqa: E731
+        st = self.link.wait(opened, timeout=5.0)
         if st is None:
             raise Abort("bank box did not open within 5 s")
-        return self._bank_opened(st, mark)
-
-    def _bank_opened(self, st, since_idx: int):
-        self_serial = st["movement"]["self_serial"]
-        items = st["world"]["items"]
-        for ev in self.link.events[since_idx:]:
-            if ev.get("ev") != "container_open":
-                continue
-            serial = serial_of(ev["serial"])
-            it = items.get(f"0x{serial:08X}") or {}
-            parent = it.get("container")
-            if it.get("layer") == BANKBOX_LAYER and parent is not None and serial_of(parent) == self_serial:
-                return serial
-        return None
+        return opened(st)
 
     # ---- the errand ----
     def run(self):

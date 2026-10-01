@@ -1,12 +1,14 @@
-# LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → deed → store in inn room
+# LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → bank (→ deed later)
 
-Status (2026-09-29): **M0 done; the loop (minus deeds) runs live: 3 trips, 50 boards, captcha
-solved and resumed (run 3, 22:47, §13).**
+Status (2026-10-01): **boards go into the bank box; the rental room is out of the loop (user
+decision, §12.5).** Runs on Shelter Island with a fresh Young character. The room-storage version
+ran live on 2026-09-29 (3 trips, 50 boards, captcha solved and resumed; run 3, §13).
 - M0: the user's demonstration run (`logs/session_20260929_204225`) is mined into
   `harness/data/loops/lumber.json` and pinned by `harness/test_loop_demo.py`; findings are in §12.
-- Current goal (user decision, §12.4): prove the agent can run the loop minus deed creation on
-  Shelter, then optimize.
-- Runner: `harness/loop_lumber.py`, proven offline by `test_loop_lumber.py` and live (§13).
+- Current goal (user decisions, §12.4, §12.5): run the loop minus deed creation on Shelter,
+  banking the boards each trip, then optimize.
+- Runner: `harness/loop_lumber.py`, proven offline by `test_loop_lumber.py`; the bank version is
+  not yet run live.
 
 Builds on Phase 4 (docs/PLAN.md). This loop is the Phase 4 workload: the planner, the skill
 library, the rails and the captcha handling all get exercised by it.
@@ -16,10 +18,11 @@ library, the rails and the captcha handling all get exercised by it.
 The agent should **learn** the loop, **run** it, and **improve** it over sessions:
 - chop trees
 - convert the logs to boards
-- walk back to the inn and enter the rental room
-- store the boards, and turn them into commodity deeds, in a secure container
+- walk to the banker and open the bank box
+- bank the boards (commodity deeds later)
 
-Character TestWorth. Venue: Shelter Island first, the regular overworld later (§7).
+Character: a fresh Young character on Shelter Island (TestWorth until 2026-10-01). Venue: Shelter
+Island first, the regular overworld later (§7).
 
 These constraints come from existing docs and aren't optimization targets:
 - **Captcha = human-solved by default, auto-solve by toggle (user decision 2026-10-01).** Lumberjacking triggers a captcha every 5–10 min, and a solved one
@@ -29,8 +32,8 @@ These constraints come from existing docs and aren't optimization targets:
   Expect ~4–6 captchas per hour (derived from the wiki cadence).
 - **Pacing is a floor, not a knob.** The optimizer never tightens jitter, proxy walk pacing
   (0.2/0.4 s), break schedule or daily cap (PLAN.md Phase 4).
-- **Speech allowlist.** The loop needs one new trigger word near the innkeeper (`room`). Securing a
-  container ("I wish to secure this") is one-time human setup, so it stays off the list.
+- **Speech allowlist.** The loop's one trigger word is `bank` near the banker (since 2026-10-01;
+  before that `room` near the innkeeper).
 - **Nothing server-visible that a stock client wouldn't send.** Skills use the existing
   `actions.py` builders only.
 - **Never renounce Young status (Shelter phase).** Leaving Shelter Island by moongate, hike, recall
@@ -75,21 +78,19 @@ stateDiagram-v2
   Harvest --> Harvest: spot depleted → next spot
   Harvest --> Convert: return trigger (§6)
   Harvest --> Escape: red name sighted (overworld) → recall out (§11)
-  Escape --> EnterRoom: walk from the recall point to the innkeeper
+  Escape --> Bank: walk from the recall point to the banker
   Convert --> TravelBack
-  TravelBack --> EnterRoom
-  EnterRoom --> Store: boards into the secure container
-  Store --> Deed: stock ≥ deed quantum
-  Store --> ExitRoom: stock < quantum
-  Deed --> ExitRoom
-  ExitRoom --> Prep
+  TravelBack --> Bank: say "bank" near the banker
+  Bank --> Deposit: boards into the bank box
+  Deposit --> Deed: stock ≥ deed quantum
+  Deposit --> Prep: stock < quantum
+  Deed --> Prep
   Harvest --> CaptchaHandoff: captcha gump
   CaptchaHandoff --> Harvest: captcha solved
 ```
 
-The trip threshold and the deed quantum are decoupled. Boards bank in the room every trip; a deed is
-made once the room stock reaches the quantum. If the demo shows that deeding needs the bank box,
-Deed becomes "take the quantum to the banker" and moves before EnterRoom.
+The trip threshold and the deed quantum are decoupled. Boards go into the bank box every trip; a
+deed is made once the bank stock reaches the quantum (deeds aren't built yet, §12.4).
 
 Any state can be pre-empted by a proxy-enforced pause, break or kill (agent gate), or by a failure
 (HP loss, movement stall, unknown gump). A failure goes to the LLM planner (§5).
@@ -397,43 +398,58 @@ won't reach a deed at the demo rate. Decision: first prove the agent runs the lo
 creation on Shelter, with the room as daily scratch storage. Efficiency (and with it where the
 stock lives and whether to raise skill first) comes after the proof.
 
+### 12.5 Decided (user, 2026-10-01): bank the boards, no rental room
+The runner no longer enters a rental room: each trip ends at the banker and drops the boards into
+the bank box. The loop still runs on Shelter Island, with a fresh character. Why this is simpler:
+- no room to rent, so the 5 000 gp rent and the daily Test Shard room wipe drop out
+- no secure container to set up by hand
+- no teleport out of a room, so no 60 s harvest lockout per trip
+- any town with a banker works, so the Horseshoe Bay blocker (§13, the room exits to the town it
+  was rented in) is gone.
+
+Constraint: the Shelter bank serves only Young characters (§2). A fresh character is Young.
+The room knowledge stays in lumber.json (pinned by `test_loop_demo.py`), but the runner doesn't use it.
+
 ## 13. Runner (`harness/loop_lumber.py`, built 2026-09-29)
 
 Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports, gate-aware
 `act()`) and `Mover` (walking, learned blocks, doors). `errand_bank.py` uses it too.
 
-- **Trip** (since 2026-09-30, user decision: a run ends in the safety of the inn room):
-  1. If inside the rental room: walk to the door, dclick it, press Exit (button 4).
-  2. Harvest the known trees (shuffled; trees depleted in the last `--regrow-min` are skipped).
-  3. Convert every log stack.
-  4. Walk to the innkeeper and say `room`; press Enter (button 4).
-  5. Lift each board stack and drop it into the secure container (auto-position; stacking merges
-     are fine).
+- **Trip** (since 2026-10-01, user decision §12.5: bank the boards):
+  1. Harvest the known trees (shuffled; trees depleted in the last `--regrow-min` are skipped).
+  2. Convert every log stack.
+  3. Walk to within `--bank-range` (4) of where the banker (lumber.json `npcs.banker`, Len,
+     `0x000001EA`) stands now. Fall back to his demo position, then on his floor
+     (`same_floor`).
+  4. Say `bank` and wait for the server's `0x24` on the layer-0x1D item
+     (`agent_link.bank_opened`, shared with `errand_bank.py`). If it doesn't open, abort.
+  5. Without taking a step (moving closes a bank box in RunUO `[INFERENCE for Outlands]`),
+     lift each board stack and drop it into the bank box (auto-position, as `ctl act drop`).
 
-  Like a player, the runner opens the backpack before targeting logs in it and the secure container
-  before storing, whenever the server hasn't opened them this session (ANTICHEAT.md §10, closed
-  containers).
+  Like a player, the runner opens the backpack before targeting logs in it, whenever the server
+  hasn't opened it this session (ANTICHEAT.md §10, closed containers). It never double-clicks
+  the bank box. The speech opens it.
 
-  So the room is only left at the start of the next trip, and the last trip ends inside it.
-  If the runner starts inside the room, it stores what it carries first. Before this change
-  every trip ended by exiting, which left TestWorth standing outside the Shelter inn (the room
-  exits to the town it was rented in).
+  A run ends at the bank. The trip phases are `harvest`, `convert`, `to_bank` (walk + open),
+  `store`. The intents are `to_tree`, `chop`, `convert`, `to_bank`, `open_bank`, `store`,
+  `trip_done`.
+
+  Until 2026-10-01 the trip ended in the rental room instead: say `room` to the innkeeper,
+  press Enter, store in the secure container, and exit by the door at the start of the next
+  trip. The live runs below used that version.
 - **Harvest attempt:**
   - dclick the hatchet, wait for the cursor, pause for "aim" time, send `target_xyz` at the
     tree's (x, y, z, static graphic), wait for the outcome.
   - Outcomes: success text (gain measured from the backpack count), fail 500495, depleted
     500488/500493, not-a-tree 500489 (abort: bad knowledge), lockout text (wait the stated
     seconds), or none (≤ 3, then abort).
-  - The first attempt after a room exit waits out the rest of the 60 s lockout itself.
+  - A server-reported travel lockout (after a moongate, say) is waited out.
 - **Captcha:**
   - The trigger is the gump with lumber.json's id plus text entry 2 and button 594. Decoys never
     match.
   - The runner beeps (`winsound`, every 30 s) and waits up to 10 min for the human to answer in
     the client and for "Captcha successful.". Then it resumes the same attempt.
-  - The runner never sends a gump reply except Enter/Exit on the room menu.
-- **Room menu safety:** the innkeeper/door menu must contain button 7, which only a rented room
-  shows. Otherwise the runner aborts instead of pressing button 4, which would start renting after
-  a Test Shard wipe.
+  - Apart from the captcha answer in mode `auto`, the runner sends no gump reply.
 - **Walking (since 2026-09-29, after live attempt 1):** `Mover` plans in 3D on the real map
   (`harness/pathfind.py`, the client's walkability rules) whenever the facet has geometry. In the
   rental room (blank facet 3) it falls back to walk memory.
@@ -667,10 +683,9 @@ in that cave can't see or click a tree on the surface, so it's an inhuman signal
   Test Shard player editor before the third. At 100, 9 of 9 chops succeeded, 5–10 logs each.
 - Two trips aborted on passive wildlife (a walrus, a goat). Fixed in `threats.py`: unknown
   creatures count as threats only in war mode (NOTES.md).
-- **Open, blocks multi-trip runs from Horseshoe Bay:** the rental room always exits to the town
-  it was rented in. The room was rented on Shelter, so every trip ends at the Shelter inn and
-  needs a moongate back (about 5 min). Options: rent a room at the Horseshoe Bay inn (the
-  user's call: rent is gold), or a runner step that travels back after each exit.
-- **Open:** the runner has no venue settings other than the whole `--loop` file (innkeeper, tree
+- ~~**Open, blocks multi-trip runs from Horseshoe Bay:** the rental room always exits to the town
+  it was rented in.~~ **Gone with §12.5 (2026-10-01):** trips end at a banker, so there's no
+  room to exit.
+- **Open:** the runner has no venue settings other than the whole `--loop` file (banker, tree
   area), so every non-Shelter spot needs its own copy. A committed file per venue, or CLI
   overrides, would fix that.

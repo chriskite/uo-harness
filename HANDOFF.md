@@ -42,16 +42,19 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
    "bank" → bank box opened → 13 steps back to exactly the start; 26 s, 0 blocked, 0 resyncs,
    0 proxy-originated server packets. Offline: `test_errand.py`.
 3. **Next: Phase 4 (agent runtime)**, an LLM planner over the state port + action/skill library,
-   with safety rails (docs/PLAN.md). First workload: the lumberjack → inn-room loop
-   (docs/LUMBER_LOOP.md):
+   with safety rails (docs/PLAN.md). First workload: the lumberjack → bank loop
+   (docs/LUMBER_LOOP.md; until 2026-10-01 it stored in an inn rental room):
    - M0 done: the demo `20260929_204225` → `harness/data/loops/lumber.json`, pinned by
      `harness/test_loop_demo.py`.
    - Runner `harness/loop_lumber.py` built and offline-proven (`test_loop_lumber.py`).
+     **Since 2026-10-01 (user decision, LUMBER_LOOP.md §12.5) each trip ends at the banker:
+     say `bank`, drop the boards into the bank box.** It runs on Shelter with a fresh Young
+     character and is offline-proven only; the live runs below used the room version.
   - **Live proof ✅:** attempt 2c (22:27), 1 trip, 46 boards. **Run 3 (22:47): 3 trips, 50
     boards in 8.4 min, live captcha detection works** (LUMBER_LOOP.md §13). Next: optimization
      (§6) from the memory store's episodes and yields (baseline ≈355 boards/active hour).
    - The visualizer shows what the agent is trying to do ("Heading to tree at …", "Chopping …",
-     "Going home: …") in the **Agent** panel and as a map reticle (VISUALIZER.md §2.3). The live
+     "Going to the bank: …") in the **Agent** panel and as a map reticle (VISUALIZER.md §2.3). The live
      proxy must be restarted once to carry intents; the runners work either way.
    - **Next phase planned (2026-09-29 night): [`docs/ROADMAP.md`](docs/ROADMAP.md).** Built:
      - the overseer bus + `harness/ctl.py` (docs/OVERSEER.md)
