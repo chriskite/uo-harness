@@ -297,7 +297,7 @@ divergences) and every agent packet was checked against the world state at that 
 | A4 | **verified** | 11 agent serial references, each at ≤ 4 tiles or in the pack |
 | A5 | **partly** at the time; both gaps fixed 2026-10-01 (below) | doors: 7 requests, 55-112 ms after the walk that faced the door (human 55-101 ms), 6 followed by a step. 2 denies: the diagonal past a closed double-door leaf, and a step into a barrel (below) |
 | A6 | **verified** | 11/11 agent `0xB1` byte-equal to `actions.gump_reply` for the gump's layout |
-| A7 | not exercised | no single click on a mobile, no attack, no war mode in this session |
+| A7 | **verified live 2026-10-01** (same session, combat test) | Attack 1 (13 tiles): `72 01` → server `72 01` → 0.55 s later `34 … 000f88ff` and `05 000f88ff`, 0 ms apart (stock Tab, then double-click: RequestMobileStatus + Attack). Attack 2 (adjacent, 46.7 s later): `34` + `05` again. That is stock-correct: the client's own `09`/`34`/`bf 000c` bursts for the mob had left no status request outstanding (the original "hits unknown" rule was wrong; corrected to the client's status-request state, commit e095bb3). `warmode off` after the death sent nothing: the server had already turned war mode off. Single-click on a mobile and the war-mode double-click refusal weren't exercised. |
 | A8 | **verified** for run | 693 run steps: gaps p10/median/p90 207/213/218 ms (min 203); 21 % heading changes. No walked route was drawn, so the 400 ms walk cadence is unverified |
 
 Unchanged: keepalive median gap 1.057 s, p99 1.087 s (2 075 keepalives); C2S senders only client
