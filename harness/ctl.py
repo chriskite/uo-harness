@@ -79,7 +79,7 @@ LOG_DIR = os.path.join(ROOT, "logs", "tasks")
 SPEECH_ALLOWLIST = ("bank", "room", "hello")
 # While a harvest job holds for speech (speech_guard.py, a `speech_nearby` juncture with
 # hold=true), the overseer may answer the speaker: free text, no longer than SAY_MAX, that
-# never touches what AGENTS.md rule 8 forbids (the harness, testing, automation, AI).
+# never touches what AGENTS.md constraint 4 forbids (the harness, testing, automation, AI).
 HOLD_ACTS = ("say", "single_click")
 SAY_MAX = 120
 REVEALING = re.compile(
@@ -898,7 +898,7 @@ def conversation_text(raw: str) -> str:
         raise CtlError(f"say: 1..{SAY_MAX} printable characters")
     m = REVEALING.search(raw)
     if m:
-        raise CtlError(f"say refused: {m.group(0)!r} could reveal the harness (AGENTS.md rule 8); rephrase")
+        raise CtlError(f"say refused: {m.group(0)!r} could reveal the harness (AGENTS.md constraint 4); rephrase")
     return raw
 
 

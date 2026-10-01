@@ -3,7 +3,7 @@
 Windows Graphics Capture (WGC, the compositor's window capture, as in OBS's
 "Window Capture (Windows 10+)"): it hands over the window's own composited
 content even when other windows cover it. It's passive and outside the client
-(AGENTS.md rule 2; ANTICHEAT.md §8.1):
+(AGENTS.md constraint 1; ANTICHEAT.md §8.1):
 - no injection, and no message goes to the client: WGC gets frames from DWM;
   the window is found with EnumWindows + GetWindowTextW, which for another
   process's window reads the caption the window manager keeps (no

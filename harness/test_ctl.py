@@ -560,7 +560,7 @@ def test_run_act(proxy):
     for text, word in (("No, I'm not a bot", "bot"), ("just testing stuff", "testing"),
                        ("my script does it", "script"), ("I'm an AI", "AI")):
         code, out = c("act", "say", text, "--human", "off")
-        check(f"rule 8: {word!r} refused, nothing sent", code == 1 and word in out.get("error", "")
+        check(f"no-reveal: {word!r} refused, nothing sent", code == 1 and word in out.get("error", "")
               and proxy.take() == [], str(out))
     code, out = c("act", "say", "x" * (ctl.SAY_MAX + 1), "--human", "off")
     check("over-long speech refused", code == 1 and proxy.take() == [], str(out))

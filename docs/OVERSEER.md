@@ -60,7 +60,7 @@ Whitelist, built with the existing `harness/actions.py` builders and framed exac
 | Act | Args | Packet |
 |---|---|---|
 | `walk` | `<dir 0-7> [n=1]` (n ≤ 20), `--walk` (default is run, like the client's Always Run), `--human normal\|off` | `0x02` per step at the stock held-key cadence (`humanize.Human.step_gap`: 200 ms run / 400 ms walk after the previous send, plus jitter) + `after_step`; retries the proxy's self-clearing walk gates like `Mover.step`; a new direction first only turns; never sends a step the map rules refuse (the client wouldn't) and stops there or at the first blocked step. |
-| `say` | an allowlisted phrase; **free text only while a harvest job holds for speech** | `0xAD` keyword-encoded like the stock client. During a `speech_nearby` hold, any printable text up to 120 characters (case kept) to answer the speaker, refused if it touches what AGENTS.md rule 8 forbids (bot, AI, script, macro, test…, `ctl.REVEALING`). Outside a hold, only the allowlist. |
+| `say` | an allowlisted phrase; **free text only while a harvest job holds for speech** | `0xAD` keyword-encoded like the stock client. During a `speech_nearby` hold, any printable text up to 120 characters (case kept) to answer the speaker, refused if it touches what AGENTS.md constraint 4 forbids (bot, AI, script, macro, test…, `ctl.REVEALING`). Outside a hold, only the allowlist. |
 | `dclick` / `single_click` | `<serial>` (hex `0x…` or decimal) | `0x06` / `0x09`, plus `0x34` after a click on a mobile (the client pairs them). Only for what the client has on screen: the entity (or the mobile/ground item holding it) in the world model within 18 tiles; otherwise refused (`goto` first). `dclick` on a mobile in war mode is refused: the client would attack instead |
 | `open_door` | – | `0x12` type `0x58` |
 | `target_cancel` | – | `0x6C` cancel for the cursor that is up now (refused if none) |
@@ -245,7 +245,7 @@ its trip. Other `info` rows are history (`ctl junctures`, or `wait --include-inf
 | `break_due` | attention | ctl (`wait`) | The agent gate's break interval is used up. The agent can still act for up to 10 min (`break_starts_in_s`), then the break starts by itself wherever the character stands. `{break_due_at, break_starts_in_s, starts_at}`. `wait` checks the gate every 5 s and posts one per break. |
 | `speech_nearby` | urgent | runner (harvest jobs) | A character spoke near us during a harvest job (`speech_guard.py`). The job **holds**: it sends nothing until you ack the juncture (the all-clear), then carries on; that speaker is then ignored for 15 min. While it holds, `act say` (free text, filtered) and `act single_click` work; other acts stay refused. `{hold, task, trip, facet, x, y, speakers: [{serial, name, label, text, type, hue, on_screen, body, notoriety, flags, x, y, evidence}]}`; `evidence` notes a GM body or a staff-like name. Not posted for vendors, pets, damage numbers, click echoes (titles/guild tags) or anyone outside a harvest job. |
 | `gm_suspected` | urgent | runner (speech hold) or ctl (`alert`) | Possible staff nearby; the human is called with the staff alarm (`harness/alerts.py`), repeated every 30 s until acked. The runner raises it when a speaker has staff hints (`speech_guard.staff_hints`: GM body, staff-like name, speaking while not on screen); the overseer raises it with `ctl alert` when the conversation suggests staff. A holding job stays held until it's acked, even after the speech all-clear. `{task, trip, facet, x, y, speakers}` (runner) or `{reason, serial}` (ctl). |
-| `server_restriction` | urgent | runner | Server gating text (AGENTS.md rule 4): all automation halts. |
+| `server_restriction` | urgent | runner | Server gating text (ANTICHEAT.md §8.4): all automation halts. |
 
 As of 2026-09-29 only `task_done` and `task_failed` are emitted (by `task_wrap.py`/`ctl.py`); the
 other kinds are the contract the runners post to once they are wired to the bus. New kinds may be
@@ -304,7 +304,7 @@ Paste this (or point the session at this section) to start an overseer.
 >      is stopped. `ctl stop` the task if the conversation goes on for more than a line or two.
 >      Never ack `speech_nearby` or `gm_suspected` while a possible GM is still talking. Ack
 >      `gm_suspected` only when the human says so or the speaker has clearly gone.
->    - **Talking in game** (rule 8 and the word filter apply on top):
+>    - **Talking in game** (the no-reveal constraint and the word filter apply on top):
 >      - One short line, the way people type in UO: lowercase, little punctuation, no full
 >        sentences or polished phrasing ("hey", "just chopping some logs", "yeah im here", "lol").
 >      - Don't volunteer details, explanations or excuses, and don't sound defensive. Never claim
