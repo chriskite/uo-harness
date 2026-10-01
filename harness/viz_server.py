@@ -37,14 +37,19 @@ Routes:
                       the open-juncture count and ids, the overseer's last heartbeat
   POST /api/chat      {"text": T} (1..2000 chars after trimming) -> Memory.chat_post(
                       "user", T) -> {"ok": true, "id": N}; 400 otherwise
+  GET  /api/captcha   {"mode": "human"|"auto", "store": bool}: who answers the harvest
+                      captcha (Memory.captcha_mode; "human" when unset or no store)
+  POST /api/captcha   {"mode": "human"|"auto"} -> Memory.set_captcha_mode -> {"ok": true,
+                      "mode": M}; 400 otherwise. Runners read it at every captcha
   GET  /, /assets/*   the built frontend (viz/dist)
 
 Live mode only ever opens the proxy's state port (JSON lines). It never connects
 to the control port and never injects or sends anything toward the game server
 (ANTICHEAT §8). Its one write toward the proxy is the agent gate: pause/resume/kill
 flip the proxy's gate, which only decides whether agent injections on the control
-port are rejected. Its one write to the memory store is a user chat row (POST
-/api/chat) for the overseer AI to read. Everything else is observation.
+port are rejected. Its writes to the memory store are a user chat row (POST
+/api/chat) for the overseer AI to read and the captcha mode (POST /api/captcha).
+Everything else is observation.
 """
 import argparse
 import json
@@ -176,6 +181,15 @@ class OverseerDB:
     def post_chat(self, text: str) -> int:
         with self.lock:
             return self._open(True).chat_post("user", text)
+
+    def captcha_mode(self) -> dict:
+        with self.lock:
+            mem = self._open(False)
+            return {"mode": mem.captcha_mode() if mem else "human", "store": mem is not None}
+
+    def set_captcha_mode(self, mode: str):
+        with self.lock:
+            self._open(True).set_captcha_mode(mode)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -330,6 +344,8 @@ class Handler(BaseHTTPRequestHandler):
             self._jobs(parse_qs(url.query))
         elif url.path == "/api/overseer":
             self._overseer(parse_qs(url.query))
+        elif url.path == "/api/captcha":
+            self._json(200, self.server.overseer.captcha_mode())
         elif url.path.startswith("/api/"):
             self._json(404, {"error": f"unknown route {url.path}"})
         else:
@@ -378,9 +394,17 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._json(200, {"ok": True, "id": self.server.overseer.post_chat(text.strip())})
 
+    def _captcha(self, req: dict):
+        mode = req.get("mode")
+        if mode not in memory_mod.Memory.CAPTCHA_MODES:
+            self._json(400, {"ok": False, "error": f"mode must be one of {memory_mod.Memory.CAPTCHA_MODES}"})
+            return
+        self.server.overseer.set_captcha_mode(mode)
+        self._json(200, {"ok": True, "mode": mode})
+
     def do_POST(self):
         url = urlsplit(self.path)
-        if url.path not in ("/api/playback", "/api/gate", "/api/chat"):
+        if url.path not in ("/api/playback", "/api/gate", "/api/chat", "/api/captcha"):
             self._json(404, {"error": f"unknown route {url.path}"})
             return
         n = int(self.headers.get("Content-Length") or 0)
@@ -400,6 +424,8 @@ class Handler(BaseHTTPRequestHandler):
             self._gate(req.get("action"))
         elif url.path == "/api/chat":
             self._chat(req)
+        elif url.path == "/api/captcha":
+            self._captcha(req)
         else:
             self._playback(req)
 

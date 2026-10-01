@@ -46,7 +46,7 @@ Rejected:
 | `job_events` | `id` | v2. Job analytics facts other than trips: `job`, `kind` (death with `data.cause`, theft, pk_seen, flee, …), `facet`/`x`/`y`, `data` |
 | `teleporters` | (`facet`, `x`, `y`) | v3. Invisible server teleporter tiles learned by stepping onto one: `to_facet`/`to_x`/`to_y`/`to_z`, `n`, `first_t`, `last_t`. The Mover plans around them (docs/OVERSEER.md) |
 | `knowledge` + `knowledge_fts` | `id` | v4. The overseer's long-term memory (below): `kind`, `topic`, `content`, `tags`, `entities`, optional `facet`/`x`/`y`, `source_type`/`source_ref`, `confidence`, `importance`, `status` (active/superseded/retracted), `supersedes`/`superseded_by`, `retract_reason`, `content_hash`, `confirmations`, `created_t`/`updated_t`/`last_access_t`/`access_count`. FTS5 (porter stemming) over topic, content, tags and entities, kept in sync by triggers |
-| `meta` | `key` | `schema_version`; overseer bus (docs/OVERSEER.md): `tasks` (running task entries), `task_stop`, `overseer_juncture_cursor`, `overseer_chat_cursor`, `overseer_heartbeat` (epoch s) |
+| `meta` | `key` | `schema_version`; `captcha_mode` (`human`/`auto`, missing = `human`; who answers the harvest captcha, set from the viz header, read by the runner at every captcha); overseer bus (docs/OVERSEER.md): `tasks` (running task entries), `task_stop`, `overseer_juncture_cursor`, `overseer_chat_cursor`, `overseer_heartbeat` (epoch s) |
 
 ## Who writes what
 

@@ -405,7 +405,7 @@ Source: throwaway replay of the 27 `logs/session_*.s2c.raw` captures with `harne
 
 | Policy / detection intel | Consequence for the harness | Conf. | Source |
 |---|---|---|---|
-| Staff finding a gatherer unresponsive for ~2 min while gathering → jail | Captcha auto-solve is the intended path (digits are machine-readable tilepic glyphs in the gump layout; ANTICHEAT §8.8). Current pause-and-beep is interim behaviour | H | [ANTICHEAT.md:146][d-ac] |
+| Staff finding a gatherer unresponsive for ~2 min while gathering → jail | Captcha is human-solved by default: the runner pauses and beeps (user decision 2026-10-01). Auto-solve from the layout's tilepic glyphs runs when the viz toggle says `auto` (ANTICHEAT §8.8) | H | [ANTICHEAT.md:146][d-ac] |
 | In-game speech only from allowlisted keywords | "Guards" could be allowlisted, but it's useless outside towns | H | [PLAN.md:81][d-plan] |
 | Griefing detection: trapping players and blocking moongates | Our flight paths must never park in a moongate or doorway | H | [Moongates][w-mg] |
 | Human-like inefficiency in every runner | Flee reactions use the humanised reaction delay: not instant, not padded past human norms | H | [PLAN.md:83][d-plan] |

@@ -67,7 +67,7 @@ Whitelist, built with the existing `harness/actions.py` builders and framed exac
 | `goto` | `<x> <y>` or `<serial>` (mobile or ground item), `--z Z`, `--range R` (default 0 for a tile or item, 2 for a mobile), `--max-moves` (400) | Walks with `agent_link.Mover`: map pathfinding, doors, shoving, human pacing, height-aware. A mobile target means staying within one storey of it; a ground item (e.g. the moongate) means its tile on its level; `--z Z` means arriving within 10 of Z (the hill, not the cave under it). Without `--z`, a tile target takes the cheapest level, which may be a cave under it. Returns `from`, `to`, `steps`, `blocked`, `doors_opened`, or `error` (`no route`, too many blocks). Reports an intent (`goto`) to the viz |
 | `menu` | `<serial>` | The stock right-click: `0x09` then `0xBF` sub `0x13`, back to back; on-screen entities only (as `dclick`). Waits for the server's menu and returns its entries `{index, text (cliloc rendered), disabled}` |
 | `menu_pick` | `<serial> <index>` | `0xBF` sub `0x15` selection, e.g. a vendor's **Buy** entry (the vendor list then shows in `heard`/`journal`). Only from that serial's context menu while it's open (the latest menu, with no pick or new request since) and only an index it offers. Opening a Buy list sends nothing further: the stock client sends no packet when the shop window is closed without buying (ClassicUO ShopGump.cs:590-610). The window stays open on the user's screen until they close it |
-| `gump` | `<serial> <button> [--text ID=VALUE]…` | `0xB1` reply, **guarded**. Like the stock client (ClassicUO Gump.OnButtonClick) it carries **every text entry** in layout order, with its current text unless overridden by `--text`, and the switches (checkboxes/radios) that start checked. So editing one entry never blanks the others. It refuses: the captcha (gump id 1; an interim guard while auto-solve is pending — the digits are machine-readable from the layout itself, ANTICHEAT.md §8.8/§8.13), even with `--text`; a gump without reply buttons (the decoy/honeypot shape, §8.13); a button the layout doesn't offer; button 0 on a `noclose` gump; **anything but button 0 (close) on a gump whose text mentions renouncing** (Young status is the user's decision); and `--text` for an entry the gump doesn't have, longer than its limit, or non-printable. Examples: Storage Shelf "Retrieve Items" amount = `--text 1=20`; Player Testing editor skill entries 100–114, Str/Dex/Int 90–92 |
+| `gump` | `<serial> <button> [--text ID=VALUE]…` | `0xB1` reply, **guarded**. Like the stock client (ClassicUO Gump.OnButtonClick) it carries **every text entry** in layout order, with its current text unless overridden by `--text`, and the switches (checkboxes/radios) that start checked. So editing one entry never blanks the others. It refuses: the captcha (gump id 1; the human answers it in the client, or the runner's solver in captcha mode `auto`, ANTICHEAT.md §8.8/§8.13), even with `--text`; a gump without reply buttons (the decoy/honeypot shape, §8.13); a button the layout doesn't offer; button 0 on a `noclose` gump; **anything but button 0 (close) on a gump whose text mentions renouncing** (Young status is the user's decision); and `--text` for an entry the gump doesn't have, longer than its limit, or non-printable. Examples: Storage Shelf "Retrieve Items" amount = `--text 1=20`; Player Testing editor skill entries 100–114, Str/Dex/Int 90–92 |
 | `unequip` | `<item serial>` | An item you wear goes to your backpack: `0x07` lift, human "drag" pause, `0x08` drop into the pack (the auto-position form from the demo capture). It waits until the world model shows it in the pack; it refuses items you don't wear and the backpack itself |
 | `equip` | `<item serial>` | An item in your backpack (any bag depth) is worn again: `0x07` lift, pause, `0x13` equip request on its tiledata layer. It waits until worn; it refuses items not in your pack, items already worn, and items without a wearable layer |
 | `warmode` | `on\|off` | `0x72` war mode request (the stock Tab toggle); waits until the server confirms. Nothing is sent when war mode is already in that state (Tab only ever flips it) |
@@ -189,6 +189,7 @@ The overseer follows it.
 | `overseer_juncture_cursor`, `overseer_chat_cursor` | `wait` cursors (decimal ids). |
 | `gate_break_due_notified` | `break_due_at` of the last due break `wait` announced (one `break_due` juncture per break). |
 | `overseer_heartbeat` | Epoch seconds as a decimal string (`"1790742202.14"`). Written on every `wait` poll (~1 s) and by `say`, `think`, `note-action`, `act`, `run`, `stop`, `ack`. The viz shows "overseer active" while it is < 90 s old. |
+| `captcha_mode` | `human` (also when missing) or `auto`: who answers the harvest captcha. Set by the user with the viz header toggle (VISUALIZER.md §2.2a); the runner reads it at every captcha. The overseer doesn't change it. |
 
 ### Long-term memory: `ctl know` (harness/knowledge.py)
 
@@ -236,7 +237,7 @@ its trip. Other `info` rows are history (`ctl junctures`, or `wait --include-inf
 | `task_failed` | attention | task_wrap, ctl | Non-zero exit, stopped (`stopped: true`), or the wrapper vanished. Same data. |
 | `trip_done` | info | runner | One loop trip finished (episode row summary). |
 | `stuck` | attention | runner | No progress: route blocked, too many replans, stalled movement. `{pos, target, reason}` |
-| `captcha` | urgent | runner | A real captcha the auto-solver couldn't read (or rejected answers). The runner pauses and alerts; the overseer waits for the solve path rather than improvising a reply. Readable captchas are auto-solved (`harness/captcha.py`) and post no juncture. |
+| `captcha` | urgent | runner | A real captcha is waiting for the human: captcha mode `human` (the default), or `auto` couldn't answer it (unreadable, rejected answers, or the client answered first). `{trip, mode}`. The runner pauses and beeps until the solve is seen in the client, acks the juncture itself and carries on (it aborts after `--captcha-timeout`, 600 s). Captchas the solver answers in `auto` post no juncture. |
 | `threat` | urgent (PK/red, aggressor) / attention (monster) | runner | Hostile nearby or attacking. `{serial, name, notoriety, dist, hits}` |
 | `theft_suspected` | attention | runner | Backpack count dropped without our action, or a snoop message. `{graphic, before, after}` |
 | `death` | urgent | runner | Hits 0 / ghost body. `{pos, facet}` |
@@ -315,8 +316,9 @@ Paste this (or point the session at this section) to start an overseer.
 >        line, and get the human.
 >      - Reply after a human-like pause (a few seconds), not instantly; never more than one line
 >        per thing they said.
->    - `captcha`: the auto-solver couldn't read it — stop the task and let the solve path
->      handle it rather than improvising a reply. `server_restriction`: **call the
+>    - `captcha`: the human solves it in the client; the runner waits, resumes and acks it by
+>      itself. Don't reply to it and don't stop the task. If it's still open after a few
+>      minutes, `ctl say "@user captcha is up"`. `server_restriction`: **call the
 >      human immediately**, stop the task.
 >    - user chat: answer with `ctl say`; do what they ask within these rules.
 >    Before deciding, `ctl know search <the situation>` (or `know brief`). What you already
@@ -341,7 +343,7 @@ Paste this (or point the session at this section) to start an overseer.
 >    again.
 >
 > **Safety.** One task at a time; never `act` while a task runs (ctl refuses anyway).  Gump replies only through
-> `act gump`, whose guards you must not try to work around: the captcha is refused (the runner's solver owns it),
+> `act gump`, whose guards you must not try to work around: the captcha is refused (the human or the runner's solver answers it),
 > never reply to button-less gumps, and a renounce-Young prompt may only be closed. **Never
 > attack players, their pets or NPCs (except trainers)**. Hostile monsters you may fight and loot
 > (`act attack`, `act loot`): one weak monster at a time, watch your hits, and back off below

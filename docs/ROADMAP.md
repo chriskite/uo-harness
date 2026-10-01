@@ -32,9 +32,9 @@ Ground rules that shape everything below:
   even a grey thief is avoided, never attacked. That answers the "grab a sword" idea in item 3.
   **Hostile monsters may be fought and looted** (user, 2026-09-30); that is item 6's "fight weak
   aggressors" answered yes.
-- **Captcha auto-solve is the intended path** (ANTICHEAT §8.8): the digits are machine-readable
-  from the gump layout, so no human is needed. The wake-the-user alert is interim until
-  auto-solve lands.
+- **Captcha: human-solved by default, auto-solve by toggle** (user decision 2026-10-01;
+  ANTICHEAT §8.8). The runner pauses and beeps for the human unless the viz header's
+  `captcha [human|auto]` toggle says `auto`; then `harness/captcha.py` answers from the layout.
 - **Human pacing and human-length sessions.** No 24/7 operation — play patterns are a
   detection surface (AGENTS.md).
 - **Only act on what a player could see.** Targets must be on your level (ANTICHEAT §8.15).
@@ -43,7 +43,7 @@ Ground rules that shape everything below:
 
 | # | Item | Built tonight (offline, tested) | Next | Blocked on the user |
 |---|---|---|---|---|
-| 1 | AI overseer | Juncture/chat bus in the memory store (schema v2). `harness/ctl.py`: `status`, `run lumber\|bank`, `stop`, `wait`, `ack`, `say`/`think`, and a whitelisted `act`. `task_wrap.py` posts `task_done`/`task_failed`. `loop_lumber` posts `captcha` (urgent, auto-acked on solve — interim until captcha auto-solve lands), `threat`, `theft_suspected` and `death`. The viz Overseer tab has chat, thoughts, actions, open junctures and a heartbeat | Run a first supervised session: an omp session in overseer mode (`docs/OVERSEER.md` §6) runs the lumber task and handles junctures. Later: a standalone API overseer daemon on the same bus | Try `ctl` with me watching. Decide on the API-daemon later (it needs an API key) |
+| 1 | AI overseer | Juncture/chat bus in the memory store (schema v2). `harness/ctl.py`: `status`, `run lumber\|bank`, `stop`, `wait`, `ack`, `say`/`think`, and a whitelisted `act`. `task_wrap.py` posts `task_done`/`task_failed`. `loop_lumber` posts `captcha` (urgent, auto-acked on solve; the human solves it unless the viz toggle says auto), `threat`, `theft_suspected` and `death`. The viz Overseer tab has chat, thoughts, actions, open junctures and a heartbeat | Run a first supervised session: an omp session in overseer mode (`docs/OVERSEER.md` §6) runs the lumber task and handles junctures. Later: a standalone API overseer daemon on the same bus | Try `ctl` with me watching. Decide on the API-daemon later (it needs an API key) |
 | 2 | Escape from PKs | `harness/threats.py`: classifies every mobile (red/grey/orange/blue/npc/monster, player vs NPC with sources), ETA and flee radius. The loop logs `pk_seen` and on flee-level threats stops, with an urgent juncture | The escape action itself: recall from a runebook, humanised. The flee radius per THREATS §3/§7: recall-on-sight is **not** safe against a **mounted** PK (flee radius 38–49 tiles > 18 view range) unless moving while casting is allowed (D4) | Runebook demo (D6/D7). Template choice: Magery/Tracking/Resist, mount. Home town |
 | 3 | Thieves | `harness/ledger.py`: pack accounting with expected changes. Unexplained losses become a `theft_suspected` juncture plus a `theft` job event, and **the loop carries on** (no confusion). Wood-aware | Behaviours from THREATS §7 T3/T4: keep non-friendly players ≥ 2 tiles away (steal range 1), cap carried boards (400 = two GM steals), never carry deeds, make the recall source unstealable, and after a theft notice recall and avoid the spot for 20 min | Consent/sanction for a staged thief capture (THREATS D9), optional |
 | 4 | Rune library | none (needs the runebook/Mark flows) | Data model: runes (book, slot, name, facet/x/y, spot stats) linked to `harvest_nodes` by region. The overseer picks spots by observed yield and hazard | Who marks runes: 60 Magery or a helper (TRAVEL_DEATH Q4). Mark demo (D9) |

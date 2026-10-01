@@ -18,8 +18,10 @@
   logs/hr, deaths by cause, thefts, value from woods, since filter, determinism
 - /api/jobs, /api/overseer (cursors, newest-200 window, open junctures,
   heartbeat), POST /api/chat (stored as a user row; empty / whitespace / too
-  long / non-string -> 400); a missing memory store is not created by GETs;
-  live mode serves the same routes with the proxy down
+  long / non-string -> 400); GET/POST /api/captcha (default human, written
+  where the runner's Memory reads it, bad modes -> 400); a missing memory
+  store is not created by GETs; live mode serves the same routes with the
+  proxy down
 """
 import collections
 import json
@@ -342,11 +344,28 @@ def test_overseer_routes(logdir):
               and jb["totals"]["trips"] == 0, str(jb["totals"]["trips"]))
         check("no store: /api/overseer empty, heartbeat null", ov["store"] is False and ov["chat"] == []
               and ov["open"] == 0 and ov["heartbeat"] is None)
+        cm = get(base + "/api/captcha")
+        check("no store: captcha mode defaults to human", cm == {"mode": "human", "store": False}, str(cm))
         check("GETs did not create the store", not os.path.exists(missing))
         code, resp = post(base + "/api/chat", {"text": "hello?"})
         ov = get(base + "/api/overseer")
         check("first chat creates the store and is served back", code == 200 and os.path.exists(missing)
               and [c["text"] for c in ov["chat"]] == ["hello?"], f"{code} {resp}")
+        cm = get(base + "/api/captcha")
+        check("store without a captcha_mode row: human", cm == {"mode": "human", "store": True}, str(cm))
+        for name, body in [("unknown", {"mode": "robot"}), ("missing", {}), ("not a string", {"mode": ["auto"]})]:
+            code, resp = post(base + "/api/captcha", body)
+            check(f"POST /api/captcha {name}: 400", code == 400 and resp["ok"] is False, f"{code} {resp}")
+        code, resp = post(base + "/api/captcha", {"mode": "auto"})
+        runner = memory.Memory(missing)
+        seen = runner.captcha_mode()
+        check("POST /api/captcha auto: 200; the runner's Memory and GET both read auto",
+              code == 200 and resp == {"ok": True, "mode": "auto"} and seen == "auto"
+              and get(base + "/api/captcha")["mode"] == "auto", f"{code} {resp} {seen}")
+        code, resp = post(base + "/api/captcha", {"mode": "human"})
+        seen = runner.captcha_mode()
+        runner.close()
+        check("POST /api/captcha human: back to human", code == 200 and seen == "human", f"{code} {resp} {seen}")
     finally:
         srv.shutdown()
         srv.server_close()

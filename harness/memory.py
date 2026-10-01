@@ -21,6 +21,8 @@ Tables
                     suspicion); acked once the overseer has handled them
   chat              the viz chat and the overseer's visible thinking:
                     role user|overseer|system, kind message|thought|action|memory
+  meta              key/value: schema_version, overseer_heartbeat, captcha_mode
+                    (human|auto, default human; set from the viz header)
   job_events        job analytics facts other than trips: death, theft
                     (suspected loss), pk_seen, flee, mob_attack, resurrect, ...
   teleporters       invisible server teleporter tiles learned by walking onto
@@ -319,6 +321,22 @@ class Memory:
             d["data"] = json.loads(d["data"])
             out.append(d)
         return out
+
+    # -- settings (meta) --------------------------------------------------------------
+    CAPTCHA_MODES = ("human", "auto")
+
+    def captcha_mode(self) -> str:
+        """Who answers the harvest captcha: "human" (default; the runner pauses
+        and beeps until it's solved in the client) or "auto" (harness/captcha.py
+        reads the layout and the runner answers). Toggled from the viz header."""
+        row = self.con.execute("SELECT value FROM meta WHERE key = 'captcha_mode'").fetchone()
+        return row[0] if row and row[0] in self.CAPTCHA_MODES else "human"
+
+    def set_captcha_mode(self, mode: str):
+        if mode not in self.CAPTCHA_MODES:
+            raise ValueError(f"captcha mode must be one of {self.CAPTCHA_MODES}")
+        self.con.execute("INSERT OR REPLACE INTO meta VALUES('captcha_mode', ?)", (mode,))
+        self.con.commit()
 
     # -- job analytics ------------------------------------------------------------
     def job_event(self, job: str, kind: str, data: dict | None = None, facet=None, x=None, y=None,

@@ -43,7 +43,7 @@ flowchart LR
 
 ## Safety doctrine (summary — full version in ANTICHEAT.md §8)
 
-1. Never touch the client process or files. 2. The proxy never originates server-visible packets; `Send_TimeSyncPingReq`/keepalives pass through unaltered; agent packets are stock-shaped. 3. Human pacing with jitter, human-length sessions. 4. Honor Razor-gating signals (halt when server restricts assistants). 5. No DeviceId/TPM/2FA spoofing; log in via official launcher. 6. No writes to the install dir. 7. CAPTCHAs are auto-solved from the gump layout (`harness/captcha.py`), margin-gated with a pause + alert fallback.
+1. Never touch the client process or files. 2. The proxy never originates server-visible packets; `Send_TimeSyncPingReq`/keepalives pass through unaltered; agent packets are stock-shaped. 3. Human pacing with jitter, human-length sessions. 4. Honor Razor-gating signals (halt when server restricts assistants). 5. No DeviceId/TPM/2FA spoofing; log in via official launcher. 6. No writes to the install dir. 7. CAPTCHAs are human-solved by default (the runner pauses and beeps); the viz header's `captcha [human|auto]` toggle switches to auto-solve from the gump layout (`harness/captcha.py`, margin-gated, falling back to the human).
 
 ## Repo layout
 

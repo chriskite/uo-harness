@@ -88,16 +88,17 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 - Harness memory: `python harness/memory.py stats`; backfill captures the store hasn't seen with
   `python harness/memory.py ingest`; 2D plan on stored walk evidence:
   `python harness/nav.py plan x1,y1 x2,y2 [--facet F]`.
-- Lumber loop: `python harness/loop_lumber.py --trips 1`. On a captcha it currently pauses
-  and beeps (interim behavior; captcha auto-solve is the intended path — the digits are
-  machine-readable from the gump layout). Harvest outcomes and episodes go to the memory store.
+- Lumber loop: `python harness/loop_lumber.py --trips 1`. On a captcha it pauses and beeps
+  for you to solve it in the client (captcha mode `human`, the default); the viz header's
+  `captcha [human|auto]` toggle switches to auto-solve from the gump layout. Harvest outcomes
+  and episodes go to the memory store.
 - Demonstration timeline (offline, read-only): `python harness/loop_mine.py timeline <TAG>
   [--labels]`. Replays `logs/session_<TAG>.*` and prints actions, gumps, menus, cliloc
   messages rendered from Cliloc.enu, and container amount changes.
 - Visualizer: build once `cd viz && bun install && bun run build`; then
   `python harness/viz_server.py --live` (or `--replay <TAG> [--rate 8]`) → http://127.0.0.1:8080/.
   Terrain underlay comes from the install dir's `facet00.mul` (read-only; `--no-facet` to skip).
-  The viz only observes, except for the agent-gate buttons.
+  The viz only observes, except for the agent-gate buttons, the captcha mode toggle and chat.
 - Tests: `python test_proxy.py`, `python test_movement.py`, `python test_errand.py`,
   `python harness/test_world.py`, `python harness/test_world_replay.py`,
   `python harness/test_actions.py`, `python harness/test_nav.py`, `python harness/test_viz.py`,

@@ -12,12 +12,14 @@ reachability, every attempt, and one episode row per trip. Walk memory is
 recorded by the proxy.
 
 Captcha (ANTICHEAT.md §8.8/§8.13). The real captcha is the
-gump with lumber.json's id plus a text entry and the submit button. The runner
-auto-solves it: captcha.solve reads the digits from the gump layout
-(harness/captcha.py, ANTICHEAT.md §8.8) and answers with the stock 0xB1. If the
-layout is unreadable or answers get rejected, it falls back to pausing and
-beeping until a solve is observed in the client. The runner never replies to a
-gump without a reply button (the decoys).
+gump with lumber.json's id plus a text entry and the submit button. Who
+answers it is the memory store's captcha mode, toggled in the viz header
+(user decision 2026-10-01). "human", the default: the runner pauses and beeps
+until a solve is observed in the client. "auto": captcha.solve reads the
+digits from the gump layout (harness/captcha.py) and the runner answers with
+the stock 0xB1; an unreadable layout or rejected answers fall back to the
+human wait. The runner never replies to a gump without a reply button (the
+decoys).
 
 The only other gump the runner answers is the rental-room menu, and only with
 Enter/Exit: an innkeeper menu without the rented-room buttons (Test Shard
@@ -68,7 +70,7 @@ def h(v) -> int:
 
 
 def alert(sound: bool = True):
-    """Captcha alert sound (alerts.handoff); interim handoff pending auto-solve."""
+    """Captcha alert sound (alerts.handoff): the human is to solve it."""
     alerts.handoff(sound)
 
 
@@ -308,24 +310,97 @@ class LumberLoop:
 
     # ------------------------------------------------------------ captcha
     def captcha_handoff(self, idx):
-        """Auto-solve: captcha.solve reads the digits from the gump layout
-        (harness/captcha.py, ANTICHEAT.md §8.8) and the runner answers with the
-        stock 0xB1 after a human-plausible delay. A wrong answer costs a strike
-        (the server re-opens a fresh captcha); unreadable layouts and repeated
-        strikes fall back to pause + beep until a solve is observed."""
+        """Who answers is the memory store's captcha mode (Memory.captcha_mode,
+        toggled in the viz header), read when the captcha opens and on every
+        poll while waiting.
+
+        human (the default): pause + beep until a solve is observed in the client.
+        auto: captcha_auto answers from the layout. Unreadable layouts and
+        repeated strikes fall back to the human wait; switching to auto during
+        the wait hands the newest captcha to the solver."""
         cap = self.k["captcha"]
         self.stats["captchas"] = self.stats.get("captchas", 0) + 1
         t0 = time.monotonic()
         resume = self._intent
-        strikes = 0
+        auto_failed = False
+        if self.memory.captcha_mode() == "auto":
+            if self.captcha_auto(idx):
+                self.captcha_done(t0, resume, "auto")
+                return
+            auto_failed = True
+        why = "auto-solve did not answer it" if auto_failed else "captcha mode: human"
+        log(f"CAPTCHA up: agent paused, waiting for the solve in the client ({why})")
+        paused = "Captcha up — paused until it is solved"
+        self.doing("captcha", paused)
+        jid = self.memory.juncture("lumber", "captcha", f"Captcha up; agent paused until solved ({why})",
+                                   "urgent", {"trip": self.trip_n, "mode": "auto" if auto_failed else "human"})
+        alert(not self.args.quiet)
+        next_beep = t0 + self.args.captcha_beep_s
+        while True:
+            self.link.state()
+            if self.heard(idx, text=cap["ok_text"]):
+                self.memory.juncture_ack(jid)          # solved; nothing left for the overseer
+                self.captcha_done(t0, resume, "human")
+                return
+            if not auto_failed and self.memory.captcha_mode() == "auto":
+                log("captcha mode switched to auto while waiting")
+                if self.captcha_auto(self.last_real_captcha(idx)):
+                    self.memory.juncture_ack(jid)
+                    self.captcha_done(t0, resume, "auto")
+                    return
+                auto_failed = True
+                self.doing("captcha", paused)
+            now = time.monotonic()
+            if now - t0 > self.args.captcha_timeout:
+                raise Abort(f"captcha not solved within {self.args.captcha_timeout:.0f} s")
+            if now >= next_beep:
+                alert(not self.args.quiet)
+                next_beep = now + self.args.captcha_beep_s
+            time.sleep(0.5)
+
+    def captcha_done(self, t0, resume, how):
+        waited = time.monotonic() - t0
+        self.stats["captcha_wait_s"] = self.stats.get("captcha_wait_s", 0.0) + waited
+        log(f"captcha solved in {waited:.0f} s ({how}); resuming")
+        self.human.wait("read")
+        if resume is not None:
+            self.doing(*resume)
+
+    def last_real_captcha(self, idx):
+        """The newest real captcha at or after idx (a wrong answer re-opens one)."""
+        while (nxt := self.real_captcha(idx + 1)) is not None:
+            idx = nxt
+        return idx
+
+    def answered(self, idx):
+        """A solve heard or a 0xB1 for the captcha at idx since it opened (the
+        human may answer while the solver waits; never answer a gump twice)."""
         ev = self.link.events[idx]
+        return self.heard(idx, text=self.k["captcha"]["ok_text"]) is not None or any(
+            e.get("ev") == "gump_response" and e.get("serial") == ev.get("serial")
+            and e.get("gump_id") == ev.get("gump_id") for e in self.since(idx + 1))
+
+    def captcha_auto(self, idx) -> bool:
+        """captcha.solve reads the digits from the gump layout (harness/captcha.py,
+        ANTICHEAT.md §8.8) and the runner answers with the stock 0xB1 after a
+        human-plausible delay. A wrong answer costs a strike (the server re-opens
+        a fresh captcha). True once solved; False when the layout is unreadable,
+        the strikes run out or the client answered first (the caller waits for
+        the solve)."""
+        cap = self.k["captcha"]
+        strikes = 0
         while strikes <= self.args.captcha_max_strikes:
+            ev = self.link.events[idx]
             digits = captcha.solve(ev.get("layout", ""))
             submit = captcha.submit_button(ev.get("layout", ""), cap["guide_button"])
             if digits is None or submit is None:
-                break                          # unreadable: fallback below
+                return False
             self.doing("captcha", "Solving the captcha")
             self.human.wait("captcha")
+            self.link.state()
+            if self.answered(idx):
+                log("captcha answered in the client meanwhile; not sending")
+                return False
             mark = len(self.link.events)
             self.link.act(actions.gump_reply(ev["serial"], h(cap["gump_id"]), submit,
                                              ev.get("layout", ""), ev.get("lines") or [],
@@ -335,47 +410,17 @@ class LumberLoop:
             while time.monotonic() < end:
                 self.link.state()
                 if self.heard(mark, text=cap["ok_text"]):
-                    waited = time.monotonic() - t0
-                    self.stats["captcha_wait_s"] = self.stats.get("captcha_wait_s", 0.0) + waited
-                    log(f"captcha solved in {waited:.0f} s (auto); resuming")
-                    self.human.wait("read")
-                    if resume is not None:
-                        self.doing(*resume)
-                    return
+                    return True
                 nxt = self.real_captcha(mark)
                 if nxt is not None:            # rejected: a fresh captcha opened
                     strikes += 1
                     log(f"captcha answer rejected (strike {strikes})")
-                    ev = self.link.events[nxt]
+                    idx = nxt
                     break
                 time.sleep(0.3)
             else:
                 raise Abort("captcha answer got no server reply within 12 s")
-        # fallback: pause + beep until a solve is observed in the client
-        log("CAPTCHA up: agent paused, waiting for the solve (auto-solve could not read it)")
-        self.doing("captcha", "Captcha up — paused until it is solved")
-        jid = self.memory.juncture("lumber", "captcha", "Captcha up; agent paused until solved (auto-solve could not read it)",
-                                   "urgent", {"trip": self.trip_n})
-        alert(not self.args.quiet)
-        next_beep = t0 + self.args.captcha_beep_s
-        while True:
-            self.link.state()
-            if self.heard(idx, text=cap["ok_text"]):
-                waited = time.monotonic() - t0
-                self.stats["captcha_wait_s"] = self.stats.get("captcha_wait_s", 0.0) + waited
-                log(f"captcha solved after {waited:.0f} s; resuming")
-                self.memory.juncture_ack(jid)          # solved; nothing left for the overseer
-                self.human.wait("read")
-                if resume is not None:
-                    self.doing(*resume)
-                return
-            now = time.monotonic()
-            if now - t0 > self.args.captcha_timeout:
-                raise Abort(f"captcha not solved within {self.args.captcha_timeout:.0f} s")
-            if now >= next_beep:
-                alert(not self.args.quiet)
-                next_beep = now + self.args.captcha_beep_s
-            time.sleep(0.5)
+        return False
 
     # ------------------------------------------------------------ using the hatchet
     def use_hatchet(self):

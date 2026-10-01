@@ -58,6 +58,38 @@ export async function postChat(text: string): Promise<number> {
   return body.id;
 }
 
+export type CaptchaMode = "human" | "auto";
+
+/** `body.mode` when it is a captcha mode, else null. */
+function captchaModeOf(body: unknown): CaptchaMode | null {
+  if (!body || typeof body !== "object" || !("mode" in body)) return null;
+  return body.mode === "human" || body.mode === "auto" ? body.mode : null;
+}
+
+/** Who answers the harvest captcha (memory store meta; "human" when unset). */
+export async function fetchCaptchaMode(): Promise<CaptchaMode> {
+  const r = await fetch("/api/captcha", { cache: "no-store" });
+  if (!r.ok) throw new Error(`/api/captcha: HTTP ${r.status} ${await r.text()}`);
+  const mode = captchaModeOf(await r.json());
+  if (!mode) throw new Error("/api/captcha: no mode in the response");
+  return mode;
+}
+
+export async function postCaptchaMode(mode: CaptchaMode): Promise<CaptchaMode> {
+  const r = await fetch("/api/captcha", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode }),
+  });
+  const body: unknown = await r.json().catch(() => null);
+  const got = r.ok ? captchaModeOf(body) : null;
+  if (!got) {
+    const err = body && typeof body === "object" && "error" in body ? String(body.error) : `HTTP ${r.status}`;
+    throw new Error(`captcha mode: ${err}`);
+  }
+  return got;
+}
+
 /** Pause/resume/kill the agent gate (live only). Resolves to the proxy's new gate;
  * throws with the proxy's (or viz_server's) error text otherwise. */
 export async function postGate(action: GateAction): Promise<Gate | undefined> {

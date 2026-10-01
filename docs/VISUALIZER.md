@@ -146,6 +146,7 @@ channels.
 | `GET /api/jobs?job=lumber[&since=T][&tz=M]` | job analytics from the memory store (`harness/jobs.py`, §2.4), cached 2 s |
 | `GET /api/overseer?after_chat=N&after_juncture=M` | overseer chat rows and junctures above the cursors, open junctures, heartbeat (§2.4) |
 | `POST /api/chat` | `{"text": T}` → a `user` chat row for the overseer (§2.4) |
+| `GET /api/captcha`, `POST /api/captcha` | who answers the harvest captcha, `{"mode": "human"\|"auto"}` (§2.2a) |
 | `GET /`, `/assets/*` | built frontend (`viz/dist/`) |
 
 SSE rather than WebSocket: the flow is strictly server→browser, the browser `EventSource` gives
@@ -189,6 +190,28 @@ proxy down or a pre-gate proxy):
 
 After a press, the reply's gate is shown at once (`VizStore.setGate`); a state frame polled before
 the press (older gate `now`) does not undo it.
+
+### 2.2a Captcha mode toggle (added 2026-10-01, user request)
+
+Who answers the harvest captcha. The mode lives in the memory store (`meta.captcha_mode`,
+`Memory.captcha_mode()` / `set_captcha_mode()`); a missing row means **`human`, the default**.
+- `human`: the runner pauses, posts an urgent `captcha` juncture and beeps until a solve is
+  observed in the client.
+- `auto`: the runner answers from the gump layout (`harness/captcha.py`); an unreadable layout,
+  rejected answers or the client answering first fall back to the human wait.
+
+The runner reads the mode when a captcha opens and on every poll while it waits, so switching to
+`auto` mid-wait hands the newest captcha to the solver. Before sending, the solver re-checks that
+the client hasn't answered that captcha already.
+
+**Routes:** `GET /api/captcha` → `{"mode", "store"}` (`human` with `store: false` when the store
+doesn't exist; the GET never creates it). `POST /api/captcha {"mode": "human"|"auto"}` →
+`{"ok": true, "mode"}`; any other mode is **400**. The POST creates the store if needed.
+
+**UI:** `captcha [human|auto]` in the header, both live and replay (it's a store setting, not a
+feed one). It polls `GET /api/captcha` every 5 s, so a change from another tab or the CLI shows.
+Verified 2026-10-01 in a browser: default `human`; a click on `auto` posted, survived a reload,
+and clicking `human` switched it back, with no page errors.
 
 ### 2.3 Agent intent (added 2026-09-29, user request)
 
@@ -272,7 +295,7 @@ not per poll). **GETs never create the store**; the first `POST /api/chat` does.
   - `store: false` when the store file does not exist (all empty).
 - `POST /api/chat {"text": T}` → `Memory.chat_post("user", T.strip())` → `{"ok": true, "id": N}`.
   Text must be a string of 1..2000 characters after trimming; anything else is **400**, and bodies
-  over 64 KiB are **413**. This is the viz's only write to the store.
+  over 64 KiB are **413**. Besides this, the viz writes only the captcha mode (§2.2a).
 - `GET /api/jobs?job=lumber[&since=T][&tz=M]` → `harness/jobs.py` `analytics()` plus `store`.
   `tz` is minutes east of UTC for the per-day split (the browser sends its own; default the server's
   local offset). Cached 2 s per (job, since, tz).
@@ -440,6 +463,7 @@ fixtures ("replay X, state at event N").
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ header: Live|Jobs • LIVE | REPLAY <tag> (exact|approx order) • conn • ⏯ ⏩  │
 │         rate • gate: state+reason • ⏸/▶ • ■ kill • next break / break end  │
+│         • captcha [human|auto]                                             │
 ├──────────────┬──────────────────────────────────────────┬──────────────────┤
 │ SelfPanel    │                                          │ IntentPanel      │
 │──────────────│                                          │ (Agent)          │
@@ -548,6 +572,7 @@ serial link) opens the drawer on the Inspector tab.
 | `viz/src/types.ts` | TS types for §1 (StateResponse, Movement, Snapshot, Mobile, Item, Gump, EventEnvelope, WalkMemory) |
 | `viz/src/api.ts`, `store.ts`, `serial.ts` | SSE client + resume; `useSyncExternalStore` store; int↔hex serial normalization and entity lookup |
 | `viz/src/gate.ts`, `components/GateControls.tsx` | agent gate badge vocabulary and button rules; the header gate controls (§2.2) |
+| `components/CaptchaToggle.tsx` | the header captcha mode toggle (§2.2a) |
 | `viz/src/intent.ts`, `components/IntentPanel.tsx` | agent intent view (tone, trip context, age against the live or replay clock) and the Agent panel (§2.3) |
 | `harness/jobs.py` | job analytics over the memory store (§2.4) |
 | `viz/src/overseer.ts`, `components/OverseerPanel.tsx` | overseer timeline model (cursor merge, heartbeat status, chat validation) and the Overseer panel (§2.4) |
@@ -614,8 +639,9 @@ serial link) opens the drawer on the Inspector tab.
   without woods, `since`, determinism, empty data); `/api/jobs` equals `jobs.analytics`;
   `/api/overseer` cursors, the newest-200 window, open ids after an ack, and heartbeat;
   `POST /api/chat` stores a trimmed `user` row and rejects empty, whitespace, missing,
-  non-string and 2001-character text with 400; a missing store answers empty without being
-  created; live mode serves the same routes while the proxy is down.
+  non-string and 2001-character text with 400; `/api/captcha` defaults to `human`, writes where
+  the runner's `Memory` reads it, and rejects other modes with 400; a missing store answers empty
+  without being created; live mode serves the same routes while the proxy is down.
 
 ---
 
