@@ -532,13 +532,13 @@ async def main():
 
         check("runner exited 0", runner.returncode == 0, str(runner.returncode))
         check("two trips completed", "loop complete: 2 trip(s)" in text)
-        check("one real captcha, answered once, by the client (human) only",
+        check("one real captcha, answered once, by the client only",
               world.captcha_shown == 1 and world.captcha_answers == 1 and len(b1_client) == 1)
-        check("the runner recognised the real captcha (submit id not the demo's) and handed it off",
-              text.count("CAPTCHA: please solve it in the client") == 1
+        check("the runner recognised the real captcha (submit id not the demo's) and paused",
+              text.count("CAPTCHA up: agent paused, waiting for the solve") == 1
               and sum(r.get("captchas", 0) for r in rows) == 1, str([r.get("captchas") for r in rows]))
         caps = [j for j in store.junctures() if j["kind"] == "captcha"]
-        check("captcha juncture posted for the overseer (urgent) and acked once the human solved it",
+        check("captcha juncture posted for the overseer (urgent) and acked once solved",
               len(caps) == 1 and caps[0]["severity"] == "urgent" and caps[0]["acked_t"] is not None, str(caps))
         alarms = [j for j in store.junctures() if j["kind"] in ("threat", "death")]
         thefts = [j for j in store.junctures() if j["kind"] == "theft_suspected"]

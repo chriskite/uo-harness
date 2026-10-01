@@ -3,10 +3,10 @@ import { fmtDuration } from "./format.ts";
 import type { AgentIntent, EventEnvelope, Snapshot, StateResponse, Tile } from "./types.ts";
 
 export type IntentTone = "ok" | "warn" | "bad" | "info" | "dim";
-/** spin: working on it; wait: blocked on the human or a timer; idle: finished or stopped. */
+/** spin: working on it; wait: blocked on a captcha solve or a timer; idle: finished or stopped. */
 export type IntentActivity = "spin" | "wait" | "idle";
 
-/** Badge tone per phase kind: waiting on the human stands out, fights and stops are red. */
+/** Badge tone per phase kind: a captcha wait stands out, fights and stops are red. */
 const TONE: Record<string, IntentTone> = {
   captcha: "warn",
   speech: "warn",

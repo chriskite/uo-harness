@@ -32,8 +32,9 @@ Usage: ./ctl.cmd [--db P] [--state-port N] [--control-port N] <cmd> ...
 Every call prints exactly one JSON object on stdout; exit 0 iff "ok" is true.
 Global options go before the command.
 
-Safety: `act gump` refuses the captcha (it is always a human's, ANTICHEAT.md
-§8.8), refuses gumps without reply buttons (§8.13 decoys flag any bot reply),
+Safety: `act gump` refuses the captcha pending auto-solve (interim; the digits
+are machine-readable from the gump layout, ANTICHEAT.md §8.8/§8.13),
+refuses gumps without reply buttons (§8.13 decoys flag any bot reply),
 refuses buttons the layout doesn't offer, and on a gump that mentions
 renouncing Young status allows only closing it (button 0). No raw packets;
 speech is allowlisted; nothing is sent while a task runs (one character, no
@@ -116,7 +117,8 @@ ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
 PACK_ITEMS_MAX = 60                  # status.backpack.items
 CONTAINER_ITEMS_MAX = 60             # status.containers[].items
 # Combat (user decision 2026-09-30): hostile monsters may be fought and looted; players never
-# (Test Shard CoC, ANTICHEAT.md §8.17). Notoriety 3-6 is attackable without a criminal flag;
+# (Heat of Battle blocks recall/inn rooms, attacking innocents flags criminal, staff attention;
+# ANTICHEAT.md §8.17). Notoriety 3-6 is attackable without a criminal flag;
 # 1 (innocent: players' pets) and 2 (ally) are criminal to attack, 7 is invulnerable.
 ATTACKABLE_NOTORIETY = frozenset([3, 4, 5, 6])
 ATTACK_MIN_HP = 0.3                  # refuse to start a fight below this share of max hits
@@ -145,7 +147,7 @@ BUY_CLILOC = 3006103                 # context menu "Buy"
 VENDOR_RANGE = 12                    # 13 tiles got "too far away" live (docs/LUMBER_LOOP.md §13)
 SORTED_BUY_CONTAINER = 0x2AF8        # ClassicUO BuyList: this container sorts by x; others map reversed
 POLICY_PATH = os.path.join(HERE, "data", "policy.json")
-CAPTCHA_GUMP_ID = 0x00000001          # lumber.json captcha.gump_id; human-only
+CAPTCHA_GUMP_ID = 0x00000001          # lumber.json captcha.gump_id; refused pending auto-solve
 GUMP_TEXT_MAX = 239                  # chars per gump text entry (the client's text box limit)
 RENOUNCE_WORDS = ("renounce",)        # Young renounce prompt (clilocs 502085/3006307): close only
 GOTO_MAX_MOVES = 400
@@ -1827,7 +1829,7 @@ def _tile_layer(graphic):
 def gump_reply(state: dict, serial_arg: str, button_arg: str, texts=()) -> bytes:
     """A 0xB1 reply the overseer may send, or CtlError. Like the stock client it
     carries every text entry (current text, or the overseer's --text ID=VALUE)
-    and the switches that start checked. Refuses: the captcha (human-only),
+    and the switches that start checked. Refuses: the captcha (pending auto-solve),
     gumps without reply buttons (decoys: any reply flags a bot), buttons the
     layout doesn't offer, closing (0) a noclose gump, anything but closing on a
     gump that mentions renouncing Young status, and text for an entry the gump
@@ -1844,7 +1846,7 @@ def gump_reply(state: dict, serial_arg: str, button_arg: str, texts=()) -> bytes
     g = gumps[-1]
     view = gump_view(g)
     if _serial(g.get("gump_id")) == CAPTCHA_GUMP_ID:
-        raise CtlError("that is the captcha: only the human answers it (ANTICHEAT.md §8.8)")
+        raise CtlError("that is the captcha: refused pending auto-solve (ANTICHEAT.md §8.8)")
     if not view["buttons"]:
         raise CtlError("gump has no reply buttons (decoy/honeypot shape, ANTICHEAT.md §8.13): never reply")
     if any(w in t.lower() for t in view["texts"] for w in RENOUNCE_WORDS) and button != 0:

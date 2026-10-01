@@ -163,7 +163,7 @@ so weight never blocks recall for a lumberjack. Item count can, if the pack is f
 | Rental rooms | can't recall, gate or hike **into** one; you can leave that way | H | [Rental Room System][w-rrs] |
 | "IP-Restricted Regions (such Undermountain, Urukton Bluffs)" | pack animals left behind; other rules not listed | H | [Patch Jun 7 2022][o-jun22] |
 | Sanctuary dungeons | murderers can't enter; no mining; no revealing | H | [Sanctuary Dungeon][w-sanct] |
-| Test Shard | no Time Dungeon; no attacking players without consent | H | [Test Shard][w-ts] |
+| Test Shard | no Time Dungeon | H | [Test Shard][w-ts] |
 | Ships | "You cannot recall off of a ship." (502352) | L | Cliloc.enu |
 | Towns | lumberjacking is blocked in town regions (Shelter excepted while Young) | H | NOTES.md:75, [Shelter Island][w-si] |
 
@@ -364,9 +364,8 @@ enter the room (we never attack players, so this should only happen by mistake).
    or a public library book.
 5. **Corpse-run policy:** always go back within 15 min, only when no red/grey is in range, or
    never?
-6. **Automation limits on death:** may the agent resurrect and resume by itself, or must it stop
-   and wake you? May it use `[TestRes` / `[TestBlessedGear` / `[Go` on the Test Shard, or only the
-   realistic path?
+6. **Death recovery policy:** may the agent use `[TestRes` / `[TestBlessedGear` / `[Go` on the Test
+   Shard, or only the realistic path (res shrine or wandering healer, corpse run, re-equip)?
 7. **Inn-interior marking:** is marking allowed inside an inn building or next to the innkeeper
    (the "few exceptions" to Mark are undocumented)?
 8. Is the double 60 s lockout per return trip (room exit + recall out) acceptable, or should the

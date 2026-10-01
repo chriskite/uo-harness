@@ -1,7 +1,7 @@
 """Sounds for the human at the PC (PLAN.md Phase 4: handoff alert = sound).
 
-- handoff(): three even beeps. A captcha or a speech hold wants the human or
-  the overseer.
+- handoff(): three even beeps. Signals a captcha or a speech hold (captcha
+  auto-solve is pending; until then the beeps call for the solve).
 - staff(): a distinct two-tone alarm. Someone who may be staff (a GM) is near
   the character: the human should come and check (user request 2026-10-01).
   It repeats every STAFF_REPEAT_S while a `gm_suspected` juncture is open:

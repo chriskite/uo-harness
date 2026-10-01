@@ -1,6 +1,6 @@
 # uo-harness
 
-An AI agent harness that plays **Ultima Online Outlands** — targeting the **Test Shard only**.
+An AI agent harness that plays **Ultima Online Outlands**.
 
 Current status: **Phases 1 and 3 done; Phase 2 (world model) re-validated offline after an S2C decode correction; Phase 4 (agent runtime) under way: the lumberjack loop (harvest → boards → inn rental room storage, no deeds) ran end to end live on the Test Shard on 2026-09-29** ([`docs/LUMBER_LOOP.md`](docs/LUMBER_LOOP.md) §13). Phase 3's acceptance task, an unattended bank run (walk to the banker, open the bank box, walk back), completed live on the Test Shard on 2026-09-29. The proxy runs the world model live (state port), records durable harness memory ([`docs/MEMORY.md`](docs/MEMORY.md)), hides agent walk confirms from the client and re-anchors it client-side, and never sends anything of its own to the server. See [`HANDOFF.md`](HANDOFF.md), [`docs/MOVEMENT.md`](docs/MOVEMENT.md), [`docs/CIPHER.md`](docs/CIPHER.md). Read [`ANTICHEAT.md`](ANTICHEAT.md) first — it defines the safety constraints every design decision follows.
 
@@ -43,7 +43,7 @@ flowchart LR
 
 ## Safety doctrine (summary — full version in ANTICHEAT.md §8)
 
-1. Never touch the client process or files. 2. The proxy never originates server-visible packets; `Send_TimeSyncPingReq`/keepalives pass through unaltered; agent packets are stock-shaped. 3. Test Shard only, human pacing with jitter, human-length sessions. 4. Honor Razor-gating signals (halt when server restricts assistants). 5. No DeviceId/TPM/2FA spoofing; log in via official launcher. 6. No writes to the install dir. 7. Nothing against production. 8. CAPTCHAs: detect → pause → human solves; auto-solve only as proven opt-in.
+1. Never touch the client process or files. 2. The proxy never originates server-visible packets; `Send_TimeSyncPingReq`/keepalives pass through unaltered; agent packets are stock-shaped. 3. Human pacing with jitter, human-length sessions. 4. Honor Razor-gating signals (halt when server restricts assistants). 5. No DeviceId/TPM/2FA spoofing; log in via official launcher. 6. No writes to the install dir. 7. CAPTCHAs: auto-solve is the intended path (digits are machine-readable from the gump layout); current code detects → pause → beep as interim behavior.
 
 ## Repo layout
 

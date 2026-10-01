@@ -262,7 +262,7 @@ def test_overseer_routes(logdir):
     m.chat_post("overseer", "I will watch the lumber loop", t=100.0)
     m.chat_post("overseer", "trip 1 looks slow", kind="thought", t=101.0)
     m.chat_post("overseer", "ctl pause", kind="action", t=102.0)
-    j1 = m.juncture("lumber", "captcha", "Captcha: solve it in the client", "urgent", t=103.0)
+    j1 = m.juncture("lumber", "captcha", "Captcha up; agent paused", "urgent", t=103.0)
     j2 = m.juncture("lumber", "trip_done", "Trip 1 done", "info", t=104.0)
     m.con.execute("INSERT OR REPLACE INTO meta VALUES('overseer_heartbeat', '1790742202.14')")
     m.con.commit()

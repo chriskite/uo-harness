@@ -325,7 +325,7 @@ token consumption, mid-burst token push in session 223537), given token pushes
 at the timestamps the client demonstrably consumed them (the pushes themselves
 are decoder-hidden — §3).
 
-## 7. Live probes (do NOT run unattended; use the test shard)
+## 7. Live probes
 
 - **P1 — surface the token packets.** Fix the S2C decoder desyncs (the
   "implausible length; dropping 1 byte" regions) enough to frame `0xBF`
@@ -376,7 +376,7 @@ All of the following was proven with live injections on the Test Shard:
 3. **Every accepted injected walk triggers a client movement-resync** (C2S `22 0000`) ~50–500 ms later, because the server reports movement the client didn't initiate. The resync re-arms the token requirement (new value 1) and resets the seq counter to 0.
 4. **Sustained autonomous walking** = a series of single `walk(dir, seq=0, key=1)` injections at ~600–700 ms intervals (one per resync cycle). Validated: 6 consecutive injected steps moved the character ~6 tiles with no manual input at all.
 5. **Resync suppression (dropping client `22 0000`) was tested and is WRONG** — it deadlocks the client's own movement recovery after agent activity. Proxy comment documents this; suppression removed.
-6. Anti-cheat note: the resync-per-external-walk behavior means an agent that walks leaves a distinctive resync cadence in the logs — visible to server-side behavioral analysis. Human pacing and mixed manual play remain the mitigation.
+6. Anti-cheat note: the resync-per-external-walk behavior means an agent that walks leaves a distinctive resync cadence in the logs — visible to server-side behavioral analysis. Human-like pacing and interleaved client activity remain the mitigation.
 
 ## Acceptance gate discovered (2026-09-29, continued validation) — refuted
 
@@ -385,10 +385,10 @@ confirmed all 12 agent walks of a solo train in 142237 (▶ Current model; ANTIC
 ≤ ~6-step recipe is not implemented; the lines are kept as the record of what was believed then.
 
 - The fastwalk key field is effectively ignored on continuations (user walks show seq 0,1,2 all with key 1 accepted; key 0 also accepted). Token values 8 (login) and 1 (re-arm) matter only for the FIRST walk of a cycle.
-- **The binding constraint is a behavioral gate on walk trains without interleaved client activity**: short injected bursts following client activity (manual walks or a fresh resync) are accepted; long uninterrupted injected trains (10+ steps) are silently rejected wholesale (no turn, no step, no resync). This is consistent with server-side artificial-input detection (rules §4).
+- **The binding constraint is a behavioral gate on walk trains without interleaved client activity**: short injected bursts following client activity (client walks or a fresh resync) are accepted; long uninterrupted injected trains (10+ steps) are silently rejected wholesale (no turn, no step, no resync). This is consistent with server-side artificial-input detection.
 - Practical recipes:
-  - **Attended bursts**: user activity, then ≤ ~6 injected steps — reliable.
-  - **Closed-loop tasks**: interleave manual/client activity with agent bursts (the out-and-back proved this works).
+  - **Bursts after client activity**: a client walk or fresh resync, then ≤ ~6 injected steps — reliable.
+  - **Closed-loop tasks**: interleave client activity with agent bursts (the out-and-back proved this works).
   - Full-autonomy sustained walking needs the proxy-side seq/key rewrite + activity interleaving strategy (Phase 4 work, flagged as a detection-surface item for ANTICHEAT.md).
 - The client movement-resync (`22 0000`) fires ~50–500 ms after any accepted external walk and is rate-limited (~5 s). It resets the expected seq to 0 and re-arms the token (value 1).
 
@@ -396,7 +396,7 @@ confirmed all 12 agent walks of a solo train in 142237 (▶ Current model; ANTIC
 
 ### What is proven to work
 - Full protocol stack: interception (WinDivert NAT), cipher (single-byte session XOR), framing (authoritative table), world model, and actions — speech, dclick, gumps, spells, item queries all execute via injection.
-- **Movement in attended mode (validated repeatedly):** after the client opens a movement cycle with a manual walk (carrying the cycle token — 8 at login, 1 after resync/idle), injected continuation walks (key 0, correct continuing seq) execute and the client rubber-bands to the true position.
+- **Movement via client-opened cycles (validated repeatedly):** after the client opens a movement cycle with a walk (carrying the cycle token — 8 at login, 1 after resync/idle), injected continuation walks (key 0, correct continuing seq) execute and the client rubber-bands to the true position.
 - **Proxy-side MoveAuthority** (supersedes the seq-only `SeqAuthority` of `1d0ad23`): the proxy owns both the seq and key fields of every walk (client + injected). Seq: one monotonic ladder, sender value always overwritten. Key:
   - Cycle opener (first walk after login / client resync `22 0000`) from the agent, or from the client with key 0 → the armed token (8 login / 1 re-arm) is stamped in, and remembered as `stale_token` — the client holds (or will receive) its own copy of that now-spent token.
   - Cycle opener from the client with its own key → passed (server-issued truth; ≠ armed token logs `c2s_token_mismatch`, which would falsify the constant-token model).

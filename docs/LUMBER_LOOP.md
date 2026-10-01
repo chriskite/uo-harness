@@ -1,7 +1,7 @@
 # LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → deed → store in inn room
 
 Status (2026-09-29): **M0 done; the loop (minus deeds) runs live: 3 trips, 50 boards, captcha
-handed off to the human and resumed (run 3, 22:47, §13).**
+solved and resumed (run 3, 22:47, §13).**
 - M0: the user's demonstration run (`logs/session_20260929_204225`) is mined into
   `harness/data/loops/lumber.json` and pinned by `harness/test_loop_demo.py`; findings are in §12.
 - Current goal (user decision, §12.4): prove the agent can run the loop minus deed creation on
@@ -9,7 +9,7 @@ handed off to the human and resumed (run 3, 22:47, §13).**
 - Runner: `harness/loop_lumber.py`, proven offline by `test_loop_lumber.py` and live (§13).
 
 Builds on Phase 4 (docs/PLAN.md). This loop is the Phase 4 workload: the planner, the skill
-library, the rails and the captcha handoff all get exercised by it.
+library, the rails and the captcha handling all get exercised by it.
 
 ## 1. Goal and hard constraints
 
@@ -19,13 +19,14 @@ The agent should **learn** the loop, **run** it, and **improve** it over session
 - walk back to the inn and enter the rental room
 - store the boards, and turn them into commodity deeds, in a secure container
 
-Test Shard only, character TestWorth. Venue: Shelter Island first, the regular overworld later (§7).
+Character TestWorth. Venue: Shelter Island first, the regular overworld later (§7).
 
 These constraints come from existing docs and aren't optimization targets:
-- **Captcha = attended loop.** Lumberjacking triggers a captcha every 5–10 min, and a solved one buys
-  10–15 min. Per AGENTS.md rule 7 / ANTICHEAT.md §8.3 and §8.8, the loop runs only while the user is
-  present: detect → pause → sound → human solves → resume. Expect ~4–6 handoffs per hour (derived
-  from the wiki cadence). Auto-solve stays out of scope until the §8.8 accuracy bar is met.
+- **Captcha = auto-solve target.** Lumberjacking triggers a captcha every 5–10 min, and a solved one
+  buys 10–15 min. The digits are machine-readable from the gump layout (tilepic dot glyphs at layout
+  coordinates), so auto-solve is the intended path (ANTICHEAT.md §8.8, auto-solve by design; §8.13).
+  The current runner pauses and beeps as interim behavior pending auto-solve. Expect ~4–6 captchas
+  per hour (derived from the wiki cadence).
 - **Pacing is a floor, not a knob.** The optimizer never tightens jitter, proxy walk pacing
   (0.2/0.4 s), break schedule or daily cap (PLAN.md Phase 4).
 - **Speech allowlist.** The loop needs one new trigger word near the innkeeper (`room`). Securing a
@@ -48,7 +49,7 @@ These constraints come from existing docs and aren't optimization targets:
 | **TestWorth is Young (capture evidence, 2026-09-29).** The client received the Young-only login gump "Welcome to Shelter Island" (`0xC16E0192`) in sessions 163420 and 202723 | Shelter Island + `loop_mine.py timeline 20260929_163420` | Venue decision holds |
 | 60 s harvest lockout after recall / moongate / hike / teleport / rope | [Harvesting](https://wiki.uooutlands.com/Harvesting) | Walk, don't recall (Shelter: never recall, §1). Leaving the room teleports you → [INFERENCE] probably triggers the lockout; the demo checks it |
 | **Stationary Harvest Penalty** (patch 2025-01-25): after a recall, or after 5 min standing still, harvesting fails until you walk 5 steps | docs/research/THREATS.md §7 T4 | The Shelter loop moves between trees, but a long visit to one tree can pass 5 min. It needs a "walk 5 steps every < 5 min" rule (not built yet) |
-| Captcha: 5–10 min cadence; 3 fails = 6 h harvest block; closing it cancels the harvest; the same captcha persists across relog | [Captcha](https://wiki.uooutlands.com/Captcha) | Handoff state; the loop never closes or answers a captcha |
+| Captcha: 5–10 min cadence; 3 fails = 6 h harvest block; closing it cancels the harvest; the same captcha persists across relog | [Captcha](https://wiki.uooutlands.com/Captcha) | Interim pending auto-solve (§1): the runner pauses and never closes or answers a captcha |
 | Log/board weight 0.025 st | Harvesting | Weight isn't binding until thousands; the return trigger is risk/overhead (§6) |
 | Double-click logs with a hatchet in the pack → boards (**user-confirmed: deeds need boards**) | Harvesting, Lumberjacking | Conversion is a loop step; can run in the field |
 | Blank commodity deed: 5 gp at a banker; double-click the deed, target the resource | [Commodities](https://wiki.uooutlands.com/Commodities) | Needs gold + the target-cursor flow (S2C `0x6C` → `actions.target_object`) |
@@ -81,7 +82,7 @@ stateDiagram-v2
   Deed --> ExitRoom
   ExitRoom --> Prep
   Harvest --> CaptchaHandoff: captcha gump
-  CaptchaHandoff --> Harvest: human solved
+  CaptchaHandoff --> Harvest: captcha solved
 ```
 
 The trip threshold and the deed quantum are decoupled. Boards bank in the room every trip; a deed is
@@ -129,7 +130,7 @@ runtime data, AGENTS.md Rule 0):
    - time spent in each state
    - boards gained
    - steps, denies and reanchors
-   - captchas, with human solve latency
+   - captchas, with solve latency
    - hostile sightings, deaths, losses
    - failures and their type
    The optimizer and the reflection step read this log and nothing else.
@@ -149,7 +150,7 @@ runtime data, AGENTS.md Rule 0):
 
   It picks skills only (PLAN.md decision). LLM-authored skill code stays deferred.
 - **Rails:**
-  - captcha → pause + sound
+  - captcha → solve (auto-solve pending: pause + sound)
   - visualizer pause/kill
   - breaks and daily cap
   - never renounce Young (§1)
@@ -233,7 +234,7 @@ signature (ANTICHEAT.md §8.3). Variation is required, not an inefficiency to re
    - C2S `0x6C` and `0xB1` corrected to the Outlands layouts
 2. ~~Captcha detection~~ **known from the demo (§12.2):** real captcha = gump id `0x00000001` with
    text entry 2 and submit button 594. Decoy "Captcha" gumps open on every attempt and must never
-   be answered. The runner's handoff trigger keys on the gump id + entry + button, never on text.
+   be answered. The runner's detection trigger keys on the gump id + entry + button, never on text.
 3. ~~Pause/kill/break proxy flag + budget file~~ **built** (commit 2ffb29a: the proxy-enforced agent
    gate, `harness/agent_gate.py`). The routine runner has to honor gate refusals as a typed
    `paused` failure and resume cleanly.
@@ -255,7 +256,7 @@ signature (ANTICHEAT.md §8.3). Variation is required, not an inefficiency to re
 | M3 | Routine runner, full loop (no deeds) | Offline ✅ (2 trips); live ✅ run 3: 3 trips, 50 boards, live captcha handoff (§13) |
 | M4 | Harvest memory, episode log, report | Report reproduces from the logs; `r`, `T` and regrowth estimates exist |
 | M5 | Bandit + return trigger + reflection | Boards/active-hour improves over a baseline session on the same venue without violating §1 |
-| M6 | LLM planner composes and repairs the routine | Phase 4 done criterion: NL objective → loop run, with the captcha handoff demonstrated |
+| M6 | LLM planner composes and repairs the routine | Phase 4 done criterion: NL objective → loop run, with captcha handling demonstrated |
 
 ## 10. Demonstration runbook (user)
 
@@ -376,7 +377,7 @@ Source: `python harness/loop_mine.py timeline 20260929_204225`. Every fact below
   - all text as `croppedtext` at negative, offscreen coordinates
   - `xmfhtmlgump` with nonexistent cliloc numbers
 
-  A human never sees or answers them. A bot matching on text would answer them. The handoff
+  A human never sees or answers them. A bot matching on text would answer them. The detection
   trigger is therefore gump id + text entry + submit button, and the agent never replies to any
   gump without a reply button.
 

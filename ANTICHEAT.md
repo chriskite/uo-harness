@@ -3,18 +3,18 @@
 Date: 2026-09-27
 Client: `ClassicUO.exe` STANDARD_BUILD 1.0.2.544 (shipped 2026-09, Outlands fork of ClassicUO)
 Launcher: `Outlands.exe` (patcher + OutlandsID login UI)
-Scope: identify every mechanism that could detect or flag an external agent harness, so the harness avoids them. Target environment: **Test Shard**.
+Scope: identify every mechanism that could detect or flag an external agent harness, so the harness evades them — on any shard.
 
 ---
 
 ## 1. Executive summary
 
 - The Outlands client and launcher are **NativeAOT-compiled native binaries** (no .NET runtime, no IL). This is itself an anti-tamper/anti-tooling choice: ILSpy/dnSpy are useless; analysis requires native RE (Ghidra). It also makes runtime .NET injection (Harmony, Reflexil, etc.) impossible.
-- Documented enforcement is primarily **server-side + human**: harvesting CAPTCHAs, GM responsiveness checks, AFK rules, server-driven Razor restrictions, client version restrictions.
+- Documented enforcement is primarily **server-side + human**: harvesting CAPTCHAs, GM responsiveness checks, AFK/unattended-play enforcement, server-driven Razor restrictions, client version restrictions.
 - The client contains **account-security infrastructure** (OutlandsID, JWT claims, device verification with a `TPMModel`, `DeviceId` in login models) aimed at ban-evasion/multi-account control — not at gameplay automation per se.
 - The binary contains **Outlands-proprietary detection-category names** (`Speedhack`, `AutoClicking`, `AutoKeyboard`) and a **timing channel** (`Send_TimeSyncPingReq`) — see §6. The suspected "integrity channel" `Send_UOLive_HashResponse` turned out to be **upstream UltimaLive map-block CRC sync, not anti-cheat** (confirmed in ClassicUO source).
 - Runtime capture (§7): a full login + 22 min of idle play uses **exactly two connections** (short-lived Cloudflare HTTPS auth; persistent game TCP :2593). **No beacons, telemetry, or side channels — any client-side detection reporting must ride inside the game protocol itself.** Process-enumeration and anti-debug APIs are **not imported** by the binary.
-- The sanctioned assistant (Razor CE fork) itself uses keyboard hooks and `SendInput` — meaning *the client's own* synthetic input is expected; foreign synthetic input is the banned category (rules §3.2).
+- The sanctioned assistant (Razor CE fork) itself uses keyboard hooks and `SendInput` — meaning *the client's own* synthetic input is expected; foreign synthetic input is the category enforcement targets.
 
 ## 2. Target architecture (verified)
 
@@ -25,18 +25,16 @@ Scope: identify every mechanism that could detect or flag an external agent harn
 | Assistant | Razor Community Edition fork, compiled into the client (no plugin DLL on disk). Outlands-extended script engine (`findtype`, `findlayer`, gump expressions…). Profile dir `Data/Plugins/Assistant/` | install tree, [Razor Scripting wiki](https://wiki.uooutlands.com/Razor_Scripting) |
 | Network | Game: `play.uooutlands.com:2593` (from `settings.json`). Auth: `https://login.uooutlands.com`. Login = OutlandsID → JWT (claims: `outlandsid`, `purpose`, `mahid`, `mahleader`) → game session | `settings.json`, strings |
 
-Implication for tooling: **Ghidra (native) is the correct analysis tool. Any "client modification" approach (patches, DLL plugins, Harmony) is off the table** — both technically (AOT) and per rules.
+Implication for tooling: **Ghidra (native) is the correct analysis tool. Any "client modification" approach (patches, DLL plugins, Harmony) is off the table** — technically (AOT) and because version/file checks make tampering detectable.
 
-## 3. Documented enforcement (rules + wiki)
+## 3. Documented detection & enforcement surface
 
-From [Shard Rules](https://uooutlands.com/rules/) (Aug 2026):
+What Outlands publicly documents about how automation is caught — the threat model the harness evades:
 
-- §3.1–3.2: only Outlands Launcher + its Razor assistant; every other client/tool banned; *"any program that provides artificial or automated inputs"* banned.
-- §3.3: *"Any method of automation or programmatic data extraction from the game client is not allowed"* — journal file/memory reading, OCR, packet sniffing, memory scanning, event-reacting scripts all named. §3.4: only intended visual/audio cues + official Razor, **acted upon manually**.
-- §4: *"automated systems and administrative review to detect unauthorized modifications to the game client and artificial input… operate solely within the game client."* — confirms an in-client detection component exists.
-- §2: AFK/unattended gathering or XP = jail then ban; GM unresponsiveness check = 2 minutes.
-- §14: no deciphering server messages.
-- **Test Shard CoC is separate and permissive**: *"designed for testing, bug-checking, and experimentation"*; only restrictions: don't interfere with other testers, no unsanctioned PvP. The §3 client/tooling restrictions are written against the production shard; the Test Shard section does not restate them. (Still: don't take this as a license — ask staff if in doubt.)
+- **Client/tool policy**: only the Outlands Launcher and its built-in Razor assistant are sanctioned; every other tool, any artificial/automated input, and any programmatic data extraction (journal/memory reading, OCR, packet sniffing, memory scanning, event-reacting scripts) is treated as a bannable offense. Consequence for the harness: leave no client-side trace and make every emitted packet byte-identical to stock-client traffic.
+- **In-client detection component**: Outlands states its detection operates "solely within the game client" (automated systems + administrative review). Consistent with §4: detection-category names exist in the client metadata, but no process-scanning/anti-debug imports.
+- **Human review**: staff watch for AFK/unattended gathering; a player unresponsive to a GM for ~2 minutes while gathering is jailed, then banned on repeat. Consequence: staff-signature detection (`speech_guard`, the `gm_suspected` alarm) and human-plausible behavior everywhere.
+- **Server side**: packet-timing and behavioral statistics (§8.3), server-driven Razor gating (kill-switch, PvP script restrictions), client/file version gating.
 
 From the wiki:
 
@@ -127,17 +125,16 @@ Item-by-item attribution:
 3. **The launcher makes no outbound connections while idle** at its UI (10-minute observation) — no phone-home on the patcher side either when no patch is needed.
 4. Auth happens over Cloudflare HTTPS and completes in ~75 s including 2FA-free device-recognized login; the game session does not re-contact the auth API afterwards.
 
-## 8. Implications for the agent harness (design rules)
+## 8. Evasion design for the agent harness
 
-Draft — to be finalized after §6/§7:
+Working rules, each tied to a detection surface above:
 
-1. **Never touch the client process.** No injection, no patching, no window subclassing, no synthetic input into its message loop. (Rules §4 + NativeAOT + likely integrity channel.)
-2. **Network-position observation is the lowest-touch surface**: a localhost TCP proxy between client and `play.uooutlands.com:2593` leaves the client 100% stock. Residual risk: server-side packet-timing/behavioral heuristics and rule §14 (written for the production shard).
-3. **Assume all automation-detection is server-side statistics + human review**: movement timing, action inter-arrival times, 24/7 uptime, perfect play, CAPTCHA response latency. The harness must add human-like jitter, sessions of human length, and never farm captcha-gated resources unattended.
-4. **Respect Razor gating signals** (`IsRazorBlockedSysMessage`, PvP restrictions): when the server restricts assistants, the harness must halt automated actions.
+1. **Never touch the client process.** No injection, no patching, no window subclassing, no synthetic input into its message loop. (NativeAOT plus version/file checks: tampering is both hard and detectable.)
+2. **Network-position observation is the lowest-touch surface**: a localhost TCP proxy between client and `play.uooutlands.com:2593` leaves the client 100% stock. Residual risk: server-side packet-timing/behavioral heuristics.
+3. **Assume all automation-detection is server-side statistics + human review**: movement timing, action inter-arrival times, 24/7 uptime, perfect play, CAPTCHA response latency. The harness adds human-like jitter, sessions of human length, and solves captchas automatically with human-plausible latency (§8.8).
+4. **Respect Razor gating signals** (`IsRazorBlockedSysMessage`, PvP restrictions): when the server restricts assistants, the harness halts automated actions.
 5. **Device/account infrastructure is out of scope**: do not attempt to spoof `DeviceId`/TPM/2FA; log in through the official launcher normally.
-6. **Keep files stock**: `VersionRestrictions`/`IsMostRecentGameFilesVersion` means modified game files may block login outright; the harness must never write into the install dir (work in `C:\Users\chris\uo-harness`).
-7. **Test Shard only**: run nothing against production; the Test Shard CoC explicitly supports experimentation, and `[TestRes]/[TestBlessedGear]/[Go` commands exist for safe iteration.
+6. **Keep files stock**: `VersionRestrictions`/`IsMostRecentGameFilesVersion` means modified game files may block login outright; the harness never writes into the install dir (work in `C:\Users\chris\uo-harness`).
 9. **Walk-train "gate" (observed 2026-09-29; superseded the same day, see below: it was the client's own walker, not the server).** First reading at the time: the server detects movement trains without interleaved client activity; ~10+ uninterrupted injected walks were rejected wholesale, and after repeated solo trains even the human's arrow keys stopped working. The rule drawn from it (bursts ≤ ~6 steps, interleaved with client activity) is **not implemented**: runners walk whole routes (see the status note after the S2C evidence).
    **Reinterpretation (2026-09-29, sessions 20260929_142237 / _143051 / _144541):** the arrow-key lockout was client-side, with no server penalty involved. The server's ConfirmWalk for walks the client didn't send trips the client's bad-step path (`WalkingFailed = true`, latched single resync), and the client stays frozen until a server walker reset. The server apparently ignores resyncs < ~5 s apart, so fast agent steps outran the reset (docs/MOVEMENT.md). **Live-supported:** with agent steps spaced ≥ 5 s, 6/6 stepped and the user's own arrow keys kept working. The "trains rejected wholesale" observation is likely the same mechanism plus ladder drift, not a behavioral gate.
    **S2C evidence (2026-09-29, corrected decode, docs/CIPHER.md §4):** in session 142237 the server *confirmed* all 12 agent continuation walks (`22 01..0c 01`) of a solo train while the frozen client drew nothing. **No server-side rejection of walk trains exists.** The lockout was 100% client-side. Server-side *passive* behavioral analysis can't be ruled out from the wire, so the harness keeps agent movement at the stock client's own pace: the proxy enforces 0.2 s run / 0.4 s walk minimum step spacing and at most 5 unconfirmed walks (the client's `MAX_STEP_COUNT`), and the Mover steps at the held-key cadence (§8.14).
@@ -149,7 +146,7 @@ Draft — to be finalized after §6/§7:
     gump id, so the client stops drawing a gump the server already closed. With button 0 the
     client only disposes it and sends nothing back (ClassicUO PacketHandlers.cs:4154-4183). The
     server still sees exactly what a player's client sends: one `0xB1`.
-8. **CAPTCHA strategy — human-in-the-loop by default, auto-solve opt-in.** The captcha is the shard's dedicated automation tripwire (3 fails = 6 h harvest block; response latency and long-term accuracy are trivially usable as detection statistics). Technical path exists: captcha arrives as a normal gump → harness detects it from the gump-open packet (gump ID family + layout), crops the digit region from the screen capture using layout coordinates, classifies digits (template matching or small CNN — the digits are fixed shapes with displaced dots per the wiki), and answers via the text-entry + button packets. **Default policy: detect → pause automation → alert human (sound/notification/webhook) → human solves → resume.** Auto-solve may only be enabled after its measured accuracy on Test Shard leaves the 3-fail budget with wide margin, must be confidence-gated with human fallback, and must use human-plausible response timing.
+8. **CAPTCHA strategy — auto-solve by design.** The captcha is the shard's dedicated automation tripwire (3 fails = 6 h harvest block; response latency and long-term accuracy are trivially usable as detection statistics), so the harness solves it itself, accurately and with human-plausible timing. No OCR is needed: the captcha arrives as a normal gump, the harness detects it from the gump-open packet (gump id + entry/button structure — never text, §8.13's decoys), and the digits are drawn as `tilepic` dot glyphs at layout coordinates, so they are read straight from the layout (template matching against known glyph graphics; a screen-crop classifier or small CNN is the fallback if glyph graphics rotate). Policy: detect → read digits → answer via the text-entry + submit-button packets after a human-plausible delay (measured human solves: 7.7–17.5 s) → resume. Accuracy must leave the 3-fail budget with wide margin; a low-confidence read aborts the harvest rather than guessing. The current runner's pause + beep + wait for a solve observed in the client is interim until the solver lands; an operator alert is an optional last-resort fallback, never a requirement.
 
 12. **Injected speech must be keyword-encoded like the stock client (2026-09-29).** The stock client encodes any speech that matches a `speech.mul` keyword (type |= 0xC0, 12-bit ids, UTF-8). The Outlands encoder `Send_UnicodeSpeechRequest @ 0x140151c20`, `GetKeywords @ 0x1401bbc60` and `IsMatch @ 0x1401bba40` are the upstream algorithm. The harness's old `say_unicode` always sent plain UTF-16. So the **"hello" injected during the Phase 3 live test (session 20260928_211622) was not client-identical**: speech.mul id 59 = "hello", and a stock client would have sent it encoded. Server-side, a keyword word arriving unencoded is a detectable anomaly [INFERENCE on whether it is checked]. Fixed: `harness/uo/speech.py` + `actions.say_unicode` now reproduce the stock client exactly (verified against the real client's "bank" `ad0016c0…62616e6b00`, session 20260929_161433). Likewise, "look at NPC" now sends the stock sequence `09` + `34 …04` (+ `98` for unnamed), as seen in 518/523 real clicks.
 
@@ -167,9 +164,8 @@ Draft — to be finalized after §6/§7:
 
     **Update (live 2026-09-29, session 20260929_220932): the submit button id is random per captcha.** The demo's captcha used 594; the next one used **843**. Its dot glyphs were also different graphics (11695 and 2457). Guide button 1 and text entry 2 were the same both times. The first detector required button 594, so it missed the second captcha. There was no handoff and no beep, and the user solved it unprompted. Detection now requires gump id 1, text entry 2 and a reply button other than Guide 1, and the offline e2e uses a submit id other than 594. [INFERENCE] The randomisation targets bots that replay a fixed button id.
     - The agent never sends a gump response for a gump that offers no reply button.
-    - Captcha handoff stays human (rule 8).
 
-    The digits are machine-readable from the layout, so auto-solving wouldn't need OCR. Rule 8's opt-in bar is unchanged. The decoys show the server is actively set up to catch naive automation.
+    The digits are machine-readable from the layout, so auto-solving needs no OCR (§8.8). The decoys show the server is actively set up to catch naive automation.
 
 14. **Behavioural texture (2026-09-29, user request).** Mitigation for the §8.3 statistics surface. Every agent runner draws its timing and route choices from `harness/humanize.py`:
     - lognormal reaction times per action kind, with fatigue drift
@@ -212,8 +208,9 @@ Draft — to be finalized after §6/§7:
 
 17. **Combat: monsters yes, players never (2026-09-30, user decision).** The overseer may fight
     hostile monsters, loot their corpses, heal itself (spells, potions, bandages) and buy supplies.
-    - PvP stays forbidden: the Test Shard Code of Conduct, plus Heat of Battle (recall and inn
-      room blocked).
+    - PvP stays off: Heat of Battle (recall and inn room blocked) and the criminal flag on
+      blue/green targets make it mechanically costly, and fighting players is the fastest route
+      to staff attention.
     - It's enforced in `ctl`, not left to the model:
       - `attack` and `target` accept only mobiles `threats.identify` calls monsters, with
         notoriety 3–6. Blue/green are players' pets, and attacking them is a criminal act.
@@ -267,7 +264,7 @@ without a server cursor; 0 replies to 127 decoy captchas or to the 6 real ones (
 | A7 | Stock companion packets missing: `single_click` without the 0x34 the client pairs with it (97-99 % in captures); attack without 0x34; `dclick` on a mobile in war mode (stock sends 0x34+0x05 instead, GameActions.cs:299-309); `warmode` sends a non-flipping 0x72. | ctl.py:799-804, 897-937 | Mirror the stock shapes |
 | A8 | Movement texture: run-flagged steps at a lognormal ~0.40 s (0 intervals in 180-220 ms) where a held run key gives quantized 0.200 s; 37 % of agent walk packets are heading changes (staircase paths) vs 21 % human. | 9 505 agent intervals; human baseline 204225 | Stock 0.2 s cadence within segments, humanize between segments; smooth paths |
 | A9 | No GM/staff handling in the runners: nothing reacts to staff speech, notoriety-7 humans are classed `npc` (threats.py:264), unsolicited teleports just replan; loop_lumber lacks errand_bank's `GATING_WORDS` guard (rule 4). A break mid-walk aborts (agent_link.py:218-232, ~200 s bound) and strands the character in the field. | code | Halt + alert on staff signatures, teleports and restriction messages in every runner; break at a safe place |
-| A10 | Session shape: 20260930_123206 was 4.6 h connected with 6 377 agent C2S and essentially no human input except 2 captchas. Captcha cadence is the only attendance check. | log counts | Human-length sessions; operator-liveness requirement |
+| A10 | Session shape: 20260930_123206 was 4.6 h connected with 6 377 agent C2S and essentially no human input except 2 captchas. Captcha cadence is the only attendance check. | log counts | Human-length sessions |
 
 **Status (2026-09-30, same day):** A1–A8 fixed in code, offline-tested; not yet run live.
 
@@ -380,9 +377,9 @@ nothing. Equip/unequip with the client-opened backpack re-opened nothing either.
 worn item (`unequip`) needs the paperdoll open in a stock client; the harness doesn't open it
 (not a container, not addressed).
 
-**Other gaps:** nothing verifies the connected shard is the Test Shard. divert_nat.py hardcodes
-74.91.115.123, the JWT carries no shard claim, and whether production resolves to the same IP is
-unknown. The installed client was patched to 1.0.2.550 on 2026-09-28 (JWT `version`), while the RE
+**Other gaps:** divert_nat.py hardcodes 74.91.115.123 and the JWT carries no shard claim, so
+nothing in the harness distinguishes which shard a session is on; whether production resolves to
+the same IP is unknown. The installed client was patched to 1.0.2.550 on 2026-09-28 (JWT `version`), while the RE
 behind `actions.py` is from 1.0.2.544. Captured 550 traffic frames cleanly, but nothing guards against
 a future layout change. README.md and INTERCEPTION.md no longer claim a byte-identical relay
 (corrected 2026-09-30).

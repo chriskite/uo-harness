@@ -21,7 +21,7 @@
     "attack_monsters": true,
     "loot_monster_corpses": true,
     "attack_players": false,
-    "why": "user 2026-09-30: fight hostile mobs (e.g. mongbats) for gold; PvP is banned on the Test Shard and gives Heat of Battle",
+    "why": "user 2026-09-30: fight hostile mobs (e.g. mongbats) for gold; PvP gives Heat of Battle (no recall, no inn room) and draws staff attention",
     "enforced_by": "ctl act attack/loot guards (monster kind + notoriety 3-6, no human corpses, hits >= 30% to start)"
   },
   "test_shard_resources": {

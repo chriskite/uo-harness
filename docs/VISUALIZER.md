@@ -240,7 +240,7 @@ The runners report what they are trying to do right now on the proxy's state por
   measured against the newest event time, not the wall clock) and `loop · trip n/N`.
 - **Activity indicator** next to the current text:
   - a spinning ring while working, with a soft breathing glow on the panel
-  - a pulsing amber dot while waiting on the human or a timer (`captcha`, `lockout`)
+  - a pulsing amber dot while waiting on a captcha solve or a timer (`captcha`, `lockout`)
   - a static dim dot when finished or stopped (`done`, `trip_done`, `stopped`)
   - animations are off under `prefers-reduced-motion`
 - **Recent steps** below, newest first (up to 10, scrollable): `6s ago` (when the step ended),

@@ -45,7 +45,7 @@ Global options go **before** the command. Every call prints exactly one JSON obj
 | `stop [task_id]` | Asks the wrapper to terminate the task; it ends with a `task_failed` juncture marked `stopped`. If the wrapper doesn't report within `--grace` (20 s), ctl kills both processes itself and posts the juncture (`source: ctl`, "(forced)"). |
 | `wait [--timeout S] [--include-info]` | Blocks (polling ~1 s) until there is an **open** juncture with id > the juncture cursor and severity ≥ `attention` (any severity with `--include-info`), or a `user` chat row with id > the chat cursor. Returns `{"ok":true,"event":<first>,"events":[…up to 20…],"cursors":{…}}` and advances the cursors past what it returned. Timeout (default 1800 s; ≤ 0 = forever) → `{"ok":true,"event":null}`. Events are `{"type":"juncture",id,t,source,kind,severity,summary,data,acked_t}` or `{"type":"chat",id,t,role,kind,text,data}`. |
 | `ack <id>` | Closes a juncture (`acked_t`). Acking `gm_suspected` stops the staff alarm. |
-| `alert <why> [--serial S]` | **Possible staff (GM).** Posts an urgent `gm_suspected` juncture (`{reason, serial}`) and sounds the staff alarm (two-tone, distinct from the handoff beeps) so the human at the PC comes to check. It repeats every 30 s from a holding harvest job and from `wait` until the juncture is acked; a holding job won't resume while one is open. Allowed while a task runs. A second `alert` while one is open re-sounds it (`already_open`). |
+| `alert <why> [--serial S]` | **Possible staff (GM).** Posts an urgent `gm_suspected` juncture (`{reason, serial}`) and sounds the staff alarm (two-tone, distinct from the captcha alert beeps) so the human at the PC comes to check. It repeats every 30 s from a holding harvest job and from `wait` until the juncture is acked; a holding job won't resume while one is open. Allowed while a task runs. A second `alert` while one is open re-sounds it (`already_open`). |
 | `break` | Starts the agent gate's scheduled break now (`{"op":"gate","action":"break"}`), e.g. once the character is home after a `break_due` juncture. Refused while already on a break. Returns the gate (`break_until`). |
 | `junctures [--open] [--after N] [--limit N]` | Lists junctures. |
 | `chat [--after N] [--limit N] [--role R]` | Lists chat rows. |
@@ -67,7 +67,7 @@ Whitelist, built with the existing `harness/actions.py` builders and framed exac
 | `goto` | `<x> <y>` or `<serial>` (mobile or ground item), `--z Z`, `--range R` (default 0 for a tile or item, 2 for a mobile), `--max-moves` (400) | Walks with `agent_link.Mover`: map pathfinding, doors, shoving, human pacing, height-aware. A mobile target means staying within one storey of it; a ground item (e.g. the moongate) means its tile on its level; `--z Z` means arriving within 10 of Z (the hill, not the cave under it). Without `--z`, a tile target takes the cheapest level, which may be a cave under it. Returns `from`, `to`, `steps`, `blocked`, `doors_opened`, or `error` (`no route`, too many blocks). Reports an intent (`goto`) to the viz |
 | `menu` | `<serial>` | The stock right-click: `0x09` then `0xBF` sub `0x13`, back to back; on-screen entities only (as `dclick`). Waits for the server's menu and returns its entries `{index, text (cliloc rendered), disabled}` |
 | `menu_pick` | `<serial> <index>` | `0xBF` sub `0x15` selection, e.g. a vendor's **Buy** entry (the vendor list then shows in `heard`/`journal`). Only from that serial's context menu while it's open (the latest menu, with no pick or new request since) and only an index it offers. Opening a Buy list sends nothing further: the stock client sends no packet when the shop window is closed without buying (ClassicUO ShopGump.cs:590-610). The window stays open on the user's screen until they close it |
-| `gump` | `<serial> <button> [--text ID=VALUE]…` | `0xB1` reply, **guarded**. Like the stock client (ClassicUO Gump.OnButtonClick) it carries **every text entry** in layout order, with its current text unless overridden by `--text`, and the switches (checkboxes/radios) that start checked. So editing one entry never blanks the others. It refuses: the captcha (gump id 1; always the human's, ANTICHEAT.md §8.8), even with `--text`; a gump without reply buttons (the decoy/honeypot shape, §8.13); a button the layout doesn't offer; button 0 on a `noclose` gump; **anything but button 0 (close) on a gump whose text mentions renouncing** (Young status is the human's decision); and `--text` for an entry the gump doesn't have, longer than its limit, or non-printable. Examples: Storage Shelf "Retrieve Items" amount = `--text 1=20`; Player Testing editor skill entries 100–114, Str/Dex/Int 90–92 |
+| `gump` | `<serial> <button> [--text ID=VALUE]…` | `0xB1` reply, **guarded**. Like the stock client (ClassicUO Gump.OnButtonClick) it carries **every text entry** in layout order, with its current text unless overridden by `--text`, and the switches (checkboxes/radios) that start checked. So editing one entry never blanks the others. It refuses: the captcha (gump id 1; an interim guard while auto-solve is pending — the digits are machine-readable from the layout itself, ANTICHEAT.md §8.8/§8.13), even with `--text`; a gump without reply buttons (the decoy/honeypot shape, §8.13); a button the layout doesn't offer; button 0 on a `noclose` gump; **anything but button 0 (close) on a gump whose text mentions renouncing** (Young status is the user's decision); and `--text` for an entry the gump doesn't have, longer than its limit, or non-printable. Examples: Storage Shelf "Retrieve Items" amount = `--text 1=20`; Player Testing editor skill entries 100–114, Str/Dex/Int 90–92 |
 | `unequip` | `<item serial>` | An item you wear goes to your backpack: `0x07` lift, human "drag" pause, `0x08` drop into the pack (the auto-position form from the demo capture). It waits until the world model shows it in the pack; it refuses items you don't wear and the backpack itself |
 | `equip` | `<item serial>` | An item in your backpack (any bag depth) is worn again: `0x07` lift, pause, `0x13` equip request on its tiledata layer. It waits until worn; it refuses items not in your pack, items already worn, and items without a wearable layer |
 | `warmode` | `on\|off` | `0x72` war mode request (the stock Tab toggle); waits until the server confirms. Nothing is sent when war mode is already in that state (Tab only ever flips it) |
@@ -167,17 +167,8 @@ Use it to check what the packets can't show: gumps drawn on screen, what the pla
 around them, anything the user points at.
 
 **Policy:** the user's standing decisions are in `harness/data/policy.json`:
-- home town Horseshoe Bay
-- death: self-resurrect, no `[TestRes`, no corpse runs
-- gold: may spend, daily cap 50 000 gp
-- no harvesting mounted
-
 The overseer follows it.
 
-**Speech allowlist.** docs/PLAN.md decides "in-game speech is allowlisted keywords/commands only"
-and LUMBER_LOOP.md adds `room`, but no allowlist existed in code. `ctl.SPEECH_ALLOWLIST` is now
-the only one: `bank`, `room`, `hello` (matched case-insensitively; the canonical lowercase phrase
-is sent). Extending it is a user decision.
 
 ### Tasks, logs and the `meta` keys
 
@@ -245,7 +236,7 @@ its trip. Other `info` rows are history (`ctl junctures`, or `wait --include-inf
 | `task_failed` | attention | task_wrap, ctl | Non-zero exit, stopped (`stopped: true`), or the wrapper vanished. Same data. |
 | `trip_done` | info | runner | One loop trip finished (episode row summary). |
 | `stuck` | attention | runner | No progress: route blocked, too many replans, stalled movement. `{pos, target, reason}` |
-| `captcha` | urgent | runner | Real captcha up (gump id 1, text entry 2). **Human only**: the overseer calls the user and never answers it. |
+| `captcha` | urgent | runner | Real captcha up (gump id 1, text entry 2). Interim: the runner pauses and alerts the user. Auto-solve from the gump layout is the intended path (the digits are machine-readable from the layout coordinates, no OCR needed). |
 | `threat` | urgent (PK/red, aggressor) / attention (monster) | runner | Hostile nearby or attacking. `{serial, name, notoriety, dist, hits}` |
 | `theft_suspected` | attention | runner | Backpack count dropped without our action, or a snoop message. `{graphic, before, after}` |
 | `death` | urgent | runner | Hits 0 / ghost body. `{pos, facet}` |
@@ -276,9 +267,8 @@ The viz reads the same tables (built by the viz work, not by `ctl.py`):
 
 Paste this (or point the session at this section) to start an overseer.
 
-> You are the **overseer** of the uo-harness agent playing Ultima Online Outlands, **Test
-> Shard only**, as TestWorth. Programmatic tasks do the work; you supervise them through
-> `./ctl.cmd …` from `C:/Users/chris/uo-harness` (it runs `harness/ctl.py` with Python 3.13). Read AGENTS.md,
+> You are the **overseer** of the uo-harness agent playing Ultima Online Outlands. Programmatic tasks do the work; you supervise them through
+> `./ctl.cmd …` from `C:/Users/chris/uo-harness` (it runs `harness/ctl.py` with Python 3.13). Read
 > ANTICHEAT.md §8 and docs/OVERSEER.md first. Never edit code or restart services during a
 > shift; never touch the proxy/viz services, the client, or the install dir.
 >
@@ -325,8 +315,9 @@ Paste this (or point the session at this section) to start an overseer.
 >        line, and get the human.
 >      - Reply after a human-like pause (a few seconds), not instantly; never more than one line
 >        per thing they said.
->    - `captcha`, `server_restriction`: **call the human immediately**, stop the task, never try
->      to answer.
+>    - `captcha`: interim pending auto-solve — the runner pauses and alerts; stop the task and
+>      wait for the solve path rather than improvising a reply. `server_restriction`: **call the
+>      human immediately**, stop the task.
 >    - user chat: answer with `ctl say`; do what they ask within these rules.
 >    Before deciding, `ctl know search <the situation>` (or `know brief`). What you already
 >    learned beats guessing. Looking for an NPC or vendor? `ctl npcs <title>` first: the world
@@ -349,21 +340,17 @@ Paste this (or point the session at this section) to start an overseer.
 > 6. Go back to step 2. A timeout (`event: null`) is a heartbeat: glance at `status`, then wait
 >    again.
 >
-> **Safety.** One task at a time; never `act` while a task runs (ctl refuses anyway). Only the
-> `act` whitelist and only allowlisted speech; never free text in game. Gump replies only through
-> `act gump`, whose guards you must not try to work around: the captcha is always the human's,
+> **Safety.** One task at a time; never `act` while a task runs (ctl refuses anyway).  Gump replies only through
+> `act gump`, whose guards you must not try to work around: the captcha stays refused until auto-solve lands (interim),
 > never reply to button-less gumps, and a renounce-Young prompt may only be closed. **Never
-> attack players, their pets or NPCs** (no PvP on the Test Shard; attacking a player also gives
-> Heat of Battle, which blocks recall and the inn room). Hostile monsters you may fight and loot
+> attack players, their pets or NPCs (except trainers)**. Hostile monsters you may fight and loot
 > (`act attack`, `act loot`): one weak monster at a time, watch your hits, and back off below
 > about half.
 > Keep actions few and human-paced. The agent gate (pause, kill, breaks, daily cap) outranks you:
 > if it is closed, wait. If anything looks like a GM, a jail, or a server message about
 > automation, stop the task and call the human. Follow `harness/data/policy.json`.
 >
-> **Calling the human.** `ctl say "@user <what, where, what you need>"` and, for urgent cases
-> (captcha, death, GM contact, server restriction, repeated failure you can't explain), also
-> tell the user in this omp session. Then keep waiting; don't improvise around it.
+> **Calling the human.** `ctl say "@user <what, where, what you need>"
 
 ## 6. Starting an overseer session in omp
 
@@ -383,7 +370,7 @@ Paste this (or point the session at this section) to start an overseer.
   omp isn't on the bus.
 - The overseer is asleep between wakes. Reaction time is poll (~1 s) + model turn latency, so
   the runners' own guards must handle anything that can't wait tens of seconds (HP loss, stalls,
-  captcha handoff sound).
+  captcha alert sound).
 - `wait` returns at most 20 events per wake. `info` junctures skipped by a plain `wait` are
   passed by the cursor (still listed by `ctl junctures`).
 - The omp session's context grows with every wake. Long shifts need a fresh session; the DB

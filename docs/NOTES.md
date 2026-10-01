@@ -158,7 +158,6 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 
 ## Test Shard
 
-- CoC: experimentation explicitly allowed; don't interfere with other testers; no unsanctioned PvP.
 - Test-only commands: `[TestRes` (res self+followers), `[TestIgnoreMaxDamageCap`, `[TestMaxMeleeDamageRolls`, `[TestMaxSpellDamageRolls`, `[TestBlessedGear`, `[Go` (warp self+followers). Use these for fast harness iteration.
 - Character creation offers skill templates (sets skills to 60) — handy for capability unlocks.
 - **Client requires elevation (2026-09-28).** Launching `ClassicUO.exe` from a medium-integrity shell crashes in `UOFileManager.Load` with `Access to the path '<install>\animdata.def' is denied` (Event Viewer 1026/BEX64, fault offset 0x806816). Root cause: the Outlands loader opens game files in a way that needs write capability (their world-data/UltimaLive infrastructure writes into the install dir; upstream already has `OpenOrCreate, ReadWrite` opens), but `Program Files (x86)` grants `BUILTIN\Users` only ReadAndExecute — so a non-elevated client dies on the first file. The launcher (`Outlands.exe`) elevates via UAC for exactly this reason; the client inherits the high integrity level from it. **Always launch the client elevated**: via the launcher, or `Start-Process ClassicUO.exe -Verb RunAs`. Note: upstream `-ip`/`-port` CLI args exist but the Outlands fork ignores them for the game connection (the address comes from the login response). Not a lock/ACL/mandatory-label issue (verified with handle.exe + icacls).
@@ -207,15 +206,6 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 - **VPN exit nodes are SYN-dropped** on the game port (network-layer, no RST) while Cloudflare HTTPS accepts them. Direct IP required to play. Repeated failed attempts are logged server-side — don't hammer.
 - Game server observed at `74.91.115.123` (NFOservers). Auth at `104.26.0.46` (Cloudflare).
 
-## Rules quick reference (production shard — do not operate there)
-
-- §3.1/3.2: only Outlands Launcher + its Razor; all other clients/tools/artificial-input programs banned. Staff-sanctioned exceptions: ExploreOutlands, Outlands Butler, LootGoblin.
-- §3.3: no automation or programmatic data extraction (journal file/memory, OCR, packet sniffing, memory scanning, event-reacting scripts).
-- §3.4: only intended visual/audio cues + official Razor, acted on manually.
-- §2: no AFK gathering/XP; GM unresponsiveness (2 min) = jail then ban; unattended skill macroing (skills tab) IS allowed.
-- §1.c/1.d: circumventing dungeon/murder/ship restrictions (incl. VPN) = permanent ban.
-- §11: no modifying Outlands files. §14: no deciphering server messages; all access logged.
-
 ## Links
 
-- Rules: https://uooutlands.com/rules/ · Captcha: https://wiki.uooutlands.com/Captcha · Razor Scripting: https://wiki.uooutlands.com/Razor_Scripting · Commands (incl. Test Shard): https://wiki.uooutlands.com/Commands · OutlandsID/2FA news: https://uooutlands.com/news/outlandsid-and-infrastructure-updates/ · Upstream: github.com/ClassicUO/ClassicUO, github.com/markdwags/Razor
+- Captcha: https://wiki.uooutlands.com/Captcha · Razor Scripting: https://wiki.uooutlands.com/Razor_Scripting · Commands (incl. Test Shard): https://wiki.uooutlands.com/Commands · OutlandsID/2FA news: https://uooutlands.com/news/outlandsid-and-infrastructure-updates/ · Upstream: github.com/ClassicUO/ClassicUO, github.com/markdwags/Razor

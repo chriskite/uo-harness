@@ -372,7 +372,7 @@ result. These are the concrete inputs:
     - Rooms and houses are wiped daily at 00:00 UTC ([Test Shard](https://wiki.uooutlands.com/Test_Shard)).
     - Stored value is worth zero after midnight, which caps the useful horizon of any trip.
     - Test Shard gp and boards have no real value, so `v_w` is a policy choice there.
-11. **Captcha handoff time:** the human answer latency, charged to `T` or to field time. It pauses
+11. **Captcha solve time:** the answer latency, charged to `T` or to field time. It pauses
     harvesting, but carried value stays exposed.
 
 ---

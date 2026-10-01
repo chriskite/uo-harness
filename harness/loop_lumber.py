@@ -11,10 +11,11 @@ demonstration). What the loop learns lives in the harness memory store
 reachability, every attempt, and one episode row per trip. Walk memory is
 recorded by the proxy.
 
-Captcha = human handoff (ANTICHEAT.md §8.8/§8.13). The real captcha is the
-gump with lumber.json's id plus a text entry and the submit button. The
-runner stops acting, beeps, and waits until the human answered it in the
-client and the server said "Captcha successful." It never replies to the
+Captcha (ANTICHEAT.md §8.8/§8.13). The real captcha is the
+gump with lumber.json's id plus a text entry and the submit button. Auto-solve
+from the gump layout is the intended path; the current interim behavior is to
+stop acting, beep, and wait until the solve is observed in the client and the
+server said "Captcha successful." The runner never replies to the
 captcha, and never to any gump without a reply button (the decoys).
 
 The only gump the runner answers is the rental-room menu, and only with
@@ -65,7 +66,7 @@ def h(v) -> int:
 
 
 def alert(sound: bool = True):
-    """Handoff sound for the human (alerts.handoff)."""
+    """Captcha alert sound (alerts.handoff); interim handoff pending auto-solve."""
     alerts.handoff(sound)
 
 
@@ -305,14 +306,15 @@ class LumberLoop:
 
     # ------------------------------------------------------------ captcha handoff
     def captcha_handoff(self, idx):
-        """The human answers the captcha in the client; the runner only waits."""
+        """Interim handoff: the runner stops, beeps, and waits for the captcha
+        solve observed in the client; auto-solve is the intended path."""
         cap = self.k["captcha"]
         self.stats["captchas"] = self.stats.get("captchas", 0) + 1
         t0 = time.monotonic()
-        log("CAPTCHA: please solve it in the client; the agent is waiting")
+        log("CAPTCHA up: agent paused, waiting for the solve (auto-solve pending)")
         resume = self._intent
-        self.doing("captcha", "Waiting for you to solve the captcha in the client")
-        jid = self.memory.juncture("lumber", "captcha", "Captcha is waiting for the human in the client",
+        self.doing("captcha", "Captcha up — paused until it is solved")
+        jid = self.memory.juncture("lumber", "captcha", "Captcha up; agent paused until solved (auto-solve pending)",
                                    "urgent", {"trip": self.trip_n})
         alert(not self.args.quiet)
         next_beep = t0 + self.args.captcha_beep_s
@@ -321,8 +323,8 @@ class LumberLoop:
             if self.heard(idx, text=cap["ok_text"]):
                 waited = time.monotonic() - t0
                 self.stats["captcha_wait_s"] = self.stats.get("captcha_wait_s", 0.0) + waited
-                log(f"captcha solved by the human after {waited:.0f} s; resuming")
-                self.memory.juncture_ack(jid)          # handled by the human; nothing left for the overseer
+                log(f"captcha solved after {waited:.0f} s; resuming")
+                self.memory.juncture_ack(jid)          # solved; nothing left for the overseer
                 self.human.wait("read")
                 if resume is not None:
                     self.doing(*resume)

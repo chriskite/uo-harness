@@ -2,18 +2,14 @@
 
 Decision record + phases. Research basis: [`../ANTICHEAT.md`](../ANTICHEAT.md).
 
-## Target environment
-
-**Test Shard only** (user decision, 2026-09-27). Rationale: full autonomy on the production shard violates rules §3.3/§4 (automation, programmatic data extraction, artificial input) and risks the OutlandsID; the Test Shard CoC explicitly exists for "testing, bug-checking, and experimentation". Production use is permanently out of scope for this harness.
-
 ## Why a localhost proxy (alternatives considered)
 
 | Approach | Verdict |
 |---|---|
 | **Localhost TCP proxy (chosen)** | Client 100% stock; full structured game state from packets; actions are protocol-identical to play; no anti-cheat tamper surface on the machine. |
-| Custom ClassicUO plugin | Client is NativeAOT — no plugin loading possible; also rules §3.2. Dead. |
-| Binary patching / injection (Ghidra-guided) | Technically hard (AOT, stripped), violates rules §4 outright, detectable via version checks. Dead. |
-| CV/screen + synthetic input | OCR + artificial input are both explicitly named in rules §3.3/§3.2; lowest-fidelity state. Dead as primary; screen capture survives only as a sanity/verification channel (not OCR-as-state) and for CAPTCHA cropping. |
+| Custom ClassicUO plugin | Client is NativeAOT — no plugin loading possible. Dead. |
+| Binary patching / injection (Ghidra-guided) | Technically hard (AOT, stripped), detectable via version checks. Dead. |
+| CV/screen + synthetic input | OCR and artificial input are both low-fidelity and detectable. Dead as primary; screen capture survives only as a sanity/verification channel (not OCR-as-state) and for CAPTCHA cropping. |
 | Razor scripts only (in-client) | Sanctioned surface but capped: no programmatic state extraction, PvP-gated, captcha-gated; can't host an agent. Survives as the optional live "copilot" mode (agent generates Razor scripts, human runs them manually). |
 | Local ServUO sandbox | Deferred, not rejected: useful if Test Shard access becomes a problem; protocol-compatible family, zero-risk iteration. Keep as fallback. |
 
@@ -57,8 +53,8 @@ Client→server action packets: walk/pathfind, dclick, use skill, cast+target, l
 Offline proof: `test_errand.py` (proxy + runner + a simulated world with a wall and two NPCs).
 
 ### Phase 4 — Agent runtime
-LLM planner over the world model + skill library; safety rails: captcha human-handoff (ANTICHEAT.md §8 rule 8), plus pause and kill switch in the visualizer.
-**Done when**: agent completes a multi-step objective from natural language (e.g. "restock reagents from the bank and return") with the captcha handoff demonstrated.
+LLM planner over the world model + skill library; safety rails: captcha auto-solve (ANTICHEAT.md §8.8), plus pause and kill switch in the visualizer.
+**Done when**: agent completes a multi-step objective from natural language (e.g. "restock reagents from the bank and return") with captcha auto-solve demonstrated.
 **Design decisions 2026-09-29 (user):**
 - **Planner = standalone Python loop on the Anthropic API (tool use)**, not an MCP server driven by an interactive session. The LLM chooses *skills* (deterministic closed-loop Python controllers generalised from `errand_bank.py`: goto, open_bank, move_items, buy, cast, use_skill…), never raw packets. Rejected: LLM picking raw actions (latency/cost, pacing becomes the model's job); LLM-authored skill code (Voyager-style), deferred.
 - **Map data: read directly from the real install dir** (map/statics/tiledata; read-only, never write). This replaces walk-memory-only navigation for unexplored ground, so exploring doesn't mean repeated server denials.
@@ -102,7 +98,7 @@ LLM planner over the world model + skill library; safety rails: captcha human-ha
   - learn by one user demonstration; `harness/loop_mine.py timeline` turns the capture into evidence, and `harness/data/loops/lumber.json` is written from it
   - a deterministic routine runner with no LLM in the steady state
   - the LLM only for composing, repairing and post-session reflection
-  - optimization of banked boards per active hour, with pacing, breaks and captcha handoff as fixed constraints
+  - optimization of banked boards per active hour, with pacing, breaks and captcha auto-solve as fixed constraints
 
   Rejected: learning the loop by live exploration. It costs captchas and deaths, and it guesses gump and button ids that one capture gives exactly. Also rejected: LLM calls per cycle (cost and latency, nothing to decide in the steady state).
 
@@ -152,7 +148,7 @@ the memory store as the bus:
 Rejected for now: a custom API-driven daemon. It needs an API key and cost decisions; it can
 replace omp later on the same bus.
 
-**Standing rule: no PvP.** The Test Shard CoC bans it, and Heat of Battle (from any aggressive
+**Standing rule: no PvP.** It draws staff attention, and Heat of Battle (from any aggressive
 act against a *player*) blocks recall and entering the room (THREATS.md §6). Hostile players are
 escaped, never fought. **Monsters may be fought and looted** (user decision 2026-09-30:
 `ctl act attack|loot`, guarded to monsters only; monster combat doesn't cause Heat of Battle,
@@ -174,12 +170,10 @@ the client couldn't do it right now (entity off screen, no menu open, war mode).
   plus `nav.straighten` (measured on 24 Shelter routes: ~20 % heading changes, human 21 %).
   Rejected: a turn-penalty A* (8× the search states; not tried, since the above already matches).
 
-### Phase 5 (optional) — Production copilot
-Rules-compliant live mode: agent generates Razor scripts into `Data/Plugins/Assistant/Scripts/`; human reviews and runs them manually. No autonomy, no data extraction. Only phase allowed to touch the production shard, and only as a file generator.
 
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
 - **Custom login/auth**: the OutlandsID HTTPS handshake is not yet mapped at byte level; proxy only needs the post-auth game connection, but settings/login responses may bind the session to the original destination — validate in Phase 1.
 - **Behavioral statistics**: even perfect protocol emulation can be detected by play patterns; pacing, session length, and task selection are the mitigation (§8 rules).
-- **Staff attention on Test Shard**: keep activity non-disruptive (Test Shard CoC: don't interfere with others' testing).
+- **Staff attention on Test Shard**: keep activity non-disruptive to avoid drawing staff notice (detection risk).

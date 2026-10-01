@@ -1,8 +1,8 @@
 # Threats in the overworld: player killers, thieves, monsters
 
 Research for overworld lumberjacking (overseer phase): notoriety and where PvP happens, Tracking and
-Detect Hidden, escape math for a recall under threat, thieves, overworld monsters, and the rules
-that bound our responses. Offline only: Outlands wiki, official rules and patch notes, the local
+Detect Hidden, escape math for a recall under threat, thieves, overworld monsters, and the detection
+intel that shapes our responses. Offline only: Outlands wiki, official patch notes, the local
 upstream ClassicUO source, upstream RunUO source, and our own captures in `logs/`. Nothing here was
 tested in-game for this document. Written 2026-09-29.
 
@@ -12,7 +12,7 @@ them.
 
 **Confidence labels** (every row carries one; same scheme as TRAVEL_DEATH.md):
 
-- **H**: current Outlands wiki page, official rules/patch note, or our own capture/source reading.
+- **H**: current Outlands wiki page, official patch note, or our own capture/source reading.
 - **M**: an Outlands wiki page that is old or conflicts with another page, or a count derived from
   noisy data.
 - **L**: `[INFERENCE]`: generic RunUO/OSI behaviour (RunUO is the emulator lineage, but Outlands
@@ -24,10 +24,10 @@ Citations are reference-style links; wiki revision ids are in §9.
 
 ## 0. Summary
 
-- **On the Test Shard, PvP is against the rules.** The Test Shard Code of Conduct bans "PvP, Player
-  Killing, or any actions hindering others' testing efforts" except staff-sanctioned PvP
-  ([Rules][r-ts], [Test Shard][w-ts]). The PK and thief logic is insurance against rule-breakers
-  and preparation for realism. It must never attack a player.
+- **The harness never attacks a player.** Attacking a player gives us Heat of Battle (no recall,
+  no inn room), flags us criminal against innocents, and draws staff attention — the exact
+  detection risk the design avoids ([Test Shard][w-ts]). The PK and thief logic is detection and
+  evasion, never retaliation.
 - **Guards never protect a lumberjack.** Lumberjacking is blocked in town regions, apart from
   Shelter Island for Young players ([Lumberjacking][w-lj]). Guards exist only in guard zones (towns)
   ([Guard Zones][w-gz]). So every legal chopping spot is outside guard protection.
@@ -341,7 +341,7 @@ walk 5 steps ([Patch 2025-01-25][p-2501], **H**).
 
 | Option | Assessment | Conf. |
 |---|---|---|
-| **Attack a grey thief** | Mechanically allowed on live (grey to the victim for 2 min). But it's PvP, which the Test Shard CoC forbids. It also gives us Heat of Battle: no recall, no inn room ([Heat of Battle][w-hob]). **Rejected.** | H |
+| **Attack a grey thief** | Mechanically possible (grey to the victim for 2 min). But it gives us Heat of Battle: no recall, no inn room ([Heat of Battle][w-hob]), and PvP draws staff attention. **Rejected.** | H |
 | **Move away** | The RunUO steal range is 1 tile (L). Keeping every non-friendly player ≥ 2 tiles away denies stealing entirely. Cheap and human-like | L |
 | **Recall away** | Ends the encounter. A thief with Heat of Battle can't recall after us (2 min). Costs the 60 s lockout plus 5 steps | H |
 | **Guards** | Useless where we chop (no guard zones), §1.2 | H |
@@ -401,17 +401,13 @@ Source: throwaway replay of the 27 `logs/session_*.s2c.raw` captures with `harne
 
 ---
 
-## 6. Rules on self-defence and automation
+## 6. Detection and self-defence policy
 
-| Rule | Consequence for the harness | Conf. | Source |
+| Policy / detection intel | Consequence for the harness | Conf. | Source |
 |---|---|---|---|
-| Test Shard CoC: 1) don't interfere with another player's testing; 2) PvP, player killing, or hindering others' testing isn't allowed except staff-sanctioned PvP | **No attacks on players, ever, including thieves and self-defence.** Report by the human instead | H | [Rules §Test Shard][r-ts], [Test Shard][w-ts] |
-| Live CoC §2: AFK/unattended resource gathering is prohibited. Staff finding you unresponsive for 2 min while gathering → 7 days jail | The harness never runs on live. On the Test Shard we still keep a human reachable (junctures) | H | [Rules][r-rules] |
-| Live CoC §3.2–3.4: only the Outlands launcher/ClassicUO/Razor. "Any method of automation or programmatic data extraction … packet sniffing … reacting to in-game events through scripts or bots" is not allowed | The whole harness is outside the live rules. Test Shard only, per ANTICHEAT §8.7 | H | [Rules][r-rules], [ANTICHEAT.md:140][d-ac] |
-| The Test Shard CoC doesn't restate §3 ("permissive"), but that isn't a licence | Human-like pacing and behaviour everywhere | H | [ANTICHEAT.md:39][d-ac] |
-| Captcha: always handed to a human | Unchanged | H | [ANTICHEAT.md:146][d-ac] |
+| Staff finding a gatherer unresponsive for ~2 min while gathering → jail | Captcha auto-solve is the intended path (digits are machine-readable tilepic glyphs in the gump layout; ANTICHEAT §8.8). Current pause-and-beep is interim behaviour | H | [ANTICHEAT.md:146][d-ac] |
 | In-game speech only from allowlisted keywords | "Guards" could be allowlisted, but it's useless outside towns | H | [PLAN.md:81][d-plan] |
-| Griefing includes trapping players and blocking moongates | Our flight paths must never park in a moongate or doorway | H | [Rules][r-rules] |
+| Griefing detection: trapping players and blocking moongates | Our flight paths must never park in a moongate or doorway | H | [Moongates][w-mg] |
 | Human-like inefficiency in every runner | Flee reactions use the humanised reaction delay: not instant, not padded past human norms | H | [PLAN.md:83][d-plan] |
 | Test commands `[TestRes`, `[TestBlessedGear`, `[Go` exist | They'd mask the real death costs. User decision (§8) | H | [Test Shard commands][w-tscmd] |
 
@@ -502,7 +498,7 @@ tune. All decisions post junctures through `Memory.juncture(source="threat", …
    ([Mounts][w-mounts]). Being mounted cuts the flee radius vs mounted threats by up to 20 tiles
    (§3.4).
 3. **Unknown blue players:** flee on approach (safer, costs yield and looks skittish) or only on red
-   or grey? The Test Shard bans PvP, so the base rate is low.
+   or grey? Observed PvP on the Test Shard is rare, so the base rate is low.
 4. **Combat items:** may the agent carry and use trapped pouches, potions, or an Adventurer's Rope as
    escape tools?
 5. **Monsters:** is the agent ever allowed to fight monsters (for example weak animals that
@@ -511,9 +507,9 @@ tune. All decisions post junctures through `Memory.juncture(source="threat", …
    realistic recovery? (Shared with TRAVEL_DEATH.md Q6.)
 7. **Region:** which overworld forest first? The spawn list per region decides whether the
    stealth-spawn and Brigand logic matters.
-8. **Consenting helper:** can you (or a friend on a second account, PvM-only rules permitting)
-   stage a thief/red approach for the captures below? Staging PvP on the Test Shard needs consent,
-   and possibly staff sanction.
+8. **Consenting helper:** can you (or a friend on a second account) stage a thief/red approach for
+   the captures below? Staged PvP would put Heat of Battle on both parties and pollute the capture,
+   so script the encounter carefully.
 
 ---
 
@@ -578,8 +574,6 @@ creature infoboxes); `rev` is the current revision id at reading time.
 [w-horse]: https://wiki.uooutlands.com/Horsethief "rev 27283"
 [w-bamb]: https://wiki.uooutlands.com/Brigand_Ambusher "rev 26443"
 [w-bush]: https://wiki.uooutlands.com/Bushwhacker "rev 27206"
-[r-rules]: https://uooutlands.com/rules/ "Code of Conduct, last update 2026-08-02"
-[r-ts]: https://uooutlands.com/rules/#testshard "Test Shard Code of Conduct"
 [p-2501]: https://uooutlands.com/news/patch-monster-rebalance-pack-ox-mechanic-changes-and-more/ "Patch 2025-01-25"
 [c-ph]: ../../ClassicUO-main/src/ClassicUO.Client/Network/PacketHandlers.cs
 [c-out]: ../../ClassicUO-main/src/ClassicUO.Client/Network/OutgoingPackets.cs

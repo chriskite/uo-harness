@@ -17,7 +17,7 @@ Tables
   harvest_attempts  every harvest attempt outcome (regrowth / yield statistics)
   episodes          one row per loop trip (phase times, human texture, results)
   junctures         moments that should wake the overseer AI (a task stuck,
-                    aborted or finished, a captcha handoff, a threat, a theft
+                    aborted or finished, a captcha, a threat, a theft
                     suspicion); acked once the overseer has handled them
   chat              the viz chat and the overseer's visible thinking:
                     role user|overseer|system, kind message|thought|action|memory

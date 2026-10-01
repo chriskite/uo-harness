@@ -1,9 +1,9 @@
 # Handoff — uo-harness (start here)
 
 **What this is:** an AI agent harness that plays UO Outlands via a localhost proxy
-(WinDivert NAT → Python proxy → game server). Target: Test Shard only, character
-TestWorth. Repo: `chriskite/uo-harness`. Read `AGENTS.md` (standing rules, incl.
-record-and-commit knowledge, Test-Shard-only, no production, no in-game harness
+(WinDivert NAT → Python proxy → game server). Character TestWorth.
+Repo: `chriskite/uo-harness`. Read `AGENTS.md` (standing rules: record-and-commit
+knowledge, never touch the client process/install dir, no in-game harness
 mentions), then this file, then the docs below as needed.
 
 ## State (2026-09-29)
@@ -47,8 +47,8 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
    - M0 done: the demo `20260929_204225` → `harness/data/loops/lumber.json`, pinned by
      `harness/test_loop_demo.py`.
    - Runner `harness/loop_lumber.py` built and offline-proven (`test_loop_lumber.py`).
-   - **Live proof ✅:** attempt 2c (22:27), 1 trip, 46 boards. **Run 3 (22:47): 3 trips, 50
-     boards in 8.4 min, live captcha handoff works** (LUMBER_LOOP.md §13). Next: optimization
+  - **Live proof ✅:** attempt 2c (22:27), 1 trip, 46 boards. **Run 3 (22:47): 3 trips, 50
+    boards in 8.4 min, live captcha detection works** (LUMBER_LOOP.md §13). Next: optimization
      (§6) from the memory store's episodes and yields (baseline ≈355 boards/active hour).
    - The visualizer shows what the agent is trying to do ("Heading to tree at …", "Chopping …",
      "Going home: …") in the **Agent** panel and as a map reticle (VISUALIZER.md §2.3). The live
@@ -85,9 +85,9 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 - Harness memory: `python harness/memory.py stats`; backfill captures the store hasn't seen with
   `python harness/memory.py ingest`; 2D plan on stored walk evidence:
   `python harness/nav.py plan x1,y1 x2,y2 [--facet F]`.
-- Lumber loop (the user must be at the client to solve captchas):
-  `python harness/loop_lumber.py --trips 1`. It beeps on a captcha and waits for the human's
-  answer. Harvest outcomes and episodes go to the memory store.
+- Lumber loop: `python harness/loop_lumber.py --trips 1`. On a captcha it currently pauses
+  and beeps (interim behavior; captcha auto-solve is the intended path — the digits are
+  machine-readable from the gump layout). Harvest outcomes and episodes go to the memory store.
 - Demonstration timeline (offline, read-only): `python harness/loop_mine.py timeline <TAG>
   [--labels]`. Replays `logs/session_<TAG>.*` and prints actions, gumps, menus, cliloc
   messages rendered from Cliloc.enu, and container amount changes.
