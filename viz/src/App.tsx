@@ -68,8 +68,8 @@ export function App() {
       <aside className="left">
         <IntentPanel viz={viz} />
         <SelfPanel world={world} />
-        <PaperdollPanel viz={viz} />
         <LivePanel viz={viz} />
+        <PaperdollPanel viz={viz} />
         <details className="panel min-panel">
           <summary className="panel-head">
             <h2>Movement &amp; traffic</h2>

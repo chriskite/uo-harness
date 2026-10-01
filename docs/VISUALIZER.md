@@ -444,9 +444,9 @@ fixtures ("replay X, state at event N").
 │──────────────│                                          │ OverseerPanel    │
 │ SelfPanel    │               MapGrid                    │ (chat timeline,  │
 │──────────────│  (full height: terrain, walk memory,     │ junctures, open  │
-│ Paperdoll    │   entities, trail)                       │ count, compose)  │
+│ Live view    │   entities, trail)                       │ count, compose)  │
 │──────────────│                                          │                  │
-│ Live view    │                                          │                  │
+│ Paperdoll    │                                          │                  │
 │──────────────│                                          │                  │
 │ ▸ Movement & │                                          │                  │
 │   traffic    │                                          │                  │
