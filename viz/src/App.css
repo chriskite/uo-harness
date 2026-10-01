@@ -110,12 +110,12 @@ h4 {
 .app {
   display: grid;
   height: 100vh;
-  grid-template-columns: 340px 1fr 1fr 460px;
-  grid-template-rows: 40px minmax(0, 1fr) 270px;
+  grid-template-columns: 340px minmax(0, 1fr) 460px;
+  grid-template-rows: 40px minmax(0, 1fr) auto;
   grid-template-areas:
-    "header header header header"
-    "left map map right"
-    "bl bl br br";
+    "header header header"
+    "left map right"
+    "details details details";
   gap: 6px;
   padding: 0 6px 6px;
 }
@@ -140,14 +140,41 @@ h4 {
   min-height: 0;
   overflow: hidden;
 }
-.bottom-left {
-  grid-area: bl;
+.details-row {
+  grid-area: details;
   min-height: 0;
+}
+.details-bar {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.details-row[open] > .details-bar {
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+}
+.details-inner {
+  display: flex;
+  gap: 6px;
+  height: 300px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  background: var(--panel);
+}
+.details-containers {
+  flex: 1;
+  min-width: 0;
   overflow: auto;
 }
-.bottom-right {
-  grid-area: br;
-  min-height: 0;
+.details-tabs {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -160,6 +187,17 @@ h4 {
 }
 .left > .panel {
   flex: none;
+}
+.min-panel > summary {
+  border-radius: 6px;
+}
+.min-panel[open] > summary {
+  border-radius: 6px 6px 0 0;
+}
+.min-panel > .panel {
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
 }
 .panel-head {
   display: flex;
@@ -174,7 +212,7 @@ h4 {
 .panel-body {
   padding: 8px 10px;
 }
-.bottom-left > .panel {
+.details-containers > .panel {
   border: none;
   height: 100%;
 }
@@ -861,13 +899,9 @@ ol.lines {
   display: flex;
   flex-direction: column;
 }
-.right-body {
+.right > .overseer {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
-}
-.right-body[hidden] {
-  display: none;
 }
 
 /* ---------------------------------------------------------------- overseer panel */

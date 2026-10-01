@@ -301,8 +301,9 @@ table has no job column) and `harness/data/woods.json` when present.
 **UI**
 - **Page switch** in the header: `Live` (the layout of §4) and `Jobs`. The page is kept in the URL
   hash (`#jobs`), so a reload or a link keeps it.
-- **Overseer panel:** a tab next to **Events** in the right column. The tab shows the number of
-  open junctures even while Events is in front. It polls `/api/overseer` every 2 s with the
+- **Overseer panel:** the whole right column (since the 2026-09-30 layout rework above; before
+  that a tab next to **Events**, which moved into the bottom drawer). Its header shows the
+  number of open junctures. It polls `/api/overseer` every 2 s with the
   cursors, and it polls whichever page is showing. One time-ordered timeline holds:
   - user messages (right, blue) and overseer messages (left, teal); system rows are centred and dim;
   - `thought` rows: dashed, italic, labelled THINKING, and collapsed to their first line (click to
@@ -435,18 +436,31 @@ fixtures ("replay X, state at event N").
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ header: LIVE :25942 | REPLAY <tag> (exact|approx order) • conn • ⏯ ⏩ step   │
-│         gate: state+reason • ⏸/▶ • ■ kill • next break / break end • today  │
-├────────────────┬───────────────────────────────────────┬───────────────────┤
-│ SelfPanel      │                                       │ EventLog          │
-│────────────────│              MapGrid                  │ (world + proxy    │
-│ MovementPanel  │   (walk memory underlay, entities,    │  origin, filter)  │
-│────────────────│    truth vs dead-reckoned marker)     │                   │
-│ TrafficPanel   │                                       │                   │
-├────────────────┴───────────────────┬───────────────────┴───────────────────┤
-│ ContainerTree                      │ EntityInspector / GumpViewer / Census │
-└────────────────────────────────────┴───────────────────────────────────────┘
+│ header: Live|Jobs • LIVE | REPLAY <tag> (exact|approx order) • conn • ⏯ ⏩  │
+│         rate • gate: state+reason • ⏸/▶ • ■ kill • next break / break end  │
+├──────────────┬──────────────────────────────────────────┬──────────────────┤
+│ IntentPanel  │                                          │                  │
+│ (Agent)      │                                          │                  │
+│──────────────│                                          │ OverseerPanel    │
+│ SelfPanel    │               MapGrid                    │ (chat timeline,  │
+│──────────────│  (full height: terrain, walk memory,     │ junctures, open  │
+│ Paperdoll    │   entities, trail)                       │ count, compose)  │
+│──────────────│                                          │                  │
+│ Live view    │                                          │                  │
+│──────────────│                                          │                  │
+│ ▸ Movement & │                                          │                  │
+│   traffic    │                                          │                  │
+├──────────────┴──────────────────────────────────────────┴──────────────────┤
+│ ▸ details — Containers · Inspector · Gumps · Census · Diagnostics · Events │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+**Layout (reworked 2026-09-30, user request):** the map, the agent intent, the live view,
+self/state and the overseer chat are the primary surface; everything else starts minimized.
+MovementPanel and TrafficPanel fold into a collapsed `<details>` at the foot of the left
+column; ContainerTree and the Inspector/Gumps/Census/Diagnostics tabs plus the EventLog sit in
+a collapsed bottom drawer (`<details>`, 300 px when open). Selecting an entity (map click,
+serial link) opens the drawer on the Inspector tab.
 
 - **SelfPanel.** `world.self`: name, serial, vitals bars, stats, gold/weight, warmode,
   notoriety, buffs (`world.buffs[self]`), skills (top N; values ×10 fixed point, joined with
@@ -537,7 +551,7 @@ fixtures ("replay X, state at event N").
 | `viz/src/gate.ts`, `components/GateControls.tsx` | agent gate badge vocabulary and button rules; the header gate controls (§2.2) |
 | `viz/src/intent.ts`, `components/IntentPanel.tsx` | agent intent view (tone, trip context, age against the live or replay clock) and the Agent panel (§2.3) |
 | `harness/jobs.py` | job analytics over the memory store (§2.4) |
-| `viz/src/overseer.ts`, `components/OverseerPanel.tsx` | overseer timeline model (cursor merge, heartbeat status, chat validation) and the Overseer tab (§2.4) |
+| `viz/src/overseer.ts`, `components/OverseerPanel.tsx` | overseer timeline model (cursor merge, heartbeat status, chat validation) and the Overseer panel (§2.4) |
 | `viz/src/jobs.ts`, `chart.ts`, `components/JobsPage.tsx`, `components/Charts.tsx` | Jobs page view model (KPIs, event wording, theft rule, wood shares), SVG chart geometry, the dashboard and its charts (§2.4) |
 | `viz/src/App.tsx`, `components/*.tsx`, `App.css` | §4 panels |
 

@@ -17,10 +17,8 @@ import { SelfPanel } from "./components/SelfPanel.tsx";
 import { TrafficPanel } from "./components/TrafficPanel.tsx";
 import { useViz } from "./store.ts";
 
-const TABS = ["Inspector", "Gumps", "Census", "Diagnostics"] as const;
+const TABS = ["Inspector", "Gumps", "Census", "Diagnostics", "Events"] as const;
 type Tab = (typeof TABS)[number];
-const RIGHT_TABS = ["Events", "Overseer"] as const;
-type RightTab = (typeof RIGHT_TABS)[number];
 
 /** The page lives in the URL hash (#jobs), so it survives reloads and can be linked. */
 function pageFromHash(): Page {
@@ -32,12 +30,16 @@ export function App() {
   const overseer = useOverseer();
   const [page, setPage] = useState<Page>(pageFromHash);
   const [tab, setTab] = useState<Tab>("Inspector");
-  const [rightTab, setRightTab] = useState<RightTab>("Events");
+  // The bottom drawer (containers, inspector, events, …) starts hidden: the map,
+  // intent, self, live view and the overseer chat are the primary surface.
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const world = viz.state?.world ?? null;
-  const open = overseer.state.openIds.length;
 
   useEffect(() => {
-    if (viz.selected) setTab("Inspector");
+    if (viz.selected) {
+      setTab("Inspector");
+      setDetailsOpen(true);
+    }
   }, [viz.selected]);
 
   useEffect(() => {
@@ -68,46 +70,48 @@ export function App() {
         <SelfPanel world={world} />
         <PaperdollPanel viz={viz} />
         <LivePanel viz={viz} />
-        <MovementPanel state={viz.state} agg={viz.agg} />
-        <TrafficPanel traffic={viz.state?.traffic} lastAgent={viz.agg.lastAgent} world={world} />
+        <details className="panel min-panel">
+          <summary className="panel-head">
+            <h2>Movement &amp; traffic</h2>
+          </summary>
+          <MovementPanel state={viz.state} agg={viz.agg} />
+          <TrafficPanel traffic={viz.state?.traffic} lastAgent={viz.agg.lastAgent} world={world} />
+        </details>
       </aside>
       <main className="map panel">
         <MapGrid viz={viz} />
       </main>
       <aside className="right panel">
-        <nav className="tabs">
-          {RIGHT_TABS.map((t) => (
-            <button key={t} className={t === rightTab ? "tab active" : "tab"} onClick={() => setRightTab(t)}>
-              {t}
-              {t === "Overseer" && open > 0 && <span className="ov-open">{open}</span>}
-            </button>
-          ))}
-        </nav>
-        <div className="right-body" hidden={rightTab !== "Events"}>
-          <EventLog events={viz.events} world={world} selected={viz.selected} />
-        </div>
-        <div className="right-body" hidden={rightTab !== "Overseer"}>
-          <OverseerPanel feed={overseer} />
-        </div>
+        <OverseerPanel feed={overseer} />
       </aside>
-      <section className="bottom-left panel">
-        <ContainerTree state={viz.state} selected={viz.selected} />
-      </section>
-      <section className="bottom-right panel">
-        <nav className="tabs">
-          {TABS.map((t) => (
-            <button key={t} className={t === tab ? "tab active" : "tab"} onClick={() => setTab(t)}>
-              {t}
-            </button>
-          ))}
-        </nav>
-        <div className="tab-body">
-          {tab === "Inspector" && <EntityInspector viz={viz} />}
-          {tab === "Gumps" && <GumpViewer world={world} />}
-          {tab === "Census" && <CensusPanel world={world} streamLabels={viz.agg.labels} selected={viz.selected} />}
-          {tab === "Diagnostics" && <DiagnosticsPanel state={viz.state} />}
+      <details
+        className="details-row"
+        open={detailsOpen}
+        onToggle={(e) => setDetailsOpen(e.currentTarget.open)}
+      >
+        <summary className="details-bar">details — containers · inspector · gumps · census · diagnostics · events</summary>
+        <div className="details-inner">
+          <div className="details-containers panel">
+            <ContainerTree state={viz.state} selected={viz.selected} />
+          </div>
+          <div className="details-tabs panel">
+            <nav className="tabs">
+              {TABS.map((t) => (
+                <button key={t} className={t === tab ? "tab active" : "tab"} onClick={() => setTab(t)}>
+                  {t}
+                </button>
+              ))}
+            </nav>
+            <div className="tab-body">
+              {tab === "Inspector" && <EntityInspector viz={viz} />}
+              {tab === "Gumps" && <GumpViewer world={world} />}
+              {tab === "Census" && <CensusPanel world={world} streamLabels={viz.agg.labels} selected={viz.selected} />}
+              {tab === "Diagnostics" && <DiagnosticsPanel state={viz.state} />}
+              {tab === "Events" && <EventLog events={viz.events} world={world} selected={viz.selected} />}
+            </div>
+          </div>
         </div>
-      </section>
+      </details>
     </div>
   );
 }
