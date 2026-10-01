@@ -284,21 +284,35 @@ without a server cursor; 0 replies to 127 decoy captchas or to the 6 real ones (
 
 A9 and A10 remain open.
 
-**Live run 2026-09-30 18:28-18:56 (session 20260930_182751, overseer 10-log lumber trip at Horseshoe
-Bay):**
-- 657 agent walks: step gaps p10/median/p90 207/212/217 ms (min 203), 20 % heading changes
-- 0 client resyncs, 0 `walk_rejected`
-- 2 agent denies. One at (2003,2227) S, on a tile the map rules call walkable (cause unknown).
-  One diagonal NW at (2027,2218) through the corner of a closed double door (below).
-- 6 open-door requests, 5 of them with no deny before them. The sixth was the auto-open after the
-  turn that followed that diagonal deny.
-- 3 agent target answers, 3 client-only cancels, 3 client replies dropped; 0 client `0x6C`
-  reached the server
-- 4 gump closes, 24 re-anchors
+**Live verification (session 20260930_182751, 18:28-19:04 local):** an overseer lumber trip at
+Horseshoe Bay, a recall to Prevalia with a hatchet bought from a provisioner, and renting a room
+after the midnight wipe. The whole capture was replayed through `SessionTap` offline (0 timer
+divergences) and every agent packet was checked against the world state at that moment.
 
-**New finding from that run:** the planner treats doors as passable, and the auto-open only covers
-the facing tile. So a diagonal step past a closed door on a corner tile is sent and denied. The
-stock client's CanWalk counts a closed door as a wall and wouldn't send that step. [open]
+| # | Verdict | Evidence |
+|---|---|---|
+| A1 | **verified** | 4 agent target answers, each to the active cursor; 4 client-only cancels, each answered by the client 2-6 ms later and dropped; 0 client `0x6C` relayed |
+| A2 | **verified** | 0 client resyncs; 0 duplicate or out-of-order walk seqs on the wire (756 agent + client walks). One walk confirmed 6.8 s late, during the midnight-UTC wipe freeze: it was hidden, the ladder moved on and nothing was re-sent |
+| A3 | **verified** (1 sample) | `09 000028bb` → `bf 0009 0013 000028bb` 0 ms apart; menu pick 0.9 s later, `0x3B` 1.1 s after that |
+| A4 | **verified** | 11 agent serial references, each at ≤ 4 tiles or in the pack |
+| A5 | **partly**: 1 new gap (below) | doors: 7 requests, 55-112 ms after the walk that faced the door (human 55-101 ms), 6 followed by a step. 2 denies: the diagonal past a closed double-door leaf, and a step into a barrel (below) |
+| A6 | **verified** | 11/11 agent `0xB1` byte-equal to `actions.gump_reply` for the gump's layout |
+| A7 | not exercised | no single click on a mobile, no attack, no war mode in this session |
+| A8 | **verified** for run | 693 run steps: gaps p10/median/p90 207/213/218 ms (min 203); 21 % heading changes. No walked route was drawn, so the 400 ms walk cadence is unverified |
+
+Unchanged: keepalive median gap 1.057 s, p99 1.087 s (2 075 keepalives); C2S senders only client
+and agent; 0 server messages about macro/AFK/jail/Razor/automation in 266 decoded messages.
+
+**New findings from that run (both open):**
+- **Per-step map check missing in `Mover`.** It checks walkability when it plans, never again before
+  each step. A barrel (`0x0E77`, impassable) arrived 1 s after the route was planned and the Mover
+  walked into it 6 s later ((2003,2227) S, denied). The stock client runs CanWalk on every step
+  against the objects it has at that moment and would have sent nothing. Fix direction: re-check
+  each step with the current dynamic items and replan without sending.
+- **Diagonal past a closed door.** The planner treats doors as passable, and the auto-open only
+  covers the facing tile. So a diagonal step past a closed door on a corner tile is sent and
+  denied ((2027,2218) NW). The stock client's CanWalk counts a closed door as a wall and wouldn't
+  send that step.
 
 **Other gaps:** nothing verifies the connected shard is the Test Shard. divert_nat.py hardcodes
 74.91.115.123, the JWT carries no shard claim, and whether production resolves to the same IP is
