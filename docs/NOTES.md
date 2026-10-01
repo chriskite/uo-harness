@@ -176,6 +176,7 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 
 - The agent shell is git-bash-like: **backslashes in unquoted paths get eaten** (use forward slashes or quote), `$_` gets expanded (breaks inline PowerShell — use `.ps1` files), `timeout` is GNU (no `/t`), `copy` doesn't exist (use `cp`).
 - The agent shell starts programs through Windows directly: **a shebang script fails** (`./x`: "%1 is not a valid Win32 application"), and an extensionless name doesn't resolve to `x.cmd`. `.cmd` files run (`./ctl.cmd status`; quotes, `&` and exit codes pass through), and so does `bash x`.
+- **Short commands:** plain `python` on this shell's PATH is the Python 3.13 install (`sys.executable` = `C:\Users\chris\AppData\Local\Programs\Python\Python313\python.exe`), so the full path is unnecessary. `jq` is present (it's `jaq` 2.3, a jq clone): `./ctl.cmd status | jq -c '{pos, hits}'`.
 - `Outlands.exe` **elevates (UAC)** — background launches hang on hidden UAC prompts; use `launch_game.ps1` and have the user accept the prompt.
 - winget works but: source update may fail (harmless), some installers block on UAC, 900 s job timeout can kill slow installs mid-flight.
 - `ssh-keygen -N '""'` in this shell sets a literal `""` passphrase — use `-N ''`.

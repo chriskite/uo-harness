@@ -82,7 +82,7 @@ class FakeProxy:
         self.prices = {}          # item serial -> price charged by a 0x3B
         self.intents = []         # intents posted on the state port (op "intent")
         self.buffs = {}           # icon id (str) -> buff record (world.buffs for self)
-        self.opened = []          # world.containers: serials the server opened (0x24)
+        self.opened = [self.PACK]  # world.containers: serials the server opened (0x24); the client opens the pack at login
         self.labels = {}          # world.labels: serial -> clicked title ("Sherwin the mage")
         self.stats = {}           # extra self stats (0x11 fields)
         self.deny_jumps = {}      # tile -> destination: a teleporter that denies the step, then moves you
@@ -142,6 +142,12 @@ class FakeProxy:
                             self.gold -= self.prices.get(s, 0) * int.from_bytes(pkt[off + 5:off + 7], "big")
                     elif pkt[0] == 0x72:
                         self.warmode = bool(pkt[1])
+                    elif pkt[0] == 0x06:                              # dclick a container -> the server's 0x24
+                        s = int.from_bytes(pkt[1:5], "big")
+                        key = f"0x{s:08X}"
+                        holds = any(v.get("container") in (key, s) for v in self.ground_items.values())
+                        if (s == self.PACK or holds) and s not in self.opened and key not in self.opened:
+                            self.opened.append(s)
                     elif pkt[0] == 0x07:
                         self.lifted = (f"0x{int.from_bytes(pkt[1:5], 'big'):08X}", int.from_bytes(pkt[5:7], "big"))
                     elif pkt[0] == 0x08 and len(pkt) == 22:          # drop into a container
@@ -1021,6 +1027,7 @@ def test_drop(proxy):
         "0x40000504": {"graphic": 0x0E75, "container": bank},                          # a bag in the bank
         "0x40000505": {"graphic": 0x0F0C, "amount": 1, "container": "0x40000504"},    # an item in the bank
     }
+    proxy.opened = [proxy.PACK, 0x40000500]          # the bank box opened by saying `bank`
     proxy.take()
     code, out = c("act", "drop", "0x40000501", bank, "--human", "off")
     fr = [p for _, p in proxy.take()]
@@ -1029,9 +1036,11 @@ def test_drop(proxy):
           and fr == [actions.lift(0x40000501, 98), actions.drop(0x40000501, ctl.DROP_AUTO, ctl.DROP_AUTO, 0, 0,
                                                                 0x40000500)], f"{out} {fr}")
     code, out = c("act", "drop", "0x40000502", "0x40000504", "--amount", "4", "--human", "off")
-    check("part of a stack into a bag in the bank (--amount)", code == 0 and out["moved"]
-          and proxy.ground_items["0x40000502"]["amount"] == 6
-          and [p for _, p in proxy.take()][0] == actions.lift(0x40000502, 4), str(out))
+    fr = [p for _, p in proxy.take()]
+    check("part of a stack into a closed bag in the bank (--amount): the bag is opened first, then the stock "
+          "lift + drop", code == 0 and out["moved"] and proxy.ground_items["0x40000502"]["amount"] == 6
+          and out.get("opened") == ["0x40000504"]
+          and fr[:2] == [actions.dclick(0x40000504), actions.lift(0x40000502, 4)], f"{out} {fr}")
     proxy.ground_items["0x40000507"] = {"graphic": 0x2006, "amount": 0x27, "x": 5, "y": 5}          # a corpse
     proxy.ground_items["0x40000508"] = {"graphic": 0x0EED, "amount": 22, "container": "0x40000507"}
     proxy.ground_items["0x40000509"] = {"graphic": 0x0E75, "layer": 0x1A, "container": "0x00000009"}  # vendor stock
@@ -1045,7 +1054,7 @@ def test_drop(proxy):
     check("status.containers: an opened corpse listed; the backpack and vendor stock left out",
           set(boxes) == {bank, "0x40000507"} and boxes["0x40000507"]["kind"] == "corpse"
           and boxes["0x40000507"]["items"][0]["amount"] == 22, str(sorted(boxes)))
-    proxy.opened = []
+    proxy.opened = [proxy.PACK, 0x40000500, 0x40000504]
     for s in ("0x40000507", "0x40000508", "0x40000509"):
         del proxy.ground_items[s]
     code, out = c("act", "drop", "0x40000505", pack, "--human", "off")
@@ -1054,6 +1063,7 @@ def test_drop(proxy):
           and proxy.ground_items["0x40000505"]["container"] == pack
           and [p for _, p in proxy.take()][0] == actions.lift(0x40000505, 1), str(out))
     proxy.ground_items["0x40000506"] = {"graphic": 0x0EED, "amount": 5, "container": "0x40000503"}
+    proxy.opened.append(0x40000503)                  # opened earlier (a chest the server showed us)
     code, out = c("act", "drop", "0x40000506", pack, "--human", "off")
     check("from any other container (user: no container limits; the server decides)",
           code == 0 and out["from"] == "0x00000009" and out["into"] == "backpack"
@@ -1066,7 +1076,26 @@ def test_drop(proxy):
                       (("0x40000502", pack, "--amount", "7"), "--amount must be 1..6")):
         code, out = c("act", "drop", *args, "--human", "off")
         check(f"drop refused: {why}", code == 1 and why in out.get("error", "") and proxy.take() == [], str(out))
+
+    print("== containers are opened like a player would, outermost first ==")
+    proxy.ground_items["0x4000050A"] = {"graphic": 0x0E76, "container": pack}                  # a pouch
+    proxy.ground_items["0x4000050B"] = {"graphic": 0x0F0C, "amount": 2, "container": "0x4000050A"}
+    proxy.opened = []                                # nothing opened yet: not even the backpack
+    code, out = c("act", "drop", "0x4000050B", pack, "--human", "off")
+    fr = [p for _, p in proxy.take()]
+    check("an item in a pouch in the closed backpack: backpack, then pouch, then lift + drop",
+          code == 0 and out.get("opened") == [pack, "0x4000050A"]
+          and fr == [actions.dclick(proxy.PACK), actions.dclick(0x4000050A), actions.lift(0x4000050B, 2),
+                     actions.drop(0x4000050B, ctl.DROP_AUTO, ctl.DROP_AUTO, 0, 0, proxy.PACK)], f"{out} {fr}")
+    code, out = c("act", "drop", "0x4000050B", "0x4000050A", "--human", "off")
+    fr = [p for _, p in proxy.take()]
+    check("opened once is open as far as the server knows: nothing re-opened",
+          code == 0 and "opened" not in out and fr[0] == actions.lift(0x4000050B, 2), f"{out} {fr}")
+    code, out = c("act", "drop", "0x40000502", bank, "--human", "off")
+    check("into the bank box the server never opened: refused (only saying `bank` opens it), nothing sent",
+          code == 1 and "say `bank`" in out.get("error", "") and proxy.take() == [], str(out))
     proxy.ground_items = {}
+    proxy.opened = [proxy.PACK]
 
 
 def uomap_layer(graphic):

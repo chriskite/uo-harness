@@ -78,6 +78,15 @@ Whitelist, built with the existing `harness/actions.py` builders and framed exac
 | `use` | `<item name words \| 0xGRAPHIC>` | Double-clicks the matching item in your backpack (drink a potion; a bandage, then `target self`); the smallest stack first. A name matching different items is refused. Names are clicked names or else tiledata names (potions are colours there: Lesser Heal = "Yellow Potion", Refresh = "Red Potion", Lesser Cure = "Orange Potion"); single-click to get the real name |
 | `drop` | `<item serial> <container serial> [--amount N]` | Moves an item into a container, **from anywhere to anywhere** the world model knows: backpack, open bank box, chests, corpses, a bag in any of them. No harness-side container limits (user decision 2026-09-30); the server decides what you may take or reach. E.g. gold from the bank into the backpack: `drop <gold> <backpack>`. Sends `0x07` lift (N of a stack; default all), a human drag pause, then `0x08` drop into the container (auto-position), like dragging it in the client. Merged stacks (gold onto gold) count as moved. Returns `from`/`into` (backpack, bank, corpse, ground container or a serial). Refuses only unknown items or containers, a container into itself, and an amount outside the stack |
 
+**Containers are opened first, like a player would (2026-10-01).** A player only reaches an item
+through an open container gump. So `dclick`, `single_click`, `menu`, `use`, `equip`, `drop` (source,
+and the destination itself) and `loot` (your backpack) first double-click every container on the
+way that the server hasn't opened this session (`world.containers`, its `0x24` replies), outermost
+first, with a moment to find the item. They report those as `opened`. Opened once counts as open:
+the server never learns that a gump was closed. A bank box that isn't open is refused ("say
+`bank` first"); a double-click doesn't open it. `target` on an item in an unopened bag is refused,
+because with a cursor up a click targets: cancel, open the bag, use the tool again.
+
 Every packet act waits ~1.5 s and returns `heard`: the server's replies as a player would read
 them (messages with clilocs rendered, gumps with text/buttons/closable, menus, vendor lists).
 

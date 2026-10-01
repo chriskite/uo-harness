@@ -909,9 +909,11 @@ def _act(a, mem) -> dict:
     try:
         if a.name == "walk":
             return _act_walk(a, ctl, stc)
-        pkts = [pkt]
+        pkts, opened = [pkt], []
         if serial is not None:
             pkts = _click_packets(a.name, serial, stc, idx if a.name == "menu_pick" else None)
+            if a.name != "menu_pick":  # a picked menu's item was already on screen
+                opened = _open_first(ctl, stc, Human(a.human, seed=a.seed), (serial, False))
         if a.name == "target_cancel":
             cur = (stc.state().get("world") or {}).get("target") or {}
             if not cur.get("active") or cur.get("cursor_id") is None:
@@ -931,6 +933,8 @@ def _act(a, mem) -> dict:
             got = stc.wait_events(mark, lambda evs: False, timeout=1.5)
         heard = [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]
         out = {"ok": True, "reply": resp, "heard": heard}
+        if opened:
+            out["opened"] = opened
         if a.name == "menu":
             menu = next((h for h in heard if h["ev"] == "popup"), None)
             out["ok"] = menu is not None
@@ -941,6 +945,40 @@ def _act(a, mem) -> dict:
     finally:
         ctl.close()
         stc.close()
+
+
+def _open_first(ctl: "Control", stc: "StateConn", human, *needs) -> list[str]:
+    """Open the containers the stock client would need on screen first
+    (agent_link.containers_to_open; `needs` are (serial, itself) pairs, itself
+    for a drop destination), outermost first, each with the stock double-click
+    and a wait for the server's 0x24, then a moment to find the item. Returns
+    the opened serials. CtlError when one can't be opened (the bank box only
+    opens by saying `bank`; a ground container must be in view)."""
+    from agent_link import OPEN_WAIT_S, closed_bank, containers_to_open
+    st = stc.state()
+    world = st["world"]
+    todo = []
+    for serial, itself in needs:
+        todo += [s for s in containers_to_open(world, serial, itself) if s not in todo]
+    if closed_bank(world, todo) is not None:
+        raise CtlError("your bank box isn't open: say `bank` near a banker first")
+    opened = []
+    for s in todo:
+        key = f"0x{s:08X}"
+        why = not_clickable(world, st["movement"].get("pos"), s)
+        if why is not None:
+            raise CtlError(f"container {key} would have to be opened first: {why}")
+        resp = ctl.send(actions.dclick(s))
+        if resp != "OK":
+            raise CtlError(f"opening container {key}: {resp}")
+        end = time.monotonic() + OPEN_WAIT_S
+        while key not in {f"0x{_serial(c):08X}" for c in stc.state()["world"].get("containers") or []}:
+            if time.monotonic() > end:
+                raise CtlError(f"container {key} didn't open")
+            time.sleep(0.1)
+        human.wait("find")
+        opened.append(key)
+    return opened
 
 
 def not_clickable(world: dict, pos, serial: int) -> str | None:
@@ -1159,6 +1197,7 @@ def _act_loot(a) -> dict:
         noto_before = world["self"].get("notoriety")
         mark = stc.mark()
         human = Human(a.human, seed=a.seed)
+        opened = _open_first(ctl, stc, human, (pack, True))     # the loot is dragged into the open backpack
         stc.intent(f"Looting {name or 'a corpse'}", "loot", (corpse["x"], corpse["y"]), serial)
         resp = ctl.send(actions.dclick(serial))
         if resp != "OK":
@@ -1203,6 +1242,8 @@ def _act_loot(a) -> dict:
                                             "body": None if body is None else f"0x{body:04X}", "dist": dist},
                "taken": taken, "failed": failed, "left": max(0, len(inside) - len(taken)),
                "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
+        if opened:
+            out["opened"] = opened
         if stopped:
             out["stopped"] = stopped
         if noto_after != noto_before:
@@ -1267,6 +1308,13 @@ def _act_target(a) -> dict:
                     c, depth = (world["items"].get(f"0x{_serial(c):08X}") or {}).get("container"), depth + 1
                 if pack is None or c is None or _serial(c) != pack:
                     raise CtlError(f"{key} isn't in your backpack")
+                from agent_link import containers_to_open
+                closed = containers_to_open(world, serial)
+                if closed:
+                    # with the cursor up a click targets: the player opens the bag before using the tool
+                    raise CtlError(f"{key} is in a container the client hasn't opened "
+                                   f"({', '.join(f'0x{s:08X}' for s in closed)}): `act target_cancel`, open "
+                                   f"it (`act dclick`), then use the tool again")
                 # the client sends a contained item's container-local x/y and z (actions.target_object)
                 x, y, z = it.get("x") or 0, it.get("y") or 0, it.get("z") or 0
                 graphic, what = it.get("graphic") or 0, it.get("name") or _tile_name(it.get("graphic"))
@@ -1406,12 +1454,14 @@ def _act_drop(a) -> dict:
             raise CtlError(f"--amount must be 1..{have}")
         name = item_label(it)
         src, where = _where(items, ikey, me), _where(items, ckey, me)
+        human = Human(a.human, seed=a.seed)
+        opened = _open_first(ctl, stc, human, (item_s, False), (cont_s, True))
         stc.intent(f"Moving {amount} {name or ikey} from the {src} to the {where}", "store")
         mark = stc.mark()
         resp = ctl.send(actions.lift(item_s, amount))
         if resp != "OK":
             return {"ok": False, "reply": resp}
-        Human(a.human, seed=a.seed).wait("drag")
+        human.wait("drag")
         resp = ctl.send(actions.drop(item_s, DROP_AUTO, DROP_AUTO, 0, 0, cont_s))
         if resp != "OK":
             return {"ok": False, "reply": resp,
@@ -1432,6 +1482,8 @@ def _act_drop(a) -> dict:
         got = stc.wait_events(mark, lambda evs: False, timeout=0.5)
         out = {"ok": ok, "reply": resp, "moved": ok, "item": name, "amount": amount, "from": src, "into": where,
                "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
+        if opened:
+            out["opened"] = opened
         if not ok:
             out["error"] = "the world model doesn't show the item moved (check journal/status)"
         return out
@@ -1470,16 +1522,20 @@ def _act_use(a) -> dict:
             raise CtlError(f"{want!r} matches different items: {sorted({n for _, _, n in cands})}; be more specific "
                            f"or use the graphic")
         k, it, name = min(cands, key=lambda c: (c[1].get("amount") or 1, c[0]))
+        opened = _open_first(ctl, stc, Human(a.human, seed=a.seed), (_serial(k), False))
         mark = stc.mark()
         stc.intent(f"Using {name or k}", "use")
         resp = ctl.send(actions.dclick(_serial(k)))
         got = stc.wait_events(mark, lambda evs: any(e.get("ev") == "target" for e in evs), timeout=1.5)
         cur = stc.state()["world"].get("target") or {}
-        return {"ok": resp == "OK", "reply": resp, "used": {"serial": k, "name": name,
-                                                             "graphic": f"0x{it['graphic']:04X}",
-                                                             "amount": it.get("amount") or 1},
-                "cursor": bool(cur.get("active")),
-                "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
+        out = {"ok": resp == "OK", "reply": resp, "used": {"serial": k, "name": name,
+                                                            "graphic": f"0x{it['graphic']:04X}",
+                                                            "amount": it.get("amount") or 1},
+               "cursor": bool(cur.get("active")),
+               "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
+        if opened:
+            out["opened"] = opened
+        return out
     finally:
         ctl.close()
         stc.close()
@@ -1665,11 +1721,14 @@ def _act_wear(a) -> dict:
         def done():
             v = stc.state()["world"]["items"].get(key)
             return v is not None and v.get("container") is not None and _serial(v["container"]) == target
+        human = Human(a.human, seed=a.seed)
+        # equip lifts from the open bag; unequip drags into the open backpack
+        opened = _open_first(ctl, stc, human, (pack, True) if a.name == "unequip" else (serial, False))
         mark = stc.mark()
         resp = ctl.send(actions.lift(serial, it.get("amount") or 1))
         if resp != "OK":
             return {"ok": False, "reply": resp}
-        Human(a.human, seed=a.seed).wait("drag")
+        human.wait("drag")
         resp = ctl.send(second)
         if resp != "OK":
             return {"ok": False, "reply": resp,
@@ -1681,6 +1740,8 @@ def _act_wear(a) -> dict:
         got = stc.wait_events(mark, lambda evs: False, timeout=0.5)
         out = {"ok": moved, "reply": resp, "moved": moved,
                "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
+        if opened:
+            out["opened"] = opened
         if not moved:
             out["error"] = "the world model doesn't show the item moved (check journal/status)"
         return out

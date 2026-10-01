@@ -35,7 +35,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
-from agent_link import Abort, Link, Mover, cheb, log, reach_z, same_floor, serial_of  # noqa: E402
+from agent_link import Abort, Link, Mover, cheb, containers_to_open, log, reach_z, same_floor, serial_of  # noqa: E402
 import uomap  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from uo.gumps import parse_layout  # noqa: E402
@@ -458,6 +458,7 @@ class LumberLoop:
             if "woods" not in self.stats:           # this trip's logs by wood type (ledger.py, woods.json)
                 self.stats["woods"] = self.ledger.summary(kind="log")
             self.doing("convert", f"Making boards from {it.get('amount') or 1} logs")
+            self.open_for((serial, False))              # the logs are targeted in the open backpack
             cur = self.use_hatchet()
             if cur is None:
                 continue
@@ -472,6 +473,15 @@ class LumberLoop:
             log(f"converted {it.get('amount') or 1} logs to boards")
             self.human.wait("between")
         raise Abort("logs left after 4 conversions")
+
+    def open_for(self, *needs):
+        """Open what the client must show first (agent_link.containers_to_open;
+        needs are (serial, itself) pairs), like a player opening the bag."""
+        world, todo = self.link.state()["world"], []
+        for serial, itself in needs:
+            todo += [s for s in containers_to_open(world, serial, itself) if s not in todo]
+        if todo:
+            self.link.open_containers(todo, self.human)
 
     # ------------------------------------------------------------ the room
     def room_menu(self, mark):
@@ -542,7 +552,10 @@ class LumberLoop:
         self.doing("to_box", "Walking to the secure container", bpos[:2])
         self.mover.walk_to(lambda: bpos, 1, "to the secure container")
         stored = 0
-        for serial, it in self.in_pack(self.state(), BOARDS):
+        stacks = self.in_pack(self.state(), BOARDS)
+        if stacks:  # boards are dragged from the open backpack into the open secure container
+            self.open_for(*[(serial, False) for serial, _ in stacks], (box, True))
+        for serial, it in stacks:
             amount = it.get("amount") or 1
             self.doing("store", f"Storing {amount} boards in the secure container", bpos[:2])
             self.human.wait("use")

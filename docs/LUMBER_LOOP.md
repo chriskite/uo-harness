@@ -406,6 +406,10 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   5. Lift each board stack and drop it into the secure container (auto-position; stacking merges
      are fine).
 
+  Like a player, the runner opens the backpack before targeting logs in it and the secure container
+  before storing, whenever the server hasn't opened them this session (ANTICHEAT.md §10, closed
+  containers).
+
   So the room is only left at the start of the next trip, and the last trip ends inside it.
   If the runner starts inside the room, it stores what it carries first. Before this change
   every trip ended by exiting, which left TestWorth standing outside the Shelter inn (the room

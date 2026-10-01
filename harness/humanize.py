@@ -40,6 +40,7 @@ REACTION_MEDIAN = {
     "read": 0.8,        # message shown -> next action
     "drag": 0.55,       # lift -> drop
     "use": 0.9,         # deciding to use an item
+    "find": 1.2,        # container gump opened -> item found and grabbed (demo 204225: 2.7 s, one sample)
     "speak": 1.1,       # arrived -> typed speech sent
     "between": 2.2,     # between harvest attempts
 }

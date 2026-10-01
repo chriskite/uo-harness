@@ -82,6 +82,45 @@ def serial_of(v) -> int:
     return int(v, 16) if isinstance(v, str) else int(v)
 
 
+LAYER_BANK = 0x1D
+OPEN_WAIT_S = 3.0                # double-click -> the server's 0x24 container open
+
+
+def containers_to_open(world: dict, serial: int, itself: bool = False) -> list[int]:
+    """Containers the stock client must show before it can lift, use or target
+    `serial`, outermost first, that the server hasn't opened this session.
+    A player only reaches an item through an open container gump (the
+    backpack, then the bag inside it...), and opening one is the stock
+    double-click answered by the server's 0x24, which the world model records
+    in world.containers. The server can't see a gump being closed, so opened
+    once is open as far as it knows. With itself=True `serial` (a drop
+    destination: you drag into its open gump) is included. Mobiles end the
+    chain (worn items, your backpack on you)."""
+    items = world["items"]
+    opened = {serial_of(s) for s in world.get("containers") or []}
+    chain, seen = [], set()
+    ent = items.get(f"0x{serial:08X}")
+    if itself and ent is not None:
+        chain.append(serial)
+    while ent is not None and ent.get("container") is not None:
+        parent = serial_of(ent["container"])
+        ent = items.get(f"0x{parent:08X}")
+        if ent is None or parent in seen:      # a mobile (you, a vendor) or unknown
+            break
+        seen.add(parent)
+        chain.append(parent)
+    return [s for s in reversed(chain) if s not in opened]
+
+
+def closed_bank(world: dict, serials) -> int | None:
+    """The bank box among `serials`, if any: a double-click can't open it (only
+    saying `bank` near a banker does), so callers refuse instead."""
+    for s in serials:
+        if (world["items"].get(f"0x{s:08X}") or {}).get("layer") == LAYER_BANK:
+            return s
+    return None
+
+
 class Link:
     """Control-port actions + state-port feedback, with an event cursor."""
 
@@ -184,6 +223,19 @@ class Link:
         if p is None:
             raise Abort("player position unknown (no login/anchor seen by the proxy)")
         return p
+
+    def open_containers(self, serials, human) -> list[int]:
+        """Open each container (containers_to_open order) with the stock
+        double-click and wait for the server's 0x24, then a moment to find the
+        item in the gump. Abort if one doesn't open."""
+        for s in serials:
+            log(f"opening container 0x{s:08X}")
+            self.act(actions.dclick(s))
+            if self.wait(lambda st: s in {serial_of(c) for c in st["world"].get("containers") or []},
+                         OPEN_WAIT_S) is None:
+                raise Abort(f"container 0x{s:08X} didn't open")
+            human.wait("find")
+        return list(serials)
 
 
 class Mover:

@@ -184,6 +184,7 @@ class World:
         self.dry_attempts = 0
         self.good_left = GOOD_VISIT
         self.doors_opened = 0
+        self.containers_opened = []                          # 0x06 on the backpack / secure box, in order
 
     def send(self, pkt):
         self.writer.write(encode_packet(pkt, S2C_KEY))
@@ -300,6 +301,9 @@ class World:
                 g = self.next_gump()
                 self.menu_gumps[g] = "door"
                 self.send(gump(g, MENU_ID, buttons([1, 3, 7, 4, 5]), ["Guide"]))
+            elif serial == BACKPACK or (serial == BOX and self.in_room):
+                self.containers_opened.append(serial)
+                self.send(b"\x24" + u32(serial) + bytes.fromhex("0000003c007d"))   # as captured (204225)
         elif pid == 0x6C:
             f = parse_packet("c2s", p)
             if f["cursor_id"] != self.cursor_for:
@@ -523,6 +527,9 @@ async def main():
         check("open-door requests only next to a door, like the client's auto-open (never at plain walls)",
               world.open_door_reqs == world.doors_opened, f"{world.open_door_reqs} requests, "
               f"{world.doors_opened} opened")
+        check("like a player, the agent opened the backpack before targeting the logs in it and the secure "
+              "container before storing; each once (opened stays open as far as the server knows)",
+              world.containers_opened == [BACKPACK, BOX], str(world.containers_opened))
         check("after leaving the room the agent waited out the harvest lockout",
               len(world.after_exit) == 1 and world.after_exit[0] >= LOCK_S and world.lockout_msgs == 0
               and "travel lockout: waiting" in text, f"{world.after_exit}")
