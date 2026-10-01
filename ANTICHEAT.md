@@ -292,7 +292,7 @@ divergences) and every agent packet was checked against the world state at that 
 | # | Verdict | Evidence |
 |---|---|---|
 | A1 | **verified** | 4 agent target answers, each to the active cursor; 4 client-only cancels, each answered by the client 2-6 ms later and dropped; 0 client `0x6C` relayed |
-| A2 | **verified** | 0 client resyncs; 0 duplicate or out-of-order walk seqs on the wire (756 agent + client walks). One walk confirmed 6.8 s late, during the midnight-UTC wipe freeze: it was hidden, the ladder moved on and nothing was re-sent |
+| A2 | **verified** | 0 client resyncs; 0 duplicate or out-of-order walk seqs on the wire (714 walks, all agent). One walk confirmed 6.8 s late, during the midnight-UTC wipe freeze: it was hidden, the ladder moved on and nothing was re-sent |
 | A3 | **verified** (1 sample) | `09 000028bb` → `bf 0009 0013 000028bb` 0 ms apart; menu pick 0.9 s later, `0x3B` 1.1 s after that |
 | A4 | **verified** | 11 agent serial references, each at ≤ 4 tiles or in the pack |
 | A5 | **partly**: 1 new gap (below) | doors: 7 requests, 55-112 ms after the walk that faced the door (human 55-101 ms), 6 followed by a step. 2 denies: the diagonal past a closed double-door leaf, and a step into a barrel (below) |
