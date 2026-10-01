@@ -882,14 +882,36 @@ async def _movement_timer(tap: SessionTap, client_writer: asyncio.StreamWriter):
             await client_writer.drain()
 
 
+async def _nat_upstream(port: int, client_port: int) -> str:
+    """Original server IP of a NAT-diverted client connection (divert_nat.py lookup), or ''."""
+    reader, writer = await asyncio.wait_for(asyncio.open_connection("127.0.0.1", port), 2)
+    try:
+        writer.write(f"{client_port}\n".encode())
+        await writer.drain()
+        return (await asyncio.wait_for(reader.readline(), 2)).decode().strip()
+    finally:
+        writer.close()
+
+
 async def handle_client(client_reader, client_writer, args):
     peer = client_writer.get_extra_info("peername")
+    upstream_host = args.upstream_host
+    if args.nat_lookup_port:
+        try:
+            upstream_host = await _nat_upstream(args.nat_lookup_port, peer[1])
+        except (OSError, asyncio.TimeoutError) as e:
+            upstream_host = ""
+            print(f"[proxy] NAT lookup failed for {peer}: {e!r}")
+        if not upstream_host:
+            client_writer.close()
+            print(f"[proxy] no NAT entry for {peer}; dropped")
+            return
     upstream_reader = upstream_writer = None
     last_err = None
     for port in range(args.upstream_bind_port, args.upstream_bind_port + 21):
         try:
             upstream_reader, upstream_writer = await asyncio.open_connection(
-                args.upstream_host, args.upstream_port,
+                upstream_host, args.upstream_port,
                 local_addr=(args.upstream_bind, port) if args.upstream_bind else None)
             break
         except OSError as e:
@@ -909,11 +931,11 @@ async def handle_client(client_reader, client_writer, args):
         open(os.path.join(args.logdir, f"session_{stamp}.s2c.raw"), "ab"),
         walkers=args.walkers,
     )
-    tap._log(ev="open", peer=str(peer), upstream=f"{args.upstream_host}:{args.upstream_port}")
+    tap._log(ev="open", peer=str(peer), upstream=f"{upstream_host}:{args.upstream_port}")
     if args.memory_writer is not None:
         args.memory_writer.open_session(stamp)
         tap.sink = lambda env, facet: args.memory_writer.record(stamp, env, facet)
-    print(f"[proxy] {peer} connected -> {args.upstream_host}:{args.upstream_port} (log session_{stamp}.jsonl)")
+    print(f"[proxy] {peer} connected -> {upstream_host}:{args.upstream_port} (log session_{stamp}.jsonl)")
 
     timer = asyncio.create_task(_movement_timer(tap, client_writer))
     try:
@@ -1007,7 +1029,7 @@ async def amain(args):
     server = await asyncio.start_server(
         lambda r, w: handle_client(r, w, args), args.listen_host, args.listen_port)
     print(f"[proxy] listening on {args.listen_host}:{args.listen_port}, "
-          f"upstream {args.upstream_host}:{args.upstream_port}, "
+          f"upstream {'<NAT lookup :%d>' % args.nat_lookup_port if args.nat_lookup_port else args.upstream_host}:{args.upstream_port}, "
           f"control {args.control_host}:{args.control_port}, state {args.control_host}:{args.state_port}")
     try:
         async with server, control, state:
@@ -1024,6 +1046,10 @@ def main():
     p.add_argument("--listen-port", type=int, default=2593)
     p.add_argument("--upstream-host", default="play.uooutlands.com")
     p.add_argument("--upstream-port", type=int, default=2593)
+    p.add_argument("--nat-lookup-port", type=int, default=0,
+                   help="dial the server each client originally connected to, as reported by "
+                        "divert_nat.py on this localhost port (25943); overrides --upstream-host. "
+                        "0 = off (tests)")
     p.add_argument("--upstream-bind", default="",
                    help="local IP to bind the upstream connection to (NAT loop prevention)")
     p.add_argument("--upstream-bind-port", type=int, default=0,

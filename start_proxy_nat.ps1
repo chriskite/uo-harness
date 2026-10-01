@@ -47,7 +47,7 @@ if ($listener) {
 } else {
     $proxy = Start-Process -FilePath $Python -WorkingDirectory $Root -PassThru -ArgumentList @(
         '-u', 'harness/proxy.py',
-        '--upstream-host', '35.71.142.123',
+        '--nat-lookup-port', '25943',
         '--upstream-bind', '0.0.0.0', '--upstream-bind-port', '25940',
         '--logdir', 'logs',
         '--memory-db', 'harness/data/harness.db')

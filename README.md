@@ -17,7 +17,7 @@ flowchart LR
     AG[Agent runtime<br/>LLM planner + skills]
   end
   CUO <-->|UO protocol, via WinDivert NAT| PX
-  PX <-->|client traffic + agent packets,<br/>walk seq/key on one ladder| SRV[35.71.142.123:2593<br/>shard unconfirmed]
+  PX <-->|client traffic + agent packets,<br/>walk seq/key on one ladder| SRV[game server :2593<br/>IP chosen per login]
   PX --> WM --> AG
   AG -->|action packets| PX
 ```
@@ -35,7 +35,7 @@ flowchart LR
 | Client | `ClassicUO.exe` STANDARD_BUILD **1.0.2.544** at analysis time (2026-09-27); the launcher patched it to **1.0.2.550** on 2026-09-28 (JWT `version` claim). NativeAOT native binary (no IL, no injection surface) |
 | Launcher | `Outlands.exe` — patcher + OutlandsID login UI, elevates (UAC), `-installed` arg |
 | Install dir | `C:\Program Files (x86)\Ultima Online Outlands` — **never write into it** |
-| Game server | literal IP from the HTTPS login response: 74.91.115.123:2593 (Test Shard) through 2026-09-30; on 2026-09-30 the client connected to 35.71.142.123:2593, which is now the NAT/proxy target (`play.uooutlands.com` does not resolve) |
+| Game server | literal IP from the HTTPS login response, varying by login: 74.91.115.123 (Test Shard), 35.71.142.123 and 52.223.17.219 (2026-09-30), all on :2593. The NAT diverts any IP on :2593 (`play.uooutlands.com` does not resolve) |
 | Auth | `https://login.uooutlands.com` (Cloudflare), JWT with `uooutlands.com/identity/claims/*` |
 | Runtime net surface | exactly 2 connections: short HTTPS auth + persistent game TCP. No telemetry/beacons |
 | Test account | shard "Test Server", character `TestWorth` (settings.json) |
