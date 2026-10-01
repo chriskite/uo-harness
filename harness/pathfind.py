@@ -8,8 +8,9 @@ step in a direction is walkable and at which z the player lands. That is
 the same decision the client makes before it sends a walk request.
 
 Differences from the client, on purpose:
-- Doors (dynamic items with the Door flag) don't block planning. The walker
-  opens them ahead, like the client's auto-open (agent_link.Mover).
+- Doors (dynamic items with the Door flag) don't block a step onto their own
+  tile: the walker opens them ahead, like the client's auto-open
+  (agent_link.Mover). They do block a diagonal past them (can_walk).
 - Mobiles are handled by the caller as blocked tiles (they move).
 - The A* is a plain heap-based search over (x, y, z) with per-plan
   cost noise (humanize.Human.cost_scale); diagonal and straight steps cost
@@ -197,16 +198,33 @@ class Walk:
             current = max(current, oavg)
         return None if result == -128 else result
 
-    def can_walk(self, x, y, z, d):
+    def door_on(self, x, y, z) -> bool:
+        """A door (static or ground item with the tiledata Door flag) stands on
+        (x, y) within a body height of z."""
+        for graphic, gz in [(s.graphic, s.z) for s in (self.m.statics(x, y) or ())] + list(self.dynamic(x, y)):
+            it = self.td.item(graphic)
+            if it is not None and it.flags & uomap.DOOR and abs((gz or 0) - z) < DEFAULT_BLOCK_HEIGHT:
+                return True
+        return False
+
+    def can_walk(self, x, y, z, d, door_corners: bool = True):
         """CanWalk without the client's direction substitution: the landing
-        (nx, ny, nz) of a step from (x, y, z) in direction d, or None."""
+        (nx, ny, nz) of a step from (x, y, z) in direction d, or None.
+
+        A door on the target tile doesn't block (the walker opens it ahead, like
+        the client's auto-open). A door on either corner tile of a diagonal does
+        (door_corners): door items are impassable for the client, open or closed,
+        so it never sends that diagonal (live 20260930_182751: a diagonal past a
+        closed double-door leaf was denied). The proxy's z tracking of
+        server-confirmed steps passes door_corners=False."""
         nx, ny = x + DX[d], y + DY[d]
         nz = self.new_z(nx, ny, z, d)
         if nz is None:
             return None
         if d & 1:
             for side in ((d + 1) % 8, (d + 7) % 8):
-                if self.new_z(x + DX[side], y + DY[side], z, side) is None:
+                sx, sy = x + DX[side], y + DY[side]
+                if self.new_z(sx, sy, z, side) is None or (door_corners and self.door_on(sx, sy, z)):
                     return None
         return nx, ny, nz
 

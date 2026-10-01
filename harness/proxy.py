@@ -479,7 +479,7 @@ class SessionTap:
             (it.x, it.y, it.graphic, it.z) for it in items if it.container is None))
         if walk is None:
             return None
-        nxt = walk.can_walk(x, y, z, direction)
+        nxt = walk.can_walk(x, y, z, direction, door_corners=False)   # the server already accepted it
         return None if nxt is None else nxt[2]
 
     def _proxy_event(self, ev: str, **fields):

@@ -175,7 +175,7 @@ Draft — to be finalized after §6/§7:
     - lognormal reaction times per action kind, with fatigue drift
     - per-plan route noise at the scale of 6×6-tile map cells instead of the one optimal path, with zig-zag stretches regrouped into straight runs (`nav.straighten`), occasional walked routes, pauses and sidesteps
     - steps at the stock client's held-key cadence (200 ms run / 400 ms walk plus frame jitter, measured from the previous send); the pauses sit between stretches, not inside them
-    - doors opened like the client's auto-open (`PlayerMobile.TryOpenDoors`): the open-door request goes out right after the turn or step that faces a door on the next tile, before stepping into it
+    - doors opened like the client's auto-open (`PlayerMobile.TryOpenDoors`): the open-door request goes out right after the turn or step that faces a door on the next tile, before stepping into it. Routes never cut diagonally past a door, and every step is re-checked against the objects the client has right then (§10, fixed 2026-10-01)
     - occasional cursor hesitation (stock Esc cancel) and idle fidgets (backpack, looking at a mobile)
 
     Constraints: only stock-identical packets or waiting. It never beats the proxy's pacing floor or the gate. No free-text speech (PLAN.md speech allowlist). [INFERENCE] Whether Outlands' server models these statistics is unknown. The texture is cheap insurance, not a guarantee.
@@ -295,7 +295,7 @@ divergences) and every agent packet was checked against the world state at that 
 | A2 | **verified** | 0 client resyncs; 0 duplicate or out-of-order walk seqs on the wire (714 walks, all agent). One walk confirmed 6.8 s late, during the midnight-UTC wipe freeze: it was hidden, the ladder moved on and nothing was re-sent |
 | A3 | **verified** (1 sample) | `09 000028bb` → `bf 0009 0013 000028bb` 0 ms apart; menu pick 0.9 s later, `0x3B` 1.1 s after that |
 | A4 | **verified** | 11 agent serial references, each at ≤ 4 tiles or in the pack |
-| A5 | **partly**: 1 new gap (below) | doors: 7 requests, 55-112 ms after the walk that faced the door (human 55-101 ms), 6 followed by a step. 2 denies: the diagonal past a closed double-door leaf, and a step into a barrel (below) |
+| A5 | **partly** at the time; both gaps fixed 2026-10-01 (below) | doors: 7 requests, 55-112 ms after the walk that faced the door (human 55-101 ms), 6 followed by a step. 2 denies: the diagonal past a closed double-door leaf, and a step into a barrel (below) |
 | A6 | **verified** | 11/11 agent `0xB1` byte-equal to `actions.gump_reply` for the gump's layout |
 | A7 | not exercised | no single click on a mobile, no attack, no war mode in this session |
 | A8 | **verified** for run | 693 run steps: gaps p10/median/p90 207/213/218 ms (min 203); 21 % heading changes. No walked route was drawn, so the 400 ms walk cadence is unverified |
@@ -303,16 +303,21 @@ divergences) and every agent packet was checked against the world state at that 
 Unchanged: keepalive median gap 1.057 s, p99 1.087 s (2 075 keepalives); C2S senders only client
 and agent; 0 server messages about macro/AFK/jail/Razor/automation in 266 decoded messages.
 
-**New findings from that run (both open):**
-- **Per-step map check missing in `Mover`.** It checks walkability when it plans, never again before
-  each step. A barrel (`0x0E77`, impassable) arrived 1 s after the route was planned and the Mover
-  walked into it 6 s later ((2003,2227) S, denied). The stock client runs CanWalk on every step
-  against the objects it has at that moment and would have sent nothing. Fix direction: re-check
-  each step with the current dynamic items and replan without sending.
-- **Diagonal past a closed door.** The planner treats doors as passable, and the auto-open only
-  covers the facing tile. So a diagonal step past a closed door on a corner tile is sent and
-  denied ((2027,2218) NW). The stock client's CanWalk counts a closed door as a wall and wouldn't
-  send that step.
+**New findings from that run (fixed 2026-10-01, offline-tested):**
+- **Per-step map check missing in `Mover`.** It checked walkability when it planned, never again
+  before each step. A barrel (`0x0E77`, impassable) arrived 1 s after the route was planned and
+  the Mover walked into it 6 s later ((2003,2227) S, denied). The stock client runs CanWalk on
+  every step against the objects it has at that moment and would have sent nothing. **Fix:**
+  `Mover.step_walkable` re-checks each step with the current ground items; a refused step isn't
+  sent and the route is replanned (`refused_steps`). `ctl act walk` re-checks every step the same
+  way. Test: `harness/test_mover.py` (object lands on the route after the plan).
+- **Diagonal past a closed door.** The planner treated doors as passable, and the auto-open only
+  covers the facing tile. So a diagonal step past a closed door on a corner tile was sent and
+  denied ((2027,2218) NW). The stock client counts door items (closed or open) as impassable and
+  wouldn't send that step. **Fix:** `pathfind.Walk.can_walk` refuses a diagonal with a door on
+  either corner tile (`door_corners`; the proxy's z tracking of confirmed steps passes False). A
+  step onto the door's own tile stays plannable, since the door is opened ahead. Test:
+  `harness/test_pathfind.py`, with the live door state.
 
 **Other gaps:** nothing verifies the connected shard is the Test Shard. divert_nat.py hardcodes
 74.91.115.123, the JWT carries no shard claim, and whether production resolves to the same IP is

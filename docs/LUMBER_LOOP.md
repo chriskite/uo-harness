@@ -458,7 +458,9 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     - per-step micro-pauses (2.5 %) and rare 3–9 s look-around pauses (0.4 %)
     - 1.2 % chance per step of a sidestep onto a known-walkable tile, then a replan
     - doors are opened like the client's auto-open: right after the turn or step that faces a
-      door on the next tile, before stepping into it
+      door on the next tile, before stepping into it; routes never cut diagonally past a door
+    - every step is re-checked against the objects the world model has right then (an object
+      that arrived after the plan triggers a replan, not a step into it)
     - the first version also missed turns on purpose and ran into a known obstacle (a server
       deny). Removed 2026-09-30: the stock client never sends a step its own map check refuses
       (ANTICHEAT.md §8.14, §10 A5)

@@ -47,7 +47,7 @@ def main():
     bad = []
     for a, b in edges:
         d = nav.direction(a, b)
-        if not any((walk.can_walk(a[0], a[1], z, d) or (None, None))[:2] == b
+        if not any((walk.can_walk(a[0], a[1], z, d, door_corners=False) or (None, None))[:2] == b
                    for z in standing_zs(walk, *a)):
             bad.append((a, b))
     check(f"all {len(edges)} server-confirmed moves are walkable", not bad and len(edges) > 1000,
@@ -95,6 +95,18 @@ def main():
     inn = pathfind.plan(walk, (1925, 2592, -20), nav.within((1932, 2595), 4, agent_link.same_floor(21)))
     check("innkeeper from the cave: ends within one storey of her (ground floor or up)",
           inn is not None and inn[-1][2] >= 0, str(inn and inn[-1]))
+
+    print("== diagonal past a door leaf: the client wouldn't send it (live 20260930_182751) ==")
+    # Horseshoe Bay inn double door at the moment of the live deny: one leaf closed at
+    # (2027,2217), the other open at (2025,2218). NW from (2027,2218) passes the closed leaf.
+    doors = pathfind.Walk(uomap.UoMap(0), dynamic=lambda x, y: {(2027, 2217): [(1767, 15)],
+                                                                (2025, 2218): [(1766, 15)]}.get((x, y), ()))
+    check("NW past the door leaf is refused (the server denied it live)",
+          doors.can_walk(2027, 2218, 15, 7) is None)
+    check("the same step is fine for z tracking of a server-confirmed move (door_corners=False)",
+          doors.can_walk(2027, 2218, 15, 7, door_corners=False) == (2026, 2217, 15))
+    check("straight onto the door tile stays plannable (the walker opens it ahead)",
+          doors.can_walk(2027, 2218, 15, 0) == (2027, 2217, 15))
 
     print("== proxy z per confirmed step matches the server (walk confirms carry no z) ==")
     import proxy

@@ -186,6 +186,28 @@ def test_go_around_when_cheap():
     check("arrived without shoving", msg == "arrived" and link.shoved == [], f"{msg} {link.shoved}")
 
 
+def test_object_arrives_after_plan():
+    print("== an object lands on the route after the plan: no step into it, replan around ==")
+    # live 20260930_182751: a barrel arrived 1 s after the plan and the Mover walked into it.
+    # A hallway with a long detour loop below it, so the first plan goes straight through (3, 0).
+    grid = GridWalk(HALLWAY | {(1, 1), (1, 2), (2, 3), (3, 3), (4, 3), (5, 2), (5, 1)})
+    link = FakeLink((0, 0), facing=2)
+    mv = Mover(link, nav.WalkMemory(), Human("off"), use_map=True)
+    mv.walkers.put(0, grid)
+    orig = link.state
+
+    def state():
+        if tuple(link.here) == (1, 0) and (3, 0) in grid.open:   # the barrel shows up
+            grid.open.discard((3, 0))
+            link.walls.add((3, 0))
+        return orig()
+    link.state = state
+    msg = walk_msg(mv, (6, 0))
+    check("arrived around the object", msg == "arrived" and tuple(link.here) == (6, 0), msg)
+    check("never sent a step into the new object (no deny), one step refused before sending",
+          link.denies == [] and mv.refused_steps == 1, f"denies {link.denies} refused {mv.refused_steps}")
+
+
 def test_shove_denied():
     print("== shove denied (low stamina): not a wall; wait, then go once the NPC moves ==")
     link = FakeLink((0, 0), facing=2, mobiles=[(3, 0, 12)], can_shove=False)
@@ -288,6 +310,7 @@ if __name__ == "__main__":
     test_door()
     test_shove_through()
     test_go_around_when_cheap()
+    test_object_arrives_after_plan()
     test_shove_denied()
     test_height_goal()
     test_teleporter()

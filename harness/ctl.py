@@ -710,21 +710,24 @@ def _act_walk(a, ctl: Control, stc: StateConn) -> dict:
         raise CtlError("player position unknown")
     start, moved, outcomes, stop = list(pos), 0, [], None
     pkt = actions.walk(d, run=a.run)
-    walk = None
+    walkers = None
     if not a.no_map:
         import pathfind
-        st = stc.state()
-        walk = pathfind.Walkers().get(st["world"]["self"].get("map"), (
-            (it.get("x"), it.get("y"), it.get("graphic"), it.get("z"))
-            for it in st["world"]["items"].values() if it.get("container") is None))
+        walkers = pathfind.Walkers()
     sent_at = 0.0
     for _ in range(n + 2):          # a turn costs one extra send
         before = pos
-        if walk is not None and len(pos) > 3 and pos[3] == d and walk.can_walk(pos[0], pos[1], pos[2], d) is None:
-            # the stock client checks the step itself and sends nothing (PlayerMobile.Walk -> CanWalk)
-            outcomes.append("blocked")
-            stop = "blocked (the map says the step can't be walked; the client wouldn't send it)"
-            break
+        if walkers is not None and len(pos) > 3 and pos[3] == d:
+            # the stock client checks each step against what it has now and sends nothing if it
+            # can't be walked (PlayerMobile.Walk -> CanWalk); objects that just arrived count
+            st = stc.state()
+            walk = walkers.get(st["world"]["self"].get("map"), (
+                (it.get("x"), it.get("y"), it.get("graphic"), it.get("z"))
+                for it in st["world"]["items"].values() if it.get("container") is None))
+            if walk is not None and walk.can_walk(pos[0], pos[1], pos[2], d) is None:
+                outcomes.append("blocked")
+                stop = "blocked (the map says the step can't be walked; the client wouldn't send it)"
+                break
         human.pace_step(a.run, sent_at)
         deadline = time.monotonic() + MOVE_GATE_WAIT_S
         while True:                  # proxy walk gates that clear on their own, like Mover.step

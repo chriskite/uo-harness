@@ -75,7 +75,9 @@ Consequences, all visible in the captures:
   unconfirmed. `agent_link.Mover` and `ctl act walk` retry the self-clearing gates for up to 10 s.
 - **Agent step rhythm (2026-09-30):** the Mover sends each step at the stock held-key cadence, 200 ms
   (run) / 400 ms (walk) after the previous send plus 3–15 ms jitter (`humanize.Human.step_gap`), and
-  it never sends a step the map rules refuse (the client wouldn't: PlayerMobile.Walk → CanWalk).
+  it never sends a step the map rules refuse (the client wouldn't: PlayerMobile.Walk → CanWalk). The
+  check runs again right before every step with the ground items the world model has then, and a
+  diagonal past a door is refused (2026-10-01, ANTICHEAT.md §10).
 
 **Fix B VALIDATED LIVE (session_20260929_161433, user-confirmed 2026-09-29).** 57 agent walks (walk_cli)
 plus 30 client walks, mixed. 55 agent confirms hidden, 5 client re-anchors via fabricated `0x21` (the

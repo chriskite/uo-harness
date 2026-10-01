@@ -212,6 +212,7 @@ class Mover:
         self.blocked_count = 0
         self.doors_opened = 0
         self.sent_at = 0.0           # monotonic time the last walk went out (step cadence)
+        self.refused_steps = 0       # steps not sent: the map with current objects refused them
         self.teleports = 0
         self._teleporters = {}       # facet -> {(x, y)} known teleporter tiles (store + session)
 
@@ -301,6 +302,13 @@ class Mover:
         return self.walkers.get(st["world"]["self"].get("map"), (
             (it.get("x"), it.get("y"), it.get("graphic"), it.get("z"))
             for it in st["world"]["items"].values() if it.get("container") is None))
+
+    def step_walkable(self, st, cur, z, d) -> bool:
+        """The client's own check right before a step: walkable from (cur, z) in
+        direction d with the ground items the world model has *now* (objects that
+        arrived after the plan count). True when there is no map for the facet."""
+        walk = self.walk_map(st)
+        return walk is None or walk.can_walk(cur[0], cur[1], z, d) is not None
 
     def door_at(self, tile, st=None, z=None) -> bool:
         """A ground item that is a door (tiledata Door flag, or classic door art)
@@ -462,6 +470,15 @@ class Mover:
                 cur, z = (pos[0], pos[1]), pos[2]
                 d = nav.direction(cur, nxt)
                 occupied_at_step = self.occupied(st)       # who stood there when we tried (a shove)
+                if walk is not None and not self.step_walkable(st, cur, z, d):
+                    # an object arrived after the plan (live 20260930_182751: a barrel). The stock
+                    # client checks every step (PlayerMobile.Walk -> CanWalk) and sends nothing
+                    self.refused_steps += 1
+                    self.denied.add((cur[0], cur[1], d))           # plan around it (nothing was sent)
+                    log(f"{label}: step {d} from {cur} now blocked (an object arrived after the plan); "
+                        f"replanning without sending it")
+                    replan = True
+                    break
                 if pos[3] == d:              # already facing it (e.g. at the start of a route)
                     self._open_ahead(nxt, z, opened, label, st)
                 self.human.pace_step(run, self.sent_at)
