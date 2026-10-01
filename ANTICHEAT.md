@@ -279,7 +279,7 @@ without a server cursor; 0 replies to 127 decoy captchas or to the 6 real ones (
 | A4 | `dclick`/`single_click`/`menu`/`menu_pick`/`attack` need the entity (or the mobile/ground item holding it) in the world model within 18 tiles (`ctl.not_clickable`); `menu_pick` needs that serial's context menu open with that index | `harness/test_ctl.py` |
 | A5 | bump texture removed; doors opened ahead (§8.14); `ctl act walk` never sends a step the map rules refuse | `harness/test_mover.py` |
 | A6 | every 0xB1 is built by `actions.gump_reply` from the gump's layout (ctl and the lumber room menu) | `harness/test_actions.py` |
-| A7 | `single_click` on a mobile adds its `0x34`; `attack` sends `0x34` while the mob's hits are unknown; `dclick` on a mobile in war mode is refused; `warmode` sends nothing when already in that state | `harness/test_ctl.py` |
+| A7 | `single_click` on a mobile adds its `0x34`; `attack` sends `0x34` unless the client has an outstanding status request for the mob (corrected 2026-10-01: not "hits unknown", see §10 A7); `dclick` on a mobile in war mode is refused; `warmode` sends nothing when already in that state | `harness/test_ctl.py` |
 | A8 | stock held-key cadence, cell-scale route noise, `nav.straighten` (§8.14) | `harness/test_nav.py` + offline route measurement |
 
 A9 and A10 remain open.

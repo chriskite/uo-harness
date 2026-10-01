@@ -251,6 +251,7 @@ def _h_equip_item(rt, f):
 
 def _h_delete(rt, f):
     rt.state.delete(f["serial"])
+    rt.state.status_requested.discard(f["serial"])
     rt._emit("delete", serial=f["serial"])
 
 
@@ -467,6 +468,10 @@ def _query_handler(pid):
     def h(rt, f):
         rt._adopt_self_serial(f["serial"])
         rt.state.census.add(f["serial"], f"0x{pid:02x}")
+        if pid == 0x34 and f.get("type") == 4:
+            # ClassicUO RequestMobileStatus: HitsRequest Pending -> Received; the client
+            # won't send another 0x34 for it until a close-status (bf 000c) resets it
+            rt.state.status_requested.add(f["serial"])
         rt._emit("query", serial=f["serial"], kind=pid)
     return h
 
@@ -552,6 +557,8 @@ def _extended_handler(direction):
             rt._emit("popup_request", serial=f["serial"])
         elif sub == 0x15 and direction == C2S:
             rt._emit("popup_select", serial=f["serial"], index=f["index"])
+        elif sub == 0x0C and direction == C2S and "serial" in f:
+            rt.state.status_requested.discard(f["serial"])   # SendCloseStatus: HitsRequest -> None
         else:
             rt.unhandled[(direction, 0xBF)] += 1
     return h

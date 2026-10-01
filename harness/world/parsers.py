@@ -711,6 +711,8 @@ def _p_extended(pkt):
         d["serial"], d["index"] = r.u32(), r.u16()
     elif sub == 0x04 and r.remaining() >= 8:      # S2C close generic gump (C2S sub 4 = 3-byte cast spell)
         d["gump_id"], d["button"] = r.u32(), r.u32()   # ClassicUO PacketHandlers.cs:4154-4156
+    elif sub == 0x0C and r.remaining() >= 4:      # C2S close status: `bf 0009 000c <serial>`
+        d["serial"] = r.u32()                     # (GameActions.SendCloseStatus)
     return d
 
 

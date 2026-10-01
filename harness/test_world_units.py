@@ -983,13 +983,26 @@ def test_event_semantics():
     check("snapshot json-serializable", ok)
 
 
+def test_status_requested():
+    print("== the client's outstanding status requests (ClassicUO HitsRequest) ==")
+    rt = WorldRuntime()
+    rt.feed_packet("c2s", actions.status_request(0x10))                       # 34 edededed 04 <serial>
+    rt.feed_packet("c2s", actions.skills_request(0x20))                       # type 5: not a status request
+    eq("a type-4 0x34 marks the mob", rt.state.status_requested, {0x10})
+    rt.feed_packet("c2s", bytes.fromhex("bf0009000c00000010"))                # SendCloseStatus
+    eq("close status (bf 000c) clears it, so the next attack sends 0x34 again", rt.state.status_requested, set())
+    rt.feed_packet("c2s", actions.status_request(0x10))
+    rt.feed_packet("s2c", bytes.fromhex("1d00000010"))                         # server removes the mob
+    eq("a deleted mob is cleared too", rt.state.status_requested, set())
+
+
 TESTS = [test_fixed_s2c, test_fixed_c2s, test_character_status_11,
          test_skills_3a, test_world_item_1a, test_container_content_3c,
          test_corpse_equipment_89, test_healthbar_16_17, test_gumps_b0_dd,
          test_dialect_ff, test_c2s_procedural, test_mobile_parsers, test_cliloc,
          test_vendor_popup_command, test_tracking_packets,
          test_mobile_routing, test_truncation, test_runtime_edges,
-         test_event_semantics]
+         test_event_semantics, test_status_requested]
 
 
 def main():

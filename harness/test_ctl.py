@@ -71,6 +71,7 @@ class FakeProxy:
         self.fixed_mobiles = {}   # extra mobiles at fixed positions (goto tests)
         self.ground_items = {}    # extra ground items (goto/map tests)
         self.warmode = False
+        self.status_requested = []   # world.status_requested (the client's outstanding 0x34s)
         self.self_hits = 50
         self.self_noto = 1
         self.gold = 110
@@ -195,7 +196,7 @@ class FakeProxy:
                               **self.ground_items},
                     "target": dict(self.target), "gumps": list(self.gumps),
                     "buffs": {"0x00000001": dict(self.buffs)}, "labels": dict(self.labels),
-                    "containers": list(self.opened)},
+                    "containers": list(self.opened), "status_requested": list(self.status_requested)},
                 "events": [], "next": len(self.events),
                 "gate": {"state": "open"},
                 "intent": {"text": "idle"}, "intents": [{"text": f"i{k}"} for k in range(7)],
@@ -785,8 +786,14 @@ def test_combat(proxy):
           and last.get("text") == "Attacking a mongbat", str(last))
     proxy.fixed_mobiles["0x00000010"].update(hits=4, hits_max=4)
     code, out = c("act", "attack", "0x00000010", "--human", "off")
-    check("already in war mode, hits known: only the attack", code == 0 and [p for _, p in proxy.take()]
-          == [actions.attack(0x10)] and not out["warmode_turned_on"], str(out))
+    check("hits already known (unsolicited updates) but no status request out: 0x34 then 0x05, as the "
+          "client's RequestMobileStatus", code == 0 and [p for _, p in proxy.take()]
+          == [actions.status_request(0x10), actions.attack(0x10)] and not out["warmode_turned_on"], str(out))
+    proxy.status_requested = ["0x00000010"]
+    code, out = c("act", "attack", "0x00000010", "--human", "off")
+    check("status request already out for the mob: only the attack", code == 0 and [p for _, p in proxy.take()]
+          == [actions.attack(0x10)], str(out))
+    proxy.status_requested = []
     code, out = c("act", "dclick", "0x00000010")
     check("dclick on a mobile in war mode refused (the client would attack)",
           code == 1 and "war mode" in out.get("error", "") and proxy.take() == [], str(out))

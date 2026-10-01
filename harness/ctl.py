@@ -996,8 +996,10 @@ def _act_combat(a) -> dict:
     hostile monster only (never a player, a player's pet, an NPC or anything with
     a human body; threats.identify + notoriety 3-6), on screen. Like the stock
     client (Tab, then double-click the target: GameActions.DoubleClick) it turns
-    war mode on first, then sends 0x34 (only while the mob's hits are unknown,
-    RequestMobileStatus) and 0x05. Refused below ATTACK_MIN_HP of max hits."""
+    war mode on first, then sends 0x34 unless the client has an outstanding status
+    request for that mob (world.status_requested: ClassicUO RequestMobileStatus sends it
+    while HitsRequest < Received, whatever hits it already knows) and 0x05. Refused below
+    ATTACK_MIN_HP of max hits."""
     import threats
     ctl, stc = _connect(a)
     try:
@@ -1051,7 +1053,7 @@ def _act_combat(a) -> dict:
             turned_on = True
             Human(a.human, seed=a.seed).wait("use")
         resp = "OK"
-        if mob.get("hits_max") is None:
+        if key not in (world.get("status_requested") or []):
             resp = ctl.send(actions.status_request(serial))
         if resp == "OK":
             resp = ctl.send(actions.attack(serial))

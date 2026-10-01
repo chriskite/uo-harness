@@ -199,6 +199,9 @@ class StateStore:
         self.containers: set[int] = set()
         self.protocol_version: int | None = None
         self.characters: list[str] = []  # 0xA9 character-list slot names
+        # mobiles with an outstanding client status request (0x34 type 4 since the last
+        # close-status bf 000c or delete): ClassicUO Entity.HitsRequest >= Pending
+        self.status_requested: set[int] = set()
 
     # -- lazy name merge (both orders) -------------------------------------
     def apply_names(self, entries):
@@ -254,4 +257,5 @@ class StateStore:
             "buffs": {_h(s): {str(i): b for i, b in sorted(v.items())}
                       for s, v in sorted(self.buffs.items())},
             "containers": [_h(s) for s in sorted(self.containers)],
+            "status_requested": [_h(s) for s in sorted(self.status_requested)],
         }
