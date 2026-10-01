@@ -300,6 +300,22 @@ divergences) and every agent packet was checked against the world state at that 
 | A7 | **verified live 2026-10-01** (same session, combat test) | Attack 1 (13 tiles): `72 01` → server `72 01` → 0.55 s later `34 … 000f88ff` and `05 000f88ff`, 0 ms apart (stock Tab, then double-click: RequestMobileStatus + Attack). Attack 2 (adjacent, 46.7 s later): `34` + `05` again. That is stock-correct: the client's own `09`/`34`/`bf 000c` bursts for the mob had left no status request outstanding (the original "hits unknown" rule was wrong; corrected to the client's status-request state, commit e095bb3). `warmode off` after the death sent nothing: the server had already turned war mode off. Single-click on a mobile and the war-mode double-click refusal weren't exercised. |
 | A8 | **verified** for run | 693 run steps: gaps p10/median/p90 207/213/218 ms (min 203); 21 % heading changes. No walked route was drawn, so the 400 ms walk cadence is unverified |
 
+**A11 (found 2026-10-01, open, high): the client's display lags the character during agent walks,
+and its own packets show it.** Agent walk confirms are hidden from the client, and the client is
+re-anchored only after 0.5 s without a walk. In session 182751 that left it standing where each
+walking stretch began: stretches ran up to 102 steps / 21.7 s, and the display lagged the true
+position by 10 tiles (median), 31 (p90) and 53 (max). The client still reacts to every mobile the
+server sends near the true position: `09` + `34` (0 of 186 were > 18 tiles from the true
+position). But 173 of 186 were > 18 tiles from where the client displays itself, so
+`World.Update` drops them at once and `SendCloseStatus` sends `bf 000c`. Click → close within
+10 ms: **93 % during agent walking vs 5 % and 1 % in human sessions** (median close delay 0.00 s
+vs 7.7-7.9 s). That's a per-mobile signature a server log sees directly. Side effects: after a
+long stretch the client lacks objects the server believes it sent, and `ctl`'s on-screen check
+(server truth) can pass for an entity the client no longer has. Fix direction: re-anchor the client
+(the client-only `0x21`) after every confirmed agent step once nothing is in flight, instead of
+after 0.5 s of quiet, so the display trails by at most a tile. Then re-measure the click → close
+delays.
+
 Unchanged: keepalive median gap 1.057 s, p99 1.087 s (2 075 keepalives); C2S senders only client
 and agent; 0 server messages about macro/AFK/jail/Razor/automation in 266 decoded messages.
 
