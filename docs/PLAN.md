@@ -171,6 +171,20 @@ the client couldn't do it right now (entity off screen, no menu open, war mode).
   plus `nav.straighten` (measured on 24 Shelter routes: ~20 % heading changes, human 21 %).
   Rejected: a turn-penalty A* (8× the search states; not tried, since the above already matches).
 
+## Data backups (decided 2026-10-01)
+
+Gitignored runtime data (the memory store, captures, the Ghidra project) had no copy off this
+machine. Hourly `harness/backup.py` to the NAS share, as a Task Scheduler job (docs/NOTES.md
+"Backups").
+- DB: SQLite online backup API, not a file copy. Copying `harness.db` while the proxy writes
+  would miss WAL contents or tear pages. Rejected: `VACUUM INTO` (rewrites the whole DB with
+  more CPU for no gain at this size).
+- Timestamped, deduplicated, gzipped DB snapshots with 48 h hourly / then daily retention, so a
+  corrupted or wrongly edited store can't overwrite the only good copy.
+- robocopy for file trees: native, incremental, network retries. Rejected: a Python tree copy
+  (re-implements robocopy), File History / Windows Backup (whole-profile, not repo-aware).
+- UNC path, not `F:`, because scheduled tasks don't see interactive drive mappings.
+
 
 ## Risks
 

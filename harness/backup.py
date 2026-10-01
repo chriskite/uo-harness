@@ -1,0 +1,196 @@
+"""Back up the harness data that git doesn't hold and that can't be recreated
+easily to the NAS share (docs/NOTES.md "Backups").
+
+What goes where under DEST (default \\\\STARGAZER\\files\\uo-harness, which is
+drive F: when mapped interactively; scheduled tasks don't see drive mappings,
+so the default is the UNC path):
+
+  db/harness-YYYYMMDD-HHMMSS.db.gz   consistent snapshot of harness/data/harness.db
+                                     (SQLite online backup API, so the proxy can
+                                     keep writing; quick_check before it ships;
+                                     skipped when identical to the last one).
+                                     Retention: every snapshot from the last
+                                     KEEP_ALL_HOURS, then the newest per day.
+  logs/                              logs/ (session captures, screens, overseer
+                                     task logs). Additive: files deleted locally
+                                     stay on the share.
+  artifacts/                         repo-root raw captures (*.pcapng, *.etl),
+                                     screenshots (*.png), divert.log. Additive.
+  ghidra/                            the Ghidra project (hours of analysis to
+                                     redo). Mirrored, so the copy stays a
+                                     consistent project.
+  last_backup.json                   result of the last run.
+
+Not backed up: everything tracked in git (pushed to GitHub), test-run logs
+(logs_test*/), downloads (ClassicUO.exe, tarballs, upstream trees, WinDivert),
+outputs regenerable by repo scripts (strings dumps, mrt_map.json,
+decompiled/), and credentials (settings.json).
+
+Restore the DB: gunzip a snapshot to harness/data/harness.db with the proxy
+stopped, and delete any stale harness.db-wal / harness.db-shm next to it.
+
+Usage: python harness/backup.py [--dest PATH]   (exit 1 if any part failed)
+Scheduled hourly by register_backup_task.ps1.
+"""
+
+import argparse
+import datetime
+import gzip
+import hashlib
+import json
+import os
+import re
+import shutil
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import time
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_DEST = r"\\STARGAZER\files\uo-harness"
+DB = os.path.join(ROOT, "harness", "data", "harness.db")
+LOG = os.path.join(ROOT, "logs", "backup.log")
+KEEP_ALL_HOURS = 48
+
+# (source dir relative to ROOT, dest subdir, robocopy file filters, robocopy mode flags)
+TREES = [
+    ("logs", "logs", [], ["/E"]),
+    (".", "artifacts", ["*.pcapng", "*.etl", "*.png", "divert.log"], []),
+    ("ghidra", "ghidra", [], ["/MIR"]),
+]
+
+SNAP_RE = re.compile(r"^harness-(\d{8}-\d{6})\.db\.gz$")
+SNAP_FMT = "%Y%m%d-%H%M%S"
+
+
+def log(msg):
+    line = f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S} {msg}"
+    print(line)
+    os.makedirs(os.path.dirname(LOG), exist_ok=True)
+    with open(LOG, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+
+
+def _sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def snapshot_db(db, dest_dir, now):
+    """Write a gzipped consistent snapshot of `db` into dest_dir.
+    Returns the snapshot file name, or None when it equals the last one."""
+    os.makedirs(dest_dir, exist_ok=True)
+    with tempfile.TemporaryDirectory() as td:
+        tmp = os.path.join(td, "snap.db")
+        # read-only: never checkpoints or otherwise writes the live store
+        src = sqlite3.connect("file:" + db.replace("\\", "/") + "?mode=ro", uri=True)
+        dst = sqlite3.connect(tmp)
+        try:
+            src.backup(dst)
+            # self-contained file: a restore doesn't depend on a -wal next to it
+            dst.execute("PRAGMA journal_mode=DELETE")
+            check = dst.execute("PRAGMA quick_check").fetchone()[0]
+        finally:
+            dst.close()
+            src.close()
+        if check != "ok":
+            raise RuntimeError(f"snapshot failed quick_check: {check}")
+        digest = _sha256(tmp)
+        latest_path = os.path.join(dest_dir, "latest.json")
+        if os.path.exists(latest_path):
+            with open(latest_path, encoding="utf-8") as f:
+                latest = json.load(f)
+            if latest.get("sha256") == digest and os.path.exists(
+                    os.path.join(dest_dir, latest.get("file", ""))):
+                return None
+        name = f"harness-{now.strftime(SNAP_FMT)}.db.gz"
+        part = os.path.join(dest_dir, name + ".part")
+        with open(tmp, "rb") as fin, open(part, "wb") as raw, \
+                gzip.GzipFile(filename="harness.db", mode="wb", fileobj=raw, mtime=0) as gz:
+            shutil.copyfileobj(fin, gz, 1 << 20)
+        os.replace(part, os.path.join(dest_dir, name))
+        with open(latest_path, "w", encoding="utf-8") as f:
+            json.dump({"file": name, "sha256": digest}, f)
+        return name
+
+
+def plan_prune(names, now, keep_all_hours=KEEP_ALL_HOURS):
+    """Snapshot names to delete: keep every snapshot newer than keep_all_hours,
+    and the newest snapshot of each calendar day before that. Names that aren't
+    snapshot names are never returned."""
+    cutoff = now - datetime.timedelta(hours=keep_all_hours)
+    old = []
+    for n in names:
+        m = SNAP_RE.match(n)
+        if m:
+            t = datetime.datetime.strptime(m.group(1), SNAP_FMT)
+            if t < cutoff:
+                old.append((t, n))
+    newest_per_day = {}
+    for t, n in sorted(old):
+        newest_per_day[t.date()] = n
+    keep = set(newest_per_day.values())
+    return sorted(n for _, n in old if n not in keep)
+
+
+def robocopy(src, dst, filters, flags):
+    """Incremental copy (robocopy skips files with equal size and time).
+    Returns (ok, summary)."""
+    cmd = ["robocopy", src, dst, *filters, *flags,
+           "/R:2", "/W:5", "/FFT", "/XJ", "/NP", "/NFL", "/NDL", "/NJH"]
+    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    out = p.stdout.decode("oem" if os.name == "nt" else "utf-8", errors="replace")
+    files = next((ln.strip() for ln in out.splitlines() if ln.strip().startswith("Files :")), "")
+    # robocopy: 0-7 success (bit flags: copied/extra/mismatch), >= 8 failure
+    return p.returncode < 8, f"rc={p.returncode} {files}" if p.returncode < 8 else out.strip()[-2000:]
+
+
+def run(dest):
+    now = datetime.datetime.now()
+    t0 = time.time()
+    results = {}
+    if not os.path.isdir(dest):
+        log(f"FAIL destination unreachable: {dest}")
+        return 1
+
+    try:
+        dbdir = os.path.join(dest, "db")
+        name = snapshot_db(DB, dbdir, now)
+        pruned = plan_prune(os.listdir(dbdir), now)
+        for n in pruned:
+            os.remove(os.path.join(dbdir, n))
+        results["db"] = {"ok": True, "snapshot": name, "pruned": pruned}
+    except Exception as e:  # one failed part must not stop the others
+        results["db"] = {"ok": False, "error": repr(e)}
+
+    for src, sub, filters, flags in TREES:
+        ok, summary = robocopy(os.path.normpath(os.path.join(ROOT, src)),
+                               os.path.join(dest, sub), filters, flags)
+        results[sub] = {"ok": ok, "summary": summary}
+
+    ok = all(r["ok"] for r in results.values())
+    status = {"time": now.isoformat(timespec="seconds"), "ok": ok,
+              "seconds": round(time.time() - t0, 1), "results": results}
+    try:
+        with open(os.path.join(dest, "last_backup.json"), "w", encoding="utf-8") as f:
+            json.dump(status, f, indent=1)
+    except OSError as e:
+        ok = False
+        log(f"FAIL writing last_backup.json: {e!r}")
+    log(("OK " if ok else "FAIL ") + json.dumps(results))
+    return 0 if ok else 1
+
+
+def main():
+    ap = argparse.ArgumentParser(description="back up harness data to the NAS")
+    ap.add_argument("--dest", default=DEFAULT_DEST)
+    return run(ap.parse_args().dest)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
