@@ -59,7 +59,7 @@ Whitelist, built with the existing `harness/actions.py` builders and framed exac
 | Act | Args | Packet |
 |---|---|---|
 | `walk` | `<dir 0-7> [n=1]` (n ≤ 20), `--walk` (default is run, like the client's Always Run), `--human normal\|off` | `0x02` per step at the stock held-key cadence (`humanize.Human.step_gap`: 200 ms run / 400 ms walk after the previous send, plus jitter) + `after_step`; retries the proxy's self-clearing walk gates like `Mover.step`; a new direction first only turns; never sends a step the map rules refuse (the client wouldn't) and stops there or at the first blocked step. |
-| `say` | an allowlisted phrase | `0xAD` keyword-encoded like the stock client. |
+| `say` | an allowlisted phrase; **free text only while a harvest job holds for speech** | `0xAD` keyword-encoded like the stock client. During a `speech_nearby` hold, any printable text up to 120 characters (case kept) to answer the speaker, refused if it touches what AGENTS.md rule 8 forbids (bot, AI, script, macro, test…, `ctl.REVEALING`). Outside a hold, only the allowlist. |
 | `dclick` / `single_click` | `<serial>` (hex `0x…` or decimal) | `0x06` / `0x09`, plus `0x34` after a click on a mobile (the client pairs them). Only for what the client has on screen: the entity (or the mobile/ground item holding it) in the world model within 18 tiles; otherwise refused (`goto` first). `dclick` on a mobile in war mode is refused: the client would attack instead |
 | `open_door` | – | `0x12` type `0x58` |
 | `target_cancel` | – | `0x6C` cancel for the cursor that is up now (refused if none) |
@@ -251,6 +251,7 @@ its trip. Other `info` rows are history (`ctl junctures`, or `wait --include-inf
 | `low_supplies` | attention | runner | Tools, reagents or gold below the trip's needs. `{item, have, need}` |
 | `gate_closed` | info | runner | Agent gate paused or on a scheduled break (reopens by itself). |
 | `break_due` | attention | ctl (`wait`) | The agent gate's break interval is used up. The agent can still act for up to 10 min (`break_starts_in_s`), then the break starts by itself wherever the character stands. `{break_due_at, break_starts_in_s, starts_at}`. `wait` checks the gate every 5 s and posts one per break. |
+| `speech_nearby` | urgent | runner (harvest jobs) | A character spoke near us during a harvest job (`speech_guard.py`). The job **holds**: it sends nothing until you ack the juncture (the all-clear), then carries on; that speaker is then ignored for 15 min. While it holds, `act say` (free text, filtered) and `act single_click` work; other acts stay refused. `{hold, task, trip, facet, x, y, speakers: [{serial, name, label, text, type, hue, on_screen, body, notoriety, flags, x, y, evidence}]}`; `evidence` notes a GM body or a staff-like name. Not posted for vendors, pets, damage numbers, click echoes (titles/guild tags) or anyone outside a harvest job. |
 | `server_restriction` | urgent | runner | Server gating text (AGENTS.md rule 4): all automation halts. |
 
 As of 2026-09-29 only `task_done` and `task_failed` are emitted (by `task_wrap.py`/`ctl.py`); the
@@ -297,6 +298,15 @@ Paste this (or point the session at this section) to start an overseer.
 >      `ctl stop` the task (or let a trip that ends in the room finish if it will in time), walk
 >      or recall home to the rental room, then `ctl break`. If it's already somewhere safe,
 >      `ctl break` now.
+>    - `speech_nearby`: the harvest job is holding; nothing happens until you act. Read what was
+>      said (`ctl journal`, the juncture's `speakers`), look at the speaker if needed (`act
+>      single_click <serial>`: name, title, guild). A player passing by or chatting: answer only
+>      if a reply is natural ("hi", a short friendly line, via `act say`), then `ctl ack <id>` (the
+>      all-clear; the job resumes). Possible staff (a GM body, a staff-like name, a speaker not on
+>      screen, someone asking what you're doing or whether you're there): tell the human in this
+>      session right away, answer briefly and naturally as the player would, never mention
+>      anything rule 8 forbids, and `ctl stop` the task if they keep talking. Don't ack while
+>      a possible GM is still talking to you.
 >    - `captcha`, `server_restriction`: **call the human immediately**, stop the task, never try
 >      to answer.
 >    - user chat: answer with `ctl say`; do what they ask within these rules.

@@ -126,6 +126,16 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   menu has no rented-room button 7, and its button 4 means "Rent This Room" (5,000 gp/week:
   "Click twice more to confirm your rental room agreement."). `ctl act gump` doesn't guard
   this; the lumber runner aborts without button 7.
+- **Outlands sends overhead titles as type-0 "speech" (2026-10-01, all 27 captures).** A click
+  (`0x09`) on a player gets the label (type 6) plus type-0 lines from that player's serial: the
+  title ("Viceroy", "Legendary Woodsman") and the guild tag ("[Veteran, J4F]"), 0.04-0.06 s after
+  the click (66 of 66). Pets answer "(bonded)"; mobs show damage as type-0 numbers ("-57"). Real
+  speech ("bank" from Kanbalt and Tirera in 123206) came 19-235 s after any click. So "someone
+  spoke" needs the click-echo window (`speech_guard.CLICK_ECHO_S`).
+- **Mobile packets in this dialect:** `0x20` MobileUpdate carries any mobile: `serial, body:u32,
+  notoriety, hue:u16, flags, x:u32, y:u32, 2 bytes, dir, z:i32` (28 B). `0x77` is only `serial,
+  x:u32, y:u32, z:i32, dir` (18 B), no body/flags/notoriety. Test fakes must use these (a
+  ClassicUO-shaped 17-byte `0x77` fails to parse).
 - Frontend toolchain: **Bun 1.4.2** installed 2026-09-29 (user-level, `irm bun.sh/install.ps1 | iex`) at `C:\Users\chris\.bun\bin\bun.exe`, added to the user PATH (new terminals only; in the agent's git-bash shell call it via PowerShell or the full path). There is no Node/npm on this machine. The visualizer frontend (docs/VISUALIZER.md) uses Bun for install/bundle/test: React + TSX.
 
 ## CAPTCHA facts (wiki)

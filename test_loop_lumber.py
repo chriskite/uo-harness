@@ -57,6 +57,9 @@ MENU_ID = 0x8EAEFBDB
 LOCK_S = 60                                              # longer than the walk back out (even along the wall)
 LOGS_PER_SUCCESS = 3
 STOLEN = 2                                               # a pickpocket's take, once (the loop must carry on)
+PASSERBY = 0x0000ABCD                                    # a player who walks up and says hello mid-harvest
+GREETING = "hail! good trees here?"
+HOLD_S = 3.0                                             # the test overseer's all-clear comes this long after
 GOOD_VISIT = 6                                           # attempts before the good tree runs dry
 DD = nav.DIR_DELTA
 FAILURES = []
@@ -120,6 +123,19 @@ def sys_text(text):
                + b"System".ljust(30, b"\x00") + text.encode() + b"\x00")
 
 
+def player_update(serial, x, y):
+    """0x20 MobileUpdate (Outlands layout, as captured in 123206): a human with the player
+    flag 0x20, notoriety 1 (a blue player)."""
+    return (b"\x20" + u32(serial) + u32(0x190) + b"\x01" + u16(0x83EA) + b"\x20" + u32(x) + u32(y)
+            + b"\x00\x00\x02" + u32(0))
+
+
+def player_says(serial, name, text):
+    return var(0x1C, u32(serial) + u16(0x190) + b"\x00" + u16(0x3B2) + u16(3)
+               + name.encode().ljust(30, b"\x00") + text.encode() + b"\x00")
+
+
+
 def cliloc(number):
     return var(0xC1, u32(0xFFFFFFFF) + b"\xff\xff\x00" + u16(0x3B2) + u16(3) + u32(number)
                + b"System".ljust(30, b"\x00") + b"\x00\x00")
@@ -153,6 +169,8 @@ class World:
         self.facing = 0
         self.writer = None
         self.c2s = []
+        self.c2s_t = []                                     # wall time each C2S packet arrived
+        self.spoke_at = None
         self.cid = 0x58B00
         self.cursor_for = None
         self.gump_serial = 0x245000
@@ -254,6 +272,10 @@ class World:
             self.logs -= STOLEN
             self.stolen += STOLEN
             self.later(0.8, [contained(self.logs_serial, 0x1BDD, self.logs, BACKPACK)])
+        if self.good_n == 2:                 # a player walks up and speaks: the job must hold for the overseer
+            self.spoke_at = time.time() + 1.0
+            self.later(0.5, [player_update(PASSERBY, self.pos[0] + 2, self.pos[1])])
+            self.later(1.0, [player_says(PASSERBY, "Vorn", GREETING)])
 
     def convert(self, serial):
         if serial != self.logs_serial:
@@ -268,6 +290,7 @@ class World:
     # ---- packets ----
     def on_packet(self, p):
         self.c2s.append(p)
+        self.c2s_t.append(time.time())
         pid = p[0]
         if pid == 0x02:
             seq, d = p[2], p[1] & 7
@@ -447,6 +470,21 @@ async def main():
 
         drainer = asyncio.create_task(drain_client())
         solver = asyncio.create_task(human())
+        held = {}
+
+        async def overseer():
+            """Gives the all-clear (acks the speech juncture) HOLD_S after it appears."""
+            store = memory.Memory(paths["db"])
+            while True:
+                await asyncio.sleep(0.2)
+                row = store.con.execute("SELECT id, t FROM junctures WHERE kind='speech_nearby' "
+                                        "AND acked_t IS NULL").fetchone()
+                if row:
+                    held["t"] = row[1]
+                    await asyncio.sleep(HOLD_S)
+                    held["ack"] = time.time()
+                    store.juncture_ack(row[0])
+        clearer = asyncio.create_task(overseer())
         await asyncio.sleep(0.5)
         runner = await asyncio.create_subprocess_exec(
             PY, f"{ROOT}/harness/loop_lumber.py", "--trips", "2", "--logs-per-trip", "100",
@@ -465,6 +503,7 @@ async def main():
                        for b in ({"text": ""}, {"text": 5}, ["not", "a", "dict"], {"text": "x" * 201})]
         live_hist = state_req({"op": "state", "since": 0, "snapshot": False}).get("intents") or []
         solver.cancel()
+        clearer.cancel()
         writer.close()
         drainer.cancel()
 
@@ -500,6 +539,20 @@ async def main():
               len(thefts) == 1 and len(tev) == 1 and tev[0]["data"]["amount"] == STOLEN,
               f"{len(thefts)} junctures, {[e['data'].get('amount') for e in tev]}")
         check("the loop carried on after the theft (both trips complete)", "loop complete: 2 trip(s)" in text)
+        holds = [j for j in store.junctures() if j["kind"] == "speech_nearby"]
+        sp = (holds[0]["data"].get("speakers") or [{}])[0] if holds else {}
+        check("a player speaking mid-harvest: one urgent speech_nearby juncture holding the job, with who and what",
+              len(holds) == 1 and holds[0]["severity"] == "urgent" and holds[0]["data"].get("hold") is True
+              and sp.get("serial") == f"0x{PASSERBY:08X}" and sp.get("text") == GREETING
+              and "player flag 0x20" in sp.get("evidence", []), str(holds))
+        quiet = [p.hex() for p, t in zip(world.c2s, world.c2s_t)
+                 if held.get("t") is not None and held["t"] + 0.3 < t < held.get("ack", 0)]
+        check(f"nothing sent while held (the overseer's all-clear came {HOLD_S:.0f} s later)",
+              "ack" in held and world.spoke_at is not None and held["t"] - world.spoke_at < 3.0 and quiet == [],
+              f"held {held} spoke {world.spoke_at} sent {quiet[:5]}")
+        check("resumed after the all-clear and counted the pause",
+              "all-clear after" in text and sum(r.get("speech_holds", 0) for r in rows) == 1
+              and sum(r.get("speech_wait_s", 0) for r in rows) >= HOLD_S, str([r.get("speech_wait_s") for r in rows]))
         check("trip rows carry logs by wood type; the pack's logs at conversion (after the theft)",
               all("ordinary" in (r.get("woods") or {}) for r in rows)
               and sum(sum(r["woods"].values()) for r in rows) == sum(r["logs"] for r in rows) - STOLEN,

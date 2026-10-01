@@ -9,6 +9,7 @@ export type IntentActivity = "spin" | "wait" | "idle";
 /** Badge tone per phase kind: waiting on the human stands out, fights and stops are red. */
 const TONE: Record<string, IntentTone> = {
   captcha: "warn",
+  speech: "warn",
   lockout: "dim",
   stopped: "bad",
   attack: "bad",
@@ -20,6 +21,7 @@ const TONE: Record<string, IntentTone> = {
 
 const ACTIVITY: Record<string, IntentActivity> = {
   captcha: "wait",
+  speech: "wait",
   lockout: "wait",
   stopped: "idle",
   done: "idle",

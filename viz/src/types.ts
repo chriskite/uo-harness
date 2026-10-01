@@ -209,8 +209,8 @@ export interface StateResponse {
  * Proxy-side display data only; nothing reaches the server. */
 export interface AgentIntent {
   text: string;
-  /** Phase key, e.g. to_tree, chop, captcha, lockout, convert, to_inn, enter_room,
-   * to_box, store, exit_room, trip_done, done, stopped. */
+  /** Phase key, e.g. to_tree, chop, captcha, speech (held for the overseer), lockout, convert,
+   * to_inn, enter_room, to_box, store, exit_room, trip_done, done, stopped. */
   kind?: string;
   /** Tile the agent is heading to / working on. */
   target?: Tile;

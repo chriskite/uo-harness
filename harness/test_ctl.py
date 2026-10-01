@@ -525,6 +525,32 @@ def test_run_act(proxy):
     code, out = c("act", "walk", "2", "1", "--human", "off")
     check("act refused while a task runs", code == 1 and "running" in out.get("error", ""), str(out))
     check("nothing sent while a task runs", proxy.take() == [])
+    code, out = c("act", "say", "where are the trees", "--human", "off")
+    check("free text refused without a speech hold (allowlist only)", code == 1 and proxy.take() == [], str(out))
+
+    print("== a harvest job holding for speech: the overseer may answer the speaker ==")
+    m = Memory(db)
+    hold = m.juncture("lumber", "speech_nearby", "Vorn said 'hi there' nearby; harvesting paused", "urgent",
+                      {"hold": True, "task": "lumber", "speakers": [{"serial": "0x0000ABCD", "text": "hi there"}]})
+    code, out = c("act", "say", "Hi! Just chopping some wood.", "--human", "off")
+    fr = [p for _, p in proxy.take()]
+    check("free text while the job holds: sent as the stock 0xAD, case kept",
+          code == 0 and fr == [actions.say_unicode("Hi! Just chopping some wood.")], f"{out} {fr}")
+    for text, word in (("No, I'm not a bot", "bot"), ("just testing stuff", "testing"),
+                       ("my script does it", "script"), ("I'm an AI", "AI")):
+        code, out = c("act", "say", text, "--human", "off")
+        check(f"rule 8: {word!r} refused, nothing sent", code == 1 and word in out.get("error", "")
+              and proxy.take() == [], str(out))
+    code, out = c("act", "say", "x" * (ctl.SAY_MAX + 1), "--human", "off")
+    check("over-long speech refused", code == 1 and proxy.take() == [], str(out))
+    code, out = c("act", "walk", "2", "1", "--human", "off")
+    check("other acts stay refused while the job holds", code == 1 and "say" in out.get("error", "")
+          and proxy.take() == [], str(out))
+    m.juncture_ack(hold)
+    code, out = c("act", "say", "Hi again", "--human", "off")
+    check("after the all-clear free text is refused again (the job is acting)", code == 1 and proxy.take() == [],
+          str(out))
+    m.close()
 
     t0 = time.time()
     code, out = c("stop")

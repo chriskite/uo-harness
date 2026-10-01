@@ -131,6 +131,7 @@ class Link:
         self.st_file = self.st.makefile("rb")
         self.since = 0
         self.events = []
+        self.event_t = []            # each event's time (envelope t), parallel to events
         self.last = None
 
     def send(self, pkt: bytes) -> str:
@@ -171,7 +172,9 @@ class Link:
         resp = json.loads(self.st_file.readline())
         if not resp.get("ok"):
             raise Abort(f"state port: {resp.get('error')}")
-        self.events.extend(env["data"] for env in resp["events"] if env["origin"] == "world")
+        world = [env for env in resp["events"] if env["origin"] == "world"]
+        self.events.extend(env["data"] for env in world)
+        self.event_t.extend(env.get("t", 0.0) for env in world)
         self.since = resp["next"]
         self.last = resp
         return resp

@@ -42,9 +42,11 @@ from uo.gumps import parse_layout  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 import ledger as ledger_mod  # noqa: E402
 import threats  # noqa: E402
+from speech_guard import SpeechGuard  # noqa: E402
 
 TREE_FACET = 0                # harvest areas are on map0 (Shelter)
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
+SPEECH_POLL_S = 1.0           # while paused for speech: state reads + all-clear checks
 THREAT_MARGIN_S = 1.0         # reaction + packet latency on top of the cast
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -94,6 +96,7 @@ class LumberLoop:
         self.seen_hostiles = set()
         self.ledger = ledger_mod.Ledger()
         self._intent = None          # last reported (kind, text, target), restored after a captcha
+        self.speech = SpeechGuard()  # a character speaking near us hands control to the overseer
 
     def doing(self, kind: str, text: str, target=None):
         """Tell the visualizer what the agent is trying to do (proxy-side only)."""
@@ -109,6 +112,7 @@ class LumberLoop:
             raise Abort(f"movement stalled ({mv['rejects_in_row']} walks rejected in a row)")
         self.check_threats(st)
         self.check_ledger(st)
+        self.check_speech(st)
         hits = st["world"]["self"].get("hits")
         if hits is not None:
             if self.start_hits is None:
@@ -156,6 +160,51 @@ class LumberLoop:
                                  "attention", d.to_dict())
             self.memory.job_event("lumber", "theft", {"amount": n, "items": lost}, **self._where(st))
             log(f"pack lost {n} item(s) without a cause ({what}); suspected theft, carrying on")
+
+    def check_speech(self, st):
+        """speech_guard.py: a character speaking near us hands control to the
+        overseer (user request 2026-10-01, harvest jobs only)."""
+        who = self.speech.scan(st["world"], self.link.events, self.link.event_t)
+        if who:
+            self.speech_hold(who, st)
+
+    def speech_hold(self, who, st):
+        """Send nothing until the overseer gives the all-clear (acks the
+        `speech_nearby` juncture). Threats and death still end the job. The
+        overseer may talk to the speaker meanwhile (ctl allows `act say` and
+        `single_click` while a task holds), or stop the job."""
+        first = who[0]
+        name = first["label"] or first["name"] or first["serial"]
+        log(f"SPEECH: {name}: {first['text']!r}; pausing for the overseer")
+        resume = self._intent
+        self.doing("speech", f"Paused: {name} spoke nearby; waiting for the overseer")
+        data = {"hold": True, "task": "lumber", "trip": self.trip_n, "speakers": who, **self._where(st)}
+        jid = self.memory.juncture("lumber", "speech_nearby",
+                                   f"{name} said {first['text']!r} nearby; harvesting paused until the "
+                                   f"all-clear (ack)"[:300], "urgent", data)
+        self.memory.job_event("lumber", "speech_hold", data, **self._where(st))
+        alert(not self.args.quiet)
+        t0, heard = time.monotonic(), {w["serial"] for w in who}
+        while True:
+            time.sleep(SPEECH_POLL_S)
+            st = self.link.state()
+            self.check_threats(st)
+            self.check_ledger(st)
+            for w in self.speech.scan(st["world"], self.link.events, self.link.event_t):
+                log(f"SPEECH (paused): {w['label'] or w['name'] or w['serial']}: {w['text']!r}")
+                heard.add(w["serial"])
+            j = self.memory.junctures(after_id=jid - 1, limit=1)
+            if j and j[0]["acked_t"] is not None:
+                break
+        waited = time.monotonic() - t0
+        self.deadline += waited                      # the pause isn't the job's time
+        self.speech.clear(heard)
+        self.stats["speech_holds"] = self.stats.get("speech_holds", 0) + 1
+        self.stats["speech_wait_s"] = self.stats.get("speech_wait_s", 0.0) + waited
+        log(f"all-clear after {waited:.0f} s; resuming")
+        self.human.wait("read")
+        if resume is not None:
+            self.doing(*resume)
 
     def died(self, st, reason):
         a = self.last_threats

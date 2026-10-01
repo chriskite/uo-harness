@@ -1,0 +1,107 @@
+"""Tests for harness/speech_guard.py: who counts as a character speaking near
+us during a harvest job. Cases are shapes seen in the captures (2026-10-01
+survey): player speech ("bank" from Kanbalt), Outlands' click echoes (title and
+guild tag 0.04-0.06 s after a 0x09), vendor lines, pets' "(bonded)", damage
+numbers, item messages.
+
+Run: python harness/test_speech_guard.py   (pure, < 1 s)
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from speech_guard import CLEAR_S, SpeechGuard, speaker  # noqa: E402
+
+FAILURES = []
+ME, PLAYER, VENDOR, PET, MOB, STAFF = 0x00094375, 0x0000ABCD, 0x00000B8D, 0x0000C001, 0x0000C002, 0x0000D00D
+
+
+def check(name, cond, detail=""):
+    print(f"  {'PASS' if cond else 'FAIL'} {name} {'' if cond else detail}")
+    if not cond:
+        FAILURES.append(name)
+
+
+def world():
+    return {"self": {"serial": f"0x{ME:08X}"},
+            "mobiles": {
+                f"0x{PLAYER:08X}": {"graphic": 0x190, "notoriety": 1, "flags": 0x20, "x": 5, "y": 5},
+                f"0x{VENDOR:08X}": {"graphic": 0x191, "notoriety": 7, "flags": 0x02},
+                f"0x{PET:08X}": {"graphic": 0x2CB, "notoriety": 1, "flags": 0},
+                f"0x{MOB:08X}": {"graphic": 0x27, "notoriety": 4, "flags": 0x40},
+                f"0x{STAFF:08X}": {"graphic": 0x3DB, "notoriety": 7, "flags": 0x20},
+            },
+            "labels": {f"0x{VENDOR:08X}": "Jamie the provisioner", f"0x{PLAYER:08X}": "Kanbalt"}}
+
+
+def said(serial, text, type_=0, name="x"):
+    return {"ev": "speech_heard", "serial": serial, "name": name, "type": type_, "hue": 0x3B2, "text": text}
+
+
+def test_speaker():
+    print("== speaker: a character speaking, or not ==")
+    w = world()
+    who = speaker(w, said(PLAYER, "bank", name="Kanbalt"))
+    check("a player saying something counts (Kanbalt 'bank')", who is not None and who["serial"] == "0x0000ABCD"
+          and who["type"] == "say" and who["on_screen"] and "player flag 0x20" in who["evidence"], str(who))
+    check("emote / whisper / yell count", all(speaker(w, said(PLAYER, "hey", t)) for t in (2, 8, 9)))
+    for ev, why in ((said(VENDOR, "The total of thy purchase is 10 gold."), "a vendor (notoriety 7, no player flag)"),
+                    (said(PET, "(bonded)"), "a pet (non-human body)"),
+                    (said(MOB, "-57"), "a damage number"),
+                    (said(PLAYER, "12"), "a bare number"),
+                    (said(PLAYER, "Kanbalt", 6), "a click label (type 6)"),
+                    (said(PLAYER, "In Vas Mani", 10), "spell words (type 10)"),
+                    (said(PLAYER, "guild chat", 13), "guild chat"),
+                    (said(0xFFFFFFFF, "Welcome TestWorth!"), "the server"),
+                    (said(0x45CE64A1, "Emptying"), "an item"),
+                    (said(ME, "room"), "our own speech"),
+                    (said(PLAYER, "   "), "blank text")):
+        check(f"ignored: {why}", speaker(w, ev) is None, str(speaker(w, ev)))
+    w["mobiles"][f"0x{PLAYER:08X}"]["flags"] = 0
+    w["labels"][f"0x{PLAYER:08X}"] = "Raynor the herbalist"
+    check("ignored: a human with a 'Name the <title>' label and no player flag (an NPC)",
+          speaker(w, said(PLAYER, "Hail adventurer")) is None)
+    w["labels"].pop(f"0x{PLAYER:08X}")
+    check("a human body without npc evidence counts (the conservative reading)",
+          speaker(w, said(PLAYER, "hello")) is not None)
+    staff = speaker(w, said(STAFF, "Hello there", name="GM Kemp"))
+    check("player flag at notoriety 7 still counts (staff may be invulnerable), with staff hints",
+          staff is not None and "GM body 0x03DB" in staff["evidence"] and "staff-like name" in staff["evidence"],
+          str(staff))
+    hidden = speaker(w, said(0x00001234, "What are you doing?", name="Seer Ann"))
+    check("a speaker the client doesn't have (hidden or out of view) counts",
+          hidden is not None and not hidden["on_screen"] and "staff-like name" in hidden["evidence"], str(hidden))
+
+
+def test_scan():
+    print("== SpeechGuard.scan: history, click echoes, all-clear ==")
+    now = [1000.0]
+    g = SpeechGuard(now=lambda: now[0])
+    w = world()
+    events, times = [said(PLAYER, "said before the job started")], [1.0]
+    check("the first scan only marks history", g.scan(w, events, times) == [])
+    events += [{"ev": "query", "serial": PLAYER, "kind": 0x09}, said(PLAYER, "Viceroy"), said(PLAYER, "[Veteran, J4F]")]
+    times += [10.0, 10.05, 10.05]
+    check("Outlands' click echo (title, guild tag 0.05 s after a 0x09) is not speech",
+          g.scan(w, events, times) == [], str(g.upto))
+    events.append(said(PLAYER, "bank"))
+    times.append(29.2)
+    got = g.scan(w, events, times)
+    check("the same player speaking 19 s later counts", [x["text"] for x in got] == ["bank"], str(got))
+    check("a scan only reports new events", g.scan(w, events, times) == [])
+    g.clear(["0x0000ABCD"])
+    events.append(said(PLAYER, "anyone selling logs?"))
+    times.append(40.0)
+    check("an all-clear covers that speaker", g.scan(w, events, times) == [])
+    now[0] += CLEAR_S + 1
+    events.append(said(PLAYER, "hello?"))
+    times.append(50.0)
+    check("until it runs out", [x["text"] for x in g.scan(w, events, times)] == ["hello?"])
+
+
+if __name__ == "__main__":
+    test_speaker()
+    test_scan()
+    print("ALL PASS" if not FAILURES else f"FAILED: {len(FAILURES)}: {FAILURES}")
+    sys.exit(1 if FAILURES else 0)

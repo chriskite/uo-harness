@@ -35,13 +35,16 @@ Safety: `act gump` refuses the captcha (it is always a human's, ANTICHEAT.md
 refuses buttons the layout doesn't offer, and on a gump that mentions
 renouncing Young status allows only closing it (button 0). No raw packets;
 speech is allowlisted; nothing is sent while a task runs (one character, no
-interleaving). Opening a vendor's Buy list sends nothing further: the stock
+interleaving), except `say` (free text, rule-8 filtered) and `single_click`
+while a harvest job holds for speech (a `speech_nearby` juncture, speech_guard.py).
+Opening a vendor's Buy list sends nothing further: the stock
 client sends no packet when a shop window is closed without buying
 (ClassicUO ShopGump.cs:590-610, Send_BuyRequest only on Accept).
 """
 import argparse
 import json
 import os
+import re
 import secrets
 import socket
 import subprocess
@@ -70,6 +73,15 @@ LOG_DIR = os.path.join(ROOT, "logs", "tasks")
 # commands only"; LUMBER_LOOP.md adds `room`). No code allowlist existed before
 # this; these are the only phrases `act say` sends.
 SPEECH_ALLOWLIST = ("bank", "room", "hello")
+# While a harvest job holds for speech (speech_guard.py, a `speech_nearby` juncture with
+# hold=true), the overseer may answer the speaker: free text, no longer than SAY_MAX, that
+# never touches what AGENTS.md rule 8 forbids (the harness, testing, automation, AI).
+HOLD_ACTS = ("say", "single_click")
+SAY_MAX = 120
+REVEALING = re.compile(
+    r"\b(bots?|botting|ai|a\.i|artificial|automat\w*|scripts?|scripted|scripting|macro\w*|program\w*"
+    r"|harness|overseer|agents?|proxy|claude|anthropic|openai|gpt|chatgpt|llm|models?|test\w*"
+    r"|experiment\w*|python|code|coding)\b", re.I)
 
 HEARTBEAT_KEY = "overseer_heartbeat"
 JUNCTURE_CURSOR_KEY = "overseer_juncture_cursor"
@@ -844,10 +856,32 @@ def cmd_act(a, mem):
     return {"act": a.name, **out}
 
 
+def speech_hold(mem: Memory) -> dict | None:
+    """The open `speech_nearby` juncture of a task holding for the overseer, if any."""
+    row = mem.con.execute("SELECT id FROM junctures WHERE kind='speech_nearby' AND acked_t IS NULL "
+                          "ORDER BY id DESC LIMIT 1").fetchone()
+    if row is None:
+        return None
+    j = mem.junctures(after_id=row[0] - 1, limit=1)[0]
+    return j if j["data"].get("hold") else None
+
+
+def conversation_text(raw: str) -> str:
+    """Free text for answering someone while a job holds for speech, or CtlError."""
+    if not raw or len(raw) > SAY_MAX or not raw.isprintable():
+        raise CtlError(f"say: 1..{SAY_MAX} printable characters")
+    m = REVEALING.search(raw)
+    if m:
+        raise CtlError(f"say refused: {m.group(0)!r} could reveal the harness (AGENTS.md rule 8); rephrase")
+    return raw
+
+
 def _act(a, mem) -> dict:
     alive = running_tasks(mem)
-    if alive:
-        raise CtlError(f"task {alive[0]['task_id']} is running; no interleaved actions (stop it first)")
+    hold = speech_hold(mem) if alive else None
+    if alive and not (hold and a.name in HOLD_ACTS):
+        raise CtlError(f"task {alive[0]['task_id']} is running; no interleaved actions (stop it first)"
+                       + ("; while it holds for speech only `say` and `single_click`" if hold else ""))
     if a.name == "goto":
         return _act_goto(a, mem)
     if a.name in ("unequip", "equip"):
@@ -869,10 +903,14 @@ def _act(a, mem) -> dict:
     pkt = None
     serial = None
     if a.name == "say":
-        text = " ".join(a.args).strip().lower()
-        if text not in SPEECH_ALLOWLIST:
-            raise CtlError(f"speech not allowlisted: {' '.join(a.args)!r}; allowed: {list(SPEECH_ALLOWLIST)}")
-        pkt = actions.say_unicode(text)
+        raw = " ".join(a.args).strip()
+        if raw.lower() in SPEECH_ALLOWLIST:
+            pkt = actions.say_unicode(raw.lower())
+        elif hold is None:
+            raise CtlError(f"speech not allowlisted: {raw!r}; allowed: {list(SPEECH_ALLOWLIST)} (free text only "
+                           f"to answer someone while a harvest job holds for speech)")
+        else:
+            pkt = actions.say_unicode(conversation_text(raw))
     elif a.name in ("dclick", "single_click", "menu"):
         if len(a.args) != 1:
             raise CtlError(f"{a.name} <serial>")

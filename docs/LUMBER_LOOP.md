@@ -154,6 +154,7 @@ runtime data, AGENTS.md Rule 0):
   - breaks and daily cap
   - never renounce Young (§1)
   - forced breaks: the runner itself still doesn't read the gate. But since 2026-10-01 a due break waits up to 10 min and wakes the overseer (`break_due` juncture), which can stop the run, get home and `ctl break` (docs/OVERSEER.md). Without an overseer the break starts when the grace runs out; `Mover.step` then waits it out for up to ~200 s and aborts the run where the character stands (ANTICHEAT.md §10 A9)
+  - speech hold (2026-10-01): a character speaking near the agent holds the run until the overseer's all-clear (`speech_guard.py`; docs/OVERSEER.md `speech_nearby`)
 
 ## 6. Optimize
 
@@ -444,8 +445,9 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   send a second request and shut the door again). A step a door still denies gets one more request
   after a reaction time. Routes never cut diagonally past a door. Plain walls never trigger a
   request.
-- **Guards:** overall timeout, HP loss, movement stall, and the agent gate (pause/break → wait;
-  kill/budget → abort).
+- **Guards:** overall timeout, HP loss, movement stall, the agent gate (pause/break → wait;
+  kill/budget → abort), and the speech hold (a character speaking nearby → send nothing until the
+  overseer acks the `speech_nearby` juncture; the pause doesn't count against the timeout).
 - **Human texture (user request 2026-09-29; `harness/humanize.py`, used by every runner via
   `Mover` and `Human`):**
   - Seeded `Human` profiles: `normal` (default) and `off` (deterministic tests).

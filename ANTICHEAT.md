@@ -282,9 +282,12 @@ without a server cursor; 0 replies to 127 decoy captchas or to the 6 real ones (
 | A7 | `single_click` on a mobile adds its `0x34`; `attack` sends `0x34` unless the client has an outstanding status request for the mob (corrected 2026-10-01: not "hits unknown", see §10 A7); `dclick` on a mobile in war mode is refused; `warmode` sends nothing when already in that state | `harness/test_ctl.py` |
 | A8 | stock held-key cadence, cell-scale route noise, `nav.straighten` (§8.14) | `harness/test_nav.py` + offline route measurement |
 
-A9 and A10 remain open, except A9's break-in-the-field part: since 2026-10-01 a due break gives a
-10-minute grace and wakes the overseer (`break_due` juncture), which can head home and `ctl break`
-(agent_gate.py, docs/OVERSEER.md).
+A9 and A10 remain open, except two parts of A9: since 2026-10-01 a due break gives a 10-minute
+grace and wakes the overseer (`break_due` juncture), which can head home and `ctl break`
+(agent_gate.py, docs/OVERSEER.md); and on harvest jobs a character speaking nearby holds the job
+for the overseer (`speech_guard.py`, `speech_nearby` juncture: all-clear, or talk to a possible GM;
+PLAN.md). Still open: staff detection itself (no Outlands staff seen yet), unsolicited teleports,
+and `loop_lumber`'s missing gating-text guard.
 
 **Live verification (session 20260930_182751, 18:28-19:04 local):** an overseer lumber trip at
 Horseshoe Bay, a recall to Prevalia with a hatchet bought from a provisioner, and renting a room
