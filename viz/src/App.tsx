@@ -66,7 +66,6 @@ export function App() {
     <div className="app">
       <Header viz={viz} page={page} onPage={go} />
       <aside className="left">
-        <IntentPanel viz={viz} />
         <SelfPanel world={world} />
         <LivePanel viz={viz} />
         <PaperdollPanel viz={viz} />
@@ -81,8 +80,11 @@ export function App() {
       <main className="map panel">
         <MapGrid viz={viz} />
       </main>
-      <aside className="right panel">
-        <OverseerPanel feed={overseer} />
+      <aside className="right">
+        <IntentPanel viz={viz} />
+        <div className="panel right-overseer">
+          <OverseerPanel feed={overseer} />
+        </div>
       </aside>
       <details
         className="details-row"

@@ -898,10 +898,15 @@ ol.lines {
 .right {
   display: flex;
   flex-direction: column;
+  gap: 6px;
 }
-.right > .overseer {
+.right > .intent {
+  flex: none;
+}
+.right-overseer {
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 /* ---------------------------------------------------------------- overseer panel */

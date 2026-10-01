@@ -234,7 +234,8 @@ The runners report what they are trying to do right now on the proxy's state por
   Colours: green, yellow below 50%, red below 25%. The attack marker is red.
 
 **UI:**
-- The **Agent** panel sits at the top of the left column. It shows the text, a kind badge (captcha
+- The **Agent** panel sits at the top of the right column, above the overseer chat (moved
+  from the left column 2026-09-30). It shows the text, a kind badge (captcha
   amber, stopped red, done green), `→ x,y`, the age (`for M:SS` since the step began; in replay
   measured against the newest event time, not the wall clock) and `loop · trip n/N`.
 - **Activity indicator** next to the current text:
@@ -301,8 +302,9 @@ table has no job column) and `harness/data/woods.json` when present.
 **UI**
 - **Page switch** in the header: `Live` (the layout of §4) and `Jobs`. The page is kept in the URL
   hash (`#jobs`), so a reload or a link keeps it.
-- **Overseer panel:** the whole right column (since the 2026-09-30 layout rework above; before
-  that a tab next to **Events**, which moved into the bottom drawer). Its header shows the
+- **Overseer panel:** the right column below the Agent (intent) panel (since the 2026-09-30
+  layout rework above; before that a tab next to **Events**, which moved into the bottom
+  drawer). Its header shows the
   number of open junctures. It polls `/api/overseer` every 2 s with the
   cursors, and it polls whichever page is showing. One time-ordered timeline holds:
   - user messages (right, blue) and overseer messages (left, teal); system rows are centred and dim;
@@ -439,17 +441,14 @@ fixtures ("replay X, state at event N").
 │ header: Live|Jobs • LIVE | REPLAY <tag> (exact|approx order) • conn • ⏯ ⏩  │
 │         rate • gate: state+reason • ⏸/▶ • ■ kill • next break / break end  │
 ├──────────────┬──────────────────────────────────────────┬──────────────────┤
-│ IntentPanel  │                                          │                  │
-│ (Agent)      │                                          │                  │
-│──────────────│                                          │ OverseerPanel    │
-│ SelfPanel    │               MapGrid                    │ (chat timeline,  │
-│──────────────│  (full height: terrain, walk memory,     │ junctures, open  │
-│ Live view    │   entities, trail)                       │ count, compose)  │
-│──────────────│                                          │                  │
-│ Paperdoll    │                                          │                  │
-│──────────────│                                          │                  │
-│ ▸ Movement & │                                          │                  │
-│   traffic    │                                          │                  │
+│ SelfPanel    │                                          │ IntentPanel      │
+│──────────────│                                          │ (Agent)          │
+│ Live view    │                                          │──────────────────│
+│──────────────│               MapGrid                    │                  │
+│ Paperdoll    │  (full height: terrain, walk memory,     │ OverseerPanel    │
+│──────────────│   entities, trail)                       │ (chat timeline,  │
+│ ▸ Movement & │                                          │ junctures, open  │
+│   traffic    │                                          │ count, compose)  │
 ├──────────────┴──────────────────────────────────────────┴──────────────────┤
 │ ▸ details — Containers · Inspector · Gumps · Census · Diagnostics · Events │
 └─────────────────────────────────────────────────────────────────────────────┘
