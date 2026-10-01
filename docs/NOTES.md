@@ -114,6 +114,14 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 - **Server hitches confirm walks late:** 2.0-2.3 s after the send in 20260930_123206 and 091704
   (normal RTT ~50 ms); in 091704 the server sent nothing at all for those 2.3 s. The proxy waits
   3 s (`CONFIRM_TIMEOUT_S`) and still recognizes a confirm up to 5 s after that (docs/MOVEMENT.md).
+  Live 2026-09-30 18:59 (session 182751, Prevalia): a 6.8 s freeze ended with ~280 S2C `0x1D`
+  deletes in one burst, and then the walk's confirm. That looks like a world save `[INFERENCE]`.
+  The confirm landed inside the late window: hidden, ladder moved on, 0 resyncs. `Mover` still
+  counts such a walk as one `blocked` (it gave up at the timeout).
+- **The midnight-UTC Test Shard wipe clears rental rooms.** Afterwards the innkeeper's room
+  menu has no rented-room button 7, and its button 4 means "Rent This Room" (5,000 gp/week:
+  "Click twice more to confirm your rental room agreement."). `ctl act gump` doesn't guard
+  this; the lumber runner aborts without button 7.
 - Frontend toolchain: **Bun 1.4.2** installed 2026-09-29 (user-level, `irm bun.sh/install.ps1 | iex`) at `C:\Users\chris\.bun\bin\bun.exe`, added to the user PATH (new terminals only; in the agent's git-bash shell call it via PowerShell or the full path). There is no Node/npm on this machine. The visualizer frontend (docs/VISUALIZER.md) uses Bun for install/bundle/test: React + TSX.
 
 ## CAPTCHA facts (wiki)
