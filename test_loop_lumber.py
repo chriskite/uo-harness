@@ -501,6 +501,7 @@ async def main():
             # --no-map: walk memory only, and the town wall (21 tiles) is unknown; per-plan route
             # noise can send the agent along it, learning one denied edge per try (up to 3 a tile)
             "--no-map", "--max-blocked", "80",
+            "--triage-url", "",               # no Laya: verdicts would depend on a running laya-serve
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
         out, _ = await asyncio.wait_for(runner.communicate(), timeout=360)
         text = out.decode(errors="replace")

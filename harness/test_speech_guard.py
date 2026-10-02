@@ -103,6 +103,31 @@ def test_scan():
     check("until it runs out", [x["text"] for x in g.scan(w, events, times)] == ["hello?"])
 
 
+def test_context():
+    print("== SpeechGuard.scan: each line carries the recent speech around it (triage.py) ==")
+    now = [1000.0]
+    g = SpeechGuard(now=lambda: now[0])
+    w = world()
+    w["self"]["name"] = "TestWorth"
+    events, times = [], []
+    g.scan(w, events, times)
+    events += [said(PLAYER, "old news"), said(STAFF, "anyone selling logs?", name="GM Kemp"),
+               said(ME, "no sorry"), {"ev": "query", "serial": PLAYER, "kind": 0x09}, said(PLAYER, "Viceroy"),
+               said(VENDOR, "The total of thy purchase is 10 gold.")]
+    times += [1.0, 200.0, 201.0, 202.0, 202.05, 203.0]
+    g.scan(w, events, times)
+    g.clear(["0x0000D00D"])
+    events += [said(STAFF, "hm"), said(PLAYER, "what are you doing?")]
+    times += [204.0, 205.0]
+    got = g.scan(w, events, times)
+    ctx = [(c["name"], c["text"]) for c in got[0]["context"]] if got else []
+    check("context: lines within RECENT_S, ours and a cleared speaker's included, no click echo or vendor, "
+          "ending with the line itself",
+          [x["text"] for x in got] == ["what are you doing?"]
+          and ctx == [("GM Kemp", "anyone selling logs?"), ("TestWorth", "no sorry"), ("x", "hm"),
+                      ("Kanbalt", "what are you doing?")], str(ctx))
+
+
 def test_staff():
     print("== staff hints and the repeating staff alarm ==")
     w = world()
@@ -128,6 +153,7 @@ def test_staff():
 if __name__ == "__main__":
     test_speaker()
     test_scan()
+    test_context()
     test_staff()
     print("ALL PASS" if not FAILURES else f"FAILED: {len(FAILURES)}: {FAILURES}")
     sys.exit(1 if FAILURES else 0)

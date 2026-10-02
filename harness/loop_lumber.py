@@ -46,6 +46,7 @@ from memory import DEFAULT_DB, Memory  # noqa: E402
 import ledger as ledger_mod  # noqa: E402
 import threats  # noqa: E402
 from speech_guard import SpeechGuard, staff_hints  # noqa: E402
+import triage  # noqa: E402
 import alerts  # noqa: E402
 import captcha  # noqa: E402
 
@@ -93,6 +94,7 @@ class LumberLoop:
         self.ledger = ledger_mod.Ledger()
         self._intent = None          # last reported (kind, text, target), restored after a captcha
         self.speech = SpeechGuard()  # a character speaking near us hands control to the overseer
+        self.triage = triage.Triage(args.triage_url, log=log)  # Laya verdict per line (shadow + escalate)
 
     def doing(self, kind: str, text: str, target=None):
         """Tell the visualizer what the agent is trying to do (proxy-side only)."""
@@ -160,18 +162,31 @@ class LumberLoop:
     def check_speech(self, st):
         """speech_guard.py: a character speaking near us hands control to the
         overseer (user request 2026-10-01, harvest jobs only)."""
-        who = self.speech.scan(st["world"], self.link.events, self.link.event_t)
+        who = self.new_speakers(st)
         if who:
             self.speech_hold(who, st)
+
+    def new_speakers(self, st):
+        """New speakers, each with its Laya verdict (triage.py) when the service is on."""
+        who = self.speech.scan(st["world"], self.link.events, self.link.event_t)
+        for w in who:
+            v = self.triage.judge(w, st["world"], names=self.speech.names)
+            if v and "error" not in v:
+                log(f"laya: {w['label'] or w['name'] or w['serial']}: {w['text']!r} "
+                    f"check {v['check']:.2f} direct {v['direct']:.2f} ({v['ms']} ms)")
+        return who
 
     def speech_hold(self, who, st):
         """Send nothing until the overseer gives the all-clear (acks the
         `speech_nearby` juncture) and no `gm_suspected` juncture is open.
         Threats and death still end the job. The overseer may talk to the
         speaker meanwhile (ctl allows `act say` and `single_click` while a task
-        holds), or stop the job. A speaker with staff hints (speech_guard.
-        staff_hints) raises `gm_suspected` and the staff alarm, which repeats
-        (alerts.STAFF_REPEAT_S) until that juncture is acked."""
+        holds) or stop the job. A speaker with staff hints (speech_guard.
+        staff_hints, including Laya's attendance check) raises `gm_suspected`
+        and the staff alarm, which repeats (alerts.STAFF_REPEAT_S) until that
+        juncture is acked. At the all-clear, a `speech_clear` job event keeps
+        every line heard with its verdict and how the hold ended (the labeled
+        data for fine-tuning Laya)."""
         first = who[0]
         name = first["label"] or first["name"] or first["serial"]
         log(f"SPEECH: {name}: {first['text']!r}; pausing for the overseer")
@@ -184,16 +199,19 @@ class LumberLoop:
         self.memory.job_event("lumber", "speech_hold", data, **self._where(st))
         if not self.suspect_staff(who, st):
             alert(not self.args.quiet)
-        t0, heard = time.monotonic(), {w["serial"] for w in who}
+        t0, heard, lines = time.monotonic(), {w["serial"] for w in who}, list(who)
+        gms = set()                                  # gm_suspected juncture ids seen open during the hold
         while True:
+            gms.update(alerts.open_gm(self.memory))
             time.sleep(SPEECH_POLL_S)
             st = self.link.state()
             self.check_threats(st)
             self.check_ledger(st)
-            new = self.speech.scan(st["world"], self.link.events, self.link.event_t)
+            new = self.new_speakers(st)
             for w in new:
                 log(f"SPEECH (paused): {w['label'] or w['name'] or w['serial']}: {w['text']!r}")
                 heard.add(w["serial"])
+            lines += new
             self.suspect_staff(new, st)
             alerts.staff_alarm_due(self.memory, not self.args.quiet)
             j = self.memory.junctures(after_id=jid - 1, limit=1)
@@ -201,6 +219,12 @@ class LumberLoop:
                 break
         waited = time.monotonic() - t0
         self.deadline += waited                      # the pause isn't the job's time
+        gm = [{"id": g["id"], "source": g["source"], "summary": g["summary"]}
+              for g in self.memory.junctures(after_id=min(gms) - 1, limit=max(gms) - min(gms) + 1)
+              if g["id"] in gms] if gms else []
+        self.memory.job_event("lumber", "speech_clear",
+                              {"juncture": jid, "waited_s": round(waited, 1), "gm_suspected": gm, "lines": lines},
+                              **self._where(st))
         self.speech.clear(heard)
         self.stats["speech_holds"] = self.stats.get("speech_holds", 0) + 1
         self.stats["speech_wait_s"] = self.stats.get("speech_wait_s", 0.0) + waited
@@ -759,6 +783,8 @@ def main():
                     help="wrong auto-solve answers tolerated before the pause + beep fallback")
     ap.add_argument("--captcha-beep-s", type=float, default=30.0)
     ap.add_argument("--quiet", action="store_true", help="no handoff sound (tests)")
+    ap.add_argument("--triage-url", default=triage.DEFAULT_URL,
+                    help="laya-serve for speech triage (triage.py); empty = off")
     ap.add_argument("--bank-range", type=int, default=4,
                     help="walk to within this many tiles of the banker's current position")
     ap.add_argument("--timeout", type=float, default=3600.0)

@@ -212,6 +212,20 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 - **Status:** `F:/uo-harness/last_backup.json` (last run, per-part result) and `logs/backup.log` (one line per run, `OK`/`FAIL`). Exit code 1 if any part failed; the other parts still run.
 - Tests: `python harness/test_backup.py` (retention plan, WAL rows in the snapshot, restore, dedupe).
 
+## Laya speech triage (since 2026-10-01)
+
+- **What:** `harness/triage.py` asks [Laya](https://github.com/NandhaKishorM/laya) two yes/no questions about each line a character says during a harvest job. Policy and eval numbers: docs/PLAN.md "Laya speech triage"; juncture fields: docs/OVERSEER.md `speech_nearby`.
+- **Install (done 2026-10-01, re-run on a new machine):** a separate venv so torch never enters the harness's Python:
+  `py -3.13 -m venv .venv-laya && .venv-laya/Scripts/python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cpu && .venv-laya/Scripts/python.exe -m pip install "laya[serve]"`
+  This gave laya 0.3.23 and torch 2.14.1+cpu on Python 3.13, in 168 s. `.venv-laya/` is gitignored. The CPU wheel is deliberate: the GPU (RTX 5070 Laptop, 8 GB) belongs to the client, and the CUDA wheel is a multi-GB download.
+- **Checkpoints** download to `~/.cache/huggingface/hub` on first use (`convaiinnovations/laya`, ModernBERT-large, 421M; the eval also pulled `laya-multilingual`; 2.37 GB together). First in-process load took 198 s including the download; a cached `triage.py serve` listens after 9.6 s and holds ~2 GB RAM.
+- **Harmless warnings at start:** huggingface_hub's "To support symlinks on Windows…" (the cache copies instead; `serve` sets `HF_HUB_DISABLE_SYMLINKS_WARNING`), and Laya's "this checkpoint ships invalid temperatures … choice:11+" (affects choice questions with 11+ options; we only ask noul).
+- **Latency (CPU):** ~0.9 s per line for the two questions with `LAYA_THREADS=4` through laya-serve (eval median 904 ms; 1.2–1.4 s seen while the offline loop test ran alongside). In-process with torch's default threads (24) and three questions it was 0.55–0.9 s. The English checkpoint is pinned (`model: english`); the router alone sent one French line to `multilingual`.
+- **Port 25970.** 25940–25960 is the proxy's upstream bind range (divert_nat excludes it), so the service sits outside it.
+- **Stopping:** Ctrl+C in the `serve` terminal stops both processes. Killing only the Python wrapper (TerminateProcess, e.g. `Popen.terminate()`) leaves `laya-serve.exe` listening on 25970; stop it with `powershell Stop-Process -Name laya-serve`.
+- **When it's down:** the runner logs "speech triage unavailable (…)" once per outage, each verdict carries `error`, and calls back off for 60 s (a refused localhost connect can take ~2 s on Windows [INFERENCE: Windows TCP SYN retries; not timed here]). The speech hold itself is unchanged.
+- **Re-measure** after changing questions, the prompt or the checkpoint (bump `triage.VERSION`): `python harness/eval_triage.py` against the running service. Zero-shot findings: a bare one-line prompt does worse than the prompt with nearby players and recent speech; `score` and `choice` phrasings were no better than noul; the multilingual checkpoint separated worse than English on this set, even on the Turkish/French lines.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

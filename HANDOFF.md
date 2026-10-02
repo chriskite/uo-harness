@@ -95,6 +95,11 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
   for you to solve it in the client (captcha mode `human`, the default); the viz header's
   `captcha [human|auto]` toggle switches to auto-solve from the gump layout. Harvest outcomes
   and episodes go to the memory store.
+- Speech triage for harvest jobs (optional; without it speech holds just carry no Laya verdict):
+  `python harness/triage.py serve` in its own terminal (laya-serve on 127.0.0.1:25970, CPU,
+  listening ~10 s after start, ~2 GB RAM). Stop it with Ctrl+C: killing only the Python wrapper
+  leaves `laya-serve.exe` listening. Check a line by hand: `python harness/triage.py judge "u there?"`.
+  Setup and numbers: docs/NOTES.md "Laya speech triage".
 - Demonstration timeline (offline, read-only): `python harness/loop_mine.py timeline <TAG>
   [--labels]`. Replays `logs/session_<TAG>.*` and prints actions, gumps, menus, cliloc
   messages rendered from Cliloc.enu, and container amount changes.
@@ -106,7 +111,7 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
   `python harness/test_world.py`, `python harness/test_world_replay.py`,
   `python harness/test_actions.py`, `python harness/test_nav.py`, `python harness/test_viz.py`,
   `python harness/test_agent_gate.py`, `python harness/test_loop_demo.py`, `python harness/test_facet.py`,
-  `python test_loop_lumber.py` (~1.5 min), `python harness/test_mover.py`,
+  `python test_loop_lumber.py` (~1.5 min), `python harness/test_mover.py`, `python harness/test_triage.py`,
   `cd viz && bun test && bun run typecheck` (all use private control/state ports; safe while
   the live proxy runs).
 - Push works via SSH alias `github.com-uoharness` (deploy key `~/.ssh/uo_harness_deploy`).

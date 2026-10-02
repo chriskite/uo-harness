@@ -12,6 +12,7 @@ launcher_strings.txt
 # Python
 __pycache__/
 *.pyc
+.venv-laya/
 
 # OS
 Thumbs.db
