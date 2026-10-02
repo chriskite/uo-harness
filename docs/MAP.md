@@ -198,7 +198,7 @@ their upstream values but are unverified for Outlands.
 `u32 id, i32 length, payload[length]`, ending at `length == 0` (or EOF). texmaps.uoo holds
 3,338 ids between 1 and 16379. Only the id set matters here. See land stretch below.
 
-**gumps.uoo** (decoded 2026-09-30, `harness/paperdoll.py`): 7018 ids from 0 to 62727. Each
+**gumps.uoo** (decoded 2026-09-30; reader `harness/uoart.py` `UooImages`): 7018 ids from 0 to 62727. Each
 payload is:
 
 | Off | Type | Field |
@@ -215,6 +215,14 @@ or 13 (female), 260×237, and item overlays are the full canvas size.
 **hues.mul** is stock: groups of u32 header + 8 × (32 u16 colours, u16 start, u16 end, 20-byte
 name). A pixel is hued as `table[pixel red 5 bits]`, only grey pixels for PartialHue items
 (ClassicUO HuesLoader GetColor16 / GetPartialHueColor).
+
+**art.uoo** (decoded 2026-10-02, `harness/uoart.py`): 69,117 ids from 0 to 71291, same payload
+as gumps.uoo. The ids are **item graphics as the server sends them**, with no 0x4000 offset
+(gold coins 0x0EED–0x0EEF and scales 0x1851 render as themselves; [INFERENCE] land art lives in
+landtiles.uoo). The rectangle at offset 4 is `(x0, y0, x1, y1)`, the **inclusive bounding box of
+the opaque pixels**: this held on all 69,117 entries (full scan). The 61 fully transparent
+entries store `(width, height, 0, 0)`. The item is drawn inside a larger canvas, e.g. the gold
+pile 0x0EEF is 44×32 with box (7, 1, 38, 24).
 
 ## Client semantics that matter for walking
 

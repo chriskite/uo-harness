@@ -7,6 +7,16 @@ import { Badge, Bar, Panel } from "./common.tsx";
 const TOP_SKILLS = 8;
 /** Stats that are rendered elsewhere or are appearance, not character stats. */
 const HIDDEN_STATS: Record<string, true> = { graphic: true, hue: true, flags: true, weight_max: true };
+/** Item graphics drawn next to the gold and weight values: a gold coin pile and a pair of scales. */
+const GOLD_ART = 0x0eef;
+const WEIGHT_ART = 0x1851;
+
+/** An item's game art (GET /api/art/<graphic>.png); hidden when the server can't render it. */
+function ItemIcon({ graphic }: { graphic: number }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return <img className="item-icon" src={`api/art/${graphic}.png`} alt="" onError={() => setFailed(true)} />;
+}
 
 export function SelfPanel({ world }: { world: Snapshot | null }) {
   const [allSkills, setAllSkills] = useState(false);
@@ -54,9 +64,11 @@ export function SelfPanel({ world }: { world: Snapshot | null }) {
       <Bar label="SP" value={s.stam} max={s.stam_max} color="#16a34a" />
       <div className="inline-kv">
         <span>
+          <ItemIcon graphic={GOLD_ART} />
           <span className="dim">gold</span> <span className="mono">{s.gold ?? "?"}</span>
         </span>
         <span>
+          <ItemIcon graphic={WEIGHT_ART} />
           <span className="dim">weight</span>{" "}
           <span className="mono">
             {s.weight ?? "?"}

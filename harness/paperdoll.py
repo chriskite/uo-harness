@@ -1,11 +1,7 @@
 """The character's paperdoll, drawn from the client's own art (read-only from
 the install dir), for the visualizer.
 
-gumps.uoo (UOOFile container, docs/MAP.md: u32 magic 0x1E7FAB6D, u32 version,
-then `u32 id, i32 length, payload` records): each payload is
-  u16 width, u16 height, u16 x, u16 y, u16 w, u16 h (a rectangle; unused here),
-  u32 n, then n bytes of raw deflate -> width*height u16 pixels, row-major,
-  RGB555 with 0 = transparent.
+gumps.uoo is read by uoart.UooImages (format in uoart.py and docs/MAP.md).
 Verified 2026-09-30 on all 7018 entries (the buffer is always width*height);
 body gump 12 and backpack gump 50422 render as the familiar paperdoll art.
 
@@ -22,15 +18,13 @@ _layerOrder before PaperdollOrder replaced it) [INFERENCE: this source tree's
 PaperdollOrder table isn't included]. The mount isn't drawn.
 """
 import collections
-import mmap
 import os
 import struct
-import zlib
 
 import uomap
 from pngenc import png_bytes
+from uoart import GUMPS_PATH, UooImages, rgb555
 
-GUMPS_PATH = os.path.join(uomap.INSTALL, "gumps.uoo")
 HUES_PATH = os.path.join(uomap.INSTALL, "hues.mul")
 HUE_GROUP = 4 + 8 * (32 * 2 + 2 + 2 + 20)
 MAX_HUE = 0x0BB8                     # ClassicUO FixHue: higher hues fall back to 1
@@ -41,51 +35,7 @@ LAYER_BACKPACK, LAYER_MOUNT = 0x15, 0x19
 # Robe, Waist, Necklace, Hair, Beard, Earrings, Helmet, OneHanded, TwoHanded, Talisman
 LAYER_ORDER = (0x14, 0x05, 0x04, 0x03, 0x18, 0x13, 0x0D, 0x11, 0x08, 0x0E, 0x0F, 0x07, 0x17,
                0x16, 0x0C, 0x0A, 0x0B, 0x10, 0x12, 0x06, 0x01, 0x02, 0x09)
-DECODED_CACHE = 64
 RENDER_CACHE = 16
-
-
-class GumpArt:
-    """Read-only, lazily indexed access to gumps.uoo."""
-
-    def __init__(self, path: str = GUMPS_PATH):
-        self._f = open(path, "rb")
-        self._mm = mmap.mmap(self._f.fileno(), 0, access=mmap.ACCESS_READ)
-        magic, _version = struct.unpack_from("<II", self._mm, 0)
-        if magic != uomap.DATA_MAGIC:
-            raise ValueError(f"{path}: bad magic {magic:#x}")
-        self._index = {}
-        pos = 8
-        while pos + 8 <= len(self._mm):
-            gid, length = struct.unpack_from("<Ii", self._mm, pos)
-            if length == 0:
-                break
-            self._index[gid] = (pos + 8, length)
-            pos += 8 + length
-        self._cache = collections.OrderedDict()
-
-    def __contains__(self, gid) -> bool:
-        return gid in self._index
-
-    def get(self, gid: int):
-        """(width, height, pixels: tuple of RGB555 u16, 0 = transparent), or None."""
-        hit = self._cache.get(gid)
-        if hit is not None:
-            self._cache.move_to_end(gid)
-            return hit
-        entry = self._index.get(gid)
-        if entry is None:
-            return None
-        off, length = entry
-        w, h, _x, _y, _w, _h, n = struct.unpack_from("<HHHHHHI", self._mm, off)
-        raw = zlib.decompress(self._mm[off + 16:off + 16 + n], -15)
-        if len(raw) != w * h * 2:
-            raise ValueError(f"gump {gid}: {len(raw)} bytes for {w}x{h}")
-        img = (w, h, struct.unpack(f"<{w * h}H", raw))
-        self._cache[gid] = img
-        if len(self._cache) > DECODED_CACHE:
-            self._cache.popitem(last=False)
-        return img
 
 
 class Hues:
@@ -110,13 +60,9 @@ class Hues:
         return self.tables[h - 1] if h - 1 < len(self.tables) else None
 
 
-def _rgb(c: int) -> tuple[int, int, int]:
-    return ((c >> 10) & 31) * 255 // 31, ((c >> 5) & 31) * 255 // 31, (c & 31) * 255 // 31
-
-
 class Paperdoll:
-    def __init__(self, gumps: GumpArt | None = None, hues: Hues | None = None, td=None):
-        self.gumps = gumps or GumpArt()
+    def __init__(self, gumps: UooImages | None = None, hues: Hues | None = None, td=None):
+        self.gumps = gumps or UooImages(GUMPS_PATH)
         self.hues = hues or Hues()
         self.td = td or uomap.tiledata()
         self._renders = collections.OrderedDict()
@@ -175,7 +121,7 @@ class Paperdoll:
                             r5, g5, b5 = (c >> 10) & 31, (c >> 5) & 31, c & 31
                             if not partial or (r5 == g5 == b5):
                                 cc = table[r5]
-                        r, g, b = _rgb(cc)
+                        r, g, b = rgb555(cc)
                         bgra = colours[c] = bytes((b, g, r, 255))
                     o = (orow + x) * 4
                     out[o:o + 4] = bgra

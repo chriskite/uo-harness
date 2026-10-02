@@ -1,5 +1,5 @@
 """Minimal PNG writer (stdlib only): 8-bit truecolour, with or without alpha,
-from top-down BGRA bytes. Used by screen.py (screenshots) and paperdoll.py."""
+from top-down BGRA bytes. Used by screen.py (screenshots), paperdoll.py and uoart.py."""
 import struct
 import zlib
 

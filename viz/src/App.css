@@ -564,8 +564,20 @@ table.evtable {
 }
 .inline-kv {
   display: flex;
+  align-items: center;
   gap: 16px;
   margin: 4px 0;
+}
+.inline-kv > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* item art from GET /api/art/<graphic>.png (the client's art.uoo, cropped) */
+.item-icon {
+  height: 24px;
+  width: auto;
+  image-rendering: pixelated;
 }
 .last-agent {
   margin-top: 6px;

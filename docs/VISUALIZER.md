@@ -152,6 +152,7 @@ channels.
 | `GET /api/overseer?after_chat=N&after_juncture=M` | overseer chat rows and junctures above the cursors, open junctures, heartbeat (§2.4) |
 | `POST /api/chat` | `{"text": T}` → a `user` chat row for the overseer (§2.4) |
 | `GET /api/captcha`, `POST /api/captcha` | who answers the harvest captcha, `{"mode": "human"\|"auto"}` (§2.2a) |
+| `GET /api/art/<graphic>.png` | an item's art from the client's `art.uoo`, cropped to its opaque pixels (§2.9); 404 JSON for an unknown/empty graphic or missing install data, 400 for a non-number |
 | `GET /`, `/assets/*` | built frontend (`viz/dist/`) |
 
 SSE rather than WebSocket: the flow is strictly server→browser, the browser `EventSource` gives
@@ -449,6 +450,18 @@ character.
 - Verified live: the panel showed TestWorth centred in the rental room at 6 frames/s, and
   stopping closed the stream.
 
+### 2.9 Item art icons (added 2026-10-02, user request)
+
+The Self panel draws game art next to two values: the gold coin pile (item `0x0EEF`) next to
+**gold** and the scales (`0x1851`) next to **weight**.
+- `GET /api/art/<graphic>.png` (`harness/uoart.py` `ItemArt`) reads `art.uoo` read-only from
+  the install dir (format in docs/MAP.md). The graphic is decimal or `0x` hex. It is cropped
+  to the stored opaque box, unhued: gold pile 32×24, scales 18×29.
+- `SelfPanel.tsx` `ItemIcon` shows them 24 px high, pixelated. Without install data the image
+  hides and the text stays.
+- Verified in headless Chromium on replay 20260929_163420: both icons load (32×24, 18×29) and
+  sit before their labels; `/api/art/4116.png` (fully transparent) → 404, `zz` → 400.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see
@@ -584,6 +597,7 @@ serial link) opens the drawer on the Inspector tab.
 | `harness/jobs.py` | job analytics over the memory store (§2.4) |
 | `viz/src/overseer.ts`, `components/OverseerPanel.tsx` | overseer timeline model (cursor merge, heartbeat status, chat validation) and the Overseer panel (§2.4) |
 | `viz/src/jobs.ts`, `chart.ts`, `components/JobsPage.tsx`, `components/Charts.tsx` | Jobs page view model (KPIs, event wording, theft rule, wood shares), SVG chart geometry, the dashboard and its charts (§2.4) |
+| `harness/uoart.py`, `harness/test_uoart.py` | `UooImages` (gumps.uoo / art.uoo reader, shared with `paperdoll.py`) and `ItemArt` for `/api/art` (§2.9) |
 | `viz/src/App.tsx`, `components/*.tsx`, `App.css` | §4 panels |
 
 ### Milestones

@@ -13,6 +13,9 @@ Routes:
   GET  /api/paperdoll.png  the player's paperdoll from the current state (body, skin hue,
                       worn items), drawn from the client's gump art (harness/paperdoll.py);
                       404 JSON when the state has no player or the install data is missing
+  GET  /api/art/<graphic>.png  an item's art from the client's art.uoo (decimal or 0x hex
+                      graphic), cropped to its opaque pixels (harness/uoart.py); 404 JSON
+                      for an unknown/empty graphic or missing install data
   GET  /api/live.jpg?zoom=1-3      one JPEG of the character cropped from the game window
   GET  /api/live.mjpeg?zoom=&fps=  the same as a continuous stream (multipart/x-mixed-replace),
                       harness/liveview.py; passive window capture, only while someone watches;
@@ -216,6 +219,27 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._send(200, data, "image/png")
 
+    def _item_art(self, spec: str):
+        import uoart
+        try:
+            graphic = int(spec, 0)
+        except ValueError:
+            self._json(400, {"error": f"bad graphic {spec!r}"})
+            return
+        srv = self.server
+        try:
+            with srv.item_art_lock:
+                if srv.item_art is None:
+                    srv.item_art = uoart.ItemArt()
+                data = srv.item_art.png(graphic)
+        except (OSError, ValueError) as e:
+            self._json(404, {"error": f"item art unavailable: {e}"})
+            return
+        if data is None:
+            self._json(404, {"error": f"no art for graphic {graphic:#x}"})
+            return
+        self._send(200, data, "image/png")
+
     # -- live view (harness/liveview.py): the character, cropped from the game window
     def _live_args(self, q):
         def num(key, default, lo, hi):
@@ -325,6 +349,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, body)
         elif url.path == "/api/paperdoll.png":
             self._paperdoll()
+        elif url.path.startswith("/api/art/") and url.path.endswith(".png"):
+            self._item_art(url.path[len("/api/art/"):-len(".png")])
         elif url.path == "/api/live.jpg":
             self._live_frame(parse_qs(url.query))
         elif url.path == "/api/live.mjpeg":
@@ -551,6 +577,8 @@ class VizServer(ThreadingHTTPServer):
         self.walkmem = WalkMemDB(memory_db)
         self.paperdoll = None            # paperdoll.Paperdoll, created on first use
         self.paperdoll_lock = threading.Lock()
+        self.item_art = None             # uoart.ItemArt, created on first use
+        self.item_art_lock = threading.Lock()
         self.live = None                 # liveview.LiveCapture, created on first view
         self.live_lock = threading.Lock()
         self.live_factory = live_factory
