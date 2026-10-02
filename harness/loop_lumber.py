@@ -28,10 +28,18 @@ The only speech is "bank".
 Guards: jittered pacing, overall timeout, HP loss, movement stall, the agent
 gate (pause/break wait, kill/budget abort), bounded retries everywhere.
 
+Threats (threats.py; LUMBER_LOOP.md §13): a monster close enough to flee from
+gets an escape (walk beyond its flee radius, then harvest the next tree out of
+its reach); a player/red threat, damage, or a monster that keeps coming stops
+the run. An abort while harvesting converts the carried logs first when that
+is safe, so carried wood is boards. A break announced by the agent gate
+(break_due) ends the trip early: convert, bank, exit 0 for `ctl break`.
+
 Run:  python harness/loop_lumber.py [--trips 1] [--logs-per-trip 15]
 """
 import argparse
 import json
+import math
 import os
 import sys
 import time
@@ -64,10 +72,43 @@ HATCHETS = (0x0F43, 0x0F44)
 LOGS = tuple(range(0x1BDD, 0x1BE3))
 BOARDS = (0x1BD7,)
 DROP_AUTO = 0x7FFFFFFF        # client drop-into-container auto-position (demo)
+ESCAPE_MARGIN = 2             # an escape ends this many tiles beyond the monster's flee radius
+ESCAPES_PER_TRIP = 3          # monster escapes per trip; one more threat stops the run
+PACK_DEPTH_MAX = 16           # container nesting bound when looking for the hatchet
 
 
 def h(v) -> int:
     return int(v, 16) if isinstance(v, str) else int(v)
+
+
+def pack_depth(items: dict, container: int, me: int, pack: int) -> int | None:
+    """How deep an item whose container is `container` sits: 0 worn (on `me`),
+    1 in the backpack, 2 in a bag in it, ... None elsewhere (the bank box,
+    the ground, a container the world model doesn't know)."""
+    if container == me:
+        return 0
+    depth = 1
+    while container != pack:
+        ent = items.get(f"0x{container:08X}")
+        if ent is None or ent.get("container") is None or depth > PACK_DEPTH_MAX:
+            return None
+        container = serial_of(ent["container"])
+        depth += 1
+    return depth
+
+
+class Unsafe(Abort):
+    """Stop at once, without converting the carried logs first: a player or red
+    threat, death, or a server restriction (captcha)."""
+
+
+class Escape(Exception):
+    """Monster threats to walk away from (LumberLoop.escape), then carry on."""
+
+    def __init__(self, monsters, summary: str):
+        super().__init__(summary)
+        self.monsters = monsters      # [threats.Threat]
+        self.summary = summary
 
 
 def alert(sound: bool = True):
@@ -97,6 +138,13 @@ class LumberLoop:
         self._intent = None          # last reported (kind, text, target), restored after a captcha
         self.speech = SpeechGuard()  # a character speaking near us hands control to the overseer
         self.triage = triage.Triage(args.triage_url, log=log)  # Laya verdict per line (shadow + escalate)
+        self.mode = "work"           # "work" | "escape" (walking away) | "salvage" (converting before a stop)
+        self.holding = False         # in a speech hold: the overseer has control
+        self.escapes = 0             # monster escapes this trip
+        self.danger = {}             # serial -> ((x, y), tiles): monsters escaped from this trip and their reach
+        self.swingers = {}           # attacker serial -> time of its latest swing at us since the last escape
+        self._swing_scan = 0         # link.events index scanned for swings
+        self.break_due = False       # the agent gate announced a break (break_due)
 
     def doing(self, kind: str, text: str, target=None):
         """Tell the visualizer what the agent is trying to do (proxy-side only)."""
@@ -105,30 +153,62 @@ class LumberLoop:
 
     # ------------------------------------------------------------ guards
     def check_guards(self, st: dict):
-        if time.monotonic() > self.deadline:
+        salvage = self.mode == "salvage"
+        if not salvage and time.monotonic() > self.deadline:
             raise Abort(f"overall timeout ({self.args.timeout}s)")
         mv = st["movement"]
         if mv["stalled"]:
             raise Abort(f"movement stalled ({mv['rejects_in_row']} walks rejected in a row)")
+        self.check_gate(st)
         self.check_threats(st)
         self.check_ledger(st)
-        self.check_speech(st)
+        if self.mode == "work":
+            self.check_speech(st)
         hits = st["world"]["self"].get("hits")
         if hits is not None:
             if self.start_hits is None:
                 self.start_hits = hits
-            elif hits < self.start_hits:
+            elif hits < self.start_hits and not salvage:
                 raise Abort(f"hit points dropped ({self.start_hits} -> {hits}); stopping")
 
     def _where(self, st):
         pos = st["movement"]["pos"] or [None, None]
         return {"facet": st["world"]["self"].get("map"), "x": pos[0], "y": pos[1]}
 
-    def check_threats(self, st):
-        """threats.py over every state read: log hostile players once each
-        (pk_seen); stop on a flee-level threat or when hurt. There is no escape
-        yet (recall needs the runebook demo), so stopping and waking the
-        overseer is the response."""
+    def check_gate(self, st):
+        """The agent gate's break_due (harness/agent_gate.py, docs/OVERSEER.md):
+        stop harvesting and finish this trip at the bank, so the overseer can
+        start the break there (`ctl break`)."""
+        gate = st.get("gate") or {}
+        if gate.get("break_due_at") is not None and not self.break_due:
+            self.break_due = True
+            left = gate.get("break_starts_in_s")
+            log("break due" + (f" (it starts in {left:.0f} s)" if left is not None else "")
+                + ": ending the trip at the bank")
+
+    def swung_at_us(self, st) -> dict:
+        """{attacker serial: time} of 0x2F swings at us since the last escape,
+        within the threat window (an escape clears the ones that caused it)."""
+        me, ev, ts = self.self_serial(st), self.link.events, self.link.event_t
+        for i in range(self._swing_scan, len(ev)):
+            if ev[i].get("ev") == "swing" and ev[i].get("defender") == me:
+                self.swingers[ev[i]["attacker"]] = ts[i]
+        self._swing_scan = len(ev)
+        lo = time.time() - self.watch.params.damage_window_s
+        return {s: t for s, t in self.swingers.items() if t >= lo}
+
+    def check_threats(self, st, escape: bool = True):
+        """threats.py over every state read. Hostile players are logged once each
+        (pk_seen). A flee-level threat posts an urgent `threat` juncture whose
+        data.action says what follows:
+          - a player/red threat, or a non-creature swinging at us: 'abort' at once (Unsafe)
+          - damage taken: 'abort'
+          - only creatures (in flee range, or swinging at us): 'escape' (Escape:
+            walk away and carry on, LumberLoop.escape), at most ESCAPES_PER_TRIP
+            times a trip and never during a speech hold (escape=False); else 'abort'.
+        While escaping, creatures are what we're walking away from (damage and
+        players still stop the run); while converting before a stop, only
+        players and death count."""
         a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
         self.last_threats = a
         if a.dead:
@@ -137,14 +217,48 @@ class LumberLoop:
             if t.hostile and t.player and t.serial not in self.seen_hostiles:
                 self.seen_hostiles.add(t.serial)
                 self.memory.job_event("lumber", "pk_seen", t.to_dict(), **self._where(st))
-        if a.flee or a.under_attack:
-            worst = a.flee[0] if a.flee else None
-            summary = (f"{worst.kind} {worst.name or hex(worst.serial)} at {worst.distance} tiles "
-                       f"(ETA {worst.eta_s:.1f} s)" if worst else "taking damage")
-            data = a.to_dict()
-            self.memory.juncture("lumber", "threat", f"Threat: {summary}", "urgent", data)
-            self.memory.job_event("lumber", "flee", data, **self._where(st))
-            raise Abort(f"threat: {summary}; stopping (no escape action yet)")
+        by_serial = {t.serial: t for t in a.threats}
+        swung = self.swung_at_us(st)
+        players = [t for t in a.flee if t.kind != "monster"]
+        aggressors = [s for s in swung if s not in by_serial or by_serial[s].kind != "monster"]
+        monsters = [t for t in a.flee if t.kind == "monster"]
+        monsters += [by_serial[s] for s in swung if s not in aggressors
+                     and s not in {t.serial for t in monsters}]
+        if players or aggressors:
+            self.threat_stop(st, a, players[0] if players else None, swung, Unsafe)
+        if self.mode == "salvage":
+            return
+        if a.damage["lost"] > 0 or a.damage["damage_events"] > 0:
+            self.threat_stop(st, a, monsters[0] if monsters else None, swung, Abort, "taking damage")
+        if not monsters or self.mode == "escape":
+            return
+        if not escape:
+            self.threat_stop(st, a, monsters[0], swung, Abort, "speech hold: no escape")
+        if self.escapes >= ESCAPES_PER_TRIP:
+            self.threat_stop(st, a, monsters[0], swung, Abort, f"{self.escapes} escapes this trip already")
+        raise Escape(monsters, self.post_threat(st, a, monsters[0], swung, "escape"))
+
+    def post_threat(self, st, a, worst, swung, action, why=None) -> str:
+        """The urgent `threat` juncture + `flee` job event; returns the summary."""
+        if worst is not None:
+            summary = (f"{worst.kind} {worst.name or f'0x{worst.serial:08X}'} at {worst.distance} tiles "
+                       f"(ETA {worst.eta_s:.1f} s)")
+        elif swung:
+            summary = "attacked by " + ", ".join(f"0x{s:08X}" for s in swung)
+        else:
+            summary = "taking damage"
+        data = {**a.to_dict(), "action": action, "attackers": [f"0x{s:08X}" for s in swung]}
+        if why:
+            data["why"] = why
+        what = "escaping" if action == "escape" else "stopping"
+        self.memory.juncture("lumber", "threat", f"Threat: {summary}; {what}" + (f" ({why})" if why else ""),
+                             "urgent", data)
+        self.memory.job_event("lumber", "flee", data, **self._where(st))
+        return summary
+
+    def threat_stop(self, st, a, worst, swung, cls, why=None):
+        summary = self.post_threat(st, a, worst, swung, "abort", why)
+        raise cls(f"threat: {summary}" + (f" ({why})" if why else "") + "; stopping")
 
     def check_ledger(self, st):
         """ledger.py over every state read: unexplained pack losses are
@@ -203,22 +317,26 @@ class LumberLoop:
             alert(not self.args.quiet)
         t0, heard, lines = time.monotonic(), {w["serial"] for w in who}, list(who)
         gms = set()                                  # gm_suspected juncture ids seen open during the hold
-        while True:
-            gms.update(alerts.open_gm(self.memory))
-            time.sleep(SPEECH_POLL_S)
-            st = self.link.state()
-            self.check_threats(st)
-            self.check_ledger(st)
-            new = self.new_speakers(st)
-            for w in new:
-                log(f"SPEECH (paused): {w['label'] or w['name'] or w['serial']}: {w['text']!r}")
-                heard.add(w["serial"])
-            lines += new
-            self.suspect_staff(new, st)
-            alerts.staff_alarm_due(self.memory, not self.args.quiet)
-            j = self.memory.junctures(after_id=jid - 1, limit=1)
-            if j and j[0]["acked_t"] is not None and not alerts.open_gm(self.memory):
-                break
+        self.holding = True
+        try:
+            while True:
+                gms.update(alerts.open_gm(self.memory))
+                time.sleep(SPEECH_POLL_S)
+                st = self.link.state()
+                self.check_threats(st, escape=False)
+                self.check_ledger(st)
+                new = self.new_speakers(st)
+                for w in new:
+                    log(f"SPEECH (paused): {w['label'] or w['name'] or w['serial']}: {w['text']!r}")
+                    heard.add(w["serial"])
+                lines += new
+                self.suspect_staff(new, st)
+                alerts.staff_alarm_due(self.memory, not self.args.quiet)
+                j = self.memory.junctures(after_id=jid - 1, limit=1)
+                if j and j[0]["acked_t"] is not None and not alerts.open_gm(self.memory):
+                    break
+        finally:
+            self.holding = False
         waited = time.monotonic() - t0
         self.deadline += waited                      # the pause isn't the job's time
         gm = [{"id": g["id"], "source": g["source"], "summary": g["summary"]}
@@ -255,7 +373,7 @@ class LumberLoop:
         data = {"reason": reason, "cause": cause, "threats": a.to_dict() if a else None}
         self.memory.juncture("lumber", "death", f"Died ({cause}): {reason}", "urgent", data)
         self.memory.job_event("lumber", "death", data, **self._where(st))
-        raise Abort(f"died ({cause}): {reason}")
+        raise Unsafe(f"died ({cause}): {reason}")
 
     def state(self):
         st = self.link.state()
@@ -287,12 +405,18 @@ class LumberLoop:
         return sum(it.get("amount") or 1 for _, it in self.in_pack(st, graphics))
 
     def hatchet(self, st) -> int:
-        me, pack = self.self_serial(st), self.backpack(st)
-        for key, it in st["world"]["items"].items():
-            if it.get("graphic") in HATCHETS and it.get("container") is not None \
-                    and serial_of(it["container"]) in (me, pack):
-                return serial_of(key)
-        raise Abort("no hatchet worn or in the backpack")
+        """A worn hatchet, else the shallowest one in the backpack or in a bag in
+        it (any depth). use_hatchet opens the bags on the way like a player."""
+        me, pack, items = self.self_serial(st), self.backpack(st), st["world"]["items"]
+        best = None
+        for key, it in items.items():
+            if it.get("graphic") in HATCHETS and it.get("container") is not None:
+                depth = pack_depth(items, serial_of(it["container"]), me, pack)
+                if depth is not None and (best is None or depth < best[0]):
+                    best = (depth, serial_of(key))
+        if best is None:
+            raise Abort("no hatchet worn, in the backpack or in a bag in it")
+        return best[1]
 
     # ------------------------------------------------------------ event scans
     def since(self, mark):
@@ -375,7 +499,7 @@ class LumberLoop:
                 self.doing("captcha", paused)
             now = time.monotonic()
             if now - t0 > self.args.captcha_timeout:
-                raise Abort(f"captcha not solved within {self.args.captcha_timeout:.0f} s")
+                raise Unsafe(f"captcha not solved within {self.args.captcha_timeout:.0f} s")
             if now >= next_beep:
                 alert(not self.args.quiet)
                 next_beep = now + self.args.captcha_beep_s
@@ -442,19 +566,26 @@ class LumberLoop:
                     break
                 time.sleep(0.3)
             else:
-                raise Abort("captcha answer got no server reply within 12 s")
+                raise Unsafe("captcha answer got no server reply within 12 s")
         return False
 
     # ------------------------------------------------------------ using the hatchet
     def use_hatchet(self):
         """dclick the hatchet; returns the target-cursor event (captchas handled).
+        A hatchet in the pack is reached like a player would: the containers on
+        the way that the server hasn't opened yet are opened first, outermost
+        first (agent_link.containers_to_open, ANTICHEAT.md closed containers).
         Now and then the human hesitates: cancels the cursor (stock Esc packet)
         and uses the hatchet again."""
         for attempt in range(2):
             self.human.wait("use")
             st = self.state()
+            hatchet = self.hatchet(st)
+            closed = containers_to_open(st["world"], hatchet)
+            if closed:
+                self.link.open_containers(closed, self.human)
             mark = len(self.link.events)
-            self.link.act(actions.dclick(self.hatchet(st)))
+            self.link.act(actions.dclick(hatchet))
             self.link.wait(lambda s: self.cursor(mark) or self.real_captcha(mark) is not None, 4.0)
             cap = self.real_captcha(mark)
             if cap is not None:
@@ -546,66 +677,184 @@ class LumberLoop:
         return trees[: self.args.max_trees]
 
     def harvest_trip(self) -> int:
-        trees = self.candidate_trees(self.state())
-        if not trees:
-            raise Abort("no harvestable tree available (all depleted, unreachable or ruled out)")
-        gained = attempts = successes = unknown = 0
-        for tree in trees:
-            if gained >= self.args.logs_per_trip:
-                break
-            label = f"tree {tree['x']},{tree['y']}"
-            node = (TREE_FACET, tree["x"], tree["y"], tree["z"], h(tree["graphic"]))
-            spot = (tree["x"], tree["y"])
-            quota = f"{gained}/{self.args.logs_per_trip} logs"
-            self.doing("to_tree", f"Heading to tree at {spot[0]},{spot[1]} ({quota})", spot)
-            z_ok = self.tree_z_ok(tree)
-            try:
-                if "stand" in tree:
-                    self.mover.walk_to(lambda: tree["stand"], 0, f"to {label}", z_ok=z_ok)
-                else:
-                    self.mover.walk_to(lambda: (tree["x"], tree["y"]), 1, f"to {label}", z_ok=z_ok)
-            except Abort as e:
-                if "no route" not in str(e):
-                    raise
-                self.memory.harvest_record(*node, "unreachable")
-                log(f"{label}: unreachable; trying the next tree")
-                continue
-            tries = 0
-            while tries < self.args.max_attempts_per_tree and gained < self.args.logs_per_trip:
-                self.doing("chop", f"Chopping tree at {spot[0]},{spot[1]} "
-                                   f"({gained}/{self.args.logs_per_trip} logs)", spot)
-                out, n = self.attempt(tree)
-                if out in ("success", "fail"):
-                    tries += 1
-                    attempts += 1
-                    self.memory.harvest_record(*node, out, n)
-                    if out == "success":
-                        successes += 1
-                        gained += n
-                        log(f"{label}: +{n} logs ({gained}/{self.args.logs_per_trip})")
-                elif out == "depleted":
-                    self.memory.harvest_record(*node, "depleted")
-                    log(f"{label}: depleted")
-                    break
-                elif out == "lockout":
-                    wait = n + self.human.rng.uniform(1.0, 3.0)
-                    log(f"travel lockout reported: waiting {wait:.0f} s")
-                    self.doing("lockout", f"Waiting out the travel lockout ({wait:.0f} s)", spot)
-                    time.sleep(wait)
+        """Harvest the candidate trees until the quota. A monster escape
+        (Escape -> self.escape) leaves the current tree; harvesting resumes
+        from the next tree out of the reach of every monster escaped from.
+        A break announced by the gate (self.break_due) ends the harvest."""
+        tally = {"gained": 0, "attempts": 0, "successes": 0, "unknown": 0}
+        try:
+            if self.break_due:
+                log("break due: no harvesting this trip")
+                return 0
+            trees = self.candidate_trees(self.state())
+            if not trees:
+                raise Abort("no harvestable tree available (all depleted, unreachable or ruled out)")
+            while trees and tally["gained"] < self.args.logs_per_trip and not self.break_due:
+                tree = trees.pop(0)
+                if not self.out_of_reach(tree["x"], tree["y"]):
+                    log(f"tree {tree['x']},{tree['y']}: within reach of a monster we backed away from; skipping")
                     continue
-                elif out == "not_tree":
-                    self.memory.harvest_record(*node, "not_tree")
-                    log(f"{label}: the server says this is not a tree; remembered")
+                try:
+                    self.work_tree(tree, tally)
+                except Escape as e:
+                    self.escape(e)
+                    pos = self.link.pos()
+                    trees.sort(key=lambda t: cheb(pos, (t["x"], t["y"])))
+            if self.break_due:
+                log(f"break due: stopping the harvest at {tally['gained']} logs; converting and banking")
+            return tally["gained"]
+        finally:
+            self.stats.update(attempts=tally["attempts"], successes=tally["successes"], logs=tally["gained"])
+
+    def work_tree(self, tree, tally):
+        """Walk to one tree and chop it until it's dry, the quota is met or a
+        break is due; tally (gained/attempts/successes/unknown) is the trip's."""
+        label = f"tree {tree['x']},{tree['y']}"
+        node = (TREE_FACET, tree["x"], tree["y"], tree["z"], h(tree["graphic"]))
+        spot = (tree["x"], tree["y"])
+        quota = f"{tally['gained']}/{self.args.logs_per_trip} logs"
+        self.doing("to_tree", f"Heading to tree at {spot[0]},{spot[1]} ({quota})", spot)
+        z_ok = self.tree_z_ok(tree)
+        try:
+            if "stand" in tree:
+                self.mover.walk_to(lambda: tree["stand"], 0, f"to {label}", z_ok=z_ok)
+            else:
+                self.mover.walk_to(lambda: (tree["x"], tree["y"]), 1, f"to {label}", z_ok=z_ok)
+        except Abort as e:
+            if "no route" not in str(e):
+                raise
+            self.memory.harvest_record(*node, "unreachable")
+            log(f"{label}: unreachable; trying the next tree")
+            return
+        tries = 0
+        while tries < self.args.max_attempts_per_tree and tally["gained"] < self.args.logs_per_trip \
+                and not self.break_due:
+            self.doing("chop", f"Chopping tree at {spot[0]},{spot[1]} "
+                               f"({tally['gained']}/{self.args.logs_per_trip} logs)", spot)
+            out, n = self.attempt(tree)
+            if out in ("success", "fail"):
+                tries += 1
+                tally["attempts"] += 1
+                self.memory.harvest_record(*node, out, n)
+                if out == "success":
+                    tally["successes"] += 1
+                    tally["gained"] += n
+                    log(f"{label}: +{n} logs ({tally['gained']}/{self.args.logs_per_trip})")
+            elif out == "depleted":
+                self.memory.harvest_record(*node, "depleted")
+                log(f"{label}: depleted")
+                return
+            elif out == "lockout":
+                wait = n + self.human.rng.uniform(1.0, 3.0)
+                log(f"travel lockout reported: waiting {wait:.0f} s")
+                self.doing("lockout", f"Waiting out the travel lockout ({wait:.0f} s)", spot)
+                time.sleep(wait)
+                continue
+            elif out == "not_tree":
+                self.memory.harvest_record(*node, "not_tree")
+                log(f"{label}: the server says this is not a tree; remembered")
+                return
+            elif out == "none":
+                tally["unknown"] += 1
+                log(f"{label}: no recognised outcome ({tally['unknown']})")
+                if tally["unknown"] > 3:
+                    raise Abort("harvest attempts keep ending without a known outcome")
+            self.human.wait("between")
+            self.human.fidget(self.link, self.link.state(), self.backpack(self.link.state()))
+
+    # ------------------------------------------------------------ escaping monsters
+    def guarded(self, fn):
+        """fn(), run again after each monster escape (ESCAPES_PER_TRIP bounds it)."""
+        while True:
+            try:
+                return fn()
+            except Escape as e:
+                self.escape(e)
+
+    def out_of_reach(self, x, y) -> bool:
+        """(x, y) is beyond the reach (flee radius + ESCAPE_MARGIN) of every
+        monster escaped from this trip, at its live position when in view."""
+        mobs = ((self.link.last or {}).get("world") or {}).get("mobiles") or {}
+        for serial, (pos, tiles) in list(self.danger.items()):
+            m = mobs.get(f"0x{serial:08X}") or {}
+            if m.get("x") is not None:
+                pos = (m["x"], m["y"])
+                self.danger[serial] = (pos, tiles)
+            if cheb(pos, (x, y)) <= tiles:
+                return False
+        return True
+
+    def escape(self, e: Escape):
+        """Walk away from e's monsters to a tile ESCAPE_MARGIN beyond each one's
+        flee radius (escape_tiles), then check that none followed: one still
+        in flee range stops the run ('it kept coming')."""
+        st = self.link.state()
+        mobs = st["world"]["mobiles"]
+        self.escapes += 1
+        self.stats["escapes"] = self.stats.get("escapes", 0) + 1
+        for t in e.monsters:
+            m = mobs.get(f"0x{t.serial:08X}") or {}
+            if m.get("x") is not None:
+                self.danger[t.serial] = ((m["x"], m["y"]), t.flee_radius + ESCAPE_MARGIN)
+        names = ", ".join(t.name or f"0x{t.serial:08X}" for t in e.monsters)
+        goals = self.escape_tiles(st)
+        log(f"ESCAPE {self.escapes}/{ESCAPES_PER_TRIP}: {e.summary}; backing away to {goals[0]}")
+        self.mode = "escape"
+        try:
+            for i, goal in enumerate(goals):
+                self.doing("escape", f"Backing away from {names}", goal)
+                try:
+                    self.mover.walk_to(lambda: goal, 1, "escape", max_moves=80)
                     break
-                elif out == "none":
-                    unknown += 1
-                    log(f"{label}: no recognised outcome ({unknown})")
-                    if unknown > 3:
-                        raise Abort("harvest attempts keep ending without a known outcome")
-                self.human.wait("between")
-                self.human.fidget(self.link, self.link.state(), self.backpack(self.link.state()))
-        self.stats.update(attempts=attempts, successes=successes, logs=gained)
-        return gained
+                except Abort as x:
+                    if "no route" not in str(x) or i == len(goals) - 1:
+                        raise
+                    log(f"escape: no route to {goal}; trying another way")
+        finally:
+            self.mode = "work"
+        self.swingers.clear()                # the swings that caused this escape are dealt with
+        st = self.link.state()
+        a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+        self.last_threats = a
+        still = [t for t in a.flee if t.kind == "monster"]
+        if still:
+            self.threat_stop(st, a, still[0], [], Abort, "it kept coming after the escape")
+        log(f"escaped to {tuple(st['movement']['pos'][:2])}; carrying on")
+
+    def escape_tiles(self, st) -> list:
+        """Escape goals, best first: up to two tiles walked before (walk memory)
+        out of every escaped-from monster's reach, within 60 degrees of straight
+        away from them, nearest first; then the first such tile straight away
+        and 45 degrees to either side."""
+        pos = tuple(st["movement"]["pos"][:2])
+        zones = list(self.danger.values())
+
+        def clear(t):
+            return all(cheb(t, z) > r for z, r in zones)
+        vx = vy = 0.0
+        for (zx, zy), _ in zones:
+            n = math.hypot(pos[0] - zx, pos[1] - zy) or 1.0
+            vx, vy = vx + (pos[0] - zx) / n, vy + (pos[1] - zy) / n
+        if vx == vy == 0.0:
+            vx = 1.0
+        vn = math.hypot(vx, vy)
+        known = []
+        for t in self.mover.mem_for(st["world"]["self"].get("map")).tiles:
+            d = math.hypot(t[0] - pos[0], t[1] - pos[1])
+            if d and cheb(t, pos) <= 40 and clear(t) \
+                    and ((t[0] - pos[0]) * vx + (t[1] - pos[1]) * vy) / (d * vn) >= 0.5:
+                known.append(t)
+        goals = sorted(known, key=lambda t: cheb(t, pos))[:2]
+        for deg in (0, 45, -45):
+            c, s = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+            ux, uy = (vx * c - vy * s) / vn, (vx * s + vy * c) / vn
+            for k in range(1, 80):
+                t = (pos[0] + round(ux * k), pos[1] + round(uy * k))
+                if clear(t):
+                    if t not in goals:
+                        goals.append(t)
+                    break
+        return goals
 
     # ------------------------------------------------------------ converting
     def convert(self):
@@ -717,22 +966,35 @@ class LumberLoop:
 
     def trip(self, n):
         """One trip: harvest -> convert -> walk to the banker and open the bank
-        box -> bank the boards. The run ends at the bank."""
+        box -> bank the boards. The run ends at the bank. A monster escape in
+        any phase is followed by that phase again (the harvest goes on with the
+        next tree out of reach); an abort while harvesting converts the carried
+        logs first when that's safe (salvage)."""
         self.stats = {}
         self.trip_n = n
+        self.escapes, self.danger = 0, {}
         t0, s0, b0 = time.time(), self.mover.steps, self.mover.blocked_count
         phases = {}
 
-        def timed(name, fn):
+        def timed(name, fn, retry=True):
             t = time.time()
-            r = fn()
+            r = self.guarded(fn) if retry else fn()
             phases[name] = round(time.time() - t, 1)
             return r
 
-        timed("harvest", self.harvest_trip)
+        try:
+            timed("harvest", self.harvest_trip)
+        except Abort as e:
+            self.salvage(e)
+            raise
         timed("convert", self.convert)
-        box = timed("to_bank", self.open_bank)
-        timed("store", lambda: self.deposit(box))
+
+        def bank():
+            box = timed("to_bank", self.open_bank, retry=False)
+            timed("store", lambda: self.deposit(box), retry=False)
+        self.guarded(bank)                  # an escape after the box opened: walk back and say bank again
+        if self.break_due:
+            self.stats["break_due"] = True
         row = {"loop": "lumber", "venue": self.k["venue"], "trip": n, "t_start": round(t0, 1),
                "t_end": round(time.time(), 1), "phases_s": phases,
                "steps": self.mover.steps - s0, "blocked": self.mover.blocked_count - b0,
@@ -743,15 +1005,55 @@ class LumberLoop:
         self.doing("trip_done", f"Trip {n} done: {self.stats.get('logs', 0)} logs, "
                                 f"{self.stats.get('stored', 0)} boards banked")
 
+    def salvage(self, e: Abort):
+        """Carried wood is always boards: before a harvest abort ends the run,
+        convert the logs in the pack, unless stopping at once is safer (unsafe_stop).
+        Only players and death interrupt it (mode 'salvage': no timeout, HP,
+        creature or speech checks); a failed conversion is logged, not raised."""
+        why = self.unsafe_stop(e)
+        if why:
+            log(f"stopping at once, logs not converted: {why}")
+            return
+        try:
+            if not self.in_pack(self.link.state(), LOGS):
+                return
+            log(f"converting the carried logs before stopping ({e})")
+            self.mode = "salvage"
+            self.convert()
+        except Abort as x:
+            log(f"could not convert the carried logs: {x}")
+        finally:
+            self.mode = "work"
+
+    def unsafe_stop(self, e: Abort) -> str | None:
+        """Why the run must stop without converting first, or None: a player/red
+        threat, death or a captcha restriction (Unsafe), the agent gate closed
+        (kill, daily budget), an open gm_suspected juncture, or a speech hold
+        (the overseer has control)."""
+        if isinstance(e, Unsafe):
+            return str(e)
+        gate = (self.link.last or {}).get("gate") or {}
+        if gate.get("blocked"):
+            return f"agent gate closed ({gate.get('reason')})"
+        if alerts.open_gm(self.memory):
+            return "possible staff nearby (gm_suspected open)"
+        if self.holding:
+            return "speech hold: the overseer has control"
+        return None
+
     def run(self):
         st = self.link.wait(lambda s: s["movement"]["pos"] is not None
                             and s["movement"]["self_serial"] is not None, 5.0)
         if st is None:
             raise Abort("proxy has no player position yet (log in first)")
-        self.check_guards(st)
+        self.guarded(lambda: self.check_guards(self.link.state()))
         self.hatchet(st)
         for n in range(1, self.args.trips + 1):
             self.trip(n)
+            if self.break_due:
+                log(f"break due: banked after trip {n}; stopping for the break (ctl break)")
+                self.doing("break_due", "Break due: boards banked; waiting at the bank for the break")
+                return
         log(f"loop complete: {self.args.trips} trip(s); waiting at the bank")
         self.doing("done", f"Finished: {self.args.trips} trip(s); waiting at the bank")
 

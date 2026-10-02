@@ -19,6 +19,12 @@ def _h(serial):
 # Outlands only S2C 0x20 carries a body graphic (0x77 has none; layouts.py).
 GHOST_BODIES = frozenset([0x192, 0x193, 0x25F, 0x260, 0x2B6, 0x2B7])
 
+# The client's view range until the server sets one with S2C 0xC8 (ClassicUO
+# World.ClientViewRange = Constants.MAX_VIEW_RANGE). Outlands sends `c8 12` (18) at login.
+DEFAULT_VIEW_RANGE = 24
+# Pruned mobiles kept in `last_seen` (oldest dropped first)
+LAST_SEEN_MAX = 500
+
 
 @dataclass
 class SelfState:
@@ -98,6 +104,7 @@ class Mobile:
     y: int | None = None
     z: int | None = None
     direction: int | None = None
+    seen_t: float | None = None    # time of the last S2C packet that updated it
 
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items() if v is not None
@@ -247,6 +254,16 @@ class StateStore:
         # mobiles with an outstanding client status request (0x34 type 4 since the last
         # close-status bf 000c or delete): ClassicUO Entity.HitsRequest >= Pending
         self.status_requested: set[int] = set()
+        # Chebyshev radius beyond which the client drops mobiles and ground items
+        # (S2C 0xC8; World.ProcessDeletes, docs/WORLDMODEL.md "Pruning")
+        self.view_range = DEFAULT_VIEW_RANGE
+        # mobiles pruned from `mobiles`: serial -> {**to_dict(), t, facet, why}; for
+        # "seen earlier" displays only, never for deciding what the client can act on
+        self.last_seen: dict[int, dict] = {}
+        # latest S2C 0x2F per attacker: serial -> {"defender": serial, "t": float}
+        self.swings: dict[int, dict] = {}
+        # time of the packet being applied (WorldRuntime sets it); stamps Mobile.seen_t
+        self.now: float | None = None
 
     # -- lazy name merge (both orders) -------------------------------------
     def apply_names(self, entries):
@@ -257,6 +274,7 @@ class StateStore:
                 self.items[serial].name = name
             if serial in self.mobiles:
                 self.mobiles[serial].name = name
+                self.mobiles[serial].seen_t = self.now
             if self.self.serial == serial:
                 self.self.name = name
 
@@ -276,13 +294,106 @@ class StateStore:
         if m is None:
             m = Mobile(serial, name=self.names.get(serial))
             self.mobiles[serial] = m
+            self.last_seen.pop(serial, None)
         for k, v in fields.items():
             if hasattr(m, k):
                 setattr(m, k, v)
+        m.seen_t = self.now
+        return m
+
+    def update_mobile(self, serial, **fields):
+        """Like upsert_mobile, but only for a mobile the client has: the stock
+        handlers of packets without a position (0x11, 0x2D, 0xA1-0xA3, 0x16/0x17,
+        0x2E's parent) look the serial up and ignore unknown ones (ClassicUO
+        World.Get / Mobiles.Get), so they must not bring a removed mobile back."""
+        return self.upsert_mobile(serial, **fields) if serial in self.mobiles else None
+
+    # -- removal ---------------------------------------------------------------
+    def _drop_items(self, roots):
+        """Remove the items under `roots` (any serials) recursively, like
+        ClassicUO RemoveItem/RemoveMobile remove their children."""
+        frontier = set(roots)
+        while frontier:
+            kids = [s for s, it in self.items.items() if it.container in frontier]
+            for s in kids:
+                del self.items[s]
+                self.containers.discard(s)
+            frontier = set(kids)
+
+    def remove_item(self, serial):
+        it = self.items.pop(serial, None)
+        if it is not None:
+            self.containers.discard(serial)
+            self._drop_items([serial])
+        return it
+
+    def _pop_mobile(self, serial, why, facet):
+        m = self.mobiles.pop(serial, None)
+        if m is None:
+            return None
+        self.containers.discard(serial)
+        self.status_requested.discard(serial)
+        self.swings.pop(serial, None)
+        facet = self.self.map if facet is None else facet
+        self.last_seen[serial] = {**m.to_dict(), "t": self.now, "facet": facet, "why": why}
+        if len(self.last_seen) > LAST_SEEN_MAX:
+            oldest = min(self.last_seen, key=lambda s: self.last_seen[s]["t"] or 0)
+            del self.last_seen[oldest]
+        return m
+
+    def remove_mobile(self, serial, why="delete", facet=None):
+        """Remove a mobile with its equipment and record it in last_seen with
+        `why`: "range", "facet", "dead" or "delete" (S2C 0x1D)."""
+        m = self._pop_mobile(serial, why, facet)
+        if m is not None:
+            self._drop_items([serial])
         return m
 
     def delete(self, serial):
-        return self.items.pop(serial, None) or self.mobiles.pop(serial, None)
+        """S2C 0x1D: an item or a mobile, with everything under it."""
+        return self.remove_item(serial) or self.remove_mobile(serial)
+
+    def root_of(self, serial):
+        """Outermost container of an item (the item itself if on the ground or
+        its container is unknown)."""
+        seen = set()
+        while serial in self.items and self.items[serial].container is not None and serial not in seen:
+            seen.add(serial)
+            serial = self.items[serial].container
+        return serial
+
+    def _remove_many(self, mobiles, items, why, facet):
+        for s in mobiles:
+            self._pop_mobile(s, why, facet)
+        for s in items:
+            del self.items[s]
+            self.containers.discard(s)
+        if mobiles or items:
+            self._drop_items([*mobiles, *items])
+
+    def prune_range(self, x, y, facet=None):
+        """World.ProcessDeletes: drop mobiles and ground items farther than
+        view_range (Chebyshev) from (x, y), with everything under them.
+        Positionless mobiles (0x78 before their first 0x20) stay. Returns the
+        removed mobile serials."""
+        r = self.view_range
+
+        def far(e):
+            return e.x is not None and e.y is not None and max(abs(e.x - x), abs(e.y - y)) > r
+        gone = [s for s, m in self.mobiles.items() if s != self.self.serial and far(m)]
+        ground = [s for s, it in self.items.items() if it.container is None and far(it)]
+        self._remove_many(gone, ground, "range", facet)
+        return gone
+
+    def clear_facet(self, facet=None):
+        """Facet change (ClassicUO InternalMapChangeClear(noplayer: true)):
+        every mobile but self, every item not carried by self. Returns the
+        removed mobile serials."""
+        me = self.self.serial
+        gone = [s for s in self.mobiles if s != me]
+        items = [s for s in self.items if me is None or self.root_of(s) != me]
+        self._remove_many(gone, items, "facet", facet)
+        return gone
 
     # -- snapshot --------------------------------------------------------------
     def snapshot(self):
@@ -292,6 +403,10 @@ class StateStore:
             "characters": self.characters,
             "mobiles": {_h(s): m.to_dict()
                         for s, m in sorted(self.mobiles.items())},
+            "last_seen": {_h(s): e for s, e in sorted(self.last_seen.items())},
+            "swings": {_h(s): {"defender": _h(w["defender"]), "t": w["t"]}
+                       for s, w in sorted(self.swings.items())},
+            "view_range": self.view_range,
             "items": {_h(s): it.to_dict()
                       for s, it in sorted(self.items.items())},
             "gumps": [g.to_dict() for _, g in sorted(self.gumps.items())],

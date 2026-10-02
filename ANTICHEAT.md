@@ -427,22 +427,36 @@ every earlier capture**. Unparsed but known: S2C 0x54 sound, 0xC0 effects, 0xAF 
   button 0 after a reaction pause (docs/NOTES.md "Moongate gumps"; `test_loop_lumber.py` proves it
   through the real proxy, which also closes the client's copy). Not yet run live.
 
-**A12 (found live 2026-10-01, session 20261001_214649; open): agent combat packets at mobiles the
-client no longer had.** In the overseer's NPD mongbat fights, ctl's on-screen guard passed
-because the world model kept dead and out-of-range mobiles (docs/NOTES.md "World model keeps dead
-and out-of-range mobiles"). On the wire:
-- `0x002C1E27`: `05` attack 3.6 s after its death (`0xFF` sub `0xDEAD`), and 3 `6C` Lightning
-  targets 5 min after it.
-- `0x002C3593`: one `05` and 9 `6C` while it was out of range (last `0x77` 5 min earlier), the
-  last one 3 s after its death.
+**A12 (found live 2026-10-01, session 20261001_214649; model fixed 2026-10-01): agent combat
+packets at mobiles the client no longer had.** In the overseer's NPD mongbat fights, ctl's
+on-screen guard passed because the world model kept dead and out-of-range mobiles (docs/NOTES.md
+"World model keeps dead and out-of-range mobiles"). On the wire (timed replay, seconds after
+1790911000):
+- `0x002C1E27`: the client dropped it out of range at 176.6 (its own close-status `bf 000c`); it
+  died out of our sight (corpse `0xDEAD` at 491.7). The agent sent `05` attack at 507.1 and 548.2
+  and 3 `6C` Lightning targets at 856–895.
+- `0x002C3593`: dropped by the client at our teleport (906.46), dead by our return (corpse
+  `0xDEAD` at 1139.2). The agent sent one `05` (1156.1) and 9 `6C` (1160–1235).
 
 The server answered "That is too far away." A stock client can't target a mobile it has removed
-(dead, or beyond its 24-tile view), so these are agent-only shapes a server log can see. The
-same gap lets `dclick`/`menu`/`attack`/`target` reach any such ghost.
+(dead, or beyond its view range), so these are agent-only shapes a server log can see. The
+same gap let `dclick`/`menu`/`attack`/`target` reach any such ghost.
 
-Fix direction: prune the world model like the client does (view range, death via `0xDEAD`,
-`World.ProcessDeletes`), then re-audit this capture for agent packets at serials the client had
-dropped. That check is a new audit rule, distinct from "serials the server never sent".
+**Fix (2026-10-01):** the world model prunes like the client (docs/WORLDMODEL.md §7: the
+decompiled `World.ProcessDeletes` range rule at the server's `0xC8` range, 18; deaths via
+`0xAF`/`0xDEAD`; facet changes), so every guard that reads `world.mobiles`/`items` now refuses
+these serials. The re-audit rule is `harness/audit_ghost_targets.py` (packets at serials the
+client had dropped, distinct from "serials the server never sent"). **Numbers:** session
+20261001_214649: agent 3 × `05` + 12 × `6C` flagged, all at the two mongbats (the earlier count of
+2 × `05` missed the attack at 507.1); 0 client packets at a pruned serial (94 client `09`s at
+mobiles the server created and deleted in the same burst are the client's queued auto-queries).
+Session 20261001_191355: 3 agent `09` single clicks at players 139–822 s after the client had
+dropped them. They were the idle fidget "look at a nearby mobile" (`humanize.Human.fidget`, which
+picks from `world.mobiles` within 10 tiles). The lumber log for that run has "(idle: looking at
+0x002994DA)" at 19:59:16, which matches flagged packet 2721.43 s. The fidget reads the pruned
+live table now, so the fix covers it with no change to the fidget itself. Also
+20260930_091704: the known context-menu request to a vendor out of view. Not yet run live (needs
+a proxy restart).
 
 **Other gaps:** the JWT carries no shard claim, and the NAT diverts every server IP on :2593 (since
 2026-09-30, after logins went to 35.71.142.123 and 52.223.17.219 rather than the Test Shard's

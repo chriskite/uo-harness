@@ -181,9 +181,57 @@ def test_determinism():
               json.dumps(r1.events) == json.dumps(r2.events))
 
 
+def test_ghosts_20261001_214649():
+    """The A12 ghosts (ANTICHEAT.md, docs/NOTES.md "World model keeps dead and
+    out-of-range mobiles"), replayed in the live order with the row clock: the
+    model drops each mongbat when the client does, and the client never names a
+    serial the model pruned."""
+    print("== pruning on session_20261001_214649 (timed) ==")
+    import audit_ghost_targets
+    base = f"{ROOT}/logs/session_20261001_214649"
+    packets = replay.timed_packets(base)
+    T0 = 1790911000
+    G1, G2 = 0x002C1E27, 0x002C3593
+    now = [None]
+    rt = WorldRuntime(clock=lambda: now[0])
+    st = rt.state
+    pruned, closes, live_at = {}, {}, {}
+    marks = {"G1 first 0xDEAD": (G1, T0 + 491.71), "G1 0xDEAD (attack 3.6 s later)": (G1, T0 + 544.62),
+             "G2 after the teleport": (G2, T0 + 906.5), "G2 0xDEAD": (G2, T0 + 1232.41)}
+    for t, d, _src, pkt in packets:
+        now[0] = t
+        rt.feed_packet(d, pkt)
+        for e in rt.drain_events():
+            if e["ev"] == "prune" and e["serial"] in (G1, G2):
+                pruned.setdefault(e["serial"], (round(t - T0, 2), e["why"]))
+        if d == "c2s" and pkt[:5] == bytes.fromhex("bf0009000c") and int.from_bytes(pkt[5:9], "big") in (G1, G2):
+            closes.setdefault(int.from_bytes(pkt[5:9], "big"), round(t - T0, 2))
+        for name, (s, tm) in marks.items():
+            if name not in live_at and t >= tm:
+                live_at[name] = s in st.mobiles
+    check("0x002C1E27 pruned out of range at 176.55, as the client closed its status (176.6)",
+          pruned.get(G1) == (176.55, "range") and closes.get(G1) == 176.6, f"({pruned.get(G1)}, {closes.get(G1)})")
+    check("0x002C3593 pruned by the teleport at 906.4, as the client closed its status (906.46)",
+          pruned.get(G2) == (906.4, "range") and closes.get(G2) == 906.46, f"({pruned.get(G2)}, {closes.get(G2)})")
+    check("neither ghost is live at its 0xDEAD or after the teleport", live_at == {k: False for k in marks},
+          str(live_at))
+    eq_ = st.last_seen[G1]["why"], st.last_seen[G2]["why"]
+    check("last_seen: both known dead by the end", eq_ == ("dead", "dead"), str(eq_))
+    rep = audit_ghost_targets.audit(base)
+    check("audit: every agent attack/target at the ghosts is flagged (3 x 05, 12 x 6C), nothing else of the agent's",
+          rep["flagged"].get("agent attack") == 3 and rep["flagged"].get("agent target") == 12
+          and {k for k in rep["flagged"] if k.startswith("agent")} == {"agent attack", "agent target"}
+          and {f["serial"] for f in rep["rows"] if f["src"] == "agent"} == {"0x002C1E27", "0x002C3593"},
+          str(rep["flagged"]))
+    check("audit: the client never names a serial the model pruned (only same-burst 0x1D deletes)",
+          {f["why"] for f in rep["rows"] if f["src"] == "client"} == {"delete"}
+          and all(f["gone_s"] is not None and f["gone_s"] <= 0.1 for f in rep["rows"] if f["src"] == "client"),
+          str(rep["flagged_why"]))
+
+
 TESTS = [test_session_141253, test_session_164548,
          test_session_144541_s2c_only, test_session_144541_full,
-         test_all_captures, test_determinism]
+         test_all_captures, test_determinism, test_ghosts_20261001_214649]
 
 
 def main():

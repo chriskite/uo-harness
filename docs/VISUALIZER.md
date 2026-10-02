@@ -49,7 +49,10 @@ Serial keys are `0x%08X` strings. `None` fields are omitted. Current facts:
 - `self`: serial, name, x/y/z/direction (absolute from 0x1B, advanced by confirmed walks), vitals, stats,
   skills, gold, weight, warmode, notoriety.
 - `mobiles`: now carry **x/y/z/direction** from 0x20/0x77/0x78 (163420: 14 of 15 have a
-  position), plus name, graphic, hue, vitals, notoriety, flags.
+  position), plus name, graphic, hue, vitals, notoriety, flags, `seen_t`. Only what the client
+  still has (pruned like the client since 2026-10-01, docs/WORLDMODEL.md §7).
+- `last_seen` (mobiles the client dropped: fields as then, plus `t`, `facet`, `why` range | facet |
+  dead | delete), `swings` (latest 0x2F per attacker), `view_range` (0xC8).
 - `items`: ground items carry x/y/z; contained/equipped items carry `container` (hex parent),
   `layer`, `grid`. The bank box is the self item on layer 0x1D (graphic 0x0E7C).
 - `gumps`, `target`, `census` (serials the client queried), `names`, `buffs`, `containers` (open
@@ -63,14 +66,16 @@ normalizes). Vocabulary (`runtime.py` `_emit`):
 - Session: `login`, `char_select`, `character_list`, `dialect_handshake` (flag1/flag2 = the
   S2C/C2S XOR keys), `keepalive`
 - Movement: `walk`, `walk_confirm`, `walk_deny`
-- Entities: `query`, `item_query`, `names`, `item_seen`, `delete`, `animation`
+- Entities: `query`, `item_query`, `names`, `item_seen`, `delete`, `prune` {serial, why: range |
+  facet | dead} (a mobile the client dropped without a 0x1D), `animation`
 - Text: `speech` (C2S; now includes `keywords` for encoded speech), `speech_heard` (S2C
   0x1C/0xAE; type 6 = click labels such as "Len the banker"), `cliloc` (S2C 0xC1/0xCC:
   `cliloc` number + tab-separated `args`; render with `harness/uo/cliloc.py`)
 - Interaction: `dclick`, `container_open`, `container_content`, `gump_open`, `gump_response`,
   `target`, `target_response`, `lift`, `drop`, `equip_request`, `command` (C2S 0x12),
   `popup` / `popup_request` / `popup_select` (context menus), `buy_list` / `buy` (vendors)
-- Combat and buffs: `damage`, `swing`, `spell_cast`, `buff_update`, `buff_remove`
+- Combat and buffs: `damage`, `swing`, `mobile_death` {serial, corpse, name} (once per corpse,
+  from 0xFF sub 0xDEAD), `spell_cast`, `buff_update`, `buff_remove`
 
 Session 163420 produced 1204 events, 719 of them `keepalive`, hidden by default in the UI.
 Silent mutations (warmode, stats, skills, vitals) arrive only via snapshots, so the UI uses both
@@ -514,9 +519,10 @@ serial link) opens the drawer on the Inspector tab.
   - **Underlay: walk memory** (`/api/walkmem`, plus live `step`/`blocked` events): known-walkable
     tiles shaded, confirmed edges faint, blocked moves as red ticks. It shows the planner's world directly.
   - Overlay: ground items (dots), **mobiles at their positions**, labeled with name plus title
-    from type-6 `speech_heard` labels (e.g. "Len the banker"), notoriety colored; self at the true
-    position with a facing arrow, and a hollow ghost marker at the world-model position when
-    diverged.
+    from type-6 `speech_heard` labels (e.g. "Len the banker"), notoriety colored; mobiles the
+    client dropped out of view (`last_seen`, same facet, not dead) as hollow dimmed rings
+    captioned "(last seen)"; self at the true position with a facing arrow, and a hollow ghost
+    marker at the world-model position when diverged.
   - Trail: the last N true positions from `step` events.
   - Later: the agent's planned route, once the agent publishes its intent (§6 M6).
 - **EntityInspector.** Lookup `mobiles` → `items` → `names`-only, plus census and buffs;

@@ -60,6 +60,9 @@ sys.path.insert(0, HERE)
 
 import actions  # noqa: E402
 import alerts  # noqa: E402
+from combat import (ATTACK_MIN_HP, CORPSE_GRAPHIC, DROP_AUTO, GOLD_GRAPHIC, LOOT_RANGE,  # noqa: E402
+                    MAGERY_SPELLS, NOTORIETY, VIEW_RANGE)
+import combat  # noqa: E402
 import nav  # noqa: E402
 import task_wrap as tw  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
@@ -69,7 +72,8 @@ from uo.gumps import controls as gump_controls, parse_layout  # noqa: E402
 
 HOST = "127.0.0.1"
 TASKS = {"lumber": os.path.join(HERE, "loop_lumber.py"),
-         "bank": os.path.join(HERE, "errand_bank.py")}
+         "bank": os.path.join(HERE, "errand_bank.py"),
+         "hunt": os.path.join(HERE, "loop_hunt.py")}
 # Tests only: JSON {name: script path} replacing TASKS. Production never sets it.
 TEST_TASKS_ENV = "UO_CTL_TEST_TASKS"
 LOG_DIR = os.path.join(ROOT, "logs", "tasks")
@@ -95,11 +99,10 @@ GATE_CHECK_S = 5.0                               # ctl wait: gate poll period
 SEVERITY_RANK = {"info": 0, "attention": 1, "urgent": 2}
 WAIT_MAX_EVENTS = 20
 NEARBY_RANGE = 18
-VIEW_RANGE = 18                      # ClassicUO ClientViewRange: the client drops objects beyond it
 NEARBY_MAX = 30
+ATTACKER_WINDOW_S = 10.0             # status.attackers: a swing at us this recent
 WALK_MAX_STEPS = 20
 LAYER_BACKPACK = 0x15
-DROP_AUTO = 0x7FFFFFFF               # drop-into-container auto position (demo capture 204225, loop_lumber)
 DIR_NAMES = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 # ClassicUO Game/Data/Layers.cs (0x1A-0x1C are vendor containers; 0x1D is the bank box)
 LAYER_NAMES = {1: "one_handed", 2: "two_handed", 3: "shoes", 4: "pants", 5: "shirt", 6: "helmet",
@@ -107,41 +110,16 @@ LAYER_NAMES = {1: "one_handed", 2: "two_handed", 3: "shoes", 4: "pants", 5: "shi
                0x0D: "torso", 0x0E: "bracelet", 0x0F: "face", 0x10: "beard", 0x11: "tunic",
                0x12: "earrings", 0x13: "arms", 0x14: "cloak", 0x15: "backpack", 0x16: "robe",
                0x17: "skirt", 0x18: "legs", 0x19: "mount", 0x1D: "bank"}
-# RunUO Notoriety constants (Innocent 1 .. Invulnerable 7) [INFERENCE: not in the
-# local ClassicUO tree; the client only switches on the named enum].
-NOTORIETY = {1: "innocent", 2: "ally", 3: "attackable", 4: "criminal", 5: "enemy",
-             6: "murderer", 7: "invulnerable"}
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
         "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot",
         "target", "cast", "buy", "use", "drop", "track")
 PACK_ITEMS_MAX = 60                  # status.backpack.items
 CONTAINER_ITEMS_MAX = 60             # status.containers[].items
-# Combat (user decision 2026-09-30): hostile monsters may be fought and looted; players never
-# (Heat of Battle blocks recall/inn rooms, attacking innocents flags criminal, staff attention;
-# ANTICHEAT.md §8.17). Notoriety 3-6 is attackable without a criminal flag;
-# 1 (innocent: players' pets) and 2 (ally) are criminal to attack, 7 is invulnerable.
-ATTACKABLE_NOTORIETY = frozenset([3, 4, 5, 6])
-ATTACK_MIN_HP = 0.3                  # refuse to start a fight below this share of max hits
 DENY_TELEPORT_GRACE_S = 0.4           # after a walk deny, a teleporter may still move us (agent_link)
 MOVE_GATE_WAIT_S = 10.0               # self-clearing proxy walk gates (agent_link.MOVE_GATE_WAIT_S)
 WALK_OUTCOME_WAIT_S = 5.0             # confirm/deny, else the proxy's 3 s rejection (agent_link)
-CORPSE_GRAPHIC = 0x2006
-LOOT_RANGE = 2                       # tiles; the server's own limit is similar [INFERENCE]
 LOOT_MAX_ITEMS = 25
-GOLD_GRAPHIC = 0x0EED
 LAYER_BANK = 0x1D
-# ClassicUO Game/Data/SpellsMagery.cs (ids 1-64); the Outlands client casts with 0xFF sub 4
-# (observed live, session 20260928_164548: ids 5 and 15)
-MAGERY_SPELLS = (
-    "Clumsy", "Create Food", "Feeblemind", "Heal", "Magic Arrow", "Night Sight", "Reactive Armor", "Weaken",
-    "Agility", "Cunning", "Cure", "Harm", "Magic Trap", "Magic Untrap", "Protection", "Strength",
-    "Bless", "Fireball", "Magic Lock", "Poison", "Telekinesis", "Teleport", "Unlock", "Wall of Stone",
-    "Arch Cure", "Arch Protection", "Curse", "Fire Field", "Greater Heal", "Lightning", "Mana Drain", "Recall",
-    "Blade Spirits", "Dispel Field", "Incognito", "Magic Reflection", "Mind Blast", "Paralyze", "Poison Field",
-    "Summon Creature", "Dispel", "Energy Bolt", "Explosion", "Invisibility", "Mark", "Mass Curse",
-    "Paralyze Field", "Reveal", "Chain Lightning", "Energy Field", "Flamestrike", "Gate Travel", "Mana Vampire",
-    "Mass Dispel", "Meteor Swarm", "Polymorph", "Earthquake", "Energy Vortex", "Resurrection", "Air Elemental",
-    "Summon Daemon", "Earth Elemental", "Fire Elemental", "Water Elemental")
 CAST_CURSOR_WAIT_S = 4.0             # a spell's target cursor comes after its cast delay
 # Tracking (live 20261001_214649, docs/NOTES.md "Tracking"): UseSkill 38 opens gump 0xFE5C638B;
 # button 8 / 7 step the hunting mode forward / back through TRACK_MODES (the server answers
@@ -379,7 +357,33 @@ def _serial(v) -> int:
     return int(v, 16) if isinstance(v, str) else int(v)
 
 
-def summarize(resp: dict) -> dict:
+def _age(now: float, t) -> float | None:
+    return None if t is None else round(max(now - t, 0.0), 1)
+
+
+def attackers(world: dict, pos, self_serial, now: float) -> list:
+    """Mobiles the client has whose latest swing (S2C 0x2F) was at us within
+    ATTACKER_WINDOW_S, nearest first."""
+    me = None if self_serial is None else f"0x{_serial(self_serial):08X}"
+    labels = world.get("labels") or {}
+    out = []
+    for key, sw in (world.get("swings") or {}).items():
+        m = (world.get("mobiles") or {}).get(key)
+        if m is None or sw.get("defender") != me or sw.get("t") is None or now - sw["t"] > ATTACKER_WINDOW_S:
+            continue
+        dist = nav.chebyshev((m["x"], m["y"]), (pos[0], pos[1])) if pos and m.get("x") is not None else None
+        out.append({"serial": key, "name": m.get("name"), "label": labels.get(key), "dist": dist,
+                    "hits": None if m.get("hits") is None else [m["hits"], m.get("hits_max")],
+                    "last_swing_age_s": _age(now, sw["t"])})
+    out.sort(key=lambda r: (r["dist"] is None, r["dist"] or 0))
+    return out
+
+
+def summarize(resp: dict, now: float | None = None) -> dict:
+    """`status` from a state-port response. `mobiles` are the ones the client
+    has (the world model prunes like the client: docs/WORLDMODEL.md "Pruning"),
+    each with `age_s` since the server last updated it."""
+    now = time.time() if now is None else now
     mv = resp.get("movement") or {}
     world = resp.get("world") or {}
     me = world.get("self") or {}
@@ -398,7 +402,8 @@ def summarize(resp: dict) -> dict:
                         "graphic": m.get("graphic"),
                         "notoriety": m.get("notoriety"), "notoriety_name": NOTORIETY.get(m.get("notoriety")),
                         "hits": m.get("hits"), "hits_max": m.get("hits_max"),
-                        "x": m["x"], "y": m["y"], "z": m.get("z"), "dist": dist})
+                        "x": m["x"], "y": m["y"], "z": m.get("z"), "dist": dist,
+                        "age_s": _age(now, m.get("seen_t"))})
     mobiles.sort(key=lambda m: (m["dist"] is None, m["dist"] or 0))
     items = world.get("items") or {}
     pack = next((_serial(k) for k, it in items.items()
@@ -449,6 +454,7 @@ def summarize(resp: dict) -> dict:
         "gate": resp.get("gate"),
         "intent": resp.get("intent"), "intents": (resp.get("intents") or [])[-5:],
         "mobiles": mobiles[:NEARBY_MAX],
+        "attackers": attackers(world, pos, self_serial, now),
         "backpack": {"serial": None if pack is None else f"0x{pack:08X}", "counts": counts,
                      "items": pack_items[:PACK_ITEMS_MAX]},
         "containers": _containers(world, items, self_serial, pack),
@@ -1070,10 +1076,11 @@ def not_clickable(world: dict, pos, serial: int) -> str | None:
 
     The client can only click what it has on screen: the entity must be in the
     world model, and it (or, for an item in a container, the mobile or ground
-    item holding it) within VIEW_RANGE of the player. The client drops objects
-    beyond its view range (ClassicUO World.Update), so a serial known from a
-    last-seen position (`ctl npcs`) isn't clickable from afar (live 20260930_091704:
-    a context-menu request to a vendor 33 tiles away)."""
+    item holding it) within the client's view range of the player. The client
+    drops objects beyond its view range (World.ProcessDeletes, range from S2C
+    0xC8) and the world model prunes the same way, so a serial known only from
+    a last-seen position (`ctl npcs`, world `last_seen`) isn't clickable (live
+    20260930_091704: a context-menu request to a vendor 33 tiles away)."""
     me = world["self"].get("serial")
     me = _serial(me) if me is not None else None
     if serial == me:
@@ -1095,8 +1102,9 @@ def not_clickable(world: dict, pos, serial: int) -> str | None:
     if ent.get("x") is None or ent.get("y") is None or not pos:
         return f"{key} has no known position"
     dist = nav.chebyshev(tuple(pos[:2]), (ent["x"], ent["y"]))
-    if dist > VIEW_RANGE:
-        return f"{key} is {dist} tiles away, beyond the client's {VIEW_RANGE}-tile view (goto it first)"
+    view = min(VIEW_RANGE, world.get("view_range") or VIEW_RANGE)   # the client's 0xC8 range
+    if dist > view:
+        return f"{key} is {dist} tiles away, beyond the client's {view}-tile view (goto it first)"
     return None
 
 
@@ -1207,7 +1215,7 @@ def _act_combat(a) -> dict:
         key = f"0x{serial:08X}"
         if serial == _serial(me.get("serial")):
             raise CtlError("that is you")
-        ok, why = _attackable(world, key)
+        ok, why = combat.attackable(world, key)
         if not ok:
             raise CtlError(why)
         why = not_clickable(world, st["movement"].get("pos"), serial)
@@ -1230,10 +1238,10 @@ def _act_combat(a) -> dict:
             turned_on = True
             Human(a.human, seed=a.seed).wait("use")
         resp = "OK"
-        if key not in (world.get("status_requested") or []):
-            resp = ctl.send(actions.status_request(serial))
-        if resp == "OK":
-            resp = ctl.send(actions.attack(serial))
+        for pkt in combat.attack_packets(world, serial):
+            resp = ctl.send(pkt)
+            if resp != "OK":
+                break
         stc.intent(f"Attacking {label or mob.get('name') or key}", "attack", (mob["x"], mob["y"]), serial)
         got = stc.wait_events(mark, lambda evs: False, timeout=1.5)
         return {"ok": resp == "OK", "reply": resp, "warmode_turned_on": turned_on,
@@ -1253,7 +1261,6 @@ def _act_loot(a) -> dict:
     stock GrabItem shape, GameActions.cs:819-852), gold first, at most
     --max-items, stopping at your weight limit. Refuses corpses with a human
     body (players, human NPCs, your own: policy, no corpse runs)."""
-    import threats
     if len(a.args) != 1:
         raise CtlError("loot <corpse serial>")
     serial = _parse_serial(a.args[0])
@@ -1268,7 +1275,7 @@ def _act_loot(a) -> dict:
             raise CtlError(f"{key} isn't a corpse on the ground")
         body = corpse.get("amount")                       # a corpse's amount is the body it was
         name = corpse.get("name") or ""
-        if body in threats.HUMAN_BODIES or "remains of" in name.lower():
+        if combat.human_corpse(corpse):
             raise CtlError(f"{key} ({name or f'body 0x{body:X}'}) is a human corpse (a player, a human NPC or "
                            "you): not looted (criminal, and policy: no corpse runs)")
         dist = nav.chebyshev(tuple(pos[:2]), (corpse["x"], corpse["y"]))
@@ -1296,7 +1303,7 @@ def _act_loot(a) -> dict:
         while not inside and time.monotonic() < end:
             time.sleep(0.1)
             inside = contents()
-        order = sorted(inside.items(), key=lambda kv: (kv[1].get("graphic") != GOLD_GRAPHIC, kv[0]))
+        order = combat.loot_order(inside)
         taken, failed, stopped = [], [], None
         for k, it in order[:a.max_items]:
             me = stc.state()["world"]["self"]
@@ -1305,8 +1312,7 @@ def _act_loot(a) -> dict:
                 break
             human.wait("drag")
             s = _serial(k)
-            if ctl.send(actions.lift(s, it.get("amount") or 1)) != "OK" \
-                    or ctl.send(actions.drop(s, DROP_AUTO, DROP_AUTO, 0, 0, pack)) != "OK":
+            if any(ctl.send(p) != "OK" for p in combat.grab_packets(s, it.get("amount") or 1, pack)):
                 failed.append(k)
                 continue
             end = time.monotonic() + EVENT_WAIT_S
@@ -1339,24 +1345,6 @@ def _act_loot(a) -> dict:
     finally:
         ctl.close()
         stc.close()
-
-
-def _attackable(world: dict, key: str) -> tuple[bool, str]:
-    """(ok, why not): the monsters-only rule shared by attack and target."""
-    import threats
-    mob = world["mobiles"].get(key)
-    if mob is None or mob.get("x") is None:
-        return False, f"mobile {key} not known to the world model"
-    label = (world.get("labels") or {}).get(key)
-    kind, player, evidence = threats.identify(mob, label)
-    if kind != "monster" or player:
-        return False, (f"{key} ({label or mob.get('name')}) is not a hostile monster ({kind}; "
-                       f"{', '.join(evidence)}): only monsters, never players or NPCs")
-    noto = mob.get("notoriety")
-    if noto not in ATTACKABLE_NOTORIETY:
-        return False, (f"{key} has notoriety {noto} ({NOTORIETY.get(noto, '?')}): likely someone's pet or a "
-                       f"protected creature")
-    return True, ""
 
 
 def _act_target(a) -> dict:
@@ -1403,7 +1391,7 @@ def _act_target(a) -> dict:
                 x, y, z = it.get("x") or 0, it.get("y") or 0, it.get("z") or 0
                 graphic, what = it.get("graphic") or 0, it.get("name") or _tile_name(it.get("graphic"))
             else:
-                ok, why = _attackable(world, key)
+                ok, why = combat.attackable(world, key)
                 if not ok:
                     raise CtlError(why)
                 m = world["mobiles"][key]
@@ -1425,14 +1413,10 @@ def _act_target(a) -> dict:
 
 def spell_id(text: str) -> int:
     """A Magery spell by number (1-64) or name (case and spacing ignored)."""
-    t = text.strip()
-    if t.isdigit() and 1 <= int(t) <= len(MAGERY_SPELLS):
-        return int(t)
-    key = "".join(t.lower().split()).replace("_", "")
-    for i, name in enumerate(MAGERY_SPELLS, 1):
-        if "".join(name.lower().split()) == key:
-            return i
-    raise CtlError(f"unknown spell {text!r}; Magery spells: {', '.join(MAGERY_SPELLS)}")
+    sid = combat.spell_id(text)
+    if sid is None:
+        raise CtlError(f"unknown spell {text!r}; Magery spells: {', '.join(MAGERY_SPELLS)}")
+    return sid
 
 
 def _act_cast(a) -> dict:
@@ -2070,6 +2054,11 @@ def _act_goto(a, mem) -> dict:
         if isinstance(target, int):
             world = link.state()["world"]
             mob = world["mobiles"].get(key)
+            if mob is None:   # out of view: walk to where the client last had it (`ctl npcs`)
+                gone = (world.get("last_seen") or {}).get(key)
+                if gone and gone.get("why") in ("range", "delete") \
+                        and gone.get("facet") == (world.get("self") or {}).get("map"):
+                    mob = gone
             item = world["items"].get(key)
             if mob and mob.get("x") is not None:
                 radius = 2 if a.range is None else a.range
@@ -2302,10 +2291,12 @@ def cmd_screenshot(a, mem):
 
 
 def cmd_npcs(a, mem):
-    """Every mobile the world model knows (what the viz map shows), not just the
-    ones in view: search by name/title words, nearest first. Beyond the view
-    range the position is where it was last seen, and NPCs wander, so `goto
-    <serial>` walks there and re-checks on arrival."""
+    """Mobiles the client has (in_view true, live position) plus the ones it
+    dropped (world `last_seen`: left the view range, deleted by the server or
+    left behind on another facet; in_view false, where they were last seen and
+    `age_s` since): search by name/title words, nearest first. Dead ones are
+    left out. NPCs wander, so `goto <serial>` walks to the last-seen spot and
+    follows the live position once the mobile is back in view."""
     try:
         stc = StateConn(a.state_port)
     except OSError as e:
@@ -2314,25 +2305,34 @@ def cmd_npcs(a, mem):
         resp = stc.state()
     finally:
         stc.close()
+    now = time.time()
     world, mv = resp.get("world") or {}, resp.get("movement") or {}
     pos, me = mv.get("pos"), mv.get("self_serial")
     labels = world.get("labels") or {}
     words = [w.lower() for w in a.words]
     rows = []
-    for key, m in (world.get("mobiles") or {}).items():
-        if m.get("x") is None or _serial(key) == me:
-            continue
-        label = labels.get(key) or m.get("name") or ""
-        if words and not all(w in label.lower() for w in words):
-            continue
-        dist = nav.chebyshev((m["x"], m["y"]), (pos[0], pos[1])) if pos else None
-        rows.append({"serial": key, "label": label or None, "name": m.get("name"),
-                     "notoriety": m.get("notoriety"), "notoriety_name": NOTORIETY.get(m.get("notoriety")),
-                     "x": m["x"], "y": m["y"], "z": m.get("z"), "dist": dist,
-                     "in_view": dist is not None and dist <= NEARBY_RANGE})
-    rows.sort(key=lambda r: (r["dist"] is None, r["dist"] or 0))
+    live = world.get("mobiles") or {}
+    gone = {k: m for k, m in (world.get("last_seen") or {}).items() if m.get("why") != "dead" and k not in live}
+    for in_view, src in ((True, live), (False, gone)):
+        for key, m in src.items():
+            if m.get("x") is None or _serial(key) == me:
+                continue
+            label = labels.get(key) or m.get("name") or ""
+            if words and not all(w in label.lower() for w in words):
+                continue
+            dist = nav.chebyshev((m["x"], m["y"]), (pos[0], pos[1])) if pos else None
+            row = {"serial": key, "label": label or None, "name": m.get("name"),
+                   "notoriety": m.get("notoriety"), "notoriety_name": NOTORIETY.get(m.get("notoriety")),
+                   "x": m["x"], "y": m["y"], "z": m.get("z"), "dist": dist, "in_view": in_view,
+                   "age_s": _age(now, m.get("seen_t") if in_view else m.get("t"))}
+            if not in_view:
+                row.update(why=m.get("why"), facet=m.get("facet"))
+            rows.append(row)
+    rows.sort(key=lambda r: (r["dist"] is None, r["dist"] or 0, not r["in_view"]))
     return {"ok": True, "pos": pos, "matches": len(rows), "npcs": rows[:a.limit],
-            "note": f"in_view = within {NEARBY_RANGE} tiles (live position); others are last seen there"}
+            "note": "in_view = the client has it (live position, age_s since the last update); "
+                    "others are where the client last had them (age_s since; why: range = left the view, "
+                    "delete = removed by the server, facet = on another facet)"}
 
 
 def cmd_journal(a, mem):

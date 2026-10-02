@@ -70,6 +70,8 @@ class FakeProxy:
         self.target = {"active": False, "target_type": None, "cursor_id": None, "cursor_type": None}
         self.gumps = []           # world.gumps rows
         self.fixed_mobiles = {}   # extra mobiles at fixed positions (goto tests)
+        self.last_seen = {}       # world.last_seen: mobiles the client dropped (npcs/goto tests)
+        self.swings = {}          # world.swings: attacker -> {"defender", "t"} (status attackers)
         self.ground_items = {}    # extra ground items (goto/map tests)
         self.warmode = False
         self.status_requested = []   # world.status_requested (the client's outstanding 0x34s)
@@ -239,6 +241,7 @@ class FakeProxy:
                                                "notoriety": 6, "graphic": 400},
                                 "0x00000003": {"x": self.pos[0] + 50, "y": self.pos[1], "name": "far"},
                                 **self.fixed_mobiles},
+                    "last_seen": dict(self.last_seen), "swings": dict(self.swings),
                     "items": {p: {"graphic": 0x0E75, "layer": 0x15, "container": "0x00000001"},
                               "0x40000011": {"graphic": 0x1BDD, "amount": 5, "container": p},
                               "0x40000012": {"graphic": 0x0E76, "container": p},
@@ -839,7 +842,19 @@ def test_overseer_acts(proxy):
           code == 0 and nav.chebyshev(tuple(out["to"][:2]), (110, 100)) <= 2
           and nav.chebyshev(tuple(out["from"][:2]), (110, 100)) > 2, str(out))
     proxy.fixed_mobiles = {}
+    tx = proxy.pos[0] - 6
+    proxy.last_seen = {"0x00000005": {"x": tx, "y": 100, "z": 0, "name": "Limmon",
+                                      "t": time.time() - 60, "facet": 0, "why": "range"},
+                       "0x00000006": {"x": 90, "y": 100, "z": 0, "name": "a mongbat", "t": time.time(),
+                                      "facet": 0, "why": "dead"}}
+    code, out = c("act", "goto", "0x00000005", "--human", "off", "--no-map")
+    check("goto a mobile out of view: walks to where the client last had it",
+          code == 0 and nav.chebyshev(tuple(out["to"][:2]), (tx, 100)) <= 2
+          and nav.chebyshev(tuple(out["from"][:2]), (tx, 100)) > 2, str(out))
     proxy.take()
+    code, out = c("act", "goto", "0x00000006", "--no-map")
+    check("goto a dead mobile refused", code == 1 and proxy.take() == [], str(out))
+    proxy.last_seen = {}
     code, out = c("act", "goto", "0x00000099", "--no-map")
     check("goto unknown serial refused", code == 1 and proxy.take() == [], str(out))
     gate = "0x40000099"
@@ -961,23 +976,60 @@ def test_combat(proxy):
 
 
 def test_npcs(proxy):
-    print("== npcs: every known mobile, not just the ones in view ==")
+    print("== npcs: mobiles in view plus the ones the client dropped (last_seen) ==")
     tmp = tempfile.mkdtemp()
     c = Ctl(os.path.join(tmp, "harness.db"), os.path.join(tmp, "tasks"), proxy)
-    proxy.fixed_mobiles = {"0x00000020": {"x": proxy.pos[0] - 40, "y": proxy.pos[1], "name": "Sherwin",
-                                          "notoriety": 7}}
+    now = time.time()
+    proxy.last_seen = {
+        "0x00000020": {"x": proxy.pos[0] - 40, "y": proxy.pos[1], "name": "Sherwin", "notoriety": 7,
+                       "t": now - 30, "facet": 0, "why": "range"},
+        "0x00000021": {"x": proxy.pos[0] - 5, "y": proxy.pos[1], "name": "a mongbat", "notoriety": 3,
+                       "t": now - 5, "facet": 0, "why": "dead"}}
     proxy.labels = {"0x00000020": "Sherwin the mage"}
     code, out = c("status")
-    check("status keeps to the view range (the far mage isn't there)",
-          "0x00000020" not in {m["serial"] for m in out["mobiles"]}, str(out["mobiles"]))
+    check("status: only the mobiles the client has (no last_seen ones)",
+          not {"0x00000020", "0x00000021"} & {m["serial"] for m in out["mobiles"]}, str(out["mobiles"]))
     code, out = c("npcs", "mage")
-    check("npcs finds the far mage by title, with its last-seen position and in_view False",
-          code == 0 and [(r["serial"], r["label"], r["dist"], r["in_view"]) for r in out["npcs"]]
-          == [("0x00000020", "Sherwin the mage", 40, False)], str(out))
+    r = (out.get("npcs") or [{}])[0]
+    check("npcs finds the far mage by title: last-seen position, in_view False, why and age",
+          code == 0 and len(out["npcs"]) == 1
+          and (r["serial"], r["label"], r["dist"], r["in_view"], r["why"]) == ("0x00000020", "Sherwin the mage", 40,
+                                                                            False, "range")
+          and 29 <= r["age_s"] <= 40, str(out))
     code, out = c("npcs")
-    check("npcs without words: everything known but you, nearest first",
-          [r["serial"] for r in out["npcs"]] == ["0x00000002", "0x00000020", "0x00000003"], str(out["npcs"]))
-    proxy.fixed_mobiles, proxy.labels = {}, {}
+    check("npcs without words: live and last-seen but you and the dead, nearest first",
+          [(r["serial"], r["in_view"]) for r in out["npcs"]]
+          == [("0x00000002", True), ("0x00000020", False), ("0x00000003", True)], str(out["npcs"]))
+    proxy.last_seen, proxy.labels = {}, {}
+
+
+def test_attackers(proxy):
+    print("== status: attackers (S2C 0x2F swings at us) and mobile age ==")
+    tmp = tempfile.mkdtemp()
+    c = Ctl(os.path.join(tmp, "harness.db"), os.path.join(tmp, "tasks"), proxy)
+    now = time.time()
+    x, y = proxy.pos[0], proxy.pos[1]
+    proxy.fixed_mobiles = {
+        "0x00000030": {"x": x + 2, "y": y, "name": "a mongbat", "hits": 80, "hits_max": 100, "seen_t": now - 1.5},
+        "0x00000031": {"x": x + 1, "y": y, "name": "a mongbat", "seen_t": now},
+        "0x00000032": {"x": x + 4, "y": y, "name": "a ratman", "seen_t": now},
+        "0x00000033": {"x": x + 5, "y": y, "name": "a guard", "seen_t": now}}
+    me, other = f"0x{proxy.SELF:08X}", "0x00000002"
+    proxy.swings = {"0x00000030": {"defender": me, "t": now - 3},
+                    "0x00000031": {"defender": me, "t": now - 0.5},
+                    "0x00000032": {"defender": me, "t": now - 20},       # stale: not attacking now
+                    "0x00000033": {"defender": other, "t": now - 1},     # fighting someone else
+                    "0x00000034": {"defender": me, "t": now - 1}}        # not in the client's world
+    code, out = c("status")
+    att = out.get("attackers") or []
+    check("attackers: swings at us within 10 s by mobiles the client has, nearest first",
+          [(a["serial"], a["dist"]) for a in att] == [("0x00000031", 1), ("0x00000030", 2)], str(att))
+    check("attackers carry hits and the swing age",
+          att[1]["hits"] == [80, 100] and 2.5 <= att[1]["last_swing_age_s"] <= 5, str(att))
+    ages = {m["serial"]: m["age_s"] for m in out["mobiles"]}
+    check("mobiles[].age_s since the server last updated it (None when unknown)",
+          1.4 <= ages["0x00000030"] <= 4 and ages["0x00000002"] is None, str(ages))
+    proxy.fixed_mobiles, proxy.swings = {}, {}
 
 
 def test_intent_cmd(proxy):
@@ -1313,6 +1365,7 @@ def main():
     test_heal_buy(proxy)
     test_intent_cmd(proxy)
     test_npcs(proxy)
+    test_attackers(proxy)
     test_drop(proxy)
     test_track(proxy)
     reset_events(proxy)

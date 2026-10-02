@@ -15,8 +15,16 @@ query adopts it earlier in replay order; a disagreeing 0x1B is counted in
 `anomalies`). 0x20 MobileUpdate and 0x77 MobileMove carry ANY mobile (the
 client's handlers look non-self serials up in the mobile table), so they
 update self only when the serial matches and otherwise upsert a mobile.
+
+Pruning (docs/WORLDMODEL.md "Pruning"): `state.mobiles` holds only what the
+stock client still has. Mobiles leave on 0x1D, on a death (0xFF sub 0xDEAD,
+0xAF), beyond the 0xC8 view range from self (World.ProcessDeletes: run on
+0xFF sub 5 and whenever self's position changes) and on a facet change;
+each lands in `state.last_seen` and emits `prune`. Packets without a
+position update only mobiles the model still has.
 """
 import collections
+import time
 
 from . import parsers
 from .state import StateStore, GumpState
@@ -28,10 +36,12 @@ S2C = "s2c"
 # UO direction deltas: 0=N 1=NE 2=E 3=SE 4=S 5=SW 6=W 7=NW
 _DELTAS = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
 PENDING_WALKS_MAX = 64  # unconfirmed walk requests kept for confirm matching
+CORPSES_MAX = 1000      # corpse serials remembered for one `mobile_death` per corpse
 
 
 class WorldRuntime:
-    def __init__(self):
+    def __init__(self, clock=time.time):
+        self.clock = clock               # wall time of the packet being fed (replay: the row's t)
         self.state = StateStore()
         self.events: list[dict] = []
         self.packet_counts = collections.Counter()   # (direction, pid) -> n
@@ -41,6 +51,8 @@ class WorldRuntime:
         self.anomalies = collections.Counter()
         # walk requests awaiting the server's 0x22 confirm: [(seq, direction)]
         self.pending_walks: list[tuple[int, int]] = []
+        # corpses already reported by `mobile_death` (0xDEAD repeats per corpse)
+        self.corpses: collections.OrderedDict[int, None] = collections.OrderedDict()
 
     def drain_events(self):
         out, self.events = self.events, []
@@ -48,6 +60,43 @@ class WorldRuntime:
 
     def _emit(self, ev, **fields):
         self.events.append({"ev": ev, **fields})
+
+    def prune(self):
+        """World.ProcessDeletes from self's server position (needs both)."""
+        s = self.state.self
+        if s.serial is None or not s.position_absolute:
+            return
+        for serial in self.state.prune_range(s.x, s.y, s.map):
+            self._emit("prune", serial=serial, why="range")
+
+    def remove_dead(self, serial):
+        """A mobile died. The stock 0xAF handler re-keys the dead mobile to
+        serial | 0x80000000, so its serial stops resolving: it leaves `mobiles`
+        (last_seen why "dead")."""
+        if serial == self.state.self.serial:
+            return
+        if self.state.remove_mobile(serial, "dead", self.state.self.map) is not None:
+            self._emit("prune", serial=serial, why="dead")
+        elif serial in self.state.last_seen:   # it left the view earlier, then died
+            e = self.state.last_seen[serial]
+            if e["why"] != "dead":
+                e.update(why="dead", dead_t=self.state.now)
+
+    def mobile_death(self, serial, corpse, name):
+        """Outlands 0xFF sub 0xDEAD: a corpse's data (owner serial, corpse name).
+        It follows 0xAF + 0x1D when a mobile dies in view, and comes alone
+        whenever a corpse is (re)sent, e.g. on walking up to a mobile that died
+        out of view (live 20261001_214649). The owner is dead either way; one
+        `mobile_death` per corpse."""
+        if serial == self.state.self.serial:
+            return
+        self.remove_dead(serial)
+        if corpse in self.corpses:
+            return
+        self.corpses[corpse] = None
+        if len(self.corpses) > CORPSES_MAX:
+            self.corpses.popitem(last=False)
+        self._emit("mobile_death", serial=serial, corpse=corpse, name=name)
 
     def _adopt_self_serial(self, serial):
         """The client's login burst queries its own serial before anything
@@ -77,6 +126,8 @@ class WorldRuntime:
         if fields is None:  # no parser for a registered id — defensive
             self.parse_failures += 1
             return
+        if direction == S2C:
+            self.state.now = self.clock()
         handler(self, fields)
 
 
@@ -113,6 +164,8 @@ def _h_confirm_walk(rt, f):
             moved = True
     rt._emit("walk_confirm", seq=f["seq"], notoriety=noto, x=s.x, y=s.y,
              direction=s.direction, moved=moved)
+    if moved:
+        rt.prune()
 
 
 def _h_deny_walk(rt, f):
@@ -125,6 +178,7 @@ def _h_deny_walk(rt, f):
     rt.pending_walks.clear()
     rt._emit("walk_deny", seq=f["seq"], x=s.x, y=s.y, z=s.z,
              direction=s.direction)
+    rt.prune()
 
 
 def _route_vitals(rt, serial, **vitals):
@@ -132,7 +186,7 @@ def _route_vitals(rt, serial, **vitals):
         for k, v in vitals.items():
             setattr(rt.state.self, k, v)
     else:
-        rt.state.upsert_mobile(serial, **vitals)
+        rt.state.update_mobile(serial, **vitals)
 
 
 def _h_mobile_attributes(rt, f):
@@ -142,7 +196,12 @@ def _h_mobile_attributes(rt, f):
 
 
 def _h_swing(rt, f):
-    rt._emit("swing", attacker=f["attacker"], defender=f["defender"])
+    """0x2F: `attacker` swings at `defender`. The latest swing per attacker the
+    client has (or self) is kept in state.swings."""
+    a = f["attacker"]
+    if a == rt.state.self.serial or rt.state.update_mobile(a) is not None:
+        rt.state.swings[a] = {"defender": f["defender"], "t": rt.state.now}
+    rt._emit("swing", attacker=a, defender=f["defender"])
 
 
 def _stat_handler(cur_attr, max_attr):
@@ -176,6 +235,7 @@ def _h_update_player(rt, f):
         s.notoriety = f["notoriety"]
         if was_dead is not None and was_dead != s.dead:
             rt._emit("resurrect" if was_dead else "death", body=s.body, x=s.x, y=s.y, z=s.z)
+        rt.prune()
         return
     rt.state.upsert_mobile(f["serial"], graphic=f["graphic"], hue=f["hue"],
                            flags=f["flags"], notoriety=f["notoriety"],
@@ -188,6 +248,7 @@ def _h_mobile_move(rt, f):
     s = rt.state.self
     if s.serial == f["serial"]:
         _set_self_position(s, f)
+        rt.prune()
     else:
         rt.state.upsert_mobile(f["serial"], x=f["x"], y=f["y"], z=f["z"],
                                direction=f["dir"] & 7)
@@ -242,7 +303,7 @@ def _h_update_item_sa(rt, f):
 
 
 def _h_equip_item(rt, f):
-    rt.state.upsert_mobile(f["parent"])
+    rt.state.update_mobile(f["parent"])
     it = rt.state.upsert_item(f["item"], graphic=f["graphic"],
                               layer=f["layer"], container=f["parent"],
                               hue=f["hue"])
@@ -314,6 +375,7 @@ def _h_login_confirm(rt, f):
         return
     _set_self_position(s, f)
     s.stats["graphic"] = f["graphic"]
+    rt.prune()
 
 
 def _h_character_status(rt, f):
@@ -331,7 +393,7 @@ def _h_character_status(rt, f):
                            "type"):
                 s.stats[k] = v
     else:
-        rt.state.upsert_mobile(f["serial"], name=f["name"] or None,
+        rt.state.update_mobile(f["serial"], name=f["name"] or None,
                                hits=f["hits"], hits_max=f["hits_max"])
 
 
@@ -359,10 +421,24 @@ def _h_corpse_equipment(rt, f):
 
 
 def _h_healthbar(rt, f):
-    m = rt.state.upsert_mobile(f["serial"])
+    m = rt.state.update_mobile(f["serial"])
+    if m is None:
+        return
     for e in f["entries"]:
         if e["type"] == 1:  # hits-bar poisoned flag (doc §2)
             m.poisoned = bool(e["enabled"])
+
+
+def _h_display_death(rt, f):
+    """0xAF: a mobile died in view (0x1D and 0xFF sub 0xDEAD follow; the
+    latter emits `mobile_death`)."""
+    rt.remove_dead(f["serial"])
+
+
+def _h_view_range(rt, f):
+    """0xC8: the client's view range; World.ProcessDeletes prunes beyond it."""
+    rt.state.view_range = f["range"]
+    rt.prune()
 
 
 def _gump_open(rt, f):
@@ -408,9 +484,13 @@ def _d_s2c(rt, f):
     elif sub == 9:
         rt.state.buffs.get(f["serial"], {}).pop(f["buff_id"], None)
         rt._emit("buff_remove", serial=f["serial"], buff_id=f["buff_id"])
+    elif sub == 5:
+        rt.prune()   # World.ProcessDeletes (decompiled/process_deletes.c)
     elif sub == 0x15:
         rt.state.apply_names(f["entries"])
         rt._emit("names", count=len(f["entries"]), entries=f["entries"])
+    elif sub == 0xDEAD:
+        rt.mobile_death(f["serial"], f["corpse"], f["name"])
     elif sub == 0x1A and f.get("mode") == 0:
         rt.state.tracking.on_arrow_set(f)
         rt._emit("quest_arrow_set", **{k: f[k] for k in (
@@ -548,7 +628,13 @@ def _extended_handler(direction):
         if sub == 0x14 and direction == S2C:
             rt._emit("popup", serial=f["serial"], entries=f["entries"])
         elif sub == 0x08 and direction == S2C and "map" in f:
+            # ClassicUO World.MapIndex: a different facet clears every mobile but
+            # self and every item self doesn't carry (EnterWorld sets 0 first)
+            prev = rt.state.self.map if rt.state.self.map is not None else 0
             rt.state.self.map = f["map"]
+            if f["map"] != prev:
+                for serial in rt.state.clear_facet(prev):
+                    rt._emit("prune", serial=serial, why="facet")
             rt._emit("map_change", map=f["map"])
         elif sub == 0x04 and direction == S2C and "gump_id" in f:
             closed = 0
@@ -609,6 +695,8 @@ _S2C_HANDLERS = {
     0xBF: _extended_handler(S2C),
     0x7C: _h_open_menu,
     0xBA: _h_quest_arrow,
+    0xAF: _h_display_death,
+    0xC8: _h_view_range,
 }
 
 _C2S_HANDLERS = {

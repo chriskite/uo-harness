@@ -178,7 +178,7 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   - Commodity deeds (5 gp at a banker) list boards (5 000 regular / 2 500 colored), not logs.
   - Rental rooms: say `rent`/`room`/`house` to an innkeeper. You exit to a random inn room. No recall in. Floor items decay after 1 h unless locked down or secured.
   - **Rental-room exits land upstairs** in the Shelter inn: a random room at z 20 (demo (1932, 2589, 20); live agent run (1938, 2584, 20)), with doors between the room and the stairs. 2D walk memory can't tell the floors apart, so pathing out needs z-aware map data (docs/LUMBER_LOOP.md §13).
-  - **The lumber runner banks the boards (since 2026-10-01, LUMBER_LOOP.md §12.5).** A fresh character needs a hatchet, worn or in the pack (else the runner aborts at start), and Young status (the Shelter bank and its banker serve only Young characters). Nothing in lumber.json is per character: the runner reads self, backpack and hatchet from the world model. The banker (Len, `0x000001EA`) is a world NPC, and the same serial shows in sessions 163420 and 204225. The runner walks to his live position; if he isn't in view, it uses the demo position.
+  - **The lumber runner banks the boards (since 2026-10-01, LUMBER_LOOP.md §12.5).** A fresh character needs a hatchet, worn, in the backpack or in a bag in it at any depth (worn first, then the shallowest; the runner opens the bags on the way before using it, LUMBER_LOOP.md §13; with none known it aborts at start), and Young status (the Shelter bank and its banker serve only Young characters). Nothing in lumber.json is per character: the runner reads self, backpack and hatchet from the world model. The banker (Len, `0x000001EA`) is a world NPC, and the same serial shows in sessions 163420 and 204225. The runner walks to his live position; if he isn't in view, it uses the demo position.
 
 ## Tracking (live 2026-10-01, session 20261001_214649)
 
@@ -207,33 +207,41 @@ passive creatures. Everything below is from that capture; the harness only watch
 - **World model (since 2026-10-01):** arrows come out as `quest_arrow_set` / `quest_arrow_cancel` events with the target serial, and `world.tracking` keeps {hunting, mode, arrow, recent hits with the mode at hit time} (`world/state.py` TrackingState; mode only from System lines, begin/stop only from our own serial, so a player can't spoof them by speaking). Replaying this capture gives hunting = passive creatures with the llama arrow up. The agent sets the mode and starts/stops Hunting with `ctl act track <mode>|off` (docs/OVERSEER.md). Nothing feeds `threats.py` or the runners from hits yet.
 - **`ctl act track reds`, live 2026-10-01 22:12 (session 20261001_214649, at 1537–1547 s):** with the gump closed and the mode unknown to the running proxy, it sent the stock UseSkill (`120009243338203000`, byte-equal to the client's own), then 5 × button 8 (passive creatures → townsfolk → all players → all hostile players → enemy → murderer players, one "You will now hunt …" line per click), then button 6: "You begin hunting." and the Hunting buff on. Clicks 0.9–2.6 s apart, each `b1 0017 <latest gump serial> fe5c638b <button> 0 0` like the client's. Forward and back were both 5 steps; forward is taken on a tie. The live proxy predates `world.tracking`, so `status.tracking` stays empty until the proxy restarts; the act itself reads the server's lines and the gump, so it works either way.
 
-## World model keeps dead and out-of-range mobiles (live 2026-10-01, session 20261001_214649)
+## World model keeps dead and out-of-range mobiles (live 2026-10-01, session 20261001_214649; fixed 2026-10-01)
 
 Found while the overseer fought mongbats in the New Player Dungeon (the user watched the client).
 Times are seconds after 1790911000 (22:16:40 local).
 - **Ghosts:** the overseer cast Lightning at mongbats that `status` showed 1–5 tiles away. The
   server answered "That is too far away." (a range failure, not LOS), and the user saw no mongbat
-  on screen. The proxy's `WorldRuntime` keeps every mobile until an S2C `0x1D`, and two cases
-  never get one:
-  - **Death without `0x1D`:** `0x002C1E27` died at 544.6, during our first fight, killed by
-    other players. The server sent only Outlands `0xFF` sub `0xDEAD`
-    `4fedc20d 002c1e27 03 "a mongbat corpse"`, then nothing for that serial; `0x002C35E2` died
-    at 1139.2 the same way. In the session only 13 of the 37 `0xDEAD` packets were followed by a
-    `0x1D` for the dead mobile. The second u32 of `0xDEAD` is the **dead mobile's serial**:
-    docs/WORLDMODEL.md reads it as "flags (+0xdc)" from the decompile, and the capture shows it's
-    the owner.
-  - **Out of range across a teleport:** `0x002C3593`'s last `0x77` was at 888.0 (5535,528). We
-    teleported out (~3600 tiles) and back. The server didn't re-send it on return, because it was
-    out of range by then. The model still had it at (5535,528), one tile from the exit tile. 9
-    Lightning targets at it got "too far away"; it died at 1232.4.
-  - The stock client drops mobiles and ground items more than `ClientViewRange` (24, ClassicUO
-    Constants.MAX_VIEW_RANGE) from the player every 50 ms (ClassicUO World.cs:294-372). The
-    Outlands client also has `World.ProcessDeletes`, triggered by S2C `0xFF` sub 5 (empty, ~1/s:
-    13 880 in this session). Its rule hasn't been decompiled yet. [INFERENCE] it is the
-    server-paced form of that pruning, or it also removes dead mobiles.
+  on screen. The proxy's `WorldRuntime` kept every mobile until an S2C `0x1D`. A timed replay of
+  the capture (`harness/replay.py` `timed_packets`, which pairs each jsonl row's time with the raw
+  packet) shows both ghosts left the client by range, long before the attacks:
+  - `0x002C1E27`: last update at 176.2 (5535,524); the client dropped it at 176.6 (its own
+    close-status `bf 000c 002c1e27`, which ClassicUO `Entity.Destroy` sends) as we walked away.
+    It died out of our sight: its corpse's `0xFF` sub `0xDEAD` `4fedc20d 002c1e27 01 "a mongbat
+    corpse"` came at 491.7 when we walked back into range, and again at 544.6 with notoriety 3.
+    The agent attacked it at 507.1 and 548.2 and targeted it 3 times at 856–895.
+  - `0x002C3593`: last `0x77` at 888.0 (5535,528). We teleported out (~3600 tiles) at 906.4 and
+    the client dropped it at once (`bf 000c` at 906.46). Its corpse's `0xDEAD` came at 1139.2 in
+    the burst of 9 corpses we saw on returning, so the agent's `05` at 1156.1 and its 9
+    Lightning targets (1160–1235) were all at a dead mongbat.
+  - `0xDEAD` is the corpse's data, sent with `0xAF` + `0x1D` when a mobile dies in view (6/6 in
+    the session) and alone whenever a corpse comes into view or its notoriety changes. Only 13
+    of the 37 were followed by a `0x1D` for the owner. Its second u32 is the owner's serial.
+  - `World.ProcessDeletes` (S2C `0xFF` sub 5, ~1/s: 13 880 in this session) is decompiled now
+    (`decompiled/process_deletes.c`): ClassicUO's view-range prune, server-paced, at the range the
+    server sets with `0xC8` (18 on Outlands: `c8 12` at login), no dead-mobile rule.
+- **Fixed (2026-10-01):** the world model prunes like the client (docs/WORLDMODEL.md §7
+  "Pruning"): range on every self move and sub 5, death (`0xAF`, `0xDEAD`), facet change, with
+  children; dropped mobiles go to `world.last_seen` (for `ctl npcs`/`goto` and the viz only).
+  `harness/audit_ghost_targets.py` replays a capture and lists packets at serials the client no
+  longer had; on this session it flags exactly the agent's 3 × `05` and 12 × `6C` at the two
+  mongbats (ANTICHEAT.md A12) and no client packet except 94 queued queries for mobiles the
+  server deleted in the same burst. On session 20261001_191355 it also flags 3 agent single
+  clicks (`09`) at NPCs 139–822 s after they left the view (Limmon, Billiam Gatherer, L H R Z).
 - **Combatants are on the wire:** S2C `0x2F` Swing `attacker defender` (e.g. 28 × `0020f127 →
-  002c3fb9` in our last fight) and `0x0B` damage by serial are already world events (`swing`,
-  `damage`), but `status` doesn't expose who is attacking us.
+  002c3fb9` in our last fight) and `0x0B` damage by serial. `world.swings` keeps the latest swing
+  per attacker; `ctl status` lists `attackers` (swung at us within 10 s, nearest first).
 - **Mongbats (NPD, Shelter):** Lightning (Magery 60, spellstone, no reagents) did 33 to a mongbat,
   about 15 % of its health, so roughly 220 hp. Two at once hit Hackworth for 7–10 each every
   2–3 s.

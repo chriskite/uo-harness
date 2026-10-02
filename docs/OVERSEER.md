@@ -40,8 +40,8 @@ Global options go **before** the command. Every call prints exactly one JSON obj
 
 | Command | Does |
 |---|---|
-| `status` | Proxy snapshot: `pos` `[x,y,z,dir]`, `facet`, `hits`/`stam`/`mana` as `[cur,max]`, `weight`, `gold`, `gate`, `intent` + the last 5 `intents`, `mobiles` within 18 tiles (serial, name, notoriety + name, hits, distance; nearest first), `backpack.counts` by graphic and `backpack.items` (up to 60: serial, graphic, name, amount, `in` = sub-bag or null; nested bags included), `target` cursor, open gumps, plus `tasks` and `open_junctures` from the DB. Proxy unreachable → `ok:false` (DB fields still present). |
-| `run <task> [args…]` | Starts a whitelisted task detached: `lumber` → `loop_lumber.py`, `bank` → `errand_bank.py`. `args` pass through; `--control-port/--state-port/--memory` are appended from ctl's options unless given. Refused while a task runs (one character). Returns `task_id`, `pid`, `log`. |
+| `status` | Proxy snapshot: `pos` `[x,y,z,dir]`, `facet`, `hits`/`stam`/`mana` as `[cur,max]`, `weight`, `gold`, `gate`, `intent` + the last 5 `intents`, `mobiles` the client has within 18 tiles (serial, name, notoriety + name, hits, distance, `age_s` since the server last updated it; nearest first), `attackers` (mobiles whose latest swing, S2C `0x2F`, was at you within 10 s: serial, name, label, dist, hits `[cur,max]`, `last_swing_age_s`; nearest first), `backpack.counts` by graphic and `backpack.items` (up to 60: serial, graphic, name, amount, `in` = sub-bag or null; nested bags included), `target` cursor, open gumps, plus `tasks` and `open_junctures` from the DB. Proxy unreachable → `ok:false` (DB fields still present). The world model drops what the client drops (out of the 18-tile view, dead, another facet; docs/WORLDMODEL.md §7), so a mob missing from `mobiles` can't be clicked, attacked or targeted. |
+| `run <task> [args…]` | Starts a whitelisted task detached: `lumber` → `loop_lumber.py`, `bank` → `errand_bank.py`, `hunt` → `loop_hunt.py` (fight monsters at a spot, NPD mongbats by default; thresholds are its arguments, e.g. `run hunt --kills 5 --heal-at 0.75 --leave-at 0.6`; docs/HUNT_LOOP.md). `args` pass through; `--control-port/--state-port/--memory` are appended from ctl's options unless given. Refused while a task runs (one character). Returns `task_id`, `pid`, `log`. |
 | `stop [task_id]` | Asks the wrapper to terminate the task; it ends with a `task_failed` juncture marked `stopped`. If the wrapper doesn't report within `--grace` (20 s), ctl kills both processes itself and posts the juncture (`source: ctl`, "(forced)"). |
 | `wait [--timeout S] [--include-info]` | Blocks (polling ~1 s) until there is an **open** juncture with id > the juncture cursor and severity ≥ `attention` (any severity with `--include-info`), or a `user` chat row with id > the chat cursor. Returns `{"ok":true,"event":<first>,"events":[…up to 20…],"cursors":{…}}` and advances the cursors past what it returned. Timeout (default 1800 s; ≤ 0 = forever) → `{"ok":true,"event":null}`. Events are `{"type":"juncture",id,t,source,kind,severity,summary,data,acked_t}` or `{"type":"chat",id,t,role,kind,text,data}`. |
 | `ack <id>` | Closes a juncture (`acked_t`). Acking `gm_suspected` stops the staff alarm. |
@@ -103,12 +103,14 @@ while a task runs (no interleaving with a runner), and the gump cases above. Gat
 (`ERR agent paused` …) are returned, not waited out. Every act, refused or not, posts a chat row
 (role `overseer`, kind `action`) with the result in `data`.
 
-`npcs [WORDS…] [--limit 20]`: **every mobile the world model knows**, the same set the viz map
-draws, not just the 18-tile view that `status` lists. It keeps NPCs seen earlier, e.g. every
-mage and scribe in Prevalia after walking past. Search by name or title words (`npcs mage`,
-`npcs the scribe`, `npcs Sherwin`), nearest first. `in_view` false means the position is where
-it was last seen; NPCs wander, so `goto <serial>` walks there and re-checks. Use it before
-searching an area by walking.
+`npcs [WORDS…] [--limit 20]`: the mobiles the client has (`in_view` true, live position) **plus
+the ones it dropped** (world `last_seen`, `in_view` false: where it last had them, `age_s` since,
+`why`: `range` = left the view, `delete` = removed by the server, `facet` = on another facet).
+Dead ones are left out. It keeps NPCs seen earlier, e.g. every mage and scribe in Prevalia after
+walking past. Search by name or title words (`npcs mage`, `npcs the scribe`, `npcs Sherwin`),
+nearest first. NPCs wander, so `goto <serial>` walks to the last-seen spot and follows the live
+position once the mobile is back in view. Out of view, nothing else can use the serial: click,
+menu, attack and target need it in the client again. Use it before searching an area by walking.
 
 `journal [--n 30]`: the recent world events a player reads (speech, clilocs, gumps, menus, vendor
 lists, target cursors, facet changes) from the proxy's event ring, newest last. `status` shows:
@@ -244,10 +246,10 @@ its trip. Other `info` rows are history (`ctl junctures`, or `wait --include-inf
 | `trip_done` | info | runner | One loop trip finished (episode row summary). |
 | `stuck` | attention | runner | No progress: route blocked, too many replans, stalled movement. `{pos, target, reason}` |
 | `captcha` | urgent | runner | A real captcha is waiting for the human: captcha mode `human` (the default), or `auto` couldn't answer it (unreadable, rejected answers, or the client answered first). `{trip, mode}`. The runner pauses and beeps until the solve is seen in the client, acks the juncture itself and carries on (it aborts after `--captcha-timeout`, 600 s). Captchas the solver answers in `auto` post no juncture. |
-| `threat` | urgent (PK/red, aggressor) / attention (monster) | runner | Hostile nearby or attacking. `{serial, name, notoriety, dist, hits}` |
+| `threat` | urgent (PK/red, aggressor) / attention (monster) | runner | Hostile nearby or attacking. `{serial, name, notoriety, dist, hits}`. The lumber runner posts urgent with the threats.py assessment and `data.action`: `escape` (a creature: it walks away and carries on) or `abort` (it stopped; LUMBER_LOOP.md §13). The hunt runner posts it when its rules make it leave: attention (hits, two attackers; it rests outside and goes back in) or urgent (a hostile player; it stops outside). `{why, hits, attackers, visit, kills}` (HUNT_LOOP.md). |
 | `theft_suspected` | attention | runner | Backpack count dropped without our action, or a snoop message. `{graphic, before, after}` |
 | `death` | urgent | runner | Hits 0 / ghost body. `{pos, facet}` |
-| `low_supplies` | attention | runner | Tools, reagents or gold below the trip's needs. `{item, have, need}` |
+| `low_supplies` | attention | runner | Tools, reagents or gold below the trip's needs. `{item, have, need}`. The hunt runner posts `{item: "mana", have, need, hits}` once per visit when it needs a Greater Heal and its mana can't pay for it. |
 | `gate_closed` | info | runner | Agent gate paused or on a scheduled break (reopens by itself). |
 | `break_due` | attention | ctl (`wait`) | The agent gate's break interval is used up. The agent can still act for up to 10 min (`break_starts_in_s`), then the break starts by itself wherever the character stands. `{break_due_at, break_starts_in_s, starts_at}`. `wait` checks the gate every 5 s and posts one per break. |
 | `speech_nearby` | urgent | runner (harvest jobs) | A character spoke near us during a harvest job (`speech_guard.py`). The job **holds**: it sends nothing until you ack the juncture (the all-clear), then carries on; that speaker is then ignored for 15 min. While it holds, `act say` (free text, filtered) and `act single_click` work; other acts stay refused. `{hold, task, trip, facet, x, y, speakers: [{serial, name, label, text, type, hue, on_screen, body, notoriety, flags, x, y, evidence, context, triage}]}`; `evidence` notes a GM body, a staff-like name or a Laya attendance check; `context` is the recent speech up to that line (ours included); `triage` is Laya's verdict (`harness/triage.py`): `{v, check, direct, model, ms, infer_ms, state}` or `{v, error, state}` when laya-serve isn't running. `check` ≥ 0.6 is already a staff hint. `direct` is a weak zero-shot score, recorded for later training: never give the all-clear because it's low. Not posted for vendors, pets, damage numbers, click echoes (titles/guild tags) or anyone outside a harvest job. At the all-clear the runner logs a `speech_clear` job event: `{juncture, waited_s, gm_suspected: [{id, source, summary}], lines}`. |
@@ -296,7 +298,8 @@ Paste this (or point the session at this section) to start an overseer.
 >      motionless character in the field is what a GM looks for). If it's out in the field,
 >      `ctl stop` the task (or let a trip that ends at the bank finish if it will in time), walk
 >      or recall to the bank, then `ctl break`. If it's already somewhere safe,
->      `ctl break` now.
+>      `ctl break` now. The lumber runner does this by itself: it stops harvesting, banks and
+>      exits 0 ("break due: banked"); then `ctl break`.
 >    - `speech_nearby`: the harvest job is holding; nothing happens until you act. Read what was
 >      said (`ctl journal`, the juncture's `speakers`), look at the speaker if needed (`act
 >      single_click <serial>`: name, title, guild). Each speaker carries Laya's `triage` verdict:
@@ -331,7 +334,7 @@ Paste this (or point the session at this section) to start an overseer.
 >    - user chat: answer with `ctl say`; do what they ask within these rules.
 >    Before deciding, `ctl know search <the situation>` (or `know brief`). What you already
 >    learned beats guessing. Looking for an NPC or vendor? `ctl npcs <title>` first: the world
->    model remembers everyone seen so far, so don't wander to find them.
+>    model remembers everyone seen so far (out of view: last seen), so don't wander to find them.
 > 4. `ctl ack <id>` every juncture you have handled; `ctl note-action` anything you did outside
 >    `ctl`.
 > 5. **Remember what you learned** (`ctl know add`). Kinds:

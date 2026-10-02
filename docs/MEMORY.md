@@ -58,6 +58,8 @@ Rejected:
     human's and the agent's walks teach it.
 - **Runners** (`Memory`):
   - `loop_lumber.py` writes harvest outcomes and episodes.
+  - `loop_hunt.py` writes one episode per visit (loop `hunt`: kills, gold, hits lost, casts, heals,
+    why it ended) and job events `kill`, `loot`, `leave`, `death`, `speech_hold`/`speech_clear`.
   - Runners never write walk moves; the proxy already has them.
 - **Ingest:** `python harness/memory.py ingest [--logdir logs] [TAG ...]` replays captures that
   aren't in the store yet through the proxy's own SessionTap (viz_feed.ReplayDriver) and

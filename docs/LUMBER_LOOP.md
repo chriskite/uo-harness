@@ -439,7 +439,39 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
 
   A run ends at the bank. The trip phases are `harvest`, `convert`, `to_bank` (walk + open),
   `store`. The intents are `to_tree`, `chop`, `convert`, `to_bank`, `open_bank`, `store`,
-  `trip_done`.
+  `trip_done`, plus `escape` and `break_due` (below).
+- **Hatchet (since 2026-10-01):** a worn hatchet, else the shallowest one in the backpack or in a
+  bag in it at any depth (`hatchet()`, `pack_depth`); one in the bank box doesn't count. Before
+  each use, the containers on the way that the server hasn't opened yet are opened outermost
+  first (`containers_to_open` + `Link.open_containers`, the closed-containers rule). Only items the
+  world model knows are found: a bag the server never listed has to be opened once in the client.
+- **Monsters fighting someone else (since 2026-10-01, knowledge #89):** runs had stopped for 'a
+  great hart' and 'an eagle' in war mode 8 tiles away that were fighting other players and never
+  touched Hackworth. `threats.assess` now rates a creature whose only aggression evidence is war
+  mode `watch` while its latest 0x2F swing (`world.swings`) is at someone else, no older than 10 s,
+  it hasn't swung at us in that window and it isn't within its strike range of us. Swinging at us,
+  a stale fight or melee range keeps `flee` (threats.py docstring).
+- **Escape instead of abort for monsters (since 2026-10-01):** a `flee`-level creature, or one
+  swinging at us (0x2F, defender = self), posts the urgent `threat` juncture as before with
+  `data.action = "escape"`, and the runner walks away from it: to a tile 2 beyond its flee radius
+  (`ESCAPE_MARGIN`), preferring tiles walked before within 60° of straight away, else straight
+  away or 45° to either side. Then it carries on with the next tree out of the reach of every
+  creature it escaped from this trip (an escape in the convert or bank phase repeats that phase).
+  It stops instead (`data.action = "abort"`) when the creature is still in flee range right after
+  the escape ("it kept coming"), after 3 escapes in a trip (`ESCAPES_PER_TRIP`), on damage to us
+  (a hit-point drop or a 0x0B on self), during a speech hold, and, as before, at once for a
+  hostile player/red/grey/orange in flee range or a non-creature swinging at us.
+- **Carried wood is boards (since 2026-10-01):** an abort during the harvest converts the log
+  stacks in the pack before the runner exits, unless stopping at once is safer: a player/red threat,
+  a non-creature attacker, death, a captcha that wasn't solved (a server restriction), a closed agent
+  gate (kill, budget), an open `gm_suspected` juncture or a speech hold. The conversion ignores the
+  timeout, HP and creature checks; a player or death still interrupts it. A process kill converts
+  nothing.
+- **Break due (since 2026-10-01):** when the state port's `gate.break_due_at` is set (agent gate
+  `break_due`, docs/OVERSEER.md), the runner stops harvesting at the next attempt, converts, walks
+  to the bank, stores, logs `break due: banked after trip N`, marks the episode row `break_due`
+  and exits 0, so the overseer can `ctl break` there. Logs and boards weigh ~0.025 stone each
+  (knowledge #88), so there is no weight trigger.
 
   Until 2026-10-01 the trip ended in the rental room instead: say `room` to the innkeeper,
   press Enter, store in the secure container, and exit by the door at the start of the next
@@ -472,7 +504,8 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   after a reaction time. Routes never cut diagonally past a door. Plain walls never trigger a
   request.
 - **Guards:** overall timeout, HP loss, movement stall, the agent gate (pause/break → wait;
-  kill/budget → abort), and the speech hold (a character speaking nearby → send nothing until the
+  kill/budget → abort; break_due → finish the trip at the bank, above), threats (escape or stop,
+  above), and the speech hold (a character speaking nearby → send nothing until the
   overseer acks the `speech_nearby` juncture; the pause doesn't count against the timeout).
 - **Human texture (user request 2026-09-29; `harness/humanize.py`, used by every runner via
   `Mover` and `Human`):**
@@ -519,7 +552,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - `harvest_nodes` and `harvest_attempts`: per tree, attempts/successes/yield/depleted/
     unreachable/not-a-tree, and every attempt
   - `episodes` (loop `lumber`): one row per trip with phase durations, steps, blocks, doors,
-    captchas and human wait, attempts, successes, logs, stored
+    captchas and human wait, attempts, successes, logs, stored, escapes, break_due
 
 Offline proof, `test_loop_lumber.py`: the real proxy plus a simulated Shelter server with the
 demo's packet shapes and texts, and a "human" that answers the captcha through the client
@@ -533,6 +566,20 @@ connection. It runs 2 trips and checks:
 - the post-exit lockout is waited out, with no lockout message provoked
 - the only speech is `room`
 - two episode rows
+
+Since 2026-10-01 the same file runs two more simulated sessions, each behind its own proxy, and
+a unit check of `hatchet()` (worn first, then the shallowest bag; never the bank box). The
+simulated banker now comes into view within 18 tiles and leaves it beyond 24, since the world
+model prunes mobiles out of view.
+- **skirmish:** the hatchet is in a bag in the backpack (backpack, then bag, opened before the
+  first use). A war-mode great hart 4 tiles from the tree trades 0x2F swings with a player and is
+  only watched. A creature then swings at the agent: `escape` juncture, a walk beyond its flee
+  radius, harvesting resumes at the far tree out of its reach. There the creature comes back and
+  follows step for step: a second `escape`, then `abort` ("it kept coming"), and the 6 carried
+  logs are converted before the exit (code 1).
+- **break:** a pre-written agent gate file makes the break due after 4 s of agent activity; the
+  harvest stops early, the 5 carried and the new logs are converted and banked, `break due:
+  banked`, exit 0, one episode row with `break_due`.
 
 **Live proof, run by the user or the agent while the user is at the client:**
 `python harness/loop_lumber.py --trips 1`. Only two trees are known (§12.1). A depleted tree is

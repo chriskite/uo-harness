@@ -674,6 +674,12 @@ def test_runtime_edges():
     item_early = bytes.fromhex("1a" "000e" "090a0b0c" "0809" "0102" "0304" "00")
     rt.feed_packet("s2c", item_early)
     eq("name before sighting", rt.state.items[0x090A0B0C].name, "Early")
+    # vitals without a position (0x2D) only update a mobile the client has
+    # (ClassicUO World.Get): an unknown serial is ignored
+    rt.feed_packet("s2c", bytes.fromhex("2d" "01020304" "0064" "0032"
+                                        "000a" "0005" "0014" "000a"))
+    eq("0x2D for an unknown mobile creates nothing", 0x01020304 in rt.state.mobiles, False)
+    rt.feed_packet("s2c", bytes.fromhex("77" "01020304" "00000010" "00000010" "00000000" "00"))
     # duplicate serial mobile updates (0x2D twice): last wins
     rt.feed_packet("s2c", bytes.fromhex("2d" "01020304" "0064" "0032"
                                         "000a" "0005" "0014" "000a"))
@@ -1019,13 +1025,144 @@ def test_status_requested():
     eq("a deleted mob is cleared too", rt.state.status_requested, set())
 
 
+ME = 0x00094375
+
+
+def _login(x, y):
+    return bytes.fromhex("1b" f"{ME:08x}" "00000000" "00000190" f"{x:08x}" f"{y:08x}" "00000000" "00") + b"\x00" * 17
+
+
+def _mob20(serial, x, y, noto=3):
+    return bytes.fromhex("20" f"{serial:08x}" "00000027" f"{noto:02x}" "0000" "00"
+                         f"{x:08x}" f"{y:08x}" "0000" "00" "00000000")
+
+
+def _move77(serial, x, y):
+    return bytes.fromhex("77" f"{serial:08x}" f"{x:08x}" f"{y:08x}" "00000000" "00")
+
+
+def _equip2e(item, parent, layer):
+    return bytes.fromhex("2e" f"{item:08x}" "00000e75" "00000000" f"{layer:02x}" f"{parent:08x}" "0000")
+
+
+def _contained25(item, container):
+    return bytes.fromhex("25" f"{item:08x}" "00000eed" "00" "0001" "0010" "0010" "00"
+                         f"{container:08x}" "0000" "00000020")
+
+
+def _ground1a(item, x, y):
+    return _var(0x1A, f"{item:08x}" "0e75" f"{x:04x}" f"{y:04x}" "00")
+
+
+def _dead(corpse, serial, name="a mongbat corpse"):
+    return _var(0xFF, "0000dead" f"{corpse:08x}" f"{serial:08x}" "03" + name.encode().hex() + "00")
+
+
+def test_pruning():
+    """The live table holds only what the stock client has (docs/WORLDMODEL.md
+    "Pruning"; live 20261001_214649: the ghosts behind ANTICHEAT.md A12)."""
+    print("== pruning: view range, death, teleport, facet, last_seen, swings, seen_t ==")
+    clock = [100.0]
+    rt = WorldRuntime(clock=lambda: clock[0])
+    st = rt.state
+    A, B, C, G, PACK = 0x00001001, 0x00001002, 0x00001003, 0x40000001, 0x40000010
+
+    def feed(*pkts, t=None, d="s2c"):
+        if t is not None:
+            clock[0] = t
+        for p in pkts:
+            rt.feed_packet(d, p)
+        return rt.drain_events()
+
+    feed(_login(1000, 1000), bytes.fromhex("c812"))
+    eq("0xC8 sets the view range (18 live)", st.view_range, 18)
+    feed(_mob20(A, 1010, 1000), _mob20(B, 1018, 1000), _equip2e(0x40000002, B, 0x01),
+         _ground1a(G, 1018, 1001), _contained25(0x40000003, G), bytes.fromhex("24" f"{G:08x}" "0000003c" "0000"),
+         _equip2e(PACK, ME, 0x15), _contained25(0x40000011, PACK), t=101.0)
+    feed(actions.status_request(B), d="c2s")
+    eq("exactly 18 tiles away: still there", (B in st.mobiles, G in st.items, st.containers, st.status_requested),
+       (True, True, {G}, {B}))
+    eq("seen_t = the packet's time", st.mobiles[A].seen_t, 101.0)
+    feed(bytes.fromhex("a1" f"{A:08x}" "0064" "0032"), t=103.5)
+    eq("seen_t moves with any update (0xA1)", (st.mobiles[A].seen_t, st.snapshot()["mobiles"][f"0x{A:08X}"]["seen_t"]),
+       (103.5, 103.5))
+
+    # one step west (the first walk W only turns): B and the ground item G are 19 away now
+    feed(bytes.fromhex("0206000000000000"), bytes.fromhex("0206010000000000"), d="c2s")
+    feed(bytes.fromhex("220001"), t=104.0)
+    eq("a turn doesn't move or prune", (st.self.x, B in st.mobiles), (1000, True))
+    ev = feed(bytes.fromhex("220101"), t=105.0)
+    eq("confirmed step prunes beyond the view range, with equipment and contents",
+       (st.self.x, B in st.mobiles, 0x40000002 in st.items, G in st.items, 0x40000003 in st.items, A in st.mobiles),
+       (999, False, False, False, False, True))
+    eq("prune event", [(e["serial"], e["why"]) for e in ev if e["ev"] == "prune"], [(B, "range")])
+    eq("containers / status_requested follow removals", (st.containers, st.status_requested), (set(), set()))
+    ls = st.snapshot()["last_seen"][f"0x{B:08X}"]
+    eq("last_seen: as it was, when, where, why", (ls["x"], ls["y"], ls["t"], ls["facet"], ls["why"], ls["seen_t"]),
+       (1018, 1000, 105.0, None, "range", 101.0))
+    eq("self's backpack and its contents stay", (PACK in st.items, 0x40000011 in st.items), (True, True))
+    feed(_mob20(B, 1010, 1001), t=106.0)
+    eq("back in view: live again, out of last_seen", (B in st.mobiles, B in st.last_seen), (True, False))
+
+    # swings: latest per attacker; dropped with the attacker
+    feed(bytes.fromhex("2f00" f"{A:08x}" f"{ME:08x}"), t=107.0)
+    feed(bytes.fromhex("2f00" f"{0x00009999:08x}" f"{ME:08x}"), t=107.0)   # attacker the client doesn't have
+    eq("swings: the live attacker only", st.snapshot()["swings"],
+       {f"0x{A:08X}": {"defender": f"0x{ME:08X}", "t": 107.0}})
+
+    # death without 0x1D (Outlands 0xFF sub 0xDEAD): gone, one mobile_death per corpse
+    ev = feed(_dead(0x4FEDC20D, A), t=108.0)
+    eq("0xDEAD removes the dead mobile and its swing", (A in st.mobiles, A in st.swings), (False, False))
+    eq("0xDEAD events", [(e["ev"], e.get("why"), e.get("corpse"), e.get("name")) for e in ev],
+       [("prune", "dead", None, None), ("mobile_death", None, 0x4FEDC20D, "a mongbat corpse")])
+    eq("last_seen why dead", st.last_seen[A]["why"], "dead")
+    ev = feed(_dead(0x4FEDC20D, A), t=150.0)
+    eq("the same corpse again (re-sent on coming into view): no second mobile_death", ev, [])
+    feed(bytes.fromhex("a1" f"{A:08x}" "0064" "0030"), bytes.fromhex("2d" f"{A:08x}" "0064" "0030" + "00" * 8),
+         _var(0x16, f"{A:08x}" "0001" "0001" "01"))
+    eq("late vitals don't bring a dead mobile back", A in st.mobiles, False)
+    # 0xAF DisplayDeath (in view): removed, the following 0xDEAD reports it
+    ev = feed(bytes.fromhex("af" f"{B:08x}" "4f000001" "00000000"), bytes.fromhex("1d" f"{B:08x}"),
+              _dead(0x4F000001, B), t=151.0)
+    eq("0xAF + 0x1D + 0xDEAD: one prune, one delete, one mobile_death",
+       [e["ev"] for e in ev], ["prune", "delete", "mobile_death"])
+
+    # a mobile walking away is dropped by the server-paced World.ProcessDeletes (0xFF sub 5)
+    feed(_mob20(C, 1005, 1000), t=152.0)
+    feed(_move77(C, 1030, 1000), t=153.0)
+    eq("out of range but no sub 5 yet: still there", C in st.mobiles, True)
+    ev = feed(_var(0xFF, "00000005"), t=154.0)
+    eq("0xFF sub 5 prunes it", (C in st.mobiles, [(e["serial"], e["why"]) for e in ev]), (False, [(C, "range")]))
+
+    # teleport: self 0x20 jumps far; everything near the old spot goes
+    feed(_mob20(C, 1001, 1001), _ground1a(G, 1002, 1002), t=155.0)
+    ev = feed(bytes.fromhex("20" f"{ME:08x}" "00000190" "01" "83ea" "00" f"{5000:08x}" f"{500:08x}" "0000" "00" "00000000"),
+              t=156.0)
+    eq("teleport prunes the old surroundings", (C in st.mobiles, G in st.items, [e["serial"] for e in ev if e["ev"] == "prune"]),
+       (False, False, [C]))
+
+    # facet change: every mobile but self, every item self doesn't carry; the bank box stays
+    BANK = 0x40000020
+    feed(_mob20(C, 5001, 501), _ground1a(G, 5001, 502), _equip2e(BANK, ME, 0x1D), _contained25(0x40000021, BANK),
+         t=157.0)
+    ev = feed(bytes.fromhex("bf0006000801"), t=158.0)
+    eq("facet change clears mobiles and ground items",
+       (C in st.mobiles, G in st.items, st.self.map, [(e["ev"], e.get("serial"), e.get("why")) for e in ev]),
+       (False, False, 1, [("prune", C, "facet"), ("map_change", None, None)]))
+    eq("…keeps self's equipment, backpack and bank box with contents",
+       all(s in st.items for s in (PACK, 0x40000011, BANK, 0x40000021)), True)
+    eq("last_seen remembers the facet it was on", (st.last_seen[C]["why"], st.last_seen[C]["facet"]), ("facet", 0))
+    ev = feed(bytes.fromhex("bf0006000801"), t=159.0)
+    eq("the same facet again clears nothing", [e["ev"] for e in ev], ["map_change"])
+
+
 TESTS = [test_fixed_s2c, test_fixed_c2s, test_character_status_11,
          test_skills_3a, test_world_item_1a, test_container_content_3c,
          test_corpse_equipment_89, test_healthbar_16_17, test_gumps_b0_dd,
          test_dialect_ff, test_c2s_procedural, test_mobile_parsers, test_cliloc,
          test_vendor_popup_command, test_tracking_packets,
          test_mobile_routing, test_truncation, test_runtime_edges,
-         test_event_semantics, test_status_requested]
+         test_event_semantics, test_status_requested, test_pruning]
 
 
 def main():

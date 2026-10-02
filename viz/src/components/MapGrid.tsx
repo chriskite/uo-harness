@@ -26,6 +26,8 @@ interface MobileDot extends Dot {
   caption: string;
   /** Health 0..1 (other mobiles' hits arrive as percentages), or null when unknown. */
   hp: number | null;
+  /** Not in the client any more: where it was last seen (world `last_seen`). */
+  stale: boolean;
 }
 
 /** Map marker colours per intent kind (the rest use the default blue). */
@@ -70,6 +72,24 @@ function buildScene(viz: VizSnapshot, layer: WalkLayer): Scene {
       color: noto?.color ?? UNKNOWN_NOTORIETY_COLOR,
       caption: entityCaption(m.name, labelOf(world, viz.agg.labels, serial)) ?? serial,
       hp: hpFraction(m.hits, m.hits_max),
+      stale: false,
+    });
+  }
+  // Mobiles the client dropped (out of view or deleted; not dead, not on another facet):
+  // drawn hollow and dimmed where they were last seen.
+  for (const [serial, m] of Object.entries(world?.last_seen ?? {})) {
+    if (serial === selfSerial || m.x === undefined || m.y === undefined || world?.mobiles[serial]) continue;
+    if (m.why === "dead" || m.why === "facet" || (m.facet ?? null) !== (self?.map ?? null)) continue;
+    const noto = m.notoriety !== undefined ? NOTORIETY[m.notoriety] : undefined;
+    const caption = entityCaption(m.name, labelOf(world, viz.agg.labels, serial)) ?? serial;
+    mobiles.push({
+      serial,
+      x: m.x,
+      y: m.y,
+      color: noto?.color ?? UNKNOWN_NOTORIETY_COLOR,
+      caption: `${caption} (last seen)`,
+      hp: null,
+      stale: true,
     });
   }
   const items: Dot[] = [];
@@ -279,6 +299,14 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
     for (const m of onScreen) {
       ctx.beginPath();
       ctx.arc(...C(m.x, m.y), mr, 0, Math.PI * 2);
+      if (m.stale) {
+        ctx.globalAlpha = 0.55;
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = m.color;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        continue;
+      }
       ctx.fillStyle = m.color;
       ctx.fill();
       ctx.lineWidth = 1;

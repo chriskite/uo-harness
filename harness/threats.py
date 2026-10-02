@@ -84,14 +84,26 @@ Treating every unknown creature as dangerous stopped lumber trips for a
 wandering goat and a walrus. The HP-damage guard still catches anything the
 flag misses.
 
+Fighting someone else (2026-10-01, knowledge #89): a creature whose only
+aggression evidence is war mode is `watch`, not `flee`, while it is busy with
+another mobile. That takes all of: its latest S2C 0x2F swing in `world.swings`
+({attacker_hex: {defender, t}}, the world model's latest swing per attacker)
+is at someone other than us and no older than damage_window_s; no `swing`
+event in the window has it swinging at us; and it is not within its strike
+range of us (eta_s > 0). Live, the lumber runner stopped for 'a great hart'
+and 'an eagle' in war mode 8 tiles away that were fighting other players and
+never touched Hackworth. A creature swinging at us, a stale fight, or one in
+striking range keeps the flee path, and damage to us is under_attack as
+before. Captures older than world.swings have no such key: read as no swings.
+
 Other actions:
   - non-hostile players (blue) within watch_radius: `watch`. They could be
     thieves; harness/ledger.py catches actual theft.
   - npcs, ghosts, passive creatures: `ignore`
-  - mobiles farther than max_range (32): `ignore`. The world model doesn't
-    prune mobiles that leave range. A replay of capture 20260928_164548 ends
-    with 28 mobiles (27 NPCs, 1 seagull) held 35-74 tiles away. The cutoff
-    value is [INFERENCE].
+  - mobiles farther than max_range (32): `ignore`. Kept for captures from
+    before the world model pruned mobiles beyond 24 tiles (2026-10-01); a
+    replay of capture 20260928_164548 with the old model ended with 28
+    mobiles held 35-74 tiles away.
 
 under_attack: any of
   - self hits dropped by >= damage_threshold within damage_window_s
@@ -310,6 +322,30 @@ def _aggressive(mob, text, params: Params) -> tuple[bool, str]:
     return params.monster_default_aggressive, "default"
 
 
+def fighting_other(serial: int, key: str, mob: dict, text, swings: dict, state, *, me,
+                   now: float, params: Params) -> str | None:
+    """Why a war-mode creature counts as busy with someone else (module
+    docstring), or None. Only for creatures whose sole aggression evidence is
+    war mode; the caller checks the strike range."""
+    if not (mob.get("flags") or 0) & FLAG_WARMODE:
+        return None
+    calm = {**mob, "flags": (mob.get("flags") or 0) & ~FLAG_WARMODE}
+    if _aggressive(calm, text, params)[0]:
+        return None
+    last = swings.get(key)
+    if not last or me is None or _serial(last["defender"]) == me:
+        return None
+    age = now - last["t"]
+    if age > params.damage_window_s:
+        return None
+    lo = now - params.damage_window_s
+    for t, ev in _events(state):
+        if ev.get("ev") == "swing" and ev.get("attacker") == serial and ev.get("defender") == me \
+                and (t is None or t >= lo):
+            return None
+    return f"fighting 0x{_serial(last['defender']):08X} (last swing {age:.1f}s ago), not us"
+
+
 def damage_signal(state, *, now: float, params: Params, hits_history=()):
     """(under_attack, detail) from the self hits trend and damage/swing events."""
     me = (state.get("world") or {}).get("self") or {}
@@ -344,6 +380,7 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
     pos = self_pos(state)
     mounted = _mounted_serials(world)
     budget = recall_s + margin_s
+    swings = world.get("swings") or {}       # absent in captures from before world.swings
     threats = []
     for key, mob in (world.get("mobiles") or {}).items():
         serial = _serial(key)
@@ -360,7 +397,10 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
             th.aggressive, why = _aggressive(mob, th.name, params)
             th.evidence.append(f"aggressive={th.aggressive} ({why})")
             th.hostile = th.aggressive
+            busy = fighting_other(serial, key, mob, th.name, swings, state, me=me, now=now,
+                                  params=params) if th.hostile else None
         else:
+            busy = None
             th.s_per_tile = params.mounted_s_per_tile if th.mounted else params.run_s_per_tile
             th.strike_range = params.player_strike_range
             th.hostile = kind in params.hostile_kinds
@@ -383,6 +423,8 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
             th.action = "watch"
             th.reason = (f"{kind} unlabeled, in view {now - first_seen.get(serial, now):.2f}s;"
                          f" awaiting label (grace {params.label_grace_s:.1f}s)")
+        elif busy is not None and th.distance > th.strike_range:
+            th.action, th.reason = "watch", f"war mode, {busy}"
         elif th.hostile and th.eta_s <= budget:
             th.action = "flee"
             th.reason = f"{kind} eta {th.eta_s:.1f}s <= recall {recall_s:.1f}s + margin {margin_s:.1f}s"

@@ -194,6 +194,48 @@ machine. Hourly `harness/backup.py` to the NAS share, as a Task Scheduler job (d
   (re-implements robocopy), File History / Windows Backup (whole-profile, not repo-aware).
 - UNC path, not `F:`, because scheduled tasks don't see interactive drive mappings.
 
+## Fixes from the first Hackworth overseer shift (decided 2026-10-01)
+
+The user approved items 1–4 of the overseer's fix plan. Item 5, auto-clearing broadcast
+chatter, is skipped for now: every speaker still holds a harvest job.
+- **World model prunes like the stock client** (docs/WORLDMODEL.md §7; fixes ANTICHEAT.md A12).
+  - It applies the decompiled `World.ProcessDeletes` range rule (S2C 0xFF sub 5) at the
+    server's 0xC8 range (18) on every self move and on sub 5. It also removes mobiles on
+    deaths (0xAF/0xDEAD) and facet changes, and takes their children with them.
+  - Dropped mobiles go to `world.last_seen`. Only `npcs`, `goto` and the viz read it, never a
+    guard (user decision 1: keep a last-seen store).
+  - Chosen over a "stale" flag on live mobiles because every guard that reads `world.mobiles`
+    becomes correct with no per-guard change.
+  - Vitals-only packets update only mobiles the model already has (ClassicUO `World.Get`), so
+    a late packet can't bring a removed mobile back.
+  - `harness/audit_ghost_targets.py` is the audit rule for agent packets at serials the client
+    had dropped. Run it on new captures next to the "serials the server never sent" audit.
+- **Who attacks us:** `world.swings` (latest S2C 0x2F per attacker), `status.attackers`, and
+  `age_s` per mobile.
+- **Hunt task** (`harness/loop_hunt.py`, docs/HUNT_LOOP.md, `ctl run hunt`): a programmatic
+  task for NPD mongbats.
+  - Thresholds are CLI arguments (user decision 3): `--heal-at 0.75 --leave-at 0.60
+    --leave-multi-at 0.80 --mana-reserve 22 --rest-to 0.95`.
+  - Targets come only from the live world model plus the ctl attack guard, attackers first.
+    State is re-read before each cast and each target answer; a stale target gets the stock Esc
+    `0x6C`.
+  - Combat rules and stock packet sequences live in `harness/combat.py`, shared with
+    `ctl act attack/target/loot/cast`, so the two can't drift. ctl's bytes are unchanged.
+  - It replaces the overseer's improvised fight loop, which let Hackworth fall to 2/96.
+- **Lumber runner:**
+  - The hatchet is found worn, or else the shallowest one in the backpack's bags (containers
+    are opened outermost first).
+  - A war-mode creature busy fighting someone else (latest swing at another mobile, ≤ 10 s old,
+    none at us, outside its strike range) is `watch`, not `flee`.
+  - A creature threat triggers an escape: the runner walks 2 tiles beyond the creature's flee
+    radius and goes on with the next tree out of its reach. It stops if the creature still
+    follows, after 3 escapes per trip, on damage, and at once for players and reds. Escape on
+    foot for now; recall stays the PK answer (ROADMAP 2).
+  - An abort during the harvest converts the carried logs first, unless that's unsafe.
+  - A break that comes due ends the trip at the bank (convert, store, exit 0), then the
+    overseer runs `ctl break`.
+  - No weight trigger: logs and boards weigh ~0.025 st each.
+
 
 ## Risks
 

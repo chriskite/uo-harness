@@ -43,6 +43,8 @@ export interface SelfState {
   weight?: number;
   warmode: boolean;
   notoriety?: number;
+  /** Facet index (S2C 0xBF sub 8); null before the server names one. */
+  map?: number | null;
   /** Body graphic (from S2C 0x20). */
   body?: number;
   /** The body is a ghost (the client's own Mobile.IsDead rule); absent on older proxies. */
@@ -69,6 +71,17 @@ export interface Mobile {
   y?: number;
   z?: number;
   direction?: number;
+  /** Epoch seconds of the last S2C packet that updated it; absent on older proxies. */
+  seen_t?: number;
+}
+
+/** A mobile the client dropped (world `last_seen`), as it was then. */
+export interface LastSeen extends Mobile {
+  /** When it left the live table (epoch seconds; null in untimed replays). */
+  t: number | null;
+  facet: number | null;
+  why: "range" | "facet" | "dead" | "delete";
+  dead_t?: number | null;
 }
 
 export interface Item {
@@ -121,6 +134,12 @@ export interface Snapshot {
   protocol_version?: number | null;
   characters: string[];
   mobiles: Record<HexSerial, Mobile>;
+  /** Mobiles pruned from `mobiles` (proxies since 2026-10-01). */
+  last_seen?: Record<HexSerial, LastSeen>;
+  /** Latest S2C 0x2F swing per attacker. */
+  swings?: Record<HexSerial, { defender: HexSerial; t: number | null }>;
+  /** The client's view range (S2C 0xC8). */
+  view_range?: number;
   items: Record<HexSerial, Item>;
   gumps: Gump[];
   target: Target;

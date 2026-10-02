@@ -438,7 +438,7 @@ class SessionTap:
         self.s2c = None                  # S2CStream once the prelude is parsed
         self.s2c_passthrough = False     # unexpected prelude: relay S2C undecoded
         self.moveauth = MoveAuthority()
-        self.world = WorldRuntime()
+        self.world = WorldRuntime(clock=lambda: self.wall())   # self.wall may be swapped (viz replay)
         self.walkers = walkers           # pathfind.Walkers: z per confirmed step, or None
         if walkers is not None:
             self.moveauth.z_fn = self._step_z

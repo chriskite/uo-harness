@@ -605,7 +605,7 @@ reads subId u32be @3, switches (payload offsets are from payload start = packet 
 | 2 | inline | u16be type, u32be id; type==1 opens a gump (graphic 0x0a… id) |
 | 3 | `ServerTime.TimeSyncReceived` @ 0x1401240d0 | u64be timestamp (read BE in the dispatcher, passed by value). C2S twin: sub 3 keepalive, empty payload |
 | 4 | `SpellCastManager.OnPacketResponse` @ 0x140306390 | spell-cast result; **sub-parser not in the decompiled selection — layout open** |
-| 5 | `World.ProcessDeletes` | none |
+| 5 | `World.ProcessDeletes` @ 0x1402146c0 | none; prunes mobiles and ground items beyond the 0xC8 view range (§7 "Pruning") |
 | 6 | `ParticleEffect` @ 0x14018d980 | particle effect record |
 | 7 | `WorldSaveManager.WorldSave` | none |
 | 8 | `OutlandsBuffUpdate` @ 0x14019a600 | see below |
@@ -734,8 +734,13 @@ CUO @ 0x1401a0980. Payload:
 CUO @ 0x14019a440. Payload: u32be corpse serial, u32be **dead mobile's serial** (+0xdc; the
 decompile alone read it as "flags"), u8 notoriety (+0xc1), asciiz corpse name (+0xa0). Live
 2026-10-01 (session 20261001_214649, 37×): `ff 0021 0000dead 4fedc20d 002c1e27 03 "a mongbat
-corpse"`; the second u32 is the mongbat that just died, and only 13 of the 37 were followed by a
-`0x1D` for that mobile (docs/NOTES.md "World model keeps dead and out-of-range mobiles").
+corpse"`; only 13 of the 37 were followed by a `0x1D` for that mobile. It is the **corpse's**
+data, not the moment of death: the handler only fills the corpse item (GetOrCreateItem, owner,
+notoriety, name) and doesn't touch the owner mobile. When a mobile dies in view the server sends
+`0xAF` DisplayDeath + `0x1D` + `0xDEAD` together (6/6 in the session); a corpse that comes into
+view later gets `0xDEAD` alone, and again when its notoriety changes (corpse `4fedc20d` came at
+491.7 s with notoriety 1 and at 544.6 s with 3). The world model treats either as "the owner is
+dead" (§7) and emits `mobile_death` once per corpse.
 
 #### Sub 0x1A HandleQuestArrow (Outlands dialect arrow; added 2026-09-29, live-confirmed 2026-10-01)
 `protocol_handlers.c:14307-14582`.
@@ -827,6 +832,74 @@ correctly decoded captures (53 277 S2C packets, 0 length-table mismatches):
 - Replay (`harness/replay.py 20260929_144541`) yields self serial 0x00094375, name
   TestWorth, login position (0x7AB, 0xA25, 0) from 0x1B and final position
   (0x7A6, 0xA25, 0) from the last self 0x20/0x77 — from S2C alone.
+
+## 7. Pruning: the mobiles and items the client still has (2026-10-01)
+
+`world.mobiles` and `world.items` hold only what the stock client still has, so ctl's guards
+(`not_clickable`, attack/target/menu/dclick, threats, speech_guard) never act on an entity the
+client dropped. Before this the model kept every mobile until a `0x1D`, and the overseer attacked
+and targeted two mongbats the client no longer had (ANTICHEAT.md A12; docs/NOTES.md "World model
+keeps dead and out-of-range mobiles").
+
+**The client's rule (decompiled 2026-10-01, `decompiled/process_deletes.c`, from
+`ghidra_scripts/DecompileList.java` on 0x1402146c0).** S2C `0xFF` sub 5 (empty, ~1/s: 13 880 in
+session 20261001_214649) calls `World.ProcessDeletes`. Once the player exists it walks the mobile
+table and removes (RemoveMobile, `FUN_1402155c0`) every mobile whose Chebyshev distance to the
+player exceeds the global `DAT_143f7b4dc`, then walks the items and removes (RemoveItem,
+`FUN_1402154c0`) every item on the ground (container 0 or ≥ 0x80000000) beyond it, except a
+multi that its house check (`FUN_1402f9370`) keeps. It's ClassicUO's World.Update block
+(World.cs:294-372) moved to a server-paced packet. It has no dead-mobile rule.
+`DAT_143f7b4dc` is written only by the S2C **0xC8** ClientViewRange handler @ 0x14018ee00 (and
+sent back by the client at login): the live server sends `c8 12`, so **the view range is 18**,
+not ClassicUO's default 24 (`MAX_VIEW_RANGE`, used here until a 0xC8 arrives). RemoveMobile and
+RemoveItem take everything under the entity with it (ClassicUO World.cs:517-578). The stock
+`0xAF` DisplayDeath (@ 0x140193f20, same as upstream) re-keys the dead mobile to
+`serial | 0x80000000`, so its serial stops resolving. A facet change (`0xBF` sub 8 with a different
+map; EnterWorld counts as map 0) runs `InternalMapChangeClear(noplayer: true)`: every mobile but
+the player and every item not carried by the player.
+
+**The model (harness/world/runtime.py, state.py):**
+- Range prune (`WorldRuntime.prune` → `StateStore.prune_range`) at `state.view_range` (0xC8,
+  default 24) from self's server position, on sub 5 and whenever self's position changes: 0x1B,
+  self 0x20/0x77 (a teleport is a self 0x20 jump), 0x21, a 0x22 that moved, and on 0xC8. A mobile
+  that walks out of range goes at the next sub 5, as in the client. Mobiles without a position yet
+  (a 0x78 before their 0x20) stay. Multis aren't special-cased: a house whose centre is out of
+  range goes.
+- Deaths: `0xAF` and `0xFF` sub `0xDEAD` remove the owner (`prune` why `dead`); a mobile already
+  pruned gets `why: "dead"` and `dead_t` in last_seen.
+- `0x1D` removes the entity with everything under it (it used to leave the children).
+- Facet change: `StateStore.clear_facet`, mobiles go with why `facet`; self's equipment, backpack
+  and bank box (layer 0x1D) with their contents stay.
+- Packets without a position (0x11, 0x2D, 0xA1-0xA3, 0x16/0x17, 0x2E's parent) update only a
+  mobile the model has, like the stock handlers (ClassicUO `World.Get` / `Mobiles.Get`), so a late
+  vitals packet can't bring a removed mobile back. 0x20, 0x77 and 0x78 still create one.
+- Removal keeps `containers` (opened set) and `status_requested` consistent and drops the
+  mobile's swing.
+
+**Snapshot fields (state port `world`):**
+- `mobiles[*].seen_t`: time of the last S2C packet that updated it (0x20/0x77/0x78/0x11/0xA1-3/
+  0x2D/0x2F/0x98/0x16/0x17/0x2E). Time comes from `WorldRuntime(clock=...)`: the proxy passes its
+  wall clock, `replay.replay_timed` the capture row's `t`, `replay.replay_session` none (absent).
+- `last_seen`: {serial: {...the mobile's fields..., `t` (left the live table), `facet`, `why`:
+  range | facet | dead | delete, `dead_t` when learned dead after leaving}}, newest 500. Only for
+  "seen earlier" displays (`ctl npcs`, `ctl goto <serial>`, the viz map); nothing that decides
+  what the client can act on reads it. A mobile coming back leaves it.
+- `swings`: {attacker: {`defender`, `t`}}, the latest S2C 0x2F per attacker that the model has
+  (or self), dropped with the attacker. ctl `status.attackers` reads it.
+- `view_range`: the 0xC8 range.
+
+**Events:** `prune {serial, why}` per mobile removed by range/facet/death (not for items);
+`mobile_death {serial, corpse, name}` once per corpse from 0xDEAD (name = the corpse's, e.g.
+"a mongbat corpse"); `swing` and `damage` as before; `death` stays the self-ghost event.
+
+**Evidence that it matches the client (session 20261001_214649, timed replay,
+`harness/test_world_replay.py`):** every one of the 395 range prunes coincides with the client's
+own close-status `bf 000c <serial>` for that mobile (−0.68 to +0.06 s): `Entity.Destroy` sends it
+when the client drops an entity whose status it had requested (ClassicUO Entity.cs:155-159).
+`0x002C1E27` left at 176.55 s (client: 176.6), `0x002C3593` at the teleport, 906.4 s (client:
+906.46). Across every capture with a timed replay, the client never named a serial the model
+had pruned, except one queued query in 20260930_123206 at the instant a step took a mobile to
+19 tiles. `harness/audit_ghost_targets.py` reports the agent's packets at dropped serials.
 
 ---
 

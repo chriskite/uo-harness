@@ -19,12 +19,24 @@ texts of the demonstration capture (logs/session_20260929_204225):
   prompt before the step's confirm and never closes it; the agent must close it (button 0)
 
 The "human" answers the unreadable (fallback) captcha through the client connection. Two trips run.
+The banker comes into view within 18 tiles and leaves it beyond 24 (the world model prunes him).
 
-Run: python test_loop_lumber.py   (~1-2 min; private ports; safe while the live proxy runs)
+Two more runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
+- skirmish: the hatchet in a bag in the pack; 'a great hart' in war mode 4 tiles from the tree
+  fighting a player (0x2F both ways) is only watched; a creature that swings at the agent makes
+  it escape and harvest the next tree out of reach; the same creature then hunts it down there
+  (escape, kept coming: stop, the logs converted first)
+- break: the agent gate (pre-written budget file) announces a break mid-harvest; the trip ends
+  at the bank with the carried and new logs banked as boards, exit 0
+Plus a unit check of hatchet() (worn, else the shallowest in the pack's bags).
+
+Run: python test_loop_lumber.py   (~2-3 min; private ports; safe while the live proxy runs)
 """
 import asyncio
+import datetime
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -70,6 +82,15 @@ GM_EXTRA_S = 2.0                                         # the GM suspicion is a
 GOOD_VISIT = 6                                           # attempts before the good tree runs dry
 DD = nav.DIR_DELTA
 FAILURES = []
+# skirmish scenario (LUMBER_LOOP.md §13: monsters fighting others, escapes, convert on abort)
+BAG = 0x44ADC0DE                                         # the hatchet sits in this bag inside the backpack
+FAR_TREE = {"x": 119, "y": 212, "z": 0, "graphic": "0x0CE0", "stand": [119, 211]}
+FIGHTER, OTHER, ATTACKER = 0x0000F161, 0x0000A0A0, 0x0000BA75
+FIGHTER_POS, OTHER_POS = (113, 204), (114, 204)          # 4 tiles from the good tree's stand: in flee range (8)
+ATTACKER_POS = (107, 200)                                 # 3 tiles west of the good tree's stand
+# break scenario
+INITIAL_LOGS = 5                                          # logs carried from an earlier trip
+BREAK_AFTER_S = 4.0                                       # agent-active seconds left before the break is due
 
 
 def check(name, cond, extra=""):
@@ -105,6 +126,16 @@ def self_at(x, y):          # 0x20 V10 for the player (teleport anchor)
 
 def mobile_pkt(serial, x, y):
     return b"\x20" + u32(serial) + u32(0x191) + b"\x07\x03\xf1\x02" + u32(x) + u32(y) + b"\x00\x00\x03" + u32(0)
+
+
+def creature_pkt(serial, body, x, y, noto=3, flags=0x40):
+    """0x20 MobileUpdate for a creature (Outlands layout, world/layouts.py): war mode by default."""
+    return (b"\x20" + u32(serial) + u32(body) + bytes([noto]) + u16(0) + bytes([flags])
+            + u32(x) + u32(y) + b"\x00\x00\x00" + u32(0))
+
+
+def swing(attacker, defender):
+    return b"\x2f\x00" + u32(attacker) + u32(defender)
 
 
 def equip(item, graphic, layer):
@@ -180,7 +211,9 @@ DECOY_LAYOUT = ("{ nomove }{ noclose }{ nodispose }{ noresize }{ page 0 }{ page 
 
 
 class World:
-    def __init__(self):
+    def __init__(self, scenario="bank"):
+        self.scenario = scenario          # "bank" (the main run), "skirmish" or "break"
+        self.scripted = scenario == "bank"  # captchas, the passer-by's speech, the pickpocket
         self.pos = list(START)
         self.facing = 0
         self.writer = None
@@ -216,8 +249,13 @@ class World:
         self.dry_attempts = 0
         self.good_left = GOOD_VISIT
         self.doors_opened = 0
-        self.containers_opened = []                          # 0x06 on the backpack, in order
+        self.containers_opened = []                          # 0x06 on the backpack (and the bag), in order
         self.gate_gumps = {}              # renounce-prompt serial -> buttons the agent/client replied
+        self.attacker_pos = None          # skirmish: the creature that goes for the agent
+        self.chase = False                # skirmish: the attacker follows the agent step for step
+        self.attacker_swings = 0
+        self.far_attempts = 0             # skirmish: harvest attempts at the far tree
+        self.banker_seen = False          # the banker's 0x20 sent since he last left the client's view
 
     def send(self, pkt):
         self.writer.write(encode_packet(pkt, S2C_KEY))
@@ -237,6 +275,17 @@ class World:
     def cheb(self, p):
         return max(abs(self.pos[0] - p[0]), abs(self.pos[1] - p[1]))
 
+    def update_view(self):
+        """The banker comes into view within the server's update range (18) and leaves the
+        client's beyond its view range (24, ClassicUO MAX_VIEW_RANGE), as the proxy's world
+        model prunes it; so he is sent again on the way back."""
+        d = self.cheb(BANK_POS)
+        if d <= 18 and not self.banker_seen:
+            self.banker_seen = True
+            self.send(mobile_pkt(BANKER, *BANK_POS))
+        elif d > 24:
+            self.banker_seen = False
+
     def teleport(self, x, y):
         self.pos = [x, y]
         self.send(self_at(x, y))
@@ -255,7 +304,9 @@ class World:
             self.later(0.3, [cliloc(500493)])
             return
         self.good_left -= 1
-        if self.captcha_shown < 2:
+        if (x, y) == (FAR_TREE["x"], FAR_TREE["y"]):
+            self.far_attempts += 1
+        if self.scripted and self.captcha_shown < 2:
             self.captcha_shown += 1
             self.captcha_open = self.next_gump()
             self.captcha_auto = self.captcha_shown == 1     # trip 1: auto-solved; trip 2: fallback
@@ -276,6 +327,12 @@ class World:
         self.harvested += LOGS_PER_SUCCESS
         self.later(0.3, [contained(self.logs_serial, 0x1BDD, self.logs, BACKPACK),
                          sys_text("You chop some logs and put them in your backpack.")])
+        if not self.scripted:
+            if self.scenario == "skirmish" and self.good_n == 2:      # a creature goes for the agent
+                asyncio.get_running_loop().call_later(0.5, self.attacker_appears, ATTACKER_POS, False)
+            elif self.scenario == "skirmish" and self.good_n == 4:    # ... and later hunts it down
+                asyncio.get_running_loop().call_later(0.5, self.attacker_appears, None, True)
+            return
         if self.good_n == 4:                 # a pickpocket lifts part of the stack once, unannounced
             self.logs -= STOLEN
             self.stolen += STOLEN
@@ -286,6 +343,12 @@ class World:
             self.later(1.0, [player_says(PASSERBY, "Vorn", GREETING)])
             # during the hold, someone the client can't see speaks: a possible hidden GM
             self.later(2.0, [player_says(HIDDEN, "Ann", "what are you up to?")])
+
+    def attacker_appears(self, pos, chase):
+        """The attacker comes into view at pos (None: next to the agent, then at its heels)."""
+        self.attacker_pos = pos or (self.pos[0] + 1, self.pos[1])
+        self.chase = chase
+        self.send(creature_pkt(ATTACKER, 0x27, *self.attacker_pos))
 
     def convert(self, serial):
         if serial != self.logs_serial:
@@ -315,7 +378,7 @@ class World:
                 self.send(b"\x21" + bytes([seq]) + u32(self.pos[0]) + u32(self.pos[1])
                           + bytes([self.facing]) + u32(0))
                 return
-            self.pos = [nx, ny]
+            old, self.pos = tuple(self.pos), [nx, ny]
             if (nx, ny) in GATES:                        # the gate's gump comes before the confirm
                 self.gate_gumps[self.next_gump()] = []
                 self.send(gump(self.gump_serial, RENOUNCE_ID, RENOUNCE_LAYOUT,
@@ -325,6 +388,10 @@ class World:
             if self.door_open and self.cheb(DOOR) > 2:   # the door swings shut behind the agent
                 self.door_open = False
             self.send(bytes([0x22, seq, 0x01]))
+            self.update_view()
+            if self.chase:                               # the attacker keeps at the agent's heels
+                self.attacker_pos = old
+                self.send(creature_pkt(ATTACKER, 0x27, *old))
         elif pid == 0x12 and p[3] == 0x58:
             self.open_door_reqs += 1
             if self.cheb(DOOR) <= 1:
@@ -340,7 +407,7 @@ class World:
                 self.send(cursor(self.cid))
             elif serial == BANKBOX:
                 self.bank_dclicks += 1
-            elif serial == BACKPACK:
+            elif serial in (BACKPACK, BAG):
                 self.containers_opened.append(serial)
                 self.send(b"\x24" + u32(serial) + bytes.fromhex("0000003c007d"))   # as captured (204225)
         elif pid == 0x6C:
@@ -412,8 +479,18 @@ class World:
         for token in (5, 6, 7, 8):
             self.send(seed_pkt(token))
         self.send(equip(BACKPACK, 0x0E75, 0x15))
-        self.send(equip(HATCHET, 0x0F44, 0x02))
-        self.send(mobile_pkt(BANKER, *BANK_POS))
+        if self.scenario == "skirmish":                         # the hatchet is in a bag in the pack
+            self.send(contained(BAG, 0x0E76, 1, BACKPACK))
+            self.send(contained(HATCHET, 0x0F44, 1, BAG))
+            self.send(creature_pkt(FIGHTER, 0xEA, *FIGHTER_POS))      # 'a great hart' in war mode ...
+            self.send(player_update(OTHER, *OTHER_POS))               # ... fighting a player (knowledge #89)
+            asyncio.get_running_loop().create_task(self.combat())
+        else:
+            self.send(equip(HATCHET, 0x0F44, 0x02))
+        if self.scenario == "break":                            # logs carried from an earlier trip
+            self.logs_serial, self.logs = 0x45000001, INITIAL_LOGS
+            self.send(contained(self.logs_serial, 0x1BDD, self.logs, BACKPACK))
+        self.update_view()                                      # the banker, once within range
         self.send(ground_item(0x40005CE3, 0x06AD, *DOOR, 0))     # the town door (demo art)
         for i, (gx, gy) in enumerate(sorted(GATES)):
             self.send(ground_item(0x40006000 + i, 0x0F6C, gx, gy, 0))  # blue moongates
@@ -432,11 +509,23 @@ class World:
                 del buf[:n]
             await writer.drain()
 
+    async def combat(self):
+        """Skirmish: the hart and the player trade blows (0x2F both ways) every second;
+        the attacker, once there, swings at the agent while within 3 tiles."""
+        while not self.writer.is_closing():
+            await asyncio.sleep(1.0)
+            self.send(swing(FIGHTER, OTHER))
+            self.send(swing(OTHER, FIGHTER))
+            if self.attacker_pos is not None and self.cheb(self.attacker_pos) <= 3:
+                self.attacker_swings += 1
+                self.send(swing(ATTACKER, SELF))
+            await self.writer.drain()
 
-def knowledge(path):
+
+def knowledge(path, trees=(GOOD_TREE, DRY_TREE)):
     with open(f"{ROOT}/harness/data/loops/lumber.json", encoding="utf-8") as f:
         k = json.load(f)
-    k["harvest"]["trees"] = [GOOD_TREE, DRY_TREE]
+    k["harvest"]["trees"] = list(trees)
     k["npcs"]["banker"].update(serial=f"0x{BANKER:08X}", pos=[*BANK_KNOWN, 0])
     with open(path, "w", encoding="utf-8") as f:
         json.dump(k, f)
@@ -445,7 +534,8 @@ def knowledge(path):
 async def main():
     os.makedirs(LOGDIR, exist_ok=True)
     for f in os.listdir(LOGDIR):
-        os.remove(os.path.join(LOGDIR, f))
+        if os.path.isfile(os.path.join(LOGDIR, f)):      # the other scenarios keep subdirectories
+            os.remove(os.path.join(LOGDIR, f))
     tmp = tempfile.mkdtemp()
     paths = {"lumber": os.path.join(tmp, "lumber.json"), "db": os.path.join(tmp, "harness.db")}
     knowledge(paths["lumber"])
@@ -688,6 +778,158 @@ async def main():
         server.close()
 
 
+async def run_scenario(world, tag, port_base, trees, runner_args, budget=None):
+    """The real proxy in front of `world` on private ports port_base..+3 (logdir
+    LOGDIR/<tag>, an optional pre-written agent gate file), then the runner with
+    runner_args. Returns (runner output, exit code, memory store, capture rows)."""
+    logdir = os.path.join(LOGDIR, tag)
+    os.makedirs(logdir, exist_ok=True)
+    for f in os.listdir(logdir):
+        os.remove(os.path.join(logdir, f))
+    if budget is not None:
+        with open(os.path.join(logdir, "agent_budget.json"), "w", encoding="utf-8") as f:
+            json.dump(budget, f)
+    tmp = tempfile.mkdtemp()
+    lumber, db = os.path.join(tmp, "lumber.json"), os.path.join(tmp, "harness.db")
+    knowledge(lumber, trees)
+    proxy_port, upstream, control, state = (port_base + i for i in range(4))
+    server = await asyncio.start_server(world.handle, "127.0.0.1", upstream)
+    proxy = subprocess.Popen(
+        [PY, f"{ROOT}/harness/proxy.py", "--listen-port", str(proxy_port),
+         "--upstream-host", "127.0.0.1", "--upstream-port", str(upstream),
+         "--control-port", str(control), "--state-port", str(state), "--logdir", logdir,
+         "--memory-db", db],
+        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    try:
+        await asyncio.sleep(1.0)
+        reader, writer = await asyncio.open_connection("127.0.0.1", proxy_port)
+        writer.write(bytes.fromhex("ef0000000c"))
+        await writer.drain()
+
+        async def drain_client():
+            while await reader.read(65536):
+                pass
+        drainer = asyncio.create_task(drain_client())
+        await asyncio.sleep(0.5)
+        runner = await asyncio.create_subprocess_exec(
+            PY, f"{ROOT}/harness/loop_lumber.py", "--control-port", str(control), "--state-port", str(state),
+            "--loop", lumber, "--memory", db, "--timeout", "300", "--quiet", "--no-map", "--max-blocked", "80",
+            "--triage-url", "", *runner_args,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        out, _ = await asyncio.wait_for(runner.communicate(), timeout=360)
+        text = out.decode(errors="replace")
+        print(f"---- runner output ({tag}) ----\n" + text + "-----------------------")
+        writer.close()
+        drainer.cancel()
+        await asyncio.sleep(1.0)                        # proxy memory writer: batched commits
+        rows = [json.loads(line) for f in os.listdir(logdir) if f.endswith(".jsonl")
+                for line in open(os.path.join(logdir, f), encoding="utf-8")]
+        return text, runner.returncode, memory.Memory(db), rows
+    finally:
+        proxy.terminate()
+        server.close()
+
+
+async def skirmish():
+    """LUMBER_LOOP.md §13: the hatchet in a bag in the pack; 'a great hart' in war mode
+    4 tiles from the tree, fighting a player (knowledge #89); a creature that goes for
+    the agent (escape, then the next tree out of its reach); the same creature hunting
+    it down at that tree (escape, kept coming: stop, logs converted first)."""
+    print("\n== skirmish: hatchet in a bag, a hart fighting a player, a creature that goes for us ==")
+    world = World("skirmish")
+    text, code, store, _ = await run_scenario(world, "skirmish", 12680, [GOOD_TREE, FAR_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
+    dclicks = [int.from_bytes(p[1:5], "big") for p in world.c2s if p[0] == 0x06]
+    check("hatchet in a bag in the pack: backpack, then the bag opened (once each), before the first hatchet use",
+          world.containers_opened == [BACKPACK, BAG] and HATCHET in dclicks
+          and dclicks.index(BACKPACK) < dclicks.index(BAG) < dclicks.index(HATCHET), str(dclicks[:6]))
+    threat_js = [j for j in store.junctures() if j["kind"] == "threat"]
+    acts = [j["data"].get("action") for j in threat_js]
+    check("threat junctures (urgent): escape, escape (it came back), abort (it kept coming)",
+          acts == ["escape", "escape", "abort"] and all(j["severity"] == "urgent" for j in threat_js),
+          str([(j["summary"], j["data"].get("action")) for j in threat_js]))
+    hart = [next((t for t in j["data"]["threats"] if t["serial"] == FIGHTER), {}) for j in threat_js]
+    check("every threat was the attacker; the hart fighting the player (in flee range, war mode) was "
+          "only watched",
+          threat_js and all(j["data"]["threats"][0]["serial"] == ATTACKER for j in threat_js)
+          and hart[0].get("action") == "watch" and hart[0].get("distance", 99) <= hart[0].get("flee_radius", 0)
+          and "fighting" in hart[0].get("reason", ""), str(hart[:1]))
+    m = re.search(r"escaped to \((\d+), (\d+)\)", text)
+    to = (int(m[1]), int(m[2])) if m else None
+    check("first escape: walked away from the attacker to beyond its flee radius (8)",
+          to is not None and to[0] > GOOD_TREE["stand"][0]
+          and max(abs(to[0] - ATTACKER_POS[0]), abs(to[1] - ATTACKER_POS[1])) > 8, str(to))
+    far = store.harvest_node(0, FAR_TREE["x"], FAR_TREE["y"], FAR_TREE["z"]) or {}
+    check("resumed at the next tree out of the attacker's reach and harvested there",
+          world.far_attempts >= 2 and far.get("successes", 0) >= 1, f"{world.far_attempts} attempts, {far}")
+    check("the attacker kept coming after the second escape: the run stopped (exit 1)",
+          code == 1 and "kept coming after the escape" in text and world.attacker_swings >= 2,
+          f"exit {code}, {world.attacker_swings} swings")
+    check("carried wood is boards: the logs were converted before stopping (no bank trip)",
+          world.logs == 0 and world.harvested == 2 * LOGS_PER_SUCCESS
+          and sum(world.pack_boards.values()) == world.harvested and world.bank_opens == 0
+          and "converting the carried logs before stopping" in text,
+          f"logs {world.logs}, boards {world.pack_boards}, harvested {world.harvested}")
+    store.close()
+
+
+async def break_due():
+    """docs/OVERSEER.md break_due: the agent gate announces a break mid-harvest; the
+    trip ends early at the bank (carried and new logs banked as boards), exit 0."""
+    print("\n== break due: stop harvesting, convert, bank, exit 0 ==")
+    world = World("break")
+    budget = {"day": datetime.date.today().isoformat(), "active_today_s": 0.0,
+              "since_break_s": 7200.0 - BREAK_AFTER_S, "next_break_after_s": 7200.0,
+              "break_until": None, "break_due_at": None, "last_active": None,
+              "paused": False, "killed": False}
+    text, code, store, _ = await run_scenario(world, "break", 12690, [GOOD_TREE, DRY_TREE],
+                                              ["--trips", "2", "--logs-per-trip", "100", "--human", "off"],
+                                              budget=budget)
+    eps = store.episodes("lumber")
+    check("one trip, 'break due: banked', exit 0 (for ctl break), episode row marked break_due",
+          code == 0 and "break due: banked" in text and "loop complete" not in text
+          and len(eps) == 1 and eps[0].get("break_due") is True
+          and set(eps[0]["phases_s"]) == {"harvest", "convert", "to_bank", "store"},
+          f"exit {code}, {len(eps)} episodes")
+    check("the harvest stopped early (the good tree still had wood)",
+          "break due: stopping the harvest" in text and world.good_left > 0, str(world.good_left))
+    check("carried and new logs became boards in the bank box; nothing left in the pack",
+          world.bank_stack is not None and world.bank_stack[1] == INITIAL_LOGS + world.harvested
+          and world.logs == 0 and not world.pack_boards and world.bank_opens == 1,
+          f"bank {world.bank_stack}, harvested {world.harvested}")
+    check("no threat juncture", not [j for j in store.junctures() if j["kind"] == "threat"])
+    store.close()
+
+
+def unit_hatchet():
+    """loop_lumber hatchet(): worn first, then the shallowest in the pack; never the bank box."""
+    print("\n== hatchet(): worn, else the shallowest in the backpack's bags ==")
+    import loop_lumber
+    from agent_link import Abort
+    inner = 0x44ADC0DF
+    base = {BACKPACK: {"graphic": 0x0E75, "layer": 0x15, "container": SELF},
+            BAG: {"graphic": 0x0E76, "container": BACKPACK},
+            inner: {"graphic": 0x0E76, "container": BAG},
+            BANKBOX: {"graphic": 0x0E7C, "layer": 0x1D, "container": SELF}}
+    hatchets = {"worn": (0x4001, SELF), "bag": (0x4002, BAG), "inner": (0x4003, inner), "bank": (0x4004, BANKBOX)}
+    loop = loop_lumber.LumberLoop.__new__(loop_lumber.LumberLoop)
+
+    def pick(*which):
+        items = {**base, **{hatchets[w][0]: {"graphic": 0x0F43, "container": hatchets[w][1]} for w in which}}
+        st = {"movement": {"self_serial": SELF},
+              "world": {"items": {f"0x{s:08X}": dict(it, container=f"0x{it['container']:08X}")
+                                  for s, it in items.items()}}}
+        try:
+            return loop.hatchet(st)
+        except Abort:
+            return None
+    check("worn beats any in the pack", pick("inner", "bag", "worn", "bank") == hatchets["worn"][0])
+    check("the shallowest bag wins", pick("inner", "bag", "bank") == hatchets["bag"][0])
+    check("found at any depth", pick("inner", "bank") == hatchets["inner"][0])
+    check("one in the bank box doesn't count", pick("bank") is None)
+
+
+
 def state_req(req):
     import socket
     with socket.create_connection(("127.0.0.1", STATE_PORT), timeout=5) as s:
@@ -706,5 +948,8 @@ def is_subsequence(want, seq):
 
 if __name__ == "__main__":
     asyncio.run(main())
+    asyncio.run(skirmish())
+    asyncio.run(break_due())
+    unit_hatchet()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

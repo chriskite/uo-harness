@@ -26,6 +26,7 @@ logs_test/
 logs_test_actions/
 logs_test_errand/
 logs_test_loop/
+logs_test_hunt/
 # harness runtime memory (AGENTS.md Rule 0, docs/MEMORY.md)
 harness/data/*.db
 harness/data/*.db-wal

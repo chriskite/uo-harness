@@ -564,7 +564,13 @@ def _p_dialect(direction, pkt):
             _p_name_response(r, d)
         elif sub == 0x1A:
             _p_quest_arrow(r, d)
-        # all other subs: sub id reported, payload unparsed (doc §5 table)
+        elif sub == 0xDEAD:  # OutlandsCorpseFlags @ 0x14019a440 (docs/WORLDMODEL.md)
+            d["corpse"] = r.u32()
+            d["serial"] = r.u32()     # the mobile that died
+            d["notoriety"] = r.u8()
+            d["name"] = r.asciiz()    # corpse name
+        # sub 5 (World.ProcessDeletes) has no payload; all other subs: sub id
+        # reported, payload unparsed (doc §5 table)
     else:
         if sub == 3:
             pass  # TimeSyncReq keepalive, empty payload

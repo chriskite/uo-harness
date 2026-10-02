@@ -114,6 +114,15 @@ LAYOUTS_S2C: dict[int, list[tuple[str, str, int]]] = {
     # arrow may come here or via the dialect sub 0x1A instead (parsers.py).
     0xBA: [("display", "u8", 1), ("x", "u32be", 2), ("y", "u32be", 6),
            ("serial", "u32be", 10)],
+    # 0xAF DisplayDeath (13): mobile serial, corpse serial, running u32 (upstream
+    # PacketHandlers.cs:3693-3749; Outlands DisplayDeath @ 0x140193f20 re-keys the
+    # mobile to serial | 0x80000000 the same way). Real (20261001_214649):
+    # `af 002b8046 4fe08667 00000000`.
+    0xAF: [("serial", "u32be", 1), ("corpse", "u32be", 5), ("running", "u32be", 9)],
+    # 0xC8 ClientViewRange (2): the client's World.ClientViewRange (decomp
+    # @ 0x14018ee00 writes the global World.ProcessDeletes compares against).
+    # Real: `c8 12` (18) at login, echoed by the client.
+    0xC8: [("range", "u8", 1)],
 }
 
 LAYOUTS_C2S: dict[int, list[tuple[str, str, int]]] = {

@@ -32,8 +32,8 @@ def mob(serial, dx, dy, *, body=0x190, noto=1, flags=0x20):
                                 "x": HERE[0] + dx, "y": HERE[1] + dy, "z": 0})
 
 
-def state(mobs=(), *, labels=None, items=None, hits=50, body=0x190, pos=HERE, events=()):
-    return {
+def state(mobs=(), *, labels=None, items=None, hits=50, body=0x190, pos=HERE, events=(), swings=None):
+    st = {
         "movement": {"pos": [*pos, 0, 0] if pos else None, "self_serial": ME},
         "world": {
             "self": {"serial": f"0x{ME:08X}", "hits": hits, "hits_max": 50,
@@ -45,6 +45,10 @@ def state(mobs=(), *, labels=None, items=None, hits=50, body=0x190, pos=HERE, ev
         "events": [{"seq": i, "t": t, "origin": "world", "data": d}
                    for i, (t, d) in enumerate(events)],
     }
+    if swings is not None:      # world.swings: {attacker_hex: {defender: hex, t}}
+        st["world"]["swings"] = {f"0x{a:08X}": {"defender": f"0x{d:08X}", "t": t}
+                                 for a, (d, t) in swings.items()}
+    return st
 
 
 def one(a, serial):
@@ -237,7 +241,48 @@ def test_label_grace():
     eq("re-entry restarts the grace", a.action, "watch")
 
 
-TESTS = [test_reds, test_npcs_and_players, test_monsters, test_damage, test_label_grace]
+def test_fighting_others():
+    print("== war-mode creature fighting someone else (knowledge #89) ==")
+    # live: 'a great hart' (0xEA, notoriety 3, war mode) 8 tiles away fighting a player
+    hart, other = 0x600, 0x601
+    mobs = [mob(hart, 8, 0, body=0xEA, noto=3, flags=0x40), mob(other, 9, 0, noto=1, flags=0x20)]
+    labels = {hart: "a great hart", other: "Vorn"}
+    kw = dict(recall_s=2.0, margin_s=1.0, now=NOW)      # monster flee radius 1 + floor(3 / 0.4) = 8
+    a = assess(state(mobs, labels=labels), **kw)
+    eq("old capture (no world.swings): war-mode hart at 8 -> flee", one(a, hart).action, "flee")
+    a = assess(state(mobs, labels=labels, swings={}), **kw)
+    eq("no swing seen: war-mode hart at 8 -> flee", one(a, hart).action, "flee")
+    busy = {hart: (other, NOW - 1.5), other: (hart, NOW - 1.0)}
+    a = assess(state(mobs, labels=labels, swings=busy), **kw)
+    eq("hart's latest swing at another player -> watch, overall watch",
+       (one(a, hart).action, a.action, a.under_attack), ("watch", "watch", False))
+    check("reason names its opponent", f"0x{other:08X}" in one(a, hart).reason, one(a, hart).reason)
+    a = assess(state(mobs, labels=labels, swings={hart: (ME, NOW - 1.0)}), **kw)
+    eq("hart's latest swing at us -> flee", one(a, hart).action, "flee")
+    ev = [(NOW - 3, {"ev": "swing", "attacker": hart, "defender": ME})]
+    a = assess(state(mobs, labels=labels, swings=busy, events=ev), **kw)
+    eq("swung at us within the window, latest at another -> flee (and under attack)",
+       (one(a, hart).action, a.under_attack, a.action), ("flee", True, "flee"))
+    a = assess(state(mobs, labels=labels, swings={hart: (other, NOW - 30)}), **kw)
+    eq("fight over (last swing 30 s ago) -> flee", one(a, hart).action, "flee")
+    near = [mob(hart, 1, 0, body=0xEA, noto=3, flags=0x40), mob(other, 2, 0, noto=1, flags=0x20)]
+    a = assess(state(near, labels=labels, swings=busy), **kw)
+    eq("fighting another but within its strike range of us -> flee", one(a, hart).action, "flee")
+    ev = [(NOW - 1, {"ev": "damage", "serial": ME, "amount": 4})]
+    a = assess(state(mobs, labels=labels, swings=busy, events=ev), **kw)
+    eq("damage to us while it fights another -> overall flee (under attack)",
+       (one(a, hart).action, a.under_attack, a.action), ("watch", True, "flee"))
+    # war mode isn't its only aggression evidence: an aggressive body flees anyway
+    a = assess(state(mobs, labels=labels, swings=busy), **kw,
+               params=Params(aggressive_bodies=frozenset({0xEA}), passive_bodies=frozenset()))
+    eq("aggressive body fighting another -> flee", one(a, hart).action, "flee")
+    a = assess(state([mob(0x602, 6, 0, body=0x1D, noto=6, flags=0x40)], swings={0x602: (other, NOW - 1)}),
+               **kw)
+    eq("murderer-red creature fighting another -> flee", one(a, 0x602).action, "flee")
+
+
+TESTS = [test_reds, test_npcs_and_players, test_monsters, test_damage, test_label_grace,
+         test_fighting_others]
 
 
 def main():
