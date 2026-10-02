@@ -22,6 +22,10 @@ What counts as "a character speaking" (measured on the 27 captures, 2026-10-01):
   or a non-human body (pets: "(bonded)") is an NPC or a creature.
 - a speaker the client doesn't have (hidden or out of view) counts: a hidden
   GM speaks without a body on screen [INFERENCE].
+- not a tamer's pet command (`pet_command`): at the New Player Dungeon tamers
+  say "all guard me", "All Kill" all the time (junctures 52/56/57/58/60,
+  2026-10-02). Such a line still goes into `context`; one from a speaker with
+  staff hints still counts.
 
 Every line is also judged by Laya (triage.py) from the recent speech around
 it (`context`); a likely attendance check is a staff hint.
@@ -44,6 +48,38 @@ _NUMBER = re.compile(r"^\s*[-+]?\d+\s*$")
 # names staff are often given on UO shards [INFERENCE: no Outlands staff seen yet]
 _STAFF_NAME = re.compile(r"\b(gm|game ?master|seer|counselor|admin|staff|developer|dev)\b", re.I)
 STAFF_BODIES = (0x3DB, 0x3DF)    # ClassicUO Mobile.IsHuman includes the GM body 0x3DB [INFERENCE: use]
+
+# Pet command words: the English pet keywords of speech.mul (0x155-0x170, read
+# 2026-10-02: come drop fetch get bring follow friend guard kill attack patrol
+# report stop "follow me" release transfer stay; "all guard me"), plus unfriend.
+PET_COMMANDS = frozenset({
+    "kill", "attack", "guard", "guard me", "follow", "follow me", "come", "stop", "stay", "drop",
+    "patrol", "release", "transfer", "friend", "unfriend", "fetch", "get", "bring", "report"})
+_TRAILING = re.compile(r"[\s.!?,;:]+$")
+
+
+def pet_command(text: str, world: dict) -> bool:
+    """`text` is a whole pet command: "all <command>", or "<name> <command>"
+    where <name> is one word, the first word of the name of a non-human mobile
+    on screen (a pet), and not a word of our own name ("Hackworth stop" is
+    someone talking to us). Case-insensitive, trailing punctuation ignored; a
+    bare command ("stop") or any extra word ("all stop please") is not one."""
+    words = _TRAILING.sub("", text.strip()).lower().split()
+    if len(words) < 2 or " ".join(words[1:]) not in PET_COMMANDS:
+        return False
+    slot = words[0]
+    if slot == "all":
+        return True
+    if slot in (world["self"].get("name") or "").lower().split():
+        return False
+    labels = world.get("labels") or {}
+    for key, mob in world["mobiles"].items():
+        if mob.get("graphic") in threats.HUMAN_BODIES:
+            continue
+        for name in (mob.get("name"), labels.get(key)):
+            if name and name.split()[0].lower() == slot:
+                return True
+    return False
 
 
 def _serial(v) -> int:
@@ -147,6 +183,8 @@ class SpeechGuard:
             if who["name"]:
                 self.names[who["serial"]] = who["name"]
             if self.cleared.get(who["serial"], 0) > self.now():
+                continue
+            if pet_command(who["text"], world) and not staff_hints(who):
                 continue
             who["t"] = t
             who["context"] = [{"name": ln["name"], "text": ln["text"]} for ln in self.recent if t - ln["t"] <= RECENT_S]

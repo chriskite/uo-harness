@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import alerts  # noqa: E402
 from memory import Memory  # noqa: E402
-from speech_guard import CLEAR_S, SpeechGuard, speaker, staff_hints  # noqa: E402
+from speech_guard import CLEAR_S, SpeechGuard, pet_command, speaker, staff_hints  # noqa: E402
 
 FAILURES = []
 ME, PLAYER, VENDOR, PET, MOB, STAFF = 0x00094375, 0x0000ABCD, 0x00000B8D, 0x0000C001, 0x0000C002, 0x0000D00D
@@ -150,10 +150,44 @@ def test_staff():
     m.close()
 
 
+def test_pet_commands():
+    print("== tamer pet commands are not a character speaking to us (NPD, 2026-10-02) ==")
+    w = world()
+    w["self"]["name"] = "Hackworth"
+    w["mobiles"][f"0x{PET:08X}"]["name"] = "Fluffy"
+    w["mobiles"][f"0x{MOB:08X}"]["name"] = "Hackworth"     # a pet named like us: our name still wins
+    live = ["all guard", "All Stop", "All Guard Me", "All Kill", "ALL KILL"]   # junctures 52/56/57/58/60
+    check("the five live lines are pet commands", all(pet_command(t, w) for t in live))
+    check("trailing punctuation and spaces ignored", pet_command("  all follow me!! ", w))
+    check("a pet on screen by name ('Fluffy kill')", pet_command("fluffy kill", w))
+    for text, why in (("Hackworth stop", "our own name in the name slot"), ("hackworth come", "our name, lower case"),
+                      ("stop", "a bare command"), ("all guard me please", "an extra word after"),
+                      ("can you all stop", "words before"), ("please stop", "a name slot that is no pet on screen"),
+                      ("Kanbalt stop", "a human's name in the name slot"), ("all dance", "not a pet command")):
+        check(f"not a pet command: {why} ({text!r})", not pet_command(text, w))
+    g = SpeechGuard(now=lambda: 1000.0)
+    events, times = [], []
+    g.scan(w, events, times)
+    events += [said(PLAYER, t, name="Kanbalt") for t in live]
+    times += [10.0, 11.0, 12.0, 13.0, 14.0]
+    check("scan: the live lines hold nothing", g.scan(w, events, times) == [])
+    events += [said(PLAYER, t, name="Kanbalt") for t in ("Hackworth stop", "stop", "all guard me please")]
+    events.append(said(STAFF, "all kill", name="GM Kemp"))
+    events.append(said(0x00001234, "All Stop", name="Ann"))
+    times += [20.0, 21.0, 22.0, 23.0, 24.0]
+    got = g.scan(w, events, times)
+    check("scan: own name, bare command, extra words, GM body and not-on-screen speakers still hold",
+          [x["text"] for x in got] == ["Hackworth stop", "stop", "all guard me please", "all kill", "All Stop"]
+          and staff_hints(got[3]) and staff_hints(got[4]), str([(x["text"], x["evidence"]) for x in got]))
+    check("the pet commands are still in a later line's context",
+          [c["text"] for c in got[0]["context"]] == live + ["Hackworth stop"], str(got[0]["context"]))
+
+
 if __name__ == "__main__":
     test_speaker()
     test_scan()
     test_context()
     test_staff()
+    test_pet_commands()
     print("ALL PASS" if not FAILURES else f"FAILED: {len(FAILURES)}: {FAILURES}")
     sys.exit(1 if FAILURES else 0)
