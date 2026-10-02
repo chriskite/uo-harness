@@ -1137,6 +1137,17 @@ def test_pruning():
     ev = feed(_var(0xFF, "00000005"), t=154.0)
     eq("0xFF sub 5 prunes it", (C in st.mobiles, [(e["serial"], e["why"]) for e in ev]), (False, [(C, "range")]))
 
+    # houses: the client keeps a multi within view range + its reach (HouseManager.IsHouseInRange);
+    # multi 0x154 reaches 4 tiles, and the server sent it at 22 (live 20261002_153718)
+    def _house(serial, x, y):
+        return bytes.fromhex("f30001" "02" f"{serial:08x}" "00000154" "00" "0001" "00" "00"
+                             f"{x:08x}" f"{y:08x}" "00000001" "2b" "0000" "00000000" "0064")
+    feed(_house(0x40000030, st.self.x + 22, st.self.y), _house(0x40000031, st.self.x + 23, st.self.y),
+         _ground1a(0x40000032, st.self.x + 19, st.self.y), t=154.5)
+    feed(_var(0xFF, "00000005"), t=154.6)
+    eq("sub 5 keeps a house within view range + its reach, drops one beyond and any other item past 18",
+       (0x40000030 in st.items, 0x40000031 in st.items, 0x40000032 in st.items), (True, False, False))
+
     # teleport: self 0x20 jumps far; everything near the old spot goes
     feed(_mob20(C, 1001, 1001), _ground1a(G, 1002, 1002), t=155.0)
     ev = feed(bytes.fromhex("20" f"{ME:08x}" "00000190" "01" "83ea" "00" f"{5000:08x}" f"{500:08x}" "0000" "00" "00000000"),

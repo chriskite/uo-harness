@@ -568,6 +568,13 @@ def test_replay_parity(logdir):
         wm = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{SERVER_PORT}/api/walkmem").read())
         check("/api/walkmem serves the store's projection (edge + deny)",
               wm["edges"] == [[10, 10, 11, 10]] and wm["blocked"] == [[11, 10, 2]], str(wm))
+        # the Corpse Creek house that denied 12 agent steps (live 20261002_153718), from the install's multi.mul
+        mf = get(f"http://127.0.0.1:{SERVER_PORT}/api/multi/0x154")
+        check("/api/multi/0x154: ground-storey wall corner and floor inside, no piece past the footprint",
+              [-2, -3, "wall"] in mf["tiles"] and [-1, -2, "floor"] in mf["tiles"]
+              and not any(t[:2] == [2, -3] for t in mf["tiles"]), str(mf["tiles"][:6]))
+        code, resp = get_status(f"http://127.0.0.1:{SERVER_PORT}/api/multi/99999")
+        check("/api/multi of an id multi.mul doesn't have: 404", code == 404, f"{code} {resp}")
         code, _ = post(f"http://127.0.0.1:{SERVER_PORT}/api/playback", {"action": "rate", "rate": 0})
         check("POST /api/playback rejects rate 0", code == 400, str(code))
         code, resp = post(f"http://127.0.0.1:{SERVER_PORT}/api/gate", {"action": "pause"})

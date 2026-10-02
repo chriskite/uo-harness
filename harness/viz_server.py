@@ -16,6 +16,9 @@ Routes:
   GET  /api/art/<graphic>.png  an item's art from the client's art.uoo (decimal or 0x hex
                       graphic), cropped to its opaque pixels (harness/uoart.py); 404 JSON
                       for an unknown/empty graphic or missing install data
+  GET  /api/multi/<id>  a house's footprint from the client's multi.mul (decimal or 0x hex
+                      multi id = the graphic of a data_type 2 ground item): {"id", "source",
+                      "tiles": [[dx, dy, "wall"|"floor"]]}; 404 JSON for an unknown id
   GET  /api/live.jpg?zoom=1-3      one JPEG of the character cropped from the game window
   GET  /api/live.mjpeg?zoom=&fps=  the same as a continuous stream (multipart/x-mixed-replace),
                       harness/liveview.py; passive window capture, only while someone watches;
@@ -82,6 +85,7 @@ CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "application/javasc
                  ".txt": "text/plain; charset=utf-8"}
 MAX_BODY = 64 * 1024
 CHAT_MAX_CHARS = 2000
+STOREY_Z = 20       # a house piece this high above the house's tile is on an upper floor
 
 
 class WalkMemDB:
@@ -311,6 +315,22 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._json(200, {"names": names, "source": "client skills.mul"})
 
+    def _multi(self, spec: str):
+        try:
+            multi_id = int(spec, 0)
+        except ValueError:
+            self._json(400, {"error": f"bad multi id {spec!r}"})
+            return
+        try:
+            body = multi_footprint(multi_id)
+        except OSError as e:
+            self._json(404, {"error": f"multi.mul unavailable: {e}"})
+            return
+        if body is None:
+            self._json(404, {"error": f"no multi {multi_id:#x} in multi.mul"})
+            return
+        self._json(200, body)
+
     # -- helpers
     def log_message(self, fmt, *args):  # quiet; errors still go through log_error
         pass
@@ -348,6 +368,8 @@ class Handler(BaseHTTPRequestHandler):
             self._paperdoll()
         elif url.path.startswith("/api/art/") and url.path.endswith(".png"):
             self._item_art(url.path[len("/api/art/"):-len(".png")])
+        elif url.path.startswith("/api/multi/"):
+            self._multi(url.path[len("/api/multi/"):])
         elif url.path == "/api/live.jpg":
             self._live_frame(parse_qs(url.query))
         elif url.path == "/api/live.mjpeg":
@@ -545,6 +567,26 @@ class Handler(BaseHTTPRequestHandler):
         with open(full, "rb") as f:
             body = f.read()
         self._send(200, body, CONTENT_TYPES.get(os.path.splitext(full)[1].lower(), "application/octet-stream"))
+
+
+def multi_footprint(multi_id: int, root: str | None = None) -> dict | None:
+    """GET /api/multi/<id>: the tiles a house's pieces cover (uomap.multi_components),
+    as [dx, dy, kind] offsets from the house's own tile. kind is "wall" when an
+    impassable piece stands on the ground storey there (dz < STOREY_Z), else "floor":
+    foundation, steps, and upper floors. None for an id multi.mul doesn't have."""
+    import uomap
+    root = root or uomap.INSTALL
+    parts = uomap.multi_components(multi_id, root)
+    if not parts:
+        return None
+    td = uomap.tiledata(root)
+    tiles = {}
+    for dx, dy, dz, g in parts:
+        it = td.item(g)
+        wall = it is not None and bool(it.flags & uomap.IMPASSABLE) and dz < STOREY_Z
+        tiles[(dx, dy)] = tiles.get((dx, dy), False) or wall
+    return {"id": multi_id, "source": "client multi.mul",
+            "tiles": [[dx, dy, "wall" if w else "floor"] for (dx, dy), w in sorted(tiles.items())]}
 
 
 def gate_request(host: str, port: int, action: str | None = None) -> dict:

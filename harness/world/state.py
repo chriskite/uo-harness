@@ -27,6 +27,12 @@ LAST_SEEN_MAX = 500
 LAYER_MOUNT = 0x19   # equipment layer of the item that stands for the ridden mount
 
 
+def multi_reach(multi_id: int) -> int:
+    """A house's reach from its tile (uomap.multi_reach, the client's multi.mul)."""
+    import uomap
+    return uomap.multi_reach(multi_id)
+
+
 @dataclass
 class SelfState:
     serial: int | None = None
@@ -382,15 +388,20 @@ class StateStore:
 
     def prune_range(self, x, y, facet=None):
         """World.ProcessDeletes: drop mobiles and ground items farther than
-        view_range (Chebyshev) from (x, y), with everything under them.
-        Positionless mobiles (0x78 before their first 0x20) stay. Returns the
-        removed mobile serials."""
+        view_range (Chebyshev) from (x, y), with everything under them. A house
+        (data_type 2 multi) stays while within view_range + its reach (ClassicUO
+        HouseManager.IsHouseInRange, Item.MultiDistanceBonus): the server sends houses
+        from farther out (session 20261002_153718: the Corpse Creek house at 22 tiles,
+        three times; dropped each time, it was missing at all 12 denies it caused).
+        Positionless mobiles (0x78 before their first 0x20) stay. Returns the removed
+        mobile serials."""
         r = self.view_range
 
-        def far(e):
-            return e.x is not None and e.y is not None and max(abs(e.x - x), abs(e.y - y)) > r
+        def far(e, extra=0):
+            return e.x is not None and e.y is not None and max(abs(e.x - x), abs(e.y - y)) > r + extra
         gone = [s for s, m in self.mobiles.items() if s != self.self.serial and far(m)]
-        ground = [s for s, it in self.items.items() if it.container is None and far(it)]
+        ground = [s for s, it in self.items.items() if it.container is None
+                  and far(it, multi_reach(it.graphic) if it.data_type == 2 and it.graphic is not None else 0)]
         self._remove_many(gone, ground, "range", facet)
         return gone
 

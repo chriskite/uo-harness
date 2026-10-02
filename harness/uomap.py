@@ -263,29 +263,43 @@ _MULTI_REC = struct.Struct("<HhhhII")   # graphic, x, y, z offsets, flags, unkno
 _MULTIS = {}
 
 
-def multi_components(multi_id, root=INSTALL) -> tuple:
-    """The drawn pieces of multi `multi_id` (a house: the 0xF3 graphic of a
-    data_type 2 item) as (dx, dy, dz, graphic) offsets from the multi's own
-    tile, as the client places them (ClassicUO MultiLoader.GetMultis, mul
-    branch, client >= 7.0.9.0: 16-byte records read as 12 + 4 skipped;
-    Item.LoadMulti adds only the visible ones, flags != 0). Empty for an id
-    the files don't have. multi.idx = 12-byte (offset, length, extra) entries."""
+def _multi(multi_id, root) -> tuple:
+    """(visible pieces, reach) of multi `multi_id`, cached; ((), 0) for an id the
+    files don't have. multi.idx = 12-byte (offset, length, extra) entries;
+    multi.mul records are 16 bytes (client >= 7.0.9.0: ClassicUO MultiLoader.GetMultis,
+    mul branch, reads 12 and skips 4)."""
     cache = _MULTIS.get(root)
     if cache is None:
         cache = _MULTIS[root] = {"idx": _open_ro(os.path.join(root, "multi.idx")),
-                                 "mul": _open_ro(os.path.join(root, "multi.mul")), "parts": {}}
-    parts = cache["parts"].get(multi_id)
-    if parts is None:
+                                 "mul": _open_ro(os.path.join(root, "multi.mul")), "multis": {}}
+    m = cache["multis"].get(multi_id)
+    if m is None:
         idx, mul = cache["idx"], cache["mul"]
-        parts = ()
+        recs = ()
         if 0 <= multi_id < len(idx) // 12:
             off, length, _extra = struct.unpack_from("<iii", idx, multi_id * 12)
             if off >= 0 and length > 0 and off + length <= len(mul):
-                parts = tuple((x, y, z, g) for g, x, y, z, flags, _ in
-                              (_MULTI_REC.unpack_from(mul, off + i) for i in range(0, length - 15, 16))
-                              if flags)
-        cache["parts"][multi_id] = parts
-    return parts
+                recs = [_MULTI_REC.unpack_from(mul, off + i) for i in range(0, length - 15, 16)]
+        m = (tuple((x, y, z, g) for g, x, y, z, flags, _ in recs if flags),
+             max((max(abs(x), abs(y)) for _g, x, y, _z, _f, _u in recs), default=0))
+        cache["multis"][multi_id] = m
+    return m
+
+
+def multi_components(multi_id, root=INSTALL) -> tuple:
+    """The drawn pieces of multi `multi_id` (a house: the 0xF3 graphic of a
+    data_type 2 item) as (dx, dy, dz, graphic) offsets from the multi's own
+    tile, as the client places them (Item.LoadMulti adds only the visible
+    records, flags != 0). Empty for an id the files don't have."""
+    return _multi(multi_id, root)[0]
+
+
+def multi_reach(multi_id, root=INSTALL) -> int:
+    """How far the multi's records reach from its tile, max |dx| or |dy| over all of
+    them, visible or not (ClassicUO Item.MultiDistanceBonus). The client keeps a house
+    while it is within view range + this (HouseManager.IsHouseInRange). 0 for an
+    unknown id."""
+    return _multi(multi_id, root)[1]
 
 
 class UoMap:

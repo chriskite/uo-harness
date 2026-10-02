@@ -734,6 +734,9 @@ table.evtable {
   border: 2px dashed #f59e0b;
   border-radius: 50%;
 }
+.lg-house {
+  background: rgba(217, 160, 102, 0.75);
+}
 .lg-item {
   background: #8b949e;
   border-radius: 50%;

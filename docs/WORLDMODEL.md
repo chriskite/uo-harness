@@ -863,8 +863,12 @@ the player and every item not carried by the player.
   default 24) from self's server position, on sub 5 and whenever self's position changes: 0x1B,
   self 0x20/0x77 (a teleport is a self 0x20 jump), 0x21, a 0x22 that moved, and on 0xC8. A mobile
   that walks out of range goes at the next sub 5, as in the client. Mobiles without a position yet
-  (a 0x78 before their 0x20) stay. Multis aren't special-cased: a house whose centre is out of
-  range goes.
+  (a 0x78 before their 0x20) stay. **A house (0xF3 data_type 2) stays while within view range +
+  its reach** (`uomap.multi_reach`, the max |dx|/|dy| over its multi.mul records: ClassicUO
+  `HouseManager.IsHouseInRange`, `Item.MultiDistanceBonus`; since 2026-10-02). Before that the
+  model dropped houses the server sent from beyond 18 tiles. In 20261002_153718 the Corpse Creek
+  house (reach 4) arrived at 22 tiles three times, was pruned at once each time, and was missing
+  at all 12 denies it caused.
 - Deaths: `0xAF` and `0xFF` sub `0xDEAD` remove the owner (`prune` why `dead`); a mobile already
   pruned gets `why: "dead"` and `dead_t` in last_seen.
 - `0x1D` removes the entity with everything under it (it used to leave the children).

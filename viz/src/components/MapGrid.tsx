@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } 
 import { entityCaption, labelOf } from "../events.ts";
 import { DIR_NAMES, NOTORIETY, UNKNOWN_NOTORIETY_COLOR } from "../format.ts";
 import { FacetChunks, chunksInView, fetchFacetMeta, type FacetMeta } from "../facet.ts";
+import { MultiFootprints, houseAt, houseOf, type FootprintTile, type House } from "../multis.ts";
+import { hex } from "../serial.ts";
 import { screenDeltaToWorld, toScreen, toWorld, worldBounds, type Projection } from "../projection.ts";
 import { hpColor, hpFraction, intentGoal } from "../intent.ts";
 import { vizStore, type VizSnapshot } from "../store.ts";
@@ -48,6 +50,8 @@ interface Scene {
   trail: Tile[];
   mobiles: MobileDot[];
   items: Dot[];
+  /** Player houses (multis), drawn as their footprint instead of an item dot. */
+  houses: House[];
   selected: HexSerial | null;
   /** The agent intent's target tile and phase kind (state-port `intent`). */
   goal: Tile | null;
@@ -93,8 +97,11 @@ function buildScene(viz: VizSnapshot, layer: WalkLayer): Scene {
     });
   }
   const items: Dot[] = [];
+  const houses: House[] = [];
   for (const [serial, it] of Object.entries(world?.items ?? {})) {
-    if (it.container === undefined && it.x !== undefined && it.y !== undefined) items.push({ serial, x: it.x, y: it.y });
+    const house = houseOf(serial, it);
+    if (house) houses.push(house);
+    else if (it.container === undefined && it.x !== undefined && it.y !== undefined) items.push({ serial, x: it.x, y: it.y });
   }
   return {
     truth,
@@ -107,6 +114,7 @@ function buildScene(viz: VizSnapshot, layer: WalkLayer): Scene {
     trail: viz.agg.trail,
     mobiles,
     items,
+    houses,
     selected: viz.selected,
     goal: intentGoal(st?.intent, world),
     goalKind: st?.intent && intentGoal(st.intent, world) ? (st.intent.kind ?? "target") : null,
@@ -157,6 +165,8 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
   const facet = useRef<FacetMeta>({ available: false });
   const [facetInfo, setFacetInfo] = useState<FacetMeta | null>(null);
   const chunks = useRef<FacetChunks | null>(null);
+  const footprints = useRef<MultiFootprints | null>(null);
+  const footprint = useCallback((id: number) => footprints.current?.get(id) ?? null, []);
 
   const layer = useMemo(() => buildWalkLayer(viz.walkmem, viz.agg.live), [viz.walkmem, viz.agg.live]);
   const scene = useMemo(() => buildScene(viz, layer), [viz, layer]);
@@ -258,6 +268,27 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
     }
     ctx.stroke();
 
+    // Player houses: walls on the ground storey solid, foundation/steps/upper floors faint.
+    for (const h of s.houses) {
+      const tiles = footprint(h.id);
+      if (!tiles) continue;
+      for (const kind of ["floor", "wall"] as const) {
+        ctx.fillStyle = kind === "wall" ? "rgba(217, 160, 102, 0.75)" : "rgba(217, 160, 102, 0.22)";
+        ctx.beginPath();
+        for (const [dx, dy, k] of tiles) {
+          const x = h.x + dx;
+          const y = h.y + dy;
+          if (k !== kind || !visible(x, y)) continue;
+          ctx.moveTo(...P(x, y));
+          ctx.lineTo(...P(x + 1, y));
+          ctx.lineTo(...P(x + 1, y + 1));
+          ctx.lineTo(...P(x, y + 1));
+          ctx.closePath();
+        }
+        ctx.fill();
+      }
+    }
+
     // Trail of true positions.
     if (s.trail.length > 1) {
       ctx.lineWidth = Math.max(1.5, z / 10);
@@ -294,7 +325,7 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
     // Mobiles: dots first, then captions placed without overlapping each other
     // (selected and hovered first; a caption with no free slot shows on hover).
     const mr = Math.max(3.5, z * 0.34);
-    const hovered = hitTest(s, v);
+    const hovered = hitTest(s, v, footprint);
     const onScreen = s.mobiles.filter((m) => visible(m.x, m.y));
     for (const m of onScreen) {
       ctx.beginPath();
@@ -431,7 +462,8 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
     }
     if (hovered) {
       const m = s.mobiles.find((mm) => mm.serial === hovered);
-      hud.push(m ? `${m.caption} ${hovered}` : hovered);
+      const h = s.houses.find((hh) => hh.serial === hovered);
+      hud.push(m ? `${m.caption} ${hovered}` : h ? `house (multi ${hex(h.id, 4)}) ${hovered}` : hovered);
     }
     ctx.font = "12px ui-monospace, Consolas, monospace";
     ctx.fillStyle = "rgba(10, 14, 19, 0.75)";
@@ -439,10 +471,11 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
     ctx.fillRect(6, 6, ctx.measureText(text).width + 12, 20);
     ctx.fillStyle = "#cbd5e1";
     ctx.fillText(text, 12, 20);
-  }, []);
+  }, [footprint]);
 
   useEffect(() => {
     chunks.current = new FacetChunks(draw);
+    footprints.current = new MultiFootprints(draw);
     void fetchFacetMeta().then((m) => {
       facet.current = m;
       setFacetInfo(m);
@@ -537,7 +570,7 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
           v.drag = null;
           if (wasClick) {
             v.hover = local(e);
-            const hit = hitTest(sceneRef.current, v);
+            const hit = hitTest(sceneRef.current, v, footprint);
             if (hit) vizStore.select(hit);
           }
         }}
@@ -609,6 +642,7 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
         <span className="lg lg-self" /> true pos
         <span className="lg lg-ghost" /> world model
         <span className="lg lg-item" /> ground item
+        <span className="lg lg-house" /> house
       </div>
     </div>
   );
@@ -630,12 +664,16 @@ function healthbar(ctx: CanvasRenderingContext2D, x: number, y: number, r: numbe
 
 function findDot(s: Scene, serial: HexSerial): Tile | null {
   if (serial === s.selfSerial && s.truth) return s.truth;
-  const m = s.mobiles.find((d) => d.serial === serial) ?? s.items.find((d) => d.serial === serial);
+  const m =
+    s.mobiles.find((d) => d.serial === serial) ??
+    s.items.find((d) => d.serial === serial) ??
+    s.houses.find((d) => d.serial === serial);
   return m ? [m.x, m.y] : null;
 }
 
-/** Entity under the hover point: self, then mobiles, then ground items (nearest within reach). */
-function hitTest(s: Scene, v: View): HexSerial | null {
+/** Entity under the hover point: self, then mobiles, then ground items (nearest within
+ * reach), then the house whose footprint covers the tile. */
+function hitTest(s: Scene, v: View, footprint: (id: number) => FootprintTile[] | null): HexSerial | null {
   if (!v.hover) return null;
   const [wx, wy] = toWorld(v.proj, v, v.hover.mx, v.hover.my);
   const reach = Math.max(0.6, 8 / v.zoom);
@@ -652,5 +690,11 @@ function hitTest(s: Scene, v: View): HexSerial | null {
     return best;
   };
   const self = s.truth && s.selfSerial ? [{ serial: s.selfSerial, x: s.truth[0], y: s.truth[1] }] : [];
-  return nearest(self) ?? nearest(s.mobiles) ?? nearest(s.items);
+  return (
+    nearest(self) ??
+    nearest(s.mobiles) ??
+    nearest(s.items) ??
+    houseAt(s.houses, footprint, Math.floor(wx), Math.floor(wy))?.serial ??
+    null
+  );
 }

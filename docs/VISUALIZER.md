@@ -153,6 +153,7 @@ channels.
 | `POST /api/chat` | `{"text": T}` → a `user` chat row for the overseer (§2.4) |
 | `GET /api/captcha`, `POST /api/captcha` | who answers the harvest captcha, `{"mode": "human"\|"auto"}` (§2.2a) |
 | `GET /api/art/<graphic>.png` | an item's art from the client's `art.uoo`, cropped to its opaque pixels (§2.9); 404 JSON for an unknown/empty graphic or missing install data, 400 for a non-number |
+| `GET /api/multi/<id>` | a house's footprint from the client's `multi.mul` (decimal or 0x hex multi id = a data_type 2 item's graphic): `{"id", "source", "tiles": [[dx, dy, "wall"\|"floor"]]}`, "wall" = an impassable piece below 20 z; 404 JSON for an unknown id (§4 MapGrid) |
 | `GET /`, `/assets/*` | built frontend (`viz/dist/`) |
 
 SSE rather than WebSocket: the flow is strictly server→browser, the browser `EventSource` gives
@@ -566,6 +567,15 @@ serial link) opens the drawer on the Inspector tab.
     - Tests: `harness/test_facet.py` (synthetic file) and `viz/src/facet.test.ts`.
   - **Underlay: walk memory** (`/api/walkmem`, plus live `step`/`blocked` events): known-walkable
     tiles shaded, confirmed edges faint, blocked moves as red ticks. It shows the planner's world directly.
+  - **Player houses** (2026-10-02): a ground item with `data_type` 2 is a multi. The map draws its
+    footprint, not an item dot: walls on the ground storey solid tan, and foundation, steps and
+    upper floors faint tan. The footprint comes from `GET /api/multi/<id>`, the house's pieces from the client's
+    `multi.mul` (`viz_server.multi_footprint`, `uomap.multi_components`), and is fetched once per
+    multi id (`viz/src/multis.ts`). Hover or click any footprint tile to pick the house. The
+    footprint shows where the walk rules block (`pathfind.Walkers.get` places the same pieces).
+    Verified in headless Chromium on replay 20261002_153718 paused at 17:38:49, the first of the
+    12 denies at the Corpse Creek house: wall tiles drawn tan, and a click on a wall tile opened
+    `0x431ACD5F` (graphic 0x0154, data_type 2) in the inspector.
   - Overlay: ground items (dots), **mobiles at their positions**, labeled with name plus title
     from type-6 `speech_heard` labels (e.g. "Len the banker"), notoriety colored; mobiles the
     client dropped out of view (`last_seen`, same facet, not dead) as hollow dimmed rings
