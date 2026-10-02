@@ -65,7 +65,8 @@ LLM planner over the world model + skill library; safety rails: captcha auto-sol
 - **No further proxy rails (user decision 2026-09-29):** no packet-id allowlist, per-type rate limits, or automatic yield when the human acts; the pause button covers taking control. The existing proxy walk pacing (0.2/0.4 s) stays, because it is part of the movement design. Session length: see the next item.
 - **Mandatory breaks and a daily cap, enforced in code (user decision 2026-09-29).**
   - A forced pause every ~2 h of agent activity, with the interval jittered ±20 min.
-  - Break length 15–30 min, jittered (default chosen by the agent; adjustable).
+  - Break length 3–5 min, jittered (user decision 2026-10-02; it was 15–30 min, too long). A gap
+    of at least 3 min without agent actions counts as a break taken.
   - At most 8 h of agent-active time per local calendar day. Paused and break time don't count.
   - The usage counter is persisted to disk, so restarts don't reset it.
   - Enforced through the same proxy flag as pause/kill, so the planner can't bypass it. The visualizer shows the time left until the next break and the daily budget.

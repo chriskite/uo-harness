@@ -83,7 +83,7 @@ def unit_tests(tmp):
           st["state"] == "break" and ag.BREAK_GRACE_S <= c.t - due_at < ag.BREAK_GRACE_S + 60.0,
           (st["state"], c.t - due_at))
     brk = st["break_until"] - g.last_active
-    check("break length within 15-30 min", ag.BREAK_LEN_S[0] <= brk <= ag.BREAK_LEN_S[1] + 30.0, brk)
+    check("break length within 3-5 min", ag.BREAK_LEN_S[0] <= brk <= ag.BREAK_LEN_S[1] + 30.0, brk)
     check("reason names the break", "scheduled break" in (st["reason"] or ""), st["reason"])
     check("resume cannot end a break", g.apply("resume") is None and g.status()["state"] == "break")
     c.t = st["break_until"] + 1

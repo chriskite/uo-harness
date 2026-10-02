@@ -47,7 +47,7 @@ import time
 DAILY_CAP_S = 8 * 3600.0
 BREAK_EVERY_S = 2 * 3600.0
 BREAK_JITTER_S = 20 * 60.0
-BREAK_LEN_S = (15 * 60.0, 30 * 60.0)
+BREAK_LEN_S = (3 * 60.0, 5 * 60.0)   # user decision 2026-10-02 (was 15-30 min: too long)
 BREAK_GRACE_S = 10 * 60.0
 ACTIVE_GAP_S = 60.0
 SAVE_EVERY_S = 10.0
