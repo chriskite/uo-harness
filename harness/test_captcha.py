@@ -44,7 +44,7 @@ def check(name, cond, detail=""):
 def test_real_captchas():
     print("== every captured captcha solves to its accepted answer ==")
     samples = json.load(open(os.path.join(HERE, "data", "captcha_samples.json")))
-    check("samples present", len(samples) == 11, str(len(samples)))
+    check("samples present", len(samples) == 12, str(len(samples)))
     for s in samples:
         got = captcha.solve(s["layout"])
         check(f"{s['tag']}: solved {s['answer']}", got == s["answer"], repr(got))
@@ -70,7 +70,7 @@ def test_noise_tolerance():
                 continue
             accepted += 1
             right += pred == digit
-    check("accepted digits are >= 97 % right (measured 97.9 % at this seed, 34-reference font)",
+    check("accepted digits are >= 97 % right (measured 98.1 % at this seed, 37-reference font)",
           right / accepted >= 0.97, f"{right}/{accepted}")
     check("rejection rate below 25 %", rejected / (accepted + rejected) < 0.25,
           f"{rejected}/{accepted + rejected}")
@@ -128,8 +128,9 @@ def test_held_out():
             solved += got == s["answer"]
     finally:
         captcha._FONT = None
-    # measured 2026-10-01: 10 covered, 10 solved (closest digit margins 0.109/0.111, the 3s of 373)
-    check("most held-out captchas are solved, not just refused", covered >= 10 and solved >= 8,
+    # measured 2026-10-01 (12 captchas): 12 covered, 12 solved (closest digit margins 0.109/0.111,
+    # the 3s of 373); 194 is covered since the second real 9 (911, session 214649)
+    check("most held-out captchas are solved, not just refused", covered >= 12 and solved >= 10,
           f"{solved}/{covered}")
 
 
