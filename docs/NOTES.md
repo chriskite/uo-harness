@@ -180,6 +180,29 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   - **Rental-room exits land upstairs** in the Shelter inn: a random room at z 20 (demo (1932, 2589, 20); live agent run (1938, 2584, 20)), with doors between the room and the stairs. 2D walk memory can't tell the floors apart, so pathing out needs z-aware map data (docs/LUMBER_LOOP.md §13).
   - **The lumber runner banks the boards (since 2026-10-01, LUMBER_LOOP.md §12.5).** A fresh character needs a hatchet, worn or in the pack (else the runner aborts at start), and Young status (the Shelter bank and its banker serve only Young characters). Nothing in lumber.json is per character: the runner reads self, backpack and hatchet from the world model. The banker (Len, `0x000001EA`) is a world NPC, and the same serial shows in sessions 163420 and 204225. The runner walks to his live position; if he isn't in view, it uses the demo position.
 
+## Tracking (live 2026-10-01, session 20261001_214649)
+
+The user used Tracking (Hackworth, skill 60) in the client on Shelter: Hunting mode on innocent
+players, then on murderers (none on Shelter). Everything below is from that capture; the harness
+only watched.
+
+- **Start:** C2S `12 0009 24 "38 0"` (UseSkill 38). The server answers with cliloc 1011350 "What do you wish to track?" and gump `0xFE5C638B`, closable, no text entries. Every click gets a fresh copy of the gump (new serial, same id) showing the new state.
+- **Gump buttons:**
+  - 1 Guide
+  - 2–5 the classic categories Aggressive / Passive / Townsfolk / Players (not clicked yet)
+  - 11, 12, 13 the Hide Party/Guild, Hide Allies and Hide House toggles
+  - 6 Begin/Stop Hunting (its art changes 4008 → 4009 while hunting)
+  - 8 / 7 next / previous hunting mode. The server says "You will now hunt …" and changes the hue of the mode icon (tilepichue 8454 at 411,46). Cycle from button 8: criminal players → innocent players → friendly players → aggressive creatures → passive creatures → townsfolk → all players → all hostile players → enemy players → murderer players → criminal players. Button 7 goes back.
+  - 9 / 10 arrows either side of the hunt frequency text: "Always Get Closest" was the current one (not changed)
+- **Hunting:** button 6 → "You begin hunting." from self, plus buff icon 173 (cliloc 1110004 "Tracking Hunting") on self (`0xFF` sub 8; removed by sub 9 on "You stop hunting."). Each hit is:
+  - a system line "Now tracking: Joel Embiid (3 spaces to target)"
+  - the arrow, `0xFF` sub `0x1A` mode 0 {arrow id, target serial, x, y, z, "[Hunting] <name>"}. Its x/y equalled the mobile's position (docs/WORLDMODEL.md §5 sub 0x1A).
+  - A new hit first cancels the previous arrow (mode 1). The ids count up (0, 1, 2), and the same target hit again gets a new id. Hits came 11 s after Begin, then 5.4 s and 16.5 s apart. Both targets were in view (3 and 7 tiles; the character stood still).
+- **"Distance to destination: 7 steps."**: a system line every ~5.4 s (52 lines, gaps 5.3–10.9 s) from 6 s after the second arrow. It kept coming after "You stop hunting" and through the murderer hunt: the last arrow was never cancelled, and the target stood 7 tiles away the whole time. [INFERENCE] it reports the distance to the live arrow's position.
+- **Murderer hunt with no murderer around:** nothing at all, no "nothing found" line. The skill still gained (`0x3A` single-skill updates 60.1 → 60.5 over ~50 s), so hunting checks run without a target.
+- **Not seen yet (needs a capture off Shelter):** a target beyond the 18-tile view (the point of Tracking: range `20 + 80·skill/100` = 68 tiles at 60, research/THREATS.md §2.1); a red or grey target; whether a player's arrow ever updates while they move; the category list (buttons 2–5); the hidden-target case.
+- **World model:** arrows come out as `quest_arrow_set` / `quest_arrow_cancel` events with the target serial. The "Now tracking" and "Distance to destination" lines are plain system messages. Nothing feeds `threats.py` from them yet.
+
 ## Test Shard
 
 - Test-only commands: `[TestRes` (res self+followers), `[TestIgnoreMaxDamageCap`, `[TestMaxMeleeDamageRolls`, `[TestMaxSpellDamageRolls`, `[TestBlessedGear`, `[Go` (warp self+followers). Use these for fast harness iteration.

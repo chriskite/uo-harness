@@ -412,7 +412,7 @@ def _d_s2c(rt, f):
         rt._emit("names", count=len(f["entries"]), entries=f["entries"])
     elif sub == 0x1A and f.get("mode") == 0:
         rt._emit("quest_arrow_set", **{k: f[k] for k in (
-            "arrow_id", "type", "v16", "x", "y", "p3", "p4", "text")})
+            "arrow_id", "type", "v16", "serial", "x", "y", "z", "text")})
     elif sub == 0x1A and f.get("mode") == 1:
         rt._emit("quest_arrow_cancel", arrow_id=f["arrow_id"])
     elif sub == 0x1A and f.get("mode") == 2:

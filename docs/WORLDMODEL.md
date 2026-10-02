@@ -556,7 +556,9 @@ Handler: CUO `CloseVendorInterface` @ 0x14018c2d0.
 - **0xBA** is 14 bytes on Outlands (`xref_packets_table.c:323`): display u8, x u32, y u32,
   serial u32 (`protocol_handlers.c:10115-10248`; upstream uses u16 x/y). Event `quest_arrow`
   {display, x, y, serial}.
-- Neither appears in the 27 captures. Answering a menu (C2S 0x7D) isn't built.
+- Neither appears in any capture. Outlands Tracking doesn't use them: its window is gump
+  `0xFE5C638B` and its arrow is `0xFF` sub `0x1A` (session 20261001_214649, §5 below). Answering a
+  menu (C2S 0x7D) isn't built.
 
 ---
 
@@ -732,16 +734,21 @@ CUO @ 0x1401a0980. Payload:
 CUO @ 0x14019a440. Payload: u32be corpse serial, u32be flags (+0xdc), u8 notoriety
 (+0xc1), asciiz corpse name (+0xa0). decomp.
 
-#### Sub 0x1A HandleQuestArrow (Outlands dialect arrow; added 2026-09-29, parse only)
+#### Sub 0x1A HandleQuestArrow (Outlands dialect arrow; added 2026-09-29, live-confirmed 2026-10-01)
 `protocol_handlers.c:14307-14582`.
-- mode 0: event `quest_arrow_set` {arrow_id, type, v16, x, y, p3, p4, text}. The names
-  type/x/y are [INFERENCE].
+- mode 0: event `quest_arrow_set` {arrow_id, type, v16, serial, x, y, z, text}: u16 arrow id,
+  a skipped byte, u8 type, u16 v16, then u32 target serial, u32 x, u32 y, i32 z, asciiz text.
 - mode 1: `quest_arrow_cancel` {arrow_id}.
 - mode 2: `quest_arrow_clear`.
 - Other modes count as dialect_unhandled.
 
-Not seen in any capture yet. The Outlands wiki's Tracking arrow is probably this sub plus a gump
-(0xDD) [INFERENCE]; capture it (docs/research/THREATS.md D3).
+**Live (session 20261001_214649, Tracking in Hunting mode):** this is the Tracking arrow. 3 sets
+and 2 cancels, e.g. `ff 0034 0000001a 00 0000 00 03 0000 0015aac5 0000078b 00000a37 00000000
+"[Hunting] Joel Embiid"`. The serial is the tracked mobile and x/y equal its world-model
+position at that moment (all 3). type 3 and v16 0 every time; the 4th u32 was 0 with the target
+at z 0 ([INFERENCE] z, possibly the facet). A new target cancels the old arrow (mode 1) and sets
+the next id (0, 1, 2…), even when it's the same mobile again. Tracking never used 0xBA or 0x7C.
+Details and the Tracking gump: docs/NOTES.md "Tracking"; pinned in `harness/test_world_units.py`.
 
 ### 0xD6 EncodedPacket (S2C) / 0xD7 ClientEncodedPacket (C2S)
 Razor registers S2C 0xD6 → `EncodedPacket` (mega-cliloc viewer; not in priority set)

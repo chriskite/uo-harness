@@ -893,12 +893,13 @@ def test_tracking_packets():
     rt.feed_packet("s2c", gray)
     eq("0x7C event", rt.drain_events(), [{"ev": "menu", **f}])
 
-    # 0xFF sub 0x1A: mode 0 set / 1 cancel / 2 clear all
-    setp = _var(0xFF, "0000001a" "00" "0102" "ee" "03" "0405"
-                "00000706" "00000a09" "0b0c0d0e" "0f101112" + b"a deer\x00".hex())
+    # 0xFF sub 0x1A: mode 0 set / 1 cancel / 2 clear all. The set is a live Tracking Hunting-mode
+    # arrow (20261001_214649): target serial, x, y, z — the mobile stood at (1931,2615,0)
+    setp = bytes.fromhex("ff00340000001a000000000300000015aac50000078b00000a3700000000"
+                         + b"[Hunting] Joel Embiid\x00".hex())
     eq("sub 0x1A set", parse_packet("s2c", setp),
-       {"sub": 0x1A, "mode": 0, "arrow_id": 0x0102, "type": 3, "v16": 0x0405,
-        "x": 0x706, "y": 0xA09, "p3": 0x0B0C0D0E, "p4": 0x0F101112, "text": "a deer"})
+       {"sub": 0x1A, "mode": 0, "arrow_id": 0, "type": 3, "v16": 0,
+        "serial": 0x0015AAC5, "x": 1931, "y": 2615, "z": 0, "text": "[Hunting] Joel Embiid"})
     cancel = _var(0xFF, "0000001a" "01" "0102")
     clear = _var(0xFF, "0000001a" "02")
     odd = _var(0xFF, "0000001a" "07")

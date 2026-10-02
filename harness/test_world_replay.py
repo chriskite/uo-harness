@@ -36,6 +36,8 @@ S2 = paths("20260928_164548")
 S3 = paths("20260929_144541")
 PLAYER_SERIAL = 0x00094375
 PLAYER_NAME = "TestWorth"
+# every character we played: TestWorth, and Hackworth (fresh Young character from 2026-09-30 22:30)
+OUR_SERIALS = {PLAYER_SERIAL, 0x0020F127}
 
 FAILURES = []
 
@@ -157,7 +159,8 @@ def test_all_captures():
         rt = result.runtime
         ok = (rt.replay_stats["s2c_length_mismatch"] == 0
               and rt.parse_failures == 0
-              and result.state.self.serial == PLAYER_SERIAL
+              # a capture cut before the login confirm (client closed at the char screen) has none
+              and result.state.self.serial in OUR_SERIALS | {None}
               and not rt.anomalies)
         check(f"{tag} clean", ok,
               f"(mismatch {rt.replay_stats['s2c_length_mismatch']}, "

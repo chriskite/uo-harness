@@ -516,22 +516,23 @@ def _p_quest_arrow(r, d):
     """0xFF sub 0x1A S2C HandleQuestArrow @ 0x1401a0160 (decompiled/
     protocol_handlers.c:14307-14341): mode u8.
       0 set (HandleQuestArrowSet @ 0x1401a01f0, :14430-14582): arrow_id u16,
-        1 byte the client skips, type u8, v16 u16, then four u32 and an
-        asciiz text. [INFERENCE] The names `type`, `x` and `y` are guesses:
-        x and y by analogy with 0xBA, whose arrow ctor gets (serial, x, y)
-        (:10240). The set ctor gets the four u32 first (:14575).
+        1 byte the client skips, type u8, v16 u16, then four u32 (target
+        serial, x, y, z) and an asciiz text. Live 20261001_214649 (Tracking,
+        Hunting mode): `ff 0034 0000001a 00 0000 00 03 0000 0015aac5 0000078b
+        00000a37 00000000 "[Hunting] Joel Embiid"` = serial 0x0015AAC5 at
+        (1931,2615), exactly the mobile's world-model position; type 3, v16 0
+        on all 3 samples. [INFERENCE] the 4th u32 is z (0 = the target's z;
+        could also be the facet, also 0 there).
       1 cancel (HandleQuestArrowCancel @ 0x1401a04f0, :14349-14387): arrow_id u16.
-      2 clear all (@ 0x1401a05a0): no payload.
-    [INFERENCE] Outlands' Tracking arrow probably uses this path (the wiki
-    shows a custom arrow and Hunting mode). No sub 0x1A was seen in the
-    captures."""
+        The server cancels the old arrow before setting the next (new id).
+      2 clear all (@ 0x1401a05a0): no payload."""
     d["mode"] = r.u8()
     if d["mode"] == 0:
         d["arrow_id"] = r.u16()
         r.u8()
         d["type"] = r.u8()
         d["v16"] = r.u16()
-        d["x"], d["y"], d["p3"], d["p4"] = r.u32(), r.u32(), r.u32(), r.u32()
+        d["serial"], d["x"], d["y"], d["z"] = r.u32(), r.u32(), r.u32(), r.i32()
         rest = r.take(r.remaining())
         d["text"] = rest.split(b"\x00", 1)[0].decode("ascii", "replace")
     elif d["mode"] == 1:

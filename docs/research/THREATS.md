@@ -163,7 +163,8 @@ mounted player. Against foot traffic and monsters, 60–80 already helps.
 | On Outlands 0xBA is a fixed **14 bytes** (upstream 10) | H | [PROTOCOL.md:8][d-proto] |
 | [INFERENCE] The +4 bytes are x and y widened to u32, the same widening Outlands applied in 0x20 (1 + 1 + 4 + 4 + 4 = 14). Needs a capture | L | [WORLDMODEL.md:155-164][d-wm] pattern |
 | RunUO tracking is gump-based (`TrackWhatGump` → `TrackWhoGump`) plus a `QuestArrow`, not 0x7C; the arrow timer re-sends the target position every 2.5 s | L | [RunUO Tracking.cs:191,316,368][ru-track] |
-| [INFERENCE] The Outlands Tracking window (wiki screenshot: category arrows, hunt frequency) is a server gump (0xB0 / compressed 0xDD), and the arrow is 0xBA. The harness already parses 0xDD gumps and 0x1C/0xAE/0xC1/0xCC messages, but **not 0xBA or 0x7C** | L | [PROTOCOL.md:90][d-proto], [LUMBER_LOOP.md §8][d-lumber] |
+| ~~[INFERENCE] The Outlands Tracking window is a server gump (0xB0 / compressed 0xDD), and the arrow is 0xBA.~~ **Half right (live 2026-10-01, below):** the window is a server gump, but the arrow is the dialect `0xFF` sub `0x1A`, not 0xBA | — | — |
+| **Live (session 20261001_214649, Hackworth, Tracking 60, Shelter):** skill use `12 0009 24 "38 0"` → cliloc 1011350 "What do you wish to track?" + gump `0xFE5C638B` (resent after every click). Hunting a category: "You begin hunting." + buff icon 173 (cliloc 1110004 "Tracking Hunting") on self; each hit is a system line "Now tracking: <name> (<n> spaces to target)" plus `0xFF` sub `0x1A` arrow set {target **serial**, x, y, z, "[Hunting] <name>"} whose x/y matched the mobile's world-model position. A new hit cancels the old arrow first. Only in-view targets (3 and 7 tiles) were hit; nothing tested beyond the 18-tile view, against reds, or with the category list (buttons 2–5). Gump, modes and timing: docs/NOTES.md "Tracking" | H (observed) | capture |
 
 ### 2.4 Hidden players and what the world model can see
 
@@ -475,8 +476,9 @@ tune. All decisions post junctures through `Memory.juncture(source="threat", …
 **T5: Tracking (if the template has it)**
 
 - Hunting mode on "All Hostile Players" (or "Murderer Players"), frequency "New When No Arrow".
-  Parse the system message (target and distance) and 0xBA. Treat a hit as a sighting at that
-  distance.
+  Parse the system message ("Now tracking: <name> (<n> spaces to target)") and the `0xFF` sub
+  `0x1A` arrow (target serial, x, y; live-confirmed 2026-10-01). Treat a hit as a sighting at that
+  position, which may lie outside the 18-tile view (range `20 + 80·skill/100`, 68 tiles at 60).
 - Only worth the skill points at Tracking ≥ ~90 against mounted threats (§2.2).
 
 **T6: hazard learning** (feeds LUMBER_LOOP §6 `h`)
