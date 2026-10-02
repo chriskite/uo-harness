@@ -1,7 +1,7 @@
 {
-  "_doc": "Lumber loop near the Corpse Creek moongate (overseer 2026-10-02, user chat#1218: go somewhere dangerous on purpose to collect PK / monster data). Corpse Creek is lawless ('You are now entering a lawless region.'). Banker Zakia the banker seen live 2026-10-02 (first trip arrived at 868,706 and banked); healer marker (857,732).",
-  "source_session": "live 2026-10-02 (moongate arrival 954,822,z16)",
-  "venue": "corpse_creek",
+  "_doc": "Lumber loop in the wilderness by the Terran moongate (overseer 2026-10-02, user chat#1262: Corpse Creek shows reds as grey, so try Terran's wilds to get PK'd for harness data). Moongate arrival (865,1570,z16) is guarded; 'You have left the protection of the town guards.' at (852,1547). Bank/healer from the client markers: bank (726,1508), healer (738,1531); banker serial unknown, so the runner falls back to the marker.",
+  "source_session": "live 2026-10-02 (Terran gate 865,1570)",
+  "venue": "terran_wilds",
   "character": {
     "name": "Hackworth",
     "serial": "0x0020F127",
@@ -31,16 +31,16 @@
   },
   "npcs": {
     "banker": {
-      "serial": "0x00000E02",
-      "name": "Zakia the banker",
+      "serial": "0x00000000",
+      "name": "Terran banker (unknown)",
       "pos": [
-        864,
-        699,
-        11
+        726,
+        1508,
+        0
       ],
       "stand": [
-        868,
-        706
+        726,
+        1510
       ]
     }
   },
@@ -78,11 +78,11 @@
     "smart_harvest_self_target": "untested: the demo targeted trees, one attempt per dclick",
     "area": {
       "center": [
-        920,
-        780
+        815,
+        1502
       ],
-      "radius": 45,
-      "note": "Lawless land between Corpse Creek town (bank 864,699) and its moongate (954,822,z16); the first area (960,822 r25) ran dry after ~240 logs."
+      "radius": 30,
+      "note": "Pass between Terran town and its moongate, forested high ground both sides; the user moved Hackworth here 2026-10-02 (unguarded)."
     }
   },
   "convert": {

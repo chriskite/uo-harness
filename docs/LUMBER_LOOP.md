@@ -493,9 +493,14 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   (`harness/pathfind.py`, the client's walkability rules) whenever the facet has geometry. In the
   rental room (blank facet 3) it falls back to walk memory.
 - **Trees:** candidates are the lumber.json seeds plus every tree static in `harvest.area`,
-  tried nearest first with noise, up to `--max-trees` per trip. A tree without a route is
-  skipped for the regrowth window. A tree the server rejects (500489) is remembered as not a
-  tree.
+  up to `--max-trees` per trip (nearest to the trip's start, with noise). **The next tree is
+  chosen from where the character stands** (`next_tree`, since 2026-10-02): the shortest planned
+  walk among the 6 nearest by straight line, ×1.0–1.15 noise. Before, the list was walked in its
+  start-order: in the Terran pass (live 2026-10-02) that sent the runner 80–90 steps round a
+  ridge between trees on both sides of the road while trees 3–6 steps away waited. On those 16
+  trees the old order walked 673 steps, the new choice 148 (throwaway replay on the real map).
+  A tree without a route is skipped for the regrowth window. A tree the server rejects (500489)
+  is remembered as not a tree.
 - **Doors** (tiledata Door flag, or classic door art 0x0675–0x06F4: the demo's inn doors
   0x06A5/0x06AD/0x06ED/0x06EF and the room door 0x06E5): opened ahead, like the client's auto-open.
   When a step or turn leaves the character facing a door on the next tile, the Mover sends the

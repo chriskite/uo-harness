@@ -50,6 +50,7 @@ import actions  # noqa: E402
 from agent_link import (Abort, Link, Mover, bank_opened, cheb, containers_to_open, log, reach_z,  # noqa: E402
                         same_floor, serial_of)
 import uomap  # noqa: E402
+import nav  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from uo.gumps import parse_layout  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
@@ -62,6 +63,7 @@ import captcha  # noqa: E402
 
 TREE_FACET = 0                # harvest areas are on map0 (Shelter)
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
+NEXT_TREE_PLANS = 6           # nearest trees (straight line) whose walks next_tree() compares
 SPEECH_POLL_S = 1.0           # while paused for speech: state reads + all-clear checks
 THREAT_MARGIN_S = 1.0         # reaction + packet latency on top of the cast
 
@@ -690,7 +692,7 @@ class LumberLoop:
             if not trees:
                 raise Abort("no harvestable tree available (all depleted, unreachable or ruled out)")
             while trees and tally["gained"] < self.args.logs_per_trip and not self.break_due:
-                tree = trees.pop(0)
+                tree = self.next_tree(trees)
                 if not self.out_of_reach(tree["x"], tree["y"]):
                     log(f"tree {tree['x']},{tree['y']}: within reach of a monster we backed away from; skipping")
                     continue
@@ -698,13 +700,31 @@ class LumberLoop:
                     self.work_tree(tree, tally)
                 except Escape as e:
                     self.escape(e)
-                    pos = self.link.pos()
-                    trees.sort(key=lambda t: cheb(pos, (t["x"], t["y"])))
             if self.break_due:
                 log(f"break due: stopping the harvest at {tally['gained']} logs; converting and banking")
             return tally["gained"]
         finally:
             self.stats.update(attempts=tally["attempts"], successes=tally["successes"], logs=tally["gained"])
+
+    def next_tree(self, trees: list) -> dict:
+        """Remove and return the tree to work next: the one with the shortest walk
+        from where we stand now, among the NEXT_TREE_PLANS nearest by straight
+        line, with a little human noise. The trip's list is ordered from where it
+        started, and straight-line distance ignores hills: on 2026-10-02 (Terran)
+        that order sent the runner on 80-90 step loops round a ridge between
+        trees on both sides of a road while trees 3-6 steps away waited."""
+        st = self.link.state()
+        pos = self.link.pos(st)
+        trees.sort(key=lambda t: cheb(pos, (t["x"], t["y"])))
+        best, best_cost = 0, None
+        for i, t in enumerate(trees[:NEXT_TREE_PLANS]):
+            path, _ = self.mover.plan(st, nav.within((t["x"], t["y"]), 1, self.tree_z_ok(t)))
+            if path is None:
+                continue
+            c = len(path) * self.human.rng.uniform(1.0, 1.15)
+            if best_cost is None or c < best_cost:
+                best, best_cost = i, c
+        return trees.pop(best)
 
     def work_tree(self, tree, tally):
         """Walk to one tree and chop it until it's dry, the quota is met or a
