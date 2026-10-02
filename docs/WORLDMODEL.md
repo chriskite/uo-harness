@@ -731,8 +731,11 @@ CUO @ 0x1401a0980. Payload:
 | — | 1 | u8 | flag (+0x176) | decomp |
 
 #### Sub 0xDEAD OutlandsCorpseFlags
-CUO @ 0x14019a440. Payload: u32be corpse serial, u32be flags (+0xdc), u8 notoriety
-(+0xc1), asciiz corpse name (+0xa0). decomp.
+CUO @ 0x14019a440. Payload: u32be corpse serial, u32be **dead mobile's serial** (+0xdc; the
+decompile alone read it as "flags"), u8 notoriety (+0xc1), asciiz corpse name (+0xa0). Live
+2026-10-01 (session 20261001_214649, 37×): `ff 0021 0000dead 4fedc20d 002c1e27 03 "a mongbat
+corpse"`; the second u32 is the mongbat that just died, and only 13 of the 37 were followed by a
+`0x1D` for that mobile (docs/NOTES.md "World model keeps dead and out-of-range mobiles").
 
 #### Sub 0x1A HandleQuestArrow (Outlands dialect arrow; added 2026-09-29, live-confirmed 2026-10-01)
 `protocol_handlers.c:14307-14582`.

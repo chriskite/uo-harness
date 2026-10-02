@@ -207,6 +207,37 @@ passive creatures. Everything below is from that capture; the harness only watch
 - **World model (since 2026-10-01):** arrows come out as `quest_arrow_set` / `quest_arrow_cancel` events with the target serial, and `world.tracking` keeps {hunting, mode, arrow, recent hits with the mode at hit time} (`world/state.py` TrackingState; mode only from System lines, begin/stop only from our own serial, so a player can't spoof them by speaking). Replaying this capture gives hunting = passive creatures with the llama arrow up. The agent sets the mode and starts/stops Hunting with `ctl act track <mode>|off` (docs/OVERSEER.md). Nothing feeds `threats.py` or the runners from hits yet.
 - **`ctl act track reds`, live 2026-10-01 22:12 (session 20261001_214649, at 1537–1547 s):** with the gump closed and the mode unknown to the running proxy, it sent the stock UseSkill (`120009243338203000`, byte-equal to the client's own), then 5 × button 8 (passive creatures → townsfolk → all players → all hostile players → enemy → murderer players, one "You will now hunt …" line per click), then button 6: "You begin hunting." and the Hunting buff on. Clicks 0.9–2.6 s apart, each `b1 0017 <latest gump serial> fe5c638b <button> 0 0` like the client's. Forward and back were both 5 steps; forward is taken on a tie. The live proxy predates `world.tracking`, so `status.tracking` stays empty until the proxy restarts; the act itself reads the server's lines and the gump, so it works either way.
 
+## World model keeps dead and out-of-range mobiles (live 2026-10-01, session 20261001_214649)
+
+Found while the overseer fought mongbats in the New Player Dungeon (the user watched the client).
+Times are seconds after 1790911000 (22:16:40 local).
+- **Ghosts:** the overseer cast Lightning at mongbats that `status` showed 1–5 tiles away. The
+  server answered "That is too far away." (a range failure, not LOS), and the user saw no mongbat
+  on screen. The proxy's `WorldRuntime` keeps every mobile until an S2C `0x1D`, and two cases
+  never get one:
+  - **Death without `0x1D`:** `0x002C1E27` died at 544.6, during our first fight, killed by
+    other players. The server sent only Outlands `0xFF` sub `0xDEAD`
+    `4fedc20d 002c1e27 03 "a mongbat corpse"`, then nothing for that serial; `0x002C35E2` died
+    at 1139.2 the same way. In the session only 13 of the 37 `0xDEAD` packets were followed by a
+    `0x1D` for the dead mobile. The second u32 of `0xDEAD` is the **dead mobile's serial**:
+    docs/WORLDMODEL.md reads it as "flags (+0xdc)" from the decompile, and the capture shows it's
+    the owner.
+  - **Out of range across a teleport:** `0x002C3593`'s last `0x77` was at 888.0 (5535,528). We
+    teleported out (~3600 tiles) and back. The server didn't re-send it on return, because it was
+    out of range by then. The model still had it at (5535,528), one tile from the exit tile. 9
+    Lightning targets at it got "too far away"; it died at 1232.4.
+  - The stock client drops mobiles and ground items more than `ClientViewRange` (24, ClassicUO
+    Constants.MAX_VIEW_RANGE) from the player every 50 ms (ClassicUO World.cs:294-372). The
+    Outlands client also has `World.ProcessDeletes`, triggered by S2C `0xFF` sub 5 (empty, ~1/s:
+    13 880 in this session). Its rule hasn't been decompiled yet. [INFERENCE] it is the
+    server-paced form of that pruning, or it also removes dead mobiles.
+- **Combatants are on the wire:** S2C `0x2F` Swing `attacker defender` (e.g. 28 × `0020f127 →
+  002c3fb9` in our last fight) and `0x0B` damage by serial are already world events (`swing`,
+  `damage`), but `status` doesn't expose who is attacking us.
+- **Mongbats (NPD, Shelter):** Lightning (Magery 60, spellstone, no reagents) did 33 to a mongbat,
+  about 15 % of its health, so roughly 220 hp. Two at once hit Hackworth for 7–10 each every
+  2–3 s.
+
 ## Test Shard
 
 - Test-only commands: `[TestRes` (res self+followers), `[TestIgnoreMaxDamageCap`, `[TestMaxMeleeDamageRolls`, `[TestMaxSpellDamageRolls`, `[TestBlessedGear`, `[Go` (warp self+followers). Use these for fast harness iteration.
