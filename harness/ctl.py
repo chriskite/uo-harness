@@ -824,17 +824,17 @@ def _act_walk(a, ctl: Control, stc: StateConn) -> dict:
     sent_at = 0.0
     for _ in range(n + 2):          # a turn costs one extra send
         before = pos
+        st = stc.state()
         if walkers is not None and len(pos) > 3 and pos[3] == d:
             # the stock client checks each step against what it has now and sends nothing if it
             # can't be walked (PlayerMobile.Walk -> CanWalk); objects that just arrived count
-            st = stc.state()
             walk = walkers.get(st["world"]["self"].get("map"),
                                pathfind.ground_items(st["world"]["items"].values()))
             if walk is not None and walk.can_walk(pos[0], pos[1], pos[2], d) is None:
                 outcomes.append("blocked")
                 stop = "blocked (the map says the step can't be walked; the client wouldn't send it)"
                 break
-        human.pace_step(not a.walk, sent_at)
+        human.pace_step(not a.walk, sent_at, bool(st["movement"].get("mounted")))   # the proxy's floor too
         deadline = time.monotonic() + MOVE_GATE_WAIT_S
         while True:                  # proxy walk gates that clear on their own, like Mover.step
             resp = ctl.send(pkt)

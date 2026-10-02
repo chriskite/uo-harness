@@ -37,6 +37,11 @@ MOVE_GATE = "ERR walk gated:"
 MOVE_GATE_WAIT_S = 10.0
 # A walk's outcome: confirm or deny, else the proxy's CONFIRM_TIMEOUT_S (3 s) rejection.
 OUTCOME_WAIT_S = 5.0
+# Polling the outcome with light movement queries: the confirm takes ~57 ms (live 2026-10-02),
+# and a mounted step is due 100 ms after the last one.
+OUTCOME_POLL_S = 0.01
+# A full state the last step ended with stands in for a new one this long (Mover.fresh_state).
+STATE_REUSE_S = 0.1
 # Classic UO door art (0x0675-0x06F4). Shelter's inn doors in the demonstration
 # capture (0x06A5, 0x06AD, 0x06ED, 0x06EF) and the rental-room door (0x06E5) are in it.
 DOOR_GRAPHICS = range(0x0675, 0x06F5)
@@ -192,8 +197,8 @@ class Link:
             buf += chunk
         return buf
 
-    def state(self) -> dict:
-        self.st.sendall((json.dumps({"op": "state", "since": self.since}) + "\n").encode())
+    def _query(self, snapshot: bool) -> dict:
+        self.st.sendall((json.dumps({"op": "state", "since": self.since, "snapshot": snapshot}) + "\n").encode())
         resp = json.loads(self.st_file.readline())
         if not resp.get("ok"):
             raise Abort(f"state port: {resp.get('error')}")
@@ -201,8 +206,18 @@ class Link:
         self.events.extend(env["data"] for env in world)
         self.event_t.extend(env.get("t", 0.0) for env in world)
         self.since = resp["next"]
-        self.last = resp
         return resp
+
+    def state(self) -> dict:
+        """Movement truth, the world model and new events (`last` keeps it)."""
+        self.last = self._query(True)
+        return self.last
+
+    def movement(self) -> dict:
+        """Movement truth and new events without the world snapshot: a few ms where
+        a full state takes 20-60 ms with a busy screen (live 2026-10-02, 600 kB).
+        For waiting on a step's outcome at the mounted cadence. `last` is untouched."""
+        return self._query(False)
 
     def intent(self, text: str | None, kind: str | None = None, target=None, **extra):
         """Report what the agent is trying to do now (the visualizer shows it).
@@ -235,10 +250,12 @@ class Link:
             self.st_file = self.st.makefile("rb")
         log("intent not shown: the proxy dropped the state connection")
 
-    def wait(self, pred, timeout: float, poll: float = 0.1):
+    def wait(self, pred, timeout: float, poll: float = 0.1, full: bool = True):
+        """Poll until pred(state) holds; None on timeout. full=False polls
+        `movement()` (pred may only read `movement` and the events)."""
         end = time.monotonic() + timeout
         while True:
-            st = self.state()
+            st = self.state() if full else self.movement()
             if pred(st):
                 return st
             if time.monotonic() > end:
@@ -297,12 +314,17 @@ class Mover:
         self._teleporters = {}       # facet -> {(x, y)} known teleporter tiles (store + session)
         self.gate_gumps_closed = 0
         self.step_mark = 0           # len(link.events) when the last walk went out
+        self._after = None           # (full state, monotonic time) fetched at the end of the last step
 
-    def step(self, d: int, run: bool = True) -> str:
+    def step(self, d: int, run: bool = True, st=None) -> str:
         """Send one walk; wait for its outcome. Returns 'moved', 'turned',
         'blocked' or 'teleported' (the step landed us somewhere other than the
-        next tile: an invisible server teleporter, remembered and avoided)."""
-        st = self.link.state()
+        next tile: an invisible server teleporter, remembered and avoided).
+        `st`: a current full state (the caller's, fetched before pacing), so the
+        walk goes out right when it is due. The outcome is polled with light
+        movement queries; one full state follows (guard, facet, and `fresh_state`
+        for the next step), so a step fits the mounted 0.1 s cadence."""
+        st = st or self.link.state()
         before = self.link.pos(st)
         facet_before = st["world"]["self"].get("map")
         pkt = actions.walk(d, run=run)
@@ -327,17 +349,19 @@ class Mover:
                 time.sleep(GATE_POLL_S)
                 continue
             raise Abort(f"walk refused: {resp}")
-        st = self.link.wait(lambda s: s["movement"]["inflight"] == 0, timeout=OUTCOME_WAIT_S, poll=0.05)
-        if st is None:
+        mv = self.link.wait(lambda s: s["movement"]["inflight"] == 0, timeout=OUTCOME_WAIT_S,
+                            poll=OUTCOME_POLL_S, full=False)
+        if mv is None:
             raise Abort("walk outcome never arrived")
-        self.guard(st)
-        after = self.link.pos(st)
+        after = self.link.pos(mv)
         if after[:2] == before[:2] and after[3] == before[3]:
             # denied: a teleporter may be about to move us (its position packet follows the deny)
-            jumped = self.link.wait(lambda s: tuple(self.link.pos(s)[:2]) != tuple(before[:2]),
-                                    timeout=DENY_TELEPORT_GRACE_S, poll=0.05)
-            if jumped is not None:
-                st, after = jumped, self.link.pos(jumped)
+            self.link.wait(lambda s: tuple(self.link.pos(s)[:2]) != tuple(before[:2]),
+                           timeout=DENY_TELEPORT_GRACE_S, poll=0.05, full=False)
+        st = self.link.state()
+        self._after = (st, time.monotonic())
+        self.guard(st)
+        after = self.link.pos(st)
         if after[:2] != before[:2]:
             self.steps += 1
             facet_after = st["world"]["self"].get("map")
@@ -348,6 +372,13 @@ class Mover:
         if after[3] != before[3]:
             return "turned"
         return "blocked"
+
+    def fresh_state(self) -> dict:
+        """The full state the last step ended with while it is still current
+        (STATE_REUSE_S), else a new one: one world snapshot per step."""
+        if self._after is not None and time.monotonic() - self._after[1] <= STATE_REUSE_S:
+            return self._after[0]
+        return self.link.state()
 
     def _teleported(self, facet, tile, to_facet, after):
         """Walking onto `tile` put us at `after`: remember the teleporter so
@@ -466,6 +497,13 @@ class Mover:
         self.link.act(actions.open_door())
         self.doors_opened += 1
 
+    def pace(self, run: bool, st=None):
+        """Wait until the next step is due at the stock held-key cadence, mounted or
+        not as the proxy's world model says (state `movement.mounted`, the same
+        source as its pacing floor)."""
+        st = st or self.link.state()
+        self.human.pace_step(run, self.sent_at, bool(st["movement"].get("mounted")))
+
     def _try_door(self, cur, d, run) -> bool:
         """A door still denied the step (closed again, or unseen): after a player's
         reaction time, send the open-door request once more and retry the move.
@@ -474,7 +512,7 @@ class Mover:
         self.human.wait("read")
         self.link.act(actions.open_door())
         self.doors_opened += 1
-        self.human.pace_step(run, self.sent_at)
+        self.pace(run)
         return self.step(d, run) == "moved"
 
     def _sidestep(self, cur, avoid, run, walk=None, z=0) -> bool:
@@ -496,7 +534,7 @@ class Mover:
         d = nav.direction(cur, side)
         outcome = self.step(d, run)
         if outcome == "turned":
-            self.human.pace_step(run, self.sent_at)
+            self.pace(run, st)
             outcome = self.step(d, run)
         if outcome == "moved":
             self.mem.add_step(cur, tuple(self.link.pos()[:2]))
@@ -599,7 +637,7 @@ class Mover:
                 f"{'' if walk is not None else ' [walk memory]'}")
             replan = False
             for i, nxt in enumerate(path[1:], start=1):
-                st = self.link.state()
+                st = self.fresh_state()
                 pos = self.link.pos(st)
                 cur, z = (pos[0], pos[1]), pos[2]
                 d = nav.direction(cur, nxt)
@@ -615,11 +653,11 @@ class Mover:
                     break
                 if pos[3] == d:              # already facing it (e.g. at the start of a route)
                     self._open_ahead(nxt, z, opened, label, st)
-                self.human.pace_step(run, self.sent_at)
-                outcome = self.step(d, run)
+                self.pace(run, st)
+                outcome = self.step(d, run, st)
                 if outcome == "turned":      # facing it now: the client's auto-open fires on the turn
                     self._open_ahead(nxt, z, opened, label)
-                    self.human.pace_step(run, self.sent_at)
+                    self.pace(run, st)
                     outcome = self.step(d, run)
                 if outcome == "blocked" and self.doors and nxt not in tried_doors \
                         and self.door_at(nxt):
@@ -630,10 +668,11 @@ class Mover:
                     replan = True
                     break
                 if outcome == "moved":
-                    here = self.link.pos()
+                    after = self.fresh_state()
+                    here = self.link.pos(after)
                     new = tuple(here[:2])
                     self.mem.add_step(cur, new)
-                    if new != gate and self.moongate_at(new, z=here[2]):
+                    if new != gate and self.moongate_at(new, after, z=here[2]):
                         self.close_gate_gumps(self.step_mark, new, label)
                     if new != nxt:
                         log(f"{label}: landed on {new}, expected {nxt}; replanning")
@@ -643,7 +682,7 @@ class Mover:
                         raise Abort(f"{label}: exceeded {max_moves} moves")
                     if i + 1 < len(path) and nav.direction(new, path[i + 1]) == d:
                         # landed facing the next tile: the client's auto-open fires on the step
-                        self._open_ahead(path[i + 1], here[2], opened, label)
+                        self._open_ahead(path[i + 1], here[2], opened, label, after)
                     self.human.after_step()
                     if len(path) - i > 3 and self.human.wander():
                         st = self.link.state()

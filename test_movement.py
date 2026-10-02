@@ -92,6 +92,22 @@ def test_unit():
     check("run step 0.2 s after the last walk allowed", ma.agent_walk_block(2.5, run=True) is None)
     check("walk step 0.3 s after the last walk is gated",
           (ma.agent_walk_block(2.6, run=False) or "").startswith("walk gated: pacing"))
+    check("mounted: run step 0.11 s after the last walk allowed (the stock mounted cadence is 0.1 s)",
+          ma.agent_walk_block(2.41, run=True, mounted=True) is None)
+    check("mounted: run step 0.05 s after the last walk is gated",
+          (ma.agent_walk_block(2.35, run=True, mounted=True) or "").startswith("walk gated: pacing"))
+    check("mounted: walk step 0.15 s after the last walk is gated",
+          (ma.agent_walk_block(2.45, run=False, mounted=True) or "").startswith("walk gated: pacing"))
+
+    # the mount state the floor follows: the server's mount-layer equip, gone with its 0x1D
+    from world.runtime import WorldRuntime, S2C
+    rt = WorldRuntime()
+    rt.state.self.serial = 0x0020F127
+    check("not mounted before the equip", not rt.state.mounted())
+    rt.feed_packet(S2C, bytes.fromhex("2e530beeb000003ea200000000190020f1270724"))  # live 20261002_153718
+    check("mounted after the server equips the horse on layer 0x19", rt.state.mounted())
+    rt.feed_packet(S2C, bytes.fromhex("1d530beeb0"))
+    check("on foot again once the server deletes the mount item", not rt.state.mounted())
 
     # re-anchor: client-only 0x21 with the tracked position, once walking is quiet
     check("no re-anchor while walking is fresh", ma.reanchor_packet(2.5) is None)

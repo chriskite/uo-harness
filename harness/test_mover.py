@@ -116,7 +116,7 @@ class FakeLink:
                 "world": {"mobiles": mobiles, "items": items, "gumps": list(self.gumps.values()),
                           "self": {"stam": 50 if self.can_shove else 3, "stam_max": 50}}}
 
-    def wait(self, pred, timeout, poll=0.1):
+    def wait(self, pred, timeout, poll=0.1, full=True):
         st = self.state()
         return st if pred(st) else None
 

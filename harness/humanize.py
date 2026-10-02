@@ -45,9 +45,12 @@ REACTION_MEDIAN = {
     "between": 2.2,     # between harvest attempts
     "captcha": 11.5,    # captcha shown -> answer submitted (measured human solves: 7.7-17.5 s)
 }
-# the stock client's step cadence for a held key, unmounted (ClassicUO MovementSpeed)
+# the stock client's step cadence for a held key (ClassicUO MovementSpeed): on foot, and mounted
+# (user ride 20261002_153718: 53 mounted run steps, median 0.100 s)
 STEP_CADENCE_RUN = 0.200
 STEP_CADENCE_WALK = 0.400
+STEP_CADENCE_RUN_MOUNTED = 0.100
+STEP_CADENCE_WALK_MOUNTED = 0.200
 NOISE_CELL = 6                     # route noise granularity in tiles (cost_scale)
 
 
@@ -105,19 +108,23 @@ class Human:
     def wait(self, kind: str):
         time.sleep(self.reaction(kind))
 
-    def step_gap(self, run: bool) -> float:
+    def step_gap(self, run: bool, mounted: bool = False) -> float:
         """Seconds from one step's send to the next along a straight walk: the stock
-        client's held-key cadence (MovementSpeed.STEP_DELAY_RUN / _WALK, unmounted)
-        plus frame jitter. Human captures (20260929_204225): run steps median 200 ms,
-        565 of 1102 intervals in 200-220 ms. Never below the proxy floor (0.2 / 0.4 s)."""
-        base = STEP_CADENCE_RUN if run else STEP_CADENCE_WALK
+        client's held-key cadence (MovementSpeed.STEP_DELAY_RUN / _WALK; half of it
+        mounted) plus frame jitter. Human captures (20260929_204225): run steps median
+        200 ms, 565 of 1102 intervals in 200-220 ms; mounted (20261002_153718) median
+        100 ms. Never below the proxy floor (0.2 / 0.4 s, mounted 0.1 / 0.2 s)."""
+        if mounted:
+            base = STEP_CADENCE_RUN_MOUNTED if run else STEP_CADENCE_WALK_MOUNTED
+        else:
+            base = STEP_CADENCE_RUN if run else STEP_CADENCE_WALK
         if not self.p.enabled:
             return base + 0.01
         return base + self.rng.uniform(*self.p.step_jitter)
 
-    def pace_step(self, run: bool, sent_at: float):
+    def pace_step(self, run: bool, sent_at: float, mounted: bool = False):
         """Sleep until the next step is due, `sent_at` being when the last one went out."""
-        time.sleep(max(0.0, sent_at + self.step_gap(run) - time.monotonic()))
+        time.sleep(max(0.0, sent_at + self.step_gap(run, mounted) - time.monotonic()))
 
     def cost_scale(self):
         """Per-plan route noise: a deterministic cost multiplier in [1, 1+noise]

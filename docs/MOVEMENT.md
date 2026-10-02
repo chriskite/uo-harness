@@ -76,7 +76,7 @@ Consequences, all visible in the captures:
   vs 1-5 % for humans). The client's DenyWalk also runs its own auto-open of doors (`TryOpenDoors`
   on the position and direction change) when Auto Open Doors is on, so that setting must be off:
   `agent_link.Mover` sends the open-door request itself (user decision 2026-10-01).
-- Agent gates: pacing (0.2 s run / 0.4 s walk, the Speedhack surface); waiting for the server's reply
+- Agent gates: pacing (0.2 s run / 0.4 s walk; mounted 0.1 / 0.2 s; the Speedhack surface); waiting for the server's reply
   to a client resync; stall after 3 rejections; an expired walk's 5 s late-confirm window; 5 walks
   unconfirmed. `agent_link.Mover` and `ctl act walk` retry the self-clearing gates for up to 10 s.
 - **Agent step rhythm (2026-09-30):** the Mover sends each step at the stock held-key cadence, 200 ms
@@ -85,11 +85,14 @@ Consequences, all visible in the captures:
   check runs again right before every step with the ground items the world model has then, and a
   diagonal past a door is refused (2026-10-01, ANTICHEAT.md §10). Player houses count as their
   multi.mul pieces (2026-10-02).
-- **Mounted (2026-10-02, session 20261002_153718):** the wire is unchanged; 3195 agent steps on
-  horseback were confirmed at the on-foot 0.2 s pace with the same ~57 ms confirm latency. The
-  cadence and the proxy floor are the *unmounted* values, so the agent rides at half the stock
-  mounted pace (100 ms run / 200 ms walk). Mounted 100 ms steps haven't been captured from the
-  client yet (docs/NOTES.md "Mounted movement and player houses").
+- **Mounted (2026-10-02, session 20261002_153718):** the wire is unchanged. 3195 agent steps on
+  horseback were confirmed at the on-foot 0.2 s pace, and the user's own ride (56 client steps,
+  median gap 0.100 s, all confirmed, ≤ 2 in flight) shows Outlands takes the stock mounted
+  cadence. **The agent now rides at it** (user decision): the proxy floor and
+  `humanize.step_gap` switch to 100 ms run / 200 ms walk while `StateStore.mounted()` holds (a
+  layer-0x19 item on self, as the client tests it). The state port reports it as `movement.mounted`.
+  The Mover polls a step's outcome with light (`snapshot: false`) queries so a step fits in 100 ms
+  (docs/NOTES.md "Mounted movement and player houses").
 
 **Fix B VALIDATED LIVE (session_20260929_161433, user-confirmed 2026-09-29).** 57 agent walks (walk_cli)
 plus 30 client walks, mixed. 55 agent confirms hidden, 5 client re-anchors via fabricated `0x21` (the

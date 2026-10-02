@@ -615,7 +615,7 @@ class HuntLoop:
         deny the step and then move you (the NPD exit, live 2026-09-30), others may
         confirm it and move you right after."""
         for _ in range(TELEPORT_TRIES):
-            self.human.pace_step(True, self.mover.sent_at)
+            self.mover.pace(True)
             out = self.mover.step(d, run=True)
             if out == "moved":
                 here = tuple(self.pos(self.link.state())[:2])

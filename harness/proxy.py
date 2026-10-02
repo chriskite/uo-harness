@@ -76,6 +76,8 @@ MAX_STEPS_IN_FLIGHT = 5       # stock client: Constants.MAX_STEP_COUNT unconfirm
 STALL_REJECTS = 3             # this many rejections in a row -> stop agent walks
 RUN_STEP_S = 0.2              # minimum agent step spacing, on-foot run / walk
 WALK_STEP_S = 0.4             # (the server has a Speedhack violation category)
+MOUNTED_RUN_STEP_S = 0.1      # mounted run / walk: the stock client's mounted cadence
+MOUNTED_WALK_STEP_S = 0.2     # (user ride 20261002_153718: 53 steps, median 0.100 s, all confirmed)
 
 # UO direction -> (dx, dy): 0=N 1=NE 2=E 3=SE 4=S 5=SW 6=W 7=NW
 DIR_DELTA = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
@@ -293,8 +295,9 @@ class MoveAuthority:
                           f"({dropped} in flight dropped, {self.rejects_in_row} in a row)"))
         return notes
 
-    def agent_walk_block(self, now: float, run: bool) -> str | None:
-        """Reason an agent walk must be refused right now, or None if allowed."""
+    def agent_walk_block(self, now: float, run: bool, mounted: bool = False) -> str | None:
+        """Reason an agent walk must be refused right now, or None if allowed.
+        `mounted`: the server has a mount equipped on the player (world model)."""
         if self.resync_sent_at is not None:
             return "walk gated: awaiting the server's reply to a client resync"
         if self.rejects_in_row >= STALL_REJECTS:
@@ -303,7 +306,10 @@ class MoveAuthority:
             return "walk gated: an expired walk may still be confirmed"
         if len(self.inflight) >= MAX_STEPS_IN_FLIGHT:
             return f"walk gated: {MAX_STEPS_IN_FLIGHT} walks unconfirmed (the stock client's limit)"
-        step = RUN_STEP_S if run else WALK_STEP_S
+        if mounted:
+            step = MOUNTED_RUN_STEP_S if run else MOUNTED_WALK_STEP_S
+        else:
+            step = RUN_STEP_S if run else WALK_STEP_S
         if self.last_walk_at is not None and now - self.last_walk_at < step:
             return f"walk gated: pacing ({step:.1f}s between steps)"
         return None
@@ -355,7 +361,8 @@ class InjectionHub:
         now = time.monotonic()
         tap.tick(now)
         if payload[0] == 0x02 and len(payload) == 7:
-            block = tap.moveauth.agent_walk_block(now, run=bool(payload[1] & 0x80))
+            block = tap.moveauth.agent_walk_block(now, run=bool(payload[1] & 0x80),
+                                                  mounted=tap.world.state.mounted())
             if block is not None:
                 return block
         writer.write(tap.inject_c2s(payload, "agent", now))
@@ -588,6 +595,7 @@ class SessionTap:
                 "z_misses": ma.z_misses,
                 "stalled": ma.rejects_in_row >= STALL_REJECTS,
                 "client_stale": ma.client_stale,
+                "mounted": self.world.state.mounted(),   # the agent pace and the proxy floor
             },
         }
         if snapshot:

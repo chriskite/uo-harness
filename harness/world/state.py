@@ -24,6 +24,7 @@ GHOST_BODIES = frozenset([0x192, 0x193, 0x25F, 0x260, 0x2B6, 0x2B7])
 DEFAULT_VIEW_RANGE = 24
 # Pruned mobiles kept in `last_seen` (oldest dropped first)
 LAST_SEEN_MAX = 500
+LAYER_MOUNT = 0x19   # equipment layer of the item that stands for the ridden mount
 
 
 @dataclass
@@ -352,6 +353,14 @@ class StateStore:
     def delete(self, serial):
         """S2C 0x1D: an item or a mobile, with everything under it."""
         return self.remove_item(serial) or self.remove_mobile(serial)
+
+    def mounted(self) -> bool:
+        """The player rides: an item on the mount layer (0x19) is equipped on
+        self, as the server sent it (0x2E/0x78; a dismount deletes it with 0x1D).
+        The stock client decides its step speed the same way (FindItemByLayer(Mount))."""
+        me = self.self.serial
+        return me is not None and any(it.layer == LAYER_MOUNT and it.container == me
+                                      for it in self.items.values())
 
     def root_of(self, serial):
         """Outermost container of an item (the item itself if on the ground or

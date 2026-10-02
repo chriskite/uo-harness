@@ -266,8 +266,11 @@ chatter, is skipped for now: every speaker still holds a harvest job.
   memory). It costs a deny burst per house, which no client produces, and a house can be placed or
   removed at any time. Only houses in view are known. Persisting them for long-route planning is
   open.
-- **Mounted pace: unchanged for now** (ANTICHEAT.md A13). A mount-aware floor needs the server's
-  mount state in the proxy, and a client capture of riding first.
+- **Mounted pace = the stock mounted cadence** (user decision 2026-10-02, after their own ride
+  confirmed Outlands takes 0.1 s steps; ANTICHEAT.md A13). One mount state,
+  `StateStore.mounted()` from the server's layer-0x19 equip, drives both the proxy floor and the
+  agent cadence, so they can't disagree. Rejected: a per-task `--mounted` flag (it goes stale on
+  a dismount, and a stale "mounted" on foot is a Speedhack signature).
 
 ## Risks
 
