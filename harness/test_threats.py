@@ -199,7 +199,45 @@ def test_damage():
     eq("flee_on_attack=False reason kept", any("under attack" in r for r in a.reasons), True)
 
 
-TESTS = [test_reds, test_npcs_and_players, test_monsters, test_damage]
+def test_label_grace():
+    print("== unlabeled human: grace before the assumed-player reading ==")
+    # juncture 44: a battle trainer's 0x20 (human, notoriety 3, war mode, no
+    # player bit) was assessed 62 ms before its label arrived
+    trainer = [mob(0x411866, -14, 18, noto=3, flags=0x40)]
+    w = Watch()
+    a = w.update(state(trainer), recall_s=2.0, margin_s=1.0, now=NOW)
+    eq("unlabeled grey on first sight -> watch", (one(a, 0x411866).kind, a.action),
+       ("grey", "watch"))
+    check("reason says awaiting label", "awaiting label" in one(a, 0x411866).reason,
+          one(a, 0x411866).reason)
+    a = w.update(state(trainer, labels={0x411866: "Beaman the battle trainer"}),
+                 recall_s=2.0, margin_s=1.0, now=NOW + 0.06)
+    eq("label arrives -> npc ignore", (one(a, 0x411866).kind, a.action), ("npc", "ignore"))
+    # no label within the grace: the conservative reading applies
+    w = Watch()
+    w.update(state(trainer), recall_s=2.0, margin_s=1.0, now=NOW)
+    a = w.update(state(trainer), recall_s=2.0, margin_s=1.0, now=NOW + 0.99)
+    eq("still unlabeled inside the grace -> watch", a.action, "watch")
+    a = w.update(state(trainer), recall_s=2.0, margin_s=1.0, now=NOW + 1.0)
+    eq("unlabeled after the grace -> flee", a.action, "flee")
+    # player evidence or a non-title label gets no grace
+    w = Watch()
+    a = w.update(state([mob(0x500, 5, 0, noto=4, flags=0x20)]),
+                 recall_s=2.0, margin_s=1.0, now=NOW)
+    eq("player-bit grey on first sight -> flee", a.action, "flee")
+    w = Watch()
+    a = w.update(state([mob(0x501, 5, 0, noto=6, flags=0)], labels={0x501: "Killer"}),
+                 recall_s=2.0, margin_s=1.0, now=NOW)
+    eq("labeled untitled red on first sight -> flee", a.action, "flee")
+    # a mobile that leaves the state and returns gets a fresh first sighting
+    w = Watch()
+    w.update(state(trainer), recall_s=2.0, margin_s=1.0, now=NOW)
+    w.update(state(), recall_s=2.0, margin_s=1.0, now=NOW + 5)
+    a = w.update(state(trainer), recall_s=2.0, margin_s=1.0, now=NOW + 5.5)
+    eq("re-entry restarts the grace", a.action, "watch")
+
+
+TESTS = [test_reds, test_npcs_and_players, test_monsters, test_damage, test_label_grace]
 
 
 def main():

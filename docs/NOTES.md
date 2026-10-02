@@ -87,7 +87,13 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   assessment ran at .886, between the two, so `identify()` fell through to "human body, no npc
   evidence (assumed player)". With the label it's `npc`/ignore, and the restarted run worked
   15 tiles from the trainer without a stop. Battle trainers are notoriety 3 (Riane too), so
-  every one entering view can trip this.
+  every one entering view could trip this.
+  - **Fixed (2026-10-01): label grace in `threats.Watch`.** A human that would be hostile only by
+    the assumed-player fallback (no 0x20 player bit, no label) gets `watch` for
+    `Params.label_grace_s` = 1 s after Watch first sees it, then flees as before. A player bit or
+    any label skips the grace. Replaying session 191355's S2C through WorldRuntime + Watch gives
+    `watch` at the trainer's 0x20 and `npc`/ignore at its 0x1C. Rejected: a Shelter-wide "greys
+    are harmless" rule, which needs the island boundary and doesn't fix the race elsewhere.
 - **z while walking comes from the map (since 2026-09-30):** ConfirmWalk (0x22) carries no z. So
   the proxy's MoveAuthority computes z after each confirmed step with the client's walk rules
   (`SessionTap._step_z` → `pathfind.Walk.can_walk`, with the world model's ground items), the way

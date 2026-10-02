@@ -689,3 +689,6 @@ in that cave can't see or click a tree on the surface, so it's an inhuman signal
 - **Open:** the runner has no venue settings other than the whole `--loop` file (banker, tree
   area), so every non-Shelter spot needs its own copy. A committed file per venue, or CLI
   overrides, would fix that.
+- **Shelter run 2026-10-01 aborted on a battle trainer** (juncture 44): Beaman the battle
+  trainer (gray, war mode) was assessed 62 ms before his click label arrived and read as a grey
+  player. Fixed in `threats.py`: a 1 s label grace for unlabeled humans (NOTES.md).

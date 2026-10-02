@@ -1,9 +1,10 @@
 """Threat assessment over one proxy state-port response (pure, no I/O).
 
     assess(state, *, recall_s, margin_s, now=None, params=Params(),
-           hits_history=()) -> Assessment
+           hits_history=(), first_seen=None) -> Assessment
     Watch(params).update(state, *, recall_s, margin_s, now=None) -> Assessment
-        (the same, keeping the self-hits history between calls)
+        (the same, keeping the self-hits history and first sightings
+        between calls)
 
 `state` is a state-port response: `movement.pos`, `world.self`,
 `world.mobiles`, `world.items`, `world.labels`, `events` (envelopes
@@ -37,6 +38,14 @@ Player vs NPC (heuristic where marked). Evidence, strongest first:
     "an ..." means creature.
   - A human body with no other evidence is taken as a player: the
     conservative reading.
+  - Label grace (Params.label_grace_s, 1 s): the click label lags the first
+    0x20 by ~60 ms (the client asks with 0x09/0x98 on sight). In that gap a
+    gray battle trainer (notoriety 3, war mode while sparring) reads as a
+    hostile grey player: juncture 44, 2026-10-01, docs/NOTES.md. So a hostile
+    assumed player with no label gets `watch` until it has been in view
+    label_grace_s (first sighting from `first_seen`, which Watch keeps). Then
+    the conservative reading applies. Plain assess() calls without
+    first_seen get no grace.
 
 Ghost bodies: ClassicUO Mobile.IsDead (Mobile.cs:132-140): 0x192, 0x193,
 0x25F, 0x260, 0x2B6, 0x2B7. Ghosts can't harm us, so they are ignored.
@@ -115,6 +124,7 @@ FLAG_PLAYER_HINT = 0x20          # EntityFlags.Movable; players only in captures
 FLAG_WARMODE = 0x40              # EntityFlags.WarMode (EntityFlags.cs:18)
 
 _TITLE = re.compile(r"^\S.* the [A-Za-z][A-Za-z' -]*$")
+ASSUMED_PLAYER = "human body, no npc evidence (assumed player)"
 _CREATURE = re.compile(r"^(a|an) ", re.IGNORECASE)
 _YOUNG = re.compile(r"\(Young\)\s*$")
 
@@ -140,6 +150,9 @@ class Params:
     passive_names: frozenset = frozenset()   # lower-case labels, e.g. "a sheep"
     aggressive_notoriety: frozenset = frozenset({6})
     monster_default_aggressive: bool = False
+    # an unlabeled human that would be hostile only by the assumed-player
+    # reading is watched this long after first sight (see module docstring)
+    label_grace_s: float = 1.0
     # self damage
     damage_window_s: float = 10.0
     damage_threshold: int = 1
@@ -279,8 +292,7 @@ def identify(mob: dict, label: str | None) -> tuple[str, bool | None, list]:
                                  else "body unknown"]
     if text and _TITLE.match(text):
         return "npc", False, [f"title label {text!r} (heuristic)"]
-    return (KIND_BY_NOTORIETY.get(noto, "unknown"), True,
-            ["human body, no npc evidence (assumed player)"])
+    return KIND_BY_NOTORIETY.get(noto, "unknown"), True, [ASSUMED_PLAYER]
 
 
 def _aggressive(mob, text, params: Params) -> tuple[bool, str]:
@@ -323,7 +335,8 @@ def damage_signal(state, *, now: float, params: Params, hits_history=()):
 
 
 def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None = None,
-           params: Params = Params(), hits_history=()) -> Assessment:
+           params: Params = Params(), hits_history=(), first_seen=None) -> Assessment:
+    """first_seen: {serial: time first in view} for the label grace (Watch)."""
     now = time.time() if now is None else now
     world = state.get("world") or {}
     labels = world.get("labels") or {}
@@ -364,6 +377,12 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
             th.action, th.reason = "ignore", f"beyond max_range {params.max_range} (stale?)"
         elif kind in ("npc", "ghost"):
             th.action, th.reason = "ignore", kind
+        elif (th.hostile and label is None and ASSUMED_PLAYER in evidence
+              and first_seen is not None
+              and now - first_seen.get(serial, now) < params.label_grace_s):
+            th.action = "watch"
+            th.reason = (f"{kind} unlabeled, in view {now - first_seen.get(serial, now):.2f}s;"
+                         f" awaiting label (grace {params.label_grace_s:.1f}s)")
         elif th.hostile and th.eta_s <= budget:
             th.action = "flee"
             th.reason = f"{kind} eta {th.eta_s:.1f}s <= recall {recall_s:.1f}s + margin {margin_s:.1f}s"
@@ -396,17 +415,22 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
 
 
 class Watch:
-    """assess() plus the self-hits history across calls (for under_attack)."""
+    """assess() plus the self-hits history and first sightings across calls
+    (for under_attack and the label grace)."""
 
     def __init__(self, params: Params = Params()):
         self.params = params
         self.hits: list[tuple[float, int]] = []
+        self.first_seen: dict[int, float] = {}
 
     def update(self, state, *, recall_s: float, margin_s: float,
                now: float | None = None) -> Assessment:
         now = time.time() if now is None else now
+        present = {_serial(k) for k in (state.get("world") or {}).get("mobiles") or ()}
+        self.first_seen = {s: self.first_seen.get(s, now) for s in present}
         a = assess(state, recall_s=recall_s, margin_s=margin_s, now=now,
-                   params=self.params, hits_history=self.hits)
+                   params=self.params, hits_history=self.hits,
+                   first_seen=self.first_seen)
         hits = ((state.get("world") or {}).get("self") or {}).get("hits")
         if hits is not None:
             self.hits.append((now, hits))
