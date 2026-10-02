@@ -14,8 +14,8 @@
     "enforcement": "ctl act buy refuses a purchase above this cap for the local day; spends are recorded as memory-store job events gold/spend"
   },
   "mount": {
-    "harvest_mounted": false,
-    "note": "the user believes you can't harvest while mounted; a mount totem is likely useful later"
+    "harvest_mounted": true,
+    "note": "tested 2026-10-02 at the user's request: chopping while riding a horse works on Outlands (Shelter, +6 logs mounted; logs/tasks/lumber-20261002-154828-cced.log). Earlier belief was that you can't; a mount totem is likely useful later"
   },
   "combat": {
     "attack_monsters": true,
