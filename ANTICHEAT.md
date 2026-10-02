@@ -467,7 +467,7 @@ behind `actions.py` is from 1.0.2.544. Captured 550 traffic frames cleanly, but 
 a future layout change. README.md and INTERCEPTION.md no longer claim a byte-identical relay
 (corrected 2026-09-30).
 
-**A13 (observed 2026-10-02, session 20261002_153718; fixed the same day, not yet run live): the agent rode at the on-foot pace.**
+**A13 (observed 2026-10-02, session 20261002_153718; fixed the same day, verified live in session 20261002_181221): the agent rode at the on-foot pace.**
 Since the character mounted (S2C `0x2E` layer 0x19, 15:44), 3195 agent run steps went out at a
 0.200 s minimum / 0.220 s median gap, all confirmed. The stock client steps every 0.1 s when it runs
 mounted (ClassicUO MovementSpeed.cs). This is no Speedhack risk, because the agent is slower than
@@ -479,7 +479,11 @@ median gap of 0.100 s (min 0.083), and all were confirmed. The proxy floor and t
 now follow `StateStore.mounted()` (0.1 / 0.2 s mounted; docs/MOVEMENT.md). Residual risk: if the
 world model kept a mount the server had removed, the agent would step at 0.1 s on foot and trip the
 Speedhack check. The model drops the mount item on the server's 0x1D, the way the stock client
-does; a missed dismount would mislead the client in the same way. Player houses (0xF3 multis) were also missing from the walk
+does; a missed dismount would mislead the client in the same way. **Live (181221, mounted lumber
+trip at Terran, 18:13–18:15):** 104 agent steps, 73 same-direction run gaps of min 0.104, p10 0.106,
+median 0.111, p90 0.117 s (the user's own: median 0.100, p90 0.104). All 104 confirmed (median
+0.060 s), with no deny, no rejection and no client resync, and a re-anchor on every confirm.
+Player houses (0xF3 multis) were also missing from the walk
 rules. That cost 12 server denies at one house in this session (a denied-walk pattern no client
 produces). Fixed the same day (docs/NOTES.md).
 
