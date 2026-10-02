@@ -96,8 +96,9 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
   `captcha [human|auto]` toggle switches to auto-solve from the gump layout. Harvest outcomes
   and episodes go to the memory store.
 - Speech triage for harvest jobs (optional; without it speech holds just carry no Laya verdict):
-  `python harness/triage.py serve` in its own terminal (laya-serve on 127.0.0.1:25970, CPU,
-  listening ~10 s after start, ~2 GB RAM). Stop it with Ctrl+C: killing only the Python wrapper
+  `python harness/triage.py serve` in its own terminal (laya-serve on 127.0.0.1:25970, on the GPU
+  next to the client, ~60 ms per line; `--device cpu` ~0.9 s). `python harness/triage.py health`
+  must say `"device": "cuda"`: a GPU it can't use falls back to CPU silently. Stop it with Ctrl+C: killing only the Python wrapper
   leaves `laya-serve.exe` listening. Check a line by hand: `python harness/triage.py judge "u there?"`.
   Setup and numbers: docs/NOTES.md "Laya speech triage".
 - Demonstration timeline (offline, read-only): `python harness/loop_mine.py timeline <TAG>

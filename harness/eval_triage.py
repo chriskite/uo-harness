@@ -2,7 +2,7 @@
 running laya-serve and the same prompt the runners send.
 
   python harness/triage.py serve          # in another terminal
-  python harness/eval_triage.py [--url http://127.0.0.1:25970]
+  python harness/eval_triage.py [--url http://127.0.0.1:25970] [--repeat N] [--save F.json] [--compare F.json]
 
 Label 1 = the line needs us (a GM-style check or a line aimed at us); 0 = a
 player we could ignore. The 0 lines are real (memory DB, 2026-09-27..10-01:
@@ -15,8 +15,14 @@ Prints, per question, the score range of each label and:
 - direct: the highest threshold that keeps every 1 line held, and how many
   0 lines it would let through. Fitted in-sample: an upper bound, not a
   promise (docs/PLAN.md "Laya speech triage").
+- where the checkpoint runs (laya-serve /health) and latency: `ms` is the
+  runner's round trip, `infer_ms` the server's forward pass. `--repeat` runs
+  the set N more times for steadier latency figures (scores from the first).
+- `--compare`: per-line score changes against a `--save`d run (another device,
+  checkpoint or prompt) and which lines cross ESCALATE_CHECK.
 """
 import argparse
+import json
 import os
 import sys
 
@@ -75,18 +81,31 @@ def case_world(near):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--url", default=triage.DEFAULT_URL)
+    ap.add_argument("--repeat", type=int, default=0)
+    ap.add_argument("--save", help="write the per-line verdicts here (JSON)")
+    ap.add_argument("--compare", help="a --save'd run to diff the scores against")
     a = ap.parse_args()
+    try:
+        h = triage.health(a.url)
+    except OSError as e:
+        print(f"laya-serve not reachable: {e}")
+        return 1
+    print(f"laya-serve health: {json.dumps(h)}")
     t = triage.Triage(a.url, timeout=30.0)
-    rows = []
-    for label, lines, near in CASES:
+
+    def run(label, lines, near):
         who = {"serial": "0x00000001", "text": lines[-1][1], "evidence": [],
                "context": [{"name": n, "text": x} for n, x in lines]}
         v = t.judge(who, case_world(near))
         if "error" in v:
-            print(f"laya-serve error: {v['error']}")
-            return 1
+            raise SystemExit(f"laya-serve error: {v['error']}")
         rows.append((label, who["text"], v))
-        print(f"{label} check {v['check']:.3f} direct {v['direct']:.3f} {v['ms']:4d} ms  {who['text'][:70]!r}")
+        return v
+
+    rows = []
+    for label, lines, near in CASES:
+        v = run(label, lines, near)
+        print(f"{label} check {v['check']:.3f} direct {v['direct']:.3f} {v['ms']:4d} ms  {lines[-1][1][:70]!r}")
     for q in ("check", "direct"):
         pos = [v[q] for y, _, v in rows if y == 1]
         neg = [v[q] for y, _, v in rows if y == 0]
@@ -99,8 +118,26 @@ def main():
     through = sum(1 for y, _, v in rows if y == 0 and v["direct"] < floor)
     print(f"direct: an ignore threshold of {floor:.3f} would hold every label-1 line and let "
           f"{through}/{sum(1 - y for y, _, _ in rows)} label-0 lines through (in-sample)")
-    ms = sorted(v["ms"] for _, _, v in rows)
-    print(f"latency: median {ms[len(ms) // 2]} ms, max {ms[-1]} ms")
+    for _ in range(a.repeat):
+        for _, lines, near in CASES:
+            run(None, lines, near)
+    for key in ("ms", "infer_ms"):
+        xs = sorted(v[key] for _, _, v in rows if v.get(key) is not None)
+        if xs:
+            print(f"{key}: median {xs[len(xs) // 2]}, p90 {xs[int(len(xs) * 0.9)]}, max {xs[-1]} (n={len(xs)})")
+    first = [(y, x, {k: v[k] for k in ("check", "direct")}) for y, x, v in rows[:len(CASES)]]
+    if a.save:
+        with open(a.save, "w", encoding="utf-8") as f:
+            json.dump({"health": h, "rows": first}, f, ensure_ascii=False, indent=1)
+    if a.compare:
+        with open(a.compare, encoding="utf-8") as f:
+            old = json.load(f)["rows"]
+        for q in ("check", "direct"):
+            d = [abs(n[2][q] - o[2][q]) for n, o in zip(first, old)]
+            print(f"vs {a.compare}: {q} max |delta| {max(d):.4f}, mean {sum(d) / len(d):.4f}")
+        flips = [n[1] for n, o in zip(first, old)
+                 if (n[2]["check"] >= triage.ESCALATE_CHECK) != (o[2]["check"] >= triage.ESCALATE_CHECK)]
+        print(f"lines crossing ESCALATE_CHECK: {flips or 'none'}")
     return 0
 
 

@@ -20,11 +20,12 @@ speech_nearby juncture and in the `speech_clear` job event, next to how the
 hold ended. That's the labeled data for fine-tuning later.
 
 The model runs in its own process: `laya-serve` from `.venv-laya` (torch is
-not a harness dependency), CPU only so it never competes with the client for
-the GPU, on 127.0.0.1:25970 (25940-25960 is the proxy's upstream bind range).
+not a harness dependency), on the GPU next to the client by default (fp16;
+`--device cpu` is the fallback), on 127.0.0.1:25970 (25940-25960 is the
+proxy's upstream bind range).
 When it isn't running, verdicts carry an `error` and the hold works as before.
 
-  python harness/triage.py serve                 # long-lived; listens ~10 s after start (cached checkpoint)
+  python harness/triage.py serve [--device cpu]  # long-lived; listens ~10 s after start (cached checkpoint)
   python harness/triage.py judge "are you there?" [--speaker Kemp] [--me TestWorth]
 """
 from __future__ import annotations
@@ -43,7 +44,9 @@ VENV_SERVE = os.path.join(ROOT, ".venv-laya", "Scripts", "laya-serve.exe")
 HOST, PORT = "127.0.0.1", 25970
 DEFAULT_URL = f"http://{HOST}:{PORT}"
 MODEL = "english"            # best of english/multilingual on the eval set; also gets the Turkish ads
-THREADS = 4                  # torch intra-op threads: leave the cores to the client and proxy
+DEVICE = "cuda"              # see docs/NOTES.md "Laya speech triage" for the GPU vs CPU measurements
+AMP = "fp16"                 # CUDA autocast: Laya's default bf16 moves scores up to 0.073, fp16 within 0.019 (its BENCHMARKS)
+THREADS = 4                  # CPU only: torch intra-op threads, leaving the cores to the client and proxy
 TIMEOUT_S = 5.0
 BACKOFF_S = 60.0             # after a failure, skip calls this long (a refused localhost connect may cost ~2 s on Windows [INFERENCE])
 ESCALATE_CHECK = 0.6         # eval_triage.py: explicit checks 0.62-0.86 ("you at your keyboard?", "This is a GM"); "say 1" 0.69 the only player line above
@@ -118,9 +121,11 @@ class Triage:
         t0 = time.perf_counter()
         with urllib.request.urlopen(req, timeout=self.timeout) as r:
             res = json.loads(r.read())
+            infer = r.headers.get("X-Inference-Time-Ms")
         a = res["answers"]
         return {"check": round(float(a["check"]["noul"]), 4), "direct": round(float(a["direct"]["noul"]), 4),
-                "model": (res.get("routing") or {}).get("model"), "ms": round((time.perf_counter() - t0) * 1000)}
+                "model": (res.get("routing") or {}).get("model"), "ms": round((time.perf_counter() - t0) * 1000),
+                "infer_ms": None if infer is None else round(float(infer), 1)}
 
     def judge(self, who: dict, world: dict, activity: str = ACTIVITY, names: dict | None = None) -> dict | None:
         """Ask Laya about `who`'s line; store the verdict in who["triage"] and,
@@ -148,33 +153,48 @@ class Triage:
         return v
 
 
-def serve(threads: int = THREADS) -> int:
+def serve(device: str = DEVICE, threads: int = THREADS) -> int:
     if not os.path.exists(VENV_SERVE):
         print(f"{VENV_SERVE} missing: create the venv (docs/NOTES.md, Laya speech triage)", file=sys.stderr)
         return 2
-    env = dict(os.environ, LAYA_HOST=HOST, LAYA_PORT=str(PORT), LAYA_DEVICE="cpu", LAYA_PRELOAD="1",
-               LAYA_MODELS=MODEL, LAYA_THREADS=str(threads), LAYA_LOG_LEVEL="warning",
-               HF_HUB_DISABLE_SYMLINKS_WARNING="1")
-    print(f"laya-serve on {DEFAULT_URL} (cpu, {threads} threads, {MODEL}); Ctrl+C to stop", flush=True)
+    env = dict(os.environ, LAYA_HOST=HOST, LAYA_PORT=str(PORT), LAYA_DEVICE=device, LAYA_PRELOAD="1",
+               LAYA_MODELS=MODEL, LAYA_LOG_LEVEL="warning", HF_HUB_DISABLE_SYMLINKS_WARNING="1")
+    if device == "cpu":
+        env["LAYA_THREADS"] = str(threads)
+    else:
+        env["LAYA_CUDA_AMP"] = AMP
+    print(f"laya-serve on {DEFAULT_URL} ({device}, {MODEL}); Ctrl+C to stop. A GPU it can't use falls back "
+          f"to CPU silently: `triage.py health` shows where it runs", flush=True)
     try:
         return subprocess.call([VENV_SERVE], env=env)
     except KeyboardInterrupt:
         return 0
 
 
+def health(url: str = DEFAULT_URL) -> dict:
+    with urllib.request.urlopen(url.rstrip("/") + "/health", timeout=TIMEOUT_S) as r:
+        return json.loads(r.read())
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("serve", help="run laya-serve (long-lived)")
-    s.add_argument("--threads", type=int, default=THREADS)
+    s.add_argument("--device", choices=("cuda", "cpu"), default=DEVICE)
+    s.add_argument("--threads", type=int, default=THREADS, help="CPU only")
     j = sub.add_parser("judge", help="one line through the running service; prints the verdict")
     j.add_argument("text")
     j.add_argument("--speaker", default="Someone")
     j.add_argument("--me", default="me")
     j.add_argument("--url", default=DEFAULT_URL)
+    hp = sub.add_parser("health", help="the running service's /health (device each checkpoint runs on)")
+    hp.add_argument("--url", default=DEFAULT_URL)
     a = ap.parse_args(argv)
     if a.cmd == "serve":
-        return serve(a.threads)
+        return serve(a.device, a.threads)
+    if a.cmd == "health":
+        print(json.dumps(health(a.url), indent=1))
+        return 0
     who = {"serial": "0x00000000", "text": a.text, "evidence": [],
            "context": [{"name": a.speaker, "text": a.text}]}
     v = Triage(a.url, log=lambda m: print(m, file=sys.stderr)).judge(who, {"self": {"name": a.me}})
