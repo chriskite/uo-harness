@@ -912,6 +912,28 @@ def test_tracking_packets():
     check("sub 0x1A set truncated -> incomplete", _raises(
         _var(0xFF, "0000001a" "00" "0102" "ee" "03" "0405" "00000706")))
 
+    # world.tracking: mode from System lines only, begin/stop only from our own serial, hits keep
+    # the mode they were found in (the arrow has no notoriety)
+    def say(serial, text):
+        return _var(0xAE, f"{serial:08x}" "0190" "00" "03b2" "0003" + b"ENU\x00".hex()
+                    + b"x".ljust(30, b"\x00").hex() + (text.encode("utf-16-be") + b"\x00\x00").hex())
+    me = 0x0020F127
+    rt = WorldRuntime()
+    rt.state.self.serial = me
+    for p in (say(0xFFFFFFFF, "You will now hunt murderer players."), say(me, "You begin hunting."), setp,
+              say(0x00123456, "You stop hunting."),                     # a player saying it changes nothing
+              say(0x00123456, "You will now hunt innocent players.")):
+        rt.feed_packet("s2c", p)
+    tr = rt.state.snapshot()["tracking"]
+    eq("tracking: hunting murderers, the hit carries its serial, spot and the mode it was found in",
+       (tr["hunting"], tr["mode"], tr["arrow"]["serial"], tr["arrow"]["x"], tr["arrow"]["y"], tr["arrow"]["mode"]),
+       (True, "murderer players", "0x0015AAC5", 1931, 2615, "murderer players"))
+    rt.feed_packet("s2c", _var(0xFF, "0000001a" "01" "0000"))
+    rt.feed_packet("s2c", say(me, "You stop hunting."))
+    tr = rt.state.snapshot()["tracking"]
+    eq("tracking: the cancel takes the arrow down (the hit stays in hits); our own line stops the hunt",
+       (tr["arrow"], len(tr["hits"]), tr["hunting"]), (None, 1, False))
+
 
 def _raises(pkt):
     try:

@@ -162,6 +162,50 @@ class TargetState:
                 "cursor_id": self.cursor_id, "cursor_type": self.cursor_type}
 
 
+TRACKING_HITS_MAX = 20
+
+
+@dataclass
+class TrackingState:
+    """The Tracking skill as the server reports it (live 20261001_214649, docs/NOTES.md
+    "Tracking"): "You will now hunt <mode>." (system) sets the hunting mode, "You begin
+    hunting." / "You stop hunting." (spoken by the player itself) switch Hunting on and
+    off, and every hit is a 0xFF sub 0x1A arrow {serial, x, y, z, "[Hunting] <name>"}.
+    The arrow carries no notoriety: `mode` at the time of the hit is the class. A hit can
+    be a mobile the server never sent us (beyond the 18-tile view). The arrow is a
+    snapshot: it only moves with the next hit."""
+    hunting: bool = False
+    mode: str | None = None              # e.g. "murderer players", "aggressive creatures"
+    arrow: dict | None = None            # the arrow that is up now
+    hits: list = field(default_factory=list)   # recent arrow sets, newest last
+    seq: int = 0                         # hits seen so far (each hit's `seq`)
+
+    def on_text(self, serial, text, self_serial):
+        if serial == 0xFFFFFFFF and text.startswith("You will now hunt ") and text.endswith("."):
+            self.mode = text[len("You will now hunt "):-1]
+        elif serial is not None and serial == self_serial:   # nobody else can speak as us
+            if text == "You begin hunting.":
+                self.hunting = True
+            elif text == "You stop hunting.":
+                self.hunting = False
+
+    def on_arrow_set(self, f):
+        self.seq += 1
+        hit = {k: f[k] for k in ("arrow_id", "serial", "x", "y", "z", "text")}
+        hit.update(mode=self.mode if self.hunting else None, seq=self.seq)
+        self.arrow = hit
+        self.hits = (self.hits + [hit])[-TRACKING_HITS_MAX:]
+
+    def on_arrow_cancel(self, arrow_id=None):
+        if self.arrow is not None and (arrow_id is None or self.arrow["arrow_id"] == arrow_id):
+            self.arrow = None
+
+    def to_dict(self):
+        def h(hit):
+            return {**hit, "serial": _h(hit["serial"])}
+        return {"hunting": self.hunting, "mode": self.mode, "seq": self.seq,
+                "arrow": h(self.arrow) if self.arrow else None, "hits": [h(x) for x in self.hits]}
+
 class EntityCensus:
     """Serials the client itself asked about (0x09/0x34/0x98 + dialect sub 9).
 
@@ -191,6 +235,7 @@ class StateStore:
         self.items: dict[int, Item] = {}
         self.gumps: dict[tuple[int, int], GumpState] = {}
         self.target = TargetState()
+        self.tracking = TrackingState()
         self.census = EntityCensus()
         self.names: dict[int, str] = {}
         # latest click label per serial (S2C 0x1C type 6, e.g. "Len the banker")
@@ -251,6 +296,7 @@ class StateStore:
                       for s, it in sorted(self.items.items())},
             "gumps": [g.to_dict() for _, g in sorted(self.gumps.items())],
             "target": self.target.to_dict(),
+            "tracking": self.tracking.to_dict(),
             "census": self.census.to_dict(),
             "names": {_h(s): n for s, n in sorted(self.names.items())},
             "labels": {_h(s): t for s, t in sorted(self.labels.items())},

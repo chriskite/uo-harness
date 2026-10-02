@@ -209,6 +209,7 @@ def _h_talk(rt, f):
     latest one per entity is kept in state.labels."""
     if f["type"] == 6 and f["serial"] not in (0, 0xFFFFFFFF):
         rt.state.labels[f["serial"]] = f["text"]
+    rt.state.tracking.on_text(f["serial"], f["text"], rt.state.self.serial)
     rt._emit("speech_heard", serial=f["serial"], name=f["name"],
              type=f["type"], hue=f["hue"], text=f["text"])
 
@@ -411,11 +412,14 @@ def _d_s2c(rt, f):
         rt.state.apply_names(f["entries"])
         rt._emit("names", count=len(f["entries"]), entries=f["entries"])
     elif sub == 0x1A and f.get("mode") == 0:
+        rt.state.tracking.on_arrow_set(f)
         rt._emit("quest_arrow_set", **{k: f[k] for k in (
             "arrow_id", "type", "v16", "serial", "x", "y", "z", "text")})
     elif sub == 0x1A and f.get("mode") == 1:
+        rt.state.tracking.on_arrow_cancel(f["arrow_id"])
         rt._emit("quest_arrow_cancel", arrow_id=f["arrow_id"])
     elif sub == 0x1A and f.get("mode") == 2:
+        rt.state.tracking.on_arrow_cancel()
         rt._emit("quest_arrow_clear")
     else:
         rt.dialect_unhandled[(S2C, sub)] += 1

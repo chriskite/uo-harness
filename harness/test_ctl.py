@@ -89,6 +89,10 @@ class FakeProxy:
         self.deny_jumps = {}      # tile -> destination: a teleporter that denies the step, then moves you
         self.pending_jump, self.jump_polls = None, 0
         self.events = []          # event envelopes; seq = index
+        # a server with the Tracking gump (live 20261001_214649): {"mode": index into ctl.TRACK_MODES
+        # (server truth), "heard": the client has seen a "You will now hunt" line, "hunting": bool}
+        self.tracker = None
+        self.gump_seq = 0x02C80000
         self.lock = threading.Lock()
         cs, ss = free_port(12710), free_port(12910)
         self.control_port, self.state_port = cs.getsockname()[1], ss.getsockname()[1]
@@ -167,10 +171,48 @@ class FakeProxy:
                         it = self.ground_items.get(f"0x{int.from_bytes(pkt[1:5], 'big'):08X}")
                         if it is not None:
                             it.update(container=f"0x{int.from_bytes(pkt[6:10], 'big'):08X}", layer=pkt[5])
+                    elif pkt[0] == 0x12 and pkt[3] == 0x24 and self.tracker is not None:
+                        self._tracking_gump()
+                    elif pkt[0] == 0xB1 and self.tracker is not None \
+                            and int.from_bytes(pkt[7:11], "big") == ctl.TRACKING_GUMP_ID:
+                        self._tracking_click(int.from_bytes(pkt[3:7], "big"), int.from_bytes(pkt[11:15], "big"))
                 reply = b"OK"
                 c.sendall(len(reply).to_bytes(2, "big") + reply)
         except (EOFError, OSError):
             c.close()
+
+    TRACK_LAYOUT = ("{ resizepic 31 24 11571 662 150 }{ button 25 19 2094 2095 1 0 1 }"
+                    "{ button 66 130 4017 4019 1 0 2 }{ button 416 130 4008 4010 1 0 6 }"
+                    "{ button 376 59 9909 9909 1 0 7 }{ button 470 59 9903 9903 1 0 8 }")
+
+    def _tracking_gump(self):
+        """The server (re)sends the Tracking gump (lock held)."""
+        self.gump_seq += 1
+        lines = ["Guide", "Aggressive", "Passive", "Townsfolk", "Players", "Hide Party / Guild", "Hide Allies",
+                 "Hide House", "Stop Hunting" if self.tracker["hunting"] else "Begin Hunting", "Hunting Mode",
+                 "Always Get Closest"]
+        g = {"serial": f"0x{self.gump_seq:08X}", "gump_id": f"0x{ctl.TRACKING_GUMP_ID:08X}",
+             "layout": self.TRACK_LAYOUT, "lines": lines, "open": True}
+        self.gumps.append(g)
+        self.add_event({"ev": "gump_open", "serial": self.gump_seq, "gump_id": ctl.TRACKING_GUMP_ID,
+                        "layout": self.TRACK_LAYOUT, "lines": lines})
+
+    def _tracking_click(self, serial, button):
+        tr, n = self.tracker, len(ctl.TRACK_MODES)
+        for g in self.gumps:
+            if g["serial"] == f"0x{serial:08X}":
+                g["open"] = False
+        if button in (ctl.TRACK_BTN_NEXT, ctl.TRACK_BTN_PREV):
+            tr["mode"] = (tr["mode"] + (1 if button == ctl.TRACK_BTN_NEXT else -1)) % n
+            tr["heard"] = True
+            self.add_event({"ev": "speech_heard", "serial": 0xFFFFFFFF, "name": "System", "type": 0,
+                            "text": f"You will now hunt {ctl.TRACK_MODES[tr['mode']]}."})
+        elif button == ctl.TRACK_BTN_HUNT:
+            tr["hunting"] = not tr["hunting"]
+            self.add_event({"ev": "speech_heard", "serial": self.SELF, "name": "TestWorth", "type": 0,
+                            "text": "You begin hunting." if tr["hunting"] else "You stop hunting."})
+        if button:
+            self._tracking_gump()
 
     def snapshot(self):
         p = f"0x{self.PACK:08X}"
@@ -204,6 +246,9 @@ class FakeProxy:
                               "0x40000014": {"graphic": 0x1BD7, "amount": 99, "x": 1, "y": 1},
                               **self.ground_items},
                     "target": dict(self.target), "gumps": list(self.gumps),
+                    "tracking": None if self.tracker is None else {
+                        "hunting": self.tracker["hunting"], "arrow": None, "hits": [],
+                        "mode": ctl.TRACK_MODES[self.tracker["mode"]] if self.tracker["heard"] else None},
                     "buffs": {"0x00000001": dict(self.buffs)}, "labels": dict(self.labels),
                     "containers": list(self.opened), "status_requested": list(self.status_requested)},
                 "events": [], "next": len(self.events),
@@ -1214,6 +1259,47 @@ def test_know(proxy):
     proxy.pos = [100, 100, 0, 2]
 
 
+def test_track(proxy):
+    print("== track: Tracking's Hunting mode through the gump, like a player ==")
+    tmp = tempfile.mkdtemp()
+    c = Ctl(os.path.join(tmp, "harness.db"), os.path.join(tmp, "tasks"), proxy)
+    proxy.take()
+    proxy.tracker = {"mode": ctl.TRACK_MODES.index("innocent players"), "heard": False, "hunting": False}
+    code, out = c("act", "track", "reds", "--human", "off")
+    fr = [p for _, p in proxy.take()]
+    check("skill use is the stock packet seen live (12 0009 24 '38 0')",
+          fr[:1] == [bytes.fromhex("120009243338203000")], str([p.hex() for p in fr[:1]]))
+    # mode unknown to the client: one step forward tells it (innocent -> friendly), then the short
+    # way round to murderer (3 back: criminal wraps to murderer), then Begin Hunting
+    check("reds: learn the mode in one step, take the shorter way round, then begin hunting",
+          code == 0 and out["clicks"] == ["use Tracking", "next mode", "previous mode", "previous mode",
+                                          "previous mode", "begin hunting"]
+          and out["tracking"]["hunting"] and out["tracking"]["mode"] == "murderer players"
+          and proxy.tracker == {"mode": 9, "heard": True, "hunting": True}, str(out)[:400])
+    check("every click is a stock 0xB1 on the gump the server sent last",
+          all(p[0] == 0xB1 for p in fr[1:]) and len({p[3:7] for p in fr[1:]}) == len(fr) - 1, str(len(fr)))
+    code, out = c("act", "track", "murderer", "--human", "off")
+    check("already hunting that mode: nothing sent (the open gump says Stop Hunting)",
+          code == 0 and out["clicks"] == [] and proxy.take() == [], str(out)[:300])
+    code, out = c("act", "track", "all", "hostile", "--human", "off")
+    check("another mode while hunting: stop, two steps back, begin again (no skill use: the gump is open)",
+          code == 0 and out["clicks"] == ["stop hunting", "previous mode", "previous mode", "begin hunting"]
+          and proxy.tracker["mode"] == ctl.TRACK_MODES.index("all hostile players") and proxy.tracker["hunting"],
+          str(out)[:300])
+    proxy.take()
+    code, out = c("act", "track", "off", "--human", "off")
+    check("off: Stop Hunting", code == 0 and out["clicks"] == ["stop hunting"] and not proxy.tracker["hunting"],
+          str(out)[:300])
+    proxy.take()
+    code, out = c("act", "track", "off", "--human", "off")
+    check("off when not hunting: nothing sent", code == 0 and out["clicks"] == [] and proxy.take() == [],
+          str(out)[:300])
+    code, out = c("act", "track", "players", "--human", "off")
+    check("an ambiguous mode is refused, nothing sent", code == 1 and "ambiguous" in out.get("error", "")
+          and proxy.take() == [], str(out)[:300])
+    proxy.tracker, proxy.gumps = None, []
+
+
 def main():
     proxy = FakeProxy()
     for port in (proxy.control_port, proxy.state_port):
@@ -1228,6 +1314,7 @@ def main():
     test_intent_cmd(proxy)
     test_npcs(proxy)
     test_drop(proxy)
+    test_track(proxy)
     reset_events(proxy)
     test_overseer_acts(proxy)
     if FAILURES:
