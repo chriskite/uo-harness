@@ -194,6 +194,16 @@ export function eventView(e: JobEvent): EventView {
       return { label: "Resurrected", detail, tone: "ok" };
     case "mob_attack":
       return { label: "Attacked by a monster", detail, tone: "warn" };
+    case "leave":
+      return { label: "Left the hunt", detail: [str(d.why), detail].filter(Boolean).join(" · "), tone: "info" };
+    case "speech_hold": {
+      const sp = Array.isArray(d.speakers) ? (d.speakers[0] as Record<string, unknown> | undefined) : undefined;
+      const name = sp ? (str(sp.label) ?? str(sp.name)) : null;
+      const said = sp && str(sp.text) ? `“${String(sp.text)}”` : null;
+      return { label: "Paused: someone spoke", detail: [name, said, at].filter(Boolean).join(" · "), tone: "warn" };
+    }
+    case "speech_clear":
+      return { label: "Resumed", detail: typeof d.waited_s === "number" ? `after ${fmtDuration(d.waited_s)}` : detail, tone: "ok" };
     default:
       return { label: e.kind, detail, tone: "dim" };
   }
@@ -261,4 +271,154 @@ export function oneLocalDay(ts: readonly number[]): boolean {
 /** The browser's offset for the per-day split, in minutes east of UTC (the `tz` query). */
 export function tzMinutesEast(now = new Date()): number {
   return -now.getTimezoneOffset();
+}
+
+// ------------------------------------------------------------------ hunt job
+// /api/jobs?job=hunt (harness/jobs.py compute_hunt). XP is Outlands mastery-chain
+// experience: a kill's creature gold value x our damage share, estimated as the gold
+// its corpse held (docs/HUNT_LOOP.md "Memory").
+
+export interface HuntVisit {
+  /** 1-based over all visits in the answer (visit is the runner's own per-run number). */
+  n: number;
+  visit: number | null;
+  t_start: number | null;
+  t_end: number | null;
+  duration_s: number | null;
+  spot: number[] | null;
+  spell: string | null;
+  ended: string | null;
+  kills: number;
+  gold: number;
+  xp: number;
+  /** looted kills whose XP is known */
+  xp_kills: number;
+  looted: number;
+  hits_lost: number;
+  casts: number;
+  heals: number;
+  potions: number;
+  kills_per_hour: number | null;
+  gold_per_hour: number | null;
+  xp_per_hour: number | null;
+  /** other job_events kinds inside the visit, counted */
+  events: Record<string, number>;
+}
+
+export interface HuntAgg {
+  visits: number;
+  active_s: number;
+  active_hours: number;
+  kills: number;
+  gold: number;
+  xp: number;
+  xp_kills: number;
+  xp_unknown_kills: number;
+  looted: number;
+  gold_per_kill: number | null;
+  xp_per_kill: number | null;
+  hits_lost: number;
+  casts: number;
+  heals: number;
+  potions: number;
+  leaves: number;
+  speech_holds: number;
+  speech_wait_s: number;
+  deaths: { pk: number; mob: number; other: number; total: number };
+}
+
+export interface HuntTotals extends HuntAgg {
+  kills_per_hour: number | null;
+  gold_per_hour: number | null;
+  xp_per_hour: number | null;
+  /** kill/loot events no visit row covers (a run that ended without its row) */
+  outside_visits: { kills: number; gold: number; xp: number };
+  first_t: number | null;
+  last_t: number | null;
+}
+
+export interface HuntDay extends HuntAgg {
+  day: string;
+}
+
+export interface HuntRollingPoint {
+  t: number;
+  n: number;
+  window_visits: number;
+  kills_per_hour: number | null;
+  cum_kills_per_hour: number | null;
+  gold_per_hour: number | null;
+  cum_gold_per_hour: number | null;
+  xp_per_hour: number | null;
+  cum_xp_per_hour: number | null;
+}
+
+export interface MonsterRow {
+  name: string;
+  kills: number;
+  looted: number;
+  gold: number;
+  xp: number;
+  xp_kills: number;
+  gold_per_kill: number | null;
+  xp_per_kill: number | null;
+}
+
+export interface HuntResponse {
+  job: "hunt";
+  since: number;
+  utc_offset_s: number;
+  window_s: number;
+  store: boolean;
+  visits: HuntVisit[];
+  totals: HuntTotals;
+  days: HuntDay[];
+  rolling: HuntRollingPoint[];
+  monsters: MonsterRow[];
+  /** job events except the per-kill ones (kill, loot) */
+  events: JobEvent[];
+}
+
+/** Integer with thousands separators, or an em dash. */
+export function fmtInt(v: number | null | undefined): string {
+  return v === null || v === undefined || !Number.isFinite(v) ? "—" : Math.round(v).toLocaleString("en-US");
+}
+
+function perHour(v: number | null, unit = ""): string {
+  return `${fmtInt(v)}${unit} / hr`;
+}
+
+/** The hunt KPI tile row, in display order. */
+export function huntKpis(t: HuntTotals): Kpi[] {
+  const hours = fmtHours(t.active_s);
+  const unknown = t.xp_unknown_kills;
+  return [
+    { key: "kills", label: "mobs killed", value: fmtInt(t.kills), sub: perHour(t.kills_per_hour), tone: "info" },
+    {
+      key: "gold",
+      label: "gold looted",
+      value: fmtGp(t.gold),
+      sub: `${perHour(t.gold_per_hour, " gp")}${t.gold_per_kill === null ? "" : ` · ${fmtNum(t.gold_per_kill, 1)} / kill`}`,
+      tone: "info",
+    },
+    {
+      key: "xp",
+      label: "XP earned (est.)",
+      value: fmtInt(t.xp),
+      sub: `${perHour(t.xp_per_hour)}${unknown ? ` · ${unknown} kill${unknown === 1 ? "" : "s"} not looted` : ""}`,
+      tone: "info",
+    },
+    { key: "visits", label: "visits", value: String(t.visits), sub: t.leaves ? `${t.leaves} leave${t.leaves === 1 ? "" : "s"}` : undefined, tone: "dim" },
+    { key: "active", label: "active hours", value: hours.value, sub: hours.sub, tone: "dim" },
+    { key: "mob", label: "deaths to mobs", value: String(t.deaths.mob), sub: t.deaths.other ? `+${t.deaths.other} other` : undefined, tone: t.deaths.mob ? "bad" : "ok" },
+    { key: "pk", label: "deaths to PKs", value: String(t.deaths.pk), tone: t.deaths.pk ? "bad" : "ok" },
+    { key: "hits", label: "hits lost", value: fmtInt(t.hits_lost), sub: `${t.heals} heal${t.heals === 1 ? "" : "s"} · ${t.potions} potion${t.potions === 1 ? "" : "s"}`, tone: "dim" },
+    {
+      key: "speech",
+      label: "speech holds",
+      value: String(t.speech_holds),
+      sub: t.speech_holds ? `${fmtDuration(t.speech_wait_s)} waiting` : undefined,
+      tone: t.speech_holds ? "warn" : "ok",
+    },
+  ];
 }

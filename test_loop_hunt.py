@@ -626,12 +626,15 @@ async def main():
               {j["kind"] for j in js} == {"threat"}, str([j["kind"] for j in js]))
         kills = [e for e in evs if e["kind"] == "kill"]
         loots = [e for e in evs if e["kind"] == "loot"]
-        check("job events: 2 kills (A, D), 2 loots with the gold, 1 leave per exit",
+        check("job events: 2 kills (A, D), 2 loots with the gold, xp = the corpse's gold, the mob's name; 1 leave per exit",
               [e["data"]["serial"] for e in kills] == [f"0x{A:08X}", f"0x{D:08X}"]
-              and [e["data"]["gold"] for e in loots] == [21, 23]
+              and [e["data"]["gold"] for e in loots] == [21, 23] and [e["data"]["xp"] for e in loots] == [21, 23]
+              and [e["data"]["mob"] for e in loots] == [f"0x{A:08X}", f"0x{D:08X}"]
+              and all("mongbat" in e["data"]["name"] for e in loots)
               and len([e for e in evs if e["kind"] == "leave"]) == 2, str([(e["kind"], e["data"]) for e in evs])[:400])
-        check("two episode rows (visits): 1 kill each, gold 21 / 23, hits lost counted, ends recorded",
+        check("two episode rows (visits): 1 kill each, gold and xp 21 / 23, hits lost counted, ends recorded",
               len(rows) == 2 and [r["kills"] for r in rows] == [1, 1] and [r["gold"] for r in rows] == [21, 23]
+              and [r["xp"] for r in rows] == [21, 23]
               and rows[0]["hits_lost"] >= 30 and "attackers" in rows[0]["ended"] and rows[1]["ended"] == "done",
               str(rows)[:500])
         check("nothing said in game", not [p for p in c2s if p[0] in (0xAD, 0x03)])

@@ -1,7 +1,7 @@
 // viz_server client (docs/VISUALIZER.md §2.1): initial REST fetch, SSE stream
 // with resume, periodic walk-memory refresh, playback and agent-gate control,
 // job analytics and the overseer chat (§2.4).
-import type { JobsResponse } from "./jobs.ts";
+import type { HuntResponse, JobsResponse } from "./jobs.ts";
 import type { OverseerResponse } from "./overseer.ts";
 import type { VizStore } from "./store.ts";
 import type { EventEnvelope, Gate, GateAction, GateResponse, PlaybackAction, StateResponse, WalkMemoryFile } from "./types.ts";
@@ -33,10 +33,12 @@ export async function postPlayback(action: PlaybackAction): Promise<void> {
 }
 
 /** Job analytics (harness/jobs.py); `tz` = minutes east of UTC for the per-day split. */
-export async function fetchJobs(job: string, tz: number): Promise<JobsResponse> {
+export function fetchJobs(job: "lumber", tz: number): Promise<JobsResponse>;
+export function fetchJobs(job: "hunt", tz: number): Promise<HuntResponse>;
+export async function fetchJobs(job: string, tz: number): Promise<JobsResponse | HuntResponse> {
   const r = await fetch(`/api/jobs?job=${encodeURIComponent(job)}&tz=${tz}`, { cache: "no-store" });
   if (!r.ok) throw new Error(`/api/jobs: HTTP ${r.status} ${await r.text()}`);
-  return (await r.json()) as JobsResponse;
+  return (await r.json()) as JobsResponse | HuntResponse;
 }
 
 /** Chat rows and junctures above the cursors (0 = the newest 200), open junctures, heartbeat. */

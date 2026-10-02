@@ -303,9 +303,10 @@ not per poll). **GETs never create the store**; the first `POST /api/chat` does.
 - `POST /api/chat {"text": T}` → `Memory.chat_post("user", T.strip())` → `{"ok": true, "id": N}`.
   Text must be a string of 1..2000 characters after trimming; anything else is **400**, and bodies
   over 64 KiB are **413**. Besides this, the viz writes only the captcha mode (§2.2a).
-- `GET /api/jobs?job=lumber[&since=T][&tz=M]` → `harness/jobs.py` `analytics()` plus `store`.
-  `tz` is minutes east of UTC for the per-day split (the browser sends its own; default the server's
-  local offset). Cached 2 s per (job, since, tz).
+- `GET /api/jobs?job=lumber|hunt[&since=T][&tz=M]` → `harness/jobs.py` `analytics()` plus `store`
+  (`hunt` gets the hunt shape below, any other job the trip shape). `tz` is minutes east of UTC
+  for the per-day split (the browser sends its own; default the server's local offset). Cached 2 s
+  per (job, since, tz).
 
 **Analytics (`harness/jobs.py`, pure: `compute()` reads no clock).** Inputs: `Memory.episodes(job)`
 (trip rows), `Memory.job_events(job, since)`, the `harvest_attempts` outcomes (lumber only; the
@@ -326,8 +327,28 @@ table has no job column) and `harness/data/woods.json` when present.
   `ordinary`, since the Shelter Island loop only chops ordinary trees. Logs of a wood with no known
   value are counted in `value_unpriced_logs` and never priced by guess. The value is null when no
   log could be priced, including when woods.json is absent.
-- CLI: `python harness/jobs.py [--db PATH] [--job lumber] [--since T]` prints totals, days and
-  harvest outcomes.
+- CLI: `python harness/jobs.py [--db PATH] [--job lumber|hunt] [--since T]` prints totals, days and
+  harvest outcomes (hunt: totals, days and monsters).
+
+**Hunt analytics (`jobs.compute_hunt`, pure; added 2026-10-02).** Inputs: `Memory.episodes("hunt")`
+(one row per visit to the spot, docs/HUNT_LOOP.md "Memory") and the hunt job events.
+- **Kills, gold, XP** come from the `kill` / `loot` events, which the runner writes as they happen,
+  so a run stopped before its visit row still counts. Totals count every event;
+  `outside_visits` says how many fell outside any visit row.
+- **XP** is Outlands mastery-chain experience: the creature's gold value × our damage share
+  ([wiki Experience_Gain](https://wiki.uooutlands.com/Experience_Gain); user note 2026-10-02:
+  "experience is basically the gold value of the monster"). No capture shows a per-kill XP
+  message (docs/NOTES.md "Experience"), so the runner records the gold the corpse held
+  before looting as `xp` [INFERENCE: solo kills, full damage share]. Older loot rows without `xp`
+  count their gold piles taken. A kill never looted has unknown XP (`xp_unknown_kills`), never guessed.
+- **Per visit:** the kill/loot events inside its [t_start, t_end], plus the row's own hits lost,
+  casts, heals, potions and why it ended, and the other events inside it.
+- **Rates** (kills, gold, XP per hour) are the in-visit figures over active time (the sum of visit
+  durations). The rolling series has one point per visit end (1 h window plus cumulative).
+- **Monsters:** kills, loots, gold and XP per name. A loot counts for its `name`, else the kill
+  whose serial is its `mob`, else (rows before 2026-10-02) the latest unclaimed earlier kill.
+- **Timeline:** every hunt event except `kill`/`loot` (deaths, leaves, speech holds and resumes).
+- Per day: visits, active time, kills, gold, XP, gold/kill, hits lost, deaths, speech holds.
 
 **UI**
 - **Page switch** in the header: `Live` (the layout of §4) and `Jobs`. The page is kept in the URL
@@ -349,7 +370,8 @@ table has no job column) and `harness/data/woods.json` when present.
     and that messages wait in the store until then.
   - Compose: Enter sends, Shift+Enter adds a new line, with an `n/2000` counter. It uses the same
     validation as the server.
-- **Jobs page:** a dashboard for the lumber job, refreshed every 15 s or with ↻:
+- **Jobs page:** one dashboard per job, switched in its head (`Lumber` / `Hunting`; the hash is
+  `#jobs` or `#jobs/hunt`). Both refresh every 15 s or with ↻. The lumber dashboard:
   - KPI tiles: logs/hr, logs/trip (with the chop success rate), trips, active hours, deaths to PKs
     (with PK sightings), deaths to mobs, loss to thieves, captchas (with the wait time). Safety
     tiles are green at 0, red or amber otherwise.
@@ -363,6 +385,19 @@ table has no job column) and `harness/data/woods.json` when present.
   - The per-trip table (newest first) and a per-day table.
   - With no data, every chart shows a dashed "no trips yet" frame and the tiles show `—` or 0. A
     missing store is badged `no memory store: nothing recorded yet`.
+- **Hunting dashboard** (2026-10-02):
+  - KPI tiles: mobs killed (kills/hr), gold looted (gold/hr, gold/kill), XP earned (est.; XP/hr and
+    how many kills weren't looted), visits (leaves), active hours, deaths to mobs, deaths to PKs, hits
+    lost (heals, potions), speech holds (wait time). A line under them explains the XP estimate and
+    any kills outside recorded visits.
+  - Charts: XP/hr and gold/hr over time (rolling, plus cumulative XP/hr); XP per visit as bars with
+    the gold mark, the kill count on top and death marks; the visits-and-events strip with the event
+    list.
+  - A monsters table (kills, looted, gold, XP, XP/kill), the per-visit table (newest first; `22+`
+    means a kill in it wasn't looted) and a per-day table.
+  - Verified in headless Chromium on a copy of the live store (4 visits, 19 mongbat kills, 299 gp,
+    1 kill not looted, 5 speech holds): tiles 19 kills (37/hr), 299 gp (538 gp/hr, 16.6/kill),
+    299 XP; the Lumber/Hunting switch and a reload kept `#jobs/hunt`; no page errors.
 
 **Verified in headless Chromium, 2026-09-29** (1600×1000; `--replay 20260929_163420 --port 12760
 --no-facet`, on a temp copy of the store holding the 5 real Shelter Island trips, plus seeded chat

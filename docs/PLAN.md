@@ -246,6 +246,16 @@ chatter, is skipped for now: every speaker still holds a harvest job.
   - Bandages are out: Hackworth has no Healing skill (user, chat#919: +4..+9 each).
   - Resting outside the hunt uses spells only (my call): mana regenerates for free there, while
     potions cost gold.
+- **Hunting dashboard (user request 2026-10-02):** the viz Jobs page gets a Hunting job next to
+  Lumber, tracking mobs killed, gold looted and XP earned (docs/VISUALIZER.md §2.4).
+  - XP = Outlands mastery-chain experience = creature gold value × damage share (user note +
+    wiki). The server shows XP only in the chain's gump; reading that would mean sending
+    `[MasteryChain` or opening the gump every kill, which a player doesn't do. So the runner
+    records the gold the corpse held as each kill's XP [INFERENCE: solo kills]. Kills never looted
+    count as unknown, not guessed.
+  - Kill/gold/XP figures come from the job events, not the visit rows: events are written at
+    once, so a stopped run's last visit (no row) still counts in the totals; the rates use only
+    events inside recorded visits over their duration.
 
 
 ## Risks

@@ -1,6 +1,6 @@
 // Plain-SVG charts for the Jobs page (geometry in chart.ts).
 import { barSlots, linePath, linScale, niceTicks, timeTicks } from "../chart.ts";
-import { eventView, fmtNum, fmtStamp, oneLocalDay, type JobEvent, type JobTrip, type RollingPoint } from "../jobs.ts";
+import { eventView, fmtInt, fmtNum, fmtStamp, oneLocalDay, type HuntVisit, type JobEvent, type JobTrip } from "../jobs.ts";
 import { fmtDuration } from "../format.ts";
 
 const W = 560;
@@ -53,43 +53,58 @@ function TimeAxis({ t0, t1, x, y, sameDay }: { t0: number; t1: number; x: (t: nu
   );
 }
 
-/** Rolling (window) and cumulative logs/hr at each trip end. */
-export function LogsPerHourChart({ points, windowS }: { points: RollingPoint[]; windowS: number }) {
-  const pts = points.filter((p) => p.logs_per_hour !== null);
-  if (pts.length === 0) return <Empty text="no timed trips yet" />;
-  const ymax = Math.max(...pts.flatMap((p) => [p.logs_per_hour ?? 0, p.cum_logs_per_hour ?? 0]));
+export interface RateSeries {
+  label: string;
+  /** `line-<cls>` / `sw-<cls>` styles */
+  cls: string;
+  /** one value per point; null = no rate there */
+  values: (number | null)[];
+  /** dots with a tooltip on this series' points */
+  dots?: boolean;
+}
+
+/** Rates at each trip / visit end, one line per series (all share the points' times). */
+export function RateChart({ points, series, what, unit, note }: { points: { t: number; n: number }[]; series: RateSeries[]; what: string; unit: string; note: string }) {
+  const idx = points.map((_, i) => i).filter((i) => series.some((s) => s.values[i] !== null && s.values[i] !== undefined));
+  if (idx.length === 0) return <Empty text={`no timed ${what}s yet`} />;
+  const val = (s: RateSeries, i: number) => s.values[i] ?? null;
+  const ymax = Math.max(...idx.flatMap((i) => series.map((s) => val(s, i) ?? 0)));
   const ticks = niceTicks(ymax);
-  const t0 = pts[0]!.t;
-  const t1 = pts[pts.length - 1]!.t;
+  const t0 = points[idx[0]!]!.t;
+  const t1 = points[idx[idx.length - 1]!]!.t;
   const pad = t1 > t0 ? (t1 - t0) * 0.04 : 0;
   const x = linScale(t0 - pad, t1 + pad, M.l, W - M.r);
   const y = linScale(0, ticks[ticks.length - 1]!, H - M.b, M.t);
   const sameDay = oneLocalDay([t0, t1]);
-  const roll = pts.map((p) => [x(p.t), y(p.logs_per_hour ?? 0)] as const);
-  const cum = pts.filter((p) => p.cum_logs_per_hour !== null).map((p) => [x(p.t), y(p.cum_logs_per_hour!)] as const);
+  const tip = (i: number) =>
+    `${what} #${points[i]!.n} ended ${fmtStamp(points[i]!.t)}: ` + series.map((s) => `${s.label} ${fmtNum(val(s, i), 0)} ${unit}`).join(", ");
   return (
     <>
-      <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="logs per hour over time">
+      <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${unit} over time`}>
         <YAxis ticks={ticks} y={y} />
         <TimeAxis t0={t0} t1={t1} x={x} y={H - 6} sameDay={sameDay} />
-        <path d={linePath(cum)} className="line line-cum" />
-        <path d={linePath(roll)} className="line line-roll" />
-        {pts.map((p) => (
-          <circle key={p.n} cx={x(p.t)} cy={y(p.logs_per_hour ?? 0)} r={3.5} className="pt">
-            <title>
-              {`trip #${p.n} ended ${fmtStamp(p.t)}: ${fmtNum(p.logs_per_hour, 0)} logs/hr over the last ${Math.round(windowS / 60)} min (${p.window_trips} trip${p.window_trips === 1 ? "" : "s"}), ${fmtNum(p.cum_logs_per_hour, 0)} cumulative`}
-            </title>
-          </circle>
+        {[...series].reverse().map((s) => (
+          <path key={s.cls} d={linePath(idx.filter((i) => val(s, i) !== null).map((i) => [x(points[i]!.t), y(val(s, i)!)] as const))} className={`line line-${s.cls}`} />
         ))}
+        {series
+          .filter((s) => s.dots)
+          .flatMap((s) =>
+            idx
+              .filter((i) => val(s, i) !== null)
+              .map((i) => (
+                <circle key={`${s.cls}-${points[i]!.n}`} cx={x(points[i]!.t)} cy={y(val(s, i)!)} r={3.5} className={`pt pt-${s.cls}`}>
+                  <title>{tip(i)}</title>
+                </circle>
+              )),
+          )}
       </svg>
       <div className="legend">
-        <span>
-          <i className="sw sw-roll" /> rolling {Math.round(windowS / 60)} min
-        </span>
-        <span>
-          <i className="sw sw-cum" /> cumulative
-        </span>
-        <span className="dim">active time only; one point per trip end</span>
+        {series.map((s) => (
+          <span key={s.cls}>
+            <i className={`sw sw-${s.cls}`} /> {s.label}
+          </span>
+        ))}
+        <span className="dim">{note}</span>
       </div>
     </>
   );
@@ -157,11 +172,91 @@ export function LogsPerTripChart({ trips }: { trips: JobTrip[] }) {
   );
 }
 
-const EVENT_CLASS: Record<string, string> = { death: "ev-death", theft: "ev-theft", pk_seen: "ev-pk", flee: "ev-flee" };
+/** XP per visit as bars, with the gold mark, the kill count on top, death marks and the mean. */
+export function VisitBarsChart({ visits }: { visits: HuntVisit[] }) {
+  if (visits.length === 0) return <Empty text="no visits yet" />;
+  const ticks = niceTicks(Math.max(...visits.map((v) => Math.max(v.xp, v.gold))));
+  const y = linScale(0, ticks[ticks.length - 1]!, H - M.b, M.t);
+  const slots = barSlots(visits.length, M.l, W - M.r);
+  const mean = visits.reduce((a, v) => a + v.xp, 0) / visits.length;
+  const every = Math.ceil(visits.length / 20);
+  return (
+    <>
+      <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="XP and gold per visit">
+        <YAxis ticks={ticks} y={y} />
+        {visits.map((v, i) => {
+          const s = slots[i]!;
+          const deaths = v.events.death ?? 0;
+          const top = y(Math.max(v.xp, v.gold));
+          return (
+            <g key={v.n}>
+              <rect x={s.x} y={y(v.xp)} width={s.w} height={Math.max(0, y(0) - y(v.xp))} className="bar-xp">
+                <title>
+                  {`visit #${v.n}${v.t_start ? ` · ${fmtStamp(v.t_start)}` : ""}: ${v.kills} kill${v.kills === 1 ? "" : "s"}, ${fmtInt(v.xp)} XP, ${fmtInt(v.gold)} gold` +
+                    `${v.duration_s ? ` in ${fmtDuration(v.duration_s)}` : ""}${v.ended ? ` · ended: ${v.ended}` : ""}${deaths ? ` · ${deaths} death` : ""}`}
+                </title>
+              </rect>
+              <line x1={s.x} x2={s.x + s.w} y1={y(v.gold)} y2={y(v.gold)} className="mark-gold" />
+              {s.w >= 10 && (
+                <text x={s.cx} y={top - 4} textAnchor="middle" className="axis-label">
+                  {v.kills}
+                </text>
+              )}
+              {deaths > 0 && (
+                <text x={s.cx} y={top - (s.w >= 10 ? 16 : 6)} textAnchor="middle" className="mark-death">
+                  ✕
+                </text>
+              )}
+              {i % every === 0 && (
+                <text x={s.cx} y={H - 6} textAnchor="middle" className="axis-label">
+                  #{v.n}
+                </text>
+              )}
+            </g>
+          );
+        })}
+        <line x1={M.l} x2={W - M.r} y1={y(mean)} y2={y(mean)} className="mean" />
+      </svg>
+      <div className="legend">
+        <span>
+          <i className="sw sw-xp-bar" /> XP
+        </span>
+        <span>
+          <i className="sw sw-gold" /> gold looted
+        </span>
+        <span className="dim">number above: kills</span>
+        <span>
+          <i className="sw sw-mean" /> mean {fmtNum(mean, 0)} XP
+        </span>
+        <span>
+          <span className="mark-death-key">✕</span> death
+        </span>
+      </div>
+    </>
+  );
+}
 
-/** Trips as grey spans and job events as coloured marks on one time axis. */
-export function EventStrip({ trips, events }: { trips: JobTrip[]; events: JobEvent[] }) {
-  const stamps = [...trips.flatMap((t) => [t.t_start, t.t_end]), ...events.map((e) => e.t)].filter((t): t is number => t !== null);
+const EVENT_CLASS: Record<string, string> = {
+  death: "ev-death",
+  theft: "ev-theft",
+  pk_seen: "ev-pk",
+  flee: "ev-flee",
+  leave: "ev-flee",
+  speech_hold: "ev-theft",
+  speech_clear: "ev-ok",
+};
+
+/** A trip or visit on the strip: grey span from t_start to t_end. */
+export interface Span {
+  n: number;
+  t_start: number | null;
+  t_end: number | null;
+  label: string;
+}
+
+/** Trips / visits as grey spans and job events as coloured marks on one time axis. */
+export function EventStrip({ spans, events }: { spans: Span[]; events: JobEvent[] }) {
+  const stamps = [...spans.flatMap((t) => [t.t_start, t.t_end]), ...events.map((e) => e.t)].filter((t): t is number => t !== null);
   if (stamps.length === 0) return <Empty text="nothing recorded yet" h={STRIP_H} />;
   const t0 = Math.min(...stamps);
   const t1 = Math.max(...stamps);
@@ -171,10 +266,10 @@ export function EventStrip({ trips, events }: { trips: JobTrip[]; events: JobEve
   return (
     <svg className="chart strip" viewBox={`0 0 ${W} ${sh}`} role="img" aria-label="trips and job events over time">
       <line x1={M.l} x2={W - M.r} y1={24} y2={24} className="grid" />
-      {trips.map((t) =>
+      {spans.map((t) =>
         t.t_start !== null && t.t_end !== null ? (
           <rect key={t.n} x={x(t.t_start)} y={17} width={Math.max(2, x(t.t_end) - x(t.t_start))} height={14} className="span-trip">
-            <title>{`trip #${t.n}: ${fmtStamp(t.t_start)}–${fmtStamp(t.t_end, true)}, ${t.logs} logs`}</title>
+            <title>{`${t.label}: ${fmtStamp(t.t_start)}–${fmtStamp(t.t_end, true)}`}</title>
           </rect>
         ) : null,
       )}

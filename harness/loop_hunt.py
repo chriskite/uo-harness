@@ -32,7 +32,7 @@ server restriction text, death (`death` juncture, stop; no corpse runs), a chara
 speaking nearby (speech_guard.py: `speech_nearby` hold, deferred until no fight is
 on; leaving to survive overrides the hold). Junctures: `threat` when leaving,
 `low_supplies` when neither a potion nor the mana for Heal is there, `death`. Job events and one episode
-row per visit (kills, gold, hits lost) go to the memory store.
+row per visit (kills, gold, xp, hits lost) go to the memory store.
 
 Run:  python harness/loop_hunt.py [--kills 5] [--enter] [--spell lightning]
 """
@@ -106,8 +106,8 @@ class HuntLoop:
         self.potions = healing.PotionClock()
         self.visit_n = 0
         self.visit = None            # this visit's counters (episode row)
-        self.totals = {"kills": 0, "gold": 0, "hits_lost": 0, "casts": 0, "heals": 0, "potions": 0, "leaves": 0,
-                       "visits": 0}
+        self.totals = {"kills": 0, "gold": 0, "xp": 0, "hits_lost": 0, "casts": 0, "heals": 0, "potions": 0,
+                       "leaves": 0, "visits": 0}
         self._intent = None
         self.left_why = None         # (why, severity) of the last leave
 
@@ -542,6 +542,10 @@ class HuntLoop:
         self.link.act(actions.dclick(c["corpse"]))
         st = self.link.wait(lambda s: combat.corpse_contents(s["world"], c["corpse"]), CONTAINER_WAIT_S)
         inside = combat.corpse_contents(st["world"], c["corpse"]) if st else {}
+        # Mastery-chain XP of a kill = the creature's gold value x our damage share
+        # (wiki Experience_Gain); solo, the gold the corpse holds is that value [INFERENCE].
+        xp = sum(it.get("amount") or 1 for it in inside.values() if it.get("graphic") == combat.GOLD_GRAPHIC)
+        self.count("xp", xp)
         taken = []
         for k, it in combat.loot_order(inside)[: self.args.loot_max]:
             me = self.state()["world"]["self"]
@@ -560,8 +564,9 @@ class HuntLoop:
         gained = max(self.pack_gold(st) - gold0,
                      (st["world"]["self"].get("gold") or 0) - (sgold0 or 0) if sgold0 is not None else 0)
         self.count("gold", gained)
-        log(f"looted {len(taken)} item(s) from {corpse.get('name') or c['name']}: +{gained} gold")
-        self.memory.job_event("hunt", "loot", {"corpse": key_of(c["corpse"]), "gold": gained, "items": taken,
+        log(f"looted {len(taken)} item(s) from {corpse.get('name') or c['name']}: +{gained} gold, ~{xp} xp")
+        self.memory.job_event("hunt", "loot", {"corpse": key_of(c["corpse"]), "mob": key_of(c["mob"]),
+                                               "name": c["name"], "gold": gained, "xp": xp, "items": taken,
                                                "visit": self.visit_n}, **self._where(st))
 
     # ------------------------------------------------------------ leaving / entering
@@ -724,8 +729,8 @@ class HuntLoop:
         self.low_posted = False
         self.visit = {"loop": "hunt", "visit": self.visit_n, "t_start": round(time.time(), 1),
                       "spot": list(self.spot), "spell": combat.MAGERY_SPELLS[self.spell - 1],
-                      "hits_start": st["world"]["self"].get("hits"), "kills": 0, "gold": 0, "hits_lost": 0,
-                      "casts": 0, "heals": 0}
+                      "hits_start": st["world"]["self"].get("hits"), "kills": 0, "gold": 0, "xp": 0,
+                      "hits_lost": 0, "casts": 0, "heals": 0}
 
     def end_visit(self, why):
         if self.visit is None:
@@ -847,9 +852,9 @@ class HuntLoop:
             raise Abort(f"not near the hunting spot {self.spot} (at {self.pos(st)[:2]}); use --enter")
         self.hunt()
         t = self.totals
-        log(f"hunt complete: {t['kills']} kill(s), {t['gold']} gold, {t['hits_lost']} hits lost, "
+        log(f"hunt complete: {t['kills']} kill(s), {t['gold']} gold, ~{t['xp']} xp, {t['hits_lost']} hits lost, "
             f"{t['leaves']} leave(s); outside")
-        self.doing("done", f"Finished: {t['kills']} kill(s), {t['gold']} gold")
+        self.doing("done", f"Finished: {t['kills']} kill(s), {t['gold']} gold, ~{t['xp']} xp")
 
 
 def stop_intent(loop, text):

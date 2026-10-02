@@ -1,69 +1,43 @@
-import { useCallback, useEffect, useState } from "react";
 import { fetchJobs } from "../api.ts";
 import { fmtDuration } from "../format.ts";
-import {
-  eventView,
-  fmtGp,
-  fmtNum,
-  fmtStamp,
-  kpis,
-  oneLocalDay,
-  phaseList,
-  tzMinutesEast,
-  woodShares,
-  type JobsResponse,
-} from "../jobs.ts";
-import { EventStrip, LogsPerHourChart, LogsPerTripChart } from "./Charts.tsx";
+import { eventView, fmtGp, fmtNum, fmtStamp, kpis, oneLocalDay, phaseList, woodShares } from "../jobs.ts";
+import { EventStrip, LogsPerTripChart, RateChart } from "./Charts.tsx";
 import { Badge, Panel } from "./common.tsx";
+import { HuntJobs } from "./HuntJobs.tsx";
+import { JobsHead, JobsLoading, useJobPoll, type JobKind } from "./JobsCommon.tsx";
 
-const JOB = "lumber";
-const REFRESH_MS = 15_000;
+const fetchLumber = (tz: number) => fetchJobs("lumber", tz);
 
-/** Lumber job dashboard from /api/jobs (harness/jobs.py). */
-export function JobsPage() {
-  const [data, setData] = useState<JobsResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [at, setAt] = useState<number | null>(null);
+/** The Jobs page: one dashboard per job, picked by the switch in its head. */
+export function JobsPage({ job, onJob }: { job: JobKind; onJob: (j: JobKind) => void }) {
+  return job === "hunt" ? <HuntJobs onJob={onJob} /> : <LumberJobs onJob={onJob} />;
+}
 
-  const load = useCallback(() => {
-    fetchJobs(JOB, tzMinutesEast()).then(
-      (d) => {
-        setData(d);
-        setError(null);
-        setAt(Date.now() / 1000);
-      },
-      (e: unknown) => setError(String(e)),
-    );
-  }, []);
-
-  useEffect(() => {
-    load();
-    const t = setInterval(load, REFRESH_MS);
-    return () => clearInterval(t);
-  }, [load]);
-
-  if (!data) {
-    return <div className="jobs pad">{error ? <span className="error">{error}</span> : <span className="dim">loading job analytics…</span>}</div>;
-  }
+/** Lumber job dashboard from /api/jobs?job=lumber (harness/jobs.py compute). */
+function LumberJobs({ onJob }: { onJob: (j: JobKind) => void }) {
+  const { data, error, at, reload } = useJobPoll(fetchLumber);
+  if (!data) return <JobsLoading job="lumber" onJob={onJob} error={error} />;
   const t = data.totals;
   const trips = data.trips;
   const sameDay = oneLocalDay(trips.flatMap((r) => (r.t_start === null ? [] : [r.t_start])));
   const shares = woodShares(data.woods);
   const priced = data.woods.filter((w) => w.value_gp !== null);
+  const windowMin = Math.round(data.window_s / 60);
   return (
     <div className="jobs">
-      <div className="jobs-head">
-        <h3>
-          Lumber job <span className="dim">· {t.trips ? `${fmtStamp(t.first_t!)} → ${fmtStamp(t.last_t!)}` : "no trips recorded"}</span>
-        </h3>
-        {!data.store && <Badge kind="warn">no memory store: nothing recorded yet</Badge>}
-        {error && <span className="error">{error}</span>}
-        <span className="spacer" />
-        <span className="dim mono">{at ? `updated ${fmtStamp(at, true)}` : ""}</span>
-        <button type="button" onClick={load}>
-          ↻ refresh
-        </button>
-      </div>
+      <JobsHead
+        job="lumber"
+        onJob={onJob}
+        title={
+          <>
+            Lumber job <span className="dim">· {t.trips ? `${fmtStamp(t.first_t!)} → ${fmtStamp(t.last_t!)}` : "no trips recorded"}</span>
+          </>
+        }
+        store={data.store}
+        error={error}
+        at={at}
+        onRefresh={reload}
+      />
 
       <div className="kpis">
         {kpis(t).map((k) => (
@@ -88,7 +62,16 @@ export function JobsPage() {
 
       <div className="jobs-charts">
         <Panel title="Logs / hr over time">
-          <LogsPerHourChart points={data.rolling} windowS={data.window_s} />
+          <RateChart
+            points={data.rolling}
+            series={[
+              { label: `rolling ${windowMin} min`, cls: "roll", values: data.rolling.map((p) => p.logs_per_hour), dots: true },
+              { label: "cumulative", cls: "cum", values: data.rolling.map((p) => (p.logs_per_hour === null ? null : p.cum_logs_per_hour)) },
+            ]}
+            what="trip"
+            unit="logs/hr"
+            note="active time only; one point per trip end"
+          />
         </Panel>
         <Panel title="Logs per trip">
           <LogsPerTripChart trips={trips} />
@@ -97,7 +80,7 @@ export function JobsPage() {
 
       <div className="jobs-charts">
         <Panel title={`Deaths, thefts, PKs, flees (${data.events.length})`}>
-          <EventStrip trips={trips} events={data.events} />
+          <EventStrip spans={trips.map((r) => ({ n: r.n, t_start: r.t_start, t_end: r.t_end, label: `trip #${r.n} · ${r.logs} logs` }))} events={data.events} />
           {data.events.length === 0 ? (
             <p className="dim">No deaths, thefts, PK sightings or flees recorded.</p>
           ) : (

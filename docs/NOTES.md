@@ -246,6 +246,12 @@ Times are seconds after 1790911000 (22:16:40 local).
   about 15 % of its health, so roughly 220 hp. Two at once hit Hackworth for 7–10 each every
   2–3 s.
 
+## Experience (mastery-chain XP; wiki read 2026-10-02)
+
+- UO has no XP; Outlands does. A kill gives each damaging player **creature gold value × damage share** ([Experience_Gain](https://wiki.uooutlands.com/Experience_Gain)). The gold value comes from the creature's DifficultyValue and is "the expected amount of gold on its corpse" before weekly bonus / Guild Favors / Fortune, which scale the XP too. The same amount goes to every experience system the player qualifies for (mastery chain, weapon codexes, grimoire, …); aspects get 1/100 of it.
+- Mastery-chain XP accumulates without a chain (one is needed to see it: `[MasteryChain` or the chain's gump) and is shared across the account; link 1 unlocks at 250 000 XP ([Mastery_Chain](https://wiki.uooutlands.com/Mastery_Chain)).
+- **No per-kill XP text on the wire:** no S2C packet in any capture under `logs/` (raw bytes, ASCII and UTF-16 both byte orders; 2026-10-02 scan, includes the NPD mongbat capture 20261001_214649) contains "experience" or "Mastery". A cliloc-only message can't be ruled out without the cliloc table [INFERENCE: none]. The harness therefore estimates XP as the gold the corpse held when opened (`loop_hunt` loot event `xp`; user note 2026-10-02: "experience is basically the gold value of the monster") [INFERENCE: exact for solo kills; party or shared damage lowers the real figure]. Mongbat corpses held 19–23 gp in the live runs of 2026-10-02 (4 loots took 0).
+
 ## Test Shard
 
 - Test-only commands: `[TestRes` (res self+followers), `[TestIgnoreMaxDamageCap`, `[TestMaxMeleeDamageRolls`, `[TestMaxSpellDamageRolls`, `[TestBlessedGear`, `[Go` (warp self+followers). Use these for fast harness iteration.

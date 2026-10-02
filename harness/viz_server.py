@@ -32,7 +32,7 @@ Routes:
   GET  /api/facet     facet picture metadata ({"available": false, "error"} without one)
   GET  /api/facet/<cx>/<cy>.png  256x256-tile chunk of the 1 px/tile facet picture
                       (harness/facet.py; read-only from the install dir)
-  GET  /api/jobs?job=lumber[&since=T][&tz=M]  job analytics from the memory store
+  GET  /api/jobs?job=lumber|hunt[&since=T][&tz=M]  job analytics from the memory store
                       (harness/jobs.py; tz = minutes east of UTC for the per-day split,
                       default the server's local offset), cached 2 s
   GET  /api/overseer?after_chat=N&after_juncture=M  {chat, junctures, open, open_ids,
@@ -146,10 +146,7 @@ class OverseerDB:
             if hit is not None and now - hit[0] < self.JOBS_CACHE_S:
                 return hit[1]
             mem = self._open(False)
-            if mem is None:
-                out = jobs_mod.compute([], [], None, jobs_mod.load_woods(), job, since, utc_offset_s)
-            else:
-                out = jobs_mod.analytics(mem, job, since, utc_offset_s=utc_offset_s)
+            out = jobs_mod.analytics(mem, job, since, utc_offset_s=utc_offset_s)
             out["store"] = mem is not None
             body = json.dumps(out).encode()
             if len(self.jobs_cache) > 16:

@@ -8,6 +8,7 @@ import { GumpViewer } from "./components/GumpViewer.tsx";
 import { Header, type Page } from "./components/Header.tsx";
 import { IntentPanel } from "./components/IntentPanel.tsx";
 import { JobsPage } from "./components/JobsPage.tsx";
+import type { JobKind } from "./components/JobsCommon.tsx";
 import { LivePanel } from "./components/LivePanel.tsx";
 import { MapGrid } from "./components/MapGrid.tsx";
 import { MovementPanel } from "./components/MovementPanel.tsx";
@@ -20,15 +21,17 @@ import { useViz } from "./store.ts";
 const TABS = ["Inspector", "Gumps", "Census", "Diagnostics", "Events"] as const;
 type Tab = (typeof TABS)[number];
 
-/** The page lives in the URL hash (#jobs), so it survives reloads and can be linked. */
-function pageFromHash(): Page {
-  return location.hash === "#jobs" ? "Jobs" : "Live";
+/** The page lives in the URL hash (#jobs, #jobs/hunt), so it survives reloads and can be linked. */
+function routeFromHash(): { page: Page; job: JobKind } {
+  if (location.hash === "#jobs/hunt") return { page: "Jobs", job: "hunt" };
+  return { page: location.hash === "#jobs" ? "Jobs" : "Live", job: "lumber" };
 }
 
 export function App() {
   const viz = useViz();
   const overseer = useOverseer();
-  const [page, setPage] = useState<Page>(pageFromHash);
+  const [route, setRoute] = useState(routeFromHash);
+  const page = route.page;
   const [tab, setTab] = useState<Tab>("Inspector");
   // The bottom drawer (containers, inspector, events, …) starts hidden: the map,
   // intent, self, live view and the overseer chat are the primary surface.
@@ -43,28 +46,28 @@ export function App() {
   }, [viz.selected]);
 
   useEffect(() => {
-    const onHash = () => setPage(pageFromHash());
+    const onHash = () => setRoute(routeFromHash());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  const go = (p: Page) => {
-    location.hash = p === "Jobs" ? "jobs" : "";
-    setPage(p);
+  const go = (p: Page, job: JobKind = route.job) => {
+    location.hash = p === "Live" ? "" : job === "hunt" ? "jobs/hunt" : "jobs";
+    setRoute({ page: p, job });
   };
 
   if (page === "Jobs") {
     return (
       <div className="app-jobs">
-        <Header viz={viz} page={page} onPage={go} />
-        <JobsPage />
+        <Header viz={viz} page={page} onPage={(p) => go(p)} />
+        <JobsPage job={route.job} onJob={(j) => go("Jobs", j)} />
       </div>
     );
   }
 
   return (
     <div className="app">
-      <Header viz={viz} page={page} onPage={go} />
+      <Header viz={viz} page={page} onPage={(p) => go(p)} />
       <aside className="left">
         <SelfPanel world={world} />
         <LivePanel viz={viz} />

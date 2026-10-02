@@ -255,6 +255,86 @@ def test_jobs():
     m.close()
 
 
+def test_hunt_jobs():
+    print("== hunt analytics (harness/jobs.py compute_hunt) ==")
+    path = os.path.join(tempfile.mkdtemp(), "harness.db")
+    m = memory.Memory(path)
+    # visit 1 (1000-2800 s): 2 kills, both looted (an old row without xp/name/mob, a new one);
+    # visit 2 (5000-5900 s, day 1): 1 kill never looted, a mob death, a leave;
+    # a kill + loot at 7000 s that no visit row covers (run stopped mid-visit);
+    # visit 3 on day 2: an orc, its loot names it.
+    m.episode("hunt", {"visit": 1, "t_start": 1000.0, "t_end": 2800.0, "kills": 2, "gold": 50, "hits_lost": 40,
+                       "casts": 9, "heals": 2, "potions": 1, "ended": "done", "spell": "Lightning"})
+    m.episode("hunt", {"visit": 2, "t_start": 5000.0, "t_end": 5900.0, "kills": 1, "gold": 0, "ended": "hits low"})
+    m.episode("hunt", {"visit": 1, "t_start": DAY + 100, "t_end": DAY + 1000, "kills": 1, "gold": 120})
+    m.episode("lumber", {"trip": 1, "t_start": 1500.0, "t_end": 1600.0, "logs": 9})
+    m.job_event("hunt", "kill", {"serial": "0x01", "name": "a mongbat"}, t=1100.0)
+    m.job_event("hunt", "kill", {"serial": "0x02", "name": "a mongbat"}, t=1200.0)
+    m.job_event("hunt", "loot", {"corpse": "0x41", "gold": 20,
+                                 "items": [{"graphic": "0x0EED", "amount": 20}, {"graphic": "0x0F0C", "amount": 1}]},
+                t=1210.0)
+    m.job_event("hunt", "loot", {"corpse": "0x42", "mob": "0x01", "name": "a mongbat", "gold": 30, "xp": 33},
+                t=1300.0)
+    m.job_event("hunt", "kill", {"serial": "0x03", "name": "a mongbat"}, t=5100.0)
+    m.job_event("hunt", "death", {"cause": "mob"}, t=5800.0)
+    m.job_event("hunt", "leave", {"why": "hits low"}, t=5850.0)
+    m.job_event("hunt", "speech_hold", {"speakers": []}, t=5200.0)
+    m.job_event("hunt", "speech_clear", {"waited_s": 12.5}, t=5212.5)
+    m.job_event("hunt", "kill", {"serial": "0x04", "name": "a mongbat"}, t=7000.0)
+    m.job_event("hunt", "loot", {"mob": "0x04", "name": "a mongbat", "gold": 25, "xp": 25}, t=7010.0)
+    m.job_event("hunt", "kill", {"serial": "0x05", "name": "an orc"}, t=DAY + 200)
+    m.job_event("hunt", "loot", {"mob": "0x05", "name": "an orc", "gold": 110, "xp": 120}, t=DAY + 210)
+    m.job_event("lumber", "death", {"cause": "pk"}, t=1500.0)
+    a = jobs.analytics(m, "hunt", 0)
+    t = a["totals"]
+    check("hunt totals from the events: 5 kills, 4 looted, gold 185, xp 20 (old row: gold piles taken) + 33 + 25 + 120",
+          (t["kills"], t["looted"], t["gold"], t["xp"], t["xp_kills"], t["xp_unknown_kills"]) == (5, 4, 185, 198, 4, 1),
+          str({k: t[k] for k in ("kills", "looted", "gold", "xp", "xp_kills", "xp_unknown_kills")}))
+    check("active time = the 3 visits (1800+900+900 s = 1 h); rates over in-visit events only (the 7000 s kill is outside)",
+          t["active_s"] == 3600.0 and t["visits"] == 3
+          and (t["kills_per_hour"], t["gold_per_hour"], t["xp_per_hour"]) == (4.0, 160.0, 173.0)
+          and t["outside_visits"] == {"kills": 1, "gold": 25, "xp": 25}, str(t))
+    check("per kill: gold 185/4 looted, xp 198/4 with known xp", (t["gold_per_kill"], t["xp_per_kill"]) == (46.25, 49.5))
+    check("deaths, leaves, speech holds and their wait; other jobs' events excluded",
+          t["deaths"] == {"pk": 0, "mob": 1, "other": 0, "total": 1} and t["leaves"] == 1
+          and (t["speech_holds"], t["speech_wait_s"]) == (1, 12.5), str(t["deaths"]))
+    v = a["visits"]
+    check("visit rows: kills/gold/xp from the events in each visit; row counters (hits lost, casts) kept",
+          [(r["n"], r["kills"], r["gold"], r["xp"], r["looted"]) for r in v] == [(1, 2, 50, 53, 2), (2, 1, 0, 0, 0),
+                                                                                (3, 1, 110, 120, 1)]
+          and (v[0]["hits_lost"], v[0]["casts"], v[0]["potions"]) == (40, 9, 1)
+          and v[1]["events"] == {"death": 1, "leave": 1, "speech_hold": 1, "speech_clear": 1}
+          and v[0]["xp_per_hour"] == 106.0, str([(r["kills"], r["gold"], r["xp"], r["events"]) for r in v]))
+    check("monsters: kills and loot per name (old unnamed loot -> the latest unclaimed kill)",
+          [(r["name"], r["kills"], r["looted"], r["gold"], r["xp"]) for r in a["monsters"]]
+          == [("a mongbat", 4, 3, 75, 78), ("an orc", 1, 1, 110, 120)], str(a["monsters"]))
+    roll = [(p["n"], p["xp_per_hour"], p["cum_xp_per_hour"], p["window_visits"]) for p in a["rolling"]]
+    check("rolling 1 h window: 53/1800 s = 106 -> (53+0)/2700 s = 70.67 -> visit 3 alone 480; cumulative 106, 70.67, 173",
+          roll == [(1, 106.0, 106.0, 1), (2, 70.67, 70.67, 2), (3, 480.0, 173.0, 1)], str(roll))
+    days = {d["day"]: d for d in a["days"]}
+    check("per day: 01-01 2 visits, 4 kills (one outside a visit), 75 gold; 01-02 the orc",
+          list(days) == ["1970-01-01", "1970-01-02"]
+          and (days["1970-01-01"]["visits"], days["1970-01-01"]["kills"], days["1970-01-01"]["gold"]) == (2, 4, 75)
+          and (days["1970-01-02"]["kills"], days["1970-01-02"]["xp"]) == (1, 120), str(list(days)))
+    check("timeline: no per-kill rows (kill/loot), the rest in time order",
+          [e["kind"] for e in a["events"]] == ["speech_hold", "speech_clear", "death", "leave"],
+          str([e["kind"] for e in a["events"]]))
+    since = jobs.analytics(m, "hunt", 4000)
+    check("since=4000: visits 2 and 3, the outside kill and the orc",
+          (since["totals"]["visits"], since["totals"]["kills"], since["totals"]["xp"]) == (2, 3, 145),
+          str(since["totals"]))
+    empty = jobs.analytics(None, "hunt", 0)
+    check("no store: zeros and nulls, no division errors",
+          empty["totals"]["kills"] == 0 and empty["totals"]["xp_per_hour"] is None
+          and empty["totals"]["gold_per_kill"] is None and empty["visits"] == [] and empty["rolling"] == []
+          and empty["monsters"] == [], str(empty["totals"]))
+    check("loot_xp: xp wins; else gold piles (graphic as hex text or int); no items -> unknown",
+          (jobs.loot_xp({"xp": 7, "items": [{"graphic": "0x0EED", "amount": 3}]}),
+           jobs.loot_xp({"items": [{"graphic": "0x0eed", "amount": 3}, {"graphic": 0x0EED, "amount": 2}, {"graphic": "zz"}]}),
+           jobs.loot_xp({"gold": 5})) == (7, 5, None))
+    m.close()
+
+
 def test_overseer_routes(logdir):
     print("== /api/jobs, /api/overseer, POST /api/chat ==")
     path = os.path.join(tempfile.mkdtemp(), "harness.db")
@@ -342,6 +422,10 @@ def test_overseer_routes(logdir):
         ov = get(base + "/api/overseer")
         check("no store: /api/jobs empty with store=false", jb["store"] is False and jb["trips"] == []
               and jb["totals"]["trips"] == 0, str(jb["totals"]["trips"]))
+        hb = get(base + "/api/jobs?job=hunt")
+        check("no store: /api/jobs?job=hunt is the hunt shape, empty, store=false",
+              hb["store"] is False and hb["job"] == "hunt" and hb["visits"] == [] and hb["totals"]["kills"] == 0,
+              str(hb.get("totals")))
         check("no store: /api/overseer empty, heartbeat null", ov["store"] is False and ov["chat"] == []
               and ov["open"] == 0 and ov["heartbeat"] is None)
         cm = get(base + "/api/captcha")
@@ -747,6 +831,7 @@ def main():
         test_order_fallback()
         test_sse(logdir)
         test_jobs()
+        test_hunt_jobs()
         test_overseer_routes(logdir)
         test_live()
     finally:

@@ -94,10 +94,17 @@ and threats, stop: no corpse runs), the speech hold above.
 ## Memory
 
 One episode per visit (loop `hunt`): `visit`, `t_start`/`t_end`, `spot`, `spell`, `hits_start`,
-`kills`, `gold`, `hits_lost`, `casts`, `heals`, `leaves`, `ended` (the leave reason, `done`, `time
-is up` or `stopped`). Job events `kill`, `loot` (gold, items), `leave`, `death`, `speech_hold`,
-`speech_clear`. Gold looted is the backpack gold delta (or the status gold delta, whichever is
-larger; the loot act's own reply was unreliable live).
+`kills`, `gold`, `xp`, `hits_lost`, `casts`, `heals`, `leaves`, `ended` (the leave reason, `done`, `time
+is up` or `stopped`). Job events `kill`, `loot` (`mob`, `name`, `gold`, `xp`, items), `leave`, `death`,
+`speech_hold`, `speech_clear`. Gold looted is the backpack gold delta (or the status gold delta,
+whichever is larger; the loot act's own reply was unreliable live).
+
+**XP** is Outlands mastery-chain experience: a kill gives the creature's gold value × our damage
+share ([wiki Experience_Gain](https://wiki.uooutlands.com/Experience_Gain); no mastery chain needed
+to accumulate it). No capture shows a per-kill XP message (docs/NOTES.md "Experience"), so `xp` is the gold the corpse held when
+opened, before looting [INFERENCE: equal to the creature's value for a solo kill; the weekly bonus
+and Fortune scale gold and XP alike per the wiki]. Unlooted kills have no `xp`. The Jobs page's
+Hunting dashboard shows kills, gold and XP (docs/VISUALIZER.md §2.4).
 
 ## Test
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { eventView, fmtGp, fmtHours, fmtNum, kpis, phaseList, theftLoss, woodShares, type JobEvent, type JobTotals } from "./jobs.ts";
+import { eventView, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, phaseList, theftLoss, woodShares, type HuntTotals, type JobEvent, type JobTotals } from "./jobs.ts";
 
 function totals(p: Partial<JobTotals> = {}): JobTotals {
   return {
@@ -126,5 +126,72 @@ describe("woodShares / phaseList", () => {
       ["store", 1.8],
       ["exit", 3],
     ]);
+  });
+});
+
+function huntTotals(p: Partial<HuntTotals> = {}): HuntTotals {
+  return {
+    visits: 0,
+    active_s: 0,
+    active_hours: 0,
+    kills: 0,
+    gold: 0,
+    xp: 0,
+    xp_kills: 0,
+    xp_unknown_kills: 0,
+    looted: 0,
+    gold_per_kill: null,
+    xp_per_kill: null,
+    hits_lost: 0,
+    casts: 0,
+    heals: 0,
+    potions: 0,
+    leaves: 0,
+    speech_holds: 0,
+    speech_wait_s: 0,
+    deaths: { pk: 0, mob: 0, other: 0, total: 0 },
+    kills_per_hour: null,
+    gold_per_hour: null,
+    xp_per_hour: null,
+    outside_visits: { kills: 0, gold: 0, xp: 0 },
+    first_t: null,
+    last_t: null,
+    ...p,
+  };
+}
+
+describe("huntKpis", () => {
+  test("kills, gold and XP totals with their hourly rates; unlooted kills flagged on the XP tile", () => {
+    const by = Object.fromEntries(
+      huntKpis(huntTotals({ kills: 16, gold: 1256, xp: 1256, xp_unknown_kills: 1, gold_per_kill: 17.07, kills_per_hour: 37.33, gold_per_hour: 538.2, xp_per_hour: 538.2, speech_holds: 5, speech_wait_s: 72.2 })).map((x) => [x.key, x]),
+    );
+    expect([by.kills!.value, by.kills!.sub]).toEqual(["16", "37 / hr"]);
+    expect([by.gold!.value, by.gold!.sub]).toEqual(["1,256 gp", "538 gp / hr · 17.1 / kill"]);
+    expect([by.xp!.value, by.xp!.sub]).toEqual(["1,256", "538 / hr · 1 kill not looted"]);
+    expect([by.speech!.tone, by.speech!.sub]).toEqual(["warn", "1:12 waiting"]);
+    expect(by.mob!.tone).toBe("ok");
+  });
+  test("empty data: rates are dashes, safety tiles ok", () => {
+    const by = Object.fromEntries(huntKpis(huntTotals()).map((x) => [x.key, x]));
+    expect([by.kills!.value, by.kills!.sub]).toEqual(["0", "— / hr"]);
+    expect(by.gold!.sub).toBe("— gp / hr");
+    expect(by.xp!.sub).toBe("— / hr");
+    expect(by.speech!.tone).toBe("ok");
+  });
+  test("a death to a mob turns its tile red", () => {
+    const by = Object.fromEntries(huntKpis(huntTotals({ deaths: { pk: 0, mob: 1, other: 0, total: 1 } })).map((x) => [x.key, x]));
+    expect([by.mob!.value, by.mob!.tone]).toEqual(["1", "bad"]);
+  });
+  test("fmtInt", () => {
+    expect(fmtInt(null)).toBe("—");
+    expect(fmtInt(1234.6)).toBe("1,235");
+  });
+});
+
+describe("eventView (hunt kinds)", () => {
+  test("leave reason, first speaker and line, resume wait", () => {
+    expect(eventView(ev("leave", { why: "hits 59/100 below 60%" }, 5535, 529))).toEqual({ label: "Left the hunt", detail: "hits 59/100 below 60% · 5535,529", tone: "info" });
+    expect(eventView(ev("speech_hold", { speakers: [{ label: "Lord Totten", text: "hi" }] })).detail).toBe("Lord Totten · “hi”");
+    expect(eventView(ev("speech_clear", { waited_s: 72.2 }))).toEqual({ label: "Resumed", detail: "after 1:12", tone: "ok" });
   });
 });
