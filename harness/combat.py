@@ -43,12 +43,31 @@ MAGERY_SPELLS = (
     "Paralyze Field", "Reveal", "Chain Lightning", "Energy Field", "Flamestrike", "Gate Travel", "Mana Vampire",
     "Mass Dispel", "Meteor Swarm", "Polymorph", "Earthquake", "Energy Vortex", "Resurrection", "Air Elemental",
     "Summon Daemon", "Earth Elemental", "Fire Elemental", "Water Elemental")
-# Mana per Magery circle (RunUO MagerySpell.m_ManaTable; circle = (id - 1) // 8 + 1) [INFERENCE for Outlands]
+# Mana per Magery circle (circle = (id - 1) // 8 + 1): wiki Magery, circles 1-7 read 2026-10-02
+# (4/6/9/11/14/20/40); the 8th circle's 50 is RunUO's MagerySpell.m_ManaTable [INFERENCE for Outlands]
 CIRCLE_MANA = (4, 6, 9, 11, 14, 20, 40, 50)
+LAYER_BACKPACK = 0x15
 
 
 def _serial(v) -> int:
     return int(v, 16) if isinstance(v, str) else int(v)
+
+
+def backpack(items: dict, me) -> int | None:
+    """Serial of the backpack worn by `me` (layer 0x15), or None."""
+    return next((_serial(k) for k, v in items.items() if v.get("layer") == LAYER_BACKPACK
+                 and v.get("container") is not None and _serial(v["container"]) == me), None)
+
+
+def pack_items(items: dict, pack: int):
+    """(serial key, item) for everything in the backpack, any bag depth."""
+    parent = {_serial(k): (_serial(it["container"]) if it.get("container") else None) for k, it in items.items()}
+    for k, it in items.items():
+        c, depth = parent[_serial(k)], 0
+        while c is not None and c != pack and depth < 8:
+            c, depth = parent.get(c), depth + 1
+        if c == pack and it.get("graphic") is not None:
+            yield k, it
 
 
 def key_of(serial: int) -> str:

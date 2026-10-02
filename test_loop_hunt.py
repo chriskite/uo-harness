@@ -26,6 +26,7 @@ Run: python test_loop_hunt.py   (~20 s; private ports; safe while the live proxy
 import asyncio
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -53,10 +54,13 @@ SPOT, EXIT_TILE, OUTSIDE = (5535, 529), (5535, 530), (1911, 2556)
 ENTRY, INSIDE = (1912, 2557), (5536, 530)
 A, S, D, E = 0x002C1001, 0x002C1E27, 0x002C3FB9, 0x002C3FE9
 POS = {A: (5536, 526), S: (5534, 527), D: (5534, 528), E: (5536, 528)}
-HITS = {A: 80, S: 80, D: 80, E: 80}
+HITS = {A: 80, S: 80, D: 200, E: 80}       # D lasts past the potion cooldown after re-entering
 CORPSE = {A: 0x4FE00001, S: 0x4FE00003, D: 0x4FE00002}
 GOLD = {A: (0x4FE10001, 21), D: (0x4FE10002, 23)}
 LIGHTNING, GREATER_HEAL = combat.spell_id("lightning"), combat.spell_id("greater heal")
+HEAL = combat.spell_id("heal")
+POT_BAG, POTION = 0x44ADA100, 0x44ADA101            # a bag in the pack holding 3 heal potions
+GHEAL_MIN = 25                                      # --gheal-min-missing (the sim sends no Magery)
 DD = nav.DIR_DELTA
 FAILURES = []
 
@@ -160,6 +164,11 @@ def corpse_flags(corpse, serial, name="a mongbat corpse"):   # Outlands 0xFF sub
     return var(0xFF, body)
 
 
+def cliloc(number, args=b""):
+    return var(0xC1, u32(0xFFFFFFFF) + b"\xff\xff\x00" + u16(0x3B2) + u16(3) + u32(number)
+               + b"System".ljust(30, b"\x00") + args + b"\x00\x00")
+
+
 def cheb(a, b):
     return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
 
@@ -193,6 +202,9 @@ class World:
         self.loot_a_t = None                 # A's gold dropped into the pack
         self.exits, self.entries = [], []
         self.reentered = None                # time the character came back in
+        self.potions = 3
+        self.drinks, self.refused = [], []   # potion double-clicks: accepted / refused (cooling down)
+        self.client_drank_t = None           # a potion drunk in the client (the runner can't know)
 
     @property
     def inside(self):
@@ -257,9 +269,38 @@ class World:
         self.send(self_at(x, y, self.facing))
 
     def came_in(self):
+        first = self.reentered is None
         self.reentered = time.time()
         self.show_mob(D)                     # E wandered off while we were out: never re-sent
         self.swingers.pop(E, None)
+        if not first:
+            return
+        self.swingers[D] = 2                 # back inside D only grazes us (no leave rule before the hit)
+
+        def client_drinks_then_hit():
+            # the player drank a potion in the client (the runner can't know), then D hits
+            # hard: below --heal-at, above --leave-at. The runner's own clock says ready,
+            # the server refuses (500235)
+            self.client_drank_t = time.time()
+            self.hurt_self(D, 25)
+        ready_at = (self.drinks[-1] + 10.5) if self.drinks else time.time()
+        self.later(max(0.5, ready_at - time.time()), client_drinks_then_hit)
+
+    def drink(self):
+        """A heal potion double-clicked: refused within 10 s of the last drink (the
+        runner's or the client's), else +25 hits, as live (cliloc 1008158 + amount)."""
+        now = time.time()
+        last = max([t for t in self.drinks + [self.client_drank_t] if t is not None], default=None)
+        if last is not None and now - last < 10.0:
+            self.refused.append(now)
+            self.send(cliloc(500235))
+            return
+        self.drinks.append(now)
+        self.hits = min(self.hits_max, self.hits + 25)
+        self.potions -= 1
+        self.send(hits_pkt(SELF, self.hits, self.hits_max))
+        self.send(cliloc(1008158, "25".encode("utf-16-le")))
+        self.send(contained(POTION, 0x0F0C, self.potions, POT_BAG) if self.potions else delete(POTION))
 
     # ---- packets ----
     def on_packet(self, p):
@@ -308,7 +349,7 @@ class World:
             self.mana -= combat.spell_mana(f["spell_id"])
             self.send(mana_pkt(self.mana, self.mana_max))
             self.cid += 1
-            ctype = 2 if f["spell_id"] == GREATER_HEAL else 1
+            ctype = 2 if f["spell_id"] in (GREATER_HEAL, HEAL) else 1
             self.cursors[self.cid] = (f["spell_id"], ctype)
             cid = self.cid
             self.later(0.3, lambda: self.send(cursor(cid, ctype)))
@@ -329,8 +370,8 @@ class World:
             else:
                 want = None
             self.targets.append((spell, p, want, time.time(), self.hits))
-            if spell == GREATER_HEAL and f.get("serial") == SELF:
-                self.hits = min(self.hits_max, self.hits + 40)
+            if spell in (GREATER_HEAL, HEAL) and f.get("serial") == SELF:
+                self.hits = min(self.hits_max, self.hits + (40 if spell == GREATER_HEAL else 7))
                 self.send(hits_pkt(SELF, self.hits, self.hits_max))
             elif spell == LIGHTNING and f.get("serial") in self.alive:
                 self.hurt_mob(f["serial"], 40)
@@ -339,6 +380,10 @@ class World:
             self.dclicks.append(serial)
             if serial == BACKPACK:
                 self.send(open_container(BACKPACK, 0x3C))
+            elif serial == POT_BAG:
+                self.send(open_container(POT_BAG, 0x3D))
+            elif serial == POTION:
+                self.drink()
             elif serial in self.corpse_items:
                 self.send(open_container(serial, 0x09))
                 g, n = self.corpse_items[serial]
@@ -388,6 +433,8 @@ class World:
         self.send(self_at(*SPOT))
         self.send(equip(BACKPACK, 0x0E75, 0x15))
         self.send(contained(PACK_GOLD, combat.GOLD_GRAPHIC, self.pack_gold, BACKPACK))
+        self.send(contained(POT_BAG, 0x0E76, 1, BACKPACK))
+        self.send(contained(POTION, 0x0F0C, self.potions, POT_BAG))
         self.send(hits_pkt(SELF, self.hits, self.hits_max))
         self.send(mana_pkt(self.mana, self.mana_max))
         for s in (A, S):
@@ -460,15 +507,22 @@ async def main():
         drainer = asyncio.create_task(drain_client())
         await asyncio.sleep(1.0)
         before = state_req({"op": "state", "since": 1 << 62})["world"]
-        runner = await asyncio.create_subprocess_exec(
-            PY, f"{ROOT}/harness/loop_hunt.py", "--kills", "2", "--timeout", "150",
-            "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--memory", db,
-            "--entry", str(ENTRY[0]), str(ENTRY[1]), "0",
-            "--human", "normal", "--seed", "7", "--human-fast", "0.2", "--quiet", "--no-map",
-            "--triage-url", "",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
-        out, _ = await asyncio.wait_for(runner.communicate(), timeout=200)
-        text = out.decode(errors="replace")
+        runner_out = os.path.join(LOGDIR, "runner.out")
+        with open(runner_out, "wb") as fh:
+            runner = await asyncio.create_subprocess_exec(
+                PY, f"{ROOT}/harness/loop_hunt.py", "--kills", "2", "--timeout", "150",
+                "--gheal-min-missing", str(GHEAL_MIN),
+                "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--memory", db,
+                "--entry", str(ENTRY[0]), str(ENTRY[1]), "0",
+                "--human", "normal", "--seed", "7", "--human-fast", "0.2", "--quiet", "--no-map",
+                "--triage-url", "",
+                stdout=fh, stderr=asyncio.subprocess.STDOUT)
+            try:
+                await asyncio.wait_for(runner.wait(), timeout=200)
+            except TimeoutError:
+                runner.kill()
+                await runner.wait()
+        text = open(runner_out, encoding="utf-8", errors="replace").read()
         print("---- runner output ----\n" + text + "-----------------------")
         after = state_req({"op": "state", "since": 1 << 62})["world"]
         writer.close()
@@ -502,20 +556,40 @@ async def main():
         check("A re-attacked once when it came adjacent, without 0x34 (status request still outstanding)",
               len(att_a) == 2 and c2s[att_a[1] - 1] != actions.status_request(A), str(att_a))
         casts = [p for p in c2s if p[0] == 0xFF and p[3:7] == u32(4)]
-        check("casts are the stock 0xFF sub 4 for Lightning and Greater Heal",
-              casts and all(p in (actions.cast_spell(LIGHTNING), actions.cast_spell(GREATER_HEAL)) for p in casts)
-              and LIGHTNING in world.casts and GREATER_HEAL in world.casts, str(world.casts))
+        spells = (actions.cast_spell(LIGHTNING), actions.cast_spell(GREATER_HEAL), actions.cast_spell(HEAL))
+        check("casts are the stock 0xFF sub 4 for Lightning, Heal and Greater Heal",
+              casts and all(p in spells for p in casts) and LIGHTNING in world.casts, str(world.casts))
         light = [(p, w) for s, p, w, t, h in world.targets if s == LIGHTNING]
-        heals = [(p, w) for s, p, w, t, h in world.targets if s == GREATER_HEAL]
+        heals = [(s, p, w, t, h) for s, p, w, t, h in world.targets if s in (GREATER_HEAL, HEAL)]
         check("every Lightning 0x6C byte-equal to target_object on the mob's current tile (harmful cursor)",
               light and all(p == w for p, w in light), str([(p.hex(), w and w.hex()) for p, w in light][:3]))
-        check("Greater Heal 0x6C on self byte-equal (beneficial cursor): in the fight and while resting outside",
-              len(heals) >= 2 and all(p == w for p, w in heals), str([(p.hex(), w and w.hex()) for p, w in heals]))
+        check("every heal spell's 0x6C on self byte-equal (beneficial cursor)",
+              heals and all(p == w for s, p, w, t, h in heals), str([(p.hex(), w and w.hex()) for s, p, w, t, h in heals]))
+        chosen = [(m.group(1), int(m.group(2))) for m in re.finditer(r"\b(greater heal|heal): (\d+) -> ", text)]
+        check("each heal spell by the missing hits when chosen: Greater Heal from --gheal-min-missing, else Heal",
+              chosen and all((name == "greater heal") == (100 - h >= GHEAL_MIN) for name, h in chosen),
+              str(chosen))
         check("any cursor the runner dropped (the leave rule fired while aiming) got the stock Esc 0x6C",
               all(p == esc for p, esc in world.cancels), str([(p.hex(), esc.hex()) for p, esc in world.cancels]))
-        fight_heals = [h for s, p, w, t, h in world.targets if s == GREATER_HEAL and world.exits and t < world.exits[0]]
-        check("in the fight: Greater Heal after A's 30-point hit put us below --heal-at 0.75",
-              fight_heals and all(h < 75 for h in fight_heals), str(fight_heals))
+        first_cast = next((t for s, p, w, t, h in heals), None)
+        check("in the fight, the first heal after A's 30-point hit is a potion (+25), not a spell",
+              world.drinks and world.exits and world.drinks[0] < world.exits[0]
+              and (first_cast is None or world.drinks[0] < first_cast), f"drinks {world.drinks} heals {heals[:1]}")
+        check("its bag was opened (stock dclick) before the potion's double-click",
+              POT_BAG in world.dclicks and world.dclicks.index(POT_BAG) < world.dclicks.index(POTION),
+              str([hex(s) for s in world.dclicks]))
+        check("no potion double-clicked again within 10 s of a drink (the runner's own clock)",
+              all(b - a >= 10.0 for a, b in zip(world.drinks, world.drinks[1:]))
+              and not [t for t in world.refused if any(0 <= t - d < 10.0 for d in world.drinks)],
+              f"drinks {world.drinks} refused {world.refused}")
+        out_pots = [t for t in world.drinks + world.refused if world.exits[0] < t < world.entries[0]] \
+            if world.exits and world.entries else None
+        check("no potions while resting outside (spells only)", out_pots == [], str(out_pots))
+        ref = world.refused[0] if world.refused else None
+        check("after re-entering, the potion the client's drink made cool down was refused (500235) and a heal "
+              "spell went out within 3 s instead",
+              ref is not None and world.reentered is not None and ref > world.reentered
+              and any(0 <= t - ref < 3.0 for s, p, w, t, h in heals), f"refused {world.refused}")
         check("A and D died; both corpses opened and their gold looted into the pack (0x07+0x08 per GrabItem)",
               world.looted == {CORPSE[A]: 21, CORPSE[D]: 23} and world.drops_refused == 0
               and all(any(c2s[k] == want[0] and c2s[k + 1] == want[1] for k in range(len(c2s) - 1))
@@ -537,10 +611,10 @@ async def main():
               and len(world.exits) == 2, f"{threat} exits {len(world.exits)}")
         check("the multi-attacker rule (not --leave-at 0.60) made it leave",
               threat and threat[0]["data"]["why"].startswith("2 attackers"), str(threat[:1])[:200])
-        check("rested outside with Greater Heal and went back in through the entrance (one entry)",
+        check("rested outside with a heal spell and went back in through the entrance (one entry)",
               len(world.entries) == 1 and world.reentered is not None
-              and any(s == GREATER_HEAL and world.exits[0] < t < world.entries[0]
-                      for s, p, w, t, h in world.targets), f"entries {len(world.entries)}")
+              and any(world.exits[0] < t < world.entries[0] for s, p, w, t, h in heals),
+              f"entries {len(world.entries)}")
         check("E (out of range since we left) was never targeted after re-entering",
               world.reentered is not None
               and not [p.hex() for p, t in zip(c2s, world.c2s_t) if t > world.reentered and refs(p) == E])

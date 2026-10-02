@@ -19,17 +19,19 @@ request is outstanding, 0x05; spells are 0xFF sub 4 then 0x6C; loot is 0x06 on t
 corpse, then 0x07 lift + 0x08 drop per item, gold first; war mode off when nothing
 is near. Pacing comes from humanize.Human.
 
-Rules (all CLI arguments): Greater Heal on self below --heal-at; the attack spell
-while mana >= --mana-reserve + its cost; leave below --leave-at, or below
---leave-multi-at with two or more attackers, or when a hostile player comes close.
-Outside, rest (Greater Heal / regeneration) to --rest-to and go back in (--rest-to 0:
-stop after leaving). The run ends outside (an idle character in the NPD gets killed).
+Rules (all CLI arguments): heal below --heal-at (healing.py: a heal potion whenever
+one can be drunk, else Heal or Greater Heal by the missing hits, Greater Heal from
+--gheal-min-missing); the attack spell while mana >= --mana-reserve + its cost;
+leave below --leave-at, or below --leave-multi-at with two or more attackers, or
+when a hostile player comes close. Outside, rest (Heal / Greater Heal, no potions,
+regeneration) to --rest-to and go back in (--rest-to 0: stop after leaving). The
+run ends outside (an idle character in the NPD gets killed).
 
 Guards: overall timeout, movement stall, the agent gate (Link.act waits it out),
 server restriction text, death (`death` juncture, stop; no corpse runs), a character
 speaking nearby (speech_guard.py: `speech_nearby` hold, deferred until no fight is
 on; leaving to survive overrides the hold). Junctures: `threat` when leaving,
-`low_supplies` when mana can't pay for a heal, `death`. Job events and one episode
+`low_supplies` when neither a potion nor the mana for Heal is there, `death`. Job events and one episode
 row per visit (kills, gold, hits lost) go to the memory store.
 
 Run:  python harness/loop_hunt.py [--kills 5] [--enter] [--spell lightning]
@@ -44,6 +46,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import actions  # noqa: E402
 import alerts  # noqa: E402
 import combat  # noqa: E402
+import healing  # noqa: E402
 import threats  # noqa: E402
 import triage  # noqa: E402
 from agent_link import Abort, Link, Mover, cheb, containers_to_open, log, serial_of  # noqa: E402
@@ -52,7 +55,6 @@ from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 from speech_guard import SpeechGuard, staff_hints  # noqa: E402
 
-GREATER_HEAL = combat.spell_id("greater heal")
 SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is attacking us
 CAST_CURSOR_WAIT_S = 4.0      # a spell's cursor comes after its cast delay
 SPELL_RANGE = 10              # [INFERENCE] RunUO spell range (12 pre-ML, 10 ML)
@@ -64,7 +66,6 @@ POLL_S = 0.4
 TELEPORT_TRIES = 3            # turn, step (+ one retry) onto a teleporter
 TELEPORT_WAIT_S = 1.0         # a confirmed step onto a teleporter: the move follows within this
 HARD_TIMEOUT_GRACE_S = 180.0  # past --timeout the runner leaves; past this too it aborts
-LAYER_BACKPACK = 0x15
 GOTO_Z_TOL = 10               # ctl.GOTO_Z_TOL
 
 
@@ -102,9 +103,11 @@ class HuntLoop:
         self.spell_block = {}        # serial -> monotonic time until spells at it are skipped
         self.prev_hits = None
         self.low_posted = False
+        self.potions = healing.PotionClock()
         self.visit_n = 0
         self.visit = None            # this visit's counters (episode row)
-        self.totals = {"kills": 0, "gold": 0, "hits_lost": 0, "casts": 0, "heals": 0, "leaves": 0, "visits": 0}
+        self.totals = {"kills": 0, "gold": 0, "hits_lost": 0, "casts": 0, "heals": 0, "potions": 0, "leaves": 0,
+                       "visits": 0}
         self._intent = None
         self.left_why = None         # (why, severity) of the last leave
 
@@ -255,12 +258,10 @@ class HuntLoop:
         return None
 
     def backpack(self, st) -> int:
-        me = self.me(st)
-        for key, it in st["world"]["items"].items():
-            if it.get("layer") == LAYER_BACKPACK and it.get("container") is not None \
-                    and serial_of(it["container"]) == me:
-                return serial_of(key)
-        raise Abort("backpack not known to the world model")
+        pack = combat.backpack(st["world"]["items"], self.me(st))
+        if pack is None:
+            raise Abort("backpack not known to the world model")
+        return pack
 
     def pack_gold(self, st) -> int:
         """Gold in the backpack at any bag depth (piles merge, so serials change)."""
@@ -424,22 +425,61 @@ class HuntLoop:
                 self.spell_block[serial] = time.monotonic() + SPELL_BLOCK_S
         return True
 
-    def heal(self, st) -> bool:
-        """Greater Heal on self when mana pays for it; else one low_supplies juncture per visit."""
+    def heal(self, st, potions: bool = True) -> bool:
+        """One heal on self by healing.choose: a heal potion whenever one can be drunk
+        (`potions`), else Heal or Greater Heal by the missing hits. When neither is
+        possible, one low_supplies juncture per visit."""
+        world, me = st["world"], st["world"]["self"]
+        ready = potions and self.potions.ready(time.monotonic())
+        choice = healing.choose(world, self.me(st), ready, self.args.gheal_min_missing)
+        if choice.kind == "potion":
+            if self.drink(st, serial_of(choice.potion)):
+                return True
+            st = self.state()
+            world, me = st["world"], st["world"]["self"]
+            choice = healing.choose(world, self.me(st), False, self.args.gheal_min_missing)
+        if choice.kind == "spell":
+            return self.heal_spell(st, choice.spell)
+        if choice.missing > 0 and not self.low_posted:
+            self.low_posted = True
+            data = {"item": "heal", "have": {"mana": me.get("mana"), "potions": len(healing.heal_potions(world, self.me(st)))},
+                    "need": {"mana": combat.spell_mana(healing.HEAL)},
+                    "hits": [me.get("hits"), me.get("hits_max")], "why": choice.why}
+            self.memory.juncture("hunt", "low_supplies",
+                                 f"No heal possible at {me.get('hits')}/{me.get('hits_max')} hits: {choice.why}",
+                                 "attention", data)
+            log(f"low supplies: {choice.why}")
+        return False
+
+    def drink(self, st, serial: int) -> bool:
+        """Drink the heal potion `serial` like `ctl act use` (open its containers first,
+        stock double-click). True when it healed; a 'wait' refusal (cliloc 500235)
+        restarts the potion clock and returns False so the caller casts instead."""
         me = st["world"]["self"]
-        cost = combat.spell_mana(GREATER_HEAL)
-        if (me.get("mana") or 0) < cost:
-            if not self.low_posted:
-                self.low_posted = True
-                data = {"item": "mana", "have": me.get("mana"), "need": cost,
-                        "hits": [me.get("hits"), me.get("hits_max")]}
-                self.memory.juncture("hunt", "low_supplies",
-                                     f"Mana {me.get('mana')} can't pay for a Greater Heal ({cost}) at "
-                                     f"{me.get('hits')}/{me.get('hits_max')} hits", "attention", data)
-                log(f"low supplies: mana {me.get('mana')} < {cost} for a heal")
+        self.doing("heal", f"Drinking a heal potion ({me.get('hits')}/{me.get('hits_max')} hits)")
+        self.open_for((serial, False))
+        self.human.wait("use")
+        mark = len(self.link.events)
+        self.link.act(actions.dclick(serial))
+        answers = (healing.CLILOC_HEALED, healing.CLILOC_POTION_WAIT, healing.CLILOC_FULL_HEALTH)
+        self.link.wait(lambda s: any(e.get("ev") == "cliloc" and e.get("cliloc") in answers
+                                     for e in self.link.events[mark:]), 2.0)
+        heard = {e.get("cliloc") for e in self.link.events[mark:] if e.get("ev") == "cliloc"}
+        self.potions.started(time.monotonic())
+        hits = self.link.last["world"]["self"].get("hits")
+        if healing.CLILOC_POTION_WAIT in heard:
+            log(f"heal potion refused: still cooling down ({me.get('hits')}/{me.get('hits_max')} hits)")
             return False
-        self.doing("heal", f"Healing myself ({me.get('hits')}/{me.get('hits_max')} hits)")
-        cur = self.cast(GREATER_HEAL, "myself")
+        self.count("potions")
+        log(f"heal potion: {me.get('hits')} -> {hits} hits")
+        return healing.CLILOC_HEALED in heard or (hits or 0) > (me.get("hits") or 0)
+
+    def heal_spell(self, st, sid: int) -> bool:
+        """Heal or Greater Heal on self: cast, then answer the cursor with self."""
+        me = st["world"]["self"]
+        name = combat.MAGERY_SPELLS[sid - 1]
+        self.doing("heal", f"Casting {name} on myself ({me.get('hits')}/{me.get('hits_max')} hits)")
+        cur = self.cast(sid, "myself")
         if cur is None:
             return False
         self.human.wait("aim")
@@ -449,7 +489,7 @@ class HuntLoop:
         self.link.act(combat.target_self(cur, self.me(st), self.pos(st), st["world"]["self"].get("body")))
         self.count("heals")
         self.link.wait(lambda s: (s["world"]["self"].get("hits") or 0) > (me.get("hits") or 0), 2.0)
-        log(f"greater heal: {me.get('hits')} -> {self.link.last['world']['self'].get('hits')} hits")
+        log(f"{name.lower()}: {me.get('hits')} -> {self.link.last['world']['self'].get('hits')} hits")
         return True
 
     def open_for(self, *needs):
@@ -593,10 +633,11 @@ class HuntLoop:
             raise Abort(f"the entrance put us at {self.pos(st)[:2]}, not near the spot {self.spot}")
 
     def rest(self) -> bool:
-        """Outside: Greater Heal / regenerate to --rest-to hits and --mana-reserve mana.
-        False when that takes longer than --rest-timeout."""
+        """Outside: heal with Heal / Greater Heal (healing.choose without potions: out of
+        the fight regenerating mana is free, potions cost gold) and regenerate to
+        --rest-to hits and --mana-reserve mana. False when that takes longer than
+        --rest-timeout."""
         end = time.monotonic() + self.args.rest_timeout
-        cost = combat.spell_mana(GREATER_HEAL)
         while True:
             st = self.state()
             me = st["world"]["self"]
@@ -611,8 +652,9 @@ class HuntLoop:
             if self.pending_speech:
                 self.speech_hold(st)
                 continue
-            if self.frac(me) < self.args.rest_to and (me.get("mana") or 0) >= cost:
-                self.heal(st)
+            if self.frac(me) < self.args.rest_to and healing.choose(
+                    st["world"], self.me(st), False, self.args.gheal_min_missing).kind == "spell":
+                self.heal(st, potions=False)
                 self.human.wait("read")
                 continue
             self.doing("rest", f"Resting ({me.get('hits')}/{me.get('hits_max')} hits, mana {me.get('mana')})")
@@ -829,7 +871,11 @@ def main():
     ap.add_argument("--entry", type=int, nargs=3, default=[1912, 2557, -20], metavar=("X", "Y", "Z"),
                     help="the tile before the entrance teleporter (default: the NPD entrance)")
     ap.add_argument("--entry-dir", type=int, default=0, choices=range(8))
-    ap.add_argument("--heal-at", type=float, default=0.75, help="Greater Heal on self below this share of hits")
+    ap.add_argument("--heal-at", type=float, default=0.75,
+                    help="heal below this share of hits: a heal potion if one can be drunk, else a spell")
+    ap.add_argument("--gheal-min-missing", type=int, default=None,
+                    help="missing hits from which the spell is Greater Heal, not Heal (default: the mana "
+                         "break-even for your Magery, healing.gheal_break_even: 19 at Magery 60)")
     ap.add_argument("--leave-at", type=float, default=0.60, help="leave below this share of hits")
     ap.add_argument("--leave-multi-at", type=float, default=0.80,
                     help="leave below this share of hits when two or more mobs are attacking")

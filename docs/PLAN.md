@@ -236,6 +236,17 @@ chatter, is skipped for now: every speaker still holds a harvest job.
     overseer runs `ctl break`.
   - No weight trigger: logs and boards weigh ~0.025 st each.
 
+- **Healing subroutine (user decision 2026-10-02):** `harness/healing.py` makes the choice for
+  both `ctl act heal` and the hunt runner, so the two can't drift.
+  - A heal potion whenever one can be drunk: not at full health, and 10 s since the last drink.
+    A server "wait" refusal (cliloc 500235) falls back to a spell in the same call.
+  - Otherwise Heal or Greater Heal by the missing hits. Greater Heal from the mana break-even
+    (Heal's average × 11/4, from the wiki Magery formulas: 19 missing at Magery 60), else Heal.
+    The threshold can be overridden with `--gheal-min-missing`.
+  - Bandages are out: Hackworth has no Healing skill (user, chat#919: +4..+9 each).
+  - Resting outside the hunt uses spells only (my call): mana regenerates for free there, while
+    potions cost gold.
+
 
 ## Risks
 

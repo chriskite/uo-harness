@@ -33,6 +33,7 @@ INSTALL_TILEDATA = "C:/Program Files (x86)/Ultima Online Outlands/artdata.uoo"  
 
 import actions  # noqa: E402
 import ctl  # noqa: E402
+import healing  # noqa: E402
 import nav  # noqa: E402
 import task_wrap as tw  # noqa: E402
 from memory import Memory  # noqa: E402
@@ -78,6 +79,9 @@ class FakeProxy:
         self.gate = {"state": "open"}
         self.gate_actions = []
         self.self_hits = 50
+        self.mana = 20
+        self.cast_cursor = False  # heal tests: a cast raises a beneficial cursor (event "target"), 0x6C clears it
+        self.potion_answers = {}  # item key -> cliloc the server answers its double-click with
         self.self_noto = 1
         self.gold = 110
         self.buy_list = None      # {"container": int, "items": [{"price", "name"}]} sent on a menu pick
@@ -155,6 +159,14 @@ class FakeProxy:
                         holds = any(v.get("container") in (key, s) for v in self.ground_items.values())
                         if (s == self.PACK or holds) and s not in self.opened and key not in self.opened:
                             self.opened.append(s)
+                        if key in self.potion_answers:
+                            self.add_event({"ev": "cliloc", "serial": 0xFFFFFFFF, "cliloc": self.potion_answers[key],
+                                            "args": ""})
+                    elif pkt[0] == 0xFF and pkt[3:7] == b"\x00\x00\x00\x04" and self.cast_cursor:
+                        self.target = {"active": True, "target_type": 0, "cursor_id": 0x78, "cursor_type": 2}
+                        self.add_event({"ev": "target", "target_type": 0, "cursor_id": 0x78, "cursor_type": 2})
+                    elif pkt[0] == 0x6C and self.cast_cursor:
+                        self.target = {"active": False, "target_type": None, "cursor_id": None, "cursor_type": None}
                     elif pkt[0] == 0x07:
                         self.lifted = (f"0x{int.from_bytes(pkt[1:5], 'big'):08X}", int.from_bytes(pkt[5:7], "big"))
                     elif pkt[0] == 0x08 and len(pkt) == 22:          # drop into a container
@@ -230,7 +242,7 @@ class FakeProxy:
                              "stalled": False, "resync_pending": False, "client_stale": False},
                 "world": {
                     "self": {"serial": "0x00000001", "name": "TestWorth", "hits": self.self_hits, "hits_max": 60,
-                             "stam": 40, "stam_max": 45, "mana": 20, "mana_max": 25, "weight": 123, "map": 0,
+                             "stam": 40, "stam_max": 45, "mana": self.mana, "mana_max": 25, "weight": 123, "map": 0,
                              "warmode": self.warmode, "notoriety": self.self_noto, "gold": self.gold,
                              "body": 0x190, "skill_names": [],
                              "skills": {"25": {"value": 600, "base": 600, "lock": 0, "cap": 1000},
@@ -1152,6 +1164,54 @@ def test_heal_buy(proxy):
     proxy.ground_items = {}
 
 
+def test_heal(proxy):
+    print("== heal: a potion whenever possible, else Heal / Greater Heal by the missing hits ==")
+    tmp = tempfile.mkdtemp()
+    db = os.path.join(tmp, "harness.db")
+    c = Ctl(db, os.path.join(tmp, "tasks"), proxy)
+    bag, pot = 0x40000012, 0x40000320
+    x, y, z = proxy.pos[:3]
+    me_target = actions.target_object(0x78, 1, x, y, z, 0x190, 2)
+    proxy.opened, proxy.cast_cursor = [proxy.PACK], True
+    proxy.ground_items = {f"0x{pot:08X}": {"graphic": healing.HEAL_POTION_GRAPHIC, "amount": 2,
+                                            "container": f"0x{bag:08X}"}}
+    proxy.potion_answers = {f"0x{pot:08X}": healing.CLILOC_HEALED}
+    proxy.self_hits = 50                                    # 10 of 60 missing; Magery 60, mana 20
+    proxy.take()
+    code, out = c("act", "heal", "--human", "off")
+    check("a potion first: its bag opened (stock double-click), then the potion's; nothing cast",
+          code == 0 and out.get("used") == "potion"
+          and [p for _, p in proxy.take()] == [actions.dclick(bag), actions.dclick(pot)], str(out))
+    code, out = c("act", "heal", "--human", "off")
+    check("within 10 s of that drink, 10 missing (below the break-even 19 at Magery 60): Heal on yourself",
+          code == 0 and out.get("spell") == "Heal"
+          and [p for _, p in proxy.take()] == [actions.cast_spell(healing.HEAL), me_target], str(out))
+    proxy.self_hits = 30
+    code, out = c("act", "heal", "--human", "off")
+    check("30 missing, potion still cooling down: Greater Heal on yourself",
+          code == 0 and out.get("spell") == "Greater Heal"
+          and [p for _, p in proxy.take()] == [actions.cast_spell(healing.GREATER_HEAL), me_target], str(out))
+    m = Memory(db)
+    tw.meta_set(m, ctl.HEAL_POTION_KEY, f"{time.time() - 60:.2f}")   # ctl's clock: ready again
+    m.close()
+    proxy.potion_answers = {f"0x{pot:08X}": healing.CLILOC_POTION_WAIT}   # but the client drank one
+    code, out = c("act", "heal", "--human", "off")
+    check("the server refuses the potion (500235): Greater Heal in the same call",
+          code == 0 and out.get("potion_refused") == f"0x{pot:08X}" and out.get("spell") == "Greater Heal"
+          and [p for _, p in proxy.take()] == [actions.dclick(pot), actions.cast_spell(healing.GREATER_HEAL),
+                                               me_target], str(out))
+    proxy.mana, proxy.ground_items = 3, {}
+    code, out = c("act", "heal", "--human", "off")
+    check("no potion and 3 mana: refused, nothing sent",
+          code == 1 and "no heal possible" in out.get("error", "") and proxy.take() == [], str(out))
+    proxy.mana, proxy.self_hits = 20, 60
+    code, out = c("act", "heal", "--human", "off")
+    check("at full health: nothing sent", code == 0 and out.get("missing") == 0 and proxy.take() == [], str(out))
+    proxy.self_hits, proxy.cast_cursor, proxy.potion_answers, proxy.opened = 50, False, {}, [proxy.PACK]
+    proxy.target = {"active": False, "target_type": None, "cursor_id": None, "cursor_type": None}
+    reset_events(proxy)
+
+
 def reset_events(proxy):
     """Drop the fake's event ring (tests that read `journal` expect only their own events)."""
     with proxy.lock:
@@ -1363,6 +1423,7 @@ def main():
     test_know(proxy)
     test_combat(proxy)
     test_heal_buy(proxy)
+    test_heal(proxy)
     test_intent_cmd(proxy)
     test_npcs(proxy)
     test_attackers(proxy)

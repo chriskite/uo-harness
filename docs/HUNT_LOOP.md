@@ -17,7 +17,8 @@ python harness/loop_hunt.py --enter --kills 5         # from outside the entranc
 | `--exit-dir D` | `4` (south) | The step from the spot onto the exit teleporter. |
 | `--enter` | off | Start outside: walk to `--entry`, step `--entry-dir` to teleport in. |
 | `--entry X Y Z` / `--entry-dir D` | `1912 2557 -20` / `0` | The tile before the NPD entrance teleporter and the step that triggers it. |
-| `--heal-at` | `0.75` | Greater Heal on self below this share of max hits. |
+| `--heal-at` | `0.75` | Heal below this share of max hits (healing.py: a heal potion if one can be drunk, else a spell). |
+| `--gheal-min-missing` | the mana break-even for your Magery (19 at 60) | Missing hits from which the heal spell is Greater Heal; below it, Heal. |
 | `--leave-at` | `0.60` | Leave below this share of max hits. |
 | `--leave-multi-at` | `0.80` | Leave below this share when two or more mobs are attacking. |
 | `--mana-reserve` | `22` | Mana kept for heals (two Greater Heals): the attack spell only while mana ≥ reserve + its cost. |
@@ -26,7 +27,7 @@ python harness/loop_hunt.py --enter --kills 5         # from outside the entranc
 | `--pull-range` | `3` | Engage mobs within this many tiles of the spot. |
 | `--kills N` | `0` | Stop after N kills (0: until `--timeout`). |
 | `--timeout S` | `3600` | Then finish the fights on us, loot, and leave. 180 s past it the runner aborts wherever it is. |
-| `--rest-to` | `0.95` | After leaving: Greater Heal / regenerate outside to this share of hits (and `--mana-reserve` mana), then go back in. `0`: stop after leaving. `--rest-timeout` (900 s) bounds the rest. |
+| `--rest-to` | `0.95` | After leaving: Heal / Greater Heal (no potions) and regenerate outside to this share of hits (and `--mana-reserve` mana), then go back in. `0`: stop after leaving. `--rest-timeout` (900 s) bounds the rest. |
 | `--loot` / `--no-loot`, `--loot-max` | on, 25 | Loot our kills' corpses (items per corpse). |
 | `--human`, `--seed`, `--human-fast`, `--no-map`, `--quiet`, `--triage-url`, ports, `--memory` | | As in the lumber runner. |
 
@@ -43,8 +44,20 @@ Each tick re-reads the proxy state and decides, in this order:
    move right after. Outside it rests and goes back in (except after a hostile player).
 2. **Speech hold** (speech_guard.py, as in the lumber runner) once no fight is on: nothing is sent
    until the overseer acks `speech_nearby`. Leaving to survive overrides the hold.
-3. **Heal**: below `--heal-at`, Greater Heal and target self. Without the mana for it, one
-   `low_supplies` juncture per visit.
+3. **Heal** below `--heal-at`, one heal per tick (`harness/healing.py`, shared with `ctl act heal`;
+   user decision 2026-10-02):
+   - **A heal potion whenever one can be drunk**: any heal potion (graphic `0x0F0C`) in the
+     backpack at any bag depth, smallest stack first, its bags opened first, the stock
+     double-click. "Can be drunk" means not at full health and 10 s since the last drink (the
+     runner's own clock). If the server still refuses (cliloc 500235, e.g. after a drink in the
+     client), the clock restarts and a spell goes out in the same tick.
+   - **Otherwise a spell by the missing hits**: Greater Heal ((40–50) × Magery/100 for 11 mana)
+     once the missing hits reach `--gheal-min-missing`, else Heal ((10–12) × Magery/100 for 4
+     mana; wiki Magery). The default threshold is the mana break-even, where Greater Heal
+     restores more hits per mana than Heal: Heal's average × 11 / 4 (19 at Magery 60). If the
+     chosen spell can't be paid for, the other one is cast.
+   - **No potion and no mana for Heal:** one `low_supplies` juncture per visit.
+   - **Resting outside:** spells only. Mana regenerates for free there, while potions cost gold.
 4. **Loot** our kills' corpses when nothing is attacking us, like `ctl act loot`: human corpses
    refused, walk within 2 tiles, open the backpack (stock dclick) and the corpse, then lift + drop
    each item into the backpack, gold first, up to the weight limit.

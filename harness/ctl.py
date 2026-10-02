@@ -63,6 +63,7 @@ import alerts  # noqa: E402
 from combat import (ATTACK_MIN_HP, CORPSE_GRAPHIC, DROP_AUTO, GOLD_GRAPHIC, LOOT_RANGE,  # noqa: E402
                     MAGERY_SPELLS, NOTORIETY, VIEW_RANGE)
 import combat  # noqa: E402
+import healing  # noqa: E402
 import nav  # noqa: E402
 import task_wrap as tw  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
@@ -112,7 +113,9 @@ LAYER_NAMES = {1: "one_handed", 2: "two_handed", 3: "shoes", 4: "pants", 5: "shi
                0x17: "skirt", 0x18: "legs", 0x19: "mount", 0x1D: "bank"}
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
         "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot",
-        "target", "cast", "buy", "use", "drop", "track")
+        "target", "cast", "heal", "buy", "use", "drop", "track")
+# meta key: epoch seconds of ctl's last heal-potion drink (healing.PotionClock across ctl calls)
+HEAL_POTION_KEY = "heal_potion_t"
 PACK_ITEMS_MAX = 60                  # status.backpack.items
 CONTAINER_ITEMS_MAX = 60             # status.containers[].items
 DENY_TELEPORT_GRACE_S = 0.4           # after a walk deny, a teleporter may still move us (agent_link)
@@ -406,12 +409,10 @@ def summarize(resp: dict, now: float | None = None) -> dict:
                         "age_s": _age(now, m.get("seen_t"))})
     mobiles.sort(key=lambda m: (m["dist"] is None, m["dist"] or 0))
     items = world.get("items") or {}
-    pack = next((_serial(k) for k, it in items.items()
-                 if it.get("layer") == LAYER_BACKPACK and it.get("container") is not None
-                 and _serial(it["container"]) == self_serial), None)
+    pack = combat.backpack(items, self_serial)
     counts, pack_items = {}, []
     if pack is not None:
-        for k, it in _pack_items(items, pack):
+        for k, it in combat.pack_items(items, pack):
             g = counts.setdefault(f"0x{it['graphic']:04X}", {"stacks": 0, "amount": 0})
             g["stacks"] += 1
             g["amount"] += it.get("amount") or 1
@@ -487,7 +488,7 @@ def _containers(world: dict, items: dict, me, pack) -> list:
         rows = [{"serial": k, "graphic": f"0x{it['graphic']:04X}", "name": item_label(it),
                  "amount": it.get("amount") or 1,
                  "in": None if _serial(it["container"]) == root else it["container"]}
-                for k, it in _pack_items(items, root)]
+                for k, it in combat.pack_items(items, root)]
         out.append({"serial": f"0x{root:08X}", "kind": kind,
                     "name": item_label(box) if box.get("graphic") is not None else None,
                     "count": len(rows), "items": rows[:CONTAINER_ITEMS_MAX]})
@@ -540,17 +541,6 @@ def _skills(me: dict) -> dict:
             i = int(sid)
             out[names[i] if i < len(names) else f"skill #{i}"] = sk["value"] / 10
     return dict(sorted(out.items(), key=lambda kv: -kv[1]))
-
-
-def _pack_items(items: dict, pack: int):
-    """(serial key, item) for everything in the backpack, any bag depth."""
-    parent = {_serial(k): (_serial(it["container"]) if it.get("container") else None) for k, it in items.items()}
-    for k, it in items.items():
-        c, depth = parent[_serial(k)], 0
-        while c is not None and c != pack and depth < 8:
-            c, depth = parent.get(c), depth + 1
-        if c == pack and it.get("graphic") is not None:
-            yield k, it
 
 
 def item_label(it: dict) -> str | None:
@@ -944,6 +934,8 @@ def _act(a, mem) -> dict:
         return _act_target(a)
     if a.name == "cast":
         return _act_cast(a)
+    if a.name == "heal":
+        return _act_heal(a, mem)
     if a.name == "track":
         return _act_track(a)
     if a.name == "buy":
@@ -1157,12 +1149,6 @@ def _click_packets(name: str, serial: int, stc: "StateConn", index: int | None) 
     return [actions.popup_selection(serial, index)]
 
 
-
-def _backpack(items: dict, me) -> int | None:
-    return next((_serial(k) for k, v in items.items() if v.get("layer") == LAYER_BACKPACK
-                 and v.get("container") is not None and _serial(v["container"]) == me), None)
-
-
 def _connect(a):
     try:
         ctl = Control(a.control_port)
@@ -1282,7 +1268,7 @@ def _act_loot(a) -> dict:
         if dist > LOOT_RANGE:
             raise CtlError(f"the corpse is {dist} tiles away; walk within {LOOT_RANGE} first "
                            f"(goto {key} --range 1)")
-        pack = _backpack(world["items"], me_serial)
+        pack = combat.backpack(world["items"], me_serial)
         if pack is None:
             raise CtlError("backpack not known to the world model")
         noto_before = world["self"].get("notoriety")
@@ -1374,7 +1360,7 @@ def _act_target(a) -> dict:
                 raise CtlError("use `target self`")
             it = world["items"].get(key)
             if it is not None:
-                pack = _backpack(world["items"], me_serial)
+                pack = combat.backpack(world["items"], me_serial)
                 c, depth = it.get("container"), 0
                 while c is not None and _serial(c) != pack and depth < 8:
                     c, depth = (world["items"].get(f"0x{_serial(c):08X}") or {}).get("container"), depth + 1
@@ -1442,6 +1428,81 @@ def _act_cast(a) -> dict:
     finally:
         ctl.close()
         stc.close()
+
+
+def _act_heal(a, mem) -> dict:
+    """heal [--gheal-min-missing N]: one heal on yourself, chosen like the hunt runner
+    (healing.py). A heal potion when one can be drunk (its bags opened first, the stock
+    double-click), else Heal or Greater Heal by the missing hits (cast, then the
+    cursor answered with yourself). A potion the server refuses as still cooling down
+    (cliloc 500235) falls back to the spell in the same call."""
+    if a.args:
+        raise CtlError("heal takes no arguments (options: --gheal-min-missing N)")
+    last = tw.meta_get(mem, HEAL_POTION_KEY)
+    clock = healing.PotionClock(None if last is None else float(last))
+    ctl, stc = _connect(a)
+    try:
+        st = stc.state()
+        me = st["movement"].get("self_serial")
+        choice = healing.choose(st["world"], me, clock.ready(time.time()), a.gheal_min_missing)
+        out, heard = {"missing": choice.missing}, []
+        if choice.kind == "potion":
+            serial = _serial(choice.potion)
+            opened = _open_first(ctl, stc, Human(a.human, seed=a.seed), (serial, False))
+            if opened:
+                out["opened"] = opened
+            mark = stc.mark()
+            stc.intent("Drinking a heal potion", "heal")
+            resp = ctl.send(actions.dclick(serial))
+            if resp != "OK":
+                return {"ok": False, "reply": resp, **out}
+            answers = (healing.CLILOC_HEALED, healing.CLILOC_POTION_WAIT, healing.CLILOC_FULL_HEALTH)
+            got = stc.wait_events(mark, lambda evs: any(e.get("ev") == "cliloc" and e.get("cliloc") in answers
+                                                        for e in evs), timeout=2.0)
+            tw.meta_set(mem, HEAL_POTION_KEY, f"{time.time():.2f}")
+            heard += [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]
+            if healing.CLILOC_POTION_WAIT not in {e.get("cliloc") for e in got if e.get("ev") == "cliloc"}:
+                return {"ok": True, "reply": resp, "used": "potion", "potion": choice.potion, "why": choice.why,
+                        "hits": _self_hits(stc), **out, "heard": heard}
+            out["potion_refused"] = choice.potion
+            st = stc.state()
+            choice = healing.choose(st["world"], me, False, a.gheal_min_missing)
+        if choice.kind != "spell":
+            if choice.missing <= 0 and not heard:
+                return {"ok": True, "reply": choice.why, **out}
+            raise CtlError(f"no heal possible: {choice.why}")
+        name = MAGERY_SPELLS[choice.spell - 1]
+        mark = stc.mark()
+        stc.intent(f"Casting {name} on myself", "heal")
+        resp = ctl.send(actions.cast_spell(choice.spell))
+        if resp != "OK":
+            return {"ok": False, "reply": resp, "spell": name, **out}
+        got = stc.wait_events(mark, lambda evs: any(e.get("ev") in ("target", "cliloc") for e in evs),
+                              timeout=CAST_CURSOR_WAIT_S)
+        heard += [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]
+        cur = stc.state()["world"].get("target") or {}
+        if not cur.get("active") or cur.get("cursor_id") is None:
+            return {"ok": False, "reply": "no target cursor", "spell": name, **out, "heard": heard}
+        Human(a.human, seed=a.seed).wait("aim")
+        st = stc.state()
+        now = st["world"].get("target") or {}
+        if not now.get("active") or now.get("cursor_id") != cur["cursor_id"]:
+            return {"ok": False, "reply": "the spell's cursor went away", "spell": name, **out, "heard": heard}
+        mark = stc.mark()
+        resp = ctl.send(combat.target_self(cur, me, st["movement"]["pos"], st["world"]["self"].get("body")))
+        got = stc.wait_events(mark, lambda evs: any(e.get("ev") == "cliloc" and e.get("cliloc") == healing.CLILOC_HEALED
+                                                    for e in evs), timeout=2.0)
+        heard += [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]
+        return {"ok": resp == "OK", "reply": resp, "used": "spell", "spell": name, "why": choice.why,
+                "hits": _self_hits(stc), **out, "heard": heard}
+    finally:
+        ctl.close()
+        stc.close()
+
+
+def _self_hits(stc) -> list:
+    me = stc.state()["world"]["self"]
+    return [me.get("hits"), me.get("hits_max")]
 
 
 def track_mode(words) -> str:
@@ -1615,7 +1676,7 @@ def _in_tree(items: dict, key: str, root: int) -> bool:
 def _where(items: dict, key: str, me) -> str:
     """A readable name for where an item or container is: your backpack, your
     bank box, a corpse, the ground, or another container's serial."""
-    pack, s, depth = _backpack(items, me), _serial(key), 0
+    pack, s, depth = combat.backpack(items, me), _serial(key), 0
     while s is not None and depth < 10:
         v = items.get(f"0x{s:08X}") or {}
         if s == pack:
@@ -1711,11 +1772,11 @@ def _act_use(a) -> dict:
     try:
         st = stc.state()
         items = st["world"]["items"]
-        pack = _backpack(items, st["movement"].get("self_serial"))
+        pack = combat.backpack(items, st["movement"].get("self_serial"))
         if pack is None:
             raise CtlError("backpack not known to the world model")
         cands = []
-        for k, it in _pack_items(items, pack):
+        for k, it in combat.pack_items(items, pack):
             name = (item_label(it) or "").lower()
             if want.startswith("0x"):
                 ok = f"0x{it['graphic']:04x}" == want
@@ -1901,7 +1962,7 @@ def _act_wear(a) -> dict:
         it = items.get(key)
         if it is None:
             raise CtlError(f"item {key} not known to the world model")
-        pack = _backpack(items, me)
+        pack = combat.backpack(items, me)
         if pack is None:
             raise CtlError("backpack not known to the world model")
         worn = it.get("container") is not None and _serial(it["container"]) == me and bool(it.get("layer"))
@@ -2409,6 +2470,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="walk: walk instead of run (the client's Always Run is on, so the default is run)")
     p.add_argument("--human", choices=sorted(PROFILES), default="normal", help="walk pacing profile")
     p.add_argument("--seed", type=int, default=None)
+    p.add_argument("--gheal-min-missing", type=int, default=None,
+                   help="heal: missing hits from which the spell is Greater Heal, not Heal "
+                        "(default: the mana break-even for your Magery, 19 at Magery 60)")
     p.add_argument("--range", type=int, default=None,
                    help="goto: stop within this many tiles (default 0 for a tile, 2 for a mobile)")
     p.add_argument("--max-moves", type=int, default=GOTO_MAX_MOVES)
