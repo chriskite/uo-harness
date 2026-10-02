@@ -115,8 +115,34 @@ two-attacker rule; the runner rests outside with a Greater Heal and goes back in
 doesn't re-send (pruned, out of range) must never be targeted; the second kill ends the run outside.
 Attack, cast, target, cancel and loot packets are compared byte-wise with the builders.
 
+## Live (2026-10-02, Hackworth, NPD, runs 1–11 under the overseer)
+
+72 counted kills and ~980 gold in ~3 h 15 min. Leaving below `--leave-at`, the exit teleport, resting
+outside and re-entering all worked; no deaths. Heal potions were drunk live (healing.py). Logs:
+`logs/tasks/hunt-20261002-*.log` (local).
+
+- **`--pull-range 3` idles** while bats sit 5–6 tiles from the exit tile; 8 engaged the room.
+- **Non-target attackers are never fought.** `pick_target` filters every candidate, attackers
+  included, by `--target-name` (`wanted()`); a wounded harpy and giant rats on the exit tile took
+  ~45 hits in 10–15 s per visit while the runner waited for a mongbat. `status.attackers` stayed
+  empty for them too. Workaround: `--target-name ''` (any monster the attack guard allows).
+  Fix needed: attackers should bypass the name filter.
+- **Heal isn't always in the spellbook.** healing.py picks Heal for small losses; Hackworth's book
+  lacks it ("You do not have that spell!"). Workaround `--gheal-min-missing 1`. Fix needed: choose
+  only spells the book holds.
+- **A speech hold sends nothing, even mid-fight**: no heals and no swings. Hits fell 99 → 48 until
+  the survival leave overrode the hold. Combat and heals should continue during a hold.
+- **The rest ends at the mana reserve.** With the default 22 it re-entered with ~24 mana, cast it
+  away and bounced out in 25 s. `--mana-reserve 70` made visits last.
+- **The arrival tile (5536,530) is also an exit teleporter.** Walking back from a corpse over it
+  put the runner outside, and it aborted "back to the spot: no route" (it plans inside only).
+- **Counted kills overstate income in a crowded room.** Tamers' pets take killing blows (loot is
+  theirs), so 30–100 % of a run's kills were empty or had no corpse.
+- Logged heal deltas often read +1 ("greater heal: 46 -> 47"): the hits are read before the heal
+  lands.
+- Many casts are ruined by hits (cliloc 500641) or spell recovery (502644). Mongbats inflict
+  "Diseased" (damage every 5 s).
+
 ## Not yet
 
-- Not run live yet.
-- Mana only: no potions or bandages.
 - The spell range (10) and the corpse wait (4 s) are [INFERENCE].
