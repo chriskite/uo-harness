@@ -29,7 +29,12 @@ class FakeLink:
     """A grid server: walls deny, doors deny until opened (0x12 0x58 next to them)."""
 
     def __init__(self, start, facing, walls=(), doors=(), mobiles=(), can_shove=True, z=0, z_walk=None,
-                 teleports=None, deny_teleports=None):
+                 teleports=None, deny_teleports=None, gates=None):
+        # tile -> (gump serial, gump id, layout) a moongate there opens when stepped onto (sent
+        # before the step's confirm, never closed by the server; captures 20260930_100200 ...)
+        self.gates = dict(gates or {})
+        self.gumps = {}                               # serial -> gump dict (state-port shape)
+        self.replies = []                             # every 0xB1 the agent sent
         self.teleports = dict(teleports or {})   # tile -> where stepping onto it puts you
         # tile -> destination for teleporters that deny the step and move you a moment later
         # (the New Player Dungeon exit, live 2026-09-30): the jump shows from the second state poll
@@ -70,6 +75,18 @@ class FakeLink:
             if self.z_walk is not None:
                 self.z = self.z_walk.can_walk(self.here[0], self.here[1], self.z, d)[2]
             self.here = list(self.teleports.get(nxt, nxt))
+            if tuple(self.here) in self.gates:
+                serial, gid, layout = self.gates[tuple(self.here)]
+                serial += len(self.gumps)              # a fresh gump each time it's stepped on
+                self.gumps[serial] = {"serial": f"0x{serial:08X}", "gump_id": f"0x{gid:08X}",
+                                      "layout": layout, "lines": ["Young Player Status"], "open": True}
+                self.events.append({"ev": "gump_open", "serial": serial, "gump_id": gid,
+                                    "layout": layout, "lines": ["Young Player Status"]})
+        elif pkt[0] == 0xB1:
+            self.replies.append(pkt)
+            g = self.gumps.get(int.from_bytes(pkt[3:7], "big"))
+            if g is not None:
+                g["open"] = False
         elif pkt[0] == 0x12 and pkt[3] == 0x58:
             self.door_reqs.append((tuple(self.here), self.facing))
             for door in self.doors:
@@ -91,10 +108,12 @@ class FakeLink:
             m[2] -= 1
         items = {f"0x{0x40000000 + i:08X}": {"graphic": 0x06AD, "x": d[0], "y": d[1]}
                  for i, d in enumerate(self.doors)}
+        items.update({f"0x{0x40001000 + i:08X}": {"graphic": 0x0F6C, "x": g[0], "y": g[1], "z": 0}
+                      for i, g in enumerate(self.gates)})
         mobiles = {f"0x{0x100 + i:08X}": {"x": m[0], "y": m[1]} for i, m in enumerate(self.mobiles) if m[2] > 0}
         return {"movement": {"pos": [*self.here, self.z, self.facing], "inflight": 0, "self_serial": 1,
                              "stalled": False, "rejects_in_row": 0},
-                "world": {"mobiles": mobiles, "items": items,
+                "world": {"mobiles": mobiles, "items": items, "gumps": list(self.gumps.values()),
                           "self": {"stam": 50 if self.can_shove else 3, "stam_max": 50}}}
 
     def wait(self, pred, timeout, poll=0.1):
@@ -305,6 +324,37 @@ def test_teleporter():
           str(store2.teleporters(0)))
 
 
+RENOUNCE = 0xE2544541     # the renounce-Young prompt a Shelter moongate opens (20261001_191355)
+RENOUNCE_LAYOUT = ("{ resizepic 28 23 11571 401 501 }{ button 22 24 2094 2095 1 0 1 }"
+                   "{ text 64 45 2655 2 18 0 1 0 0 0 }{ button 60 460 247 248 1 0 2 }"
+                   "{ button 300 460 241 242 1 0 3 }")
+
+
+def test_moongate_gumps():
+    print("== moongates on the route: close the gump of a gate we only pass over, keep the one we go to ==")
+    import actions
+    link = FakeLink((0, 0), facing=2, gates={(3, 0): (0x02B3BFD5, RENOUNCE, RENOUNCE_LAYOUT)})
+    mv = map_mover(link, HALLWAY)
+    msg = walk_msg(mv, (6, 0))
+    g = next(iter(link.gumps.values()))
+    check("walked on over the gate and arrived", msg == "arrived" and tuple(link.here) == (6, 0), msg)
+    check("its gump was closed once, with the stock right-click reply (button 0)",
+          link.replies == [actions.gump_reply(0x02B3BFD5, RENOUNCE, 0, RENOUNCE_LAYOUT, g["lines"])]
+          and not g["open"] and mv.gate_gumps_closed == 1, f"{[r.hex() for r in link.replies]}")
+
+    link = FakeLink((0, 0), facing=2, gates={(3, 0): (0x02B3BFD5, RENOUNCE, RENOUNCE_LAYOUT)})
+    mv = map_mover(link, HALLWAY)
+    mv.walk_to(lambda: (3, 0), 0, "t", gate=(3, 0))
+    check("a walk that means to use the gate leaves its gump open and sends nothing",
+          tuple(link.here) == (3, 0) and link.replies == [] and next(iter(link.gumps.values()))["open"],
+          f"{link.here} {link.replies}")
+
+    link = FakeLink((0, 0), facing=2, gates={(3, 0): (0x02B3BFD5, RENOUNCE, "{ noclose }" + RENOUNCE_LAYOUT)})
+    walk_msg(map_mover(link, HALLWAY), (6, 0))
+    check("a noclose gump is never answered (a stock client can't close it)", link.replies == [],
+          f"{[r.hex() for r in link.replies]}")
+
+
 if __name__ == "__main__":
     test_no_walk_into_known_wall()
     test_door()
@@ -314,5 +364,6 @@ if __name__ == "__main__":
     test_shove_denied()
     test_height_goal()
     test_teleporter()
+    test_moongate_gumps()
     print(f"\nmover: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     sys.exit(0 if not FAILURES else 1)

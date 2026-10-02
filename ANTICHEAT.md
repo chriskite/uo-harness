@@ -420,7 +420,10 @@ every earlier capture**. Unparsed but known: S2C 0x54 sound, 0xC0 effects, 0xAF 
   not answered.
 - **Texture notes (not stock deviations on the wire):** after the second world-save rejection the
   replanned route turned back (W → N) before stepping; and the renounce gump stayed open in the
-  client for the rest of the session, where a person would close it.
+  client for the rest of the session, where a person would close it. **Fixed the same day:** the
+  Mover now closes the gump of any moongate a route only passes over, with the stock `0xB1`
+  button 0 after a reaction pause (docs/NOTES.md "Moongate gumps"; `test_loop_lumber.py` proves it
+  through the real proxy, which also closes the client's copy). Not yet run live.
 
 **Other gaps:** the JWT carries no shard claim, and the NAT diverts every server IP on :2593 (since
 2026-09-30, after logins went to 35.71.142.123 and 52.223.17.219 rather than the Test Shard's

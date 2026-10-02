@@ -14,6 +14,9 @@ texts of the demonstration capture (logs/session_20260929_204225):
   closes it again (RunUO); lift + drop into the open box, merging stacks like RunUO
 - a closed town door between the trees and the bank that opens on the stock open-door
   request and swings shut once the agent is past it
+- a moongate on each tile west of that door, so every route to the bank and back steps on
+  one: like Shelter's player-cast gates (session 20261001_191355) it opens the renounce-Young
+  prompt before the step's confirm and never closes it; the agent must close it (button 0)
 
 The "human" answers the unreadable (fallback) captcha through the client connection. Two trips run.
 
@@ -52,6 +55,11 @@ BANK_POS = (127, 200)                                    # where the banker actu
 BANK_KNOWN = (107, 200)     # knowledge from an older demo: 20 tiles off (NPCs move; speech range 12)
 DOOR = (122, 200)                                        # a closed town door
 WALLS = {(122, y) for y in range(180, 236)} - {DOOR}     # long enough that going round costs more than the door
+GATES = {(121, y) for y in (199, 200, 201)}              # every route through the door crosses one
+RENOUNCE_ID = 0xE2544541                                 # the renounce-Young prompt (20261001_191355)
+RENOUNCE_LAYOUT = ("{ resizepic 28 23 11571 401 501 }{ button 22 24 2094 2095 1 0 1 }"
+                   "{ text 64 45 2655 0 18 0 1 0 0 0 }{ button 60 460 247 248 1 0 2 }"
+                   "{ button 300 460 241 242 1 0 3 }")
 LOGS_PER_SUCCESS = 3
 STOLEN = 2                                               # a pickpocket's take, once (the loop must carry on)
 PASSERBY = 0x0000ABCD                                    # a player who walks up and says hello mid-harvest
@@ -209,6 +217,7 @@ class World:
         self.good_left = GOOD_VISIT
         self.doors_opened = 0
         self.containers_opened = []                          # 0x06 on the backpack, in order
+        self.gate_gumps = {}              # renounce-prompt serial -> buttons the agent/client replied
 
     def send(self, pkt):
         self.writer.write(encode_packet(pkt, S2C_KEY))
@@ -307,6 +316,11 @@ class World:
                           + bytes([self.facing]) + u32(0))
                 return
             self.pos = [nx, ny]
+            if (nx, ny) in GATES:                        # the gate's gump comes before the confirm
+                self.gate_gumps[self.next_gump()] = []
+                self.send(gump(self.gump_serial, RENOUNCE_ID, RENOUNCE_LAYOUT,
+                               ["Young Player Status", "Guide",
+                                "Leaving Shelter Island will cause you to renounce your"]))
             self.bank_open = False                       # moving closes the bank box (RunUO)
             if self.door_open and self.cheb(DOOR) > 2:   # the door swings shut behind the agent
                 self.door_open = False
@@ -342,6 +356,8 @@ class World:
             f = parse_packet("c2s", p)
             if f["serial"] in self.decoys:
                 self.decoy_replies += 1
+            elif f["serial"] in self.gate_gumps:
+                self.gate_gumps[f["serial"]].append(f["button_id"])
             elif f["serial"] == self.captcha_open and f["button_id"] == CAPTCHA_SUBMIT:
                 text = next((t["text"] for t in f.get("texts", []) if t["id"] == 2), "")
                 if self.captcha_auto:
@@ -399,6 +415,8 @@ class World:
         self.send(equip(HATCHET, 0x0F44, 0x02))
         self.send(mobile_pkt(BANKER, *BANK_POS))
         self.send(ground_item(0x40005CE3, 0x06AD, *DOOR, 0))     # the town door (demo art)
+        for i, (gx, gy) in enumerate(sorted(GATES)):
+            self.send(ground_item(0x40006000 + i, 0x0F6C, gx, gy, 0))  # blue moongates
         await writer.drain()
         buf = bytearray()
         while True:
@@ -580,8 +598,15 @@ async def main():
               str([(r.get("logs"), r.get("woods")) for r in rows]))
         check("decoy gumps were shown and never answered",
               len(world.decoys) >= 4 and world.decoy_replies == 0, f"{len(world.decoys)} decoys")
-        check("agent gump replies = the auto-solved captcha only (no room menu any more)",
-              len(b1_agent) == 1, str(len(b1_agent)))
+        b1_gate = [e for e in b1_agent if int(e["hex"][6:14], 16) in world.gate_gumps]
+        check("agent gump replies = the auto-solved captcha + the moongate prompts it closed",
+              len(b1_agent) - len(b1_gate) == 1, f"{len(b1_agent)} agent replies, {len(b1_gate)} to gates")
+        closes = [e for e in log if e.get("ev") == "gump_close_client"]
+        check("every moongate prompt the route opened was closed once, with button 0 (the stock right-click), "
+              "and the client's copy closed by the proxy",
+              len(world.gate_gumps) >= 3 and all(v == [0] for v in world.gate_gumps.values())
+              and len(b1_gate) == len(world.gate_gumps) and len(closes) == len(b1_agent),
+              f"{world.gate_gumps} client closes {len(closes)}")
         check("each trip opened the bank box by saying 'bank' next to the banker; the run ends at the bank",
               world.bank_opens == 2 and world.cheb(BANK_POS) <= 4 and "waiting at the bank" in text,
               f"{world.bank_opens} opens, at {world.pos}")

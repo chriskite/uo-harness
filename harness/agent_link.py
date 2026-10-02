@@ -14,6 +14,9 @@
   request after a player's reaction time. Mobiles are not walls: UOO lets you
   shove through them with enough stamina (user, 2026-09-29), so a mobile's
   tile only costs extra; a denied shove blocks that tile for a while.
+  Moongates are walkable: stepping onto one opens its gump (destinations, or the
+  renounce-Young prompt) and nothing more. A gate the route only passes over is
+  a stray: the Mover closes its gump like a player would (stock 0xB1, button 0).
 """
 import json
 import socket
@@ -23,6 +26,7 @@ import actions
 import nav
 import pathfind
 import uomap
+from uo.gumps import parse_layout
 
 HOST = "127.0.0.1"
 GATE_WAIT = ("ERR agent paused", "ERR scheduled break")  # reopen on their own
@@ -51,6 +55,13 @@ DENY_TELEPORT_GRACE_S = 0.4
 # storey is ~20 (Shelter inn: ground floor planks z 0-1, upstairs boards z 20-21).
 BODY_HEIGHT = 16
 FLOOR_SPAN = 22
+# Moongates (tiledata name "moongate"; this art without tiledata). Stepping onto one only opens a
+# gump, sent before the step's confirm and never closed by the server: "Moongate Destinations"
+# 0xE0E675B8, or for a Young character the renounce prompt 0xE2544541 (captures 20260930_100200
+# ... 20261001_191355). Nothing moves you until it's answered (user, 2026-10-01).
+MOONGATE_GRAPHICS = frozenset([*range(0x0DDA, 0x0DDF), *range(0x0F6C, 0x0F71)])
+GATE_GUMP_WAIT_S = 1.0       # after landing on a gate, how long to look for its gump
+CAPTCHA_GUMP_ID = 0x00000001  # never closed here (ANTICHEAT.md §8.8)
 
 
 def reach_z(obj_z: int, obj_height: int):
@@ -284,6 +295,8 @@ class Mover:
         self.refused_steps = 0       # steps not sent: the map with current objects refused them
         self.teleports = 0
         self._teleporters = {}       # facet -> {(x, y)} known teleporter tiles (store + session)
+        self.gate_gumps_closed = 0
+        self.step_mark = 0           # len(link.events) when the last walk went out
 
     def step(self, d: int, run: bool = True) -> str:
         """Send one walk; wait for its outcome. Returns 'moved', 'turned',
@@ -293,6 +306,7 @@ class Mover:
         before = self.link.pos(st)
         facet_before = st["world"]["self"].get("map")
         pkt = actions.walk(d, run=run)
+        self.step_mark = len(self.link.events)
         deadline = time.monotonic() + MOVE_GATE_WAIT_S
         gate_waits = 0
         while True:
@@ -395,6 +409,51 @@ class Mover:
                     return True
         return False
 
+    def moongate_at(self, tile, st=None, z=None) -> bool:
+        """A moongate (tiledata name, or MOONGATE_GRAPHICS without tiledata) stands
+        on `tile` (world model), within 15 z of `z` when given. Player-cast gates
+        come and go, so this reads the world model of the moment."""
+        st = st or self.link.state()
+        td = uomap.tiledata() if self.use_map else None
+        for it in st["world"]["items"].values():
+            if it.get("container") is None and (it.get("x"), it.get("y")) == tuple(tile):
+                if z is not None and it.get("z") is not None and abs(it["z"] - z) > 15:
+                    continue
+                g = it.get("graphic")
+                if g in MOONGATE_GRAPHICS or (td is not None and g is not None and td.item(g)
+                                              and "moongate" in (td.item(g).name or "").lower()):
+                    return True
+        return False
+
+    def close_gate_gumps(self, mark: int, tile, label: str) -> int:
+        """The route passed over the moongate on `tile`: close the gump(s) it
+        opened since event `mark` (the step that landed there), as a player
+        right-clicks a popup away after a look: the stock 0xB1 with button 0
+        (actions.gump_reply; the proxy closes the client's copy). Only gumps still
+        open that a client can close: never the captcha, a noclose gump or one
+        without reply buttons (the decoy shape). Returns how many were closed."""
+        def opened():
+            return [ev for ev in self.link.events[mark:] if ev.get("ev") == "gump_open"]
+        if self.link.wait(lambda s: opened(), timeout=GATE_GUMP_WAIT_S) is None:
+            return 0
+        self.human.wait("menu")
+        live = {(serial_of(g["serial"]), serial_of(g["gump_id"])): g
+                for g in self.link.state()["world"].get("gumps") or [] if g.get("open")}
+        closed = 0
+        for ev in opened():
+            key = (serial_of(ev["serial"]), serial_of(ev["gump_id"]))
+            g = live.pop(key, None)              # pop: one reply per gump
+            if g is None:                        # answered in the client meanwhile, or gone
+                continue
+            layout = g.get("layout") or ""
+            if key[1] == CAPTCHA_GUMP_ID or "noclose" in layout.lower() or not parse_layout(layout)["buttons"]:
+                continue
+            log(f"{label}: closing gump 0x{key[1]:08X} from the moongate at {tuple(tile)} (passing through)")
+            self.link.act(actions.gump_reply(key[0], key[1], 0, layout, g.get("lines") or []))
+            self.gate_gumps_closed += 1
+            closed += 1
+        return closed
+
     def _open_ahead(self, tile, z, opened: set, label: str, st=None):
         """The client's auto-open: facing a door on the next tile (right after the
         turn or step that faces it), the stock open-door request, once per door per
@@ -428,8 +487,10 @@ class Mover:
         else:
             options = [nav.step(cur, d) for d in range(8)
                        if (cur, d) not in self.mem.blocked and nav.step(cur, d) in self.mem.tiles]
-        tele = self.teleporter_tiles(self.link.state()["world"]["self"].get("map"))
-        options = [t for t in options if t not in occupied and t not in avoid and t not in tele]
+        st = self.link.state()
+        tele = self.teleporter_tiles(st["world"]["self"].get("map"))
+        options = [t for t in options if t not in occupied and t not in avoid and t not in tele
+                   and not self.moongate_at(t, st)]
         if not options:
             return False
         side = self.human.choice(options)
@@ -500,11 +561,14 @@ class Mover:
             return n if n in mem.tiles else None
         return nav.straighten(path, mem_step, diagonal_first, hard | occ), None
 
-    def walk_to(self, center_fn, radius: int, label: str, max_moves: int = 250, z_ok=None):
+    def walk_to(self, center_fn, radius: int, label: str, max_moves: int = 250, z_ok=None, gate=None):
         """Walk until within `radius` (Chebyshev) of center_fn(), re-evaluated
         on every replan (NPCs wander). `z_ok(z)` also requires the standing
         height (same level as the target, not a cave below or a floor above);
-        only the map planner can honour it."""
+        only the map planner can honour it. `gate`: the (x, y) of a moongate
+        this walk means to use; its gump is left for the caller. Every other
+        moongate the route steps onto gets its gump closed (close_gate_gumps)."""
+        gate = tuple(gate) if gate is not None else None
         replans = 0
         start_steps = self.steps
         tried_doors = set()          # doors that denied a step: one more open request each
@@ -570,6 +634,8 @@ class Mover:
                     here = self.link.pos()
                     new = tuple(here[:2])
                     self.mem.add_step(cur, new)
+                    if new != gate and self.moongate_at(new, z=here[2]):
+                        self.close_gate_gumps(self.step_mark, new, label)
                     if new != nxt:
                         log(f"{label}: landed on {new}, expected {nxt}; replanning")
                         replan = True

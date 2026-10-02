@@ -21,7 +21,9 @@ the stock 0xB1; an unreadable layout or rejected answers fall back to the
 human wait. The runner never replies to a gump without a reply button (the
 decoys).
 
-The runner answers no other gump. The only speech is "bank".
+The runner answers no other gump, except that its Mover closes (button 0) the
+gump of a moongate a route only passes over (agent_link.Mover.close_gate_gumps).
+The only speech is "bank".
 
 Guards: jittered pacing, overall timeout, HP loss, movement stall, the agent
 gate (pause/break wait, kill/budget abort), bounded retries everywhere.

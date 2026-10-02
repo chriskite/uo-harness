@@ -1938,9 +1938,12 @@ def _act_goto(a, mem) -> dict:
                 return target
             label, text = f"to {target[0]},{target[1]}", f"Walking to {target[0]},{target[1]}"
         link.intent(text, "goto", center(), loop="overseer", target_serial=key if isinstance(target, int) else None)
+        # a goto onto a moongate means to use it: its gump is left for `act gump`; the gumps of
+        # gates the route only passes over are closed by the Mover
+        gate = center() if radius == 0 and mover.moongate_at(center()) else None
         start = link.pos()
         try:
-            mover.walk_to(center, radius, label, max_moves=a.max_moves, z_ok=z_ok)
+            mover.walk_to(center, radius, label, max_moves=a.max_moves, z_ok=z_ok, gate=gate)
             ok, err = True, None
         except agent_link.Abort as e:
             ok, err = False, str(e)
@@ -1949,7 +1952,7 @@ def _act_goto(a, mem) -> dict:
         link.intent(f"Arrived at {where}" if ok else f"Stopped walking to {where}: {err}"[:200],
                     "arrived" if ok else "stopped", end[:2], loop="overseer")
     out = {"ok": ok, "from": start, "to": end, "steps": mover.steps, "blocked": mover.blocked_count,
-           "doors_opened": mover.doors_opened,
+           "doors_opened": mover.doors_opened, "gate_gumps_closed": mover.gate_gumps_closed,
            "reply": f"{'arrived' if ok else 'stopped'} at {end[0]},{end[1]} after {mover.steps} steps"}
     if err:
         out["error"] = err
