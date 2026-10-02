@@ -305,7 +305,10 @@ Throwaway full-map scans (not in the test) confirmed the per-facet figures in th
   (39,65,1)). Walking there needs capture-derived geometry, not the files.
 - **Seasons.** `Land.UpdateGraphicBySeason` swaps land graphics for display only. Walkability
   uses the raw id [INFERENCE, matches upstream].
-- **Multis/houses** (`multi.idx/mul`) are not handled here.
+- **Multis/houses** (`multi.idx/mul`) aren't in the map files. They come over the wire as 0xF3
+  data_type 2, and `uomap.multi_components` + `pathfind.Walkers.get` place their pieces as
+  ground objects (since 2026-10-02; format and live evidence in docs/NOTES.md "Mounted movement
+  and player houses"). Custom houses (`0xD8`) aren't handled; none have been seen yet.
 - Item fields at +9..+31 (layer, count, anim, gumps, hue) are value-inferred only. Flags,
   weight, height and name are decompile-confirmed.
 

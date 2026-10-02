@@ -252,6 +252,23 @@ Times are seconds after 1790911000 (22:16:40 local).
 - Mastery-chain XP accumulates without a chain (one is needed to see it: `[MasteryChain` or the chain's gump) and is shared across the account; link 1 unlocks at 250 000 XP ([Mastery_Chain](https://wiki.uooutlands.com/Mastery_Chain)).
 - **No per-kill XP text on the wire:** no S2C packet in any capture under `logs/` (raw bytes, ASCII and UTF-16 both byte orders; 2026-10-02 scan, includes the NPD mongbat capture 20261001_214649) contains "experience" or "Mastery". A cliloc-only message can't be ruled out without the cliloc table [INFERENCE: none]. The harness therefore estimates XP as the gold the corpse held when opened (`loop_hunt` loot event `xp`; user note 2026-10-02: "experience is basically the gold value of the monster") [INFERENCE: exact for solo kills; party or shared damage lowers the real figure]. Mongbat corpses held 19–23 gp in the live runs of 2026-10-02 (4 loots took 0).
 
+## Mounted movement and player houses (live 2026-10-02, session 20261002_153718)
+
+- **Mounting is an equip on the mount layer.** S2C `2e 530beeb0 00003ea2 00000000 19 0020f127 0724` at 15:44:20: item 0x530BEEB0, graphic 0x3EA2 (horse), layer 0x19, on self. Later self `0x78`s list it; ctl `status` shows `equipment.mount`. The body stays 0x0190.
+- **Nothing in the movement protocol changes when mounted.** Same `0x02` packet, run flag, seq ladder, token seeds and `22 <seq> <noto>` confirms. Agent run steps, timed replay:
+
+  | | steps | gap min / median | confirm latency median / p90 |
+  |---|---|---|---|
+  | on foot (15:37–15:44) | 183 | 0.207 / 0.214 s | 0.058 / 0.070 s |
+  | mounted (15:44–17:39) | 3195 | 0.200 / 0.220 s | 0.057 / 0.069 s |
+
+  Mounted, the server confirmed every agent step at the on-foot pace. There was one 3 s rejection and no client resyncs, and the per-confirm re-anchor (fabricated `0x21`) kept working.
+- **The agent rides at the on-foot pace.** The proxy floor (`RUN_STEP_S` 0.2 / `WALK_STEP_S` 0.4) and `humanize.STEP_CADENCE_*` are the stock client's unmounted values. The stock client mounted steps every 100 ms running and 200 ms walking (ClassicUO MovementSpeed.cs [UPSTREAM]). The user hasn't walked the client mounted since 15:44 (0 client walks), so Outlands' acceptance of 100 ms steps isn't captured yet. The client's 0.1 s gaps on foot earlier in the session are turn-then-step pairs (turn delay), not mounted steps.
+- **Lumberjacking works mounted** (first tested at Shelter, policy.json `mount`): the 17:33 Corpse Creek trip chopped 104 logs on horseback.
+- **Player houses block walking, and the map files don't show them.** A house arrives as S2C `0xF3` with data_type 2. Its graphic is a `multi.mul` id, not an art id. The client draws the pieces listed in `multi.idx/.mul` around the house's tile (it loads `multi.idx`/`multi.mul`; ClientVersion ≥ 7.0.9.0 records: 16 B = graphic u16, dx/dy/dz i16, flags u32, unknown u32; drawn iff flags ≠ 0). Before 2026-10-02 the harness walk rules ignored the pieces and read the multi id as an art graphic. Corpse Creek house 0x154 at (943,774,z1), footprint x 941–945, y 771–778: the server denied 12 agent moves into it on the trip to the banker (17:38–17:41). Every one is walkable on the bare map, and every one is refused with the pieces (test_pathfind). This session saw 12 houses (Horseshoe Bay, Corpse Creek, Shelter). No `0xD8` custom-house packets so far.
+- **0xF3 z is signed** (i32): `ffffffe7` = −25 for an item below ground; the Horseshoe Bay houses sit at −5. The layout read u32 until 2026-10-02.
+- Houses are only known once in view (18 tiles), so a long route can still be planned through one. The Mover's per-step map check then refuses the step and replans, with no server deny. Live check (2026-10-02, the agent at (865,1570) with houses 0xA2 at (880,1566) and 0x16D at (881,1580) in view): the house pieces add 49 blocked tiles around 0xA2. A route to (881,1566) now goes in through the front, (879,1568) → (880,1567), not through the north wall.
+
 ## Test Shard
 
 - Test-only commands: `[TestRes` (res self+followers), `[TestIgnoreMaxDamageCap`, `[TestMaxMeleeDamageRolls`, `[TestMaxSpellDamageRolls`, `[TestBlessedGear`, `[Go` (warp self+followers). Use these for fast harness iteration.

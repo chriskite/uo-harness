@@ -483,7 +483,7 @@ class SessionTap:
         be walked (the server knows better; z stays until its next anchor)."""
         items = self.world.state.items.values()
         walk = self.walkers.get(self.world.state.self.map, (
-            (it.x, it.y, it.graphic, it.z) for it in items if it.container is None))
+            (it.x, it.y, it.graphic, it.z, it.data_type == 2) for it in items if it.container is None))
         if walk is None:
             return None
         nxt = walk.can_walk(x, y, z, direction, door_corners=False)   # the server already accepted it

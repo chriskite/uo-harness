@@ -4,7 +4,8 @@
 
 Recorded in `harness/data/policy.json`:
 
-- **Mount:** you probably can't harvest while mounted. A mount totem is likely useful later.
+- **Mount:** harvesting while mounted works (tested 2026-10-02, policy.json `mount`). A mount totem
+  is likely useful later.
 - **Home town:** Horseshoe Bay.
 - **Runebook:** the user supplies it.
 - **Death:** the agent may resurrect itself. No `[TestRes`. No corpse runs: a PK took the loot,

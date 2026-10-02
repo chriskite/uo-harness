@@ -108,6 +108,24 @@ def main():
     check("straight onto the door tile stays plannable (the walker opens it ahead)",
           doors.can_walk(2027, 2218, 15, 0) == (2027, 2217, 15))
 
+    print("== a player house blocks like the client places it (live 20261002_153718) ==")
+    # 0xF3 data_type 2, multi 0x154 at (943,774,z1), Corpse Creek. The server denied all 12
+    # moves into it (lumber trip to the banker, 17:38-17:41); the bare map allows every one.
+    house = [(943, 774, 0x154, 1, True)]
+    denied = [((943, 779), 7), ((943, 779), 0), ((942, 779), 7), ((942, 779), 0), ((942, 779), 1),
+              ((941, 779), 7), ((941, 779), 1), ((941, 779), 0), ((940, 777), 3), ((940, 777), 2),
+              ((940, 778), 3), ((940, 778), 2)]
+    walkers = pathfind.Walkers()
+    bare = [m for m in denied if walkers.get(0).can_walk(*m[0], 2, m[1]) is None]
+    with_house = walkers.get(0, house)
+    passed = [m for m in denied if with_house.can_walk(*m[0], 2, m[1]) is not None]
+    check("the house's pieces refuse every move the server denied (the map alone allows them)",
+          not bare and not passed, f"map refuses {bare}; with the house allowed {passed}")
+    check("the multi id isn't read as an art graphic (only its pieces are objects)",
+          all(g != 0x154 for g, _ in with_house.dynamic(943, 774)))
+    check("a walk past the house front stays open",
+          with_house.can_walk(940, 779, 2, 2) == (941, 779, 2))
+
     print("== proxy z per confirmed step matches the server (walk confirms carry no z) ==")
     import proxy
     import viz_feed

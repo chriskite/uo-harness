@@ -409,7 +409,7 @@ def _h_skills(rt, f):
 def _h_world_item(rt, f):
     fields = {k: f[k] for k in ("graphic", "amount", "x", "y", "z", "dir",
                                 "hue", "flags") if k in f}
-    it = rt.state.upsert_item(f["serial"], container=None, **fields)
+    it = rt.state.upsert_item(f["serial"], container=None, data_type=f.get("subtype", 0), **fields)
     rt._emit("item_seen", serial=it.serial, graphic=it.graphic,
              container=None)
 

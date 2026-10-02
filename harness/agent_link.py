@@ -382,9 +382,8 @@ class Mover:
         Ground items from the world model are added as dynamic objects."""
         if not self.use_map:
             return None
-        return self.walkers.get(st["world"]["self"].get("map"), (
-            (it.get("x"), it.get("y"), it.get("graphic"), it.get("z"))
-            for it in st["world"]["items"].values() if it.get("container") is None))
+        return self.walkers.get(st["world"]["self"].get("map"),
+                                pathfind.ground_items(st["world"]["items"].values()))
 
     def step_walkable(self, st, cur, z, d) -> bool:
         """The client's own check right before a step: walkable from (cur, z) in

@@ -19,7 +19,8 @@ so only the V10/V11/V12 layouts are encoded; legacy variants are omitted.
 field (its fields sum to 36, not the wire-proven 38). The table below follows
 the decompiled handler UpdateItemSA @ 0x140199860 read-for-read, which sums
 to exactly 38: graphic u32@8, inc u8@12, amount u16@13, v11 u8@15, pad@16,
-x u32@17, y u32@21, z u32@25, dir u8@29, hue u16@30, flags u32@32, tail u16@36.
+x u32@17, y u32@21, z i32@25 (signed: live items below ground send ffffffe7 = -25),
+dir u8@29, hue u16@30, flags u32@32, tail u16@36.
 """
 
 # (name, type, offset)
@@ -70,7 +71,7 @@ LAYOUTS_S2C: dict[int, list[tuple[str, str, int]]] = {
            ("serial", "u32be", 4), ("graphic", "u32be", 8),
            ("graphic_inc", "u8", 12), ("amount", "u16be", 13),
            ("v11", "u8", 15), ("skip2", "skip:1", 16),
-           ("x", "u32be", 17), ("y", "u32be", 21), ("z", "u32be", 25),
+           ("x", "u32be", 17), ("y", "u32be", 21), ("z", "i32be", 25),
            ("dir", "u8", 29), ("hue", "u16be", 30),
            ("flags", "u32be", 32), ("tail", "u16be", 36)],
     # 0x2E EquipItem V12 (20)

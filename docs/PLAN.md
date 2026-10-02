@@ -258,6 +258,17 @@ chatter, is skipped for now: every speaker still holds a harvest job.
     events inside recorded visits over their duration.
 
 
+## Player houses and mounted pace (2026-10-02)
+
+- **Houses go into the walk rules as the client places them.** Each 0xF3 multi expands into its
+  multi.mul pieces (`uomap.multi_components`) inside `pathfind.Walkers.get`, so the proxy's z
+  tracking, the Mover and ctl all see them. Rejected: learning houses only from server denies (walk
+  memory). It costs a deny burst per house, which no client produces, and a house can be placed or
+  removed at any time. Only houses in view are known. Persisting them for long-route planning is
+  open.
+- **Mounted pace: unchanged for now** (ANTICHEAT.md A13). A mount-aware floor needs the server's
+  mount state in the proxy, and a client capture of riding first.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

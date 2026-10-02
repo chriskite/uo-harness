@@ -144,7 +144,7 @@ def test_fixed_s2c():
     # 0xF3 UpdateItemSA V12 (38) — offsets verified against the decompiled
     # handler (UpdateItemSA @ 0x140199860): marker u16@1, type u8@3,
     # serial u32@4, graphic u32@8, inc u8@12, amount u16@13, v11 u8@15,
-    # skip@16, x u32@17, y u32@21, z u32@25, dir u8@29, hue u16@30,
+    # skip@16, x u32@17, y u32@21, z i32@25, dir u8@29, hue u16@30,
     # flags u32@32, tail u16@36.
     f = parse_fixed(0xF3, bytes.fromhex(
         "f3" "0001" "02" "04050607" "08090a0b" "0c" "0d0e" "0f" "10"
@@ -155,6 +155,9 @@ def test_fixed_s2c():
                    "x": 0x11121314, "y": 0x15161718, "z": 0x191A1B1C,
                    "dir": 0x1D, "hue": 0x1E1F, "flags": 0x20212223,
                    "tail": 0x2425})
+    # z is signed: a live item below ground (session 20261002_153718) sends ffffffe7
+    f = parse_fixed(0xF3, bytes(25) + bytes.fromhex("ffffffe7") + bytes(9))
+    eq("0xF3 negative z", {"z": f["z"]}, {"z": -25})
     # 0x2E EquipItem V12 (20): item u32@1, graphic u32@5, inc u32@9,
     # layer u8@13, parent u32@14, hue u16@18
     f = parse_fixed(0x2E, bytes.fromhex(

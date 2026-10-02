@@ -259,6 +259,35 @@ def skill_names(root=INSTALL) -> list[str]:
     return names
 
 
+_MULTI_REC = struct.Struct("<HhhhII")   # graphic, x, y, z offsets, flags, unknown (16 B)
+_MULTIS = {}
+
+
+def multi_components(multi_id, root=INSTALL) -> tuple:
+    """The drawn pieces of multi `multi_id` (a house: the 0xF3 graphic of a
+    data_type 2 item) as (dx, dy, dz, graphic) offsets from the multi's own
+    tile, as the client places them (ClassicUO MultiLoader.GetMultis, mul
+    branch, client >= 7.0.9.0: 16-byte records read as 12 + 4 skipped;
+    Item.LoadMulti adds only the visible ones, flags != 0). Empty for an id
+    the files don't have. multi.idx = 12-byte (offset, length, extra) entries."""
+    cache = _MULTIS.get(root)
+    if cache is None:
+        cache = _MULTIS[root] = {"idx": _open_ro(os.path.join(root, "multi.idx")),
+                                 "mul": _open_ro(os.path.join(root, "multi.mul")), "parts": {}}
+    parts = cache["parts"].get(multi_id)
+    if parts is None:
+        idx, mul = cache["idx"], cache["mul"]
+        parts = ()
+        if 0 <= multi_id < len(idx) // 12:
+            off, length, _extra = struct.unpack_from("<iii", idx, multi_id * 12)
+            if off >= 0 and length > 0 and off + length <= len(mul):
+                parts = tuple((x, y, z, g) for g, x, y, z, flags, _ in
+                              (_MULTI_REC.unpack_from(mul, off + i) for i in range(0, length - 15, 16))
+                              if flags)
+        cache["parts"][multi_id] = parts
+    return parts
+
+
 class UoMap:
     """One mapN.uoo facet. Coordinates outside the map return None."""
 

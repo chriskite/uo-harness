@@ -83,7 +83,13 @@ Consequences, all visible in the captures:
   (run) / 400 ms (walk) after the previous send plus 3–15 ms jitter (`humanize.Human.step_gap`), and
   it never sends a step the map rules refuse (the client wouldn't: PlayerMobile.Walk → CanWalk). The
   check runs again right before every step with the ground items the world model has then, and a
-  diagonal past a door is refused (2026-10-01, ANTICHEAT.md §10).
+  diagonal past a door is refused (2026-10-01, ANTICHEAT.md §10). Player houses count as their
+  multi.mul pieces (2026-10-02).
+- **Mounted (2026-10-02, session 20261002_153718):** the wire is unchanged; 3195 agent steps on
+  horseback were confirmed at the on-foot 0.2 s pace with the same ~57 ms confirm latency. The
+  cadence and the proxy floor are the *unmounted* values, so the agent rides at half the stock
+  mounted pace (100 ms run / 200 ms walk). Mounted 100 ms steps haven't been captured from the
+  client yet (docs/NOTES.md "Mounted movement and player houses").
 
 **Fix B VALIDATED LIVE (session_20260929_161433, user-confirmed 2026-09-29).** 57 agent walks (walk_cli)
 plus 30 client walks, mixed. 55 agent confirms hidden, 5 client re-anchors via fabricated `0x21` (the

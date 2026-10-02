@@ -366,7 +366,7 @@ Handler: CUO `UpdateItemSA` @ 0x140199860; corroborated by
 | Off | Size | Type | Field | Confidence |
 |-----|------|------|-------|------------|
 | 1 | 2 | u16be | 0x0001 marker (skipped) | upstream |
-| 3 | 1 | u8 | graphic type (passed through to builder) | upstream |
+| 3 | 1 | u8 | graphic type (passed through to builder): **2 = multi** (a house; the graphic is the multi.mul id, not an art id; harness/pathfind.py expands it, 2026-10-02) | upstream + capture |
 | 4 | 4 | u32be | serial | upstream |
 | 6 | 4 | u32be | graphic — **widened from u16 at V10** (legacy: u16 @6) | decomp |
 | 10 | 1 | u8 | graphic increment (skipped by CUO; upstream `graphicInc`) | upstream |
@@ -375,7 +375,7 @@ Handler: CUO `UpdateItemSA` @ 0x140199860; corroborated by
 | 14 | 1 | u8 | skipped (second byte of the V11 pair) | unknown |
 | 15 | 4 | u32be | x — **widened from u16 at V10** | decomp |
 | 19 | 4 | u32be | y — **widened** | decomp |
-| 23 | 4 | u32be | z — **widened from i8** | decomp |
+| 23 | 4 | i32be | z — **widened from i8**, signed (live: `ffffffe7` = −25 for an item below ground; houses at Horseshoe Bay sit at −5; read as u32 until 2026-10-02) | decomp + capture |
 | 27 | 1 | u8 | direction/light (upstream `dir`) | upstream |
 | 28 | 2 | u16be | hue | upstream |
 | 30 | 4 | u32be | flags — **widened from u8 at V12** | decomp |

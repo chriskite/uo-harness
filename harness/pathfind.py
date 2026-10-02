@@ -42,7 +42,10 @@ class Walkers:
 
     def get(self, facet, ground=()) -> "Walk | None":
         """The Walk for `facet` (None: no geometry there), with `ground` =
-        iterable of (x, y, graphic, z) ground items as dynamic objects."""
+        iterable of (x, y, graphic, z, multi) ground items as dynamic objects
+        (ground_items builds it). A multi (a house) stands for its pieces from
+        multi.mul, placed around its tile like the client does (Item.LoadMulti);
+        the client's pathfinder never uses the multi's own graphic."""
         facet = 0 if facet is None else facet
         if facet not in MAP_FACETS:
             return None
@@ -51,9 +54,15 @@ class Walkers:
             w = Walk(uomap.UoMap(facet))
             self._walks[facet] = w
         index = {}
-        for x, y, g, z in ground:
-            if x is not None and g is not None:
-                index.setdefault((x, y), []).append((g, z or 0))
+        for x, y, g, z, multi in ground:
+            if x is None or g is None:
+                continue
+            z = z or 0
+            if multi:
+                for dx, dy, dz, pg in uomap.multi_components(g, w.m.root):
+                    index.setdefault((x + dx, y + dy), []).append((pg, z + dz))
+            else:
+                index.setdefault((x, y), []).append((g, z))
         w.dynamic = lambda x, y: index.get((x, y), ())
         w.clear()
         return w
@@ -61,6 +70,13 @@ class Walkers:
     def put(self, facet, walk: "Walk"):
         """Use `walk` for `facet` (tests with synthetic geometry)."""
         self._walks[facet] = walk
+
+
+def ground_items(items) -> list:
+    """Walkers.get's `ground` from the world model's item dicts (state JSON
+    `world.items` values): items on the ground, multis (data_type 2) flagged."""
+    return [(it.get("x"), it.get("y"), it.get("graphic"), it.get("z"), it.get("data_type") == 2)
+            for it in items if it.get("container") is None]
 
 
 def _skip_land(graphic: int) -> bool:

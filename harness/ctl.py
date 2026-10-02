@@ -828,9 +828,8 @@ def _act_walk(a, ctl: Control, stc: StateConn) -> dict:
             # the stock client checks each step against what it has now and sends nothing if it
             # can't be walked (PlayerMobile.Walk -> CanWalk); objects that just arrived count
             st = stc.state()
-            walk = walkers.get(st["world"]["self"].get("map"), (
-                (it.get("x"), it.get("y"), it.get("graphic"), it.get("z"))
-                for it in st["world"]["items"].values() if it.get("container") is None))
+            walk = walkers.get(st["world"]["self"].get("map"),
+                               pathfind.ground_items(st["world"]["items"].values()))
             if walk is not None and walk.can_walk(pos[0], pos[1], pos[2], d) is None:
                 outcomes.append("blocked")
                 stop = "blocked (the map says the step can't be walked; the client wouldn't send it)"
@@ -2187,9 +2186,7 @@ def cmd_map(a, mem):
     if not st["movement"].get("pos"):
         raise CtlError("position unknown (not logged in?)")
     facet = (st["world"].get("self") or {}).get("map")
-    walk = pathfind.Walkers().get(facet, (
-        (it.get("x"), it.get("y"), it.get("graphic"), it.get("z"))
-        for it in st["world"]["items"].values() if it.get("container") is None))
+    walk = pathfind.Walkers().get(facet, pathfind.ground_items(st["world"]["items"].values()))
     if walk is None:
         raise CtlError(f"no map geometry for facet {facet} (rental rooms are blank; use status/journal)")
     to = None
