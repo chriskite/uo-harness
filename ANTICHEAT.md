@@ -156,6 +156,8 @@ Working rules, each tied to a detection surface above:
 
     **Implemented offline (2026-09-30, `harness/captcha.py`).** The solver splits the layout's tilepics into the three digit clusters at the two largest x gaps, normalizes each cluster (centroid-centered, y-span scaled), and matches it against a reference set mined from the 7 captured captchas (`harness/data/captcha_font.json`; 21 labeled digit samples + a synthetic oval-ring 0 [INFERENCE, no captured 0 yet]) with a translation-aligned trimmed Chamfer distance. Acceptance is margin-gated: a digit counts only if its nearest reference beats every other digit's nearest by ≥ 9 %; otherwise the runner falls back to pause + beep instead of guessing (a wrong answer is a strike). Measured offline (`harness/test_captcha.py`): all 7 captured captchas solve to their accepted answers with the random submit button picked out; jitter bootstrap (σ≈3.5 px, 15 % dot dropout, 0-2 noise dots) gives 99.2 % correct among accepted digits at 12 % rejection. The runner answers with the stock `0xB1` (all text entries, `actions.gump_reply`) after a human-plausible delay (lognormal median 11.5 s; measured human solves 7.7–17.5 s), tolerates `--captcha-max-strikes` rejections (each rejection re-opens a fresh captcha), then falls back. Not yet run live.
 
+    **Live (session 20261001_191355, 97 min lumber run, Shelter).** 4 real captchas, all accepted ("Captcha successful."): the first (637) answered by the human in the client, the next three (482, 311, 373) by the solver in `auto`, 10.8, 10.8 and 17.4 s after the gump opened (human: 10.8 s). Every agent `0xB1` went to gump id 1 with its random submit button (1004, 604, 506); 0 replies to the 465 decoys. The four were out of sample for the font, and their digit margins show how thin the 22-reference font was: 0.195 for the 3 of 637, and **0.109/0.111 for both 3s of 373**, just above the 0.09 gate (digit 3 had one reference). A leave-one-session-out pass over all 11 captchas is right for 10/10 whose digits have a reference from another session. It **confidently misreads 194 as 184 (margin 0.154)** once the only real 9 is held out: the margin gate guards ambiguity, not a digit shape the font has never seen. So a 0 (synthetic reference only) or an unusual 9 can still be a confident wrong answer, i.e. a strike. The 12 new digits were added to the font (34 references; `harness/test_captcha.py` §5 runs the held-out check), which drops the in-sample noise bootstrap from 99.2 % to 97.9 % correct among accepted digits (17.6 % rejected).
+
     **Captcha mode: human by default, auto by toggle (user decision 2026-10-01).** Who answers is a memory-store setting (`meta.captcha_mode`, `Memory.captcha_mode()`), switched by the `captcha [human|auto]` toggle in the viz header (docs/VISUALIZER.md §2.2a). Unset means `human`: the runner pauses, posts an urgent `captcha` juncture and beeps until the solve is seen in the client, so nothing is sent for the captcha. In `auto` the solver above answers; unreadable layouts, rejected answers, or the client answering first fall back to the human wait. The runner reads the mode at every captcha and on every poll while it waits, so flipping to `auto` mid-wait hands the newest captcha to the solver. Before sending, the solver checks that the client hasn't already answered that captcha (no `0xB1` for its serial and no "Captcha successful."), so one gump never gets two answers. The overseer (`ctl act gump`) never answers the captcha in either mode. Smoke-tested offline against a scripted link: default human, auto, a mid-wait flip after a wrong human answer (the solver answered the newest captcha), and the client answering during the solver's delay (nothing sent).
 
 12. **Injected speech must be keyword-encoded like the stock client (2026-09-29).** The stock client encodes any speech that matches a `speech.mul` keyword (type |= 0xC0, 12-bit ids, UTF-8). The Outlands encoder `Send_UnicodeSpeechRequest @ 0x140151c20`, `GetKeywords @ 0x1401bbc60` and `IsMatch @ 0x1401bba40` are the upstream algorithm. The harness's old `say_unicode` always sent plain UTF-16. So the **"hello" injected during the Phase 3 live test (session 20260928_211622) was not client-identical**: speech.mul id 59 = "hello", and a stock client would have sent it encoded. Server-side, a keyword word arriving unencoded is a detectable anomaly [INFERENCE on whether it is checked]. Fixed: `harness/uo/speech.py` + `actions.say_unicode` now reproduce the stock client exactly (verified against the real client's "bank" `ad0016c0…62616e6b00`, session 20260929_161433). Likewise, "look at NPC" now sends the stock sequence `09` + `34 …04` (+ `98` for unnamed), as seen in 518/523 real clicks.
@@ -386,6 +388,39 @@ dagger 1.0 s after that → `08` into the bag; reported `opened: [bag]`. Moving 
 nothing. Equip/unequip with the client-opened backpack re-opened nothing either. Limit: lifting a
 worn item (`unequip`) needs the paperdoll open in a stock client; the harness doesn't open it
 (not a container, not addressed).
+
+**Live audit (session 20261001_191355, 2026-10-01, 97 min, lumber runner on Shelter, captcha mode
+`auto`).** Replayed offline through `viz_feed.ReplayDriver`: exact interleave, every jsonl row
+matched its raw packet (20 744 C2S, 83 929 S2C), 0 parse failures, 0 world-model anomalies. The
+packet-id and sub-id inventory (0xBF and 0xFF subs, both directions) holds **nothing absent from
+every earlier capture**. Unparsed but known: S2C 0x54 sound, 0xC0 effects, 0xAF death anim (5),
+0xBF/0xFF subs per docs/WORLDMODEL.md, and the per-login 0xF0/0xC8/0xBC/0x55/0x5B/0xB9.
+- **Senders:** C2S only client (15 067) and agent (5 677); proxy-originated packets only to the
+  client (5 150 = 4 668 re-anchors + 479 cursor cancels + 3 captcha gump closes).
+- **A1:** 479 agent target answers, each to a live server cursor; 479 client-only cancels, each
+  answered by the client and dropped; 0 client `0x6C` relayed. 13 of the agent `0x6C` are the
+  humanize hesitation cancel (`6c 01 <cid> 00 … 7fffffff×3`): byte 1 = the cursor's target type
+  and cursor type 0, which is what upstream `TargetManager.CancelTarget` sends on Esc. The
+  dropped client replies read `6c 00 <cid> 03` because they answer the proxy's
+  `6c 00 00000000 03` cancel (SetTargeting with type 0/Cancel), not a user Esc.
+- **A2 under world saves:** 4 666 walks, all agent, 0 consecutive duplicate seqs, 0 client
+  resyncs. Both `walk_rejected` events were world saves (server pause 3.0/3.1 s): the confirm came
+  3.14/3.17 s after the step, just past `CONFIRM_TIMEOUT_S` 3.0; it was hidden, the ladder moved on,
+  nothing was re-sent.
+- **A11 at scale:** client `34` → `bf 000c` within 10 ms: 6 of 2 072 during agent walking (0.3 %,
+  median 8.8 s), 17 of 300 otherwise (median 9.3 s). Before the fix: 92 %, median 0.00 s.
+- **Keepalive:** 5 403 TimeSync requests, all client; median gap 1.082 s, p99 1.199, max 2.906
+  (earlier sessions 1.054–1.075 median, p99 1.087). The 11 gaps over 1.5 s are client-side: the
+  server reply came in 54 ms–1.4 s and the client's next request followed 1.0–2.3 s after it. 4 of
+  the 11 had no agent packet near them. Whether the proxy's forwarding adds to the client's delay
+  isn't measurable from proxy-side timestamps [INFERENCE: client frame hitches].
+- **Messages:** 1 070 system messages; the only keyword hits are the 4 "Captcha successful." and a
+  player achievement name. No GM, jail, macro, AFK or Razor text.
+- **Renounce prompt:** one, from a route step onto a player-cast moongate on Shelter (NOTES.md);
+  not answered.
+- **Texture notes (not stock deviations on the wire):** after the second world-save rejection the
+  replanned route turned back (W → N) before stepping; and the renounce gump stayed open in the
+  client for the rest of the session, where a person would close it.
 
 **Other gaps:** the JWT carries no shard claim, and the NAT diverts every server IP on :2593 (since
 2026-09-30, after logins went to 35.71.142.123 and 52.223.17.219 rather than the Test Shard's

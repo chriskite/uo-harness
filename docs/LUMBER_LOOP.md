@@ -39,8 +39,12 @@ These constraints come from existing docs and aren't optimization targets:
 - **Never renounce Young status (Shelter phase).** Leaving Shelter Island by moongate, hike, recall
   or gate first asks the player to confirm renouncing Young status, and that is permanent
   ([Shelter Island](https://wiki.uooutlands.com/Shelter_Island)). The agent never uses travel on
-  Shelter, and any gump that mentions renouncing Young aborts the loop without a reply. Moving to
-  the overworld is a user action.
+  Shelter and never replies to a gump that mentions renouncing Young. Moving to the overworld is a
+  user action. **Correction 2026-10-01:** the runner does *not* abort on that gump (no renounce
+  check exists in `loop_lumber.py`; earlier text said it did). Session 20261001_191355 showed it
+  doesn't need to: a route step onto a player-cast moongate tile on Shelter opened the prompt
+  (gump `0xE2544541`), nothing replied, the run walked on and stayed Young. Moongates are walkable
+  and only ask; they don't move you (user, 2026-10-01). Details: docs/NOTES.md "Shelter Island".
 
 ## 2. Game mechanics (wiki, read 2026-09-29; unverified in-game unless marked)
 

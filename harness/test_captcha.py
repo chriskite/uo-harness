@@ -1,9 +1,10 @@
 """Captcha solver tests (harness/captcha.py, ANTICHEAT.md §8.8/§8.13).
 
 Ground truth: data/captcha_samples.json — every real captcha gump captured
-through the proxy (sessions 20260929_204225 … 20260930_182751), each paired
+through the proxy (sessions 20260929_204225 … 20261001_191355), each paired
 with the answer the server accepted ("Captcha successful."). The reference
-font (data/captcha_font.json) is derived from the same samples.
+font (data/captcha_font.json) is derived from the same samples, so section 1
+is in-sample; section 5 is the out-of-sample check.
 
 Sections:
   1. End-to-end: every captured captcha solves to its recorded accepted answer,
@@ -12,6 +13,9 @@ Sections:
      digit classify correctly (the production setting: all references present).
   3. Confidence gate: ambiguous clusters are refused (None), not guessed.
   4. Detection sanity: decoy/garbage layouts are not captchas.
+  5. Held out (leave one session out): each capture against a font without
+     its own session's references is solved right or refused, never wrong,
+     whenever every digit it needs still has a reference from another session.
 
 Run: python harness/test_captcha.py
 """
@@ -40,7 +44,7 @@ def check(name, cond, detail=""):
 def test_real_captchas():
     print("== every captured captcha solves to its accepted answer ==")
     samples = json.load(open(os.path.join(HERE, "data", "captcha_samples.json")))
-    check("samples present", len(samples) == 7, str(len(samples)))
+    check("samples present", len(samples) == 11, str(len(samples)))
     for s in samples:
         got = captcha.solve(s["layout"])
         check(f"{s['tag']}: solved {s['answer']}", got == s["answer"], repr(got))
@@ -66,7 +70,7 @@ def test_noise_tolerance():
                 continue
             accepted += 1
             right += pred == digit
-    check("accepted digits are >= 97 % right (measured 99.2 % at this seed)",
+    check("accepted digits are >= 97 % right (measured 97.9 % at this seed, 34-reference font)",
           right / accepted >= 0.97, f"{right}/{accepted}")
     check("rejection rate below 25 %", rejected / (accepted + rejected) < 0.25,
           f"{rejected}/{accepted + rejected}")
@@ -107,11 +111,34 @@ def test_detection_sanity():
     check("two non-guide buttons: None", captcha.submit_button(two) is None)
 
 
+def test_held_out():
+    print("== held out: a font without the capture's own session never answers wrong ==")
+    samples = json.load(open(os.path.join(HERE, "data", "captcha_samples.json")))
+    refs = json.load(open(os.path.join(HERE, "data", "captcha_font.json")))["references"]
+    solved = covered = 0
+    try:
+        for s in samples:
+            captcha._FONT = [(r["digit"], [tuple(p) for p in r["pts"]])
+                             for r in refs if r["source"] != s["tag"]]
+            if not set(s["answer"]) <= {d for d, _ in captcha._FONT}:
+                continue  # a digit only this session showed (e.g. 9): nothing to generalize from
+            covered += 1
+            got = captcha.solve(s["layout"])
+            check(f"{s['tag']} {s['answer']}: right or refused", got in (s["answer"], None), repr(got))
+            solved += got == s["answer"]
+    finally:
+        captcha._FONT = None
+    # measured 2026-10-01: 10 covered, 10 solved (closest digit margins 0.109/0.111, the 3s of 373)
+    check("most held-out captchas are solved, not just refused", covered >= 10 and solved >= 8,
+          f"{solved}/{covered}")
+
+
 def main():
     test_real_captchas()
     test_noise_tolerance()
     test_confidence_gate()
     test_detection_sanity()
+    test_held_out()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     return 0 if not FAILURES else 1
 
