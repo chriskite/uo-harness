@@ -183,13 +183,13 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 ## Tracking (live 2026-10-01, session 20261001_214649)
 
 The user used Tracking (Hackworth, skill 60) in the client on Shelter: Hunting mode on innocent
-players, then on murderers (none on Shelter). Everything below is from that capture; the harness
-only watched.
+players, then on murderers (none on Shelter), then the four category buttons, then Hunting mode on
+passive creatures. Everything below is from that capture; the harness only watched.
 
 - **Start:** C2S `12 0009 24 "38 0"` (UseSkill 38). The server answers with cliloc 1011350 "What do you wish to track?" and gump `0xFE5C638B`, closable, no text entries. Every click gets a fresh copy of the gump (new serial, same id) showing the new state.
 - **Gump buttons:**
   - 1 Guide
-  - 2–5 the classic categories Aggressive / Passive / Townsfolk / Players (not clicked yet)
+  - 2–5 the classic categories Aggressive / Passive / Townsfolk / Players. Each click is a skill use: the gump goes away (use the skill again to get it back; "You must wait a few moments to use another skill.", cliloc 500118, came 3.2 s after one). All four answered "You are unable to detect signs of anything outside your field of vision." and nothing else, even Passive while a pack llama stood 20 tiles away (Hunting found it 27 s later; a failed roll or a shorter category range, [INFERENCE] either). So the categories only report what is **outside** the view, and no list gump has been seen yet.
   - 11, 12, 13 the Hide Party/Guild, Hide Allies and Hide House toggles
   - 6 Begin/Stop Hunting (its art changes 4008 → 4009 while hunting)
   - 8 / 7 next / previous hunting mode. The server says "You will now hunt …" and changes the hue of the mode icon (tilepichue 8454 at 411,46). Cycle from button 8: criminal players → innocent players → friendly players → aggressive creatures → passive creatures → townsfolk → all players → all hostile players → enemy players → murderer players → criminal players. Button 7 goes back.
@@ -197,10 +197,13 @@ only watched.
 - **Hunting:** button 6 → "You begin hunting." from self, plus buff icon 173 (cliloc 1110004 "Tracking Hunting") on self (`0xFF` sub 8; removed by sub 9 on "You stop hunting."). Each hit is:
   - a system line "Now tracking: Joel Embiid (3 spaces to target)"
   - the arrow, `0xFF` sub `0x1A` mode 0 {arrow id, target serial, x, y, z, "[Hunting] <name>"}. Its x/y equalled the mobile's position (docs/WORLDMODEL.md §5 sub 0x1A).
-  - A new hit first cancels the previous arrow (mode 1). The ids count up (0, 1, 2), and the same target hit again gets a new id. Hits came 11 s after Begin, then 5.4 s and 16.5 s apart. Both targets were in view (3 and 7 tiles; the character stood still).
-- **"Distance to destination: 7 steps."**: a system line every ~5.4 s (52 lines, gaps 5.3–10.9 s) from 6 s after the second arrow. It kept coming after "You stop hunting" and through the murderer hunt: the last arrow was never cancelled, and the target stood 7 tiles away the whole time. [INFERENCE] it reports the distance to the live arrow's position.
+  - A new hit first cancels the previous arrow (mode 1). The ids count up (0, 1, 2, …), and the same target hit again gets a new id. Hits came 11 s after Begin, then 5.4 s and 16.5 s apart; on the llama 5.8 s after Begin, then 43 s later (same spot).
+  - **The arrow is a snapshot.** No packet moves it; only a new hit (respot) does (user, 2026-10-01, and no arrow traffic between hits in the capture).
+- **Beyond the view (passive-creature hunt):** "Now tracking: a pack llama (20 spaces to target)" + arrow {serial `0x0132954E`, (1931,2596), z 21}. That mobile was never sent to us (no `0x20`/`0x77`/`0x78` for its serial in the whole session): the arrow is the only source of its serial and position. The z of 21 (we stood at z 10) settles the 4th u32 as z, not the facet.
+- **"Distance to destination: 7 steps."**: a system line every ~5.4 s (gaps 5.3–10.9 s), from 6 s after the second arrow (a player 7 tiles away) until 4.6 s before the llama arrow replaced it. It kept coming after "You stop hunting" and through the murderer hunt, because that arrow was never cancelled. The two llama arrows got none in 100+ s. [INFERENCE] the line reports the distance to a player arrow's spot (creature arrows don't get it, or it only fires within some range).
 - **Murderer hunt with no murderer around:** nothing at all, no "nothing found" line. The skill still gained (`0x3A` single-skill updates 60.1 → 60.5 over ~50 s), so hunting checks run without a target.
-- **Not seen yet (needs a capture off Shelter):** a target beyond the 18-tile view (the point of Tracking: range `20 + 80·skill/100` = 68 tiles at 60, research/THREATS.md §2.1); a red or grey target; whether a player's arrow ever updates while they move; the category list (buttons 2–5); the hidden-target case.
+- **The arrow carries no notoriety.** The hunt mode says what kind of mobile was hit, so a consumer has to follow the mode from the "You will now hunt …" lines (or the gump's mode icon hue).
+- **Not seen yet (needs a capture off Shelter):** a red or grey target; a player beyond the view; the hidden-target case; the category list itself.
 - **World model:** arrows come out as `quest_arrow_set` / `quest_arrow_cancel` events with the target serial. The "Now tracking" and "Distance to destination" lines are plain system messages. Nothing feeds `threats.py` from them yet.
 
 ## Test Shard

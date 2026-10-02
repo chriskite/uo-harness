@@ -521,8 +521,8 @@ def _p_quest_arrow(r, d):
         Hunting mode): `ff 0034 0000001a 00 0000 00 03 0000 0015aac5 0000078b
         00000a37 00000000 "[Hunting] Joel Embiid"` = serial 0x0015AAC5 at
         (1931,2615), exactly the mobile's world-model position; type 3, v16 0
-        on all 3 samples. [INFERENCE] the 4th u32 is z (0 = the target's z;
-        could also be the facet, also 0 there).
+        on all samples. The 4th u32 is z: a pack llama 20 tiles away (never
+        sent to us otherwise) came with z 21 while we stood at z 10.
       1 cancel (HandleQuestArrowCancel @ 0x1401a04f0, :14349-14387): arrow_id u16.
         The server cancels the old arrow before setting the next (new id).
       2 clear all (@ 0x1401a05a0): no payload."""

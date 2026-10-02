@@ -742,12 +742,14 @@ CUO @ 0x14019a440. Payload: u32be corpse serial, u32be flags (+0xdc), u8 notorie
 - mode 2: `quest_arrow_clear`.
 - Other modes count as dialect_unhandled.
 
-**Live (session 20261001_214649, Tracking in Hunting mode):** this is the Tracking arrow. 3 sets
-and 2 cancels, e.g. `ff 0034 0000001a 00 0000 00 03 0000 0015aac5 0000078b 00000a37 00000000
-"[Hunting] Joel Embiid"`. The serial is the tracked mobile and x/y equal its world-model
-position at that moment (all 3). type 3 and v16 0 every time; the 4th u32 was 0 with the target
-at z 0 ([INFERENCE] z, possibly the facet). A new target cancels the old arrow (mode 1) and sets
-the next id (0, 1, 2…), even when it's the same mobile again. Tracking never used 0xBA or 0x7C.
+**Live (session 20261001_214649, Tracking in Hunting mode):** this is the Tracking arrow. 5 sets
+and 4 cancels, e.g. `ff 0034 0000001a 00 0000 00 03 0000 0015aac5 0000078b 00000a37 00000000
+"[Hunting] Joel Embiid"`. The serial is the tracked mobile; for the in-view targets x/y equalled
+its world-model position at that moment. The 4th u32 is z: a pack llama 20 tiles away, which the
+server never sent us otherwise, came as `0132954e` at (1931,2596) z 21 while we stood at z 10.
+type 3 and v16 0 every time. A new target cancels the old arrow (mode 1) and sets the next id
+(0, 1, 2…), even when it's the same mobile again. The arrow is a snapshot: nothing moves it
+until the next hit. Tracking never used 0xBA or 0x7C.
 Details and the Tracking gump: docs/NOTES.md "Tracking"; pinned in `harness/test_world_units.py`.
 
 ### 0xD6 EncodedPacket (S2C) / 0xD7 ClientEncodedPacket (C2S)
