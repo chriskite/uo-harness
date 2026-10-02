@@ -77,6 +77,17 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   `threats.Params` treats unknown creatures as harmless unless they're in war mode, murderer-red
   or known aggressive. Before 2026-09-30 it counted every unknown creature off Shelter as
   dangerous, which stopped lumber trips at Horseshoe Bay for a goat and a walrus.
+- **A new NPC's click label lags its first mobile update by ~60 ms; threats.py misreads it until
+  then.** Juncture 44 (2026-10-01, session 191355): the lumber runner aborted on "grey
+  0x00411866, assumed player" at 18 tiles. It was **Beaman the battle trainer**, a stationary
+  Shelter NPC at (1914, 2636). Its one 0x20 reads body 0x190, notoriety 3 (gray), hue 0x03FD,
+  flags 0x40 (war mode: it spars with a dummy, 0x6E/0xC0 every ~4 s), with no 0x20 player bit
+  and no 0x77 moves (it never moved). Timeline: 0x20 at 20:37:48.832; client 0x09/0x34/0x98 at
+  .837; 0x1C type-6 label "Beaman the battle trainer" + 0x11 name at .894. The runner's
+  assessment ran at .886, between the two, so `identify()` fell through to "human body, no npc
+  evidence (assumed player)". With the label it's `npc`/ignore, and the restarted run worked
+  15 tiles from the trainer without a stop. Battle trainers are notoriety 3 (Riane too), so
+  every one entering view can trip this.
 - **z while walking comes from the map (since 2026-09-30):** ConfirmWalk (0x22) carries no z. So
   the proxy's MoveAuthority computes z after each confirmed step with the client's walk rules
   (`SessionTap._step_z` → `pathfind.Walk.can_walk`, with the world model's ground items), the way
