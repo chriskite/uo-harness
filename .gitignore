@@ -34,6 +34,9 @@ harness/data/*.db-shm
 harness/data/harvestmem.json
 harness/data/episodes/
 settings.json*
+# Telegram bot token + paired chat (harness/telegram_bridge.py, docs/OVERSEER.md §8)
+harness/data/telegram.json
+harness/data/telegram.json.part
 handle.exe
 screen.png
 windivert.zip

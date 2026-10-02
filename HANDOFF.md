@@ -59,6 +59,8 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
    - **Next phase planned (2026-09-29 night): [`docs/ROADMAP.md`](docs/ROADMAP.md).** Built:
      - the overseer bus + `harness/ctl.py` (docs/OVERSEER.md)
      - the viz Overseer tab and Jobs page
+     - the Telegram bridge, overseer chat + junctures on the phone (`harness/telegram_bridge.py`,
+       docs/OVERSEER.md §8; needs a bot token from the user)
      - `threats.py`, `ledger.py` and the Tracking parsers
      - loop guards: captcha, threat, theft and death junctures
 

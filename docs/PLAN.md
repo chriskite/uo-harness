@@ -195,6 +195,22 @@ machine. Hourly `harness/backup.py` to the NAS share, as a Task Scheduler job (d
   (re-implements robocopy), File History / Windows Backup (whole-profile, not repo-aware).
 - UNC path, not `F:`, because scheduled tasks don't see interactive drive mappings.
 
+## Overseer chat on Telegram (decided 2026-10-02)
+
+User request: the overseer chat and notifications on a Telegram bot. `harness/telegram_bridge.py`
+(docs/OVERSEER.md §8) is one more party on the store bus: overseer messages and the junctures
+that wake `ctl wait` go to one paired private chat; text from that chat becomes `user` chat rows,
+so the overseer, ctl and the viz are unchanged.
+- Long polling (`getUpdates`), not a webhook: a webhook needs a public HTTPS endpoint into this
+  PC. Stdlib `urllib`, not python-telegram-bot: two API calls don't justify a dependency.
+- Its own cursors in `meta`, advanced per row after sending: restarts and outages neither drop
+  nor repeat; a first run starts at the newest rows.
+- Forwarded by default: what the user would act on (overseer messages, waking junctures) loud,
+  viz lines and a task's end silent. Thoughts and actions are opt-in flags: a shift posts dozens.
+- One paired chat only; other senders are ignored, since anyone can find a bot by name.
+- Rejected: Telegram commands that act directly (ack, stop). Everything goes through the
+  overseer, which applies OVERSEER.md §5; the human's own controls stay the viz and the client.
+
 ## Fixes from the first Hackworth overseer shift (decided 2026-10-01)
 
 The user approved items 1–4 of the overseer's fix plan. Item 5, auto-clearing broadcast

@@ -42,11 +42,11 @@ Rejected:
 | `harvest_attempts` | (append) | `t`, node, `outcome` (success/fail/depleted/not_tree/unreachable), `amount`. Index by node and time (regrowth and yield statistics) |
 | `episodes` | `id` | `loop`, `t_start`, `t_end`, `data` (the trip row JSON) |
 | `junctures` | `id` | v2. Overseer wake-ups: `t`, `source` (runner or `ctl`), `kind` (task_done, task_failed, captcha, stuck, threat, theft_suspected, death, low_supplies, …), `severity` (info/attention/urgent), `summary`, `data`, `acked_t`. See docs/OVERSEER.md |
-| `chat` | `id` | v2. The viz chat and the overseer's visible thinking: `role` (user/overseer/system), `kind` (message/thought/action), `text`, `data` |
+| `chat` | `id` | v2. The viz chat and the overseer's visible thinking: `role` (user/overseer/system), `kind` (message/thought/action), `text`, `data` (`{"via": "telegram", "message_id": N}` on user rows from the Telegram bridge) |
 | `job_events` | `id` | v2. Job analytics facts other than trips: `job`, `kind` (death with `data.cause`, theft, pk_seen, flee, …), `facet`/`x`/`y`, `data` |
 | `teleporters` | (`facet`, `x`, `y`) | v3. Invisible server teleporter tiles learned by stepping onto one: `to_facet`/`to_x`/`to_y`/`to_z`, `n`, `first_t`, `last_t`. The Mover plans around them (docs/OVERSEER.md) |
 | `knowledge` + `knowledge_fts` | `id` | v4. The overseer's long-term memory (below): `kind`, `topic`, `content`, `tags`, `entities`, optional `facet`/`x`/`y`, `source_type`/`source_ref`, `confidence`, `importance`, `status` (active/superseded/retracted), `supersedes`/`superseded_by`, `retract_reason`, `content_hash`, `confirmations`, `created_t`/`updated_t`/`last_access_t`/`access_count`. FTS5 (porter stemming) over topic, content, tags and entities, kept in sync by triggers |
-| `meta` | `key` | `schema_version`; `captcha_mode` (`human`/`auto`, missing = `human`; who answers the harvest captcha, set from the viz header, read by the runner at every captcha); overseer bus (docs/OVERSEER.md): `tasks` (running task entries), `task_stop`, `overseer_juncture_cursor`, `overseer_chat_cursor`, `overseer_heartbeat` (epoch s) |
+| `meta` | `key` | `schema_version`; `captcha_mode` (`human`/`auto`, missing = `human`; who answers the harvest captcha, set from the viz header, read by the runner at every captcha); overseer bus (docs/OVERSEER.md): `tasks` (running task entries), `task_stop`, `overseer_juncture_cursor`, `overseer_chat_cursor`, `overseer_heartbeat` (epoch s); Telegram bridge (docs/OVERSEER.md §8): `telegram_chat_cursor`, `telegram_juncture_cursor`, `telegram_update_offset` |
 
 ## Who writes what
 
@@ -62,6 +62,8 @@ Rejected:
     why it ended) and job events `kill`, `loot` (gold, xp = the corpse's gold; docs/HUNT_LOOP.md),
     `leave`, `death`, `speech_hold`/`speech_clear`. The viz Jobs page's Hunting dashboard reads them.
   - Runners never write walk moves; the proxy already has them.
+- **Telegram bridge** (`harness/telegram_bridge.py`): `user` chat rows for messages from the
+  phone, and its own `telegram_*` cursors in `meta`. It reads `chat` and `junctures`.
 - **Ingest:** `python harness/memory.py ingest [--logdir logs] [TAG ...]` replays captures that
   aren't in the store yet through the proxy's own SessionTap (viz_feed.ReplayDriver) and
   derives the same rows. Captures from before the proxy emitted `step` events (before

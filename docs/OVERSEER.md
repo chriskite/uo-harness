@@ -11,7 +11,7 @@ An AI overseer supervises the programmatic tasks (`harness/loop_lumber.py`,
   own guards (ANTICHEAT.md §8, LUMBER_LOOP.md). An LLM in the inner loop would be slow, costly and
   harder to keep stock-identical. The overseer only decides *what* runs and handles the exceptions.
 - **The SQLite store is the bus; there is no daemon.** Runners and `task_wrap.py` post
-  `junctures`; the user posts `chat` (role `user`, from the viz); the overseer posts `chat`
+  `junctures`; the user posts `chat` (role `user`, from the viz or Telegram, §8); the overseer posts `chat`
   (roles/kinds below) and acks junctures. Every party only needs the DB file, so any of them can
   restart without the others noticing.
 - **The first overseer is an omp coding-agent session** (the harness the user already works in),
@@ -24,11 +24,12 @@ An AI overseer supervises the programmatic tasks (`harness/loop_lumber.py`,
 ```mermaid
 flowchart LR
   R[runner / task_wrap] -- juncture --> DB[(harness.db)]
-  U[user via viz] -- chat role=user --> DB
+  U[user via viz or Telegram] -- chat role=user --> DB
   DB -- ctl wait returns --> O[overseer]
   O -- ctl run/stop/act/say/think/ack --> DB
   O -- ctl act --> P[proxy control port]
   O -- ctl status --> S[proxy state port]
+  DB -- overseer chat + junctures --> T[telegram_bridge.py] -- phone --> U
 ```
 
 ## 2. `ctl.py` reference
@@ -364,7 +365,10 @@ Paste this (or point the session at this section) to start an overseer.
 > if it is closed, wait. If anything looks like a GM, a jail, or a server message about
 > automation, stop the task and call the human. Follow `harness/data/policy.json`.
 >
-> **Calling the human.** `ctl say "@user <what, where, what you need>"
+> **Calling the human.** `ctl say "@user <what, where, what you need>"`. With the Telegram bridge
+> running (§8), every `say` and every juncture that wakes you also reaches the user's phone, and
+> user chat rows with `data.via: "telegram"` came from there: the user may be away from the PC,
+> so say what you need in the message itself.
 
 ## 6. Starting an overseer session in omp
 
@@ -372,8 +376,9 @@ Paste this (or point the session at this section) to start an overseer.
    and no task is running unless you want the overseer to adopt it.
 2. Open omp in `C:/Users/chris/uo-harness` and send: *"Act as the overseer: follow
    docs/OVERSEER.md §5."* (optionally add the goal, e.g. "run lumber trips until 500 boards").
-3. Talk to it through the viz chat (or directly in omp). Pause/kill in the viz still stop the
-   agent at the proxy regardless of the overseer.
+3. Talk to it through the viz chat (or directly in omp), or from your phone once the Telegram
+   bridge runs (§8). Pause/kill in the viz still stop the agent at the proxy regardless of the
+   overseer.
 4. To end the shift: tell it to `ctl stop` and stop waiting, or just close the session. A running
    task keeps running and reports to the DB, and a new overseer picks up the open junctures on
    its first `wait`.
@@ -393,3 +398,62 @@ Paste this (or point the session at this section) to start an overseer.
   trip, and items mid-move stay where they were.
 - `status` is one snapshot; notoriety names are the RunUO constants (1 innocent … 7
   invulnerable) `[INFERENCE: not in the local ClassicUO tree]`.
+
+## 8. Telegram bridge (harness/telegram_bridge.py, since 2026-10-02)
+
+The overseer chat and its notifications on the user's phone (user request 2026-10-02). A
+separate long-lived process on the bus, like every other party: it reads and writes the DB and
+talks to `api.telegram.org`, nothing else (not the client, the proxy or the game connection).
+Stdlib only. Offline proof: `harness/test_telegram_bridge.py` (a fake Bot API on localhost).
+
+**Setup, once:**
+1. In Telegram, ask [@BotFather](https://t.me/BotFather) for `/newbot`; it answers with the
+   bot's token.
+2. Put it in `harness/data/telegram.json` (gitignored; never commit or paste it):
+   `{"token": "123456:ABC..."}`. Or set `UO_TELEGRAM_TOKEN` (and `UO_TELEGRAM_CHAT_ID`), which
+   override the file.
+3. `python harness/telegram_bridge.py pair`, then send the bot any message from your account.
+   That chat's id is saved next to the token and the bot answers "Paired: …". Only this chat is
+   talked to and listened to; anyone else writing to the bot is ignored (and logged once).
+4. Check: `python harness/telegram_bridge.py send hello`.
+
+**Running:** `python harness/telegram_bridge.py run [--thoughts] [--actions] [--min-severity
+info|attention|urgent]` (Python 3.13, from the repo root; `--db` as for ctl). Leave it running
+next to the viz; Ctrl+C ends it. It can be stopped and restarted at any time: nothing is lost
+or sent twice.
+
+| To the phone | Notification |
+|---|---|
+| `overseer` `message` rows (`ctl say`): `overseer: <text>` | loud |
+| Junctures that wake `ctl wait`: severity ≥ `--min-severity` (default `attention`), and always `task_done`/`task_failed`. `URGENT captcha #12 (lumber)` + the summary; `(already acked)` if it was by the time it went out | loud; `info` ones (a task's end) silent |
+| `user` rows typed in the viz: `you (viz): <text>` (the phone keeps the whole conversation) | silent |
+| `system` rows | silent |
+| `thought` / `action` rows, only with `--thoughts` / `--actions` | silent |
+
+`memory` rows (`ctl know`) are never sent.
+
+**From the phone:** a text message in the paired chat becomes a `user` chat row with `data:
+{"via": "telegram", "message_id": N}`, which wakes `ctl wait` like the viz chat. Same limit as
+the viz (1..2000 characters after trimming; longer is refused with a reply). Telegram's
+automatic `/start` is dropped; stickers, photos and the like get "Only text messages reach the
+overseer." When no overseer is running (heartbeat ≥ 90 s old, as in the viz), the bot replies
+that the message waits in the store until one starts.
+
+**Delivery:** in time order across chat and junctures, one row at a time. A cursor moves past a
+row only once it's sent, so an outage or restart resends nothing and drops nothing: rate limits
+(429) are waited out for `retry_after`, network and 5xx errors are retried with back-off (2 s up
+to 60 s), and a message the API refuses for good (another 4xx) is logged and skipped. Texts over
+Telegram's 4096 characters go out in parts, split at line breaks. A first run starts at the
+newest rows instead of sending the history.
+
+`meta` keys: `telegram_chat_cursor`, `telegram_juncture_cursor` (the last row id handled),
+`telegram_update_offset` (the next `getUpdates` offset).
+
+**Limits:**
+- What goes to Telegram leaves this PC: junctures and chat carry character names, positions and
+  what players said nearby. The bot token gives anyone who has it that chat; a leaked token is
+  revoked with BotFather `/revoke`.
+- Plain text only (no Markdown), so names and packet text arrive as they are.
+- One bridge per bot: a second one polling the same token gets `409 Conflict` and keeps retrying.
+- Nothing in the game is answered from the phone directly: the message goes to the overseer,
+  which acts under §5 as for viz chat.
