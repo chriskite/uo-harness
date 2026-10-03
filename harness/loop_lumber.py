@@ -69,10 +69,14 @@ from speech_guard import SpeechGuard, staff_hints  # noqa: E402
 import triage  # noqa: E402
 import alerts  # noqa: E402
 import lumber_opt  # noqa: E402
+import travel_guard  # noqa: E402
+import places  # noqa: E402
 import captcha  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 NEXT_TREE_PLANS = 6           # nearest trees (straight line) whose walks next_tree() compares
+LIBRARY_WALK_MAX = 250       # tiles: farther from the rune library the overseer must bring us (moongate)
+HOME_NEAR = 60               # tiles from the banker: close enough to walk instead of recalling home
 # Coloured-wood success, e.g. "You chop some dullwood logs and put them in your backpack."
 # (live 2026-10-02, Terran; unmatched it counted as an unknown outcome and aborted the trip)
 COLORED_CHOP = re.compile(r"You chop some [a-z]+ logs and put them in your backpack\.$")
@@ -150,8 +154,9 @@ class LumberLoop:
         self.stats = {}
         self.trip_n = None
         # a creature is a threat when it's in war mode, murderer-red or known aggressive
-        # (threats.Params); a wandering goat isn't
-        self.watch = threats.Watch(threats.Params())
+        # (threats.Params, plus every body the store has seen hostile: travel_guard.learned_params);
+        # a wandering goat isn't
+        self.watch = threats.Watch(travel_guard.learned_params(memory))
         self.last_threats = None
         self.seen_hostiles = set()
         self.ledger = ledger_mod.Ledger()
@@ -879,6 +884,7 @@ class LumberLoop:
             if self.break_due:
                 log("break due: no harvesting this trip")
                 return 0
+            self.go_out()
             trees = self.candidate_trees(self.state())
             if not trees:
                 self.stats["dry"] = True
@@ -1030,6 +1036,8 @@ class LumberLoop:
             m = mobs.get(f"0x{t.serial:08X}") or {}
             if m.get("x") is not None:
                 self.danger[t.serial] = ((m["x"], m["y"]), t.flee_radius + ESCAPE_MARGIN)
+                self.mover.danger[t.serial] = self.danger[t.serial]     # routes bend around it too
+                travel_guard.record(self.memory, st, t, (m["x"], m["y"]), job="lumber")
         names = ", ".join(t.name or f"0x{t.serial:08X}" for t in e.monsters)
         goals = self.escape_tiles(st)
         log(f"ESCAPE {self.escapes}/{ESCAPES_PER_TRIP}: {e.summary}; backing away to {goals[0]}")
@@ -1149,10 +1157,68 @@ class LumberLoop:
         z = self.banker_mobile().get("z")
         return z if z is not None else self.k["npcs"]["banker"]["pos"][2]
 
+    # ------------------------------------------------------------ travel (spots reached by recall)
+    def go_out(self):
+        """Witcher-rune spots (spot access {"method": "witcher", "rune": N}): unless we
+        stand in the spot's area already, walk to the rune library, stand by the tome
+        that holds rune N and recall to it (escape.recall: one of the tome's public
+        charges, else our own spell; docs/research/WORLD_LOCATIONS.md). The 60 s
+        harvest lockout after it is waited out by the first chop (outcome 'lockout')."""
+        access = self.k["spot"].get("access") or {}
+        if access.get("method") != "witcher":
+            return
+        st = self.state()
+        area = self.k["harvest"]["area"]
+        pos = self.link.pos(st)
+        if cheb(pos, area["center"]) <= area["radius"] + 10:
+            return
+        rune = places.witcher_rune(access["rune"])
+        lib = places.library(access.get("library", "cambria"))
+        if cheb(pos, lib["stand"]) > LIBRARY_WALK_MAX:
+            raise Abort(f"not near the {lib['name']} ({cheb(pos, lib['stand'])} tiles): travel there first "
+                        f"(the {lib['moongate']} moongate)")
+        tome = next(t for t in lib["tomes"] if t["serial"] == rune["tome"])
+        self.doing("to_library", f"Walking to the {lib['name']}", tuple(tome["pos"][:2]))
+        self.mover.walk_to(lambda: tuple(tome["pos"][:2]), lib["use_range"] - 1, "to the rune library")
+        if self.link.wait(lambda s: rune["tome"] in s["world"]["items"], 3.0) is None:
+            raise Abort(f"the tome {rune['tome']} for rune {rune['id']} isn't at the {lib['name']} "
+                        f"({tome['pos'][:2]})")
+        self.doing("recall_out", f"Recalling to rune {rune['id']} ({rune['name']})", (rune["x"], rune["y"]))
+        self.human.wait("use")
+        try:
+            res = escape_mod.escape(escape_mod.LinkIO(self.link), int(rune["tome"], 16), attempts=2, log=log,
+                                    rune=rune["id"])
+        except escape_mod.RecallError as e:
+            raise Abort(f"library recall to rune {rune['id']} not possible: {e}")
+        self.memory.job_event("lumber", "travel", {"leg": "out", "rune": rune["id"], **res},
+                              **self._where(self.link.state()))
+        if not res["ok"]:
+            raise Abort(f"library recall to rune {rune['id']} failed: {res['failure']}")
+        log(f"recalled to rune {rune['id']} ({rune['name']}) at {tuple(res['to'])} ({res['method']})")
+
+    def go_home(self):
+        """Spots with home {"method": "recall"}: recall to the default rune of our
+        book (the same one the red escape uses), unless the banker is already near;
+        open_bank walks the rest."""
+        if (self.k["spot"].get("home") or {}).get("method") != "recall":
+            return
+        if cheb(self.link.pos(self.link.state()), self.banker_pos()) <= HOME_NEAR:
+            return
+        if self.recall_book is None:
+            raise Abort("this spot goes home by recall, and there is no runebook or rune tome ready")
+        self.doing("recall_home", "Recalling home")
+        self.human.wait("use")
+        res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, attempts=3, log=log)
+        self.memory.job_event("lumber", "travel", {"leg": "home", **res}, **self._where(self.link.state()))
+        if not res["ok"]:
+            raise Abort(f"recall home failed: {res['failure']}")
+
     def open_bank(self) -> int:
         """Walk up to where the banker stands now and say "bank"; the bank box
         serial once the server has opened it (0x24). NPCs move, so the demo
-        position is only the fallback (the innkeeper's lesson, LUMBER_LOOP.md §13)."""
+        position is only the fallback (the innkeeper's lesson, LUMBER_LOOP.md §13).
+        A spot whose way home is a recall recalls first (go_home)."""
+        self.go_home()
         self.doing("to_bank", "Going to the bank: heading to the banker", self.banker_pos())
         self.mover.walk_to(self.banker_pos, self.args.bank_range, "to the banker",
                            z_ok=same_floor(self.banker_z()))
@@ -1209,6 +1275,7 @@ class LumberLoop:
         self.stats = {}
         self.trip_n = n
         self.escapes, self.danger = 0, {}
+        self.mover.danger = {}
         t0, s0, b0 = time.time(), self.mover.steps, self.mover.blocked_count
         self.trip_t0 = t0
         self.timing = {"walk_out_s": None, "chop_s": 0.0, "tree_walk_s": 0.0}
@@ -1306,6 +1373,8 @@ class LumberLoop:
         self.guarded(lambda: self.check_guards(self.link.state()))
         self.hatchet(st, self.want_hatchet)
         self.recall_book = self.prepare_recall(st)
+        # routes bend around where hostile creatures were seen lately (travel_guard)
+        self.mover.danger_tiles = travel_guard.remembered_tiles(self.memory, self.facet, self.link.pos(st)[:2])
         for n in range(1, self.args.trips + 1):
             self.trip(n)
             if self.break_due:
@@ -1329,6 +1398,7 @@ def main():
     ap.add_argument("--spot", required=True,
                     help="lumber spot id (harness/data/lumber_spots.json or the store; `ctl lumber spots`)")
     ap.add_argument("--spots", default=lumber_opt.SEEDS, help="seed spot file (tests)")
+    ap.add_argument("--witcher", default=places.WITCHER, help="Witcher rune table (tests: a simulated library)")
     ap.add_argument("--trips", type=int, default=1)
     ap.add_argument("--logs-per-trip", type=int, default=15)
     ap.add_argument("--hatchet", default=None,
@@ -1373,6 +1443,7 @@ def main():
     with open(args.loop, encoding="utf-8") as f:
         know = json.load(f)
     memory = Memory(args.memory)
+    places.use(args.witcher)
     spots = lumber_opt.load_spots(memory, args.spots)
     spot = spots.get(args.spot)
     why = None

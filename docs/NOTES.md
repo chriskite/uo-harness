@@ -379,6 +379,21 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   250-tile wilderness route is only as safe as what it passes. Lessons: no long blind gotos
   through unknown wilderness; give goto the runner's threat checks (stop and back off on hostile
   creatures, stop on damage, stop when dead); learn monster areas from sightings.
+- **Two-column rune tomes broke the default-rune parse (fixed 2026-10-03).** A full tome (more than
+  13 runes) draws its rows in two columns at the same heights. `escape.parse_runetome_main` keyed
+  rows by height, so it counted 13 rows and read the right column's default. A PK escape with such a
+  tome would have pressed the wrong rune. Rows are now matched to their texts by position. The
+  Witcher tome 276-301 layout is the fixture (`runetome_main_witcher_276`, test_escape.py).
+- **Long gotos:** the map planner gives up past ~200 tiles of wilderness ("no route" from
+  (1765, 2007) to Horseshoe Bay and from (1526, 3040) to the Cambria library). Two legs of ~120
+  tiles each worked. The planner's search limit, not the terrain [INFERENCE].
+- **Cambria:** the moongate (arrival (1693, 3153); the Moongates.xml marker says (1705, 3154)) sits
+  in a player vendor mall. No banker was seen there, and the bank marker is (1750, 3003), ~180
+  tiles north of the library. The Horseshoe Bay moongate item is at (2025, 2077, 11), not the
+  marker's (2007, 2077).
+- **Guarded goto, first live use (10:42–10:49):** Horseshoe Bay healer → moongate (190 steps), and
+  Witcher rune 291 → Cambria in two legs (327 steps). No hostile creature came into view (`avoided`
+  empty), so this proved the guard harmless on ordinary walks, not its avoidance.
 
 ## Runebook and rune tome gumps (live 2026-10-02, TestWorth on the Test Shard)
 

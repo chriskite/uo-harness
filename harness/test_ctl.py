@@ -839,7 +839,13 @@ def test_overseer_acts(proxy):
     proxy.gumps = []
 
     proxy.pos = [100, 100, 0, 2]
+    proxy.take()
     code, out = c("act", "goto", "104", "100", "--human", "off", "--no-map")
+    check("goto (guarded by default): the red 3 tiles away stops it before any step (travel_guard)",
+          code == 1 and "hostile player red a PK" in out.get("error", "") and out.get("steps") == 0
+          and not [p for _, p in proxy.take() if p[0] == 0x02], str(out))
+    # the walking mechanics below, with the red still standing there: --no-guard
+    code, out = c("act", "goto", "104", "100", "--human", "off", "--no-map", "--no-guard")
     fr = proxy.take()
     check("goto x y: the Mover walks there (2D fallback in this test)",
           code == 0 and out.get("to", [])[:2] == [104, 100] and out.get("steps") == 4, str(out))
@@ -849,7 +855,7 @@ def test_overseer_acts(proxy):
           [(i["kind"], i["text"]) for i in it] == [("goto", "Walking to 104,100"), ("arrived", "Arrived at 104,100")],
           str(it))
     proxy.fixed_mobiles = {"0x00000004": {"x": 110, "y": 100, "z": 0, "name": "Zara", "notoriety": 7}}
-    code, out = c("act", "goto", "0x00000004", "--human", "off", "--no-map")
+    code, out = c("act", "goto", "0x00000004", "--human", "off", "--no-map", "--no-guard")
     check("goto mobile: walks until within 2 tiles of it",
           code == 0 and nav.chebyshev(tuple(out["to"][:2]), (110, 100)) <= 2
           and nav.chebyshev(tuple(out["from"][:2]), (110, 100)) > 2, str(out))
@@ -859,7 +865,7 @@ def test_overseer_acts(proxy):
                                       "t": time.time() - 60, "facet": 0, "why": "range"},
                        "0x00000006": {"x": 90, "y": 100, "z": 0, "name": "a mongbat", "t": time.time(),
                                       "facet": 0, "why": "dead"}}
-    code, out = c("act", "goto", "0x00000005", "--human", "off", "--no-map")
+    code, out = c("act", "goto", "0x00000005", "--human", "off", "--no-map", "--no-guard")
     check("goto a mobile out of view: walks to where the client last had it",
           code == 0 and nav.chebyshev(tuple(out["to"][:2]), (tx, 100)) <= 2
           and nav.chebyshev(tuple(out["from"][:2]), (tx, 100)) > 2, str(out))
@@ -871,7 +877,7 @@ def test_overseer_acts(proxy):
     check("goto unknown serial refused", code == 1 and proxy.take() == [], str(out))
     gate = "0x40000099"
     proxy.ground_items = {gate: {"graphic": 0x0F6C, "x": 113, "y": 100, "z": 0}}
-    code, out = c("act", "goto", gate, "--human", "off", "--no-map")
+    code, out = c("act", "goto", gate, "--human", "off", "--no-map", "--no-guard")
     check("goto ground item: onto its tile", code == 0 and out.get("to", [])[:2] == [113, 100], str(out))
     code, out = c("status")
     g = next((i for i in out.get("ground_items", []) if i["serial"] == gate), None)

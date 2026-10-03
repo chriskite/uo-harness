@@ -53,6 +53,10 @@ DOOR_GRAPHICS = range(0x0675, 0x06F5)
 MOBILE_COST_X = 4.0
 SHOVE_RETRY_S = 15.0
 MOBILE_WAIT_S = 90.0
+# Danger zones (Mover.danger, set by guards: creatures we must not walk past): entering a
+# tile inside one costs DANGER_COST_X normal steps, so routes bend around monster groups
+# when a way around exists (live 2026-10-03: a straight map route through a harpy nest).
+DANGER_COST_X = 30.0
 # Some teleporters deny the step and then move you (S2C 0x21 at the current tile, then the
 # new position; the New Player Dungeon exit, live 2026-09-30). After a deny, look this long
 # for such a jump before calling the step blocked.
@@ -337,6 +341,12 @@ class Mover:
         self.gate_gumps_closed = 0
         self.step_mark = 0           # len(link.events) when the last walk went out
         self._after = None           # (full state, monotonic time) fetched at the end of the last step
+        self.danger = {}             # key -> ((x, y), radius): tiles to route around (DANGER_COST_X)
+        self.danger_tiles = set()    # (x, y) around remembered monster sightings (travel_guard.remembered)
+        self.replan_requested = False   # set by a guard (new danger): replan after this step
+
+    def in_danger(self, tile) -> bool:
+        return tile in self.danger_tiles or any(cheb(tile, c) <= r for c, r in self.danger.values())
 
     def step(self, d: int, run: bool = True, st=None) -> str:
         """Send one walk; wait for its outcome. Returns 'moved', 'turned',
@@ -602,7 +612,8 @@ class Mover:
         noise = self.human.cost_scale()
 
         def cost(a, b):
-            return (noise(a, b) if noise else 1.0) * (MOBILE_COST_X if b in occ else 1.0)
+            return ((noise(a, b) if noise else 1.0) * (MOBILE_COST_X if b in occ else 1.0)
+                    * (DANGER_COST_X if (self.danger or self.danger_tiles) and self.in_danger(b) else 1.0))
 
         facet = st["world"]["self"].get("map")
         self.mem = self.mem_for(facet)
@@ -654,6 +665,7 @@ class Mover:
         while True:
             st = self.link.state()
             self.guard(st)
+            self.replan_requested = False        # this plan sees whatever the guard just set
             cur = tuple(self.link.pos(st)[:2])
             goal = goal_fn if goal_fn is not None else nav.within(tuple(center_fn()), radius, z_ok)
             if goal(cur) and (z_ok is None or self.walk_map(st) is None or z_ok(self.link.pos(st)[2])):
@@ -678,6 +690,7 @@ class Mover:
             log(f"{label}: route {len(path) - 1} steps from {cur}{'' if run else ' (walking)'}"
                 f"{'' if walk is not None else ' [walk memory]'}")
             replan = False
+            danger_replan = False
             for i, nxt in enumerate(path[1:], start=1):
                 st = self.fresh_state()
                 pos = self.link.pos(st)
@@ -718,8 +731,13 @@ class Mover:
                     self.mem.add_step(cur, new)
                     if new != gate and self.moongate_at(new, after, z=here[2]):
                         self.close_gate_gumps(self.step_mark, new, label)
-                    if new != nxt:
-                        log(f"{label}: landed on {new}, expected {nxt}; replanning")
+                    if new != nxt or self.replan_requested:
+                        if self.replan_requested:
+                            log(f"{label}: danger ahead changed; replanning from {new}")
+                            danger_replan = True      # not a failure: don't count it as one
+                        else:
+                            log(f"{label}: landed on {new}, expected {nxt}; replanning")
+                        self.replan_requested = False
                         replan = True
                         break
                     if self.steps - start_steps > max_moves:
@@ -754,7 +772,7 @@ class Mover:
                     self.human.wait("read")
                 replan = True
                 break
-            if replan:
+            if replan and not danger_replan:
                 replans += 1
             if replans > 30:
                 raise Abort(f"{label}: too many replans")

@@ -62,6 +62,15 @@ def test_runetome():
           escape.runetome_cast_button(d, 0) == 10)
     check("runetome detail: Cast Recall of the odd rune is the right column (20)",
           escape.runetome_cast_button(d, 1) == 20)
+    rows = parse(escape.runetome_rows, "runetome_main_witcher_276")
+    r = parse(escape.parse_runetome_main, "runetome_main_witcher_276")
+    check("Witcher library tome: 26 rows read by name, 40 public recall charges",
+          len(rows) == 26 and r["entries"] == 26 and r["charges"] == 40, (len(rows), r))
+    hit = [i for i, n in rows.items() if escape.rune_matches(n, "286")]
+    check("rune '286' is row 10 (gem 110: the button that recalled to it live)",
+          hit == [10] and rows[10] == "286 - Midlands Ruins 1 (South)", (hit, rows.get(10)))
+    check("a number matches whole: '28' finds no row, '2' neither",
+          not any(escape.rune_matches(n, w) for n in rows.values() for w in ("28", "2")))
 
 
 def test_failures():

@@ -258,7 +258,17 @@ patches show up within weeks):
   `--hatchet`).
 - **eligibility:** `active` status; Young-only spots only for a Young character (`--young` or the
   self label); 30 min after a death or a trip cut short with a hostile player in sight there; after
-  a `dry` trip until the trees regrow.
+  a `dry` trip until the trees regrow; **unworkable** for 7 days after 2 trips in a row that got
+  nothing for a reason that is the place's (no reachable tree, harvesting answered with something
+  the runner doesn't know, e.g. a town region), then one more try (since 2026-10-03).
+- **failed trips are evidence (since 2026-10-03):** such a trip counts at least 0.25 field hours with
+  its 0 logs, so a spot that can't be worked loses its optimistic prior instead of looking untried
+  forever. Trips stopped by monsters or players aren't the place's fault in this sense; their time
+  already counts.
+- **travel (since 2026-10-03):** the gap between the last trip at one spot and the first at another
+  (under an hour) is a sample of the move; a spot's travel is its `travel_min` prior averaged with
+  them. Standing within 60 tiles of the rune library is the hub (`here: hub:cambria`): every spot it
+  reaches costs no travel, because walking to the library is part of each trip.
 - **regrowth:** pairs (depleted, later attempt on the same tree) from `harvest_attempts`; an
   isotonic fit of P(regrown | gap); the estimate is where it reaches 0.6. On the data of 2026-10-02
   (137 pairs): 0/14 regrown at 15–30 min, 7/50 at 30–45, 12/25 at 45–60, 41/45 later → 65 min. The
@@ -276,12 +286,17 @@ patches show up within weeks):
 signature (ANTICHEAT.md §8.3). Thompson sampling varies the spot from stint to stint, and the runner's
 human noise varies the rest. Variation is required, not an inefficiency to remove.
 
+**Spots reached by recall (built 2026-10-03, docs/research/WORLD_LOCATIONS.md).** A spot may carry
+`access {"method": "witcher", "rune": N, "library": "cambria"}` (out by the library tome's rune) and
+`home {"method": "recall"}` (home by our book's default rune, then walk to its banker). `ctl lumber
+discover --from witcher` proposes them near the ~360 Witcher runes, so the whole map is in reach,
+not only the band around banks. Their overhead prior adds the walk from the bank to the library, two
+recalls and the 60 s lockout.
+
 **Not built (data or decisions missing):** gold/hour with per-wood prices (needs colored-board
 prices: record them with `ctl lumber price board:<wood> <gp>`; the objective then becomes value per
-hour, ECONOMY §6), recall-out as a routine return (needs a marked rune per spot), time-of-day hazard,
-per-spot regrowth, a Jobs-page view per spot. **Reaching the whole map:** `discover` only searches
-30–110 tiles from a bank; spots reached by recall (the Witcher rune library, our own marked runes)
-or by hiking to Atlas POIs are researched and proposed in docs/research/WORLD_LOCATIONS.md.
+hour, ECONOMY §6), our own marked runes at good spots (needs a Mark capture), hiking to Atlas POIs,
+time-of-day hazard, per-spot regrowth, a Jobs-page view per spot.
 
 ## 7. Decisions (user, 2026-09-29)
 
@@ -598,6 +613,19 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
 - **Hatchet choice (since 2026-10-02):** `--hatchet copper` (or `copper+exceptional`) uses only a
   hatchet of that material (by hue, `harness/data/hatchets.json`) and quality (by its clicked
   name); none such aborts the start. Without it: worn, else the shallowest in the pack.
+- **Recall travel (since 2026-10-03, §6 "Spots reached by recall"):** with a Witcher `access`, the
+  harvest starts (unless we already stand in the area) by walking to the library tome that holds the
+  rune (within its 2-tile use range; we wait until the world model has the tome, since it re-enters
+  view only when we're near), then `escape.escape(tome, rune=N)`: a shared charge, else our spell,
+  up to 2 casts. With `home: recall`, the bank phase starts with a recall on the PK-escape book's
+  default rune (skipped within 60 tiles of the banker), then walks to the banker. Both legs are
+  `travel` job events (`leg` out/home, the recall result). A recall that can't be made aborts the
+  trip. The offline proof is `test_loop_lumber.py` scenario `library` (two trips out and home,
+  the captured tome and runebook layouts).
+- **Routes around monsters (since 2026-10-03, `harness/travel_guard.py`):** creatures escaped from
+  this trip become Mover danger zones (routes bend around them), every escape is a `monster_seen`
+  job event, bodies seen hostile count as aggressive from then on, and tiles around sightings of
+  the last 30 days cost more to walk through.
 - **Episode row for every trip (since 2026-10-02):** written in a `finally`, so a trip that aborts
   (threat, escape that kept coming, unknown outcomes, no trees) still leaves `outcome: aborted` and
   `why`, with the phases it got through. Leaving those out flattered exactly the spots where trips

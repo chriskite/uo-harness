@@ -466,6 +466,32 @@ run it: docs/NOTES.md "Discord capture".
   The browser profile holds the login session, so it's treated as a credential: gitignored and
   not backed up.
 
+## Reaching the whole map: Witcher-rune spots and guarded walks (decided and built 2026-10-03)
+
+User request: can the overseer and the loop explore the whole overworld over time? The answer was
+no: discovery searched only 30–110 tiles from banks, and spots that failed never looked bad. After
+the research (docs/research/WORLD_LOCATIONS.md) the user approved spots reached by recall, using
+the public Witcher rune library in Cambria heavily for now. Their changes: commit the Witcher table;
+every lumber character has at least 60 Camping and 60 Magery. The user also asked for safety rules
+on the overseer's walks after a harpy nest killed Hackworth on a blind `ctl act goto`.
+- **A spot says how to get there and back** (`access`, `home`), and the runner does the travel
+  itself: walk to the tome, recall out, then recall home on the PK-escape book's default rune.
+  Rejected: the overseer travelling before every trip. That costs an LLM turn per trip, and walking
+  home from a far rune isn't possible (planner range, wilderness risk).
+- **Witcher runes are the candidate places.** They cover the map densely, each already has a public
+  rune, and their names flag monster camps. Atlas POIs need hiking (campfire flow, an unlock visit
+  per POI); deferred.
+- **Failed trips are evidence.** A trip that got nothing for a reason that belongs to the place
+  counts as field time with 0 logs, and two in a row set the spot aside for a week. Without this,
+  an unreachable or in-town spot would keep its optimistic prior and keep being explored.
+- **Travel is learned** from the gaps between trips at different spots; at the library hub, rune
+  spots cost no travel.
+- **Overseer walks are guarded by default** (`travel_guard.py`, `--no-guard` to walk into a fight
+  on purpose). Hostile creatures become zones the route bends around. A goal in a creature's reach,
+  a hostile player, or low hits under attack stops the walk. Sightings are remembered, so bodies
+  count as aggressive and areas are avoided on later walks. Rejected: aborting on any creature in
+  view (every wilderness walk would stop) and walking on while hit (what killed us).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

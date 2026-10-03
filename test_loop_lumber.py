@@ -91,6 +91,16 @@ ATTACKER_POS = (107, 200)                                 # 3 tiles west of the 
 # break scenario
 INITIAL_LOGS = 5                                          # logs carried from an earlier trip
 BREAK_AFTER_S = 4.0                                       # agent-active seconds left before the break is due
+# library scenario (docs/research/WORLD_LOCATIONS.md): a Witcher-style spot reached by recalling from a
+# public library tome, banked after recalling home with our runebook's default rune
+TOME, RUNEBOOK = 0x546ACD06, 0x44ADB00C
+LIB_START, TOME_POS = (132, 212), (133, 212)              # the library is in town, by the bank: no door between
+RUNE_POS = (40, 250)                                      # where the tome's rune "286" puts us
+LIB_TREE = {"x": 40, "y": 253, "z": 0, "graphic": "0x0CE0", "stand": [40, 252]}
+HOME_RUNE_POS = (125, 205)                                # our runebook's default rune: by the bank, past the door
+with open(f"{ROOT}/harness/testdata/escape_gumps.json", encoding="utf-8") as _f:
+    _G = json.load(_f)
+TOME_GUMP, BOOK_GUMP = _G["runetome_main_witcher_276"], _G["runebook_charges"]   # captured layouts
 
 
 def check(name, cond, extra=""):
@@ -214,7 +224,7 @@ class World:
     def __init__(self, scenario="bank"):
         self.scenario = scenario          # "bank" (the main run), "skirmish" or "break"
         self.scripted = scenario == "bank"  # captchas, the passer-by's speech, the pickpocket
-        self.pos = list(START)
+        self.pos = list(LIB_START) if scenario == "library" else list(START)
         self.facing = 0
         self.writer = None
         self.c2s = []
@@ -256,6 +266,9 @@ class World:
         self.attacker_swings = 0
         self.far_attempts = 0             # skirmish: harvest attempts at the far tree
         self.banker_seen = False          # the banker's 0x20 sent since he last left the client's view
+        self.book_gumps, self.tome_gumps = set(), set()   # library scenario: gumps we sent
+        self.recalls_out, self.recalls_home, self.tome_far = [], [], 0
+        self.tome_seen = False
 
     def send(self, pkt):
         self.writer.write(encode_packet(pkt, S2C_KEY))
@@ -285,10 +298,24 @@ class World:
             self.send(mobile_pkt(BANKER, *BANK_POS))
         elif d > 24:
             self.banker_seen = False
+        if self.scenario == "library":                   # the library tome, like any item, the same way
+            t = self.cheb(TOME_POS)
+            if t <= 18 and not self.tome_seen:
+                self.tome_seen = True
+                self.send(ground_item(TOME, 0x71AF, *TOME_POS, 0))
+            elif t > 24:
+                self.tome_seen = False
 
     def teleport(self, x, y):
         self.pos = [x, y]
         self.send(self_at(x, y))
+        self.update_view()
+
+    def recall_to(self, dest, log):
+        """Kal Ort Por, then the jump about 2.1 s later (live 2026-10-02/03)."""
+        log.append(dest)
+        self.send(sys_text("Kal Ort Por"))
+        asyncio.get_running_loop().call_later(2.1, self.teleport, *dest)
 
     # ---- harvest ----
     def harvest(self, x, y):
@@ -410,6 +437,15 @@ class World:
             elif serial in (BACKPACK, BAG):
                 self.containers_opened.append(serial)
                 self.send(b"\x24" + u32(serial) + bytes.fromhex("0000003c007d"))   # as captured (204225)
+            elif serial == TOME:                         # a locked-down tome opens within 2 tiles only
+                if self.cheb(TOME_POS) > 2:
+                    self.tome_far += 1
+                    return
+                self.tome_gumps.add(self.next_gump())
+                self.send(gump(self.gump_serial, 0x09F5976B, TOME_GUMP["layout"], TOME_GUMP["lines"]))
+            elif serial == RUNEBOOK:
+                self.book_gumps.add(self.next_gump())
+                self.send(gump(self.gump_serial, 0x5C7DB029, BOOK_GUMP["layout"], BOOK_GUMP["lines"]))
         elif pid == 0x6C:
             f = parse_packet("c2s", p)
             if f["cursor_id"] != self.cursor_for:
@@ -423,6 +459,10 @@ class World:
             f = parse_packet("c2s", p)
             if f["serial"] in self.decoys:
                 self.decoy_replies += 1
+            elif f["serial"] in self.tome_gumps and f["button_id"] == 110:     # row 10: "286 - Midlands ..."
+                self.recall_to(RUNE_POS, self.recalls_out)
+            elif f["serial"] in self.book_gumps and f["button_id"] == 8:       # default entry 1, a charge
+                self.recall_to(HOME_RUNE_POS, self.recalls_home)
             elif f["serial"] in self.gate_gumps:
                 self.gate_gumps[f["serial"]].append(f["button_id"])
             elif f["serial"] == self.captcha_open and f["button_id"] == CAPTCHA_SUBMIT:
@@ -487,6 +527,9 @@ class World:
             asyncio.get_running_loop().create_task(self.combat())
         else:
             self.send(equip(HATCHET, 0x0F44, 0x02))
+        if self.scenario == "library":
+            self.send(self_at(*LIB_START))
+            self.send(contained(RUNEBOOK, 0x22C5, 1, BACKPACK))
         if self.scenario == "break":                            # logs carried from an earlier trip
             self.logs_serial, self.logs = 0x45000001, INITIAL_LOGS
             self.send(contained(self.logs_serial, 0x1BDD, self.logs, BACKPACK))
@@ -522,16 +565,28 @@ class World:
             await self.writer.drain()
 
 
-def write_spot(path, trees=(GOOD_TREE, DRY_TREE)):
+def write_spot(path, trees=(GOOD_TREE, DRY_TREE), **extra):
     """The simulator's spot 'sim' (lumber_opt spot format, a --spots file): its trees and
-    banker; no hostile player actions there, so no recall book is needed. The common
-    knowledge is the committed loops/lumber.json."""
+    banker; no hostile player actions there, so no recall book is needed (extra fields
+    override). The common knowledge is the committed loops/lumber.json."""
     spot = {"id": "sim", "name": "simulated Shelter trees", "facet": 0,
             "area": {"center": list(START), "radius": 30}, "trees": list(trees),
             "banker": {"serial": f"0x{BANKER:08X}", "name": "Len the banker", "pos": [*BANK_KNOWN, 0]},
-            "pvp": False}
+            "pvp": False, **extra}
     with open(path, "w", encoding="utf-8") as f:
         json.dump({"spots": [spot]}, f)
+
+
+def write_witcher(path):
+    """A Witcher table for the simulated library: one tome at TOME_POS holding rune 286."""
+    doc = {"libraries": [{"id": "cambria", "name": "Sim Rune Library", "facet": 0, "stand": list(LIB_START),
+                          "moongate": "Sim", "use_range": 2,
+                          "tomes": [{"serial": f"0x{TOME:08X}", "first": "276", "last": "301",
+                                     "pos": [*TOME_POS, 0]}]}],
+           "runes": [{"id": "286", "name": "Midlands Ruins 1 (South)", "x": RUNE_POS[0], "y": RUNE_POS[1],
+                      "tome": f"0x{TOME:08X}"}]}
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(doc, f)
 
 
 async def main():
@@ -790,7 +845,7 @@ async def main():
         server.close()
 
 
-async def run_scenario(world, tag, port_base, trees, runner_args, budget=None):
+async def run_scenario(world, tag, port_base, trees, runner_args, budget=None, spot_extra=None):
     """The real proxy in front of `world` on private ports port_base..+3 (logdir
     LOGDIR/<tag>, an optional pre-written agent gate file), then the runner with
     runner_args. Returns (runner output, exit code, memory store, capture rows)."""
@@ -802,8 +857,9 @@ async def run_scenario(world, tag, port_base, trees, runner_args, budget=None):
         with open(os.path.join(logdir, "agent_budget.json"), "w", encoding="utf-8") as f:
             json.dump(budget, f)
     tmp = tempfile.mkdtemp()
-    spots, db = os.path.join(tmp, "spots.json"), os.path.join(tmp, "harness.db")
-    write_spot(spots, trees)
+    spots, db, witcher = (os.path.join(tmp, n) for n in ("spots.json", "harness.db", "witcher.json"))
+    write_spot(spots, trees, **(spot_extra or {}))
+    write_witcher(witcher)
     proxy_port, upstream, control, state = (port_base + i for i in range(4))
     server = await asyncio.start_server(world.handle, "127.0.0.1", upstream)
     proxy = subprocess.Popen(
@@ -825,7 +881,7 @@ async def run_scenario(world, tag, port_base, trees, runner_args, budget=None):
         await asyncio.sleep(0.5)
         runner = await asyncio.create_subprocess_exec(
             PY, f"{ROOT}/harness/loop_lumber.py", "--control-port", str(control), "--state-port", str(state),
-            "--spot", "sim", "--spots", spots, "--memory", db, "--timeout", "300",
+            "--spot", "sim", "--spots", spots, "--witcher", witcher, "--memory", db, "--timeout", "300",
             "--quiet", "--no-map", "--max-blocked", "80",
             "--triage-url", "", *runner_args,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
@@ -923,6 +979,36 @@ async def break_due():
     store.close()
 
 
+async def library():
+    """docs/research/WORLD_LOCATIONS.md: a spot reached by a library rune and left by our
+    own runebook. Each trip: walk to the library tome, recall to rune 286 with one of its
+    charges, chop, convert, recall home with the runebook's default rune, bank; trip 2
+    walks from the bank back to the library."""
+    print("\n== library: recall out from a public tome, recall home with our runebook, bank; twice ==")
+    world = World("library")
+    spot = {"access": {"method": "witcher", "rune": "286", "library": "cambria"}, "home": {"method": "recall"},
+            "area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 10}, "pvp": True}
+    text, code, store, _ = await run_scenario(world, "library", 12700, [LIB_TREE],
+                                              ["--trips", "2", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=spot)
+    eps = store.episodes("lumber")
+    trav = [e for e in store.job_events("lumber") if e["kind"] == "travel"]
+    check("two trips banked, exit 0", code == 0 and "loop complete: 2 trip(s)" in text
+          and [e.get("outcome") for e in eps] == ["banked", "banked"], f"exit {code}, {[e.get('outcome') for e in eps]}")
+    check("each trip recalled out from the tome's row for rune 286 (gem 110), standing within its 2 tiles",
+          world.recalls_out == [RUNE_POS, RUNE_POS] and world.tome_far == 0, f"{world.recalls_out} far {world.tome_far}")
+    check("each trip recalled home with the runebook's default rune (a charge), then banked",
+          world.recalls_home == [HOME_RUNE_POS, HOME_RUNE_POS] and world.bank_opens == 2,
+          f"{world.recalls_home} opens {world.bank_opens}")
+    check("everything harvested ended in the bank box", world.harvested > 0 and world.bank_stack is not None
+          and world.bank_stack[1] == world.harvested and world.logs == 0, f"{world.bank_stack} {world.harvested}")
+    check("the travels are job events (out then home, twice, all landed) and the walk out includes the recall",
+          [e["data"]["leg"] for e in trav] == ["out", "home", "out", "home"] and all(e["data"]["ok"] for e in trav)
+          and all(e["walk_out_s"] and e["walk_out_s"] > 2 for e in eps),
+          f"{[(e['data'].get('to'), e['data'].get('ok')) for e in trav]} {[e.get('walk_out_s') for e in eps]}")
+    store.close()
+
+
 def unit_hatchet():
     """loop_lumber hatchet(): worn first, then the shallowest in the pack; never the bank box."""
     print("\n== hatchet(): worn, else the shallowest in the backpack's bags ==")
@@ -972,6 +1058,7 @@ if __name__ == "__main__":
     asyncio.run(main())
     asyncio.run(skirmish())
     asyncio.run(break_due())
+    asyncio.run(library())
     unit_hatchet()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

@@ -51,31 +51,48 @@ Tree statics from `map0.uoo` (`uomap.UoMap.find_trees`, the runner's own candida
   practice; with recall they're a 2 s cast away (+ the 60 s harvest lockout after any travel,
   TRAVEL_DEATH §2).
 
-## 4. Proposed design (not built; needs the user's go-ahead)
+## 4. Design: user-approved 2026-10-03, built the same day
 
-A spot becomes a tree area plus **how we get there** and **how we get home**:
+The user approved the design with one change (commit the Witcher table: it's small and the
+numbers rarely change) and answered the open questions:
+1. The library tome is a regular rune tome, locked down in a house and usable by anyone.
+2. Use public libraries heavily for now; we'll buy or copy our own set later.
+3. Every lumber character will have at least 60 Camping and 60 Magery (likely 80 Magery).
+4. Use the Cambria library.
 
-- **Ways in:** walk from a bank (today); moongate + walk; recall to a Witcher rune via a library
-  tome (Cambria, or a set we buy or copy); hike to an unlocked Atlas POI; recall to a rune we
-  marked ourselves (Mark: 60 Magery, a blank rune 20 gp at Shelter).
-- **Ways home:** walk to the bank (today); recall to a home rune next to a bank (our runebook's
-  default rune is already the PK escape, `escape.py`); then bank as now.
-- **Candidates from places, not only from banks:** every Witcher point, POI and caravan with
-  enough trees around it becomes a candidate spot, with its access method, the name-based monster
-  hint (camps, forts) as a hazard prior, and the travel cost from the methods it needs (recall
-  cost in reagents or scrolls, the 60 s lockout, the trip to the library).
-- **Marking our own runes** at spots that prove good (the optimizer's top spots), so we stop
-  depending on a library for them; the rune name ties it to the spot id (TRAVEL_DEATH §1.4).
-- **Data:** read the client's Atlas XMLs at runtime like `Banks_and_Healers.xml` (read-only install
-  data). The Witcher table is third-party data from ExploreOutlands: fetch it on demand into the
-  gitignored store rather than committing it, and verify a rune before trusting its slot (the
-  library's tomes can be reordered; the script warns about exactly that).
+A spot is a tree area plus **how we get there** (`access`) and **how we get home** (`home`):
 
-Open questions (need the user or a capture):
-1. Using a public library tome: does Recall from a locked-down tome need our own Magery/reagents,
-   or does it spend the tome's charges? Capture one use at the Cambria library.
-2. Rights: is an agent using a public library book a problem socially (staff or the owner)? It's
-   what the libraries are for, but the agent would use them a lot.
-3. Hackworth's Camping and Magery values (hiking needs 60 Camping; Mark needs 60 Magery).
-4. Where exactly the Adventure Time guild hall is (forum screenshot only).
-5. Do we buy a Witcher set (50 000 gp per tome, 14 tomes) or a few tomes for the regions we use?
+- **Built:**
+  - `harness/data/witcher_runes.json`: 360 runes, id → name, tile, and the Cambria tome holding it.
+    Names and tomes were read live from the 14 tomes on 2026-10-03; coordinates come from the
+    ExploreOutlands table. Read by `harness/places.py`, which also reads the client's Atlas XMLs.
+  - `escape.recall(io, book, rune="286")` finds a tome row by name and recalls (a tome charge,
+    else the spell). Overseer use: `ctl act recall --witcher 286`.
+  - Spot `access {"method": "witcher", "rune": N, "library": "cambria"}`: the runner walks to the
+    tome, recalls out, and waits out the 60 s lockout. Spot `home {"method": "recall"}`: it recalls
+    with our book's default rune (the PK escape's) and walks to the spot's banker (LUMBER_LOOP §13).
+  - `ctl lumber discover --from witcher`: the tree-densest window within 21 tiles of each rune. It
+    keeps windows with ≥ 25 trees that the rune's tile has a walking route of ≤ 60 tiles into. It
+    drops runes named after monster places, towns and learned guard points. On 2026-10-03 that left
+    62 candidates out of 360 runes (212 had too few trees, 65 had monster names, 16 had no short
+    route; dry run).
+  - The planner treats standing at the library as being at hand for all its rune spots. The walk to
+    the library, both recalls and the lockout are part of the trip overhead (LUMBER_LOOP §6).
+- **Not built:**
+  - hiking to Atlas POIs (needs the campfire and Atlas gump flows, and each POI unlocked by a visit)
+  - marking our own runes at the best spots (needs a Mark capture; Magery ≥ 60 is a given now)
+  - a second library
+
+**Live trial (Hackworth, 2026-10-03):**
+- With `ctl act recall --witcher 291`, standing by the tomes, the agent found row 15 of tome
+  276-301. It recalled with a public charge and landed exactly on the table's tile (1526, 3040).
+- The first manual try had already reached rune 286 at (1765, 2007) the same way, for 10 mana.
+- Nine of the 14 tomes had charges (10–44 of 50) that morning; five had none.
+- The Cambria moongate area is a player vendor mall with no banker seen. The Cambria bank marker is
+  at (1750, 3003), about 180 tiles north of the library: that is the default home bank and the
+  per-trip walk out.
+
+Still open:
+- A runebook with a home rune at the Cambria bank, and a hatchet, for Hackworth. Without them he
+  can recall out but can't come back by recall.
+- Do we buy a Witcher set (50 000 gp per tome, 14 tomes) or a few tomes for the regions we use?

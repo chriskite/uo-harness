@@ -173,35 +173,59 @@ def parse_runebook(layout: str, lines) -> dict:
     return {"default": default, "charges": charges, "entries": len(ids)}
 
 
+def _runetome_row_texts(layout: str) -> dict:
+    """{row index: (line index, hue)}: the text on the same line as the row's gem
+    button (100 + row), right of it. A full tome draws two columns at the same
+    heights, so rows are matched by position, not by height alone."""
+    gems, texts = {}, []
+    for kind, f in _tokens(layout):
+        if kind == "button" and len(f) >= 7 and 100 <= int(f[6]) < 200:
+            gems[int(f[6]) - 100] = (int(f[0]), int(f[1]))
+        elif kind == "text" and len(f) >= 4:
+            texts.append((int(f[0]), int(f[1]), int(f[2]), int(f[3])))
+    out = {}
+    for row, (bx, by) in gems.items():
+        near = [(x - bx, li, hue) for x, y, hue, li in texts if x > bx and abs(y - by) <= 6]
+        if near:
+            _, li, hue = min(near)
+            out[row] = (li, hue)
+    return out
+
+
 def parse_runetome_main(layout: str, lines) -> dict:
     """{'default': row index or None, 'charges': int, 'entries': int} from the
     tome's main page (the one with "Manage Runes")."""
     lines = list(lines or [])
-    rows = {}                      # y of the row button -> index
-    texts = []                     # (x, y, hue, line)
-    icon_x = None
+    rows = _runetome_row_texts(layout)
+    entries = sum(1 for kind, f in _tokens(layout) if kind == "button" and len(f) >= 7 and 100 <= int(f[6]) < 200)
+    default = next((row for row, (li, hue) in sorted(rows.items()) if hue == RUNETOME_DEFAULT_HUE), None)
+    texts, icon_x = [], None
     for kind, f in _tokens(layout):
-        if kind == "button" and len(f) >= 7 and 100 <= int(f[6]) < 200:
-            rows[int(f[1])] = int(f[6]) - 100
-        elif kind == "text" and len(f) >= 4:
-            texts.append((int(f[0]), int(f[1]), int(f[2]), int(f[3])))
+        if kind == "text" and len(f) >= 4:
+            texts.append((int(f[0]), int(f[1]), int(f[3])))
         elif kind == "gumppic" and len(f) >= 3 and int(f[2]) == RECALL_ICON_ART:
             icon_x = int(f[0])
-    default = None
-    for x, y, hue, li in texts:
-        if hue == RUNETOME_DEFAULT_HUE and rows:
-            row_y = min(rows, key=lambda ry: abs(ry - y))
-            if abs(row_y - y) <= 6:
-                default = rows[row_y]
     charges = 0
     if icon_x is not None:
-        right = [(x, li) for x, y, hue, li in texts if 0 < x - icon_x < 120 and y < 50]
+        right = [(x, li) for x, y, li in texts if 0 < x - icon_x < 120 and y < 50]
         for _, li in sorted(right):
             m = re.match(r"\s*(\d+)\s*/", lines[li]) if li < len(lines) else None
             if m:
                 charges = int(m.group(1))
                 break
-    return {"default": default, "charges": charges, "entries": len(rows)}
+    return {"default": default, "charges": charges, "entries": entries}
+
+
+def runetome_rows(layout: str, lines) -> dict:
+    """{row index: rune name} from a tome's main page."""
+    lines = list(lines or [])
+    return {row: lines[li] for row, (li, _) in _runetome_row_texts(layout).items() if li < len(lines)}
+
+
+def rune_matches(name: str, want: str) -> bool:
+    """A tome row named `name` is the wanted rune: the same text, or a Witcher
+    row "N - Place" for want "N"."""
+    return name == want or name.startswith(f"{want} - ")
 
 
 def runetome_cast_button(layout: str, index: int) -> int | None:
@@ -278,9 +302,13 @@ def _next_gump(io, gump_id: int, timeout: float = GUMP_WAIT_S) -> dict:
     raise RecallError(f"gump 0x{gump_id:08X} didn't come back")
 
 
-def recall(io, book: int, *, prefer: str = "charge", timeout: float = ARRIVE_WAIT_S) -> dict:
-    """One recall to `book`'s default rune. Returns {ok, kind, method, rune, from,
-    to, elapsed_s, failure, charges}; raises RecallError when it can't be tried."""
+def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None,
+           timeout: float = ARRIVE_WAIT_S) -> dict:
+    """One recall with `book`: to its default rune, or (rune tomes) to the row
+    named `rune` (rune_matches: a Witcher number like "286" finds "286 - Midlands
+    Ruins 1 (South)"); the book may be a locked-down library tome within reach.
+    Returns {ok, kind, method, rune, name, from, to, elapsed_s, failure,
+    charges}; raises RecallError when it can't be tried."""
     st, _ = io.poll()
     me = st["movement"]["self_serial"]
     world = st["world"]
@@ -291,9 +319,13 @@ def recall(io, book: int, *, prefer: str = "charge", timeout: float = ARRIVE_WAI
     start = tuple(st["movement"]["pos"][:2])
     facet = (world.get("self") or {}).get("map")
     t0 = time.monotonic()
+    name = None
     if kind == "runebook":
         g = _open(io, book, RUNEBOOK_GUMP, me)
         info = parse_runebook(g.get("layout"), g.get("lines"))
+        if rune is not None:
+            _press(io, g, 0)
+            raise RecallError("picking a rune by name works for rune tomes only")
         rune = info["default"] if info["default"] is not None else (0 if info["entries"] == 1 else None)
         if rune is None:
             _press(io, g, 0)
@@ -305,10 +337,18 @@ def recall(io, book: int, *, prefer: str = "charge", timeout: float = ARRIVE_WAI
     else:
         g = _open(io, book, RUNETOME_GUMP, me)
         info = parse_runetome_main(g.get("layout"), g.get("lines"))
-        rune = info["default"] if info["default"] is not None else (0 if info["entries"] == 1 else None)
-        if rune is None:
-            _press(io, g, 0)
-            raise RecallError("the rune tome has no default rune")
+        rows = runetome_rows(g.get("layout"), g.get("lines"))
+        if rune is not None:
+            index = next((i for i, n in sorted(rows.items()) if rune_matches(n, rune)), None)
+            if index is None:
+                _press(io, g, 0)
+                raise RecallError(f"no rune {rune!r} in the rune tome 0x{book:08X}")
+        else:
+            index = info["default"] if info["default"] is not None else (0 if info["entries"] == 1 else None)
+            if index is None:
+                _press(io, g, 0)
+                raise RecallError("the rune tome has no default rune")
+        rune, name = index, rows.get(index)
         method = "charge" if info["charges"] > 0 and prefer == "charge" else "spell"
         if method == "spell" and not can_cast_recall(world, me, mana) and info["charges"] > 0:
             method = "charge"
@@ -333,29 +373,30 @@ def recall(io, book: int, *, prefer: str = "charge", timeout: float = ARRIVE_WAI
         moved = pos is not None and cheb(start, pos[:2]) >= JUMP_TILES
         new_facet = (st["world"].get("self") or {}).get("map")
         if moved or (facet is not None and new_facet not in (None, facet)):
-            return {"ok": True, "kind": kind, "method": method, "rune": rune, "from": list(start),
+            return {"ok": True, "kind": kind, "method": method, "rune": rune, "name": name, "from": list(start),
                     "to": list(pos[:2]) if pos else None, "elapsed_s": round(time.monotonic() - t0, 2),
                     "press_to_arrival_s": round(time.monotonic() - pressed, 2),
                     "charges": info["charges"], "failure": None}
         if why:
             break
         time.sleep(0.05)
-    return {"ok": False, "kind": kind, "method": method, "rune": rune, "from": list(start), "to": None,
+    return {"ok": False, "kind": kind, "method": method, "rune": rune, "name": name, "from": list(start), "to": None,
             "elapsed_s": round(time.monotonic() - t0, 2), "charges": info["charges"],
             "failure": why or "no arrival"}
 
 
-def escape(io, book: int, *, attempts: int = 3, log=print) -> dict:
+def escape(io, book: int, *, attempts: int = 3, log=print, rune: str | None = None) -> dict:
     """Recall until it lands, at most `attempts` casts. Retries at once: a
     disturbed or fizzled cast can be recast (when hamstrung, running is pointless
     anyway: docs/PLAN.md); 'not recovered' waits a moment; out of charges falls
-    back to the spell. Returns the last recall() result plus 'attempts'."""
+    back to the spell. `rune`: a tome row by name (recall()), else the default.
+    Returns the last recall() result plus 'attempts'."""
     prefer, last = "charge", None
     for n in range(1, attempts + 1):
-        last = recall(io, book, prefer=prefer)
+        last = recall(io, book, prefer=prefer, rune=rune)
         last["attempts"] = n
         log(f"recall {n}/{attempts}: {'arrived' if last['ok'] else last['failure']} "
-            f"({last['kind']}, {last['method']}, rune {last['rune'] + 1}, {last['elapsed_s']} s)")
+            f"({last['kind']}, {last['method']}, rune {last['name'] or last['rune'] + 1}, {last['elapsed_s']} s)")
         if last["ok"]:
             return last
         if last["failure"] in ("no charges", "recharging"):

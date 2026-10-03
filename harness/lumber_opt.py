@@ -86,6 +86,17 @@ REGROW_MIN_PAIRS = 20
 DRAWS = 2000                      # Monte Carlo draws for P(best)
 CURRENT_SPOT_MARGIN = 40          # tiles beyond a spot's radius that still count as standing at it
 NEAR_BANK = 30
+HUB_RADIUS = 60                   # tiles from a rune library: its rune spots are at hand
+LOCKOUT_S = 60.0                  # harvest lockout after any travel (TRAVEL_DEATH §2)
+RECALL_TRIP_S = 4.0               # open the book, press, the 2 s cast, arrival (live 2.1 s + the book)
+HOME_RUNE_TILES = 10              # walk from the home rune to the banker [INFERENCE: mark it by the bank]
+FAIL_EXPOSURE_H = 0.25            # a trip the place itself spoiled counts at least this many field hours
+UNWORKABLE_TRIPS = 2              # that many such trips in a row: the spot is out ...
+UNWORKABLE_DAYS = 7.0             # ... for this long, then gets one more try
+TRAVEL_GAP_S = 3600.0             # a gap this short between trips at two spots is the travel between them
+# Abort reasons that say the place can't be worked (not the character, the server or a player):
+# no tree we can reach, harvesting answered by something the runner doesn't know (a town region)
+PLACE_FAILURES = ("no harvestable tree", "without a known outcome")
 
 
 # ------------------------------------------------------------------ small helpers
@@ -142,7 +153,7 @@ def spot_knowledge(know: dict, spot: dict) -> dict:
     check_spot(spot)
     k = copy.deepcopy(know)
     k.pop("venue", None)                         # the demo's venue; the spot says where we are
-    k["spot"] = {key: spot.get(key) for key in ("id", "name", "facet", "pvp", "requires_young")}
+    k["spot"] = {key: spot.get(key) for key in ("id", "name", "facet", "pvp", "requires_young", "access", "home")}
     k["pvp"] = bool(spot.get("pvp", True))
     k["facet"] = int(spot.get("facet") or 0)
     k.setdefault("npcs", {})["banker"] = dict(spot["banker"])
@@ -153,7 +164,9 @@ def spot_knowledge(know: dict, spot: dict) -> dict:
 
 def current_spot(spots: dict, pos, facet) -> str | None:
     """The spot we stand at or by: inside its area (+ CURRENT_SPOT_MARGIN) or
-    within NEAR_BANK tiles of its bank; the nearest such one."""
+    within NEAR_BANK tiles of its bank; the nearest such one. Else, within
+    HUB_RADIUS of a rune library: "hub:<library id>" (every spot reached from
+    that library is at hand)."""
     if not pos:
         return None
     best = None
@@ -166,7 +179,19 @@ def current_spot(spots: dict, pos, facet) -> str | None:
             d = min(d_area, d_bank)
             if best is None or d < best[0]:
                 best = (d, sid)
-    return best[1] if best else None
+    if best:
+        return best[1]
+    import places
+    for lib in places.witcher()["libraries"]:
+        if lib["facet"] == int(facet or 0) and cheb(pos, lib["stand"]) <= HUB_RADIUS:
+            return f"hub:{lib['id']}"
+    return None
+
+
+def hub_of(spot: dict) -> str | None:
+    """"hub:<library>" for a spot reached by a library rune, else None."""
+    access = spot.get("access") or {}
+    return f"hub:{access.get('library', 'cambria')}" if access.get("method") == "witcher" else None
 
 
 # ------------------------------------------------------------------ hatchets and the character
@@ -287,20 +312,27 @@ def trip_obs(ep: dict) -> dict | None:
     chop_s = min(chop_s, field_s)
     overhead = walk_out + ph.get("convert", 0.0) + ph.get("to_bank", 0.0) + ph.get("store", 0.0) if banked else None
     hatchet = ep.get("hatchet") or {}
+    logs = _num(ep.get("logs"), 0)
+    why = ep.get("why") or ""
     return {"spot": ep.get("spot") or ep.get("venue"), "t0": t0, "t1": t1, "outcome": outcome,
-            "why": ep.get("why"), "dry": bool(ep.get("dry")), "logs": _num(ep.get("logs"), 0),
+            "why": ep.get("why"), "dry": bool(ep.get("dry")), "logs": logs,
             "field_s": field_s, "chop_s": chop_s, "overhead_s": overhead,
+            "place_fail": outcome == "aborted" and logs == 0 and any(p in why for p in PLACE_FAILURES),
             "p": success_p(ep.get("skill"), hatchet.get("tool_bonus", 0.0))}
 
 
 def adjusted_field_h(trip: dict, p_now) -> float:
     """Field hours the trip's logs would take today: its chopping time scaled by
     p_then / p_now (fewer attempts per log at a higher success chance), its
-    walking unchanged."""
+    walking unchanged. A trip the place spoiled (place_fail: no tree we could
+    reach, harvesting refused) counts at least FAIL_EXPOSURE_H with its 0 logs,
+    so a spot that can't be worked loses its optimistic prior instead of
+    looking untried forever."""
     f, c = trip["field_s"], trip["chop_s"]
     if trip["p"] and p_now:
         f = f - c + c * trip["p"] / p_now
-    return max(f, 0.1 * trip["field_s"]) / 3600.0
+    h = max(f, 0.1 * trip["field_s"]) / 3600.0
+    return max(h, FAIL_EXPOSURE_H) if trip.get("place_fail") else h
 
 
 def weight(t: float, now: float) -> float:
@@ -376,9 +408,17 @@ def regrowth(rows) -> dict:
 
 # ------------------------------------------------------------------ the model
 def overhead_prior_s(spot: dict) -> float:
-    """Walk out + back between the bank and the area's edge, plus the bank work."""
+    """Walk out + back between the bank and the area's edge, plus the bank work.
+    A spot reached by a library rune: bank -> library walk, two recalls (out and
+    home), the 60 s harvest lockout after the recall out, and a short walk from
+    the home rune to the banker."""
     if not spot.get("banker") or not spot.get("area"):
         return OVERHEAD_FIXED_S + 120.0
+    if hub_of(spot):
+        import places
+        lib = places.library((spot.get("access") or {}).get("library", "cambria"))
+        walk = cheb(spot["banker"]["pos"], lib["stand"]) + HOME_RUNE_TILES
+        return OVERHEAD_FIXED_S + LOCKOUT_S + 2 * RECALL_TRIP_S + walk * SEC_PER_TILE
     d = max(0, cheb(spot["banker"]["pos"], spot["area"]["center"]) - spot["area"]["radius"] // 2)
     return OVERHEAD_FIXED_S + 2 * d * SEC_PER_TILE
 
@@ -492,9 +532,37 @@ def eligibility(spot, trips, threats, now, young, regrow_min) -> str | None:
     if recent:
         return f"player threat or death here {int((now - max(recent)) / 60)} min ago (cooldown {int(COOLDOWN_S / 60)} min)"
     dry = [tr["t1"] for tr in trips if tr["dry"]]
+    last = sorted(trips, key=lambda tr: tr["t0"])[-UNWORKABLE_TRIPS:]
+    if len(last) == UNWORKABLE_TRIPS and all(tr["place_fail"] for tr in last) \
+            and now - last[-1]["t1"] < UNWORKABLE_DAYS * 86400:
+        return (f"unworkable: the last {UNWORKABLE_TRIPS} trips got nothing ({last[-1]['why']}); "
+                f"another try after {UNWORKABLE_DAYS:g} days")
     if dry and now - max(dry) < regrow_min * 60:
         return f"ran dry {int((now - max(dry)) / 60)} min ago (trees regrow in ~{int(regrow_min)} min)"
     return None
+
+
+def learned_travel(trips: list, spots: dict) -> dict:
+    """{spot id: [minutes]}: the gap between the last trip at one spot and the
+    first at another, when shorter than TRAVEL_GAP_S (moving between them; a
+    longer gap was a break or a session end)."""
+    out = {}
+    seq = sorted(trips, key=lambda tr: tr["t0"])
+    for a, b in zip(seq, seq[1:]):
+        if a["spot"] != b["spot"] and b["spot"] in spots and 0 < b["t0"] - a["t1"] < TRAVEL_GAP_S:
+            out.setdefault(b["spot"], []).append((b["t0"] - a["t1"]) / 60.0)
+    return out
+
+
+def travel_h(spot: dict, here: str | None, learned: dict) -> float:
+    """Hours to get to `spot` from `here` (current_spot): 0 there or at its
+    library hub; else its travel_min prior averaged with the learned moves
+    (learned_travel), one pseudo-observation for the prior."""
+    if spot["id"] == here or (here is not None and hub_of(spot) == here):
+        return 0.0
+    samples = learned.get(spot["id"], [])
+    prior = _num(spot.get("travel_min"), 10)
+    return (prior + sum(samples)) / (1 + len(samples)) / 60.0
 
 
 def hatchet_options(char: dict, table: dict, prices: dict) -> list:
@@ -604,16 +672,17 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
         gear_gp = (opts[0]["price_gp"] or 0.0) / 2.0 if opts else 0.0
     gear_logs = (gear_gp + DEATH_KIT_GP) / gp_per_log
 
+    learned = learned_travel(trips, spots)
     models, rows = {}, []
     for sid, s in spots.items():
         m = spot_model(s, by_spot[sid], sight_by_trip, prior, phi, p_now, now)
         why = eligibility(s, by_spot[sid], threats[sid], now, young, regrow["minutes"])
-        travel_h = 0.0 if sid == here else _num(s.get("travel_min"), 10) / 60.0
+        trav = travel_h(s, here, learned)
         haz = (m["sight_a"] / m["sight_b"]) * death_p if m["pvp"] else 0.0
-        v, q = _value(m["rate"], m["overhead_s"] / 3600.0, haz, gear_logs, stint_h, travel_h)
+        v, q = _value(m["rate"], m["overhead_s"] / 3600.0, haz, gear_logs, stint_h, trav)
         lo = gamma_quantile(m["alpha"], m["beta"], 0.1)
         hi = gamma_quantile(m["alpha"], m["beta"], 0.9)
-        m.update(travel_h=travel_h, haz=haz, value=v, q=q, why=why)
+        m.update(travel_h=trav, haz=haz, value=v, q=q, why=why)
         models[sid] = m
         last = max((tr["t1"] for tr in by_spot[sid]), default=None)
         rows.append({"id": sid, "name": s.get("name"), "status": s.get("status"), "eligible": why is None,
@@ -623,7 +692,9 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
                      "sightings_per_h": round(m["sight_a"] / m["sight_b"], 2),
                      "deaths": sum(1 for _, x in linked if x == sid),
                      "deaths_per_h": round(haz, 3), "logs_per_trip": q, "net_logs_h": round(v),
-                     "here": sid == here, "travel_min": round(travel_h * 60),
+                     "here": sid == here or (here is not None and hub_of(s) == here),
+                     "travel_min": round(trav * 60), "travel_samples": len(learned.get(sid, [])),
+                     "access": (s.get("access") or {}).get("method", "walk"),
                      "last_trip_h_ago": None if last is None else round((now - last) / 3600.0, 1)})
 
     eligible = [sid for sid in spots if models[sid]["why"] is None]
@@ -661,7 +732,7 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
         args += ["--hatchet", hat["use"]]
     out["pick"] = {"spot": pick, "mode": "exploit" if pick == greedy else "explore",
                    "greedy": greedy, "p_best": round(wins[pick] / draws, 3),
-                   "travel": None if pick == here else spots[pick].get("travel"),
+                   "travel": None if models[pick]["travel_h"] == 0 else spots[pick].get("travel"),
                    "logs_per_trip": q, "trips": n, "timeout_s": timeout,
                    "expected_trip_min": round(trip_s / 60.0, 1), "expected_net_logs_h": round(m["value"]),
                    "args": args, "command": "ctl run lumber " + " ".join(args)}
@@ -751,15 +822,19 @@ def plan_from_store(memory, world: dict | None, self_serial, pos, facet, young=F
 # ------------------------------------------------------------------ discovering spots
 SLUG = re.compile(r"[^a-z0-9]+")
 YOUNG_TOWNS = ("Shelter Island",)  # no hostile player actions; bank and harvesting for Young only (wiki)
+TOWN_RADIUS = 50                   # tiles from a township marker: likely inside the town region (no harvesting)
+MAX_RUNE_ROUTE = 60                # tiles: a window the rune's tile needs a longer walk into is someone else's
 
 
 def floor_z(walk, x, y) -> int:
-    """Where a banker at a bank marker stands: the lowest floor tile on it,
-    else the land. Markers carry no z, and bank floors sit above the land
-    (Shelter 20 on land 0, Terran 35-36); the runner's banker check allows a
-    storey either way (agent_link.same_floor)."""
+    """Where a banker at a bank marker stands: the lowest floor tile at or above
+    the land, else the land. Markers carry no z; bank floors sit at or above the
+    land (Shelter 20 on land 0, Terran 35 on 35, Horseshoe Bay 35 on 18), and
+    Cambria's has a basement at -20 that isn't it. The runner's banker check
+    allows a storey either way (agent_link.same_floor)."""
     objs = walk.objects(x, y)
-    return next((o[0] for o in objs if o[4][0] == "item"), objs[0][0] if objs else 0)
+    land = next((o[0] for o in objs if o[4][0] == "flat"), objs[0][0] if objs else 0)
+    return next((o[0] for o in objs if o[4][0] == "item" and o[0] >= land), land)
 
 
 def bank_list(path=None) -> list:
@@ -783,13 +858,15 @@ def bank_list(path=None) -> list:
 
 
 def discover(trees_fn, bank_z_fn, banks, guard_points, spots, ring=(30, 110), radius=14, min_trees=25,
-             per_bank=3) -> list:
+             per_bank=3, route_fn=None) -> list:
     """Candidate spots around banks: square windows (side 2·radius+1) on a
     radius-step grid whose centres lie ring[0]..ring[1] tiles from a bank,
     ranked by tree count, minus windows near a known guard point (town:
     harvesting is blocked there) or overlapping a known spot, at most
     per_bank per bank and none overlapping each other. trees_fn(x0, y0, x1, y1)
-    -> [(x, y, z, graphic)] (uomap.UoMap.find_trees); bank_z_fn(x, y) -> the banker's z (floor_z)."""
+    -> [(x, y, z, graphic)] (uomap.UoMap.find_trees); bank_z_fn(x, y) -> the banker's z (floor_z).
+    route_fn(start, center, radius) -> route length in tiles or None (make_route_fn):
+    windows the bank has no walking route to are dropped."""
     import guards
     taken = [(tuple(s["area"]["center"]), s["area"]["radius"]) for s in spots.values() if s.get("area")]
     out = []
@@ -822,6 +899,9 @@ def discover(trees_fn, bank_z_fn, banks, guard_points, spots, ring=(30, 110), ra
                 break
             if any(cheb((cx, cy), c) <= r + radius for c, r in taken):
                 continue
+            route = route_fn((bx, by), (cx, cy), radius) if route_fn is not None else None
+            if route_fn is not None and route is None:
+                continue
             sid = f"auto_{SLUG.sub('_', town.lower()).strip('_')}_{cx}_{cy}"
             out.append({"id": sid, "name": f"{town}: {n} trees at ({cx},{cy}), {d} tiles from the bank",
                         "facet": facet, "area": {"center": [cx, cy], "radius": radius,
@@ -831,7 +911,88 @@ def discover(trees_fn, bank_z_fn, banks, guard_points, spots, ring=(30, 110), ra
                                    "pos": [bx, by, bank_z_fn(bx, by)]},
                         "hazard_prior": 0.0 if town in YOUNG_TOWNS else (1.0 if town in guards.LAWLESS_TOWNS else 0.5),
                         "travel": f"{town} moongate, then walk to the bank", "travel_min": 10,
-                        "tree_count": n, "bank_distance": d})
+                        "tree_count": n, "bank_distance": d, "route_tiles": route})
             taken.append(((cx, cy), radius))
             kept += 1
     return out
+
+
+def best_window(trees_fn, x, y, search: int, radius: int):
+    """(tree count, (cx, cy)) of the radius-window with the most trees whose
+    centre lies within `search` tiles of (x, y) (7-tile grid)."""
+    pts = [(tx, ty) for tx, ty, _z, _g in trees_fn(x - search - radius, y - search - radius,
+                                                    x + search + radius, y + search + radius)]
+    best = (0, (x, y))
+    for cx in range(x - search, x + search + 1, 7):
+        for cy in range(y - search, y + search + 1, 7):
+            n = sum(1 for tx, ty in pts if cheb((tx, ty), (cx, cy)) <= radius)
+            if n > best[0] or (n == best[0] and cheb((cx, cy), (x, y)) < cheb(best[1], (x, y))):
+                best = (n, (cx, cy))
+    return best
+
+
+def discover_witcher(trees_fn, runes, spots, home_bank, *, library: str = "cambria", radius=14, search=21,
+                     min_trees=25, route_fn=None, include_dangerous=False, towns=(), guard_points=()) -> tuple:
+    """Candidate spots reached by Witcher runes (places.witcher()["runes"]): for each
+    rune, the tree-densest window near it (best_window); kept with at least
+    min_trees trees, a walking route from the rune's tile into it (route_fn), no
+    overlap with a known spot, and (unless include_dangerous) no monster word in
+    the rune's name (places.danger_hint: "Brigand Camp", "Orc Fort", ...). The
+    way out is the library tome's recall, the way home our book's default rune
+    (home_bank: {name, pos, serial} of the bank next to it). Returns
+    (candidates, {reason: count} of the runes left out)."""
+    import places
+    taken = [(tuple(s["area"]["center"]), s["area"]["radius"]) for s in spots.values() if s.get("area")]
+    out, skipped = [], {}
+
+    def skip(why):
+        skipped[why] = skipped.get(why, 0) + 1
+    for r in runes:
+        if r.get("x") is None:
+            skip("no coordinates")
+            continue
+        danger = places.danger_hint(r["name"])
+        if danger and not include_dangerous:
+            skip("monster name")
+            continue
+        n, (cx, cy) = best_window(trees_fn, r["x"], r["y"], search, radius)
+        if n < min_trees:
+            skip("few trees")
+            continue
+        if any(cheb((cx, cy), c) <= rr + radius for c, rr in taken):
+            skip("overlaps a spot")
+            continue
+        if any(cheb((cx, cy), t) <= TOWN_RADIUS for t in towns) \
+                or any(cheb((cx, cy), g) <= radius + 4 for g in guard_points):
+            skip("in or by a town (no harvesting there)")
+            continue
+        route = route_fn((r["x"], r["y"]), (cx, cy), radius) if route_fn is not None else None
+        if route_fn is not None and (route is None or route > MAX_RUNE_ROUTE):
+            skip("no short route from the rune")
+            continue
+        out.append({"id": f"witcher_{r['id']}", "name": f"Witcher {r['id']}: {r['name']} ({n} trees)",
+                    "facet": 0, "area": {"center": [cx, cy], "radius": radius,
+                                         "note": f"{n} tree statics near Witcher rune {r['id']} ({r['x']},{r['y']})"},
+                    "trees": [], "pvp": True,
+                    "access": {"method": "witcher", "rune": r["id"], "library": library},
+                    "home": {"method": "recall"},
+                    "banker": dict(home_bank), "hazard_prior": 0.5, "danger_hint": danger,
+                    "travel": f"the {library} rune library (Witcher rune {r['id']})", "travel_min": 10,
+                    "tree_count": n, "route_tiles": route})
+        taken.append(((cx, cy), radius))
+    return out, skipped
+
+
+def make_route_fn(walk, max_expand: int = 60000):
+    """route_fn for discover*: the planned walking route (pathfind.plan on the
+    map) from a start tile into a window, as its length in tiles, or None."""
+    import nav
+    import pathfind
+
+    def route(start, center, radius):
+        objs = walk.objects(start[0], start[1])
+        z = next((o[0] + o[1] for o in objs if o[4][0] in ("flat", "item")), 0) if objs else 0
+        path = pathfind.plan(walk, (start[0], start[1], z), nav.within(tuple(center), max(1, radius // 2)),
+                             max_expand=max_expand)
+        return None if path is None else len(path) - 1
+    return route

@@ -113,7 +113,7 @@ def test_trip_size_and_hazard():
     check("trip size falls as the death rate rises", safe > risky > deadly, (safe, risky, deadly))
     check("no hazard: the largest trip the stint allows", safe == max(q for q in lo.Q_GRID if q <= 5000), safe)
     spots = [spot("calm", hazard=0.05), spot("pk", 2000, 2000, hazard=3.0)]
-    eps = series("calm", 8, 1500) + series("pk", 8, 1500)
+    eps = series("calm", 8, 1500) + series("pk", 8, 1500, start=NOW - 3 * 86400)   # not interleaved: no "moves"
     out = plan(spots, eps)
     check("same yield, more PK sightings: smaller trips and lower net logs/hour",
           row(out, "pk")["logs_per_trip"] < row(out, "calm")["logs_per_trip"]
@@ -252,9 +252,77 @@ def test_discover():
     check("not on a spot we already have", lo.discover(fn, lambda x, y: 5, banks, set(), known, min_trees=25) == [])
 
 
+def test_failed_places():
+    print("== a spot that yields nothing loses its optimistic prior and is set aside, then retried ==")
+    spots = [spot("bad"), spot("new", 3000, 3000)]
+    fails = [trip("bad", NOW - 3600 * k, 0, 20, outcome="aborted",
+                  why="no harvestable tree available (all depleted, unreachable or ruled out)") for k in (2, 1)]
+    out = plan(spots, fails)
+    r = row(out, "bad")
+    check("two such trips in a row: out, with the reason", not r["eligible"] and "unworkable" in r["why_not"]
+          and "no harvestable tree" in r["why_not"], r["why_not"])
+    check("its rate is now below an untried spot's (the failures count as field time with 0 logs)",
+          r["rate_logs_h"] < row(out, "new")["rate_logs_h"], (r["rate_logs_h"], row(out, "new")["rate_logs_h"]))
+    later = plan(spots, fails, now=NOW + 8 * 86400)
+    check("a week later it gets one more try", row(later, "bad")["eligible"], row(later, "bad")["why_not"])
+    mixed = fails[:1] + [trip("bad", NOW - 5400, 300, 900)] + fails[1:]
+    check("a failure, a good trip, a failure: not set aside (not in a row)",
+          row(plan(spots, mixed), "bad")["eligible"])
+    other = [trip("bad", NOW - 3600 * k, 0, 20, outcome="aborted", why="threat: monster a mongbat") for k in (2, 1)]
+    check("trips stopped by a monster aren't the place's fault", row(plan(spots, other), "bad")["eligible"])
+
+
+def test_travel_and_hub():
+    print("== travel: learned from moves between spots; nothing to travel from a rune library ==")
+    w = spot("w", 4000, 1000, access={"method": "witcher", "rune": "286", "library": "cambria"},
+             home={"method": "recall"}, travel_min=10)
+    a, b = spot("a", travel_min=10), spot("b", 2000, 2000, travel_min=10)
+    eps = [trip("a", NOW - 7200, 300, 900), trip("b", NOW - 7200 + 20 * 60 + 1035, 300, 900)]   # b lasts 1035 s
+    out = plan([a, b, w], eps, here="a")
+    check("one move a -> b took 20 min: b's travel is (prior 10 + 20) / 2",
+          row(out, "b")["travel_min"] == 15 and row(out, "b")["travel_samples"] == 1, row(out, "b"))
+    hub = plan([a, b, w], [], here="hub:cambria")
+    check("at the library hub a Witcher spot is at hand (no travel), others aren't",
+          row(hub, "w")["travel_min"] == 0 and row(hub, "a")["travel_min"] == 10)
+    check("standing at the Cambria library is the hub", lo.current_spot({}, (1706, 3181), 0) == "hub:cambria")
+    check("a Witcher spot's overhead prior holds the 60 s lockout and two recalls",
+          lo.overhead_prior_s({**w, "banker": {"pos": [1750, 3003, 0]}}) > lo.OVERHEAD_FIXED_S + 60 + 8)
+
+
+def test_discover_witcher():
+    print("== discover from Witcher runes: trees near the rune, a route in, no monster camps or towns ==")
+    import places
+    runes = [{"id": "1", "name": "Quiet Grove", "x": 1000, "y": 1000, "tome": "0x1"},
+             {"id": "2", "name": "Brigand Camp 1", "x": 2000, "y": 1000, "tome": "0x1"},
+             {"id": "3", "name": "Town Edge", "x": 3000, "y": 1000, "tome": "0x1"},
+             {"id": "4", "name": "Cliff Top", "x": 4000, "y": 1000, "tome": "0x1"},
+             {"id": "5", "name": "Sandbar", "x": 5000, "y": 1000, "tome": "0x1"}]
+    trees = [(r["x"] + dx, r["y"] + 10 + dy, 0, 0x0CE0) for r in runes[:4] for dx in range(-8, 9, 2)
+             for dy in range(-8, 9, 2)]                     # 81 trees just south of runes 1-4, none at 5
+    fn = lambda x0, y0, x1, y1: [t for t in trees if x0 <= t[0] <= x1 and y0 <= t[1] <= y1]  # noqa: E731
+    route = lambda start, c, r: None if start == (4000, 1000) else 12                     # noqa: E731
+    home = {"serial": "0x0", "name": "home bank", "pos": [1, 2, 0]}
+    found, skipped = lo.discover_witcher(fn, runes, {}, home, route_fn=route, towns=[(3000, 1030)])
+    check("only the quiet grove", [s["id"] for s in found] == ["witcher_1"], [s["id"] for s in found])
+    s = found[0] if found else {}
+    check("reached by its library rune, home by our book's default rune, banked at the home bank",
+          s.get("access") == {"method": "witcher", "rune": "1", "library": "cambria"}
+          and s.get("home") == {"method": "recall"} and s.get("banker") == home
+          and s.get("tree_count", 0) >= 60 and abs(s["area"]["center"][1] - 1010) <= 7, s)
+    check("the others left out for the right reasons",
+          skipped == {"monster name": 1, "in or by a town (no harvesting there)": 1,
+                      "no short route from the rune": 1, "few trees": 1}, skipped)
+    check("monster words in place names", places.danger_hint("Orc Fort 2") == ["orc"]
+          and places.danger_hint("Western Ruins Brigands 3") == ["brigand"] and places.danger_hint("Cedar Forest") == [])
+    check("the committed table: 360 runes, each in one of the 14 Cambria tomes",
+          len(places.witcher()["runes"]) == 360 and len(places.library()["tomes"]) == 14
+          and places.witcher_rune("286")["name"] == "Midlands Ruins 1 (South)")
+
+
 if __name__ == "__main__":
     for fn in (test_explore_exploit, test_skill_rescaling, test_trip_size_and_hazard, test_eligibility,
-               test_regrowth, test_hatchets, test_spots_store, test_discover):
+               test_regrowth, test_hatchets, test_spots_store, test_discover, test_failed_places,
+               test_travel_and_hub, test_discover_witcher):
         fn()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

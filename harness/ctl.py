@@ -1555,17 +1555,33 @@ class _CtlRecallIO:
 
 
 def _act_recall(a) -> dict:
-    """recall [book serial] [--check]: recall to the default rune of a runebook or rune
-    tome in your backpack (harness/escape.py, the job runners' red escape): a charge
-    when the book has one, else the Recall spell. --check only opens the book and reads
-    it (default rune, charges). Without a serial: the first book found, tomes first."""
+    """recall [book serial] [--rune NAME] [--check] | recall --witcher N: recall to the
+    default rune of a runebook or rune tome in your backpack (harness/escape.py, the
+    job runners' red escape), to a named row of a rune tome (--rune), or to Witcher
+    rune N from the public tome holding it (--witcher; harness/places.py: stand
+    within 2 tiles of it at the Cambria Rune Library). A charge when the book has
+    one, else the Recall spell. --check only opens the book and reads it (default
+    rune, charges). Without a serial: the first book found, tomes first."""
     import escape
     ctl, stc = _connect(a)
     try:
         st = stc.state()
         me = st["movement"].get("self_serial")
         books = escape.find_books(st["world"], me)
-        if a.args:
+        rune, want = a.rune, None
+        if a.witcher:
+            import places
+            try:
+                want = places.witcher_rune(a.witcher)
+            except KeyError as e:
+                raise CtlError(e.args[0])
+            book = places.tome_at_hand(st["world"], st["movement"].get("pos"), want)
+            if book is None:
+                lib = places.library()
+                raise CtlError(f"Witcher rune {want['id']} is in tome {want['tome']} at the {lib['name']}: "
+                               f"stand within {lib['use_range']} tiles of it ({lib['stand']}) first")
+            rune = want["id"]
+        elif a.args:
             book = _parse_serial(a.args[0])
             if book not in [b for b, _ in books]:
                 raise CtlError(f"0x{book:08X} isn't a runebook or rune tome in your backpack")
@@ -1577,11 +1593,16 @@ def _act_recall(a) -> dict:
         try:
             if a.check:
                 return {"ok": True, "book": f"0x{book:08X}", **escape.check_ready(io, book)}
-            stc.intent("Recalling home", "travel")
-            out = escape.escape(io, book, attempts=1, log=lambda m: None)
+            stc.intent(f"Recalling to {want['name']}" if want else "Recalling home", "travel")
+            out = escape.escape(io, book, attempts=1, log=lambda m: None, rune=rune)
         except escape.RecallError as e:
             raise CtlError(str(e))
-        return {**out, "book": f"0x{book:08X}"}
+        res = {**out, "book": f"0x{book:08X}"}
+        if want and out.get("ok") and out.get("to"):
+            res["expected"] = [want["x"], want["y"]]
+            res["on_rune"] = want["x"] is not None and max(abs(out["to"][0] - want["x"]),
+                                                             abs(out["to"][1] - want["y"])) <= 2
+        return res
     finally:
         ctl.close()
         stc.close()
@@ -2169,6 +2190,7 @@ def _act_goto(a, mem) -> dict:
         mover = agent_link.Mover(link, mem, Human(a.human, seed=a.seed), max_blocked=20, doors=True,
                                  use_map=not a.no_map)
         z_ok = None if a.z is None else level(a.z)
+        key_is_mobile = False
         if isinstance(target, int):
             world = link.state()["world"]
             mob = world["mobiles"].get(key)
@@ -2187,6 +2209,7 @@ def _act_goto(a, mem) -> dict:
                     m = link.state()["world"]["mobiles"].get(key) or mob
                     return (m["x"], m["y"])
                 label, text = f"to {key}", f"Walking to {mob.get('name') or key}"
+                key_is_mobile = True
             elif item and item.get("container") is None and item.get("x") is not None:
                 radius = 0 if a.range is None else a.range
                 if a.z is None and item.get("z") is not None:
@@ -2205,6 +2228,13 @@ def _act_goto(a, mem) -> dict:
                 return target
             label, text = f"to {target[0]},{target[1]}", f"Walking to {target[0]},{target[1]}"
         link.intent(text, "goto", center(), loop="overseer", target_serial=key if isinstance(target, int) else None)
+        guard = None
+        if not a.no_guard:
+            import travel_guard
+            # a mobile target may be the monster we mean to fight: no goal check then
+            guard = travel_guard.TravelGuard(mover, mem, goal=None if key_is_mobile else center,
+                                             log=agent_link.log)
+            mover.guard = guard
         # a goto onto a moongate means to use it: its gump is left for `act gump`; the gumps of
         # gates the route only passes over are closed by the Mover
         gate = center() if radius == 0 and mover.moongate_at(center()) else None
@@ -2220,6 +2250,7 @@ def _act_goto(a, mem) -> dict:
                     "arrived" if ok else "stopped", end[:2], loop="overseer")
     out = {"ok": ok, "from": start, "to": end, "steps": mover.steps, "blocked": mover.blocked_count,
            "doors_opened": mover.doors_opened, "gate_gumps_closed": mover.gate_gumps_closed,
+           "avoided": [] if guard is None else [{"x": c[0], "y": c[1], "radius": r} for c, r in mover.danger.values()],
            "reply": f"{'arrived' if ok else 'stopped'} at {end[0]},{end[1]} after {mover.steps} steps"}
     if err:
         out["error"] = err
@@ -2534,21 +2565,46 @@ def cmd_lumber(a, mem):
         return {"ok": True, "id": a.id, "status": a.status, "reason": a.reason}
     if op == "discover":
         import pathfind
+        import places
         import uomap
         umap = uomap.UoMap(a.facet)
         walk = pathfind.Walk(umap)
+        route_fn = None if a.no_route_check else lumber_opt.make_route_fn(walk)
+        spots = lumber_opt.load_spots(mem)
         banks = [b for b in lumber_opt.bank_list() if b[2] == a.facet
                  and (not a.bank or any(w.lower() in b[0].lower() for w in a.bank))]
-        found = lumber_opt.discover(umap.find_trees, lambda x, y: lumber_opt.floor_z(walk, x, y), banks,
-                                    mem.guard_points(a.facet), lumber_opt.load_spots(mem),
-                                    ring=tuple(a.ring), radius=a.radius, min_trees=a.min_trees,
-                                    per_bank=a.per_bank)
+        skipped = {}
+        if a.source == "witcher":
+            lib = places.library(a.library)
+            if a.home_bank:
+                hx, hy, hz = a.home_bank
+                town = "home"
+            else:
+                town, (hx, hy), _ = min(lumber_opt.bank_list(), key=lambda b: lumber_opt.cheb(b[1], lib["stand"]))
+                hz = lumber_opt.floor_z(walk, hx, hy)
+            home = {"serial": "0x00000000", "name": f"{town} bank (where the home rune is marked)", "pos": [hx, hy, hz]}
+            found, skipped = lumber_opt.discover_witcher(
+                umap.find_trees, places.witcher()["runes"], spots, home, library=a.library, radius=a.radius,
+                min_trees=a.min_trees, route_fn=route_fn, include_dangerous=a.include_dangerous,
+                towns=[(t["x"], t["y"]) for t in places.atlas(("town",)) if t["facet"] == a.facet],
+                guard_points=mem.guard_points(a.facet))
+        else:
+            found = lumber_opt.discover(umap.find_trees, lambda x, y: lumber_opt.floor_z(walk, x, y), banks,
+                                        mem.guard_points(a.facet), spots, ring=tuple(a.ring), radius=a.radius,
+                                        min_trees=a.min_trees, per_bank=a.per_bank, route_fn=route_fn)
+        found.sort(key=lambda s: -s["tree_count"])
+        pending = sum(1 for s in spots.values() if s["status"] == "candidate")
+        room = max(0, a.max_pending - pending)
+        if len(found) > room:
+            skipped["over the pending cap"] = len(found) - room
+            found = found[:room]
         if not a.dry_run:
             for s in found:
                 mem.lumber_spot_put(s["id"], "candidate", s, "discover")
-            mem.chat_post("overseer", f"lumber discover: {len(found)} candidate spot(s)", "action",
+            mem.chat_post("overseer", f"lumber discover ({a.source}): {len(found)} candidate spot(s)", "action",
                           data={"cmd": "lumber discover", "ids": [s["id"] for s in found]})
-        return {"ok": True, "banks": [b[0] for b in banks], "candidates": found, "saved": not a.dry_run,
+        return {"ok": True, "from": a.source, "banks": [b[0] for b in banks] if a.source == "banks" else None,
+                "candidates": found, "left_out": skipped, "pending_before": pending, "saved": not a.dry_run,
                 "next": "inspect each with `ctl map` near its area (no dungeon, outside town), then "
                         "`ctl lumber spot set <id> --status active` or `--status disabled --reason ...`"}
     if op == "price":
@@ -2624,9 +2680,16 @@ def build_parser() -> argparse.ArgumentParser:
                         "(default: the mana break-even for your Magery, 19 at Magery 60)")
     p.add_argument("--check", action="store_true",
                    help="recall: only open the book and read it (default rune, charges)")
+    p.add_argument("--rune", default=None, help="recall: a rune tome's row by name instead of the default")
+    p.add_argument("--witcher", default=None,
+                   help="recall: Witcher rune N from the public tome at the Cambria Rune Library (stand by it)")
     p.add_argument("--range", type=int, default=None,
                    help="goto: stop within this many tiles (default 0 for a tile, 2 for a mobile)")
     p.add_argument("--max-moves", type=int, default=GOTO_MAX_MOVES)
+    p.add_argument("--no-guard", action="store_true",
+                   help="goto: walk without the travel guard (travel_guard.py: route around hostile creatures, "
+                        "stop on a hostile player, low hits under attack, death or a goal inside a monster's "
+                        "reach); only to walk into a fight on purpose")
     p.add_argument("--max-items", type=int, default=LOOT_MAX_ITEMS, help="loot: at most this many items")
     p.add_argument("--amount", type=int, default=None, help="buy: how many (default 1)")
     p.add_argument("--text", action="append", metavar="ID=VALUE",
@@ -2696,14 +2759,24 @@ def _lumber_parser(sub):
     r.add_argument("id")
     r.add_argument("--status", choices=("active", "candidate", "disabled"), required=True)
     r.add_argument("--reason")
-    q = ls.add_parser("discover", help="propose tree-dense areas near banks as candidate spots (map data)")
-    q.add_argument("--bank", action="append", help="only banks whose town name contains this (repeatable)")
+    q = ls.add_parser("discover", help="propose tree-dense areas as candidate spots (map data): near Witcher "
+                                        "runes (reached by the rune library) or near banks")
+    q.add_argument("--from", dest="source", choices=("witcher", "banks"), default="witcher")
+    q.add_argument("--library", default="cambria", help="witcher: the rune library that holds the runes")
+    q.add_argument("--home-bank", type=int, nargs=3, metavar=("X", "Y", "Z"),
+                   help="witcher: the bank by your home rune (default: the bank marker nearest the library)")
+    q.add_argument("--include-dangerous", action="store_true",
+                   help="witcher: also runes named after monster places (Brigand Camp, Orc Fort, ...)")
+    q.add_argument("--bank", action="append", help="banks: only banks whose town name contains this (repeatable)")
     q.add_argument("--facet", type=int, default=0)
     q.add_argument("--ring", type=int, nargs=2, default=(30, 110), metavar=("MIN", "MAX"),
-                   help="area centres this many tiles from the bank")
+                   help="banks: area centres this many tiles from the bank")
     q.add_argument("--radius", type=int, default=14)
     q.add_argument("--min-trees", type=int, default=25)
     q.add_argument("--per-bank", type=int, default=3)
+    q.add_argument("--max-pending", type=int, default=30,
+                   help="add candidates (most trees first) only while fewer than this many wait for approval")
+    q.add_argument("--no-route-check", action="store_true", help="skip the walking-route check (faster)")
     q.add_argument("--dry-run", action="store_true", help="list, don't save")
     q = ls.add_parser("price", help="record an observed price, e.g. hatchet:copper 1200 or board:ordinary 9")
     q.add_argument("item")

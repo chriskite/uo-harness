@@ -1,5 +1,5 @@
 {
- "_doc": "Runebook (0x5C7DB029) and rune tome (0x09F5976B) gumps as the Outlands Test Shard sent them to TestWorth, 2026-10-02 21:50-22:20 (memory-store gump_open events). Used by harness/test_escape.py.",
+ "_doc": "Runebook (0x5C7DB029) and rune tome (0x09F5976B) gumps as the Outlands Test Shard sent them to TestWorth, 2026-10-02 21:50-22:20 (memory-store gump_open events). Used by harness/test_escape.py. runetome_main_witcher_276: the Cambria Rune Library's Witcher tome 276-301 (locked down, public), live 2026-10-03 (Hackworth), 40/50 recall charges; its row 10 ('286 - Midlands Ruins 1 (South)', button 110) recalled to (1765, 2007).",
  "runebook_default_2nd": {
   "gump_id": "0x5C7DB029",
   "serial": 2861210,
@@ -99,6 +99,44 @@
    "2/50",
    "0/50",
    "Prevalia"
+  ]
+ },
+ "runetome_main_witcher_276": {
+  "gump_id": "0x09F5976B",
+  "serial": 67327439,
+  "layout": "{ gumppic 10 10 116 }{ text 165 29 2655 0 18 0 1 0 0 0 }{ text 165 30 149 0 18 0 1 0 0 0 }{ text 97 59 2655 1 18 0 1 0 0 0 }{ button 185 55 9721 9724 1 0 3 }{ text 240 59 2655 2 18 0 1 0 0 0 }{ button 288 55 9721 9724 1 0 2 }{ tilepic 426 54 8012 }{ gumppic 364 32 2271 }{ text 425 32 2655 3 18 0 1 0 0 0 }{ tilepic 551 56 8032 }{ gumppic 495 32 2291 }{ text 556 32 2655 4 18 0 1 0 0 0 }{ button 88 96 2118 2117 1 0 100 }{ button 109 94 210 211 1 0 200 }{ text 133 95 63 5 18 0 1 0 0 0 }{ button 88 120 2118 2117 1 0 101 }{ button 109 118 210 211 1 0 201 }{ text 133 119 2655 6 18 0 1 0 0 0 }{ button 88 144 2118 2117 1 0 102 }{ button 109 142 210 211 1 0 202 }{ text 133 143 2655 7 18 0 1 0 0 0 }{ button 88 168 2118 2117 1 0 103 }{ button 109 166 210 211 1 0 203 }{ text 133 167 2655 8 18 0 1 0 0 0 }{ button 88 192 2118 2117 1 0 104 }{ button 109 190 210 211 1 0 204 }{ text 133 191 2655 9 18 0 1 0 0 0 }{ button 88 216 2118 2117 1 0 105 }{ button 109 214 210 211 1 0 205 }{ text 133 215 2655 10 18 0 1 0 0 0 }{ button 88 240 2118 2117 1 0 106 }{ button 109 238 210 211 1 0 206 }{ text 133 239 2655 11 18 0 1 0 0 0 }{ button 88 264 2118 2117 1 0 107 }{ button 109 262 210 211 1 0 207 }{ text 133 263 2655 12 18 0 1 0 0 0 }{ button 88 288 2118 2117 1 0 108 }{ button 109 286 210 211 1 0 208 }{ text 133 287 2655 13 18 0 1 0 0 0 }{ button 88 312 2118 2117 1 0 109 }{ button 109 310 210 211 1 0 209 }{ text 133 311 2655 14 18 0 1 0 0 0 }{ button 88 336 2118 2117 1 0 110 }{ button 109 334 210 211 1 0 210 }{ text 133 335 2655 15 18 0 1 0 0 0 }{ button 88 360 2118 2117 1 0 111 }{ button 109 358 210 211 1 0 211 }{ text 133 359 2655 16 18 0 1 0 0 0 }{ button 88 384 2118 2117 1 0 112 }{ button 109 382 210 211 1 0 212 }{ text 133 383 2655 17 18 0 1 0 0 0 }{ button 363 96 2118 2117 1 0 113 }{ button 384 94 210 211 1 0 213 }{ text 408 95 2655 18 18 0 1 0 0 0 }{ button 363 120 2118 2117 1 0 114 }{ button 384 118 210 211 1 0 214 }{ text 408 119 2655 19 18 0 1 0 0 0 }{ button 363 144 2118 2117 1 0 115 }{ button 384 142 210 211 1 0 215 }{ text 408 143 2655 20 18 0 1 0 0 0 }{ button 363 168 2118 2117 1 0 116 }{ button 384 166 210 211 1 0 216 }{ text 408 167 2655 21 18 0 1 0 0 0 }{ button 363 192 2118 2117 1 0 117 }{ button 384 190 210 211 1 0 217 }{ text 408 191 2655 22 18 0 1 0 0 0 }{ button 363 216 2118 2117 1 0 118 }{ button 384 214 210 211 1 0 218 }{ text 408 215 2655 23 18 0 1 0 0 0 }{ button 363 240 2118 2117 1 0 119 }{ button 384 238 210 211 1 0 219 }{ text 408 239 2655 24 18 0 1 0 0 0 }{ button 363 264 2118 2117 1 0 120 }{ button 384 262 210 211 1 0 220 }{ text 408 263 2655 25 18 0 1 0 0 0 }{ button 363 288 2118 2117 1 0 121 }{ button 384 286 210 211 1 0 221 }{ text 408 287 2655 26 18 0 1 0 0 0 }{ button 363 312 2118 2117 1 0 122 }{ button 384 310 210 211 1 0 222 }{ text 408 311 2655 27 18 0 1 0 0 0 }{ button 363 336 2118 2117 1 0 123 }{ button 384 334 210 211 1 0 223 }{ text 408 335 2655 28 18 0 1 0 0 0 }{ button 363 360 2118 2117 1 0 124 }{ button 384 358 210 211 1 0 224 }{ text 408 359 2655 29 18 0 1 0 0 0 }{ button 363 384 2118 2117 1 0 125 }{ button 384 382 210 211 1 0 225 }{ text 408 383 2655 30 18 0 1 0 0 0 }\u0000",
+  "lines": [
+   "A Rune Tome",
+   "Manage Runes",
+   "Rename",
+   "40/50",
+   "0/50",
+   "276 - Prevalia Zoo (East)",
+   "277 - Terran Moongate",
+   "278 - Nusero Signal Fort",
+   "279 - Andarian Scout Camp",
+   "280 - Nusero Island (South West)",
+   "281 - Nusero Island (South West)",
+   "282 - Nusero Island (South East)",
+   "283 - Nusero Island (South)",
+   "284 - Umbermare Fort",
+   "285 - Mausoleum (Outside South)",
+   "286 - Midlands Ruins 1 (South)",
+   "287 - Lizardmen Scout Camp (North)",
+   "288 - Desert Ruins",
+   "289 - Desert Daemon Altar",
+   "290 - Volcano 2 (East)",
+   "291 - Hidden Valley (Outside South)",
+   "292 - Cambria Moongate (East)",
+   "293 - Volcano 1 (East)",
+   "294 - Sacrifice Shrine",
+   "295 - Tribal Camp (South)",
+   "296 - Southern Island Cluster",
+   "297 - Southern Island Cluster",
+   "298 - Darkmire Temple (Outside South)",
+   "299 - Rickety Bridge (Eastern Island)",
+   "300 - Brigand Blind (South West Island)",
+   "301 - Pinecone Grove (South West)"
   ]
  }
 }
