@@ -90,6 +90,12 @@ def test_routes():
         r = urllib.request.urlopen(f"{base}/api/live.jpg?zoom=3")
         body = r.read()
         check("/api/live.jpg: a JPEG", r.headers["Content-Type"] == "image/jpeg" and body[:2] == b"\xff\xd8")
+        for query, want in (("zoom=1&w=1280", (1280, 960)), ("zoom=1&w=5000", (1600, 1200)),
+                            ("zoom=1&w=10", (320, 240)), ("zoom=1&w=x", (640, 480))):
+            data = urllib.request.urlopen(f"{base}/api/live.jpg?{query}").read()
+            dec = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+            got = (dec.shape[1], dec.shape[0])
+            check(f"/api/live.jpg?{query}: served at {want[0]}x{want[1]}", got == want, str(got))
         r = urllib.request.urlopen(f"{base}/api/live.mjpeg?zoom=2&fps=10", timeout=5)
         ctype = r.headers["Content-Type"]
         chunk = b""

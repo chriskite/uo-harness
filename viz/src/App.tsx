@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Panel } from "./components/common.tsx";
 import { CensusPanel } from "./components/CensusPanel.tsx";
 import { ContainerTree } from "./components/ContainerTree.tsx";
 import { DiagnosticsPanel } from "./components/DiagnosticsPanel.tsx";
@@ -21,6 +22,10 @@ import { useViz } from "./store.ts";
 const TABS = ["Inspector", "Gumps", "Census", "Diagnostics", "Events"] as const;
 type Tab = (typeof TABS)[number];
 
+/** Which view fills the centre; the other sits in the left column. */
+type MainView = "map" | "live";
+const MAIN_VIEW_KEY = "uo-viz-main";
+
 /** The page lives in the URL hash (#jobs, #jobs/hunt), so it survives reloads and can be linked. */
 function routeFromHash(): { page: Page; job: JobKind } {
   if (location.hash === "#jobs/hunt") return { page: "Jobs", job: "hunt" };
@@ -37,6 +42,15 @@ export function App() {
   // intent, self, live view and the overseer chat are the primary surface.
   const [detailsOpen, setDetailsOpen] = useState(false);
   const world = viz.state?.world ?? null;
+  const [mainView, setMainView] = useState<MainView>(() => (localStorage.getItem(MAIN_VIEW_KEY) === "live" ? "live" : "map"));
+  // The live view exists only in live mode; a replay always centres the map.
+  const hasLive = viz.state?.viz?.mode === "live";
+  const liveMain = hasLive && mainView === "live";
+  const swap = () => {
+    const next: MainView = liveMain ? "map" : "live";
+    localStorage.setItem(MAIN_VIEW_KEY, next);
+    setMainView(next);
+  };
 
   useEffect(() => {
     if (viz.selected) {
@@ -70,7 +84,13 @@ export function App() {
       <Header viz={viz} page={page} onPage={(p) => go(p)} />
       <aside className="left">
         <SelfPanel world={world} />
-        <LivePanel viz={viz} />
+        {liveMain ? (
+          <Panel title="Map" className="side-map">
+            <MapGrid viz={viz} onSwap={swap} />
+          </Panel>
+        ) : (
+          <LivePanel viz={viz} onSwap={swap} />
+        )}
         <PaperdollPanel viz={viz} />
         <details className="panel min-panel">
           <summary className="panel-head">
@@ -80,9 +100,15 @@ export function App() {
           <TrafficPanel traffic={viz.state?.traffic} lastAgent={viz.agg.lastAgent} world={world} />
         </details>
       </aside>
-      <main className="map panel">
-        <MapGrid viz={viz} />
-      </main>
+      {liveMain ? (
+        <main className="map">
+          <LivePanel viz={viz} big onSwap={swap} />
+        </main>
+      ) : (
+        <main className="map panel">
+          <MapGrid viz={viz} onSwap={hasLive ? swap : undefined} />
+        </main>
+      )}
       <aside className="right">
         <IntentPanel viz={viz} />
         <div className="panel right-overseer">

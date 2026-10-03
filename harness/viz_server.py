@@ -19,8 +19,9 @@ Routes:
   GET  /api/multi/<id>  a house's footprint from the client's multi.mul (decimal or 0x hex
                       multi id = the graphic of a data_type 2 ground item): {"id", "source",
                       "tiles": [[dx, dy, "wall"|"floor"]]}; 404 JSON for an unknown id
-  GET  /api/live.jpg?zoom=1-3      one JPEG of the character cropped from the game window
-  GET  /api/live.mjpeg?zoom=&fps=  the same as a continuous stream (multipart/x-mixed-replace),
+  GET  /api/live.jpg?zoom=1-3&w=  one JPEG of the character cropped from the game window,
+                      w = served width 320-1600 (default 640; height follows 4:3)
+  GET  /api/live.mjpeg?zoom=&fps=&w=  the same as a continuous stream (multipart/x-mixed-replace),
                       harness/liveview.py; passive window capture, only while someone watches;
                       503 JSON when there's no game window (or --no-live)
   GET  /api/skillnames  skill names by id from the client's skills.mul (uomap.skill_names; the
@@ -243,12 +244,14 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- live view (harness/liveview.py): the character, cropped from the game window
     def _live_args(self, q):
+        import liveview
         def num(key, default, lo, hi):
             try:
                 return max(lo, min(hi, int(q.get(key, [default])[0])))
             except ValueError:
                 return default
-        return num("zoom", 2, 1, 3), num("fps", 5, 1, 10)
+        return (num("zoom", 2, 1, 3), num("fps", 5, 1, 10),
+                num("w", liveview.OUT_WIDTH, liveview.MIN_OUT_WIDTH, liveview.MAX_OUT_WIDTH))
 
     def _live_source(self):
         srv = self.server
@@ -265,19 +268,19 @@ class Handler(BaseHTTPRequestHandler):
 
     def _live_frame(self, q):
         import liveview
-        zoom, _fps = self._live_args(q)
+        zoom, _fps, width = self._live_args(q)
         src, err = self._live_source()
         img, info = (None, err) if src is None else src.latest()
         if img is None:
             self._json(503, {"error": info})
             return
-        self._send(200, liveview.render_jpeg(img, zoom), "image/jpeg")
+        self._send(200, liveview.render_jpeg(img, zoom, width), "image/jpeg")
 
     def _live_stream(self, q):
         """multipart/x-mixed-replace JPEG stream (an <img> plays it); ends when the
         viewer disconnects or the server stops."""
         import liveview
-        zoom, fps = self._live_args(q)
+        zoom, fps, width = self._live_args(q)
         src, err = self._live_source()
         img, info = (None, err) if src is None else src.latest()
         if img is None:
@@ -298,7 +301,7 @@ class Handler(BaseHTTPRequestHandler):
                 t0 = time.monotonic()
                 img, _age = src.latest()
                 if img is not None:
-                    data = liveview.render_jpeg(img, zoom)
+                    data = liveview.render_jpeg(img, zoom, width)
                     self.wfile.write(f"--{boundary}\r\nContent-Type: image/jpeg\r\n"
                                      f"Content-Length: {len(data)}\r\n\r\n".encode() + data + b"\r\n")
                     self.wfile.flush()

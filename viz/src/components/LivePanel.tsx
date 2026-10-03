@@ -4,6 +4,8 @@ import { Panel } from "./common.tsx";
 
 const STORE_KEY = "uo-viz-live";
 const ZOOMS: Record<number, string> = { 1: "wide", 2: "medium", 3: "close" };
+/** Served frame width when the live view fills the centre (the side panel takes the server's 640). */
+const BIG_WIDTH = 1280;
 
 interface LivePrefs {
   on: boolean;
@@ -21,15 +23,16 @@ function loadPrefs(): LivePrefs {
 
 /** The character as the game shows it: a cropped stream of the game window
  * (GET /api/live.mjpeg; harness/liveview.py). Off by default; the server only
- * captures while the stream is open. Live mode only. */
-export function LivePanel({ viz }: { viz: VizSnapshot }) {
+ * captures while the stream is open. Live mode only. `big` fills the centre
+ * instead of the side; `onSwap` adds the button that swaps it with the map. */
+export function LivePanel({ viz, big = false, onSwap }: { viz: VizSnapshot; big?: boolean; onSwap?: () => void }) {
   const [prefs, setPrefs] = useState<LivePrefs>(loadPrefs);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => localStorage.setItem(STORE_KEY, JSON.stringify(prefs)), [prefs]);
   if (viz.state?.viz?.mode !== "live") return null;
 
-  const src = `api/live.mjpeg?zoom=${prefs.zoom}&fps=6&a=${attempt}`;
+  const src = `api/live.mjpeg?zoom=${prefs.zoom}&fps=6${big ? `&w=${BIG_WIDTH}` : ""}&a=${attempt}`;
   const onError = () => {
     fetch(`api/live.jpg?zoom=${prefs.zoom}`)
       .then((r) => (r.ok ? null : r.json()))
@@ -47,10 +50,15 @@ export function LivePanel({ viz }: { viz: VizSnapshot }) {
               </option>
             ))}
           </select>
-          <a href={`api/live.mjpeg?zoom=${prefs.zoom}&fps=8`} target="_blank" rel="noreferrer" title="open larger in a new tab">
+          <a href={`api/live.mjpeg?zoom=${prefs.zoom}&fps=8&w=${BIG_WIDTH}`} target="_blank" rel="noreferrer" title="open larger in a new tab">
             ⤢
           </a>
         </>
+      )}
+      {onSwap && (
+        <button type="button" title="swap the map and the live view" onClick={onSwap}>
+          ⇄ swap
+        </button>
       )}
       <button
         className={prefs.on ? "on" : ""}
@@ -64,7 +72,7 @@ export function LivePanel({ viz }: { viz: VizSnapshot }) {
     </span>
   );
   return (
-    <Panel title="Live view" className="live" extra={extra}>
+    <Panel title="Live view" className={big ? "live live-main" : "live"} extra={extra}>
       {!prefs.on ? (
         <span className="dim">the game window around the character, streamed while you watch</span>
       ) : error ? (

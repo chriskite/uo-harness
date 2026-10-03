@@ -142,7 +142,11 @@ function followTarget(s: Scene): Tile {
   return t ?? [0, 0];
 }
 
-export function MapGrid({ viz }: { viz: VizSnapshot }) {
+/** The camera across a remount (the map moving between the centre and the side); not across reloads. */
+let keptView: Pick<View, "camX" | "camY" | "zoom" | "follow"> | null = null;
+
+/** `onSwap`, when given, adds a button that swaps the map with the live view (App). */
+export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const initialProj: Projection = localStorage.getItem(PROJECTION_KEY) === "iso" ? "iso" : "topdown";
@@ -156,8 +160,9 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
     drag: null,
     w: 0,
     h: 0,
+    ...keptView,
   });
-  const [follow, setFollow] = useState(true);
+  const [follow, setFollow] = useState(view.current.follow);
   const [proj, setProj] = useState<Projection>(initialProj);
   const initialTerrain = localStorage.getItem(TERRAIN_KEY) !== "off";
   const terrainOn = useRef(initialTerrain);
@@ -196,7 +201,7 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
     const visible = (x: number, y: number) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#0a0e13";
+    ctx.fillStyle = "#0a0705";
     ctx.fillRect(0, 0, W, H);
 
     // Underlay: the client's own 1 px/tile facet picture (/api/facet), chunk by chunk.
@@ -218,7 +223,7 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
     if (z >= 10) {
       // top-down lines snap to the pixel grid; rotated lines can't
       const snap = (n: number) => (v.proj === "topdown" ? Math.round(n) + 0.5 : n);
-      ctx.strokeStyle = "#141a22";
+      ctx.strokeStyle = "#1e150c";
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = x0; x <= x1; x++) {
@@ -316,7 +321,7 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
     const label = (text: string, x: number, y: number, color = "#e5e7eb") => {
       ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
       ctx.lineWidth = 3;
-      ctx.strokeStyle = "rgba(10, 14, 19, 0.9)";
+      ctx.strokeStyle = "rgba(10, 7, 5, 0.9)";
       ctx.strokeText(text, x, y);
       ctx.fillStyle = color;
       ctx.fillText(text, x, y);
@@ -341,7 +346,7 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
       ctx.fillStyle = m.color;
       ctx.fill();
       ctx.lineWidth = 1;
-      ctx.strokeStyle = "#0a0e13";
+      ctx.strokeStyle = "#0a0705";
       ctx.stroke();
       // healthbar under the dot: always when hurt, at readable zoom when full
       if (m.hp !== null && (m.hp < 1 || z >= 8)) healthbar(ctx, ...C(m.x, m.y), mr, m.hp);
@@ -466,10 +471,10 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
       hud.push(m ? `${m.caption} ${hovered}` : h ? `house (multi ${hex(h.id, 4)}) ${hovered}` : hovered);
     }
     ctx.font = "12px ui-monospace, Consolas, monospace";
-    ctx.fillStyle = "rgba(10, 14, 19, 0.75)";
+    ctx.fillStyle = "rgba(12, 8, 5, 0.8)";
     const text = hud.join("  ·  ");
     ctx.fillRect(6, 6, ctx.measureText(text).width + 12, 20);
-    ctx.fillStyle = "#cbd5e1";
+    ctx.fillStyle = "#e8dcc0";
     ctx.fillText(text, 12, 20);
   }, [footprint]);
 
@@ -484,6 +489,14 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
   }, [draw]);
 
   useEffect(draw, [scene, draw]);
+
+  useEffect(
+    () => () => {
+      const { camX, camY, zoom, follow } = view.current;
+      keptView = { camX, camY, zoom, follow };
+    },
+    [],
+  );
 
   // Size the backing store to the container (device pixels).
   useEffect(() => {
@@ -634,6 +647,11 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
         >
           terrain
         </button>
+        {onSwap && (
+          <button type="button" title="swap the map and the live view" onClick={onSwap}>
+            ⇄ swap
+          </button>
+        )}
       </div>
       <div className="map-legend">
         <span className="lg lg-walk" /> walked

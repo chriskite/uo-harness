@@ -469,9 +469,17 @@ A **Paperdoll** panel in the left column shows the character as the game's paper
 A **Live view** panel in the left column (live mode only) streams the game window around the
 character.
 - Off by default ("watch" / "stop"). Zoom: wide 1600×1200 / medium 960×720 / close 640×480
-  crop, always served at 640×480. "⤢" opens the stream larger in a new tab.
-- `GET /api/live.mjpeg?zoom=1-3&fps=1-10` (`multipart/x-mixed-replace`, played by an `<img>`)
-  and `GET /api/live.jpg` (one frame). Both return 503 JSON with the reason when there's no
+  crop, served at 640×480 by default. "⤢" opens the stream larger (1280 wide) in a new tab.
+- **Map ⇄ live swap** (2026-10-02, user request): a "⇄ swap" button on the live panel and in the
+  map controls exchanges the two. Either the map fills the centre and the live view sits in the
+  left column (the default), or the live view fills the centre (letterboxed, frames served 1280
+  wide) and a 280 px map takes its place on the left (no legend; its controls along the bottom).
+  The choice persists in `localStorage["uo-viz-main"]`; a replay has no live view, so it always
+  centres the map. The map remounts on a swap but keeps its camera (zoom, pan, follow) in a
+  module variable; projection and terrain were already persisted.
+- `GET /api/live.mjpeg?zoom=1-3&fps=1-10&w=320-1600` (`multipart/x-mixed-replace`, played by an
+  `<img>`) and `GET /api/live.jpg?zoom=1-3&w=` (one frame). `w` is the served width (default
+  640, height follows 4:3, clamped). Both return 503 JSON with the reason when there's no
   game window; `--no-live` disables them.
 - `harness/liveview.py`:
   - The same passive Windows Graphics Capture as `ctl screenshot` (ANTICHEAT §8.16), throttled
@@ -594,6 +602,23 @@ serial link) opens the drawer on the Inspector tab.
 - **EventLog.** Merged world + proxy events. The filter vocabulary comes from observed `ev`
   names. Keepalive is hidden by default. Clicking a serial selects it; serials render in hex.
   Display ring 500.
+- **Theme (2026-10-02, user request: "a much more Ultima aesthetic").** All in `App.css`; no
+  component changes except the map canvas chrome colours in `MapGrid.tsx`. Inspired by
+  uooutlands.com (dark leather menu bar, gold bevelled title, parchment news scroll, crimson
+  sidebar ribbons, Caudex text) and the client's gumps (bronze frames, paperdoll backdrop).
+  - Panels are gump frames: grained dark-leather gradient, bronze border with a black hairline
+    and a faint gold inner bevel (`--frame-shadow`); panel heads are brushed-bronze title bars
+    with gold Cinzel `h2`. The header is a leather bar with a gold rule and an ankh before the title.
+  - Overseer journal entries are ink on parchment (`.ov-overseer` redefines `--text`/`--dim`/`--link`
+    locally); operator messages are royal-blue cloth; the details drawer bar is the crimson ribbon.
+  - Fonts: Cinzel (display: headings, tabs, KPI values) and Caudex (body), latin subsets from Google
+    Fonts, OFL, in `viz/src/fonts/` with their licence files. `bun build` inlines them into
+    `main.css` as data URIs, so the viz needs no network and `viz_server` serves nothing new.
+  - Textures are inline SVG `feTurbulence` data URIs (`--grain`, `--mottle`), no image files.
+  - Meaning-bearing colours stay as they were: ok/warn/bad/info badges (re-toned, same hues),
+    notoriety, HP bands, the map's layer colours and legend, chart series. The lumber chart's
+    rolling series moved from the old cyan accent to `--series` (pale blue), since the accent is
+    now gold and would collide with the gold "boards stored" marks.
 
 ---
 
@@ -644,6 +669,7 @@ serial link) opens the drawer on the Inspector tab.
 | `viz/src/jobs.ts`, `chart.ts`, `components/JobsPage.tsx`, `components/Charts.tsx` | Jobs page view model (KPIs, event wording, theft rule, wood shares), SVG chart geometry, the dashboard and its charts (§2.4) |
 | `harness/uoart.py`, `harness/test_uoart.py` | `UooImages` (gumps.uoo / art.uoo reader, shared with `paperdoll.py`) and `ItemArt` for `/api/art` (§2.9) |
 | `viz/src/App.tsx`, `components/*.tsx`, `App.css` | §4 panels |
+| `viz/src/fonts/` | Cinzel + Caudex woff2 (OFL; licences alongside), inlined into `main.css` by the build (§4 Theme) |
 
 ### Milestones
 

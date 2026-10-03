@@ -24,7 +24,8 @@ CAPTURE_FPS = 10
 KEEP = (1600, 1200)                    # w, h kept per frame around the character (the widest zoom)
 CHAR_OFFSET = (0, -40)                 # character sprite centre relative to the client-area centre
 ZOOMS = {1: (1600, 1200), 2: (960, 720), 3: (640, 480)}   # crop per zoom level, 4:3
-OUT_WIDTH = 640                        # served frame width (height follows 4:3)
+OUT_WIDTH = 640                        # served frame width by default (height follows 4:3)
+MIN_OUT_WIDTH, MAX_OUT_WIDTH = 320, 1600   # bounds for a requested width (?w=); 1600 = the widest crop
 JPEG_QUALITY = 75
 IDLE_S = 15.0
 GEOMETRY_REFRESH_S = 1.0
