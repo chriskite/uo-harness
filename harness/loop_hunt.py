@@ -778,8 +778,12 @@ class HuntLoop:
             log(f"0x{c['corpse']:08X} ({corpse.get('name')}) is a human corpse: not looted")
             return
         spot = (corpse["x"], corpse["y"])
-        if cheb(self.anchor(st), spot) > self.args.pull_range + combat.LOOT_RANGE:
-            log(f"corpse at {spot} is too far from the fight spot; leaving it")
+        # A crawl fights where it meets things and the target may die well away from where we
+        # stand (spells reach 10 tiles, mobs flee), so it walks up to twice the pull range for
+        # its own kill (live 14:26:37: a mongbat dead 12 tiles away was left with its gold).
+        reach = self.args.pull_range * (2 if self.crawl is not None else 1) + combat.LOOT_RANGE
+        if cheb(self.anchor(st), spot) > reach:
+            log(f"corpse at {spot} is too far ({cheb(self.anchor(st), spot)} tiles) to loot; leaving it")
             return
         self.doing("loot", f"Looting {corpse.get('name') or c['name']}", spot, c["corpse"])
         if cheb(self.pos(st), spot) > combat.LOOT_RANGE:
