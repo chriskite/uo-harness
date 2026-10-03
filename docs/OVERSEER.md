@@ -426,6 +426,14 @@ Paste this (or point the session at this section) to start an overseer.
 > hatchets and boards (`ctl lumber price hatchet:copper 1200 --source "vendor search"`): the hatchet
 > choice uses them. `hatchets.buy` is advice for the user, not something to buy on your own
 > unless the user's gold policy allows it.
+> **Shifts are continuous** (user decision 2026-10-04): no trip or run count ends them. After every
+> run, plan and start the next one. Stop only when the user says so, on a death, possible staff, a
+> server restriction, or a bug you can't get past; a `break_due` means finish the trip, `ctl break`,
+> then carry on. Every few trips, `ctl say` one progress line (trips, logs banked, spots tried).
+> **Never leave the character idle in the wilderness.** While a run is on, check `status` and the
+> task log every 2–3 min (`ctl wait --timeout 150`). When a run ends (done, failed, stopped) and
+> the character is not by its home bank, recall home with the escape book first
+> (`act recall <book>`; it falls back to the spell), then think about what went wrong.
 >
 > **Witcher spots** (`witcher_<N>`, docs/research/WORLD_LOCATIONS.md). The runner itself walks to
 > the Cambria Rune Library, recalls out with the rune's public tome and recalls home with your
