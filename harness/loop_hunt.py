@@ -1081,7 +1081,8 @@ class HuntLoop:
                 self.human.wait("read")
             if cheb(self.pos(st), self.fight_spot) > 0:
                 self.mover.walk_to(lambda: self.fight_spot, 0, "back to the spot")
-            self.doing("wait", f"Waiting for {self.args.target_name} at {self.fight_spot[0]},{self.fight_spot[1]} "
+            what = self.args.target_name.strip() or "monsters"
+            self.doing("wait", f"Hunting for {what} at {self.fight_spot[0]},{self.fight_spot[1]} "
                                f"({self.totals['kills']} killed)", self.fight_spot)
             time.sleep(POLL_S)
 
