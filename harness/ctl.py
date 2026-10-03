@@ -2017,9 +2017,10 @@ def _act_buy(a, mem) -> dict:
 def _act_wear(a) -> dict:
     """unequip <serial>: an item you wear -> your backpack (0x07 lift, pause,
     0x08 drop into the pack). equip <serial>: an item in your backpack (any
-    bag depth) -> worn on its tiledata layer (0x07 lift, pause, 0x13 equip
-    request). The stock client's drag sequences; waits for the world model to
-    show the move."""
+    bag depth) -> worn (combat.equip_packets: 0x07 lift, pause, 0x13 equip
+    request on its tiledata layer, else the layer the server last wore it on,
+    else a known one for its graphic). The stock client's drag sequences; waits
+    for the world model to show the move."""
     if len(a.args) != 1:
         raise CtlError(f"{a.name} <item serial>")
     serial = _parse_serial(a.args[0])
@@ -2052,17 +2053,10 @@ def _act_wear(a) -> dict:
             second = actions.drop(serial, DROP_AUTO, DROP_AUTO, 0, 0, pack)
             target = pack
         else:
-            if worn:
-                raise CtlError(f"{key} is already worn")
-            c, depth = it.get("container"), 0
-            while c is not None and _serial(c) != pack and depth < 8:
-                c, depth = (items.get(f"0x{_serial(c):08X}") or {}).get("container"), depth + 1
-            if c is None or _serial(c) != pack:
-                raise CtlError(f"{key} isn't in your backpack")
-            layer = _tile_layer(it.get("graphic"))
-            if not layer:
-                raise CtlError(f"{key} (graphic {it.get('graphic')}) has no wearable layer in tiledata")
-            second = actions.equip_request(serial, layer, me)
+            try:
+                _lift, second = combat.equip_packets(st["world"], me, serial)
+            except ValueError as e:
+                raise CtlError(str(e))
             target = me
 
         def done():
@@ -2095,18 +2089,6 @@ def _act_wear(a) -> dict:
     finally:
         ctl.close()
         stc.close()
-
-
-def _tile_layer(graphic):
-    """Tiledata layer of an item graphic (install dir, read-only), or None."""
-    if graphic is None:
-        return None
-    try:
-        import uomap
-        it = uomap.tiledata().item(graphic)
-    except (OSError, ValueError):
-        return None
-    return it.layer if it else None
 
 
 def gump_reply(state: dict, serial_arg: str, button_arg: str, texts=()) -> bytes:

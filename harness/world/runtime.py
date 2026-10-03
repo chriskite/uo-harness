@@ -262,6 +262,7 @@ def _h_mobile_equip(rt, f):
         rt.state.upsert_item(e["serial"], graphic=e["graphic"],
                              layer=e["layer"], hue=e["hue"], v12=e["v12"],
                              container=f["serial"])
+        rt.state.note_worn(e["serial"], e["layer"], f["serial"])
 
 
 def _h_talk(rt, f):
@@ -307,6 +308,7 @@ def _h_equip_item(rt, f):
     it = rt.state.upsert_item(f["item"], graphic=f["graphic"],
                               layer=f["layer"], container=f["parent"],
                               hue=f["hue"])
+    rt.state.note_worn(f["item"], f["layer"], f["parent"])
     rt._emit("item_seen", serial=it.serial, graphic=it.graphic,
              container=f["parent"])
 

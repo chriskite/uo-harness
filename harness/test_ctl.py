@@ -76,6 +76,7 @@ class FakeProxy:
         self.ground_items = {}    # extra ground items (goto/map tests)
         self.warmode = False
         self.status_requested = []   # world.status_requested (the client's outstanding 0x34s)
+        self.worn_layers = {}        # world.worn_layers (the layer each item was last worn on)
         self.gate = {"state": "open"}
         self.gate_actions = []
         self.self_hits = 50
@@ -265,7 +266,8 @@ class FakeProxy:
                         "hunting": self.tracker["hunting"], "arrow": None, "hits": [],
                         "mode": ctl.TRACK_MODES[self.tracker["mode"]] if self.tracker["heard"] else None},
                     "buffs": {"0x00000001": dict(self.buffs)}, "labels": dict(self.labels),
-                    "containers": list(self.opened), "status_requested": list(self.status_requested)},
+                    "containers": list(self.opened), "status_requested": list(self.status_requested),
+                    "worn_layers": dict(self.worn_layers)},
                 "events": [], "next": len(self.events),
                 "gate": dict(self.gate),
                 "intent": {"text": "idle"}, "intents": [{"text": f"i{k}"} for k in range(7)],
@@ -906,7 +908,20 @@ def test_overseer_acts(proxy):
           and fr == [actions.lift(hatchet, 1), actions.equip_request(hatchet, 2, proxy.SELF)], f"{out} {fr}")
     code, out = c("act", "unequip", f"0x{pack:08X}")
     check("the backpack itself can't be unequipped", code == 1 and proxy.take() == [], str(out))
-    proxy.ground_items = {}
+    # Outlands' prismatic staff (arcane staff): tiledata layer 0, worn on 2 by the server
+    staff, other = 0x57064E05, 0x57064E06
+    proxy.ground_items = {f"0x{staff:08X}": {"graphic": 31038, "container": f"0x{pack:08X}"},
+                          f"0x{other:08X}": {"graphic": 0x1BDD, "container": f"0x{pack:08X}"}}
+    proxy.worn_layers = {f"0x{staff:08X}": 2}
+    code, out = c("act", "equip", f"0x{staff:08X}", "--human", "off")
+    fr = [p for _, p in proxy.take()]
+    check("equip: tiledata layer 0 -> the layer the server last wore it on (2), same stock lift + 0x13",
+          code == 0 and out.get("moved") and uomap_layer(31038) == 0
+          and fr == [actions.lift(staff, 1), actions.equip_request(staff, 2, proxy.SELF)], f"{out} {fr}")
+    code, out = c("act", "equip", f"0x{other:08X}", "--human", "off")
+    check("equip refused: no tiledata layer and never seen worn (logs: not wearable)",
+          code == 1 and "never seen worn" in out.get("error", "") and proxy.take() == [], str(out))
+    proxy.ground_items, proxy.worn_layers = {}, {}
 
 
 def test_combat(proxy):

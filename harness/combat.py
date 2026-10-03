@@ -12,6 +12,9 @@ agent_link.Link) and do their own waiting.
   client has an outstanding status request for that mob, then 0x05
   (ANTICHEAT.md §10 A7).
 - target_mobile() / target_self(): 0x6C answers to a spell's cursor.
+- wear_layer() / equip_packets(): what `ctl act equip` and the hunt runner send to
+  put an item from the backpack on: the stock drag to the paperdoll, 0x07 lift,
+  (the caller's human drag pause), 0x13 equip request on the item's layer.
 - human_corpse(), loot_order(), grab_packets(): the loot rule and the stock
   GrabItem shape (0x07 lift, 0x08 drop into the open backpack).
 """
@@ -47,6 +50,12 @@ MAGERY_SPELLS = (
 # (4/6/9/11/14/20/40); the 8th circle's 50 is RunUO's MagerySpell.m_ManaTable [INFERENCE for Outlands]
 CIRCLE_MANA = (4, 6, 9, 11, 14, 20, 40, 50)
 LAYER_BACKPACK = 0x15
+LAYER_ONE_HANDED, LAYER_TWO_HANDED = 0x01, 0x02
+# Items whose tiledata layer is 0 although the server wears them on a layer (evidence):
+# 31038 (0x793E) "prismatic staff", Outlands' arcane staff: artdata.uoo layer 0, flags
+# Wearable; the server's 0x2E put Shackleworth's 0x57064E05 on layer 2 (two-handed),
+# capture 20261003_113952 11:40:35 and again after the 11:55:48 equip
+KNOWN_LAYERS = {31038: LAYER_TWO_HANDED}
 
 
 def _serial(v) -> int:
@@ -68,6 +77,56 @@ def pack_items(items: dict, pack: int):
             c, depth = parent.get(c), depth + 1
         if c == pack and it.get("graphic") is not None:
             yield k, it
+
+
+def tile_layer(graphic) -> int | None:
+    """Tiledata layer of an item graphic (install dir, read-only), or None."""
+    if graphic is None:
+        return None
+    try:
+        import uomap
+        it = uomap.tiledata().item(graphic)
+    except (OSError, ValueError):
+        return None
+    return it.layer if it else None
+
+
+def wear_layer(world: dict, serial: int) -> tuple[int | None, str]:
+    """(layer, source) the item is worn on: its tiledata layer; else the layer the
+    server last wore it on for us (world.worn_layers, from 0x2E/0x78, kept after it
+    went to the pack); else KNOWN_LAYERS for its graphic. (None, why) otherwise."""
+    key = key_of(serial)
+    graphic = (world.get("items", {}).get(key) or {}).get("graphic")
+    layer = tile_layer(graphic)
+    if layer:
+        return layer, "tiledata"
+    layer = (world.get("worn_layers") or {}).get(key)
+    if layer:
+        return layer, "worn before (server 0x2E/0x78)"
+    if graphic in KNOWN_LAYERS:
+        return KNOWN_LAYERS[graphic], f"known for graphic {graphic}"
+    return None, f"graphic {graphic} has no wearable layer in tiledata and was never seen worn"
+
+
+def equip_packets(world: dict, me: int, serial: int) -> tuple[bytes, bytes]:
+    """(lift, equip request) putting `serial` from the backpack (any bag depth) on
+    `me`, as a player drags it onto the paperdoll; ValueError when it can't be."""
+    items = world["items"]
+    key = key_of(serial)
+    it = items.get(key)
+    if it is None:
+        raise ValueError(f"item {key} not known to the world model")
+    pack = backpack(items, me)
+    if pack is None:
+        raise ValueError("backpack not known to the world model")
+    if it.get("container") is not None and _serial(it["container"]) == me and it.get("layer"):
+        raise ValueError(f"{key} is already worn")
+    if not any(k == key for k, _ in pack_items(items, pack)):
+        raise ValueError(f"{key} isn't in your backpack")
+    layer, why = wear_layer(world, serial)
+    if not layer:
+        raise ValueError(f"{key}: {why}")
+    return actions.lift(serial, it.get("amount") or 1), actions.equip_request(serial, layer, me)
 
 
 def key_of(serial: int) -> str:

@@ -1061,6 +1061,24 @@ def _dead(corpse, serial, name="a mongbat corpse"):
     return _var(0xFF, "0000dead" f"{corpse:08x}" f"{serial:08x}" "03" + name.encode().hex() + "00")
 
 
+def test_worn_layers():
+    print("== the layer an item was worn on outlives its move to the pack (ctl act equip) ==")
+    # live 2026-10-04 (capture 20261003_113952): a cast put the prismatic staff (tiledata
+    # layer 0) from layer 2 into the pack as 0x1D + 0x25, and equip then had no layer
+    rt = WorldRuntime()
+    rt.feed_packet("s2c", _login(5535, 529))
+    staff, pack, other = 0x57064E05, 0x5705CE5B, 0x00001234
+    rt.feed_packet("s2c", bytes.fromhex("2e" f"{staff:08x}" "0000793e" "00000000" "02" f"{ME:08x}" "0000"))
+    rt.feed_packet("s2c", bytes.fromhex("2e" f"{0x40000001:08x}" "00001f03" "00000000" "16" f"{other:08x}" "0000"))
+    rt.feed_packet("s2c", bytes.fromhex("1d" f"{staff:08x}"))
+    rt.feed_packet("s2c", bytes.fromhex("25" f"{staff:08x}" "0000793e" "00" "0001" "0032" "003c" "00"
+                                        f"{pack:08x}" "0000" "00000000"))
+    snap = rt.state.snapshot()
+    eq("in the pack without a layer, worn_layers still says 2; another mobile's robe isn't kept",
+       (snap["items"][f"0x{staff:08X}"].get("container"), snap["items"][f"0x{staff:08X}"].get("layer"),
+        snap["worn_layers"]), (f"0x{pack:08X}", None, {f"0x{staff:08X}": 2}))
+
+
 def test_pruning():
     """The live table holds only what the stock client has (docs/WORLDMODEL.md
     "Pruning"; live 20261001_214649: the ghosts behind ANTICHEAT.md A12)."""
@@ -1176,7 +1194,7 @@ TESTS = [test_fixed_s2c, test_fixed_c2s, test_character_status_11,
          test_dialect_ff, test_c2s_procedural, test_mobile_parsers, test_cliloc,
          test_vendor_popup_command, test_tracking_packets,
          test_mobile_routing, test_truncation, test_runtime_edges,
-         test_event_semantics, test_status_requested, test_pruning]
+         test_event_semantics, test_status_requested, test_pruning, test_worn_layers]
 
 
 def main():

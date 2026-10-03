@@ -271,6 +271,10 @@ class StateStore:
         self.swings: dict[int, dict] = {}
         # time of the packet being applied (WorldRuntime sets it); stamps Mobile.seen_t
         self.now: float | None = None
+        # the layer each item was last worn on by self (S2C 0x2E / 0x78): kept after it
+        # leaves the paperdoll (a lift deletes it, 0x25 re-adds it without a layer), the
+        # way Razor's dress list remembers it; `ctl act equip` falls back to it
+        self.worn_layers: dict[int, int] = {}
 
     # -- lazy name merge (both orders) -------------------------------------
     def apply_names(self, entries):
@@ -295,6 +299,10 @@ class StateStore:
             if hasattr(it, k):
                 setattr(it, k, v)
         return it
+
+    def note_worn(self, serial, layer, parent):
+        if layer and parent is not None and parent == self.self.serial:
+            self.worn_layers[serial] = layer
 
     def upsert_mobile(self, serial, **fields):
         m = self.mobiles.get(serial)
@@ -439,4 +447,5 @@ class StateStore:
                       for s, v in sorted(self.buffs.items())},
             "containers": [_h(s) for s in sorted(self.containers)],
             "status_requested": [_h(s) for s in sorted(self.status_requested)],
+            "worn_layers": {_h(s): layer for s, layer in sorted(self.worn_layers.items())},
         }
