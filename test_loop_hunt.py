@@ -28,7 +28,12 @@ actions.py builders.
 Then the same NPD once more wielding the prismatic staff (an arcane staff whose casts put it in
 the pack): melee only, potions before heal spells inside, re-equipped before going back in.
 
-Run: python test_loop_hunt.py   (~45 s; private ports; safe while the live proxy runs)
+Then once more with --fight-spot FIGHT, 6 tiles SE of the exit spot, the mobs around it and
+the arrival tile a teleporter (store and sim, as live) on the straight route: attacks only
+on the fight spot, both leaves walk back to the spot before the exit step, the arrival tile
+is never stepped on, the episode rows hold the route margin.
+
+Run: python test_loop_hunt.py   (~100 s; private ports; safe while the live proxy runs)
 """
 import asyncio
 import json
@@ -59,6 +64,7 @@ SELF, BACKPACK, PACK_GOLD = 0x00094375, 0x44ADA059, 0x44AD0001
 BODY, MONGBAT = 0x190, 0x27
 SPOT, EXIT_TILE, OUTSIDE = (5535, 529), (5535, 530), (1911, 2556)
 ENTRY, INSIDE = (1912, 2557), (5536, 530)
+FIGHT = (5541, 535)        # the fight-spot run: SE of the spot, the straight route crosses INSIDE
 A, S, D, E = 0x002C1001, 0x002C1E27, 0x002C3FB9, 0x002C3FE9
 POS = {A: (5536, 526), S: (5534, 527), D: (5534, 528), E: (5536, 528)}
 HITS = {A: 80, S: 80, D: 200, E: 80}       # D lasts past the potion cooldown after re-entering
@@ -185,7 +191,7 @@ def cheb(a, b):
 
 
 class World:
-    def __init__(self, staff=False):
+    def __init__(self, staff=False, fight=None):
         self.staff = staff                   # wielding the prismatic staff (the arcane-staff run)
         self.staff_worn = staff
         self.melee = 40 if staff else 10     # per hit (the staff's Arcane Buildup hits hard)
@@ -193,6 +199,7 @@ class World:
         self.cast_log = []                   # (spell, time, inside?, potions in the pack)
         self.disarms, self.rearms = [], []   # staff put in the pack by a cast (time) / (time, lift, 0x13)
         self.staff_lift = None
+        self.fight = fight or SPOT           # --fight-spot (the mobs come at it)
         self.pos = list(SPOT)
         self.facing = 0
         self.writer = None
@@ -202,7 +209,8 @@ class World:
         self.warmode = False
         self.alive = {A: True, S: True, D: False, E: False}
         self.mob_hits = dict(HITS)
-        self.mob_pos = dict(POS)
+        dx, dy = self.fight[0] - SPOT[0], self.fight[1] - SPOT[1]
+        self.mob_pos = {s: (x + dx, y + dy) for s, (x, y) in POS.items()}
         self.engaged = None                  # last 0x05 serial
         self.swingers = {}                   # serial -> damage per swing
         self.cid = 0x7000
@@ -225,6 +233,9 @@ class World:
         self.client_drank_t = None           # a potion drunk in the client (the runner can't know)
         self.light_t = []                    # Lightning cast requests (time)
         self.reagent_refusals = []           # Lightning casts answered with 502630 (time)
+        self.exit_from = []                  # where the step onto the exit teleporter came from
+        self.arrival_steps = []              # fight-spot run: steps onto the arrival tile (an exit, as live)
+        self.attack_pos = []                 # where we stood for each 0x05
 
     @property
     def inside(self):
@@ -334,7 +345,9 @@ class World:
                 self.send(bytes([0x22, seq, 0x01]))
                 return
             nx, ny = self.pos[0] + DD[d][0], self.pos[1] + DD[d][1]
-            if (nx, ny) == EXIT_TILE:        # the exit teleporter denies the step, then moves you
+            if (nx, ny) == EXIT_TILE or (self.fight != SPOT and self.inside and (nx, ny) == INSIDE):
+                # the exit teleporter denies the step, then moves you; live the arrival tile too
+                (self.exit_from if (nx, ny) == EXIT_TILE else self.arrival_steps).append(tuple(self.pos))
                 self.exits.append(time.time())
                 self.send(b"\x21" + bytes([seq]) + u32(self.pos[0]) + u32(self.pos[1]) + bytes([self.facing]) + u32(0))
                 self.swingers.clear()
@@ -358,8 +371,9 @@ class World:
         elif pid == 0x05:
             serial = int.from_bytes(p[1:5], "big")
             self.engaged = serial
+            self.attack_pos.append(tuple(self.pos))
             if serial == A and A not in self.swingers and self.alive[A]:
-                self.mob_pos[A] = (SPOT[0], SPOT[1] - 1)           # flies to us and hits hard once
+                self.mob_pos[A] = (self.fight[0], self.fight[1] - 1)    # flies to us and hits hard once
                 self.send(mob_move(A, *self.mob_pos[A]))
                 self.hurt_self(A, 30)
                 self.swingers[A] = 3
@@ -493,7 +507,7 @@ class World:
             self.show_mob(s)
         self.send(swing(S, SELF))                      # S was on us...
         self.alive[S] = False                          # ...and someone else killed it: 0xDEAD only
-        self.send(ground_item(CORPSE[S], combat.CORPSE_GRAPHIC, MONGBAT, *POS[S]))
+        self.send(ground_item(CORPSE[S], combat.CORPSE_GRAPHIC, MONGBAT, *self.mob_pos[S]))
         self.send(corpse_flags(CORPSE[S], S))
         await writer.drain()
         buf = bytearray()
@@ -555,15 +569,42 @@ def check_staff(world, text, rc):
     check("the staff is worn at the end", world.staff_worn)
 
 
-async def main(staff=False):
+def check_fight(world, text, rc, rows, js):
+    """The fight-spot run (World(fight=FIGHT), --fight-spot): the mobs come at FIGHT, 6
+    tiles SE of the exit spot; the arrival tile INSIDE, on the straight route, is an exit
+    teleporter as live, known to the memory store's `teleporters` table."""
+    print("== fight spot ==")
+    check("fight-spot run: exited 0 after 2 kills, outside", rc == 0 and "hunt complete: 2 kill(s)" in text
+          and not world.inside, f"rc {rc} at {world.pos}")
+    check("every attack sent standing on the fight spot (walked there on each visit)",
+          world.attack_pos and all(p == FIGHT for p in world.attack_pos), str(world.attack_pos))
+    threat = [j for j in js if j["kind"] == "threat"]
+    check("the two-attacker rule fired at the fight spot; both leaves walked back to the spot, then the exit step",
+          len(threat) == 1 and threat[0]["data"]["why"].startswith("2 attackers")
+          and world.exit_from == [SPOT, SPOT] and len(world.entries) == 1,
+          f"exits from {world.exit_from} entries {len(world.entries)} {str(threat)[:200]}")
+    check("never stepped onto the arrival tile (a known teleporter: the Mover routes around it)",
+          not world.arrival_steps, str(world.arrival_steps))
+    check("both corpses looted at the fight spot", world.looted == {CORPSE[A]: 21, CORPSE[D]: 23}, str(world.looted))
+    ok = len(rows) == 2 and all(r["spot"] == list(SPOT) and r["fight_spot"] == list(FIGHT) and r["route_steps"] >= 6
+                                and r["leave_at"] == round(min(0.60 + 0.004 * r["route_steps"], 0.70), 3)
+                                for r in rows)
+    check("episode rows: the spot, the fight spot, the route back (>= 6 steps) and --leave-at + 0.004 per step",
+          ok, str([{k: r.get(k) for k in ("spot", "fight_spot", "route_steps", "leave_at")} for r in rows]))
+
+
+async def main(staff=False, fight=None):
     os.makedirs(LOGDIR, exist_ok=True)
     for f in os.listdir(LOGDIR):
         os.remove(os.path.join(LOGDIR, f))
     tmp = tempfile.mkdtemp()
     db = os.path.join(tmp, "harness.db")
-    memory.Memory(db).close()
+    store = memory.Memory(db)
+    if fight:   # live: the NPD arrival tile is itself an exit teleporter, learned by walking onto it
+        store.teleporter_record(0, INSIDE[0], INSIDE[1], 0, 1912, 2556, -20)
+    store.close()
 
-    world = World(staff=staff)
+    world = World(staff=staff, fight=fight)
     server = await asyncio.start_server(world.handle, "127.0.0.1", UPSTREAM_PORT)
     ticker = asyncio.create_task(world.ticker())
     proxy = subprocess.Popen(
@@ -589,6 +630,7 @@ async def main(staff=False):
             runner = await asyncio.create_subprocess_exec(
                 PY, f"{ROOT}/harness/loop_hunt.py", "--kills", "2", "--timeout", "150",
                 *(["--leave-at", "0.4"] if staff else []),
+                *(["--fight-spot", str(fight[0]), str(fight[1])] if fight else []),
                 "--gheal-min-missing", str(GHEAL_MIN),
                 "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--memory", db,
                 "--entry", str(ENTRY[0]), str(ENTRY[1]), "0",
@@ -618,6 +660,9 @@ async def main(staff=False):
         c2s = world.c2s
         if staff:
             check_staff(world, text, runner.returncode)
+            return
+        if fight:
+            check_fight(world, text, runner.returncode, rows, js)
             return
 
         check("runner exited 0 after 2 kills, outside",
@@ -730,6 +775,10 @@ async def main(staff=False):
               and [r["xp"] for r in rows] == [21, 23]
               and rows[0]["hits_lost"] >= 30 and "attackers" in rows[0]["ended"] and rows[1]["ended"] == "done",
               str(rows)[:500])
+        check("default (no --fight-spot): the rows' fight spot is the spot, no route margin (--leave-at as given)",
+              rows and all(r["fight_spot"] == list(SPOT) and r["route_steps"] == 0 and r["leave_at"] == 0.6
+                           for r in rows), str([{k: r.get(k) for k in ("fight_spot", "route_steps", "leave_at")}
+                                                for r in rows]))
         check("nothing said in game", not [p for p in c2s if p[0] in (0xAD, 0x03)])
         check("every C2S packet came from the client or the agent (none from the proxy)",
               srcs <= {"client", "agent"}, str(srcs))
@@ -747,5 +796,6 @@ async def main(staff=False):
 if __name__ == "__main__":
     asyncio.run(main())
     asyncio.run(main(staff=True))
+    asyncio.run(main(fight=FIGHT))
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

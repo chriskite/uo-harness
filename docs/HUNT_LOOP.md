@@ -7,19 +7,22 @@ arguments). Start it with `ctl run hunt [args…]` (docs/OVERSEER.md) or directl
 ```
 python harness/loop_hunt.py --kills 5                 # standing in the NPD
 python harness/loop_hunt.py --enter --kills 5         # from outside the entrance
+python harness/loop_hunt.py --enter --fight-spot 5536 509   # deeper in, away from the crowded exit
 ```
 
 ## Arguments
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `--spot X Y` | `5535 529` | The tile to fight on (the NPD exit tile). Leaving starts here. |
+| `--spot X Y` | `5535 529` | The exit spot (the NPD exit tile): leaving walks here, then takes the exit step. |
+| `--fight-spot X Y` | `--spot` | The tile to fight on. Each visit walks there; the pull range, the corpse range and the idle return are measured from it. Candidates below ("Fight spots"). |
 | `--exit-dir D` | `4` (south) | The step from the spot onto the exit teleporter. |
 | `--enter` | off | Start outside: walk to `--entry`, step `--entry-dir` to teleport in. |
 | `--entry X Y Z` / `--entry-dir D` | `1912 2557 -20` / `0` | The tile before the NPD entrance teleporter and the step that triggers it. |
 | `--heal-at` | `0.75` | Heal below this share of max hits (healing.py: a heal potion if one can be drunk, else a spell). |
 | `--gheal-min-missing` | the mana break-even for your Magery (19 at 60) | Missing hits from which the heal spell is Greater Heal; below it, Heal. |
-| `--leave-at` | `0.60` | Leave below this share of max hits. |
+| `--leave-at` | `0.60` | Leave below this share of max hits (plus the fight spot's route margin). |
+| `--leave-per-step` | `0.004` | The route margin: `--leave-at` + this × the steps of the route from the fight spot back to `--spot`, at most `--heal-at` − 0.05. |
 | `--leave-multi-at` | `0.80` | Leave below this share when two or more mobs are attacking. |
 | `--mana-reserve` | `22` | Mana kept for heals (two Greater Heals): the attack spell only while mana ≥ reserve + its cost. |
 | `--spell` | `lightning` | Attack spell (Magery name or 1-64). |
@@ -38,10 +41,10 @@ Each tick re-reads the proxy state and decides, in this order:
 1. **Leave** when a rule fires (`threat` juncture, job event `leave`):
    - a hostile player (threats.py: red/grey/orange) within 12 tiles: urgent; the run stops outside;
    - two or more attackers and hits below `--leave-multi-at`;
-   - hits below `--leave-at`.
-   Leaving is war mode off (if on), back to the spot, then the step in `--exit-dir`. The runner
-   expects a teleport: a deny followed by the move (the NPD exit, live), or a confirmed step and the
-   move right after. Outside it rests and goes back in (except after a hostile player).
+   - hits below `--leave-at`, raised for a fight spot away from the exit (below).
+   Leaving is war mode off (if on), the walk back to `--spot`, then the step in `--exit-dir`. The
+   runner expects a teleport: a deny followed by the move (the NPD exit, live), or a confirmed step
+   and the move right after. Outside it rests and goes back in (except after a hostile player).
 2. **Speech hold** (speech_guard.py, as in the lumber runner) once no fight is on: nothing is sent
    until the overseer acks `speech_nearby`. Leaving to survive overrides the hold.
 3. **Heal** below `--heal-at`, one heal per tick (`harness/healing.py`, shared with `ctl act heal`;
@@ -75,7 +78,7 @@ Each tick re-reads the proxy state and decides, in this order:
      monster, notoriety 3-6, on screen). Serials the server reported dead (`mobile_death`) are never
      targeted.
    - A mob attacking us comes first: the current one, else the one with the lowest hits.
-     Otherwise the nearest within `--pull-range` of the spot. "Attacking us" (`attackers()`,
+     Otherwise the nearest within `--pull-range` of the fight spot. "Attacking us" (`attackers()`,
      within 10 s): a `0x2F` swing at us in `world.swings`, **or the mob our own latest swing is
      at, or a war-mode creature adjacent to us while we take damage** ("-N" overhead text or a
      `0x0B`). Outlands has never sent a `0x2F` with us as the defender (all 2172 stored swings
@@ -94,7 +97,41 @@ Each tick re-reads the proxy state and decides, in this order:
    - **A pinned target is dropped:** one that is neither adjacent nor took damage for 15 s
      (`PIN_S`) is disengaged and passed over for 60 s (`SKIP_S`) unless it attacks us. The runner
      never walks to melee.
-6. **Idle**: war mode off when nothing is near, back to the spot, wait.
+6. **Idle**: war mode off when nothing is near, back to the fight spot, wait.
+
+**A fight spot away from the exit** (`--fight-spot`, user request 2026-10-04: the exit tile is
+crowded). Each visit (at the start and after every re-entry) walks from the arrival to the
+fight spot with the Mover (map route) before fighting; leaving walks back to `--spot` and
+takes the exit step there.
+- **Teleporter tiles**: the Mover never routes over a known teleporter tile (except as the goal
+  tile itself): the memory store's `teleporters` table, learned whenever a step lands somewhere
+  else, plus, for the session, the tile one `--exit-dir` step from `--spot` (the exit, known
+  from the arguments). The NPD arrival tile (5536,530) is an exit teleporter too (Live below)
+  and in the table since 2026-10-02, with (5535,530) and (5537,530).
+- **The leave margin**: nothing heals during the walk out, and mobs follow. On reaching the
+  fight spot the runner plans the route back to `--spot` and leaves below
+  `min(--leave-at + --leave-per-step × steps, max(--leave-at, --heal-at − 0.05))` for that
+  visit; the cap keeps a band where heals still go out. Defaults: 20 steps → 68 %, 49 steps
+  → 70 % (capped; raise `--heal-at` with it for deep spots). 0.004 per step is ~0.4 hits per
+  running step for 100 hits [INFERENCE: about two mongbats on us while running]. The episode
+  row records `route_steps` and `leave_at`. The other rules are unchanged: a hostile player
+  is urgent at once, and two attackers leave below `--leave-multi-at`.
+- **A survival leave from a fight spot runs** (Mover `urgent`: no pauses, sidesteps or
+  reading waits); the planned end (`done`, time up) walks as usual.
+
+### Fight spots (map0, from the exit spot 5535,529)
+
+Map routes with the known teleporter tiles avoided (`pathfind.plan`, 2026-10-04); none
+crosses the arrival tile (all come in from the north, via 5536,528):
+
+| Fight spot | Steps out | Leave below (defaults) | Where |
+|---|---|---|---|
+| `5536 509` | 20 | 68 % | North corridor |
+| `5539 507` | 22 | 69 % | North corridor, a little further |
+| `5515 518` | 49 | 70 % (capped) | The west room |
+
+(5537,505), further up the north corridor, is a wall / skull pile: no route. Not yet hunted
+live; how many mongbats come by each is unknown.
 
 **The weapon** (since 2026-10-04): the item on layer 1 or 2 at the start stays in hand.
 - **An arcane staff takes casting skill.** Wiki [Arcane](https://wiki.uooutlands.com/Arcane):
@@ -130,7 +167,8 @@ and threats, stop: no corpse runs), the speech hold above.
 
 ## Memory
 
-One episode per visit (loop `hunt`): `visit`, `t_start`/`t_end`, `spot`, `spell`, `hits_start`,
+One episode per visit (loop `hunt`): `visit`, `t_start`/`t_end`, `spot`, `fight_spot`, `route_steps`
+(the route back to `spot`), `leave_at` (with the route margin), `spell`, `hits_start`,
 `kills`, `gold`, `xp`, `hits_lost`, `casts`, `heals`, `leaves`, `ended` (the leave reason, `done`, `time
 is up` or `stopped`). Job events `kill`, `loot` (`mob`, `name`, `gold`, `xp`, items), `leave`, `death`,
 `speech_hold`, `speech_clear`. Gold looted is the backpack gold delta (or the status gold delta,
@@ -145,7 +183,7 @@ Hunting dashboard shows kills, gold and XP (docs/VISUALIZER.md §2.4).
 
 ## Test
 
-`python test_loop_hunt.py` (~45 s, private ports): a simulated NPD behind the real proxy. A mongbat
+`python test_loop_hunt.py` (~100 s, private ports): a simulated NPD behind the real proxy. A mongbat
 that died to someone else (`0xDEAD` only) must never be touched; the first mongbat flies in and hits
 hard (heal path), dies to Lightning, its gold is looted; two more come in swinging and trigger the
 two-attacker rule; the runner rests outside with a Greater Heal and goes back in; the one the server
@@ -155,7 +193,13 @@ holds the Heal / Greater Heal / Lightning reagents; the server answers the first
 502630 anyway, and Lightning must not go out again until the second visit. A second run wields
 the prismatic staff (no skills sent, so below 80): no Lightning at all, no heal spell inside
 while a potion is in the pack, the rest's heal cast puts the staff in the pack (as live), and
-it is re-equipped with the stock lift + `0x13` on layer 2 before the runner goes back in.
+it is re-equipped with the stock lift + `0x13` on layer 2 before the runner goes back in. A third
+run fights at `--fight-spot 5541 535`, 6 tiles SE of the exit spot, with the arrival tile
+(5536,530) a teleporter in the memory store and in the sim (as live), right on the straight
+route: every attack goes out on the fight spot, both leaves walk back to the spot before the
+exit step, the arrival tile is never stepped on, and the episode rows hold the fight spot,
+the route length and `--leave-at` + 0.004 per step. The default run's rows hold
+`fight_spot` = `spot`, 0 steps, `--leave-at` as given.
 
 ## Live (2026-10-02, Hackworth, NPD, runs 1–11 under the overseer)
 

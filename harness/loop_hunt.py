@@ -1,16 +1,27 @@
 """Hunt loop runner: fight monsters at one spot, heal, loot, leave when hurt (docs/HUNT_LOOP.md).
 
 Built for New Player Dungeon mongbats (user decision 2026-10-01: thresholds are task
-arguments). The character stands on --spot (the NPD exit tile by default) and fights
-what comes; leaving is war mode off, back to the spot, one step in --exit-dir onto
-the exit teleporter.
+arguments). The character stands on --fight-spot (default: --spot, the NPD exit tile)
+and fights what comes; leaving is war mode off, a walk back to --spot, one step in
+--exit-dir onto the exit teleporter.
+
+A fight spot away from the exit (user request 2026-10-04: deeper in the NPD than the
+crowded entrance): each visit walks there with the Mover; the pull range, the corpse
+range and the idle return are measured from it. The Mover never routes over a known
+teleporter tile (memory `teleporters`, learned by walking onto one; the runner adds
+the tile one --exit-dir step from --spot for the session), so the walks avoid the NPD
+arrival tile (5536,530), itself an exit teleporter. The walk out under attack takes
+time and nothing heals on it, so --leave-at is raised by --leave-per-step per step of
+the planned route back to --spot (measured on arrival each visit), at most to
+--heal-at - LEAVE_HEAL_GAP (heals still go out above it) and never below --leave-at;
+a survival leave from a fight spot runs (Mover urgent: no pauses or sidesteps).
 
 Targets come only from the live world model (world.mobiles holds what the stock
 client still has: dead and out-of-range mobiles are pruned, docs/WORLDMODEL.md) and
 pass the same monsters-only guard as `ctl act attack` (combat.attackable:
 threats.identify monster, notoriety 3-6, on screen). A mob attacking us
 (attackers(), below) comes first, the one with the lowest hits; otherwise the nearest
-within --pull-range of the spot. The state is re-read right before every cast and
+within --pull-range of the fight spot. The state is re-read right before every cast and
 every target answer; a target that is no longer live is never targeted (the cursor
 is cancelled with the stock Esc packet instead; ANTICHEAT.md §10 A12).
 
@@ -23,9 +34,10 @@ Rules (all CLI arguments): heal below --heal-at (healing.py: a heal potion whene
 one can be drunk, else Heal or Greater Heal by the missing hits, Greater Heal from
 --gheal-min-missing); the attack spell while mana >= --mana-reserve + its cost and
 its reagents (or a spellstone) are in the backpack (combat.can_cast), else melee;
-leave below --leave-at, or below --leave-multi-at with two or more attackers, or
-when a hostile player comes close. Outside, rest (Heal / Greater Heal when one can
-be cast, no potions; else natural regeneration) to --rest-to and go back in
+leave below --leave-at (plus a fight spot's route margin), or below --leave-multi-at
+with two or more attackers, or when a hostile player comes close. Outside, rest (Heal
+/ Greater Heal when one can be cast, no potions; else natural regeneration) to
+--rest-to and go back in
 (--rest-to 0: stop after leaving). The run ends outside (an idle character in the
 NPD gets killed). A spell the server answers with "More reagents are needed for
 this spell." (cliloc 502630: our reagent count was wrong) isn't cast again until
@@ -62,7 +74,7 @@ on; leaving to survive overrides the hold). Junctures: `threat` when leaving,
 there, `death`. Job events and one episode row per visit (kills, gold, xp, hits
 lost) go to the memory store.
 
-Run:  python harness/loop_hunt.py [--kills 5] [--enter] [--spell lightning]
+Run:  python harness/loop_hunt.py [--kills 5] [--enter] [--fight-spot X Y] [--spell lightning]
 """
 import argparse
 import os
@@ -76,6 +88,7 @@ import actions  # noqa: E402
 import alerts  # noqa: E402
 import combat  # noqa: E402
 import healing  # noqa: E402
+import nav  # noqa: E402
 import threats  # noqa: E402
 import triage  # noqa: E402
 from agent_link import Abort, Link, Mover, cheb, containers_to_open, log, serial_of  # noqa: E402
@@ -107,6 +120,7 @@ GOTO_Z_TOL = 10               # ctl.GOTO_Z_TOL
 ARCANE_STAFF_GRAPHICS = frozenset({31038})
 ARCANE_CAST_SKILLS = {8: "Arcane", 25: "Magery", 43: "Wrestling"}   # skill ids (skills.mul)
 ARCANE_CAST_MIN = 80.0
+LEAVE_HEAL_GAP = 0.05         # a fight spot's raised leave-at stays this far below --heal-at
 
 
 def key_of(serial: int) -> str:
@@ -122,7 +136,10 @@ class HuntLoop:
         self.human = Human(args.human, seed=args.seed, fast=args.human_fast, log=log)
         self.mover = Mover(link, memory, self.human, max_blocked=args.max_blocked,
                            guard=self.check_guards, doors=True, use_map=not args.no_map)
-        self.spot = tuple(args.spot)
+        self.spot = tuple(args.spot)             # the exit tile: leaving starts here
+        self.fight_spot = tuple(args.fight_spot) if args.fight_spot else self.spot
+        self.out_steps = 0                       # route steps from the fight spot back to the spot (per visit)
+        self.leave_at = args.leave_at            # --leave-at plus the route margin (leave_margin)
         self.spell = combat.spell_id(args.spell)
         if self.spell is None:
             raise Abort(f"unknown spell {args.spell!r}")
@@ -245,7 +262,7 @@ class HuntLoop:
         return c / m if c is not None and m else 1.0
 
     def at_hunt(self, st) -> bool:
-        return cheb(self.pos(st), self.spot) <= combat.VIEW_RANGE
+        return min(cheb(self.pos(st), self.spot), cheb(self.pos(st), self.fight_spot)) <= combat.VIEW_RANGE
 
     def wanted(self, world, key, mob) -> bool:
         text = ((world.get("labels") or {}).get(key) or mob.get("name") or "").lower()
@@ -303,7 +320,7 @@ class HuntLoop:
     def pick_target(self, st, pull: bool = True):
         """The serial to fight now, or None: keep the current one while it's valid and
         nothing else is attacking us; else an attacker with the lowest hits; else (pull)
-        the nearest within --pull-range of the spot. A target dropped as pinned is passed
+        the nearest within --pull-range of the fight spot. A target dropped as pinned is passed
         over until its skip ends, unless it attacks us."""
         world, me, pos = st["world"], self.me(st), self.pos(st)
         attacking = {serial_of(a["serial"]) for a in self.attackers(st)}
@@ -326,7 +343,7 @@ class HuntLoop:
             if any(s == self.engaged for s, _ in att):
                 return self.engaged
             return min(att, key=lambda sm: (self.frac(sm[1]), cheb(pos, (sm[1]["x"], sm[1]["y"]))))[0]
-        near = [(s, m) for s, m in cands if cheb(self.spot, (m["x"], m["y"])) <= self.args.pull_range]
+        near = [(s, m) for s, m in cands if cheb(self.fight_spot, (m["x"], m["y"])) <= self.args.pull_range]
         if pull and near:
             return min(near, key=lambda sm: cheb(pos, (sm[1]["x"], sm[1]["y"])))[0]
         return None
@@ -681,8 +698,8 @@ class HuntLoop:
             log(f"0x{c['corpse']:08X} ({corpse.get('name')}) is a human corpse: not looted")
             return
         spot = (corpse["x"], corpse["y"])
-        if cheb(self.spot, spot) > self.args.pull_range + combat.LOOT_RANGE:
-            log(f"corpse at {spot} is too far from the spot; leaving it")
+        if cheb(self.fight_spot, spot) > self.args.pull_range + combat.LOOT_RANGE:
+            log(f"corpse at {spot} is too far from the fight spot; leaving it")
             return
         self.doing("loot", f"Looting {corpse.get('name') or c['name']}", spot, c["corpse"])
         if cheb(self.pos(st), spot) > combat.LOOT_RANGE:
@@ -732,7 +749,7 @@ class HuntLoop:
     def leave_reason(self, st):
         """(why, severity) when the rules say leave now, else None: a hostile player
         within spell range (urgent: no going back in), two or more attackers below
-        --leave-multi-at, below --leave-at."""
+        --leave-multi-at, below --leave-at plus the fight spot's route margin (leave_margin)."""
         me = st["world"]["self"]
         a = self.watch.update(st, recall_s=0.0, margin_s=0.0)
         pk = [t for t in a.threats
@@ -746,12 +763,14 @@ class HuntLoop:
         if len(att) >= 2 and f < self.args.leave_multi_at:
             return (f"{len(att)} attackers and hits {me['hits']}/{me['hits_max']} below "
                     f"{self.args.leave_multi_at:.0%}"), "attention"
-        if f < self.args.leave_at:
-            return f"hits {me['hits']}/{me['hits_max']} below {self.args.leave_at:.0%}", "attention"
+        if f < self.leave_at:
+            out = f" (--leave-at + {self.out_steps} steps out)" if self.leave_at != self.args.leave_at else ""
+            return f"hits {me['hits']}/{me['hits_max']} below {self.leave_at:.0%}{out}", "attention"
         return None
 
     def leave(self, st, why, severity):
-        """War mode off, back to the spot, the step onto the exit teleporter. A
+        """War mode off, back to the spot (running, Mover urgent, when it's a survival
+        leave from a separate fight spot), the step onto the exit teleporter. A
         `threat` juncture unless it's the planned end (severity info)."""
         self.left_why = (why, severity)
         data = {"why": why, "hits": [st["world"]["self"].get("hits"), st["world"]["self"].get("hits_max")],
@@ -765,7 +784,8 @@ class HuntLoop:
         self.doing("leave", f"Leaving: {why}", self.spot)
         if self.war_mode(st, False):
             self.human.wait("read")
-        self.mover.walk_to(lambda: self.spot, 0, "to the exit")
+        self.mover.walk_to(lambda: self.spot, 0, "to the exit",
+                           urgent=severity != "info" and self.fight_spot != self.spot)
         self.teleport(self.args.exit_dir, "the exit")
         self.end_visit(why)
 
@@ -887,11 +907,14 @@ class HuntLoop:
         self.count("visits")
         self.low_posted = False
         self.no_reagents.clear()
+        # the step from the spot in --exit-dir is the exit teleporter: never route over it
+        self.mover.teleporter_tiles(st["world"]["self"].get("map")).add(nav.step(self.spot, self.args.exit_dir))
         lack = combat.missing_reagents(st["world"], self.me(st), self.spell)
         if lack:
             log(f"{combat.MAGERY_SPELLS[self.spell - 1]}: no {', '.join(lack)} and no spellstone: melee only")
         self.visit = {"loop": "hunt", "visit": self.visit_n, "t_start": round(time.time(), 1),
-                      "spot": list(self.spot), "spell": combat.MAGERY_SPELLS[self.spell - 1],
+                      "spot": list(self.spot), "fight_spot": list(self.fight_spot),
+                      "spell": combat.MAGERY_SPELLS[self.spell - 1],
                       "hits_start": st["world"]["self"].get("hits"), "kills": 0, "gold": 0, "xp": 0,
                       "hits_lost": 0, "casts": 0, "heals": 0}
 
@@ -960,11 +983,34 @@ class HuntLoop:
         self.to_spot()
 
     def to_spot(self):
-        self.doing("to_spot", f"Heading to the hunting spot {self.spot[0]},{self.spot[1]}", self.spot)
-        self.mover.walk_to(lambda: self.spot, 0, "to the spot")
+        """Walk to the fight spot (the Mover avoids known teleporter tiles), then set
+        this visit's leave margin."""
+        self.doing("to_spot", f"Heading to the hunting spot {self.fight_spot[0]},{self.fight_spot[1]}", self.fight_spot)
+        self.mover.walk_to(lambda: self.fight_spot, 0, "to the spot")
+        self.leave_margin(self.state())
+
+    def leave_margin(self, st):
+        """--leave-at raised by --leave-per-step per step of the planned route from the
+        fight spot back to --spot (Chebyshev distance when no route is planned), at most
+        to --heal-at - LEAVE_HEAL_GAP and never below --leave-at. 0 steps when the fight
+        spot is the spot."""
+        steps = 0
+        if self.fight_spot != self.spot:
+            path, _ = self.mover.plan(st, nav.within(self.spot, 0), mobiles=False)
+            steps = len(path) - 1 if path else cheb(self.pos(st), self.spot)
+        a = self.args
+        raw = a.leave_at + a.leave_per_step * steps
+        cap = max(a.leave_at, a.heal_at - LEAVE_HEAL_GAP)
+        self.out_steps, self.leave_at = steps, min(raw, cap)
+        if steps:
+            log(f"fight spot {self.fight_spot}: {steps} steps back to the exit spot {self.spot}; leaving below "
+                f"{self.leave_at:.0%} (--leave-at {a.leave_at:.0%} + {a.leave_per_step:g} x {steps}"
+                + (f", capped at --heal-at - {LEAVE_HEAL_GAP:g})" if raw > cap else ")"))
+        if self.visit is not None:
+            self.visit.update(route_steps=steps, leave_at=round(self.leave_at, 3))
 
     def hunt(self):
-        """Fight at the spot until --kills or --timeout (then finish the fights on us,
+        """Fight at the fight spot until --kills or --timeout (then finish the fights on us,
         loot and leave), a death or a stop."""
         self.start_visit(self.state())
         self.to_spot()
@@ -1008,10 +1054,10 @@ class HuntLoop:
             if self.war_mode(st, False):
                 log("nothing near: war mode off")
                 self.human.wait("read")
-            if cheb(self.pos(st), self.spot) > 0:
-                self.mover.walk_to(lambda: self.spot, 0, "back to the spot")
-            self.doing("wait", f"Waiting for {self.args.target_name} at {self.spot[0]},{self.spot[1]} "
-                               f"({self.totals['kills']} killed)", self.spot)
+            if cheb(self.pos(st), self.fight_spot) > 0:
+                self.mover.walk_to(lambda: self.fight_spot, 0, "back to the spot")
+            self.doing("wait", f"Waiting for {self.args.target_name} at {self.fight_spot[0]},{self.fight_spot[1]} "
+                               f"({self.totals['kills']} killed)", self.fight_spot)
             time.sleep(POLL_S)
 
     def run(self):
@@ -1049,7 +1095,10 @@ def stop_intent(loop, text):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--spot", type=int, nargs=2, default=[5535, 529], metavar=("X", "Y"),
-                    help="the tile to fight on; leaving starts here (default: the NPD exit tile)")
+                    help="the exit spot: leaving walks here, then steps --exit-dir (default: the NPD exit tile)")
+    ap.add_argument("--fight-spot", type=int, nargs=2, default=None, metavar=("X", "Y"),
+                    help="the tile to fight on (default: --spot); pull range, corpses and the idle return "
+                         "are measured from it")
     ap.add_argument("--exit-dir", type=int, default=4, choices=range(8),
                     help="the step from the spot onto the exit teleporter (default 4 = south)")
     ap.add_argument("--enter", action="store_true",
@@ -1063,6 +1112,9 @@ def main():
                     help="missing hits from which the spell is Greater Heal, not Heal (default: the mana "
                          "break-even for your Magery, healing.gheal_break_even: 19 at Magery 60)")
     ap.add_argument("--leave-at", type=float, default=0.60, help="leave below this share of hits")
+    ap.add_argument("--leave-per-step", type=float, default=0.004,
+                    help="--leave-at is raised by this per step of the route from --fight-spot back to "
+                         "--spot, at most to --heal-at - 0.05 (the walk out under attack)")
     ap.add_argument("--leave-multi-at", type=float, default=0.80,
                     help="leave below this share of hits when two or more mobs are attacking")
     ap.add_argument("--mana-reserve", type=int, default=22,
