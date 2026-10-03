@@ -113,7 +113,7 @@ LAYER_NAMES = {1: "one_handed", 2: "two_handed", 3: "shoes", 4: "pants", 5: "shi
                0x17: "skirt", 0x18: "legs", 0x19: "mount", 0x1D: "bank"}
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
         "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot",
-        "target", "cast", "heal", "buy", "use", "drop", "track")
+        "target", "cast", "heal", "buy", "use", "drop", "track", "recall")
 # meta key: epoch seconds of ctl's last heal-potion drink (healing.PotionClock across ctl calls)
 HEAL_POTION_KEY = "heal_potion_t"
 PACK_ITEMS_MAX = 60                  # status.backpack.items
@@ -943,6 +943,8 @@ def _act(a, mem) -> dict:
         return _act_use(a)
     if a.name == "drop":
         return _act_drop(a)
+    if a.name == "recall":
+        return _act_recall(a)
     pkt = None
     serial = None
     if a.name == "say":
@@ -1534,6 +1536,57 @@ def _hunt_mode(e) -> str | None:
     return None
 
 
+class _CtlRecallIO:
+    """escape.recall's IO over ctl's control and state connections."""
+
+    def __init__(self, ctl, stc):
+        self.ctl, self.stc = ctl, stc
+        self.cursor = stc.mark()
+
+    def send(self, pkt: bytes):
+        import escape
+        resp = self.ctl.send(pkt)
+        if resp != "OK":
+            raise escape.RecallError(f"proxy refused: {resp}")
+
+    def poll(self):
+        evs, self.cursor = self.stc.events(self.cursor)
+        return self.stc.state(), [e["data"] for e in evs if e.get("origin") == "world"]
+
+
+def _act_recall(a) -> dict:
+    """recall [book serial] [--check]: recall to the default rune of a runebook or rune
+    tome in your backpack (harness/escape.py, the job runners' red escape): a charge
+    when the book has one, else the Recall spell. --check only opens the book and reads
+    it (default rune, charges). Without a serial: the first book found, tomes first."""
+    import escape
+    ctl, stc = _connect(a)
+    try:
+        st = stc.state()
+        me = st["movement"].get("self_serial")
+        books = escape.find_books(st["world"], me)
+        if a.args:
+            book = _parse_serial(a.args[0])
+            if book not in [b for b, _ in books]:
+                raise CtlError(f"0x{book:08X} isn't a runebook or rune tome in your backpack")
+        elif books:
+            book = books[0][0]
+        else:
+            raise CtlError("no runebook or rune tome in your backpack")
+        io = _CtlRecallIO(ctl, stc)
+        try:
+            if a.check:
+                return {"ok": True, "book": f"0x{book:08X}", **escape.check_ready(io, book)}
+            stc.intent("Recalling home", "travel")
+            out = escape.escape(io, book, attempts=1, log=lambda m: None)
+        except escape.RecallError as e:
+            raise CtlError(str(e))
+        return {**out, "book": f"0x{book:08X}"}
+    finally:
+        ctl.close()
+        stc.close()
+
+
 def _act_track(a) -> dict:
     """track <mode> | track off: Tracking's Hunting mode, set the way a player does
     it in the Tracking gump (docs/NOTES.md "Tracking"). Opens the gump with the stock
@@ -1723,7 +1776,9 @@ def _act_drop(a) -> dict:
         name = item_label(it)
         src, where = _where(items, ikey, me), _where(items, ckey, me)
         human = Human(a.human, seed=a.seed)
-        opened = _open_first(ctl, stc, human, (item_s, False), (cont_s, True))
+        from agent_link import opens_as_container
+        opened = _open_first(ctl, stc, human, (item_s, False),
+                             (cont_s, opens_as_container(st["world"], cont_s)))
         stc.intent(f"Moving {amount} {name or ikey} from the {src} to the {where}", "store")
         mark = stc.mark()
         resp = ctl.send(actions.lift(item_s, amount))
@@ -1737,16 +1792,19 @@ def _act_drop(a) -> dict:
 
         def moved():
             v = stc.state()["world"]["items"].get(ikey)
-            if v is None:                          # merged into a stack there (gold)
-                return True
+            if v is None:                          # merged into a stack there (gold) or used up
+                return None                        # (a rune into a book): settled only at the end
             if amount < have:                      # a partial lift leaves the rest behind
                 return (v.get("amount") or 1) == have - amount
             return v.get("container") is not None and _serial(v["container"]) == cont_s
+        # A refused drop bounces the item back (live 2026-10-02: "You cannot place objects
+        # in the book while viewing the contents."), so "gone" only counts once it stays gone.
         end = time.monotonic() + EVENT_WAIT_S
         ok = moved()
-        while not ok and time.monotonic() < end:
+        while ok is not True and time.monotonic() < end:
             time.sleep(0.1)
             ok = moved()
+        ok = ok is not False
         got = stc.wait_events(mark, lambda evs: False, timeout=0.5)
         out = {"ok": ok, "reply": resp, "moved": ok, "item": name, "amount": amount, "from": src, "into": where,
                "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
@@ -2470,6 +2528,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--gheal-min-missing", type=int, default=None,
                    help="heal: missing hits from which the spell is Greater Heal, not Heal "
                         "(default: the mana break-even for your Magery, 19 at Magery 60)")
+    p.add_argument("--check", action="store_true",
+                   help="recall: only open the book and read it (default rune, charges)")
     p.add_argument("--range", type=int, default=None,
                    help="goto: stop within this many tiles (default 0 for a tile, 2 for a mobile)")
     p.add_argument("--max-moves", type=int, default=GOTO_MAX_MOVES)

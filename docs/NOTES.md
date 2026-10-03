@@ -330,6 +330,53 @@ and the session capture of that time (local).
   potions), the leather tunic, 968 boards and 447 logs. The riderless horse followed the ghost and
   stayed ours (notoriety 2); a double-click remounted it.
 
+## Runebook and rune tome gumps (live 2026-10-02, TestWorth on the Test Shard)
+
+Read from the memory-store `gump_open` events and the session capture
+`logs/session_20261002_213830.jsonl` (local). Fixtures: `harness/testdata/escape_gumps.json`.
+`harness/escape.py` implements both flows.
+
+- **Runebook, gump 0x5C7DB029** (the RunUO RunebookGump). Entry i (0-based):
+  - 2+6i: recall with a charge
+  - 3+6i: drop the rune ("You have removed the rune.")
+  - 4+6i: set default ("New default location set.")
+  - 5+6i: cast Recall
+  - 6+6i: cast Gate
+
+  The default entry's set-default button is drawn with art **2360**, the others with 2361. A
+  freshly filled book has no default until one is set. Lines start `"Charges: ", "<n>",
+  "Max Charges: ", "10"`. Rune names are the region ("Prevalia"); coordinates are sextant lines.
+- **Rune tome, gump 0x09F5976B.**
+  - **Main page** ("Manage Runes"): row i has button **100+i**, the gem, which recalls with a
+    charge. Without one: "That rune tome is out of recall charges." Button **200+i** opens the
+    rune's detail page. The **default row's name is drawn in hue 63**, the others in 2655.
+  - **Charges:** recall charges are the "n/50" text right of the recall icon (art 2271); gate
+    charges sit right of art 2291.
+  - **Detail page:** runes in pairs. The left column (even rune) has buttons 10–17, the right
+    (odd) 20–27: Cast Recall, Use Charge, Cast Gate, Gate charge, "Current Default Rune" / "Set as
+    Default Rune", Drop Rune, Rename, Show on World Map. Text "(x, y)" gives the rune's tile. The
+    numbering past two runes wasn't seen; escape.py finds the column's recall icon instead.
+- **Timings, button press → arrival** (proxy clock):
+  - runebook spell 2.05 s; runebook charge 2.07 s
+  - tome spell 2.11–2.13 s, including the detail-page round trip; tome charge 2.13–2.15 s
+  - the book's gump opens 50–70 ms after the double-click
+- **A double-click within ~0.15 s of another action is refused** with cliloc 500119 ("You must
+  wait to perform another action."). escape.py clicks once more after 0.6 s.
+- **Mana:** a tome *charge* recall still cost 11 mana (74 → 63). The spell costs about the same.
+  Runebook charge mana wasn't measured cleanly.
+- **Dropping into a book:** a rune or recall scroll is dropped onto the book item. It's refused
+  while that book's gump is open: "You cannot place objects in the book while viewing the
+  contents." Feedback: "You add the rune to the rune tome.", "You add 2 recall charges to the rune
+  tome." `ctl act drop` no longer waits for a container gump on books (`opens_as_container`).
+- **Recall to the spot you stand on** gives no position jump, so escape.py can't see an arrival.
+- **Test Shard sources:**
+  - Runebook: Inscription 100, 25 blank + 10 arcane scrolls (stockpile cat 5: 107/112; scribe's
+    pen 105; Books and Tomes 100, page 3 button 200).
+  - **Rune Tome: Inscription 120** (set in the player editor, page 2 entry 110), 50 blank + 25
+    arcane, same menu button 201. It's item graphic 0x71AF, tiledata name "runetome".
+  - Reagents: shelf buttons 130/131/132.
+  - Blank runes and recall scrolls: Garrett the mage (20 / 200 gp).
+
 ## Test Shard
 
 - Test-only commands: `[TestRes` (res self+followers), `[TestIgnoreMaxDamageCap`, `[TestMaxMeleeDamageRolls`, `[TestMaxSpellDamageRolls`, `[TestBlessedGear`, `[Go` (warp self+followers). Use these for fast harness iteration.

@@ -52,6 +52,7 @@ from agent_link import (Abort, Link, Mover, bank_opened, cheb, containers_to_ope
                         same_floor, serial_of)
 import uomap  # noqa: E402
 import nav  # noqa: E402
+import escape as escape_mod  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from uo.gumps import parse_layout  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
@@ -151,6 +152,8 @@ class LumberLoop:
         self.swingers = {}           # attacker serial -> time of its latest swing at us since the last escape
         self._swing_scan = 0         # link.events index scanned for swings
         self.break_due = False       # the agent gate announced a break (break_due)
+        self.recall_book = None      # runebook / rune tome serial: the red escape (prepare_recall)
+        self._attack_scan = 0        # link.events index scanned for "... is attacking you!"
 
     def doing(self, kind: str, text: str, target=None):
         """Tell the visualizer what the agent is trying to do (proxy-side only)."""
@@ -207,7 +210,10 @@ class LumberLoop:
         """threats.py over every state read. Hostile players are logged once each
         (pk_seen). A flee-level threat posts an urgent `threat` juncture whose
         data.action says what follows:
-          - a player/red threat, or a non-creature swinging at us: 'abort' at once (Unsafe)
+          - a red in view, a flee-level player, a non-creature swinging at us, or a
+            player named in "... is attacking you!": 'recall' when a recall book is
+            ready (recall_out: escape to its default rune, then stop), else 'abort'
+            at once (Unsafe)
           - damage taken: 'abort'
           - only creatures (in flee range, or swinging at us): 'escape' (Escape:
             walk away and carry on, LumberLoop.escape), at most ESCAPES_PER_TRIP
@@ -226,12 +232,19 @@ class LumberLoop:
         by_serial = {t.serial: t for t in a.threats}
         swung = self.swung_at_us(st)
         players = [t for t in a.flee if t.kind != "monster"]
+        # A red in view is in reach whatever the ETA says (docs/PLAN.md "Red sighting":
+        # Bastet's first hit came 4.6 s after sight, the straight-line ETA said 0.6 s).
+        players += [t for t in a.threats if t.player and t.kind == "red" and t.distance >= 0
+                    and t not in players]
+        players += [t for t in self.attacked_by_players(st, a) if t not in players]
         aggressors = [s for s in swung if s not in by_serial or by_serial[s].kind != "monster"]
         monsters = [t for t in a.flee if t.kind == "monster"]
         monsters += [by_serial[s] for s in swung if s not in aggressors
                      and s not in {t.serial for t in monsters}]
         if players or aggressors:
-            self.threat_stop(st, a, players[0] if players else None, swung, Unsafe)
+            worst = players[0] if players else None
+            why = self.recall_out(st, a, worst, swung) if self.recall_book is not None else None
+            self.threat_stop(st, a, worst, swung, Unsafe, why)
         if self.mode == "salvage":
             return
         if a.damage["lost"] > 0 or a.damage["damage_events"] > 0:
@@ -243,6 +256,64 @@ class LumberLoop:
         if self.escapes >= ESCAPES_PER_TRIP:
             self.threat_stop(st, a, monsters[0], swung, Abort, f"{self.escapes} escapes this trip already")
         raise Escape(monsters, self.post_threat(st, a, monsters[0], swung, "escape"))
+
+    def attacked_by_players(self, st, a) -> list:
+        """Players named in a "<name> is attacking you!" since the last check: the
+        server's notice that a player made us their target (live 2026-10-02, 1.8 s
+        before Bastet's first hit; the attacker sends no 0x2F swing)."""
+        ev = self.link.events
+        names = set()
+        for i in range(self._attack_scan, len(ev)):
+            text = ev[i].get("text") or ""
+            if ev[i].get("ev") == "speech_heard" and text.endswith(" is attacking you!"):
+                names.add(text[: -len(" is attacking you!")])
+        self._attack_scan = len(ev)
+        return [t for t in a.threats if t.player and t.name in names]
+
+    def prepare_recall(self, st) -> int | None:
+        """The red escape's book (escape.py), read once at the start like a player
+        glancing at it: a runebook or rune tome in the pack with a default rune and a
+        charge or a castable Recall. Required off Shelter unless --recall off (Shelter
+        has no hostile player actions)."""
+        if self.args.recall == "off" or self.k.get("venue") == "shelter_island":
+            return None
+        books = escape_mod.find_books(st["world"], self.self_serial(st))
+        why = "no runebook or rune tome in the backpack"
+        for book, kind in books:
+            try:
+                info = escape_mod.check_ready(escape_mod.LinkIO(self.link), book)
+            except escape_mod.RecallError as e:
+                why = str(e)
+                continue
+            if info["default"] is None and info["entries"] != 1:
+                why = f"{kind} 0x{book:08X} has no default rune"
+            elif info["charges"] <= 0 and not info["can_cast"]:
+                why = f"{kind} 0x{book:08X}: no charges and Recall can't be cast (mana/reagents)"
+            else:
+                log(f"red escape ready: {kind} 0x{book:08X}, default rune "
+                    f"{(info['default'] or 0) + 1}, {info['charges']} charge(s)")
+                return book
+        raise Abort(f"no recall escape ({why}); refusing to work off Shelter without one (--recall off to override)")
+
+    def recall_out(self, st, a, worst, swung) -> str:
+        """Recall to the book's default rune at once (escape.escape: up to 3 casts),
+        before any bookkeeping, then stop: the `threat` juncture (action 'recall') and
+        an urgent `pk_escape` juncture when it landed. Returns why it failed; the
+        caller then stops the plain way (threat_stop)."""
+        try:
+            res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, log=log)
+        except escape_mod.RecallError as e:
+            return f"recall not possible: {e}"
+        data = {**res, "threat": worst.to_dict() if worst else None,
+                "attackers": [f"0x{s:08X}" for s in swung]}
+        self.memory.job_event("lumber", "recall", data, **self._where(st))
+        if not res["ok"]:
+            return f"recall failed after {res['attempts']} cast(s): {res['failure']}"
+        summary = self.post_threat(st, a, worst, swung, "recall")
+        self.memory.juncture("lumber", "pk_escape",
+                             f"Recalled away from {summary} ({res['kind']} {res['method']}, "
+                             f"{res['press_to_arrival_s']} s); stopped", "urgent", data)
+        raise Unsafe(f"threat: {summary}; escaped by recall to {tuple(res['to'])} in {res['elapsed_s']} s")
 
     def post_threat(self, st, a, worst, swung, action, why=None) -> str:
         """The urgent `threat` juncture + `flee` job event; returns the summary."""
@@ -1074,6 +1145,7 @@ class LumberLoop:
             raise Abort("proxy has no player position yet (log in first)")
         self.guarded(lambda: self.check_guards(self.link.state()))
         self.hatchet(st)
+        self.recall_book = self.prepare_recall(st)
         for n in range(1, self.args.trips + 1):
             self.trip(n)
             if self.break_due:
@@ -1117,6 +1189,10 @@ def main():
                     help="laya-serve for speech triage (triage.py); empty = off")
     ap.add_argument("--bank-range", type=int, default=4,
                     help="walk to within this many tiles of the banker's current position")
+    ap.add_argument("--recall", choices=("require", "off"), default="require",
+                    help="red escape by recall (escape.py): off Shelter a runebook or rune tome with a "
+                         "default rune and a charge or a castable Recall is required to start; 'off' "
+                         "runs without it (a red then only stops the run)")
     ap.add_argument("--timeout", type=float, default=3600.0)
     ap.add_argument("--max-blocked", type=int, default=20)
     ap.add_argument("--control-port", type=int, default=25941)

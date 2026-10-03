@@ -461,6 +461,22 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   the escape ("it kept coming"), after 3 escapes in a trip (`ESCAPES_PER_TRIP`), on damage to us
   (a hit-point drop or a 0x0B on self), during a speech hold, and, as before, at once for a
   hostile player/red/grey/orange in flee range or a non-creature swinging at us.
+- **Recall escape on players (since 2026-10-02, docs/PLAN.md "Red sighting"; `harness/escape.py`):**
+  - **Readiness:** off Shelter the runner starts only with a runebook or rune tome in the pack
+    that has a default rune and either a charge or a castable Recall (mana plus reagents or a
+    spellstone). It reads the book once at the start (`prepare_recall`). `--recall off` runs
+    without it.
+  - **Trigger:** a red anywhere in view (no ETA test), a hostile player in flee range, a
+    non-creature swinging at us, or a player named in "… is attacking you!".
+  - **Action:** the runner recalls at once, with no pause and before any bookkeeping. It
+    double-clicks the book and presses the default rune's charge button, else the Recall spell
+    (tome: its detail page's Cast Recall). Up to 3 casts: retry at once after a disturbed or
+    fizzled cast, spell after "no charges".
+  - **After landing:** the `threat` juncture (`action: recall`), an urgent `pk_escape` juncture
+    and a `recall` job event, then the run stops without converting. A failed escape stops in
+    place with `why: recall failed …`.
+  - **Live check (TestWorth, Test Shard):** the runner's path with a fake red, 2.11 s from press
+    to arrival. `test_escape.py` pins the gump parsing on the captured layouts.
 - **Carried wood is boards (since 2026-10-01):** an abort during the harvest converts the log
   stacks in the pack before the runner exits, unless stopping at once is safer: a player/red threat,
   a non-creature attacker, death, a captcha that wasn't solved (a server restriction), a closed agent

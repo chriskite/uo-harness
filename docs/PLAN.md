@@ -289,7 +289,18 @@ chatter, is skipped for now: every speaker still holds a harvest job.
   agent cadence, so they can't disagree. Rejected: a per-task `--mounted` flag (it goes stale on
   a dismount, and a stale "mounted" on foot is a Speedhack signature).
 
-## Red sighting: recall at once (proposed 2026-10-02, awaiting the user's go-ahead)
+## Red sighting: recall at once (decided 2026-10-02; recall-on-sight built the same day)
+
+**Status:** items 1–3 (readiness, trigger, recall) are built in `harness/escape.py` + `loop_lumber.py`,
+plus `ctl act recall`. They were proven live with TestWorth's runebook and rune tome on the Test
+Shard (docs/LUMBER_LOOP.md §13, docs/NOTES.md "Runebook and rune tome gumps"). Hackworth needs a
+book before he can work off Shelter.
+
+Still open:
+- the run-away behaviour (item 4)
+- path-based player ETAs and Tracking (item 6)
+- the banking return trigger
+- the hunt runner: dungeons block recall, so its red rule is unchanged
 
 Evidence: the Terran PK (docs/NOTES.md "PK death in the Terran wilds") and the one live runebook
 recall (TestWorth, 2026-09-30 18:59, `logs/session_20260930_182751.jsonl`): double-click the

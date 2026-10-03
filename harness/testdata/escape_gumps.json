@@ -1,0 +1,104 @@
+{
+ "_doc": "Runebook (0x5C7DB029) and rune tome (0x09F5976B) gumps as the Outlands Test Shard sent them to TestWorth, 2026-10-02 21:50-22:20 (memory-store gump_open events). Used by harness/test_escape.py.",
+ "runebook_default_2nd": {
+  "gump_id": "0x5C7DB029",
+  "serial": 2861210,
+  "layout": "{ page 0 }{ gumppic 100 10 2200 }{ gumppic 125 50 57 }{ gumppic 145 50 58 }{ gumppic 160 50 58 }{ gumppic 175 50 58 }{ gumppic 190 50 58 }{ gumppic 205 50 58 }{ gumppic 220 50 58 }{ gumppic 230 50 59 }{ gumppic 290 50 57 }{ gumppic 310 50 58 }{ gumppic 325 50 58 }{ gumppic 340 50 58 }{ gumppic 355 50 58 }{ gumppic 370 50 58 }{ gumppic 385 50 58 }{ gumppic 395 50 59 }{ button 130 187 2225 2225 0 2 0 }{ button 165 187 2226 2226 0 3 0 }{ button 200 187 2227 2227 0 4 0 }{ button 235 187 2228 2228 0 5 0 }{ button 300 187 2229 2229 0 6 0 }{ button 335 187 2230 2230 0 7 0 }{ button 370 187 2231 2231 0 8 0 }{ button 405 187 2232 2232 0 9 0 }{ text 140 40 0 0 18 0 1 0 0 0 }{ text 195 40 0 1 18 0 1 0 0 0 }{ text 300 40 0 2 18 0 1 0 0 0 }{ text 385 40 0 3 18 0 1 0 0 0 }{ page 1 }{ button 125 15 2472 2473 1 0 1 }{ xmfhtmlgump 158 22 100 18 1011299 0 0 }{ button 130 65 2103 2104 1 0 2 }{ croppedtext 145 60 115 17 81 4 }{ button 130 80 2103 2104 1 0 8 }{ croppedtext 145 75 115 17 81 4 }{ button 130 95 2103 2104 1 0 14 }{ croppedtext 145 90 115 17 0 5 }{ button 130 110 2103 2104 1 0 20 }{ croppedtext 145 105 115 17 0 5 }{ button 130 125 2103 2104 1 0 26 }{ croppedtext 145 120 115 17 0 5 }{ button 130 140 2103 2104 1 0 32 }{ croppedtext 145 135 115 17 0 5 }{ button 130 155 2103 2104 1 0 38 }{ croppedtext 145 150 115 17 0 5 }{ button 130 170 2103 2104 1 0 44 }{ croppedtext 145 165 115 17 0 5 }{ button 290 65 2103 2104 1 0 50 }{ croppedtext 305 60 115 17 0 5 }{ button 290 80 2103 2104 1 0 56 }{ croppedtext 305 75 115 17 0 5 }{ button 290 95 2103 2104 1 0 62 }{ croppedtext 305 90 115 17 0 5 }{ button 290 110 2103 2104 1 0 68 }{ croppedtext 305 105 115 17 0 5 }{ button 290 125 2103 2104 1 0 74 }{ croppedtext 305 120 115 17 0 5 }{ button 290 140 2103 2104 1 0 80 }{ croppedtext 305 135 115 17 0 5 }{ button 290 155 2103 2104 1 0 86 }{ croppedtext 305 150 115 17 0 5 }{ button 290 170 2103 2104 1 0 92 }{ croppedtext 305 165 115 17 0 5 }{ button 393 14 2206 2206 0 2 0 }{ page 2 }{ button 125 14 2205 2205 0 1 0 }{ button 393 14 2206 2206 0 3 0 }{ button 130 65 2103 2104 1 0 2 }{ text 135 80 0 6 18 0 1 0 0 0 }{ text 135 95 0 7 18 0 1 0 0 0 }{ button 135 115 2437 2438 1 0 3 }{ xmfhtmlgump 150 115 100 18 1011298 0 0 }{ button 160 20 2361 2361 1 0 4 }{ xmfhtmlgump 175 15 100 18 1011300 0 0 }{ button 135 140 2271 2271 1 0 5 }{ button 205 140 2291 2291 1 0 6 }{ croppedtext 145 60 115 17 81 4 }{ button 290 65 2103 2104 1 0 8 }{ text 295 80 0 8 18 0 1 0 0 0 }{ text 295 95 0 9 18 0 1 0 0 0 }{ button 295 115 2437 2438 1 0 9 }{ xmfhtmlgump 310 115 100 18 1011298 0 0 }{ button 300 20 2360 2360 1 0 10 }{ xmfhtmlgump 315 15 100 18 1011300 0 0 }{ button 295 140 2271 2271 1 0 11 }{ button 365 140 2291 2291 1 0 12 }{ croppedtext 305 60 115 17 81 4 }{ page 3 }{ button 125 14 2205 2205 0 2 0 }{ button 393 14 2206 2206 0 4 0 }{ button 130 65 2103 2104 1 0 14 }{ croppedtext 145 60 115 17 0 5 }{ button 290 65 2103 2104 1 0 20 }{ croppedtext 305 60 115 17 0 5 }{ page 4 }{ button 125 14 2205 2205 0 3 0 }{ button 393 14 2206 2206 0 5 0 }{ button 130 65 2103 2104 1 0 26 }{ croppedtext 145 60 115 17 0 5 }{ button 290 65 2103 2104 1 0 32 }{ croppedtext 305 60 115 17 0 5 }{ page 5 }{ button 125 14 2205 2205 0 4 0 }{ button 393 14 2206 2206 0 6 0 }{ button 130 65 2103 2104 1 0 38 }{ croppedtext 145 60 115 17 0 5 }{ button 290 65 2103 2104 1 0 44 }{ croppedtext 305 60 115 17 0 5 }{ page 6 }{ button 125 14 2205 2205 0 5 0 }{ button 393 14 2206 2206 0 7 0 }{ button 130 65 2103 2104 1 0 50 }{ croppedtext 145 60 115 17 0 5 }{ button 290 65 2103 2104 1 0 56 }{ croppedtext 305 60 115 17 0 5 }{ page 7 }{ button 125 14 2205 2205 0 6 0 }{ button 393 14 2206 2206 0 8 0 }{ button 130 65 2103 2104 1 0 62 }{ croppedtext 145 60 115 17 0 5 }{ button 290 65 2103 2104 1 0 68 }{ croppedtext 305 60 115 17 0 5 }{ page 8 }{ button 125 14 2205 2205 0 7 0 }{ button 393 14 2206 2206 0 9 0 }{ button 130 65 2103 2104 1 0 74 }{ croppedtext 145 60 115 17 0 5 }{ button 290 65 2103 2104 1 0 80 }{ croppedtext 305 60 115 17 0 5 }{ page 9 }{ button 125 14 2205 2205 0 8 0 }{ button 130 65 2103 2104 1 0 86 }{ croppedtext 145 60 115 17 0 5 }{ button 290 65 2103 2104 1 0 92 }{ croppedtext 305 60 115 17 0 5 }\u0000",
+  "lines": [
+   "Charges: ",
+   "0",
+   "Max Charges: ",
+   "10",
+   "Prevalia",
+   "Empty",
+   "8° 42'N",
+   "19° 41'E",
+   "10° 27'N",
+   "19° 58'E"
+  ]
+ },
+ "runebook_charges": {
+  "gump_id": "0x5C7DB029",
+  "serial": 2861259,
+  "layout": "{ page 0 }{ gumppic 100 10 2200 }{ gumppic 125 50 57 }{ gumppic 145 50 58 }{ gumppic 160 50 58 }{ gumppic 175 50 58 }{ gumppic 190 50 58 }{ gumppic 205 50 58 }{ gumppic 220 50 58 }{ gumppic 230 50 59 }{ gumppic 290 50 57 }{ gumppic 310 50 58 }{ gumppic 325 50 58 }{ gumppic 340 50 58 }{ gumppic 355 50 58 }{ gumppic 370 50 58 }{ gumppic 385 50 58 }{ gumppic 395 50 59 }{ button 130 187 2225 2225 0 2 0 }{ button 165 187 2226 2226 0 3 0 }{ button 200 187 2227 2227 0 4 0 }{ button 235 187 2228 2228 0 5 0 }{ button 300 187 2229 2229 0 6 0 }{ button 335 187 2230 2230 0 7 0 }{ button 370 187 2231 2231 0 8 0 }{ button 405 187 2232 2232 0 9 0 }{ text 140 40 0 0 18 0 1 0 0 0 }{ text 195 40 0 1 18 0 1 0 0 0 }{ text 300 40 0 2 18 0 1 0 0 0 }{ text 385 40 0 3 18 0 1 0 0 0 }{ page 1 }{ button 125 15 2472 2473 1 0 1 }{ xmfhtmlgump 158 22 100 18 1011299 0 0 }{ button 130 65 2103 2104 1 0 2 }{ croppedtext 145 60 115 17 81 4 }{ button 130 80 2103 2104 1 0 8 }{ croppedtext 145 75 115 17 81 4 }{ button 130 95 2103 2104 1 0 14 }{ croppedtext 145 90 115 17 0 5 }{ button 130 110 2103 2104 1 0 20 }{ croppedtext 145 105 115 17 0 5 }{ button 130 125 2103 2104 1 0 26 }{ croppedtext 145 120 115 17 0 5 }{ button 130 140 2103 2104 1 0 32 }{ croppedtext 145 135 115 17 0 5 }{ button 130 155 2103 2104 1 0 38 }{ croppedtext 145 150 115 17 0 5 }{ button 130 170 2103 2104 1 0 44 }{ croppedtext 145 165 115 17 0 5 }{ button 290 65 2103 2104 1 0 50 }{ croppedtext 305 60 115 17 0 5 }{ button 290 80 2103 2104 1 0 56 }{ croppedtext 305 75 115 17 0 5 }{ button 290 95 2103 2104 1 0 62 }{ croppedtext 305 90 115 17 0 5 }{ button 290 110 2103 2104 1 0 68 }{ croppedtext 305 105 115 17 0 5 }{ button 290 125 2103 2104 1 0 74 }{ croppedtext 305 120 115 17 0 5 }{ button 290 140 2103 2104 1 0 80 }{ croppedtext 305 135 115 17 0 5 }{ button 290 155 2103 2104 1 0 86 }{ croppedtext 305 150 115 17 0 5 }{ button 290 170 2103 2104 1 0 92 }{ croppedtext 305 165 115 17 0 5 }{ button 393 14 2206 2206 0 2 0 }{ page 2 }{ button 125 14 2205 2205 0 1 0 }{ button 393 14 2206 2206 0 3 0 }{ button 130 65 2103 2104 1 0 2 }{ text 135 80 0 6 18 0 1 0 0 0 }{ text 135 95 0 7 18 0 1 0 0 0 }{ button 135 115 2437 2438 1 0 3 }{ xmfhtmlgump 150 115 100 18 1011298 0 0 }{ button 160 20 2361 2361 1 0 4 }{ xmfhtmlgump 175 15 100 18 1011300 0 0 }{ button 135 140 2271 2271 1 0 5 }{ button 205 140 2291 2291 1 0 6 }{ croppedtext 145 60 115 17 81 4 }{ button 290 65 2103 2104 1 0 8 }{ text 295 80 0 8 18 0 1 0 0 0 }{ text 295 95 0 9 18 0 1 0 0 0 }{ button 295 115 2437 2438 1 0 9 }{ xmfhtmlgump 310 115 100 18 1011298 0 0 }{ button 300 20 2360 2360 1 0 10 }{ xmfhtmlgump 315 15 100 18 1011300 0 0 }{ button 295 140 2271 2271 1 0 11 }{ button 365 140 2291 2291 1 0 12 }{ croppedtext 305 60 115 17 81 4 }{ page 3 }{ button 125 14 2205 2205 0 2 0 }{ button 393 14 2206 2206 0 4 0 }{ button 130 65 2103 2104 1 0 14 }{ croppedtext 145 60 115 17 0 5 }{ button 290 65 2103 2104 1 0 20 }{ croppedtext 305 60 115 17 0 5 }{ page 4 }{ button 125 14 2205 2205 0 3 0 }{ button 393 14 2206 2206 0 5 0 }{ button 130 65 2103 2104 1 0 26 }{ croppedtext 145 60 115 17 0 5 }{ button 290 65 2103 2104 1 0 32 }{ croppedtext 305 60 115 17 0 5 }{ page 5 }{ button 125 14 2205 2205 0 4 0 }{ button 393 14 2206 2206 0 6 0 }{ button 130 65 2103 2104 1 0 38 }{ croppedtext 145 60 115 17 0 5 }{ button 290 65 2103 2104 1 0 44 }{ croppedtext 305 60 115 17 0 5 }{ page 6 }{ button 125 14 2205 2205 0 5 0 }{ button 393 14 2206 2206 0 7 0 }{ button 130 65 2103 2104 1 0 50 }{ croppedtext 145 60 115 17 0 5 }{ button 290 65 2103 2104 1 0 56 }{ croppedtext 305 60 115 17 0 5 }{ page 7 }{ button 125 14 2205 2205 0 6 0 }{ button 393 14 2206 2206 0 8 0 }{ button 130 65 2103 2104 1 0 62 }{ croppedtext 145 60 115 17 0 5 }{ button 290 65 2103 2104 1 0 68 }{ croppedtext 305 60 115 17 0 5 }{ page 8 }{ button 125 14 2205 2205 0 7 0 }{ button 393 14 2206 2206 0 9 0 }{ button 130 65 2103 2104 1 0 74 }{ croppedtext 145 60 115 17 0 5 }{ button 290 65 2103 2104 1 0 80 }{ croppedtext 305 60 115 17 0 5 }{ page 9 }{ button 125 14 2205 2205 0 8 0 }{ button 130 65 2103 2104 1 0 86 }{ croppedtext 145 60 115 17 0 5 }{ button 290 65 2103 2104 1 0 92 }{ croppedtext 305 60 115 17 0 5 }\u0000",
+  "lines": [
+   "Charges: ",
+   "2",
+   "Max Charges: ",
+   "10",
+   "Prevalia",
+   "Empty",
+   "8° 42'N",
+   "19° 41'E",
+   "10° 27'N",
+   "19° 58'E"
+  ]
+ },
+ "runebook_empty": {
+  "gump_id": "0x5C7DB029",
+  "serial": 2861150,
+  "layout": "{ page 0 }{ gumppic 100 10 2200 }{ gumppic 125 50 57 }{ gumppic 145 50 58 }{ gumppic 160 50 58 }{ gumppic 175 50 58 }{ gumppic 190 50 58 }{ gumppic 205 50 58 }{ gumppic 220 50 58 }{ gumppic 230 50 59 }{ gumppic 290 50 57 }{ gumppic 310 50 58 }{ gumppic 325 50 58 }{ gumppic 340 50 58 }{ gumppic 355 50 58 }{ gumppic 370 50 58 }{ gumppic 385 50 58 }{ gumppic 395 50 59 }{ button 130 187 2225 2225 0 2 0 }{ button 165 187 2226 2226 0 3 0 }{ button 200 187 2227 2227 0 4 0 }{ button 235 187 2228 2228 0 5 0 }{ button 300 187 2229 2229 0 6 0 }{ button 335 187 2230 2230 0 7 0 }{ button 370 187 2231 2231 0 8 0 }{ button 405 187 2232 2232 0 9 0 }{ text 140 40 0 0 18 0 1 0 0 0 }{ text 195 40 0 1 18 0 1 0 0 0 }{ text 300 40 0 2 18 0 1 0 0 0 }{ text 385 40 0 3 18 0 1 0 0 0 }{ page 1 }{ button 125 15 2472 2473 1 0 1 }{ xmfhtmlgump 158 22 100 18 1011299 0 0 }{ button 130 65 2103 2104 1 0 2 }{ croppedtext 145 60 115 17 0 4 }{ button 130 80 2103 2104 1 0 8 }{ croppedtext 145 75 115 17 0 4 }{ button 130 95 2103 2104 1 0 14 }{ croppedtext 145 90 115 17 0 4 }{ button 130 110 2103 2104 1 0 20 }{ croppedtext 145 105 115 17 0 4 }{ button 130 125 2103 2104 1 0 26 }{ croppedtext 145 120 115 17 0 4 }{ button 130 140 2103 2104 1 0 32 }{ croppedtext 145 135 115 17 0 4 }{ button 130 155 2103 2104 1 0 38 }{ croppedtext 145 150 115 17 0 4 }{ button 130 170 2103 2104 1 0 44 }{ croppedtext 145 165 115 17 0 4 }{ button 290 65 2103 2104 1 0 50 }{ croppedtext 305 60 115 17 0 4 }{ button 290 80 2103 2104 1 0 56 }{ croppedtext 305 75 115 17 0 4 }{ button 290 95 2103 2104 1 0 62 }{ croppedtext 305 90 115 17 0 4 }{ button 290 110 2103 2104 1 0 68 }{ croppedtext 305 105 115 17 0 4 }{ button 290 125 2103 2104 1 0 74 }{ croppedtext 305 120 115 17 0 4 }{ button 290 140 2103 2104 1 0 80 }{ croppedtext 305 135 115 17 0 4 }{ button 290 155 2103 2104 1 0 86 }{ croppedtext 305 150 115 17 0 4 }{ button 290 170 2103 2104 1 0 92 }{ croppedtext 305 165 115 17 0 4 }{ button 393 14 2206 2206 0 2 0 }{ page 2 }{ button 125 14 2205 2205 0 1 0 }{ button 393 14 2206 2206 0 3 0 }{ button 130 65 2103 2104 1 0 2 }{ croppedtext 145 60 115 17 0 4 }{ button 290 65 2103 2104 1 0 8 }{ croppedtext 305 60 115 17 0 4 }{ page 3 }{ button 125 14 2205 2205 0 2 0 }{ button 393 14 2206 2206 0 4 0 }{ button 130 65 2103 2104 1 0 14 }{ croppedtext 145 60 115 17 0 4 }{ button 290 65 2103 2104 1 0 20 }{ croppedtext 305 60 115 17 0 4 }{ page 4 }{ button 125 14 2205 2205 0 3 0 }{ button 393 14 2206 2206 0 5 0 }{ button 130 65 2103 2104 1 0 26 }{ croppedtext 145 60 115 17 0 4 }{ button 290 65 2103 2104 1 0 32 }{ croppedtext 305 60 115 17 0 4 }{ page 5 }{ button 125 14 2205 2205 0 4 0 }{ button 393 14 2206 2206 0 6 0 }{ button 130 65 2103 2104 1 0 38 }{ croppedtext 145 60 115 17 0 4 }{ button 290 65 2103 2104 1 0 44 }{ croppedtext 305 60 115 17 0 4 }{ page 6 }{ button 125 14 2205 2205 0 5 0 }{ button 393 14 2206 2206 0 7 0 }{ button 130 65 2103 2104 1 0 50 }{ croppedtext 145 60 115 17 0 4 }{ button 290 65 2103 2104 1 0 56 }{ croppedtext 305 60 115 17 0 4 }{ page 7 }{ button 125 14 2205 2205 0 6 0 }{ button 393 14 2206 2206 0 8 0 }{ button 130 65 2103 2104 1 0 62 }{ croppedtext 145 60 115 17 0 4 }{ button 290 65 2103 2104 1 0 68 }{ croppedtext 305 60 115 17 0 4 }{ page 8 }{ button 125 14 2205 2205 0 7 0 }{ button 393 14 2206 2206 0 9 0 }{ button 130 65 2103 2104 1 0 74 }{ croppedtext 145 60 115 17 0 4 }{ button 290 65 2103 2104 1 0 80 }{ croppedtext 305 60 115 17 0 4 }{ page 9 }{ button 125 14 2205 2205 0 8 0 }{ button 130 65 2103 2104 1 0 86 }{ croppedtext 145 60 115 17 0 4 }{ button 290 65 2103 2104 1 0 92 }{ croppedtext 305 60 115 17 0 4 }\u0000",
+  "lines": [
+   "Charges: ",
+   "0",
+   "Max Charges: ",
+   "10",
+   "Empty"
+  ]
+ },
+ "runetome_main_default_2nd": {
+  "gump_id": "0x09F5976B",
+  "serial": 2861933,
+  "layout": "{ gumppic 10 10 116 }{ text 165 29 2655 0 18 0 1 0 0 0 }{ text 165 30 149 0 18 0 1 0 0 0 }{ text 97 59 2655 1 18 0 1 0 0 0 }{ button 185 55 9721 9724 1 0 3 }{ text 240 59 2655 2 18 0 1 0 0 0 }{ button 288 55 9721 9724 1 0 2 }{ tilepic 426 54 8012 }{ gumppic 364 32 2271 }{ text 429 32 2655 3 18 0 1 0 0 0 }{ tilepic 551 56 8032 }{ gumppic 495 32 2291 }{ text 556 32 2655 3 18 0 1 0 0 0 }{ button 88 96 2118 2117 1 0 100 }{ button 109 94 210 211 1 0 200 }{ text 133 95 2655 4 18 0 1 0 0 0 }{ button 88 120 2118 2117 1 0 101 }{ button 109 118 210 211 1 0 201 }{ text 133 119 63 4 18 0 1 0 0 0 }\u0000",
+  "lines": [
+   "A Rune Tome",
+   "Manage Runes",
+   "Rename",
+   "0/50",
+   "Prevalia"
+  ]
+ },
+ "runetome_main_default_1st_single": {
+  "gump_id": "0x09F5976B",
+  "serial": 2861537,
+  "layout": "{ gumppic 10 10 116 }{ text 165 29 2655 0 18 0 1 0 0 0 }{ text 165 30 149 0 18 0 1 0 0 0 }{ text 97 59 2655 1 18 0 1 0 0 0 }{ button 185 55 9721 9724 1 0 3 }{ text 240 59 2655 2 18 0 1 0 0 0 }{ button 288 55 9721 9724 1 0 2 }{ tilepic 426 54 8012 }{ gumppic 364 32 2271 }{ text 429 32 2655 3 18 0 1 0 0 0 }{ tilepic 551 56 8032 }{ gumppic 495 32 2291 }{ text 556 32 2655 3 18 0 1 0 0 0 }{ button 88 96 2118 2117 1 0 100 }{ button 109 94 210 211 1 0 200 }{ text 133 95 63 4 18 0 1 0 0 0 }\u0000",
+  "lines": [
+   "A Rune Tome",
+   "Manage Runes",
+   "Rename",
+   "0/50",
+   "Prevalia"
+  ]
+ },
+ "runetome_detail_pair": {
+  "gump_id": "0x09F5976B",
+  "serial": 2861934,
+  "layout": "{ gumppic 10 10 116 }{ text 186 26 149 0 18 0 1 0 0 0 }{ text 172 52 2655 1 18 0 1 0 0 0 }{ button 86 90 2271 2271 1 0 10 }{ text 170 87 2655 2 18 0 1 0 0 0 }{ button 133 83 2151 2154 1 0 10 }{ text 170 119 2655 3 18 0 1 0 0 0 }{ button 133 116 2151 2154 1 0 11 }{ button 86 172 2291 2291 1 0 12 }{ text 170 168 2655 4 18 0 1 0 0 0 }{ button 133 164 2151 2154 1 0 12 }{ text 170 200 2655 3 18 0 1 0 0 0 }{ button 133 197 2151 2154 1 0 13 }{ tilepic 85 258 7956 }{ button 133 249 9724 8721 1 0 14 }{ text 170 254 2655 5 18 0 1 0 0 0 }{ tilepic 86 289 2482 }{ text 170 289 2655 6 18 0 1 0 0 0 }{ button 132 287 9721 9724 1 0 15 }{ tilepichue 93 328 4031 2500 }{ text 170 328 2655 7 18 0 1 0 0 0 }{ button 132 324 9721 9724 1 0 16 }{ tilepic 90 357 5355 }{ text 170 363 2655 8 18 0 1 0 0 0 }{ button 132 359 9721 9724 1 0 17 }{ text 461 26 63 0 18 0 1 0 0 0 }{ text 447 52 2655 9 18 0 1 0 0 0 }{ button 355 90 2271 2271 1 0 20 }{ text 438 87 2655 2 18 0 1 0 0 0 }{ button 402 83 2151 2154 1 0 20 }{ text 438 119 2655 3 18 0 1 0 0 0 }{ button 402 116 2151 2154 1 0 21 }{ button 355 172 2291 2291 1 0 22 }{ text 438 168 2655 4 18 0 1 0 0 0 }{ button 402 164 2151 2154 1 0 22 }{ text 438 200 2655 3 18 0 1 0 0 0 }{ button 402 197 2151 2154 1 0 23 }{ tilepichue 354 258 7956 63 }{ button 402 249 9724 8721 1 0 24 }{ text 438 254 63 10 18 0 1 0 0 0 }{ tilepic 355 289 2482 }{ text 438 289 2655 6 18 0 1 0 0 0 }{ button 402 287 9721 9724 1 0 25 }{ tilepichue 362 328 4031 2500 }{ text 438 328 2655 7 18 0 1 0 0 0 }{ button 402 324 9721 9724 1 0 26 }{ tilepic 358 357 5355 }{ text 438 363 2655 8 18 0 1 0 0 0 }{ button 402 359 9721 9724 1 0 27 }{ button 333 406 4011 4013 1 0 2 }\u0000",
+  "lines": [
+   "Prevalia",
+   "(1602, 1528)",
+   "Cast Recall",
+   "Use Charge (0 left)",
+   "Cast Gate Travel",
+   "Set as Default Rune",
+   "Drop Rune",
+   "Rename Rune",
+   "Show on World Map",
+   "(1603, 1525)",
+   "Current Default Rune"
+  ]
+ },
+ "runetome_main_charges": {
+  "gump_id": "0x09F5976B",
+  "serial": 2861990,
+  "layout": "{ gumppic 10 10 116 }{ text 165 29 2655 0 18 0 1 0 0 0 }{ text 165 30 149 0 18 0 1 0 0 0 }{ text 97 59 2655 1 18 0 1 0 0 0 }{ button 185 55 9721 9724 1 0 3 }{ text 240 59 2655 2 18 0 1 0 0 0 }{ button 288 55 9721 9724 1 0 2 }{ tilepic 426 54 8012 }{ gumppic 364 32 2271 }{ text 429 32 2655 3 18 0 1 0 0 0 }{ tilepic 551 56 8032 }{ gumppic 495 32 2291 }{ text 556 32 2655 4 18 0 1 0 0 0 }{ button 88 96 2118 2117 1 0 100 }{ button 109 94 210 211 1 0 200 }{ text 133 95 2655 5 18 0 1 0 0 0 }{ button 88 120 2118 2117 1 0 101 }{ button 109 118 210 211 1 0 201 }{ text 133 119 63 5 18 0 1 0 0 0 }\u0000",
+  "lines": [
+   "A Rune Tome",
+   "Manage Runes",
+   "Rename",
+   "2/50",
+   "0/50",
+   "Prevalia"
+  ]
+ }
+}

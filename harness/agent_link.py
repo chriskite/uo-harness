@@ -128,6 +128,20 @@ def containers_to_open(world: dict, serial: int, itself: bool = False) -> list[i
     return [s for s in reversed(chain) if s not in opened]
 
 
+def opens_as_container(world: dict, serial: int) -> bool:
+    """Whether a drop destination is dragged into through its own container gump.
+    Books (runebook, rune tome, spellbook, atlas, codex) carry the tiledata
+    container flag, but a double-click opens their gump, never a 0x24. A rune
+    or scroll is dropped onto the book itself (live 2026-10-02: waiting for the
+    runebook's 0x24 refused `drop <rune> <runebook>`)."""
+    ent = world["items"].get(f"0x{serial:08X}") or {}
+    graphic = ent.get("graphic")
+    if graphic is None:
+        return True
+    name = (uomap.tiledata().item(serial_of(graphic)).name or "").lower()
+    return not (name.endswith("book") or any(w in name for w in ("tome", "atlas", "codex")))
+
+
 def closed_bank(world: dict, serials) -> int | None:
     """The bank box among `serials`, if any: a double-click can't open it (only
     saying `bank` near a banker does), so callers refuse instead."""
