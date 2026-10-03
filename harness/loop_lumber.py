@@ -76,7 +76,6 @@ import captcha  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 NEXT_TREE_PLANS = 6           # nearest trees (straight line) whose walks next_tree() compares
-LIBRARY_WALK_MAX = 250       # tiles: farther from the rune library the overseer must bring us (moongate)
 HOME_NEAR = 60               # tiles from the banker: close enough to walk instead of recalling home
 # Coloured-wood success, e.g. "You chop some dullwood logs and put them in your backpack."
 # (live 2026-10-02, Terran; unmatched it counted as an unknown outcome and aborted the trip)
@@ -1194,9 +1193,8 @@ class LumberLoop:
             return
         rune = places.witcher_rune(access["rune"])
         lib = places.library(access.get("library", "cambria"))
-        if cheb(pos, lib["stand"]) > LIBRARY_WALK_MAX:
-            raise Abort(f"not near the {lib['name']} ({cheb(pos, lib['stand'])} tiles): travel there first "
-                        f"(the {lib['moongate']} moongate)")
+        # No distance limit (user decision 2026-10-04): the walk goes as far as the map planner
+        # routes; "no route" from far away still aborts (bring us closer by moongate first).
         tome = next(t for t in lib["tomes"] if t["serial"] == rune["tome"])
         self.doing("to_library", f"Walking to the {lib['name']}", tuple(tome["pos"][:2]))
         self.mover.walk_to(lambda: tuple(tome["pos"][:2]), lib["use_range"] - 1, "to the rune library")

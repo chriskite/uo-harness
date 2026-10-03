@@ -454,8 +454,32 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
 - **The reward, "New Player Locations"** (rune tome [blessed], graphic 0x71AF): 50/50 recall
   charges, 0/50 gate. Runes: Prevalia Bank, Prevalia Innkeeper, Prevalia Stables, Prevalia
   Society Hall (Quests), Shelter Island Bank, Shelter Island Moongate, New Player Dungeon,
-  Prevalia Sewers, Ratman Hovel, Urukton Bluffs. It stays with Shackleworth (blessed; whether it
-  can be traded isn't known).
+  Prevalia Sewers, Ratman Hovel, Urukton Bluffs.
+- **Moving items between characters on one account (2026-10-04):** a rental room. The user rented
+  one at Outpost with Hackworth's Rental Room Credit Deed (room interior facet 3, around (195,
+  1677)); Shackleworth could enter it too, and the user moved the tome, a hatchet and 1,900 gold
+  across. The blessed tome carried over fine. Per the wiki, items on a room's floor decay after an
+  hour unless locked down ("I wish to lock this down") or in a secure container ("I wish to secure
+  this" on a container on the floor; costs 125 lockdowns, a small room has 2 secures / 350
+  lockdowns): the user's plan is a secure container as the shared stash.
+- **Hackworth's home rune, Cambria (1752, 3001):**
+  - Garritt the mage, Cambria (1759, 2981): reagents 3 gp each, blank recall rune 20, recall
+    scroll 200, **Mark scroll 500**, spellbook 60, 20 arcane staves 50 each, training arcane staff 25.
+  - **Mark is 6th circle: 60 Magery to cast, 100 % at 70** (wiki Magery: per circle 1st 0/30 …
+    5th 40/60, 6th 50/70, 7th 60/80 — the min figure the wiki gives above each circle's table is
+    the previous circle's). At Magery 60.0 from the spellbook all 20 casts fizzled (12 reagent sets
+    used). **Cast from the scroll it worked first time** (double-click the scroll, target the rune;
+    "You generate mana for your spell."): a scroll casts as if lower-circle [INFERENCE from RunUO].
+    Adding a scroll to a book: drop it on the spellbook.
+  - The tome's runes can be dropped (rune detail page "Drop Rune": "You remove the rune from the
+    rune tome." → a "recall rune" in the pack) and re-added (drop the rune onto the tome). The
+    marked rune is named after the region ("Cambria"). We dropped Shelter Island Bank, marked it at
+    the Cambria bank and set it as default (detail page button 24 for the right-hand rune).
+  - The Prevalia moongate is up a stair north of the Moongates.xml marker: item `0x400000AC` at
+    (1475, 1486, 55); a public library of 14 rune tomes sits by it at (1480, 1501–1502).
+  - Cambria bank → library walk is ~300 route steps (178 tiles straight); the old 250-move cap
+    aborted the first Witcher trip. Walks now have no move limit by default (user decision): the
+    replan cap and "no route" still end hopeless walks.
 - **Overseer tooling, live:** `ctl junctures` without `--after` listed the oldest 100, hiding an
   open speech hold for 163 s; it now lists the newest. `act drop --amount 800` split a gold stack
   correctly but returned `ok:false` ("the world model doesn't show the item moved"); not fixed.

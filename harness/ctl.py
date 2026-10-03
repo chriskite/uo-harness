@@ -147,7 +147,6 @@ POLICY_PATH = os.path.join(HERE, "data", "policy.json")
 CAPTCHA_GUMP_ID = 0x00000001          # lumber.json captcha.gump_id; never answered by the overseer
 GUMP_TEXT_MAX = 239                  # chars per gump text entry (the client's text box limit)
 RENOUNCE_WORDS = ("renounce",)        # Young renounce prompt (clilocs 502085/3006307): close only
-GOTO_MAX_MOVES = 400
 GOTO_Z_TOL = 10                      # goto --z / ground item: stand within this of the target z
 GROUND_RANGE = 12                    # status: ground items within this many tiles
 GROUND_MAX = 20
@@ -2671,7 +2670,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="recall: Witcher rune N from the public tome at the Cambria Rune Library (stand by it)")
     p.add_argument("--range", type=int, default=None,
                    help="goto: stop within this many tiles (default 0 for a tile, 2 for a mobile)")
-    p.add_argument("--max-moves", type=int, default=GOTO_MAX_MOVES)
+    p.add_argument("--max-moves", type=int, default=None,
+                   help="goto: abort after this many steps (default: no limit)")
     p.add_argument("--no-guard", action="store_true",
                    help="goto: walk without the travel guard (travel_guard.py: route around hostile creatures, "
                         "stop on a hostile player, low hits under attack, death or a goal inside a monster's "

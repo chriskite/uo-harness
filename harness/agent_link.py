@@ -644,7 +644,7 @@ class Mover:
             return n if n in mem.tiles else None
         return nav.straighten(path, mem_step, diagonal_first, hard | occ), None
 
-    def walk_to(self, center_fn, radius: int, label: str, max_moves: int = 250, z_ok=None, gate=None,
+    def walk_to(self, center_fn, radius: int, label: str, max_moves: int | None = None, z_ok=None, gate=None,
                 goal_fn=None, urgent: bool = False, stop=None):
         """Walk until within `radius` (Chebyshev) of center_fn(), re-evaluated
         on every replan (NPCs wander). `z_ok(z)` also requires the standing
@@ -657,7 +657,9 @@ class Mover:
         pauses, sidesteps or reading waits, running whenever stamina allows.
         `stop(state)`: checked before planning and before every step; a truthy
         answer ends the walk there (a patrol meeting something to do), and is
-        returned. None when the walk arrived."""
+        returned. `max_moves`: abort after this many steps; None (the default,
+        user decision 2026-10-04) walks as far as the route goes; the replan
+        cap still ends walks that make no progress. None when the walk arrived."""
         gate = tuple(gate) if gate is not None else None
         replans = 0
         start_steps = self.steps
@@ -747,7 +749,7 @@ class Mover:
                         self.replan_requested = False
                         replan = True
                         break
-                    if self.steps - start_steps > max_moves:
+                    if max_moves is not None and self.steps - start_steps > max_moves:
                         raise Abort(f"{label}: exceeded {max_moves} moves")
                     if i + 1 < len(path) and nav.direction(new, path[i + 1]) == d:
                         # landed facing the next tile: the client's auto-open fires on the step
