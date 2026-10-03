@@ -283,16 +283,33 @@ and the session capture of that time (local).
   red can't be told from a grey there by notoriety, and `threats.py` aborts the lumber runner on
   any grey player within 18 tiles. A stationary grey by the Corpse Creek healer (Evil Palacinka,
   never approached) aborted two trips in a row.
-- **The kill.** Bastet (0x0009E217, notoriety 6, mounted, 111 hits, "Serial Killer [Prevalia]",
-  guild [Aggressive Captcha, DVLS]) entered view at 18 tiles. The runner aborted (red, ETA 0.6 s ≤
-  recall 2 s + 1 s margin) and he was adjacent ~1 s later: "Bastet is attacking you!", "Their
-  attack hamstrings you!", hits −15 −32 −25 −23 −7 in ~6 s (100 → 0), "You have lost a moderate
-  amount of fame." Outside guards at (871,1481); the last guard message was the exit at 18:40.
+- **The kill, timed from the memory-store `events` (proxy clock):**
+
+  | t (s) | 19:43 | Event |
+  |---|---|---|
+  | 0.00 | 18.072 | Bastet's labels arrive: entered view (0x0009E217, notoriety 6, mounted, 111 hits, "Serial Killer [Prevalia]", [Aggressive Captcha, DVLS]) |
+  | 0.29 | 18.358 | lumber runner aborts: "red Bastet at 18 tiles (ETA 0.6 s)" |
+  | 1.12 | 19.194 | the chop already in flight reports a fail (500495) |
+  | 2.80 | 20.869 | "Bastet is attacking you!" |
+  | 4.58 | 22.651 | first hit −15, "Their attack hamstrings you!" |
+  | 6.48 | 24.549 | −32 |
+  | 6.89–10.93 | 24.957–29.006 | Bastet overhead text "5", "4", "3", "2", "1", hue 2118, one per second (meaning unknown; it ends on the killing blow) |
+  | 8.35 | 26.418 | −25 |
+  | 9.65 | 27.717 | −23 |
+  | 10.96 | 29.028 | −7, `death` at (871,1481), "You have lost a moderate amount of fame." |
+
+  **~11.0 s from first sight to death; 4.6 s to the first hit.** 102 damage in 5 hits over 6.4 s.
+  The runner's ETA (0.6 s) was far too pessimistic: the first attack came 2.8 s after sight.
+  Outside guards; the last guard message was the exit at 18:40.
 - **What the harness didn't see.** Tracking in Hunting mode on murderer players was on the whole
   time and recorded **no hit** before or during the attack (`status.tracking.hits` empty).
-  `status.attackers` (S2C `0x2F` swings at us) stayed empty through all five hits. A mounted red
-  covers 18 tiles in ~1 s (s_per_tile 0.1), so a reaction that starts at first sight can't escape
-  on foot or by a 2 s recall cast. Only a pre-cast or instant escape could.
+  `status.attackers` stayed empty because the server sent **no `0x2F` swing with Bastet as the
+  attacker**: the only two (22.651, 26.615) are Hackworth → Bastet (auto-defence). His hits arrive
+  only as damage numbers. So "being attacked" can't be read from `0x2F`; "X is attacking you!" and
+  damage numbers are the signals.
+- **Escape window [INFERENCE].** There were 4.6 s between first sight and the first hit, so a
+  recall started at sight (Magery cast ~2 s, before any hit could disturb it) might have got out.
+  The abort did nothing protective: it stopped the runner and left him standing.
 - **After death:** a "Report Murder" gump (0x1F3940C6, Accept 2 / Decline 3; the user chose
   decline, but it had closed by itself after the resurrection). Ghost walk 144 steps to Galatea
   the healer (Terran, 735,1531); within 2 tiles the "Resurrection" gump (0xB04C9A31, Accept 1).
