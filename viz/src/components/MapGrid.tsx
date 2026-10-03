@@ -142,7 +142,11 @@ function followTarget(s: Scene): Tile {
   return t ?? [0, 0];
 }
 
-export function MapGrid({ viz }: { viz: VizSnapshot }) {
+/** The camera across a remount (the map moving between the centre and the side); not across reloads. */
+let keptView: Pick<View, "camX" | "camY" | "zoom" | "follow"> | null = null;
+
+/** `onSwap`, when given, adds a button that swaps the map with the live view (App). */
+export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const initialProj: Projection = localStorage.getItem(PROJECTION_KEY) === "iso" ? "iso" : "topdown";
@@ -156,8 +160,9 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
     drag: null,
     w: 0,
     h: 0,
+    ...keptView,
   });
-  const [follow, setFollow] = useState(true);
+  const [follow, setFollow] = useState(view.current.follow);
   const [proj, setProj] = useState<Projection>(initialProj);
   const initialTerrain = localStorage.getItem(TERRAIN_KEY) !== "off";
   const terrainOn = useRef(initialTerrain);
@@ -485,6 +490,14 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
 
   useEffect(draw, [scene, draw]);
 
+  useEffect(
+    () => () => {
+      const { camX, camY, zoom, follow } = view.current;
+      keptView = { camX, camY, zoom, follow };
+    },
+    [],
+  );
+
   // Size the backing store to the container (device pixels).
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -634,6 +647,11 @@ export function MapGrid({ viz }: { viz: VizSnapshot }) {
         >
           terrain
         </button>
+        {onSwap && (
+          <button type="button" title="swap the map and the live view" onClick={onSwap}>
+            ⇄ swap
+          </button>
+        )}
       </div>
       <div className="map-legend">
         <span className="lg lg-walk" /> walked

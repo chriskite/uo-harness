@@ -469,9 +469,17 @@ A **Paperdoll** panel in the left column shows the character as the game's paper
 A **Live view** panel in the left column (live mode only) streams the game window around the
 character.
 - Off by default ("watch" / "stop"). Zoom: wide 1600×1200 / medium 960×720 / close 640×480
-  crop, always served at 640×480. "⤢" opens the stream larger in a new tab.
-- `GET /api/live.mjpeg?zoom=1-3&fps=1-10` (`multipart/x-mixed-replace`, played by an `<img>`)
-  and `GET /api/live.jpg` (one frame). Both return 503 JSON with the reason when there's no
+  crop, served at 640×480 by default. "⤢" opens the stream larger (1280 wide) in a new tab.
+- **Map ⇄ live swap** (2026-10-02, user request): a "⇄ swap" button on the live panel and in the
+  map controls exchanges the two. Either the map fills the centre and the live view sits in the
+  left column (the default), or the live view fills the centre (letterboxed, frames served 1280
+  wide) and a 280 px map takes its place on the left (no legend; its controls along the bottom).
+  The choice persists in `localStorage["uo-viz-main"]`; a replay has no live view, so it always
+  centres the map. The map remounts on a swap but keeps its camera (zoom, pan, follow) in a
+  module variable; projection and terrain were already persisted.
+- `GET /api/live.mjpeg?zoom=1-3&fps=1-10&w=320-1600` (`multipart/x-mixed-replace`, played by an
+  `<img>`) and `GET /api/live.jpg?zoom=1-3&w=` (one frame). `w` is the served width (default
+  640, height follows 4:3, clamped). Both return 503 JSON with the reason when there's no
   game window; `--no-live` disables them.
 - `harness/liveview.py`:
   - The same passive Windows Graphics Capture as `ctl screenshot` (ANTICHEAT §8.16), throttled
