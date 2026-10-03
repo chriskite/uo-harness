@@ -460,6 +460,16 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
 - **Spellstone known only by graphic after a proxy restart:** item names reach the world model
   through clicks/labels, so the reagent gate saw no "bauble" and blocked spell heals (juncture 161,
   13:26). `combat.reagents` now falls back to the tiledata name ("arielle's bauble", 0x023B).
+- **Hunt crawl (ee62f02):** `run hunt --enter --crawl --pull-range 8 --mana-reserve 999
+  --target-name "" --gheal-min-missing 1` patrols the NPD instead of standing on one spot
+  (docs/HUNT_LOOP.md "Crawl"). The NPD is one connected storey (10,829 tiles, farthest tile 182
+  route steps from the exit) with no known teleporter floors, so the crawl's "levels" are 40-step
+  depth bands; level 1 opens only after ~10 min of level 0 showing under ~20 hits lost/min.
+- **Fight priors from the store:** every engagement is now a `fight` job event. Rebuilt from the
+  event log: mongbat 153 kills, median 29 s and 7 hits lost per kill, 13.8 gold per kill, 35 % of
+  kills without gold (pets/players). A creature the crawl fled from stays avoided in later runs
+  (never pulled, 6-tile danger zone; still fought if it attacks). `python harness/crawl.py
+  floor|priors --memory harness/data/harness.db` prints the floor graph and priors.
 - **Arcane staff vs casting:** "Players with at least 80 skill in Arcane, Wrestling, and Magery
   can continue to cast spells while wielding an Arcane Staff"
   ([wiki Arcane](https://wiki.uooutlands.com/Arcane)). Below that, every cast moves the staff
