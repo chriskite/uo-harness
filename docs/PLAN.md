@@ -459,8 +459,8 @@ run it: docs/NOTES.md "Discord capture".
   The crawl takes a `--until` date per run and resumes from the oldest stored message.
 - **Separate DB (`harness/data/discord.db`), not the memory store.** It's a different domain,
   with its own writer and its own lifecycle, and capture volume shouldn't bloat the hourly
-  `harness.db` snapshots. Search is FTS5 with porter stemming, as in `knowledge`. Embeddings
-  (sqlite-vec) aren't built yet.
+  `harness.db` snapshots. Keyword search is FTS5 with porter stemming, as in `knowledge`; semantic
+  search is below.
 - **Backed up, not committed.** Captured messages are runtime data (AGENTS.md Rule 0), so
   `backup.py` snapshots `discord.db` like `harness.db` (own `discord/` folder, same retention).
   The browser profile holds the login session, so it's treated as a credential: gitignored and
@@ -470,6 +470,27 @@ run it: docs/NOTES.md "Discord capture".
   not taken from the page's own image loads. The page only loads resized previews of images that
   scroll into view, and a fast crawl skips many of them. The signed URLs expire after ~24 h, so
   the downloader runs inside serve, right after capture.
+- **Semantic search (user request 2026-10-03): hybrid, local, a sidecar index.**
+  `harness/discord_search.py`. It merges, by reciprocal rank fusion:
+  - meaning: embeddings of conversation chunks
+  - words: FTS5 BM25 over single messages
+
+  Single chat lines are too short to embed well, so a chunk is one exchange: consecutive
+  messages less than 10 min apart, at most 12 messages or 1200 characters. The model is
+  `BAAI/bge-small-en-v1.5` via fastembed (ONNX on the CPU, nothing leaves the machine after the
+  model download). Vectors live in `harness/data/discord_vec.db`, keyed by the chunk text's hash,
+  and search is brute-force numpy cosine. Rejected:
+  - sqlite-vec: an extension for a corpus that numpy scans in milliseconds
+  - torch/sentence-transformers: a 2 GB dependency, as in `.venv-laya`
+  - a hosted embedding API: sends the corpus out and adds a per-query network call
+
+  The vector file can be regenerated from `discord.db`, so it isn't backed up.
+- **Not wired to the overseer (user decision).** The search is a tool for building knowledge, not
+  something the playing agent asks directly. Discord chat is unreliable: jokes, outdated patch
+  info, wrong answers. **Next (user's plan):** process the corpus with an LLM into a consolidated
+  set of likely-true facts, with sources and confidence, and build a somewhat reliable knowledge
+  base from it. Only that vetted output would reach the agent, e.g. as `knowledge` entries with
+  `source_type` `doc`/`wiki`-level confidence.
 
 ## Reaching the whole map: Witcher-rune spots and guarded walks (decided and built 2026-10-03)
 

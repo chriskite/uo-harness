@@ -534,6 +534,7 @@ class Capture:
         self.unauthorized = False
         self.crawl_task = None
         self.crawl_stop = False
+        self.crawl_queue = []  # (channel id, until_ms, max_loads), consumed by crawl()
         self.crawl_status = {"state": "idle"}
         self.closed = asyncio.Event()
         self.ws_frames = 0
@@ -778,15 +779,17 @@ class Capture:
                 return b
         return None
 
-    async def crawl(self, guild, channels, until_ms, max_loads):
+    async def crawl(self, guild):
+        """Work through self.crawl_queue, which `crawl` requests can extend while it runs."""
         session_end = time.time() + 60 * random.uniform(*SESSION_MIN)
         results = []
-        self.crawl_status = {"state": "starting", "guild": str(guild), "results": results}
+        self.crawl_status = {"state": "starting", "guild": str(guild), "results": results,
+                             "queue": self.crawl_queue}
         try:
-            for ch in channels:
+            while self.crawl_queue:
                 if self.crawl_stop:
                     break
-                ch = str(ch)
+                ch, until_ms, max_loads = self.crawl_queue.pop(0)
                 res = {"channel": ch, "name": self._name(ch)}
                 results.append(res)
                 self.crawl_status["channel"] = res
@@ -904,13 +907,21 @@ class Capture:
         if op == "channels":
             return {"channels": self.store.channels(req["guild"])}
         if op == "crawl":
-            if self.crawl_task and not self.crawl_task.done():
-                return {"error": "a crawl is running"}
             until = datetime.datetime.strptime(req.get("until") or "2015-05-13", "%Y-%m-%d")
+            entries = [(str(c), until.timestamp() * 1000, int(req.get("max_loads", 100000)))
+                       for c in req["channels"]]
+            if self.crawl_task and not self.crawl_task.done():
+                if self.crawl_status.get("guild") != str(req["guild"]):
+                    return {"error": "a crawl of another guild is running"}
+                queued = {e[0] for e in self.crawl_queue}
+                cur = (self.crawl_status.get("channel") or {}).get("channel")
+                add = [e for e in entries if e[0] not in queued and e[0] != cur]
+                self.crawl_queue.extend(add)
+                return {"queued": [e[0] for e in add], "queue": [e[0] for e in self.crawl_queue]}
             self.crawl_stop = False
-            self.crawl_task = asyncio.create_task(self.crawl(
-                req["guild"], req["channels"], until.timestamp() * 1000, int(req.get("max_loads", 100000))))
-            return {"started": len(req["channels"])}
+            self.crawl_queue = entries
+            self.crawl_task = asyncio.create_task(self.crawl(req["guild"]))
+            return {"started": len(entries)}
         if op == "crawl_stop":
             self.crawl_stop = True
             return {"stopping": bool(self.crawl_task and not self.crawl_task.done())}
