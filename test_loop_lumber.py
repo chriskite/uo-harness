@@ -460,6 +460,9 @@ class World:
                 asyncio.get_running_loop().call_later(0.5, self.attacker_appears, None, True)
             elif getattr(self, "chaser", False) and self.good_n == 2:  # a creature hunts us at a far spot
                 asyncio.get_running_loop().call_later(0.5, self.attacker_appears, None, True)
+                # ... and a pickpocket's grab lands in the same moment (live 2026-10-04: 10 mandrake
+                # root gone 75 ms after the thief's flag change; the run fled before booking it)
+                self.later(0.5, [delete(0x44ADB0FF)])
             return
         if self.good_n == 4:                 # a pickpocket lifts part of the stack once, unannounced
             self.logs -= STOLEN
@@ -1251,6 +1254,12 @@ async def library_chased():
     check("an urgent threat juncture says it recalled away (a creature: not a pk_escape)",
           any(j["kind"] == "threat" and "Recalled away" in j["summary"] for j in js)
           and not any(j["kind"] == "pk_escape" for j in js), str([(j["kind"], j["summary"]) for j in js]))
+    thefts = [e for e in store.job_events("lumber") if e["kind"] == "theft"]
+    check("the pack loss in the same moment as the flight is booked: a theft job event and a "
+          "theft_suspected juncture for the black pearls, even though the run ended in the escape",
+          any(any(it.get("graphic") == 0x0F7A for it in e["data"].get("items") or []) for e in thefts)
+          and any(j["kind"] == "theft_suspected" for j in store.junctures()),
+          str([e["data"] for e in thefts])[:400])
     store.close()
 
 

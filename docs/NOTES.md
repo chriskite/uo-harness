@@ -517,6 +517,18 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   for 12 s under monster attack (85 → 40 hits) and exited in the field; the overseer's recall
   landed at 15/100. Now damage, a creature that keeps coming, or too many escapes end the run
   without converting and, away from home, with a recall home first (urgent `threat` juncture).
+- **A pickpocket, not an attack (live 2026-10-04 17:24, witcher_291, Hackworth).** "Caputo Wood"
+  (0x0073C056, a blue) walked up to 1 tile. At 17:24:55.143 a 0x20 MobileUpdate changed his
+  notoriety 1 → **3** (attackable to us only; in RunUO the mark of someone who just aggressed us
+  [INFERENCE for Outlands: a steal attempt does it]), and 75 ms later our 10 mandrake root
+  (0x57E5A7EC, the whole stack) was deleted from the pack. No damage, no swings, no "You notice"
+  text. The runner saw "grey at 1 tile" and recalled home with a tome charge, correctly. It
+  didn't book the loss: the threat check ran before the pack ledger and raised into the escape.
+  Fixed: the ledger runs first, and the escape recall books pack losses before stopping
+  (`theft` job event, `theft_suspected` juncture). Travel recalls by spell now tell the ledger
+  about the reagents they spend, so they never read as theft.
+- **Casting moves the hatchet to the pack** (hatchets are two-handed): "That must be equipped
+  for any serious chopping." The runner's hatchet use re-equips it.
 - **Overseer tooling, live:** `ctl junctures` without `--after` listed the oldest 100, hiding an
   open speech hold for 163 s; it now lists the newest. `act drop --amount 800` split a gold stack
   correctly but returned `ok:false` ("the world model doesn't show the item moved"); not fixed.

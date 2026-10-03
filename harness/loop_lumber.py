@@ -225,8 +225,11 @@ class LumberLoop:
         if mv["stalled"]:
             raise Abort(f"movement stalled ({mv['rejects_in_row']} walks rejected in a row)")
         self.check_gate(st)
-        self.check_threats(st)
+        # The ledger first: a thief's grab and his notoriety change arrive together (live
+        # 2026-10-04: 10 mandrake root gone 75 ms after "Caputo Wood" turned grey next to us),
+        # and the threat check raises into the escape, so a loss read after it is never booked.
         self.check_ledger(st)
+        self.check_threats(st)
         if self.mode == "work":
             self.check_speech(st)
         hits = st["world"]["self"].get("hits")
@@ -507,6 +510,13 @@ class LumberLoop:
         self.travel.append(leg_summary({"leg": "escape", "s": res["elapsed_s"], **data}))
         if not res["ok"]:
             return f"recall failed after {res['attempts']} cast(s): {res['failure']}"
+        # What the pack lost on the way out (a thief's grab arrives with his flag change and
+        # the run ends here): casts spent their reagents, anything else is suspected theft.
+        self.expect_casts(res)
+        try:
+            self.check_ledger(self.link.state())
+        except Abort:
+            pass
         summary = self.post_threat(st, a, worst, swung, "recall", why)
         self.memory.juncture("lumber", "pk_escape" if pk else "threat",
                              f"Recalled away from {summary} ({res['kind']} {res['method']}, "
@@ -1433,6 +1443,7 @@ class LumberLoop:
         st = self.link.state()
         data = {**leg, "trip": self.trip_n, "spot": self.k["spot"]["id"], "s": round(time.monotonic() - t0, 1)}
         if res is not None:
+            self.expect_casts(res)
             data.update({k: v for k, v in res.items() if k not in data})
         else:
             data.update(ok=False, failure=failure, attempts=0, tries=[])
@@ -1444,6 +1455,13 @@ class LumberLoop:
             data["reagents_used"] = {k: n for k, n in used.items() if n > 0}
         self.memory.job_event("lumber", "travel", data, **self._where(st))
         self.travel.append(leg_summary(data))
+
+    def expect_casts(self, res: dict):
+        """Recall casts by spell spend one of each recall reagent: tell the ledger, so a
+        tome without charges doesn't read as theft."""
+        casts = sum(1 for t in res.get("tries") or [] if t.get("method") == "spell")
+        if casts:
+            self.ledger.expect(*[("spent", g, casts) for g in escape_mod.REAGENTS])
 
     def open_bank(self) -> int:
         """Walk up to where the banker stands now and say "bank"; the bank box
