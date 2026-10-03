@@ -355,6 +355,31 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   `death` event (`events` table, ev `death` with x/y) has it; with no trip row around it, the
   optimizer blames it on the spot whose area it's in (terran_wilds).
 
+## Cambria Witcher library and a death on an overseer ride (live 2026-10-03, Hackworth)
+
+- **The Cambria Witcher library works as documented** (docs/research/WORLD_LOCATIONS.md). Moongate
+  arrival (1693, 3153); the 14 locked-down rune tomes stand on benches at (1705–1708, 3180), the
+  serials the Witcher Travel script lists. A tome only opens within **2 tiles** (from 3: no gump,
+  no message). Single-click says only "a rune tome / [mastercrafted by Wild Arms] / [locked
+  down]"; the main page lists rows "N - Place name" (e.g. "286 - Midlands Ruins 1 (South)"), and
+  the 14 tomes hold all 359 rune ids of the ExploreOutlands table plus an extra "83".
+- **Several tomes carry recall charges anyone may use** (2026-10-03 10:20): 25-49 40/50, 50-75
+  1/50, 124-149 44/50, 176-201 42/50, 228-249 38/50, 250-275 33/50, 276-301 40/50, 302-327
+  18/50, 328-353 10/50; the other five 0/50. The row's gem button (100 + row) recalled with a
+  charge: "Kal Ort Por", 10 mana (87 → 77), and we landed **exactly** on the table's tile (1765,
+  2007). No reagents needed.
+- **Death on a long `ctl act goto` (10:23:54).** From that rune the overseer (this session) sent
+  two chained gotos toward the Horseshoe Bay moongate, the first to a waypoint picked blind. The
+  map route crossed a harpy nest around (1880–1890, 1965–2000): harpies and mountain harpies came
+  into view at 10:23:30, a witch harpy ("Spell Siphon", "malediction") at 10:23:39. Nothing
+  reacted: **`ctl act goto` has no threat watch** (the lumber runner's threats.Watch, escapes and
+  HP-drop stop live only in the runner), and it doesn't stop on damage. First hit 10:23:47 (−38),
+  dead 7 s later at (1884, 2036), the waypoint; the riderless horse was killed after. The second
+  goto then walked the ghost on to (2004, 2077). The map planner knows terrain, not spawns, and a
+  250-tile wilderness route is only as safe as what it passes. Lessons: no long blind gotos
+  through unknown wilderness; give goto the runner's threat checks (stop and back off on hostile
+  creatures, stop on damage, stop when dead); learn monster areas from sightings.
+
 ## Runebook and rune tome gumps (live 2026-10-02, TestWorth on the Test Shard)
 
 Read from the memory-store `gump_open` events and the session capture
