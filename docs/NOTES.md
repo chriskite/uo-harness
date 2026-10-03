@@ -442,9 +442,23 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
 - **Shackleworth (2026-10-04), the quest character:** a new Young "Arcane Mage" on the same
   account. Magery, Eval Int, Meditation, Necromancy, Focus and Arcane 60, Wrestling 80. A
   prismatic staff (12–24 damage), arielle's bauble, 10 each of yellow/orange/red potions,
-  100 bandages. Cortina's quest was accepted at 11:42. The accepted-quest gump shows Complete
-  Quest / Abandon Quest near buttons 13 and 16 (ambiguous by label; read `controls` positions
-  before pressing) and 7 Track Progress.
+  100 bandages. Cortina's quest was accepted at 11:42. In the accepted-quest gump the labels of
+  buttons 13 and 16 are ambiguous by position; **16 is Complete Quest** (the user's click at
+  14:39:41 answered `0x6EB3EC0B` with button 16, then "You have completed the quest!"), so 13 is
+  Abandon. 7 is Track Progress.
+- **Quest done 14:39, about 3 h after accepting** (~110 kills, mostly mongbats plus giant rats and
+  headless; overseer subagent). Progress at Cortina: 12:16 2,300 left, 12:58 1,864, 13:38 1,165,
+  14:39 complete. The fight spot (5539, 507) made ~250 gold per 15 min; the crowded entrance far
+  less. Spent 150 gold on 15 lesser heal potions from Minka; the gold spent didn't reduce quest
+  progress (it counts gold earned). Banked 1,818.
+- **The reward, "New Player Locations"** (rune tome [blessed], graphic 0x71AF): 50/50 recall
+  charges, 0/50 gate. Runes: Prevalia Bank, Prevalia Innkeeper, Prevalia Stables, Prevalia
+  Society Hall (Quests), Shelter Island Bank, Shelter Island Moongate, New Player Dungeon,
+  Prevalia Sewers, Ratman Hovel, Urukton Bluffs. It stays with Shackleworth (blessed; whether it
+  can be traded isn't known).
+- **Overseer tooling, live:** `ctl junctures` without `--after` listed the oldest 100, hiding an
+  open speech hold for 163 s; it now lists the newest. `act drop --amount 800` split a gold stack
+  correctly but returned `ok:false` ("the world model doesn't show the item moved"); not fixed.
 - **Stationary Penalty decoded (2026-10-04, 26 captures):** buff 0xFF sub 8, icon 277. `{value}`
   (steps left) is `timers[0].seconds`: 5, 4, 3, 2, 1, then removed (sub 9) on the 5th step that
   changes our tile; runs and stepping back onto the tile just left both count. It comes 301–315 s

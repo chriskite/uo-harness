@@ -289,13 +289,17 @@ class Memory:
         self.con.commit()
         return cur.lastrowid
 
-    def junctures(self, after_id: int = 0, open_only: bool = False, limit: int = 100) -> list[dict]:
-        """Junctures with id > after_id, oldest first."""
+    def junctures(self, after_id: int = 0, open_only: bool = False, limit: int = 100,
+                  newest: bool = False) -> list[dict]:
+        """Junctures with id > after_id, oldest first; `newest`: the last `limit` of them
+        (still oldest first)."""
         q = ("SELECT id, t, source, kind, severity, summary, data, acked_t FROM junctures WHERE id > ?"
-             + (" AND acked_t IS NULL" if open_only else "") + " ORDER BY id LIMIT ?")
+             + (" AND acked_t IS NULL" if open_only else "")
+             + (" ORDER BY id DESC LIMIT ?" if newest else " ORDER BY id LIMIT ?"))
         keys = ("id", "t", "source", "kind", "severity", "summary", "data", "acked_t")
         out = []
-        for row in self.con.execute(q, (after_id, limit)):
+        rows = self.con.execute(q, (after_id, limit)).fetchall()
+        for row in (reversed(rows) if newest else rows):
             d = dict(zip(keys, row))
             d["data"] = json.loads(d["data"])
             out.append(d)

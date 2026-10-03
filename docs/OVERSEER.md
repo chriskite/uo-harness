@@ -48,7 +48,7 @@ Global options go **before** the command. Every call prints exactly one JSON obj
 | `ack <id>` | Closes a juncture (`acked_t`). Acking `gm_suspected` stops the staff alarm. |
 | `alert <why> [--serial S]` | **Possible staff (GM).** Posts an urgent `gm_suspected` juncture (`{reason, serial}`) and sounds the staff alarm (two-tone, distinct from the captcha alert beeps) so the human at the PC comes to check. It repeats every 30 s from a holding harvest job and from `wait` until the juncture is acked; a holding job won't resume while one is open. Allowed while a task runs. A second `alert` while one is open re-sounds it (`already_open`). |
 | `break` | Starts the agent gate's scheduled break now (`{"op":"gate","action":"break"}`), e.g. once the character is home after a `break_due` juncture. Refused while already on a break. Returns the gate (`break_until`). |
-| `junctures [--open] [--after N] [--limit N]` | Lists junctures. |
+| `junctures [--open] [--after N] [--limit N]` | Lists junctures, oldest first: the newest `--limit` (100) without `--after`, else the first `--limit` with id > N. |
 | `chat [--after N] [--limit N] [--role R]` | Lists chat rows. |
 | `say <text>` / `think <text>` / `note-action <text>` | Chat row, role `overseer`, kind `message` / `thought` / `action`. |
 | `act <name> [args]` | One stock action through the proxy control port (below). |
@@ -221,7 +221,7 @@ sessions in the memory store's `knowledge` table (docs/MEMORY.md). Kinds:
 
 | Command | Does |
 |---|---|
-| `know add --kind K --topic T [--tags a,b] [--entity NAME]… [--at X Y \| F X Y] [--source observed\|user\|wiki\|doc\|inferred] [--ref EVIDENCE] [--confidence C] [--importance 1-10] [--supersedes ID] CONTENT…` | Stores an entry. The same content again **confirms** the existing entry (confidence up) instead of adding a copy. The reply lists `related` entries (same topic or similar wording), so you can see a conflict and supersede |
+| `know add --kind K --topic T [--tags a,b] [--entity NAME]… [--at X Y \| F X Y] [--source observed\|user\|wiki\|doc\|community\|inferred] [--ref EVIDENCE] [--confidence C] [--importance 1-10] [--supersedes ID] CONTENT…` | Stores an entry. The same content again **confirms** the existing entry (confidence up) instead of adding a copy. The reply lists `related` entries (same topic or similar wording), so you can see a conflict and supersede |
 | `know update ID [CONTENT…] [--topic] [--tags] [--at] [--confidence] [--importance] [--source --ref]` | A content or topic change makes a **new version** that supersedes the old one (history kept); other fields change in place |
 | `know confirm ID [--source --ref]` | Seen true again: confirmations += 1, confidence up |
 | `know retract ID --reason R` | It was wrong: retracted with the reason, never deleted |
@@ -346,6 +346,10 @@ Paste this (or point the session at this section) to start an overseer.
 >    Before deciding, `ctl know search <the situation>` (or `know brief`). What you already
 >    learned beats guessing. Looking for an NPC or vendor? `ctl npcs <title>` first: the world
 >    model remembers everyone seen so far (out of view: last seen), so don't wander to find them.
+>    - Entries tagged `discord` (source `community`, or `doc` for patch notes; ref `discord-kb:N`)
+>      are claims from the community Discord. Use them as leads, not truth. When play shows one
+>      is true, `ctl know confirm ID --source observed --ref <evidence>`; when it's wrong,
+>      `ctl know retract ID --reason …` (the pipeline never re-adds a retracted entry).
 > 4. `ctl ack <id>` every juncture you have handled; `ctl note-action` anything you did outside
 >    `ctl`.
 > 5. **Remember what you learned** (`ctl know add`). Kinds:

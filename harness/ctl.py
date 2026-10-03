@@ -772,7 +772,9 @@ def cmd_ack(a, mem):
 
 
 def cmd_junctures(a, mem):
-    return {"ok": True, "junctures": mem.junctures(after_id=a.after, open_only=a.open, limit=a.limit)}
+    # Without --after: the newest `limit` (live 2026-10-04 the oldest 100 hid an open speech hold).
+    return {"ok": True, "junctures": mem.junctures(after_id=a.after or 0, open_only=a.open, limit=a.limit,
+                                                   newest=a.after is None)}
 
 
 def cmd_chat(a, mem):
@@ -2639,7 +2641,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(fn=cmd_ack)
     p = sub.add_parser("junctures")
     p.add_argument("--open", action="store_true")
-    p.add_argument("--after", type=int, default=0)
+    p.add_argument("--after", type=int, default=None, help="only ids above this, oldest first "
+                   "(default: the newest --limit)")
     p.add_argument("--limit", type=int, default=100)
     p.set_defaults(fn=cmd_junctures)
     p = sub.add_parser("chat")
