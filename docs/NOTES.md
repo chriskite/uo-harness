@@ -529,6 +529,15 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   about the reagents they spend, so they never read as theft.
 - **Casting moves the hatchet to the pack** (hatchets are two-handed): "That must be equipped
   for any serious chopping." The runner's hatchet use re-equips it.
+- **The lumber runner runs from creature damage (afcd4b0).** When one creature hits at hits ≥ 60 %
+  (`--creature-recall-at`), it walks out of that creature's reach (ranged: the 12-tile spell range
+  + 2, user decision; melee: flee radius + 2) and chops on at a tree outside it. A re-hit within
+  10 s of arriving (`--creature-rehit-s`), low hits, two possible attackers or no escapes left
+  still recall home without converting. Outlands never names the attacker, so
+  `threats.hit_attackers` infers it (adjacent creatures, else every creature within 12 tiles =
+  ranged); each episode is a `monster_hit` job event, and a sole attacker's body is learned as
+  aggressive/ranged with its reach raised to the farthest hit. Gazer (body 22) is ranged from the
+  start. Trees within reach of a known-aggressive creature in view wait until it leaves.
 - **Second Bastet death (live 2026-10-04 18:04, witcher_282 Nusero Island SE, Hackworth).**
   Timeline from the store: 18:04:38.44 Bastet ("Serial Killer [Prevalia]", "[Aggressive
   Captcha, DVLS]", red) appears at 11 tiles. He carries the **Stationary Penalty buff (icon 277),
