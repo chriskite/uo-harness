@@ -313,7 +313,7 @@ read-only, 2026-10-03 ~16:00, Hackworth on Witcher spots): 21 lumber trip rows (
 | Spot choice: overhead T and travel | walk out, convert, to bank, store; travel between spots; the recall legs | trip row `phases_s`, `walk_out_s`; travel between spots learned from trip gaps; recall legs in `travel` job events (4; out leg sample: `charge`, 2.25 s, 38 charges) | had for walking spots. **Added:** each leg's `s` (walk to the library + casts), `walk_s`, `tries` (every cast: method, failure, seconds), `trip`, `spot`, `book`, `witcher_rune` (the 4 old events store the tome's *row* index in `rune`: the rune id was overwritten; the name "291 - …" still says it), failed walks/recalls as events (`ok: false`); trip row `travel` + `travel_s` |
 | Travel lockout | seconds waited at the first tree after a recall | was in field time (6 "recently traveled" lines in the store, 9-48 s) | **added** `lockout_s`; counted as overhead |
 | Failed trips as evidence | outcome, why, logs 0, place vs. travel vs. threat | trip row `outcome`/`why` (2; "to the rune library: exceeded 250 moves", "threat: red Lord Rasta Brazil …") | had; travel failures now carry no field time |
-| Hazard per spot | sightings in trips, exposure (field time), deaths | `pk_seen` job events (10), field time, proxy `death` events (3; attributed by time/place) | had |
+| Hazard per spot | sightings in trips, exposure (field time), deaths | `pk_seen` job events (10), field time, proxy `death` events (3; attributed by time/place) | had; since 2026-10-04 tracked reds too (`source: tracking`), counted only within the react range and once per red per run (`counted`, §13 "Tracking reds"); hunt coverage per trip in the row's `tracking` |
 | Death cost | carried logs, hatchet price, newbied, recovery time | `carried_end` (2), `hatchet.newbied`, prices table (0 rows) | had; recovery 20 min is still [INFERENCE] (no resurrection timing per death recorded) |
 | PK escapes | recall/guard flight in a trip, which spot | `recall` job event (1: Cambria rune, 47 charges, 2.24 s) / `guard_flight` (0) | had; `trip`, `spot`, `book` **added** to the `recall` event and an `escape` leg in the trip row's `travel` |
 | Trip size Q* | λ, T, hazard, death cost | the above | had |
@@ -603,6 +603,67 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     no timeout, HP, creature or speech checks.
   - **Live check (TestWorth, Test Shard):** the runner's path with a fake red, 2.11 s from press
     to arrival. `test_escape.py` pins the gump parsing on the captured layouts.
+- **Tracking reds (since 2026-10-04, user order: "while lumbering, always be tracking reds";
+  `harness/tracking.py`, shared with `ctl act track`):**
+  - **Measured first (live store read-only, 2026-10-03 ~16:30: 940 k events, 57 sessions
+    09-28 → 10-03, buff 173 add/remove, the hunt's System lines, quest arrows, deaths, travel):**
+    - Hunting murderers ran 39 min (session 20261002_153718, 17:33 → session end) and 82 min
+      (20261002_183845, 18:40 → 20:01, Terran/Corpse Creek, the Bastet death inside it), both
+      started by `ctl act track reds`. Nothing has hunted since 2026-10-03: every session that day
+      logged in with the buff removed and no Begin, so today's Witcher runs had no tracking.
+    - **What ends Hunting: only Stop and relog.** At every login (4 sessions) the server sends buff
+      173 three times and then removes it (`0xFF` sub 9), with no "You stop hunting." line. The
+      mode survives the relog: the first mode click after it answered "criminal players", the one
+      after murderer players. **Not** ending it: a runebook recall (17:47:44, into Terran: the buff
+      is re-sent, nothing removed), a second teleport-like re-send 20 s later, death and
+      resurrection (19:43:29 / 19:45:07: the buff re-sent at both, never removed), Lumberjacking
+      (154 and 470 attempts while hunting), time (82 min unbroken). Moongates and Camping weren't
+      seen while hunting. "You must wait a few moments to use another skill." (500118) occurs once
+      in the whole store, after a category click, never from chopping.
+    - **Hits:** 17 arrows, all on Shelter on 2026-10-01 (passive/innocent hunts): players 3–9
+      spaces, creatures 5–20 (the llama 20, out of view). A target in range is re-hit every
+      5.0–5.8 s; the llama 43 s and 9 min apart.
+    - **No murderer hit was ever recorded.** 121 min of murderer hunts off Shelter gave no "Now
+      tracking" line and no arrow, though a red stood in view during one: Bastet (notoriety 6, 18
+      tiles, Corpse Creek, 11 s before he killed us). The store has 10 `pk_seen` (2 reds, 8 greys);
+      the other red, Lord Rasta Brazil (2026-10-03 15:34), came while nothing hunted. Why the
+      Bastet hunt found nothing is open [INFERENCE: Tracking 60's chance or range, or the lawless
+      region]. So the escape below is untested against a live red hit, and in-view sighting stays
+      the main trigger.
+  - **Keep it on:** the runner hunts murderer players the whole run: at the start (before the
+    first walk or recall), after the travel out and home, and before each chop whenever the
+    hunt is off or on another mode. On/off comes from "You begin/stop hunting." (our serial) and
+    buff 173 add/remove on self (a relog drops only the buff); the mode from the System's "You
+    will now hunt …". The clicks are `ctl act track reds`'s (`tracking.hunt`): UseSkill 38 only
+    without the open gump, the mode arrows the short way, Begin, at the human's pace. At most one
+    try per `--track-retry-s` (30); a 500118 waits for the next try. With Tracking 0 in the skill
+    list, or a gump that never opens, the runner logs "tracking unavailable" once, records it and
+    lumbers on. `--track off` disables all of it.
+  - **React to hits:** a hit while hunting murderer players (the world model keeps the mode at
+    hit time) is a red, possibly out of view. Its distance is Chebyshev from us to the arrow's x/y
+    (the "(N spaces to target)" line when there's no arrow). Within `--track-react-range` (40,
+    user decision 2026-10-04) at a pvp spot while out at it (after the travel out, until home),
+    it is the red escape above: `recall_out` with why `tracking: <name> N spaces`, the guard
+    flight if that fails, then stop. Each new hit is checked, so a red first found far that
+    comes within 40 triggers then. A red already recalled from never triggers again in the run,
+    and hits from before the runner started (an arrow left up) are ignored.
+  - **Sightings:** every red the hunt finds is a `pk_seen` job event with `source: tracking`,
+    `serial`, `name`, arrow `x`/`y`/`z`, `distance`, `spaces`, `mode`, `in_range`, `react`,
+    `react_range` and `counted`: once when first found and once more when it first comes within
+    range. In-view sightings now carry `source: view` and `counted` too. **Hazard: only counted
+    sightings feed `lumber_opt`** (`store_inputs`): within the react range, and once per serial per
+    run across view and tracking. Farther hits weigh 0, not a lower weight: at high skill the hunt
+    finds reds sitting in their houses far away, and any weight would keep charging a spot near a
+    red's house for every trip forever, while the house is no danger at 40+ tiles. A red that
+    walks into range does count. The Jobs page still counts every `pk_seen`.
+  - **Recorded:** a `tracking` job event per try (`where`, `ok`, `clicks`, `error`, `skill`,
+    `trip`; `unavailable` when there is no skill) and the trip row's `tracking`: `on_s`, `off_s`,
+    `on_frac` (time hunting murderers / trip time), `hits`, `murderer_hits`, `attempts`
+    (+ `unavailable`).
+  - **Test:** `test_loop_lumber.py` "tracking reds": the library trip against the captured gump,
+    buff and arrow packets. Hunting starts before the tome; the recall out stops it (simulated,
+    since live recalls don't) and it comes back with one Begin; a red 60 tiles off mid-chop is
+    logged only, then at 30 tiles the runner recalls home. There are no other tracking clicks.
 - **Carried wood is boards (since 2026-10-01):** an abort during the harvest converts the log
   stacks in the pack before the runner exits, unless stopping at once is safer: a player/red threat,
   a non-creature attacker, a creature stop (below), death, a captcha that wasn't solved (a server

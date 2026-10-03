@@ -847,8 +847,11 @@ def store_inputs(memory) -> dict:
         d = json.loads(data)
         deaths.append({"t": t, "x": d.get("x"), "y": d.get("y")})
     attempts = memory.con.execute("SELECT t, facet, x, y, z, outcome FROM harvest_attempts ORDER BY t").fetchall()
+    # a tracked red beyond the react range, or one already counted this run, isn't a sighting
+    # (loop_lumber.track_sighting `counted`; LUMBER_LOOP.md §13 "Tracking reds")
     return {"episodes": memory.episodes("lumber"),
-            "sightings": [e["t"] for e in memory.job_events("lumber") if e["kind"] == "pk_seen"],
+            "sightings": [e["t"] for e in memory.job_events("lumber")
+                          if e["kind"] == "pk_seen" and e["data"].get("counted", True)],
             "deaths": deaths, "regrow": regrowth(attempts), "prices": memory.prices(),
             "logs_per_success": logs_per_success(memory)}
 

@@ -41,6 +41,13 @@ the run. An abort while harvesting converts the carried logs first when that
 is safe, so carried wood is boards. A break announced by the agent gate
 (break_due) ends the trip early: convert, bank, exit 0 for `ctl break`.
 
+Tracking (tracking.py; LUMBER_LOOP.md §13 "Tracking reds"): Hunting murderer
+players is kept on for the whole run (at the start, after travel, between chops
+whenever the server's lines or the buff say it's off; one try per --track-retry-s).
+A murderer hit within --track-react-range tiles at a pvp spot is a red sighting:
+recall home like for a red in view. Every murderer hit is a `pk_seen` event
+(source 'tracking'); only near ones count as the spot's hazard.
+
 Run:  python harness/loop_lumber.py --spot horseshoe_bay [--trips 1] [--logs-per-trip 15]
 """
 import argparse
@@ -74,6 +81,7 @@ import stationary  # noqa: E402
 import places  # noqa: E402
 import captcha  # noqa: E402
 import combat  # noqa: E402
+import tracking  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 NEXT_TREE_PLANS = 6           # nearest trees (straight line) whose walks next_tree() compares
@@ -196,6 +204,12 @@ class LumberLoop:
         self.travel = []             # this trip's travel legs (travel_leg): the episode row's `travel`
         self.players_seen = {}       # serial -> name of every player in view this trip (crowding, threats)
         self.reagents0 = {}          # reagent counts in the pack at the trip start (supplies used)
+        self.trk = tracking.Keeper(tracking.MURDERERS, args.track_retry_s)   # our own hunt, as the server reports it
+        self._trk_scan = 0           # link.events index folded into self.trk
+        self.afield = False          # at the spot (after go_out, until home): a tracking hit sends us home
+        self.sighted = {}            # serial -> in react range when its tracking sighting was last logged
+        self.counted = set()         # hostile serials whose sighting counts as the spot's hazard (lumber_opt)
+        self.escaped = set()         # serials a tracking hit already recalled us away from
 
     def doing(self, kind: str, text: str, target=None):
         """Tell the visualizer what the agent is trying to do (proxy-side only)."""
@@ -264,7 +278,9 @@ class LumberLoop:
         players still stop the run); while converting before a stop, only
         players and death count. With no recall (no book, or it failed) a player
         threat sends us running to the guards (flee_to_guards); during that flight
-        only death and the server's 500112 count."""
+        only death and the server's 500112 count. Tracking hits are read here too
+        (check_tracking): a near murderer hit is a red out of view."""
+        self.track_observe(st)
         a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
         self.last_threats = a
         if a.dead:
@@ -276,7 +292,9 @@ class LumberLoop:
         for t in a.threats:
             if t.hostile and t.player and t.serial not in self.seen_hostiles:
                 self.seen_hostiles.add(t.serial)
-                self.memory.job_event("lumber", "pk_seen", t.to_dict(), **self._where(st))
+                data = {**t.to_dict(), "source": "view", "counted": t.serial not in self.counted}
+                self.counted.add(t.serial)
+                self.memory.job_event("lumber", "pk_seen", data, **self._where(st))
             if t.player and t.distance >= 0:
                 self.players_seen[t.serial] = t.name
         by_serial = {t.serial: t for t in a.threats}
@@ -297,6 +315,7 @@ class LumberLoop:
             if self.k["pvp"]:
                 self.flee_to_guards(st, a, worst, swung, why)
             self.threat_stop(st, a, worst, swung, Unsafe, why)
+        self.check_tracking(st, a, swung)
         if self.mode == "salvage":
             return
         if a.damage["lost"] > 0 or a.damage["damage_events"] > 0:
@@ -321,6 +340,118 @@ class LumberLoop:
                 names.add(text[: -len(" is attacking you!")])
         self._attack_scan = len(ev)
         return [t for t in a.threats if t.player and t.name in names]
+
+    # ------------------------------------------------------------ tracking reds
+    def track_observe(self, st):
+        """Fold the world events since the last call into our hunt's state (tracking.Keeper)."""
+        ev = self.link.events
+        self.trk.observe(st["world"], ev[self._trk_scan:], self.self_serial(st), time.monotonic())
+        self._trk_scan = len(ev)
+
+    def check_tracking(self, st, a, swung):
+        """New Tracking hits (world.tracking.hits since the run started). A hit while
+        hunting murderer players is a red within tracking range, maybe beyond the view:
+        a `pk_seen` job event (source 'tracking'; per red: the first hit, and the first
+        one within --track-react-range). Within that range (Chebyshev to the arrow, else
+        the "N spaces" line) at a pvp spot while out at it, the red escape: recall home
+        (recall_out, reason 'tracking: <name> N spaces'), else run to the guards, then
+        stop. Farther hits are logged only: at high skill Tracking finds reds sitting in
+        their houses far away. A red we already recalled away from doesn't trigger again."""
+        pos = st["movement"].get("pos")
+        for hit in self.trk.new_hits(st["world"], pos[:2] if pos else None):
+            if not hit["murderer"]:
+                continue
+            d, serial = hit["distance"], hit["serial"]
+            near = d is not None and d <= self.args.track_react_range
+            react = near and self.k["pvp"] and self.afield and serial not in self.escaped
+            self.track_sighting(st, hit, near, react)
+            if not react:
+                continue
+            self.escaped.add(serial)
+            name = hit["name"] or f"0x{serial:08X}"
+            why = f"tracking: {name} {d} spaces"
+            p = self.watch.params
+            worst = threats.Threat(serial=serial, name=hit["name"], body=None, notoriety=6, kind="red", player=True,
+                                   evidence=[f"Tracking hit while hunting {tracking.MURDERERS}"], hostile=True,
+                                   distance=d, s_per_tile=p.mounted_s_per_tile, strike_range=p.player_strike_range,
+                                   eta_s=round(max(0, d - p.player_strike_range) * p.mounted_s_per_tile, 1),
+                                   action="flee", reason=why)
+            log(f"TRACKING: red {name} {d} tiles away (arrow at {hit['x']},{hit['y']}); escaping")
+            fail = self.recall_out(st, a, worst, swung, why=why) if self.recall_book is not None else "no recall book"
+            self.flee_to_guards(st, a, worst, swung, f"{why}; {fail}")
+            self.threat_stop(st, a, worst, swung, Unsafe, f"{why}; {fail}")
+
+    def track_sighting(self, st, hit, near: bool, react: bool):
+        """A tracked red as a `pk_seen` job event, the in-view sighting's sibling: source
+        'tracking', name, serial, arrow x/y/z, distance, in_range, react, and `counted`:
+        whether lumber_opt counts it as the spot's hazard (within range and not already
+        counted from a sighting of the same serial this run, in view or tracked)."""
+        serial = hit["serial"]
+        prev = self.sighted.get(serial)
+        if prev is not None and (prev or not near):
+            return
+        self.sighted[serial] = near
+        counted = near and serial not in self.counted
+        if counted:
+            self.counted.add(serial)
+        data = {"source": "tracking", "serial": serial, "name": hit["name"], "kind": "red", "player": True,
+                "hostile": True, "x": hit["x"], "y": hit["y"], "z": hit["z"], "distance": hit["distance"],
+                "spaces": hit["spaces"], "mode": hit["mode"], "in_range": near, "react": react,
+                "react_range": self.args.track_react_range, "counted": counted, "trip": self.trip_n}
+        self.memory.job_event("lumber", "pk_seen", data, **self._where(st))
+        log(f"tracking: red {hit['name'] or f'0x{serial:08X}'} {hit['distance']} tiles away"
+            + ("" if near else f" (beyond {self.args.track_react_range}: logged only)"))
+
+    def track_ensure(self, where: str):
+        """Keep Hunting murderer players on (--track reds): when the server's lines or
+        the buff say it's off or on another mode, the stock sequence (tracking.hunt:
+        UseSkill only without the gump, the mode arrows, Begin) at the human's pace,
+        between chops, at most one try per --track-retry-s. Another skill's cooldown
+        (500118) waits for the next try; no Tracking skill is logged once and recorded,
+        and the run carries on without. Each try is a `tracking` job event."""
+        if self.args.track == "off" or self.trk.unavailable:
+            return
+        st = self.link.state()
+        self.track_observe(st)
+        now = time.monotonic()
+        if not self.trk.due(now):
+            return
+        sk = tracking.skill(st["world"])
+        if sk is not None and sk <= 0:
+            self.track_unavailable(where, "no Tracking skill (0.0)")
+            return
+        self.trk.last_try = now
+        self.trk.attempts += 1
+        was = f"on ({self.trk.mode})" if self.trk.on else "off"
+        log(f"tracking ({where}): Hunting is {was}; turning on Hunting {tracking.MURDERERS}")
+        resume = self._intent
+        self.doing("track", f"Tracking: hunting {tracking.MURDERERS}")
+        try:
+            res = tracking.hunt(escape_mod.LinkIO(self.link), tracking.MURDERERS, self.human,
+                                hunting=self.trk.on, busy_tries=1)
+        except tracking.NoTracking as e:
+            self.track_unavailable(where, str(e))
+            return
+        except tracking.TrackError as e:
+            res = {"ok": False, "clicks": [], "error": str(e)}
+        finally:
+            if resume is not None:
+                self.doing(*resume)
+        self.track_observe(self.link.state())
+        if not res["ok"]:
+            log(f"tracking: not on ({res.get('error') or 'the server did not confirm'}); "
+                f"next try in {self.args.track_retry_s:.0f} s")
+        self.memory.job_event("lumber", "tracking", {"where": where, "ok": res["ok"], "clicks": res["clicks"],
+                                                     "error": res.get("error"), "skill": sk, "trip": self.trip_n},
+                              **self._where(st))
+
+    def track_unavailable(self, where: str, why: str):
+        self.trk.unavailable = why
+        log(f"tracking unavailable ({why}); lumbering without it")
+        st = self.link.state()
+        self.memory.job_event("lumber", "tracking", {"where": where, "ok": False, "unavailable": why,
+                                                     "skill": tracking.skill(st["world"]), "trip": self.trip_n},
+                              **self._where(st))
 
     def prepare_recall(self, st) -> int | None:
         """The red escape's book (escape.py), read once at the start like a player
@@ -355,10 +486,10 @@ class LumberLoop:
         15/100). So: recall home at once when away from home with a book ready, and stop
         without converting (Unsafe). Near home, or without a book, stop where we stand."""
         if self.recall_book is not None and cheb(self.link.pos(st), self.banker_pos()) > HOME_NEAR:
-            why = f"{why}; {self.recall_out(st, a, worst, swung, pk=False, reason=why)}"
+            why = f"{why}; {self.recall_out(st, a, worst, swung, pk=False, why=why)}"
         self.threat_stop(st, a, worst, swung, Unsafe, why)
 
-    def recall_out(self, st, a, worst, swung, pk: bool = True, reason: str | None = None) -> str:
+    def recall_out(self, st, a, worst, swung, pk: bool = True, why: str | None = None) -> str:
         """Recall to the book's default rune at once (escape.escape: up to 3 casts),
         before any bookkeeping, then stop: the `threat` juncture (action 'recall') and
         an urgent `pk_escape` juncture when it landed (`pk`; a creature escape posts
@@ -370,16 +501,18 @@ class LumberLoop:
             return f"recall not possible: {e}"
         data = {**res, "trip": self.trip_n, "spot": self.k["spot"]["id"], "book": f"0x{self.recall_book:08X}",
                 "threat": worst.to_dict() if worst else None, "attackers": [f"0x{s:08X}" for s in swung]}
+        if why:
+            data["why"] = why
         self.memory.job_event("lumber", "recall", data, **self._where(st))
         self.travel.append(leg_summary({"leg": "escape", "s": res["elapsed_s"], **data}))
         if not res["ok"]:
             return f"recall failed after {res['attempts']} cast(s): {res['failure']}"
-        summary = self.post_threat(st, a, worst, swung, "recall")
+        summary = self.post_threat(st, a, worst, swung, "recall", why)
         self.memory.juncture("lumber", "pk_escape" if pk else "threat",
                              f"Recalled away from {summary} ({res['kind']} {res['method']}, "
                              f"{res['press_to_arrival_s']} s); stopped", "urgent", data)
-        why = f" ({reason})" if reason else ""
-        raise Unsafe(f"threat: {summary}{why}; escaped by recall to {tuple(res['to'])} in {res['elapsed_s']} s")
+        raise Unsafe(f"threat: {summary}" + (f" ({why})" if why else "")
+                     + f"; escaped by recall to {tuple(res['to'])} in {res['elapsed_s']} s")
 
     def guards_entered(self, since: int) -> bool:
         """The server's "You are now under the protection of the town guards." since
@@ -917,6 +1050,8 @@ class LumberLoop:
                 log("break due: no harvesting this trip")
                 return 0
             self.go_out()
+            self.afield = True
+            self.track_ensure("at the spot")
             trees = self.candidate_trees(self.state())
             if not trees:
                 self.stats["dry"] = True
@@ -987,6 +1122,7 @@ class LumberLoop:
         stand = tuple(self.link.pos(self.link.state())[:2])
         while tries < self.args.max_attempts_per_tree and tally["gained"] < self.args.logs_per_trip \
                 and not self.break_due:
+            self.track_ensure("between chops")
             if self.unstick(stand):
                 continue
             self.doing("chop", f"Chopping tree at {spot[0]},{spot[1]} "
@@ -1279,6 +1415,7 @@ class LumberLoop:
         self.travel_leg(leg, t0, res, before)
         if not res["ok"]:
             raise Abort(f"recall home failed: {res['failure']}")
+        self.afield = False
 
     def supplies_now(self, st) -> dict:
         """Mana and reagents in the pack now (travel legs: what a recall cost)."""
@@ -1314,6 +1451,7 @@ class LumberLoop:
         position is only the fallback (the innkeeper's lesson, LUMBER_LOOP.md §13).
         A spot whose way home is a recall recalls first (go_home)."""
         self.go_home()
+        self.track_ensure("home")
         self.doing("to_bank", "Going to the bank: heading to the banker", self.banker_pos())
         self.mover.walk_to(self.banker_pos, self.args.bank_range, "to the banker",
                            z_ok=same_floor(self.banker_z()))
@@ -1326,6 +1464,7 @@ class LumberLoop:
             raise Abort("the bank box did not open (no banker in range?)")
         box = bank_opened(st["world"], self.self_serial(st), self.since(mark))
         log(f"bank box opened (0x{box:08X})")
+        self.afield = False
         return box
 
     def deposit(self, box: int) -> int:
@@ -1375,6 +1514,7 @@ class LumberLoop:
         self.trip_t0 = t0
         self.timing = {"walk_out_s": None, "chop_s": 0.0, "tree_walk_s": 0.0, "lockout_s": 0.0, "stationary_s": 0.0}
         self.travel, self.players_seen = [], {}
+        self.trk.reset()
         phases = {}
         st = self.link.state()
         snap = self.snapshot(st)
@@ -1413,7 +1553,7 @@ class LumberLoop:
                    "steps": self.mover.steps - s0, "blocked": self.mover.blocked_count - b0,
                    "doors_opened": self.mover.doors_opened,
                    "human_session": dict(self.human.stats), **snap, "carried_end": self.carried(),
-                   **self.trip_end(snap), **self.stats}
+                   **self.trip_end(snap), "tracking": self.trk.tally(), **self.stats}
             self.episode(row)
             log(f"trip {n} {outcome}: {row}")
         self.doing("trip_done", f"Trip {n} done: {self.stats.get('logs', 0)} logs, "
@@ -1504,6 +1644,7 @@ class LumberLoop:
         self.guarded(lambda: self.check_guards(self.link.state()))
         self.hatchet(st, self.want_hatchet)
         self.recall_book = self.prepare_recall(st)
+        self.track_ensure("start")
         # routes bend around where hostile creatures were seen lately (travel_guard)
         self.mover.danger_tiles = travel_guard.remembered_tiles(self.memory, self.facet, self.link.pos(st)[:2])
         for n in range(1, self.args.trips + 1):
@@ -1561,6 +1702,14 @@ def main():
                     help="red escape by recall (escape.py): where players can attack (pvp spots) a runebook "
                          "or rune tome with a default rune and a charge or a castable Recall is required to "
                          "start; 'off' runs without it (a red then only stops the run)")
+    ap.add_argument("--track", choices=("reds", "off"), default="reds",
+                    help="keep Tracking's Hunting mode on murderer players all run (tracking.py); murderer hits "
+                         "within --track-react-range at a pvp spot send us home like a red in view")
+    ap.add_argument("--track-react-range", type=int, default=40,
+                    help="tiles (Chebyshev to the tracking arrow) within which a tracked red triggers the escape; "
+                         "farther ones (reds in their houses) are logged only")
+    ap.add_argument("--track-retry-s", type=float, default=30.0,
+                    help="at most one try to turn Hunting back on per this many seconds")
     ap.add_argument("--timeout", type=float, default=3600.0)
     ap.add_argument("--max-blocked", type=int, default=20)
     ap.add_argument("--control-port", type=int, default=25941)

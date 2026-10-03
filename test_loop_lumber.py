@@ -21,13 +21,17 @@ texts of the demonstration capture (logs/session_20260929_204225):
 The "human" answers the unreadable (fallback) captcha through the client connection. Two trips run.
 The banker comes into view within 18 tiles and leaves it beyond 24 (the world model prunes him).
 
-Two more runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
+More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
 - skirmish: the hatchet in a bag in the pack; 'a great hart' in war mode 4 tiles from the tree
   fighting a player (0x2F both ways) is no threat (passive body); a creature that swings at the agent makes
   it escape and harvest the next tree out of reach; the same creature then hunts it down there
   (escape, kept coming: stop, the logs converted first)
 - break: the agent gate (pre-written budget file) announces a break mid-harvest; the trip ends
   at the bank with the carried and new logs banked as boards, exit 0
+- library: recall out from a public tome, recall home with our runebook, bank; twice
+- tracking reds: the library trip with the Tracking gump, buff and arrows as captured; Hunting
+  murderers before going out, back on after the recall out stops it, a far red logged, a near one
+  recalled from
 Plus a unit check of hatchet() (worn, else the shallowest in the pack's bags).
 
 Run: python test_loop_lumber.py   (~2-3 min; private ports; safe while the live proxy runs)
@@ -102,6 +106,15 @@ with open(f"{ROOT}/harness/testdata/escape_gumps.json", encoding="utf-8") as _f:
     _G = json.load(_f)
 TOME_GUMP, BOOK_GUMP = _G["runetome_main_witcher_276"], _G["runebook_charges"]   # captured layouts
 LOCKOUT_S = 2                                             # the travel lockout the simulated server reports
+# tracking scenario (LUMBER_LOOP.md §13 "Tracking reds"): the Tracking gump as captured live (20261001_214649)
+with open(f"{ROOT}/harness/testdata/tracking_gump.json", encoding="utf-8") as _f:
+    TRACK_GUMP = json.load(_f)
+TRACK_ID = 0xFE5C638B
+TRACK_MODES = ("criminal players", "innocent players", "friendly players", "aggressive creatures",
+               "passive creatures", "townsfolk", "all players", "all hostile players",
+               "enemy players", "murderer players")
+RED, RED_NAME = 0x0009E217, "Lord Red"                    # a murderer the hunt finds, never in view
+RED_FAR, RED_NEAR = 60, 30                                # tiles from us at the two hits (react range 40)
 
 
 def check(name, cond, extra=""):
@@ -204,6 +217,33 @@ def buttons(ids):
     return "".join(f"{{ button 10 {20 * i} 2094 2095 1 0 {b} }}" for i, b in enumerate(ids))
 
 
+def hunting_buff(on):
+    """0xFF sub 8 / 9: the Tracking Hunting buff (icon 173) on / off self, as captured live
+    (20261001_214649 at 21:47:30 / 21:48:11, our serial swapped in)."""
+    if on:
+        return bytes.fromhex("ff003900000008") + u32(SELF) + bytes.fromhex(
+            "00ad11ac00020000000000010000000000000000000000000000000cadf5e333000010eff4000000000000000000")
+    return bytes.fromhex("ff000d00000009") + u32(SELF) + bytes.fromhex("00ad")
+
+
+def arrow_set(arrow_id, serial, x, y, z, text):
+    """0xFF sub 0x1A mode 0, the hunt's arrow (live: `ff 0034 0000001a 00 0000 00 03 0000 <serial> <x> <y>
+    <z> "[Hunting] <name>"`)."""
+    body = u32(0x1A) + b"\x00" + u16(arrow_id) + b"\x00\x03" + u16(0) + u32(serial) + u32(x) + u32(y) \
+        + u32(z) + text.encode() + b"\x00"
+    return b"\xff" + u16(3 + len(body)) + body
+
+
+def arrow_cancel(arrow_id):
+    return bytes.fromhex("ff000a0000001a01") + u16(arrow_id)
+
+
+def skills_pkt(tracking):
+    """0x3A full skill list (type 0, ids 1-based, 0-terminated) with Tracking (38) at `tracking` tenths:
+    0 for a character without the skill (the runner then never tries it)."""
+    return var(0x3A, b"\x00" + u16(38 + 1) + u16(tracking) + u16(tracking) + b"\x00" + u16(0))
+
+
 CAPTCHA_SUBMIT = 843        # random per captcha on the server (demo 594, live 843); never 594 here
 # a real captured captcha layout (session 20260929_204225, accepted answer "326"),
 # with the demo's submit button id swapped for CAPTCHA_SUBMIT
@@ -223,9 +263,10 @@ DECOY_LAYOUT = ("{ nomove }{ noclose }{ nodispose }{ noresize }{ page 0 }{ page 
 
 class World:
     def __init__(self, scenario="bank"):
-        self.scenario = scenario          # "bank" (the main run), "skirmish" or "break"
+        self.scenario = scenario          # "bank" (the main run), "skirmish", "break", "library" or "tracking"
         self.scripted = scenario == "bank"  # captchas, the passer-by's speech, the pickpocket
-        self.pos = list(LIB_START) if scenario == "library" else list(START)
+        self.library = scenario in ("library", "tracking")   # the rune library, our runebook, a pvp spot
+        self.pos = list(LIB_START) if self.library else list(START)
         self.facing = 0
         self.writer = None
         self.c2s = []
@@ -273,6 +314,14 @@ class World:
         self.home_disturbed = 0           # library: the first recall home is disturbed (escape casts again)
         self.lockout_due = False          # library: the first chop after a recall out meets the travel lockout
         self.lockouts = 0
+        # tracking: the server's hunt (mode = index into TRACK_MODES; the proxy hasn't heard it yet)
+        self.tracking = scenario == "tracking"
+        self.hunt = {"mode": TRACK_MODES.index("passive creatures"), "on": False}
+        self.track_gumps = set()
+        self.track_c2s = []               # (time, what): skill uses ("use") and gump buttons (int)
+        self.hunt_dropped_t = None        # when the recall out stopped the hunt
+        self.arrow_id = 0
+        self.red_hits = []                # (distance, sent while hunting murderers)
 
     def send(self, pkt):
         self.writer.write(encode_packet(pkt, S2C_KEY))
@@ -302,7 +351,7 @@ class World:
             self.send(mobile_pkt(BANKER, *BANK_POS))
         elif d > 24:
             self.banker_seen = False
-        if self.scenario == "library":                   # the library tome, like any item, the same way
+        if self.library:                                 # the library tome, like any item, the same way
             t = self.cheb(TOME_POS)
             if t <= 18 and not self.tome_seen:
                 self.tome_seen = True
@@ -324,6 +373,40 @@ class World:
         if log is self.recalls_out:
             self.lockout_due = True
             self.later(2.3, [player_update(OTHER, LIB_TREE["x"] + 4, LIB_TREE["y"])])
+            if self.tracking and self.hunt["on"]:      # the hunt stops on landing (simulated: live ones don't)
+                asyncio.get_running_loop().call_later(2.2, self.drop_hunt)
+
+    # ---- tracking (live 20261001_214649: docs/NOTES.md "Tracking") ----
+    def tracking_gump(self):
+        """The server (re)sends the Tracking gump; its Begin/Stop text follows the hunt."""
+        self.track_gumps.add(self.next_gump())
+        on = self.hunt["on"]
+        self.send(gump(self.gump_serial, TRACK_ID, TRACK_GUMP["layout_hunting" if on else "layout_idle"],
+                       TRACK_GUMP["lines_hunting" if on else "lines_idle"]))
+
+    def hunt_switch(self, on):
+        self.hunt["on"] = on
+        self.send(player_says(SELF, "Hackworth", "You begin hunting." if on else "You stop hunting."))
+        self.send(hunting_buff(on))
+
+    def drop_hunt(self):
+        self.hunt_dropped_t = time.time()
+        self.hunt_switch(False)
+
+    def red_hit(self, dist):
+        """A Tracking hit on the red `dist` tiles east of us, never sent as a mobile: the
+        "Now tracking" line, the old arrow cancelled, the new one set (live order). Only a
+        hunt on murderers finds him."""
+        murderers = self.hunt["on"] and TRACK_MODES[self.hunt["mode"]] == "murderer players"
+        self.red_hits.append((dist, murderers))
+        if not murderers:
+            return
+        pk = [sys_text(f"Now tracking: {RED_NAME} ({dist} spaces to target)")]
+        if self.arrow_id:
+            pk.append(arrow_cancel(self.arrow_id - 1))
+        pk.append(arrow_set(self.arrow_id, RED, self.pos[0] + dist, self.pos[1], 0, f"[Hunting] {RED_NAME}"))
+        self.arrow_id += 1
+        self.later(0.2, pk)
 
     # ---- harvest ----
     def harvest(self, x, y):
@@ -359,6 +442,8 @@ class World:
 
     def result(self):
         self.good_n += 1
+        if self.tracking and self.good_n in (2, 4):   # mid-chop: the hunt finds the red far, then near
+            self.red_hit(RED_FAR if self.good_n == 2 else RED_NEAR)
         if self.good_n % 2 == 1:
             self.later(0.3, [cliloc(500495)])
             return
@@ -441,6 +526,11 @@ class World:
                 self.door_open = True
                 self.doors_opened += 1
                 self.send(cliloc(500024))
+        elif pid == 0x12 and p[3] == 0x24 and p[4:-1] == b"38 0":  # UseSkill Tracking
+            self.track_c2s.append((time.time(), "use"))
+            if self.tracking:
+                self.send(cliloc(1011350))               # "What do you wish to track?"
+                self.tracking_gump()
         elif pid == 0x06:
             serial = int.from_bytes(p[1:5], "big")
             if serial == HATCHET:
@@ -486,6 +576,16 @@ class World:
                 self.recall_to(HOME_RUNE_POS, self.recalls_home)
             elif f["serial"] in self.gate_gumps:
                 self.gate_gumps[f["serial"]].append(f["button_id"])
+            elif f["serial"] in self.track_gumps:
+                self.track_c2s.append((time.time(), f["button_id"]))
+                n = len(TRACK_MODES)
+                if f["button_id"] in (7, 8):
+                    self.hunt["mode"] = (self.hunt["mode"] + (1 if f["button_id"] == 8 else -1)) % n
+                    self.send(sys_text(f"You will now hunt {TRACK_MODES[self.hunt['mode']]}."))
+                elif f["button_id"] == 6:
+                    self.hunt_switch(not self.hunt["on"])
+                if f["button_id"]:
+                    self.tracking_gump()
             elif f["serial"] == self.captcha_open and f["button_id"] == CAPTCHA_SUBMIT:
                 text = next((t["text"] for t in f.get("texts", []) if t["id"] == 2), "")
                 if self.captcha_auto:
@@ -540,6 +640,7 @@ class World:
         for token in (5, 6, 7, 8):
             self.send(seed_pkt(token))
         self.send(equip(BACKPACK, 0x0E75, 0x15))
+        self.send(skills_pkt(600 if self.tracking else 0))      # Tracking 60 (Hackworth's) or none
         if self.scenario == "skirmish":                         # the hatchet is in a bag in the pack
             self.send(contained(BAG, 0x0E76, 1, BACKPACK))
             self.send(contained(HATCHET, 0x0F44, 1, BAG))
@@ -548,7 +649,7 @@ class World:
             asyncio.get_running_loop().create_task(self.combat())
         else:
             self.send(equip(HATCHET, 0x0F44, 0x02))
-        if self.scenario == "library":
+        if self.library:
             self.send(self_at(*LIB_START))
             self.send(contained(RUNEBOOK, 0x22C5, 1, BACKPACK))
             self.send(contained(0x44ADB0FF, 0x0F7A, 10, BACKPACK))   # black pearl: charges spend none
@@ -1054,6 +1155,75 @@ async def library():
           rows_ok and world.lockouts == 2 and eps[0]["travel"][1]["tries"][0][1] == "disturbed",
           str([{k: e.get(k) for k in ("travel", "travel_s", "supplies", "lockout_s", "players_seen", "skill_end")}
                for e in eps])[:900])
+    tev = [e["data"] for e in store.job_events("lumber") if e["kind"] == "tracking"]
+    check("Tracking 0 in the skill list: never tried (no skill use, no click), logged and recorded once",
+          world.track_c2s == [] and text.count("tracking unavailable") == 1 and len(tev) == 1
+          and tev[0]["unavailable"].startswith("no Tracking skill")
+          and all(e["tracking"].get("unavailable") for e in eps), f"{world.track_c2s} {tev}")
+    store.close()
+
+
+async def track_reds():
+    """LUMBER_LOOP.md §13 "Tracking reds": the library trip with the Tracking gump, buff and arrows
+    as captured live. Hunting murderers starts before going out; the recall out stops it (simulated)
+    and the runner turns it back on; mid-chop the hunt finds a red 60 tiles off (logged, no escape),
+    then 30 tiles off (the red escape: recall home with our runebook, stop)."""
+    print("\n== tracking reds: hunt murderers all run; a far red is logged, a near one sends us home ==")
+    import lumber_opt
+    world = World("tracking")
+    spot = {"access": {"method": "witcher", "rune": "286", "library": "cambria"}, "home": {"method": "recall"},
+            "area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 10}, "pvp": True}
+    text, code, store, _ = await run_scenario(world, "tracking", 12710, [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05", "--track-retry-s", "1"], spot_extra=spot)
+    tome_t = next((t for p, t in zip(world.c2s, world.c2s_t) if p[0] == 0x06 and p[1:5] == u32(TOME)), None)
+    uses = [t for t, w in world.track_c2s if w == "use"]
+    btns = [w for _, w in world.track_c2s if w != "use"]
+    begins = [t for t, w in world.track_c2s if w == 6]
+    check("Hunting murderers began before going out: the stock UseSkill 38, one step to learn the mode, the short "
+          "way on to murderers (4 more), Begin, all before the tome was used",
+          tome_t is not None and len(uses) == 1 and uses[0] < tome_t and btns[:6] == [8, 8, 8, 8, 8, 6]
+          and begins[0] < tome_t, f"{world.track_c2s} tome at {tome_t}")
+    check("the hunt the recall out stopped was turned back on (Begin on the open gump: no skill use), and no "
+          "other tracking click in the whole run",
+          world.hunt_dropped_t is not None and len(begins) == 2 and begins[1] > world.hunt_dropped_t
+          and btns == [8, 8, 8, 8, 8, 6, 6] and len(uses) == 1 and world.hunt["on"],
+          f"{world.track_c2s} dropped {world.hunt_dropped_t}")
+    check("both mid-chop hits found the red while hunting murderers",
+          world.red_hits == [(RED_FAR, True), (RED_NEAR, True)], str(world.red_hits))
+    seen = [e["data"] for e in store.job_events("lumber") if e["kind"] == "pk_seen"]
+    far = [d for d in seen if d.get("source") == "tracking" and d.get("distance") == RED_FAR]
+    near = [d for d in seen if d.get("source") == "tracking" and d.get("distance") == RED_NEAR]
+    check("the far hit (60 tiles): a pk_seen event from tracking with the name, serial and arrow, logged only "
+          "(beyond the react range 40: no escape, not counted as hazard)",
+          len(far) == 1 and far[0]["serial"] == RED and far[0]["name"] == RED_NAME
+          and far[0]["x"] == LIB_TREE["stand"][0] + RED_FAR and not far[0]["in_range"] and not far[0]["react"]
+          and not far[0]["counted"] and far[0]["spaces"] == RED_FAR and far[0]["mode"] == "murderer players"
+          and "logged only" in text, str(far))
+    check("the near hit (30 tiles): a second pk_seen for the same red, in range, reacted, counted",
+          len(near) == 1 and near[0]["serial"] == RED and near[0]["in_range"] and near[0]["react"]
+          and near[0]["counted"] and len(seen) == 2, str(seen))
+    rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
+    check("the near hit sent us home: one escape recall with our runebook (the disturbed cast retried), "
+          "reason 'tracking: Lord Red 30 spaces', the red as the threat",
+          world.recalls_home == [HOME_RUNE_POS] and len(rec) == 1 and rec[0]["ok"]
+          and rec[0]["why"] == f"tracking: {RED_NAME} {RED_NEAR} spaces" and rec[0]["threat"]["serial"] == RED
+          and rec[0]["threat"]["kind"] == "red" and rec[0]["attempts"] == 2, str(rec)[:600])
+    js = {j["kind"]: j for j in store.junctures()}
+    check("urgent threat (action recall, the tracking reason) and pk_escape junctures; the run stopped (exit 1)",
+          code == 1 and js.get("threat", {}).get("data", {}).get("action") == "recall"
+          and f"tracking: {RED_NAME} {RED_NEAR} spaces" in js["threat"]["summary"] and "pk_escape" in js
+          and "escaped by recall" in text, f"exit {code} {[(j['kind'], j['summary']) for j in js.values()]}")
+    eps = store.episodes("lumber")
+    tr = (eps[0].get("tracking") or {}) if eps else {}
+    check("the trip row has the hunt's coverage: on part of the time (off after the recall until turned back "
+          "on), 2 hits, both on murderers, 1 try",
+          len(eps) == 1 and tr.get("hits") == 2 and tr.get("murderer_hits") == 2 and tr.get("attempts") == 1
+          and 0 < tr.get("on_frac", 0) < 1 and tr["on_s"] > 0 and tr["off_s"] > 0, str(tr))
+    sightings = lumber_opt.store_inputs(store)["sightings"]
+    t_near = next(e["t"] for e in store.job_events("lumber") if e["kind"] == "pk_seen" and e["data"]["react"])
+    check("lumber_opt's hazard counts the near tracked red once, not the far one",
+          sightings == [t_near], str(sightings))
     store.close()
 
 
@@ -1135,6 +1305,7 @@ if __name__ == "__main__":
     asyncio.run(break_due())
     asyncio.run(library())
     asyncio.run(library_chased())
+    asyncio.run(track_reds())
     unit_hatchet()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

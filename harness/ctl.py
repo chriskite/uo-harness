@@ -70,6 +70,7 @@ from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 from uo import cliloc as cliloc_mod  # noqa: E402
 from uo.gumps import controls as gump_controls, parse_layout  # noqa: E402
+import tracking  # noqa: E402
 
 HOST = "127.0.0.1"
 TASKS = {"lumber": os.path.join(HERE, "loop_lumber.py"),
@@ -124,22 +125,6 @@ WALK_OUTCOME_WAIT_S = 5.0             # confirm/deny, else the proxy's 3 s rejec
 LOOT_MAX_ITEMS = 25
 LAYER_BANK = 0x1D
 CAST_CURSOR_WAIT_S = 4.0             # a spell's target cursor comes after its cast delay
-# Tracking (live 20261001_214649, docs/NOTES.md "Tracking"): UseSkill 38 opens gump 0xFE5C638B;
-# button 8 / 7 step the hunting mode forward / back through TRACK_MODES (the server answers
-# "You will now hunt <mode>."), 6 begins / stops Hunting. The server re-sends the gump after
-# every click.
-TRACKING_SKILL = 38
-TRACKING_GUMP_ID = 0xFE5C638B
-TRACK_MODES = ("criminal players", "innocent players", "friendly players", "aggressive creatures",
-               "passive creatures", "townsfolk", "all players", "all hostile players",
-               "enemy players", "murderer players")
-TRACK_ALIASES = {"red": "murderer players", "reds": "murderer players", "grey": "criminal players",
-                 "greys": "criminal players", "gray": "criminal players", "grays": "criminal players",
-                 "blue": "innocent players", "blues": "innocent players", "hostile": "all hostile players"}
-TRACK_BTN_HUNT, TRACK_BTN_PREV, TRACK_BTN_NEXT = 6, 7, 8
-TRACK_SKILL_BUSY = 500118            # "You must wait a few moments to use another skill."
-TRACK_BUFF_ICON = 173                # "Tracking Hunting" buff on self while Hunting (cliloc 1110004)
-TRACK_WAIT_S = 3.0                   # the server answers a click or skill use within ~0.1 s live
 BUY_CLILOC = 3006103                 # context menu "Buy"
 VENDOR_RANGE = 12                    # 13 tiles got "too far away" live (docs/LUMBER_LOOP.md §13)
 SORTED_BUY_CONTAINER = 0x2AF8        # ClassicUO BuyList: this container sorts by x; others map reversed
@@ -1509,47 +1494,25 @@ def _self_hits(stc) -> list:
 
 
 def track_mode(words) -> str:
-    """A Hunting mode from words: the mode itself ("murderer players"), an alias
-    (reds, greys, blues, hostile) or words only one mode contains ("murderer")."""
-    key = " ".join(w.lower() for w in words).strip()
-    if key in TRACK_MODES:
-        return key
-    if key in TRACK_ALIASES:
-        return TRACK_ALIASES[key]
-    hits = [m for m in TRACK_MODES if key and all(w in m.split() for w in key.split())]
-    if len(hits) != 1:
-        raise CtlError(f"track: {'ambiguous' if hits else 'unknown'} mode {key!r}; modes: "
-                       f"{', '.join(TRACK_MODES)} (or reds, greys, blues, hostile)")
-    return hits[0]
+    """A Hunting mode from words (tracking.parse_mode)."""
+    try:
+        return tracking.parse_mode(words)
+    except ValueError as e:
+        raise CtlError(str(e))
 
 
-def _said(prefix: str):
-    return lambda evs: any(e.get("ev") == "speech_heard" and str(e.get("text", "")).startswith(prefix)
-                           for e in evs)
+class _CtlIO:
+    """escape.recall's and tracking.hunt's IO over ctl's control and state connections;
+    a proxy refusal raises `error`."""
 
-
-def _hunt_mode(e) -> str | None:
-    """The mode in the server's "You will now hunt <mode>." (System only, so nobody nearby
-    can fake it by speaking)."""
-    t = str(e.get("text", ""))
-    if e.get("ev") == "speech_heard" and e.get("serial") == 0xFFFFFFFF \
-            and t.startswith("You will now hunt ") and t.endswith("."):
-        return t[len("You will now hunt "):-1]
-    return None
-
-
-class _CtlRecallIO:
-    """escape.recall's IO over ctl's control and state connections."""
-
-    def __init__(self, ctl, stc):
-        self.ctl, self.stc = ctl, stc
+    def __init__(self, ctl, stc, error):
+        self.ctl, self.stc, self.error = ctl, stc, error
         self.cursor = stc.mark()
 
     def send(self, pkt: bytes):
-        import escape
         resp = self.ctl.send(pkt)
         if resp != "OK":
-            raise escape.RecallError(f"proxy refused: {resp}")
+            raise self.error(f"proxy refused: {resp}")
 
     def poll(self):
         evs, self.cursor = self.stc.events(self.cursor)
@@ -1591,7 +1554,7 @@ def _act_recall(a) -> dict:
             book = books[0][0]
         else:
             raise CtlError("no runebook or rune tome in your backpack")
-        io = _CtlRecallIO(ctl, stc)
+        io = _CtlIO(ctl, stc, escape.RecallError)
         try:
             if a.check:
                 return {"ok": True, "book": f"0x{book:08X}", **escape.check_ready(io, book)}
@@ -1612,106 +1575,29 @@ def _act_recall(a) -> dict:
 
 def _act_track(a) -> dict:
     """track <mode> | track off: Tracking's Hunting mode, set the way a player does
-    it in the Tracking gump (docs/NOTES.md "Tracking"). Opens the gump with the stock
-    UseSkill (only if it isn't open), steps the mode with the gump's arrow buttons
-    (the shorter way round), then Begin Hunting. A different mode while hunting:
-    Stop, change, Begin. `off`: Stop Hunting (nothing is sent when not hunting).
-    Every click is the stock 0xB1 after a reaction pause; the gump stays open, as
-    it does for a player. Hits show in `status.tracking` (world model)."""
+    it in the Tracking gump (docs/NOTES.md "Tracking"; tracking.hunt, the same clicks
+    the lumber runner uses). Opens the gump with the stock UseSkill (only if it isn't
+    open), steps the mode with the gump's arrow buttons (the shorter way round), then
+    Begin Hunting. A different mode while hunting: Stop, change, Begin. `off`: Stop
+    Hunting (nothing is sent when not hunting). Every click is the stock 0xB1 after a
+    reaction pause; the gump stays open, as it does for a player. Hits show in
+    `status.tracking` (world model)."""
     if not a.args:
-        raise CtlError(f"track <mode> | track off; modes: {', '.join(TRACK_MODES)}")
+        raise CtlError(f"track <mode> | track off; modes: {', '.join(tracking.MODES)}")
     off = [w.lower() for w in a.args] == ["off"]
     mode = None if off else track_mode(a.args)
     ctl, stc = _connect(a)
-    human = Human(a.human, seed=a.seed)
-    clicks, heard = [], []
-
-    def world():
-        return stc.state()["world"]
-
-    def gump():
-        gs = [g for g in world().get("gumps") or []
-              if g.get("open") and _serial(g.get("gump_id")) == TRACKING_GUMP_ID]
-        return max(gs, key=lambda g: _serial(g["serial"])) if gs else None
-
-    def send(pkt, until, what):
-        mark = stc.mark()
-        resp = ctl.send(pkt)
-        if resp != "OK":
-            raise CtlError(f"{what}: {resp}")
-        clicks.append(what)
-        got = stc.wait_events(mark, until, timeout=TRACK_WAIT_S)
-        heard.extend(journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS)
-        return got
-
-    def busy(evs):
-        return any(e.get("ev") == "cliloc" and e.get("cliloc") == TRACK_SKILL_BUSY for e in evs)
-
-    def open_gump():
-        for _ in range(3):
-            g = gump()
-            if g is not None:
-                return g
-            human.wait("use")
-            got = send(actions.use_skill(TRACKING_SKILL),
-                       lambda evs: busy(evs) or any(e.get("ev") == "gump_open"
-                                                    and e.get("gump_id") == TRACKING_GUMP_ID for e in evs),
-                       "use Tracking")
-            if busy(got):                     # another skill's cooldown: try again shortly
-                time.sleep(TRACK_WAIT_S)
-        g = gump()
-        if g is None:
-            raise CtlError("the Tracking gump didn't open (no Tracking skill?)")
-        return g
-
-    def press(button, until, what):
-        g = open_gump()
-        human.wait("menu")
-        return send(gump_reply(stc.state(), g["serial"], str(button)), until, what)
-
-    def hunting():                            # the open gump says it: "Stop Hunting" while on
-        return "Stop Hunting" in (open_gump().get("lines") or [])
-
     try:
         stc.intent("Tracking: stopping the hunt" if off else f"Tracking: hunting {mode}", "track")
-        if off:
-            w = world()
-            me = (w.get("self") or {}).get("serial") or ""
-            buffed = str(TRACK_BUFF_ICON) in ((w.get("buffs") or {}).get(me) or {})
-            if gump() is not None or buffed or (w.get("tracking") or {}).get("hunting"):
-                if hunting():
-                    press(TRACK_BTN_HUNT, _said("You stop hunting."), "stop hunting")
-        else:
-            cur = (world().get("tracking") or {}).get("mode")
-            if hunting() and cur != mode:
-                press(TRACK_BTN_HUNT, _said("You stop hunting."), "stop hunting")
-
-            def step(btn, what):           # the mode the server names in its answer to the click
-                got = press(btn, _said("You will now hunt "), what)
-                return next((m for m in map(_hunt_mode, got) if m), None)
-            if cur not in TRACK_MODES:        # not heard this session: one step tells it
-                cur = step(TRACK_BTN_NEXT, "next mode")
-            n = len(TRACK_MODES)
-            for _ in range(n):
-                if cur == mode or cur not in TRACK_MODES:
-                    break
-                fwd = (TRACK_MODES.index(mode) - TRACK_MODES.index(cur)) % n
-                btn, what = (TRACK_BTN_NEXT, "next mode") if fwd <= n - fwd else (TRACK_BTN_PREV, "previous mode")
-                new = step(btn, what)
-                if new is None or new == cur:
-                    raise CtlError(f"the hunting mode didn't change from {cur!r}")
-                cur = new
-            if cur != mode:
-                raise CtlError(f"couldn't set the hunting mode to {mode!r} (server says {cur!r})")
-            if not hunting():
-                press(TRACK_BTN_HUNT, _said("You begin hunting."), "begin hunting")
-        g = gump()                            # the server re-sent it after the last click
-        tr = world().get("tracking") or {}
-        on = ("Stop Hunting" in (g.get("lines") or [])) if g is not None else bool(tr.get("hunting"))
-        ok = (not on) if off else (on and cur == mode)
-        out = {"ok": bool(ok), "reply": ("stopped hunting" if off else f"hunting {mode}") if ok
-               else "the server didn't confirm", "clicks": clicks, "heard": heard,
-               "tracking": {"hunting": on, "mode": None if off else cur, "arrow": tr.get("arrow")}}
+        try:
+            res = tracking.hunt(_CtlIO(ctl, stc, tracking.TrackError), mode, Human(a.human, seed=a.seed))
+        except tracking.TrackError as e:
+            raise CtlError(str(e))
+        ok = res["ok"]
+        out = {"ok": ok, "reply": ("stopped hunting" if off else f"hunting {mode}") if ok
+               else "the server didn't confirm", "clicks": res["clicks"],
+               "heard": [journal_view(e) for e in res["events"] if e.get("ev") in JOURNAL_EVS],
+               "tracking": {"hunting": res["hunting"], "mode": res["mode"], "arrow": res["arrow"]}}
         if not ok:
             out["error"] = out["reply"]
         return out

@@ -1,0 +1,32 @@
+{
+ "source": "live session 20261001_214649 (Hackworth, Tracking 60): gump_open 0xFE5C638B before Begin (seq 596) and while hunting (seq 7906)",
+ "gump_id": "0xFE5C638B",
+ "layout_idle": "{ resizepic 31 24 11571 662 150 }{ button 25 19 2094 2095 1 0 1 }{ text 21 8 149 0 18 0 1 0 0 0 }{ text 48 105 2117 1 18 0 1 0 0 0 }{ tilepic 53 51 8492 }{ button 66 130 4017 4019 1 0 2 }{ text 144 105 2599 2 18 0 1 0 0 0 }{ tilepic 142 52 8484 }{ button 151 130 4017 4019 1 0 3 }{ text 223 105 2550 3 18 0 1 0 0 0 }{ tilepic 248 37 8455 }{ tilepic 225 41 2818 }{ tilepic 232 47 2816 }{ tilepic 230 42 3656 }{ tilepic 213 52 3628 }{ tilepic 237 62 5357 }{ tilepic 222 58 3838 }{ button 236 130 4017 4019 1 0 4 }{ text 311 105 2603 4 18 0 1 0 0 0 }{ tilepic 314 45 8454 }{ button 319 130 4017 4019 1 0 5 }{ text 540 39 149 5 18 0 1 0 0 0 }{ button 514 39 210 211 1 0 11 }{ text 540 59 149 6 18 0 1 0 0 0 }{ button 514 59 210 211 1 0 12 }{ text 540 79 149 7 18 0 1 0 0 0 }{ button 514 79 210 211 1 0 13 }{ text 390 105 1256 8 18 0 1 0 0 0 }{ button 416 130 4008 4010 1 0 6 }{ button 376 59 9909 9909 1 0 7 }{ tilepichue 411 46 8454 2117 }{ button 470 59 9903 9903 1 0 8 }{ text 540 105 1256 9 18 0 1 0 0 0 }{ button 478 135 2223 2223 1 0 9 }{ text 518 130 2655 10 18 0 1 0 0 0 }{ button 653 135 2224 2224 1 0 10 }\u0000",
+ "lines_idle": [
+  "Guide",
+  "Aggressive",
+  "Passive",
+  "Townsfolk",
+  "Players",
+  "Hide Party / Guild",
+  "Hide Allies",
+  "Hide House",
+  "Begin Hunting",
+  "Hunting Mode",
+  "Always Get Closest"
+ ],
+ "layout_hunting": "{ resizepic 31 24 11571 662 150 }{ button 25 19 2094 2095 1 0 1 }{ text 21 8 149 0 18 0 1 0 0 0 }{ text 48 105 2117 1 18 0 1 0 0 0 }{ tilepic 53 51 8492 }{ button 66 130 4017 4019 1 0 2 }{ text 144 105 2599 2 18 0 1 0 0 0 }{ tilepic 142 52 8484 }{ button 151 130 4017 4019 1 0 3 }{ text 223 105 2550 3 18 0 1 0 0 0 }{ tilepic 248 37 8455 }{ tilepic 225 41 2818 }{ tilepic 232 47 2816 }{ tilepic 230 42 3656 }{ tilepic 213 52 3628 }{ tilepic 237 62 5357 }{ tilepic 222 58 3838 }{ button 236 130 4017 4019 1 0 4 }{ text 311 105 2603 4 18 0 1 0 0 0 }{ tilepic 314 45 8454 }{ button 319 130 4017 4019 1 0 5 }{ text 540 39 149 5 18 0 1 0 0 0 }{ button 514 39 210 211 1 0 11 }{ text 540 59 149 6 18 0 1 0 0 0 }{ button 514 59 210 211 1 0 12 }{ text 540 79 149 7 18 0 1 0 0 0 }{ button 514 79 210 211 1 0 13 }{ text 390 105 1256 8 18 0 1 0 0 0 }{ button 416 130 4009 4009 1 0 6 }{ button 376 59 9909 9909 1 0 7 }{ tilepichue 411 46 8454 2117 }{ button 470 59 9903 9903 1 0 8 }{ text 540 105 1256 9 18 0 1 0 0 0 }{ button 478 135 2223 2223 1 0 9 }{ text 518 130 2655 10 18 0 1 0 0 0 }{ button 653 135 2224 2224 1 0 10 }\u0000",
+ "lines_hunting": [
+  "Guide",
+  "Aggressive",
+  "Passive",
+  "Townsfolk",
+  "Players",
+  "Hide Party / Guild",
+  "Hide Allies",
+  "Hide House",
+  "Stop Hunting",
+  "Hunting Mode",
+  "Always Get Closest"
+ ]
+}
