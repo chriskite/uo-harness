@@ -643,6 +643,38 @@ efficiently. Plan, data and limits: docs/HUNT_LOOP.md "Crawl"; code: `harness/cr
   - **Room segmentation (watershed) for areas**: the coverage cells already are room-sized (one
     per room centre, a chain along corridors) and need no tuning.
 
+## PK survival: stealthers, Magic Reflection, mounted flight (user notes 2026-10-04, open)
+
+After the second Bastet death (docs/NOTES.md "Second Bastet death"): he appeared at 11 tiles
+carrying the Stationary Penalty, never showed on Tracking, and his first spell landed 1.9 s after
+he appeared, before the 2.0 s recall could finish. The user's reading: he was hidden and
+stealthing near us and popped out to kill. Our Tracking (72.8) sees hidden players only within
+~8 tiles, 10 % of its normal range (knowledge #953). Research on spell interruption and escape
+timing is with the SpellInterrupts work (docs/research/TRAVEL_DEATH.md). To do:
+
+- **Detect stealthers.**
+  - Investigate the skill templates harvesters use against PKs (memory has a dungeon lockpicker
+    build with 100–120 Detect Hidden and Tracking, #389; the Discord knowledge base and wiki for
+    more). The numbers that matter: hidden targets show up on Tracking within (10 + 40 ×
+    DetectHidden/100) % of the Tracking range: 30 tiles at 100 Tracking + 50 DH, 50 at 100/100.
+    Detect Hidden itself reveals within 8 × skill/100 tiles with skill % success (#954).
+  - Try running Detect Hidden periodically during the lumber loop (on self, between chops) once a
+    character has the skill; Hackworth has none. Measure what it finds and its skill-use cost
+    against the chop rhythm. Reveal (6th circle, 60/80 Magery) only covers 3 × Magery/100 tiles
+    around its target point, so it isn't an early warning (#955).
+- **Mounted flight with scripted healing.** On horseback and healing on the move (potions, Greater
+  Heal), we could probably have run from this PK and others instead of standing in a recall that
+  gets interrupted. Hackworth's horse died on 10-03; mounted pace is 0.1 s per step (PLAN "Player
+  houses and mounted pace"), the same as a mounted PK, so flight has to use terrain, line of sight
+  and the PK's hamstring timing (Red sighting item 4). The Prevalia Stables bonded-horse quest
+  (TRAVEL_DEATH §1.4) gives a horse that survives death.
+- **Magic Reflection up while lumbering.** Reflects the next hostile spell cast on us, so a PK's
+  opening spell (the one that broke the recall) bounces. It's 5th circle (100 % at 60 Magery, so
+  Hackworth can cast it), reagents garlic, mandrake root, spider's silk (Garritt in Cambria sells no
+  silk), scroll 300 gp at Garritt. In PvP it reflects at most 2 spells and stays after the first
+  only with a 35 % × Inscription/100 chance (#215, wiki Magery). Open: how long it lasts on Outlands,
+  how to see it's up (buff icon), and recasting it at the start of each trip and after each reflect.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
