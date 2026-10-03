@@ -751,6 +751,24 @@ serial link) opens the drawer on the Inspector tab.
   Agent panel stays empty until the proxy is restarted.
 - Replay: `python harness/viz_server.py --replay <TAG> [--rate 8] [--paused]` (TAG =
   `logs/session_<TAG>.*`).
+- **Phone / home network (2026-10-03, user request).** Start with `--host 0.0.0.0`
+  (`python harness/viz_server.py --live --host 0.0.0.0`), then open `http://protostar:8080/`
+  (this machine's hostname; a phone may need `protostar.local`, depending on the router's DNS,
+  which is unverified from here). The default stays `127.0.0.1`. Windows Firewall blocks inbound
+  by default: run `allow_viz_lan.ps1` from an **Administrator** PowerShell once (TCP 8080, Private
+  profile only, remote addresses limited to the local subnet; `-Remove` deletes the rule). It does
+  not self-elevate, because the first version relaunched itself in a loop and flooded the desktop
+  with PowerShell windows.
+  - **Exposure:** the viz has no authentication. Anyone on the subnet can read the game state and
+    the live view, and use the POST routes: agent gate pause/resume/kill, the captcha mode, and
+    the overseer chat (text the overseer LLM reads). Fine on a trusted home LAN, not beyond it.
+  - **Layout:** at ≤900px wide the page is one scrolling column (header, map, agent intent and
+    overseer chat, side panels, details drawer); the desktop three-column grid is unchanged
+    above that. `@media (pointer: coarse)` raises tap targets and uses 16px inputs (iOS zooms the
+    page on smaller ones). On the map one finger pans, two pinch-zoom around their midpoint
+    (`MapGrid.zoomAt`, same code as the wheel), a tap selects. Checked in headless Chromium at
+    390×844 with touch emulation: no horizontal overflow on Live, Jobs (lumber, hunt); a CDP
+    two-finger spread took the map from 16 to 59 px/tile. Not tried on a real phone.
 
 **Files:** `harness/viz_feed.py` (Feed base: 2000-envelope ring, SSE fanout, ≤4 Hz pump;
 `StatePortPoller`; `ReplayDriver`), `harness/viz_server.py`, `harness/test_viz.py`, and `viz/`

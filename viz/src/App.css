@@ -1553,7 +1553,7 @@ ol.lines {
 }
 .jobs-charts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr));
   gap: 8px;
 }
 svg.chart {
@@ -1773,4 +1773,115 @@ ol.job-events li {
 .trips-table td,
 .trips-table th {
   white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- phones and narrow windows
+   One scrolling column: header, map, intent + overseer chat, then the side panels and the details
+   drawer. The desktop grid is untouched above 900px. */
+
+@media (max-width: 900px) {
+  html,
+  body,
+  #root {
+    height: auto;
+    min-height: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    gap: 8px;
+    padding: 0 6px 16px;
+  }
+  .app-jobs {
+    height: auto;
+  }
+  .jobs {
+    overflow: visible;
+  }
+  .header,
+  .app-jobs > .header {
+    flex: none;
+    height: auto;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 6px 10px;
+    margin: 0 -6px;
+  }
+  .header > * {
+    white-space: normal;
+  }
+  .header .mono.dim {
+    display: none;
+  }
+  .map {
+    order: 1;
+    flex: none;
+    height: 56vh;
+    height: 56svh;
+    min-height: 320px;
+  }
+  .right {
+    order: 2;
+    flex: none;
+    overflow: visible;
+  }
+  .right-overseer {
+    flex: none;
+    height: 70vh;
+    height: 70svh;
+    min-height: 360px;
+  }
+  .left {
+    order: 3;
+    flex: none;
+    overflow: visible;
+  }
+  .details-row {
+    order: 4;
+  }
+  .details-inner {
+    flex-direction: column;
+    height: auto;
+  }
+  .details-containers {
+    flex: none;
+    max-height: 300px;
+  }
+  .details-tabs {
+    flex: none;
+    height: 380px;
+  }
+  .map-controls {
+    top: auto;
+    bottom: 6px;
+    left: 6px;
+    right: auto;
+    flex-wrap: wrap;
+    max-width: calc(100% - 12px);
+  }
+  .map-legend {
+    display: none;
+  }
+  .jobs-head {
+    flex-wrap: wrap;
+  }
+  .jobs .panel-body {
+    overflow-x: auto;
+  }
+}
+
+/* finger-sized targets; 16px inputs so iOS doesn't zoom the page when one is focused */
+@media (pointer: coarse) {
+  button,
+  select,
+  summary {
+    min-height: 34px;
+  }
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }

@@ -516,29 +516,41 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
     return () => ro.disconnect();
   }, [draw]);
 
+  // Zoom by `factor`, keeping the world point under the screen point fixed (the centre while following).
+  const zoomAt = useCallback(
+    (factor: number, clientX: number, clientY: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const v = view.current;
+      const rect = canvas.getBoundingClientRect();
+      const ox = v.follow ? 0 : clientX - rect.left - rect.width / 2;
+      const oy = v.follow ? 0 : clientY - rect.top - rect.height / 2;
+      const [ax, ay] = screenDeltaToWorld(v.proj, v.zoom, ox, oy);
+      const px = v.camX + ax;
+      const py = v.camY + ay;
+      v.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom * factor));
+      const [bx, by] = screenDeltaToWorld(v.proj, v.zoom, ox, oy);
+      v.camX = px - bx;
+      v.camY = py - by;
+      draw();
+    },
+    [draw],
+  );
+
   // Wheel zoom (non-passive so the page doesn't scroll), anchored at the cursor.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const v = view.current;
-      const rect = canvas.getBoundingClientRect();
-      const ox = v.follow ? 0 : e.clientX - rect.left - rect.width / 2;
-      const oy = v.follow ? 0 : e.clientY - rect.top - rect.height / 2;
-      // keep the world point under the cursor fixed while zooming
-      const [ax, ay] = screenDeltaToWorld(v.proj, v.zoom, ox, oy);
-      const px = v.camX + ax;
-      const py = v.camY + ay;
-      v.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom * Math.pow(1.0015, -e.deltaY)));
-      const [bx, by] = screenDeltaToWorld(v.proj, v.zoom, ox, oy);
-      v.camX = px - bx;
-      v.camY = py - by;
-      draw();
+      zoomAt(Math.pow(1.0015, -e.deltaY), e.clientX, e.clientY);
     };
     canvas.addEventListener("wheel", onWheel, { passive: false });
     return () => canvas.removeEventListener("wheel", onWheel);
-  }, [draw]);
+  }, [zoomAt]);
+
+  // Active pointers (touch: one finger pans, two pinch-zoom around their midpoint).
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
 
   const local = (e: PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -556,10 +568,25 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
         ref={canvasRef}
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
-          view.current.drag = { x: e.clientX, y: e.clientY, moved: false };
+          pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          view.current.drag = pointers.current.size > 1 ? null : { x: e.clientX, y: e.clientY, moved: false };
         }}
         onPointerMove={(e) => {
           const v = view.current;
+          const me = pointers.current.get(e.pointerId);
+          if (me && pointers.current.size === 2) {
+            const other = [...pointers.current.entries()].find(([id]) => id !== e.pointerId)![1];
+            const d0 = Math.hypot(me.x - other.x, me.y - other.y);
+            const d1 = Math.hypot(e.clientX - other.x, e.clientY - other.y);
+            me.x = e.clientX;
+            me.y = e.clientY;
+            if (d0 > 0 && d1 > 0) zoomAt(d1 / d0, (e.clientX + other.x) / 2, (e.clientY + other.y) / 2);
+            return;
+          }
+          if (me) {
+            me.x = e.clientX;
+            me.y = e.clientY;
+          }
           v.hover = local(e);
           if (v.drag) {
             const dx = e.clientX - v.drag.x;
@@ -579,6 +606,14 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
         }}
         onPointerUp={(e) => {
           const v = view.current;
+          const wasPinch = pointers.current.size > 1;
+          pointers.current.delete(e.pointerId);
+          if (wasPinch) {
+            // the finger left over carries on as a pan, never as a tap
+            const rest = [...pointers.current.values()][0];
+            v.drag = rest ? { x: rest.x, y: rest.y, moved: true } : null;
+            return;
+          }
           const wasClick = v.drag && !v.drag.moved;
           v.drag = null;
           if (wasClick) {
@@ -586,6 +621,10 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
             const hit = hitTest(sceneRef.current, v, footprint);
             if (hit) vizStore.select(hit);
           }
+        }}
+        onPointerCancel={(e) => {
+          pointers.current.delete(e.pointerId);
+          view.current.drag = null;
         }}
         onPointerLeave={() => {
           view.current.hover = null;
