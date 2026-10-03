@@ -500,6 +500,23 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
 - **After pulling viz changes:** `cd viz && bun run build` (viz/dist is gitignored), then restart
   `viz_server.py`. Edit-tool relative paths resolve to the session cwd, not a git worktree: use
   absolute worktree paths there.
+- **Tracking while lumbering (since 2026-10-04, 7cc9c75; LUMBER_LOOP.md §13 "Tracking reds"):** the
+  runner keeps Hunting murderer players on for the whole run with `ctl act track`'s clicks
+  (`harness/tracking.py`), re-enabling it when the hunt lines or buff 173 say it's off, at most
+  once per 30 s. Before this nothing tracked on 10-03 or 10-04: every login drops the hunt.
+- **What ends Hunting (store, measured):** only Stop and a relog. A relog removes buff 173 without
+  a stop line and keeps the mode. Recall, death and resurrection, and chopping keep it on (the buff
+  is re-sent). In 121 min of murderer hunting there were 0 murderer hits, even with Bastet in view
+  at 18 tiles (Corpse Creek); why is open [INFERENCE: Tracking 60's chance or range, or the
+  lawless region]. The hit reaction is so far tested only in the simulator.
+- **A tracked red within 40 tiles** (`--track-react-range`, user decision) at a pvp spot is a red
+  escape (recall home, "tracking: <name> N spaces"). Farther reds (e.g. sitting in a house) are
+  `pk_seen` events with `counted: false` and don't feed the spot hazard. Trip rows carry
+  `tracking` coverage (on_frac, hits).
+- **Creature stops recall home first (3316e5b):** live at witcher_291 the runner converted logs
+  for 12 s under monster attack (85 → 40 hits) and exited in the field; the overseer's recall
+  landed at 15/100. Now damage, a creature that keeps coming, or too many escapes end the run
+  without converting and, away from home, with a recall home first (urgent `threat` juncture).
 - **Overseer tooling, live:** `ctl junctures` without `--after` listed the oldest 100, hiding an
   open speech hold for 163 s; it now lists the newest. `act drop --amount 800` split a gold stack
   correctly but returned `ok:false` ("the world model doesn't show the item moved"); not fixed.
