@@ -1,5 +1,5 @@
 {
-  "source": "https://wiki.uooutlands.com/Lumberjacking (names, min_skill, base_chance_pct) ; https://wiki.uooutlands.com/Commodities (commodity_qty) ; https://wiki.uooutlands.com/New_Player_Guide (ordinary board ~9-10 gp) ; https://outlands.uorazorscripts.com/script/23d5660a-f8fd-491d-97b3-1afa3d73c84d ('Material Type Hues') + https://outlands.uorazorscripts.com/script/c87ec994-4970-4e52-8035-5191a8c51552 (colored-wood hues, community) ; harness capture 20260929_204225 + Outlands artdata.uoo (graphics, ordinary hue 0). Details and confidence: docs/research/ECONOMY.md",
+  "source": "https://wiki.uooutlands.com/Lumberjacking (names, min_skill, base_chance_pct, success chance = (skill - success_offset) / success_divisor x (1 + tool bonus), docs/research/ECONOMY.md §2) ; https://wiki.uooutlands.com/Commodities (commodity_qty) ; https://wiki.uooutlands.com/New_Player_Guide (ordinary board ~9-10 gp) ; https://outlands.uorazorscripts.com/script/23d5660a-f8fd-491d-97b3-1afa3d73c84d ('Material Type Hues') + https://outlands.uorazorscripts.com/script/c87ec994-4970-4e52-8035-5191a8c51552 (colored-wood hues, community) ; harness capture 20260929_204225 + Outlands artdata.uoo (graphics, ordinary hue 0). Details and confidence: docs/research/ECONOMY.md",
   "woods": [
     {
       "name": "ordinary",
@@ -9,6 +9,8 @@
       "min_skill": 0.0,
       "value_gp": 9.5,
       "base_chance_pct": 81.75,
+      "success_offset": 0,
+      "success_divisor": 100,
       "commodity_qty": 5000,
       "notes": "Outlands wiki calls it 'Regular'. Captured in-game: log 0x1BDD hue 0, board 0x1BD7 hue 0 (session 20260929_204225). 0x1BDE-0x1BE2 are the other artdata 'log(s)' graphics, not seen on the wire. value_gp = midpoint of the wiki's player-to-player 'around 9-10 gp' per board (live shard, undated)."
     },
@@ -20,6 +22,8 @@
       "min_skill": 65.0,
       "value_gp": null,
       "base_chance_pct": 4.0,
+      "success_offset": 25,
+      "success_divisor": 80,
       "commodity_qty": 2500,
       "notes": "Hue from two community Razor scripts (shared with Dull Copper / Dullhide); not yet seen in a capture. Colored logs share the ordinary graphic per community scripts (findtype 7133 + hue != 0). Crafting bonus tier 1 of 9 (wiki Modifiers)."
     },
@@ -31,6 +35,8 @@
       "min_skill": 70.0,
       "value_gp": null,
       "base_chance_pct": 3.5,
+      "success_offset": 30,
+      "success_divisor": 80,
       "commodity_qty": 2500,
       "notes": "Hue from community Razor scripts (shared with Shadow Iron); not yet captured."
     },
@@ -42,6 +48,8 @@
       "min_skill": 75.0,
       "value_gp": null,
       "base_chance_pct": 3.0,
+      "success_offset": 35,
+      "success_divisor": 80,
       "commodity_qty": 2500,
       "notes": "Hue from community Razor scripts (shared with Copper); not yet captured."
     },
@@ -53,6 +61,8 @@
       "min_skill": 80.0,
       "value_gp": null,
       "base_chance_pct": 2.5,
+      "success_offset": 40,
+      "success_divisor": 80,
       "commodity_qty": 2500,
       "notes": "Hue from community Razor scripts (shared with Bronze); not yet captured. Shelter Island caps skills at 80."
     },
@@ -64,6 +74,8 @@
       "min_skill": 85.0,
       "value_gp": null,
       "base_chance_pct": 2.0,
+      "success_offset": 45,
+      "success_divisor": 80,
       "commodity_qty": 2500,
       "notes": "Hue from community Razor scripts (shared with Gold); not yet captured."
     },
@@ -75,6 +87,8 @@
       "min_skill": 90.0,
       "value_gp": null,
       "base_chance_pct": 1.5,
+      "success_offset": 50,
+      "success_divisor": 80,
       "commodity_qty": 2500,
       "notes": "Hue from community Razor scripts (shared with Agapite); not yet captured."
     },
@@ -86,6 +100,8 @@
       "min_skill": 95.0,
       "value_gp": null,
       "base_chance_pct": 1.0,
+      "success_offset": 55,
+      "success_divisor": 80,
       "commodity_qty": 2500,
       "notes": "Hue from community Razor scripts (shared with Verite); not yet captured."
     },
@@ -97,6 +113,8 @@
       "min_skill": 99.0,
       "value_gp": null,
       "base_chance_pct": 0.5,
+      "success_offset": 59,
+      "success_divisor": 80,
       "commodity_qty": 2500,
       "notes": "Hue from community Razor scripts (shared with Valorite); not yet captured."
     },
@@ -108,6 +126,8 @@
       "min_skill": 110.0,
       "value_gp": null,
       "base_chance_pct": 0.25,
+      "success_offset": 65,
+      "success_divisor": 80,
       "commodity_qty": 2500,
       "notes": "Hue from community Razor scripts (shared with Avarite); not yet captured. Needs a skill cap above 100 (Skill Mastery scrolls)."
     }

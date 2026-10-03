@@ -1,15 +1,20 @@
-"""Lumber loop runner, Shelter phase (docs/LUMBER_LOOP.md §3, §12).
+"""Lumber loop runner (docs/LUMBER_LOOP.md §3, §6, §12, §13).
 
 One trip = harvest trees → convert logs to boards → walk to the banker →
 say "bank" → drop the boards into the bank box. The run ends at the bank. No
-rental room and no deed creation (user decision 2026-10-01: bank the boards,
-Shelter Island, a fresh Young character; Shelter's bank needs Young status).
+rental room and no deed creation (user decision 2026-10-01: bank the boards).
 
-Knowledge comes from harness/data/loops/lumber.json (mined from the user's
-demonstration). What the loop learns lives in the harness memory store
-(harness/memory.py, docs/MEMORY.md): per-tree attempts/yield/depletion/
-reachability, every attempt, and one episode row per trip. Walk memory is
-recorded by the proxy.
+Where: one lumber spot (--spot; harness/lumber_opt.py load_spots: the seed
+spots in harness/data/lumber_spots.json plus the memory store's lumber_spots
+rows), merged over the common knowledge in harness/data/loops/lumber.json
+(mined from the user's demonstration: texts, captcha shape, conversion). The
+overseer gets the spot, trip size and hatchet from `ctl lumber plan`.
+
+What the loop learns lives in the harness memory store (harness/memory.py,
+docs/MEMORY.md): per-tree attempts/yield/depletion/reachability, every
+attempt, and one episode row per trip, aborted trips included (outcome, why,
+timings, skill, hatchet, what was still carried), which lumber_opt.py learns
+from. Walk memory is recorded by the proxy.
 
 Captcha (ANTICHEAT.md §8.8/§8.13). The real captcha is the
 gump with lumber.json's id plus a text entry and the submit button. Who
@@ -36,7 +41,7 @@ the run. An abort while harvesting converts the carried logs first when that
 is safe, so carried wood is boards. A break announced by the agent gate
 (break_due) ends the trip early: convert, bank, exit 0 for `ctl break`.
 
-Run:  python harness/loop_lumber.py [--trips 1] [--logs-per-trip 15]
+Run:  python harness/loop_lumber.py --spot horseshoe_bay [--trips 1] [--logs-per-trip 15]
 """
 import argparse
 import json
@@ -63,9 +68,9 @@ import threats  # noqa: E402
 from speech_guard import SpeechGuard, staff_hints  # noqa: E402
 import triage  # noqa: E402
 import alerts  # noqa: E402
+import lumber_opt  # noqa: E402
 import captcha  # noqa: E402
 
-TREE_FACET = 0                # harvest areas are on map0 (Shelter)
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 NEXT_TREE_PLANS = 6           # nearest trees (straight line) whose walks next_tree() compares
 # Coloured-wood success, e.g. "You chop some dullwood logs and put them in your backpack."
@@ -164,6 +169,11 @@ class LumberLoop:
         self.recall_book = None      # runebook / rune tome serial: the red escape (prepare_recall)
         self._attack_scan = 0        # link.events index scanned for "... is attacking you!"
         self._flee_mark = 0          # len(link.events) when the guard flight started
+        self.facet = know["facet"]   # the spot's facet: tree records and candidates
+        self.hatchets = lumber_opt.load_hatchets()
+        self.want_hatchet = lumber_opt.parse_hatchet_spec(args.hatchet)   # --hatchet material[+quality]
+        self.trip_t0 = None
+        self.timing = {}             # this trip's walk_out_s / chop_s / tree_walk_s (episode row)
 
     def doing(self, kind: str, text: str, target=None):
         """Tell the visualizer what the agent is trying to do (proxy-side only)."""
@@ -260,7 +270,7 @@ class LumberLoop:
         if players or aggressors:
             worst = players[0] if players else None
             why = self.recall_out(st, a, worst, swung) if self.recall_book is not None else "no recall book"
-            if self.k.get("venue") != "shelter_island":
+            if self.k["pvp"]:
                 self.flee_to_guards(st, a, worst, swung, why)
             self.threat_stop(st, a, worst, swung, Unsafe, why)
         if self.mode == "salvage":
@@ -291,9 +301,9 @@ class LumberLoop:
     def prepare_recall(self, st) -> int | None:
         """The red escape's book (escape.py), read once at the start like a player
         glancing at it: a runebook or rune tome in the pack with a default rune and a
-        charge or a castable Recall. Required off Shelter unless --recall off (Shelter
-        has no hostile player actions)."""
-        if self.args.recall == "off" or self.k.get("venue") == "shelter_island":
+        charge or a castable Recall. Required at spots where players can attack
+        (pvp) unless --recall off."""
+        if self.args.recall == "off" or not self.k["pvp"]:
             return None
         books = escape_mod.find_books(st["world"], self.self_serial(st))
         why = "no runebook or rune tome in the backpack"
@@ -311,7 +321,8 @@ class LumberLoop:
                 log(f"red escape ready: {kind} 0x{book:08X}, default rune "
                     f"{(info['default'] or 0) + 1}, {info['charges']} charge(s)")
                 return book
-        raise Abort(f"no recall escape ({why}); refusing to work off Shelter without one (--recall off to override)")
+        raise Abort(f"no recall escape ({why}); refusing to work where players can attack without one "
+                    f"(--recall off to override)")
 
     def recall_out(self, st, a, worst, swung) -> str:
         """Recall to the book's default rune at once (escape.escape: up to 3 casts),
@@ -567,19 +578,36 @@ class LumberLoop:
     def count(self, st, graphics) -> int:
         return sum(it.get("amount") or 1 for _, it in self.in_pack(st, graphics))
 
-    def hatchet(self, st) -> int:
+    def hatchet(self, st, want=None) -> int:
         """A worn hatchet, else the shallowest one in the backpack or in a bag in
-        it (any depth). use_hatchet opens the bags on the way like a player."""
+        it (any depth); with `want` (lumber_opt.parse_hatchet_spec, --hatchet)
+        only one of that material and quality. use_hatchet opens the bags on the
+        way like a player."""
         me, pack, items = self.self_serial(st), self.backpack(st), st["world"]["items"]
         best = None
         for key, it in items.items():
             if it.get("graphic") in HATCHETS and it.get("container") is not None:
+                if want is not None and not lumber_opt.matches(lumber_opt.hatchet_kind(it, self.hatchets), want):
+                    continue
                 depth = pack_depth(items, serial_of(it["container"]), me, pack)
                 if depth is not None and (best is None or depth < best[0]):
                     best = (depth, serial_of(key))
         if best is None:
-            raise Abort("no hatchet worn, in the backpack or in a bag in it")
+            what = "hatchet" if want is None else "+".join(w for w in want if w) + " hatchet"
+            raise Abort(f"no {what} worn, in the backpack or in a bag in it")
         return best[1]
+
+    def snapshot(self, st) -> dict:
+        """Who works this trip and with what (lumber_opt.character): the optimizer
+        rescales each trip's chopping to the skill and tool bonus of the day."""
+        ch = lumber_opt.character(st["world"], self.self_serial(st), self.hatchets)
+        try:
+            serial = f"0x{self.hatchet(st, self.want_hatchet):08X}"
+        except Abort:
+            serial = None
+        return {"character": {"serial": ch["serial"], "name": ch["name"]}, "skill": ch["skill"],
+                "mounted": ch["mounted"], "buffs": ch["buffs"],
+                "hatchet": next((h for h in ch["hatchets"] if h["serial"] == serial), None)}
 
     # ------------------------------------------------------------ event scans
     def since(self, mark):
@@ -743,7 +771,7 @@ class LumberLoop:
         for attempt in range(2):
             self.human.wait("use")
             st = self.state()
-            hatchet = self.hatchet(st)
+            hatchet = self.hatchet(st, self.want_hatchet)
             closed = containers_to_open(st["world"], hatchet)
             if closed:
                 self.link.open_containers(closed, self.human)
@@ -815,9 +843,9 @@ class LumberLoop:
         return ("none", 0)
 
     def candidate_trees(self, st):
-        """Seed trees (lumber.json) plus trees found on the map in the harvest
-        area, minus what harvest memory rules out, nearest first with human
-        noise, at most --max-trees per trip."""
+        """Seed trees (the spot's) plus trees found on the map in the spot's
+        area, minus what harvest memory rules out (regrowth window --regrow-min),
+        nearest first with human noise; at most --max-trees (0 = all)."""
         seeds = list(self.k["harvest"]["trees"])
         found = []
         area = self.k["harvest"].get("area")
@@ -834,16 +862,18 @@ class LumberLoop:
                 trees.append(t)
         now = time.time()
         trees = [t for t in trees if self.memory.harvest_available(
-            TREE_FACET, t["x"], t["y"], t["z"], self.args.regrow_min * 60, now)]
+            self.facet, t["x"], t["y"], t["z"], self.args.regrow_min * 60, now)]
         pos = st["movement"]["pos"]
         trees.sort(key=lambda t: cheb(pos, (t["x"], t["y"])) * self.human.rng.uniform(1.0, 1.6))
-        return trees[: self.args.max_trees]
+        return trees[: self.args.max_trees] if self.args.max_trees > 0 else trees
 
     def harvest_trip(self) -> int:
         """Harvest the candidate trees until the quota. A monster escape
         (Escape -> self.escape) leaves the current tree; harvesting resumes
         from the next tree out of the reach of every monster escaped from.
-        A break announced by the gate (self.break_due) ends the harvest."""
+        A break announced by the gate (self.break_due) ends the harvest. Running
+        out of trees before the quota marks the trip `dry` (lumber_opt keeps
+        the spot out of the plan until the trees regrow)."""
         tally = {"gained": 0, "attempts": 0, "successes": 0, "unknown": 0}
         try:
             if self.break_due:
@@ -851,6 +881,7 @@ class LumberLoop:
                 return 0
             trees = self.candidate_trees(self.state())
             if not trees:
+                self.stats["dry"] = True
                 raise Abort("no harvestable tree available (all depleted, unreachable or ruled out)")
             while trees and tally["gained"] < self.args.logs_per_trip and not self.break_due:
                 tree = self.next_tree(trees)
@@ -863,6 +894,9 @@ class LumberLoop:
                     self.escape(e)
             if self.break_due:
                 log(f"break due: stopping the harvest at {tally['gained']} logs; converting and banking")
+            elif not trees and tally["gained"] < self.args.logs_per_trip:
+                self.stats["dry"] = True
+                log(f"the area ran dry at {tally['gained']} logs (every candidate tree tried); banking")
             return tally["gained"]
         finally:
             self.stats.update(attempts=tally["attempts"], successes=tally["successes"], logs=tally["gained"])
@@ -891,11 +925,12 @@ class LumberLoop:
         """Walk to one tree and chop it until it's dry, the quota is met or a
         break is due; tally (gained/attempts/successes/unknown) is the trip's."""
         label = f"tree {tree['x']},{tree['y']}"
-        node = (TREE_FACET, tree["x"], tree["y"], tree["z"], h(tree["graphic"]))
+        node = (self.facet, tree["x"], tree["y"], tree["z"], h(tree["graphic"]))
         spot = (tree["x"], tree["y"])
         quota = f"{tally['gained']}/{self.args.logs_per_trip} logs"
         self.doing("to_tree", f"Heading to tree at {spot[0]},{spot[1]} ({quota})", spot)
         z_ok = self.tree_z_ok(tree)
+        walk0 = time.monotonic()
         try:
             if "stand" in tree:
                 self.mover.walk_to(lambda: tree["stand"], 0, f"to {label}", z_ok=z_ok)
@@ -907,12 +942,19 @@ class LumberLoop:
             self.memory.harvest_record(*node, "unreachable")
             log(f"{label}: unreachable; trying the next tree")
             return
+        finally:
+            if self.timing.get("walk_out_s") is not None:      # the first walk is the walk out
+                self.timing["tree_walk_s"] += time.monotonic() - walk0
         tries = 0
         while tries < self.args.max_attempts_per_tree and tally["gained"] < self.args.logs_per_trip \
                 and not self.break_due:
             self.doing("chop", f"Chopping tree at {spot[0]},{spot[1]} "
                                f"({tally['gained']}/{self.args.logs_per_trip} logs)", spot)
+            if self.timing.get("walk_out_s") is None:
+                self.timing["walk_out_s"] = time.time() - self.trip_t0
+            c0, w0 = time.monotonic(), self.stats.get("speech_wait_s", 0.0)
             out, n = self.attempt(tree)
+            self.chopped(c0, w0)
             if out != "none":
                 tally["unknown"] = 0                 # the abort counts unknowns in a row
             if out in ("success", "fail"):
@@ -942,8 +984,17 @@ class LumberLoop:
                 log(f"{label}: no recognised outcome ({tally['unknown']} in a row)")
                 if tally["unknown"] > 3:
                     raise Abort("harvest attempts keep ending without a known outcome")
+            c0, w0 = time.monotonic(), self.stats.get("speech_wait_s", 0.0)
             self.human.wait("between")
             self.human.fidget(self.link, self.link.state(), self.backpack(self.link.state()))
+            self.chopped(c0, w0)
+
+    def chopped(self, c0: float, wait0: float):
+        """Count the time since c0 as chopping (attempts, captchas, the pause
+        between attempts), minus speech holds in it (they scale with time, not
+        with attempts; lumber_opt rescales chopping to the success chance)."""
+        held = self.stats.get("speech_wait_s", 0.0) - wait0
+        self.timing["chop_s"] += max(0.0, time.monotonic() - c0 - held)
 
     # ------------------------------------------------------------ escaping monsters
     def guarded(self, fn):
@@ -1152,41 +1203,64 @@ class LumberLoop:
         box -> bank the boards. The run ends at the bank. A monster escape in
         any phase is followed by that phase again (the harvest goes on with the
         next tree out of reach); an abort while harvesting converts the carried
-        logs first when that's safe (salvage)."""
+        logs first when that's safe (salvage). Every trip leaves an episode row,
+        an aborted one too (outcome 'aborted' + why): leaving those out would
+        flatter exactly the spots where trips get cut short."""
         self.stats = {}
         self.trip_n = n
         self.escapes, self.danger = 0, {}
         t0, s0, b0 = time.time(), self.mover.steps, self.mover.blocked_count
+        self.trip_t0 = t0
+        self.timing = {"walk_out_s": None, "chop_s": 0.0, "tree_walk_s": 0.0}
         phases = {}
+        snap = self.snapshot(self.link.state())
+        outcome, why = "aborted", None
 
         def timed(name, fn, retry=True):
             t = time.time()
-            r = self.guarded(fn) if retry else fn()
-            phases[name] = round(time.time() - t, 1)
-            return r
+            try:
+                return self.guarded(fn) if retry else fn()
+            finally:
+                phases[name] = round(phases.get(name, 0.0) + time.time() - t, 1)
 
         try:
-            timed("harvest", self.harvest_trip)
-        except Abort as e:
-            self.salvage(e)
-            raise
-        timed("convert", self.convert)
+            try:
+                timed("harvest", self.harvest_trip)
+            except Abort as e:
+                self.salvage(e)
+                raise
+            timed("convert", self.convert)
 
-        def bank():
-            box = timed("to_bank", self.open_bank, retry=False)
-            timed("store", lambda: self.deposit(box), retry=False)
-        self.guarded(bank)                  # an escape after the box opened: walk back and say bank again
-        if self.break_due:
-            self.stats["break_due"] = True
-        row = {"loop": "lumber", "venue": self.k["venue"], "trip": n, "t_start": round(t0, 1),
-               "t_end": round(time.time(), 1), "phases_s": phases,
-               "steps": self.mover.steps - s0, "blocked": self.mover.blocked_count - b0,
-               "doors_opened": self.mover.doors_opened,
-               "human_session": dict(self.human.stats), **self.stats}
-        self.episode(row)
-        log(f"trip {n} done: {row}")
+            def bank():
+                box = timed("to_bank", self.open_bank, retry=False)
+                timed("store", lambda: self.deposit(box), retry=False)
+            self.guarded(bank)              # an escape after the box opened: walk back and say bank again
+            outcome = "banked"
+        except BaseException as e:
+            why = str(e) if isinstance(e, Abort) else f"{type(e).__name__}: {e}"
+            raise
+        finally:
+            if self.break_due:
+                self.stats["break_due"] = True
+            row = {"loop": "lumber", "spot": self.k["spot"]["id"], "trip": n, "outcome": outcome, "why": why,
+                   "t_start": round(t0, 1), "t_end": round(time.time(), 1), "phases_s": phases,
+                   **{k: None if v is None else round(v, 1) for k, v in self.timing.items()},
+                   "steps": self.mover.steps - s0, "blocked": self.mover.blocked_count - b0,
+                   "doors_opened": self.mover.doors_opened,
+                   "human_session": dict(self.human.stats), **snap, "carried_end": self.carried(),
+                   **self.stats}
+            self.episode(row)
+            log(f"trip {n} {outcome}: {row}")
         self.doing("trip_done", f"Trip {n} done: {self.stats.get('logs', 0)} logs, "
                                 f"{self.stats.get('stored', 0)} boards banked")
+
+    def carried(self) -> dict | None:
+        """Logs and boards left in the backpack (what a death now would lose)."""
+        try:
+            st = self.link.state()
+            return {"logs": self.count(st, LOGS), "boards": self.count(st, BOARDS)}
+        except (OSError, ValueError, KeyError, Abort):
+            return None
 
     def salvage(self, e: Abort):
         """Carried wood is always boards: before a harvest abort ends the run,
@@ -1230,7 +1304,7 @@ class LumberLoop:
         if st is None:
             raise Abort("proxy has no player position yet (log in first)")
         self.guarded(lambda: self.check_guards(self.link.state()))
-        self.hatchet(st)
+        self.hatchet(st, self.want_hatchet)
         self.recall_book = self.prepare_recall(st)
         for n in range(1, self.args.trips + 1):
             self.trip(n)
@@ -1252,12 +1326,19 @@ def stop_intent(loop, text):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--spot", required=True,
+                    help="lumber spot id (harness/data/lumber_spots.json or the store; `ctl lumber spots`)")
+    ap.add_argument("--spots", default=lumber_opt.SEEDS, help="seed spot file (tests)")
     ap.add_argument("--trips", type=int, default=1)
     ap.add_argument("--logs-per-trip", type=int, default=15)
+    ap.add_argument("--hatchet", default=None,
+                    help="use only a hatchet of this material[+quality], e.g. copper or copper+exceptional "
+                         "(harness/data/hatchets.json); default: the worn one, else the shallowest in the pack")
     ap.add_argument("--max-attempts-per-tree", type=int, default=25)
-    ap.add_argument("--max-trees", type=int, default=8, help="candidate trees tried per trip")
-    ap.add_argument("--regrow-min", type=float, default=20.0,
-                    help="skip a tree for this long after it was depleted")
+    ap.add_argument("--max-trees", type=int, default=0, help="candidate trees per trip (0 = every one in the area)")
+    ap.add_argument("--regrow-min", type=float, default=lumber_opt.REGROW_DEFAULT_MIN,
+                    help="skip a tree for this long after it was depleted (`ctl lumber plan` passes the "
+                         "estimate from harvest memory)")
     ap.add_argument("--attempt-timeout", type=float, default=10.0)
     ap.add_argument("--human", choices=sorted(PROFILES), default="normal",
                     help="human-texture profile (humanize.py); 'off' for deterministic tests")
@@ -1276,14 +1357,15 @@ def main():
     ap.add_argument("--bank-range", type=int, default=4,
                     help="walk to within this many tiles of the banker's current position")
     ap.add_argument("--recall", choices=("require", "off"), default="require",
-                    help="red escape by recall (escape.py): off Shelter a runebook or rune tome with a "
-                         "default rune and a charge or a castable Recall is required to start; 'off' "
-                         "runs without it (a red then only stops the run)")
+                    help="red escape by recall (escape.py): where players can attack (pvp spots) a runebook "
+                         "or rune tome with a default rune and a charge or a castable Recall is required to "
+                         "start; 'off' runs without it (a red then only stops the run)")
     ap.add_argument("--timeout", type=float, default=3600.0)
     ap.add_argument("--max-blocked", type=int, default=20)
     ap.add_argument("--control-port", type=int, default=25941)
     ap.add_argument("--state-port", type=int, default=25942)
-    ap.add_argument("--loop", default=os.path.join(DATA, "loops", "lumber.json"))
+    ap.add_argument("--loop", default=os.path.join(DATA, "loops", "lumber.json"),
+                    help="common lumber knowledge (texts, captcha, conversion); the spot adds the venue")
     ap.add_argument("--memory", default=DEFAULT_DB,
                     help="harness memory (SQLite, docs/MEMORY.md): walk memory, harvest nodes, episodes")
     args = ap.parse_args()
@@ -1291,6 +1373,22 @@ def main():
     with open(args.loop, encoding="utf-8") as f:
         know = json.load(f)
     memory = Memory(args.memory)
+    spots = lumber_opt.load_spots(memory, args.spots)
+    spot = spots.get(args.spot)
+    why = None
+    if spot is None:
+        why = f"unknown spot {args.spot!r}; known: {', '.join(sorted(spots))}"
+    elif spot["status"] == "disabled":
+        why = f"spot {args.spot} is disabled" + (f": {spot['reason']}" if spot.get("reason") else "")
+    else:
+        try:
+            know = lumber_opt.spot_knowledge(know, spot)
+        except ValueError as e:
+            why = str(e)
+    if why:
+        log(f"ABORTED: {why}")
+        memory.close()
+        sys.exit(1)
     link = Link(args.control_port, args.state_port)
     loop = LumberLoop(link, memory, know, args)
     code = 0

@@ -42,7 +42,7 @@ Global options go **before** the command. Every call prints exactly one JSON obj
 | Command | Does |
 |---|---|
 | `status` | Proxy snapshot: `pos` `[x,y,z,dir]`, `facet`, `hits`/`stam`/`mana` as `[cur,max]`, `weight`, `gold`, `gate`, `intent` + the last 5 `intents`, `mobiles` the client has within 18 tiles (serial, name, notoriety + name, hits, distance, `age_s` since the server last updated it; nearest first), `attackers` (mobiles whose latest swing, S2C `0x2F`, was at you within 10 s: serial, name, label, dist, hits `[cur,max]`, `last_swing_age_s`; nearest first), `backpack.counts` by graphic and `backpack.items` (up to 60: serial, graphic, name, amount, `in` = sub-bag or null; nested bags included), `target` cursor, open gumps, plus `tasks` and `open_junctures` from the DB. Proxy unreachable → `ok:false` (DB fields still present). The world model drops what the client drops (out of the 18-tile view, dead, another facet; docs/WORLDMODEL.md §7), so a mob missing from `mobiles` can't be clicked, attacked or targeted. |
-| `run <task> [args…]` | Starts a whitelisted task detached: `lumber` → `loop_lumber.py`, `bank` → `errand_bank.py`, `hunt` → `loop_hunt.py` (fight monsters at a spot, NPD mongbats by default; thresholds are its arguments, e.g. `run hunt --kills 5 --heal-at 0.75 --leave-at 0.6`; docs/HUNT_LOOP.md). `args` pass through; `--control-port/--state-port/--memory` are appended from ctl's options unless given. Refused while a task runs (one character). Returns `task_id`, `pid`, `log`. |
+| `run <task> [args…]` | Starts a whitelisted task detached: `lumber` → `loop_lumber.py` (`--spot` is required: take the whole command from `lumber plan`), `bank` → `errand_bank.py`, `hunt` → `loop_hunt.py` (fight monsters at a spot, NPD mongbats by default; thresholds are its arguments, e.g. `run hunt --kills 5 --heal-at 0.75 --leave-at 0.6`; docs/HUNT_LOOP.md). `args` pass through; `--control-port/--state-port/--memory` are appended from ctl's options unless given. Refused while a task runs (one character). Returns `task_id`, `pid`, `log`. |
 | `stop [task_id]` | Asks the wrapper to terminate the task; it ends with a `task_failed` juncture marked `stopped`. If the wrapper doesn't report within `--grace` (20 s), ctl kills both processes itself and posts the juncture (`source: ctl`, "(forced)"). |
 | `wait [--timeout S] [--include-info]` | Blocks (polling ~1 s) until there is an **open** juncture with id > the juncture cursor and severity ≥ `attention` (any severity with `--include-info`), or a `user` chat row with id > the chat cursor. Returns `{"ok":true,"event":<first>,"events":[…up to 20…],"cursors":{…}}` and advances the cursors past what it returned. Timeout (default 1800 s; ≤ 0 = forever) → `{"ok":true,"event":null}`. Events are `{"type":"juncture",id,t,source,kind,severity,summary,data,acked_t}` or `{"type":"chat",id,t,role,kind,text,data}`. |
 | `ack <id>` | Closes a juncture (`acked_t`). Acking `gm_suspected` stops the staff alarm. |
@@ -52,6 +52,10 @@ Global options go **before** the command. Every call prints exactly one JSON obj
 | `chat [--after N] [--limit N] [--role R]` | Lists chat rows. |
 | `say <text>` / `think <text>` / `note-action <text>` | Chat row, role `overseer`, kind `message` / `thought` / `action`. |
 | `act <name> [args]` | One stock action through the proxy control port (below). |
+| `lumber plan [--young] [--stint-min 60] [--all]` | **The self-optimizing lumber job** (`harness/lumber_opt.py`, docs/LUMBER_LOOP.md §6). Reads every lumber trip, sighting and death in the store plus your skill and hatchets from the proxy (works without it), and returns `pick`: the spot (Thompson sampling: `mode` `exploit` or `explore`, `p_best`), `travel` when it isn't where you stand, and `command`, the exact `ctl run lumber --spot … --trips … --logs-per-trip … --regrow-min … --timeout … [--hatchet …]` to start. Also `spots` (per spot: trips, field hours, `rate_logs_h` with its 80 % range, overhead, sightings and deaths per hour, `logs_per_trip`, `net_logs_h`, `p_best`, `why_not` when it can't be picked), `hatchets` (`options` with `net_logs_h` and `breakeven_gp`, `use`, `buy`), `regrow` (when depleted trees come back). Posts one `action` chat row. `--young` lets it pick Young-only spots (also detected from your clicked label). |
+| `lumber spots` / `lumber spot add <id> --center X Y --radius R --bank X Y Z […]` / `lumber spot set <id> --status active\|candidate\|disabled [--reason R]` | The spots it chooses between: seeds in `harness/data/lumber_spots.json`, yours and discovered ones in the store. `add` options: `--name`, `--banker-serial`, `--banker-name`, `--facet`, `--no-pvp`, `--hazard-prior` (hostile players expected per field hour, default 0.5), `--travel` (how to get there), `--travel-min`, `--status` (default active). `set` approves a candidate (`active`), parks it, or disables a spot with a reason (a seed too). |
+| `lumber discover [--bank TOWN] [--ring 30 110] [--radius 14] [--min-trees 25] [--per-bank 3] [--dry-run]` | Proposes tree-dense areas near bank markers from the map as `candidate` spots (never next to a learned guard point or on a known spot). Look at each with `ctl map` near it before approving. |
+| `lumber price <item> <gp> [--source S] [--note N]` / `lumber prices` | Observed prices, newest per item counts: `hatchet:<material>` (e.g. `hatchet:copper`, `hatchet:copper:exceptional`), `board:<wood>` (`board:ordinary` replaces the 9.5 gp default). The hatchet choice uses them; colored-board prices are the input for gold/hour later. |
 
 ### `act`: the only way the overseer touches the game directly
 
@@ -293,7 +297,7 @@ Paste this (or point the session at this section) to start an overseer.
 > 3. On wake, read `events`. For each: `ctl think` your reading of it (this is the only way the
 >    user sees your reasoning), then decide:
 >    - `task_done`: check `status` (weight, supplies, hits), then `ctl run` the next task or
->      idle.
+>      idle. When lumbering, the next run comes from `ctl lumber plan` (below).
 >    - `task_failed`, `stuck`: read the tail/log; retry once if the cause is transient,
 >      otherwise fix the situation with small `ctl act` steps or call the human.
 >    - `threat`, `theft_suspected`, `death`, `low_supplies`: follow the runner's data. When in
@@ -356,6 +360,23 @@ Paste this (or point the session at this section) to start an overseer.
 >    - When something known proves true again, `know confirm` it.
 > 6. Go back to step 2. A timeout (`event: null`) is a heartbeat: glance at `status`, then wait
 >    again.
+>
+> **Lumber shifts (self-optimizing, docs/LUMBER_LOOP.md §6).** Before every lumber run, and after
+> each lumber `task_done`/`task_failed` you've dealt with: `ctl lumber plan`. `ctl think` its pick in
+> one line (spot, explore or exploit, P(best), expected logs/h). If `pick.travel` is set, get there
+> first (the moongate it names, then `ctl goto` to the bank), then `ctl run` **its `command`
+> verbatim**: the spot choice, trip size, regrowth window and hatchet are what the system learns
+> with, so hand-picked arguments spoil the data. Override it only for safety (a red or PK you saw
+> there that the store doesn't know about, a GM, the user's say) and `think` why. An `explore`
+> pick is deliberate: it is how the job learns whether another spot is better. After a death or a
+> `pk_escape` the planner keeps that spot out for 30 min by itself. When every spot is out
+> (`ok: false`) or the plan keeps choosing between the same few: `ctl lumber discover`, look at each
+> candidate with `ctl map` (no dungeon or town walls, trees reachable from the bank), and approve
+> it (`lumber spot set <id> --status active`) or disable it with a reason; the same for a spot that
+> proves unworkable (unreachable trees, guarded, a dungeon mouth). Record prices you see for
+> hatchets and boards (`ctl lumber price hatchet:copper 1200 --source "vendor search"`): the hatchet
+> choice uses them. `hatchets.buy` is advice for the user, not something to buy on your own
+> unless the user's gold policy allows it.
 >
 > **Safety.** One task at a time; never `act` while a task runs (ctl refuses anyway).  Gump replies only through
 > `act gump`, whose guards you must not try to work around: the captcha is refused (the human or the runner's solver answers it),

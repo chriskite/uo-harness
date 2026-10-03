@@ -330,6 +330,31 @@ and the session capture of that time (local).
   potions), the leather tunic, 968 boards and 447 logs. The riderless horse followed the ghost and
   stayed ours (notoriety 2); a double-click remounted it.
 
+## Lumber yields, regrowth and success chance (memory store, as of 2026-10-02 23:00)
+
+Read from `harvest_attempts` and the lumber `episodes` while building the optimizer
+(`harness/lumber_opt.py`; docs/LUMBER_LOOP.md §6). Characters TestWorth and Hackworth, Test Shard.
+
+- **Depleted trees come back after ~45–65 min, not 20.** 137 cases of a depleted tree tried
+  again later (the runner's old `--regrow-min 20` produced them): regrown 0/14 at 15–30 min,
+  7/50 at 30–45, 12/25 at 45–60, 41/45 after 60 (a fail or a success counts as regrown; a
+  depleted answer as not). The isotonic fit reaches P = 0.6 at 65 min. The runner's default is
+  now 45 and `ctl lumber plan` passes the fitted value. Retry gaps shorter than the window in
+  use are no longer observed, so the estimate can only move up from here unless the window is
+  shortened on purpose.
+- **Success matches the wiki formula.** Terran 2026-10-02 (Hackworth, Lumberjacking 69.1, iron
+  hatchet): 44 successes in 63 attempts = 0.70; Σ tree-colour chance × (skill − offset)/divisor
+  gives 0.69 (woods.json).
+- **Field rate 1 200–2 000 logs per hour** off Shelter at 69 skill, mounted: the Terran trip got
+  334 logs in ~595 s between the first chop and the end of the harvest (9.4 s per attempt,
+  7.6 logs per success). Logs per success over the last 300 successes: 7.59. Per-trip logs scatter
+  ~14× more than a Poisson count (quasi-Poisson φ over trips), so one trip says little.
+- **Until 2026-10-02 only trips that reached the bank were recorded.** The aborted Terran and
+  Corpse Creek runs (greys, unknown outcomes, the PK) left no episode row; the Terran death came
+  11 s after the runner had stopped, so no lumber `death` job event either. The proxy's own
+  `death` event (`events` table, ev `death` with x/y) has it; with no trip row around it, the
+  optimizer blames it on the spot whose area it's in (terran_wilds).
+
 ## Runebook and rune tome gumps (live 2026-10-02, TestWorth on the Test Shard)
 
 Read from the memory-store `gump_open` events and the session capture

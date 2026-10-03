@@ -1,14 +1,15 @@
 # LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → bank (→ deed later)
 
-Status (2026-10-01): **boards go into the bank box; the rental room is out of the loop (user
-decision, §12.5).** Runs on Shelter Island with a fresh Young character. The room-storage version
-ran live on 2026-09-29 (3 trips, 50 boards, captcha solved and resumed; run 3, §13).
+Status (2026-10-02): **self-optimizing (§6, "Built 2026-10-02").** `ctl lumber plan` picks the spot
+(Thompson sampling over spots learned from every trip), the trip size (PK risk vs. walking
+overhead) and the hatchet; the runner takes `--spot`. Boards go into the bank box; the rental room
+is out of the loop (user decision, §12.5). The room-storage version ran live on 2026-09-29 (3 trips,
+50 boards, captcha solved and resumed; run 3, §13); the bank version ran live off Shelter on
+2026-10-02 (Horseshoe Bay, Corpse Creek, Terran).
 - M0: the user's demonstration run (`logs/session_20260929_204225`) is mined into
   `harness/data/loops/lumber.json` and pinned by `harness/test_loop_demo.py`; findings are in §12.
-- Current goal (user decisions, §12.4, §12.5): run the loop minus deed creation on Shelter,
-  banking the boards each trip, then optimize.
-- Runner: `harness/loop_lumber.py`, proven offline by `test_loop_lumber.py`; the bank version is
-  not yet run live.
+- Runner: `harness/loop_lumber.py`, proven offline by `test_loop_lumber.py`. Optimizer:
+  `harness/lumber_opt.py`, proven offline by `harness/test_lumber_opt.py`.
 
 Builds on Phase 4 (docs/PLAN.md). This loop is the Phase 4 workload: the planner, the skill
 library, the rails and the captcha handling all get exercised by it.
@@ -204,23 +205,81 @@ $$c(Q) = \frac{rT}{Q} + \frac{hQ}{2r} + h\,T_{back} \quad\Rightarrow\quad Q^* = 
 - **Recall as a knob (overworld, later):** a routine recall home cuts `T_back` but adds a 60 s
   lockout on the way back out. The model takes it when `T` drops.
 
-### Other knobs
+### Built 2026-10-02: the self-optimizing lumber job (user request: exploit/explore spots for gold/hour)
 
-| Knob | Method |
-|---|---|
-| Which spot next | Bandit (Thompson sampling) over harvest-memory spots. Reward = yield ÷ (travel + harvest time); a spot is eligible only once its regrowth estimate has passed |
-| Spot order within a trip | Greedy nearest-eligible, with random tie-breaks among near-equal options |
-| Where to convert/deed | Pick from measured episode times once §2 is verified (field vs. room vs. bank) |
-| Route | A* over map data plus learned denies. Sample among near-optimal paths so trips don't repeat tile for tile |
+Logs/hour stands in for gold/hour until colored-wood prices exist (user, 2026-10-02). Code:
+`harness/lumber_opt.py` (model), `ctl lumber …` (docs/OVERSEER.md), `harness/test_lumber_opt.py`.
+Decision and rejected alternatives: docs/PLAN.md "Self-optimizing lumber".
 
-Loop between sessions:
-- `harness/loop_report.py` computes metrics from the episode log.
-- The LLM reflection reads the report and proposes a diff to `lumber.json` parameters.
-- Spot statistics and the return-trigger estimates (`r`, `T`, `h`) update automatically within bounds.
-  Structural changes (new states, deed location, venue) need user approval.
+**Spots.** A spot = a tree area plus the bank its trips end at (`area`, `banker`, `pvp`,
+`requires_young`, `hazard_prior`, `travel`, `travel_min`). Seeds: `harness/data/lumber_spots.json`
+(Shelter, Horseshoe Bay, Corpse Creek, Terran; they replace the per-venue `loops/lumber_*.json`).
+The store's `lumber_spots` table holds the spots the overseer adds and the candidates `ctl lumber
+discover` proposes from the map (tree-dense windows 30–110 tiles from each bank marker, not next to
+a learned guard point, not overlapping a known spot), and overrides a seed's status. Only `active`
+spots are planned; a candidate becomes active when the overseer approves it.
 
-Anti-pattern guard: optimizing toward one identical path and cadence is itself a behavioral
-signature (ANTICHEAT.md §8.3). Variation is required, not an inefficiency to remove.
+**Evidence.** Every trip writes an episode row, aborted ones too (§13), with `spot`, `outcome`/`why`,
+the phases, `walk_out_s` (start to first chop), `chop_s` (attempts and the pauses between them,
+speech holds excluded), `tree_walk_s`, `skill`, the `hatchet` (material by hue, tool bonus, uses),
+`mounted`, `buffs`, `carried_end` and `dry` (the candidate trees ran out). Hostile-player sightings
+are the `pk_seen` job events inside a trip; deaths are the proxy's `death` events, blamed on a spot
+when they fall in a trip there or within 30 min after it (the Terran PK killed us 11 s after the
+runner stopped) and near its area, or, with no trip row around them, inside its area. Rows written
+before 2026-10-02 count too: their walk out is
+taken equal to the walk to the bank, chops cost 9.5 s each, and they aren't skill-rescaled.
+
+**Model** (per spot; trips weighted by recency, half-life 14 days, so changes in competition, PKs or
+patches show up within weeks):
+- field rate λ (logs per field hour, walking between trees and interruptions included): Gamma
+  posterior, quasi-Poisson with dispersion φ (Pearson over trips, ≥ 8 since logs come ~7.6 per
+  success; 14 on the data of 2026-10-02). Prior = the spread of the measured spots' rates
+  (empirical Bayes, CV ≥ 0.35): an unvisited spot is "a spot like the others", explored but not
+  trusted.
+- **Growing skill and better tools:** each trip's chopping time is rescaled by p_then/p_now, where
+  p = Σ_wood tree-colour chance × min(1, (skill − offset)/divisor × (1 + tool bonus)) (wiki
+  formulas in `woods.json`, colours above our skill counted as regular wood [INFERENCE]). Walking
+  isn't rescaled. So data measured at 69 skill is credited with what the spot yields at today's
+  skill, and spots don't need re-exploring as Lumberjacking rises. The formula gives 0.69 at 69.1
+  skill; Terran measured 44/63 = 0.70. Harvest Aspect isn't modelled explicitly (its buffs are
+  recorded): its double yield shows up through the recency weighting.
+- overhead T (walk out + convert + walk to the bank + store): Normal posterior, prior from the
+  bank-to-area distance.
+- hazard: hostile-player sightings per field hour (Gamma, prior `hazard_prior`, 2 h strong) ×
+  P(death | sighting) (Beta(1, 3) prior, pooled over spots). Sightings carry information long before
+  deaths do (§6 above). A death costs the carried logs (Q/2 on average), the hatchet's value if it
+  isn't newbied, and 20 min of recovery [INFERENCE].
+- trip size: Q* maximises banked logs/hour (Q − deaths·(Q/2 + G)) / (Q/λ + T + deaths·R) over a grid
+  25…3000, capped at what one stint (60 min) can chop. No PvP (Shelter): the cap.
+- **choice:** Thompson sampling: one posterior draw per eligible spot, the best wins; a spot other
+  than the one we stand at pays `travel_min` out of the stint. `plan` reports P(best) per spot from
+  2 000 draws, `mode: explore` when the pick isn't the best by posterior mean, and the runner
+  command (`--spot`, `--trips` for ~60 min, `--logs-per-trip` Q*, `--regrow-min`, `--timeout`,
+  `--hatchet`).
+- **eligibility:** `active` status; Young-only spots only for a Young character (`--young` or the
+  self label); 30 min after a death or a trip cut short with a hostile player in sight there; after
+  a `dry` trip until the trees regrow.
+- **regrowth:** pairs (depleted, later attempt on the same tree) from `harvest_attempts`; an
+  isotonic fit of P(regrown | gap); the estimate is where it reaches 0.6. On the data of 2026-10-02
+  (137 pairs): 0/14 regrown at 15–30 min, 7/50 at 30–45, 12/25 at 45–60, 41/45 later → 65 min. The
+  old 20-min window sent the runner to depleted trees (docs/NOTES.md).
+- **hatchet:** for every owned hatchet (worn or packed; material by hue, quality by clicked name)
+  and every buyable one with a known price (iron 25 gp at NPCs; `ctl lumber price hatchet:<material>
+  <gp>` for the rest), the net logs/hour at the picked spot: λ rescaled to its tool bonus, minus wear
+  (one use per success; uses 500 + tier bonus, `harness/data/hatchets.json`) and the expected loss
+  on death, in logs at the ordinary board price (9.5 gp, or `board:ordinary` from the price table).
+  Unknown price → not used, and a break-even price is reported (the highest price at which it still
+  beats the best priced option). `use` = pass `--hatchet <material>`; `buy` = a better one we don't
+  own.
+
+**Anti-pattern guard:** optimizing toward one identical path and cadence is itself a behavioral
+signature (ANTICHEAT.md §8.3). Thompson sampling varies the spot from stint to stint, and the runner's
+human noise varies the rest. Variation is required, not an inefficiency to remove.
+
+**Not built (data or decisions missing):** gold/hour with per-wood prices (needs colored-board
+prices: record them with `ctl lumber price board:<wood> <gp>`; the objective then becomes value per
+hour, ECONOMY §6), recall-out as a routine return (needs a marked rune per spot), time-of-day hazard,
+per-spot regrowth, a Jobs-page view per spot.
 
 ## 7. Decisions (user, 2026-09-29)
 
@@ -264,8 +323,8 @@ signature (ANTICHEAT.md §8.3). Variation is required, not an inefficiency to re
 | M1 (runner-level) | Perception: cliloc parsing, captcha gump detection (gump id + entry + button; decoys ignored), harvest outcomes | Built into `loop_lumber.py`; offline-proven (§13). A reusable perception layer comes with M6 |
 | M2 | Skills: goto with door opening, harvest attempt, convert, enter room, store, exit room; offline in `test_loop_lumber.py`, then live, attended | Offline ✅; live ✅ (attempt 2c, 2026-09-29) |
 | M3 | Routine runner, full loop (no deeds) | Offline ✅ (2 trips); live ✅ run 3: 3 trips, 50 boards, live captcha handoff (§13) |
-| M4 | Harvest memory, episode log, report | Report reproduces from the logs; `r`, `T` and regrowth estimates exist |
-| M5 | Bandit + return trigger + reflection | Boards/active-hour improves over a baseline session on the same venue without violating §1 |
+| M4 ✅ | Harvest memory, episode log, report | Done 2026-10-02: every trip (aborted ones too) is an episode row; `ctl lumber plan` reports λ, T, hazard and the regrowth estimate per spot |
+| M5 (built) | Bandit + return trigger | Built 2026-10-02 (§6): Thompson sampling over spots, Q* from hazard and overhead, hatchet choice. Done when boards/active-hour improves over a baseline on the same character without violating §1 (weeks of runs) |
 | M6 | LLM planner composes and repairs the routine | Phase 4 done criterion: NL objective → loop run, with captcha handling demonstrated |
 
 ## 10. Demonstration runbook (user)
@@ -423,11 +482,11 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
 `act()`) and `Mover` (walking, learned blocks, doors). `errand_bank.py` uses it too.
 
 - **Trip** (since 2026-10-01, user decision §12.5: bank the boards):
-  1. Harvest the known trees (shuffled; trees depleted in the last `--regrow-min` are skipped).
+  1. Harvest the spot's trees (nearest first; trees depleted in the last `--regrow-min` are skipped).
   2. Convert every log stack.
-  3. Walk to within `--bank-range` (4) of where the banker (lumber.json `npcs.banker`, Len,
-     `0x000001EA`) stands now. Fall back to his demo position, then on his floor
-     (`same_floor`).
+  3. Walk to within `--bank-range` (4) of where the spot's banker (`banker` in the spot, e.g. Len
+     `0x000001EA` on Shelter) stands now. Fall back to the spot's banker position (a bank marker when
+     the serial is unknown), then on that floor (`same_floor`).
   4. Say `bank` and wait for the server's `0x24` on the layer-0x1D item
      (`agent_link.bank_opened`, shared with `errand_bank.py`). If it doesn't open, abort.
   5. Without taking a step (moving closes a bank box in RunUO `[INFERENCE for Outlands]`),
@@ -517,23 +576,40 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
 - **Walking (since 2026-09-29, after live attempt 1):** `Mover` plans in 3D on the real map
   (`harness/pathfind.py`, the client's walkability rules) whenever the facet has geometry. In the
   rental room (blank facet 3) it falls back to walk memory.
-- **Trees:** candidates are the lumber.json seeds plus every tree static in `harvest.area`,
-  up to `--max-trees` per trip (nearest to the trip's start, with noise). **The next tree is
-  chosen from where the character stands** (`next_tree`, since 2026-10-02): the shortest planned
-  walk among the 6 nearest by straight line, ×1.0–1.15 noise. Before, the list was walked in its
-  start-order: in the Terran pass (live 2026-10-02) that sent the runner 80–90 steps round a
-  ridge between trees on both sides of the road while trees 3–6 steps away waited. On those 16
-  trees the old order walked 673 steps, the new choice 148 (throwaway replay on the real map).
-  A tree without a route is skipped for the regrowth window. A tree the server rejects (500489)
-  is remembered as not a tree.
+- **Spot (since 2026-10-02, §6):** `--spot ID` (required) picks a spot from
+  `harness/data/lumber_spots.json` plus the store's `lumber_spots` rows
+  (`lumber_opt.load_spots`); a disabled or unknown spot aborts at once. Its banker, area, seed
+  trees and `pvp` flag are merged over `loops/lumber.json`, which keeps the demonstration's texts,
+  captcha shape and conversion. `pvp: false` (Shelter) skips the recall readiness and the guard
+  flight. The per-venue `loops/lumber_*.json` files are gone.
+- **Trees:** candidates are the spot's seed trees plus every tree static in its area, all of them
+  by default (`--max-trees 0`; it was 8 per trip, which capped a trip at ~180 logs). Trees depleted
+  within `--regrow-min` are skipped: 45 min by default, and `ctl lumber plan` passes the estimate
+  from harvest memory (65 min on 2026-10-02; the old default of 20 sent the runner to trees that
+  were still empty). **The next tree is chosen from where the character stands** (`next_tree`,
+  since 2026-10-02): the shortest planned walk among the 6 nearest by straight line, ×1.0–1.15
+  noise. Before, the list was walked in its start-order: in the Terran pass (live 2026-10-02) that
+  sent the runner 80–90 steps round a ridge between trees on both sides of the road while trees
+  3–6 steps away waited. On those 16 trees the old order walked 673 steps, the new choice 148
+  (throwaway replay on the real map). A tree without a route is skipped for the regrowth window. A
+  tree the server rejects (500489) is remembered as not a tree.
+- **Hatchet choice (since 2026-10-02):** `--hatchet copper` (or `copper+exceptional`) uses only a
+  hatchet of that material (by hue, `harness/data/hatchets.json`) and quality (by its clicked
+  name); none such aborts the start. Without it: worn, else the shallowest in the pack.
+- **Episode row for every trip (since 2026-10-02):** written in a `finally`, so a trip that aborts
+  (threat, escape that kept coming, unknown outcomes, no trees) still leaves `outcome: aborted` and
+  `why`, with the phases it got through. Leaving those out flattered exactly the spots where trips
+  get cut short: of the 2026-10-02 Terran and Corpse Creek runs only the trips that banked were
+  recorded. A process kill (`ctl stop` terminates the task) still writes nothing. Fields: §6
+  "Evidence".
 - **Chop outcomes:** success is the ordinary text or any coloured wood ("You chop some dullwood
   logs and put them in your backpack.", `COLORED_CHOP`, since 2026-10-02). Before, dullwood counted
   as an unknown outcome, and the unknown counter never reset, so four dullwood chops spread over a
   30-min Terran trip aborted it. The abort now needs more than 3 unknowns **in a row**.
 - **A trip ends when its candidate trees run out**, whatever `--logs-per-trip` says, and the end
-  of a trip is convert + bank. A 12-radius area (33 trees) ran dry in 11 min (Terran, 2026-10-02).
-  The list is fixed at the trip's start, so a long no-bank run needs a large area or a restart
-  (depleted trees come back after `--regrow-min`).
+  of a trip is convert + bank; the row is marked `dry`, and the planner keeps the spot out until its
+  trees regrow. A 12-radius area (33 trees) ran dry in 11 min (Terran, 2026-10-02). The list is
+  fixed at the trip's start (depleted trees come back after `--regrow-min`).
 - **Doors** (tiledata Door flag, or classic door art 0x0675–0x06F4: the demo's inn doors
   0x06A5/0x06AD/0x06ED/0x06EF and the room door 0x06E5): opened ahead, like the client's auto-open.
   When a step or turn leaves the character facing a door on the next tile, the Mover sends the

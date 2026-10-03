@@ -299,7 +299,6 @@ book before he can work off Shelter.
 Still open:
 - the run-away behaviour (item 4); its no-recall fallback, the guard flight, is built (below)
 - path-based player ETAs and Tracking (item 6)
-- the banking return trigger
 - the hunt runner: dungeons block recall, so its red rule is unchanged
 
 Evidence: the Terran PK (docs/NOTES.md "PK death in the Terran wilds") and the one live runebook
@@ -388,6 +387,55 @@ it stood. Code: `harness/guards.py`, `LumberLoop.flee_to_guards`, `nav.any_of`,
 - **Live check (TestWorth, Prevalia, Test Shard):** fake red, `--recall off`, from (1481,1505)
   between the two Prevalia zones: 10 steps, all runs, to the learned point (1483,1515) in 4.42 s;
   `pk_escape` `method: guards`, `called_guards: false`, `confirmed: false`.
+
+## Self-optimizing lumber (decided and built 2026-10-02)
+
+User request: the lumber loop and its overseer should optimize gold/hour by themselves over the
+coming weeks, exploiting and exploring lumber spots, and later choose the hatchet colour from its
+price, durability and tool bonus against the risk of losing it to a PK; logs/hour stands in for
+gold/hour until colored-wood prices are known. The character's skill and Harvest Aspect grow
+meanwhile. Built: `harness/lumber_opt.py`, `ctl lumber …`, spots in `harness/data/lumber_spots.json`
+plus the store, hatchets in `harness/data/hatchets.json`; the model is docs/LUMBER_LOOP.md §6
+"Built 2026-10-02".
+
+- **Thompson sampling over spots, run by the overseer per stint.** `ctl lumber plan` draws once
+  per eligible spot and the overseer runs the winner's command. It explores in proportion to how
+  likely a spot is to be the best, needs no tuning constant, and varies the routine, which
+  ANTICHEAT.md §8.3 wants anyway. Rejected: ε-greedy (explores bad spots as often as promising
+  ones, needs an ε schedule); UCB (deterministic, so the same spot order every day; a fixed pattern
+  is a bot signature); an LLM choosing spots by reading the stats (not reproducible, no
+  uncertainty accounting). The runner stays a one-spot executor and the plan is a pure function
+  of the store, so the overseer, a future daemon or a human run the same decision.
+- **A structured model, not a black-box reward per spot.** A spot's rate is split into what
+  belongs to the place (field rate λ, overhead T, sighting rate) and what belongs to the character
+  (success chance from skill and tool bonus, wiki formulas). Each trip's chopping time is rescaled
+  to today's success chance. Skill rises for weeks; a plain per-spot logs/hour average would
+  favour whichever spots happened to be visited recently and force re-exploring everything as the
+  skill grows. Harvest Aspect isn't in the formula; recency weighting (half-life 14 days) absorbs
+  it and other drift (competition, patches, PK habits).
+- **The trip size is the §6 return trigger, decided per spot from its learned hazard.** Hazard =
+  sightings/hour × P(death | sighting): sightings arrive long before deaths, which are rare.
+  This replaces fixed `--logs-per-trip` values; the user's 2026-10-02 note (banking trips are
+  costly, don't bank more often than the trigger says) holds.
+- **Every trip is evidence, aborted ones too.** Until now only trips that reached the bank wrote
+  an episode row, so the spots where trips get cut short looked better than they are. The runner
+  now writes the row in a `finally` with `outcome` and `why`.
+- **New spots: proposed from the map, approved by the overseer.** `ctl lumber discover` finds
+  tree-dense areas near bank markers; they start as `candidate` and enter the plan when the
+  overseer approves them after a look at `ctl map`. This user request grants the system the spot
+  choice; the LUMBER_LOOP §7 rule that a venue change needs the user stays for structural
+  changes (new loop states, where to deed). Rejected: auto-activating every map candidate (a
+  dungeon mouth or a walled garden would cost deaths and wasted trips before the data caught up).
+- **Hatchets by expected net value, prices from observation.** Wear is one use per successful chop
+  (measured, YOUNG_DEMOS); a hatchet that isn't newbied is lost on death (Terran: the corpse kept
+  it). With no price, a hatchet isn't used and the plan gives the break-even price instead of
+  guessing one. Prices come from what the overseer sees (`ctl lumber price`).
+- **Regrowth from our own data.** Depleted trees came back after ~45–65 min (137 retries), not the
+  20 min the runner assumed; the plan passes the fitted window (docs/NOTES.md).
+- **Open:** gold/hour once colored-board prices exist (ECONOMY §6 value rate), routine recall home
+  when a spot has a marked rune, time-of-day hazard, a Jobs-page view per spot. Done criterion
+  (LUMBER_LOOP §9 M5): banked logs per active hour improve over the weeks on the same character
+  without violating §1.
 
 ## Risks
 

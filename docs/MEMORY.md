@@ -31,7 +31,7 @@ Rejected:
 - A server database (Postgres). It needs a service, which is too much for one local harness.
 - DuckDB. It's analytics-first, not in the stdlib, and has a single-writer file lock.
 
-## Schema (v4, `memory.SCHEMA`)
+## Schema (v5, `memory.SCHEMA`)
 
 | Table | Key | Contents |
 |---|---|---|
@@ -40,13 +40,15 @@ Rejected:
 | `walk_moves` | (`facet`, `x`, `y`, `z`, `dir`, `ok`) | server-confirmed moves (`ok`=1) and denies (`ok`=0) with count `n`, `first_t`, `last_t`. `z` = -32768 when unknown |
 | `harvest_nodes` | (`facet`, `x`, `y`, `z`) | `graphic`, `attempts`, `successes`, `yield`, `depleted_at`, `unreachable_at`, `not_tree` |
 | `harvest_attempts` | (append) | `t`, node, `outcome` (success/fail/depleted/not_tree/unreachable), `amount`. Index by node and time (regrowth and yield statistics) |
-| `episodes` | `id` | `loop`, `t_start`, `t_end`, `data` (the trip row JSON) |
+| `episodes` | `id` | `loop`, `t_start`, `t_end`, `data` (the trip row JSON). Lumber rows since 2026-10-02 (every trip, aborted ones too): `spot`, `outcome` (`banked`/`aborted`), `why`, `phases_s`, `walk_out_s`, `chop_s`, `tree_walk_s`, `skill`, `hatchet`, `mounted`, `buffs`, `character`, `carried_end`, `dry`, `logs`, `stored`, … (docs/LUMBER_LOOP.md §6 "Evidence") |
 | `junctures` | `id` | v2. Overseer wake-ups: `t`, `source` (runner or `ctl`), `kind` (task_done, task_failed, captcha, stuck, threat, theft_suspected, death, low_supplies, …), `severity` (info/attention/urgent), `summary`, `data`, `acked_t`. See docs/OVERSEER.md |
 | `chat` | `id` | v2. The viz chat and the overseer's visible thinking: `role` (user/overseer/system), `kind` (message/thought/action), `text`, `data` (`{"via": "telegram", "message_id": N}` on user rows from the Telegram bridge) |
 | `job_events` | `id` | v2. Job analytics facts other than trips: `job`, `kind` (death with `data.cause`, theft, pk_seen, flee, …), `facet`/`x`/`y`, `data` |
 | `teleporters` | (`facet`, `x`, `y`) | v3. Invisible server teleporter tiles learned by stepping onto one: `to_facet`/`to_x`/`to_y`/`to_z`, `n`, `first_t`, `last_t`. The Mover plans around them (docs/OVERSEER.md) |
 | `guard_points` | (`facet`, `x`, `y`) | Tiles we stood on when the server said "You are now under the protection of the town guards." (cliloc 500112) right after a one-tile step: `n`, `first_t`, `last_t`. `Mover.step` records them live; `python harness/guards.py backfill` replays the `events` table. The lumber runner's guard flight runs to them (docs/PLAN.md "Guard flight"). Added without a schema bump (`CREATE TABLE IF NOT EXISTS`) |
 | `knowledge` + `knowledge_fts` | `id` | v4. The overseer's long-term memory (below): `kind`, `topic`, `content`, `tags`, `entities`, optional `facet`/`x`/`y`, `source_type`/`source_ref`, `confidence`, `importance`, `status` (active/superseded/retracted), `supersedes`/`superseded_by`, `retract_reason`, `content_hash`, `confirmations`, `created_t`/`updated_t`/`last_access_t`/`access_count`. FTS5 (porter stemming) over topic, content, tags and entities, kept in sync by triggers |
+| `lumber_spots` | `id` | v5. Lumber spots for `lumber_opt.py` (docs/LUMBER_LOOP.md §6): `status` (active/candidate/disabled), `data` (the spot JSON; `{}` = a status override of a seed in `harness/data/lumber_spots.json`), `reason`, `source` (overseer/discover), `created_t`, `updated_t`. Written by `ctl lumber spot add\|set` and `ctl lumber discover` |
+| `prices` | `id` | v5. Observed market prices, append-only: `item` (`hatchet:<material>[:<quality>]`, `board:<wood>`), `price_gp`, `t`, `source`, `note`; the newest per item counts (`Memory.prices`). Written by `ctl lumber price` |
 | `meta` | `key` | `schema_version`; `captcha_mode` (`human`/`auto`, missing = `human`; who answers the harvest captcha, set from the viz header, read by the runner at every captcha); overseer bus (docs/OVERSEER.md): `tasks` (running task entries), `task_stop`, `overseer_juncture_cursor`, `overseer_chat_cursor`, `overseer_heartbeat` (epoch s); Telegram bridge (docs/OVERSEER.md §8): `telegram_chat_cursor`, `telegram_juncture_cursor`, `telegram_update_offset` |
 
 ## Who writes what
@@ -58,7 +60,9 @@ Rejected:
     (deny, with z) events. The facet comes from the world model (S2C 0xBF sub 8). Both the
     human's and the agent's walks teach it.
 - **Runners** (`Memory`):
-  - `loop_lumber.py` writes harvest outcomes and episodes.
+  - `loop_lumber.py` writes harvest outcomes and one episode per trip, aborted trips included.
+    `lumber_opt.py` (`ctl lumber plan`) reads them with the `pk_seen` job events, the `death`
+    events and `harvest_attempts` (regrowth) to choose the next spot, trip size and hatchet.
   - `loop_hunt.py` writes one episode per visit (loop `hunt`: kills, gold, xp, hits lost, casts, heals,
     why it ended) and job events `kill`, `loot` (gold, xp = the corpse's gold; docs/HUNT_LOOP.md),
     `leave`, `death`, `speech_hold`/`speech_clear`. The viz Jobs page's Hunting dashboard reads them.
@@ -138,5 +142,4 @@ automatic summarisation of episodes into insights. The overseer writes insights 
 
 ## Next
 
-- A hazard/exposure table for the per-region `h` estimate (LUMBER_LOOP.md §11).
 - A state-port op to page old events from the store, so late readers don't depend on the ring.

@@ -522,13 +522,16 @@ class World:
             await self.writer.drain()
 
 
-def knowledge(path, trees=(GOOD_TREE, DRY_TREE)):
-    with open(f"{ROOT}/harness/data/loops/lumber.json", encoding="utf-8") as f:
-        k = json.load(f)
-    k["harvest"]["trees"] = list(trees)
-    k["npcs"]["banker"].update(serial=f"0x{BANKER:08X}", pos=[*BANK_KNOWN, 0])
+def write_spot(path, trees=(GOOD_TREE, DRY_TREE)):
+    """The simulator's spot 'sim' (lumber_opt spot format, a --spots file): its trees and
+    banker; no hostile player actions there, so no recall book is needed. The common
+    knowledge is the committed loops/lumber.json."""
+    spot = {"id": "sim", "name": "simulated Shelter trees", "facet": 0,
+            "area": {"center": list(START), "radius": 30}, "trees": list(trees),
+            "banker": {"serial": f"0x{BANKER:08X}", "name": "Len the banker", "pos": [*BANK_KNOWN, 0]},
+            "pvp": False}
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(k, f)
+        json.dump({"spots": [spot]}, f)
 
 
 async def main():
@@ -537,8 +540,8 @@ async def main():
         if os.path.isfile(os.path.join(LOGDIR, f)):      # the other scenarios keep subdirectories
             os.remove(os.path.join(LOGDIR, f))
     tmp = tempfile.mkdtemp()
-    paths = {"lumber": os.path.join(tmp, "lumber.json"), "db": os.path.join(tmp, "harness.db")}
-    knowledge(paths["lumber"])
+    paths = {"spots": os.path.join(tmp, "spots.json"), "db": os.path.join(tmp, "harness.db")}
+    write_spot(paths["spots"])
     # captcha mode `auto` (the viz toggle; the default is `human`): trip 1's readable captcha is
     # the solver's, trip 2's unreadable one falls back to the human wait
     store = memory.Memory(paths["db"])
@@ -604,7 +607,7 @@ async def main():
             PY, f"{ROOT}/harness/loop_lumber.py", "--trips", "2", "--logs-per-trip", "100",
             "--regrow-min", "0.05",
             "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT),
-            "--loop", paths["lumber"], "--memory", paths["db"],
+            "--spot", "sim", "--spots", paths["spots"], "--memory", paths["db"],
             "--human", "normal", "--seed", "11", "--human-fast", "0.25", "--timeout", "300", "--quiet",
             # --no-map: walk memory only, and the town wall (21 tiles) is unknown; per-plan route
             # noise can send the agent along it, learning one denied edge per try (up to 3 a tile)
@@ -730,6 +733,15 @@ async def main():
               len(rows) == 2 and all(r.get("logs", 0) >= 6 and r.get("stored", 0) >= 6
                                      and set(r["phases_s"]) == {"harvest", "convert", "to_bank", "store"}
                                      for r in rows), str(rows))
+        check("trip rows say where, how it ended and with what: spot sim, banked, the worn iron hatchet, "
+              "the walk out and the chopping inside the harvest time, nothing carried at the end",
+              all(r.get("spot") == "sim" and r.get("outcome") == "banked" and r.get("why") is None
+                  and (r.get("hatchet") or {}).get("material") == "iron" and r["hatchet"].get("worn")
+                  and 0 < r["walk_out_s"] < r["phases_s"]["harvest"]
+                  and 0 < r["chop_s"] < r["phases_s"]["harvest"] - r["walk_out_s"]
+                  and r.get("carried_end") == {"logs": 0, "boards": 0} for r in rows),
+              str([{k: r.get(k) for k in ("spot", "outcome", "hatchet", "walk_out_s", "chop_s", "phases_s",
+                                          "carried_end")} for r in rows]))
         check("every C2S packet came from the client or the agent (none from the proxy)",
               srcs <= {"client", "agent"}, str(srcs))
         intents = [e["intent"] for e in log if e.get("ev") == "agent_intent"]
@@ -790,8 +802,8 @@ async def run_scenario(world, tag, port_base, trees, runner_args, budget=None):
         with open(os.path.join(logdir, "agent_budget.json"), "w", encoding="utf-8") as f:
             json.dump(budget, f)
     tmp = tempfile.mkdtemp()
-    lumber, db = os.path.join(tmp, "lumber.json"), os.path.join(tmp, "harness.db")
-    knowledge(lumber, trees)
+    spots, db = os.path.join(tmp, "spots.json"), os.path.join(tmp, "harness.db")
+    write_spot(spots, trees)
     proxy_port, upstream, control, state = (port_base + i for i in range(4))
     server = await asyncio.start_server(world.handle, "127.0.0.1", upstream)
     proxy = subprocess.Popen(
@@ -813,7 +825,8 @@ async def run_scenario(world, tag, port_base, trees, runner_args, budget=None):
         await asyncio.sleep(0.5)
         runner = await asyncio.create_subprocess_exec(
             PY, f"{ROOT}/harness/loop_lumber.py", "--control-port", str(control), "--state-port", str(state),
-            "--loop", lumber, "--memory", db, "--timeout", "300", "--quiet", "--no-map", "--max-blocked", "80",
+            "--spot", "sim", "--spots", spots, "--memory", db, "--timeout", "300",
+            "--quiet", "--no-map", "--max-blocked", "80",
             "--triage-url", "", *runner_args,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
         out, _ = await asyncio.wait_for(runner.communicate(), timeout=360)
@@ -870,6 +883,15 @@ async def skirmish():
           and sum(world.pack_boards.values()) == world.harvested and world.bank_opens == 0
           and "converting the carried logs before stopping" in text,
           f"logs {world.logs}, boards {world.pack_boards}, harvested {world.harvested}")
+    eps = store.episodes("lumber")
+    check("the stopped trip still left its episode row: aborted, why, the logs it got, the boards it "
+          "still carries, the hatchet from the bag",
+          len(eps) == 1 and eps[0].get("outcome") == "aborted" and "kept coming" in (eps[0].get("why") or "")
+          and eps[0].get("logs") == world.harvested
+          and eps[0].get("carried_end") == {"logs": 0, "boards": world.harvested}
+          and (eps[0].get("hatchet") or {}).get("worn") is False
+          and "harvest" in eps[0]["phases_s"] and "to_bank" not in eps[0]["phases_s"],
+          str(eps)[:600])
     store.close()
 
 

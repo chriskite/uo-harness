@@ -2467,6 +2467,100 @@ def cmd_journal(a, mem):
     return {"ok": True, "journal": rows[-a.n:]}
 
 
+def cmd_lumber(a, mem):
+    """The self-optimizing lumber job (harness/lumber_opt.py, docs/LUMBER_LOOP.md §6):
+    `plan` picks the spot (Thompson sampling), trip size and hatchet for the next
+    `run lumber`; `spots`, `spot add|set`, `discover` manage the spots; `price`
+    and `prices` keep observed market prices."""
+    import lumber_opt
+    heartbeat(mem)
+    op = a.lumber_op
+    if op == "plan":
+        world = serial = pos = facet = None
+        young = a.young
+        try:
+            resp = state_query(a.state_port)
+        except (OSError, ValueError):
+            resp = {}
+        if resp.get("ok"):
+            world, mv = resp.get("world") or {}, resp.get("movement") or {}
+            serial, pos = mv.get("self_serial"), mv.get("pos")
+            facet = (world.get("self") or {}).get("map")
+            label = (world.get("labels") or {}).get(f"0x{serial:08X}" if serial is not None else "", "")
+            young = young or "(young)" in label.lower()
+        out = lumber_opt.plan_from_store(mem, world, serial, pos, facet, young=young,
+                                         stint_min=a.stint_min, seed=a.seed)
+        out["proxy"] = bool(resp.get("ok"))
+        if not a.all:
+            out["spots"] = [r for r in out["spots"] if r["status"] == "active"]
+            out["regrow"] = {k: v for k, v in out["regrow"].items() if k != "curve"}
+        p = out.get("pick")
+        text = (f"lumber plan: {p['spot']} ({p['mode']}, P(best) {p['p_best']:.2f}, ~{p['expected_net_logs_h']} "
+                f"logs/h) -> {p['command']}") if p else f"lumber plan: {out.get('error')}"
+        mem.chat_post("overseer", text, "action", data={"cmd": "lumber plan", "pick": p})
+        return out
+    if op == "spots":
+        spots = lumber_opt.load_spots(mem)
+        return {"ok": True, "spots": [
+            {k: s.get(k) for k in ("id", "name", "status", "reason", "source", "facet", "area", "banker", "pvp",
+                                   "requires_young", "hazard_prior", "travel", "travel_min", "tree_count")}
+            for s in sorted(spots.values(), key=lambda s: (s["status"] != "active", s["id"]))]}
+    if op == "spot" and a.spot_op == "add":
+        spots = lumber_opt.load_spots(mem)
+        if a.id in spots:
+            raise CtlError(f"spot {a.id} exists; use `lumber spot set`")
+        spot = {"id": a.id, "name": a.name or a.id, "facet": a.facet,
+                "area": {"center": list(a.center), "radius": a.radius, "note": a.note or ""},
+                "trees": [], "pvp": not a.no_pvp,
+                "banker": {"serial": a.banker_serial, "name": a.banker_name or "banker", "pos": list(a.bank)},
+                "hazard_prior": a.hazard_prior, "travel": a.travel, "travel_min": a.travel_min}
+        try:
+            lumber_opt.check_spot(spot)
+        except ValueError as e:
+            raise CtlError(str(e))
+        mem.lumber_spot_put(a.id, a.status, spot, "overseer")
+        mem.chat_post("overseer", f"lumber spot add {a.id} ({a.status})", "action",
+                      data={"cmd": "lumber spot add", "spot": spot})
+        return {"ok": True, "spot": {**spot, "status": a.status}}
+    if op == "spot" and a.spot_op == "set":
+        spots = lumber_opt.load_spots(mem)
+        if a.id not in spots:
+            raise CtlError(f"unknown spot {a.id}")
+        row = next((r for r in mem.lumber_spot_rows() if r["id"] == a.id), None)
+        data = row["data"] if row else {}
+        mem.lumber_spot_put(a.id, a.status, data, row["source"] if row else "overseer", a.reason)
+        mem.chat_post("overseer", f"lumber spot set {a.id} {a.status}" + (f" ({a.reason})" if a.reason else ""),
+                      "action", data={"cmd": "lumber spot set", "id": a.id, "status": a.status})
+        return {"ok": True, "id": a.id, "status": a.status, "reason": a.reason}
+    if op == "discover":
+        import pathfind
+        import uomap
+        umap = uomap.UoMap(a.facet)
+        walk = pathfind.Walk(umap)
+        banks = [b for b in lumber_opt.bank_list() if b[2] == a.facet
+                 and (not a.bank or any(w.lower() in b[0].lower() for w in a.bank))]
+        found = lumber_opt.discover(umap.find_trees, lambda x, y: lumber_opt.floor_z(walk, x, y), banks,
+                                    mem.guard_points(a.facet), lumber_opt.load_spots(mem),
+                                    ring=tuple(a.ring), radius=a.radius, min_trees=a.min_trees,
+                                    per_bank=a.per_bank)
+        if not a.dry_run:
+            for s in found:
+                mem.lumber_spot_put(s["id"], "candidate", s, "discover")
+            mem.chat_post("overseer", f"lumber discover: {len(found)} candidate spot(s)", "action",
+                          data={"cmd": "lumber discover", "ids": [s["id"] for s in found]})
+        return {"ok": True, "banks": [b[0] for b in banks], "candidates": found, "saved": not a.dry_run,
+                "next": "inspect each with `ctl map` near its area (no dungeon, outside town), then "
+                        "`ctl lumber spot set <id> --status active` or `--status disabled --reason ...`"}
+    if op == "price":
+        pid = mem.price_record(a.item, a.gp, a.source, a.note)
+        mem.chat_post("overseer", f"price {a.item} = {a.gp:g} gp ({a.source})", "action",
+                      data={"cmd": "lumber price", "item": a.item, "gp": a.gp, "id": pid})
+        return {"ok": True, "id": pid, "item": a.item, "price_gp": a.gp}
+    if op == "prices":
+        return {"ok": True, "prices": mem.prices()}
+    raise CtlError(f"unknown lumber op {op}")
+
+
 # ---------------------------------------------------------------------- main
 class JsonParser(argparse.ArgumentParser):
     """Usage errors come back as the one JSON object too."""
@@ -2567,7 +2661,57 @@ def build_parser() -> argparse.ArgumentParser:
                    help="only this part of the game view (client pixels), e.g. a gump")
     p.set_defaults(fn=cmd_screenshot)
     _know_parser(sub)
+    _lumber_parser(sub)
     return ap
+
+
+def _lumber_parser(sub):
+    p = sub.add_parser("lumber", help="self-optimizing lumber job: plan, spots, discover, prices")
+    ls = p.add_subparsers(dest="lumber_op", required=True)
+    q = ls.add_parser("plan", help="where to chop next, how much per trip, which hatchet (Thompson sampling)")
+    q.add_argument("--young", action="store_true", help="the character is Young (Shelter Island spots)")
+    q.add_argument("--stint-min", type=float, default=60.0, help="how long this run should last")
+    q.add_argument("--seed", type=int, default=None, help=argparse.SUPPRESS)
+    q.add_argument("--all", action="store_true", help="also candidate/disabled spots and the regrowth curve")
+    ls.add_parser("spots", help="every spot with its status")
+    q = ls.add_parser("spot")
+    ss = q.add_subparsers(dest="spot_op", required=True)
+    r = ss.add_parser("add", help="a new spot: a tree area plus the bank its trips end at")
+    r.add_argument("id")
+    r.add_argument("--name")
+    r.add_argument("--center", type=int, nargs=2, required=True, metavar=("X", "Y"))
+    r.add_argument("--radius", type=int, required=True)
+    r.add_argument("--bank", type=int, nargs=3, required=True, metavar=("X", "Y", "Z"),
+                   help="where the banker stands (the runner walks there and says bank)")
+    r.add_argument("--banker-serial", default="0x00000000")
+    r.add_argument("--banker-name")
+    r.add_argument("--facet", type=int, default=0)
+    r.add_argument("--no-pvp", action="store_true", help="no hostile player actions there (no recall needed)")
+    r.add_argument("--hazard-prior", type=float, default=0.5, help="expected hostile players seen per field hour")
+    r.add_argument("--travel", help="how to get there (moongate, route)")
+    r.add_argument("--travel-min", type=float, default=10.0)
+    r.add_argument("--note")
+    r.add_argument("--status", choices=("active", "candidate"), default="active")
+    r = ss.add_parser("set", help="approve (active), park (candidate) or disable a spot")
+    r.add_argument("id")
+    r.add_argument("--status", choices=("active", "candidate", "disabled"), required=True)
+    r.add_argument("--reason")
+    q = ls.add_parser("discover", help="propose tree-dense areas near banks as candidate spots (map data)")
+    q.add_argument("--bank", action="append", help="only banks whose town name contains this (repeatable)")
+    q.add_argument("--facet", type=int, default=0)
+    q.add_argument("--ring", type=int, nargs=2, default=(30, 110), metavar=("MIN", "MAX"),
+                   help="area centres this many tiles from the bank")
+    q.add_argument("--radius", type=int, default=14)
+    q.add_argument("--min-trees", type=int, default=25)
+    q.add_argument("--per-bank", type=int, default=3)
+    q.add_argument("--dry-run", action="store_true", help="list, don't save")
+    q = ls.add_parser("price", help="record an observed price, e.g. hatchet:copper 1200 or board:ordinary 9")
+    q.add_argument("item")
+    q.add_argument("gp", type=float)
+    q.add_argument("--source", default="observed", help="where: vendor search, NPC, player, chat#")
+    q.add_argument("--note")
+    ls.add_parser("prices", help="the newest price per item")
+    p.set_defaults(fn=cmd_lumber)
 
 
 def _know_parser(sub):

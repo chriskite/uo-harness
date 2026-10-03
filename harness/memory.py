@@ -30,6 +30,11 @@ Tables
   knowledge         the overseer's long-term memory (harness/knowledge.py): facts,
                     procedures, episodes, user preferences, insights with
                     provenance, confidence, importance, versions; FTS5-indexed
+  lumber_spots      v5. Lumber spots the optimizer chooses between (lumber_opt.py):
+                    rows the overseer added or `discover` proposed, and status
+                    overrides of the seed spots in harness/data/lumber_spots.json
+  prices            v5. Observed market prices (gp) by item key, append-only; the
+                    newest per item counts (hatchet economics, later gold/hour)
 
 Writers
   - the proxy: MemoryWriter, a background thread with batched commits, fed from
@@ -59,7 +64,7 @@ import nav  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DB = os.path.join(ROOT, "harness", "data", "harness.db")
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 UNKNOWN_Z = -32768
 
 SCHEMA = """
@@ -135,6 +140,13 @@ CREATE TRIGGER IF NOT EXISTS knowledge_au AFTER UPDATE OF topic, content, tags, 
     INSERT INTO knowledge_fts(rowid, topic, content, tags, entities)
     VALUES (new.id, new.topic, new.content, new.tags, new.entities);
 END;
+CREATE TABLE IF NOT EXISTS lumber_spots(
+    id TEXT PRIMARY KEY, status TEXT NOT NULL, data TEXT NOT NULL, reason TEXT,
+    source TEXT NOT NULL, created_t REAL NOT NULL, updated_t REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS prices(
+    id INTEGER PRIMARY KEY, item TEXT NOT NULL, price_gp REAL NOT NULL, t REAL NOT NULL,
+    source TEXT NOT NULL, note TEXT);
+CREATE INDEX IF NOT EXISTS prices_item_t ON prices(item, t);
 """
 
 
@@ -394,6 +406,49 @@ class Memory:
         return {(x, y) for x, y in self.con.execute(
             "SELECT x, y FROM guard_points WHERE facet = ?", (0 if facet is None else facet,))}
 
+    # -- lumber spots and prices (lumber_opt.py, docs/LUMBER_LOOP.md §6) ---------------
+    SPOT_STATUSES = ("active", "candidate", "disabled")
+
+    def lumber_spot_rows(self) -> list[dict]:
+        """Every lumber_spots row: {id, status, data, reason, source, created_t, updated_t}."""
+        keys = ("id", "status", "data", "reason", "source", "created_t", "updated_t")
+        out = []
+        for row in self.con.execute("SELECT id, status, data, reason, source, created_t, updated_t "
+                                    "FROM lumber_spots ORDER BY id"):
+            d = dict(zip(keys, row))
+            d["data"] = json.loads(d["data"])
+            out.append(d)
+        return out
+
+    def lumber_spot_put(self, spot_id: str, status: str, data: dict, source: str,
+                        reason: str | None = None, t: float | None = None):
+        """Insert or replace a spot row (data {} = a status override of a seed spot);
+        created_t survives replacement."""
+        if status not in self.SPOT_STATUSES:
+            raise ValueError(f"status must be one of {self.SPOT_STATUSES}")
+        t = time.time() if t is None else t
+        self.con.execute(
+            "INSERT INTO lumber_spots(id, status, data, reason, source, created_t, updated_t) "
+            "VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status, "
+            "data=excluded.data, reason=excluded.reason, source=excluded.source, updated_t=excluded.updated_t",
+            (spot_id, status, json.dumps(data), reason, source, t, t))
+        self.con.commit()
+
+    def price_record(self, item: str, price_gp: float, source: str, note: str | None = None,
+                     t: float | None = None) -> int:
+        cur = self.con.execute("INSERT INTO prices(item, price_gp, t, source, note) VALUES(?,?,?,?,?)",
+                               (item, float(price_gp), time.time() if t is None else t, source, note))
+        self.con.commit()
+        return cur.lastrowid
+
+    def prices(self) -> dict:
+        """{item: {price_gp, t, source, note}}, the newest observation per item."""
+        out = {}
+        for item, gp, t, source, note in self.con.execute(
+                "SELECT item, price_gp, t, source, note FROM prices ORDER BY t, id"):
+            out[item] = {"price_gp": gp, "t": t, "source": source, "note": note}
+        return out
+
 
 # ----------------------------------------------------------------------- writer
 class MemoryWriter:
@@ -551,7 +606,7 @@ def stats(db: str) -> dict:
     con = connect(db)
     out = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
            for t in ("sessions", "events", "walk_moves", "harvest_nodes", "harvest_attempts", "episodes",
-                     "junctures", "chat", "job_events", "teleporters", "knowledge")}
+                     "junctures", "chat", "job_events", "teleporters", "knowledge", "lumber_spots", "prices")}
     con.close()
     return out
 

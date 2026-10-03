@@ -168,7 +168,8 @@ def _trip_row(i, row, woods):
         else:
             value = round((value or 0) + v * n, 2)
     phases = row.get("phases_s") if isinstance(row.get("phases_s"), dict) else {}
-    return {"n": i + 1, "trip": row.get("trip"), "venue": row.get("venue"), "t_start": t0, "t_end": t1,
+    return {"n": i + 1, "trip": row.get("trip"), "spot": row.get("spot") or row.get("venue"),
+            "outcome": row.get("outcome") or "banked", "t_start": t0, "t_end": t1,
             "duration_s": duration, "logs": logs, "stored": int(_num(row.get("stored"))),
             "logs_per_hour": _rate(logs, duration),
             "captchas": int(_num(row.get("captchas"))), "captcha_wait_s": round(_num(row.get("captcha_wait_s")), 1),

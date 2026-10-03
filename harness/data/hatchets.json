@@ -1,0 +1,22 @@
+{
+  "source": "https://wiki.uooutlands.com/Lumberjacking (tool bonus, uses); docs/missions/YOUNG_DEMOS.md results 1-2 (live 2026-09-30: 1 use per successful chop, failed chops and conversion cost nothing; hatchet 25 gp at the Shelter provisioner, tinker and lumberjack); hues = the ore hues woods.json lists for the matching woods (community Razor scripts, not yet seen on a hatchet in a capture)",
+  "base_uses": 500,
+  "wear": "one use per successful chop",
+  "success": "per wood: min(1, (skill - offset) / divisor x (1 + tool bonus)) (woods.json); bonuses stack (material + quality)",
+  "materials": [
+    {"name": "iron", "hue": 0, "tool_bonus": 0.0, "extra_uses": 0, "npc_price_gp": 25},
+    {"name": "dull copper", "hue": 2419, "tool_bonus": 0.02, "extra_uses": 125},
+    {"name": "shadow iron", "hue": 2406, "tool_bonus": 0.04, "extra_uses": 250},
+    {"name": "copper", "hue": 2413, "tool_bonus": 0.06, "extra_uses": 375},
+    {"name": "bronze", "hue": 2418, "tool_bonus": 0.08, "extra_uses": 500},
+    {"name": "gold", "hue": 2213, "tool_bonus": 0.10, "extra_uses": 625},
+    {"name": "agapite", "hue": 2425, "tool_bonus": 0.12, "extra_uses": 750},
+    {"name": "verite", "hue": 2207, "tool_bonus": 0.14, "extra_uses": 875},
+    {"name": "valorite", "hue": 2219, "tool_bonus": 0.16, "extra_uses": 1000},
+    {"name": "avarite", "hue": 1763, "tool_bonus": 0.18, "extra_uses": 1125}
+  ],
+  "qualities": [
+    {"name": "exceptional", "tool_bonus": 0.04, "extra_uses": 250},
+    {"name": "mastercrafted", "tool_bonus": 0.04, "extra_uses": 250}
+  ]
+}
