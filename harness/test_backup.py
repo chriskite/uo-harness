@@ -1,7 +1,8 @@
 """Backup tests (harness/backup.py, docs/NOTES.md "Backups").
 
   1. Retention: every snapshot inside the keep-all window survives, older ones
-     keep exactly the newest per day, foreign files are never deleted.
+     keep exactly the newest per day and per DB prefix (harness-, discord-),
+     foreign files are never deleted.
   2. Snapshot: rows still only in the live WAL make it into the snapshot, the
      snapshot restores (gunzip) to a standalone DB, an unchanged store writes
      no new snapshot, a changed one does.
@@ -46,6 +47,12 @@ def test_retention():
                   "harness-20261008-090000.db.gz"], f"prune plan {got}")
     check(backup.plan_prune([n for n in names if n not in got], now) == [],
           "pruning is idempotent")
+    # the Discord capture DB's snapshots follow the same rule, independently
+    mixed = ["harness-20261001-230000.db.gz", "discord-20261001-220000.db.gz",
+             "discord-20261001-100000.db.gz"]
+    got = backup.plan_prune(mixed, now, keep_all_hours=48)
+    check(got == ["discord-20261001-100000.db.gz"],
+          f"newest per day is kept per prefix: {got}")
 
 
 def test_snapshot():
@@ -81,6 +88,9 @@ def test_snapshot():
         n3 = backup.snapshot_db(db, dest, t1 + datetime.timedelta(hours=2))
         check(n3 == "harness-20261001-120000.db.gz", f"changed store: new snapshot {n3}")
         live.close()
+
+        n4 = backup.snapshot_db(db, os.path.join(td, "discord"), t1, prefix="discord")
+        check(n4 == "discord-20261001-100000.db.gz", f"prefixed snapshot name: {n4}")
 
 
 def main():

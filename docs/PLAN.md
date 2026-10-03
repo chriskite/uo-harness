@@ -437,6 +437,35 @@ plus the store, hatchets in `harness/data/hatchets.json`; the model is docs/LUMB
   (LUMBER_LOOP §9 M5): banked logs per active hour improve over the weeks on the same character
   without violating §1.
 
+## Discord history capture (decided 2026-10-03)
+
+User request: the game knowledge in the Outlands Discord (`discord.gg/outlands`) captured into a
+searchable local DB that's included in the NAS backup. Code: `harness/discord_capture.py`; how to
+run it: docs/NOTES.md "Discord capture".
+- **A real browser, driven, with the app's own requests recorded.** Patchright (undetected
+  Playwright fork) launches Microsoft Edge with a persistent profile. Edge, because Chrome isn't
+  installed and installing it needs admin. The tool records the message-history responses the
+  Discord web app loads while it scrolls, and never calls the API itself. Rejected:
+  - a bot token: Outlands staff won't add our bot
+  - a user-token scraper (DiscordChatExporter, discord.py-self): Discord flags it as a
+    third-party client, and it needs a convincing client imitation
+  - a TLS MITM of the desktop app: mitmproxy's own TLS/HTTP2 fingerprint replaces the client's
+  - scrolling by hand: about 2000 page loads for 100k messages
+- **A new, throwaway Discord account, no VPN (user decisions).** The laptop isn't on the user's
+  home connection, so an IP restriction would be tolerable. A VPN would also break the game
+  connection (VPN exit IPs are SYN-dropped on 2593, docs/NOTES.md "Network observations").
+  The account only reads: the tool has no code path that posts.
+- **Depth: the game-info channels, as far back as practical**, not every channel to its start.
+  The crawl takes a `--until` date per run and resumes from the oldest stored message.
+- **Separate DB (`harness/data/discord.db`), not the memory store.** It's a different domain,
+  with its own writer and its own lifecycle, and capture volume shouldn't bloat the hourly
+  `harness.db` snapshots. Search is FTS5 with porter stemming, as in `knowledge`. Embeddings
+  (sqlite-vec) aren't built yet.
+- **Backed up, not committed.** Captured messages are runtime data (AGENTS.md Rule 0), so
+  `backup.py` snapshots `discord.db` like `harness.db` (own `discord/` folder, same retention).
+  The browser profile holds the login session, so it's treated as a credential: gitignored and
+  not backed up.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

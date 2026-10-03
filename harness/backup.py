@@ -11,6 +11,10 @@ so the default is the UNC path):
                                      skipped when identical to the last one).
                                      Retention: every snapshot from the last
                                      KEEP_ALL_HOURS, then the newest per day.
+  discord/discord-YYYYMMDD-HHMMSS.db.gz
+                                     the same for harness/data/discord.db, the
+                                     captured Discord history (harness/discord_capture.py);
+                                     skipped while that DB doesn't exist.
   logs/                              logs/ (session captures, screens, overseer
                                      task logs). Additive: files deleted locally
                                      stay on the share.
@@ -24,10 +28,12 @@ so the default is the UNC path):
 Not backed up: everything tracked in git (pushed to GitHub), test-run logs
 (logs_test*/), downloads (ClassicUO.exe, tarballs, upstream trees, WinDivert),
 outputs regenerable by repo scripts (strings dumps, mrt_map.json,
-decompiled/), and credentials (settings.json).
+decompiled/), and credentials (settings.json, the Discord browser profile
+harness/data/discord_profile/).
 
-Restore the DB: gunzip a snapshot to harness/data/harness.db with the proxy
-stopped, and delete any stale harness.db-wal / harness.db-shm next to it.
+Restore a DB: gunzip a snapshot to harness/data/harness.db (or discord.db) with
+its writer (proxy / discord_capture serve) stopped, and delete any stale -wal /
+-shm next to it.
 
 Usage: python harness/backup.py [--dest PATH]   (exit 1 if any part failed)
 Scheduled hourly by register_backup_task.ps1.
@@ -50,6 +56,12 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DEST = r"\\STARGAZER\files\uo-harness"
 DB = os.path.join(ROOT, "harness", "data", "harness.db")
+DISCORD_DB = os.path.join(ROOT, "harness", "data", "discord.db")
+# (live DB, dest subdir, snapshot prefix, required)
+DBS = [
+    (DB, "db", "harness", True),
+    (DISCORD_DB, "discord", "discord", False),
+]
 LOG = os.path.join(ROOT, "logs", "backup.log")
 KEEP_ALL_HOURS = 48
 
@@ -60,7 +72,7 @@ TREES = [
     ("ghidra", "ghidra", [], ["/MIR"]),
 ]
 
-SNAP_RE = re.compile(r"^harness-(\d{8}-\d{6})\.db\.gz$")
+SNAP_RE = re.compile(r"^([a-z]+)-(\d{8}-\d{6})\.db\.gz$")
 SNAP_FMT = "%Y%m%d-%H%M%S"
 
 
@@ -80,9 +92,10 @@ def _sha256(path):
     return h.hexdigest()
 
 
-def snapshot_db(db, dest_dir, now):
-    """Write a gzipped consistent snapshot of `db` into dest_dir.
-    Returns the snapshot file name, or None when it equals the last one."""
+def snapshot_db(db, dest_dir, now, prefix="harness"):
+    """Write a gzipped consistent snapshot of `db` into dest_dir as
+    <prefix>-YYYYMMDD-HHMMSS.db.gz. Returns the snapshot file name, or None
+    when it equals the last one."""
     os.makedirs(dest_dir, exist_ok=True)
     with tempfile.TemporaryDirectory() as td:
         tmp = os.path.join(td, "snap.db")
@@ -107,10 +120,10 @@ def snapshot_db(db, dest_dir, now):
             if latest.get("sha256") == digest and os.path.exists(
                     os.path.join(dest_dir, latest.get("file", ""))):
                 return None
-        name = f"harness-{now.strftime(SNAP_FMT)}.db.gz"
+        name = f"{prefix}-{now.strftime(SNAP_FMT)}.db.gz"
         part = os.path.join(dest_dir, name + ".part")
         with open(tmp, "rb") as fin, open(part, "wb") as raw, \
-                gzip.GzipFile(filename="harness.db", mode="wb", fileobj=raw, mtime=0) as gz:
+                gzip.GzipFile(filename=f"{prefix}.db", mode="wb", fileobj=raw, mtime=0) as gz:
             shutil.copyfileobj(fin, gz, 1 << 20)
         os.replace(part, os.path.join(dest_dir, name))
         with open(latest_path, "w", encoding="utf-8") as f:
@@ -120,21 +133,21 @@ def snapshot_db(db, dest_dir, now):
 
 def plan_prune(names, now, keep_all_hours=KEEP_ALL_HOURS):
     """Snapshot names to delete: keep every snapshot newer than keep_all_hours,
-    and the newest snapshot of each calendar day before that. Names that aren't
-    snapshot names are never returned."""
+    and the newest snapshot of each calendar day (per prefix) before that.
+    Names that aren't snapshot names are never returned."""
     cutoff = now - datetime.timedelta(hours=keep_all_hours)
     old = []
     for n in names:
         m = SNAP_RE.match(n)
         if m:
-            t = datetime.datetime.strptime(m.group(1), SNAP_FMT)
+            t = datetime.datetime.strptime(m.group(2), SNAP_FMT)
             if t < cutoff:
-                old.append((t, n))
+                old.append((t, m.group(1), n))
     newest_per_day = {}
-    for t, n in sorted(old):
-        newest_per_day[t.date()] = n
+    for t, prefix, n in sorted(old):
+        newest_per_day[(prefix, t.date())] = n
     keep = set(newest_per_day.values())
-    return sorted(n for _, n in old if n not in keep)
+    return sorted(n for _, _, n in old if n not in keep)
 
 
 def robocopy(src, dst, filters, flags):
@@ -158,15 +171,19 @@ def run(dest):
         log(f"FAIL destination unreachable: {dest}")
         return 1
 
-    try:
-        dbdir = os.path.join(dest, "db")
-        name = snapshot_db(DB, dbdir, now)
-        pruned = plan_prune(os.listdir(dbdir), now)
-        for n in pruned:
-            os.remove(os.path.join(dbdir, n))
-        results["db"] = {"ok": True, "snapshot": name, "pruned": pruned}
-    except Exception as e:  # one failed part must not stop the others
-        results["db"] = {"ok": False, "error": repr(e)}
+    for db, sub, prefix, required in DBS:
+        if not required and not os.path.exists(db):
+            results[sub] = {"ok": True, "snapshot": None, "absent": True}
+            continue
+        try:
+            dbdir = os.path.join(dest, sub)
+            name = snapshot_db(db, dbdir, now, prefix)
+            pruned = plan_prune(os.listdir(dbdir), now)
+            for n in pruned:
+                os.remove(os.path.join(dbdir, n))
+            results[sub] = {"ok": True, "snapshot": name, "pruned": pruned}
+        except Exception as e:  # one failed part must not stop the others
+            results[sub] = {"ok": False, "error": repr(e)}
 
     for src, sub, filters, flags in TREES:
         ok, summary = robocopy(os.path.normpath(os.path.join(ROOT, src)),
