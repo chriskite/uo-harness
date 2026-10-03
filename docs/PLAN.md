@@ -649,8 +649,9 @@ After the second Bastet death (docs/NOTES.md "Second Bastet death"): he appeared
 carrying the Stationary Penalty, never showed on Tracking, and his first spell landed 1.9 s after
 he appeared, before the 2.0 s recall could finish. The user's reading: he was hidden and
 stealthing near us and popped out to kill. Our Tracking (72.8) sees hidden players only within
-~8 tiles, 10 % of its normal range (knowledge #953). Research on spell interruption and escape
-timing is with the SpellInterrupts work (docs/research/TRAVEL_DEATH.md). To do:
+~8 tiles, 10 % of its normal range (knowledge #953). Spell interruption and escape timing:
+docs/research/SPELL_INTERRUPTS.md (the escape now recasts until it lands, waiting out the measured
+disturb recovery; a reflected opener would have saved Nusero; flight and healing would not). To do:
 
 - **Detect stealthers.**
   - Investigate the skill templates harvesters use against PKs (memory has a dungeon lockpicker
@@ -667,12 +668,17 @@ timing is with the SpellInterrupts work (docs/research/TRAVEL_DEATH.md). To do:
   gets interrupted. Hackworth's horse died on 10-03; mounted pace is 0.1 s per step (PLAN "Player
   houses and mounted pace"), the same as a mounted PK, so flight has to use terrain, line of sight
   and the PK's hamstring timing (Red sighting item 4). The Prevalia Stables bonded-horse quest
-  (TRAVEL_DEATH §1.4) gives a horse that survives death.
+  (TRAVEL_DEATH §1.4) gives a horse that survives death. Measured (SPELL_INTERRUPTS §3.1): at
+  Nusero we were on foot against a mounted PK; at Terran a recall at sight beats his first hit by
+  ~2 s, and his melee (~15 HP/s) outpaces any heal we have (Greater Heal 24–30, 1.25 s, broken by
+  the same hits). Flight only pays with a horse and a guard zone or line-of-sight break in reach.
 - **Magic Reflection up while lumbering.** Reflects the next hostile spell cast on us, so a PK's
-  opening spell (the one that broke the recall) bounces. It's 5th circle (100 % at 60 Magery, so
-  Hackworth can cast it), reagents garlic, mandrake root, spider's silk (Garritt in Cambria sells no
-  silk), scroll 300 gp at Garritt. In PvP it reflects at most 2 spells and stays after the first
-  only with a 35 % × Inscription/100 chance (#215, wiki Magery). Open: how long it lasts on Outlands,
+  opening spell (the one that broke the recall) bounces: at Nusero it was Weaken, and recall 1 would
+  then have landed 0.49 s before his Harm. It's 5th circle: min 50, 100 % at **70** Magery, so at
+  Hackworth's 60 about 50 % (from a scroll +20 → 100 %); reagents garlic, mandrake root, spider's
+  silk (Garritt in Cambria sells no silk), scroll 300 gp at Garritt. In PvP it reflects at most 2
+  spells and stays after the first only with a 35 % × Inscription/100 chance (#215, wiki Magery).
+  Open: how long it lasts on Outlands,
   how to see it's up (buff icon), and recasting it at the start of each trip and after each reflect.
 
 ## Risks

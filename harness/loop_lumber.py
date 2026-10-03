@@ -609,7 +609,8 @@ class LumberLoop:
         self.threat_stop(st, a, worst, swung, Unsafe, why)
 
     def recall_out(self, st, a, worst, swung, pk: bool = True, why: str | None = None) -> str:
-        """Recall to the book's default rune at once (escape.escape: up to 3 casts),
+        """Recall to the book's default rune at once (escape.escape: recasts as soon as the
+        server takes a cast again, until it lands or escape.ESCAPE_BUDGET_S is spent),
         before any bookkeeping, then stop: the `threat` juncture (action 'recall') and
         an urgent `pk_escape` juncture when it landed (`pk`; a creature escape posts
         an urgent `threat` juncture instead). Returns why it failed; the caller then
@@ -1633,9 +1634,10 @@ class LumberLoop:
     def expect_casts(self, res: dict):
         """Recall casts by spell spend one of each recall reagent: tell the ledger, so a
         tome without charges doesn't read as theft."""
-        casts = sum(1 for t in res.get("tries") or [] if t.get("method") == "spell")
+        casts = sum(1 for t in res.get("tries") or []
+                    if t.get("method") == "spell" and t.get("failure") not in escape_mod.NOT_CAST)
         if casts:
-            self.ledger.expect(*[("spent", g, casts) for g in escape_mod.REAGENTS])
+            self.ledger.expect(*[("spent", g, casts) for g in combat.SPELL_REAGENTS[escape_mod.RECALL]])
 
     def open_bank(self) -> int:
         """Walk up to where the banker stands now and say "bank"; the bank box

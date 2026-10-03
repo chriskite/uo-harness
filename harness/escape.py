@@ -21,6 +21,13 @@ the press (user decision 2026-10-02): the reaction is the book's round trip.
 The server holds you still while casting, so nothing else is sent until the
 result: arrival (a jump of the own position), or a failure message.
 
+A recall is a 2.0 s cast whether it spends a charge or reagents, and a hit can
+disturb it. After a disturbed cast the server refuses the next one ("not yet
+recovered") for max(0.2, 1 - sqrt(elapsed / 2.0)) s, elapsed being how far
+the cast had got (30 of 30 live retries fit; docs/research/SPELL_INTERRUPTS.md),
+so escape() waits exactly that long and keeps recasting until it lands, the
+character dies, or ESCAPE_BUDGET_S runs out.
+
 The IO object hides who talks to the proxy: `send(pkt)` raises RecallError when
 the proxy refuses; `poll()` returns (full state, world events since the last
 poll). LinkIO wraps a runner's agent_link.Link; ctl has its own.
@@ -28,6 +35,7 @@ poll). LinkIO wraps a runner's agent_link.Link; ctl has its own.
 
 from __future__ import annotations
 
+import math
 import re
 import time
 
@@ -48,6 +56,12 @@ GUMP_WAIT_S = 2.0                 # double-click -> the book's gump (48 ms live)
 ARRIVE_WAIT_S = 5.0               # press -> arrival (2.05-2.09 s live)
 JUMP_TILES = 2                    # an own-position change this large while frozen = arrived
 RECLICK_S = 0.6                   # no gump this long after the double-click: click once more
+RECALL_CAST_S = 2.0               # power words -> arrival 1.95-2.09 s (34 live recalls)
+ESCAPE_BUDGET_S = 20.0            # escape(): recast until this long after the first press
+RECOVERY_MARGIN_S = 0.05          # on top of the computed disturb recovery
+NOT_RECOVERED_WAIT_S = 0.25       # after a "not yet recovered" refusal
+FROZEN_WAIT_S = 0.5               # after "You cannot cast a spell while frozen." / already casting
+CAST_RECOVERY_S = 0.2             # Outlands' recovery after a finished or fizzled cast (wiki Magery)
 
 # Failure messages (cliloc ids from the local Cliloc.enu, docs/research/TRAVEL_DEATH.md §1.2;
 # the tome's text seen live). Any of them ends the attempt.
@@ -57,12 +71,17 @@ FAIL_CLILOCS = {
     502630: "reagents",            # More reagents are needed for this spell.
     502625: "mana",                # Insufficient mana for this spell.
     502644: "not recovered",       # You have not yet recovered from casting a spell.
+    502643: "frozen",              # You cannot cast a spell while frozen. (not seen live yet)
+    502646: "frozen",              # the same text, a second id
+    502645: "already casting",     # You are already casting a spell. (not seen live yet)
     1005564: "heat of battle",     # Wouldst thou flee during the heat of battle??
     502412: "no charges",          # There are no charges left on that item.
     502403: "recharging",          # This book needs time to recharge.
     501025: "blocked",             # Something is blocking the location.
     501803: "unmarked",            # That rune is not yet marked.
 }
+# Refusals that started no cast: they don't count as an escape attempt.
+NOT_CAST = ("not recovered", "frozen", "already casting", "no charges", "recharging")
 FAIL_TEXTS = {
     "That rune tome is out of recall charges.": "no charges",
     "Your concentration is disturbed, thus ruining thy spell.": "disturbed",
@@ -70,6 +89,8 @@ FAIL_TEXTS = {
     "More reagents are needed for this spell.": "reagents",
     "Insufficient mana for this spell.": "mana",
     "You have not yet recovered from casting a spell.": "not recovered",
+    "You cannot cast a spell while frozen.": "frozen",
+    "You are already casting a spell.": "already casting",
 }
 
 
@@ -290,13 +311,21 @@ def _next_gump(io, gump_id: int, timeout: float = GUMP_WAIT_S) -> dict:
     raise RecallError(f"gump 0x{gump_id:08X} didn't come back")
 
 
+def _hold(not_before: float | None):
+    """Sleep until the monotonic time `not_before` (the server's spell recovery)."""
+    if not_before is not None and not_before > time.monotonic():
+        time.sleep(not_before - time.monotonic())
+
+
 def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None,
-           timeout: float = ARRIVE_WAIT_S) -> dict:
+           timeout: float = ARRIVE_WAIT_S, not_before: float | None = None) -> dict:
     """One recall with `book`: to its default rune, or (rune tomes) to the row
     named `rune` (rune_matches: a Witcher number like "286" finds "286 - Midlands
     Ruins 1 (South)"); the book may be a locked-down library tome within reach.
-    Returns {ok, kind, method, rune, name, from, to, elapsed_s, failure,
-    charges}; raises RecallError when it can't be tried."""
+    The book opens at once; the press that casts waits for `not_before` (the
+    monotonic time the server takes a cast again), so a retry loses no round trip.
+    Returns {ok, kind, method, rune, name, from, to, elapsed_s, failure, charges,
+    cast_s}; raises RecallError when it can't be tried."""
     st, _ = io.poll()
     me = st["movement"]["self_serial"]
     world = st["world"]
@@ -321,6 +350,7 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None,
         method = "charge" if info["charges"] > 0 and prefer == "charge" else "spell"
         if method == "spell" and not can_cast_recall(world, me, mana) and info["charges"] > 0:
             method = "charge"
+        _hold(not_before)
         _press(io, g, 2 + 6 * rune if method == "charge" else 5 + 6 * rune)
     else:
         g = _open(io, book, RUNETOME_GUMP, me)
@@ -341,6 +371,7 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None,
         if method == "spell" and not can_cast_recall(world, me, mana) and info["charges"] > 0:
             method = "charge"
         if method == "charge":
+            _hold(not_before)
             _press(io, g, 100 + rune)
         else:
             _press(io, g, 200 + rune)
@@ -349,13 +380,17 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None,
             if button is None:
                 _press(io, d, 0)
                 raise RecallError("the rune tome's detail page has no Cast Recall button")
+            _hold(not_before)
             _press(io, d, button)
     pressed = time.monotonic()
     end = pressed + timeout
-    why = None
+    why, words = None, None
     while time.monotonic() < end:
         st, evs = io.poll()
         for ev in evs:
+            if words is None and ev.get("ev") == "speech_heard" and ev.get("type") == 10 \
+                    and ev.get("serial") == me:
+                words = time.monotonic()          # our power words: the server started the cast
             why = why or failure(ev, me)
         pos = st["movement"]["pos"]
         moved = pos is not None and cheb(start, pos[:2]) >= JUMP_TILES
@@ -364,40 +399,89 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None,
             return {"ok": True, "kind": kind, "method": method, "rune": rune, "name": name, "from": list(start),
                     "to": list(pos[:2]) if pos else None, "elapsed_s": round(time.monotonic() - t0, 2),
                     "press_to_arrival_s": round(time.monotonic() - pressed, 2),
-                    "charges": info["charges"], "failure": None}
+                    "charges": info["charges"], "failure": None, "cast_s": None}
         if why:
             break
         time.sleep(0.05)
+    # How far the cast got when it failed (None: no cast started): from our power words,
+    # else from the press (a little more, so disturb_recovery errs short; RECOVERY_MARGIN_S).
+    cast_s = None if why in NOT_CAST else round(time.monotonic() - (words or pressed), 3)
     return {"ok": False, "kind": kind, "method": method, "rune": rune, "name": name, "from": list(start), "to": None,
             "elapsed_s": round(time.monotonic() - t0, 2), "charges": info["charges"],
-            "failure": why or "no arrival"}
+            "failure": why or "no arrival", "cast_s": cast_s}
 
 
-def escape(io, book: int, *, attempts: int = 3, log=print, rune: str | None = None) -> dict:
-    """Recall until it lands, at most `attempts` casts. Retries at once: a
-    disturbed or fizzled cast can be recast (when hamstrung, running is pointless
-    anyway: docs/PLAN.md); 'not recovered' waits a moment; out of charges falls
-    back to the spell. `rune`: a tome row by name (recall()), else the default.
-    Returns the last recall() result plus 'attempts' and 'tries' (every attempt's
-    method, ok, failure and elapsed_s: the travel record of what each cast cost)."""
-    prefer, last, tries = "charge", None, []
-    for n in range(1, attempts + 1):
-        last = recall(io, book, prefer=prefer, rune=rune)
-        last["attempts"] = n
-        tries.append({k: last[k] for k in ("method", "ok", "failure", "elapsed_s")})
+def disturb_recovery(cast_s: float, cast_time: float = RECALL_CAST_S) -> float:
+    """Seconds the server refuses the next cast ("not yet recovered") after a cast
+    of `cast_time` was disturbed `cast_s` into it: max(0.2, 1 - sqrt(cast_s /
+    cast_time)), RunUO's pre-AOS disturb recovery. All 30 live retries after a
+    disturbed Recall, Lightning or Greater Heal fit it, e.g. Recall disturbed at
+    0.83 s: refused 0.17 s later, taken 0.68 s later (bound 0.36 s)."""
+    frac = min(max(cast_s, 0.0) / cast_time, 1.0)
+    return max(CAST_RECOVERY_S, 1.0 - math.sqrt(frac))
+
+
+def retry_wait(res: dict) -> float | None:
+    """How long to wait before recasting after the failed recall() `res`, or None
+    when another try can't help (the spell itself can't be cast)."""
+    why = res["failure"]
+    if why in ("heat of battle", "unmarked", "blocked", "reagents", "mana"):
+        return None
+    if why == "disturbed":
+        return disturb_recovery(res["cast_s"] or 0.0) + RECOVERY_MARGIN_S
+    if why == "not recovered":
+        return NOT_RECOVERED_WAIT_S
+    if why in ("frozen", "already casting"):
+        return FROZEN_WAIT_S
+    if why in ("no charges", "recharging"):
+        return 0.0
+    return CAST_RECOVERY_S + RECOVERY_MARGIN_S       # fizzled, no arrival
+
+
+def escape(io, book: int, *, attempts: int | None = None, budget_s: float = ESCAPE_BUDGET_S,
+           log=print, rune: str | None = None) -> dict:
+    """Recall until it lands. A disturbed cast is recast as soon as the server
+    takes it again (retry_wait / disturb_recovery: a press before that only earns
+    'not recovered'); refusals that started no cast (NOT_CAST) are retried after
+    a short wait and don't count as casts; out of charges falls back to the
+    spell. Stops when it lands, the character is dead, the spell can't be cast
+    (heat of battle, unmarked, blocked, reagents, mana), after `attempts` casts
+    (None: no limit), or when the next try would start more than `budget_s`
+    after the first press. Keeping on matters: a PK has to land a fresh
+    interrupt within every 2 s cast (live 2026-10-03 at Nusero the old three-try
+    limit gave up 4.4 s before his first melee hit; SPELL_INTERRUPTS.md).
+    `rune`: a tome row by name (recall()), else the default. Returns the last
+    recall() result plus 'attempts' (casts made) and 'tries' (every try's method,
+    ok, failure, elapsed_s, cast_s and the wait before the next: the travel
+    record of what each cast cost)."""
+    prefer, last, tries, casts, not_before = "charge", None, [], 0, None
+    t0 = time.monotonic()
+    while True:
+        last = recall(io, book, prefer=prefer, rune=rune, not_before=not_before)
+        if last["failure"] not in NOT_CAST:
+            casts += 1
+        last["attempts"] = casts
+        tries.append({k: last[k] for k in ("method", "ok", "failure", "elapsed_s", "cast_s")})
         last["tries"] = tries
-        log(f"recall {n}/{attempts}: {'arrived' if last['ok'] else last['failure']} "
-            f"({last['kind']}, {last['method']}, rune {last['name'] or last['rune'] + 1}, {last['elapsed_s']} s)")
+        log(f"recall try {len(tries)} (cast {casts}): {'arrived' if last['ok'] else last['failure']} "
+            f"({last['kind']}, {last['method']}, rune {last['name'] or last['rune'] + 1}, {last['elapsed_s']} s"
+            + (f", {last['cast_s']} s into the cast" if last["cast_s"] is not None else "") + ")")
         if last["ok"]:
             return last
         if last["failure"] in ("no charges", "recharging"):
             prefer = "spell"
-        elif last["failure"] == "not recovered":
-            time.sleep(0.3)
-        elif last["failure"] in ("heat of battle", "unmarked", "blocked", "reagents", "mana") \
-                and last["method"] == "spell":
-            break
-    return last
+        wait = retry_wait(last)
+        if wait is None or (attempts is not None and casts >= attempts):
+            return last
+        if time.monotonic() + wait - t0 > budget_s:
+            log(f"recall: giving up, {budget_s:.0f} s escape budget spent")
+            return last
+        st, _ = io.poll()
+        if (st["world"].get("self") or {}).get("dead"):
+            last["failure"] = "dead"
+            return last
+        tries[-1]["wait_s"] = round(wait, 3)
+        not_before = time.monotonic() + wait      # recall() opens the book meanwhile
 
 
 def check_ready(io, book: int) -> dict:

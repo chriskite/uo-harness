@@ -704,8 +704,16 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     non-creature swinging at us, or a player named in "… is attacking you!".
   - **Action:** the runner recalls at once, with no pause and before any bookkeeping. It
     double-clicks the book and presses the default rune's charge button, else the Recall spell
-    (tome: its detail page's Cast Recall). Up to 3 casts: retry at once after a disturbed or
-    fizzled cast, spell after "no charges".
+    (tome: its detail page's Cast Recall), spell after "no charges".
+  - **Retries (since 2026-10-03, docs/research/SPELL_INTERRUPTS.md):** it recasts until the
+    recall lands, the character dies, the spell can't be cast (heat of battle, no reagents or
+    mana, unmarked, blocked) or 20 s after the first press (`escape.ESCAPE_BUDGET_S`); there is
+    no cast limit. After a disturbed cast it waits exactly the server's disturb recovery,
+    max(0.2, 1 − √(elapsed/2.0)) s + 0.05 s (`escape.disturb_recovery`, fits all 30 live
+    retries), so no try is wasted on "not yet recovered"; "not yet recovered" waits 0.25 s,
+    "frozen" 0.5 s, and neither counts as a cast. Before, a 3-cast limit with instant retries
+    gave up at Nusero (2026-10-03 18:04) after try 2 hit 502644, 4.4 s before Bastet's first
+    melee hit; the job event's `tries` now carry `cast_s` (how far each cast got) and `wait_s`.
   - **After landing:** the `threat` juncture (`action: recall`), an urgent `pk_escape` juncture
     and a `recall` job event, then the run stops without converting.
   - **Guard flight when the recall fails (since 2026-10-02, docs/PLAN.md "Guard flight";
@@ -791,7 +799,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   cover (since 2026-10-04; before, any damage), a creature that kept
   coming after the walk-away escape, too many escapes, or a creature during a speech hold ends the
   run without converting (`monster_stop`), and when the runner is more than `HOME_NEAR` (60) tiles
-  from the banker with a recall book ready, it recalls home first (`recall_out`, up to 3 casts) and
+  from the banker with a recall book ready, it recalls home first (`recall_out`, the same retries) and
   posts an urgent `threat` juncture "Recalled away from …" (a player escape posts `pk_escape`).
   Live 2026-10-03 at witcher_291 the old path converted logs for 12 s under attack (85 → 40 hits)
   and then exited in the field; the overseer's own recall landed at 15/100. The logs stay logs in

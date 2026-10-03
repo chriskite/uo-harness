@@ -59,9 +59,16 @@ against the version read.
 | Candidate message strings: "The spell fizzles." 502632, "Your concentration is disturbed, thus ruining thy spell." 500641, "More reagents are needed for this spell." 502630, "Wouldst thou flee during the heat of battle??" 1005564, "That rune is not yet marked." 501803, "There are no charges left on that item." 502412, "This book needs time to recharge." 502403, "Something is blocking the location." 501025 | L | local `Cliloc.enu` via `harness/uo/cliloc.py` |
 
 Implication for the red-name escape (LUMBER_LOOP §11.2): a recall is ≥ 2.0 s from cast start, plus
-reaction time and a possible failure. With no Resisting Spells, one monster hit ruins it. A PK's
-4th-circle-or-higher hostile spell always interrupts it. The escape has to start **before** contact
-(on sighting), and there has to be a fallback: re-cast, or run to break line of sight.
+reaction time and a possible failure. A PK's 4th-circle-or-higher hostile spell always interrupts it. The escape
+has to start **before** contact (on sighting), and there has to be a fallback: re-cast, or run to
+break line of sight.
+
+**Measured from our own casts (2026-09-29 to 10-03):** [SPELL_INTERRUPTS.md](SPELL_INTERRUPTS.md).
+Recall takes 2.03 s (1.95–2.09, 27 casts), charge or spell. A creature melee hit mid-cast disturbed it
+44 % of the time at Magery 60 with no Resisting Spells or Inscription (26 of 59 hits);
+damage-over-time ticks never did (0 of 13). Bastet's Weaken, Harm and melee broke 3 of 3. After a
+disturbed cast the server refuses the next one for max(0.2, 1 − √(elapsed/cast time)) s (30 of 30
+live retries), and `escape.py` now waits exactly that long and keeps recasting.
 
 ### 1.3 Runebooks, Rune Tomes, recall scrolls and charges
 
