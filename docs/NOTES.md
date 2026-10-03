@@ -412,7 +412,26 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   sister quests: docs/research/TRAVEL_DEATH.md §1.4.
 - **Guard false positive on Shelter:** the goto from the gate "avoided" a phoenix and a gravebug at
   (1970, 2528), radius 11. On Shelter those are almost surely tamers' pets [INFERENCE]; the
-  detour cost nothing here, but the guard treats them as threats.
+  detour cost nothing here, but the guard treats them as threats. Same walk later: "avoiding a
+  sheep" by the Shelter bank turned a 44-step route into 142 steps. A sheep's body (207) is in
+  `passive_bodies`, so it was flagged by war mode (someone was killing it; "a sheep corpse"
+  followed) [INFERENCE]. A creature fighting someone else isn't a threat to us; the rule needs a
+  passive-body or not-at-us exception.
+- **Shelter's banker refuses a non-Young character** ("Alas, my goods and services are only
+  available to those with young player status.", Len, 2026-10-04). The bank box is per character,
+  so any mainland banker opens the same box: Outpost is the closest from a moongate (arrival
+  (2974, 611) → bankers Duane/Osmond at (3053, 543)/(3045, 542), 125 steps; nearest-bank
+  distances per gate from the client marker packs: Outpost 76, Totem 78, Corpse Creek 120, the
+  rest 140–261).
+- **No reagents, no spellstone, no NPD income.** Hackworth's spellstone ("arielle's bauble") stayed
+  on his Terran corpse. Spellstones come only with a new character's starting kit (wiki
+  [Starting Items](https://wiki.uooutlands.com/Starting_Items): the **Mage** template gives
+  Magery/Meditation/Eval Int/Wrestling 50, a book with Lightning and Greater Heal, and a
+  **2250-charge spellstone**). A mongbat has ~220 hits (above), i.e. ~7 Lightnings for ~16–21
+  gold, so buying Lightning reagents to hunt them would lose gold [INFERENCE: NPC reagent prices
+  not read], and Wrestling (2–8 damage) is too slow. With bought reagents the hunt runner would
+  also retry failed casts: it doesn't check reagents before casting.
+- **`ctl say` is chat to the overseer, not game speech.** In-game speech is `ctl act say <text>`.
 
 ## Runebook and rune tome gumps (live 2026-10-02, TestWorth on the Test Shard)
 
