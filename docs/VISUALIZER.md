@@ -365,9 +365,9 @@ table has no job column) and `harness/data/woods.json` when present.
   - `action` rows: a purple bar with the command in monospace;
   - open junctures, coloured by severity (info blue, attention amber, URGENT red), as
     `source/kind` plus the summary. An `acked junctures` checkbox also shows acked ones, dimmed.
-  - The header shows `overseer active` (green) while the heartbeat is under 90 s old. Otherwise it
-    shows `no overseer running (last seen 5m ago / never seen)`, and the compose box carries the
-    hint that the overseer replies only while an overseer session is running (docs/OVERSEER.md)
+  - The header shows `seer active` (green) while the heartbeat is under 90 s old. Otherwise it
+    shows `no seer running (last seen 5m ago / never seen)`, and the compose box carries the
+    hint that the Seer replies only while a Seer session is running (docs/OVERSEER.md)
     and that messages wait in the store until then.
   - Compose: Enter sends, Shift+Enter adds a new line, with an `n/2000` counter. It uses the same
     validation as the server.

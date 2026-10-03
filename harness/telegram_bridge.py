@@ -131,11 +131,11 @@ def format_chat(row: dict, thoughts: bool = False, actions: bool = False) -> tup
     role, kind, text = row["role"], row["kind"], row["text"]
     if role == "overseer":
         if kind == "message":
-            return f"overseer: {text}", False
+            return f"seer: {text}", False
         if kind == "thought" and thoughts:
-            return f"overseer (thinking): {text}", True
+            return f"seer (thinking): {text}", True
         if kind == "action" and actions:
-            return f"overseer did: {text}", True
+            return f"seer did: {text}", True
         return None                            # memory rows, and thoughts/actions unless asked for
     if role == "user":
         # the user's own Telegram lines are already in the chat; viz lines complete the transcript
@@ -235,17 +235,17 @@ class Bridge:
         if text == "/start":                        # Telegram sends it when the chat is opened
             return 0
         if not text:
-            self.reply("Only text messages reach the overseer.")
+            self.reply("Only text messages reach the Seer.")
             return 0
         if len(text) > CHAT_MAX:
-            self.reply(f"Too long for the overseer chat ({len(text)}/{CHAT_MAX} characters); not sent.")
+            self.reply(f"Too long for the Seer chat ({len(text)}/{CHAT_MAX} characters); not sent.")
             return 0
         self.mem.chat_post("user", text, data={"via": VIA, "message_id": msg.get("message_id")})
         hb = tw.meta_get(self.mem, HEARTBEAT_KEY)
         age = None if hb is None else time.time() - float(hb)
         if age is None or age >= HEARTBEAT_FRESH_S:
             seen = "never seen" if age is None else f"last seen {ago(age)} ago"
-            self.reply(f"No overseer running ({seen}); your message waits in the store until one starts.")
+            self.reply(f"No seer running ({seen}); your message waits in the store until one starts.")
         return 1
 
     def reply(self, text: str):
@@ -260,7 +260,7 @@ def cmd_pair(a, cfg) -> int:
     bot = Bot(cfg["token"])
     me = bot.call("getMe")
     log(f"send any message to @{me.get('username')} from the Telegram account that should get "
-        f"the overseer chat (waiting up to {a.timeout:.0f}s)")
+        f"the Seer chat (waiting up to {a.timeout:.0f}s)")
     end = time.monotonic() + a.timeout
     offset = 0
     while time.monotonic() < end:
@@ -271,7 +271,7 @@ def cmd_pair(a, cfg) -> int:
             if chat.get("type") == "private":
                 bot.call("getUpdates", offset=offset, timeout=0)     # confirm: the bridge won't see it again
                 save_config(a.config, cfg["token"], chat["id"])
-                bot.send(chat["id"], "Paired: the overseer chat and its alerts will arrive here.")
+                bot.send(chat["id"], "Paired: the Seer chat and its alerts will arrive here.")
                 log(f"paired with chat {chat['id']} ({chat.get('username') or chat.get('first_name')}); "
                     f"saved {a.config}")
                 return 0

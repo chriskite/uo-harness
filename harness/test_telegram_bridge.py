@@ -105,7 +105,7 @@ def test_outbound(api):
     mem.juncture_ack(acked)
     b.pump_out()
     got = [(p["text"].split("\n")[0], p["disable_notification"]) for p in api.sent()]
-    want = [(f"URGENT captcha #{cap} (lumber)", False), ("overseer: on it", False),
+    want = [(f"URGENT captcha #{cap} (lumber)", False), ("seer: on it", False),
             ("you (viz): typed in the viz", True), (f"INFO task_done #{done} (lumber)", True),
             (f"ATTENTION stuck #{acked} (lumber)", False)]
     check("overseer messages and waking junctures, loud; viz lines and a task's end, silent; "
@@ -124,7 +124,7 @@ def test_outbound(api):
     b2.pump_out()
     got = [(p["text"].split("\n")[0], p["disable_notification"]) for p in api.sent()]
     check("--thoughts --actions --min-severity info forward those, silently",
-          got == [("overseer (thinking): a thought", True), ("overseer did: act heal", True),
+          got == [("seer (thinking): a thought", True), ("seer did: act heal", True),
                   (f"INFO trip_done #{trip} (lumber)", True)], str(got))
     api.reset()
 
@@ -138,14 +138,14 @@ def test_delivery(api):
     mem.chat_post("overseer", "after a rate limit")
     b.pump_out()
     check("429: waits retry_after, then sends once", slept == [7]
-          and [p["text"] for p in api.sent()] == ["overseer: after a rate limit"] * 2, f"{slept} {api.sent()}")
+                  and [p["text"] for p in api.sent()] == ["seer: after a rate limit"] * 2, f"{slept} {api.sent()}")
     api.reset()
     api.send_errors[:] = [{"ok": False, "error_code": 400, "description": "Bad Request: chat not found"}]
     mem.chat_post("overseer", "refused")
     mem.chat_post("overseer", "next one")
     b.pump_out()
     check("400: that message is skipped and the next still goes",
-          [p["text"] for p in api.sent()] == ["overseer: refused", "overseer: next one"], str(api.sent()))
+          [p["text"] for p in api.sent()] == ["seer: refused", "seer: next one"], str(api.sent()))
     api.reset()
     long = "\n".join(f"line {i} " + "x" * 90 for i in range(100))
     mem.chat_post("overseer", long)
@@ -153,7 +153,7 @@ def test_delivery(api):
     parts = [p["text"] for p in api.sent()]
     check("a long message arrives whole, in parts of at most 4096 characters",
           len(parts) == 3 and all(len(p) <= tb.MSG_MAX for p in parts)
-          and "\n".join(parts) == "overseer: " + long, str([len(p) for p in parts]))
+          and "\n".join(parts) == "seer: " + long, str([len(p) for p in parts]))
     api.reset()
 
 
@@ -169,9 +169,9 @@ def test_inbound(api):
           == [("go chop at the ridge", {"via": "telegram", "message_id": 1010})], str(rows))
     check("the offset moves past every update", tw.meta_get(mem, tb.UPDATE_OFFSET_KEY) == "105")
     replies = [p["text"] for p in api.sent()]
-    check("replies: no overseer running, text only, too long; nothing to the stranger",
-          len(replies) == 3 and replies[0].startswith("No overseer running (never seen)")
-          and replies[1] == "Only text messages reach the overseer." and replies[2].startswith("Too long")
+    check("replies: no seer running, text only, too long; nothing to the stranger",
+          len(replies) == 3 and replies[0].startswith("No seer running (never seen)")
+          and replies[1] == "Only text messages reach the Seer." and replies[2].startswith("Too long")
           and all(p["chat_id"] == CHAT for p in api.sent()), str(replies))
     gu = [p for m, p in api.calls if m == "getUpdates"][-1]
     check("getUpdates asks from the stored offset", gu["offset"] == 0 and gu["allowed_updates"] == ["message"], str(gu))

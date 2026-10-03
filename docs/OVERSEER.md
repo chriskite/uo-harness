@@ -1,5 +1,10 @@
 # Overseer
 
+**Naming:** the overseer is shown to the user as **the Seer**, after Hawkwind the Seer of Lord British's
+court in Ultima IV (2026-10-03). It is a display name only: the viz and Telegram labels say "seer",
+while the code, the `overseer` chat role, the `meta.overseer_*` keys, `/api/overseer` and this file's
+name keep "overseer".
+
 An AI overseer supervises the programmatic tasks (`harness/loop_lumber.py`,
 `harness/errand_bank.py`, …) and is woken only at junctures that need judgement. Code:
 `harness/ctl.py` (the CLI), `harness/task_wrap.py` (runs one task and reports its end),
@@ -206,7 +211,7 @@ The overseer follows it.
 | `task_stop` | `{task_id, t}`: stop request the wrapper polls every 0.5 s. |
 | `overseer_juncture_cursor`, `overseer_chat_cursor` | `wait` cursors (decimal ids). |
 | `gate_break_due_notified` | `break_due_at` of the last due break `wait` announced (one `break_due` juncture per break). |
-| `overseer_heartbeat` | Epoch seconds as a decimal string (`"1790742202.14"`). Written on every `wait` poll (~1 s) and by `say`, `think`, `note-action`, `act`, `run`, `stop`, `ack`. The viz shows "overseer active" while it is < 90 s old. |
+| `overseer_heartbeat` | Epoch seconds as a decimal string (`"1790742202.14"`). Written on every `wait` poll (~1 s) and by `say`, `think`, `note-action`, `act`, `run`, `stop`, `ack`. The viz shows "seer active" while it is < 90 s old. |
 | `captcha_mode` | `human` (also when missing) or `auto`: who answers the harvest captcha. Set by the user with the viz header toggle (VISUALIZER.md §2.2a); the runner reads it at every captcha. The overseer doesn't change it. |
 
 ### Long-term memory: `ctl know` (harness/knowledge.py)
@@ -233,8 +238,8 @@ sessions in the memory store's `knowledge` table (docs/MEMORY.md). Kinds:
 
 Every `know` call except `stats` posts one chat row of kind **`memory`**: lookups (search, brief,
 get, review) with their query and ranked results, and writes (add, update, confirm, retract)
-with the entry and any related ones. The viz Overseer tab shows them as **recall** (teal) and
-**memory** (amber) items (VISUALIZER.md §2.6), so the user sees what the overseer looked up and
+with the entry and any related ones. The viz Seer tab shows them as **recall** (teal) and
+**memory** (amber) items (VISUALIZER.md §2.6), so the user sees what the Seer looked up and
 what it chose to remember. Row data is `{cmd: "know", op, …}` with `query`, `results`,
 `relevant`/`standing`, `entry`, `related`, `id`, `action`, `reason`, `counts` (entries
 compacted, at most 12 per list).
@@ -287,7 +292,7 @@ The viz reads the same tables (built by the viz work, not by `ctl.py`):
 
 Paste this (or point the session at this section) to start an overseer.
 
-> You are the **overseer** of the uo-harness agent playing Ultima Online Outlands. Programmatic tasks do the work; you supervise them through
+> You are **the Seer** (the "overseer" in code and the DB) of the uo-harness agent playing Ultima Online Outlands. Programmatic tasks do the work; you supervise them through
 > `./ctl.cmd …` from `C:/Users/chris/uo-harness` (it runs `harness/ctl.py` with Python 3.13). Read
 > ANTICHEAT.md §8 and docs/OVERSEER.md first. Never edit code or restart services during a
 > shift; never touch the proxy/viz services, the client, or the install dir.
@@ -438,7 +443,7 @@ Paste this (or point the session at this section) to start an overseer.
 
 1. Make sure the proxy and client are running and logged in (`ctl status` returns `ok:true`),
    and no task is running unless you want the overseer to adopt it.
-2. Open omp in `C:/Users/chris/uo-harness` and send: *"Act as the overseer: follow
+2. Open omp in `C:/Users/chris/uo-harness` and send: *"Act as the Seer: follow
    docs/OVERSEER.md §5."* (optionally add the goal, e.g. "run lumber trips until 500 boards").
 3. Talk to it through the viz chat (or directly in omp), or from your phone once the Telegram
    bridge runs (§8). Pause/kill in the viz still stop the agent at the proxy regardless of the
@@ -488,7 +493,7 @@ or sent twice.
 
 | To the phone | Notification |
 |---|---|
-| `overseer` `message` rows (`ctl say`): `overseer: <text>` | loud |
+| `overseer` `message` rows (`ctl say`): `seer: <text>` | loud |
 | Junctures that wake `ctl wait`: severity ≥ `--min-severity` (default `attention`), and always `task_done`/`task_failed`. `URGENT captcha #12 (lumber)` + the summary; `(already acked)` if it was by the time it went out | loud; `info` ones (a task's end) silent |
 | `user` rows typed in the viz: `you (viz): <text>` (the phone keeps the whole conversation) | silent |
 | `system` rows | silent |
@@ -500,7 +505,7 @@ or sent twice.
 {"via": "telegram", "message_id": N}`, which wakes `ctl wait` like the viz chat. Same limit as
 the viz (1..2000 characters after trimming; longer is refused with a reply). Telegram's
 automatic `/start` is dropped; stickers, photos and the like get "Only text messages reach the
-overseer." When no overseer is running (heartbeat ≥ 90 s old, as in the viz), the bot replies
+Seer." When no Seer is running (heartbeat ≥ 90 s old, as in the viz), the bot replies
 that the message waits in the store until one starts.
 
 **Delivery:** in time order across chat and junctures, one row at a time. A cursor moves past a

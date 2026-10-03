@@ -121,7 +121,7 @@ function ChatItem({ row }: { row: ChatRow }) {
   return (
     <div className={`ov-item ov-msg ov-${row.role}`}>
       <div className="ov-meta">
-        <span className="ov-role">{row.role === "user" ? "you" : row.role}</span> {time}
+        <span className="ov-role">{row.role === "user" ? "you" : row.role === "overseer" ? "seer" : row.role}</span> {time}
       </div>
       <div className="ov-text">{row.text}</div>
     </div>
@@ -191,15 +191,15 @@ export function OverseerPanel({ feed }: { feed: OverseerFeed }) {
     <div className="overseer">
       <header className="panel-head">
         <h2>
-          Overseer{" "}
+          Seer{" "}
           {state.openIds.length > 0 && <span className="ov-open">{state.openIds.length} open</span>}
         </h2>
-        <span className={status.active ? "conn ov-status active" : "conn ov-status"} title="from the overseer's heartbeat (meta overseer_heartbeat)">
+        <span className={status.active ? "conn ov-status active" : "conn ov-status"} title="from the seer's heartbeat (meta overseer_heartbeat)">
           <span className={status.active ? "dot dot-ok" : "dot dot-idle"} /> {status.text}
         </span>
       </header>
       <div className="log-filters">
-        <label title="also show junctures the overseer has acknowledged">
+        <label title="also show junctures the seer has acknowledged">
           <input type="checkbox" checked={showAcked} onChange={(e) => setShowAcked(e.target.checked)} /> acked junctures
         </label>
         <span className="dim">{state.chat.length} messages</span>
@@ -214,7 +214,7 @@ export function OverseerPanel({ feed }: { feed: OverseerFeed }) {
           pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
         }}
       >
-        {items.length === 0 && <p className="dim pad">No messages yet. Say something to the overseer below.</p>}
+        {items.length === 0 && <p className="dim pad">No messages yet. Say something to the Seer below.</p>}
         {items.map((it) =>
           it.type === "chat" ? <ChatItem key={it.key} row={it.row} /> : <JunctureItem key={it.key} row={it.row} open={it.open} />,
         )}
@@ -227,7 +227,7 @@ export function OverseerPanel({ feed }: { feed: OverseerFeed }) {
         )}
         <textarea
           value={text}
-          placeholder="Message the overseer… (Enter sends, Shift+Enter new line)"
+          placeholder="Message the Seer… (Enter sends, Shift+Enter new line)"
           rows={2}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKey}

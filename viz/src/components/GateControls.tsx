@@ -101,7 +101,7 @@ export function GateControls({ gate, live }: { gate: Gate | undefined; live: boo
           break until {fmtClock(gate.break_until)} ({fmtDuration(gate.break_until - gate.now)} left)
         </span>
       ) : gate.break_starts_in_s != null ? (
-        <span className="mono" title="the break is due: it starts by itself when this runs out, unless the overseer starts it earlier (ctl break)">
+        <span className="mono" title="the break is due: it starts by itself when this runs out, unless the Seer starts it earlier (ctl break)">
           break starts in {fmtDuration(gate.break_starts_in_s)}
         </span>
       ) : gate.next_break_in_s !== null ? (

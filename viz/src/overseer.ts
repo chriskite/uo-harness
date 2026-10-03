@@ -116,10 +116,10 @@ export function fmtAgo(s: number): string {
 
 /** Whether an overseer session is running, from its heartbeat against the server clock. */
 export function overseerStatus(heartbeat: number | null, now: number | null): { active: boolean; text: string } {
-  if (heartbeat === null) return { active: false, text: "no overseer running (never seen)" };
+  if (heartbeat === null) return { active: false, text: "no seer running (never seen)" };
   const age = (now ?? heartbeat) - heartbeat;
-  if (age < HEARTBEAT_FRESH_S) return { active: true, text: "overseer active" };
-  return { active: false, text: `no overseer running (last seen ${fmtAgo(age)} ago)` };
+  if (age < HEARTBEAT_FRESH_S) return { active: true, text: "seer active" };
+  return { active: false, text: `no seer running (last seen ${fmtAgo(age)} ago)` };
 }
 
 /** Client-side mirror of POST /api/chat validation: error text, or null when sendable. */

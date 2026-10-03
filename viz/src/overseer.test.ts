@@ -86,9 +86,9 @@ describe("timeline", () => {
 
 describe("overseerStatus / fmtAgo", () => {
   test("fresh heartbeat (< 90 s) is active; stale and never are not", () => {
-    expect(overseerStatus(1000, 1089.9)).toEqual({ active: true, text: "overseer active" });
-    expect(overseerStatus(1000, 1090)).toEqual({ active: false, text: "no overseer running (last seen 1m ago)" });
-    expect(overseerStatus(null, 5)).toEqual({ active: false, text: "no overseer running (never seen)" });
+    expect(overseerStatus(1000, 1089.9)).toEqual({ active: true, text: "seer active" });
+    expect(overseerStatus(1000, 1090)).toEqual({ active: false, text: "no seer running (last seen 1m ago)" });
+    expect(overseerStatus(null, 5)).toEqual({ active: false, text: "no seer running (never seen)" });
   });
   test("ages", () => {
     expect(fmtAgo(-2)).toBe("0s");
