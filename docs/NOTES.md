@@ -293,14 +293,26 @@ and the session capture of that time (local).
   | 2.80 | 20.869 | "Bastet is attacking you!" |
   | 4.58 | 22.651 | first hit −15, "Their attack hamstrings you!" |
   | 6.48 | 24.549 | −32 |
-  | 6.89–10.93 | 24.957–29.006 | Bastet overhead text "5", "4", "3", "2", "1", hue 2118, one per second (meaning unknown; it ends on the killing blow) |
+  | 6.89–10.93 | 24.957–29.006 | Bastet overhead "5", "4", "3", "2", "1" (0xAE regular, hue 0x846, one per second): an **explosion-potion fuse** (see below) |
   | 8.35 | 26.418 | −25 |
   | 9.65 | 27.717 | −23 |
   | 10.96 | 29.028 | −7, `death` at (871,1481), "You have lost a moderate amount of fame." |
+  | 12.14 | 30.213 | explosion: 0xC0 type 2 (at a location) graphic 0x36BD at (866,1480,30), sound 0x0207; item 0x53DB79C2 deleted in the same tick |
 
   **~11.0 s from first sight to death; 4.6 s to the first hit.** 102 damage in 5 hits over 6.4 s.
   The runner's ETA (0.6 s) was far too pessimistic: the first attack came 2.8 s after sight.
   Outside guards; the last guard message was the exit at 18:40.
+
+  **Weapon, not explosion.** All 102 damage came from his weapon: every hit (our 0xA1 hits update)
+  landed within 3 ms of a Bastet attack animation (0x6E actions 0x1C/0x1D/0x1A, mounted) and a swing
+  sound 0x023C at his tile (870,1480). No spell cast (no cast sound or animation, no effect on us)
+  and no explosion before death. The potion's fuse ran out ~1.2 s after "1": it blew 4 tiles west
+  of him, 5 from our corpse, after we were dead. No throw (moving effect) reached us. Whether he
+  threw it there late or dropped it can't be told from the capture. Item 0x53DB79C2's serial sits
+  between blood items created at 24.549 and 26.417, close to the first "5" at 24.957; the
+  client never received it, and it was deleted at the blast [INFERENCE: the primed potion]. A
+  server-side fuse message and a player's typed countdown look the same on the wire (0xAE from
+  Bastet's serial). Sources: `logs/session_20261002_183845.jsonl` (local) and the `events` table.
 - **What the harness didn't see.** Tracking in Hunting mode on murderer players was on the whole
   time and recorded **no hit** before or during the attack (`status.tracking.hits` empty).
   `status.attackers` stayed empty because the server sent **no `0x2F` swing with Bastet as the
