@@ -74,6 +74,9 @@ def test_write_discipline():
     check("inferred entries start at low confidence",
           k.get(k.add("fact", "npd", "the NPD entrance leads to a dungeon on facet 0",
                       source="inferred")["id"])["confidence"] == 0.5)
+    check("community entries (Discord-mined) start at 0.6",
+          k.get(k.add("fact", "cedar", "Cedar logs need 60 lumberjacking to chop",
+                      source="community")["id"])["confidence"] == 0.6)
     for bad in (lambda: k.add("rumour", "t", "c"), lambda: k.add("fact", "", "c"),
                 lambda: k.add("fact", "t", "c", importance=11), lambda: k.add("fact", "t", "c", source="guess"),
                 lambda: k.add("fact", "t", "c", confidence=1.5)):

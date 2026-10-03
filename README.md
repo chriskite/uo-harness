@@ -6,6 +6,8 @@ Current status: **Phases 1 and 3 done; Phase 2 (world model) re-validated offlin
 
 **Since 2026-10-02 the lumber job optimizes itself** (logs/hour as the proxy for gold/hour): `ctl lumber plan` picks the next spot by Thompson sampling over every recorded trip, the trip size from each spot's learned PK hazard and walking overhead, the tree regrowth window from harvest memory, and the hatchet from tool bonus, wear and the loss on death, rescaling old data to today's skill ([`docs/LUMBER_LOOP.md`](docs/LUMBER_LOOP.md) §6, `harness/lumber_opt.py`; overseer procedure in [`docs/OVERSEER.md`](docs/OVERSEER.md) §5). **Since 2026-10-03 it reaches the whole map:** spots near the ~360 Witcher runes are recalled to from the public Cambria rune library and left by our own runebook ([`docs/research/WORLD_LOCATIONS.md`](docs/research/WORLD_LOCATIONS.md)), failed spots are set aside by evidence, and the overseer's walks route around hostile creatures (`harness/travel_guard.py`).
 
+**Since 2026-10-03 the captured Outlands Discord feeds a vetted knowledge base:** `harness/discord_kb.py` extracts grounded claims with Sonnet, clusters and adjudicates them into facts with deterministic verdict rules (official / consensus / single-source / disputed), promotes official and consensus facts into the overseer's `ctl know` store (tag `discord`, source `community`/`doc`), and writes the digest [`docs/research/DISCORD_KB.md`](docs/research/DISCORD_KB.md) for coding agents (docs/PLAN.md "Discord knowledge base").
+
 ## Architecture (decided)
 
 ```mermaid

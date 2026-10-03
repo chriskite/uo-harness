@@ -14,8 +14,10 @@ Kinds (what the entry is for):
 
 Write discipline (the usual agent-memory hygiene):
   - provenance on every entry: source_type observed | user | wiki | doc |
-    inferred, plus a ref (capture tag, chat id, juncture id, URL). Confidence
-    defaults by source (observed 0.9, user 0.95, doc 0.8, wiki 0.7, inferred 0.5).
+    community | inferred, plus a ref (capture tag, chat id, juncture id, URL).
+    Confidence defaults by source (observed 0.9, user 0.95, doc 0.8, wiki 0.7,
+    community 0.6, inferred 0.5). community = claims mined from the Outlands
+    Discord by harness/discord_kb.py.
   - no silent duplicates: the same content again (normalised) is a
     confirmation of the existing entry (confirmations += 1, confidence up).
     Every add also returns `related` entries (same topic or similar words) so
@@ -39,7 +41,7 @@ import re
 import time
 
 KINDS = ("fact", "procedure", "episode", "preference", "insight")
-SOURCES = {"observed": 0.9, "user": 0.95, "doc": 0.8, "wiki": 0.7, "inferred": 0.5}
+SOURCES = {"observed": 0.9, "user": 0.95, "doc": 0.8, "wiki": 0.7, "community": 0.6, "inferred": 0.5}
 RECENCY_HALF_LIFE_D = 14.0
 NEAR_RADIUS = 40                     # tiles: location boost fades to 0 at this distance
 W_REL, W_REC, W_IMP, W_CONF, W_NEAR = 1.0, 0.4, 0.5, 0.3, 0.6

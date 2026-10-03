@@ -488,10 +488,57 @@ run it: docs/NOTES.md "Discord capture".
   The vector file can be regenerated from `discord.db`, so it isn't backed up.
 - **Not wired to the overseer (user decision).** The search is a tool for building knowledge, not
   something the playing agent asks directly. Discord chat is unreliable: jokes, outdated patch
-  info, wrong answers. **Next (user's plan):** process the corpus with an LLM into a consolidated
-  set of likely-true facts, with sources and confidence, and build a somewhat reliable knowledge
-  base from it. Only that vetted output would reach the agent, e.g. as `knowledge` entries with
-  `source_type` `doc`/`wiki`-level confidence.
+  info, wrong answers. The vetted layer on top is "Discord knowledge base" below: only its
+  official/consensus output reaches the agent, as `knowledge` entries.
+
+## Discord knowledge base (decided and built 2026-10-03)
+
+User request: turn the captured Discord history into a consolidated set of likely-true game facts
+with sources and confidence, for the overseer and for coding agents. Code: `harness/discord_kb.py`
+(state in `harness/data/discord_kb.db`, gitignored, backed up); operation: docs/NOTES.md
+"Discord knowledge base". User decisions: Sonnet for both LLM stages via headless `omp`; vetted
+facts go into the existing `ctl know` table; a generated digest `docs/research/DISCORD_KB.md` is
+committed; prices (#buy/#sell) deferred; #patch-notes and #announcements crawled and treated as
+authoritative.
+
+- **Two LLM stages, deterministic checks around both.**
+  - Extraction reads one window (a UTC day of one channel, whole conversation chunks up to 24k
+    characters) and returns atomic claims. Each claim must cite message ids from its window and
+    a verbatim quote that is a substring of a cited message; anything else is dropped. Authors
+    and timestamps come from discord.db, never from the model.
+  - Adjudication sees a cluster of similar claims (author-labelled A1..An, official flag, stance,
+    hedging) and proposes one fact with a verdict. Code then recounts independent supporting and
+    contradicting authors and caps the verdict: `official` needs an official claim; `consensus`
+    needs >= 2 supporting authors outnumbering the dissent, else `single_source`/`disputed`.
+    Confidence is a fixed function of the final verdict (official 0.85, consensus 0.65–0.80,
+    single_source 0.5, disputed 0.35), not the model's opinion.
+- **Clustering:** leader clustering over bge-small embeddings (the search model, on the GPU) at
+  cosine 0.86, same `kind` only. Deterministic and stable: old claims keep their cluster, a
+  cluster is re-adjudicated only when its member set (signature) changes. Rejected: HDBSCAN /
+  agglomerative (reshuffles every cluster on each run, so every fact would churn); letting the LLM
+  group claims (costly, unstable).
+- **Incremental by construction:** window ids hash channel, day, part, first/last message id and
+  the prompt version, so backfilled history only re-extracts the days it touches, a prompt
+  change re-extracts everything, and a vanished window's claims are deleted (their clusters
+  dissolve or re-adjudicate). Only days before today (UTC) are processed: a day still filling up
+  would be re-extracted on every run.
+- **Promotion rules (the overseer's own observations win):** only official/consensus facts, source
+  `community` (0.6 default, new in `knowledge.SOURCES`) or `doc` for official ones, importance
+  capped at 6 so a mined fact never becomes a `brief` standing item. Re-runs are no-ops (hash of
+  what was promoted). An entry the overseer retracted or superseded is never re-added, also not
+  under new wording from a re-cluster (content-hash check). When a fact's verdict drops, the
+  pipeline retracts its entry only if it added it and nobody confirmed it since.
+  Promotion state is kept per target DB (`promotions` table, not columns on `facts` as first
+  planned): the trial promote into a copy of harness.db otherwise left the copy's entry ids on
+  the facts, and the real promote then took them for ids in the real store.
+- **LLM call shape:** `omp -p --no-tools --no-session --no-extensions --no-skills --no-rules
+  --mode json` from the temp dir (no repo context loads, ~330 tokens of overhead), prompt in an
+  attached temp file. Failures: infra retry once after 30 s, invalid JSON/validation retry once
+  with the error appended, output truncation splits the window (or the cluster batch). Every
+  attempt is logged in `llm_calls` with its cost; `--max-cost` (default $40) stops a run from
+  submitting more calls (exit 2, rerun resumes).
+- **Not done:** prices (deferred by the user), images in messages (not read; image-only messages
+  are skipped as in search).
 
 ## Reaching the whole map: Witcher-rune spots and guarded walks (decided and built 2026-10-03)
 

@@ -15,6 +15,12 @@ so the default is the UNC path):
                                      the same for harness/data/discord.db, the
                                      captured Discord history (harness/discord_capture.py);
                                      skipped while that DB doesn't exist.
+  discord_kb/discordkb-YYYYMMDD-HHMMSS.db.gz
+                                     the same for harness/data/discord_kb.db, the
+                                     claims and facts harness/discord_kb.py mined from
+                                     the Discord history (paid LLM output, so costly
+                                     to regenerate); skipped while it doesn't exist.
+                                     discord_vec.db is not backed up: it regenerates.
   logs/                              logs/ (session captures, screens, overseer
                                      task logs). Additive: files deleted locally
                                      stay on the share.
@@ -64,6 +70,7 @@ DISCORD_DB = os.path.join(ROOT, "harness", "data", "discord.db")
 DBS = [
     (DB, "db", "harness", True),
     (DISCORD_DB, "discord", "discord", False),
+    (os.path.join(ROOT, "harness", "data", "discord_kb.db"), "discord_kb", "discordkb", False),
 ]
 LOG = os.path.join(ROOT, "logs", "backup.log")
 KEEP_ALL_HOURS = 48
