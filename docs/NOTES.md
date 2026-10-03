@@ -468,7 +468,7 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   - Garritt the mage, Cambria (1759, 2981): reagents 3 gp each, blank recall rune 20, recall
     scroll 200, **Mark scroll 500**, spellbook 60, 20 arcane staves 50 each, training arcane staff 25.
   - **Mark is 6th circle: 60 Magery to cast, 100 % at 80** (wiki Magery: each circle's "Min
-    Required / 100% Success" line follows its spell table: 1st 0/30 … 5th 40/60, 6th 60/80, the
+    Required / 100% Success" line follows its spell table: 1st 0/30 … 4th 40/60 (Recall), 5th 50/70 (Magic Reflection), 6th 60/80, the
     same for Reveal and Invisibility). At Magery 60.0 from the spellbook all 20 casts fizzled (12 reagent sets
     used). **Cast from the scroll it worked first time** (double-click the scroll, target the rune;
     "You generate mana for your spell."): a scroll casts as if lower-circle [INFERENCE from RunUO].
@@ -500,10 +500,10 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
 - **After pulling viz changes:** `cd viz && bun run build` (viz/dist is gitignored), then restart
   `viz_server.py`. Edit-tool relative paths resolve to the session cwd, not a git worktree: use
   absolute worktree paths there.
-- **Tracking while lumbering (since 2026-10-04, 7cc9c75; LUMBER_LOOP.md §13 "Tracking reds"):** the
+- **Tracking while lumbering (since 2026-10-03, 7cc9c75; LUMBER_LOOP.md §13 "Tracking reds"):** the
   runner keeps Hunting murderer players on for the whole run with `ctl act track`'s clicks
   (`harness/tracking.py`), re-enabling it when the hunt lines or buff 173 say it's off, at most
-  once per 30 s. Before this nothing tracked on 10-03 or 10-04: every login drops the hunt.
+  once per 30 s. Before this nothing tracked on 10-03: every login drops the hunt.
 - **What ends Hunting (store, measured):** only Stop and a relog. A relog removes buff 173 without
   a stop line and keeps the mode. Recall, death and resurrection, and chopping keep it on (the buff
   is re-sent). In 121 min of murderer hunting there were 0 murderer hits, even with Bastet in view
@@ -517,7 +517,7 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   for 12 s under monster attack (85 → 40 hits) and exited in the field; the overseer's recall
   landed at 15/100. Now damage, a creature that keeps coming, or too many escapes end the run
   without converting and, away from home, with a recall home first (urgent `threat` juncture).
-- **A pickpocket, not an attack (live 2026-10-04 17:24, witcher_291, Hackworth).** "Caputo Wood"
+- **A pickpocket, not an attack (live 2026-10-03 17:24, witcher_291, Hackworth).** "Caputo Wood"
   (0x0073C056, a blue) walked up to 1 tile. At 17:24:55.143 a 0x20 MobileUpdate changed his
   notoriety 1 → **3** (attackable to us only; in RunUO the mark of someone who just aggressed us
   [INFERENCE for Outlands: a steal attempt does it]), and 75 ms later our 10 mandrake root
@@ -538,7 +538,7 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   ranged); each episode is a `monster_hit` job event, and a sole attacker's body is learned as
   aggressive/ranged with its reach raised to the farthest hit. Gazer (body 22) is ranged from the
   start. Trees within reach of a known-aggressive creature in view wait until it leaves.
-- **Second Bastet death (live 2026-10-04 18:04, witcher_282 Nusero Island SE, Hackworth).**
+- **Second Bastet death (live 2026-10-03 18:04, witcher_282 Nusero Island SE, Hackworth).**
   Timeline from the store: 18:04:38.44 Bastet ("Serial Killer [Prevalia]", "[Aggressive
   Captcha, DVLS]", red) appears at 11 tiles. He carries the **Stationary Penalty buff (icon 277),
   removed at 40.05**, so he had just recalled or gated in on top of us [INFERENCE: hunting us by

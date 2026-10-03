@@ -499,7 +499,7 @@ class World:
                 asyncio.get_running_loop().call_later(0.5, self.attacker_appears, None, True)
             elif getattr(self, "chaser", False) and self.good_n == 2:  # a creature hunts us at a far spot
                 asyncio.get_running_loop().call_later(0.5, self.attacker_appears, None, True)
-                # ... and a pickpocket's grab lands in the same moment (live 2026-10-04: 10 mandrake
+                # ... and a pickpocket's grab lands in the same moment (live 2026-10-03: 10 mandrake
                 # root gone 75 ms after the thief's flag change; the run fled before booking it)
                 self.later(0.5, [delete(0x44ADB0FF)])
             elif self.scenario == "gazer" and self.good_n == 2 and self.gazer_pos is None:
@@ -1339,7 +1339,7 @@ GAZER_SPOT = {"access": {"method": "witcher", "rune": "286", "library": "cambria
 
 
 async def gazer_run():
-    """LUMBER_LOOP.md §13 "Running from a creature" (live 2026-10-04: a gazer hit us 4 s after a
+    """LUMBER_LOOP.md §13 "Running from a creature" (live 2026-10-03: a gazer hit us 4 s after a
     melee-sized walk-away and the trip was recalled home). A gazer (ranged body 22, not in war mode)
     casts at us from 10 tiles mid-chop, once: the runner walks out of its spell range (12) + margin,
     chops on at the far tree, and the trip banks: no recall away, no stop."""

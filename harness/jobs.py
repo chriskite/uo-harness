@@ -400,7 +400,7 @@ PLAN_DRAWS = 1000
 
 
 def recall_cause(data: dict) -> str:
-    """'creature' or 'player' for a lumber recall/guard_flight event. Since 2026-10-04 the
+    """'creature' or 'player' for a lumber recall/guard_flight event. Since 2026-10-03 the
     runner writes data.cause; before, only the creature stop (monster_stop) gave a why
     other than a tracking hit's ('tracking: ...'), and its threat was a monster or none."""
     if data.get("cause"):
@@ -416,7 +416,7 @@ def lumber_plan(memory, now: float) -> dict:
     nowhere (every spot pays its travel prior), seeded by the minute so a refresh
     within the minute shows the same draws. Per spot it adds what the trip rows and
     job events say beyond the model: PK escapes (recall or guard flight), creature
-    recalls (a recall away from a creature, data.cause 'creature', since 2026-10-04)
+    recalls (a recall away from a creature, data.cause 'creature', since 2026-10-03)
     and creature hits (monster_hit episodes), the last trip's outcome and why, how
     the spot is reached."""
     import lumber_opt

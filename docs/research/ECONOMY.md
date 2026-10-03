@@ -327,7 +327,7 @@ Test Shard's public shelves or one of our own in the rental room.
 
 ## 6. Inputs for a value-aware "head home" rule (LUMBER_LOOP §6)
 
-§6 started from a board count `Q` and `Q* = r·sqrt(2T/h)`; since 2026-10-04 it maximises a
+§6 started from a board count `Q` and `Q* = r·sqrt(2T/h)`; since 2026-10-03 it maximises a
 renewal-reward rate over death, sent-home and theft hazards (`lumber_opt.trip_terms`: the load
 grows at λ, a death banks nothing and loses the gear at full price), of which the square-root rule
 is the small-hazard limit. With several woods, the carried quantity should be **value**

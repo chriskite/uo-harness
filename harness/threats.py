@@ -65,13 +65,13 @@ Movement and ETA (all in Params):
   distance is the UO move metric, since a diagonal step costs one step.
   Running is assumed: the world model drops the 0x77 run bit.
 
-Reach (Threat.reach, creature_reach; 2026-10-04): the tiles from which a
+Reach (Threat.reach, creature_reach; 2026-10-03): the tiles from which a
 creature can damage us. Melee: monster_strike_range. Ranged or caster
-creatures: CREATURE_SPELL_RANGE, 12 tiles (user decision 2026-10-04: "spell
+creatures: CREATURE_SPELL_RANGE, 12 tiles (user decision 2026-10-03: "spell
 range is 12 tiles"), raised (never lowered) to the farthest distance a hit from
 that body was recorded at (Params.body_reach, learned from `monster_hit` job
 events by travel_guard.learned_params). Ranged bodies: RANGED_BODIES (the
-gazer, body 22: live 2026-10-04 it hit us 4 s after a melee-sized walk-away
+gazer, body 22: live 2026-10-03 it hit us 4 s after a melee-sized walk-away
 left us 11-12 tiles from it) plus every body that hit us with no creature
 adjacent. Reach doesn't change the flee radius or the action below; the lumber
 runner uses it for how far to walk away and which trees to leave alone.
@@ -187,8 +187,8 @@ _CREATURE = re.compile(r"^(a|an) ", re.IGNORECASE)
 _YOUNG = re.compile(r"\(Young\)\s*$")
 
 ACTIONS = ("flee", "watch", "ignore")
-CREATURE_SPELL_RANGE = 12       # tiles: a ranged/caster creature's reach (user decision 2026-10-04)
-RANGED_BODIES = frozenset({22})  # gazer (live 2026-10-04: hit us from 11-12 tiles, LUMBER_LOOP.md §13)
+CREATURE_SPELL_RANGE = 12       # tiles: a ranged/caster creature's reach (user decision 2026-10-03)
+RANGED_BODIES = frozenset({22})  # gazer (live 2026-10-03: hit us from 11-12 tiles, LUMBER_LOOP.md §13)
 
 
 @dataclass(frozen=True)

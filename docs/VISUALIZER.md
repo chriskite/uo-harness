@@ -348,7 +348,7 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
 - `plan` = `jobs.lumber_plan`: `lumber_opt.plan_from_store` with no live character (skill from the
   newest trip row) and no position (every spot pays its travel prior), seeded by the minute, plus
   per spot the PK escapes (`recall`/`guard_flight` events), the last trip's outcome and why, and how
-  it's reached (`Witcher rune N` or a walk). 0.18 s on the live store (2026-10-04: three hazards and a
+  it's reached (`Witcher rune N` or a walk). 0.18 s on the live store (2026-10-03: three hazards and a
   finer trip-size search), so it's computed per request (inside the 2 s cache).
   `analytics(plan_now=None)` (tests, the CLI) leaves it null.
 
@@ -399,7 +399,7 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     tiles are green at 0, red or amber otherwise.
   - A line under the tiles: the estimated value (and how many logs are unpriced) and the chop
     outcomes from `harvest_attempts`.
-  - **Optimizer: next pick** (2026-10-03; hazards 2026-10-04): the plan's spot with
+  - **Optimizer: next pick** (2026-10-03; hazards 2026-10-03): the plan's spot with
     `explore`/`exploit`, P(best), trips × Q* logs, expected trip minutes, expected logs banked per
     trip with P(death) and P(sent home) per trip, and net logs/hr; then skill and chop success,
     the regrowth window (fitted or default), P(death | PK seen), the pooled creature-death and

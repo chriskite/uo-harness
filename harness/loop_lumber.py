@@ -276,7 +276,7 @@ class LumberLoop:
             raise Abort(f"movement stalled ({mv['rejects_in_row']} walks rejected in a row)")
         self.check_gate(st)
         # The ledger first: a thief's grab and his notoriety change arrive together (live
-        # 2026-10-04: 10 mandrake root gone 75 ms after "Caputo Wood" turned grey next to us),
+        # 2026-10-03: 10 mandrake root gone 75 ms after "Caputo Wood" turned grey next to us),
         # and the threat check raises into the escape, so a loss read after it is never booked.
         self.check_ledger(st)
         self.check_threats(st)

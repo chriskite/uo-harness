@@ -188,7 +188,7 @@ about `h·Q²/(2r)`, plus `h·Q·T_back` on the way home. Cost per banked board:
 
 $$c(Q) = \frac{rT}{Q} + \frac{hQ}{2r} + h\,T_{back} \quad\Rightarrow\quad Q^* = r\sqrt{2T/h}$$
 
-This first-order rule is now the small-hazard limit of the renewal-reward model built on 2026-10-04
+This first-order rule is now the small-hazard limit of the renewal-reward model built on 2026-10-03
 ("Trip size" below), which drops the Q/2 approximation and the `h·Q/r > 1` breakdown of long trips.
 
 - **Shelter Island: `h = 0`** (no hostile player actions, wiki). `Q*` is unbounded, so the trip ends
@@ -253,7 +253,7 @@ patches show up within weeks):
   recorded): its double yield shows up through the recency weighting.
 - overhead T (walk out + convert + walk to the bank + store): Normal posterior, prior from the
   bank-to-area distance.
-- **hazards (rewritten 2026-10-04, user decisions):** three competing hazards per field hour, each a
+- **hazards (rewritten 2026-10-03, user decisions):** three competing hazards per field hour, each a
   Gamma posterior per spot over recency-weighted field hours, shrunk to a pooled rate:
   - **death h_D** (PK or creature): prior mean = the spot's hostile-player sightings per field hour
     (Gamma, prior `hazard_prior`, 2 h strong) × P(death | sighting) (Beta(1, 3), pooled; only PK
@@ -272,7 +272,7 @@ patches show up within weeks):
     (0.5 [INFERENCE]: logs merge into one stack per wood, so one grab can take them all) and learns
     from each theft: wood taken / carried (the event's `carried` when recorded, else the trip's
     `carried_end` + taken, a lower bound [INFERENCE]); a theft of no wood counts 0.
-- **trip size (rewritten 2026-10-04):** each trip is one renewal-reward cycle. Chopping Q logs
+- **trip size (rewritten 2026-10-03):** each trip is one renewal-reward cycle. Chopping Q logs
   takes t_f = Q/λ field hours; during it the three hazards compete (h = h_D + h_S), the load grows
   at λ, and a theft takes f of it, so the expected load is C(t) = λ(1 − e^{−kt})/k with k = h_T·f:
 
@@ -369,10 +369,10 @@ read-only, 2026-10-03 ~16:00, Hackworth on Witcher spots): 21 lumber trip rows (
 | Spot choice: overhead T and travel | walk out, convert, to bank, store; travel between spots; the recall legs | trip row `phases_s`, `walk_out_s`; travel between spots learned from trip gaps; recall legs in `travel` job events (4; out leg sample: `charge`, 2.25 s, 38 charges) | had for walking spots. **Added:** each leg's `s` (walk to the library + casts), `walk_s`, `tries` (every cast: method, failure, seconds), `trip`, `spot`, `book`, `witcher_rune` (the 4 old events store the tome's *row* index in `rune`: the rune id was overwritten; the name "291 - …" still says it), failed walks/recalls as events (`ok: false`); trip row `travel` + `travel_s` |
 | Travel lockout | seconds waited at the first tree after a recall | was in field time (6 "recently traveled" lines in the store, 9-48 s) | **added** `lockout_s`; counted as overhead |
 | Failed trips as evidence | outcome, why, logs 0, place vs. travel vs. threat | trip row `outcome`/`why` (2; "to the rune library: exceeded 250 moves", "threat: red Lord Rasta Brazil …") | had; travel failures now carry no field time |
-| Hazard per spot | sightings in trips, exposure (field time), deaths and their cause, trips a threat ended, thefts | `pk_seen` job events (10), field time, proxy `death` events (3; attributed by time/place), the runner's `death` job events (cause), trip `why` `threat: …` (6 by 2026-10-04), `recall` (4) / `guard_flight` job events, `theft` job events + `theft_suspected` junctures (0) | had; since 2026-10-04 tracked reds too (`source: tracking`), counted only within the react range and once per red per run (`counted`, §13 "Tracking reds"); hunt coverage per trip in the row's `tracking`. Since 2026-10-04 three hazards (death, sent home, theft; "hazards" above); the row's `creature.recalled` counts when present. Gap: a theft event's `carried` (the load when it happened) isn't recorded yet, so f learns from a lower bound |
-| Death cost | carried logs, every unblessed item carried at its price, Young, recovery time | `carried_end` (2), `hatchet.newbied`, the pack's hatchets and reagents (state port), prices table (6 rows: 5 reagents at 3 gp, `recall_charge` 200 gp) | since 2026-10-04 the carried load (a dying trip banks nothing) and every hatchet + reagent at full price; nothing when Young; recovery 20 min is still [INFERENCE] (no resurrection timing per death recorded) |
-| PK escapes | recall/guard flight in a trip, which spot | `recall` job event (1: Cambria rune, 47 charges, 2.24 s) / `guard_flight` (0) | had; `trip`, `spot`, `book` **added** to the `recall` event and an `escape` leg in the trip row's `travel`; since 2026-10-04 they are the sent-home hazard h_S |
-| Trip size Q* | λ, T, the three hazards, gear at risk, weight room | the above; `world.self.weight` and `stats.weight_max` (state port) | renewal-reward model since 2026-10-04 (200…10 000 logs, capped by weight, no stint cap) |
+| Hazard per spot | sightings in trips, exposure (field time), deaths and their cause, trips a threat ended, thefts | `pk_seen` job events (10), field time, proxy `death` events (3; attributed by time/place), the runner's `death` job events (cause), trip `why` `threat: …` (6 by 2026-10-03), `recall` (4) / `guard_flight` job events, `theft` job events + `theft_suspected` junctures (0) | had; since 2026-10-03 tracked reds too (`source: tracking`), counted only within the react range and once per red per run (`counted`, §13 "Tracking reds"); hunt coverage per trip in the row's `tracking`. Since 2026-10-03 three hazards (death, sent home, theft; "hazards" above); the row's `creature.recalled` counts when present. Gap: a theft event's `carried` (the load when it happened) isn't recorded yet, so f learns from a lower bound |
+| Death cost | carried logs, every unblessed item carried at its price, Young, recovery time | `carried_end` (2), `hatchet.newbied`, the pack's hatchets and reagents (state port), prices table (6 rows: 5 reagents at 3 gp, `recall_charge` 200 gp) | since 2026-10-03 the carried load (a dying trip banks nothing) and every hatchet + reagent at full price; nothing when Young; recovery 20 min is still [INFERENCE] (no resurrection timing per death recorded) |
+| PK escapes | recall/guard flight in a trip, which spot | `recall` job event (1: Cambria rune, 47 charges, 2.24 s) / `guard_flight` (0) | had; `trip`, `spot`, `book` **added** to the `recall` event and an `escape` leg in the trip row's `travel`; since 2026-10-03 they are the sent-home hazard h_S |
+| Trip size Q* | λ, T, the three hazards, gear at risk, weight room | the above; `world.self.weight` and `stats.weight_max` (state port) | renewal-reward model since 2026-10-03 (200…10 000 logs, capped by weight, no stint cap) |
 | Regrowth window | depleted then retried trees | `harvest_attempts` 1 819 (success 708 / 5 386 logs, fail 628, depleted 451, unreachable 28, not_tree 10), `harvest_nodes` 345 | had (not per spot; fitted 65 min on 137 pairs) |
 | Tree depletion, place failures | depleted/unreachable trees, "no harvestable tree" trips | `harvest_nodes` (317 depleted, 11 unreachable, 10 not a tree), trip `why`, `dry` | had |
 | Crowding | other players at the spot | not recorded (only hostile ones as `pk_seen`) | **added** trip row `players_seen` (distinct players in view) + `players` (names, ≤ 10) |
@@ -628,17 +628,17 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   swinging at us (0x2F, defender = self), posts the urgent `threat` juncture as before with
   `data.action = "escape"`, and the runner walks away from it: to a tile 2 beyond its reach
   (`ESCAPE_MARGIN`; the reach is its flee radius, or for a ranged creature the 12-tile spell range
-  if that is more, since 2026-10-04: "Running from a creature" below), preferring tiles walked
+  if that is more, since 2026-10-03: "Running from a creature" below), preferring tiles walked
   before within 60° of straight away, else straight away or 45° to either side. Then it carries on
   with the next tree out of the reach of every creature it escaped from this trip, around where it
   is and where it was (an escape in the convert or bank phase repeats that phase). It stops
   instead (`data.action = "abort"`, or `recall` far from home) when the creature is still in flee
   range (a ranged one: within its reach) right after the escape ("it kept coming"), after 3
   escapes in a trip (`ESCAPES_PER_TRIP`), during a speech hold, on damage when the rule below
-  says so (until 2026-10-04: on any damage), and, as before, at once for a hostile
+  says so (until 2026-10-03: on any damage), and, as before, at once for a hostile
   player/red/grey/orange in flee range or a non-creature swinging at us.
-- **Running from a creature (since 2026-10-04; `creature_hit`, `hit_verdict`,
-  `threats.hit_attackers`):** live 2026-10-04 at witcher_291 a gazer (body 22) at 6 tiles got the
+- **Running from a creature (since 2026-10-03; `creature_hit`, `hit_verdict`,
+  `threats.hit_attackers`):** live 2026-10-03 at witcher_291 a gazer (body 22) at 6 tiles got the
   melee-sized escape (flee radius 8 + 2: we stopped 11 tiles from it), and 4 s later it hit us
   from 12 tiles. Since 3316e5b any damage recalled home, so a 2-minute trip (library walk, charge,
   lockout) ended for one creature that walking further away would have shaken off.
@@ -646,7 +646,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     it is inferred from the creatures in view: those swinging at us or adjacent (melee), plus
     known-ranged ones within their reach; with nothing adjacent, the hit came from afar, so every
     candidate within its reach, at least `threats.CREATURE_SPELL_RANGE` = 12 tiles (user decision
-    2026-10-04: "spell range is 12 tiles"), counts and the hit is ranged. Candidates are hostile
+    2026-10-03: "spell range is 12 tiles"), counts and the hit is ranged. Candidates are hostile
     creatures and creatures of unknown aggression; never pets or passive bodies (threats.py). With
     no candidate within its reach, a creature we walked away from this trip that is still in view
     is taken to outrange it (a sole attacker's distance is then learned as its body's reach).
@@ -728,7 +728,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     no timeout, HP, creature or speech checks.
   - **Live check (TestWorth, Test Shard):** the runner's path with a fake red, 2.11 s from press
     to arrival. `test_escape.py` pins the gump parsing on the captured layouts.
-- **Tracking reds (since 2026-10-04, user order: "while lumbering, always be tracking reds";
+- **Tracking reds (since 2026-10-03, user order: "while lumbering, always be tracking reds";
   `harness/tracking.py`, shared with `ctl act track`):**
   - **Measured first (live store read-only, 2026-10-03 ~16:30: 940 k events, 57 sessions
     09-28 → 10-03, buff 173 add/remove, the hunt's System lines, quest arrows, deaths, travel):**
@@ -767,7 +767,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - **React to hits:** a hit while hunting murderer players (the world model keeps the mode at
     hit time) is a red, possibly out of view. Its distance is Chebyshev from us to the arrow's x/y
     (the "(N spaces to target)" line when there's no arrow). Within `--track-react-range` (40,
-    user decision 2026-10-04) at a pvp spot while out at it (after the travel out, until home),
+    user decision 2026-10-03) at a pvp spot while out at it (after the travel out, until home),
     it is the red escape above: `recall_out` with why `tracking: <name> N spaces`, the guard
     flight if that fails, then stop. Each new hit is checked, so a red first found far that
     comes within 40 triggers then. A red already recalled from never triggers again in the run,
@@ -796,7 +796,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   hold. The conversion ignores the timeout, HP and creature checks; a player or death still
   interrupts it. A process kill converts nothing.
 - **A creature stop recalls home first (since 2026-10-03):** damage the run rule above doesn't
-  cover (since 2026-10-04; before, any damage), a creature that kept
+  cover (since 2026-10-03; before, any damage), a creature that kept
   coming after the walk-away escape, too many escapes, or a creature during a speech hold ends the
   run without converting (`monster_stop`), and when the runner is more than `HOME_NEAR` (60) tiles
   from the banker with a recall book ready, it recalls home first (`recall_out`, the same retries) and
@@ -963,7 +963,7 @@ model prunes mobiles out of view.
 - **break:** a pre-written agent gate file makes the break due after 4 s of agent activity; the
   harvest stops early, the 5 carried and the new logs are converted and banked, `break due:
   banked`, exit 0, one episode row with `break_due`.
-- **gazer_run / gazer_rehit / wary** (since 2026-10-04, "Running from a creature" above): a gazer
+- **gazer_run / gazer_rehit / wary** (since 2026-10-03, "Running from a creature" above): a gazer
   that casts from 10 tiles once (run beyond 12, chop on at the far tree, bank, exit 0), the same
   gazer outranging the walk-away (hit again within 10 s of arriving: recall home, no conversion,
   exit 1), and a war-mode creature by the nearest tree (the farther tree first, no escape).

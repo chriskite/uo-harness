@@ -417,7 +417,7 @@ plus the store, hatchets in `harness/data/hatchets.json`; the model is docs/LUMB
   sightings/hour × P(death | sighting): sightings arrive long before deaths, which are rare.
   This replaces fixed `--logs-per-trip` values; the user's 2026-10-02 note (banking trips are
   costly, don't bank more often than the trigger says) holds.
-- **2026-10-04 (user decisions): the trip size is a renewal-reward rate over three competing
+- **2026-10-03 (user decisions): the trip size is a renewal-reward rate over three competing
   hazards** (LUMBER_LOOP §6 "trip size"). The first model credited a dying trip with Q/2 banked
   and charged deaths = h·Q/λ, which exceeds 1 for long trips; it also capped Q at what a 60-min
   stint can chop. Now: a death banks nothing and loses every unblessed item at full price (all
@@ -643,7 +643,7 @@ efficiently. Plan, data and limits: docs/HUNT_LOOP.md "Crawl"; code: `harness/cr
   - **Room segmentation (watershed) for areas**: the coverage cells already are room-sized (one
     per room centre, a chain along corridors) and need no tuning.
 
-## PK survival: stealthers, Magic Reflection, mounted flight (user notes 2026-10-04, open)
+## PK survival: stealthers, Magic Reflection, mounted flight (user notes 2026-10-03, open)
 
 After the second Bastet death (docs/NOTES.md "Second Bastet death"): he appeared at 11 tiles
 carrying the Stationary Penalty, never showed on Tracking, and his first spell landed 1.9 s after
