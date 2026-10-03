@@ -74,15 +74,41 @@ red on foot gives 12 + 25 = 37 tiles. That is beyond the ~18-tile update range
 Hostile means kind red/grey/orange (Params.hostile_kinds), or a monster judged
 aggressive. [INFERENCE] Creature notoriety doesn't show aggression: captured
 blood apes were 1 (innocent), sheep and zombies were both 3. So aggression
-comes, in order, from: war-mode flag 0x40 (EntityFlags.cs:18), `aggressive_bodies`,
-`passive_bodies`/`passive_names`, notoriety 6 (`aggressive_notoriety`), then
-`monster_default_aggressive`. The default is False (2026-09-30): a creature that
-goes for you enters war mode. In the NPD capture 20260930_110946, 10 of 15
-mongbats (the ones that fought) showed 0x40, while sheep, giant rats, hinds,
-an eagle, a great hart, zombies and a harpy never did and never attacked.
-Treating every unknown creature as dangerous stopped lumber trips for a
-wandering goat and a walrus. The HP-damage guard still catches anything the
-flag misses.
+comes, in order, from (_aggressive):
+  1. swinging at us (S2C 0x2F with us as defender within damage_window_s, in
+     world.swings or a `swing` event): aggressive, whatever else holds
+  2. a pet (Mobile.pet: the server's "(tame)" / "(bonded)" / "(summoned)" line
+     under its click label): aggressive only with notoriety 6
+     (`aggressive_notoriety`; a pet's notoriety is its owner's [INFERENCE:
+     RunUO]), else not, war mode and body notwithstanding
+  3. war-mode flag 0x40 (EntityFlags.cs:18), unless the body is in
+     `passive_bodies` or the label in `passive_names`
+  4. `aggressive_bodies`, then `passive_bodies`/`passive_names`, notoriety 6,
+     then `monster_default_aggressive`
+The default is False (2026-09-30): a creature that goes for you enters war
+mode. In the NPD capture 20260930_110946, 10 of 15 mongbats (the ones that
+fought) showed 0x40, while sheep, giant rats, hinds, an eagle, a great hart,
+zombies and a harpy never did and never attacked. Treating every unknown
+creature as dangerous stopped lumber trips for a wandering goat and a walrus.
+The HP-damage guard still catches anything the flag misses.
+
+Pets and war-mode passive bodies (2026-10-04, session 20261003_111419 on
+Shelter Island): a guarded goto avoided 'a phoenix' (body 832) and 'a
+gravebug' (387), stacked one tile from the player Lord Arlabunakti, both
+notoriety 1, flags 0x40 from their first 0x20, each announced "(bonded)"; and
+two sheep (body 207, passive) whose 0x20 turned 0x40 while 'Billiam Gatherer
+(Young)' (flags 0x60, war mode) stood next to them, killing them [INFERENCE:
+both became "a sheep corpse" within 31 s and 17 s]. War mode was the only
+aggression evidence for all four (no learned bodies yet, notoriety 1 and 3),
+none came for us, and the sheep made a 44-step walk 142. The pet line is a
+steady signal: the memory store holds 681 "(bonded)", 573 "(tame)" and 116
+"(summoned)" lines, always type 0, hue 946.
+
+Swings seen live: every one of the 2172 0x2F swings in the memory store
+(sessions 20260929-20261003) is our own; Outlands has never sent one with us as
+the defender, nor any 0x0B damage packet (damage shows as "-N" overhead text).
+So rule 1 and the swing paths below fire only on servers that send them (and
+in the test sims); live, the hits trend is the damage signal.
 
 Fighting someone else (2026-10-01, knowledge #89): a creature whose only
 aggression evidence is war mode is `watch`, not `flee`, while it is busy with
@@ -307,16 +333,37 @@ def identify(mob: dict, label: str | None) -> tuple[str, bool | None, list]:
     return KIND_BY_NOTORIETY.get(noto, "unknown"), True, [ASSUMED_PLAYER]
 
 
-def _aggressive(mob, text, params: Params) -> tuple[bool, str]:
+def swinging_at_us(serial: int, key: str, swings: dict, state, *, me, now: float, params: Params) -> bool:
+    """A 0x2F with us as defender within damage_window_s: the latest swing in
+    world.swings or any `swing` event."""
+    if me is None:
+        return False
+    lo = now - params.damage_window_s
+    last = swings.get(key)
+    if last and _serial(last["defender"]) == me and last.get("t") is not None and last["t"] >= lo:
+        return True
+    return any(ev.get("ev") == "swing" and ev.get("attacker") == serial and ev.get("defender") == me
+               and (t is None or t >= lo) for t, ev in _events(state))
+
+
+def _aggressive(mob, text, params: Params, at_us: bool = False) -> tuple[bool, str]:
+    """(aggressive, why) for a creature: the order in the module docstring."""
     body, noto, flags = mob.get("graphic"), mob.get("notoriety"), mob.get("flags") or 0
-    if flags & FLAG_WARMODE:
+    if at_us:
+        return True, "swinging at us"
+    pet = mob.get("pet")
+    if pet:
+        if noto in params.aggressive_notoriety:
+            return True, f"{pet} pet, notoriety {noto}"
+        return False, f"{pet} pet" + (", war mode" if flags & FLAG_WARMODE else "")
+    passive_name = bool(text) and text.lower() in params.passive_names
+    if flags & FLAG_WARMODE and body not in params.passive_bodies and not passive_name:
         return True, "war mode"
     if body in params.aggressive_bodies:
         return True, "aggressive body"
-    if body in params.passive_bodies:
-        return False, "passive body"
-    if text and text.lower() in params.passive_names:
-        return False, "passive name"
+    if body in params.passive_bodies or passive_name:
+        why = "passive body" if body in params.passive_bodies else "passive name"
+        return False, why + (", war mode (fighting someone else)" if flags & FLAG_WARMODE else "")
     if noto in params.aggressive_notoriety:
         return True, f"notoriety {noto}"
     return params.monster_default_aggressive, "default"
@@ -338,11 +385,8 @@ def fighting_other(serial: int, key: str, mob: dict, text, swings: dict, state, 
     age = now - last["t"]
     if age > params.damage_window_s:
         return None
-    lo = now - params.damage_window_s
-    for t, ev in _events(state):
-        if ev.get("ev") == "swing" and ev.get("attacker") == serial and ev.get("defender") == me \
-                and (t is None or t >= lo):
-            return None
+    if swinging_at_us(serial, key, swings, state, me=me, now=now, params=params):
+        return None
     return f"fighting 0x{_serial(last['defender']):08X} (last swing {age:.1f}s ago), not us"
 
 
@@ -394,11 +438,12 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
         if kind == "monster":
             th.s_per_tile = params.monster_s_per_tile
             th.strike_range = params.monster_strike_range
-            th.aggressive, why = _aggressive(mob, th.name, params)
+            at_us = swinging_at_us(serial, key, swings, state, me=me, now=now, params=params)
+            th.aggressive, why = _aggressive(mob, th.name, params, at_us)
             th.evidence.append(f"aggressive={th.aggressive} ({why})")
             th.hostile = th.aggressive
             busy = fighting_other(serial, key, mob, th.name, swings, state, me=me, now=now,
-                                  params=params) if th.hostile else None
+                                  params=params) if th.hostile and not at_us else None
         else:
             busy = None
             th.s_per_tile = params.mounted_s_per_tile if th.mounted else params.run_s_per_tile

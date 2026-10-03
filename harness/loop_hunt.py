@@ -8,8 +8,8 @@ the exit teleporter.
 Targets come only from the live world model (world.mobiles holds what the stock
 client still has: dead and out-of-range mobiles are pruned, docs/WORLDMODEL.md) and
 pass the same monsters-only guard as `ctl act attack` (combat.attackable:
-threats.identify monster, notoriety 3-6, on screen). A mob swinging at us
-(world.swings) comes first, the one with the lowest hits; otherwise the nearest
+threats.identify monster, notoriety 3-6, on screen). A mob attacking us
+(attackers(), below) comes first, the one with the lowest hits; otherwise the nearest
 within --pull-range of the spot. The state is re-read right before every cast and
 every target answer; a target that is no longer live is never targeted (the cursor
 is cancelled with the stock Esc packet instead; ANTICHEAT.md §10 A12).
@@ -21,23 +21,52 @@ is near. Pacing comes from humanize.Human.
 
 Rules (all CLI arguments): heal below --heal-at (healing.py: a heal potion whenever
 one can be drunk, else Heal or Greater Heal by the missing hits, Greater Heal from
---gheal-min-missing); the attack spell while mana >= --mana-reserve + its cost;
+--gheal-min-missing); the attack spell while mana >= --mana-reserve + its cost and
+its reagents (or a spellstone) are in the backpack (combat.can_cast), else melee;
 leave below --leave-at, or below --leave-multi-at with two or more attackers, or
-when a hostile player comes close. Outside, rest (Heal / Greater Heal, no potions,
-regeneration) to --rest-to and go back in (--rest-to 0: stop after leaving). The
-run ends outside (an idle character in the NPD gets killed).
+when a hostile player comes close. Outside, rest (Heal / Greater Heal when one can
+be cast, no potions; else natural regeneration) to --rest-to and go back in
+(--rest-to 0: stop after leaving). The run ends outside (an idle character in the
+NPD gets killed). A spell the server answers with "More reagents are needed for
+this spell." (cliloc 502630: our reagent count was wrong) isn't cast again until
+the next visit.
+
+Attackers (attackers()): a mob whose 0x2F swing at us is recent; but Outlands has
+never sent one (threats.py docstring), so live also: the mob our own latest swing
+is at (the server turns us on whoever attacks us: live 2026-10-04 our character
+swung at a mongbat that hit it while the runner was engaged on a frog 12 tiles
+off), and a war-mode creature adjacent to us while we took "-N" damage within
+SWING_RECENT_S.
+
+Pinned targets (live 2026-10-04): a target engaged at 12 tiles (--pull-range above
+10; no spell beyond SPELL_RANGE, no walking to melee) kept the runner idle for 2.5
+min; a harpy at 10 tiles answered every Lightning with "Target cannot be seen."
+for over a minute. One rule for both: an engaged target that is neither adjacent
+nor took damage for PIN_S is dropped and skipped for SKIP_S unless it attacks us.
+--pull-range is capped at SPELL_RANGE.
+
+Weapon (live 2026-10-04): the item on layer 1/2 at the start is kept in hand. Each
+Lightning cast moved Shackleworth's prismatic staff (an arcane staff; wiki Arcane:
+casting while wielding one needs Arcane, Magery and Wrestling 80) into the pack. So
+with an arcane staff and any of those skills below 80, or once a cast of ours put the
+weapon away: no attack spell (melee with it), and inside no heal spell while a heal
+potion is in the pack (wait for its cooldown). Whenever the weapon is in the pack it
+is put back on with the stock drag `ctl act equip` sends (combat.equip_packets), also
+after the rest outside before going back in.
 
 Guards: overall timeout, movement stall, the agent gate (Link.act waits it out),
 server restriction text, death (`death` juncture, stop; no corpse runs), a character
 speaking nearby (speech_guard.py: `speech_nearby` hold, deferred until no fight is
 on; leaving to survive overrides the hold). Junctures: `threat` when leaving,
-`low_supplies` when neither a potion nor the mana for Heal is there, `death`. Job events and one episode
-row per visit (kills, gold, xp, hits lost) go to the memory store.
+`low_supplies` when neither a potion nor a castable heal spell (mana, reagents) is
+there, `death`. Job events and one episode row per visit (kills, gold, xp, hits
+lost) go to the memory store.
 
 Run:  python harness/loop_hunt.py [--kills 5] [--enter] [--spell lightning]
 """
 import argparse
 import os
+import re
 import sys
 import time
 
@@ -56,6 +85,9 @@ from memory import DEFAULT_DB, Memory  # noqa: E402
 from speech_guard import SpeechGuard, staff_hints  # noqa: E402
 
 SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is attacking us
+PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this long is dropped...
+SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
+DAMAGE_TEXT = re.compile(r"^-\d+$")   # Outlands' overhead damage number ("-25"), no 0x0B live
 CAST_CURSOR_WAIT_S = 4.0      # a spell's cursor comes after its cast delay
 SPELL_RANGE = 10              # [INFERENCE] RunUO spell range (12 pre-ML, 10 ML)
 SPELL_BLOCK_S = 10.0          # after "too far away" / "cannot be seen": melee only for this long
@@ -67,6 +99,14 @@ TELEPORT_TRIES = 3            # turn, step (+ one retry) onto a teleporter
 TELEPORT_WAIT_S = 1.0         # a confirmed step onto a teleporter: the move follows within this
 HARD_TIMEOUT_GRACE_S = 180.0  # past --timeout the runner leaves; past this too it aborts
 GOTO_Z_TOL = 10               # ctl.GOTO_Z_TOL
+# Arcane staves (wiki Arcane: "Players with at least 80 skill in Arcane, Wrestling, and
+# Magery can continue to cast spells while wielding an Arcane Staff"). 31038 = Outlands'
+# "prismatic staff": live 2026-10-04 (capture 20261003_113952) each Lightning cast by
+# Shackleworth (Arcane 60, Magery 60, Wrestling 80) moved it from layer 2 into the pack
+# (0x1D + 0x25 ~50 ms after the 0xFF cast request, no message)
+ARCANE_STAFF_GRAPHICS = frozenset({31038})
+ARCANE_CAST_SKILLS = {8: "Arcane", 25: "Magery", 43: "Wrestling"}   # skill ids (skills.mul)
+ARCANE_CAST_MIN = 80.0
 
 
 def key_of(serial: int) -> str:
@@ -101,6 +141,13 @@ class HuntLoop:
         self.engaged_mob = None      # its latest world dict
         self.resent_adjacent = False
         self.spell_block = {}        # serial -> monotonic time until spells at it are skipped
+        self.no_reagents = set()     # spell ids the server refused for reagents this visit (502630)
+        self.skip = {}               # serial -> monotonic time until pick_target passes it over (pinned)
+        self.progress_t = 0.0        # monotonic: the engaged target was last adjacent or hurt
+        self.hurt_t = {}             # serial -> monotonic time of its latest damage (event or "-N")
+        if args.pull_range > SPELL_RANGE:
+            log(f"--pull-range {args.pull_range} is beyond spell range: using {SPELL_RANGE}")
+            args.pull_range = SPELL_RANGE
         self.prev_hits = None
         self.low_posted = False
         self.potions = healing.PotionClock()
@@ -110,6 +157,10 @@ class HuntLoop:
                        "leaves": 0, "visits": 0}
         self._intent = None
         self.left_why = None         # (why, severity) of the last leave
+        self.weapon = None           # the item on layer 1/2 at the start: kept in hand (rearm)
+        self.cast_disarms = False    # a cast of ours put the weapon in the pack (seen this run)
+        self.potion_wait_logged = False
+        self.rearm_failed = None     # why the last re-equip couldn't be planned (logged once)
 
     # ------------------------------------------------------------ reporting
     def doing(self, kind: str, text: str, target=None, serial=None):
@@ -216,30 +267,53 @@ class HuntLoop:
         return mob, ""
 
     def attackers(self, st) -> list[dict]:
-        """Live mobiles whose latest swing (world.swings) hit at us within SWING_RECENT_S."""
-        world, me = st["world"], key_of(self.me(st))
-        now, pos, out = time.time(), self.pos(st), []
+        """Live mobiles attacking us within SWING_RECENT_S (module docstring): a 0x2F
+        swing at us (world.swings), the mob our own latest swing is at, or a war-mode
+        creature adjacent to us while we take damage. `how` says which."""
+        world, me = st["world"], self.me(st)
+        labels = world.get("labels") or {}
+        now, pos, found = time.time(), self.pos(st), {}
         for att, sw in (world.get("swings") or {}).items():
-            mob = world["mobiles"].get(att)
-            if mob is None or mob.get("x") is None or serial_of(att) in self.dead:
+            a, d, age = serial_of(att), serial_of(sw.get("defender")), now - (sw.get("t") or 0)
+            if age > SWING_RECENT_S:
                 continue
-            if serial_of(sw.get("defender")) != serial_of(me) or now - sw.get("t", 0) > SWING_RECENT_S:
+            if d == me and a != me:
+                found.setdefault(a, ("swings at us", age))
+            elif a == me and d != me:
+                found.setdefault(d, ("our own swing is at it", age))
+        hurt = self.hurt_t.get(me)
+        if hurt is not None and time.monotonic() - hurt <= SWING_RECENT_S:
+            for key, mob in world["mobiles"].items():
+                s = serial_of(key)
+                if s != me and mob.get("x") is not None and (mob.get("flags") or 0) & threats.FLAG_WARMODE \
+                        and cheb(pos, (mob["x"], mob["y"])) <= 1 \
+                        and threats.identify(mob, labels.get(key))[0] == "monster":
+                    found.setdefault(s, ("war mode, adjacent while we take damage", time.monotonic() - hurt))
+        out = []
+        for s, (how, age) in found.items():
+            key = key_of(s)
+            mob = world["mobiles"].get(key)
+            if mob is None or mob.get("x") is None or s in self.dead:
                 continue
-            out.append({"serial": att, "name": (world.get("labels") or {}).get(att) or mob.get("name"),
+            out.append({"serial": key, "name": labels.get(key) or mob.get("name"), "how": how,
                         "dist": cheb(pos, (mob["x"], mob["y"])), "hits": [mob.get("hits"), mob.get("hits_max")],
-                        "last_swing_age_s": round(now - sw.get("t", 0), 1)})
+                        "last_swing_age_s": round(age, 1)})
         return sorted(out, key=lambda a: a["dist"])
 
     def pick_target(self, st, pull: bool = True):
         """The serial to fight now, or None: keep the current one while it's valid and
         nothing else is attacking us; else an attacker with the lowest hits; else (pull)
-        the nearest within --pull-range of the spot."""
+        the nearest within --pull-range of the spot. A target dropped as pinned is passed
+        over until its skip ends, unless it attacks us."""
         world, me, pos = st["world"], self.me(st), self.pos(st)
         attacking = {serial_of(a["serial"]) for a in self.attackers(st)}
+        mono = time.monotonic()
         cands = []
         for key, mob in world["mobiles"].items():
             s = serial_of(key)
             if s == me or mob.get("x") is None or not self.wanted(world, key, mob):
+                continue
+            if self.skip.get(s, 0) > mono and s not in attacking:
                 continue
             if self.live_target(st, s)[0] is None:
                 continue
@@ -256,6 +330,57 @@ class HuntLoop:
         if pull and near:
             return min(near, key=lambda sm: cheb(pos, (sm[1]["x"], sm[1]["y"])))[0]
         return None
+
+    def worn(self, st, serial) -> bool:
+        it = st["world"]["items"].get(key_of(serial)) or {}
+        return it.get("container") is not None and serial_of(it["container"]) == self.me(st) and bool(it.get("layer"))
+
+    def worn_weapon(self, st):
+        """The item we hold on layer 1 (one-handed) or 2 (two-handed), or None."""
+        me = self.me(st)
+        return next((serial_of(k) for k, it in st["world"]["items"].items()
+                     if it.get("layer") in (combat.LAYER_ONE_HANDED, combat.LAYER_TWO_HANDED)
+                     and it.get("container") is not None and serial_of(it["container"]) == me), None)
+
+    def casting_disarms(self, st) -> str | None:
+        """Why a cast would put the start weapon in the pack, or None: a cast did so
+        this run, or it's an arcane staff and Arcane, Magery or Wrestling is below 80
+        (unknown skills count as below)."""
+        if self.weapon is None:
+            return None
+        if self.cast_disarms:
+            return "a cast put the weapon in the pack"
+        w = st["world"]["items"].get(key_of(self.weapon)) or {}
+        if w.get("graphic") not in ARCANE_STAFF_GRAPHICS:
+            return None
+        skills = st["world"]["self"].get("skills") or {}
+        low = [f"{name} {(skills.get(str(sid)) or {}).get('value', 0) / 10:g}"
+               for sid, name in ARCANE_CAST_SKILLS.items()
+               if ((skills.get(str(sid)) or {}).get("value") or 0) / 10 < ARCANE_CAST_MIN]
+        return f"arcane staff with {', '.join(low)} (below {ARCANE_CAST_MIN:g})" if low else None
+
+    def rearm(self, st) -> bool:
+        """Put the start weapon back on when it's in the pack: the same stock drag as
+        `ctl act equip` (combat.equip_packets: 0x07 lift, human drag pause, 0x13)."""
+        if self.weapon is None or self.worn(st, self.weapon):
+            return False
+        try:
+            lift, equip = combat.equip_packets(st["world"], self.me(st), self.weapon)
+        except ValueError as e:
+            if str(e) != self.rearm_failed:
+                self.rearm_failed = str(e)
+                log(f"can't re-equip the weapon: {e}")
+            return False
+        name = (st["world"]["items"].get(key_of(self.weapon)) or {}).get("name") or "the weapon"
+        self.doing("equip", f"Equipping {name}")
+        self.open_for((self.weapon, False))
+        self.human.wait("use")
+        self.link.act(lift)
+        self.human.wait("drag")
+        self.link.act(equip)
+        ok = self.link.wait(lambda s: self.worn(s, self.weapon), 3.0) is not None
+        log(f"re-equipped {name} 0x{self.weapon:08X}" if ok else f"{name} 0x{self.weapon:08X}: equip not confirmed")
+        return True
 
     def backpack(self, st) -> int:
         pack = combat.backpack(st["world"]["items"], self.me(st))
@@ -300,6 +425,8 @@ class HuntLoop:
                 else:
                     log(f"target 0x{self.engaged:08X} left the client's world ({why}); not a kill")
                     self.disengage()
+            elif kind == "damage" or (kind == "speech_heard" and DAMAGE_TEXT.match(ev.get("text") or "")):
+                self.hurt_t[serial_of(ev["serial"])] = time.monotonic()
         self.ev_upto = len(self.link.events)
 
     def on_kill(self, st, serial):
@@ -348,6 +475,7 @@ class HuntLoop:
         if self.engaged != serial:
             log(f"attacking {name} 0x{serial:08X} at {cheb(self.pos(st), (mob['x'], mob['y']))} tiles "
                 f"(hits {mob.get('hits')}/{mob.get('hits_max')})")
+            self.progress_t = time.monotonic()
         self.engaged, self.engaged_mob = serial, mob
         return True
 
@@ -369,14 +497,29 @@ class HuntLoop:
         return None
 
     def cast(self, sid, what: str):
-        """0xFF sub 4; the target cursor or None."""
+        """0xFF sub 4; the target cursor or None. A 'more reagents needed' answer
+        (cliloc 502630) stops casting `sid` until the next visit."""
         mark = len(self.link.events)
+        armed = self.weapon is not None and self.worn(self.link.last or self.state(), self.weapon)
         self.link.act(actions.cast_spell(sid))
         self.count("casts")
         cur = self.await_cursor(mark)
         if cur is None:
             log(f"{combat.MAGERY_SPELLS[sid - 1]} at {what}: no target cursor")
+            if combat.no_reagents_answer(self.link.events[mark:]):
+                self.no_reagents.add(sid)
+                log(f"the server wants more reagents for {combat.MAGERY_SPELLS[sid - 1]}: "
+                    f"not casting it again this visit")
+        if armed and not self.cast_disarms and not self.worn(self.link.last, self.weapon):
+            self.cast_disarms = True
+            log(f"casting put the weapon 0x{self.weapon:08X} in the pack: no attack spell from now on")
         return cur
+
+    def spell_ok(self, st, sid: int, reserve: int = 0) -> bool:
+        """`sid` can be paid for with `reserve` mana left over (combat.can_cast) and the
+        server hasn't refused it for reagents this visit."""
+        mana = st["world"]["self"].get("mana") or 0
+        return sid not in self.no_reagents and combat.can_cast(st["world"], self.me(st), sid, mana - reserve)
 
     def cancel(self, cur):
         self.link.act(actions.target_cancel(cur["cursor_id"], cur.get("target_type") or 0, cur.get("cursor_type") or 0))
@@ -427,23 +570,31 @@ class HuntLoop:
 
     def heal(self, st, potions: bool = True) -> bool:
         """One heal on self by healing.choose: a heal potion whenever one can be drunk
-        (`potions`), else Heal or Greater Heal by the missing hits. When neither is
+        (`potions`), else Heal or Greater Heal by the missing hits, if it can be cast
+        (mana, reagents or a spellstone, not refused this visit). When nothing is
         possible, one low_supplies juncture per visit."""
         world, me = st["world"], st["world"]["self"]
         ready = potions and self.potions.ready(time.monotonic())
-        choice = healing.choose(world, self.me(st), ready, self.args.gheal_min_missing)
+        choice = healing.choose(world, self.me(st), ready, self.args.gheal_min_missing, self.no_reagents)
         if choice.kind == "potion":
             if self.drink(st, serial_of(choice.potion)):
                 return True
             st = self.state()
             world, me = st["world"], st["world"]["self"]
-            choice = healing.choose(world, self.me(st), False, self.args.gheal_min_missing)
+            choice = healing.choose(world, self.me(st), False, self.args.gheal_min_missing, self.no_reagents)
+        if choice.kind == "spell" and self.at_hunt(st) and healing.heal_potions(world, self.me(st)) \
+                and (why := self.casting_disarms(st)):
+            if not self.potion_wait_logged:
+                self.potion_wait_logged = True
+                log(f"waiting for the potion cooldown rather than casting ({why})")
+            return False
         if choice.kind == "spell":
             return self.heal_spell(st, choice.spell)
         if choice.missing > 0 and not self.low_posted:
             self.low_posted = True
             data = {"item": "heal", "have": {"mana": me.get("mana"), "potions": len(healing.heal_potions(world, self.me(st)))},
-                    "need": {"mana": combat.spell_mana(healing.HEAL)},
+                    "need": {"mana": combat.spell_mana(healing.HEAL),
+                             "reagents": combat.missing_reagents(world, self.me(st), healing.HEAL)},
                     "hits": [me.get("hits"), me.get("hits_max")], "why": choice.why}
             self.memory.juncture("hunt", "low_supplies",
                                  f"No heal possible at {me.get('hits')}/{me.get('hits_max')} hits: {choice.why}",
@@ -503,7 +654,9 @@ class HuntLoop:
     def loot(self, c) -> None:
         """Loot one corpse like `ctl act loot`: refuse human corpses, walk within
         LOOT_RANGE, open the backpack and the corpse, then lift + drop each item into
-        the backpack, gold first, stopping at the weight limit."""
+        the backpack, gold first, stopping at the weight limit. Before each item: a
+        heal below --heal-at, and stop when a leave rule fires (live 2026-10-04 hits
+        fell 64 -> 49 of 84 during one loot and the runner left without drinking)."""
         st = self.state()
         if c.get("corpse") is None:  # 0xDEAD names it; else the corpse that appeared on its tile
             c["corpse"] = self.corpse_of.get(c["mob"]) or next(
@@ -548,7 +701,13 @@ class HuntLoop:
         self.count("xp", xp)
         taken = []
         for k, it in combat.loot_order(inside)[: self.args.loot_max]:
-            me = self.state()["world"]["self"]
+            st = self.state()
+            me = st["world"]["self"]
+            if self.leave_reason(st):
+                log("a leave rule fired while looting: leaving the rest")
+                break
+            if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
+                me = self.state()["world"]["self"]
             if me.get("weight") is not None and me.get("weight_max") and me["weight"] >= me["weight_max"]:
                 log(f"weight {me['weight']}/{me['weight_max']}: leaving the rest")
                 break
@@ -638,10 +797,10 @@ class HuntLoop:
             raise Abort(f"the entrance put us at {self.pos(st)[:2]}, not near the spot {self.spot}")
 
     def rest(self) -> bool:
-        """Outside: heal with Heal / Greater Heal (healing.choose without potions: out of
-        the fight regenerating mana is free, potions cost gold) and regenerate to
-        --rest-to hits and --mana-reserve mana. False when that takes longer than
-        --rest-timeout."""
+        """Outside: heal with Heal / Greater Heal when one can be cast (healing.choose
+        without potions: out of the fight regenerating mana is free, potions cost gold),
+        else wait for natural regeneration, to --rest-to hits and --mana-reserve mana.
+        False when that takes longer than --rest-timeout."""
         end = time.monotonic() + self.args.rest_timeout
         while True:
             st = self.state()
@@ -658,7 +817,7 @@ class HuntLoop:
                 self.speech_hold(st)
                 continue
             if self.frac(me) < self.args.rest_to and healing.choose(
-                    st["world"], self.me(st), False, self.args.gheal_min_missing).kind == "spell":
+                    st["world"], self.me(st), False, self.args.gheal_min_missing, self.no_reagents).kind == "spell":
                 self.heal(st, potions=False)
                 self.human.wait("read")
                 continue
@@ -727,6 +886,10 @@ class HuntLoop:
         self.visit_n += 1
         self.count("visits")
         self.low_posted = False
+        self.no_reagents.clear()
+        lack = combat.missing_reagents(st["world"], self.me(st), self.spell)
+        if lack:
+            log(f"{combat.MAGERY_SPELLS[self.spell - 1]}: no {', '.join(lack)} and no spellstone: melee only")
         self.visit = {"loop": "hunt", "visit": self.visit_n, "t_start": round(time.time(), 1),
                       "spot": list(self.spot), "spell": combat.MAGERY_SPELLS[self.spell - 1],
                       "hits_start": st["world"]["self"].get("hits"), "kills": 0, "gold": 0, "xp": 0,
@@ -749,7 +912,9 @@ class HuntLoop:
 
     def fight(self, serial):
         """One round against `serial`: attack it (once, and once more when it first
-        comes adjacent), then the attack spell while the mana allows, else melee."""
+        comes adjacent), then the attack spell while it can be cast with the mana
+        reserve kept, else melee. A target pinned beyond reach (neither adjacent nor
+        hurt for PIN_S) is dropped and skipped for SKIP_S."""
         st = self.state()
         mob, why = self.live_target(st, serial)
         if mob is None:
@@ -761,14 +926,21 @@ class HuntLoop:
                 time.sleep(POLL_S)
             return
         self.engaged_mob = mob
+        now = time.monotonic()
+        self.progress_t = max(self.progress_t, self.hurt_t.get(serial, 0.0), now if dist <= 1 else 0.0)
+        if now - self.progress_t > PIN_S:
+            log(f"dropping {mob.get('name') or key_of(serial)} 0x{serial:08X}: {dist} tiles away and not hurt "
+                f"for {PIN_S:.0f} s; skipping it for {SKIP_S:.0f} s")
+            self.skip[serial] = now + SKIP_S
+            self.disengage()
+            return
         if not self.resent_adjacent and dist <= 1:
             self.resent_adjacent = True
             self.human.wait("read")
             self.attack(serial)
             return
-        mana = st["world"]["self"].get("mana") or 0
-        if mana >= self.args.mana_reserve + combat.spell_mana(self.spell) and dist <= SPELL_RANGE \
-                and self.spell_block.get(serial, 0) < time.monotonic():
+        if dist <= SPELL_RANGE and self.spell_block.get(serial, 0) < now and not self.casting_disarms(st) \
+                and self.spell_ok(st, self.spell, reserve=self.args.mana_reserve):
             done = self.cast_at(serial)
             if done:
                 self.human.wait("read")
@@ -782,6 +954,7 @@ class HuntLoop:
         why, severity = reason
         if severity == "urgent" or self.args.rest_to <= 0 or not self.rest():
             raise Abort(f"left the hunt ({why}); not going back in")
+        self.rearm(self.state())
         self.enter()
         self.start_visit(self.state())
         self.to_spot()
@@ -815,6 +988,8 @@ class HuntLoop:
                 self.speech_hold(st)
                 continue
             me = st["world"]["self"]
+            if self.rearm(st):
+                continue
             if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
                 self.human.wait("read")
                 continue
@@ -845,6 +1020,12 @@ class HuntLoop:
         if st is None:
             raise Abort("proxy has no player position yet (log in first)")
         st = self.state()
+        self.weapon = self.worn_weapon(st)
+        if self.weapon is not None:
+            w = st["world"]["items"].get(key_of(self.weapon)) or {}
+            d = self.casting_disarms(st)
+            log(f"weapon: {w.get('name') or 'graphic ' + str(w.get('graphic'))} 0x{self.weapon:08X}"
+                + (f"; {d}: no attack spell, potions before heal spells inside" if d else ""))
         if self.args.enter and not self.at_hunt(st):
             self.enter()
             st = self.state()
@@ -888,7 +1069,8 @@ def main():
                     help="mana kept for heals: the attack spell only above this plus its cost")
     ap.add_argument("--spell", default="lightning", help="attack spell (Magery name or 1-64)")
     ap.add_argument("--target-name", default="mongbat", help="words the monster's name must contain")
-    ap.add_argument("--pull-range", type=int, default=3, help="engage mobs within this many tiles of the spot")
+    ap.add_argument("--pull-range", type=int, default=3,
+                    help=f"engage mobs within this many tiles of the spot (at most {SPELL_RANGE})")
     ap.add_argument("--kills", type=int, default=0, help="stop after this many kills (0 = until --timeout)")
     ap.add_argument("--timeout", type=float, default=3600.0, help="then finish the fight and leave")
     ap.add_argument("--rest-to", type=float, default=0.95,

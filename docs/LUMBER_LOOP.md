@@ -717,7 +717,7 @@ simulated banker now comes into view within 18 tiles and leaves it beyond 24, si
 model prunes mobiles out of view.
 - **skirmish:** the hatchet is in a bag in the backpack (backpack, then bag, opened before the
   first use). A war-mode great hart 4 tiles from the tree trades 0x2F swings with a player and is
-  only watched. A creature then swings at the agent: `escape` juncture, a walk beyond its flee
+  no threat (a passive body in war mode, threats.py). A creature then swings at the agent: `escape` juncture, a walk beyond its flee
   radius, harvesting resumes at the far tree out of its reach. There the creature comes back and
   follows step for step: a second `escape`, then `abort` ("it kept coming"), and the 6 carried
   logs are converted before the exit (code 1).

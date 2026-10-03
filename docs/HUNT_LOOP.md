@@ -24,10 +24,10 @@ python harness/loop_hunt.py --enter --kills 5         # from outside the entranc
 | `--mana-reserve` | `22` | Mana kept for heals (two Greater Heals): the attack spell only while mana ≥ reserve + its cost. |
 | `--spell` | `lightning` | Attack spell (Magery name or 1-64). |
 | `--target-name` | `mongbat` | Words the monster's name (or click label) must contain. |
-| `--pull-range` | `3` | Engage mobs within this many tiles of the spot. |
+| `--pull-range` | `3` | Engage mobs within this many tiles of the spot. At most 10 (the spell range): a larger value is capped, with a log line. |
 | `--kills N` | `0` | Stop after N kills (0: until `--timeout`). |
 | `--timeout S` | `3600` | Then finish the fights on us, loot, and leave. 180 s past it the runner aborts wherever it is. |
-| `--rest-to` | `0.95` | After leaving: Heal / Greater Heal (no potions) and regenerate outside to this share of hits (and `--mana-reserve` mana), then go back in. `0`: stop after leaving. `--rest-timeout` (900 s) bounds the rest. |
+| `--rest-to` | `0.95` | After leaving: Heal / Greater Heal when one can be cast (no potions; else natural regeneration) outside to this share of hits (and `--mana-reserve` mana), then go back in. `0`: stop after leaving. `--rest-timeout` (900 s) bounds the rest. |
 | `--loot` / `--no-loot`, `--loot-max` | on, 25 | Loot our kills' corpses (items per corpse). |
 | `--human`, `--seed`, `--human-fast`, `--no-map`, `--quiet`, `--triage-url`, ports, `--memory` | | As in the lumber runner. |
 
@@ -54,10 +54,18 @@ Each tick re-reads the proxy state and decides, in this order:
    - **Otherwise a spell by the missing hits**: Greater Heal ((40–50) × Magery/100 for 11 mana)
      once the missing hits reach `--gheal-min-missing`, else Heal ((10–12) × Magery/100 for 4
      mana; wiki Magery). The default threshold is the mana break-even, where Greater Heal
-     restores more hits per mana than Heal: Heal's average × 11 / 4 (19 at Magery 60). If the
-     chosen spell can't be paid for, the other one is cast.
-   - **No potion and no mana for Heal:** one `low_supplies` juncture per visit.
-   - **Resting outside:** spells only. Mana regenerates for free there, while potions cost gold.
+     restores more hits per mana than Heal: Heal's average × 11 / 4 (19 at Magery 60). A spell
+     is only chosen when it can be paid for: its mana and its reagents (one each: Heal garlic,
+     ginseng, spiders' silk; Greater Heal those plus mandrake root) in the backpack at any bag
+     depth, or a spellstone (an item named "…spellstone…" or "…bauble…") instead of reagents
+     (`combat.can_cast`, also used by `ctl act heal` and the recall escape). If the chosen spell
+     can't be paid for, the other one is cast.
+   - **No potion and no castable heal spell** (mana, reagents): one `low_supplies` juncture per
+     visit (`need` lists the missing Heal reagents); nothing is cast.
+   - **Resting outside:** spells only, when one can be cast; otherwise natural regeneration
+     (no cast attempts). Mana regenerates for free there, while potions cost gold.
+   - **"More reagents are needed for this spell."** (cliloc 502630: the server disagrees with
+     our count): that spell isn't cast again until the next visit (heals and the attack spell).
 4. **Loot** our kills' corpses when nothing is attacking us, like `ctl act loot`: human corpses
    refused, walk within 2 tiles, open the backpack (stock dclick) and the corpse, then lift + drop
    each item into the backpack, gold first, up to the weight limit.
@@ -66,16 +74,45 @@ Each tick re-reads the proxy state and decides, in this order:
      has; docs/WORLDMODEL.md) and pass the `ctl act attack` guard (`combat.attackable`: threats.py
      monster, notoriety 3-6, on screen). Serials the server reported dead (`mobile_death`) are never
      targeted.
-   - A mob swinging at us (`world.swings`, within 10 s) comes first: the current one, else the one
-     with the lowest hits. Otherwise the nearest within `--pull-range` of the spot.
+   - A mob attacking us comes first: the current one, else the one with the lowest hits.
+     Otherwise the nearest within `--pull-range` of the spot. "Attacking us" (`attackers()`,
+     within 10 s): a `0x2F` swing at us in `world.swings`, **or the mob our own latest swing is
+     at, or a war-mode creature adjacent to us while we take damage** ("-N" overhead text or a
+     `0x0B`). Outlands has never sent a `0x2F` with us as the defender (all 2172 stored swings
+     are our own, no `0x0B` either), so live only the last two work: the server turns our swings
+     on whoever attacks us.
    - Attack once (war mode on, `0x34` unless the client has a status request outstanding, `0x05`),
      and once more when the mob first comes adjacent (the overseer's NPD procedure).
-   - The attack spell while the mana allows and the mob is within 10 tiles: cast, wait for the
-     cursor, a human aim pause, **re-read the state**, then `0x6C` on the mob's current tile. If the
-     mob is gone meanwhile, or a leave rule fired while aiming, the cursor gets the stock Esc
-     `0x6C` instead (ANTICHEAT.md §10 A12). "That is too far away" / "cannot be seen" means melee
-     only at that mob for 10 s.
+   - The attack spell while mana ≥ `--mana-reserve` + its cost, its reagents (Lightning:
+     mandrake root, sulfurous ash; table `combat.SPELL_REAGENTS`, ClassicUO SpellsMagery.cs) or a
+     spellstone are in the backpack, and the mob is within 10 tiles; else melee (the visit start
+     logs "melee only" when the reagents are missing). Cast, wait for the cursor, a human aim
+     pause, **re-read the state**, then `0x6C` on the mob's current tile. If the mob is gone
+     meanwhile, or a leave rule fired while aiming, the cursor gets the stock Esc `0x6C` instead
+     (ANTICHEAT.md §10 A12). "That is too far away" / "cannot be seen" means melee only at that
+     mob for 10 s.
+   - **A pinned target is dropped:** one that is neither adjacent nor took damage for 15 s
+     (`PIN_S`) is disengaged and passed over for 60 s (`SKIP_S`) unless it attacks us. The runner
+     never walks to melee.
 6. **Idle**: war mode off when nothing is near, back to the spot, wait.
+
+**The weapon** (since 2026-10-04): the item on layer 1 or 2 at the start stays in hand.
+- **An arcane staff takes casting skill.** Wiki [Arcane](https://wiki.uooutlands.com/Arcane):
+  "Players with at least 80 skill in Arcane, Wrestling, and Magery can continue to cast spells
+  while wielding an Arcane Staff". Live 2026-10-04 (capture 20261003_113952) each Lightning
+  cast by Shackleworth (Arcane 60, Magery 60, Wrestling 80) moved his prismatic staff
+  (graphic 31038, the only arcane staff known: `ARCANE_STAFF_GRAPHICS`) from layer 2 into the
+  pack, `0x1D` + `0x25` about 50 ms after the cast request, without any message.
+- With an arcane staff and Arcane (skill 8), Magery or Wrestling below 80 (unknown counts as
+  below), or once any cast of ours put the weapon in the pack: **no attack spell** (melee with
+  the weapon; the staff's Arcane Buildup is the damage), and **inside, no heal spell while a
+  heal potion is in the pack**: it waits for the potion cooldown. With no potion left a heal
+  spell still goes out. Outside, the rest casts heals as before.
+- **Re-equip**: whenever the weapon is in the pack (not mid-cast), and after the rest before
+  going back in, it is put back on with the stock drag `ctl act equip` sends
+  (`combat.equip_packets`: its containers opened first, `0x07` lift, a human drag pause,
+  `0x13` on its layer; the prismatic staff's tiledata layer is 0, so the layer comes from
+  `world.worn_layers` or `combat.KNOWN_LAYERS`).
 
 A kill is our target's `prune` (why dead) or `0x1D`, or its `mobile_death` (S2C `0xFF` sub `0xDEAD`,
 which also names the corpse). Live, an in-view kill is `0xAF` + `0x1D` + `0xDEAD` at once
@@ -108,12 +145,17 @@ Hunting dashboard shows kills, gold and XP (docs/VISUALIZER.md §2.4).
 
 ## Test
 
-`python test_loop_hunt.py` (~20 s, private ports): a simulated NPD behind the real proxy. A mongbat
+`python test_loop_hunt.py` (~45 s, private ports): a simulated NPD behind the real proxy. A mongbat
 that died to someone else (`0xDEAD` only) must never be touched; the first mongbat flies in and hits
 hard (heal path), dies to Lightning, its gold is looted; two more come in swinging and trigger the
 two-attacker rule; the runner rests outside with a Greater Heal and goes back in; the one the server
 doesn't re-send (pruned, out of range) must never be targeted; the second kill ends the run outside.
-Attack, cast, target, cancel and loot packets are compared byte-wise with the builders.
+Attack, cast, target, cancel and loot packets are compared byte-wise with the builders. The pack
+holds the Heal / Greater Heal / Lightning reagents; the server answers the first Lightning with
+502630 anyway, and Lightning must not go out again until the second visit. A second run wields
+the prismatic staff (no skills sent, so below 80): no Lightning at all, no heal spell inside
+while a potion is in the pack, the rest's heal cast puts the staff in the pack (as live), and
+it is re-equipped with the stock lift + `0x13` on layer 2 before the runner goes back in.
 
 ## Live (2026-10-02, Hackworth, NPD, runs 1–11 under the overseer)
 
@@ -142,6 +184,19 @@ outside and re-entering all worked; no deaths. Heal potions were drunk live (hea
   lands.
 - Many casts are ruined by hits (cliloc 500641) or spell recovery (502644). Mongbats inflict
   "Diseased" (damage every 5 s).
+
+## Live (2026-10-04, NPD; the pin cases with Shackleworth)
+
+- **No reagents, no spellstone** (Hackworth's spellstone stayed on his corpse; docs/NOTES.md):
+  the runner cast without checking reagents, so every cast would have been refused with "More
+  reagents are needed for this spell." and retried each tick, resting outside too (from the
+  code; not run live that way). Fixed: it casts only what `combat.can_cast` pays for, and a
+  502630 blocks the spell for the visit.
+- **Pinned on an unreachable target:** with `--pull-range` above 10 it engaged a colossal frog
+  at 12 tiles and did nothing for 2.5 min while a mongbat hit us (our own swings killed it:
+  the server turned them on the mongbat). Then, with `--pull-range 10`, a wounded harpy at 10
+  tiles answered every Lightning with "Target cannot be seen." for over a minute. Fixed by the
+  pin rule, the pull-range cap and the live attacker signals above.
 
 ## Not yet
 

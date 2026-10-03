@@ -17,11 +17,18 @@ and out-of-range mobiles"):
   Greater Heal and goes back in. The server re-sends only D; E (pruned from the
   world model on leaving) must never be targeted again
 - D dies; its gold is looted; with --kills 2 the runner leaves and ends outside
+- the backpack holds a bag of the Heal / Greater Heal / Lightning reagents (the runner
+  casts only what they pay for); the server answers the first Lightning with cliloc
+  502630 "More reagents are needed" anyway: no Lightning again that visit, again after
+  re-entering
 
 Every attack/cast/target/loot packet is compared byte-wise with the combat.py /
 actions.py builders.
 
-Run: python test_loop_hunt.py   (~20 s; private ports; safe while the live proxy runs)
+Then the same NPD once more wielding the prismatic staff (an arcane staff whose casts put it in
+the pack): melee only, potions before heal spells inside, re-equipped before going back in.
+
+Run: python test_loop_hunt.py   (~45 s; private ports; safe while the live proxy runs)
 """
 import asyncio
 import json
@@ -60,6 +67,10 @@ GOLD = {A: (0x4FE10001, 21), D: (0x4FE10002, 23)}
 LIGHTNING, GREATER_HEAL = combat.spell_id("lightning"), combat.spell_id("greater heal")
 HEAL = combat.spell_id("heal")
 POT_BAG, POTION = 0x44ADA100, 0x44ADA101            # a bag in the pack holding 3 heal potions
+REG_BAG = 0x44ADA200                                # a bag in the pack holding reagents
+STAFF, STAFF_GRAPHIC = 0x57064E05, 31038            # the prismatic staff (arcane staff), staff run only
+REGS = sorted(set(combat.SPELL_REAGENTS[HEAL]) | set(combat.SPELL_REAGENTS[GREATER_HEAL])
+              | set(combat.SPELL_REAGENTS[LIGHTNING]))
 GHEAL_MIN = 25                                      # --gheal-min-missing (the sim sends no Magery)
 DD = nav.DIR_DELTA
 FAILURES = []
@@ -174,7 +185,14 @@ def cheb(a, b):
 
 
 class World:
-    def __init__(self):
+    def __init__(self, staff=False):
+        self.staff = staff                   # wielding the prismatic staff (the arcane-staff run)
+        self.staff_worn = staff
+        self.melee = 40 if staff else 10     # per hit (the staff's Arcane Buildup hits hard)
+        self.loot_hit_t = None               # the hit while A's corpse is being looted (time)
+        self.cast_log = []                   # (spell, time, inside?, potions in the pack)
+        self.disarms, self.rearms = [], []   # staff put in the pack by a cast (time) / (time, lift, 0x13)
+        self.staff_lift = None
         self.pos = list(SPOT)
         self.facing = 0
         self.writer = None
@@ -205,6 +223,8 @@ class World:
         self.potions = 3
         self.drinks, self.refused = [], []   # potion double-clicks: accepted / refused (cooling down)
         self.client_drank_t = None           # a potion drunk in the client (the runner can't know)
+        self.light_t = []                    # Lightning cast requests (time)
+        self.reagent_refusals = []           # Lightning casts answered with 502630 (time)
 
     @property
     def inside(self):
@@ -346,6 +366,18 @@ class World:
         elif pid == 0xFF and p[3:7] == u32(4):
             f = parse_packet("c2s", p)
             self.casts.append(f["spell_id"])
+            self.cast_log.append((f["spell_id"], time.time(), self.inside, self.potions))
+            if self.staff_worn:              # live: 0x1D + 0x25 into the pack right after the request
+                self.staff_worn = False
+                self.disarms.append(time.time())
+                self.send(delete(STAFF))
+                self.send(contained(STAFF, STAFF_GRAPHIC, 1, BACKPACK))
+            if f["spell_id"] == LIGHTNING:
+                self.light_t.append(time.time())
+                if not self.reagent_refusals:            # the server's count differs from ours
+                    self.reagent_refusals.append(time.time())
+                    self.send(cliloc(combat.CLILOC_NO_REAGENTS))
+                    return
             self.mana -= combat.spell_mana(f["spell_id"])
             self.send(mana_pkt(self.mana, self.mana_max))
             self.cid += 1
@@ -388,8 +420,23 @@ class World:
                 self.send(open_container(serial, 0x09))
                 g, n = self.corpse_items[serial]
                 self.send(contained(g, combat.GOLD_GRAPHIC, n, serial))
+                if serial == CORPSE[A] and not self.staff and self.loot_hit_t is None:
+                    # live 2026-10-04: hits fell below --heal-at while looting, and the runner
+                    # left without a drink; here a hit to 70 (below 75 %, above 60 %) as it loots
+                    self.loot_hit_t = time.time()
+                    self.hits = min(self.hits, 70)
+                    self.send(hits_pkt(SELF, self.hits, self.hits_max))
         elif pid == 0x07:
             self.lifted = parse_packet("c2s", p)
+            if self.lifted["serial"] == STAFF:
+                self.staff_lift = p
+                self.send(delete(STAFF))
+        elif pid == 0x13:
+            f = parse_packet("c2s", p)
+            self.rearms.append((time.time(), self.staff_lift, p))
+            if f["serial"] == STAFF and self.staff_lift is not None and f["layer"] == 2:
+                self.staff_worn, self.staff_lift = True, None
+                self.send(equip(STAFF, STAFF_GRAPHIC, 2))
         elif pid == 0x08:
             f = parse_packet("c2s", p)
             lf, self.lifted = self.lifted, None
@@ -420,7 +467,7 @@ class World:
                     self.hurt_self(s, dmg)
             if self.inside and n % 3 == 0 and self.warmode and self.engaged and self.alive.get(self.engaged) \
                     and cheb(self.pos, self.mob_pos[self.engaged]) <= 1:
-                self.hurt_mob(self.engaged, 10)
+                self.hurt_mob(self.engaged, self.melee)
             await self.writer.drain()
 
     async def handle(self, reader, writer):
@@ -432,9 +479,14 @@ class World:
             self.send(seed_pkt(token))
         self.send(self_at(*SPOT))
         self.send(equip(BACKPACK, 0x0E75, 0x15))
+        if self.staff:
+            self.send(equip(STAFF, STAFF_GRAPHIC, 2))
         self.send(contained(PACK_GOLD, combat.GOLD_GRAPHIC, self.pack_gold, BACKPACK))
         self.send(contained(POT_BAG, 0x0E76, 1, BACKPACK))
         self.send(contained(POTION, 0x0F0C, self.potions, POT_BAG))
+        self.send(contained(REG_BAG, 0x0E76, 1, BACKPACK))
+        for i, g in enumerate(REGS):
+            self.send(contained(REG_BAG + 1 + i, g, 20, REG_BAG))
         self.send(hits_pkt(SELF, self.hits, self.hits_max))
         self.send(mana_pkt(self.mana, self.mana_max))
         for s in (A, S):
@@ -478,7 +530,32 @@ def refs(p):
     return None
 
 
-async def main():
+def check_staff(world, text, rc):
+    """The arcane-staff run (World(staff=True)): Shackleworth's prismatic staff, Arcane /
+    Magery below 80 (the sim sends no skills), so a cast puts it in the pack (live
+    2026-10-04: 0x1D + 0x25 right after the cast request)."""
+    print("== arcane staff in hand ==")
+    check("staff run: exited 0 after 2 kills, outside", rc == 0 and "hunt complete: 2 kill(s)" in text
+          and not world.inside, f"rc {rc}")
+    check("no attack spell with the staff in hand (melee: its Arcane Buildup is the damage)",
+          not world.light_t and "no attack spell" in text, str(world.light_t))
+    inside_heals = [(t, p) for s, t, inside, p in world.cast_log if s in (HEAL, GREATER_HEAL) and inside and p]
+    check("inside, no heal spell while a heal potion is in the pack (potions first)", not inside_heals,
+          str(inside_heals))
+    outside = [t for s, t, inside, p in world.cast_log if not inside]
+    check("outside, heal spells while resting: the cast put the staff in the pack", outside and world.disarms
+          and any(d >= outside[0] for d in world.disarms), f"casts out {outside} disarms {world.disarms}")
+    want = (actions.lift(STAFF, 1), actions.equip_request(STAFF, 2, SELF))
+    rearm = [t for t, lift, eq in world.rearms if (lift, eq) == want]
+    check("re-equipped after the rest, before going back in: the stock lift + drag pause + 0x13 on layer 2 "
+          "(combat.equip_packets, as `ctl act equip`)",
+          world.entries and rearm and world.disarms and any(world.disarms[-1] < t < world.entries[0] for t in rearm)
+          and all((lift, eq) == want for t, lift, eq in world.rearms),
+          f"rearms {[(t, lift.hex(), eq.hex()) for t, lift, eq in world.rearms]} entries {world.entries}")
+    check("the staff is worn at the end", world.staff_worn)
+
+
+async def main(staff=False):
     os.makedirs(LOGDIR, exist_ok=True)
     for f in os.listdir(LOGDIR):
         os.remove(os.path.join(LOGDIR, f))
@@ -486,7 +563,7 @@ async def main():
     db = os.path.join(tmp, "harness.db")
     memory.Memory(db).close()
 
-    world = World()
+    world = World(staff=staff)
     server = await asyncio.start_server(world.handle, "127.0.0.1", UPSTREAM_PORT)
     ticker = asyncio.create_task(world.ticker())
     proxy = subprocess.Popen(
@@ -511,6 +588,7 @@ async def main():
         with open(runner_out, "wb") as fh:
             runner = await asyncio.create_subprocess_exec(
                 PY, f"{ROOT}/harness/loop_hunt.py", "--kills", "2", "--timeout", "150",
+                *(["--leave-at", "0.4"] if staff else []),
                 "--gheal-min-missing", str(GHEAL_MIN),
                 "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--memory", db,
                 "--entry", str(ENTRY[0]), str(ENTRY[1]), "0",
@@ -538,6 +616,9 @@ async def main():
                for ln in open(os.path.join(LOGDIR, f), encoding="utf-8")]
         srcs = {e.get("src") for e in log if e.get("dir") == "c2s"}
         c2s = world.c2s
+        if staff:
+            check_staff(world, text, runner.returncode)
+            return
 
         check("runner exited 0 after 2 kills, outside",
               runner.returncode == 0 and "hunt complete: 2 kill(s)" in text and not world.inside,
@@ -565,6 +646,13 @@ async def main():
               light and all(p == w for p, w in light), str([(p.hex(), w and w.hex()) for p, w in light][:3]))
         check("every heal spell's 0x6C on self byte-equal (beneficial cursor)",
               heals and all(p == w for s, p, w, t, h in heals), str([(p.hex(), w and w.hex()) for s, p, w, t, h in heals]))
+        ref_t = world.reagent_refusals[0] if world.reagent_refusals else None
+        check("Lightning answered 'more reagents needed' (502630): not cast again that visit, cast again after "
+              "re-entering",
+              ref_t is not None and world.exits and world.reentered
+              and not [t for t in world.light_t if ref_t < t < world.exits[0]]
+              and [t for t in world.light_t if t > world.reentered],
+              f"refused {world.reagent_refusals} lightning {world.light_t} exits {world.exits} in {world.reentered}")
         chosen = [(m.group(1), int(m.group(2))) for m in re.finditer(r"\b(greater heal|heal): (\d+) -> ", text)]
         check("each heal spell by the missing hits when chosen: Greater Heal from --gheal-min-missing, else Heal",
               chosen and all((name == "greater heal") == (100 - h >= GHEAL_MIN) for name, h in chosen),
@@ -578,6 +666,11 @@ async def main():
         check("its bag was opened (stock dclick) before the potion's double-click",
               POT_BAG in world.dclicks and world.dclicks.index(POT_BAG) < world.dclicks.index(POTION),
               str([hex(s) for s in world.dclicks]))
+        lt_, la = world.loot_hit_t, world.loot_a_t
+        check("hit below --heal-at while looting A: a heal (potion or spell) before the gold is taken",
+              lt_ is not None and la is not None
+              and (any(lt_ < t < la for t in world.drinks) or any(lt_ < t < la for s, p, w, t, h in heals)),
+              f"hit {lt_} gold {la} drinks {world.drinks} heals {[t for s, p, w, t, h in heals]}")
         check("no potion double-clicked again within 10 s of a drink (the runner's own clock)",
               all(b - a >= 10.0 for a, b in zip(world.drinks, world.drinks[1:]))
               and not [t for t in world.refused if any(0 <= t - d < 10.0 for d in world.drinks)],
@@ -647,10 +740,12 @@ async def main():
               and intents[-1]["kind"] == "done" and intents[-1].get("loop") == "hunt", str(sorted(kinds)))
     finally:
         proxy.terminate()
+        proxy.wait()
         server.close()
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+    asyncio.run(main(staff=True))
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

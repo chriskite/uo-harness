@@ -27,9 +27,11 @@ def eq(name, got, want):
     check(name, got == want, f"(got {got!r}, want {want!r})")
 
 
-def mob(serial, dx, dy, *, body=0x190, noto=1, flags=0x20):
-    return (f"0x{serial:08X}", {"graphic": body, "notoriety": noto, "flags": flags,
-                                "x": HERE[0] + dx, "y": HERE[1] + dy, "z": 0})
+def mob(serial, dx, dy, *, body=0x190, noto=1, flags=0x20, pet=None):
+    m = {"graphic": body, "notoriety": noto, "flags": flags, "x": HERE[0] + dx, "y": HERE[1] + dy, "z": 0}
+    if pet:
+        m["pet"] = pet
+    return (f"0x{serial:08X}", m)
 
 
 def state(mobs=(), *, labels=None, items=None, hits=50, body=0x190, pos=HERE, events=(), swings=None):
@@ -145,7 +147,11 @@ def test_monsters():
     eq("unknown creature, not in war mode -> not aggressive by default -> ignore",
        (one(a, 0x300).kind, one(a, 0x300).aggressive, one(a, 0x300).action), ("monster", False, "ignore"))
     eq("passive body (sheep) -> ignore", one(a, 0x301).action, "ignore")
-    eq("sheep in war mode -> aggressive flee (default params)", one(a, 0x302).action, "flee")
+    eq("sheep in war mode, not swinging at us (someone is killing it) -> ignore",
+       (one(a, 0x302).aggressive, one(a, 0x302).action), (False, "ignore"))
+    a = assess(state([angry_sheep], labels=labels, swings={0x302: (ME, NOW - 1.0)}),
+               recall_s=4.0, margin_s=1.0, now=NOW)
+    eq("sheep in war mode swinging at us -> flee", one(a, 0x302).action, "flee")
     goat = mob(0x304, 2, 0, body=0xD1, noto=3, flags=0)
     walrus = mob(0x305, 2, 0, body=0xDD, noto=3, flags=0)
     a = assess(state([goat, walrus]), recall_s=4.0, margin_s=1.0, now=NOW, params=aggressive)
@@ -160,7 +166,7 @@ def test_monsters():
     calm = Params(monster_default_aggressive=True, passive_bodies=frozenset({0x1D, 0xCF}))
     a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW, params=calm)
     eq("passive_bodies param -> ignore", one(a, 0x300).action, "ignore")
-    eq("war mode beats passive_bodies", one(a, 0x302).action, "flee")
+    eq("war mode doesn't beat passive_bodies", one(a, 0x302).action, "ignore")
     a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW, params=Params(aggressive_bodies=frozenset({0x1D})))
     eq("aggressive_bodies param -> flee", one(a, 0x300).action, "flee")
     a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW,
@@ -169,6 +175,30 @@ def test_monsters():
     a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW,
                params=Params(monster_default_aggressive=True, monster_s_per_tile=0.2))
     eq("faster monsters param -> far ape flees (eta 3.8)", one(a, 0x303).action, "flee")
+
+
+def test_pets():
+    print("== pets and war-mode passive bodies (Shelter Island, session 20261003_111419) ==")
+    # live: 'a phoenix' (832) and 'a gravebug' (387), notoriety 1, flags 0x40, "(bonded)",
+    # one tile from their owner; their bodies are in aggressive_bodies once seen hostile
+    phoenix, gravebug, owner = 0x0059D277, 0x011026C0, 0x00659472
+    learned = Params(aggressive_bodies=frozenset({832, 387}))
+    mobs = [mob(phoenix, 6, 0, body=832, noto=1, flags=0x40, pet="bonded"),
+            mob(gravebug, 6, 0, body=387, noto=1, flags=0x40, pet="tame"),
+            mob(owner, 6, 1, noto=1, flags=0x20)]
+    labels = {phoenix: "a phoenix", gravebug: "a gravebug", owner: "Lord Arlabunakti"}
+    kw = dict(recall_s=2.0, margin_s=1.0, now=NOW)
+    a = assess(state(mobs, labels=labels), **kw, params=learned)
+    eq("war-mode bonded / tame pets with learned-aggressive bodies -> not hostile, ignore",
+       [(one(a, s).hostile, one(a, s).action) for s in (phoenix, gravebug)], [(False, "ignore")] * 2)
+    wild = [mob(phoenix, 6, 0, body=832, noto=1, flags=0)]
+    a = assess(state(wild, labels=labels), **kw, params=learned)
+    eq("the same body without a pet tag (learned aggressive) -> flee", one(a, phoenix).action, "flee")
+    a = assess(state(mobs, labels=labels, swings={phoenix: (ME, NOW - 1.0)}), **kw, params=learned)
+    eq("a pet swinging at us -> flee", one(a, phoenix).action, "flee")
+    red_pet = [mob(phoenix, 6, 0, body=832, noto=6, flags=0x40, pet="bonded")]
+    a = assess(state(red_pet, labels=labels), **kw)
+    eq("a murderer's pet (notoriety 6) -> flee", one(a, phoenix).action, "flee")
 
 
 def test_damage():
@@ -243,29 +273,30 @@ def test_label_grace():
 
 def test_fighting_others():
     print("== war-mode creature fighting someone else (knowledge #89) ==")
-    # live: 'a great hart' (0xEA, notoriety 3, war mode) 8 tiles away fighting a player
+    # live: 'a great hart' 8 tiles away fighting a player; the hart's body is passive now,
+    # so an unknown creature body stands in for the rule (war mode its only evidence)
     hart, other = 0x600, 0x601
-    mobs = [mob(hart, 8, 0, body=0xEA, noto=3, flags=0x40), mob(other, 9, 0, noto=1, flags=0x20)]
-    labels = {hart: "a great hart", other: "Vorn"}
+    mobs = [mob(hart, 8, 0, body=0x27, noto=3, flags=0x40), mob(other, 9, 0, noto=1, flags=0x20)]
+    labels = {hart: "a mongbat", other: "Vorn"}
     kw = dict(recall_s=2.0, margin_s=1.0, now=NOW)      # monster flee radius 1 + floor(3 / 0.4) = 8
     a = assess(state(mobs, labels=labels), **kw)
-    eq("old capture (no world.swings): war-mode hart at 8 -> flee", one(a, hart).action, "flee")
+    eq("old capture (no world.swings): war-mode creature at 8 -> flee", one(a, hart).action, "flee")
     a = assess(state(mobs, labels=labels, swings={}), **kw)
-    eq("no swing seen: war-mode hart at 8 -> flee", one(a, hart).action, "flee")
+    eq("no swing seen: war-mode creature at 8 -> flee", one(a, hart).action, "flee")
     busy = {hart: (other, NOW - 1.5), other: (hart, NOW - 1.0)}
     a = assess(state(mobs, labels=labels, swings=busy), **kw)
-    eq("hart's latest swing at another player -> watch, overall watch",
+    eq("its latest swing at another player -> watch, overall watch",
        (one(a, hart).action, a.action, a.under_attack), ("watch", "watch", False))
     check("reason names its opponent", f"0x{other:08X}" in one(a, hart).reason, one(a, hart).reason)
     a = assess(state(mobs, labels=labels, swings={hart: (ME, NOW - 1.0)}), **kw)
-    eq("hart's latest swing at us -> flee", one(a, hart).action, "flee")
+    eq("its latest swing at us -> flee", one(a, hart).action, "flee")
     ev = [(NOW - 3, {"ev": "swing", "attacker": hart, "defender": ME})]
     a = assess(state(mobs, labels=labels, swings=busy, events=ev), **kw)
     eq("swung at us within the window, latest at another -> flee (and under attack)",
        (one(a, hart).action, a.under_attack, a.action), ("flee", True, "flee"))
     a = assess(state(mobs, labels=labels, swings={hart: (other, NOW - 30)}), **kw)
     eq("fight over (last swing 30 s ago) -> flee", one(a, hart).action, "flee")
-    near = [mob(hart, 1, 0, body=0xEA, noto=3, flags=0x40), mob(other, 2, 0, noto=1, flags=0x20)]
+    near = [mob(hart, 1, 0, body=0x27, noto=3, flags=0x40), mob(other, 2, 0, noto=1, flags=0x20)]
     a = assess(state(near, labels=labels, swings=busy), **kw)
     eq("fighting another but within its strike range of us -> flee", one(a, hart).action, "flee")
     ev = [(NOW - 1, {"ev": "damage", "serial": ME, "amount": 4})]
@@ -274,14 +305,14 @@ def test_fighting_others():
        (one(a, hart).action, a.under_attack, a.action), ("watch", True, "flee"))
     # war mode isn't its only aggression evidence: an aggressive body flees anyway
     a = assess(state(mobs, labels=labels, swings=busy), **kw,
-               params=Params(aggressive_bodies=frozenset({0xEA}), passive_bodies=frozenset()))
+               params=Params(aggressive_bodies=frozenset({0x27})))
     eq("aggressive body fighting another -> flee", one(a, hart).action, "flee")
     a = assess(state([mob(0x602, 6, 0, body=0x1D, noto=6, flags=0x40)], swings={0x602: (other, NOW - 1)}),
                **kw)
     eq("murderer-red creature fighting another -> flee", one(a, 0x602).action, "flee")
 
 
-TESTS = [test_reds, test_npcs_and_players, test_monsters, test_damage, test_label_grace,
+TESTS = [test_reds, test_npcs_and_players, test_monsters, test_pets, test_damage, test_label_grace,
          test_fighting_others]
 
 

@@ -112,6 +112,9 @@ class Mobile:
     z: int | None = None
     direction: int | None = None
     seen_t: float | None = None    # time of the last S2C packet that updated it
+    # "tame" / "bonded" / "summoned": the server's "(tame)" etc. line under a pet's
+    # click label (S2C 0x1C type 0, hue 946), sent each time the client asks on sight
+    pet: str | None = None
 
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items() if v is not None

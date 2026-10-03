@@ -15,6 +15,15 @@ agent_link.Link) and do their own waiting.
 - wear_layer() / equip_packets(): what `ctl act equip` and the hunt runner send to
   put an item from the backpack on: the stock drag to the paperdoll, 0x07 lift,
   (the caller's human drag pause), 0x13 equip request on the item's layer.
+- can_cast() / missing_reagents(): whether a Magery spell can be paid for: its
+  mana and one of each of its reagents (SPELL_REAGENTS, ClassicUO
+  SpellsMagery.cs; graphics checked against the client's tiledata names) in the
+  backpack at any bag depth, or a spellstone instead of reagents (an item named
+  "...spellstone..." or "...bauble...": Hackworth's "arielle's bauble",
+  docs/NOTES.md; the Mage starting kit's 2250-charge stone). Without either the
+  server answers a cast with cliloc 502630 "More reagents are needed for this
+  spell." Whether the spellbook holds the spell isn't known to the world model:
+  the server says so.
 - human_corpse(), loot_order(), grab_packets(): the loot rule and the stock
   GrabItem shape (0x07 lift, 0x08 drop into the open backpack).
 """
@@ -56,6 +65,33 @@ LAYER_ONE_HANDED, LAYER_TWO_HANDED = 0x01, 0x02
 # Wearable; the server's 0x2E put Shackleworth's 0x57064E05 on layer 2 (two-handed),
 # capture 20261003_113952 11:40:35 and again after the 11:55:48 equip
 KNOWN_LAYERS = {31038: LAYER_TWO_HANDED}
+# Reagent graphics (tiledata names: "Black Pearl%s%", "Blood Moss", "Garlic", "Ginseng",
+# "Mandrake Root%s%", "Nightshade", "Sulfurous Ash", "Spider's Silk")
+REAGENTS = {0x0F7A: "black pearl", 0x0F7B: "blood moss", 0x0F84: "garlic", 0x0F85: "ginseng",
+            0x0F86: "mandrake root", 0x0F88: "nightshade", 0x0F8C: "sulfurous ash", 0x0F8D: "spiders' silk"}
+_BP, _BM, _GA, _GI, _MR, _NS, _SA, _SS = REAGENTS
+# One of each per cast, by spell id (ClassicUO Game/Data/SpellsMagery.cs, the stock UO reagents)
+SPELL_REAGENTS = {
+    1: (_BM, _NS), 2: (_GA, _GI, _MR), 3: (_NS, _GI), 4: (_GA, _GI, _SS), 5: (_SA,), 6: (_SS, _SA),
+    7: (_GA, _SS, _SA), 8: (_GA, _NS),
+    9: (_BM, _MR), 10: (_NS, _MR), 11: (_GA, _GI), 12: (_NS, _SS), 13: (_GA, _SS, _SA), 14: (_BM, _SA),
+    15: (_GA, _GI, _SA), 16: (_MR, _NS),
+    17: (_GA, _MR), 18: (_BP,), 19: (_BM, _GA, _SA), 20: (_NS,), 21: (_BM, _MR), 22: (_BM, _MR),
+    23: (_BM, _SA), 24: (_BM, _GA),
+    25: (_GA, _GI, _MR), 26: (_GA, _GI, _MR, _SA), 27: (_GA, _NS, _SA), 28: (_BP, _SS, _SA),
+    29: (_GA, _GI, _MR, _SS), 30: (_MR, _SA), 31: (_BP, _MR, _SS), 32: (_BP, _BM, _MR),
+    33: (_BP, _MR, _NS), 34: (_BP, _GA, _SS, _SA), 35: (_BM, _GA, _NS), 36: (_GA, _MR, _SS),
+    37: (_BP, _MR, _NS, _SA), 38: (_GA, _MR, _SS), 39: (_BP, _NS, _SS), 40: (_BM, _MR, _SS),
+    41: (_GA, _MR, _SA), 42: (_BP, _NS), 43: (_BM, _MR), 44: (_BM, _NS), 45: (_BP, _BM, _MR),
+    46: (_GA, _MR, _NS, _SA), 47: (_BP, _GI, _SS), 48: (_BM, _SA),
+    49: (_BP, _BM, _MR, _SA), 50: (_BP, _MR, _SS, _SA), 51: (_SS, _SA), 52: (_BP, _MR, _SA),
+    53: (_BP, _BM, _MR, _SS), 54: (_BP, _GA, _MR, _SA), 55: (_BM, _MR, _SS, _SA), 56: (_BM, _MR, _SS),
+    57: (_BM, _GI, _MR, _SA), 58: (_BP, _BM, _MR, _NS), 59: (_BM, _GI, _GA), 60: (_BM, _MR, _SS),
+    61: (_BM, _MR, _SS, _SA), 62: (_BM, _MR, _SS), 63: (_BM, _MR, _SS, _SA), 64: (_BM, _MR, _SS),
+}
+SPELLSTONE_WORDS = ("spellstone", "bauble")
+CLILOC_NO_REAGENTS = 502630          # "More reagents are needed for this spell."
+TEXT_NO_REAGENTS = "More reagents are needed for this spell."
 
 
 def _serial(v) -> int:
@@ -147,6 +183,44 @@ def spell_id(text: str) -> int | None:
 
 def spell_mana(sid: int) -> int:
     return CIRCLE_MANA[(sid - 1) // 8]
+
+
+def reagents(world: dict, me: int) -> tuple[dict, bool]:
+    """({reagent graphic: count}, spellstone?) over the backpack at any bag depth."""
+    items, labels = world.get("items") or {}, world.get("labels") or {}
+    pack = backpack(items, me)
+    counts, stone = {}, False
+    if pack is None:
+        return counts, stone
+    for k, it in pack_items(items, pack):
+        g = _serial(it["graphic"])
+        if g in REAGENTS:
+            counts[g] = counts.get(g, 0) + (it.get("amount") or 1)
+        name = (it.get("name") or labels.get(k) or "").lower()
+        if any(w in name for w in SPELLSTONE_WORDS):
+            stone = True
+    return counts, stone
+
+
+def missing_reagents(world: dict, me: int, sid: int) -> list[str]:
+    """Names of the reagents spell `sid` needs that the backpack lacks; [] with a spellstone."""
+    counts, stone = reagents(world, me)
+    if stone:
+        return []
+    return [REAGENTS[g] for g in SPELL_REAGENTS[sid] if counts.get(g, 0) < 1]
+
+
+def can_cast(world: dict, me: int, sid: int, mana: int | None) -> bool:
+    """Mana (None: unknown, not checked) and reagents or a spellstone for spell `sid`."""
+    if mana is not None and mana < spell_mana(sid):
+        return False
+    return not missing_reagents(world, me, sid)
+
+
+def no_reagents_answer(events) -> bool:
+    """The server's 'More reagents are needed for this spell.' among `events`."""
+    return any((e.get("ev") == "cliloc" and e.get("cliloc") == CLILOC_NO_REAGENTS)
+               or (e.get("ev") == "speech_heard" and e.get("text") == TEXT_NO_REAGENTS) for e in events)
 
 
 def attackable(world: dict, key: str) -> tuple[bool, str]:

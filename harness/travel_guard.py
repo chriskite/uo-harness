@@ -7,12 +7,17 @@ and nothing reacted until a witch harpy killed Hackworth at the waypoint
 lumber runner had threat checks; the overseer's walk had none. TravelGuard is
 the Mover guard a goto runs with (agent_link.Mover calls it after every step):
 
-  - hostile creatures in view (threats.assess: aggressive, i.e. war mode,
-    murderer-red or an aggressive body) become danger zones of radius
+  - hostile creatures in view (threats.assess: aggressive, i.e. swinging at us,
+    war mode, murderer-red or an aggressive body; never a pet, the "(tame)" /
+    "(bonded)" / "(summoned)" ones, unless red or swinging at us, and never a
+    passive body for war mode alone) become danger zones of radius
     max(flee radius, DANGER_MIN_R) + AVOID_MARGIN around them; the Mover routes
     around zones (agent_link.DANGER_COST_X) and replans when one appears or
     moves. Each creature is recorded once per walk as a `monster_seen` job
-    event (job `travel`).
+    event (job `travel`). Live 2026-10-04 on Shelter Island a tamer's two bonded
+    pets and two sheep a player was killing, all in war mode, became zones; the
+    sheep made a 44-step walk 142 steps (threats.py docstring, "Pets and
+    war-mode passive bodies").
   - a goal inside a danger zone stops the walk (Abort): walking into a nest to
     "arrive" is what killed us.
   - a hostile player in flee range, a red anywhere in view, or "<name> is

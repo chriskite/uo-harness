@@ -16,7 +16,9 @@ otherwise Magery, Heal or Greater Heal by how much health is missing.
   (in range). Greater Heal is chosen when the missing hits reach the mana
   break-even, where it restores more hits per mana than Heal:
   missing >= heal_avg x 11 / 4 (19 at Magery 60). Below that, Heal. If the chosen
-  spell can't be paid for, the other one if it can; else no heal (out of mana).
+  spell can't be paid for (mana, or reagents: combat.can_cast, a spellstone
+  replaces them; or the caller's `blocked`, spells the server refused for
+  reagents), the other one if it can; else no heal (Choice kind None).
 - Live potion evidence (session 20261001_214649): two Lesser Heal potions drunk
   in a fight healed +34 and +24, each answered with "+N" overhead and cliloc
   1008158 "some damage has been healed : " with the amount as its argument.
@@ -87,8 +89,10 @@ class Choice:
     spell: int | None = None   # Magery spell id
 
 
-def choose(world: dict, me: int, potion_ready: bool, gheal_min_missing: int | None = None) -> Choice:
-    """What to heal with now. `gheal_min_missing` overrides the mana break-even."""
+def choose(world: dict, me: int, potion_ready: bool, gheal_min_missing: int | None = None,
+           blocked=()) -> Choice:
+    """What to heal with now. `gheal_min_missing` overrides the mana break-even;
+    `blocked`: spell ids not to cast (the server answered 'more reagents needed')."""
     s = world["self"]
     hits, top = s.get("hits"), s.get("hits_max")
     if hits is None or not top:
@@ -105,11 +109,18 @@ def choose(world: dict, me: int, potion_ready: bool, gheal_min_missing: int | No
     want, other = (GREATER_HEAL, HEAL) if missing >= threshold else (HEAL, GREATER_HEAL)
     mana = s.get("mana") or 0
     no_pot = "no heal potion" if not pots else "potion cooling down"
+    why_not = {}
     for sid in (want, other):
-        if mana >= combat.spell_mana(sid):
+        if sid in blocked:
+            why_not[sid] = "the server wants more reagents"
+        elif mana < combat.spell_mana(sid):
+            why_not[sid] = f"mana {mana}"
+        elif lack := combat.missing_reagents(world, me, sid):
+            why_not[sid] = "no " + ", ".join(lack)
+        else:
             name = combat.MAGERY_SPELLS[sid - 1]
-            pick = "" if sid == want else f" (mana {mana} short of {combat.MAGERY_SPELLS[want - 1]})"
+            pick = "" if sid == want else f" ({combat.MAGERY_SPELLS[want - 1]}: {why_not[want]})"
             return Choice("spell", f"{missing} missing, Greater Heal from {threshold}; {no_pot}: {name}{pick}",
                           missing, spell=sid)
-    return Choice(None, f"{missing} missing; {no_pot}; mana {mana} pays for neither Heal nor Greater Heal",
-                  missing)
+    return Choice(None, f"{missing} missing; {no_pot}; Heal: {why_not[HEAL]}; "
+                        f"Greater Heal: {why_not[GREATER_HEAL]}", missing)

@@ -37,6 +37,9 @@ S2C = "s2c"
 _DELTAS = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
 PENDING_WALKS_MAX = 64  # unconfirmed walk requests kept for confirm matching
 CORPSES_MAX = 1000      # corpse serials remembered for one `mobile_death` per corpse
+# the server's line under a pet's click label ("(bonded)" etc., type 0 hue 946): RunUO
+# BaseCreature.OnSingleClick; 681 bonded / 573 tame / 116 summoned in the store by 2026-10-04
+PET_TAGS = {"(tame)": "tame", "(bonded)": "bonded", "(summoned)": "summoned"}
 
 
 class WorldRuntime:
@@ -268,9 +271,12 @@ def _h_mobile_equip(rt, f):
 def _h_talk(rt, f):
     """0x1C / 0xAE: speech or system text heard by the client. Type 6 is a
     click label (the server's answer to 0x09, e.g. "Len the banker"); the
-    latest one per entity is kept in state.labels."""
+    latest one per entity is kept in state.labels. A pet's "(tame)" /
+    "(bonded)" / "(summoned)" line sets Mobile.pet."""
     if f["type"] == 6 and f["serial"] not in (0, 0xFFFFFFFF):
         rt.state.labels[f["serial"]] = f["text"]
+    elif f["text"] in PET_TAGS:
+        rt.state.update_mobile(f["serial"], pet=PET_TAGS[f["text"]])
     rt.state.tracking.on_text(f["serial"], f["text"], rt.state.self.serial)
     rt._emit("speech_heard", serial=f["serial"], name=f["name"],
              type=f["type"], hue=f["hue"], text=f["text"])

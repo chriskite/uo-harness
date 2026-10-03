@@ -12,6 +12,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import combat  # noqa: E402
 import escape  # noqa: E402
 
 FAILURES = []
@@ -94,7 +95,7 @@ def world(mana_items=(), extra=()):
 
 
 def test_can_cast():
-    regs = [(g, BAG, "") for g in escape.REAGENTS]
+    regs = [(g, BAG, "") for g in combat.SPELL_REAGENTS[escape.RECALL]]
     check("all three reagents in a bag + mana", escape.can_cast_recall(world(regs), ME, 40))
     check("missing mandrake", not escape.can_cast_recall(world(regs[:2]), ME, 40))
     check("too little mana", not escape.can_cast_recall(world(regs), ME, escape.RECALL_MANA - 1))

@@ -1195,7 +1195,10 @@ def test_heal(proxy):
     me_target = actions.target_object(0x78, 1, x, y, z, 0x190, 2)
     proxy.opened, proxy.cast_cursor = [proxy.PACK], True
     proxy.ground_items = {f"0x{pot:08X}": {"graphic": healing.HEAL_POTION_GRAPHIC, "amount": 2,
-                                            "container": f"0x{bag:08X}"}}
+                                            "container": f"0x{bag:08X}"},
+                          # a spellstone pays for the spells (combat.can_cast; no reagents carried)
+                          "0x40000321": {"graphic": 0x3F1F, "container": f"0x{proxy.PACK:08X}",
+                                         "name": "arielle's bauble"}}
     proxy.potion_answers = {f"0x{pot:08X}": healing.CLILOC_HEALED}
     proxy.self_hits = 50                                    # 10 of 60 missing; Magery 60, mana 20
     proxy.take()

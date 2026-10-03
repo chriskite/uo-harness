@@ -32,6 +32,7 @@ import re
 import time
 
 import actions
+import combat
 import uomap
 from agent_link import cheb, serial_of
 
@@ -41,8 +42,8 @@ RUNEBOOK_DEFAULT_ART = 2360       # set-default button on the default entry (oth
 RUNETOME_DEFAULT_HUE = 63         # the default rune's name on the tome's main page (others 2655)
 RECALL_ICON_ART = 2271            # recall-spell icon (both books)
 LAYER_BACKPACK = 0x15
-REAGENTS = (0x0F7A, 0x0F7B, 0x0F86)   # black pearl, blood moss, mandrake root
-RECALL_MANA = 11                  # 4th circle [RunUO]; TestWorth spent 10 live
+RECALL = combat.spell_id("recall")
+RECALL_MANA = combat.spell_mana(RECALL)   # 4th circle: 11; TestWorth spent 10 live
 GUMP_WAIT_S = 2.0                 # double-click -> the book's gump (48 ms live)
 ARRIVE_WAIT_S = 5.0               # press -> arrival (2.05-2.09 s live)
 JUMP_TILES = 2                    # an own-position change this large while frozen = arrived
@@ -124,23 +125,10 @@ def find_books(world: dict, me: int) -> list[tuple[int, str]]:
 
 
 def can_cast_recall(world: dict, me: int, mana: int | None) -> bool:
-    """Mana for Recall plus reagents, or a spellstone (it replaces reagents;
-    Hackworth's 'arielle's bauble', docs/NOTES.md), anywhere in the backpack.
-    Whether the spellbook holds Recall isn't read: the server says so."""
-    if mana is not None and mana < RECALL_MANA:
-        return False
-    pack = backpack(world, me)
-    have, stone = set(), False
-    for key, it in world["items"].items():
-        if pack is None or not in_pack(world, serial_of(key), pack):
-            continue
-        g = serial_of(it["graphic"]) if it.get("graphic") is not None else None
-        if g in REAGENTS:
-            have.add(g)
-        name = (it.get("name") or "").lower()
-        if "bauble" in name or "spellstone" in name:
-            stone = True
-    return stone or have >= set(REAGENTS)
+    """Mana for Recall plus its reagents, or a spellstone, in the backpack
+    (combat.can_cast). Whether the spellbook holds Recall isn't read: the server
+    says so."""
+    return combat.can_cast(world, me, RECALL, mana)
 
 
 # ------------------------------------------------------------ layout parsing

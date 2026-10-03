@@ -23,7 +23,7 @@ The banker comes into view within 18 tiles and leaves it beyond 24 (the world mo
 
 Two more runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
 - skirmish: the hatchet in a bag in the pack; 'a great hart' in war mode 4 tiles from the tree
-  fighting a player (0x2F both ways) is only watched; a creature that swings at the agent makes
+  fighting a player (0x2F both ways) is no threat (passive body); a creature that swings at the agent makes
   it escape and harvest the next tree out of reach; the same creature then hunts it down there
   (escape, kept coming: stop, the logs converted first)
 - break: the agent gate (pre-written budget file) announces a break mid-harvest; the trip ends
@@ -918,11 +918,11 @@ async def skirmish():
           acts == ["escape", "escape", "abort"] and all(j["severity"] == "urgent" for j in threat_js),
           str([(j["summary"], j["data"].get("action")) for j in threat_js]))
     hart = [next((t for t in j["data"]["threats"] if t["serial"] == FIGHTER), {}) for j in threat_js]
-    check("every threat was the attacker; the hart fighting the player (in flee range, war mode) was "
-          "only watched",
+    check("every threat was the attacker; the hart fighting the player (in flee range, war mode) wasn't a "
+          "threat (a passive body in war mode is fighting someone else, threats.py)",
           threat_js and all(j["data"]["threats"][0]["serial"] == ATTACKER for j in threat_js)
-          and hart[0].get("action") == "watch" and hart[0].get("distance", 99) <= hart[0].get("flee_radius", 0)
-          and "fighting" in hart[0].get("reason", ""), str(hart[:1]))
+          and hart[0].get("action") in ("watch", "ignore") and not hart[0].get("hostile")
+          and hart[0].get("distance", 99) <= hart[0].get("flee_radius", 0), str(hart[:1]))
     m = re.search(r"escaped to \((\d+), (\d+)\)", text)
     to = (int(m[1]), int(m[2])) if m else None
     check("first escape: walked away from the attacker to beyond its flee radius (8)",
