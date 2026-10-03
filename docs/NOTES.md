@@ -568,12 +568,18 @@ All 20 sessions 20261001_214649 … 20261003_150103 replayed in timed order (`re
   anyway: a second refusal, `27 05` (lift reject), the item back in the corpse (`0x25`) and, 190 ms
   later, a `0x1D` for it. The world model loses the item, so `loot()` counts it as moved: e.g.
   13:03:58 "looted 1 item(s) from a mongbat: +0 gold, ~21 xp". The `xp` estimate also counts the
-  refused corpse's gold. [INFERENCE: loot rights belong to the top damager, and in the NPD looting
-  someone else's corpse is an aggressive act.] Gold accounting is right (measured pack gain).
+  refused corpse's gold. Gold accounting is right (measured pack gain). **Rule (user, 2026-10-03):
+  loot rights go to whoever did the most damage and the corpse is theirs; looting another
+  player's kill (a blue corpse) is a criminal act, blocked by default.** The corpse's notoriety in
+  `0xFF` sub `0xDEAD` (u8 after the owner serial) tells it before any walk: all 35 refused corpses
+  had notoriety 1 (innocent, blue), all 90 looted ones 3 (grey). The world model drops that byte
+  (`WorldRuntime.mobile_death` keeps serial, corpse and name only).
 - **The client's Auto Open Corpses re-fires on every re-anchor.** 212 "You may not loot this
   corpse." in the three hunt captures. In 125556 the client double-clicked 92 corpses 262 times
   (one 42 times, in bursts of 5 at 0.2–0.45 s [INFERENCE: agent walk-offs]); 195 of the 262
   came within 0.5 s after a fabricated re-anchor `0x21` with nothing in between. ANTICHEAT.md A14.
+  **User decision 2026-10-03: Auto Open Corpses is turned off in the client** (the agent opens its
+  own corpses), as Auto Open Doors was on 2026-10-01.
 - **O'hii trees (0x0C9E, tiledata "o'hii tree") can't be chopped:** all 9 in the harvest memory
   answered 500489 "You can't use an axe on that.", 0 successes (all three 10-03 not-a-tree answers
   at witcher rune 291, Hidden Valley). `uomap.find_trees` lists them; the harvest memory learns

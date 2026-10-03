@@ -489,7 +489,7 @@ Player houses (0xF3 multis) were also missing from the walk
 rules. That cost 12 server denies at one house in this session (a denied-walk pattern no client
 produces). Fixed the same day (docs/NOTES.md).
 
-**A14 (found 2026-10-03 in the capture audit, sessions 20261003_113952/123614/125556; open, user decision needed): the client's Auto Open Corpses follows every agent step, like Auto Open Doors did (A11).**
+**A14 (found 2026-10-03 in the capture audit, sessions 20261003_113952/123614/125556; resolved by user decision 2026-10-03: Auto Open Corpses off in the client): the client's Auto Open Corpses follows every agent step, like Auto Open Doors did (A11).**
 The user's client has Auto Open Corpses on (stock option; every double-click was within 2 tiles).
 The Outlands client retries a corpse it couldn't open (upstream ClassicUO `TryOpenCorpses` adds
 each serial to `AutoOpenedCorpses` and never tries it again; here single corpses got up to 42
@@ -503,11 +503,13 @@ corpse." over the three captures. Server view: a player walking those steps hims
 option on would send the same double-clicks [INFERENCE, medium: per the KB's retry-on-step]. So no
 non-stock packet, but
 the client spends actions the agent's loot may collide with (none seen: both 500119 "You must wait
-to perform another action" of 10-03 followed human clicks). Options: turn Auto Open Corpses off in
-the client (the agent opens its own corpses), or keep it and accept the retries. Related, agent
-side: the hunt runner tried to lift from 35 corpses the server had just refused ("Players cannot
-commit aggressive actions in that location.", docs/NOTES.md "Traffic audit"), each lift ~0.4 s after
-the refusal; a human might try the same once, the runner does it every time [INFERENCE, low].
+to perform another action" of 10-03 followed human clicks). **User decision 2026-10-03: Auto Open
+Corpses is turned off in the client; the agent opens its own corpses.** Related, agent side: the
+hunt runner tried to lift from 35 corpses the server had just refused ("Players cannot commit
+aggressive actions in that location.", docs/NOTES.md "Traffic audit"), each lift ~0.4 s after the
+refusal; a human might try the same once, the runner does it every time [INFERENCE, low]. Looting
+a blue (notoriety 1) corpse is a criminal act the server blocks (user, 2026-10-03), and every
+refused corpse was blue in its `0xDEAD`, so the runner can skip them before walking over.
 
 ---
 
