@@ -552,6 +552,22 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   onto us beats a 2 s recall escape**: the only defences are not being found (spot choice,
   shorter field time where he hunts) or something faster than a recall [open]. He killed us at
   Terran on 10-02 too; Nusero had a second red at witcher_280 the same hour.
+- **Spell interrupts measured (docs/research/SPELL_INTERRUPTS.md).** Recall takes 2.03 s (charge or
+  spell, 27 casts). At Magery 60 a creature melee hit mid-cast breaks it 44 % of the time (26/59);
+  damage-over-time ticks never did (0/13); Bastet's spells and melee 3/3. After a disturbed cast the
+  server refuses the next one for max(0.2, 1 − √(elapsed/cast time)) s (30/30 live retries). At
+  Nusero the old 3-try escape spent try 2 on that refusal and gave up at 42.07 s, while nothing hit
+  us until 46.50 s.
+- **The escape recasts until it lands (d6e6c63):** a 20 s budget instead of 3 casts; each recast
+  is pressed right at the end of the disturb recovery, with the book opened during the wait;
+  refusals don't count as casts; death ends it. Replaying Bastet's landed hits, the old code fails
+  as it did live and the new one lands at 44.4 s.
+- **What would have saved Nusero:** Magic Reflection (it bounces the opening Weaken; recall 1 lands
+  0.49 s before his Harm), or the new retries if his 43.68 s swing misses as it did. Hiking (needs a
+  secured campfire and no combat for 30 s), running (we were on foot, he was mounted) and healing
+  (he did ~15 HP/s) would not. Magic Reflection is 5th circle, ~50 % at Magery 60 (100 % at 70 or
+  from a scroll). Captures still needed: a Magic Reflection cast (buff icon, duration) and a hike
+  (campfire, Atlas gump, whether a hit during the 5 s freeze cancels it).
 - **Lumber trip size is a renewal-reward rate (86075f3, LUMBER_LOOP §6):** three hazards per
   field hour, each learned per spot and shrunk to a pooled rate: death h_D (the trip banks
   nothing; every unblessed item carried is lost at full price: all hatchets, priced reagents;
