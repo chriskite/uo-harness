@@ -529,6 +529,32 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   about the reagents they spend, so they never read as theft.
 - **Casting moves the hatchet to the pack** (hatchets are two-handed): "That must be equipped
   for any serious chopping." The runner's hatchet use re-equips it.
+- **Second Bastet death (live 2026-10-04 18:04, witcher_282 Nusero Island SE, Hackworth).**
+  Timeline from the store: 18:04:38.44 Bastet ("Serial Killer [Prevalia]", "[Aggressive
+  Captcha, DVLS]", red) appears at 11 tiles. He carries the **Stationary Penalty buff (icon 277),
+  removed at 40.05**, so he had just recalled or gated in on top of us [INFERENCE: hunting us by
+  Tracking]. 18:04:38.92 he casts ("Des Mani"); the runner opened the tome 0.9 s after he
+  appeared and started a charge recall at 39.49; at 40.31 "Bastet is attacking you!" with 500641
+  (concentration disturbed): his spell landed 1.9 s after he appeared, before a 2.0 s recall
+  could finish. Retries got 502644 (not recovered) and disturbed; no guarded place within 250
+  tiles; the overseer's own recall was disturbed too, then "the book's gump didn't open"; dead.
+  Tracking on murderers was on and gave no warning: his first hit came at 18:04:47 ("1 space").
+  Lost: 113 logs, hatchet, ~40 gp, reagents; the blessed tome survives. **A mage PK who recalls
+  onto us beats a 2 s recall escape**: the only defences are not being found (spot choice,
+  shorter field time where he hunts) or something faster than a recall [open]. He killed us at
+  Terran on 10-02 too; Nusero had a second red at witcher_280 the same hour.
+- **Lumber trip size is a renewal-reward rate (86075f3, LUMBER_LOOP §6):** three hazards per
+  field hour, each learned per spot and shrunk to a pooled rate: death h_D (the trip banks
+  nothing; every unblessed item carried is lost at full price: all hatchets, priced reagents;
+  Young loses nothing), sent home h_S (the load comes home) and theft h_T (takes a share f, prior
+  0.5). Q runs 200–10,000 logs, capped by (weight_max − weight)/0.025, no stint cap; `--timeout`
+  scales with the trip. On the store at 23:06 UTC threat stops dominated (sent home 1.45/h pooled,
+  witcher_291 3.0/h), so Q* rose to ~1,000–1,800 with P(death) per trip 3–9 %. Theft events
+  don't record the load carried yet; f learns from carried_end + taken until they do.
+- **Overseer findings (LumberShift):** Horseshoe Bay ran ~1,400 logs/h of chopping but went dry
+  at 605 logs. From the Cambria bank `act goto` can't route straight to the moongate; go via the
+  rune library (1708, 3181). A goto that passes onto the gate closes its gump: `dclick
+  0x4000069E` reopens it (Horseshoe Bay is button 13).
 - **Overseer tooling, live:** `ctl junctures` without `--after` listed the oldest 100, hiding an
   open speech hold for 163 s; it now lists the newest. `act drop --amount 800` split a gold stack
   correctly but returned `ok:false` ("the world model doesn't show the item moved"); not fixed.
