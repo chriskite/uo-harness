@@ -11,6 +11,10 @@ calls the API on its own. These go into harness/data/discord.db:
   gateway WebSocket (zstd/zlib stream)            READY/GUILD_CREATE channel lists,
                                                   live MESSAGE_CREATE/UPDATE
 
+Image attachments of stored messages are downloaded from the CDN into
+harness/data/discord_media/<channel>/<attachment id>-<filename> (the `media` table).
+CDN links are signed and expire after about 24 h, so this runs whenever serve runs.
+
 The same process listens for one JSON line per request on 127.0.0.1:25980. The other
 subcommands are clients of that port, apart from `stats` and `search`, which read the
 DB directly and run under the plain harness Python:
@@ -47,6 +51,10 @@ DATA = os.path.join(ROOT, "harness", "data")
 DEFAULT_DB = os.path.join(DATA, "discord.db")
 DEFAULT_PROFILE = os.path.join(DATA, "discord_profile")
 LOGDIR = os.path.join(ROOT, "logs", "discord")
+MEDIA_DIR = os.path.join(DATA, "discord_media")
+MEDIA_MAX_BYTES = 50 << 20
+MEDIA_PACE = (0.5, 2.0)      # seconds between downloads
+MEDIA_TRIES = 3
 PORT = 25980  # outside the proxy's 25940-25960 upstream range; 25970 is triage
 DISCORD_EPOCH_MS = 1420070400000
 SCHEMA_VERSION = 1
@@ -100,6 +108,12 @@ CREATE TABLE IF NOT EXISTS crawl(
   loads INTEGER NOT NULL DEFAULT 0, note TEXT, updated_t REAL);
 CREATE TABLE IF NOT EXISTS captures(
   id INTEGER PRIMARY KEY, t REAL, kind TEXT, url TEXT, status INTEGER, n INTEGER);
+CREATE TABLE IF NOT EXISTS media(
+  id INTEGER PRIMARY KEY, message_id INTEGER NOT NULL, channel_id INTEGER NOT NULL,
+  filename TEXT, content_type TEXT, size INTEGER, url TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', tries INTEGER NOT NULL DEFAULT 0,
+  path TEXT, sha256 TEXT, fetched_t REAL);
+CREATE INDEX IF NOT EXISTS media_status ON media(status, id);
 """
 
 
@@ -144,8 +158,8 @@ def _embed_text(m):
 def norm_message(m, guild_id=None):
     a = m.get("author") or {}
     ref = m.get("message_reference") or {}
-    atts = [{"filename": x.get("filename"), "url": x.get("url"),
-             "content_type": x.get("content_type"), "size": x.get("size")}
+    atts = [{"id": x.get("id") or _attachment_id(x.get("url")), "filename": x.get("filename"),
+             "url": x.get("url"), "content_type": x.get("content_type"), "size": x.get("size")}
             for x in m.get("attachments") or []]
     embeds = [{k: e[k] for k in ("type", "title", "description", "url", "fields") if e.get(k)}
               for e in m.get("embeds") or []]
@@ -161,6 +175,38 @@ def norm_message(m, guild_id=None):
     }
 
 
+def _attachment_id(url):
+    """Attachment id from a CDN URL: /attachments/<channel>/<attachment>/<filename>."""
+    m = re.search(r"/attachments/\d+/(\d+)/", url or "")
+    return m.group(1) if m else None
+
+
+def media_path(channel_id, attachment_id, filename):
+    """Relative to MEDIA_DIR, '/'-separated: <channel>/<attachment id>-<sanitised filename>."""
+    safe = re.sub(r"[^\w.\-]", "_", filename or "file")[-100:]
+    return f"{channel_id}/{attachment_id}-{safe}"
+
+
+def fetch_media(url, dest, user_agent, max_bytes=MEDIA_MAX_BYTES):
+    """Download one CDN file to dest (via .part + rename). Returns (sha256, bytes)."""
+    import hashlib
+    import urllib.request
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    req = urllib.request.Request(url, headers={"User-Agent": user_agent})
+    h = hashlib.sha256()
+    n = 0
+    part = dest + ".part"
+    with urllib.request.urlopen(req, timeout=60) as r, open(part, "wb") as f:
+        while chunk := r.read(1 << 16):
+            n += len(chunk)
+            if n > max_bytes:
+                raise ValueError(f"larger than {max_bytes} bytes")
+            h.update(chunk)
+            f.write(chunk)
+    os.replace(part, dest)
+    return h.hexdigest(), n
+
+
 class Store:
     def __init__(self, path):
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
@@ -173,6 +219,45 @@ class Store:
         self.db.commit()
         self._guild_of = dict(self.db.execute(
             "SELECT id, guild_id FROM channels WHERE guild_id IS NOT NULL"))
+        self._queue_media_backfill()
+
+    def _queue_media(self, message_id, channel_id, attachments_json):
+        """Queue a message's image attachments for download. A recapture brings a
+        freshly signed URL (CDN links expire after ~24 h), so it re-arms expired
+        or failed rows."""
+        for a in json.loads(attachments_json or "[]"):
+            if not (a.get("content_type") or "").startswith("image/") or not a.get("id"):
+                continue
+            self.db.execute(
+                "INSERT INTO media(id, message_id, channel_id, filename, content_type, size, url) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET url=excluded.url, "
+                "status=CASE WHEN media.status IN ('expired', 'failed') THEN 'pending' ELSE media.status END, "
+                "tries=CASE WHEN media.status IN ('expired', 'failed') THEN 0 ELSE media.tries END",
+                (int(a["id"]), int(message_id), int(channel_id), a.get("filename"),
+                 a.get("content_type"), a.get("size"), a["url"]))
+
+    def _queue_media_backfill(self):
+        """Images of stored messages that aren't in the media table yet (rows from
+        before image download existed)."""
+        rows = self.db.execute(
+            "SELECT id, channel_id, attachments FROM messages WHERE attachments LIKE '%image/%' "
+            "AND id NOT IN (SELECT message_id FROM media)").fetchall()
+        for mid, ch, atts in rows:
+            fixed = [{**a, "id": a.get("id") or _attachment_id(a.get("url"))} for a in json.loads(atts)]
+            self._queue_media(mid, ch, json.dumps(fixed))
+        self.db.commit()
+
+    def next_media(self):
+        return self.db.execute(
+            "SELECT id, channel_id, filename, url FROM media WHERE status='pending' "
+            "ORDER BY id DESC LIMIT 1").fetchone()
+
+    def media_result(self, media_id, status, path=None, sha=None, size=None):
+        self.db.execute(
+            "UPDATE media SET status=?, tries=tries+1, path=coalesce(?, path), "
+            "sha256=coalesce(?, sha256), size=coalesce(?, size), fetched_t=? WHERE id=?",
+            (status, path, sha, size, time.time(), int(media_id)))
+        self.db.commit()
 
     def guild_of(self, channel_id):
         return self._guild_of.get(int(channel_id))
@@ -208,13 +293,40 @@ class Store:
             self._guild_of[cid] = gid
             self.db.commit()
 
+    def ignored(self):
+        """Channel ids never stored (user choice, e.g. #general): meta 'ignore_channels'.
+        Read per call, so `ignore` from another process applies to a running serve."""
+        row = self.db.execute("SELECT value FROM meta WHERE key='ignore_channels'").fetchone()
+        return set(json.loads(row[0])) if row else set()
+
+    def ignore(self, channel_ids):
+        """Add channels to the ignore list and delete what's stored from them."""
+        ids = self.ignored() | {str(int(c)) for c in channel_ids}
+        self.db.execute("INSERT INTO meta VALUES ('ignore_channels', ?) ON CONFLICT(key) "
+                        "DO UPDATE SET value=excluded.value", (json.dumps(sorted(ids)),))
+        marks = ",".join("?" * len(ids))
+        args = [int(i) for i in ids]
+        n = self.db.execute(f"DELETE FROM messages WHERE channel_id IN ({marks})", args).rowcount
+        for (path,) in self.db.execute(
+                f"SELECT path FROM media WHERE channel_id IN ({marks}) AND path IS NOT NULL", args).fetchall():
+            try:
+                os.remove(os.path.join(MEDIA_DIR, path))
+            except OSError:
+                pass
+        self.db.execute(f"DELETE FROM media WHERE channel_id IN ({marks})", args)
+        self.db.commit()
+        return {"ignored": sorted(ids), "deleted": n}
+
     def add_messages(self, msgs, guild_id=None):
         """Upsert raw message objects; returns how many were new. An edited message
-        replaces its stored text (the FTS triggers follow)."""
+        replaces its stored text (the FTS triggers follow). Ignored channels are skipped."""
         new = 0
         now = time.time()
+        skip = self.ignored()
         for m in msgs:
             if not m.get("id") or not m.get("channel_id") or not m.get("timestamp"):
+                continue
+            if str(m["channel_id"]) in skip:
                 continue
             r = norm_message(m, guild_id or self.guild_of(m["channel_id"]))
             cur = self.db.execute(
@@ -230,6 +342,8 @@ class Store:
                     "guild_id=coalesce(guild_id, :guild_id) WHERE id=:id AND "
                     "(edited_ts IS NOT :edited_ts OR embed_text IS NOT :embed_text "
                     "OR (guild_id IS NULL AND :guild_id IS NOT NULL))", r)
+            if r["attachments"]:
+                self._queue_media(r["id"], r["channel_id"], r["attachments"])
         self.db.commit()
         return new
 
@@ -275,6 +389,8 @@ class Store:
             "messages": q("SELECT count(*) FROM messages").fetchone()[0],
             "channels_with_messages": q("SELECT count(DISTINCT channel_id) FROM messages").fetchone()[0],
             "guilds": q("SELECT count(*) FROM guilds").fetchone()[0],
+            "media": dict(q("SELECT status, count(*) FROM media GROUP BY status").fetchall()),
+            "media_mb": round((q("SELECT sum(size) FROM media WHERE status='ok'").fetchone()[0] or 0) / 1e6, 1),
             "oldest": (lambda v: snowflake_date(v) if v else None)(q("SELECT min(id) FROM messages").fetchone()[0]),
             "per_channel": [
                 {"channel": n or str(c), "messages": k, "oldest": snowflake_date(o),
@@ -421,6 +537,7 @@ class Capture:
         self.crawl_status = {"state": "idle"}
         self.closed = asyncio.Event()
         self.ws_frames = 0
+        self.media_task = None
 
     # ---- browser ----
     async def start(self):
@@ -436,8 +553,42 @@ class Capture:
         self.page.on("websocket", self._on_ws)
         await self.page.goto(self.args.url)
         log(f"browser up ({self.args.channel}), profile {self.args.profile}")
+        self.media_task = asyncio.create_task(self._media_loop())
+
+    async def _media_loop(self):
+        """Download queued image attachments from the CDN, one at a time. CDN links
+        are signed and expire after ~24 h, so this runs whenever serve does. It's a
+        plain HTTPS GET of a public signed URL: no token, nothing tied to the account
+        but the IP, the same file the app shows."""
+        ua = await self.page.evaluate("navigator.userAgent")
+        while not self.closed.is_set():
+            row = self.store.next_media()
+            if not row:
+                await asyncio.sleep(5)
+                continue
+            mid, ch, filename, url = row
+            rel = media_path(ch, mid, filename)
+            try:
+                sha, n = await asyncio.to_thread(fetch_media, url, os.path.join(MEDIA_DIR, rel), ua)
+                self.store.media_result(mid, "ok", rel, sha, n)
+            except Exception as e:
+                code = getattr(e, "code", None)
+                if code in (403, 404, 410):
+                    status = "expired"  # a recapture of the message re-arms it with a fresh URL
+                elif isinstance(e, ValueError):
+                    status = "skipped"
+                else:
+                    tries = self.store.db.execute("SELECT tries FROM media WHERE id=?", (mid,)).fetchone()[0]
+                    status = "failed" if tries + 1 >= MEDIA_TRIES else "pending"
+                log(f"media {mid} ({filename}): {status} {e!r}")
+                self.store.media_result(mid, status)
+                if status == "pending":
+                    await asyncio.sleep(30)
+            await asyncio.sleep(random.uniform(*MEDIA_PACE))
 
     async def stop(self):
+        if self.media_task:
+            self.media_task.cancel()
         try:
             await self.ctx.close()
         except Exception:
@@ -598,20 +749,28 @@ class Capture:
             b = self.batches.get(str(ch))
         return b
 
+    # The message list (<ol>) is taller than the screen and mostly scrolled out of
+    # view; the wheel has to land on its scrollable ancestor's visible rectangle.
+    _SCROLLER_JS = """() => {
+        const l = document.querySelector("[data-list-id='chat-messages']");
+        if (!l) return null;
+        let s = l.parentElement;
+        while (s && s.scrollHeight <= s.clientHeight + 1) s = s.parentElement;
+        if (!s) return null;
+        const r = s.getBoundingClientRect();
+        return {x: r.x, y: r.y, width: r.width, height: r.height, top: s.scrollTop};
+    }"""
+
     async def _scroll_up(self, ch):
         """Mouse-wheel bursts over the message list until the app loads an older page."""
-        lst = self.page.locator("[data-list-id='chat-messages']").first
-        try:
-            box = await lst.bounding_box(timeout=5000)
-        except Exception:
-            box = None
-        if not box:
+        box = await self.page.evaluate(self._SCROLLER_JS)
+        if not box or box["height"] < 50:
             return None
         x = box["x"] + box["width"] * random.uniform(0.3, 0.7)
-        y = box["y"] + min(box["height"], 900) * random.uniform(0.25, 0.6)
+        y = box["y"] + box["height"] * random.uniform(0.25, 0.6)
         await self.page.mouse.move(x, y, steps=random.randint(3, 8))
         seq0 = self.batches[ch].seq if ch in self.batches else self.seq
-        end = time.time() + 12
+        end = time.time() + 15
         while time.time() < end and not self.crawl_stop:
             await self.page.mouse.wheel(0, -random.randint(350, 900))
             b = await self._wait_batch(ch, seq0, random.uniform(0.4, 1.1))
@@ -706,8 +865,9 @@ class Capture:
             await self._sleep(pause, "reading")
         else:
             res.setdefault("result", "stopped" if self.crawl_stop else "max loads")
-        log(f"crawl #{res['name'] or ch}: {res.get('result')} {res.get('messages', count)} msgs, "
-            f"oldest {res.get('oldest')}")
+        count, oldest, _ = self.store.channel_span(ch)
+        log(f"crawl #{res['name'] or ch}: {res.get('result')} {count} msgs, "
+            f"oldest {snowflake_date(oldest) if oldest else None}")
         return session_end
 
     # ---- control port ----
@@ -837,6 +997,8 @@ def main():
     sub.add_parser("crawl-stop")
     sub.add_parser("quit")
     sub.add_parser("stats")
+    sub.add_parser("ignore", help="never store these channels; deletes what's stored").add_argument(
+        "channel_ids", nargs="+")
     s = sub.add_parser("search")
     s.add_argument("query")
     s.add_argument("--channel")
@@ -845,6 +1007,9 @@ def main():
 
     if a.cmd == "serve":
         asyncio.run(serve(a))
+        return 0
+    if a.cmd == "ignore":
+        print(json.dumps(Store(a.db).ignore(a.channel_ids)))
         return 0
     if a.cmd in ("stats", "search"):
         if not os.path.exists(a.db):

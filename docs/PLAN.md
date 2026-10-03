@@ -465,6 +465,11 @@ run it: docs/NOTES.md "Discord capture".
   `backup.py` snapshots `discord.db` like `harness.db` (own `discord/` folder, same retention).
   The browser profile holds the login session, so it's treated as a credential: gitignored and
   not backed up.
+- **Images are captured too (user request).** Image attachments are downloaded to
+  `harness/data/discord_media/` and backed up with the DB. They're fetched from the CDN by URL,
+  not taken from the page's own image loads. The page only loads resized previews of images that
+  scroll into view, and a fast crawl skips many of them. The signed URLs expire after ~24 h, so
+  the downloader runs inside serve, right after capture.
 
 ## Reaching the whole map: Witcher-rune spots and guarded walks (decided and built 2026-10-03)
 

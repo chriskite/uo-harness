@@ -23,6 +23,9 @@ so the default is the UNC path):
   ghidra/                            the Ghidra project (hours of analysis to
                                      redo). Mirrored, so the copy stays a
                                      consistent project.
+  discord_media/                     image attachments downloaded by
+                                     discord_capture.py (harness/data/discord_media).
+                                     Additive; skipped while the folder doesn't exist.
   last_backup.json                   result of the last run.
 
 Not backed up: everything tracked in git (pushed to GitHub), test-run logs
@@ -65,11 +68,12 @@ DBS = [
 LOG = os.path.join(ROOT, "logs", "backup.log")
 KEEP_ALL_HOURS = 48
 
-# (source dir relative to ROOT, dest subdir, robocopy file filters, robocopy mode flags)
+# (source dir relative to ROOT, dest subdir, robocopy file filters, robocopy mode flags, required)
 TREES = [
-    ("logs", "logs", [], ["/E"]),
-    (".", "artifacts", ["*.pcapng", "*.etl", "*.png", "divert.log"], []),
-    ("ghidra", "ghidra", [], ["/MIR"]),
+    ("logs", "logs", [], ["/E"], True),
+    (".", "artifacts", ["*.pcapng", "*.etl", "*.png", "divert.log"], [], True),
+    ("ghidra", "ghidra", [], ["/MIR"], True),
+    (os.path.join("harness", "data", "discord_media"), "discord_media", [], ["/E"], False),
 ]
 
 SNAP_RE = re.compile(r"^([a-z]+)-(\d{8}-\d{6})\.db\.gz$")
@@ -185,9 +189,12 @@ def run(dest):
         except Exception as e:  # one failed part must not stop the others
             results[sub] = {"ok": False, "error": repr(e)}
 
-    for src, sub, filters, flags in TREES:
-        ok, summary = robocopy(os.path.normpath(os.path.join(ROOT, src)),
-                               os.path.join(dest, sub), filters, flags)
+    for src, sub, filters, flags, required in TREES:
+        src = os.path.normpath(os.path.join(ROOT, src))
+        if not required and not os.path.isdir(src):
+            results[sub] = {"ok": True, "summary": "absent"}
+            continue
+        ok, summary = robocopy(src, os.path.join(dest, sub), filters, flags)
         results[sub] = {"ok": ok, "summary": summary}
 
     ok = all(r["ok"] for r in results.values())

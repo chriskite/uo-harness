@@ -40,6 +40,8 @@ harness/data/telegram.json
 harness/data/telegram.json.part
 # Discord capture browser profile: holds the login session (harness/discord_capture.py)
 harness/data/discord_profile/
+# Discord capture image attachments (backed up to the NAS, not committed)
+harness/data/discord_media/
 handle.exe
 screen.png
 windivert.zip

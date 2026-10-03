@@ -56,6 +56,27 @@ def test_store():
                          msg(4, content="", message_snapshots=[{"message": {"content": "forwarded cotton tip"}}])])
         check({r["id"] for r in st.search("cotton")} == {"3", "4"}, "embed and forwarded text indexed")
         check(st.search('" OR *') == [], "FTS syntax in a query is harmless")
+
+        st.add_messages([msg(30, ch=66, content="general chatter")])
+        out = st.ignore(["66"])
+        check(out["deleted"] == 1 and st.search("chatter") == [], "ignore deletes the channel's messages")
+        check(st.add_messages([msg(31, ch=66, content="more chatter")]) == 0, "ignored channel isn't stored")
+
+        img = {"id": "900", "filename": "map.png", "content_type": "image/png", "size": 10,
+               "url": "https://cdn.discordapp.com/attachments/10/900/map.png?ex=1"}
+        txt = {"id": "901", "filename": "notes.txt", "content_type": "text/plain", "size": 5,
+               "url": "https://cdn.discordapp.com/attachments/10/901/notes.txt?ex=1"}
+        st.add_messages([msg(40, attachments=[img, txt])])
+        check([r[0] for r in st.db.execute("SELECT id FROM media")] == [900], "only images are queued")
+        st.media_result(900, "expired")
+        st.add_messages([msg(40, attachments=[{**img, "url": img["url"].replace("ex=1", "ex=2")}])])
+        row = st.db.execute("SELECT status, tries, url FROM media WHERE id=900").fetchone()
+        check(row[0] == "pending" and row[1] == 0 and row[2].endswith("ex=2"),
+              f"recapture re-arms an expired image with the fresh URL: {row}")
+        st.media_result(900, "ok", "10/900-map.png")
+        st.add_messages([msg(40, attachments=[img])])
+        check(st.db.execute("SELECT status FROM media WHERE id=900").fetchone()[0] == "ok",
+              "recapture leaves a downloaded image alone")
         st.db.close()
 
 
