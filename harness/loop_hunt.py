@@ -618,7 +618,8 @@ class HuntLoop:
             return self.heal_spell(st, choice.spell)
         if choice.missing > 0 and not self.low_posted:
             self.low_posted = True
-            data = {"item": "heal", "have": {"mana": me.get("mana"), "potions": len(healing.heal_potions(world, self.me(st)))},
+            potions = sum(it.get("amount") or 1 for _, it in healing.heal_potions(world, self.me(st)))
+            data = {"item": "heal", "have": {"mana": me.get("mana"), "potions": potions},
                     "need": {"mana": combat.spell_mana(healing.HEAL),
                              "reagents": combat.missing_reagents(world, self.me(st), healing.HEAL)},
                     "hits": [me.get("hits"), me.get("hits_max")], "why": choice.why}

@@ -61,8 +61,8 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 - **Buffs on Outlands arrive as 0xFF sub 8/9** (OutlandsBuffUpdate/RemoveBuff), not 0xDF (none
   in the live session). Examples: "Stationary Penalty", with the description "All damage is
   reduced to 1. Move {value} more steps to remove this effect", 5 s timer, f2 = 1; and a buff
-  titled by cliloc 1075655. How `{value}` is filled isn't decoded; `ctl status` shows the raw
-  numbers.
+  titled by cliloc 1075655. `{value}` is `timers[0].seconds` (decoded 2026-10-04, see "Stationary
+  Penalty decoded" below); f2 is always 1.
 - **Str/Dex/Int** from 0x11 were parsed but dropped by the world model (set as attributes the
   snapshot doesn't export). Fixed 2026-09-30; they're now in `self.stats`.
 - **Agent gump replies leave the client's copy on screen:** the stock client closes a gump
@@ -444,8 +444,22 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   prismatic staff (12–24 damage), arielle's bauble, 10 each of yellow/orange/red potions,
   100 bandages. Cortina's quest was accepted at 11:42. The accepted-quest gump shows Complete
   Quest / Abandon Quest near buttons 13 and 16 (ambiguous by label; read `controls` positions
-  before pressing) and 7 Track Progress. A fresh login showed the buff "Stationary Penalty"
-  ("All damage is reduced to 1. Move N more steps to remove this effect").
+  before pressing) and 7 Track Progress.
+- **Stationary Penalty decoded (2026-10-04, 26 captures):** buff 0xFF sub 8, icon 277. `{value}`
+  (steps left) is `timers[0].seconds`: 5, 4, 3, 2, 1, then removed (sub 9) on the 5th step that
+  changes our tile; runs and stepping back onto the tile just left both count. It comes 301–315 s
+  after the last one-tile step (all 40 cases; fighting, casting and teleports don't reset the
+  clock), at every login, and at once after most other teleports (recalls/moongates 23/28,
+  leaving a rental room 21/22), never on the NPD entrance or exit (0/73).
+- **It didn't cut our PvM damage** despite its text: on 10-02 the runner hunted 99 of 165 NPD
+  minutes under it with the same Lightning numbers (27–35), kill rate (0.43 vs 0.44/min) and loot
+  [INFERENCE: it may apply to PvP or harvesting only]. Harvesting is blocked under it (wiki
+  Mining). Both runners now clear it (`harness/stationary.py`, fc9ad5a): walk the steps + 1 out
+  and back over known tiles, never a teleporter, and reposition after `--reposition-s` (240 s)
+  without a step. Rows count `stationary_clears` and `repositions`.
+- **Spellstone known only by graphic after a proxy restart:** item names reach the world model
+  through clicks/labels, so the reagent gate saw no "bauble" and blocked spell heals (juncture 161,
+  13:26). `combat.reagents` now falls back to the tiledata name ("arielle's bauble", 0x023B).
 - **Arcane staff vs casting:** "Players with at least 80 skill in Arcane, Wrestling, and Magery
   can continue to cast spells while wielding an Arcane Staff"
   ([wiki Arcane](https://wiki.uooutlands.com/Arcane)). Below that, every cast moves the staff

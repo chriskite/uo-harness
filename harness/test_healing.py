@@ -100,6 +100,14 @@ def main():
     check("a spellstone in the pack replaces reagents: Greater Heal", pick(c) == ("spell", healing.GREATER_HEAL), str(c))
     c = healing.choose(world(40, regs=(), stone="a spellstone"), ME, potion_ready=False)
     check("an item named '...spellstone...' counts too", c.kind == "spell", str(c))
+    w = world(40, regs=())
+    w["items"][h(STONE)] = {"graphic": 0x023B, "container": h(BAG)}       # never clicked: no name
+    if combat._tile_name(0x023B):
+        c = healing.choose(w, ME, potion_ready=False)
+        check("an unclicked arielle's bauble (graphic 0x023B) counts by its tiledata name",
+              pick(c) == ("spell", healing.GREATER_HEAL), str(c))
+    else:
+        print("  SKIP unclicked bauble: no Outlands tiledata on this machine")
     c = healing.choose(world(40, regs=()), ME, potion_ready=True)
     check("no reagents but a potion ready: the potion", c.kind == "potion", str(c))
     c = healing.choose(world(40), ME, potion_ready=False, blocked={healing.GREATER_HEAL})

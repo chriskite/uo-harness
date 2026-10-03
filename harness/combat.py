@@ -196,10 +196,22 @@ def reagents(world: dict, me: int) -> tuple[dict, bool]:
         g = _serial(it["graphic"])
         if g in REAGENTS:
             counts[g] = counts.get(g, 0) + (it.get("amount") or 1)
-        name = (it.get("name") or labels.get(k) or "").lower()
+        name = (it.get("name") or labels.get(k) or _tile_name(g) or "").lower()
         if any(w in name for w in SPELLSTONE_WORDS):
             stone = True
     return counts, stone
+
+
+def _tile_name(graphic: int) -> str | None:
+    """The client's tiledata name of an item graphic (install dir, read-only), or None.
+    Item names reach the world model only through clicks and labels, so after a
+    proxy restart an unclicked "arielle's bauble" is known only by its graphic."""
+    try:
+        import uomap
+        tile = uomap.tiledata().item(graphic)
+    except (OSError, ValueError):
+        return None
+    return tile.name if tile else None
 
 
 def missing_reagents(world: dict, me: int, sid: int) -> list[str]:
