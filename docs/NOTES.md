@@ -481,6 +481,24 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   - Cambria bank → library walk is ~300 route steps (178 tiles straight); the old 250-move cap
     aborted the first Witcher trip. Walks now have no move limit by default (user decision): the
     replan cap and "no route" still end hopeless walks.
+- **Lumber data audit (1a5d59f; LUMBER_LOOP §6 "What the optimizer learns from").** Trip rows
+  now carry the travel legs (every cast with method/ok/failure/seconds, the book, Witcher rune,
+  walk to the library, mana and reagents), `lockout_s`, `stationary_s`, `travel_s`, `supplies`,
+  `skill_end`/`skill_gain`, `weight_end`, `players_seen` and `hatchet_uses_seen`. These are JSON
+  fields, so there was no schema change. A runner records them from its next start.
+- **Travel events before 2026-10-04 store the tome's row index in `rune`**, not the Witcher rune
+  id (the recall result overwrote it); the id survives in the row name ("291 - …"). New events
+  carry `witcher_rune` and `book`.
+- **lumber_opt:** the 60 s travel lockout is overhead, not field time; a trip that never reached a
+  tree has no field time; priced supplies come off each trip's value. Prices recorded 2026-10-04
+  (Garritt, Cambria): `reagent:<black_pearl|blood_moss|mandrake_root|garlic|ginseng>` 3 gp,
+  `recall_charge` 200 gp (a recall scroll adds one charge).
+- **Not passively observable:** Harvest Aspect tier (only the `[aspect` gump, Aspect Mastery
+  0x907FC735, shows "Harvest Tier N"); skill gains (no message, only per-trip snapshots); hatchet
+  uses left (only a click label "(N uses remaining)", read back by `Memory.uses_seen`).
+- **After pulling viz changes:** `cd viz && bun run build` (viz/dist is gitignored), then restart
+  `viz_server.py`. Edit-tool relative paths resolve to the session cwd, not a git worktree: use
+  absolute worktree paths there.
 - **Overseer tooling, live:** `ctl junctures` without `--after` listed the oldest 100, hiding an
   open speech hold for 163 s; it now lists the newest. `act drop --amount 800` split a gold stack
   correctly but returned `ok:false` ("the world model doesn't show the item moved"); not fixed.
