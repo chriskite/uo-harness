@@ -28,10 +28,16 @@ actions.py builders.
 Then the same NPD once more wielding the prismatic staff (an arcane staff whose casts put it in
 the pack): melee only, potions before heal spells inside, re-equipped before going back in.
 
-Then once more with --fight-spot FIGHT, 6 tiles SE of the exit spot, the mobs around it and
-the arrival tile a teleporter (store and sim, as live) on the straight route: attacks only
-on the fight spot, both leaves walk back to the spot before the exit step, the arrival tile
-is never stepped on, the episode rows hold the route margin.
+Then once more with --fight-spot FIGHT, 6 tiles SE of the exit spot, the mobs around it: attacks
+only on the fight spot, both leaves walk back to the spot before the exit step, the episode rows
+hold the route margin.
+
+In every run the arrival tile (5536,530) is a teleporter (store and sim, as live) and the server
+applies the Stationary Penalty as live (0xFF sub 8, icon 277, byte for byte as capture
+20261003_123614; each step that changes our tile counts it down, the 5th removes it with sub 9):
+at login, and in the fight-spot run once more when we first hurt A and after 14 s without a
+step (--reposition-s 6). No attack goes out while it is on; the runner walks it off (5 + 1
+steps out and back) without stepping onto a teleporter, and repositions before it comes.
 
 Run: python test_loop_hunt.py   (~100 s; private ports; safe while the live proxy runs)
 """
@@ -41,6 +47,7 @@ import os
 import re
 import subprocess
 import sys
+import struct
 import tempfile
 import time
 
@@ -186,12 +193,26 @@ def cliloc(number, args=b""):
                + b"System".ljust(30, b"\x00") + args + b"\x00\x00")
 
 
+def penalty_buff(steps):
+    """Outlands 0xFF sub 8 "Stationary Penalty" as live (capture 20261003_123614 byte for
+    byte, our serial and a zero timestamp): icon 277, f1 4620, f2 1, one timer whose value
+    is the steps left."""
+    return var(0xFF, u32(8) + u32(SELF) + u16(277) + u16(4620) + u16(1) + u16(0) + u16(0) + u16(1)
+               + struct.pack(">f", steps) + bytes(8) + bytes(8) + b"Stationary Penalty\x00"
+               + b"All damage is reduced to 1. Move {value} more steps to remove this effect\x00"
+               + u16(0) + u16(1) + bytes(4))
+
+
+def penalty_remove():              # 0xFF sub 9 (OutlandsRemoveBuff), live length 13
+    return var(0xFF, u32(9) + u32(SELF) + u16(277))
+
+
 def cheb(a, b):
     return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
 
 
 class World:
-    def __init__(self, staff=False, fight=None):
+    def __init__(self, staff=False, fight=None, still_after=None, midfight=False):
         self.staff = staff                   # wielding the prismatic staff (the arcane-staff run)
         self.staff_worn = staff
         self.melee = 40 if staff else 10     # per hit (the staff's Arcane Buildup hits hard)
@@ -234,8 +255,33 @@ class World:
         self.light_t = []                    # Lightning cast requests (time)
         self.reagent_refusals = []           # Lightning casts answered with 502630 (time)
         self.exit_from = []                  # where the step onto the exit teleporter came from
-        self.arrival_steps = []              # fight-spot run: steps onto the arrival tile (an exit, as live)
+        self.arrival_steps = []              # steps onto the arrival tile (an exit too, as live)
         self.attack_pos = []                 # where we stood for each 0x05
+        # the Stationary Penalty as measured live: on at login, after still_after s without a
+        # step (live 300; None: off), and (midfight) once when we first hurt A (alive after);
+        # each step that changes our tile counts one down, the 5th removes it
+        self.penalty = 0                     # steps left (0: off)
+        self.still_after, self.midfight = still_after, midfight
+        self.last_step_t = time.time()
+        self.penalty_log = []                # (time, "apply" / "remove", why, inside?)
+        self.attacks_on = []                 # (time, packet) attacks we got while it was on
+
+    def apply_penalty(self, why):
+        self.penalty = 5
+        self.penalty_log.append((time.time(), "apply", why, self.inside))
+        self.send(penalty_buff(5))
+
+    def stepped(self):
+        """A step that changed our tile (teleports aren't steps: live they never reset it)."""
+        self.last_step_t = time.time()
+        if not self.penalty:
+            return
+        self.penalty -= 1
+        if self.penalty:
+            self.send(penalty_buff(self.penalty))
+        else:
+            self.penalty_log.append((time.time(), "remove", "steps", self.inside))
+            self.send(penalty_remove())
 
     @property
     def inside(self):
@@ -281,11 +327,16 @@ class World:
     def hurt_mob(self, serial, amount):
         if not self.alive.get(serial):
             return
+        if self.penalty:
+            amount = 1                       # "All damage is reduced to 1."
         self.mob_hits[serial] = max(0, self.mob_hits[serial] - amount)
         self.send(damage(serial, amount))
         self.send(hits_pkt(serial, self.mob_hits[serial], HITS[serial]))
         if self.mob_hits[serial] == 0:
             self.kill(serial)
+        elif self.midfight and serial == A:
+            self.midfight = False
+            self.apply_penalty("mid-fight")
 
     def spawn_pair(self):
         self.spawn_t = time.time()
@@ -338,6 +389,10 @@ class World:
         self.c2s.append(p)
         self.c2s_t.append(time.time())
         pid = p[0]
+        if self.penalty and (pid == 0x05 or (pid == 0xFF and p[3:7] == u32(4)
+                                             and parse_packet("c2s", p)["spell_id"] == LIGHTNING)
+                             or (pid == 0x6C and parse_packet("c2s", p).get("serial") in self.mob_pos)):
+            self.attacks_on.append((time.time(), p))
         if pid == 0x02:
             seq, d = p[2], p[1] & 7
             if d != self.facing:
@@ -345,7 +400,7 @@ class World:
                 self.send(bytes([0x22, seq, 0x01]))
                 return
             nx, ny = self.pos[0] + DD[d][0], self.pos[1] + DD[d][1]
-            if (nx, ny) == EXIT_TILE or (self.fight != SPOT and self.inside and (nx, ny) == INSIDE):
+            if (nx, ny) == EXIT_TILE or (self.inside and (nx, ny) == INSIDE):
                 # the exit teleporter denies the step, then moves you; live the arrival tile too
                 (self.exit_from if (nx, ny) == EXIT_TILE else self.arrival_steps).append(tuple(self.pos))
                 self.exits.append(time.time())
@@ -358,6 +413,7 @@ class World:
                 return
             self.pos = [nx, ny]
             self.send(bytes([0x22, seq, 0x01]))
+            self.stepped()
             if (nx, ny) == (ENTRY[0], ENTRY[1] - 1):    # the entrance: confirm, then the teleport
                 self.entries.append(time.time())
 
@@ -482,6 +538,8 @@ class World:
             if self.inside and n % 3 == 0 and self.warmode and self.engaged and self.alive.get(self.engaged) \
                     and cheb(self.pos, self.mob_pos[self.engaged]) <= 1:
                 self.hurt_mob(self.engaged, self.melee)
+            if self.still_after and not self.penalty and time.time() - self.last_step_t >= self.still_after:
+                self.apply_penalty("still")
             await self.writer.drain()
 
     async def handle(self, reader, writer):
@@ -509,6 +567,7 @@ class World:
         self.alive[S] = False                          # ...and someone else killed it: 0xDEAD only
         self.send(ground_item(CORPSE[S], combat.CORPSE_GRAPHIC, MONGBAT, *self.mob_pos[S]))
         self.send(corpse_flags(CORPSE[S], S))
+        self.apply_penalty("login")                    # live: on at every login
         await writer.drain()
         buf = bytearray()
         while True:
@@ -593,6 +652,42 @@ def check_fight(world, text, rc, rows, js):
           ok, str([{k: r.get(k) for k in ("spot", "fight_spot", "route_steps", "leave_at")} for r in rows]))
 
 
+def check_penalty(world, text, rows, name, fight=False):
+    """The Stationary Penalty in every run (World.penalty_*): on at login as live. The
+    fight-spot run also gets it once more when we first hurt A, and after 14 s without a
+    step (live 300 s) while the runner repositions after at most 6 (--reposition-s 6)."""
+    print(f"== stationary penalty ({name}) ==")
+    log = world.penalty_log
+    applies = [(t, why) for t, kind, why, inside in log if kind == "apply"]
+    removes = [t for t, kind, why, inside in log if kind == "remove"]
+    attacks = [t for p, t in zip(world.c2s, world.c2s_t) if p[0] == 0x05]
+    check("on at login; walked off (the 5th step removed it) before the first attack",
+          applies and applies[0][1] == "login" and removes and attacks and removes[0] < attacks[0],
+          f"log {log} first attack {attacks[:1]}")
+    check("no attack (0x05, a Lightning cast, a target on a mob) sent while it was on",
+          not world.attacks_on, str([(t, p.hex()) for t, p in world.attacks_on][:3]))
+    check("no teleporter stepped on: the exit tile only from the spot when leaving (2), never the arrival tile",
+          not world.arrival_steps and world.exit_from == [SPOT, SPOT], f"exits from {world.exit_from} "
+          f"arrival steps {world.arrival_steps}")
+    took = [int(n) for n in re.findall(r"Stationary Penalty cleared after (\d+) step", text)]
+    check("one clear walked by the runner (at the spot: the login one; at the fight spot the walk there "
+          "clears that, the mid-fight one): the 5 steps + 1, out and back; the rows count it",
+          len(took) == 1 and took[0] >= 6 and sum(r.get("stationary_clears") or 0 for r in rows) == 1,
+          f"took {took} rows {[r.get('stationary_clears') for r in rows]}")
+    if fight:
+        mid = [t for t, why in applies if why == "mid-fight"]
+        after = [r for r in removes if mid and r > mid[0]]
+        nxt = [t for p, t in zip(world.c2s, world.c2s_t) if mid and t > mid[0] and (
+            p[0] == 0x05 or (p[0] == 0x6C and refs(p) in world.mob_pos)
+            or (p[0] == 0xFF and p[3:7] == u32(4) and parse_packet("c2s", p)["spell_id"] == LIGHTNING))]
+        check("mid-fight (we first hurt A): walked off at once, removed before our next attack",
+              mid and after and nxt and after[0] < nxt[0], f"applied {mid} removed {after} next attack {nxt[:1]}")
+        still = [(t, why, inside) for t, kind, why, inside in log if kind == "apply" and why == "still" and inside]
+        n = sum(r.get("repositions") or 0 for r in rows)
+        check("standing still inside, it repositioned before the penalty (never applied inside); rows count it",
+              not still and n >= 1, f"still applies inside {still} repositions {n}")
+
+
 async def main(staff=False, fight=None):
     os.makedirs(LOGDIR, exist_ok=True)
     for f in os.listdir(LOGDIR):
@@ -600,11 +695,11 @@ async def main(staff=False, fight=None):
     tmp = tempfile.mkdtemp()
     db = os.path.join(tmp, "harness.db")
     store = memory.Memory(db)
-    if fight:   # live: the NPD arrival tile is itself an exit teleporter, learned by walking onto it
-        store.teleporter_record(0, INSIDE[0], INSIDE[1], 0, 1912, 2556, -20)
+    # live: the NPD arrival tile is itself an exit teleporter, learned by walking onto it
+    store.teleporter_record(0, INSIDE[0], INSIDE[1], 0, 1912, 2556, -20)
     store.close()
 
-    world = World(staff=staff, fight=fight)
+    world = World(staff=staff, fight=fight, still_after=14 if fight else None, midfight=bool(fight))
     server = await asyncio.start_server(world.handle, "127.0.0.1", UPSTREAM_PORT)
     ticker = asyncio.create_task(world.ticker())
     proxy = subprocess.Popen(
@@ -630,7 +725,7 @@ async def main(staff=False, fight=None):
             runner = await asyncio.create_subprocess_exec(
                 PY, f"{ROOT}/harness/loop_hunt.py", "--kills", "2", "--timeout", "150",
                 *(["--leave-at", "0.4"] if staff else []),
-                *(["--fight-spot", str(fight[0]), str(fight[1])] if fight else []),
+                *(["--fight-spot", str(fight[0]), str(fight[1]), "--reposition-s", "6"] if fight else []),
                 "--gheal-min-missing", str(GHEAL_MIN),
                 "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--memory", db,
                 "--entry", str(ENTRY[0]), str(ENTRY[1]), "0",
@@ -658,6 +753,7 @@ async def main(staff=False, fight=None):
                for ln in open(os.path.join(LOGDIR, f), encoding="utf-8")]
         srcs = {e.get("src") for e in log if e.get("dir") == "c2s"}
         c2s = world.c2s
+        check_penalty(world, text, rows, "fight spot" if fight else "staff" if staff else "default", fight=bool(fight))
         if staff:
             check_staff(world, text, runner.returncode)
             return

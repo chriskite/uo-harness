@@ -513,8 +513,9 @@ def _stats(me: dict) -> dict:
 
 def _buffs(world: dict, me: dict) -> list:
     """Your active buffs/debuffs (Outlands 0xFF sub 8, e.g. "Stationary Penalty").
-    `description` is the server's text with its {value} placeholder; `raw` keeps
-    the numeric fields whose meaning isn't decoded yet (f2 looks like a count)."""
+    `description` is the server's text with its {value} placeholder (for the Stationary
+    Penalty {value} is `timers_s[0]`, the steps left; f2 is always 1: docs/HUNT_LOOP.md);
+    `raw` keeps the numeric fields whose meaning isn't decoded yet."""
     out = []
     for icon, b in ((world.get("buffs") or {}).get(me.get("serial") or "", {}) or {}).items():
         title = b.get("title") or (cliloc_text(b["cliloc"]) if b.get("cliloc") else "")

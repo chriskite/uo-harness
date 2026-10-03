@@ -66,6 +66,13 @@ potion is in the pack (wait for its cooldown). Whenever the weapon is in the pac
 is put back on with the stock drag `ctl act equip` sends (combat.equip_packets), also
 after the rest outside before going back in.
 
+Stationary Penalty (Outlands debuff, stationary.py; user request 2026-10-04): it comes
+301-315 s after our last step (measured), at login and after a recall, and asks for
+5 steps. When it is on, the runner walks it off at once, mid-fight too (the steps it
+asks for + 1, out and back to the fight spot, never over a known teleporter tile);
+before it comes it repositions 2-4 steps out and back (--reposition-s). Leaving to
+survive comes first. Episode rows count `stationary_clears` and `repositions`.
+
 Guards: overall timeout, movement stall, the agent gate (Link.act waits it out),
 server restriction text, death (`death` juncture, stop; no corpse runs), a character
 speaking nearby (speech_guard.py: `speech_nearby` hold, deferred until no fight is
@@ -90,6 +97,7 @@ import combat  # noqa: E402
 import healing  # noqa: E402
 import nav  # noqa: E402
 import threats  # noqa: E402
+import stationary  # noqa: E402
 import triage  # noqa: E402
 from agent_link import Abort, Link, Mover, cheb, containers_to_open, log, serial_of  # noqa: E402
 from errand_bank import GATING_WORDS  # noqa: E402
@@ -171,7 +179,8 @@ class HuntLoop:
         self.visit_n = 0
         self.visit = None            # this visit's counters (episode row)
         self.totals = {"kills": 0, "gold": 0, "xp": 0, "hits_lost": 0, "casts": 0, "heals": 0, "potions": 0,
-                       "leaves": 0, "visits": 0}
+                       "leaves": 0, "visits": 0, "stationary_clears": 0, "repositions": 0}
+        self.still = stationary.Stationary(self.mover, self.human, args.reposition_s)
         self._intent = None
         self.left_why = None         # (why, severity) of the last leave
         self.weapon = None           # the item on layer 1/2 at the start: kept in hand (rearm)
@@ -916,7 +925,7 @@ class HuntLoop:
                       "spot": list(self.spot), "fight_spot": list(self.fight_spot),
                       "spell": combat.MAGERY_SPELLS[self.spell - 1],
                       "hits_start": st["world"]["self"].get("hits"), "kills": 0, "gold": 0, "xp": 0,
-                      "hits_lost": 0, "casts": 0, "heals": 0}
+                      "hits_lost": 0, "casts": 0, "heals": 0, "stationary_clears": 0, "repositions": 0}
 
     def end_visit(self, why):
         if self.visit is None:
@@ -1009,6 +1018,19 @@ class HuntLoop:
         if self.visit is not None:
             self.visit.update(route_steps=steps, leave_at=round(self.leave_at, 3))
 
+    def unstick(self, st, attackers) -> bool:
+        """Outlands' Stationary Penalty (stationary.py; "All damage is reduced to 1"):
+        when it is on, walk it off at once, mid-fight too (the steps it asks for + 1,
+        out and back to the fight spot); before it comes (301-315 s without a step,
+        measured), reposition: 2-4 steps out and back once nothing is on us after a
+        draw in [0.8, 1] x --reposition-s, or regardless at --reposition-s. True when
+        it walked. Leaving to survive comes before this (hunt order)."""
+        kind = self.still.handle(st, self.fight_spot, not attackers and self.engaged is None, self.doing)
+        if kind is None:
+            return False
+        self.count("stationary_clears" if kind == "penalty" else "repositions")
+        return True
+
     def hunt(self):
         """Fight at the fight spot until --kills or --timeout (then finish the fights on us,
         loot and leave), a death or a stop."""
@@ -1038,6 +1060,8 @@ class HuntLoop:
                 continue
             if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
                 self.human.wait("read")
+                continue
+            if self.unstick(st, attackers):
                 continue
             if self.corpses and not attackers:
                 self.loot(self.corpses[0])
@@ -1128,6 +1152,9 @@ def main():
     ap.add_argument("--rest-to", type=float, default=0.95,
                     help="after leaving, rest to this share of hits and go back in (0 = stop after leaving)")
     ap.add_argument("--rest-timeout", type=float, default=900.0)
+    ap.add_argument("--reposition-s", type=float, default=stationary.REPOSITION_S,
+                    help="no step for this long: walk 2-4 steps out and back before the Stationary Penalty "
+                         "(applied after 300 s without a step); with nothing on us from 0.8-1x of it")
     ap.add_argument("--loot", action=argparse.BooleanOptionalAction, default=True)
     ap.add_argument("--loot-max", type=int, default=25, help="items taken per corpse")
     ap.add_argument("--human", choices=sorted(PROFILES), default="normal",

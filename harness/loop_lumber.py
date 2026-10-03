@@ -70,6 +70,7 @@ import triage  # noqa: E402
 import alerts  # noqa: E402
 import lumber_opt  # noqa: E402
 import travel_guard  # noqa: E402
+import stationary  # noqa: E402
 import places  # noqa: E402
 import captcha  # noqa: E402
 
@@ -150,6 +151,7 @@ class LumberLoop:
         self.human = Human(args.human, seed=args.seed, fast=args.human_fast, log=log)
         self.mover = Mover(link, memory, self.human, max_blocked=args.max_blocked,
                            guard=self.check_guards, doors=True, use_map=not args.no_map)
+        self.still = stationary.Stationary(self.mover, self.human)
         self.memory = memory
         self.stats = {}
         self.trip_n = None
@@ -952,8 +954,11 @@ class LumberLoop:
             if self.timing.get("walk_out_s") is not None:      # the first walk is the walk out
                 self.timing["tree_walk_s"] += time.monotonic() - walk0
         tries = 0
+        stand = tuple(self.link.pos(self.link.state())[:2])
         while tries < self.args.max_attempts_per_tree and tally["gained"] < self.args.logs_per_trip \
                 and not self.break_due:
+            if self.unstick(stand):
+                continue
             self.doing("chop", f"Chopping tree at {spot[0]},{spot[1]} "
                                f"({tally['gained']}/{self.args.logs_per_trip} logs)", spot)
             if self.timing.get("walk_out_s") is None:
@@ -994,6 +999,21 @@ class LumberLoop:
             self.human.wait("between")
             self.human.fidget(self.link, self.link.state(), self.backpack(self.link.state()))
             self.chopped(c0, w0)
+
+    def unstick(self, stand) -> bool:
+        """Outlands' Stationary Penalty (stationary.py) stops harvesting until we walk
+        (patch 2025-01-25, docs/research/THREATS.md T4; wiki Mining). It comes at once
+        after a recall (go_out lands next to the spot) and after 301-315 s without a
+        step (a long tree, a speech hold or a captcha). Before each chop: when it is
+        on, walk it off (its steps + 1, out and back to the stand tile); before it
+        comes, reposition 2-4 steps out and back. True when it walked; the trip's
+        episode row counts `stationary_clears` / `repositions`."""
+        kind = self.still.handle(self.link.state(), stand, True, self.doing)
+        if kind is None:
+            return False
+        key = "stationary_clears" if kind == "penalty" else "repositions"
+        self.stats[key] = self.stats.get(key, 0) + 1
+        return True
 
     def chopped(self, c0: float, wait0: float):
         """Count the time since c0 as chopping (attempts, captchas, the pause

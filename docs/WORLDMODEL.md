@@ -711,6 +711,9 @@ not a wire u32 "aux" (earlier text). The floats decode as **big-endian** (timer 
 `40400000` = 3.0, `41166666` = 9.4, `3d75c28f` = 0.06; as little-endian they are
 denormals). Real title forms: `"Stationary Penalty"` + description, or empty title +
 cliloc 1015176 + `"Armor Rating Increase"`.
+For the Stationary Penalty (icon 277) the one timer's value is the `{value}` of the description,
+the steps still to walk (5, 4, 3, 2, 1, then sub 9), while f1 4620 and f2 1 never change
+(539 updates in 26 captures; docs/HUNT_LOOP.md "Stationary Penalty").
 
 #### Sub 9 OutlandsRemoveBuff
 u32be mobile serial, u16be buff/icon id (both BE). decomp.

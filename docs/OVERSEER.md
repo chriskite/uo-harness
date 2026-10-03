@@ -129,7 +129,8 @@ lists, target cursors, facet changes) from the proxy's event ring, newest last. 
   `skills.mul` (`uomap.skill_names`).
 - `stats`: Str/Dex/Int, stat cap, luck, resists, damage, followers, max weight (0x11)
 - `buffs`: your active buffs/debuffs (Outlands 0xFF sub 8), e.g. "Stationary Penalty" with its
-  description; `raw` holds the numbers that aren't decoded yet (f2 looks like the count)
+  description; for it `{value}` is `timers_s[0]`, the steps still to walk (docs/HUNT_LOOP.md);
+  `raw` holds the numbers that aren't decoded yet (f2 is always 1)
 - `tracking`: `hunting`, `mode` (as the server last named it), the `arrow` that is up and the last
   5 `hits`, each {serial, x, y, z, text, mode at the time, seq}. A hit can be a mobile the
   server never sent (beyond the 18-tile view): its serial and spot come only from the arrow.

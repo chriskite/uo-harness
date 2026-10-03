@@ -31,6 +31,7 @@ python harness/loop_hunt.py --enter --fight-spot 5536 509   # deeper in, away fr
 | `--kills N` | `0` | Stop after N kills (0: until `--timeout`). |
 | `--timeout S` | `3600` | Then finish the fights on us, loot, and leave. 180 s past it the runner aborts wherever it is. |
 | `--rest-to` | `0.95` | After leaving: Heal / Greater Heal when one can be cast (no potions; else natural regeneration) outside to this share of hits (and `--mana-reserve` mana), then go back in. `0`: stop after leaving. `--rest-timeout` (900 s) bounds the rest. |
+| `--reposition-s` | `240` | No step for this long: walk 2–4 steps out and back to the fight spot before the Stationary Penalty comes (300 s); with nothing on us already from a draw in 0.8–1 × it. |
 | `--loot` / `--no-loot`, `--loot-max` | on, 25 | Loot our kills' corpses (items per corpse). |
 | `--human`, `--seed`, `--human-fast`, `--no-map`, `--quiet`, `--triage-url`, ports, `--memory` | | As in the lumber runner. |
 
@@ -69,10 +70,12 @@ Each tick re-reads the proxy state and decides, in this order:
      (no cast attempts). Mana regenerates for free there, while potions cost gold.
    - **"More reagents are needed for this spell."** (cliloc 502630: the server disagrees with
      our count): that spell isn't cast again until the next visit (heals and the attack spell).
-4. **Loot** our kills' corpses when nothing is attacking us, like `ctl act loot`: human corpses
+4. **Stationary Penalty** (below): when it is on, walk it off at once (mid-fight too); when no
+   step was taken for `--reposition-s`, reposition.
+5. **Loot** our kills' corpses when nothing is attacking us, like `ctl act loot`: human corpses
    refused, walk within 2 tiles, open the backpack (stock dclick) and the corpse, then lift + drop
    each item into the backpack, gold first, up to the weight limit.
-5. **Fight** the target:
+6. **Fight** the target:
    - Targets come only from the live world model (`world.mobiles` holds what the stock client still
      has; docs/WORLDMODEL.md) and pass the `ctl act attack` guard (`combat.attackable`: threats.py
      monster, notoriety 3-6, on screen). Serials the server reported dead (`mobile_death`) are never
@@ -97,7 +100,7 @@ Each tick re-reads the proxy state and decides, in this order:
    - **A pinned target is dropped:** one that is neither adjacent nor took damage for 15 s
      (`PIN_S`) is disengaged and passed over for 60 s (`SKIP_S`) unless it attacks us. The runner
      never walks to melee.
-6. **Idle**: war mode off when nothing is near, back to the fight spot, wait.
+7. **Idle**: war mode off when nothing is near, back to the fight spot, wait.
 
 **A fight spot away from the exit** (`--fight-spot`, user request 2026-10-04: the exit tile is
 crowded). Each visit (at the start and after every re-entry) walks from the arrival to the
@@ -159,6 +162,54 @@ Packets come from `harness/combat.py`, shared with `ctl act attack/target/loot/c
 drift: `attack_packets`, `target_mobile`, `target_self`, `grab_packets`, `loot_order`,
 `human_corpse`, `attackable`, `spell_id`.
 
+## Stationary Penalty (user request 2026-10-04; `harness/stationary.py`)
+
+Outlands puts a debuff on a character that stands still: Outlands buff `0xFF` sub 8, icon 277,
+title "Stationary Penalty", "All damage is reduced to 1. Move {value} more steps to remove this
+effect" (the wiki's Mining page: it also stops mining "until they move more than 5 steps"). The
+runner fought under it for most of some visits (live 2026-10-02: 99 of 165 min in the NPD).
+
+**Measured** (2026-10-04, the timed replays of the captures in `logs/` with the penalty, 26
+of them, and the memory store):
+- **Standing still: 301.0–314.8 s after our last one-tile step**, in all 40 such cases (the
+  ~15 s spread looks like a periodic server check [INFERENCE]). Fighting and casting don't count
+  as activity: the runner got it at the exit spot mid-hunt (12:42, 12:56, 13:08, 13:22 on
+  10-02, each 301–315 s after its last step). Teleports don't reset the clock either: 13:36:39
+  on 10-02 it came 29 s after the NPD exit teleport, 310 s after the last step.
+- **At login** (every login, ~1 s in, the update sent 4×) and **at once after most other
+  teleports** (recalls, moongates and the like 23/28, leaving a rental room 21/22), **but never
+  on the NPD entrance or exit** (0/73) or entering a rental room (0/22).
+- **Clearing:** the buff's one timer value is `{value}`, the steps still to walk: 5 when it
+  comes, then a re-send with 4, 3, 2, 1 on each step that changes our tile, and the removal
+  (sub 9) on the 5th. f1 4620 and f2 1 never change (539 updates). 87 removals came after
+  exactly 5 tile changes (runs count; the count survives the NPD teleport), one after 10 (a step
+  after 13 min standing with 1 left set it back to 5), 3 at a jump into a rental room. A step
+  back onto the tile just left counts: 10-02 14:00:54 (5535,528) → 14:01:31 (5535,529) went 2 → 1.
+- **What it did to our damage doesn't show.** The overhead numbers on our Lightning's target
+  within 2.5 s of the cast (10-02): 174 with it, 138 without, in both mostly 27–35 (plus "-2"s,
+  likely disease ticks [INFERENCE]); "-1" 3 times with it. Shackleworth's staff melee with it:
+  31–44 (10-03). Kills per minute in the NPD: 0.43 with it, 0.44 without (10-02, 99 / 66 min);
+  0.48 / 0.40 (10-03); looted gold per minute 6.2 / 5.5 (10-02). Whether it bites only in PvP or
+  on harvesting is unknown [INFERENCE]; the runner clears it anyway, 6 steps are cheap.
+
+**The rule** (tick order: after the leave rules, the speech hold, the re-equip and the heal;
+before loot and fight):
+- **On:** walk it off at once, mid-fight too: the steps it asks for + 1, out to a tile
+  ⌈(steps + 1) / 2⌉ (else one more) from the fight spot and straight back (Mover routes, human
+  pacing). The out tile is never a known teleporter tile (the exit and arrival tiles, the
+  `teleporters` table) nor occupied; tiles we have stood on before (walk memory) are tried
+  first, and one whose whole route runs over them is taken (the Mover never routes over a known
+  teleporter). Up to 3 such walks; if it is still on, again after 20 s.
+- **Before it comes:** no step for `--reposition-s` (240 s, 60 s under the measured 301 s): 2 or
+  4 steps out and back; with nothing on us and not engaged, already from a draw in 0.8–1 × it
+  (192–240 s). The clock is the Mover's: a step that changed our tile; teleports don't count
+  (they don't reset the server's either).
+- A survival leave comes first (the leave rules are checked before it each tick).
+- Logged ("Stationary Penalty: 5 step(s) to go…", "…cleared after 6 step(s)", "no step for
+  N s: repositioning…"); the visit row counts `stationary_clears` and `repositions`.
+
+The lumber runner does the same before each chop (docs/LUMBER_LOOP.md §2).
+
 ## Guards
 
 Overall timeout, movement stall, the agent gate (actions wait out a pause or break), server
@@ -169,8 +220,9 @@ and threats, stop: no corpse runs), the speech hold above.
 
 One episode per visit (loop `hunt`): `visit`, `t_start`/`t_end`, `spot`, `fight_spot`, `route_steps`
 (the route back to `spot`), `leave_at` (with the route margin), `spell`, `hits_start`,
-`kills`, `gold`, `xp`, `hits_lost`, `casts`, `heals`, `leaves`, `ended` (the leave reason, `done`, `time
-is up` or `stopped`). Job events `kill`, `loot` (`mob`, `name`, `gold`, `xp`, items), `leave`, `death`,
+`kills`, `gold`, `xp`, `hits_lost`, `casts`, `heals`, `leaves`, `stationary_clears`, `repositions`
+(Stationary Penalty walks), `ended` (the leave reason, `done`, `time is up` or `stopped`). Job
+events `kill`, `loot` (`mob`, `name`, `gold`, `xp`, items), `leave`, `death`,
 `speech_hold`, `speech_clear`. Gold looted is the backpack gold delta (or the status gold delta,
 whichever is larger; the loot act's own reply was unreliable live).
 
@@ -194,12 +246,23 @@ holds the Heal / Greater Heal / Lightning reagents; the server answers the first
 the prismatic staff (no skills sent, so below 80): no Lightning at all, no heal spell inside
 while a potion is in the pack, the rest's heal cast puts the staff in the pack (as live), and
 it is re-equipped with the stock lift + `0x13` on layer 2 before the runner goes back in. A third
-run fights at `--fight-spot 5541 535`, 6 tiles SE of the exit spot, with the arrival tile
-(5536,530) a teleporter in the memory store and in the sim (as live), right on the straight
-route: every attack goes out on the fight spot, both leaves walk back to the spot before the
-exit step, the arrival tile is never stepped on, and the episode rows hold the fight spot,
-the route length and `--leave-at` + 0.004 per step. The default run's rows hold
-`fight_spot` = `spot`, 0 steps, `--leave-at` as given.
+run fights at `--fight-spot 5541 535`, 6 tiles SE of the exit spot, whose straight route crosses
+the arrival tile: every attack goes out on the fight spot, both leaves walk back to the spot
+before the exit step, and the episode rows hold the fight spot, the route length and
+`--leave-at` + 0.004 per step. The default run's rows hold `fight_spot` = `spot`, 0 steps,
+`--leave-at` as given.
+
+In every run the arrival tile (5536,530) is a teleporter in the memory store and in the sim (as
+live), and the sim applies the Stationary Penalty as live: the `0xFF` sub 8 byte for byte as in
+capture 20261003_123614 (icon 277, f1 4620, f2 1, the timer = steps left), re-sent per step that
+changes our tile, removed (sub 9) on the 5th; while it is on our damage is 1. It comes at login;
+in the fight-spot run also when we first hurt the first mongbat (mid-fight), and after 14 s
+without a step (live 300 s) with `--reposition-s 6`. Checked: no attack (`0x05`, a Lightning
+cast, a target on a mob) goes out while it is on; the login one is gone before the first
+attack; the mid-fight one is walked off before the next attack; the runner's clear took ≥ 6
+steps and is counted in the rows; the exit tile is stepped on only from the spot when leaving
+and the arrival tile never; standing still inside, the runner repositions (counted) and the
+14 s penalty never comes inside.
 
 ## Live (2026-10-02, Hackworth, NPD, runs 1–11 under the overseer)
 
