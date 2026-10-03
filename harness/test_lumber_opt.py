@@ -200,7 +200,7 @@ def test_hazard_evidence():
     tr = base[2]
     grab = {"t": tr["t_end"] - 100, "kind": "theft",
             "data": {"amount": 300, "items": [{"graphic": 0x1BDD, "amount": 300, "class": "log", "wood": "ordinary"}],
-                     "carried": 400}}
+                     "carried": {"logs": 300, "boards": 100}}}    # the runner's shape (loop_lumber check_ledger)
     regs = {"t": base[3]["t_end"] - 100, "kind": "theft",
             "data": {"amount": 10, "items": [{"graphic": 0x0F86, "amount": 10}]}}
     robbed = plan(spots, base, events=[grab, regs])

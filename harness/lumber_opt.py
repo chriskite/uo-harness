@@ -460,7 +460,8 @@ def theft_obs(events: list, trips: list) -> list:
         wood = sum(_num(it.get("amount"), 1) for it in (lost if isinstance(lost, list) else [])
                    if isinstance(it, dict) and (it.get("wood") or it.get("class") in ("log", "board")))
         tr = next((tr for tr in trips if tr["t0"] <= e["t"] <= tr["t1"]), None)
-        carried = _num(data.get("carried"))
+        c = data.get("carried")
+        carried = sum(_num(v, 0) for v in c.values()) if isinstance(c, dict) else _num(c)
         if carried is None and tr is not None and tr.get("carried_end") is not None:
             carried = tr["carried_end"] + wood
         share = 0.0 if not wood else min(1.0, wood / carried) if carried else 1.0
