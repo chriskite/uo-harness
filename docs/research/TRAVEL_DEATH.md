@@ -93,6 +93,7 @@ cursor. The runebook gump (blue-gem buttons) is the fallback. Neither has been c
 | **Public rune book libraries** stand "around many of the moongates (e.g. Outpost, Andaria)" | H | [New Player Guide][w-npg] |
 | Player-run libraries exist too, e.g. the Adventure Time guild hall's library of tomes with Points of Interest (forum, 2025) | M | [Forum: Rune Library][f-runelib] |
 | Shelter Island has an NPC "Cortina the Runekeeper" with a `[Quest Available]` marker. What she offers is unknown | H (exists) | journal `2026_09_28_22_35_38_journal.txt:22-23` |
+| **Witcher rune system and the client's Atlas packs** (2026-10-03): 14 community rune tomes with ~359 numbered runes over the whole map, a public set at the Cambria Rune Library (1706, 3181); the POI/caravan/shrine/dungeon marker packs ship with the client in `Data/Client/*.xml`; hiking locations must first be unlocked by visiting them and securing a campfire. Details and what they mean for lumbering: [WORLD_LOCATIONS.md](WORLD_LOCATIONS.md) | H/M | see there |
 
 For the harness, "rune library" means our own catalogue: rune name → (book serial, slot, facet,
 x, y, purpose: home/field/bank/healer), stored in `Memory.meta`, plus in-game books named for

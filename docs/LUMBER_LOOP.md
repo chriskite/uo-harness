@@ -279,7 +279,9 @@ human noise varies the rest. Variation is required, not an inefficiency to remov
 **Not built (data or decisions missing):** gold/hour with per-wood prices (needs colored-board
 prices: record them with `ctl lumber price board:<wood> <gp>`; the objective then becomes value per
 hour, ECONOMY §6), recall-out as a routine return (needs a marked rune per spot), time-of-day hazard,
-per-spot regrowth, a Jobs-page view per spot.
+per-spot regrowth, a Jobs-page view per spot. **Reaching the whole map:** `discover` only searches
+30–110 tiles from a bank; spots reached by recall (the Witcher rune library, our own marked runes)
+or by hiking to Atlas POIs are researched and proposed in docs/research/WORLD_LOCATIONS.md.
 
 ## 7. Decisions (user, 2026-09-29)
 
