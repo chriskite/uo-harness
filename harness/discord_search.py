@@ -37,10 +37,9 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import discord_capture as dc  # noqa: E402
+from embedder import MODEL, device, model  # noqa: E402
 
 VEC_DB = os.path.join(dc.DATA, "discord_vec.db")
-MODEL = "BAAI/bge-small-en-v1.5"
-MODEL_CACHE = os.path.join(os.path.expanduser("~"), ".cache", "fastembed")
 GAP_S = 600
 MAX_MSGS = 12
 MAX_CHARS = 1200
@@ -56,36 +55,6 @@ CREATE TABLE IF NOT EXISTS chunks(
   last_id INTEGER NOT NULL, n_msgs INTEGER, text TEXT NOT NULL, vec BLOB NOT NULL);
 CREATE INDEX IF NOT EXISTS chunks_channel ON chunks(channel_id, first_id);
 """
-
-_model = None
-
-
-def model():
-    """The embedder, on the GPU (onnxruntime-gpu CUDA EP) when it loads, else the CPU.
-    The CUDA 13 / cuDNN 9 DLLs come from the venv's nvidia-* wheels (docs/NOTES.md)."""
-    global _model
-    if _model is None:
-        os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
-        import warnings
-        warnings.filterwarnings("ignore", message=".*symlinks.*")
-        warnings.filterwarnings("ignore", message=".*CUDAExecutionProvider.*")
-        import onnxruntime as ort
-        ort.set_default_logger_severity(3)  # shape ops placed on the CPU are expected; errors only
-        providers = ["CPUExecutionProvider"]
-        if "CUDAExecutionProvider" in ort.get_available_providers() and not os.environ.get("DISCORD_EMBED_CPU"):
-            try:
-                ort.preload_dlls()
-                providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
-            except Exception:
-                pass
-        from fastembed import TextEmbedding
-        _model = TextEmbedding(MODEL, cache_dir=MODEL_CACHE, providers=providers)
-    return _model
-
-
-def device():
-    sess = getattr(getattr(model(), "model", None), "model", None)  # fastembed internals
-    return "cuda" if sess and "CUDAExecutionProvider" in sess.get_providers() else "cpu"
 
 
 def _date(snowflake):

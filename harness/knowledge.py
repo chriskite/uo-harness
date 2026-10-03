@@ -27,18 +27,26 @@ Write discipline (the usual agent-memory hygiene):
     Wrong entries are retracted with a reason, never deleted.
   - importance 1..10 at write time (how much it matters if forgotten).
 
-Retrieval (Generative Agents style): FTS5 (BM25, porter stemming) relevance,
-recency (half-life RECENCY_HALF_LIFE_D, from the last update or access),
-importance, confidence, and a location boost for entries near a given tile.
-Every result returned counts as an access. `brief()` builds the query from
-the current situation (position, nearby NPC names, open junctures, the current
-intent) and adds the most important procedures and preferences.
+Retrieval (Generative Agents style): relevance, recency (half-life
+RECENCY_HALF_LIFE_D, from the last update or access), importance, confidence,
+and a location boost for entries near a given tile. Relevance is hybrid when
+the Knowledge has an embedder (ctl passes harness/embedder.py, bge-small on the
+GPU): the CANDIDATES nearest entries by meaning (cosine of "topic: content"
+vectors, kept in knowledge_vec and refreshed before each search) and the
+CANDIDATES best FTS5 hits (BM25, porter stemming) fused by reciprocal rank, so
+"what do I do after dying" finds the resurrect procedure without sharing a word.
+Without an embedder it is FTS5 alone. Every result returned counts as an access.
+`brief()` builds the query from the current situation (position, nearby NPC
+names, open junctures, the current intent) and adds the most important
+procedures and preferences.
 """
 import hashlib
 import json
 import math
 import re
 import time
+
+import numpy as np
 
 KINDS = ("fact", "procedure", "episode", "preference", "insight")
 SOURCES = {"observed": 0.9, "user": 0.95, "doc": 0.8, "wiki": 0.7, "community": 0.6, "inferred": 0.5}
@@ -48,6 +56,8 @@ W_REL, W_REC, W_IMP, W_CONF, W_NEAR = 1.0, 0.4, 0.5, 0.3, 0.6
 DUP_JACCARD = 0.85                   # near-identical wording counts as the same entry
 RELATED_JACCARD = 0.35
 CONFIRM_STEP = 0.5                   # a confirmation closes this share of the gap to 1.0
+CANDIDATES = 60                      # hybrid recall: entries taken from each ranking
+RRF_K = 60                           # reciprocal rank fusion constant
 COLS = ("id", "kind", "topic", "content", "tags", "entities", "facet", "x", "y", "source_type",
         "source_ref", "confidence", "importance", "status", "supersedes", "superseded_by",
         "retract_reason", "confirmations", "created_t", "updated_t", "last_access_t", "access_count")
@@ -93,11 +103,14 @@ def _row(r) -> dict:
 
 
 class Knowledge:
-    """Knowledge entries in a memory-store connection (memory.connect)."""
+    """Knowledge entries in a memory-store connection (memory.connect).
+    embed: None for word-only recall, or an embedder with MODEL, passages(texts)
+    and query(text) returning L2-normalised vectors (harness/embedder.py)."""
 
-    def __init__(self, con, now=time.time):
+    def __init__(self, con, now=time.time, embed=None):
         self.con = con
         self.now = now
+        self.embed = embed
 
     # ------------------------------------------------------------------ write
     def add(self, kind: str, topic: str, content: str, *, tags=(), entities=(), at=None,
@@ -269,27 +282,31 @@ class Knowledge:
                 args.append(f"% {t.strip().lower()} %")
         cols = ", ".join("k." + c for c in COLS)
         q = fts_query(query) if query else None
-        if q:
-            sql = (f"SELECT {cols}, -bm25(knowledge_fts, 3.0, 1.0, 2.0, 2.0) FROM knowledge_fts f "
-                   f"JOIN knowledge k ON k.id = f.rowid WHERE knowledge_fts MATCH ?"
-                   + "".join(f" AND {w}" for w in where) + " LIMIT 200")
-            rows = self.con.execute(sql, [q] + args).fetchall()
+        filt = "".join(f" AND {w}" for w in where)
+        if query and self.embed is not None:
+            cands = self._hybrid(query, q, cols, filt, args)
+        elif q:
+            rows = self.con.execute(f"SELECT {cols}, -bm25(knowledge_fts, 3.0, 1.0, 2.0, 2.0) FROM knowledge_fts f "
+                                    f"JOIN knowledge k ON k.id = f.rowid WHERE knowledge_fts MATCH ?{filt} LIMIT 200",
+                                    [q] + args).fetchall()
+            top = max((r[-1] for r in rows), default=0.0) or 1.0
+            cands = [(r[:-1], r[-1] / top, None) for r in rows]
         elif query:
             return []
         else:
-            sql = f"SELECT {cols}, 0.0 FROM knowledge k" + (f" WHERE {' AND '.join(where)}" if where else "") \
+            sql = f"SELECT {cols} FROM knowledge k" + (f" WHERE {' AND '.join(where)}" if where else "") \
                 + " LIMIT 1000"
-            rows = self.con.execute(sql, args).fetchall()
-        if not rows:
+            cands = [(r, 0.0, None) for r in self.con.execute(sql, args).fetchall()]
+        if not cands:
             return []
         now = self.now()
-        top_rel = max(r[-1] for r in rows) or 1.0
         if near is not None and len(near) == 2:
             near = (0, near[0], near[1])
         scored = []
-        for r in rows:
-            e = _row(r[:-1])
-            rel = r[-1] / top_rel if q else 0.0
+        for r, rel, sim in cands:
+            e = _row(r)
+            if sim is not None:
+                e["similarity"] = round(sim, 3)
             age_d = (now - max(e["updated_t"], e["last_access_t"] or 0)) / 86400.0
             rec = math.exp(-age_d * math.log(2) / RECENCY_HALF_LIFE_D)
             prox, dist = 0.0, None
@@ -309,6 +326,47 @@ class Knowledge:
                                  [(now, e["id"]) for e in out])
             self.con.commit()
         return out
+
+    def _hybrid(self, query, q, cols, filt, args) -> list[tuple]:
+        """(row, relevance 0..1, cosine) for the CANDIDATES nearest entries by meaning and the
+        CANDIDATES best FTS hits, relevance = their reciprocal-rank fusion scaled to the best."""
+        self._refresh_vectors()
+        vrows = self.con.execute(f"SELECT {cols}, v.vec FROM knowledge k JOIN knowledge_vec v ON v.id = k.id "
+                                 f"WHERE 1=1{filt}", args).fetchall()
+        if not vrows:
+            return []
+        mat = np.frombuffer(b"".join(r[-1] for r in vrows), dtype=np.float32).reshape(len(vrows), -1)
+        cos = mat @ self.embed.query(query)
+        by_id = {r[0]: (r[:-1], float(c)) for r, c in zip(vrows, cos)}
+        rankings = [[vrows[i][0] for i in np.argsort(-cos, kind="stable")[:CANDIDATES]]]
+        if q:
+            rankings.append([kid for (kid,) in self.con.execute(
+                f"SELECT k.id FROM knowledge_fts f JOIN knowledge k ON k.id = f.rowid WHERE knowledge_fts MATCH ?{filt} "
+                f"ORDER BY bm25(knowledge_fts, 3.0, 1.0, 2.0, 2.0) LIMIT {CANDIDATES}", [q] + args)])
+        fused = {}
+        for ranking in rankings:
+            for pos, kid in enumerate(ranking):
+                if kid in by_id:                    # written after the refresh: not embedded yet
+                    fused[kid] = fused.get(kid, 0.0) + 1.0 / (RRF_K + pos + 1)
+        top = max(fused.values(), default=1.0)
+        return [(by_id[kid][0], f / top, by_id[kid][1]) for kid, f in fused.items()]
+
+    def _refresh_vectors(self):
+        """Embed entries whose "topic: content" (or the model) changed since their vector."""
+        have = dict(self.con.execute("SELECT id, hash FROM knowledge_vec"))
+        todo = []
+        for kid, topic, content in self.con.execute("SELECT id, topic, content FROM knowledge"):
+            text = f"{topic}: {content}"
+            h = hashlib.sha1(f"{self.embed.MODEL}\n{text}".encode()).hexdigest()
+            if have.get(kid) != h:
+                todo.append((kid, text, h))
+        if not todo:
+            return
+        vecs = self.embed.passages([t for _, t, _ in todo])
+        self.con.executemany("INSERT OR REPLACE INTO knowledge_vec(id, hash, vec) VALUES (?, ?, ?)",
+                             [(kid, h, np.asarray(v, dtype=np.float32).tobytes())
+                              for (kid, _, h), v in zip(todo, vecs)])
+        self.con.commit()
 
     def brief(self, situation: dict, limit: int = 12) -> dict:
         """What to remember now. situation: {pos: [x, y, z], facet, mobiles:
@@ -361,4 +419,6 @@ def _brief(e: dict) -> dict:
         out["at"] = [e["facet"], e["x"], e["y"]]
     if "score" in e:
         out["score"] = e["score"]
+    if "similarity" in e:
+        out["similarity"] = e["similarity"]
     return out

@@ -540,6 +540,29 @@ authoritative.
 - **Not done:** prices (deferred by the user), images in messages (not read; image-only messages
   are skipped as in search).
 
+## Semantic `ctl know search` (decided and built 2026-10-03)
+
+User requests: make `ctl know search` a semantic search (the knowledge table now also holds the
+Discord facts); GPU over CPU as the default, always. This reverses the earlier "no embeddings"
+call (docs/MEMORY.md): word search missed paraphrases ("my character died" vs "resurrection").
+
+- **Hybrid, not pure vectors:** the 60 nearest by cosine and the 60 best BM25 hits, fused by
+  reciprocal rank, then the existing recency/importance/confidence/nearness score. Exact item
+  and NPC names still win through the word ranking; pure cosine ranks them below vague matches.
+  Same model and fusion as `discord_search.py`, through one shared loader, `harness/embedder.py`.
+- **Vectors in harness.db (`knowledge_vec`), embedded lazily by the searcher.** Writers (proxy,
+  `ctl know add`, `discord_kb promote`) never load the model; a search embeds whatever changed
+  first (~1 s on the GPU for the whole ~1k-entry store). Rejected: embedding at write time (every
+  writer would need the GPU stack and the 1 s load); a sidecar vector DB (another file to back up
+  and keep in sync for ~1k rows that numpy scans in microseconds).
+- **ctl's Python got the GPU stack** (fastembed-gpu + CUDA 13 wheels in the system Python 3.13,
+  same versions as `.venv-discord`). Rejected: running ctl from the venv (every other ctl path is
+  tested on the system Python) and shelling out to the venv per search (an extra process start).
+  Cost: ~1.5 s per `know search`/`brief` for the model load; a resident embedding service would
+  remove it but isn't worth a daemon yet.
+- Without fastembed in the running Python, recall falls back to words and says so (`recall:
+  words`), so a different `UO_PY` degrades instead of failing.
+
 ## Reaching the whole map: Witcher-rune spots and guarded walks (decided and built 2026-10-03)
 
 User request: can the overseer and the loop explore the whole overworld over time? The answer was

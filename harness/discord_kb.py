@@ -8,7 +8,7 @@ discord_capture.py) into consolidated, likely-true facts:
                discord_search.build_chunks conversation chunks up to WINDOW_CHARS) pulls
                grounded claims; every claim must cite message ids from its window and a
                verbatim quote, checked deterministically (failures are dropped).
-  consolidate  claims are embedded (bge-small, via discord_search.model) and leader-
+  consolidate  claims are embedded (bge-small, via embedder.py on the GPU) and leader-
                clustered by cosine >= CLUSTER_SIM; an LLM adjudicates each cluster into
                one fact with a verdict, then deterministic rules recount the independent
                authors and cap the verdict (official needs an official claim, consensus
@@ -57,6 +57,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import discord_capture as dc  # noqa: E402
 import discord_search as ds  # noqa: E402
+import embedder  # noqa: E402
 
 KB_DB = os.path.join(dc.DATA, "discord_kb.db")
 HARNESS_DB = os.path.join(dc.DATA, "harness.db")
@@ -590,8 +591,7 @@ def extract(kb, msgs, budget, channels=DEFAULT_CHANNELS, limit=None, today=None,
 
 def embed(texts):
     """L2-normalised float32 embeddings (n, d)."""
-    v = np.asarray(list(ds.model().embed(texts, batch_size=64)), dtype=np.float32)
-    return v / np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-12)
+    return embedder.passages(texts)
 
 
 def _dissolve(kb, cluster_id):

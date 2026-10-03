@@ -47,6 +47,7 @@ Rejected:
 | `teleporters` | (`facet`, `x`, `y`) | v3. Invisible server teleporter tiles learned by stepping onto one: `to_facet`/`to_x`/`to_y`/`to_z`, `n`, `first_t`, `last_t`. The Mover plans around them (docs/OVERSEER.md) |
 | `guard_points` | (`facet`, `x`, `y`) | Tiles we stood on when the server said "You are now under the protection of the town guards." (cliloc 500112) right after a one-tile step: `n`, `first_t`, `last_t`. `Mover.step` records them live; `python harness/guards.py backfill` replays the `events` table. The lumber runner's guard flight runs to them (docs/PLAN.md "Guard flight"). Added without a schema bump (`CREATE TABLE IF NOT EXISTS`) |
 | `knowledge` + `knowledge_fts` | `id` | v4. The overseer's long-term memory (below): `kind`, `topic`, `content`, `tags`, `entities`, optional `facet`/`x`/`y`, `source_type`/`source_ref`, `confidence`, `importance`, `status` (active/superseded/retracted), `supersedes`/`superseded_by`, `retract_reason`, `content_hash`, `confirmations`, `created_t`/`updated_t`/`last_access_t`/`access_count`. FTS5 (porter stemming) over topic, content, tags and entities, kept in sync by triggers |
+| `knowledge_vec` | `id` (= `knowledge.id`) | Since 2026-10-03, added without a schema bump. One embedding per entry for hybrid recall: `hash` (sha1 of model name + "topic: content"), `vec` (384 float32, L2-normalised). Filled lazily by `Knowledge.search`; regenerable, so losing it costs one re-embed (~1 s on the GPU for ~1k entries) |
 | `lumber_spots` | `id` | v5. Lumber spots for `lumber_opt.py` (docs/LUMBER_LOOP.md §6): `status` (active/candidate/disabled), `data` (the spot JSON; `{}` = a status override of a seed in `harness/data/lumber_spots.json`), `reason`, `source` (overseer/discover), `created_t`, `updated_t`. Written by `ctl lumber spot add\|set` and `ctl lumber discover` |
 | `prices` | `id` | v5. Observed market prices, append-only: `item` (`hatchet:<material>[:<quality>]`, `board:<wood>`), `price_gp`, `t`, `source`, `note`; the newest per item counts (`Memory.prices`). Written by `ctl lumber price` |
 | `meta` | `key` | `schema_version`; `captcha_mode` (`human`/`auto`, missing = `human`; who answers the harvest captcha, set from the viz header, read by the runner at every captcha); overseer bus (docs/OVERSEER.md): `tasks` (running task entries), `task_stop`, `overseer_juncture_cursor`, `overseer_chat_cursor`, `overseer_heartbeat` (epoch s); Telegram bridge (docs/OVERSEER.md §8): `telegram_chat_cursor`, `telegram_juncture_cursor`, `telegram_update_offset` |
@@ -113,9 +114,11 @@ and its dealings with players and the user, kept across sessions. It is exposed 
   - `preference` (user directives)
   - `insight` (lessons generalised from episodes)
 - **Provenance on every entry.**
-  - `source_type`: observed / user / doc / wiki / inferred.
+  - `source_type`: observed / user / doc / wiki / community / inferred (community = Discord
+    claims promoted by `harness/discord_kb.py`).
   - `source_ref`: capture tag, chat#, juncture#, URL or screenshot.
-  - Confidence defaults by source: user 0.95, observed 0.9, doc 0.8, wiki 0.7, inferred 0.5.
+  - Confidence defaults by source: user 0.95, observed 0.9, doc 0.8, wiki 0.7, community 0.6,
+    inferred 0.5.
 - **No silent duplicates.** The same normalised content, or ≥ 85% word overlap on the same topic,
   confirms the existing entry: confirmations += 1, and confidence closes half the gap to 1,
   capped by the new evidence's source. Every write returns `related` entries (same topic or
@@ -123,22 +126,28 @@ and its dealings with players and the user, kept across sessions. It is exposed 
 - **History, not overwrites.** A content change makes a new version that supersedes the old
   one. Wrong entries are retracted with a reason. Nothing is deleted.
 - **Ranked recall** (Generative Agents style), as a score:
-  - 1.0 × BM25 relevance (normalised within the result set; topic weighted 3×, tags and
-    entities 2×)
+  - 1.0 × relevance. Hybrid since 2026-10-03 (user request) whenever the running Python has
+    the embedder (`ctl` does): the 60 entries nearest the query by meaning (cosine of
+    bge-small vectors of "topic: content", on the GPU via `harness/embedder.py`) and the 60
+    best FTS5 BM25 hits (topic weighted 3×, tags and entities 2×), fused by reciprocal rank
+    (k = 60) and scaled to the best. So "my character died, how do I come back" finds the
+    resurrection procedure without sharing its words. Without the embedder: BM25 alone,
+    normalised within the result set.
   - \+ 0.4 × recency (14-day half-life from the last update or access)
   - \+ 0.5 × importance/10
   - \+ 0.3 × confidence
   - \+ 0.6 × nearness (fades to 0 at 40 tiles on the same facet)
 
-  Results count as accesses. Queries are reduced to quoted words, so FTS syntax in them is
-  harmless.
+  Results count as accesses and carry `similarity` (the cosine) in hybrid mode. Queries are
+  reduced to quoted words for FTS, so FTS syntax in them is harmless. Vectors live in
+  `knowledge_vec` (id, sha1 of model + text, float32 blob); every search first embeds the
+  entries whose text or model changed, so writers (proxy, ctl add) never load the model.
 - **Situational brief.** `brief` builds the query from where the agent is (position, nearby NPC
   labels, open junctures, intent, task) and always adds preferences/procedures of importance ≥ 7.
 - **Maintenance.** `review` lists unconfirmed inferences, entries never recalled for 30 days, and
   topics with several active facts.
 
-Not built: embeddings (FTS5 + stemming is enough at this size and needs no model or network), and
-automatic summarisation of episodes into insights. The overseer writes insights itself.
+Not built: automatic summarisation of episodes into insights. The overseer writes insights itself.
 
 ## Next
 

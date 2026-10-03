@@ -237,7 +237,7 @@ sessions in the memory store's `knowledge` table (docs/MEMORY.md). Kinds:
 | `know confirm ID [--source --ref]` | Seen true again: confirmations += 1, confidence up |
 | `know retract ID --reason R` | It was wrong: retracted with the reason, never deleted |
 | `know get ID [--history]` | One entry, with its version chain |
-| `know search [WORDS…] [--kind] [--tag]… [--near X Y \| --here] [--limit] [--all]` | Ranked recall: stemmed full-text relevance, recency (14-day half-life), importance, confidence and nearness. Counts as an access |
+| `know search [WORDS…] [--kind] [--tag]… [--near X Y \| --here] [--limit] [--all]` | Ranked recall: relevance by meaning and words (a plain-language question works; `similarity` per result), recency (14-day half-life), importance, confidence and nearness. `recall` says how it ranked: `hybrid (cuda)`, `words` if this Python lacks the embedder, `none` without query words. Loads the embedding model, so ~1.5 s slower than other `know` ops. Counts as an access |
 | `know brief [--limit]` | What to remember **now**: entries relevant to your position, nearby NPCs, open junctures, intent and task, plus standing procedures/preferences of importance ≥ 7 |
 | `know review [--stale-days 30]` | Maintenance: unconfirmed inferences, entries never recalled in 30 days, topics with several active facts (possible contradictions) |
 | `know stats` | Counts by kind and status |

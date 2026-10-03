@@ -140,6 +140,9 @@ CREATE TRIGGER IF NOT EXISTS knowledge_au AFTER UPDATE OF topic, content, tags, 
     INSERT INTO knowledge_fts(rowid, topic, content, tags, entities)
     VALUES (new.id, new.topic, new.content, new.tags, new.entities);
 END;
+-- semantic recall (knowledge.py): one embedding of "topic: content" per entry; hash = sha1(model + text)
+CREATE TABLE IF NOT EXISTS knowledge_vec(
+    id INTEGER PRIMARY KEY, hash TEXT NOT NULL, vec BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS lumber_spots(
     id TEXT PRIMARY KEY, status TEXT NOT NULL, data TEXT NOT NULL, reason TEXT,
     source TEXT NOT NULL, created_t REAL NOT NULL, updated_t REAL NOT NULL);

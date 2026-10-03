@@ -2270,8 +2270,19 @@ def cmd_map(a, mem):
 
 
 def _knowledge(mem):
+    """Recall is hybrid (meaning + words, bge-small on the GPU via embedder.py) when this
+    Python has fastembed, else words only; the model loads only when a search runs."""
+    import embedder
     import knowledge
-    return knowledge, knowledge.Knowledge(mem.con)
+    return knowledge, knowledge.Knowledge(mem.con, embed=embedder if embedder.available() else None)
+
+
+def _recall_mode(k) -> str:
+    """How relevance was ranked: 'hybrid (cuda|cpu)' (meaning + words), 'words' (no
+    embedder in this Python), or 'none' (no query words: importance/recency/confidence only)."""
+    if k.embed is None:
+        return "words"
+    return f"hybrid ({k.embed.device()})" if k.embed.loaded() else "none"
 
 
 def _situation(a, mem) -> dict:
@@ -2359,7 +2370,7 @@ def cmd_know(a, mem):
             query = " ".join(a.query)
             res = k.search(query or None, kind=a.kind, tags=a.tag or (), near=near,
                            limit=a.limit, include_inactive=a.all)
-            out = {"results": [kmod._brief(e) | {"status": e["status"]} for e in res]}
+            out = {"results": [kmod._brief(e) | {"status": e["status"]} for e in res], "recall": _recall_mode(k)}
             filters = " ".join(f for f in (f"kind={a.kind}" if a.kind else "",
                                            *(f"tag={t}" for t in (a.tag or ())),
                                            f"near {near[1]},{near[2]}" if near else "") if f)
@@ -2367,7 +2378,7 @@ def cmd_know(a, mem):
                    {"query": query, "filters": filters, "near": list(near) if near else None,
                     "results": [_compact(e) for e in res[:MEMORY_ROW_RESULTS]]})
         elif op == "brief":
-            out = k.brief(_situation(a, mem), limit=a.limit)
+            out = k.brief(_situation(a, mem), limit=a.limit) | {"recall": _recall_mode(k)}
             row = (f"briefed: {len(out['relevant'])} relevant, {len(out['standing'])} standing",
                    {"query": out["query"], "near": out["near"],
                     "relevant": [_compact(e) for e in out["relevant"][:MEMORY_ROW_RESULTS]],

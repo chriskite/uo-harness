@@ -3,13 +3,17 @@
 What a consumer relies on: duplicates become confirmations, related entries
 surface on write, edits keep history, retractions need reasons, ranked recall
 (relevance, location, importance, recency), filters, safe queries, the
-situational brief and the review. Offline, temp store, fake clock.
+situational brief and the review; with an embedder, recall by meaning that keeps
+the filters and embeds new or changed entries once. Offline, temp store, fake
+clock, fake embedder (concept axes instead of the model).
 
 Run: python harness/test_knowledge.py
 """
 import os
 import sys
 import tempfile
+
+import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -171,8 +175,62 @@ def test_brief_review():
     check("stats by kind and status", s["by_kind"]["fact"]["active"] == 3 and s["total"] == 6, str(s))
 
 
+class FakeEmbedder:
+    """Words map to concept axes, so 'dying' and 'resurrect' meet without sharing a word."""
+    MODEL = "fake-concepts"
+    AXES = ({"die", "dying", "died", "dead", "death", "ghost", "resurrect", "healer"},
+            {"tree", "trees", "wood", "chop", "lumber", "walnut", "cedar"},
+            {"bank", "gold", "banker", "vault"})
+
+    def __init__(self):
+        self.embedded = 0
+
+    def _vec(self, text):
+        ws = {w.strip(".,:;!?").lower() for w in text.split()}
+        v = np.array([float(len(ws & ax)) for ax in self.AXES] + [0.05], dtype=np.float32)
+        return v / np.linalg.norm(v)
+
+    def passages(self, texts):
+        self.embedded += len(texts)
+        return np.vstack([self._vec(t) for t in texts])
+
+    def query(self, text):
+        return self._vec(text)
+
+
+def test_semantic():
+    print("== semantic recall (fake embedder) ==")
+    clock = Clock()
+    con = memory.connect(os.path.join(tempfile.mkdtemp(), "harness.db"))
+    emb = FakeEmbedder()
+    k, words_only = Knowledge(con, now=clock, embed=emb), Knowledge(con, now=clock)
+    proc = k.add("procedure", "resurrect", "Walk a ghost to a healer; the gump opens within 2 tiles")["id"]
+    tree = k.add("fact", "trees", "Walnut trees grow near the Shelter inn")["id"]
+    old = k.add("fact", "death penalty", "Death costs 10% of skills when you die murdered")["id"]
+    k.retract(old, "wrong: no skill loss")
+    q = "what do I do after dying"
+    check("word-only recall can't find it: no shared word", words_only.search(q, touch=False) == [])
+    res = k.search(q, touch=False)
+    check("recall by meaning: the resurrect procedure first, with its similarity",
+          res and res[0]["id"] == proc and res[0]["similarity"] > 0.9, str(res[:2]))
+    check("retracted entries stay out unless asked for",
+          old not in [e["id"] for e in res] and old in [e["id"] for e in k.search(q, include_inactive=True,
+                                                                                   touch=False)])
+    check("the kind filter holds in the meaning ranking",
+          [e["kind"] for e in k.search(q, kind="fact", touch=False)] == ["fact"])
+    n = emb.embedded
+    k.search("chop wood", touch=False)
+    check("unchanged entries aren't embedded again", emb.embedded == n, f"{n} -> {emb.embedded}")
+    bank = k.add("procedure", "banking", "Say bank to the banker to open your vault")["id"]
+    res = k.search("where do I keep my gold", touch=False)
+    check("an entry added after the last search is embedded and found",
+          emb.embedded == n + 1 and res[0]["id"] == bank, str(res[:1]))
+    check("a word match still counts: 'walnut' finds the tree fact first",
+          k.search("walnut", touch=False)[0]["id"] == tree)
+
+
 def main():
-    for t in (test_write_discipline, test_versions, test_recall, test_brief_review):
+    for t in (test_write_discipline, test_versions, test_recall, test_brief_review, test_semantic):
         t()
     print(f"\nknowledge: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     return 1 if FAILURES else 0
