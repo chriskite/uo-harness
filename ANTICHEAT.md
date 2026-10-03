@@ -160,6 +160,8 @@ Working rules, each tied to a detection surface above:
 
     **Second real 9 (session 20261001_214649, 2026-10-01 22:10, answered by the human: "911", submit 528, accepted).** The user called it "real funky": the 9's 14 dots spread 86 px wide (the earlier 9 about 45), with strays on both sides of the loop, and the last 1 has a stray dot far right of its stem, so that cluster is 86 px wide too. The solver (font of the 11 earlier captchas, one real 9) read it right out of sample: 911 at margins 0.636/0.717/0.647, submit button 528 picked out. Added as the 12th sample (37 references). With two real 9s, the leave-one-session-out pass now covers all 12 captchas and solves all 12; 194's 9 reads right from the new 9 alone (margin 0.502). Noise bootstrap: 98.1 % right among accepted digits, 16.4 % rejected. Digit 0 still has only the synthetic reference.
 
+    **Dataset 24 (2026-10-03).** 12 more real captchas, all accepted: 11 answered live by the solver in `auto` on 2026-10-02 (sessions 20261002_153718 ×6, 181221 ×1, 183845 ×4: 978, 881, 571, 331, 551, 422, 114, 772, 356, 841, 182; agent `0xB1` 7.1–20.2 s after the gump opened) and one by the human on 2026-10-03 (150103: 357, 7.5 s). All 12 were out of sample for the 37-reference font, and every digit's margin was ≥ 0.25 (lowest: the 5 of 357 at 0.250, the 5 of 356 at 0.272, the 9 of 978 at 0.284). Added as samples 13–24 (73 references; per digit 1:15, 2:8, 3:9, 4:6, 5:7, 6:4, 7:12, 8:8, 9:3, 0 still synthetic). Leave-one-session-out now covers and solves 24/24, closest digit margin 0.247 (the 3 of 373, 0.109 before). The synthetic noise bootstrap dropped slightly: 97.2 % right among accepted digits, 19.4 % rejected (98.1 % / 16.4 % with 37 references). The real glyph variation is wider than the bootstrap's jitter, so more real references put other digits' shapes closer to a jittered one [INFERENCE]; on real captchas the font has never answered wrong. `captcha._dist` was rewritten to compute one squared-distance matrix per shift for both Chamfer directions (same result to 3e-17, ~1.7× faster; ~0.19 s per digit against 73 references).
+
     **Captcha mode: human by default, auto by toggle (user decision 2026-10-01).** Who answers is a memory-store setting (`meta.captcha_mode`, `Memory.captcha_mode()`), switched by the `captcha [human|auto]` toggle in the viz header (docs/VISUALIZER.md §2.2a). Unset means `human`: the runner pauses, posts an urgent `captcha` juncture and beeps until the solve is seen in the client, so nothing is sent for the captcha. In `auto` the solver above answers; unreadable layouts, rejected answers, or the client answering first fall back to the human wait. The runner reads the mode at every captcha and on every poll while it waits, so flipping to `auto` mid-wait hands the newest captcha to the solver. Before sending, the solver checks that the client hasn't already answered that captcha (no `0xB1` for its serial and no "Captcha successful."), so one gump never gets two answers. The overseer (`ctl act gump`) never answers the captcha in either mode. Smoke-tested offline against a scripted link: default human, auto, a mid-wait flip after a wrong human answer (the solver answered the newest captcha), and the client answering during the solver's delay (nothing sent).
 
 12. **Injected speech must be keyword-encoded like the stock client (2026-09-29).** The stock client encodes any speech that matches a `speech.mul` keyword (type |= 0xC0, 12-bit ids, UTF-8). The Outlands encoder `Send_UnicodeSpeechRequest @ 0x140151c20`, `GetKeywords @ 0x1401bbc60` and `IsMatch @ 0x1401bba40` are the upstream algorithm. The harness's old `say_unicode` always sent plain UTF-16. So the **"hello" injected during the Phase 3 live test (session 20260928_211622) was not client-identical**: speech.mul id 59 = "hello", and a stock client would have sent it encoded. Server-side, a keyword word arriving unencoded is a detectable anomaly [INFERENCE on whether it is checked]. Fixed: `harness/uo/speech.py` + `actions.say_unicode` now reproduce the stock client exactly (verified against the real client's "bank" `ad0016c0…62616e6b00`, session 20260929_161433). Likewise, "look at NPC" now sends the stock sequence `09` + `34 …04` (+ `98` for unnamed), as seen in 518/523 real clicks.
@@ -486,6 +488,26 @@ median 0.111, p90 0.117 s (the user's own: median 0.100, p90 0.104). All 104 con
 Player houses (0xF3 multis) were also missing from the walk
 rules. That cost 12 server denies at one house in this session (a denied-walk pattern no client
 produces). Fixed the same day (docs/NOTES.md).
+
+**A14 (found 2026-10-03 in the capture audit, sessions 20261003_113952/123614/125556; open, user decision needed): the client's Auto Open Corpses follows every agent step, like Auto Open Doors did (A11).**
+The user's client has Auto Open Corpses on (stock option; every double-click was within 2 tiles).
+The Outlands client retries a corpse it couldn't open (upstream ClassicUO `TryOpenCorpses` adds
+each serial to `AutoOpenedCorpses` and never tries it again; here single corpses got up to 42
+tries, and the community KB says Outlands' auto-open "catches it on your next step",
+docs/research/DISCORD_KB.md). The per-confirm re-anchor (fabricated `0x21`) is a position update
+for the client, so during agent walking the client double-clicks every unopened corpse in range on
+every agent step. In 125556 the client sent 262 double-clicks to 92 corpses (one corpse 42 times,
+in bursts of 5 at 0.2–0.45 s [INFERENCE: agent walk-offs]); 195 of them came within 0.5 s
+after a re-anchor with nothing in between. The server answered 212 × "You may not loot this
+corpse." over the three captures. Server view: a player walking those steps himself with the
+option on would send the same double-clicks [INFERENCE, medium: per the KB's retry-on-step]. So no
+non-stock packet, but
+the client spends actions the agent's loot may collide with (none seen: both 500119 "You must wait
+to perform another action" of 10-03 followed human clicks). Options: turn Auto Open Corpses off in
+the client (the agent opens its own corpses), or keep it and accept the retries. Related, agent
+side: the hunt runner tried to lift from 35 corpses the server had just refused ("Players cannot
+commit aggressive actions in that location.", docs/NOTES.md "Traffic audit"), each lift ~0.4 s after
+the refusal; a human might try the same once, the runner does it every time [INFERENCE, low].
 
 ---
 

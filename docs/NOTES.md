@@ -159,7 +159,8 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 
 - Triggers: lumberjacking, mining, fishing, forensic evaluation, sheep shearing, lockpicking chests — every 5–10 min of activity. (Land fishing currently exempt.)
 - Mechanics: enter the dotted digits, click Okay twice; success suppresses next captcha for 10–15 min. Fail ×3 = 6 h harvest block (scales with priors). Same captcha persists across relog until solved; closing it cancels the harvest attempt.
-- Digits are fixed shapes with dots displaced — template-matching territory. **Solver built 2026-09-30: `harness/captcha.py` reads the digits from the gump layout's tilepic dot clusters against `harness/data/captcha_font.json` (mined from the 12 captured captchas, 37 references since 2026-10-01; digit 0 is synthetic, unverified; digit 9 has two real samples). Margin-gated; falls back to pause + beep. Tests: `harness/test_captcha.py`, including a leave-one-session-out check (ANTICHEAT.md §8.8 "Live").** **Since 2026-10-01 (user decision) it only runs in captcha mode `auto`:** the mode is `meta.captcha_mode` in the memory store (missing = `human`), switched from the viz header; in `human` the runner pauses and beeps until the client shows "Captcha successful." (ANTICHEAT.md §8.8).
+- Digits are fixed shapes with dots displaced — template-matching territory. **Solver built 2026-09-30: `harness/captcha.py` reads the digits from the gump layout's tilepic dot clusters against `harness/data/captcha_font.json` (mined from the 24 captured captchas, 73 references since 2026-10-03; digit 0 is synthetic, unverified; every other digit has ≥ 3 real samples). Margin-gated; falls back to pause + beep. Tests: `harness/test_captcha.py`, including a leave-one-session-out check (ANTICHEAT.md §8.8 "Live").** **Since 2026-10-01 (user decision) it only runs in captcha mode `auto`:** the mode is `meta.captcha_mode` in the memory store (missing = `human`), switched from the viz header; in `human` the runner pauses and beeps until the client shows "Captcha successful." (ANTICHEAT.md §8.8).
+- **The harvest attempt that raised the captcha resumes after the solve** (all 24 captures): the server answers that attempt right after "Captcha successful.", at once for an instant check (500493 not enough wood, 500489 not a tree) or one chop time later (~4.1 s: logs or 500495 fail). So the runner's next chop result after a captcha belongs to the target it sent before the captcha.
 - Loop-relevant mechanics (wiki, read 2026-09-29; details and links in docs/LUMBER_LOOP.md §2):
   - Lumberjacking uses Smart Harvest: double-click the hatchet to auto-harvest nearby trees. The Smart Harvest page instead says to self-target non-pickaxe tools; verify on the wire.
   - Harvesting is blocked in town regions, except Shelter Island while Young.
@@ -524,6 +525,53 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   and the pull range is capped at 10. The loot loop also never healed: hits fell 64 → 49 of 84
   while looting and it left without drinking; loot() now heals and checks the leave rules
   before each item.
+
+## Traffic audit of the 2026-10-02/03 captures (2026-10-03)
+
+All 20 sessions 20261001_214649 … 20261003_150103 replayed in timed order (`replay.timed_packets`
+→ `WorldRuntime`); 10-03 findings unless a date is given.
+
+- **The proxy layer handled everything.** Every jsonl row matches its raw packet; 0 parse
+  failures, 0 anomalies. 17 `c2s_stale_token_dropped` (the client re-sent spent fastwalk token 1,
+  forced to 0): every walk was confirmed. 375 fabricated target cancels = 375 spent-cursor drops.
+  All 63 server denies (`blocked`) have a cause on the wire: client steps into closed doors
+  (0x06A5/0x06ED at the Outpost bank, 0x06E5 the rental-room door) and once into a mobile; agent
+  steps onto the NPD teleporter tiles (1912,2556), (5535,530), (5537,530) (a teleport answers as a
+  deny, docs/HUNT_LOOP.md), 3 onto the door tile (5532,505) and one into a mobile.
+- **World-model gaps (no state lost):** S2C `0x76` (22 B) is unhandled, but every one so far
+  (since 2026-09-29) comes on a map-region jump (rental room in/out, some logins) and is followed
+  by the self `0x20` the model uses. Layout `76 <x u32> <y u32> <z i32> <5 × 00> <width u16> <height
+  u16>`: the Outpost room interior `x 195 y 1677 z 1, 0x0A00 × 0x0800` (2560 × 2048, facet 3),
+  the mainland `0x2A00 × 0x1800`. `0x2C` (death screen; 10-02 19:43 PK, 10-03 10:23) is still
+  unparsed (docs/research/TRAVEL_DEATH.md).
+- **Hunt loot refused, counted as taken.** 35 of 125 agent corpse opens in the NPD hunts
+  (113952, 123614, 125556) got "Players cannot commit aggressive actions in that location.", 25 of
+  them within 5 s of our own "You have gained a little fame." (our kill). The runner then lifts
+  anyway: a second refusal, `27 05` (lift reject), the item back in the corpse (`0x25`) and, 190 ms
+  later, a `0x1D` for it. The world model loses the item, so `loot()` counts it as moved: e.g.
+  13:03:58 "looted 1 item(s) from a mongbat: +0 gold, ~21 xp". The `xp` estimate also counts the
+  refused corpse's gold. [INFERENCE: loot rights belong to the top damager, and in the NPD looting
+  someone else's corpse is an aggressive act.] Gold accounting is right (measured pack gain).
+- **The client's Auto Open Corpses re-fires on every re-anchor.** 212 "You may not loot this
+  corpse." in the three hunt captures. In 125556 the client double-clicked 92 corpses 262 times
+  (one 42 times, in bursts of 5 at 0.2–0.45 s [INFERENCE: agent walk-offs]); 195 of the 262
+  came within 0.5 s after a fabricated re-anchor `0x21` with nothing in between. ANTICHEAT.md A14.
+- **O'hii trees (0x0C9E, tiledata "o'hii tree") can't be chopped:** all 9 in the harvest memory
+  answered 500489 "You can't use an axe on that.", 0 successes (all three 10-03 not-a-tree answers
+  at witcher rune 291, Hidden Valley). `uomap.find_trees` lists them; the harvest memory learns
+  each one on its first try.
+- **Character creation on the wire (113853/113952, Shackleworth).** From the character list:
+  C2S `ff 0014 00000008 "Shackleworth\0"` (Outlands sub 8, name check) → S2C `ff 0008 0000000f 01`
+  (sub 0x0F: 01 = name accepted [INFERENCE from what followed]), then a 62-byte C2S `0x00` create
+  (upstream: 104/106 B). The first try got S2C `53 05` (ClassicUO ServerErrorMessages 0x53 code 5
+  "Another character from this account is currently online", cliloc 3000012): Hackworth had left
+  the game 1 min before. The second went straight into the world (`0x1B`, `0x55`), and the
+  template is picked afterwards in a server gump, `0xDB945D3E` (Premade Template (Beginner) /
+  Custom Template (Advanced); pages of templates with stats, skills, items and a wiki button;
+  button 10 "Enter Outlands With This Template", pressed three times by the user).
+- **More gump ids:** `0x2F4B567E` "Shelter Island Maximum Skill Level Reached for Wrestling 80.0"
+  (Guide, button 0 only); `0x19C9F0B7` "Quest Ready for Completion" ("Rune All You Like", button 1
+  View Quest; closed with 0).
 
 ## Runebook and rune tome gumps (live 2026-10-02, TestWorth on the Test Shard)
 

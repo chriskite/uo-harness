@@ -96,21 +96,20 @@ def _normalize(pts):
 
 def _dist(a, b):
     """Translation-aligned trimmed Chamfer distance between normalized point
-    sets (lower = more similar)."""
+    sets (lower = more similar). One squared-distance matrix per shift serves
+    both directions (row minima: a -> b, column minima: b -> a)."""
+    diffs = [[(x - u, y - v) for u, v in b] for x, y in a]
+    ka = max(1, int(len(a) * (1 - TRIM)))
+    kb = max(1, int(len(b) * (1 - TRIM)))
     best = 1e9
     for si in range(STEPS):
         dx = -SHIFT + 2 * SHIFT * si / (STEPS - 1)
         for sj in range(STEPS):
             dy = -SHIFT + 2 * SHIFT * sj / (STEPS - 1)
-            bs = [(x + dx, y + dy) for x, y in b]
-
-            def dm(P, Q):
-                ds = sorted(min(math.hypot(x - u, y - v) for u, v in Q)
-                            for x, y in P)
-                k = max(1, int(len(ds) * (1 - TRIM)))
-                return sum(ds[:k]) / k
-
-            c = (dm(a, bs) + dm(bs, a)) / 2
+            m = [[(ex - dx) ** 2 + (ey - dy) ** 2 for ex, ey in row] for row in diffs]
+            ab = sorted(math.sqrt(min(row)) for row in m)
+            ba = sorted(math.sqrt(min(col)) for col in zip(*m))
+            c = (sum(ab[:ka]) / ka + sum(ba[:kb]) / kb) / 2
             if c < best:
                 best = c
     return best
