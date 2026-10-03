@@ -306,22 +306,32 @@ instant straight approach, about a 1.7 s first hit) still beats a recall from a 
 recall is the only action with a chance, so it wins.
 
 Policy (lumber and hunt runners, overseer):
-1. **Readiness gate off guarded ground:** a runebook in the pack with a home rune (Horseshoe Bay
-   inn), and either Recall in the spellbook plus reagents or the spellstone, or book charges. A
-   carried-wood cap applies (bank at ~200 boards in PvP regions). Missing → the runner refuses to
-   start outside guards. Hackworth has none of this now: no runebook, and the spellstone bag is
-   on his corpse.
+1. **Readiness gate off guarded ground:** a recall source in the pack and a way to cast it. That
+   is a runebook with a home rune, **or a single marked rune**: Recall's target cursor comes at the
+   end of the 2.0 s cast, and the harness answers it at once, so the timing matches the book's
+   button. Plus Recall in the spellbook with reagents or the spellstone, or recall scrolls / book
+   charges. Missing → the runner refuses to start outside guards.
+   - **Banking** stays on the return trigger, not a fixed cap: `Q* = r·sqrt(2T/h)` (LUMBER_LOOP §6;
+     by value `V* = ρ·sqrt(2T/h)`, ECONOMY §6). The PK hazard `h` per region now has its first
+     data point. User 2026-10-02: the opportunity cost of banking trips is high, so don't bank
+     more often than the trigger says.
 2. **Trigger:** any notoriety-6 mobile in view, a 0xAA or "… is attacking you!" naming a player,
    or player damage. For reds, no ETA test: the 0.6 s estimate (strike range 12, straight line)
    was 8× off, and every red in view is in range anyway.
-3. **Action:** within a human reaction (0.3–0.7 s), press the home rune's Recall button.
+3. **Action:** recall at once, **no added pause** (user 2026-10-02).
    - No salvage conversion, no war mode, never attack back (Heat of Battle would block recall;
      auto-defence swings don't count).
-   - Don't move while casting [RunUO freezes; Outlands untested].
-4. **Interrupted (500641) and alive:** mounted, ride straight away from the attacker, breaking
-   line of sight where possible. Recast after ~1 s without damage. At most 3 casts.
+   - The game holds you still while casting (user 2026-10-02), so the runner just waits for the
+     cast.
+4. **Interrupted (500641) and alive:** ride away and recast.
+   - **Hamstring is the PK opener because it ends running.** Live: "Their attack hamstrings
+     you!" with the first hit, "You are no longer hamstrung." 3.08 s later. The wiki says stamina
+     goes to 0, forcing a walk (mounted walk 5 tiles/s vs the PK's 10). While hamstrung, running
+     is pointless: recast at once.
+   - Running away is only worth it before the first hamstring or after one wears off. It's an open
+     design problem: line of sight, terrain the PK's path must go around, toward guards.
    - With no recall source at all: ride to the nearest known guard edge.
-   - A "5…1" countdown over an attacker = an explosion potion ~5–6 s after "5": keep moving.
+   - A "5…1" countdown over an attacker = an explosion potion ~5–6 s after "5".
 5. **After landing:** urgent `pk_escape` juncture with the killer's name and the spot. Wait out the
    60 s harvest lockout, then walk 5 steps (stationary penalty). The overseer keeps the character
    away from that region for ≥ 30 min and records the PK in `know`.
