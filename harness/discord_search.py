@@ -2,8 +2,9 @@
 (docs/NOTES.md "Discord capture" → "Semantic search"; decision: docs/PLAN.md).
 
 Hybrid retrieval over harness/data/discord.db (filled by discord_capture.py):
-  - meaning: BAAI/bge-small-en-v1.5 embeddings (fastembed, local ONNX on the CPU, no
-    network after the one-time model download) of conversation chunks, cosine similarity;
+  - meaning: BAAI/bge-small-en-v1.5 embeddings (fastembed-gpu, local ONNX on the GPU with a
+    CPU fallback, no network after the one-time model download) of conversation chunks,
+    cosine similarity;
   - words: the FTS5 BM25 index of single messages (porter stemming), words OR-ed;
   merged by reciprocal rank fusion, so an exact item name and a paraphrase both surface.
 
@@ -60,14 +61,31 @@ _model = None
 
 
 def model():
+    """The embedder, on the GPU (onnxruntime-gpu CUDA EP) when it loads, else the CPU.
+    The CUDA 13 / cuDNN 9 DLLs come from the venv's nvidia-* wheels (docs/NOTES.md)."""
     global _model
     if _model is None:
         os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
         import warnings
         warnings.filterwarnings("ignore", message=".*symlinks.*")
+        warnings.filterwarnings("ignore", message=".*CUDAExecutionProvider.*")
+        import onnxruntime as ort
+        ort.set_default_logger_severity(3)  # shape ops placed on the CPU are expected; errors only
+        providers = ["CPUExecutionProvider"]
+        if "CUDAExecutionProvider" in ort.get_available_providers() and not os.environ.get("DISCORD_EMBED_CPU"):
+            try:
+                ort.preload_dlls()
+                providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+            except Exception:
+                pass
         from fastembed import TextEmbedding
-        _model = TextEmbedding(MODEL, cache_dir=MODEL_CACHE)
+        _model = TextEmbedding(MODEL, cache_dir=MODEL_CACHE, providers=providers)
     return _model
+
+
+def device():
+    sess = getattr(getattr(model(), "model", None), "model", None)  # fastembed internals
+    return "cuda" if sess and "CUDAExecutionProvider" in sess.get_providers() else "cpu"
 
 
 def _date(snowflake):
@@ -140,7 +158,7 @@ def refresh(db_path=dc.DEFAULT_DB, vec_path=VEC_DB, log=print):
     if stale:
         v.executemany("DELETE FROM chunks WHERE hash=?", [(h,) for h in stale])
     if new:
-        log(f"embedding {len(new)} new chunks ...")
+        log(f"embedding {len(new)} new chunks on the {device()} ...")
         for i in range(0, len(new), 256):
             batch = new[i:i + 256]
             vecs = list(model().embed([c["text"] for c in batch], batch_size=64))

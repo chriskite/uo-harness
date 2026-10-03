@@ -477,8 +477,9 @@ run it: docs/NOTES.md "Discord capture".
 
   Single chat lines are too short to embed well, so a chunk is one exchange: consecutive
   messages less than 10 min apart, at most 12 messages or 1200 characters. The model is
-  `BAAI/bge-small-en-v1.5` via fastembed (ONNX on the CPU, nothing leaves the machine after the
-  model download). Vectors live in `harness/data/discord_vec.db`, keyed by the chunk text's hash,
+  `BAAI/bge-small-en-v1.5` via fastembed (ONNX on the GPU via onnxruntime-gpu, with a CPU
+  fallback; nothing leaves the machine after the model download). Vectors live in
+  `harness/data/discord_vec.db`, keyed by the chunk text's hash,
   and search is brute-force numpy cosine. Rejected:
   - sqlite-vec: an extension for a corpus that numpy scans in milliseconds
   - torch/sentence-transformers: a 2 GB dependency, as in `.venv-laya`
