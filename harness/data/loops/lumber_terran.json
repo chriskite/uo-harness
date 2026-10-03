@@ -78,11 +78,11 @@
     "smart_harvest_self_target": "untested: the demo targeted trees, one attempt per dclick",
     "area": {
       "center": [
-        815,
-        1502
+        880,
+        1480
       ],
       "radius": 30,
-      "note": "Pass between Terran town and its moongate, forested high ground both sides; the user moved Hackworth here 2026-10-02 (unguarded)."
+      "note": "North-east of the Terran pass road (user 2026-10-02: bigger, further north-east): 115 tree statics, x850-910 y1450-1510. A 12-radius area here ran dry in 11 min, which ends the trip at the bank."
     }
   },
   "convert": {

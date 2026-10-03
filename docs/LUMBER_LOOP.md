@@ -501,6 +501,14 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   trees the old order walked 673 steps, the new choice 148 (throwaway replay on the real map).
   A tree without a route is skipped for the regrowth window. A tree the server rejects (500489)
   is remembered as not a tree.
+- **Chop outcomes:** success is the ordinary text or any coloured wood ("You chop some dullwood
+  logs and put them in your backpack.", `COLORED_CHOP`, since 2026-10-02). Before, dullwood counted
+  as an unknown outcome, and the unknown counter never reset, so four dullwood chops spread over a
+  30-min Terran trip aborted it. The abort now needs more than 3 unknowns **in a row**.
+- **A trip ends when its candidate trees run out**, whatever `--logs-per-trip` says, and the end
+  of a trip is convert + bank. A 12-radius area (33 trees) ran dry in 11 min (Terran, 2026-10-02).
+  The list is fixed at the trip's start, so a long no-bank run needs a large area or a restart
+  (depleted trees come back after `--regrow-min`).
 - **Doors** (tiledata Door flag, or classic door art 0x0675–0x06F4: the demo's inn doors
   0x06A5/0x06AD/0x06ED/0x06EF and the room door 0x06E5): opened ahead, like the client's auto-open.
   When a step or turn leaves the character facing a door on the next tile, the Mover sends the

@@ -41,6 +41,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 import time
 
@@ -64,6 +65,9 @@ import captcha  # noqa: E402
 TREE_FACET = 0                # harvest areas are on map0 (Shelter)
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 NEXT_TREE_PLANS = 6           # nearest trees (straight line) whose walks next_tree() compares
+# Coloured-wood success, e.g. "You chop some dullwood logs and put them in your backpack."
+# (live 2026-10-02, Terran; unmatched it counted as an unknown outcome and aborted the trip)
+COLORED_CHOP = re.compile(r"You chop some [a-z]+ logs and put them in your backpack\.$")
 SPEECH_POLL_S = 1.0           # while paused for speech: state reads + all-clear checks
 THREAT_MARGIN_S = 1.0         # reaction + packet latency on top of the cast
 
@@ -608,7 +612,7 @@ class LumberLoop:
             e = ev.get("ev")
             if e == "speech_heard":
                 t = ev.get("text") or ""
-                if t == hv["success_text"]:
+                if t == hv["success_text"] or COLORED_CHOP.match(t):
                     return ("success", 0)
                 if t.startswith(lock["text_prefix"]):
                     digits = [int(w) for w in t.split() if w.isdigit()]
@@ -752,6 +756,8 @@ class LumberLoop:
             self.doing("chop", f"Chopping tree at {spot[0]},{spot[1]} "
                                f"({tally['gained']}/{self.args.logs_per_trip} logs)", spot)
             out, n = self.attempt(tree)
+            if out != "none":
+                tally["unknown"] = 0                 # the abort counts unknowns in a row
             if out in ("success", "fail"):
                 tries += 1
                 tally["attempts"] += 1
@@ -776,7 +782,7 @@ class LumberLoop:
                 return
             elif out == "none":
                 tally["unknown"] += 1
-                log(f"{label}: no recognised outcome ({tally['unknown']})")
+                log(f"{label}: no recognised outcome ({tally['unknown']} in a row)")
                 if tally["unknown"] > 3:
                     raise Abort("harvest attempts keep ending without a known outcome")
             self.human.wait("between")
