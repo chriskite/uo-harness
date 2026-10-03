@@ -645,7 +645,7 @@ class Mover:
         return nav.straighten(path, mem_step, diagonal_first, hard | occ), None
 
     def walk_to(self, center_fn, radius: int, label: str, max_moves: int = 250, z_ok=None, gate=None,
-                goal_fn=None, urgent: bool = False):
+                goal_fn=None, urgent: bool = False, stop=None):
         """Walk until within `radius` (Chebyshev) of center_fn(), re-evaluated
         on every replan (NPCs wander). `z_ok(z)` also requires the standing
         height (same level as the target, not a cave below or a floor above);
@@ -654,7 +654,10 @@ class Mover:
         moongate the route steps onto gets its gump closed (close_gate_gumps).
         `goal_fn`: a goal predicate (e.g. nav.any_of) used instead of
         center_fn/radius; center_fn may then be None. `urgent`: a flight, with no
-        pauses, sidesteps or reading waits, running whenever stamina allows."""
+        pauses, sidesteps or reading waits, running whenever stamina allows.
+        `stop(state)`: checked before planning and before every step; a truthy
+        answer ends the walk there (a patrol meeting something to do), and is
+        returned. None when the walk arrived."""
         gate = tuple(gate) if gate is not None else None
         replans = 0
         start_steps = self.steps
@@ -666,6 +669,8 @@ class Mover:
             st = self.link.state()
             self.guard(st)
             self.replan_requested = False        # this plan sees whatever the guard just set
+            if stop is not None and (why := stop(st)):
+                return why
             cur = tuple(self.link.pos(st)[:2])
             goal = goal_fn if goal_fn is not None else nav.within(tuple(center_fn()), radius, z_ok)
             if goal(cur) and (z_ok is None or self.walk_map(st) is None or z_ok(self.link.pos(st)[2])):
@@ -693,6 +698,8 @@ class Mover:
             danger_replan = False
             for i, nxt in enumerate(path[1:], start=1):
                 st = self.fresh_state()
+                if stop is not None and (why := stop(st)):
+                    return why
                 pos = self.link.pos(st)
                 cur, z = (pos[0], pos[1]), pos[2]
                 d = nav.direction(cur, nxt)

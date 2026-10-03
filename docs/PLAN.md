@@ -519,6 +519,38 @@ on the overseer's walks after a harpy nest killed Hackworth on a blind `ctl act 
   count as aggressive and areas are avoided on later walks. Rejected: aborting on any creature in
   view (every wilderness walk would stop) and walking on while hit (what killed us).
 
+## Hunt crawl (decided and built 2026-10-03)
+
+User request: the hunt runner should crawl a dungeon instead of standing on one spot: roam each
+floor, fight what it meets, and go only as deep (each floor more dangerous) as it can fight
+efficiently. Plan, data and limits: docs/HUNT_LOOP.md "Crawl"; code: `harness/crawl.py`,
+`loop_hunt.py --crawl`.
+- **The NPD is one floor**, by the data: the map BFS from the arrival reaches 10,829 tiles in one
+  storey, and neither the store's teleporters nor the client's Atlas packs know a way to another
+  part. So "deeper" is route distance from the one exit: depth bands of 40 steps (5 levels, the
+  farthest tile 182 steps out), each opened only when the one above is known and the next one's
+  predicted hits lost per minute is acceptable, closed again when it proves worse.
+- **Patrol over coverage waypoints, chosen by staleness × value × crowd × level rate / distance**,
+  walking with the Mover and stopping as soon as something is in reach. Rooms are covered by
+  route, not straight line, so a waypoint never "covers" the room behind a wall.
+- **A shrunk per-creature and per-level model, persisted in the store** (`fight` job events, the
+  visit rows' `crawl` block): the store's 178 earlier kills (rebuilt from the event log) are the
+  prior, so the first crawl already knows mongbats, and a creature fled from stays avoided across
+  runs. Thresholds are task arguments.
+- **Safety reuses what exists**: the leave rules, the route margin per step (now from wherever we
+  stand), the Mover's danger zones (avoided creatures) and teleporter avoidance; a survival leave
+  runs the shortest route to the exit.
+- Rejected:
+  - **A fixed patrol loop** (a tour over all waypoints, e.g. nearest-neighbour + 2-opt): it can't
+    stay in a productive area, skip a crowded or depleted one, or bend around a creature it
+    learnt to avoid, and the same loop every time is a bot pattern (ANTICHEAT.md).
+  - **A multi-armed bandit over fight spots** (Thompson sampling over a handful of `--fight-spot`s,
+    as `lumber_opt` does over lumber spots): it would still stand still between moves (the
+    Stationary Penalty, idle time while bats come), it covers only the spots someone picked, and it
+    learns nothing per creature, so it can't tell a too-strong creature from a dry spot.
+  - **Room segmentation (watershed) for areas**: the coverage cells already are room-sized (one
+    per room centre, a chain along corridors) and need no tuning.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

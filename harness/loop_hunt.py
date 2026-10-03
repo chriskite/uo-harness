@@ -81,7 +81,16 @@ on; leaving to survive overrides the hold). Junctures: `threat` when leaving,
 there, `death`. Job events and one episode row per visit (kills, gold, xp, hits
 lost) go to the memory store.
 
-Run:  python harness/loop_hunt.py [--kills 5] [--enter] [--fight-spot X Y] [--spell lightning]
+Crawl (--crawl, crawl.py; docs/HUNT_LOOP.md "Crawl"): instead of one fight spot, patrol
+the floor's waypoints (the pull range, corpse range and Stationary Penalty walks are
+measured from where we stand), fight what comes within reach, go one level deeper (route
+distance from the exit) only once the level above is known and the next one's predicted
+risk is acceptable, avoid creature types too strong or too slow for us (no pulls, Mover
+danger zones), move on from depleted areas; --leave-at grows with the route steps back
+to the exit from wherever we are. Every engagement is a `fight` job event (both modes):
+the crawl's model starts from them next run.
+
+Run:  python harness/loop_hunt.py [--kills 5] [--enter] [--fight-spot X Y | --crawl] [--spell lightning]
 """
 import argparse
 import os
@@ -94,6 +103,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import actions  # noqa: E402
 import alerts  # noqa: E402
 import combat  # noqa: E402
+import crawl  # noqa: E402
 import healing  # noqa: E402
 import nav  # noqa: E402
 import threats  # noqa: E402
@@ -187,6 +197,11 @@ class HuntLoop:
         self.cast_disarms = False    # a cast of ours put the weapon in the pack (seen this run)
         self.potion_wait_logged = False
         self.rearm_failed = None     # why the last re-equip couldn't be planned (logged once)
+        self.fight_rec = None        # the engagement in progress: a `fight` job event when it ends
+        self.patrolling = False      # a crawl patrol walk is under way (check_guards may stop it)
+        self.crawl = None
+        if args.crawl:
+            self.crawl = crawl.Crawl(self, crawl.load_prior(memory.con, self.spot, args.crawl_depth_risk))
 
     # ------------------------------------------------------------ reporting
     def doing(self, kind: str, text: str, target=None, serial=None):
@@ -215,6 +230,27 @@ class HuntLoop:
             self.died(st, "ghost body")
         self.check_restriction()
         self.pending_speech += self.new_speakers(st)
+        self.track(st)
+
+    def patrol_stop(self, st):
+        """The crawl's patrol walk stops here (Mover.walk_to `stop`) when there is
+        something to do: crawl.Crawl.interrupt, on the deaths and damage seen so far."""
+        self.scan_events(st)
+        return self.crawl.interrupt(st)
+
+    def track(self, st):
+        """Hits lost (the visit's, the engagement's, the crawl level's) and, crawling, the
+        level's time and the creatures in view (crawl.Crawl.account)."""
+        hits, lost = st["world"]["self"].get("hits"), 0
+        if hits is not None:
+            if self.prev_hits is not None and hits < self.prev_hits:
+                lost = self.prev_hits - hits
+                self.count("hits_lost", lost)
+                if self.fight_rec is not None:
+                    self.fight_rec["hits"] += lost
+            self.prev_hits = hits
+        if self.crawl is not None and self.visit is not None:
+            self.crawl.account(st, lost)
 
     def check_restriction(self):
         """Server text restricting assistants (ANTICHEAT.md §8 rule 4): stop."""
@@ -252,11 +288,6 @@ class HuntLoop:
         st = self.link.state()
         self.check_guards(st)
         self.scan_events(st)
-        hits = st["world"]["self"].get("hits")
-        if hits is not None:
-            if self.prev_hits is not None and hits < self.prev_hits:
-                self.count("hits_lost", self.prev_hits - hits)
-            self.prev_hits = hits
         return st
 
     # ------------------------------------------------------------ world lookups
@@ -271,7 +302,14 @@ class HuntLoop:
         return c / m if c is not None and m else 1.0
 
     def at_hunt(self, st) -> bool:
+        if self.crawl is not None and self.crawl.floor is not None and self.pos(st) in self.crawl.floor:
+            return True
         return min(cheb(self.pos(st), self.spot), cheb(self.pos(st), self.fight_spot)) <= combat.VIEW_RANGE
+
+    def anchor(self, st):
+        """Where the pull range, the corpse range and Stationary Penalty walks are measured
+        from: where we stand when crawling, else the fight spot."""
+        return tuple(self.pos(st)[:2]) if self.crawl is not None else self.fight_spot
 
     def wanted(self, world, key, mob) -> bool:
         text = ((world.get("labels") or {}).get(key) or mob.get("name") or "").lower()
@@ -329,8 +367,9 @@ class HuntLoop:
     def pick_target(self, st, pull: bool = True):
         """The serial to fight now, or None: keep the current one while it's valid and
         nothing else is attacking us; else an attacker with the lowest hits; else (pull)
-        the nearest within --pull-range of the fight spot. A target dropped as pinned is passed
-        over until its skip ends, unless it attacks us."""
+        the nearest within --pull-range of the anchor (the fight spot; crawling, us). A
+        target dropped as pinned is passed over until its skip ends, unless it attacks us;
+        crawling, so is a creature type the crawl avoids (too strong or too slow for us)."""
         world, me, pos = st["world"], self.me(st), self.pos(st)
         attacking = {serial_of(a["serial"]) for a in self.attackers(st)}
         mono = time.monotonic()
@@ -340,6 +379,9 @@ class HuntLoop:
             if s == me or mob.get("x") is None or not self.wanted(world, key, mob):
                 continue
             if self.skip.get(s, 0) > mono and s not in attacking:
+                continue
+            if self.crawl is not None and s not in attacking and s != self.engaged \
+                    and self.crawl.avoid(st, key, mob):
                 continue
             if self.live_target(st, s)[0] is None:
                 continue
@@ -352,7 +394,8 @@ class HuntLoop:
             if any(s == self.engaged for s, _ in att):
                 return self.engaged
             return min(att, key=lambda sm: (self.frac(sm[1]), cheb(pos, (sm[1]["x"], sm[1]["y"]))))[0]
-        near = [(s, m) for s, m in cands if cheb(self.fight_spot, (m["x"], m["y"])) <= self.args.pull_range]
+        anchor = self.anchor(st)
+        near = [(s, m) for s, m in cands if cheb(anchor, (m["x"], m["y"])) <= self.args.pull_range]
         if pull and near:
             return min(near, key=lambda sm: cheb(pos, (sm[1]["x"], sm[1]["y"])))[0]
         return None
@@ -450,7 +493,7 @@ class HuntLoop:
                     self.on_kill(st, self.engaged)
                 else:
                     log(f"target 0x{self.engaged:08X} left the client's world ({why}); not a kill")
-                    self.disengage()
+                    self.disengage("lost")
             elif kind == "damage" or (kind == "speech_heard" and DAMAGE_TEXT.match(ev.get("text") or "")):
                 self.hurt_t[serial_of(ev["serial"])] = time.monotonic()
         self.ev_upto = len(self.link.events)
@@ -467,10 +510,31 @@ class HuntLoop:
         if self.args.loot:
             self.corpses.append({"mob": serial, "name": name, "x": mob.get("x"), "y": mob.get("y"),
                                  "t": time.monotonic()})
-        self.disengage()
+        if self.crawl is not None and mob.get("x") is not None:
+            self.crawl.on_kill((mob["x"], mob["y"]))
+        self.disengage("kill")
 
-    def disengage(self):
+    def disengage(self, outcome: str = "ended"):
+        """Stop fighting the engaged target; its engagement ends with `outcome` (kill,
+        lost, dropped, switched, fled, ended)."""
+        if self.fight_rec is not None:
+            self.end_fight(outcome)
         self.engaged, self.engaged_mob, self.resent_adjacent = None, None, False
+
+    def end_fight(self, outcome: str):
+        """One `fight` job event per engagement (both modes): time from the first attack,
+        hits we lost meanwhile, the outcome; the crawl's model learns from it now and,
+        through the store, next run (crawl.load_prior joins the loot's gold)."""
+        r, self.fight_rec = self.fight_rec, None
+        fight_s = round(time.monotonic() - r["t0"], 1)
+        st = self.link.last
+        data = {"serial": key_of(r["serial"]), "name": r["name"], "body": r["body"], "fight_s": fight_s,
+                "hits_lost": r["hits"], "outcome": outcome, "visit": self.visit_n,
+                "mode": "crawl" if self.crawl is not None else "spot"}
+        if self.crawl is not None:
+            data["level"] = self.crawl.level_at(r["at"])
+            self.crawl.model.add_fight(r["name"], fight_s if outcome == "kill" else None, r["hits"], outcome)
+        self.memory.job_event("hunt", "fight", data, **(self._where(st) if st else {}))
 
     # ------------------------------------------------------------ actions
     def war_mode(self, st, on: bool) -> bool:
@@ -502,6 +566,11 @@ class HuntLoop:
             log(f"attacking {name} 0x{serial:08X} at {cheb(self.pos(st), (mob['x'], mob['y']))} tiles "
                 f"(hits {mob.get('hits')}/{mob.get('hits_max')})")
             self.progress_t = time.monotonic()
+        if self.fight_rec is None or self.fight_rec["serial"] != serial:
+            if self.fight_rec is not None:
+                self.end_fight("switched")
+            self.fight_rec = {"serial": serial, "name": name, "body": mob.get("graphic"), "t0": time.monotonic(),
+                              "hits": 0, "at": tuple(self.pos(st)[:2])}
         self.engaged, self.engaged_mob = serial, mob
         return True
 
@@ -696,6 +765,7 @@ class HuntLoop:
             if time.monotonic() - c["t"] > CORPSE_WAIT_S:
                 log(f"no corpse seen for {c['name']}; nothing to loot")
                 self.corpses.remove(c)
+                self.kill_gold(c, 0)
             else:
                 time.sleep(POLL_S)
             return
@@ -708,7 +778,7 @@ class HuntLoop:
             log(f"0x{c['corpse']:08X} ({corpse.get('name')}) is a human corpse: not looted")
             return
         spot = (corpse["x"], corpse["y"])
-        if cheb(self.fight_spot, spot) > self.args.pull_range + combat.LOOT_RANGE:
+        if cheb(self.anchor(st), spot) > self.args.pull_range + combat.LOOT_RANGE:
             log(f"corpse at {spot} is too far from the fight spot; leaving it")
             return
         self.doing("loot", f"Looting {corpse.get('name') or c['name']}", spot, c["corpse"])
@@ -750,10 +820,20 @@ class HuntLoop:
         gained = max(self.pack_gold(st) - gold0,
                      (st["world"]["self"].get("gold") or 0) - (sgold0 or 0) if sgold0 is not None else 0)
         self.count("gold", gained)
+        self.kill_gold(c, gained, spot)
         log(f"looted {len(taken)} item(s) from {corpse.get('name') or c['name']}: +{gained} gold, ~{xp} xp")
         self.memory.job_event("hunt", "loot", {"corpse": key_of(c["corpse"]), "mob": key_of(c["mob"]),
                                                "name": c["name"], "gold": gained, "xp": xp, "items": taken,
                                                "visit": self.visit_n}, **self._where(st))
+
+    def kill_gold(self, c, gold, at=None):
+        """Crawling: a kill's gold for the model (0 when its corpse never showed: a pet or
+        player took it) and for the level it lay in."""
+        if self.crawl is None:
+            return
+        self.crawl.model.add_gold(c["name"], gold)
+        if at is not None or c.get("x") is not None:
+            self.crawl.on_gold(at or (c["x"], c["y"]), gold)
 
     # ------------------------------------------------------------ leaving / entering
     def leave_reason(self, st):
@@ -784,18 +864,21 @@ class HuntLoop:
         `threat` juncture unless it's the planned end (severity info)."""
         self.left_why = (why, severity)
         data = {"why": why, "hits": [st["world"]["self"].get("hits"), st["world"]["self"].get("hits_max")],
-                "attackers": self.attackers(st), "visit": self.visit_n, "kills": self.totals["kills"]}
+                "attackers": self.attackers(st), "visit": self.visit_n, "kills": self.totals["kills"],
+                "route_steps": self.out_steps}
         if severity != "info":
             self.memory.juncture("hunt", "threat", f"Leaving the hunt: {why}", severity, data)
         self.memory.job_event("hunt", "leave", data, **self._where(st))
         log(f"LEAVING: {why}")
         self.count("leaves")
-        self.disengage()
+        self.disengage("fled" if severity != "info" else "ended")
+        if self.crawl is not None:
+            self.crawl.on_leave(self.pos(st), severity != "info")
         self.doing("leave", f"Leaving: {why}", self.spot)
         if self.war_mode(st, False):
             self.human.wait("read")
-        self.mover.walk_to(lambda: self.spot, 0, "to the exit",
-                           urgent=severity != "info" and self.fight_spot != self.spot)
+        self.mover.walk_to(lambda: self.spot, 0, "to the exit", max_moves=max(250, 3 * self.out_steps),
+                           urgent=severity != "info" and (self.crawl is not None or self.fight_spot != self.spot))
         self.teleport(self.args.exit_dir, "the exit")
         self.end_visit(why)
 
@@ -933,6 +1016,8 @@ class HuntLoop:
             return
         row = {**self.visit, "t_end": round(time.time(), 1), "ended": why,
                "human_session": dict(self.human.stats)}
+        if self.crawl is not None and self.crawl.floor is not None:
+            row["crawl"] = self.crawl.summary()
         self.memory.episode("hunt", row)
         log(f"visit {self.visit_n} done: {row}")
         self.visit = None
@@ -965,7 +1050,7 @@ class HuntLoop:
             log(f"dropping {mob.get('name') or key_of(serial)} 0x{serial:08X}: {dist} tiles away and not hurt "
                 f"for {PIN_S:.0f} s; skipping it for {SKIP_S:.0f} s")
             self.skip[serial] = now + SKIP_S
-            self.disengage()
+            self.disengage("dropped")
             return
         if not self.resent_adjacent and dist <= 1:
             self.resent_adjacent = True
@@ -994,7 +1079,15 @@ class HuntLoop:
 
     def to_spot(self):
         """Walk to the fight spot (the Mover avoids known teleporter tiles), then set
-        this visit's leave margin."""
+        this visit's leave margin. Crawling: build the floor once (crawl.Crawl.setup);
+        the patrol starts from where we stand."""
+        if self.crawl is not None:
+            try:
+                self.crawl.setup(self.state())
+            except ValueError as e:
+                raise Abort(f"crawl: {e}")
+            self.leave_margin(self.state())
+            return
         self.doing("to_spot", f"Heading to the hunting spot {self.fight_spot[0]},{self.fight_spot[1]}", self.fight_spot)
         self.mover.walk_to(lambda: self.fight_spot, 0, "to the spot")
         self.leave_margin(self.state())
@@ -1003,16 +1096,18 @@ class HuntLoop:
         """--leave-at raised by --leave-per-step per step of the planned route from the
         fight spot back to --spot (Chebyshev distance when no route is planned), at most
         to --heal-at - LEAVE_HEAL_GAP and never below --leave-at. 0 steps when the fight
-        spot is the spot."""
+        spot is the spot. Crawling: the floor's route steps from where we stand, every tick."""
         steps = 0
-        if self.fight_spot != self.spot:
+        if self.crawl is not None:
+            steps = self.crawl.route_steps(self.pos(st)) or 0
+        elif self.fight_spot != self.spot:
             path, _ = self.mover.plan(st, nav.within(self.spot, 0), mobiles=False)
             steps = len(path) - 1 if path else cheb(self.pos(st), self.spot)
         a = self.args
         raw = a.leave_at + a.leave_per_step * steps
         cap = max(a.leave_at, a.heal_at - LEAVE_HEAL_GAP)
         self.out_steps, self.leave_at = steps, min(raw, cap)
-        if steps:
+        if steps and self.crawl is None:
             log(f"fight spot {self.fight_spot}: {steps} steps back to the exit spot {self.spot}; leaving below "
                 f"{self.leave_at:.0%} (--leave-at {a.leave_at:.0%} + {a.leave_per_step:g} x {steps}"
                 + (f", capped at --heal-at - {LEAVE_HEAL_GAP:g})" if raw > cap else ")"))
@@ -1026,15 +1121,15 @@ class HuntLoop:
         measured), reposition: 2-4 steps out and back once nothing is on us after a
         draw in [0.8, 1] x --reposition-s, or regardless at --reposition-s. True when
         it walked. Leaving to survive comes before this (hunt order)."""
-        kind = self.still.handle(st, self.fight_spot, not attackers and self.engaged is None, self.doing)
+        kind = self.still.handle(st, self.anchor(st), not attackers and self.engaged is None, self.doing)
         if kind is None:
             return False
         self.count("stationary_clears" if kind == "penalty" else "repositions")
         return True
 
     def hunt(self):
-        """Fight at the fight spot until --kills or --timeout (then finish the fights on us,
-        loot and leave), a death or a stop."""
+        """Fight at the fight spot (crawling: patrol the floor) until --kills or --timeout
+        (then finish the fights on us, loot and leave), a death or a stop."""
         self.start_visit(self.state())
         self.to_spot()
         while True:
@@ -1042,6 +1137,8 @@ class HuntLoop:
             if self.visit is None:                      # left to survive during a speech hold
                 self.go_back(self.left_why)
                 continue
+            if self.crawl is not None:
+                self.leave_margin(st)
             attackers = self.attackers(st)
             winding = self.finished() or self.timed_out()
             reason = self.leave_reason(st)
@@ -1071,7 +1168,7 @@ class HuntLoop:
             if target is not None:
                 if target != self.engaged and self.engaged is not None:
                     log(f"switching target to 0x{target:08X}")
-                    self.disengage()
+                    self.disengage("switched")
                 self.fight(target)
                 continue
             if self.engaged is not None:
@@ -1079,6 +1176,9 @@ class HuntLoop:
             if self.war_mode(st, False):
                 log("nothing near: war mode off")
                 self.human.wait("read")
+            if self.crawl is not None:
+                self.crawl.idle(st)
+                continue
             if cheb(self.pos(st), self.fight_spot) > 0:
                 self.mover.walk_to(lambda: self.fight_spot, 0, "back to the spot")
             what = self.args.target_name.strip() or "monsters"
@@ -1125,6 +1225,29 @@ def main():
     ap.add_argument("--fight-spot", type=int, nargs=2, default=None, metavar=("X", "Y"),
                     help="the tile to fight on (default: --spot); pull range, corpses and the idle return "
                          "are measured from it")
+    ap.add_argument("--crawl", action="store_true",
+                    help="patrol the dungeon floor instead of one fight spot (crawl.py; docs/HUNT_LOOP.md 'Crawl')")
+    ap.add_argument("--crawl-band", type=int, default=40,
+                    help="crawl: route steps from the exit per level (the NPD is one floor: levels are depth bands)")
+    ap.add_argument("--crawl-floors", type=int, default=0,
+                    help="crawl: at most this many levels (0: all the floor has)")
+    ap.add_argument("--crawl-dwell", type=float, default=6.0,
+                    help="crawl: seconds a waypoint is looked over when nothing shows up (x 0.6-1.4)")
+    ap.add_argument("--crawl-depleted-s", type=float, default=90.0,
+                    help="crawl: an area where targets came is depleted after this long without one: move on")
+    ap.add_argument("--crawl-learn-s", type=float, default=600.0,
+                    help="crawl: seconds observed in a level (store history included) before going deeper")
+    ap.add_argument("--crawl-max-dmg", type=float, default=30.0,
+                    help="crawl: the most hits lost per minute a level may cost (estimated, or predicted for "
+                         "the next level)")
+    ap.add_argument("--crawl-depth-risk", type=float, default=1.5,
+                    help="crawl: a deeper level's predicted hits lost per minute = the level above's x this")
+    ap.add_argument("--crawl-max-leaves", type=int, default=2,
+                    help="crawl: survival leaves from a level in one run that close it (come back up)")
+    ap.add_argument("--crawl-max-hits", type=float, default=0.5,
+                    help="crawl: avoid creature types costing more than this share of our max hits per fight")
+    ap.add_argument("--crawl-max-fight-s", type=float, default=180.0,
+                    help="crawl: avoid creature types whose kills take longer than this (estimated)")
     ap.add_argument("--exit-dir", type=int, default=4, choices=range(8),
                     help="the step from the spot onto the exit teleporter (default 4 = south)")
     ap.add_argument("--enter", action="store_true",
@@ -1175,6 +1298,8 @@ def main():
     ap.add_argument("--memory", default=DEFAULT_DB,
                     help="harness memory (SQLite, docs/MEMORY.md): walk memory, junctures, episodes")
     args = ap.parse_args()
+    if args.crawl and args.fight_spot:
+        ap.error("--crawl patrols the floor: no --fight-spot with it")
 
     memory = Memory(args.memory)
     link = Link(args.control_port, args.state_port)

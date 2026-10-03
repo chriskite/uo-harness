@@ -39,7 +39,13 @@ at login, and in the fight-spot run once more when we first hurt A and after 14 
 step (--reposition-s 6). No attack goes out while it is on; the runner walks it off (5 + 1
 steps out and back) without stepping onto a teleporter, and repositions before it comes.
 
-Run: python test_loop_hunt.py   (~100 s; private ports; safe while the live proxy runs)
+Then a crawl (--crawl) through a multi-room NPD (CRAWL_FLOOR, walls deny steps; the store's walk
+memory knows the floor): patrol through the rooms, level 1 opened before room R2 is entered, a
+troll there fled from (a survival leave from deep, back to the exit spot) and avoided afterwards,
+room R1 left as depleted after its mongbat, two mongbats killed and looted (docs/HUNT_LOOP.md).
+
+Run: python test_loop_hunt.py [default|staff|fight|crawl]   (~160 s for all; private ports;
+     safe while the live proxy runs)
 """
 import asyncio
 import json
@@ -88,6 +94,32 @@ GHEAL_MIN = 25                                      # --gheal-min-missing (the s
 DD = nav.DIR_DELTA
 FAILURES = []
 
+# The crawl run (--crawl): a multi-room NPD. The hall around the exit spot, a corridor north to
+# room R1, a corridor west to room R2 (deep: level 1 with --crawl-band 22). Mongbat M1 in R1;
+# a troll T in R2's corner that hits hard (too strong: the crawl flees, then avoids it); mongbat
+# M2 comes into the west corridor once we are back in and M1 is dead. Steps off the floor are
+# denied; the store's walk memory knows the floor (the runner plans with --no-map).
+M1, M2, T = 0x002C5001, 0x002C5002, 0x002C5003
+TROLL = 0x36
+T_HOME = (5503, 521)
+CRAWL_POS = {M1: (5538, 509), M2: (5528, 527), T: T_HOME}
+CRAWL_HITS = {M1: 60, M2: 60, T: 3000}
+HITS.update(CRAWL_HITS)
+CORPSE.update({M1: 0x4FE00011, M2: 0x4FE00012})
+GOLD.update({M1: (0x4FE10011, 20), M2: (0x4FE10012, 22)})
+NAMES = {T: "a troll"}
+BODIES = {T: TROLL}
+
+
+def rect(x0, x1, y0, y1):
+    return {(x, y) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)}
+
+
+HALL, NORTH, R1, WEST, R2 = (rect(5530, 5540, 524, 529), rect(5534, 5536, 515, 523), rect(5530, 5540, 507, 514),
+                             rect(5514, 5529, 526, 528), rect(5500, 5513, 519, 533))
+CRAWL_FLOOR = HALL | NORTH | R1 | WEST | R2
+VIEW = 18                  # the server sends a mobile once it is this close (ClassicUO view range)
+
 
 def check(name, cond, extra=""):
     print(f"  [{'OK' if cond else 'FAIL'}] {name} {extra}")
@@ -121,8 +153,8 @@ def self_at(x, y, d=0):
         + bytes([d]) + u32(0)
 
 
-def mob_pkt(serial, x, y):        # 0x20 for a grey (3) mongbat
-    return b"\x20" + u32(serial) + u32(MONGBAT) + b"\x03\x00\x00\x00" + u32(x) + u32(y) + b"\x00\x00\x04" + u32(0)
+def mob_pkt(serial, x, y, body=MONGBAT):        # 0x20 for a grey (3) monster
+    return b"\x20" + u32(serial) + u32(body) + b"\x03\x00\x00\x00" + u32(x) + u32(y) + b"\x00\x00\x04" + u32(0)
 
 
 def mob_move(serial, x, y):        # 0x77 V10
@@ -212,7 +244,8 @@ def cheb(a, b):
 
 
 class World:
-    def __init__(self, staff=False, fight=None, still_after=None, midfight=False):
+    def __init__(self, staff=False, fight=None, still_after=None, midfight=False, crawl=False):
+        self.crawl = crawl                   # the crawl run: the multi-room NPD (CRAWL_FLOOR)
         self.staff = staff                   # wielding the prismatic staff (the arcane-staff run)
         self.staff_worn = staff
         self.melee = 40 if staff else 10     # per hit (the staff's Arcane Buildup hits hard)
@@ -232,6 +265,14 @@ class World:
         self.mob_hits = dict(HITS)
         dx, dy = self.fight[0] - SPOT[0], self.fight[1] - SPOT[1]
         self.mob_pos = {s: (x + dx, y + dy) for s, (x, y) in POS.items()}
+        if crawl:
+            self.alive = {M1: True, M2: False, T: True}
+            self.mob_pos = dict(CRAWL_POS)
+        self.in_view = set()                 # crawl: mobiles the server has sent (within VIEW)
+        self.trace = []                      # crawl: (time, x, y) after every step / teleport
+        self.m2_t = None                     # crawl: when M2 came
+        self.kill_t = {}                     # serial -> (time, tile) of its death
+        self.walls_hit = []                  # crawl: steps the sim denied as walls ((from, dir))
         self.engaged = None                  # last 0x05 serial
         self.swingers = {}                   # serial -> damage per swing
         self.cid = 0x7000
@@ -307,15 +348,41 @@ class World:
 
     def show_mob(self, serial):
         x, y = self.mob_pos[serial]
-        self.send(mob_pkt(serial, x, y))
-        self.send(name_pkt(serial, "a mongbat"))
+        self.send(mob_pkt(serial, x, y, BODIES.get(serial, MONGBAT)))
+        self.send(name_pkt(serial, NAMES.get(serial, "a mongbat")))
         self.send(hits_pkt(serial, self.mob_hits[serial], HITS[serial]))
+
+    def update_view(self):
+        """Crawl: send a live mobile once it comes within VIEW of us, as the server does."""
+        if not self.inside:
+            self.in_view.clear()
+            return
+        for s, alive in self.alive.items():
+            near = alive and cheb(self.pos, self.mob_pos[s]) <= VIEW
+            if near and s not in self.in_view:
+                self.in_view.add(s)
+                self.show_mob(s)
+            elif not near:
+                self.in_view.discard(s)
+
+    def beside(self):
+        """A floor tile next to us for a mob to come to (crawl)."""
+        x, y = self.pos
+        taken = {p for s, p in self.mob_pos.items() if self.alive.get(s)}
+        return next((x + dx, y + dy) for dx, dy in DD if (x + dx, y + dy) in CRAWL_FLOOR
+                    and (x + dx, y + dy) not in taken)
+
+    def come(self, serial):
+        if cheb(self.pos, self.mob_pos[serial]) > 1:
+            self.mob_pos[serial] = self.beside()
+            self.send(mob_move(serial, *self.mob_pos[serial]))
 
     def kill(self, serial):
         """In-view death as live (214649): corpse item, 0xAF, 0x1D, 0xFF sub 0xDEAD."""
         self.alive[serial] = False
         self.swingers.pop(serial, None)
         x, y = self.mob_pos[serial]
+        self.kill_t[serial] = (time.time(), (x, y))
         corpse = CORPSE[serial]
         self.send(ground_item(corpse, combat.CORPSE_GRAPHIC, MONGBAT, x, y))
         self.send(display_death(serial, corpse))
@@ -349,10 +416,19 @@ class World:
     def teleport(self, x, y):
         self.pos = [x, y]
         self.send(self_at(x, y, self.facing))
+        if self.crawl:
+            self.trace.append((time.time(), x, y))
+            self.update_view()
 
     def came_in(self):
         first = self.reentered is None
         self.reentered = time.time()
+        if self.crawl:                       # T went back to its corner while we were out
+            self.mob_pos[T] = T_HOME
+            self.swingers.clear()
+            self.in_view.clear()
+            self.update_view()
+            return
         self.show_mob(D)                     # E wandered off while we were out: never re-sent
         self.swingers.pop(E, None)
         if not first:
@@ -411,9 +487,16 @@ class World:
             if self.inside and any(self.alive[s] and self.mob_pos[s] == (nx, ny) for s in self.alive):
                 self.send(b"\x21" + bytes([seq]) + u32(self.pos[0]) + u32(self.pos[1]) + bytes([self.facing]) + u32(0))
                 return
+            if self.crawl and self.inside and (nx, ny) not in CRAWL_FLOOR:     # a wall
+                self.walls_hit.append((tuple(self.pos), d))
+                self.send(b"\x21" + bytes([seq]) + u32(self.pos[0]) + u32(self.pos[1]) + bytes([self.facing]) + u32(0))
+                return
             self.pos = [nx, ny]
             self.send(bytes([0x22, seq, 0x01]))
             self.stepped()
+            if self.crawl:
+                self.trace.append((time.time(), nx, ny))
+                self.update_view()
             if (nx, ny) == (ENTRY[0], ENTRY[1] - 1):    # the entrance: confirm, then the teleport
                 self.entries.append(time.time())
 
@@ -428,7 +511,10 @@ class World:
             serial = int.from_bytes(p[1:5], "big")
             self.engaged = serial
             self.attack_pos.append(tuple(self.pos))
-            if serial == A and A not in self.swingers and self.alive[A]:
+            if self.crawl and self.alive.get(serial) and self.inside:
+                self.come(serial)            # mongbats fly in and stay on us; the troll walks up
+                self.swingers[serial] = 15 if serial == T else 3
+            elif serial == A and A not in self.swingers and self.alive[A]:
                 self.mob_pos[A] = (self.fight[0], self.fight[1] - 1)    # flies to us and hits hard once
                 self.send(mob_move(A, *self.mob_pos[A]))
                 self.hurt_self(A, 30)
@@ -534,7 +620,15 @@ class World:
                 continue
             if self.inside and n % 2 == 0:
                 for s, dmg in list(self.swingers.items()):
+                    if self.crawl and s != T:
+                        self.come(s)                    # a mongbat keeps up with us
+                    if self.crawl and s == T and cheb(self.pos, self.mob_pos[T]) > 1:
+                        continue                        # the troll only hits what stands next to it
                     self.hurt_self(s, dmg)
+            if self.crawl and self.m2_t is None and self.reentered and M1 in self.kill_t and self.inside:
+                self.m2_t = time.time()                 # M2 comes once we are back in and M1 is dead
+                self.alive[M2] = True
+                self.update_view()
             if self.inside and n % 3 == 0 and self.warmode and self.engaged and self.alive.get(self.engaged) \
                     and cheb(self.pos, self.mob_pos[self.engaged]) <= 1:
                 self.hurt_mob(self.engaged, self.melee)
@@ -561,12 +655,15 @@ class World:
             self.send(contained(REG_BAG + 1 + i, g, 20, REG_BAG))
         self.send(hits_pkt(SELF, self.hits, self.hits_max))
         self.send(mana_pkt(self.mana, self.mana_max))
-        for s in (A, S):
-            self.show_mob(s)
-        self.send(swing(S, SELF))                      # S was on us...
-        self.alive[S] = False                          # ...and someone else killed it: 0xDEAD only
-        self.send(ground_item(CORPSE[S], combat.CORPSE_GRAPHIC, MONGBAT, *self.mob_pos[S]))
-        self.send(corpse_flags(CORPSE[S], S))
+        if self.crawl:
+            self.update_view()
+        else:
+            for s in (A, S):
+                self.show_mob(s)
+            self.send(swing(S, SELF))                      # S was on us...
+            self.alive[S] = False                          # ...and someone else killed it: 0xDEAD only
+            self.send(ground_item(CORPSE[S], combat.CORPSE_GRAPHIC, MONGBAT, *self.mob_pos[S]))
+            self.send(corpse_flags(CORPSE[S], S))
         self.apply_penalty("login")                    # live: on at every login
         await writer.drain()
         buf = bytearray()
@@ -688,7 +785,87 @@ def check_penalty(world, text, rows, name, fight=False):
               not still and n >= 1, f"still applies inside {still} repositions {n}")
 
 
-async def main(staff=False, fight=None):
+AREAS = {"hall": HALL, "north corridor": NORTH, "R1": R1, "west corridor": WEST, "R2": R2}
+
+
+def area_of(p):
+    return next((name for name, tiles in AREAS.items() if tuple(p) in tiles), None)
+
+
+def seed_floor(store):
+    """The crawl run's floor in the store's walk memory (as if walked before): every step
+    between floor tiles confirmed, every step into a wall denied (the runner plans with
+    --no-map, so the crawl's floor comes from walk memory)."""
+    t, rows = time.time() - 3600, []
+    for x, y in CRAWL_FLOOR:
+        for d, (dx, dy) in enumerate(DD):
+            n = (x + dx, y + dy)
+            if n in (EXIT_TILE, INSIDE):
+                continue
+            rows.append((0, x, y, 0, d, 1 if n in CRAWL_FLOOR else 0, t))
+    memory._upsert_walk(store.con.cursor(), rows)
+    store.con.commit()
+
+
+def check_crawl(world, text, rc, rows, js, evs):
+    """The crawl run (World(crawl=True), --crawl): patrol through the rooms, level 1 (R2)
+    only once opened, the troll fled from deep in R2 and avoided afterwards, an area left
+    as depleted, the survival leave walked back to the exit spot."""
+    print("== crawl ==")
+    check("crawl run: exited 0 after 2 kills, outside", rc == 0 and "hunt complete: 2 kill(s)" in text
+          and not world.inside, f"rc {rc} at {world.pos}")
+    seen = {area_of((x, y)) for t, x, y in world.trace} - {None}
+    wps = set(re.findall(r"patrol to \((\d+), (\d+)\): route", text))
+    check("patrolled waypoint to waypoint (>= 4) through the hall, both corridors and both rooms",
+          seen == set(AREAS) and len(wps) >= 4, f"areas {sorted(seen)} waypoints {sorted(wps)}")
+    fought = {area_of(p) for p in world.attack_pos}
+    check("fought where it met them (attacks in >= 2 areas), not on one spot", len(fought) >= 2, str(fought))
+    opened = [e for e in evs if e["kind"] == "crawl_level" and e["data"].get("open") and e["data"]["level"] == 1]
+    deep = [t for t, x, y in world.trace if (x, y) in R2]
+    check("room R2 (level 1) entered only after the crawl opened level 1 (level 0 known, risk ok)",
+          opened and deep and deep[0] > opened[0]["t"], f"opened {[e['t'] for e in opened]} first in R2 {deep[:1]}")
+    at_t = [t for p, t in zip(world.c2s, world.c2s_t) if refs(p) == T]
+    check("the troll fought in the first visit only", at_t and world.exits and all(t < world.exits[0] for t in at_t),
+          f"troll packets {at_t[:3]}.. exits {world.exits}")
+    fled = [e for e in evs if e["kind"] == "fight" and "troll" in (e["data"].get("name") or "")]
+    check("its fight recorded as fled (job event), and the crawl learned to avoid it",
+          [e["data"]["outcome"] for e in fled] == ["fled"] and "crawl: avoiding troll" in text, str(fled)[:300])
+    back = [(x, y) for t, x, y in world.trace if world.reentered and t > world.reentered]
+    closest = min((cheb(p, T_HOME) for p in back), default=None)
+    check("back inside, the troll was never in reach (routes and areas kept away from it)",
+          back and closest is not None and closest > 2 and not any(
+              t > world.reentered for t in at_t), f"closest {closest}")
+    lines = text.splitlines()
+    dep = next((i for i, ln in enumerate(lines) if "depleted (" in ln), None)
+    m = re.search(r"area \((\d+), (\d+)\) depleted", lines[dep]) if dep is not None else None
+    nxt = next((re.search(r"patrol to \((\d+), (\d+)\): route", ln) for ln in lines[dep + 1:]
+                if "patrol to" in ln and ": route" in ln), None) if dep is not None else None
+    check("an area where a kill came, then nothing for --crawl-depleted-s, left as depleted for another one",
+          m and nxt and nxt.groups() != m.groups() and any(r.get("crawl", {}).get("depleted") for r in rows),
+          f"{lines[dep] if dep is not None else None} next {nxt and nxt.groups()}")
+    leaves = [e for e in evs if e["kind"] == "leave"]
+    threat = [j for j in js if j["kind"] == "threat"]
+    first = leaves[0] if leaves else None
+    check("the survival leave from deep in R2: >= 20 route steps out, --leave-at raised, a threat juncture, the walk "
+          "back to the exit spot, then the exit step (never the arrival tile)",
+          first and area_of((first["x"], first["y"])) == "R2" and first["data"]["route_steps"] >= 20
+          and len(threat) == 1 and world.exit_from == [SPOT, SPOT] and not world.arrival_steps
+          and rows and rows[0]["route_steps"] >= 20 and rows[0]["leave_at"] > 0.6,
+          f"leave {first and (first['x'], first['y'], first['data'].get('route_steps'))} exits {world.exit_from} "
+          f"rows {[(r.get('route_steps'), r.get('leave_at')) for r in rows]}")
+    kills = [e["data"] for e in evs if e["kind"] == "fight" and e["data"]["outcome"] == "kill"]
+    check("M1 and M2 killed and looted (20 + 22 gold); their fights recorded with time and level",
+          world.looted == {CORPSE[M1]: 20, CORPSE[M2]: 22}
+          and sorted(k["serial"] for k in kills) == [f"0x{M1:08X}", f"0x{M2:08X}"]
+          and all(k["fight_s"] > 0 and k.get("level") is not None for k in kills), f"{world.looted} {kills}")
+    c = [r.get("crawl") or {} for r in rows]
+    check("episode rows carry the crawl block: troll avoided, level time and the survival leave in level 1",
+          len(rows) == 2 and "troll" in c[0].get("avoided", {}) and c[0]["levels"].get("1", {}).get("leaves") == 1
+          and sum(v.get("s", 0) for r in c for v in r.get("levels", {}).values()) > 0, str(c)[:400])
+
+
+
+async def main(staff=False, fight=None, crawl=False):
     os.makedirs(LOGDIR, exist_ok=True)
     for f in os.listdir(LOGDIR):
         os.remove(os.path.join(LOGDIR, f))
@@ -697,9 +874,11 @@ async def main(staff=False, fight=None):
     store = memory.Memory(db)
     # live: the NPD arrival tile is itself an exit teleporter, learned by walking onto it
     store.teleporter_record(0, INSIDE[0], INSIDE[1], 0, 1912, 2556, -20)
+    if crawl:
+        seed_floor(store)
     store.close()
 
-    world = World(staff=staff, fight=fight, still_after=14 if fight else None, midfight=bool(fight))
+    world = World(staff=staff, fight=fight, still_after=14 if fight else None, midfight=bool(fight), crawl=crawl)
     server = await asyncio.start_server(world.handle, "127.0.0.1", UPSTREAM_PORT)
     ticker = asyncio.create_task(world.ticker())
     proxy = subprocess.Popen(
@@ -723,9 +902,11 @@ async def main(staff=False, fight=None):
         runner_out = os.path.join(LOGDIR, "runner.out")
         with open(runner_out, "wb") as fh:
             runner = await asyncio.create_subprocess_exec(
-                PY, f"{ROOT}/harness/loop_hunt.py", "--kills", "2", "--timeout", "150",
+                PY, f"{ROOT}/harness/loop_hunt.py", "--kills", "2", "--timeout", "240" if crawl else "150",
                 *(["--leave-at", "0.4"] if staff else []),
                 *(["--fight-spot", str(fight[0]), str(fight[1]), "--reposition-s", "6"] if fight else []),
+                *(["--crawl", "--pull-range", "8", "--target-name", "", "--crawl-band", "22", "--crawl-learn-s", "8",
+                   "--crawl-max-dmg", "200", "--crawl-depleted-s", "4", "--crawl-dwell", "2"] if crawl else []),
                 "--gheal-min-missing", str(GHEAL_MIN),
                 "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--memory", db,
                 "--entry", str(ENTRY[0]), str(ENTRY[1]), "0",
@@ -733,7 +914,7 @@ async def main(staff=False, fight=None):
                 "--triage-url", "",
                 stdout=fh, stderr=asyncio.subprocess.STDOUT)
             try:
-                await asyncio.wait_for(runner.wait(), timeout=200)
+                await asyncio.wait_for(runner.wait(), timeout=300 if crawl else 200)
             except TimeoutError:
                 runner.kill()
                 await runner.wait()
@@ -753,12 +934,16 @@ async def main(staff=False, fight=None):
                for ln in open(os.path.join(LOGDIR, f), encoding="utf-8")]
         srcs = {e.get("src") for e in log if e.get("dir") == "c2s"}
         c2s = world.c2s
-        check_penalty(world, text, rows, "fight spot" if fight else "staff" if staff else "default", fight=bool(fight))
+        check_penalty(world, text, rows, "crawl" if crawl else "fight spot" if fight else "staff" if staff
+                      else "default", fight=bool(fight))
         if staff:
             check_staff(world, text, runner.returncode)
             return
         if fight:
             check_fight(world, text, runner.returncode, rows, js)
+            return
+        if crawl:
+            check_crawl(world, text, runner.returncode, rows, js, evs)
             return
 
         check("runner exited 0 after 2 kills, outside",
@@ -890,8 +1075,14 @@ async def main(staff=False, fight=None):
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
-    asyncio.run(main(staff=True))
-    asyncio.run(main(fight=FIGHT))
+    only = sys.argv[1:]               # e.g. `crawl`: just that run (iterating); none: all four
+    if not only or "default" in only:
+        asyncio.run(main())
+    if not only or "staff" in only:
+        asyncio.run(main(staff=True))
+    if not only or "fight" in only:
+        asyncio.run(main(fight=FIGHT))
+    if not only or "crawl" in only:
+        asyncio.run(main(crawl=True))
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)
