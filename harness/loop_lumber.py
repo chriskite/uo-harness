@@ -300,13 +300,13 @@ class LumberLoop:
         if self.mode == "salvage":
             return
         if a.damage["lost"] > 0 or a.damage["damage_events"] > 0:
-            self.threat_stop(st, a, monsters[0] if monsters else None, swung, Abort, "taking damage")
+            self.monster_stop(st, a, monsters[0] if monsters else None, swung, "taking damage")
         if not monsters or self.mode == "escape":
             return
         if not escape:
-            self.threat_stop(st, a, monsters[0], swung, Abort, "speech hold: no escape")
+            self.monster_stop(st, a, monsters[0], swung, "speech hold: no escape")
         if self.escapes >= ESCAPES_PER_TRIP:
-            self.threat_stop(st, a, monsters[0], swung, Abort, f"{self.escapes} escapes this trip already")
+            self.monster_stop(st, a, monsters[0], swung, f"{self.escapes} escapes this trip already")
         raise Escape(monsters, self.post_threat(st, a, monsters[0], swung, "escape"))
 
     def attacked_by_players(self, st, a) -> list:
@@ -348,11 +348,22 @@ class LumberLoop:
         raise Abort(f"no recall escape ({why}); refusing to work where players can attack without one "
                     f"(--recall off to override)")
 
-    def recall_out(self, st, a, worst, swung) -> str:
+    def monster_stop(self, st, a, worst, swung, why: str):
+        """A creature ends the run: under attack or with monsters closing in there is no
+        time to convert logs (live 2026-10-04, witcher_291: 85 -> 40 hits during a 12 s
+        conversion, then the run exited in the field and the overseer's recall landed at
+        15/100). So: recall home at once when away from home with a book ready, and stop
+        without converting (Unsafe). Near home, or without a book, stop where we stand."""
+        if self.recall_book is not None and cheb(self.link.pos(st), self.banker_pos()) > HOME_NEAR:
+            why = f"{why}; {self.recall_out(st, a, worst, swung, pk=False, reason=why)}"
+        self.threat_stop(st, a, worst, swung, Unsafe, why)
+
+    def recall_out(self, st, a, worst, swung, pk: bool = True, reason: str | None = None) -> str:
         """Recall to the book's default rune at once (escape.escape: up to 3 casts),
         before any bookkeeping, then stop: the `threat` juncture (action 'recall') and
-        an urgent `pk_escape` juncture when it landed. Returns why it failed; the
-        caller then stops the plain way (threat_stop)."""
+        an urgent `pk_escape` juncture when it landed (`pk`; a creature escape posts
+        an urgent `threat` juncture instead). Returns why it failed; the caller then
+        stops the plain way (threat_stop)."""
         try:
             res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, log=log)
         except escape_mod.RecallError as e:
@@ -364,10 +375,11 @@ class LumberLoop:
         if not res["ok"]:
             return f"recall failed after {res['attempts']} cast(s): {res['failure']}"
         summary = self.post_threat(st, a, worst, swung, "recall")
-        self.memory.juncture("lumber", "pk_escape",
+        self.memory.juncture("lumber", "pk_escape" if pk else "threat",
                              f"Recalled away from {summary} ({res['kind']} {res['method']}, "
                              f"{res['press_to_arrival_s']} s); stopped", "urgent", data)
-        raise Unsafe(f"threat: {summary}; escaped by recall to {tuple(res['to'])} in {res['elapsed_s']} s")
+        why = f" ({reason})" if reason else ""
+        raise Unsafe(f"threat: {summary}{why}; escaped by recall to {tuple(res['to'])} in {res['elapsed_s']} s")
 
     def guards_entered(self, since: int) -> bool:
         """The server's "You are now under the protection of the town guards." since
@@ -1101,7 +1113,7 @@ class LumberLoop:
         self.last_threats = a
         still = [t for t in a.flee if t.kind == "monster"]
         if still:
-            self.threat_stop(st, a, still[0], [], Abort, "it kept coming after the escape")
+            self.monster_stop(st, a, still[0], [], "it kept coming after the escape")
         log(f"escaped to {tuple(st['movement']['pos'][:2])}; carrying on")
 
     def escape_tiles(self, st) -> list:
@@ -1218,7 +1230,7 @@ class LumberLoop:
         lib = places.library(access.get("library", "cambria"))
         leg = {"leg": "out", "witcher_rune": rune["id"], "library": lib["id"], "book": rune["tome"]}
         t0 = time.monotonic()
-        # No distance limit (user decision 2026-10-04): the walk goes as far as the map planner
+        # No distance limit (user decision 2026-10-03): the walk goes as far as the map planner
         # routes; "no route" from far away still aborts (bring us closer by moongate first).
         tome = next(t for t in lib["tomes"] if t["serial"] == rune["tome"])
         self.doing("to_library", f"Walking to the {lib['name']}", tuple(tome["pos"][:2]))

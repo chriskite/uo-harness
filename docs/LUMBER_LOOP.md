@@ -59,7 +59,7 @@ These constraints come from existing docs and aren't optimization targets:
 | No hostile player actions on Shelter Island. Bank and vendors need Young status | Shelter Island | PK hazard on Shelter = 0 (§6). Bank and banker purchases work only while Young |
 | **TestWorth is Young (capture evidence, 2026-09-29).** The client received the Young-only login gump "Welcome to Shelter Island" (`0xC16E0192`) in sessions 163420 and 202723 | Shelter Island + `loop_mine.py timeline 20260929_163420` | Venue decision holds |
 | 60 s harvest lockout after recall / moongate / hike / teleport / rope | [Harvesting](https://wiki.uooutlands.com/Harvesting) | Walk, don't recall (Shelter: never recall, §1). Leaving the room teleports you → [INFERENCE] probably triggers the lockout; the demo checks it |
-| **Stationary Harvest Penalty** (patch 2025-01-25): after a recall, or after 5 min standing still, harvesting fails until you walk 5 steps | docs/research/THREATS.md §7 T4; measured 2026-10-04 (docs/HUNT_LOOP.md "Stationary Penalty"): 301-315 s after the last step; at once after login and most teleports (recalls, moongates and the like 23/28, leaving a rental room 21/22) | Built 2026-10-04 (`stationary.py`): before each chop the runner walks it off (5 + 1 steps out and back to the stand tile) and repositions 2-4 steps after ~3-4 min without a step. Before that no chop had hit it (1 662 attempts), but the 60 s lockout after a recall is waited out where we land, and a speech hold or captcha at one tree can pass 5 min |
+| **Stationary Harvest Penalty** (patch 2025-01-25): after a recall, or after 5 min standing still, harvesting fails until you walk 5 steps | docs/research/THREATS.md §7 T4; measured 2026-10-03 (docs/HUNT_LOOP.md "Stationary Penalty"): 301-315 s after the last step; at once after login and most teleports (recalls, moongates and the like 23/28, leaving a rental room 21/22) | Built 2026-10-03 (`stationary.py`): before each chop the runner walks it off (5 + 1 steps out and back to the stand tile) and repositions 2-4 steps after ~3-4 min without a step. Before that no chop had hit it (1 662 attempts), but the 60 s lockout after a recall is waited out where we land, and a speech hold or captcha at one tree can pass 5 min |
 | Captcha: 5–10 min cadence; 3 fails = 6 h harvest block; closing it cancels the harvest; the same captcha persists across relog | [Captcha](https://wiki.uooutlands.com/Captcha) | Human-solved by default, auto-solved from the layout when toggled (§1); the runner never closes a captcha, and in auto it answers with the stock 0xB1 |
 | Log/board weight 0.025 st | Harvesting | Weight isn't binding until thousands; the return trigger is risk/overhead (§6) |
 | Double-click logs with a hatchet in the pack → boards (**user-confirmed: deeds need boards**) | Harvesting, Lumberjacking | Conversion is a loop step; can run in the field |
@@ -222,7 +222,7 @@ spots are planned; a candidate becomes active when the overseer approves it.
 **Evidence.** Every trip writes an episode row, aborted ones too (§13), with `spot`, `outcome`/`why`,
 the phases, `walk_out_s` (start to first chop), `chop_s` (attempts and the pauses between them,
 speech holds excluded), `tree_walk_s`, `skill`, the `hatchet` (material by hue, tool bonus, uses),
-`mounted`, `buffs`, `carried_end` and `dry` (the candidate trees ran out); since 2026-10-04 also the
+`mounted`, `buffs`, `carried_end` and `dry` (the candidate trees ran out); since 2026-10-03 also the
 travel legs, the lockout waited, the supplies used, the skill at the end and the players seen (the
 full list and what's still missing: "What the optimizer learns from" below). Hostile-player sightings
 are the `pk_seen` job events inside a trip; deaths are the proxy's `death` events, blamed on a spot
@@ -605,10 +605,18 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     to arrival. `test_escape.py` pins the gump parsing on the captured layouts.
 - **Carried wood is boards (since 2026-10-01):** an abort during the harvest converts the log
   stacks in the pack before the runner exits, unless stopping at once is safer: a player/red threat,
-  a non-creature attacker, death, a captcha that wasn't solved (a server restriction), a closed agent
-  gate (kill, budget), an open `gm_suspected` juncture or a speech hold. The conversion ignores the
-  timeout, HP and creature checks; a player or death still interrupts it. A process kill converts
-  nothing.
+  a non-creature attacker, a creature stop (below), death, a captcha that wasn't solved (a server
+  restriction), a closed agent gate (kill, budget), an open `gm_suspected` juncture or a speech
+  hold. The conversion ignores the timeout, HP and creature checks; a player or death still
+  interrupts it. A process kill converts nothing.
+- **A creature stop recalls home first (since 2026-10-04):** taking damage, a creature that kept
+  coming after the walk-away escape, too many escapes, or a creature during a speech hold ends the
+  run without converting (`monster_stop`), and when the runner is more than `HOME_NEAR` (60) tiles
+  from the banker with a recall book ready, it recalls home first (`recall_out`, up to 3 casts) and
+  posts an urgent `threat` juncture "Recalled away from …" (a player escape posts `pk_escape`).
+  Live 2026-10-04 at witcher_291 the old path converted logs for 12 s under attack (85 → 40 hits)
+  and then exited in the field; the overseer's own recall landed at 15/100. The logs stay logs in
+  the pack. Test: `test_loop_lumber.py` scenario `library_chased`.
 - **Break due (since 2026-10-01):** when the state port's `gate.break_due_at` is set (agent gate
   `break_due`, docs/OVERSEER.md), the runner stops harvesting at the next attempt, converts, walks
   to the bank, stores, logs `break due: banked after trip N`, marks the episode row `break_due`
@@ -650,7 +658,10 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   sent the runner 80–90 steps round a ridge between trees on both sides of the road while trees
   3–6 steps away waited. On those 16 trees the old order walked 673 steps, the new choice 148
   (throwaway replay on the real map). A tree without a route is skipped for the regrowth window. A
-  tree the server rejects (500489) is remembered as not a tree.
+  tree the server rejects (500489) is remembered as not a tree. **O'hii trees (0x0C9E) are never
+  candidates (since 2026-10-03):** `uomap.find_trees` skips `UoMap.UNCHOPPABLE_TREES`, because all
+  9 tried answered 500489 (harvest memory: 9/9 not_tree, 0 successes) and the 10-03 captcha came
+  on a chop of one (1524,3039); docs/NOTES.md, traffic audit of the 2026-10-02/03 captures.
 - **Hatchet choice (since 2026-10-02):** `--hatchet copper` (or `copper+exceptional`) uses only a
   hatchet of that material (by hue, `harness/data/hatchets.json`) and quality (by its clicked
   name); none such aborts the start. Without it: worn, else the shallowest in the pack.

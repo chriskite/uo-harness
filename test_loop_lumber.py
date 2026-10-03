@@ -373,6 +373,8 @@ class World:
                 asyncio.get_running_loop().call_later(0.5, self.attacker_appears, ATTACKER_POS, False)
             elif self.scenario == "skirmish" and self.good_n == 4:    # ... and later hunts it down
                 asyncio.get_running_loop().call_later(0.5, self.attacker_appears, None, True)
+            elif getattr(self, "chaser", False) and self.good_n == 2:  # a creature hunts us at a far spot
+                asyncio.get_running_loop().call_later(0.5, self.attacker_appears, None, True)
             return
         if self.good_n == 4:                 # a pickpocket lifts part of the stack once, unannounced
             self.logs -= STOLEN
@@ -954,17 +956,19 @@ async def skirmish():
     check("the attacker kept coming after the second escape: the run stopped (exit 1)",
           code == 1 and "kept coming after the escape" in text and world.attacker_swings >= 2,
           f"exit {code}, {world.attacker_swings} swings")
-    check("carried wood is boards: the logs were converted before stopping (no bank trip)",
-          world.logs == 0 and world.harvested == 2 * LOGS_PER_SUCCESS
-          and sum(world.pack_boards.values()) == world.harvested and world.bank_opens == 0
-          and "converting the carried logs before stopping" in text,
+    check("a creature still coming: stop at once, no 10 s log conversion next to it (live 2026-10-04: "
+          "85 -> 40 hits while converting); the logs stay logs, no bank trip",
+          world.logs == 2 * LOGS_PER_SUCCESS and world.harvested == 2 * LOGS_PER_SUCCESS
+          and not world.pack_boards and world.bank_opens == 0
+          and "stopping at once, logs not converted" in text
+          and "converting the carried logs before stopping" not in text,
           f"logs {world.logs}, boards {world.pack_boards}, harvested {world.harvested}")
     eps = store.episodes("lumber")
-    check("the stopped trip still left its episode row: aborted, why, the logs it got, the boards it "
-          "still carries, the hatchet from the bag",
+    check("the stopped trip still left its episode row: aborted, why, the logs it got and still "
+          "carries, the hatchet from the bag",
           len(eps) == 1 and eps[0].get("outcome") == "aborted" and "kept coming" in (eps[0].get("why") or "")
           and eps[0].get("logs") == world.harvested
-          and eps[0].get("carried_end") == {"logs": 0, "boards": world.harvested}
+          and eps[0].get("carried_end") == {"logs": world.harvested, "boards": 0}
           and (eps[0].get("hatchet") or {}).get("worn") is False
           and "harvest" in eps[0]["phases_s"] and "to_bank" not in eps[0]["phases_s"],
           str(eps)[:600])
@@ -1053,6 +1057,33 @@ async def library():
     store.close()
 
 
+async def library_chased():
+    """A creature hunts us down at a library-rune spot (live 2026-10-04, witcher_291: the
+    runner converted logs for 12 s under attack, 85 -> 40 hits, then exited in the field).
+    Now: escape on foot, it keeps coming -> recall home with our own book at once, no
+    conversion, an urgent threat juncture (not pk_escape), exit 1 at home."""
+    print("\n== library, chased: a creature keeps coming at a far spot: recall home first, no conversion ==")
+    world = World("library")
+    world.chaser = True
+    spot = {"access": {"method": "witcher", "rune": "286", "library": "cambria"}, "home": {"method": "recall"},
+            "area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 10}, "pvp": True}
+    text, code, store, _ = await run_scenario(world, "library_chased", 12720, [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=spot)
+    js = [j for j in store.junctures() if j["source"] == "lumber" and j["severity"] == "urgent"]
+    check("it kept coming: recalled home with our runebook at once (the escape recall), exit 1",
+          code == 1 and "kept coming after the escape" in text and world.recalls_home
+          and world.recalls_home[-1] == HOME_RUNE_POS and "escaped by recall" in text,
+          f"exit {code}, home {world.recalls_home}\n{text[-600:]}")
+    check("no 10 s log conversion before leaving, no bank trip",
+          "converting the carried logs before stopping" not in text and not world.pack_boards
+          and world.bank_opens == 0, f"boards {world.pack_boards} opens {world.bank_opens}")
+    check("an urgent threat juncture says it recalled away (a creature: not a pk_escape)",
+          any(j["kind"] == "threat" and "Recalled away" in j["summary"] for j in js)
+          and not any(j["kind"] == "pk_escape" for j in js), str([(j["kind"], j["summary"]) for j in js]))
+    store.close()
+
+
 def unit_hatchet():
     """loop_lumber hatchet(): worn first, then the shallowest in the pack; never the bank box."""
     print("\n== hatchet(): worn, else the shallowest in the backpack's bags ==")
@@ -1103,6 +1134,7 @@ if __name__ == "__main__":
     asyncio.run(skirmish())
     asyncio.run(break_due())
     asyncio.run(library())
+    asyncio.run(library_chased())
     unit_hatchet()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)
