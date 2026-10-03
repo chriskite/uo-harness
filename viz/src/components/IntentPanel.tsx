@@ -17,7 +17,7 @@ export function IntentPanel({ viz }: { viz: VizSnapshot }) {
   const recent = recentIntents(viz.state?.intents, now);
   return (
     <Panel
-      title="Agent"
+      title="Avatar"
       extra={v?.context ? <span className="mono dim">{v.context}</span> : undefined}
       className={v && v.activity !== "idle" ? `intent busy-${v.activity}` : "intent"}
     >

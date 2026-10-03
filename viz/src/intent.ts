@@ -1,4 +1,4 @@
-// Agent intent (StateResponse.intent / intents) -> what the Agent panel and the map show.
+// Agent intent (StateResponse.intent / intents) -> what the Avatar panel and the map show.
 import { fmtDuration } from "./format.ts";
 import type { AgentIntent, EventEnvelope, Snapshot, StateResponse, Tile } from "./types.ts";
 

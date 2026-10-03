@@ -265,7 +265,7 @@ The runners report what they are trying to do right now on the proxy's state por
   Colours: green, yellow below 50%, red below 25%. The attack marker is red.
 
 **UI:**
-- The **Agent** panel sits at the top of the right column, above the overseer chat (moved
+- The **Avatar** panel (formerly "Agent") sits at the top of the right column, above the Seer chat (moved
   from the left column 2026-09-30). It shows the text, a kind badge (captcha
   amber, stopped red, done green), `→ x,y`, the age (`for M:SS` since the step began; in replay
   measured against the newest event time, not the wall clock) and `loop · trip n/N`.
@@ -663,7 +663,7 @@ serial link) opens the drawer on the Inspector tab.
 | `viz/src/api.ts`, `store.ts`, `serial.ts` | SSE client + resume; `useSyncExternalStore` store; int↔hex serial normalization and entity lookup |
 | `viz/src/gate.ts`, `components/GateControls.tsx` | agent gate badge vocabulary and button rules; the header gate controls (§2.2) |
 | `components/CaptchaToggle.tsx` | the header captcha mode toggle (§2.2a) |
-| `viz/src/intent.ts`, `components/IntentPanel.tsx` | agent intent view (tone, trip context, age against the live or replay clock) and the Agent panel (§2.3) |
+| `viz/src/intent.ts`, `components/IntentPanel.tsx` | agent intent view (tone, trip context, age against the live or replay clock) and the Avatar panel (§2.3) |
 | `harness/jobs.py` | job analytics over the memory store (§2.4) |
 | `viz/src/overseer.ts`, `components/OverseerPanel.tsx` | overseer timeline model (cursor merge, heartbeat status, chat validation) and the Overseer panel (§2.4) |
 | `viz/src/jobs.ts`, `chart.ts`, `components/JobsPage.tsx`, `components/Charts.tsx` | Jobs page view model (KPIs, event wording, theft rule, wood shares), SVG chart geometry, the dashboard and its charts (§2.4) |
@@ -748,7 +748,7 @@ serial link) opens the drawer on the Inspector tab.
   ops of §2.2), never opens the control port, and can be started or stopped at any time. A proxy started before this build shows world events only;
   restart the proxy for proxy events, traffic and diagnostics. Likewise a proxy started before
   2026-09-29 23:00 rejects the `intent` op (`unknown op`; runners log it and carry on), so the
-  Agent panel stays empty until the proxy is restarted.
+  Avatar panel stays empty until the proxy is restarted.
 - Replay: `python harness/viz_server.py --replay <TAG> [--rate 8] [--paused]` (TAG =
   `logs/session_<TAG>.*`).
 - **Phone / home network (2026-10-03, user request).** Start with `--host 0.0.0.0`
