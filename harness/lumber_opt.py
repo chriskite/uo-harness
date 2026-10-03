@@ -164,23 +164,32 @@ def spot_knowledge(know: dict, spot: dict) -> dict:
 
 def current_spot(spots: dict, pos, facet) -> str | None:
     """The spot we stand at or by: inside its area (+ CURRENT_SPOT_MARGIN) or
-    within NEAR_BANK tiles of its bank; the nearest such one. Else, within
-    HUB_RADIUS of a rune library: "hub:<library id>" (every spot reached from
-    that library is at hand)."""
+    within NEAR_BANK tiles of its bank; the nearest such one. A Witcher spot's
+    bank is the shared home, so standing there (or within HUB_RADIUS of a rune
+    library) gives "hub:<library id>": every spot reached from that library is
+    at hand, its travel being the trip overhead from home."""
     if not pos:
         return None
-    best = None
+    best, home_hub = None, None
     for sid, s in spots.items():
         if int(s.get("facet") or 0) != int(facet or 0) or not s.get("area"):
             continue
         d_area = cheb(pos, s["area"]["center"])
-        d_bank = cheb(pos, s["banker"]["pos"]) if s.get("banker") else 10 ** 6
+        # A Witcher spot's bank is the home every such spot shares, not the field: standing
+        # there isn't being at the spot (live 2026-10-04 at the Cambria bank, "here" was an
+        # arbitrary Witcher candidate). Its travel is the overhead from that bank.
+        home_only = (s.get("access") or {}).get("method") == "witcher"
+        d_bank = cheb(pos, s["banker"]["pos"]) if s.get("banker") and not home_only else 10 ** 6
+        if home_only and s.get("banker") and cheb(pos, s["banker"]["pos"]) <= NEAR_BANK:
+            home_hub = hub_of(s)
         if d_area <= s["area"]["radius"] + CURRENT_SPOT_MARGIN or d_bank <= NEAR_BANK:
             d = min(d_area, d_bank)
             if best is None or d < best[0]:
                 best = (d, sid)
     if best:
         return best[1]
+    if home_hub:
+        return home_hub
     import places
     for lib in places.witcher()["libraries"]:
         if lib["facet"] == int(facet or 0) and cheb(pos, lib["stand"]) <= HUB_RADIUS:

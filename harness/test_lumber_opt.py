@@ -285,6 +285,10 @@ def test_travel_and_hub():
     check("at the library hub a Witcher spot is at hand (no travel), others aren't",
           row(hub, "w")["travel_min"] == 0 and row(hub, "a")["travel_min"] == 10)
     check("standing at the Cambria library is the hub", lo.current_spot({}, (1706, 3181), 0) == "hub:cambria")
+    wb = {**w, "banker": {"pos": [1750, 3003, 0]}}
+    check("at a Witcher spot's home bank: the hub, not that spot (its area is ~2,200 tiles away)",
+          lo.current_spot({"w": wb, "w2": {**wb, "id": "w2"}}, (1752, 3001), 0) == "hub:cambria")
+    check("inside a Witcher spot's area: that spot", lo.current_spot({"w": wb}, (4000, 1000), 0) == "w")
     check("a Witcher spot's overhead prior holds the 60 s lockout and two recalls",
           lo.overhead_prior_s({**w, "banker": {"pos": [1750, 3003, 0]}}) > lo.OVERHEAD_FIXED_S + 60 + 8)
 
