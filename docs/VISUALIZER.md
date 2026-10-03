@@ -348,8 +348,9 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
 - `plan` = `jobs.lumber_plan`: `lumber_opt.plan_from_store` with no live character (skill from the
   newest trip row) and no position (every spot pays its travel prior), seeded by the minute, plus
   per spot the PK escapes (`recall`/`guard_flight` events), the last trip's outcome and why, and how
-  it's reached (`Witcher rune N` or a walk). 0.06 s on the live store, so it's computed per request
-  (inside the 2 s cache). `analytics(plan_now=None)` (tests, the CLI) leaves it null.
+  it's reached (`Witcher rune N` or a walk). 0.18 s on the live store (2026-10-04: three hazards and a
+  finer trip-size search), so it's computed per request (inside the 2 s cache).
+  `analytics(plan_now=None)` (tests, the CLI) leaves it null.
 
 **Hunt analytics (`jobs.compute_hunt`, pure; added 2026-10-02).** Inputs: `Memory.episodes("hunt")`
 (one row per visit to the spot, docs/HUNT_LOOP.md "Memory") and the hunt job events.
@@ -398,15 +399,20 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     tiles are green at 0, red or amber otherwise.
   - A line under the tiles: the estimated value (and how many logs are unpriced) and the chop
     outcomes from `harvest_attempts`.
-  - **Optimizer: next pick** (2026-10-03): the plan's spot with `explore`/`exploit`, P(best), trips ×
-    Q* logs, expected trip minutes and net logs/hr, then skill and chop success, the regrowth window
-    (fitted or default), P(death | PK seen), the new-spot prior, the dispersion and the `ctl run
-    lumber` command.
+  - **Optimizer: next pick** (2026-10-03; hazards 2026-10-04): the plan's spot with
+    `explore`/`exploit`, P(best), trips × Q* logs, expected trip minutes, expected logs banked per
+    trip with P(death) and P(sent home) per trip, and net logs/hr; then skill and chop success,
+    the regrowth window (fitted or default), P(death | PK seen), the pooled creature-death and
+    theft rates (thefts seen, share of the load each), the gear at risk on death (items on hover;
+    "none (Young)"), the room left for logs when known, the new-spot prior, the dispersion and the
+    `ctl run lumber` command.
   - **Spots**: every active spot and every spot with trips (the untried candidates are counted in
     the head): status, how it's reached, trips, field hours, field logs/hr with its 80% interval,
-    net logs/hr, Q*, overhead, travel minutes, PK sightings/hr, deaths, PK escapes, place
-    failures, supplies per trip, the last trip (hours ago, outcome, why on hover), P(best) and why
-    it can't be picked. The pick's row is highlighted, ineligible rows dimmed.
+    net logs/hr, Q*, overhead, travel minutes, PK sightings/hr, deaths/hr (h_D; count on hover),
+    sent home/hr (h_S), thefts/hr (h_T), loss/trip (logs lost to death and thieves plus the gear,
+    P(death) per trip on hover), PK escapes, place failures, supplies per trip, the last trip
+    (hours ago, outcome, why on hover), P(best) and why it can't be picked. The pick's row is
+    highlighted, ineligible rows dimmed.
   - **Lumberjacking skill** over time (trip start and end) and **Travel and supplies**: the time
     split of all trips as one bar, the supplies used, the legs table and the books table (library
     tomes' charges over time on hover).

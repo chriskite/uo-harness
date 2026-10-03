@@ -133,9 +133,22 @@ export interface PlanSpot {
   rate_80: [number, number];
   overhead_s: number;
   sightings: number;
+  /** hostile players sighted per field hour (the PK part of the death-rate prior) */
   sightings_per_h: number;
   deaths: number;
+  /** h_D: deaths (PK or creature) per field hour, posterior mean */
   deaths_per_h: number;
+  /** trips a threat ended early without killing us (recall, guard flight, creature stop) */
+  sent_home: number;
+  /** h_S per field hour */
+  sent_home_per_h: number;
+  thefts: number;
+  /** h_T per field hour */
+  thefts_per_h: number;
+  /** P(death) in one trip of logs_per_trip */
+  p_death_trip: number;
+  /** expected logs lost per trip to death and thieves, plus the gear a death loses, in logs */
+  loss_logs_trip: number;
   logs_per_trip: number;
   net_logs_h: number;
   supply_gp_trip: number;
@@ -163,6 +176,23 @@ export interface LumberPlan {
   regrow: { minutes: number; pairs: number; regrown?: number; fitted: boolean };
   dispersion: number;
   death_given_sighting: number;
+  young: boolean;
+  creature_deaths_per_h: number;
+  sent_home_pooled_per_h: number;
+  thefts_pooled_per_h: number;
+  /** share of the carried logs one theft takes (prior 0.5) */
+  theft_fraction: number;
+  theft_events: number;
+  /** what a death loses besides the logs: every unblessed item carried, full price */
+  gear_at_risk: {
+    gp: number;
+    young: boolean;
+    items: { item: string; n: number; gp: number }[];
+    unpriced: string[];
+    source: string | null;
+  };
+  /** logs we can still carry (weight), null without a live character */
+  capacity_logs: number | null;
   prior_rate_logs_h: number;
   prior_cv: number;
   spots: PlanSpot[];
@@ -175,6 +205,9 @@ export interface LumberPlan {
     trips: number;
     expected_trip_min: number;
     expected_net_logs_h: number;
+    expected_banked_trip: number;
+    p_death_trip: number;
+    p_sent_home_trip: number;
     command: string;
   } | null;
 }

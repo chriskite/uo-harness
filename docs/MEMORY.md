@@ -62,8 +62,9 @@ Rejected:
     human's and the agent's walks teach it.
 - **Runners** (`Memory`):
   - `loop_lumber.py` writes harvest outcomes and one episode per trip, aborted trips included.
-    `lumber_opt.py` (`ctl lumber plan`) reads them with the `pk_seen` job events, the `death`
-    events and `harvest_attempts` (regrowth) to choose the next spot, trip size and hatchet.
+    `lumber_opt.py` (`ctl lumber plan`) reads them with the `pk_seen`, `death`, `recall`,
+    `guard_flight` and `theft` job events, `theft_suspected` junctures, the proxy's `death` events
+    and `harvest_attempts` (regrowth) to choose the next spot, trip size and hatchet.
   - `loop_hunt.py` writes one episode per visit (loop `hunt`: kills, gold, xp, hits lost, casts, heals,
     why it ended) and job events `kill`, `loot` (gold, xp = the corpse's gold; docs/HUNT_LOOP.md),
     `leave`, `death`, `speech_hold`/`speech_clear`. The viz Jobs page's Hunting dashboard reads them.

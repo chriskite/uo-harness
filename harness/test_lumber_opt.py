@@ -4,6 +4,7 @@ trips, deaths and depleted trees. Synthetic trip rows; no network, no game.
 
 Run: python harness/test_lumber_opt.py
 """
+import math
 import os
 import random
 import sys
@@ -106,25 +107,154 @@ def test_skill_rescaling():
                                                      "a")["rate_logs_h"]) <= 1)
 
 
-def test_trip_size_and_hazard():
-    print("== how much to carry: less where PKs are, everything (up to the stint) where there are none ==")
+def hz(death=0.0, home=0.0, theft=0.0, share=0.5):
+    return (death, home, theft, share)
+
+
+def test_trip_size():
+    print("== how much to carry: renewal-reward over death, sent-home and theft hazards, 200..10,000 logs ==")
     lam, t_h = 1500.0, 150 / 3600.0
-    safe, risky, deadly = (lo.best_q(lam, t_h, h, 3.0, 5000) for h in (0.0, 0.05, 0.5))
+    safe, risky, deadly = (lo.best_q(lam, t_h, hz(h), 3.0) for h in (0.0, 0.05, 0.5))
     check("trip size falls as the death rate rises", safe > risky > deadly, (safe, risky, deadly))
-    check("no hazard: the largest trip the stint allows", safe == max(q for q in lo.Q_GRID if q <= 5000), safe)
+    check("bounds: no hazard -> 10,000 logs (no stint cap), an extreme one -> 200",
+          safe == lo.Q_MAX == 10000 and lo.best_q(lam, t_h, hz(50.0), 3.0) == lo.Q_MIN == 200,
+          (safe, lo.best_q(lam, t_h, hz(50.0), 3.0)))
+    q, h = 1500, 0.4
+    dead, home = lo.trip_terms(q, lam, t_h, hz(death=h)), lo.trip_terms(q, lam, t_h, hz(home=h))
+    surv = math.exp(-h * q / lam)
+    check("a dying trip banks nothing: only the trips that live bank, all q of them",
+          abs(dead["banked"] - q * surv) < 1e-6 and abs(dead["p_death"] - (1 - surv)) < 1e-9, dead)
+    check("a trip sent home at the same rate banks everything it chopped, and loses nothing",
+          abs(home["banked"] - lam * (1 - surv) / h) < 1e-6 and home["banked"] > dead["banked"]
+          and home["lost_death"] == 0 and dead["lost_death"] > 0 and home["p_death"] == 0, (home, dead))
+    check("being sent home alone never shrinks the trip (nothing is lost)",
+          lo.best_q(lam, t_h, hz(home=3.0), 3.0) == lo.Q_MAX)
+    long = lo.trip_terms(10000, 500.0, t_h, hz(death=1.0))           # 20 field hours at 1 death/h
+    rate = lo.net_rate(10000, 500.0, t_h, hz(death=1.0), 3.0)
+    check("long trips stay well-defined: P(death) <= 1, nothing banked below 0, the rate no worse than losing "
+          "the gear every cycle",
+          abs(long["p_death"] - (1 - math.exp(-20))) < 1e-9 and 0 <= long["banked"] < 1
+          and -3.0 / long["time_h"] <= rate < 0, (long, rate))
+    calm, robbed = lo.best_q(lam, t_h, hz(0.05), 3.0), lo.best_q(lam, t_h, hz(0.05, theft=2.0), 3.0)
+    check("thieves lower Q* (a grab takes a share of the load)", robbed < calm, (calm, robbed))
+    lost = lo.trip_terms(2000, lam, t_h, hz(theft=1.0, share=0.5))
+    check("theft: the trip runs its full length, the share taken is gone",
+          abs(lost["time_h"] - (t_h + 2000 / lam)) < 1e-9 and lost["lost_theft"] > 0
+          and abs(lost["banked"] + lost["lost_theft"] - 2000) < 1e-6, lost)
+    check("gear at risk lowers Q*", lo.best_q(lam, t_h, hz(0.05), 300.0) < calm)
+
     spots = [spot("calm", hazard=0.05), spot("pk", 2000, 2000, hazard=3.0)]
     eps = series("calm", 8, 1500) + series("pk", 8, 1500, start=NOW - 3 * 86400)   # not interleaved: no "moves"
     out = plan(spots, eps)
     check("same yield, more PK sightings: smaller trips and lower net logs/hour",
           row(out, "pk")["logs_per_trip"] < row(out, "calm")["logs_per_trip"]
-          and row(out, "pk")["net_logs_h"] < row(out, "calm")["net_logs_h"],
+          and row(out, "pk")["net_logs_h"] < row(out, "calm")["net_logs_h"]
+          and row(out, "pk")["deaths_per_h"] > row(out, "calm")["deaths_per_h"],
           (row(out, "pk"), row(out, "calm")))
+    p = out["pick"]
+    check("the runner's timeout covers the chosen trips (twice their full length)",
+          p["timeout_s"] >= 2 * p["trips"] * p["expected_trip_min"] * 60, p)
     eps2 = eps + [trip("calm", NOW - 7200 - i * 4000, 300, 1200) for i in range(6)]
     seen = [e["t_start"] + 300 for e in eps2[-6:]]
     out2 = plan(spots, eps2, sightings=seen)
-    check("hostile players seen during trips raise the spot's sighting rate",
-          row(out2, "calm")["sightings_per_h"] > row(out, "calm")["sightings_per_h"],
-          (row(out2, "calm")["sightings_per_h"], row(out, "calm")["sightings_per_h"]))
+    check("hostile players seen during trips raise the spot's sighting and death rates",
+          row(out2, "calm")["sightings_per_h"] > row(out, "calm")["sightings_per_h"]
+          and row(out2, "calm")["deaths_per_h"] > row(out, "calm")["deaths_per_h"],
+          (row(out2, "calm"), row(out, "calm")))
+
+
+def test_hazard_evidence():
+    print("== hazards learned per spot: deaths, trips sent home, thefts; shrunk to the pooled rate ==")
+    spots = [spot("a"), spot("b", 3000, 3000)]
+    base = series("a", 6, 1500, start=NOW - 5 * 86400) + series("b", 6, 1500, start=NOW - 3 * 86400)
+    out = plan(spots, base)
+    fled = [trip("a", NOW - 86400 - i * 4000, 200, 600, outcome="aborted",
+                 why="threat: red X at 17 tiles (ETA 0.5 s); escaped by recall to (1, 2) in 2.2 s") for i in range(4)]
+    sent = plan(spots, base + fled)
+    check("trips a threat ended raise that spot's sent-home rate, more than the pooled rate moves the other's",
+          row(sent, "a")["sent_home"] == 4
+          and row(sent, "a")["sent_home_per_h"] > row(sent, "b")["sent_home_per_h"] > row(out, "b")["sent_home_per_h"],
+          (row(sent, "a")["sent_home_per_h"], row(sent, "b")["sent_home_per_h"], row(out, "b")["sent_home_per_h"]))
+    stopped = [trip("a", NOW - 86400 - i * 4000, 200, 600, outcome="aborted", why="threat: monster a mongbat")
+               for i in range(2)]
+    esc = [{"t": tr["t_end"] - 1, "kind": "recall", "data": {}} for tr in stopped]
+    check("a recall event inside an aborted trip counts it as sent home",
+          row(plan(spots, base + [{**tr, "why": "stopped"} for tr in stopped], events=esc), "a")["sent_home"] == 2)
+    killed = trip("a", NOW - 86400, 200, 600, outcome="aborted", why="threat: red X; escaped by recall")
+    died = plan(spots, base + [killed], deaths=[{"t": killed["t_end"] + 11, "x": 1000, "y": 1000}])
+    check("a death right after the trip: a death there, not a trip sent home; its rate rises more than the other "
+          "spot's (which moves only through the pooled creature rate)",
+          row(died, "a")["deaths"] == 1 and row(died, "a")["sent_home"] == 0
+          and row(died, "a")["deaths_per_h"] - row(out, "a")["deaths_per_h"]
+          > 2 * (row(died, "b")["deaths_per_h"] - row(out, "b")["deaths_per_h"]) > 0,
+          (row(died, "a"), row(out, "a")))
+    check("a death with no player seen before it is a creature death: the pooled creature rate rises, "
+          "P(death | sighting) doesn't",
+          died["creature_deaths_per_h"] > out["creature_deaths_per_h"]
+          and died["death_given_sighting"] == out["death_given_sighting"],
+          (died["creature_deaths_per_h"], died["death_given_sighting"]))
+    pk = plan(spots, base + [killed], deaths=[{"t": killed["t_end"] + 11, "x": 1000, "y": 1000}],
+              sightings=[killed["t_end"] - 3])
+    check("a sighting just before: a PK death (P(death | sighting) rises)",
+          pk["death_given_sighting"] > out["death_given_sighting"])
+    tr = base[2]
+    grab = {"t": tr["t_end"] - 100, "kind": "theft",
+            "data": {"amount": 300, "items": [{"graphic": 0x1BDD, "amount": 300, "class": "log", "wood": "ordinary"}],
+                     "carried": 400}}
+    regs = {"t": base[3]["t_end"] - 100, "kind": "theft",
+            "data": {"amount": 10, "items": [{"graphic": 0x0F86, "amount": 10}]}}
+    robbed = plan(spots, base, events=[grab, regs])
+    check("thefts at a spot raise its theft rate and lower its Q*; the share taken is learned (wood 300/400, "
+          "reagents 0)",
+          row(robbed, "a")["thefts"] == 2 and row(robbed, "a")["thefts_per_h"] > row(out, "a")["thefts_per_h"]
+          and row(robbed, "a")["logs_per_trip"] < row(out, "a")["logs_per_trip"]
+          and robbed["theft_fraction"] == round((1 + 0.75 + 0) / 4, 2),
+          (row(robbed, "a"), robbed["theft_fraction"]))
+    junct = {"t": tr["t_end"] - 100, "kind": "theft_suspected",
+             "data": {"unexplained_losses": [{"amount": 300, "class": "log", "wood": "ordinary"}]}}
+    check("a theft_suspected juncture next to its theft event counts once; alone it counts",
+          row(plan(spots, base, events=[grab, junct]), "a")["thefts"] == 1
+          and row(plan(spots, base, events=[junct]), "a")["thefts"] == 1)
+
+
+def test_gear_and_capacity():
+    print("== a death loses every unblessed item at full price (nothing when Young); Q fits what we can carry ==")
+    me = {**char(70.0, iron(), copper(), {**copper(), "newbied": True}), "reagents": {"black pearl": 20, "nightshade": 5}}
+    prices = {"hatchet:copper": {"price_gp": 300}, "reagent:black_pearl": {"price_gp": 3.0}}
+    g = lo.gear_at_risk(me, TABLE, prices, young=False)
+    check("all carried hatchets at full price (iron 25 + copper 300; the newbied one stays), priced reagents, "
+          "unpriced ones listed",
+          g["gp"] == 25 + 300 + 60 and g["unpriced"] == ["reagent:nightshade"], g)
+    check("Young: nothing is lost", lo.gear_at_risk(me, TABLE, prices, young=True)["gp"] == 0)
+    spots = [spot("a", hazard=1.0)]
+    eps = series("a", 10, 1500, skill=70.0)
+    adult = plan(spots, eps, char=me, prices=prices)
+    young = plan(spots, eps, char={**me, "young": True}, prices=prices)
+    check("the plan carries it: more lost per trip and fewer net logs/hour; Young (the name label) -> nothing at risk",
+          adult["gear_at_risk"]["gp"] == 385 and young["gear_at_risk"]["gp"] == 0 and young["young"]
+          and row(adult, "a")["loss_logs_trip"] > row(young, "a")["loss_logs_trip"]
+          and row(adult, "a")["net_logs_h"] < row(young, "a")["net_logs_h"],
+          (row(adult, "a"), row(young, "a")))
+    last = eps[:-1] + [{**eps[-1], "hatchet": {**copper(), "tool_bonus": 0.0}}]
+    seen = plan(spots, last, prices=prices)["gear_at_risk"]
+    check("no live character: the newest trip row's hatchet is what's at risk", seen["gp"] == 300
+          and seen["source"] == "last trip row", seen)
+    calm = [spot("c", pvp=False)]
+    free = plan(calm, series("c", 10, 1500), char={**char(70.0, iron()), "young": True})
+    heavy = plan(calm, series("c", 10, 1500), char={**char(70.0, iron()), "young": True,
+                                                    "weight": 300, "weight_max": 330})
+    check("what we can still carry caps the trip: (330 - 300) / 0.025 = 1,200 logs",
+          heavy["capacity_logs"] == 1200 and row(heavy, "c")["logs_per_trip"] == 1200
+          and row(free, "c")["logs_per_trip"] > 1200 and heavy["pick"]["logs_per_trip"] == 1200,
+          (row(free, "c")["logs_per_trip"], row(heavy, "c")["logs_per_trip"]))
+    world = {"self": {"weight": 40, "stats": {"weight_max": 400}}, "labels": {"0x00000001": "Hackworth (young)"},
+             "items": {"0x40000001": {"graphic": 0x0E75, "layer": 0x15, "container": "0x00000001"},
+                       "0x40000002": {"graphic": 0x0F7A, "amount": 12, "container": "0x40000001"},
+                       "0x40000003": {"graphic": 0x0F43, "hue": 0, "container": "0x40000001"}}}
+    c = lo.character(world, 1, TABLE)
+    check("the character snapshot reads weight, weight_max, the packed hatchet and reagents, the Young label",
+          (c["weight"], c["weight_max"], c["reagents"], c["young"], [h["material"] for h in c["hatchets"]])
+          == (40, 400, {"black pearl": 12}, True, ["iron"]), c)
 
 
 def test_eligibility():
@@ -178,7 +308,7 @@ def test_regrowth():
 
 
 def test_hatchets():
-    print("== which hatchet: tool bonus vs wear and the loss on death ==")
+    print("== which hatchet: tool bonus vs wear; every carried one is lost on death, a bought one adds its price ==")
     spots = [spot("a", hazard=0.5)]
     eps = series("a", 10, 1200, skill=70.0)
     me = char(70.0, iron(), copper())
@@ -187,7 +317,7 @@ def test_hatchets():
           cheap["hatchets"]["use"] == "copper" and "--hatchet copper" in cheap["pick"]["command"],
           cheap["hatchets"]["options"])
     dear = plan(spots, eps, char=me, prices={"hatchet:copper": {"price_gp": 200000}})
-    check("a very valuable one isn't worth risking or wearing out: keep the iron hatchet",
+    check("a very valuable one isn't worth wearing out: keep the iron hatchet",
           dear["hatchets"]["use"] is None and "--hatchet" not in dear["pick"]["command"])
     unpriced = plan(spots, eps, char=me)
     cop = next(o for o in unpriced["hatchets"]["options"] if o["material"] == "copper")
@@ -196,12 +326,14 @@ def test_hatchets():
     at = plan(spots, eps, char=me, prices={"hatchet:copper": {"price_gp": cop["breakeven_gp"]}})
     vals = {o["material"]: o["net_logs_h"] for o in at["hatchets"]["options"]}
     check("at the break-even price copper and iron net the same", abs(vals["copper"] - vals["iron"]) < 1.0, vals)
-    safe = plan([spot("a", pvp=False)], eps, char=me, prices={"hatchet:copper": {"price_gp": 1500}})
-    risky = plan([spot("a", hazard=5.0)], eps, char=me, prices={"hatchet:copper": {"price_gp": 1500}})
-    check("the same hatchet is worth more where nobody can kill us",
-          next(o for o in safe["hatchets"]["options"] if o["material"] == "copper")["breakeven_gp"] is None
-          and safe["hatchets"]["use"] == "copper" and risky["hatchets"]["use"] is None,
-          (safe["hatchets"]["use"], risky["hatchets"]["use"]))
+    check("an owned copper hatchet is at risk whichever is used: the plan's gear at risk holds iron + copper",
+          cheap["gear_at_risk"]["gp"] == 25 + 300, cheap["gear_at_risk"])
+    only_iron = char(70.0, iron())
+    safe = plan([spot("a", pvp=False)], eps, char=only_iron, prices={"hatchet:copper": {"price_gp": 1500}})
+    risky = plan([spot("a", hazard=5.0)], eps, char=only_iron, prices={"hatchet:copper": {"price_gp": 1500}})
+    check("buying one is worth more where nobody can kill us (its full price is at risk where they can)",
+          (safe["hatchets"]["buy"] or {}).get("material") == "copper" and risky["hatchets"]["buy"] is None,
+          (safe["hatchets"]["buy"], risky["hatchets"]["buy"]))
     check("success chance grows with the tool bonus and skill, capped at 1",
           lo.success_p(70, 0.06) > lo.success_p(70) and lo.success_p(100, 1.0) == 1.0
           and abs(lo.success_p(69.1) - 0.69) < 0.01)
@@ -350,9 +482,9 @@ def test_travel_costs():
 
 
 if __name__ == "__main__":
-    for fn in (test_explore_exploit, test_skill_rescaling, test_trip_size_and_hazard, test_eligibility,
-               test_regrowth, test_hatchets, test_spots_store, test_discover, test_failed_places,
-               test_travel_and_hub, test_discover_witcher, test_travel_costs):
+    for fn in (test_explore_exploit, test_skill_rescaling, test_trip_size, test_hazard_evidence,
+               test_gear_and_capacity, test_eligibility, test_regrowth, test_hatchets, test_spots_store,
+               test_discover, test_failed_places, test_travel_and_hub, test_discover_witcher, test_travel_costs):
         fn()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

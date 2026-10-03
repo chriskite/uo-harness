@@ -417,6 +417,16 @@ plus the store, hatchets in `harness/data/hatchets.json`; the model is docs/LUMB
   sightings/hour × P(death | sighting): sightings arrive long before deaths, which are rare.
   This replaces fixed `--logs-per-trip` values; the user's 2026-10-02 note (banking trips are
   costly, don't bank more often than the trigger says) holds.
+- **2026-10-04 (user decisions): the trip size is a renewal-reward rate over three competing
+  hazards** (LUMBER_LOOP §6 "trip size"). The first model credited a dying trip with Q/2 banked
+  and charged deaths = h·Q/λ, which exceeds 1 for long trips; it also capped Q at what a 60-min
+  stint can chop. Now: a death banks nothing and loses every unblessed item at full price (all
+  hatchets carried, reagents; nothing when Young); a trip a threat ended (recall, guard flight,
+  creature stop) banks what it carries; a theft takes a share f of the load. Each hazard is
+  learned per spot with shrinkage to a pooled rate (the sighting × P(death | sighting) path is
+  the death prior). Q in 200…10 000 logs, capped by weight, no stint cap; `--timeout` scales with
+  the trip. Rejected: keeping the first-order formula with a clamp on deaths (still wrong for
+  sent-home trips and theft), and Monte Carlo per Q (the integrals are closed form).
 - **Every trip is evidence, aborted ones too.** Until now only trips that reached the bank wrote
   an episode row, so the spots where trips get cut short looked better than they are. The runner
   now writes the row in a `finally` with `outcome` and `why`.

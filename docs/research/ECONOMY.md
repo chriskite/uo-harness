@@ -327,11 +327,14 @@ Test Shard's public shelves or one of our own in the rental room.
 
 ## 6. Inputs for a value-aware "head home" rule (LUMBER_LOOP §6)
 
-§6 today uses a board count `Q` and `Q* = r·sqrt(2T/h)`. With several woods, the carried quantity
-should be **value** `V = Σ_w n_w·v_w` rather than a count. Replace `r` with a value rate
-`ρ = Σ_w r_w·v_w`; then `V* = ρ·sqrt(2T/h)` under the same model `[INFERENCE]`. Because rare woods
-arrive in lumps, V can jump past `V*` with a single chop, so the check runs after every harvest
-result. These are the concrete inputs:
+§6 started from a board count `Q` and `Q* = r·sqrt(2T/h)`; since 2026-10-04 it maximises a
+renewal-reward rate over death, sent-home and theft hazards (`lumber_opt.trip_terms`: the load
+grows at λ, a death banks nothing and loses the gear at full price), of which the square-root rule
+is the small-hazard limit. With several woods, the carried quantity should be **value**
+`V = Σ_w n_w·v_w` rather than a count. Replace `λ` (and `r`) with a value rate `ρ = Σ_w r_w·v_w`;
+the same model then gives `V*`, ≈ `ρ·sqrt(2T/h)` for a small hazard `[INFERENCE]`. Because rare
+woods arrive in lumps, V can jump past `V*` with a single chop, so the check runs after every
+harvest result. These are the concrete inputs:
 
 1. **Per-wood value `v_w`** (gp/board, or a user-set utility weight): woods.json `value_gp`. Colored
    values are null today (§5.3), so the user supplies them (Open question 1).

@@ -2389,7 +2389,6 @@ def cmd_lumber(a, mem):
     op = a.lumber_op
     if op == "plan":
         world = serial = pos = facet = None
-        young = a.young
         try:
             resp = state_query(a.state_port)
         except (OSError, ValueError):
@@ -2398,9 +2397,8 @@ def cmd_lumber(a, mem):
             world, mv = resp.get("world") or {}, resp.get("movement") or {}
             serial, pos = mv.get("self_serial"), mv.get("pos")
             facet = (world.get("self") or {}).get("map")
-            label = (world.get("labels") or {}).get(f"0x{serial:08X}" if serial is not None else "", "")
-            young = young or "(young)" in label.lower()
-        out = lumber_opt.plan_from_store(mem, world, serial, pos, facet, young=young,
+        # Young: --young or the "(young)" name label (lumber_opt.character)
+        out = lumber_opt.plan_from_store(mem, world, serial, pos, facet, young=a.young,
                                          stint_min=a.stint_min, seed=a.seed)
         out["proxy"] = bool(resp.get("ok"))
         if not a.all:
@@ -2616,7 +2614,8 @@ def _lumber_parser(sub):
     ls = p.add_subparsers(dest="lumber_op", required=True)
     q = ls.add_parser("plan", help="where to chop next, how much per trip, which hatchet (Thompson sampling)")
     q.add_argument("--young", action="store_true", help="the character is Young (Shelter Island spots)")
-    q.add_argument("--stint-min", type=float, default=60.0, help="how long this run should last")
+    q.add_argument("--stint-min", type=float, default=60.0,
+                   help="how long this run should last (sets --trips; a longer trip runs once)")
     q.add_argument("--seed", type=int, default=None, help=argparse.SUPPRESS)
     q.add_argument("--all", action="store_true", help="also candidate/disabled spots and the regrowth curve")
     ls.add_parser("spots", help="every spot with its status")

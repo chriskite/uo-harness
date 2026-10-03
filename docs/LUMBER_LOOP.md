@@ -1,7 +1,7 @@
 # LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → bank (→ deed later)
 
 Status (2026-10-02): **self-optimizing (§6, "Built 2026-10-02").** `ctl lumber plan` picks the spot
-(Thompson sampling over spots learned from every trip), the trip size (PK risk vs. walking
+(Thompson sampling over spots learned from every trip), the trip size (death, sent-home and theft risk vs. walking
 overhead) and the hatchet; the runner takes `--spot`. Boards go into the bank box; the rental room
 is out of the loop (user decision, §12.5). The room-storage version ran live on 2026-09-29 (3 trips,
 50 boards, captcha solved and resumed; run 3, §13); the bank version ran live off Shelter on
@@ -188,6 +188,9 @@ about `h·Q²/(2r)`, plus `h·Q·T_back` on the way home. Cost per banked board:
 
 $$c(Q) = \frac{rT}{Q} + \frac{hQ}{2r} + h\,T_{back} \quad\Rightarrow\quad Q^* = r\sqrt{2T/h}$$
 
+This first-order rule is now the small-hazard limit of the renewal-reward model built on 2026-10-04
+("Trip size" below), which drops the Q/2 approximation and the `h·Q/r > 1` breakdown of long trips.
+
 - **Shelter Island: `h = 0`** (no hostile player actions, wiki). `Q*` is unbounded, so the trip ends
   on the next forced break (so the break is spent in the room), the weight cap or the session end.
   Shelter trips are where `r` and `T` get measured. Shelter halves harvest chance, so its `r` does
@@ -250,17 +253,54 @@ patches show up within weeks):
   recorded): its double yield shows up through the recency weighting.
 - overhead T (walk out + convert + walk to the bank + store): Normal posterior, prior from the
   bank-to-area distance.
-- hazard: hostile-player sightings per field hour (Gamma, prior `hazard_prior`, 2 h strong) ×
-  P(death | sighting) (Beta(1, 3) prior, pooled over spots). Sightings carry information long before
-  deaths do (§6 above). A death costs the carried logs (Q/2 on average), the hatchet's value if it
-  isn't newbied, and 20 min of recovery [INFERENCE].
-- trip size: Q* maximises banked logs/hour (Q − deaths·(Q/2 + G)) / (Q/λ + T + deaths·R) over a grid
-  25…3000, capped at what one stint (60 min) can chop. No PvP (Shelter): the cap.
-- **choice:** Thompson sampling: one posterior draw per eligible spot, the best wins; a spot other
-  than the one we stand at pays `travel_min` out of the stint. `plan` reports P(best) per spot from
-  2 000 draws, `mode: explore` when the pick isn't the best by posterior mean, and the runner
-  command (`--spot`, `--trips` for ~60 min, `--logs-per-trip` Q*, `--regrow-min`, `--timeout`,
-  `--hatchet`).
+- **hazards (rewritten 2026-10-04, user decisions):** three competing hazards per field hour, each a
+  Gamma posterior per spot over recency-weighted field hours, shrunk to a pooled rate:
+  - **death h_D** (PK or creature): prior mean = the spot's hostile-player sightings per field hour
+    (Gamma, prior `hazard_prior`, 2 h strong) × P(death | sighting) (Beta(1, 3), pooled; only PK
+    deaths update it) + the pooled creature-death rate (prior 0.01/h worth 20 field hours
+    [INFERENCE]); that prior counts 10 field hours against the spot's own deaths. A death is a PK
+    death when the runner's `death` job event says `cause: pk`, or a sighting fell in the 5 min
+    before it; else a creature death.
+  - **sent home h_S**: trips a threat ended without killing us: the row's `why` starts `threat:`
+    (recall escape, guard flight, a creature or damage stop), or a `recall`/`guard_flight` job event
+    falls in the trip, or the row's `creature.recalled` (the CreatureRun field, when present). A
+    trip followed by a death within 30 min counts as a death, not as sent home. Pooled prior 0.5/h
+    worth 2 h [INFERENCE]; a spot's prior counts 2 field hours.
+  - **theft h_T**: `theft` job events, plus `theft_suspected` junctures with no such event within
+    10 s, inside a trip. Rare, so pooled heavily: prior 0.02/h worth 20 h [INFERENCE], and a spot's
+    prior counts 20 field hours. The share of the load one theft takes, f, has a Beta(1, 1) prior
+    (0.5 [INFERENCE]: logs merge into one stack per wood, so one grab can take them all) and learns
+    from each theft: wood taken / carried (the event's `carried` when recorded, else the trip's
+    `carried_end` + taken, a lower bound [INFERENCE]); a theft of no wood counts 0.
+- **trip size (rewritten 2026-10-04):** each trip is one renewal-reward cycle. Chopping Q logs
+  takes t_f = Q/λ field hours; during it the three hazards compete (h = h_D + h_S), the load grows
+  at λ, and a theft takes f of it, so the expected load is C(t) = λ(1 − e^{−kt})/k with k = h_T·f:
+
+  $$B(Q) = e^{-h t_f} C(t_f) + h_S\int_0^{t_f} e^{-ht} C(t)\,dt, \qquad
+  E[\text{time}] = T + \int_0^{t_f} e^{-ht}dt + R\,P_D, \qquad P_D = h_D\int_0^{t_f} e^{-ht}dt$$
+
+  A death banks nothing (the carried logs are lost) and costs R = 20 min of recovery [INFERENCE];
+  a trip sent home ends at τ and banks what it carries (the cycle just ends early); a theft lets
+  the trip run on. Net rate = (B − supplies − G·P_D) / E[time], in logs at the board price, where
+  G = **every unblessed item we carry at full replacement price**: all hatchets worn or packed (a
+  newbied/blessed one, by its name, stays), reagents at `reagent:<name>`; the rune tome is blessed;
+  nothing is lost when Young (the "(young)" name label or `--young`; Hackworth isn't). Without a
+  live character the newest trip row's hatchet stands in. All integrals are closed form
+  (`trip_terms`), so P_D ≤ 1 and the rate stays defined for any Q. Q* maximises it over 200…10 000
+  logs (user decision; a log-spaced grid, then a golden-section refine to 10 logs), capped by what
+  we can still carry: (weight_max − weight) / 0.025 st per log (the status packet's max includes
+  Camping's bonus [INFERENCE]). No stint cap any more: the run is `--trips` = stint / trip (≥ 1),
+  `--timeout` = max(30 min, 2 × trips × (Q/λ + T) + 10 min), so it scales with the trip. Being sent
+  home alone never shrinks Q (nothing is lost); deaths, thefts and the gear at risk do.
+- **choice:** Thompson sampling: one posterior draw per eligible spot (λ, T, sightings, P(death |
+  sighting), h_D, h_S, h_T), the best wins; a spot other than the one we stand at pays `travel_min`
+  out of the run (a stint, or one trip when that's longer). `plan` reports P(best) per spot from
+  2 000 draws (the draws search every other grid point), `mode: explore` when the pick isn't the
+  best by posterior mean, and the runner command (`--spot`, `--trips`, `--logs-per-trip` Q*,
+  `--regrow-min`, `--timeout`, `--hatchet`). Per spot it reports `deaths_per_h`, `sent_home_per_h`,
+  `thefts_per_h`, `p_death_trip` and `loss_logs_trip` (logs lost to death and thieves plus the gear
+  in logs, per trip of Q*); per plan the pooled rates, `theft_fraction`, `gear_at_risk` and
+  `capacity_logs`; per pick `expected_banked_trip`, `p_death_trip`, `p_sent_home_trip`.
 - **eligibility:** `active` status; Young-only spots only for a Young character (`--young` or the
   self label); 30 min after a death or a trip cut short with a hostile player in sight there; after
   a `dry` trip until the trees regrow; **unworkable** for 7 days after 2 trips in a row that got
@@ -281,11 +321,27 @@ patches show up within weeks):
 - **hatchet:** for every owned hatchet (worn or packed; material by hue, quality by clicked name)
   and every buyable one with a known price (iron 25 gp at NPCs; `ctl lumber price hatchet:<material>
   <gp>` for the rest), the net logs/hour at the picked spot: λ rescaled to its tool bonus, minus wear
-  (one use per success; uses 500 + tier bonus, `harness/data/hatchets.json`) and the expected loss
-  on death, in logs at the ordinary board price (9.5 gp, or `board:ordinary` from the price table).
+  (one use per success; uses 500 + tier bonus, `harness/data/hatchets.json`), in logs at the
+  ordinary board price (9.5 gp, or `board:ordinary` from the price table). Every carried hatchet is
+  lost on death whichever one is used (G above), so owned ones compete on tool bonus vs. wear, and a
+  bought one adds its full price to G (worth it where nobody can kill us, not where they can).
   Unknown price → not used, and a break-even price is reported (the highest price at which it still
   beats the best priced option). `use` = pass `--hatchet <material>`; `buy` = a better one we don't
   own.
+
+**On the live store (a read-only snapshot, `now` = last trip + 10 min = 1791068770 ≈ 2026-10-03
+23:06 UTC, no live character, seed 1).** 28 lumber trip rows, 12 counted sightings, 3 proxy deaths
+(1 blamed on a spot: Terran, a PK death, Bastet sighted 11 s before), 4 `recall` job events, 0
+thefts. Pooled: P(death | sighting) 0.198, creature deaths 0.0088/h, sent home 1.45/h (6
+threat-ended trips: witcher_291 4, witcher_280 2), thefts 0.0175/h (the prior), f 0.5 (the prior);
+gear at risk 25 gp (the last trip row's iron hatchet). Q* (net logs/h), old model → new:
+witcher_282 1 000 (1 197) → 1 620 (1 177), horseshoe_bay 1 500 (1 213) → 1 820 (1 186),
+terran_wilds 1 500 (1 184) → 1 270 (1 076), corpse_creek 1 000 (1 111) → 960 (1 083), witcher_291
+750 (995) → 1 030 (913), witcher_280 750 (788) → 1 020 (732), shelter_island 500 (590) → 1 080
+(583; Young-only, not eligible). The old sizes sat on the 60-min stint cap (λ·1 h, rounded down to
+the grid) or on coarse grid steps. The new net rates are lower mostly because the threat stops
+(h_S 1.0–3.0/h) end trips early and every new trip pays its overhead again; P(death) per trip of Q*
+is 3–9 %.
 
 **Anti-pattern guard:** optimizing toward one identical path and cadence is itself a behavioral
 signature (ANTICHEAT.md §8.3). Thompson sampling varies the spot from stint to stint, and the runner's
@@ -313,10 +369,10 @@ read-only, 2026-10-03 ~16:00, Hackworth on Witcher spots): 21 lumber trip rows (
 | Spot choice: overhead T and travel | walk out, convert, to bank, store; travel between spots; the recall legs | trip row `phases_s`, `walk_out_s`; travel between spots learned from trip gaps; recall legs in `travel` job events (4; out leg sample: `charge`, 2.25 s, 38 charges) | had for walking spots. **Added:** each leg's `s` (walk to the library + casts), `walk_s`, `tries` (every cast: method, failure, seconds), `trip`, `spot`, `book`, `witcher_rune` (the 4 old events store the tome's *row* index in `rune`: the rune id was overwritten; the name "291 - …" still says it), failed walks/recalls as events (`ok: false`); trip row `travel` + `travel_s` |
 | Travel lockout | seconds waited at the first tree after a recall | was in field time (6 "recently traveled" lines in the store, 9-48 s) | **added** `lockout_s`; counted as overhead |
 | Failed trips as evidence | outcome, why, logs 0, place vs. travel vs. threat | trip row `outcome`/`why` (2; "to the rune library: exceeded 250 moves", "threat: red Lord Rasta Brazil …") | had; travel failures now carry no field time |
-| Hazard per spot | sightings in trips, exposure (field time), deaths | `pk_seen` job events (10), field time, proxy `death` events (3; attributed by time/place) | had; since 2026-10-04 tracked reds too (`source: tracking`), counted only within the react range and once per red per run (`counted`, §13 "Tracking reds"); hunt coverage per trip in the row's `tracking` |
-| Death cost | carried logs, hatchet price, newbied, recovery time | `carried_end` (2), `hatchet.newbied`, prices table (0 rows) | had; recovery 20 min is still [INFERENCE] (no resurrection timing per death recorded) |
-| PK escapes | recall/guard flight in a trip, which spot | `recall` job event (1: Cambria rune, 47 charges, 2.24 s) / `guard_flight` (0) | had; `trip`, `spot`, `book` **added** to the `recall` event and an `escape` leg in the trip row's `travel` |
-| Trip size Q* | λ, T, hazard, death cost | the above | had |
+| Hazard per spot | sightings in trips, exposure (field time), deaths and their cause, trips a threat ended, thefts | `pk_seen` job events (10), field time, proxy `death` events (3; attributed by time/place), the runner's `death` job events (cause), trip `why` `threat: …` (6 by 2026-10-04), `recall` (4) / `guard_flight` job events, `theft` job events + `theft_suspected` junctures (0) | had; since 2026-10-04 tracked reds too (`source: tracking`), counted only within the react range and once per red per run (`counted`, §13 "Tracking reds"); hunt coverage per trip in the row's `tracking`. Since 2026-10-04 three hazards (death, sent home, theft; "hazards" above); the row's `creature.recalled` counts when present. Gap: a theft event's `carried` (the load when it happened) isn't recorded yet, so f learns from a lower bound |
+| Death cost | carried logs, every unblessed item carried at its price, Young, recovery time | `carried_end` (2), `hatchet.newbied`, the pack's hatchets and reagents (state port), prices table (6 rows: 5 reagents at 3 gp, `recall_charge` 200 gp) | since 2026-10-04 the carried load (a dying trip banks nothing) and every hatchet + reagent at full price; nothing when Young; recovery 20 min is still [INFERENCE] (no resurrection timing per death recorded) |
+| PK escapes | recall/guard flight in a trip, which spot | `recall` job event (1: Cambria rune, 47 charges, 2.24 s) / `guard_flight` (0) | had; `trip`, `spot`, `book` **added** to the `recall` event and an `escape` leg in the trip row's `travel`; since 2026-10-04 they are the sent-home hazard h_S |
+| Trip size Q* | λ, T, the three hazards, gear at risk, weight room | the above; `world.self.weight` and `stats.weight_max` (state port) | renewal-reward model since 2026-10-04 (200…10 000 logs, capped by weight, no stint cap) |
 | Regrowth window | depleted then retried trees | `harvest_attempts` 1 819 (success 708 / 5 386 logs, fail 628, depleted 451, unreachable 28, not_tree 10), `harvest_nodes` 345 | had (not per spot; fitted 65 min on 137 pairs) |
 | Tree depletion, place failures | depleted/unreachable trees, "no harvestable tree" trips | `harvest_nodes` (317 depleted, 11 unreachable, 10 not a tree), trip `why`, `dry` | had |
 | Crowding | other players at the spot | not recorded (only hostile ones as `pk_seen`) | **added** trip row `players_seen` (distinct players in view) + `players` (names, ≤ 10) |
@@ -327,7 +383,7 @@ read-only, 2026-10-03 ~16:00, Hackworth on Witcher spots): 21 lumber trip rows (
 | Witcher library tomes | charges per public tome over time | `travel` out events carry `charges` (38, 37, 36: tome 0x546ACD06) | **added** the tome serial (`book`); the Jobs page lists every book with its charges over time |
 | Captcha / speech-hold time lost | count and seconds | trip row `captchas`/`captcha_wait_s` (10 rows), `speech_holds`/`speech_wait_s` (4), `speech_clear` events with `waited_s` | had |
 | Stationary penalty | clears, repositions, time | trip row `stationary_clears` (1 row), `buff_update` "Stationary Penalty" events (733) | had; **added** `stationary_s` |
-| Weight cutoff | weight carried at the end | not recorded (`world.self.weight` exists; no max weight in the status packet we parse) | **added** `weight_end` |
+| Weight cutoff | weight carried at the end | `world.self.weight`, max in `world.self.stats.weight_max` (status packet type ≥ 5, `world/parsers.py`) | **added** `weight_end`; the planner caps Q by (weight_max − weight) / 0.025 st |
 | Bank deposit | boards stored | trip row `stored` (18; counted when the stack left the pack for the open box) | had |
 | Colored wood mix → gold/hour | logs by wood, board prices | trip row `woods` (13 rows; ordinary 2 015, dullwood 43, copperwood 5), prices `board:<wood>` (0 rows) | gap: prices. The objective stays logs/hour until `ctl lumber price board:<wood>` rows exist (ECONOMY §6) |
 

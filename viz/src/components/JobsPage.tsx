@@ -320,6 +320,10 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
                     {pick.trips} trip{pick.trips === 1 ? "" : "s"} of {pick.logs_per_trip} logs (Q*)
                   </span>
                   <span>~{fmtNum(pick.expected_trip_min, 0)} min/trip</span>
+                  <span title="renewal-reward: a death banks nothing, a trip sent home banks what it carries">
+                    ~{pick.expected_banked_trip} banked/trip · P(death) {fmtNum(pick.p_death_trip * 100, 1)}% · sent home{" "}
+                    {Math.round(pick.p_sent_home_trip * 100)}%
+                  </span>
                   <span>expected {pick.expected_net_logs_h} net logs/hr</span>
                 </>
               ) : (
@@ -329,8 +333,15 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
             <p className="dim small">
               skill {fmtNum(plan.skill, 1)} (chop success {plan.success_p === null ? "—" : `${Math.round(plan.success_p * 100)}%`}) · regrowth{" "}
               {plan.regrow.minutes} min ({plan.regrow.fitted ? `fitted on ${plan.regrow.pairs} retried trees` : "default"}) · P(death | PK seen){" "}
-              {Math.round(plan.death_given_sighting * 100)}% · new-spot prior {plan.prior_rate_logs_h} logs/hr (CV {plan.prior_cv}) · dispersion{" "}
-              {plan.dispersion}
+              {Math.round(plan.death_given_sighting * 100)}% · creature deaths {fmtNum(plan.creature_deaths_per_h, 3)}/hr · thefts{" "}
+              {fmtNum(plan.thefts_pooled_per_h, 3)}/hr ({plan.theft_events} seen, {Math.round(plan.theft_fraction * 100)}% of the load each) · gear at
+              risk{" "}
+              <span title={plan.gear_at_risk.items.map((i) => `${i.n} × ${i.item}: ${i.gp} gp`).join("\n") || undefined}>
+                {plan.gear_at_risk.young ? "none (Young)" : fmtGp(plan.gear_at_risk.gp)}
+                {plan.gear_at_risk.unpriced.length ? ` + ${plan.gear_at_risk.unpriced.length} unpriced` : ""}
+              </span>
+              {plan.capacity_logs !== null && <> · room for {plan.capacity_logs} logs</>} · new-spot prior {plan.prior_rate_logs_h} logs/hr (CV{" "}
+              {plan.prior_cv}) · dispersion {plan.dispersion}
               {pick && (
                 <>
                   {" · "}
@@ -360,8 +371,15 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
                   <th className="num">Q*</th>
                   <th className="num">overhead</th>
                   <th className="num">travel</th>
-                  <th className="num">PKs/hr</th>
-                  <th className="num">deaths</th>
+                  <th className="num" title="hostile players sighted per field hour">PKs/hr</th>
+                  <th className="num" title="h_D: deaths (PK or creature) per field hour; deaths here in the tooltip">deaths/hr</th>
+                  <th className="num" title="h_S: trips a threat ended early without killing us (recall, guard flight, creature stop), per field hour">
+                    sent home/hr
+                  </th>
+                  <th className="num" title="h_T: thefts per field hour (pooled heavily: rare)">thefts/hr</th>
+                  <th className="num" title="expected logs lost per trip of Q* to death and thieves, plus the gear a death loses (in logs); P(death) per trip">
+                    loss/trip
+                  </th>
                   <th className="num">PK escapes</th>
                   <th className="num">place fails</th>
                   <th className="num">supplies/trip</th>
@@ -394,7 +412,18 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
                     <td className="mono num" title={`${s.sightings} sighting(s) in trips`}>
                       {fmtNum(s.sightings_per_h, 2)}
                     </td>
-                    <td className={s.deaths ? "mono num bad" : "mono num"}>{s.deaths}</td>
+                    <td className={s.deaths ? "mono num bad" : "mono num"} title={`${s.deaths} death(s) here`}>
+                      {fmtNum(s.deaths_per_h, 3)}
+                    </td>
+                    <td className={s.sent_home ? "mono num warn" : "mono num"} title={`${s.sent_home} trip(s) sent home`}>
+                      {fmtNum(s.sent_home_per_h, 2)}
+                    </td>
+                    <td className={s.thefts ? "mono num warn" : "mono num"} title={`${s.thefts} theft(s) here`}>
+                      {fmtNum(s.thefts_per_h, 3)}
+                    </td>
+                    <td className="mono num" title={`P(death) per trip ${fmtNum(s.p_death_trip * 100, 1)}%`}>
+                      {fmtNum(s.loss_logs_trip, 0)}
+                    </td>
                     <td className={s.pk_escapes ? "mono num warn" : "mono num"}>{s.pk_escapes}</td>
                     <td className={s.place_fails ? "mono num warn" : "mono num"}>{s.place_fails}</td>
                     <td className="mono num" title={s.supply_unpriced ? `${s.supply_unpriced} supply units unpriced (ctl lumber price)` : undefined}>
