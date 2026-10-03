@@ -237,7 +237,7 @@ sessions in the memory store's `knowledge` table (docs/MEMORY.md). Kinds:
 | `know confirm ID [--source --ref]` | Seen true again: confirmations += 1, confidence up |
 | `know retract ID --reason R` | It was wrong: retracted with the reason, never deleted |
 | `know get ID [--history]` | One entry, with its version chain |
-| `know search [WORDS…] [--kind] [--tag]… [--near X Y \| --here] [--limit] [--all]` | Ranked recall: relevance by meaning and words (a plain-language question works; `similarity` per result), recency (14-day half-life), importance, confidence and nearness. `recall` says how it ranked: `hybrid (cuda)`, `words` if this Python lacks the embedder, `none` without query words. Loads the embedding model, so ~1.5 s slower than other `know` ops. Counts as an access |
+| `know search [WORDS…] [--kind] [--tag]… [--near X Y \| --here] [--limit] [--all]` | Ranked recall: relevance by meaning and words (a plain-language question works), recency (14-day half-life), importance, confidence and nearness. Always returns up to `--limit` results: each carries `similarity` (cosine to the query; ≥ ~0.6 on topic, ≤ ~0.55 noise). `recall` says how it ranked: `hybrid (cuda)`, `words` if this Python lacks the embedder, `none` without query words. Loads the embedding model, so ~1.5 s slower than other `know` ops. Counts as an access |
 | `know brief [--limit]` | What to remember **now**: entries relevant to your position, nearby NPCs, open junctures, intent and task, plus standing procedures/preferences of importance ≥ 7 |
 | `know review [--stale-days 30]` | Maintenance: unconfirmed inferences, entries never recalled in 30 days, topics with several active facts (possible contradictions) |
 | `know stats` | Counts by kind and status |
@@ -390,13 +390,25 @@ Paste this (or point the session at this section) to start an overseer.
 >      minutes, `ctl say "@user captcha is up"`. `server_restriction`: **call the
 >      human immediately**, stop the task.
 >    - user chat: answer with `ctl say`; do what they ask within these rules.
->    Before deciding, `ctl know search <the situation>` (or `know brief`). What you already
->    learned beats guessing. Looking for an NPC or vendor? `ctl npcs <title>` first: the world
->    model remembers everyone seen so far (out of view: last seen), so don't wander to find them.
+>    Before deciding, ask your memory: `ctl know search <a plain question about the situation>`
+>    (or `know brief`). What you already learned beats guessing. How to ask:
+>    - It matches by meaning as well as words, so phrase one focused question the way you'd ask
+>      a player ("how do I come back after dying", "is it safe to chop near witcher_282"), not a
+>      bag of keywords. Put in the exact names you have (item, NPC, spot id): they also match by
+>      word and rank such entries first.
+>    - Narrow it when you know what you want: `--kind procedure` for how-tos, `--tag discord` for
+>      community knowledge only, `--here` for entries located near you.
+>    - It always returns results, even when you know nothing on the subject. Read each result's
+>      `similarity`: around 0.6 and up is on topic; below ~0.55 is noise (a question with no
+>      entry, e.g. "what is the capital of France", tops out near 0.5). If nothing is on topic,
+>      say so in `ctl think` and decide from what you see, then `know add` what you learn.
+>    - Each search takes ~1.5 s: search once per decision, not before every step.
 >    - Entries tagged `discord` (source `community`, or `doc` for patch notes; ref `discord-kb:N`)
 >      are claims from the community Discord. Use them as leads, not truth. When play shows one
 >      is true, `ctl know confirm ID --source observed --ref <evidence>`; when it's wrong,
 >      `ctl know retract ID --reason …` (the pipeline never re-adds a retracted entry).
+>    Looking for an NPC or vendor? `ctl npcs <title>` first: the world model remembers everyone
+>    seen so far (out of view: last seen), so don't wander to find them.
 > 4. `ctl ack <id>` every juncture you have handled; `ctl note-action` anything you did outside
 >    `ctl`.
 > 5. **Remember what you learned** (`ctl know add`). Kinds:
@@ -409,6 +421,10 @@ Paste this (or point the session at this section) to start an overseer.
 >    - Give provenance (`--source`, `--ref` chat#/juncture#/screenshot path) and honest
 >      importance.
 >    - Label guesses `--source inferred`.
+>    - Write each entry as one self-contained statement that names the item, place, NPC or spot
+>      ("Subrey the provisioner in Shelter sells hatchets for 25 gp", not "he sells them for 25"):
+>      search finds entries by their topic and content, so an entry that leans on context you had
+>      at the time is lost.
 >    - When the reply lists `related` entries that your new fact contradicts, supersede
 >      (`--supersedes ID`) or retract the old one.
 >    - When something known proves true again, `know confirm` it.
