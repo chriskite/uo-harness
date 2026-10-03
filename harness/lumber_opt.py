@@ -297,37 +297,63 @@ def character(world: dict, self_serial, table: dict) -> dict:
 
 
 # ------------------------------------------------------------------ evidence
-def trip_obs(ep: dict) -> dict | None:
+def supply_gp(supplies: dict | None, prices: dict) -> tuple[float, int]:
+    """(gp, unpriced) of what one trip used (its row's `supplies`): reagents at
+    `reagent:<name>` (spaces as _), our own book's charges at `recall_charge` (what
+    recharging costs), the public library tome's charges free. Unpriced units count
+    nothing and are reported, never guessed."""
+    gp, unpriced = 0.0, 0
+    s = supplies or {}
+    items = [(f"reagent:{k.replace(' ', '_')}", n) for k, n in (s.get("reagents_used") or {}).items()]
+    items.append(("recall_charge", _num(s.get("own_charges"), 0)))
+    for item, n in items:
+        if not n:
+            continue
+        if item in prices:
+            gp += n * prices[item]["price_gp"]
+        else:
+            unpriced += n
+    return gp, unpriced
+
+
+def trip_obs(ep: dict, prices: dict | None = None) -> dict | None:
     """One trip row (episodes, loop lumber) as the model's observation, or None
     without times. Rows written before 2026-10-02 lack walk_out_s/chop_s/skill:
     the walk out is taken to equal the walk to the bank, chops cost
-    DEFAULT_CHOP_S each, and their chopping isn't rescaled."""
+    DEFAULT_CHOP_S each, and their chopping isn't rescaled. Field time excludes
+    the travel lockout waited out at the first tree (`lockout_s`, since
+    2026-10-04; it's overhead); a row whose walk out never ended (walk_out_s
+    null: no chop, e.g. the recall failed) has no field time."""
     t0, t1 = _num(ep.get("t_start")), _num(ep.get("t_end"))
     if t0 is None or t1 is None or t1 < t0:
         return None
     ph = {k: v for k, v in (ep.get("phases_s") or {}).items() if _num(v) is not None}
     outcome = ep.get("outcome") or "banked"
     banked = outcome == "banked" and "to_bank" in ph
-    walk_out = _num(ep.get("walk_out_s"))
-    if walk_out is None:
-        walk_out = ph.get("to_bank", 0.0) if banked else 0.0
     harvest = ph.get("harvest")
     if harvest is None:
         harvest = (t1 - t0) - sum(v for k, v in ph.items() if k != "harvest")
-    field_s = max(0.0, harvest - walk_out)
+    walk_out = _num(ep.get("walk_out_s"))
+    if walk_out is None:
+        walk_out = harvest if "walk_out_s" in ep else (ph.get("to_bank", 0.0) if banked else 0.0)
+    lockout = _num(ep.get("lockout_s"), 0.0)
+    field_s = max(0.0, harvest - walk_out - lockout)
     chop_s = _num(ep.get("chop_s"))
     if chop_s is None:
         chop_s = _num(ep.get("attempts"), 0) * DEFAULT_CHOP_S
     chop_s = min(chop_s, field_s)
-    overhead = walk_out + ph.get("convert", 0.0) + ph.get("to_bank", 0.0) + ph.get("store", 0.0) if banked else None
+    overhead = (walk_out + lockout + ph.get("convert", 0.0) + ph.get("to_bank", 0.0) + ph.get("store", 0.0)
+                if banked else None)
     hatchet = ep.get("hatchet") or {}
     logs = _num(ep.get("logs"), 0)
     why = ep.get("why") or ""
+    gp, unpriced = supply_gp(ep["supplies"], prices or {}) if ep.get("supplies") is not None else (None, 0)
     return {"spot": ep.get("spot") or ep.get("venue"), "t0": t0, "t1": t1, "outcome": outcome,
             "why": ep.get("why"), "dry": bool(ep.get("dry")), "logs": logs,
             "field_s": field_s, "chop_s": chop_s, "overhead_s": overhead,
             "place_fail": outcome == "aborted" and logs == 0 and any(p in why for p in PLACE_FAILURES),
-            "p": success_p(ep.get("skill"), hatchet.get("tool_bonus", 0.0))}
+            "p": success_p(ep.get("skill"), hatchet.get("tool_bonus", 0.0)),
+            "supply_gp": gp, "supply_unpriced": unpriced}
 
 
 def adjusted_field_h(trip: dict, p_now) -> float:
@@ -452,18 +478,19 @@ def dispersion(trips_by_spot: dict, p_now) -> float:
     return max(DISPERSION_MIN, chi / (n - k))
 
 
-def net_rate(q, lam, t_h, haz, gear_logs, recovery_h=RECOVERY_H) -> float:
+def net_rate(q, lam, t_h, haz, gear_logs, recovery_h=RECOVERY_H, cost_logs=0.0) -> float:
     """Banked logs per hour for trips of q logs: field rate lam (logs/h),
     overhead t_h (h per trip), deaths per field hour haz, each losing the
-    carried logs (q/2 on average), gear_logs and recovery_h."""
+    carried logs (q/2 on average), gear_logs and recovery_h; cost_logs = the
+    supplies one trip uses (recall charges, reagents) in logs."""
     tf = q / lam
     deaths = haz * tf
-    return (q - deaths * (q / 2.0 + gear_logs)) / (tf + t_h + deaths * recovery_h)
+    return (q - deaths * (q / 2.0 + gear_logs) - cost_logs) / (tf + t_h + deaths * recovery_h)
 
 
-def best_q(lam, t_h, haz, gear_logs, q_max) -> int:
+def best_q(lam, t_h, haz, gear_logs, q_max, cost_logs=0.0) -> int:
     grid = [q for q in Q_GRID if q <= q_max] or [Q_GRID[0]]
-    return max(grid, key=lambda q: net_rate(q, lam, t_h, haz, gear_logs))
+    return max(grid, key=lambda q: net_rate(q, lam, t_h, haz, gear_logs, cost_logs=cost_logs))
 
 
 def rate_prior(by_spot: dict, p_now, now) -> tuple:
@@ -503,13 +530,17 @@ def spot_model(spot, trips, sightings, prior, phi, p_now, now) -> dict:
     hp = _num(spot.get("hazard_prior"), 0.5) if pvp else 0.0
     chop = sum(tr["chop_s"] for tr in trips if tr["field_s"] > 0)
     field = sum(tr["field_s"] for tr in trips if tr["field_s"] > 0)
+    sup = [(wi, tr["supply_gp"]) for wi, tr in zip(w, trips) if tr.get("supply_gp") is not None]
     return {"alpha": alpha, "beta": beta, "rate": alpha / beta,
             "overhead_s": mean, "overhead_sd_s": sd,
             "pvp": pvp, "sight_a": hp * HAZARD_PRIOR_H + seen, "sight_b": HAZARD_PRIOR_H + exposure,
             "chop_share": chop / field if field > 600 else DEFAULT_CHOP_SHARE,
+            "supply_gp": sum(wi * g for wi, g in sup) / sum(wi for wi, _ in sup) if sup else 0.0,
+            "supply_unpriced": sum(tr.get("supply_unpriced", 0) for tr in trips),
             "trips": len(trips), "field_h": round(sum(tr["field_s"] for tr in trips) / 3600.0, 2),
             "logs": sum(tr["logs"] for tr in trips), "weight": round(sum(w), 2),
-            "sightings": sum(sightings.get(tr["t0"], 0) for tr in trips)}
+            "sightings": sum(sightings.get(tr["t0"], 0) for tr in trips),
+            "place_fails": sum(1 for tr in trips if tr["place_fail"])}
 
 
 def _draw(m, death, rng):
@@ -521,9 +552,9 @@ def _draw(m, death, rng):
     return lam, t_h, haz
 
 
-def _value(lam, t_h, haz, gear_logs, stint_h, travel_h):
-    q = best_q(lam, t_h, haz, gear_logs, max(Q_GRID[0], lam * stint_h))
-    v = net_rate(q, lam, t_h, haz, gear_logs)
+def _value(lam, t_h, haz, gear_logs, stint_h, travel_h, cost_logs=0.0):
+    q = best_q(lam, t_h, haz, gear_logs, max(Q_GRID[0], lam * stint_h), cost_logs)
+    v = net_rate(q, lam, t_h, haz, gear_logs, cost_logs=cost_logs)
     return v * stint_h / (stint_h + travel_h), q
 
 
@@ -616,7 +647,8 @@ def hatchet_value(opt, m, death_p, skill, p_ref, logs_per_success, gp_per_log, s
         lam = 1.0 / (c / lam * p_ref / p + (1.0 - c) / lam)
     haz = (m["sight_a"] / m["sight_b"]) * death_p if m["pvp"] else 0.0
     gear = 0.0 if opt["newbied"] or not price else price / 2.0 / gp_per_log
-    v, _ = _value(lam, m["overhead_s"] / 3600.0, haz, gear + DEATH_KIT_GP / gp_per_log, stint_h, 0.0)
+    v, _ = _value(lam, m["overhead_s"] / 3600.0, haz, gear + DEATH_KIT_GP / gp_per_log, stint_h, 0.0,
+                  m.get("supply_gp", 0.0) / gp_per_log)
     wear = v / logs_per_success * (price or 0.0) / opt["uses"] / gp_per_log
     return v - wear
 
@@ -643,9 +675,10 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
          gp_per_log: float = 9.5, draws: int = DRAWS) -> dict:
     """The pure planner. episodes: lumber trip rows; sightings: [t] of pk_seen
     job events; deaths: [{t, x, y}] (world `death` events); regrow: regrowth();
-    char: character() or None; here: the spot we stand at (current_spot)."""
+    char: character() or None; here: the spot we stand at (current_spot);
+    prices: Memory.prices() (hatchets, the board price, supplies: supply_gp)."""
     char = char or {}
-    trips = [tr for tr in (trip_obs(e) for e in episodes) if tr is not None and tr["spot"] in spots]
+    trips = [tr for tr in (trip_obs(e, prices) for e in episodes) if tr is not None and tr["spot"] in spots]
     by_spot = {sid: [tr for tr in trips if tr["spot"] == sid] for sid in spots}
     hatchets = char.get("hatchets") or []
     worn = hatchets[0] if hatchets else None
@@ -688,7 +721,8 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
         why = eligibility(s, by_spot[sid], threats[sid], now, young, regrow["minutes"])
         trav = travel_h(s, here, learned)
         haz = (m["sight_a"] / m["sight_b"]) * death_p if m["pvp"] else 0.0
-        v, q = _value(m["rate"], m["overhead_s"] / 3600.0, haz, gear_logs, stint_h, trav)
+        m["cost_logs"] = m["supply_gp"] / gp_per_log
+        v, q = _value(m["rate"], m["overhead_s"] / 3600.0, haz, gear_logs, stint_h, trav, m["cost_logs"])
         lo = gamma_quantile(m["alpha"], m["beta"], 0.1)
         hi = gamma_quantile(m["alpha"], m["beta"], 0.9)
         m.update(travel_h=trav, haz=haz, value=v, q=q, why=why)
@@ -701,9 +735,12 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
                      "sightings_per_h": round(m["sight_a"] / m["sight_b"], 2),
                      "deaths": sum(1 for _, x in linked if x == sid),
                      "deaths_per_h": round(haz, 3), "logs_per_trip": q, "net_logs_h": round(v),
+                     "supply_gp_trip": round(m["supply_gp"], 1), "supply_unpriced": m["supply_unpriced"],
+                     "place_fails": m["place_fails"],
                      "here": sid == here or (here is not None and hub_of(s) == here),
                      "travel_min": round(trav * 60), "travel_samples": len(learned.get(sid, [])),
                      "access": (s.get("access") or {}).get("method", "walk"),
+                     "rune": (s.get("access") or {}).get("rune"),
                      "last_trip_h_ago": None if last is None else round((now - last) / 3600.0, 1)})
 
     eligible = [sid for sid in spots if models[sid]["why"] is None]
@@ -719,12 +756,14 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
 
     wins = {sid: 0 for sid in eligible}
     for _ in range(draws):
-        vals = {sid: _value(*_draw(models[sid], death, rng), gear_logs, stint_h, models[sid]["travel_h"])[0]
+        vals = {sid: _value(*_draw(models[sid], death, rng), gear_logs, stint_h, models[sid]["travel_h"],
+                            models[sid]["cost_logs"])[0]
                 for sid in eligible}
         wins[max(vals, key=vals.get)] += 1
     for r in out["spots"]:
         r["p_best"] = round(wins.get(r["id"], 0) / draws, 3) if r["eligible"] else 0.0
-    sample = {sid: _value(*_draw(models[sid], death, rng), gear_logs, stint_h, models[sid]["travel_h"])[0]
+    sample = {sid: _value(*_draw(models[sid], death, rng), gear_logs, stint_h, models[sid]["travel_h"],
+                          models[sid]["cost_logs"])[0]
               for sid in eligible}
     pick = max(sample, key=sample.get)
     greedy = max(eligible, key=lambda sid: models[sid]["value"])

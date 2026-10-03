@@ -222,12 +222,17 @@ spots are planned; a candidate becomes active when the overseer approves it.
 **Evidence.** Every trip writes an episode row, aborted ones too (§13), with `spot`, `outcome`/`why`,
 the phases, `walk_out_s` (start to first chop), `chop_s` (attempts and the pauses between them,
 speech holds excluded), `tree_walk_s`, `skill`, the `hatchet` (material by hue, tool bonus, uses),
-`mounted`, `buffs`, `carried_end` and `dry` (the candidate trees ran out). Hostile-player sightings
+`mounted`, `buffs`, `carried_end` and `dry` (the candidate trees ran out); since 2026-10-04 also the
+travel legs, the lockout waited, the supplies used, the skill at the end and the players seen (the
+full list and what's still missing: "What the optimizer learns from" below). Hostile-player sightings
 are the `pk_seen` job events inside a trip; deaths are the proxy's `death` events, blamed on a spot
 when they fall in a trip there or within 30 min after it (the Terran PK killed us 11 s after the
 runner stopped) and near its area, or, with no trip row around them, inside its area. Rows written
 before 2026-10-02 count too: their walk out is
-taken equal to the walk to the bank, chops cost 9.5 s each, and they aren't skill-rescaled.
+taken equal to the walk to the bank, chops cost 9.5 s each, and they aren't skill-rescaled. Field
+time excludes the travel lockout waited at the first tree (`lockout_s`: overhead, like the recall
+itself), and a trip whose walk out never ended (`walk_out_s` null: the recall failed, the walk to the
+library gave up) has no field time, so a travel failure doesn't count as a 0-log hour of the place.
 
 **Model** (per spot; trips weighted by recency, half-life 14 days, so changes in competition, PKs or
 patches show up within weeks):
@@ -293,10 +298,46 @@ discover --from witcher` proposes them near the ~360 Witcher runes, so the whole
 not only the band around banks. Their overhead prior adds the walk from the bank to the library, two
 recalls and the 60 s lockout.
 
+### What the optimizer learns from (audit 2026-10-03/04)
+
+User request: check that the loop records everything the optimizer needs to keep improving for
+weeks, and record what's missing. Counts are from the live store (`harness/data/harness.db`, opened
+read-only, 2026-10-03 ~16:00, Hackworth on Witcher spots): 21 lumber trip rows (2 with the
+2026-10-02 fields), lumber job events `travel` 4, `recall` 1, `pk_seen` 10, `flee` 13,
+`speech_hold` 33 / `speech_clear` 19, proxy `death` events 3. "Added" = recorded since this change
+(runner restart needed); the trip row is the `episodes` row (loop `lumber`).
+
+| Decision | Inputs it needs | Where it's recorded (live count, sample) | Status |
+|---|---|---|---|
+| Spot choice: field rate λ | logs, field time, chop time, skill + tool bonus at the time, recency | trip row `logs`, `phases_s` (21), `walk_out_s`/`chop_s`/`tree_walk_s` (2), `skill` (2, 69.1), `hatchet.tool_bonus` (2) | had. Field time now excludes the travel lockout (`lockout_s`) and trips whose walk out never ended (added) |
+| Spot choice: overhead T and travel | walk out, convert, to bank, store; travel between spots; the recall legs | trip row `phases_s`, `walk_out_s`; travel between spots learned from trip gaps; recall legs in `travel` job events (4; out leg sample: `charge`, 2.25 s, 38 charges) | had for walking spots. **Added:** each leg's `s` (walk to the library + casts), `walk_s`, `tries` (every cast: method, failure, seconds), `trip`, `spot`, `book`, `witcher_rune` (the 4 old events store the tome's *row* index in `rune`: the rune id was overwritten; the name "291 - …" still says it), failed walks/recalls as events (`ok: false`); trip row `travel` + `travel_s` |
+| Travel lockout | seconds waited at the first tree after a recall | was in field time (6 "recently traveled" lines in the store, 9-48 s) | **added** `lockout_s`; counted as overhead |
+| Failed trips as evidence | outcome, why, logs 0, place vs. travel vs. threat | trip row `outcome`/`why` (2; "to the rune library: exceeded 250 moves", "threat: red Lord Rasta Brazil …") | had; travel failures now carry no field time |
+| Hazard per spot | sightings in trips, exposure (field time), deaths | `pk_seen` job events (10), field time, proxy `death` events (3; attributed by time/place) | had |
+| Death cost | carried logs, hatchet price, newbied, recovery time | `carried_end` (2), `hatchet.newbied`, prices table (0 rows) | had; recovery 20 min is still [INFERENCE] (no resurrection timing per death recorded) |
+| PK escapes | recall/guard flight in a trip, which spot | `recall` job event (1: Cambria rune, 47 charges, 2.24 s) / `guard_flight` (0) | had; `trip`, `spot`, `book` **added** to the `recall` event and an `escape` leg in the trip row's `travel` |
+| Trip size Q* | λ, T, hazard, death cost | the above | had |
+| Regrowth window | depleted then retried trees | `harvest_attempts` 1 819 (success 708 / 5 386 logs, fail 628, depleted 451, unreachable 28, not_tree 10), `harvest_nodes` 345 | had (not per spot; fitted 65 min on 137 pairs) |
+| Tree depletion, place failures | depleted/unreachable trees, "no harvestable tree" trips | `harvest_nodes` (317 depleted, 11 unreachable, 10 not a tree), trip `why`, `dry` | had |
+| Crowding | other players at the spot | not recorded (only hostile ones as `pk_seen`) | **added** trip row `players_seen` (distinct players in view) + `players` (names, ≤ 10) |
+| Skill growth over weeks | Lumberjacking per trip | trip row `skill` at the start (2); no skill-gain messages in the store (0 "has increased by"; the server sends skill packets only) | **added** `skill_end`, `skill_gain` |
+| Harvest Aspect | tier/XP of the Harvest aspect | **not observable passively**: no buff, cliloc or speech carries it; only the `[aspect` gump (Aspect Mastery, gump id 0x907FC735) shows "Harvest" "Tier 0" (30 opens, newest 2026-09-28, a test character) | gap: needs the overseer to open `[aspect` on the Harvest page now and then and a parser for that gump; the recency weighting absorbs its effect meanwhile |
+| Hatchet choice and wear | material, quality, tool bonus, uses left, price | trip row `hatchet` (2; `uses` is the table's total, not what's left); uses left only from a click: 4 "(N uses remaining)" labels (500 → 477, 2026-09-30); prices table 0 rows | **added** `hatchet_uses_seen` {n, t}: the newest label of that hatchet in the store (passive; nothing clicks it). Wear per trip = `successes` (one use per success, measured). Prices still need `ctl lumber price` |
+| Supplies per trip and their gold | library/own charges, recall casts, reagents, mana | not recorded | **added** trip row `supplies` {library_charges, own_charges, recall_casts, reagents_used} (reagents = pack count at the start minus the end; a charge counts when its recall landed [INFERENCE: RunUO takes it in the spell's effect]); per leg `mana_used`, `reagents_used`, `charges` (shown before the cast). `lumber_opt` prices them with `reagent:<name>` and `recall_charge` from the prices table and subtracts the per-trip cost (in logs at the board price) from the spot's net value; unpriced units cost 0 and are reported |
+| Witcher library tomes | charges per public tome over time | `travel` out events carry `charges` (38, 37, 36: tome 0x546ACD06) | **added** the tome serial (`book`); the Jobs page lists every book with its charges over time |
+| Captcha / speech-hold time lost | count and seconds | trip row `captchas`/`captcha_wait_s` (10 rows), `speech_holds`/`speech_wait_s` (4), `speech_clear` events with `waited_s` | had |
+| Stationary penalty | clears, repositions, time | trip row `stationary_clears` (1 row), `buff_update` "Stationary Penalty" events (733) | had; **added** `stationary_s` |
+| Weight cutoff | weight carried at the end | not recorded (`world.self.weight` exists; no max weight in the status packet we parse) | **added** `weight_end` |
+| Bank deposit | boards stored | trip row `stored` (18; counted when the stack left the pack for the open box) | had |
+| Colored wood mix → gold/hour | logs by wood, board prices | trip row `woods` (13 rows; ordinary 2 015, dullwood 43, copperwood 5), prices `board:<wood>` (0 rows) | gap: prices. The objective stays logs/hour until `ctl lumber price board:<wood>` rows exist (ECONOMY §6) |
+
+Not recorded on purpose: per-trip mana regeneration (meaningless between legs), every step of the
+walks (the proxy's `walk_moves` already has them).
+
 **Not built (data or decisions missing):** gold/hour with per-wood prices (needs colored-board
 prices: record them with `ctl lumber price board:<wood> <gp>`; the objective then becomes value per
 hour, ECONOMY §6), our own marked runes at good spots (needs a Mark capture), hiking to Atlas POIs,
-time-of-day hazard, per-spot regrowth, a Jobs-page view per spot.
+time-of-day hazard, per-spot regrowth, the Harvest Aspect tier (above).
 
 ## 7. Decisions (user, 2026-09-29)
 

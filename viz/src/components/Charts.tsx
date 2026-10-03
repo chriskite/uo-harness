@@ -172,6 +172,72 @@ export function LogsPerTripChart({ trips }: { trips: JobTrip[] }) {
   );
 }
 
+const SPLIT_KEYS = ["travel", "lockout", "field", "other"] as const;
+const SPLIT_LABEL: Record<(typeof SPLIT_KEYS)[number], string> = {
+  travel: "recalls + walk to the library",
+  lockout: "travel lockout",
+  field: "field (chopping, between trees)",
+  other: "walks, convert, bank",
+};
+
+/** Where each trip's time went (harness/jobs.py time_split) as stacked bars in minutes. */
+export function TimeSplitChart({ trips }: { trips: JobTrip[] }) {
+  const split = trips.filter((t) => t.time_split !== null);
+  if (split.length === 0) return <Empty text="no timed trips yet" />;
+  const ticks = niceTicks(Math.max(...split.map((t) => SPLIT_KEYS.reduce((a, k) => a + t.time_split![k], 0) / 60)));
+  const y = linScale(0, ticks[ticks.length - 1]!, H - M.b, M.t);
+  const slots = barSlots(split.length, M.l, W - M.r);
+  const every = Math.ceil(split.length / 20);
+  return (
+    <>
+      <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="trip time split">
+        <YAxis ticks={ticks} y={y} />
+        {split.map((t, i) => {
+          const s = slots[i]!;
+          let acc = 0;
+          const tip =
+            `trip #${t.n} ${t.spot ?? ""} (${t.outcome})${t.t_start ? ` · ${fmtStamp(t.t_start)}` : ""}: ` +
+            SPLIT_KEYS.map((k) => `${k} ${fmtDuration(t.time_split![k])}`).join(", ");
+          return (
+            <g key={t.n}>
+              {SPLIT_KEYS.map((k) => {
+                const v = t.time_split![k] / 60;
+                const top = y(acc + v);
+                const h = Math.max(0, y(acc) - top);
+                acc += v;
+                return (
+                  <rect key={k} x={s.x} y={top} width={s.w} height={h} className={`seg seg-${k}`}>
+                    <title>{tip}</title>
+                  </rect>
+                );
+              })}
+              {t.outcome !== "banked" && (
+                <text x={s.cx} y={y(acc) - 4} textAnchor="middle" className="mark-abort">
+                  {t.place_fail ? "∅" : "!"}
+                  <title>{t.why ?? t.outcome}</title>
+                </text>
+              )}
+              {i % every === 0 && (
+                <text x={s.cx} y={H - 6} textAnchor="middle" className="axis-label">
+                  #{t.n}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      <div className="legend">
+        {SPLIT_KEYS.map((k) => (
+          <span key={k}>
+            <i className={`sw sw-seg seg-${k}`} /> {SPLIT_LABEL[k]}
+          </span>
+        ))}
+        <span className="dim">minutes · ! aborted · ∅ the place gave nothing</span>
+      </div>
+    </>
+  );
+}
+
 /** XP per visit as bars, with the gold mark, the kill count on top, death marks and the mean. */
 export function VisitBarsChart({ visits }: { visits: HuntVisit[] }) {
   if (visits.length === 0) return <Empty text="no visits yet" />;

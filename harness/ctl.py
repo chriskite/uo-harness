@@ -2775,7 +2775,8 @@ def _lumber_parser(sub):
                    help="add candidates (most trees first) only while fewer than this many wait for approval")
     q.add_argument("--no-route-check", action="store_true", help="skip the walking-route check (faster)")
     q.add_argument("--dry-run", action="store_true", help="list, don't save")
-    q = ls.add_parser("price", help="record an observed price, e.g. hatchet:copper 1200 or board:ordinary 9")
+    q = ls.add_parser("price", help="record an observed price, e.g. hatchet:copper 1200, board:ordinary 9, "
+                                    "reagent:black_pearl 5 or recall_charge 30 (supplies: what a trip's recalls cost)")
     q.add_argument("item")
     q.add_argument("gp", type=float)
     q.add_argument("--source", default="observed", help="where: vendor search, NPC, player, chat#")

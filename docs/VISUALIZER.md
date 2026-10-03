@@ -307,7 +307,7 @@ not per poll). **GETs never create the store**; the first `POST /api/chat` does.
 - `GET /api/jobs?job=lumber|hunt[&since=T][&tz=M]` → `harness/jobs.py` `analytics()` plus `store`
   (`hunt` gets the hunt shape below, any other job the trip shape). `tz` is minutes east of UTC
   for the per-day split (the browser sends its own; default the server's local offset). Cached 2 s
-  per (job, since, tz).
+  per (job, since, tz). Lumber also gets `plan`, computed at the server's clock (below).
 
 **Analytics (`harness/jobs.py`, pure: `compute()` reads no clock).** Inputs: `Memory.episodes(job)`
 (trip rows), `Memory.job_events(job, since)`, the `harvest_attempts` outcomes (lumber only; the
@@ -330,6 +330,26 @@ table has no job column) and `harness/data/woods.json` when present.
   log could be priced, including when woods.json is absent.
 - CLI: `python harness/jobs.py [--db PATH] [--job lumber|hunt] [--since T]` prints totals, days and
   harvest outcomes (hunt: totals, days and monsters).
+
+**Lumber optimizer analytics (added 2026-10-04, user request: the dashboard shows what the
+self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
+- **Per trip** besides the above: `spot`, `outcome`, `why`, `place_fail`, `field_s` and
+  `field_logs_per_hour` (field time as `lumber_opt.trip_obs` counts it: the λ sample),
+  `time_split` {travel (recall legs and the walk to the library), lockout, field, other (walks,
+  convert, bank)} summing to the duration, the `travel` legs, `skill`/`skill_end`, `supplies`,
+  `players_seen`, `escapes`, `stationary_clears`, the hatchet and its last seen uses.
+- `travel`: from the `travel` and `recall` job events, per leg kind (out/home/escape) the count,
+  landed, casts, charge/spell, failures by reason, mean seconds and the mean walk to the library;
+  per book (a library tome or ours) the charges it showed before each recall over time, the runes
+  used. Rows from before 2026-10-04 have no book: an out leg's tome comes from the rune number in
+  its row name and the Witcher table.
+- `supplies` (summed trip `supplies`, priced from the store's `reagent:<name>` / `recall_charge`
+  prices: `gp`, `unpriced`), `time_split` totals, `skill` points (trip start and end).
+- `plan` = `jobs.lumber_plan`: `lumber_opt.plan_from_store` with no live character (skill from the
+  newest trip row) and no position (every spot pays its travel prior), seeded by the minute, plus
+  per spot the PK escapes (`recall`/`guard_flight` events), the last trip's outcome and why, and how
+  it's reached (`Witcher rune N` or a walk). 0.06 s on the live store, so it's computed per request
+  (inside the 2 s cache). `analytics(plan_now=None)` (tests, the CLI) leaves it null.
 
 **Hunt analytics (`jobs.compute_hunt`, pure; added 2026-10-02).** Inputs: `Memory.episodes("hunt")`
 (one row per visit to the spot, docs/HUNT_LOOP.md "Memory") and the hunt job events.
@@ -378,14 +398,38 @@ table has no job column) and `harness/data/woods.json` when present.
     tiles are green at 0, red or amber otherwise.
   - A line under the tiles: the estimated value (and how many logs are unpriced) and the chop
     outcomes from `harvest_attempts`.
+  - **Optimizer: next pick** (2026-10-04): the plan's spot with `explore`/`exploit`, P(best), trips ×
+    Q* logs, expected trip minutes and net logs/hr, then skill and chop success, the regrowth window
+    (fitted or default), P(death | PK seen), the new-spot prior, the dispersion and the `ctl run
+    lumber` command.
+  - **Spots**: every active spot and every spot with trips (the untried candidates are counted in
+    the head): status, how it's reached, trips, field hours, field logs/hr with its 80% interval,
+    net logs/hr, Q*, overhead, travel minutes, PK sightings/hr, deaths, PK escapes, place
+    failures, supplies per trip, the last trip (hours ago, outcome, why on hover), P(best) and why
+    it can't be picked. The pick's row is highlighted, ineligible rows dimmed.
+  - **Lumberjacking skill** over time (trip start and end) and **Travel and supplies**: the time
+    split of all trips as one bar, the supplies used, the legs table and the books table (library
+    tomes' charges over time on hover).
   - Charts, plain SVG with no chart library (`viz/src/chart.ts`):
     - logs/hr over time (rolling and cumulative);
+    - field rate per trip (field logs/hr and whole-trip logs/hr);
+    - where trip time goes: stacked bars per trip (travel, lockout, field, the rest), `!` over an
+      aborted trip, `∅` when the place gave nothing;
     - logs per trip as bars, with the stored-boards mark, captcha dots, death marks and the mean;
-    - a trips-and-events strip, with the event list below it.
+    - a trips-and-events strip, with the event list below it (travel events are in the travel
+      panel instead).
   - A wood-type breakdown when the trip rows carry one, and the woods.json status.
-  - The per-trip table (newest first) and a per-day table.
+  - The per-trip table (newest first): spot, outcome (why), time, logs, stored, logs/hr, field/hr,
+    chops, captchas, the time split, the travel legs as badges ("home ✓ 2 casts (disturbed)"),
+    skill, events, value; and a per-day table.
   - With no data, every chart shows a dashed "no trips yet" frame and the tiles show `—` or 0. A
     missing store is badged `no Codex: nothing recorded yet` (the UI calls the memory store "the Codex").
+  - Verified 2026-10-03 in headless Edge (1800×1100) on a copy of the live store (21 trips, 7 active
+    spots, 4 travel events) plus one synthetic trip row in the new format: the pick `witcher_282`
+    exploit at P(best) 62%; the spots table (witcher_291 dimmed: "player threat or death here 27
+    min ago"); the tome 0x546ACD06 at 36 charges, runes 291 and 282; the synthetic trip's purple
+    travel and amber lockout segments and its legs "out ✓ charge", "home ✓ 2 casts (no charges)";
+    no page errors.
 - **Hunting dashboard** (2026-10-02):
   - KPI tiles: mobs killed (kills/hr), gold looted (gold/hr, gold/kill), XP earned (est.; XP/hr and
     how many kills weren't looted), visits (leaves), active hours, deaths to mobs, deaths to PKs, hits

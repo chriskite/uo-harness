@@ -28,6 +28,7 @@ Conventions
 import argparse
 import json
 import os
+import re
 import sys
 import time
 
@@ -169,7 +170,7 @@ def _trip_row(i, row, woods):
             value = round((value or 0) + v * n, 2)
     phases = row.get("phases_s") if isinstance(row.get("phases_s"), dict) else {}
     return {"n": i + 1, "trip": row.get("trip"), "spot": row.get("spot") or row.get("venue"),
-            "outcome": row.get("outcome") or "banked", "t_start": t0, "t_end": t1,
+            "outcome": row.get("outcome") or "banked", "why": row.get("why"), "t_start": t0, "t_end": t1,
             "duration_s": duration, "logs": logs, "stored": int(_num(row.get("stored"))),
             "logs_per_hour": _rate(logs, duration),
             "captchas": int(_num(row.get("captchas"))), "captcha_wait_s": round(_num(row.get("captcha_wait_s")), 1),
@@ -177,7 +178,38 @@ def _trip_row(i, row, woods):
             "phases_s": {k: v for k, v in phases.items() if _num(v, None) is not None},
             "steps": row.get("steps"), "blocked": row.get("blocked"),
             "woods": breakdown, "value_gp": value, "value_unpriced_logs": unpriced,
-            "events": {}}
+            "events": {}, **_trip_extra(row, duration, logs)}
+
+
+def _trip_extra(row: dict, duration, logs) -> dict:
+    """What the lumber optimizer learns from a trip row (docs/LUMBER_LOOP.md "What the
+    optimizer learns from"): the time split (travel legs, lockout, field time as
+    lumber_opt.trip_obs counts it, the rest), field logs/hr, skill, travel legs,
+    supplies, crowding, the hatchet. Missing in older rows -> null."""
+    import lumber_opt
+    obs = lumber_opt.trip_obs(row)
+    field = obs["field_s"] if obs else None
+    travel = row.get("travel") if isinstance(row.get("travel"), list) else []
+    travel_s = _num(row.get("travel_s"), None)
+    lockout = _num(row.get("lockout_s"), None)
+    split = None
+    if duration and field is not None:
+        split = {"travel": round(travel_s or 0.0, 1), "lockout": round(lockout or 0.0, 1), "field": round(field, 1)}
+        split["other"] = round(max(0.0, duration - sum(split.values())), 1)
+    hatchet = row.get("hatchet") if isinstance(row.get("hatchet"), dict) else {}
+    return {"field_s": None if field is None else round(field, 1),
+            "field_logs_per_hour": _rate(logs, field) if field and field >= 60 else None,
+            "place_fail": bool(obs and obs["place_fail"]), "time_split": split,
+            "walk_out_s": row.get("walk_out_s"), "chop_s": row.get("chop_s"), "lockout_s": lockout,
+            "travel_s": travel_s, "travel": travel,
+            "speech_wait_s": round(_num(row.get("speech_wait_s")), 1),
+            "stationary_clears": int(_num(row.get("stationary_clears"))) + int(_num(row.get("repositions"))),
+            "escapes": int(_num(row.get("escapes"))),
+            "skill": _num(row.get("skill"), None), "skill_end": _num(row.get("skill_end"), None),
+            "supplies": row.get("supplies") if isinstance(row.get("supplies"), dict) else None,
+            "players_seen": _num(row.get("players_seen"), None), "dry": bool(row.get("dry")),
+            "hatchet": {k: hatchet.get(k) for k in ("material", "quality", "serial")} if hatchet else None,
+            "hatchet_uses_seen": row.get("hatchet_uses_seen")}
 
 
 def rolling_series(trips: list[dict], window_s: float = ROLLING_WINDOW_S) -> list[dict]:
@@ -260,7 +292,142 @@ def compute(episodes: list[dict], events: list[dict], attempts: list[tuple] | No
                     "x": e.get("x"), "y": e.get("y"), "data": e["data"]} for e in evs],
         "woods": wood_rows,
         "harvest": harvest,
+        "travel": travel_stats(evs),
+        "supplies": supplies_total(trips),
+        "time_split": {k: round(sum((t["time_split"] or {}).get(k, 0.0) for t in trips), 1)
+                       for k in ("travel", "lockout", "field", "other")},
+        "skill": [{"t": t, "skill": s, "n": tr["n"]} for tr in trips
+                  for t, s in ((tr["t_start"], tr["skill"]), (tr["t_end"], tr["skill_end"]))
+                  if t is not None and s is not None],
     }
+
+
+# ------------------------------------------------------------------ lumber: travel, supplies, spots
+TOME_ROW = re.compile(r"^(\d+) - ")
+
+
+def _leg_book(d: dict) -> tuple[str | None, str | None]:
+    """(book serial, Witcher rune id) of a travel/recall event. Rows before 2026-10-04
+    name no book: an out leg's tome comes from the rune number in the row name
+    ("291 - Hidden Valley ...") and the Witcher table."""
+    rune = d.get("witcher_rune")
+    if rune is None and d.get("leg") == "out":
+        m = TOME_ROW.match(d.get("name") or "")
+        rune = m[1] if m else None
+    book = d.get("book")
+    if book is None and rune is not None:
+        try:
+            import places
+            book = places.witcher_rune(rune)["tome"]
+        except (KeyError, OSError, ValueError):
+            book = None
+    return book, rune
+
+
+def travel_stats(events: list[dict]) -> dict:
+    """Travel legs from the `travel` (out/home) and `recall` (PK escape) job events:
+    per leg kind the count, landed, casts, failures by reason, charge/spell use and
+    mean seconds; per book (a library tome or our own) the charges it showed over time
+    (before each recall) and the runes used."""
+    legs, books = {}, {}
+    for e in events:
+        if e["kind"] not in ("travel", "recall"):
+            continue
+        d = e["data"]
+        leg = d.get("leg") or "escape"
+        a = legs.setdefault(leg, {"leg": leg, "n": 0, "ok": 0, "casts": 0, "charge": 0, "spell": 0,
+                                  "s": 0.0, "timed": 0, "walk_s": 0.0, "walked": 0, "failures": {}})
+        a["n"] += 1
+        a["ok"] += 1 if d.get("ok") else 0
+        tries = d.get("tries") or ([{"method": d.get("method"), "failure": d.get("failure")}]
+                                   if d.get("method") else [])
+        a["casts"] += len(tries) if tries else int(_num(d.get("attempts")))
+        for t in tries:
+            if t.get("method") in ("charge", "spell"):
+                a[t["method"]] += 1
+            if t.get("failure"):
+                a["failures"][t["failure"]] = a["failures"].get(t["failure"], 0) + 1
+        if not tries and d.get("failure"):
+            a["failures"][d["failure"]] = a["failures"].get(d["failure"], 0) + 1
+        secs = _num(d.get("s"), None) if d.get("s") is not None else _num(d.get("elapsed_s"), None)
+        if secs is not None:
+            a["s"] += secs
+            a["timed"] += 1
+        if _num(d.get("walk_s"), None) is not None:
+            a["walk_s"] += d["walk_s"]
+            a["walked"] += 1
+        book, rune = _leg_book(d)
+        if book is None:
+            continue
+        b = books.setdefault(book, {"book": book, "kind": d.get("kind"), "library": d.get("library"),
+                                    "own": leg != "out", "uses": 0, "runes": [], "charges": []})
+        b["uses"] += 1
+        if rune is not None and str(rune) not in b["runes"]:
+            b["runes"].append(str(rune))
+        if _num(d.get("charges"), None) is not None:
+            b["charges"].append([e["t"], d["charges"]])
+    for a in legs.values():
+        s, walk = a.pop("s"), a.pop("walk_s")
+        a["mean_s"] = round(s / a["timed"], 1) if a["timed"] else None
+        a["mean_walk_s"] = round(walk / a["walked"], 1) if a["walked"] else None
+        del a["timed"], a["walked"]
+    for b in books.values():
+        b["last_charges"] = b["charges"][-1][1] if b["charges"] else None
+        b["last_t"] = b["charges"][-1][0] if b["charges"] else None
+        b["min_charges"] = min((c for _, c in b["charges"]), default=None)
+    order = {"out": 0, "home": 1, "escape": 2}
+    return {"legs": sorted(legs.values(), key=lambda a: order.get(a["leg"], 3)),
+            "books": sorted(books.values(), key=lambda b: (b["own"], b["book"]))}
+
+
+def supplies_total(trips: list[dict]) -> dict:
+    """Library and own charges, recall casts and reagents over the trips that record supplies."""
+    out = {"trips": 0, "library_charges": 0, "own_charges": 0, "recall_casts": 0, "reagents_used": {}}
+    for t in trips:
+        s = t.get("supplies")
+        if not s:
+            continue
+        out["trips"] += 1
+        for k in ("library_charges", "own_charges", "recall_casts"):
+            out[k] += int(_num(s.get(k)))
+        for k, n in (s.get("reagents_used") or {}).items():
+            out["reagents_used"][k] = out["reagents_used"].get(k, 0) + int(_num(n))
+    return out
+
+
+PLAN_DRAWS = 1000
+
+
+def lumber_plan(memory, now: float) -> dict:
+    """`ctl lumber plan` as the dashboard sees it: lumber_opt.plan_from_store with no
+    live character (skill from the newest trip row; no hatchet options) and standing
+    nowhere (every spot pays its travel prior), seeded by the minute so a refresh
+    within the minute shows the same draws. Per spot it adds what the trip rows and
+    job events say beyond the model: PK escapes (recall or guard flight), the last
+    trip's outcome and why, how the spot is reached."""
+    import lumber_opt
+    out = lumber_opt.plan_from_store(memory, None, None, None, None, seed=int(now // 60), now=now)
+    spots = lumber_opt.load_spots(memory)
+    trips = [(r.get("spot") or r.get("venue"), r) for r in memory.episodes("lumber")]
+    escapes = {}
+    for e in memory.job_events("lumber"):
+        if e["kind"] in ("recall", "guard_flight"):
+            sid = e["data"].get("spot") or next((s for s, r in reversed(trips) if _num(r.get("t_start"), 0) <= e["t"]
+                                                <= _num(r.get("t_end"), 0) + 60), None)
+            if sid is not None:
+                escapes[sid] = escapes.get(sid, 0) + 1
+    for r in out["spots"]:
+        s = spots.get(r["id"]) or {}
+        last = next((row for sid, row in reversed(trips) if sid == r["id"]), None)
+        access = s.get("access") or {}
+        r["pk_escapes"] = escapes.get(r["id"], 0)
+        r["last_outcome"] = None if last is None else (last.get("outcome") or "banked")
+        r["last_why"] = None if last is None else last.get("why")
+        r["reach"] = (f"Witcher rune {access.get('rune')} ({access.get('library', 'cambria')})"
+                      if access.get("method") == "witcher" else "walk from the bank")
+        r["pvp"] = s.get("pvp", True)
+    out.pop("hatchets", None)
+    return out
 
 
 def harvest_rows(memory, since: float = 0.0) -> list[tuple]:
@@ -480,12 +647,14 @@ _DEFAULT = object()
 
 
 def analytics(memory, job: str = "lumber", since: float = 0.0, woods=_DEFAULT,
-              utc_offset_s: int = 0, window_s: float = ROLLING_WINDOW_S) -> dict:
+              utc_offset_s: int = 0, window_s: float = ROLLING_WINDOW_S, plan_now: float | None = None) -> dict:
     """Analytics from a harness.memory.Memory, or empty ones for memory None (no store
     yet). `hunt` gets compute_hunt(); every other job the trip analytics. `woods`: a
     load_woods() dict, None for no values, or default = harness/data/woods.json if
     present. Harvest outcomes come only for the lumber job (harvest_attempts has no
-    job column)."""
+    job column). Lumber: the supplies priced from the store's prices
+    (lumber_opt.supply_gp) and, with `plan_now` (the clock; the viz passes it),
+    `plan` = lumber_plan() at that time, else null."""
     episodes = memory.episodes(job) if memory is not None else []
     events = memory.job_events(job, since) if memory is not None else []
     if job == "hunt":
@@ -493,7 +662,15 @@ def analytics(memory, job: str = "lumber", since: float = 0.0, woods=_DEFAULT,
     if woods is _DEFAULT:
         woods = load_woods()
     attempts = harvest_rows(memory, since) if memory is not None and job == "lumber" else None
-    return compute(episodes, events, attempts, woods, job, since, utc_offset_s, window_s)
+    out = compute(episodes, events, attempts, woods, job, since, utc_offset_s, window_s)
+    if job == "lumber":
+        import lumber_opt
+        prices = memory.prices() if memory is not None else {}
+        gp = [lumber_opt.supply_gp(t["supplies"], prices) for t in out["trips"] if t["supplies"]]
+        out["supplies"]["gp"] = round(sum(g for g, _ in gp), 1)
+        out["supplies"]["unpriced"] = sum(u for _, u in gp)
+        out["plan"] = lumber_plan(memory, plan_now) if memory is not None and plan_now is not None else None
+    return out
 
 
 def main(argv=None):

@@ -8,7 +8,9 @@ export interface JobTrip {
   /** 1-based over all trips in the answer (trip is the runner's own per-run number). */
   n: number;
   trip: number | null;
-  venue: string | null;
+  spot: string | null;
+  outcome: string;
+  why: string | null;
   t_start: number | null;
   t_end: number | null;
   duration_s: number | null;
@@ -28,6 +30,153 @@ export interface JobTrip {
   value_unpriced_logs: number;
   /** job_events kinds that happened during the trip, counted. */
   events: Record<string, number>;
+  // what the lumber optimizer learns from (harness/jobs.py _trip_extra; null in older rows)
+  field_s: number | null;
+  field_logs_per_hour: number | null;
+  place_fail: boolean;
+  time_split: TimeSplit | null;
+  walk_out_s: number | null;
+  chop_s: number | null;
+  lockout_s: number | null;
+  travel_s: number | null;
+  travel: TripLeg[];
+  speech_wait_s: number;
+  stationary_clears: number;
+  escapes: number;
+  skill: number | null;
+  skill_end: number | null;
+  supplies: Supplies | null;
+  players_seen: number | null;
+  dry: boolean;
+  hatchet: { material: string | null; quality: string | null; serial: string | null } | null;
+  hatchet_uses_seen: { n: number; t: number } | null;
+}
+
+/** Seconds of a trip: recall legs (and the walk to the library), the travel lockout, field time, the rest. */
+export interface TimeSplit {
+  travel: number;
+  lockout: number;
+  field: number;
+  other: number;
+}
+
+/** One travel leg as the trip row keeps it (loop_lumber.leg_summary). */
+export interface TripLeg {
+  leg: string;
+  kind?: string;
+  method?: string;
+  book?: string;
+  witcher_rune?: string;
+  ok: boolean;
+  attempts?: number;
+  s?: number;
+  walk_s?: number;
+  failure?: string;
+  charges?: number;
+  mana_used?: number;
+  reagents_used?: Record<string, number>;
+  /** [method, failure or null, seconds] per cast */
+  tries: [string | null, string | null, number | null][];
+}
+
+export interface Supplies {
+  library_charges: number;
+  own_charges: number;
+  recall_casts: number;
+  reagents_used?: Record<string, number>;
+}
+
+export interface SuppliesTotal extends Supplies {
+  trips: number;
+  reagents_used: Record<string, number>;
+  /** priced with the store's prices (reagent:<name>, recall_charge); unpriced = units without a price */
+  gp?: number;
+  unpriced?: number;
+}
+
+export interface LegStats {
+  leg: string;
+  n: number;
+  ok: number;
+  casts: number;
+  charge: number;
+  spell: number;
+  failures: Record<string, number>;
+  mean_s: number | null;
+  mean_walk_s: number | null;
+}
+
+export interface BookStats {
+  book: string;
+  kind: string | null;
+  library: string | null;
+  own: boolean;
+  uses: number;
+  runes: string[];
+  /** [t, charges shown before the recall] */
+  charges: [number, number][];
+  last_charges: number | null;
+  last_t: number | null;
+  min_charges: number | null;
+}
+
+export interface PlanSpot {
+  id: string;
+  name: string | null;
+  status: string;
+  eligible: boolean;
+  why_not: string | null;
+  trips: number;
+  field_h: number;
+  logs: number;
+  rate_logs_h: number;
+  rate_80: [number, number];
+  overhead_s: number;
+  sightings: number;
+  sightings_per_h: number;
+  deaths: number;
+  deaths_per_h: number;
+  logs_per_trip: number;
+  net_logs_h: number;
+  supply_gp_trip: number;
+  supply_unpriced: number;
+  place_fails: number;
+  travel_min: number;
+  travel_samples: number;
+  access: string;
+  rune: string | null;
+  last_trip_h_ago: number | null;
+  p_best: number;
+  pk_escapes: number;
+  last_outcome: string | null;
+  last_why: string | null;
+  reach: string;
+  pvp: boolean;
+}
+
+export interface LumberPlan {
+  ok: boolean;
+  error?: string;
+  now: number;
+  skill: number | null;
+  success_p: number | null;
+  regrow: { minutes: number; pairs: number; regrown?: number; fitted: boolean };
+  dispersion: number;
+  death_given_sighting: number;
+  prior_rate_logs_h: number;
+  prior_cv: number;
+  spots: PlanSpot[];
+  pick: {
+    spot: string;
+    mode: "explore" | "exploit";
+    greedy: string;
+    p_best: number;
+    logs_per_trip: number;
+    trips: number;
+    expected_trip_min: number;
+    expected_net_logs_h: number;
+    command: string;
+  } | null;
 }
 
 export interface JobAgg {
@@ -113,6 +262,41 @@ export interface JobsResponse {
   events: JobEvent[];
   woods: WoodRow[];
   harvest: HarvestStats | null;
+  travel: { legs: LegStats[]; books: BookStats[] };
+  supplies: SuppliesTotal;
+  time_split: TimeSplit;
+  skill: { t: number; skill: number; n: number }[];
+  /** lumber_opt plan at the server's clock (null without a store) */
+  plan: LumberPlan | null;
+}
+
+/** Plan rows worth a line: active spots and any spot with trips; `hidden` = the untried candidates/disabled. */
+export function spotRows(plan: LumberPlan | null): { rows: PlanSpot[]; hidden: number } {
+  if (!plan) return { rows: [], hidden: 0 };
+  const rows = plan.spots.filter((s) => s.status === "active" || s.trips > 0);
+  return { rows, hidden: plan.spots.length - rows.length };
+}
+
+/** One travel leg in a few words: "out ✓ charge", "home ✓ 2 casts (disturbed)", "out ✗ walk: no route". */
+export function legText(l: TripLeg): { text: string; tone: Tone } {
+  const casts = l.tries.length;
+  const fails = l.tries.map((t) => t[1]).filter((f): f is string => !!f);
+  const how = casts > 1 ? `${casts} casts` : (l.method ?? "");
+  const why = l.ok ? (fails.length ? ` (${fails.join(", ")})` : "") : ` ${l.failure ?? fails.join(", ") ?? ""}`;
+  return { text: `${l.leg} ${l.ok ? "✓" : "✗"} ${how}${why}`.replace(/\s+/g, " ").trim(), tone: l.ok ? (fails.length ? "warn" : "ok") : "bad" };
+}
+
+/** Shares of a time split in display order, for a stacked bar (0 when the total is 0). */
+export function splitShares(s: TimeSplit): { key: keyof TimeSplit; s: number; share: number }[] {
+  const keys: (keyof TimeSplit)[] = ["travel", "lockout", "field", "other"];
+  const total = keys.reduce((a, k) => a + s[k], 0);
+  return keys.map((k) => ({ key: k, s: s[k], share: total ? s[k] / total : 0 }));
+}
+
+/** "black pearl 2, mandrake root 1" or "—". */
+export function fmtCounts(c: Record<string, number> | undefined | null): string {
+  const e = Object.entries(c ?? {}).filter(([, n]) => n);
+  return e.length ? e.map(([k, n]) => `${k} ${n}`).join(", ") : "—";
 }
 
 export const PHASES = ["harvest", "convert", "to_bank", "store"] as const;
@@ -204,6 +388,19 @@ export function eventView(e: JobEvent): EventView {
     }
     case "speech_clear":
       return { label: "Resumed", detail: typeof d.waited_s === "number" ? `after ${fmtDuration(d.waited_s)}` : detail, tone: "ok" };
+    case "travel":
+    case "recall": {
+      const leg = str(d.leg) ?? "escape";
+      const where = str(d.name) ?? (d.witcher_rune ? `rune ${String(d.witcher_rune)}` : null);
+      const how = [str(d.method), typeof d.charges === "number" ? `${d.charges} charges` : null].filter(Boolean).join(", ");
+      return {
+        label: `Recall ${leg} ${d.ok ? "landed" : "failed"}`,
+        detail: [where, how, d.ok ? null : str(d.failure), at].filter(Boolean).join(" · "),
+        tone: d.ok ? (leg === "escape" ? "warn" : "info") : "bad",
+      };
+    }
+    case "guard_flight":
+      return { label: "Fled into the guards", detail, tone: "warn" };
     default:
       return { label: e.kind, detail, tone: "dim" };
   }

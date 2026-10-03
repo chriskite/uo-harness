@@ -73,6 +73,7 @@ import travel_guard  # noqa: E402
 import stationary  # noqa: E402
 import places  # noqa: E402
 import captcha  # noqa: E402
+import combat  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 NEXT_TREE_PLANS = 6           # nearest trees (straight line) whose walks next_tree() compares
@@ -99,6 +100,18 @@ FLEE_ARRIVAL_WAIT_S = 1.5     # after a flight arrives: how long its 500112 may 
 
 def h(v) -> int:
     return int(v, 16) if isinstance(v, str) else int(v)
+
+
+LEG_KEYS = ("leg", "kind", "method", "book", "witcher_rune", "ok", "attempts", "s", "walk_s", "failure",
+            "charges", "mana_used", "reagents_used")
+
+
+def leg_summary(data: dict) -> dict:
+    """A travel leg's job-event data reduced to the trip row's `travel` entry, plus
+    `tries`: each cast's method, failure, and elapsed time ("charge", null, 2.2)."""
+    out = {k: data[k] for k in LEG_KEYS if data.get(k) is not None}
+    out["tries"] = [[t.get("method"), t.get("failure"), t.get("elapsed_s")] for t in data.get("tries") or []]
+    return out
 
 
 def pack_depth(items: dict, container: int, me: int, pack: int) -> int | None:
@@ -179,7 +192,10 @@ class LumberLoop:
         self.hatchets = lumber_opt.load_hatchets()
         self.want_hatchet = lumber_opt.parse_hatchet_spec(args.hatchet)   # --hatchet material[+quality]
         self.trip_t0 = None
-        self.timing = {}             # this trip's walk_out_s / chop_s / tree_walk_s (episode row)
+        self.timing = {}             # this trip's walk_out_s / chop_s / tree_walk_s / lockout_s / stationary_s
+        self.travel = []             # this trip's travel legs (travel_leg): the episode row's `travel`
+        self.players_seen = {}       # serial -> name of every player in view this trip (crowding, threats)
+        self.reagents0 = {}          # reagent counts in the pack at the trip start (supplies used)
 
     def doing(self, kind: str, text: str, target=None):
         """Tell the visualizer what the agent is trying to do (proxy-side only)."""
@@ -261,6 +277,8 @@ class LumberLoop:
             if t.hostile and t.player and t.serial not in self.seen_hostiles:
                 self.seen_hostiles.add(t.serial)
                 self.memory.job_event("lumber", "pk_seen", t.to_dict(), **self._where(st))
+            if t.player and t.distance >= 0:
+                self.players_seen[t.serial] = t.name
         by_serial = {t.serial: t for t in a.threats}
         swung = self.swung_at_us(st)
         players = [t for t in a.flee if t.kind != "monster"]
@@ -339,9 +357,10 @@ class LumberLoop:
             res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, log=log)
         except escape_mod.RecallError as e:
             return f"recall not possible: {e}"
-        data = {**res, "threat": worst.to_dict() if worst else None,
-                "attackers": [f"0x{s:08X}" for s in swung]}
+        data = {**res, "trip": self.trip_n, "spot": self.k["spot"]["id"], "book": f"0x{self.recall_book:08X}",
+                "threat": worst.to_dict() if worst else None, "attackers": [f"0x{s:08X}" for s in swung]}
         self.memory.job_event("lumber", "recall", data, **self._where(st))
+        self.travel.append(leg_summary({"leg": "escape", "s": res["elapsed_s"], **data}))
         if not res["ok"]:
             return f"recall failed after {res['attempts']} cast(s): {res['failure']}"
         summary = self.post_threat(st, a, worst, swung, "recall")
@@ -984,6 +1003,7 @@ class LumberLoop:
                 log(f"travel lockout reported: waiting {wait:.0f} s")
                 self.doing("lockout", f"Waiting out the travel lockout ({wait:.0f} s)", spot)
                 time.sleep(wait)
+                self.timing["lockout_s"] += wait     # travel's cost, not the field's (lumber_opt.trip_obs)
                 continue
             elif out == "not_tree":
                 self.memory.harvest_record(*node, "not_tree")
@@ -1006,12 +1026,14 @@ class LumberLoop:
         step (a long tree, a speech hold or a captcha). Before each chop: when it is
         on, walk it off (its steps + 1, out and back to the stand tile); before it
         comes, reposition 2-4 steps out and back. True when it walked; the trip's
-        episode row counts `stationary_clears` / `repositions`."""
+        episode row counts `stationary_clears` / `repositions` and their `stationary_s`."""
+        t0 = time.monotonic()
         kind = self.still.handle(self.link.state(), stand, True, self.doing)
         if kind is None:
             return False
         key = "stationary_clears" if kind == "penalty" else "repositions"
         self.stats[key] = self.stats.get(key, 0) + 1
+        self.timing["stationary_s"] += time.monotonic() - t0
         return True
 
     def chopped(self, c0: float, wait0: float):
@@ -1182,7 +1204,8 @@ class LumberLoop:
         stand in the spot's area already, walk to the rune library, stand by the tome
         that holds rune N and recall to it (escape.recall: one of the tome's public
         charges, else our own spell; docs/research/WORLD_LOCATIONS.md). The 60 s
-        harvest lockout after it is waited out by the first chop (outcome 'lockout')."""
+        harvest lockout after it is waited out by the first chop (outcome 'lockout').
+        Every attempt is a `travel` job event (travel_leg), a failed walk or recall too."""
         access = self.k["spot"].get("access") or {}
         if access.get("method") != "witcher":
             return
@@ -1193,23 +1216,31 @@ class LumberLoop:
             return
         rune = places.witcher_rune(access["rune"])
         lib = places.library(access.get("library", "cambria"))
+        leg = {"leg": "out", "witcher_rune": rune["id"], "library": lib["id"], "book": rune["tome"]}
+        t0 = time.monotonic()
         # No distance limit (user decision 2026-10-04): the walk goes as far as the map planner
         # routes; "no route" from far away still aborts (bring us closer by moongate first).
         tome = next(t for t in lib["tomes"] if t["serial"] == rune["tome"])
         self.doing("to_library", f"Walking to the {lib['name']}", tuple(tome["pos"][:2]))
-        self.mover.walk_to(lambda: tuple(tome["pos"][:2]), lib["use_range"] - 1, "to the rune library")
-        if self.link.wait(lambda s: rune["tome"] in s["world"]["items"], 3.0) is None:
-            raise Abort(f"the tome {rune['tome']} for rune {rune['id']} isn't at the {lib['name']} "
-                        f"({tome['pos'][:2]})")
+        try:
+            self.mover.walk_to(lambda: tuple(tome["pos"][:2]), lib["use_range"] - 1, "to the rune library")
+            if self.link.wait(lambda s: rune["tome"] in s["world"]["items"], 3.0) is None:
+                raise Abort(f"the tome {rune['tome']} for rune {rune['id']} isn't at the {lib['name']} "
+                            f"({tome['pos'][:2]})")
+        except Abort as e:
+            self.travel_leg(leg, t0, failure=f"walk: {e}")
+            raise
+        leg["walk_s"] = round(time.monotonic() - t0, 1)
         self.doing("recall_out", f"Recalling to rune {rune['id']} ({rune['name']})", (rune["x"], rune["y"]))
         self.human.wait("use")
+        before = self.supplies_now(self.link.state())
         try:
             res = escape_mod.escape(escape_mod.LinkIO(self.link), int(rune["tome"], 16), attempts=2, log=log,
                                     rune=rune["id"])
         except escape_mod.RecallError as e:
+            self.travel_leg(leg, t0, failure=f"recall: {e}")
             raise Abort(f"library recall to rune {rune['id']} not possible: {e}")
-        self.memory.job_event("lumber", "travel", {"leg": "out", "rune": rune["id"], **res},
-                              **self._where(self.link.state()))
+        self.travel_leg(leg, t0, res, before)
         if not res["ok"]:
             raise Abort(f"library recall to rune {rune['id']} failed: {res['failure']}")
         log(f"recalled to rune {rune['id']} ({rune['name']}) at {tuple(res['to'])} ({res['method']})")
@@ -1217,7 +1248,7 @@ class LumberLoop:
     def go_home(self):
         """Spots with home {"method": "recall"}: recall to the default rune of our
         book (the same one the red escape uses), unless the banker is already near;
-        open_bank walks the rest."""
+        open_bank walks the rest. A `travel` job event either way it goes."""
         if (self.k["spot"].get("home") or {}).get("method") != "recall":
             return
         if cheb(self.link.pos(self.link.state()), self.banker_pos()) <= HOME_NEAR:
@@ -1226,10 +1257,44 @@ class LumberLoop:
             raise Abort("this spot goes home by recall, and there is no runebook or rune tome ready")
         self.doing("recall_home", "Recalling home")
         self.human.wait("use")
-        res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, attempts=3, log=log)
-        self.memory.job_event("lumber", "travel", {"leg": "home", **res}, **self._where(self.link.state()))
+        leg, t0 = {"leg": "home", "book": f"0x{self.recall_book:08X}"}, time.monotonic()
+        before = self.supplies_now(self.link.state())
+        try:
+            res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, attempts=3, log=log)
+        except escape_mod.RecallError as e:
+            self.travel_leg(leg, t0, failure=f"recall: {e}")
+            raise Abort(f"recall home not possible: {e}")
+        self.travel_leg(leg, t0, res, before)
         if not res["ok"]:
             raise Abort(f"recall home failed: {res['failure']}")
+
+    def supplies_now(self, st) -> dict:
+        """Mana and reagents in the pack now (travel legs: what a recall cost)."""
+        counts, _ = combat.reagents(st["world"], self.self_serial(st))
+        return {"mana": (st["world"].get("self") or {}).get("mana"),
+                "reagents": {combat.REAGENTS[g]: n for g, n in counts.items()}}
+
+    def travel_leg(self, leg: dict, t0: float, res: dict | None = None, before: dict | None = None,
+                   failure: str | None = None):
+        """One travel leg (out by a library tome, home by our book): a `travel` job
+        event with the trip, the spot, the book, how long it took (`s`, the walk to the
+        library included, `walk_s`), escape.escape's result (method, every try, the
+        charges the book showed) or why it couldn't be tried, and the mana and reagents
+        it cost; its summary goes into the trip row's `travel`."""
+        st = self.link.state()
+        data = {**leg, "trip": self.trip_n, "spot": self.k["spot"]["id"], "s": round(time.monotonic() - t0, 1)}
+        if res is not None:
+            data.update({k: v for k, v in res.items() if k not in data})
+        else:
+            data.update(ok=False, failure=failure, attempts=0, tries=[])
+        if before is not None:
+            after = self.supplies_now(st)
+            if before["mana"] is not None and after["mana"] is not None:
+                data["mana_used"] = before["mana"] - after["mana"]
+            used = {k: n - after["reagents"].get(k, 0) for k, n in before["reagents"].items()}
+            data["reagents_used"] = {k: n for k, n in used.items() if n > 0}
+        self.memory.job_event("lumber", "travel", data, **self._where(st))
+        self.travel.append(leg_summary(data))
 
     def open_bank(self) -> int:
         """Walk up to where the banker stands now and say "bank"; the bank box
@@ -1296,9 +1361,12 @@ class LumberLoop:
         self.mover.danger = {}
         t0, s0, b0 = time.time(), self.mover.steps, self.mover.blocked_count
         self.trip_t0 = t0
-        self.timing = {"walk_out_s": None, "chop_s": 0.0, "tree_walk_s": 0.0}
+        self.timing = {"walk_out_s": None, "chop_s": 0.0, "tree_walk_s": 0.0, "lockout_s": 0.0, "stationary_s": 0.0}
+        self.travel, self.players_seen = [], {}
         phases = {}
-        snap = self.snapshot(self.link.state())
+        st = self.link.state()
+        snap = self.snapshot(st)
+        self.reagents0 = self.supplies_now(st)["reagents"]
         outcome, why = "aborted", None
 
         def timed(name, fn, retry=True):
@@ -1333,11 +1401,44 @@ class LumberLoop:
                    "steps": self.mover.steps - s0, "blocked": self.mover.blocked_count - b0,
                    "doors_opened": self.mover.doors_opened,
                    "human_session": dict(self.human.stats), **snap, "carried_end": self.carried(),
-                   **self.stats}
+                   **self.trip_end(snap), **self.stats}
             self.episode(row)
             log(f"trip {n} {outcome}: {row}")
         self.doing("trip_done", f"Trip {n} done: {self.stats.get('logs', 0)} logs, "
                                 f"{self.stats.get('stored', 0)} boards banked")
+
+    def trip_end(self, snap: dict) -> dict:
+        """The rest of the trip row (docs/LUMBER_LOOP.md "What the optimizer learns
+        from"): Lumberjacking at the end and the gain, the weight carried, the travel
+        legs and their time, the supplies used (library and own book charges, recall
+        casts, reagents gone from the pack), the players seen (crowding) and the uses
+        left on the hatchet as last seen in its label."""
+        out = {"travel": self.travel, "travel_s": round(sum(leg.get("s") or 0.0 for leg in self.travel), 1),
+               "players_seen": len(self.players_seen),
+               "players": sorted({n for n in self.players_seen.values() if n})[:10]}
+        tries = [(leg, t) for leg in self.travel for t in leg["tries"]]
+        out["supplies"] = {
+            # a charge is spent when the recall lands [INFERENCE: RunUO takes it in the spell's effect]
+            "library_charges": sum(1 for leg, t in tries if t[0] == "charge" and t[1] is None and leg["leg"] == "out"),
+            "own_charges": sum(1 for leg, t in tries if t[0] == "charge" and t[1] is None and leg["leg"] != "out"),
+            "recall_casts": sum(1 for _, t in tries if t[0] == "spell")}
+        hatchet = (snap.get("hatchet") or {}).get("serial")
+        try:
+            st = self.link.state()
+            me = st["world"].get("self") or {}
+            skill = lumber_opt.skill_value(me)
+            out["skill_end"] = skill
+            if skill is not None and snap.get("skill") is not None:
+                out["skill_gain"] = round(skill - snap["skill"], 1)
+            out["weight_end"] = me.get("weight")
+            now = self.supplies_now(st)["reagents"]
+            out["supplies"]["reagents_used"] = {k: n - now.get(k, 0) for k, n in self.reagents0.items()
+                                                if n - now.get(k, 0) > 0}
+        except (OSError, ValueError, KeyError, Abort):
+            pass
+        if hatchet is not None:      # the newest "(N uses remaining)" label of it (clicked by anyone)
+            out["hatchet_uses_seen"] = self.memory.uses_seen(int(hatchet, 16))
+        return out
 
     def carried(self) -> dict | None:
         """Logs and boards left in the backpack (what a death now would lose)."""

@@ -433,9 +433,17 @@ plus the store, hatchets in `harness/data/hatchets.json`; the model is docs/LUMB
 - **Regrowth from our own data.** Depleted trees came back after ~45–65 min (137 retries), not the
   20 min the runner assumed; the plan passes the fitted window (docs/NOTES.md).
 - **Open:** gold/hour once colored-board prices exist (ECONOMY §6 value rate), routine recall home
-  when a spot has a marked rune, time-of-day hazard, a Jobs-page view per spot. Done criterion
+  when a spot has a marked rune, time-of-day hazard, the Harvest Aspect tier (not observable
+  without opening the `[aspect` gump). Done criterion
   (LUMBER_LOOP §9 M5): banked logs per active hour improve over the weeks on the same character
   without violating §1.
+- **What it learns from is recorded per trip (2026-10-04).** Audit and gaps: LUMBER_LOOP §6 "What
+  the optimizer learns from". Travel legs, the lockout, supplies, skill at the end and crowding go
+  into the trip row and the `travel` events (JSON fields, no schema change); the plan treats the
+  lockout and failed travel as overhead, not field time, and subtracts priced supplies per trip.
+  The Jobs page shows the plan, the per-spot model, travel, tomes and supplies (VISUALIZER §2.4).
+  Rejected: a separate travel table (the job events already index by job and time, and the trip
+  row is what the planner reads).
 
 ## Discord history capture (decided 2026-10-03)
 

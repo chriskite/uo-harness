@@ -53,6 +53,7 @@ import glob
 import json
 import os
 import queue
+import re
 import sqlite3
 import sys
 import threading
@@ -379,6 +380,20 @@ class Memory:
             d["data"] = json.loads(d["data"])
             out.append(d)
         return out
+
+    USES_LABEL = re.compile(r"\((\d+) uses remaining\)")
+
+    def uses_seen(self, serial: int) -> dict | None:
+        """{n, t} of the newest "(N uses remaining)" label the server sent for item
+        `serial` (a single click by the overseer or the human; the proxy stores it as a
+        speech_heard event), or None when it was never clicked."""
+        for t, data in self.con.execute(
+                "SELECT t, data FROM events WHERE ev = 'speech_heard' AND data LIKE ? ORDER BY t DESC LIMIT 1",
+                (f'%"serial": {int(serial)},%uses remaining%',)):
+            m = self.USES_LABEL.search(json.loads(data).get("text") or "")
+            if m:
+                return {"n": int(m[1]), "t": round(t, 1)}
+        return None
 
     # -- teleporters ----------------------------------------------------------------
     def teleporter_record(self, facet, x, y, to_facet, to_x, to_y, to_z, t: float | None = None):

@@ -101,6 +101,7 @@ HOME_RUNE_POS = (125, 205)                                # our runebook's defau
 with open(f"{ROOT}/harness/testdata/escape_gumps.json", encoding="utf-8") as _f:
     _G = json.load(_f)
 TOME_GUMP, BOOK_GUMP = _G["runetome_main_witcher_276"], _G["runebook_charges"]   # captured layouts
+LOCKOUT_S = 2                                             # the travel lockout the simulated server reports
 
 
 def check(name, cond, extra=""):
@@ -269,6 +270,9 @@ class World:
         self.book_gumps, self.tome_gumps = set(), set()   # library scenario: gumps we sent
         self.recalls_out, self.recalls_home, self.tome_far = [], [], 0
         self.tome_seen = False
+        self.home_disturbed = 0           # library: the first recall home is disturbed (escape casts again)
+        self.lockout_due = False          # library: the first chop after a recall out meets the travel lockout
+        self.lockouts = 0
 
     def send(self, pkt):
         self.writer.write(encode_packet(pkt, S2C_KEY))
@@ -312,13 +316,23 @@ class World:
         self.update_view()
 
     def recall_to(self, dest, log):
-        """Kal Ort Por, then the jump about 2.1 s later (live 2026-10-02/03)."""
+        """Kal Ort Por, then the jump about 2.1 s later (live 2026-10-02/03). Out at the
+        library rune: a player chops nearby (crowding) and the travel lockout comes."""
         log.append(dest)
         self.send(sys_text("Kal Ort Por"))
         asyncio.get_running_loop().call_later(2.1, self.teleport, *dest)
+        if log is self.recalls_out:
+            self.lockout_due = True
+            self.later(2.3, [player_update(OTHER, LIB_TREE["x"] + 4, LIB_TREE["y"])])
 
     # ---- harvest ----
     def harvest(self, x, y):
+        if self.lockout_due:
+            self.lockout_due = False
+            self.lockouts += 1
+            self.later(0.3, [sys_text(f"You have recently traveled and must wait {LOCKOUT_S} seconds "
+                                      "before you may begin harvesting.")])
+            return
         self.decoys.add(self.next_gump())
         self.send(gump(self.gump_serial, 0x50000000 + self.gump_serial, DECOY_LAYOUT,
                        ["Captcha", "Guide", "Type the Value", "Click when complete"]))
@@ -462,6 +476,11 @@ class World:
             elif f["serial"] in self.tome_gumps and f["button_id"] == 110:     # row 10: "286 - Midlands ..."
                 self.recall_to(RUNE_POS, self.recalls_out)
             elif f["serial"] in self.book_gumps and f["button_id"] == 8:       # default entry 1, a charge
+                if self.home_disturbed == 0:                                   # the first one is disturbed
+                    self.home_disturbed += 1
+                    self.send(sys_text("Kal Ort Por"))
+                    self.later(0.5, [cliloc(500641)])
+                    return
                 self.recall_to(HOME_RUNE_POS, self.recalls_home)
             elif f["serial"] in self.gate_gumps:
                 self.gate_gumps[f["serial"]].append(f["button_id"])
@@ -530,6 +549,7 @@ class World:
         if self.scenario == "library":
             self.send(self_at(*LIB_START))
             self.send(contained(RUNEBOOK, 0x22C5, 1, BACKPACK))
+            self.send(contained(0x44ADB0FF, 0x0F7A, 10, BACKPACK))   # black pearl: charges spend none
         if self.scenario == "break":                            # logs carried from an earlier trip
             self.logs_serial, self.logs = 0x45000001, INITIAL_LOGS
             self.send(contained(self.logs_serial, 0x1BDD, self.logs, BACKPACK))
@@ -982,8 +1002,9 @@ async def break_due():
 async def library():
     """docs/research/WORLD_LOCATIONS.md: a spot reached by a library rune and left by our
     own runebook. Each trip: walk to the library tome, recall to rune 286 with one of its
-    charges, chop, convert, recall home with the runebook's default rune, bank; trip 2
-    walks from the bank back to the library."""
+    charges, wait out the travel lockout, chop (a player chops nearby), convert, recall home
+    with the runebook's default rune (trip 1's first cast is disturbed), bank; trip 2
+    walks from the bank back to the library. The travel legs and supplies are recorded."""
     print("\n== library: recall out from a public tome, recall home with our runebook, bank; twice ==")
     world = World("library")
     spot = {"access": {"method": "witcher", "rune": "286", "library": "cambria"}, "home": {"method": "recall"},
@@ -1006,6 +1027,29 @@ async def library():
           [e["data"]["leg"] for e in trav] == ["out", "home", "out", "home"] and all(e["data"]["ok"] for e in trav)
           and all(e["walk_out_s"] and e["walk_out_s"] > 2 for e in eps),
           f"{[(e['data'].get('to'), e['data'].get('ok')) for e in trav]} {[e.get('walk_out_s') for e in eps]}")
+    out = [e["data"] for e in trav if e["data"]["leg"] == "out"]
+    home = [e["data"] for e in trav if e["data"]["leg"] == "home"]
+    check("each travel event names its trip, spot, book and Witcher rune (not the tome's row) and what it cost",
+          [(d["trip"], d["spot"], d["book"], d.get("witcher_rune")) for d in out]
+          == [(1, "sim", f"0x{TOME:08X}", "286"), (2, "sim", f"0x{TOME:08X}", "286")]
+          and [(d["trip"], d["book"]) for d in home] == [(1, f"0x{RUNEBOOK:08X}"), (2, f"0x{RUNEBOOK:08X}")]
+          and all(d["walk_s"] is not None and d["s"] >= d["walk_s"] and isinstance(d["charges"], int)
+                  and d["reagents_used"] == {} for d in out),
+          str(out)[:600])
+    check("a disturbed recall home is recorded: two casts, the first failed, then it landed",
+          [[(t["method"], t["ok"], t["failure"]) for t in d["tries"]] for d in home]
+          == [[("charge", False, "disturbed"), ("charge", True, None)], [("charge", True, None)]]
+          and home[0]["attempts"] == 2 and home[0]["ok"], str(home)[:600])
+    rows_ok = len(eps) == 2 and all(
+        [leg["leg"] for leg in e["travel"]] == ["out", "home"] and e["travel_s"] > 2
+        and e["supplies"] == {"library_charges": 1, "own_charges": 1, "recall_casts": 0, "reagents_used": {}}
+        and e["lockout_s"] >= LOCKOUT_S and e["players_seen"] >= 1 and "skill_end" in e and "weight_end" in e
+        for e in eps)
+    check("the trip rows carry the travel legs and their time, the lockout waited, the supplies (a library "
+          "charge, an own charge; the disturbed cast spent none), the player seen and the end snapshot",
+          rows_ok and world.lockouts == 2 and eps[0]["travel"][1]["tries"][0][1] == "disturbed",
+          str([{k: e.get(k) for k in ("travel", "travel_s", "supplies", "lockout_s", "players_seen", "skill_end")}
+               for e in eps])[:900])
     store.close()
 
 

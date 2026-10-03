@@ -323,10 +323,36 @@ def test_discover_witcher():
           and places.witcher_rune("286")["name"] == "Midlands Ruins 1 (South)")
 
 
+def test_travel_costs():
+    print("== travel costs: the lockout is overhead, a trip that never chopped has no field time, supplies cost ==")
+    base = trip("w", NOW - 3600, 300, 900)
+    locked = {**base, "lockout_s": 60.0}
+    a, b = lo.trip_obs(base), lo.trip_obs(locked)
+    check("the 60 s lockout waited at the first tree moves from field time to overhead",
+          b["field_s"] == a["field_s"] - 60 and b["overhead_s"] == a["overhead_s"] + 60, (a, b))
+    never = trip("w", NOW - 3600, 0, 80, outcome="aborted", why="library recall to rune 286 failed: fizzled")
+    never["walk_out_s"] = None
+    check("walk out never ended (the recall failed): no field time, so no 0-log hour against the spot",
+          lo.trip_obs(never)["field_s"] == 0.0 and not lo.trip_obs(never)["place_fail"], lo.trip_obs(never))
+    sup = {"library_charges": 1, "own_charges": 1, "recall_casts": 0, "reagents_used": {"black pearl": 2}}
+    spots = [spot("s")]
+    bare = plan(spots, series("s", 10, 1500))
+    eps = [{**e, "supplies": sup} for e in series("s", 10, 1500)]
+    free = plan(spots, eps)
+    check("no supply prices: supplies cost nothing and are counted unpriced (2 reagents + 1 own charge a trip)",
+          row(free, "s")["supply_gp_trip"] == 0 and row(free, "s")["supply_unpriced"] == 30
+          and row(free, "s")["net_logs_h"] == row(bare, "s")["net_logs_h"], (row(free, "s"), row(bare, "s")))
+    prices = {"reagent:black_pearl": {"price_gp": 50.0}, "recall_charge": {"price_gp": 100.0}}
+    paid = plan(spots, eps, prices=prices)
+    check("priced: 2 x 50 + 1 x 100 = 200 gp a trip (the library's charges are free), and the spot nets less",
+          row(paid, "s")["supply_gp_trip"] == 200 and row(paid, "s")["supply_unpriced"] == 0
+          and row(paid, "s")["net_logs_h"] < row(bare, "s")["net_logs_h"] - 10, (row(paid, "s"), row(bare, "s")))
+
+
 if __name__ == "__main__":
     for fn in (test_explore_exploit, test_skill_rescaling, test_trip_size_and_hazard, test_eligibility,
                test_regrowth, test_hatchets, test_spots_store, test_discover, test_failed_places,
-               test_travel_and_hub, test_discover_witcher):
+               test_travel_and_hub, test_discover_witcher, test_travel_costs):
         fn()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

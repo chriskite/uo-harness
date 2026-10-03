@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { eventView, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, phaseList, theftLoss, woodShares, type HuntTotals, type JobEvent, type JobTotals } from "./jobs.ts";
+import { eventView, legText, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, phaseList, theftLoss, woodShares, type HuntTotals, type JobEvent, type JobTotals } from "./jobs.ts";
 
 function totals(p: Partial<JobTotals> = {}): JobTotals {
   return {
@@ -193,5 +193,24 @@ describe("eventView (hunt kinds)", () => {
     expect(eventView(ev("leave", { why: "hits 59/100 below 60%" }, 5535, 529))).toEqual({ label: "Left the hunt", detail: "hits 59/100 below 60% · 5535,529", tone: "info" });
     expect(eventView(ev("speech_hold", { speakers: [{ label: "Lord Totten", text: "hi" }] })).detail).toBe("Lord Totten · “hi”");
     expect(eventView(ev("speech_clear", { waited_s: 72.2 }))).toEqual({ label: "Resumed", detail: "after 1:12", tone: "ok" });
+  });
+});
+
+describe("lumber travel helpers", () => {
+  test("legText: landed first time, landed after a failed cast, failed", () => {
+    expect(legText({ leg: "out", method: "charge", ok: true, tries: [["charge", null, 2.2]] })).toEqual({ text: "out ✓ charge", tone: "ok" });
+    expect(
+      legText({ leg: "home", method: "charge", ok: true, tries: [["charge", "disturbed", 0.5], ["charge", null, 2.1]] }),
+    ).toEqual({ text: "home ✓ 2 casts (disturbed)", tone: "warn" });
+    expect(legText({ leg: "out", ok: false, failure: "walk: no route", tries: [] })).toEqual({ text: "out ✗ walk: no route", tone: "bad" });
+  });
+  test("splitShares: display order, shares of the total; all zero gives zero shares", () => {
+    expect(splitShares({ travel: 30, lockout: 60, field: 90, other: 20 }).map((s) => [s.key, s.share])).toEqual([
+      ["travel", 0.15],
+      ["lockout", 0.3],
+      ["field", 0.45],
+      ["other", 0.1],
+    ]);
+    expect(splitShares({ travel: 0, lockout: 0, field: 0, other: 0 }).every((s) => s.share === 0)).toBe(true);
   });
 });

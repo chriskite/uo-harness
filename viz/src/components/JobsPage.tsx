@@ -1,7 +1,21 @@
 import { fetchJobs } from "../api.ts";
 import { fmtDuration } from "../format.ts";
-import { eventView, fmtGp, fmtNum, fmtStamp, kpis, oneLocalDay, phaseList, woodShares } from "../jobs.ts";
-import { EventStrip, LogsPerTripChart, RateChart } from "./Charts.tsx";
+import {
+  eventView,
+  fmtCounts,
+  fmtGp,
+  fmtNum,
+  fmtStamp,
+  kpis,
+  legText,
+  oneLocalDay,
+  phaseList,
+  splitShares,
+  spotRows,
+  woodShares,
+  type JobsResponse,
+} from "../jobs.ts";
+import { EventStrip, LogsPerTripChart, RateChart, TimeSplitChart } from "./Charts.tsx";
 import { Badge, Panel } from "./common.tsx";
 import { HuntJobs } from "./HuntJobs.tsx";
 import { JobsHead, JobsLoading, useJobPoll, type JobKind } from "./JobsCommon.tsx";
@@ -60,6 +74,8 @@ function LumberJobs({ onJob }: { onJob: (j: JobKind) => void }) {
         )}
       </div>
 
+      <OptimizerPanels data={data} />
+
       <div className="jobs-charts">
         <Panel title="Logs / hr over time">
           <RateChart
@@ -73,6 +89,24 @@ function LumberJobs({ onJob }: { onJob: (j: JobKind) => void }) {
             note="active time only; one point per trip end"
           />
         </Panel>
+        <Panel title="Field rate per trip">
+          <RateChart
+            points={trips.flatMap((r) => (r.t_end === null ? [] : [{ t: r.t_end, n: r.n }]))}
+            series={[
+              { label: "field logs/hr", cls: "field", values: trips.filter((r) => r.t_end !== null).map((r) => r.field_logs_per_hour), dots: true },
+              { label: "whole-trip logs/hr", cls: "cum", values: trips.filter((r) => r.t_end !== null).map((r) => r.logs_per_hour) },
+            ]}
+            what="trip"
+            unit="logs/hr"
+            note="field = the optimizer's λ sample (no travel, lockout or banking)"
+          />
+        </Panel>
+      </div>
+
+      <div className="jobs-charts">
+        <Panel title="Where trip time goes">
+          <TimeSplitChart trips={trips} />
+        </Panel>
         <Panel title="Logs per trip">
           <LogsPerTripChart trips={trips} />
         </Panel>
@@ -80,12 +114,12 @@ function LumberJobs({ onJob }: { onJob: (j: JobKind) => void }) {
 
       <div className="jobs-charts">
         <Panel title={`Deaths, thefts, PKs, flees (${data.events.length})`}>
-          <EventStrip spans={trips.map((r) => ({ n: r.n, t_start: r.t_start, t_end: r.t_end, label: `trip #${r.n} · ${r.logs} logs` }))} events={data.events} />
+          <EventStrip spans={trips.map((r) => ({ n: r.n, t_start: r.t_start, t_end: r.t_end, label: `trip #${r.n} · ${r.logs} logs` }))} events={data.events.filter((e) => e.kind !== "travel")} />
           {data.events.length === 0 ? (
             <p className="dim">No deaths, thefts, PK sightings or flees recorded.</p>
           ) : (
             <ol className="job-events">
-              {[...data.events].reverse().map((e, i) => {
+              {data.events.filter((e) => e.kind !== "travel").reverse().map((e, i) => {
                 const v = eventView(e);
                 return (
                   <li key={e.id ?? i}>
@@ -135,13 +169,18 @@ function LumberJobs({ onJob }: { onJob: (j: JobKind) => void }) {
                 <tr>
                   <th>#</th>
                   <th>start</th>
+                  <th>spot</th>
+                  <th>outcome</th>
                   <th className="num">time</th>
                   <th className="num">logs</th>
                   <th className="num">stored</th>
                   <th className="num">logs/hr</th>
+                  <th className="num">field/hr</th>
                   <th className="num">chops</th>
                   <th className="num">captchas</th>
-                  <th>phases (harvest · convert · to bank · store)</th>
+                  <th>split (travel · lockout · field · rest)</th>
+                  <th>travel legs</th>
+                  <th className="num">skill</th>
                   <th>events</th>
                   <th className="num">value</th>
                 </tr>
@@ -151,20 +190,44 @@ function LumberJobs({ onJob }: { onJob: (j: JobKind) => void }) {
                   <tr key={r.n}>
                     <td className="mono">{r.n}</td>
                     <td className="mono">{r.t_start ? fmtStamp(r.t_start, sameDay) : "—"}</td>
+                    <td className="mono">{r.spot ?? "—"}</td>
+                    <td>
+                      <Badge kind={r.outcome === "banked" ? "ok" : r.place_fail ? "bad" : "warn"} title={r.why ?? undefined}>
+                        {r.outcome}
+                      </Badge>
+                      {r.why && <span className="dim small"> {r.why.length > 48 ? `${r.why.slice(0, 48)}…` : r.why}</span>}
+                    </td>
                     <td className="mono num">{r.duration_s === null ? "—" : fmtDuration(r.duration_s)}</td>
                     <td className="mono num">{r.logs}</td>
                     <td className="mono num">{r.stored}</td>
                     <td className="mono num">{fmtNum(r.logs_per_hour, 0)}</td>
+                    <td className="mono num">{fmtNum(r.field_logs_per_hour, 0)}</td>
                     <td className="mono num" title="successful chops / attempts">
                       {r.successes}/{r.attempts}
                     </td>
                     <td className={r.captchas ? "mono num warn" : "mono num"} title={r.captchas ? `${fmtNum(r.captcha_wait_s)} s waiting` : undefined}>
                       {r.captchas}
                     </td>
-                    <td className="mono dim">
-                      {phaseList(r.phases_s)
-                        .map(([, s]) => fmtDuration(s))
-                        .join(" · ")}
+                    <td className="mono dim" title={phaseList(r.phases_s).map(([k, s]) => `${k} ${fmtDuration(s)}`).join(", ")}>
+                      {r.time_split
+                        ? [r.time_split.travel, r.time_split.lockout, r.time_split.field, r.time_split.other].map((s) => fmtDuration(s)).join(" · ")
+                        : "—"}
+                    </td>
+                    <td>
+                      <span className="legs">
+                        {r.travel.length === 0 && <span className="dim">—</span>}
+                        {r.travel.map((l, i) => {
+                          const v = legText(l);
+                          return (
+                            <Badge key={i} kind={v.tone} title={`${l.book ?? ""}${l.charges !== undefined ? ` · ${l.charges} charges before` : ""}${l.s !== undefined ? ` · ${fmtDuration(l.s)}` : ""}`}>
+                              {v.text}
+                            </Badge>
+                          );
+                        })}
+                      </span>
+                    </td>
+                    <td className="mono num" title={r.skill_end !== null && r.skill !== null ? `${r.skill} → ${r.skill_end}` : undefined}>
+                      {fmtNum(r.skill_end ?? r.skill, 1)}
                     </td>
                     <td>
                       {Object.entries(r.events).map(([k, n]) => (
@@ -224,5 +287,226 @@ function LumberJobs({ onJob }: { onJob: (j: JobKind) => void }) {
         </Panel>
       )}
     </div>
+  );
+}
+
+/** What the self-optimizing lumber job (harness/lumber_opt.py) decides and learns from:
+ *  the next pick, the per-spot model, skill over time, travel legs, tomes and supplies. */
+function OptimizerPanels({ data }: { data: JobsResponse }) {
+  const plan = data.plan;
+  const { rows, hidden } = spotRows(plan);
+  const pick = plan?.pick ?? null;
+  const sup = data.supplies;
+  const shares = splitShares(data.time_split);
+  const splitTotal = shares.reduce((a, s) => a + s.s, 0);
+  return (
+    <>
+      <Panel title="Optimizer: next pick" extra={<span className="dim small">ctl lumber plan, as of this refresh</span>}>
+        {!plan ? (
+          <p className="dim">No plan: no Codex yet.</p>
+        ) : (
+          <>
+            <div className="plan-pick">
+              {pick ? (
+                <>
+                  <span>
+                    <b className="mono">{pick.spot}</b>{" "}
+                    <Badge kind={pick.mode === "exploit" ? "ok" : "info"} title={`best by posterior mean: ${pick.greedy}`}>
+                      {pick.mode}
+                    </Badge>
+                  </span>
+                  <span>P(best) {Math.round(pick.p_best * 100)}%</span>
+                  <span>
+                    {pick.trips} trip{pick.trips === 1 ? "" : "s"} of {pick.logs_per_trip} logs (Q*)
+                  </span>
+                  <span>~{fmtNum(pick.expected_trip_min, 0)} min/trip</span>
+                  <span>expected {pick.expected_net_logs_h} net logs/hr</span>
+                </>
+              ) : (
+                <Badge kind="bad">{plan.error ?? "no pick"}</Badge>
+              )}
+            </div>
+            <p className="dim small">
+              skill {fmtNum(plan.skill, 1)} (chop success {plan.success_p === null ? "—" : `${Math.round(plan.success_p * 100)}%`}) · regrowth{" "}
+              {plan.regrow.minutes} min ({plan.regrow.fitted ? `fitted on ${plan.regrow.pairs} retried trees` : "default"}) · P(death | PK seen){" "}
+              {Math.round(plan.death_given_sighting * 100)}% · new-spot prior {plan.prior_rate_logs_h} logs/hr (CV {plan.prior_cv}) · dispersion{" "}
+              {plan.dispersion}
+              {pick && (
+                <>
+                  {" · "}
+                  <code>{pick.command}</code>
+                </>
+              )}
+            </p>
+          </>
+        )}
+      </Panel>
+
+      <Panel title={`Spots (${rows.length})`} extra={hidden > 0 ? <span className="dim small">+{hidden} untried candidates or disabled (ctl lumber spots)</span> : undefined}>
+        {rows.length === 0 ? (
+          <p className="dim">No active spots.</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="counts trips-table">
+              <thead>
+                <tr>
+                  <th>spot</th>
+                  <th>status</th>
+                  <th>reached by</th>
+                  <th className="num">trips</th>
+                  <th className="num">field h</th>
+                  <th className="num" title="posterior mean field rate, 80% interval, rescaled to today's skill">field logs/hr</th>
+                  <th className="num" title="banked logs per hour of a stint, travel, overhead, deaths and supplies included">net logs/hr</th>
+                  <th className="num">Q*</th>
+                  <th className="num">overhead</th>
+                  <th className="num">travel</th>
+                  <th className="num">PKs/hr</th>
+                  <th className="num">deaths</th>
+                  <th className="num">PK escapes</th>
+                  <th className="num">place fails</th>
+                  <th className="num">supplies/trip</th>
+                  <th>last trip</th>
+                  <th className="num">P(best)</th>
+                  <th>why not</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((s) => (
+                  <tr key={s.id} className={pick?.spot === s.id ? "spot-picked" : s.eligible ? undefined : "spot-out"}>
+                    <td className="mono" title={s.name ?? undefined}>
+                      {s.id}
+                    </td>
+                    <td>
+                      <Badge kind={s.status === "active" ? (s.eligible ? "ok" : "warn") : "dim"}>{s.status}</Badge>
+                    </td>
+                    <td className="dim">{s.reach}</td>
+                    <td className="mono num">{s.trips}</td>
+                    <td className="mono num">{fmtNum(s.field_h, 2)}</td>
+                    <td className="mono num">
+                      {s.rate_logs_h} <span className="dim">({s.rate_80[0]}–{s.rate_80[1]})</span>
+                    </td>
+                    <td className="mono num">{s.net_logs_h}</td>
+                    <td className="mono num">{s.logs_per_trip}</td>
+                    <td className="mono num">{fmtDuration(s.overhead_s)}</td>
+                    <td className="mono num" title={`${s.travel_samples} learned move(s)`}>
+                      {s.travel_min} min
+                    </td>
+                    <td className="mono num" title={`${s.sightings} sighting(s) in trips`}>
+                      {fmtNum(s.sightings_per_h, 2)}
+                    </td>
+                    <td className={s.deaths ? "mono num bad" : "mono num"}>{s.deaths}</td>
+                    <td className={s.pk_escapes ? "mono num warn" : "mono num"}>{s.pk_escapes}</td>
+                    <td className={s.place_fails ? "mono num warn" : "mono num"}>{s.place_fails}</td>
+                    <td className="mono num" title={s.supply_unpriced ? `${s.supply_unpriced} supply units unpriced (ctl lumber price)` : undefined}>
+                      {s.supply_gp_trip ? fmtGp(s.supply_gp_trip) : s.supply_unpriced ? "unpriced" : "—"}
+                    </td>
+                    <td title={s.last_why ?? undefined}>
+                      {s.last_trip_h_ago === null ? (
+                        <span className="dim">never</span>
+                      ) : (
+                        <>
+                          <span className="mono">{fmtNum(s.last_trip_h_ago, 1)} h ago</span>{" "}
+                          <Badge kind={s.last_outcome === "banked" ? "ok" : "warn"}>{s.last_outcome ?? "?"}</Badge>
+                        </>
+                      )}
+                    </td>
+                    <td className="mono num">{s.eligible ? `${Math.round(s.p_best * 100)}%` : "—"}</td>
+                    <td className="dim small">{s.why_not ?? ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+
+      <div className="jobs-charts">
+        <Panel title="Lumberjacking skill">
+          <RateChart
+            points={data.skill.map((p) => ({ t: p.t, n: p.n }))}
+            series={[{ label: "skill at trip start / end", cls: "skill", values: data.skill.map((p) => p.skill), dots: true }]}
+            what="trip"
+            unit="skill"
+            note="from the trip rows (start; end since 2026-10-04). Harvest Aspect: not observable yet"
+          />
+        </Panel>
+        <Panel title="Travel and supplies">
+          <div className="split-bar" title={shares.map((s) => `${s.key} ${fmtDuration(s.s)}`).join(", ")}>
+            {shares.map((s) => (
+              <div key={s.key} className={`seg-${s.key}`} style={{ width: `${s.share * 100}%` }} />
+            ))}
+          </div>
+          <p className="dim small">
+            all trips: {shares.map((s) => `${s.key} ${splitTotal ? Math.round(s.share * 100) : 0}%`).join(" · ")} · supplies over {sup.trips} trip(s):{" "}
+            {sup.library_charges} library charges, {sup.own_charges} own charges, {sup.recall_casts} recall casts, reagents {fmtCounts(sup.reagents_used)}
+            {sup.gp !== undefined && ` · ${fmtGp(sup.gp)}${sup.unpriced ? ` (+${sup.unpriced} unpriced)` : ""}`}
+          </p>
+          {data.travel.legs.length === 0 ? (
+            <p className="dim">No recalls recorded yet.</p>
+          ) : (
+            <table className="counts">
+              <thead>
+                <tr>
+                  <th>leg</th>
+                  <th className="num">n</th>
+                  <th className="num">landed</th>
+                  <th className="num">casts</th>
+                  <th className="num">charge / spell</th>
+                  <th className="num">mean</th>
+                  <th className="num">walk to library</th>
+                  <th>failures</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.travel.legs.map((l) => (
+                  <tr key={l.leg}>
+                    <td>{l.leg}</td>
+                    <td className="mono num">{l.n}</td>
+                    <td className={l.ok < l.n ? "mono num warn" : "mono num"}>{l.ok}</td>
+                    <td className="mono num">{l.casts}</td>
+                    <td className="mono num">
+                      {l.charge} / {l.spell}
+                    </td>
+                    <td className="mono num">{l.mean_s === null ? "—" : fmtDuration(l.mean_s)}</td>
+                    <td className="mono num">{l.mean_walk_s === null ? "—" : fmtDuration(l.mean_walk_s)}</td>
+                    <td className="dim small">{fmtCounts(l.failures)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {data.travel.books.length > 0 && (
+            <table className="counts">
+              <thead>
+                <tr>
+                  <th>book</th>
+                  <th>whose</th>
+                  <th>runes used</th>
+                  <th className="num">uses</th>
+                  <th className="num" title="charges the book showed before the newest recall">charges</th>
+                  <th className="num">lowest seen</th>
+                  <th>last seen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.travel.books.map((b) => (
+                  <tr key={b.book}>
+                    <td className="mono">{b.book}</td>
+                    <td className="dim">{b.own ? "ours" : `library${b.library ? ` (${b.library})` : ""}`}</td>
+                    <td className="mono">{b.runes.join(", ") || "—"}</td>
+                    <td className="mono num">{b.uses}</td>
+                    <td className="mono num" title={b.charges.map(([t, c]) => `${fmtStamp(t)}: ${c}`).join("\n")}>
+                      {b.last_charges ?? "—"}
+                    </td>
+                    <td className="mono num">{b.min_charges ?? "—"}</td>
+                    <td className="mono">{b.last_t ? fmtStamp(b.last_t) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Panel>
+      </div>
+    </>
   );
 }

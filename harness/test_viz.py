@@ -255,6 +255,47 @@ def test_jobs():
     m.close()
 
 
+def test_lumber_travel():
+    print("== lumber travel, time split and supplies (harness/jobs.py) ==")
+    tome = "0x546ACD06"                      # the Cambria tome holding Witcher rune 291 (data/witcher.json)
+    row = {"loop": "lumber", "spot": "w", "trip": 1, "outcome": "banked", "t_start": 1000.0, "t_end": 2000.0,
+           "phases_s": {"harvest": 900.0, "convert": 10.0, "to_bank": 80.0, "store": 10.0},
+           "walk_out_s": 100.0, "lockout_s": 60.0, "chop_s": 500.0, "logs": 200, "travel_s": 50.0,
+           "supplies": {"library_charges": 1, "own_charges": 1, "recall_casts": 1, "reagents_used": {"mandrake root": 1}}}
+    events = [  # a row from before 2026-10-04: no book, the rune only in the tome row's name
+        {"t": 900.0, "kind": "travel", "data": {"leg": "out", "rune": 15, "name": "291 - Hidden Valley (Outside South)",
+                                                "ok": True, "method": "charge", "charges": 38, "elapsed_s": 2.2}},
+        {"t": 1010.0, "kind": "travel", "data": {"leg": "out", "witcher_rune": "291", "book": tome, "ok": True,
+                                                 "s": 30.0, "walk_s": 28.0, "charges": 37,
+                                                 "tries": [{"method": "charge", "ok": True, "failure": None}]}},
+        {"t": 1900.0, "kind": "travel", "data": {"leg": "home", "book": "0x40000001", "ok": True, "s": 20.0,
+                                                 "charges": 5, "tries": [{"method": "charge", "ok": False,
+                                                                          "failure": "disturbed"},
+                                                                         {"method": "spell", "ok": True, "failure": None}]}},
+        {"t": 1950.0, "kind": "travel", "data": {"leg": "home", "book": "0x40000001", "ok": False, "s": 1.0,
+                                                 "failure": "recall: the book's gump didn't open", "tries": []}}]
+    a = jobs.compute([row], events, [], None)
+    legs = {g["leg"]: g for g in a["travel"]["legs"]}
+    check("legs: out 2 landed (mean 30 s, the walk to the library 28 s); home 2, 1 landed, 2 casts, a charge "
+          "and a spell, failures by reason",
+          (legs["out"]["n"], legs["out"]["ok"], legs["out"]["mean_s"], legs["out"]["mean_walk_s"]) == (2, 2, 16.1, 28.0)
+          and (legs["home"]["n"], legs["home"]["ok"], legs["home"]["casts"], legs["home"]["charge"],
+               legs["home"]["spell"]) == (2, 1, 2, 1, 1)
+          and legs["home"]["failures"] == {"disturbed": 1, "recall: the book's gump didn't open": 1}, str(legs))
+    books = {b["book"]: b for b in a["travel"]["books"]}
+    check("the library tome's charges over time, the old row's tome found from its rune; our book apart",
+          books[tome]["charges"] == [[900.0, 38], [1010.0, 37]] and books[tome]["runes"] == ["291"]
+          and books[tome]["last_charges"] == 37 and not books[tome]["own"]
+          and books["0x40000001"]["own"] and books["0x40000001"]["last_charges"] == 5, str(books))
+    tr = a["trips"][0]
+    check("time split: travel 50, lockout 60, field 900-100-60 = 740, the rest 150 (sums to the 1000 s trip)",
+          tr["time_split"] == {"travel": 50.0, "lockout": 60.0, "field": 740.0, "other": 150.0}
+          and tr["field_logs_per_hour"] == round(200 * 3600 / 740, 2), str(tr["time_split"]))
+    check("supplies summed over the trips that record them",
+          a["supplies"] == {"trips": 1, "library_charges": 1, "own_charges": 1, "recall_casts": 1,
+                            "reagents_used": {"mandrake root": 1}}, str(a["supplies"]))
+
+
 def test_hunt_jobs():
     print("== hunt analytics (harness/jobs.py compute_hunt) ==")
     path = os.path.join(tempfile.mkdtemp(), "harness.db")
@@ -355,8 +396,12 @@ def test_overseer_routes(logdir):
     srv = serve(d, port, path)
     try:
         got = get(base + "/api/jobs?job=lumber&tz=0")
-        check("GET /api/jobs == jobs.analytics(store) + store flag",
-              got.pop("store") is True and json.dumps(got, sort_keys=True) == json.dumps(want, sort_keys=True))
+        plan = got.pop("plan")
+        want.pop("plan")
+        check("GET /api/jobs == jobs.analytics(store) + store flag + the plan at the server's clock",
+              got.pop("store") is True and json.dumps(got, sort_keys=True) == json.dumps(want, sort_keys=True)
+              and isinstance(plan, dict) and {r["id"] for r in plan["spots"]} >= {"shelter_island", "terran_wilds"},
+              str(plan)[:300])
         code, _ = get_status(base + "/api/jobs?tz=abc")
         check("GET /api/jobs bad tz: 400", code == 400, str(code))
         code, _ = get_status(base + "/api/jobs?since=soon")
@@ -838,6 +883,7 @@ def main():
         test_order_fallback()
         test_sse(logdir)
         test_jobs()
+        test_lumber_travel()
         test_hunt_jobs()
         test_overseer_routes(logdir)
         test_live()

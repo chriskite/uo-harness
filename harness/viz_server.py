@@ -151,7 +151,8 @@ class OverseerDB:
             if hit is not None and now - hit[0] < self.JOBS_CACHE_S:
                 return hit[1]
             mem = self._open(False)
-            out = jobs_mod.analytics(mem, job, since, utc_offset_s=utc_offset_s)
+            out = jobs_mod.analytics(mem, job, since, utc_offset_s=utc_offset_s,
+                                     plan_now=time.time() if job == "lumber" else None)
             out["store"] = mem is not None
             body = json.dumps(out).encode()
             if len(self.jobs_cache) > 16:

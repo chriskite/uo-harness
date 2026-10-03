@@ -378,11 +378,14 @@ def escape(io, book: int, *, attempts: int = 3, log=print, rune: str | None = No
     disturbed or fizzled cast can be recast (when hamstrung, running is pointless
     anyway: docs/PLAN.md); 'not recovered' waits a moment; out of charges falls
     back to the spell. `rune`: a tome row by name (recall()), else the default.
-    Returns the last recall() result plus 'attempts'."""
-    prefer, last = "charge", None
+    Returns the last recall() result plus 'attempts' and 'tries' (every attempt's
+    method, ok, failure and elapsed_s: the travel record of what each cast cost)."""
+    prefer, last, tries = "charge", None, []
     for n in range(1, attempts + 1):
         last = recall(io, book, prefer=prefer, rune=rune)
         last["attempts"] = n
+        tries.append({k: last[k] for k in ("method", "ok", "failure", "elapsed_s")})
+        last["tries"] = tries
         log(f"recall {n}/{attempts}: {'arrived' if last['ok'] else last['failure']} "
             f"({last['kind']}, {last['method']}, rune {last['name'] or last['rune'] + 1}, {last['elapsed_s']} s)")
         if last["ok"]:
