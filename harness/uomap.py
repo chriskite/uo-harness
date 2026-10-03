@@ -427,13 +427,24 @@ class UoMap:
                 n += 1
         return n
 
+    # Tree graphics the server refuses to harvest. 0x0C9E (tiledata "o'hii tree")
+    # answered cliloc 500489 "You can't use an axe on that." on all 9 tries in the
+    # harvest memory (harvest_nodes: 9/9 not_tree, 0 successes); the 2026-10-03
+    # captcha was raised on a chop of one at (1524,3039). docs/NOTES.md traffic
+    # audit of the 2026-10-02/03 captures. 0xACA9 ("tree", 1 not_tree) is a
+    # single sample and is deliberately not listed.
+    UNCHOPPABLE_TREES = frozenset({0x0C9E})
+
     def find_trees(self, x0, y0, x1, y1):
         """Tree statics in the rectangle: impassable statics whose tiledata name
-        says tree (not potted trees or stumps). Harvestability is learned by the
-        harvester (a non-tree answers cliloc 500489). -> [(x, y, z, graphic)]"""
+        says tree (not potted trees or stumps), minus UNCHOPPABLE_TREES.
+        Harvestability of the rest is learned by the harvester (a non-tree
+        answers cliloc 500489). -> [(x, y, z, graphic)]"""
         td = self.tiledata
         out = []
         for x, y, s in self.iter_statics(x0, y0, x1, y1):
+            if s.graphic in self.UNCHOPPABLE_TREES:
+                continue
             it = td.item(s.graphic)
             if it is None or not it.flags & IMPASSABLE:
                 continue

@@ -771,7 +771,7 @@ def cmd_ack(a, mem):
 
 
 def cmd_junctures(a, mem):
-    # Without --after: the newest `limit` (live 2026-10-04 the oldest 100 hid an open speech hold).
+    # Without --after: the newest `limit` (live 2026-10-03 the oldest 100 hid an open speech hold).
     return {"ok": True, "junctures": mem.junctures(after_id=a.after or 0, open_only=a.open, limit=a.limit,
                                                    newest=a.after is None)}
 

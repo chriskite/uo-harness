@@ -658,7 +658,7 @@ class Mover:
         `stop(state)`: checked before planning and before every step; a truthy
         answer ends the walk there (a patrol meeting something to do), and is
         returned. `max_moves`: abort after this many steps; None (the default,
-        user decision 2026-10-04) walks as far as the route goes; the replan
+        user decision 2026-10-03) walks as far as the route goes; the replan
         cap still ends walks that make no progress. None when the walk arrived."""
         gate = tuple(gate) if gate is not None else None
         replans = 0

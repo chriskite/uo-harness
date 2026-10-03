@@ -176,7 +176,7 @@ def current_spot(spots: dict, pos, facet) -> str | None:
             continue
         d_area = cheb(pos, s["area"]["center"])
         # A Witcher spot's bank is the home every such spot shares, not the field: standing
-        # there isn't being at the spot (live 2026-10-04 at the Cambria bank, "here" was an
+        # there isn't being at the spot (live 2026-10-03 at the Cambria bank, "here" was an
         # arbitrary Witcher candidate). Its travel is the overhead from that bank.
         home_only = (s.get("access") or {}).get("method") == "witcher"
         d_bank = cheb(pos, s["banker"]["pos"]) if s.get("banker") and not home_only else 10 ** 6
@@ -322,7 +322,7 @@ def trip_obs(ep: dict, prices: dict | None = None) -> dict | None:
     the walk out is taken to equal the walk to the bank, chops cost
     DEFAULT_CHOP_S each, and their chopping isn't rescaled. Field time excludes
     the travel lockout waited out at the first tree (`lockout_s`, since
-    2026-10-04; it's overhead); a row whose walk out never ended (walk_out_s
+    2026-10-03; it's overhead); a row whose walk out never ended (walk_out_s
     null: no chop, e.g. the recall failed) has no field time."""
     t0, t1 = _num(ep.get("t_start")), _num(ep.get("t_end"))
     if t0 is None or t1 is None or t1 < t0:

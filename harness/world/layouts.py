@@ -41,6 +41,12 @@ LAYOUTS_S2C: dict[int, list[tuple[str, str, int]]] = {
     # 0x2F Swing (10)
     0x2F: [("skip", "skip:1", 1), ("attacker", "u32be", 2),
            ("defender", "u32be", 6)],
+    # 0x2C DeathScreen / RunUO DeathStatus (2): action 0 = dead (sent first in
+    # Mobile.OnDeath), 2 = sent after the ghost body; ClassicUO ignores 1
+    0x2C: [("action", "u8", 1)],
+    # 0x27 RejectMoveItemRequest (2): the server refused our 0x07 lift (RunUO
+    # LiftRejectReason; 5 = "inspecific", as after a refused corpse in 20261003_125556)
+    0x27: [("reason", "u8", 1)],
     # 0xA1 UpdateHitpoints / 0xA2 UpdateMana / 0xA3 UpdateStamina (9)
     0xA1: [("serial", "u32be", 1), ("max", "u16be", 5),
            ("current", "u16be", 7)],

@@ -307,7 +307,7 @@ TOME_ROW = re.compile(r"^(\d+) - ")
 
 
 def _leg_book(d: dict) -> tuple[str | None, str | None]:
-    """(book serial, Witcher rune id) of a travel/recall event. Rows before 2026-10-04
+    """(book serial, Witcher rune id) of a travel/recall event. Rows before 2026-10-03
     name no book: an out leg's tome comes from the rune number in the row name
     ("291 - Hidden Valley ...") and the Witcher table."""
     rune = d.get("witcher_rune")

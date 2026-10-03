@@ -256,6 +256,28 @@ terminated by a trailing u16 `0000` read as an id at end-of-packet (upstream sto
 the cursor reaches the end after the id read). Single updates are type 0xDF (13 B,
 id not decremented).
 
+### 0x2C DeathScreen — S2C, fixed 2 (2026-10-03)
+Handlers: ClassicUO `PacketHandlers.DeathScreen` (PacketHandlers.cs:1745-1763: action ≠ 1 →
+weather reset, death music, the death-screen timer, `RequestWarMode(false)`); RunUO/Razor
+`DeathStatus(bool dead)` writes `dead ? 0 : 2`.
+
+| Off | Size | Type | Field | Confidence |
+|-----|------|------|-------|------------|
+| 1 | 1 | u8 | action: 0 = dead (sent first), 2 = sent after the ghost body; 1 is ignored by the client | wire + upstream |
+
+Wire: 8 packets in the decoded captures, 4 deaths (`session_20260930_100200` 10:18,
+`20260930_182751`, `20261002_183845` PK 19:43, `20261003_101549` 10:23:54; the `0x2C` rows in
+the 2026-09-28/29 jsonl come from the old wrong decode and are absent from the decoded raw).
+Every death sends `2c00` then `2c02`, always in this order, one flush within 1 ms: `0x11` with
+hits 0, `2c00`, then 1–2 packets later the self `0x20` with the ghost body (`death` event),
+`0x78`, buffs, `0x11`, `2c02`. That is RunUO `Mobile.OnDeath`
+(`ref/runuo_Mobile.cs:4045-4074`). The client answers with two C2S `72 00 32 00 00` (war mode
+off) 17–41 ms after the first 0x2C. The world model parses `action`
+and consumes the packet (`_h_death_screen`) without an event or a state field: it adds nothing
+the ghost body doesn't, and `death` stays the self-ghost event. [INFERENCE] A runtime started
+mid-session with no self body yet would miss `death` on the first ghost 0x20; `2c00` could cover
+that case, but it has not happened.
+
 ### 0x2D MobileAttributes — S2C, fixed 17
 Handlers: CUO `MobileAttributes` @ 0x14018ae40; corroborated by
 `Assistant.PacketHandlers.MobileStatInfo` @ 0x140063070 (serial + 6×u16).
@@ -894,10 +916,16 @@ the player and every item not carried by the player.
 - `swings`: {attacker: {`defender`, `t`}}, the latest S2C 0x2F per attacker that the model has
   (or self), dropped with the attacker. ctl `status.attackers` reads it.
 - `view_range`: the 0xC8 range.
+- `items[corpse].notoriety`: the corpse's latest 0xDEAD notoriety (2026-10-03; 1 = blue: another
+  player's kill, opening it is refused; 3 = grey: ours. Captures 20261003_113952/_123614/_125556:
+  all 35 refused agent opens were 1, all 90 opened corpses 3; the 0xDEAD came after the corpse
+  item in all 1435 cases, so it is set only on an item the model has).
 
 **Events:** `prune {serial, why}` per mobile removed by range/facet/death (not for items);
-`mobile_death {serial, corpse, name}` once per corpse from 0xDEAD (name = the corpse's, e.g.
-"a mongbat corpse"); `swing` and `damage` as before; `death` stays the self-ghost event.
+`mobile_death {serial, corpse, name, notoriety}` once per corpse from 0xDEAD (name = the corpse's,
+e.g. "a mongbat corpse"; notoriety as first sent); `lift_reject {reason}` from S2C 0x27 (refuses
+the latest 0x07, no serial on the wire); `swing` and `damage` as before; `death` stays the
+self-ghost event.
 
 **Evidence that it matches the client (session 20261001_214649, timed replay,
 `harness/test_world_replay.py`):** every one of the 395 range prunes coincides with the client's

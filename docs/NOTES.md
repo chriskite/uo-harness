@@ -61,7 +61,7 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 - **Buffs on Outlands arrive as 0xFF sub 8/9** (OutlandsBuffUpdate/RemoveBuff), not 0xDF (none
   in the live session). Examples: "Stationary Penalty", with the description "All damage is
   reduced to 1. Move {value} more steps to remove this effect", 5 s timer, f2 = 1; and a buff
-  titled by cliloc 1075655. `{value}` is `timers[0].seconds` (decoded 2026-10-04, see "Stationary
+  titled by cliloc 1075655. `{value}` is `timers[0].seconds` (decoded 2026-10-03, see "Stationary
   Penalty decoded" below); f2 is always 1.
 - **Str/Dex/Int** from 0x11 were parsed but dropped by the world model (set as attributes the
   snapshot doesn't export). Fixed 2026-09-30; they're now in `self.stats`.
@@ -159,7 +159,7 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 
 - Triggers: lumberjacking, mining, fishing, forensic evaluation, sheep shearing, lockpicking chests — every 5–10 min of activity. (Land fishing currently exempt.)
 - Mechanics: enter the dotted digits, click Okay twice; success suppresses next captcha for 10–15 min. Fail ×3 = 6 h harvest block (scales with priors). Same captcha persists across relog until solved; closing it cancels the harvest attempt.
-- Digits are fixed shapes with dots displaced — template-matching territory. **Solver built 2026-09-30: `harness/captcha.py` reads the digits from the gump layout's tilepic dot clusters against `harness/data/captcha_font.json` (mined from the 24 captured captchas, 73 references since 2026-10-03; digit 0 is synthetic, unverified; every other digit has ≥ 3 real samples). Margin-gated; falls back to pause + beep. Tests: `harness/test_captcha.py`, including a leave-one-session-out check (ANTICHEAT.md §8.8 "Live").** **Since 2026-10-01 (user decision) it only runs in captcha mode `auto`:** the mode is `meta.captcha_mode` in the memory store (missing = `human`), switched from the viz header; in `human` the runner pauses and beeps until the client shows "Captcha successful." (ANTICHEAT.md §8.8).
+- Digits are fixed shapes with dots displaced — template-matching territory. **Solver built 2026-09-30: `harness/captcha.py` reads the digits from the gump layout's tilepic dot clusters against `harness/data/captcha_font.json` (mined from the 26 captured captchas, 79 references since 2026-10-03; digit 0 is synthetic, unverified; every other digit has ≥ 3 real samples). Margin-gated; falls back to pause + beep. Tests: `harness/test_captcha.py`, including a leave-one-session-out check (ANTICHEAT.md §8.8 "Live").** **Since 2026-10-01 (user decision) it only runs in captcha mode `auto`:** the mode is `meta.captcha_mode` in the memory store (missing = `human`), switched from the viz header; in `human` the runner pauses and beeps until the client shows "Captcha successful." (ANTICHEAT.md §8.8).
   - **Growing the dataset (since 2026-10-03): `python harness/captcha_mine.py [--dry-run] [TAG ...]`.** It replays every `logs/session_*` capture (`replay.timed_packets`), takes each real captcha (S2C `0xB0`/`0xDD`, gump id 1 with a `textentry`), pairs it with our `0xB1` answer to that gump serial and keeps it only if the server's "Captcha successful." follows within 10 s (pairing stops at the next captcha gump). New layouts are appended to `captcha_samples.json` and their normalized digit clusters to `captcha_font.json`; known layouts are skipped, so a rerun is a no-op. For each new captcha it prints whether the pre-run font solves it and its weakest digit margin (out-of-sample evidence). After it adds anything, bump the hard-coded sample count and measured figures in `harness/test_captcha.py` and rerun it (~5 min). It re-finds all 24 hand-mined samples byte-identically. First run (2026-10-03, dry run): 26 accepted, 2 new, both in 20261003_150103, which kept recording after the hand mining: 437 (button 606) and 792 (button 933). The current font solves both right, min margins 0.58 and 0.43. With 150103's own sample and references removed, the 357 captcha solves right at margin 0.50. 15 captures from 2026-09-28/29 morning don't replay (`timed_packets` row/raw mismatch at the prelude); their S2C streams hold no captcha gump.
 - **The harvest attempt that raised the captcha resumes after the solve** (all 24 captures): the server answers that attempt right after "Captcha successful.", at once for an instant check (500493 not enough wood, 500489 not a tree) or one chop time later (~4.1 s: logs or 500495 fail). So the runner's next chop result after a captcha belongs to the target it sent before the captcha.
 - Loop-relevant mechanics (wiki, read 2026-09-29; details and links in docs/LUMBER_LOOP.md §2):
@@ -397,7 +397,7 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   Witcher rune 291 → Cambria in two legs (327 steps). No hostile creature came into view (`avoided`
   empty), so this proved the guard harmless on ordinary walks, not its avoidance.
 
-## Cortina's rune tome quest (live 2026-10-04, Hackworth)
+## Cortina's rune tome quest (live 2026-10-03, Hackworth)
 
 - **Cambria → Shelter by moongate:** the Cambria gate item is `0x4000069E` at (1693, 3153, 25). In
   its "Moongate Destinations" gump Shelter Island is button **18** (10 Anchor's Rest … 17 Totem,
@@ -425,7 +425,7 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   so `status.attackers` is always empty live. The hunt runner now finds attackers by our own
   swing's defender and by war-mode monsters adjacent while we take "-N".
 - **Shelter's banker refuses a non-Young character** ("Alas, my goods and services are only
-  available to those with young player status.", Len, 2026-10-04). The bank box is per character,
+  available to those with young player status.", Len, 2026-10-03). The bank box is per character,
   so any mainland banker opens the same box: Outpost is the closest from a moongate (arrival
   (2974, 611) → bankers Duane/Osmond at (3053, 543)/(3045, 542), 125 steps; nearest-bank
   distances per gate from the client marker packs: Outpost 76, Totem 78, Corpse Creek 120, the
@@ -441,7 +441,7 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   checked against `combat.SPELL_REAGENTS` or a spellstone, and 502630 blocks the spell for the
   visit).
 - **`ctl say` is chat to the overseer, not game speech.** In-game speech is `ctl act say <text>`.
-- **Shackleworth (2026-10-04), the quest character:** a new Young "Arcane Mage" on the same
+- **Shackleworth (2026-10-03), the quest character:** a new Young "Arcane Mage" on the same
   account. Magery, Eval Int, Meditation, Necromancy, Focus and Arcane 60, Wrestling 80. A
   prismatic staff (12–24 damage), arielle's bauble, 10 each of yellow/orange/red potions,
   100 bandages. Cortina's quest was accepted at 11:42. In the accepted-quest gump the labels of
@@ -457,7 +457,7 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   charges, 0/50 gate. Runes: Prevalia Bank, Prevalia Innkeeper, Prevalia Stables, Prevalia
   Society Hall (Quests), Shelter Island Bank, Shelter Island Moongate, New Player Dungeon,
   Prevalia Sewers, Ratman Hovel, Urukton Bluffs.
-- **Moving items between characters on one account (2026-10-04):** a rental room. The user rented
+- **Moving items between characters on one account (2026-10-03):** a rental room. The user rented
   one at Outpost with Hackworth's Rental Room Credit Deed (room interior facet 3, around (195,
   1677)); Shackleworth could enter it too, and the user moved the tome, a hatchet and 1,900 gold
   across. The blessed tome carried over fine. Per the wiki, items on a room's floor decay after an
@@ -487,11 +487,11 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   walk to the library, mana and reagents), `lockout_s`, `stationary_s`, `travel_s`, `supplies`,
   `skill_end`/`skill_gain`, `weight_end`, `players_seen` and `hatchet_uses_seen`. These are JSON
   fields, so there was no schema change. A runner records them from its next start.
-- **Travel events before 2026-10-04 store the tome's row index in `rune`**, not the Witcher rune
+- **Travel events before 2026-10-03 store the tome's row index in `rune`**, not the Witcher rune
   id (the recall result overwrote it); the id survives in the row name ("291 - …"). New events
   carry `witcher_rune` and `book`.
 - **lumber_opt:** the 60 s travel lockout is overhead, not field time; a trip that never reached a
-  tree has no field time; priced supplies come off each trip's value. Prices recorded 2026-10-04
+  tree has no field time; priced supplies come off each trip's value. Prices recorded 2026-10-03
   (Garritt, Cambria): `reagent:<black_pearl|blood_moss|mandrake_root|garlic|ginseng>` 3 gp,
   `recall_charge` 200 gp (a recall scroll adds one charge).
 - **Not passively observable:** Harvest Aspect tier (only the `[aspect` gump, Aspect Mastery
@@ -503,7 +503,7 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
 - **Overseer tooling, live:** `ctl junctures` without `--after` listed the oldest 100, hiding an
   open speech hold for 163 s; it now lists the newest. `act drop --amount 800` split a gold stack
   correctly but returned `ok:false` ("the world model doesn't show the item moved"); not fixed.
-- **Stationary Penalty decoded (2026-10-04, 26 captures):** buff 0xFF sub 8, icon 277. `{value}`
+- **Stationary Penalty decoded (2026-10-03, 26 captures):** buff 0xFF sub 8, icon 277. `{value}`
   (steps left) is `timers[0].seconds`: 5, 4, 3, 2, 1, then removed (sub 9) on the 5th step that
   changes our tile; runs and stepping back onto the tile just left both count. It comes 301–315 s
   after the last one-tile step (all 40 cases; fighting, casting and teleports don't reset the
@@ -561,8 +561,9 @@ All 20 sessions 20261001_214649 … 20261003_150103 replayed in timed order (`re
   (since 2026-09-29) comes on a map-region jump (rental room in/out, some logins) and is followed
   by the self `0x20` the model uses. Layout `76 <x u32> <y u32> <z i32> <5 × 00> <width u16> <height
   u16>`: the Outpost room interior `x 195 y 1677 z 1, 0x0A00 × 0x0800` (2560 × 2048, facet 3),
-  the mainland `0x2A00 × 0x1800`. `0x2C` (death screen; 10-02 19:43 PK, 10-03 10:23) is still
-  unparsed (docs/research/TRAVEL_DEATH.md).
+  the mainland `0x2A00 × 0x1800`. `0x2C` (death screen; 10-02 19:43 PK, 10-03 10:23) is parsed
+  and consumed since 2026-10-03 (`2c <action u8>`: 0 before the ghost body, 2 after, in the same
+  flush; no event, the body-based `death` stays the signal; docs/WORLDMODEL.md).
 - **Hunt loot refused, counted as taken.** 35 of 125 agent corpse opens in the NPD hunts
   (113952, 123614, 125556) got "Players cannot commit aggressive actions in that location.", 25 of
   them within 5 s of our own "You have gained a little fame." (our kill). The runner then lifts
@@ -598,6 +599,20 @@ All 20 sessions 20261001_214649 … 20261003_150103 replayed in timed order (`re
 - **More gump ids:** `0x2F4B567E` "Shelter Island Maximum Skill Level Reached for Wrestling 80.0"
   (Guide, button 0 only); `0x19C9F0B7` "Quest Ready for Completion" ("Rune All You Like", button 1
   View Quest; closed with 0).
+- **Fixes landed the same day (2026-10-03):** hunt loot rights (docs/HUNT_LOOP.md "Loot rights":
+  blue corpses skipped, a refused open stops the loot, an item counts only once in the pack,
+  refused kills give no kill/xp/gold sample; world model keeps the corpse's 0xDEAD notoriety and
+  emits `lift_reject` for `0x27`), `0x2C` consumed, o'hii trees filtered from `find_trees`,
+  `harness/captcha_mine.py`. The live proxy must be restarted to carry corpse notoriety; until then
+  the runner sees none and relies on the refusal stop. `test_world_replay.py` knows Shackleworth's
+  serial `0x003D701F`.
+- **`harness/test_uomap.py` fails 3 checks on the new captures (open):** it builds walk memory
+  from every `logs/session_*` without a facet and excludes only the Shelter room's tiles, so the
+  Outpost rental-room interior (195,1677–1680; facet 3) and the Shelter room tiles (39–40, 39–42)
+  count as facet-0 walked tiles; plus two z cases the map rules don't place: (1706,3180) z 2 (the
+  Cambria library benches) and (1955,2625) z 6 (Shackleworth's creation spawn). The memory store
+  itself has the room tiles on facet 3 (walk_moves), so this is the test's data assumption, not a
+  harness bug; the two z cases are unexplained.
 
 ## Runebook and rune tome gumps (live 2026-10-02, TestWorth on the Test Shard)
 

@@ -38,7 +38,7 @@ _DELTAS = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
 PENDING_WALKS_MAX = 64  # unconfirmed walk requests kept for confirm matching
 CORPSES_MAX = 1000      # corpse serials remembered for one `mobile_death` per corpse
 # the server's line under a pet's click label ("(bonded)" etc., type 0 hue 946): RunUO
-# BaseCreature.OnSingleClick; 681 bonded / 573 tame / 116 summoned in the store by 2026-10-04
+# BaseCreature.OnSingleClick; 681 bonded / 573 tame / 116 summoned in the store by 2026-10-03
 PET_TAGS = {"(tame)": "tame", "(bonded)": "bonded", "(summoned)": "summoned"}
 
 
@@ -85,12 +85,18 @@ class WorldRuntime:
             if e["why"] != "dead":
                 e.update(why="dead", dead_t=self.state.now)
 
-    def mobile_death(self, serial, corpse, name):
-        """Outlands 0xFF sub 0xDEAD: a corpse's data (owner serial, corpse name).
-        It follows 0xAF + 0x1D when a mobile dies in view, and comes alone
-        whenever a corpse is (re)sent, e.g. on walking up to a mobile that died
-        out of view (live 20261001_214649). The owner is dead either way; one
-        `mobile_death` per corpse."""
+    def mobile_death(self, serial, corpse, name, notoriety=None):
+        """Outlands 0xFF sub 0xDEAD: a corpse's data (owner serial, notoriety,
+        corpse name). It follows 0xAF + 0x1D when a mobile dies in view, and
+        comes alone whenever a corpse is (re)sent or its notoriety changes, e.g.
+        on walking up to a mobile that died out of view (live 20261001_214649).
+        The latest notoriety is kept on the corpse item (`notoriety`; 1 = blue:
+        someone else's kill, opening it is refused; 3 = grey: ours to loot,
+        captures 20261003_*). The owner is dead either way; one `mobile_death`
+        per corpse, with the notoriety it first came with."""
+        it = self.state.items.get(corpse)
+        if it is not None:   # 0xDEAD came after the corpse item in all 1435 of 20261003_*
+            it.notoriety = notoriety
         if serial == self.state.self.serial:
             return
         self.remove_dead(serial)
@@ -99,7 +105,7 @@ class WorldRuntime:
         self.corpses[corpse] = None
         if len(self.corpses) > CORPSES_MAX:
             self.corpses.popitem(last=False)
-        self._emit("mobile_death", serial=serial, corpse=corpse, name=name)
+        self._emit("mobile_death", serial=serial, corpse=corpse, name=name, notoriety=notoriety)
 
     def _adopt_self_serial(self, serial):
         """The client's login burst queries its own serial before anything
@@ -443,6 +449,16 @@ def _h_display_death(rt, f):
     rt.remove_dead(f["serial"])
 
 
+def _h_death_screen(rt, f):
+    """0x2C DeathScreen (RunUO DeathStatus): consumed, deliberately no event or
+    state. The server's Mobile.OnDeath sends action 0, then the ghost body
+    (the self 0x20 that emits `death`), then action 2, all in one flush after
+    the 0x11 with hits 0 (all 4 captured deaths, 2026-09-30 to 10-03: 0x2C 00
+    is 1-2 packets and <1 ms before the ghost 0x20). It adds nothing the body
+    change doesn't already give; the stock client answers each one with a C2S
+    0x72 war-mode-off request (docs/WORLDMODEL.md)."""
+
+
 def _h_view_range(rt, f):
     """0xC8: the client's view range; World.ProcessDeletes prunes beyond it."""
     rt.state.view_range = f["range"]
@@ -498,7 +514,7 @@ def _d_s2c(rt, f):
         rt.state.apply_names(f["entries"])
         rt._emit("names", count=len(f["entries"]), entries=f["entries"])
     elif sub == 0xDEAD:
-        rt.mobile_death(f["serial"], f["corpse"], f["name"])
+        rt.mobile_death(f["serial"], f["corpse"], f["name"], f["notoriety"])
     elif sub == 0x1A and f.get("mode") == 0:
         rt.state.tracking.on_arrow_set(f)
         rt._emit("quest_arrow_set", **{k: f[k] for k in (
@@ -606,6 +622,12 @@ def _h_lift(rt, f):
     rt._emit("lift", serial=f["serial"], amount=f["amount"])
 
 
+def _h_lift_reject(rt, f):
+    """S2C 0x27: the server refused the latest 0x07 lift (no serial on the wire);
+    the item goes back where it was (0x25 follows)."""
+    rt._emit("lift_reject", reason=f["reason"])
+
+
 def _h_drop(rt, f):
     rt._emit("drop", serial=f["serial"], x=f["x"], y=f["y"], z=f["z"],
              grid=f["grid"], container=f["container"])
@@ -678,6 +700,7 @@ _S2C_HANDLERS = {
     0x1D: _h_delete,
     0x24: _h_open_container,
     0x25: _h_contained_item,
+    0x27: _h_lift_reject,
     0x3C: _h_container_content,
     0x6C: _h_target_cursor,
     0x6E: _h_animation,
@@ -704,6 +727,7 @@ _S2C_HANDLERS = {
     0x7C: _h_open_menu,
     0xBA: _h_quest_arrow,
     0xAF: _h_display_death,
+    0x2C: _h_death_screen,
     0xC8: _h_view_range,
 }
 

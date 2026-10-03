@@ -44,7 +44,10 @@ memory knows the floor): patrol through the rooms, zone 2 opened before room R2 
 troll there fled from (a survival leave from deep, back to the exit spot) and avoided afterwards,
 room R1 left as depleted after its mongbat, two mongbats killed and looted (docs/HUNT_LOOP.md).
 
-Run: python test_loop_hunt.py [default|staff|fight|crawl]   (~160 s for all; private ports;
+Then, in process (no proxy), the loot-rights run: a blue corpse skipped without a packet, a refused
+open with no lift, a rejected lift not counted (docs/HUNT_LOOP.md "Loot rights").
+
+Run: python test_loop_hunt.py [rights|default|staff|fight|crawl]   (~160 s for all; private ports;
      safe while the live proxy runs)
 """
 import asyncio
@@ -215,9 +218,14 @@ def display_death(serial, corpse):
     return b"\xaf" + u32(serial) + u32(corpse) + u32(0)
 
 
-def corpse_flags(corpse, serial, name="a mongbat corpse"):   # Outlands 0xFF sub 0xDEAD
-    body = u32(0xDEAD) + u32(corpse) + u32(serial) + b"\x03" + name.encode() + b"\x00"
+def corpse_flags(corpse, serial, name="a mongbat corpse", noto=3):   # Outlands 0xFF sub 0xDEAD
+    body = u32(0xDEAD) + u32(corpse) + u32(serial) + bytes([noto]) + name.encode() + b"\x00"
     return var(0xFF, body)
+
+
+def system_text(text):            # 0xAE from "System" (serial 0xFFFFFFFF), as live
+    return var(0xAE, u32(0xFFFFFFFF) + b"\xff\xff\x00" + u16(0x3B2) + u16(3) + b"ENU\x00"
+               + b"System".ljust(30, b"\x00") + text.encode("utf-16-be") + b"\x00\x00")
 
 
 def cliloc(number, args=b""):
@@ -577,7 +585,7 @@ class World:
                 g, n = self.corpse_items[serial]
                 self.send(contained(g, combat.GOLD_GRAPHIC, n, serial))
                 if serial == CORPSE[A] and not self.staff and self.loot_hit_t is None:
-                    # live 2026-10-04: hits fell below --heal-at while looting, and the runner
+                    # live 2026-10-03: hits fell below --heal-at while looting, and the runner
                     # left without a drink; here a hit to 70 (below 75 %, above 60 %) as it loots
                     self.loot_hit_t = time.time()
                     self.hits = min(self.hits, 70)
@@ -703,7 +711,7 @@ def refs(p):
 def check_staff(world, text, rc):
     """The arcane-staff run (World(staff=True)): Shackleworth's prismatic staff, Arcane /
     Magery below 80 (the sim sends no skills), so a cast puts it in the pack (live
-    2026-10-04: 0x1D + 0x25 right after the cast request)."""
+    2026-10-03: 0x1D + 0x25 right after the cast request)."""
     print("== arcane staff in hand ==")
     check("staff run: exited 0 after 2 kills, outside", rc == 0 and "hunt complete: 2 kill(s)" in text
           and not world.inside, f"rc {rc}")
@@ -1075,8 +1083,122 @@ async def main(staff=False, fight=None, crawl=False):
         server.close()
 
 
+# The loot-rights run (in process, no proxy): HuntLoop.loot over a WorldRuntime fed with the
+# packets above. Four of our kills lie beside the spot, each corpse holding gold (live the
+# contents come with the corpse, before any open): BLUE's 0xDEAD says notoriety 1 (another
+# player did the most damage), REFUSE's open is answered with the server's refusal text,
+# REJECT opens but its lift gets 27 05 + the gold back in the corpse + a 0x1D (capture
+# 20261003_125556), GOOD is looted as usual.
+REFUSAL = "Players cannot commit aggressive actions in that location."
+BLUE_C, REFUSE_C, REJECT_C, GOOD_C = 0x4FE00021, 0x4FE00022, 0x4FE00023, 0x4FE00024
+RIGHTS = {BLUE_C: (0x002C6001, 0x4FE10021, 30, 1), REFUSE_C: (0x002C6002, 0x4FE10022, 31, 3),
+          REJECT_C: (0x002C6003, 0x4FE10023, 32, 3), GOOD_C: (0x002C6004, 0x4FE10024, 25, 3)}
+
+
+class RightsLink:
+    """The runner's Link over an in-process WorldRuntime (the proxy's state shape): act()
+    feeds our C2S packet, then the server's answer, into it."""
+
+    def __init__(self):
+        from world.runtime import WorldRuntime
+        self.rt = WorldRuntime()
+        self.events, self.event_t, self.last, self.sent = [], [], None, []
+        self.gold, self.lifted = 100, None
+
+    def feed(self, *pkts):
+        for p in pkts:
+            self.rt.feed_packet("s2c", p)
+
+    def act(self, p):
+        self.sent.append(p)
+        self.rt.feed_packet("c2s", p)
+        s = int.from_bytes(p[1:5], "big") if len(p) >= 5 else None
+        if p[0] == 0x06 and s == BACKPACK:
+            self.feed(open_container(BACKPACK, 0x3C))
+        elif p[0] == 0x06 and s in RIGHTS:
+            self.feed(system_text(REFUSAL) if s in (BLUE_C, REFUSE_C) else open_container(s, 0x09))
+        elif p[0] == 0x07:
+            self.lifted = s
+        elif p[0] == 0x08:
+            corpse = next(c for c, (_, g, _, _) in RIGHTS.items() if g == self.lifted)
+            _, g, n, _ = RIGHTS[corpse]
+            if corpse == REJECT_C:
+                self.feed(system_text(REFUSAL), b"\x27\x05", contained(g, combat.GOLD_GRAPHIC, n, corpse), delete(g))
+            else:
+                self.gold += n
+                self.feed(delete(g), contained(PACK_GOLD, combat.GOLD_GRAPHIC, self.gold, BACKPACK))
+
+    def state(self):
+        evs = json.loads(json.dumps(self.rt.drain_events()))
+        self.events += evs
+        self.event_t += [time.time()] * len(evs)
+        s = self.rt.state
+        self.last = {"movement": {"pos": [s.self.x, s.self.y, s.self.z], "self_serial": s.self.serial,
+                                  "stalled": False, "rejects_in_row": 0, "inflight": 0},
+                     "world": json.loads(json.dumps(s.snapshot()))}
+        return self.last
+
+    movement = state
+
+    def intent(self, *a, **k):
+        pass
+
+
+def rights():
+    print("\n== loot rights (in process): blue corpse skipped, refused open, lift reject ==")
+    import loop_hunt
+    from agent_link import Link
+    for name in ("wait", "pos", "open_containers"):
+        setattr(RightsLink, name, getattr(Link, name))
+    db = os.path.join(tempfile.mkdtemp(), "harness.db")
+    store = memory.Memory(db)
+    link = RightsLink()
+    link.feed(login_pkt(), equip(BACKPACK, 0x0E75, 0x15), contained(PACK_GOLD, combat.GOLD_GRAPHIC, 100, BACKPACK))
+    for corpse, (mob, g, n, noto) in RIGHTS.items():
+        link.feed(mob_pkt(mob, SPOT[0], SPOT[1] - 1), ground_item(corpse, combat.CORPSE_GRAPHIC, MONGBAT, SPOT[0], SPOT[1] - 1),
+                  display_death(mob, corpse), delete(mob), corpse_flags(corpse, mob, noto=noto),
+                  contained(g, combat.GOLD_GRAPHIC, n, corpse))
+    args = loop_hunt.arg_parser().parse_args(["--human", "off", "--quiet", "--triage-url", "", "--no-map",
+                                              "--memory", db])
+    loop = loop_hunt.HuntLoop(link, store, args)
+    loop.state()
+    for corpse, (mob, _, _, _) in RIGHTS.items():          # four kills of ours (on_kill)
+        loop.count("kills")
+        loop.corpses.append({"mob": mob, "name": "a mongbat", "x": SPOT[0], "y": SPOT[1] - 1, "t": time.monotonic()})
+    sent = {}
+    while loop.corpses:
+        c, n0 = loop.corpses[0], len(link.sent)
+        loop.loot(c)
+        sent[c["corpse"]] = link.sent[n0:]
+    loots = {int(e["data"]["corpse"], 16): e["data"] for e in store.job_events("hunt") if e["kind"] == "loot"}
+    store.close()
+
+    def to(corpse):
+        return [(p[0], int.from_bytes(p[1:5], "big")) for p in sent[corpse] if p[0] in (0x06, 0x07, 0x08)]
+    check("blue corpse: no packet at all (no walk, no open, no lift); refused 'blue', no gold, no xp",
+          sent[BLUE_C] == [] and loots[BLUE_C].get("refused") == "blue" and loots[BLUE_C]["xp"] == 0,
+          f"{sent[BLUE_C]} {loots.get(BLUE_C)}")
+    check("refused open: the one 0x06 at it and no lift; the refusal text recorded",
+          [x for x in to(REFUSE_C) if x != (0x06, BACKPACK)] == [(0x06, REFUSE_C)]
+          and loots[REFUSE_C].get("refused") == REFUSAL and loots[REFUSE_C]["items"] == []
+          and loots[REFUSE_C]["xp"] == 0, f"{to(REFUSE_C)} {loots.get(REFUSE_C)}")
+    check("lift rejected (27 05, back in the corpse, then 0x1D): not taken, no gold",
+          [k for k, _ in to(REJECT_C)][-2:] == [0x07, 0x08] and loots[REJECT_C]["items"] == []
+          and loots[REJECT_C]["lift_rejects"] == 1 and loots[REJECT_C]["gold"] == 0, str(loots.get(REJECT_C)))
+    check("the good corpse: its gold taken and counted",
+          [i["serial"] for i in loots[GOOD_C]["items"]] == [f"0x{RIGHTS[GOOD_C][1]:08X}"] and loots[GOOD_C]["gold"] == 25,
+          str(loots.get(GOOD_C)))
+    t = loop.totals
+    check("totals: the two refused kills taken back, xp only from the opened corpses (32 + 25), gold 25",
+          (t["kills"], t["lost_kills"], t["xp"], t["gold"]) == (2, 2, 57, 25), str(t))
+    check("every corpse handled once (never retried)", loop.looted == set(RIGHTS) and not loop.corpses, str(loop.looted))
+
+
+
 if __name__ == "__main__":
-    only = sys.argv[1:]               # e.g. `crawl`: just that run (iterating); none: all four
+    only = sys.argv[1:]               # e.g. `crawl`: just that run (iterating); none: all five
+    if not only or "rights" in only:
+        rights()
     if not only or "default" in only:
         asyncio.run(main())
     if not only or "staff" in only:

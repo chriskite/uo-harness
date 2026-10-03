@@ -331,7 +331,7 @@ table has no job column) and `harness/data/woods.json` when present.
 - CLI: `python harness/jobs.py [--db PATH] [--job lumber|hunt] [--since T]` prints totals, days and
   harvest outcomes (hunt: totals, days and monsters).
 
-**Lumber optimizer analytics (added 2026-10-04, user request: the dashboard shows what the
+**Lumber optimizer analytics (added 2026-10-03, user request: the dashboard shows what the
 self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
 - **Per trip** besides the above: `spot`, `outcome`, `why`, `place_fail`, `field_s` and
   `field_logs_per_hour` (field time as `lumber_opt.trip_obs` counts it: the λ sample),
@@ -341,7 +341,7 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
 - `travel`: from the `travel` and `recall` job events, per leg kind (out/home/escape) the count,
   landed, casts, charge/spell, failures by reason, mean seconds and the mean walk to the library;
   per book (a library tome or ours) the charges it showed before each recall over time, the runes
-  used. Rows from before 2026-10-04 have no book: an out leg's tome comes from the rune number in
+  used. Rows from before 2026-10-03 have no book: an out leg's tome comes from the rune number in
   its row name and the Witcher table.
 - `supplies` (summed trip `supplies`, priced from the store's `reagent:<name>` / `recall_charge`
   prices: `gp`, `unpriced`), `time_split` totals, `skill` points (trip start and end).
@@ -398,7 +398,7 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     tiles are green at 0, red or amber otherwise.
   - A line under the tiles: the estimated value (and how many logs are unpriced) and the chop
     outcomes from `harvest_attempts`.
-  - **Optimizer: next pick** (2026-10-04): the plan's spot with `explore`/`exploit`, P(best), trips ×
+  - **Optimizer: next pick** (2026-10-03): the plan's spot with `explore`/`exploit`, P(best), trips ×
     Q* logs, expected trip minutes and net logs/hr, then skill and chop success, the regrowth window
     (fitted or default), P(death | PK seen), the new-spot prior, the dispersion and the `ctl run
     lumber` command.

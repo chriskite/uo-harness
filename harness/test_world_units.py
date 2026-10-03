@@ -614,6 +614,7 @@ def test_truncation():
     truncated = [
         ("s2c", bytes.fromhex("0b04050607")),          # 0x0B missing amount byte
         ("s2c", bytes.fromhex("20" "04050607")),       # 0x20 head only
+        ("s2c", bytes.fromhex("2c")),                  # 0x2C without its action byte
         ("s2c", bytes.fromhex("f3" "0001" "02")),      # 0xF3 head only
         ("s2c", bytes.fromhex("11" "002b" "0405")),    # 0x11 mid-serial
         ("s2c", bytes.fromhex("3a" "0013" "00" "0005" "02")),  # 0x3A mid-record
@@ -834,15 +835,22 @@ def test_mobile_routing():
     rt.feed_packet("s2c", bytes.fromhex("1b" "00000001") + b"\x00" * 38)
     eq("0x1B mismatch anomaly", rt.anomalies["login_confirm_mismatch"], 1)
     eq("0x1B mismatch keeps self", s.serial, 0x00094375)
-    # self 0x20 with a ghost body: dead + `death`; human body again: `resurrect`
+    # self 0x20 with a ghost body: dead + `death`; human body again: `resurrect`.
+    # The server brackets the ghost 0x20 with 0x2C 00 / 0x2C 02 (real order,
+    # session_20261003_101549 10:23:54): still exactly one `death`, from the body.
     rt.drain_events()
     self20 = lambda body: bytes.fromhex(  # noqa: E731
         "20" "00094375" + f"{body:08x}" + "01" "83ea" "20" "000007ac" "00000a24" "0000" "01" "00000000")
     rt.feed_packet("s2c", self20(0x190))
     eq("self alive (human body)", (s.body, s.dead, [e["ev"] for e in rt.drain_events()]), (0x190, False, []))
+    eq("0x2C actions parse", [parse_packet("s2c", bytes.fromhex(h))["action"] for h in ("2c00", "2c02")], [0, 2])
+    rt.feed_packet("s2c", bytes.fromhex("2c00"))
+    eq("0x2C 00 alone: still alive, no event", (s.dead, rt.drain_events()), (False, []))
     rt.feed_packet("s2c", self20(0x192))
+    rt.feed_packet("s2c", bytes.fromhex("2c02"))
     ev = [e for e in rt.drain_events() if e["ev"] in ("death", "resurrect")]
-    eq("ghost body -> dead + death event", (s.dead, [(e["ev"], e["body"]) for e in ev]), (True, [("death", 0x192)]))
+    eq("ghost body -> dead + one death event", (s.dead, [(e["ev"], e["body"]) for e in ev]), (True, [("death", 0x192)]))
+    eq("0x2C consumed", (rt.unhandled[("s2c", 0x2C)], rt.parse_failures), (0, 0))
     eq("snapshot says dead", (rt.state.self.to_dict()["dead"], rt.state.self.to_dict()["body"]), (True, 0x192))
     rt.feed_packet("s2c", self20(0x192))
     eq("still a ghost: no second death event", [e["ev"] for e in rt.drain_events() if e["ev"] == "death"], [])
@@ -1057,13 +1065,13 @@ def _ground1a(item, x, y):
     return _var(0x1A, f"{item:08x}" "0e75" f"{x:04x}" f"{y:04x}" "00")
 
 
-def _dead(corpse, serial, name="a mongbat corpse"):
-    return _var(0xFF, "0000dead" f"{corpse:08x}" f"{serial:08x}" "03" + name.encode().hex() + "00")
+def _dead(corpse, serial, name="a mongbat corpse", noto=3):
+    return _var(0xFF, "0000dead" f"{corpse:08x}" f"{serial:08x}" f"{noto:02x}" + name.encode().hex() + "00")
 
 
 def test_worn_layers():
     print("== the layer an item was worn on outlives its move to the pack (ctl act equip) ==")
-    # live 2026-10-04 (capture 20261003_113952): a cast put the prismatic staff (tiledata
+    # live 2026-10-03 (capture 20261003_113952): a cast put the prismatic staff (tiledata
     # layer 0) from layer 2 into the pack as 0x1D + 0x25, and equip then had no layer
     rt = WorldRuntime()
     rt.feed_packet("s2c", _login(5535, 529))
@@ -1077,6 +1085,31 @@ def test_worn_layers():
     eq("in the pack without a layer, worn_layers still says 2; another mobile's robe isn't kept",
        (snap["items"][f"0x{staff:08X}"].get("container"), snap["items"][f"0x{staff:08X}"].get("layer"),
         snap["worn_layers"]), (f"0x{pack:08X}", None, {f"0x{staff:08X}": 2}))
+
+
+def test_corpse_notoriety():
+    print("== a corpse keeps the latest 0xDEAD notoriety; 0x27 lift reject ==")
+    # captures 20261003_*: a blue (1) corpse is another player's kill (our open refused),
+    # a grey (3) one ours; 0xDEAD repeats on every resend or notoriety change
+    rt = WorldRuntime()
+    rt.feed_packet("s2c", _login(1000, 1000))
+    A, CORPSE = 0x00001001, 0x4FEDC20D
+    rt.feed_packet("s2c", _mob20(A, 1001, 1000))
+    rt.feed_packet("s2c", _ground1a(CORPSE, 1001, 1000))
+    rt.drain_events()
+    rt.feed_packet("s2c", _dead(CORPSE, A, noto=1))
+    ev = rt.drain_events()
+    eq("blue corpse: notoriety 1 on the item and in mobile_death",
+       (rt.state.snapshot()["items"][f"0x{CORPSE:08X}"].get("notoriety"),
+        [e.get("notoriety") for e in ev if e["ev"] == "mobile_death"]), (1, [1]))
+    rt.feed_packet("s2c", _dead(CORPSE, A, noto=3))
+    eq("re-sent grey: the latest wins, still one mobile_death",
+       (rt.state.items[CORPSE].notoriety, [e["ev"] for e in rt.drain_events()]), (3, []))
+    rt.feed_packet("s2c", _ground1a(CORPSE, 1001, 1000))
+    eq("an item update keeps it", rt.state.items[CORPSE].notoriety, 3)
+    rt.drain_events()
+    rt.feed_packet("s2c", bytes.fromhex("2705"))
+    eq("0x27: lift_reject with its reason", rt.drain_events(), [{"ev": "lift_reject", "reason": 5}])
 
 
 def test_pruning():
@@ -1194,7 +1227,8 @@ TESTS = [test_fixed_s2c, test_fixed_c2s, test_character_status_11,
          test_dialect_ff, test_c2s_procedural, test_mobile_parsers, test_cliloc,
          test_vendor_popup_command, test_tracking_packets,
          test_mobile_routing, test_truncation, test_runtime_edges,
-         test_event_semantics, test_status_requested, test_pruning, test_worn_layers]
+         test_event_semantics, test_status_requested, test_pruning, test_worn_layers,
+         test_corpse_notoriety]
 
 
 def main():

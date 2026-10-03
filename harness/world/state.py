@@ -139,6 +139,7 @@ class Item:
     data_type: int | None = None
     v11: int | None = None
     v12: int | None = None
+    notoriety: int | None = None   # a corpse's: the latest 0xFF sub 0xDEAD (1 = blue, someone else's kill)
 
     def to_dict(self):
         d = {k: v for k, v in self.__dict__.items() if v is not None

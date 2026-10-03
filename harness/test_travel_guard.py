@@ -22,7 +22,7 @@ FAILURES = []
 HARPY = {"graphic": 0x1E, "notoriety": 3, "flags": 0x40, "name": "a harpy"}      # war mode: aggressive
 RED = {"graphic": 0x190, "notoriety": 6, "flags": 0x20, "name": "Bastet"}
 GHOST = 0x192
-# live 2026-10-04 on Shelter Island (session 20261003_111419): a sheep in war mode while a
+# live 2026-10-03 on Shelter Island (session 20261003_111419): a sheep in war mode while a
 # player killed it, and a tamer's bonded phoenix in war mode next to its owner
 WAR_SHEEP = {"graphic": 0xCF, "notoriety": 3, "flags": 0x40, "name": "a sheep"}
 PET = {"graphic": 832, "notoriety": 1, "flags": 0x40, "name": "a phoenix", "pet": "bonded"}

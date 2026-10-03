@@ -362,7 +362,7 @@ def fights_from_events(con, windows, skip=frozenset()) -> list:
         e = json.loads(d)
         mob = int(e["mob"], 16) if e.get("mob") else corpse_mob.get(int(e.get("corpse") or "0", 16))
         if mob is not None:
-            gold[mob] = e.get("gold") or 0
+            gold[mob] = None if e.get("refused") else (e.get("gold") or 0)   # refused: not our kill's gold
     out = []
     for t, d in kills:
         s = int(d["serial"], 16)
@@ -384,7 +384,7 @@ def load_prior(con, spot=None, depth_risk: float = 1.5) -> Model:
     for (d,) in con.execute("SELECT data FROM job_events WHERE job='hunt' AND kind='loot'"):
         e = json.loads(d)
         if e.get("mob"):
-            gold[e["mob"]] = e.get("gold") or 0
+            gold[e["mob"]] = None if e.get("refused") else (e.get("gold") or 0)   # refused: no gold sample
     fights, seen = [], set()
     for (d,) in con.execute("SELECT data FROM job_events WHERE job='hunt' AND kind='fight' ORDER BY id"):
         e = json.loads(d)

@@ -92,7 +92,7 @@ zombies and a harpy never did and never attacked. Treating every unknown
 creature as dangerous stopped lumber trips for a wandering goat and a walrus.
 The HP-damage guard still catches anything the flag misses.
 
-Pets and war-mode passive bodies (2026-10-04, session 20261003_111419 on
+Pets and war-mode passive bodies (2026-10-03, session 20261003_111419 on
 Shelter Island): a guarded goto avoided 'a phoenix' (body 832) and 'a
 gravebug' (387), stacked one tile from the player Lord Arlabunakti, both
 notoriety 1, flags 0x40 from their first 0x20, each announced "(bonded)"; and

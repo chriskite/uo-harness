@@ -3,7 +3,7 @@
 The debuff (Outlands buff 0xFF sub 8, icon 277, title "Stationary Penalty", "All
 damage is reduced to 1. Move {value} more steps to remove this effect"; wiki Mining:
 it also stops harvesting) as measured in the memory store and the timed captures
-(docs/HUNT_LOOP.md "Stationary Penalty", 2026-10-04):
+(docs/HUNT_LOOP.md "Stationary Penalty", 2026-10-03):
 
 - **Standing still:** it comes 301.0-314.8 s after our last one-tile step (all 40
   inactivity cases), fighting and casting or not. Teleports don't reset that clock:

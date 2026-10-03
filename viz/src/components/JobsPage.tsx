@@ -427,7 +427,7 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
             series={[{ label: "skill at trip start / end", cls: "skill", values: data.skill.map((p) => p.skill), dots: true }]}
             what="trip"
             unit="skill"
-            note="from the trip rows (start; end since 2026-10-04). Harvest Aspect: not observable yet"
+            note="from the trip rows (start; end since 2026-10-03). Harvest Aspect: not observable yet"
           />
         </Panel>
         <Panel title="Travel and supplies">

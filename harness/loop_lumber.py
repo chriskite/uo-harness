@@ -350,7 +350,7 @@ class LumberLoop:
 
     def monster_stop(self, st, a, worst, swung, why: str):
         """A creature ends the run: under attack or with monsters closing in there is no
-        time to convert logs (live 2026-10-04, witcher_291: 85 -> 40 hits during a 12 s
+        time to convert logs (live 2026-10-03, witcher_291: 85 -> 40 hits during a 12 s
         conversion, then the run exited in the field and the overseer's recall landed at
         15/100). So: recall home at once when away from home with a book ready, and stop
         without converting (Unsafe). Near home, or without a book, stop where we stand."""

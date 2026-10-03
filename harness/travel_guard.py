@@ -14,7 +14,7 @@ the Mover guard a goto runs with (agent_link.Mover calls it after every step):
     max(flee radius, DANGER_MIN_R) + AVOID_MARGIN around them; the Mover routes
     around zones (agent_link.DANGER_COST_X) and replans when one appears or
     moves. Each creature is recorded once per walk as a `monster_seen` job
-    event (job `travel`). Live 2026-10-04 on Shelter Island a tamer's two bonded
+    event (job `travel`). Live 2026-10-03 on Shelter Island a tamer's two bonded
     pets and two sheep a player was killing, all in war mode, became zones; the
     sheep made a 44-step walk 142 steps (threats.py docstring, "Pets and
     war-mode passive bodies").

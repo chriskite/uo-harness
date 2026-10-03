@@ -956,7 +956,7 @@ async def skirmish():
     check("the attacker kept coming after the second escape: the run stopped (exit 1)",
           code == 1 and "kept coming after the escape" in text and world.attacker_swings >= 2,
           f"exit {code}, {world.attacker_swings} swings")
-    check("a creature still coming: stop at once, no 10 s log conversion next to it (live 2026-10-04: "
+    check("a creature still coming: stop at once, no 10 s log conversion next to it (live 2026-10-03: "
           "85 -> 40 hits while converting); the logs stay logs, no bank trip",
           world.logs == 2 * LOGS_PER_SUCCESS and world.harvested == 2 * LOGS_PER_SUCCESS
           and not world.pack_boards and world.bank_opens == 0
@@ -1058,7 +1058,7 @@ async def library():
 
 
 async def library_chased():
-    """A creature hunts us down at a library-rune spot (live 2026-10-04, witcher_291: the
+    """A creature hunts us down at a library-rune spot (live 2026-10-03, witcher_291: the
     runner converted logs for 12 s under attack, 85 -> 40 hits, then exited in the field).
     Now: escape on foot, it keeps coming -> recall home with our own book at once, no
     conversion, an urgent threat juncture (not pk_escape), exit 1 at home."""

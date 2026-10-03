@@ -437,7 +437,7 @@ plus the store, hatchets in `harness/data/hatchets.json`; the model is docs/LUMB
   without opening the `[aspect` gump). Done criterion
   (LUMBER_LOOP §9 M5): banked logs per active hour improve over the weeks on the same character
   without violating §1.
-- **What it learns from is recorded per trip (2026-10-04).** Audit and gaps: LUMBER_LOOP §6 "What
+- **What it learns from is recorded per trip (2026-10-03).** Audit and gaps: LUMBER_LOOP §6 "What
   the optimizer learns from". Travel legs, the lockout, supplies, skill at the end and crowding go
   into the trip row and the `travel` events (JSON fields, no schema change); the plan treats the
   lockout and failed travel as overhead, not field time, and subtracts priced supplies per trip.

@@ -262,7 +262,7 @@ def test_lumber_travel():
            "phases_s": {"harvest": 900.0, "convert": 10.0, "to_bank": 80.0, "store": 10.0},
            "walk_out_s": 100.0, "lockout_s": 60.0, "chop_s": 500.0, "logs": 200, "travel_s": 50.0,
            "supplies": {"library_charges": 1, "own_charges": 1, "recall_casts": 1, "reagents_used": {"mandrake root": 1}}}
-    events = [  # a row from before 2026-10-04: no book, the rune only in the tome row's name
+    events = [  # a row from before 2026-10-03: no book, the rune only in the tome row's name
         {"t": 900.0, "kind": "travel", "data": {"leg": "out", "rune": 15, "name": "291 - Hidden Valley (Outside South)",
                                                 "ok": True, "method": "charge", "charges": 38, "elapsed_s": 2.2}},
         {"t": 1010.0, "kind": "travel", "data": {"leg": "out", "witcher_rune": "291", "book": tome, "ok": True,

@@ -83,7 +83,8 @@ Each tick re-reads the proxy state and decides, in this order:
    step was taken for `--reposition-s`, reposition.
 5. **Loot** our kills' corpses when nothing is attacking us, like `ctl act loot`: human corpses
    refused, walk within 2 tiles, open the backpack (stock dclick) and the corpse, then lift + drop
-   each item into the backpack, gold first, up to the weight limit.
+   each item into the backpack, gold first, up to the weight limit. See "Loot rights" below:
+   blue corpses are skipped, a refused open stops at once, only items that reach the pack count.
 6. **Fight** the target:
    - Targets come only from the live world model (`world.mobiles` holds what the stock client still
      has; docs/WORLDMODEL.md) and pass the `ctl act attack` guard (`combat.attackable`: threats.py
@@ -111,7 +112,7 @@ Each tick re-reads the proxy state and decides, in this order:
      never walks to melee.
 7. **Idle**: war mode off when nothing is near, back to the fight spot, wait.
 
-**A fight spot away from the exit** (`--fight-spot`, user request 2026-10-04: the exit tile is
+**A fight spot away from the exit** (`--fight-spot`, user request 2026-10-03: the exit tile is
 crowded). Each visit (at the start and after every re-entry) walks from the arrival to the
 fight spot with the Mover (map route) before fighting; leaving walks back to `--spot` and
 takes the exit step there.
@@ -133,7 +134,7 @@ takes the exit step there.
 
 ### Fight spots (map0, from the exit spot 5535,529)
 
-Map routes with the known teleporter tiles avoided (`pathfind.plan`, 2026-10-04); none
+Map routes with the known teleporter tiles avoided (`pathfind.plan`, 2026-10-03); none
 crosses the arrival tile (all come in from the north, via 5536,528):
 
 | Fight spot | Steps out | Leave below (defaults) | Where |
@@ -145,10 +146,10 @@ crosses the arrival tile (all come in from the north, via 5536,528):
 (5537,505), further up the north corridor, is a wall / skull pile: no route. Not yet hunted
 live; how many mongbats come by each is unknown.
 
-**The weapon** (since 2026-10-04): the item on layer 1 or 2 at the start stays in hand.
+**The weapon** (since 2026-10-03): the item on layer 1 or 2 at the start stays in hand.
 - **An arcane staff takes casting skill.** Wiki [Arcane](https://wiki.uooutlands.com/Arcane):
   "Players with at least 80 skill in Arcane, Wrestling, and Magery can continue to cast spells
-  while wielding an Arcane Staff". Live 2026-10-04 (capture 20261003_113952) each Lightning
+  while wielding an Arcane Staff". Live 2026-10-03 (capture 20261003_113952) each Lightning
   cast by Shackleworth (Arcane 60, Magery 60, Wrestling 80) moved his prismatic staff
   (graphic 31038, the only arcane staff known: `ARCANE_STAFF_GRAPHICS`) from layer 2 into the
   pack, `0x1D` + `0x25` about 50 ms after the cast request, without any message.
@@ -171,14 +172,14 @@ Packets come from `harness/combat.py`, shared with `ctl act attack/target/loot/c
 drift: `attack_packets`, `target_mobile`, `target_self`, `grab_packets`, `loot_order`,
 `human_corpse`, `attackable`, `spell_id`.
 
-## Stationary Penalty (user request 2026-10-04; `harness/stationary.py`)
+## Stationary Penalty (user request 2026-10-03; `harness/stationary.py`)
 
 Outlands puts a debuff on a character that stands still: Outlands buff `0xFF` sub 8, icon 277,
 title "Stationary Penalty", "All damage is reduced to 1. Move {value} more steps to remove this
 effect" (the wiki's Mining page: it also stops mining "until they move more than 5 steps"). The
 runner fought under it for most of some visits (live 2026-10-02: 99 of 165 min in the NPD).
 
-**Measured** (2026-10-04, the timed replays of the captures in `logs/` with the penalty, 26
+**Measured** (2026-10-03, the timed replays of the captures in `logs/` with the penalty, 26
 of them, and the memory store):
 - **Standing still: 301.0–314.8 s after our last one-tile step**, in all 40 such cases (the
   ~15 s spread looks like a periodic server check [INFERENCE]). Fighting and casting don't count
@@ -363,9 +364,11 @@ and threats, stop: no corpse runs), the speech hold above.
 
 One episode per visit (loop `hunt`): `visit`, `t_start`/`t_end`, `spot`, `fight_spot`, `route_steps`
 (the route back to `spot`; crawling, from where we stood at the leave), `leave_at` (with the route
-margin), `spell`, `hits_start`, `kills`, `gold`, `xp`, `hits_lost`, `casts`, `heals`, `leaves`,
+margin), `spell`, `hits_start`, `kills`, `lost_kills` (kills taken back: someone else had the loot
+rights), `gold`, `xp`, `hits_lost`, `casts`, `heals`, `leaves`,
 `stationary_clears`, `repositions` (Stationary Penalty walks), `ended` (the leave reason, `done`,
-`time is up` or `stopped`). Job events `kill`, `loot` (`mob`, `name`, `gold`, `xp`, items), `leave`,
+`time is up` or `stopped`). Job events `kill`, `loot` (`mob`, `name`, `gold`, `xp`, items,
+`lift_rejects`; `refused` = `blue` or the server's refusal text for a corpse not ours), `leave`,
 `death`, `speech_hold`, `speech_clear`, and **`fight`** per engagement, both modes (`serial`, `name`,
 `body`, `fight_s` from the first attack, `hits_lost` meanwhile, `outcome` kill / fled / dropped /
 lost / switched / ended, `mode`, crawling also `zone`); `leave` has `route_steps`. Crawling:
@@ -383,9 +386,44 @@ opened, before looting [INFERENCE: equal to the creature's value for a solo kill
 and Fortune scale gold and XP alike per the wiki]. Unlooted kills have no `xp`. The Jobs page's
 Hunting dashboard shows kills, gold and XP (docs/VISUALIZER.md §2.4).
 
+### Loot rights (2026-10-03)
+
+Loot rights go to whoever did the most damage; looting another player's kill is a criminal act the
+server blocks (user, 2026-10-03). The corpse's S2C `0xFF` sub `0xDEAD` carries its notoriety, kept
+on the corpse item as `notoriety` (latest value; docs/WORLDMODEL.md). In captures 20261003_113952,
+_123614 and _125556 (timed replay through `WorldRuntime`) the agent opened 125 corpses: all 35 refused
+with "Players cannot commit aggressive actions in that location." were notoriety 1 (blue), all 90
+opened were 3 (grey); in 125556 alone 29 / 65. Before this change the runner lifted anyway after a
+refusal (a second refusal, `27 05`, the item back in the corpse, `0x1D` ~190 ms later), counted the
+vanished item as taken ("looted 1 item(s) from a mongbat: +0 gold, ~21 xp", 125556 13:03:58) and
+counted the corpse's gold as xp. Now (`loop_hunt.loot`):
+- A **blue corpse** (notoriety 1) is skipped before any walk or open: no packet, logged "corpse of X
+  is someone else's kill (blue): not looted".
+- Our open answered by "Players cannot commit aggressive actions in that location." or "You may not
+  loot this corpse." (the server's 0xAE system text; the client's Auto Open Corpses got the latter,
+  ANTICHEAT.md A14) **stops at once**: no lift. The runner waits for the corpse's `0x24` or such a
+  text after its `0x06` (the contents often arrive with the corpse, so they prove nothing). Every
+  corpse is handled once: a refused one is never retried. [INFERENCE] The text carries no serial, so
+  a client-made double-click answered in the same ~0.1 s would count as ours.
+- An item counts as **taken only when it lands in the backpack** (its `0x25` into the pack, or gone
+  with the pack's pile of that graphic grown: RunUO merges gold); a `0x27` lift reject (`lift_reject`
+  event) means not taken (`lift_rejects` in the loot event).
+- A blue or refused corpse is **someone else's kill**: its kill credit is taken back (`kills` - 1,
+  `lost_kills` + 1; `--kills` counts only ours), it adds no xp, no gold and no gold-model sample
+  (`kill_gold` isn't called). Its `loot` event has `refused` (`blue` or the text) with gold 0, and
+  crawl.load_prior gives such kills no gold sample (gold unknown, not 0), so the crawl's per-type
+  gold estimate doesn't learn 0 from another player's kill. The fight itself (time, hits lost) is
+  still recorded: those costs were ours.
+
 ## Test
 
-`python test_loop_hunt.py [default|staff|fight|crawl]` (~160 s for all four, private ports): a
+Loot rights run (`python test_loop_hunt.py rights`, in process, ~1 s): `HuntLoop.loot` over a
+`WorldRuntime` fed with the sim's packets. Four of our kills beside the spot, gold in each corpse
+before any open: the blue one gets no packet at all, the refused open gets one `0x06` and no lift,
+the lift answered `27 05` + back in the corpse + `0x1D` isn't counted, the fourth is looted; totals
+kills 4 -> 2 (`lost_kills` 2), xp only from the two opened corpses, gold only the landed pile.
+
+`python test_loop_hunt.py [rights|default|staff|fight|crawl]` (~160 s for all, private ports): a
 simulated NPD behind the real proxy. A mongbat
 that died to someone else (`0xDEAD` only) must never be touched; the first mongbat flies in and hits
 hard (heal path), dies to Lightning, its gold is looted; two more come in swinging and trigger the
@@ -459,7 +497,7 @@ outside and re-entering all worked; no deaths. Heal potions were drunk live (hea
 - Many casts are ruined by hits (cliloc 500641) or spell recovery (502644). Mongbats inflict
   "Diseased" (damage every 5 s).
 
-## Live (2026-10-04, NPD; the pin cases with Shackleworth)
+## Live (2026-10-03, NPD; the pin cases with Shackleworth)
 
 - **No reagents, no spellstone** (Hackworth's spellstone stayed on his corpse; docs/NOTES.md):
   the runner cast without checking reagents, so every cast would have been refused with "More

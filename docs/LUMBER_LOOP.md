@@ -609,12 +609,12 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   restriction), a closed agent gate (kill, budget), an open `gm_suspected` juncture or a speech
   hold. The conversion ignores the timeout, HP and creature checks; a player or death still
   interrupts it. A process kill converts nothing.
-- **A creature stop recalls home first (since 2026-10-04):** taking damage, a creature that kept
+- **A creature stop recalls home first (since 2026-10-03):** taking damage, a creature that kept
   coming after the walk-away escape, too many escapes, or a creature during a speech hold ends the
   run without converting (`monster_stop`), and when the runner is more than `HOME_NEAR` (60) tiles
   from the banker with a recall book ready, it recalls home first (`recall_out`, up to 3 casts) and
   posts an urgent `threat` juncture "Recalled away from …" (a player escape posts `pk_escape`).
-  Live 2026-10-04 at witcher_291 the old path converted logs for 12 s under attack (85 → 40 hits)
+  Live 2026-10-03 at witcher_291 the old path converted logs for 12 s under attack (85 → 40 hits)
   and then exited in the field; the overseer's own recall landed at 15/100. The logs stay logs in
   the pack. Test: `test_loop_lumber.py` scenario `library_chased`.
 - **Break due (since 2026-10-01):** when the state port's `gate.break_due_at` is set (agent gate

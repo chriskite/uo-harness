@@ -5,7 +5,7 @@ arguments). The character stands on --fight-spot (default: --spot, the NPD exit 
 and fights what comes; leaving is war mode off, a walk back to --spot, one step in
 --exit-dir onto the exit teleporter.
 
-A fight spot away from the exit (user request 2026-10-04: deeper in the NPD than the
+A fight spot away from the exit (user request 2026-10-03: deeper in the NPD than the
 crowded entrance): each visit walks there with the Mover; the pull range, the corpse
 range and the idle return are measured from it. The Mover never routes over a known
 teleporter tile (memory `teleporters`, learned by walking onto one; the runner adds
@@ -28,7 +28,8 @@ is cancelled with the stock Esc packet instead; ANTICHEAT.md §10 A12).
 Packets are the stock client's (combat.py): war mode on (0x72), 0x34 unless a status
 request is outstanding, 0x05; spells are 0xFF sub 4 then 0x6C; loot is 0x06 on the
 corpse, then 0x07 lift + 0x08 drop per item, gold first; war mode off when nothing
-is near. Pacing comes from humanize.Human.
+is near. Pacing comes from humanize.Human. A blue corpse (0xDEAD notoriety 1: another
+player's kill) gets nothing; a refused open stops the loot (docs/HUNT_LOOP.md "Loot rights").
 
 Rules (all CLI arguments): heal below --heal-at (healing.py: a heal potion whenever
 one can be drunk, else Heal or Greater Heal by the missing hits, Greater Heal from
@@ -45,19 +46,19 @@ the next visit.
 
 Attackers (attackers()): a mob whose 0x2F swing at us is recent; but Outlands has
 never sent one (threats.py docstring), so live also: the mob our own latest swing
-is at (the server turns us on whoever attacks us: live 2026-10-04 our character
+is at (the server turns us on whoever attacks us: live 2026-10-03 our character
 swung at a mongbat that hit it while the runner was engaged on a frog 12 tiles
 off), and a war-mode creature adjacent to us while we took "-N" damage within
 SWING_RECENT_S.
 
-Pinned targets (live 2026-10-04): a target engaged at 12 tiles (--pull-range above
+Pinned targets (live 2026-10-03): a target engaged at 12 tiles (--pull-range above
 10; no spell beyond SPELL_RANGE, no walking to melee) kept the runner idle for 2.5
 min; a harpy at 10 tiles answered every Lightning with "Target cannot be seen."
 for over a minute. One rule for both: an engaged target that is neither adjacent
 nor took damage for PIN_S is dropped and skipped for SKIP_S unless it attacks us.
 --pull-range is capped at SPELL_RANGE.
 
-Weapon (live 2026-10-04): the item on layer 1/2 at the start is kept in hand. Each
+Weapon (live 2026-10-03): the item on layer 1/2 at the start is kept in hand. Each
 Lightning cast moved Shackleworth's prismatic staff (an arcane staff; wiki Arcane:
 casting while wielding one needs Arcane, Magery and Wrestling 80) into the pack. So
 with an arcane staff and any of those skills below 80, or once a cast of ours put the
@@ -66,7 +67,7 @@ potion is in the pack (wait for its cooldown). Whenever the weapon is in the pac
 is put back on with the stock drag `ctl act equip` sends (combat.equip_packets), also
 after the rest outside before going back in.
 
-Stationary Penalty (Outlands debuff, stationary.py; user request 2026-10-04): it comes
+Stationary Penalty (Outlands debuff, stationary.py; user request 2026-10-03): it comes
 301-315 s after our last step (measured), at login and after a recall, and asks for
 5 steps. When it is on, the runner walks it off at once, mid-fight too (the steps it
 asks for + 1, out and back to the fight spot, never over a known teleporter tile);
@@ -126,6 +127,11 @@ SPELL_BLOCK_S = 10.0          # after "too far away" / "cannot be seen": melee o
 NO_LOS_CLILOCS = (500446, 500237)   # "That is too far away." / "Target cannot be seen."
 CORPSE_WAIT_S = 4.0           # a dead mob's corpse item shows up within this
 CONTAINER_WAIT_S = 3.0
+# Loot rights go to whoever did the most damage; opening another player's kill is refused
+# (captures 20261003_113952/_123614/_125556: all 35 refused opens were blue corpses, all 90
+# opened ones grey). The 0xFF sub 0xDEAD notoriety is on the corpse item (world model).
+BLUE = 1                      # notoriety "innocent": a corpse someone else has the loot rights to
+LOOT_REFUSED = re.compile(r"players cannot commit aggressive actions|you may not loot this corpse", re.I)
 POLL_S = 0.4
 TELEPORT_TRIES = 3            # turn, step (+ one retry) onto a teleporter
 TELEPORT_WAIT_S = 1.0         # a confirmed step onto a teleporter: the move follows within this
@@ -133,7 +139,7 @@ HARD_TIMEOUT_GRACE_S = 180.0  # past --timeout the runner leaves; past this too 
 GOTO_Z_TOL = 10               # ctl.GOTO_Z_TOL
 # Arcane staves (wiki Arcane: "Players with at least 80 skill in Arcane, Wrestling, and
 # Magery can continue to cast spells while wielding an Arcane Staff"). 31038 = Outlands'
-# "prismatic staff": live 2026-10-04 (capture 20261003_113952) each Lightning cast by
+# "prismatic staff": live 2026-10-03 (capture 20261003_113952) each Lightning cast by
 # Shackleworth (Arcane 60, Magery 60, Wrestling 80) moved it from layer 2 into the pack
 # (0x1D + 0x25 ~50 ms after the 0xFF cast request, no message)
 ARCANE_STAFF_GRAPHICS = frozenset({31038})
@@ -189,8 +195,8 @@ class HuntLoop:
         self.potions = healing.PotionClock()
         self.visit_n = 0
         self.visit = None            # this visit's counters (episode row)
-        self.totals = {"kills": 0, "gold": 0, "xp": 0, "hits_lost": 0, "casts": 0, "heals": 0, "potions": 0,
-                       "leaves": 0, "visits": 0, "stationary_clears": 0, "repositions": 0}
+        self.totals = {"kills": 0, "lost_kills": 0, "gold": 0, "xp": 0, "hits_lost": 0, "casts": 0, "heals": 0,
+                       "potions": 0, "leaves": 0, "visits": 0, "stationary_clears": 0, "repositions": 0}
         self.still = stationary.Stationary(self.mover, self.human, args.reposition_s)
         self._intent = None
         self.left_why = None         # (why, severity) of the last leave
@@ -460,10 +466,14 @@ class HuntLoop:
 
     def pack_gold(self, st) -> int:
         """Gold in the backpack at any bag depth (piles merge, so serials change)."""
+        return self.pack_amount(st, combat.GOLD_GRAPHIC)
+
+    def pack_amount(self, st, graphic) -> int:
+        """How many of `graphic` the backpack holds at any bag depth."""
         items, pack = st["world"]["items"], self.backpack(st)
         total = 0
         for it in items.values():
-            if it.get("graphic") != combat.GOLD_GRAPHIC:
+            if it.get("graphic") != graphic:
                 continue
             c, depth = it.get("container"), 0
             while c is not None and serial_of(c) != pack and depth < 8:
@@ -749,11 +759,14 @@ class HuntLoop:
             self.link.open_containers(todo, self.human)
 
     def loot(self, c) -> None:
-        """Loot one corpse like `ctl act loot`: refuse human corpses, walk within
-        LOOT_RANGE, open the backpack and the corpse, then lift + drop each item into
-        the backpack, gold first, stopping at the weight limit. Before each item: a
-        heal below --heal-at, and stop when a leave rule fires (live 2026-10-04 hits
-        fell 64 -> 49 of 84 during one loot and the runner left without drinking)."""
+        """Loot one corpse like `ctl act loot`: refuse human corpses and blue ones (another
+        player's kill: loot rights go to the most damage), walk within LOOT_RANGE, open the
+        backpack and the corpse (a refusal stops it: open_answer), then lift + drop each item
+        into the backpack, gold first, stopping at the weight limit. An item counts as taken
+        once it lies in the backpack (or merged into a pile there), never on a lift reject.
+        Before each item: a heal below --heal-at, and stop when a leave rule fires (live
+        2026-10-03 hits fell 64 -> 49 of 84 during one loot and the runner left without
+        drinking)."""
         st = self.state()
         if c.get("corpse") is None:  # 0xDEAD names it; else the corpse that appeared on its tile
             c["corpse"] = self.corpse_of.get(c["mob"]) or next(
@@ -778,6 +791,11 @@ class HuntLoop:
         if combat.human_corpse(corpse):
             log(f"0x{c['corpse']:08X} ({corpse.get('name')}) is a human corpse: not looted")
             return
+        name = corpse.get("name") or c["name"]
+        if corpse.get("notoriety") == BLUE:
+            log(f"corpse of {name} is someone else's kill (blue): not looted")
+            self.refused(c, "blue", st)
+            return
         spot = (corpse["x"], corpse["y"])
         # A crawl fights where it meets things and the target may die well away from where we
         # stand (spells reach 10 tiles, mobs flee), so it walks up to twice the pull range for
@@ -786,7 +804,7 @@ class HuntLoop:
         if cheb(self.anchor(st), spot) > reach:
             log(f"corpse at {spot} is too far ({cheb(self.anchor(st), spot)} tiles) to loot; leaving it")
             return
-        self.doing("loot", f"Looting {corpse.get('name') or c['name']}", spot, c["corpse"])
+        self.doing("loot", f"Looting {name}", spot, c["corpse"])
         if cheb(self.pos(st), spot) > combat.LOOT_RANGE:
             self.mover.walk_to(lambda: spot, 1, "to the corpse")
             st = self.state()
@@ -794,14 +812,24 @@ class HuntLoop:
         gold0, sgold0 = self.pack_gold(st), st["world"]["self"].get("gold")
         self.open_for((pack, True))
         self.human.wait("use")
+        mark = len(self.link.events)
         self.link.act(actions.dclick(c["corpse"]))
-        st = self.link.wait(lambda s: combat.corpse_contents(s["world"], c["corpse"]), CONTAINER_WAIT_S)
-        inside = combat.corpse_contents(st["world"], c["corpse"]) if st else {}
+
+        def answered(s):    # a refusal, or the 0x24 and its contents (they may lag it: an empty corpse waits)
+            a = self.open_answer(mark, c["corpse"])
+            return a is not None and (a != "open" or bool(combat.corpse_contents(s["world"], c["corpse"])))
+        st = self.link.wait(answered, CONTAINER_WAIT_S) or self.state()
+        answer = self.open_answer(mark, c["corpse"])
+        if answer not in (None, "open"):
+            log(f"opening the corpse of {name} refused ({answer!r}): not looted")
+            self.refused(c, answer, st)
+            return
+        inside = combat.corpse_contents(st["world"], c["corpse"])
         # Mastery-chain XP of a kill = the creature's gold value x our damage share
         # (wiki Experience_Gain); solo, the gold the corpse holds is that value [INFERENCE].
         xp = sum(it.get("amount") or 1 for it in inside.values() if it.get("graphic") == combat.GOLD_GRAPHIC)
         self.count("xp", xp)
-        taken = []
+        taken, rejects = [], 0
         for k, it in combat.loot_order(inside)[: self.args.loot_max]:
             st = self.state()
             me = st["world"]["self"]
@@ -814,22 +842,59 @@ class HuntLoop:
                 log(f"weight {me['weight']}/{me['weight_max']}: leaving the rest")
                 break
             self.human.wait("drag")
-            s = serial_of(k)
+            s, graphic = serial_of(k), it.get("graphic")
+            before, lift_mark = self.pack_amount(st, graphic), len(self.link.events)
+
+            def landed(st2):
+                now = st2["world"]["items"].get(k)
+                if now is not None:
+                    return now.get("container") is not None and serial_of(now["container"]) == pack
+                return self.pack_amount(st2, graphic) > before    # merged into a pile in the pack
+
+            def rejected():
+                return any(e.get("ev") == "lift_reject" for e in self.link.events[lift_mark:])
             for pkt in combat.grab_packets(s, it.get("amount") or 1, pack):
                 self.link.act(pkt)
-            moved = self.link.wait(lambda st2: (st2["world"]["items"].get(k) is None or serial_of(
-                st2["world"]["items"][k].get("container") or "0") == pack), CONTAINER_WAIT_S)
-            if moved is not None:
-                taken.append({"serial": k, "graphic": f"0x{it.get('graphic') or 0:04X}", "amount": it.get("amount")})
+            st2 = self.link.wait(lambda st2: rejected() or landed(st2), CONTAINER_WAIT_S)
+            if rejected():
+                rejects += 1
+                log(f"lift of 0x{s:08X} rejected: not taken")
+            elif st2 is not None:
+                taken.append({"serial": k, "graphic": f"0x{graphic or 0:04X}", "amount": it.get("amount")})
         st = self.state()
         gained = max(self.pack_gold(st) - gold0,
                      (st["world"]["self"].get("gold") or 0) - (sgold0 or 0) if sgold0 is not None else 0)
         self.count("gold", gained)
         self.kill_gold(c, gained, spot)
-        log(f"looted {len(taken)} item(s) from {corpse.get('name') or c['name']}: +{gained} gold, ~{xp} xp")
+        log(f"looted {len(taken)} item(s) from {name}: +{gained} gold, ~{xp} xp"
+            + (f" ({rejects} lift(s) rejected)" if rejects else ""))
         self.memory.job_event("hunt", "loot", {"corpse": key_of(c["corpse"]), "mob": key_of(c["mob"]),
                                                "name": c["name"], "gold": gained, "xp": xp, "items": taken,
-                                               "visit": self.visit_n}, **self._where(st))
+                                               "lift_rejects": rejects, "visit": self.visit_n}, **self._where(st))
+
+    def open_answer(self, mark, corpse):
+        """The server's answer to our corpse double-click, from the events after `mark`:
+        "open" (its 0x24), the refusal text ("Players cannot commit aggressive actions in
+        that location." / "You may not loot this corpse.", live as 0xAE system text), or
+        None while there is neither."""
+        for ev in self.link.events[mark:]:
+            kind = ev.get("ev")
+            if kind == "container_open" and serial_of(ev.get("serial") or 0) == corpse:
+                return "open"
+            if kind in ("speech_heard", "cliloc") and LOOT_REFUSED.search(ev.get("text") or ""):
+                return ev["text"]
+        return None
+
+    def refused(self, c, why, st):
+        """A corpse that isn't ours to loot (blue, or our open refused): someone else did the
+        most damage, so the kill was theirs. Its kill credit is taken back (kills - 1,
+        lost_kills + 1); no xp, gold or gold-model sample (the 0 gold isn't the creature's:
+        the `loot` event's `refused` keeps crawl.load_prior from learning it)."""
+        self.count("kills", -1)
+        self.count("lost_kills")
+        self.memory.job_event("hunt", "loot", {"corpse": key_of(c["corpse"]), "mob": key_of(c["mob"]),
+                                               "name": c["name"], "gold": 0, "xp": 0, "items": [],
+                                               "refused": why, "visit": self.visit_n}, **self._where(st))
 
     def kill_gold(self, c, gold, at=None):
         """Crawling: a kill's gold for the model (0 when its corpse never showed: a pet or
@@ -1013,7 +1078,7 @@ class HuntLoop:
         self.visit = {"loop": "hunt", "visit": self.visit_n, "t_start": round(time.time(), 1),
                       "spot": list(self.spot), "fight_spot": list(self.fight_spot),
                       "spell": combat.MAGERY_SPELLS[self.spell - 1],
-                      "hits_start": st["world"]["self"].get("hits"), "kills": 0, "gold": 0, "xp": 0,
+                      "hits_start": st["world"]["self"].get("hits"), "kills": 0, "lost_kills": 0, "gold": 0, "xp": 0,
                       "hits_lost": 0, "casts": 0, "heals": 0, "stationary_clears": 0, "repositions": 0}
 
     def end_visit(self, why):
@@ -1210,7 +1275,8 @@ class HuntLoop:
             raise Abort(f"not near the hunting spot {self.spot} (at {self.pos(st)[:2]}); use --enter")
         self.hunt()
         t = self.totals
-        log(f"hunt complete: {t['kills']} kill(s), {t['gold']} gold, ~{t['xp']} xp, {t['hits_lost']} hits lost, "
+        log(f"hunt complete: {t['kills']} kill(s) ({t['lost_kills']} more lost to others' loot rights), "
+            f"{t['gold']} gold, ~{t['xp']} xp, {t['hits_lost']} hits lost, "
             f"{t['leaves']} leave(s); outside")
         self.doing("done", f"Finished: {t['kills']} kill(s), {t['gold']} gold, ~{t['xp']} xp")
 
@@ -1223,7 +1289,7 @@ def stop_intent(loop, text):
         pass
 
 
-def main():
+def arg_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--spot", type=int, nargs=2, default=[5535, 529], metavar=("X", "Y"),
                     help="the exit spot: leaving walks here, then steps --exit-dir (default: the NPD exit tile)")
@@ -1303,6 +1369,11 @@ def main():
     ap.add_argument("--state-port", type=int, default=25942)
     ap.add_argument("--memory", default=DEFAULT_DB,
                     help="harness memory (SQLite, docs/MEMORY.md): walk memory, junctures, episodes")
+    return ap
+
+
+def main():
+    ap = arg_parser()
     args = ap.parse_args()
     if args.crawl and args.fight_spot:
         ap.error("--crawl patrols the floor: no --fight-spot with it")
