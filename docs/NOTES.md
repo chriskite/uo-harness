@@ -410,13 +410,18 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   accepted**. So a non-Young character can still talk to this Shelter NPC (the New Player Guide's
   "will not be able to interact with Shelter Island NPCs" doesn't hold for her). Patch note and
   sister quests: docs/research/TRAVEL_DEATH.md §1.4.
-- **Guard false positive on Shelter:** the goto from the gate "avoided" a phoenix and a gravebug at
-  (1970, 2528), radius 11. On Shelter those are almost surely tamers' pets [INFERENCE]; the
-  detour cost nothing here, but the guard treats them as threats. Same walk later: "avoiding a
-  sheep" by the Shelter bank turned a 44-step route into 142 steps. A sheep's body (207) is in
-  `passive_bodies`, so it was flagged by war mode (someone was killing it; "a sheep corpse"
-  followed) [INFERENCE]. A creature fighting someone else isn't a threat to us; the rule needs a
-  passive-body or not-at-us exception.
+- **Guard false positives on Shelter, cause found and fixed (6b7f31f).** The goto from the gate
+  "avoided" a phoenix and a gravebug at (1970, 2528): notoriety-1 "(bonded)" pets in war mode
+  beside their owner. Later "avoiding a sheep" by the bank turned a 44-step route into 142: two
+  sheep turned war mode beside "Billiam Gatherer (Young)" and died 17–31 s later. War mode was
+  the only evidence, and it was checked before `passive_bodies`. Now pets (the "(tame)",
+  "(bonded)" or "(summoned)" line, always type 0 hue 946) count as hostile only when red or
+  swinging at us, and a passive body is never hostile by war mode alone. The four false
+  `monster_seen` rows were deleted from the store.
+- **Outlands never sends 0x2F with us as the defender.** All 2172 stored swings are our own, and
+  there are no 0x0B damage packets. Damage to us shows only as overhead "-N" (hue 946 on self),
+  so `status.attackers` is always empty live. The hunt runner now finds attackers by our own
+  swing's defender and by war-mode monsters adjacent while we take "-N".
 - **Shelter's banker refuses a non-Young character** ("Alas, my goods and services are only
   available to those with young player status.", Len, 2026-10-04). The bank box is per character,
   so any mainland banker opens the same box: Outpost is the closest from a moongate (arrival
@@ -430,8 +435,31 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   **2250-charge spellstone**). A mongbat has ~220 hits (above), i.e. ~7 Lightnings for ~16–21
   gold, so buying Lightning reagents to hunt them would lose gold [INFERENCE: NPC reagent prices
   not read], and Wrestling (2–8 damage) is too slow. With bought reagents the hunt runner would
-  also retry failed casts: it doesn't check reagents before casting.
+  also retry failed casts: it didn't check reagents before casting (fixed in 6b7f31f: casts are
+  checked against `combat.SPELL_REAGENTS` or a spellstone, and 502630 blocks the spell for the
+  visit).
 - **`ctl say` is chat to the overseer, not game speech.** In-game speech is `ctl act say <text>`.
+- **Shackleworth (2026-10-04), the quest character:** a new Young "Arcane Mage" on the same
+  account. Magery, Eval Int, Meditation, Necromancy, Focus and Arcane 60, Wrestling 80. A
+  prismatic staff (12–24 damage), arielle's bauble, 10 each of yellow/orange/red potions,
+  100 bandages. Cortina's quest was accepted at 11:42. The accepted-quest gump shows Complete
+  Quest / Abandon Quest near buttons 13 and 16 (ambiguous by label; read `controls` positions
+  before pressing) and 7 Track Progress. A fresh login showed the buff "Stationary Penalty"
+  ("All damage is reduced to 1. Move N more steps to remove this effect").
+- **Arcane staff vs casting:** "Players with at least 80 skill in Arcane, Wrestling, and Magery
+  can continue to cast spells while wielding an Arcane Staff"
+  ([wiki Arcane](https://wiki.uooutlands.com/Arcane)). Below that, every cast moves the staff
+  to the pack (0x1D + 0x25 ~50 ms after our 0xFF cast, no message). The hunt runner now melees
+  with the staff, uses potions first inside, and re-equips it with the stock lift + 0x13.
+- **The prismatic staff (graphic 31038) has tiledata layer 0** (flags include Wearable).
+  `ctl act equip` falls back to the layer the server last wore it on (`world.worn_layers`), then
+  `combat.KNOWN_LAYERS` {31038: 2}. `worn_layers` and the pet flag need a proxy restart.
+- **Hunt runner pins (fixed):** with `--pull-range` above the 10-tile spell range it engaged a
+  frog 12 tiles away and waited forever. A harpy behind a wall answered "Target cannot be seen"
+  (500237) for minutes. A target neither adjacent nor hurt for 15 s is now dropped for 60 s,
+  and the pull range is capped at 10. The loot loop also never healed: hits fell 64 → 49 of 84
+  while looting and it left without drinking; loot() now heals and checks the leave rules
+  before each item.
 
 ## Runebook and rune tome gumps (live 2026-10-02, TestWorth on the Test Shard)
 
@@ -552,7 +580,7 @@ Read from the memory-store `gump_open` events and the session capture
 
 ## Backups (NAS, since 2026-10-01)
 
-- **What:** `harness/backup.py` copies the gitignored data that can't be recreated easily to `\\STARGAZER\files\uo-harness` (mapped as `F:` interactively): gzipped snapshots of `harness/data/harness.db` (`db/`) and, since 2026-10-03, of the Discord capture `harness/data/discord.db` (`discord/`, same snapshot method and retention, skipped while it doesn't exist), `logs/` (session captures, screens, overseer task logs), repo-root `*.pcapng`/`*.etl`/`*.png`/`divert.log` (`artifacts/`) and the 1.4 GB Ghidra project (`ghidra/`). The module docstring lists what is deliberately left out (git-tracked files, `logs_test*/`, downloads, regenerable dumps, credentials, the Discord browser profile).
+- **What:** `harness/backup.py` copies the gitignored data that can't be recreated easily to `\\STARGAZER\files\uo-harness` (mapped as `F:` interactively): gzipped snapshots of `harness/data/harness.db` (`db/`) and, since 2026-10-03, of the Discord capture `harness/data/discord.db` (`discord/`, same snapshot method and retention, skipped while it doesn't exist), the Discord images `harness/data/discord_media/` (`discord_media/`, additive, skipped while absent), `logs/` (session captures, screens, overseer task logs), repo-root `*.pcapng`/`*.etl`/`*.png`/`divert.log` (`artifacts/`) and the 1.4 GB Ghidra project (`ghidra/`). The module docstring lists what is deliberately left out (git-tracked files, `logs_test*/`, downloads, regenerable dumps, credentials, the Discord browser profile).
 - **Schedule:** Task Scheduler task `uo-harness backup`, hourly, registered by `register_backup_task.ps1` (re-run it to change anything). It runs `pythonw.exe` (no console window over the game) as the current user, non-elevated, only while logged on, so no password is stored.
 - **Mapped drives are per logon session**, so a scheduled task doesn't reliably see `F:`. The script uses the UNC path, which works through the logon session's SMB connection (verified: `schtasks /run` → Last Result 0, snapshot written).
 - **DB snapshot:** SQLite online backup API from a `mode=ro` connection (never checkpoints or writes the live store; rows still in the WAL are included), switched to rollback-journal mode so the file stands alone, `PRAGMA quick_check` before shipping, then written as `.part` and renamed. Backups of an unchanged store are byte-identical, so a sha256 in `db/latest.json` skips duplicates. Retention: every snapshot from the last 48 h, then the newest per day, kept indefinitely (~6.5 MB each; 38 MB raw). Restore: stop the proxy, gunzip to `harness/data/harness.db`, delete stale `-wal`/`-shm`.
@@ -597,6 +625,12 @@ Read from the memory-store `gump_open` events and the session capture
 - **Install (done 2026-10-03):** `py -3.13 -m venv .venv-discord && .venv-discord/Scripts/python.exe -m pip install patchright zstandard` (patchright 1.63.0, zstandard 0.25.0). No browser download: it drives the installed Microsoft Edge (`--channel msedge`; Edge 154 here; Chrome isn't installed). Patchright's README setup is persistent context + `channel` + `headless=False` + `no_viewport=True` with no UA/header overrides; checked: `navigator.webdriver` is `false` and the UA is stock Edge.
 - **Run:** `.venv-discord/Scripts/python.exe harness/discord_capture.py serve` opens the window (profile `harness/data/discord_profile/`, which holds the login: gitignored, never backed up; the login survived a restart) and listens on `127.0.0.1:25980`. Every other subcommand talks to that port and runs under the plain harness Python: `status`, `shot` (PNG in `logs/discord/`), `goto URL`, `click SEL`, `fill SEL TEXT`, `press KEY`, `eval JS`, `guilds`, `channels GUILD` (category tree with captured counts), `crawl GUILD --channels A,B --until YYYY-MM-DD`, `crawl-stop`, `quit`. `stats`, `search QUERY [--channel NAME]` and `ignore CHANNEL_ID...` use the DB directly. Log: `logs/discord/capture.log`.
 - **What it records:** only responses the web app requested: `GET /api/v*/channels/<id>/messages` (scrolling and jumps), guild message search, thread/forum lists; plus the gateway WebSocket, decoded with a decompressor that lasts the whole connection (zstd-stream or zlib-stream, read from the URL's `compress=` parameter). From the gateway it takes READY/GUILD_CREATE channel lists and live MESSAGE_CREATE/UPDATE. Each message is upserted by id, and an edit replaces the stored text, with the FTS index following through triggers. `captures` logs every recorded response (status, count), so 429s and 403s show up there.
+- **Images (since 2026-10-03, user request):**
+  - Every image attachment (`content_type` image/*) of a stored message is queued in the `media` table and downloaded by serve's background loop. Files go to `harness/data/discord_media/<channel>/<attachment id>-<filename>` (gitignored; backed up additively to the NAS `discord_media/` by `backup.py`). `media.path` is relative to that folder, with `/` separators.
+  - Each download is checked: sha256 and size are recorded, and the first files had valid PNG/JPEG headers with matching bytes. Downloads are one at a time, 0.5–2 s apart, capped at 50 MB per file. Videos and other files are not downloaded; their metadata stays in `messages.attachments`.
+  - **CDN links are signed and expire after ~24 h** (`ex=` is the expiry as hex epoch, e.g. `6ac285c5` = 2026-10-04). So downloads must happen within a day of the capture, and serve does them whenever it runs. A 403/404/410 marks the row `expired`. Recapturing the message, by opening the channel at that point, brings a fresh URL and re-arms it (`pending`).
+  - The download is a plain HTTPS GET of the public signed URL (stdlib urllib with the browser's UA string). It carries no token, so only the IP ties it to the account. It fetches the same file the app displays.
+  - The volume is noticeable: the first ~7.3k messages carried 338 images, 191 MB.
 - **Crawl:** for each channel, jump to the oldest stored message (`/channels/G/C/<id>`, an `around=` load) and send mouse-wheel bursts over the message list's scrollable ancestor until a `before=` page arrives. Aim at the scroller's rectangle, not `[data-list-id='chat-messages']` itself: that `<ol>` is the full list height and mostly off screen (live: y = -2318, height 5986), so wheeling at its box missed and the first run stalled. After each page it waits 2–6 s, plus 20–90 s on 6 % of pages, and takes a 5–15 min break every 60–90 min. A `before=` page shorter than its `limit` means the channel's start (`crawl.reached_start`); `--until` stops earlier. After 3 jumps that load nothing it gives up on the channel (`crawl.note`). Every 150 pages it re-jumps, to drop the app's in-memory list. On a captcha it beeps and waits for a human to solve it in the window. On a logout it beeps and stops. After a 429 it pauses 10–15 min.
 - **Live facts (2026-10-03):**
   - The web app pages history small: `limit=10` for a channel's first page, `limit=20` per older page. Measured pace: 11 pages (220 messages) in ~75 s, so ~10k messages/hour.
