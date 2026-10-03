@@ -23,7 +23,13 @@ You are working on **uo-harness**: an AI agent harness that plays Ultima Online 
 
 ## Conventions
 
-- Python 3.13 (`C:\Users\chris\AppData\Local\Programs\Python\Python313\python.exe`) for harness code; PowerShell for Windows glue; Java for Ghidra scripts.
+- Python 3.13 for harness code; PowerShell for Windows glue; Java for Ghidra scripts.
+  - **Run it as plain `python`** (`python harness/foo.py`, `python -m pytest harness/test_x.py`, `python -c "..."`). `python` / `python.exe` is on PATH and resolves to the 3.13 install. Do **not** spell out `C:/Users/chris/AppData/Local/Programs/Python/Python313/python.exe`; it costs tokens on every call and adds nothing. `python3` is a broken Microsoft Store stub here, so never use it.
+- **JSON: use `jq` on the command line, not a Python one-off.** `jq` is on PATH (it is actually **jaq 2.3.0**, a jq clone; `-r`, `-c`, `-s`, `--arg`, `select`, `map`, `to_entries`, `@csv`, `as $x` all verified). Reach for Python only when the job needs harness code (decoding packets, importing `harness.*`) or logic jq can't express.
+  - Inputs that are already JSON: `curl -s http://127.0.0.1:8080/api/state | jq ...` (viz), the state port, `logs/session_*.jsonl` (one JSON object per line, so `jq -c 'select(.id=="0x77")' logs/session_X.jsonl` streams it row by row), `harness/data/*.json`, `docs`-cited fixtures.
+  - Cheap patterns: `jq -c '.movement.pos'` (one field), `jq -r '.world.mobiles | keys[]'` (list keys), `jq -c '[.events[] | select(.ev=="speech_heard")] | length'` (count), `jq -s 'group_by(.id) | map({id: .[0].id, n: length})' file.jsonl` (histogram over a jsonl file), `jq 'keys'` / `jq '.x | keys'` first to learn the shape before writing a bigger filter.
+  - Save big responses to a file (`curl -s URL > /tmp/s.json`) and query it repeatedly rather than refetching or printing it. Keep output small: project fields, use `-c`, slice with `[:N]` or `limit(N; ...)`.
+  - Never print `ClassicUO/settings.json`, with jq or otherwise (Constraint 3).
 - The shell is git-bash-like: forward slashes or quoted paths (backslashes get eaten), no `$_` in inline PowerShell (write `.ps1` files), `timeout` is GNU syntax, `cp` not `copy`.
 - Launching the game: `launch_game.ps1` — Outlands.exe elevates (UAC); the user must accept the prompt.
 - Ghidra headless: project dir must pre-exist; import path must have no spaces/parens (use the workspace exe copy); see `docs/NOTES.md` for the full invocation.
