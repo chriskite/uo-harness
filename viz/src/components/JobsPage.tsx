@@ -381,6 +381,7 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
                     loss/trip
                   </th>
                   <th className="num">PK escapes</th>
+                  <th className="num">creature recalls</th>
                   <th className="num">place fails</th>
                   <th className="num">supplies/trip</th>
                   <th>last trip</th>
@@ -425,6 +426,8 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
                       {fmtNum(s.loss_logs_trip, 0)}
                     </td>
                     <td className={s.pk_escapes ? "mono num warn" : "mono num"}>{s.pk_escapes}</td>
+                    <td className={s.creature_recalls ? "mono num warn" : "mono num"}
+                        title={`${s.creature_hits ?? 0} creature hit(s) taken here`}>{s.creature_recalls ?? 0}</td>
                     <td className={s.place_fails ? "mono num warn" : "mono num"}>{s.place_fails}</td>
                     <td className="mono num" title={s.supply_unpriced ? `${s.supply_unpriced} supply units unpriced (ctl lumber price)` : undefined}>
                       {s.supply_gp_trip ? fmtGp(s.supply_gp_trip) : s.supply_unpriced ? "unpriced" : "—"}

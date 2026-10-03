@@ -29,9 +29,12 @@ the Mover guard a goto runs with (agent_link.Mover calls it after every step):
     only stops on a hostile player.
 
 What it learns across walks (the store's `monster_seen` job events, written
-here and by the lumber runner's escapes): creature bodies seen hostile count as
-aggressive from then on (`learned_params`), so a harpy is avoided on sight next
-time, before it turns to fight; and the tiles around recent sightings are
+here and by the lumber runner's escapes, and `monster_hit`, the lumber
+runner's damage episodes): creature bodies seen hostile or that hit us as the
+only candidate count as aggressive from then on (`learned_params`), so a harpy
+is avoided on sight next time, before it turns to fight; a body that hit us
+with no creature adjacent is ranged, with its reach raised to the farthest
+such hit (threats.creature_reach); and the tiles around recent sightings are
 costly to route through (`remembered_tiles`, Mover.danger_tiles), so routes
 bend around known nests before anything is in view.
 """
@@ -59,11 +62,36 @@ def sightings(memory, days: float = REMEMBER_DAYS) -> list:
     return [{"t": t, "facet": f, "x": x, "y": y, **json.loads(d)} for t, f, x, y, d in rows]
 
 
+def hits(memory) -> list:
+    """monster_hit job events (the lumber runner's damage episodes), oldest first."""
+    rows = memory.con.execute("SELECT data FROM job_events WHERE kind = 'monster_hit' ORDER BY t").fetchall()
+    return [json.loads(d) for d, in rows]
+
+
+def learn_hit(params: threats.Params, body, distance, attackers) -> threats.Params:
+    """params with one damage episode learned (a monster_hit's body, distance and
+    attacker count): a sole attacker's body is aggressive, and ranged with its
+    reach raised to `distance` when that is beyond melee. Passive bodies and
+    hits shared between candidates teach nothing."""
+    if not isinstance(body, int) or attackers != 1 or body in params.passive_bodies:
+        return params
+    ranged, far = params.ranged_bodies, dict(params.body_reach)
+    if isinstance(distance, int) and distance > params.monster_strike_range:
+        ranged = ranged | {body}
+        far[body] = max(far.get(body, 0), distance)
+    return dataclasses.replace(params, aggressive_bodies=params.aggressive_bodies | {body},
+                               ranged_bodies=ranged, body_reach=tuple(sorted(far.items())))
+
+
 def learned_params(memory, base: threats.Params = threats.Params()) -> threats.Params:
-    """base with every body ever seen hostile added to aggressive_bodies."""
+    """base with every body ever seen hostile added to aggressive_bodies, and every
+    monster_hit episode learned (learn_hit)."""
     bodies = {s["body"] for s in sightings(memory, days=100_000) if isinstance(s.get("body"), int)}
     bodies -= set(base.passive_bodies)
-    return dataclasses.replace(base, aggressive_bodies=frozenset(set(base.aggressive_bodies) | bodies))
+    p = dataclasses.replace(base, aggressive_bodies=frozenset(set(base.aggressive_bodies) | bodies))
+    for h in hits(memory):
+        p = learn_hit(p, h.get("body"), h.get("distance"), h.get("attackers"))
+    return p
 
 
 def remembered_tiles(memory, facet, pos, radius: int = REMEMBER_R) -> set:

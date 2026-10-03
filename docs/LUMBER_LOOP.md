@@ -626,14 +626,75 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   a stale fight or melee range keeps `flee` (threats.py docstring).
 - **Escape instead of abort for monsters (since 2026-10-01):** a `flee`-level creature, or one
   swinging at us (0x2F, defender = self), posts the urgent `threat` juncture as before with
-  `data.action = "escape"`, and the runner walks away from it: to a tile 2 beyond its flee radius
-  (`ESCAPE_MARGIN`), preferring tiles walked before within 60° of straight away, else straight
-  away or 45° to either side. Then it carries on with the next tree out of the reach of every
-  creature it escaped from this trip (an escape in the convert or bank phase repeats that phase).
-  It stops instead (`data.action = "abort"`) when the creature is still in flee range right after
-  the escape ("it kept coming"), after 3 escapes in a trip (`ESCAPES_PER_TRIP`), on damage to us
-  (a hit-point drop or a 0x0B on self), during a speech hold, and, as before, at once for a
-  hostile player/red/grey/orange in flee range or a non-creature swinging at us.
+  `data.action = "escape"`, and the runner walks away from it: to a tile 2 beyond its reach
+  (`ESCAPE_MARGIN`; the reach is its flee radius, or for a ranged creature the 12-tile spell range
+  if that is more, since 2026-10-04: "Running from a creature" below), preferring tiles walked
+  before within 60° of straight away, else straight away or 45° to either side. Then it carries on
+  with the next tree out of the reach of every creature it escaped from this trip, around where it
+  is and where it was (an escape in the convert or bank phase repeats that phase). It stops
+  instead (`data.action = "abort"`, or `recall` far from home) when the creature is still in flee
+  range (a ranged one: within its reach) right after the escape ("it kept coming"), after 3
+  escapes in a trip (`ESCAPES_PER_TRIP`), during a speech hold, on damage when the rule below
+  says so (until 2026-10-04: on any damage), and, as before, at once for a hostile
+  player/red/grey/orange in flee range or a non-creature swinging at us.
+- **Running from a creature (since 2026-10-04; `creature_hit`, `hit_verdict`,
+  `threats.hit_attackers`):** live 2026-10-04 at witcher_291 a gazer (body 22) at 6 tiles got the
+  melee-sized escape (flee radius 8 + 2: we stopped 11 tiles from it), and 4 s later it hit us
+  from 12 tiles. Since 3316e5b any damage recalled home, so a 2-minute trip (library walk, charge,
+  lockout) ended for one creature that walking further away would have shaken off.
+  - **Damage** is a hits drop (Outlands sends no 0x2F at us and no 0x0B; docs/NOTES.md). Who did
+    it is inferred from the creatures in view: those swinging at us or adjacent (melee), plus
+    known-ranged ones within their reach; with nothing adjacent, the hit came from afar, so every
+    candidate within its reach, at least `threats.CREATURE_SPELL_RANGE` = 12 tiles (user decision
+    2026-10-04: "spell range is 12 tiles"), counts and the hit is ranged. Candidates are hostile
+    creatures and creatures of unknown aggression; never pets or passive bodies (threats.py). With
+    no candidate within its reach, a creature we walked away from this trip that is still in view
+    is taken to outrange it (a sole attacker's distance is then learned as its body's reach).
+  - **Run** when a single creature could have hit us, no hostile player is in view, hits are at or
+    above `--creature-recall-at` (0.6) of max, the hit didn't come within `--creature-rehit-s`
+    (10 s) of arriving from the last walk-away, and escapes are left (3 per trip, shared with the
+    flee-range escapes; never during a speech hold). The runner posts `threat` with
+    `data.action = "escape"` and `data.hit`, walks beyond the attacker's zone (`zone_r`: max(flee
+    radius, reach) + 2, so 14 tiles from a ranged one, 10 from a melee one), then chops on at a tree
+    outside the zone (around the creature and around where it was, for the rest of the trip).
+    The damage so far is acknowledged (`threats.Watch.acknowledge`); only new drops count after.
+    A hit while still walking away, at healthy hits, walks on (`walk_on`). Line of sight isn't
+    used: the map reader has no LOS test yet, so distance alone takes us out of reach.
+  - **Home instead** (`monster_stop`: recall when more than 60 tiles from the banker with a book
+    ready, else stop in place; no log conversion either way) on: hits below the threshold, two or
+    more possible attackers, damage with nothing in view to blame, a hostile player in view, damage
+    within 10 s of arriving from a walk-away ("still taking damage … after the walk-away"), no
+    escapes left, a speech hold. "It kept coming" and the conversion rules are unchanged.
+  - **Reach** (`threats.creature_reach`): melee 1; ranged 12 for `threats.RANGED_BODIES` (the
+    gazer, 22) and for every body that hit us as the only candidate from beyond melee range
+    (`travel_guard.learn_hit`, also from the store's `monster_hit` rows at start, so the next run
+    knows it). A learned distance only raises a body's reach above 12, never lowers it. A sole
+    attacker's body also counts as aggressive from then on. [INFERENCE] The attribution is a
+    guess when several creatures are around or the damage had another source (poison, an unseen
+    player): such hits then wrongly teach a body as ranged; hits shared between candidates
+    teach nothing.
+  - **Trees near known-aggressive creatures wait** (`next_tree`/`tree_guards`): a hostile creature
+    in view (learned body, war mode, notoriety 6; not pets, not passive bodies, so no walking away
+    from sheep or a tamer's pets) makes every tree within its zone ineligible while it is in view,
+    so the runner picks one away from it instead of chopping next to it until it attacks. The trees
+    stay in the trip's list and come back when it leaves; when every tree left is guarded the
+    harvest ends (`creature_blocked`, not `dry`) and the trip banks.
+  - **Recorded:** a `monster_hit` job event per damage episode (`body`, `name`, `serial`,
+    `distance`, `hits_lost`, `trip`, `spot`, `hits`/`hits_max`, `attackers` (count) and
+    `attacker_serials`, `ranged`, `reach`, `aggression`, `escapes`, `walking`, `since_run_s`,
+    `action` run/walk_on/recall/stop, `why`); the trip row's `creature` = {`escapes`, `hits_lost`,
+    `recalled` (a creature sent us home by recall), `why` (what ended the trip, null when none
+    did), `runs`, `hits`, `avoided_trees`}; a recall job event's `cause` (`creature` / `player`).
+    The dashboard (`jobs.lumber_plan`) shows creature recalls per spot apart from PK escapes
+    (older recall rows: `jobs.recall_cause`). lumber_opt reads none of this yet: the hazard is the
+    PK model, and a creature's cost already shows in the field rate and overhead of the trips it
+    cut short; another change owns the model.
+  - **Test:** `test_loop_lumber.py` scenarios `gazer_run` (a gazer casts once from 10 tiles: run
+    to beyond 12, chop on at the far tree, bank), `gazer_rehit` (it outranges the walk-away and
+    hits again: recall home, no conversion) and `wary` (a war-mode creature 2 tiles from the
+    nearest tree: the farther tree first, the near one once it has gone); `unit_hit_verdict`;
+    `harness/test_threats.py` (attribution, acknowledgement), `harness/test_travel_guard.py`
+    (learning from `monster_hit`).
 - **Recall escape on players (since 2026-10-02, docs/PLAN.md "Red sighting"; `harness/escape.py`):**
   - **Readiness:** off Shelter the runner starts only with a runebook or rune tome in the pack
     that has a default rune and either a charge or a castable Recall (mana plus reagents or a
@@ -726,7 +787,8 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   restriction), a closed agent gate (kill, budget), an open `gm_suspected` juncture or a speech
   hold. The conversion ignores the timeout, HP and creature checks; a player or death still
   interrupts it. A process kill converts nothing.
-- **A creature stop recalls home first (since 2026-10-03):** taking damage, a creature that kept
+- **A creature stop recalls home first (since 2026-10-03):** damage the run rule above doesn't
+  cover (since 2026-10-04; before, any damage), a creature that kept
   coming after the walk-away escape, too many escapes, or a creature during a speech hold ends the
   run without converting (`monster_stop`), and when the runner is more than `HOME_NEAR` (60) tiles
   from the banker with a recall book ready, it recalls home first (`recall_out`, up to 3 casts) and
@@ -793,8 +855,8 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   the captured tome and runebook layouts).
 - **Routes around monsters (since 2026-10-03, `harness/travel_guard.py`):** creatures escaped from
   this trip become Mover danger zones (routes bend around them), every escape is a `monster_seen`
-  job event, bodies seen hostile count as aggressive from then on, and tiles around sightings of
-  the last 30 days cost more to walk through.
+  job event, bodies seen hostile (or that hit us alone, `monster_hit`) count as aggressive from
+  then on, and tiles around sightings of the last 30 days cost more to walk through.
 - **Episode row for every trip (since 2026-10-02):** written in a `finally`, so a trip that aborts
   (threat, escape that kept coming, unknown outcomes, no trees) still leaves `outcome: aborted` and
   `why`, with the phases it got through. Leaving those out flattered exactly the spots where trips
@@ -889,10 +951,15 @@ model prunes mobiles out of view.
   no threat (a passive body in war mode, threats.py). A creature then swings at the agent: `escape` juncture, a walk beyond its flee
   radius, harvesting resumes at the far tree out of its reach. There the creature comes back and
   follows step for step: a second `escape`, then `abort` ("it kept coming"), and the 6 carried
-  logs are converted before the exit (code 1).
+  logs stay logs: a creature still coming stops at once (since 2026-10-03; code 1).
 - **break:** a pre-written agent gate file makes the break due after 4 s of agent activity; the
   harvest stops early, the 5 carried and the new logs are converted and banked, `break due:
   banked`, exit 0, one episode row with `break_due`.
+- **gazer_run / gazer_rehit / wary** (since 2026-10-04, "Running from a creature" above): a gazer
+  that casts from 10 tiles once (run beyond 12, chop on at the far tree, bank, exit 0), the same
+  gazer outranging the walk-away (hit again within 10 s of arriving: recall home, no conversion,
+  exit 1), and a war-mode creature by the nearest tree (the farther tree first, no escape).
+  `python test_loop_lumber.py gazer_run wary` runs named scenarios alone.
 
 **Live proof, run by the user or the agent while the user is at the client:**
 `python harness/loop_lumber.py --trips 1`. Only two trees are known (§12.1). A depleted tree is

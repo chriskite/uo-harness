@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from threats import Params, Watch, assess, flee_radius  # noqa: E402
+from threats import CREATURE_SPELL_RANGE, Params, Watch, assess, flee_radius, hit_attackers  # noqa: E402
 
 FAILURES = []
 ME = 0x00094375
@@ -312,8 +312,53 @@ def test_fighting_others():
     eq("murderer-red creature fighting another -> flee", one(a, 0x602).action, "flee")
 
 
+def test_acknowledge():
+    print("== acknowledged damage: only new drops count ==")
+    w = Watch()
+    w.update(state(hits=50), recall_s=2.0, margin_s=1.0, now=NOW)
+    a = w.update(state(hits=40), recall_s=2.0, margin_s=1.0, now=NOW + 1)
+    eq("a drop is damage", a.damage["lost"], 10)
+    w.acknowledge(now=NOW + 1)
+    a = w.update(state(hits=40), recall_s=2.0, margin_s=1.0, now=NOW + 2)
+    eq("the same hits after the acknowledgement: calm", (a.under_attack, a.damage["lost"]), (False, 0))
+    a = w.update(state(hits=35), recall_s=2.0, margin_s=1.0, now=NOW + 3)
+    eq("a further drop counts from the acknowledged hits", a.damage["lost"], 5)
+    w.acknowledge(now=NOW + 3)
+    ev = [(NOW + 2.5, {"ev": "damage", "serial": ME, "amount": 3})]
+    eq("a damage event from before the acknowledgement is dealt with",
+       w.update(state(hits=35, events=ev), recall_s=2.0, margin_s=1.0, now=NOW + 4).under_attack, False)
+
+
+def test_hit_attackers():
+    print("== who hit us: melee range, else ranged within the spell range; never pets or passive bodies ==")
+    p = Params()
+
+    def who(mobs, swung=()):
+        a = assess(state(mobs), recall_s=2.0, margin_s=1.0, now=NOW, params=p)
+        out, ranged = hit_attackers(a, p, swung)
+        return [t.serial for t in out], ranged
+    calm = {"noto": 3, "flags": 0}
+    eq("a gazer 10 tiles off, nothing adjacent: it, ranged",
+       who([mob(0x501, 10, 0, body=22, **calm)]), ([0x501], True))
+    eq("an unknown creature 11 tiles off (aggression unknown): ranged by default",
+       who([mob(0x502, 11, 0, body=0x99, **calm)]), ([0x502], True))
+    eq("beyond the spell range: nobody to blame",
+       who([mob(0x503, CREATURE_SPELL_RANGE + 1, 0, body=0x99, **calm)]), ([], True))
+    eq("an adjacent creature is the melee attacker; an unknown one 8 tiles off isn't counted",
+       who([mob(0x504, 1, 1, body=0x27, **calm), mob(0x505, 8, 0, body=0x99, **calm)]), ([0x504], False))
+    eq("adjacent melee plus a gazer within its reach: two attackers",
+       sorted(who([mob(0x504, 1, 0, body=0x27, **calm), mob(0x501, 9, 0, body=22, **calm)])[0]), [0x501, 0x504])
+    eq("a sheep and a bonded pet next to us are never blamed; the gazer is",
+       who([mob(0x506, 1, 0, body=0xCF, **calm), mob(0x507, 1, 1, body=832, noto=1, flags=0x40, pet="bonded"),
+            mob(0x501, 7, 0, body=22, **calm)]), ([0x501], True))
+    eq("two ranged candidates: the ranged body first, both counted",
+       who([mob(0x502, 4, 0, body=0x99, **calm), mob(0x501, 9, 0, body=22, **calm)]), ([0x501, 0x502], True))
+    eq("one swinging at us 3 tiles off is the attacker",
+       who([mob(0x508, 3, 0, body=0x27, **calm)], swung={0x508: NOW}), ([0x508], True))
+
+
 TESTS = [test_reds, test_npcs_and_players, test_monsters, test_pets, test_damage, test_label_grace,
-         test_fighting_others]
+         test_fighting_others, test_acknowledge, test_hit_attackers]
 
 
 def main():

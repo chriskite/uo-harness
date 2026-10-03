@@ -205,6 +205,7 @@ def _trip_extra(row: dict, duration, logs) -> dict:
             "speech_wait_s": round(_num(row.get("speech_wait_s")), 1),
             "stationary_clears": int(_num(row.get("stationary_clears"))) + int(_num(row.get("repositions"))),
             "escapes": int(_num(row.get("escapes"))),
+            "creature": row.get("creature") if isinstance(row.get("creature"), dict) else None,
             "skill": _num(row.get("skill"), None), "skill_end": _num(row.get("skill_end"), None),
             "supplies": row.get("supplies") if isinstance(row.get("supplies"), dict) else None,
             "players_seen": _num(row.get("players_seen"), None), "dry": bool(row.get("dry")),
@@ -398,29 +399,47 @@ def supplies_total(trips: list[dict]) -> dict:
 PLAN_DRAWS = 1000
 
 
+def recall_cause(data: dict) -> str:
+    """'creature' or 'player' for a lumber recall/guard_flight event. Since 2026-10-04 the
+    runner writes data.cause; before, only the creature stop (monster_stop) gave a why
+    other than a tracking hit's ('tracking: ...'), and its threat was a monster or none."""
+    if data.get("cause"):
+        return data["cause"]
+    why = data.get("why") or ""
+    kind = (data.get("threat") or {}).get("kind")
+    return "creature" if kind == "monster" or (why and not why.startswith("tracking") and kind is None) else "player"
+
+
 def lumber_plan(memory, now: float) -> dict:
     """`ctl lumber plan` as the dashboard sees it: lumber_opt.plan_from_store with no
     live character (skill from the newest trip row; no hatchet options) and standing
     nowhere (every spot pays its travel prior), seeded by the minute so a refresh
     within the minute shows the same draws. Per spot it adds what the trip rows and
-    job events say beyond the model: PK escapes (recall or guard flight), the last
-    trip's outcome and why, how the spot is reached."""
+    job events say beyond the model: PK escapes (recall or guard flight), creature
+    recalls (a recall away from a creature, data.cause 'creature', since 2026-10-04)
+    and creature hits (monster_hit episodes), the last trip's outcome and why, how
+    the spot is reached."""
     import lumber_opt
     out = lumber_opt.plan_from_store(memory, None, None, None, None, seed=int(now // 60), now=now)
     spots = lumber_opt.load_spots(memory)
     trips = [(r.get("spot") or r.get("venue"), r) for r in memory.episodes("lumber")]
-    escapes = {}
+    escapes, creature_recalls, creature_hits = {}, {}, {}
     for e in memory.job_events("lumber"):
-        if e["kind"] in ("recall", "guard_flight"):
+        if e["kind"] in ("recall", "guard_flight", "monster_hit"):
             sid = e["data"].get("spot") or next((s for s, r in reversed(trips) if _num(r.get("t_start"), 0) <= e["t"]
                                                 <= _num(r.get("t_end"), 0) + 60), None)
-            if sid is not None:
-                escapes[sid] = escapes.get(sid, 0) + 1
+            if sid is None:
+                continue
+            tally = (creature_hits if e["kind"] == "monster_hit"
+                     else creature_recalls if recall_cause(e["data"]) == "creature" else escapes)
+            tally[sid] = tally.get(sid, 0) + 1
     for r in out["spots"]:
         s = spots.get(r["id"]) or {}
         last = next((row for sid, row in reversed(trips) if sid == r["id"]), None)
         access = s.get("access") or {}
         r["pk_escapes"] = escapes.get(r["id"], 0)
+        r["creature_recalls"] = creature_recalls.get(r["id"], 0)
+        r["creature_hits"] = creature_hits.get(r["id"], 0)
         r["last_outcome"] = None if last is None else (last.get("outcome") or "banked")
         r["last_why"] = None if last is None else last.get("why")
         r["reach"] = (f"Witcher rune {access.get('rune')} ({access.get('library', 'cambria')})"

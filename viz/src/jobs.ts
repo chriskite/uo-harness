@@ -161,6 +161,8 @@ export interface PlanSpot {
   last_trip_h_ago: number | null;
   p_best: number;
   pk_escapes: number;
+  creature_recalls: number;     // recalls away from a creature (jobs.recall_cause), not counted in pk_escapes
+  creature_hits: number;        // monster_hit damage episodes at the spot
   last_outcome: string | null;
   last_why: string | null;
   reach: string;

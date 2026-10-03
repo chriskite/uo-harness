@@ -60,10 +60,21 @@ Movement and ETA (all in Params):
                            is unsourced.
   player_strike_range 12   [INFERENCE] the RunUO pre-ML spell range. Archers
                            are similar. The Outlands value is unsourced.
-  monster_strike_range 1   melee. Ranged creatures need a larger value.
+  monster_strike_range 1   melee. Ranged creatures: see Reach below.
   eta_s = max(0, distance - strike_range) * s_per_tile. The Chebyshev tile
   distance is the UO move metric, since a diagonal step costs one step.
   Running is assumed: the world model drops the 0x77 run bit.
+
+Reach (Threat.reach, creature_reach; 2026-10-04): the tiles from which a
+creature can damage us. Melee: monster_strike_range. Ranged or caster
+creatures: CREATURE_SPELL_RANGE, 12 tiles (user decision 2026-10-04: "spell
+range is 12 tiles"), raised (never lowered) to the farthest distance a hit from
+that body was recorded at (Params.body_reach, learned from `monster_hit` job
+events by travel_guard.learned_params). Ranged bodies: RANGED_BODIES (the
+gazer, body 22: live 2026-10-04 it hit us 4 s after a melee-sized walk-away
+left us 11-12 tiles from it) plus every body that hit us with no creature
+adjacent. Reach doesn't change the flee radius or the action below; the lumber
+runner uses it for how far to walk away and which trees to leave alone.
 
 Flee radius: flee_radius = strike_range + floor((recall_s + margin_s) /
 s_per_tile). A hostile mobile inside it, i.e. with eta_s <= recall_s +
@@ -137,7 +148,16 @@ under_attack: any of
   - an S2C 0x0B `damage` event on self within the window
   - a 0x2F `swing` event with self as defender within the window
 Assessment.action is `flee` if any threat says flee, or if under_attack and
-Params.flee_on_attack.
+Params.flee_on_attack. Watch.acknowledge() marks the damage so far as dealt with
+(the lumber runner walked away from it): from then on only new drops, damage
+and swings count.
+
+Who hit us (hit_attackers): Outlands names no attacker (no 0x2F at us, no
+0x0B), so on damage the attackers are inferred from the creatures in view:
+the ones swinging at us, else those in melee range, else (nothing adjacent:
+the hit came from afar, so it was ranged) those within their reach, at least
+CREATURE_SPELL_RANGE. Candidates are hostile creatures and creatures of unknown
+aggression (`default`); pets and passive bodies/names never are.
 """
 from __future__ import annotations
 
@@ -167,6 +187,8 @@ _CREATURE = re.compile(r"^(a|an) ", re.IGNORECASE)
 _YOUNG = re.compile(r"\(Young\)\s*$")
 
 ACTIONS = ("flee", "watch", "ignore")
+CREATURE_SPELL_RANGE = 12       # tiles: a ranged/caster creature's reach (user decision 2026-10-04)
+RANGED_BODIES = frozenset({22})  # gazer (live 2026-10-04: hit us from 11-12 tiles, LUMBER_LOOP.md §13)
 
 
 @dataclass(frozen=True)
@@ -188,6 +210,10 @@ class Params:
     passive_names: frozenset = frozenset()   # lower-case labels, e.g. "a sheep"
     aggressive_notoriety: frozenset = frozenset({6})
     monster_default_aggressive: bool = False
+    # creature reach (module docstring "Reach"): ranged bodies, and the farthest
+    # tiles a hit from a body came from ((body, tiles), ...; learned)
+    ranged_bodies: frozenset = RANGED_BODIES
+    body_reach: tuple = ()
     # an unlabeled human that would be hostile only by the assumed-player
     # reading is watched this long after first sight (see module docstring)
     label_grace_s: float = 1.0
@@ -208,12 +234,14 @@ class Threat:
     evidence: list = field(default_factory=list)   # why player/npc/creature
     mounted: bool = False
     aggressive: bool | None = None                 # creatures only
+    aggression: str = ""                           # creatures: why (aggressive) or not, _aggressive's order
     hostile: bool = False
     distance: int = 0
     s_per_tile: float = 0.0
     strike_range: int = 0
     eta_s: float = 0.0
     flee_radius: int = 0
+    reach: int = 0                                 # creatures: tiles from which it can hit us (creature_reach)
     action: str = "ignore"
     reason: str = ""
 
@@ -261,6 +289,15 @@ def flee_radius(s_per_tile: float, strike_range: int, recall_s: float,
     """Tiles within which a hostile reaches striking range before a recall
     (recall_s + margin_s) completes."""
     return strike_range + int(math.floor((recall_s + margin_s) / s_per_tile))
+
+
+def creature_reach(body, params: Params, ranged: bool = False) -> int:
+    """Tiles from which a creature can damage us (module docstring "Reach"):
+    melee monster_strike_range; a ranged body (or `ranged`: it hit us from afar)
+    CREATURE_SPELL_RANGE; never below the farthest hit learned for its body."""
+    far = dict(params.body_reach).get(body, 0)
+    ranged = ranged or body in params.ranged_bodies or far > params.monster_strike_range
+    return max(CREATURE_SPELL_RANGE if ranged else params.monster_strike_range, far)
 
 
 def self_pos(state):
@@ -390,12 +427,13 @@ def fighting_other(serial: int, key: str, mob: dict, text, swings: dict, state, 
     return f"fighting 0x{_serial(last['defender']):08X} (last swing {age:.1f}s ago), not us"
 
 
-def damage_signal(state, *, now: float, params: Params, hits_history=()):
-    """(under_attack, detail) from the self hits trend and damage/swing events."""
+def damage_signal(state, *, now: float, params: Params, hits_history=(), since: float | None = None):
+    """(under_attack, detail) from the self hits trend and damage/swing events;
+    nothing before `since` (Watch.acknowledge) counts."""
     me = (state.get("world") or {}).get("self") or {}
     hits, hits_max = me.get("hits"), me.get("hits_max")
     me_serial = self_serial(state)
-    lo = now - params.damage_window_s
+    lo = now - params.damage_window_s if since is None else max(now - params.damage_window_s, since)
     samples = [h for t, h in hits_history if t >= lo and h is not None]
     peak = max(samples) if samples else hits
     lost = max(0, peak - hits) if (peak is not None and hits is not None) else 0
@@ -415,8 +453,9 @@ def damage_signal(state, *, now: float, params: Params, hits_history=()):
 
 
 def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None = None,
-           params: Params = Params(), hits_history=(), first_seen=None) -> Assessment:
-    """first_seen: {serial: time first in view} for the label grace (Watch)."""
+           params: Params = Params(), hits_history=(), first_seen=None, since: float | None = None) -> Assessment:
+    """first_seen: {serial: time first in view} for the label grace (Watch);
+    since: damage before it is dealt with (Watch.acknowledge)."""
     now = time.time() if now is None else now
     world = state.get("world") or {}
     labels = world.get("labels") or {}
@@ -439,9 +478,10 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
             th.s_per_tile = params.monster_s_per_tile
             th.strike_range = params.monster_strike_range
             at_us = swinging_at_us(serial, key, swings, state, me=me, now=now, params=params)
-            th.aggressive, why = _aggressive(mob, th.name, params, at_us)
-            th.evidence.append(f"aggressive={th.aggressive} ({why})")
+            th.aggressive, th.aggression = _aggressive(mob, th.name, params, at_us)
+            th.evidence.append(f"aggressive={th.aggressive} ({th.aggression})")
             th.hostile = th.aggressive
+            th.reach = creature_reach(th.body, params)
             busy = fighting_other(serial, key, mob, th.name, swings, state, me=me, now=now,
                                   params=params) if th.hostile and not at_us else None
         else:
@@ -485,7 +525,7 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
         threats.append(th)
     order = {a: i for i, a in enumerate(ACTIONS)}
     threats.sort(key=lambda t: (order[t.action], t.eta_s, t.distance))
-    under, damage = damage_signal(state, now=now, params=params, hits_history=hits_history)
+    under, damage = damage_signal(state, now=now, params=params, hits_history=hits_history, since=since)
     reasons = [f"{t.kind} 0x{t.serial:08X} {t.name or ''}: {t.reason}".replace("  ", " ")
                for t in threats if t.action == "flee"]
     action = "flee" if reasons else ("watch" if any(t.action == "watch" for t in threats)
@@ -501,6 +541,25 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
                       damage=damage, dead=is_dead(state), reasons=reasons)
 
 
+def hit_attackers(a: Assessment, params: Params, swung=()) -> tuple[list, bool]:
+    """(attackers, ranged) for damage just taken (module docstring "Who hit us"):
+    creatures swinging at us (`swung` serials) or in melee range, plus known-ranged
+    ones within their reach; with none of those, every candidate within its
+    reach (at least CREATURE_SPELL_RANGE), the likeliest first (a ranged body,
+    then hostile, then nearest). ranged: no attacker is in melee range."""
+    melee = params.monster_strike_range
+    mons = [t for t in a.threats if t.kind == "monster" and 0 <= t.distance <= params.max_range]
+    cands = [t for t in mons if t.hostile or t.aggression == "default"]
+    close = [t for t in mons if t.serial in swung] + [t for t in cands if t.distance <= melee]
+    if close:
+        out = list({t.serial: t for t in close}.values())
+        out += [t for t in cands if t not in out and t.reach > melee and t.distance <= t.reach]
+    else:
+        out = sorted((t for t in cands if t.distance <= max(t.reach, CREATURE_SPELL_RANGE)),
+                     key=lambda t: (t.reach <= melee, not t.hostile, t.distance))
+    return out, all(t.distance > melee for t in out)
+
+
 class Watch:
     """assess() plus the self-hits history and first sightings across calls
     (for under_attack and the label grace)."""
@@ -509,6 +568,7 @@ class Watch:
         self.params = params
         self.hits: list[tuple[float, int]] = []
         self.first_seen: dict[int, float] = {}
+        self.since: float | None = None      # acknowledge(): damage before this is dealt with
 
     def update(self, state, *, recall_s: float, margin_s: float,
                now: float | None = None) -> Assessment:
@@ -517,10 +577,16 @@ class Watch:
         self.first_seen = {s: self.first_seen.get(s, now) for s in present}
         a = assess(state, recall_s=recall_s, margin_s=margin_s, now=now,
                    params=self.params, hits_history=self.hits,
-                   first_seen=self.first_seen)
+                   first_seen=self.first_seen, since=self.since)
         hits = ((state.get("world") or {}).get("self") or {}).get("hits")
         if hits is not None:
             self.hits.append((now, hits))
         lo = now - self.params.damage_window_s
         self.hits = [s for s in self.hits if s[0] >= lo]
         return a
+
+    def acknowledge(self, now: float | None = None):
+        """The damage so far is dealt with: only new drops (below the hits seen at
+        the last update), damage and swings count."""
+        self.since = time.time() if now is None else now
+        self.hits = [(self.since, self.hits[-1][1])] if self.hits else []

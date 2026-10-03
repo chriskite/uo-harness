@@ -129,10 +129,31 @@ def test_remembered():
     mem.close()
 
 
+def test_learned_from_hits():
+    print("== monster_hit episodes: a sole attacker's body is aggressive; one that hit from afar is ranged ==")
+    mem = Memory(os.path.join(tempfile.mkdtemp(), "h.db"))
+    for body, dist, n in ((0x99, 13, 1), (0x99, 5, 1), (0x27, 1, 1), (0x88, 9, 2), (0xCF, 6, 1)):
+        mem.job_event("lumber", "monster_hit", {"body": body, "distance": dist, "attackers": n})
+    p = travel_guard.learned_params(mem)
+    check("sole attackers' bodies are aggressive; a hit shared by two candidates teaches nothing; "
+          "a passive body never",
+          {0x99, 0x27} <= p.aggressive_bodies and 0x88 not in p.aggressive_bodies
+          and 0xCF not in p.aggressive_bodies, sorted(p.aggressive_bodies))
+    check("a hit from beyond melee makes the body ranged; an adjacent one doesn't; the gazer stays ranged",
+          {0x99, 22} <= p.ranged_bodies and 0x27 not in p.ranged_bodies and 0xCF not in p.ranged_bodies,
+          sorted(p.ranged_bodies))
+    check("reach: the farthest hit raises it above the spell range (13), a nearer one never lowers it; "
+          "melee stays 1, an unknown gazer 12",
+          threats.creature_reach(0x99, p) == 13 and threats.creature_reach(0x27, p) == 1
+          and threats.creature_reach(22, p) == threats.CREATURE_SPELL_RANGE == 12, p.body_reach)
+    mem.close()
+
+
 if __name__ == "__main__":
     test_routes_around_a_harpy()
     test_goal_in_reach_or_hostile_player()
     test_not_a_threat_to_us()
     test_remembered()
+    test_learned_from_hits()
     print(f"\ntravel guard: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     sys.exit(0 if not FAILURES else 1)

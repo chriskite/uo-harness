@@ -25,14 +25,19 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
 - skirmish: the hatchet in a bag in the pack; 'a great hart' in war mode 4 tiles from the tree
   fighting a player (0x2F both ways) is no threat (passive body); a creature that swings at the agent makes
   it escape and harvest the next tree out of reach; the same creature then hunts it down there
-  (escape, kept coming: stop, the logs converted first)
+  (escape, kept coming: stop at once, the logs stay logs)
 - break: the agent gate (pre-written budget file) announces a break mid-harvest; the trip ends
   at the bank with the carried and new logs banked as boards, exit 0
 - library: recall out from a public tome, recall home with our runebook, bank; twice
 - tracking reds: the library trip with the Tracking gump, buff and arrows as captured; Hunting
   murderers before going out, back on after the recall out stops it, a far red logged, a near one
   recalled from
-Plus a unit check of hatchet() (worn, else the shallowest in the pack's bags).
+- gazer_run / gazer_rehit (LUMBER_LOOP.md §13 "Running from a creature"): at the library spot a gazer
+  casts from 10 tiles; the runner walks out of its 12-tile reach and chops on (banks), or, when it
+  outranges the walk-away and hits again, recalls home without converting
+- wary: a war-mode creature by the nearest tree: the farther tree first, the near one once it has gone
+Plus unit checks of hatchet() (worn, else the shallowest in the pack's bags) and hit_verdict().
+Named scenarios run alone: `python test_loop_lumber.py gazer_run wary`.
 
 Run: python test_loop_lumber.py   (~2-3 min; private ports; safe while the live proxy runs)
 """
@@ -115,6 +120,13 @@ TRACK_MODES = ("criminal players", "innocent players", "friendly players", "aggr
                "enemy players", "murderer players")
 RED, RED_NAME = 0x0009E217, "Lord Red"                    # a murderer the hunt finds, never in view
 RED_FAR, RED_NEAR = 60, 30                                # tiles from us at the two hits (react range 40)
+# creature runs (LUMBER_LOOP.md §13 "Running from a creature"): a gazer (body 22, ranged) casts at us from 10
+# tiles at the library spot; a war-mode creature stands by the nearest tree on Shelter
+GAZER, GAZER_BODY, GAZER_DMG, GAZER_CAST_S = 0x0000CA5E, 22, 10, 2.5
+# south of the gazer's zone (20 tiles from it) and > HOME_NEAR (60) from the banker's known spot: home is a recall
+LIB_FAR_TREE = {"x": 46, "y": 272, "z": 0, "graphic": "0x0CE0", "stand": [46, 271]}
+WARY, WARY_POS = 0x0000BA76, (113, 201)                    # 2 tiles from the good tree, 13 from the start
+WEST_TREE = {"x": 86, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [87, 200]}      # 13 steps west; good: 10
 
 
 def check(name, cond, extra=""):
@@ -160,6 +172,11 @@ def creature_pkt(serial, body, x, y, noto=3, flags=0x40):
 
 def swing(attacker, defender):
     return b"\x2f\x00" + u32(attacker) + u32(defender)
+
+
+def hits_pkt(hits, hits_max=100):
+    """0xA1 UpdateHitpoints for us: Outlands shows damage only as a hits drop (docs/NOTES.md)."""
+    return b"\xa1" + u32(SELF) + u16(hits_max) + u16(hits)
 
 
 def equip(item, graphic, layer):
@@ -263,9 +280,10 @@ DECOY_LAYOUT = ("{ nomove }{ noclose }{ nodispose }{ noresize }{ page 0 }{ page 
 
 class World:
     def __init__(self, scenario="bank"):
-        self.scenario = scenario          # "bank" (the main run), "skirmish", "break", "library" or "tracking"
+        self.scenario = scenario          # "bank" (the main run), "skirmish", "break", "library", "tracking",
+        #                                   "gazer" (a ranged creature hits once) or "wary" (an aggressive creature by a tree)
         self.scripted = scenario == "bank"  # captchas, the passer-by's speech, the pickpocket
-        self.library = scenario in ("library", "tracking")   # the rune library, our runebook, a pvp spot
+        self.library = scenario in ("library", "tracking", "gazer")   # the rune library, our runebook, a pvp spot
         self.pos = list(LIB_START) if self.library else list(START)
         self.facing = 0
         self.writer = None
@@ -322,6 +340,13 @@ class World:
         self.hunt_dropped_t = None        # when the recall out stopped the hunt
         self.arrow_id = 0
         self.red_hits = []                # (distance, sent while hunting murderers)
+        # gazer: our hits (sent as 0xA1) and the creature's spell range in the simulation (12: what the runner
+        # assumes; larger: it outranges the walk-away)
+        self.hits = 100
+        self.gazer_pos, self.gazer_range = None, 12
+        self.gazer_hits = []              # (time, our distance from it) per cast that hit
+        self.wary_left_t = None           # wary: when the creature by the near tree left view
+        self.door_seen = True             # the door and gates go out at login, then again like the banker
 
     def send(self, pkt):
         self.writer.write(encode_packet(pkt, S2C_KEY))
@@ -358,6 +383,17 @@ class World:
                 self.send(ground_item(TOME, 0x71AF, *TOME_POS, 0))
             elif t > 24:
                 self.tome_seen = False
+        door = self.cheb(DOOR)                           # the town door and its gates the same way
+        if door <= 18 and not self.door_seen:
+            self.door_seen = True
+            self.send_door()
+        elif door > 24:
+            self.door_seen = False
+
+    def send_door(self):
+        self.send(ground_item(0x40005CE3, 0x06AD, *DOOR, 0))     # the town door (demo art)
+        for i, (gx, gy) in enumerate(sorted(GATES)):
+            self.send(ground_item(0x40006000 + i, 0x0F6C, gx, gy, 0))  # blue moongates
 
     def teleport(self, x, y):
         self.pos = [x, y]
@@ -442,6 +478,9 @@ class World:
 
     def result(self):
         self.good_n += 1
+        if self.scenario == "wary" and self.good_n == 1:   # the creature by the near tree wanders off
+            self.wary_left_t = time.time() + 0.3
+            self.later(0.3, [delete(WARY)])
         if self.tracking and self.good_n in (2, 4):   # mid-chop: the hunt finds the red far, then near
             self.red_hit(RED_FAR if self.good_n == 2 else RED_NEAR)
         if self.good_n % 2 == 1:
@@ -463,6 +502,8 @@ class World:
                 # ... and a pickpocket's grab lands in the same moment (live 2026-10-04: 10 mandrake
                 # root gone 75 ms after the thief's flag change; the run fled before booking it)
                 self.later(0.5, [delete(0x44ADB0FF)])
+            elif self.scenario == "gazer" and self.good_n == 2 and self.gazer_pos is None:
+                asyncio.get_running_loop().call_later(0.5, self.gazer_appears)
             return
         if self.good_n == 4:                 # a pickpocket lifts part of the stack once, unannounced
             self.logs -= STOLEN
@@ -480,6 +521,24 @@ class World:
         self.attacker_pos = pos or (self.pos[0] + 1, self.pos[1])
         self.chase = chase
         self.send(creature_pkt(ATTACKER, 0x27, *self.attacker_pos))
+
+    def gazer_appears(self):
+        """A gazer comes into view 10 tiles west of us, not in war mode (its aggression unknown to
+        the runner), and casts at us every GAZER_CAST_S while we're within its range (no line of sight)."""
+        self.gazer_pos = (self.pos[0] - 10, self.pos[1])
+        self.send(creature_pkt(GAZER, GAZER_BODY, *self.gazer_pos, flags=0))
+        asyncio.get_running_loop().create_task(self.gazer_casts())
+
+    async def gazer_casts(self):
+        await asyncio.sleep(0.8)
+        while not self.writer.is_closing():
+            d = self.cheb(self.gazer_pos)
+            if d <= self.gazer_range and self.hits > GAZER_DMG:
+                self.hits -= GAZER_DMG
+                self.gazer_hits.append((time.time(), d))
+                self.send(hits_pkt(self.hits))
+                await self.writer.drain()
+            await asyncio.sleep(GAZER_CAST_S)
 
     def convert(self, serial):
         if serial != self.logs_serial:
@@ -659,10 +718,12 @@ class World:
         if self.scenario == "break":                            # logs carried from an earlier trip
             self.logs_serial, self.logs = 0x45000001, INITIAL_LOGS
             self.send(contained(self.logs_serial, 0x1BDD, self.logs, BACKPACK))
+        if self.scenario == "gazer":                            # our hits: the runner reads damage from them
+            self.send(hits_pkt(self.hits))
+        if self.scenario == "wary":                             # a war-mode creature by the near tree
+            self.send(creature_pkt(WARY, 0x27, *WARY_POS))
         self.update_view()                                      # the banker, once within range
-        self.send(ground_item(0x40005CE3, 0x06AD, *DOOR, 0))     # the town door (demo art)
-        for i, (gx, gy) in enumerate(sorted(GATES)):
-            self.send(ground_item(0x40006000 + i, 0x0F6C, gx, gy, 0))  # blue moongates
+        self.send_door()
         await writer.drain()
         buf = bytearray()
         while True:
@@ -1255,12 +1316,159 @@ async def library_chased():
           any(j["kind"] == "threat" and "Recalled away" in j["summary"] for j in js)
           and not any(j["kind"] == "pk_escape" for j in js), str([(j["kind"], j["summary"]) for j in js]))
     thefts = [e for e in store.job_events("lumber") if e["kind"] == "theft"]
+    pearls = [e for e in thefts if any(it.get("graphic") == 0x0F7A for it in e["data"].get("items") or [])]
     check("the pack loss in the same moment as the flight is booked: a theft job event and a "
-          "theft_suspected juncture for the black pearls, even though the run ended in the escape",
-          any(any(it.get("graphic") == 0x0F7A for it in e["data"].get("items") or []) for e in thefts)
+          "theft_suspected juncture for the black pearls, even though the run ended in the escape; the event "
+          "carries the load just before the loss (the chop's logs, no boards)",
+          pearls and pearls[0]["data"].get("carried") == {"logs": LOGS_PER_SUCCESS, "boards": 0}
           and any(j["kind"] == "theft_suspected" for j in store.junctures()),
           str([e["data"] for e in thefts])[:400])
+    eps = store.episodes("lumber")
+    rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
+    cr = (eps[0].get("creature") or {}) if eps else {}
+    check("the trip row books the creature's cost: one escape, recalled, why; the recall event says a creature",
+          cr.get("escapes") == 1 and cr.get("recalled") is True and "kept coming" in (cr.get("why") or "")
+          and [d.get("cause") for d in rec] == ["creature"], f"{cr} {[d.get('cause') for d in rec]}")
     store.close()
+
+
+GAZER_SPOT = {"access": {"method": "witcher", "rune": "286", "library": "cambria"}, "home": {"method": "recall"},
+              "area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 20}, "pvp": True,
+              # known where he stands: the walk-away never brings the banker within HOME_NEAR (60), so home is a recall
+              "banker": {"serial": f"0x{BANKER:08X}", "name": "Len the banker", "pos": [*BANK_POS, 0]}}
+
+
+async def gazer_run():
+    """LUMBER_LOOP.md §13 "Running from a creature" (live 2026-10-04: a gazer hit us 4 s after a
+    melee-sized walk-away and the trip was recalled home). A gazer (ranged body 22, not in war mode)
+    casts at us from 10 tiles mid-chop, once: the runner walks out of its spell range (12) + margin,
+    chops on at the far tree, and the trip banks: no recall away, no stop."""
+    print("\n== gazer, run: a ranged creature hits once -> walk out of its reach, chop on, bank ==")
+    world = World("gazer")
+    text, code, store, _ = await run_scenario(world, "gazer_run", 12730, [LIB_TREE, LIB_FAR_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
+    eps = store.episodes("lumber")
+    hits = [e["data"] for e in store.job_events("lumber") if e["kind"] == "monster_hit"]
+    check("the trip banked, exit 0 (no recall away, no stop)",
+          code == 0 and [e.get("outcome") for e in eps] == ["banked"] and world.bank_opens == 1
+          and not [e for e in store.job_events("lumber") if e["kind"] == "recall"],
+          f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]}\n{text[-800:]}")
+    check("the first damage is a monster_hit: the gazer, 10 tiles off, ranged, the only attacker, a run",
+          hits and hits[0]["body"] == GAZER_BODY and hits[0]["distance"] == 10 and hits[0]["hits_lost"] == GAZER_DMG
+          and hits[0]["ranged"] is True and hits[0]["attackers"] == 1 and hits[0]["action"] == "run"
+          and hits[0]["trip"] == 1 and hits[0]["spot"] == "sim" and hits[0]["reach"] == 12, str(hits)[:600])
+    m = re.search(r"escaped to \((\d+), (\d+)\)", text)
+    to = (int(m[1]), int(m[2])) if m else None
+    check("walked out of the spell range (12) + margin, not just the melee flee radius (8)",
+          to is not None and world.gazer_pos is not None and world.cheb(world.gazer_pos) > 12
+          and max(abs(to[0] - world.gazer_pos[0]), abs(to[1] - world.gazer_pos[1])) > 12, f"{to} {world.gazer_pos}")
+    far = store.harvest_node(0, LIB_FAR_TREE["x"], LIB_FAR_TREE["y"], LIB_FAR_TREE["z"]) or {}
+    check("chopped on at the far tree, outside the gazer's reach; everything banked",
+          far.get("successes", 0) >= 1 and world.bank_stack is not None
+          and world.bank_stack[1] == world.harvested and world.logs == 0, f"{far} bank {world.bank_stack}")
+    check("no hit after the walk-away: at most one more cast landed while walking (walk_on)",
+          1 <= len(world.gazer_hits) <= 2 and [h["action"] for h in hits] == ["run", "walk_on"][:len(hits)]
+          and len(hits) == len(world.gazer_hits), f"{world.gazer_hits} {[h['action'] for h in hits]}")
+    js = [j for j in store.junctures() if j["kind"] == "threat"]
+    check("one urgent threat juncture: action escape, with the hit",
+          len(js) == 1 and js[0]["data"].get("action") == "escape"
+          and (js[0]["data"].get("hit") or {}).get("body") == GAZER_BODY, str([(j["summary"], j["data"].get("action")) for j in js]))
+    cr = (eps[0].get("creature") or {}) if eps else {}
+    check("the trip row's creature cost: 1 escape (a run), the hits lost, not recalled, no why",
+          cr.get("escapes") == 1 and cr.get("runs") == 1 and cr.get("hits_lost") == 100 - world.hits
+          and cr.get("recalled") is False and cr.get("why") is None, str(cr))
+    store.close()
+
+
+async def gazer_rehit():
+    """The same gazer outranges the walk-away (it casts from 20 tiles in this simulation): damage again
+    within --creature-rehit-s of arriving -> recall home at once, no conversion, exit 1."""
+    print("\n== gazer, re-hit: still taking damage after the walk-away -> recall home, no conversion ==")
+    world = World("gazer")
+    world.gazer_range = 20
+    text, code, store, _ = await run_scenario(world, "gazer_rehit", 12740, [LIB_TREE, LIB_FAR_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
+    hits = [e["data"] for e in store.job_events("lumber") if e["kind"] == "monster_hit"]
+    rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
+    check("first hit: a run; a hit after arriving: home ('still taking damage after the walk-away')",
+          hits and hits[0]["action"] == "run" and hits[-1]["action"] == "recall"
+          and "still taking damage" in hits[-1]["why"] and hits[-1]["since_run_s"] is not None
+          and hits[-1]["since_run_s"] <= 10, str([(h["action"], h.get("why"), h["since_run_s"]) for h in hits]))
+    check("recalled home with our book (the escape recall, cause creature), exit 1",
+          code == 1 and world.recalls_home == [HOME_RUNE_POS] and len(rec) == 1 and rec[0]["ok"]
+          and rec[0]["cause"] == "creature" and "escaped by recall" in text,
+          f"exit {code} home {world.recalls_home} {str(rec)[:300]}\n{text[-600:]}")
+    check("no conversion, no bank trip: the logs stay logs",
+          "converting the carried logs before stopping" not in text and not world.pack_boards
+          and world.logs == world.harvested > 0 and world.bank_opens == 0,
+          f"logs {world.logs} boards {world.pack_boards} opens {world.bank_opens}")
+    js = [j for j in store.junctures() if j["source"] == "lumber" and j["severity"] == "urgent"]
+    check("urgent threat juncture 'Recalled away' (a creature: no pk_escape)",
+          any(j["kind"] == "threat" and "Recalled away" in j["summary"] for j in js)
+          and not any(j["kind"] == "pk_escape" for j in js), str([(j["kind"], j["summary"]) for j in js]))
+    eps = store.episodes("lumber")
+    cr = (eps[0].get("creature") or {}) if eps else {}
+    check("the trip row: aborted; creature escapes 1, hits lost, recalled, why",
+          len(eps) == 1 and eps[0]["outcome"] == "aborted" and cr.get("escapes") == 1
+          and cr.get("hits_lost", 0) >= 2 * GAZER_DMG and cr.get("recalled") is True
+          and "still taking damage" in (cr.get("why") or ""), str(cr))
+    store.close()
+
+
+async def wary():
+    """A war-mode creature (known aggressive) stands 2 tiles from the nearest tree, 13 from us: that
+    tree waits while it is around; the runner chops the farther west tree first, comes back to the
+    near one once the creature has gone, and banks. No damage, no escape."""
+    print("\n== wary: an aggressive creature by the nearest tree -> chop one away from it first ==")
+    world = World("wary")
+    text, code, store, _ = await run_scenario(world, "wary", 12750, [GOOD_TREE, WEST_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
+    targets = []
+    for p, t in zip(world.c2s, world.c2s_t):
+        if p[0] == 0x6C:
+            f = parse_packet("c2s", p)
+            if f.get("target_type") == 1:
+                targets.append(((f["x"], f["y"]), t))
+    good = (GOOD_TREE["x"], GOOD_TREE["y"])
+    check("the first tree chopped is the west one, not the nearer tree by the creature",
+          targets and targets[0][0] == (WEST_TREE["x"], WEST_TREE["y"])
+          and "choosing a tree away from it" in text, str([x for x, _ in targets][:4]))
+    check("the near tree was chopped only after the creature had gone",
+          world.wary_left_t is not None and any(x == good for x, _ in targets)
+          and all(t > world.wary_left_t for x, t in targets if x == good), str(targets)[:400])
+    eps = store.episodes("lumber")
+    cr = (eps[0].get("creature") or {}) if eps else {}
+    check("banked, exit 0; no threat juncture, no escape; the trip row counts the tree left alone",
+          code == 0 and [e.get("outcome") for e in eps] == ["banked"]
+          and not [j for j in store.junctures() if j["kind"] == "threat"]
+          and cr.get("escapes") == 0 and cr.get("avoided_trees", 0) >= 1, f"exit {code} {cr}\n{text[-600:]}")
+    store.close()
+
+
+def unit_hit_verdict():
+    """loop_lumber.hit_verdict: when creature damage sends us home instead of a run."""
+    print("\n== hit_verdict: run from one creature at healthy hits, else home ==")
+    import loop_lumber
+    gz = object()
+
+    def v(**kw):
+        base = dict(hits=70, hits_max=100, recall_at=0.6, attackers=[gz], players=[], escapes=0,
+                    since_run_s=None, rehit_s=10.0)
+        return loop_lumber.hit_verdict(**{**base, **kw})
+    check("one creature, hits 70/100: run", v() is None)
+    check("hits exactly at the threshold (60/100): run; one below: home",
+          v(hits=60) is None and "below 60%" in (v(hits=59) or ""))
+    check("two creatures could have hit: home", "2 creatures" in (v(attackers=[gz, gz]) or ""))
+    check("nothing in view could have: home", "no creature" in (v(attackers=[]) or ""))
+    check("a hostile player in view: home", "hostile player" in (v(players=["Bastet"]) or ""))
+    check("again 10 s after arriving from a walk-away: home; 11 s: a new run",
+          "still taking damage" in (v(since_run_s=10.0) or "") and v(since_run_s=11.0) is None)
+    check("while walking away: walk on (even right after the last arrival); low hits still home",
+          v(walking=True, since_run_s=1.0) is None and v(walking=True, hits=50) is not None)
+    check("escapes used up or a speech hold: home",
+          "escapes" in (v(escapes=loop_lumber.ESCAPES_PER_TRIP) or "") and "speech hold" in (v(can_escape=False) or ""))
 
 
 def unit_hatchet():
@@ -1309,12 +1517,15 @@ def is_subsequence(want, seq):
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
-    asyncio.run(skirmish())
-    asyncio.run(break_due())
-    asyncio.run(library())
-    asyncio.run(library_chased())
-    asyncio.run(track_reds())
-    unit_hatchet()
+    runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, wary,
+            unit_hatchet, unit_hit_verdict]
+    pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`
+    for fn in runs:
+        if pick and fn.__name__ not in pick:
+            continue
+        if asyncio.iscoroutinefunction(fn):
+            asyncio.run(fn())
+        else:
+            fn()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)
