@@ -129,7 +129,7 @@ export function HuntJobs({ onJob }: { onJob: (j: JobKind) => void }) {
 
       <Panel title={`Visits (${visits.length})`}>
         {visits.length === 0 ? (
-          <p className="dim">No visits yet. Rows appear here after each visit to the hunting spot (Memory.episode, loop hunt).</p>
+          <p className="dim">No visits yet. Rows appear here after each visit to the hunting spot (recorded in the Codex).</p>
         ) : (
           <div className="table-wrap">
             <table className="counts trips-table">

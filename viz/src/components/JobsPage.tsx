@@ -127,7 +127,7 @@ function LumberJobs({ onJob }: { onJob: (j: JobKind) => void }) {
 
       <Panel title={`Trips (${trips.length})`}>
         {trips.length === 0 ? (
-          <p className="dim">No trips yet. Rows appear here after each lumber trip (Memory.episode).</p>
+          <p className="dim">No trips yet. Rows appear here after each lumber trip (recorded in the Codex).</p>
         ) : (
           <div className="table-wrap">
             <table className="counts trips-table">

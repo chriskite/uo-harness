@@ -72,7 +72,7 @@ function MemoryItem({ row }: { row: ChatRow }) {
     <details className={`ov-item ov-memory ov-memory-${v.mode}`} open={v.count > 0 && v.count <= MEMORY_OPEN_MAX}>
       <summary>
         <span className="mono dim ov-time">{fmtClock(row.t)}</span>{" "}
-        <span className="ov-tag ov-mem-tag">{v.mode === "recall" ? "recall" : "memory"}</span>{" "}
+        <span className="ov-tag ov-mem-tag">{v.mode === "recall" ? "recall" : "codex"}</span>{" "}
         <span className="ov-text">{v.headline}</span>
       </summary>
       {v.groups.map((g) => (
@@ -203,7 +203,7 @@ export function OverseerPanel({ feed }: { feed: OverseerFeed }) {
           <input type="checkbox" checked={showAcked} onChange={(e) => setShowAcked(e.target.checked)} /> acked junctures
         </label>
         <span className="dim">{state.chat.length} messages</span>
-        {!state.store && <span className="warn">no memory store yet</span>}
+        {!state.store && <span className="warn">no Codex yet</span>}
         {error && <span className="error">{error}</span>}
       </div>
       <div
@@ -222,7 +222,7 @@ export function OverseerPanel({ feed }: { feed: OverseerFeed }) {
       <div className="ov-compose">
         {!status.active && (
           <div className="ov-hint">
-            The overseer replies only while an overseer session is running (docs/OVERSEER.md). Messages wait in the memory store until then.
+            The Seer replies only while a Seer session is running (docs/OVERSEER.md). Messages wait in the Codex until then.
           </div>
         )}
         <textarea

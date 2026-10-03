@@ -72,7 +72,7 @@ export function JobsHead({
     <div className="jobs-head">
       <JobSwitch job={job} onJob={onJob} />
       <h3>{title}</h3>
-      {!store && <Badge kind="warn">no memory store: nothing recorded yet</Badge>}
+      {!store && <Badge kind="warn">no Codex: nothing recorded yet</Badge>}
       {error && <span className="error">{error}</span>}
       <span className="spacer" />
       <span className="dim mono">{at ? `updated ${fmtStamp(at, true)}` : ""}</span>

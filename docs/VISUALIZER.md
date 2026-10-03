@@ -385,7 +385,7 @@ table has no job column) and `harness/data/woods.json` when present.
   - A wood-type breakdown when the trip rows carry one, and the woods.json status.
   - The per-trip table (newest first) and a per-day table.
   - With no data, every chart shows a dashed "no trips yet" frame and the tiles show `—` or 0. A
-    missing store is badged `no memory store: nothing recorded yet`.
+    missing store is badged `no Codex: nothing recorded yet` (the UI calls the memory store "the Codex").
 - **Hunting dashboard** (2026-10-02):
   - KPI tiles: mobs killed (kills/hr), gold looted (gold/hr, gold/kill), XP earned (est.; XP/hr and
     how many kills weren't looted), visits (leaves), active hours, deaths to mobs, deaths to PKs, hits
@@ -439,7 +439,7 @@ item.
   buy recall scrolls': 2 result(s)" or "briefed: 1 relevant, 2 standing". Below it are the
   ranked entries, each with #id, a kind badge, the topic, the content, score and confidence.
   A brief is split into "relevant here" and "standing rules".
-- **memory** (amber): remembered, confirmed, updated or retracted. For an add, the content is
+- **codex** (amber): remembered, confirmed, updated or retracted. For an add, the content is
   the headline, and the list shows only **related (possible conflicts)**, with similarity. For
   other writes it shows the entry.
 - Items with ≤ 4 entries start open. Superseded and retracted entries are struck through.

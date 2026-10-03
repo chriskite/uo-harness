@@ -8,6 +8,9 @@ in each virtue, then an instruction ("Thou dost seem an honest soul. Continued h
 thee!", "Thou art truly an honest soul. Seek ye now to reach Elevation!"), taken from the Codex of
 Ultima Wisdom's Ultima IV transcript (wiki.ultimacodex.com/wiki/Ultima_IV_transcript).
 
+The memory store is likewise shown as **the Codex** in the viz only (the "codex" tag on write rows,
+"no Codex yet", the Jobs-page hints); the DB, `ctl know`, the `memory` chat kind and docs/MEMORY.md keep "memory".
+
 An AI overseer supervises the programmatic tasks (`harness/loop_lumber.py`,
 `harness/errand_bank.py`, …) and is woken only at junctures that need judgement. Code:
 `harness/ctl.py` (the CLI), `harness/task_wrap.py` (runs one task and reports its end),
@@ -242,7 +245,7 @@ sessions in the memory store's `knowledge` table (docs/MEMORY.md). Kinds:
 Every `know` call except `stats` posts one chat row of kind **`memory`**: lookups (search, brief,
 get, review) with their query and ranked results, and writes (add, update, confirm, retract)
 with the entry and any related ones. The viz Seer tab shows them as **recall** (teal) and
-**memory** (amber) items (VISUALIZER.md §2.6), so the user sees what the Seer looked up and
+**codex** (amber) items (VISUALIZER.md §2.6), so the user sees what the Seer looked up and
 what it chose to remember. Row data is `{cmd: "know", op, …}` with `query`, `results`,
 `relevant`/`standing`, `entry`, `related`, `id`, `action`, `reason`, `counts` (entries
 compacted, at most 12 per list).
