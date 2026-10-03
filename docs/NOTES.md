@@ -395,6 +395,25 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   Witcher rune 291 → Cambria in two legs (327 steps). No hostile creature came into view (`avoided`
   empty), so this proved the guard harmless on ordinary walks, not its avoidance.
 
+## Cortina's rune tome quest (live 2026-10-04, Hackworth)
+
+- **Cambria → Shelter by moongate:** the Cambria gate item is `0x4000069E` at (1693, 3153, 25). In
+  its "Moongate Destinations" gump Shelter Island is button **18** (10 Anchor's Rest … 17 Totem,
+  18 Shelter Island, 19 Corpse Creek, 20 The Arena, 21 Prevalia Meadows), then 2 travels; arrival
+  (1977, 2533, 50). Picking a destination re-sends the gump with a new serial: press 2 on the new
+  one. A non-Young character got no renounce prompt.
+- **Cortina the Runekeeper** `0x000023F5` at (1909, 2567). Double-click opens quest gump
+  `0x6EB3EC0B` ("My Quest List"): title "Rune All You Like", task "Earn 2,500 Gold / While Inside
+  New Player Dungeon", requirement "less than 5,000,000 Gold on OutlandsID (current total is
+  1,157)", failure conditions none, reward "New Player Runetome (Blessed) (will be added to
+  backpack)". Buttons: 15 Accept Quest, 17 My Quest List, 12 (her name); closed with 0, **not
+  accepted**. So a non-Young character can still talk to this Shelter NPC (the New Player Guide's
+  "will not be able to interact with Shelter Island NPCs" doesn't hold for her). Patch note and
+  sister quests: docs/research/TRAVEL_DEATH.md §1.4.
+- **Guard false positive on Shelter:** the goto from the gate "avoided" a phoenix and a gravebug at
+  (1970, 2528), radius 11. On Shelter those are almost surely tamers' pets [INFERENCE]; the
+  detour cost nothing here, but the guard treats them as threats.
+
 ## Runebook and rune tome gumps (live 2026-10-02, TestWorth on the Test Shard)
 
 Read from the memory-store `gump_open` events and the session capture
@@ -557,9 +576,18 @@ Read from the memory-store `gump_open` events and the session capture
 
 - **What:** `harness/discord_capture.py` records Outlands Discord history into `harness/data/discord.db` (gitignored, backed up to the NAS `discord/` folder by `backup.py`). The decision and the rejected alternatives: docs/PLAN.md "Discord history capture".
 - **Install (done 2026-10-03):** `py -3.13 -m venv .venv-discord && .venv-discord/Scripts/python.exe -m pip install patchright zstandard` (patchright 1.63.0, zstandard 0.25.0). No browser download: it drives the installed Microsoft Edge (`--channel msedge`; Edge 154 here; Chrome isn't installed). Patchright's README setup is persistent context + `channel` + `headless=False` + `no_viewport=True` with no UA/header overrides; checked: `navigator.webdriver` is `false` and the UA is stock Edge.
-- **Run:** `.venv-discord/Scripts/python.exe harness/discord_capture.py serve` opens the window (profile `harness/data/discord_profile/`, which holds the login: gitignored, never backed up) and listens on `127.0.0.1:25980`. Every other subcommand talks to that port and runs under the plain harness Python: `status`, `shot` (PNG in `logs/discord/`), `goto URL`, `click SEL`, `fill SEL TEXT`, `press KEY`, `eval JS`, `guilds`, `channels GUILD` (category tree with captured counts), `crawl GUILD --channels A,B --until YYYY-MM-DD`, `crawl-stop`, `quit`. `stats` and `search QUERY [--channel NAME]` read the DB directly. Log: `logs/discord/capture.log`.
+- **Run:** `.venv-discord/Scripts/python.exe harness/discord_capture.py serve` opens the window (profile `harness/data/discord_profile/`, which holds the login: gitignored, never backed up; the login survived a restart) and listens on `127.0.0.1:25980`. Every other subcommand talks to that port and runs under the plain harness Python: `status`, `shot` (PNG in `logs/discord/`), `goto URL`, `click SEL`, `fill SEL TEXT`, `press KEY`, `eval JS`, `guilds`, `channels GUILD` (category tree with captured counts), `crawl GUILD --channels A,B --until YYYY-MM-DD`, `crawl-stop`, `quit`. `stats`, `search QUERY [--channel NAME]` and `ignore CHANNEL_ID...` use the DB directly. Log: `logs/discord/capture.log`.
 - **What it records:** only responses the web app requested: `GET /api/v*/channels/<id>/messages` (scrolling and jumps), guild message search, thread/forum lists; plus the gateway WebSocket, decoded with a decompressor that lasts the whole connection (zstd-stream or zlib-stream, read from the URL's `compress=` parameter). From the gateway it takes READY/GUILD_CREATE channel lists and live MESSAGE_CREATE/UPDATE. Each message is upserted by id, and an edit replaces the stored text, with the FTS index following through triggers. `captures` logs every recorded response (status, count), so 429s and 403s show up there.
-- **Crawl:** for each channel, jump to the oldest stored message (`/channels/G/C/<id>`, an `around=` load) and send mouse-wheel bursts over `[data-list-id='chat-messages']` until a `before=` page arrives. After each page it waits 2–6 s, plus 20–90 s on 6 % of pages, and takes a 5–15 min break every 60–90 min. A `before=` page shorter than its `limit` means the channel's start (`crawl.reached_start`); `--until` stops earlier. After 3 jumps that load nothing it gives up on the channel (`crawl.note`). Every 150 pages it re-jumps, to drop the app's in-memory list. On a captcha it beeps and waits for a human to solve it in the window. On a logout it beeps and stops. After a 429 it pauses 10–15 min.
+- **Crawl:** for each channel, jump to the oldest stored message (`/channels/G/C/<id>`, an `around=` load) and send mouse-wheel bursts over the message list's scrollable ancestor until a `before=` page arrives. Aim at the scroller's rectangle, not `[data-list-id='chat-messages']` itself: that `<ol>` is the full list height and mostly off screen (live: y = -2318, height 5986), so wheeling at its box missed and the first run stalled. After each page it waits 2–6 s, plus 20–90 s on 6 % of pages, and takes a 5–15 min break every 60–90 min. A `before=` page shorter than its `limit` means the channel's start (`crawl.reached_start`); `--until` stops earlier. After 3 jumps that load nothing it gives up on the channel (`crawl.note`). Every 150 pages it re-jumps, to drop the app's in-memory list. On a captcha it beeps and waits for a human to solve it in the window. On a logout it beeps and stops. After a 429 it pauses 10–15 min.
+- **Live facts (2026-10-03):**
+  - The web app pages history small: `limit=10` for a channel's first page, `limit=20` per older page. Measured pace: 11 pages (220 messages) in ~75 s, so ~10k messages/hour.
+  - The gateway is `compress=zlib-stream`.
+  - In-app navigation by `history.pushState` + `popstate` opens a channel without a page reload.
+  - Joining via Accept Invite raised an hCaptcha (human-solved). Account creation and email verification raised none.
+  - **The guild behind `discord.gg/outlands` is new; the community isn't.** The guild "Outlands Community" (`1520125994659348631`, 8,843 members) has an ID that decodes to 2026-06-26, and all of its channel IDs decode to 2026-06-26…28. The decoding checks out: stored messages' snowflake times match the API's `timestamp` field. The user knows the Outlands Discord as many years old, so [INFERENCE] the server was re-created in June 2026 (the TRADE-ARCHIVE category dating from the same week fits a migration). Older history, if any survives, is in a different guild. Message IDs can't predate their channel's creation, so this guild's channels hold nothing older than late June 2026.
+  - The user's picks, in order of importance: `#harvesting` 1520906212319695108, `#newplayer` 1520238957562957824, `#scripting` 1520835143600705546. Later candidates: `#buy`/`#sell` (under TRADE [VERIFIED USERS ONLY]; also `#buy-archive`/`#sell-archive`, `#pricecheck`) for price history, `#template-builds` for build tips.
+  - **`#general` 1520125995267395828 is on the ignore list (user: never).** Its live gateway messages are dropped too.
+- **Email links:** this network's DNS resolver (`exeter.kites.house`) sinkholes `click.discord.com` to 0.0.0.0 (Discord's email click tracker), so links in Discord emails fail with ERR_ADDRESS_INVALID. Workaround: `curl -s -D - -o /dev/null --resolve click.discord.com:443:162.159.136.232 '<link>'` (that IP is from 1.1.1.1) prints the `Location: https://discord.com/verify#token=…` to open with `discord_capture.py goto`.
 - **Game-side footprint:** none. It only talks to Discord, never to the client, the proxy or the Outlands servers.
 
 ## Network observations
