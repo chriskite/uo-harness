@@ -23,6 +23,7 @@ import socket
 import time
 
 import actions
+import guards
 import nav
 import pathfind
 import uomap
@@ -96,6 +97,13 @@ def cheb(a, b) -> int:
 
 def serial_of(v) -> int:
     return int(v, 16) if isinstance(v, str) else int(v)
+
+
+def stamina_ok(st) -> bool:
+    """Whether the stock client would run now: PlayerMobile.Walk drops a run to a
+    walk at stamina <= 1 (e.g. hamstrung: stamina 0 for 3 s)."""
+    stam = st["world"]["self"].get("stam")
+    return stam is None or stam > 1
 
 
 LAYER_BANK = 0x1D
@@ -374,8 +382,11 @@ class Mover:
                            timeout=DENY_TELEPORT_GRACE_S, poll=0.05, full=False)
         st = self.link.state()
         self._after = (st, time.monotonic())
-        self.guard(st)
         after = self.link.pos(st)
+        if after[:2] != before[:2] and nav.chebyshev(tuple(before[:2]), tuple(after[:2])) == 1 \
+                and st["world"]["self"].get("map") == facet_before:
+            self._guard_entries(facet_before, before, after)   # before guard(): a flight stops on it
+        self.guard(st)
         if after[:2] != before[:2]:
             self.steps += 1
             facet_after = st["world"]["self"].get("map")
@@ -386,6 +397,16 @@ class Mover:
         if after[3] != before[3]:
             return "turned"
         return "blocked"
+
+    def _guard_entries(self, facet, before, after):
+        """A one-tile step: remember the tile if the server said since it went out
+        that we're under the guards' protection (guards.entries)."""
+        if not hasattr(self._source, "guard_point_record"):
+            return
+        events = [{"ev": "step", "from": list(before[:2]), "to": list(after[:2])}]
+        events += [e for e in self.link.events[self.step_mark:] if e.get("ev") == "cliloc"]
+        for x, y in guards.entries(events):
+            self._source.guard_point_record(facet, x, y)
 
     def fresh_state(self) -> dict:
         """The full state the last step ended with while it is still current
@@ -612,13 +633,17 @@ class Mover:
             return n if n in mem.tiles else None
         return nav.straighten(path, mem_step, diagonal_first, hard | occ), None
 
-    def walk_to(self, center_fn, radius: int, label: str, max_moves: int = 250, z_ok=None, gate=None):
+    def walk_to(self, center_fn, radius: int, label: str, max_moves: int = 250, z_ok=None, gate=None,
+                goal_fn=None, urgent: bool = False):
         """Walk until within `radius` (Chebyshev) of center_fn(), re-evaluated
         on every replan (NPCs wander). `z_ok(z)` also requires the standing
         height (same level as the target, not a cave below or a floor above);
         only the map planner can honour it. `gate`: the (x, y) of a moongate
         this walk means to use; its gump is left for the caller. Every other
-        moongate the route steps onto gets its gump closed (close_gate_gumps)."""
+        moongate the route steps onto gets its gump closed (close_gate_gumps).
+        `goal_fn`: a goal predicate (e.g. nav.any_of) used instead of
+        center_fn/radius; center_fn may then be None. `urgent`: a flight, with no
+        pauses, sidesteps or reading waits, running whenever stamina allows."""
         gate = tuple(gate) if gate is not None else None
         replans = 0
         start_steps = self.steps
@@ -630,7 +655,7 @@ class Mover:
             st = self.link.state()
             self.guard(st)
             cur = tuple(self.link.pos(st)[:2])
-            goal = nav.within(tuple(center_fn()), radius, z_ok)
+            goal = goal_fn if goal_fn is not None else nav.within(tuple(center_fn()), radius, z_ok)
             if goal(cur) and (z_ok is None or self.walk_map(st) is None or z_ok(self.link.pos(st)[2])):
                 log(f"{label}: arrived at {cur}")
                 return
@@ -644,7 +669,10 @@ class Mover:
                     log(f"{label}: route from {cur} cut by mobiles we couldn't shove; waiting")
                 elif now > mobile_wait_until:
                     raise Abort(f"{label}: route from {cur} cut by mobiles for {MOBILE_WAIT_S:.0f} s")
-                self.human.wait("between")
+                if urgent:
+                    time.sleep(0.05)         # a poll interval, not a player's pause
+                else:
+                    self.human.wait("between")
                 continue
             mobile_wait_until = None
             log(f"{label}: route {len(path) - 1} steps from {cur}{'' if run else ' (walking)'}"
@@ -667,6 +695,8 @@ class Mover:
                     break
                 if pos[3] == d:              # already facing it (e.g. at the start of a route)
                     self._open_ahead(nxt, z, opened, label, st)
+                if urgent:
+                    run = stamina_ok(st)
                 self.pace(run, st)
                 outcome = self.step(d, run, st)
                 if outcome == "turned":      # facing it now: the client's auto-open fires on the turn
@@ -697,6 +727,8 @@ class Mover:
                     if i + 1 < len(path) and nav.direction(new, path[i + 1]) == d:
                         # landed facing the next tile: the client's auto-open fires on the step
                         self._open_ahead(path[i + 1], here[2], opened, label, after)
+                    if urgent:
+                        continue
                     self.human.after_step()
                     if len(path) - i > 3 and self.human.wander():
                         st = self.link.state()
@@ -718,7 +750,8 @@ class Mover:
                     log(f"{label}: move {d} from {cur} blocked ({self.blocked_count} total); replanning")
                 if self.blocked_count > self.max_blocked:
                     raise Abort(f"too many blocked moves ({self.blocked_count})")
-                self.human.wait("read")
+                if not urgent:
+                    self.human.wait("read")
                 replan = True
                 break
             if replan:

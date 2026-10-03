@@ -104,6 +104,10 @@ CREATE TABLE IF NOT EXISTS teleporters(
     to_facet INTEGER, to_x INTEGER NOT NULL, to_y INTEGER NOT NULL, to_z INTEGER,
     n INTEGER NOT NULL, first_t REAL NOT NULL, last_t REAL NOT NULL,
     PRIMARY KEY (facet, x, y));
+CREATE TABLE IF NOT EXISTS guard_points(
+    facet INTEGER NOT NULL, x INTEGER NOT NULL, y INTEGER NOT NULL,
+    n INTEGER NOT NULL, first_t REAL NOT NULL, last_t REAL NOT NULL,
+    PRIMARY KEY (facet, x, y));
 CREATE TABLE IF NOT EXISTS knowledge(
     id INTEGER PRIMARY KEY, kind TEXT NOT NULL, topic TEXT NOT NULL, content TEXT NOT NULL,
     tags TEXT NOT NULL DEFAULT '', entities TEXT NOT NULL DEFAULT '[]',
@@ -374,6 +378,21 @@ class Memory:
         return {(x, y): (tf, tx, ty, tz) for x, y, tf, tx, ty, tz in self.con.execute(
             "SELECT x, y, to_facet, to_x, to_y, to_z FROM teleporters WHERE facet = ?",
             (0 if facet is None else facet,))}
+
+    # -- guard zones ----------------------------------------------------------------
+    def guard_point_record(self, facet, x, y, t: float | None = None):
+        """(facet, x, y) is a tile just inside a town-guard zone (guards.py)."""
+        t = time.time() if t is None else t
+        self.con.execute(
+            "INSERT INTO guard_points(facet, x, y, n, first_t, last_t) VALUES(?,?,?,1,?,?) "
+            "ON CONFLICT(facet, x, y) DO UPDATE SET n=n+1, last_t=excluded.last_t",
+            (0 if facet is None else facet, x, y, t, t))
+        self.con.commit()
+
+    def guard_points(self, facet) -> set:
+        """{(x, y)} known tiles inside town-guard zones on facet."""
+        return {(x, y) for x, y in self.con.execute(
+            "SELECT x, y FROM guard_points WHERE facet = ?", (0 if facet is None else facet,))}
 
 
 # ----------------------------------------------------------------------- writer

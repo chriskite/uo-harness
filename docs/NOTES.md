@@ -377,6 +377,32 @@ Read from the memory-store `gump_open` events and the session capture
   - Reagents: shelf buttons 130/131/132.
   - Blank runes and recall scrolls: Garrett the mage (20 / 200 gp).
 
+## Guard zone notices (live 2026-10-02, TestWorth in Prevalia, Test Shard, session 20261002_213830)
+
+- Clilocs **500112** "You are now under the protection of the town guards." / **500113** "You
+  have left the protection of the town guards." (System, hue 946). They are the only signal for
+  guard zones: the client data has no zone boundaries.
+- **They lag and skip crossings.** Times are seconds after 1790998000, from the store's `events`:
+  - 674.130: step (1481,1513)→(1481,1512), its `walk_confirm`, then the 500113 in the same ms.
+    This is the clean case.
+  - Flight in: steps onto (1478,1498) at 703.252 and (1477,1497) at 703.466, no notice. Then
+    (1475,1495) at 705.351; the 500112 came with the *next* walk's ack, a turn, at 705.558.
+  - Out again: steps (1475,1495)→(1478,1498) at 803–810 with 2.5 s pauses, no notice. Step onto
+    (1479,1499) at 829.199, no notice. The 500113 came at 839.153 with a turn at (1479,1499),
+    3.3 s after the second step onto that tile.
+  - Then 14 more out/in crossings (1478,1498)↔(1479,1499) over 95 s and a walk south into the
+    zone at (1483,1515) (where earlier sessions got a 500112): no notice for ~5 min.
+  - The store as a whole: of 159 notices, 97 came ≥ 3 s after the last step and 69 rode on a
+    non-moving walk confirm (a turn or deny).
+  - [INFERENCE] The server evaluates and/or announces the zone on its own schedule, possibly
+    rate-limited; the rule wasn't pinned.
+- **Consequences (harness/guards.py):**
+  - A notice only says which side we're on when it arrives, so only enter notices become
+    learned points, at the tile we stand on.
+  - A flight can't wait for a notice: arrival at a learned point counts as safe.
+- Prevalia has two guarded areas with an unguarded band between them along x≈1475–1485,
+  y≈1498–1513. Enter points: (1474,1495), (1475,1495) north; (1483,1515), (1484,1515) south.
+
 ## Test Shard
 
 - Test-only commands: `[TestRes` (res self+followers), `[TestIgnoreMaxDamageCap`, `[TestMaxMeleeDamageRolls`, `[TestMaxSpellDamageRolls`, `[TestBlessedGear`, `[Go` (warp self+followers). Use these for fast harness iteration.

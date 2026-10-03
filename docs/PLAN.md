@@ -297,7 +297,7 @@ Shard (docs/LUMBER_LOOP.md §13, docs/NOTES.md "Runebook and rune tome gumps"). 
 book before he can work off Shelter.
 
 Still open:
-- the run-away behaviour (item 4)
+- the run-away behaviour (item 4); its no-recall fallback, the guard flight, is built (below)
 - path-based player ETAs and Tracking (item 6)
 - the banking return trigger
 - the hunt runner: dungeons block recall, so its red rule is unchanged
@@ -354,6 +354,40 @@ Policy (lumber and hunt runners, overseer):
 
 Recall inside a dungeon is blocked (except near golden gates), so the hunt runner keeps its walk to
 the exit for monsters. Reds can't reach the Shelter NPD.
+
+### Guard flight (built 2026-10-02)
+
+Item 4's "ride to the nearest known guard edge" as the backup for a failed recall (`escape`
+fails or raises `RecallError`) or no book (`--recall off`). Before this the runner stopped where
+it stood. Code: `harness/guards.py`, `LumberLoop.flee_to_guards`, `nav.any_of`,
+`Mover.walk_to(goal_fn=, urgent=True)`, the `guard_points` table (docs/MEMORY.md).
+
+- **Where to run:** guard zone boundaries aren't in the client data. Goals are learned guard
+  points (radius 0) plus the client's bank markers (`Banks_and_Healers.xml`, radius 2) minus
+  lawless towns (`LAWLESS_TOWNS`: Corpse Creek). All lie within 250 tiles; with the attacker
+  within 12 tiles, places nearer to it than to us are dropped, unless that drops them all. A* over
+  all goals at once (`nav.any_of`, heuristic = min).
+- **Learned points are enter notices only, at the tile we stood on.** The approved plan also used
+  "You have left…" (500113) and extrapolated one tile inward. The live probe (docs/NOTES.md "Guard
+  zone notices") showed the notices lag (3.3 s) and skip crossings, so a 500113 doesn't say where
+  the inside is. One extrapolated point, (1477,1497), was where the first flight round stopped
+  without a notice. Backfill: 32 enter notices → 25 points (Terran, Prevalia, Horseshoe Bay,
+  Shelter, …).
+- **Arrival counts as safe, notice or not.** The plan dropped a goal reached without a 500112
+  and walked on. With a notice that may never come (none for ~5 min over ~16 crossings), that
+  walks away from guarded ground. The flight stops on the 500112 if it comes on the way, or on
+  arrival. `confirmed` in the juncture says which.
+- **Pacing:** urgent = no wander sidesteps, after-step pauses or reading waits. Run unless
+  stamina ≤ 1: that's the stock client's own rule (`PlayerMobile.Walk`: `Stamina <= 1 && !IsDead`
+  → `run = false`), the hamstring case.
+- **In town:** "guards" once if a hostile player is within 12 tiles (wiki: a PK attacking a blue
+  in a guard zone is guard-whacked; THREATS line 81). Then `guard_flight` job event + urgent
+  `pk_escape` (`method: guards`) + stop (Unsafe), as the recall does.
+- **Rejected:** a "latest notice was an enter, so we're already inside" shortcut. Notices skip,
+  so it can be minutes stale.
+- **Live check (TestWorth, Prevalia, Test Shard):** fake red, `--recall off`, from (1481,1505)
+  between the two Prevalia zones: 10 steps, all runs, to the learned point (1483,1515) in 4.42 s;
+  `pk_escape` `method: guards`, `called_guards: false`, `confirmed: false`.
 
 ## Risks
 

@@ -23,7 +23,8 @@ decoys).
 
 The runner answers no other gump, except that its Mover closes (button 0) the
 gump of a moongate a route only passes over (agent_link.Mover.close_gate_gumps).
-The only speech is "bank".
+The only speech is "bank", and "guards" once inside a guard zone after a flight
+with a hostile player within 12 tiles.
 
 Guards: jittered pacing, overall timeout, HP loss, movement stall, the agent
 gate (pause/break wait, kill/budget abort), bounded retries everywhere.
@@ -53,6 +54,7 @@ from agent_link import (Abort, Link, Mover, bank_opened, cheb, containers_to_ope
 import uomap  # noqa: E402
 import nav  # noqa: E402
 import escape as escape_mod  # noqa: E402
+import guards  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from uo.gumps import parse_layout  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
@@ -82,6 +84,8 @@ DROP_AUTO = 0x7FFFFFFF        # client drop-into-container auto-position (demo)
 ESCAPE_MARGIN = 2             # an escape ends this many tiles beyond the monster's flee radius
 ESCAPES_PER_TRIP = 3          # monster escapes per trip; one more threat stops the run
 PACK_DEPTH_MAX = 16           # container nesting bound when looking for the hatchet
+FLEE_MAX_MOVES = 400          # a guard flight's step bound (guards.FLEE_MAX_DIST tiles and detours)
+FLEE_ARRIVAL_WAIT_S = 1.5     # after a flight arrives: how long its 500112 may still come (data.confirmed)
 
 
 def h(v) -> int:
@@ -118,6 +122,10 @@ class Escape(Exception):
         self.summary = summary
 
 
+class InGuards(Exception):
+    """The server said we're under the guards' protection (cliloc 500112) during a flight."""
+
+
 def alert(sound: bool = True):
     """Captcha alert sound (alerts.handoff): the human is to solve it."""
     alerts.handoff(sound)
@@ -146,6 +154,7 @@ class LumberLoop:
         self.speech = SpeechGuard()  # a character speaking near us hands control to the overseer
         self.triage = triage.Triage(args.triage_url, log=log)  # Laya verdict per line (shadow + escalate)
         self.mode = "work"           # "work" | "escape" (walking away) | "salvage" (converting before a stop)
+        #                              | "flee" (running to the guards)
         self.holding = False         # in a speech hold: the overseer has control
         self.escapes = 0             # monster escapes this trip
         self.danger = {}             # serial -> ((x, y), tiles): monsters escaped from this trip and their reach
@@ -154,6 +163,7 @@ class LumberLoop:
         self.break_due = False       # the agent gate announced a break (break_due)
         self.recall_book = None      # runebook / rune tome serial: the red escape (prepare_recall)
         self._attack_scan = 0        # link.events index scanned for "... is attacking you!"
+        self._flee_mark = 0          # len(link.events) when the guard flight started
 
     def doing(self, kind: str, text: str, target=None):
         """Tell the visualizer what the agent is trying to do (proxy-side only)."""
@@ -162,8 +172,8 @@ class LumberLoop:
 
     # ------------------------------------------------------------ guards
     def check_guards(self, st: dict):
-        salvage = self.mode == "salvage"
-        if not salvage and time.monotonic() > self.deadline:
+        relaxed = self.mode in ("salvage", "flee")
+        if not relaxed and time.monotonic() > self.deadline:
             raise Abort(f"overall timeout ({self.args.timeout}s)")
         mv = st["movement"]
         if mv["stalled"]:
@@ -177,7 +187,7 @@ class LumberLoop:
         if hits is not None:
             if self.start_hits is None:
                 self.start_hits = hits
-            elif hits < self.start_hits and not salvage:
+            elif hits < self.start_hits and not relaxed:
                 raise Abort(f"hit points dropped ({self.start_hits} -> {hits}); stopping")
 
     def _where(self, st):
@@ -220,11 +230,17 @@ class LumberLoop:
             times a trip and never during a speech hold (escape=False); else 'abort'.
         While escaping, creatures are what we're walking away from (damage and
         players still stop the run); while converting before a stop, only
-        players and death count."""
+        players and death count. With no recall (no book, or it failed) a player
+        threat sends us running to the guards (flee_to_guards); during that flight
+        only death and the server's 500112 count."""
         a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
         self.last_threats = a
         if a.dead:
             self.died(st, "ghost body")
+        if self.mode == "flee":
+            if self.guards_entered(self._flee_mark):
+                raise InGuards()
+            return
         for t in a.threats:
             if t.hostile and t.player and t.serial not in self.seen_hostiles:
                 self.seen_hostiles.add(t.serial)
@@ -243,7 +259,9 @@ class LumberLoop:
                      and s not in {t.serial for t in monsters}]
         if players or aggressors:
             worst = players[0] if players else None
-            why = self.recall_out(st, a, worst, swung) if self.recall_book is not None else None
+            why = self.recall_out(st, a, worst, swung) if self.recall_book is not None else "no recall book"
+            if self.k.get("venue") != "shelter_island":
+                self.flee_to_guards(st, a, worst, swung, why)
             self.threat_stop(st, a, worst, swung, Unsafe, why)
         if self.mode == "salvage":
             return
@@ -314,6 +332,74 @@ class LumberLoop:
                              f"Recalled away from {summary} ({res['kind']} {res['method']}, "
                              f"{res['press_to_arrival_s']} s); stopped", "urgent", data)
         raise Unsafe(f"threat: {summary}; escaped by recall to {tuple(res['to'])} in {res['elapsed_s']} s")
+
+    def guards_entered(self, since: int) -> bool:
+        """The server's "You are now under the protection of the town guards." since
+        link.events[since]."""
+        return any(e.get("ev") == "cliloc" and e.get("cliloc") == guards.ENTER_CLILOC
+                   for e in self.link.events[since:])
+
+    def flee_to_guards(self, st, a, worst, swung, why):
+        """The recall escape failed (`why`): run to the nearest known guarded place
+        (guards.flee_goals: tiles where the server said we were under the guards'
+        protection, bank markers), urgent pacing, until we stand on one or the
+        server says we're under the guards' protection (cliloc 500112) on the way.
+        The notice lags and skips crossings (guards.py), so arriving counts without
+        it; `confirmed` says whether it came. There: "guards" once when a hostile
+        player is within 12 tiles, an urgent `pk_escape` juncture, then Unsafe.
+        Returns (after logging why) only when the flight failed; the caller then
+        stops the plain way."""
+        me = tuple(self.link.pos(st)[:2])
+        facet = st["world"]["self"].get("map") or 0
+        attacker = None
+        if worst is not None:
+            m = st["world"]["mobiles"].get(f"0x{worst.serial:08X}")
+            if m and m.get("x") is not None:
+                attacker = (m["x"], m["y"])
+        goals = guards.flee_goals(self.memory.guard_points(facet), guards.bank_markers(), facet, me, attacker)
+        if not goals:
+            log(f"guard flight: no guarded place known within {guards.FLEE_MAX_DIST} tiles")
+            return
+        t0 = time.monotonic()
+        self.mode = "flee"
+        self._flee_mark = len(self.link.events)
+        self.doing("flee", f"Running to the guards from {worst.name if worst else 'an attacker'}")
+        log(f"guard flight ({why}): {len(goals)} guarded place(s) in range")
+        try:
+            self.mover.walk_to(None, 0, "to the guards", max_moves=FLEE_MAX_MOVES,
+                               goal_fn=nav.any_of(goals), urgent=True)
+            confirmed = self.link.wait(lambda s: self.guards_entered(self._flee_mark),
+                                       FLEE_ARRIVAL_WAIT_S) is not None
+        except InGuards:
+            confirmed = True
+        except Unsafe:
+            raise
+        except Abort as e:
+            log(f"guard flight failed: {e}")
+            return
+        finally:
+            self.mode = "work"
+        self.in_guards(worst, swung, why, t0, confirmed)
+
+    def in_guards(self, worst, swung, why, t0, confirmed: bool):
+        """At a guarded place after a flight: call the guards on a hostile player
+        within 12 tiles, post `guard_flight` + `pk_escape`, raise Unsafe."""
+        st = self.link.state()
+        a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+        pos = self.link.pos(st)
+        near = [t for t in a.threats if t.player and t.hostile and 0 <= t.distance <= guards.ATTACKER_NEAR]
+        if near:
+            self.link.act(actions.say_unicode("guards"))
+            log(f"called the guards on {near[0].name or f'0x{near[0].serial:08X}'}")
+        data = {"method": "guards", "recall_failure": why, "to": list(pos[:2]), "confirmed": confirmed,
+                "flight_s": round(time.monotonic() - t0, 2), "called_guards": bool(near),
+                "threat": worst.to_dict() if worst else None,
+                "attackers": [f"0x{s:08X}" for s in swung]}
+        self.memory.job_event("lumber", "guard_flight", data, **self._where(st))
+        summary = self.post_threat(st, a, worst, swung, "guards")
+        self.memory.juncture("lumber", "pk_escape",
+                             f"Fled into the guards from {summary} ({data['flight_s']} s); stopped", "urgent", data)
+        raise Unsafe(f"threat: {summary}; fled into the guards at {tuple(pos[:2])}")
 
     def post_threat(self, st, a, worst, swung, action, why=None) -> str:
         """The urgent `threat` juncture + `flee` job event; returns the summary."""

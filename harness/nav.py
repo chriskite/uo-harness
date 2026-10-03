@@ -388,6 +388,24 @@ class within:
         return max(0, chebyshev(t, self.center) - self.radius)
 
 
+class any_of:
+    """Goal predicate: within its radius of any of several centers; admissible
+    heuristic = min over them. No `center`: Mover.plan keeps teleporter tiles
+    as walls for it."""
+
+    __slots__ = ("goals", "z_ok")
+
+    def __init__(self, goals: Iterable):            # goals: ((x, y), radius) pairs
+        self.goals = [((int(c[0]), int(c[1])), int(r)) for c, r in goals]
+        self.z_ok = None
+
+    def __call__(self, t: Tile) -> bool:
+        return any(chebyshev(t, c) <= r for c, r in self.goals)
+
+    def heuristic(self, t: Tile) -> int:
+        return min(max(0, chebyshev(t, c) - r) for c, r in self.goals)
+
+
 def move_cost(memory: WalkMemory, a: Tile, b: Tile) -> float:
     """Cost of the single step a -> b: known edge (either way) 1, known tile
     1.5, unknown tile 4."""

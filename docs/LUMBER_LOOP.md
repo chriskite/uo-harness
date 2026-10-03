@@ -473,8 +473,17 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     (tome: its detail page's Cast Recall). Up to 3 casts: retry at once after a disturbed or
     fizzled cast, spell after "no charges".
   - **After landing:** the `threat` juncture (`action: recall`), an urgent `pk_escape` juncture
-    and a `recall` job event, then the run stops without converting. A failed escape stops in
-    place with `why: recall failed …`.
+    and a `recall` job event, then the run stops without converting.
+  - **Guard flight when the recall fails (since 2026-10-02, docs/PLAN.md "Guard flight";
+    `harness/guards.py`):** a failed escape, or no book (`--recall off`), off Shelter: the runner
+    runs (`Mover.walk_to(..., goal_fn=nav.any_of(goals), urgent=True)`: no pauses, sidesteps or
+    reading waits; a walk at stamina ≤ 1 like the stock client) to the nearest learned guard
+    point or bank marker within 250 tiles, avoiding ones nearer the attacker. It stops on the
+    server's 500112 or on arrival. There it says "guards" if a hostile player is within 12
+    tiles, posts a `guard_flight` job event and an urgent `pk_escape` (`method: guards`) and
+    stops. Nothing in range, no route or a blocked way: it stops in place with `why: recall
+    failed …` / `no recall book`, as before. During the flight only death and the 500112 count:
+    no timeout, HP, creature or speech checks.
   - **Live check (TestWorth, Test Shard):** the runner's path with a fake red, 2.11 s from press
     to arrival. `test_escape.py` pins the gump parsing on the captured layouts.
 - **Carried wood is boards (since 2026-10-01):** an abort during the harvest converts the log
