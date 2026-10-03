@@ -467,9 +467,9 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
 - **Hackworth's home rune, Cambria (1752, 3001):**
   - Garritt the mage, Cambria (1759, 2981): reagents 3 gp each, blank recall rune 20, recall
     scroll 200, **Mark scroll 500**, spellbook 60, 20 arcane staves 50 each, training arcane staff 25.
-  - **Mark is 6th circle: 60 Magery to cast, 100 % at 70** (wiki Magery: per circle 1st 0/30 …
-    5th 40/60, 6th 50/70, 7th 60/80 — the min figure the wiki gives above each circle's table is
-    the previous circle's). At Magery 60.0 from the spellbook all 20 casts fizzled (12 reagent sets
+  - **Mark is 6th circle: 60 Magery to cast, 100 % at 80** (wiki Magery: each circle's "Min
+    Required / 100% Success" line follows its spell table: 1st 0/30 … 5th 40/60, 6th 60/80, the
+    same for Reveal and Invisibility). At Magery 60.0 from the spellbook all 20 casts fizzled (12 reagent sets
     used). **Cast from the scroll it worked first time** (double-click the scroll, target the rune;
     "You generate mana for your spell."): a scroll casts as if lower-circle [INFERENCE from RunUO].
     Adding a scroll to a book: drop it on the spellbook.
