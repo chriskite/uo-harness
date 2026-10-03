@@ -289,6 +289,51 @@ chatter, is skipped for now: every speaker still holds a harvest job.
   agent cadence, so they can't disagree. Rejected: a per-task `--mounted` flag (it goes stale on
   a dismount, and a stale "mounted" on foot is a Speedhack signature).
 
+## Red sighting: recall at once (proposed 2026-10-02, awaiting the user's go-ahead)
+
+Evidence: the Terran PK (docs/NOTES.md "PK death in the Terran wilds") and the one live runebook
+recall (TestWorth, 2026-09-30 18:59, `logs/session_20260930_182751.jsonl`): double-click the
+runebook to gump 48 ms; the rune's Recall button to the server's power words 46 ms; arrival
+(sound 0x01FC, world resend) **2.09 s after the button**. Cast time 2.0 s, like the spellbook cast
+(cursor 2.003 s after the cast started, same session). Bastet needed **4.63 s** from his first
+`0x78` to his first hit. His route around the terrain was ~27 mounted steps for an 18-tile
+Chebyshev gap, with pauses; he set us as his combatant (S2C 0xAA, "Bastet is attacking you!")
+at 2.85 s.
+
+So a recall started within ~2.4 s of sight lands before the first hit. Stopping, the current
+`Unsafe` abort, left the character standing until death. The worst case in THREATS §3.4 (an
+instant straight approach, about a 1.7 s first hit) still beats a recall from a standstill. A
+recall is the only action with a chance, so it wins.
+
+Policy (lumber and hunt runners, overseer):
+1. **Readiness gate off guarded ground:** a runebook in the pack with a home rune (Horseshoe Bay
+   inn), and either Recall in the spellbook plus reagents or the spellstone, or book charges. A
+   carried-wood cap applies (bank at ~200 boards in PvP regions). Missing → the runner refuses to
+   start outside guards. Hackworth has none of this now: no runebook, and the spellstone bag is
+   on his corpse.
+2. **Trigger:** any notoriety-6 mobile in view, a 0xAA or "… is attacking you!" naming a player,
+   or player damage. For reds, no ETA test: the 0.6 s estimate (strike range 12, straight line)
+   was 8× off, and every red in view is in range anyway.
+3. **Action:** within a human reaction (0.3–0.7 s), press the home rune's Recall button.
+   - No salvage conversion, no war mode, never attack back (Heat of Battle would block recall;
+     auto-defence swings don't count).
+   - Don't move while casting [RunUO freezes; Outlands untested].
+4. **Interrupted (500641) and alive:** mounted, ride straight away from the attacker, breaking
+   line of sight where possible. Recast after ~1 s without damage. At most 3 casts.
+   - With no recall source at all: ride to the nearest known guard edge.
+   - A "5…1" countdown over an attacker = an explosion potion ~5–6 s after "5": keep moving.
+5. **After landing:** urgent `pk_escape` juncture with the killer's name and the spot. Wait out the
+   60 s harvest lockout, then walk 5 steps (stationary penalty). The overseer keeps the character
+   away from that region for ≥ 30 min and records the PK in `know`.
+6. **Detection fixes:**
+   - Treat S2C 0xAA and "X is attacking you!" as under-attack signals. The attacker sends no
+     `0x2F`.
+   - Compute player ETAs from the planned path (Mover.plan), not Chebyshev distance × 0.1.
+   - Investigate why Tracking (murderers) never registered Bastet.
+
+Recall inside a dungeon is blocked (except near golden gates), so the hunt runner keeps its walk to
+the exit for monsters. Reds can't reach the Shelter NPD.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
