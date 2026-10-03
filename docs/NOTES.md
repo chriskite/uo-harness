@@ -273,6 +273,34 @@ Times are seconds after 1790911000 (22:16:40 local).
 - **The world model used to drop houses the client keeps.** The server sends a house from beyond the 18-tile view: the Corpse Creek house came at 22 tiles at 17:38:42, 17:41:11 and 17:44:15. The client keeps a multi while it is within view range + the multi's reach (HouseManager.IsHouseInRange; reach = the max |dx|/|dy| of its multi.mul records, 4 for 0x154). The harness pruned it at the next `0xFF` sub 5. Replaying the session, the house was missing from the model at all 12 denies; with the client's rule (`StateStore.prune_range`, since 2026-10-02) it is there at all 12. Without this, the walk-rule fix above would never have seen that house.
 - Houses are only known once in view (18 tiles), so a long route can still be planned through one. The Mover's per-step map check then refuses the step and replans, with no server deny. Live check (2026-10-02, the agent at (865,1570) with houses 0xA2 at (880,1566) and 0x16D at (881,1580) in view): the house pieces add 49 blocked tiles around 0xA2. A route to (881,1566) now goes in through the front, (879,1568) → (880,1567), not through the north wall.
 
+## PK death in the Terran wilds (live 2026-10-02, 19:43; the user's death experiment)
+
+The user asked for Hackworth to lumber in dangerous places until killed, for threat data
+(chat#1218/#1262/#1280). Overseer task logs: `logs/tasks/lumber-20261002-192807-7320.log`
+and the session capture of that time (local).
+
+- **Corpse Creek is lawless, so everyone reads grey** ("You are now entering a lawless region."). A
+  red can't be told from a grey there by notoriety, and `threats.py` aborts the lumber runner on
+  any grey player within 18 tiles. A stationary grey by the Corpse Creek healer (Evil Palacinka,
+  never approached) aborted two trips in a row.
+- **The kill.** Bastet (0x0009E217, notoriety 6, mounted, 111 hits, "Serial Killer [Prevalia]",
+  guild [Aggressive Captcha, DVLS]) entered view at 18 tiles. The runner aborted (red, ETA 0.6 s ≤
+  recall 2 s + 1 s margin) and he was adjacent ~1 s later: "Bastet is attacking you!", "Their
+  attack hamstrings you!", hits −15 −32 −25 −23 −7 in ~6 s (100 → 0), "You have lost a moderate
+  amount of fame." Outside guards at (871,1481); the last guard message was the exit at 18:40.
+- **What the harness didn't see.** Tracking in Hunting mode on murderer players was on the whole
+  time and recorded **no hit** before or during the attack (`status.tracking.hits` empty).
+  `status.attackers` (S2C `0x2F` swings at us) stayed empty through all five hits. A mounted red
+  covers 18 tiles in ~1 s (s_per_tile 0.1), so a reaction that starts at first sight can't escape
+  on foot or by a 2 s recall cast. Only a pre-cast or instant escape could.
+- **After death:** a "Report Murder" gump (0x1F3940C6, Accept 2 / Decline 3; the user chose
+  decline, but it had closed by itself after the resurrection). Ghost walk 144 steps to Galatea
+  the healer (Terran, 735,1531); within 2 tiles the "Resurrection" gump (0xB04C9A31, Accept 1).
+  Back at 100/100 in a robe. Shirt, short pants and shoes came back in the pack; spellbook, dagger
+  and scissors stayed in it. The corpse kept the hatchet, the bag with the spellstone (bandages,
+  potions), the leather tunic, 968 boards and 447 logs. The riderless horse followed the ghost and
+  stayed ours (notoriety 2); a double-click remounted it.
+
 ## Test Shard
 
 - Test-only commands: `[TestRes` (res self+followers), `[TestIgnoreMaxDamageCap`, `[TestMaxMeleeDamageRolls`, `[TestMaxSpellDamageRolls`, `[TestBlessedGear`, `[Go` (warp self+followers). Use these for fast harness iteration.
