@@ -40,7 +40,7 @@ step (--reposition-s 6). No attack goes out while it is on; the runner walks it 
 steps out and back) without stepping onto a teleporter, and repositions before it comes.
 
 Then a crawl (--crawl) through a multi-room NPD (CRAWL_FLOOR, walls deny steps; the store's walk
-memory knows the floor): patrol through the rooms, level 1 opened before room R2 is entered, a
+memory knows the floor): patrol through the rooms, zone 2 opened before room R2 is entered, a
 troll there fled from (a survival leave from deep, back to the exit spot) and avoided afterwards,
 room R1 left as depleted after its mongbat, two mongbats killed and looted (docs/HUNT_LOOP.md).
 
@@ -95,7 +95,7 @@ DD = nav.DIR_DELTA
 FAILURES = []
 
 # The crawl run (--crawl): a multi-room NPD. The hall around the exit spot, a corridor north to
-# room R1, a corridor west to room R2 (deep: level 1 with --crawl-band 22). Mongbat M1 in R1;
+# room R1, a corridor west to room R2 (deep: zone 2 with --crawl-band 22). Mongbat M1 in R1;
 # a troll T in R2's corner that hits hard (too strong: the crawl flees, then avoids it); mongbat
 # M2 comes into the west corridor once we are back in and M1 is dead. Steps off the floor are
 # denied; the store's walk memory knows the floor (the runner plans with --no-map).
@@ -808,7 +808,7 @@ def seed_floor(store):
 
 
 def check_crawl(world, text, rc, rows, js, evs):
-    """The crawl run (World(crawl=True), --crawl): patrol through the rooms, level 1 (R2)
+    """The crawl run (World(crawl=True), --crawl): patrol through the rooms, zone 2 (R2)
     only once opened, the troll fled from deep in R2 and avoided afterwards, an area left
     as depleted, the survival leave walked back to the exit spot."""
     print("== crawl ==")
@@ -820,9 +820,10 @@ def check_crawl(world, text, rc, rows, js, evs):
           seen == set(AREAS) and len(wps) >= 4, f"areas {sorted(seen)} waypoints {sorted(wps)}")
     fought = {area_of(p) for p in world.attack_pos}
     check("fought where it met them (attacks in >= 2 areas), not on one spot", len(fought) >= 2, str(fought))
-    opened = [e for e in evs if e["kind"] == "crawl_level" and e["data"].get("open") and e["data"]["level"] == 1]
+    opened = [e for e in evs if e["kind"] == "crawl_zone" and e["data"].get("open") and e["data"]["zone"] == 2
+              and e["data"].get("floor") == 1]
     deep = [t for t, x, y in world.trace if (x, y) in R2]
-    check("room R2 (level 1) entered only after the crawl opened level 1 (level 0 known, risk ok)",
+    check("room R2 (zone 2 of dungeon level 1) entered only after the crawl opened zone 2 (zone 1 known, risk ok)",
           opened and deep and deep[0] > opened[0]["t"], f"opened {[e['t'] for e in opened]} first in R2 {deep[:1]}")
     at_t = [t for p, t in zip(world.c2s, world.c2s_t) if refs(p) == T]
     check("the troll fought in the first visit only", at_t and world.exits and all(t < world.exits[0] for t in at_t),
@@ -854,14 +855,14 @@ def check_crawl(world, text, rc, rows, js, evs):
           f"leave {first and (first['x'], first['y'], first['data'].get('route_steps'))} exits {world.exit_from} "
           f"rows {[(r.get('route_steps'), r.get('leave_at')) for r in rows]}")
     kills = [e["data"] for e in evs if e["kind"] == "fight" and e["data"]["outcome"] == "kill"]
-    check("M1 and M2 killed and looted (20 + 22 gold); their fights recorded with time and level",
+    check("M1 and M2 killed and looted (20 + 22 gold); their fights recorded with time and zone",
           world.looted == {CORPSE[M1]: 20, CORPSE[M2]: 22}
           and sorted(k["serial"] for k in kills) == [f"0x{M1:08X}", f"0x{M2:08X}"]
-          and all(k["fight_s"] > 0 and k.get("level") is not None for k in kills), f"{world.looted} {kills}")
+          and all(k["fight_s"] > 0 and k.get("zone") == 1 for k in kills), f"{world.looted} {kills}")
     c = [r.get("crawl") or {} for r in rows]
-    check("episode rows carry the crawl block: troll avoided, level time and the survival leave in level 1",
-          len(rows) == 2 and "troll" in c[0].get("avoided", {}) and c[0]["levels"].get("1", {}).get("leaves") == 1
-          and sum(v.get("s", 0) for r in c for v in r.get("levels", {}).values()) > 0, str(c)[:400])
+    check("episode rows carry the crawl block: dungeon level 1, troll avoided, zone time and the survival leave in zone 2",
+          len(rows) == 2 and "troll" in c[0].get("avoided", {}) and c[0].get("floor") == 1 and c[0]["zones"].get("2", {}).get("leaves") == 1
+          and sum(v.get("s", 0) for r in c for v in r.get("zones", {}).values()) > 0, str(c)[:400])
 
 
 

@@ -19,11 +19,11 @@ python harness/loop_hunt.py --enter --crawl --pull-range 8  # patrol the floor (
 | `--spot X Y` | `5535 529` | The exit spot (the NPD exit tile): leaving walks here, then takes the exit step. |
 | `--fight-spot X Y` | `--spot` | The tile to fight on. Each visit walks there; the pull range, the corpse range and the idle return are measured from it. Candidates below ("Fight spots"). |
 | `--crawl` | off | Patrol the floor instead of one fight spot ("Crawl"); not with `--fight-spot`. The pull range, the corpse range and Stationary Penalty walks are measured from where we stand. |
-| `--crawl-band` / `--crawl-floors` | `40` / `0` | Route steps from the exit per level; at most this many levels (0: all). |
+| `--crawl-band` / `--crawl-zones` | `40` / `0` | Route steps from the exit per zone (internal depth bands, numbered from 1; not dungeon levels); at most this many zones (0: all). |
 | `--crawl-dwell` / `--crawl-depleted-s` | `6` / `90` | A waypoint where nothing showed up is looked over for about this long (× 0.6–1.4); an area where targets came is left as depleted after this long without one. |
-| `--crawl-learn-s` | `600` | Seconds observed in a level (store history included) before the next one may open. |
-| `--crawl-max-dmg` / `--crawl-depth-risk` | `30` / `1.5` | The most hits lost per minute a level may cost (estimated; for an unvisited level: the level above's × the risk factor). |
-| `--crawl-max-leaves` | `2` | Survival leaves from a level in one run that close it again. |
+| `--crawl-learn-s` | `600` | Seconds observed in a zone (store history included) before the next one may open. |
+| `--crawl-max-dmg` / `--crawl-depth-risk` | `30` / `1.5` | The most hits lost per minute a zone may cost (estimated; for an unvisited zone: the zone before's × the risk factor). |
+| `--crawl-max-leaves` | `2` | Survival leaves from a zone in one run that close it again. |
 | `--crawl-max-hits` / `--crawl-max-fight-s` | `0.5` / `180` | Avoid a creature type costing more than this share of our max hits per fight, or taking longer than this per kill (estimated). |
 | `--exit-dir D` | `4` (south) | The step from the spot onto the exit teleporter. |
 | `--enter` | off | Start outside: walk to `--entry`, step `--entry-dir` to teleport in. |
@@ -226,40 +226,46 @@ asked for a dungeon crawl: roam each floor, fight what it meets, and go only as 
 more dangerous) as it can fight efficiently. The plan below was written before the code; the
 decision and the rejected alternatives are in docs/PLAN.md "Hunt crawl".
 
-### The NPD floor graph (map files and the store, 2026-10-03)
+**Vocabulary** (user, 2026-10-03; the Outlands/UO convention): a **floor** or **dungeon level**
+is a real game level, numbered from 1 and up the deeper it goes; deeper floors would sit behind
+teleporters. The NPD is **dungeon level 1** only, as far as the map shows. A **zone** is the
+crawl's own depth band on one floor (route distance from the exit), also numbered from 1:
+internal, not a game level.
+
+### The NPD floor graph (dungeon level 1; map files and the store, 2026-10-03)
 
 `python harness/crawl.py floor --memory harness/data/harness.db` (read-only) prints it.
-- **One floor.** From the arrival side (5536,528, z 0), a BFS with the client's walk rules
+- **One floor: dungeon level 1.** From the arrival side (5536,528, z 0), a BFS with the client's walk rules
   (pathfind.Walk) that never steps on a known teleporter reaches **10,829 tiles**, x 5448–5616,
   y 363–535, the farthest **182 route steps** from the exit spot (5535,529). One storey: no tile
   has two walkable heights; z is 0 (8,513 tiles) or 1 (1,714), with ramps and pits down to −21
   and a few raised tiles up to 22.
-- **No deeper floor behind a teleporter is known.** The store's `teleporters` table holds the
+- **No deeper floor (dungeon level 2+) behind a teleporter is known.** The store's `teleporters` table holds the
   entrance (1912,2556/2557 → 5536,530) and the exit tiles (5535,529), (5535,530), (5536,530),
   (5537,530) → 1911/1912,2556 only. The client's Atlas packs (`ClassicUO/Data/Client/*.xml`)
   mark only the NPD's overworld entrance (Dungeons.xml, 1913,2566); `teleprts.txt` lists no
   places. The map has walkable areas next to it that the arrival can't reach (3,651 tiles at
   x 5595–5677, y 430–546; 2,601 at x 5380–5489, y 300–388): other dungeons, or NPD parts behind
   server teleporters nobody has stepped on [INFERENCE: which is unknown].
-- **So "deeper" is farther from the one exit**: level k = the tiles `40 k` to `40 k + 39` route
-  steps out (`--crawl-band`). Every level enters and leaves through the exit spot; its route to
-  the exit is its band.
+- **So "deeper" on level 1 is farther from the one exit**: zone z = the tiles `40 (z − 1)` to
+  `40 z − 1` route steps out (`--crawl-band`). Every zone enters and leaves through the exit
+  spot; its route to the exit is its band.
 
-| Level | Route steps to the exit | Tiles | Waypoints (radius 8) |
+| Zone | Route steps to the exit | Tiles | Waypoints (radius 8) |
 |---|---|---|---|
-| 0 | 0–39 | 566 | 10: 5532,528 5541,528 5539,521 5534,517 5528,506 5545,506 5533,501 5554,506 5533,494 5542,492 |
-| 1 | 40–79 | 2,765 | 38 |
-| 2 | 80–119 | 2,885 | 41 |
-| 3 | 120–159 | 3,148 | 43 |
-| 4 | 160–182 | 1,465 | 15 |
+| 1 | 0–39 | 566 | 10: 5532,528 5541,528 5539,521 5534,517 5528,506 5545,506 5533,501 5554,506 5533,494 5542,492 |
+| 2 | 40–79 | 2,765 | 38 |
+| 3 | 80–119 | 2,885 | 41 |
+| 4 | 120–159 | 3,148 | 43 |
+| 5 | 160–182 | 1,465 | 15 |
 
-Everything hunted so far is level 0: all 386 floor tiles of the box the runner has fought in
+Everything hunted before the crawl is zone 1: all 386 floor tiles of the box the runner has fought in
 (x 5528–5547, y 498–530) are under 40 steps out.
 
 ### Measured priors (the store, 2026-10-03: 29 finished hunt visits, 213 min)
 
 `python harness/crawl.py priors --memory harness/data/harness.db` prints the model's view of them.
-- **Level 0 base**: 8.3 gold/min and 23.4 hits lost/min (the visits' gold and `hits_lost` over
+- **Zone 1 base**: 8.3 gold/min and 23.4 hits lost/min (the visits' gold and `hits_lost` over
   their minutes); 20 of the 29 visits ended in a hits leave.
 - **Per creature**, kills rebuilt from the event log (`crawl.fights_from_events`: the first attack
   or cast intent at the serial to its `kill` job event; hits lost = the "-N" overhead numbers on
@@ -272,10 +278,10 @@ Everything hunted so far is level 0: all 386 floor tiles of the box the runner h
 | headless | 10 | 29 / 25 | 1.5 / 5 | 23.1 (7 of 10) | 0 of 10 |
 | skeleton, zombie, wounded harpy, giant frog | 1 each | | | | |
 
-- **Where**: every engagement was within x 5525–5547, y 498–530 (level 0). Deaths seen in view
+- **Where**: every engagement was within x 5525–5547, y 498–530 (zone 1). Deaths seen in view
   during hunts (`mobile_death`): mongbat 371, giant rat 84, headless 45, zombie ("rotting") 21,
   giant frog 21, skeleton 20, colossal frog 19, wounded harpy 14, rime guar 9 (pets among them
-  [INFERENCE]). Nothing is known about levels 1–4.
+  [INFERENCE]). Nothing is known about zones 2–5.
 - **Kill stealing**: 35 % of the mongbat kills brought no gold (no corpse, or a pet's owner
   looted it) and 13 % of the engaged mongbats died to someone else first.
 - At 94 max hits the model avoids none of them (mongbat estimate: 60 s per kill, 29 hits lost per
@@ -294,7 +300,7 @@ Everything hunted so far is level 0: all 386 floor tiles of the box the runner h
   `stop`): a target within `--pull-range` of us, an attacker, a leave rule, speech nearby. The
   next waypoint maximises staleness (time since our last stay, capped at 10 min) × value (1 +
   0.5 per kill there this run, up to 3) × crowd (0.3 when players or pets were seen there in the
-  last 5 min: they take the kills) × the level's gold rate / (1 + route steps / 20), with ±15 %
+  last 5 min: they take the kills) × the zone's gold rate / (1 + route steps / 20), with ±15 %
   noise: nearby stale areas first, a natural sweep that loops back.
 - **At a waypoint.** Nothing showed up: a glance of about `--crawl-dwell` s, then on. Targets
   came (met on the way there or at it): stay while they keep coming; `--crawl-depleted-s` without
@@ -306,32 +312,33 @@ Everything hunted so far is level 0: all 386 floor tiles of the box the runner h
   fights (one flee from a type never killed is enough; 153 mongbat kills absorb a bad fight).
   Avoided means: never pulled (fought only when it attacks us), a Mover danger zone of 6 tiles
   around it (also where it was last seen, for 5 min), and its area is not patrolled to.
-- **Levels.** Per level: minutes, hits lost, gold, kills, survival leaves. Level 0's rates start
-  at the store's base, level k's at level k−1's estimate (hits × `--crawl-depth-risk`), both with
-  5 pseudo-minutes. The next level opens only when the current one has `--crawl-learn-s` of
+- **Zones.** Per zone: minutes, hits lost, gold, kills, survival leaves. Zone 1's rates start
+  at the store's base, zone z's at zone z−1's estimate (hits × `--crawl-depth-risk`), both with
+  5 pseudo-minutes. The next zone opens only when the current one has `--crawl-learn-s` of
   observation (earlier runs count) and the next one's predicted hits lost/min ≤ `--crawl-max-dmg`.
-  A level comes back down (closed for the run) when its own estimate exceeds that after
+  A zone is closed again for the run (come back out) when its own estimate exceeds that after
   `--crawl-learn-s`, or after `--crawl-max-leaves` survival leaves from it. With the measured
-  base (23.4 × 1.5 = 35 > 30) level 1 opens once level 0 has proven cheaper than ~20 hits/min,
+  base (23.4 × 1.5 = 35 > 30) zone 2 opens once zone 1 has proven cheaper than ~20 hits/min,
   e.g. after 10 min at 15 hits/min.
 - **Safety.** The leave rules are unchanged and checked first every tick; the route margin
   follows us: `--leave-at` + `--leave-per-step` × the route steps from where we stand to the exit
   (capped at `--heal-at` − 0.05), so a survival leave from deep runs (Mover urgent) the shortest
   route back to the exit spot and takes the exit step; the Mover never steps on a known teleporter
   but the exit. The episode row's `route_steps`/`leave_at` are the ones at the leave.
-- **Persistence.** Every engagement (both modes) is a `fight` job event; level openings and
-  closings are `crawl_level` events; each visit row has a `crawl` block. The next run's model
-  starts from them (`crawl.load_prior`), so a creature fled from stays avoided and a known level
-  doesn't have to be learnt again.
+- **Persistence.** Every engagement (both modes) is a `fight` job event; zone openings and
+  closings are `crawl_zone` events; each visit row has a `crawl` block. The next run's model
+  starts from them (`crawl.load_prior`), so a creature fled from stays avoided and a known zone
+  doesn't have to be learnt again. Rows written before the rename (0-based `levels`) are read
+  as zones from 1.
 - **Moving keeps the Stationary Penalty away**: patrol walks are steps; the longest stay is a
   depleted-area hold (90 s), well under the 240 s reposition.
 
 ### Limits
 
-- Not run live yet [INFERENCE: everything below level 0 is unmeasured; "deeper is more dangerous"
-  is the user's statement, built in as `--crawl-depth-risk`]. Levels are distance bands on one
-  floor, not teleporter floors; floor transitions through a teleporter aren't implemented (the
-  NPD has none known).
+- Run live only in zone 1 so far [INFERENCE: everything beyond zone 1 is unmeasured; "deeper is
+  more dangerous" is the user's statement, built in as `--crawl-depth-risk`]. Zones are distance
+  bands on dungeon level 1, not floors; floor transitions through a teleporter (to dungeon level
+  2+) aren't implemented (the NPD has none known).
 - A survival leave is blamed on the target engaged at that moment, whatever else hit us.
 - The avoid radius (6 tiles) and the 10 min area rest are guesses [INFERENCE: aggro ranges and
   spawn timers unknown]; mobs that stay out of reach are still dropped by the pin rule (the
@@ -342,9 +349,9 @@ Everything hunted so far is level 0: all 386 floor tiles of the box the runner h
 
 `run hunt --enter --crawl --pull-range 8 --mana-reserve 999 --target-name "" --gheal-min-missing 1 --timeout 3600`
 
-The live fight-spot arguments plus `--crawl` (no `--fight-spot`). It starts in level 0 (the
-area hunted so far) and opens level 1 only when the numbers allow it; watch the log for
-"crawl: going deeper", "coming back up", "avoiding" and "depleted".
+The live fight-spot arguments plus `--crawl` (no `--fight-spot`). It starts in zone 1 (the
+area hunted so far) and opens zone 2 only when the numbers allow it; watch the log for
+"crawl: going deeper to zone", "coming back out", "avoiding" and "depleted".
 
 ## Guards
 
@@ -361,10 +368,11 @@ margin), `spell`, `hits_start`, `kills`, `gold`, `xp`, `hits_lost`, `casts`, `he
 `time is up` or `stopped`). Job events `kill`, `loot` (`mob`, `name`, `gold`, `xp`, items), `leave`,
 `death`, `speech_hold`, `speech_clear`, and **`fight`** per engagement, both modes (`serial`, `name`,
 `body`, `fight_s` from the first attack, `hits_lost` meanwhile, `outcome` kill / fled / dropped /
-lost / switched / ended, `mode`, crawling also `level`); `leave` has `route_steps`. Crawling:
-`crawl_level` (a level opened or closed, with the rates) and the visit row's `crawl` block
-(`spot`, `band`, `unlocked`, `closed`, `avoided` types with why, `waypoints` held, `depleted`
-areas, per-level `s`, `hits`, `gold`, `kills`, `leaves`); crawl.load_prior reads them back. Gold
+lost / switched / ended, `mode`, crawling also `zone`); `leave` has `route_steps`. Crawling:
+`crawl_zone` (a zone opened or closed, with `floor` and the rates) and the visit row's `crawl`
+block (`spot`, `floor` = the dungeon level, `band`, `unlocked` = the deepest open zone, `closed`,
+`avoided` types with why, `waypoints` held, `depleted` areas, per-zone `s`, `hits`, `gold`,
+`kills`, `leaves`); crawl.load_prior reads them back. Gold
 looted is the backpack gold delta (or the status gold delta, whichever is larger; the loot act's
 own reply was unreliable live).
 
@@ -397,18 +405,18 @@ before the exit step, and the episode rows hold the fight spot, the route length
 
 A fourth run crawls (`--crawl --crawl-band 22`, `--no-map`: the floor comes from the store's walk
 memory, seeded with the sim's rooms; steps into a wall are denied): a hall at the exit, a corridor
-north to room R1 (a mongbat), a corridor west to room R2 (22+ route steps out: level 1) with a
+north to room R1 (a mongbat), a corridor west to room R2 (22+ route steps out: zone 2) with a
 troll in its corner that hits 15 every 0.8 s next to it. The server sends mobiles as they come
 within 18 tiles. Checked: the runner patrols ≥ 4 waypoints through all five areas and fights in
-more than one; R2 is entered only after the `crawl_level` event opening level 1; the troll is
+more than one; R2 is entered only after the `crawl_zone` event opening zone 2 (floor 1); the troll is
 fought once, the leave from R2 (≥ 20 route steps out, `--leave-at` raised) is a threat juncture,
 runs back to the exit spot and steps out there (never the arrival tile); the troll's `fight` is
 `fled` and the crawl avoids it: back inside it is never attacked or come within 2 tiles of; R1,
 once its mongbat is dead, is left as depleted for another waypoint; the second mongbat (it comes
-once we are back in) is killed, both looted, their `fight` events carry time and level, and the
-rows carry the `crawl` block (troll avoided, level 1's leave). `python harness/test_crawl.py`
-covers the geometry (coverage, areas and levels by route through a wall, the walk-memory floor),
-the model's shrinkage and avoid rules, level opening and closing, the waypoint choice and the
+once we are back in) is killed, both looted, their `fight` events carry time and zone 1, and the
+rows carry the `crawl` block (dungeon level 1, troll avoided, zone 2's leave). `python harness/test_crawl.py`
+covers the geometry (coverage, areas and zones by route through a wall, the walk-memory floor),
+the model's shrinkage and avoid rules, zone opening and closing, the waypoint choice and the
 store prior.
 
 In every run the arrival tile (5536,530) is a teleporter in the memory store and in the sim (as

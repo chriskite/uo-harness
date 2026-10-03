@@ -525,15 +525,19 @@ User request: the hunt runner should crawl a dungeon instead of standing on one 
 floor, fight what it meets, and go only as deep (each floor more dangerous) as it can fight
 efficiently. Plan, data and limits: docs/HUNT_LOOP.md "Crawl"; code: `harness/crawl.py`,
 `loop_hunt.py --crawl`.
-- **The NPD is one floor**, by the data: the map BFS from the arrival reaches 10,829 tiles in one
-  storey, and neither the store's teleporters nor the client's Atlas packs know a way to another
-  part. So "deeper" is route distance from the one exit: depth bands of 40 steps (5 levels, the
-  farthest tile 182 steps out), each opened only when the one above is known and the next one's
-  predicted hits lost per minute is acceptable, closed again when it proves worse.
-- **Patrol over coverage waypoints, chosen by staleness × value × crowd × level rate / distance**,
+- **The NPD is one floor (dungeon level 1)**, by the data: the map BFS from the arrival reaches
+  10,829 tiles in one storey, and neither the store's teleporters nor the client's Atlas packs know
+  a way to another part. So "deeper" is route distance from the one exit: depth bands of 40 steps,
+  called **zones** and numbered from 1 (zones 1–5, the farthest tile 182 steps out), each opened
+  only when the one before is known and the next one's predicted hits lost per minute is
+  acceptable, closed again when it proves worse. Floors / dungeon levels keep the game's numbering
+  from 1 (user, 2026-10-03: levels start at 1 and go up the deeper you go); zones are internal, so
+  they don't borrow the word "level". The first version called the bands "levels 0–4"; stored rows
+  from it (`levels`, 0-based) are read as zones from 1.
+- **Patrol over coverage waypoints, chosen by staleness × value × crowd × zone rate / distance**,
   walking with the Mover and stopping as soon as something is in reach. Rooms are covered by
   route, not straight line, so a waypoint never "covers" the room behind a wall.
-- **A shrunk per-creature and per-level model, persisted in the store** (`fight` job events, the
+- **A shrunk per-creature and per-zone model, persisted in the store** (`fight` job events, the
   visit rows' `crawl` block): the store's 178 earlier kills (rebuilt from the event log) are the
   prior, so the first crawl already knows mongbats, and a creature fled from stays avoided across
   runs. Thresholds are task arguments.

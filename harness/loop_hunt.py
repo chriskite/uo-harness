@@ -83,8 +83,9 @@ lost) go to the memory store.
 
 Crawl (--crawl, crawl.py; docs/HUNT_LOOP.md "Crawl"): instead of one fight spot, patrol
 the floor's waypoints (the pull range, corpse range and Stationary Penalty walks are
-measured from where we stand), fight what comes within reach, go one level deeper (route
-distance from the exit) only once the level above is known and the next one's predicted
+measured from where we stand), fight what comes within reach, go one zone deeper (zones:
+internal depth bands of route distance from the exit, numbered from 1, on the one dungeon
+level entered) only once the zone before is known and the next one's predicted
 risk is acceptable, avoid creature types too strong or too slow for us (no pulls, Mover
 danger zones), move on from depleted areas; --leave-at grows with the route steps back
 to the exit from wherever we are. Every engagement is a `fight` job event (both modes):
@@ -239,8 +240,8 @@ class HuntLoop:
         return self.crawl.interrupt(st)
 
     def track(self, st):
-        """Hits lost (the visit's, the engagement's, the crawl level's) and, crawling, the
-        level's time and the creatures in view (crawl.Crawl.account)."""
+        """Hits lost (the visit's, the engagement's, the crawl zone's) and, crawling, the
+        zone's time and the creatures in view (crawl.Crawl.account)."""
         hits, lost = st["world"]["self"].get("hits"), 0
         if hits is not None:
             if self.prev_hits is not None and hits < self.prev_hits:
@@ -532,7 +533,7 @@ class HuntLoop:
                 "hits_lost": r["hits"], "outcome": outcome, "visit": self.visit_n,
                 "mode": "crawl" if self.crawl is not None else "spot"}
         if self.crawl is not None:
-            data["level"] = self.crawl.level_at(r["at"])
+            data["zone"] = self.crawl.zone_at(r["at"])
             self.crawl.model.add_fight(r["name"], fight_s if outcome == "kill" else None, r["hits"], outcome)
         self.memory.job_event("hunt", "fight", data, **(self._where(st) if st else {}))
 
@@ -832,7 +833,7 @@ class HuntLoop:
 
     def kill_gold(self, c, gold, at=None):
         """Crawling: a kill's gold for the model (0 when its corpse never showed: a pet or
-        player took it) and for the level it lay in."""
+        player took it) and for the zone it lay in."""
         if self.crawl is None:
             return
         self.crawl.model.add_gold(c["name"], gold)
@@ -1232,22 +1233,23 @@ def main():
     ap.add_argument("--crawl", action="store_true",
                     help="patrol the dungeon floor instead of one fight spot (crawl.py; docs/HUNT_LOOP.md 'Crawl')")
     ap.add_argument("--crawl-band", type=int, default=40,
-                    help="crawl: route steps from the exit per level (the NPD is one floor: levels are depth bands)")
-    ap.add_argument("--crawl-floors", type=int, default=0,
-                    help="crawl: at most this many levels (0: all the floor has)")
+                    help="crawl: route steps from the exit per zone (zones: internal depth bands of the one "
+                         "dungeon level entered, numbered from 1)")
+    ap.add_argument("--crawl-zones", type=int, default=0,
+                    help="crawl: at most this many zones (0: all the floor has)")
     ap.add_argument("--crawl-dwell", type=float, default=6.0,
                     help="crawl: seconds a waypoint is looked over when nothing shows up (x 0.6-1.4)")
     ap.add_argument("--crawl-depleted-s", type=float, default=90.0,
                     help="crawl: an area where targets came is depleted after this long without one: move on")
     ap.add_argument("--crawl-learn-s", type=float, default=600.0,
-                    help="crawl: seconds observed in a level (store history included) before going deeper")
+                    help="crawl: seconds observed in a zone (store history included) before going deeper")
     ap.add_argument("--crawl-max-dmg", type=float, default=30.0,
-                    help="crawl: the most hits lost per minute a level may cost (estimated, or predicted for "
-                         "the next level)")
+                    help="crawl: the most hits lost per minute a zone may cost (estimated, or predicted for "
+                         "the next zone)")
     ap.add_argument("--crawl-depth-risk", type=float, default=1.5,
-                    help="crawl: a deeper level's predicted hits lost per minute = the level above's x this")
+                    help="crawl: a deeper zone's predicted hits lost per minute = the zone before's x this")
     ap.add_argument("--crawl-max-leaves", type=int, default=2,
-                    help="crawl: survival leaves from a level in one run that close it (come back up)")
+                    help="crawl: survival leaves from a zone in one run that close it (come back out)")
     ap.add_argument("--crawl-max-hits", type=float, default=0.5,
                     help="crawl: avoid creature types costing more than this share of our max hits per fight")
     ap.add_argument("--crawl-max-fight-s", type=float, default=180.0,

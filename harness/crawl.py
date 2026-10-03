@@ -4,40 +4,43 @@ Instead of standing on one fight spot, the runner patrols the dungeon floor: way
 covering the walkable area, visited in a staleness-by-distance order at the Mover's
 human pace, fighting what it meets within --pull-range of where it stands.
 
-- **The floor** (`Floor`): the tiles reachable from where we stand without crossing a
-  known teleporter (the Mover's set: the store's `teleporters` table and the exit tile),
-  from the map (pathfind.Walk, the client's own walk rules) or, without one, from walk
-  memory. Route steps to the exit spot come from one BFS (`dist_exit`).
-- **Levels**: the NPD has a single floor (no teleporter between parts of it; docs), so
-  "deeper" is route distance from the exit: level k = the tiles `k x band` to
-  `(k + 1) x band - 1` steps out. A level opens only once the one above is known
-  (`learn_s` observed there, store history included) and the next one's predicted hits
-  lost per minute (the level above's x `depth_risk` until it has its own data) is at most
-  `max_dmg`; a level that turns out worse, or forces `max_leaves` survival leaves in a
-  run, is closed again (come back up).
+- **The floor** (`Floor`): one dungeon level (floor), numbered from 1 as in the game: the
+  tiles reachable from where we stand without crossing a known teleporter (the Mover's
+  set: the store's `teleporters` table and the exit tile), from the map (pathfind.Walk,
+  the client's own walk rules) or, without one, from walk memory. Route steps to the exit
+  spot come from one BFS (`dist_exit`). The crawl stays on the floor it entered
+  (`FLOOR`): the NPD is dungeon level 1 only (no teleporter to another part; docs), and
+  floor transitions through a teleporter aren't built.
+- **Zones** (internal depth bands, numbered from 1; not game levels): "deeper" on one
+  floor is route distance from the exit: zone z = the tiles `(z - 1) x band` to
+  `z x band - 1` steps out. A zone opens only once the one before is known (`learn_s`
+  observed there, store history included) and the next one's predicted hits lost per
+  minute (the zone before's x `depth_risk` until it has its own data) is at most
+  `max_dmg`; a zone that turns out worse, or forces `max_leaves` survival leaves in a
+  run, is closed again (come back out).
 - **Waypoints** (`waypoints`): greedy coverage, roomiest tile first (clearance from the
   walls), each covering the floor tiles within `radius` route steps (never through a
   wall), none next to a teleporter. Each floor tile belongs to its nearest waypoint by
   route (`cells`): the waypoint's area.
 - **The efficiency model** (`Model`): per creature type the fights (time, hits lost,
-  gold, outcome) and per level the minutes, hits lost and gold, persisted as `fight` job
+  gold, outcome) and per zone the minutes, hits lost and gold, persisted as `fight` job
   events and the episode rows' `crawl` block and loaded back from the store at the start
   (`load_prior`; kills before `fight` events existed are rebuilt from the event log).
   Estimates are shrunk toward the pool of all fights (`PRIOR_N` pseudo-fights) and toward
-  the level above (`PRIOR_MIN` pseudo-minutes). A type is avoided when its estimated hits
+  the zone before (`PRIOR_MIN` pseudo-minutes). A type is avoided when its estimated hits
   lost per fight exceed `max_hits` x our max hits, its fights take longer than
   `max_fight_s`, or it made us flee in more than MAX_FLEE of its fights.
 - **Avoided creatures** become Mover danger zones (AVOID_R, also from where they were last
   seen, for DANGER_S) and their areas are skipped; they are fought only when they attack.
 - **Choosing the next waypoint** (`Crawl.choose`): staleness (time since our last visit,
   capped) x value (kills there this run) x crowd (players or pets seen there lately: they
-  steal kills) x level preference (its gold rate) / (1 + route steps / D0), with a little
+  steal kills) x zone preference (its gold rate) / (1 + route steps / D0), with a little
   noise. Depleted areas (targets came, then none for `depleted_s`) rest for RESPAWN_S.
 - **At a waypoint**: a glance of about `dwell` s when nothing showed up; while targets
   keep coming, stay until none for `depleted_s` (then the area is depleted).
 
 Run: python harness/crawl.py floor [--spot X Y]   (the NPD floor graph from the map)
-     python harness/crawl.py priors              (the per-creature and per-level priors)
+     python harness/crawl.py priors              (the per-creature and per-zone priors)
 """
 import argparse
 import bisect
@@ -57,9 +60,10 @@ from agent_link import Abort, log  # noqa: E402
 # measured in the NPD (memory store 2026-10-03, docs/HUNT_LOOP.md "Crawl"): used when the
 # store has no fights / no hunt episodes at all
 DEFAULT_FIGHT = {"fight_s": 63.0, "hits": 34.6, "gold": 13.7}
-DEFAULT_LEVEL = {"gold_min": 7.8, "hits_min": 24.5}
+DEFAULT_ZONE = {"gold_min": 7.8, "hits_min": 24.5}
+FLOOR = 1               # the dungeon level crawled: the one entered (the NPD has only level 1)
 PRIOR_N = 2.0           # pseudo-fights: a type's estimate starts at the pool of all fights
-PRIOR_MIN = 5.0         # pseudo-minutes: a level's rates start at the level above's
+PRIOR_MIN = 5.0         # pseudo-minutes: a zone's rates start at the zone before's
 FLEE_PRIOR = 0.05       # the pool's share of fights we fled from
 MAX_FLEE = 0.3          # avoid a type we fled from in more than this share (estimate)
 AVOID_R = 6             # tiles: danger zone around an avoided creature [INFERENCE: aggro range]
@@ -223,9 +227,9 @@ def cells(floor: Floor, wps: list) -> dict:
 # --------------------------------------------------------------------------- the model
 class Model:
     """Per creature type: fights [(fight_s or None, hits lost, outcome)], gold per kill.
-    Per level: seconds, hits lost, gold, kills, survival leaves (store + this run)."""
+    Per zone: seconds, hits lost, gold, kills, survival leaves (store + this run)."""
 
-    def __init__(self, fights=(), levels=None, depth_risk: float = 1.5, base: dict | None = None):
+    def __init__(self, fights=(), zones=None, depth_risk: float = 1.5, base: dict | None = None):
         self.fights = collections.defaultdict(list)     # type -> [(fight_s, hits, outcome)]
         self.gold = collections.defaultdict(list)       # type -> [gold per kill; 0: no corpse / taken]
         self._pool_cache = None                         # _pool() until the next fight or gold
@@ -233,13 +237,13 @@ class Model:
             self.add_fight(f["name"], f.get("fight_s"), f.get("hits") or 0, f.get("outcome") or "kill")
             if f.get("gold") is not None:
                 self.add_gold(f["name"], f["gold"])
-        self.levels = collections.defaultdict(lambda: {"s": 0.0, "hits": 0, "gold": 0, "kills": 0, "leaves": 0})
-        for k, v in (levels or {}).items():
-            row = self.levels[int(k)]
+        self.zones = collections.defaultdict(lambda: {"s": 0.0, "hits": 0, "gold": 0, "kills": 0, "leaves": 0})
+        for k, v in (zones or {}).items():
+            row = self.zones[int(k)]
             for f in row:
                 row[f] += v.get(f) or 0
         self.depth_risk = depth_risk
-        self.base = dict(base or DEFAULT_LEVEL)
+        self.base = dict(base or DEFAULT_ZONE)
 
     # ---- creature types
     def add_fight(self, name, fight_s, hits, outcome):
@@ -292,21 +296,21 @@ class Model:
             return f"{e['fight_s']:.0f} s per kill (est.) > {max_fight_s:.0f} s"
         return None
 
-    # ---- levels
-    def add_level(self, k, **inc):
-        row = self.levels[k]
+    # ---- zones
+    def add_zone(self, k, **inc):
+        row = self.zones[k]
         for f, v in inc.items():
             row[f] += v
 
-    def rates(self, k) -> dict:
-        """Shrunk gold and hits lost per minute in level k: level 0 toward `base` (the
-        store's hunt episodes), level k toward level k-1's estimate (hits x depth_risk)."""
-        if k <= 0:
+    def rates(self, z) -> dict:
+        """Shrunk gold and hits lost per minute in zone z: zone 1 toward `base` (the
+        store's hunt episodes), zone z toward zone z-1's estimate (hits x depth_risk)."""
+        if z <= 1:
             prior = dict(self.base)
         else:
-            up = self.rates(k - 1)
+            up = self.rates(z - 1)
             prior = {"gold_min": up["gold_min"], "hits_min": up["hits_min"] * self.depth_risk}
-        row = self.levels[k]
+        row = self.zones[z]
         m = row["s"] / 60.0
         return {"minutes": m,
                 "gold_min": (PRIOR_MIN * prior["gold_min"] + row["gold"]) / (PRIOR_MIN + m),
@@ -372,9 +376,10 @@ def fights_from_events(con, windows, skip=frozenset()) -> list:
 
 def load_prior(con, spot=None, depth_risk: float = 1.5) -> Model:
     """The model the crawl starts from: every `fight` job event (gold joined from the
-    loot events by mob serial), the older kills rebuilt from the event log, the level
-    stats of earlier crawl visits from `spot`, and the hunt episodes' gold and hits lost
-    per minute as level 0's base. `con`: the store's sqlite connection."""
+    loot events by mob serial), the older kills rebuilt from the event log, the zone
+    stats of earlier crawl visits from `spot` (rows from before the rename keep them as
+    0-based `levels`: level k is zone k + 1), and the hunt episodes' gold and hits lost per
+    minute as zone 1's base. `con`: the store's sqlite connection."""
     gold = {}
     for (d,) in con.execute("SELECT data FROM job_events WHERE job='hunt' AND kind='loot'"):
         e = json.loads(d)
@@ -389,7 +394,7 @@ def load_prior(con, spot=None, depth_risk: float = 1.5) -> Model:
                        "gold": gold.get(e.get("serial"), 0) if e.get("outcome") == "kill" else None})
     windows = _hunt_windows(con)
     fights += fights_from_events(con, windows, frozenset(seen))
-    levels, minutes, g, h = collections.defaultdict(dict), 0.0, 0, 0
+    zones, minutes, g, h = collections.defaultdict(dict), 0.0, 0, 0
     for a, b, row in windows:
         minutes += (b - a) / 60.0
         g += row.get("gold") or 0
@@ -397,11 +402,13 @@ def load_prior(con, spot=None, depth_risk: float = 1.5) -> Model:
         c = row.get("crawl") or {}
         if spot is not None and c.get("spot") is not None and tuple(c["spot"]) != tuple(spot):
             continue
-        for k, v in (c.get("levels") or {}).items():
+        bands = [(int(k), v) for k, v in (c.get("zones") or {}).items()] \
+            + [(int(k) + 1, v) for k, v in (c.get("levels") or {}).items()]
+        for z, v in bands:
             for f, x in v.items():
-                levels[int(k)][f] = levels[int(k)].get(f, 0) + x
+                zones[z][f] = zones[z].get(f, 0) + x
     base = {"gold_min": g / minutes, "hits_min": h / minutes} if minutes >= 1.0 else None
-    return Model(fights, levels, depth_risk, base)
+    return Model(fights, zones, depth_risk, base)
 
 
 # --------------------------------------------------------------------------- the crawl
@@ -414,9 +421,9 @@ class Crawl:
         self.a = hunt.args
         self.model = model
         self.floor = None
-        self.wps, self.cell_of, self.level = [], {}, []
-        self.unlocked = 0
-        self.closed = set()          # levels closed this run (came back up)
+        self.wps, self.cell_of, self.zone = [], {}, []    # waypoints, tile -> waypoint, waypoint -> zone
+        self.unlocked = 1            # the deepest zone open (zones count from 1)
+        self.closed = set()          # zones closed this run (came back out)
         self.wp = None               # the waypoint index we are heading to / holding at
         self.arrived_t = None        # when we got to it
         self.leg_t = 0.0             # when we set out for it (targets met on the way count for it)
@@ -429,13 +436,13 @@ class Crawl:
         self.danger = {}             # serial -> (tile, monotonic time, type) of avoided creatures
         self.avoided = {}            # type -> why (logged once)
         self.tick_t = None
-        self.visit_levels = collections.defaultdict(lambda: {"s": 0.0, "hits": 0, "gold": 0, "kills": 0, "leaves": 0})
+        self.visit_zones = collections.defaultdict(lambda: {"s": 0.0, "hits": 0, "gold": 0, "kills": 0, "leaves": 0})
         self.counts = collections.Counter()
 
     # ---- setup
     def setup(self, st):
         """Build the floor (map, else walk memory) from where we stand, the waypoints,
-        their areas and levels. Called inside, once per run."""
+        their areas and zones. Called inside, once per run."""
         if self.floor is not None:
             return
         m = self.h.mover
@@ -452,20 +459,23 @@ class Crawl:
             raise ValueError(f"no floor around the exit spot {self.h.spot} ({len(self.floor)} tiles)")
         self.wps = waypoints(self.floor, self.a.pull_range, tele)
         self.cell_of = cells(self.floor, self.wps)
-        self.level = [self.floor.dist_exit[w] // self.a.crawl_band for w in self.wps]
-        top = max(self.level)
-        if self.a.crawl_floors:
-            top = min(top, self.a.crawl_floors - 1)
+        self.zone = [self.floor.dist_exit[w] // self.a.crawl_band + 1 for w in self.wps]
+        top = max(self.zone)
+        if self.a.crawl_zones:
+            top = min(top, self.a.crawl_zones)
         self.top = top
-        log(f"crawl floor: {len(self.floor)} tiles ({'map' if walk is not None else 'walk memory'}, "
-                   f"{time.monotonic() - t0:.1f} s), {len(self.wps)} waypoints, levels 0-{top} "
-                   f"({self.a.crawl_band} route steps each; farthest {max(self.floor.dist_exit.values())} "
-                   f"steps from the exit)")
-        self.update_levels()
+        log(f"crawl: dungeon level {FLOOR} floor: {len(self.floor)} tiles "
+            f"({'map' if walk is not None else 'walk memory'}, {time.monotonic() - t0:.1f} s), "
+            f"{len(self.wps)} waypoints, zones 1-{top} ({self.a.crawl_band} route steps each; farthest "
+            f"{max(self.floor.dist_exit.values())} steps from the exit)")
+        self.update_zones()
 
-    def level_at(self, pos):
-        i = self.cell_of.get(tuple(pos[:2]))
-        return self.level[i] if i is not None else None
+    def zone_at(self, pos):
+        """The zone of the area we stand in; off the floor (the arrival tile is a
+        teleporter, so not a floor tile) the nearest floor tile's."""
+        t = self.floor.nearest(pos) if self.floor is not None else None
+        i = self.cell_of.get(t)
+        return self.zone[i] if i is not None else None
 
     def route_steps(self, pos) -> int | None:
         if self.floor is None:
@@ -473,13 +483,13 @@ class Crawl:
         t = self.floor.nearest(pos)
         return self.floor.dist_exit.get(t) if t is not None else None
 
-    # ---- levels
-    def update_levels(self):
-        """Open the next level when this one is known and the next one's predicted risk
-        is acceptable; close the deepest when it proved worse (came back up)."""
+    # ---- zones
+    def update_zones(self):
+        """Open the next zone when this one is known and the next one's predicted risk
+        is acceptable; close the deepest when it proved worse (come back out)."""
         a, m = self.a, self.model
         k = self.unlocked
-        if k > 0:
+        if k > 1:
             r = m.rates(k)
             leaves = self.counts[f"leaves{k}"]
             if (r["minutes"] * 60 >= a.crawl_learn_s and r["hits_min"] > a.crawl_max_dmg) \
@@ -488,38 +498,38 @@ class Crawl:
                 self.unlocked = k - 1
                 why = (f"{leaves} survival leave(s)" if leaves >= a.crawl_max_leaves
                        else f"{r['hits_min']:.0f} hits lost/min > {a.crawl_max_dmg:g}")
-                log(f"crawl: coming back up to level {k - 1}: level {k} {why}")
-                self.h.memory.job_event("hunt", "crawl_level", {"level": k, "open": False, "why": why,
-                                                                "rates": r})
+                log(f"crawl: coming back out to zone {k - 1}: zone {k} {why}")
+                self.h.memory.job_event("hunt", "crawl_zone", {"zone": k, "floor": FLOOR, "open": False,
+                                                               "why": why, "rates": r})
                 return
         if k >= self.top or (k + 1) in self.closed:
             return
         here, nxt = m.rates(k), m.rates(k + 1)
         if here["minutes"] * 60 >= a.crawl_learn_s and nxt["hits_min"] <= a.crawl_max_dmg:
             self.unlocked = k + 1
-            log(f"crawl: going deeper to level {k + 1}: level {k} known ({here['minutes']:.1f} min, "
-                       f"{here['gold_min']:.1f} gold/min, {here['hits_min']:.1f} hits/min); level {k + 1} "
-                       f"predicted {nxt['hits_min']:.1f} hits/min <= {a.crawl_max_dmg:g}")
-            self.h.memory.job_event("hunt", "crawl_level", {"level": k + 1, "open": True, "rates": nxt,
-                                                            "above": here})
+            log(f"crawl: going deeper to zone {k + 1}: zone {k} known ({here['minutes']:.1f} min, "
+                f"{here['gold_min']:.1f} gold/min, {here['hits_min']:.1f} hits/min); zone {k + 1} "
+                f"predicted {nxt['hits_min']:.1f} hits/min <= {a.crawl_max_dmg:g}")
+            self.h.memory.job_event("hunt", "crawl_zone", {"zone": k + 1, "floor": FLOOR, "open": True,
+                                                           "rates": nxt, "before": here})
 
     # ---- per state read
     def account(self, st, lost: int):
-        """Time and hits lost go to the level we stand in; creatures in view update the
+        """Time and hits lost go to the zone we stand in; creatures in view update the
         danger zones, the crowd marks and the areas' last target time."""
         if self.floor is None:
             return
         now = time.monotonic()
         pos = self.h.pos(st)
-        k = self.level_at(pos)
+        k = self.zone_at(pos)
         if k is not None:
             dt = now - self.tick_t if self.tick_t is not None else 0.0
             if 0 < dt < 30:
-                self.model.add_level(k, s=dt)
-                self.visit_levels[k]["s"] += dt
+                self.model.add_zone(k, s=dt)
+                self.visit_zones[k]["s"] += dt
             if lost:
-                self.model.add_level(k, hits=lost)
-                self.visit_levels[k]["hits"] += lost
+                self.model.add_zone(k, hits=lost)
+                self.visit_zones[k]["hits"] += lost
         self.tick_t = now
         self.observe(st, pos, now)
 
@@ -528,7 +538,7 @@ class Crawl:
         labels = world.get("labels") or {}
         me = st["movement"]["self_serial"]
         hits_max = world["self"].get("hits_max")
-        zones = {}
+        danger_zones = {}
         for key, mob in world["mobiles"].items():
             s = int(key, 16) if isinstance(key, str) else key
             if s == me or mob.get("x") is None or s in self.h.dead:
@@ -555,13 +565,13 @@ class Crawl:
             if now - t > DANGER_S:
                 del self.danger[s]
                 continue
-            zones[f"crawl:{s:08X}"] = (tile, AVOID_R)
+            danger_zones[f"crawl:{s:08X}"] = (tile, AVOID_R)
         mv = self.h.mover
-        stale = [k for k in mv.danger if k.startswith("crawl:") and k not in zones]
-        new = [k for k, z in zones.items() if mv.danger.get(k) is None or cheb(mv.danger[k][0], z[0]) >= 3]
+        stale = [k for k in mv.danger if k.startswith("crawl:") and k not in danger_zones]
+        new = [k for k, z in danger_zones.items() if mv.danger.get(k) is None or cheb(mv.danger[k][0], z[0]) >= 3]
         for k in stale:
             del mv.danger[k]
-        mv.danger.update(zones)
+        mv.danger.update(danger_zones)
         if new and self.h.patrolling:
             mv.replan_requested = True
 
@@ -573,27 +583,27 @@ class Crawl:
 
     # ---- outcomes
     def on_kill(self, pos):
-        k, i = self.level_at(pos), self.cell_of.get(tuple(pos[:2]))
+        k, i = self.zone_at(pos), self.cell_of.get(tuple(pos[:2]))
         if k is not None:
-            self.model.add_level(k, kills=1)
-            self.visit_levels[k]["kills"] += 1
+            self.model.add_zone(k, kills=1)
+            self.visit_zones[k]["kills"] += 1
         if i is not None:
             self.kills_at[i] += 1
             self.target_t[i] = time.monotonic()
 
     def on_gold(self, pos, gold):
-        k = self.level_at(pos)
+        k = self.zone_at(pos)
         if k is not None and gold:
-            self.model.add_level(k, gold=gold)
-            self.visit_levels[k]["gold"] += gold
+            self.model.add_zone(k, gold=gold)
+            self.visit_zones[k]["gold"] += gold
 
     def on_leave(self, pos, survival: bool):
-        k = self.level_at(pos) if pos is not None else None
+        k = self.zone_at(pos) if pos is not None else None
         if k is None:
             k = self.unlocked
         if survival:
             self.counts[f"leaves{k}"] += 1
-            self.visit_levels[k]["leaves"] += 1
+            self.visit_zones[k]["leaves"] += 1
         self.wp, self.arrived_t = None, None
 
     # ---- patrol
@@ -616,24 +626,24 @@ class Crawl:
                    for tile, _, _ in self.danger.values())
 
     def choose(self, pos):
-        """The next waypoint index (or None): open levels, not depleted, not near an
-        avoided creature, reachable; staleness x value x crowd x level / distance."""
+        """The next waypoint index (or None): open zones, not depleted, not near an
+        avoided creature, reachable; staleness x value x crowd x zone / distance."""
         now = time.monotonic()
         start = self.floor.nearest(pos)
         dist = self.floor.bfs(start) if start is not None else {}
-        rates = {k: self.model.rates(k)["gold_min"] for k in range(self.unlocked + 1)}
+        rates = {k: self.model.rates(k)["gold_min"] for k in range(1, self.unlocked + 1)}
         best_rate = max(rates.values()) or 1.0
         here = self.cell_of.get(start)
         best, best_score = None, 0.0
         for i, w in enumerate(self.wps):
-            if self.level[i] > self.unlocked or i == here or w not in dist:
+            if self.zone[i] > self.unlocked or i == here or w not in dist:
                 continue
             if self.depleted.get(i, 0) > now or self.dangerous(i):
                 continue
             stale = min(now - self.visited[i], STALE_CAP_S) if i in self.visited else STALE_CAP_S
             score = (max(stale, 1.0) * (1.0 + 0.5 * min(3, self.kills_at[i]))
                      * (CROWD_FACTOR if now - self.crowd_t.get(i, -1e9) < CROWD_S else 1.0)
-                     * max(0.25, rates[self.level[i]] / best_rate)
+                     * max(0.25, rates[self.zone[i]] / best_rate)
                      / (1.0 + dist[w] / D0) * self.h.human.rng.uniform(0.85, 1.15))
             if score > best_score:
                 best, best_score = i, score
@@ -656,7 +666,7 @@ class Crawl:
             if now < until:
                 what = self.a.target_name.strip() or "monsters"
                 h.doing("wait", f"Hunting for {what} around {self.wps[i][0]},{self.wps[i][1]} "
-                                f"(level {self.level[i]}, {h.totals['kills']} killed)", self.wps[i])
+                                f"(zone {self.zone[i]}, {h.totals['kills']} killed)", self.wps[i])
                 time.sleep(0.4)
                 return
             if productive:
@@ -666,7 +676,7 @@ class Crawl:
                       f"{self.a.crawl_depleted_s:.0f} s); moving on")
             self.wp, self.arrived_t = None, None
         if self.wp is None:
-            self.update_levels()
+            self.update_zones()
             self.wp = self.choose(pos)
             if self.wp is None:
                 self.depleted.clear()                    # nothing left: rest periods end early
@@ -677,7 +687,7 @@ class Crawl:
                 return
             self.leg_t = now
         w = self.wps[self.wp]
-        h.doing("patrol", f"Patrolling to {w[0]},{w[1]} (level {self.level[self.wp]})", w)
+        h.doing("patrol", f"Patrolling to {w[0]},{w[1]} (zone {self.zone[self.wp]})", w)
         h.patrolling = True
         try:
             why = h.mover.walk_to(lambda: w, 1, f"patrol to {w}", stop=h.patrol_stop,
@@ -694,14 +704,15 @@ class Crawl:
             h.patrolling = False
 
     def summary(self) -> dict:
-        """The episode row's `crawl` block: this visit's level stats (load_prior sums them
-        across runs), the open level, the types avoided, waypoints held and depleted."""
-        out = {"spot": list(self.h.spot), "band": self.a.crawl_band, "unlocked": self.unlocked,
+        """The episode row's `crawl` block: the dungeon level (`floor`), this visit's zone
+        stats (load_prior sums them across runs), the deepest open zone, the types avoided,
+        waypoints held and depleted."""
+        out = {"spot": list(self.h.spot), "floor": FLOOR, "band": self.a.crawl_band, "unlocked": self.unlocked,
                "closed": sorted(self.closed), "avoided": dict(self.avoided),
                "waypoints": self.counts["waypoints"], "depleted": self.counts["depleted"],
-               "levels": {str(k): {f: round(v, 1) if f == "s" else v for f, v in row.items()}
-                          for k, row in self.visit_levels.items()}}
-        self.visit_levels.clear()
+               "zones": {str(k): {f: round(v, 1) if f == "s" else v for f, v in row.items()}
+                          for k, row in self.visit_zones.items()}}
+        self.visit_zones.clear()
         self.counts["waypoints"] = self.counts["depleted"] = 0
         return out
 
@@ -725,29 +736,29 @@ def _cli_floor(args):
     start = (args.start[0], args.start[1], args.z)
     floor = floor_from_map(walk, start, tuple(args.spot), tele)
     wps = waypoints(floor, args.radius, tele)
-    lv = [floor.dist_exit[w] // args.band for w in wps]
-    print(f"floor from {start}: {len(floor)} tiles; farthest {max(floor.dist_exit.values())} route steps "
-          f"from the exit spot {tuple(args.spot)}; teleporters avoided: {sorted(tele)}")
+    zs = [floor.dist_exit[w] // args.band + 1 for w in wps]
+    print(f"dungeon level {FLOOR} floor from {start}: {len(floor)} tiles; farthest {max(floor.dist_exit.values())} "
+          f"route steps from the exit spot {tuple(args.spot)}; teleporters avoided: {sorted(tele)}")
     xs = [t[0] for t in floor.adj]
     ys = [t[1] for t in floor.adj]
     print(f"bbox x {min(xs)}-{max(xs)}, y {min(ys)}-{max(ys)}; {len(wps)} waypoints (radius {args.radius})")
-    per = collections.Counter(floor.dist_exit[t] // args.band for t in floor.adj)
-    for k in sorted(per):
-        ws = [w for w, lk in zip(wps, lv) if lk == k]
-        print(f"level {k}: route steps {k * args.band}-{(k + 1) * args.band - 1}, {per[k]} tiles, "
+    per = collections.Counter(floor.dist_exit[t] // args.band + 1 for t in floor.adj)
+    for z in sorted(per):
+        ws = [w for w, wz in zip(wps, zs) if wz == z]
+        print(f"zone {z}: route steps {(z - 1) * args.band}-{z * args.band - 1}, {per[z]} tiles, "
               f"{len(ws)} waypoints: {' '.join(f'{x},{y}' for x, y in ws)}")
 
 
 def _cli_priors(args):
     m = load_prior(_ro(args.memory), None)
-    print(f"level 0 base: {m.base}")
+    print(f"zone 1 base: {m.base}")
     for name in sorted(m.fights, key=lambda n: -len(m.fights[n])):
         e = m.estimate(name)
         print(f"{name}: {e['n']} fights ({e['kills']} kills), {e['fight_s']:.0f} s/kill, {e['hits']:.1f} hits/fight, "
               f"{e['gold']:.1f} gold/kill, flee {e['flee']:.0%}; avoid at 94 hits: "
               f"{m.avoid(name, 94, 0.5, 180) or 'no'}")
-    for k in sorted(m.levels):
-        print(f"level {k}: {m.levels[k]} -> {m.rates(k)}")
+    for k in sorted(m.zones):
+        print(f"zone {k}: {m.zones[k]} -> {m.rates(k)}")
 
 
 def main(argv=None):
@@ -761,7 +772,7 @@ def main(argv=None):
     f.add_argument("--radius", type=int, default=8)
     f.add_argument("--band", type=int, default=40)
     f.add_argument("--memory", default=DEFAULT_DB, help="store for the teleporters (read-only; '' = none)")
-    p = sub.add_parser("priors", help="per-creature and per-level priors from the store (read-only)")
+    p = sub.add_parser("priors", help="per-creature and per-zone priors from the store (read-only)")
     p.add_argument("--memory", default=DEFAULT_DB)
     args = ap.parse_args(argv)
     {"floor": _cli_floor, "priors": _cli_priors}[args.cmd](args)
