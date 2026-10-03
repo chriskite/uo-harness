@@ -462,9 +462,11 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   13:26). `combat.reagents` now falls back to the tiledata name ("arielle's bauble", 0x023B).
 - **Hunt crawl (ee62f02):** `run hunt --enter --crawl --pull-range 8 --mana-reserve 999
   --target-name "" --gheal-min-missing 1` patrols the NPD instead of standing on one spot
-  (docs/HUNT_LOOP.md "Crawl"). The NPD is one connected storey (10,829 tiles, farthest tile 182
-  route steps from the exit) with no known teleporter floors, so the crawl's "levels" are 40-step
-  depth bands; level 1 opens only after ~10 min of level 0 showing under ~20 hits lost/min.
+  (docs/HUNT_LOOP.md "Crawl"). The NPD is one connected floor, dungeon level 1 (10,829 tiles,
+  farthest tile 182 route steps from the exit), with no known teleporter floors. Dungeon levels
+  count from 1, the game's convention. The crawl's own 40-step depth bands are **zones 1–5**
+  (7f7dd89; were "levels 0–4"): zone 2 opens only after ~10 min of zone 1 showing under ~20
+  hits lost/min. A crawl walks up to twice the pull range to loot its own kill (38a5d36).
 - **Fight priors from the store:** every engagement is now a `fight` job event. Rebuilt from the
   event log: mongbat 153 kills, median 29 s and 7 hits lost per kill, 13.8 gold per kill, 35 % of
   kills without gold (pets/players). A creature the crawl fled from stays avoided in later runs
