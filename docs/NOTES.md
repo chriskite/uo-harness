@@ -623,13 +623,31 @@ All 20 sessions 20261001_214649 … 20261003_150103 replayed in timed order (`re
   `harness/captcha_mine.py`. The live proxy must be restarted to carry corpse notoriety; until then
   the runner sees none and relies on the refusal stop. `test_world_replay.py` knows Shackleworth's
   serial `0x003D701F`.
-- **`harness/test_uomap.py` fails 3 checks on the new captures (open):** it builds walk memory
-  from every `logs/session_*` without a facet and excludes only the Shelter room's tiles, so the
-  Outpost rental-room interior (195,1677–1680; facet 3) and the Shelter room tiles (39–40, 39–42)
-  count as facet-0 walked tiles; plus two z cases the map rules don't place: (1706,3180) z 2 (the
-  Cambria library benches) and (1955,2625) z 6 (Shackleworth's creation spawn). The memory store
-  itself has the room tiles on facet 3 (walk_moves), so this is the test's data assumption, not a
-  harness bug; the two z cases are unexplained.
+- **`harness/test_uomap.py` failed 3 checks on the new captures (fixed 2026-10-03, test only;
+  uomap/nav/pathfind unchanged).** The 20 failing walked tiles and 2 positions had four causes:
+  - **No facet on walked tiles.** The walk memory came from `nav.build_from_logs`, which has no
+    facet, so the Shelter room (39–40, 39–42; 20260930_182751/201411) and the Outpost room
+    (195,1677–1680; 20261003_145333/145743/145951) counted as facet 0. Now each session gives
+    its proxy `step` rows on the facet logged before them (0xBF sub 8), or, without step rows,
+    its raw-pair reconstruction on the one facet its S2C stream shows (memory.ingest's rule).
+    The hard-coded Shelter-room exclusion is gone.
+  - **Zero-height impassables.** The test's `blocked_at` treated them as 1 high. The client's
+    CalculateNewZ (and pathfind) lets you stand on the surface they sit on, and the server
+    confirmed such steps: fence 0xB2D7 at (1919,2608–2609) z0 (20261001_191355, t 1790904379)
+    and tiledata-height-0 lamp posts on raised walkways, e.g. (2042,2212) z20 (20260930_123206
+    and later).
+  - **Houses.** (1706,3180) z 2 (20261003_101549, t 1791040854): the Cambria library stands in
+    a house multi (0xF3 data_type 2, graphic 0xA2 at 1706,3176 z0). Its piece 0x070A at
+    (1706,3180) gives z 2. The test now adds the surfaces of every ground item and multi piece
+    seen on the facet as extra standing heights.
+  - **Two positions the walk rules don't model**, left out with their evidence in the test:
+    the creation spawn (1955,2625) z 6, which the server sets (Hackworth's first capture
+    20260930_223009 and his 20261001_191355 login, Shackleworth's create in 113952; the
+    plank tops out at 7) and which is left out only while held on the login tile. And
+    (1615,1519) on the Test Shard (TestWorth, 20260930_123206, t 1790802889.636): a confirmed
+    SW step into a tile the client's statics wall off (stone wall + iron fence). View-range
+    item updates and a 125-move dead-reckoned chain that ends on the next server deny prove
+    the position, so the server's map has no wall there [INFERENCE].
 
 ## Runebook and rune tome gumps (live 2026-10-02, TestWorth on the Test Shard)
 

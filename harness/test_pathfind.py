@@ -28,6 +28,13 @@ import uomap  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FAILURES = []
 
+# A server-confirmed move the client's statics wall off: TestWorth's SW step onto
+# (1615,1519) on the Test Shard (20260930_123206, t 1790802889.636), into a stone wall
+# + iron fence. View-range item updates and the dead-reckoned chain to the next server
+# deny prove the server put him there (evidence in test_uomap.py SERVER_ONLY_FLOOR), so
+# the server's map has no wall there [INFERENCE].
+SERVER_ONLY_MOVES = {((1616, 1518), (1615, 1519))}
+
 
 def check(name, cond, detail=""):
     print(f"  {'PASS' if cond else 'FAIL'} {name}{'' if cond else ' ' + detail}")
@@ -44,6 +51,9 @@ def main():
     print("== walk memory agrees with the client rules ==")
     mem = nav.build_from_logs(os.path.join(ROOT, "logs"))
     edges = [(a, b) for a, b in mem.edges if a[0] >= 1000]      # facet 0 (rooms are facet 3)
+    check("the server-only moves are among the confirmed ones",
+          SERVER_ONLY_MOVES <= mem.edges, sorted(SERVER_ONLY_MOVES - mem.edges))
+    edges = [e for e in edges if e not in SERVER_ONLY_MOVES]
     bad = []
     for a, b in edges:
         d = nav.direction(a, b)
