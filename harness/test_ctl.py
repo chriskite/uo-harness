@@ -1562,6 +1562,18 @@ def test_track(proxy):
     proxy.tracker, proxy.gumps = None, []
 
 
+def test_room_buttons():
+    print("== room: the rental room menus' buttons by their labels (live gumps, DTF guild house) ==")
+    with open(os.path.join(HERE, "testdata", "room_gumps.json"), encoding="utf-8") as f:
+        g = json.load(f)
+    find = lambda key, label: ctl._labelled_button(ctl.gump_view(g[key]), label)  # noqa: E731
+    check("steward menu without a room: 'Visit Other Rooms' is 2, no 'Enter Your Room'",
+          find("steward_no_room", "Visit Other Rooms") == 2 and find("steward_no_room", "Enter Your Room") is None)
+    check("the visit list: Logan Wolf's row is 100", find("visit_list", "Logan Wolf") == 100)
+    check("the door: Exit to House Steward 6 and Exit to Town 4, not the View Players button between them",
+          find("door", "Exit to House Steward") == 6 and find("door", "Exit to Town") == 4)
+
+
 def main():
     proxy = FakeProxy()
     for port in (proxy.control_port, proxy.state_port):
@@ -1579,6 +1591,7 @@ def main():
     test_attackers(proxy)
     test_drop(proxy)
     test_track(proxy)
+    test_room_buttons()
     reset_events(proxy)
     test_overseer_acts(proxy)
     if FAILURES:

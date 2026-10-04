@@ -467,7 +467,11 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   you're in the house; the rental room doesn't (user, 2026-10-04). Leaving the guild house into
   the room: "Your mount returns."; back into the guild house: "Your mount finds a quiet place to
   rest safely." So Dan is on foot inside the guild house, mounted elsewhere.
-- Memory: #4081 (procedure, `char:outland_dan`, standing in his brief).
+- **One act each way:** `ctl act room enter [OWNER]` / `ctl act room leave [steward|town]` do the
+  whole flow (buttons found by their labels, not fixed ids). Live 17:31: enter 7.0 s (a 4-step walk
+  to Chase included), leave 7.0 s, `enter logan` the same; `enter nobody` refused with the list
+  ("Logan Wolf (DTF)") and closed the menu. Fixtures: `harness/testdata/room_gumps.json`.
+- Memory: #4082 (procedure, `char:outland_dan`, standing in his brief; #4081 superseded).
 
 ## Cortina's rune tome quest (live 2026-10-03, Hackworth)
 

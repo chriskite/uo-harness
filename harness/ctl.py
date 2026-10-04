@@ -114,7 +114,7 @@ LAYER_NAMES = {1: "one_handed", 2: "two_handed", 3: "shoes", 4: "pants", 5: "shi
                0x17: "skirt", 0x18: "legs", 0x19: "mount", 0x1D: "bank"}
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
         "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot",
-        "target", "cast", "heal", "buy", "use", "drop", "track", "recall", "read_tomes")
+        "target", "cast", "heal", "buy", "use", "drop", "track", "recall", "read_tomes", "room")
 # meta key: epoch seconds of ctl's last heal-potion drink (healing.PotionClock across ctl calls)
 HEAL_POTION_KEY = "heal_potion_t"
 PACK_ITEMS_MAX = 60                  # status.backpack.items
@@ -135,6 +135,15 @@ POLICY_PATH = os.path.join(HERE, "data", "policy.json")
 CAPTCHA_GUMP_ID = 0x00000001          # lumber.json captcha.gump_id; never answered by the overseer
 GUMP_TEXT_MAX = 239                  # chars per gump text entry (the client's text box limit)
 RENOUNCE_WORDS = ("renounce",)        # Young renounce prompt (clilocs 502085/3006307): close only
+ROOM_GUMP_ID = 0x8EAEFBDB            # rental room menu (innkeeper, house steward, the room's door)
+# Its buttons that change a rental contract (live 2026-10-04 in Logan Wolf's room, which Outland Dan
+# co-owns): never the overseer's call. Refused when the menu shows that label.
+ROOM_REFUSED = {3: "End Rental Contract", 7: "Expand"}
+ROOM_FACET = 3                       # rental rooms are on facet 3 (no map geometry)
+ROOM_KEEPERS = ("house steward", "innkeeper")   # who opens the room menu (their click label)
+ROOM_MENU_ENTRIES = ("room", "rent")  # their context menu entry: steward "Room", innkeeper "Rent"
+ROOM_KEEPER_RANGE = 2                # walk this close first (the steward's menu, live; innkeepers answer from 11)
+ROOM_VIA_KEY = "room_entered_via"    # meta: the keeper kind `room enter` used, for `room leave`'s default exit
 GOTO_Z_TOL = 10                      # goto --z / ground item: stand within this of the target z
 GROUND_RANGE = 12                    # status: ground items within this many tiles
 GROUND_MAX = 20
@@ -946,6 +955,8 @@ def _act(a, mem) -> dict:
         return _act_recall(a)
     if a.name == "read_tomes":
         return _act_read_tomes(a)
+    if a.name == "room":
+        return _act_room(a, mem)
     pkt = None
     serial = None
     if a.name == "say":
@@ -1684,6 +1695,182 @@ def _act_read_tomes(a) -> dict:
         stc.close()
 
 
+def _labelled_button(view: dict, label: str) -> int | None:
+    """The reply button whose own label (the text right of it on its row) starts with
+    `label`, case-blind (rental room menus: "Visit Other Rooms", "Exit to House Steward")."""
+    want = label.lower()
+    for b in view["controls"]["buttons"]:
+        for n in b.get("near") or []:
+            if 0 < n.get("dx", 0) <= 60 and abs(n.get("dy", 0)) <= 8 and n["text"].strip().lower().startswith(want):
+                return b["id"]
+    return None
+
+
+def _act_room(a, mem) -> dict:
+    """room enter [OWNER WORDS…] | room leave [steward|town]: the rental room, as
+    one deterministic act (docs/NOTES.md "Rental room via the DTF house steward").
+
+    enter: the nearest house steward or innkeeper in view (their click label) is
+    walked to (2 tiles, guarded goto), right-clicked, "Room"/"Rent" picked; on the
+    room menu (gump 0x8EAEFBDB) "Enter Your Room" when you rent one and no OWNER
+    is named, else "Visit Other Rooms" and the row whose name holds OWNER's words
+    (no OWNER: the only row). Done on "You enter the rental room." / facet 3.
+    leave: the room's door (the nearest door item in view) is double-clicked and
+    its menu's "Exit to House Steward" or "Exit to Town" pressed: as asked, else
+    the way you came in (a steward or innkeeper), else the steward when offered.
+    Every press goes through `gump_reply` (End Rental Contract / Expand refused)
+    with a reading pause before it; a menu that doesn't offer the step is an
+    error that names what it offers."""
+    import contextlib
+    import uomap
+    op = (a.args[0].lower() if a.args else "")
+    if op not in ("enter", "leave"):
+        raise CtlError("room enter [OWNER WORDS…] | room leave [steward|town]")
+    human = Human(a.human, seed=a.seed)
+    ctl, stc = _connect(a)
+    heard = []
+
+    def press(view: dict, button: int, kind: str = "menu"):
+        human.wait(kind)
+        mark = stc.mark()
+        if ctl.send(gump_reply(stc.state(), view["serial"], str(button))) != "OK":
+            raise CtlError(f"proxy refused the reply to gump {view['serial']}")
+        return mark
+
+    def next_room_gump(mark: int, what: str) -> dict:
+        got = stc.wait_events(mark, lambda evs: any(e.get("ev") == "gump_open" and _serial(e.get("gump_id"))
+                                                    == ROOM_GUMP_ID for e in evs))
+        heard.extend(journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS and e.get("ev") != "gump_open")
+        g = next((e for e in reversed(got) if e.get("ev") == "gump_open"
+                  and _serial(e.get("gump_id")) == ROOM_GUMP_ID), None)
+        if g is None:
+            raise CtlError(f"no rental room menu after {what}")
+        return gump_view(g)
+
+    def moved(mark: int, done, text: str) -> dict:
+        got = stc.wait_events(mark, lambda evs: any(done(e) for e in evs), timeout=5.0)
+        heard.extend(journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS)
+        st = stc.state()
+        facet = (st["world"].get("self") or {}).get("map")
+        ok = any(done(e) for e in got)
+        return {"ok": ok, "pos": st["movement"].get("pos"), "facet": facet, "heard": heard,
+                **({} if ok else {"error": f"no '{text}' within 5 s"})}
+
+    try:
+        st = stc.state()
+        world = st["world"]
+        facet = (world.get("self") or {}).get("map")
+        pos = st["movement"].get("pos")
+        if op == "enter":
+            if facet == ROOM_FACET:
+                return {"ok": True, "already": "inside a rental room", "pos": pos, "facet": facet}
+            labels = world.get("labels") or {}
+            keepers = sorted(((nav.chebyshev((m["x"], m["y"]), tuple(pos[:2])), key, labels.get(key) or "")
+                              for key, m in (world.get("mobiles") or {}).items()
+                              if m.get("x") is not None and any(k in (labels.get(key) or "").lower()
+                                                                for k in ROOM_KEEPERS)))
+            if not keepers:
+                raise CtlError("no house steward or innkeeper in view (by their click label): go to one first "
+                               "(`ctl npcs steward`, `ctl npcs innkeeper`)")
+            dist, key, label = keepers[0]
+            via = next(k for k in ROOM_KEEPERS if k in label.lower())
+            stc.intent(f"Entering a rental room via {label}", "room")
+            if dist > ROOM_KEEPER_RANGE:
+                ctl.close()               # the walk opens its own control connection (agent_link.Link)
+                try:
+                    with contextlib.redirect_stdout(sys.stderr):
+                        walk = _act_goto(argparse.Namespace(**{**vars(a), "args": [key], "range": ROOM_KEEPER_RANGE,
+                                                               "z": None, "max_moves": None}), mem)
+                finally:
+                    ctl = Control(a.control_port)
+                if not walk["ok"]:
+                    raise CtlError(f"walking to {label}: {walk.get('error') or walk['reply']}")
+            keeper = _serial(key)
+            human.wait("use")
+            mark = stc.mark()
+            for p in context_menu_packets(keeper):
+                if ctl.send(p) != "OK":
+                    raise CtlError(f"proxy refused the right-click on {label}")
+            got = stc.wait_events(mark, lambda evs: any(e.get("ev") == "popup" for e in evs))
+            menu = next((journal_view(e) for e in got if e.get("ev") == "popup"), None)
+            entry = next((e for e in (menu or {}).get("entries") or []
+                          if (e.get("text") or "").strip().lower() in ROOM_MENU_ENTRIES and not e.get("disabled")),
+                         None)
+            if entry is None:
+                raise CtlError(f"{label}'s context menu has no Room/Rent entry: "
+                               f"{[e.get('text') for e in (menu or {}).get('entries') or []]}")
+            human.wait("menu")
+            mark = stc.mark()
+            if ctl.send(actions.popup_selection(keeper, entry["index"])) != "OK":
+                raise CtlError("proxy refused the context menu pick")
+            view = next_room_gump(mark, f"picking '{entry['text']}'")
+            owner = " ".join(a.args[1:]).strip()
+            own = _labelled_button(view, "Enter Your Room")
+            if own is not None and not owner:
+                mark = press(view, own)
+                room = "your own"
+            else:
+                visit = _labelled_button(view, "Visit Other Rooms")
+                if visit is None:
+                    press(view, 0)
+                    raise CtlError(f"the room menu offers no 'Visit Other Rooms': {view['texts']}")
+                view = next_room_gump(press(view, visit), "'Visit Other Rooms'")
+                rows = [(b["id"], n["text"]) for b in view["controls"]["buttons"] if b["id"] >= 100
+                        for n in (b.get("near") or [])[:1] if n.get("dx", 0) > 0]
+                words = [w.lower() for w in owner.split()]
+                hit = [r for r in rows if all(w in r[1].lower() for w in words)]
+                if len(hit) != 1:
+                    press(view, 0)
+                    raise CtlError(f"{'no' if not hit else len(hit)} room(s) match {owner or '(no owner given)'}; "
+                                   f"rooms you may visit: {[r[1] for r in rows]}")
+                mark = press(view, hit[0][0])
+                room = hit[0][1]
+            out = moved(mark, lambda e: e.get("ev") == "map_change" and e.get("map") == ROOM_FACET
+                        or e.get("ev") == "speech_heard" and e.get("text") == "You enter the rental room.",
+                        "You enter the rental room.")
+            if out["ok"]:
+                tw.meta_set(mem, ROOM_VIA_KEY, via)
+            stc.intent(f"In the rental room ({room})" if out["ok"] else None, "room")
+            return {**out, "room": room, "via": label, "reply": f"entered {room}" if out["ok"] else out["error"]}
+        # leave
+        if facet != ROOM_FACET:
+            raise CtlError(f"not in a rental room (facet {facet})")
+        want = a.args[1].lower() if len(a.args) > 1 else None
+        if want not in (None, "steward", "town"):
+            raise CtlError("room leave [steward|town]")
+        td = uomap.tiledata()
+        doors = sorted((nav.chebyshev((it["x"], it["y"]), tuple(pos[:2])), key)
+                       for key, it in world["items"].items()
+                       if it.get("container") is None and it.get("x") is not None and it.get("graphic") is not None
+                       and "door" in (td.item(it["graphic"]).name or "").lower())
+        if not doors:
+            raise CtlError("no door in view in this room")
+        human.wait("use")
+        mark = stc.mark()
+        if ctl.send(actions.dclick(_serial(doors[0][1]))) != "OK":
+            raise CtlError("proxy refused the double-click on the door")
+        view = next_room_gump(mark, "double-clicking the door")
+        steward, town = _labelled_button(view, "Exit to House Steward"), _labelled_button(view, "Exit to Town")
+        came = tw.meta_get(mem, ROOM_VIA_KEY)
+        pick = {"steward": steward, "town": town}.get(want) if want else \
+            (town if came == "innkeeper" and town is not None else steward if steward is not None else town)
+        if pick is None:
+            press(view, 0)
+            raise CtlError(f"the door's menu offers no {want or 'exit'} button: {view['texts']}")
+        exit_to = "the house steward" if pick == steward else "town"
+        stc.intent(f"Leaving the rental room to {exit_to}", "room")
+        out = moved(press(view, pick), lambda e: e.get("ev") == "map_change" and e.get("map") != ROOM_FACET
+                    or e.get("ev") == "speech_heard" and e.get("text") == "You exit the rental room.",
+                    "You exit the rental room.")
+        if out["ok"]:
+            tw.meta_set(mem, ROOM_VIA_KEY, None)
+        stc.intent(None)
+        return {**out, "exit": exit_to, "reply": f"left to {exit_to}" if out["ok"] else out["error"]}
+    finally:
+        ctl.close()
+        stc.close()
+
+
 def _rewield(ctl, stc, me, key: str, human) -> dict:
     """A weapon worn before a cast that the cast put in the pack (an arcane staff below
     80 Arcane/Magery/Wrestling; live 2026-10-03 a tome-charge recall into Urukton left
@@ -2158,6 +2345,9 @@ def gump_reply(state: dict, serial_arg: str, button_arg: str, texts=()) -> bytes
     if any(w in t.lower() for t in view["texts"] for w in RENOUNCE_WORDS) and button != 0:
         raise CtlError("gump mentions renouncing Young status: only closing it (button 0) is allowed; "
                        "leaving Shelter is the human's decision")
+    if _serial(g.get("gump_id")) == ROOM_GUMP_ID and ROOM_REFUSED.get(button) in view["texts"]:
+        raise CtlError(f"rental room menu: button {button} is '{ROOM_REFUSED[button]}', which changes the rent "
+                       "contract: the human's decision")
     if button == 0 and not view["closable"]:
         raise CtlError("gump is noclose; button 0 isn't available")
     if button != 0 and button not in view["buttons"]:

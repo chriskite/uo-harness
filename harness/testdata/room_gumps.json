@@ -1,0 +1,55 @@
+{
+ "_doc": "Rental room menu gumps (0x8EAEFBDB) as the Outlands server sent them to Outland Dan, live 2026-10-04 in the DTF guild house: steward_no_room = Chase the house steward's menu 'Room' for a character with no room of his own; visit_list = after 'Visit Other Rooms' (Logan Wolf's room, Co-Owner); door = the door menu inside Logan Wolf's room (End Rental Contract 3, Expand 7, Exit to Town 4, View Players 5, Exit to House Steward 6). Used by harness/test_ctl.py.",
+ "steward_no_room": {
+  "gump_id": "0x8EAEFBDB",
+  "layout": "{ resizepic 20 17 11571 496 538 }{ text 10 0 149 0 18 0 1 0 0 0 }{ button 14 15 2094 2095 1 0 1 }{ gumppic 186 12 2446 }{ text 234 13 2655 1 18 0 1 0 0 0 }{ text 145 156 2655 2 18 0 1 0 0 0 }{ text 87 270 2655 3 18 0 1 0 0 0 }{ text 67 300 2655 4 18 0 1 0 0 0 }{ text 87 330 2655 5 18 0 1 0 0 0 }{ text 172 360 2655 6 18 0 1 0 0 0 }{ gumppic 33 495 96 hue=2428 }{ gumppic 198 495 96 hue=2428 }{ gumppic 324 495 96 hue=2428 }{ text 223 508 2599 7 18 0 1 0 0 0 }{ button 188 505 2151 2154 1 0 2 }\u0000",
+  "lines": [
+   "Guide",
+   "Rental Room",
+   "You do not currently have a Rental Room",
+   "You can enter a contract for a Rental Room, if you do not",
+   "currently have a house on your account, by visiting any Innkeeper",
+   "in any town and saying 'Room' and following the instructions",
+   "displayed in the resulting menu",
+   "Visit Other Rooms"
+  ]
+ },
+ "visit_list": {
+  "gump_id": "0x8EAEFBDB",
+  "layout": "{ resizepic 20 17 11571 496 538 }{ text 10 0 149 0 18 0 1 0 0 0 }{ button 14 15 2094 2095 1 0 2 }{ gumppic 186 12 2446 }{ text 234 13 2655 1 18 0 1 0 0 0 }{ gumppic 34 57 96 hue=2428 }{ gumppic 199 57 96 hue=2428 }{ gumppic 325 57 96 hue=2428 }{ text 114 47 149 2 18 0 1 0 0 0 }{ text 366 47 149 3 18 0 1 0 0 0 }{ button 41 68 9721 9724 1 0 100 }{ text 78 72 2655 4 18 0 1 0 0 0 }{ text 375 72 2603 5 18 0 1 0 0 0 }{ gumppic 33 495 96 hue=2428 }{ gumppic 198 495 96 hue=2428 }{ gumppic 324 495 96 hue=2428 }{ text 74 508 2655 6 18 0 1 0 0 0 }{ button 40 508 4014 4016 1 0 2 }\u0000",
+  "lines": [
+   "Guide",
+   "Rental Room",
+   "Visit Room",
+   "Access Level",
+   "Logan Wolf (DTF)",
+   "Co-Owner",
+   "Return"
+  ]
+ },
+ "door": {
+  "gump_id": "0x8EAEFBDB",
+  "layout": "{ resizepic 20 17 11571 496 538 }{ text 10 0 149 0 18 0 1 0 0 0 }{ button 14 15 2094 2095 1 0 1 }{ gumppic 186 12 2446 }{ text 234 13 2655 1 18 0 1 0 0 0 }{ tilepic 39 70 6160 }{ text 84 47 149 2 18 0 1 0 0 0 }{ text 84 76 2655 3 18 0 1 0 0 0 }{ tilepic 37 102 3823 }{ text 84 104 2599 4 18 0 1 0 0 0 }{ gumppic 33 176 96 hue=2428 }{ gumppic 198 176 96 hue=2428 }{ gumppic 324 176 96 hue=2428 }{ text 306 197 2104 5 18 0 1 0 0 0 }{ button 353 223 2151 2154 1 0 3 }{ text 314 255 2104 6 18 0 1 0 0 0 }{ text 93 197 2518 7 18 0 1 0 0 0 }{ text 93 217 2655 8 18 0 1 0 0 0 }{ tilepic 33 197 7776 }{ text 93 252 2538 9 18 0 1 0 0 0 }{ text 93 272 2655 10 18 0 1 0 0 0 }{ tilepic 42 249 3649 }{ button 145 275 2118 2117 1 0 7 }{ text 166 272 2655 11 18 0 1 0 0 0 }{ gumppic 33 322 96 hue=2428 }{ gumppic 198 322 96 hue=2428 }{ gumppic 324 322 96 hue=2428 }{ text 50 331 2655 12 18 0 1 0 0 0 }{ text 50 356 2655 13 18 0 1 0 0 0 }{ text 50 381 2655 14 18 0 1 0 0 0 }{ text 50 406 2655 15 18 0 1 0 0 0 }{ gumppic 257 434 96 hue=2428 }{ gumppic 325 434 96 hue=2428 }{ gumppic 92 434 96 hue=2428 }{ gumppic 32 434 96 hue=2428 }{ gumppic 33 495 96 hue=2428 }{ gumppic 198 495 96 hue=2428 }{ gumppic 324 495 96 hue=2428 }{ text 74 508 63 16 18 0 1 0 0 0 }{ button 39 505 2151 2154 1 0 4 }{ text 215 508 2603 17 18 0 1 0 0 0 }{ button 180 505 2151 2154 1 0 5 }{ text 355 508 2599 18 18 0 1 0 0 0 }{ button 320 505 2151 2154 1 0 6 }\u0000",
+  "lines": [
+   "Guide",
+   "Rental Room",
+   "Next Automatic Rental Payment",
+   "6 Days 21 Hours 6 Minutes from now",
+   "10,000 Gold Due",
+   "End Rental Contract",
+   "(click for details)",
+   "Locked Down Items",
+   "376/700",
+   "Secure Containers",
+   "3/4",
+   "Expand",
+   "At the end of the rental period, if you do not renew or cannot pay the",
+   "renewal fee, all items within the rental room will be deposited into",
+   "your bank box. If your bank box is full, items will be queued and",
+   "placed into your bank as space permits",
+   "Exit to Town",
+   "View Players",
+   "Exit to House Steward"
+  ]
+ }
+}
