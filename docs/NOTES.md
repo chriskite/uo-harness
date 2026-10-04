@@ -601,6 +601,25 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   Fixed: the ledger runs first, and the escape recall books pack losses before stopping
   (`theft` job event, `theft_suspected` juncture). Travel recalls by spell now tell the ledger
   about the reagents they spend, so they never read as theft.
+- **A trapped pouch popped by its owner (live 2026-10-04, session `20261004_113229`, Hackworth at
+  (1620,1549,50), user-driven; `loop_mine.py timeline 20261004_113229` 2:31 and 2:52).** For the
+  log-pouch plan (docs/PLAN.md "Keep thieves off the logs").
+  - **Buying:** Errol the provisioner sells "Trapped Pouch" at 25 gp. They come as pouch `0x0E79`
+    with **hue 38** (red). Hue 38 is how the community scripts find them (`findtype "pouch" backpack 38`).
+  - **The pop:** a double-click on it (C2S `0x06`). 56 ms later the server sends one flush with:
+    - `0xAE` from our own serial with text "-1" (the damage number), and `0xA1` hits 100 → 99.
+    - `0x54` sound `0x0307` at our tile.
+    - Five `0xC0` effects, item `0x36BD` (the explosion), on our tile and the tiles around it. Their
+      x/y/z are u32 (`c0 02 src dst 36bd 0000 | x u32 y u32 z u32 | x u32 y u32 z u32 | speed 0a dur 0f …`).
+    - System `0xAE` "You now have N trapped pouches remaining." N counts the hue-38 pouches left.
+    - `0x25` re-sending the pouch in the backpack with **hue 0**: it is now an ordinary pouch. The world
+      model shows the hue change (38 → 0); the trap state has no other visible field.
+  - Hits regenerate to 100 about 4 s later.
+  - The world model doesn't parse `0x54` sounds (30 unparsed in this session). The proxy log's `hex`
+    field stops at 64 bytes, so long messages need the `.raw` capture (the timeline reads it).
+  - [INFERENCE] **A thief's snoop** probably makes the same explosion. Whether it damages us, plays the
+    effect on us, or sends the "remaining" line is unmeasured (THREATS D9). The signal that needs no
+    action of ours is the `0x25` hue 38 → 0 on a pouch in our pack that we didn't double-click.
 - **Casting moves the hatchet to the pack** (hatchets are two-handed): "That must be equipped
   for any serious chopping." The runner's hatchet use re-equips it.
 - **The lumber runner runs from creature damage (afcd4b0).** When one creature hits at hits ≥ 60 %

@@ -853,10 +853,14 @@ community's trapped-pouch scripts. Not built; it follows Smart Harvest.
 2. **The explosion is the alarm.** A popped pouch near any player means a thief is at work.
    Raise the existing urgent threat path: recall, and keep away from the spot for `THIEF_COOLDOWN`
    (THREATS T4).
-   - What the explosion looks like on the wire (effect, sound, message, the pouch losing its trap
-     state) is unknown. Capture it first: pop one of our own pouches, attended. A thief's pop may
-     differ; THREATS D9 (a consenting thief) stays the full test and needs staff sanction.
-   - Re-trap or replace a popped pouch before the next trip.
+   - **Measured 2026-10-04 (owner's pop, docs/NOTES.md "A trapped pouch popped by its owner"):** the
+     pouch in our pack is re-sent with hue 38 → 0, with an explosion effect `0x36BD`, sound `0x0307`,
+     −1 hit and "You now have N trapped pouches remaining."
+   - **The trigger:** a hue-38 pouch in our pack turning hue 0 when we didn't double-click it. That's the
+     one part that can't depend on who opened it. Whether a thief's snoop also damages us or plays the
+     effect on us is still unmeasured; THREATS D9 (a consenting thief) stays the full test and needs
+     staff sanction.
+   - Replace a popped pouch (now hue 0) before the next trip, and move its logs into a live one.
 3. **Keep-away (THREATS T3): any player within 2 tiles is a thief.** It doesn't matter whether they
    look friendly, and they don't have to stay. While harvesting, a player (not an NPC, pet or follower) at
    ≤ 2 tiles is treated as a thief at once:
@@ -866,11 +870,10 @@ community's trapped-pouch scripts. Not built; it follows Smart Harvest.
    - If they close to ≤ 2 tiles again: recall, and keep off the spot for `THIEF_COOLDOWN` (THREATS T4).
    - `threats.py` changes from `watch` to this response for players in steal range during a harvest job.
    - Friends or guildmates, if we ever have any, would need an explicit allowlist; there is none today.
-4. **Getting pouches.**
-   - Cast Magic Trap (2nd circle; Hackworth has 60 Magery) on a pouch. Ingredients and cost are
-     to be read from the wiki, not guessed.
-   - Or buy trapped pouches (Discord: Provisioner or mage NPC; to be checked on a vendor list).
-   - The trip plan carries one or two, like hatchets and reagents.
+4. **Getting pouches:** buy them from a provisioner. Errol sells "Trapped Pouch" at 25 gp
+   (measured 2026-10-04); they arrive as hue-38 pouches. The trip plan carries two or three, like
+   hatchets and reagents, and tops up at the provisioner. Casting Magic Trap ourselves isn't needed
+   at this price.
 
 **Rejected:**
 - **Attacking the thief:** Heat of Battle blocks recall, and it's PvP (THREATS §4.3).
@@ -888,7 +891,8 @@ plan only carries the logs in one.
   a theft) and the keep-away trigger.
 - An attended live trip keeps its logs in the pouch end to end, including the convert and the bank
   deposit.
-- The self-pop capture is decoded in docs/NOTES.md, and the alarm fires on it in replay.
+- Replay of `20261004_113229` raises no alarm for our own two pops. The same hue change without our
+  double-click (a synthetic case built from it) raises the thief alarm.
 
 ## Risks
 
