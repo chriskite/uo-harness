@@ -676,7 +676,8 @@ disturb recovery; a reflected opener would have saved Nusero; flight and healing
   opening spell (the one that broke the recall) bounces: at Nusero it was Weaken, and recall 1 would
   then have landed 0.49 s before his Harm. It's 5th circle: min 50, 100 % at **70** Magery, so at
   Hackworth's 60 about 50 % (from a scroll +20 → 100 %); reagents garlic, mandrake root, spider's
-  silk (Garritt in Cambria sells no silk), scroll 300 gp at Garritt. In PvP it reflects at most 2
+  silk (mages sell all eight reagents but can sell out until their stock refreshes; Garritt was out
+  of silk, ash and nightshade on 10-03), scroll 300 gp at Garritt. In PvP it reflects at most 2
   spells and stays after the first only with a 35 % × Inscription/100 chance (#215, wiki Magery).
   Open: how long it lasts on Outlands,
   how to see it's up (buff icon), and recasting it at the start of each trip and after each reflect.

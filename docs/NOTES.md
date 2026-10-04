@@ -467,6 +467,9 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
 - **Hackworth's home rune, Cambria (1752, 3001):**
   - Garritt the mage, Cambria (1759, 2981): reagents 3 gp each, blank recall rune 20, recall
     scroll 200, **Mark scroll 500**, spellbook 60, 20 arcane staves 50 each, training arcane staff 25.
+    His list on 10-03 had black pearl, blood moss, mandrake root, garlic and ginseng only: mage
+    vendors sell all eight reagents but sell out when players buy the stock, and refresh
+    periodically (user, 2026-10-03; knowledge #967).
   - **Mark is 6th circle: 60 Magery to cast, 100 % at 80** (wiki Magery: each circle's "Min
     Required / 100% Success" line follows its spell table: 1st 0/30 … 4th 40/60 (Recall), 5th 50/70 (Magic Reflection), 6th 60/80, the
     same for Reveal and Invisibility). At Magery 60.0 from the spellbook all 20 casts fizzled (12 reagent sets
