@@ -61,3 +61,7 @@ viz/node_modules/
 viz/dist/
 # overseer task logs (harness/ctl.py run)
 logs/tasks/
+# Laya speech-triage fine-tuning (harness/triage_data.py, triage_train.py): the data holds real
+# player lines, eval outputs and checkpoints are regenerable (docs/NOTES.md "Laya speech triage")
+harness/data/triage/
+models/

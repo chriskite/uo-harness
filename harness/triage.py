@@ -13,11 +13,14 @@ line a character says near us (speech_guard.py):
   only (shadow), never acted on.
 
 Laya never lets the harness ignore speech: every line still holds the job for
-the overseer (user decision 2026-10-01, "shadow + escalate"). Zero-shot it
-can't tell a GM's check from player chatter safely (docs/PLAN.md has the
-numbers). Each verdict is stored with its prompt (`state`) in the
-speech_nearby juncture and in the `speech_clear` job event, next to how the
-hold ended. That's the labeled data for fine-tuning later.
+the overseer (user decision 2026-10-01, "shadow + escalate"). Neither the
+stock checkpoint nor our fine-tune can tell a GM's check from player chatter
+safely (docs/PLAN.md has the numbers). Since v2 the service runs a checkpoint
+fine-tuned on our two questions (triage_data.py, triage_train.py): it raises
+the staff hint on more GM-style lines; it serves escalation only. Each verdict
+is stored with its prompt (`state`) in the speech_nearby juncture and in the
+`speech_clear` job event, next to how the hold ended: labeled data for the
+next fine-tune.
 
 The model runs in its own process: `laya-serve` from `.venv-laya` (torch is
 not a harness dependency), on the GPU next to the client by default (fp16;
@@ -26,6 +29,8 @@ proxy's upstream bind range).
 When it isn't running, verdicts carry an `error` and the hold works as before.
 
   python harness/triage.py serve [--device cpu]  # long-lived; listens ~10 s after start (cached checkpoint)
+  python harness/triage.py serve --checkpoint stock    # the stock hub checkpoint instead of CHECKPOINT
+  python harness/triage.py serve --checkpoint DIR --port 25971   # a candidate next to the live one (eval)
   python harness/triage.py judge "are you there?" [--speaker Kemp] [--me TestWorth]
 """
 from __future__ import annotations
@@ -41,6 +46,15 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 VENV_SERVE = os.path.join(ROOT, ".venv-laya", "Scripts", "laya-serve.exe")
+VENV_PY = os.path.join(ROOT, ".venv-laya", "Scripts", "python.exe")
+STOCK = "stock"
+# The stock checkpoint's hub commit (laya's own reviewed pin, revisions.PINNED_REVISIONS). Unpinned,
+# laya-serve takes the hub's newest: on 2026-10-04 that had moved to 7b928d8, which nothing here measured.
+STOCK_REVISION = "55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851"
+# The fine-tuned checkpoint (triage_train.py run 4, 2026-10-04; docs/PLAN.md "Laya speech triage"),
+# served by laya_serve_local.py. Not in git (models/ is ignored): rebuild it per docs/NOTES.md.
+# Way back: CHECKPOINT = STOCK, or `triage.py serve --checkpoint stock` for one start.
+CHECKPOINT = os.path.join(ROOT, "models", "laya-triage")
 HOST, PORT = "127.0.0.1", 25970
 DEFAULT_URL = f"http://{HOST}:{PORT}"
 MODEL = "english"            # best of english/multilingual on the eval set; also gets the Turkish ads
@@ -49,9 +63,9 @@ AMP = "fp16"                 # CUDA autocast: Laya's default bf16 moves scores u
 THREADS = 4                  # CPU only: torch intra-op threads, leaving the cores to the client and proxy
 TIMEOUT_S = 5.0
 BACKOFF_S = 60.0             # after a failure, skip calls this long (a refused localhost connect may cost ~2 s on Windows [INFERENCE])
-ESCALATE_CHECK = 0.6         # eval_triage.py: explicit checks 0.62-0.86 ("you at your keyboard?", "This is a GM"); "say 1" 0.69 the only player line above
+ESCALATE_CHECK = 0.6         # eval_triage.py, fine-tuned v2: 10/25 GM-style lines caught; player lines above: 4/104 held-out, 1/22 frozen
 HINT = "attendance check"    # speech_guard.STAFF_HINTS prefix
-VERSION = "v1"               # bump when QUESTIONS or state_text change: verdicts of different versions don't compare
+VERSION = "v2"               # bump when QUESTIONS, state_text or the checkpoint change: verdicts of different versions don't compare
 NEAR_TILES = 18              # the client's view range
 NEAR_MAX = 6
 ACTIVITY = "chopping trees in the forest"
@@ -153,20 +167,29 @@ class Triage:
         return v
 
 
-def serve(device: str = DEVICE, threads: int = THREADS) -> int:
+def serve(device: str = DEVICE, threads: int = THREADS, checkpoint: str = CHECKPOINT, port: int = PORT) -> int:
     if not os.path.exists(VENV_SERVE):
         print(f"{VENV_SERVE} missing: create the venv (docs/NOTES.md, Laya speech triage)", file=sys.stderr)
         return 2
-    env = dict(os.environ, LAYA_HOST=HOST, LAYA_PORT=str(PORT), LAYA_DEVICE=device, LAYA_PRELOAD="1",
+    env = dict(os.environ, LAYA_HOST=HOST, LAYA_PORT=str(port), LAYA_DEVICE=device, LAYA_PRELOAD="1",
                LAYA_MODELS=MODEL, LAYA_LOG_LEVEL="warning", HF_HUB_DISABLE_SYMLINKS_WARNING="1")
     if device == "cpu":
         env["LAYA_THREADS"] = str(threads)
     else:
         env["LAYA_CUDA_AMP"] = AMP
-    print(f"laya-serve on {DEFAULT_URL} ({device}, {MODEL}); Ctrl+C to stop. A GPU it can't use falls back "
-          f"to CPU silently: `triage.py health` shows where it runs", flush=True)
+    cmd = [VENV_SERVE]
+    env["LAYA_REVISION"] = STOCK_REVISION        # a local checkpoint directory ignores it
+    if checkpoint != STOCK:
+        if not os.path.isfile(os.path.join(checkpoint, "rl_agent_config.json")):
+            print(f"{checkpoint} is not a Laya checkpoint (triage_train.py writes one; `--checkpoint {STOCK}` "
+                  f"serves the stock one)", file=sys.stderr)
+            return 2
+        env["LAYA_TRIAGE_CHECKPOINT"] = checkpoint
+        cmd = [VENV_PY, os.path.join(HERE, "laya_serve_local.py")]
+    print(f"laya-serve on http://{HOST}:{port} ({device}, {MODEL} = {checkpoint}); Ctrl+C to stop. A GPU it can't "
+          f"use falls back to CPU silently: `triage.py health` shows where it runs", flush=True)
     try:
-        return subprocess.call([VENV_SERVE], env=env)
+        return subprocess.call(cmd, env=env)
     except KeyboardInterrupt:
         return 0
 
@@ -182,6 +205,9 @@ def main(argv=None) -> int:
     s = sub.add_parser("serve", help="run laya-serve (long-lived)")
     s.add_argument("--device", choices=("cuda", "cpu"), default=DEVICE)
     s.add_argument("--threads", type=int, default=THREADS, help="CPU only")
+    s.add_argument("--checkpoint", default=CHECKPOINT,
+                   help=f"checkpoint directory, or '{STOCK}' for the stock hub checkpoint (default: CHECKPOINT)")
+    s.add_argument("--port", type=int, default=PORT, help="another port runs a second instance (evaluation)")
     j = sub.add_parser("judge", help="one line through the running service; prints the verdict")
     j.add_argument("text")
     j.add_argument("--speaker", default="Someone")
@@ -191,7 +217,7 @@ def main(argv=None) -> int:
     hp.add_argument("--url", default=DEFAULT_URL)
     a = ap.parse_args(argv)
     if a.cmd == "serve":
-        return serve(a.device, a.threads)
+        return serve(a.device, a.threads, a.checkpoint, a.port)
     if a.cmd == "health":
         print(json.dumps(health(a.url), indent=1))
         return 0
