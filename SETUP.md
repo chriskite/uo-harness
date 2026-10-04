@@ -20,8 +20,9 @@ Steps that need the human are marked **(user)**: UAC prompts, the launcher's 2FA
   Store stub; never use it. Nothing hard-codes the interpreter: `ctl.cmd`, `start_proxy_nat.ps1`,
   `restart_divert.ps1` and `register_backup_task.ps1` (`pythonw.exe` beside it) use `UO_PY` if
   set, else `python.exe` from PATH (skipping the Store stub); Python code uses `sys.executable`.
-- **jq** (on the laptop it is jaq 2.3.0, AGENTS.md "Conventions"). [INFERENCE] `winget` can
-  install either; NOTES "Windows shell / tooling gotchas" lists winget's quirks (UAC-blocking
+- **jq**: `winget install jqlang.jq` (jq 1.8.2 on the desktop, 2026-10-04) and call it as `jq.exe`
+  (AGENTS.md "Conventions": the omp shell's builtin `jq` is jaq, which errors on `.a.b` when `.a`
+  is null). NOTES "Windows shell / tooling gotchas" lists winget's quirks (UAC-blocking
   installers, slow installs hitting the 900 s job timeout).
 - **Bun** for the visualizer frontend (`viz/package.json` scripts run `bun build.ts`,
   `bun test`, `tsc --noEmit`).

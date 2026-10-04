@@ -50,6 +50,15 @@ repo root (`ctl.cmd` runs `harness/ctl.py` with the Python 3.13 install; overrid
 Global options go **before** the command. Every call prints exactly one JSON object on stdout
 (usage errors too: `{"ok": false, "error": "usage: …"}`); the exit code is 0 iff `ok` is true.
 
+**Reading the JSON: pipe it to `jq.exe`, never bare `jq`** (2026-10-04). In the omp shell `jq` is a
+builtin (jaq 2.3), and jaq's `.a.b` is an error when `.a` is missing or null ("cannot use null as
+iterable (array or object)"), which kills the whole filter: `./ctl.cmd status | jq -c '{pos, two:
+.equipment.two_handed.name}'` printed nothing once the hatchet was off, and `.entry.id` on a
+`know add` reply (it has `id`, not `entry`) did the same. Real jq (`jq.exe`, 1.8.2, `winget install
+jqlang.jq`) returns null there. Also: `status.equipment` has no key for an empty layer (`mount`
+disappears in the guild house); save a big reply once (`./ctl.cmd status > /tmp/s.json`) and run
+`jq.exe 'keys'` on it before a bigger filter.
+
 | Command | Does |
 |---|---|
 | `status` | Proxy snapshot: `pos` `[x,y,z,dir]`, `facet`, `hits`/`stam`/`mana` as `[cur,max]`, `weight`, `gold`, `gate`, `intent` + the last 5 `intents`, `mobiles` the client has within 18 tiles (serial, name, notoriety + name, hits, distance, `age_s` since the server last updated it; nearest first), `attackers` (mobiles whose latest swing, S2C `0x2F`, was at you within 10 s: serial, name, label, dist, hits `[cur,max]`, `last_swing_age_s`; nearest first), `backpack.counts` by graphic and `backpack.items` (up to 60: serial, graphic, name, amount, `in` = sub-bag or null; nested bags included), `target` cursor, open gumps, plus `tasks` and `open_junctures` from the DB. Proxy unreachable → `ok:false` (DB fields still present). The world model drops what the client drops (out of the 18-tile view, dead, another facet; docs/WORLDMODEL.md §7), so a mob missing from `mobiles` can't be clicked, attacked or targeted. |
