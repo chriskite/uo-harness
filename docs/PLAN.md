@@ -816,8 +816,8 @@ community's trapped-pouch scripts. Not built; it follows Smart Harvest.
 **Where we stand:**
 - `harness/ledger.py` only notices a theft afterwards: a `theft` job event plus a `theft_suspected`
   juncture, and the loop carries on. `lumber_opt` then prices theft risk into the trip size.
-- Nothing prevents a theft. THREATS.md §7 T3 (keep non-friendly players ≥ 2 tiles away) and the
-  400-board carry cap were never built.
+- Nothing prevents a theft. THREATS.md §7 T3 (keep players ≥ 2 tiles away) and the 400-board carry
+  cap were never built. `threats.py` only marks a blue player nearby as `watch`.
 - Seen so far: one theft (10 mandrake root, 2026-10-03, "Caputo Wood" walked up to 1 tile; docs/NOTES.md
   "A pickpocket, not an attack"). The memory store has 0 `theft` events and 0 `theft_suspected` junctures
   as of 2026-10-04.
@@ -826,6 +826,11 @@ community's trapped-pouch scripts. Not built; it follows Smart Harvest.
 - About 200 logs per successful steal at 100 Stealing, one steal per 5 s.
 - The thief must stand within 1 tile.
 - Snooping a non-empty trapped pouch makes it explode; snooping an empty one is blocked.
+- **They look friendly until they steal** (user, 2026-10-04). A Red Hand thief is a blue, and only
+  turns grey to us with the steal itself: Caputo Wood went notoriety 1 → 3 at the moment our reagents
+  left the pack (NOTES "A pickpocket, not an attack"). So notoriety gives no warning, and **any player
+  within 2 tiles of us while we harvest is almost certainly a thief.** Nobody else has a reason to
+  stand on top of a lumberjack.
 
 **What players say** (Discord capture, M):
 - A container with items in it can't be stolen whole (Kaitlyn 2026-07-01, Halic 2026-07-02).
@@ -845,16 +850,22 @@ community's trapped-pouch scripts. Not built; it follows Smart Harvest.
    - The ledger has to treat the move as expected, not as a loss. It must still see the pouch's
      contents as carried, and still see a theft out of the pouch.
    - The trip's log counts (`attempt`, quota, `lumber_opt` stats) must count logs inside the pouch.
-2. **The explosion is the alarm.** A popped pouch near a non-friendly player means a thief is at work.
+2. **The explosion is the alarm.** A popped pouch near any player means a thief is at work.
    Raise the existing urgent threat path: recall, and keep away from the spot for `THIEF_COOLDOWN`
    (THREATS T4).
    - What the explosion looks like on the wire (effect, sound, message, the pouch losing its trap
      state) is unknown. Capture it first: pop one of our own pouches, attended. A thief's pop may
      differ; THREATS D9 (a consenting thief) stays the full test and needs staff sanction.
    - Re-trap or replace a popped pouch before the next trip.
-3. **Keep-away (THREATS T3).** Any non-friendly player within 2 tiles for ≥ 1 s: step away to
-   ≥ 4 tiles, humanised. If they follow twice, recall. Cheap, human, and it denies the 1-tile steal
-   range outright.
+3. **Keep-away (THREATS T3): any player within 2 tiles is a thief.** It doesn't matter whether they
+   look friendly, and they don't have to stay. While harvesting, a player (not an NPC, pet or follower) at
+   ≤ 2 tiles is treated as a thief at once:
+   - Step out of reach to ≥ 4 tiles after only the humanised reaction delay. One step beats the 5 s
+     steal cooldown, where a 2 s recall would still leave them in reach.
+   - Post an attention juncture and log the player as a suspected thief.
+   - If they close to ≤ 2 tiles again: recall, and keep off the spot for `THIEF_COOLDOWN` (THREATS T4).
+   - `threats.py` changes from `watch` to this response for players in steal range during a harvest job.
+   - Friends or guildmates, if we ever have any, would need an explicit allowlist; there is none today.
 4. **Getting pouches.**
    - Cast Magic Trap (2nd circle; Hackworth has 60 Magery) on a pouch. Ingredients and cost are
      to be read from the wiki, not guessed.

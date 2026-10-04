@@ -453,7 +453,7 @@ tune. All decisions post junctures through `Memory.juncture(source="threat", …
 | `pk` seen at any distance | Escape per §3.5 (recall if `D ≥ R_flee`, else run first if mounted, else cast at once). Never target it | urgent |
 | `hostile_player` within 18 | Same as pk | urgent |
 | `unknown_player` closing: distance falls on 3 consecutive updates and `D ≤ R_CAUTION = 12` | Stop chopping, face away, ready the runebook. If `D ≤ 6` → recall | attention |
-| Any non-friendly player within `STEAL_GUARD = 2` for ≥ 1 s | Step away to ≥ 4 tiles (humanised). If it follows twice → recall | attention |
+| Any player within `STEAL_GUARD = 2` while harvesting, whatever their notoriety (thieves look blue until the steal turns them grey; user 2026-10-04, NOTES "A pickpocket, not an attack") | Treat as a thief at once: step away to ≥ 4 tiles (humanised reaction only). If it closes again → recall + `THIEF_COOLDOWN` | attention |
 | System/cliloc "You notice … peek / steal" naming us, or pack item count drops unexplained | Recall; don't return to the spot for `THIEF_COOLDOWN = 20 min` | urgent |
 | Player vanishes at `D ≤ 14` (0x1D not explained by walking out) | Treat as possible hider: leave the spot (walk ≥ 20 tiles) or recall; spot hazard +1 | attention |
 | Player appears at `D ≤ 12` | Same as `pk` if red, else as closing `unknown_player` | attention |
