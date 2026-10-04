@@ -2259,7 +2259,7 @@ def cmd_know(a, mem):
             out = k.add(a.kind, a.topic, content, tags=a.tags or (), entities=a.entity or (),
                         at=tuple(a.at) if a.at else None, source=a.source, ref=a.ref,
                         confidence=a.confidence, importance=a.importance, supersedes=a.supersedes)
-            verb = {"added": "remembered", "confirmed": "confirmed", "superseded": "remembered"}[out["action"]]
+            verb = {"added": "inscribing", "confirmed": "confirmed", "superseded": "inscribing"}[out["action"]]
             row = (f"{verb} #{out['id']} {a.kind} [{a.topic}]: {content}"
                    + (f" (supersedes #{a.supersedes})" if a.supersedes else ""),
                    {"id": out["id"], "action": out["action"], "entry": _compact(k.get(out["id"])),

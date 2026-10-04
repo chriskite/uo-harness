@@ -489,7 +489,7 @@ item.
   buy recall scrolls': 2 result(s)" or "briefed: 1 relevant, 2 standing". Below it are the
   ranked entries, each with #id, a kind badge, the topic, the content, score and confidence.
   A brief is split into "relevant here" and "standing rules".
-- **codex** (amber): remembered, confirmed, updated or retracted. For an add, the content is
+- **codex** (amber): inscribing (an add), confirmed, updated or retracted. For an add, the content is
   the headline, and the list shows only **related (possible conflicts)**, with similarity. For
   other writes it shows the entry.
 - Items with ≤ 4 entries start open. Superseded and retracted entries are struck through.

@@ -1366,7 +1366,7 @@ def test_know(proxy):
     m = Memory(db)
     rows = m.chat(role="overseer")
     check("a knowledge write shows in the chat as a memory row with the entry",
-          rows and rows[-1]["kind"] == "memory" and rows[-1]["text"].startswith("remembered #1 fact [innkeeper]")
+          rows and rows[-1]["kind"] == "memory" and rows[-1]["text"].startswith("inscribing #1 fact [innkeeper]")
           and rows[-1]["data"]["op"] == "add" and rows[-1]["data"]["entry"]["id"] == 1, str(rows[-1:]))
     m.close()
     code, out = c("know", "search", "room", "--near", "1930", "2590")
