@@ -38,6 +38,7 @@ harness/data/episodes/
 harness/data/handoff.json
 harness/data/handoff.json.part
 harness/data/*.db.prev
+harness/data/telegram.json.prev
 harness/data/*.db.pull.part
 settings.json*
 # Telegram bot token + paired chat (harness/telegram_bridge.py, docs/OVERSEER.md §8)

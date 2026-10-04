@@ -217,6 +217,10 @@ computers"), with `SETUP.md` for a coding agent setting up the second computer.
 - **Backups follow the holder.** `backup.py` skips the store's snapshot on a computer that doesn't
   hold it. Otherwise a computer catching up on a missed hourly run would upload its stale store as
   the newest snapshot.
+- **The Telegram bridge config travels with the store** (user request 2026-10-04). The bridge
+  belongs on the computer that holds the store, and a push needs the bridge stopped, so the token
+  never has two pollers. The cost: the bot token sits on the NAS share in plain text. That's
+  accepted on the private LAN share; if it leaks, BotFather `/revoke` invalidates it.
 
 ## Overseer chat on Telegram (decided 2026-10-02)
 

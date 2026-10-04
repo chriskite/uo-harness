@@ -538,6 +538,9 @@ Stdlib only. Offline proof: `harness/test_telegram_bridge.py` (a fake Bot API on
    talked to and listened to; anyone else writing to the bot is ignored (and logged once).
 4. Check: `python harness/telegram_bridge.py send hello`.
 
+On a second computer, setup isn't needed: `python harness/dbhandoff.py pull` installs the holder's
+`telegram.json` along with the memory store (docs/NOTES.md "Two computers").
+
 **Running:** `python harness/telegram_bridge.py run [--thoughts] [--actions] [--min-severity
 info|attention|urgent]` (Python 3.13, from the repo root; `--db` as for ctl). Leave it running
 next to the viz; Ctrl+C ends it. It can be stopped and restarted at any time: nothing is lost

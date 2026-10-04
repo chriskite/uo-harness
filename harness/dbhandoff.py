@@ -31,9 +31,18 @@ knowledge_vec) are left out; they regenerate.
 On the share, under <dest>/handoff/:
   owner.json                gen, file, sha256 (of the uncompressed store),
                             fingerprint, holder (computer name or null when
-                            released), pushed_by/pushed_t, pulled_t
+                            released), pushed_by/pushed_t, pulled_t,
+                            telegram_sha256
   harness-genNNNN.db.gz     the newest generation (older ones are deleted;
                             backup.py's db/ snapshots keep the history)
+  telegram.json             the Telegram bridge config (bot token, paired
+                            chat), so the bridge runs on whichever computer
+                            holds the store. push uploads it when this
+                            computer has one; pull installs it and keeps a
+                            different local one as telegram.json.prev.
+                            The token sits on the share, which backup.py
+                            otherwise keeps free of credentials (user
+                            decision 2026-10-04).
 Here: harness/data/handoff.json, the generation and fingerprint of this
 computer's last push or pull.
 
@@ -62,6 +71,8 @@ ROOT = backup.ROOT
 DB = backup.DB
 STATE = os.path.join(ROOT, "harness", "data", "handoff.json")
 LOGS = os.path.join(ROOT, "logs")
+TELEGRAM = os.path.join(ROOT, "harness", "data", "telegram.json")  # bot token: never print it
+TELEGRAM_NAME = "telegram.json"
 SUB = "handoff"
 OWNER = "owner.json"
 DERIVED = {"knowledge_vec"}  # regenerable (docs/MEMORY.md), so not part of the fingerprint
@@ -160,7 +171,38 @@ def _logs(src, dst, pull):
     return {"ok": ok, "summary": summary}
 
 
-def push(dest, db=DB, state_path=STATE, me=None, force=False, logs_dir=LOGS):
+def _put_telegram(src, d, owner):
+    """Copy the Telegram bridge config (bot token, paired chat) to the share.
+    Returns its sha256 for owner.json; without a local file the share keeps
+    the last pushed one."""
+    if not src or not os.path.exists(src):
+        return (owner or {}).get("telegram_sha256")
+    os.makedirs(d, exist_ok=True)
+    part = os.path.join(d, TELEGRAM_NAME + ".part")
+    shutil.copyfile(src, part)
+    os.replace(part, os.path.join(d, TELEGRAM_NAME))
+    return backup.sha256_file(src)
+
+
+def _get_telegram(d, sha, dst):
+    """Install the share's Telegram config at dst; a different local one is kept as .prev."""
+    if not sha or not dst:
+        return "not on the share"
+    src = os.path.join(d, TELEGRAM_NAME)
+    if not os.path.exists(src) or backup.sha256_file(src) != sha:
+        raise RuntimeError(f"{src} is missing or doesn't match the sha256 in {OWNER}; push again")
+    if os.path.exists(dst) and backup.sha256_file(dst) == sha:
+        return "unchanged"
+    os.makedirs(os.path.dirname(os.path.abspath(dst)), exist_ok=True)
+    part = dst + ".part"
+    shutil.copyfile(src, part)
+    if os.path.exists(dst):
+        os.replace(dst, dst + ".prev")
+    os.replace(part, dst)
+    return "installed"
+
+
+def push(dest, db=DB, state_path=STATE, me=None, force=False, logs_dir=LOGS, telegram=TELEGRAM):
     me = me or this_host()
     if not os.path.exists(db):
         raise Refused(f"no memory store at {db}")
@@ -175,12 +217,12 @@ def push(dest, db=DB, state_path=STATE, me=None, force=False, logs_dir=LOGS):
                           f"{state and state.get('gen')}); pull first (or push --force)")
     close_store(db)
     out = {"host": me}
+    d = os.path.join(dest, SUB)
     if owner and not force and fingerprint(db) == owner["fingerprint"]:
-        owner.update(holder=None, pushed_by=me, pushed_t=_now())
-        _write_json(os.path.join(dest, SUB, OWNER), owner)
+        owner.update(holder=None, pushed_by=me, pushed_t=_now(), telegram_sha256=_put_telegram(telegram, d, owner))
+        _write_json(os.path.join(d, OWNER), owner)
         out.update(gen=gen, uploaded=False, why="unchanged since that generation; released it")
     else:
-        d = os.path.join(dest, SUB)
         os.makedirs(d, exist_ok=True)
         name = f"harness-gen{gen + 1:04d}.db.gz"
         with tempfile.TemporaryDirectory() as td:
@@ -192,10 +234,11 @@ def push(dest, db=DB, state_path=STATE, me=None, force=False, logs_dir=LOGS):
                     gzip.GzipFile(filename="harness.db", mode="wb", fileobj=raw, mtime=0) as gz:
                 shutil.copyfileobj(fin, gz, 1 << 20)
             os.replace(part, os.path.join(d, name))
+        tg = _put_telegram(telegram, d, owner)
         # owner.json last: until it names the new file, the previous generation stays the valid one
         _write_json(os.path.join(d, OWNER), {
             "gen": gen + 1, "file": name, "sha256": sha, "size": size, "fingerprint": fp,
-            "holder": None, "pushed_by": me, "pushed_t": _now(), "pulled_t": None})
+            "telegram_sha256": tg, "holder": None, "pushed_by": me, "pushed_t": _now(), "pulled_t": None})
         for n in os.listdir(d):
             if n.startswith("harness-gen") and n != name:
                 os.remove(os.path.join(d, n))
@@ -207,7 +250,8 @@ def push(dest, db=DB, state_path=STATE, me=None, force=False, logs_dir=LOGS):
     return out
 
 
-def pull(dest, db=DB, state_path=STATE, me=None, discard_local=False, force=False, logs_dir=LOGS):
+def pull(dest, db=DB, state_path=STATE, me=None, discard_local=False, force=False, logs_dir=LOGS,
+         telegram=TELEGRAM):
     me = me or this_host()
     owner = read_owner(dest)
     if owner is None:
@@ -239,6 +283,7 @@ def pull(dest, db=DB, state_path=STATE, me=None, discard_local=False, force=Fals
     if install:
         out["prev"] = _install(os.path.join(dest, SUB, owner["file"]), owner["sha256"], db)
     out["installed"] = install
+    out["telegram"] = _get_telegram(os.path.join(dest, SUB), owner.get("telegram_sha256"), telegram)
     owner.update(holder=me, pulled_t=_now())
     _write_json(os.path.join(dest, SUB, OWNER), owner)
     _write_json(state_path, {"gen": gen, "fingerprint": owner["fingerprint"], "t": _now()})
@@ -289,6 +334,7 @@ def status(dest, db=DB, state_path=STATE, me=None):
         out["next"] = "no handoff yet: push on the computer that has the store"
         return out
     out["share"] = {k: owner.get(k) for k in ("gen", "holder", "pushed_by", "pushed_t", "pulled_t", "size")}
+    out["share"]["telegram"] = bool(owner.get("telegram_sha256"))
     holder = owner.get("holder")
     if holder == me:
         out["next"] = f"this computer holds generation {owner['gen']}: play here, push before you leave"

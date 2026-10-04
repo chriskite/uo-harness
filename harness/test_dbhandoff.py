@@ -9,6 +9,8 @@
   5. Fork: A played on generation 1 while B made generation 2; A's pull refuses
      and names the table, --discard-local installs and keeps A's store as .prev.
   6. Derived tables (knowledge_vec, FTS shadows) don't count as changes.
+  7. telegram.json travels with the store: installed on pull, a different local
+     one kept as .prev, a computer without one gets the share's.
 """
 
 import os
@@ -59,9 +61,18 @@ def main():
     with tempfile.TemporaryDirectory() as td:
         nas = os.path.join(td, "nas")
         os.makedirs(nas)
-        A = {"db": os.path.join(td, "a", "harness.db"), "state_path": os.path.join(td, "a", "handoff.json"), "me": "A"}
-        B = {"db": os.path.join(td, "b", "harness.db"), "state_path": os.path.join(td, "b", "handoff.json"), "me": "B"}
+        A = {"db": os.path.join(td, "a", "harness.db"), "state_path": os.path.join(td, "a", "handoff.json"),
+             "telegram": os.path.join(td, "a", "telegram.json"), "me": "A"}
+        B = {"db": os.path.join(td, "b", "harness.db"), "state_path": os.path.join(td, "b", "handoff.json"),
+             "telegram": os.path.join(td, "b", "telegram.json"), "me": "B"}
         kw = {"logs_dir": None}
+
+        def tg(who, content=None):
+            if content is not None:
+                with open(who["telegram"], "w", encoding="utf-8") as f:
+                    f.write(content)
+            with open(who["telegram"], encoding="utf-8") as f:
+                return f.read()
 
         con = chat(A["db"], "one", keep_open=True)
         con.execute("PRAGMA wal_autocheckpoint=0")
@@ -71,6 +82,7 @@ def main():
         check(why is not None and "open in another process" in why, f"push refused while the store is open: {why}")
         check(h.read_owner(nas) is None, "a refused push writes nothing")
         con.close()
+        tg(A, '{"token": "t1", "chat_id": 1}')
 
         check(h.not_held_here(nas, "A") is None and h.not_held_here(nas, "B") is None,
               "handoff never used: both computers back up")
@@ -81,6 +93,7 @@ def main():
 
         r = h.pull(nas, **B, **kw)
         check(r["installed"] and texts(B["db"]) == ["one", "in-wal"], f"B installs gen 1 with the WAL row: {r}")
+        check(r["telegram"] == "installed" and tg(B) == tg(A), f"B gets A's telegram.json: {r['telegram']}")
         check(h.read_owner(nas)["holder"] == "B", "B holds the store")
         check(h.not_held_here(nas, "B") is None and "held by B" in (h.not_held_here(nas, "A") or ""),
               "only the holder backs up")
@@ -95,6 +108,7 @@ def main():
         check(r["gen"] == 1 and r["uploaded"] is False, f"unchanged push only releases: {r}")
         r = h.pull(nas, **B, **kw)
         check(r["installed"] is False and h.read_owner(nas)["holder"] == "B", f"re-pull of own generation: {r}")
+        check(r["telegram"] == "unchanged", f"same telegram.json stays: {r['telegram']}")
 
         con = memory.connect(B["db"])  # derived rows: no change
         con.execute("INSERT INTO knowledge_vec(id, hash, vec) VALUES (1, 'x', x'00')")
@@ -104,6 +118,7 @@ def main():
         h.pull(nas, **B, **kw)
 
         chat(B["db"], "two")
+        tg(B, '{"token": "t1", "chat_id": 2}')  # re-paired on B
         chat(A["db"], "fork")  # A plays on generation 1 without holding it
         r = h.push(nas, **B, **kw)
         check(r["gen"] == 2 and r["uploaded"], f"B pushes generation 2: {r}")
@@ -115,13 +130,17 @@ def main():
         r = h.pull(nas, **A, discard_local=True, **kw)
         check(r["installed"] and texts(A["db"]) == ["one", "in-wal", "two"], f"--discard-local installs gen 2: {r}")
         check(texts(A["db"] + ".prev") == ["one", "in-wal", "fork"], "the discarded store is kept as .prev")
+        check(r["telegram"] == "installed" and tg(B) == tg(A) and '"chat_id": 1' in tg({"telegram": A["telegram"] + ".prev"}),
+              "B's re-paired telegram.json replaces A's, which is kept as .prev")
 
         why = refused(h.pull, nas, **B, **kw)
         check(why is not None and why.startswith("A holds"), "B can't pull while A holds")
+        os.remove(B["telegram"])
         r = h.pull(nas, **B, force=True, **kw)
         check(r["installed"] is False and h.read_owner(nas)["holder"] == "B",
               f"pull --force takes the store (B's copy already is gen 2): {r}")
-        check(sorted(os.listdir(os.path.join(nas, "handoff"))) == ["harness-gen0002.db.gz", "owner.json"],
+        check(r["telegram"] == "installed" and '"chat_id": 2' in tg(B), "a computer without telegram.json gets the share's")
+        check(sorted(os.listdir(os.path.join(nas, "handoff"))) == ["harness-gen0002.db.gz", "owner.json", "telegram.json"],
               "only the newest generation stays on the share")
 
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))

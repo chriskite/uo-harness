@@ -7,8 +7,7 @@ commit `ClassicUO/settings.json`; never touch the client process or write into
 `C:\Program Files (x86)\Ultima Online Outlands`; never reveal the harness in-game; ground every
 claim in tool output and mark guesses `[INFERENCE]`.
 
-Steps that need the human are marked **(user)**: UAC prompts, the launcher's 2FA, GitHub, the
-Telegram token.
+Steps that need the human are marked **(user)**: UAC prompts, the launcher's 2FA, GitHub.
 
 ## 1. Prerequisites
 
@@ -71,7 +70,7 @@ Not in git (`.gitignore`) and what to do about it:
 |---|---|---|
 | `harness/data/harness.db` (+`-wal`/`-shm`) | memory store | §7 handoff |
 | `logs/` | session captures, task logs | `dbhandoff.py push/pull` copies them (§7) |
-| `harness/data/telegram.json` | Telegram bridge | §4, by hand |
+| `harness/data/telegram.json` | Telegram bridge (bot token) | `dbhandoff.py pull` installs it (§7) |
 | `harness/data/discord*.db`, `discord_media/`, `discord_profile/` | Discord tooling | §5, stays on one computer |
 | `.venv-laya/`, `.venv-discord/` | optional services | §5 |
 | `viz/node_modules/`, `viz/dist/` | visualizer | `bun install && bun run build` (§4) |
@@ -134,9 +133,10 @@ All procedures live in the docs; follow them as written.
   **administrator** PowerShell (it refuses otherwise) and `viz_server.py --host 0.0.0.0`.
 - **Overseer:** `./ctl.cmd status` must return `ok:true`; then start an omp session as in
   `docs/OVERSEER.md` §6. `ctl` reference: §2.
-- **Telegram bridge:** `docs/OVERSEER.md` §8. The token is a secret: **(user)** copies
-  `harness/data/telegram.json` by hand (or makes a new bot). Run only **one** bridge per bot at a
-  time (a second poller gets 409 Conflict), so stop the laptop's before starting this one.
+- **Telegram bridge:** `docs/OVERSEER.md` §8. `dbhandoff.py pull` installs the laptop's
+  `harness/data/telegram.json` (bot token, paired chat; §7), so no new pairing is needed. It's a
+  secret: never print it. Run only **one** bridge per bot at a time (a second poller gets 409
+  Conflict). `push` refuses while the bridge runs, so the laptop's is already stopped.
 - Other runtime commands (agent gate, lumber loop, memory, errands): HANDOFF.md "Operate".
 
 ## 5. Optional components
@@ -195,6 +195,8 @@ Local state: `harness/data/handoff.json` (gitignored).
    keeps any replaced local store as `harness/data/harness.db.prev`, installs the new one,
    records this computer as holder and copies `<dest>/logs` into `logs/` (newer files only;
    `--no-logs` skips). On a fresh desktop with no `harness.db` it just installs the snapshot.
+   It also installs the pushed `harness/data/telegram.json`; a different local one is kept as
+   `telegram.json.prev`. The output says `"telegram": "installed"` or `"unchanged"`.
 5. `python harness/dbhandoff.py status` now shows the desktop as holder. Start the proxy etc.
 
 **Desktop → laptop** is the mirror image: stop all writers on the desktop, `push` there,
@@ -211,9 +213,9 @@ Local state: `harness/data/handoff.json` (gitignored).
 | holder is dead (disk gone, can't push) | | `pull --force` on the other computer; it gets the dead one's last push |
 
 **What doesn't travel with the handoff:** `discord.db`, `discord_kb.db`, `discord_media/`
-(run the Discord tooling on one computer only); `telegram.json` (secret, copy by hand; one
-bridge at a time); ClassicUO `settings.json` (each computer logs in through the launcher
-itself; never copy or print it); the venvs.
+(run the Discord tooling on one computer only); ClassicUO `settings.json` (each computer logs
+in through the launcher itself; never copy or print it); the venvs. `telegram.json` does travel
+(see step 4); the bot token is therefore stored on the NAS share.
 
 ## 8. Checklist
 
