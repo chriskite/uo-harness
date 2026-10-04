@@ -444,6 +444,31 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   MG, Terran MG, Cambria Bank, Anchor's Rest, Ossuary, Anchor's Rest MG, Khal Draco, SSC, Shelter
   Stairs, DTF Loot Chest (the default). He can cast Recall (`recall --check`: can_cast true).
 
+## Rental room via the DTF house steward (live 2026-10-04, Outland Dan)
+
+- **Access:** Dan has no room of his own; he is Co-Owner of Logan Wolf's (the user's other
+  character). A house steward reaches rental rooms like an innkeeper does: Chase the house steward
+  (0x009F57FB, ~4138, 1435, invulnerable) in the DTF guild house. His context menu: 0 "Open
+  Paperdoll", **1 "Room"**.
+- **Room menu without a room** (gump 0x8EAEFBDB): "You do not currently have a Rental Room" (rent
+  one at an innkeeper by saying 'Room'), button 1 top-left (unlabelled), **2 "Visit Other Rooms"**.
+  That opens the list "Visit Room / Access Level": **button 100 "Logan Wolf (DTF)", Co-Owner**
+  (100 + row [INFERENCE: one row seen]), 2 "Return".
+- **Inside:** "You enter the rental room.", facet 3 at (403, 923, 1); `ctl map` has no geometry for
+  facet 3. The wooden door 0x5CDC6B4F (403, 929) opened the room menu from 6 tiles: next payment
+  (10,000 gp due in 6 d 21 h), lockdowns 376/700, secure containers 3/4, **3 = End Rental Contract**
+  (between that label and "(click for details)"), **7 = Expand**, 4 Exit to Town, 5 View Players,
+  **6 Exit to House Steward** (used: back to (4134, 1429) in the guild house, facet 0).
+  `ctl act gump` now refuses 3 and 7 on this gump when it shows those labels (`ROOM_REFUSED`).
+- **Contents (single-click):** secure backpack 0x5CF2B3BC (0 items), secure "paragon chest
+  (drake)" 0x4AE0DD2C (2 items, 31 st), secure storage shelf 0x6CEB65CD (graphic 0xAFC5),
+  locked-down "(sealed) paragon chest (fleshweaver)" 0x68C0B8A8.
+- **Mounts:** the DTF guild house has the purchasable house option that stashes mounts while
+  you're in the house; the rental room doesn't (user, 2026-10-04). Leaving the guild house into
+  the room: "Your mount returns."; back into the guild house: "Your mount finds a quiet place to
+  rest safely." So Dan is on foot inside the guild house, mounted elsewhere.
+- Memory: #4081 (procedure, `char:outland_dan`, standing in his brief).
+
 ## Cortina's rune tome quest (live 2026-10-03, Hackworth)
 
 - **Cambria → Shelter by moongate:** the Cambria gate item is `0x4000069E` at (1693, 3153, 25). In

@@ -135,6 +135,10 @@ POLICY_PATH = os.path.join(HERE, "data", "policy.json")
 CAPTCHA_GUMP_ID = 0x00000001          # lumber.json captcha.gump_id; never answered by the overseer
 GUMP_TEXT_MAX = 239                  # chars per gump text entry (the client's text box limit)
 RENOUNCE_WORDS = ("renounce",)        # Young renounce prompt (clilocs 502085/3006307): close only
+ROOM_GUMP_ID = 0x8EAEFBDB            # rental room menu (innkeeper, house steward, the room's door)
+# Its buttons that change a rental contract (live 2026-10-04 in Logan Wolf's room, which Outland Dan
+# co-owns): never the overseer's call. Refused when the menu shows that label.
+ROOM_REFUSED = {3: "End Rental Contract", 7: "Expand"}
 GOTO_Z_TOL = 10                      # goto --z / ground item: stand within this of the target z
 GROUND_RANGE = 12                    # status: ground items within this many tiles
 GROUND_MAX = 20
@@ -2158,6 +2162,9 @@ def gump_reply(state: dict, serial_arg: str, button_arg: str, texts=()) -> bytes
     if any(w in t.lower() for t in view["texts"] for w in RENOUNCE_WORDS) and button != 0:
         raise CtlError("gump mentions renouncing Young status: only closing it (button 0) is allowed; "
                        "leaving Shelter is the human's decision")
+    if _serial(g.get("gump_id")) == ROOM_GUMP_ID and ROOM_REFUSED.get(button) in view["texts"]:
+        raise CtlError(f"rental room menu: button {button} is '{ROOM_REFUSED[button]}', which changes the rent "
+                       "contract: the human's decision")
     if button == 0 and not view["closable"]:
         raise CtlError("gump is noclose; button 0 isn't available")
     if button != 0 and button not in view["buttons"]:

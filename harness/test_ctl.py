@@ -833,10 +833,13 @@ def test_overseer_acts(proxy):
         gump_row(0x101, 0x5E11A1, "{ noclose }{ croppedtext -300 -200 1 1 0 0 }", ["Captcha"]),  # decoy
         gump_row(0x102, 0x22, btns, ["You have chosen to renounce your Young player status?"]),
         gump_row(0x103, 0x33, "{ noclose }" + btns, ["Resurrection"]),
+        gump_row(0x106, 0x8EAEFBDB, "".join(f"{{ button 10 {10 * b} 1 2 1 0 {b} }}" for b in (3, 4, 6, 7)),
+                 ["Rental Room", "End Rental Contract", "Expand", "Exit to Town", "Exit to House Steward"]),
     ]
     for serial, button, why in ((0x100, 2, "captcha"), (0x101, 0, "no reply buttons"), (0x102, 1, "renounce"),
                                 (0x103, 0, "noclose"), (0x103, 9, "not in the gump's reply buttons"),
-                                (0x104, 1, "no open gump")):
+                                (0x104, 1, "no open gump"), (0x106, 3, "rental room: End Rental Contract"),
+                                (0x106, 7, "rental room: Expand")):
         code, out = c("act", "gump", f"0x{serial:X}", str(button))
         check(f"gump refused: {why}", code == 1 and proxy.take() == [], str(out))
     code, out = c("act", "gump", "0x102", "0")
@@ -845,6 +848,9 @@ def test_overseer_acts(proxy):
     code, out = c("act", "gump", "0x103", "1")
     check("a normal gump: an offered button is sent as the stock 0xB1",
           code == 0 and [p for _, p in proxy.take()] == [actions.gump_response(0x103, 0x33, 1)], str(out))
+    code, out = c("act", "gump", "0x106", "6")
+    check("rental room menu: Exit to House Steward (6) is sent",
+          code == 0 and [p for _, p in proxy.take()] == [actions.gump_response(0x106, 0x8EAEFBDB, 6)], str(out))
     # Retrieve Items-style gump (live 0xBEC6217A): an amount entry (id 1, default "", limit 5),
     # a label to its left, a checked checkbox (id 7) and an OKAY button (2)
     shelf = ("{ text 58 99 2599 3 18 0 1 0 0 0 }{ textentrylimited 147 100 78 20 2655 1 4 5 2 2 }"
