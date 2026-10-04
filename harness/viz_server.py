@@ -635,6 +635,13 @@ class VizServer(ThreadingHTTPServer):
                 self.facet_error = f"{facet_path}: {e}"
         self.stopping = False
 
+    def handle_error(self, request, client_address):
+        # A browser or phone dropping a keep-alive connection is routine on a LAN; its traceback
+        # (one per dropped socket) buried every real error in the log. Everything else still prints.
+        if isinstance(sys.exc_info()[1], ConnectionError):
+            return
+        super().handle_error(request, client_address)
+
     def shutdown(self):
         self.stopping = True
         for q in list(self.feed.subscribers):
