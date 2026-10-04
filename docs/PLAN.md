@@ -856,10 +856,11 @@ community's trapped-pouch scripts. Not built; it follows Smart Harvest.
    - **Measured 2026-10-04 (owner's pop, docs/NOTES.md "A trapped pouch popped by its owner"):** the
      pouch in our pack is re-sent with hue 38 → 0, with an explosion effect `0x36BD`, sound `0x0307`,
      −1 hit and "You now have N trapped pouches remaining."
-   - **The trigger:** a hue-38 pouch in our pack turning hue 0 when we didn't double-click it. That's the
-     one part that can't depend on who opened it. Whether a thief's snoop also damages us or plays the
-     effect on us is still unmeasured; THREATS D9 (a consenting thief) stays the full test and needs
-     staff sanction.
+   - **The trigger:** the explosion on us (effect `0x36BD` at our tile, sound `0x0307`), or a hue-38
+     pouch in our pack turning hue 0, when we didn't just double-click that pouch. The user knows
+     the explosion shows on us when a thief pops our pouch (2026-10-04), so either signal works. Use
+     both, whichever arrives first. Still unmeasured: whether a thief's pop also costs us a hit
+     point.
    - Replace a popped pouch (now hue 0) before the next trip, and move its logs into a live one.
 3. **Keep-away (THREATS T3): any player within 2 tiles is a thief.** It doesn't matter whether they
    look friendly, and they don't have to stay. While harvesting, a player (not an NPC, pet or follower) at

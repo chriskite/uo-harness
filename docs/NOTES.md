@@ -617,9 +617,11 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   - Hits regenerate to 100 about 4 s later.
   - The world model doesn't parse `0x54` sounds (30 unparsed in this session). The proxy log's `hex`
     field stops at 64 bytes, so long messages need the `.raw` capture (the timeline reads it).
-  - [INFERENCE] **A thief's snoop** probably makes the same explosion. Whether it damages us, plays the
-    effect on us, or sends the "remaining" line is unmeasured (THREATS D9). The signal that needs no
-    action of ours is the `0x25` hue 38 → 0 on a pouch in our pack that we didn't double-click.
+  - **A thief's snoop shows the explosion on us** (user, 2026-10-04: known for sure from play). So
+    the `0xC0` `0x36BD` effects at our tile and the `0x54` `0x0307` sound arrive whoever opens the
+    pouch, together with the `0x25` hue 38 → 0 re-send of the pouch. Still unmeasured: whether a
+    thief's pop also damages us and sends the "remaining" line. A pop we didn't cause = explosion
+    and/or hue change with no C2S `0x06` of ours on that pouch just before.
 - **Casting moves the hatchet to the pack** (hatchets are two-handed): "That must be equipped
   for any serious chopping." The runner's hatchet use re-equips it.
 - **The lumber runner runs from creature damage (afcd4b0).** When one creature hits at hits ≥ 60 %
