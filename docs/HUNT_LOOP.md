@@ -3,20 +3,24 @@
 A programmatic task like the lumber loop: fight monsters at one spot, heal, loot, leave when
 hurt. Built for New Player Dungeon mongbats (user decision 2026-10-01: the thresholds are task
 arguments). With `--crawl` it patrols the dungeon floor instead of standing on one spot ("Crawl"
-below). Start it with `ctl run hunt [args…]` (docs/OVERSEER.md) or directly:
+below). With `--enter-recall` / `--leave-recall` it hunts at a place reached and left by recall,
+banking its gold at home ("Recall in, recall out" below). Start it with `ctl run hunt [args…]`
+(docs/OVERSEER.md) or directly:
 
 ```
 python harness/loop_hunt.py --kills 5                 # standing in the NPD
 python harness/loop_hunt.py --enter --kills 5         # from outside the entrance
 python harness/loop_hunt.py --enter --fight-spot 5536 509   # deeper in, away from the crowded exit
 python harness/loop_hunt.py --enter --crawl --pull-range 8  # patrol the floor ("Crawl")
+python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluffs" \
+    --leave-recall 0x57C3DEB6 --bank-gold 1             # Urukton Bluffs from town ("Recall in, recall out")
 ```
 
 ## Arguments
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `--spot X Y` | `5535 529` | The exit spot (the NPD exit tile): leaving walks here, then takes the exit step. |
+| `--spot X Y` | `5535 529`; recall mode: the arrival | The exit spot (the NPD exit tile): leaving walks here, then takes the exit step. With `--enter-recall` the first arrival; with only `--leave-recall` where the run starts. |
 | `--fight-spot X Y` | `--spot` | The tile to fight on. Each visit walks there; the pull range, the corpse range and the idle return are measured from it. Candidates below ("Fight spots"). |
 | `--crawl` | off | Patrol the floor instead of one fight spot ("Crawl"); not with `--fight-spot`. The pull range, the corpse range and Stationary Penalty walks are measured from where we stand. |
 | `--crawl-band` / `--crawl-zones` | `40` / `0` | Route steps from the exit per zone (internal depth bands, numbered from 1; not dungeon levels); at most this many zones (0: all). |
@@ -28,6 +32,11 @@ python harness/loop_hunt.py --enter --crawl --pull-range 8  # patrol the floor (
 | `--exit-dir D` | `4` (south) | The step from the spot onto the exit teleporter. |
 | `--enter` | off | Start outside: walk to `--entry`, step `--entry-dir` to teleport in. |
 | `--entry X Y Z` / `--entry-dir D` | `1912 2557 -20` / `0` | The tile before the NPD entrance teleporter and the step that triggers it. |
+| `--enter-recall BOOK` / `--enter-rune NAME` | off / the book's default rune | Start anywhere: recall with this runebook / rune tome (serial) to the tome row `NAME`, hunt at the arrival; also how the runner goes back in. Needs `--leave-recall`. |
+| `--leave-recall BOOK` | off | Leave by recalling to this book's default rune (home) instead of the exit walk; a hostile player close, a red in view or "X is attacking you!" recalls at once. |
+| `--recall-spot X Y` | the arrival / `--spot` | A recall home refused where we stand (dungeons: only near a golden gate) walks here and recalls again. The route margin is measured to it. |
+| `--bank-gold N` | `0` (off) | At home after a recall: with N gold or more in the pack, bank all of it. Needs `--leave-recall`. |
+| `--pk-wait S` | `600` | Recall mode: after leaving from a hostile player, stay home this long before going back in. |
 | `--heal-at` | `0.75` | Heal below this share of max hits (healing.py: a heal potion if one can be drunk, else a spell). |
 | `--gheal-min-missing` | the mana break-even for your Magery (19 at 60) | Missing hits from which the heal spell is Greater Heal; below it, Heal. |
 | `--leave-at` | `0.60` | Leave below this share of max hits (plus the fight spot's route margin). |
@@ -55,6 +64,7 @@ Each tick re-reads the proxy state and decides, in this order:
    Leaving is war mode off (if on), the walk back to `--spot`, then the step in `--exit-dir`. The
    runner expects a teleport: a deny followed by the move (the NPD exit, live), or a confirmed step
    and the move right after. Outside it rests and goes back in (except after a hostile player).
+   With `--leave-recall` leaving is a recall home instead ("Recall in, recall out").
 2. **Speech hold** (speech_guard.py, as in the lumber runner) once no fight is on: nothing is sent
    until the overseer acks `speech_nearby`. Leaving to survive overrides the hold.
 3. **Heal** below `--heal-at`, one heal per tick (`harness/healing.py`, shared with `ctl act heal`;
@@ -171,6 +181,70 @@ which also names the corpse). Live, an in-view kill is `0xAF` + `0x1D` + `0xDEAD
 Packets come from `harness/combat.py`, shared with `ctl act attack/target/loot/cast` so the two can't
 drift: `attack_packets`, `target_mobile`, `target_self`, `grab_packets`, `loot_order`,
 `human_corpse`, `attackable`, `spell_id`.
+
+## Recall in, recall out (`--enter-recall`, `--leave-recall`; user request 2026-10-03)
+
+For hunting grounds reached by recall, first Urukton Bluffs (the rune in Shackleworth's blessed
+tome "New Player Locations", 0x57C3DEB6; its default rune is Cambria, by the bankers).
+
+- **In** (`--enter-recall BOOK --enter-rune NAME`): from anywhere (town), `escape.escape` to the
+  tome row `NAME` (charges first, else the spell; the red escape's retry rules, at most 3 casts
+  for this planned leg). The first arrival is the hunt: `--spot`, `--fight-spot` and
+  `--recall-spot` default to it. Then the weapon goes back on (live 2026-10-03: the recall in, by
+  a tome charge, put Shackleworth's prismatic staff in the pack like a cast; the runner notes it
+  as a cast that disarms) before any walk or attack, and the visit starts as in the NPD (walk to
+  the fight spot, Stationary Penalty, fight).
+- **Out** (`--leave-recall BOOK`): every leave rule (hits, two attackers, hostile player, time up,
+  done) recalls to the book's default rune instead of walking to an exit. A survival leave
+  recalls at once from where it stands: no war-mode toggle, no walk, a spell cursor that is up is
+  cancelled first (Esc `0x6C`), and the escape recasts until it lands or its 20 s budget is
+  spent; the planned end turns war mode off first and tries 3 casts.
+- **Hostile players** (recall mode adds to the NPD rule "a hostile player within 12 tiles"): a red
+  anywhere in view (Bastet struck 4.6 s after sight, docs/PLAN.md "Red sighting") and a player
+  named in "<name> is attacking you!" (seen or not: Bastet attacked hidden; that notice came 4/4
+  times from players and never from a monster in the store). Not just once per tick: every state
+  read, every human pause (every 0.2 s and at its end, as loop_lumber's `pause`) and every wait
+  for a server answer (`wait_for`) checks, so the recall goes out at once (`PlayerThreat`). A
+  drag (lift → drop) is never interrupted.
+- **Refused recall** (`--recall-spot X Y`, default the arrival): Outlands dungeons allow
+  Recall/Gate only within 8 tiles of a golden gate (docs/research/TRAVEL_DEATH.md). When the
+  recall home fails where we stand (escape's new `restricted`: RunUO's 501802 "Thy spell doth not
+  appear to work..." / 1019004, [INFERENCE] for Outlands' wording; or any other failure but death,
+  mana, reagents), the runner walks to the recall spot (running on a survival leave) and recalls
+  again; from then on it walks there first when it stands within 2 tiles of a refused tile. The
+  route margin (`--leave-per-step`) is measured to the recall spot. A recall that still doesn't
+  land stops the run (urgent `threat` juncture with the failure).
+- **At home**: the weapon back on, then `--bank-gold N`: with N gold or more in the pack, find a
+  banker (a known "the banker" click label, else single-click the human NPCs within 18 tiles,
+  nearest first: the bank errand's search, now `agent_link.find_banker`), walk within 3 tiles,
+  say "bank" and drag every gold pile from the pack into the box right after it opened (job
+  event `bank`: `amount`, `piles`, `box_gold` = the gold coins in the box afterwards, checks not
+  counted, `banked_run`). Then rest as in the NPD; after a hostile player wait until `--pk-wait`
+  has passed since the leave; past `--timeout` or `--kills` the run ends at home; else recall in.
+- **Stationary Penalty**: it comes at once after most recalls (above), so on arrival the walk to
+  the fight spot or the penalty walk clears it before the first attack. The 60 s travel lockout
+  after a recall stops harvesting only [INFERENCE: nothing in the captures shows it limiting
+  combat]; the runner doesn't wait for it.
+- **Crawl** works with it: the floor graph builds from the landing (Urukton offline, map0: 4,789
+  tiles, 178 route steps deep, 74 waypoints; `crawl.py floor --spot 5248 2821 --start 5248 2821
+  --z 33 --memory ''`). Not recommended there (below).
+- **Memory**: `travel` job events per recall leg (`leg` in / home, the escape result: ok, method,
+  rune, from, to, elapsed_s, attempts, tries, charges, failure); the `leave` event's `recall`
+  (ok, method, from, to, attempts, failure, `refused` = the first try's failure and tile,
+  `walked_first`), `react_s` (rule fired → recall start) and `cursor_cancelled`.
+
+**Urukton Bluffs** (2026-10-03, the overseer's scouting, docs/NOTES.md): the rune lands at
+(5248,2821,z33) on a raised landing inside the sanctuary ("You are entering a sanctuary
+dungeon."), a golden moongate at (5246,2822) where recall is allowed (the recall spot default,
+the arrival, is 2 tiles from it). Orcs, orc mages, an orc lord and a cave bear are on lower
+levels with innocent prevalian soldiers fighting them; Shackleworth died in a manual fight ~85
+steps from the landing, losing ~94 hits in 15 s (about 6 hits/s). So: fight at the landing (the
+default), a small pull range, no crawl, and leave early: a recall takes ~2.1 s and a hit can
+disturb it. Overseer command:
+
+```
+run hunt --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluffs" --leave-recall 0x57C3DEB6 --bank-gold 1 --target-name "" --pull-range 4 --heal-at 0.85 --leave-at 0.7 --leave-multi-at 0.9 --mana-reserve 999 --gheal-min-missing 1 --timeout 3600
+```
 
 ## Stationary Penalty (user request 2026-10-03; `harness/stationary.py`)
 
@@ -423,7 +497,7 @@ before any open: the blue one gets no packet at all, the refused open gets one `
 the lift answered `27 05` + back in the corpse + `0x1D` isn't counted, the fourth is looted; totals
 kills 4 -> 2 (`lost_kills` 2), xp only from the two opened corpses, gold only the landed pile.
 
-`python test_loop_hunt.py [rights|default|staff|fight|crawl]` (~160 s for all, private ports): a
+`python test_loop_hunt.py [rights|default|staff|fight|crawl|recall]` (a few minutes for all, private ports): a
 simulated NPD behind the real proxy. A mongbat
 that died to someone else (`0xDEAD` only) must never be touched; the first mongbat flies in and hits
 hard (heal path), dies to Lightning, its gold is looted; two more come in swinging and trigger the
@@ -456,6 +530,21 @@ rows carry the `crawl` block (dungeon level 1, troll avoided, zone 2's leave). `
 covers the geometry (coverage, areas and zones by route through a wall, the walk-memory floor),
 the model's shrinkage and avoid rules, zone opening and closing, the waypoint choice and the
 store prior.
+
+A fifth run (`recall`) hunts by recall with the prismatic staff (`--enter-recall`/`--leave-recall`
+with the sim's tome, `--fight-spot` 10 tiles from the golden gate, `--bank-gold 1`, `--pk-wait 2`):
+it starts in town by the banker, recalls in by the tome row "Urukton Bluffs" (button 101), kills
+and loots A; a red comes into view 15 tiles off (beyond the 12-tile rule): the tome is double-clicked within 1.5 s, the
+recall at the fight spot is refused after the cast (501802, as RunUO), it runs to the arrival and
+recalls home by the default row (100), finds the banker by a click label, says "bank", drags the
+121 gold in, rests, waits out `--pk-wait`, recalls in. D attacks; when first hurt the server says
+"Bastet is attacking you!" with nobody in view: it moves within 1 s, walking to the arrival first
+(refused near the fight spot before), recalls home (nothing to bank), back in, kills and loots D,
+recalls home ("done") and banks 23. Checked besides: no attack after either threat until home,
+every recall knocks the staff into the pack and it is re-equipped after each arrival before the
+first attack, the Stationary Penalty each recall brings is walked off before the first attack,
+the `travel` (in / home, the refused one `restricted`), `bank` (amounts, box gold), `leave`
+(`recall.refused`, `walked_first`) events, two urgent `threat` junctures, three visit rows.
 
 In every run the arrival tile (5536,530) is a teleporter in the memory store and in the sim (as
 live), and the sim applies the Stationary Penalty as live: the `0xFF` sub 8 byte for byte as in

@@ -352,7 +352,17 @@ Policy (lumber and hunt runners, overseer):
    - Investigate why Tracking (murderers) never registered Bastet.
 
 Recall inside a dungeon is blocked (except near golden gates), so the hunt runner keeps its walk to
-the exit for monsters. Reds can't reach the Shelter NPD.
+the exit for monsters in the NPD. Reds can't reach the Shelter NPD.
+
+**Hunting by recall (2026-10-03, user: Urukton Bluffs for Hackworth's Magic Reflect scroll).** The
+hunt runner got `--enter-recall/--leave-recall` (docs/HUNT_LOOP.md "Recall in, recall out") rather
+than a new runner: the fight, heal, loot, staff and penalty rules are the NPD's, only the way in and
+out changes. Every leave recalls home (the rune's landing is by a golden gate, where recall
+works); a refused recall walks to `--recall-spot` (the arrival) and tries again, rather than
+guessing gate positions. Hostile players: the lumber red escape's triggers (a red anywhere in
+view, "X is attacking you!") and its watchful waits, so the reaction isn't a tick late. Unlike
+the lumber runner it goes back in after `--pk-wait` (user scenario: recall home, bank, re-enter);
+the gold is banked each time home (`--bank-gold`) so a death costs only the current visit's loot.
 
 ### Guard flight (built 2026-10-02)
 

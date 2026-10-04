@@ -20,16 +20,16 @@ stall, hit-point loss, or an assistant-restriction system message
 Run:  python harness/errand_bank.py [--start 1963,2597] [--range 8]
 """
 import argparse
+import os
 import sys
 import time
 
-sys.path.insert(0, r"C:/Users/chris/uo-harness/harness")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import actions  # noqa: E402
-from agent_link import Abort, Link, Mover, bank_opened, cheb, log, same_floor, serial_of  # noqa: E402
+from agent_link import Abort, Link, Mover, bank_opened, find_banker, log, same_floor  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 
-HUMAN_BODIES = (0x190, 0x191)
 GATING_WORDS = ("razor", "assistant", "macro", "script")
 
 
@@ -67,60 +67,6 @@ class Errand:
 
     def pos(self, st=None):
         return self.link.pos(st)
-
-    def look_at(self, serial: int, known_name: bool):
-        """Single-click an entity exactly like the stock client: 0x09, then
-        0x34 status request, plus 0x98 name request when the name is unknown."""
-        self.link.send(actions.single_click(serial))
-        self.link.send(actions.status_request(serial))
-        if not known_name:
-            self.link.send(actions.name_request(serial))
-
-    # ---- banker ----
-    def find_banker(self):
-        st = self.link.state()
-        mobiles = st["world"]["mobiles"]
-        known = self._banker_from_labels(st["world"])
-        if known:
-            return known
-        me = tuple(self.pos(st)[:2])
-        cands = []
-        for key, m in mobiles.items():
-            if m.get("x") is None or m.get("graphic") not in HUMAN_BODIES:
-                continue
-            serial = serial_of(key)
-            if serial == st["movement"]["self_serial"]:
-                continue
-            dist = cheb(me, (m["x"], m["y"]))
-            if dist <= self.args.search_radius:
-                cands.append((dist, serial, m.get("name")))
-        cands.sort()
-        log(f"banker search: {len(cands)} nearby NPCs to look at")
-        for dist, serial, name in cands[: self.args.max_clicks]:
-            self.human.wait("use")
-            mark = len(self.link.events)
-            self.look_at(serial, known_name=bool(name))
-            st = self.link.wait(lambda s: self._label_for(serial, mark) is not None, timeout=1.5)
-            label = self._label_for(serial, mark)
-            log(f"  looked at {name or hex(serial)} ({dist} tiles): {label!r}")
-            if label and "banker" in label.lower():
-                m = self.link.state()["world"]["mobiles"].get(f"0x{serial:08X}") or {}
-                return serial, label, (m.get("x"), m.get("y"))
-        raise Abort("no banker found nearby")
-
-    def _label_for(self, serial: int, since_idx: int):
-        for ev in self.link.events[since_idx:]:
-            if ev.get("ev") == "speech_heard" and ev.get("serial") in (serial, f"0x{serial:08X}"):
-                return ev.get("text")
-        return None
-
-    def _banker_from_labels(self, world):
-        """A positioned mobile whose latest click label (world.labels) names it a banker."""
-        for key, text in world.get("labels", {}).items():
-            m = world["mobiles"].get(key)
-            if "the banker" in text.lower() and m and m.get("x") is not None:
-                return serial_of(key), text, (m["x"], m["y"])
-        return None
 
     def banker_pos(self, serial: int, fallback):
         m = self.link.state()["world"]["mobiles"].get(f"0x{serial:08X}") or {}
@@ -160,7 +106,7 @@ class Errand:
         home = tuple(self.pos()[:2])
         log(f"errand start at {home}")
         self.link.intent("Looking for a banker", "find_banker", loop="bank")
-        serial, label, bpos = self.find_banker()
+        serial, label, bpos = find_banker(self.link, self.human, self.args.search_radius, self.args.max_clicks, log)
         log(f"banker: {label} at {bpos}")
         self.link.intent(f"Heading to {label}", "to_bank", self.banker_pos(serial, bpos), loop="bank")
         self.mover.walk_to(lambda: self.banker_pos(serial, bpos), self.args.range, "to bank",

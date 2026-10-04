@@ -177,6 +177,70 @@ def bank_opened(world: dict, self_serial: int, events) -> int | None:
     return None
 
 
+BANKER_HUMAN_BODIES = (0x190, 0x191)
+
+
+def banker_from_labels(world: dict):
+    """(serial, label, (x, y)) of a positioned mobile whose latest click label
+    (world.labels) names it a banker, else None."""
+    for key, text in world.get("labels", {}).items():
+        m = world["mobiles"].get(key)
+        if "the banker" in text.lower() and m and m.get("x") is not None:
+            return serial_of(key), text, (m["x"], m["y"])
+    return None
+
+
+def look_at(link, serial: int, known_name: bool):
+    """Single-click an entity exactly like the stock client: 0x09, then 0x34
+    status request, plus 0x98 name request when the name is unknown."""
+    link.act(actions.single_click(serial))
+    link.act(actions.status_request(serial))
+    if not known_name:
+        link.act(actions.name_request(serial))
+
+
+def label_since(link, serial: int, since_idx: int):
+    """The first text `serial` said (its click label) since link.events[since_idx]."""
+    for ev in link.events[since_idx:]:
+        if ev.get("ev") == "speech_heard" and ev.get("serial") in (serial, f"0x{serial:08X}"):
+            return ev.get("text")
+    return None
+
+
+def find_banker(link, human, radius: int, max_clicks: int, log=print):
+    """(serial, label, (x, y)) of a banker: one whose click label is already known,
+    else single-click the human NPCs within `radius` (nearest first, human pace)
+    until one's label says banker. Abort when none does (errand_bank.py, loop_hunt.py)."""
+    st = link.state()
+    known = banker_from_labels(st["world"])
+    if known:
+        return known
+    me = tuple(link.pos(st)[:2])
+    cands = []
+    for key, m in st["world"]["mobiles"].items():
+        if m.get("x") is None or m.get("graphic") not in BANKER_HUMAN_BODIES:
+            continue
+        serial = serial_of(key)
+        if serial == st["movement"]["self_serial"]:
+            continue
+        dist = cheb(me, (m["x"], m["y"]))
+        if dist <= radius:
+            cands.append((dist, serial, m.get("name")))
+    cands.sort()
+    log(f"banker search: {len(cands)} nearby NPCs to look at")
+    for dist, serial, name in cands[:max_clicks]:
+        human.wait("use")
+        mark = len(link.events)
+        look_at(link, serial, known_name=bool(name))
+        link.wait(lambda s: label_since(link, serial, mark) is not None, timeout=1.5)
+        label = label_since(link, serial, mark)
+        log(f"  looked at {name or hex(serial)} ({dist} tiles): {label!r}")
+        if label and "banker" in label.lower():
+            m = link.state()["world"]["mobiles"].get(f"0x{serial:08X}") or {}
+            return serial, label, (m.get("x"), m.get("y"))
+    raise Abort("no banker found nearby")
+
+
 class Link:
     """Control-port actions + state-port feedback, with an event cursor."""
 

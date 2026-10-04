@@ -44,11 +44,15 @@ memory knows the floor): patrol through the rooms, zone 2 opened before room R2 
 troll there fled from (a survival leave from deep, back to the exit spot) and avoided afterwards,
 room R1 left as depleted after its mongbat, two mongbats killed and looted (docs/HUNT_LOOP.md).
 
+Then a recall run (--enter-recall / --leave-recall / --bank-gold): from town by the tome's rune to a
+landing by a golden gate, out at once from a red in view and from "X is attacking you!", a refused
+recall walked to the arrival, gold banked at home, back in after --pk-wait (notes above RECALL_S).
+
 Then, in process (no proxy), the loot-rights run: a blue corpse skipped without a packet, a refused
 open with no lift, a rejected lift not counted (docs/HUNT_LOOP.md "Loot rights").
 
-Run: python test_loop_hunt.py [rights|default|staff|fight|crawl]   (~160 s for all; private ports;
-     safe while the live proxy runs)
+Run: python test_loop_hunt.py [rights|default|staff|fight|crawl|recall]   (a few minutes for all;
+     private ports; safe while the live proxy runs)
 """
 import asyncio
 import json
@@ -66,6 +70,7 @@ sys.path.insert(0, f"{ROOT}/harness")
 
 import actions  # noqa: E402
 import combat  # noqa: E402
+import escape as escape_mod  # noqa: E402
 import memory  # noqa: E402
 import nav  # noqa: E402
 from uo.packets import packet_length, C2S_OVERRIDES  # noqa: E402
@@ -113,6 +118,31 @@ GOLD.update({M1: (0x4FE10011, 20), M2: (0x4FE10012, 22)})
 NAMES = {T: "a troll"}
 BODIES = {T: TROLL}
 
+# The recall run (--enter-recall / --leave-recall / --bank-gold): start in town at HOME (the tome's
+# default rune, next to the banker), recall in by the tome's row "Urukton Bluffs" to URUK, fight at
+# U_FIGHT. As live (2026-10-03) the arrival is near a golden gate (GATE): the server refuses a recall
+# farther than 8 tiles from it (RunUO's cliloc 501802, [INFERENCE] for Outlands) after the cast.
+# Each recall knocks the prismatic staff into the pack (live: the recall in by a tome charge did).
+# Visit 1: A dies, is looted, then the red BASTET comes into view: recall at once (refused at the
+# fight spot, walk to the arrival, recall), bank the gold, wait --pk-wait, recall in. Visit 2: D
+# attacks; when we first hurt it the server says "Bastet is attacking you!" (Bastet hidden): recall
+# at once (walking to the arrival first: refused near there before). Visit 3: D is killed and
+# looted: --kills 2, recall home, bank.
+UTOME = 0x57C3DEB6                                  # the blessed rune tome "New Player Locations"
+HOME, URUK, GATE = (1752, 3001), (5248, 2821), (5246, 2822)
+U_FIGHT = (5236, 2821)                              # 10 tiles from GATE: recall refused there
+BANKER, BANKBOX, BANK_PILE = 0x000001EA, 0x40000B0B, 0x40000B0C
+BANK_POS, BANK_START = (1755, 3001), 177            # the banker; gold coins in the box before the run
+BASTET = 0x0001E2B7
+RECALL_S = 1.2                                      # power words -> arrival (live 1.95-2.09 s)
+TOME_LAYOUT = ("{ gumppic 10 10 116 }{ text 165 29 2655 0 18 0 1 0 0 0 }{ text 97 59 2655 1 18 0 1 0 0 0 }"
+               "{ button 185 55 9721 9724 1 0 3 }{ gumppic 364 32 2271 }{ text 429 32 2655 2 18 0 1 0 0 0 }"
+               "{ button 88 96 2118 2117 1 0 100 }{ button 109 94 210 211 1 0 200 }"
+               "{ text 133 95 63 3 18 0 1 0 0 0 }"
+               "{ button 88 120 2118 2117 1 0 101 }{ button 109 118 210 211 1 0 201 }"
+               "{ text 133 119 2655 4 18 0 1 0 0 0 }")
+TOME_LINES = ["New Player Locations", "Manage Runes", "36/50", "Cambria", "Urukton Bluffs"]
+
 
 def rect(x0, x1, y0, y1):
     return {(x, y) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)}
@@ -142,8 +172,8 @@ def var(pid, body):
     return bytes([pid]) + u16(3 + len(body)) + body
 
 
-def login_pkt():
-    body = u32(SELF) + bytes(4) + u32(BODY) + u32(SPOT[0]) + u32(SPOT[1]) + u32(0) + bytes([0x80])
+def login_pkt(x=SPOT[0], y=SPOT[1]):
+    body = u32(SELF) + bytes(4) + u32(BODY) + u32(x) + u32(y) + u32(0) + bytes([0x80])
     return b"\x1b" + body + bytes(42 - len(body))
 
 
@@ -233,6 +263,24 @@ def cliloc(number, args=b""):
                + b"System".ljust(30, b"\x00") + args + b"\x00\x00")
 
 
+def gump(serial, gump_id, layout, lines=()):
+    body = u32(serial) + u32(gump_id) + u32(50) + u32(50) + u16(len(layout)) + layout.encode()
+    body += u16(len(lines)) + b"".join(u16(len(t.encode("utf-16-be"))) + t.encode("utf-16-be") for t in lines)
+    return var(0xB0, body)
+
+
+def says(serial, name, text, kind=0, hue=0x3B2):
+    """0x1C ASCII speech from `serial` (kind 6: a click label)."""
+    return var(0x1C, u32(serial) + u16(0x190) + bytes([kind]) + u16(hue) + u16(3)
+               + name.encode().ljust(30, b"\x00") + text.encode() + b"\x00")
+
+
+def human_pkt(serial, x, y, noto, player=False):
+    """0x20 for a human: an NPC (notoriety 7) or a player (flag 0x20; 6: a red)."""
+    return (b"\x20" + u32(serial) + u32(0x190) + bytes([noto]) + u16(0x83EA) + (b"\x20" if player else b"\x00")
+            + u32(x) + u32(y) + b"\x00\x00\x02" + u32(0))
+
+
 def penalty_buff(steps):
     """Outlands 0xFF sub 8 "Stationary Penalty" as live (capture 20261003_123614 byte for
     byte, our serial and a zero timestamp): icon 277, f1 4620, f2 1, one timer whose value
@@ -252,8 +300,9 @@ def cheb(a, b):
 
 
 class World:
-    def __init__(self, staff=False, fight=None, still_after=None, midfight=False, crawl=False):
+    def __init__(self, staff=False, fight=None, still_after=None, midfight=False, crawl=False, recall=False):
         self.crawl = crawl                   # the crawl run: the multi-room NPD (CRAWL_FLOOR)
+        self.recall = recall                 # the recall run: HOME <-> URUK by the tome (RECALL notes above)
         self.staff = staff                   # wielding the prismatic staff (the arcane-staff run)
         self.staff_worn = staff
         self.melee = 40 if staff else 10     # per hit (the staff's Arcane Buildup hits hard)
@@ -262,14 +311,14 @@ class World:
         self.disarms, self.rearms = [], []   # staff put in the pack by a cast (time) / (time, lift, 0x13)
         self.staff_lift = None
         self.fight = fight or SPOT           # --fight-spot (the mobs come at it)
-        self.pos = list(SPOT)
+        self.pos = list(HOME if recall else SPOT)
         self.facing = 0
         self.writer = None
         self.c2s, self.c2s_t = [], []
         self.hits, self.hits_max = 100, 100
         self.mana, self.mana_max = 100, 100
         self.warmode = False
-        self.alive = {A: True, S: True, D: False, E: False}
+        self.alive = {A: True, S: not recall, D: False, E: False}
         self.mob_hits = dict(HITS)
         dx, dy = self.fight[0] - SPOT[0], self.fight[1] - SPOT[1]
         self.mob_pos = {s: (x + dx, y + dy) for s, (x, y) in POS.items()}
@@ -314,6 +363,18 @@ class World:
         self.last_step_t = time.time()
         self.penalty_log = []                # (time, "apply" / "remove", why, inside?)
         self.attacks_on = []                 # (time, packet) attacks we got while it was on
+        # the recall run
+        self.recalls = []                    # {t, button, from, ok}: tome presses (100 home, 101 Urukton)
+        self.recall_ins = 0                  # arrivals at URUK
+        self.arrivals = []                   # (time, dest)
+        self.tome_opens = 0
+        self.gump_n = 0x7700
+        self.red_t = self.notice_t = None    # BASTET came into view / "Bastet is attacking you!"
+        self.bank_gold = BANK_START
+        self.bank_opens, self.bank_drops = [], []   # times "bank" opened the box / (time, amount) dropped in
+        self.far_bank_speech = 0
+        self.labels_sent = 0
+        self.said = []                       # 0xAD texts
 
     def apply_penalty(self, why):
         self.penalty = 5
@@ -412,6 +473,57 @@ class World:
         elif self.midfight and serial == A:
             self.midfight = False
             self.apply_penalty("mid-fight")
+        elif self.recall and serial == D and self.recall_ins == 2 and self.notice_t is None:
+            # Bastet attacks hidden: only the server's notice, overhead from our serial as live
+            self.notice_t = time.time()
+            self.send(says(SELF, "Shackleworth", "Bastet is attacking you!", hue=34))
+
+    # ---- the recall run ----
+    def red_appears(self):
+        """Visit 1, after A's loot: the red Bastet comes into view 15 tiles east (beyond the 12-tile
+        hostile-player rule: only recall mode's 'a red anywhere in view' sees it)."""
+        if not self.inside:
+            return
+        self.red_t = time.time()
+        self.send(human_pkt(BASTET, self.pos[0] + 15, self.pos[1], 6, player=True))
+        self.send(name_pkt(BASTET, "Bastet"))
+
+    def disarm(self):
+        """Live: a cast (a recall by a tome charge too) puts the prismatic staff in the pack."""
+        if self.staff_worn:
+            self.staff_worn = False
+            self.disarms.append(time.time())
+            self.send(delete(STAFF))
+            self.send(contained(STAFF, STAFF_GRAPHIC, 1, BACKPACK))
+
+    def recall_press(self, button):
+        """The tome's row button: 100 the default (Cambria: HOME), 101 Urukton Bluffs. The
+        staff goes to the pack at once; inside, more than 8 tiles from GATE the cast is
+        refused when it completes (501802), else we land RECALL_S later."""
+        dest = {100: HOME, 101: URUK}.get(button)
+        if dest is None:
+            return
+        ok = not (self.inside and cheb(self.pos, GATE) > 8)
+        self.recalls.append({"t": time.time(), "button": button, "from": tuple(self.pos), "ok": ok})
+        self.disarm()
+        self.send(says(SELF, "Shackleworth", "Kal Ort Por", kind=10))
+        self.later(RECALL_S, (lambda: self.land(dest)) if ok else (lambda: self.send(cliloc(501802))))
+
+    def land(self, dest):
+        self.swingers.clear()
+        self.teleport(*dest)
+        self.arrivals.append((time.time(), dest))
+        self.apply_penalty("recall")         # live: at once after most recalls
+        if dest == HOME:
+            self.send(human_pkt(BANKER, *BANK_POS, 7))
+            return
+        self.recall_ins += 1
+        self.reentered = time.time()
+        if self.recall_ins == 1:
+            self.show_mob(A)
+        else:                                # D waits beside the fight spot (it swings once attacked)
+            self.alive[D] = True
+            self.show_mob(D)
 
     def spawn_pair(self):
         self.spawn_t = time.time()
@@ -519,7 +631,9 @@ class World:
             serial = int.from_bytes(p[1:5], "big")
             self.engaged = serial
             self.attack_pos.append(tuple(self.pos))
-            if self.crawl and self.alive.get(serial) and self.inside:
+            if self.recall and serial == D and self.alive[D]:
+                self.swingers[D] = 3
+            elif self.crawl and self.alive.get(serial) and self.inside:
                 self.come(serial)            # mongbats fly in and stay on us; the troll walks up
                 self.swingers[serial] = 15 if serial == T else 3
             elif serial == A and A not in self.swingers and self.alive[A]:
@@ -531,11 +645,7 @@ class World:
             f = parse_packet("c2s", p)
             self.casts.append(f["spell_id"])
             self.cast_log.append((f["spell_id"], time.time(), self.inside, self.potions))
-            if self.staff_worn:              # live: 0x1D + 0x25 into the pack right after the request
-                self.staff_worn = False
-                self.disarms.append(time.time())
-                self.send(delete(STAFF))
-                self.send(contained(STAFF, STAFF_GRAPHIC, 1, BACKPACK))
+            self.disarm()                    # live: 0x1D + 0x25 into the pack right after the request
             if f["spell_id"] == LIGHTNING:
                 self.light_t.append(time.time())
                 if not self.reagent_refusals:            # the server's count differs from ours
@@ -576,6 +686,10 @@ class World:
             self.dclicks.append(serial)
             if serial == BACKPACK:
                 self.send(open_container(BACKPACK, 0x3C))
+            elif serial == UTOME and self.recall:
+                self.tome_opens += 1
+                self.gump_n += 1
+                self.send(gump(self.gump_n, escape_mod.RUNETOME_GUMP, TOME_LAYOUT, TOME_LINES))
             elif serial == POT_BAG:
                 self.send(open_container(POT_BAG, 0x3D))
             elif serial == POTION:
@@ -590,6 +704,24 @@ class World:
                     self.loot_hit_t = time.time()
                     self.hits = min(self.hits, 70)
                     self.send(hits_pkt(SELF, self.hits, self.hits_max))
+        elif pid == 0xB1 and self.recall:
+            f = parse_packet("c2s", p)
+            if f["serial"] == self.gump_n:
+                self.recall_press(f["button_id"])
+        elif pid == 0x09 and self.recall and int.from_bytes(p[1:5], "big") == BANKER:
+            self.labels_sent += 1                        # the click label, as the server says it
+            self.send(says(BANKER, "Jon", "Jon the banker", kind=6))
+        elif pid == 0xAD:
+            text = parse_packet("c2s", p).get("text")
+            self.said.append(text)
+            if self.recall and text == "bank":
+                if self.inside or cheb(self.pos, BANK_POS) > 12:
+                    self.far_bank_speech += 1
+                    return
+                self.bank_opens.append(time.time())
+                self.send(equip(BANKBOX, 0x0E7C, 0x1D))
+                self.send(b"\x24" + u32(BANKBOX) + bytes.fromhex("0000004a007d"))
+                self.send(contained(BANK_PILE, combat.GOLD_GRAPHIC, self.bank_gold, BANKBOX))
         elif pid == 0x07:
             self.lifted = parse_packet("c2s", p)
             if self.lifted["serial"] == STAFF:
@@ -604,6 +736,16 @@ class World:
         elif pid == 0x08:
             f = parse_packet("c2s", p)
             lf, self.lifted = self.lifted, None
+            if self.recall and f["container"] == BANKBOX:
+                if lf is None or lf["serial"] != PACK_GOLD or not self.bank_opens or self.inside:
+                    self.drops_refused += 1
+                    return
+                self.bank_drops.append((time.time(), self.pack_gold))
+                self.bank_gold += self.pack_gold                  # RunUO merges the pile
+                self.pack_gold = 0
+                self.send(delete(PACK_GOLD))
+                self.send(contained(BANK_PILE, combat.GOLD_GRAPHIC, self.bank_gold, BANKBOX))
+                return
             corpse = next((c for c, (g, _) in self.corpse_items.items() if lf and g == lf["serial"]), None)
             if corpse is None or f["serial"] != lf["serial"] or f["container"] != BACKPACK:
                 self.drops_refused += 1
@@ -615,7 +757,10 @@ class World:
             self.send(contained(PACK_GOLD, combat.GOLD_GRAPHIC, self.pack_gold, BACKPACK))
             if corpse == CORPSE[A]:
                 self.loot_a_t = time.time()
-                self.later(2.0, self.spawn_pair)
+                if self.recall:
+                    self.later(1.0, self.red_appears)
+                else:
+                    self.later(2.0, self.spawn_pair)
 
     async def ticker(self):
         """Mobs swing at us (0x2F + damage) about every 0.8 s; we melee the engaged mob
@@ -648,10 +793,10 @@ class World:
         await reader.readexactly(5)
         self.writer = writer
         writer.write(PRELUDE)
-        self.send(login_pkt())
+        self.send(login_pkt(*self.pos))
         for token in (5, 6, 7, 8):
             self.send(seed_pkt(token))
-        self.send(self_at(*SPOT))
+        self.send(self_at(*self.pos))
         self.send(equip(BACKPACK, 0x0E75, 0x15))
         if self.staff:
             self.send(equip(STAFF, STAFF_GRAPHIC, 2))
@@ -663,7 +808,10 @@ class World:
             self.send(contained(REG_BAG + 1 + i, g, 20, REG_BAG))
         self.send(hits_pkt(SELF, self.hits, self.hits_max))
         self.send(mana_pkt(self.mana, self.mana_max))
-        if self.crawl:
+        if self.recall:                                # in town: the banker by the rune, the tome in the pack
+            self.send(human_pkt(BANKER, *BANK_POS, 7))
+            self.send(contained(UTOME, 0x71AF, 1, BACKPACK))
+        elif self.crawl:
             self.update_view()
         else:
             for s in (A, S):
@@ -873,8 +1021,92 @@ def check_crawl(world, text, rc, rows, js, evs):
           and sum(v.get("s", 0) for r in c for v in r.get("zones", {}).values()) > 0, str(c)[:400])
 
 
+PK_WAIT = 2.0             # the recall run's --pk-wait
 
-async def main(staff=False, fight=None, crawl=False):
+
+def check_recall(world, text, rc, rows, js, evs):
+    """The recall run (World(recall=True), --enter-recall / --leave-recall / --bank-gold;
+    the scenario above the constants): in by the tome's Urukton row, out at once from a
+    red in view and from "Bastet is attacking you!", the refused recall walked to the
+    arrival, the gold banked at home, back in after --pk-wait, the staff back in hand and
+    the Stationary Penalty walked off after every recall before any attack."""
+    print("== recall in, recall out ==")
+    c2s, ts = world.c2s, world.c2s_t
+    check("recall run: exited 0 after 2 kills, at home", rc == 0 and "hunt complete: 2 kill(s)" in text
+          and tuple(world.pos) == HOME, f"rc {rc} at {world.pos}")
+    presses = [(r["button"], r["ok"]) for r in world.recalls]
+    check("tome presses: in by row 'Urukton Bluffs' (101), home by the default (100); one home refused",
+          presses == [(101, True), (100, False), (100, True), (101, True), (100, True), (101, True), (100, True)],
+          str(world.recalls))
+    refused = [r for r in world.recalls if not r["ok"]]
+    home_ok = [r for r in world.recalls if r["button"] == 100 and r["ok"]]
+    check("the refused recall was cast at the fight spot (> 8 tiles from the gate); every recall home that "
+          "landed went out within 1 tile of the arrival (the recall spot)",
+          refused and cheb(refused[0]["from"], GATE) > 8
+          and all(cheb(r["from"], URUK) <= 1 for r in home_ok), str(world.recalls))
+    attack = [t for p, t in zip(c2s, ts) if p[0] == 0x05 or (p[0] == 0x6C and refs(p) in world.mob_pos)]
+    homes = [t for t, d in world.arrivals if d == HOME]
+    ins = [t for t, d in world.arrivals if d == URUK]
+    dclick_tome = [t for p, t in zip(c2s, ts) if p[0] == 0x06 and refs(p) == UTOME]
+    red = world.red_t
+    first = next((t for t in dclick_tome if red and t > red), None)
+    check("red in view: the tome double-clicked within 1.5 s; no attack after it until home",
+          red and first and first - red < 1.5 and homes
+          and not [t for t in attack if red < t < homes[0]], f"red {red} tome {first} home {homes[:1]}")
+    note = world.notice_t
+    steps = [t for p, t in zip(c2s, ts) if p[0] == 0x02]
+    moved = next((t for t in steps + dclick_tome if note and t > note), None)
+    home2 = next((t for t in homes if note and t > note), None)
+    check("'Bastet is attacking you!' (no one in view): moving within 1 s (to the recall spot, refused near "
+          "there before), home by recall, no attack in between",
+          note and moved and moved - note < 1.0 and home2
+          and not [t for t in attack if note < t < home2], f"notice {note} moved {moved} home {home2}")
+    check("back in only after --pk-wait at home each time",
+          len(ins) == 3 and len(homes) == 3 and all(ins[i + 1] - homes[i] >= PK_WAIT - 0.2 for i in range(2)),
+          f"in {ins} home {homes}")
+    arm = [t for t, lift, eq in world.rearms if lift is not None]
+    ok = all(any(i < t < nxt for t in arm) for i in ins
+             for nxt in [next((a for a in attack if a > i), None)] if nxt is not None)
+    check("every recall with the staff in hand knocked it into the pack; after each arrival in it was "
+          "re-equipped before the first attack", len(world.disarms) >= len(ins) and ok and world.staff_worn,
+          f"disarms {len(world.disarms)} rearms {arm} arrivals {ins}")
+    applied = [t for t, kind, why, inside in world.penalty_log if kind == "apply" and why == "recall" and inside]
+    removed = [t for t, kind, why, inside in world.penalty_log if kind == "remove" and inside]
+    check("the Stationary Penalty after each recall in was walked off before the first attack; no attack while on",
+          len(applied) == 3 and not world.attacks_on
+          and all(any(a < r < (next((x for x in attack if x > a), 1e18)) for r in removed) for a in applied),
+          f"applied {applied} removed {removed} attacks_on {len(world.attacks_on)}")
+    check("A and D looted; the gold banked twice by saying 'bank' next to the banker found by a click: "
+          f"100 + 21, then 23; the box holds {BANK_START} + 144",
+          world.looted == {CORPSE[A]: 21, CORPSE[D]: 23} and [a for _, a in world.bank_drops] == [121, 23]
+          and world.bank_gold == BANK_START + 144 and len(world.bank_opens) == 2 and world.far_bank_speech == 0
+          and world.labels_sent >= 1 and world.said == ["bank", "bank"] and world.drops_refused == 0,
+          f"looted {world.looted} drops {world.bank_drops} box {world.bank_gold} said {world.said}")
+    banks = [e["data"] for e in evs if e["kind"] == "bank"]
+    check("job events `bank`: amounts 121, 23; the box's gold after each",
+          [(b["amount"], b["box_gold"]) for b in banks] == [(121, BANK_START + 121), (23, BANK_START + 144)],
+          str(banks))
+    legs = [(e["data"]["leg"], e["data"]["ok"], e["data"].get("failure")) for e in evs if e["kind"] == "travel"]
+    check("job events `travel`: in, home refused ('restricted', cliloc 501802), home, in, home, in, home",
+          legs == [("in", True, None), ("home", False, "restricted"), ("home", True, None), ("in", True, None),
+                   ("home", True, None), ("in", True, None), ("home", True, None)], str(legs))
+    threat = [j for j in js if j["kind"] == "threat"]
+    check("two urgent `threat` junctures: the red in view, the server's notice",
+          [j["severity"] for j in threat] == ["urgent", "urgent"]
+          and "red player Bastet in view at 15 tiles" in threat[0]["data"]["why"]
+          and "Bastet is attacking" in threat[1]["data"]["why"], str([j["summary"] for j in threat]))
+    leaves = [e["data"] for e in evs if e["kind"] == "leave"]
+    check("leave events carry the recall: the first refused at the fight spot then landed, the others walked first",
+          len(leaves) == 3 and leaves[0]["recall"]["ok"] and leaves[0]["recall"]["refused"]["failure"] == "restricted"
+          and leaves[1]["recall"]["walked_first"] and leaves[2]["recall"]["walked_first"],
+          str([lv.get("recall") for lv in leaves]))
+    check("three visit rows: kills 1, 0, 1; spot = the arrival, fight spot as given",
+          [r["kills"] for r in rows] == [1, 0, 1] and all(r["spot"] == list(URUK) and r["fight_spot"] == list(U_FIGHT)
+                                                         for r in rows),
+          str([{k: r.get(k) for k in ("kills", "spot", "fight_spot", "ended")} for r in rows]))
+
+
+async def main(staff=False, fight=None, crawl=False, recall=False):
     os.makedirs(LOGDIR, exist_ok=True)
     for f in os.listdir(LOGDIR):
         os.remove(os.path.join(LOGDIR, f))
@@ -887,7 +1119,10 @@ async def main(staff=False, fight=None, crawl=False):
         seed_floor(store)
     store.close()
 
-    world = World(staff=staff, fight=fight, still_after=14 if fight else None, midfight=bool(fight), crawl=crawl)
+    if recall:
+        world = World(staff=True, fight=U_FIGHT, recall=True)
+    else:
+        world = World(staff=staff, fight=fight, still_after=14 if fight else None, midfight=bool(fight), crawl=crawl)
     server = await asyncio.start_server(world.handle, "127.0.0.1", UPSTREAM_PORT)
     ticker = asyncio.create_task(world.ticker())
     proxy = subprocess.Popen(
@@ -911,11 +1146,14 @@ async def main(staff=False, fight=None, crawl=False):
         runner_out = os.path.join(LOGDIR, "runner.out")
         with open(runner_out, "wb") as fh:
             runner = await asyncio.create_subprocess_exec(
-                PY, f"{ROOT}/harness/loop_hunt.py", "--kills", "2", "--timeout", "240" if crawl else "150",
+                PY, f"{ROOT}/harness/loop_hunt.py", "--kills", "2", "--timeout", "240" if crawl or recall else "150",
                 *(["--leave-at", "0.4"] if staff else []),
                 *(["--fight-spot", str(fight[0]), str(fight[1]), "--reposition-s", "6"] if fight else []),
                 *(["--crawl", "--pull-range", "8", "--target-name", "", "--crawl-band", "22", "--crawl-learn-s", "8",
                    "--crawl-max-dmg", "200", "--crawl-depleted-s", "4", "--crawl-dwell", "2"] if crawl else []),
+                *(["--enter-recall", f"0x{UTOME:08X}", "--enter-rune", "Urukton Bluffs",
+                   "--leave-recall", f"0x{UTOME:08X}", "--fight-spot", str(U_FIGHT[0]), str(U_FIGHT[1]),
+                   "--bank-gold", "1", "--pk-wait", str(PK_WAIT)] if recall else []),
                 "--gheal-min-missing", str(GHEAL_MIN),
                 "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--memory", db,
                 "--entry", str(ENTRY[0]), str(ENTRY[1]), "0",
@@ -923,7 +1161,7 @@ async def main(staff=False, fight=None, crawl=False):
                 "--triage-url", "",
                 stdout=fh, stderr=asyncio.subprocess.STDOUT)
             try:
-                await asyncio.wait_for(runner.wait(), timeout=300 if crawl else 200)
+                await asyncio.wait_for(runner.wait(), timeout=300 if crawl or recall else 200)
             except TimeoutError:
                 runner.kill()
                 await runner.wait()
@@ -943,6 +1181,9 @@ async def main(staff=False, fight=None, crawl=False):
                for ln in open(os.path.join(LOGDIR, f), encoding="utf-8")]
         srcs = {e.get("src") for e in log if e.get("dir") == "c2s"}
         c2s = world.c2s
+        if recall:
+            check_recall(world, text, runner.returncode, rows, js, evs)
+            return
         check_penalty(world, text, rows, "crawl" if crawl else "fight spot" if fight else "staff" if staff
                       else "default", fight=bool(fight))
         if staff:
@@ -1196,7 +1437,7 @@ def rights():
 
 
 if __name__ == "__main__":
-    only = sys.argv[1:]               # e.g. `crawl`: just that run (iterating); none: all five
+    only = sys.argv[1:]               # e.g. `crawl`: just that run (iterating); none: all six
     if not only or "rights" in only:
         rights()
     if not only or "default" in only:
@@ -1207,5 +1448,7 @@ if __name__ == "__main__":
         asyncio.run(main(fight=FIGHT))
     if not only or "crawl" in only:
         asyncio.run(main(crawl=True))
+    if not only or "recall" in only:
+        asyncio.run(main(recall=True))
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

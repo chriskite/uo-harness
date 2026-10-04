@@ -79,6 +79,11 @@ FAIL_CLILOCS = {
     502403: "recharging",          # This book needs time to recharge.
     501025: "blocked",             # Something is blocking the location.
     501803: "unmarked",            # That rune is not yet marked.
+    # RunUO SpellHelper.SendInvalidMessage: recalling from a place that forbids it (Outlands:
+    # dungeons away from golden gates) / to one. Not seen live yet [INFERENCE: Outlands may word it
+    # differently; an unknown text ends as "no arrival"].
+    501802: "restricted",          # Thy spell doth not appear to work...
+    1019004: "restricted",         # You are not allowed to travel there.
 }
 # Refusals that started no cast: they don't count as an escape attempt.
 NOT_CAST = ("not recovered", "frozen", "already casting", "no charges", "recharging")
@@ -91,6 +96,8 @@ FAIL_TEXTS = {
     "You have not yet recovered from casting a spell.": "not recovered",
     "You cannot cast a spell while frozen.": "frozen",
     "You are already casting a spell.": "already casting",
+    "Thy spell doth not appear to work...": "restricted",
+    "You are not allowed to travel there.": "restricted",
 }
 
 
@@ -425,7 +432,7 @@ def retry_wait(res: dict) -> float | None:
     """How long to wait before recasting after the failed recall() `res`, or None
     when another try can't help (the spell itself can't be cast)."""
     why = res["failure"]
-    if why in ("heat of battle", "unmarked", "blocked", "reagents", "mana"):
+    if why in ("heat of battle", "unmarked", "blocked", "reagents", "mana", "restricted"):
         return None
     if why == "disturbed":
         return disturb_recovery(res["cast_s"] or 0.0) + RECOVERY_MARGIN_S
@@ -445,7 +452,7 @@ def escape(io, book: int, *, attempts: int | None = None, budget_s: float = ESCA
     'not recovered'); refusals that started no cast (NOT_CAST) are retried after
     a short wait and don't count as casts; out of charges falls back to the
     spell. Stops when it lands, the character is dead, the spell can't be cast
-    (heat of battle, unmarked, blocked, reagents, mana), after `attempts` casts
+    (heat of battle, unmarked, blocked, reagents, mana, restricted), after `attempts` casts
     (None: no limit), or when the next try would start more than `budget_s`
     after the first press. Keeping on matters: a PK has to land a fresh
     interrupt within every 2 s cast (live 2026-10-03 at Nusero the old three-try

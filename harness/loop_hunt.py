@@ -92,7 +92,19 @@ danger zones), move on from depleted areas; --leave-at grows with the route step
 to the exit from wherever we are. Every engagement is a `fight` job event (both modes):
 the crawl's model starts from them next run.
 
+Recall in, recall out (--enter-recall / --leave-recall; docs/HUNT_LOOP.md "Recall in, recall
+out"; user request 2026-10-03, Urukton Bluffs): start anywhere, recall to a rune
+(escape.escape: the same retry rules as the red escape), hunt at the arrival (the spot,
+the fight spot and the recall spot default to it), and leave by recalling to the book's
+default rune instead of walking to an exit teleporter. A hostile player close, a red in
+view or "X is attacking you!" recalls at once: every state read, human pause and server
+wait checks for it (look / pause / wait_for, as loop_lumber), a target cursor up is
+cancelled first. A recall refused where we stand (dungeons: only near a golden gate) walks
+to --recall-spot and recalls from there. At home: deposit the pack's gold in the bank
+(--bank-gold), rest, wait out --pk-wait after a hostile player, recall back in.
+
 Run:  python harness/loop_hunt.py [--kills 5] [--enter] [--fight-spot X Y | --crawl] [--spell lightning]
+      python harness/loop_hunt.py --enter-recall BOOK --enter-rune NAME --leave-recall BOOK --bank-gold 1
 """
 import argparse
 import os
@@ -106,12 +118,14 @@ import actions  # noqa: E402
 import alerts  # noqa: E402
 import combat  # noqa: E402
 import crawl  # noqa: E402
+import escape as escape_mod  # noqa: E402
 import healing  # noqa: E402
 import nav  # noqa: E402
 import threats  # noqa: E402
 import stationary  # noqa: E402
 import triage  # noqa: E402
-from agent_link import Abort, Link, Mover, cheb, containers_to_open, log, serial_of  # noqa: E402
+from agent_link import (Abort, Link, Mover, bank_opened, cheb, containers_to_open, find_banker, log,  # noqa: E402
+                        same_floor, serial_of)
 from errand_bank import GATING_WORDS  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
@@ -146,6 +160,30 @@ ARCANE_STAFF_GRAPHICS = frozenset({31038})
 ARCANE_CAST_SKILLS = {8: "Arcane", 25: "Magery", 43: "Wrestling"}   # skill ids (skills.mul)
 ARCANE_CAST_MIN = 80.0
 LEAVE_HEAL_GAP = 0.05         # a fight spot's raised leave-at stays this far below --heal-at
+NPD_SPOT = (5535, 529)        # --spot's default without recall: the NPD exit tile
+# Recall mode's threat checks (loop_lumber's pattern): every human pause and every wait for a
+# server result reads the state at least this often; a drag (lift -> drop) sleeps plainly.
+LOOK_EVERY_S = 0.2
+BLIND_PAUSES = frozenset({"drag"})
+# "<name> is attacking you!": the server's notice that a player made us their target (live
+# 2026-10-02/03, 4 of 4 in the store from Bastet / Rasta Brazil, overhead from our own serial;
+# never from a monster in all the NPD hunts), before the first hit and even when hidden.
+ATTACKED_BY = " is attacking you!"
+RECALL_SPOT_RANGE = 1         # walk this close to --recall-spot before recalling from there
+REFUSED_NEAR = 2              # a recall refused within this many tiles of here: walk first
+BANK_RANGE = 3                # say "bank" this close to the banker (RunUO speech range 12)
+BANKER_SEARCH = 18            # tiles around us whose human NPCs are clicked to find a banker
+BANKER_CLICKS = 12
+NO_WALK_FAILURES = ("dead", "mana", "reagents")   # a refused recall the walk to --recall-spot can't help
+
+
+class PlayerThreat(Exception):
+    """Recall mode: a hostile player showed up during a wait or a walk; the hunt loop
+    leaves by recall at once (HuntLoop.look)."""
+
+    def __init__(self, why: str):
+        super().__init__(why)
+        self.why = why
 
 
 def key_of(serial: int) -> str:
@@ -158,11 +196,22 @@ class HuntLoop:
         self.memory = memory
         self.args = args
         self.t0 = time.monotonic()
-        self.human = Human(args.human, seed=args.seed, fast=args.human_fast, log=log)
+        self.human = Human(args.human, seed=args.seed, fast=args.human_fast, log=log,
+                           sleep=self.pause if args.leave_recall else None)
         self.mover = Mover(link, memory, self.human, max_blocked=args.max_blocked,
                            guard=self.check_guards, doors=True, use_map=not args.no_map)
-        self.spot = tuple(args.spot)             # the exit tile: leaving starts here
+        recall_mode = args.leave_recall is not None or args.enter_recall is not None
+        # the exit tile (leaving starts here); recall mode: the arrival, set on the first recall in
+        spot = args.spot or (None if recall_mode else NPD_SPOT)
+        self.spot = tuple(spot) if spot else None
         self.fight_spot = tuple(args.fight_spot) if args.fight_spot else self.spot
+        self.recall_spot = tuple(args.recall_spot) if args.recall_spot else self.spot
+        self.refused_from = []                   # tiles where the recall home was refused (this run)
+        self.fleeing = False                     # recall mode: leaving; the threat checks are off
+        self._looking = False                    # in look(): a pause inside the threat checks sleeps plainly
+        self._looked_t = -1e9
+        self.attack_scan = 0                     # "... is attacking you!" scan cursor into link.events
+        self.pk_left_t = None                    # monotonic time of the last leave from a hostile player
         self.out_steps = 0                       # route steps from the fight spot back to the spot (per visit)
         self.leave_at = args.leave_at            # --leave-at plus the route margin (leave_margin)
         self.spell = combat.spell_id(args.spell)
@@ -196,7 +245,8 @@ class HuntLoop:
         self.visit_n = 0
         self.visit = None            # this visit's counters (episode row)
         self.totals = {"kills": 0, "lost_kills": 0, "gold": 0, "xp": 0, "hits_lost": 0, "casts": 0, "heals": 0,
-                       "potions": 0, "leaves": 0, "visits": 0, "stationary_clears": 0, "repositions": 0}
+                       "potions": 0, "leaves": 0, "visits": 0, "stationary_clears": 0, "repositions": 0,
+                       "banked": 0}
         self.still = stationary.Stationary(self.mover, self.human, args.reposition_s)
         self._intent = None
         self.left_why = None         # (why, severity) of the last leave
@@ -207,8 +257,6 @@ class HuntLoop:
         self.fight_rec = None        # the engagement in progress: a `fight` job event when it ends
         self.patrolling = False      # a crawl patrol walk is under way (check_guards may stop it)
         self.crawl = None
-        if args.crawl:
-            self.crawl = crawl.Crawl(self, crawl.load_prior(memory.con, self.spot, args.crawl_depth_risk))
 
     # ------------------------------------------------------------ reporting
     def doing(self, kind: str, text: str, target=None, serial=None):
@@ -238,6 +286,96 @@ class HuntLoop:
         self.check_restriction()
         self.pending_speech += self.new_speakers(st)
         self.track(st)
+        self.look(st)
+
+    # ------------------------------------------------------------ recall mode: watchful waits
+    def look(self, st=None):
+        """Recall mode, during a visit: a hostile player (player_threat) raises
+        PlayerThreat from any state read, human pause or server wait, so the recall
+        goes out at once (loop_lumber's look). Nothing while leaving (fleeing), at home
+        or inside the check itself; without --leave-recall it does nothing."""
+        if self.args.leave_recall is None or self._looking or self.fleeing or self.visit is None:
+            return None
+        self._looking = True
+        try:
+            self._looked_t = time.monotonic()
+            why = self.player_threat(st or self.link.state())
+        finally:
+            self._looking = False
+        if why:
+            raise PlayerThreat(why)
+        return None
+
+    def pause(self, seconds: float, kind: str):
+        """Human.sleep in recall mode: spend a human pause (`kind`) reading the state
+        and checking for hostile players every LOOK_EVERY_S and once more at its end,
+        right before the action it delays (loop_lumber.pause: live 2026-10-03 Bastet came
+        into view during an aim pause). A drag (BLIND_PAUSES) sleeps plainly."""
+        if kind in BLIND_PAUSES or self._looking or self.fleeing or self.visit is None:
+            time.sleep(seconds)
+            return
+        t0 = time.monotonic()
+        end = t0 + seconds
+        while True:
+            now = time.monotonic()
+            if now >= end or now - self._looked_t >= LOOK_EVERY_S:
+                try:
+                    self.look()
+                except PlayerThreat:
+                    log(f"the {kind} pause cut short {now - t0:.2f} s into its {seconds:.2f} s")
+                    raise
+            now = time.monotonic()
+            if now >= end:
+                return
+            time.sleep(min(LOOK_EVERY_S, end - now))
+
+    def wait_for(self, pred, timeout: float):
+        """link.wait for a server result with the hostile-player check on every read (look)."""
+        return self.link.wait(lambda s: self.look(s) or pred(s), timeout)
+
+    def drop_cursor(self) -> bool:
+        """Before a recall: cancel a target cursor that is up (a spell's) with the
+        client's Esc (0x6C cancel), so the book's double-click never goes out under our
+        own cursor. True when one was cancelled."""
+        cur = ((self.link.last or {}).get("world") or {}).get("target") or {}
+        if not cur.get("active") or cur.get("cursor_id") is None:
+            return False
+        self.cancel(cur)
+        log(f"target cursor 0x{cur['cursor_id']:08X} cancelled (Esc) for the recall")
+        return True
+
+    def attacked_by(self) -> list[str]:
+        """Names in "<name> is attacking you!" since the last call (ATTACKED_BY)."""
+        ev, names = self.link.events, []
+        for e in ev[self.attack_scan:]:
+            text = e.get("text") or ""
+            if e.get("ev") == "speech_heard" and text.endswith(ATTACKED_BY):
+                names.append(text[: -len(ATTACKED_BY)])
+        self.attack_scan = len(ev)
+        return names
+
+    def player_threat(self, st) -> str | None:
+        """Why a hostile player makes us leave now, else None: a hostile player (red,
+        grey, orange) within spell range; recall mode also a red anywhere in view (Bastet
+        struck 4.6 s after sight, docs/PLAN.md "Red sighting") and a player named in
+        "... is attacking you!" (seen or not: Bastet attacked hidden)."""
+        a = self.watch.update(st, recall_s=0.0, margin_s=0.0)
+        pk = [t for t in a.threats
+              if t.player and t.hostile and 0 <= t.distance <= self.watch.params.player_strike_range]
+        if pk:
+            t = pk[0]
+            return f"hostile player {t.name or hex(t.serial)} ({t.kind}) at {t.distance} tiles"
+        if self.args.leave_recall is None:
+            return None
+        reds = sorted((t for t in a.threats if t.player and t.kind == "red" and t.distance >= 0),
+                      key=lambda t: t.distance)
+        if reds:
+            t = reds[0]
+            return f"red player {t.name or hex(t.serial)} in view at {t.distance} tiles"
+        names = self.attacked_by()
+        if names:
+            return f"{names[0]} is attacking us (server notice)"
+        return None
 
     def patrol_stop(self, st):
         """The crawl's patrol walk stops here (Mover.walk_to `stop`) when there is
@@ -309,6 +447,8 @@ class HuntLoop:
         return c / m if c is not None and m else 1.0
 
     def at_hunt(self, st) -> bool:
+        if self.spot is None:
+            return False
         if self.crawl is not None and self.crawl.floor is not None and self.pos(st) in self.crawl.floor:
             return True
         return min(cheb(self.pos(st), self.spot), cheb(self.pos(st), self.fight_spot)) <= combat.VIEW_RANGE
@@ -454,7 +594,7 @@ class HuntLoop:
         self.link.act(lift)
         self.human.wait("drag")
         self.link.act(equip)
-        ok = self.link.wait(lambda s: self.worn(s, self.weapon), 3.0) is not None
+        ok = self.wait_for(lambda s: self.worn(s, self.weapon), 3.0) is not None
         log(f"re-equipped {name} 0x{self.weapon:08X}" if ok else f"{name} 0x{self.weapon:08X}: equip not confirmed")
         return True
 
@@ -470,17 +610,21 @@ class HuntLoop:
 
     def pack_amount(self, st, graphic) -> int:
         """How many of `graphic` the backpack holds at any bag depth."""
+        return sum(it.get("amount") or 1 for _, it in self.pack_items(st, graphic))
+
+    def pack_items(self, st, graphic) -> list:
+        """[(serial, item)] of `graphic` in the backpack at any bag depth."""
         items, pack = st["world"]["items"], self.backpack(st)
-        total = 0
-        for it in items.values():
+        out = []
+        for k, it in items.items():
             if it.get("graphic") != graphic:
                 continue
             c, depth = it.get("container"), 0
             while c is not None and serial_of(c) != pack and depth < 8:
                 c, depth = (items.get(key_of(serial_of(c))) or {}).get("container"), depth + 1
             if c is not None and serial_of(c) == pack:
-                total += it.get("amount") or 1
-        return total
+                out.append((serial_of(k), it))
+        return out
 
     # ------------------------------------------------------------ events
     def scan_events(self, st):
@@ -553,7 +697,7 @@ class HuntLoop:
         if bool(st["world"]["self"].get("warmode")) == on:
             return False
         self.link.act(actions.war_mode(on))
-        self.link.wait(lambda s: bool(s["world"]["self"].get("warmode")) == on, 3.0)
+        self.wait_for(lambda s: bool(s["world"]["self"].get("warmode")) == on, 3.0)
         return True
 
     def attack(self, serial) -> bool:
@@ -664,7 +808,7 @@ class HuntLoop:
             return None
         mark = len(self.link.events)
         self.link.act(combat.target_mobile(cur, serial, mob))
-        got = self.link.wait(lambda s: any(e.get("ev") == "cliloc" or (e.get("ev") == "damage"
+        got = self.wait_for(lambda s: any(e.get("ev") == "cliloc" or (e.get("ev") == "damage"
                                                                       and serial_of(e["serial"]) == serial)
                                            for e in self.link.events[mark:]), 1.5)
         if got is not None:
@@ -720,7 +864,7 @@ class HuntLoop:
         mark = len(self.link.events)
         self.link.act(actions.dclick(serial))
         answers = (healing.CLILOC_HEALED, healing.CLILOC_POTION_WAIT, healing.CLILOC_FULL_HEALTH)
-        self.link.wait(lambda s: any(e.get("ev") == "cliloc" and e.get("cliloc") in answers
+        self.wait_for(lambda s: any(e.get("ev") == "cliloc" and e.get("cliloc") in answers
                                      for e in self.link.events[mark:]), 2.0)
         heard = {e.get("cliloc") for e in self.link.events[mark:] if e.get("ev") == "cliloc"}
         self.potions.started(time.monotonic())
@@ -746,7 +890,7 @@ class HuntLoop:
             return False
         self.link.act(combat.target_self(cur, self.me(st), self.pos(st), st["world"]["self"].get("body")))
         self.count("heals")
-        self.link.wait(lambda s: (s["world"]["self"].get("hits") or 0) > (me.get("hits") or 0), 2.0)
+        self.wait_for(lambda s: (s["world"]["self"].get("hits") or 0) > (me.get("hits") or 0), 2.0)
         log(f"{name.lower()}: {me.get('hits')} -> {self.link.last['world']['self'].get('hits')} hits")
         return True
 
@@ -818,7 +962,7 @@ class HuntLoop:
         def answered(s):    # a refusal, or the 0x24 and its contents (they may lag it: an empty corpse waits)
             a = self.open_answer(mark, c["corpse"])
             return a is not None and (a != "open" or bool(combat.corpse_contents(s["world"], c["corpse"])))
-        st = self.link.wait(answered, CONTAINER_WAIT_S) or self.state()
+        st = self.wait_for(answered, CONTAINER_WAIT_S) or self.state()
         answer = self.open_answer(mark, c["corpse"])
         if answer not in (None, "open"):
             log(f"opening the corpse of {name} refused ({answer!r}): not looted")
@@ -855,7 +999,7 @@ class HuntLoop:
                 return any(e.get("ev") == "lift_reject" for e in self.link.events[lift_mark:])
             for pkt in combat.grab_packets(s, it.get("amount") or 1, pack):
                 self.link.act(pkt)
-            st2 = self.link.wait(lambda st2: rejected() or landed(st2), CONTAINER_WAIT_S)
+            st2 = self.wait_for(lambda st2: rejected() or landed(st2), CONTAINER_WAIT_S)
             if rejected():
                 rejects += 1
                 log(f"lift of 0x{s:08X} rejected: not taken")
@@ -908,15 +1052,13 @@ class HuntLoop:
     # ------------------------------------------------------------ leaving / entering
     def leave_reason(self, st):
         """(why, severity) when the rules say leave now, else None: a hostile player
-        within spell range (urgent: no going back in), two or more attackers below
-        --leave-multi-at, below --leave-at plus the fight spot's route margin (leave_margin)."""
+        (player_threat; urgent: without --leave-recall no going back in), two or more
+        attackers below --leave-multi-at, below --leave-at plus the fight spot's route
+        margin (leave_margin)."""
         me = st["world"]["self"]
-        a = self.watch.update(st, recall_s=0.0, margin_s=0.0)
-        pk = [t for t in a.threats
-              if t.player and t.hostile and 0 <= t.distance <= self.watch.params.player_strike_range]
+        pk = self.player_threat(st)
         if pk:
-            t = pk[0]
-            return f"hostile player {t.name or hex(t.serial)} ({t.kind}) at {t.distance} tiles", "urgent"
+            return pk, "urgent"
         if me.get("hits") is None:
             return None
         f, att = self.frac(me), self.attackers(st)
@@ -933,6 +1075,9 @@ class HuntLoop:
         leave from a separate fight spot), the step onto the exit teleporter. A
         `threat` juncture unless it's the planned end (severity info)."""
         self.left_why = (why, severity)
+        if self.args.leave_recall is not None:
+            self.leave_by_recall(st, why, severity)
+            return
         data = {"why": why, "hits": [st["world"]["self"].get("hits"), st["world"]["self"].get("hits_max")],
                 "attackers": self.attackers(st), "visit": self.visit_n, "kills": self.totals["kills"],
                 "route_steps": self.out_steps}
@@ -969,6 +1114,191 @@ class HuntLoop:
             if out == "moved":
                 raise Abort(f"{what}: the step in direction {d} moved without a teleport")
         raise Abort(f"{what}: no teleport after {TELEPORT_TRIES} steps in direction {d}")
+
+    # ------------------------------------------------------------ recall in, recall out
+    def recall(self, book: int, rune: str | None, urgent: bool, leg: str) -> dict:
+        """One recall leg with escape.escape (charges first, else the spell; a disturbed
+        cast recast as soon as the server takes it): a survival leave keeps on until it
+        lands or the escape budget is spent, a planned leg tries 3 casts. A `travel` job
+        event either way (leg in / home)."""
+        armed = self.weapon is not None and self.worn(self.link.state(), self.weapon)
+        try:
+            res = escape_mod.escape(escape_mod.LinkIO(self.link), book, rune=rune, log=log,
+                                    attempts=None if urgent else 3)
+        except escape_mod.RecallError as e:
+            res = {"ok": False, "failure": "unusable", "error": str(e), "attempts": 0, "tries": []}
+        if armed and not self.cast_disarms and not self.worn(self.link.state(), self.weapon):
+            # live 2026-10-03: the recall in (a tome charge, Kal Ort Por) put Shackleworth's
+            # prismatic staff in the pack, like his Lightning casts
+            self.cast_disarms = True
+            log(f"the recall put the weapon 0x{self.weapon:08X} in the pack: no attack spell from now on")
+        st = self.link.state()
+        self.memory.job_event("hunt", "travel", {"leg": leg, "book": key_of(book), "want_rune": rune,
+                                                 "visit": self.visit_n, **res}, **self._where(st))
+        return res
+
+    def walk_to_recall_spot(self, urgent: bool):
+        self.doing("leave", f"Walking to the recall spot {self.recall_spot[0]},{self.recall_spot[1]}",
+                   self.recall_spot)
+        self.mover.walk_to(lambda: self.recall_spot, RECALL_SPOT_RANGE, "to the recall spot",
+                           max_moves=max(250, 3 * self.out_steps), urgent=urgent)
+
+    def recall_home(self, urgent: bool) -> dict:
+        """Recall to --leave-recall's default rune from where we stand. Refused there
+        (Outlands dungeons allow it only near a golden gate; escape's 'restricted', or no
+        arrival): walk to --recall-spot and recall from there; once refused near here,
+        walk there first. The result carries `refused` (the first try) and `walked_first`."""
+        here = tuple(self.pos(self.link.state())[:2])
+        walked_first = False
+        if self.recall_spot is not None and cheb(here, self.recall_spot) > RECALL_SPOT_RANGE \
+                and any(cheb(here, t) <= REFUSED_NEAR for t in self.refused_from):
+            log(f"recall was refused near {here} before: walking to the recall spot {self.recall_spot} first")
+            self.walk_to_recall_spot(urgent)
+            walked_first = True
+        res = self.recall(self.args.leave_recall, None, urgent, "home")
+        here = tuple(self.pos(self.link.state())[:2])
+        if not res["ok"] and res["failure"] not in NO_WALK_FAILURES + ("unusable",) \
+                and self.recall_spot is not None and cheb(here, self.recall_spot) > RECALL_SPOT_RANGE:
+            self.refused_from.append(here)
+            log(f"recall home from {here} failed ({res['failure']}): walking to the recall spot {self.recall_spot}")
+            first = res
+            self.walk_to_recall_spot(urgent)
+            res = self.recall(self.args.leave_recall, None, urgent, "home")
+            res["refused"] = {"from": list(here), "failure": first["failure"], "attempts": first.get("attempts")}
+        res["walked_first"] = walked_first
+        return res
+
+    def leave_by_recall(self, st, why, severity):
+        """Leave by recalling to --leave-recall's default rune (recall_home), at once and
+        before any bookkeeping: a target cursor up is cancelled first (drop_cursor), no
+        war mode toggle or walk unless the planned end (severity info). Then the usual
+        `threat` juncture and `leave` event (with the recall), the visit row, and at home
+        the bank (--bank-gold). A recall that doesn't land stops the run."""
+        t_fire, pos = time.monotonic(), self.pos(st)
+        data = {"why": why, "hits": [st["world"]["self"].get("hits"), st["world"]["self"].get("hits_max")],
+                "attackers": self.attackers(st), "visit": self.visit_n, "kills": self.totals["kills"],
+                "route_steps": self.out_steps}
+        log(f"LEAVING by recall: {why}")
+        self.fleeing = True
+        try:
+            cancelled = self.drop_cursor()
+            self.disengage("fled" if severity != "info" else "ended")
+            self.doing("leave", f"Leaving by recall: {why}", self.recall_spot)
+            if severity == "info" and self.war_mode(st, False):
+                self.human.wait("read")
+            data["react_s"] = round(time.monotonic() - t_fire, 2)
+            res = self.recall_home(severity != "info")
+        finally:
+            self.fleeing = False
+        data.update(cursor_cancelled=cancelled,
+                    recall={k: res.get(k) for k in ("ok", "method", "from", "to", "elapsed_s", "attempts",
+                                                    "failure", "refused", "walked_first")})
+        if severity != "info":
+            self.memory.juncture("hunt", "threat", f"Leaving the hunt by recall: {why}"
+                                 + ("" if res["ok"] else f" (recall failed: {res['failure']})"), severity, data)
+        self.memory.job_event("hunt", "leave", data, **self._where(st))
+        self.count("leaves")
+        if self.crawl is not None:
+            self.crawl.on_leave(pos, severity != "info")
+        if severity == "urgent":
+            self.pk_left_t = time.monotonic()
+        self.end_visit(why)
+        if not res["ok"]:
+            raise Abort(f"recall home failed ({res['failure']}) after: {why}")
+        log(f"recalled home to {tuple(res['to'])} ({res['method']}, {res['elapsed_s']} s)")
+        self.rearm(self.state())            # a recall knocks an arcane staff into the pack
+        if self.args.bank_gold:
+            self.bank()
+
+    def enter_by_recall(self):
+        """Recall to --enter-recall's rune --enter-rune (its default without one). The
+        first arrival is the hunt: --spot, --fight-spot and --recall-spot default to it."""
+        book, rune = self.args.enter_recall, self.args.enter_rune
+        self.doing("enter", f"Recalling to {rune or 'the default rune'}")
+        self.human.wait("use")
+        res = self.recall(book, rune, False, "in")
+        if not res["ok"]:
+            raise Abort(f"recall to {rune or 'the default rune'} failed: {res['failure']} {res.get('error') or ''}")
+        arrival = tuple(self.pos(self.link.state())[:2])
+        log(f"recalled to {rune or 'the default rune'} at {arrival} ({res['method']}, {res['elapsed_s']} s)")
+        if self.spot is None:
+            self.spot = arrival
+            self.fight_spot = self.fight_spot or arrival
+            self.recall_spot = self.recall_spot or arrival
+            log(f"the hunt: arrival {arrival}, fight spot {self.fight_spot}, recall spot {self.recall_spot}")
+        if not self.at_hunt(self.state()):
+            raise Abort(f"the recall put us at {arrival}, not near the spot {self.spot}")
+        self.rearm(self.state())            # the recall knocked an arcane staff into the pack: before any attack
+
+    def wait_pk(self):
+        """After leaving from a hostile player: stay home until --pk-wait has passed."""
+        if self.pk_left_t is None:
+            return
+        end = min(self.pk_left_t + self.args.pk_wait, self.t0 + self.args.timeout)   # never past --timeout
+        if time.monotonic() < end:
+            log(f"a hostile player at the hunt: waiting {end - time.monotonic():.0f} s more before going back")
+        while time.monotonic() < end:
+            st = self.state()
+            if self.pending_speech:
+                self.speech_hold(st)
+                continue
+            self.doing("wait", f"Waiting before going back ({end - time.monotonic():.0f} s; a hostile player "
+                               f"was at the hunt)")
+            time.sleep(min(2.0, max(0.0, end - time.monotonic())))
+        self.pk_left_t = None
+
+    # ------------------------------------------------------------ the bank
+    def bank(self):
+        """At home after a recall: when the pack holds --bank-gold gold or more, find a
+        banker (a known "the banker" label, else click the human NPCs near us, like
+        errand_bank), walk within BANK_RANGE, say "bank" and drag every gold pile from the
+        pack into the bank box right after it opened (no step between: moving closes it in
+        RunUO). A `bank` job event with the amount and the gold coins the box holds after."""
+        st = self.state()
+        gold = sum(it.get("amount") or 1 for _, it in self.pack_items(st, combat.GOLD_GRAPHIC))
+        if gold < self.args.bank_gold:
+            log(f"{gold} gold in the pack, below --bank-gold {self.args.bank_gold}: not banking")
+            return
+        self.doing("find_banker", "Looking for a banker")
+        serial, label, bpos = find_banker(self.link, self.human, BANKER_SEARCH, BANKER_CLICKS, log)
+
+        def where():
+            m = self.link.state()["world"]["mobiles"].get(key_of(serial)) or {}
+            return (m["x"], m["y"]) if m.get("x") is not None else tuple(bpos)
+        z = (self.link.state()["world"]["mobiles"].get(key_of(serial)) or {}).get("z")
+        self.doing("to_bank", f"Going to {label}", where())
+        self.mover.walk_to(where, BANK_RANGE, "to the banker", z_ok=same_floor(z) if z is not None else None)
+        self.doing("open_bank", "Opening the bank box", where())
+        self.human.wait("speak")
+        mark = len(self.link.events)
+        self.link.act(actions.say_unicode("bank"))
+        st = self.link.wait(lambda s: bank_opened(s["world"], self.me(s), self.link.events[mark:]) is not None, 5.0)
+        if st is None:
+            raise Abort(f"the bank box did not open ({label} at {where()})")
+        box = bank_opened(st["world"], self.me(st), self.link.events[mark:])
+        stored, piles = 0, self.pack_items(st, combat.GOLD_GRAPHIC)
+        if piles:   # the bank gump is open from the speech; the pack and bags may still need opening
+            self.open_for(*[(s, False) for s, _ in piles])
+        for s, it in piles:
+            amount = it.get("amount") or 1
+            self.doing("store", f"Banking {amount} gold", where())
+            self.human.wait("use")
+            self.link.act(actions.lift(s, amount))
+            self.human.wait("drag")
+            self.link.act(actions.drop(s, combat.DROP_AUTO, combat.DROP_AUTO, 0, 0, box))
+            if self.link.wait(lambda s2: s not in {x for x, _ in self.pack_items(s2, combat.GOLD_GRAPHIC)},
+                              4.0) is None:
+                raise Abort(f"gold pile 0x{s:08X} did not leave the backpack")
+            stored += amount
+        st = self.state()
+        box_gold = sum(it.get("amount") or 1 for it in st["world"]["items"].values()
+                       if it.get("graphic") == combat.GOLD_GRAPHIC and it.get("container") is not None
+                       and serial_of(it["container"]) == box)
+        self.totals["banked"] += stored
+        log(f"banked {stored} gold ({self.totals['banked']} this run); the bank box holds {box_gold} gold coins")
+        self.memory.job_event("hunt", "bank", {"amount": stored, "piles": len(piles), "box_gold": box_gold,
+                                               "banked_run": self.totals["banked"], "visit": self.visit_n},
+                              **self._where(st))
 
     def enter(self):
         ex, ey, ez = self.args.entry
@@ -1070,8 +1400,10 @@ class HuntLoop:
         self.count("visits")
         self.low_posted = False
         self.no_reagents.clear()
-        # the step from the spot in --exit-dir is the exit teleporter: never route over it
-        self.mover.teleporter_tiles(st["world"]["self"].get("map")).add(nav.step(self.spot, self.args.exit_dir))
+        self.attack_scan = len(self.link.events)     # "... is attacking you!" from before this visit is old news
+        if self.args.leave_recall is None:
+            # the step from the spot in --exit-dir is the exit teleporter: never route over it
+            self.mover.teleporter_tiles(st["world"]["self"].get("map")).add(nav.step(self.spot, self.args.exit_dir))
         lack = combat.missing_reagents(st["world"], self.me(st), self.spell)
         if lack:
             log(f"{combat.MAGERY_SPELLS[self.spell - 1]}: no {', '.join(lack)} and no spellstone: melee only")
@@ -1136,16 +1468,30 @@ class HuntLoop:
                 return
         time.sleep(POLL_S)
 
-    def go_back(self, reason):
-        """After leaving: rest and go back in, or stop (a hostile player, --rest-to 0,
-        or the rest takes too long)."""
+    def go_back(self, reason) -> bool:
+        """After leaving: rest and go back in, or stop (a hostile player without
+        --leave-recall, --rest-to 0, or the rest takes too long). Recall mode: wait out
+        --pk-wait after a hostile player, recall back in (--enter-recall); False when
+        the time is up meanwhile (the run ends at home)."""
         why, severity = reason
-        if severity == "urgent" or self.args.rest_to <= 0 or not self.rest():
+        recall = self.args.leave_recall is not None
+        if (severity == "urgent" and not recall) or self.args.rest_to <= 0 or not self.rest():
             raise Abort(f"left the hunt ({why}); not going back in")
-        self.rearm(self.state())
-        self.enter()
+        if not recall:
+            self.rearm(self.state())
+            self.enter()
+        else:
+            if self.args.enter_recall is None:
+                raise Abort(f"left the hunt by recall ({why}); no --enter-recall to go back in")
+            if not (self.finished() or self.timed_out()):
+                self.wait_pk()
+            if self.finished() or self.timed_out():
+                log("the run is over (--kills / --timeout): not going back in")
+                return False
+            self.enter_by_recall()
         self.start_visit(self.state())
         self.to_spot()
+        return True
 
     def to_spot(self):
         """Walk to the fight spot (the Mover avoids known teleporter tiles), then set
@@ -1164,21 +1510,23 @@ class HuntLoop:
 
     def leave_margin(self, st):
         """--leave-at raised by --leave-per-step per step of the planned route from the
-        fight spot back to --spot (Chebyshev distance when no route is planned), at most
-        to --heal-at - LEAVE_HEAL_GAP and never below --leave-at. 0 steps when the fight
-        spot is the spot. Crawling: the floor's route steps from where we stand, every tick."""
+        fight spot back to --spot (recall mode: to --recall-spot, where a refused recall
+        walks; Chebyshev distance when no route is planned), at most to --heal-at -
+        LEAVE_HEAL_GAP and never below --leave-at. 0 steps when the fight spot is that
+        tile. Crawling: the floor's route steps from where we stand, every tick."""
         steps = 0
+        out = self.recall_spot if self.args.leave_recall is not None else self.spot
         if self.crawl is not None:
             steps = self.crawl.route_steps(self.pos(st)) or 0
-        elif self.fight_spot != self.spot:
-            path, _ = self.mover.plan(st, nav.within(self.spot, 0), mobiles=False)
-            steps = len(path) - 1 if path else cheb(self.pos(st), self.spot)
+        elif self.fight_spot != out:
+            path, _ = self.mover.plan(st, nav.within(out, 0), mobiles=False)
+            steps = len(path) - 1 if path else cheb(self.pos(st), out)
         a = self.args
         raw = a.leave_at + a.leave_per_step * steps
         cap = max(a.leave_at, a.heal_at - LEAVE_HEAL_GAP)
         self.out_steps, self.leave_at = steps, min(raw, cap)
         if steps and self.crawl is None:
-            log(f"fight spot {self.fight_spot}: {steps} steps back to the exit spot {self.spot}; leaving below "
+            log(f"fight spot {self.fight_spot}: {steps} steps back to {out}; leaving below "
                 f"{self.leave_at:.0%} (--leave-at {a.leave_at:.0%} + {a.leave_per_step:g} x {steps}"
                 + (f", capped at --heal-at - {LEAVE_HEAL_GAP:g})" if raw > cap else ")"))
         if self.visit is not None:
@@ -1199,62 +1547,73 @@ class HuntLoop:
 
     def hunt(self):
         """Fight at the fight spot (crawling: patrol the floor) until --kills or --timeout
-        (then finish the fights on us, loot and leave), a death or a stop."""
+        (then finish the fights on us, loot and leave), a death or a stop. Recall mode: a
+        hostile player seen during any wait or walk (PlayerThreat) leaves at once."""
         self.start_visit(self.state())
-        self.to_spot()
+        try:
+            self.to_spot()
+        except PlayerThreat as e:
+            self.leave(self.link.last or self.link.state(), e.why, "urgent")
         while True:
-            st = self.state()
-            if self.visit is None:                      # left to survive during a speech hold
-                self.go_back(self.left_why)
-                continue
-            if self.crawl is not None:
-                self.leave_margin(st)
-            attackers = self.attackers(st)
-            winding = self.finished() or self.timed_out()
-            reason = self.leave_reason(st)
-            if reason is None and winding and ((not attackers and not self.corpses) or self.timed_out(60.0)):
-                reason = ("done" if self.finished() else "time is up", "info")
-            if reason is not None:
-                self.leave(st, *reason)
-                if reason[1] == "info":
+            try:
+                if self.tick():
                     return
-                self.go_back(reason)
-                continue
-            if self.pending_speech and not attackers and self.engaged is None:
-                self.speech_hold(st)
-                continue
-            me = st["world"]["self"]
-            if self.rearm(st):
-                continue
-            if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
-                self.human.wait("read")
-                continue
-            if self.unstick(st, attackers):
-                continue
-            if self.corpses and not attackers:
-                self.loot(self.corpses[0])
-                continue
-            target = self.pick_target(st, pull=not winding)
-            if target is not None:
-                if target != self.engaged and self.engaged is not None:
-                    log(f"switching target to 0x{target:08X}")
-                    self.disengage("switched")
-                self.fight(target)
-                continue
-            if self.engaged is not None:
-                self.disengage()
-            if self.war_mode(st, False):
-                log("nothing near: war mode off")
-                self.human.wait("read")
-            if self.crawl is not None:
-                self.crawl.idle(st)
-                continue
-            if cheb(self.pos(st), self.fight_spot) > 0:
-                self.mover.walk_to(lambda: self.fight_spot, 0, "back to the spot")
-            what = self.args.target_name.strip() or "monsters"
-            self.doing("wait", f"Hunting for {what} at {self.fight_spot[0]},{self.fight_spot[1]} "
-                               f"({self.totals['kills']} killed)", self.fight_spot)
-            time.sleep(POLL_S)
+            except PlayerThreat as e:
+                self.leave(self.link.last or self.link.state(), e.why, "urgent")
+
+    def tick(self) -> bool:
+        """One decision (docs/HUNT_LOOP.md "What it does"); True when the run is over."""
+        st = self.state()
+        if self.visit is None:                      # left to survive (speech hold, recall mode)
+            return not self.go_back(self.left_why)
+        if self.crawl is not None:
+            self.leave_margin(st)
+        attackers = self.attackers(st)
+        winding = self.finished() or self.timed_out()
+        reason = self.leave_reason(st)
+        if reason is None and winding and ((not attackers and not self.corpses) or self.timed_out(60.0)):
+            reason = ("done" if self.finished() else "time is up", "info")
+        if reason is not None:
+            self.leave(st, *reason)
+            if reason[1] == "info":
+                return True
+            return not self.go_back(reason)
+        if self.pending_speech and not attackers and self.engaged is None:
+            self.speech_hold(st)
+            return False
+        me = st["world"]["self"]
+        if self.rearm(st):
+            return False
+        if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
+            self.human.wait("read")
+            return False
+        if self.unstick(st, attackers):
+            return False
+        if self.corpses and not attackers:
+            self.loot(self.corpses[0])
+            return False
+        target = self.pick_target(st, pull=not winding)
+        if target is not None:
+            if target != self.engaged and self.engaged is not None:
+                log(f"switching target to 0x{target:08X}")
+                self.disengage("switched")
+            self.fight(target)
+            return False
+        if self.engaged is not None:
+            self.disengage()
+        if self.war_mode(st, False):
+            log("nothing near: war mode off")
+            self.human.wait("read")
+        if self.crawl is not None:
+            self.crawl.idle(st)
+            return False
+        if cheb(self.pos(st), self.fight_spot) > 0:
+            self.mover.walk_to(lambda: self.fight_spot, 0, "back to the spot")
+        what = self.args.target_name.strip() or "monsters"
+        self.doing("wait", f"Hunting for {what} at {self.fight_spot[0]},{self.fight_spot[1]} "
+                           f"({self.totals['kills']} killed)", self.fight_spot)
+        time.sleep(POLL_S)
+        return False
 
     def run(self):
         st = self.link.wait(lambda s: s["movement"]["pos"] is not None
@@ -1268,16 +1627,27 @@ class HuntLoop:
             d = self.casting_disarms(st)
             log(f"weapon: {w.get('name') or 'graphic ' + str(w.get('graphic'))} 0x{self.weapon:08X}"
                 + (f"; {d}: no attack spell, potions before heal spells inside" if d else ""))
-        if self.args.enter and not self.at_hunt(st):
+        if self.args.enter_recall is not None and not self.at_hunt(st):
+            self.enter_by_recall()
+            st = self.state()
+        elif self.args.enter and not self.at_hunt(st):
             self.enter()
             st = self.state()
+        if self.spot is None:                   # --leave-recall, started at the hunt: here it is
+            here = tuple(self.pos(st)[:2])
+            self.spot, self.fight_spot = here, self.fight_spot or here
+            self.recall_spot = self.recall_spot or here
         if not self.at_hunt(st):
-            raise Abort(f"not near the hunting spot {self.spot} (at {self.pos(st)[:2]}); use --enter")
+            raise Abort(f"not near the hunting spot {self.spot} (at {self.pos(st)[:2]}); use --enter"
+                        + (" or --enter-recall" if self.args.leave_recall is not None else ""))
+        if self.args.crawl and self.crawl is None:
+            self.crawl = crawl.Crawl(self, crawl.load_prior(self.memory.con, self.spot, self.args.crawl_depth_risk))
         self.hunt()
         t = self.totals
         log(f"hunt complete: {t['kills']} kill(s) ({t['lost_kills']} more lost to others' loot rights), "
             f"{t['gold']} gold, ~{t['xp']} xp, {t['hits_lost']} hits lost, "
-            f"{t['leaves']} leave(s); outside")
+            f"{t['leaves']} leave(s), {t['banked']} gold banked; "
+            + ("home" if self.args.leave_recall is not None else "outside"))
         self.doing("done", f"Finished: {t['kills']} kill(s), {t['gold']} gold, ~{t['xp']} xp")
 
 
@@ -1291,8 +1661,9 @@ def stop_intent(loop, text):
 
 def arg_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--spot", type=int, nargs=2, default=[5535, 529], metavar=("X", "Y"),
-                    help="the exit spot: leaving walks here, then steps --exit-dir (default: the NPD exit tile)")
+    ap.add_argument("--spot", type=int, nargs=2, default=None, metavar=("X", "Y"),
+                    help="the exit spot: leaving walks here, then steps --exit-dir (default: the NPD exit tile "
+                         "5535 529; with --enter-recall the arrival, with only --leave-recall where we start)")
     ap.add_argument("--fight-spot", type=int, nargs=2, default=None, metavar=("X", "Y"),
                     help="the tile to fight on (default: --spot); pull range, corpses and the idle return "
                          "are measured from it")
@@ -1327,6 +1698,23 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--entry", type=int, nargs=3, default=[1912, 2557, -20], metavar=("X", "Y", "Z"),
                     help="the tile before the entrance teleporter (default: the NPD entrance)")
     ap.add_argument("--entry-dir", type=int, default=0, choices=range(8))
+    ap.add_argument("--enter-recall", type=lambda v: int(v, 0), default=None, metavar="BOOK",
+                    help="start anywhere: recall with this runebook / rune tome (serial, e.g. 0x57C3DEB6) to "
+                         "--enter-rune and hunt at the arrival; also how the runner goes back in")
+    ap.add_argument("--enter-rune", default=None, metavar="NAME",
+                    help="the rune tome row to recall to (its name, e.g. 'Urukton Bluffs'; default: the "
+                         "book's default rune)")
+    ap.add_argument("--leave-recall", type=lambda v: int(v, 0), default=None, metavar="BOOK",
+                    help="leave by recalling to this book's default rune (home) instead of walking to an exit "
+                         "teleporter; a hostile player close, a red in view or 'X is attacking you!' recalls at once")
+    ap.add_argument("--recall-spot", type=int, nargs=2, default=None, metavar=("X", "Y"),
+                    help="where to walk and recall from when the recall home is refused where we stand "
+                         "(dungeons: near a golden gate; default: the arrival / --spot)")
+    ap.add_argument("--bank-gold", type=int, default=0, metavar="N",
+                    help="after recalling home: with N gold or more in the pack, bank it all (0 = off)")
+    ap.add_argument("--pk-wait", type=float, default=600.0,
+                    help="recall mode: after leaving from a hostile player, stay home this many seconds "
+                         "before recalling back in")
     ap.add_argument("--heal-at", type=float, default=0.75,
                     help="heal below this share of hits: a heal potion if one can be drunk, else a spell")
     ap.add_argument("--gheal-min-missing", type=int, default=None,
@@ -1377,6 +1765,14 @@ def main():
     args = ap.parse_args()
     if args.crawl and args.fight_spot:
         ap.error("--crawl patrols the floor: no --fight-spot with it")
+    if args.enter_recall is not None and args.leave_recall is None:
+        ap.error("--enter-recall needs --leave-recall (the way out)")
+    if args.enter and args.enter_recall is not None:
+        ap.error("--enter walks to an entrance; --enter-recall recalls in: one of them")
+    if args.bank_gold and args.leave_recall is None:
+        ap.error("--bank-gold banks at home after a recall: it needs --leave-recall")
+    if args.enter_rune and args.enter_recall is None:
+        ap.error("--enter-rune names a rune of --enter-recall's book")
 
     memory = Memory(args.memory)
     link = Link(args.control_port, args.state_port)
