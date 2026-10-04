@@ -815,18 +815,14 @@ table.evtable {
   display: flex;
   justify-content: center;
 }
-/* the paperdoll gump's pale stone backdrop */
+/* black backdrop: some worn items' gump art carries black fringe pixels that show as smears on a lighter background */
 .paperdoll-img {
   display: block;
   image-rendering: pixelated;
-  background:
-    var(--mottle),
-    radial-gradient(ellipse at 45% 50%, #6a5a42 0%, #3a2e20 55%, #1a130c 100%);
+  background: #000;
   border: 1px solid var(--frame);
   border-radius: 2px;
-  box-shadow:
-    0 0 0 1px #050302,
-    inset 0 0 18px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 0 1px #050302;
 }
 .paperdoll-img.dead {
   filter: grayscale(1) brightness(0.85);
