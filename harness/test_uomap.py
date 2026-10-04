@@ -386,6 +386,22 @@ def test_self_positions(maps, positions, dyn):
               for _, x, y, _ in rental))
 
 
+def test_display_name():
+    print("tiledata name plural markup (client StringHelper.GetPluralAdjustedString)")
+    from uomap import display_name as dn
+    eq("%s% plural", dn("amethyst%s%", True), "amethysts")
+    eq("%s% singular", dn("amethyst%s%", False), "amethyst")
+    eq("%ies/y% plural", dn("rub%ies/y%", True), "rubies")
+    eq("%ies/y% singular", dn("rub%ies/y%", False), "ruby")
+    eq("%ves/f% singular", dn("bread loa%ves/f%", False), "bread loaf")
+    eq("text after the marker is kept", dn("slab%s% of bacon", True), "slabs of bacon")
+    eq("stray % is dropped", dn("Executioner's Cap%", False), "Executioner's Cap")
+    eq("no marker is untouched", dn("Garlic", True), "Garlic")
+    td = uomap.tiledata()
+    left = [g for g in range(td.item_count) if "%" in dn(td.item(g).name or "", True) or "%" in dn(td.item(g).name or "", False)]
+    check("no real item name keeps a % after resolving", not left, str([td.item(g).name for g in left[:5]]))
+
+
 def main():
     maps = {i: UoMap(i) for i in (0, 1, 3)}
     scans = {tag: scan_session(tag) for tag in all_sessions()}
@@ -393,6 +409,7 @@ def main():
     targets, items = scans[DEMO][1], scans[DEMO][2]
     dyn = dynamic_index(maps[0], [it for s in scans.values() for it in s[2]], 0)
     mems, skipped = walk_memories(scans)
+    test_display_name()
     test_headers(maps)
     test_tree(maps[0], targets)
     test_login_spot(maps[0], positions)

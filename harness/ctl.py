@@ -412,7 +412,7 @@ def summarize(resp: dict, now: float | None = None) -> dict:
                 continue
             dist = nav.chebyshev((x, y), (pos[0], pos[1]))
             if dist <= GROUND_RANGE:
-                ground.append({"serial": key, "name": it.get("name") or _tile_name(it.get("graphic")),
+                ground.append({"serial": key, "name": it.get("name") or _tile_name(it.get("graphic"), it.get("amount")),
                                "graphic": None if it.get("graphic") is None else f"0x{it['graphic']:04X}",
                                "x": x, "y": y, "z": it.get("z"), "amount": it.get("amount"), "dist": dist})
         ground.sort(key=lambda g: g["dist"])
@@ -528,14 +528,16 @@ def _skills(me: dict) -> dict:
     return dict(sorted(out.items(), key=lambda kv: -kv[1]))
 
 
-def item_label(it: dict) -> str | None:
-    """What an item is called: its clicked name, else the tiledata name."""
-    name = it.get("name") or _tile_name(it.get("graphic")) or ""
+def item_label(it: dict, amount: int | None = None) -> str | None:
+    """What an item is called: its clicked name, else the tiledata name. `amount` is how
+    many the sentence is about (a plural ending for more than one); default the stack."""
+    name = it.get("name") or _tile_name(it.get("graphic"), it.get("amount") if amount is None else amount) or ""
     return item_name(name) or None
 
 
-def _tile_name(graphic):
-    """Tiledata name of an item graphic (install dir, read-only), or None."""
+def _tile_name(graphic, amount=None):
+    """Tiledata name of an item graphic (install dir, read-only), or None; the plural
+    ending shown for an `amount` above 1, the singular otherwise (uomap.display_name)."""
     if graphic is None:
         return None
     try:
@@ -543,7 +545,7 @@ def _tile_name(graphic):
         it = uomap.tiledata().item(graphic)
     except (OSError, ValueError):
         return None
-    return it.name if it else None
+    return uomap.display_name(it.name, (amount or 1) > 1) if it else None
 
 
 # ------------------------------------------------------------------ commands
@@ -1298,7 +1300,7 @@ def _act_loot(a) -> dict:
                 if not moved:
                     time.sleep(0.1)
             row = {"serial": k, "graphic": None if it.get("graphic") is None else f"0x{it['graphic']:04X}",
-                   "name": it.get("name") or _tile_name(it.get("graphic")), "amount": it.get("amount")}
+                   "name": it.get("name") or _tile_name(it.get("graphic"), it.get("amount")), "amount": it.get("amount")}
             (taken if moved else failed).append(row if moved else k)
         got = stc.wait_events(mark, lambda evs: False, timeout=0.5)
         noto_after = stc.state()["world"]["self"].get("notoriety")
@@ -1363,7 +1365,7 @@ def _act_target(a) -> dict:
                                    f"it (`act dclick`), then use the tool again")
                 # the client sends a contained item's container-local x/y and z (actions.target_object)
                 x, y, z = it.get("x") or 0, it.get("y") or 0, it.get("z") or 0
-                graphic, what = it.get("graphic") or 0, it.get("name") or _tile_name(it.get("graphic"))
+                graphic, what = it.get("graphic") or 0, it.get("name") or _tile_name(it.get("graphic"), it.get("amount"))
             else:
                 ok, why = combat.attackable(world, key)
                 if not ok:
@@ -1722,7 +1724,7 @@ def _act_drop(a) -> dict:
         amount = have if a.amount is None else a.amount
         if not 1 <= amount <= have:
             raise CtlError(f"--amount must be 1..{have}")
-        name = item_label(it)
+        name = item_label(it, amount)
         src, where = _where(items, ikey, me), _where(items, ckey, me)
         human = Human(a.human, seed=a.seed)
         from agent_link import opens_as_container

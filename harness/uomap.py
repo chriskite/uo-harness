@@ -223,6 +223,22 @@ class TileData:
         return tex_id in self._texmaps
 
 
+def display_name(name: str, plural: bool = False) -> str:
+    """A tiledata item name as the client shows it (ClassicUO StringHelper
+    GetPluralAdjustedString). Names carry one `%A%` or `%A/B%` marker: A is the plural
+    ending, B the singular one (none = nothing). In this install's artdata.uoo: `%s%`
+    (slab%s% of bacon), `%es%`, `%ies/y%` (rub%ies/y%), `%ves/f%` (bread loa%ves/f%),
+    `%es/e%` (pil%es/e% of hides). One name, "Executioner's Cap%", has a stray `%`, dropped."""
+    head, sep, rest = name.partition("%")
+    if not sep:
+        return name
+    marker, close, tail = rest.partition("%")
+    if not close:
+        return head + rest
+    plural_end, _, single_end = marker.partition("/")
+    return head + (plural_end if plural else single_end) + tail
+
+
 _TILEDATA = {}
 
 
