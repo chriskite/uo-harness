@@ -656,6 +656,19 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   (`row_hatchet`), `worn_at_start` the reading at the trip start; a trip that never chopped keeps
   the start reading. Trip 1 of 2026-10-03 read `worn: False` at 21:43:43 (the 21:43:17 Magic
   Reflection cast had packed it) though it was in hand from the first chop at 21:44:39 to the end.
+- **Harvest aspect armor (since 2026-10-04, user; `aspect_ensure`, `harness/aspects.py`):** before
+  heading out each trip (before `go_out`), the runner checks the six armor layers (legs, helmet,
+  gloves, gorget, chest, arms) passively: worn, and in the aspect's hue (2086 for Harvest; a piece
+  that was dropped or banked comes back in its own hue, the shadowhide chest 2406). Only when one
+  isn't, it opens the `[aspect` menu like a player and activates Harvest on the armor (Activate
+  twice; 5 Arcane Essence). "Your armor is already of that aspect." costs nothing and teaches the
+  run the suit's real hue (a custom aspect hue from "Manage Hues"). A missing piece, a failed
+  activation or essence below the menu's warning level (50) is a `low_supplies` juncture once per
+  run (`item` "harvest aspect armor" / "arcane essence") and the trip goes on without. The trip row
+  carries `harvest_aspect` {ok, action none|already|activated|failed|missing|off, missing, plain,
+  charges}; activations are `aspect` job events. `--harvest-aspect off` skips it. Live 2026-10-04
+  (Outland Dan, the check run outside a trip): all six "plain" under a wrong hue on purpose →
+  menu → "already" in 5.5 s, hue 2086 learned, the next check passive.
 - **Monsters fighting someone else (since 2026-10-01, knowledge #89):** runs had stopped for 'a
   great hart' and 'an eagle' in war mode 8 tiles away that were fighting other players and never
   touched Hackworth. `threats.assess` now rates a creature whose only aggression evidence is war

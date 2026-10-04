@@ -1873,93 +1873,44 @@ def _act_room(a, mem) -> dict:
         stc.close()
 
 
-ASPECT_MAX_STEPS = 30                # arrow presses while looking for an aspect (23 aspects + Chromatic)
-
-
 def _act_aspect(a) -> dict:
     """aspect | aspect activate <weapon|spellbook|armor> [ASPECT]: the Aspect Mastery
-    menu (harness/aspects.py; docs/NOTES.md "Aspects"), opened by saying "[aspect"
-    like a player. Bare: read it (Arcane Essence charges; per section the aspect,
-    tier, xp, active tier) and close it. activate: step the section's arrows until
-    it shows ASPECT (default: the one it shows), then press its Activate twice (the
-    server asks "Click again to confirm."), wait for "<aspect> aspect <slot>
-    activated.", close the menu. Costs 5 Arcane Essence; every armor piece must be
-    worn for armor. Each press after a reading pause, through the `gump` guard."""
+    menu (harness/aspects.py, the same flow the lumber runner uses; docs/NOTES.md
+    "Aspects"), opened by saying "[aspect" like a player. Bare: read it (Arcane
+    Essence charges; per section the aspect, tier, xp, active tier) and close it.
+    activate: step the section's arrows until it shows ASPECT (default: the one it
+    shows), press Activate twice (the server asks "Click again to confirm."), close
+    the menu. Costs 5 Arcane Essence ("already of that aspect" costs nothing);
+    every armor piece must be worn for armor. Also reports the worn armor suit
+    (aspects.suit: pieces, missing layers, pieces without the Harvest hue)."""
     import aspects
     args = [w.lower() for w in a.args]
     if args and (args[0] != "activate" or len(args) < 2 or args[1] not in aspects.SECTIONS):
         raise CtlError("aspect | aspect activate <weapon|spellbook|armor> [ASPECT]")
     section = args[1] if args else None
     want = " ".join(args[2:]) or None
-    human = Human(a.human, seed=a.seed)
     ctl, stc = _connect(a)
-    heard = []
-
-    def wait_gump(mark: int, what: str, also=lambda evs: False) -> tuple[dict, dict]:
-        got = stc.wait_events(mark, lambda evs: any(e.get("ev") == "gump_open" and _serial(e.get("gump_id"))
-                                                    == aspects.ASPECT_GUMP for e in evs) and also(evs))
-        heard.extend(journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS and e.get("ev") != "gump_open")
-        g = next((e for e in reversed(got) if e.get("ev") == "gump_open"
-                  and _serial(e.get("gump_id")) == aspects.ASPECT_GUMP), None)
-        if g is None:
-            raise CtlError(f"no Aspect Mastery menu after {what}")
-        return g, aspects.parse(g.get("layout"), g.get("lines"))
-
-    def press(g: dict, button: int) -> int:
-        human.wait("menu")
-        mark = stc.mark()
-        if ctl.send(gump_reply(stc.state(), f"0x{_serial(g['serial']):08X}", str(button))) != "OK":
-            raise CtlError("proxy refused the gump reply")
-        return mark
-
     try:
-        human.wait("speak")
-        mark = stc.mark()
-        if ctl.send(actions.say_unicode("[aspect")) != "OK":
-            raise CtlError("proxy refused the [aspect command")
-        g, menu = wait_gump(mark, "saying [aspect")
-        if section is None:
-            press(g, 0)
-            arm = menu["sections"].get("armor") or {}
-            return {"ok": True, **menu, "reply": f"{menu['charges']} essence charges; armor "
-                    f"{arm.get('aspect')} tier {arm.get('tier')}"}
-        before = menu["charges"]
-        stc.intent(f"Activating the {want or menu['sections'][section]['aspect']} aspect on the {section}", "aspect")
-        for _ in range(ASPECT_MAX_STEPS):
-            sec = menu["sections"][section]
-            if want is None or (sec["aspect"] or "").lower() == want:
-                break
-            g, menu = wait_gump(press(g, sec["next"]), f"stepping the {section} aspects")
-        else:
-            press(g, 0)
-            raise CtlError(f"no aspect named {want!r} among the {section} section's aspects")
-        sec = menu["sections"][section]
-        if sec["activate"] is None:
-            press(g, 0)
-            raise CtlError(f"the {section} section shows no Activate button ({sec['aspect']} not unlocked?)")
-        g, menu = wait_gump(press(g, sec["activate"]), "the first Activate press",
-                            also=lambda evs: any(e.get("text") == aspects.CONFIRM_TEXT for e in evs))
-        if not any(h.get("text") == aspects.CONFIRM_TEXT for h in heard):
-            press(g, 0)
-            raise CtlError(f"no '{aspects.CONFIRM_TEXT}' after Activate: {[h.get('text') for h in heard]}")
-        # the server's answer to the confirming press: activated, already of that aspect, or a refusal
-        mark = press(g, menu["sections"][section]["activate"])
-        got = stc.wait_events(mark, lambda evs: any(e.get("ev") in ("speech_heard", "cliloc")
-                                                    and e.get("text") != aspects.CONFIRM_TEXT for e in evs)
-                              and any(e.get("ev") == "gump_open" for e in evs), timeout=4.0)
-        heard.extend(journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS and e.get("ev") != "gump_open")
-        g = next((e for e in reversed(got) if e.get("ev") == "gump_open"
-                  and _serial(e.get("gump_id")) == aspects.ASPECT_GUMP), None)
-        if g is not None:
-            menu = aspects.parse(g.get("layout"), g.get("lines"))
-            press(g, 0)
-        texts = [h.get("text") for h in heard if h.get("text")]
-        done = next((t for t in texts if aspects.activated_text(t)), None)
-        already = next((t for t in texts if aspects.already_text(t)), None)
-        stc.intent(None)
-        return {"ok": bool(done or already), "already": already is not None, "section": section,
-                "aspect": sec["aspect"], "tier": sec["tier"], "charges_before": before, "charges": menu["charges"],
-                "heard": heard, "reply": done or already or f"not activated: {texts}"}
+        io = _CtlIO(ctl, stc, aspects.AspectError)
+        human = Human(a.human, seed=a.seed)
+        try:
+            if section is None:
+                menu = aspects.read(io, human)
+                arm = menu["sections"].get("armor") or {}
+                out = {"ok": True, **menu, "reply": f"{menu['charges']} essence charges; armor "
+                       f"{arm.get('aspect')} tier {arm.get('tier')}"}
+            else:
+                stc.intent(f"Activating the {want or section} aspect on the {section}", "aspect")
+                res = aspects.activate(io, section, human, want)
+                stc.intent(None)
+                out = {**res, "section": section,
+                       "reply": next((t for t in res["texts"] if aspects.activated_text(t) or aspects.already_text(t)),
+                                     res.get("error"))}
+        except aspects.AspectError as e:
+            raise CtlError(str(e))
+        st = stc.state()
+        out["suit"] = aspects.suit(st["world"], st["movement"].get("self_serial"))
+        return out
     finally:
         ctl.close()
         stc.close()

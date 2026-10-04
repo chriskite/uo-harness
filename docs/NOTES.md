@@ -506,7 +506,10 @@ t 1791153675; gump fixtures `harness/testdata/aspect_gumps.json`. Wiki: Aspect_M
   `ctl act aspect activate <weapon|spellbook|armor> [ASPECT]` steps the section's arrows to ASPECT
   and does the double press. Live: read 6.4 s; activate (already) 10.2 s. The real activation
   through the act is untested; the user's own presses above are what it repeats.
-- Memories: #4083 (procedure, all characters), #4084 (Dan's tier, essence and armor serials).
+- **Lumber runner (since 2026-10-04, user):** before heading out each trip it checks the worn suit
+  by hue and activates Harvest through the menu when a piece lacks it (LUMBER_LOOP §13 "Harvest
+  aspect armor"; `harness/aspects.py` holds the menu flow `ctl act aspect` uses too).
+- Memories: #4085 (procedure, all characters; #4083 superseded), #4084 (Dan's tier, essence and armor serials).
 
 ## Cortina's rune tome quest (live 2026-10-03, Hackworth)
 

@@ -115,6 +115,7 @@ import captcha  # noqa: E402
 import combat  # noqa: E402
 import tracking  # noqa: E402
 import pouch  # noqa: E402
+import aspects  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 NEXT_STAND_PLANS = 6          # nearest trees (straight line) whose stands next_stand() compares
@@ -341,6 +342,8 @@ class LumberLoop:
         self.hatchet_worn = None     # this trip: the hatchet in hand when a chop's cursor came (trip row hatchet.worn)
         self.break_due = False       # the agent gate announced a break (break_due)
         self.recall_book = None      # runebook / rune tome serial: the red escape (prepare_recall)
+        self.aspect_hue = aspects.HARVEST_HUE   # worn armor in this hue counts as Harvest-aspected (aspect_ensure)
+        self.aspect_warned = set()   # aspect problems already posted as a juncture this run
         self._attack_scan = 0        # link.events index scanned for "... is attacking you!"
         self._flee_mark = 0          # len(link.events) when the guard flight started
         self.facet = know["facet"]   # the spot's facet: tree records and candidates
@@ -820,6 +823,74 @@ class LumberLoop:
                 return book
         raise Abort(f"no recall escape ({why}); refusing to work where players can attack without one "
                     f"(--recall off to override)")
+
+    def aspect_ensure(self, where: str):
+        """Head out in a suit of Harvest aspect armor (user, 2026-10-04; docs/NOTES.md
+        "Aspects"). Passive first: the six armor layers worn in the aspect's hue (the
+        server re-sends each piece in it on activation; a piece that left the
+        character since, e.g. dropped or banked, came back in its own hue). Only when a
+        piece isn't, the Aspect Mastery menu like a player (aspects.activate: armor,
+        Harvest, Activate twice; 5 Arcane Essence, nothing when the server says the
+        armor already has it, which then teaches the suit's hue). A missing piece, a
+        failed activation or essence below the menu's warning level is logged, posted
+        once per run (`low_supplies`, attention) and the trip goes on without. The
+        trip row's `harvest_aspect` says what was found and done."""
+        if self.args.harvest_aspect == "off":
+            self.stats["harvest_aspect"] = {"ok": None, "action": "off"}
+            return
+        st = self.link.state()
+        suit = aspects.suit(st["world"], self.self_serial(st), self.aspect_hue)
+        rec = {"ok": suit["ok"], "action": "none", "missing": suit["missing"], "plain": suit["plain"]}
+        self.stats["harvest_aspect"] = rec
+        if suit["ok"]:
+            return
+        if suit["missing"]:
+            rec["action"] = "missing"
+            self.aspect_problem(st, "missing", f"not wearing a full armor suit for the Harvest aspect: no "
+                                f"{', '.join(suit['missing'])}", suit)
+            return
+        log(f"harvest aspect ({where}): {', '.join(suit['plain'])} without it; activating")
+        resume = self._intent
+        self.doing("aspect", "Activating the Harvest aspect on the armor")
+        try:
+            res = aspects.activate(escape_mod.LinkIO(self.link), "armor", self.human, "harvest")
+        except aspects.AspectError as e:
+            res = {"ok": False, "already": False, "error": str(e), "texts": []}
+        finally:
+            if resume is not None:
+                self.doing(*resume)
+        hues = {p["hue"] for p in suit["pieces"]}
+        if res.get("already") and len(hues) == 1:
+            self.aspect_hue = hues.pop()     # the suit has the aspect in a hue of its own (Manage Hues)
+        rec.update(ok=res["ok"], action="already" if res.get("already") else "activated" if res["ok"] else "failed",
+                   charges=res.get("charges"), error=res.get("error"))
+        st = self.link.state()
+        self.memory.job_event("lumber", "aspect", {"where": where, "trip": self.trip_n, **rec,
+                                                   "texts": res.get("texts"), "aspect_hue": self.aspect_hue},
+                              **self._where(st))
+        if not res["ok"]:
+            self.aspect_problem(st, "failed", f"Harvest aspect not activated: {res.get('error')}", suit)
+            return
+        log(f"harvest aspect: {'already on' if res.get('already') else 'activated'}; "
+            f"{res.get('charges')} Arcane Essence charges")
+        low = res.get("warn_below") or 50
+        if res.get("charges") is not None and res["charges"] < low:
+            self.aspect_problem(st, "essence", f"Arcane Essence low: {res['charges']} charges (warning below {low}); "
+                                "at 0 every aspect is lost", suit, item="arcane essence",
+                                have=res["charges"], need=low)
+
+    def aspect_problem(self, st, key: str, text: str, suit: dict, item: str = "harvest aspect armor",
+                       have=None, need=None):
+        """Log an aspect problem; the first of its kind this run is also a `low_supplies`
+        juncture (attention) for the overseer."""
+        log(f"harvest aspect: {text}")
+        if key in self.aspect_warned:
+            return
+        self.aspect_warned.add(key)
+        self.memory.juncture("lumber", "low_supplies", text, "attention",
+                             {"item": item, "have": have, "need": need, "why": key, "trip": self.trip_n,
+                              "missing": suit["missing"], "plain": suit["plain"], "pieces": suit["pieces"],
+                              "how": "ctl act aspect activate armor harvest (all six armor pieces worn)"})
 
     def monster_stop(self, st, a, worst, swung, why: str):
         """A creature ends the run: under attack or with monsters closing in there is no
@@ -1607,6 +1678,7 @@ class LumberLoop:
             if self.break_due:
                 log("break due: no harvesting this trip")
                 return 0
+            self.aspect_ensure("heading out")
             self.go_out()
             self.afield = True
             self.track_ensure("at the spot")
@@ -2483,6 +2555,10 @@ def main():
                     help="red escape by recall (escape.py): where players can attack (pvp spots) a runebook "
                          "or rune tome with a default rune and a charge or a castable Recall is required to "
                          "start; 'off' runs without it (a red then only stops the run)")
+    ap.add_argument("--harvest-aspect", choices=("ensure", "off"), default="ensure",
+                    help="before heading out each trip, make sure the six worn armor pieces carry the Harvest "
+                         "aspect (its hue); activate it through the [aspect menu when one doesn't (5 Arcane "
+                         "Essence); a missing piece or failure is a low_supplies juncture, the trip goes on")
     ap.add_argument("--track", choices=("reds", "off"), default="reds",
                     help="keep Tracking's Hunting mode on murderer players all run (tracking.py); murderer hits "
                          "within --track-react-range at a pvp spot send us home like a red in view")
