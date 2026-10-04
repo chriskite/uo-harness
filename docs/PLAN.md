@@ -936,6 +936,44 @@ plan only carries the logs in one.
 - Replay of `20261004_113229` raises no alarm for our own two pops. The same hue change without our
   double-click (a synthetic case built from it) raises the thief alarm.
 
+## Staff alarm on an invulnerable player in view (planned 2026-10-04, after the thief guard)
+
+User idea (2026-10-04): a GM is probably an invulnerable character, so raise the staff alarm when
+one comes on screen while we chop, without waiting for them to speak. The worry was false alarms
+from vendors. Measured over all captures (throwaway world-model replay of every `logs/session_*`,
+2026-10-04):
+- **"Invulnerable on screen" alone would fire on most trips.** Notoriety 7 (yellow) was on screen
+  while we stood at the tree being chopped (within 3 tiles of a harvest attempt, ±15 s) in 12 of 13
+  lumber sessions, within 8 tiles in 10. 317 mobiles. Away from Shelter they were mostly player vendors
+  ("TOP TIER VENDOR", "SHOGUN SHOP", "Scrolls - Junk 7k ea", "Goods for the boyz") and town NPCs.
+- **Flag `0x20` (`threats.FLAG_PLAYER_HINT`) separates them.**
+  - On 1,474 human mobiles at notoriety 1/3/4/6 (players, including the reds), and on our own character.
+  - Never on any of the 2,607 notoriety-7 sightings (736 distinct NPCs, vendors, player vendors, criers).
+  - Never on about 2,400 non-human mobiles.
+  - Human NPCs (guards like "a prevalian footman", named NPCs) don't carry it either.
+  - **Notoriety 7 together with `0x20` has never been seen.**
+- [INFERENCE] A GM is a player account, so it should carry `0x20`, and the user's guess puts it at
+  notoriety 7. Neither is confirmed: no staff have been captured. A GM shown blue or grey, or hidden,
+  slips past this rule; the speech hold and the other staff hints still apply.
+
+**Plan:**
+- **New staff hint "invulnerable player":** a mobile in view with notoriety 7 and flag `0x20`. It
+  joins `speech_guard.STAFF_HINTS` (GM body, staff-like name, not on screen, attendance check), but
+  fires on sight, not only when they speak.
+- **During a harvest job it raises `gm_suspected` and the repeating staff alarm** (`alerts.post_gm`)
+  through the path loop_lumber already uses for hinted speakers. It holds the job like a speech hold
+  until the human or overseer acks. Wire it into the hunt runner the same way where it shares the
+  plumbing.
+- **Log every sighting** of the combination, job or not (serial, name, body, position, hue, flags,
+  equipment), as a `staff_sighting` job event. That record is how we learn what staff look like on
+  Outlands.
+- **Vendors and NPCs (notoriety 7 without `0x20`) stay ignored.** No movement or arrival heuristics:
+  the flag rule needs none on the data we have.
+
+**Done when:** offline tests show the hint on a synthetic notoriety-7 + `0x20` mobile (alarm raised,
+job held). A replay of every capture produces **zero** alarms from this hint (the measurement above,
+as a test over the committed captures). THREATS.md §1 and OVERSEER.md describe the hint.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

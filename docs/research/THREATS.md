@@ -70,6 +70,7 @@ Citations are reference-style links; wiki revision ids are in §9.
 | The Outlands 0x77 MobileMove has **no** notoriety/flags field (upstream 0x77 has them: `PacketHandlers.cs:2808-2811`), and neither does 0x78 | H | [WORLDMODEL.md:216,326][d-wm] |
 | Notoriety **changes** arrive as a re-sent 0x20: two mongbats (0x000A6A4B, 0x000A6A74) went 3 → 4 inside session 20260929_204225 | H | throwaway scan of the 27 `logs/session_*.s2c.raw` captures (this doc) |
 | Our own notoriety comes in 0x22 ConfirmWalk byte 2 (`& 0xBF`; 0 or > 7 is coerced to 1) | H | [WORLDMODEL.md:181][d-wm], `harness/world/runtime.py:97-100` |
+| **Mobile flag `0x20` marks player characters** (`threats.FLAG_PLAYER_HINT`; ClassicUO calls it Movable). Across all captures to 2026-10-04 it was on 1,474 human mobiles at notoriety 1/3/4/6 and on our own character, and never on a notoriety-7 mobile (2,607 sightings: NPCs, vendors, player vendors, criers), a non-human (~2,400), or a human NPC such as a guard. So notoriety 7 + `0x20` (never seen yet) is the planned "invulnerable player" staff hint (PLAN.md) | H (our captures) | throwaway world-model replay of every `logs/session_*`, 2026-10-04 |
 
 ### 1.2 Flagging rules that matter to a gatherer
 
