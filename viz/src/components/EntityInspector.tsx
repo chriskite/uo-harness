@@ -4,6 +4,7 @@ import { DIR_NAMES, NOTORIETY, fmtTime } from "../format.ts";
 import { layerName } from "../containers.ts";
 import { displayName, hex, lookupEntity } from "../serial.ts";
 import type { VizSnapshot } from "../store.ts";
+import { BuffList } from "./BuffList.tsx";
 import { Badge, SerialLink } from "./common.tsx";
 
 const RECENT_EVENTS = 12;
@@ -71,15 +72,7 @@ export function EntityInspector({ viz }: { viz: VizSnapshot }) {
           </span>
         )}
       </div>
-      {buffs.length > 0 && (
-        <div className="buffs">
-          {buffs.map((b) => (
-            <span key={b.icon_id} className="buff" title={typeof b.description === "string" ? b.description : ""}>
-              {b.title || `buff ${b.icon_id}`}
-            </span>
-          ))}
-        </div>
-      )}
+      <BuffList buffs={buffs} />
       {children.length > 0 && (
         <>
           <h4>contents / equipment ({children.length})</h4>

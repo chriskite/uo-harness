@@ -127,7 +127,7 @@ export interface CensusEntry {
   sources: string[];
 }
 
-export type Buff = { icon_id: number; title?: string; description?: string } & Record<string, unknown>;
+export type Buff = { icon_id: number; title?: string; cliloc?: number; description?: string } & Record<string, unknown>;
 
 export interface Snapshot {
   self: SelfState;

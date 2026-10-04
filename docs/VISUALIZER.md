@@ -600,7 +600,10 @@ serial link) opens the drawer on the Inspector tab.
 
 - **SelfPanel.** `world.self`: name, serial, vitals bars, stats, gold/weight, warmode,
   notoriety, buffs (`world.buffs[self]`), skills (top N; values ×10 fixed point, joined with
-  `skill_names`).
+  `skill_names`). Buff names (here and in the EntityInspector, `BuffList`): the server's
+  `title`, else its `cliloc` from the client's Cliloc.enu (`GET /api/cliloc?n=`; most Outlands
+  buffs come with an empty title, e.g. icon 138 = cliloc 1044416 "Magic Reflection"), else
+  `buff <icon>`.
 - **MovementPanel (new, harness state).** From `movement`: true position and facing; the
   world-model position with a **DIVERGED** badge when they differ; inflight walks; ladder
   `next_seq`; `rejects_in_row` / **STALLED**; resync pending; client stale (re-anchor due). Below

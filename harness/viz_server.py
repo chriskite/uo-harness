@@ -26,6 +26,9 @@ Routes:
                       503 JSON when there's no game window (or --no-live)
   GET  /api/skillnames  skill names by id from the client's skills.mul (uomap.skill_names; the
                       viz's fallback when the server sent no name list this session)
+  GET  /api/cliloc?n=N[,N...]  {"texts": {N: text}} from the client's Cliloc.enu (uo/cliloc.py,
+                      read-only; at most CLILOC_MAX numbers, unknown ones left out): the
+                      names of buffs the server sent as a cliloc with an empty title
   GET  /api/health    mode, session, order, poll lag, connection, diagnostics
   POST /api/playback  replay only: {"action": "play"|"pause"|"step"|"rate", "rate": R}
   GET  /api/gate      live only: the proxy's agent gate ({"op": "gate"}), verbatim
@@ -75,6 +78,7 @@ import viz_feed  # noqa: E402
 import facet as facet_mod  # noqa: E402
 import jobs as jobs_mod  # noqa: E402
 import memory as memory_mod  # noqa: E402
+from uo import cliloc  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SSE_KEEPALIVE_S = 15.0
@@ -86,6 +90,7 @@ CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "application/javasc
                  ".txt": "text/plain; charset=utf-8"}
 MAX_BODY = 64 * 1024
 CHAT_MAX_CHARS = 2000
+CLILOC_MAX = 200   # numbers per /api/cliloc request
 STOREY_Z = 20       # a house piece this high above the house's tile is on an upper floor
 
 
@@ -319,6 +324,22 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._json(200, {"names": names, "source": "client skills.mul"})
 
+    def _cliloc(self, q):
+        try:
+            numbers = {int(s) for v in q.get("n", []) for s in v.split(",") if s.strip()}
+        except ValueError:
+            self._json(400, {"error": "n must be comma-separated cliloc numbers"})
+            return
+        if len(numbers) > CLILOC_MAX:
+            self._json(400, {"error": f"at most {CLILOC_MAX} numbers"})
+            return
+        try:
+            table = cliloc.load()
+        except OSError as e:
+            self._json(404, {"error": f"Cliloc.enu unavailable: {e}"})
+            return
+        self._json(200, {"texts": {str(n): table[n] for n in sorted(numbers) if n in table}})
+
     def _multi(self, spec: str):
         try:
             multi_id = int(spec, 0)
@@ -380,6 +401,8 @@ class Handler(BaseHTTPRequestHandler):
             self._live_stream(parse_qs(url.query))
         elif url.path == "/api/skillnames":
             self._skillnames()
+        elif url.path == "/api/cliloc":
+            self._cliloc(parse_qs(url.query))
         elif url.path == "/api/health":
             self._json(200, feed.health())
         elif url.path == "/api/gate":

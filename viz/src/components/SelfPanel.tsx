@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NOTORIETY } from "../format.ts";
 import { fetchClientSkillNames, skillName } from "../skills.ts";
 import type { Snapshot } from "../types.ts";
+import { BuffList } from "./BuffList.tsx";
 import { Badge, Bar, Panel } from "./common.tsx";
 
 const TOP_SKILLS = 8;
@@ -89,15 +90,7 @@ export function SelfPanel({ world }: { world: Snapshot | null }) {
             ))}
         </div>
       </details>
-      {buffs.length > 0 && (
-        <div className="buffs">
-          {buffs.map((b) => (
-            <span key={b.icon_id} className="buff" title={typeof b.description === "string" ? b.description : ""}>
-              {b.title || `buff ${b.icon_id}`}
-            </span>
-          ))}
-        </div>
-      )}
+      <BuffList buffs={buffs} />
       <details className="skills">
         <summary>
           skills {shown.length === 0 && !allSkills ? "(all 0)" : `(top ${shown.length})`}
