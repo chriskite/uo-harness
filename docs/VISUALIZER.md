@@ -536,6 +536,13 @@ character.
     by WGC to 10 fps.
   - Each frame copies only the kept box around the character.
   - One capture for all viewers, started by the first request and stopped 15 s after the last.
+  - **The native capture runs in a helper process** (`python harness/liveview.py --helper HWND
+    FPS`; BGR crops on its stdout, stdin EOF = stop), not in the server. `windows_capture` raised
+    an access violation inside `start_free_threaded` on 2026-10-04 and killed the whole viz
+    (docs/NOTES.md, "viz death"). A helper crash now gives the viewer
+    `window capture helper crashed (exit 0x…)` and a new helper starts after 5 s. When the game
+    window closes the helper exits and the viewer reads "no visible window" until the new window
+    exists (the old code kept serving the dead window's last frame).
   - JPEG encoding via OpenCV (installed with `windows-capture`) takes about 3 ms.
 - **Where the character is:** ClassicUO draws the player on the centre tile of the game
   viewport. With the viewport filling the window (this machine's layout) that is the
