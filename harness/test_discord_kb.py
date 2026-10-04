@@ -116,6 +116,17 @@ def test_grounding():
         con.close()
 
 
+def test_parse():
+    two = '{"facts": [{"cluster_id": 1}]}\n\n{"facts": [{"cluster_id": 2}]}'
+    check(kbm.parse_json(two) == {"facts": [{"cluster_id": 1}]}, "a second object after the reply is ignored")
+    check(kbm.parse_json('Here it is:\n```json\n{"claims": []}\n```') == {"claims": []}, "prose and fences around it")
+    try:
+        kbm.parse_json("no json here")
+        check(False, "a reply without an object is an error")
+    except ValueError:
+        check(True, "a reply without an object is an error")
+
+
 def test_rules():
     check(kbm.apply_rules("consensus", 1, 0, False) == "single_source", "consensus with one author -> single_source")
     check(kbm.apply_rules("official", 1, 0, False) == "single_source", "official without an official claim falls through")
@@ -247,7 +258,7 @@ def test_clusters():
 
 
 def main():
-    for t in (test_windows, test_grounding, test_rules, test_promote, test_clusters):
+    for t in (test_windows, test_grounding, test_parse, test_rules, test_promote, test_clusters):
         print(f"== {t.__name__} ==")
         t()
     print(f"\ndiscord_kb: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")

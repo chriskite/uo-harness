@@ -220,16 +220,18 @@ def _omp(prompt_text, model, thinking):
 
 
 def parse_json(text):
+    """The reply's JSON object: fences stripped; with prose around it or a second object
+    after it (seen 3 times in ~2700 calls), the first complete object."""
     t = text.strip()
     t = re.sub(r"^```(?:json)?\s*", "", t)
     t = re.sub(r"\s*```$", "", t)
     try:
         return json.loads(t)
     except ValueError:
-        i, j = t.find("{"), t.rfind("}")
-        if i < 0 or j <= i:
+        i = t.find("{")
+        if i < 0:
             raise ValueError("no JSON object in the reply")
-        return json.loads(t[i:j + 1])
+        return json.JSONDecoder().raw_decode(t, i)[0]
 
 
 def llm_json(prompt_text, model, thinking, stage, ref=None, validate=None):

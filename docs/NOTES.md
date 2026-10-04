@@ -625,6 +625,16 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
     pouch, together with the `0x25` hue 38 → 0 re-send of the pouch. Still unmeasured: whether a
     thief's pop also damages us and sends the "remaining" line. A pop we didn't cause = explosion
     and/or hue change with no C2S `0x06` of ours on that pouch just before.
+  - **Built on it (2026-10-04, offline; docs/PLAN.md "Keep thieves off the logs"):** the world model
+    parses `0x54` (Outlands 18 B: mode, sound u16, volume u16, x/y u32, z i32) and turns sounds and
+    `0xC0` type-2 location effects within 2 tiles of us into `sound` / `effect` events. The five
+    explosions sit on x±1, y±1 and (x+1, y+1, z+11), none on our own tile: exactly RunUO's
+    TrapableContainer MagicTrap, which also damages the one who opened it [INFERENCE: a thief's pop
+    costs the thief the hit, not us]. A lift sends `0x1D` for the lifted item at once (2:50.9, twice),
+    so the ledger must expect a drag's vanish (`("moving", serial, container)`).
+  - **The vendor paid from the bank:** Hackworth had 0 gp in the pack; Errol's line was "The total of
+    thy purchase is 75 gold, which has been withdrawn from your bank account." `ctl act buy` now allows
+    a buy above the pack's gold and books the amount from that line.
 - **Casting moves the hatchet to the pack** (hatchets are two-handed): "That must be equipped
   for any serious chopping." The runner's hatchet use re-equips it.
 - **The lumber runner runs from creature damage (afcd4b0).** When one creature hits at hits ≥ 60 %
@@ -1137,6 +1147,8 @@ Read from the memory-store `gump_open` events and the session capture
   - **Long runs from an agent shell:** the agent's bash tool kills its job (and the python child) at its timeout (300 s by default), mid-run. Launch the full run detached (PowerShell `Start-Process ... -RedirectStandardOutput logs/discord_kb_run.log`) and read the log; an interrupted run loses only its in-flight calls.
   - **First full run (2026-10-03, CLUSTER_SIM 0.86):** 228 windows (#harvesting, #newplayer, #patch-notes; #scripting and #template-builds held only same-day messages, #announcements wasn't crawled yet) → 5334 claims kept, 44 dropped by the grounding checks → 4203 clusters (85 % singletons; the largest has 16 claims) → facts: single_source 3280, consensus 801, disputed 58, outdated 26, official 19, not_useful 18, wrong 1. 820 official/consensus facts promoted into harness.db. Cost $26.26 over 761 calls (extraction $14.18 for 1.58M prompt / 0.78M output tokens; adjudication $12.08, 533 calls of 8 clusters), roughly 35 min of wall time at concurrency 4 (an interrupted run plus the resumed one). 4 adjudication replies failed validation (a `rules` section, a missing cluster, trailing data) and all passed on the corrective retry.
   - **Quality checks (same run):** 10 random clusters with ≥ 3 claims were all one topic (some combine related sub-facts into one compound statement), so the threshold stayed at 0.86. Residual duplicates across clusters: among the 4100 digest facts, 6 pairs have statement cosine ≥ 0.95, 25 ≥ 0.92, 80 ≥ 0.90 (e.g. two Item Identification wand facts). Lowering CLUSTER_SIM to 0.82 and `consolidate --recluster` would merge more but re-adjudicates everything (~$12) and replaces every promoted entry; not done.
+  - **Rebuild after the full crawl (2026-10-04):** 496 new windows (#newplayer back to 2026-06-27, #template-builds 16.1k msgs, #scripting 2.4k, #announcements 146; #patch-notes still 6 posts, its crawl ended "stuck: no older page after 3 jumps") plus 2 re-extracted days that had been partial (their 42 clusters dissolved). Totals: 803 windows, 20,053 claims kept, 126 dropped → 14,016 clusters (79 % singletons, the largest 79 claims) → facts: single_source 10,105, consensus 3,388, official 173, disputed 214, outdated 82, not_useful 53, wrong 1. Promote: 2,765 added, 339 updated, 25 retracted (verdicts that dropped), 1 confirmation of an existing entry; 3,561 active in harness.db. 1,953 calls, $71.11 list price (subscription usage), ~2.5 h at concurrency 4, 0 window failures. One adjudication batch failed twice on "Extra data" (a second JSON object after the reply); `parse_json` now takes the first complete object, and a rerun adjudicated those 8 clusters. Pre-embedding the 3,106 new knowledge entries for `ctl know search` took 3.5 s on the GPU.
+  - **Quality checks (rebuild):** 10 random clusters with ≥ 3 claims were all one topic (some hold conflicting values, e.g. arcane essence at 20 gp vs 1k gp, which adjudication resolves). Duplicates across clusters grew with the corpus: of 13,666 digest facts, 26 pairs have cosine ≥ 0.95, 166 ≥ 0.92, 459 ≥ 0.90 (~3 % of facts in a pair ≥ 0.90). Threshold unchanged; a `consolidate --recluster` at 0.82 would re-adjudicate all ~14k clusters (~$45 list price) and replace every promoted entry.
 
 ## Network observations
 
