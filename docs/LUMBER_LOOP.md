@@ -54,7 +54,7 @@ These constraints come from existing docs and aren't optimization targets:
 
 | Fact | Source | Loop consequence |
 |---|---|---|
-| Smart Harvest: double-click the equipped hatchet and target yourself → the server chops a nearby tree with wood left | [Smart Harvest](https://wiki.uooutlands.com/Smart_Harvest); capture `20261001_214649` (docs/NOTES.md) | Confirmed 2026-10-04. The runner still targets each tree; switching to Smart Harvest is next (docs/PLAN.md "Smart Harvest for lumber"). Range and which tree it picks: unmeasured |
+| Smart Harvest: double-click the equipped hatchet and target yourself → the server chops a nearby tree with wood left | [Smart Harvest](https://wiki.uooutlands.com/Smart_Harvest); capture `20261001_214649` (docs/NOTES.md) | Confirmed 2026-10-04. **The runner uses it since 2026-10-04** (built offline, attended live trip pending; docs/PLAN.md "Smart Harvest for lumber", §13 "Harvest attempt"). With nothing in reach: "You do not see any harvestable resources nearby." → the runner moves to the next stand. Reach and which tree it picks: unmeasured (`SMART_RANGE` = 1, the proven minimum: 23:47 chopped the one tree at distance 1) |
 | Harvesting on Shelter Island needs Young status. Harvest chance there is 50 % of normal, and skills cap at 80 | [Shelter Island](https://wiki.uooutlands.com/Shelter_Island) | Shelter yield is half the overworld's, so the r measured there doesn't transfer (§6). Lumberjacking is otherwise blocked in town regions |
 | No hostile player actions on Shelter Island. Bank and vendors need Young status | Shelter Island | PK hazard on Shelter = 0 (§6). Bank and banker purchases work only while Young |
 | **TestWorth is Young (capture evidence, 2026-09-29).** The client received the Young-only login gump "Welcome to Shelter Island" (`0xC16E0192`) in sessions 163420 and 202723 | Shelter Island + `loop_mine.py timeline 20260929_163420` | Venue decision holds |
@@ -538,7 +538,8 @@ Source: `python harness/loop_mine.py timeline 20260929_204225`. Every fact below
   - The result arrives about 4.1 s later: fail cliloc 500495, success plain text "You chop some
     logs and put them in your backpack." (+5 and +7 logs).
   - Nothing auto-repeated, because the demo targeted trees, not the character. Whether targeting
-    yourself starts Smart Harvest is still **untested**.
+    yourself starts Smart Harvest was untested then; confirmed 2026-10-04 and used by the runner
+    since (§2, §13 "Harvest attempt"). Each self-target is still one attempt.
   - Yield on Shelter at Lumberjacking 60.2: 2 successes in 12 attempts, 12 logs, one attempt about
     every 9.5 s by hand, so about 6 logs/min. [INFERENCE from a small sample]
 - **Conversion:**
@@ -624,7 +625,8 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
 `act()`) and `Mover` (walking, learned blocks, doors). `errand_bank.py` uses it too.
 
 - **Trip** (since 2026-10-01, user decision §12.5: bank the boards):
-  1. Harvest the spot's trees (nearest first; trees depleted in the last `--regrow-min` are skipped).
+  1. Harvest by Smart Harvest at stands by the spot's trees (§13 "Harvest attempt", "Trees"; trees
+     out of wood in the last `--regrow-min` are skipped).
   2. Convert every log stack.
   3. Walk to within `--bank-range` (4) of where the spot's banker (`banker` in the spot, e.g. Len
      `0x000001EA` on Shelter) stands now. Fall back to the spot's banker position (a bank marker when
@@ -727,7 +729,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     guess when several creatures are around or the damage had another source (poison, an unseen
     player): such hits then wrongly teach a body as ranged; hits shared between candidates
     teach nothing.
-  - **Trees near known-aggressive creatures wait** (`next_tree`/`tree_guards`): a hostile creature
+  - **Trees near known-aggressive creatures wait** (`next_stand`/`tree_guards`): a hostile creature
     in view (learned body, war mode, notoriety 6; not pets, not passive bodies, so no walking away
     from sheep or a tamer's pets) makes every tree within its zone ineligible while it is in view,
     so the runner picks one away from it instead of chopping next to it until it attacks. The trees
@@ -914,13 +916,23 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   Until 2026-10-01 the trip ended in the rental room instead: say `room` to the innkeeper,
   press Enter, store in the secure container, and exit by the door at the start of the next
   trip. The live runs below used that version.
-- **Harvest attempt:**
-  - dclick the hatchet, wait for the cursor, pause for "aim" time, send `target_xyz` at the
-    tree's (x, y, z, static graphic), wait for the outcome.
-  - Outcomes: success text (gain measured from the backpack count), fail 500495, depleted
-    500488/500493, not-a-tree 500489 (abort: bad knowledge), lockout text (wait the stated
-    seconds), or none (≤ 3, then abort).
+- **Harvest attempt (Smart Harvest since 2026-10-04; docs/PLAN.md "Smart Harvest for lumber"):**
+  - dclick the hatchet, wait for the cursor, pause for "aim" time, answer the cursor with ourselves
+    (`self_target` = `combat.target_self`, what `ctl act target self` sends: our serial,
+    movement's x/y/z, our body), wait for the outcome. The server picks the tree. Byte-equal to the
+    stock client's self-targets in capture `20261001_214649` (`test_loop_lumber.py
+    unit_capture_smart_harvest`). Until 2026-10-04 it sent `target_xyz` at one tree's (x, y, z,
+    static graphic).
+  - Outcomes: success text (gain measured from the backpack count), fail 500495, nothing nearby
+    ("You do not see any harvestable resources nearby." / "You cannot produce any wood from that."
+    over us: end the stay, mark the trees within `SMART_RANGE` of the stand `nothing_near`, next
+    stand), not enough wood 500488/500493 (end the stay, no marks), lockout text (wait the stated
+    seconds), or none (≤ 3 in a row, then abort). The not-a-tree outcome (500489) went with
+    per-tree targeting.
   - A server-reported travel lockout (after a moongate, say) is waited out.
+  - Every stand is a `stand` job event: the stand tile, the trees within 6 tiles (offset, distance,
+    graphic), attempts, successes, logs, the direction the server turned us per chop (`faced`), how
+    the stay ended, its seconds. That's the data for measuring the reach and which tree it picks.
 - **Captcha:**
   - The trigger is the gump with lumber.json's id plus text entry 2 and button 594. Decoys never
     match.
@@ -937,19 +949,24 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   captcha shape and conversion. `pvp: false` (Shelter) skips the recall readiness and the guard
   flight. The per-venue `loops/lumber_*.json` files are gone.
 - **Trees:** candidates are the spot's seed trees plus every tree static in its area, all of them
-  by default (`--max-trees 0`; it was 8 per trip, which capped a trip at ~180 logs). Trees depleted
-  within `--regrow-min` are skipped: 45 min by default, and `ctl lumber plan` passes the estimate
-  from harvest memory (65 min on 2026-10-02; the old default of 20 sent the runner to trees that
-  were still empty). **The next tree is chosen from where the character stands** (`next_tree`,
-  since 2026-10-02): the shortest planned walk among the 6 nearest by straight line, ×1.0–1.15
-  noise. Before, the list was walked in its start-order: in the Terran pass (live 2026-10-02) that
-  sent the runner 80–90 steps round a ridge between trees on both sides of the road while trees
-  3–6 steps away waited. On those 16 trees the old order walked 673 steps, the new choice 148
-  (throwaway replay on the real map). A tree without a route is skipped for the regrowth window. A
-  tree the server rejects (500489) is remembered as not a tree. **O'hii trees (0x0C9E) are never
-  candidates (since 2026-10-03):** `uomap.find_trees` skips `UoMap.UNCHOPPABLE_TREES`, because all
-  9 tried answered 500489 (harvest memory: 9/9 not_tree, 0 successes) and the 10-03 captcha came
-  on a chop of one (1524,3039); docs/NOTES.md, traffic audit of the 2026-10-02/03 captures.
+  by default (`--max-trees 0`; it was 8 per trip, which capped a trip at ~180 logs). Trees out of
+  wood (depleted before 2026-10-04, or `nothing_near` since) within `--regrow-min` are skipped: 45
+  min by default, and `ctl lumber plan` passes the estimate from harvest memory (65 min on
+  2026-10-02; the old default of 20 sent the runner to trees that were still empty). **Since Smart
+  Harvest the list chooses where to stand, not what to target** (`next_stand`): among the 6
+  nearest by straight line, the planned walk (to within 1 of the tree, or its seed `stand`) with
+  the least cost per candidate tree within `SMART_RANGE` of where it ends, ×1.0–1.15 noise. The
+  runner stays there until the server says nothing nearby has wood, the quota is met, a break is
+  due or `--max-attempts-per-stand` (60); `unstick` repositions or clears the Stationary Penalty
+  before every chop, so long stays are covered. Planned walks from where the character stands
+  (since 2026-10-02): before, the list was walked in its start-order, and in the Terran pass (live
+  2026-10-02) that sent the runner 80–90 steps round a ridge between trees on both sides of the
+  road while trees 3–6 steps away waited. On those 16 trees the old order walked 673 steps, the
+  new choice 148 (throwaway replay on the real map). A tree without a route is skipped for the
+  regrowth window. **O'hii trees (0x0C9E) are never candidates (since 2026-10-03):**
+  `uomap.find_trees` skips `UoMap.UNCHOPPABLE_TREES`, because all 9 tried answered 500489 (harvest
+  memory: 9/9 not_tree, 0 successes) and the 10-03 captcha came on a chop of one (1524,3039);
+  docs/NOTES.md, traffic audit of the 2026-10-02/03 captures.
 - **Hatchet choice (since 2026-10-02):** `--hatchet copper` (or `copper+exceptional`) uses only a
   hatchet of that material (by hue, `harness/data/hatchets.json`) and quality (by its clicked
   name); none such aborts the start. Without it: worn, else the shallowest in the pack.
@@ -979,7 +996,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
 - **A trip ends when its candidate trees run out**, whatever `--logs-per-trip` says, and the end
   of a trip is convert + bank; the row is marked `dry`, and the planner keeps the spot out until its
   trees regrow. A 12-radius area (33 trees) ran dry in 11 min (Terran, 2026-10-02). The list is
-  fixed at the trip's start (depleted trees come back after `--regrow-min`).
+  fixed at the trip's start (trees out of wood come back after `--regrow-min`).
 - **Doors** (tiledata Door flag, or classic door art 0x0675–0x06F4: the demo's inn doors
   0x06A5/0x06AD/0x06ED/0x06EF and the room door 0x06E5): opened ahead, like the client's auto-open.
   When a step or turn leaves the character facing a door on the next tile, the Mover sends the
@@ -1033,8 +1050,10 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     that a known wall at a turn gets no step into it, and that a closed door gets exactly one
     open-door request, sent from the tile before it while facing it, with no deny at the door.
 - **Data:** the harness memory store (docs/MEMORY.md):
-  - `harvest_nodes` and `harvest_attempts`: per tree, attempts/successes/yield/depleted/
-    unreachable/not-a-tree, and every attempt
+  - `harvest_nodes` and `harvest_attempts`: since Smart Harvest (2026-10-04) attempts and yield
+    per stand tile, and per tree `nothing_near` marks and unreachable; before, per tree
+    attempts/successes/yield/depleted/unreachable/not-a-tree; every attempt
+  - `job_events` kind `stand`: one per stand (above)
   - `episodes` (loop `lumber`): one row per trip with phase durations, steps, blocks, doors,
     captchas and human wait, attempts, successes, logs, stored, escapes, break_due
 
@@ -1045,7 +1064,13 @@ connection. It runs 2 trips and checks:
 - 16 decoys, none answered
 - the only agent gump replies are 2 room enters and 2 exits
 - all 18 logs end up as boards in the box
-- the dry tree is tried once per trip
+- the dry tree is tried once per trip (since Smart Harvest, 2026-10-04: every chop cursor is
+  answered with ourselves, byte-checked against the stock client's form; the simulated server
+  chops the nearest tree with wood within 2 tiles, else says "nothing nearby", once at the dry
+  tree's stand per trip and once when the good tree runs out; the runner moves on each time,
+  records attempts on the stand tile, marks both trees `nothing_near` and writes one `stand`
+  event per stand. `unit_capture_smart_harvest` pins the cursor answer to capture
+  `20261001_214649`)
 - open-door requests only happen when a door blocks the move (none at plain walls)
 - the post-exit lockout is waited out, with no lockout message provoked
 - the only speech is `room`

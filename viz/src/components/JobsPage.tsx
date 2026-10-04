@@ -69,6 +69,7 @@ function LumberJobs({ onJob }: { onJob: (j: JobKind) => void }) {
           <>
             {" · "}chop attempts: {data.harvest.success} success / {data.harvest.fail} fail / {data.harvest.depleted} depleted /{" "}
             {data.harvest.unreachable} unreachable{data.harvest.not_tree ? ` / ${data.harvest.not_tree} not a tree` : ""}
+            {data.harvest.nothing_near ? ` · ${data.harvest.nothing_near} trees out of wood (nothing nearby)` : ""}
             {data.harvest.success_rate !== null && ` (${Math.round(data.harvest.success_rate * 100)}% land)`}
           </>
         )}

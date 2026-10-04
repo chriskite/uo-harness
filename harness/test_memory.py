@@ -106,8 +106,13 @@ def test_harvest():
     m.harvest_record(0, 1941, 2601, 0, 0x0CE0, "not_tree", t=1000.0)
     check("not-a-tree is never available again", not m.harvest_available(0, 1941, 2601, 0, 0, 1e12))
     check("same tile on another facet is a different node", m.harvest_available(1, 1935, 2605, 0, 600, 1100.0))
+    m.harvest_record(0, 1942, 2602, 0, 0x0CE0, "nothing_near", t=1000.0)
+    check("a tree in reach of a Smart Harvest 'nothing nearby' is out of wood for the regrowth window",
+          not m.harvest_available(0, 1942, 2602, 0, 600, 1599.0)
+          and m.harvest_available(0, 1942, 2602, 0, 600, 1600.0)
+          and m.harvest_node(0, 1942, 2602, 0)["depleted_at"] == 1000.0)
     n = m.con.execute("SELECT COUNT(*) FROM harvest_attempts").fetchone()[0]
-    check("every outcome logged as an attempt row", n == 5, str(n))
+    check("every outcome logged as an attempt row", n == 6, str(n))
     m.episode("lumber", {"t_start": 1.0, "t_end": 2.0, "logs": 10})
     m.episode("errand", {"t_start": 3.0})
     check("episodes are per loop, in order", m.episodes("lumber") == [{"t_start": 1.0, "t_end": 2.0, "logs": 10}])

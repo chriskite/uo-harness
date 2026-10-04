@@ -278,6 +278,7 @@ export interface HarvestStats {
   depleted: number;
   unreachable: number;
   not_tree: number;
+  nothing_near: number; // Smart Harvest: trees marked out of wood after "nothing nearby" (not attempts)
   yield: number;
   success_rate: number | null;
 }

@@ -752,7 +752,7 @@ disturb recovery; a reflected opener would have saved Nusero; flight and healing
   Open: how long it lasts on Outlands,
   how to see it's up (buff icon), and recasting it at the start of each trip and after each reflect.
 
-## Smart Harvest for lumber: next (decided 2026-10-04, not built)
+## Smart Harvest for lumber: built offline 2026-10-04, attended live trip pending
 
 **Decision (user, 2026-10-04): the lumber runner switches from targeting a tree to Smart Harvest,
 and that is the next lumber work.** Another agent implements it. Smart Harvest: double-click the
@@ -807,6 +807,47 @@ harvest from any nearby spot that has resources remaining").
 harvestable resources nearby" move-on; an attended live trip chops a quota with Smart Harvest
 only; trip and episode rows still feed `lumber plan`; the measured range and the tree it picks
 are written to docs/NOTES.md and LUMBER_LOOP.md §2.
+
+**Built offline (2026-10-04; live trip pending):** `harness/loop_lumber.py`, cut over with no flag.
+- **Cursor answer:** `self_target(st, cur)` = `combat.target_self` (the fields `ctl act target self`
+  sends): our serial, movement's x/y/z, our body. `test_loop_lumber.py unit_capture_smart_harvest`
+  replays capture `20261001_214649` through the proxy's SessionTap and gets the client's exact bytes
+  at 23:20 and 23:47 (`6c00 <cursor> 00 0020f127 <x> <y> 00000000 00000190`). The z must be
+  movement's: the world model's self z said 10 there while the client sent 0.
+- **Outcome:** `nothing_near` = either line in lumber.json `harvest.nothing_near_texts`; the stay at
+  the stand ends, the trees within `SMART_RANGE` of it are marked `nothing_near` in harvest memory
+  (out of wood for `--regrow-min`) and leave the trip's list. 500493 also ends the stay, without
+  marks (which tree it was is unknown). The not-a-tree outcome is gone: nothing targets a tree.
+- **Stands:** `next_stand` picks, among the 6 nearest trees, the planned walk with the least cost
+  per candidate tree within `SMART_RANGE` of the stand it ends on; `work_stand` stays up to
+  `--max-attempts-per-stand` (60, was `--max-attempts-per-tree` 25). `unstick` still runs before
+  every chop, so long stays reposition or clear the Stationary Penalty as before; captchas are
+  unchanged (the attempt resumes after the solve, as at 23:20 in the capture).
+- **Reach:** `SMART_RANGE = 1`, the only value the evidence proves (23:47: one tree within 6 tiles,
+  at distance 1, and the server turned us to face it, 0x77 dir SE). RunUO's by-hand reach is 2.
+- **Memory:** attempts are recorded on the stand tile (`harvest_record(facet, x, y, z, None, …)`);
+  trip and episode rows are unchanged (attempts, successes, logs, `chop_s`, `walk_out_s`,
+  `tree_walk_s`, now the walks between stands). `lumber_opt.tree_yield` counts a `nothing_near`
+  mark as "out" but not "tried"; `regrowth` makes no pairs from marks (a mark only ever says "not
+  regrown", the server never says which tree regrew), so the regrowth fit rests on the per-tree
+  data from before the cutover. Open: a way to learn regrowth from stands.
+- **Measurement:** each stand is a `stand` job event (`trip`, `spot`, `stand` [x, y, z], `anchor`,
+  `range`, `trees` [dx, dy, distance, graphic] within 6 tiles, `attempts`, `successes`, `logs`,
+  `faced` (world.self.direction after each chop: RunUO turns the harvester toward the tree), `end`
+  (nothing_near / depleted / quota / break / max_attempts / interrupted: …), `s`). The run log
+  prints the trees in the faced direction per chop.
+
+**Attended live trip (the user runs it, at the client):** `python harness/ctl.py lumber plan`, then
+its `command` with `--trips 1`, i.e. `python harness/ctl.py run lumber --spot <id> --trips 1
+--logs-per-trip <n> --regrow-min <m> --timeout <s>` (direct: `python harness/loop_lumber.py --spot
+<id> --trips 1 …`). Watch: every chop cursor answered with
+ourselves (no tree aimed at), "You do not see any harvestable resources nearby." moving the runner
+to the next stand, captchas resuming the attempt, repositions on long stays. Measure afterwards
+from the `stand` events (`sqlite3 harness/data/harness.db "SELECT data FROM job_events WHERE
+kind='stand' ORDER BY t"`): the reach = the largest distance of a tree the server faced on a chop,
+and whether a 'nothing nearby' came with candidate trees 2+ tiles away that later gave wood; which
+tree it picks = the faced trees per chop (nearest first? the same tree until dry?). Then set
+`SMART_RANGE` and write the numbers into docs/NOTES.md and LUMBER_LOOP.md §2.
 
 ## Keep thieves off the logs: trapped pouch + keep-away (planned 2026-10-04, after Smart Harvest)
 

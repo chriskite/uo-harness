@@ -495,7 +495,9 @@ def regrowth(rows) -> dict:
     success means wood again). P(regrown | gap) is fitted isotonic
     (pool-adjacent-violators); the estimate is the smallest gap where it
     reaches REGROW_P, rounded up to 5 min. REGROW_DEFAULT_MIN with too few
-    pairs or when it never does."""
+    pairs or when it never does. Smart Harvest's `nothing_near` marks make no
+    pairs: the server never says which tree regrew, so marks alone would only
+    ever add 'not regrown' (since 2026-10-04 the fit rests on per-tree data)."""
     last, pairs = {}, []
     for t, facet, x, y, z, outcome, *_ in rows:
         k = (facet, x, y, z)
@@ -539,13 +541,20 @@ def tree_yield(attempts, tiles_by_spot: dict, now: float, regrow_min: float) -> 
         'depleted'; cycles with logs only), pooled over every tree; LOGS_PER_TREE
         until LOGS_PER_TREE_MIN_CYCLES cycles;
       - trees: the spot's tree tiles less those found not to be trees;
-      - tried / yielded: of those, the ones attempted / that ever gave logs;
-      - out: the ones the runner skips now, depleted or unreachable within the
-        regrowth window (Memory.harvest_available)."""
+      - tried / yielded: of those, the ones attempted / that ever gave logs (per-tree
+        attempts, from before Smart Harvest: since 2026-10-04 the runner records its
+        attempts on the tile it stands on, which isn't a tree tile, so new data adds
+        no tried/yielded tiles and leaves the share at what it was);
+      - out: the ones the runner skips now, depleted, unreachable or marked
+        `nothing_near` (in reach of a stand where the server said nothing nearby has
+        wood) within the regrowth window (Memory.harvest_available). A mark alone
+        isn't an attempt: it counts as out, not as tried."""
     cur, cycles, tiles = {}, [], {}
     for t, facet, x, y, _z, outcome, amount in attempts:
         k = (facet, x, y)
-        d = tiles.setdefault(k, {"yielded": False, "not_tree": False, "out_t": None})
+        d = tiles.setdefault(k, {"tried": False, "yielded": False, "not_tree": False, "out_t": None})
+        if outcome != "nothing_near":
+            d["tried"] = True
         if outcome == "success":
             cur[k] = cur.get(k, 0) + (amount or 0)
             d["yielded"] = True
@@ -554,7 +563,7 @@ def tree_yield(attempts, tiles_by_spot: dict, now: float, regrow_min: float) -> 
             if got > 0:
                 cycles.append(got)
             d["out_t"] = t
-        elif outcome == "unreachable":
+        elif outcome in ("unreachable", "nothing_near"):
             d["out_t"] = t
         elif outcome == "not_tree":
             d["not_tree"] = True
@@ -563,7 +572,7 @@ def tree_yield(attempts, tiles_by_spot: dict, now: float, regrow_min: float) -> 
     for sid, (facet, spot_tiles) in tiles_by_spot.items():
         seen = [d for d in (tiles.get((facet, x, y)) for x, y in spot_tiles) if d is not None and not d["not_tree"]]
         bad = sum(1 for x, y in spot_tiles if (tiles.get((facet, x, y)) or {}).get("not_tree"))
-        out[sid] = {"trees": len(spot_tiles) - bad, "tried": len(seen),
+        out[sid] = {"trees": len(spot_tiles) - bad, "tried": sum(1 for d in seen if d["tried"]),
                     "yielded": sum(1 for d in seen if d["yielded"]),
                     "out": sum(1 for d in seen if d["out_t"] is not None and now - d["out_t"] < window)}
     return {"logs_per_tree": sum(cycles) / len(cycles) if len(cycles) >= LOGS_PER_TREE_MIN_CYCLES else LOGS_PER_TREE,

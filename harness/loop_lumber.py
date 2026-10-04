@@ -4,6 +4,14 @@ One trip = harvest trees → convert logs to boards → walk to the banker →
 say "bank" → drop the boards into the bank box. The run ends at the bank. No
 rental room and no deed creation (user decision 2026-10-01: bank the boards).
 
+Harvest = Smart Harvest (user decision 2026-10-04; docs/PLAN.md "Smart Harvest
+for lumber"): double-click the hatchet and answer its cursor with ourselves
+(self_target); the server chops a tree within its reach that still has wood. The
+tree list only chooses where to stand (next_stand); the runner stays until the
+server says "You do not see any harvestable resources nearby.", then moves on.
+The reach is unmeasured (SMART_RANGE); every stand is a `stand` job event for
+measuring it.
+
 Where: one lumber spot (--spot; harness/lumber_opt.py load_spots: the seed
 spots in harness/data/lumber_spots.json plus the memory store's lumber_spots
 rows), merged over the common knowledge in harness/data/loops/lumber.json
@@ -11,10 +19,11 @@ rows), merged over the common knowledge in harness/data/loops/lumber.json
 overseer gets the spot, trip size and hatchet from `ctl lumber plan`.
 
 What the loop learns lives in the harness memory store (harness/memory.py,
-docs/MEMORY.md): per-tree attempts/yield/depletion/reachability, every
-attempt, and one episode row per trip, aborted trips included (outcome, why,
-timings, skill, hatchet, what was still carried), which lumber_opt.py learns
-from. Walk memory is recorded by the proxy.
+docs/MEMORY.md): attempts and yield per stand tile, trees out of wood (marked
+when a stand says nothing nearby) or unreachable, every attempt, and one episode
+row per trip, aborted trips included (outcome, why, timings, skill, hatchet, what
+was still carried), which lumber_opt.py learns from. Walk memory is recorded by
+the proxy.
 
 Captcha (ANTICHEAT.md §8.8/§8.13). The real captcha is the
 gump with lumber.json's id plus a text entry and the submit button. Who
@@ -35,10 +44,10 @@ Guards: jittered pacing, overall timeout, HP loss, movement stall, the agent
 gate (pause/break wait, kill/budget abort), bounded retries everywhere.
 
 Threats (threats.py; LUMBER_LOOP.md §13): a monster close enough to flee from
-gets an escape (walk beyond its flee radius, then harvest the next tree out of
+gets an escape (walk beyond its flee radius, then harvest at the next stand out of
 its reach). Damage from a single creature at healthy hits (--creature-recall-at)
 gets a run: walk out of its reach (a ranged one's: 12 tiles + margin) and chop
-on at a tree outside it; damage again soon after the walk-away
+on at a stand outside it; damage again soon after the walk-away
 (--creature-rehit-s), low hits, two attackers or no escapes left recall home.
 Trees within reach of a known-aggressive creature in view are left for later.
 A player/red threat, or a monster that keeps coming stops the run. An abort
@@ -89,7 +98,18 @@ import combat  # noqa: E402
 import tracking  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
-NEXT_TREE_PLANS = 6           # nearest trees (straight line) whose walks next_tree() compares
+NEXT_STAND_PLANS = 6          # nearest trees (straight line) whose stands next_stand() compares
+# Smart Harvest's reach (Chebyshev tiles from our tile to a tree it may chop). UNMEASURED: to be
+# measured on the first attended Smart Harvest trip (docs/PLAN.md "Smart Harvest for lumber"; the
+# `stand` job events carry what the measurement needs). 1 is the only value the evidence proves:
+# capture 20261001_214649 at 23:47, at (1905,2616) the one tree within 6 tiles stood at distance 1
+# (1906,2617), it chopped and the server turned us to face it (0x77 dir SE). RunUO's by-hand chop
+# reach is 2. It decides which trees a stand counts (next_stand) and which ones a "nothing nearby"
+# marks out of wood (work_stand); too small only costs a walk to a stand that then says nothing
+# nearby, too large would rule out trees that still have wood.
+SMART_RANGE = 1
+SURVEY_R = 6                  # trees within this many tiles of a stand go into its `stand` event (the measurement)
+DIR_NAMES = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 HOME_NEAR = 60               # tiles from the banker: close enough to walk instead of recalling home
 # Coloured-wood success, e.g. "You chop some dullwood logs and put them in your backpack."
 # (live 2026-10-02, Terran; unmatched it counted as an unknown outcome and aborted the trip)
@@ -119,6 +139,31 @@ FLEE_ARRIVAL_WAIT_S = 1.5     # after a flight arrives: how long its 500112 may 
 
 def h(v) -> int:
     return int(v, 16) if isinstance(v, str) else int(v)
+
+
+def self_target(st: dict, cur: dict) -> bytes:
+    """Smart Harvest's answer to the hatchet's cursor: 0x6C on ourselves with combat.target_self
+    (the fields `ctl act target self` sends): our serial, our tile's x/y and z as movement truth
+    has them, our body as the graphic. Byte-equal to the stock client's in capture
+    20261001_214649 at 23:20 and 23:47 (test_loop_lumber.py unit_capture_smart_harvest). The z is
+    movement's, not the world model's self z, which said 10 there while the client sent 0."""
+    return combat.target_self(cur, st["movement"]["self_serial"], st["movement"]["pos"],
+                              (st["world"].get("self") or {}).get("body"))
+
+
+def facing_to(a, b) -> int:
+    """The direction 0..7 from tile a to tile b as RunUO's Utility.GetDirection quantizes it (a
+    straight one within a 3:1 slope, else the diagonal) [INFERENCE for Outlands: RunUO's harvest
+    turns the harvester to face the target; live 23:47 the turn pointed at the one tree there]."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    adx, ady = abs(dx), abs(dy)
+    if adx >= ady * 3:
+        return 2 if dx > 0 else 6
+    if ady >= adx * 3:
+        return 4 if dy > 0 else 0
+    if dx > 0:
+        return 3 if dy > 0 else 1
+    return 5 if dy > 0 else 7
 
 
 LEG_KEYS = ("leg", "kind", "method", "book", "witcher_rune", "ok", "attempts", "s", "walk_s", "failure",
@@ -172,7 +217,7 @@ def hit_verdict(*, hits, hits_max, recall_at: float, attackers: list, players: l
                 can_escape: bool = True) -> str | None:
     """Damage taken (LUMBER_LOOP.md §13 "Running from a creature"): why it must send
     us home (monster_stop), or None to run from it (walk out of its reach and chop on
-    at a tree outside it; while already walking away: walk on). Home when a hostile
+    at a stand outside it; while already walking away: walk on). Home when a hostile
     player is in view, nothing in view could have hit us, two or more creatures
     could have, hits are below recall_at of max, it came within rehit_s of arriving
     from the last walk-away, or no escape is left (a speech hold, ESCAPES_PER_TRIP)."""
@@ -254,7 +299,7 @@ class LumberLoop:
         #                              ("was", serial) -> the same around where it was when we escaped (fixed)
         self.run_arrived = None      # time.time() when the last walk-away ended (--creature-rehit-s)
         self.creature = self.new_creature_tally()   # this trip's creature cost: the episode row's `creature`
-        self.avoided = set()         # (tree, creature serial) pairs logged as left alone (next_tree)
+        self.avoided = set()         # (tree, creature serial) pairs logged as left alone (next_stand)
         self.swingers = {}           # attacker serial -> time of its latest swing or spell at us since the last escape
         self._swing_scan = 0         # link.events index scanned for swings and spells on us
         self.spelled = []            # (time, caster or None) of spells on us (threats.spell_on_us) not yet dealt with
@@ -519,7 +564,7 @@ class LumberLoop:
         (monster_stop: recall when far from home). Otherwise the damage is dealt with
         (Watch.acknowledge) and we run: Escape with the episode, so escape() walks out
         of the attacker's reach (a ranged one's, CREATURE_SPELL_RANGE + margin) and the
-        harvest goes on at a tree outside it. While already walking away, we walk on.
+        harvest goes on at a stand outside it. While already walking away, we walk on.
         Each episode is a `monster_hit` job event; a sole attacker teaches its body
         (travel_guard.learn_hit: aggressive, and ranged when nothing was adjacent). With
         no candidate within its assumed reach, a creature we walked away from this trip
@@ -1256,6 +1301,11 @@ class LumberLoop:
 
     # ------------------------------------------------------------ harvesting
     def outcome(self, mark):
+        """The server's answer to an attempt since events[mark]: success (logs), fail
+        (500495), depleted (500488/500493 not enough wood), nothing_near (Smart Harvest:
+        "You do not see any harvestable resources nearby.", with "You cannot produce any
+        wood from that." over our head: nothing within its reach has wood, move to the next
+        stand), lockout (travel lockout seconds); None while none came."""
         hv, lock = self.k["harvest"], self.k["travel_lockout"]
         for ev in self.since(mark):
             e = ev.get("ev")
@@ -1263,6 +1313,8 @@ class LumberLoop:
                 t = ev.get("text") or ""
                 if t == hv["success_text"] or COLORED_CHOP.match(t):
                     return ("success", 0)
+                if t in hv["nothing_near_texts"]:
+                    return ("nothing_near", 0)
                 if t.startswith(lock["text_prefix"]):
                     digits = [int(w) for w in t.split() if w.isdigit()]
                     return ("lockout", digits[0] if digits else lock["seconds"])
@@ -1272,21 +1324,21 @@ class LumberLoop:
                     return ("fail", 0)
                 if n in hv["depleted_clilocs"]:
                     return ("depleted", 0)
-                if n == hv["not_a_tree_cliloc"]:
-                    return ("not_tree", 0)
         return None
 
-    def attempt(self, tree):
-        """One harvest attempt on `tree` → (outcome, logs gained)."""
+    def attempt(self):
+        """One Smart Harvest attempt: use the hatchet and answer its cursor with ourselves
+        (self_target); the server chops a tree within its reach that still has wood →
+        (outcome, logs gained)."""
         st = self.state()
         before = self.count(st, LOGS)
         cur = self.use_hatchet()
         if cur is None:
             return ("captcha", 0)
         self.human.wait("aim")
+        st = self.state()
         mark = len(self.link.events)
-        self.link.act(actions.target_xyz(cur["cursor_id"], tree["x"], tree["y"], tree["z"],
-                                         h(tree["graphic"]), cursor_type=cur["cursor_type"]))
+        self.link.act(self_target(st, cur))
         end = time.monotonic() + self.args.attempt_timeout
         while time.monotonic() < end:
             self.state()
@@ -1309,7 +1361,8 @@ class LumberLoop:
     def candidate_trees(self, st):
         """Seed trees (the spot's) plus trees found on the map in the spot's
         area, minus what harvest memory rules out (regrowth window --regrow-min),
-        nearest first with human noise; at most --max-trees (0 = all)."""
+        nearest first with human noise; at most --max-trees (0 = all). Smart
+        Harvest picks the tree itself: the list decides where to stand (next_stand)."""
         seeds = list(self.k["harvest"]["trees"])
         found = []
         area = self.k["harvest"].get("area")
@@ -1332,9 +1385,9 @@ class LumberLoop:
         return trees[: self.args.max_trees] if self.args.max_trees > 0 else trees
 
     def harvest_trip(self) -> int:
-        """Harvest the candidate trees until the quota. A monster escape
-        (Escape -> self.escape) leaves the current tree; harvesting resumes
-        from the next tree out of the reach of every monster escaped from.
+        """Smart-Harvest at stands by the candidate trees until the quota. A monster
+        escape (Escape -> self.escape) leaves the current stand; harvesting resumes
+        at the next stand out of the reach of every monster escaped from.
         A break announced by the gate (self.break_due) ends the harvest. Running
         out of trees before the quota marks the trip `dry` (lumber_opt keeps
         the spot out of the plan until the trees regrow)."""
@@ -1351,7 +1404,7 @@ class LumberLoop:
                 self.stats["dry"] = True
                 raise Abort("no harvestable tree available (all depleted, unreachable or ruled out)")
             while trees and tally["gained"] < self.args.logs_per_trip and not self.break_due:
-                tree = self.next_tree(trees)
+                tree = self.next_stand(trees)
                 if tree is None:
                     self.stats["creature_blocked"] = True
                     log(f"every tree left ({len(trees)}) is within reach of an aggressive creature in view; "
@@ -1361,27 +1414,27 @@ class LumberLoop:
                     log(f"tree {tree['x']},{tree['y']}: within reach of a monster we backed away from; skipping")
                     continue
                 try:
-                    self.work_tree(tree, tally)
+                    self.work_stand(tree, trees, tally)
                 except Escape as e:
                     self.escape(e)
             if self.break_due:
                 log(f"break due: stopping the harvest at {tally['gained']} logs; converting and banking")
             elif not trees and tally["gained"] < self.args.logs_per_trip:
                 self.stats["dry"] = True
-                log(f"the area ran dry at {tally['gained']} logs (every candidate tree tried); banking")
+                log(f"the area ran dry at {tally['gained']} logs (every candidate tree out of wood or tried); banking")
             return tally["gained"]
         finally:
             self.stats.update(attempts=tally["attempts"], successes=tally["successes"], logs=tally["gained"])
 
-    def next_tree(self, trees: list) -> dict | None:
-        """Remove and return the tree to work next: the one with the shortest walk
-        from where we stand now, among the NEXT_TREE_PLANS nearest by straight
-        line, with a little human noise. The trip's list is ordered from where it
-        started, and straight-line distance ignores hills: on 2026-10-02 (Terran)
-        that order sent the runner on 80-90 step loops round a ridge between
-        trees on both sides of a road while trees 3-6 steps away waited.
-        Trees within reach of a known-aggressive creature in view (tree_guards)
-        wait in the list while it is around; None when every tree left does."""
+    def next_stand(self, trees: list) -> dict | None:
+        """Remove and return the tree to stand by next (Smart Harvest then picks the tree
+        it chops within SMART_RANGE of where we stand): among the NEXT_STAND_PLANS nearest
+        by straight line, the one whose planned walk costs least per candidate tree within
+        SMART_RANGE of the stand it ends on, with a little human noise. Planned walks, not
+        straight lines: on 2026-10-02 (Terran) the start-order list sent the runner on
+        80-90 step loops round a ridge between trees on both sides of a road while trees
+        3-6 steps away waited. Trees within reach of a known-aggressive creature in view
+        (tree_guards) wait in the list while it is around; None when every tree left does."""
         st = self.link.state()
         pos = self.link.pos(st)
         trees.sort(key=lambda t: cheb(pos, (t["x"], t["y"])))
@@ -1399,11 +1452,13 @@ class LumberLoop:
         if not free:
             return None
         best, best_cost = 0, None
-        for i, t in enumerate(free[:NEXT_TREE_PLANS]):
+        for i, t in enumerate(free[:NEXT_STAND_PLANS]):
             path, _ = self.mover.plan(st, nav.within((t["x"], t["y"]), 1, self.tree_z_ok(t)))
             if path is None:
                 continue
-            c = len(path) * self.human.rng.uniform(1.0, 1.15)
+            stand = tuple(t["stand"]) if "stand" in t else path[-1]
+            n = sum(1 for o in trees if cheb(stand, (o["x"], o["y"])) <= SMART_RANGE)
+            c = len(path) * self.human.rng.uniform(1.0, 1.15) / max(n, 1)
             if best_cost is None or c < best_cost:
                 best, best_cost = i, c
         trees.remove(free[best])
@@ -1429,14 +1484,21 @@ class LumberLoop:
         is more, plus ESCAPE_MARGIN."""
         return max(t.flee_radius, threats.creature_reach(t.body, self.watch.params)) + ESCAPE_MARGIN
 
-    def work_tree(self, tree, tally):
-        """Walk to one tree and chop it until it's dry, the quota is met or a
-        break is due; tally (gained/attempts/successes/unknown) is the trip's."""
+    def work_stand(self, tree, trees, tally):
+        """Walk next to `tree` (next_stand) and Smart-Harvest there until the server says
+        nothing within its reach has wood (or not enough wood), the quota is met, a break
+        is due or --max-attempts-per-stand; tally (gained/attempts/successes/unknown) is
+        the trip's. Attempts are recorded on the stand tile (the server doesn't say which
+        tree it chopped). On "nothing nearby" the trees within SMART_RANGE of the stand
+        (this one and those left in the trip's `trees`) are marked `nothing_near` for the
+        regrowth window and leave the list. Each stand is a `stand` job event with what
+        measuring Smart Harvest's reach and choice needs: the stand tile, the trees within
+        SURVEY_R (offset, distance, graphic), attempts, successes, logs, the direction the
+        server turned us per chop (faced), how the stay ended and how long it took."""
         label = f"tree {tree['x']},{tree['y']}"
-        node = (self.facet, tree["x"], tree["y"], tree["z"], h(tree["graphic"]))
         spot = (tree["x"], tree["y"])
         quota = f"{tally['gained']}/{self.args.logs_per_trip} logs"
-        self.doing("to_tree", f"Heading to tree at {spot[0]},{spot[1]} ({quota})", spot)
+        self.doing("to_tree", f"Heading to the trees at {spot[0]},{spot[1]} ({quota})", spot)
         z_ok = self.tree_z_ok(tree)
         walk0 = time.monotonic()
         try:
@@ -1447,60 +1509,98 @@ class LumberLoop:
         except Abort as e:
             if "no route" not in str(e):
                 raise
-            self.memory.harvest_record(*node, "unreachable")
-            log(f"{label}: unreachable; trying the next tree")
+            self.memory.harvest_record(self.facet, tree["x"], tree["y"], tree["z"], h(tree["graphic"]), "unreachable")
+            log(f"{label}: unreachable; trying the next stand")
             return
         finally:
             if self.timing.get("walk_out_s") is not None:      # the first walk is the walk out
                 self.timing["tree_walk_s"] += time.monotonic() - walk0
-        tries = 0
-        stand = tuple(self.link.pos(self.link.state())[:2])
-        while tries < self.args.max_attempts_per_tree and tally["gained"] < self.args.logs_per_trip \
-                and not self.break_due:
-            self.track_ensure("between chops")
-            if self.unstick(stand):
-                continue
-            self.doing("chop", f"Chopping tree at {spot[0]},{spot[1]} "
-                               f"({tally['gained']}/{self.args.logs_per_trip} logs)", spot)
-            if self.timing.get("walk_out_s") is None:
-                self.timing["walk_out_s"] = time.time() - self.trip_t0
-            c0, w0 = time.monotonic(), self.stats.get("speech_wait_s", 0.0)
-            out, n = self.attempt(tree)
-            self.chopped(c0, w0)
-            if out != "none":
-                tally["unknown"] = 0                 # the abort counts unknowns in a row
-            if out in ("success", "fail"):
-                tries += 1
-                tally["attempts"] += 1
-                self.memory.harvest_record(*node, out, n)
-                if out == "success":
-                    tally["successes"] += 1
-                    tally["gained"] += n
-                    log(f"{label}: +{n} logs ({tally['gained']}/{self.args.logs_per_trip})")
-            elif out == "depleted":
-                self.memory.harvest_record(*node, "depleted")
-                log(f"{label}: depleted")
-                return
-            elif out == "lockout":
-                wait = n + self.human.rng.uniform(1.0, 3.0)
-                log(f"travel lockout reported: waiting {wait:.0f} s")
-                self.doing("lockout", f"Waiting out the travel lockout ({wait:.0f} s)", spot)
-                self.pause(wait, "lockout")
-                self.timing["lockout_s"] += wait     # travel's cost, not the field's (lumber_opt.trip_obs)
-                continue
-            elif out == "not_tree":
-                self.memory.harvest_record(*node, "not_tree")
-                log(f"{label}: the server says this is not a tree; remembered")
-                return
-            elif out == "none":
-                tally["unknown"] += 1
-                log(f"{label}: no recognised outcome ({tally['unknown']} in a row)")
-                if tally["unknown"] > 3:
-                    raise Abort("harvest attempts keep ending without a known outcome")
-            c0, w0 = time.monotonic(), self.stats.get("speech_wait_s", 0.0)
-            self.human.wait("between")
-            self.human.fidget(self.link, self.link.state(), self.backpack(self.link.state()))
-            self.chopped(c0, w0)
+        x, y, z = self.link.pos(self.link.state())[:3]
+        stand = (x, y)
+        near = sorted((t for t in [tree, *trees] if cheb(stand, (t["x"], t["y"])) <= SURVEY_R),
+                      key=lambda t: cheb(stand, (t["x"], t["y"])))
+        reach = [t for t in near if cheb(stand, (t["x"], t["y"])) <= SMART_RANGE]
+        rec = {"trip": self.trip_n, "spot": self.k["spot"]["id"], "stand": [x, y, z], "anchor": list(spot),
+               "range": SMART_RANGE,
+               "trees": [[t["x"] - x, t["y"] - y, cheb(stand, (t["x"], t["y"])), t["graphic"]] for t in near],
+               "attempts": 0, "successes": 0, "logs": 0, "faced": [], "end": None}
+        where = f"stand {x},{y}"
+        log(f"{where}: {len(reach)} candidate tree(s) within {SMART_RANGE} (reach unmeasured), "
+            f"{len(near)} within {SURVEY_R}: {[tuple(t[:3]) for t in rec['trees']]}")
+        t_stand = time.monotonic()
+        try:
+            while rec["attempts"] < self.args.max_attempts_per_stand and tally["gained"] < self.args.logs_per_trip \
+                    and not self.break_due:
+                self.track_ensure("between chops")
+                if self.unstick(stand):
+                    continue
+                self.doing("chop", f"Chopping by {x},{y} ({tally['gained']}/{self.args.logs_per_trip} logs)", stand)
+                if self.timing.get("walk_out_s") is None:
+                    self.timing["walk_out_s"] = time.time() - self.trip_t0
+                c0, w0 = time.monotonic(), self.stats.get("speech_wait_s", 0.0)
+                out, n = self.attempt()
+                self.chopped(c0, w0)
+                if out != "none":
+                    tally["unknown"] = 0                 # the abort counts unknowns in a row
+                if out in ("success", "fail"):
+                    rec["attempts"] += 1
+                    tally["attempts"] += 1
+                    self.memory.harvest_record(self.facet, x, y, z, None, out, n)
+                    faced = ((self.link.last or {}).get("world", {}).get("self") or {}).get("direction")
+                    rec["faced"].append(faced)
+                    if out == "success":
+                        rec["successes"] += 1
+                        rec["logs"] += n
+                        tally["successes"] += 1
+                        tally["gained"] += n
+                    log(f"{where}: {f'+{n} logs' if out == 'success' else 'fail'} "
+                        f"({tally['gained']}/{self.args.logs_per_trip}); {self.faced_text(stand, faced, near)}")
+                elif out in ("nothing_near", "depleted"):
+                    rec["end"] = out
+                    if out == "depleted":           # the server's pick ran out; which one it was is unknown
+                        log(f"{where}: not enough wood here; next stand")
+                        return
+                    for t in reach:
+                        self.memory.harvest_record(self.facet, t["x"], t["y"], t["z"], h(t["graphic"]), "nothing_near")
+                        if t in trees:
+                            trees.remove(t)
+                    log(f"{where}: nothing nearby has wood after {rec['attempts']} attempt(s), {rec['logs']} logs; "
+                        f"{len(reach)} tree(s) within {SMART_RANGE} marked out of wood; next stand")
+                    return
+                elif out == "lockout":
+                    wait = n + self.human.rng.uniform(1.0, 3.0)
+                    log(f"travel lockout reported: waiting {wait:.0f} s")
+                    self.doing("lockout", f"Waiting out the travel lockout ({wait:.0f} s)", stand)
+                    self.pause(wait, "lockout")
+                    self.timing["lockout_s"] += wait     # travel's cost, not the field's (lumber_opt.trip_obs)
+                    continue
+                elif out == "none":
+                    tally["unknown"] += 1
+                    log(f"{where}: no recognised outcome ({tally['unknown']} in a row)")
+                    if tally["unknown"] > 3:
+                        raise Abort("harvest attempts keep ending without a known outcome")
+                c0, w0 = time.monotonic(), self.stats.get("speech_wait_s", 0.0)
+                self.human.wait("between")
+                self.human.fidget(self.link, self.link.state(), self.backpack(self.link.state()))
+                self.chopped(c0, w0)
+            rec["end"] = ("break" if self.break_due else "quota" if tally["gained"] >= self.args.logs_per_trip
+                          else "max_attempts")
+        except BaseException as e:
+            rec["end"] = rec["end"] or f"interrupted: {type(e).__name__}: {e}"[:200]
+            raise
+        finally:
+            rec["s"] = round(time.monotonic() - t_stand, 1)
+            self.memory.job_event("lumber", "stand", rec, facet=self.facet, x=x, y=y)
+
+    @staticmethod
+    def faced_text(stand, faced, near) -> str:
+        """Where the server turned us for a chop, and the trees around the stand in that
+        direction (facing_to): the measurement of which tree Smart Harvest picks."""
+        if faced is None:
+            return "facing unknown"
+        hit = [(t["x"], t["y"]) for t in near if (t["x"], t["y"]) != stand
+               and facing_to(stand, (t["x"], t["y"])) == faced]
+        return f"facing {DIR_NAMES[faced & 7]}: trees that way {hit or 'none known'}"
 
     def unstick(self, stand) -> bool:
         """Outlands' Stationary Penalty (stationary.py) stops harvesting until we walk
@@ -1853,8 +1953,8 @@ class LumberLoop:
     def trip(self, n):
         """One trip: harvest -> convert -> walk to the banker and open the bank
         box -> bank the boards. The run ends at the bank. A monster escape in
-        any phase is followed by that phase again (the harvest goes on with the
-        next tree out of reach); an abort while harvesting converts the carried
+        any phase is followed by that phase again (the harvest goes on at the
+        next stand out of reach); an abort while harvesting converts the carried
         logs first when that's safe (salvage). Every trip leaves an episode row,
         an aborted one too (outcome 'aborted' + why): leaving those out would
         flatter exactly the spots where trips get cut short."""
@@ -2031,10 +2131,14 @@ def main():
     ap.add_argument("--hatchet", default=None,
                     help="use only a hatchet of this material[+quality], e.g. copper or copper+exceptional "
                          "(harness/data/hatchets.json); default: the worn one, else the shallowest in the pack")
-    ap.add_argument("--max-attempts-per-tree", type=int, default=25)
+    ap.add_argument("--max-attempts-per-stand", type=int, default=60,
+                    help="Smart Harvest attempts at one stand before moving on even though the server still "
+                         "chops (a stay normally ends at 'nothing nearby'; Stationary Penalty repositions "
+                         "happen in between)")
     ap.add_argument("--max-trees", type=int, default=0, help="candidate trees per trip (0 = every one in the area)")
     ap.add_argument("--regrow-min", type=float, default=lumber_opt.REGROW_DEFAULT_MIN,
-                    help="skip a tree for this long after it was depleted (`ctl lumber plan` passes the "
+                    help="skip a tree for this long after it ran dry or a stand by it said nothing nearby "
+                         "(`ctl lumber plan` passes the "
                          "estimate from harvest memory)")
     ap.add_argument("--attempt-timeout", type=float, default=10.0)
     ap.add_argument("--human", choices=sorted(PROFILES), default="normal",

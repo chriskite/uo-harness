@@ -21,7 +21,7 @@
     "gold_source": "backpack gold is used (21 -> 16)"
   },
   "harvest": {
-    "use_tool": "dclick the equipped hatchet, then target the tree (location target, static graphic)",
+    "use_tool": "Smart Harvest: dclick the equipped hatchet, answer its cursor with yourself (object target on our serial, our tile, our body). The demo targeted the tree instead (location target, static graphic)",
     "prompt_cliloc": 1010018,
     "cursor_target_type": 1,
     "attempt_seconds": 4.1,
@@ -32,9 +32,9 @@
     "success_text": "You chop some logs and put them in your backpack.",
     "fail_cliloc": 500495,
     "depleted_clilocs": [500488, 500493],
-    "not_a_tree_cliloc": 500489,
+    "nothing_near_texts": ["You do not see any harvestable resources nearby.", "You cannot produce any wood from that."],
+    "nothing_near_source": "capture 20261001_214649 at 23:27 (Hackworth, self-target at 1918,2612): the system line, then the second one overhead from ourselves; pinned by test_loop_lumber.py unit_capture_smart_harvest",
     "demo_yield": {"attempts": 12, "successes": 2, "logs": [5, 7]},
-    "smart_harvest_self_target": "untested: the demo targeted trees, one attempt per dclick",
     "area": {"center": [1935, 2605], "radius": 60,
              "note": "Shelter Island (Young may harvest in town). Candidates are tree statics from map0.uoo; harvest memory learns which ones answer, run dry or can't be reached."}
   },

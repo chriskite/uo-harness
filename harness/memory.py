@@ -12,9 +12,14 @@ Tables
   walk_moves        server-confirmed moves and denies with facet and z, counted,
                     first/last seen (derived from `step` / `blocked` events; both
                     the human's and the agent's walks teach it)
-  harvest_nodes     per harvest node (tree): attempts, yield, depletion,
-                    reachability, not-a-tree
-  harvest_attempts  every harvest attempt outcome (regrowth / yield statistics)
+  harvest_nodes     per harvest node: attempts, yield, depletion, reachability,
+                    not-a-tree. A node is a tree tile (depletion, reachability;
+                    per-tree attempts before Smart Harvest) or, since Smart
+                    Harvest (2026-10-04), the tile a lumber runner stood on
+                    (its attempts and yield; graphic NULL)
+  harvest_attempts  every harvest attempt outcome (regrowth / yield statistics),
+                    plus `nothing_near` marks on the trees in reach of a stand
+                    where the server said nothing nearby has wood
   episodes          one row per loop trip (phase times, human texture, results)
   junctures         moments that should wake the overseer AI (a task stuck,
                     aborted or finished, a captcha, a threat, a theft
@@ -248,7 +253,11 @@ class Memory:
         return all(r[k] is None or now - r[k] >= regrow_s for k in ("depleted_at", "unreachable_at"))
 
     def harvest_record(self, facet, x, y, z, graphic, outcome, amount=0, t=None):
-        """One attempt outcome: success/fail/depleted/not_tree/unreachable."""
+        """One outcome on a node: success/fail (an attempt; Smart Harvest records it on the
+        stand tile), depleted/not_tree (a targeted tree, before Smart Harvest), unreachable,
+        or nothing_near (a tree within reach of a stand where the server said "You do not
+        see any harvestable resources nearby.": out of wood like depleted, for the regrowth
+        window)."""
         t = time.time() if t is None else t
         c = self.con
         c.execute("INSERT OR IGNORE INTO harvest_nodes(facet, x, y, z, graphic) VALUES(?,?,?,?,?)",
@@ -257,7 +266,7 @@ class Memory:
             c.execute("UPDATE harvest_nodes SET attempts = attempts + 1, successes = successes + ?, "
                       "yield = yield + ? WHERE facet=? AND x=? AND y=? AND z=?",
                       (1 if outcome == "success" else 0, amount, facet, x, y, z))
-        elif outcome == "depleted":
+        elif outcome in ("depleted", "nothing_near"):
             c.execute("UPDATE harvest_nodes SET depleted_at=? WHERE facet=? AND x=? AND y=? AND z=?",
                       (t, facet, x, y, z))
         elif outcome == "unreachable":

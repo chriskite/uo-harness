@@ -3,12 +3,15 @@
 A simulated Shelter server behind the real proxy, with the packet shapes and
 texts of the demonstration capture (logs/session_20260929_204225):
 
-- hatchet dclick → cliloc 1010018 + location cursor; tree target → a decoy
-  "Captcha" gump (no buttons) on every attempt and a real captcha (gump id 1,
-  entry 2, Guide button 1 + a submit button whose id isn't the demo's) once per
-  trip: trip 1's is a captured solver-readable layout (the runner answers it
-  itself), trip 2's is unreadable (pause + beep fallback), then fail/success results; a second
-  tree answers "not enough wood" (depleted)
+- hatchet dclick → cliloc 1010018 + cursor; the runner answers it with itself (Smart Harvest; the
+  stock client's bytes, capture 20261001_214649) and the server chops the nearest tree with wood
+  within SIM_RANGE, else says "You do not see any harvestable resources nearby." + "You cannot
+  produce any wood from that." over our head (the runner moves to the next stand); a decoy
+  "Captcha" gump (no buttons) on every attempt and a real captcha (gump id 1, entry 2, Guide
+  button 1 + a submit button whose id isn't the demo's) on the first two: the first a captured
+  solver-readable layout (the runner answers it itself) at the dry tree, whose answer is the
+  'nothing nearby', the second unreadable (pause + beep fallback), then fail/success results;
+  the dry tree never has wood, the good one runs out after GOOD_VISIT attempts per visit
 - log stack target → "You shape the logs into boards." (1:1)
 - "bank" within 12 tiles of the banker → the bank box (layer 0x1D) opens (0x24); any step
   closes it again (RunUO); lift + drop into the open box, merging stacks like RunUO
@@ -43,7 +46,9 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
   (--human normal): the cursor is cancelled and the recall home pressed within REACT_MAX_S of sight, no chop target
 Plus unit checks of hatchet() (worn, else the shallowest in the pack's bags) and hit_verdict(), and
 unit_capture_*: the runner's threat and trip-row pieces on packets captured live in session
-20261003_213125 (the witcher_280 gazer larva, juncture 222, trip 1's hatchet, buffs and the named players).
+20261003_213125 (the witcher_280 gazer larva, juncture 222, trip 1's hatchet, buffs and the named players),
+and unit_capture_smart_harvest: the runner's self-target 0x6C byte-equal to the stock client's in session
+20261001_214649 (23:20 and 23:47), and its 'nothing nearby' answer mapped by outcome().
 Named scenarios run alone: `python test_loop_lumber.py gazer_run wary`.
 
 Run: python test_loop_lumber.py   (~2-3 min; private ports; safe while the live proxy runs)
@@ -96,6 +101,8 @@ HOLD_S = 3.0                                             # the test overseer's a
 HIDDEN = 0x0000BEEF                                      # speaks during the hold, never on screen (hidden GM?)
 GM_EXTRA_S = 2.0                                         # the GM suspicion is acked this long after the all-clear
 GOOD_VISIT = 6                                           # attempts before the good tree runs dry
+SIM_RANGE = 2                                            # the simulated server's Smart Harvest reach
+NOTHING_NEAR = ("You do not see any harvestable resources nearby.", "You cannot produce any wood from that.")
 DD = nav.DIR_DELTA
 FAILURES = []
 # skirmish scenario (LUMBER_LOOP.md §13: monsters fighting others, escapes, convert on abort)
@@ -136,6 +143,8 @@ WARY, WARY_POS = 0x0000BA76, (113, 201)                    # 2 tiles from the go
 WEST_TREE = {"x": 86, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [87, 200]}      # 13 steps west; good: 10
 # red_aim (LUMBER_LOOP.md §13 "Blind waits"; live 2026-10-03, Bastet came into view during the chop's aim pause)
 BASTET, RED_AIM_S, REACT_MAX_S = 0x0009BA57, 0.3, 0.5    # a red, in view this long after the chop's cursor
+# every tree of the simulated world, whichever the scenario's spot lists (they stand far apart)
+SIM_TREES = [(t["x"], t["y"]) for t in (GOOD_TREE, DRY_TREE, FAR_TREE, LIB_TREE, LIB_FAR_TREE, WEST_TREE)]
 
 
 def check(name, cond, extra=""):
@@ -318,7 +327,7 @@ class World:
         self.captcha_open = None
         self.captcha_auto = False         # trip-1 captcha is solver-readable
         self.auto_answers = []            # the texts the agent's solver submitted
-        self.pending_attempt = None
+        self.pending_attempt = None       # the attempt's result, sent once the captcha is answered
         self.good_n = 0
         self.logs_serial, self.logs = None, 0
         self.stolen = 0
@@ -334,8 +343,11 @@ class World:
         self.bank_dclicks = 0             # a dclick can't open a bank box; the stock client never sends one
         self.drops_refused = 0
         self.harvested = 0
-        self.dry_attempts = 0
-        self.good_left = GOOD_VISIT
+        self.good_left = GOOD_VISIT       # chops the trees with wood give before 'nothing nearby' (per visit)
+        self.self_targets = []            # Smart Harvest answers: (our tile, the packet == the stock client's)
+        self.location_answers = 0         # chop cursors answered with a location (per-tree targeting): none now
+        self.nothing_near_at = []         # our tile at each 'nothing nearby'
+        self.chopped = []                 # (tree tile, time) of every chop the server made
         self.doors_opened = 0
         self.containers_opened = []                          # 0x06 on the backpack (and the bag), in order
         self.gate_gumps = {}              # renounce-prompt serial -> buttons the agent/client replied
@@ -467,7 +479,13 @@ class World:
         self.later(0.2, pk)
 
     # ---- harvest ----
-    def harvest(self, x, y):
+    def smart_harvest(self):
+        """The hatchet's cursor answered with ourselves (Smart Harvest): the server chops the
+        nearest tree with wood within SIM_RANGE of us (the dry tree never has any; the others
+        share good_left chops per visit), else says nothing nearby has wood: the system line,
+        then our own overhead line (capture 20261001_214649), and the wood regrows for the
+        next visit. The first two attempts of the scripted run raise the real captcha first
+        and answer after the solve (the capture's 23:20 attempt: captcha, then 'nothing nearby')."""
         if self.lockout_due:
             self.lockout_due = False
             self.lockouts += 1
@@ -477,26 +495,32 @@ class World:
         self.decoys.add(self.next_gump())
         self.send(gump(self.gump_serial, 0x50000000 + self.gump_serial, DECOY_LAYOUT,
                        ["Captcha", "Guide", "Type the Value", "Click when complete"]))
-        if (x, y) == (DRY_TREE["x"], DRY_TREE["y"]):
-            self.dry_attempts += 1
-            self.later(0.3, [cliloc(500493)])
-            return
-        if self.good_left == 0:                          # out of wood; regrown for the next visit
-            self.good_left = GOOD_VISIT
-            self.later(0.3, [cliloc(500493)])
-            return
-        self.good_left -= 1
-        if (x, y) == (FAR_TREE["x"], FAR_TREE["y"]):
-            self.far_attempts += 1
+        near = sorted((self.cheb(t), t) for t in SIM_TREES
+                      if t != (DRY_TREE["x"], DRY_TREE["y"]) and self.cheb(t) <= SIM_RANGE)
+        if near and self.good_left > 0:
+            tree = near[0][1]
+            self.good_left -= 1
+            self.chopped.append((tree, time.time()))
+            if tree == (FAR_TREE["x"], FAR_TREE["y"]):
+                self.far_attempts += 1
+            then = self.result
+        else:
+            then = self.nothing_near
         if self.scripted and self.captcha_shown < 2:
             self.captcha_shown += 1
             self.captcha_open = self.next_gump()
-            self.captcha_auto = self.captcha_shown == 1     # trip 1: auto-solved; trip 2: fallback
+            self.captcha_auto = self.captcha_shown == 1     # the first: auto-solved; the second: fallback
             lay = REAL_CAPTCHA_LAYOUT if self.captcha_auto else UNREADABLE_CAPTCHA_LAYOUT
             self.send(gump(self.captcha_open, 0x00000001, lay, ["Guide", "Captcha", "", "Type The Value"]))
-            self.pending_attempt = True
+            self.pending_attempt = then
             return
-        self.result()
+        then()
+
+    def nothing_near(self):
+        self.nothing_near_at.append(tuple(self.pos))
+        if self.good_left == 0:                          # out of wood; regrown for the next visit
+            self.good_left = GOOD_VISIT
+        self.later(0.3, [sys_text(NOTHING_NEAR[0]), player_says(SELF, "Hackworth", NOTHING_NEAR[1])])
 
     def result(self):
         self.good_n += 1
@@ -656,10 +680,15 @@ class World:
             if f["cursor_id"] != self.cursor_for:
                 return
             self.cursor_for = None
-            if f["target_type"] == 1 and self.cheb((f["x"], f["y"])) <= 2:
-                self.harvest(f["x"], f["y"])
+            if f["target_type"] == 0 and f["serial"] == SELF:
+                # the stock client's self-target: our serial, our tile, our body (z: the proxy's movement z)
+                ok = p == actions.target_object(f["cursor_id"], SELF, self.pos[0], self.pos[1], f["z"], 0x190, 0)
+                self.self_targets.append((tuple(self.pos), ok))
+                self.smart_harvest()
             elif f["target_type"] == 0:
                 self.convert(f["serial"])
+            elif f["x"] != 0x7FFFFFFF:                   # not a cancel: a location answer
+                self.location_answers += 1
         elif pid == 0xB1:
             f = parse_packet("c2s", p)
             if f["serial"] in self.decoys:
@@ -698,8 +727,8 @@ class World:
                 self.captcha_open = None
                 self.send(sys_text("Captcha successful."))
                 if self.pending_attempt:
-                    self.pending_attempt = None
-                    self.result()
+                    then, self.pending_attempt = self.pending_attempt, None
+                    then()
         elif pid == 0xAD:
             f = parse_packet("c2s", p)
             if f.get("text") != "bank":
@@ -990,11 +1019,39 @@ async def main():
               f"bank {world.bank_stack}, harvested {world.harvested}, stolen {world.stolen}, "
               f"refused {world.drops_refused}")
         check("nothing left in the backpack", world.logs == 0 and not world.pack_boards)
-        check("each trip tried the dry tree once, then moved on",
-              world.dry_attempts == 2, str(world.dry_attempts))
-        check("harvest memory (store): dry tree depleted, good tree counted",
-              dry_node.get("depleted_at") is not None and good_node.get("successes", 0) >= 4
-              and good_node.get("yield") == world.harvested, f"{dry_node} {good_node}")
+        dry_stand, good_stand = tuple(DRY_TREE["stand"]), tuple(GOOD_TREE["stand"])
+        check("every chop cursor answered with ourselves (Smart Harvest): our serial, tile and body, the stock "
+              "client's bytes; never a location",
+              len(world.self_targets) >= 14 and all(ok for _, ok in world.self_targets)
+              and world.location_answers == 0, f"{world.self_targets[:4]} locations {world.location_answers}")
+        check("'nothing nearby' at the dry tree once per trip, and at the good tree when its wood ran out; each "
+              "time the runner moved on (one self-target at the dry stand per visit)",
+              sorted(world.nothing_near_at) == sorted([dry_stand, good_stand, good_stand, dry_stand])
+              and sum(1 for p, _ in world.self_targets if p == dry_stand) == 2
+              and {p for p, _ in world.self_targets} == {dry_stand, good_stand},
+              f"{world.nothing_near_at} {[p for p, _ in world.self_targets]}")
+        att = store.con.execute("SELECT x, y, outcome, amount FROM harvest_attempts ORDER BY t").fetchall()
+        chops = [a for a in att if a[2] in ("success", "fail")]
+        marks = {(a[0], a[1]) for a in att if a[2] == "nothing_near"}
+        check("harvest memory (store): every attempt on the stand tile (the server doesn't say which tree), the "
+              "trees by a 'nothing nearby' marked out of wood, nothing recorded per tree",
+              chops and {(a[0], a[1]) for a in chops} == {good_stand} and sum(a[3] for a in chops) == world.harvested
+              and sum(1 for a in chops if a[2] == "success") == 6
+              and marks == {(DRY_TREE["x"], DRY_TREE["y"]), (GOOD_TREE["x"], GOOD_TREE["y"])}
+              and dry_node.get("depleted_at") is not None and good_node.get("depleted_at") is not None
+              and not any(a[2] in ("depleted", "not_tree") for a in att), f"{att[:12]} {dry_node} {good_node}")
+        stands = [e["data"] for e in store.job_events("lumber") if e["kind"] == "stand"]
+        by_tile = {tuple(s["stand"][:2]): s for s in stands}
+        want = {dry_stand: (0, [0, -1, 1, DRY_TREE["graphic"]]), good_stand: (GOOD_VISIT, [1, 0, 1, GOOD_TREE["graphic"]])}
+        check("one `stand` job event per stand (the reach measurement): tile, trees around it with offsets, "
+              "attempts, logs, the facing per chop, ended by 'nothing nearby'",
+              sorted((tuple(s["stand"][:2]), s["trip"]) for s in stands)
+              == sorted([(dry_stand, 1), (good_stand, 1), (good_stand, 2), (dry_stand, 2)])
+              and all(s["end"] == "nothing_near" and s["range"] == 1 and len(s["faced"]) == s["attempts"]
+                      and s["s"] >= 0 and s["attempts"] == want[tuple(s["stand"][:2])][0]
+                      and want[tuple(s["stand"][:2])][1] in s["trees"] for s in stands)
+              and sum(s["logs"] for s in stands) == sum(r["logs"] for r in rows) and len(by_tile) == 2,
+              str(stands)[:900])
         check("walk memory (store): the proxy recorded the agent's walks",
               len(walked.edges) >= 20, str(walked.stats()))
         check("open-door requests only next to a door, like the client's auto-open (never at plain walls)",
@@ -1002,10 +1059,12 @@ async def main():
               f"{world.doors_opened} opened")
         check("the town door opened on each of the 3 crossings (to the bank, back out, to the bank)",
               world.doors_opened >= 3, str(world.doors_opened))
-        check("like a player, the agent opened the backpack once before targeting the logs in it; the bank "
-              "box is never double-clicked (only 'bank' opens it)",
-              world.containers_opened == [BACKPACK] and world.bank_dclicks == 0,
-              f"{world.containers_opened} bank dclicks {world.bank_dclicks}")
+        fidget_opens = text.count("(idle: opening the backpack)")    # human texture (humanize.fidget), seed-dependent
+        check("like a player, the agent opened the backpack once before targeting the logs in it (any other "
+              "open is a logged idle fidget); the bank box is never double-clicked (only 'bank' opens it)",
+              world.containers_opened == [BACKPACK] * (1 + fidget_opens)
+              and text.count(f"opening container 0x{BACKPACK:08X}") == 1 and world.bank_dclicks == 0,
+              f"{world.containers_opened} fidget opens {fidget_opens} bank dclicks {world.bank_dclicks}")
         check("only speech: 'bank', stock-encoded, once per trip",
               len(speech) == 2 and all(p == actions.say_unicode("bank") for p in speech), str(len(speech)))
         check("two episode rows with logs and banked boards",
@@ -1152,9 +1211,9 @@ async def skirmish():
     check("first escape: walked away from the attacker to beyond its flee radius (8)",
           to is not None and to[0] > GOOD_TREE["stand"][0]
           and max(abs(to[0] - ATTACKER_POS[0]), abs(to[1] - ATTACKER_POS[1])) > 8, str(to))
-    far = store.harvest_node(0, FAR_TREE["x"], FAR_TREE["y"], FAR_TREE["z"]) or {}
-    check("resumed at the next tree out of the attacker's reach and harvested there",
-          world.far_attempts >= 2 and far.get("successes", 0) >= 1, f"{world.far_attempts} attempts, {far}")
+    far = [s for s in stand_events(store) if s["anchor"] == [FAR_TREE["x"], FAR_TREE["y"]]]
+    check("resumed at a stand by the next tree out of the attacker's reach and harvested there",
+          world.far_attempts >= 2 and sum(s["successes"] for s in far) >= 1, f"{world.far_attempts} attempts, {far}")
     check("the attacker kept coming after the second escape: the run stopped (exit 1)",
           code == 1 and "kept coming after the escape" in text and world.attacker_swings >= 2,
           f"exit {code}, {world.attacker_swings} swings")
@@ -1401,9 +1460,9 @@ async def gazer_run():
     check("walked out of the spell range (12) + margin, not just the melee flee radius (8)",
           to is not None and world.gazer_pos is not None and world.cheb(world.gazer_pos) > 12
           and max(abs(to[0] - world.gazer_pos[0]), abs(to[1] - world.gazer_pos[1])) > 12, f"{to} {world.gazer_pos}")
-    far = store.harvest_node(0, LIB_FAR_TREE["x"], LIB_FAR_TREE["y"], LIB_FAR_TREE["z"]) or {}
-    check("chopped on at the far tree, outside the gazer's reach; everything banked",
-          far.get("successes", 0) >= 1 and world.bank_stack is not None
+    far = [s for s in stand_events(store) if s["anchor"] == [LIB_FAR_TREE["x"], LIB_FAR_TREE["y"]]]
+    check("chopped on at a stand by the far tree, outside the gazer's reach; everything banked",
+          sum(s["successes"] for s in far) >= 1 and world.bank_stack is not None
           and world.bank_stack[1] == world.harvested and world.logs == 0, f"{far} bank {world.bank_stack}")
     check("no hit after the walk-away: at most one more cast landed while walking (walk_on)",
           1 <= len(world.gazer_hits) <= 2 and [h["action"] for h in hits] == ["run", "walk_on"][:len(hits)]
@@ -1500,12 +1559,7 @@ async def wary():
     world = World("wary")
     text, code, store, _ = await run_scenario(world, "wary", 12750, [GOOD_TREE, WEST_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
-    targets = []
-    for p, t in zip(world.c2s, world.c2s_t):
-        if p[0] == 0x6C:
-            f = parse_packet("c2s", p)
-            if f.get("target_type") == 1:
-                targets.append(((f["x"], f["y"]), t))
+    targets = world.chopped                              # (tree the server chopped, time)
     good = (GOOD_TREE["x"], GOOD_TREE["y"])
     check("the first tree chopped is the west one, not the nearer tree by the creature",
           targets and targets[0][0] == (WEST_TREE["x"], WEST_TREE["y"])
@@ -1857,6 +1911,57 @@ def unit_capture_named_players():
           and not any(st["world"]["mobiles"][f"0x{s:08X}"].get("pet") for s in (CAP_STINKY, CAP_WET)), worn)
 
 
+SH_TAG = "20261001_214649"   # Hackworth, human-driven; Smart Harvest self-targets at 23:20 and 23:47 (docs/NOTES.md)
+
+
+def unit_capture_smart_harvest():
+    """The runner's cursor answer (loop_lumber.self_target, from the state port's state and the
+    cursor event) against the stock client's self-targets in the capture, replayed through the
+    proxy's own SessionTap; and outcome() on what the server said after each."""
+    print("\n== Smart Harvest: our self-target is the stock client's packet; 'nothing nearby' maps to move on ==")
+    import loop_lumber
+    know = json.load(open(f"{ROOT}/harness/data/loops/lumber.json", encoding="utf-8"))
+    drv = viz_feed.ReplayDriver(SH_TAG, f"{ROOT}/logs")
+    evs, seen, cursor = [], [], 0
+    while drv.position < len(drv.items):
+        t, kind, a, b = drv.items[drv.position]
+        if kind == "c2s" and a == "client" and b[0] == 0x6C and b[1] == 0:
+            st = drv.tap.state(1 << 62)
+            if int.from_bytes(b[7:11], "big") == st["movement"]["self_serial"]:
+                cur = next(e for e in reversed(evs) if e.get("ev") == "target")
+                seen.append((t - drv.t0, b, loop_lumber.self_target(st, cur), len(evs), st))
+        drv._advance(None, 1)
+        tap = drv.tap
+        evs += [env["data"] for env in tap.events[max(cursor - tap.events_base, 0):]]
+        cursor = tap.events_base + len(tap.events)
+    _eq("the client's self-targets: 23:20 at (1918,2612) and 23:47 at (1905,2616)",
+        [(f"{int(o // 60)}:{int(o % 60):02d}", parse_packet("c2s", c)["x"], parse_packet("c2s", c)["y"])
+         for o, c, *_ in seen], [("23:20", 1918, 2612), ("23:47", 1905, 2616)])
+    for o, client, ours, _, st in seen:
+        f = parse_packet("c2s", ours)
+        check(f"{int(o // 60)}:{int(o % 60):02d}: ours == the client's, byte for byte "
+              f"(type 0, serial 0x{f['serial']:08X}, x/y {f['x']},{f['y']}, z {f['z']}, graphic 0x{f['graphic']:04X})",
+              ours == client and f["target_type"] == 0 and f["serial"] == 0x0020F127 and f["graphic"] == 0x0190,
+              f"\n    client {client.hex()}\n    ours   {ours.hex()}")
+    _eq("z comes from movement truth (0 there), not the world model's self z (10)",
+        [(st["movement"]["pos"][2], st["world"]["self"]["z"]) for *_, st in seen], [(0, 10), (0, 10)])
+    loop = SimpleNamespace(k=know, since=lambda m: evs[m:m + 3000])
+    _eq("outcome(): 23:20 (captcha, solved, then 'nothing nearby') -> nothing_near; 23:47 -> fail (500495)",
+        [LumberLoop.outcome(loop, mark) for *_, mark, _ in seen], [("nothing_near", 0), ("fail", 0)])
+    said = [e for e in evs[seen[0][3]:] if e.get("ev") == "speech_heard" and e.get("text") in NOTHING_NEAR][:2]
+    _eq("after 23:20 both 'nothing nearby' lines, as lumber.json has them: the system line, then ours overhead",
+        [(e["text"], e["serial"]) for e in said], [(NOTHING_NEAR[0], 0xFFFFFFFF), (NOTHING_NEAR[1], 0x0020F127)])
+    _eq("lumber.json's texts are the simulator's", tuple(know["harvest"]["nothing_near_texts"]), NOTHING_NEAR)
+    _eq("facing_to quantizes like RunUO GetDirection (23:47: the one tree, SE of us)",
+        [loop_lumber.facing_to((1905, 2616), b) for b in ((1906, 2617), (1905, 2610), (1908, 2617), (1906, 2619))],
+        [3, 0, 2, 4])
+
+
+def stand_events(store):
+    """The runner's `stand` job events (one per stand: the Smart Harvest reach measurement)."""
+    return [e["data"] for e in store.job_events("lumber") if e["kind"] == "stand"]
+
+
 def state_req(req):
     import socket
     with socket.create_connection(("127.0.0.1", STATE_PORT), timeout=5) as s:
@@ -1876,7 +1981,7 @@ def is_subsequence(want, seq):
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
             wary, red_aim, unit_hatchet, unit_hit_verdict, unit_capture_spell_witcher, unit_capture_juncture_222,
-            unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players]
+            unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`
     for fn in runs:
         if pick and fn.__name__ not in pick:

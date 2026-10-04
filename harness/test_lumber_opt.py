@@ -180,6 +180,14 @@ def test_capacity():
           and ty["spots"]["a"] == {"trees": 27, "tried": 25, "yielded": 24, "out": 1}, ty)
     check("too few cycles: the default logs per tree",
           lo.tree_yield(att[:8], {}, NOW, 45.0)["logs_per_tree"] == lo.LOGS_PER_TREE)
+    marks = att + [(NOW - 300, 0, 26, 0, 0, "nothing_near", 0), (NOW - 300, 0, 1, 0, 0, "nothing_near", 0),
+                   (NOW - 200, 0, 26, 1, 0, "success", 7)]   # Smart Harvest: a stand tile's attempt, not a tree
+    tm = lo.tree_yield(marks, {"a": (0, {(x, 0) for x in range(28)})}, NOW, 45.0)
+    check("Smart Harvest 'nothing nearby' marks: the marked trees are out now, a mark alone isn't tried; "
+          "a stand tile's attempts touch no tree tile",
+          tm["spots"]["a"] == {"trees": 27, "tried": 25, "yielded": 24, "out": 3} and tm["cycles"] == 24, tm)
+    rg = lo.regrowth([r[:6] for r in sorted(marks)])
+    check("marks make no regrowth pairs", rg["pairs"] == lo.regrowth([r[:6] for r in sorted(att)])["pairs"], rg)
 
     def trees(**spots):
         return {"logs_per_tree": 20.0, "spots": {sid: {"trees": n, "tried": tried, "yielded": yielded, "out": out}
