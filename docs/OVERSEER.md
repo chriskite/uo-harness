@@ -469,9 +469,14 @@ Paste this (or point the session at this section) to start an overseer.
 > **Safety.** One task at a time; never `act` while a task runs (ctl refuses anyway).  Gump replies only through
 > `act gump`, whose guards you must not try to work around: the captcha is refused (the human or the runner's solver answers it),
 > never reply to button-less gumps, and a renounce-Young prompt may only be closed. **Never
-> attack players, their pets or NPCs (except trainers)**. Hostile monsters you may fight and loot
-> (`act attack`, `act loot`): one weak monster at a time, watch your hits, and back off below
-> about half.
+> attack players, their pets or NPCs (except trainers)**. **Never fight by hand in a dungeon**
+> (user decision 2026-10-03): an LLM reacts far too slowly for combat (Shackleworth died at
+> Urukton Bluffs 15 s after one manual `act attack`, in a room with an orc lord, orc mages and a
+> cave bear, fighting with fists). In dungeons only `ctl run hunt` fights; you scout, choose
+> where it runs and watch. Outside dungeons you may still fight and loot a lone weak monster
+> (`act attack`, `act loot`): watch your hits and back off below about half. **Before any fight,
+> check `status.equipment` holds your weapon**: any cast, including a recall from a book charge,
+> puts an arcane staff into the pack below 80 Arcane/Magery/Wrestling (`act equip` it back).
 > Keep actions few and human-paced. The agent gate (pause, kill, breaks, daily cap) outranks you:
 > if it is closed, wait. If anything looks like a GM, a jail, or a server message about
 > automation, stop the task and call the human. Follow `harness/data/policy.json`.

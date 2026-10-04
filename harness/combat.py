@@ -27,6 +27,8 @@ agent_link.Link) and do their own waiting.
 - human_corpse(), loot_order(), grab_packets(): the loot rule and the stock
   GrabItem shape (0x07 lift, 0x08 drop into the open backpack).
 """
+import re
+
 import actions
 import threats
 
@@ -273,9 +275,20 @@ def target_self(cursor: dict, self_serial: int, pos, body) -> bytes:
 
 
 def human_corpse(corpse: dict) -> bool:
-    """A corpse with a human body (a player, a human NPC, your own): never looted
-    (criminal, and policy: no corpse runs). A corpse's amount is the body it was."""
-    return corpse.get("amount") in threats.HUMAN_BODIES or "remains of" in (corpse.get("name") or "").lower()
+    """A player's or human NPC's corpse (a player, our own, a townsman): never looted
+    (criminal, and policy: no corpse runs). A corpse's amount is the body it was.
+    Players' corpses are named "the remains of <name>"; monster corpses "<a|an> <creature>
+    corpse" (store, 1,700+ names). A human-bodied monster ("an orc hunter corpse", Urukton
+    Bluffs 2026-10-03) is a monster corpse; any other human-bodied corpse counts as human."""
+    name = (corpse.get("name") or "").strip().lower()
+    if "remains of" in name:
+        return True
+    if corpse.get("amount") in threats.HUMAN_BODIES:
+        return not _MONSTER_CORPSE.match(name)
+    return False
+
+
+_MONSTER_CORPSE = re.compile(r"^(a|an) .+ corpse$")
 
 
 def corpse_contents(world: dict, corpse: int) -> dict:

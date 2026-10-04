@@ -132,6 +132,22 @@ def test_npcs_and_players():
     eq("banker alone -> overall ignore", a.action, "ignore")
     a = assess(state(body=0x192), recall_s=4.0, margin_s=1.0, now=NOW)
     eq("self ghost -> dead", a.dead, True)
+    # live 2026-10-03, Urukton Bluffs: human-bodied spawn with creature-style names, no player flag
+    urk = [mob(0x210, 6, 0, noto=3, flags=0),                 # an orc hunter (body 400)
+           mob(0x211, 7, 0, noto=1, flags=0),                 # a prevalian footman (NPC soldier)
+           mob(0x212, 8, 0, noto=3, flags=0x20)]              # a player who happens to be named "an ..."
+    a = assess(state(urk, labels={0x210: "an orc hunter", 0x211: "a prevalian footman", 0x212: "an orc"}),
+               recall_s=4.0, margin_s=1.0, now=NOW)
+    eq("human body named 'an orc hunter', grey, no player flag -> a monster, not a grey player",
+       (one(a, 0x210).kind, one(a, 0x210).player), ("monster", None))
+    eq("human body named 'a prevalian footman', innocent -> an NPC", (one(a, 0x211).kind, one(a, 0x211).player),
+       ("npc", False))
+    eq("the player flag still wins over a creature-like name", (one(a, 0x212).kind, one(a, 0x212).player),
+       ("grey", True))
+    a = assess(state([mob(0x213, 6, 0, noto=6, flags=0)], labels={0x213: "a PK"}),
+               recall_s=4.0, margin_s=1.0, now=NOW)
+    eq("a red human named like a creature stays a player (never attackable by mistake)",
+       (one(a, 0x213).kind, one(a, 0x213).player), ("red", True))
 
 
 def test_monsters():

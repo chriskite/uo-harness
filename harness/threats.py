@@ -367,6 +367,17 @@ def identify(mob: dict, label: str | None) -> tuple[str, bool | None, list]:
                                  else "body unknown"]
     if text and _TITLE.match(text):
         return "npc", False, [f"title label {text!r} (heuristic)"]
+    if text and _CREATURE.match(text):
+        # A human body named like a creature ("an orc hunter", "a prevalian footman") with no
+        # player flag is a server-spawned mobile, not a player (live 2026-10-03 Urukton Bluffs:
+        # orc hunters, body 400, notoriety 3, flags 0, came out as grey players). Attackable (3)
+        # ones are monsters; innocent ones (soldiers, guards) are NPCs. Criminals, enemies and
+        # reds (4-6) stay players whatever their name: calling a player a monster would let us
+        # attack him, and the flag heuristic is only a heuristic.
+        if noto == 3:
+            return "monster", None, [f"creature label {text!r} on a human body, no player flag"]
+        if noto in (1, 2):
+            return "npc", False, [f"creature label {text!r} on a human body, no player flag"]
     return KIND_BY_NOTORIETY.get(noto, "unknown"), True, [ASSUMED_PLAYER]
 
 
