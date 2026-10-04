@@ -748,6 +748,62 @@ disturb recovery; a reflected opener would have saved Nusero; flight and healing
   Open: how long it lasts on Outlands,
   how to see it's up (buff icon), and recasting it at the start of each trip and after each reflect.
 
+## Smart Harvest for lumber: next (decided 2026-10-04, not built)
+
+**Decision (user, 2026-10-04): the lumber runner switches from targeting a tree to Smart Harvest,
+and that is the next lumber work.** Another agent implements it. Smart Harvest: double-click the
+hatchet and answer its cursor with yourself; the server chops a nearby tree that still has wood
+([wiki](https://wiki.uooutlands.com/Smart_Harvest): "target yourself/status bar … automatically
+harvest from any nearby spot that has resources remaining").
+
+**Evidence that it works:**
+- The user has used it in our sessions.
+- Capture `20261001_214649` (Hackworth, human-driven, `python harness/loop_mine.py timeline
+  20261001_214649`, 23:18–23:52):
+  - At 23:20 (1918,2612): hatchet `0x4B6BB8A7` double-click → cliloc 1010018 "What do you want
+    to use this item on?" + cursor → client `0x6C` type 0 on our own serial (x/y of our tile,
+    graphic `0x0190` = our body; the stock client fills these in) → captcha gump → after the solve
+    "You do not see any harvestable resources nearby." and, overhead from self, "You cannot produce
+    any wood from that."
+  - At 23:47 (1905,2616), the same sequence next to trees → cliloc 500495 "You hack at the tree
+    for a while, but fail to produce any useable wood.": an ordinary chop result.
+- Every public lumber script does it this way (Jaseowns' three, ANTICHEAT.md §3; Discord KB
+  "smart harvesting", 3 authors).
+
+**Why:**
+- One stock action per attempt with no tree to choose and no aim at a tile.
+- Fewer walks: the runner moves only when nothing near it has wood, closer to how scripted
+  harvesters play (Razor can't walk on Outlands, ANTICHEAT.md §3).
+- Today's per-tree targeting (`loop_lumber.attempt` → `actions.target_xyz` on the tree's static)
+  stays something a player can do, so this is a simplification, not a detection fix.
+
+**What the implementer has to settle** (unknowns are measured live, not guessed):
+- **Answering the cursor:** with our own serial, byte-equal to the client's packet above. Reuse what
+  `ctl act target self` sends rather than writing a second builder.
+- **Outcomes:** the existing clilocs (logs, 500495 fail, 500493 not enough wood) still come per
+  attempt. New: "You do not see any harvestable resources nearby." means nothing in range has wood,
+  so move to the next stand. Map it in `outcome()` next to the old "not a tree" / depleted cases.
+- **Range and choice:** how far Smart Harvest reaches, and which tree it picks, are unknown. Measure
+  them on the first attended run: stand positions, the trees around them, the result, and logs per
+  stand. The tree list (`candidate_trees`, map `find_trees`, harvest memory) then chooses *where to
+  stand* (most trees with wood within the measured range), not what to target.
+- **Harvest memory:** results are kept per tree (`memory.harvest_record(node, …)`). With Smart
+  Harvest the server doesn't say which tree it chopped. Record per stand tile, and on "no harvestable
+  resources nearby" mark the trees within range as depleted for the regrow window. Keep the episode
+  and trip stats `lumber_opt` reads (attempts, successes, logs, chop and walk times) unchanged in
+  meaning.
+- **Stationary Penalty:** standing longer per spot brings it on sooner (301–315 s without a step);
+  `unstick` already handles it before each chop.
+- **Captchas:** unchanged. The self-target attempt resumes after the solve like a tree attempt
+  (NOTES "The harvest attempt that raised the captcha resumes after the solve").
+- **Cutover:** replace per-tree targeting outright (no flag, no fallback path) unless the live
+  measurement shows Smart Harvest failing somewhere the old way works; then record the case here.
+
+**Done when:** offline tests (`test_loop_lumber.py`) cover the new cursor answer and the "no
+harvestable resources nearby" move-on; an attended live trip chops a quota with Smart Harvest
+only; trip and episode rows still feed `lumber plan`; the measured range and the tree it picks
+are written to docs/NOTES.md and LUMBER_LOOP.md §2.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
