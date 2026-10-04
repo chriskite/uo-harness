@@ -163,6 +163,46 @@ def test_trip_size():
           (row(out2, "calm"), row(out, "calm")))
 
 
+def test_capacity():
+    print("== capacity: a grove holds its yielding trees x logs per tree; a sparse one ends trips early ==")
+    att, t = [], NOW - 5 * 86400
+    for x in range(24):                                   # 24 trees give 8 + 8 + 4 logs, then run out
+        for amt in (8, 8, 4):
+            att.append((t, 0, x, 0, 0, "success", amt))
+            t += 10
+        att.append((t, 0, x, 0, 0, "depleted", 0))
+        t += 10
+    att += [(t, 0, 24, 0, 0, "depleted", 0), (t + 10, 0, 25, 0, 0, "not_tree", 0),
+            (NOW - 600, 0, 0, 0, 0, "depleted", 0)]       # 24: chopped out by someone else; 0: out again now
+    ty = lo.tree_yield(att, {"a": (0, {(x, 0) for x in range(28)})}, NOW, 45.0)
+    check("harvest memory: logs per tree from completed cycles; trees less non-trees; tried, yielded, out now",
+          ty["logs_per_tree"] == 20.0 and ty["cycles"] == 24
+          and ty["spots"]["a"] == {"trees": 27, "tried": 25, "yielded": 24, "out": 1}, ty)
+    check("too few cycles: the default logs per tree",
+          lo.tree_yield(att[:8], {}, NOW, 45.0)["logs_per_tree"] == lo.LOGS_PER_TREE)
+
+    def trees(**spots):
+        return {"logs_per_tree": 20.0, "spots": {sid: {"trees": n, "tried": tried, "yielded": yielded, "out": out}
+                                                 for sid, (n, tried, yielded, out) in spots.items()}}
+    sp = [spot("s"), spot("d", 3000, 3000)]
+    eps = series("s", 6, 1500) + series("d", 6, 1500, start=NOW - 3 * 86400)
+    out = plan(sp, eps, trees=trees(s=(30, 30, 24, 0), d=(300, 300, 240, 0)))
+    s, d = row(out, "s"), row(out, "d")
+    check("same chopping rate: the sparse grove's trips stop at what its trees hold, so it nets less per hour",
+          s["grove_bound"] and abs(s["logs_per_trip"] - s["grove_logs"]) <= 1 and s["logs_per_trip"] < d["logs_per_trip"]
+          and s["net_logs_h"] < d["net_logs_h"] and 400 < s["grove_logs"] < 560, (s, d))
+    gone = row(plan(sp, eps, trees=trees(s=(30, 30, 24, 20), d=(300, 300, 240, 0))), "s")
+    check("trees still regrowing don't count", gone["trees_out"] == 20 and gone["grove_logs"] < s["grove_logs"] / 2,
+          gone)
+    only = plan(sp[:1], eps[:6], trees=trees(s=(30, 30, 24, 0)))["pick"]
+    quota = int(only["args"][only["args"].index("--logs-per-trip") + 1])
+    check("a grove-bound pick is one trip, told the uncapped quota (it chops until the trees run out)",
+          only["grove_bound"] and only["trips"] == 1 and quota > only["grove_logs"], only)
+    fresh = plan([spot("s"), spot("d", 3000, 3000)], [], trees=trees(s=(40, 0, 0, 0), d=(300, 0, 0, 0)))
+    check("untried spots: the denser grove wins the Thompson draws more often",
+          row(fresh, "d")["p_best"] > row(fresh, "s")["p_best"], (row(fresh, "d"), row(fresh, "s")))
+
+
 def test_hazard_evidence():
     print("== hazards learned per spot: deaths, trips sent home, thefts; shrunk to the pooled rate ==")
     spots = [spot("a"), spot("b", 3000, 3000)]
@@ -509,7 +549,8 @@ def test_travel_costs():
 if __name__ == "__main__":
     for fn in (test_explore_exploit, test_skill_rescaling, test_trip_size, test_hazard_evidence,
                test_gear_and_capacity, test_eligibility, test_regrowth, test_hatchets, test_spots_store,
-               test_discover, test_failed_places, test_travel_and_hub, test_discover_witcher, test_travel_costs):
+               test_discover, test_failed_places, test_travel_and_hub, test_discover_witcher, test_travel_costs,
+               test_capacity):
         fn()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

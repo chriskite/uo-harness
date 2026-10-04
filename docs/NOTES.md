@@ -698,6 +698,38 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   while looting and it left without drinking; loot() now heals and checks the leave rules
   before each item.
 
+## Evening lumber shift: Magic Reflection and runner gaps (live 2026-10-03 21:43–22:38, Hackworth, LumberSeer)
+
+Task logs: `logs/tasks/lumber-20261003-214343-7dee.log` (Horseshoe Bay), `…-221714-5a7d.log`
+(witcher_280), `…-222221-9fb8.log` (Corpse Creek). The overseer's account: `agent://LumberSeer`.
+- **Magic Reflection, first captures.** The buff is icon **138**, title "Magic Reflection", no
+  description, `timers_s [0.0]`: **it has no timer**. One cast lasted 34.2 min and ended only when a
+  gazer larva's spell hit it ("Magic reflect removed."). Recasting while it's up is refused with
+  "That spell is already currently in effect." and costs no mana. It cost 13 mana. A successful
+  cast writes no journal line; a fizzle writes "The spell fizzles." (cliloc 502632). At Magery 60,
+  2 of 4 casts landed. So the open "how long, how to see it" questions in PLAN.md "PK survival"
+  have answers: it lasts until it absorbs a spell, and `status.buffs` icon 138 shows it.
+- **Escape recalls landed on the first try both times** (2.2 s and 2.29 s, tome charges). At Corpse
+  Creek the flight started 0.45 s after the grey player was first seen, and the runner cancelled
+  its open target cursor first.
+- **Gaps seen (not fixed):**
+  - At witcher_280 the larva's first spell ("Magic reflect removed.", 22:17:32) didn't count as an
+    attack. The runner reacted only to the −14 hits 4 s later, 7.75 s after first sight. Reacting
+    to that line, or to any spell from a visible hostile, would have moved the flight ~4 s earlier.
+  - Juncture 222 said "2 creatures attacking" while `attackers` was empty and only the larva was
+    hostile.
+  - Trip 1's row listed "a stinky mongbat" and "a wet mongbat" under players seen (probably named
+    pets), and its `buffs` held raw cliloc ids ('1044416', '1110004') instead of names.
+  - The hatchet sat in the backpack the whole shift and chopping still worked; `worn: False` on the
+    trip row.
+  - The "Spell Siphon" buff (icon 167) stayed in `status.buffs` for 20+ min after the hit (possibly
+    stale).
+  - A tile `act goto` onto a moongate (2974,611 / 2025,2077 / 1693,3153) closed the gate's gump on
+    arrival, against the documented range-0 rule; a double-click on the gate reopened it.
+- **Horseshoe Bay ran dry again at 613 logs** (30 min, 4 trees unreachable at the end), matching
+  the 605 of the afternoon: the grove holds ~610 logs per regrowth window (docs/PLAN.md "Tree
+  density enters as grove capacity").
+
 ## Traffic audit of the 2026-10-02/03 captures (2026-10-03)
 
 All 20 sessions 20261001_214649 … 20261003_150103 replayed in timed order (`replay.timed_packets`

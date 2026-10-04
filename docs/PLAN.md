@@ -464,6 +464,19 @@ plus the store, hatchets in `harness/data/hatchets.json`; the model is docs/LUMB
   "a spot like the others". What stays: the overseer disables a pick that turns out to be a dungeon
   mouth or monster area (names only catch obvious ones: Urukton Bluffs and Undermountain North
   Entrance passed), and the planner's own place-failure and death cooldowns keep bad picks out.
+- **Tree density enters as grove capacity, not as a chopping-rate prior (user, 2026-10-03).** The
+  user's point: a sparse grove dries up sooner, so each trip there pays the trip's start and end
+  overhead for fewer logs. Harvest memory backs a capacity model: a tree gives ~19 logs before it's
+  depleted everywhere (470 cycles, 17.7–20.2 per spot), while the share of mapped trees that give
+  anything varies by spot (0.46–0.85), and trees × share × 19 matches the dry trips (Horseshoe Bay
+  ~677 vs 605/613, witcher_282 ~1225 vs 1200). So `grove_logs` = trees the runner would try now ×
+  yielding share (Beta per spot, pooled prior worth 10 tiles, drawn in Thompson sampling) × logs per
+  tree caps Q*; when it binds the run is that one trip, and the runner is told the uncapped Q* so
+  it stops on the real dry, not on the estimate. Rejected: a density term in the λ prior (density
+  didn't predict logs per field hour across the measured spots; walking between trees is a small
+  share of field time) and a regrowth refill within a trip (the runner lists the trees once per trip).
+  Live effect: small for Witcher spots (recall overhead is 2–4 min a trip), large for small walking
+  spots and for any spot whose trees are still regrowing.
 - **Hatchets by expected net value, prices from observation.** Wear is one use per successful chop
   (measured, YOUNG_DEMOS); a hatchet that isn't newbied is lost on death (Terran: the corpse kept
   it). With no price, a hatchet isn't used and the plan gives the break-even price instead of

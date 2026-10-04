@@ -78,6 +78,10 @@ DEFAULT_CHOP_S = 9.5              # s per attempt for trips that didn't time the
 DEFAULT_CHOP_SHARE = 0.7          # share of field time spent chopping when no trip timed it
 DISPERSION_MIN = 8.0              # Var(logs) ≥ ~8 × mean: logs come ~7.6 per success
 LOGS_PER_SUCCESS = 7.6            # until harvest_attempts say otherwise (live mean 7.6)
+LOGS_PER_TREE = 19.0              # logs a tree gives before 'depleted' (harvest_attempts 2026-10-03: 470 cycles,
+                                  # mean 19.3; per spot 17.7-20.2) until harvest memory has enough cycles
+LOGS_PER_TREE_MIN_CYCLES = 20
+YIELD_PRIOR_TILES = 10.0          # tree tiles of pseudo-data behind a spot's yielding share (pooled mean)
 SEC_PER_TILE = 0.45               # overhead prior: walking pace incl. detours [INFERENCE: mounted 0.1-0.2 s/step, on foot 0.4]
 OVERHEAD_FIXED_S = 40.0           # convert + open the bank + store + human pauses (live 10-20 s + pauses)
 OVERHEAD_SD_MIN_S = 30.0
@@ -478,7 +482,7 @@ def regrowth(rows) -> dict:
     reaches REGROW_P, rounded up to 5 min. REGROW_DEFAULT_MIN with too few
     pairs or when it never does."""
     last, pairs = {}, []
-    for t, facet, x, y, z, outcome in rows:
+    for t, facet, x, y, z, outcome, *_ in rows:
         k = (facet, x, y, z)
         prev = last.get(k)
         if prev is not None and prev[1] == "depleted" and outcome in ("success", "fail", "depleted"):
@@ -509,6 +513,69 @@ def regrowth(rows) -> dict:
         out["minutes"] = float(5 * math.ceil(hit[2] / 5.0))
         out["fitted"] = True
     return out
+
+
+def tree_yield(attempts, tiles_by_spot: dict, now: float, regrow_min: float) -> dict:
+    """What harvest memory says about each spot's trees, the input of its capacity
+    (capacity_model). attempts: harvest_attempts rows (t, facet, x, y, z, outcome,
+    amount) in time order; tiles_by_spot: spot_tree_tiles(). Returns
+    {logs_per_tree, cycles, spots: {id: {trees, tried, yielded, out}}}:
+      - logs_per_tree: mean logs of a tree's completed cycles (its successes up to
+        'depleted'; cycles with logs only), pooled over every tree; LOGS_PER_TREE
+        until LOGS_PER_TREE_MIN_CYCLES cycles;
+      - trees: the spot's tree tiles less those found not to be trees;
+      - tried / yielded: of those, the ones attempted / that ever gave logs;
+      - out: the ones the runner skips now, depleted or unreachable within the
+        regrowth window (Memory.harvest_available)."""
+    cur, cycles, tiles = {}, [], {}
+    for t, facet, x, y, _z, outcome, amount in attempts:
+        k = (facet, x, y)
+        d = tiles.setdefault(k, {"yielded": False, "not_tree": False, "out_t": None})
+        if outcome == "success":
+            cur[k] = cur.get(k, 0) + (amount or 0)
+            d["yielded"] = True
+        elif outcome == "depleted":
+            got = cur.pop(k, 0)
+            if got > 0:
+                cycles.append(got)
+            d["out_t"] = t
+        elif outcome == "unreachable":
+            d["out_t"] = t
+        elif outcome == "not_tree":
+            d["not_tree"] = True
+    window = regrow_min * 60.0
+    out = {}
+    for sid, (facet, spot_tiles) in tiles_by_spot.items():
+        seen = [d for d in (tiles.get((facet, x, y)) for x, y in spot_tiles) if d is not None and not d["not_tree"]]
+        bad = sum(1 for x, y in spot_tiles if (tiles.get((facet, x, y)) or {}).get("not_tree"))
+        out[sid] = {"trees": len(spot_tiles) - bad, "tried": len(seen),
+                    "yielded": sum(1 for d in seen if d["yielded"]),
+                    "out": sum(1 for d in seen if d["out_t"] is not None and now - d["out_t"] < window)}
+    return {"logs_per_tree": sum(cycles) / len(cycles) if len(cycles) >= LOGS_PER_TREE_MIN_CYCLES else LOGS_PER_TREE,
+            "cycles": len(cycles), "spots": out}
+
+
+def capacity_model(info: dict | None, share0: float) -> dict | None:
+    """A spot's capacity parameters from its tree_yield entry (None: unknown, no
+    cap): avail = the tree tiles the runner would try now, (a, b) = the Beta
+    posterior of the share of tree tiles that give logs (prior: the pooled share
+    share0, worth YIELD_PRIOR_TILES tiles). A sparse grove holds few logs per
+    trip, and a grove where many mapped trees give nothing (other players'
+    chopping, statics that aren't trees) holds fewer than its count says."""
+    if info is None:
+        return None
+    return {"trees": info["trees"], "avail": max(0, info["trees"] - info["out"]),
+            "a": YIELD_PRIOR_TILES * share0 + info["yielded"],
+            "b": YIELD_PRIOR_TILES * (1.0 - share0) + info["tried"] - info["yielded"]}
+
+
+def capacity_logs(cap: dict | None, logs_per_tree: float, rng=None):
+    """Logs the spot's trees hold for the next trip (avail × yielding share × logs
+    per tree): the posterior mean, or one draw with rng; None without a model."""
+    if cap is None:
+        return None
+    share = rng.betavariate(cap["a"], cap["b"]) if rng is not None else cap["a"] / (cap["a"] + cap["b"])
+    return cap["avail"] * share * logs_per_tree
 
 
 # ------------------------------------------------------------------ the model
@@ -729,14 +796,19 @@ def _draw(m, pooled, rng):
                       pooled["f"])
 
 
-def _value(lam, t_h, hz, gear_logs, stint_h, travel_h, cost_logs=0.0, q_cap=Q_MAX, refine=False):
-    """(net logs/hour of a run there, Q*): the travel to the spot is paid out of
-    the run, which lasts a stint or one trip when that's longer."""
-    q = best_q(lam, t_h, hz, gear_logs, q_cap, cost_logs, refine=refine)
+def _value(lam, t_h, hz, gear_logs, stint_h, travel_h, cost_logs=0.0, q_cap=Q_MAX, refine=False, cap_logs=None):
+    """(net logs/hour of a run there, Q*, capacity-bound): the travel to the spot
+    is paid out of the run, which lasts a stint or one trip when that's longer.
+    cap_logs (what the spot's trees hold, capacity_logs) caps Q*. When it binds,
+    the trip ends dry and the spot is out until its trees regrow, so the run is
+    that one trip: its overhead and the travel buy only those logs."""
+    q = best_q(lam, t_h, hz, gear_logs, q_cap if cap_logs is None else min(q_cap, cap_logs), cost_logs,
+               refine=refine)
     tt = trip_terms(q, lam, t_h, hz)
     v = (tt["banked"] - cost_logs - gear_logs * tt["p_death"]) / tt["time_h"]
-    run_h = max(stint_h, tt["time_h"])
-    return v * run_h / (run_h + travel_h), q
+    bound = cap_logs is not None and cap_logs < min(q_cap, Q_MAX) and q >= int(cap_logs)
+    run_h = tt["time_h"] if bound else max(stint_h, tt["time_h"])
+    return v * run_h / (run_h + travel_h), q, bound
 
 
 def eligibility(spot, trips, threats, now, young, regrow_min) -> str | None:
@@ -864,8 +936,8 @@ def hatchet_value(opt, m, gear_gp, skill, p_ref, logs_per_success, gp_per_log, s
         c = m["chop_share"]
         lam = 1.0 / (c / lam * p_ref / p + (1.0 - c) / lam)
     gear = gear_gp + (0.0 if opt["owned"] or opt["newbied"] else (price or 0.0))
-    v, _ = _value(lam, m["overhead_s"] / 3600.0, m["hz"], gear / gp_per_log, stint_h, 0.0,
-                  m.get("supply_gp", 0.0) / gp_per_log, q_cap, refine=True)
+    v, _, _ = _value(lam, m["overhead_s"] / 3600.0, m["hz"], gear / gp_per_log, stint_h, 0.0,
+                     m.get("supply_gp", 0.0) / gp_per_log, q_cap, refine=True, cap_logs=m.get("cap_logs"))
     wear = v / logs_per_success * (price or 0.0) / opt["uses"] / gp_per_log
     return v - wear
 
@@ -889,13 +961,15 @@ def breakeven_price(opt, m, gear_gp, skill, p_ref, lps, gpl, stint_h, q_cap, tar
 def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dict, char: dict | None,
          table: dict, prices: dict, now: float, rng: random.Random, young: bool = False,
          stint_min: float = STINT_MIN, here: str | None = None, logs_per_success: float = LOGS_PER_SUCCESS,
-         gp_per_log: float = 9.5, draws: int = DRAWS, events: list = ()) -> dict:
+         gp_per_log: float = 9.5, draws: int = DRAWS, events: list = (), trees: dict | None = None) -> dict:
     """The pure planner. episodes: lumber trip rows; sightings: [t] of pk_seen
     job events; deaths: [{t, x, y}] (world `death` events); regrow: regrowth();
     char: character() or None; here: the spot we stand at (current_spot);
     prices: Memory.prices() (hatchets, reagents, the board price, supplies:
     supply_gp); events: lumber job events and theft_suspected junctures
-    ({t, kind, data}: death causes, recall/guard_flight escapes, thefts)."""
+    ({t, kind, data}: death causes, recall/guard_flight escapes, thefts);
+    trees: tree_yield() (each spot's trees, what they give, which are out now);
+    a spot without an entry has no capacity limit."""
     char = char or {}
     young = bool(young or char.get("young"))
     trips = [tr for tr in (trip_obs(e, prices) for e in episodes) if tr is not None and tr["spot"] in spots]
@@ -963,6 +1037,10 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
     q_cap = Q_MAX
     if _num(char.get("weight_max")) and _num(char.get("weight")) is not None:
         q_cap = max(0, int((char["weight_max"] - char["weight"]) / LOG_WEIGHT))
+    trees = trees or {"logs_per_tree": LOGS_PER_TREE, "spots": {}}
+    lpt = trees["logs_per_tree"]
+    infos = list(trees["spots"].values())
+    share0 = (sum(i["yielded"] for i in infos) + 1.0) / (sum(i["tried"] for i in infos) + 2.0)
 
     learned = learned_travel(trips, spots)
     models, rows = {}, []
@@ -972,11 +1050,14 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
         trav = travel_h(s, here, learned)
         m["cost_logs"] = m["supply_gp"] / gp_per_log
         t_h = m["overhead_s"] / 3600.0
-        v, q = _value(m["rate"], t_h, m["hz"], gear_logs, stint_h, trav, m["cost_logs"], q_cap, refine=True)
+        m["cap"] = capacity_model(trees["spots"].get(sid), share0)
+        m["cap_logs"] = capacity_logs(m["cap"], lpt)
+        v, q, bound = _value(m["rate"], t_h, m["hz"], gear_logs, stint_h, trav, m["cost_logs"], q_cap, refine=True,
+                             cap_logs=m["cap_logs"])
         tt = trip_terms(q, m["rate"], t_h, m["hz"])
         lo = gamma_quantile(m["alpha"], m["beta"], 0.1)
         hi = gamma_quantile(m["alpha"], m["beta"], 0.9)
-        m.update(travel_h=trav, value=v, q=q, why=why, terms=tt)
+        m.update(travel_h=trav, value=v, q=q, bound=bound, why=why, terms=tt)
         models[sid] = m
         hd, hs, ht, _ = m["hz"]
         last = max((tr["t1"] for tr in by_spot[sid]), default=None)
@@ -991,6 +1072,11 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
                      "p_death_trip": round(tt["p_death"], 3),
                      "loss_logs_trip": round(tt["lost_death"] + tt["lost_theft"] + gear_logs * tt["p_death"], 1),
                      "logs_per_trip": q, "net_logs_h": round(v),
+                     "trees": None if m["cap"] is None else m["cap"]["trees"],
+                     "trees_out": None if m["cap"] is None else m["cap"]["trees"] - m["cap"]["avail"],
+                     "yield_share": None if m["cap"] is None else round(m["cap"]["a"] / (m["cap"]["a"] + m["cap"]["b"]), 2),
+                     "grove_logs": None if m["cap_logs"] is None else round(m["cap_logs"]),
+                     "grove_bound": bound,
                      "supply_gp_trip": round(m["supply_gp"], 1), "supply_unpriced": m["supply_unpriced"],
                      "place_fails": m["place_fails"],
                      "here": sid == here or (here is not None and hub_of(s) == here),
@@ -1007,6 +1093,7 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
            "sent_home_pooled_per_h": round(pooled["home"], 3), "thefts_pooled_per_h": round(pooled["theft"], 4),
            "theft_fraction": round(pooled["f"], 2), "theft_events": len(thefts),
            "gear_at_risk": gear, "capacity_logs": None if q_cap == Q_MAX else q_cap,
+           "logs_per_tree": round(lpt, 1), "yield_share_pooled": round(share0, 2),
            "prior_rate_logs_h": round(prior[0] / prior[1]), "prior_cv": round(1 / math.sqrt(prior[0]), 2),
            "spots": sorted(rows, key=lambda r: (not r["eligible"], -r["net_logs_h"])), "pick": None}
     if not eligible:
@@ -1016,7 +1103,8 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
 
     def value(sid):
         mm = models[sid]
-        return _value(*_draw(mm, pooled, rng), gear_logs, stint_h, mm["travel_h"], mm["cost_logs"], q_cap)[0]
+        return _value(*_draw(mm, pooled, rng), gear_logs, stint_h, mm["travel_h"], mm["cost_logs"], q_cap,
+                      cap_logs=capacity_logs(mm["cap"], lpt, rng))[0]
 
     wins = {sid: 0 for sid in eligible}
     for _ in range(draws):
@@ -1031,11 +1119,17 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
     q = m["q"]
     trip_s = (q / m["rate"] + m["overhead_s"] / 3600.0) * 3600.0     # a full trip, nothing ending it early
     n = max(1, round(stint_min * 60.0 / trip_s))
-    timeout = int(max(1800, 2 * n * trip_s + 600))
+    run_q = q
+    if m["bound"]:
+        # the grove holds less than Q*: one trip, told the uncapped Q* so it chops until
+        # the trees run out rather than stopping at our estimate of what they hold
+        n = 1
+        run_q = best_q(m["rate"], m["overhead_s"] / 3600.0, m["hz"], gear_logs, q_cap, m["cost_logs"])
+    timeout = int(max(1800, 2 * n * (run_q / m["rate"] * 3600.0 + m["overhead_s"]) + 600))
 
     hat = hatchet_choice(char, table, prices, m, gear["gp"], skill, p_now, logs_per_success, gp_per_log,
                          stint_h, q_cap)
-    args = ["--spot", pick, "--trips", str(n), "--logs-per-trip", str(q),
+    args = ["--spot", pick, "--trips", str(n), "--logs-per-trip", str(run_q),
             "--regrow-min", f"{regrow['minutes']:g}", "--timeout", str(timeout)]
     if hat.get("use"):
         args += ["--hatchet", hat["use"]]
@@ -1044,6 +1138,8 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
                    "greedy": greedy, "p_best": round(wins[pick] / draws, 3),
                    "travel": None if models[pick]["travel_h"] == 0 else spots[pick].get("travel"),
                    "logs_per_trip": q, "trips": n, "timeout_s": timeout,
+                   "grove_logs": None if m["cap_logs"] is None else round(m["cap_logs"]),
+                   "grove_bound": m["bound"],
                    "expected_trip_min": round(trip_s / 60.0, 1), "expected_net_logs_h": round(m["value"]),
                    "expected_banked_trip": round(tt["banked"]), "p_death_trip": round(tt["p_death"], 3),
                    "p_sent_home_trip": round(tt["p_home"], 3),
@@ -1112,7 +1208,8 @@ def store_inputs(memory) -> dict:
     for t, data in memory.con.execute("SELECT t, data FROM events WHERE ev='death' ORDER BY t"):
         d = json.loads(data)
         deaths.append({"t": t, "x": d.get("x"), "y": d.get("y")})
-    attempts = memory.con.execute("SELECT t, facet, x, y, z, outcome FROM harvest_attempts ORDER BY t").fetchall()
+    attempts = memory.con.execute("SELECT t, facet, x, y, z, outcome, amount FROM harvest_attempts "
+                                  "ORDER BY t").fetchall()
     events = memory.job_events("lumber")
     events += [{"t": t, "kind": "theft_suspected", "data": json.loads(data) if data else {}}
                for t, data in memory.con.execute("SELECT t, data FROM junctures WHERE kind='theft_suspected' "
@@ -1121,10 +1218,41 @@ def store_inputs(memory) -> dict:
     # (loop_lumber.track_sighting `counted`; LUMBER_LOOP.md §13 "Tracking reds")
     return {"episodes": memory.episodes("lumber"),
             "sightings": [e["t"] for e in events if e["kind"] == "pk_seen" and e["data"].get("counted", True)],
-            "deaths": deaths, "regrow": regrowth(attempts), "prices": memory.prices(),
+            "deaths": deaths, "regrow": regrowth(attempts), "attempts": attempts, "prices": memory.prices(),
             "logs_per_success": logs_per_success(memory),
             "events": [e for e in events if e["kind"] in ("death", "recall", "guard_flight", "theft",
                                                           "theft_suspected")]}
+
+_MAPS, _TILES = {}, {}
+
+
+def spot_tree_tiles(spots: dict) -> dict:
+    """{spot id: (facet, {(x, y)})}: the tree tiles the runner tries at each spot,
+    its seed trees plus the map's tree statics in its area square (as
+    loop_lumber.candidate_trees). Spots on a facet whose map files can't be read
+    are left out (no capacity limit). Map tiles are cached per area."""
+    import uomap
+    out = {}
+    for sid, s in spots.items():
+        area = s.get("area")
+        if not area:
+            continue
+        facet = int(s.get("facet") or 0)
+        (cx, cy), r = area["center"], area["radius"]
+        key = (facet, cx, cy, r)
+        if key not in _TILES:
+            if facet not in _MAPS:
+                try:
+                    _MAPS[facet] = uomap.UoMap(facet)
+                except (OSError, ValueError):
+                    _MAPS[facet] = None
+            um = _MAPS[facet]
+            _TILES[key] = None if um is None else frozenset(
+                (x, y) for x, y, _z, _g in um.find_trees(cx - r, cy - r, cx + r, cy + r))
+        if _TILES[key] is not None:
+            out[sid] = (facet, _TILES[key] | {(t["x"], t["y"]) for t in s.get("trees") or []})
+    return out
+
 
 
 def plan_from_store(memory, world: dict | None, self_serial, pos, facet, young=False,
@@ -1137,7 +1265,9 @@ def plan_from_store(memory, world: dict | None, self_serial, pos, facet, young=F
                inp["prices"], time.time() if now is None else now, random.Random(seed), young=young,
                stint_min=stint_min, here=current_spot(spots, pos, facet),
                logs_per_success=inp["logs_per_success"], gp_per_log=gp_per_log(inp["prices"]),
-               events=inp["events"])
+               events=inp["events"],
+               trees=tree_yield(inp["attempts"], spot_tree_tiles(spots), time.time() if now is None else now,
+                                inp["regrow"]["minutes"]))
     out["character"] = None if char is None else {k: char[k] for k in ("name", "serial", "skill", "mounted", "buffs",
                                                                        "weight", "weight_max", "young")}
     return out

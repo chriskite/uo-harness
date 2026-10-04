@@ -222,10 +222,9 @@ discover` proposes from the map (tree-dense windows 30–110 tiles from each ban
 2026-10-03 up to 200 tiles from each Witcher rune with a walk of at most 300 tiles from its landing;
 not next to a learned guard point, not overlapping a known spot; each discovery replaces its own
 unreviewed candidates), and overrides a seed's status. Only `active` spots are planned; a candidate
-becomes active when the overseer approves it. The tree count only ranks candidates: the planner's
-rate comes from trips alone (live 2026-10-03, density didn't predict logs per field hour across
-the 7 spots with trips; it bounds how much a spot holds before it runs dry, which trip size
-doesn't model yet).
+becomes active when the overseer approves it. Tree density doesn't enter the chopping rate (live
+2026-10-03: it didn't predict logs per field hour across the 7 spots with trips); it enters as the
+grove's **capacity** (below), which bounds the trip.
 
 **Evidence.** Every trip writes an episode row, aborted ones too (§13), with `spot`, `outcome`/`why`,
 the phases, `walk_out_s` (start to first chop), `chop_s` (attempts and the pauses between them,
@@ -297,6 +296,26 @@ patches show up within weeks):
   Camping's bonus [INFERENCE]). No stint cap any more: the run is `--trips` = stint / trip (≥ 1),
   `--timeout` = max(30 min, 2 × trips × (Q/λ + T) + 10 min), so it scales with the trip. Being sent
   home alone never shrinks Q (nothing is lost); deaths, thefts and the gear at risk do.
+- **grove capacity (2026-10-03, user):** the runner lists a spot's trees once per trip (its seed
+  trees plus the map's tree statics in the area square, minus trees depleted or unreachable within
+  the regrowth window) and ends the trip `dry` when they're all chopped. So a trip at a spot holds
+  at most `grove_logs` = trees available now × yielding share × logs per tree:
+  - logs per tree: pooled over every completed cycle in `harvest_attempts` (successes up to
+    `depleted`): 19.3 over 470 cycles, 17.7–20.2 per spot, so one pooled number;
+  - yielding share: per spot, Beta posterior of the tree tiles tried that ever gave logs, prior the
+    pooled share (0.67 on 2026-10-03) worth 10 tiles. It's what varies: 0.85 at Horseshoe Bay and
+    Terran, 0.46 at witcher_282 (statics that aren't choppable, other players' chopping). Checked
+    against the dry trips: Horseshoe Bay 40 × 0.85 × 19.9 ≈ 677 (dry at 605 and 613), witcher_282
+    138 × 0.46 × 19.3 ≈ 1225 (400 + 800 in two trips 16 min apart).
+
+  Q* is capped at `grove_logs`; when that binds (`grove_bound`), the run is that one trip (the spot
+  is then out until its trees regrow), so the trip's overhead and the travel to the spot buy only
+  those logs, and the runner gets `--trips 1` with the uncapped Q* as its quota, so it chops until
+  the trees really run out instead of stopping at the estimate. Thompson draws include the yielding
+  share, so an untried dense grove beats an untried sparse one more often. With a recall to the
+  hub before every trip the effect on Witcher spots is a few percent (2–4 min overhead per
+  30–60 min trip); on small walking spots it's larger (Corpse Creek, 34 trees: ~570 logs per trip
+  with every tree back, fewer while the last trip's trees regrow, against a hazard-optimal Q* of ~1000).
 - **choice:** Thompson sampling: one posterior draw per eligible spot (λ, T, sightings, P(death |
   sighting), h_D, h_S, h_T), the best wins; a spot other than the one we stand at pays `travel_min`
   out of the run (a stint, or one trip when that's longer). `plan` reports P(best) per spot from
@@ -305,7 +324,9 @@ patches show up within weeks):
   `--regrow-min`, `--timeout`, `--hatchet`). Per spot it reports `deaths_per_h`, `sent_home_per_h`,
   `thefts_per_h`, `p_death_trip` and `loss_logs_trip` (logs lost to death and thieves plus the gear
   in logs, per trip of Q*); per plan the pooled rates, `theft_fraction`, `gear_at_risk` and
-  `capacity_logs`; per pick `expected_banked_trip`, `p_death_trip`, `p_sent_home_trip`.
+  `capacity_logs` (what we can still carry); per spot `trees`, `trees_out`, `yield_share`,
+  `grove_logs`, `grove_bound`; per pick `expected_banked_trip`, `p_death_trip`, `p_sent_home_trip`,
+  `grove_logs`, `grove_bound`.
 - **eligibility:** `active` status; Young-only spots only for a Young character (`--young` or the
   self label); 30 min after a death or a trip cut short with a hostile player in sight there; after
   a `dry` trip until the trees regrow; **unworkable** for 7 days after 2 trips in a row that got
