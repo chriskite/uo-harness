@@ -114,7 +114,7 @@ LAYER_NAMES = {1: "one_handed", 2: "two_handed", 3: "shoes", 4: "pants", 5: "shi
                0x17: "skirt", 0x18: "legs", 0x19: "mount", 0x1D: "bank"}
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
         "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot",
-        "target", "cast", "heal", "buy", "use", "drop", "track", "recall")
+        "target", "cast", "heal", "buy", "use", "drop", "track", "recall", "read_tomes")
 # meta key: epoch seconds of ctl's last heal-potion drink (healing.PotionClock across ctl calls)
 HEAL_POTION_KEY = "heal_potion_t"
 PACK_ITEMS_MAX = 60                  # status.backpack.items
@@ -944,6 +944,8 @@ def _act(a, mem) -> dict:
         return _act_drop(a)
     if a.name == "recall":
         return _act_recall(a)
+    if a.name == "read_tomes":
+        return _act_read_tomes(a)
     pkt = None
     serial = None
     if a.name == "say":
@@ -1532,13 +1534,16 @@ class _CtlIO:
 
 
 def _act_recall(a) -> dict:
-    """recall [book serial] [--rune NAME] [--check] | recall --witcher N: recall to the
-    default rune of a runebook or rune tome in your backpack (harness/escape.py, the
-    job runners' red escape), to a named row of a rune tome (--rune), or to Witcher
-    rune N from the public tome holding it (--witcher; harness/places.py: stand
-    within 2 tiles of it at the Cambria Rune Library). A charge when the book has
-    one, else the Recall spell. --check only opens the book and reads it (default
-    rune, charges). Without a serial: the first book found, tomes first."""
+    """recall [book serial] [--rune NAME] [--check] | recall --witcher N [--library L] |
+    recall --library L --rune NAME: recall to the default rune of a runebook or rune
+    tome in your backpack (harness/escape.py, the job runners' red escape), to a named
+    row of your rune tome (--rune), or with a rune library's tome (harness/places.py,
+    harness/data/rune_libraries.json; stand within 2 tiles of the tome): Witcher rune N
+    (--witcher; the library you stand in, else --library, else Cambria) or a library
+    row by name (--library L --rune NAME: the exact name or words only it holds;
+    `ctl runes find` lists them). A charge when the book has one, else the Recall
+    spell. --check only opens the book and reads it (default rune, charges). Without
+    a serial: the first book found, tomes first."""
     import escape
     ctl, stc = _connect(a)
     try:
@@ -1546,18 +1551,29 @@ def _act_recall(a) -> dict:
         me = st["movement"].get("self_serial")
         books = escape.find_books(st["world"], me)
         rune, want = a.rune, None
-        if a.witcher:
+        pos = st["movement"].get("pos")
+        if a.witcher or a.library:
             import places
+            lib_id = a.library
+            if lib_id is None:
+                here = places.library_at(pos, (st["world"].get("self") or {}).get("map"))
+                lib_id = here["id"] if here else "cambria"
+            query = a.witcher or a.rune
+            if not query:
+                raise CtlError("recall --library L needs --rune NAME or --witcher N")
             try:
-                want = places.witcher_rune(a.witcher)
+                lib = places.library(lib_id)
+                want = places.library_rune(lib_id, query, a.tome)
+                if a.witcher and want["witcher"] is None:
+                    raise KeyError(f"no Witcher rune {a.witcher!r} in the {lib['name']}")
             except KeyError as e:
                 raise CtlError(e.args[0])
-            book = places.tome_at_hand(st["world"], st["movement"].get("pos"), want)
+            book = places.tome_at_hand(st["world"], pos, want["tome"], lib_id)
             if book is None:
-                lib = places.library()
-                raise CtlError(f"Witcher rune {want['id']} is in tome {want['tome']} at the {lib['name']}: "
-                               f"stand within {lib['use_range']} tiles of it ({lib['stand']}) first")
-            rune = want["id"]
+                raise CtlError(f"{want['name']!r} is in tome {want['tome']} ({want['tome_title']}) at the "
+                               f"{lib['name']}, {tuple(want['tome_pos'][:2])}: stand within {lib['use_range']} "
+                               f"tiles of it ({lib['stand']}) first")
+            rune = want["name"]
         elif a.args:
             book = _parse_serial(a.args[0])
             if book not in [b for b, _ in books]:
@@ -1573,18 +1589,96 @@ def _act_recall(a) -> dict:
         try:
             if a.check:
                 return {"ok": True, "book": f"0x{book:08X}", **escape.check_ready(io, book)}
-            stc.intent(f"Recalling to {want['name']}" if want else "Recalling home", "travel")
+            where = None if want is None else (f"Witcher rune {want['witcher']} "
+                                               f"({places.witcher_rune(want['witcher'])['name']})"
+                                               if want["witcher"] else want["name"])
+            stc.intent(f"Recalling to {where}" if where else "Recalling home", "travel")
             out = escape.escape(io, book, attempts=1, log=lambda m: None, rune=rune)
         except escape.RecallError as e:
             raise CtlError(str(e))
         res = {**out, "book": f"0x{book:08X}"}
         if want and out.get("ok") and out.get("to"):
+            res["library"] = lib_id
             res["expected"] = [want["x"], want["y"]]
             res["on_rune"] = want["x"] is not None and max(abs(out["to"][0] - want["x"]),
                                                              abs(out["to"][1] - want["y"])) <= 2
         if weapon is not None:
             res["weapon"] = _rewield(ctl, stc, me, weapon, Human(a.human, seed=a.seed))
         return res
+    finally:
+        ctl.close()
+        stc.close()
+
+
+def _act_read_tomes(a) -> dict:
+    """read_tomes <library id> [name words of a new library…]: learn a rune library
+    (harness/places.py, harness/data/rune_libraries.json) by reading, without
+    recalling, every rune tome lying within the library's use range (2) of where
+    you stand: per tome its title, charges and every row's name and the tile it
+    lands on (escape.read_runetome: the main page, then the detail pages pair by
+    pair at a reading pace, then closed). Saves the library with your position as
+    its stand: a known library's tomes are replaced (a tome that failed to read
+    keeps its old entry), a new one needs a name. Commit the file afterwards."""
+    import escape
+    import places
+    if not a.args:
+        raise CtlError("read_tomes <library id> [name of a new library…]")
+    lib_id = a.args[0].strip().lower()
+    try:
+        old = places.library(lib_id)
+    except KeyError:
+        old = None
+    if old is None and len(a.args) < 2:
+        raise CtlError(f"no rune library {lib_id!r} yet: name it, e.g. read_tomes {lib_id} <name words…>")
+    ctl, stc = _connect(a)
+    human = Human(a.human, seed=a.seed)
+    try:
+        st = stc.state()
+        pos = st["movement"].get("pos")
+        facet = int((st["world"].get("self") or {}).get("map") or 0)
+        use_range = old["use_range"] if old else 2
+        found = sorted(((int(k, 16), it) for k, it in st["world"]["items"].items()
+                        if it.get("container") is None and it.get("x") is not None and pos
+                        and max(abs(it["x"] - pos[0]), abs(it["y"] - pos[1])) <= use_range
+                        and escape.book_kind(st["world"], int(k, 16)) == "runetome"),
+                       key=lambda kv: (kv[1]["x"], kv[1]["y"], -(kv[1].get("z") or 0)))
+        if not found:
+            raise CtlError(f"no rune tome within {use_range} tiles of {pos[:2] if pos else pos}")
+        io = _CtlIO(ctl, stc, escape.RecallError)
+        before = {t["serial"]: t for t in (old or {}).get("tomes", [])}
+        tomes, errors = [], {}
+        today = time.strftime("%Y-%m-%d")
+        for n, (serial, it) in enumerate(found, 1):
+            key = f"0x{serial:08X}"
+            stc.intent(f"Reading the rune tomes ({n}/{len(found)})", "read", target=(it["x"], it["y"]))
+            r = None
+            for _ in range(2):
+                try:
+                    r = escape.read_runetome(io, serial, wait=lambda: human.wait("read"))
+                    break
+                except escape.RecallError as e:
+                    errors[key] = str(e)
+                    human.wait("use")
+            if r is None:
+                if key in before:
+                    tomes.append(before[key])
+                continue
+            errors.pop(key, None)
+            tomes.append({"serial": key, "title": r["title"], "pos": [it["x"], it["y"], it.get("z")],
+                          "read": today, "charges": r["charges"],
+                          "rows": [{"name": x["name"], "x": x["x"], "y": x["y"]} for x in r["rows"]]})
+            human.wait("use")
+        lib = {**(old or {}), "id": lib_id, "name": " ".join(a.args[1:]) if len(a.args) > 1 else old["name"],
+               "facet": facet, "stand": list(pos[:2]), "use_range": use_range, "tomes": tomes}
+        places.save_library(lib)
+        return {"ok": not errors, "library": lib_id, "name": lib["name"], "stand": lib["stand"],
+                "tomes": [{"serial": t["serial"], "title": t["title"], "runes": len(t["rows"]),
+                           "charges": t.get("charges")} for t in tomes],
+                "runes": sum(len(t["rows"]) for t in tomes),
+                "unread_tiles": [f"{t['title']}: {x['name']}" for t in tomes for x in t["rows"] if x["x"] is None],
+                "gone": sorted(set(before) - {t["serial"] for t in tomes}), "errors": errors,
+                "saved": os.path.relpath(places.LIBRARIES, ROOT),
+                "reply": f"read {len(tomes)} tomes, {sum(len(t['rows']) for t in tomes)} runes"}
     finally:
         ctl.close()
         stc.close()
@@ -2440,6 +2534,55 @@ def cmd_journal(a, mem):
     return {"ok": True, "journal": rows[-a.n:]}
 
 
+def cmd_runes(a, mem):
+    """Rune libraries (harness/places.py, harness/data/rune_libraries.json): `libraries`
+    lists them; `find WORDS…` and `near X Y` say which tome's rune gets you where, with
+    the command that recalls with it once you stand by that tome. Reading a library
+    is the act `read_tomes`."""
+    import places
+
+    def row(r):
+        out = {"library": r["library"], "name": r["name"], "tile": [r["x"], r["y"]], "tome": r["tome"],
+               "tome_title": r["tome_title"], "tome_pos": r["tome_pos"][:2]}
+        if r["witcher"]:
+            out["witcher"] = r["witcher"]
+            out["witcher_name"] = places.witcher_rune(r["witcher"])["name"]
+            out["recall"] = f"ctl act recall --library {r['library']} --witcher {r['witcher']}"
+        else:
+            out["recall"] = f"ctl act recall --library {r['library']} --rune \"{r['name'].strip()}\""
+            for tome in (None, r["tome_title"], r["tome"]):      # the shortest selector that finds this row
+                try:
+                    if places.library_rune(r["library"], r["name"], tome)["tome"] == r["tome"]:
+                        if tome:
+                            out["recall"] += f" --tome \"{tome}\""
+                        break
+                except KeyError:
+                    continue
+        if "dist" in r:
+            out["dist"] = r["dist"]
+        return out
+    try:
+        if a.runes_op == "libraries":
+            return {"ok": True, "libraries": [
+                {"id": lb["id"], "name": lb["name"], "access": lb.get("access"), "facet": lb["facet"],
+                 "stand": lb["stand"], "use_range": lb["use_range"], "runes": sum(len(t["rows"]) for t in lb["tomes"]),
+                 "tomes": [f"{t['title']} ({len(t['rows'])})" for t in lb["tomes"]]} for lb in places.libraries()]}
+        if a.runes_op == "find":
+            hits = places.find_runes(a.words, a.library)
+            if not hits:        # a Witcher rune by number or by its table name
+                ws = [w.lower() for w in a.words]
+                ids = {r["id"] for r in places.witcher()["runes"]
+                       if ws == [r["id"]] or all(w in r["name"].lower() for w in ws)}
+                hits = [r for r in places.runes(a.library) if r["witcher"] in ids]
+            return {"ok": True, "found": len(hits), "runes": [row(r) for r in hits[:a.limit]]}
+        if a.runes_op == "near":
+            return {"ok": True, "to": [a.x, a.y],
+                    "runes": [row(r) for r in places.nearest_runes(a.x, a.y, a.library, a.limit)]}
+    except KeyError as e:
+        raise CtlError(e.args[0])
+    raise CtlError(f"unknown runes op {a.runes_op}")
+
+
 def cmd_lumber(a, mem):
     """The self-optimizing lumber job (harness/lumber_opt.py, docs/LUMBER_LOOP.md §6):
     `plan` picks the spot (Thompson sampling), trip size and hatchet for the next
@@ -2530,7 +2673,7 @@ def cmd_lumber(a, mem):
                 hz = lumber_opt.floor_z(walk, hx, hy)
             home = {"serial": "0x00000000", "name": f"{town} bank (where the home rune is marked)", "pos": [hx, hy, hz]}
             found, skipped = lumber_opt.discover_witcher(
-                umap.find_trees, places.witcher()["runes"], spots, home, library=a.library, radius=a.radius,
+                umap.find_trees, places.witcher_runes_in(a.library), spots, home, library=a.library, radius=a.radius,
                 search=lumber_opt.RUNE_SEARCH if a.search is None else a.search, min_trees=a.min_trees,
                 max_route=lumber_opt.MAX_RUNE_ROUTE if a.max_route is None else a.max_route, route_fn=route_fn,
                 include_dangerous=a.include_dangerous,
@@ -2627,9 +2770,15 @@ def build_parser() -> argparse.ArgumentParser:
                         "(default: the mana break-even for your Magery, 19 at Magery 60)")
     p.add_argument("--check", action="store_true",
                    help="recall: only open the book and read it (default rune, charges)")
-    p.add_argument("--rune", default=None, help="recall: a rune tome's row by name instead of the default")
+    p.add_argument("--rune", default=None,
+                   help="recall: a rune tome's row by name instead of the default (with --library: a library row)")
     p.add_argument("--witcher", default=None,
-                   help="recall: Witcher rune N from the public tome at the Cambria Rune Library (stand by it)")
+                   help="recall: Witcher rune N from a rune library's tome (stand by it; the library you stand "
+                        "in, else --library, else Cambria)")
+    p.add_argument("--library", default=None,
+                   help="recall: the rune library (harness/data/rune_libraries.json: cambria, dtf) for --witcher/--rune")
+    p.add_argument("--tome", default=None,
+                   help="recall --library --rune: the tome (title or serial) when several tomes have that name")
     p.add_argument("--range", type=int, default=None,
                    help="goto: stop within this many tiles (default 0 for a tile, 2 for a mobile)")
     p.add_argument("--max-moves", type=int, default=None,
@@ -2659,6 +2808,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--z", type=int, default=None, help="with --to: arrive at this level")
     p.add_argument("--range", type=int, default=0, help="with --to: stop within this many tiles")
     p.set_defaults(fn=cmd_map)
+    p = sub.add_parser("runes", help="rune libraries: which tome's rune gets you where (harness/places.py)")
+    rs = p.add_subparsers(dest="runes_op", required=True)
+    rs.add_parser("libraries", help="every library: where to stand, its tomes")
+    q = rs.add_parser("find", help="library runes whose name holds every word, e.g. bank prevalia, dock")
+    q.add_argument("words", nargs="+")
+    q.add_argument("--library", default=None, help="only this library (cambria, dtf)")
+    q.add_argument("--limit", type=int, default=30)
+    q = rs.add_parser("near", help="the library runes that land nearest a tile")
+    q.add_argument("x", type=int)
+    q.add_argument("y", type=int)
+    q.add_argument("--library", default=None, help="only this library (cambria, dtf)")
+    q.add_argument("--limit", type=int, default=8)
+    p.set_defaults(fn=cmd_runes)
     p = sub.add_parser("intent", help="tell the viz what you're trying to do (a goal between acts)")
     p.add_argument("text", nargs="*")
     p.add_argument("--kind", help="short phase key shown as the badge (default: goal)")

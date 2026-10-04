@@ -1129,6 +1129,32 @@ and nothing restarted one that died (the viz's native live-view crash, NOTES 202
   CTRL_BREAK, and the viz live view and the GPU client need the desktop session) and **Task
   Scheduler restarts** (no health checks beyond "process exited", and no adoption).
 
+## Rune libraries: the DTF guild house beside Cambria (decided and built 2026-10-04)
+
+User: Outland Dan (guild DTF) is our first real lumberjacker; the rune tomes in the guild house
+(a Witcher set plus tomes of useful places) are where we go for any place our own book doesn't
+have, "similar to the Cambria rune library". Built (docs/research/WORLD_LOCATIONS.md §5):
+- **One table of libraries, per tome its rows with their own landing tiles**
+  (`harness/data/rune_libraries.json`); `witcher_runes.json` keeps only id → name and dig tile.
+  Reason: the guild's Witcher runes land up to 100 tiles off the CSV tiles, and its named places
+  have no table at all, so a tome row's own tile is the only truth. Rejected: a second Witcher
+  `tome` field per library on the rune table (two conventions for the same "which tome" fact, and
+  nowhere for named places).
+- **Learn by reading, not by recalling:** each rune's detail page shows its tile, so `act
+  read_tomes` reads a whole library (8 min for 36 tomes) without spending a charge or leaving
+  the house. Rows are found by name at use time, as at Cambria.
+- **Which library:** a Witcher spot's trip recalls out from the library nearest to where it starts
+  that holds the rune (`places.library_for`), and the planner counts a spot as at hand from any
+  such library's hub. So existing Cambria-discovered spots work for Dan from the guild house and
+  for Hackworth from Cambria, with no copy per library. The spot's own `library` breaks ties and
+  still sets its overhead prior.
+- **Named places:** `ctl runes find|near` say which row lands nearest a destination and print the
+  exact `act recall --library … --rune … [--tome …]`; 20 names repeat across tomes, so a recall
+  refuses an ambiguous name instead of guessing.
+- Open: the guild library's tomes are guild property; their charges are spent like Cambria's
+  public ones (the runner prefers a charge, else Dan's own Recall spell). If the guild wants
+  members to cast instead, `escape.recall(prefer="spell")` is the switch.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

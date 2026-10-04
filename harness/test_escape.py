@@ -74,6 +74,87 @@ def test_runetome():
           hit == [10] and rows[10] == "286 - Midlands Ruins 1 (South)", (hit, rows.get(10)))
     check("a number matches whole: '28' finds no row, '2' neither",
           not any(escape.rune_matches(n, w) for n in rows.values() for w in ("28", "2")))
+    check("rune names match whole and case-blind: '22A' finds the DTF row '22a', trailing spaces aside",
+          escape.rune_matches("22a", "22A") and escape.rune_matches("Blood ele island ", "blood ele island")
+          and not escape.rune_matches("221", "22"))
+
+
+def test_library_tome_read():
+    print("== reading a library tome: title, rows, every rune's tile from the detail pages ==")
+    det = parse(escape.parse_runetome_detail, "runetome_detail_dtf_bad_places_24")
+    check("detail page: each column's name and tile; a long centred right-hand name still pairs with its tile",
+          det == [{"col": 0, "name": "SSC West Entrance", "x": 3353, "y": 762},
+                  {"col": 1, "name": "Undermountain NW Entrance (Rear)", "x": 1815, "y": 669}], det)
+    check("main page title", parse(escape.runetome_title, "runetome_main_dtf_bad_places") == "Bad Places")
+    for n in (26, 5):
+        s = TomeServer(n)
+        r = escape.read_runetome(s, 0x4AAA0001, wait=lambda: None)
+        want = [{"row": i, "name": s.names[i], "x": 1000 + i, "y": 2000 + i} for i in range(n)]
+        check(f"{n} runes: every row read with its own tile, ending on a closed gump",
+              r["rows"] == want and r["title"] == "Bad Places" and s.pressed[-1] == 0, (r["rows"][:3], s.pressed))
+        check(f"{n} runes: pages flipped pair by pair (200, then next {(n + 1) // 2 - 1} times), no recall pressed",
+              s.pressed == [200] + [escape.DETAIL_NEXT] * ((n + 1) // 2 - 1) + [0], s.pressed)
+    s = TomeServer(4, shuffle=True)
+    r = escape.read_runetome(s, 0x4AAA0001, wait=lambda: None)
+    check("a detail page naming another rune than the main page's row (order changed meanwhile) leaves the tile unknown",
+          [x["x"] for x in r["rows"]] == [None, None, 1002, 1003], r["rows"])
+
+
+class TomeServer:
+    """A locked-down tome of n runes: the main page is the live DTF 'Bad Places' page cut
+    to n rows; detail pages are the live 24-25 page with each rune's name and tile
+    (1000 + i, 2000 + i), the right column dropped on an odd last page. shuffle: the
+    first page names its two runes the other way round."""
+
+    def __init__(self, n, shuffle=False):
+        main = G["runetome_main_dtf_bad_places"]
+        rows = escape._runetome_row_texts(main["layout"])
+        keep = {f"{100 + i}" for i in range(n)} | {f"{200 + i}" for i in range(n)}
+        toks = []
+        for t in escape._TOKEN.findall(main["layout"]):
+            f = t.split()
+            if f[0] == "button" and 100 <= int(f[7]) < 300 and f[7] not in keep:
+                continue
+            if f[0] == "text" and any(li == int(f[4]) for r, (li, _) in rows.items() if r >= n):
+                continue
+            toks.append("{ " + t.strip() + " }")
+        self.main = {"serial": 1, "gump_id": "0x09F5976B", "layout": "".join(toks), "lines": main["lines"]}
+        self.names = [main["lines"][rows[i][0]] for i in range(n)]
+        self.n, self.shuffle, self.page, self.pressed, self.queue = n, shuffle, None, [], []
+
+    def detail(self, first):
+        """Live: the 0-1 page carries the next-pair button (5, art 4007), the last (24-25) only 2."""
+        d = G["runetome_detail_dtf_bad_places_24"]
+        lines = list(d["lines"])
+        a, b = (first + 1, first) if self.shuffle and first == 0 else (first, first + 1)
+        lines[0], lines[1] = self.names[a], f"({1000 + a}, {2000 + a})"
+        layout = d["layout"]
+        if b < self.n:
+            lines[10], lines[11] = self.names[b], f"({1000 + b}, {2000 + b})"
+        else:
+            layout = "".join("{ " + t.strip() + " }" for t in escape._TOKEN.findall(layout)
+                             if t.split()[0] not in ("text", "button") or int(t.split()[1]) < 340)
+        if first + 2 < self.n:
+            layout += "{ button 583 396 4007 4009 1 0 5 }"
+        return {"serial": 2, "gump_id": "0x09F5976B", "layout": layout, "lines": lines}
+
+    def send(self, pkt):
+        if pkt[0] == 0x06:
+            self.queue.append({"ev": "gump_open", **self.main})
+            return
+        button = int.from_bytes(pkt[11:15], "big")
+        self.pressed.append(button)
+        if 200 <= button < 300:
+            self.page = (button - 200) // 2 * 2
+        elif button == escape.DETAIL_NEXT:
+            self.page += 2
+        else:
+            return
+        self.queue.append({"ev": "gump_open", **self.detail(self.page)})
+
+    def poll(self):
+        evs, self.queue = self.queue, []
+        return {"movement": {"self_serial": ME, "pos": [4152, 1429, 6]}, "world": {"items": {}, "self": {}}}, evs
 
 
 def test_failures():
@@ -274,7 +355,7 @@ def test_escape_stops():
 
 
 if __name__ == "__main__":
-    for t in (test_runebook, test_runetome, test_failures, test_can_cast, test_find_books,
+    for t in (test_runebook, test_runetome, test_library_tome_read, test_failures, test_can_cast, test_find_books,
               test_disturb_recovery_fits_live_retries, test_escape_nusero_replay, test_escape_early_disturb,
               test_escape_stops):
         print(t.__name__)

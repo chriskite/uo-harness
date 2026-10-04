@@ -63,11 +63,16 @@ numbers rarely change) and answered the open questions:
 A spot is a tree area plus **how we get there** (`access`) and **how we get home** (`home`):
 
 - **Built:**
-  - `harness/data/witcher_runes.json`: 360 runes, id → name, tile, and the Cambria tome holding it.
-    Names and tomes were read live from the 14 tomes on 2026-10-03; coordinates come from the
-    ExploreOutlands table. Read by `harness/places.py`, which also reads the client's Atlas XMLs.
+  - `harness/data/witcher_runes.json`: 360 runes, id → name and the ExploreOutlands dig tile.
+    Names were read live from the 14 Cambria tomes on 2026-10-03.
+  - `harness/data/rune_libraries.json` (since 2026-10-04): every rune library we know, per tome its
+    serial, title, position and rows (name as the tome shows it, the tile the rune lands on). Cambria's
+    14 tomes (tiles = the Witcher table; its runes landed exactly there) and the **DTF guild house**
+    (36 tomes, 839 runes, tiles read from each rune's detail page; §5). Read by `harness/places.py`,
+    which also reads the client's Atlas XMLs.
   - `escape.recall(io, book, rune="286")` finds a tome row by name and recalls (a tome charge,
-    else the spell). Overseer use: `ctl act recall --witcher 286`.
+    else the spell). Overseer use: `ctl act recall --witcher 286` (the library you stand in),
+    `ctl act recall --library dtf --rune NAME [--tome TITLE]`; `ctl runes find|near` says which rune.
   - Spot `access {"method": "witcher", "rune": N, "library": "cambria"}`: the runner walks to the
     tome, recalls out, and waits out the 60 s lockout. Spot `home {"method": "recall"}`: it recalls
     with our book's default rune (the PK escape's) and walks to the spot's banker (LUMBER_LOOP §13).
@@ -79,12 +84,14 @@ A spot is a tree area plus **how we get there** (`access`) and **how we get home
     212 with too few trees. A throwaway probe of the 200-tile search on 2026-10-03 found 126
     groves (25–204 trees, median 96 tiles from the rune, median walk 113 tiles; 433 route checks
     in ~250 s).
-  - The planner treats standing at the library as being at hand for all its rune spots. The walk to
-    the library, both recalls and the lockout are part of the trip overhead (LUMBER_LOOP §6).
+  - The planner treats standing at a library as being at hand for every rune spot it can reach
+    from there (any library holding the spot's rune). The runner recalls out from the library
+    nearest to where the trip starts (`places.library_for`). The walk to the library, both recalls
+    and the lockout are part of the trip overhead (LUMBER_LOOP §6).
 - **Not built:**
   - hiking to Atlas POIs (needs the campfire and Atlas gump flows, and each POI unlocked by a visit)
   - marking our own runes at the best spots (needs a Mark capture; Magery ≥ 60 is a given now)
-  - a second library
+  - reading a runebook's sextant lines into tiles (our own book: names only)
 
 **Live trial (Hackworth, 2026-10-03):**
 - With `ctl act recall --witcher 291`, standing by the tomes, the agent found row 15 of tome
@@ -99,3 +106,28 @@ Still open:
 - A runebook with a home rune at the Cambria bank, and a hatchet, for Hackworth. Without them he
   can recall out but can't come back by recall.
 - Do we buy a Witcher set (50 000 gp per tome, 14 tomes) or a few tomes for the regions we use?
+
+## 5. The DTF guild house rune library (live 2026-10-04, Outland Dan)
+
+Outland Dan is in the guild **DTF**, whose house keeps a rune library: the home of our first real
+lumberjack and, from now on, the place to go for any destination our own book doesn't have (user,
+2026-10-04). Read with `ctl act read_tomes dtf`; data in `harness/data/rune_libraries.json`, the
+gumps and quirks in docs/NOTES.md "Rune libraries: the DTF guild house".
+
+- **Where:** 36 locked-down rune tomes in the house at (4150, 1427–1429) and (4152–4154, 1431).
+  From (4152, 1429) every one is within the 2-tile reach. Dan's own runebook's default rune is
+  "DTF Loot Chest", in the house, so recall home lands there.
+- **What:** a full **Witcher set** (15 tomes, "Witcher 1-22A" … "328-353": all 360 runes, rows named
+  just "N", lower-case letter suffixes like "22a") plus 21 tomes of named places: towns/shrines/
+  alliances, public and alliance dockmasters, A–Z points of interest (5 tomes), dungeons and their
+  entrances ("Bad Places", "Bad Places II", "Outside Bad Places", "DFP …"), factions, Time Quests,
+  Wildlands, "Friendly Houses 1" and a 2-rune "Sellbows" tome. 839 runes, every tile read. Every
+  tome had 45–50 recall charges when read.
+- **Its Witcher runes don't land where Cambria's do:** they were marked by someone else. 58 of the
+  359 with a dig tile differ from the ExploreOutlands table, most by 1–17 tiles, rune 284 by 36,
+  rune 165 by 100 (x 4143 instead of 4043: a typo in the CSV or a different spot); rune 83, which
+  the table lacks, lands at (1155, 1850). So a library row's own tile, not the Witcher table, is
+  where a recall lands; lumber discovery from this library uses it.
+- **Which library a lumber trip uses:** the one holding the spot's rune nearest to where the trip
+  starts, so Dan's trips go from the guild house and Hackworth's from Cambria, whatever library the
+  spot was discovered from.

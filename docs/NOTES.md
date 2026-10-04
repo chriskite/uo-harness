@@ -412,6 +412,38 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   Witcher rune 291 → Cambria in two legs (327 steps). No hostile creature came into view (`avoided`
   empty), so this proved the guard harmless on ordinary walks, not its avoidance.
 
+## Rune libraries: the DTF guild house (live 2026-10-04, Outland Dan)
+
+- **Tomes:** 36 locked-down rune tomes (gump 0x09F5976B, as at Cambria). The tiledata name is
+  "runetome" for graphics 0x71AF and 0xBF63–0xBF6A (decorative tome art); `escape.book_kind`
+  finds them all. Single-click: the title, "a rune tome", "[locked down]". The main page's
+  top-left text is the title ("302-327", "Alliance Dockmasters 2"; `escape.runetome_title`).
+- **Detail page = the rune's tile, no recall:** button 200+i opens the page with runes i and
+  i+1 (pairs from an even row; 224 → runes 24 and 25). Each column shows the rune's name at
+  y≈26 and its tile "(x, y)" at y≈52 (`escape.parse_runetome_detail`). Names are centred: a
+  long right-hand name starts ~75 px left of its tile, which broke a first parse that wanted the
+  name within 60 px (4 runes unread, fixed; fixture `runetome_detail_dtf_bad_places_24`).
+- **Paging:** button **5** (art 4007, bottom right) shows the next pair; the last page has no 5.
+  Button 2 (art 4011, bottom middle) is on the first and the last page [INFERENCE: back to the
+  main page; not pressed]. Main page: 3 = "Manage Runes", 2 = "Rename". A full tome reads in ~13 s
+  at a reading pace (open, 200, 12 × 5, close) with nothing cast and no charge spent.
+- **Reading a whole library:** `ctl act read_tomes <id> [name…]` (`escape.read_runetome` per tome)
+  reads every tome within 2 tiles and saves `harness/data/rune_libraries.json`. From (4152, 1429)
+  all 36 DTF tomes are in reach; the act read them in 463 s (839 runes, every tile), the same
+  rows as a first scripted read an hour earlier, one tome's charges down by one meanwhile.
+- **Live recall (17:00):** `act recall --library dtf --rune "Prev North"` used row 5 of "Towns
+  Shrines & Alliances" with a charge (45 left) and landed exactly on the row's tile (1606, 1524),
+  press → arrival 2.16 s. Dan's book's default "DTF Loot Chest" brought him back to (4134, 1429),
+  18 tiles west of the tomes (a 19-step goto).
+- **Duplicate names:** 20 names are in two DTF tomes ("Cambria" as a town and as a dock,
+  "Deceit 2" in two faction tomes…). `ctl act recall --library dtf --rune Cambria` refuses and
+  lists both; `--tome TITLE` picks one. `ctl runes find|near` print the exact command.
+- **The guild set's Witcher runes land off the CSV tiles** (58 of 359, up to 100 tiles;
+  docs/research/WORLD_LOCATIONS.md §5): store and trust each library's own tiles.
+- **Outland Dan's own runebook** (0x49865F8F, 10 charges when read, 11 runes): Prev Bank, Cambria
+  MG, Terran MG, Cambria Bank, Anchor's Rest, Ossuary, Anchor's Rest MG, Khal Draco, SSC, Shelter
+  Stairs, DTF Loot Chest (the default). He can cast Recall (`recall --check`: can_cast true).
+
 ## Cortina's rune tome quest (live 2026-10-03, Hackworth)
 
 - **Cambria → Shelter by moongate:** the Cambria gate item is `0x4000069E` at (1693, 3153, 25). In

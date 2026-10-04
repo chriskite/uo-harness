@@ -485,6 +485,35 @@ def test_travel_and_hub():
     check("inside a Witcher spot's area: that spot", lo.current_spot({"w": wb}, (4000, 1000), 0) == "w")
     check("a Witcher spot's overhead prior holds the 60 s lockout and two recalls",
           lo.overhead_prior_s({**w, "banker": {"pos": [1750, 3003, 0]}}) > lo.OVERHEAD_FIXED_S + 60 + 8)
+    dtf = plan([a, b, w], [], here="hub:dtf")
+    check("at the DTF guild library, which holds rune 286 too, the Cambria-listed spot is at hand as well",
+          row(dtf, "w")["travel_min"] == 0 and row(dtf, "a")["travel_min"] == 10)
+    check("standing in the DTF guild house library is its hub", lo.current_spot({}, (4152, 1429), 0) == "hub:dtf")
+
+
+def test_libraries():
+    print("== rune libraries: which library and tome a rune is recalled from, and where it lands ==")
+    import places
+    check("a Witcher spot is reached from the library nearest us: the guild house from the east, Cambria from the south",
+          places.library_for("286", (4100, 1400), 0, prefer="cambria") == "dtf"
+          and places.library_for("286", (1750, 3003), 0, prefer="cambria") == "cambria")
+    check("no position: the spot's own library", places.library_for("286", None, 0, prefer="cambria") == "cambria")
+    d, c = places.library_rune("dtf", "286"), places.library_rune("cambria", "286")
+    check("each library's rune 286 lands where its own rune was marked (DTF read off the tome, Cambria = dig tile)",
+          (d["x"], d["y"]) == (1768, 2003) and d["name"] == "286" and (c["x"], c["y"]) == (1765, 2007)
+          and d["tome"] != c["tome"], (d, c))
+    try:
+        places.library_rune("dtf", "Cambria")
+        ambiguous = False
+    except KeyError as e:
+        ambiguous = "Towns Shrines & Alliances" in str(e) and "Public Dockmasters" in str(e)
+    check("a name two tomes carry is refused with both tomes named", ambiguous)
+    check("the tome picks one", places.library_rune("dtf", "cambria", "towns")["tome_title"] == "Towns Shrines & Alliances"
+          and places.library_rune("dtf", "Cambria", "Public Dockmasters")["x"] is not None)
+    lib = {r["id"]: r for r in places.witcher_runes_in("dtf")}
+    check("the DTF Witcher set: all 360 runes, at the tiles its runes land on, with the table's names",
+          len(lib) == 360 and (lib["165"]["x"], lib["165"]["y"]) == (4143, 71)
+          and lib["165"]["name"] == places.witcher_rune("165")["name"], lib.get("165"))
 
 
 def test_discover_witcher():
@@ -513,8 +542,9 @@ def test_discover_witcher():
     check("monster words in place names", places.danger_hint("Orc Fort 2") == ["orc"]
           and places.danger_hint("Western Ruins Brigands 3") == ["brigan"] and places.danger_hint("Brigan Camp 2") == ["brigan"]
           and places.danger_hint("Cedar Forest") == [])
-    check("the committed table: 360 runes, each in one of the 14 Cambria tomes",
+    check("the committed tables: 360 Witcher runes, each in one of the 14 Cambria tomes",
           len(places.witcher()["runes"]) == 360 and len(places.library()["tomes"]) == 14
+          and sum(len(t["rows"]) for t in places.library()["tomes"]) == 360
           and places.witcher_rune("286")["name"] == "Midlands Ruins 1 (South)")
     # Up to 200 tiles out: a grove two runes reach goes to the nearer rune; a rune whose
     # best grove is taken gets its next best; one with nothing else left is reported.
@@ -571,8 +601,8 @@ def test_travel_costs():
 if __name__ == "__main__":
     for fn in (test_explore_exploit, test_skill_rescaling, test_trip_size, test_hazard_evidence,
                test_gear_and_capacity, test_eligibility, test_regrowth, test_hatchets, test_spots_store,
-               test_discover, test_failed_places, test_travel_and_hub, test_discover_witcher, test_travel_costs,
-               test_capacity):
+               test_discover, test_failed_places, test_travel_and_hub, test_libraries, test_discover_witcher,
+               test_travel_costs, test_capacity):
         fn()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

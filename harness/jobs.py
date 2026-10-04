@@ -310,7 +310,7 @@ TOME_ROW = re.compile(r"^(\d+) - ")
 def _leg_book(d: dict) -> tuple[str | None, str | None]:
     """(book serial, Witcher rune id) of a travel/recall event. Rows before 2026-10-03
     name no book: an out leg's tome comes from the rune number in the row name
-    ("291 - Hidden Valley ...") and the Witcher table."""
+    ("291 - Hidden Valley ...") and the Cambria library, the only one then."""
     rune = d.get("witcher_rune")
     if rune is None and d.get("leg") == "out":
         m = TOME_ROW.match(d.get("name") or "")
@@ -319,7 +319,7 @@ def _leg_book(d: dict) -> tuple[str | None, str | None]:
     if book is None and rune is not None:
         try:
             import places
-            book = places.witcher_rune(rune)["tome"]
+            book = places.library_rune(d.get("library") or "cambria", rune)["tome"]
         except (KeyError, OSError, ValueError):
             book = None
     return book, rune

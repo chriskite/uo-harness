@@ -1,2703 +1,2170 @@
 {
- "_doc": "The Witcher rune system (docs/research/WORLD_LOCATIONS.md): numbered runes at treasure-map dig spots all over the map, in 14 rune tomes. Coordinates: ExploreOutlands' Witchers_Tmap_Locations.csv (fetched 2026-10-03; ids rarely change). Names and which tome holds each rune: read live from the public tomes at the Cambria Rune Library on 2026-10-03 (Hackworth). The library's tomes are locked down; a tome opens from within 2 tiles. Rows on a tome's main page are 'N - Place name'; the row's gem (button 100 + row) recalls with one of the tome's charges (shared, refilled by players), the detail page (200 + row) casts the spell (own mana + reagents). Find a rune's row by its name at use time: the order inside a tome may change. Rune 83 is in a tome but not in the coordinate table.",
+ "_doc": "The Witcher rune system (docs/research/WORLD_LOCATIONS.md): numbered runes at treasure-map dig spots all over the map, sold as a set of 14-15 rune tomes. Coordinates: ExploreOutlands' Witchers_Tmap_Locations.csv (fetched 2026-10-03; ids rarely change): the dig spot, which a library's own rune may miss by a few tiles (the DTF guild set lands up to 36 tiles off; its 165 is 100 tiles east). Names: read live from the Cambria Rune Library tomes on 2026-10-03 (rows 'N - Place name'). Which tome of which library holds a rune, and where that rune lands: harness/data/rune_libraries.json. Rune 83 is in the tomes but not in the coordinate table.",
  "sources": [
   "https://exploreoutlands.com/locations/Witchers_Tmap_Locations.csv",
   "https://outlands.uorazorscripts.com/script/de9a4695-2f68-47ee-af8c-46dbe65542bb",
   "https://forums.uooutlands.com/index.php?threads/witchers-updated-guide-to-tmaps-how-you-can-and-why-you-should-be-running-your-own-tmaps.3439/"
- ],
- "libraries": [
-  {
-   "id": "cambria",
-   "name": "Cambria Rune Library",
-   "facet": 0,
-   "stand": [
-    1706,
-    3181
-   ],
-   "moongate": "Cambria",
-   "moongate_arrival": [
-    1693,
-    3153
-   ],
-   "use_range": 2,
-   "tomes": [
-    {
-     "serial": "0x546B015F",
-     "first": "1",
-     "last": "24",
-     "runes": 26,
-     "pos": [
-      1705,
-      3180,
-      37
-     ]
-    },
-    {
-     "serial": "0x546AF790",
-     "first": "25",
-     "last": "49",
-     "runes": 26,
-     "pos": [
-      1705,
-      3180,
-      34
-     ]
-    },
-    {
-     "serial": "0x43757C23",
-     "first": "50",
-     "last": "75",
-     "runes": 26,
-     "pos": [
-      1705,
-      3180,
-      31
-     ]
-    },
-    {
-     "serial": "0x43756325",
-     "first": "76",
-     "last": "99",
-     "runes": 26,
-     "pos": [
-      1705,
-      3180,
-      28
-     ]
-    },
-    {
-     "serial": "0x43755561",
-     "first": "100",
-     "last": "123",
-     "runes": 26,
-     "pos": [
-      1705,
-      3180,
-      25
-     ]
-    },
-    {
-     "serial": "0x43752730",
-     "first": "124",
-     "last": "149",
-     "runes": 26,
-     "pos": [
-      1706,
-      3180,
-      37
-     ]
-    },
-    {
-     "serial": "0x437548AB",
-     "first": "150",
-     "last": "175",
-     "runes": 26,
-     "pos": [
-      1706,
-      3180,
-      34
-     ]
-    },
-    {
-     "serial": "0x43751C83",
-     "first": "176",
-     "last": "201",
-     "runes": 26,
-     "pos": [
-      1706,
-      3180,
-      31
-     ]
-    },
-    {
-     "serial": "0x43752E07",
-     "first": "202",
-     "last": "227",
-     "runes": 26,
-     "pos": [
-      1706,
-      3180,
-      28
-     ]
-    },
-    {
-     "serial": "0x43755E41",
-     "first": "228",
-     "last": "249",
-     "runes": 22,
-     "pos": [
-      1706,
-      3180,
-      25
-     ]
-    },
-    {
-     "serial": "0x4B99B20C",
-     "first": "250",
-     "last": "275",
-     "runes": 26,
-     "pos": [
-      1707,
-      3180,
-      28
-     ]
-    },
-    {
-     "serial": "0x546ACD06",
-     "first": "276",
-     "last": "301",
-     "runes": 26,
-     "pos": [
-      1707,
-      3180,
-      25
-     ]
-    },
-    {
-     "serial": "0x4374EB77",
-     "first": "302",
-     "last": "327",
-     "runes": 26,
-     "pos": [
-      1708,
-      3180,
-      28
-     ]
-    },
-    {
-     "serial": "0x4374E53D",
-     "first": "328",
-     "last": "353",
-     "runes": 26,
-     "pos": [
-      1708,
-      3180,
-      25
-     ]
-    }
-   ]
-  }
  ],
  "runes": [
   {
    "id": "1",
    "name": "Corpse Creek Lookout",
    "x": 793,
-   "y": 584,
-   "tome": "0x546B015F"
+   "y": 584
   },
   {
    "id": "2",
    "name": "Corpse Creek North Entrance",
    "x": 824,
-   "y": 643,
-   "tome": "0x546B015F"
+   "y": 643
   },
   {
    "id": "3",
    "name": "Corpse Creek/Chaos Hill",
    "x": 898,
-   "y": 608,
-   "tome": "0x546B015F"
+   "y": 608
   },
   {
    "id": "4",
    "name": "Telescope Island",
    "x": 1167,
-   "y": 673,
-   "tome": "0x546B015F"
+   "y": 673
   },
   {
    "id": "4a",
    "name": "Simple Palisade Fort",
    "x": 1141,
-   "y": 741,
-   "tome": "0x546B015F"
+   "y": 741
   },
   {
    "id": "5",
    "name": "Hollow Snow Tower",
    "x": 1349,
-   "y": 616,
-   "tome": "0x546B015F"
+   "y": 616
   },
   {
    "id": "6",
    "name": "Necromancers Cathedral",
    "x": 473,
-   "y": 902,
-   "tome": "0x546B015F"
+   "y": 902
   },
   {
    "id": "7",
    "name": "Black Market Vendor (West)",
    "x": 846,
-   "y": 941,
-   "tome": "0x546B015F"
+   "y": 941
   },
   {
    "id": "8",
    "name": "Black Market Vendor",
    "x": 920,
-   "y": 930,
-   "tome": "0x546B015F"
+   "y": 930
   },
   {
    "id": "9",
    "name": "Vine Covered Cave",
    "x": 825,
-   "y": 1059,
-   "tome": "0x546B015F"
+   "y": 1059
   },
   {
    "id": "10",
    "name": "Western Ruins",
    "x": 633,
-   "y": 1215,
-   "tome": "0x546B015F"
+   "y": 1215
   },
   {
    "id": "11",
    "name": "Pool of Power",
    "x": 999,
-   "y": 1124,
-   "tome": "0x546B015F"
+   "y": 1124
   },
   {
    "id": "12",
    "name": "Urk Fort/Smugglers Den",
    "x": 1164,
-   "y": 1049,
-   "tome": "0x546B015F"
+   "y": 1049
   },
   {
    "id": "13",
    "name": "Zebra Falls",
    "x": 1032,
-   "y": 1403,
-   "tome": "0x546B015F"
+   "y": 1403
   },
   {
    "id": "14",
    "name": "Western Ruins Brigands 3",
    "x": 1085,
-   "y": 1337,
-   "tome": "0x546B015F"
+   "y": 1337
   },
   {
    "id": "15",
    "name": "Western Ruins Brigands 2",
    "x": 1148,
-   "y": 1362,
-   "tome": "0x546B015F"
+   "y": 1362
   },
   {
    "id": "16",
    "name": "Western Ruins Brigands 1",
    "x": 1215,
-   "y": 1252,
-   "tome": "0x546B015F"
+   "y": 1252
   },
   {
    "id": "17",
    "name": "Prevalia Keep",
    "x": 1347,
-   "y": 1275,
-   "tome": "0x546B015F"
+   "y": 1275
   },
   {
    "id": "18",
    "name": "Brigand Camp 1 (West)",
    "x": 1426,
-   "y": 1266,
-   "tome": "0x546B015F"
+   "y": 1266
   },
   {
    "id": "19",
    "name": "Brigand Camp 1 (South)",
    "x": 1477,
-   "y": 1314,
-   "tome": "0x546B015F"
+   "y": 1314
   },
   {
    "id": "20",
    "name": "Prevalia Keep (South)",
    "x": 1338,
-   "y": 1336,
-   "tome": "0x546B015F"
+   "y": 1336
   },
   {
    "id": "21",
    "name": "Ratman Hovel (North)",
    "x": 1311,
-   "y": 1381,
-   "tome": "0x546B015F"
+   "y": 1381
   },
   {
    "id": "22",
    "name": "Ratman Hovel (South)",
    "x": 1254,
-   "y": 1476,
-   "tome": "0x546B015F"
+   "y": 1476
   },
   {
    "id": "22a",
    "name": "Ratman Hovel",
    "x": 1319,
-   "y": 1431,
-   "tome": "0x546B015F"
+   "y": 1431
   },
   {
    "id": "23",
    "name": "Ruined Snow Fortress (West)",
    "x": 1669,
-   "y": 571,
-   "tome": "0x546B015F"
+   "y": 571
   },
   {
    "id": "24",
    "name": "Ruined Snow Fortress (North)",
    "x": 1703,
-   "y": 535,
-   "tome": "0x546B015F"
+   "y": 535
   },
   {
    "id": "25",
    "name": "Ruined Snow Fortress (East)",
    "x": 1721,
-   "y": 575,
-   "tome": "0x546AF790"
+   "y": 575
   },
   {
    "id": "26",
    "name": "Andaria Sacrificial Ruins",
    "x": 1971,
-   "y": 605,
-   "tome": "0x546AF790"
+   "y": 605
   },
   {
    "id": "27",
    "name": "Justice Shrine (West)",
    "x": 1792,
-   "y": 797,
-   "tome": "0x546AF790"
+   "y": 797
   },
   {
    "id": "28",
    "name": "Necromancers Swamp",
    "x": 1908,
-   "y": 770,
-   "tome": "0x546AF790"
+   "y": 770
   },
   {
    "id": "29",
    "name": "Logging Camp",
    "x": 1963,
-   "y": 819,
-   "tome": "0x546AF790"
+   "y": 819
   },
   {
    "id": "30",
    "name": "Andarian Lumberyard Waypost",
    "x": 2021,
-   "y": 782,
-   "tome": "0x546AF790"
+   "y": 782
   },
   {
    "id": "31",
    "name": "Gate Fortress (North)",
    "x": 1799,
-   "y": 883,
-   "tome": "0x546AF790"
+   "y": 883
   },
   {
    "id": "32",
    "name": "Gate Fortress",
    "x": 1796,
-   "y": 919,
-   "tome": "0x546AF790"
+   "y": 919
   },
   {
    "id": "33",
    "name": "Dragon Roost",
    "x": 1825,
-   "y": 934,
-   "tome": "0x546AF790"
+   "y": 934
   },
   {
    "id": "34",
    "name": "Andaria Gate (West)",
    "x": 1902,
-   "y": 909,
-   "tome": "0x546AF790"
+   "y": 909
   },
   {
    "id": "35",
    "name": "Prevalia Kings Manor Cabin",
    "x": 1648,
-   "y": 1012,
-   "tome": "0x546AF790"
+   "y": 1012
   },
   {
    "id": "36",
    "name": "Prevalia Kings Manor",
    "x": 1585,
-   "y": 1064,
-   "tome": "0x546AF790"
+   "y": 1064
   },
   {
    "id": "37",
    "name": "Outside Pulma",
    "x": 1777,
-   "y": 1001,
-   "tome": "0x546AF790"
+   "y": 1001
   },
   {
    "id": "38",
    "name": "Ruined House",
    "x": 1964,
-   "y": 1001,
-   "tome": "0x546AF790"
+   "y": 1001
   },
   {
    "id": "39",
    "name": "Bonfire",
    "x": 1959,
-   "y": 1054,
-   "tome": "0x546AF790"
+   "y": 1054
   },
   {
    "id": "40",
    "name": "Ruined Cabin",
    "x": 2312,
-   "y": 1049,
-   "tome": "0x546AF790"
+   "y": 1049
   },
   {
    "id": "41",
    "name": "Ruined Lighthouse",
    "x": 2417,
-   "y": 1008,
-   "tome": "0x546AF790"
+   "y": 1008
   },
   {
    "id": "42",
    "name": "Andaria Rolling Hills (South Swamp)",
    "x": 2422,
-   "y": 745,
-   "tome": "0x546AF790"
+   "y": 745
   },
   {
    "id": "43",
    "name": "Andaria Rolling Hills (South)",
    "x": 2454,
-   "y": 670,
-   "tome": "0x546AF790"
+   "y": 670
   },
   {
    "id": "44",
    "name": "Andaria Ruined Tower",
    "x": 2379,
-   "y": 537,
-   "tome": "0x546AF790"
+   "y": 537
   },
   {
    "id": "44a",
    "name": "Andaria Rolling Hills (North)",
    "x": 2478,
-   "y": 556,
-   "tome": "0x546AF790"
+   "y": 556
   },
   {
    "id": "45",
    "name": "Andaria Rolling Hills",
    "x": 2514,
-   "y": 615,
-   "tome": "0x546AF790"
+   "y": 615
   },
   {
    "id": "46",
    "name": "Tanners Northern Fort",
    "x": 2620,
-   "y": 442,
-   "tome": "0x546AF790"
+   "y": 442
   },
   {
    "id": "47",
    "name": "Tanners Northern Fort (North)",
    "x": 2685,
-   "y": 390,
-   "tome": "0x546AF790"
+   "y": 390
   },
   {
    "id": "48",
    "name": "Urukton Bluffs",
    "x": 1895,
-   "y": 1143,
-   "tome": "0x546AF790"
+   "y": 1143
   },
   {
    "id": "49",
    "name": "Orc Fort 2",
    "x": 1926,
-   "y": 1190,
-   "tome": "0x546AF790"
+   "y": 1190
   },
   {
    "id": "50",
    "name": "Owens Cabin",
    "x": 2165,
-   "y": 1149,
-   "tome": "0x43757C23"
+   "y": 1149
   },
   {
    "id": "51",
    "name": "Ship in Cave",
    "x": 2306,
-   "y": 1277,
-   "tome": "0x43757C23"
+   "y": 1277
   },
   {
    "id": "52",
    "name": "Midlands Ruins 1",
    "x": 1729,
-   "y": 1881,
-   "tome": "0x43757C23"
+   "y": 1881
   },
   {
    "id": "53",
    "name": "Sacrificial Cliffs",
    "x": 2039,
-   "y": 1838,
-   "tome": "0x43757C23"
+   "y": 1838
   },
   {
    "id": "54",
    "name": "Shipwreck",
    "x": 2068,
-   "y": 1846,
-   "tome": "0x43757C23"
+   "y": 1846
   },
   {
    "id": "55",
    "name": "Forsaken Keep (West)",
    "x": 1886,
-   "y": 1912,
-   "tome": "0x43757C23"
+   "y": 1912
   },
   {
    "id": "56",
    "name": "Forsaken Keep Waypost",
    "x": 1987,
-   "y": 1899,
-   "tome": "0x43757C23"
+   "y": 1899
   },
   {
    "id": "57",
    "name": "Hollow Hills (North)",
    "x": 1878,
-   "y": 1964,
-   "tome": "0x43757C23"
+   "y": 1964
   },
   {
    "id": "58",
    "name": "Druid Circle (West)",
    "x": 1959,
-   "y": 1938,
-   "tome": "0x43757C23"
+   "y": 1938
   },
   {
    "id": "59",
    "name": "Druid Circle (East)",
    "x": 2030,
-   "y": 1958,
-   "tome": "0x43757C23"
+   "y": 1958
   },
   {
    "id": "60",
    "name": "Druid Circle (South)",
    "x": 1989,
-   "y": 1999,
-   "tome": "0x43757C23"
+   "y": 1999
   },
   {
    "id": "61",
    "name": "Hollow Hills",
    "x": 1865,
-   "y": 2038,
-   "tome": "0x43757C23"
+   "y": 2038
   },
   {
    "id": "62",
    "name": "Citadel",
    "x": 2114,
-   "y": 2053,
-   "tome": "0x43757C23"
+   "y": 2053
   },
   {
    "id": "63",
    "name": "Noxious Earth",
    "x": 1802,
-   "y": 2152,
-   "tome": "0x43757C23"
+   "y": 2152
   },
   {
    "id": "64",
    "name": "Brigand Headquarters (North East)",
    "x": 1820,
-   "y": 2207,
-   "tome": "0x43757C23"
+   "y": 2207
   },
   {
    "id": "65",
    "name": "Brigand Headquarters (South)",
    "x": 1784,
-   "y": 2283,
-   "tome": "0x43757C23"
+   "y": 2283
   },
   {
    "id": "66",
    "name": "Druid Cabin",
    "x": 1884,
-   "y": 2271,
-   "tome": "0x43757C23"
+   "y": 2271
   },
   {
    "id": "67",
    "name": "Hunters Cabin",
    "x": 2167,
-   "y": 2202,
-   "tome": "0x43757C23"
+   "y": 2202
   },
   {
    "id": "68",
    "name": "Lizardmen Scout Camp",
    "x": 2251,
-   "y": 2598,
-   "tome": "0x43757C23"
+   "y": 2598
   },
   {
    "id": "69",
    "name": "Orc Fort 3 (Inside)",
    "x": 761,
-   "y": 1763,
-   "tome": "0x43757C23"
+   "y": 1763
   },
   {
    "id": "70",
    "name": "Orc Fort 3 (South)",
    "x": 768,
-   "y": 1807,
-   "tome": "0x43757C23"
+   "y": 1807
   },
   {
    "id": "71",
    "name": "Orc Fort 3",
    "x": 800,
-   "y": 1779,
-   "tome": "0x43757C23"
+   "y": 1779
   },
   {
    "id": "72",
    "name": "Morthuna (South)",
    "x": 963,
-   "y": 1816,
-   "tome": "0x43757C23"
+   "y": 1816
   },
   {
    "id": "73",
    "name": "Morthuna",
    "x": 989,
-   "y": 1730,
-   "tome": "0x43757C23"
+   "y": 1730
   },
   {
    "id": "74",
    "name": "Ruined Lycaeum (Beach)",
    "x": 1102,
-   "y": 1727,
-   "tome": "0x43757C23"
+   "y": 1727
   },
   {
    "id": "75",
    "name": "Ruined Lycaeum (North West)",
    "x": 1117,
-   "y": 1638,
-   "tome": "0x43757C23"
+   "y": 1638
   },
   {
    "id": "76",
    "name": "Ruined Lycaeum (South Bridge)",
    "x": 1146,
-   "y": 1687,
-   "tome": "0x43756325"
+   "y": 1687
   },
   {
    "id": "77",
    "name": "Ruined Lycaeum (North Bridge)",
    "x": 1193,
-   "y": 1617,
-   "tome": "0x43756325"
+   "y": 1617
   },
   {
    "id": "78",
    "name": "Ruined Lycaeum (East)",
    "x": 1215,
-   "y": 1669,
-   "tome": "0x43756325"
+   "y": 1669
   },
   {
    "id": "79",
    "name": "Ruined Lycaeum (Entrance)",
    "x": 1259,
-   "y": 1665,
-   "tome": "0x43756325"
+   "y": 1665
   },
   {
    "id": "80",
    "name": "Daemon Keep (North)",
    "x": 1319,
-   "y": 1686,
-   "tome": "0x43756325"
+   "y": 1686
   },
   {
    "id": "80a",
    "name": "Prevalia Bog",
    "x": 1455,
-   "y": 1704,
-   "tome": "0x43756325"
+   "y": 1704
   },
   {
    "id": "81",
    "name": "Daemon Keep",
    "x": 1275,
-   "y": 1766,
-   "tome": "0x43756325"
+   "y": 1766
   },
   {
    "id": "81a",
    "name": "Ruins and Underground Lair",
    "x": 1156,
-   "y": 1850,
-   "tome": "0x43756325"
+   "y": 1850
   },
   {
    "id": "82",
    "name": "Midlands Ruins 2",
    "x": 1310,
-   "y": 1805,
-   "tome": "0x43756325"
+   "y": 1805
   },
   {
    "id": "83",
    "name": "Ruins and Underground Lair",
    "x": null,
-   "y": null,
-   "tome": "0x43756325"
+   "y": null
   },
   {
    "id": "84",
    "name": "Sacred Pools and Ruins",
    "x": 1416,
-   "y": 1907,
-   "tome": "0x43756325"
+   "y": 1907
   },
   {
    "id": "85",
    "name": "Signal Fort 2",
    "x": 1464,
-   "y": 1946,
-   "tome": "0x43756325"
+   "y": 1946
   },
   {
    "id": "86",
    "name": "Swamp Point Ruins",
    "x": 996,
-   "y": 2023,
-   "tome": "0x43756325"
+   "y": 2023
   },
   {
    "id": "87",
    "name": "Cathedral St Francis",
    "x": 1138,
-   "y": 2097,
-   "tome": "0x43756325"
+   "y": 2097
   },
   {
    "id": "88",
    "name": "Ruined Lycaeum (Docks)",
    "x": 1074,
-   "y": 1669,
-   "tome": "0x43756325"
+   "y": 1669
   },
   {
    "id": "89",
    "name": "Cathedral St Francis Ruins",
    "x": 1248,
-   "y": 2069,
-   "tome": "0x43756325"
+   "y": 2069
   },
   {
    "id": "90",
    "name": "Mountain Meeting Spot",
    "x": 1349,
-   "y": 2037,
-   "tome": "0x43756325"
+   "y": 2037
   },
   {
    "id": "91",
    "name": "Lizardmen Caravan (North)",
    "x": 1408,
-   "y": 2063,
-   "tome": "0x43756325"
+   "y": 2063
   },
   {
    "id": "92",
    "name": "Signal Fort 1 (North)",
    "x": 1497,
-   "y": 2077,
-   "tome": "0x43756325"
+   "y": 2077
   },
   {
    "id": "93",
    "name": "Swamp Point Ruins (South)",
    "x": 959,
-   "y": 2140,
-   "tome": "0x43756325"
+   "y": 2140
   },
   {
    "id": "94",
    "name": "Lizardmen Fort (North)",
    "x": 1383,
-   "y": 2119,
-   "tome": "0x43756325"
+   "y": 2119
   },
   {
    "id": "95",
    "name": "Lizardmen Fort",
    "x": 1390,
-   "y": 2148,
-   "tome": "0x43756325"
+   "y": 2148
   },
   {
    "id": "96",
    "name": "Humility Swamps (North)",
    "x": 1345,
-   "y": 2224,
-   "tome": "0x43756325"
+   "y": 2224
   },
   {
    "id": "97",
    "name": "Mausoleum (Outside North)",
    "x": 1435,
-   "y": 2195,
-   "tome": "0x43756325"
+   "y": 2195
   },
   {
    "id": "98",
    "name": "Signal Fort 1",
    "x": 1487,
-   "y": 2127,
-   "tome": "0x43756325"
+   "y": 2127
   },
   {
    "id": "99",
    "name": "Ogre Valley (North)",
    "x": 1529,
-   "y": 2134,
-   "tome": "0x43756325"
+   "y": 2134
   },
   {
    "id": "100",
    "name": "Ogre Valley (North East)",
    "x": 1598,
-   "y": 2149,
-   "tome": "0x43755561"
+   "y": 2149
   },
   {
    "id": "101",
    "name": "Ogre Valley (West)",
    "x": 1527,
-   "y": 2241,
-   "tome": "0x43755561"
+   "y": 2241
   },
   {
    "id": "102",
    "name": "Ogre Valley (East)",
    "x": 1612,
-   "y": 2245,
-   "tome": "0x43755561"
+   "y": 2245
   },
   {
    "id": "103",
    "name": "Ogre valley (South West)",
    "x": 1519,
-   "y": 2331,
-   "tome": "0x43755561"
+   "y": 2331
   },
   {
    "id": "104",
    "name": "Ogre Valley (South East)",
    "x": 1598,
-   "y": 2337,
-   "tome": "0x43755561"
+   "y": 2337
   },
   {
    "id": "104a",
    "name": "Cathedral and Inn (East)",
    "x": 1576,
-   "y": 2457,
-   "tome": "0x43755561"
+   "y": 2457
   },
   {
    "id": "105",
    "name": "Prevalia Gate Caravan",
    "x": 1197,
-   "y": 2365,
-   "tome": "0x43755561"
+   "y": 2365
   },
   {
    "id": "106",
    "name": "Desert Outpost (North)",
    "x": 1534,
-   "y": 2504,
-   "tome": "0x43755561"
+   "y": 2504
   },
   {
    "id": "106a",
    "name": "Prevalia Signal Outpost",
    "x": 1605,
-   "y": 2485,
-   "tome": "0x43755561"
+   "y": 2485
   },
   {
    "id": "107",
    "name": "Desert Outpost",
    "x": 1530,
-   "y": 2601,
-   "tome": "0x43755561"
+   "y": 2601
   },
   {
    "id": "108",
    "name": "Desert Outpost (South)",
    "x": 1486,
-   "y": 2647,
-   "tome": "0x43755561"
+   "y": 2647
   },
   {
    "id": "109",
    "name": "Nomad Desert Camp",
    "x": 1125,
-   "y": 2633,
-   "tome": "0x43755561"
+   "y": 2633
   },
   {
    "id": "110",
    "name": "Beached Ship",
    "x": 1060,
-   "y": 2672,
-   "tome": "0x43755561"
+   "y": 2672
   },
   {
    "id": "111",
    "name": "Desert Manor",
    "x": 1173,
-   "y": 2715,
-   "tome": "0x43755561"
+   "y": 2715
   },
   {
    "id": "112",
    "name": "Desert Manor (East)",
    "x": 1285,
-   "y": 2666,
-   "tome": "0x43755561"
+   "y": 2666
   },
   {
    "id": "113",
    "name": "Cambrian Excavation",
    "x": 1365,
-   "y": 2709,
-   "tome": "0x43755561"
+   "y": 2709
   },
   {
    "id": "114",
    "name": "Brigan Camp 2",
    "x": 1584,
-   "y": 2709,
-   "tome": "0x43755561"
+   "y": 2709
   },
   {
    "id": "115",
    "name": "Island Dragon Roost",
    "x": 963,
-   "y": 2821,
-   "tome": "0x43755561"
+   "y": 2821
   },
   {
    "id": "116",
    "name": "Island Spring (North)",
    "x": 784,
-   "y": 3108,
-   "tome": "0x43755561"
+   "y": 3108
   },
   {
    "id": "117",
    "name": "Island Spring",
    "x": 726,
-   "y": 3196,
-   "tome": "0x43755561"
+   "y": 3196
   },
   {
    "id": "118",
    "name": "Volcano 2",
    "x": 835,
-   "y": 3180,
-   "tome": "0x43755561"
+   "y": 3180
   },
   {
    "id": "119",
    "name": "Deadman Isle",
    "x": 1008,
-   "y": 3289,
-   "tome": "0x43755561"
+   "y": 3289
   },
   {
    "id": "120",
    "name": "Compassion Shrine (North)",
    "x": 1156,
-   "y": 2915,
-   "tome": "0x43755561"
+   "y": 2915
   },
   {
    "id": "121",
    "name": "Desert Pyramid Ruins",
    "x": 1181,
-   "y": 2977,
-   "tome": "0x43755561"
+   "y": 2977
   },
   {
    "id": "122",
    "name": "Desert Pyramid Ruins Monolith",
    "x": 1234,
-   "y": 2932,
-   "tome": "0x43755561"
+   "y": 2932
   },
   {
    "id": "123",
    "name": "Savannah and Watering Hole",
    "x": 1314,
-   "y": 2907,
-   "tome": "0x43755561"
+   "y": 2907
   },
   {
    "id": "124",
    "name": "Oasis",
    "x": 1314,
-   "y": 2975,
-   "tome": "0x43752730"
+   "y": 2975
   },
   {
    "id": "125",
    "name": "Hidden Valley",
    "x": 1457,
-   "y": 2953,
-   "tome": "0x43752730"
+   "y": 2953
   },
   {
    "id": "126",
    "name": "Drowned City (North West)",
    "x": 2155,
-   "y": 2832,
-   "tome": "0x43752730"
+   "y": 2832
   },
   {
    "id": "127",
    "name": "Drowned City (North)",
    "x": 2187,
-   "y": 2828,
-   "tome": "0x43752730"
+   "y": 2828
   },
   {
    "id": "128",
    "name": "Drowned City (Central North)",
    "x": 2222,
-   "y": 2860,
-   "tome": "0x43752730"
+   "y": 2860
   },
   {
    "id": "129",
    "name": "Drowned City (West)",
    "x": 2176,
-   "y": 2898,
-   "tome": "0x43752730"
+   "y": 2898
   },
   {
    "id": "130",
    "name": "Drowned City (West)",
    "x": 2178,
-   "y": 2908,
-   "tome": "0x43752730"
+   "y": 2908
   },
   {
    "id": "131",
    "name": "Drowned City (Central)",
    "x": 2232,
-   "y": 2910,
-   "tome": "0x43752730"
+   "y": 2910
   },
   {
    "id": "132",
    "name": "Drowned City (South)",
    "x": 2224,
-   "y": 2970,
-   "tome": "0x43752730"
+   "y": 2970
   },
   {
    "id": "133",
    "name": "Volcano 1",
    "x": 2056,
-   "y": 3207,
-   "tome": "0x43752730"
+   "y": 3207
   },
   {
    "id": "134",
    "name": "Inferno (Outside)",
    "x": 1999,
-   "y": 3255,
-   "tome": "0x43752730"
+   "y": 3255
   },
   {
    "id": "135",
    "name": "Savage Fort (North)",
    "x": 2373,
-   "y": 3027,
-   "tome": "0x43752730"
+   "y": 3027
   },
   {
    "id": "136",
    "name": "Terathan Point",
    "x": 2295,
-   "y": 3477,
-   "tome": "0x43752730"
+   "y": 3477
   },
   {
    "id": "137",
    "name": "Jungle Baths",
    "x": 2758,
-   "y": 3432,
-   "tome": "0x43752730"
+   "y": 3432
   },
   {
    "id": "138",
    "name": "Tribal Camp",
    "x": 3112,
-   "y": 3443,
-   "tome": "0x43752730"
+   "y": 3443
   },
   {
    "id": "139",
    "name": "Deserted Island and Ship",
    "x": 3265,
-   "y": 3367,
-   "tome": "0x43752730"
+   "y": 3367
   },
   {
    "id": "140",
    "name": "Savage Fort",
    "x": 2385,
-   "y": 3073,
-   "tome": "0x43752730"
+   "y": 3073
   },
   {
    "id": "141",
    "name": "Smoking Pyre Island",
    "x": 3184,
-   "y": 166,
-   "tome": "0x43752730"
+   "y": 166
   },
   {
    "id": "142",
    "name": "Smoke Pyre",
    "x": 3225,
-   "y": 234,
-   "tome": "0x43752730"
+   "y": 234
   },
   {
    "id": "143",
    "name": "Smugglers Dock",
    "x": 3177,
-   "y": 307,
-   "tome": "0x43752730"
+   "y": 307
   },
   {
    "id": "144",
    "name": "Ice Bridge (North West)",
    "x": 3254,
-   "y": 106,
-   "tome": "0x43752730"
+   "y": 106
   },
   {
    "id": "145",
    "name": "Ice Bridge (West)",
    "x": 3281,
-   "y": 130,
-   "tome": "0x43752730"
+   "y": 130
   },
   {
    "id": "146",
    "name": "Smoking Pyre (East)",
    "x": 3332,
-   "y": 287,
-   "tome": "0x43752730"
+   "y": 287
   },
   {
    "id": "147",
    "name": "Ice Bridge",
    "x": 3395,
-   "y": 128,
-   "tome": "0x43752730"
+   "y": 128
   },
   {
    "id": "148",
    "name": "Winterspire (North West)",
    "x": 3459,
-   "y": 63,
-   "tome": "0x43752730"
+   "y": 63
   },
   {
    "id": "149",
    "name": "Winterspire (North)",
    "x": 3519,
-   "y": 99,
-   "tome": "0x43752730"
+   "y": 99
   },
   {
    "id": "150",
    "name": "Winterspire",
    "x": 3547,
-   "y": 176,
-   "tome": "0x437548AB"
+   "y": 176
   },
   {
    "id": "151",
    "name": "Frozen Settlement (North)",
    "x": 3604,
-   "y": 244,
-   "tome": "0x437548AB"
+   "y": 244
   },
   {
    "id": "152",
    "name": "Frozen Settlement (West)",
    "x": 3579,
-   "y": 319,
-   "tome": "0x437548AB"
+   "y": 319
   },
   {
    "id": "153",
    "name": "Frozen Excavation",
    "x": 3632,
-   "y": 120,
-   "tome": "0x437548AB"
+   "y": 120
   },
   {
    "id": "154",
    "name": "Frozen Settlement (East)",
    "x": 3642,
-   "y": 315,
-   "tome": "0x437548AB"
+   "y": 315
   },
   {
    "id": "155",
    "name": "Frozen Sttlement",
    "x": 3606,
-   "y": 342,
-   "tome": "0x437548AB"
+   "y": 342
   },
   {
    "id": "156",
    "name": "Leodcynings Burial Mound",
    "x": 3714,
-   "y": 406,
-   "tome": "0x437548AB"
+   "y": 406
   },
   {
    "id": "157",
    "name": "Frozen Nests",
    "x": 3754,
-   "y": 99,
-   "tome": "0x437548AB"
+   "y": 99
   },
   {
    "id": "158",
    "name": "Leodcynings Burial Mound (East)",
    "x": 3768,
-   "y": 393,
-   "tome": "0x437548AB"
+   "y": 393
   },
   {
    "id": "159",
    "name": "Ice Prison (South West)",
    "x": 3845,
-   "y": 279,
-   "tome": "0x437548AB"
+   "y": 279
   },
   {
    "id": "160",
    "name": "Lily Bridge",
    "x": 3888,
-   "y": 342,
-   "tome": "0x437548AB"
+   "y": 342
   },
   {
    "id": "161",
    "name": "Anchors Rest North Caravan (East)",
    "x": 3813,
-   "y": 403,
-   "tome": "0x437548AB"
+   "y": 403
   },
   {
    "id": "162",
    "name": "Ice Prison (East)",
    "x": 3967,
-   "y": 191,
-   "tome": "0x437548AB"
+   "y": 191
   },
   {
    "id": "163",
    "name": "Ice Prison",
    "x": 3916,
-   "y": 263,
-   "tome": "0x437548AB"
+   "y": 263
   },
   {
    "id": "164",
    "name": "Lily Bridge (East)",
    "x": 3930,
-   "y": 356,
-   "tome": "0x437548AB"
+   "y": 356
   },
   {
    "id": "165",
    "name": "Ivory Citadel (West)",
    "x": 4043,
-   "y": 71,
-   "tome": "0x437548AB"
+   "y": 71
   },
   {
    "id": "166",
    "name": "Winter Harbor",
    "x": 4291,
-   "y": 126,
-   "tome": "0x437548AB"
+   "y": 126
   },
   {
    "id": "167",
    "name": "Winter Harbor (South)",
    "x": 4274,
-   "y": 183,
-   "tome": "0x437548AB"
+   "y": 183
   },
   {
    "id": "168",
    "name": "Cedar Lookout (North West)",
    "x": 4102,
-   "y": 227,
-   "tome": "0x437548AB"
+   "y": 227
   },
   {
    "id": "169",
    "name": "Cedar Lookout (East)",
    "x": 4205,
-   "y": 301,
-   "tome": "0x437548AB"
+   "y": 301
   },
   {
    "id": "170",
    "name": "Fortune Teller",
    "x": 4270,
-   "y": 491,
-   "tome": "0x437548AB"
+   "y": 491
   },
   {
    "id": "171",
    "name": "Fortune Teller (West Island)",
    "x": 4190,
-   "y": 544,
-   "tome": "0x437548AB"
+   "y": 544
   },
   {
    "id": "172",
    "name": "Rickety Bridge (North)",
    "x": 4148,
-   "y": 619,
-   "tome": "0x437548AB"
+   "y": 619
   },
   {
    "id": "173",
    "name": "Rickety Bridge (North West)",
    "x": 4093,
-   "y": 655,
-   "tome": "0x437548AB"
+   "y": 655
   },
   {
    "id": "174",
    "name": "Illuminated Springs (North)",
    "x": 3957,
-   "y": 694,
-   "tome": "0x437548AB"
+   "y": 694
   },
   {
    "id": "175",
    "name": "Illuminated Springs (South)",
    "x": 3934,
-   "y": 783,
-   "tome": "0x437548AB"
+   "y": 783
   },
   {
    "id": "176",
    "name": "Camp Betrayal",
    "x": 4107,
-   "y": 698,
-   "tome": "0x43751C83"
+   "y": 698
   },
   {
    "id": "177",
    "name": "Fresh Catch",
    "x": 4126,
-   "y": 775,
-   "tome": "0x43751C83"
+   "y": 775
   },
   {
    "id": "178",
    "name": "Rickety Bridge (North East)",
    "x": 4295,
-   "y": 653,
-   "tome": "0x43751C83"
+   "y": 653
   },
   {
    "id": "179",
    "name": "Rickety Bridge",
    "x": 4188,
-   "y": 779,
-   "tome": "0x43751C83"
+   "y": 779
   },
   {
    "id": "180",
    "name": "Damned Bog",
    "x": 4152,
-   "y": 927,
-   "tome": "0x43751C83"
+   "y": 927
   },
   {
    "id": "181",
    "name": "Picnic Blanket",
    "x": 4252,
-   "y": 927,
-   "tome": "0x43751C83"
+   "y": 927
   },
   {
    "id": "182",
    "name": "Outpost East Gate",
    "x": 3172,
-   "y": 482,
-   "tome": "0x43751C83"
+   "y": 482
   },
   {
    "id": "183",
    "name": "Cedar Forest",
    "x": 3228,
-   "y": 593,
-   "tome": "0x43751C83"
+   "y": 593
   },
   {
    "id": "184",
    "name": "Outpost East Gate (East)",
    "x": 3273,
-   "y": 465,
-   "tome": "0x43751C83"
+   "y": 465
   },
   {
    "id": "185",
    "name": "Lightning Strike (South West)",
    "x": 3347,
-   "y": 562,
-   "tome": "0x43751C83"
+   "y": 562
   },
   {
    "id": "186",
    "name": "Lightning Strike (North)",
    "x": 3387,
-   "y": 513,
-   "tome": "0x43751C83"
+   "y": 513
   },
   {
    "id": "187",
    "name": "Lightning Strike (South)",
    "x": 3405,
-   "y": 577,
-   "tome": "0x43751C83"
+   "y": 577
   },
   {
    "id": "188",
    "name": "Unmarked Grave (North Cave)",
    "x": 3310,
-   "y": 616,
-   "tome": "0x43751C83"
+   "y": 616
   },
   {
    "id": "189",
    "name": "Unmarked Grave",
    "x": 3332,
-   "y": 659,
-   "tome": "0x43751C83"
+   "y": 659
   },
   {
    "id": "190",
    "name": "Unmarked Grave (West)",
    "x": 3285,
-   "y": 688,
-   "tome": "0x43751C83"
+   "y": 688
   },
   {
    "id": "191",
    "name": "Shadowspire Cathedral (West)",
    "x": 3349,
-   "y": 774,
-   "tome": "0x43751C83"
+   "y": 774
   },
   {
    "id": "192",
    "name": "Shadowspire Cathedral (South West)",
    "x": 3311,
-   "y": 854,
-   "tome": "0x43751C83"
+   "y": 854
   },
   {
    "id": "193",
    "name": "Granite Docks",
    "x": 3431,
-   "y": 902,
-   "tome": "0x43751C83"
+   "y": 902
   },
   {
    "id": "194",
    "name": "Wintertop",
    "x": 3533,
-   "y": 503,
-   "tome": "0x43751C83"
+   "y": 503
   },
   {
    "id": "195",
    "name": "Wintertop (East)",
    "x": 3590,
-   "y": 531,
-   "tome": "0x43751C83"
+   "y": 531
   },
   {
    "id": "196",
    "name": "Wintertop (South)",
    "x": 3569,
-   "y": 587,
-   "tome": "0x43751C83"
+   "y": 587
   },
   {
    "id": "197",
    "name": "Secret Beach",
    "x": 3605,
-   "y": 666,
-   "tome": "0x43751C83"
+   "y": 666
   },
   {
    "id": "198",
    "name": "Heartland Bog (North)",
    "x": 3642,
-   "y": 691,
-   "tome": "0x43751C83"
+   "y": 691
   },
   {
    "id": "199",
    "name": "Shadowspire Cathedral (North East)",
    "x": 3488,
-   "y": 639,
-   "tome": "0x43751C83"
+   "y": 639
   },
   {
    "id": "200",
    "name": "Shadowspire Cathedral",
    "x": 3439,
-   "y": 696,
-   "tome": "0x43751C83"
+   "y": 696
   },
   {
    "id": "201",
    "name": "Shadowspire Cathedral",
    "x": 3462,
-   "y": 746,
-   "tome": "0x43751C83"
+   "y": 746
   },
   {
    "id": "202",
    "name": "Shadowspire Cathedral (South)",
    "x": 3450,
-   "y": 830,
-   "tome": "0x43752E07"
+   "y": 830
   },
   {
    "id": "203",
    "name": "Heartland Bog (West)",
    "x": 3610,
-   "y": 848,
-   "tome": "0x43752E07"
+   "y": 848
   },
   {
    "id": "204",
    "name": "Heartland Bog",
    "x": 3690,
-   "y": 864,
-   "tome": "0x43752E07"
+   "y": 864
   },
   {
    "id": "205",
    "name": "Wintertop (West)",
    "x": 3508,
-   "y": 551,
-   "tome": "0x43752E07"
+   "y": 551
   },
   {
    "id": "206",
    "name": "Granite Quarry",
    "x": 3406,
-   "y": 979,
-   "tome": "0x43752E07"
+   "y": 979
   },
   {
    "id": "207",
    "name": "Brigand Blind",
    "x": 3524,
-   "y": 1012,
-   "tome": "0x43752E07"
+   "y": 1012
   },
   {
    "id": "208",
    "name": "Brigand Blind (South)",
    "x": 3563,
-   "y": 1059,
-   "tome": "0x43752E07"
+   "y": 1059
   },
   {
    "id": "209",
    "name": "Vurte Tul Rru (South West)",
    "x": 3784,
-   "y": 1084,
-   "tome": "0x43752E07"
+   "y": 1084
   },
   {
    "id": "210",
    "name": "Vurte Tul Rru (West Entrance)",
    "x": 3834,
-   "y": 1044,
-   "tome": "0x43752E07"
+   "y": 1044
   },
   {
    "id": "211",
    "name": "Vurte Tul Rru (South Entrance)",
    "x": 3857,
-   "y": 1121,
-   "tome": "0x43752E07"
+   "y": 1121
   },
   {
    "id": "212",
    "name": "Vurte Tul Rru (East Entrance)",
    "x": 3944,
-   "y": 1021,
-   "tome": "0x43752E07"
+   "y": 1021
   },
   {
    "id": "213",
    "name": "Abandoned Trading Post",
    "x": 3939,
-   "y": 1159,
-   "tome": "0x43752E07"
+   "y": 1159
   },
   {
    "id": "214",
    "name": "Abandoned Trading Post (West)",
    "x": 3853,
-   "y": 1210,
-   "tome": "0x43752E07"
+   "y": 1210
   },
   {
    "id": "215",
    "name": "Chaos Viewpoint (North)",
    "x": 3880,
-   "y": 1273,
-   "tome": "0x43752E07"
+   "y": 1273
   },
   {
    "id": "216",
    "name": "Chaos Viewpoint",
    "x": 3916,
-   "y": 1356,
-   "tome": "0x43752E07"
+   "y": 1356
   },
   {
    "id": "217",
    "name": "Haunted Manor",
    "x": 4019,
-   "y": 1154,
-   "tome": "0x43752E07"
+   "y": 1154
   },
   {
    "id": "218",
    "name": "Southreach Inn",
    "x": 4025,
-   "y": 1334,
-   "tome": "0x43752E07"
+   "y": 1334
   },
   {
    "id": "219",
    "name": "Standing Stones",
    "x": 4135,
-   "y": 1319,
-   "tome": "0x43752E07"
+   "y": 1319
   },
   {
    "id": "220",
    "name": "Mellow Retreat",
    "x": 4329,
-   "y": 1158,
-   "tome": "0x43752E07"
+   "y": 1158
   },
   {
    "id": "221",
    "name": "Pinecone Grove (North Island)",
    "x": 3618,
-   "y": 1141,
-   "tome": "0x43752E07"
+   "y": 1141
   },
   {
    "id": "222",
    "name": "Pinecone Grove (North)",
    "x": 3607,
-   "y": 1166,
-   "tome": "0x43752E07"
+   "y": 1166
   },
   {
    "id": "223",
    "name": "Pinecone Grove",
    "x": 3700,
-   "y": 1244,
-   "tome": "0x43752E07"
+   "y": 1244
   },
   {
    "id": "224",
    "name": "Pinecone Grove (East Island)",
    "x": 3772,
-   "y": 1257,
-   "tome": "0x43752E07"
+   "y": 1257
   },
   {
    "id": "225",
    "name": "Chaos Shrine Island Cluster",
    "x": 3695,
-   "y": 1384,
-   "tome": "0x43752E07"
+   "y": 1384
   },
   {
    "id": "226",
    "name": "Chaos Shrine Island Cluster",
    "x": 3765,
-   "y": 1344,
-   "tome": "0x43752E07"
+   "y": 1344
   },
   {
    "id": "227",
    "name": "Chaos Shrine Island Cluster",
    "x": 3792,
-   "y": 1347,
-   "tome": "0x43752E07"
+   "y": 1347
   },
   {
    "id": "228",
    "name": "Chaos Shrine Island Cluster",
    "x": 3825,
-   "y": 1364,
-   "tome": "0x43755E41"
+   "y": 1364
   },
   {
    "id": "229",
    "name": "Chaos Shrine Island Cluster",
    "x": 3859,
-   "y": 1348,
-   "tome": "0x43755E41"
+   "y": 1348
   },
   {
    "id": "230",
    "name": "Abandoned Trading Post (West Road)",
    "x": 3738,
-   "y": 1186,
-   "tome": "0x43755E41"
+   "y": 1186
   },
   {
    "id": "231",
    "name": "Western Camps",
    "x": 3473,
-   "y": 1434,
-   "tome": "0x43755E41"
+   "y": 1434
   },
   {
    "id": "232",
    "name": "Blood Cult Abbey (Outside North)",
    "x": 3692,
-   "y": 1431,
-   "tome": "0x43755E41"
+   "y": 1431
   },
   {
    "id": "233",
    "name": "Blood Cult Abbey (South West)",
    "x": 3626,
-   "y": 1531,
-   "tome": "0x43755E41"
+   "y": 1531
   },
   {
    "id": "234",
    "name": "Blood Cult Abbey",
    "x": 3719,
-   "y": 1485,
-   "tome": "0x43755E41"
+   "y": 1485
   },
   {
    "id": "235",
    "name": "Chaos Shrine Island Cluster",
    "x": 3789,
-   "y": 1386,
-   "tome": "0x43755E41"
+   "y": 1386
   },
   {
    "id": "236",
    "name": "Chaos Shrine",
    "x": 3856,
-   "y": 1436,
-   "tome": "0x43755E41"
+   "y": 1436
   },
   {
    "id": "237",
    "name": "Mount Minotaur",
    "x": 3896,
-   "y": 1530,
-   "tome": "0x43755E41"
+   "y": 1530
   },
   {
    "id": "238",
    "name": "Mount Minotaur (West)",
    "x": 3869,
-   "y": 1527,
-   "tome": "0x43755E41"
+   "y": 1527
   },
   {
    "id": "239",
    "name": "Mount Minotaur (East)",
    "x": 3928,
-   "y": 1557,
-   "tome": "0x43755E41"
+   "y": 1557
   },
   {
    "id": "240",
    "name": "Kudzu Tower",
    "x": 3547,
-   "y": 1759,
-   "tome": "0x43755E41"
+   "y": 1759
   },
   {
    "id": "241",
    "name": "Shanty Shack (West)",
    "x": 3649,
-   "y": 1683,
-   "tome": "0x43755E41"
+   "y": 1683
   },
   {
    "id": "242",
    "name": "Shanty Shack (West)",
    "x": 3628,
-   "y": 1725,
-   "tome": "0x43755E41"
+   "y": 1725
   },
   {
    "id": "243",
    "name": "Shanty Shack (South)",
    "x": 3732,
-   "y": 1743,
-   "tome": "0x43755E41"
+   "y": 1743
   },
   {
    "id": "244",
    "name": "Shanty Shack",
    "x": 3771,
-   "y": 1705,
-   "tome": "0x43755E41"
+   "y": 1705
   },
   {
    "id": "245",
    "name": "Shanty Shack (Far South)",
    "x": 3757,
-   "y": 1867,
-   "tome": "0x43755E41"
+   "y": 1867
   },
   {
    "id": "246",
    "name": "Orc Rock (West)",
    "x": 3912,
-   "y": 1852,
-   "tome": "0x43755E41"
+   "y": 1852
   },
   {
    "id": "247",
    "name": "Botanical Disaster",
    "x": 4044,
-   "y": 1648,
-   "tome": "0x43755E41"
+   "y": 1648
   },
   {
    "id": "248",
    "name": "Botanical Disaster (South)",
    "x": 4055,
-   "y": 1717,
-   "tome": "0x43755E41"
+   "y": 1717
   },
   {
    "id": "249",
    "name": "Orc Rock",
    "x": 4022,
-   "y": 1860,
-   "tome": "0x43755E41"
+   "y": 1860
   },
   {
    "id": "250",
    "name": "Corpse Creek Lookout (West)",
    "x": 686,
-   "y": 545,
-   "tome": "0x4B99B20C"
+   "y": 545
   },
   {
    "id": "251",
    "name": "Corpse Creek (Far West)",
    "x": 675,
-   "y": 728,
-   "tome": "0x4B99B20C"
+   "y": 728
   },
   {
    "id": "252",
    "name": "Corpse Creek (South West)",
    "x": 773,
-   "y": 733,
-   "tome": "0x4B99B20C"
+   "y": 733
   },
   {
    "id": "253",
    "name": "Simple Palisade Fort (West)",
    "x": 1030,
-   "y": 743,
-   "tome": "0x4B99B20C"
+   "y": 743
   },
   {
    "id": "254",
    "name": "Black Market Vendor (East)",
    "x": 1057,
-   "y": 908,
-   "tome": "0x4B99B20C"
+   "y": 908
   },
   {
    "id": "255",
    "name": "Western Ruins Caravan",
    "x": 726,
-   "y": 1177,
-   "tome": "0x4B99B20C"
+   "y": 1177
   },
   {
    "id": "256",
    "name": "Hunters Blind 1",
    "x": 1326,
-   "y": 988,
-   "tome": "0x4B99B20C"
+   "y": 988
   },
   {
    "id": "257",
    "name": "Snow Fortress",
    "x": 1152,
-   "y": 404,
-   "tome": "0x4B99B20C"
+   "y": 404
   },
   {
    "id": "258",
    "name": "Frost Daemon Temple (South)",
    "x": 1452,
-   "y": 560,
-   "tome": "0x4B99B20C"
+   "y": 560
   },
   {
    "id": "259",
    "name": "Snow Caves (North)",
    "x": 1641,
-   "y": 522,
-   "tome": "0x4B99B20C"
+   "y": 522
   },
   {
    "id": "260",
    "name": "Northwest Caravan",
    "x": 1397,
-   "y": 737,
-   "tome": "0x4B99B20C"
+   "y": 737
   },
   {
    "id": "261",
    "name": "Northwest Caravan (South)",
    "x": 1417,
-   "y": 821,
-   "tome": "0x4B99B20C"
+   "y": 821
   },
   {
    "id": "262",
    "name": "Frozen Ruins Waypost (South)",
    "x": 1564,
-   "y": 834,
-   "tome": "0x4B99B20C"
+   "y": 834
   },
   {
    "id": "263",
    "name": "Andaria Sacrificial Ruins",
    "x": 1893,
-   "y": 583,
-   "tome": "0x4B99B20C"
+   "y": 583
   },
   {
    "id": "264",
    "name": "Undermountain North Entrance",
    "x": 1887,
-   "y": 676,
-   "tome": "0x4B99B20C"
+   "y": 676
   },
   {
    "id": "265",
    "name": "Andaria Ruins 2",
    "x": 2044,
-   "y": 450,
-   "tome": "0x4B99B20C"
+   "y": 450
   },
   {
    "id": "266",
    "name": "Snow Northeast 2 Caravan",
    "x": 2430,
-   "y": 445,
-   "tome": "0x4B99B20C"
+   "y": 445
   },
   {
    "id": "267",
    "name": "Tanners Northern Fort (South)",
    "x": 2594,
-   "y": 516,
-   "tome": "0x4B99B20C"
+   "y": 516
   },
   {
    "id": "268",
    "name": "Riverrun",
    "x": 2629,
-   "y": 738,
-   "tome": "0x4B99B20C"
+   "y": 738
   },
   {
    "id": "269",
    "name": "Norse Settlement",
    "x": 2728,
-   "y": 620,
-   "tome": "0x4B99B20C"
+   "y": 620
   },
   {
    "id": "270",
    "name": "Cavernam (Outside South East)",
    "x": 2810,
-   "y": 427,
-   "tome": "0x4B99B20C"
+   "y": 427
   },
   {
    "id": "271",
    "name": "Outpost",
    "x": 2989,
-   "y": 574,
-   "tome": "0x4B99B20C"
+   "y": 574
   },
   {
    "id": "272",
    "name": "Honor Shrine",
    "x": 1360,
-   "y": 1189,
-   "tome": "0x4B99B20C"
+   "y": 1189
   },
   {
    "id": "273",
    "name": "Brigand Camp 3",
    "x": 1398,
-   "y": 1387,
-   "tome": "0x4B99B20C"
+   "y": 1387
   },
   {
    "id": "274",
    "name": "Farmlands Caravan (West)",
    "x": 1734,
-   "y": 1263,
-   "tome": "0x4B99B20C"
+   "y": 1263
   },
   {
    "id": "275",
    "name": "Abandoned Docks Waypost",
    "x": 1943,
-   "y": 1383,
-   "tome": "0x4B99B20C"
+   "y": 1383
   },
   {
    "id": "276",
    "name": "Prevalia Zoo (East)",
    "x": 1934,
-   "y": 1472,
-   "tome": "0x546ACD06"
+   "y": 1472
   },
   {
    "id": "277",
    "name": "Terran Moongate",
    "x": 957,
-   "y": 1601,
-   "tome": "0x546ACD06"
+   "y": 1601
   },
   {
    "id": "278",
    "name": "Nusero Signal Fort",
    "x": 661,
-   "y": 1801,
-   "tome": "0x546ACD06"
+   "y": 1801
   },
   {
    "id": "279",
    "name": "Andarian Scout Camp",
    "x": 239,
-   "y": 1918,
-   "tome": "0x546ACD06"
+   "y": 1918
   },
   {
    "id": "280",
    "name": "Nusero Island (South West)",
    "x": 334,
-   "y": 2042,
-   "tome": "0x546ACD06"
+   "y": 2042
   },
   {
    "id": "281",
    "name": "Nusero Island (South West)",
    "x": 301,
-   "y": 2140,
-   "tome": "0x546ACD06"
+   "y": 2140
   },
   {
    "id": "282",
    "name": "Nusero Island (South East)",
    "x": 497,
-   "y": 2115,
-   "tome": "0x546ACD06"
+   "y": 2115
   },
   {
    "id": "283",
    "name": "Nusero Island (South)",
    "x": 448,
-   "y": 2030,
-   "tome": "0x546ACD06"
+   "y": 2030
   },
   {
    "id": "284",
    "name": "Umbermare Fort",
    "x": 1035,
-   "y": 2294,
-   "tome": "0x546ACD06"
+   "y": 2294
   },
   {
    "id": "285",
    "name": "Mausoleum (Outside South)",
    "x": 1451,
-   "y": 2322,
-   "tome": "0x546ACD06"
+   "y": 2322
   },
   {
    "id": "286",
    "name": "Midlands Ruins 1 (South)",
    "x": 1765,
-   "y": 2007,
-   "tome": "0x546ACD06"
+   "y": 2007
   },
   {
    "id": "287",
    "name": "Lizardmen Scout Camp (North)",
    "x": 2248,
-   "y": 2406,
-   "tome": "0x546ACD06"
+   "y": 2406
   },
   {
    "id": "288",
    "name": "Desert Ruins",
    "x": 1162,
-   "y": 2538,
-   "tome": "0x546ACD06"
+   "y": 2538
   },
   {
    "id": "289",
    "name": "Desert Daemon Altar",
    "x": 1343,
-   "y": 2849,
-   "tome": "0x546ACD06"
+   "y": 2849
   },
   {
    "id": "290",
    "name": "Volcano 2 (East)",
    "x": 889,
-   "y": 3195,
-   "tome": "0x546ACD06"
+   "y": 3195
   },
   {
    "id": "291",
    "name": "Hidden Valley (Outside South)",
    "x": 1526,
-   "y": 3040,
-   "tome": "0x546ACD06"
+   "y": 3040
   },
   {
    "id": "292",
    "name": "Cambria Moongate (East)",
    "x": 1776,
-   "y": 3144,
-   "tome": "0x546ACD06"
+   "y": 3144
   },
   {
    "id": "293",
    "name": "Volcano 1 (East)",
    "x": 2196,
-   "y": 3247,
-   "tome": "0x546ACD06"
+   "y": 3247
   },
   {
    "id": "294",
    "name": "Sacrifice Shrine",
    "x": 2451,
-   "y": 3328,
-   "tome": "0x546ACD06"
+   "y": 3328
   },
   {
    "id": "295",
    "name": "Tribal Camp (South)",
    "x": 3098,
-   "y": 3500,
-   "tome": "0x546ACD06"
+   "y": 3500
   },
   {
    "id": "296",
    "name": "Southern Island Cluster",
    "x": 3022,
-   "y": 3713,
-   "tome": "0x546ACD06"
+   "y": 3713
   },
   {
    "id": "297",
    "name": "Southern Island Cluster",
    "x": 3329,
-   "y": 3562,
-   "tome": "0x546ACD06"
+   "y": 3562
   },
   {
    "id": "298",
    "name": "Darkmire Temple (Outside South)",
    "x": 3362,
-   "y": 3795,
-   "tome": "0x546ACD06"
+   "y": 3795
   },
   {
    "id": "299",
    "name": "Rickety Bridge (Eastern Island)",
    "x": 4270,
-   "y": 753,
-   "tome": "0x546ACD06"
+   "y": 753
   },
   {
    "id": "300",
    "name": "Brigand Blind (South West Island)",
    "x": 3466,
-   "y": 1164,
-   "tome": "0x546ACD06"
+   "y": 1164
   },
   {
    "id": "301",
    "name": "Pinecone Grove (South West)",
    "x": 3628,
-   "y": 1263,
-   "tome": "0x546ACD06"
+   "y": 1263
   },
   {
    "id": "302",
    "name": "Shattered Nujelm Cemetery",
    "x": 3018,
-   "y": 3083,
-   "tome": "0x4374EB77"
+   "y": 3083
   },
   {
    "id": "303",
    "name": "Shattered Nujelm (North)",
    "x": 3128,
-   "y": 3012,
-   "tome": "0x4374EB77"
+   "y": 3012
   },
   {
    "id": "304",
    "name": "Shattered Nujelm (East)",
    "x": 3183,
-   "y": 3059,
-   "tome": "0x4374EB77"
+   "y": 3059
   },
   {
    "id": "305",
    "name": "Shattered Nujelm (South)",
    "x": 3177,
-   "y": 3153,
-   "tome": "0x4374EB77"
+   "y": 3153
   },
   {
    "id": "306",
    "name": "Saltshore Saltern",
    "x": 3292,
-   "y": 2825,
-   "tome": "0x4374EB77"
+   "y": 2825
   },
   {
    "id": "307",
    "name": "Saltshore Island Cluster",
    "x": 3339,
-   "y": 2867,
-   "tome": "0x4374EB77"
+   "y": 2867
   },
   {
    "id": "308",
    "name": "Saltshore Island Cluster",
    "x": 3332,
-   "y": 2806,
-   "tome": "0x4374EB77"
+   "y": 2806
   },
   {
    "id": "309",
    "name": "Saltshore Island Cluster",
    "x": 3338,
-   "y": 2741,
-   "tome": "0x4374EB77"
+   "y": 2741
   },
   {
    "id": "310",
    "name": "Saltshore Island Cluster",
    "x": 3342,
-   "y": 2676,
-   "tome": "0x4374EB77"
+   "y": 2676
   },
   {
    "id": "311",
    "name": "Saltshore Island Cluster",
    "x": 3396,
-   "y": 2623,
-   "tome": "0x4374EB77"
+   "y": 2623
   },
   {
    "id": "312",
    "name": "Saltshore Island Cluster",
    "x": 3482,
-   "y": 2617,
-   "tome": "0x4374EB77"
+   "y": 2617
   },
   {
    "id": "313",
    "name": "Saltshore Island Cluster",
    "x": 3535,
-   "y": 2665,
-   "tome": "0x4374EB77"
+   "y": 2665
   },
   {
    "id": "314",
    "name": "Saltshore Barrier Islands",
    "x": 3620,
-   "y": 2704,
-   "tome": "0x4374EB77"
+   "y": 2704
   },
   {
    "id": "315",
    "name": "Saltshore Barrier Islands",
    "x": 3555,
-   "y": 2730,
-   "tome": "0x4374EB77"
+   "y": 2730
   },
   {
    "id": "316",
    "name": "Saltshore Barrier Islands",
    "x": 3584,
-   "y": 2732,
-   "tome": "0x4374EB77"
+   "y": 2732
   },
   {
    "id": "317",
    "name": "Sandshear Quarry",
    "x": 3784,
-   "y": 2484,
-   "tome": "0x4374EB77"
+   "y": 2484
   },
   {
    "id": "318",
    "name": "Old Papua (West)",
    "x": 3550,
-   "y": 2982,
-   "tome": "0x4374EB77"
+   "y": 2982
   },
   {
    "id": "319",
    "name": "Flooded Sunstone Temple (East)",
    "x": 3444,
-   "y": 2968,
-   "tome": "0x4374EB77"
+   "y": 2968
   },
   {
    "id": "320",
    "name": "Flooded Sunstone Temple",
    "x": 3393,
-   "y": 2931,
-   "tome": "0x4374EB77"
+   "y": 2931
   },
   {
    "id": "321",
    "name": "Desert Brew",
    "x": 3556,
-   "y": 2863,
-   "tome": "0x4374EB77"
+   "y": 2863
   },
   {
    "id": "322",
    "name": "Respite Spring",
    "x": 3651,
-   "y": 2789,
-   "tome": "0x4374EB77"
+   "y": 2789
   },
   {
    "id": "323",
    "name": "Tarsands Lookout",
    "x": 3798,
-   "y": 2679,
-   "tome": "0x4374EB77"
+   "y": 2679
   },
   {
    "id": "324",
    "name": "Tarsands Tar Pits",
    "x": 3923,
-   "y": 2635,
-   "tome": "0x4374EB77"
+   "y": 2635
   },
   {
    "id": "325",
    "name": "Tarsands Mine",
    "x": 3970,
-   "y": 2584,
-   "tome": "0x4374EB77"
+   "y": 2584
   },
   {
    "id": "326",
    "name": "Furys Caldera Caravan",
    "x": 3993,
-   "y": 2515,
-   "tome": "0x4374EB77"
+   "y": 2515
   },
   {
    "id": "327",
    "name": "Furys Caldera (North Entrance)",
    "x": 3955,
-   "y": 2382,
-   "tome": "0x4374EB77"
+   "y": 2382
   },
   {
    "id": "328",
    "name": "Old Jhelom East Gate",
    "x": 4450,
-   "y": 2568,
-   "tome": "0x4374E53D"
+   "y": 2568
   },
   {
    "id": "329",
    "name": "Old Jhelom South Gate",
    "x": 4372,
-   "y": 2722,
-   "tome": "0x4374E53D"
+   "y": 2722
   },
   {
    "id": "330",
    "name": "Junglethread Crossing",
    "x": 4204,
-   "y": 2587,
-   "tome": "0x4374E53D"
+   "y": 2587
   },
   {
    "id": "331",
    "name": "Kraul Frontier Excavation Site",
    "x": 4094,
-   "y": 2687,
-   "tome": "0x4374E53D"
+   "y": 2687
   },
   {
    "id": "332",
    "name": "Scorchborne Wastes",
    "x": 4213,
-   "y": 2783,
-   "tome": "0x4374E53D"
+   "y": 2783
   },
   {
    "id": "333",
    "name": "Ironsnake Retreat",
    "x": 4032,
-   "y": 2826,
-   "tome": "0x4374E53D"
+   "y": 2826
   },
   {
    "id": "334",
    "name": "Dusty Mercantile",
    "x": 3932,
-   "y": 2702,
-   "tome": "0x4374E53D"
+   "y": 2702
   },
   {
    "id": "335",
    "name": "Arachnids Dominion",
    "x": 3839,
-   "y": 2767,
-   "tome": "0x4374E53D"
+   "y": 2767
   },
   {
    "id": "336",
    "name": "Windmill Waters Wagonworks",
    "x": 3719,
-   "y": 2885,
-   "tome": "0x4374E53D"
+   "y": 2885
   },
   {
    "id": "337",
    "name": "Old Papua Inn",
    "x": 3744,
-   "y": 3005,
-   "tome": "0x4374E53D"
+   "y": 3005
   },
   {
    "id": "338",
    "name": "Papua Underdepths",
    "x": 3661,
-   "y": 3120,
-   "tome": "0x4374E53D"
+   "y": 3120
   },
   {
    "id": "339",
    "name": "Ponderosa Perch",
    "x": 3408,
-   "y": 3182,
-   "tome": "0x4374E53D"
+   "y": 3182
   },
   {
    "id": "340",
    "name": "Ponderosa Perch (East)",
    "x": 3543,
-   "y": 3129,
-   "tome": "0x4374E53D"
+   "y": 3129
   },
   {
    "id": "341",
    "name": "Hidden Jungle Bridge",
    "x": 3583,
-   "y": 3267,
-   "tome": "0x4374E53D"
+   "y": 3267
   },
   {
    "id": "342",
    "name": "Lavender Island",
    "x": 3540,
-   "y": 3397,
-   "tome": "0x4374E53D"
+   "y": 3397
   },
   {
    "id": "343",
    "name": "Orange Island",
    "x": 3716,
-   "y": 3339,
-   "tome": "0x4374E53D"
+   "y": 3339
   },
   {
    "id": "344",
    "name": "Dragoncrest Plateau",
    "x": 3522,
-   "y": 3513,
-   "tome": "0x4374E53D"
+   "y": 3513
   },
   {
    "id": "345",
    "name": "Ashenmire",
    "x": 3613,
-   "y": 3523,
-   "tome": "0x4374E53D"
+   "y": 3523
   },
   {
    "id": "346",
    "name": "Tidal Tomb",
    "x": 3826,
-   "y": 3591,
-   "tome": "0x4374E53D"
+   "y": 3591
   },
   {
    "id": "347",
    "name": "Palmshade Trading Camp",
    "x": 3804,
-   "y": 3475,
-   "tome": "0x4374E53D"
+   "y": 3475
   },
   {
    "id": "348",
    "name": "Russetrock Cenote",
    "x": 3948,
-   "y": 3296,
-   "tome": "0x4374E53D"
+   "y": 3296
   },
   {
    "id": "349",
    "name": "Burnt Sage",
    "x": 3903,
-   "y": 2979,
-   "tome": "0x4374E53D"
+   "y": 2979
   },
   {
    "id": "350",
    "name": "Whisperwood Cottage",
    "x": 4086,
-   "y": 2968,
-   "tome": "0x4374E53D"
+   "y": 2968
   },
   {
    "id": "351",
    "name": "Murkmire Swamps",
    "x": 4138,
-   "y": 3109,
-   "tome": "0x4374E53D"
+   "y": 3109
   },
   {
    "id": "352",
    "name": "Abandoned Jungle Dockyards",
    "x": 4413,
-   "y": 2849,
-   "tome": "0x4374E53D"
+   "y": 2849
   },
   {
    "id": "353",
    "name": "Time (South)",
    "x": 3525,
-   "y": 2026,
-   "tome": "0x4374E53D"
+   "y": 2026
   }
  ]
 }

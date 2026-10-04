@@ -216,16 +216,23 @@ def current_spot(spots: dict, pos, facet) -> str | None:
     if home_hub:
         return home_hub
     import places
-    for lib in places.witcher()["libraries"]:
-        if lib["facet"] == int(facet or 0) and cheb(pos, lib["stand"]) <= HUB_RADIUS:
-            return f"hub:{lib['id']}"
-    return None
+    lib = places.library_at(pos, facet, HUB_RADIUS)
+    return f"hub:{lib['id']}" if lib else None
 
 
 def hub_of(spot: dict) -> str | None:
-    """"hub:<library>" for a spot reached by a library rune, else None."""
+    """"hub:<library>" for a spot reached by a library rune (its access library), else None."""
     access = spot.get("access") or {}
     return f"hub:{access.get('library', 'cambria')}" if access.get("method") == "witcher" else None
+
+
+def hubs_of(spot: dict) -> set:
+    """Every "hub:<library>" a library-rune spot can be reached from: each library
+    that holds its Witcher rune (the runner recalls from the nearest, places.library_for)."""
+    if hub_of(spot) is None:
+        return set()
+    import places
+    return {hub_of(spot)} | {f"hub:{lid}" for lid in places.libraries_holding(spot["access"].get("rune"))}
 
 
 # ------------------------------------------------------------------ hatchets and the character
@@ -628,7 +635,7 @@ def overhead_prior_s(spot: dict) -> float:
         into = spot.get("route_tiles")
         if into is None:
             try:
-                r = places.witcher_rune(access["rune"])
+                r = places.library_rune(lib["id"], access["rune"])
                 into = max(0, cheb((r["x"], r["y"]), spot["area"]["center"]) - spot["area"]["radius"] // 2)
             except (KeyError, TypeError):
                 into = 0
@@ -890,7 +897,7 @@ def travel_h(spot: dict, here: str | None, learned: dict) -> float:
     """Hours to get to `spot` from `here` (current_spot): 0 there or at its
     library hub; else its travel_min prior averaged with the learned moves
     (learned_travel), one pseudo-observation for the prior."""
-    if spot["id"] == here or (here is not None and hub_of(spot) == here):
+    if spot["id"] == here or (here is not None and here in hubs_of(spot)):
         return 0.0
     samples = learned.get(spot["id"], [])
     prior = _num(spot.get("travel_min"), 10)

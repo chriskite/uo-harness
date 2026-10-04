@@ -2085,11 +2085,13 @@ class LumberLoop:
     # ------------------------------------------------------------ travel (spots reached by recall)
     def go_out(self):
         """Witcher-rune spots (spot access {"method": "witcher", "rune": N}): unless we
-        stand in the spot's area already, walk to the rune library, stand by the tome
-        that holds rune N and recall to it (escape.recall: one of the tome's public
-        charges, else our own spell; docs/research/WORLD_LOCATIONS.md). The 60 s
-        harvest lockout after it is waited out by the first chop (outcome 'lockout').
-        Every attempt is a `travel` job event (travel_leg), a failed walk or recall too."""
+        stand in the spot's area already, walk to the nearest rune library that holds
+        rune N (places.library_for; the spot's own library on a tie: the DTF guild
+        house for a character living there, Cambria for one living there), stand by
+        the tome that holds it and recall (escape.recall: one of the tome's charges,
+        else our own spell; docs/research/WORLD_LOCATIONS.md). The 60 s harvest
+        lockout after it is waited out by the first chop (outcome 'lockout'). Every
+        attempt is a `travel` job event (travel_leg), a failed walk or recall too."""
         access = self.k["spot"].get("access") or {}
         if access.get("method") != "witcher":
             return
@@ -2098,36 +2100,41 @@ class LumberLoop:
         pos = self.link.pos(st)
         if cheb(pos, area["center"]) <= area["radius"] + 10:
             return
-        rune = places.witcher_rune(access["rune"])
-        lib = places.library(access.get("library", "cambria"))
-        leg = {"leg": "out", "witcher_rune": rune["id"], "library": lib["id"], "book": rune["tome"]}
+        facet = (st["world"].get("self") or {}).get("map")
+        try:
+            lib = places.library(places.library_for(access["rune"], pos, facet,
+                                                    prefer=access.get("library", "cambria")))
+            rune = places.library_rune(lib["id"], access["rune"])
+        except KeyError as e:
+            raise Abort(e.args[0])
+        rid, name = rune["witcher"], places.witcher_rune(rune["witcher"])["name"]
+        leg = {"leg": "out", "witcher_rune": rid, "library": lib["id"], "book": rune["tome"]}
         t0 = time.monotonic()
         # No distance limit (user decision 2026-10-03): the walk goes as far as the map planner
         # routes; "no route" from far away still aborts (bring us closer by moongate first).
-        tome = next(t for t in lib["tomes"] if t["serial"] == rune["tome"])
-        self.doing("to_library", f"Walking to the {lib['name']}", tuple(tome["pos"][:2]))
+        tome_xy = tuple(rune["tome_pos"][:2])
+        self.doing("to_library", f"Walking to the {lib['name']}", tome_xy)
         try:
-            self.mover.walk_to(lambda: tuple(tome["pos"][:2]), lib["use_range"] - 1, "to the rune library")
+            self.mover.walk_to(lambda: tome_xy, lib["use_range"] - 1, "to the rune library")
             if self.wait_for(lambda s: rune["tome"] in s["world"]["items"], 3.0) is None:
-                raise Abort(f"the tome {rune['tome']} for rune {rune['id']} isn't at the {lib['name']} "
-                            f"({tome['pos'][:2]})")
+                raise Abort(f"the tome {rune['tome']} for rune {rid} isn't at the {lib['name']} ({tome_xy})")
         except Abort as e:
             self.travel_leg(leg, t0, failure=f"walk: {e}")
             raise
         leg["walk_s"] = round(time.monotonic() - t0, 1)
-        self.doing("recall_out", f"Recalling to rune {rune['id']} ({rune['name']})", (rune["x"], rune["y"]))
+        self.doing("recall_out", f"Recalling to rune {rid} ({name})", (rune["x"], rune["y"]))
         self.human.wait("use")
         before = self.supplies_now(self.link.state())
         try:
             res = escape_mod.escape(escape_mod.LinkIO(self.link), int(rune["tome"], 16), attempts=2, log=log,
-                                    rune=rune["id"])
+                                    rune=rune["name"])
         except escape_mod.RecallError as e:
             self.travel_leg(leg, t0, failure=f"recall: {e}")
-            raise Abort(f"library recall to rune {rune['id']} not possible: {e}")
+            raise Abort(f"library recall to rune {rid} not possible: {e}")
         self.travel_leg(leg, t0, res, before)
         if not res["ok"]:
-            raise Abort(f"library recall to rune {rune['id']} failed: {res['failure']}")
-        log(f"recalled to rune {rune['id']} ({rune['name']}) at {tuple(res['to'])} ({res['method']})")
+            raise Abort(f"library recall to rune {rid} failed: {res['failure']}")
+        log(f"recalled to rune {rid} ({name}) from the {lib['name']} at {tuple(res['to'])} ({res['method']})")
 
     def go_home(self):
         """Spots with home {"method": "recall"}: recall to the default rune of our
@@ -2440,6 +2447,7 @@ def main():
                     help="lumber spot id (harness/data/lumber_spots.json or the store; `ctl lumber spots`)")
     ap.add_argument("--spots", default=lumber_opt.SEEDS, help="seed spot file (tests)")
     ap.add_argument("--witcher", default=places.WITCHER, help="Witcher rune table (tests: a simulated library)")
+    ap.add_argument("--libraries", default=places.LIBRARIES, help="rune library table (tests: a simulated library)")
     ap.add_argument("--trips", type=int, default=1)
     ap.add_argument("--logs-per-trip", type=int, default=15)
     ap.add_argument("--hatchet", default=None,
@@ -2503,7 +2511,7 @@ def main():
     with open(args.loop, encoding="utf-8") as f:
         know = json.load(f)
     memory = Memory(args.memory)
-    places.use(args.witcher)
+    places.use(args.witcher, args.libraries)
     spots = lumber_opt.load_spots(memory, args.spots)
     spot = spots.get(args.spot)
     why = None

@@ -239,9 +239,11 @@ def runetome_rows(layout: str, lines) -> dict:
 
 
 def rune_matches(name: str, want: str) -> bool:
-    """A tome row named `name` is the wanted rune: the same text, or a Witcher
-    row "N - Place" for want "N"."""
-    return name == want or name.startswith(f"{want} - ")
+    """A tome row named `name` is the wanted rune: the same text (case and outer
+    spaces aside: "22A" finds the DTF row "22a", "Blood ele island" its row with a
+    trailing space), or a Witcher row "N - Place" for want "N"."""
+    n, w = (name or "").strip().lower(), (want or "").strip().lower()
+    return n == w or n.startswith(f"{w} - ")
 
 
 def runetome_cast_button(layout: str, index: int) -> int | None:
@@ -252,6 +254,76 @@ def runetome_cast_button(layout: str, index: int) -> int | None:
         return None
     col = index % 2
     return icons[col][1] if col < len(icons) else None
+
+
+def runetome_title(layout: str, lines) -> str | None:
+    """The tome's name on its main page: the text top left, above "Manage Runes"
+    (live 2026-10-04: "302-327", "Alliance Dockmasters 2")."""
+    lines = list(lines or [])
+    top = sorted((y, x, li) for kind, f in _tokens(layout) if kind == "text" and len(f) >= 4
+                 for x, y, li in [(int(f[0]), int(f[1]), int(f[3]))] if y < 45 and x < 300)
+    return lines[top[0][2]] if top and top[0][2] < len(lines) else None
+
+
+_COORDS = re.compile(r"^\s*\((\d+),\s*(\d+)\)\s*$")
+
+
+def parse_runetome_detail(layout: str, lines) -> list[dict]:
+    """[{col, name, x, y}] of a tome detail page, left column (col 0) first: each
+    column's name is the text just above its "(x, y)" line, the nearest one across
+    (live 2026-10-04, the DTF guild tomes: name at y 26, tile at y 52; names are
+    centred, so a long right-hand name starts ~75 px left of its tile)."""
+    lines = list(lines or [])
+    texts = [(int(f[0]), int(f[1]), int(f[3])) for kind, f in _tokens(layout) if kind == "text" and len(f) >= 4]
+    tiles = sorted((x, y, li) for x, y, li in texts if li < len(lines) and _COORDS.match(lines[li]))
+    out = []
+    for col, (x, y, li) in enumerate(tiles[:2]):
+        above = [(abs(tx - x), tli) for tx, ty, tli in texts if 0 < y - ty <= 40 and tli < len(lines)]
+        m = _COORDS.match(lines[li])
+        out.append({"col": col, "name": lines[min(above)[1]] if above else None,
+                    "x": int(m.group(1)), "y": int(m.group(2))})
+    return out
+
+
+DETAIL_NEXT = 5                   # detail page: the next pair of runes (art 4007, bottom right)
+
+
+def read_runetome(io, book: int, wait=lambda: time.sleep(0.8)) -> dict:
+    """Read a rune tome without recalling: open it, take the main page (title,
+    charges, default, row names), then walk its detail pages pair by pair (200 =
+    runes 0 and 1, then DETAIL_NEXT) for every rune's tile, and close it. `wait`
+    is the pause before each page press (a player reading the page). Works for a
+    locked-down library tome within reach. Returns {title, charges, default,
+    entries, rows: [{row, name, x, y}]}; a row whose detail page wasn't read (or
+    named another rune) keeps x/y None."""
+    st, _ = io.poll()
+    me = st["movement"]["self_serial"]
+    g = _open(io, book, RUNETOME_GUMP, me)
+    info = parse_runetome_main(g.get("layout"), g.get("lines"))
+    names = runetome_rows(g.get("layout"), g.get("lines"))
+    rows = [{"row": i, "name": names.get(i), "x": None, "y": None} for i in range(info["entries"])]
+    out = {"title": runetome_title(g.get("layout"), g.get("lines")), **info, "rows": rows}
+    if not rows:
+        _press(io, g, 0)
+        return out
+    page, first = g, 0
+    wait()
+    _press(io, page, 200)
+    while True:
+        page = _next_gump(io, RUNETOME_GUMP)
+        for c in parse_runetome_detail(page.get("layout"), page.get("lines")):
+            i = first + c["col"]
+            if i < len(rows) and c["name"] == rows[i]["name"]:
+                rows[i]["x"], rows[i]["y"] = c["x"], c["y"]
+        first += 2
+        nxt = DETAIL_NEXT in {int(f[6]) for kind, f in _tokens(page.get("layout")) if kind == "button" and len(f) >= 7}
+        if first >= len(rows) or not nxt:
+            break
+        wait()
+        _press(io, page, DETAIL_NEXT)
+    wait()
+    _press(io, page, 0)
+    return out
 
 
 # ------------------------------------------------------------ the escape
