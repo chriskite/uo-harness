@@ -15,8 +15,15 @@ Covers what the overseer relies on:
 
 Offline: temp DB, stub task scripts in a temp dir, a fake proxy (control +
 state ports) on private ports >= 12700. Never touches the live ports.
-Run: python harness/test_ctl.py   (~30 s)
+
+Speed: commands run in-process through ctl.main(argv) (stdout captured, exit code
+returned) with a fast clock (FastClock) in the modules a command waits in, so
+ctl's fixed listen windows don't cost real seconds against a fake that answers
+synchronously. The `wait` wake tests still spawn the real `python ctl.py` CLI.
+Run: python harness/test_ctl.py   (~20 s)
 """
+import contextlib
+import io
 import json
 import os
 import socket
@@ -25,6 +32,7 @@ import sys
 import tempfile
 import threading
 import time
+import traceback
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -32,8 +40,10 @@ os.environ["UO_QUIET"] = "1"        # alerts.QUIET_ENV: no alarm sounds from the
 INSTALL_TILEDATA = "C:/Program Files (x86)/Ultima Online Outlands/artdata.uoo"   # tiledata items; read-only
 
 import actions  # noqa: E402
+import agent_link  # noqa: E402
 import ctl  # noqa: E402
 import healing  # noqa: E402
+import humanize  # noqa: E402
 import nav  # noqa: E402
 import task_wrap as tw  # noqa: E402
 import tracking  # noqa: E402
@@ -343,24 +353,76 @@ def env_with(tasks=None):
     return env
 
 
+CLOCK_SCALE = 10
+REAL_CLOCK_CMDS = {"stop"}    # waits on the task wrapper, a real process: keep its grace in real seconds
+
+
+class FastClock:
+    """`time` for the modules a ctl command waits in (ctl, agent_link's Mover, humanize,
+    tracking): monotonic() runs CLOCK_SCALE x fast and sleep() is that much shorter, so
+    the fixed windows (1.5 s listening after a send, 4 s for a cast cursor, the 3 s move
+    confirmations) pass quickly. One clock for all of them: they hand each other monotonic
+    stamps (Human.pace_step). time() stays the wall clock (meta stamps, buff ends, ages)."""
+
+    def __getattr__(self, name):
+        return getattr(time, name)
+
+    @staticmethod
+    def monotonic():
+        return time.monotonic() * CLOCK_SCALE
+
+    @staticmethod
+    def sleep(s):
+        time.sleep(s / CLOCK_SCALE)
+
+
+FAST_CLOCK = FastClock()
+CLOCKED = (ctl, agent_link, humanize, tracking)
+
+
+def run_ctl(argv, tasks=None, fast=True):
+    """ctl.main(argv) in this process, like `python ctl.py ARGV`: (exit code, its one JSON
+    stdout line). Anything else on stdout, or an exception, comes back as _bad_stdout."""
+    out, err = io.StringIO(), io.StringIO()
+    saved_env = os.environ.pop(ctl.TEST_TASKS_ENV, None)
+    if tasks is not None:
+        os.environ[ctl.TEST_TASKS_ENV] = json.dumps(tasks)
+    for mod in CLOCKED:
+        mod.time = FAST_CLOCK if fast else time
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = ctl.main(argv)
+    except Exception:
+        code = 1
+        err.write(traceback.format_exc())
+    finally:
+        for mod in CLOCKED:
+            mod.time = time
+        os.environ.pop(ctl.TEST_TASKS_ENV, None)
+        if saved_env is not None:
+            os.environ[ctl.TEST_TASKS_ENV] = saved_env
+    lines = out.getvalue().strip().splitlines()
+    try:
+        res = json.loads(lines[-1]) if len(lines) == 1 else {"_bad_stdout": out.getvalue(), "_stderr": err.getvalue()}
+    except ValueError:
+        res = {"_bad_stdout": out.getvalue(), "_stderr": err.getvalue()}
+    return code, res
+
+
 class Ctl:
     def __init__(self, db, logdir, proxy, tasks=None):
-        self.base = [PY, CTL, "--db", db, "--log-dir", logdir,
+        self.args = ["--db", db, "--log-dir", logdir,
                      "--control-port", str(proxy.control_port), "--state-port", str(proxy.state_port)]
+        self.tasks = tasks
         self.env = env_with(tasks)
 
-    def __call__(self, *args, timeout=60):
-        r = subprocess.run(self.base + list(args), capture_output=True, text=True, env=self.env, timeout=timeout)
-        lines = r.stdout.strip().splitlines()
-        try:
-            out = json.loads(lines[-1]) if len(lines) == 1 else {"_bad_stdout": r.stdout, "_stderr": r.stderr}
-        except ValueError:
-            out = {"_bad_stdout": r.stdout, "_stderr": r.stderr}
-        return r.returncode, out
+    def __call__(self, *args):
+        return run_ctl(self.args + list(args), self.tasks, fast=args[0] not in REAL_CLOCK_CMDS)
 
     def spawn(self, *args):
-        return subprocess.Popen(self.base + list(args), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                text=True, env=self.env)
+        """The real CLI in its own process (real clock), for waits that run alongside the test."""
+        return subprocess.Popen([PY, CTL] + self.args + list(args), stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True, env=self.env)
 
 
 def finish(p, timeout=30):
@@ -412,11 +474,13 @@ def test_wait(proxy):
     code, out = c("wait", "--timeout", "1", "--poll", "0.1")
     check("acked juncture does not wake", out.get("event") is None, str(out))
 
+    def beat_since(t):    # the spawned wait's heartbeat, once it is polling
+        return wait_for(lambda: (lambda v: v and float(v) >= t and float(v))(meta(db, ctl.HEARTBEAT_KEY)), 10, 0.05)
+
     hb0 = time.time()
     p = c.spawn("wait", "--timeout", "20", "--poll", "0.1")
-    time.sleep(1.0)
-    hb1 = wait_for(lambda: (lambda v: v and float(v) >= hb0 and float(v))(meta(db, ctl.HEARTBEAT_KEY)), 5)
-    time.sleep(1.2)
+    hb1 = beat_since(hb0)
+    time.sleep(0.4)
     hb2 = float(meta(db, ctl.HEARTBEAT_KEY) or 0)
     check("heartbeat written while waiting (epoch seconds)", bool(hb1) and abs(float(hb1) - time.time()) < 5,
           str(hb1))
@@ -429,8 +493,9 @@ def test_wait(proxy):
           and ev.get("kind") == "threat" and ev.get("data") == {"serial": "0x2"}, str(out))
     check("woke promptly", time.monotonic() - t0 < 5, f"{time.monotonic() - t0:.1f}s")
 
+    t_spawn = time.time()
     p = c.spawn("wait", "--timeout", "20", "--poll", "0.1")
-    time.sleep(0.8)
+    beat_since(t_spawn)
     m.chat_post("overseer", "noted", "message")
     time.sleep(0.5)
     check("overseer chat does not wake a running wait", p.poll() is None)
@@ -563,10 +628,8 @@ def test_status(proxy):
     dead = free_port(13100)
     port = dead.getsockname()[1]
     dead.close()
-    r = subprocess.run([PY, CTL, "--db", db, "--state-port", str(port), "status"],
-                       capture_output=True, text=True, env=env_with(), timeout=30)
-    out = json.loads(r.stdout)
-    check("proxy unreachable -> ok false", r.returncode == 1 and out["ok"] is False
+    code, out = run_ctl(["--db", db, "--state-port", str(port), "status"])
+    check("proxy unreachable -> ok false", code == 1 and out.get("ok") is False
           and "unreachable" in out["error"] and out["tasks"] == [], str(out))
 
 
@@ -833,10 +896,13 @@ def test_overseer_acts(proxy):
         gump_row(0x101, 0x5E11A1, "{ noclose }{ croppedtext -300 -200 1 1 0 0 }", ["Captcha"]),  # decoy
         gump_row(0x102, 0x22, btns, ["You have chosen to renounce your Young player status?"]),
         gump_row(0x103, 0x33, "{ noclose }" + btns, ["Resurrection"]),
+        gump_row(0x106, 0x8EAEFBDB, "".join(f"{{ button 10 {10 * b} 1 2 1 0 {b} }}" for b in (3, 4, 6, 7)),
+                 ["Rental Room", "End Rental Contract", "Expand", "Exit to Town", "Exit to House Steward"]),
     ]
     for serial, button, why in ((0x100, 2, "captcha"), (0x101, 0, "no reply buttons"), (0x102, 1, "renounce"),
                                 (0x103, 0, "noclose"), (0x103, 9, "not in the gump's reply buttons"),
-                                (0x104, 1, "no open gump")):
+                                (0x104, 1, "no open gump"), (0x106, 3, "rental room: End Rental Contract"),
+                                (0x106, 7, "rental room: Expand")):
         code, out = c("act", "gump", f"0x{serial:X}", str(button))
         check(f"gump refused: {why}", code == 1 and proxy.take() == [], str(out))
     code, out = c("act", "gump", "0x102", "0")
@@ -845,6 +911,9 @@ def test_overseer_acts(proxy):
     code, out = c("act", "gump", "0x103", "1")
     check("a normal gump: an offered button is sent as the stock 0xB1",
           code == 0 and [p for _, p in proxy.take()] == [actions.gump_response(0x103, 0x33, 1)], str(out))
+    code, out = c("act", "gump", "0x106", "6")
+    check("rental room menu: Exit to House Steward (6) is sent",
+          code == 0 and [p for _, p in proxy.take()] == [actions.gump_response(0x106, 0x8EAEFBDB, 6)], str(out))
     # Retrieve Items-style gump (live 0xBEC6217A): an amount entry (id 1, default "", limit 5),
     # a label to its left, a checked checkbox (id 7) and an OKAY button (2)
     shelf = ("{ text 58 99 2599 3 18 0 1 0 0 0 }{ textentrylimited 147 100 78 20 2655 1 4 5 2 2 }"
