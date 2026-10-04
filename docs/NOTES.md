@@ -511,6 +511,16 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
     -25 -12 -15 -11 -14 -21 in 15 s. User decision: **no manual fights in dungeons**, only the hunt
     runner fights there (OVERSEER §5). `ctl act recall` now puts a weapon the cast moved to the
     pack back on (`weapon` in its reply).
+  - **Corpse run (20:40–20:50).** A ghost may use the golden moongate: its "Moongate Destinations"
+    list there is Anchor's Rest 10 … Totem 17, Corpse Creek 18 (Travel 2); Totem lands ~27 steps
+    from Jacinda the healer (3862,2883). The resurrection gump opens while the ghost walks up, and
+    any step after it opens makes Accept fail ("You have moved too far from your original location
+    to be resurrected."): stop, then press Accept. Back at 94/94. First try (the overseer, staff
+    and bag): 24 s walk in, 2 s per item, dead 8 s after reaching the corpse. Second try, scripted
+    (one process, staff only): 35 s in, the staff in 1.8 s; then other players killed the orcs and
+    everything else was taken. The first corpse had decayed to **bones (graphic 0x0ECD) that still
+    held its items** (the second spellstone, the tunic). `act recall` re-wielded the staff after
+    the cast on its first live use (`weapon: rewielded`).
 - **Lumber data audit (1a5d59f; LUMBER_LOOP §6 "What the optimizer learns from").** Trip rows
   now carry the travel legs (every cast with method/ok/failure/seconds, the book, Witcher rune,
   walk to the library, mana and reagents), `lockout_s`, `stationary_s`, `travel_s`, `supplies`,
