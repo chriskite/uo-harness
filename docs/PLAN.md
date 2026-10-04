@@ -1095,6 +1095,33 @@ as a test over the committed captures). THREATS.md §1 and OVERSEER.md describe 
 - Open: a GM shown blue/grey or hidden still gets past the sight rule (the speech hold and the
   other hints cover them). The first live `staff_sighting` will show whether the rule holds.
 
+## One supervisor for the stack (decided and built 2026-10-04)
+
+User request: one script that brings up the proxy, the viz, Laya and the rest, and supervises
+them; the Telegram bridge on by default, no opt-in. Built: `harness/stack.py up|status|restart|down`
+(docs/NOTES.md "Stack supervisor"). Before it, each service was started by hand in its own window
+and nothing restarted one that died (the viz's native live-view crash, NOTES 2026-10-04).
+- **One foreground process, children in their own process groups.** Health is the services'
+  listening ports (read from `netstat`, so the supervisor never connects to the game port) plus
+  laya's `/health`. A managed service that exits is restarted with a backoff and posts
+  `service_down` (once per outage), `service_up`, `service_flapping`.
+- **Stops go through each service's own Ctrl-C path:** a bootstrap maps SIGBREAK to
+  KeyboardInterrupt, the supervisor sends CTRL_BREAK, then `taskkill /T /F` after a grace period.
+  So the proxy still flushes the memory store; laya-serve.exe goes with its wrapper (the port
+  owners seen while it ran are killed too).
+- **Already-running services are adopted, not duplicated:** watched as `external`, replaced by
+  the supervisor's own only once they go away. So `up` is safe next to a manually started stack,
+  and `down` never stops what it didn't start.
+- **The NAT stays elevated and outside:** a non-elevated supervisor can't own or restart it
+  silently. It watches the lookup port, posts an urgent `nat_down` and reruns
+  `start_proxy_nat.ps1` once per outage (one UAC prompt); `restart nat` asks again. Not
+  self-elevating, by the rule in NOTES ("Never write a self-elevating `.ps1`").
+- **Not managed:** the game client (the user launches it), the overseer session, the backup task
+  (Task Scheduler), the Discord tooling (one computer only, opt-in).
+- Rejected: **Windows services / NSSM** (a service runs outside the user's session: no console for
+  CTRL_BREAK, and the viz live view and the GPU client need the desktop session) and **Task
+  Scheduler restarts** (no health checks beyond "process exited", and no adoption).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

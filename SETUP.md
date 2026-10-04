@@ -121,6 +121,12 @@ without it]. Tests that need the Discord venv (`test_discord_*`) are optional (ย
 
 All procedures live in the docs; follow them as written.
 
+- **All services at once:** `python harness/stack.py up` in a console starts and supervises the
+  proxy, the viz, laya and the Telegram bridge, and starts the divert NAT through
+  `start_proxy_nat.ps1` (**(user)** accepts the UAC prompt). Same rule as below: only once this
+  computer holds the store (ยง7). `python harness/stack.py down` before a handoff push.
+  Details: docs/NOTES.md "Stack supervisor". The items below are the pieces it runs.
+
 - **Proxy + NAT:** `powershell -ExecutionPolicy Bypass -File start_proxy_nat.ps1` (run
   non-elevated; **(user)** accepts one UAC prompt for the NAT). The proxy opens its own console
   (Ctrl-C there flushes the memory store); the NAT runs in a minimized elevated window and logs

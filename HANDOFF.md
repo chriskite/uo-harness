@@ -73,6 +73,10 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 
 ## Operate
 
+- **Everything in one go, supervised:** `python harness/stack.py up` in a console (proxy, viz,
+  laya, Telegram bridge; watches the divert NAT and starts it via `start_proxy_nat.ps1`, one UAC
+  prompt). Restarts what dies; `python harness/stack.py status|restart <svc>|down` from another
+  shell. Already-running services are left alone. docs/NOTES.md "Stack supervisor".
 - Proxy + divert NAT in one go (skips whatever is already up; one UAC prompt):
   `powershell -ExecutionPolicy Bypass -File start_proxy_nat.ps1 [-RestartProxy] [-RestartNat]`
 - Proxy (needed, restart if down):
