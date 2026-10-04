@@ -119,6 +119,11 @@ LAYOUTS_S2C: dict[int, list[tuple[str, str, int]]] = {
            ("tz", "i32be", 34), ("speed", "u8", 38), ("duration", "u8", 39),
            ("skip", "skip:2", 40), ("fixed_dir", "u8", 42), ("explode", "u8", 43),
            ("hue", "u32be", 44), ("render", "u32be", 48)],
+    # 0x54 PlaySoundEffect, Outlands V10 form (18; stock 12): x/y u32, z i32 like 0xC0.
+    # Real (live 2026-10-04, session 20261004_113229 at 2:31, a trapped pouch going off in
+    # our pack at 1620,1549,50): `54 01 0307 0000 00000654 0000060d 00000032`.
+    0x54: [("mode", "u8", 1), ("sound", "u16be", 2), ("volume", "u16be", 4),
+           ("x", "u32be", 6), ("y", "u32be", 10), ("z", "i32be", 14)],
     # 0x1B LoginConfirm (43) — Assistant.PacketHandlers.LoginConfirm
     # @ 0x1400627a0 (V10 branch): serial u32, u32 (unread), graphic u32,
     # x/y/z i32, dir u8. Real: `1b 00094375 00000000 00000190 000007ab

@@ -98,6 +98,9 @@ CAUSE_LINK_S = 300.0              # a sighting this soon before a death makes it
 RECOVERY_H = 20 / 60              # ghost walk, resurrection, re-equip, back to work [INFERENCE: Terran death 2026-10-02]
 DEATH_LINK_S = 1800.0             # a death this soon after a lumber trip counts for that trip's spot
 COOLDOWN_S = 1800.0               # keep away from a spot this long after a death or a player threat there
+# ... and this long after a thief made us leave it (a `thief` job event that recalled or stopped: our trapped
+# pouch went off, or a suspect closed in again after the keep-away step; docs/research/THREATS.md §7 T3)
+THIEF_COOLDOWN_S = 1200.0
 STINT_MIN = 60.0                  # minutes one runner start should last (when trips are shorter)
 Q_MIN, Q_MAX = 200, 10000         # logs per trip (user decision 2026-10-03)
 Q_GRID = tuple(sorted({int(round(Q_MIN * (Q_MAX / Q_MIN) ** (i / 40) / 25.0)) * 25 for i in range(41)}))
@@ -311,9 +314,11 @@ def buff_name(icon, b: dict) -> str:
 def character(world: dict, self_serial, table: dict) -> dict:
     """What the optimizer needs to know about us now (state-port world): skill,
     mounted, buff names (buff_name), every hatchet worn or in the backpack (any bag
-    depth) with its kind, the reagents in the pack ({name: count}), weight and
+    depth) with its kind, the reagents in the pack ({name: count}), the trapped
+    pouches (live, hue 38, and spent ones: harness/pouch.py), weight and
     weight_max (stones; the status packet's max already holds Camping's bonus
     [INFERENCE]) and Young status (the "(young)" name label)."""
+    import pouch
     import combat
     me = world.get("self") or {}
     items = world.get("items") or {}
@@ -335,6 +340,9 @@ def character(world: dict, self_serial, table: dict) -> dict:
                            and _serial(it["container"]) == self_serial for it in items.values()),
             "buffs": sorted({buff_name(icon, b) for icon, b in buffs.items()}),
             "hatchets": hatchets, "reagents": {combat.REAGENTS[g]: n for g, n in regs.items()},
+            "pouches": None if pack is None else {
+                "live": len(pouch.live(world, pack)),
+                "spent": sum(1 for p in pouch.pack_pouches(world, pack).values() if not p["live"])},
             "weight": _num(me.get("weight")), "weight_max": _num((me.get("stats") or {}).get("weight_max")),
             "young": "(young)" in label.lower()}
 
@@ -343,12 +351,14 @@ def character(world: dict, self_serial, table: dict) -> dict:
 def supply_gp(supplies: dict | None, prices: dict) -> tuple[float, int]:
     """(gp, unpriced) of what one trip used (its row's `supplies`): reagents at
     `reagent:<name>` (spaces as _), our own book's charges at `recall_charge` (what
-    recharging costs), the public library tome's charges free. Unpriced units count
-    nothing and are reported, never guessed."""
+    recharging costs), trapped pouches gone off at `trapped_pouch` (Errol sells them at 25
+    gp: `ctl lumber price trapped_pouch 25`), the public library tome's charges free.
+    Unpriced units count nothing and are reported, never guessed."""
     gp, unpriced = 0.0, 0
     s = supplies or {}
     items = [(f"reagent:{k.replace(' ', '_')}", n) for k, n in (s.get("reagents_used") or {}).items()]
     items.append(("recall_charge", _num(s.get("own_charges"), 0)))
+    items.append(("trapped_pouch", _num(s.get("trapped_pouches"), 0)))
     for item, n in items:
         if not n:
             continue
@@ -835,8 +845,9 @@ def _value(lam, t_h, hz, gear_logs, stint_h, travel_h, cost_logs=0.0, q_cap=Q_MA
     return v * run_h / (run_h + travel_h), q, bound
 
 
-def eligibility(spot, trips, threats, now, young, regrow_min) -> str | None:
-    """Why the spot can't be picked now, or None."""
+def eligibility(spot, trips, threats, now, young, regrow_min, thieves=()) -> str | None:
+    """Why the spot can't be picked now, or None. thieves: [t] of `thief` job events there
+    that made us leave (THIEF_COOLDOWN_S)."""
     if spot.get("status") != "active":
         return f"status {spot.get('status')}" + (f": {spot['reason']}" if spot.get("reason") else "")
     if spot.get("requires_young") and not young:
@@ -848,6 +859,10 @@ def eligibility(spot, trips, threats, now, young, regrow_min) -> str | None:
     recent = [t for t in threats if now - t < COOLDOWN_S]
     if recent:
         return f"player threat or death here {int((now - max(recent)) / 60)} min ago (cooldown {int(COOLDOWN_S / 60)} min)"
+    robbed = [t for t in thieves if now - t < THIEF_COOLDOWN_S]
+    if robbed:
+        return (f"a thief made us leave {int((now - max(robbed)) / 60)} min ago "
+                f"(cooldown {int(THIEF_COOLDOWN_S / 60)} min)")
     dry = [tr["t1"] for tr in trips if tr["dry"]]
     last = sorted(trips, key=lambda tr: tr["t0"])[-UNWORKABLE_TRIPS:]
     if len(last) == UNWORKABLE_TRIPS and all(tr["place_fail"] for tr in last) \
@@ -1068,9 +1083,11 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
 
     learned = learned_travel(trips, spots)
     models, rows = {}, []
+    thieves = {sid: [e["t"] for e in events if e["kind"] == "thief" and (e.get("data") or {}).get("spot") == sid
+                     and (e.get("data") or {}).get("action") != "keep_away"] for sid in spots}
     for sid, s in spots.items():
         m = spot_model(s, by_spot[sid], hev[sid], pooled, prior, phi, p_now, now)
-        why = eligibility(s, by_spot[sid], threats[sid], now, young, regrow["minutes"])
+        why = eligibility(s, by_spot[sid], threats[sid], now, young, regrow["minutes"], thieves[sid])
         trav = travel_h(s, here, learned)
         m["cost_logs"] = m["supply_gp"] / gp_per_log
         t_h = m["overhead_s"] / 3600.0
@@ -1120,6 +1137,7 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
            "logs_per_tree": round(lpt, 1), "yield_share_pooled": round(share0, 2),
            "prior_rate_logs_h": round(prior[0] / prior[1]), "prior_cv": round(1 / math.sqrt(prior[0]), 2),
            "spots": sorted(rows, key=lambda r: (not r["eligible"], -r["net_logs_h"])), "pick": None}
+    out["pouches"] = pouch_plan(char)
     if not eligible:
         out["ok"] = False
         out["error"] = "no eligible lumber spot (see spots[].why_not)"
@@ -1245,7 +1263,7 @@ def store_inputs(memory) -> dict:
             "deaths": deaths, "regrow": regrowth(attempts), "attempts": attempts, "prices": memory.prices(),
             "logs_per_success": logs_per_success(memory),
             "events": [e for e in events if e["kind"] in ("death", "recall", "guard_flight", "theft",
-                                                          "theft_suspected")]}
+                                                          "theft_suspected", "thief")]}
 
 _MAPS, _TILES = {}, {}
 
@@ -1279,6 +1297,20 @@ def spot_tree_tiles(spots: dict) -> dict:
 
 
 
+def pouch_plan(char: dict | None) -> dict:
+    """The trapped pouches the run carries (docs/PLAN.md "Keep thieves off the logs"): each
+    trip keeps its logs in one and uses it up (the runner sets it off at the bank to convert),
+    so carry pouch.CARRY; `buy` = how many to buy at a provisioner first. The runner starts
+    no trip without a live one (`low_supplies`). Unknown without the proxy."""
+    import pouch
+    have = (char or {}).get("pouches")
+    out = {"carry": pouch.CARRY, "per_trip": 1, "live": None, "spent": None, "buy": None,
+           "how": "ctl act buy <provisioner serial> trapped pouch --amount N (Errol the provisioner: 25 gp)"}
+    if have:
+        out.update(live=have["live"], spent=have["spent"], buy=max(0, pouch.CARRY - have["live"]))
+    return out
+
+
 def plan_from_store(memory, world: dict | None, self_serial, pos, facet, young=False,
                     stint_min=STINT_MIN, seed=None, seeds_path=SEEDS, now=None) -> dict:
     spots = load_spots(memory, seeds_path)
@@ -1293,7 +1325,7 @@ def plan_from_store(memory, world: dict | None, self_serial, pos, facet, young=F
                trees=tree_yield(inp["attempts"], spot_tree_tiles(spots), time.time() if now is None else now,
                                 inp["regrow"]["minutes"]))
     out["character"] = None if char is None else {k: char[k] for k in ("name", "serial", "skill", "mounted", "buffs",
-                                                                       "weight", "weight_max", "young")}
+                                                                       "weight", "weight_max", "young", "pouches")}
     return out
 
 

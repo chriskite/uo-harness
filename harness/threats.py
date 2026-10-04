@@ -138,6 +138,13 @@ before. Captures older than world.swings have no such key: read as no swings.
 Other actions:
   - non-hostile players (blue) within watch_radius: `watch`. They could be
     thieves; harness/ledger.py catches actual theft.
+  - any player that isn't hostile within Params.steal_guard tiles (0 = off, the
+    default; the lumber runner sets 2 while harvesting): `thief`. Thieves look blue
+    until the steal turns them grey (live 2026-10-03, docs/NOTES.md "A pickpocket,
+    not an attack"; user 2026-10-04), the steal needs 1 tile, and nobody else has a
+    reason to stand on top of a lumberjack (docs/research/THREATS.md §7 T3). The
+    caller decides the response (loop_lumber: step away, recall if they close again).
+    Hostile players keep their flee/watch action.
   - npcs, ghosts, passive creatures: `ignore`
   - mobiles farther than max_range (32): `ignore`. Kept for captures from
     before the world model pruned mobiles beyond 24 tiles (2026-10-01); a
@@ -152,8 +159,8 @@ under_attack: any of
   - a spell landing on us within the window (spell_on_us, "Spells on us" below)
 Assessment.action is `flee` if any threat says flee, or if under_attack and
 Params.flee_on_attack. Watch.acknowledge() marks the damage so far as dealt with
-(the lumber runner walked away from it): from then on only new drops, damage,
-swings and spells count.
+(the lumber runner walked away from it, or set off its own trapped pouch): from
+then on only new drops, damage, swings and spells count.
 
 Spells on us (spell_on_us; live 2026-10-03, witcher_280, session
 20261003_213125): a gazer larva (body 778, war mode, 10 tiles) cast at
@@ -218,7 +225,7 @@ ASSUMED_PLAYER = "human body, no npc evidence (assumed player)"
 _CREATURE = re.compile(r"^(a|an) ", re.IGNORECASE)
 _YOUNG = re.compile(r"\(Young\)\s*$")
 
-ACTIONS = ("flee", "watch", "ignore")
+ACTIONS = ("flee", "thief", "watch", "ignore")
 CREATURE_SPELL_RANGE = 12       # tiles: a ranged/caster creature's reach (user decision 2026-10-03)
 RANGED_BODIES = frozenset({22})  # gazer (live 2026-10-03: hit us from 11-12 tiles, LUMBER_LOOP.md §13)
 # Spells on us (module docstring "Spells on us")
@@ -254,6 +261,8 @@ class Params:
     # an unlabeled human that would be hostile only by the assumed-player
     # reading is watched this long after first sight (see module docstring)
     label_grace_s: float = 1.0
+    # players (not hostile) this close are suspected thieves (`thief`); 0 = off (module docstring)
+    steal_guard: int = 0
     # self damage
     damage_window_s: float = 10.0
     damage_threshold: int = 1
@@ -300,6 +309,10 @@ class Assessment:
     @property
     def flee(self):
         return [t for t in self.threats if t.action == "flee"]
+
+    @property
+    def thieves(self):
+        return [t for t in self.threats if t.action == "thief"]
 
     @property
     def watch(self):
@@ -601,6 +614,10 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
             th.reason = f"{kind} eta {th.eta_s:.1f}s > {budget:.1f}s"
         elif kind == "monster":
             th.action, th.reason = "ignore", f"passive creature ({th.aggression})"
+        elif player and th.distance <= params.steal_guard:
+            th.action = "thief"
+            th.reason = (f"{kind} player within {params.steal_guard} tiles (steal range; "
+                         f"thieves look blue until the steal)")
         elif th.distance <= params.watch_radius:
             th.action, th.reason = "watch", f"{kind} player within {params.watch_radius}"
         else:
@@ -611,8 +628,8 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
     under, damage = damage_signal(state, now=now, params=params, hits_history=hits_history, since=since)
     reasons = [f"{t.kind} 0x{t.serial:08X} {t.name or ''}: {t.reason}".replace("  ", " ")
                for t in threats if t.action == "flee"]
-    action = "flee" if reasons else ("watch" if any(t.action == "watch" for t in threats)
-                                     else "ignore")
+    action = "flee" if reasons else next((a for a in ("thief", "watch") if any(t.action == a for t in threats)),
+                                         "ignore")
     if under:
         reasons.append(f"under attack: lost {damage['lost']} hits, "
                        f"{damage['damage_events']} damage / {damage['swings']} swing / "
@@ -673,8 +690,10 @@ class Watch:
         self.hits = [s for s in self.hits if s[0] >= lo]
         return a
 
-    def acknowledge(self, now: float | None = None):
+    def acknowledge(self, now: float | None = None, hits: int | None = None):
         """The damage so far is dealt with: only new drops (below the hits seen at
-        the last update), damage and swings count."""
+        the last update, or `hits` when given: the value now, e.g. right after our own
+        trapped pouch took one), damage and swings count."""
         self.since = time.time() if now is None else now
-        self.hits = [(self.since, self.hits[-1][1])] if self.hits else []
+        last = hits if hits is not None else (self.hits[-1][1] if self.hits else None)
+        self.hits = [(self.since, last)] if last is not None else []

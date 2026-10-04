@@ -277,7 +277,55 @@ def test_death():
        (d.alive, [e["cause"] for e in d.lost]), (True, ["unexplained"]))
 
 
-TESTS = [test_woods, test_expected_vs_theft, test_merge_nested_gain, test_death]
+POUCH = 0x40000030
+
+
+def test_trapped_pouch():
+    print("== logs into the trapped pouch: carried, no false theft; a grab from the pouch is theft ==")
+    led = Ledger(NOWOODS)
+    c = {**base(), POUCH: item(0x0E79, hue=38)}
+    led.observe(state(c), now=0)
+    led.expect(("moving", 0x100, POUCH), now=0.5)
+    lifted = dict(c)
+    del lifted[0x100]                        # the lift: the server deletes the stack from our view
+    d = led.observe(state(lifted), now=1)
+    eq("the stack on the cursor (vanished from the pack): expected, no theft",
+       ([(e["serial"], e["cause"]) for e in d.lost], d.unexplained_losses), ([(0x100, "expected")], []))
+    c[0x100] = item(LOGS, 10, container=POUCH)
+    d = led.observe(state(c), now=2)
+    eq("dropped into the pouch: the same stack back, carried (a gain, no loss)",
+       ([(e["serial"], e["amount"]) for e in d.gained], d.lost), ([(0x100, 10)], []))
+    eq("pouch contents count as carried (summary)", led.summary(kind="log"), {"unknown(0)": 10})
+    c[0x103] = item(LOGS, 6)                 # the next chop: a new stack on top
+    led.observe(state(c), now=3)
+    led.expect(("moving", 0x103, POUCH), now=3.5)
+    del c[0x103]                             # dropped and merged into the pouch's stack in one view
+    c[0x100] = item(LOGS, 16, container=POUCH)
+    d = led.observe(state(c), now=4)
+    eq("merged into the pouch's stack: the vanish is expected, the stack grew",
+       ([(e["serial"], e["cause"]) for e in d.lost], [(e["serial"], e["amount"]) for e in d.gained],
+        d.unexplained_losses), ([(0x103, "expected")], [(0x100, 6)], []))
+    led.expect(("moving", 0x101, POUCH), now=5)
+    c[0x101] = item(BOARDS, 20, container=POUCH)  # the drop resolved before any view saw it lifted
+    led.observe(state(c), now=6)
+    eq("a drag seen landing resolves its expectation", [p for p in led.pending if p["kind"] == "moving"], [])
+    c2 = dict(c)
+    del c2[0x101]                            # ... so a later grab of that stack is not covered
+    d = led.observe(state(c2), now=7)
+    eq("a stack taken out of the pouch afterwards is theft",
+       [(e["serial"], e["cause"], e["class"]) for e in d.unexplained_losses], [(0x101, "unexplained", "board")])
+    c2[0x100] = item(LOGS, 13, container=POUCH)
+    d = led.observe(state(c2), now=8)
+    eq("part of the pouch's log stack taken (a steal of 3) is theft",
+       [(e["serial"], e["amount"], e["cause"], e["to"]) for e in d.unexplained_losses], [(0x100, 3, "unexplained",
+                                                                                         "split")])
+    c3 = dict(c2)
+    c3[POUCH] = item(0x0E79, hue=0)         # the pouch went off: an item update, nothing lost
+    d = led.observe(state(c3), now=9)
+    eq("the pouch going off (hue 38 -> 0) is no loss", (d.lost, d.gained), ([], []))
+
+
+TESTS = [test_woods, test_expected_vs_theft, test_merge_nested_gain, test_death, test_trapped_pouch]
 
 
 def main():

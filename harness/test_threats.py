@@ -344,6 +344,34 @@ def test_acknowledge():
     ev = [(NOW + 2.5, {"ev": "damage", "serial": ME, "amount": 3})]
     eq("a damage event from before the acknowledgement is dealt with",
        w.update(state(hits=35, events=ev), recall_s=2.0, margin_s=1.0, now=NOW + 4).under_attack, False)
+    w = Watch()
+    w.update(state(hits=50), recall_s=2.0, margin_s=1.0, now=NOW)
+    w.acknowledge(now=NOW + 0.1, hits=49)       # our own trapped pouch took one, not yet seen by an update
+    a = w.update(state(hits=49), recall_s=2.0, margin_s=1.0, now=NOW + 0.2)
+    eq("acknowledge(hits=): the drop to those hits is dealt with before any update saw it",
+       (a.under_attack, a.damage["lost"]), (False, 0))
+
+
+def test_steal_guard():
+    print("== steal guard: any player within 2 tiles is a suspected thief (when the caller asks) ==")
+    mobs = [mob(0x500, 1, 0),                                           # a blue player next to us
+            mob(0x501, 2, 2, noto=2),                                   # a green one at 2
+            mob(0x502, 3, 0),                                           # a blue at 3: watched
+            mob(0x503, 1, 1, body=0xD9, noto=1, flags=0, pet="tame"),   # a pet dog
+            mob(0x504, 0, 1, noto=7, flags=0),                          # a vendor
+            mob(0x505, -1, 0, noto=4)]                                  # a grey: hostile, flees
+    off = assess(state(mobs), recall_s=2.0, margin_s=1.0, now=NOW)
+    eq("off by default: the blues are watched", (one(off, 0x500).action, off.thieves), ("watch", []))
+    a = assess(state(mobs), recall_s=2.0, margin_s=1.0, now=NOW, params=Params(steal_guard=2))
+    eq("steal_guard 2: the players at 1 and 2 tiles are `thief`, the one at 3 `watch`",
+       [(t.serial, t.action) for t in a.threats if t.serial in (0x500, 0x501, 0x502)],
+       [(0x500, "thief"), (0x501, "thief"), (0x502, "watch")])
+    eq("never a pet, a vendor; a hostile player keeps flee", (one(a, 0x503).action, one(a, 0x504).action,
+                                                               one(a, 0x505).action), ("ignore", "ignore", "flee"))
+    eq("the worst action: flee over thief", a.action, "flee")
+    calm = assess(state(mobs[:3]), recall_s=2.0, margin_s=1.0, now=NOW, params=Params(steal_guard=2))
+    eq("no hostile: the assessment says thief", (calm.action, [t.serial for t in calm.thieves]),
+       ("thief", [0x500, 0x501]))
 
 
 def test_hit_attackers():
@@ -426,7 +454,7 @@ def test_spells():
 
 
 TESTS = [test_reds, test_npcs_and_players, test_monsters, test_pets, test_damage, test_label_grace,
-         test_fighting_others, test_acknowledge, test_hit_attackers, test_spells]
+         test_fighting_others, test_acknowledge, test_steal_guard, test_hit_attackers, test_spells]
 
 
 def main():

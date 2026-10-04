@@ -406,6 +406,25 @@ class any_of:
         return min(max(0, chebyshev(t, c) - r) for c, r in self.goals)
 
 
+class beyond:
+    """Goal predicate: more than `radius` tiles (Chebyshev) from every center, e.g. out of a
+    thief's reach (loop_lumber keep_away). Admissible heuristic: the steps still needed to
+    leave the nearest center's square (one step changes a distance by at most 1). No `center`."""
+
+    __slots__ = ("centers", "radius", "z_ok")
+
+    def __init__(self, centers: Iterable, radius: int):
+        self.centers = [(int(c[0]), int(c[1])) for c in centers]
+        self.radius = int(radius)
+        self.z_ok = None
+
+    def __call__(self, t: Tile) -> bool:
+        return all(chebyshev(t, c) > self.radius for c in self.centers)
+
+    def heuristic(self, t: Tile) -> int:
+        return max((max(0, self.radius + 1 - chebyshev(t, c)) for c in self.centers), default=0)
+
+
 def move_cost(memory: WalkMemory, a: Tile, b: Tile) -> float:
     """Cost of the single step a -> b: known edge (either way) 1, known tile
     1.5, unknown tile 4."""

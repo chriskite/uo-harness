@@ -625,6 +625,16 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
     pouch, together with the `0x25` hue 38 → 0 re-send of the pouch. Still unmeasured: whether a
     thief's pop also damages us and sends the "remaining" line. A pop we didn't cause = explosion
     and/or hue change with no C2S `0x06` of ours on that pouch just before.
+  - **Built on it (2026-10-04, offline; docs/PLAN.md "Keep thieves off the logs"):** the world model
+    parses `0x54` (Outlands 18 B: mode, sound u16, volume u16, x/y u32, z i32) and turns sounds and
+    `0xC0` type-2 location effects within 2 tiles of us into `sound` / `effect` events. The five
+    explosions sit on x±1, y±1 and (x+1, y+1, z+11), none on our own tile: exactly RunUO's
+    TrapableContainer MagicTrap, which also damages the one who opened it [INFERENCE: a thief's pop
+    costs the thief the hit, not us]. A lift sends `0x1D` for the lifted item at once (2:50.9, twice),
+    so the ledger must expect a drag's vanish (`("moving", serial, container)`).
+  - **The vendor paid from the bank:** Hackworth had 0 gp in the pack; Errol's line was "The total of
+    thy purchase is 75 gold, which has been withdrawn from your bank account." `ctl act buy` now allows
+    a buy above the pack's gold and books the amount from that line.
 - **Casting moves the hatchet to the pack** (hatchets are two-handed): "That must be equipped
   for any serious chopping." The runner's hatchet use re-equips it.
 - **The lumber runner runs from creature damage (afcd4b0).** When one creature hits at hits ≥ 60 %

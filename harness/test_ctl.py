@@ -152,11 +152,18 @@ class FakeProxy:
                         if self.buy_content is not None:
                             self.add_event({"ev": "container_content", "count": 0, "containers": self.buy_content})
                         self.add_event({"ev": "buy_list", **self.buy_list})
-                    elif pkt[0] == 0x3B:                              # buy: charge the configured price
-                        n = len(pkt)
+                    elif pkt[0] == 0x3B:     # buy: charge the configured price; the bank pays when the pack can't
+                        n, total = len(pkt), 0
                         for off in range(8, n, 7):
                             s = f"0x{int.from_bytes(pkt[off + 1:off + 5], 'big'):08X}"
-                            self.gold -= self.prices.get(s, 0) * int.from_bytes(pkt[off + 5:off + 7], "big")
+                            total += self.prices.get(s, 0) * int.from_bytes(pkt[off + 5:off + 7], "big")
+                        if total <= self.gold:
+                            self.gold -= total
+                        else:                # live 2026-10-04 (Errol, 0 gp in the pack): the line as captured
+                            self.add_event({"ev": "speech_heard", "serial": 0x16, "name": "Errol", "type": 0,
+                                            "hue": 0x3B2, "text": f"The total of thy purchase is {total} gold, which "
+                                            "has been withdrawn from your bank account.  My thanks for the "
+                                            "patronage."})
                     elif pkt[0] == 0x72:
                         self.warmode = bool(pkt[1])
                     elif pkt[0] == 0x06:                              # dclick a container -> the server's 0x24
@@ -1192,8 +1199,11 @@ def test_heal_buy(proxy):
     code, out = c("act", "buy", f"0x{vendor:08X}", "potion", "--human", "off")
     check("ambiguous item refused", code == 1 and "ambiguous" in out.get("error", ""), str(out))
     code, out = c("act", "buy", f"0x{vendor:08X}", "bandage", "--amount", "50", "--human", "off")
-    check("not enough gold refused (50 x 3 > 80)", code == 1 and "you have 80" in out.get("error", "")
-          and not any(p[0] == 0x3B for _, p in proxy.take()), str(out))
+    fr = [p for _, p in proxy.take()]
+    check("more than the pack's gold (50 x 3 > 80): the vendor takes it from the bank, the spend is recorded",
+          code == 0 and out["paid"] == 150 and out["from_bank"] == 150 and out["gold"] == 80
+          and fr[-1] == actions.buy_request(vendor, [(0x40000201, 50)])
+          and [e["data"]["total"] for e in Memory(db).job_events("gold")] == [30, 150], str(out))
     m = Memory(db)
     m.job_event("gold", "spend", {"total": 49990})
     m.close()

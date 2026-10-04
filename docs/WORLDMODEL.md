@@ -966,8 +966,11 @@ the player and every item not carried by the player.
 `mobile_death {serial, corpse, name, notoriety}` once per corpse from 0xDEAD (name = the corpse's,
 e.g. "a mongbat corpse"; notoriety as first sent); `lift_reject {reason}` from S2C 0x27 (refuses
 the latest 0x07, no serial on the wire); `effect` from S2C 0xC0 when self is source or target
-(2026-10-03, §2 "0xC0 HuedEffect"); `swing` and `damage` as before; `death` stays the
-self-ghost event.
+(2026-10-03, §2 "0xC0 HuedEffect"), and since 2026-10-04 also a type-2 location effect within 2
+tiles of self (`NEAR_SELF`: a trapped pouch going off in our pack, harness/pouch.py); `sound {sound,
+x, y, z}` from S2C 0x54 (Outlands 18 B: mode u8, sound u16, volume u16, x/y u32, z i32; real
+`54 01 0307 0000 00000654 0000060d 00000032`, 20261004_113229) within 2 tiles of self; `swing` and
+`damage` as before; `death` stays the self-ghost event.
 
 **Evidence that it matches the client (session 20261001_214649, timed replay,
 `harness/test_world_replay.py`):** every one of the 395 range prunes coincides with the client's

@@ -128,6 +128,9 @@ CAST_CURSOR_WAIT_S = 4.0             # a spell's target cursor comes after its c
 BUY_CLILOC = 3006103                 # context menu "Buy"
 VENDOR_RANGE = 12                    # 13 tiles got "too far away" live (docs/LUMBER_LOOP.md §13)
 SORTED_BUY_CONTAINER = 0x2AF8        # ClassicUO BuyList: this container sorts by x; others map reversed
+# A vendor takes what the pack lacks from the bank account and says so (live 2026-10-04, session
+# 20261004_113229: Hackworth, 0 gp in the pack, bought 3 Trapped Pouches from Errol for 75 gp)
+BANK_PAID = re.compile(r"The total of thy purchase is (\d+) gold, which has been withdrawn from your bank account")
 POLICY_PATH = os.path.join(HERE, "data", "policy.json")
 CAPTCHA_GUMP_ID = 0x00000001          # lumber.json captcha.gump_id; never answered by the overseer
 GUMP_TEXT_MAX = 239                  # chars per gump text entry (the client's text box limit)
@@ -1828,10 +1831,12 @@ def _act_use(a) -> dict:
 def _act_buy(a, mem) -> dict:
     """buy <vendor serial> [ITEM WORDS…] [--amount N]: opens the vendor's Buy
     list through the context menu (like the stock client) and, when an item
-    is named, sends the 0x3B buy request for it, checking your gold and the
-    policy's daily cap (harness/data/policy.json, spends recorded as job
-    events `gold/spend`). Without an item it only returns the price list.
-    The price list maps to the vendor container's items in reverse order
+    is named, sends the 0x3B buy request for it, checking the policy's daily cap
+    (harness/data/policy.json, spends recorded as job events `gold/spend`). Gold
+    comes from the pack, and what the pack lacks from the bank account (the
+    vendor's "... withdrawn from your bank account." line, BANK_PAID; a bank that
+    lacks it too refuses the purchase). Without an item it only returns the price
+    list. The price list maps to the vendor container's items in reverse order
     (ClassicUO BuyList; pinned by the capture 20260928_164548 purchase)."""
     if not a.args:
         raise CtlError("buy <vendor serial> [item words...] [--amount N]")
@@ -1917,8 +1922,7 @@ def _act_buy(a, mem) -> dict:
         total = offer["price"] * amount
         me = stc.state()["world"]["self"]
         gold_before = me.get("gold")
-        if gold_before is not None and total > gold_before:
-            raise CtlError(f"{amount} {offer['name']} cost {total} gp; you have {gold_before}")
+        from_bank = gold_before is not None and total > gold_before   # the vendor withdraws it from the bank
         cap, spent = _daily_cap(), _spent_today(mem)
         if cap is not None and spent + total > cap:
             raise CtlError(f"daily gold cap: {spent} spent today + {total} > {cap} (harness/data/policy.json)")
@@ -1936,15 +1940,20 @@ def _act_buy(a, mem) -> dict:
             time.sleep(0.1)
         got = stc.wait_events(mark, lambda evs: False, timeout=0.5)
         paid = (gold_before - gold_after) if gold_before is not None and gold_after is not None else None
+        bank = next((int(m.group(1)) for e in got if e.get("ev") == "speech_heard"
+                     for m in [BANK_PAID.search(e.get("text") or "")] if m), None)
+        if bank is not None:
+            paid = (paid or 0) + bank
         out = {"ok": paid is None or paid > 0, "reply": resp, "vendor": vkey, "bought": offer["name"],
-               "amount": amount, "price": offer["price"], "total": total, "paid": paid,
+               "amount": amount, "price": offer["price"], "total": total, "paid": paid, "from_bank": bank,
                "gold": gold_after, "spent_today": spent + (paid if paid and paid > 0 else 0), "daily_cap": cap,
                "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
         if paid is not None and paid > 0:
             mem.job_event("gold", "spend", {"vendor": vkey, "item": offer["name"], "amount": amount,
-                                            "price": offer["price"], "total": paid})
+                                            "price": offer["price"], "total": paid, "from_bank": bank})
         elif paid is not None:
-            out["error"] = "your gold didn't change: the purchase probably failed (see heard)"
+            out["error"] = ("neither your gold nor the bank paid: the purchase probably failed (see heard)"
+                            if from_bank else "your gold didn't change: the purchase probably failed (see heard)")
         return out
     finally:
         ctl.close()

@@ -1185,6 +1185,42 @@ def test_effect_c0():
     eq("no parse failures, nothing unhandled", (rt.parse_failures, rt.unhandled.get(("s2c", 0xC0))), (0, None))
 
 
+# live 2026-10-04 (session 20261004_113229 at 2:31): Hackworth (0x0020F127, at 1620,1549,50)
+# double-clicks a trapped pouch in his pack; the flush has the sound on his tile and five
+# location explosions around it (RunUO MagicTrap: x-1, x+1, y-1, y+1, and x+1,y+1 at z+11)
+POP_SOUND_113229 = bytes.fromhex("540103070000000006540000060d00000032")
+POP_EFFECTS_113229 = [bytes.fromhex(
+    f"c0020000000000000000000036bd{xy}{xy}0a0f000001000000000000000000") for xy in (
+    "000006530000060d00000032", "000006550000060d00000032", "000006540000060c00000032",
+    "000006540000060e00000032", "000006550000060e0000003d")]
+
+
+def test_pouch_pop_near_self():
+    print("== 0x54 sound / 0xC0 location effects near self: `sound` and `effect` events (a trapped pouch) ==")
+    eq("0x54 layout (Outlands 18 B): mode, sound, volume, x/y u32, z i32",
+       parse_packet("s2c", POP_SOUND_113229),
+       {"mode": 1, "sound": 0x0307, "volume": 0, "x": 1620, "y": 1549, "z": 50})
+    rt = WorldRuntime()
+    s = rt.state.self
+    s.serial, s.x, s.y, s.z, s.position_absolute = 0x0020F127, 1620, 1549, 50, True
+    rt.feed_packet("s2c", POP_SOUND_113229)
+    for p in POP_EFFECTS_113229:
+        rt.feed_packet("s2c", p)
+    ev = rt.drain_events()
+    eq("the sound on our tile is an event", ev[0], {"ev": "sound", "sound": 0x0307, "x": 1620, "y": 1549, "z": 50})
+    eq("the five explosions around us are events (type 2, no source or target)",
+       [(e["ev"], e["type"], e["source"], e["target"], e["graphic"], e["x"] - 1620, e["y"] - 1549) for e in ev[1:]],
+       [("effect", 2, 0, 0, 0x36BD, -1, 0), ("effect", 2, 0, 0, 0x36BD, 1, 0), ("effect", 2, 0, 0, 0x36BD, 0, -1),
+        ("effect", 2, 0, 0, 0x36BD, 0, 1), ("effect", 2, 0, 0, 0x36BD, 1, 1)])
+    s.x = 1625                                       # five tiles away: someone else's
+    rt.feed_packet("s2c", POP_SOUND_113229)
+    for p in POP_EFFECTS_113229:
+        rt.feed_packet("s2c", p)
+    eq("sounds and location effects beyond NEAR_SELF (2) are noise", rt.drain_events(), [])
+    eq("no parse failures, nothing unhandled",
+       (rt.parse_failures, rt.unhandled.get(("s2c", 0x54)), rt.unhandled.get(("s2c", 0xC0))), (0, None, None))
+
+
 def test_pruning():
     """The live table holds only what the stock client has (docs/WORLDMODEL.md
     "Pruning"; live 20261001_214649: the ghosts behind ANTICHEAT.md A12)."""
@@ -1301,7 +1337,7 @@ TESTS = [test_fixed_s2c, test_fixed_c2s, test_character_status_11,
          test_vendor_popup_command, test_tracking_packets,
          test_mobile_routing, test_truncation, test_runtime_edges,
          test_event_semantics, test_status_requested, test_pruning, test_worn_layers,
-         test_corpse_notoriety, test_buff_end, test_effect_c0]
+         test_corpse_notoriety, test_buff_end, test_effect_c0, test_pouch_pop_near_self]
 
 
 def main():

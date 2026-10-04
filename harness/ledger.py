@@ -18,8 +18,14 @@ Expected changes (`expected=` or `expect()`) are what the agent itself did:
     ("consumed", serial, amount)     up to `amount` of that stack may go
     ("spent", graphic)               any stack of this graphic may shrink or go
     ("spent", graphic, amount)       up to `amount` units of this graphic
-Expectations persist until used up or `expect_ttl_s` (default 30 s) passes.
-The runner may declare them before the server confirms the move.
+    ("moving", serial, container)    a drag within the pack into `container` (logs into the
+                                     trapped pouch): the stack may vanish while on the cursor
+                                     (the server deletes it on the lift) or by merging into a
+                                     stack in `container`; resolved once a view shows it there
+Expectations persist until used up, resolved or `expect_ttl_s` (default 30 s) passes.
+The runner may declare them before the server confirms the move. Nested containers count as
+carried: a stack moved into a pouch in the pack is no loss, and a loss out of the pouch is
+classified like any other (a thief's grab from it is `unexplained`).
 
 Classification of each loss (Delta.lost[i]["cause"]):
     equipped      it went onto the character (container = self), e.g. the
@@ -269,8 +275,11 @@ class Ledger:
         now = time.time() if now is None else now
         for e in entries:
             e = tuple(e)
-            if not e or e[0] not in ("moved_out", "consumed", "spent"):
+            if not e or e[0] not in ("moved_out", "consumed", "spent", "moving"):
                 raise ValueError(f"unknown expectation {e!r}")
+            if e[0] == "moving":
+                self.pending.append({"kind": "moving", "key": e[1], "dest": e[2], "left": None, "t": now})
+                continue
             left = e[2] if len(e) > 2 and e[2] is not None else None
             self.pending.append({"kind": e[0], "key": e[1], "left": left, "t": now})
 
@@ -280,7 +289,7 @@ class Ledger:
         for p in self.pending:
             if covered >= amount:
                 break
-            if p["kind"] == "moved_out":
+            if p["kind"] in ("moved_out", "moving"):
                 if p["key"] == serial and whole:
                     covered, p["left"] = amount, 0
             elif (p["kind"] == "consumed" and p["key"] == serial) or \
@@ -411,6 +420,9 @@ class Ledger:
             if e["serial"] in nested:
                 e["contents"] = nested[e["serial"]]
         self.items = cur
+        # a drag within the pack is over once its stack shows in the destination
+        self.pending = [p for p in self.pending if not (
+            p["kind"] == "moving" and (cur.get(p["key"]) or {}).get("container") == p["dest"])]
         return d
 
     def _die(self, d: Delta, reason: str, now: float, *, heuristic: bool):

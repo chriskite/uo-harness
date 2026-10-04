@@ -338,6 +338,20 @@ def test_eligibility():
     check("candidate and disabled spots aren't picked; a Young-only spot only for a Young character",
           not row(out, "c")["eligible"] and not row(out, "d")["eligible"] and not row(out, "y")["eligible"]
           and row(plan(st, [], young=True), "y")["eligible"])
+    thief = {"t": NOW - 300, "kind": "thief", "data": {"spot": "a", "trigger": "pouch_pop", "action": "recall"}}
+    step = {"t": NOW - 300, "kind": "thief", "data": {"spot": "a", "trigger": "near", "action": "keep_away"}}
+    base = series("a", 5, 1500) + series("b", 5, 1000)
+    robbed = plan(spots, base, events=[thief])
+    check("a thief made us leave 5 min ago (our pouch went off): the spot is out for THIEF_COOLDOWN_S",
+          not row(robbed, "a")["eligible"] and "thief" in row(robbed, "a")["why_not"]
+          and row(plan(spots, base, events=[thief], now=NOW - 300 + lo.THIEF_COOLDOWN_S), "a")["eligible"],
+          row(robbed, "a")["why_not"])
+    check("a keep-away step alone (we chopped on) is no cooldown",
+          row(plan(spots, base, events=[step]), "a")["eligible"], row(plan(spots, base, events=[step]), "a"))
+    have = plan(spots, base, char={**char(60.0, iron()), "pouches": {"live": 1, "spent": 2}})
+    check("the plan says how many trapped pouches to carry and buy (one a trip)",
+          have["pouches"]["carry"] == 3 and have["pouches"]["buy"] == 2 and have["pouches"]["live"] == 1
+          and plan(spots, base)["pouches"]["buy"] is None, have["pouches"])
     none = plan([spot("d", status="disabled")], [])
     check("nothing eligible: ok false and no pick", not none["ok"] and none["pick"] is None, none.get("error"))
 

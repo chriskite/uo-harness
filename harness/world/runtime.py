@@ -40,6 +40,11 @@ CORPSES_MAX = 1000      # corpse serials remembered for one `mobile_death` per c
 # the server's line under a pet's click label ("(bonded)" etc., type 0 hue 946): RunUO
 # BaseCreature.OnSingleClick; 681 bonded / 573 tame / 116 summoned in the store by 2026-10-03
 PET_TAGS = {"(tame)": "tame", "(bonded)": "bonded", "(summoned)": "summoned"}
+# Location effects (0xC0 type 2) and sounds (0x54) within this many tiles of self become events:
+# a trapped pouch in our pack going off plays its sound on our tile and its five explosions on the
+# tiles around it (live 2026-10-04, session 20261004_113229; RunUO TrapableContainer MagicTrap)
+NEAR_SELF = 2
+EFFECT_AT_LOCATION = 2
 
 
 class WorldRuntime:
@@ -380,17 +385,36 @@ def _h_animation(rt, f):
              delay=f["delay"])
 
 
+def _near_self(rt, x, y) -> bool:
+    s = rt.state.self
+    return (s.serial is not None and s.position_absolute
+            and max(abs(x - s.x), abs(y - s.y)) <= NEAR_SELF)
+
+
 def _h_effect(rt, f):
-    """S2C 0xC0: a graphic effect. Only the ones with self as source or target
-    become an `effect` event (type 0 moving, 1 lightning, 3 fixed on a mobile;
-    graphic 0 is a cast start): the threat checks read a spell landing on us from
-    them (harness/threats.py spell_on_us). Everyone else's effects are noise."""
+    """S2C 0xC0: a graphic effect. The ones with self as source or target (type 0 moving,
+    1 lightning, 3 fixed on a mobile; graphic 0 is a cast start), and location effects
+    (type 2, source and target 0) within NEAR_SELF tiles of us, become an `effect` event:
+    the threat checks read a spell landing on us from the first (harness/threats.py
+    spell_on_us), the pouch alarm an explosion around us from the second (harness/pouch.py).
+    Everyone else's effects are noise."""
     me = rt.state.self.serial
-    if me is None or me not in (f["source"], f["target"]):
+    if me is None:
+        return
+    if me not in (f["source"], f["target"]) and not (
+            f["type"] == EFFECT_AT_LOCATION and _near_self(rt, f["x"], f["y"])):
         return
     rt._emit("effect", type=f["type"], source=f["source"], target=f["target"],
              graphic=f["graphic"], x=f["x"], y=f["y"], z=f["z"],
              tx=f["tx"], ty=f["ty"], tz=f["tz"], hue=f["hue"])
+
+
+def _h_sound(rt, f):
+    """S2C 0x54: a sound played at a location. Only sounds within NEAR_SELF tiles of us
+    become a `sound {sound, x, y, z}` event (harness/pouch.py: a trapped pouch going off
+    in our pack plays 0x0307 on our tile); the rest are noise."""
+    if _near_self(rt, f["x"], f["y"]):
+        rt._emit("sound", sound=f["sound"], x=f["x"], y=f["y"], z=f["z"])
 
 
 def _h_login_confirm(rt, f):
@@ -720,6 +744,7 @@ _S2C_HANDLERS = {
     0x6C: _h_target_cursor,
     0x6E: _h_animation,
     0xC0: _h_effect,
+    0x54: _h_sound,
     0x1B: _h_login_confirm,
     0x11: _h_character_status,
     0x3A: _h_skills,

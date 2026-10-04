@@ -879,10 +879,11 @@ and whether a 'nothing nearby' came with candidate trees 2+ tiles away that late
 tree it picks = the faced trees per chop (nearest first? the same tree until dry?). Then set
 `SMART_RANGE` and write the numbers into docs/NOTES.md and LUMBER_LOOP.md §2.
 
-## Keep thieves off the logs: trapped pouch + keep-away (planned 2026-10-04, after Smart Harvest)
+## Keep thieves off the logs: trapped pouch + keep-away (built offline 2026-10-04, attended live trip pending)
 
 User request (2026-10-04): add protecting our logs from thieves to the plan, after seeing the
-community's trapped-pouch scripts. Not built; it follows Smart Harvest.
+community's trapped-pouch scripts. Built offline 2026-10-04 (below, "Built offline"); the attended
+live trip is pending.
 
 **Where we stand:**
 - `harness/ledger.py` only notices a theft afterwards: a `theft` job event plus a `theft_suspected`
@@ -965,6 +966,62 @@ plan only carries the logs in one.
   deposit.
 - Replay of `20261004_113229` raises no alarm for our own two pops. The same hue change without our
   double-click (a synthetic case built from it) raises the thief alarm.
+
+**Built offline (2026-10-04; live trip pending).** Code: `harness/pouch.py` (new), `loop_lumber.py`,
+`ledger.py`, `threats.py`, `world/runtime.py` + `layouts.py` (0x54), `nav.beyond`, `lumber_opt.py`,
+`ctl.py` (buy).
+- **One pouch a trip, converted at the bank (deviation from item 1).** A live trapped pouch can't be
+  opened without setting it off, and the logs inside can't be targeted while it is closed. So the
+  logs stay in the pouch from the chop to the banker; there the runner sets its own pouch off
+  (`unpack`: 1 hit, no alarm), opens it, converts inside it and banks the boards and the spent
+  pouch. Trip order is now harvest → to_bank (walk + "bank") → convert → store. Boards are never
+  carried in the field, so no second pouch is needed. LUMBER_LOOP §6 already said converting in the
+  field gains nothing (same weight, same loss). Boards land in the logs' container [INFERENCE: RunUO
+  ScissorHelper; check live].
+- **Stash:** after each successful chop, `stash` drags the loose log stacks onto the pouch's icon
+  with the stock lift/drop (DROP_AUTO, like the deposit), `use`/`drag` pacing. The ledger has an
+  expectation `("moving", serial, pouch)` for it: the stack's vanish on the lift (the server deletes
+  it, 20261004_113229 2:50) or a merge is expected; it resolves once the stack shows in the pouch, so
+  a later grab of it is theft again. `count`/`in_pack` see the pack at any depth (attempt tallies,
+  quota, `carried`). A salvage abort stashes instead of converting.
+- **Pop alarm:** `pouch.PopWatch` per state read (`check_pouches`): a location explosion `0x36BD`
+  within 2 tiles, sound `0x0307` within 2 tiles (both new world events), or a live pouch turning hue
+  0. It is ours when a C2S double-click on that live pouch preceded it (hue), or one came within
+  `OWN_POP_S` 3 s before (explosion/sound). Our own hit is acknowledged (`Watch.acknowledge(hits=)`,
+  `start_hits`). Anything else is `pouch_alarm` → `thief_out`: recall when afield with a book
+  (pk_escape + threat junctures), else stop; a `thief` job event (trigger `pouch_pop`). RunUO's
+  MagicTrap puts the five explosions on x±1, y±1 and (x+1,y+1,z+11), none on the tile itself, and
+  damages whoever opened it [INFERENCE: so a thief's pop costs the thief the hit, not us].
+- **Keep-away:** `threats.Params.steal_guard` (0 = off; the runner sets 2) gives any non-hostile
+  player within 2 tiles action `thief`. While chopping at a stand (not while walking between
+  stands: we pass players, a thief comes to us), `thief_near` raises `KeepAway`: a `read` reaction
+  pause, then a walk to a tile ≥ 4 tiles from him (`nav.beyond`); he goes into the trip's danger
+  zones; attention `thief_near` juncture and a `thief` job event (action `keep_away`). Still in range
+  after the walk, or closing in again at a later stand: `thief_out` (trigger `closed_again`).
+- **Cooldown:** `lumber_opt.THIEF_COOLDOWN_S` = 20 min after a `thief` event whose action isn't
+  `keep_away` (`eligibility`).
+- **Supply:** `pouch_ready` before every trip: no live pouch → attention `low_supplies`
+  (`item: "trapped pouch"`) and the run stops before the trip. `ctl lumber plan` returns
+  `pouches {carry 3, per_trip 1, live, spent, buy}`; the trip row's `supplies.trapped_pouches` is
+  priced at `trapped_pouch` (record it: `ctl lumber price trapped_pouch 25 --source "Errol 2026-10-04"`).
+  Restocking is the overseer's: `ctl act buy <provisioner serial> trapped pouch --amount N`. `ctl act
+  buy` no longer refuses when the pack lacks the gold: the vendor takes it from the bank account
+  (live 1:25, Hackworth had 0 gp in the pack) and ctl books the amount from that line. Gap: the
+  runner doesn't walk to a provisioner itself (no provisioner positions in the spot data).
+- **Tests:** `harness/test_pouch.py` (replay of `20261004_113229`: both own pops raise no alarm;
+  without the two double-clicks every signal is the alarm), `test_ledger.py test_trapped_pouch`,
+  `test_threats.py test_steal_guard`, `test_world_units.py test_pouch_pop_near_self`,
+  `test_lumber_opt.py` (cooldown, pouch plan), `test_ctl.py` (bank-paid buy), `test_loop_lumber.py`
+  (main run: stash, own pops at the bank, a grab from the pouch booked as theft; `thief_keep_away`,
+  `pouch_pop`, `no_pouch`).
+
+**Attended live trip (the user runs it, at the client):** carry 2–3 hue-38 pouches (Errol: `ctl act
+buy <serial> trapped pouch --amount 3`), then `python harness/ctl.py lumber plan` and its command with
+`--trips 1` (`python harness/ctl.py run lumber --spot <id> --trips 1 --logs-per-trip <n> --regrow-min
+<m> --timeout <s>`). Watch: each chop's logs dragged into the pouch (log "stashed N"); no
+theft_suspected for the drags; at the bank "set off our trapped pouch", one "-1", no threat juncture,
+the pouch opens on the next double-click, the logs convert inside it (where the boards land), boards
+and the spent pouch go into the bank box. Not to stage: a thief.
 
 ## Staff alarm on an invulnerable player in view (planned 2026-10-04, after the thief guard)
 

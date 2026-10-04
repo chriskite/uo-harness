@@ -95,6 +95,10 @@ RENOUNCE_LAYOUT = ("{ resizepic 28 23 11571 401 501 }{ button 22 24 2094 2095 1 
                    "{ button 300 460 241 242 1 0 3 }")
 LOGS_PER_SUCCESS = 3
 STOLEN = 2                                               # a pickpocket's take, once (the loop must carry on)
+# trapped pouches (docs/PLAN.md "Keep thieves off the logs"): hue-38 pouches in the pack, as Errol sells them
+POUCHES = (0x44ADD001, 0x44ADD002, 0x44ADD003)
+LOG_G, BOARD_G, POUCH_G = 0x1BDD, 0x1BD7, 0x0E79
+THIEF, THIEF_NAME = 0x0073C056, "Caputo Wood"            # a blue who walks up to steal (live 2026-10-03)
 PASSERBY = 0x0000ABCD                                    # a player who walks up and says hello mid-harvest
 GREETING = "hail! good trees here?"
 HOLD_S = 3.0                                             # the test overseer's all-clear comes this long after
@@ -209,9 +213,26 @@ def equip(item, graphic, layer):
     return b"\x2e" + u32(item) + u32(graphic) + u32(0) + bytes([layer]) + u32(SELF) + u16(0)
 
 
-def contained(serial, graphic, amount, container, x=50, y=60):
+def contained(serial, graphic, amount, container, x=50, y=60, hue=0):
     return b"\x25" + u32(serial) + u32(graphic) + b"\x00" + u16(amount) + u16(x) + u16(y) + b"\x00" \
-        + u32(container) + u16(0) + u32(0)
+        + u32(container) + u16(hue) + u32(0)
+
+
+def pop_flush(x, y, pouch, hits=None, left=None):
+    """A trapped pouch in our pack going off, as captured (20261004_113229 2:31): the sound on our tile,
+    the five 0x36BD location explosions around it (RunUO MagicTrap), the pouch re-sent with hue 0; the
+    owner's pop also takes a hit ("-1" over us, 0xA1) and says how many trapped pouches are left."""
+    def boom(dx, dy, dz=0):
+        at = u32(x + dx) + u32(y + dy) + u32(50 + dz)
+        return b"\xc0\x02" + bytes(8) + u32(0x36BD) + at + at + b"\x0a\x0f\x00\x00\x01\x00" + bytes(8)
+    pk = [b"\x54\x01\x03\x07\x00\x00" + u32(x) + u32(y) + u32(50)]
+    pk += [boom(-1, 0), boom(1, 0), boom(0, -1), boom(0, 1), boom(1, 1, 11)]
+    if hits is not None:
+        pk = [player_says(SELF, "Hackworth", "-1"), hits_pkt(hits)] + pk
+    if left is not None:
+        pk.append(sys_text(f"You now have {left} trapped pouches remaining."))
+    pk.append(contained(pouch, POUCH_G, 1, BACKPACK, x=40 + 10 * POUCHES.index(pouch), hue=0))
+    return pk
 
 
 def ground_item(serial, graphic, x, y, z):
@@ -308,9 +329,12 @@ class World:
     def __init__(self, scenario="bank"):
         self.scenario = scenario          # "bank" (the main run), "skirmish", "break", "library", "tracking",
         #                                   "gazer" (a ranged creature hits once), "wary" (an aggressive creature
-        #                                   by a tree) or "red_aim" (a red comes into view during the aim pause)
+        #                                   by a tree), "red_aim" (a red comes into view during the aim pause),
+        #                                   "thief" (a blue walks up while we chop, then follows us) or
+        #                                   "pouch_pop" (a hidden thief sets our trapped pouch off)
         self.scripted = scenario == "bank"  # captchas, the passer-by's speech, the pickpocket
-        self.library = scenario in ("library", "tracking", "gazer", "red_aim")   # the rune library, our runebook, a pvp spot
+        self.library = scenario in ("library", "tracking", "gazer", "red_aim", "thief", "pouch_pop")
+        #                                   the rune library, our runebook, a pvp spot
         self.pos = list(LIB_START) if self.library else list(START)
         self.facing = 0
         self.writer = None
@@ -329,11 +353,18 @@ class World:
         self.auto_answers = []            # the texts the agent's solver submitted
         self.pending_attempt = None       # the attempt's result, sent once the captcha is answered
         self.good_n = 0
-        self.logs_serial, self.logs = None, 0
+        self.stacks = {}                  # log/board stacks in the pack: serial -> [graphic, amount, container]
+        self.next_stack = 0x45000001
         self.stolen = 0
-        self.board_serial = 0x45000100
-        self.pack_boards = {}             # serial -> amount
         self.bank_stack = None            # (serial, amount)
+        self.pouch_hue = {p: 38 for p in POUCHES}   # trapped pouches in the pack (hue 38 live, 0 gone off)
+        self.pops = []                    # (pouch, time, 'us' | 'thief')
+        self.stashed = []                 # (stack serial, amount, pouch) per drop of logs/boards into a pouch
+        self.banked_items = []            # other items dropped into the bank box (spent pouches)
+        self.thief_pos = None             # thief: where the blue stands
+        self.thief_at = []                # thief: every place he stepped next to us
+        self.thief_followed = False       # thief: he came back next to us at the next stand
+        self.converts_refused = 0         # log stacks targeted inside a live trapped pouch (never opened)
         self.lifted = None
         self.door_open = False
         self.open_door_reqs = 0
@@ -381,6 +412,51 @@ class World:
         self.door_seen = True             # the door and gates go out at login, then again like the banker
         self.red_due = False              # red_aim: the red is on its way (RED_AIM_S after the chop's cursor)
         self.red_t = None                 # red_aim: when the red's 0x20 went out
+
+    # ---- the pack's wood and trapped pouches ----
+    @property
+    def logs(self):
+        return sum(n for g, n, _ in self.stacks.values() if g == LOG_G)
+
+    @property
+    def pack_boards(self):
+        return {s: n for s, (g, n, _) in self.stacks.items() if g == BOARD_G}
+
+    def stack_pkt(self, serial):
+        g, n, c = self.stacks[serial]
+        return contained(serial, g, n, c)
+
+    def add_wood(self, graphic, amount, container):
+        """RunUO TryDropItem: onto the container's stack of the same graphic, else a new stack."""
+        s = next((k for k, (g, _, c) in self.stacks.items() if g == graphic and c == container), None)
+        if s is None:
+            s, self.next_stack = self.next_stack, self.next_stack + 1
+            self.stacks[s] = [graphic, 0, container]
+        self.stacks[s][1] += amount
+        return s
+
+    def pouch_pkt(self, p):
+        return contained(p, POUCH_G, 1, BACKPACK, x=40 + 10 * POUCHES.index(p), hue=self.pouch_hue[p])
+
+    def pouch_goes_off(self, p, by):
+        """Our double-click on a live pouch ('us': a hit, back a moment later as hits regenerate, and the
+        "remaining" line) or a thief's snoop."""
+        self.pouch_hue[p] = 0
+        self.pops.append((p, time.time(), by))
+        if by == "us":
+            left = sum(1 for h in self.pouch_hue.values() if h == 38)
+            self.later(0.05, pop_flush(*self.pos, p, hits=self.hits - 1, left=left))
+            self.later(1.5, [hits_pkt(self.hits)])
+        else:
+            self.later(0.05, pop_flush(*self.pos, p))
+
+    def steal(self):
+        """The pickpocket takes STOLEN logs from the biggest log stack (in the trapped pouch, which never
+        went off: Kataleon's case, docs/PLAN.md), unannounced."""
+        s = max((k for k, (g, _, _) in self.stacks.items() if g == LOG_G), key=lambda k: self.stacks[k][1])
+        self.stacks[s][1] -= STOLEN
+        self.stolen += STOLEN
+        self.send(self.stack_pkt(s))
 
     def send(self, pkt):
         self.writer.write(encode_packet(pkt, S2C_KEY))
@@ -492,6 +568,10 @@ class World:
             self.later(0.3, [sys_text(f"You have recently traveled and must wait {LOCKOUT_S} seconds "
                                       "before you may begin harvesting.")])
             return
+        if self.scenario == "thief" and self.thief_pos is not None and not self.thief_followed \
+                and self.cheb(self.thief_pos) > 2:      # he follows us to the next stand
+            self.thief_followed = True
+            asyncio.get_running_loop().call_later(0.2, self.thief_appears)
         self.decoys.add(self.next_gump())
         self.send(gump(self.gump_serial, 0x50000000 + self.gump_serial, DECOY_LAYOUT,
                        ["Captcha", "Guide", "Type the Value", "Click when complete"]))
@@ -532,12 +612,9 @@ class World:
         if self.good_n % 2 == 1:
             self.later(0.3, [cliloc(500495)])
             return
-        if self.logs_serial is None:
-            self.logs_serial = 0x45000001 + self.good_n
-        self.logs += LOGS_PER_SUCCESS
+        s = self.add_wood(LOG_G, LOGS_PER_SUCCESS, BACKPACK)     # new logs lie in the pack (AddToBackpack)
         self.harvested += LOGS_PER_SUCCESS
-        self.later(0.3, [contained(self.logs_serial, 0x1BDD, self.logs, BACKPACK),
-                         sys_text("You chop some logs and put them in your backpack.")])
+        self.later(0.3, [self.stack_pkt(s), sys_text("You chop some logs and put them in your backpack.")])
         if not self.scripted:
             if self.scenario == "skirmish" and self.good_n == 2:      # a creature goes for the agent
                 asyncio.get_running_loop().call_later(0.5, self.attacker_appears, ATTACKER_POS, False)
@@ -551,16 +628,22 @@ class World:
             elif self.scenario == "gazer" and self.good_n == 2 and self.gazer_pos is None:
                 asyncio.get_running_loop().call_later(0.5, self.gazer_appears)
             return
-        if self.good_n == 4:                 # a pickpocket lifts part of the stack once, unannounced
-            self.logs -= STOLEN
-            self.stolen += STOLEN
-            self.later(0.8, [contained(self.logs_serial, 0x1BDD, self.logs, BACKPACK)])
-        if self.good_n == 2:                 # a player walks up and speaks: the job must hold for the overseer
-            self.spoke_at = time.time() + 1.0
-            self.later(0.5, [player_update(PASSERBY, self.pos[0] + 2, self.pos[1])])
+        if self.good_n == 2:                 # a player walks up (3 tiles: outside the steal guard) and speaks:
+            self.spoke_at = time.time() + 1.0                     # the job must hold for the overseer
+            self.later(0.5, [player_update(PASSERBY, self.pos[0] + 3, self.pos[1])])
             self.later(1.0, [player_says(PASSERBY, "Vorn", GREETING)])
             # during the hold, someone the client can't see speaks: a possible hidden GM
             self.later(2.0, [player_says(HIDDEN, "Ann", "what are you up to?")])
+            # ... and a pickpocket lifts part of the logs out of the trapped pouch, unannounced (the runner
+            # sends nothing while held: no chop or stash runs into the grab)
+            asyncio.get_running_loop().call_later(2.5, self.steal)
+            self.later(12.0, [delete(PASSERBY)])                    # he walks on
+
+    def thief_appears(self):
+        """thief: Caputo Wood (a blue, live 2026-10-03) steps next to us."""
+        self.thief_pos = (self.pos[0] + 1, self.pos[1])
+        self.thief_at.append(self.thief_pos)
+        self.send(player_update(THIEF, *self.thief_pos))
 
     def attacker_appears(self, pos, chase):
         """The attacker comes into view at pos (None: next to the agent, then at its heels)."""
@@ -599,14 +682,18 @@ class World:
             await asyncio.sleep(GAZER_CAST_S)
 
     def convert(self, serial):
-        if serial != self.logs_serial:
+        """The log stack targeted, wherever it lies (in the opened pouch), becomes boards in the same
+        container [INFERENCE: RunUO ScissorHelper]; a trapped pouch that never went off can't be seen
+        into, so its logs can't be targeted (refused)."""
+        if serial not in self.stacks or self.stacks[serial][0] != LOG_G:
             return
-        self.board_serial += 1
-        self.pack_boards[self.board_serial] = self.logs
-        pk = [delete(self.logs_serial), contained(self.board_serial, 0x1BD7, self.logs, BACKPACK),
-              sys_text("You shape the logs into boards.")]
-        self.logs_serial, self.logs = None, 0
-        self.later(0.2, pk)
+        g, n, c = self.stacks.pop(serial)
+        if self.pouch_hue.get(c) == 38:
+            self.stacks[serial] = [g, n, c]
+            self.converts_refused += 1
+            return
+        b = self.add_wood(BOARD_G, n, c)
+        self.later(0.2, [delete(serial), self.stack_pkt(b), sys_text("You shape the logs into boards.")])
 
     # ---- packets ----
     def on_packet(self, p):
@@ -666,6 +753,12 @@ class World:
             elif serial in (BACKPACK, BAG):
                 self.containers_opened.append(serial)
                 self.send(b"\x24" + u32(serial) + bytes.fromhex("0000003c007d"))   # as captured (204225)
+            elif serial in self.pouch_hue:               # live: it goes off (no 0x24); gone off: it opens
+                if self.pouch_hue[serial] == 38:
+                    self.pouch_goes_off(serial, "us")
+                else:
+                    self.containers_opened.append(serial)
+                    self.send(b"\x24" + u32(serial) + bytes.fromhex("0000003c007d"))
             elif serial == TOME:                         # a locked-down tome opens within 2 tiles only
                 if self.cheb(TOME_POS) > 2:
                     self.tome_far += 1
@@ -744,21 +837,46 @@ class World:
                 self.send(contained(self.bank_stack[0], 0x1BD7, self.bank_stack[1], BANKBOX))
         elif pid == 0x07:
             self.lifted = parse_packet("c2s", p)
+            self.send(delete(self.lifted["serial"]))     # out of our view while on the cursor (live 113229)
         elif pid == 0x08:
             f = parse_packet("c2s", p)
             lf, self.lifted = self.lifted, None
-            if lf is None or lf["serial"] != f["serial"] or f["container"] != BANKBOX \
-                    or not self.bank_open or self.cheb(BANK_POS) > 12:
+            s, dest = f["serial"], f["container"]
+            at_bank = dest == BANKBOX and self.bank_open and self.cheb(BANK_POS) <= 12
+            if lf is None or lf["serial"] != s:
                 self.drops_refused += 1
+            elif at_bank and s in self.stacks and self.stacks[s][0] == BOARD_G:
+                amount = self.stacks.pop(s)[1]
+                if self.bank_stack is None:
+                    self.bank_stack = (s, amount)
+                    self.send(contained(s, 0x1BD7, amount, BANKBOX))
+                else:                                    # RunUO stacks with the existing pile
+                    self.bank_stack = (self.bank_stack[0], self.bank_stack[1] + amount)
+                    self.send(contained(self.bank_stack[0], 0x1BD7, self.bank_stack[1], BANKBOX))
                 return
-            amount = self.pack_boards.pop(f["serial"], 0)
-            if self.bank_stack is None:
-                self.bank_stack = (f["serial"], amount)
-                self.send(contained(f["serial"], 0x1BD7, amount, BANKBOX))
-            else:                                        # RunUO stacks with the existing pile
-                self.bank_stack = (self.bank_stack[0], self.bank_stack[1] + amount)
-                self.send(delete(f["serial"]))
-                self.send(contained(self.bank_stack[0], 0x1BD7, self.bank_stack[1], BANKBOX))
+            elif at_bank and s in self.pouch_hue:        # a spent pouch put away
+                self.banked_items.append((s, self.pouch_hue.pop(s)))
+                self.send(contained(s, POUCH_G, 1, BANKBOX))
+                return
+            elif dest in self.pouch_hue and s in self.stacks:   # wood dropped onto a pouch: into it,
+                g, n, _ = self.stacks.pop(s)                     # onto its stack of that wood (RunUO TryDropItem)
+                if any(g2 == g and c2 == dest for g2, _, c2 in self.stacks.values()):
+                    into = self.add_wood(g, n, dest)
+                else:
+                    into, self.stacks[s] = s, [g, n, dest]
+                self.stashed.append((s, n, dest))
+                self.send(self.stack_pkt(into))
+                if self.scenario == "pouch_pop" and not self.pops:       # a hidden thief snoops it a bit later
+                    asyncio.get_running_loop().call_later(1.0, self.pouch_goes_off, dest, "thief")
+                if self.scenario == "thief" and self.thief_pos is None:  # a blue walks up next to us
+                    asyncio.get_running_loop().call_later(0.5, self.thief_appears)
+                return
+            else:
+                self.drops_refused += 1
+            if s in self.stacks:                         # refused: it bounces back where it was
+                self.send(self.stack_pkt(s))
+            elif s in self.pouch_hue:
+                self.send(self.pouch_pkt(s))
 
     async def handle(self, reader, writer):
         await reader.readexactly(5)
@@ -781,11 +899,11 @@ class World:
             self.send(self_at(*LIB_START))
             self.send(contained(RUNEBOOK, 0x22C5, 1, BACKPACK))
             self.send(contained(0x44ADB0FF, 0x0F7A, 10, BACKPACK))   # black pearl: charges spend none
+        for pch in self.pouch_hue:                              # the trapped pouches (hue 38)
+            self.send(self.pouch_pkt(pch))
         if self.scenario == "break":                            # logs carried from an earlier trip
-            self.logs_serial, self.logs = 0x45000001, INITIAL_LOGS
-            self.send(contained(self.logs_serial, 0x1BDD, self.logs, BACKPACK))
-        if self.scenario == "gazer":                            # our hits: the runner reads damage from them
-            self.send(hits_pkt(self.hits))
+            self.send(self.stack_pkt(self.add_wood(LOG_G, INITIAL_LOGS, BACKPACK)))
+        self.send(hits_pkt(self.hits))                          # our hits: the runner reads damage from them
         if self.scenario == "wary":                             # a war-mode creature by the near tree
             self.send(creature_pkt(WARY, 0x27, *WARY_POS))
         self.update_view()                                      # the banker, once within range
@@ -1019,6 +1137,22 @@ async def main():
               f"bank {world.bank_stack}, harvested {world.harvested}, stolen {world.stolen}, "
               f"refused {world.drops_refused}")
         check("nothing left in the backpack", world.logs == 0 and not world.pack_boards)
+        stash_to = {d for _, _, d in world.stashed}
+        check("every chop's logs were dragged into a trapped pouch (one pouch a trip), never a log converted "
+              "inside a live one",
+              world.stashed and stash_to == {POUCHES[0], POUCHES[1]}
+              and sum(n for _, n, _ in world.stashed) >= world.harvested and world.converts_refused == 0,
+              f"{world.stashed} refused {world.converts_refused}")
+        check("at the bank each trip set its own pouch off (a double-click: a hit, no alarm), opened it, converted "
+              "there; the spent pouch went into the bank box",
+              [(p, by) for p, _, by in world.pops] == [(POUCHES[0], "us"), (POUCHES[1], "us")]
+              and world.banked_items == [(POUCHES[0], 0), (POUCHES[1], 0)]
+              and text.count("set off our trapped pouch") == 2 and text.count("not an attack") >= 1
+              and not [e for e in store.job_events("lumber") if e["kind"] == "thief"],
+              f"{world.pops} banked {world.banked_items}")
+        check("each trip row counts the trapped pouch it used", [(r.get("supplies") or {}).get("trapped_pouches")
+                                                                 for r in rows] == [1, 1], str([r.get("supplies")
+                                                                                               for r in rows]))
         dry_stand, good_stand = tuple(DRY_TREE["stand"]), tuple(GOOD_TREE["stand"])
         check("every chop cursor answered with ourselves (Smart Harvest): our serial, tile and body, the stock "
               "client's bytes; never a location",
@@ -1060,9 +1194,11 @@ async def main():
         check("the town door opened on each of the 3 crossings (to the bank, back out, to the bank)",
               world.doors_opened >= 3, str(world.doors_opened))
         fidget_opens = text.count("(idle: opening the backpack)")    # human texture (humanize.fidget), seed-dependent
-        check("like a player, the agent opened the backpack once before targeting the logs in it (any other "
-              "open is a logged idle fidget); the bank box is never double-clicked (only 'bank' opens it)",
-              world.containers_opened == [BACKPACK] * (1 + fidget_opens)
+        check("like a player, the agent opened the backpack once before dragging the logs (any other open is a "
+              "logged idle fidget), and each trip's spent pouch once to convert in it; the bank box is never "
+              "double-clicked (only 'bank' opens it)",
+              [c for c in world.containers_opened if c != BACKPACK] == [POUCHES[0], POUCHES[1]]
+              and world.containers_opened.count(BACKPACK) == 1 + fidget_opens
               and text.count(f"opening container 0x{BACKPACK:08X}") == 1 and world.bank_dclicks == 0,
               f"{world.containers_opened} fidget opens {fidget_opens} bank dclicks {world.bank_dclicks}")
         check("only speech: 'bank', stock-encoded, once per trip",
@@ -1087,7 +1223,7 @@ async def main():
         check("malformed intents rejected by the proxy (and not recorded)",
               all(not r["ok"] for r in bad_intents) and all(i and i.get("text") for i in intents),
               str(bad_intents))
-        phase = ["to_tree", "chop", "convert", "to_bank", "open_bank", "store", "trip_done"]
+        phase = ["to_tree", "chop", "to_bank", "open_bank", "convert", "store", "trip_done"]
         for n in (1, 2):
             seq = [i["kind"] for i in intents if i and i.get("trip") == n]
             check(f"trip {n}: intents follow the loop's phases in order",
@@ -1307,7 +1443,8 @@ async def library():
           and home[0]["attempts"] == 2 and home[0]["ok"], str(home)[:600])
     rows_ok = len(eps) == 2 and all(
         [leg["leg"] for leg in e["travel"]] == ["out", "home"] and e["travel_s"] > 2
-        and e["supplies"] == {"library_charges": 1, "own_charges": 1, "recall_casts": 0, "reagents_used": {}}
+        and e["supplies"] == {"library_charges": 1, "own_charges": 1, "recall_casts": 0, "trapped_pouches": 1,
+                              "reagents_used": {}}
         and e["lockout_s"] >= LOCKOUT_S and e["players_seen"] >= 1 and "skill_end" in e and "weight_end" in e
         for e in eps)
     check("the trip rows carry the travel legs and their time, the lockout waited, the supplies (a library "
@@ -1618,6 +1755,99 @@ async def red_aim():
           and any(j["kind"] == "pk_escape" for j in store.junctures()), f"exit {code}")
     print(f"  sim latency: red 0x20 -> cancel {round(cancels[0] - red, 3) if cancels else None} s, "
           f"-> runebook dclick {lat} s; react_s {rec[0]['react_s'] if rec else None}")
+    store.close()
+
+
+async def thief_keep_away():
+    """docs/PLAN.md "Keep thieves off the logs" (THREATS.md §7 T3): at the library spot a blue player
+    (Caputo Wood, live 2026-10-03) steps next to us while we chop: the runner steps out of his reach after a
+    reaction pause (thief_near juncture, a `thief` keep_away event) and chops on at a stand away from him; he
+    follows and stands next to us again: recall home (pk_escape, a `thief` closed_again event), exit 1."""
+    print("\n== thief: a blue next to us while chopping -> step away; he closes again -> recall ==")
+    import lumber_opt
+    world = World("thief")
+    text, code, store, _ = await run_scenario(world, "thief", 12780, [LIB_TREE, LIB_FAR_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
+    ev = [e for e in store.job_events("lumber") if e["kind"] == "thief"]
+    near = [j for j in store.junctures() if j["kind"] == "thief_near"]
+    first = ev[0]["data"] if ev else {}
+    check("he came within the steal guard while we chopped: an attention thief_near juncture naming him, a "
+          "`thief` job event (trigger near, action keep_away) with where we stood",
+          len(near) == 1 and near[0]["severity"] == "attention" and f"0x{THIEF:08X}" in near[0]["summary"]
+          and first.get("trigger") == "near" and first.get("action") == "keep_away"
+          and first["suspects"][0]["serial"] == THIEF and first["suspects"][0]["kind"] == "blue",
+          f"{[(j['kind'], j['summary']) for j in near]} {ev[:1]}")
+    m = re.search(r"stepped away to \((\d+), (\d+)\)", text)
+    to = (int(m[1]), int(m[2])) if m else None
+    him = world.thief_at[0] if world.thief_at else (0, 0)
+    check("stepped to at least 4 tiles from him (one step beats the 5 s steal cooldown), then chopped on at "
+          "the far stand",
+          to is not None and max(abs(to[0] - him[0]), abs(to[1] - him[1])) >= 4
+          and any(s["anchor"] == [LIB_FAR_TREE["x"], LIB_FAR_TREE["y"]] for s in stand_events(store)),
+          f"him {him} -> {to}")
+    rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
+    check("he followed and stood next to us again: recalled home with our book, a `thief` event "
+          "(closed_again, recall), an urgent pk_escape juncture; exit 1",
+          code == 1 and world.thief_followed and len(ev) == 2 and ev[1]["data"]["trigger"] == "closed_again"
+          and ev[1]["data"]["action"] == "recall" and world.recalls_home == [HOME_RUNE_POS]
+          and len(rec) == 1 and rec[0]["ok"] and rec[0]["threat"]["serial"] == THIEF
+          and any(j["kind"] == "pk_escape" for j in store.junctures()) and "escaped by recall" in text,
+          f"exit {code} {[e['data'].get('trigger') for e in ev]} home {world.recalls_home}\n{text[-600:]}")
+    check("the logs stayed in the trapped pouch (never set off), nothing converted or banked",
+          world.pops == [] and world.logs == world.harvested > 0 and world.stashed and world.bank_opens == 0,
+          f"pops {world.pops} logs {world.logs} harvested {world.harvested}")
+    inp = lumber_opt.store_inputs(store)
+    check("lumber_opt reads the thief events (the recall one puts the spot on THIEF_COOLDOWN_S)",
+          [e["data"]["action"] for e in inp["events"] if e["kind"] == "thief"] == ["keep_away", "recall"],
+          str([e["kind"] for e in inp["events"]]))
+    store.close()
+
+
+async def pouch_pop():
+    """A hidden thief snoops our trapped pouch at the library spot: the sound and the explosions around us and
+    the pouch's hue 38 -> 0, with no double-click of ours (docs/NOTES.md "A trapped pouch popped by its
+    owner"): recall home like for a red, a `thief` pouch_pop event, exit 1."""
+    print("\n== pouch pop: our trapped pouch goes off without our double-click -> recall ==")
+    world = World("pouch_pop")
+    text, code, store, _ = await run_scenario(world, "pouch_pop", 12790, [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
+    pop_t = world.pops[0][1] if world.pops else None
+    book = next((t for p, t in zip(world.c2s, world.c2s_t) if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)
+                 and pop_t is not None and t >= pop_t), None)
+    ev = [e["data"] for e in store.job_events("lumber") if e["kind"] == "thief"]
+    check("the thief's pop (no double-click of ours on the pouch) recalled us home within 1.5 s: a `thief` "
+          "event (pouch_pop, recall) with the signals, no player in view",
+          [(p, by) for p, _, by in world.pops] == [(POUCHES[0], "thief")]
+          and not any(p[0] == 0x06 and p[1:5] == u32(POUCHES[0]) for p in world.c2s)
+          and book is not None and book - pop_t < 1.5
+          and len(ev) == 1 and ev[0]["trigger"] == "pouch_pop" and ev[0]["action"] == "recall"
+          and {s["signal"] for s in ev[0]["signals"]} == {"sound", "explosion", "hue"}
+          and not any(s["own"] for s in ev[0]["signals"]) and ev[0]["suspect"] is None,
+          f"pops {world.pops} book {book} {str(ev)[:500]}\n{text[-600:]}")
+    js = [j for j in store.junctures() if j["source"] == "lumber" and j["severity"] == "urgent"]
+    check("urgent threat (action recall, 'a thief at our trapped pouch') and pk_escape junctures; exit 1",
+          code == 1 and world.recalls_home == [HOME_RUNE_POS] and "escaped by recall" in text
+          and any(j["kind"] == "pk_escape" for j in js)
+          and any(j["kind"] == "threat" and "a thief at our trapped pouch" in j["summary"] for j in js),
+          str([(j["kind"], j["summary"]) for j in js]))
+    store.close()
+
+
+async def no_pouch():
+    """No trapped pouch in the pack: a `low_supplies` juncture (item 'trapped pouch') and no trip, exit 1."""
+    print("\n== no trapped pouch: low_supplies, no trip ==")
+    world = World("bank")
+    world.scripted = False
+    world.pouch_hue = {}
+    text, code, store, _ = await run_scenario(world, "no_pouch", 12800, [GOOD_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
+    low = [j for j in store.junctures() if j["kind"] == "low_supplies"]
+    check("a low_supplies juncture for the trapped pouch, no trip row, nothing sent to chop, exit 1",
+          code == 1 and len(low) == 1 and low[0]["data"]["item"] == "trapped pouch"
+          and low[0]["severity"] == "attention" and store.episodes("lumber") == [] and not world.self_targets,
+          f"exit {code} {low}\n{text[-400:]}")
     store.close()
 
 
@@ -1980,7 +2210,8 @@ def is_subsequence(want, seq):
 
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
-            wary, red_aim, unit_hatchet, unit_hit_verdict, unit_capture_spell_witcher, unit_capture_juncture_222,
+            wary, red_aim, thief_keep_away, pouch_pop, no_pouch, unit_hatchet, unit_hit_verdict,
+            unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`
     for fn in runs:

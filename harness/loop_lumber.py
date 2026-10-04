@@ -1,8 +1,18 @@
 """Lumber loop runner (docs/LUMBER_LOOP.md §3, §6, §12, §13).
 
-One trip = harvest trees → convert logs to boards → walk to the banker →
-say "bank" → drop the boards into the bank box. The run ends at the bank. No
+One trip = harvest trees (each chop's logs dragged into a trapped pouch) → walk to
+the banker → say "bank" → set the pouch off ourselves, open it, convert the logs
+to boards → drop the boards into the bank box. The run ends at the bank. No
 rental room and no deed creation (user decision 2026-10-01: bank the boards).
+
+Thieves (docs/PLAN.md "Keep thieves off the logs"; harness/pouch.py): the logs ride
+in a trapped pouch (hue 38) from the chop to the bank, so a thief's snoop sets it
+off. A pouch going off without our double-click (the explosion around us, its
+sound, or its hue 38 -> 0) recalls home like a red and keeps us off the spot for
+lumber_opt.THIEF_COOLDOWN_S. A player within STEAL_GUARD tiles while we chop at a
+stand is a suspected thief whatever his notoriety: the runner steps KEEP_AWAY_TILES
+away after a player's reaction time (an attention `thief_near` juncture); if he closes in again,
+it recalls. A run starts a trip only with a live pouch (else `low_supplies`).
 
 Harvest = Smart Harvest (user decision 2026-10-04; docs/PLAN.md "Smart Harvest
 for lumber"): double-click the hatchet and answer its cursor with ourselves
@@ -51,9 +61,10 @@ on at a stand outside it; damage again soon after the walk-away
 (--creature-rehit-s), low hits, two attackers or no escapes left recall home.
 Trees within reach of a known-aggressive creature in view are left for later.
 A player/red threat, or a monster that keeps coming stops the run. An abort
-while harvesting converts the carried logs first when that is safe, so carried
-wood is boards. A break announced by the agent gate (break_due) ends the trip
-early: convert, bank, exit 0 for `ctl break`.
+while harvesting stashes loose logs in the trapped pouch when that is safe (with
+no live pouch it converts them), so carried wood is protected. A break announced
+by the agent gate (break_due) ends the trip early: bank, convert, store, exit 0
+for `ctl break`.
 
 Tracking (tracking.py; LUMBER_LOOP.md §13 "Tracking reds"): Hunting murderer
 players is kept on for the whole run (at the start, after travel, between chops
@@ -96,6 +107,7 @@ import places  # noqa: E402
 import captcha  # noqa: E402
 import combat  # noqa: E402
 import tracking  # noqa: E402
+import pouch  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 NEXT_STAND_PLANS = 6          # nearest trees (straight line) whose stands next_stand() compares
@@ -135,6 +147,11 @@ ESCAPES_PER_TRIP = 3          # monster escapes per trip (runs from damage inclu
 PACK_DEPTH_MAX = 16           # container nesting bound when looking for the hatchet
 FLEE_MAX_MOVES = 400          # a guard flight's step bound (guards.FLEE_MAX_DIST tiles and detours)
 FLEE_ARRIVAL_WAIT_S = 1.5     # after a flight arrives: how long its 500112 may still come (data.confirmed)
+# Thieves (docs/PLAN.md "Keep thieves off the logs"; docs/research/THREATS.md §7 T3): any player this
+# close while harvesting is a suspected thief (they look blue until the steal; the steal needs 1 tile)
+STEAL_GUARD = 2
+KEEP_AWAY_TILES = 4           # the keep-away step ends at least this many tiles from every suspect
+KEEP_AWAY_MOVES = 30          # its step bound
 
 
 def h(v) -> int:
@@ -258,6 +275,15 @@ class Escape(Exception):
         self.hit = hit
 
 
+class KeepAway(Exception):
+    """Players within STEAL_GUARD tiles while harvesting, suspected thieves (threats `thief`):
+    step out of their reach (LumberLoop.keep_away), then carry on."""
+
+    def __init__(self, suspects):
+        super().__init__(", ".join(t.name or f"0x{t.serial:08X}" for t in suspects))
+        self.suspects = suspects      # [threats.Threat]
+
+
 class InGuards(Exception):
     """The server said we're under the guards' protection (cliloc 500112) during a flight."""
 
@@ -283,8 +309,8 @@ class LumberLoop:
         self.trip_n = None
         # a creature is a threat when it's in war mode, murderer-red or known aggressive
         # (threats.Params, plus every body the store has seen hostile: travel_guard.learned_params);
-        # a wandering goat isn't
-        self.watch = threats.Watch(travel_guard.learned_params(memory))
+        # a wandering goat isn't. A player within STEAL_GUARD tiles is `thief` (acted on while harvesting)
+        self.watch = threats.Watch(travel_guard.learned_params(memory, threats.Params(steal_guard=STEAL_GUARD)))
         self.last_threats = None
         self.seen_hostiles = set()
         self.ledger = ledger_mod.Ledger()
@@ -328,6 +354,12 @@ class LumberLoop:
         self._tool_sent = None       # (events mark, monotonic time) of a hatchet dclick whose cursor may still come
         self._cancelled = None       # cursor id of the last target cursor cancelled by drop_cursor
         self._sight = {}             # mobile key -> wall time it came into view (note_sightings: react_s)
+        self.pops = pouch.PopWatch()   # our trapped pouches going off: ours, or a thief's (check_pouches)
+        self._pop_scan = 0           # link.events index folded into self.pops
+        self._own_pop_until = 0.0    # monotonic: our own pouch's hit is being acknowledged until then
+        self.pouches_used = 0        # this trip: trapped pouches that went off (ours and a thief's)
+        self.harvesting = False      # chopping at a stand (work_stand): the keep-away is on
+        self.suspects = {}           # serial -> name: players we stepped away from this trip (keep_away)
 
     @staticmethod
     def new_creature_tally() -> dict:
@@ -356,6 +388,7 @@ class LumberLoop:
         # 2026-10-03: 10 mandrake root gone 75 ms after "Caputo Wood" turned grey next to us),
         # and the threat check raises into the escape, so a loss read after it is never booked.
         self.check_ledger(st)
+        self.check_pouches(st)       # before the threat check: our own pouch's hit is no attack
         self.check_threats(st)
         if self.mode == "work":
             self.check_speech(st)
@@ -393,6 +426,7 @@ class LumberLoop:
         try:
             st = st or self.link.state()
             self.check_ledger(st)
+            self.check_pouches(st)
             self.check_threats(st, escape=not self.holding)
         finally:
             self._looking = False
@@ -493,6 +527,9 @@ class LumberLoop:
             player named in "... is attacking you!": 'recall' when a recall book is
             ready (recall_out: escape to its default rune, then stop), else 'abort'
             at once (Unsafe)
+          - chopping at a stand, a player of any notoriety within STEAL_GUARD tiles
+            (threats `thief`): thief_near (KeepAway: step out of reach; one we already
+            stepped away from, closing in again: recall, thief_out)
           - damage taken (a hits drop; Outlands names no attacker) or a spell landing
             on us (threats.spell_on_us: its effect on us or the server's line, e.g.
             "Magic reflect removed.", no hits lost): creature_hit runs from one
@@ -548,6 +585,8 @@ class LumberLoop:
         self.check_tracking(st, a, swung)
         if self.mode == "salvage":
             return
+        if self.harvesting and self.mode == "work" and a.thieves:
+            self.thief_near(st, a, step=escape)
         if a.damage["lost"] > 0 or a.damage["damage_events"] > 0 or self.spelled:
             self.creature_hit(st, a, swung, monsters, escape)
         if not monsters or self.mode == "escape":
@@ -789,7 +828,8 @@ class LumberLoop:
                 raise
         self.threat_stop(st, a, worst, swung, Unsafe, why)
 
-    def recall_out(self, st, a, worst, swung, pk: bool = True, why: str | None = None) -> str:
+    def recall_out(self, st, a, worst, swung, pk: bool = True, why: str | None = None,
+                   what: str | None = None) -> str:
         """Recall to the book's default rune at once (escape.escape: recasts as soon as the
         server takes a cast again, until it lands or escape.ESCAPE_BUDGET_S is spent),
         before any bookkeeping, then stop: the `threat` juncture (action 'recall') and
@@ -798,7 +838,8 @@ class LumberLoop:
         stops the plain way (threat_stop). A target cursor that is up is cancelled
         first (drop_cursor); the `recall` job event's `react_s` is first sight
         (sight_t) -> the escape's first packet (the book's double-click), and
-        `cursor_cancelled` whether a cursor had to go first."""
+        `cursor_cancelled` whether a cursor had to go first. `what` names the threat when no
+        mobile does (post_threat), e.g. a trapped pouch going off with nobody in view."""
         cancelled = self.drop_cursor()
         sight, pressed = self.sight_t(worst, swung), time.time()
         react = round(pressed - sight, 2) if sight is not None else None
@@ -823,7 +864,7 @@ class LumberLoop:
             self.check_ledger(self.link.state())
         except Abort:
             pass
-        summary = self.post_threat(st, a, worst, swung, "recall", why)
+        summary = self.post_threat(st, a, worst, swung, "recall", why, what=what)
         self.memory.juncture("lumber", "pk_escape" if pk else "threat",
                              f"Recalled away from {summary} ({res['kind']} {res['method']}, "
                              f"{res['press_to_arrival_s']} s); stopped", "urgent", data)
@@ -905,10 +946,11 @@ class LumberLoop:
         so the list matches its "N creatures attacking" (juncture 222 had [] for 2)."""
         return [f"0x{s:08X}" for s in dict.fromkeys([*swung, *self.hit_by])]
 
-    def post_threat(self, st, a, worst, swung, action, why=None, extra=None) -> str:
+    def post_threat(self, st, a, worst, swung, action, why=None, extra=None, what=None) -> str:
         """The urgent `threat` juncture + `flee` job event (`extra` merged into its
-        data, e.g. the monster_hit episode as `hit`); returns the summary. A target
-        cursor still up is cancelled (drop_cursor): an escape walks off, a stop leaves."""
+        data, e.g. the monster_hit episode as `hit`); returns the summary (`what` when no
+        mobile names the threat). A target cursor still up is cancelled (drop_cursor): an
+        escape walks off, a stop leaves."""
         self.drop_cursor()
         if worst is not None:
             summary = (f"{worst.kind} {worst.name or f'0x{worst.serial:08X}'} at {worst.distance} tiles "
@@ -916,7 +958,7 @@ class LumberLoop:
         elif swung:
             summary = "attacked by " + ", ".join(f"0x{s:08X}" for s in swung)
         else:
-            summary = "taking damage"
+            summary = what or "taking damage"
         data = {**a.to_dict(), "action": action, "attackers": self.attacker_list(swung), **(extra or {})}
         if why:
             data["why"] = why
@@ -926,8 +968,8 @@ class LumberLoop:
         self.memory.job_event("lumber", "flee", data, **self._where(st))
         return summary
 
-    def threat_stop(self, st, a, worst, swung, cls, why=None):
-        summary = self.post_threat(st, a, worst, swung, "abort", why)
+    def threat_stop(self, st, a, worst, swung, cls, why=None, what=None):
+        summary = self.post_threat(st, a, worst, swung, "abort", why, what=what)
         raise cls(f"threat: {summary}" + (f" ({why})" if why else "") + "; stopping")
 
     def check_ledger(self, st):
@@ -951,6 +993,130 @@ class LumberLoop:
             self.memory.job_event("lumber", "theft", {"amount": n, "items": lost, "carried": carried},
                                   **self._where(st))
             log(f"pack lost {n} item(s) without a cause ({what}); suspected theft, carrying on")
+
+    # ------------------------------------------------------------ thieves
+    def check_pouches(self, st):
+        """pouch.PopWatch over every state read (docs/PLAN.md "Keep thieves off the logs").
+        Our own pouch going off (we double-clicked it to open it, unpack) costs a hit: that
+        drop is acknowledged (threats.Watch.acknowledge, the HP guard's start_hits) on every
+        read for pouch.OWN_POP_S after our click or its signals. A pop we didn't cause (the
+        explosion around us, its sound, or a hue 38 -> 0 on a pouch we never clicked) is a
+        thief at our logs: pouch_alarm. Counts this trip's spent pouches (pouches_used)."""
+        ev, ts = self.link.events, self.link.event_t
+        new = list(zip(ts[self._pop_scan:], ev[self._pop_scan:]))
+        self._pop_scan = len(ev)
+        try:
+            pack = self.backpack(st)
+        except Abort:
+            pack = None
+        pos = st["movement"]["pos"]
+        pops = self.pops.observe(st["world"], pack, tuple(pos[:2]) if pos else None, new, time.time())
+        self.pouches_used += sum(1 for p in pops if p["signal"] == "hue")
+        if any(p["own"] for p in pops):
+            self._own_pop_until = time.monotonic() + pouch.OWN_POP_S
+        if time.monotonic() < self._own_pop_until:
+            hits = (st["world"].get("self") or {}).get("hits")
+            self.watch.acknowledge(hits=hits)
+            if hits is not None and self.start_hits is not None and hits < self.start_hits:
+                log(f"our trapped pouch took {self.start_hits - hits} hit(s); not an attack")
+                self.start_hits = hits
+        alarm = [p for p in pops if not p["own"]]
+        if alarm and self.mode != "flee":
+            self.pouch_alarm(st, alarm)
+
+    def pouch_alarm(self, st, pops):
+        """A trapped pouch in our pack went off without our double-click: a thief snooped
+        it (docs/NOTES.md "A trapped pouch popped by its owner": the explosion shows on us).
+        Leave like for a red (thief_out), naming the nearest player within STEAL_GUARD tiles
+        as the suspect (a snoop needs 1 tile; none in view: a hidden thief)."""
+        a = self.last_threats or self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+        near = sorted((t for t in a.threats if t.player and 0 <= t.distance <= STEAL_GUARD),
+                      key=lambda t: t.distance)
+        worst = near[0] if near else None
+        sig = ", ".join(sorted({p["signal"] for p in pops}))
+        who = (f"{worst.name or f'0x{worst.serial:08X}'} at {worst.distance} tiles" if worst
+               else f"nobody within {STEAL_GUARD} tiles in view (hidden?)")
+        self.thief_out(st, a, worst, "pouch_pop", f"trapped pouch went off without our double-click ({sig}); {who}",
+                       {"signals": pops})
+
+    def thief_near(self, st, a, step: bool = True):
+        """Players within STEAL_GUARD tiles while harvesting (threats `thief`; THREATS.md §7 T3:
+        thieves look blue until the steal, which needs 1 tile). One we already stepped away
+        from this trip closing in again: recall (thief_out). Anyone else: KeepAway, which
+        harvest_trip answers with keep_away. During a speech hold (`step` False) nothing is
+        sent for a newcomer: the overseer has the speaker."""
+        back = [t for t in a.thieves if t.serial in self.suspects]
+        if back:
+            t = back[0]
+            self.thief_out(st, a, t, "closed_again", f"suspected thief {t.name or f'0x{t.serial:08X}'} "
+                                                     f"closed to {t.distance} tiles again")
+        if step:
+            raise KeepAway(a.thieves)
+
+    def thief_out(self, st, a, worst, trigger: str, why: str, extra: dict | None = None):
+        """Leave a thief at our logs: away from home with a recall book, recall to its default
+        rune (recall_out: the threat + pk_escape junctures), else stop where we are (Unsafe).
+        Either way a `thief` job event (trigger 'pouch_pop' or 'closed_again', action
+        'recall' or 'abort') keeps the spot out of `lumber plan` for THIEF_COOLDOWN_S
+        (lumber_opt; THREATS.md §7 T3/T4)."""
+        recall = self.afield and self.recall_book is not None
+        data = {"trigger": trigger, "action": "recall" if recall else "abort", "why": why,
+                "suspect": worst.to_dict() if worst else None, "trip": self.trip_n,
+                "spot": self.k["spot"]["id"], **(extra or {})}
+        self.memory.job_event("lumber", "thief", data, **self._where(st))
+        self.stats["thief"] = trigger
+        log(f"THIEF: {why}")
+        what = None if worst else "a thief at our trapped pouch"
+        if recall:
+            why = f"{why}; {self.recall_out(st, a, worst, {}, why=why, what=what)}"
+        self.threat_stop(st, a, worst, {}, Unsafe, why, what=what)
+
+    def keep_away(self, e: KeepAway):
+        """Step out of the suspects' reach (THREATS.md §7 T3): after a player's reaction time
+        (the 'read' pause, which still watches for threats), walk to a tile at least
+        KEEP_AWAY_TILES from each of them, then carry on harvesting at a stand out of their
+        reach (out_of_reach: they stay in self.danger for the trip, and routes bend around
+        them). One step beats the 5 s steal cooldown where a 2 s recall would still leave
+        them in reach. An attention `thief_near` juncture and a `thief` job event (action
+        'keep_away') name them. Still in steal range after the walk (they followed): recall."""
+        st = self.link.state()
+        mobs = st["world"]["mobiles"]
+        self.drop_cursor()
+        here = tuple(self.link.pos(st)[:2])
+        centers = []
+        for t in e.suspects:
+            self.suspects[t.serial] = t.name
+            m = mobs.get(f"0x{t.serial:08X}") or {}
+            if m.get("x") is not None:
+                centers.append((m["x"], m["y"]))
+                zone = ((m["x"], m["y"]), KEEP_AWAY_TILES)
+                self.danger[t.serial] = zone
+                self.mover.danger[("thief", t.serial)] = zone
+        names = ", ".join(f"{t.kind} {t.name or f'0x{t.serial:08X}'} at {t.distance} tiles" for t in e.suspects)
+        data = {"trigger": "near", "action": "keep_away", "suspects": [t.to_dict() for t in e.suspects],
+                "from": list(here), "trip": self.trip_n, "spot": self.k["spot"]["id"]}
+        self.memory.job_event("lumber", "thief", data, **self._where(st))
+        self.memory.juncture("lumber", "thief_near", f"Suspected thief while harvesting: {names}; stepping away",
+                             "attention", data)
+        self.stats["keep_aways"] = self.stats.get("keep_aways", 0) + 1
+        log(f"KEEP AWAY: {names}; stepping out of reach")
+        self.mode = "escape"
+        try:
+            self.doing("escape", f"Stepping away from {e}", here)
+            self.human.wait("read")
+            if centers:
+                self.mover.walk_to(None, 0, "away from a suspected thief", max_moves=KEEP_AWAY_MOVES,
+                                   goal_fn=nav.beyond(centers, KEEP_AWAY_TILES - 1))
+        finally:
+            self.mode = "work"
+        st = self.link.state()
+        a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+        self.last_threats = a
+        back = [t for t in a.thieves if t.serial in self.suspects]
+        if back:
+            self.thief_out(st, a, back[0], "closed_again", f"suspected thief {back[0].name or f'0x{back[0].serial:08X}'} "
+                                                          f"followed to {back[0].distance} tiles")
+        log(f"stepped away to {tuple(self.link.pos(st)[:2])}; carrying on")
 
     def check_speech(self, st):
         """speech_guard.py: a character speaking near us hands control to the
@@ -1070,14 +1236,28 @@ class LumberLoop:
                 return serial_of(key)
         raise Abort("backpack not known to the world model")
 
-    def in_pack(self, st, graphics):
+    def in_pack(self, st, graphics, top: bool = False):
+        """[(serial, item)] of `graphics` in the backpack at any depth (logs in the trapped
+        pouch are carried), or only lying directly in it (`top`)."""
         pack = self.backpack(st)
+        inside = ledger_mod.pack_items(st, pack)
         return [(serial_of(k), it) for k, it in st["world"]["items"].items()
                 if it.get("graphic") in graphics and it.get("container") is not None
-                and serial_of(it["container"]) == pack]
+                and (serial_of(it["container"]) == pack if top else serial_of(k) in inside)]
 
     def count(self, st, graphics) -> int:
         return sum(it.get("amount") or 1 for _, it in self.in_pack(st, graphics))
+
+    def log_pouch(self, st) -> int | None:
+        """The live trapped pouch for the wood: the one already holding some (one pouch a
+        trip), else the shallowest; None without one."""
+        pack = self.backpack(st)
+        held = pouch.holding(st["world"], pack, LOGS + BOARDS)
+        live = held or pouch.live(st["world"], pack)
+        return live[0] if live else None
+
+    def held(self, st, container, graphics) -> int:
+        return sum(it.get("amount") or 1 for _, it in pouch.contents(st["world"], container, graphics))
 
     def hatchet(self, st, want=None) -> int:
         """A worn hatchet, else the shallowest one in the backpack or in a bag in
@@ -1386,8 +1566,10 @@ class LumberLoop:
 
     def harvest_trip(self) -> int:
         """Smart-Harvest at stands by the candidate trees until the quota. A monster
-        escape (Escape -> self.escape) leaves the current stand; harvesting resumes
-        at the next stand out of the reach of every monster escaped from.
+        escape (Escape -> self.escape) or a suspected thief (KeepAway -> self.keep_away)
+        leaves the current stand; harvesting resumes at the next stand out of the reach
+        of every monster escaped from and every player stepped away from. Each chop's
+        logs go into the trapped pouch (stash).
         A break announced by the gate (self.break_due) ends the harvest. Running
         out of trees before the quota marks the trip `dry` (lumber_opt keeps
         the spot out of the plan until the trees regrow)."""
@@ -1411,19 +1593,23 @@ class LumberLoop:
                         f"ending the harvest at {tally['gained']} logs")
                     break
                 if not self.out_of_reach(tree["x"], tree["y"]):
-                    log(f"tree {tree['x']},{tree['y']}: within reach of a monster we backed away from; skipping")
+                    log(f"tree {tree['x']},{tree['y']}: within reach of a monster or a suspected thief we "
+                        f"backed away from; skipping")
                     continue
                 try:
                     self.work_stand(tree, trees, tally)
                 except Escape as e:
                     self.escape(e)
+                except KeepAway as e:
+                    self.keep_away(e)
             if self.break_due:
-                log(f"break due: stopping the harvest at {tally['gained']} logs; converting and banking")
+                log(f"break due: stopping the harvest at {tally['gained']} logs; banking and converting")
             elif not trees and tally["gained"] < self.args.logs_per_trip:
                 self.stats["dry"] = True
                 log(f"the area ran dry at {tally['gained']} logs (every candidate tree out of wood or tried); banking")
             return tally["gained"]
         finally:
+            self.harvesting = False
             self.stats.update(attempts=tally["attempts"], successes=tally["successes"], logs=tally["gained"])
 
     def next_stand(self, trees: list) -> dict | None:
@@ -1528,6 +1714,7 @@ class LumberLoop:
         log(f"{where}: {len(reach)} candidate tree(s) within {SMART_RANGE} (reach unmeasured), "
             f"{len(near)} within {SURVEY_R}: {[tuple(t[:3]) for t in rec['trees']]}")
         t_stand = time.monotonic()
+        self.harvesting = True       # the keep-away is on while we stand and chop (a thief comes to us)
         try:
             while rec["attempts"] < self.args.max_attempts_per_stand and tally["gained"] < self.args.logs_per_trip \
                     and not self.break_due:
@@ -1555,6 +1742,10 @@ class LumberLoop:
                         tally["gained"] += n
                     log(f"{where}: {f'+{n} logs' if out == 'success' else 'fail'} "
                         f"({tally['gained']}/{self.args.logs_per_trip}); {self.faced_text(stand, faced, near)}")
+                    if out == "success":                # the new logs into the trapped pouch (chopping time)
+                        c0, w0 = time.monotonic(), self.stats.get("speech_wait_s", 0.0)
+                        self.stash()
+                        self.chopped(c0, w0)
                 elif out in ("nothing_near", "depleted"):
                     rec["end"] = out
                     if out == "depleted":           # the server's pick ran out; which one it was is unknown
@@ -1589,6 +1780,7 @@ class LumberLoop:
             rec["end"] = rec["end"] or f"interrupted: {type(e).__name__}: {e}"[:200]
             raise
         finally:
+            self.harvesting = False
             rec["s"] = round(time.monotonic() - t_stand, 1)
             self.memory.job_event("lumber", "stand", rec, facet=self.facet, x=x, y=y)
 
@@ -1730,9 +1922,81 @@ class LumberLoop:
                     break
         return goals
 
+    # ------------------------------------------------------------ the trapped pouch
+    def stash(self, graphics=LOGS) -> int:
+        """Drag the wood lying directly in the backpack (a chop's new logs) into the trapped
+        pouch (log_pouch; docs/PLAN.md "Keep thieves off the logs"), with the stock lift and
+        drop at a player's pace: the drop onto the pouch's icon in the open backpack, as the
+        bank deposit drops onto the box. The ledger knows the drag (ledger "moving"). A stack
+        not seen in the pouch within 3 s stays where it is (the next chop tries again).
+        Returns the units moved; none without a live pouch (pouch_ready starts no trip
+        without one)."""
+        st = self.state()
+        loose = self.in_pack(st, graphics, top=True)
+        p = self.log_pouch(st) if loose else None
+        if p is None:
+            return 0
+        self.open_for((p, False))
+        moved = 0
+        for serial, it in loose:
+            amount = it.get("amount") or 1
+            before = self.held(self.link.last or st, p, graphics)
+            self.human.wait("use")
+            self.ledger.expect(("moving", serial, p))
+            self.link.act(actions.lift(serial, amount))
+            self.human.wait("drag")
+            self.link.act(actions.drop(serial, DROP_AUTO, DROP_AUTO, 0, 0, p))
+            if self.wait_for(lambda s: self.held(s, p, graphics) >= before + amount, 3.0) is None:
+                log(f"stash: {amount} of 0x{serial:08X} not seen in the trapped pouch 0x{p:08X}; leaving it")
+                continue
+            moved += amount
+        if moved:
+            self.stats["stashed"] = self.stats.get("stashed", 0) + moved
+            log(f"stashed {moved} in the trapped pouch 0x{p:08X}")
+        return moved
+
+    def unpack(self, graphics):
+        """Set off, ourselves, every live trapped pouch holding `graphics`, so that the next
+        double-click opens it (a double-click on a live one only sets it off; then it is an
+        ordinary pouch, hue 0). Our pop costs a hit and is no alarm (check_pouches: our click
+        names it, pouch.PopWatch). Abort when it doesn't go off."""
+        st = self.state()
+        for p in pouch.holding(st["world"], self.backpack(st), graphics):
+            self.open_for((p, False))
+            self.human.wait("use")
+            self.pops.own_pop(p, time.time())
+            self._own_pop_until = time.monotonic() + pouch.OWN_POP_S
+            self.link.act(actions.dclick(p))
+            if self.wait_for(lambda s: (self.item(s, p) or {}).get("hue") != pouch.TRAPPED_HUE, 4.0) is None:
+                raise Abort(f"trapped pouch 0x{p:08X} didn't go off on our double-click")
+            log(f"set off our trapped pouch 0x{p:08X} to open it")
+            self.human.wait("read")
+
+    def pouch_ready(self, st):
+        """A trip carries its logs in a live trapped pouch, and uses one up (unpack, at the
+        bank). Without one: an attention `low_supplies` juncture (item 'trapped pouch') and
+        the run stops before the trip; the overseer buys them at a provisioner (`ctl act buy
+        <provisioner> trapped pouch --amount N`; Errol, 25 gp)."""
+        pp = pouch.pack_pouches(st["world"], self.backpack(st))
+        live = [s for s, p in pp.items() if p["live"]]
+        if live:
+            return
+        data = {"item": "trapped pouch", "have": 0, "need": 1, "carry": pouch.CARRY,
+                "spent_in_pack": len(pp), "graphic": f"0x{pouch.POUCH_GRAPHIC:04X}", "hue": pouch.TRAPPED_HUE,
+                "how": "a provisioner sells Trapped Pouch (25 gp, Errol): ctl act buy <provisioner serial> "
+                       f"trapped pouch --amount {pouch.CARRY}"}
+        self.memory.juncture("lumber", "low_supplies", "No trapped pouch (hue 38) in the pack for the logs; "
+                             "buy some at a provisioner", "attention", data)
+        raise Abort("no trapped pouch for the logs (low_supplies): buy Trapped Pouches at a provisioner")
+
     # ------------------------------------------------------------ converting
     def convert(self):
+        """Every log stack in the pack into boards (at the bank, before the deposit): the
+        trapped pouch holding them is set off first (unpack) and opened on the way
+        (open_for), the logs targeted with the hatchet's cursor; the boards land where
+        the logs were [INFERENCE: RunUO ScissorHelper drops them into the logs' container]."""
         ok_text = self.k["convert"]["ok_text"]
+        self.unpack(LOGS)
         for _ in range(4):
             st = self.state()
             stacks = self.in_pack(st, LOGS)
@@ -1742,7 +2006,7 @@ class LumberLoop:
             if "woods" not in self.stats:           # this trip's logs by wood type (ledger.py, woods.json)
                 self.stats["woods"] = self.ledger.summary(kind="log")
             self.doing("convert", f"Making boards from {it.get('amount') or 1} logs")
-            self.open_for((serial, False))              # the logs are targeted in the open backpack
+            self.open_for((serial, False))              # the logs are targeted in their open container
             cur = self.use_hatchet()
             if cur is None:
                 continue
@@ -1920,44 +2184,56 @@ class LumberLoop:
         return box
 
     def deposit(self, box: int) -> int:
-        """Drag every board stack from the open backpack into the open bank box,
-        right after it opened: no step in between (moving closes a bank box in
-        RunUO [INFERENCE for Outlands])."""
+        """Drag every board stack in the pack (the opened pouch included; a live pouch
+        holding boards is set off first, unpack) into the open bank box, right after it
+        opened: no step in between (moving closes a bank box in RunUO [INFERENCE for
+        Outlands]). Then the spent pouches we set off, now empty, go into the box too, so
+        they don't pile up in the pack (one a trip)."""
         stored = 0
+        self.unpack(BOARDS)
         stacks = self.in_pack(self.state(), BOARDS)
-        if stacks:  # the bank gump is open from the speech; the backpack may still need opening
+        if stacks:  # the bank gump is open from the speech; the backpack (and pouch) may still need opening
             self.open_for(*[(serial, False) for serial, _ in stacks])
         for serial, it in stacks:
             amount = it.get("amount") or 1
             self.doing("store", f"Banking {amount} boards", self.banker_pos())
-            self.human.wait("use")
-            self.ledger.expect(("moved_out", serial))    # into the bank box: not theft
-            self.link.act(actions.lift(serial, amount))
-            self.human.wait("drag")
-            self.link.act(actions.drop(serial, DROP_AUTO, DROP_AUTO, 0, 0, box))
-            pack = self.backpack(self.link.state())
-            moved = self.wait_for(
-                lambda s: (self.item(s, serial) is None
-                           or serial_of(self.item(s, serial).get("container") or "0") != pack), 4.0)
-            if moved is None:
-                raise Abort(f"board stack 0x{serial:08X} did not leave the backpack")
+            self.bank_item(serial, amount, box, "board stack")
             stored += amount
             log(f"banked {amount} boards")
+        st = self.state()
+        pack = self.backpack(st)
+        spent = [s for s, p in pouch.pack_pouches(st["world"], pack).items()
+                 if s in self.pops.own and not p["live"] and not pouch.contents(st["world"], s)]
+        for s in spent:
+            self.bank_item(s, 1, box, "spent trapped pouch")
+        if spent:
+            log(f"banked {len(spent)} spent trapped pouch(es)")
         self.stats["stored"] = self.stats.get("stored", 0) + stored
         return stored
+
+    def bank_item(self, serial: int, amount: int, box: int, what: str):
+        """Lift `serial` out of the pack and drop it into the open bank box (declared to the ledger)."""
+        self.human.wait("use")
+        self.ledger.expect(("moved_out", serial))    # into the bank box: not theft
+        self.link.act(actions.lift(serial, amount))
+        self.human.wait("drag")
+        self.link.act(actions.drop(serial, DROP_AUTO, DROP_AUTO, 0, 0, box))
+        pack = self.backpack(self.link.state())
+        if self.wait_for(lambda s: serial not in ledger_mod.pack_items(s, pack), 4.0) is None:
+            raise Abort(f"{what} 0x{serial:08X} did not leave the backpack")
 
     # ------------------------------------------------------------ trips
     def episode(self, row):
         self.memory.episode("lumber", row)
 
     def trip(self, n):
-        """One trip: harvest -> convert -> walk to the banker and open the bank
-        box -> bank the boards. The run ends at the bank. A monster escape in
-        any phase is followed by that phase again (the harvest goes on at the
-        next stand out of reach); an abort while harvesting converts the carried
-        logs first when that's safe (salvage). Every trip leaves an episode row,
-        an aborted one too (outcome 'aborted' + why): leaving those out would
-        flatter exactly the spots where trips get cut short."""
+        """One trip: harvest (logs into the trapped pouch) -> walk to the banker and open
+        the bank box -> convert (the pouch set off and opened) -> bank the boards. The run
+        ends at the bank. A monster escape in any phase is followed by that phase again
+        (the harvest goes on at the next stand out of reach); an abort while harvesting
+        stashes the loose logs in the pouch first when that's safe (salvage). Every trip
+        leaves an episode row, an aborted one too (outcome 'aborted' + why): leaving those
+        out would flatter exactly the spots where trips get cut short."""
         self.stats = {}
         self.trip_n = n
         self.escapes, self.danger = 0, {}
@@ -1967,6 +2243,7 @@ class LumberLoop:
         self.trip_t0 = t0
         self.timing = {"walk_out_s": None, "chop_s": 0.0, "tree_walk_s": 0.0, "lockout_s": 0.0, "stationary_s": 0.0}
         self.travel, self.players_seen, self.hatchet_worn = [], {}, None
+        self.suspects, self.pouches_used = {}, 0
         self.trk.reset()
         phases = {}
         st = self.link.state()
@@ -1987,10 +2264,10 @@ class LumberLoop:
             except Abort as e:
                 self.salvage(e)
                 raise
-            timed("convert", self.convert)
 
-            def bank():
+            def bank():                     # convert by the banker: the logs stay in the pouch until then
                 box = timed("to_bank", self.open_bank, retry=False)
+                timed("convert", self.convert, retry=False)
                 timed("store", lambda: self.deposit(box), retry=False)
             self.guarded(bank)              # an escape after the box opened: walk back and say bank again
             outcome = "banked"
@@ -2028,7 +2305,8 @@ class LumberLoop:
             # a charge is spent when the recall lands [INFERENCE: RunUO takes it in the spell's effect]
             "library_charges": sum(1 for leg, t in tries if t[0] == "charge" and t[1] is None and leg["leg"] == "out"),
             "own_charges": sum(1 for leg, t in tries if t[0] == "charge" and t[1] is None and leg["leg"] != "out"),
-            "recall_casts": sum(1 for _, t in tries if t[0] == "spell")}
+            "recall_casts": sum(1 for _, t in tries if t[0] == "spell"),
+            "trapped_pouches": self.pouches_used}
         hatchet = (snap.get("hatchet") or {}).get("serial")
         try:
             st = self.link.state()
@@ -2056,22 +2334,28 @@ class LumberLoop:
             return None
 
     def salvage(self, e: Abort):
-        """Carried wood is always boards: before a harvest abort ends the run,
-        convert the logs in the pack, unless stopping at once is safer (unsafe_stop).
+        """Carried wood stays protected: before a harvest abort ends the run, the loose
+        logs go into the trapped pouch (stash), or, with no live pouch left, the logs are
+        converted to boards as before; unless stopping at once is safer (unsafe_stop).
         Only players and death interrupt it (mode 'salvage': no timeout, HP,
-        creature or speech checks); a failed conversion is logged, not raised."""
+        creature or speech checks); a failure is logged, not raised."""
         why = self.unsafe_stop(e)
         if why:
             log(f"stopping at once, logs not converted: {why}")
             return
         try:
-            if not self.in_pack(self.link.state(), LOGS):
+            st = self.link.state()
+            if not self.in_pack(st, LOGS):
+                return
+            self.mode = "salvage"
+            if self.log_pouch(st) is not None:
+                log(f"keeping the carried logs in the trapped pouch before stopping ({e})")
+                self.stash()
                 return
             log(f"converting the carried logs before stopping ({e})")
-            self.mode = "salvage"
             self.convert()
         except Abort as x:
-            log(f"could not convert the carried logs: {x}")
+            log(f"could not stash or convert the carried logs: {x}")
         finally:
             self.mode = "work"
 
@@ -2103,6 +2387,7 @@ class LumberLoop:
         # routes bend around where hostile creatures were seen lately (travel_guard)
         self.mover.danger_tiles = travel_guard.remembered_tiles(self.memory, self.facet, self.link.pos(st)[:2])
         for n in range(1, self.args.trips + 1):
+            self.pouch_ready(self.link.state())     # a trip uses a trapped pouch up: none left, no trip
             self.trip(n)
             if self.break_due:
                 log(f"break due: banked after trip {n}; stopping for the break (ctl break)")
