@@ -495,6 +495,22 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
 - **Hackworth's spellbook lacks Magic Reflection** ("You do not have that spell!"). Garritt's Magic
   Reflect scroll is 300 gp; Garritt had spider's silk again (stock 999) at ~20:15, so the stock
   refreshes. Hackworth now carries 10 each of garlic, mandrake root and spider's silk; bank 177 gp.
+- **Urukton Bluffs (live 2026-10-03, Shackleworth).** The New Player Locations rune lands at
+  (5248,2821,z33) on a raised landing inside the dungeon: "You are entering a sanctuary dungeon."
+  (and "You have left the protection of the town guards."); a golden moongate at (5246,2822)
+  allows recall. Below: orcs, an orc captain, blood orcs, orc mages, an orc lord, goblins, a cave
+  bear, and **human-bodied "an orc hunter"** (body 400, notoriety 3, flags 0), fought by NPC
+  soldiers ("a prevalian footman/mage/captain/marksman", human bodies, innocent).
+  - `threats.identify` called the orc hunters **grey players** and the soldiers innocent players
+    (no player flag; "human body, assumed player"). Fixed (0add311): a human body with a
+    creature-style name ("a"/"an") and no player flag is a monster at notoriety 3 and an NPC at 1–2;
+    4–6 stay players. Their corpses ("an orc hunter corpse") are monster corpses.
+  - **Death by a manual overseer fight, 20:29:56:** the recall in (a tome charge, "Kal Ort Por")
+    put the arcane staff in the pack; the overseer walked ~85 steps into a room with goblins, orc
+    mages, an orc lord and a cave bear and attacked one orc with fists (-2 per hit); it took
+    -25 -12 -15 -11 -14 -21 in 15 s. User decision: **no manual fights in dungeons**, only the hunt
+    runner fights there (OVERSEER §5). `ctl act recall` now puts a weapon the cast moved to the
+    pack back on (`weapon` in its reply).
 - **Lumber data audit (1a5d59f; LUMBER_LOOP §6 "What the optimizer learns from").** Trip rows
   now carry the travel legs (every cast with method/ok/failure/seconds, the book, Witcher rune,
   walk to the library, mana and reagents), `lockout_s`, `stationary_s`, `travel_s`, `supplies`,

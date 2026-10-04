@@ -1555,6 +1555,9 @@ def _act_recall(a) -> dict:
         else:
             raise CtlError("no runebook or rune tome in your backpack")
         io = _CtlIO(ctl, stc, escape.RecallError)
+        weapon = next((k for k, it in st["world"]["items"].items()
+                       if it.get("layer") in (1, 2) and it.get("container") is not None
+                       and _serial(it["container"]) == me), None)
         try:
             if a.check:
                 return {"ok": True, "book": f"0x{book:08X}", **escape.check_ready(io, book)}
@@ -1567,10 +1570,47 @@ def _act_recall(a) -> dict:
             res["expected"] = [want["x"], want["y"]]
             res["on_rune"] = want["x"] is not None and max(abs(out["to"][0] - want["x"]),
                                                              abs(out["to"][1] - want["y"])) <= 2
+        if weapon is not None:
+            res["weapon"] = _rewield(ctl, stc, me, weapon, Human(a.human, seed=a.seed))
         return res
     finally:
         ctl.close()
         stc.close()
+
+
+def _rewield(ctl, stc, me, key: str, human) -> dict:
+    """A weapon worn before a cast that the cast put in the pack (an arcane staff below
+    80 Arcane/Magery/Wrestling; live 2026-10-03 a tome-charge recall into Urukton left
+    Shackleworth fighting with fists, then dead) is put back on with the stock drag
+    (combat.equip_packets), like `act equip`. {serial, rewielded, error?}."""
+    out = {"serial": key, "rewielded": False}
+    end = time.monotonic() + 1.0             # the server moves it ~50 ms after the cast
+    while True:
+        st = stc.state()
+        it = st["world"]["items"].get(key) or {}
+        worn = it.get("container") is not None and _serial(it["container"]) == me
+        if not worn or time.monotonic() > end:
+            break
+        time.sleep(0.1)
+    if worn:
+        return out
+    try:
+        lift, second = combat.equip_packets(st["world"], me, _serial(key))
+    except ValueError as e:
+        return {**out, "error": str(e)}
+    human.wait("use")
+    if ctl.send(lift) != "OK":
+        return {**out, "error": "lift refused"}
+    human.wait("drag")
+    if ctl.send(second) != "OK":
+        return {**out, "error": "lifted but the equip request was refused; the item may be on the cursor"}
+    end = time.monotonic() + EVENT_WAIT_S
+    while time.monotonic() < end:
+        v = stc.state()["world"]["items"].get(key) or {}
+        if v.get("container") is not None and _serial(v["container"]) == me:
+            return {**out, "rewielded": True}
+        time.sleep(0.1)
+    return {**out, "error": "the world model doesn't show it worn again"}
 
 
 def _act_track(a) -> dict:
