@@ -485,6 +485,16 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   - Cambria bank → library walk is ~300 route steps (178 tiles straight); the old 250-move cap
     aborted the first Witcher trip. Walks now have no move limit by default (user decision): the
     replan cap and "no route" still end hopeless walks.
+- **Ghosts get moved (live 2026-10-03, Hackworth after the 19:08 death).** An unresurrected ghost is
+  moved by the server about every 30 min with "Your spirit grows weak and you seek resurrection.":
+  (873,1481) → (1693,1492) at ~19:38 → (1651,1586) at ~20:08, next to Prevalia. He was resurrected
+  by Sergio the healer (0x0004925B, (1684,1554); Kenton stands upstairs at z 65) at **100/100
+  hits**, naked (clothes in the pack), with the Hamstring debuff (icon 53) still shown. The
+  Resurrection gump 0xB04C9A31 opened (journal `gump_open`) but **was missing from
+  `status.gumps_open`**; it was answered by its serial from the journal [open bug].
+- **Hackworth's spellbook lacks Magic Reflection** ("You do not have that spell!"). Garritt's Magic
+  Reflect scroll is 300 gp; Garritt had spider's silk again (stock 999) at ~20:15, so the stock
+  refreshes. Hackworth now carries 10 each of garlic, mandrake root and spider's silk; bank 177 gp.
 - **Lumber data audit (1a5d59f; LUMBER_LOOP §6 "What the optimizer learns from").** Trip rows
   now carry the travel legs (every cast with method/ok/failure/seconds, the book, Witcher rune,
   walk to the library, mana and reagents), `lockout_s`, `stationary_s`, `travel_s`, `supplies`,
