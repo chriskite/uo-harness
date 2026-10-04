@@ -144,6 +144,16 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   menu has no rented-room button 7, and its button 4 means "Rent This Room" (5,000 gp/week:
   "Click twice more to confirm your rental room agreement."). `ctl act gump` doesn't guard
   this; the lumber runner aborts without button 7.
+  - **The room menu while a room is rented** (gump `0x8EAEFBDB`, Kay the innkeeper at Outpost,
+    3052,512, live 2026-10-03):
+    - **4 "Enter Your Room"** ("You enter the rental room."; the lumber config's `enter_button`).
+    - 5 "Invite Player"; 6 "Visit Other Rooms".
+    - **7 "Expand"**, which opens the Expand Rental Room gump: +175 lockdowns, +1 secure, +2,500
+      rent. In that gump, 2 is Expand and 3 is Cancel (cancelled at no cost).
+    - 1 and 3: unlabelled.
+    - The menu also shows the next payment ("6 Days 17 Hours"), lockdowns 125/350 and the bank
+      balance.
+    - So button 7 is only the "a room is rented" marker. Never press it to enter.
 - **Outlands sends overhead titles as type-0 "speech" (2026-10-01, all 27 captures).** A click
   (`0x09`) on a player gets the label (type 6) plus type-0 lines from that player's serial: the
   title ("Viceroy", "Legendary Woodsman") and the guild tag ("[Veteran, J4F]"), 0.04-0.06 s after
