@@ -807,12 +807,13 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     lumbers on. `--track off` disables all of it.
   - **React to hits:** a hit while hunting murderer players (the world model keeps the mode at
     hit time) is a red, possibly out of view. Its distance is Chebyshev from us to the arrow's x/y
-    (the "(N spaces to target)" line when there's no arrow). Within `--track-react-range` (40,
-    user decision 2026-10-03) at a pvp spot while out at it (after the travel out, until home),
-    it is the red escape above: `recall_out` with why `tracking: <name> N spaces`, the guard
-    flight if that fails, then stop. Each new hit is checked, so a red first found far that
-    comes within 40 triggers then. A red already recalled from never triggers again in the run,
-    and hits from before the runner started (an arrow left up) are ignored.
+    (the "(N spaces to target)" line when there's no arrow). Within `--track-react-range` (80,
+    user decision 2026-10-03; it was 40 until Bastet's third kill: tracked at 55 tiles at 19:07:50,
+    logged only, striking 5.5 s later mounted) at a pvp spot while out at it (after the travel
+    out, until home), it is the red escape above: `recall_out` with why `tracking: <name> N spaces`,
+    the guard flight if that fails, then stop. Each new hit is checked, so a red first found far
+    that comes within range triggers then. A red already recalled from never triggers again in the
+    run, and hits from before the runner started (an arrow left up) are ignored.
   - **Sightings:** every red the hunt finds is a `pk_seen` job event with `source: tracking`,
     `serial`, `name`, arrow `x`/`y`/`z`, `distance`, `spaces`, `mode`, `in_range`, `react`,
     `react_range` and `counted`: once when first found and once more when it first comes within
@@ -820,7 +821,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     sightings feed `lumber_opt`** (`store_inputs`): within the react range, and once per serial per
     run across view and tracking. Farther hits weigh 0, not a lower weight: at high skill the hunt
     finds reds sitting in their houses far away, and any weight would keep charging a spot near a
-    red's house for every trip forever, while the house is no danger at 40+ tiles. A red that
+    red's house for every trip forever, while the house is no danger at 80+ tiles. A red that
     walks into range does count. The Jobs page still counts every `pk_seen`.
   - **Recorded:** a `tracking` job event per try (`where`, `ok`, `clicks`, `error`, `skill`,
     `trip`; `unavailable` when there is no skill) and the trip row's `tracking`: `on_s`, `off_s`,

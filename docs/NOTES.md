@@ -509,10 +509,21 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   is re-sent). In 121 min of murderer hunting there were 0 murderer hits, even with Bastet in view
   at 18 tiles (Corpse Creek); why is open [INFERENCE: Tracking 60's chance or range, or the
   lawless region]. The hit reaction is so far tested only in the simulator.
-- **A tracked red within 40 tiles** (`--track-react-range`, user decision) at a pvp spot is a red
-  escape (recall home, "tracking: <name> N spaces"). Farther reds (e.g. sitting in a house) are
-  `pk_seen` events with `counted: false` and don't feed the spot hazard. Trip rows carry
-  `tracking` coverage (on_frac, hits).
+- **A tracked red within 80 tiles** (`--track-react-range`, user decision 2026-10-03; 40 until the
+  third Bastet death below) at a pvp spot is a red escape (recall home, "tracking: <name> N
+  spaces"). Farther reds (e.g. sitting in a house) are `pk_seen` events with `counted: false` and
+  don't feed the spot hazard. Trip rows carry `tracking` coverage (on_frac, hits).
+- **Third Bastet death (live 2026-10-03 19:08, terran_wilds, Hackworth).** Tracking found him at
+  55 tiles at 19:07:50 ("beyond 40: logged only"); mounted, he struck 5.5 s later. He came into
+  view at 54.70 during the chop's 2.1 s aim pause; the runner answered the chop cursor at 56.61
+  and only then opened the tome (57.20, 2.5 s after sight); "Bastet is attacking you!" at 56.69,
+  his hits broke the old 3-try escape, the guard flight was too late. Lost: 1,070 logs, the last
+  hatchet, 60 gp, reagents. Two of his three kills were in the Terran wilds.
+- **The runner was blind inside every pause and result wait** (`Human.wait` was a plain sleep,
+  `Link.wait` had no threat check). Fixed (c4db365): every lumber wait checks threats every 0.2 s
+  and once more right before its action (`LumberLoop.pause`/`wait_for`); an open cursor is
+  cancelled with the stock 0x6C before any escape; the recall event logs `react_s` (sight → book
+  double-click). A simulated red during the aim pause: 0.00–0.20 s, was 0.91 s.
 - **Creature stops recall home first (3316e5b):** live at witcher_291 the runner converted logs
   for 12 s under monster attack (85 → 40 hits) and exited in the field; the overseer's recall
   landed at 15/100. Now damage, a creature that keeps coming, or too many escapes end the run

@@ -121,7 +121,7 @@ TRACK_MODES = ("criminal players", "innocent players", "friendly players", "aggr
                "passive creatures", "townsfolk", "all players", "all hostile players",
                "enemy players", "murderer players")
 RED, RED_NAME = 0x0009E217, "Lord Red"                    # a murderer the hunt finds, never in view
-RED_FAR, RED_NEAR = 60, 30                                # tiles from us at the two hits (react range 40)
+RED_FAR, RED_NEAR = 100, 55                               # tiles from us at the two hits (react range 80; Bastet 10-03: 55)
 # creature runs (LUMBER_LOOP.md §13 "Running from a creature"): a gazer (body 22, ranged) casts at us from 10
 # tiles at the library spot; a war-mode creature stands by the nearest tree on Shelter
 GAZER, GAZER_BODY, GAZER_DMG, GAZER_CAST_S = 0x0000CA5E, 22, 10, 2.5
@@ -1245,8 +1245,8 @@ async def library():
 async def track_reds():
     """LUMBER_LOOP.md §13 "Tracking reds": the library trip with the Tracking gump, buff and arrows
     as captured live. Hunting murderers starts before going out; the recall out stops it (simulated)
-    and the runner turns it back on; mid-chop the hunt finds a red 60 tiles off (logged, no escape),
-    then 30 tiles off (the red escape: recall home with our runebook, stop)."""
+    and the runner turns it back on; mid-chop the hunt finds a red 100 tiles off (logged, no escape),
+    then 55 tiles off (the red escape: recall home with our runebook, stop)."""
     print("\n== tracking reds: hunt murderers all run; a far red is logged, a near one sends us home ==")
     import lumber_opt
     world = World("tracking")
@@ -1273,18 +1273,19 @@ async def track_reds():
     seen = [e["data"] for e in store.job_events("lumber") if e["kind"] == "pk_seen"]
     far = [d for d in seen if d.get("source") == "tracking" and d.get("distance") == RED_FAR]
     near = [d for d in seen if d.get("source") == "tracking" and d.get("distance") == RED_NEAR]
-    check("the far hit (60 tiles): a pk_seen event from tracking with the name, serial and arrow, logged only "
-          "(beyond the react range 40: no escape, not counted as hazard)",
+    check("the far hit (100 tiles): a pk_seen event from tracking with the name, serial and arrow, logged only "
+          "(beyond the react range 80: no escape, not counted as hazard)",
           len(far) == 1 and far[0]["serial"] == RED and far[0]["name"] == RED_NAME
           and far[0]["x"] == LIB_TREE["stand"][0] + RED_FAR and not far[0]["in_range"] and not far[0]["react"]
           and not far[0]["counted"] and far[0]["spaces"] == RED_FAR and far[0]["mode"] == "murderer players"
           and "logged only" in text, str(far))
-    check("the near hit (30 tiles): a second pk_seen for the same red, in range, reacted, counted",
+    check("the near hit (55 tiles, where Bastet was tracked before his third kill): a second pk_seen for the "
+          "same red, in range, reacted, counted",
           len(near) == 1 and near[0]["serial"] == RED and near[0]["in_range"] and near[0]["react"]
           and near[0]["counted"] and len(seen) == 2, str(seen))
     rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
     check("the near hit sent us home: one escape recall with our runebook (the disturbed cast retried), "
-          "reason 'tracking: Lord Red 30 spaces', the red as the threat",
+          f"reason 'tracking: Lord Red {RED_NEAR} spaces', the red as the threat",
           world.recalls_home == [HOME_RUNE_POS] and len(rec) == 1 and rec[0]["ok"]
           and rec[0]["why"] == f"tracking: {RED_NAME} {RED_NEAR} spaces" and rec[0]["threat"]["serial"] == RED
           and rec[0]["threat"]["kind"] == "red" and rec[0]["attempts"] == 2, str(rec)[:600])

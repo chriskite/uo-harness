@@ -2008,9 +2008,10 @@ def main():
     ap.add_argument("--track", choices=("reds", "off"), default="reds",
                     help="keep Tracking's Hunting mode on murderer players all run (tracking.py); murderer hits "
                          "within --track-react-range at a pvp spot send us home like a red in view")
-    ap.add_argument("--track-react-range", type=int, default=40,
+    ap.add_argument("--track-react-range", type=int, default=80,
                     help="tiles (Chebyshev to the tracking arrow) within which a tracked red triggers the escape; "
-                         "farther ones (reds in their houses) are logged only")
+                         "farther ones (reds in their houses) are logged only. 80 (user decision 2026-10-03): a "
+                         "mounted red covered 55 tiles in ~5.5 s and killed us after the old 40 only logged him")
     ap.add_argument("--track-retry-s", type=float, default=30.0,
                     help="at most one try to turn Hunting back on per this many seconds")
     ap.add_argument("--creature-recall-at", type=float, default=0.6,
