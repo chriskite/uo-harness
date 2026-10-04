@@ -38,7 +38,9 @@ CANDIDATES best FTS5 hits (BM25, porter stemming) fused by reciprocal rank, so
 Without an embedder it is FTS5 alone. Every result returned counts as an access.
 `brief()` builds the query from the current situation (position, nearby NPC
 names, open junctures, the current intent) and adds the most important
-procedures and preferences.
+procedures and preferences. Entries tagged PIN_TAG ("pinned": `pin()`) are the
+standing memories the overseer must recall when it starts: brief() returns
+every one of them in full, ahead of and apart from the capped lists.
 """
 import hashlib
 import json
@@ -58,6 +60,7 @@ RELATED_JACCARD = 0.35
 CONFIRM_STEP = 0.5                   # a confirmation closes this share of the gap to 1.0
 CANDIDATES = 60                      # hybrid recall: entries taken from each ranking
 RRF_K = 60                           # reciprocal rank fusion constant
+PIN_TAG = "pinned"                   # must-recall at overseer start: brief() lists all of them
 COLS = ("id", "kind", "topic", "content", "tags", "entities", "facet", "x", "y", "source_type",
         "source_ref", "confidence", "importance", "status", "supersedes", "superseded_by",
         "retract_reason", "confirmations", "created_t", "updated_t", "last_access_t", "access_count")
@@ -200,6 +203,25 @@ class Knowledge:
         self.con.execute(f"UPDATE knowledge SET {', '.join(sets)} WHERE id=?", args)
         self.con.commit()
         return {"id": kid, "action": "updated"}
+
+    def pin(self, kid: int, on: bool = True) -> dict:
+        """Make an active entry a standing memory brief() always returns (the PIN_TAG
+        tag; a later new version keeps it), or stop that (on=False)."""
+        e = self.get(kid)
+        if e is None or e["status"] != "active":
+            raise KnowledgeError(f"#{kid} isn't an active entry")
+        tags = (set(e["tags"]) | {PIN_TAG}) if on else (set(e["tags"]) - {PIN_TAG})
+        if tags == set(e["tags"]):
+            return {"id": kid, "action": "unchanged", "pinned": on}
+        self.update(kid, tags=sorted(tags))
+        return {"id": kid, "action": "pinned" if on else "unpinned", "pinned": on}
+
+    def pinned(self) -> list[dict]:
+        """Every active pinned entry, most important first, then oldest."""
+        rows = [_row(r) for r in self.con.execute(
+            f"SELECT {', '.join(COLS)} FROM knowledge WHERE status='active' AND (' ' || tags || ' ') LIKE ?",
+            (f"% {PIN_TAG} %",)).fetchall()]
+        return sorted(rows, key=lambda e: (-e["importance"], e["id"]))
 
     def confirm(self, kid: int, source: str = "observed", ref: str | None = None) -> dict:
         """Seen true again: confirmations += 1, confidence closes CONFIRM_STEP of
@@ -370,23 +392,29 @@ class Knowledge:
 
     def brief(self, situation: dict, limit: int = 12) -> dict:
         """What to remember now. situation: {pos: [x, y, z], facet, mobiles:
-        [names/labels], junctures: [kinds/summaries], intent: text, task: name}."""
+        [names/labels], junctures: [kinds/summaries], intent: text, task: name}.
+        `pinned`: every pinned entry, uncapped (the must-recall standing memories);
+        `standing`: the other procedures/preferences of importance >= 7;
+        `relevant`: what the situation calls up. No entry is in two lists."""
         pos, facet = situation.get("pos"), situation.get("facet")
         near = None if not pos else (facet or 0, pos[0], pos[1])
         terms = " ".join(str(v) for v in (
             *(situation.get("mobiles") or ()), *(situation.get("junctures") or ()),
             situation.get("intent") or "", situation.get("task") or "") if v)
+        pinned = self.pinned()
+        seen = {e["id"] for e in pinned}
         standing = [e for e in self.search(None, kind=("preference", "procedure"), limit=50, touch=False)
-                    if e["importance"] >= 7][:limit]
-        seen, relevant = {e["id"] for e in standing}, []
+                    if e["importance"] >= 7 and e["id"] not in seen][:limit]
+        seen |= {e["id"] for e in standing}
+        relevant = []
         for e in (self.search(terms, near=near, limit=limit) if terms.strip() else []) \
                 + (self.search(None, near=near, limit=limit) if near else []):
             if e["id"] not in seen:
                 seen.add(e["id"])
                 relevant.append(e)
         relevant.sort(key=lambda e: -e["score"])
-        return {"relevant": [_brief(e) for e in relevant[:limit]],
-                "standing": [_brief(e) for e in standing[:limit]], "query": terms[:300], "near": near}
+        return {"pinned": [_brief(e) for e in pinned], "relevant": [_brief(e) for e in relevant[:limit]],
+                "standing": [_brief(e) for e in standing], "query": terms[:300], "near": near}
 
     def review(self, stale_days: float = 30.0, limit: int = 20) -> dict:
         """Maintenance: unconfirmed inferences, stale entries never recalled, and

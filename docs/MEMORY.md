@@ -148,7 +148,14 @@ and its dealings with players and the user, kept across sessions. It is exposed 
   `knowledge_vec` (id, sha1 of model + text, float32 blob); every search first embeds the
   entries whose text or model changed, so writers (proxy, ctl add) never load the model.
 - **Situational brief.** `brief` builds the query from where the agent is (position, nearby NPC
-  labels, open junctures, intent, task) and always adds preferences/procedures of importance ≥ 7.
+  labels, open junctures, intent, task) and adds preferences/procedures of importance ≥ 7, both
+  capped at `--limit` (12). With ~26 such entries the cap drops some, so importance alone can't
+  guarantee recall.
+- **Pinned standing memories (since 2026-10-04, user request).** `ctl know pin ID` tags an entry
+  `pinned`; `brief` returns every pinned entry in full in its own `pinned` list, uncapped and
+  apart from the other two, and the overseer prompt's first loop step must read and follow them.
+  A new version of a pinned entry keeps the tag. First pinned: #4079, how to use the DTF guild
+  house rune library.
 - **Maintenance.** `review` lists unconfirmed inferences, entries never recalled for 30 days, and
   topics with several active facts.
 

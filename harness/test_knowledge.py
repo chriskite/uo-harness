@@ -175,6 +175,35 @@ def test_brief_review():
     check("stats by kind and status", s["by_kind"]["fact"]["active"] == 3 and s["total"] == 6, str(s))
 
 
+def test_pinned():
+    print("== pinned: the standing memories every brief returns ==")
+    k, clock = fresh()
+    lib = k.add("procedure", "guild rune library", "Go to the DTF guild house tomes for places our book lacks",
+                importance=7, tags=["travel"])["id"]
+    for i in range(15):
+        k.add("preference", f"rule {i}", f"Standing rule number {i} about something else", source="user", importance=10)
+    b = k.brief({}, limit=12)
+    check("unpinned, an importance-7 procedure is crowded out of standing by 15 importance-10 rules",
+          lib not in [e["id"] for e in b["standing"]] and not b["pinned"])
+    check("pin", k.pin(lib)["action"] == "pinned" and "travel" in k.get(lib)["tags"])
+    clock.t += 90 * DAY
+    b = k.brief({}, limit=12)
+    check("pinned: returned in full in every brief, however crowded or old, and in no other list",
+          [e["id"] for e in b["pinned"]] == [lib] and b["pinned"][0]["content"].startswith("Go to the DTF")
+          and lib not in [e["id"] for e in b["standing"] + b["relevant"]] and len(b["standing"]) == 12, str(b["pinned"]))
+    new = k.update(lib, content="Go to the DTF guild house tomes (4152,1429) for places our book lacks")["id"]
+    check("a new version stays pinned; the superseded one leaves the brief",
+          [e["id"] for e in k.brief({})["pinned"]] == [new])
+    check("unpin", k.pin(new, on=False)["action"] == "unpinned" and not k.brief({})["pinned"]
+          and k.get(new)["tags"] == ["travel"])
+    try:
+        k.pin(lib)
+        refused = False
+    except KnowledgeError:
+        refused = True
+    check("a superseded entry can't be pinned", refused)
+
+
 class FakeEmbedder:
     """Words map to concept axes, so 'dying' and 'resurrect' meet without sharing a word."""
     MODEL = "fake-concepts"
@@ -230,7 +259,7 @@ def test_semantic():
 
 
 def main():
-    for t in (test_write_discipline, test_versions, test_recall, test_brief_review, test_semantic):
+    for t in (test_write_discipline, test_versions, test_recall, test_brief_review, test_pinned, test_semantic):
         t()
     print(f"\nknowledge: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     return 1 if FAILURES else 0

@@ -2389,6 +2389,10 @@ def cmd_know(a, mem):
             out = k.confirm(a.id, source=a.source, ref=a.ref)
             row = (f"confirmed #{a.id} (confidence {out['confidence']}, {out['confirmations']}x)",
                    {"id": a.id, "action": "confirmed", "entry": _compact(k.get(a.id))})
+        elif op in ("pin", "unpin"):
+            out = k.pin(a.id, on=op == "pin")
+            row = (f"{out['action']} #{a.id}" + (" (recalled at every overseer start)" if op == "pin" else ""),
+                   {"id": a.id, "action": out["action"], "entry": _compact(k.get(a.id))})
         elif op == "retract":
             out = k.retract(a.id, a.reason)
             row = (f"retracted #{a.id}: {a.reason}", {"id": a.id, "action": "retracted", "reason": a.reason,
@@ -2420,8 +2424,10 @@ def cmd_know(a, mem):
                     "results": [_compact(e) for e in res[:MEMORY_ROW_RESULTS]]})
         elif op == "brief":
             out = k.brief(_situation(a, mem), limit=a.limit) | {"recall": _recall_mode(k)}
-            row = (f"briefed: {len(out['relevant'])} relevant, {len(out['standing'])} standing",
+            row = (f"briefed: {len(out['pinned'])} pinned, {len(out['relevant'])} relevant, "
+                   f"{len(out['standing'])} standing",
                    {"query": out["query"], "near": out["near"],
+                    "pinned": [_compact(e) for e in out["pinned"]],
                     "relevant": [_compact(e) for e in out["relevant"][:MEMORY_ROW_RESULTS]],
                     "standing": [_compact(e) for e in out["standing"][:MEMORY_ROW_RESULTS]]})
         elif op == "review":
@@ -2922,6 +2928,9 @@ def _know_parser(sub):
         q.add_argument("--ref", help="evidence: capture tag, chat#id, juncture#id, URL, screenshot path")
         q.add_argument("--confidence", type=float)
         q.add_argument("--importance", type=int, default=5 if name == "add" else None)
+    for name, text in (("pin", "make an entry a standing memory `know brief` always returns (overseer start)"),
+                       ("unpin", "stop returning an entry from every `know brief`")):
+        ks.add_parser(name, help=text).add_argument("id", type=int)
     q = ks.add_parser("confirm")
     q.add_argument("id", type=int)
     q.add_argument("--source", choices=tuple(knowledge.SOURCES), default="observed")

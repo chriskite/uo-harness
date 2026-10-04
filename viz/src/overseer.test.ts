@@ -130,6 +130,10 @@ describe("memoryView", () => {
     expect(v.groups.map((g) => g.label)).toEqual(["relevant here"]);
     expect(memoryView(row({ op: "brief", relevant: [e(1)], standing: [e(2)] })).count).toBe(2);
   });
+  test("a brief lists pinned entries first", () => {
+    const v = memoryView(row({ op: "brief", pinned: [e(3)], relevant: [e(1)], standing: [e(2)] }));
+    expect(v.groups.map((g) => g.label)).toEqual(["pinned (must recall)", "relevant here", "standing rules"]);
+  });
   test("an add shows only related entries (its content is the headline); other writes show the entry", () => {
     const v = memoryView(row({ op: "add", action: "added", entry: e(5), related: [e(2)] }));
     expect([v.mode, v.groups.map((g) => [g.label, g.entries.map((x) => x.id)])]).toEqual([

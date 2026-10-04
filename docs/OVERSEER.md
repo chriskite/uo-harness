@@ -245,7 +245,8 @@ sessions in the memory store's `knowledge` table (docs/MEMORY.md). Kinds:
 | `know retract ID --reason R` | It was wrong: retracted with the reason, never deleted |
 | `know get ID [--history]` | One entry, with its version chain |
 | `know search [WORDS…] [--kind] [--tag]… [--near X Y \| --here] [--limit] [--all]` | Ranked recall: relevance by meaning and words (a plain-language question works), recency (14-day half-life), importance, confidence and nearness. Always returns up to `--limit` results: each carries `similarity` (cosine to the query; ≥ ~0.6 on topic, ≤ ~0.55 noise). `recall` says how it ranked: `hybrid (cuda)`, `words` if this Python lacks the embedder, `none` without query words. Loads the embedding model, so ~1.5 s slower than other `know` ops. Counts as an access |
-| `know brief [--limit]` | What to remember **now**: entries relevant to your position, nearby NPCs, open junctures, intent and task, plus standing procedures/preferences of importance ≥ 7 |
+| `know brief [--limit]` | What to remember **now**: `pinned` (every pinned entry, in full, uncapped: the standing memories you must recall at start), then `relevant` (entries for your position, nearby NPCs, open junctures, intent and task) and `standing` (other procedures/preferences of importance ≥ 7), each capped at `--limit` |
+| `know pin ID` / `know unpin ID` | Make an entry a **standing memory** that every `know brief` returns in `pinned` (the tag `pinned`; a new version keeps it), or stop that. For what the user says the overseer must always know, e.g. #4079 "DTF guild house rune library" (pinned 2026-10-04 by the user's request) |
 | `know review [--stale-days 30]` | Maintenance: unconfirmed inferences, entries never recalled in 30 days, topics with several active facts (possible contradictions) |
 | `know stats` | Counts by kind and status |
 
@@ -353,8 +354,10 @@ Paste this (or point the session at this section) to start an overseer.
 >   bank. Strive not to return there until thou hast chosen."`
 >
 > **Loop.**
-> 1. `ctl status`, `ctl junctures --open` and **`ctl know brief`** to orient; `ctl say` a one-line
->    hello.
+> 1. `ctl status`, `ctl junctures --open` and **`ctl know brief`** to orient. **Read every entry in
+>    its `pinned` list and follow it:** these are the standing memories the user requires you to
+>    recall at every start (e.g. where to travel from). `ctl think` one line naming them, then
+>    `ctl say` a one-line hello.
 > 2. Start `ctl wait --timeout 900` as a **background** shell job (shell timeout > 900 s), then
 >    stop making tool calls. Its completion wakes you.
 > 3. On wake, read `events`. For each: `ctl think` your reading of it (this is the only way the

@@ -486,9 +486,9 @@ the body graphic from S2C 0x20 is a ghost body (ClassicUO `Mobile.IsDead`; docs/
 Chat rows of kind `memory` (every `ctl know` call, docs/OVERSEER.md §2) render as a foldable
 item.
 - **recall** (teal): search, brief, get and review. The headline is e.g. "recalled 'where do I
-  buy recall scrolls': 2 result(s)" or "briefed: 1 relevant, 2 standing". Below it are the
+  buy recall scrolls': 2 result(s)" or "briefed: 1 pinned, 1 relevant, 2 standing". Below it are the
   ranked entries, each with #id, a kind badge, the topic, the content, score and confidence.
-  A brief is split into "relevant here" and "standing rules".
+  A brief is split into "pinned (must recall)", "relevant here" and "standing rules".
 - **codex** (amber): inscribing (an add), confirmed, updated or retracted. For an add, the content is
   the headline, and the list shows only **related (possible conflicts)**, with similarity. For
   other writes it shows the entry.

@@ -174,6 +174,7 @@ export function memoryView(row: ChatRow): MemoryView {
   const op = typeof d.op === "string" ? d.op : "?";
   const groups: { label: string; entries: MemoryEntry[] }[] = [];
   if (op === "brief") {
+    groups.push({ label: "pinned (must recall)", entries: entries(d.pinned) });
     groups.push({ label: "relevant here", entries: entries(d.relevant) });
     groups.push({ label: "standing rules", entries: entries(d.standing) });
   } else if (op === "search" || op === "review") {
