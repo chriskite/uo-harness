@@ -147,10 +147,23 @@ and its dealings with players and the user, kept across sessions. It is exposed 
   reduced to quoted words for FTS, so FTS syntax in them is harmless. Vectors live in
   `knowledge_vec` (id, sha1 of model + text, float32 blob); every search first embeds the
   entries whose text or model changed, so writers (proxy, ctl add) never load the model.
-- **Situational brief.** `brief` builds the query from where the agent is (position, nearby NPC
-  labels, open junctures, intent, task) and adds preferences/procedures of importance ≥ 7, both
-  capped at `--limit` (12). With ~26 such entries the cap drops some, so importance alone can't
-  guarantee recall.
+- **Situational brief.** `brief` gives only the playing character's entries: an entry tagged
+  `char:<name>` (e.g. `char:hackworth`) applies to that character alone, untagged ones to all;
+  with the proxy down (character unknown) everything applies. Lists:
+  - `standing`: unlocated preferences/procedures of importance ≥ 7, capped at `--limit` (12), so
+    importance alone can't guarantee recall (hence pinning, below). A located one (`--at`) is a
+    place procedure and comes up as relevant when there.
+  - `relevant`: only what the situation calls up, never filler: entries located within
+    NEAR_RADIUS (40 tiles), entries whose `entities` name a mobile in view (the label's name part,
+    "Karmina" of "Karmina the alchemist"), and semantic hits on the intent, open junctures and
+    task with cosine ≥ BRIEF_MIN_SIM (0.65). Until 2026-10-04 it was the top 12 of one query made
+    of every mobile's label: at the DTF guild house "PizzaParty the stablemaster" called up the
+    Shelter stablemaster's prices (cosine 0.70), and the near-only search padded the list with
+    the most important entries from anywhere.
+  - Scoped on 2026-10-04 (user: most of the brief wasn't relevant to Outland Dan): 24 entries
+    `char:testworth` (Test Shard, Horseshoe Bay home, rental room), 13 `char:hackworth`, 1
+    `char:shackleworth`, #4079 `char:outland_dan`; the NPD procedures/insights got the NPD exit or
+    entrance tile and the Horseshoe Bay lumber procedure the bank there.
 - **Pinned standing memories (since 2026-10-04, user request).** `ctl know pin ID` tags an entry
   `pinned`; `brief` returns every pinned entry in full in its own `pinned` list, uncapped and
   apart from the other two, and the overseer prompt's first loop step must read and follow them.

@@ -245,7 +245,7 @@ sessions in the memory store's `knowledge` table (docs/MEMORY.md). Kinds:
 | `know retract ID --reason R` | It was wrong: retracted with the reason, never deleted |
 | `know get ID [--history]` | One entry, with its version chain |
 | `know search [WORDS…] [--kind] [--tag]… [--near X Y \| --here] [--limit] [--all]` | Ranked recall: relevance by meaning and words (a plain-language question works), recency (14-day half-life), importance, confidence and nearness. Always returns up to `--limit` results: each carries `similarity` (cosine to the query; ≥ ~0.6 on topic, ≤ ~0.55 noise). `recall` says how it ranked: `hybrid (cuda)`, `words` if this Python lacks the embedder, `none` without query words. Loads the embedding model, so ~1.5 s slower than other `know` ops. Counts as an access |
-| `know brief [--limit]` | What to remember **now**: `pinned` (every pinned entry, in full, uncapped: the standing memories you must recall at start), then `relevant` (entries for your position, nearby NPCs, open junctures, intent and task) and `standing` (other procedures/preferences of importance ≥ 7), each capped at `--limit` |
+| `know brief [--limit]` | What to remember **now**, for the character you play only (entries tagged `char:<other name>` are left out): `pinned` (every pinned entry, in full, uncapped: the standing memories you must recall at start), `standing` (other unlocated procedures/preferences of importance ≥ 7) and `relevant`: only what the situation calls up: entries located within 40 tiles, entries about a mobile in view (its name in the entry's `--entity`), and entries that mean what your intent, open junctures or task say (similarity ≥ 0.65). Empty when nothing known applies here. `character` and `names` in the reply show what it matched on |
 | `know pin ID` / `know unpin ID` | Make an entry a **standing memory** that every `know brief` returns in `pinned` (the tag `pinned`; a new version keeps it), or stop that. For what the user says the overseer must always know, e.g. #4079 "DTF guild house rune library" (pinned 2026-10-04 by the user's request) |
 | `know review [--stale-days 30]` | Maintenance: unconfirmed inferences, entries never recalled in 30 days, topics with several active facts (possible contradictions) |
 | `know stats` | Counts by kind and status |
@@ -442,6 +442,11 @@ Paste this (or point the session at this section) to start an overseer.
 >      ("Subrey the provisioner in Shelter sells hatchets for 25 gp", not "he sells them for 25"):
 >      search finds entries by their topic and content, so an entry that leans on context you had
 >      at the time is lost.
+>    - **Scope what is about one character** (its goals, gear, skills, bank box, home, rental
+>      room, user directives given for it, its episodes) with `--tags char:<name>` (lowercase,
+>      spaces as `_`: `char:outland_dan`, `char:hackworth`). `know brief` leaves other
+>      characters' entries out. Facts about places and game rules stay untagged, and give a place
+>      `--at X Y` so it comes up when you are there.
 >    - When the reply lists `related` entries that your new fact contradicts, supersede
 >      (`--supersedes ID`) or retract the old one.
 >    - When something known proves true again, `know confirm` it.

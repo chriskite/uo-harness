@@ -204,6 +204,42 @@ def test_pinned():
     check("a superseded entry can't be pinned", refused)
 
 
+def test_brief_scope():
+    print("== brief: only this character's entries, and only what the situation calls up ==")
+    k, clock = fresh()
+    general = k.add("preference", "combat rule", "Never attack players", source="user", importance=9)["id"]
+    hack = k.add("preference", "hackworth lumber goal", "Lumber on Shelter until 5000 boards", source="user",
+                 importance=9, tags=["char:hackworth"])["id"]
+    dan = k.add("procedure", "guild library", "Use the DTF guild tomes", importance=8, tags=["char:outland_dan"])["id"]
+    k.pin(dan)
+    k.pin(hack)
+    npd = k.add("procedure", "npd gold farming", "Stand on the NPD exit tile and pull mongbats",
+                importance=8, at=(0, 5535, 529))["id"]
+    stable = k.add("fact", "shelter stablemaster prices", "Carlton the stablemaster sells horses for 750 gp",
+                   importance=7)["id"]
+    karmina = k.add("fact", "alchemist", "Karmina sells potions in bulk", entities=["Karmina"])["id"]
+    word = k.add("fact", "alchemy", "An alchemist named nothing in particular", importance=9)["id"]
+    here = k.add("fact", "guild house door", "The guild house door is at the east wall", at=(0, 4160, 1430))["id"]
+    far = k.add("fact", "far grove", "A grove 100 tiles away", at=(0, 4252, 1429), importance=9)["id"]
+    sit = {"character": "Outland Dan", "pos": [4152, 1429, 6], "facet": 0,
+           "mobiles": ["Karmina the alchemist", "PizzaParty the stablemaster"], "intent": "", "junctures": []}
+    b = k.brief(sit)
+    ids = lambda key: [e["id"] for e in b[key]]  # noqa: E731
+    check("another character's entries are out of every list, its pin too; untagged ones stay",
+          ids("pinned") == [dan] and hack not in ids("standing") + ids("relevant") and general in ids("standing"),
+          str(b))
+    check("a located procedure isn't a standing rule anywhere (it comes up where it is)", npd not in ids("standing"))
+    check("relevant = what is here and who is here: the entry about Karmina (by name) and the one 8 tiles off; "
+          "not titles, far places or important filler",
+          sorted(ids("relevant")) == sorted([karmina, here]) and stable not in ids("relevant")
+          and word not in ids("relevant") and far not in ids("relevant"), str(b["relevant"]))
+    b = k.brief({**sit, "character": "Hackworth"})
+    check("as Hackworth: his goal and pin come back, Dan's don't",
+          [e["id"] for e in b["pinned"]] == [hack] and dan not in [e["id"] for e in b["standing"]])
+    b = k.brief({})
+    check("character unknown (proxy down): every entry applies", {dan, hack} <= {e["id"] for e in b["pinned"]})
+
+
 class FakeEmbedder:
     """Words map to concept axes, so 'dying' and 'resurrect' meet without sharing a word."""
     MODEL = "fake-concepts"
@@ -256,10 +292,14 @@ def test_semantic():
           emb.embedded == n + 1 and res[0]["id"] == bank, str(res[:1]))
     check("a word match still counts: 'walnut' finds the tree fact first",
           k.search("walnut", touch=False)[0]["id"] == tree)
+    b = k.brief({"intent": "my character died, find a healer", "junctures": []})
+    check("brief by meaning: a dying intent calls up the resurrect procedure, not the unrelated tree/bank facts",
+          [e["id"] for e in b["relevant"]] == [proc], str(b["relevant"]))
 
 
 def main():
-    for t in (test_write_discipline, test_versions, test_recall, test_brief_review, test_pinned, test_semantic):
+    for t in (test_write_discipline, test_versions, test_recall, test_brief_review, test_pinned, test_brief_scope,
+              test_semantic):
         t()
     print(f"\nknowledge: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     return 1 if FAILURES else 0

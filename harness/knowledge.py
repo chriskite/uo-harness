@@ -61,6 +61,10 @@ CONFIRM_STEP = 0.5                   # a confirmation closes this share of the g
 CANDIDATES = 60                      # hybrid recall: entries taken from each ranking
 RRF_K = 60                           # reciprocal rank fusion constant
 PIN_TAG = "pinned"                   # must-recall at overseer start: brief() lists all of them
+CHAR_PREFIX = "char:"                # char:<name> tags scope an entry to those characters (char_tag)
+BRIEF_MIN_SIM = 0.65                 # brief: a situation (intent/juncture) match must mean the same.
+# A bag of NPC titles ("PizzaParty the stablemaster ...") reached cosine 0.70 against far-away
+# Shelter stablemaster facts (live 2026-10-04), so names in view match by exact phrase instead.
 COLS = ("id", "kind", "topic", "content", "tags", "entities", "facet", "x", "y", "source_type",
         "source_ref", "confidence", "importance", "status", "supersedes", "superseded_by",
         "retract_reason", "confirmations", "created_t", "updated_t", "last_access_t", "access_count")
@@ -96,6 +100,23 @@ def fts_query(text: str) -> str | None:
     """A safe FTS5 query: the text's words, quoted, ORed (no syntax injection)."""
     ws = sorted(set(words(text)))
     return " OR ".join(f'"{w}"' for w in ws) if ws else None
+
+
+def char_tag(name: str) -> str:
+    """The scope tag of a character: "Outland Dan" -> "char:outland_dan"."""
+    return CHAR_PREFIX + re.sub(r"[^a-z0-9]+", "_", (name or "").strip().lower()).strip("_")
+
+
+def for_character(e: dict, character: str | None) -> bool:
+    """An entry applies to `character`: it has no char: tag, or one of them is its own.
+    Unknown character (proxy down): everything applies."""
+    scopes = [t for t in e["tags"] if t.startswith(CHAR_PREFIX)]
+    return not scopes or not character or char_tag(character) in scopes
+
+
+def proper_name(label: str) -> str:
+    """The name part of a mobile's label: "Karmina the alchemist" -> "Karmina"."""
+    return re.split(r"\s+the\s+", label or "", maxsplit=1)[0].strip()
 
 
 def _row(r) -> dict:
@@ -321,6 +342,14 @@ class Knowledge:
             cands = [(r, 0.0, None) for r in self.con.execute(sql, args).fetchall()]
         if not cands:
             return []
+        scored = self._score(cands, near)
+        out = scored[:limit]
+        if touch:
+            self._touch(out)
+        return out
+
+    def _score(self, cands, near) -> list[dict]:
+        """Entries from (row, relevance 0..1, cosine or None), scored and ranked."""
         now = self.now()
         if near is not None and len(near) == 2:
             near = (0, near[0], near[1])
@@ -342,12 +371,13 @@ class Knowledge:
                 e["dist"] = dist
             scored.append(e)
         scored.sort(key=lambda e: (-e["score"], -e["id"]))
-        out = scored[:limit]
-        if touch and out:
+        return scored
+
+    def _touch(self, entries):
+        if entries:
             self.con.executemany("UPDATE knowledge SET access_count=access_count+1, last_access_t=? WHERE id=?",
-                                 [(now, e["id"]) for e in out])
+                                 [(self.now(), e["id"]) for e in entries])
             self.con.commit()
-        return out
 
     def _hybrid(self, query, q, cols, filt, args) -> list[tuple]:
         """(row, relevance 0..1, cosine) for the CANDIDATES nearest entries by meaning and the
@@ -391,30 +421,53 @@ class Knowledge:
         self.con.commit()
 
     def brief(self, situation: dict, limit: int = 12) -> dict:
-        """What to remember now. situation: {pos: [x, y, z], facet, mobiles:
-        [names/labels], junctures: [kinds/summaries], intent: text, task: name}.
+        """What to remember now. situation: {character: name, pos: [x, y, z], facet,
+        mobiles: [names/labels], junctures: [kinds/summaries], intent: text, task: name}.
+        Only entries for this character (for_character: untagged or its char: tag).
         `pinned`: every pinned entry, uncapped (the must-recall standing memories);
         `standing`: the other procedures/preferences of importance >= 7;
-        `relevant`: what the situation calls up. No entry is in two lists."""
+        `relevant`: what this situation calls up, and nothing else: entries located
+        within NEAR_RADIUS, entries naming a mobile in view (its name as a phrase, not
+        its title), and entries that mean what the intent, open junctures or task say
+        (cosine >= BRIEF_MIN_SIM; word hits without an embedder). No entry is in two lists."""
+        char = situation.get("character")
         pos, facet = situation.get("pos"), situation.get("facet")
         near = None if not pos else (facet or 0, pos[0], pos[1])
-        terms = " ".join(str(v) for v in (
-            *(situation.get("mobiles") or ()), *(situation.get("junctures") or ()),
-            situation.get("intent") or "", situation.get("task") or "") if v)
-        pinned = self.pinned()
+        names = sorted({n for n in (proper_name(m) for m in situation.get("mobiles") or ())
+                        if len(n) >= 3 and words(n)})
+        about = " ".join(str(v) for v in (*(situation.get("junctures") or ()), situation.get("intent") or "",
+                                          situation.get("task") or "") if v)
+        pinned = [e for e in self.pinned() if for_character(e, char)]
         seen = {e["id"] for e in pinned}
-        standing = [e for e in self.search(None, kind=("preference", "procedure"), limit=50, touch=False)
-                    if e["importance"] >= 7 and e["id"] not in seen][:limit]
+        standing = [e for e in self.search(None, kind=("preference", "procedure"), limit=1000, touch=False)
+                    if e["importance"] >= 7 and e["x"] is None    # a located one comes up when there
+                    and e["id"] not in seen and for_character(e, char)][:limit]
         seen |= {e["id"] for e in standing}
-        relevant = []
-        for e in (self.search(terms, near=near, limit=limit) if terms.strip() else []) \
-                + (self.search(None, near=near, limit=limit) if near else []):
-            if e["id"] not in seen:
-                seen.add(e["id"])
-                relevant.append(e)
-        relevant.sort(key=lambda e: -e["score"])
-        return {"pinned": [_brief(e) for e in pinned], "relevant": [_brief(e) for e in relevant[:limit]],
-                "standing": [_brief(e) for e in standing], "query": terms[:300], "near": near}
+        cols = ", ".join("k." + c for c in COLS)
+        cands = {}
+        if near is not None:
+            f, x, y = near
+            for r in self.con.execute(
+                    f"SELECT {cols} FROM knowledge k WHERE k.status='active' AND k.x IS NOT NULL "
+                    "AND COALESCE(k.facet, 0)=? AND k.x BETWEEN ? AND ? AND k.y BETWEEN ? AND ?",
+                    (f or 0, x - NEAR_RADIUS, x + NEAR_RADIUS, y - NEAR_RADIUS, y + NEAR_RADIUS)):
+                cands[r[0]] = (r, 0.0, None)
+        for n in names:              # the entry is about them (--entity), not a common word in some text
+            phrase = 'entities : "' + n.replace('"', '""') + '"'
+            for r in self.con.execute(f"SELECT {cols} FROM knowledge_fts f JOIN knowledge k ON k.id = f.rowid "
+                                      "WHERE knowledge_fts MATCH ? AND k.status='active' LIMIT 50", (phrase,)):
+                cands[r[0]] = (r, 1.0, None)
+        found = {e["id"]: e for e in self._score(list(cands.values()), near)}
+        if about.strip():
+            for e in self.search(about, near=near, limit=limit, touch=False):
+                if e["id"] not in found and (self.embed is None or (e.get("similarity") or 0) >= BRIEF_MIN_SIM):
+                    found[e["id"]] = e
+        relevant = sorted((e for e in found.values() if e["id"] not in seen and for_character(e, char)),
+                          key=lambda e: (-e["score"], -e["id"]))[:limit]
+        self._touch(relevant)
+        return {"pinned": [_brief(e) for e in pinned], "relevant": [_brief(e) for e in relevant],
+                "standing": [_brief(e) for e in standing], "character": char, "names": names,
+                "query": about[:300], "near": near}
 
     def review(self, stale_days: float = 30.0, limit: int = 20) -> dict:
         """Maintenance: unconfirmed inferences, stale entries never recalled, and

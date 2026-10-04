@@ -2327,8 +2327,8 @@ def _recall_mode(k) -> str:
 
 
 def _situation(a, mem) -> dict:
-    """The current situation for knowledge recall: position, nearby NPCs,
-    open junctures, intent, running task (proxy parts only when it answers)."""
+    """The current situation for knowledge recall: the character, position, nearby
+    NPCs, open junctures, intent, running task (proxy parts only when it answers)."""
     sit = {"junctures": [f"{j['kind']} {j['summary']}" for j in mem.junctures(open_only=True, limit=10)],
            "task": " ".join(t["task"] for t in running_tasks(mem))}
     try:
@@ -2337,7 +2337,7 @@ def _situation(a, mem) -> dict:
         return sit
     if resp.get("ok"):
         s = summarize(resp)
-        sit.update(pos=s["pos"], facet=s["facet"],
+        sit.update(character=s.get("name"), pos=s["pos"], facet=s["facet"],
                    mobiles=[m["label"] or m["name"] for m in s["mobiles"][:10] if m["label"] or m["name"]],
                    intent=(s.get("intent") or {}).get("text"))
     return sit
