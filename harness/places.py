@@ -22,7 +22,7 @@ ATLAS = {"poi": "POI.xml", "caravan": "Healer_Caravans.xml", "shrine": "Shrines.
          "town": "Townships.xml", "moongate": "Moongates.xml", "dungeon": "Dungeons.xml"}
 # Place-name words that mean monsters live there (POI.xml and Witcher rune names, e.g. "Brigand
 # Camp 1", "Orc Fort 2", "Ratman Hovel", "Necromancers Swamp") [INFERENCE from the names]
-DANGER_WORDS = ("brigand", "orc", "lizardm", "savage", "daemon", "dragon", "necromancer", "ratman",
+DANGER_WORDS = ("brigan", "orc", "lizardm", "savage", "daemon", "dragon", "necromancer", "ratman",
                 "cemetery", "crypt", "graveyard", "ogre", "terathan", "harpy", "lair", "troll", "ettin",
                 "cult", "undead", "spider", "arachnid", "minotaur", "kraul", "barbaric", "tribal", "smuggler",
                 "bandit", "pirate", "haunted", "volcano", "tomb", "pits", "dungeon", "cavernam")

@@ -515,14 +515,23 @@ def regrowth(rows) -> dict:
 def overhead_prior_s(spot: dict) -> float:
     """Walk out + back between the bank and the area's edge, plus the bank work.
     A spot reached by a library rune: bank -> library walk, two recalls (out and
-    home), the 60 s harvest lockout after the recall out, and a short walk from
-    the home rune to the banker."""
+    home), the 60 s harvest lockout after the recall out, the walk from the rune's
+    landing into the grove (its discovered route, else the straight distance to
+    the area's inner half) and a short walk from the home rune to the banker."""
     if not spot.get("banker") or not spot.get("area"):
         return OVERHEAD_FIXED_S + 120.0
     if hub_of(spot):
         import places
-        lib = places.library((spot.get("access") or {}).get("library", "cambria"))
-        walk = cheb(spot["banker"]["pos"], lib["stand"]) + HOME_RUNE_TILES
+        access = spot["access"]
+        lib = places.library(access.get("library", "cambria"))
+        into = spot.get("route_tiles")
+        if into is None:
+            try:
+                r = places.witcher_rune(access["rune"])
+                into = max(0, cheb((r["x"], r["y"]), spot["area"]["center"]) - spot["area"]["radius"] // 2)
+            except (KeyError, TypeError):
+                into = 0
+        walk = cheb(spot["banker"]["pos"], lib["stand"]) + HOME_RUNE_TILES + into
         return OVERHEAD_FIXED_S + LOCKOUT_S + 2 * RECALL_TRIP_S + walk * SEC_PER_TILE
     d = max(0, cheb(spot["banker"]["pos"], spot["area"]["center"]) - spot["area"]["radius"] // 2)
     return OVERHEAD_FIXED_S + 2 * d * SEC_PER_TILE
@@ -1138,7 +1147,10 @@ def plan_from_store(memory, world: dict | None, self_serial, pos, facet, young=F
 SLUG = re.compile(r"[^a-z0-9]+")
 YOUNG_TOWNS = ("Shelter Island",)  # no hostile player actions; bank and harvesting for Young only (wiki)
 TOWN_RADIUS = 50                   # tiles from a township marker: likely inside the town region (no harvesting)
-MAX_RUNE_ROUTE = 60                # tiles: a window the rune's tile needs a longer walk into is someone else's
+RUNE_SEARCH = 200                  # tiles from a Witcher rune a grove's window centre may lie (user 2026-10-03)
+MAX_RUNE_ROUTE = 300               # tiles: the longest walk from a rune's landing into its grove
+WINDOW_GRID = 7                    # window centres lie on this global lattice (one grove, one score)
+ROUTE_TRIES = 3                    # windows per rune whose route check may fail before the rune is given up
 
 
 def floor_z(walk, x, y) -> int:
@@ -1232,82 +1244,143 @@ def discover(trees_fn, bank_z_fn, banks, guard_points, spots, ring=(30, 110), ra
     return out
 
 
-def best_window(trees_fn, x, y, search: int, radius: int):
-    """(tree count, (cx, cy)) of the radius-window with the most trees whose
-    centre lies within `search` tiles of (x, y) (7-tile grid)."""
-    pts = [(tx, ty) for tx, ty, _z, _g in trees_fn(x - search - radius, y - search - radius,
-                                                    x + search + radius, y + search + radius)]
-    best = (0, (x, y))
-    for cx in range(x - search, x + search + 1, 7):
-        for cy in range(y - search, y + search + 1, 7):
-            n = sum(1 for tx, ty in pts if cheb((tx, ty), (cx, cy)) <= radius)
-            if n > best[0] or (n == best[0] and cheb((cx, cy), (x, y)) < cheb(best[1], (x, y))):
-                best = (n, (cx, cy))
-    return best
+def grove_windows(pts, x, y, search: int, radius: int):
+    """Tree counts of every radius-window (side 2·radius+1) centred on the global
+    WINDOW_GRID lattice within `search` tiles (Chebyshev) of (x, y), as flat numpy
+    arrays (counts, cx, cy). pts: int array of tree (x, y) rows. The lattice is
+    global, so runes near one grove score its windows alike. A summed-area table
+    over the search box makes each count O(1)."""
+    import numpy as np
+    x0, y0 = x - search - radius, y - search - radius
+    side = 2 * (search + radius) + 1
+    m = (pts[:, 0] >= x0) & (pts[:, 0] < x0 + side) & (pts[:, 1] >= y0) & (pts[:, 1] < y0 + side)
+    grid = np.zeros((side + 1, side + 1), dtype=np.int32)
+    np.add.at(grid, (pts[m, 1] - y0 + 1, pts[m, 0] - x0 + 1), 1)
+    sat = grid.cumsum(0).cumsum(1)
+    g = WINDOW_GRID
+    xs = np.arange(-((search - x) // g) * g, x + search + 1, g)
+    ys = np.arange(-((search - y) // g) * g, y + search + 1, g)
+    cx, cy = (a.ravel() for a in np.meshgrid(xs, ys))
+    lx, hx = cx - radius - x0, cx + radius + 1 - x0
+    ly, hy = cy - radius - y0, cy + radius + 1 - y0
+    return sat[hy, hx] - sat[ly, hx] - sat[hy, lx] + sat[ly, lx], cx, cy
 
 
-def discover_witcher(trees_fn, runes, spots, home_bank, *, library: str = "cambria", radius=14, search=21,
-                     min_trees=25, route_fn=None, include_dangerous=False, towns=(), guard_points=()) -> tuple:
-    """Candidate spots reached by Witcher runes (places.witcher()["runes"]): for each
-    rune, the tree-densest window near it (best_window); kept with at least
-    min_trees trees, a walking route from the rune's tile into it (route_fn), no
-    overlap with a known spot, and (unless include_dangerous) no monster word in
-    the rune's name (places.danger_hint: "Brigand Camp", "Orc Fort", ...). The
-    way out is the library tome's recall, the way home our book's default rune
-    (home_bank: {name, pos, serial} of the bank next to it). Returns
-    (candidates, {reason: count} of the runes left out)."""
+def _lattice(c, reach: int) -> set:
+    """WINDOW_GRID lattice keys whose centre lies within `reach` tiles of c."""
+    g = WINDOW_GRID
+    return {(kx, ky) for kx in range(-((reach - c[0]) // g), (c[0] + reach) // g + 1)
+            for ky in range(-((reach - c[1]) // g), (c[1] + reach) // g + 1)}
+
+
+def discover_witcher(trees_fn, runes, spots, home_bank, *, library: str = "cambria", radius=14,
+                     search=RUNE_SEARCH, min_trees=25, max_route=MAX_RUNE_ROUTE, route_fn=None,
+                     include_dangerous=False, towns=(), guard_points=()) -> tuple:
+    """Candidate spots reached by Witcher runes (places.witcher()["runes"]), at most
+    one per rune. Every window with at least min_trees trees whose centre lies within
+    `search` tiles of an eligible rune (grove_windows) is ranked globally, most
+    trees first, then nearest to its rune; down that list a window is taken for its
+    rune unless the rune already has one, it overlaps a known spot or a window taken
+    before, it lies in or by a town or a learned guard point, or the walking route
+    from the rune's tile into it (route_fn) is missing or longer than max_route
+    (after ROUTE_TRIES such failures the rune is given up). So a grove two runes
+    reach goes to the nearer one, and a rune whose best grove is taken gets its
+    next best. Runes named after monster places (places.danger_hint: "Brigand
+    Camp", "Orc Fort", ...) are left out unless include_dangerous, and so are runes
+    that already have a spot (`witcher_<id>`). The way out is the library tome's
+    recall, the way home our book's default rune (home_bank: {name, pos, serial} of
+    the bank next to it). Returns (candidates, {reason: count} of the runes left out)."""
+    import numpy as np
     import places
-    taken = [(tuple(s["area"]["center"]), s["area"]["radius"]) for s in spots.values() if s.get("area")]
-    out, skipped = [], {}
+    skipped = {}
 
     def skip(why):
         skipped[why] = skipped.get(why, 0) + 1
+    eligible = []
     for r in runes:
         if r.get("x") is None:
             skip("no coordinates")
-            continue
-        danger = places.danger_hint(r["name"])
-        if danger and not include_dangerous:
+        elif (danger := places.danger_hint(r["name"])) and not include_dangerous:
             skip("monster name")
+        elif f"witcher_{r['id']}" in spots:
+            skip("already a spot")
+        else:
+            eligible.append((r, danger))
+    if not eligible:
+        return [], skipped
+    reach = search + radius
+    xs, ys = [r["x"] for r, _ in eligible], [r["y"] for r, _ in eligible]
+    pts = np.array([(tx, ty) for tx, ty, _z, _g in trees_fn(min(xs) - reach, min(ys) - reach,
+                                                            max(xs) + reach, max(ys) + reach)],
+                   dtype=np.int64).reshape(-1, 2)
+    options = []                                     # (-trees, tiles from the rune, rune index, cx, cy)
+    for i, (r, _) in enumerate(eligible):
+        n, cx, cy = grove_windows(pts, r["x"], r["y"], search, radius)
+        k = n >= min_trees
+        d = np.maximum(np.abs(cx[k] - r["x"]), np.abs(cy[k] - r["y"]))
+        options.extend(zip((-n[k]).tolist(), d.tolist(), [i] * int(k.sum()), cx[k].tolist(), cy[k].tolist()))
+    options.sort()
+    taken = set()
+    for s in spots.values():
+        if s.get("area"):
+            taken |= _lattice(s["area"]["center"], s["area"]["radius"] + radius)
+    townish = set()
+    for t in towns:
+        townish |= _lattice(t, TOWN_RADIUS)
+    for gp in guard_points:
+        townish |= _lattice(gp, radius + 4)
+    out, done, failed, hits, has_option = [], set(), {}, {}, set()
+    for neg_n, d, i, cx, cy in options:
+        has_option.add(i)
+        if i in done or failed.get(i, 0) >= ROUTE_TRIES:
             continue
-        n, (cx, cy) = best_window(trees_fn, r["x"], r["y"], search, radius)
-        if n < min_trees:
-            skip("few trees")
+        key = (cx // WINDOW_GRID, cy // WINDOW_GRID)
+        if key in taken or key in townish:
+            hits.setdefault(i, set()).add("taken" if key in taken else "town")
             continue
-        if any(cheb((cx, cy), c) <= rr + radius for c, rr in taken):
-            skip("overlaps a spot")
-            continue
-        if any(cheb((cx, cy), t) <= TOWN_RADIUS for t in towns) \
-                or any(cheb((cx, cy), g) <= radius + 4 for g in guard_points):
-            skip("in or by a town (no harvesting there)")
-            continue
+        r, danger = eligible[i]
         route = route_fn((r["x"], r["y"]), (cx, cy), radius) if route_fn is not None else None
-        if route_fn is not None and (route is None or route > MAX_RUNE_ROUTE):
-            skip("no short route from the rune")
+        if route_fn is not None and (route is None or route > max_route):
+            failed[i] = failed.get(i, 0) + 1
             continue
-        out.append({"id": f"witcher_{r['id']}", "name": f"Witcher {r['id']}: {r['name']} ({n} trees)",
+        n = -neg_n
+        out.append({"id": f"witcher_{r['id']}", "name": f"Witcher {r['id']}: {r['name']} ({n} trees, {d} tiles off)",
                     "facet": 0, "area": {"center": [cx, cy], "radius": radius,
-                                         "note": f"{n} tree statics near Witcher rune {r['id']} ({r['x']},{r['y']})"},
+                                         "note": f"{n} tree statics {d} tiles from Witcher rune {r['id']} "
+                                                 f"({r['x']},{r['y']})"},
                     "trees": [], "pvp": True,
                     "access": {"method": "witcher", "rune": r["id"], "library": library},
                     "home": {"method": "recall"},
                     "banker": dict(home_bank), "hazard_prior": 0.5, "danger_hint": danger,
                     "travel": f"the {library} rune library (Witcher rune {r['id']})", "travel_min": 10,
-                    "tree_count": n, "route_tiles": route})
-        taken.append(((cx, cy), radius))
+                    "tree_count": n, "rune_distance": d, "route_tiles": route})
+        done.add(i)
+        taken |= _lattice((cx, cy), 2 * radius)
+    for i in range(len(eligible)):
+        if i in done:
+            continue
+        if i not in has_option:
+            skip("few trees")
+        elif failed.get(i):
+            skip("no short route from the rune")
+        elif "taken" in hits.get(i, ()):
+            skip("its groves are taken (a spot or a nearer/denser candidate)")
+        else:
+            skip("in or by a town (no harvesting there)")
     return out, skipped
 
 
-def make_route_fn(walk, max_expand: int = 60000):
+def make_route_fn(walk):
     """route_fn for discover*: the planned walking route (pathfind.plan on the
-    map) from a start tile into a window, as its length in tiles, or None."""
+    map) from a start tile into a window, as its length in tiles, or None. It
+    plans with the runner's search budget (pathfind.plan's default), so a route
+    found here is one the runner's Mover can plan too."""
     import nav
     import pathfind
 
     def route(start, center, radius):
         objs = walk.objects(start[0], start[1])
         z = next((o[0] + o[1] for o in objs if o[4][0] in ("flat", "item")), 0) if objs else 0
-        path = pathfind.plan(walk, (start[0], start[1], z), nav.within(tuple(center), max(1, radius // 2)),
-                             max_expand=max_expand)
+        path = pathfind.plan(walk, (start[0], start[1], z), nav.within(tuple(center), max(1, radius // 2)))
         return None if path is None else len(path) - 1
     return route

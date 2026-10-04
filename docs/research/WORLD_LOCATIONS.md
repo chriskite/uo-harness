@@ -71,11 +71,14 @@ A spot is a tree area plus **how we get there** (`access`) and **how we get home
   - Spot `access {"method": "witcher", "rune": N, "library": "cambria"}`: the runner walks to the
     tome, recalls out, and waits out the 60 s lockout. Spot `home {"method": "recall"}`: it recalls
     with our book's default rune (the PK escape's) and walks to the spot's banker (LUMBER_LOOP §13).
-  - `ctl lumber discover --from witcher`: the tree-densest window within 21 tiles of each rune. It
-    keeps windows with ≥ 25 trees that the rune's tile has a walking route of ≤ 60 tiles into. It
-    drops runes named after monster places, towns and learned guard points. On 2026-10-03 that left
-    62 candidates out of 360 runes (212 had too few trees, 65 had monster names, 16 had no short
-    route; dry run).
+  - `ctl lumber discover --from witcher`: since 2026-10-03 (user) one grove per rune, up to 200
+    tiles from it. Windows of ≥ 25 trees are ranked across all runes, most trees first and then
+    nearest to the rune, and the rune's landing needs a walking route of ≤ 300 tiles into its
+    window. Runes named after monster places, towns and learned guard points are left out. Until
+    then it searched only 21 tiles around each rune (routes ≤ 60): 62 candidates out of 360 runes,
+    212 with too few trees. A throwaway probe of the 200-tile search on 2026-10-03 found 126
+    groves (25–204 trees, median 96 tiles from the rune, median walk 113 tiles; 433 route checks
+    in ~250 s).
   - The planner treats standing at the library as being at hand for all its rune spots. The walk to
     the library, both recalls and the lockout are part of the trip overhead (LUMBER_LOOP §6).
 - **Not built:**

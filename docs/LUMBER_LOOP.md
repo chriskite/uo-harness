@@ -218,9 +218,14 @@ Decision and rejected alternatives: docs/PLAN.md "Self-optimizing lumber".
 `requires_young`, `hazard_prior`, `travel`, `travel_min`). Seeds: `harness/data/lumber_spots.json`
 (Shelter, Horseshoe Bay, Corpse Creek, Terran; they replace the per-venue `loops/lumber_*.json`).
 The store's `lumber_spots` table holds the spots the overseer adds and the candidates `ctl lumber
-discover` proposes from the map (tree-dense windows 30–110 tiles from each bank marker, not next to
-a learned guard point, not overlapping a known spot), and overrides a seed's status. Only `active`
-spots are planned; a candidate becomes active when the overseer approves it.
+discover` proposes from the map (tree-dense windows 30–110 tiles from each bank marker, or since
+2026-10-03 up to 200 tiles from each Witcher rune with a walk of at most 300 tiles from its landing;
+not next to a learned guard point, not overlapping a known spot; each discovery replaces its own
+unreviewed candidates), and overrides a seed's status. Only `active` spots are planned; a candidate
+becomes active when the overseer approves it. The tree count only ranks candidates: the planner's
+rate comes from trips alone (live 2026-10-03, density didn't predict logs per field hour across
+the 7 spots with trips; it bounds how much a spot holds before it runs dry, which trip size
+doesn't model yet).
 
 **Evidence.** Every trip writes an episode row, aborted ones too (§13), with `spot`, `outcome`/`why`,
 the phases, `walk_out_s` (start to first chop), `chop_s` (attempts and the pauses between them,

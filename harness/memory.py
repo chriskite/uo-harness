@@ -456,6 +456,11 @@ class Memory:
             (spot_id, status, json.dumps(data), reason, source, t, t))
         self.con.commit()
 
+    def lumber_spot_delete(self, spot_id: str):
+        """Remove a spot row (`ctl lumber discover` replacing its own earlier candidates)."""
+        self.con.execute("DELETE FROM lumber_spots WHERE id = ?", (spot_id,))
+        self.con.commit()
+
     def price_record(self, item: str, price_gp: float, source: str, note: str | None = None,
                      t: float | None = None) -> int:
         cur = self.con.execute("INSERT INTO prices(item, price_gp, t, source, note) VALUES(?,?,?,?,?)",

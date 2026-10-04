@@ -2491,7 +2491,13 @@ def cmd_lumber(a, mem):
         umap = uomap.UoMap(a.facet)
         walk = pathfind.Walk(umap)
         route_fn = None if a.no_route_check else lumber_opt.make_route_fn(walk)
-        spots = lumber_opt.load_spots(mem)
+        all_spots = lumber_opt.load_spots(mem)
+        # A new discovery replaces this source's earlier candidates nobody has acted on;
+        # approved (active) and disabled spots stay and keep their ground.
+        replaced = {sid for sid, s in all_spots.items()
+                    if s["status"] == "candidate" and s.get("source") == "discover"
+                    and ("witcher" if lumber_opt.hub_of(s) else "banks") == a.source}
+        spots = {sid: s for sid, s in all_spots.items() if sid not in replaced}
         banks = [b for b in lumber_opt.bank_list() if b[2] == a.facet
                  and (not a.bank or any(w.lower() in b[0].lower() for w in a.bank))]
         skipped = {}
@@ -2506,7 +2512,9 @@ def cmd_lumber(a, mem):
             home = {"serial": "0x00000000", "name": f"{town} bank (where the home rune is marked)", "pos": [hx, hy, hz]}
             found, skipped = lumber_opt.discover_witcher(
                 umap.find_trees, places.witcher()["runes"], spots, home, library=a.library, radius=a.radius,
-                min_trees=a.min_trees, route_fn=route_fn, include_dangerous=a.include_dangerous,
+                search=lumber_opt.RUNE_SEARCH if a.search is None else a.search, min_trees=a.min_trees,
+                max_route=lumber_opt.MAX_RUNE_ROUTE if a.max_route is None else a.max_route, route_fn=route_fn,
+                include_dangerous=a.include_dangerous,
                 towns=[(t["x"], t["y"]) for t in places.atlas(("town",)) if t["facet"] == a.facet],
                 guard_points=mem.guard_points(a.facet))
         else:
@@ -2514,18 +2522,16 @@ def cmd_lumber(a, mem):
                                         mem.guard_points(a.facet), spots, ring=tuple(a.ring), radius=a.radius,
                                         min_trees=a.min_trees, per_bank=a.per_bank, route_fn=route_fn)
         found.sort(key=lambda s: -s["tree_count"])
-        pending = sum(1 for s in spots.values() if s["status"] == "candidate")
-        room = max(0, a.max_pending - pending)
-        if len(found) > room:
-            skipped["over the pending cap"] = len(found) - room
-            found = found[:room]
         if not a.dry_run:
+            for sid in replaced - {s["id"] for s in found}:
+                mem.lumber_spot_delete(sid)
             for s in found:
                 mem.lumber_spot_put(s["id"], "candidate", s, "discover")
-            mem.chat_post("overseer", f"lumber discover ({a.source}): {len(found)} candidate spot(s)", "action",
+            mem.chat_post("overseer", f"lumber discover ({a.source}): {len(found)} candidate spot(s), "
+                                      f"replacing {len(replaced)}", "action",
                           data={"cmd": "lumber discover", "ids": [s["id"] for s in found]})
         return {"ok": True, "from": a.source, "banks": [b[0] for b in banks] if a.source == "banks" else None,
-                "candidates": found, "left_out": skipped, "pending_before": pending, "saved": not a.dry_run,
+                "candidates": found, "left_out": skipped, "replaced": len(replaced), "saved": not a.dry_run,
                 "next": "inspect each with `ctl map` near its area (no dungeon, outside town), then "
                         "`ctl lumber spot set <id> --status active` or `--status disabled --reason ...`"}
     if op == "price":
@@ -2698,8 +2704,10 @@ def _lumber_parser(sub):
     q.add_argument("--radius", type=int, default=14)
     q.add_argument("--min-trees", type=int, default=25)
     q.add_argument("--per-bank", type=int, default=3)
-    q.add_argument("--max-pending", type=int, default=30,
-                   help="add candidates (most trees first) only while fewer than this many wait for approval")
+    q.add_argument("--search", type=int, default=None,
+                   help="witcher: grove window centres up to this many tiles from the rune (default 200)")
+    q.add_argument("--max-route", type=int, default=None,
+                   help="witcher: the longest walk (tiles) from the rune's landing into its grove (default 300)")
     q.add_argument("--no-route-check", action="store_true", help="skip the walking-route check (faster)")
     q.add_argument("--dry-run", action="store_true", help="list, don't save")
     q = ls.add_parser("price", help="record an observed price, e.g. hatchet:copper 1200, board:ordinary 9, "

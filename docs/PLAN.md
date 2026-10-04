@@ -446,6 +446,18 @@ plus the store, hatchets in `harness/data/hatchets.json`; the model is docs/LUMB
   choice; the LUMBER_LOOP §7 rule that a venue change needs the user stays for structural
   changes (new loop states, where to deed). Rejected: auto-activating every map candidate (a
   dungeon mouth or a walled garden would cost deaths and wasted trips before the data caught up).
+- **Witcher groves up to 200 tiles from the rune (user, 2026-10-03).** The first search looked only
+  21 tiles around each rune, and 212 of 360 runes had too few trees within that. Now one grove per
+  rune, up to 200 tiles away, with a walk of at most 300 tiles from its landing. Windows sit on one
+  global 7-tile lattice and are ranked across all runes (most trees, then nearest), so a grove two
+  runes reach goes to the nearer one instead of to whichever rune came first, and a rune whose best
+  grove is taken gets its next best. Tree counts come from a summed-area table (numpy, already a
+  ctl dependency through knowledge.py); the route check uses the runner's planning budget (30 000
+  expansions, was 60 000), so a candidate's walk is one the Mover can plan. A discovery replaces its
+  own unreviewed candidates (the 30-candidate pending cap is gone: with replacement it would have
+  dropped good groves). The overhead prior now counts the walk from the rune into the grove.
+  Rejected: several groves per rune (adjacent windows of one forest would crowd the list), and
+  ranking by tree count net of the walk (a 300-tile walk is ~2 min against an hour's trip).
 - **Hatchets by expected net value, prices from observation.** Wear is one use per successful chop
   (measured, YOUNG_DEMOS); a hatchet that isn't newbied is lost on death (Terran: the corpse kept
   it). With no price, a hatchet isn't used and the plan gives the break-even price instead of

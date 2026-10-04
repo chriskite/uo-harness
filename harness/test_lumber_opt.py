@@ -449,10 +449,35 @@ def test_discover_witcher():
           skipped == {"monster name": 1, "in or by a town (no harvesting there)": 1,
                       "no short route from the rune": 1, "few trees": 1}, skipped)
     check("monster words in place names", places.danger_hint("Orc Fort 2") == ["orc"]
-          and places.danger_hint("Western Ruins Brigands 3") == ["brigand"] and places.danger_hint("Cedar Forest") == [])
+          and places.danger_hint("Western Ruins Brigands 3") == ["brigan"] and places.danger_hint("Brigan Camp 2") == ["brigan"]
+          and places.danger_hint("Cedar Forest") == [])
     check("the committed table: 360 runes, each in one of the 14 Cambria tomes",
           len(places.witcher()["runes"]) == 360 and len(places.library()["tomes"]) == 14
           and places.witcher_rune("286")["name"] == "Midlands Ruins 1 (South)")
+    # Up to 200 tiles out: a grove two runes reach goes to the nearer rune; a rune whose
+    # best grove is taken gets its next best; one with nothing else left is reported.
+    far = [{"id": "10", "name": "West Field", "x": 6000, "y": 1000, "tome": "0x1"},
+           {"id": "11", "name": "East Field", "x": 6260, "y": 1000, "tome": "0x1"},
+           {"id": "12", "name": "South Field", "x": 6150, "y": 1200, "tome": "0x1"}]
+    big = [(6150 + dx, 1010 + dy, 0, 0x0CE0) for dx in range(-8, 9, 2) for dy in range(-8, 9, 2)]   # 81
+    small = [(5900 + dx, 1000 + dy, 0, 0x0CE0) for dx in range(-5, 7, 2) for dy in range(-5, 7, 2)]  # 36
+    fn2 = lambda x0, y0, x1, y1: [t for t in big + small if x0 <= t[0] <= x1 and y0 <= t[1] <= y1]  # noqa: E731
+    found2, skipped2 = lo.discover_witcher(fn2, far, {}, home, route_fn=lambda s, c, r: lo.cheb(s, c))
+    got = {s["id"]: (s["tree_count"], s["area"]["center"]) for s in found2}
+    check("the 81-tree grove 110 tiles from rune 11 (150 from rune 10) goes to rune 11",
+          got.get("witcher_11", (0,))[0] == 81 and lo.cheb(got["witcher_11"][1], (6150, 1010)) <= 7, got)
+    check("rune 10 gets its next best grove, 100 tiles west (the window nearest the rune that holds all of it)",
+          got.get("witcher_10", (0,))[0] == 36 and lo.cheb(got["witcher_10"][1], (5900, 1000)) <= 14, got)
+    check("rune 12 reaches only the taken grove",
+          "witcher_12" not in got and skipped2 == {"its groves are taken (a spot or a nearer/denser candidate)": 1},
+          skipped2)
+    s11 = next(s for s in found2 if s["id"] == "witcher_11")
+    check("its overhead prior includes the walk from the rune into the grove",
+          abs(lo.overhead_prior_s(s11) - lo.overhead_prior_s({**s11, "route_tiles": 0})
+              - s11["route_tiles"] * lo.SEC_PER_TILE) < 1e-6 and s11["route_tiles"] >= 100, s11)
+    check("a rune that already has a spot is left alone",
+          lo.discover_witcher(fn2, far[1:2], {"witcher_11": spot("witcher_11", 1, 1)}, home)
+          == ([], {"already a spot": 1}))
 
 
 def test_travel_costs():
