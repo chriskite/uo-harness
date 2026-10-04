@@ -728,6 +728,47 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     no timeout, HP, creature or speech checks.
   - **Live check (TestWorth, Test Shard):** the runner's path with a fake red, 2.11 s from press
     to arrival. `test_escape.py` pins the gump parsing on the captured layouts.
+- **Blind waits: every wait watches (since 2026-10-03; `LumberLoop.pause` / `wait_for` /
+  `drop_cursor`):**
+  - **The death that showed it (Hackworth, Terran wilds, 2026-10-03, store events):** the runner
+    double-clicked the hatchet at 19:07:54.467 and the cursor came at 54.519. Bastet (red,
+    mounted) came into view by 54.696 (the client's on-sight queries; "Now tracking: Bastet (10
+    spaces)" 55.731). The runner still answered the chop cursor at 56.611, after a 2.1 s human
+    `aim` pause. Only then did it read the state: tome double-click at 57.195, Kal Ort Por at
+    57.356, **2.5 s after sight**. "Bastet is attacking you!" came at 56.689, and his first hit
+    broke the cast. Cause: `Human.wait` was a plain `time.sleep`, and `Link.wait` (the wait for
+    the cursor, the logs, the conversion, the bank box) reads state without the threat checks.
+    The runner was blind in every human pause (aim, use, read, between, captcha, find, menu,
+    walking pauses) and every result wait. Only `self.state()` (the attempt loop, the Mover's
+    per-step guard) ran `check_threats`.
+  - **Now:** `Human` spends every pause through `Human.sleep(seconds, kind)` (plain sleep by
+    default; the step cadence stays a plain sleep, and the Mover's guard runs after every step).
+    The runner passes `pause`, which reads the state and runs `look` (the main tick's ledger +
+    `check_threats` with tracking, `escape=False` in a speech hold) every `LOOK_EVERY_S` (0.2 s)
+    and once more at the end, right before the action it delays. A threat raises out of the
+    pause at once, and the log says `the <kind> pause cut short X s into its Y s`. The result
+    waits use `wait_for` (`link.wait` with `look` on every read): the hatchet's cursor, the
+    chop's logs, the conversion, the tome in view, the bank box, a deposit. The travel-lockout
+    wait, the captcha polls and the speech hold's 1 s polls (threats every 0.2 s now, not 1 s)
+    use `pause` too. The exception is the drag pause (`BLIND_PAUSES`): nothing may come between
+    a lift and its drop. The start-of-run tracking pass runs under `guarded`, since its pauses
+    can now raise a creature escape.
+  - **A cursor up when a threat fires:** `recall_out`, `flee_to_guards` and `post_threat`
+    (escape walks and stops) first cancel any target cursor that is up (the chop's, the log
+    target's, any other) with the client's Esc: `0x6C` cancel echoing the cursor, as
+    `loop_hunt.cancel` does. The proxy then clears the client's copy (`target_cancel_client`).
+    So the book's double-click never goes out under our own cursor, and no chop target is
+    answered after the threat. If the hatchet was double-clicked but its cursor hasn't come
+    yet, the runner waits up to `TOOL_CURSOR_WAIT_S` (0.5 s) for it and then cancels it.
+  - **Measured:** the `recall` job event carries `react_s`: first sight → the escape's first
+    packet (the book's double-click). First sight is the proxy's packet time (`seen_t`) of the
+    threat (or of a swinger) on the first state read that showed it, or the first swing at us.
+    It is null for a tracking hit beyond the view. The event also carries `cursor_cancelled`.
+    Simulated (`test_loop_lumber.py red_aim`: a red 0.3 s after the chop's cursor, inside a
+    0.96 s aim pause, `--human normal`; 3 runs): from the red's 0x20, the cancel went out
+    0.001–0.20 s later and the runebook double-click 1 ms after the cancel, depending on where in
+    the 0.2 s read cycle the red lands. `react_s` matched (0.0–0.2). The old runner answered the
+    chop cursor and double-clicked the book 0.91 s after sight, and the scenario fails against it.
 - **Tracking reds (since 2026-10-03, user order: "while lumbering, always be tracking reds";
   `harness/tracking.py`, shared with `ctl act track`):**
   - **Measured first (live store read-only, 2026-10-03 ~16:30: 940 k events, 57 sessions

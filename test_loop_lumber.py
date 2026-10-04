@@ -36,6 +36,8 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
   casts from 10 tiles; the runner walks out of its 12-tile reach and chops on (banks), or, when it
   outranges the walk-away and hits again, recalls home without converting
 - wary: a war-mode creature by the nearest tree: the farther tree first, the near one once it has gone
+- red_aim (§13 "Blind waits"): at the library spot a red comes into view during the chop's human aim pause
+  (--human normal): the cursor is cancelled and the recall home pressed within REACT_MAX_S of sight, no chop target
 Plus unit checks of hatchet() (worn, else the shallowest in the pack's bags) and hit_verdict().
 Named scenarios run alone: `python test_loop_lumber.py gazer_run wary`.
 
@@ -127,6 +129,8 @@ GAZER, GAZER_BODY, GAZER_DMG, GAZER_CAST_S = 0x0000CA5E, 22, 10, 2.5
 LIB_FAR_TREE = {"x": 46, "y": 272, "z": 0, "graphic": "0x0CE0", "stand": [46, 271]}
 WARY, WARY_POS = 0x0000BA76, (113, 201)                    # 2 tiles from the good tree, 13 from the start
 WEST_TREE = {"x": 86, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [87, 200]}      # 13 steps west; good: 10
+# red_aim (LUMBER_LOOP.md §13 "Blind waits"; live 2026-10-03, Bastet came into view during the chop's aim pause)
+BASTET, RED_AIM_S, REACT_MAX_S = 0x0009BA57, 0.3, 0.5    # a red, in view this long after the chop's cursor
 
 
 def check(name, cond, extra=""):
@@ -202,10 +206,10 @@ def sys_text(text):
                + b"System".ljust(30, b"\x00") + text.encode() + b"\x00")
 
 
-def player_update(serial, x, y):
+def player_update(serial, x, y, noto=1):
     """0x20 MobileUpdate (Outlands layout, as captured in 123206): a human with the player
-    flag 0x20, notoriety 1 (a blue player)."""
-    return (b"\x20" + u32(serial) + u32(0x190) + b"\x01" + u16(0x83EA) + b"\x20" + u32(x) + u32(y)
+    flag 0x20, notoriety 1 (a blue player; 6: a red)."""
+    return (b"\x20" + u32(serial) + u32(0x190) + bytes([noto]) + u16(0x83EA) + b"\x20" + u32(x) + u32(y)
             + b"\x00\x00\x02" + u32(0))
 
 
@@ -281,9 +285,10 @@ DECOY_LAYOUT = ("{ nomove }{ noclose }{ nodispose }{ noresize }{ page 0 }{ page 
 class World:
     def __init__(self, scenario="bank"):
         self.scenario = scenario          # "bank" (the main run), "skirmish", "break", "library", "tracking",
-        #                                   "gazer" (a ranged creature hits once) or "wary" (an aggressive creature by a tree)
+        #                                   "gazer" (a ranged creature hits once), "wary" (an aggressive creature
+        #                                   by a tree) or "red_aim" (a red comes into view during the aim pause)
         self.scripted = scenario == "bank"  # captchas, the passer-by's speech, the pickpocket
-        self.library = scenario in ("library", "tracking", "gazer")   # the rune library, our runebook, a pvp spot
+        self.library = scenario in ("library", "tracking", "gazer", "red_aim")   # the rune library, our runebook, a pvp spot
         self.pos = list(LIB_START) if self.library else list(START)
         self.facing = 0
         self.writer = None
@@ -329,7 +334,7 @@ class World:
         self.book_gumps, self.tome_gumps = set(), set()   # library scenario: gumps we sent
         self.recalls_out, self.recalls_home, self.tome_far = [], [], 0
         self.tome_seen = False
-        self.home_disturbed = 0           # library: the first recall home is disturbed (escape casts again)
+        self.home_disturbed = 1 if scenario == "red_aim" else 0   # library: the first recall home is disturbed
         self.lockout_due = False          # library: the first chop after a recall out meets the travel lockout
         self.lockouts = 0
         # tracking: the server's hunt (mode = index into TRACK_MODES; the proxy hasn't heard it yet)
@@ -347,6 +352,8 @@ class World:
         self.gazer_hits = []              # (time, our distance from it) per cast that hit
         self.wary_left_t = None           # wary: when the creature by the near tree left view
         self.door_seen = True             # the door and gates go out at login, then again like the banker
+        self.red_due = False              # red_aim: the red is on its way (RED_AIM_S after the chop's cursor)
+        self.red_t = None                 # red_aim: when the red's 0x20 went out
 
     def send(self, pkt):
         self.writer.write(encode_packet(pkt, S2C_KEY))
@@ -522,6 +529,11 @@ class World:
         self.chase = chase
         self.send(creature_pkt(ATTACKER, 0x27, *self.attacker_pos))
 
+    def red_appears(self):
+        """red_aim: a red player comes into view 8 tiles east (Bastet, live 2026-10-03: 10 spaces)."""
+        self.red_t = time.time()
+        self.send(player_update(BASTET, self.pos[0] + 8, self.pos[1], noto=6))
+
     def gazer_appears(self):
         """A gazer comes into view 10 tiles west of us, not in war mode (its aggression unknown to
         the runner), and casts at us every GAZER_CAST_S while we're within its range (no line of sight)."""
@@ -600,6 +612,9 @@ class World:
                 self.cursor_for = self.cid
                 self.send(cliloc(1010018))
                 self.send(cursor(self.cid))
+                if self.scenario == "red_aim" and not self.red_due and self.cheb(RUNE_POS) <= 5:
+                    self.red_due = True
+                    asyncio.get_running_loop().call_later(RED_AIM_S, self.red_appears)
             elif serial == BANKBOX:
                 self.bank_dclicks += 1
             elif serial in (BACKPACK, BAG):
@@ -1447,6 +1462,51 @@ async def wary():
     store.close()
 
 
+async def red_aim():
+    """LUMBER_LOOP.md §13 "Blind waits" (live 2026-10-03: Bastet came into view during the chop's 2.1 s
+    aim pause; the runner answered the cursor, then recalled 2.5 s after sight and was hit out of the
+    cast). A red comes into view RED_AIM_S after the chop's cursor, inside the human aim pause (normal
+    profile, full pace): the pause reads the state and sees him, the cursor goes with the stock 0x6C
+    cancel, the recall home starts within REACT_MAX_S of sight; no chop target is answered after him."""
+    print("\n== red during the aim pause: cancel the chop cursor, recall at once ==")
+    world = World("red_aim")
+    spot = {"access": {"method": "witcher", "rune": "286", "library": "cambria"}, "home": {"method": "recall"},
+            "area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 10}, "pvp": True}
+    text, code, store, rows = await run_scenario(world, "red_aim", 12760, [LIB_TREE],
+                                                 ["--trips", "1", "--logs-per-trip", "100", "--human", "normal",
+                                                  "--seed", "5", "--regrow-min", "0.05"], spot_extra=spot)
+    red = world.red_t
+    after = [(p, t) for p, t in zip(world.c2s, world.c2s_t) if red is not None and t >= red]
+    targets = [(parse_packet("c2s", p), t) for p, t in after if p[0] == 0x6C]
+    cancels = [t for f, t in targets if f["x"] == 0x7FFFFFFF]
+    answers = [f for f, t in targets if f["x"] != 0x7FFFFFFF]
+    book = next((t for p, t in after if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)), None)
+    lat = None if book is None else round(book - red, 3)
+    check("the red came into view during the chop's aim pause (the pause read it and was cut short)",
+          red is not None and "the aim pause cut short" in text, f"red at {red}\n{text[-800:]}")
+    check("the chop cursor was cancelled (stock 0x6C cancel, once) before the runebook's double-click, and "
+          "no chop target was answered after the red appeared",
+          len(cancels) == 1 and book is not None and cancels[0] < book and answers == [],
+          f"cancels {cancels} answers {answers} book {book}")
+    check(f"the recall started within {REACT_MAX_S} s of the red's 0x20 (simulator clock): {lat} s",
+          lat is not None and lat <= REACT_MAX_S, str(lat))
+    check("the proxy cleared the client's copy of the cursor (fabricated S2C cancel)",
+          any(r.get("ev") == "target_cancel_client" for r in rows))
+    rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
+    check(f"the recall event: landed home, the red as the threat, cursor_cancelled, react_s (from the proxy's "
+          f"packet time) <= {REACT_MAX_S} and within 0.1 s of the simulator's measure",
+          world.recalls_home == [HOME_RUNE_POS] and len(rec) == 1 and rec[0]["ok"]
+          and rec[0]["threat"]["serial"] == BASTET and rec[0]["threat"]["kind"] == "red"
+          and rec[0]["cursor_cancelled"] is True and rec[0]["react_s"] is not None and lat is not None
+          and 0 <= rec[0]["react_s"] <= REACT_MAX_S and abs(rec[0]["react_s"] - lat) <= 0.1, str(rec)[:600])
+    check("the run stopped after the escape (exit 1, pk_escape juncture)",
+          code == 1 and "escaped by recall" in text
+          and any(j["kind"] == "pk_escape" for j in store.junctures()), f"exit {code}")
+    print(f"  sim latency: red 0x20 -> cancel {round(cancels[0] - red, 3) if cancels else None} s, "
+          f"-> runebook dclick {lat} s; react_s {rec[0]['react_s'] if rec else None}")
+    store.close()
+
+
 def unit_hit_verdict():
     """loop_lumber.hit_verdict: when creature damage sends us home instead of a run."""
     print("\n== hit_verdict: run from one creature at healthy hits, else home ==")
@@ -1518,7 +1578,7 @@ def is_subsequence(want, seq):
 
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, wary,
-            unit_hatchet, unit_hit_verdict]
+            red_aim, unit_hatchet, unit_hit_verdict]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`
     for fn in runs:
         if pick and fn.__name__ not in pick:

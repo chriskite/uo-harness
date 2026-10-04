@@ -24,6 +24,11 @@ The proxy still enforces its minimum step spacing; this layer only ever makes
 the agent slower or less direct than the stock client, never faster.
 Profiles: "normal" for live play, "off" for deterministic tests (no pauses,
 noise, wandering or fidgets; fixed short delays).
+
+Every pause (reaction waits, walking pauses, the fidget's look) goes through
+`Human.sleep(seconds, kind)`: time.sleep unless the runner passes its own, e.g.
+one that keeps reading the state and checking for threats while it waits
+(loop_lumber.LumberLoop.pause). The step cadence (pace_step) stays a plain sleep.
 """
 import math
 import random
@@ -80,13 +85,16 @@ PROFILES = {
 
 class Human:
     def __init__(self, profile: str | Profile = "normal", seed: int | None = None,
-                 fast: float = 1.0, log=None):
-        """fast < 1 scales every delay down (offline tests of the normal profile)."""
+                 fast: float = 1.0, log=None, sleep=None):
+        """fast < 1 scales every delay down (offline tests of the normal profile).
+        sleep(seconds, kind): how a pause is spent (default: time.sleep); kind is the
+        REACTION_MEDIAN key, "walk_pause" (after_step) or "read" (fidget)."""
         self.p = PROFILES[profile] if isinstance(profile, str) else profile
         self.rng = random.Random(seed)
         self.fast = fast
         self.t0 = time.monotonic()
         self.log = log or (lambda msg: None)
+        self.sleep = sleep or (lambda seconds, kind: time.sleep(seconds))
         self.plan_salt = 0
         self.stats = {"pauses": 0, "pause_s": 0.0, "wanders": 0, "hesitations": 0,
                       "fidgets": 0}
@@ -106,7 +114,7 @@ class Human:
         return self._lognormal(base, self.p.reaction_sigma) * self._fatigue() * self.fast
 
     def wait(self, kind: str):
-        time.sleep(self.reaction(kind))
+        self.sleep(self.reaction(kind), kind)
 
     def step_gap(self, run: bool, mounted: bool = False) -> float:
         """Seconds from one step's send to the next along a straight walk: the stock
@@ -155,7 +163,7 @@ class Human:
             return 0.0
         self.stats["pauses"] += 1
         self.stats["pause_s"] += d
-        time.sleep(d)
+        self.sleep(d, "walk_pause")
         return d
 
     def wander(self) -> bool:
@@ -199,7 +207,7 @@ class Human:
         else:
             self.log("(idle: opening the backpack)")
             link.act(actions.dclick(backpack))
-        time.sleep(self.reaction("read"))
+        self.sleep(self.reaction("read"), "read")
 
     @staticmethod
     def with_overrides(name: str, **kw) -> Profile:

@@ -96,6 +96,12 @@ HOME_NEAR = 60               # tiles from the banker: close enough to walk inste
 COLORED_CHOP = re.compile(r"You chop some [a-z]+ logs and put them in your backpack\.$")
 SPEECH_POLL_S = 1.0           # while paused for speech: state reads + all-clear checks
 THREAT_MARGIN_S = 1.0         # reaction + packet latency on top of the cast
+# Waits stay watchful (LUMBER_LOOP.md §13 "Blind waits"; live 2026-10-03, Bastet: the red came into
+# view during the chop's 2.1 s aim pause and the recall went out 2.5 s after sight): every human pause
+# and every wait for a server result reads the state and runs the threat checks at least this often.
+LOOK_EVERY_S = 0.2
+BLIND_PAUSES = frozenset({"drag"})   # lift -> drop: nothing may come between (an item on the cursor)
+TOOL_CURSOR_WAIT_S = 0.5      # a threat right after the hatchet's dclick: its cursor still comes, then is cancelled
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "harness", "data")
@@ -205,7 +211,7 @@ class LumberLoop:
         self.args = args
         self.deadline = time.monotonic() + args.timeout
         self.start_hits = None
-        self.human = Human(args.human, seed=args.seed, fast=args.human_fast, log=log)
+        self.human = Human(args.human, seed=args.seed, fast=args.human_fast, log=log, sleep=self.pause)
         self.mover = Mover(link, memory, self.human, max_blocked=args.max_blocked,
                            guard=self.check_guards, doors=True, use_map=not args.no_map)
         self.still = stationary.Stationary(self.mover, self.human)
@@ -251,6 +257,11 @@ class LumberLoop:
         self.sighted = {}            # serial -> in react range when its tracking sighting was last logged
         self.counted = set()         # hostile serials whose sighting counts as the spot's hazard (lumber_opt)
         self.escaped = set()         # serials a tracking hit already recalled us away from
+        self._looking = False        # in look(): a pause inside the threat checks sleeps plainly
+        self._looked_t = -1e9        # monotonic time of the last threat check (check_threats)
+        self._tool_sent = None       # (events mark, monotonic time) of a hatchet dclick whose cursor may still come
+        self._cancelled = None       # cursor id of the last target cursor cancelled by drop_cursor
+        self._sight = {}             # mobile key -> wall time it came into view (note_sightings: react_s)
 
     @staticmethod
     def new_creature_tally() -> dict:
@@ -304,6 +315,90 @@ class LumberLoop:
             log("break due" + (f" (it starts in {left:.0f} s)" if left is not None else "")
                 + ": ending the trip at the bank")
 
+    # ------------------------------------------------------------ watchful waits
+    def look(self, st=None):
+        """The threat side of a state read (the main tick's ledger + check_threats,
+        tracking included) for the waits in between: a threat raises from here as it
+        would from check_guards. Inside the threat checks (a pause during their own
+        walk) it does nothing."""
+        if self._looking:
+            return
+        self._looking = True
+        try:
+            st = st or self.link.state()
+            self.check_ledger(st)
+            self.check_threats(st, escape=not self.holding)
+        finally:
+            self._looking = False
+
+    def pause(self, seconds: float, kind: str):
+        """Human.sleep: spend a human pause (`kind`) reading the state and checking for
+        threats every LOOK_EVERY_S and once more at its end, right before the action
+        it delays (live 2026-10-03: Bastet came into view during the chop's aim pause;
+        a plain sleep there sent the recall 2.5 s after sight). A threat ends the pause
+        at once by raising. A drag (BLIND_PAUSES) sleeps plainly."""
+        if kind in BLIND_PAUSES or self._looking:
+            time.sleep(seconds)
+            return
+        t0 = time.monotonic()
+        end = t0 + seconds
+        while True:
+            now = time.monotonic()
+            if now >= end or now - self._looked_t >= LOOK_EVERY_S:
+                try:
+                    self.look()
+                except (Abort, Escape):
+                    log(f"the {kind} pause cut short {now - t0:.2f} s into its {seconds:.2f} s")
+                    raise
+            now = time.monotonic()
+            if now >= end:
+                return
+            time.sleep(min(LOOK_EVERY_S, end - now))
+
+    def wait_for(self, pred, timeout: float):
+        """link.wait for a server result with the threat checks on every read (look)."""
+        return self.link.wait(lambda s: self.look(s) or pred(s), timeout)
+
+    def drop_cursor(self) -> bool:
+        """Before an escape: cancel a target cursor that is up (the chop's, the log
+        target's, any other) with the client's Esc (0x6C cancel, as loop_hunt does;
+        the proxy clears the client's copy), so the escape's double-click never goes
+        out under our own cursor and no target is answered after the threat. A hatchet
+        double-click whose cursor hasn't come yet gets up to TOOL_CURSOR_WAIT_S for it.
+        True when a cursor was cancelled."""
+        if self._tool_sent is not None:
+            mark, sent = self._tool_sent
+            self._tool_sent = None
+            left = sent + TOOL_CURSOR_WAIT_S - time.monotonic()
+            if left > 0 and self.cursor(mark) is None and self.real_captcha(mark) is None:
+                self.link.wait(lambda s: self.cursor(mark) is not None, left, poll=0.03)
+        cur = ((self.link.last or {}).get("world") or {}).get("target") or {}
+        if not cur.get("active") or cur.get("cursor_id") is None or cur["cursor_id"] == self._cancelled:
+            return False
+        self.link.act(actions.target_cancel(cur["cursor_id"], cur.get("target_type") or 0,
+                                            cur.get("cursor_type") or 0))
+        self._cancelled = cur["cursor_id"]
+        log(f"target cursor 0x{cur['cursor_id']:08X} cancelled (Esc) for the escape")
+        return True
+
+    def note_sightings(self, st):
+        """Keep {mobile key: wall time first in view} for the mobiles in view: on the first
+        read that shows one, its `seen_t` (the proxy's time of the latest packet about it,
+        so at most one read interval late), else now; dropped when it leaves the view."""
+        now, prev = time.time(), self._sight
+        self._sight = {k: prev.get(k) or min(now, m.get("seen_t") or now)
+                       for k, m in (st["world"].get("mobiles") or {}).items()}
+
+    def sight_t(self, worst, swung: dict) -> float | None:
+        """Wall time the threat was first seen: the worst threat or a swinger coming
+        into view (note_sightings), or the first swing at us; None when none of them is
+        known (a tracking hit beyond the view)."""
+        serials = ([worst.serial] if worst is not None else []) + list(swung)
+        ts = [self._sight[k] for k in (f"0x{s:08X}" for s in serials) if k in self._sight]
+        ts += list(swung.values())
+        return min(ts) if ts else None
+
+    # ------------------------------------------------------------ threats
     def swung_at_us(self, st) -> dict:
         """{attacker serial: time} of 0x2F swings at us since the last escape,
         within the threat window (an escape clears the ones that caused it)."""
@@ -335,9 +430,11 @@ class LumberLoop:
         threat sends us running to the guards (flee_to_guards); during that flight
         only death and the server's 500112 count. Tracking hits are read here too
         (check_tracking): a near murderer hit is a red out of view."""
+        self._looked_t = time.monotonic()
         self.track_observe(st)
         a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
         self.last_threats = a
+        self.note_sightings(st)
         if a.dead:
             self.died(st, "ghost body")
         if self.mode == "flee":
@@ -614,14 +711,21 @@ class LumberLoop:
         before any bookkeeping, then stop: the `threat` juncture (action 'recall') and
         an urgent `pk_escape` juncture when it landed (`pk`; a creature escape posts
         an urgent `threat` juncture instead). Returns why it failed; the caller then
-        stops the plain way (threat_stop)."""
+        stops the plain way (threat_stop). A target cursor that is up is cancelled
+        first (drop_cursor); the `recall` job event's `react_s` is first sight
+        (sight_t) -> the escape's first packet (the book's double-click), and
+        `cursor_cancelled` whether a cursor had to go first."""
+        cancelled = self.drop_cursor()
+        sight, pressed = self.sight_t(worst, swung), time.time()
+        react = round(pressed - sight, 2) if sight is not None else None
+        log(f"recalling out: {react} s after first sight" if react is not None else "recalling out")
         try:
             res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, log=log)
         except escape_mod.RecallError as e:
             return f"recall not possible: {e}"
         data = {**res, "trip": self.trip_n, "spot": self.k["spot"]["id"], "book": f"0x{self.recall_book:08X}",
                 "threat": worst.to_dict() if worst else None, "attackers": [f"0x{s:08X}" for s in swung],
-                "cause": "player" if pk else "creature"}
+                "cause": "player" if pk else "creature", "react_s": react, "cursor_cancelled": cancelled}
         if why:
             data["why"] = why
         self.memory.job_event("lumber", "recall", data, **self._where(st))
@@ -658,6 +762,7 @@ class LumberLoop:
         player is within 12 tiles, an urgent `pk_escape` juncture, then Unsafe.
         Returns (after logging why) only when the flight failed; the caller then
         stops the plain way."""
+        self.drop_cursor()
         me = tuple(self.link.pos(st)[:2])
         facet = st["world"]["self"].get("map") or 0
         attacker = None
@@ -712,7 +817,9 @@ class LumberLoop:
 
     def post_threat(self, st, a, worst, swung, action, why=None, extra=None) -> str:
         """The urgent `threat` juncture + `flee` job event (`extra` merged into its
-        data, e.g. the monster_hit episode as `hit`); returns the summary."""
+        data, e.g. the monster_hit episode as `hit`); returns the summary. A target
+        cursor still up is cancelled (drop_cursor): an escape walks off, a stop leaves."""
+        self.drop_cursor()
         if worst is not None:
             summary = (f"{worst.kind} {worst.name or f'0x{worst.serial:08X}'} at {worst.distance} tiles "
                        f"(ETA {worst.eta_s:.1f} s)")
@@ -801,10 +908,8 @@ class LumberLoop:
         try:
             while True:
                 gms.update(alerts.open_gm(self.memory))
-                time.sleep(SPEECH_POLL_S)
-                st = self.link.state()
-                self.check_threats(st, escape=False)
-                self.check_ledger(st)
+                self.pause(SPEECH_POLL_S, "speech_hold")   # threats + ledger (look, escape=False) meanwhile
+                st = self.link.last                         # the pause's last read
                 new = self.new_speakers(st)
                 for w in new:
                     log(f"SPEECH (paused): {w['label'] or w['name'] or w['serial']}: {w['text']!r}")
@@ -1000,7 +1105,7 @@ class LumberLoop:
             if now >= next_beep:
                 alert(not self.args.quiet)
                 next_beep = now + self.args.captcha_beep_s
-            time.sleep(0.5)
+            self.pause(0.5, "captcha_wait")
 
     def captcha_done(self, t0, resume, how):
         waited = time.monotonic() - t0
@@ -1061,7 +1166,7 @@ class LumberLoop:
                     log(f"captcha answer rejected (strike {strikes})")
                     idx = nxt
                     break
-                time.sleep(0.3)
+                self.pause(0.3, "captcha_wait")
             else:
                 raise Unsafe("captcha answer got no server reply within 12 s")
         return False
@@ -1082,8 +1187,10 @@ class LumberLoop:
             if closed:
                 self.link.open_containers(closed, self.human)
             mark = len(self.link.events)
+            self._tool_sent = (mark, time.monotonic())     # a threat before its cursor comes: drop_cursor waits
             self.link.act(actions.dclick(hatchet))
-            self.link.wait(lambda s: self.cursor(mark) or self.real_captcha(mark) is not None, 4.0)
+            self.wait_for(lambda s: self.cursor(mark) or self.real_captcha(mark) is not None, 4.0)
+            self._tool_sent = None
             cap = self.real_captcha(mark)
             if cap is not None:
                 self.captcha_handoff(cap)
@@ -1141,7 +1248,7 @@ class LumberLoop:
             out = self.outcome(mark)
             if out is not None:
                 if out[0] == "success":
-                    st = self.link.wait(lambda s: self.count(s, LOGS) > before, 3.0)
+                    st = self.wait_for(lambda s: self.count(s, LOGS) > before, 3.0)
                     gained = self.count(st or self.link.state(), LOGS) - before
                     return ("success", max(gained, 0))
                 return out
@@ -1327,7 +1434,7 @@ class LumberLoop:
                 wait = n + self.human.rng.uniform(1.0, 3.0)
                 log(f"travel lockout reported: waiting {wait:.0f} s")
                 self.doing("lockout", f"Waiting out the travel lockout ({wait:.0f} s)", spot)
-                time.sleep(wait)
+                self.pause(wait, "lockout")
                 self.timing["lockout_s"] += wait     # travel's cost, not the field's (lumber_opt.trip_obs)
                 continue
             elif out == "not_tree":
@@ -1433,7 +1540,7 @@ class LumberLoop:
         still += [t for t in a.threats if t.serial in fled and t not in still and 0 <= t.distance
                   and t.reach > self.watch.params.monster_strike_range and t.distance <= t.reach]
         if still:
-            self.monster_stop(st, a, still[0], [], "it kept coming after the escape")
+            self.monster_stop(st, a, still[0], {}, "it kept coming after the escape")
         self.run_arrived = time.time()
         log(f"escaped to {tuple(st['movement']['pos'][:2])}; carrying on")
 
@@ -1494,7 +1601,7 @@ class LumberLoop:
             self.link.act(actions.target_object(cur["cursor_id"], serial, it.get("x") or 0,
                                                 it.get("y") or 0, 0, it["graphic"],
                                                 cursor_type=cur["cursor_type"]))
-            if self.link.wait(lambda s: self.heard(mark, text=ok_text), 5.0) is None:
+            if self.wait_for(lambda s: self.heard(mark, text=ok_text), 5.0) is None:
                 raise Abort(f"log stack 0x{serial:08X} did not convert")
             log(f"converted {it.get('amount') or 1} logs to boards")
             self.human.wait("between")
@@ -1557,7 +1664,7 @@ class LumberLoop:
         self.doing("to_library", f"Walking to the {lib['name']}", tuple(tome["pos"][:2]))
         try:
             self.mover.walk_to(lambda: tuple(tome["pos"][:2]), lib["use_range"] - 1, "to the rune library")
-            if self.link.wait(lambda s: rune["tome"] in s["world"]["items"], 3.0) is None:
+            if self.wait_for(lambda s: rune["tome"] in s["world"]["items"], 3.0) is None:
                 raise Abort(f"the tome {rune['tome']} for rune {rune['id']} isn't at the {lib['name']} "
                             f"({tome['pos'][:2]})")
         except Abort as e:
@@ -1653,7 +1760,7 @@ class LumberLoop:
         self.human.wait("speak")
         mark = len(self.link.events)
         self.link.act(actions.say_unicode("bank"))
-        st = self.link.wait(lambda s: bank_opened(s["world"], self.self_serial(s), self.since(mark)), 5.0)
+        st = self.wait_for(lambda s: bank_opened(s["world"], self.self_serial(s), self.since(mark)), 5.0)
         if st is None:
             raise Abort("the bank box did not open (no banker in range?)")
         box = bank_opened(st["world"], self.self_serial(st), self.since(mark))
@@ -1678,7 +1785,7 @@ class LumberLoop:
             self.human.wait("drag")
             self.link.act(actions.drop(serial, DROP_AUTO, DROP_AUTO, 0, 0, box))
             pack = self.backpack(self.link.state())
-            moved = self.link.wait(
+            moved = self.wait_for(
                 lambda s: (self.item(s, serial) is None
                            or serial_of(self.item(s, serial).get("container") or "0") != pack), 4.0)
             if moved is None:
@@ -1840,7 +1947,7 @@ class LumberLoop:
         self.guarded(lambda: self.check_guards(self.link.state()))
         self.hatchet(st, self.want_hatchet)
         self.recall_book = self.prepare_recall(st)
-        self.track_ensure("start")
+        self.guarded(lambda: self.track_ensure("start"))   # its human pauses watch for threats (pause)
         # routes bend around where hostile creatures were seen lately (travel_guard)
         self.mover.danger_tiles = travel_guard.remembered_tiles(self.memory, self.facet, self.link.pos(st)[:2])
         for n in range(1, self.args.trips + 1):
