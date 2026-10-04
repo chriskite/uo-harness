@@ -29,6 +29,16 @@ What counts as "a character speaking" (measured on the 27 captures, 2026-10-01):
 
 Every line is also judged by Laya (triage.py) from the recent speech around
 it (`context`); a likely attendance check is a staff hint.
+
+Staff on sight (docs/PLAN.md "Staff alarm on an invulnerable player in view"):
+an "invulnerable player", notoriety 7 with the player flag 0x20, is a staff
+hint without a word said. Across every capture to 2026-10-04 notoriety 7
+never carried 0x20 (2,607 sightings: NPCs, vendors, player vendors, criers)
+and the flag was on every player (docs/research/THREATS.md §1.1); that staff
+show this way is [INFERENCE]. `SpeechGuard.sightings` reports each one coming
+into view, shaped like a speaker (type "sighting", no text), so the runners
+hold and alarm through the speech-hold path. Notoriety 7 without the flag
+(vendors, NPCs) stays ignored.
 """
 from __future__ import annotations
 
@@ -127,25 +137,71 @@ def speaker(world: dict, ev: dict) -> dict | None:
                     evidence=["player flag 0x20"] if player else ["human body, no npc evidence"])
         if body in STAFF_BODIES:
             info["evidence"].append(f"GM body 0x{body:04X}")
+    if invulnerable_player(mob or {}):
+        info["evidence"].append(INVULNERABLE_EVIDENCE)
     if _STAFF_NAME.search(f"{info['name'] or ''} {label or ''}"):
         info["evidence"].append("staff-like name")
     return info
 
 
-STAFF_HINTS = ("GM body", "staff-like name", "not on screen", "attendance check")
+INVULNERABLE_HINT = "invulnerable player"
+INVULNERABLE_EVIDENCE = f"{INVULNERABLE_HINT} (notoriety 7 + player flag 0x20)"
+STAFF_HINTS = ("GM body", "staff-like name", "not on screen", "attendance check", INVULNERABLE_HINT)
+
+
+def invulnerable_player(mob: dict) -> bool:
+    """Notoriety 7 with the player flag 0x20: never an NPC, vendor or player
+    vendor in our captures; a GM [INFERENCE] (module docstring)."""
+    return mob.get("notoriety") == 7 and bool((mob.get("flags") or 0) & threats.FLAG_PLAYER_HINT)
+
+
+def worn(world: dict, key: str) -> list[dict]:
+    """What the world model has on mobile `key` (items parented to it with a
+    layer, from 0x78 / 0x2E), by layer."""
+    s = _serial(key)
+    out = [{"serial": k, "layer": it["layer"], "graphic": it.get("graphic"), "hue": it.get("hue"),
+            "name": it.get("name")}
+           for k, it in (world.get("items") or {}).items()
+           if it.get("layer") is not None and it.get("container") is not None and _serial(it["container"]) == s]
+    return sorted(out, key=lambda e: e["layer"])
+
+
+def sighting(world: dict, key: str) -> dict:
+    """An invulnerable player in view as a speaker-shaped entry (type
+    "sighting", text None): what it looks like, for the staff_sighting record."""
+    mob = world["mobiles"][key]
+    label = (world.get("labels") or {}).get(key)
+    body, flags = mob.get("graphic"), mob.get("flags") or 0
+    info = {"serial": key, "name": mob.get("name") or (world.get("names") or {}).get(key), "label": label,
+            "text": None, "type": "sighting", "hue": mob.get("hue"), "on_screen": True,
+            "body": None if body is None else f"0x{body:04X}", "notoriety": mob.get("notoriety"),
+            "flags": f"0x{flags:02X}", "x": mob.get("x"), "y": mob.get("y"), "z": mob.get("z"),
+            "worn": worn(world, key), "evidence": ["player flag 0x20", INVULNERABLE_EVIDENCE]}
+    if body in STAFF_BODIES:
+        info["evidence"].append(f"GM body 0x{body:04X}")
+    if _STAFF_NAME.search(f"{info['name'] or ''} {label or ''}"):
+        info["evidence"].append("staff-like name")
+    return info
+
+
+def what(who: dict) -> str:
+    """What a held-for entry did: said its line, or came into view."""
+    if who.get("type") == "sighting":
+        return f"is in view ({INVULNERABLE_EVIDENCE})"
+    return f"said {who['text']!r}"
 
 
 def staff_hints(who: dict) -> list[str]:
     """The evidence entries that suggest staff (a GM body, a staff-like name, a
     speaker not on screen: hidden staff speak without a body; a line Laya
-    scores as an attendance check, triage.py) [INFERENCE: no Outlands staff
-    seen yet]."""
+    scores as an attendance check, triage.py; an invulnerable player, notoriety
+    7 + player flag 0x20) [INFERENCE: no Outlands staff seen yet]."""
     return [e for e in who.get("evidence") or [] if e.startswith(STAFF_HINTS)]
 
 
 class SpeechGuard:
     """Scans a runner's world events (agent_link.Link.events / .event_t) for
-    characters speaking near us."""
+    characters speaking near us, and its world for invulnerable players in view."""
 
     def __init__(self, now=time.time):
         self.upto = None             # first scan: what was said before the job started is history
@@ -153,6 +209,8 @@ class SpeechGuard:
         self.cleared = {}            # serial key -> wall time until which it's all-clear
         self.recent = deque(maxlen=RECENT_N)  # {t, name, text}: character lines and ours, cleared or not
         self.names = {}              # serial key -> the name a character spoke under (triage.nearby)
+        self.in_view = set()         # serial keys of the invulnerable players in view at the last sightings()
+        self.sighted = set()         # ... seen at all this session (each logged once: staff_sighting)
         self.now = now
 
     def scan(self, world: dict, events: list, times: list) -> list[dict]:
@@ -196,3 +254,22 @@ class SpeechGuard:
         until = self.now() + CLEAR_S
         for s in serials:
             self.cleared[s] = until
+
+    def sightings(self, world: dict) -> list[dict]:
+        """Invulnerable players that came into view since the last call (one
+        already in view when the job starts counts), as `sighting` entries; one
+        that stays in view is reported once, one cleared (clear()) is left out.
+        Each carries `first`: True on its first sighting this session."""
+        me = world["self"].get("serial")
+        me = None if me is None else _serial(me)
+        now_in = {k for k, m in (world.get("mobiles") or {}).items()
+                  if invulnerable_player(m) and _serial(k) != me}
+        out = []
+        for k in sorted(now_in - self.in_view):
+            first = k not in self.sighted
+            self.sighted.add(k)
+            if not first and self.cleared.get(k, 0) > self.now():
+                continue
+            out.append({**sighting(world, k), "first": first})
+        self.in_view = now_in
+        return out

@@ -72,9 +72,10 @@ def s2c_packets(s2c_raw):
     return s2c_key, c2s_key, pkts
 
 
-def replay_session(c2s_path, s2c_path):
+def replay_session(c2s_path, s2c_path, on_s2c=None):
     """Replay a capture pair; c2s_path=None replays the server side only
-    (proves state derivable from S2C alone)."""
+    (proves state derivable from S2C alone). `on_s2c(rt, pkt)`, when given,
+    runs after each S2C packet is fed (the state mid-session)."""
     c2s_raw = open(c2s_path, "rb").read() if c2s_path else b""
     s2c_raw = open(s2c_path, "rb").read()
 
@@ -97,6 +98,8 @@ def replay_session(c2s_path, s2c_path):
         if outlands_length(pkt) != len(pkt):
             stats["s2c_length_mismatch"] += 1
         rt.feed_packet(S2C, pkt)
+        if on_s2c is not None:
+            on_s2c(rt, pkt)
 
     events = rt.drain_events()
     rt.replay_stats = stats

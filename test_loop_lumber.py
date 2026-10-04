@@ -44,6 +44,9 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
 - wary: a war-mode creature by the nearest tree: the farther tree first, the near one once it has gone
 - red_aim (§13 "Blind waits"): at the library spot a red comes into view during the chop's human aim pause
   (--human normal): the cursor is cancelled and the recall home pressed within REACT_MAX_S of sight, no chop target
+- staff_in_view (docs/PLAN.md "Staff alarm on an invulnerable player in view"): a vendor (notoriety 7, no
+  player flag) next to us mid-harvest raises nothing; an invulnerable player (notoriety 7 + 0x20) coming into
+  view raises one gm_suspected + staff alarm, a staff_sighting with its gear, and holds the job until acked
 Plus unit checks of hatchet() (worn, else the shallowest in the pack's bags) and hit_verdict(), and
 unit_capture_*: the runner's threat and trip-row pieces on packets captured live in session
 20261003_213125 (the witcher_280 gazer larva, juncture 222, trip 1's hatchet, buffs and the named players),
@@ -104,6 +107,8 @@ GREETING = "hail! good trees here?"
 HOLD_S = 3.0                                             # the test overseer's all-clear comes this long after
 HIDDEN = 0x0000BEEF                                      # speaks during the hold, never on screen (hidden GM?)
 GM_EXTRA_S = 2.0                                         # the GM suspicion is acked this long after the all-clear
+GM_SEEN, VENDOR_NEAR = 0x0000D00D, 0x00000B8E             # staff_in_view: notoriety 7 with / without the player flag
+GM_ROBE = 0x40000D01                                     # staff_in_view: what the invulnerable player wears
 GOOD_VISIT = 6                                           # attempts before the good tree runs dry
 SIM_RANGE = 2                                            # the simulated server's Smart Harvest reach
 NOTHING_NEAR = ("You do not see any harvestable resources nearby.", "You cannot produce any wood from that.")
@@ -209,8 +214,8 @@ def effect_on_self(graphic, x, y):
             + u32(0) + u32(0))
 
 
-def equip(item, graphic, layer):
-    return b"\x2e" + u32(item) + u32(graphic) + u32(0) + bytes([layer]) + u32(SELF) + u16(0)
+def equip(item, graphic, layer, parent=SELF, hue=0):
+    return b"\x2e" + u32(item) + u32(graphic) + u32(0) + bytes([layer]) + u32(parent) + u16(hue)
 
 
 def contained(serial, graphic, amount, container, x=50, y=60, hue=0):
@@ -330,8 +335,9 @@ class World:
         self.scenario = scenario          # "bank" (the main run), "skirmish", "break", "library", "tracking",
         #                                   "gazer" (a ranged creature hits once), "wary" (an aggressive creature
         #                                   by a tree), "red_aim" (a red comes into view during the aim pause),
-        #                                   "thief" (a blue walks up while we chop, then follows us) or
-        #                                   "pouch_pop" (a hidden thief sets our trapped pouch off)
+        #                                   "thief" (a blue walks up while we chop, then follows us),
+        #                                   "pouch_pop" (a hidden thief sets our trapped pouch off) or
+        #                                   "staff" (a vendor next to us, then an invulnerable player in view)
         self.scripted = scenario == "bank"  # captchas, the passer-by's speech, the pickpocket
         self.library = scenario in ("library", "tracking", "gazer", "red_aim", "thief", "pouch_pop")
         #                                   the rune library, our runebook, a pvp spot
@@ -412,6 +418,8 @@ class World:
         self.door_seen = True             # the door and gates go out at login, then again like the banker
         self.red_due = False              # red_aim: the red is on its way (RED_AIM_S after the chop's cursor)
         self.red_t = None                 # red_aim: when the red's 0x20 went out
+        self.vendor_t = None              # staff: when the vendor's 0x20 went out
+        self.gm_t = None                  # staff: when the invulnerable player's 0x20 went out
 
     # ---- the pack's wood and trapped pouches ----
     @property
@@ -627,6 +635,13 @@ class World:
                 self.later(0.5, [delete(0x44ADB0FF)])
             elif self.scenario == "gazer" and self.good_n == 2 and self.gazer_pos is None:
                 asyncio.get_running_loop().call_later(0.5, self.gazer_appears)
+            elif self.scenario == "staff" and self.good_n == 2:     # a vendor steps next to us: nothing
+                self.vendor_t = time.time() + 0.3
+                self.later(0.3, [mobile_pkt(VENDOR_NEAR, self.pos[0] + 1, self.pos[1])])
+            elif self.scenario == "staff" and self.good_n == 4:     # an invulnerable player comes into view
+                self.gm_t = time.time() + 0.5                      # (its robe first: worn when it shows)
+                self.later(0.5, [equip(GM_ROBE, 0x204F, 0x16, GM_SEEN, 0x0481),
+                                 player_update(GM_SEEN, self.pos[0] + 5, self.pos[1], noto=7)])
             return
         if self.good_n == 2:                 # a player walks up (3 tiles: outside the steal guard) and speaks:
             self.spoke_at = time.time() + 1.0                     # the job must hold for the overseer
@@ -1264,10 +1279,11 @@ async def main():
         server.close()
 
 
-async def run_scenario(world, tag, port_base, trees, runner_args, budget=None, spot_extra=None):
+async def run_scenario(world, tag, port_base, trees, runner_args, budget=None, spot_extra=None, during=None):
     """The real proxy in front of `world` on private ports port_base..+3 (logdir
     LOGDIR/<tag>, an optional pre-written agent gate file), then the runner with
-    runner_args. Returns (runner output, exit code, memory store, capture rows)."""
+    runner_args; `during(db)`, a coroutine function, runs alongside it (a test
+    overseer). Returns (runner output, exit code, memory store, capture rows)."""
     logdir = os.path.join(LOGDIR, tag)
     os.makedirs(logdir, exist_ok=True)
     for f in os.listdir(logdir):
@@ -1304,7 +1320,10 @@ async def run_scenario(world, tag, port_base, trees, runner_args, budget=None, s
             "--quiet", "--no-map", "--max-blocked", "80",
             "--triage-url", "", *runner_args,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        side = asyncio.create_task(during(db)) if during is not None else None
         out, _ = await asyncio.wait_for(runner.communicate(), timeout=360)
+        if side is not None:
+            side.cancel()
         text = out.decode(errors="replace")
         print(f"---- runner output ({tag}) ----\n" + text + "-----------------------")
         writer.close()
@@ -1851,6 +1870,85 @@ async def no_pouch():
     store.close()
 
 
+async def staff_in_view():
+    """docs/PLAN.md "Staff alarm on an invulnerable player in view": mid-harvest a vendor (notoriety 7, no
+    player flag) steps next to us: nothing. Then an invulnerable player (notoriety 7 + player flag 0x20,
+    wearing a robe) comes into view 5 tiles off and stays: one urgent gm_suspected (staff alarm) and one
+    speech_nearby hold for it, a staff_sighting job event with what it looks like, nothing sent until the
+    test overseer acks both; then the trip banks."""
+    print("\n== staff in view: a vendor next to us is nothing; an invulnerable player holds the job ==")
+    world = World("staff")
+    held = {}
+
+    async def overseer(db):
+        """Acks the hold HOLD_S after it appears, and gm_suspected GM_EXTRA_S after that."""
+        await asyncio.sleep(1.0)
+        store = memory.Memory(db)
+        try:
+            while "gm_ack" not in held:
+                await asyncio.sleep(0.2)
+                row = store.con.execute("SELECT id, t FROM junctures WHERE kind='speech_nearby' "
+                                        "AND acked_t IS NULL").fetchone()
+                if row:
+                    held["t"] = row[1]
+                    await asyncio.sleep(HOLD_S)
+                    held["ack"] = time.time()
+                    store.juncture_ack(row[0])
+                    await asyncio.sleep(GM_EXTRA_S)
+                    for (gid,) in store.con.execute("SELECT id FROM junctures WHERE kind='gm_suspected' "
+                                                    "AND acked_t IS NULL").fetchall():
+                        store.juncture_ack(gid)
+                    held["gm_ack"] = time.time()
+        finally:
+            store.close()
+
+    # one tree: banking from WEST_TREE fails in this simulator (the walk ends at the knowledge position,
+    # 20 tiles short of the banker, who only comes into view within 18 tiles of him)
+    text, code, store, _ = await run_scenario(world, "staff_in_view", 12810, [GOOD_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off"],
+                                              during=overseer)
+    gm_key, vendor_key = f"0x{GM_SEEN:08X}", f"0x{VENDOR_NEAR:08X}"
+    js = store.junctures()
+    gms = [j for j in js if j["kind"] == "gm_suspected"]
+    holds = [j for j in js if j["kind"] == "speech_nearby"]
+    check("the vendor stepped next to us before the invulnerable player came: no juncture names it, none came "
+          "before the invulnerable player, no thief_near",
+          world.vendor_t is not None and world.gm_t is not None and world.vendor_t < world.gm_t
+          and not any(vendor_key in json.dumps(j["data"]) or vendor_key in j["summary"] for j in js)
+          and all(j["t"] >= world.gm_t for j in js if j["kind"] in ("gm_suspected", "speech_nearby", "thief_near"))
+          and not [j for j in js if j["kind"] == "thief_near"],
+          f"vendor {world.vendor_t} gm {world.gm_t} {[(j['kind'], j['summary']) for j in js]}")
+    g = gms[0] if gms else {}
+    check("one urgent gm_suspected from the runner for the invulnerable player, raised on sight (< 3 s), acked",
+          len(gms) == 1 and g["source"] == "lumber" and g["severity"] == "urgent"
+          and g["data"]["speakers"][0]["serial"] == gm_key and "invulnerable player" in g["summary"]
+          and g["t"] - world.gm_t < 3.0 and g["acked_t"] is not None, str(gms))
+    h = holds[0] if holds else {}
+    sp = (h.get("data") or {}).get("speakers") or [{}]
+    check("one urgent speech_nearby hold for it (a sighting: no text), saying it is in view",
+          len(holds) == 1 and h["severity"] == "urgent" and h["data"].get("hold") is True
+          and sp[0].get("serial") == gm_key and sp[0].get("type") == "sighting" and sp[0].get("text") is None
+          and "is in view (invulnerable player" in h["summary"] and h["t"] - world.gm_t < 3.0, str(holds))
+    quiet = [p.hex() for p, t in zip(world.c2s, world.c2s_t)
+             if held.get("t") is not None and held["t"] + 0.3 < t < held.get("gm_ack", 0)]
+    check(f"nothing sent while held: the hold's all-clear ({HOLD_S:.0f} s), then the staff alarm acked "
+          f"({GM_EXTRA_S:.0f} s more)", "gm_ack" in held and quiet == [], f"held {held} sent {quiet[:5]}")
+    sights = [e for e in store.job_events("lumber") if e["kind"] == "staff_sighting"]
+    s = sights[0]["data"] if sights else {}
+    check("one staff_sighting job event (the vendor none): serial, body, hue, notoriety, flags, position, "
+          "the robe it wears",
+          len(sights) == 1 and s["serial"] == gm_key and (s["body"], s["hue"], s["notoriety"], s["flags"])
+          == ("0x0190", 0x83EA, 7, "0x20") and s["x"] is not None and s["y"] is not None
+          and [(w["serial"], w["layer"], w["graphic"], w["hue"]) for w in s["worn"]]
+          == [(f"0x{GM_ROBE:08X}", 0x16, 0x204F, 0x0481)] and s["trip"] == 1, str(sights))
+    eps = store.episodes("lumber")
+    check("it stayed in view and raised nothing more; the job resumed after the all-clear and banked, exit 0",
+          code == 0 and [e.get("outcome") for e in eps] == ["banked"] and "all-clear after" in text
+          and sum(r.get("speech_holds", 0) for r in eps) == 1 and text.count("STAFF IN VIEW") == 1,
+          f"exit {code} {[(e.get('outcome'), e.get('speech_holds')) for e in eps]}\n{text[-600:]}")
+    store.close()
+
+
 def unit_hit_verdict():
     """loop_lumber.hit_verdict: when creature damage sends us home instead of a run."""
     print("\n== hit_verdict: run from one creature at healthy hits, else home ==")
@@ -2210,7 +2308,7 @@ def is_subsequence(want, seq):
 
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
-            wary, red_aim, thief_keep_away, pouch_pop, no_pouch, unit_hatchet, unit_hit_verdict,
+            wary, red_aim, thief_keep_away, pouch_pop, no_pouch, staff_in_view, unit_hatchet, unit_hit_verdict,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`

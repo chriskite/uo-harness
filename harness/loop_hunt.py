@@ -77,7 +77,9 @@ survive comes first. Episode rows count `stationary_clears` and `repositions`.
 Guards: overall timeout, movement stall, the agent gate (Link.act waits it out),
 server restriction text, death (`death` juncture, stop; no corpse runs), a character
 speaking nearby (speech_guard.py: `speech_nearby` hold, deferred until no fight is
-on; leaving to survive overrides the hold). Junctures: `threat` when leaving,
+on; leaving to survive overrides the hold; an invulnerable player coming into view,
+notoriety 7 + player flag 0x20, raises `gm_suspected` at once, logs a
+`staff_sighting` and is held for the same way). Junctures: `threat` when leaving,
 `low_supplies` when neither a potion nor a castable heal spell (mana, reagents) is
 there, `death`. Job events and one episode row per visit (kills, gold, xp, hits
 lost) go to the memory store.
@@ -129,7 +131,7 @@ from agent_link import (Abort, Link, Mover, bank_opened, cheb, containers_to_ope
 from errand_bank import GATING_WORDS  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
-from speech_guard import SpeechGuard, staff_hints  # noqa: E402
+from speech_guard import SpeechGuard, staff_hints, what  # noqa: E402
 
 SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is attacking us
 PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this long is dropped...
@@ -412,13 +414,29 @@ class HuntLoop:
         self.heard_upto = len(self.link.events)
 
     def new_speakers(self, st):
+        """New speakers (with Laya's verdict), then the invulnerable players come into
+        view (staff_in_view)."""
         who = self.speech.scan(st["world"], self.link.events, self.link.event_t)
         for w in who:
             v = self.triage.judge(w, st["world"], names=self.speech.names)
             if v and "error" not in v:
                 log(f"laya: {w['label'] or w['name'] or w['serial']}: {w['text']!r} "
                     f"check {v['check']:.2f} direct {v['direct']:.2f} ({v['ms']} ms)")
-        return who
+        return who + self.staff_in_view(st)
+
+    def staff_in_view(self, st):
+        """Invulnerable players come into view (SpeechGuard.sightings), as loop_lumber: a
+        `staff_sighting` job event on each first sighting this run and gm_suspected with
+        the staff alarm at once (suspect_staff); the hold follows with the speech hold."""
+        seen = self.speech.sightings(st["world"])
+        for w in seen:
+            log(f"STAFF IN VIEW: {w['label'] or w['name'] or w['serial']} (body {w['body']}, hue {w['hue']}, "
+                f"at {w['x']},{w['y']})")
+            if w.pop("first"):
+                self.memory.job_event("hunt", "staff_sighting", {**w, "visit": self.visit_n}, **self._where(st))
+        if seen:
+            self.suspect_staff(seen, st)
+        return seen
 
     def died(self, st, reason):
         a = self.watch.update(st, recall_s=0.0, margin_s=0.0)
@@ -1360,12 +1378,13 @@ class HuntLoop:
         who, self.pending_speech = self.pending_speech, []
         first = who[0]
         name = first["label"] or first["name"] or first["serial"]
-        log(f"SPEECH: {name}: {first['text']!r}; pausing for the overseer")
+        log(f"SPEECH: {name} {what(first)}; pausing for the overseer")
         resume = self._intent
-        self.doing("speech", f"Paused: {name} spoke nearby; waiting for the overseer")
+        self.doing("speech", f"Paused: {name} " + ("in view" if first["text"] is None else "spoke nearby")
+                   + "; waiting for the overseer")
         data = {"hold": True, "task": "hunt", "visit": self.visit_n, "speakers": who, **self._where(st)}
         jid = self.memory.juncture("hunt", "speech_nearby",
-                                   f"{name} said {first['text']!r} nearby; hunting paused until the "
+                                   f"{name} {what(first)} nearby; hunting paused until the "
                                    f"all-clear (ack)"[:300], "urgent", data)
         self.memory.job_event("hunt", "speech_hold", data, **self._where(st))
         if not self.suspect_staff(who, st):
@@ -1376,7 +1395,7 @@ class HuntLoop:
             st = self.state()
             new, self.pending_speech = self.pending_speech, []
             for w in new:
-                log(f"SPEECH (paused): {w['label'] or w['name'] or w['serial']}: {w['text']!r}")
+                log(f"SPEECH (paused): {w['label'] or w['name'] or w['serial']} {what(w)}")
                 heard.add(w["serial"])
             lines += new
             self.suspect_staff(new, st)

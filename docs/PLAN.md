@@ -1023,7 +1023,7 @@ theft_suspected for the drags; at the bank "set off our trapped pouch", one "-1"
 the pouch opens on the next double-click, the logs convert inside it (where the boards land), boards
 and the spent pouch go into the bank box. Not to stage: a thief.
 
-## Staff alarm on an invulnerable player in view (planned 2026-10-04, after the thief guard)
+## Staff alarm on an invulnerable player in view (built offline 2026-10-04, after the thief guard; no staff seen live yet)
 
 User idea (2026-10-04): a GM is probably an invulnerable character, so raise the staff alarm when
 one comes on screen while we chop, without waiting for them to speak. The worry was false alarms
@@ -1060,6 +1060,33 @@ from vendors. Measured over all captures (throwaway world-model replay of every 
 **Done when:** offline tests show the hint on a synthetic notoriety-7 + `0x20` mobile (alarm raised,
 job held). A replay of every capture produces **zero** alarms from this hint (the measurement above,
 as a test over the committed captures). THREATS.md §1 and OVERSEER.md describe the hint.
+
+**Built (2026-10-04, offline; done-when met):**
+- `speech_guard.py`: `invulnerable_player(mob)` (notoriety 7 and flag `0x20`), the hint
+  `"invulnerable player (notoriety 7 + player flag 0x20)"` in `STAFF_HINTS` (so `staff_hints`, the
+  `gm_suspected` summary and a speaking invulnerable player's `evidence` carry it), and
+  `SpeechGuard.sightings(world)`. It reports each such mobile coming into view as a speaker-shaped
+  entry (`type: "sighting"`, `text: None`, body, hue, flags, notoriety, position, `worn` layers from
+  the world model). One that stays in view is reported once; one cleared by an all-clear stays out
+  for the usual 15 min; `first` marks its first sighting this run. Our own mobile never counts.
+- Why reuse the speech hold instead of a threat class: the hold, its ack, the repeating alarm and
+  the "no resume while `gm_suspected` is open" rule were already there and tested. threats.py
+  still calls notoriety 7 an NPC, so a GM next to us is never a `thief` (no keep-away) and the
+  thief guard is unchanged.
+- `loop_lumber`: `staff_in_view` runs on every guard check in any mode and inside the hold. It logs
+  `staff_sighting` and raises `gm_suspected` at once (`suspect_staff`: one per open alarm). The
+  sighting is queued (`pending_staff`), and the next work-mode speech check holds for it
+  (`speech_hold`; the summary reads "… is in view (invulnerable player …)").
+- `loop_hunt` shares the plumbing: `new_speakers` adds the sightings, so the hold follows the hunt's
+  rules (deferred while fighting, survival overrides). The alarm and `staff_sighting` come at once.
+- Tests: `test_speech_guard.py` `test_sightings`; `test_loop_lumber.py staff_in_view` (a vendor at
+  1 tile raises nothing; then a robed notoriety-7 + `0x20` mobile gives one `gm_suspected`, one
+  hold, one `staff_sighting` with the robe, nothing sent until both acks, then the trip banks);
+  `harness/test_staff_sighting_replay.py`. That last one replays the 10 committed captures (~2 s) and
+  checks after every mobile 0x20, the only packet that sets notoriety or flags: 2,597 checks, 271
+  notoriety-7 and 263 player-flagged mobiles, zero hints.
+- Open: a GM shown blue/grey or hidden still gets past the sight rule (the speech hold and the
+  other hints cover them). The first live `staff_sighting` will show whether the rule holds.
 
 ## Risks
 

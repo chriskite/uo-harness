@@ -70,7 +70,7 @@ Citations are reference-style links; wiki revision ids are in §9.
 | The Outlands 0x77 MobileMove has **no** notoriety/flags field (upstream 0x77 has them: `PacketHandlers.cs:2808-2811`), and neither does 0x78 | H | [WORLDMODEL.md:216,326][d-wm] |
 | Notoriety **changes** arrive as a re-sent 0x20: two mongbats (0x000A6A4B, 0x000A6A74) went 3 → 4 inside session 20260929_204225 | H | throwaway scan of the 27 `logs/session_*.s2c.raw` captures (this doc) |
 | Our own notoriety comes in 0x22 ConfirmWalk byte 2 (`& 0xBF`; 0 or > 7 is coerced to 1) | H | [WORLDMODEL.md:181][d-wm], `harness/world/runtime.py:97-100` |
-| **Mobile flag `0x20` marks player characters** (`threats.FLAG_PLAYER_HINT`; ClassicUO calls it Movable). Across all captures to 2026-10-04 it was on 1,474 human mobiles at notoriety 1/3/4/6 and on our own character, and never on a notoriety-7 mobile (2,607 sightings: NPCs, vendors, player vendors, criers), a non-human (~2,400), or a human NPC such as a guard. So notoriety 7 + `0x20` (never seen yet) is the planned "invulnerable player" staff hint (PLAN.md) | H (our captures) | throwaway world-model replay of every `logs/session_*`, 2026-10-04 |
+| **Mobile flag `0x20` marks player characters** (`threats.FLAG_PLAYER_HINT`; ClassicUO calls it Movable). Across all captures to 2026-10-04 it was on 1,474 human mobiles at notoriety 1/3/4/6 and on our own character, and never on a notoriety-7 mobile (2,607 sightings: NPCs, vendors, player vendors, criers), a non-human (~2,400), or a human NPC such as a guard. So notoriety 7 + `0x20` (never seen yet) is the "invulnerable player" staff hint, **built 2026-10-04** (`speech_guard.invulnerable_player`, PLAN.md "Staff alarm on an invulnerable player in view"); `harness/test_staff_sighting_replay.py` checks every committed capture after each mobile 0x20 (the only packet that sets notoriety or flags) and finds it zero times | H (our captures) | throwaway world-model replay of every `logs/session_*`, 2026-10-04; the committed ten in `test_staff_sighting_replay.py` |
 
 ### 1.2 Flagging rules that matter to a gatherer
 
@@ -433,7 +433,8 @@ tune. All decisions post junctures through `Memory.juncture(source="threat", …
   - `unknown_player`: `player_like` and notoriety 1/2.
   - `monster`: non-human body and not in `PASSIVE_BODIES`.
   - `animal`: `PASSIVE_BODIES`, initially {0xCF sheep, 0xEA great hart, 0xED hind, birds 5/6}.
-  - `npc`: notoriety 7 or a known NPC.
+  - `npc`: notoriety 7 or a known NPC. Notoriety 7 **with** the player flag `0x20` is no NPC but the
+    "invulnerable player" staff hint (§1.1; `speech_guard.py`, the speech-hold path, not threats.py).
 - `STEALTH_SPAWN_NAMES`: the §5.1 list. If the job log shows one near a spot, rank that spot lower.
 
 **T2: flee radius per class** (§3.2 formula, parameters in one table)
@@ -463,6 +464,7 @@ tune. All decisions post junctures through `Memory.juncture(source="threat", …
 | Aggressive monster within its learned aggro radius (default 12) and closing | Walk away perpendicular to its approach. If `D < R_flee(monster)` or HP < `HP_RECALL = 60 %` → recall | info / attention |
 | Paralysis (no confirms for walk requests, or a paralyze message) | Wait; post juncture; no inputs spam | urgent |
 | Death (0x2C / ghost body) | Stop; hand to the death flow in TRAVEL_DEATH.md §5 | urgent |
+| Invulnerable player in view: notoriety 7 + player flag `0x20` (§1.1; **built 2026-10-04**, `speech_guard.SpeechGuard.sightings`, lumber and hunt runners) | Staff alarm at once (`gm_suspected`, one per open alarm), a `staff_sighting` job event on its first sighting per run (serial, name, body, hue, position, flags, worn layers), and the harvest job holds like for speech until the overseer acks. Vendors and NPCs (notoriety 7 without the flag) are ignored | urgent (`gm_suspected` + `speech_nearby`) |
 
 **T4: exposure limits**
 

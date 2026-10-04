@@ -2,7 +2,8 @@
 us during a harvest job. Cases are shapes seen in the captures (2026-10-01
 survey): player speech ("bank" from Kanbalt), Outlands' click echoes (title and
 guild tag 0.04-0.06 s after a 0x09), vendor lines, pets' "(bonded)", damage
-numbers, item messages.
+numbers, item messages. Also the invulnerable-player staff hint on sight
+(notoriety 7 + player flag 0x20; SpeechGuard.sightings).
 
 Run: python harness/test_speech_guard.py   (pure, < 1 s)
 """
@@ -14,7 +15,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import alerts  # noqa: E402
 from memory import Memory  # noqa: E402
-from speech_guard import CLEAR_S, SpeechGuard, pet_command, speaker, staff_hints  # noqa: E402
+from speech_guard import (CLEAR_S, INVULNERABLE_EVIDENCE, SpeechGuard, pet_command, speaker,  # noqa: E402
+                          staff_hints, what)
 
 FAILURES = []
 ME, PLAYER, VENDOR, PET, MOB, STAFF = 0x00094375, 0x0000ABCD, 0x00000B8D, 0x0000C001, 0x0000C002, 0x0000D00D
@@ -132,8 +134,11 @@ def test_staff():
     print("== staff hints and the repeating staff alarm ==")
     w = world()
     check("no staff hints for an ordinary player", staff_hints(speaker(w, said(PLAYER, "hi"))) == [])
-    check("GM body + staff-like name are hints",
-          staff_hints(speaker(w, said(STAFF, "Hello there", name="GM Kemp"))) == ["GM body 0x03DB", "staff-like name"])
+    check("GM body, the invulnerable player (notoriety 7 + player flag) and a staff-like name are hints",
+          staff_hints(speaker(w, said(STAFF, "Hello there", name="GM Kemp")))
+          == ["GM body 0x03DB", INVULNERABLE_EVIDENCE, "staff-like name"])
+    check("a vendor speaking (notoriety 7, no player flag) is no speaker, so no hint",
+          speaker(w, said(VENDOR, "Hail")) is None)
     check("a speaker not on screen is a hint (hidden staff speak without a body)",
           staff_hints(speaker(w, said(0x00001234, "hm"))) == ["not on screen (hidden or out of view)"])
     os.environ[alerts.QUIET_ENV] = "1"
@@ -183,11 +188,61 @@ def test_pet_commands():
           [c["text"] for c in got[0]["context"]] == live + ["Hackworth stop"], str(got[0]["context"]))
 
 
+def test_sightings():
+    print("== SpeechGuard.sightings: an invulnerable player in view is a staff hint without a word ==")
+    now = [1000.0]
+    g = SpeechGuard(now=lambda: now[0])
+    w = world()
+    skey, vkey = f"0x{STAFF:08X}", f"0x{VENDOR:08X}"
+    staff = w["mobiles"].pop(skey)
+    w["mobiles"][vkey].update(x=6, y=5)                   # a vendor next to us (1 tile)
+    w["mobiles"][f"0x{ME:08X}"] = {"graphic": 0x190, "notoriety": 7, "flags": 0x20, "x": 5, "y": 5}
+    check("nobody invulnerable with the player flag: nothing (the vendor at 1 tile, our own mobile, players)",
+          g.sightings(w) == [], str(g.in_view))
+    staff.update(x=9, y=5, z=0, hue=0x83EA, name="Kemp")
+    w["mobiles"][skey] = staff
+    w["items"] = {"0x40000A01": {"graphic": 0x204F, "layer": 0x16, "hue": 0x0481, "container": skey},
+                  "0x40000A02": {"graphic": 0x1F03, "layer": 0x05, "container": skey},
+                  "0x40000A03": {"graphic": 0x0EED, "amount": 5, "container": skey},       # no layer: not worn
+                  "0x40000A04": {"graphic": 0x0F43, "layer": 0x01, "container": f"0x{PLAYER:08X}"}}
+    got = g.sightings(w)
+    s = got[0] if got else {}
+    check("it comes into view: one sighting, first this session, with what it looks like",
+          len(got) == 1 and s["serial"] == skey and s["first"] is True and s["type"] == "sighting"
+          and s["text"] is None and (s["body"], s["hue"], s["notoriety"], s["flags"]) == ("0x03DB", 0x83EA, 7, "0x20")
+          and (s["x"], s["y"], s["z"], s["name"]) == (9, 5, 0, "Kemp")
+          and [(e["serial"], e["layer"], e["graphic"]) for e in s["worn"]]
+          == [("0x40000A02", 0x05, 0x1F03), ("0x40000A01", 0x16, 0x204F)], str(got))
+    check("its staff hints lead with the invulnerable player, then the GM body",
+          staff_hints(s) == [INVULNERABLE_EVIDENCE, "GM body 0x03DB"], str(staff_hints(s)))
+    check("the hold summary says it is in view", what(s).startswith("is in view (invulnerable player"), what(s))
+    check("staying in view: reported once", g.sightings(w) == [])
+    del w["mobiles"][skey]
+    check("gone: nothing", g.sightings(w) == [])
+    w["mobiles"][skey] = staff
+    again = g.sightings(w)
+    check("back in view (not cleared): reported again, not first", [(x["serial"], x["first"]) for x in again]
+          == [(skey, False)], str(again))
+    g.clear([skey])
+    del w["mobiles"][skey]
+    g.sightings(w)
+    w["mobiles"][skey] = staff
+    check("an all-clear covers it while it lasts", g.sightings(w) == [])
+    del w["mobiles"][skey]
+    g.sightings(w)
+    now[0] += CLEAR_S + 1
+    w["mobiles"][skey] = staff
+    check("until it runs out", [x["serial"] for x in g.sightings(w)] == [skey])
+    g2 = SpeechGuard()
+    check("one already in view when the job starts counts", [x["serial"] for x in g2.sightings(w)] == [skey])
+
+
 if __name__ == "__main__":
     test_speaker()
     test_scan()
     test_context()
     test_staff()
     test_pet_commands()
+    test_sightings()
     print("ALL PASS" if not FAILURES else f"FAILED: {len(FAILURES)}: {FAILURES}")
     sys.exit(1 if FAILURES else 0)

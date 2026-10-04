@@ -53,6 +53,13 @@ with a hostile player within 12 tiles.
 Guards: jittered pacing, overall timeout, HP loss, movement stall, the agent
 gate (pause/break wait, kill/budget abort), bounded retries everywhere.
 
+Staff (speech_guard.py; docs/PLAN.md "Staff alarm on an invulnerable player in
+view"): a character speaking near us while we harvest holds the job for the
+overseer (`speech_nearby`); one with staff hints also raises `gm_suspected` and the
+repeating staff alarm. An invulnerable player (notoriety 7 + player flag 0x20)
+coming into view is a staff hint without a word: the alarm at once, a
+`staff_sighting` job event on its first sighting this run, and the same hold.
+
 Threats (threats.py; LUMBER_LOOP.md §13): a monster close enough to flee from
 gets an escape (walk beyond its flee radius, then harvest at the next stand out of
 its reach). Damage from a single creature at healthy hits (--creature-recall-at)
@@ -97,7 +104,7 @@ from uo.gumps import parse_layout  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 import ledger as ledger_mod  # noqa: E402
 import threats  # noqa: E402
-from speech_guard import SpeechGuard, staff_hints  # noqa: E402
+from speech_guard import SpeechGuard, staff_hints, what  # noqa: E402
 import triage  # noqa: E402
 import alerts  # noqa: E402
 import lumber_opt  # noqa: E402
@@ -316,6 +323,7 @@ class LumberLoop:
         self.ledger = ledger_mod.Ledger()
         self._intent = None          # last reported (kind, text, target), restored after a captcha
         self.speech = SpeechGuard()  # a character speaking near us hands control to the overseer
+        self.pending_staff = []      # invulnerable players come into view, held for at the next speech check
         self.triage = triage.Triage(args.triage_url, log=log)  # Laya verdict per line (shadow + escalate)
         self.mode = "work"           # "work" | "escape" (walking away) | "salvage" (converting before a stop)
         #                              | "flee" (running to the guards)
@@ -390,6 +398,7 @@ class LumberLoop:
         self.check_ledger(st)
         self.check_pouches(st)       # before the threat check: our own pouch's hit is no attack
         self.check_threats(st)
+        self.pending_staff += self.staff_in_view(st)
         if self.mode == "work":
             self.check_speech(st)
         hits = st["world"]["self"].get("hits")
@@ -1126,14 +1135,32 @@ class LumberLoop:
             self.speech_hold(who, st)
 
     def new_speakers(self, st):
-        """New speakers, each with its Laya verdict (triage.py) when the service is on."""
+        """New speakers, each with its Laya verdict (triage.py) when the service is on,
+        then the invulnerable players come into view (staff_in_view)."""
         who = self.speech.scan(st["world"], self.link.events, self.link.event_t)
         for w in who:
             v = self.triage.judge(w, st["world"], names=self.speech.names)
             if v and "error" not in v:
                 log(f"laya: {w['label'] or w['name'] or w['serial']}: {w['text']!r} "
                     f"check {v['check']:.2f} direct {v['direct']:.2f} ({v['ms']} ms)")
-        return who
+        staff, self.pending_staff = self.pending_staff + self.staff_in_view(st), []
+        return who + staff
+
+    def staff_in_view(self, st):
+        """Invulnerable players come into view (SpeechGuard.sightings): a `staff_sighting`
+        job event on each one's first sighting this run, and gm_suspected with the staff
+        alarm at once (suspect_staff: one per open alarm) whatever the mode. They are
+        held for like speakers (new_speakers -> speech_hold)."""
+        seen = self.speech.sightings(st["world"])
+        for w in seen:
+            log(f"STAFF IN VIEW: {w['label'] or w['name'] or w['serial']} (body {w['body']}, hue {w['hue']}, "
+                f"at {w['x']},{w['y']})")
+            if w.pop("first"):
+                self.memory.job_event("lumber", "staff_sighting", {**w, "trip": self.trip_n, "mode": self.mode},
+                                      **self._where(st))
+        if seen:
+            self.suspect_staff(seen, st)
+        return seen
 
     def speech_hold(self, who, st):
         """Send nothing until the overseer gives the all-clear (acks the
@@ -1143,17 +1170,19 @@ class LumberLoop:
         holds) or stop the job. A speaker with staff hints (speech_guard.
         staff_hints, including Laya's attendance check) raises `gm_suspected`
         and the staff alarm, which repeats (alerts.STAFF_REPEAT_S) until that
-        juncture is acked. At the all-clear, a `speech_clear` job event keeps
-        every line heard with its verdict and how the hold ended (the labeled
-        data for fine-tuning Laya)."""
+        juncture is acked. An invulnerable player come into view (staff_in_view,
+        type "sighting", no text) is held for the same way. At the all-clear, a
+        `speech_clear` job event keeps every line heard with its verdict and how
+        the hold ended (the labeled data for fine-tuning Laya)."""
         first = who[0]
         name = first["label"] or first["name"] or first["serial"]
-        log(f"SPEECH: {name}: {first['text']!r}; pausing for the overseer")
+        log(f"SPEECH: {name} {what(first)}; pausing for the overseer")
         resume = self._intent
-        self.doing("speech", f"Paused: {name} spoke nearby; waiting for the overseer")
+        self.doing("speech", f"Paused: {name} " + ("in view" if first["text"] is None else "spoke nearby")
+                   + "; waiting for the overseer")
         data = {"hold": True, "task": "lumber", "trip": self.trip_n, "speakers": who, **self._where(st)}
         jid = self.memory.juncture("lumber", "speech_nearby",
-                                   f"{name} said {first['text']!r} nearby; harvesting paused until the "
+                                   f"{name} {what(first)} nearby; harvesting paused until the "
                                    f"all-clear (ack)"[:300], "urgent", data)
         self.memory.job_event("lumber", "speech_hold", data, **self._where(st))
         if not self.suspect_staff(who, st):
@@ -1168,7 +1197,7 @@ class LumberLoop:
                 st = self.link.last                         # the pause's last read
                 new = self.new_speakers(st)
                 for w in new:
-                    log(f"SPEECH (paused): {w['label'] or w['name'] or w['serial']}: {w['text']!r}")
+                    log(f"SPEECH (paused): {w['label'] or w['name'] or w['serial']} {what(w)}")
                     heard.add(w["serial"])
                 lines += new
                 self.suspect_staff(new, st)
