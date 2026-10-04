@@ -522,6 +522,18 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
     everything else was taken. The first corpse had decayed to **bones (graphic 0x0ECD) that still
     held its items** (the second spellstone, the tunic). `act recall` re-wielded the staff after
     the cast on its first live use (`weapon: rewielded`).
+  - **A spellstone bound to someone else blocks casting (20:56).** The "second spellstone",
+    `0x63611A72`, wasn't ours. A single click reads "a spellstone", "(500 charges)", "[bound to Da
+    Cajun Crusada]". Ours, `0x57064E09`, reads "(2828 charges)", "[bound to Shackleworth]". Both
+    show as "arielle's bauble" (graphic 0x023B). With the foreign one loose in the pack and ours
+    in a bag, the server answered 17 of 17 Greater Heals with **502630 "More reagents are
+    needed"**. It sends that **after the target answer**, so the runner logged each cast as a
+    heal while mana stayed at 91/91. Once ours was loose and the foreign one in a bag, a Greater
+    Heal landed ("You generate mana for your spell."). Whether the server checks only the first
+    stone it finds is unknown [INFERENCE].
+    - Fixes: `combat.reagents` skips a stone labelled "[bound to <someone else>]".
+    - `loop_hunt` checks for 502630 after the target answer too (`refused_after`: the heal isn't
+      counted, the spell is blocked for the visit).
 - **Lumber data audit (1a5d59f; LUMBER_LOOP §6 "What the optimizer learns from").** Trip rows
   now carry the travel legs (every cast with method/ok/failure/seconds, the book, Witcher rune,
   walk to the library, mana and reagents), `lockout_s`, `stationary_s`, `travel_s`, `supplies`,

@@ -748,7 +748,8 @@ class HuntLoop:
 
     def cast(self, sid, what: str):
         """0xFF sub 4; the target cursor or None. A 'more reagents needed' answer
-        (cliloc 502630) stops casting `sid` until the next visit."""
+        (cliloc 502630) stops casting `sid` until the next visit; the server checks
+        reagents again at the target answer (refused_after)."""
         mark = len(self.link.events)
         armed = self.weapon is not None and self.worn(self.link.last or self.state(), self.weapon)
         self.link.act(actions.cast_spell(sid))
@@ -756,14 +757,22 @@ class HuntLoop:
         cur = self.await_cursor(mark)
         if cur is None:
             log(f"{combat.MAGERY_SPELLS[sid - 1]} at {what}: no target cursor")
-            if combat.no_reagents_answer(self.link.events[mark:]):
-                self.no_reagents.add(sid)
-                log(f"the server wants more reagents for {combat.MAGERY_SPELLS[sid - 1]}: "
-                    f"not casting it again this visit")
+            self.refused_after(sid, mark)
         if armed and not self.cast_disarms and not self.worn(self.link.last, self.weapon):
             self.cast_disarms = True
             log(f"casting put the weapon 0x{self.weapon:08X} in the pack: no attack spell from now on")
         return cur
+
+    def refused_after(self, sid: int, mark: int) -> bool:
+        """The server's 'more reagents needed' among the events since `mark`: block
+        `sid` for the visit. It comes after the target answer for a spellstone the
+        server won't take (live 2026-10-03: 17 Greater Heals logged as heals)."""
+        if not combat.no_reagents_answer(self.link.events[mark:]):
+            return False
+        self.no_reagents.add(sid)
+        log(f"the server wants more reagents for {combat.MAGERY_SPELLS[sid - 1]}: "
+            f"not casting it again this visit")
+        return True
 
     def spell_ok(self, st, sid: int, reserve: int = 0) -> bool:
         """`sid` can be paid for with `reserve` mana left over (combat.can_cast) and the
@@ -816,6 +825,8 @@ class HuntLoop:
             if any(c in NO_LOS_CLILOCS for c in heard):
                 log(f"spell at 0x{serial:08X}: cliloc {heard}; melee only for {SPELL_BLOCK_S:.0f} s")
                 self.spell_block[serial] = time.monotonic() + SPELL_BLOCK_S
+            if self.refused_after(self.spell, mark):
+                return False
         return True
 
     def heal(self, st, potions: bool = True) -> bool:
@@ -888,9 +899,13 @@ class HuntLoop:
         st = self.state()
         if not self.cursor_still(st, cur):
             return False
+        mark = len(self.link.events)
         self.link.act(combat.target_self(cur, self.me(st), self.pos(st), st["world"]["self"].get("body")))
+        self.wait_for(lambda s: (s["world"]["self"].get("hits") or 0) > (me.get("hits") or 0)
+                      or combat.no_reagents_answer(self.link.events[mark:]), 2.0)
+        if self.refused_after(sid, mark):
+            return False
         self.count("heals")
-        self.wait_for(lambda s: (s["world"]["self"].get("hits") or 0) > (me.get("hits") or 0), 2.0)
         log(f"{name.lower()}: {me.get('hits')} -> {self.link.last['world']['self'].get('hits')} hits")
         return True
 

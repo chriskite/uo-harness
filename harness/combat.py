@@ -188,18 +188,27 @@ def spell_mana(sid: int) -> int:
 
 
 def reagents(world: dict, me: int) -> tuple[dict, bool]:
-    """({reagent graphic: count}, spellstone?) over the backpack at any bag depth."""
+    """({reagent graphic: count}, spellstone?) over the backpack at any bag depth.
+    A stone whose click label reads "[bound to X]" for another character doesn't
+    count (live 2026-10-03: with one loose in the pack and ours in a bag the server
+    refused every cast with 502630; which stone it checks first is unknown, so a
+    refusal still blocks the spell via no_reagents_answer)."""
     items, labels = world.get("items") or {}, world.get("labels") or {}
     pack = backpack(items, me)
     counts, stone = {}, False
     if pack is None:
         return counts, stone
+    mine = "[bound to " + ((world.get("self") or {}).get("name") or "") + "]"
     for k, it in pack_items(items, pack):
         g = _serial(it["graphic"])
         if g in REAGENTS:
             counts[g] = counts.get(g, 0) + (it.get("amount") or 1)
-        name = (it.get("name") or labels.get(k) or _tile_name(g) or "").lower()
-        if any(w in name for w in SPELLSTONE_WORDS):
+        label = labels.get(k) or ""
+        if label.startswith("[bound to ") and label != mine:
+            continue
+        name = (it.get("name") or label or "").lower()
+        if any(w in name for w in SPELLSTONE_WORDS) or any(
+                w in (_tile_name(g) or "").lower() for w in SPELLSTONE_WORDS):
             stone = True
     return counts, stone
 
