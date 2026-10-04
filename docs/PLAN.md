@@ -804,6 +804,77 @@ harvestable resources nearby" move-on; an attended live trip chops a quota with 
 only; trip and episode rows still feed `lumber plan`; the measured range and the tree it picks
 are written to docs/NOTES.md and LUMBER_LOOP.md §2.
 
+## Keep thieves off the logs: trapped pouch + keep-away (planned 2026-10-04, after Smart Harvest)
+
+User request (2026-10-04): add protecting our logs from thieves to the plan, after seeing the
+community's trapped-pouch scripts. Not built; it follows Smart Harvest.
+
+**Where we stand:**
+- `harness/ledger.py` only notices a theft afterwards: a `theft` job event plus a `theft_suspected`
+  juncture, and the loop carries on. `lumber_opt` then prices theft risk into the trip size.
+- Nothing prevents a theft. THREATS.md §7 T3 (keep non-friendly players ≥ 2 tiles away) and the
+  400-board carry cap were never built.
+- Seen so far: one theft (10 mandrake root, 2026-10-03, "Caputo Wood" walked up to 1 tile; docs/NOTES.md
+  "A pickpocket, not an attack"). The memory store has 0 `theft` events and 0 `theft_suspected` junctures
+  as of 2026-10-04.
+
+**What thieves can do** (THREATS.md §4, wiki, H):
+- About 200 logs per successful steal at 100 Stealing, one steal per 5 s.
+- The thief must stand within 1 tile.
+- Snooping a non-empty trapped pouch makes it explode; snooping an empty one is blocked.
+
+**What players say** (Discord capture, M):
+- A container with items in it can't be stolen whole (Kaitlyn 2026-07-01, Halic 2026-07-02).
+- Logs dropped into a trapped pouch are hidden until a thief snoops it, and the explosion is the
+  warning to leave. Nested pouches buy more time (jeem 2026-08-28).
+- Hiding a bag behind other items doesn't work.
+- Against it: one player lost supplies from a trapped pouch that never exploded (Kataleon
+  2026-07-17; nobody could explain it), and a former thief says "if a thief wants something they can
+  most likely get it". **So a pouch is a delay plus an alarm, not a lock.**
+- The same idea in public scripts: Jaseowns' "Snippet for moving logs to trapped pouch" and the miner's
+  `hideIngotsInRedPouch` (ANTICHEAT.md §3).
+
+**Plan:**
+1. **Logs into a trapped pouch.** After each successful chop (or every few), move the top-level log
+   stack into a trapped pouch in the backpack with the stock lift/drop and human pacing, as the
+   snippet does. Boards from converting go there too.
+   - The ledger has to treat the move as expected, not as a loss. It must still see the pouch's
+     contents as carried, and still see a theft out of the pouch.
+   - The trip's log counts (`attempt`, quota, `lumber_opt` stats) must count logs inside the pouch.
+2. **The explosion is the alarm.** A popped pouch near a non-friendly player means a thief is at work.
+   Raise the existing urgent threat path: recall, and keep away from the spot for `THIEF_COOLDOWN`
+   (THREATS T4).
+   - What the explosion looks like on the wire (effect, sound, message, the pouch losing its trap
+     state) is unknown. Capture it first: pop one of our own pouches, attended. A thief's pop may
+     differ; THREATS D9 (a consenting thief) stays the full test and needs staff sanction.
+   - Re-trap or replace a popped pouch before the next trip.
+3. **Keep-away (THREATS T3).** Any non-friendly player within 2 tiles for ≥ 1 s: step away to
+   ≥ 4 tiles, humanised. If they follow twice, recall. Cheap, human, and it denies the 1-tile steal
+   range outright.
+4. **Getting pouches.**
+   - Cast Magic Trap (2nd circle; Hackworth has 60 Magery) on a pouch. Ingredients and cost are
+     to be read from the wiki, not guessed.
+   - Or buy trapped pouches (Discord: Provisioner or mage NPC; to be checked on a vendor list).
+   - The trip plan carries one or two, like hatchets and reagents.
+
+**Rejected:**
+- **Attacking the thief:** Heat of Battle blocks recall, and it's PvP (THREATS §4.3).
+- **A locked box in the pack:** we can't drop into a locked container in our own backpack, and thieves
+  can lockpick it.
+- **Holding the bag on the cursor** (a Discord trick): no stock client does that while harvesting, and
+  the cursor is busy with the hatchet.
+- **Hiding the bag behind other items:** players say thieves move items aside.
+
+**Open (user):** popping a pouch to break a paralyze (ROADMAP Q8) stays a separate decision. This
+plan only carries the logs in one.
+
+**Done when:**
+- Offline tests cover the pouch move in the ledger (no false theft; a real loss from the pouch is still
+  a theft) and the keep-away trigger.
+- An attended live trip keeps its logs in the pouch end to end, including the convert and the bank
+  deposit.
+- The self-pop capture is decoded in docs/NOTES.md, and the alarm fires on it in replay.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
