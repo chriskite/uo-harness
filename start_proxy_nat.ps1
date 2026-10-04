@@ -8,10 +8,16 @@
 param(
     [switch]$RestartProxy,
     [switch]$RestartNat,
-    [switch]$NatWorker   # internal: elevated NAT step
+    [switch]$NatWorker,  # internal: elevated NAT step
+    [string]$Python      # default: $env:UO_PY, else the first python.exe on PATH that isn't the Store stub
 )
 $ErrorActionPreference = 'Stop'
-$Python = 'C:\Users\chris\AppData\Local\Programs\Python\Python313\python.exe'
+if (-not $Python) { $Python = $env:UO_PY }
+if (-not $Python) {
+    $Python = (Get-Command python.exe -CommandType Application -ErrorAction SilentlyContinue |
+        Where-Object { $_.Source -notlike '*\WindowsApps\*' } | Select-Object -First 1).Source
+}
+if (-not $Python) { throw 'python.exe (3.13) not found on PATH; set UO_PY' }
 $Root = $PSScriptRoot
 $DivertLog = Join-Path $Root 'divert.log'
 
@@ -23,7 +29,7 @@ function Get-DivertNat {
 if ($NatWorker) {
     # Elevated: only here are elevated processes' command lines readable.
     if ((Get-DivertNat) -and -not $RestartNat) { exit 3 }
-    & (Join-Path $Root 'restart_divert.ps1')   # blocks while divert_nat runs
+    & (Join-Path $Root 'restart_divert.ps1') -Python $Python   # blocks while divert_nat runs
     exit 1
 }
 
@@ -64,7 +70,8 @@ if ($listener) {
 # --- divert NAT (elevated) ---------------------------------------------------------------------
 $t0 = Get-Date
 $hostExe = (Get-Process -Id $PID).Path
-$workerArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-NatWorker')
+$workerArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-NatWorker',
+    '-Python', "`"$Python`"")
 if ($RestartNat) { $workerArgs += '-RestartNat' }
 try {
     $nat = Start-Process -FilePath $hostExe -ArgumentList $workerArgs -Verb RunAs `

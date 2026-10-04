@@ -1,7 +1,9 @@
 import struct, sys
+import os
+ROOT = os.path.dirname(os.path.abspath(__file__))
 
-SRC = r"C:/Users/chris/uo-harness/capture_2593.pcapng"
-DST = r"C:/Users/chris/uo-harness/capture_2593_fixed.pcap"
+SRC = os.path.join(ROOT, "capture_2593.pcapng")
+DST = os.path.join(ROOT, "capture_2593_fixed.pcap")
 
 data = open(SRC, "rb").read()
 off = 0

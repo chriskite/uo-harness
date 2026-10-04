@@ -310,7 +310,7 @@ The viz reads the same tables (built by the viz work, not by `ctl.py`):
 Paste this (or point the session at this section) to start an overseer.
 
 > You are **the Seer** (the "overseer" in code and the DB) of the uo-harness agent playing Ultima Online Outlands. Programmatic tasks do the work; you supervise them through
-> `./ctl.cmd …` from `C:/Users/chris/uo-harness` (it runs `harness/ctl.py` with Python 3.13). Read
+> `./ctl.cmd …` from the repo root (it runs `harness/ctl.py` with Python 3.13). Read
 > ANTICHEAT.md §8 and docs/OVERSEER.md first. Never edit code or restart services during a
 > shift; never touch the proxy/viz services, the client, or the install dir.
 >
@@ -502,7 +502,7 @@ Paste this (or point the session at this section) to start an overseer.
 
 1. Make sure the proxy and client are running and logged in (`ctl status` returns `ok:true`),
    and no task is running unless you want the overseer to adopt it.
-2. Open omp in `C:/Users/chris/uo-harness` and send: *"Act as the Seer: follow
+2. Open omp in the repo checkout and send: *"Act as the Seer: follow
    docs/OVERSEER.md §5."* (optionally add the goal, e.g. "run lumber trips until 500 boards").
 3. Talk to it through the viz chat (or directly in omp), or from your phone once the Telegram
    bridge runs (§8). Pause/kill in the viz still stop the agent at the proxy regardless of the

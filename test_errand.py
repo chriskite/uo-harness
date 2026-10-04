@@ -20,8 +20,8 @@ import subprocess
 import sys
 import tempfile
 
-ROOT = r"C:/Users/chris/uo-harness"
-PY = r"C:/Users/chris/AppData/Local/Programs/Python/Python313/python.exe"
+ROOT = os.path.dirname(os.path.abspath(__file__))
+PY = sys.executable
 sys.path.insert(0, f"{ROOT}/harness")
 
 import actions  # noqa: E402

@@ -1,7 +1,9 @@
 """Proper TCP reassembly from the fixed pcap: per-direction, seq-ordered, retransmission-safe."""
 import subprocess, sys
+import os
+ROOT = os.path.dirname(os.path.abspath(__file__))
 
-PCAP = r"C:/Users/chris/uo-harness/capture_2593_fixed.pcap"
+PCAP = os.path.join(ROOT, "capture_2593_fixed.pcap")
 TSHARK = r"C:/Program Files/Wireshark/tshark.exe"
 
 out = subprocess.run(
@@ -40,8 +42,8 @@ def reassemble(seqmap):
 
 c2s = reassemble(streams["client"])
 s2c = reassemble(streams[2593])
-open(r"C:/Users/chris/uo-harness/c2s.bin", "wb").write(c2s)
-open(r"C:/Users/chris/uo-harness/s2c.bin", "wb").write(s2c)
+open(os.path.join(ROOT, "c2s.bin"), "wb").write(c2s)
+open(os.path.join(ROOT, "s2c.bin"), "wb").write(s2c)
 print(f"C2S: {len(c2s)} bytes, S2C: {len(s2c)} bytes")
 print("C2S[0:48]:", c2s[:48].hex())
 print("S2C[0:48]:", s2c[:48].hex())

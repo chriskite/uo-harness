@@ -1,7 +1,9 @@
 """Walk the frozen NativeAOT statics for PacketHandlers.Handler and dump the delegate array."""
 import struct, json, sys
+import os
+ROOT = os.path.dirname(os.path.abspath(__file__))
 
-EXE = r"C:\Users\chris\uo-harness\ClassicUO.exe"
+EXE = os.path.join(ROOT, "ClassicUO.exe")
 data = open(EXE, "rb").read()
 
 # --- minimal PE parsing ---
@@ -32,7 +34,7 @@ def u64(va): return struct.unpack("<Q", read_va(va, 8))[0]
 def u32(va): return struct.unpack("<I", read_va(va, 4))[0]
 
 # --- method map for naming ---
-mmap = json.load(open(r"C:\Users\chris\uo-harness\mrt_map.json"))
+mmap = json.load(open(os.path.join(ROOT, "mrt_map.json")))
 byrva = {int(k): v for k, v in mmap["byRva"].items()}
 def name_of(va):
     rva = va - image_base
@@ -61,5 +63,5 @@ for i in range(256):
     out.append((i, dlg, p8, p10, p18, p20, nm))
     print(f"[0x{i:02x}] dlg=0x{dlg:x} ee=0x{ee:x} +8=0x{p8:x} +10=0x{p10:x} {name_of(p10)} +18=0x{p18:x} +20=0x{p20:x} {name_of(p20)}")
 
-json.dump(out, open(r"C:\Users\chris\uo-harness\handler_array_dump.json", "w"), indent=1)
+json.dump(out, open(os.path.join(ROOT, "handler_array_dump.json"), "w"), indent=1)
 print(f"\n{len(out)} non-null handlers")

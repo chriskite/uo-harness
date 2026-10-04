@@ -11,7 +11,7 @@ import socket
 import sys
 import time
 
-LOGDIR = r"C:/Users/chris/uo-harness/logs"
+LOGDIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
 DELAY = float(sys.argv[sys.argv.index("--delay") + 1]) if "--delay" in sys.argv else 0.2
 STEPS = int(sys.argv[sys.argv.index("--steps") + 1]) if "--steps" in sys.argv else 2
 

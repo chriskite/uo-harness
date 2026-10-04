@@ -10,6 +10,7 @@ import ghidra.program.model.listing.InstructionIterator;
 import ghidra.program.model.symbol.Reference;
 import ghidra.program.model.symbol.ReferenceIterator;
 
+import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.util.LinkedHashSet;
@@ -17,12 +18,16 @@ import java.util.Set;
 
 public class CctorSlotsAndResource extends GhidraScript {
 
+    private String repoPath(String rel) {
+        return new File(getSourceFile().getParentFile().getParentFile().getAbsolutePath(), rel).getPath();
+    }
+
     @Override
     public void run() throws Exception {
         FunctionManager fm = currentProgram.getFunctionManager();
         DecompInterface ifc = new DecompInterface();
         ifc.openProgram(currentProgram);
-        PrintWriter out = new PrintWriter(new FileWriter("C:\\Users\\chris\\uo-harness\\decompiled\\cctor_slots.txt"));
+        PrintWriter out = new PrintWriter(new FileWriter(repoPath("decompiled/cctor_slots.txt")));
 
         // 1. dump all instruction mnemonics in cctor that reference disp32 0x10/0x208/0x210/0x2a0 stores
         Function cctor = fm.getFunctionAt(toAddr(0x140184550L));

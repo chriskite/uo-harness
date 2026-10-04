@@ -2,7 +2,7 @@
 # Usage: powershell -ExecutionPolicy Bypass -File monitor_endpoints.ps1 -Seconds 420
 param([int]$Seconds = 420)
 
-$out = "C:\Users\chris\uo-harness\behavioral_endpoints.csv"
+$out = Join-Path $PSScriptRoot 'behavioral_endpoints.csv'
 $seen = @{}
 $start = Get-Date
 "firstSeen,lastSeen,process,localPort,remoteAddr,remotePort,state" | Out-File $out

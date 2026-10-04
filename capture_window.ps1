@@ -1,5 +1,5 @@
 # Captures the UO game window (not the Razor window) of the ClassicUO process.
-param([string]$Out = 'C:\Users\chris\uo-harness\screen_game.png')
+param([string]$Out = (Join-Path $PSScriptRoot 'screen_game.png'))
 Add-Type -AssemblyName System.Drawing
 Add-Type @"
 using System;

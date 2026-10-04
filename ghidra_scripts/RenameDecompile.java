@@ -7,14 +7,16 @@ import ghidra.program.model.listing.FunctionManager;
 import ghidra.program.model.symbol.SourceType;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.PrintWriter;
 
 public class RenameDecompile extends GhidraScript {
 
-    static final String TSV = "C:\\Users\\chris\\uo-harness\\mrt_protocol_subset.tsv";
-    static final String OUT = "C:\\Users\\chris\\uo-harness\\decompiled\\protocol_handlers.c";
+    private String repoPath(String rel) {
+        return new File(getSourceFile().getParentFile().getParentFile().getAbsolutePath(), rel).getPath();
+    }
 
     @Override
     public void run() throws Exception {
@@ -22,10 +24,10 @@ public class RenameDecompile extends GhidraScript {
         DecompInterface ifc = new DecompInterface();
         ifc.openProgram(currentProgram);
 
-        PrintWriter out = new PrintWriter(new FileWriter(OUT));
+        PrintWriter out = new PrintWriter(new FileWriter(repoPath("decompiled/protocol_handlers.c")));
         int renamed = 0, decompiled = 0, failed = 0;
 
-        BufferedReader br = new BufferedReader(new FileReader(TSV));
+        BufferedReader br = new BufferedReader(new FileReader(repoPath("mrt_protocol_subset.tsv")));
         String line;
         while ((line = br.readLine()) != null) {
             String[] parts = line.split("\t");

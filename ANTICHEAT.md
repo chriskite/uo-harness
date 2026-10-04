@@ -147,7 +147,7 @@ Working rules, each tied to a detection surface above:
 3. **Assume all automation-detection is server-side statistics + human review**: movement timing, action inter-arrival times, 24/7 uptime, perfect play, CAPTCHA response latency. The harness adds human-like jitter and sessions of human length; captchas are answered by the human at the PC by default, or by the solver with human-plausible latency when the viz toggle says `auto` (§8.8).
 4. **Respect Razor gating signals** (`IsRazorBlockedSysMessage`, PvP restrictions): when the server restricts assistants, the harness halts automated actions.
 5. **Device/account infrastructure is out of scope**: do not attempt to spoof `DeviceId`/TPM/2FA; log in through the official launcher normally.
-6. **Keep files stock**: `VersionRestrictions`/`IsMostRecentGameFilesVersion` means modified game files may block login outright; the harness never writes into the install dir (work in `C:\Users\chris\uo-harness`).
+6. **Keep files stock**: `VersionRestrictions`/`IsMostRecentGameFilesVersion` means modified game files may block login outright; the harness never writes into the install dir (work in the repo checkout).
 9. **Walk-train "gate" (observed 2026-09-29; superseded the same day, see below: it was the client's own walker, not the server).** First reading at the time: the server detects movement trains without interleaved client activity; ~10+ uninterrupted injected walks were rejected wholesale, and after repeated solo trains even the human's arrow keys stopped working. The rule drawn from it (bursts ≤ ~6 steps, interleaved with client activity) is **not implemented**: runners walk whole routes (see the status note after the S2C evidence).
    **Reinterpretation (2026-09-29, sessions 20260929_142237 / _143051 / _144541):** the arrow-key lockout was client-side, with no server penalty involved. The server's ConfirmWalk for walks the client didn't send trips the client's bad-step path (`WalkingFailed = true`, latched single resync), and the client stays frozen until a server walker reset. The server apparently ignores resyncs < ~5 s apart, so fast agent steps outran the reset (docs/MOVEMENT.md). **Live-supported:** with agent steps spaced ≥ 5 s, 6/6 stepped and the user's own arrow keys kept working. The "trains rejected wholesale" observation is likely the same mechanism plus ladder drift, not a behavioral gate.
    **S2C evidence (2026-09-29, corrected decode, docs/CIPHER.md §4):** in session 142237 the server *confirmed* all 12 agent continuation walks (`22 01..0c 01`) of a solo train while the frozen client drew nothing. **No server-side rejection of walk trains exists.** The lockout was 100% client-side. Server-side *passive* behavioral analysis can't be ruled out from the wire, so the harness keeps agent movement at the stock client's own pace: the proxy enforces 0.2 s run / 0.4 s walk minimum step spacing and at most 5 unconfirmed walks (the client's `MAX_STEP_COUNT`), and the Mover steps at the held-key cadence (§8.14).
@@ -524,12 +524,14 @@ refused corpse was blue in its `0xDEAD`, so the runner can skip them before walk
 
 ### Appendix A — Evidence artifacts (local)
 
+Paths are relative to the repo checkout (laptop).
+
 | Artifact | Path |
 |---|---|
-| Full client strings (373k) | `C:\Users\chris\uo-harness\strings.txt` |
-| Categorized scan hits | `C:\Users\chris\uo-harness\grep_hits.txt` |
-| API surface names | `C:\Users\chris\uo-harness\api_surface.txt` |
-| Endpoint inventory | `C:\Users\chris\uo-harness\endpoints.txt` |
-| Launcher strings/hits | `C:\Users\chris\uo-harness\launcher_strings.txt`, `launcher_hits.txt` |
-| Ghidra project + script | `C:\Users\chris\uo-harness\ghidra\`, `ghidra_scripts\ACXrefs.java` |
-| Behavioral monitor | `C:\Users\chris\uo-harness\monitor_endpoints.ps1` |
+| Full client strings (373k) | `strings.txt` |
+| Categorized scan hits | `grep_hits.txt` |
+| API surface names | `api_surface.txt` |
+| Endpoint inventory | `endpoints.txt` |
+| Launcher strings/hits | `launcher_strings.txt`, `launcher_hits.txt` |
+| Ghidra project + script | `ghidra\`, `ghidra_scripts\ACXrefs.java` |
+| Behavioral monitor | `monitor_endpoints.ps1` |

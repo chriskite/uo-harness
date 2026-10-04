@@ -1,4 +1,6 @@
 import re, sys
+import os
+ROOT = os.path.dirname(os.path.abspath(__file__))
 
 def extract_strings(path, minlen=5):
     data = open(path, "rb").read()
@@ -28,12 +30,12 @@ com_size = struct.unpack_from("<I", d, dd + 14*8 + 4)[0]
 bsjb = d.find(b"BSJB")
 print(f"launcher: size={len(d)} CLRhdr={'yes' if com_size else 'no'} BSJB={'@'+hex(bsjb) if bsjb>=0 else 'no'}")
 ss = extract_strings(LAUNCHER)
-with open(r"C:/Users/chris/uo-harness/launcher_strings.txt", "w") as f:
+with open(os.path.join(ROOT, "launcher_strings.txt"), "w") as f:
     for off, s in ss:
         f.write(f"{off:08x} A {s}\n")
 kw = re.compile(r"uooutlands\.com|/api/|https?://|anticheat|anti-cheat|cheat|speedhack|inject|hash|md5|sha|integrity|verify|detect|heartbeat|telemetry|screenshot|process|module", re.I)
 seen = set()
-with open(r"C:/Users/chris/uo-harness/launcher_hits.txt", "w") as f:
+with open(os.path.join(ROOT, "launcher_hits.txt"), "w") as f:
     for off, s in ss:
         if kw.search(s) and s not in seen and len(s) < 250:
             seen.add(s)
@@ -41,7 +43,7 @@ with open(r"C:/Users/chris/uo-harness/launcher_hits.txt", "w") as f:
 print(f"launcher strings={len(ss)} hits={len(seen)}")
 
 # --- Outlands API model surface from client strings ---
-lines = open(r"C:/Users/chris/uo-harness/strings.txt", encoding="utf-8", errors="replace").read().splitlines()
+lines = open(os.path.join(ROOT, "strings.txt"), encoding="utf-8", errors="replace").read().splitlines()
 models = set()
 for ln in lines:
     parts = ln.split(" ", 2)
@@ -53,5 +55,5 @@ for ln in lines:
         if t.endswith(("Model", "JsonContext", "Response", "Request")) and not t.startswith(("System", "get_", "set_", "Create_", "m_")):
             models.add(t)
 out = sorted(models)
-open(r"C:/Users/chris/uo-harness/api_surface.txt", "w").write("\n".join(out))
+open(os.path.join(ROOT, "api_surface.txt"), "w").write("\n".join(out))
 print(f"api model-ish names: {len(out)}")

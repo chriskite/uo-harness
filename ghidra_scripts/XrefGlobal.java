@@ -8,6 +8,7 @@ import ghidra.program.model.symbol.Reference;
 import ghidra.program.model.symbol.ReferenceIterator;
 import ghidra.program.model.symbol.ReferenceManager;
 
+import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.util.HashSet;
@@ -15,8 +16,11 @@ import java.util.Set;
 
 public class XrefGlobal extends GhidraScript {
 
+    private String repoPath(String rel) {
+        return new File(getSourceFile().getParentFile().getParentFile().getAbsolutePath(), rel).getPath();
+    }
+
     static final long GLOBAL = 0x14118cf60L;
-    static final String OUT = "C:\\Users\\chris\\uo-harness\\decompiled\\xref_add_fn.c";
 
     @Override
     public void run() throws Exception {
@@ -34,7 +38,7 @@ public class XrefGlobal extends GhidraScript {
         }
         println("referencing functions: " + funcs.size());
 
-        PrintWriter out = new PrintWriter(new FileWriter(OUT));
+        PrintWriter out = new PrintWriter(new FileWriter(repoPath("decompiled/xref_add_fn.c")));
         for (Function f : funcs) {
             out.println("\n// ==== " + f.getName() + " @ " + f.getEntryPoint() +
                     " size=" + f.getBody().getNumAddresses() + " ====");

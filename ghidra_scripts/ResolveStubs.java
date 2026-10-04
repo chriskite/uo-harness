@@ -7,17 +7,22 @@ import ghidra.program.model.listing.InstructionIterator;
 import ghidra.program.model.symbol.Reference;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.PrintWriter;
 
 public class ResolveStubs extends GhidraScript {
 
+    private String repoPath(String rel) {
+        return new File(getSourceFile().getParentFile().getParentFile().getAbsolutePath(), rel).getPath();
+    }
+
     @Override
     public void run() throws Exception {
         FunctionManager fm = currentProgram.getFunctionManager();
-        PrintWriter out = new PrintWriter(new FileWriter("C:\\Users\\chris\\uo-harness\\stub_targets.txt"));
-        BufferedReader br = new BufferedReader(new FileReader("C:\\Users\\chris\\uo-harness\\stubs.txt"));
+        PrintWriter out = new PrintWriter(new FileWriter(repoPath("stub_targets.txt")));
+        BufferedReader br = new BufferedReader(new FileReader(repoPath("stubs.txt")));
         String line;
         while ((line = br.readLine()) != null) {
             line = line.trim();

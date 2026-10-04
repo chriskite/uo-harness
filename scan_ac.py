@@ -1,7 +1,9 @@
 import re, collections
+import os
+ROOT = os.path.dirname(os.path.abspath(__file__))
 
-STRINGS = r"C:/Users/chris/uo-harness/strings.txt"
-OUT = r"C:/Users/chris/uo-harness/grep_hits.txt"
+STRINGS = os.path.join(ROOT, "strings.txt")
+OUT = os.path.join(ROOT, "grep_hits.txt")
 
 cats = {
     "anticheat_core": r"anti.?cheat|speedhack|auto.?click|auto.?keyboard|macro.?detect|bot.?detect|input.?inject|synthetic.?input",

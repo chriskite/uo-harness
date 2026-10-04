@@ -1,6 +1,6 @@
 # Outlands client device identifier — Ghidra RE (DeviceIdRE)
 
-Binary analysed: workspace copy `C:/Users/chris/uo-harness/ClassicUO.exe` (70,434,992 B). Per docs/NOTES.md this is
+Binary analysed: workspace copy `ClassicUO.exe` at the laptop's repo root (70,434,992 B). Per docs/NOTES.md this is
 **1.0.2.544**, not the installed 1.0.2.550. All addresses below are 544 addresses. The runtime checks (§6) cover
 captures from both 544 and 550 sessions.
 Tooling: Ghidra 12.1.4 headless on the existing analysed project (`ghidra/UOProject`, `-readOnly`), script

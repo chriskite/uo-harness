@@ -10,7 +10,7 @@ import os
 import sys
 import time
 
-LOGDIR = r"C:/Users/chris/uo-harness/logs"
+LOGDIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
 SHOW_FF = "--all" in sys.argv
 
 NAMES = {

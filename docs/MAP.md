@@ -318,8 +318,8 @@ Decompile list: a `name<TAB>hexVA` TSV (VAs from `mrt_map.json`, e.g. `UOO.Terra
 `UOO.ArtTile`, `ClassicUO.Game.Pathfinder`), then:
 
 ```
-"C:/Users/chris/ghidra_12.1.4_PUBLIC/support/analyzeHeadless.bat" C:/Users/chris/uo-harness/ghidra UOProject \
-  -process ClassicUO.exe -noanalysis -readOnly -scriptPath C:/Users/chris/uo-harness/ghidra_scripts \
+"<ghidra>/support/analyzeHeadless.bat" "<repo>/ghidra" UOProject \
+  -process ClassicUO.exe -noanalysis -readOnly -scriptPath "<repo>/ghidra_scripts" \
   -postScript DecompileList.java <targets.tsv> <out.c>
 ```
 

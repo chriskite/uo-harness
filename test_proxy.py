@@ -10,8 +10,8 @@ import os
 import subprocess
 import sys
 
-ROOT = r"C:/Users/chris/uo-harness"
-PY = r"C:/Users/chris/AppData/Local/Programs/Python/Python313/python.exe"
+ROOT = os.path.dirname(os.path.abspath(__file__))
+PY = sys.executable
 C2S = open(f"{ROOT}/logs/session_20260928_141253.c2s.raw", "rb").read()
 S2C = open(f"{ROOT}/logs/session_20260928_141253.s2c.raw", "rb").read()
 PROXY_PORT = 12593

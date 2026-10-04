@@ -7,6 +7,7 @@ import ghidra.program.model.listing.FunctionManager;
 import ghidra.program.model.symbol.Reference;
 import ghidra.program.model.symbol.ReferenceIterator;
 
+import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.util.HashSet;
@@ -14,7 +15,9 @@ import java.util.Set;
 
 public class FindAddCallers extends GhidraScript {
 
-    static final String OUT = "C:\\Users\\chris\\uo-harness\\decompiled\\add_callers.c";
+    private String repoPath(String rel) {
+        return new File(getSourceFile().getParentFile().getParentFile().getAbsolutePath(), rel).getPath();
+    }
 
     @Override
     public void run() throws Exception {
@@ -35,7 +38,7 @@ public class FindAddCallers extends GhidraScript {
 
         DecompInterface ifc = new DecompInterface();
         ifc.openProgram(currentProgram);
-        PrintWriter out = new PrintWriter(new FileWriter(OUT));
+        PrintWriter out = new PrintWriter(new FileWriter(repoPath("decompiled/add_callers.c")));
         for (Function f : callers) {
             out.println("\n// ============================================================");
             out.println("// CALLER " + f.getName() + " @ " + f.getEntryPoint() + " size=" + f.getBody().getNumAddresses());

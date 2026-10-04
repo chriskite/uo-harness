@@ -1,6 +1,8 @@
 import re
+import os
+ROOT = os.path.dirname(os.path.abspath(__file__))
 
-lines = open(r"C:/Users/chris/uo-harness/strings.txt", encoding="utf-8", errors="replace").read().splitlines()
+lines = open(os.path.join(ROOT, "strings.txt"), encoding="utf-8", errors="replace").read().splitlines()
 urls = set()
 hosts = set()
 paths = set()
@@ -20,7 +22,7 @@ for ln in lines:
     if "user-agent" in s.lower() or "UserAgent" in s:
         uas.add(s[:160])
 
-with open(r"C:/Users/chris/uo-harness/endpoints.txt", "w") as f:
+with open(os.path.join(ROOT, "endpoints.txt"), "w") as f:
     f.write("=== URLS ===\n" + "\n".join(sorted(urls)) + "\n\n=== HOSTS ===\n" + "\n".join(sorted(hosts))
             + "\n\n=== PATHS ===\n" + "\n".join(sorted(paths)) + "\n\n=== UA-RELATED ===\n" + "\n".join(sorted(uas)))
 print(f"urls={len(urls)} hosts={len(hosts)} paths={len(paths)} ua={len(uas)}")

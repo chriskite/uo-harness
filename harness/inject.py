@@ -8,11 +8,12 @@ Usage: python inject.py <action> [args...]
   dclick <serial>       — hex or decimal serial
   query <serial>        — item detail query (sub 9)
 """
+import os
 import socket
 import sys
 import time
 
-sys.path.insert(0, r"C:/Users/chris/uo-harness/harness")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from actions import walk, dclick, say_unicode, cast_spell, item_query
 
 HOST, PORT = "127.0.0.1", 25941

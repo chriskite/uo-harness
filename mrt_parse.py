@@ -43,12 +43,15 @@ Layout summary:
       targetVA = blobVA + 4*index + (i32)value
 """
 import json
+import os
 import struct
 import sys
 from collections import defaultdict
 
-EXE_PATH = r'C:\Users\chris\uo-harness\ClassicUO.exe'
-OUT_PATH = r'C:\Users\chris\uo-harness\mrt_map.json'
+ROOT = os.path.dirname(os.path.abspath(__file__))
+
+EXE_PATH = os.path.join(ROOT, "ClassicUO.exe")
+OUT_PATH = os.path.join(ROOT, "mrt_map.json")
 
 RTR_SIGNATURE = 0x00525452          # 'RTR'
 MD_SIGNATURE = 0xDEADDFFD           # NativeFormat metadata signature

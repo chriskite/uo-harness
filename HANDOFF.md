@@ -83,7 +83,7 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
   `python harness/proxy.py --nat-lookup-port 25943 --upstream-bind 0.0.0.0 --upstream-bind-port 25940 --logdir logs --memory-db harness/data/harness.db`
   (`--nat-lookup-port`: dial whichever server IP the client chose, as reported by divert_nat; docs/INTERCEPTION.md)
   (`--memory-db` = the durable harness memory, docs/MEMORY.md; gitignored runtime data)
-  (Python is at `C:\Users\chris\AppData\Local\Programs\Python\Python313\python.exe`)
+  (plain `python` on PATH is Python 3.13; the `.ps1`/`.cmd` glue resolves it the same way, `UO_PY` overrides)
 - Divert NAT (needed, elevated): `powershell -Verb RunAs restart_divert.ps1`
 - Launch game (elevated): `powershell -Verb RunAs launch_game.ps1`
 - Watch packets: `python harness/tail_log.py`

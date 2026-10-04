@@ -7,19 +7,22 @@ import ghidra.program.model.listing.FunctionManager;
 import ghidra.program.model.symbol.Symbol;
 import ghidra.program.model.symbol.SymbolIterator;
 
+import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
 
 public class DecompileCctor extends GhidraScript {
 
-    static final String OUT = "C:\\Users\\chris\\uo-harness\\decompiled\\packet_handlers_cctor.c";
+    private String repoPath(String rel) {
+        return new File(getSourceFile().getParentFile().getParentFile().getAbsolutePath(), rel).getPath();
+    }
 
     @Override
     public void run() throws Exception {
         FunctionManager fm = currentProgram.getFunctionManager();
         DecompInterface ifc = new DecompInterface();
         ifc.openProgram(currentProgram);
-        PrintWriter out = new PrintWriter(new FileWriter(OUT));
+        PrintWriter out = new PrintWriter(new FileWriter(repoPath("decompiled/packet_handlers_cctor.c")));
 
         // find global named PTR_FUN_143f7b310
         Address ptrAddr = null;

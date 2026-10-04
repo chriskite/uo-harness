@@ -75,6 +75,6 @@ flowchart LR
   - `curl -sL https://codeload.github.com/ClassicUO/ClassicUO/tar.gz/refs/heads/main | tar xz`
   - `curl -sL https://codeload.github.com/markdwags/Razor/tar.gz/refs/heads/master | tar xz`
 
-## Toolchain (this machine)
+## Toolchain
 
-Python `C:\Users\chris\AppData\Local\Programs\Python\Python313\python.exe` · Git `C:\Program Files\Git\cmd` · Ghidra `C:\Users\chris\ghidra_12.1.4_PUBLIC` · Java 25 (Temurin) · Wireshark `C:\Program Files\Wireshark` · git push via SSH host alias `github.com-uoharness` (deploy key `~/.ssh/uo_harness_deploy`)
+Python 3.13 per-user install, plain `python` on PATH · Git `C:\Program Files\Git\cmd` · Bun 1.4.2 `~\.bun\bin` · Ghidra `~\ghidra_12.1.4_PUBLIC` (laptop only) · Java 25 (Temurin) · Wireshark `C:\Program Files\Wireshark` (laptop) · git push via SSH host alias `github.com-uoharness` (deploy key `~/.ssh/uo_harness_deploy`, laptop) or the user's own GitHub key (desktop). Second computer: SETUP.md.

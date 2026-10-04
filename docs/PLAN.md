@@ -258,6 +258,13 @@ computers"), with `SETUP.md` for a coding agent setting up the second computer.
   belongs on the computer that holds the store, and a push needs the bridge stopped, so the token
   never has two pollers. The cost: the bot token sits on the NAS share in plain text. That's
   accepted on the private LAN share; if it leaks, BotFather `/revoke` invalidates it.
+- **No machine paths in code (user request 2026-10-04, desktop setup).** The desktop's home dir
+  is `C:\Users\Chris Kite` (with a space), not the laptop's `C:\Users\chris`. Every script now
+  derives the repo from its own location and runs Python via `sys.executable` (Python) or
+  `UO_PY`/`python.exe` on PATH minus the Store stub (`.ps1`/`.cmd`); `start_proxy_nat.ps1` passes
+  its interpreter to the elevated NAT worker as `-Python`, since a UAC child doesn't inherit the
+  environment. Rejected: installing under an identical path on both computers (the old SETUP.md
+  advice): it ties the repo to one Windows user name and breaks silently on the next machine.
 
 ## Overseer chat on Telegram (decided 2026-10-02)
 

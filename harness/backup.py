@@ -31,7 +31,9 @@ so the default is the UNC path):
                                      screenshots (*.png), divert.log. Additive.
   ghidra/                            the Ghidra project (hours of analysis to
                                      redo). Mirrored, so the copy stays a
-                                     consistent project.
+                                     consistent project; skipped while absent (only
+                                     the laptop has it), so a computer without it
+                                     can't mirror the share's copy away.
   discord_media/                     image attachments downloaded by
                                      discord_capture.py (harness/data/discord_media).
                                      Additive; skipped while the folder doesn't exist.
@@ -88,7 +90,7 @@ KEEP_ALL_HOURS = 48
 TREES = [
     ("logs", "logs", [], ["/E"], True),
     (".", "artifacts", ["*.pcapng", "*.etl", "*.png", "divert.log"], [], True),
-    ("ghidra", "ghidra", [], ["/MIR"], True),
+    ("ghidra", "ghidra", [], ["/MIR"], False),
     (os.path.join("harness", "data", "discord_media"), "discord_media", [], ["/E"], False),
     ("models", "models", [], ["/E", "/XO"], False),
 ]

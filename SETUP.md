@@ -12,14 +12,14 @@ Steps that need the human are marked **(user)**: UAC prompts, the launcher's 2FA
 ## 1. Prerequisites
 
 - **Git** (the laptop has `C:\Program Files\Git\cmd`, README "Toolchain").
-- **Python 3.13 as plain `python`.** Several scripts hard-code the laptop's per-user install
-  path `C:\Users\chris\AppData\Local\Programs\Python\Python313\python.exe` (`start_proxy_nat.ps1`,
-  `restart_divert.ps1`, `ctl.cmd`; `register_backup_task.ps1` uses `pythonw.exe` from the same
-  folder). Install Python 3.13 per-user for the Windows user `chris` so that path exists, and
-  check `python -c "import sys; print(sys.version, sys.executable)"`. `python3` is a broken Store
-  stub; never use it. `ctl.cmd` honours `UO_PY` if the path differs; the `.ps1` scripts don't
-  [INFERENCE: if the path differs they have to be edited, which is a code change for the
-  integrator, not a setup step].
+- **Python 3.13 as plain `python`**, installed per-user with "Add to PATH" (the desktop:
+  `winget install --id Python.Python.3.13 --scope user`, 3.13.15, which prepends its dirs to the
+  user PATH ahead of `WindowsApps`). Check
+  `python -c "import sys; print(sys.version, sys.executable)"` in a **new** terminal (an already
+  open shell keeps its old PATH, NOTES "Windows shell / tooling gotchas"). `python3` is a broken
+  Store stub; never use it. Nothing hard-codes the interpreter: `ctl.cmd`, `start_proxy_nat.ps1`,
+  `restart_divert.ps1` and `register_backup_task.ps1` (`pythonw.exe` beside it) use `UO_PY` if
+  set, else `python.exe` from PATH (skipping the Store stub); Python code uses `sys.executable`.
 - **jq** (on the laptop it is jaq 2.3.0, AGENTS.md "Conventions"). [INFERENCE] `winget` can
   install either; NOTES "Windows shell / tooling gotchas" lists winget's quirks (UAC-blocking
   installers, slow installs hitting the 900 s job timeout).
@@ -58,11 +58,15 @@ tooling gotchas"). Give the desktop its own key; don't copy the laptop's.
    deploy key, with **Allow write access** ticked (agents push per AGENTS.md Rule 0). A deploy
    key can be registered on one repo only, hence a new key.
 4. Check: `ssh -T git@github.com-uoharness` (GitHub greets and exits 1).
-5. Clone to **`C:/Users/chris/uo-harness`**. Besides the Python path above, `restart_divert.ps1`
-   hard-codes that repo path, and so do the dev scripts `harness/inject.py`,
-   `harness/walk_cli.py` (`sys.path`), `harness/tail_log.py` and `harness/watch_walk.py`
-   (`LOGDIR`):
-   `git clone git@github.com-uoharness:chriskite/uo-harness.git C:/Users/chris/uo-harness`
+5. Clone anywhere (the desktop: `C:/Users/Chris Kite/uo-harness`; the laptop:
+   `C:/Users/chris/uo-harness`). Code derives the repo from its own location, so the path may
+   differ and may contain spaces (exception: Ghidra's `-import` path, NOTES "Ghidra headless
+   gotchas"):
+   `git clone git@github.com-uoharness:chriskite/uo-harness.git`
+
+   The desktop instead was cloned with the user's own GitHub key (`~/.ssh/id_ed25519`, remote
+   `git@github.com:chriskite/uo-harness`, `ssh -T git@github.com` greets `chriskite`), which
+   can push, so steps 1–4 were skipped there.
 
 Not in git (`.gitignore`) and what to do about it:
 
@@ -220,6 +224,7 @@ Local state: `harness/data/handoff.json` (gitignored).
 | `push`: store is open | a writer still runs | stop it (step 1) and push again |
 | `pull`: another computer holds the store | it hasn't pushed | push on that computer first |
 | `pull`: local store changed since this computer's last push/pull | fork: both computers played from the same generation | the user decides which history to keep. `pull --discard-local` takes the remote one; the local copy survives as `harness/data/harness.db.prev`. To keep the local one instead, `push --force` from here (overwrites the remote generation) |
+| first `pull` on a new computer: "this store has unsynced changes" | a harness command run before the pull created an empty `harness.db` (NOTES "Two computers") | if `python harness/memory.py stats` shows all zeros, `pull --discard-local` |
 | `push`: this computer isn't the holder / its copy isn't the latest generation | stale copy | normally pull first. `push --force` overwrites; recovery only |
 | holder is dead (disk gone, can't push) | | `pull --force` on the other computer; it gets the dead one's last push |
 
@@ -231,8 +236,8 @@ bot token is therefore stored on the NAS share.
 
 ## 8. Checklist
 
-- [ ] `python --version` is 3.13 and `C:\Users\chris\AppData\Local\Programs\Python\Python313\python.exe` exists.
-- [ ] `git -C C:/Users/chris/uo-harness fetch` works over `github.com-uoharness`.
+- [ ] `python --version` is 3.13 in a fresh terminal, and `sys.executable` is not under `WindowsApps`.
+- [ ] `git fetch` works in the checkout.
 - [ ] Offline tests from §3 pass; `cd viz && bun test && bun run typecheck` passes.
 - [ ] `python harness/dbhandoff.py status` shows this computer as holder at the latest generation.
 - [ ] `python harness/memory.py stats` row counts match the laptop's output from just before its push.

@@ -371,7 +371,8 @@ class Stack:
             return
         log("nat: running start_proxy_nat.ps1 (accept the UAC prompt)")
         out = open(os.path.join(DIR, "nat.log"), "a", encoding="utf-8")
-        n["proc"] = subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", NAT_SCRIPT],
+        n["proc"] = subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", NAT_SCRIPT,
+                                      "-Python", sys.executable],
                                      cwd=ROOT, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
         out.close()
         n.update(status="starting", attempted=True, since=t, note="waiting for the UAC prompt")

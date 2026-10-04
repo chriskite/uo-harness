@@ -6,8 +6,9 @@ c[1]^KS[1], c[2]^KS[2]); keystream position = position within current packet.
 Extends the known keystream from known plaintext found in decoded packets
 (e.g. account name in the login packet).
 """
-import sys
-sys.path.insert(0, r"C:/Users/chris/uo-harness/harness")
+import os, sys
+ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(ROOT, "harness"))
 from uo.packets import TABLE
 
 KS = {0: 0x0F, 1: 0x0C, 2: 0xFF, 3: 0x0F, 4: 0x0F, 5: 0x0F, 6: 0x0F}  # capture 2 (S=0x0f)
@@ -59,5 +60,5 @@ def decode_stream(data, label, skip=5):
         pkts += 1
     print(f"  decoded {pkts} packets, stopped at {off}/{len(data)}")
 
-c2s = open(r"C:/Users/chris/uo-harness/c2s_s2.bin", "rb").read()
+c2s = open(os.path.join(ROOT, "c2s_s2.bin"), "rb").read()
 decode_stream(c2s, "capture 2 (S=0x0f)")

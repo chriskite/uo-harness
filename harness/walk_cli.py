@@ -14,11 +14,12 @@ the proxy hands the client a fabricated 0x21 with the true position, so the
 character on screen jumps there. Nothing extra goes to the server (docs/MOVEMENT.md).
 """
 import msvcrt
+import os
 import socket
 import sys
 import time
 
-sys.path.insert(0, r"C:/Users/chris/uo-harness/harness")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from actions import walk
 
 HOST, PORT = "127.0.0.1", 25941

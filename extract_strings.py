@@ -1,7 +1,9 @@
 import sys
+import os
+ROOT = os.path.dirname(os.path.abspath(__file__))
 
 SRC = r"C:/Program Files (x86)/Ultima Online Outlands/ClassicUO/ClassicUO.exe"
-OUT = r"C:/Users/chris/uo-harness/strings.txt"
+OUT = os.path.join(ROOT, "strings.txt")
 MIN = 5
 
 data = open(SRC, "rb").read()

@@ -7,6 +7,7 @@ import ghidra.program.model.listing.FunctionManager;
 import ghidra.program.model.symbol.Reference;
 import ghidra.program.model.symbol.ReferenceIterator;
 
+import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.util.LinkedHashSet;
@@ -14,14 +15,16 @@ import java.util.Set;
 
 public class XrefRazorReg extends GhidraScript {
 
-    static final String OUT = "C:\\Users\\chris\\uo-harness\\decompiled\\razor_reg_callers.c";
+    private String repoPath(String rel) {
+        return new File(getSourceFile().getParentFile().getParentFile().getAbsolutePath(), rel).getPath();
+    }
 
     @Override
     public void run() throws Exception {
         FunctionManager fm = currentProgram.getFunctionManager();
         DecompInterface ifc = new DecompInterface();
         ifc.openProgram(currentProgram);
-        PrintWriter out = new PrintWriter(new FileWriter(OUT));
+        PrintWriter out = new PrintWriter(new FileWriter(repoPath("decompiled/razor_reg_callers.c")));
 
         long[] targets = {0x14006c550L, 0x14006c7d0L, 0x14006c480L, 0x14006c700L}; // Register S2C viewer/filter, C2S viewer/filter
         Set<Function> fns = new LinkedHashSet<Function>();

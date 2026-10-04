@@ -65,7 +65,7 @@ import tempfile
 import time
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-PY = r"C:/Users/chris/AppData/Local/Programs/Python/Python313/python.exe"
+PY = sys.executable
 sys.path.insert(0, f"{ROOT}/harness")
 
 import actions  # noqa: E402

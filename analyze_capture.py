@@ -5,13 +5,14 @@
    (harness/uo/s2c.py: one flush segment == one packet).
 3. Client->server: 5-byte preamble, XOR c2s_key, frame with the packet table.
 """
-import re, sys
-sys.path.insert(0, r"C:/Users/chris/uo-harness/harness")
+import os, re, sys
+ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(ROOT, "harness"))
 from uo.packets import frame_take, C2S_OVERRIDES
 from uo.outlands_table import outlands_length
 from uo.s2c import PRELUDE_LEN, S2CStream, prelude_keys
 
-DUMP = r"C:/Users/chris/uo-harness/stream_dump.txt"
+DUMP = os.path.join(ROOT, "stream_dump.txt")
 CLIENT_PREAMBLE_LEN = 5
 
 c2s = bytearray()

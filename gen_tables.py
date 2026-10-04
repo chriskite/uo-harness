@@ -1,8 +1,10 @@
 """Regenerate Python tables from upstream C# source (no manual transcription)."""
 import re, sys
+import os
+ROOT = os.path.dirname(os.path.abspath(__file__))
 
-CUO = r"C:/Users/chris/uo-harness/ClassicUO-main/src/ClassicUO.Client/Network"
-OUT = r"C:/Users/chris/uo-harness/harness/uo/_generated_tables.py"
+CUO = os.path.join(ROOT, "ClassicUO-main/src/ClassicUO.Client/Network")
+OUT = os.path.join(ROOT, "harness/uo/_generated_tables.py")
 
 # --- Huffman _decTree ---
 src = open(f"{CUO}/Huffman.cs").read()

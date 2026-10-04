@@ -702,7 +702,7 @@ serial link) opens the drawer on the Inspector tab.
 
 ### Toolchain
 - Backend: Python 3.13 stdlib only.
-- Frontend: **Bun 1.4.2** (installed 2026-09-29 at `C:\Users\chris\.bun\bin\bun.exe`, user
+- Frontend: **Bun 1.4.2** (installed 2026-09-29 at `~\.bun\bin\bun.exe`, user
   PATH) with **React + TSX**. Bun is the package manager (`bun install`), bundler (`bun build`)
   and test runner (`bun test`); type checking is `bunx tsc --noEmit`. No Vite and no Node:
   Bun bundles TSX natively.
@@ -801,7 +801,7 @@ serial link) opens the drawer on the Inspector tab.
 
 **Run**
 - Build the frontend once: `cd viz && bun install && bun run build`. Bun lives at
-  `C:\Users\chris\.bun\bin\bun.exe`; `bun test` runs the tests and `bun run typecheck` runs
+  `~\.bun\bin\bun.exe`; `bun test` runs the tests and `bun run typecheck` runs
   `tsc --noEmit`.
 - Live: `python harness/viz_server.py --live [--state-port 25942] [--port 8080]`, then open
   http://127.0.0.1:8080/. It only talks to the proxy's state port (polling, plus the agent-gate
