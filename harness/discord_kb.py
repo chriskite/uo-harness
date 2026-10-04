@@ -23,11 +23,13 @@ discord_capture.py) into consolidated, likely-true facts:
 Every stage is incremental and idempotent. Window ids hash (channel, day, part, first id,
 last id, PROMPT_VERSION), so backfilled history only re-extracts the days it touches.
 LLM calls run headless `omp` (MODEL, no tools, no repo context) CONCURRENCY at a time;
-each run stops submitting once --max-cost USD is spent (exit 2; rerun to resume).
+each run stops submitting once --max-cost USD is spent (exit 2; rerun to resume). The USD
+figure is omp's list-price estimate: omp's Anthropic login here is OAuth (the user's Claude
+subscription), so it measures subscription usage, not money billed.
 State: harness/data/discord_kb.db (gitignored, backed up by backup.py).
 
 Needs the capture venv (numpy, fastembed):
-  .venv-discord/Scripts/python.exe harness/discord_kb.py run [--channels a,b] [--max-cost 40]
+  .venv-discord/Scripts/python.exe harness/discord_kb.py run [--channels a,b] [--max-cost 100]
   .venv-discord/Scripts/python.exe harness/discord_kb.py extract [--channels a,b] [--limit N]
   .venv-discord/Scripts/python.exe harness/discord_kb.py consolidate [--recluster]
   .venv-discord/Scripts/python.exe harness/discord_kb.py promote [--db harness/data/harness.db] [--dry-run]
@@ -67,7 +69,7 @@ MODEL = "sonnet"
 EXTRACT_THINKING = "off"
 ADJUDICATE_THINKING = "low"
 CONCURRENCY = 4
-MAX_COST = 40.0                 # USD per run
+MAX_COST = 100.0                # list-price USD per run (user, 2026-10-04: subscription, not billed)
 LLM_TIMEOUT = 600
 RETRY_SLEEP = 30
 PROMPT_VERSION = "x1"           # extraction prompt; part of every window id
