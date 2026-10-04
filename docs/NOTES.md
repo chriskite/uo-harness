@@ -473,6 +473,41 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   ("Logan Wolf (DTF)") and closed the menu. Fixtures: `harness/testdata/room_gumps.json`.
 - Memory: #4082 (procedure, `char:outland_dan`, standing in his brief; #4081 superseded).
 
+## Aspects (live 2026-10-04, user demo on Outland Dan)
+
+Session `logs/session_20261004_162411.jsonl` from line 39895 (local), memory-store events after
+t 1791153675; gump fixtures `harness/testdata/aspect_gumps.json`. Wiki: Aspect_Mastery.
+- **Losing it:** the user dropped the Harvest-aspected chest 0x46143D1A on the ground (lift `0x07`,
+  drop `0x08` to 4136,1434). The server re-sent it hue **0x0966 (2406)** and named it "exceptional
+  shadowhide studded chest" (Outlands item-name packet `FF … 0015 01 0001 <serial> <name>`); back in
+  the pack and worn again (`0x13`) it stayed plain. With the aspect: hue **2086** and "…shadowhide
+  **harvest aspect** studded chest". The other five pieces kept theirs. The wiki: gear loses its
+  aspect when it goes anywhere but the backpack, on death, theft, or when the essence runs out.
+- **The menu:** saying `[aspect` (unicode speech, hue 690 font 3: `actions.say_unicode`, byte-equal
+  to an older capture) opens gump **0x907FC735**: top row "Charges" 429 (Arcane Essence; "Add" 100,
+  "Manage Hues" 104, "Warn When Below" 50 + "Set" 101), then three sections top to bottom:
+  - **weapon:** arrows 4/5, active tier 20, Activate **8**
+  - **spellbook:** arrows 9/10, active tier 22, Activate **13**
+  - **armor:** arrows 14/15, active tier 24, Activate **17**, PvP Mechanics 18
+
+  Each shows the selected aspect ("Harvest"), "Tier 1", "361/1000xp", the active tier, the cost
+  "5", its bonuses (armor: armor rating 25 %, effective harvesting skill +4, 8 % double yield, 4.2 %
+  damage resist for 60 s after a harvest) and the aspect icon in its hue (2086 for Harvest).
+  Bottom: "Aspect Details" 102/103, 106 ("[Redline"), 105. Dan's three sections all showed Harvest.
+- **Activating:** armor Activate (17) → System "Click again to confirm." and the gump again → 17
+  again → "Harvest aspect armor activated." (from Dan), "Harvest skill and yield bonuses become
+  available in 1 Minute.", the gump with Charges **424** (5 spent); 60 s later "Harvest skill and
+  yield bonuses are available." Every armor piece was re-sent (`0x2E`), the chest with hue 2086.
+  Then the user closed the gump (0).
+- **Already aspected:** the second press answers "Your armor is already of that aspect." and
+  spends nothing (`ctl act aspect activate armor`, live, 424 → 424).
+- **Acts:** `ctl act aspect` reads the menu (charges, per section aspect/tier/xp/active tier) and
+  closes it: this makes the Harvest tier observable (LUMBER_LOOP §6 listed it as a gap).
+  `ctl act aspect activate <weapon|spellbook|armor> [ASPECT]` steps the section's arrows to ASPECT
+  and does the double press. Live: read 6.4 s; activate (already) 10.2 s. The real activation
+  through the act is untested; the user's own presses above are what it repeats.
+- Memories: #4083 (procedure, all characters), #4084 (Dan's tier, essence and armor serials).
+
 ## Cortina's rune tome quest (live 2026-10-03, Hackworth)
 
 - **Cambria → Shelter by moongate:** the Cambria gate item is `0x4000069E` at (1693, 3153, 25). In
@@ -622,8 +657,9 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   (Garritt, Cambria): `reagent:<black_pearl|blood_moss|mandrake_root|garlic|ginseng>` 3 gp,
   `recall_charge` 200 gp (a recall scroll adds one charge).
 - **Not passively observable:** Harvest Aspect tier (only the `[aspect` gump, Aspect Mastery
-  0x907FC735, shows "Harvest Tier N"); skill gains (no message, only per-trip snapshots); hatchet
-  uses left (only a click label "(N uses remaining)", read back by `Memory.uses_seen`).
+  0x907FC735, shows "Harvest Tier N"; since 2026-10-04 `ctl act aspect` opens, reads and closes
+  it, see "Aspects"); skill gains (no message, only per-trip snapshots); hatchet uses left (only
+  a click label "(N uses remaining)", read back by `Memory.uses_seen`).
 - **After pulling viz changes:** `cd viz && bun run build` (viz/dist is gitignored), then restart
   `viz_server.py`. Edit-tool relative paths resolve to the session cwd, not a git worktree: use
   absolute worktree paths there.
