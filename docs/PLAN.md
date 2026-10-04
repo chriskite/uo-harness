@@ -195,6 +195,28 @@ machine. Hourly `harness/backup.py` to the NAS share, as a Task Scheduler job (d
   (re-implements robocopy), File History / Windows Backup (whole-profile, not repo-aware).
 - UNC path, not `F:`, because scheduled tasks don't see interactive drive mappings.
 
+## Two computers: hand the memory store off (decided and built 2026-10-04)
+
+User request: play on a desktop for a while and find its changes on the laptop afterwards. The two
+computers aren't used at the same time. Built: `harness/dbhandoff.py` (docs/NOTES.md "Two
+computers"), with `SETUP.md` for a coding agent setting up the second computer.
+- **One holder at a time, with the store passed through the NAS share.** `push` uploads a verified
+  snapshot as a new generation and releases the store; `pull` installs it and records the new
+  holder in `handoff/owner.json`. Pushes and pulls are refused when they would fork or overwrite
+  history; `--discard-local` and `--force` override them, and the replaced store is kept.
+- Rejected: **the live store on the share.** WAL needs every connection on one host (shared
+  memory in `-shm`), and SQLite doesn't support WAL over a network filesystem. The proxy commits
+  every 0.25 s.
+- Rejected: **a sync client (OneDrive, Syncthing) on `harness/data/`.** It copies `harness.db`
+  and `-wal` at different moments, which tears the store. It also has no notion of a holder.
+- Rejected: **merging two diverged stores.** Autoincrement ids collide in `sessions`, `events`,
+  `episodes`, `chat`, `junctures`, `job_events`, `knowledge` and `prices`. `knowledge` supersede
+  links point at those ids, `walk_moves`/`harvest_nodes` counters would need adding, and the `meta`
+  cursors conflict. Preventing forks is cheap and merging isn't, so forks are refused.
+- **Backups follow the holder.** `backup.py` skips the store's snapshot on a computer that doesn't
+  hold it. Otherwise a computer catching up on a missed hourly run would upload its stale store as
+  the newest snapshot.
+
 ## Overseer chat on Telegram (decided 2026-10-02)
 
 User request: the overseer chat and notifications on a Telegram bot. `harness/telegram_bridge.py`
@@ -594,8 +616,10 @@ authoritative.
   --mode json` from the temp dir (no repo context loads, ~330 tokens of overhead), prompt in an
   attached temp file. Failures: infra retry once after 30 s, invalid JSON/validation retry once
   with the error appended, output truncation splits the window (or the cluster batch). Every
-  attempt is logged in `llm_calls` with its cost; `--max-cost` (default $40) stops a run from
-  submitting more calls (exit 2, rerun resumes).
+  attempt is logged in `llm_calls` with its cost; `--max-cost` (default $100 since 2026-10-04, was
+  $40) stops a run from submitting more calls (exit 2, rerun resumes). The calls go through omp's
+  OAuth login (the user's Claude subscription), so the cost is a list-price estimate of usage, not
+  a bill; the user set the cap from that.
 - **Not done:** prices (deferred by the user), images in messages (not read; image-only messages
   are skipped as in search).
 

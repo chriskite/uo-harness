@@ -11,6 +11,9 @@ so the default is the UNC path):
                                      skipped when identical to the last one).
                                      Retention: every snapshot from the last
                                      KEEP_ALL_HOURS, then the newest per day.
+                                     Skipped on a computer that doesn't hold
+                                     the store once harness/dbhandoff.py is in
+                                     use (dbhandoff.not_held_here).
   discord/discord-YYYYMMDD-HHMMSS.db.gz
                                      the same for harness/data/discord.db, the
                                      captured Discord history (harness/discord_capture.py);
@@ -95,12 +98,31 @@ def log(msg):
         f.write(line + "\n")
 
 
-def _sha256(path):
+def sha256_file(path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def consistent_copy(db, out):
+    """Copy `db` to the new file `out` with the SQLite online backup API, so a
+    writer may keep working. Rows still only in the WAL are included; `out` is
+    in rollback-journal mode, so it stands alone without a -wal next to it.
+    Raises RuntimeError when the copy fails PRAGMA quick_check."""
+    # read-only: never checkpoints or otherwise writes the live store
+    src = sqlite3.connect("file:" + db.replace("\\", "/") + "?mode=ro", uri=True)
+    dst = sqlite3.connect(out)
+    try:
+        src.backup(dst)
+        dst.execute("PRAGMA journal_mode=DELETE")
+        check = dst.execute("PRAGMA quick_check").fetchone()[0]
+    finally:
+        dst.close()
+        src.close()
+    if check != "ok":
+        raise RuntimeError(f"snapshot failed quick_check: {check}")
 
 
 def snapshot_db(db, dest_dir, now, prefix="harness"):
@@ -110,20 +132,8 @@ def snapshot_db(db, dest_dir, now, prefix="harness"):
     os.makedirs(dest_dir, exist_ok=True)
     with tempfile.TemporaryDirectory() as td:
         tmp = os.path.join(td, "snap.db")
-        # read-only: never checkpoints or otherwise writes the live store
-        src = sqlite3.connect("file:" + db.replace("\\", "/") + "?mode=ro", uri=True)
-        dst = sqlite3.connect(tmp)
-        try:
-            src.backup(dst)
-            # self-contained file: a restore doesn't depend on a -wal next to it
-            dst.execute("PRAGMA journal_mode=DELETE")
-            check = dst.execute("PRAGMA quick_check").fetchone()[0]
-        finally:
-            dst.close()
-            src.close()
-        if check != "ok":
-            raise RuntimeError(f"snapshot failed quick_check: {check}")
-        digest = _sha256(tmp)
+        consistent_copy(db, tmp)
+        digest = sha256_file(tmp)
         latest_path = os.path.join(dest_dir, "latest.json")
         if os.path.exists(latest_path):
             with open(latest_path, encoding="utf-8") as f:
@@ -182,10 +192,19 @@ def run(dest):
         log(f"FAIL destination unreachable: {dest}")
         return 1
 
+    import dbhandoff  # imports this module, so not at module level
     for db, sub, prefix, required in DBS:
         if not required and not os.path.exists(db):
             results[sub] = {"ok": True, "snapshot": None, "absent": True}
             continue
+        if db == DB:
+            try:
+                other = dbhandoff.not_held_here(dest)
+            except Exception as e:  # unreadable owner.json: don't risk a stale snapshot
+                other = f"handoff owner unreadable: {e!r}"
+            if other:
+                results[sub] = {"ok": True, "snapshot": None, "skipped": other}
+                continue
         try:
             dbdir = os.path.join(dest, sub)
             name = snapshot_db(db, dbdir, now, prefix)

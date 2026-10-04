@@ -8,6 +8,8 @@ Current status: **Phases 1 and 3 done; Phase 2 (world model) re-validated offlin
 
 **Since 2026-10-03 the captured Outlands Discord feeds a vetted knowledge base:** `harness/discord_kb.py` extracts grounded claims with Sonnet, clusters and adjudicates them into facts with deterministic verdict rules (official / consensus / single-source / disputed), promotes official and consensus facts into the overseer's `ctl know` store (tag `discord`, source `community`/`doc`), and writes the digest [`docs/research/DISCORD_KB.md`](docs/research/DISCORD_KB.md) for coding agents (docs/PLAN.md "Discord knowledge base").
 
+Setting the harness up on another computer, and moving the memory store between computers: [`SETUP.md`](SETUP.md).
+
 ## Architecture (decided)
 
 ```mermaid

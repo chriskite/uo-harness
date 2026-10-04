@@ -14,7 +14,9 @@ This is everything the harness **experiences and learns while playing**:
 It lives in one SQLite file, `harness/data/harness.db`, which is gitignored. Per AGENTS.md
 Rule 0 (user clarification 2026-09-29), this is runtime memory, not engineering knowledge, and
 it is never committed. What the repo keeps is how the memory works (this doc, the code) and the
-capture fixtures that tests cite. It is backed up hourly to the NAS (docs/NOTES.md "Backups").
+capture fixtures that tests cite. It is backed up hourly to the NAS (docs/NOTES.md "Backups"). One
+computer holds it at a time; `harness/dbhandoff.py push|pull` moves it between computers (docs/NOTES.md
+"Two computers", `SETUP.md`).
 
 Why SQLite:
 - It's durable: the file is on disk, and the WAL journal survives crashes.
