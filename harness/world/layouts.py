@@ -105,6 +105,20 @@ LAYOUTS_S2C: dict[int, list[tuple[str, str, int]]] = {
            ("frames", "u16be", 7), ("repeat", "u16be", 9),
            ("backward", "i8", 11), ("repeat_flag", "i8", 12),
            ("delay", "u8", 13)],
+    # 0xC0 HuedEffect, Outlands V10 form (52; stock 36): graphic u32 and the
+    # source/target x/y as u32, z as i32 (like 0x1B/0x21/0xF3). Type 0 moving
+    # (source -> target), 1 lightning on target, 2 fixed at a location, 3 fixed
+    # on a mobile (source = target). Real (live 2026-10-03 22:17:32, Magic
+    # Reflection taking a gazer larva's spell): `c0 03 0020f127 0020f127
+    # 000037b9 0000014f 00000802 0000000c 0000014f 00000802 0000000c 0a 05 0000
+    # 01 00 00000000 00000000`. 17078 of 17078 0xC0 in the 2026-09-30..10-03
+    # captures are 52 bytes with the graphic's high half 0.
+    0xC0: [("type", "u8", 1), ("source", "u32be", 2), ("target", "u32be", 6),
+           ("graphic", "u32be", 10), ("x", "u32be", 14), ("y", "u32be", 18),
+           ("z", "i32be", 22), ("tx", "u32be", 26), ("ty", "u32be", 30),
+           ("tz", "i32be", 34), ("speed", "u8", 38), ("duration", "u8", 39),
+           ("skip", "skip:2", 40), ("fixed_dir", "u8", 42), ("explode", "u8", 43),
+           ("hue", "u32be", 44), ("render", "u32be", 48)],
     # 0x1B LoginConfirm (43) — Assistant.PacketHandlers.LoginConfirm
     # @ 0x1400627a0 (V10 branch): serial u32, u32 (unread), graphic u32,
     # x/y/z i32, dir u8. Real: `1b 00094375 00000000 00000190 000007ab

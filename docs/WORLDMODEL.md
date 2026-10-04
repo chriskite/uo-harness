@@ -437,6 +437,30 @@ Handler: CUO `CharacterAnimation` @ 0x14018cf50.
 | 12 | 1 | i8 | repeat flag (bool) | upstream |
 | 13 | 1 | u8 | delay | upstream |
 
+### 0xC0 HuedEffect — S2C, fixed 52 (Outlands; upstream 36) (2026-10-03)
+Parsed from 2026-10-03 (`layouts.py`; all 17078 0xC0 in the 2026-09-30..10-03 captures are 52 B,
+the graphic's high half always 0; no 0x70/0xC7 seen). Outlands widens the graphic to u32 and the
+coordinates to u32/i32, like 0x1B/0x21/0xF3.
+
+| Off | Size | Type | Field | Confidence |
+|-----|------|------|-------|------------|
+| 1 | 1 | u8 | type: 0 moving (source → target), 1 lightning on target, 2 fixed at a location, 3 fixed on a mobile | upstream + capture |
+| 2 | 4 | u32be | source serial | upstream + capture |
+| 6 | 4 | u32be | target serial (type 3: = source) | upstream + capture |
+| 10 | 4 | u32be | graphic (0: a cast start; 0x37B9 Magic Reflection taking a spell) | capture |
+| 14 / 18 / 22 | 4 each | u32be, u32be, i32be | source x, y, z | capture |
+| 26 / 30 / 34 | 4 each | u32be, u32be, i32be | target x, y, z | capture |
+| 38 / 39 | 1 each | u8 | speed, duration | upstream |
+| 40 | 2 | | unknown (always 0) | — |
+| 42 / 43 | 1 each | u8 | fixed direction, explode | upstream |
+| 44 / 48 | 4 each | u32be | hue, render mode | upstream |
+
+Only effects with self as source or target become an `effect {type, source, target, graphic, x, y,
+z, tx, ty, tz, hue}` event (everyone else's are noise): `threats.spell_on_us` reads a spell landing
+on us from them (threats.py "Spells on us"; live 22:17:32, session 20261003_213125: `c0 03 0020f127
+0020f127 000037b9 …`, Magic Reflection taking a gazer larva's spell). The proxy must be restarted to
+emit them.
+
 ### 0x89 CorpseEquipment — S2C, variable length
 Handler: CUO `CorpseEquipment` @ 0x140191a00.
 
@@ -625,7 +649,7 @@ reads subId u32be @3, switches (payload offsets are from payload start = packet 
 | 0 | handshake (inline) | u32be **protocol version** (=12 live; → the global V10/V11/V12 gate at settings+0x68), u8 flag1 (+0x71 = the S2C XOR key NetClient uses in `ProcessRecv`; 0x12 in session 164548), u8 flag2 (+0x72 = the C2S XOR key; 0xE7), then `BuildPacketTable(version)`. Sent as the cleartext 13-byte prelude |
 | 1 | `NetClientExt.Send_Info` (server polls client info) | none |
 | 2 | inline | u16be type, u32be id; type==1 opens a gump (graphic 0x0a… id) |
-| 3 | `ServerTime.TimeSyncReceived` @ 0x1401240d0 | u64be timestamp (read BE in the dispatcher, passed by value). C2S twin: sub 3 keepalive, empty payload |
+| 3 | `ServerTime.TimeSyncReceived` @ 0x1401240d0 | u64be timestamp: the server's clock in ms (read BE in the dispatcher, passed by value); the world model keeps the latest as `server_time` {ms, t} for buff ends (sub 8). C2S twin: sub 3 keepalive, empty payload |
 | 4 | `SpellCastManager.OnPacketResponse` @ 0x140306390 | spell-cast result; **sub-parser not in the decompiled selection — layout open** |
 | 5 | `World.ProcessDeletes` @ 0x1402146c0 | none; prunes mobiles and ground items beyond the 0xC8 view range (§7 "Pruning") |
 | 6 | `ParticleEffect` @ 0x14018d980 | particle effect record |
@@ -718,7 +742,7 @@ CUO @ 0x14019a600. Payload:
 | 10 | 2 | u16be | field | decomp |
 | 12 | 2 | i16be | field | decomp |
 | 14 | 2 | i16be | timer-list count N | decomp |
-| 16 | 12×N | | per timer: f32 seconds, u64be end-timestamp (0 → ∞) | decomp + wire |
+| 16 | 12×N | | per timer: f32 value (not seconds), u64be end on the server's ms clock (0 → ∞) | decomp + wire |
 | — | 8 | u64be | buff start/end timestamp | decomp + wire |
 | — | … | asciiz | title; **if empty**: u32be cliloc id (looked up instead) | decomp + wire |
 | — | … | asciiz | description text | decomp + wire |
@@ -729,13 +753,30 @@ CUO @ 0x14019a600. Payload:
 **Wire corrections (2026-09-29, 121 real sub-8 packets, all four sizes 144/129/78/57 B
 consume exactly):** a timer is **12 bytes** on the wire — the decomp reads a 4-byte
 float (`FUN_1407f4200`) and a u64; the 16-byte stride is the in-memory list element,
-not a wire u32 "aux" (earlier text). The floats decode as **big-endian** (timer seconds
+not a wire u32 "aux" (earlier text). The floats decode as **big-endian** (timer values
 `40400000` = 3.0, `41166666` = 9.4, `3d75c28f` = 0.06; as little-endian they are
 denormals). Real title forms: `"Stationary Penalty"` + description, or empty title +
 cliloc 1015176 + `"Armor Rating Increase"`.
 For the Stationary Penalty (icon 277) the one timer's value is the `{value}` of the description,
 the steps still to walk (5, 4, 3, 2, 1, then sub 9), while f1 4620 and f2 1 never change
 (539 updates in 26 captures; docs/HUNT_LOOP.md "Stationary Penalty").
+
+**The timer f32 is a value, the u64 is the end (2026-10-03).** The parser called the f32
+`seconds` until 2026-10-03, and `ctl status` showed it as `timers_s`, so Spell Siphon (icon 167,
+cliloc 1095588) read as a 0.06 s buff that "stayed for 20+ minutes". It is the buff's number:
+0.06 on Spell Siphon, 15.0 on Armor Rating Increase, 0.0 on Magic Reflection and Summoned. The
+duration is in `end`, a time on the server's millisecond clock, the same clock S2C sub 3
+TimeSync reports: Spell Siphon's end is exactly 3 600 000 after its timestamp (one hour), and
+the server's sub 9 came 3.1, 6.2 and 12.6 s after such ends (captures 20261003_150103,
+170434); Pacified/Discorded removals come 0–0.5 s after theirs. The client takes the latest end
+over the timers, 0 counting as never (`local_68` in OutlandsBuffUpdate). The parser now names
+them `value` and `end`; the runtime keeps the last TimeSync as `server_time` {ms, t (our clock)},
+and the snapshot gives each buff `ends_t`, its end on our clock (None: no end, or no sync yet).
+**Ended buffs aren't always removed:** in 20261003_111419 Spell Siphon's end passed 888 s
+before the capture ended without a sub 9 (13 such self buffs over all captures). The world
+model keeps them, as the client does (stock ClassicUO removes a buff only from the packet
+handler, PacketHandlers.cs:5507; a timed-out icon just re-lays out, BuffGump.cs:358-363);
+`ctl status` marks them `expired`.
 
 #### Sub 9 OutlandsRemoveBuff
 u32be mobile serial, u16be buff/icon id (both BE). decomp.
@@ -924,7 +965,8 @@ the player and every item not carried by the player.
 **Events:** `prune {serial, why}` per mobile removed by range/facet/death (not for items);
 `mobile_death {serial, corpse, name, notoriety}` once per corpse from 0xDEAD (name = the corpse's,
 e.g. "a mongbat corpse"; notoriety as first sent); `lift_reject {reason}` from S2C 0x27 (refuses
-the latest 0x07, no serial on the wire); `swing` and `damage` as before; `death` stays the
+the latest 0x07, no serial on the wire); `effect` from S2C 0xC0 when self is source or target
+(2026-10-03, §2 "0xC0 HuedEffect"); `swing` and `damage` as before; `death` stays the
 self-ghost event.
 
 **Evidence that it matches the client (session 20261001_214649, timed replay,

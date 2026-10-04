@@ -380,6 +380,19 @@ def _h_animation(rt, f):
              delay=f["delay"])
 
 
+def _h_effect(rt, f):
+    """S2C 0xC0: a graphic effect. Only the ones with self as source or target
+    become an `effect` event (type 0 moving, 1 lightning, 3 fixed on a mobile;
+    graphic 0 is a cast start): the threat checks read a spell landing on us from
+    them (harness/threats.py spell_on_us). Everyone else's effects are noise."""
+    me = rt.state.self.serial
+    if me is None or me not in (f["source"], f["target"]):
+        return
+    rt._emit("effect", type=f["type"], source=f["source"], target=f["target"],
+             graphic=f["graphic"], x=f["x"], y=f["y"], z=f["z"],
+             tx=f["tx"], ty=f["ty"], tz=f["tz"], hue=f["hue"])
+
+
 def _h_login_confirm(rt, f):
     s = rt.state.self
     if s.serial is None:
@@ -498,6 +511,8 @@ def _d_s2c(rt, f):
         rt._emit("dialect_handshake", version=f["version"],
                  flag1=f["flag1"], flag2=f["flag2"])
     elif sub == 3:
+        # the server's millisecond clock against ours: buff timer ends are on it
+        rt.state.server_time = {"ms": f["timestamp"], "t": rt.state.now}
         rt._emit("keepalive", direction=S2C, timestamp=f["timestamp"])
     elif sub == 8:
         buffs = rt.state.buffs.setdefault(f["serial"], {})
@@ -704,6 +719,7 @@ _S2C_HANDLERS = {
     0x3C: _h_container_content,
     0x6C: _h_target_cursor,
     0x6E: _h_animation,
+    0xC0: _h_effect,
     0x1B: _h_login_confirm,
     0x11: _h_character_status,
     0x3A: _h_skills,

@@ -259,6 +259,8 @@ class StateStore:
         # latest click label per serial (S2C 0x1C type 6, e.g. "Len the banker")
         self.labels: dict[int, str] = {}
         self.buffs: dict[int, dict[int, dict]] = {}  # serial -> icon id -> info
+        # latest S2C 0xFF sub 3 TimeSync: the server's ms clock ("ms") at our time "t"
+        self.server_time: dict | None = None
         self.containers: set[int] = set()
         self.protocol_version: int | None = None
         self.characters: list[str] = []  # 0xA9 character-list slot names
@@ -427,6 +429,20 @@ class StateStore:
         self._remove_many(gone, items, "facet", facet)
         return gone
 
+    def buff_ends_t(self, buff: dict) -> float | None:
+        """Our wall time when the buff runs out: the latest timer `end` (server ms,
+        0 = never, as the client's OutlandsBuffUpdate takes it) mapped through the
+        last TimeSync. None without an end or before the first sync. The buff stays
+        in `buffs` after that time until the server removes it (sub 9): the stock
+        client drops a buff only on the server's word (ClassicUO PlayerMobile.RemoveBuff
+        is called from the packet handler alone; BuffGump only re-lays out a timed-out
+        icon), and the server has left ended buffs unremoved (capture 20261003_111419)."""
+        ends = [t.get("end") for t in buff.get("timers") or []]
+        st = self.server_time
+        if not ends or not all(ends) or st is None or st.get("t") is None:
+            return None
+        return round(st["t"] + (max(ends) - st["ms"]) / 1000, 3)
+
     # -- snapshot --------------------------------------------------------------
     def snapshot(self):
         return {
@@ -447,8 +463,9 @@ class StateStore:
             "census": self.census.to_dict(),
             "names": {_h(s): n for s, n in sorted(self.names.items())},
             "labels": {_h(s): t for s, t in sorted(self.labels.items())},
-            "buffs": {_h(s): {str(i): b for i, b in sorted(v.items())}
+            "buffs": {_h(s): {str(i): {**b, "ends_t": self.buff_ends_t(b)} for i, b in sorted(v.items())}
                       for s, v in sorted(self.buffs.items())},
+            "server_time": self.server_time,
             "containers": [_h(s) for s in sorted(self.containers)],
             "status_requested": [_h(s) for s in sorted(self.status_requested)],
             "worn_layers": {_h(s): layer for s, layer in sorted(self.worn_layers.items())},

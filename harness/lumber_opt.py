@@ -293,10 +293,25 @@ def skill_value(me: dict, name: str = "Lumberjacking"):
     return None if v is None else v / 10.0
 
 
+def buff_name(icon, b: dict) -> str:
+    """A buff as status.buffs (ctl _buffs) names it: its title, else its cliloc
+    rendered from the client's Cliloc.enu (Magic Reflection and Tracking Hunting
+    come with an empty title and cliloc 1044416 / 1110004), else the number."""
+    if b.get("title"):
+        return b["title"]
+    if not b.get("cliloc"):
+        return str(icon)
+    from uo import cliloc
+    try:
+        return cliloc.translate(cliloc.load(), int(b["cliloc"]))
+    except OSError:
+        return str(b["cliloc"])
+
+
 def character(world: dict, self_serial, table: dict) -> dict:
     """What the optimizer needs to know about us now (state-port world): skill,
-    mounted, buff titles, every hatchet worn or in the backpack (any bag depth)
-    with its kind, the reagents in the pack ({name: count}), weight and
+    mounted, buff names (buff_name), every hatchet worn or in the backpack (any bag
+    depth) with its kind, the reagents in the pack ({name: count}), weight and
     weight_max (stones; the status packet's max already holds Camping's bonus
     [INFERENCE]) and Young status (the "(young)" name label)."""
     import combat
@@ -318,7 +333,7 @@ def character(world: dict, self_serial, table: dict) -> dict:
     return {"serial": me.get("serial"), "name": me.get("name"), "skill": skill_value(me),
             "mounted": any(it.get("layer") == LAYER_MOUNT and it.get("container") is not None
                            and _serial(it["container"]) == self_serial for it in items.values()),
-            "buffs": sorted({b.get("title") or str(b.get("cliloc") or icon) for icon, b in buffs.items()}),
+            "buffs": sorted({buff_name(icon, b) for icon, b in buffs.items()}),
             "hatchets": hatchets, "reagents": {combat.REAGENTS[g]: n for g, n in regs.items()},
             "weight": _num(me.get("weight")), "weight_max": _num((me.get("stats") or {}).get("weight_max")),
             "young": "(young)" in label.lower()}

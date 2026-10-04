@@ -87,7 +87,9 @@ aggressive. [INFERENCE] Creature notoriety doesn't show aggression: captured
 blood apes were 1 (innocent), sheep and zombies were both 3. So aggression
 comes, in order, from (_aggressive):
   1. swinging at us (S2C 0x2F with us as defender within damage_window_s, in
-     world.swings or a `swing` event): aggressive, whatever else holds
+     world.swings or a `swing` event), or casting at us (a spell on us within
+     the window whose moving effect came from it, "Spells on us"): aggressive,
+     whatever else holds
   2. a pet (Mobile.pet: the server's "(tame)" / "(bonded)" / "(summoned)" line
      under its click label): aggressive only with notoriety 6
      (`aggressive_notoriety`; a pet's notoriety is its owner's [INFERENCE:
@@ -147,17 +149,47 @@ under_attack: any of
     (hits_history samples plus the current value)
   - an S2C 0x0B `damage` event on self within the window
   - a 0x2F `swing` event with self as defender within the window
+  - a spell landing on us within the window (spell_on_us, "Spells on us" below)
 Assessment.action is `flee` if any threat says flee, or if under_attack and
 Params.flee_on_attack. Watch.acknowledge() marks the damage so far as dealt with
-(the lumber runner walked away from it): from then on only new drops, damage
-and swings count.
+(the lumber runner walked away from it): from then on only new drops, damage,
+swings and spells count.
+
+Spells on us (spell_on_us; live 2026-10-03, witcher_280, session
+20261003_213125): a gazer larva (body 778, war mode, 10 tiles) cast at
+Hackworth at 22:17:32.136. Magic Reflection took it, so no hit points were lost:
+the only signs were an S2C 0xC0 fixed effect 0x37B9 on us, the reflected
+lightning (0xC0 type 1) on the larva and the System line "Magic reflect
+removed.". Its next spell hit at 22:17:35.869 (effect 0x374A on us, "Spell siphon
+active.", the "-14" 0.5 s later). Across the 2026-09-30..10-03 captures, every
+0xC0 on us that our own cast didn't make came with an attack: lightning (type 1)
+on us, fixed effects 0x37B9 (reflect, absorb or parry), 0x374A, 0x3779, 0x3709
+(flame strike), 0x36BD (explosion), 0x5683 (a hamstring special), and moving
+effects (type 0) at us from the attacker (arrows 0xF42, a fireball 0x36D4). Our
+own casts make graphic 0 (the cast start), 0x375A (Magic Reflection up), 0x3735
+(a fizzle); heals, cures and buffs are 0x376A, 0x373A, 0x375A (RunUO's
+graphics; 0x376A is also Paralyze). Those are BENIGN_EFFECTS and never count.
+So a spell on us is: a lightning effect on us, a fixed effect on us with a graphic
+outside BENIGN_EFFECTS, a moving effect at us (its source is the caster), or one
+of the server's SPELL_TEXTS ("Magic reflect removed.", "You absorb their
+spell.", "Spell siphon active.", all System lines, all captured with such an
+effect). Sounds (0x54) aren't used: they carry a position, not a target. The
+"Spell Siphon" debuff (icon 167) arrives with the "Spell siphon active." line,
+no earlier, and the server resends buffs on login, so the line stands for it. A
+caster named by its moving effect counts as swinging at us (aggression "casting
+at us"); an unnamed one is found like a ranged hit (hit_attackers).
 
 Who hit us (hit_attackers): Outlands names no attacker (no 0x2F at us, no
-0x0B), so on damage the attackers are inferred from the creatures in view:
-the ones swinging at us, else those in melee range, else (nothing adjacent:
-the hit came from afar, so it was ranged) those within their reach, at least
-CREATURE_SPELL_RANGE. Candidates are hostile creatures and creatures of unknown
-aggression (`default`); pets and passive bodies/names never are.
+0x0B), so on damage (or a spell on us) the attackers are inferred from the
+creatures in view: the ones swinging or casting at us, else those in melee
+range, else (nothing adjacent: the hit came from afar, so it was ranged) those
+within their reach, at least CREATURE_SPELL_RANGE. Candidates are hostile
+creatures and creatures of unknown aggression (`default`); pets and passive
+bodies/names never are. From afar, an unknown-aggression creature is blamed only
+when no hostile one is within reach: juncture 222 (witcher_280) said "2
+creatures attacking" for the war-mode larva at 10 tiles plus a calm cougar at 8
+that never moved at us. A non-hostile creature's reason names its aggression
+("passive creature (default)"), so the threat list shows which ones could be blamed.
 """
 from __future__ import annotations
 
@@ -189,6 +221,11 @@ _YOUNG = re.compile(r"\(Young\)\s*$")
 ACTIONS = ("flee", "watch", "ignore")
 CREATURE_SPELL_RANGE = 12       # tiles: a ranged/caster creature's reach (user decision 2026-10-03)
 RANGED_BODIES = frozenset({22})  # gazer (live 2026-10-03: hit us from 11-12 tiles, LUMBER_LOOP.md §13)
+# Spells on us (module docstring "Spells on us")
+SPELL_TEXTS = frozenset({"Magic reflect removed.", "You absorb their spell.", "Spell siphon active."})
+EFFECT_MOVING, EFFECT_LIGHTNING, EFFECT_FIXED = 0, 1, 3      # S2C 0xC0 effect types
+BENIGN_EFFECTS = frozenset({0x0000, 0x3735, 0x373A, 0x375A, 0x376A})
+SYSTEM_SERIAL = 0xFFFFFFFF
 
 
 @dataclass(frozen=True)
@@ -394,11 +431,41 @@ def swinging_at_us(serial: int, key: str, swings: dict, state, *, me, now: float
                and (t is None or t >= lo) for t, ev in _events(state))
 
 
-def _aggressive(mob, text, params: Params, at_us: bool = False) -> tuple[bool, str]:
-    """(aggressive, why) for a creature: the order in the module docstring."""
+def spell_on_us(ev: dict, me) -> tuple[bool, int | None]:
+    """(landed, caster) for one world event: whether it shows a spell (or a special
+    attack) landing on us, and the caster's serial when the packet names one (a
+    moving effect's source); the module docstring "Spells on us"."""
+    if me is None:
+        return False, None
+    kind = ev.get("ev")
+    if kind == "effect" and ev.get("target") == me:
+        typ, src = ev.get("type"), ev.get("source")
+        if typ == EFFECT_LIGHTNING:
+            return True, None                  # the bolt has no graphic (0)
+        if ev.get("graphic") in BENIGN_EFFECTS:
+            return False, None
+        if typ == EFFECT_MOVING and src not in (None, 0, me):
+            return True, src
+        if typ == EFFECT_FIXED:
+            return True, None
+    elif (kind == "speech_heard" and ev.get("serial") == SYSTEM_SERIAL
+          and (ev.get("text") or "").strip() in SPELL_TEXTS):
+        return True, None
+    return False, None
+
+
+def casting_at_us(serial: int, state, *, me, now: float, params: Params) -> bool:
+    """A spell on us within damage_window_s whose effect names `serial` as the caster."""
+    lo = now - params.damage_window_s
+    return any((t is None or t >= lo) and spell_on_us(ev, me) == (True, serial) for t, ev in _events(state))
+
+
+def _aggressive(mob, text, params: Params, at_us: bool = False, how: str = "swinging") -> tuple[bool, str]:
+    """(aggressive, why) for a creature: the order in the module docstring;
+    `at_us`: it is swinging or (`how` "casting") casting at us."""
     body, noto, flags = mob.get("graphic"), mob.get("notoriety"), mob.get("flags") or 0
     if at_us:
-        return True, "swinging at us"
+        return True, f"{how} at us"
     pet = mob.get("pet")
     if pet:
         if noto in params.aggressive_notoriety:
@@ -439,7 +506,7 @@ def fighting_other(serial: int, key: str, mob: dict, text, swings: dict, state, 
 
 
 def damage_signal(state, *, now: float, params: Params, hits_history=(), since: float | None = None):
-    """(under_attack, detail) from the self hits trend and damage/swing events;
+    """(under_attack, detail) from the self hits trend and damage/swing/spell events;
     nothing before `since` (Watch.acknowledge) counts."""
     me = (state.get("world") or {}).get("self") or {}
     hits, hits_max = me.get("hits"), me.get("hits_max")
@@ -448,7 +515,7 @@ def damage_signal(state, *, now: float, params: Params, hits_history=(), since: 
     samples = [h for t, h in hits_history if t >= lo and h is not None]
     peak = max(samples) if samples else hits
     lost = max(0, peak - hits) if (peak is not None and hits is not None) else 0
-    dmg = swings = 0
+    dmg = swings = spells = 0
     for t, ev in _events(state):
         if t is not None and t < lo:
             continue
@@ -457,10 +524,12 @@ def damage_signal(state, *, now: float, params: Params, hits_history=(), since: 
             dmg += 1
         elif kind == "swing" and me_serial is not None and ev.get("defender") == me_serial:
             swings += 1
-    under = lost >= params.damage_threshold or dmg > 0 or swings > 0
+        elif spell_on_us(ev, me_serial)[0]:
+            spells += 1
+    under = lost >= params.damage_threshold or dmg > 0 or swings > 0 or spells > 0
     return under, {"hits": hits, "hits_max": hits_max, "lost": lost,
                    "window_s": params.damage_window_s,
-                   "damage_events": dmg, "swings": swings}
+                   "damage_events": dmg, "swings": swings, "spells": spells}
 
 
 def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None = None,
@@ -488,8 +557,11 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
         if kind == "monster":
             th.s_per_tile = params.monster_s_per_tile
             th.strike_range = params.monster_strike_range
-            at_us = swinging_at_us(serial, key, swings, state, me=me, now=now, params=params)
-            th.aggressive, th.aggression = _aggressive(mob, th.name, params, at_us)
+            swinging = swinging_at_us(serial, key, swings, state, me=me, now=now, params=params)
+            casting = not swinging and casting_at_us(serial, state, me=me, now=now, params=params)
+            at_us = swinging or casting
+            th.aggressive, th.aggression = _aggressive(mob, th.name, params, at_us,
+                                                       "casting" if casting else "swinging")
             th.evidence.append(f"aggressive={th.aggressive} ({th.aggression})")
             th.hostile = th.aggressive
             th.reach = creature_reach(th.body, params)
@@ -528,7 +600,7 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
             th.action = "watch"
             th.reason = f"{kind} eta {th.eta_s:.1f}s > {budget:.1f}s"
         elif kind == "monster":
-            th.action, th.reason = "ignore", "passive creature"
+            th.action, th.reason = "ignore", f"passive creature ({th.aggression})"
         elif th.distance <= params.watch_radius:
             th.action, th.reason = "watch", f"{kind} player within {params.watch_radius}"
         else:
@@ -543,7 +615,8 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
                                      else "ignore")
     if under:
         reasons.append(f"under attack: lost {damage['lost']} hits, "
-                       f"{damage['damage_events']} damage / {damage['swings']} swing events")
+                       f"{damage['damage_events']} damage / {damage['swings']} swing / "
+                       f"{damage['spells']} spell events")
         if params.flee_on_attack:
             action = "flee"
         elif action == "ignore":
@@ -554,10 +627,12 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
 
 def hit_attackers(a: Assessment, params: Params, swung=()) -> tuple[list, bool]:
     """(attackers, ranged) for damage just taken (module docstring "Who hit us"):
-    creatures swinging at us (`swung` serials) or in melee range, plus known-ranged
-    ones within their reach; with none of those, every candidate within its
-    reach (at least CREATURE_SPELL_RANGE), the likeliest first (a ranged body,
-    then hostile, then nearest). ranged: no attacker is in melee range."""
+    creatures swinging or casting at us (`swung` serials) or in melee range, plus
+    known-ranged ones within their reach; with none of those, every candidate
+    within its reach (at least CREATURE_SPELL_RANGE), the likeliest first (a ranged
+    body, then hostile, then nearest), where a hostile one in reach leaves out the
+    unknown-aggression ones that aren't known to be ranged. ranged: no attacker is
+    in melee range."""
     melee = params.monster_strike_range
     mons = [t for t in a.threats if t.kind == "monster" and 0 <= t.distance <= params.max_range]
     cands = [t for t in mons if t.hostile or t.aggression == "default"]
@@ -566,8 +641,10 @@ def hit_attackers(a: Assessment, params: Params, swung=()) -> tuple[list, bool]:
         out = list({t.serial: t for t in close}.values())
         out += [t for t in cands if t not in out and t.reach > melee and t.distance <= t.reach]
     else:
-        out = sorted((t for t in cands if t.distance <= max(t.reach, CREATURE_SPELL_RANGE)),
-                     key=lambda t: (t.reach <= melee, not t.hostile, t.distance))
+        out = [t for t in cands if t.distance <= max(t.reach, CREATURE_SPELL_RANGE)]
+        if any(t.hostile for t in out):
+            out = [t for t in out if t.hostile or t.reach > melee]
+        out.sort(key=lambda t: (t.reach <= melee, not t.hostile, t.distance))
     return out, all(t.distance > melee for t in out)
 
 

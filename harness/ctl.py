@@ -496,15 +496,22 @@ def _stats(me: dict) -> dict:
 
 
 def _buffs(world: dict, me: dict) -> list:
-    """Your active buffs/debuffs (Outlands 0xFF sub 8, e.g. "Stationary Penalty").
-    `description` is the server's text with its {value} placeholder (for the Stationary
-    Penalty {value} is `timers_s[0]`, the steps left; f2 is always 1: docs/HUNT_LOOP.md);
-    `raw` keeps the numeric fields whose meaning isn't decoded yet."""
+    """Your buffs/debuffs (Outlands 0xFF sub 8, e.g. "Stationary Penalty").
+    `description` is the server's text with its {value} placeholder; `values` are the
+    buff's numbers, one per timer (for the Stationary Penalty {value} = `values[0]`, the
+    steps left: docs/HUNT_LOOP.md), never durations. `ends_in_s`: seconds until it runs
+    out on the server's clock (the world model's `ends_t`), None when it has no end;
+    `expired` once that is past and the server hasn't removed it (it doesn't always: the
+    stock client then keeps the icon too, but the effect is over). `raw` keeps the numeric
+    fields whose meaning isn't decoded yet (f2 is always 1)."""
+    now = time.time()
     out = []
     for icon, b in ((world.get("buffs") or {}).get(me.get("serial") or "", {}) or {}).items():
         title = b.get("title") or (cliloc_text(b["cliloc"]) if b.get("cliloc") else "")
+        ends_in = None if b.get("ends_t") is None else round(b["ends_t"] - now, 1)
         out.append({"icon": int(icon), "title": title, "description": b.get("description") or None,
-                    "timers_s": [t.get("seconds") for t in b.get("timers") or []],
+                    "values": [t.get("value") for t in b.get("timers") or []],
+                    "ends_in_s": ends_in, "expired": ends_in is not None and ends_in <= 0,
                     "raw": {k: b.get(k) for k in ("f1", "f2", "f3", "f4", "category", "mode", "scalar")}})
     return sorted(out, key=lambda b: b["icon"])
 
@@ -2147,9 +2154,12 @@ def _act_goto(a, mem) -> dict:
             guard = travel_guard.TravelGuard(mover, mem, goal=None if key_is_mobile else center,
                                              log=agent_link.log)
             mover.guard = guard
-        # a goto onto a moongate means to use it: its gump is left for `act gump`; the gumps of
-        # gates the route only passes over are closed by the Mover
-        gate = center() if radius == 0 and mover.moongate_at(center()) else None
+        # a goto onto a tile or ground item (range 0) means to use whatever moongate stands on
+        # that tile: its gump is left for `act gump`; the gumps of gates the route only passes
+        # over are closed by the Mover. Not decided by looking for the gate now: from beyond the
+        # view range the world model doesn't have it yet (live 2026-10-03: three gotos onto
+        # gates closed the gump on arrival)
+        gate = center() if radius == 0 and not key_is_mobile else None
         start = link.pos()
         try:
             mover.walk_to(center, radius, label, max_moves=a.max_moves, z_ok=z_ok, gate=gate)

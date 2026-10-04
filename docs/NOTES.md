@@ -61,9 +61,10 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   model showed it as an active cursor until 2026-09-30.
 - **Buffs on Outlands arrive as 0xFF sub 8/9** (OutlandsBuffUpdate/RemoveBuff), not 0xDF (none
   in the live session). Examples: "Stationary Penalty", with the description "All damage is
-  reduced to 1. Move {value} more steps to remove this effect", 5 s timer, f2 = 1; and a buff
-  titled by cliloc 1075655. `{value}` is `timers[0].seconds` (decoded 2026-10-03, see "Stationary
-  Penalty decoded" below); f2 is always 1.
+  reduced to 1. Move {value} more steps to remove this effect", timer value 5, f2 = 1; and a buff
+  titled by cliloc 1075655. `{value}` is `timers[0].value` (decoded 2026-10-03, see "Stationary
+  Penalty decoded" below; the parser called it `seconds` until the evening of 2026-10-03, but it is
+  never a duration: the timer's `end` is, docs/WORLDMODEL.md sub 8); f2 is always 1.
 - **Str/Dex/Int** from 0x11 were parsed but dropped by the world model (set as attributes the
   snapshot doesn't export). Fixed 2026-09-30; they're now in `self.stats`.
 - **Agent gump replies leave the client's copy on screen:** the stock client closes a gump
@@ -657,7 +658,7 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   open speech hold for 163 s; it now lists the newest. `act drop --amount 800` split a gold stack
   correctly but returned `ok:false` ("the world model doesn't show the item moved"); not fixed.
 - **Stationary Penalty decoded (2026-10-03, 26 captures):** buff 0xFF sub 8, icon 277. `{value}`
-  (steps left) is `timers[0].seconds`: 5, 4, 3, 2, 1, then removed (sub 9) on the 5th step that
+  (steps left) is `timers[0].value`: 5, 4, 3, 2, 1, then removed (sub 9) on the 5th step that
   changes our tile; runs and stepping back onto the tile just left both count. It comes 301–315 s
   after the last one-tile step (all 40 cases; fighting, casting and teleports don't reset the
   clock), at every login, and at once after most other teleports (recalls/moongates 23/28,
@@ -703,7 +704,7 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
 Task logs: `logs/tasks/lumber-20261003-214343-7dee.log` (Horseshoe Bay), `…-221714-5a7d.log`
 (witcher_280), `…-222221-9fb8.log` (Corpse Creek). The overseer's account: `agent://LumberSeer`.
 - **Magic Reflection, first captures.** The buff is icon **138**, title "Magic Reflection", no
-  description, `timers_s [0.0]`: **it has no timer**. One cast lasted 34.2 min and ended only when a
+  description, timer value 0.0 and end 0: **it has no end**. One cast lasted 34.2 min and ended only when a
   gazer larva's spell hit it ("Magic reflect removed."). Recasting while it's up is refused with
   "That spell is already currently in effect." and costs no mana. It cost 13 mana. A successful
   cast writes no journal line; a fizzle writes "The spell fizzles." (cliloc 502632). At Magery 60,
@@ -712,23 +713,90 @@ Task logs: `logs/tasks/lumber-20261003-214343-7dee.log` (Horseshoe Bay), `…-22
 - **Escape recalls landed on the first try both times** (2.2 s and 2.29 s, tome charges). At Corpse
   Creek the flight started 0.45 s after the grey player was first seen, and the runner cancelled
   its open target cursor first.
-- **Gaps seen (not fixed):**
+- **Gaps seen (all dealt with on 2026-10-03, each item below):**
   - At witcher_280 the larva's first spell ("Magic reflect removed.", 22:17:32) didn't count as an
     attack. The runner reacted only to the −14 hits 4 s later, 7.75 s after first sight. Reacting
     to that line, or to any spell from a visible hostile, would have moved the flight ~4 s earlier.
+    **Fixed 2026-10-03.** Capture 20261003_213125 at 22:17:32.136 holds the System line, an S2C 0xC0
+    fixed effect 0x37B9 on Hackworth (Magic Reflection taking it) and the bolt reflected onto the
+    larva (0xC0 type 1 on it, its hits 100 → 99); at 22:17:35.869 the next spell: 0x374A on us,
+    "Spell siphon active.", the "-14" 0.5 s later. Sounds (0x54) carry only a position; the Spell
+    Siphon buff arrives with its line. Across all 2026-09-30..10-03 captures, the spell signals on us
+    (0xC0 effects our own casts didn't make, i.e. not graphic 0 = cast start, 0x375A, 0x3735, nor the
+    heals/cures 0x376A/0x373A, plus those three lines) numbered 93, every one with an attack: 89 with
+    a hits drop within 3 s, the other 4 two spells that cost no hits (this one; an explosion 0x36BD,
+    15:34:22 in 20261003_150103). The
+    world model now parses 0xC0 (Outlands 52 B, graphic u32) and emits `effect` when self is source or
+    target; `threats.spell_on_us` reads a spell on us from that effect (lightning, a non-benign fixed
+    graphic, a moving effect at us naming its caster) or from "Magic reflect removed." / "You absorb
+    their spell." / "Spell siphon active."; `damage_signal` counts `spells`, and the lumber runner's
+    `creature_hit` treats one like a hits drop (0 lost): at witcher_280 a run at 22:17:32.1 (one
+    attacker at 100/100). The effect half needs a proxy restart; the lines work on the running one.
+    LUMBER_LOOP.md §13 "Spells on us count as damage"; tests `test_loop_lumber.py gazer_reflect`,
+    `unit_capture_spell_witcher`, `harness/test_threats.py` test_spells, `test_world_units.py`
+    test_effect_c0.
   - Juncture 222 said "2 creatures attacking" while `attackers` was empty and only the larva was
-    hostile.
+    hostile. **Fixed 2026-10-03.** Two causes: `attackers` in the threat/pk_escape junctures and the
+    recall event was the 0x2F swingers only (never sent with us as defender on Outlands: always []),
+    while the count came from `threats.hit_attackers`, which blamed the war-mode larva at 10 and also
+    the calm cougar at 8 (aggression "default", which the threat list showed as "passive creature").
+    Now `attackers` = swingers/casters plus the ones `creature_hit` blamed, a hostile creature in
+    reach from afar leaves out unknown-aggression ones not known to be ranged (222 replayed: the larva
+    only), and a calm creature's reason reads "passive creature (default)". Test
+    `unit_capture_juncture_222`, test_threats `test_hit_attackers`.
   - Trip 1's row listed "a stinky mongbat" and "a wet mongbat" under players seen (probably named
     pets), and its `buffs` held raw cliloc ids ('1044416', '1110004') instead of names.
+    **Not pets: they are players (no change to the classification).** 0x3D56E5 / 0x3DB217 at the HB
+    bank (21:43:00): body 0x190, flags 0x20 (the player bit), notoriety 1, a 0x78 with a backpack
+    (layer 0x15), a mount (0x19: 0x3E9F, 0x3EA0), clothes and hair, 0x11 hits 100/100 and 90/90, no
+    "(tame)"/"(bonded)" line; a pet has none of that. Pinned by `unit_capture_named_players`.
+    **Buffs fixed 2026-10-03:** `lumber_opt.character` names a buff like `status.buffs` (the title,
+    else the cliloc rendered: "Magic Reflection", "Tracking Hunting"); test `unit_capture_buffs`.
   - The hatchet sat in the backpack the whole shift and chopping still worked; `worn: False` on the
-    trip row.
+    trip row. **Recording fixed 2026-10-03; the runner was right.** Every cast moves the hatchet to
+    the pack (`0x1D` + `0x25`: 21:43:17 Magic Reflection; 22:16:59 the Magic Reflection recast the
+    server refused with "That spell is already currently in effect."; 22:17:36 and 22:36:59 recalls),
+    and the first chop's double-click makes the server equip it (`0x1D` + `0x2E` layer 2, 21:44:39,
+    22:17:32, 22:22:40); it stayed in hand while chopping. The row's `worn` was read at the trip
+    start, right after the cast. Now `hatchet.worn` is whether it was in hand when the last chop's
+    cursor came, `worn_at_start` the start reading (LUMBER_LOOP.md §13 "Hatchet"); test
+    `unit_capture_hatchet`.
   - The "Spell Siphon" buff (icon 167) stayed in `status.buffs` for 20+ min after the hit (possibly
-    stale).
+    stale). **Not stale; fixed what we read (2026-10-03).** Its sub 8 (22:17:35.871) carries value
+    0.06 and a timer end 3 600 000 ms after its stamp: a one-hour debuff. The server re-sent it
+    with the same end after the moongate (22:21:20) and again at 22:21:31, and no removal
+    came before the capture ended (22:45, 32 min left); in 20261003_150103/170434 its sub 9 came
+    3–13 s after the hour. `ctl status` had shown the 0.06 as `timers_s` (seconds), and nothing
+    showed the end. Now the parser names the f32 `value`, the world model keeps the server clock
+    (sub 3) and gives each buff `ends_t`, and `status.buffs` shows `values`, `ends_in_s` and
+    `expired` (docs/WORLDMODEL.md sub 8, OVERSEER.md `status`). The server doesn't always remove
+    an ended buff (20261003_111419: Spell Siphon 888 s past its end; 13 such self buffs in all
+    captures); the world model keeps those, like the stock client, and status marks them
+    `expired`. Tests: `test_world_units.py` "a buff's end on the server's clock" (the captured
+    packets), `test_ctl.py` status.buffs. The live proxy must be restarted to carry it: until then
+    its buffs have `seconds`, not `value`, so `values` read null and the runners' Stationary
+    Penalty clear walks its default 5 steps (`stationary.CLEAR_STEPS`).
   - A tile `act goto` onto a moongate (2974,611 / 2025,2077 / 1693,3153) closed the gate's gump on
     arrival, against the documented range-0 rule; a double-click on the gate reopened it.
+    **Fixed 2026-10-03.** The overseer used the default range 0 (`act goto 2974 611`, `act goto
+    1693 3153`). `ctl _act_goto` chose the gate to keep by looking for a moongate on the goal
+    tile when the goto started, but all three started 28+ tiles away (3035,514 / 2008,2224 /
+    1708,3181), outside the view, so the gate wasn't in the world model, `gate` was None and the
+    Mover closed the gump on arrival like a gate passed over (B1 button 0 at 21:40:54, 22:16:35,
+    22:21:09). Now a goto onto a tile or ground item with range 0 means to use whatever gate
+    stands on that tile, seen yet or not. Test: `test_ctl.py` "goto x y onto a moongate first
+    seen on the way" (the pre-fix ctl sends the B1 there; passing over a gate: `test_mover.py`).
 - **Horseshoe Bay ran dry again at 613 logs** (30 min, 4 trees unreachable at the end), matching
   the 605 of the afternoon: the grove holds ~610 logs per regrowth window (docs/PLAN.md "Tree
   density enters as grove capacity").
+- **Open risk: the daily cap strands a run (found 2026-10-03 22:46 from the code, not seen live).**
+  The break has a warning and a grace (`break_due`, 10 min, then the runner banks and exits), but
+  the daily cap has neither: when `active_today_s` reaches `DAILY_CAP_S` the gate blocks until
+  midnight and the runner aborts where it stands (agent_link.py module doc: "an exhausted daily
+  budget aborts"; agent_gate.py `state`). At 22:46 the next break was due in 2770 s and the cap in
+  3020 s, so the cap would have closed during the break's grace while the trip walked home. A
+  break test should start with more than ~15 min of daily budget beyond the break, or the cap
+  should get the same due-then-grace treatment as the break.
 
 ## Traffic audit of the 2026-10-02/03 captures (2026-10-03)
 

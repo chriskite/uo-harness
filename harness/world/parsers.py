@@ -476,10 +476,17 @@ def _p_open_menu(pkt):
 def _p_buff_update(r, d):
     """0xFF sub 8 S2C OutlandsBuffUpdate (decomp @ 0x14019a600).
 
-    Timer records are 12 bytes on the wire (f32 seconds + u64 end): the
+    Timer records are 12 bytes on the wire (f32 value + u64 end): the
     decomp's 16-byte stride is the in-memory struct, not the wire. Proven on
     all 121 real sub-8 packets (lengths 144/129/78/57 all consume exactly,
     titles read as text: "Stationary Penalty", or "" + cliloc 1015176).
+    The f32 is the buff's number, not a duration: the description's {value}
+    (Stationary Penalty: steps left, 5..1), 0.06 on Spell Siphon, 15.0 on
+    Armor Rating Increase. The u64 `end` is when the buff runs out on the
+    server's millisecond clock (the one sub 3 TimeSync reports), 0 = no end;
+    the client keeps the latest end over the timers (0 counting as never).
+    Live 2026-10-03: Spell Siphon (icon 167) came with value 0.06 and an end
+    exactly 3 600 000 ms after its timestamp, i.e. a one-hour debuff.
     """
     d["serial"] = r.u32()
     d["icon_id"] = r.i16()
@@ -489,7 +496,7 @@ def _p_buff_update(r, d):
     d["f4"] = r.i16()
     timers = []
     for _ in range(r.i16()):
-        timers.append({"seconds": r.f32(), "end": r.u64()})
+        timers.append({"value": r.f32(), "end": r.u64()})
     d["timers"] = timers
     d["timestamp"] = r.u64()
     d["title"] = r.asciiz()

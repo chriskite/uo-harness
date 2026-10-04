@@ -522,7 +522,7 @@ def test_dialect_ff():
     eq("FF sub15 names", f, {"sub": 0x15, "mode": 0, "entries": [
         {"serial": 0x04050607, "name": "Sweat"},
         {"serial": 0x08090A0B, "name": "Pant"}]})
-    # sub 8 S2C: buff update — 12-byte timers (f32 BE seconds, u64 end)
+    # sub 8 S2C: buff update — 12-byte timers (f32 BE value, u64 end)
     title = b"BuffTitle\x00"
     desc = b"BuffDesc\x00"
     payload = ("04050607" "0809" "0001" "0002" "0003" "0004"
@@ -536,7 +536,7 @@ def test_dialect_ff():
     f = parse_packet("s2c", pkt)
     want = {"sub": 8, "serial": 0x04050607, "icon_id": 0x0809,
             "f1": 1, "f2": 2, "f3": 3, "f4": 4,
-            "timers": [{"seconds": 0.75, "end": 0x0102030405060708}],
+            "timers": [{"value": 0.75, "end": 0x0102030405060708}],
             "timestamp": 0x0D0E0F1011121314,
             "title": "BuffTitle", "description": "BuffDesc",
             "category": 5, "mode": 6, "scalar": 1.0}
@@ -545,7 +545,7 @@ def test_dialect_ff():
     f = parse_packet("s2c", BUFF_REAL)
     check("FF sub8 real cliloc form",
           f["serial"] == 0x00094375 and f["icon_id"] == 0x2D
-          and abs(f["timers"][0]["seconds"] - 9.4) < 1e-5
+          and abs(f["timers"][0]["value"] - 9.4) < 1e-5
           and f["title"] == "" and f["cliloc"] == 1015176
           and f["description"] == "Armor Rating Increase"
           and f["mode"] == 1 and f["scalar"] == 0.0, str(f))
@@ -1112,6 +1112,79 @@ def test_corpse_notoriety():
     eq("0x27: lift_reject with its reason", rt.drain_events(), [{"ev": "lift_reject", "reason": 5}])
 
 
+# live 2026-10-03 22:17:35 (session 20261003_213125): the TimeSync before the gazer larva's
+# hit, then Spell Siphon (icon 167) on Hackworth, value 0.06, end 3 600 000 ms after its stamp
+SYNC_221735 = bytes.fromhex("ff000f000000030000000cb8545ad9")
+SIPHON_221735 = bytes.fromhex(
+    "ff0039000000080020f12700a7121400000000000000013d75c28f0000000cb88b4cb20000000cb8545e32"
+    "000010b7a4000000000000000000")
+
+
+def test_buff_end():
+    print("== a buff's end on the server's clock (Spell Siphon is an hour, not 0.06 s) ==")
+    clock = [1791083855.015]
+    rt = WorldRuntime(clock=lambda: clock[0])
+    rt.feed_packet("s2c", SYNC_221735)
+    eq("sub 3 keeps the server's ms clock against ours", rt.state.server_time,
+       {"ms": 54632143577, "t": 1791083855.015})
+    clock[0] = 1791083855.871
+    rt.feed_packet("s2c", SIPHON_221735)
+    b = rt.state.snapshot()["buffs"]["0x0020F127"]["167"]
+    check("Spell Siphon: value 0.06, cliloc 1095588",
+          abs(b["timers"][0]["value"] - 0.06) < 1e-6 and b["cliloc"] == 1095588, str(b))
+    eq("ends_t: one hour on (the server removed it 3-13 s after such ends: 150103, 170434)",
+       b["ends_t"], round(1791083855.015 + (54635744434 - 54632143577) / 1000, 3))
+    check("...so at the capture's end (22:45) 30 min of it were left: not stale",
+          b["ends_t"] - 1791085524 > 1800, str(b["ends_t"]))
+    clock[0] = b["ends_t"] + 888
+    rt.feed_packet("s2c", bytes.fromhex("ff000f00000003") + (54635744434 + 888_000).to_bytes(8, "big"))
+    check("past its end without a sub 9 the buff stays, as in the stock client (111419)",
+          "167" in rt.state.snapshot()["buffs"]["0x0020F127"], str(rt.state.snapshot()["buffs"]))
+    eq("a newer sync maps the same end to the same time",
+       rt.state.snapshot()["buffs"]["0x0020F127"]["167"]["ends_t"], b["ends_t"])
+    rt.feed_packet("s2c", bytes.fromhex("ff000d00000009" "0020f127" "00a7"))
+    eq("sub 9 removes it", rt.state.snapshot()["buffs"]["0x0020F127"], {})
+    rt2 = WorldRuntime(clock=lambda: 1791083855.015)
+    rt2.feed_packet("s2c", SIPHON_221735)
+    eq("before any sync: no end yet", rt2.state.snapshot()["buffs"]["0x0020F127"]["167"]["ends_t"], None)
+    rt2.feed_packet("s2c", SYNC_221735)
+    eq("a sync after the buff gives its end", rt2.state.snapshot()["buffs"]["0x0020F127"]["167"]["ends_t"],
+       b["ends_t"])
+    rt2.feed_packet("s2c", bytes.fromhex(SIPHON_221735.hex().replace("0000000cb88b4cb2", "0" * 16)))
+    eq("a timer end of 0 is no end (Magic Reflection, Stationary Penalty)",
+       rt2.state.snapshot()["buffs"]["0x0020F127"]["167"]["ends_t"], None)
+
+
+# live 2026-10-03 22:17:32.136 (session 20261003_213125): Magic Reflection takes a gazer larva's
+# spell (0x37B9 fixed on Hackworth), and the bolt goes back onto the larva (type 1 on it)
+REFLECT_221732 = bytes.fromhex(
+    "c0030020f1270020f127000037b90000014f000008020000000c0000014f000008020000000c0a05000001000000000000000000")
+BOLT_ON_LARVA_221732 = bytes.fromhex(
+    "c0010042e6db0042e6db0000000000000145000007fa0000000500000145000007fa000000050000000000000000000000000000")
+
+
+def test_effect_c0():
+    print("== 0xC0 HuedEffect (Outlands 52 B): an `effect` event when self is source or target ==")
+    eq("layout: type, source, target, graphic u32, x/y u32, z i32, hue",
+       {k: v for k, v in parse_packet("s2c", REFLECT_221732).items()
+        if k in ("type", "source", "target", "graphic", "x", "y", "z", "tx", "ty", "tz", "speed", "duration",
+                 "fixed_dir", "explode", "hue", "render")},
+       {"type": 3, "source": 0x0020F127, "target": 0x0020F127, "graphic": 0x37B9, "x": 335, "y": 2050, "z": 12,
+        "tx": 335, "ty": 2050, "tz": 12, "speed": 10, "duration": 5, "fixed_dir": 1, "explode": 0, "hue": 0,
+        "render": 0})
+    rt = WorldRuntime()
+    rt.feed_packet("s2c", bytes.fromhex("1b0020f1270000000000000190000000c30000068d000000018600ffffffff"
+                                        "000000000a00080000000000"))
+    rt.drain_events()
+    rt.feed_packet("s2c", REFLECT_221732)
+    rt.feed_packet("s2c", BOLT_ON_LARVA_221732)
+    eq("the effect on us is an event, the bolt on the larva (not us) is not",
+       rt.drain_events(), [{"ev": "effect", "type": 3, "source": 0x0020F127, "target": 0x0020F127,
+                            "graphic": 0x37B9, "x": 335, "y": 2050, "z": 12, "tx": 335, "ty": 2050, "tz": 12,
+                            "hue": 0}])
+    eq("no parse failures, nothing unhandled", (rt.parse_failures, rt.unhandled.get(("s2c", 0xC0))), (0, None))
+
+
 def test_pruning():
     """The live table holds only what the stock client has (docs/WORLDMODEL.md
     "Pruning"; live 20261001_214649: the ghosts behind ANTICHEAT.md A12)."""
@@ -1228,7 +1301,7 @@ TESTS = [test_fixed_s2c, test_fixed_c2s, test_character_status_11,
          test_vendor_popup_command, test_tracking_packets,
          test_mobile_routing, test_truncation, test_runtime_edges,
          test_event_semantics, test_status_requested, test_pruning, test_worn_layers,
-         test_corpse_notoriety]
+         test_corpse_notoriety, test_buff_end, test_effect_c0]
 
 
 def main():

@@ -35,10 +35,15 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
 - gazer_run / gazer_rehit (LUMBER_LOOP.md §13 "Running from a creature"): at the library spot a gazer
   casts from 10 tiles; the runner walks out of its 12-tile reach and chops on (banks), or, when it
   outranges the walk-away and hits again, recalls home without converting
+- gazer_reflect: the same gazer's first spell is taken by Magic Reflection (the server's "Magic reflect
+  removed." and the 0xC0 0x37B9 on us, no hits lost; live 2026-10-03 witcher_280): the runner runs at
+  that spell, before any damage, and banks
 - wary: a war-mode creature by the nearest tree: the farther tree first, the near one once it has gone
 - red_aim (§13 "Blind waits"): at the library spot a red comes into view during the chop's human aim pause
   (--human normal): the cursor is cancelled and the recall home pressed within REACT_MAX_S of sight, no chop target
-Plus unit checks of hatchet() (worn, else the shallowest in the pack's bags) and hit_verdict().
+Plus unit checks of hatchet() (worn, else the shallowest in the pack's bags) and hit_verdict(), and
+unit_capture_*: the runner's threat and trip-row pieces on packets captured live in session
+20261003_213125 (the witcher_280 gazer larva, juncture 222, trip 1's hatchet, buffs and the named players).
 Named scenarios run alone: `python test_loop_lumber.py gazer_run wary`.
 
 Run: python test_loop_lumber.py   (~2-3 min; private ports; safe while the live proxy runs)
@@ -181,6 +186,14 @@ def swing(attacker, defender):
 def hits_pkt(hits, hits_max=100):
     """0xA1 UpdateHitpoints for us: Outlands shows damage only as a hits drop (docs/NOTES.md)."""
     return b"\xa1" + u32(SELF) + u16(hits_max) + u16(hits)
+
+
+def effect_on_self(graphic, x, y):
+    """0xC0 HuedEffect, Outlands 52-byte form (world/layouts.py), fixed on us (type 3) at (x, y):
+    Magic Reflection taking a spell is 0x37B9 (live 2026-10-03 22:17:32)."""
+    at = u32(x) + u32(y) + u32(0)
+    return (b"\xc0\x03" + u32(SELF) + u32(SELF) + u32(graphic) + at + at + b"\x0a\x05" + u16(0) + b"\x01\x00"
+            + u32(0) + u32(0))
 
 
 def equip(item, graphic, layer):
@@ -350,6 +363,8 @@ class World:
         self.hits = 100
         self.gazer_pos, self.gazer_range = None, 12
         self.gazer_hits = []              # (time, our distance from it) per cast that hit
+        self.reflect = False              # gazer_reflect: Magic Reflection is up and takes the next spell
+        self.reflected = []               # (time, our distance from it) per spell Magic Reflection took
         self.wary_left_t = None           # wary: when the creature by the near tree left view
         self.door_seen = True             # the door and gates go out at login, then again like the banker
         self.red_due = False              # red_aim: the red is on its way (RED_AIM_S after the chop's cursor)
@@ -545,7 +560,14 @@ class World:
         await asyncio.sleep(0.8)
         while not self.writer.is_closing():
             d = self.cheb(self.gazer_pos)
-            if d <= self.gazer_range and self.hits > GAZER_DMG:
+            if d <= self.gazer_range and self.reflect:
+                # Magic Reflection takes it (live 22:17:32.136): the System line and 0x37B9 on us, no 0xA1
+                self.reflect = False
+                self.reflected.append((time.time(), d))
+                self.send(sys_text("Magic reflect removed."))
+                self.send(effect_on_self(0x37B9, *self.pos))
+                await self.writer.drain()
+            elif d <= self.gazer_range and self.hits > GAZER_DMG:
                 self.hits -= GAZER_DMG
                 self.gazer_hits.append((time.time(), d))
                 self.send(hits_pkt(self.hits))
@@ -1433,6 +1455,43 @@ async def gazer_rehit():
     store.close()
 
 
+async def gazer_reflect():
+    """LUMBER_LOOP.md §13 "Spells on us" (live 2026-10-03 witcher_280: a gazer larva's first spell was
+    taken by Magic Reflection, the runner kept it on 'watch' and reacted only to the next one's -14,
+    7.75 s after first sight). The same gazer's first spell lands on Magic Reflection: the server's
+    "Magic reflect removed." and the 0xC0 0x37B9 on us, no hits lost. The runner runs at that spell (a
+    monster_hit with spells, 0 hits lost), out of the gazer's reach, before any damage; the trip banks."""
+    print("\n== gazer, reflected: a spell that costs no hits is an attack -> walk out of its reach, bank ==")
+    world = World("gazer")
+    world.reflect = True
+    text, code, store, _ = await run_scenario(world, "gazer_reflect", 12770, [LIB_TREE, LIB_FAR_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
+    eps = store.episodes("lumber")
+    hits = [e["data"] for e in store.job_events("lumber") if e["kind"] == "monster_hit"]
+    check("Magic Reflection took the first spell", len(world.reflected) == 1, str(world.reflected))
+    check("the trip banked, exit 0 (no recall away, no stop)",
+          code == 0 and [e.get("outcome") for e in eps] == ["banked"]
+          and not [e for e in store.job_events("lumber") if e["kind"] == "recall"],
+          f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]}\n{text[-800:]}")
+    check("the spell is a monster_hit: the gazer, 10 tiles off, ranged, the only attacker, no hits lost, a run",
+          hits and hits[0]["body"] == GAZER_BODY and hits[0]["distance"] == 10 and hits[0]["hits_lost"] == 0
+          and hits[0]["spells"] >= 1 and hits[0]["ranged"] is True and hits[0]["attackers"] == 1
+          and hits[0]["action"] == "run", str(hits)[:600])
+    check("it ran at the spell, before any damage: at most one more cast landed while walking (walk_on)",
+          len(world.gazer_hits) <= 1 and [h["action"] for h in hits] == ["run", "walk_on"][:len(hits)]
+          and len(hits) == 1 + len(world.gazer_hits), f"{world.gazer_hits} {[h['action'] for h in hits]}")
+    js = [j for j in store.junctures() if j["kind"] == "threat"]
+    check("the threat juncture: action escape, the spell's hit, and `attackers` names the gazer",
+          len(js) == 1 and js[0]["data"].get("action") == "escape"
+          and js[0]["data"].get("attackers") == [f"0x{GAZER:08X}"]
+          and (js[0]["data"].get("hit") or {}).get("spells", 0) >= 1, str([(j["summary"], j["data"].get("attackers"))
+                                                                          for j in js]))
+    check("the juncture says it was a spell, -0", js and "spell by" in js[0]["summary"] and ": -0," in js[0]["summary"],
+          str([j["summary"] for j in js]))
+    store.close()
+
+
 async def wary():
     """A war-mode creature (known aggressive) stands 2 tiles from the nearest tree, 13 from us: that
     tree waits while it is around; the runner chops the farther west tree first, comes back to the
@@ -1560,6 +1619,243 @@ def unit_hatchet():
     check("one in the bank box doesn't count", pick("bank") is None)
 
 
+# unit_capture_*: packets captured live in session 20261003_213125 (Hackworth 0x0020F127; offsets in s):
+#   CAP_WITCHER      witcher_280 (Nusero Island SW) from 22:17:28.0: the recall's arrival, a starling, a
+#                    cougar, an eagle, a gazer larva and a raven in view; at +4.136 the larva's spell on
+#                    Magic Reflection ("Magic reflect removed.", 0xC0 0x37B9 on us, its bolt reflected onto
+#                    it); at +7.869 its next spell (0x374A, "Spell siphon active."), "-14" at +8.391
+#   CAP_TRIP1_START  before trip 1 at Horseshoe Bay (from 21:43:43): Hackworth's 0x78 (hatchet 0x5957DE03 in
+#                    hand), the Magic Reflection cast moving it to the pack (0x1D + 0x25), the Magic
+#                    Reflection and Tracking Hunting buffs
+#   CAP_TRIP1_CHOP   the first chop's double-click (21:44:39): 0x1D + 0x2E, in hand again
+#   CAP_HB_PLAYERS   'a stinky mongbat' / 'a wet mongbat' at the HB bank (21:43:00)
+from types import SimpleNamespace  # noqa: E402
+import lumber_opt  # noqa: E402
+import threats  # noqa: E402
+from loop_lumber import LumberLoop, hit_verdict, in_hand, row_hatchet  # noqa: E402
+from uo import cliloc as cliloc_mod  # noqa: E402  (the simulator's cliloc() builds packets)
+from world.runtime import WorldRuntime  # noqa: E402
+
+CAP_ME = 0x0020F127
+CAP_LARVA, CAP_COUGAR, CAP_RAVEN = 0x0042E6DB, 0x0007031B, 0x00904470
+CAP_HATCHET = 0x5957DE03
+CAP_STINKY, CAP_WET = 0x003D56E5, 0x003DB217
+CAP_TREE_TILE = (335, 2050)        # trip 2's log: "to tree 334,2051: arrived at (335, 2050)"
+CAP_HB_BANK = (2008, 2222)         # Sun the banker's bank, where trip 1 started
+CAP_RECALL_S, CAP_MARGIN_S = 2.0, 1.0  # loop_lumber RECALL_S, THREAT_MARGIN_S
+CAP_RECALL_AT = 0.6                # loop_lumber --creature-recall-at default
+CAP_REHIT_S = 10.0                 # loop_lumber --creature-rehit-s default
+CAP_WITCHER = [
+    (-2760.918, "1b0020f1270000000000000190000000c30000068d000000018600ffffffff000000000a00080000000000"),
+    (-28.661, "11005b0020f1274861636b776f727468000000000000000000000000000000000000000000006400640005000064002600570026002600570057000000000000000f023a0100000005000000000000000000000002000800000000"),
+    (0.655, "770020f1270000014e000007fa0000000581"),
+    (0.657, "20001b08c6000000060308400000000160000007eb0000030000000c"),
+    (0.657, "78000b001b08c600000000"),
+    (0.657, "200007031b000000d603096e0000000146000007f600000400000005"),
+    (0.657, "78000b0007031b00000000"),
+    (0.657, "20006bcfd200000005030000000000014f000007f100000600000005"),
+    (0.657, "78000b006bcfd200000000"),
+    (0.657, "200042e6db0000030a0300000000000145000007fa00000200000005"),
+    (0.657, "78000b0042e6db00000000"),
+    (0.657, "2000904470000000060309010000000155000008010000020000000c"),
+    (0.657, "78000b0090447000000000"),
+    (0.658, "200020f127000001900183ea200000014e000007fa00008100000005"),
+    (0.726, "1c0037001b08c600060603b200036120737461726c696e6700000000000000000000000000000000000000006120737461726c696e6700"),
+    (0.726, "11002b001b08c66120737461726c696e670000000000000000000000000000000000000000006400640000"),
+    (0.726, "1c00350007031b00d60603b200036120636f75676172000000000000000000000000000000000000000000006120636f7567617200"),
+    (0.726, "11002b0007031b6120636f7567617200000000000000000000000000000000000000000000006400640000"),
+    (0.726, "1c0035006bcfd200050603b20003616e206561676c6500000000000000000000000000000000000000000000616e206561676c6500"),
+    (0.727, "11002b006bcfd2616e206561676c6500000000000000000000000000000000000000000000006400640000"),
+    (0.727, "1c003a0042e6db030a0603b20003612067617a6572206c617276610000000000000000000000000000000000612067617a6572206c6172766100"),
+    (0.727, "11002b0042e6db612067617a6572206c617276610000000000000000000000000000000000006400640000"),
+    (0.727, "1c00340090447000060603b200036120726176656e00000000000000000000000000000000000000000000006120726176656e00"),
+    (0.727, "11002b009044706120726176656e0000000000000000000000000000000000000000000000006400640000"),
+    (1.722, "770007031b00000146000007f70000000504"),
+    (1.925, "770090447000000156000008010000000a02"),
+    (2.039, "770007031b00000146000007f80000000504"),
+    (2.039, "77006bcfd20000014f000007f00000000500"),
+    (2.392, "200042e6db0000030a0400004000000145000007fa00000300000005"),
+    (2.392, "770042e6db00000145000007fa0000000503"),
+    (2.392, "200020f127000001900183ea200000014f000007fe0000830000000a"),
+    (3.389, "1d006bcfd2"),
+    (4.136, "ae005effffffffffff0003b20003454e550053797374656d000000000000000000000000000000000000000000000000004d00610067006900630020007200650066006c006500630074002000720065006d006f007600650064002e0000"),
+    (4.136, "c0030020f1270020f127000037b90000014f000008020000000c0000014f000008020000000c0a05000001000000000000000000"),
+    (4.136, "c0010042e6db0042e6db0000000000000145000007fa0000000500000145000007fa000000050000000000000000000000000000"),
+    (4.385, "770007031b00000146000007f90000000504"),
+    (4.389, "a10042e6db00640063"),
+    (4.755, "770007031b00000146000007fa0000000504"),
+    (4.788, "1d5957de03"),
+    (4.79, "11005b0020f1274861636b776f7274680000000000000000000000000000000000000000000064006400050000640026005700260026004e0057000000000000000c023a0100000005000000000000000000000011002000000000"),
+    (4.79, "2e5957de0300000f4400000020020020f1270000"),
+    (7.041, "770090447000000157000008010000000a02"),
+    (7.097, "770007031b00000147000007fb0000000503"),
+    (7.097, "770007031b00000147000007fb0000000503"),
+    (7.869, "c0030042e6db0042e6db0000374a00000145000007fa0000000500000145000007fa000000050a0f000001000000000000000000"),
+    (7.869, "c0030020f1270020f1270000374a0000014f000008020000000c0000014f000008020000000c0a0f000001000000000000000000"),
+    (7.869, "ae005c0020f12701900003b20003454e55004861636b776f727468000000000000000000000000000000000000000000002a005300700065006c006c00200053006900700068006f006e0020004100630074006900760065002a0000"),
+    (7.869, "ae005affffffffffff0003b20003454e550053797374656d000000000000000000000000000000000000000000000000005300700065006c006c00200073006900700068006f006e0020006100630074006900760065002e0000"),
+    (8.391, "ae00380020f12701900003b20003454e55004861636b776f727468000000000000000000000000000000000000000000002d003100340000"),
+    (8.393, "a10020f12700640056"),
+]
+CAP_TRIP1_START = [
+    (-735.918, "1b0020f1270000000000000190000000c30000068d000000018600ffffffff000000000a00080000000000"),
+    (-140.098, "7800650020f1274b6aa30500000e75150000000002004b6aa30600001517050002000000204b6aa3070000152e180002000000204b6aa3080000170f030000000000205957de0300000f44020000000000207f7c37630000203c0b04550000000000000000"),
+    (-25.496, "1d5957de03"),
+    (-25.486, "255957de0300000f44020001005b005a004b6aa305000000000020"),
+    (-23.981, "ff0039000000080020f127008a755900000000000000010000000000000000000000000000000cb83507d700000fefc0000000000000000000"),
+    (6.17, "ff0039000000080020f12700ad11ac00020000000000010000000000000000000000000000000cb8357d9e000010eff4000000000000000000"),
+]
+CAP_TRIP1_CHOP = [
+    (56.11, "1d5957de03"),
+    (56.115, "2e5957de0300000f4400000020020020f1270000"),
+]
+CAP_HB_PLAYERS = [
+    (-42.677, "20003d56e5000001900183ea20000007cd000008ad00008200000012"),
+    (-42.677, "780074003d56e556e205b600000e7515000000000200549e001100003e9f1907360000000056e205b7000015170500020000002056e205b8000015391800020000002056e205b90000170f030000000000206758e79100000a222a0000000000207f0aa06b0000203b0b044e0000000000000000"),
+    (-42.602, "1c003d003d56e50190060059000361207374696e6b79206d6f6e67626174000000000000000000000000000061207374696e6b79206d6f6e6762617400"),
+    (-42.463, "20003db217000001900183ea20000007ce000008ab00008200000012"),
+    (-42.463, "780056003db217570b20b000000e751500000000020056814e1400003ea01907120000000056d4167f000013ce07000000000020570b20b200001539180002000000207f0933a30000203b0b044e0000000000000000"),
+    (-42.358, "1c003a003db217019006005900036120776574206d6f6e6762617400000000000000000000000000000000006120776574206d6f6e6762617400"),
+]
+
+
+
+def _eq(name, got, want):
+    check(name, got == want, "" if got == want else f"(got {got!r}, want {want!r})")
+
+
+class CaptureFeed:
+    """A WorldRuntime fed captured S2C packets on their own clock, keeping each
+    event's time like the proxy's event envelopes."""
+
+    def __init__(self):
+        self.now = None
+        self.rt = WorldRuntime(clock=lambda: self.now)
+        self.events = []        # [(t, event)]
+
+    def feed(self, rows, until=None):
+        for t, hexpkt in rows:
+            if until is not None and t > until:
+                continue
+            self.now = t
+            n = len(self.rt.events)
+            self.rt.feed_packet("s2c", bytes.fromhex(hexpkt))
+            self.events += [(t, ev) for ev in self.rt.events[n:]]
+        return self
+
+    def state(self, pos, since=None):
+        """A state-port response: movement truth (pos), the world snapshot, and the
+        events from `since` on."""
+        evs = [(t, ev) for t, ev in self.events if since is None or t >= since]
+        return {"movement": {"pos": [*pos, 0, 0], "self_serial": CAP_ME},
+                "world": self.rt.state.snapshot(),
+                "events": [{"seq": i, "t": t, "origin": "world", "data": ev} for i, (t, ev) in enumerate(evs)]}
+
+
+def _threat(a, serial):
+    return next(t for t in a.threats if t.serial == serial)
+
+
+def _verdict(a, attackers, since_run_s=None):
+    return hit_verdict(hits=a.damage["hits"], hits_max=a.damage["hits_max"], recall_at=CAP_RECALL_AT,
+                       attackers=attackers,
+                       players=[], escapes=0, since_run_s=since_run_s, rehit_s=CAP_REHIT_S)
+
+
+def unit_capture_spell_witcher():
+    print("\n== witcher_280: the larva's spell on Magic Reflection is an attack (gap: 7.75 s to react) ==")
+    w = threats.Watch()
+    f = CaptureFeed().feed(CAP_WITCHER, until=4.0)
+    a = w.update(f.state(CAP_TREE_TILE), recall_s=CAP_RECALL_S, margin_s=CAP_MARGIN_S, now=4.0)
+    larva = _threat(a, CAP_LARVA)
+    _eq("before the spell: the war-mode larva 10 tiles off is only watched (ETA 3.6 s > 3.0 s)",
+       (larva.distance, larva.aggression, larva.action, a.under_attack), (10, "war mode", "watch", False))
+    f.feed(CAP_WITCHER, until=4.2)
+    spells = [(t, threats.spell_on_us(ev, CAP_ME)) for t, ev in f.events if t > 4.0]
+    _eq("4.136: the System line and the 0x37B9 effect on us are spells on us; the reflected bolt on the "
+       "larva is not", [s for t, s in spells if s[0]], [(True, None), (True, None)])
+    st = f.state(CAP_TREE_TILE, since=4.0)
+    a = w.update(st, recall_s=CAP_RECALL_S, margin_s=CAP_MARGIN_S, now=4.2)
+    _eq("4.2: under attack with no hits lost (Magic Reflection took it), 2 spell events",
+       (a.under_attack, a.damage["lost"], a.damage["spells"]), (True, 0, 2))
+    attackers, ranged = threats.hit_attackers(a, w.params)
+    _eq("who cast it: the larva alone, from afar (the cougar at 9, aggression unknown, isn't blamed)",
+       ([t.serial for t in attackers], ranged), ([CAP_LARVA], True))
+    _eq("one attacker at 100/100: run (walk out of its reach) at 4.14 s, not the recall at the -14 (8.39 s)",
+        _verdict(a, attackers), None)
+
+
+def unit_capture_juncture_222():
+    print("\n== juncture 222: '2 creatures attacking' while attackers was [] ==")
+    w = threats.Watch()
+    f = CaptureFeed().feed(CAP_WITCHER, until=4.2)
+    w.update(f.state(CAP_TREE_TILE), recall_s=CAP_RECALL_S, margin_s=CAP_MARGIN_S, now=4.2)
+    w.acknowledge(now=4.2)                      # the first spell is dealt with: the walk-away
+    f.feed([r for r in CAP_WITCHER if r[0] > 4.2], until=8.4)
+    a = w.update(f.state(CAP_TREE_TILE, since=4.2), recall_s=CAP_RECALL_S, margin_s=CAP_MARGIN_S, now=8.4)
+    _eq("8.4: -14 and the second spell", (a.damage["lost"], a.damage["spells"]), (14, 2))
+    _eq("the cougar 8 tiles off is 'passive creature (default)', the raven a passive body",
+       (_threat(a, CAP_COUGAR).distance, _threat(a, CAP_COUGAR).reason, _threat(a, CAP_RAVEN).reason),
+       (8, "passive creature (default)", "passive creature (passive body)"))
+    attackers, ranged = threats.hit_attackers(a, w.params)
+    _eq("the hit's attackers: the larva only (before: larva + cougar, '2 creatures attacking')",
+       [t.serial for t in attackers], [CAP_LARVA])
+    _eq("so the verdict is the re-hit soon after the walk-away (4.2 s), still a recall home",
+       _verdict(a, attackers, since_run_s=4.2), "still taking damage 4.2 s after the walk-away")
+    loop = SimpleNamespace(hit_by=[t.serial for t in attackers])
+    _eq("the juncture's `attackers` lists who creature_hit blamed (no 0x2F swings on Outlands)",
+       LumberLoop.attacker_list(loop, {}), ["0x0042E6DB"])
+    _eq("swingers and blamed ones together, once each",
+       LumberLoop.attacker_list(SimpleNamespace(hit_by=[CAP_LARVA]), {CAP_LARVA: 1.0, 0x500: 2.0}),
+       ["0x0042E6DB", "0x00000500"])
+
+
+def unit_capture_hatchet():
+    print("\n== trip 1: hatchet 'worn: False' while chopping worked ==")
+    f = CaptureFeed().feed(CAP_TRIP1_START)
+    world = f.state(CAP_HB_BANK)["world"]
+    ch = lumber_opt.character(world, CAP_ME, lumber_opt.load_hatchets())
+    start = next(hh for hh in ch["hatchets"] if hh["serial"] == f"0x{CAP_HATCHET:08X}")
+    _eq("at the trip start the Magic Reflection cast had put it in the pack (0x1D + 0x25)",
+       (start["worn"], in_hand(world, CAP_HATCHET, CAP_ME)), (False, False))
+    f.feed(CAP_TRIP1_CHOP)
+    world = f.state(CAP_HB_BANK)["world"]
+    _eq("the first chop's double-click: the server equips it (0x1D + 0x2E layer 2 on us)",
+       in_hand(world, CAP_HATCHET, CAP_ME), True)
+    row = row_hatchet(start, True)
+    _eq("the trip row records it in hand while chopping, the start reading kept",
+       (row["worn"], row["worn_at_start"], row["serial"]), (True, False, f"0x{CAP_HATCHET:08X}"))
+    _eq("a trip that never chopped keeps the start reading", row_hatchet(start, None), start)
+    _eq("no hatchet: nothing to record", row_hatchet(None, True), None)
+
+
+def unit_capture_buffs():
+    print("\n== trip row buffs: names, not cliloc ids ==")
+    world = CaptureFeed().feed(CAP_TRIP1_START).state(CAP_HB_BANK)["world"]
+    ch = lumber_opt.character(world, CAP_ME, lumber_opt.load_hatchets())
+    if not os.path.exists(cliloc_mod.CLILOC_PATH):
+        _eq("no Cliloc.enu here: the numbers", ch["buffs"], ["1044416", "1110004"])
+        return
+    _eq("Magic Reflection and Tracking Hunting (empty titles, clilocs 1044416 / 1110004)",
+       ch["buffs"], ["Magic Reflection", "Tracking Hunting"])
+    _eq("a titled buff keeps its title", lumber_opt.buff_name(277, {"title": "Stationary Penalty"}),
+       "Stationary Penalty")
+
+
+def unit_capture_named_players():
+    print("\n== 'a stinky mongbat' / 'a wet mongbat' at the HB bank are players, not pets ==")
+    f = CaptureFeed().feed(CAP_TRIP1_START).feed(CAP_HB_PLAYERS)
+    st = f.state(CAP_HB_BANK)
+    a = threats.assess(st, recall_s=CAP_RECALL_S, margin_s=CAP_MARGIN_S, now=0.0)
+    got = [(_threat(a, s).name, _threat(a, s).kind, _threat(a, s).player) for s in (CAP_STINKY, CAP_WET)]
+    _eq("human body 0x190, player flag 0x20, notoriety 1: blue players", got,
+       [("a stinky mongbat", "blue", True), ("a wet mongbat", "blue", True)])
+    items = st["world"]["items"].values()
+    worn = {s: {it.get("layer") for it in items if it.get("container") == f"0x{s:08X}"} for s in (CAP_STINKY, CAP_WET)}
+    check("each wears a backpack (0x15) and rides a mount (0x19), no pet line: a player's character",
+          all({0x15, 0x19} <= v for v in worn.values())
+          and not any(st["world"]["mobiles"][f"0x{s:08X}"].get("pet") for s in (CAP_STINKY, CAP_WET)), worn)
+
 
 def state_req(req):
     import socket
@@ -1578,8 +1874,9 @@ def is_subsequence(want, seq):
 
 
 if __name__ == "__main__":
-    runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, wary,
-            red_aim, unit_hatchet, unit_hit_verdict]
+    runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
+            wary, red_aim, unit_hatchet, unit_hit_verdict, unit_capture_spell_witcher, unit_capture_juncture_222,
+            unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`
     for fn in runs:
         if pick and fn.__name__ not in pick:

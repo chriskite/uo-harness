@@ -149,6 +149,24 @@ def pack_depth(items: dict, container: int, me: int, pack: int) -> int | None:
     return depth
 
 
+def in_hand(world: dict, item: int, me: int) -> bool:
+    """Whether `item` is worn by `me` (its container is us) in a state-port world."""
+    it = (world.get("items") or {}).get(f"0x{item:08X}") or {}
+    return it.get("container") is not None and serial_of(it["container"]) == me
+
+
+def row_hatchet(start: dict | None, worn_chopping: bool | None) -> dict | None:
+    """The trip row's `hatchet` (lumber_opt.character's entry at the trip start) with
+    `worn` as it was when the last chop's cursor came, when the trip chopped: the server
+    equips a packed hatchet on the double-click, and every cast (Magic Reflection at
+    the bank, a recall) puts it back in the pack, so at the start it is often packed
+    (live 2026-10-03, trip 1: worn False at 21:43:43, in hand from the first chop at
+    21:44:39 to the end). `worn_at_start` keeps the start reading."""
+    if start is None or worn_chopping is None:
+        return start
+    return {**start, "worn": worn_chopping, "worn_at_start": start.get("worn")}
+
+
 def hit_verdict(*, hits, hits_max, recall_at: float, attackers: list, players: list, escapes: int,
                 since_run_s: float | None, rehit_s: float, walking: bool = False,
                 can_escape: bool = True) -> str | None:
@@ -237,8 +255,11 @@ class LumberLoop:
         self.run_arrived = None      # time.time() when the last walk-away ended (--creature-rehit-s)
         self.creature = self.new_creature_tally()   # this trip's creature cost: the episode row's `creature`
         self.avoided = set()         # (tree, creature serial) pairs logged as left alone (next_tree)
-        self.swingers = {}           # attacker serial -> time of its latest swing at us since the last escape
-        self._swing_scan = 0         # link.events index scanned for swings
+        self.swingers = {}           # attacker serial -> time of its latest swing or spell at us since the last escape
+        self._swing_scan = 0         # link.events index scanned for swings and spells on us
+        self.spelled = []            # (time, caster or None) of spells on us (threats.spell_on_us) not yet dealt with
+        self.hit_by = []             # serials creature_hit blamed in this threat check (the junctures' `attackers`)
+        self.hatchet_worn = None     # this trip: the hatchet in hand when a chop's cursor came (trip row hatchet.worn)
         self.break_due = False       # the agent gate announced a break (break_due)
         self.recall_book = None      # runebook / rune tome serial: the red escape (prepare_recall)
         self._attack_scan = 0        # link.events index scanned for "... is attacking you!"
@@ -400,14 +421,23 @@ class LumberLoop:
 
     # ------------------------------------------------------------ threats
     def swung_at_us(self, st) -> dict:
-        """{attacker serial: time} of 0x2F swings at us since the last escape,
-        within the threat window (an escape clears the ones that caused it)."""
+        """{attacker serial: time} of 0x2F swings at us, and of spells on us whose
+        effect names the caster (threats.spell_on_us), since the last escape, within
+        the threat window (an escape clears the ones that caused it). Every spell on
+        us, caster named or not, also goes to `spelled` until creature_hit deals with it."""
         me, ev, ts = self.self_serial(st), self.link.events, self.link.event_t
         for i in range(self._swing_scan, len(ev)):
             if ev[i].get("ev") == "swing" and ev[i].get("defender") == me:
                 self.swingers[ev[i]["attacker"]] = ts[i]
+                continue
+            landed, caster = threats.spell_on_us(ev[i], me)
+            if landed:
+                self.spelled.append((ts[i], caster))
+                if caster is not None:
+                    self.swingers[caster] = ts[i]
         self._swing_scan = len(ev)
         lo = time.time() - self.watch.params.damage_window_s
+        self.spelled = [s for s in self.spelled if s[0] >= lo]
         return {s: t for s, t in self.swingers.items() if t >= lo}
 
     def check_threats(self, st, escape: bool = True):
@@ -418,9 +448,11 @@ class LumberLoop:
             player named in "... is attacking you!": 'recall' when a recall book is
             ready (recall_out: escape to its default rune, then stop), else 'abort'
             at once (Unsafe)
-          - damage taken (a hits drop; Outlands names no attacker): creature_hit runs
-            from one creature at healthy hits ('escape' with data.hit), else 'recall'
-            home or 'abort' (monster_stop)
+          - damage taken (a hits drop; Outlands names no attacker) or a spell landing
+            on us (threats.spell_on_us: its effect on us or the server's line, e.g.
+            "Magic reflect removed.", no hits lost): creature_hit runs from one
+            creature at healthy hits ('escape' with data.hit), else 'recall' home or
+            'abort' (monster_stop)
           - only creatures (in flee range, or swinging at us): 'escape' (Escape:
             walk away and carry on, LumberLoop.escape), at most ESCAPES_PER_TRIP
             times a trip and never during a speech hold (escape=False); else 'abort'.
@@ -431,6 +463,7 @@ class LumberLoop:
         only death and the server's 500112 count. Tracking hits are read here too
         (check_tracking): a near murderer hit is a red out of view."""
         self._looked_t = time.monotonic()
+        self.hit_by = []
         self.track_observe(st)
         a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
         self.last_threats = a
@@ -470,7 +503,7 @@ class LumberLoop:
         self.check_tracking(st, a, swung)
         if self.mode == "salvage":
             return
-        if a.damage["lost"] > 0 or a.damage["damage_events"] > 0:
+        if a.damage["lost"] > 0 or a.damage["damage_events"] > 0 or self.spelled:
             self.creature_hit(st, a, swung, monsters, escape)
         if not monsters or self.mode == "escape":
             return
@@ -490,11 +523,16 @@ class LumberLoop:
         Each episode is a `monster_hit` job event; a sole attacker teaches its body
         (travel_guard.learn_hit: aggressive, and ranged when nothing was adjacent). With
         no candidate within its assumed reach, a creature we walked away from this trip
-        that is still in view is taken to outrange it (its distance is learned as reach)."""
+        that is still in view is taken to outrange it (its distance is learned as reach).
+        A spell landing on us (swung_at_us: `spelled`) is a hit like a hits drop, even
+        when Magic Reflection took it and no hits were lost; a caster its effect names
+        is in `swung`, an unnamed one is found like a ranged hit."""
+        spells, self.spelled = len(self.spelled), []
         attackers, ranged = threats.hit_attackers(a, self.watch.params, swung)
         if not attackers:
             attackers = [t for t in a.threats if t.serial in self.danger and t.kind == "monster"
                          and 0 <= t.distance <= self.watch.params.max_range]
+        self.hit_by = [t.serial for t in attackers]
         me = st["world"]["self"]
         hits, hmax = me.get("hits"), me.get("hits_max")
         walking = self.mode == "escape"
@@ -510,7 +548,7 @@ class LumberLoop:
         hit = {"body": worst.body if worst else None, "name": worst.name if worst else None,
                "serial": f"0x{worst.serial:08X}" if worst else None, "distance": worst.distance if worst else None,
                "hits_lost": lost, "trip": self.trip_n, "spot": self.k["spot"]["id"],
-               "hits": hits, "hits_max": hmax, "damage_events": a.damage["damage_events"],
+               "hits": hits, "hits_max": hmax, "damage_events": a.damage["damage_events"], "spells": spells,
                "attackers": len(attackers), "attacker_serials": [f"0x{t.serial:08X}" for t in attackers],
                "ranged": ranged if attackers else None, "aggression": worst.aggression if worst else None,
                "escapes": self.escapes, "walking": walking, "since_run_s": since_run}
@@ -532,10 +570,11 @@ class LumberLoop:
         what = (f"{worst.name or f'0x{worst.serial:08X}'} at {worst.distance} tiles"
                 f"{' (ranged)' if ranged else ''}")
         if walking:
-            log(f"hit again while walking away (-{lost}, {hits}/{hmax}) by {what}; walking on")
+            log(f"hit again while walking away (-{lost}, {hits}/{hmax}{', a spell' if spells else ''}) by {what}; "
+                f"walking on")
             return
         self.creature["runs"] += 1
-        desc = f"hit by {what}: -{lost}, {hits}/{hmax}"
+        desc = f"{'spell' if spells and not lost else 'hit'} by {what}: -{lost}, {hits}/{hmax}"
         raise Escape(attackers, self.post_threat(st, a, worst, swung, "escape", desc, extra={"hit": hit}), hit=hit)
 
     def attacked_by_players(self, st, a) -> list:
@@ -724,7 +763,7 @@ class LumberLoop:
         except escape_mod.RecallError as e:
             return f"recall not possible: {e}"
         data = {**res, "trip": self.trip_n, "spot": self.k["spot"]["id"], "book": f"0x{self.recall_book:08X}",
-                "threat": worst.to_dict() if worst else None, "attackers": [f"0x{s:08X}" for s in swung],
+                "threat": worst.to_dict() if worst else None, "attackers": self.attacker_list(swung),
                 "cause": "player" if pk else "creature", "react_s": react, "cursor_cancelled": cancelled}
         if why:
             data["why"] = why
@@ -808,12 +847,18 @@ class LumberLoop:
         data = {"method": "guards", "recall_failure": why, "to": list(pos[:2]), "confirmed": confirmed,
                 "flight_s": round(time.monotonic() - t0, 2), "called_guards": bool(near),
                 "threat": worst.to_dict() if worst else None,
-                "attackers": [f"0x{s:08X}" for s in swung]}
+                "attackers": self.attacker_list(swung)}
         self.memory.job_event("lumber", "guard_flight", data, **self._where(st))
         summary = self.post_threat(st, a, worst, swung, "guards")
         self.memory.juncture("lumber", "pk_escape",
                              f"Fled into the guards from {summary} ({data['flight_s']} s); stopped", "urgent", data)
         raise Unsafe(f"threat: {summary}; fled into the guards at {tuple(pos[:2])}")
+
+    def attacker_list(self, swung) -> list:
+        """The junctures' and job events' `attackers`: those swinging or casting at us
+        (swung) and the ones creature_hit blamed for the damage in this check (hit_by),
+        so the list matches its "N creatures attacking" (juncture 222 had [] for 2)."""
+        return [f"0x{s:08X}" for s in dict.fromkeys([*swung, *self.hit_by])]
 
     def post_threat(self, st, a, worst, swung, action, why=None, extra=None) -> str:
         """The urgent `threat` juncture + `flee` job event (`extra` merged into its
@@ -827,7 +872,7 @@ class LumberLoop:
             summary = "attacked by " + ", ".join(f"0x{s:08X}" for s in swung)
         else:
             summary = "taking damage"
-        data = {**a.to_dict(), "action": action, "attackers": [f"0x{s:08X}" for s in swung], **(extra or {})}
+        data = {**a.to_dict(), "action": action, "attackers": self.attacker_list(swung), **(extra or {})}
         if why:
             data["why"] = why
         what = "escaping" if action == "escape" else "stopping"
@@ -1178,7 +1223,10 @@ class LumberLoop:
         the way that the server hasn't opened yet are opened first, outermost
         first (agent_link.containers_to_open, ANTICHEAT.md closed containers).
         Now and then the human hesitates: cancels the cursor (stock Esc packet)
-        and uses the hatchet again."""
+        and uses the hatchet again. When the cursor comes, whether the hatchet is now
+        in hand is noted for the trip row (hatchet_worn): the server equips a packed
+        hatchet on the double-click, and every spell cast puts it back in the pack
+        (LUMBER_LOOP.md §13, session 20261003_213125)."""
         for attempt in range(2):
             self.human.wait("use")
             st = self.state()
@@ -1196,6 +1244,9 @@ class LumberLoop:
                 self.captcha_handoff(cap)
                 return None
             cur = self.cursor(mark)
+            if cur is not None:
+                st = self.link.last or st
+                self.hatchet_worn = in_hand(st["world"], hatchet, self.self_serial(st))
             if cur is None or attempt == 1 or not self.human.hesitate():
                 return cur
             log("(hesitating: cancelling the cursor)")
@@ -1815,7 +1866,7 @@ class LumberLoop:
         t0, s0, b0 = time.time(), self.mover.steps, self.mover.blocked_count
         self.trip_t0 = t0
         self.timing = {"walk_out_s": None, "chop_s": 0.0, "tree_walk_s": 0.0, "lockout_s": 0.0, "stationary_s": 0.0}
-        self.travel, self.players_seen = [], {}
+        self.travel, self.players_seen, self.hatchet_worn = [], {}, None
         self.trk.reset()
         phases = {}
         st = self.link.state()
@@ -1854,7 +1905,8 @@ class LumberLoop:
                    **{k: None if v is None else round(v, 1) for k, v in self.timing.items()},
                    "steps": self.mover.steps - s0, "blocked": self.mover.blocked_count - b0,
                    "doors_opened": self.mover.doors_opened,
-                   "human_session": dict(self.human.stats), **snap, "carried_end": self.carried(),
+                   "human_session": dict(self.human.stats), **snap,
+                   "hatchet": row_hatchet(snap["hatchet"], self.hatchet_worn), "carried_end": self.carried(),
                    **self.trip_end(snap), "tracking": self.trk.tally(), "creature": dict(self.creature),
                    **self.stats}
             self.episode(row)

@@ -229,7 +229,9 @@ grove's **capacity** (below), which bounds the trip.
 **Evidence.** Every trip writes an episode row, aborted ones too (§13), with `spot`, `outcome`/`why`,
 the phases, `walk_out_s` (start to first chop), `chop_s` (attempts and the pauses between them,
 speech holds excluded), `tree_walk_s`, `skill`, the `hatchet` (material by hue, tool bonus, uses),
-`mounted`, `buffs`, `carried_end` and `dry` (the candidate trees ran out); since 2026-10-03 also the
+`mounted`, `buffs` (names as `status.buffs` shows them: the title, else the cliloc rendered, e.g.
+"Magic Reflection"; rows before 2026-10-03 22:40 hold the raw cliloc numbers such as '1044416'),
+`carried_end` and `dry` (the candidate trees ran out); since 2026-10-03 also the
 travel legs, the lockout waited, the supplies used, the skill at the end and the players seen (the
 full list and what's still missing: "What the optimizer learns from" below). Hostile-player sightings
 are the `pk_seen` job events inside a trip; deaths are the proxy's `death` events, blamed on a spot
@@ -401,7 +403,7 @@ read-only, 2026-10-03 ~16:00, Hackworth on Witcher spots): 21 lumber trip rows (
 | Trip size Q* | λ, T, the three hazards, gear at risk, weight room | the above; `world.self.weight` and `stats.weight_max` (state port) | renewal-reward model since 2026-10-03 (200…10 000 logs, capped by weight, no stint cap) |
 | Regrowth window | depleted then retried trees | `harvest_attempts` 1 819 (success 708 / 5 386 logs, fail 628, depleted 451, unreachable 28, not_tree 10), `harvest_nodes` 345 | had (not per spot; fitted 65 min on 137 pairs) |
 | Tree depletion, place failures | depleted/unreachable trees, "no harvestable tree" trips | `harvest_nodes` (317 depleted, 11 unreachable, 10 not a tree), trip `why`, `dry` | had |
-| Crowding | other players at the spot | not recorded (only hostile ones as `pk_seen`) | **added** trip row `players_seen` (distinct players in view) + `players` (names, ≤ 10) |
+| Crowding | other players at the spot | not recorded (only hostile ones as `pk_seen`) | **added** trip row `players_seen` (distinct players in view) + `players` (names, ≤ 10). Players named like creatures count as players: 'a stinky mongbat' and 'a wet mongbat' at the HB bank (2026-10-03 21:43, session 20261003_213125) were human bodies (0x190) with the player flag 0x20, notoriety 1, a backpack and a mount, hits 100/90 and no "(tame)" line: not pets |
 | Skill growth over weeks | Lumberjacking per trip | trip row `skill` at the start (2); no skill-gain messages in the store (0 "has increased by"; the server sends skill packets only) | **added** `skill_end`, `skill_gain` |
 | Harvest Aspect | tier/XP of the Harvest aspect | **not observable passively**: no buff, cliloc or speech carries it; only the `[aspect` gump (Aspect Mastery, gump id 0x907FC735) shows "Harvest" "Tier 0" (30 opens, newest 2026-09-28, a test character) | gap: needs the overseer to open `[aspect` on the Harvest page now and then and a parser for that gump; the recency weighting absorbs its effect meanwhile |
 | Hatchet choice and wear | material, quality, tool bonus, uses left, price | trip row `hatchet` (2; `uses` is the table's total, not what's left); uses left only from a click: 4 "(N uses remaining)" labels (500 → 477, 2026-09-30); prices table 0 rows | **added** `hatchet_uses_seen` {n, t}: the newest label of that hatchet in the store (passive; nothing clicks it). Wear per trip = `successes` (one use per success, measured). Prices still need `ctl lumber price` |
@@ -644,6 +646,14 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   each use, the containers on the way that the server hasn't opened yet are opened outermost
   first (`containers_to_open` + `Link.open_containers`, the closed-containers rule). Only items the
   world model knows are found: a bag the server never listed has to be opened once in the client.
+  **In hand while chopping (2026-10-03, session 20261003_213125):** every spell cast (Magic
+  Reflection at the bank, a recall) moves the hatchet from the hand to the pack (`0x1D` + `0x25`),
+  and the double-click on a packed hatchet makes the server equip it (`0x1D` + `0x2E` layer 2)
+  before the target cursor comes, so the runner never equips it itself and chopping works either
+  way. The trip row's `hatchet.worn` is whether it was in hand when the last chop's cursor came
+  (`row_hatchet`), `worn_at_start` the reading at the trip start; a trip that never chopped keeps
+  the start reading. Trip 1 of 2026-10-03 read `worn: False` at 21:43:43 (the 21:43:17 Magic
+  Reflection cast had packed it) though it was in hand from the first chop at 21:44:39 to the end.
 - **Monsters fighting someone else (since 2026-10-01, knowledge #89):** runs had stopped for 'a
   great hart' and 'an eagle' in war mode 8 tiles away that were fighting other players and never
   touched Hackworth. `threats.assess` now rates a creature whose only aggression evidence is war
@@ -668,12 +678,30 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   melee-sized escape (flee radius 8 + 2: we stopped 11 tiles from it), and 4 s later it hit us
   from 12 tiles. Since 3316e5b any damage recalled home, so a 2-minute trip (library walk, charge,
   lockout) ended for one creature that walking further away would have shaken off.
-  - **Damage** is a hits drop (Outlands sends no 0x2F at us and no 0x0B; docs/NOTES.md). Who did
-    it is inferred from the creatures in view: those swinging at us or adjacent (melee), plus
-    known-ranged ones within their reach; with nothing adjacent, the hit came from afar, so every
-    candidate within its reach, at least `threats.CREATURE_SPELL_RANGE` = 12 tiles (user decision
-    2026-10-03: "spell range is 12 tiles"), counts and the hit is ranged. Candidates are hostile
-    creatures and creatures of unknown aggression; never pets or passive bodies (threats.py). With
+  - **Spells on us count as damage (2026-10-03, `threats.spell_on_us`, threats.py "Spells on
+    us"):** at witcher_280 (22:17:32) a gazer larva (body 778, war mode, 10 tiles, 'watch' at ETA
+    3.6 s) cast at Hackworth; Magic Reflection took it, so no hits were lost, and the runner
+    reacted only to its next spell's −14 at 22:17:35.9, 7.75 s after first sight. Now a spell landing
+    on us is a hit like a hits drop: a lightning or fixed 0xC0 effect on us with a graphic that isn't
+    our own cast's, a heal or a buff, a moving effect at us (its source is the caster), or the
+    server's "Magic reflect removed." / "You absorb their spell." / "Spell siphon active.".
+    Across the 2026-09-30..10-03 captures every such signal (93) came with an attack: 89 with a
+    hits drop within 3 s, the 4 others two spells that cost no hits (this one, an explosion). Sounds aren't
+    used (they carry a position, not a target), and the Spell Siphon debuff arrives with its line,
+    no earlier. `swung_at_us` collects them (`spelled`; a named caster also counts as swinging at
+    us), and `creature_hit` runs as for damage, 0 hits lost: one creature at healthy hits is a run
+    (at witcher_280: at 22:17:32.1 instead of the recall at 22:17:35.9). The effect needs a proxy
+    restart (world model `effect` event); the server's lines work on the running proxy.
+  - **Damage** is a hits drop (Outlands sends no 0x2F at us and no 0x0B; docs/NOTES.md) or a
+    spell on us. Who did it is inferred from the creatures in view: those swinging or casting at
+    us or adjacent (melee), plus known-ranged ones within their reach; with nothing adjacent, the
+    hit came from afar, so every candidate within its reach, at least
+    `threats.CREATURE_SPELL_RANGE` = 12 tiles (user decision 2026-10-03: "spell range is 12
+    tiles"), counts and the hit is ranged; but when a hostile one is within reach, creatures of
+    unknown aggression that aren't known to be ranged aren't blamed (juncture 222: the war-mode
+    larva at 10 plus a calm cougar at 8 made "2 creatures attacking" and a recall). Candidates are
+    hostile creatures and creatures of unknown aggression; never pets or passive bodies
+    (threats.py; a calm creature's reason reads "passive creature (default)"). With
     no candidate within its reach, a creature we walked away from this trip that is still in view
     is taken to outrange it (a sole attacker's distance is then learned as its body's reach).
   - **Run** when a single creature could have hit us, no hostile player is in view, hits are at or
@@ -706,9 +734,12 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     stay in the trip's list and come back when it leaves; when every tree left is guarded the
     harvest ends (`creature_blocked`, not `dry`) and the trip banks.
   - **Recorded:** a `monster_hit` job event per damage episode (`body`, `name`, `serial`,
-    `distance`, `hits_lost`, `trip`, `spot`, `hits`/`hits_max`, `attackers` (count) and
-    `attacker_serials`, `ranged`, `reach`, `aggression`, `escapes`, `walking`, `since_run_s`,
-    `action` run/walk_on/recall/stop, `why`); the trip row's `creature` = {`escapes`, `hits_lost`,
+    `distance`, `hits_lost`, `trip`, `spot`, `hits`/`hits_max`, `spells` (spells on us in it),
+    `attackers` (count) and `attacker_serials`, `ranged`, `reach`, `aggression`, `escapes`,
+    `walking`, `since_run_s`, `action` run/walk_on/recall/stop, `why`); the `threat` /
+    `pk_escape` junctures' and recall/guard-flight events' `attackers` = those swinging or casting
+    at us plus the ones the hit was blamed on (until 2026-10-03 the 0x2F swingers only, always []
+    on Outlands); the trip row's `creature` = {`escapes`, `hits_lost`,
     `recalled` (a creature sent us home by recall), `why` (what ended the trip, null when none
     did), `runs`, `hits`, `avoided_trees`}; a recall job event's `cause` (`creature` / `player`).
     The dashboard (`jobs.lumber_plan`) shows creature recalls per spot apart from PK escapes
@@ -717,10 +748,12 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     cut short; another change owns the model.
   - **Test:** `test_loop_lumber.py` scenarios `gazer_run` (a gazer casts once from 10 tiles: run
     to beyond 12, chop on at the far tree, bank), `gazer_rehit` (it outranges the walk-away and
-    hits again: recall home, no conversion) and `wary` (a war-mode creature 2 tiles from the
-    nearest tree: the farther tree first, the near one once it has gone); `unit_hit_verdict`;
-    `harness/test_threats.py` (attribution, acknowledgement), `harness/test_travel_guard.py`
-    (learning from `monster_hit`).
+    hits again: recall home, no conversion), `gazer_reflect` (its first spell lands on Magic
+    Reflection, no hits lost: run at that spell, bank) and `wary` (a war-mode creature 2 tiles from
+    the nearest tree: the farther tree first, the near one once it has gone); `unit_hit_verdict`;
+    `unit_capture_*` on the 2026-10-03 packets (the witcher_280 larva, juncture 222, trip 1's
+    hatchet, buffs and named players); `harness/test_threats.py` (attribution, acknowledgement,
+    spells), `harness/test_travel_guard.py` (learning from `monster_hit`).
 - **Recall escape on players (since 2026-10-02, docs/PLAN.md "Red sighting"; `harness/escape.py`):**
   - **Readiness:** off Shelter the runner starts only with a runebook or rune tome in the pack
     that has a default rune and either a charge or a castable Recall (mana plus reagents or a
@@ -1036,6 +1069,11 @@ model prunes mobiles out of view.
   gazer outranging the walk-away (hit again within 10 s of arriving: recall home, no conversion,
   exit 1), and a war-mode creature by the nearest tree (the farther tree first, no escape).
   `python test_loop_lumber.py gazer_run wary` runs named scenarios alone.
+- **gazer_reflect** (since 2026-10-03, "Spells on us count as damage" above): the gazer's first
+  spell lands on Magic Reflection ("Magic reflect removed." + 0xC0 0x37B9, no 0xA1): a
+  `monster_hit` with `spells` and 0 hits lost, a run at that spell, the `threat` juncture's
+  `attackers` naming the gazer, the trip banks. `unit_capture_*` replay the captured packets of
+  2026-10-03 through the world model (no simulator).
 
 **Live proof, run by the user or the agent while the user is at the client:**
 `python harness/loop_lumber.py --trips 1`. Only two trees are known (§12.1). A depleted tree is

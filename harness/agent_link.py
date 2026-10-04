@@ -713,9 +713,10 @@ class Mover:
         """Walk until within `radius` (Chebyshev) of center_fn(), re-evaluated
         on every replan (NPCs wander). `z_ok(z)` also requires the standing
         height (same level as the target, not a cave below or a floor above);
-        only the map planner can honour it. `gate`: the (x, y) of a moongate
-        this walk means to use; its gump is left for the caller. Every other
-        moongate the route steps onto gets its gump closed (close_gate_gumps).
+        only the map planner can honour it. `gate`: the (x, y) whose moongate this
+        walk means to use (a gate there or not: the caller may not see it yet); its
+        gump is left for the caller. Every other moongate the route steps onto gets
+        its gump closed (close_gate_gumps).
         `goal_fn`: a goal predicate (e.g. nav.any_of) used instead of
         center_fn/radius; center_fn may then be None. `urgent`: a flight, with no
         pauses, sidesteps or reading waits, running whenever stamina allows.

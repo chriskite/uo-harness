@@ -47,8 +47,8 @@ def steps_left(world: dict) -> int | None:
     for icon, b in ((world.get("buffs") or {}).get(me or "", {}) or {}).items():
         if b.get("title") == TITLE or (not b.get("title") and int(icon) == ICON):
             timers = b.get("timers") or []
-            secs = timers[0].get("seconds") if timers else None
-            return max(1, round(secs)) if secs else CLEAR_STEPS
+            steps = timers[0].get("value") if timers else None
+            return max(1, round(steps)) if steps else CLEAR_STEPS
     return None
 
 

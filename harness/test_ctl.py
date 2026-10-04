@@ -75,6 +75,8 @@ class FakeProxy:
         self.last_seen = {}       # world.last_seen: mobiles the client dropped (npcs/goto tests)
         self.swings = {}          # world.swings: attacker -> {"defender", "t"} (status attackers)
         self.ground_items = {}    # extra ground items (goto/map tests)
+        self.item_view = None     # Chebyshev range beyond which ground items aren't sent (the client's view)
+        self.gate_gumps = {}      # tile -> (gump_id, layout, lines): the gump a moongate opens on arrival
         self.warmode = False
         self.status_requested = []   # world.status_requested (the client's outstanding 0x34s)
         self.worn_layers = {}        # world.worn_layers (the layer each item was last worn on)
@@ -140,6 +142,8 @@ class FakeProxy:
                                 self.pending_jump, self.jump_polls = self.deny_jumps[nxt], 0
                             else:
                                 self.pos[0], self.pos[1] = nxt
+                                if nxt in self.gate_gumps:
+                                    self._gate_gump(*self.gate_gumps[nxt])
                     elif pkt[:5] == bytes.fromhex("bf00090013"):  # context menu request -> menu (mode 2)
                         s = int.from_bytes(pkt[5:9], "big")
                         self.add_event({"ev": "popup", "serial": s, "entries": [
@@ -230,6 +234,13 @@ class FakeProxy:
         if button:
             self._tracking_gump()
 
+    def _gate_gump(self, gump_id, layout, lines):
+        """The server opens a moongate's gump on the step onto it (lock held)."""
+        self.gump_seq += 1
+        self.gumps.append(gump_row(self.gump_seq, gump_id, layout, lines))
+        self.add_event({"ev": "gump_open", "serial": self.gump_seq, "gump_id": gump_id,
+                        "layout": layout, "lines": list(lines)})
+
     def snapshot(self):
         p = f"0x{self.PACK:08X}"
         with self.lock:
@@ -261,7 +272,9 @@ class FakeProxy:
                               "0x40000012": {"graphic": 0x0E76, "container": p},
                               "0x40000013": {"graphic": 0x1BD7, "amount": 10, "container": "0x40000012"},
                               "0x40000014": {"graphic": 0x1BD7, "amount": 99, "x": 1, "y": 1},
-                              **self.ground_items},
+                              **{k: v for k, v in self.ground_items.items()
+                                 if self.item_view is None or v.get("x") is None
+                                 or nav.chebyshev((v["x"], v["y"]), tuple(self.pos[:2])) <= self.item_view}},
                     "target": dict(self.target), "gumps": list(self.gumps),
                     "tracking": None if self.tracker is None else {
                         "hunting": self.tracker["hunting"], "arrow": None, "hits": [],
@@ -511,10 +524,17 @@ def test_status(proxy):
     check("tasks + open juncture count", out["tasks"] == [] and out["open_junctures"] == 0)
     proxy.stats = {"str": 80, "dex": 21, "int": 72, "stats_cap": 225, "luck": 0, "physical_resist": 9,
                    "fire_resist": 1, "damage_min": 17, "damage_max": 32, "followers": 0, "followers_max": 5}
+    # live 2026-10-03 22:17:35 (session 20261003_213125): Spell Siphon after a gazer larva's hit,
+    # value 0.06 and an end one hour on (ends_t from the world model); the same buff left
+    # unremoved by the server 15 min past its end (capture 20261003_111419)
+    siphon = {"icon_id": 167, "f1": 4628, "f2": 0, "timers": [{"value": 0.06, "end": 54635744434}],
+              "title": "", "cliloc": 1095588}
     proxy.buffs = {"277": {"icon_id": 277, "f1": 4620, "f2": 1, "f3": 0, "f4": 0,
-                           "timers": [{"seconds": 5.0, "end": 0}], "title": "Stationary Penalty",
-                           "description": "Move {value} more steps", "category": 0, "mode": 1, "scalar": 0.0},
-                   "140": {"icon_id": 140, "f2": 2, "timers": [], "title": "", "cliloc": 1075655}}
+                           "timers": [{"value": 5.0, "end": 0}], "title": "Stationary Penalty",
+                           "description": "Move {value} more steps", "category": 0, "mode": 1, "scalar": 0.0,
+                           "ends_t": None},
+                   "140": {"icon_id": 140, "f2": 2, "timers": [], "title": "", "cliloc": 1075655, "ends_t": None},
+                   "167": {**siphon, "ends_t": time.time() + 3600}}
     code, out = c("status")
     check("status.stats: Str/Dex/Int, cap, luck, resists, damage, followers",
           out.get("stats") == {"str": 80, "dex": 21, "int": 72, "stats_cap": 225, "luck": 0,
@@ -522,8 +542,16 @@ def test_status(proxy):
           str(out.get("stats")))
     b = out.get("buffs") or []
     check("status.buffs: your buffs by icon, titles from text or cliloc, with the raw numbers",
-          [x["icon"] for x in b] == [140, 277] and b[1]["title"] == "Stationary Penalty"
-          and b[1]["timers_s"] == [5.0] and b[1]["raw"]["f2"] == 1 and b[0]["title"], str(b))
+          [x["icon"] for x in b] == [140, 167, 277] and b[2]["title"] == "Stationary Penalty"
+          and b[2]["values"] == [5.0] and b[2]["raw"]["f2"] == 1 and b[0]["title"], str(b))
+    check("status.buffs: a buff's numbers are values, its time left comes from the server's end",
+          b[1]["values"] == [0.06] and 3590 < b[1]["ends_in_s"] <= 3600 and not b[1]["expired"]
+          and b[2]["ends_in_s"] is None and not b[2]["expired"], str(b))
+    proxy.buffs = {"167": {**siphon, "ends_t": time.time() - 888}}
+    code, out = c("status")
+    b = out.get("buffs") or []
+    check("status.buffs: past its end and not removed by the server: still listed, expired",
+          [(x["icon"], x["expired"]) for x in b] == [(167, True)] and b[0]["ends_in_s"] < -880, str(b))
     proxy.stats, proxy.buffs = {}, {}
     dead = free_port(13100)
     port = dead.getsockname()[1]
@@ -887,7 +915,25 @@ def test_overseer_acts(proxy):
     check("status lists nearby ground items, named from tiledata",
           g is not None and g["dist"] == 0 and (g["name"] == "blue moongate" or not os.path.exists(INSTALL_TILEDATA)),
           str(out.get("ground_items")))
-    proxy.ground_items = {}
+    # live 2026-10-03 (session 20261003_213125): `act goto 2974 611` (and 2025,2077 / 1693,3153)
+    # started 28+ tiles from the gate, out of the client's view, so the gate wasn't in the world
+    # model when the goto decided which gate it meant to use; on arrival the Mover closed the
+    # Moongate Destinations gump (B1 button 0) and the overseer had to double-click the gate.
+    # The pre-fix ctl sends that B1 here; closing a gate only passed over: test_mover.py
+    moongate_gump = (0xE0E675B8, "{ resizepic 0 0 9200 300 200 }{ button 20 20 4005 4007 1 0 1 }",
+                     ["Moongate Destinations"])
+    saved = list(proxy.pos), proxy.gumps
+    proxy.pos, proxy.item_view, proxy.gumps = [100, 100, 0, 2], 5, []
+    proxy.gate_gumps = {(113, 100): moongate_gump}
+    proxy.take()
+    code, out = c("act", "goto", "113", "100", "--human", "off", "--no-map", "--no-guard")
+    fr = [p for _, p in proxy.take()]
+    check("goto x y onto a moongate first seen on the way: its gump stays open for `act gump`",
+          code == 0 and out.get("to", [])[:2] == [113, 100] and out.get("gate_gumps_closed") == 0
+          and not [p for p in fr if p[0] == 0xB1] and [g["open"] for g in proxy.gumps] == [True],
+          f"{out} {[p.hex() for p in fr if p[0] != 0x02]} {proxy.gumps}")
+    proxy.ground_items, proxy.item_view, proxy.gate_gumps = {}, None, {}
+    proxy.pos, proxy.gumps = saved
     proxy.take()
 
     print("== unequip / equip (the hatchet) ==")

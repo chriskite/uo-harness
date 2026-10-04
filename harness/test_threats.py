@@ -7,7 +7,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from threats import CREATURE_SPELL_RANGE, Params, Watch, assess, flee_radius, hit_attackers  # noqa: E402
+from threats import (CREATURE_SPELL_RANGE, Params, Watch, assess, flee_radius, hit_attackers,  # noqa: E402
+                     spell_on_us)
 
 FAILURES = []
 ME = 0x00094375
@@ -371,10 +372,61 @@ def test_hit_attackers():
        who([mob(0x502, 4, 0, body=0x99, **calm), mob(0x501, 9, 0, body=22, **calm)]), ([0x501, 0x502], True))
     eq("one swinging at us 3 tiles off is the attacker",
        who([mob(0x508, 3, 0, body=0x27, **calm)], swung={0x508: NOW}), ([0x508], True))
+    # juncture 222 (witcher_280): a war-mode gazer larva 10 off and a calm cougar 8 off; a raven
+    eq("from afar, a hostile one in reach leaves out the unknown-aggression ones (juncture 222: was 2)",
+       who([mob(0x42E6DB, 10, 0, body=778, noto=4, flags=0x40), mob(0x7031B, 8, 0, body=214, **calm),
+            mob(0x904470, 8, 0, body=6, **calm)]), ([0x42E6DB], True))
+    eq("...but a known-ranged body in reach stays a suspect next to the hostile one",
+       sorted(who([mob(0x42E6DB, 10, 0, body=778, noto=4, flags=0x40), mob(0x501, 9, 0, body=22, **calm)])[0]),
+       [0x501, 0x42E6DB])
+    a = assess(state([mob(0x7031B, 8, 0, body=214, **calm)]), recall_s=2.0, margin_s=1.0, now=NOW)
+    eq("a calm creature's reason names its aggression", one(a, 0x7031B).reason, "passive creature (default)")
+
+
+def test_spells():
+    print("== a spell landing on us is an attack (witcher_280, session 20261003_213125) ==")
+    sysline = {"ev": "speech_heard", "serial": 0xFFFFFFFF, "name": "System", "type": 0, "hue": 946}
+    reflect = {"ev": "effect", "type": 3, "source": ME, "target": ME, "graphic": 0x37B9}
+    eq("'Magic reflect removed.' from System", spell_on_us({**sysline, "text": "Magic reflect removed."}, ME),
+       (True, None))
+    eq("'You absorb their spell.' and 'Spell siphon active.' too",
+       [spell_on_us({**sysline, "text": t}, ME)[0] for t in ("You absorb their spell.", "Spell siphon active.")],
+       [True, True])
+    eq("the same words said by a player don't count",
+       spell_on_us({**sysline, "serial": 0x1234, "text": "Magic reflect removed."}, ME), (False, None))
+    eq("a fixed effect 0x37B9 on us (the reflect), 0x374A, flame strike 0x3709: unnamed caster",
+       [spell_on_us({**reflect, "graphic": g}, ME) for g in (0x37B9, 0x374A, 0x3709)], [(True, None)] * 3)
+    eq("lightning (type 1, graphic 0) on us", spell_on_us({**reflect, "type": 1, "graphic": 0}, ME), (True, None))
+    eq("our own cast start (0), Magic Reflection up (0x375A), a fizzle (0x3735), a heal (0x376A), "
+       "a cure (0x373A): not attacks",
+       [spell_on_us({**reflect, "graphic": g}, ME)[0] for g in (0, 0x375A, 0x3735, 0x376A, 0x373A)], [False] * 5)
+    eq("an effect on someone else (the bolt reflected onto the larva)",
+       spell_on_us({**reflect, "type": 1, "source": 0x42E6DB, "target": 0x42E6DB, "graphic": 0}, ME), (False, None))
+    eq("a moving effect at us names its caster (an arrow 0xF42)",
+       spell_on_us({"ev": "effect", "type": 0, "source": 0x500, "target": ME, "graphic": 0xF42}, ME), (True, 0x500))
+    larva = mob(0x42E6DB, 10, 0, body=778, noto=4, flags=0x40)
+    w = Watch()
+    a = w.update(state([larva]), recall_s=2.0, margin_s=1.0, now=NOW)
+    eq("before: the war-mode larva at 10 is watched, nothing on us", (a.action, a.under_attack), ("watch", False))
+    ev = [(NOW + 0.1, {**sysline, "text": "Magic reflect removed."}), (NOW + 0.1, reflect)]
+    a = w.update(state([larva], events=ev), recall_s=2.0, margin_s=1.0, now=NOW + 0.2)
+    eq("the spell: under attack with no hits lost, 2 spell events, flee",
+       (a.under_attack, a.damage["lost"], a.damage["spells"], a.action), (True, 0, 2, "flee"))
+    check("the reason counts the spells", any("2 spell events" in r for r in a.reasons), a.reasons)
+    w.acknowledge(now=NOW + 0.2)
+    eq("acknowledged: the same spells are dealt with",
+       w.update(state([larva], events=ev), recall_s=2.0, margin_s=1.0, now=NOW + 1).under_attack, False)
+    calm = mob(0x600, 9, 0, body=0x99, noto=3, flags=0)
+    ev = [(NOW - 1, {"ev": "effect", "type": 0, "source": 0x600, "target": ME, "graphic": 0x36D4})]
+    a = assess(state([calm], events=ev), recall_s=2.0, margin_s=1.0, now=NOW)
+    eq("a calm creature whose fireball came at us: aggressive, casting at us",
+       (one(a, 0x600).aggressive, one(a, 0x600).aggression), (True, "casting at us"))
+    eq("...and the attacker hit_attackers names from `swung`",
+       [t.serial for t in hit_attackers(a, Params(), {0x600: NOW - 1})[0]], [0x600])
 
 
 TESTS = [test_reds, test_npcs_and_players, test_monsters, test_pets, test_damage, test_label_grace,
-         test_fighting_others, test_acknowledge, test_hit_attackers]
+         test_fighting_others, test_acknowledge, test_hit_attackers, test_spells]
 
 
 def main():
