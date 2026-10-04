@@ -458,6 +458,12 @@ plus the store, hatchets in `harness/data/hatchets.json`; the model is docs/LUMB
   dropped good groves). The overhead prior now counts the walk from the rune into the grove.
   Rejected: several groves per rune (adjacent windows of one forest would crowd the list), and
   ranking by tree count net of the walk (a 300-tile walk is ~2 min against an hour's trip).
+- **All 125 Witcher candidates not named after monsters approved at once (user, 2026-10-03).**
+  This overrides the one-by-one review above for that batch: with ~no data on any of them, heavy
+  exploration is the point of the Thompson sampler, and an untried spot's prior already counts as
+  "a spot like the others". What stays: the overseer disables a pick that turns out to be a dungeon
+  mouth or monster area (names only catch obvious ones: Urukton Bluffs and Undermountain North
+  Entrance passed), and the planner's own place-failure and death cooldowns keep bad picks out.
 - **Hatchets by expected net value, prices from observation.** Wear is one use per successful chop
   (measured, YOUNG_DEMOS); a hatchet that isn't newbied is lost on death (Terran: the corpse kept
   it). With no price, a hatchet isn't used and the plan gives the break-even price instead of
