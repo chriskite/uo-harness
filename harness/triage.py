@@ -52,7 +52,8 @@ STOCK = "stock"
 # laya-serve takes the hub's newest: on 2026-10-04 that had moved to 7b928d8, which nothing here measured.
 STOCK_REVISION = "55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851"
 # The fine-tuned checkpoint (triage_train.py run 4, 2026-10-04; docs/PLAN.md "Laya speech triage"),
-# served by laya_serve_local.py. Not in git (models/ is ignored): rebuild it per docs/NOTES.md.
+# served by laya_serve_local.py. Not in git (models/ is ignored): dbhandoff.py push/pull carries it
+# between computers and backup.py copies it to the NAS; rebuild steps in docs/NOTES.md.
 # Way back: CHECKPOINT = STOCK, or `triage.py serve --checkpoint stock` for one start.
 CHECKPOINT = os.path.join(ROOT, "models", "laya-triage")
 HOST, PORT = "127.0.0.1", 25970

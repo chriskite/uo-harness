@@ -43,6 +43,14 @@ On the share, under <dest>/handoff/:
                             The token sits on the share, which backup.py
                             otherwise keeps free of credentials (user
                             decision 2026-10-04).
+  model/                    the deployed Laya triage checkpoint (triage.CHECKPOINT,
+                            models/laya-triage, ~843 MB), so triage.py serve finds
+                            the same model on whichever computer holds the store.
+                            push uploads it only when its content changed (manifest
+                            sha256 in owner.json: model_sha256, model_files); pull
+                            verifies every file and installs it, keeping a different
+                            local one as <checkpoint>.prev. Skipped while triage
+                            serves the stock checkpoint.
 Here: harness/data/handoff.json, the generation and fingerprint of this
 computer's last push or pull.
 
@@ -66,6 +74,7 @@ import sys
 import tempfile
 
 import backup
+import triage  # stdlib-only; the path of the deployed checkpoint
 
 ROOT = backup.ROOT
 DB = backup.DB
@@ -73,6 +82,9 @@ STATE = os.path.join(ROOT, "harness", "data", "handoff.json")
 LOGS = os.path.join(ROOT, "logs")
 TELEGRAM = os.path.join(ROOT, "harness", "data", "telegram.json")  # bot token: never print it
 TELEGRAM_NAME = "telegram.json"
+# None while triage serves the stock checkpoint (nothing local to carry)
+MODEL = None if triage.CHECKPOINT == triage.STOCK else triage.CHECKPOINT
+MODEL_NAME = "model"
 SUB = "handoff"
 OWNER = "owner.json"
 DERIVED = {"knowledge_vec"}  # regenerable (docs/MEMORY.md), so not part of the fingerprint
@@ -202,7 +214,100 @@ def _get_telegram(d, sha, dst):
     return "installed"
 
 
-def push(dest, db=DB, state_path=STATE, me=None, force=False, logs_dir=LOGS, telegram=TELEGRAM):
+def _files(path):
+    """Relative paths (with /) of every file under a folder; empty when there is none."""
+    if not path or not os.path.isdir(path):
+        return []
+    return [os.path.relpath(os.path.join(base, n), path).replace(os.sep, "/")
+            for base, _dirs, files in os.walk(path) for n in files]
+
+
+def model_manifest(path):
+    """{relative path (with /): [size, sha256]} of a checkpoint folder, or None
+    when there is none."""
+    out = {}
+    for rel in _files(path):
+        p = os.path.join(path, *rel.split("/"))
+        out[rel] = [os.path.getsize(p), backup.sha256_file(p)]
+    return out or None
+
+
+def _manifest_sha(man):
+    return hashlib.sha256(json.dumps(man, sort_keys=True).encode()).hexdigest() if man else None
+
+
+def _copy_verified(src, man, dst):
+    """Copy the checkpoint folder src to dst (which must not exist), checking
+    every file against the manifest; RuntimeError on any mismatch."""
+    found = set(_files(src))
+    if found != set(man):
+        raise RuntimeError(f"{src} doesn't hold the files in {OWNER} ({sorted(set(man) ^ found)}); push again")
+    for rel, (size, sha) in man.items():
+        out = os.path.join(dst, *rel.split("/"))
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        shutil.copyfile(os.path.join(src, *rel.split("/")), out)
+        if os.path.getsize(out) != size or backup.sha256_file(out) != sha:
+            raise RuntimeError(f"{rel} copied from {src} doesn't match {OWNER}; push again")
+
+
+def _swap_dir(part, dst, keep_prev):
+    """Put the folder `part` in place of `dst`; the old dst becomes dst.prev
+    (keep_prev) or is deleted."""
+    old = dst + (".prev" if keep_prev else ".old")
+    if os.path.isdir(old):
+        shutil.rmtree(old)
+    if os.path.isdir(dst):
+        os.replace(dst, old)
+    os.replace(part, dst)
+    if not keep_prev and os.path.isdir(old):
+        shutil.rmtree(old)
+
+
+def _put_model(src, d, owner):
+    """Upload the checkpoint folder to <d>/model when its content differs from the
+    share's. Returns ({model_sha256, model_files} for owner.json, what happened).
+    Without a local checkpoint the share keeps the last pushed one."""
+    kept = {k: (owner or {}).get(k) for k in ("model_sha256", "model_files")}
+    man = model_manifest(src)
+    if man is None:
+        return kept, "no local checkpoint"
+    sha = _manifest_sha(man)
+    share = os.path.join(d, MODEL_NAME)
+    if sha == kept["model_sha256"] and os.path.isdir(share):
+        return kept, "unchanged"
+    part = share + ".part"
+    if os.path.isdir(part):
+        shutil.rmtree(part)
+    _copy_verified(src, man, part)
+    _swap_dir(part, share, keep_prev=False)
+    return {"model_sha256": sha, "model_files": man}, f"uploaded ({sum(s for s, _ in man.values()) / 1e6:.0f} MB)"
+
+
+def _get_model(d, owner, dst):
+    """Install the share's checkpoint at dst; a different local one is kept as
+    dst.prev. Refused (nothing changed) when the swap fails because a running
+    laya-serve holds the files."""
+    sha, man = owner.get("model_sha256"), owner.get("model_files")
+    if not sha or not man or not dst:
+        return "not on the share"
+    if _manifest_sha(model_manifest(dst)) == sha:
+        return "unchanged"
+    part = dst + ".pull.part"
+    if os.path.isdir(part):
+        shutil.rmtree(part)
+    try:
+        _copy_verified(os.path.join(d, MODEL_NAME), man, part)
+        try:
+            _swap_dir(part, dst, keep_prev=True)
+        except PermissionError as e:
+            raise Refused(f"can't replace {dst} ({e}); stop laya-serve (`triage.py serve`) and pull again") from e
+    finally:
+        if os.path.isdir(part):
+            shutil.rmtree(part)
+    return "installed"
+
+
+def push(dest, db=DB, state_path=STATE, me=None, force=False, logs_dir=LOGS, telegram=TELEGRAM, model=MODEL):
     me = me or this_host()
     if not os.path.exists(db):
         raise Refused(f"no memory store at {db}")
@@ -219,7 +324,8 @@ def push(dest, db=DB, state_path=STATE, me=None, force=False, logs_dir=LOGS, tel
     out = {"host": me}
     d = os.path.join(dest, SUB)
     if owner and not force and fingerprint(db) == owner["fingerprint"]:
-        owner.update(holder=None, pushed_by=me, pushed_t=_now(), telegram_sha256=_put_telegram(telegram, d, owner))
+        m, out["model"] = _put_model(model, d, owner)
+        owner.update(holder=None, pushed_by=me, pushed_t=_now(), telegram_sha256=_put_telegram(telegram, d, owner), **m)
         _write_json(os.path.join(d, OWNER), owner)
         out.update(gen=gen, uploaded=False, why="unchanged since that generation; released it")
     else:
@@ -235,10 +341,11 @@ def push(dest, db=DB, state_path=STATE, me=None, force=False, logs_dir=LOGS, tel
                 shutil.copyfileobj(fin, gz, 1 << 20)
             os.replace(part, os.path.join(d, name))
         tg = _put_telegram(telegram, d, owner)
+        m, out["model"] = _put_model(model, d, owner)
         # owner.json last: until it names the new file, the previous generation stays the valid one
         _write_json(os.path.join(d, OWNER), {
             "gen": gen + 1, "file": name, "sha256": sha, "size": size, "fingerprint": fp,
-            "telegram_sha256": tg, "holder": None, "pushed_by": me, "pushed_t": _now(), "pulled_t": None})
+            "telegram_sha256": tg, **m, "holder": None, "pushed_by": me, "pushed_t": _now(), "pulled_t": None})
         for n in os.listdir(d):
             if n.startswith("harness-gen") and n != name:
                 os.remove(os.path.join(d, n))
@@ -251,7 +358,7 @@ def push(dest, db=DB, state_path=STATE, me=None, force=False, logs_dir=LOGS, tel
 
 
 def pull(dest, db=DB, state_path=STATE, me=None, discard_local=False, force=False, logs_dir=LOGS,
-         telegram=TELEGRAM):
+         telegram=TELEGRAM, model=MODEL):
     me = me or this_host()
     owner = read_owner(dest)
     if owner is None:
@@ -280,6 +387,8 @@ def pull(dest, db=DB, state_path=STATE, me=None, discard_local=False, force=Fals
                 raise Refused(f"this computer's store changed since {since} in {', '.join(changed)}; "
                               f"installing generation {gen} would drop that. pull --discard-local "
                               f"installs it anyway and keeps this store as {os.path.basename(db)}.prev")
+    # the checkpoint first: a running laya-serve can block its swap, and then nothing else has changed yet
+    out["model"] = _get_model(os.path.join(dest, SUB), owner, model)
     if install:
         out["prev"] = _install(os.path.join(dest, SUB, owner["file"]), owner["sha256"], db)
     out["installed"] = install
@@ -335,6 +444,9 @@ def status(dest, db=DB, state_path=STATE, me=None):
         return out
     out["share"] = {k: owner.get(k) for k in ("gen", "holder", "pushed_by", "pushed_t", "pulled_t", "size")}
     out["share"]["telegram"] = bool(owner.get("telegram_sha256"))
+    if owner.get("model_sha256"):
+        out["share"]["model"] = ("same as here" if _manifest_sha(model_manifest(MODEL)) == owner["model_sha256"]
+                                 else "differs from here (pull installs it)")
     holder = owner.get("holder")
     if holder == me:
         out["next"] = f"this computer holds generation {owner['gen']}: play here, push before you leave"

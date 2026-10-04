@@ -35,6 +35,12 @@ so the default is the UNC path):
   discord_media/                     image attachments downloaded by
                                      discord_capture.py (harness/data/discord_media).
                                      Additive; skipped while the folder doesn't exist.
+  models/                            fine-tuned checkpoints (models/laya-triage, the
+                                     deployed Laya triage model, ~843 MB; slow to
+                                     retrain and not reproducible bit for bit).
+                                     Additive, never older over newer (/XO), so a
+                                     computer that hasn't pulled the newest one
+                                     can't overwrite it; skipped while absent.
   last_backup.json                   result of the last run.
 
 Not backed up: everything tracked in git (pushed to GitHub), test-run logs
@@ -84,6 +90,7 @@ TREES = [
     (".", "artifacts", ["*.pcapng", "*.etl", "*.png", "divert.log"], [], True),
     ("ghidra", "ghidra", [], ["/MIR"], True),
     (os.path.join("harness", "data", "discord_media"), "discord_media", [], ["/E"], False),
+    ("models", "models", [], ["/E", "/XO"], False),
 ]
 
 SNAP_RE = re.compile(r"^([a-z]+)-(\d{8}-\d{6})\.db\.gz$")

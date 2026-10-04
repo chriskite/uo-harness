@@ -247,6 +247,13 @@ computers"), with `SETUP.md` for a coding agent setting up the second computer.
 - **Backups follow the holder.** `backup.py` skips the store's snapshot on a computer that doesn't
   hold it. Otherwise a computer catching up on a missed hourly run would upload its stale store as
   the newest snapshot.
+- **The Laya checkpoint travels with the store (user request 2026-10-04).** The deployed triage
+  model (`models/laya-triage`, 843 MB) isn't in git and can't be retrained bit for bit, so `push`
+  uploads it to `handoff/model/` when its manifest hash changes and `pull` installs it, verified per
+  file, keeping a replaced one as `.prev`. `backup.py` also copies `models/` (additive, `/XO`).
+  Rejected: retraining on each computer (needs `discord.db`, which stays on one computer, and gives
+  a different model) and git LFS (a GitHub storage quota for an 843 MB binary that changes on every
+  retrain).
 - **The Telegram bridge config travels with the store** (user request 2026-10-04). The bridge
   belongs on the computer that holds the store, and a push needs the bridge stopped, so the token
   never has two pollers. The cost: the bot token sits on the NAS share in plain text. That's

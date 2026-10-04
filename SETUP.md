@@ -71,6 +71,7 @@ Not in git (`.gitignore`) and what to do about it:
 | `harness/data/harness.db` (+`-wal`/`-shm`) | memory store | §7 handoff |
 | `logs/` | session captures, task logs | `dbhandoff.py push/pull` copies them (§7) |
 | `harness/data/telegram.json` | Telegram bridge (bot token) | `dbhandoff.py pull` installs it (§7) |
+| `models/laya-triage/` | the deployed Laya triage model (`triage.py serve`), 843 MB | `dbhandoff.py pull` installs it (§7) |
 | `harness/data/discord*.db`, `discord_media/`, `discord_profile/` | Discord tooling | §5, stays on one computer |
 | `.venv-laya/`, `.venv-discord/` | optional services | §5 |
 | `viz/node_modules/`, `viz/dist/` | visualizer | `bun install && bun run build` (§4) |
@@ -196,7 +197,11 @@ Local state: `harness/data/handoff.json` (gitignored).
    records this computer as holder and copies `<dest>/logs` into `logs/` (newer files only;
    `--no-logs` skips). On a fresh desktop with no `harness.db` it just installs the snapshot.
    It also installs the pushed `harness/data/telegram.json`; a different local one is kept as
-   `telegram.json.prev`. The output says `"telegram": "installed"` or `"unchanged"`.
+   `telegram.json.prev`. The output says `"telegram": "installed"` or `"unchanged"`. And it
+   installs the Laya triage checkpoint `models/laya-triage/` (843 MB, verified per file; a
+   different local one is kept as `models/laya-triage.prev`): `"model": "installed"` or
+   `"unchanged"`. If laya-serve is running, stop it first, or the pull refuses before changing
+   anything.
 5. `python harness/dbhandoff.py status` now shows the desktop as holder. Start the proxy etc.
 
 **Desktop → laptop** is the mirror image: stop all writers on the desktop, `push` there,
@@ -214,8 +219,9 @@ Local state: `harness/data/handoff.json` (gitignored).
 
 **What doesn't travel with the handoff:** `discord.db`, `discord_kb.db`, `discord_media/`
 (run the Discord tooling on one computer only); ClassicUO `settings.json` (each computer logs
-in through the launcher itself; never copy or print it); the venvs. `telegram.json` does travel
-(see step 4); the bot token is therefore stored on the NAS share.
+in through the launcher itself; never copy or print it); the venvs; the Laya training data
+(`harness/data/triage/`). `telegram.json` and the Laya checkpoint do travel (see step 4); the
+bot token is therefore stored on the NAS share.
 
 ## 8. Checklist
 
