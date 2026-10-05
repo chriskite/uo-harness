@@ -2345,7 +2345,13 @@ class LumberLoop:
         walking to the tome that holds it and recalling from it (escape: one of its charges,
         else our own spell), a rune of our own book where we stand. The 60 s harvest lockout
         after it is waited out by the first chop (outcome 'lockout'). Every attempt is a
-        `travel` job event (travel_leg, leg 'out' with the landing), a failed walk or recall too."""
+        `travel` job event (travel_leg, leg 'out' with the landing), a failed walk or recall too.
+        Once out (afield, set the moment the recall lands) it does nothing: harvest_trip runs
+        again after an escape (guarded), and an escape at the landing must not send us back to
+        the home library (live 2026-10-05 Wintertop: "to the rune library: no route", a death)."""
+        if self.afield:
+            log("already out at the spot (after an escape): no travel")
+            return
         st = self.state()
         if home_mod.in_room(self.facet_now(st), self.home):
             self.leave_room()
@@ -2403,6 +2409,7 @@ class LumberLoop:
             except Abort as e:
                 why += f"; {e}"
             raise Abort(why)
+        self.afield = True                       # out: an escape from here on harvests on, not travels again
         log(f"recalled to {row['name']!r} from {where} at {to} ({res['method']}; "
             f"{row['dist']} tiles from the grove's centre)")
 

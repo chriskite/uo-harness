@@ -556,6 +556,37 @@ exit (door → "Exit to House Steward" → (4134,1429)) was proven by that first
   a new runner reads the ring from its start, with no click of its own to pair them with.
   `check_pouches` now ignores events from before the run started (`_pop_since`).
 
+## First overseer shift on the room loop: a death at Wintertop (2026-10-05, Outland Dan)
+
+An overseer subagent ran the lumber shift (docs/OVERSEER.md §5). Run 1 (`witcher_254`, explore):
+101 logs, then a gargoyle's spell and a harpy (100 → 53 hits): the runner recalled home in 2.2 s and
+stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, explore, DTF rune
+"Wintertop" (3509,526), 19 tiles from the grove): **Dan died**, his bonded horse too.
+- **The chain (log 10:46:04–10:46:16):** a gazer 5 tiles from the landing → escape to (3499,529) →
+  `harvest_trip` ran again from the top (it is `guarded`: re-run after an escape) → `go_out` saw us
+  farther from the grove than the landing and **set out for the home rune library from the field**
+  ("to the rune library: no route", an Abort) → while it stopped, a rime spirit champion (grey,
+  shield bash -42) closed in → the recall home was disturbed 0.43 s into the cast → the second try:
+  **"This book needs time to recharge."** (cliloc 502406, the runebook double-clicked ~1 s after its
+  use; escape.py knew only 502403, so the gump wait timed out as "didn't open" and the escape gave
+  up) → guard flight: no route → dead 4 s later.
+- **Fixed:** `go_out` does nothing once out (`afield`, now also set the moment the recall lands):
+  an escape at the landing harvests on (offline: `test_loop_lumber.py` scenario `landing_escape`,
+  which fails without the fix). And a recharging book (502406 → "recharging") no longer ends the
+  escape: for its default rune the Recall **spell is cast and answered with the book itself**,
+  which needs no gump. **Live 10:59:** cast Recall, target runebook 0x49865F8F from (4150,1430) →
+  landed on 'DTF Loot Chest' (4134,1429), 9 mana ("Select Marked item." as the cursor's prompt).
+  Without reagents or mana it waits RECHARGE_WAIT_S (1 s) and looks again (`test_escape.py`
+  `test_recharging_book`).
+- **Left as is:** the runner's `death` juncture isn't posted when it has already exited; the overseer
+  saw the ghost by `status`. The rime spirit champion took the player path (recall, guard flight):
+  it recalls either way.
+- **After:** the overseer walked the ghost to the Anchor's Rest West Caravan healer (Shawn, gump
+  0xB04C9A31 Accept 1), recalled home and went into the room. The corpse at (3500,529) kept the
+  hatchet, armor, ~106 logs and supplies (no corpse runs, policy #2). `ctl act resupply` at the DTF
+  shelf then re-dressed him: all six studded pieces (worn; no Harvest aspect until activated again),
+  reagents, potions, pouches and a bag; no hatchet (the shelf has none it will give).
+
 ## Aspects (live 2026-10-04, user demo on Outland Dan)
 
 Session `logs/session_20261004_162411.jsonl` from line 39895 (local), memory-store events after

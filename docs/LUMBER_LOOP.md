@@ -1081,7 +1081,12 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   way home), then the room. Both legs are `travel` job events (`leg` out/home, the recall
   result, `landing` on the out leg). A recall that can't be made aborts the trip. The offline proof
   is `test_loop_lumber.py` scenarios `library` (the library row, two trips) and the main run (the own
-  book's row), with the captured tome and runebook layouts.
+  book's row), with the captured tome and runebook layouts. Once the recall out lands the trip is
+  out (`afield`): an escape right at the landing harvests on and never travels again (live
+  2026-10-05 Wintertop, a death: it used to walk for the home library from the field; scenario
+  `landing_escape`). A book still recharging from a use moments before ("This book needs time to
+  recharge.", 502406) gets the Recall spell answered with the book itself (its default rune, no
+  gump; live 2026-10-05), else a look again after 1 s (docs/NOTES.md "a death at Wintertop").
 - **Routes around monsters (since 2026-10-03, `harness/travel_guard.py`):** creatures escaped from
   this trip become Mover danger zones (routes bend around them), every escape is a `monster_seen`
   job event, bodies seen hostile (or that hit us alone, `monster_hit`) count as aggressive from

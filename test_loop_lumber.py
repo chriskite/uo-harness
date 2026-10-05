@@ -181,6 +181,11 @@ RED_FAR, RED_NEAR = 100, 55                               # tiles from us at the
 GAZER, GAZER_BODY, GAZER_DMG, GAZER_CAST_S = 0x0000CA5E, 22, 10, 2.5
 # south of the gazer's zone (20 tiles from it) and > home.NEAR_LANDING (60) from the home landing: home is a recall
 LIB_FAR_TREE = {"x": 46, "y": 272, "z": 0, "graphic": "0x0CE0", "stand": [46, 271]}
+# landing_escape (live 2026-10-05 Wintertop): a war-mode creature 6 tiles south of the library rune's landing,
+# in view the moment we land; the grove (radius 2) lies 12 south of the landing, so the walk-away north ends
+# farther from it than the landing and beyond AT_GROVE: the old code then set out for the home library again
+LANDER, LANDER_POS = 0x0000A1A1, (40, 256)
+LANDER_SPOT = {"area": {"center": [40, 262], "radius": 2}, "pvp": True}
 WARY, WARY_POS = 0x0000BA76, (113, 201)                    # 2 tiles from the good tree, 13 from the start
 WEST_TREE = {"x": 86, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [87, 200]}      # 13 steps west; good: 10
 # red_aim (LUMBER_LOOP.md §13 "Blind waits"; live 2026-10-03, Bastet came into view during the chop's aim pause)
@@ -403,7 +408,7 @@ class World:
         #                                   "pouch_pop" (a hidden thief sets our trapped pouch off) or
         #                                   "staff" (a vendor next to us, then an invulnerable player in view)
         self.scripted = scenario == "home"  # captchas, the passer-by's speech, the pickpocket
-        self.library = scenario in ("library", "tracking", "gazer", "red_aim", "thief", "pouch_pop")
+        self.library = scenario in ("library", "tracking", "gazer", "red_aim", "thief", "pouch_pop", "landing_monster")
         #                                   the library spot (pvp), black pearls in the pack
         self.facet, self.pos = ROOM_FACET, list(ROOM_ARRIVAL)   # every run starts in the rental room
         self.facing = 0
@@ -627,6 +632,8 @@ class World:
             self.lockout_due = True
             if dest == RUNE_POS:
                 self.later(2.3, [player_update(OTHER, LIB_TREE["x"] + 4, LIB_TREE["y"])])
+            if dest == RUNE_POS and self.scenario == "landing_monster":   # one waits at the landing (live Wintertop)
+                self.later(2.1, [creature_pkt(LANDER, 0x27, *LANDER_POS)])
             if self.tracking and self.hunt["on"]:      # the hunt stops on landing (simulated: live ones don't)
                 asyncio.get_running_loop().call_later(2.2, self.drop_hunt)
 
@@ -1853,6 +1860,26 @@ async def gazer_run():
     store.close()
 
 
+async def landing_escape():
+    """Live 2026-10-05 (Wintertop, a death): a war-mode creature waits by the landing; the runner backs away
+    from it at once, then must harvest on out there. It used to run harvest_trip again from the top after the
+    escape and set out for the home rune library from the field ("to the rune library: no route"), aborting."""
+    print("\n== a creature at the landing: escape on arrival, then harvest on (no trip back to the library) ==")
+    world = World("landing_monster")
+    text, code, store, _ = await run_scenario(world, "landing_escape", 12830, [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=LANDER_SPOT)
+    eps = store.episodes("lumber")
+    check("escaped from the creature at the landing, then 'already out at the spot': no second travel, one "
+          "recall out, no walk back to the tome",
+          "ESCAPE 1/" in text and "already out at the spot" in text and world.recalls_out == [RUNE_POS]
+          and "to the rune library: no route" not in text, f"{world.recalls_out}\n{text[-900:]}")
+    check("the trip went on out there and ended in the room (exit 0), not an abort",
+          code == 0 and [e.get("outcome") for e in eps] == ["stored"],
+          f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]}")
+    store.close()
+
+
 async def gazer_rehit():
     """The same gazer outranges the walk-away (it casts from 20 tiles in this simulation): damage again
     within --creature-rehit-s of arriving -> recall home at once, no conversion, exit 1."""
@@ -2583,7 +2610,8 @@ def run_parallel(names, jobs):
 
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
-            wary, red_aim, thief_keep_away, pouch_pop, no_pouch, resupply, staff_in_view, unit_hatchet, unit_hit_verdict,
+            wary, red_aim, thief_keep_away, pouch_pop, no_pouch, resupply, landing_escape, staff_in_view,
+            unit_hatchet, unit_hit_verdict,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`

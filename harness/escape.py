@@ -64,6 +64,9 @@ RECOVERY_MARGIN_S = 0.05          # on top of the computed disturb recovery
 NOT_RECOVERED_WAIT_S = 0.25       # after a "not yet recovered" refusal
 FROZEN_WAIT_S = 0.5               # after "You cannot cast a spell while frozen." / already casting
 CAST_RECOVERY_S = 0.2             # Outlands' recovery after a finished or fizzled cast (wiki Magery)
+RECALL_SPELL = 32                 # Magery Recall (ClassicUO SpellsMagery.cs), cast with 0xFF sub 4
+SPELL_CURSOR_WAIT_S = 4.0         # cast -> the spell's target cursor
+RECHARGE_WAIT_S = 1.0             # a book still recharging, Recall not castable: look again after this
 
 # Failure messages (cliloc ids from the local Cliloc.enu, docs/research/TRAVEL_DEATH.md §1.2;
 # the tome's text seen live). Any of them ends the attempt.
@@ -78,7 +81,9 @@ FAIL_CLILOCS = {
     502645: "already casting",     # You are already casting a spell. (not seen live yet)
     1005564: "heat of battle",     # Wouldst thou flee during the heat of battle??
     502412: "no charges",          # There are no charges left on that item.
-    502403: "recharging",          # This book needs time to recharge.
+    502403: "recharging",          # (RunUO's id for the next line; not seen live)
+    502406: "recharging",          # This book needs time to recharge. (live 2026-10-05: the runebook,
+                                   # double-clicked again ~1 s after a disturbed charge recall)
     501025: "blocked",             # Something is blocking the location.
     501803: "unmarked",            # That rune is not yet marked.
     # RunUO SpellHelper.SendInvalidMessage: recalling from a place that forbids it (Outlands:
@@ -105,6 +110,10 @@ FAIL_TEXTS = {
 
 class RecallError(Exception):
     """The escape can't be tried (no book, no default, refused by the proxy)."""
+
+
+class BookRecharging(RecallError):
+    """The book won't open yet: "This book needs time to recharge." (a use moments before)."""
 
 
 def book_kind(world: dict, serial: int) -> str | None:
@@ -454,7 +463,7 @@ def _open(io, book: int, gump_id: int, me: int, timeout: float = GUMP_WAIT_S) ->
     """Double-click the book; the gump_open event of its gump (layout, lines, serial).
     A double-click right after another action is ignored by the server (seen live:
     the escape's click 0.3 s after the readiness check's), so one more after
-    RECLICK_S without a gump."""
+    RECLICK_S without a gump. "This book needs time to recharge." raises BookRecharging."""
     io.poll()
     io.send(actions.dclick(book))
     t0 = time.monotonic()
@@ -464,11 +473,36 @@ def _open(io, book: int, gump_id: int, me: int, timeout: float = GUMP_WAIT_S) ->
         for ev in evs:
             if ev.get("ev") == "gump_open" and serial_of(ev["gump_id"]) == gump_id:
                 return ev
+            if failure(ev, me) == "recharging":
+                raise BookRecharging(f"the book 0x{book:08X} needs time to recharge")
         if not reclicked and time.monotonic() - t0 > RECLICK_S:
             io.send(actions.dclick(book))
             reclicked = True
         time.sleep(0.03)
     raise RecallError(f"the book's gump 0x{gump_id:08X} didn't open")
+
+
+def _spell_on_book(io, book: int, me: int, world: dict, not_before: float | None) -> bool:
+    """Cast Recall and answer its cursor with the book itself: the spell goes to the book's default
+    rune without opening it (live 2026-10-05: Outland Dan, from 16 tiles off, landed on 'DTF Loot
+    Chest'; RunUO RecallSpell.OnTarget takes a runebook's Default). The way home while the book is
+    recharging. False when no cursor came."""
+    it = world["items"].get(f"0x{book:08X}") or {}
+    _hold(not_before)
+    io.poll()
+    io.send(actions.cast_spell(RECALL_SPELL))
+    end = time.monotonic() + SPELL_CURSOR_WAIT_S
+    while time.monotonic() < end:
+        st, evs = io.poll()
+        if any(failure(ev, me) for ev in evs):
+            return False
+        cur = st["world"].get("target") or {}
+        if cur.get("active") and cur.get("cursor_id") is not None:
+            io.send(actions.target_object(cur["cursor_id"], book, it.get("x") or 0, it.get("y") or 0,
+                                          it.get("z") or 0, it.get("graphic") or 0, cur.get("cursor_type") or 0))
+            return True
+        time.sleep(0.03)
+    return False
 
 
 def _press(io, g: dict, button: int):
@@ -516,7 +550,10 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None, en
     t0 = time.monotonic()
     name = None
     if kind == "runebook":
-        g = _open(io, book, RUNEBOOK_GUMP, me)
+        try:
+            g = _open(io, book, RUNEBOOK_GUMP, me)
+        except BookRecharging:
+            return _recharging(io, book, kind, me, world, start, facet, t0, mana, rune, entry, not_before, timeout)
         info = parse_runebook(g.get("layout"), g.get("lines"))
         entries = {e["i"]: e["name"] for e in runebook_entries(g.get("layout"), g.get("lines"))}
         if entry is not None:
@@ -542,7 +579,10 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None, en
         _hold(not_before)
         _press(io, g, 2 + 6 * rune if method == "charge" else 5 + 6 * rune)
     else:
-        g = _open(io, book, RUNETOME_GUMP, me)
+        try:
+            g = _open(io, book, RUNETOME_GUMP, me)
+        except BookRecharging:
+            return _recharging(io, book, kind, me, world, start, facet, t0, mana, rune, entry, not_before, timeout)
         info = parse_runetome_main(g.get("layout"), g.get("lines"))
         rows = runetome_rows(g.get("layout"), g.get("lines"))
         if entry is not None:
@@ -576,6 +616,25 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None, en
                 raise RecallError("the rune tome's detail page has no Cast Recall button")
             _hold(not_before)
             _press(io, d, button)
+    return _arrival(io, me, kind, method, rune, name, start, facet, t0, info["charges"], timeout)
+
+
+def _recharging(io, book, kind, me, world, start, facet, t0, mana, rune, entry, not_before, timeout) -> dict:
+    """The book won't open ("needs time to recharge", a use moments before: live 2026-10-05, a
+    disturbed escape recall, then death). For its default rune: the Recall spell answered with the
+    book (_spell_on_book) when we can cast it. Else, or for a named rune, a 'recharging' failure
+    (escape() looks again after RECHARGE_WAIT_S)."""
+    if rune is None and entry is None and can_cast_recall(world, me, mana) \
+            and _spell_on_book(io, book, me, world, not_before):
+        return _arrival(io, me, kind, "spell_on_book", None, None, start, facet, t0, None, timeout)
+    return {"ok": False, "kind": kind, "method": "charge", "rune": rune, "name": None, "from": list(start),
+            "to": None, "elapsed_s": round(time.monotonic() - t0, 2), "charges": None,
+            "failure": "recharging", "cast_s": None}
+
+
+def _arrival(io, me, kind, method, rune, name, start, facet, t0, charges, timeout) -> dict:
+    """Wait for the recall just pressed (or cast) to land: a position jump of JUMP_TILES or a facet
+    change; a failure message ends it."""
     pressed = time.monotonic()
     end = pressed + timeout
     why, words = None, None
@@ -593,7 +652,7 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None, en
             return {"ok": True, "kind": kind, "method": method, "rune": rune, "name": name, "from": list(start),
                     "to": list(pos[:2]) if pos else None, "elapsed_s": round(time.monotonic() - t0, 2),
                     "press_to_arrival_s": round(time.monotonic() - pressed, 2),
-                    "charges": info["charges"], "failure": None, "cast_s": None}
+                    "charges": charges, "failure": None, "cast_s": None}
         if why:
             break
         time.sleep(0.05)
@@ -601,7 +660,7 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None, en
     # else from the press (a little more, so disturb_recovery errs short; RECOVERY_MARGIN_S).
     cast_s = None if why in NOT_CAST else round(time.monotonic() - (words or pressed), 3)
     return {"ok": False, "kind": kind, "method": method, "rune": rune, "name": name, "from": list(start), "to": None,
-            "elapsed_s": round(time.monotonic() - t0, 2), "charges": info["charges"],
+            "elapsed_s": round(time.monotonic() - t0, 2), "charges": charges,
             "failure": why or "no arrival", "cast_s": cast_s}
 
 
@@ -627,8 +686,10 @@ def retry_wait(res: dict) -> float | None:
         return NOT_RECOVERED_WAIT_S
     if why in ("frozen", "already casting"):
         return FROZEN_WAIT_S
-    if why in ("no charges", "recharging"):
+    if why == "no charges":
         return 0.0
+    if why == "recharging":
+        return RECHARGE_WAIT_S
     return CAST_RECOVERY_S + RECOVERY_MARGIN_S       # fizzled, no arrival
 
 

@@ -89,9 +89,13 @@ def gained(before: dict, after: dict, labels: dict | None = None) -> list[dict]:
         old = before.get(s)
         n = it["amount"] - (old["amount"] if old else 0)
         if old is None or n > 0:
-            name = labels.get(f"0x{s:08X}") or (_tile_name(it["graphic"]) if it["graphic"] is not None else None)
+            amount = n if old else it["amount"]
+            name = labels.get(f"0x{s:08X}")
+            if name is None and it["graphic"] is not None:
+                import uomap
+                name = uomap.display_name(_tile_name(it["graphic"]), amount > 1)   # "Black Pearl%s%" -> "Black Pearls"
             out.append({"serial": f"0x{s:08X}", "graphic": None if it["graphic"] is None else f"0x{it['graphic']:04X}",
-                        "hue": it["hue"], "name": name, "amount": n if old else it["amount"], "worn": it["worn"]})
+                        "hue": it["hue"], "name": name, "amount": amount, "worn": it["worn"]})
     return out
 
 

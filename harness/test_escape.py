@@ -14,6 +14,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import actions  # noqa: E402
 import combat  # noqa: E402
 import escape  # noqa: E402
 
@@ -114,6 +115,51 @@ class BookServer:
                  h(self.BOOK): {"graphic": 0x22C5, "container": h(PACK), "name": "Dan's book"}}
         return ({"movement": {"self_serial": ME, "pos": list(self.pos)},
                  "world": {"items": items, "self": {"map": 0, "mana": 60}}}, evs)
+
+
+class RechargingBookServer(BookServer):
+    """The same book moments after a use (live 2026-10-05): a double-click only says "This book needs
+    time to recharge." (cliloc 502406). Casting Recall (spell 32) brings a cursor; answering it with the
+    book lands on its default rune (entry 10, DTF Loot Chest)."""
+
+    def __init__(self, reagents=True):
+        super().__init__()
+        self.reagents, self.sent, self.cursor = reagents, [], None
+
+    def send(self, pkt):
+        self.sent.append(pkt)
+        if pkt[0] == 0x06:
+            self.queue.append({"ev": "cliloc", "cliloc": 502406, "text": "This book needs time to recharge."})
+        elif pkt == actions.cast_spell(escape.RECALL_SPELL):
+            self.cursor = {"active": True, "cursor_id": 0x77, "cursor_type": 0, "target_type": 0}
+        elif pkt[0] == 0x6C and self.cursor and int.from_bytes(pkt[7:11], "big") == self.BOOK:
+            self.cursor = None
+            self.pos = self.tiles[10]
+
+    def poll(self):
+        st, evs = super().poll()
+        if self.reagents:
+            for i, g in enumerate((0x0F7A, 0x0F7B, 0x0F86)):        # black pearl, blood moss, mandrake root
+                st["world"]["items"][f"0x4000000{i}"] = {"graphic": g, "amount": 10, "container": h(PACK)}
+        st["world"]["target"] = self.cursor or {"active": False}
+        return st, evs
+
+
+def test_recharging_book():
+    s = RechargingBookServer()
+    r = escape.recall(s, s.BOOK)
+    check("a recharging book: Recall cast and answered with the book itself, landing on its default rune",
+          r["ok"] and r["method"] == "spell_on_book" and r["to"] == s.tiles[10][:2]
+          and s.sent[-2:][0] == actions.cast_spell(escape.RECALL_SPELL) and s.sent[-1][0] == 0x6C, (r, s.sent))
+    s = RechargingBookServer(reagents=False)
+    r = escape.recall(s, s.BOOK)
+    check("no reagents for the spell: a 'recharging' failure (no cast), retried after RECHARGE_WAIT_S",
+          not r["ok"] and r["failure"] == "recharging" and escape.retry_wait(r) == escape.RECHARGE_WAIT_S
+          and actions.cast_spell(escape.RECALL_SPELL) not in s.sent, r)
+    s = RechargingBookServer()
+    r = escape.recall(s, s.BOOK, rune="SSC")
+    check("a named rune can't go by the spell on the book: 'recharging'", not r["ok"] and r["failure"] == "recharging"
+          and actions.cast_spell(escape.RECALL_SPELL) not in s.sent, r)
 
 
 def test_runebook_read_and_recall_by_name():
@@ -447,6 +493,7 @@ def test_escape_stops():
 
 if __name__ == "__main__":
     for t in (test_runebook, test_sextant, test_runebook_entries, test_runebook_read_and_recall_by_name,
+              test_recharging_book,
               test_runetome, test_library_tome_read, test_failures, test_can_cast, test_find_books,
               test_disturb_recovery_fits_live_retries, test_escape_nusero_replay, test_escape_early_disturb,
               test_escape_stops):
