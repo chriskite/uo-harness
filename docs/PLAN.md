@@ -802,6 +802,13 @@ Live 2026-10-04 22:06–22:17 (Outland Dan, Horseshoe Bay, the room-storage trip
 "First live room-storage trip"): 527 s of Smart Harvest chopping over 11 stands, each ended by
 "nothing nearby has wood" and the next stand; 240 logs. The reach measurement isn't analysed yet.
 
+**Decision (user, 2026-10-04): chop at a Razor script's pace.** Every harvester on the shard runs a
+script that uses the hatchet ~0.2 s after each reply (ANTICHEAT.md §3, §8.14), so the human pauses
+in the chop cycle (use 0.9 s, aim 0.95 s, 2.2 s between chops, fidgets, hesitation) only cost
+logs: the cycle was 9.4 s median against the server's 4.2 s. Now `humanize.SCRIPT_MEDIAN` (0.2 s,
+0.1 s, σ 0.2, no fatigue) paces it, and the trapped-pouch stash runs during the server's 4.2 s.
+Walking, menus, the room and conversion keep their human texture.
+
 **Decision (user, 2026-10-04): the lumber runner switches from targeting a tree to Smart Harvest,
 and that is the next lumber work.** Another agent implements it. Smart Harvest: double-click the
 hatchet and answer its cursor with yourself; the server chops a nearby tree that still has wood

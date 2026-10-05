@@ -16,16 +16,19 @@ Everything it adds is stock-client traffic or plain waiting.
   frame jitter, like a player holding the key; the texture sits between
   segments: occasional short pauses and rare longer "look around" pauses.
   Routes are always run (the client's Always Run is on).
-- Hands: occasional hesitation (a tool cursor cancelled and re-used), and
-  small fidgets between tasks: opening the backpack, or looking at a nearby
-  mobile with the stock single-click sequence.
+- Hands: occasional hesitation (a tool cursor cancelled and re-used).
+- The harvest cycle runs at a Razor script's pace, not a person's (user decision
+  2026-10-04: every harvester on the shard runs one): SCRIPT_MEDIAN, no fatigue,
+  tight jitter. Jaseowns' lumber and mining scripts send "Use item in hand" ~0.2 s
+  after each harvest reply and target themselves as soon as the cursor is up
+  (ANTICHEAT.md §3).
 
 The proxy still enforces its minimum step spacing; this layer only ever makes
 the agent slower or less direct than the stock client, never faster.
 Profiles: "normal" for live play, "off" for deterministic tests (no pauses,
-noise, wandering or fidgets; fixed short delays).
+noise or wandering; fixed short delays).
 
-Every pause (reaction waits, walking pauses, the fidget's look) goes through
+Every pause (reaction waits, walking pauses) goes through
 `Human.sleep(seconds, kind)`: time.sleep unless the runner passes its own, e.g.
 one that keeps reading the state and checking for threats while it waits
 (loop_lumber.LumberLoop.pause). The step cadence (pace_step) stays a plain sleep.
@@ -36,8 +39,6 @@ import time
 import zlib
 from dataclasses import dataclass, replace
 
-import actions
-
 # reaction-time medians (s) per action kind; lognormal sigma below
 REACTION_MEDIAN = {
     "aim": 0.95,        # tool cursor up -> target clicked
@@ -47,9 +48,16 @@ REACTION_MEDIAN = {
     "use": 0.9,         # deciding to use an item
     "find": 1.2,        # container gump opened -> item found and grabbed (demo 204225: 2.7 s, one sample)
     "speak": 1.1,       # arrived -> typed speech sent
-    "between": 2.2,     # between harvest attempts
+    "between": 2.2,     # between steps of a task (conversions, errands, a mover's retry); not the harvest cycle
     "captcha": 11.5,    # captcha shown -> answer submitted (measured human solves: 7.7-17.5 s)
 }
+# the harvest cycle at a Razor script's pace (module docstring): the harvest reply -> the tool's
+# double-click, and its cursor -> the target. No fatigue; SCRIPT_SIGMA instead of the profile's.
+SCRIPT_MEDIAN = {
+    "chop_use": 0.2,    # "Use item in hand" ~0.2 s after the harvest reply (Jaseowns' scripts)
+    "chop_aim": 0.1,    # waitfortarget -> "Target Self" on the script's next tick [INFERENCE: ~0.1 s]
+}
+SCRIPT_SIGMA = 0.2
 # the stock client's step cadence for a held key (ClassicUO MovementSpeed): on foot, and mounted
 # (user ride 20261002_153718: 53 mounted run steps, median 0.100 s)
 STEP_CADENCE_RUN = 0.200
@@ -69,8 +77,7 @@ class Profile:
     look_around_range: tuple = (3.0, 9.0)
     path_noise: float = 0.45             # cost x uniform(1, 1 + noise) per map cell, per plan
     wander_p: float = 0.012              # per step: sidestep to a known tile, then replan
-    hesitate_p: float = 0.025            # per tool use: cancel the cursor and use again
-    fidget_p: float = 0.05               # per task boundary
+    hesitate_p: float = 0.025            # per tool use (not in the harvest cycle): cancel the cursor and use again
     fatigue_per_hour: float = 0.12       # delays grow 12 %/h of activity
     enabled: bool = True
 
@@ -79,7 +86,7 @@ PROFILES = {
     "normal": Profile(),
     "off": Profile(reaction_sigma=0.0, micro_pause_p=0.0,
                    look_around_p=0.0, path_noise=0.0, wander_p=0.0, hesitate_p=0.0,
-                   fidget_p=0.0, fatigue_per_hour=0.0, enabled=False),
+                   fatigue_per_hour=0.0, enabled=False),
 }
 
 
@@ -88,7 +95,7 @@ class Human:
                  fast: float = 1.0, log=None, sleep=None):
         """fast < 1 scales every delay down (offline tests of the normal profile).
         sleep(seconds, kind): how a pause is spent (default: time.sleep); kind is the
-        REACTION_MEDIAN key, "walk_pause" (after_step) or "read" (fidget)."""
+        REACTION_MEDIAN or SCRIPT_MEDIAN key, or "walk_pause" (after_step)."""
         self.p = PROFILES[profile] if isinstance(profile, str) else profile
         self.rng = random.Random(seed)
         self.fast = fast
@@ -96,8 +103,7 @@ class Human:
         self.log = log or (lambda msg: None)
         self.sleep = sleep or (lambda seconds, kind: time.sleep(seconds))
         self.plan_salt = 0
-        self.stats = {"pauses": 0, "pause_s": 0.0, "wanders": 0, "hesitations": 0,
-                      "fidgets": 0}
+        self.stats = {"pauses": 0, "pause_s": 0.0, "wanders": 0, "hesitations": 0}
 
     def _fatigue(self) -> float:
         hours = (time.monotonic() - self.t0) / 3600.0
@@ -109,7 +115,12 @@ class Human:
         return median * math.exp(self.rng.gauss(0.0, sigma))
 
     def reaction(self, kind: str) -> float:
-        """Seconds a person takes for `kind` (see REACTION_MEDIAN)."""
+        """Seconds a person takes for `kind` (see REACTION_MEDIAN), or a script for a
+        SCRIPT_MEDIAN kind (no fatigue, SCRIPT_SIGMA)."""
+        if kind in SCRIPT_MEDIAN:
+            if not self.p.enabled:
+                return 0.05 * self.fast
+            return self._lognormal(SCRIPT_MEDIAN[kind], SCRIPT_SIGMA) * self.fast
         base = REACTION_MEDIAN[kind] if self.p.enabled else 0.15
         return self._lognormal(base, self.p.reaction_sigma) * self._fatigue() * self.fast
 
@@ -181,33 +192,6 @@ class Human:
             self.stats["hesitations"] += 1
             return True
         return False
-
-    def fidget(self, link, st, backpack: int | None):
-        """Now and then a harmless, stock-identical idle action between tasks."""
-        if self.rng.random() >= self.p.fidget_p:
-            return
-        me = st["movement"]["self_serial"]
-        pos = st["movement"]["pos"]
-        near = []
-        for key, m in st["world"]["mobiles"].items():
-            s = int(key, 16) if isinstance(key, str) else int(key)
-            if s != me and m.get("x") is not None and pos \
-                    and max(abs(m["x"] - pos[0]), abs(m["y"] - pos[1])) <= 10:
-                near.append(s)
-        options = (["look"] if near else []) + (["pack"] if backpack else [])
-        if not options:
-            return
-        what = self.rng.choice(options)
-        self.stats["fidgets"] += 1
-        if what == "look":
-            s = self.rng.choice(near)
-            self.log(f"(idle: looking at 0x{s:08X})")
-            link.act(actions.single_click(s))
-            link.act(actions.status_request(s))
-        else:
-            self.log("(idle: opening the backpack)")
-            link.act(actions.dclick(backpack))
-        self.sleep(self.reaction("read"), "read")
 
     @staticmethod
     def with_overrides(name: str, **kw) -> Profile:

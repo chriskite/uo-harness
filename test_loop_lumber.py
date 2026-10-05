@@ -53,7 +53,7 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
   removed." and the 0xC0 0x37B9 on us, no hits lost; live 2026-10-03 witcher_280): the runner runs at
   that spell, before any damage, and stores
 - wary: a war-mode creature by the nearest tree: the farther tree first, the near one once it has gone
-- red_aim (§13 "Blind waits"): at the library spot a red comes into view during the chop's human aim pause
+- red_aim (§13 "Blind waits"): at the library spot a red comes into view while the chop's cursor is up
   (--human normal): the cursor is cancelled and the recall home pressed within REACT_MAX_S of sight, no chop target
 - staff_in_view (docs/PLAN.md "Staff alarm on an invulnerable player in view"): a vendor (notoriety 7, no
   player flag) next to us mid-harvest raises nothing; an invulnerable player (notoriety 7 + 0x20) coming into
@@ -176,7 +176,8 @@ LIB_FAR_TREE = {"x": 46, "y": 272, "z": 0, "graphic": "0x0CE0", "stand": [46, 27
 WARY, WARY_POS = 0x0000BA76, (113, 201)                    # 2 tiles from the good tree, 13 from the start
 WEST_TREE = {"x": 86, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [87, 200]}      # 13 steps west; good: 10
 # red_aim (LUMBER_LOOP.md §13 "Blind waits"; live 2026-10-03, Bastet came into view during the chop's aim pause)
-BASTET, RED_AIM_S, REACT_MAX_S = 0x0009BA57, 0.3, 0.5    # a red, in view this long after the chop's cursor
+BASTET, RED_AIM_S, REACT_MAX_S = 0x0009BA57, 0.02, 0.5   # a red, in view this long after the chop's cursor
+# (the aim is a script's ~0.1 s since 2026-10-04, humanize SCRIPT_MEDIAN; the live aim pause was 2.1 s)
 # every tree of the simulated world, whichever the scenario's spot lists (they stand far apart)
 SIM_TREES = [(t["x"], t["y"]) for t in (GOOD_TREE, DRY_TREE, FAR_TREE, LIB_TREE, LIB_FAR_TREE, WEST_TREE)]
 
@@ -1369,14 +1370,12 @@ async def main():
               f"{world.doors_opened} opened")
         check("the town door opened on each of the 2 crossings (the walk home each trip)",
               world.doors_opened >= 2, str(world.doors_opened))
-        fidget_opens = text.count("(idle: opening the backpack)")    # human texture (humanize.fidget), seed-dependent
-        check("like a player, the agent opened the backpack once before dragging the logs (any other open is a "
-              "logged idle fidget), each trip's spent pouch once to convert in it, and the chest once a trip "
-              "(leaving the room closes it)",
+        check("like a player, the agent opened the backpack once before dragging the logs, each trip's spent "
+              "pouch once to convert in it, and the chest once a trip (leaving the room closes it)",
               [c for c in world.containers_opened if c != BACKPACK] == [POUCHES[0], POUCHES[1]]
-              and world.containers_opened.count(BACKPACK) == 1 + fidget_opens
+              and world.containers_opened.count(BACKPACK) == 1
               and text.count(f"opening container 0x{BACKPACK:08X}") == 1 and world.chest_opens == 2,
-              f"{world.containers_opened} fidget opens {fidget_opens} chest opens {world.chest_opens}")
+              f"{world.containers_opened} chest opens {world.chest_opens}")
         check("no speech at all (the room goes by menus, no 'bank')", speech == [], str([p.hex() for p in speech]))
         check("two episode rows with logs and stored boards",
               len(rows) == 2 and all(r.get("logs", 0) >= 6 and r.get("stored", 0) >= 6
@@ -1896,10 +1895,11 @@ async def wary():
 async def red_aim():
     """LUMBER_LOOP.md §13 "Blind waits" (live 2026-10-03: Bastet came into view during the chop's 2.1 s
     aim pause; the runner answered the cursor, then recalled 2.5 s after sight and was hit out of the
-    cast). A red comes into view RED_AIM_S after the chop's cursor, inside the human aim pause (normal
-    profile, full pace): the pause reads the state and sees him, the cursor goes with the stock 0x6C
-    cancel, the recall home starts within REACT_MAX_S of sight; no chop target is answered after him."""
-    print("\n== red during the aim pause: cancel the chop cursor, recall at once ==")
+    cast). Since 2026-10-04 the aim is a script's ~0.1 s (humanize SCRIPT_MEDIAN), so a red comes into
+    view RED_AIM_S after the chop's cursor, while it is up (normal profile, full pace): whichever read
+    sees him first (the cursor's wait or the aim pause), the cursor goes with the stock 0x6C cancel, the
+    recall home starts within REACT_MAX_S of sight; no chop target is answered after him."""
+    print("\n== red while the chop cursor is up: cancel it, recall at once ==")
     world = World("red_aim")
     spot = LIB_SPOT
     text, code, store, rows = await run_scenario(world, "red_aim", 12760, [LIB_TREE],
@@ -1912,8 +1912,7 @@ async def red_aim():
     answers = [f for f, t in targets if f["x"] != 0x7FFFFFFF]
     book = next((t for p, t in after if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)), None)
     lat = None if book is None else round(book - red, 3)
-    check("the red came into view during the chop's aim pause (the pause read it and was cut short)",
-          red is not None and "the aim pause cut short" in text, f"red at {red}\n{text[-800:]}")
+    check("the red came into view (RED_AIM_S after the chop's cursor)", red is not None, text[-800:])
     check("the chop cursor was cancelled (stock 0x6C cancel, once) before the runebook's double-click, and "
           "no chop target was answered after the red appeared",
           len(cancels) == 1 and book is not None and cancels[0] < book and answers == [],

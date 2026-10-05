@@ -498,6 +498,18 @@ exit (door → "Exit to House Steward" → (4134,1429)) was proven by that first
   with nothing in view and the runner recalled home ("taking damage, no creature in view") after
   11 logs. 0x37BE is now a BENIGN_EFFECT. That aborted trip row (horseshoe_bay, sent home) is a
   false hazard sample in the planner's data.
+- **Script-paced chopping, live 22:34–22:39 (task `lumber-20261004-223449-d94a`, same session):**
+  hatchet ~0.2 s after each reply, cursor answered ~0.1 s after it comes, the stash during the
+  next chop (humanize `SCRIPT_MEDIAN`, docs/PLAN.md). Target to target 4.92 s median over 39
+  cycles (before: 9.36 s over 62); target to the server's reply 4.17 s both times, so the cycle is
+  now the server's chop time plus ~0.75 s. No "You must wait to perform another action" (500119),
+  no unrecognised outcome; 114 logs (the grove ran dry, Horseshoe Bay chopped 30 min before), 114
+  boards into the chest.
+- **A new run's false thief alarm (fixed):** the run started at 22:33:10 in the room stopped at
+  once on "trapped pouch went off without our double-click". The proxy's event ring still held the
+  previous run's own set-off in the room (22:17:04 convert: the explosion and sound at our tile), and
+  a new runner reads the ring from its start, with no click of its own to pair them with.
+  `check_pouches` now ignores events from before the run started (`_pop_since`).
 
 ## Aspects (live 2026-10-04, user demo on Outland Dan)
 

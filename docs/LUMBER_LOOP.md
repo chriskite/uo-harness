@@ -1127,10 +1127,15 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
       deny). Removed 2026-09-30: the stock client never sends a step its own map check refuses
       (ANTICHEAT.md §8.14, §10 A5)
   - Hands:
-    - 2.5 % of tool uses hesitate: the cursor is cancelled with the stock Esc packet and the
-      hatchet used again
-    - 5 % chance at a task boundary of an idle fidget: open the backpack, or look at a nearby
-      mobile with the stock `09` + `34` sequence
+    - 2.5 % of tool uses outside the harvest cycle hesitate: the cursor is cancelled with the
+      stock Esc packet and the hatchet used again
+    - **the harvest cycle runs at a Razor script's pace (user decision 2026-10-04: every
+      harvester on the shard runs a script; ANTICHEAT.md §8.14):** the hatchet ~0.2 s after the
+      last chop's reply, the cursor answered with ourselves ~0.1 s after it comes (humanize
+      `SCRIPT_MEDIAN`, jitter σ 0.2, no fatigue), no hesitation, no pause and no idle fidget
+      between chops (the fidgets were removed with it). The last chop's logs go into the trapped
+      pouch while the server works on the next one (~4.2 s live), not between chops. Before: a
+      chop cycle of 9.4 s median against the server's 4.2 s (session 20261004_220218, 62 cycles)
   - Randomness (tree order, waits) comes from the same seeded RNG.
   - Everything added is stock-client traffic or waiting; the agent only ever gets slower or
     less direct.

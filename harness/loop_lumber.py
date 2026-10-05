@@ -383,6 +383,7 @@ class LumberLoop:
         self._sight = {}             # mobile key -> wall time it came into view (note_sightings: react_s)
         self.pops = pouch.PopWatch()   # our trapped pouches going off: ours, or a thief's (check_pouches)
         self._pop_scan = 0           # link.events index folded into self.pops
+        self._pop_since = time.time()  # pops before this run started are another run's (its own set-off)
         self._own_pop_until = 0.0    # monotonic: our own pouch's hit is being acknowledged until then
         self.pouches_used = 0        # this trip: trapped pouches that went off (ours and a thief's)
         self.harvesting = False      # chopping at a stand (work_stand): the keep-away is on
@@ -1140,7 +1141,8 @@ class LumberLoop:
         explosion around us, its sound, or a hue 38 -> 0 on a pouch we never clicked) is a
         thief at our logs: pouch_alarm. Counts this trip's spent pouches (pouches_used)."""
         ev, ts = self.link.events, self.link.event_t
-        new = list(zip(ts[self._pop_scan:], ev[self._pop_scan:]))
+        new = [(t, e) for t, e in zip(ts[self._pop_scan:], ev[self._pop_scan:])
+               if t is None or t >= self._pop_since]
         self._pop_scan = len(ev)
         try:
             pack = self.backpack(st)
@@ -1599,18 +1601,18 @@ class LumberLoop:
         return False
 
     # ------------------------------------------------------------ using the hatchet
-    def use_hatchet(self):
-        """dclick the hatchet; returns the target-cursor event (captchas handled).
-        A hatchet in the pack is reached like a player would: the containers on
-        the way that the server hasn't opened yet are opened first, outermost
-        first (agent_link.containers_to_open, ANTICHEAT.md closed containers).
-        Now and then the human hesitates: cancels the cursor (stock Esc packet)
-        and uses the hatchet again. When the cursor comes, whether the hatchet is now
-        in hand is noted for the trip row (hatchet_worn): the server equips a packed
-        hatchet on the double-click, and every spell cast puts it back in the pack
-        (LUMBER_LOOP.md §13, session 20261003_213125)."""
+    def use_hatchet(self, kind: str = "use", hesitate: bool = True):
+        """dclick the hatchet after a `kind` pause; returns the target-cursor event
+        (captchas handled). A hatchet in the pack is reached like a player would: the
+        containers on the way that the server hasn't opened yet are opened first,
+        outermost first (agent_link.containers_to_open, ANTICHEAT.md closed containers).
+        Outside the harvest cycle (`hesitate`) the human now and then hesitates: cancels
+        the cursor (stock Esc packet) and uses the hatchet again. When the cursor comes,
+        whether the hatchet is now in hand is noted for the trip row (hatchet_worn): the
+        server equips a packed hatchet on the double-click, and every spell cast puts it
+        back in the pack (LUMBER_LOOP.md §13, session 20261003_213125)."""
         for attempt in range(2):
-            self.human.wait("use")
+            self.human.wait(kind)
             st = self.state()
             hatchet = self.hatchet(st, self.want_hatchet)
             closed = containers_to_open(st["world"], hatchet)
@@ -1629,7 +1631,7 @@ class LumberLoop:
             if cur is not None:
                 st = self.link.last or st
                 self.hatchet_worn = in_hand(st["world"], hatchet, self.self_serial(st))
-            if cur is None or attempt == 1 or not self.human.hesitate():
+            if cur is None or attempt == 1 or not hesitate or not self.human.hesitate():
                 return cur
             log("(hesitating: cancelling the cursor)")
             self.human.wait("aim")
@@ -1664,18 +1666,22 @@ class LumberLoop:
         return None
 
     def attempt(self):
-        """One Smart Harvest attempt: use the hatchet and answer its cursor with ourselves
-        (self_target); the server chops a tree within its reach that still has wood →
-        (outcome, logs gained)."""
+        """One Smart Harvest attempt at a Razor script's pace (humanize SCRIPT_MEDIAN; user
+        decision 2026-10-04): use the hatchet ~0.2 s after the last reply and answer its
+        cursor with ourselves at once (self_target); the server chops a tree within its
+        reach that still has wood → (outcome, logs gained). While the server works (~4.2 s
+        live), the last chop's loose logs go into the trapped pouch (stash), so the drag
+        costs no time between chops."""
         st = self.state()
         before = self.count(st, LOGS)
-        cur = self.use_hatchet()
+        cur = self.use_hatchet("chop_use", hesitate=False)
         if cur is None:
             return ("captcha", 0)
-        self.human.wait("aim")
+        self.human.wait("chop_aim")
         st = self.state()
         mark = len(self.link.events)
         self.link.act(self_target(st, cur))
+        stashed = False
         end = time.monotonic() + self.args.attempt_timeout
         while time.monotonic() < end:
             self.state()
@@ -1692,6 +1698,10 @@ class LumberLoop:
                     gained = self.count(st or self.link.state(), LOGS) - before
                     return ("success", max(gained, 0))
                 return out
+            if not stashed:
+                stashed = True
+                self.stash()
+                continue
             time.sleep(0.15)
         return ("none", 0)
 
@@ -1901,14 +1911,11 @@ class LumberLoop:
                         tally["gained"] += n
                     log(f"{where}: {f'+{n} logs' if out == 'success' else 'fail'} "
                         f"({tally['gained']}/{self.args.logs_per_trip}); {self.faced_text(stand, faced, near)}")
-                    if out == "success":                # the new logs into the trapped pouch (chopping time)
-                        c0, w0 = time.monotonic(), self.stats.get("speech_wait_s", 0.0)
-                        self.stash()
-                        self.chopped(c0, w0)
                 elif out in ("nothing_near", "depleted"):
                     rec["end"] = out
                     if out == "depleted":           # the server's pick ran out; which one it was is unknown
                         log(f"{where}: not enough wood here; next stand")
+                        self.stash()
                         return
                     for t in reach:
                         self.memory.harvest_record(self.facet, t["x"], t["y"], t["z"], h(t["graphic"]), "nothing_near")
@@ -1916,6 +1923,7 @@ class LumberLoop:
                             trees.remove(t)
                     log(f"{where}: nothing nearby has wood after {rec['attempts']} attempt(s), {rec['logs']} logs; "
                         f"{len(reach)} tree(s) within {SMART_RANGE} marked out of wood; next stand")
+                    self.stash()
                     return
                 elif out == "lockout":
                     wait = n + self.human.rng.uniform(1.0, 3.0)
@@ -1929,10 +1937,7 @@ class LumberLoop:
                     log(f"{where}: no recognised outcome ({tally['unknown']} in a row)")
                     if tally["unknown"] > 3:
                         raise Abort("harvest attempts keep ending without a known outcome")
-                c0, w0 = time.monotonic(), self.stats.get("speech_wait_s", 0.0)
-                self.human.wait("between")
-                self.human.fidget(self.link, self.link.state(), self.backpack(self.link.state()))
-                self.chopped(c0, w0)
+            self.stash()                       # the last chop's logs (each chop stashes the one before)
             rec["end"] = ("break" if self.break_due else "quota" if tally["gained"] >= self.args.logs_per_trip
                           else "max_attempts")
         except BaseException as e:
