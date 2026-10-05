@@ -7,7 +7,10 @@
 param([int]$Port = 8080, [switch]$Remove)
 
 $name = "uo-harness viz $Port"
-$admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole("Administrator")
+# The enum, not the string "Administrator": IsInRole(string) looks up a group by that name, and
+# the group is BUILTIN\Administrators, so the string form is false even when elevated.
+$admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+    [Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $admin) {
     Write-Error "Run this from an elevated (Administrator) PowerShell."
     exit 1
