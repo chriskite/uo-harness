@@ -724,9 +724,10 @@ class Mover:
         answer ends the walk there (a patrol meeting something to do), and is
         returned. `max_moves`: abort after this many steps; None (the default,
         user decision 2026-10-03) walks as far as the route goes; the replan
-        cap still ends walks that make no progress. `max_route`: a planned route longer than this
-        many steps raises Abort("... detour ...") before a step of it is taken. None when the walk
-        arrived."""
+        cap still ends walks that make no progress. `max_route`: a map-planned route longer than
+        this many steps raises Abort("... detour ...") before a step of it is taken (a walk-memory
+        route keeps to tiles walked before, so its length says nothing about a detour). None when
+        the walk arrived."""
         gate = tuple(gate) if gate is not None else None
         replans = 0
         start_steps = self.steps
@@ -761,7 +762,7 @@ class Mover:
                     self.human.wait("between")
                 continue
             mobile_wait_until = None
-            if max_route is not None and len(path) - 1 > max_route:
+            if max_route is not None and walk is not None and len(path) - 1 > max_route:
                 raise Abort(f"{label}: only a {len(path) - 1}-step detour from {cur} (more than {max_route})")
             log(f"{label}: route {len(path) - 1} steps from {cur}{'' if run else ' (walking)'}"
                 f"{'' if walk is not None else ' [walk memory]'}")

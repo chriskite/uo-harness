@@ -174,6 +174,8 @@ FLEE_ARRIVAL_WAIT_S = 1.5     # after a flight arrives: how long its 500112 may 
 TREE_DETOUR = 3              # a route to a tree may be this many times its Chebyshev distance ...
 TREE_ROUTE_MIN = 30          # ... or this many steps, whichever is more; longer: the next stand (work_stand)
 WALK_HITS_MAX = 2            # hits that cost hits while walking away from a creature: this many, home (hit_verdict)
+ESCAPE_DETOUR = 2            # an escape route may be this many times its goal's distance ...
+ESCAPE_ROUTE_MIN = 12        # ... or this many steps; none of the goals that short: recall home (escape)
 # Thieves (docs/PLAN.md "Keep thieves off the logs"; docs/research/THREATS.md §7 T3): any player this
 # close while harvesting is a suspected thief (they look blue until the steal; the steal needs 1 tile)
 STEAL_GUARD = 2
@@ -266,8 +268,10 @@ def hit_verdict(*, hits, hits_max, recall_at: float, attackers: list, players: l
     could have, hits are below recall_at of max, the walk-away has already taken
     WALK_HITS_MAX hits that cost hits (`walk_hits`, this one included: it outranges the
     walk; live 2026-10-05 a brackish water's -20, -16 on the way, then -44 during the late
-    recall: home at 7/100), it came within rehit_s of arriving from the last walk-away,
-    or no escape is left (a speech hold, ESCAPES_PER_TRIP)."""
+    recall: home at 7/100), the attacker is next to us while we walk away (it caught up:
+    live 2026-10-05 a hoarfrost's -38 at 1 tile, "walking on", dead 2 s later), it came within
+    rehit_s of arriving from the last walk-away, or no escape is left (a speech hold,
+    ESCAPES_PER_TRIP)."""
     if players:
         return f"taking damage with a hostile player in view ({players[0]})"
     if not attackers:
@@ -280,6 +284,8 @@ def hit_verdict(*, hits, hits_max, recall_at: float, attackers: list, players: l
         return f"taking damage, hits {hits}/{hits_max} below {recall_at:.0%}"
     if walking and walk_hits >= WALK_HITS_MAX:
         return f"hit {walk_hits} times while walking away: it outranges the walk-away"
+    if walking and any(0 <= getattr(t, "distance", -1) <= 1 for t in attackers):
+        return "it caught up with us while walking away"
     if walking:
         return None
     if since_run_s is not None and since_run_s <= rehit_s:
@@ -2063,16 +2069,24 @@ class LumberLoop:
         goals = self.escape_tiles(st)
         log(f"ESCAPE {self.escapes}/{ESCAPES_PER_TRIP}: {e.summary}; backing away to {goals[0]}")
         self.mode, self.walk_hits = "escape", 0
+        here = tuple(st["movement"]["pos"][:2])
         try:
             for i, goal in enumerate(goals):
                 self.doing("escape", f"Backing away from {names}", goal)
+                # live 2026-10-05 (witcher_149, a death): a goal 4 tiles away took a 36-step route round a
+                # building and through a door; the hoarfrost caught us on it
+                max_route = max(ESCAPE_ROUTE_MIN, ESCAPE_DETOUR * cheb(here, goal))
                 try:
-                    self.mover.walk_to(lambda: goal, 1, "escape", max_moves=80)
+                    self.mover.walk_to(lambda: goal, 1, "escape", max_moves=80, max_route=max_route)
                     break
                 except Abort as x:
-                    if "no route" not in str(x) or i == len(goals) - 1:
+                    if "no route" not in str(x) and "detour" not in str(x):
                         raise
-                    log(f"escape: no route to {goal}; trying another way")
+                    if i == len(goals) - 1:
+                        st = self.link.state()
+                        a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+                        self.monster_stop(st, a, e.monsters[0], {}, "no short way out of its reach")
+                    log(f"escape: {str(x).split(': ', 1)[-1]}; trying another way")
         finally:
             self.mode = "work"
         self.swingers.clear()                # the swings that caused this escape are dealt with

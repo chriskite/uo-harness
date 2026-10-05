@@ -826,8 +826,13 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     A hit while still walking away, at healthy hits, walks on (`walk_on`); **a second hit that
     costs hits on the same walk-away sends us home** (`WALK_HITS_MAX` 2, since 2026-10-05: at
     witcher_58 a brackish water hit -20, -16 on the way and the recall came only at 64/100, home at
-    7/100). Line of sight isn't used: the map reader has no LOS test yet, so distance alone takes us
-    out of reach.
+    7/100), and so does **a hit from a creature next to us while walking away** (it caught up; at
+    witcher_149 a hoarfrost hit -38 at 1 tile, the runner walked on, Dan died 2 s later). A
+    map-planned escape route longer than max(12, 2 × its goal's distance) is refused (the next
+    goal); none short enough: recall home at once ("no short way out of its reach"; at witcher_149 a
+    goal 4 tiles off took a 36-step route east through a door). Walk-memory routes (no map) keep
+    to tiles walked before and aren't bounded. Line of sight isn't used: the map
+    reader has no LOS test yet, so distance alone takes us out of reach.
   - **No long detours to a tree** (since 2026-10-05, `work_stand`, `Mover.walk_to(max_route=)`): a
     planned route longer than max(30, 3 × the tree's Chebyshev distance) is refused before a step
     and the next stand is tried (the tree isn't marked unreachable). Live at witcher_58 mobiles cut

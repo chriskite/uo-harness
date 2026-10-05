@@ -2341,6 +2341,11 @@ def unit_hit_verdict():
           v(walking=True, since_run_s=1.0, walk_hits=1) is None and v(walking=True, hits=50) is not None)
     check("a second hit that cost hits on the same walk-away: home (it outranges the walk; live brackish water)",
           "while walking away" in (v(walking=True, walk_hits=2) or "") and v(walk_hits=2) is None)
+    near, far = SimpleNamespace(distance=1), SimpleNamespace(distance=9)
+    check("hit by a creature next to us while walking away: home (it caught up; live hoarfrost, a death); one "
+          "farther off: walk on; next to us while chopping: a run",
+          "caught up" in (v(walking=True, walk_hits=1, attackers=[near]) or "")
+          and v(walking=True, walk_hits=1, attackers=[far]) is None and v(attackers=[near]) is None)
     check("escapes used up or a speech hold: home",
           "escapes" in (v(escapes=loop_lumber.ESCAPES_PER_TRIP) or "") and "speech hold" in (v(can_escape=False) or ""))
 

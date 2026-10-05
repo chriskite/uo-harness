@@ -625,6 +625,16 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   the runner recalled home and aborted. [INFERENCE: a house that moves recalls to its door.] Now
   such a rune is remembered as a bad landing and passed over (LUMBER_LOOP.md §13 "Recall travel");
   witcher_55's landing became rune '52' (1729,1881), 63 tiles from the grove.
+- **Death at witcher_149 (run lumber-20261005-140752-f1d8, 14:08, overseer Seer3):** landing DTF rune
+  '154' (3642,315), 77 tiles from the grove. 4 s into the walk a hoarfrost at 7 tiles (3636,304) →
+  ESCAPE to (3647,301), 4 tiles away, but by a **36-step route** east through a door at (3660,302)
+  (two blocked moves at the door, 14:08:24–26) → a second hoarfrost (0x00557536, 14 tiles off at
+  the start) hit -38 at 1 tile, 62/100 → "walking on" → dead at 14:08:28. No recall was tried. The
+  static map plans that escape in 3 steps even with the danger costs (checked offline), so the
+  long route came from what the live walk map adds [INFERENCE: a house multi's walls]. Fixed: a
+  map-planned escape route longer than max(12, 2 × the goal's distance) is refused, and with no
+  short one the runner recalls home at once; a hit from a creature next to us while walking away
+  sends us home (LUMBER_LOOP.md §13). Both hatchets were in the pack and are on the corpse.
 - **The death robe (user, 2026-10-05: take it off after the resurrection):** `ctl act gump <res gump> 1`
   now takes it off once alive. Live 11:05: the worn "death robe" 0x60935864 (graphic 0x1F03, layer
   robe) was lifted (0x1D 43 ms after the 0x07) and dropped into the pack, and it **never came back**:
