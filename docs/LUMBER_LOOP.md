@@ -823,8 +823,16 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     radius, reach) + 2, so 14 tiles from a ranged one, 10 from a melee one), then chops on at a tree
     outside the zone (around the creature and around where it was, for the rest of the trip).
     The damage so far is acknowledged (`threats.Watch.acknowledge`); only new drops count after.
-    A hit while still walking away, at healthy hits, walks on (`walk_on`). Line of sight isn't
-    used: the map reader has no LOS test yet, so distance alone takes us out of reach.
+    A hit while still walking away, at healthy hits, walks on (`walk_on`); **a second hit that
+    costs hits on the same walk-away sends us home** (`WALK_HITS_MAX` 2, since 2026-10-05: at
+    witcher_58 a brackish water hit -20, -16 on the way and the recall came only at 64/100, home at
+    7/100). Line of sight isn't used: the map reader has no LOS test yet, so distance alone takes us
+    out of reach.
+  - **No long detours to a tree** (since 2026-10-05, `work_stand`, `Mover.walk_to(max_route=)`): a
+    planned route longer than max(30, 3 × the tree's Chebyshev distance) is refused before a step
+    and the next stand is tried (the tree isn't marked unreachable). Live at witcher_58 mobiles cut
+    the way to a tree 28 tiles from the landing and the planner sent Dan on a 255-step route
+    through the wilds, into the fen daemon and brackish water above (`test_mover.py` `test_max_route`).
   - **Home instead** (`monster_stop`: recall home with the book when not already at home
     (`home.at_home`), else stop in place; no log conversion either way) on: hits below the threshold, two or
     more possible attackers, damage with nothing in view to blame, a hostile player in view, damage

@@ -600,6 +600,18 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   report (`test_loop_lumber.py` unit `unit_recall_reagents`, failing before). The false `theft` job
   event (907) and juncture 252 were deleted from the memory store so the planner doesn't count a
   theft at witcher_66.
+- **Run 6, nearly a death at witcher_58 (lumber-20261005-133032-d0fe, 13:30–13:31):** landing DTF
+  'Hollow Hills' (1839,2074), 33 tiles from the grove. The first tree was unreachable; the way to the
+  next (28 tiles) was "cut by mobiles we couldn't shove", and 2 s later the planner went round them:
+  **a 255-step route** south through the wilds (riding). A fen daemon at 8 tiles → escape on foot
+  (43 steps); a brackish water (ranged) hit on the way: -0, -0 (spells), -20, -16 → "walking on" each
+  time → recall at 64/100, -44 during the 2.2 s cast, home at 7/100. Fixed: a route to a tree longer
+  than max(30, 3 × its distance) is refused before a step (next stand), and a second hit that costs
+  hits on the same walk-away sends us home (LUMBER_LOOP.md §13 "Running from a creature").
+- **The first overseer shift on the fixed loop (12:14–13:35, Seer-2):** 6 runs, 3 stored: 653 +
+  1142 + 981 = **2776 boards**; Lumberjacking 53.9 → 66.2. The mount rode out every trip after the
+  fixes. Hatchet 0x60CB5AEB down to 163 uses (the trip rows' `uses` 500 is stale: the runner reads the
+  worn hatchet's label only when someone clicks it [INFERENCE: not looked at yet]).
 - **The death robe (user, 2026-10-05: take it off after the resurrection):** `ctl act gump <res gump> 1`
   now takes it off once alive. Live 11:05: the worn "death robe" 0x60935864 (graphic 0x1F03, layer
   robe) was lifted (0x1D 43 ms after the 0x07) and dropped into the pack, and it **never came back**:

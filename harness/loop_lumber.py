@@ -171,6 +171,9 @@ ESCAPES_PER_TRIP = 3          # monster escapes per trip (runs from damage inclu
 PACK_DEPTH_MAX = 16           # container nesting bound when looking for the hatchet
 FLEE_MAX_MOVES = 400          # a guard flight's step bound (guards.FLEE_MAX_DIST tiles and detours)
 FLEE_ARRIVAL_WAIT_S = 1.5     # after a flight arrives: how long its 500112 may still come (data.confirmed)
+TREE_DETOUR = 3              # a route to a tree may be this many times its Chebyshev distance ...
+TREE_ROUTE_MIN = 30          # ... or this many steps, whichever is more; longer: the next stand (work_stand)
+WALK_HITS_MAX = 2            # hits that cost hits while walking away from a creature: this many, home (hit_verdict)
 # Thieves (docs/PLAN.md "Keep thieves off the logs"; docs/research/THREATS.md §7 T3): any player this
 # close while harvesting is a suspected thief (they look blue until the steal; the steal needs 1 tile)
 STEAL_GUARD = 2
@@ -255,13 +258,16 @@ def row_hatchet(start: dict | None, worn_chopping: bool | None) -> dict | None:
 
 def hit_verdict(*, hits, hits_max, recall_at: float, attackers: list, players: list, escapes: int,
                 since_run_s: float | None, rehit_s: float, walking: bool = False,
-                can_escape: bool = True) -> str | None:
+                can_escape: bool = True, walk_hits: int = 0) -> str | None:
     """Damage taken (LUMBER_LOOP.md §13 "Running from a creature"): why it must send
     us home (monster_stop), or None to run from it (walk out of its reach and chop on
     at a stand outside it; while already walking away: walk on). Home when a hostile
     player is in view, nothing in view could have hit us, two or more creatures
-    could have, hits are below recall_at of max, it came within rehit_s of arriving
-    from the last walk-away, or no escape is left (a speech hold, ESCAPES_PER_TRIP)."""
+    could have, hits are below recall_at of max, the walk-away has already taken
+    WALK_HITS_MAX hits that cost hits (`walk_hits`, this one included: it outranges the
+    walk; live 2026-10-05 a brackish water's -20, -16 on the way, then -44 during the late
+    recall: home at 7/100), it came within rehit_s of arriving from the last walk-away,
+    or no escape is left (a speech hold, ESCAPES_PER_TRIP)."""
     if players:
         return f"taking damage with a hostile player in view ({players[0]})"
     if not attackers:
@@ -272,6 +278,8 @@ def hit_verdict(*, hits, hits_max, recall_at: float, attackers: list, players: l
         return "taking damage (hits unknown)"
     if hits < recall_at * hits_max:
         return f"taking damage, hits {hits}/{hits_max} below {recall_at:.0%}"
+    if walking and walk_hits >= WALK_HITS_MAX:
+        return f"hit {walk_hits} times while walking away: it outranges the walk-away"
     if walking:
         return None
     if since_run_s is not None and since_run_s <= rehit_s:
@@ -349,6 +357,7 @@ class LumberLoop:
         self.danger = {}             # serial -> ((x, y), tiles): monsters escaped from this trip and their reach;
         #                              ("was", serial) -> the same around where it was when we escaped (fixed)
         self.run_arrived = None      # time.time() when the last walk-away ended (--creature-rehit-s)
+        self.walk_hits = 0           # hits that cost hits during the current walk-away (hit_verdict walk_hits)
         self.creature = self.new_creature_tally()   # this trip's creature cost: the episode row's `creature`
         self.avoided = set()         # (tree, creature serial) pairs logged as left alone (next_stand)
         self.swingers = {}           # attacker serial -> time of its latest swing or spell at us since the last escape
@@ -661,13 +670,16 @@ class LumberLoop:
         me = st["world"]["self"]
         hits, hmax = me.get("hits"), me.get("hits_max")
         walking = self.mode == "escape"
+        lost = a.damage["lost"]
+        if walking and lost > 0:
+            self.walk_hits += 1
         since_run = None if self.run_arrived is None else round(time.time() - self.run_arrived, 1)
         players = [t.name or f"0x{t.serial:08X}" for t in a.threats if t.player and t.hostile and t.distance >= 0]
         why = hit_verdict(hits=hits, hits_max=hmax, recall_at=self.args.creature_recall_at, attackers=attackers,
                           players=players, escapes=self.escapes, since_run_s=since_run,
-                          rehit_s=self.args.creature_rehit_s, walking=walking, can_escape=escape)
+                          rehit_s=self.args.creature_rehit_s, walking=walking, can_escape=escape,
+                          walk_hits=self.walk_hits if walking else 0)
         worst = attackers[0] if attackers else (monsters[0] if monsters else None)
-        lost = a.damage["lost"]
         self.creature["hits"] += 1
         self.creature["hits_lost"] += lost
         hit = {"body": worst.body if worst else None, "name": worst.name if worst else None,
@@ -1870,12 +1882,19 @@ class LumberLoop:
         self.doing("to_tree", f"Heading to the trees at {spot[0]},{spot[1]} ({quota})", spot)
         z_ok = self.tree_z_ok(tree)
         walk0 = time.monotonic()
+        here = tuple(self.link.pos(self.link.state())[:2])
+        # live 2026-10-05 (witcher_58, near death): mobiles cut the way 28 tiles to a tree and the
+        # planner sent us on a 255-step detour through the wilds into a fen daemon and a brackish water
+        max_route = max(TREE_ROUTE_MIN, TREE_DETOUR * cheb(here, spot))
         try:
             if "stand" in tree:
-                self.mover.walk_to(lambda: tree["stand"], 0, f"to {label}", z_ok=z_ok)
+                self.mover.walk_to(lambda: tree["stand"], 0, f"to {label}", z_ok=z_ok, max_route=max_route)
             else:
-                self.mover.walk_to(lambda: (tree["x"], tree["y"]), 1, f"to {label}", z_ok=z_ok)
+                self.mover.walk_to(lambda: (tree["x"], tree["y"]), 1, f"to {label}", z_ok=z_ok, max_route=max_route)
         except Abort as e:
+            if "detour" in str(e):
+                log(f"{label}: {str(e).split(': ', 1)[-1]}; trying the next stand")
+                return
             if "no route" not in str(e):
                 raise
             self.memory.harvest_record(self.facet, tree["x"], tree["y"], tree["z"], h(tree["graphic"]), "unreachable")
@@ -2043,7 +2062,7 @@ class LumberLoop:
         names = ", ".join(t.name or f"0x{t.serial:08X}" for t in e.monsters)
         goals = self.escape_tiles(st)
         log(f"ESCAPE {self.escapes}/{ESCAPES_PER_TRIP}: {e.summary}; backing away to {goals[0]}")
-        self.mode = "escape"
+        self.mode, self.walk_hits = "escape", 0
         try:
             for i, goal in enumerate(goals):
                 self.doing("escape", f"Backing away from {names}", goal)

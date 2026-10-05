@@ -2336,8 +2336,11 @@ def unit_hit_verdict():
     check("a hostile player in view: home", "hostile player" in (v(players=["Bastet"]) or ""))
     check("again 10 s after arriving from a walk-away: home; 11 s: a new run",
           "still taking damage" in (v(since_run_s=10.0) or "") and v(since_run_s=11.0) is None)
-    check("while walking away: walk on (even right after the last arrival); low hits still home",
-          v(walking=True, since_run_s=1.0) is None and v(walking=True, hits=50) is not None)
+    check("while walking away: walk on after one hit that cost hits (even right after the last arrival); low hits "
+          "still home",
+          v(walking=True, since_run_s=1.0, walk_hits=1) is None and v(walking=True, hits=50) is not None)
+    check("a second hit that cost hits on the same walk-away: home (it outranges the walk; live brackish water)",
+          "while walking away" in (v(walking=True, walk_hits=2) or "") and v(walk_hits=2) is None)
     check("escapes used up or a speech hold: home",
           "escapes" in (v(escapes=loop_lumber.ESCAPES_PER_TRIP) or "") and "speech hold" in (v(can_escape=False) or ""))
 
