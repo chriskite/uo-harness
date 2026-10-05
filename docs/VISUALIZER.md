@@ -511,6 +511,11 @@ A **Paperdoll** panel in the left column shows the character as the game's paper
   state: body gump 12/13 with the skin hue, then each worn item's paperdoll gump from the item
   data, in the classic paperdoll layer order, hued like the client (partial hues only on grey
   pixels). The mount isn't drawn.
+- The gump layout puts the figure off-centre on the 260x237 canvas (body art spans x 42-138,
+  backpack x 124-161), so `Paperdoll.centered()` moves the opaque pixels' bounding box (figure
+  + pack) to the canvas centre before encoding (2026-10-04, user request). The canvas size is
+  unchanged, so the panel's fixed width/height stay valid. The box follows the worn gear, so a
+  shield or weapon can shift the image a few px.
 - The art comes read-only from the install dir: `gumps.uoo` and `hues.mul`, formats in
   docs/MAP.md.
 - Renders are cached per body, hue and gear (about 0.02 s uncached). The panel refetches only

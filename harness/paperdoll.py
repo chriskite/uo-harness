@@ -127,6 +127,38 @@ class Paperdoll:
                     out[o:o + 4] = bgra
         return W, H, bytes(out)
 
+    @staticmethod
+    def centered(w: int, h: int, bgra: bytes) -> bytes:
+        """The same canvas with the opaque pixels' bounding box (character + backpack)
+        moved to its centre; the client's gump layout leaves the figure off to one side."""
+        cols = [False] * w
+        rows = [h, -1]
+        for y in range(h):
+            row = bgra[y * w * 4:(y + 1) * w * 4]
+            if not any(row[3::4]):
+                continue
+            rows[0] = min(rows[0], y)
+            rows[1] = y
+            for x, a in enumerate(row[3::4]):
+                if a:
+                    cols[x] = True
+        if rows[1] < 0:
+            return bgra
+        x0 = cols.index(True)
+        x1 = w - 1 - cols[::-1].index(True)
+        dx = (w - (x1 - x0 + 1)) // 2 - x0
+        dy = (h - (rows[1] - rows[0] + 1)) // 2 - rows[0]
+        if dx == 0 and dy == 0:
+            return bgra
+        out = bytearray(len(bgra))
+        for y in range(max(0, rows[0] + dy), min(h, rows[1] + dy + 1)):
+            src = bgra[(y - dy) * w * 4:(y - dy + 1) * w * 4]
+            if dx >= 0:
+                out[y * w * 4 + dx * 4:(y + 1) * w * 4] = src[:(w - dx) * 4]
+            else:
+                out[y * w * 4:(y + 1) * w * 4 + dx * 4] = src[-dx * 4:]
+        return bytes(out)
+
     def png(self, body: int, skin_hue: int, equipment) -> bytes:
         key = (body, skin_hue, tuple(sorted((layer, g, h) for layer, g, h in equipment)))
         hit = self._renders.get(key)
@@ -134,6 +166,7 @@ class Paperdoll:
             self._renders.move_to_end(key)
             return hit
         w, h, bgra = self.compose(self.layers(body, skin_hue, equipment))
+        bgra = self.centered(w, h, bgra)
         data = png_bytes(w, h, bgra, alpha=True)
         self._renders[key] = data
         if len(self._renders) > RENDER_CACHE:

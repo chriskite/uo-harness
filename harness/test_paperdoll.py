@@ -92,6 +92,18 @@ def main():
     a = pd.png(0x190, 0, [(0x16, 0x1F03, 0)])
     check("renders are cached by body, hue and gear", pd.png(0x190, 0, [(0x16, 0x1F03, 0)]) is a
           and a[:8] == b"\x89PNG\r\n\x1a\n")
+    # 8x4 canvas, opaque 2x1 block at x=0..1,y=0 -> centred at x=3..4,y=1 (odd slack rounds down)
+    canvas = bytearray(8 * 4 * 4)
+    canvas[0:8] = bytes([1, 2, 3, 255, 4, 5, 6, 255])
+    moved = paperdoll.Paperdoll.centered(8, 4, bytes(canvas))
+    check("content bounding box is centred in the canvas",
+          px(8, 4, moved, 3, 1) == (1, 2, 3, 255) and px(8, 4, moved, 4, 1) == (4, 5, 6, 255)
+          and px(8, 4, moved, 0, 0) == (0, 0, 0, 0) and len(moved) == len(canvas))
+    right = bytearray(8 * 4 * 4)
+    right[(3 * 8 + 6) * 4:(3 * 8 + 8) * 4] = bytes([1, 2, 3, 255, 4, 5, 6, 255])
+    moved = paperdoll.Paperdoll.centered(8, 4, bytes(right))
+    check("content right/below centre moves left/up",
+          px(8, 4, moved, 3, 1) == (1, 2, 3, 255) and px(8, 4, moved, 4, 1) == (4, 5, 6, 255))
 
     print("== from_state ==")
     st = {"world": {"self": {"serial": "0x00094375", "body": 0x190, "stats": {"hue": 0x83EA}},
