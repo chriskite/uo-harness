@@ -2433,7 +2433,8 @@ class LumberLoop:
             walk = self.mover.walkers.get(self.facet) if self.mover.use_map else None
             routes, new = lumber_opt.landing_routes(self.memory), {}
             ok = lumber_opt.make_route_ok(lumber_opt.make_route_fn(walk) if walk is not None else None, routes, new)
-            self.out_landing = lumber_opt.landing_for(spot, self.home, self.books, route_ok=ok)
+            self.out_landing = lumber_opt.landing_for(spot, self.home, self.books, route_ok=ok,
+                                                      bad=lumber_opt.bad_landings(self.memory))
             lumber_opt.save_landing_routes(self.memory, new)
         return self.out_landing
 
@@ -2503,7 +2504,9 @@ class LumberLoop:
         if to is None or cheb(to, (row["x"], row["y"])) > LANDING_SLACK:
             why = (f"the recall to {row['name']!r} from {where} landed at {to}, not by its tile "
                    f"({row['x']},{row['y']})")
-            log(f"{why}: recalling home")
+            if to is not None:                   # passed over from now on (plans, runs): lumber_opt.bad_landings
+                lumber_opt.mark_bad_landing(self.memory, row, self.facet, to)
+            log(f"{why}: recalling home; no more trips by this landing")
             try:
                 self.go_home()
             except Abort as e:

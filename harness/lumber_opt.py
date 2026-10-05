@@ -125,6 +125,7 @@ UNWORKABLE_DAYS = 7.0             # ... for this long, then gets one more try
 # no tree we can reach, harvesting answered by something the runner doesn't know (a town region)
 PLACE_FAILURES = ("no harvestable tree", "without a known outcome")
 ROUTES_META = "lumber_landing_routes"   # memory meta: {landing>grove key: route tiles or null} (landing_routes)
+BAD_LANDINGS_META = "lumber_bad_landings"  # memory meta: {facet:x,y: {name, landed, t}} (mark_bad_landing)
 
 
 # ------------------------------------------------------------------ small helpers
@@ -190,21 +191,49 @@ def spot_knowledge(know: dict, spot: dict) -> dict:
 
 
 # ------------------------------------------------------------------ the way out: landings
-def landing_for(spot: dict, home: dict | None, books=(), route_ok=None) -> dict | None:
+def landing_for(spot: dict, home: dict | None, books=(), route_ok=None, bad=()) -> dict | None:
     """The landing a trip to `spot` recalls to (user decision 2026-10-04: always as
     close to the grove as we can): the first places.landings row nearest the area's
     centre, from the rune library at home (home.libraries: trips start at home and
     reach its tomes on foot) and the character's own books (places.known_books), dangerous
-    landings left out, for which route_ok(row, spot) holds (a walking route from the
+    landings left out, and those in `bad` (landing_key: a recall to them landed elsewhere,
+    bad_landings), for which route_ok(row, spot) holds (a walking route from the
     landing into the grove; None: no check). None when no landing qualifies."""
     import home as homes
     import places
     (cx, cy) = spot["area"]["center"]
-    for row in places.landings(cx, cy, int(spot.get("facet") or 0), libraries=homes.libraries(home),
-                               books=books):
+    facet = int(spot.get("facet") or 0)
+    for row in places.landings(cx, cy, facet, libraries=homes.libraries(home), books=books):
+        if landing_key(row, facet) in bad:
+            continue
         if route_ok is None or route_ok(row, spot):
             return row
     return None
+
+
+def landing_key(row: dict, facet: int) -> str:
+    """A landing's key in BAD_LANDINGS_META: its facet and the rune's tile."""
+    return f"{facet}:{row['x']},{row['y']}"
+
+
+def bad_landings(memory) -> dict:
+    """{landing_key: {name, landed, t}}: runes whose recall landed away from their tile
+    (loop_lumber.go_out, beyond LANDING_SLACK; live 2026-10-05 the DTF rune "Jonny's House"
+    (1817,1865) landed at (1809,1871): a house that puts recalls outside [INFERENCE])."""
+    import task_wrap
+    try:
+        got = json.loads(task_wrap.meta_get(memory, BAD_LANDINGS_META) or "{}")
+    except ValueError:
+        return {}
+    return got if isinstance(got, dict) else {}
+
+
+def mark_bad_landing(memory, row: dict, facet: int, landed):
+    """Remember that the recall to `row` landed at `landed`, not by its tile: plans and runs pass it over."""
+    import task_wrap
+    entry = {"name": row.get("name"), "landed": list(landed) if landed else None, "t": round(time.time(), 1)}
+    task_wrap.meta_update_json(memory, BAD_LANDINGS_META,
+                               lambda cur: ({**(cur or {}), landing_key(row, facet): entry}, None), {})
 
 
 def landing_view(row: dict | None) -> dict | None:
@@ -1354,6 +1383,7 @@ def spot_landings(memory, spots: dict, home: dict, books=(), route_check: bool =
     and cached. route_check False (the dashboard) or no map: cached answers only, an
     unplanned landing taken unchecked. Other spots: the nearest landing, unchecked."""
     routes, new, oks, out = landing_routes(memory), {}, {}, {}
+    bad = bad_landings(memory)
     for sid, s in spots.items():
         try:
             check_spot(s)
@@ -1367,7 +1397,7 @@ def spot_landings(memory, spots: dict, home: dict, books=(), route_check: bool =
                 walk = _walk(facet) if route_check else None
                 oks[facet] = make_route_ok(None if walk is None else make_route_fn(walk), routes, new)
             route_ok = oks[facet]
-        row = landing_for(s, home, books, route_ok)
+        row = landing_for(s, home, books, route_ok, bad)
         if row is not None:
             key = route_key(row, s)
             row = {**row, "route_tiles": routes.get(key), "route_checked": key in routes}

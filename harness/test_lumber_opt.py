@@ -501,6 +501,9 @@ def test_landings():
     check("no own rune with a route: the home library's nearest (DTF)", lib["source"] == "library"
           and lib["library"] == "dtf" and lib["dist"] > 3, lib)
     check("nothing reachable: None", lo.landing_for(s, HOME, books, lambda row, sp: False) is None)
+    bad = {lo.landing_key(got, 0)}
+    check("a landing remembered as bad (its recall put us elsewhere): the next nearest",
+          lo.landing_for(s, HOME, books, bad=bad)["name"] == "Grove B", bad)
     check("the home in harness/data/homes.json is this one; it recalls out from its own library only",
           homes.for_character("outland dan") == HOME and homes.libraries(HOME) == ["dtf"])
 
@@ -548,6 +551,9 @@ def test_landings():
     lo.save_landing_routes(mem, {"0:1,1>2,2,3": 5})
     check("routes are cached in the memory store, merged", lo.landing_routes(mem) == {**new, "0:1,1>2,2,3": 5},
           lo.landing_routes(mem))
+    lo.mark_bad_landing(mem, {"name": "Jonny's House", "x": 1817, "y": 1865}, 0, (1809, 1871))
+    check("a bad landing is kept in the memory store by facet and tile, with where we landed",
+          lo.bad_landings(mem).get("0:1817,1865", {}).get("landed") == [1809, 1871], lo.bad_landings(mem))
     mem.close()
 
 

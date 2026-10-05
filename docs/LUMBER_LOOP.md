@@ -1094,7 +1094,9 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   `escape.escape(tome, rune=name)`: a shared charge, else our spell, up to 2 casts; an own-book row
   recalls where we stand, by the rune's index in the book (`entry`: two runes may share a name). A
   landing more than LANDING_SLACK (3) tiles from the chosen rune's tile is wrong: the runner recalls
-  home and aborts. Own-runebook runes count only on the map their name hue says (81 = facet 0);
+  home, aborts, and remembers the rune as a bad landing (memory meta `lumber_bad_landings`, by facet
+  and tile, since 2026-10-05: DTF "Jonny's House" (1817,1865) put Dan at (1809,1871)); plans and runs
+  pass it over (`lumber_opt.landing_for(bad=)`). Own-runebook runes count only on the map their name hue says (81 = facet 0);
   tome runes carry no facet and count as facet 0. Home is a recall on the own book's default rune
   (skipped within 60 tiles of the landing; a default rune that shows no tile doesn't count as the
   way home), then the room. Both legs are `travel` job events (`leg` out/home, the recall
