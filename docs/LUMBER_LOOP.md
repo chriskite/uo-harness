@@ -689,6 +689,16 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
      landing tile; remembered for `lumber plan` by `places.remember_book`) and takes the one whose
      default rune lands at home (`home.at_home`) with a charge or a castable Recall as the way home
      and red escape (`prepare_recall`, required for every spot; `--recall off` is gone).
+  1a. **Resupply** (since 2026-10-05, user; `resupply_home`, `--resupply on|off`, default on): before
+     each trip at home, the loadout is topped up from the Storage Shelf (`harness/shelf.py`, the same
+     flow as `ctl act resupply`; docs/NOTES.md "Storage shelves"): in the room its shelf first; when
+     that one lacks something ("No resupply: …", or "Unable to resupply: no items available."), out of
+     the room (the trip goes that way anyway) and the shelf by the landing (Outland Dan: the DTF guild
+     house's, the secured one on its tile skipped). A shelf that fails is logged and passed over; what
+     each gave and lacked is the trip row's `resupply` [{where, shelf, s, added, missing,
+     none_available}]. Then the trapped-pouch check (`pouch_ready`): still none, a `low_supplies`
+     juncture, back into the room, exit 1. Offline: `test_loop_lumber.py` scenarios `resupply` (the
+     room's shelf empty, the landing's gives 3 pouches, the trip goes) and `no_pouch` (both empty).
   2. **Out** (`go_out`): in the room, out through its door (`room.leave`, the home's exit). Unless
      already at the grove (its area + 10) or no farther from it than the landing, recall to the
      landing (`lumber_opt.landing_for`, chosen once a run; the route check plans on the map with the

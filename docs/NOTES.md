@@ -512,6 +512,15 @@ Wiki: [Storage Shelf](https://wiki.uooutlands.com/Storage_Shelf). Fixtures:
   pouch went into the room chest: the room shelf said "Unable to resupply: no items available.",
   the DTF shelf gave it back. `act resupply` took 4.9 s at the DTF shelf (no walk); the shelf's
   answer is its lines, then the shelf's gump again (closed with 0).
+- **The lumber runner resupplies itself (since 2026-10-05):** before every trip at home, the room's
+  shelf, then (it lacked something) out of the room and the landing's shelf (LUMBER_LOOP §13 "Trip"
+  1a). Live 10:07 (task `lumber-20261005-100749-ece4`): the room's shelf "nothing to give" (3.2 s),
+  out of the room, the DTF shelf "nothing to give" (Dan's pack already held the loadout but the
+  hatchets), then the trip as before: 101 boards into the chest, exit 0 in the room.
+- **A lift right after the hatchet's double-click is refused:** in that trip one stash (the chop's
+  logs into the trapped pouch during the next chop) came 0.47 s after the hatchet's double-click
+  and got "You must wait to perform another action." (cliloc 500119); the logs stayed loose until the
+  next chop's stash. The stash now waits STASH_AFTER_S (0.8 s) after the chop's target.
 
 ## First live room-storage trip (2026-10-04, Outland Dan)
 

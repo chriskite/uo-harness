@@ -243,7 +243,8 @@ The runners report what they are trying to do right now on the proxy's state por
     - Any other intent, or a clear, closes the previous entry with `until`.
     - In the e2e run, 38 updates made 26 entries. The replay reproduces them exactly.
 - **Kinds (lumber loop):**
-  - `leave_room`, `to_library`, `recall_out`, `to_tree`, `chop` (text carries the log count),
+  - `resupply` (the storage shelf before a trip, since 2026-10-05), `leave_room`, `to_library`,
+    `recall_out`, `to_tree`, `chop` (text carries the log count),
     `captcha` (the previous intent is restored afterwards), `lockout`, `track`, `aspect`
   - `recall_home`, `to_room` (walk to the landing, then "Going into the rental room via …"),
     `convert`, `store` (into the room's chest) (since 2026-10-04; the bank era's were `to_bank`,

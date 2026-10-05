@@ -123,6 +123,7 @@ import combat  # noqa: E402
 import tracking  # noqa: E402
 import pouch  # noqa: E402
 import aspects  # noqa: E402
+import shelf as shelf_mod  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 NEXT_STAND_PLANS = 6          # nearest trees (straight line) whose stands next_stand() compares
@@ -139,6 +140,9 @@ SURVEY_R = 6                  # trees within this many tiles of a stand go into 
 DIR_NAMES = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 AT_GROVE = 10                 # tiles beyond the area's radius that count as being at the grove already (no travel)
 LANDING_SLACK = 3             # tiles from the chosen rune's tile a recall out may land (live: on the tile) before it is wrong
+# the stash's lift waits this long after the chop's target (live 2026-10-05 10:09:30: a lift 0.47 s after the
+# hatchet's double-click got "You must wait to perform another action." and the logs stayed loose)
+STASH_AFTER_S = 0.8
 KEEPER_SEARCH = 18            # tiles around us whose human NPCs are clicked to find the house steward
 KEEPER_CLICKS = 12
 CHEST_REACH = 2               # tiles from the home chest to drop into it [INFERENCE: RunUO's 2-tile item reach]
@@ -358,6 +362,8 @@ class LumberLoop:
         self.home_name = None        # the character's name it is keyed by
         self.books = []              # our own runebooks / rune tomes as read at the start (escape.read_book)
         self.out_landing = None      # the landing trips recall to (lumber_opt.landing_for), chosen once a run
+        self.pending_resupply = None   # this trip's resupply at home (resupply_home), for its trip row
+        self.pre_trip = None         # (time, mover steps, blocked) when resupply_home began this trip
         self.aspect_hue = aspects.HARVEST_HUE   # worn armor in this hue counts as Harvest-aspected (aspect_ensure)
         self.aspect_warned = set()   # aspect problems already posted as a juncture this run
         self._attack_scan = 0        # link.events index scanned for "... is attacking you!"
@@ -384,6 +390,7 @@ class LumberLoop:
         self.pops = pouch.PopWatch()   # our trapped pouches going off: ours, or a thief's (check_pouches)
         self._pop_scan = 0           # link.events index folded into self.pops
         self._pop_since = time.time()  # pops before this run started are another run's (its own set-off)
+        self._stash_due = None       # monotonic: when the last chop's stash may lift (attempt, stash_now)
         self._own_pop_until = 0.0    # monotonic: our own pouch's hit is being acknowledged until then
         self.pouches_used = 0        # this trip: trapped pouches that went off (ours and a thief's)
         self.harvesting = False      # chopping at a stand (work_stand): the keep-away is on
@@ -1670,8 +1677,10 @@ class LumberLoop:
         decision 2026-10-04): use the hatchet ~0.2 s after the last reply and answer its
         cursor with ourselves at once (self_target); the server chops a tree within its
         reach that still has wood → (outcome, logs gained). While the server works (~4.2 s
-        live), the last chop's loose logs go into the trapped pouch (stash), so the drag
-        costs no time between chops."""
+        live), the last chop's loose logs go into the trapped pouch (stash; STASH_AFTER_S after
+        the target: a lift sooner after the hatchet's use is refused), so the drag costs no time
+        between chops; a reply quicker than that stashes after it."""
+        self._stash_due = None                       # this chop's stash covers anything left loose
         st = self.state()
         before = self.count(st, LOGS)
         cur = self.use_hatchet("chop_use", hesitate=False)
@@ -1681,6 +1690,7 @@ class LumberLoop:
         st = self.state()
         mark = len(self.link.events)
         self.link.act(self_target(st, cur))
+        stash_at = time.monotonic() + STASH_AFTER_S   # the server's action delay after the hatchet's use
         stashed = False
         end = time.monotonic() + self.args.attempt_timeout
         while time.monotonic() < end:
@@ -1693,12 +1703,14 @@ class LumberLoop:
                 continue
             out = self.outcome(mark)
             if out is not None:
+                gained = 0
                 if out[0] == "success":
                     st = self.wait_for(lambda s: self.count(s, LOGS) > before, 3.0)
-                    gained = self.count(st or self.link.state(), LOGS) - before
-                    return ("success", max(gained, 0))
-                return out
-            if not stashed:
+                    gained = max(self.count(st or self.link.state(), LOGS) - before, 0)
+                if not stashed:              # a quick reply: stash_due drags after it's recorded,
+                    self._stash_due = stash_at   # past the server's action delay
+                return ("success", gained) if out[0] == "success" else out
+            if not stashed and time.monotonic() >= stash_at:
                 stashed = True
                 self.stash()
                 continue
@@ -1911,11 +1923,15 @@ class LumberLoop:
                         tally["gained"] += n
                     log(f"{where}: {f'+{n} logs' if out == 'success' else 'fail'} "
                         f"({tally['gained']}/{self.args.logs_per_trip}); {self.faced_text(stand, faced, near)}")
+                    if self._stash_due is not None:      # the reply beat the stash: drag them now
+                        c0, w0 = time.monotonic(), self.stats.get("speech_wait_s", 0.0)
+                        self.stash_now()
+                        self.chopped(c0, w0)
                 elif out in ("nothing_near", "depleted"):
                     rec["end"] = out
                     if out == "depleted":           # the server's pick ran out; which one it was is unknown
                         log(f"{where}: not enough wood here; next stand")
-                        self.stash()
+                        self.stash_now()
                         return
                     for t in reach:
                         self.memory.harvest_record(self.facet, t["x"], t["y"], t["z"], h(t["graphic"]), "nothing_near")
@@ -1923,7 +1939,7 @@ class LumberLoop:
                             trees.remove(t)
                     log(f"{where}: nothing nearby has wood after {rec['attempts']} attempt(s), {rec['logs']} logs; "
                         f"{len(reach)} tree(s) within {SMART_RANGE} marked out of wood; next stand")
-                    self.stash()
+                    self.stash_now()
                     return
                 elif out == "lockout":
                     wait = n + self.human.rng.uniform(1.0, 3.0)
@@ -1937,7 +1953,7 @@ class LumberLoop:
                     log(f"{where}: no recognised outcome ({tally['unknown']} in a row)")
                     if tally["unknown"] > 3:
                         raise Abort("harvest attempts keep ending without a known outcome")
-            self.stash()                       # the last chop's logs (each chop stashes the one before)
+            self.stash_now()                   # the last chop's logs (each chop stashes the one before)
             rec["end"] = ("break" if self.break_due else "quota" if tally["gained"] >= self.args.logs_per_trip
                           else "max_attempts")
         except BaseException as e:
@@ -2087,6 +2103,14 @@ class LumberLoop:
         return goals
 
     # ------------------------------------------------------------ the trapped pouch
+    def stash_now(self):
+        """stash, past the server's action delay when the last chop's reply came before attempt()
+        could stash (_stash_due: a lift sooner after the hatchet's use is refused)."""
+        if self._stash_due is not None:
+            time.sleep(max(0.0, self._stash_due - time.monotonic()))
+            self._stash_due = None
+        return self.stash()
+
     def stash(self, graphics=LOGS) -> int:
         """Drag the wood lying directly in the backpack (a chop's new logs) into the trapped
         pouch (log_pouch; docs/PLAN.md "Keep thieves off the logs"), with the stock lift and
@@ -2138,9 +2162,10 @@ class LumberLoop:
 
     def pouch_ready(self, st):
         """A trip carries its logs in a live trapped pouch, and uses one up (unpack, in the
-        rental room). Without one: an attention `low_supplies` juncture (item 'trapped pouch') and
-        the run stops before the trip; the overseer buys them at a provisioner (`ctl act buy
-        <provisioner> trapped pouch --amount N`; Errol, 25 gp)."""
+        rental room). Checked after resupply_home topped the loadout up from the shelves: still
+        none (the shelves had none), an attention `low_supplies` juncture (item 'trapped pouch')
+        and the run stops before the trip; the overseer tells the user, or buys some at a
+        provisioner (`ctl act buy <provisioner> trapped pouch --amount N`; Errol, 25 gp)."""
         pp = pouch.pack_pouches(st["world"], self.backpack(st))
         live = [s for s, p in pp.items() if p["live"]]
         if live:
@@ -2235,6 +2260,66 @@ class LumberLoop:
         if not res["ok"]:
             raise Abort(f"leaving the rental room: {res.get('error')}")
         log(f"left the rental room to {res['exit']} at {res['pos']} (facet {res['facet']})")
+
+    def resupply_home(self):
+        """Before each trip, at home (user, 2026-10-05; docs/NOTES.md "Storage shelves"): the
+        loadout topped up from the Storage Shelf (shelf.resupply, the same flow as `ctl act
+        resupply`). In the rental room its shelf first; when that leaves something out ("No
+        resupply: …" or nothing available), out of the room (the trip goes that way anyway) and
+        the shelf by the landing (Outland Dan: the DTF guild house's, 2 tiles off). A shelf that
+        fails is logged and passed over: pouch_ready still decides whether the trip can go.
+        What each shelf gave and lacked goes into the trip row (`resupply`)."""
+        if self.args.resupply == "off":
+            return
+        st = self.state()
+        if not self.at_home(st):
+            log("resupply: not at home; the run goes on with what we carry")
+            return
+        done = []
+        if home_mod.in_room(self.facet_now(st), self.home):
+            res = self.resupply_here("room")
+            if res is not None:
+                done.append(res)
+                if not res.get("error") and not res["missing"] and not res["none_available"]:
+                    self.pending_resupply = done
+                    return
+            self.leave_room()
+        res = self.resupply_here("landing")
+        if res is not None:
+            done.append(res)
+        self.pending_resupply = done or None
+
+    def resupply_here(self, where: str) -> dict | None:
+        """shelf.resupply from the nearest usable storage shelf in view (None: no shelf here)."""
+        st = self.state()
+        found = shelf_mod.find_shelves(st)
+        if not found:
+            log(f"resupply: no storage shelf in view ({where})")
+            return None
+        self.doing("resupply", f"Resupplying from the storage shelf ({where})")
+        t0 = time.monotonic()
+        try:
+            res = shelf_mod.resupply(escape_mod.LinkIO(self.link), self.human, walk=self.walk_to_item)
+        except shelf_mod.ShelfError as e:
+            log(f"resupply ({where}): {e}")
+            return {"where": where, "error": str(e), "s": round(time.monotonic() - t0, 1)}
+        got = shelf_mod.summary(res["added"])
+        log(f"resupplied ({where}) from {res['shelf']}: {got}"
+            + (f"; the shelf lacks {', '.join(res['missing'])}" if res["missing"] else "")
+            + ("; it had nothing to give" if res["none_available"] else ""))
+        return {"where": where, "shelf": res["shelf"], "s": round(time.monotonic() - t0, 1),
+                "added": [{"name": x["name"], "amount": x["amount"], "graphic": x["graphic"], "hue": x["hue"]}
+                          for x in res["added"]],
+                "missing": res["missing"], "none_available": res["none_available"],
+                **({} if res["ok"] else {"error": res.get("error")})}
+
+    def walk_to_item(self, serial: int, rng: int):
+        """shelf.resupply's walker: within `rng` of a ground item (guarded Mover)."""
+        it = self.link.state()["world"]["items"].get(f"0x{serial:08X}") or {}
+        if it.get("x") is None:
+            raise Abort(f"the item 0x{serial:08X} isn't in view")
+        xy = (it["x"], it["y"])
+        self.mover.walk_to(lambda: xy, rng, "to the storage shelf")
 
     def landing(self) -> dict | None:
         """The landing trips recall to, chosen once a run (lumber_opt.landing_for, as `ctl lumber
@@ -2522,12 +2607,15 @@ class LumberLoop:
         stashes the loose logs in the pouch first when that's safe (salvage). Every trip
         leaves an episode row, an aborted one too (outcome 'aborted' + why): leaving those
         out would flatter exactly the spots where trips get cut short."""
-        self.stats = {}
+        self.stats = {"resupply": self.pending_resupply} if self.pending_resupply else {}
+        self.pending_resupply = None
         self.trip_n = n
         self.escapes, self.danger = 0, {}
         self.mover.danger = {}
         self.run_arrived, self.creature, self.avoided = None, self.new_creature_tally(), set()
-        t0, s0, b0 = time.time(), self.mover.steps, self.mover.blocked_count
+        # the trip began with resupply_home (run): its time and steps are the trip's overhead too
+        t0, s0, b0 = self.pre_trip or (time.time(), self.mover.steps, self.mover.blocked_count)
+        self.pre_trip = None
         self.trip_t0 = t0
         self.timing = {"walk_out_s": None, "chop_s": 0.0, "tree_walk_s": 0.0, "lockout_s": 0.0, "stationary_s": 0.0}
         self.travel, self.players_seen, self.hatchet_worn = [], {}, None
@@ -2641,7 +2729,7 @@ class LumberLoop:
             self.mode = "salvage"
             if self.log_pouch(st) is not None:
                 log(f"keeping the carried logs in the trapped pouch before stopping ({e})")
-                self.stash()
+                self.stash_now()
                 return
             log(f"converting the carried logs before stopping ({e})")
             self.convert()
@@ -2683,7 +2771,14 @@ class LumberLoop:
         # routes bend around where hostile creatures were seen lately (travel_guard)
         self.mover.danger_tiles = travel_guard.remembered_tiles(self.memory, self.facet, self.link.pos(st)[:2])
         for n in range(1, self.args.trips + 1):
-            self.pouch_ready(self.link.state())     # a trip uses a trapped pouch up: none left, no trip
+            self.trip_n = n                          # intents from here on are this trip's
+            self.pre_trip = (time.time(), self.mover.steps, self.mover.blocked_count)
+            self.resupply_home()                    # the loadout from the storage shelf at home
+            try:
+                self.pouch_ready(self.link.state())  # a trip uses a trapped pouch up: none left, no trip
+            except Abort:
+                self.back_in_room()
+                raise
             self.trip(n)
             if self.break_due:
                 log(f"break due: boards stored after trip {n}; stopping for the break (ctl break)")
@@ -2691,6 +2786,16 @@ class LumberLoop:
                 return
         log(f"loop complete: {self.args.trips} trip(s); waiting in the rental room")
         self.doing("done", f"Finished: {self.args.trips} trip(s); waiting in the rental room")
+
+    def back_in_room(self):
+        """A run that stops at home before its trip (resupply left the room, no pouch) waits in
+        the rental room, the safe place, like every run's end."""
+        try:
+            st = self.state()
+            if self.at_home(st) and not home_mod.in_room(self.facet_now(st), self.home):
+                self.to_room()
+        except Abort as e:
+            log(f"back into the rental room: {e}")
 
 
 def stop_intent(loop, text):
@@ -2743,6 +2848,9 @@ def main():
                     help="before heading out each trip, make sure the six worn armor pieces carry the Harvest "
                          "aspect (its hue); activate it through the [aspect menu when one doesn't (5 Arcane "
                          "Essence); a missing piece or failure is a low_supplies juncture, the trip goes on")
+    ap.add_argument("--resupply", choices=("on", "off"), default="on",
+                    help="before each trip at home, top up the loadout from the storage shelf (shelf.py): the "
+                         "rental room's, then the one by the landing when the room's lacks something")
     ap.add_argument("--track", choices=("reds", "off"), default="reds",
                     help="keep Tracking's Hunting mode on murderer players all run (tracking.py); murderer hits "
                          "within --track-react-range at a pvp spot send us home like a red in view")

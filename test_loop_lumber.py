@@ -115,6 +115,14 @@ CHEST, CHEST_POS = 0x4AE0DD2C, (404, 922)                 # the secure paragon c
 BOOK_RUNE_POS = START                                     # our runebook's rune "Sim Woods"
 with open(f"{ROOT}/harness/testdata/room_gumps.json", encoding="utf-8") as _f:
     ROOM_GUMPS = json.load(_f)                             # the live room menus (steward, visit list, door)
+# storage shelves (docs/NOTES.md "Storage shelves", live 2026-10-04/05): the room's, and two on one tile by the
+# home landing as in the DTF guild house, the first secured against us; the loadout wants 3 trapped pouches
+ROOM_SHELF, ROOM_SHELF_POS = 0x6CEB65CD, (402, 921)
+SECURED_SHELF, LANDING_SHELF, LANDING_SHELF_POS = 0x40050A3B, 0x40B84C55, (124, 203)
+SHELF_POUCHES = (0x44ADD101, 0x44ADD102, 0x44ADD103)      # what a shelf hands out, in this order
+LOADOUT_POUCHES = 3
+with open(f"{ROOT}/harness/testdata/shelf_gumps.json", encoding="utf-8") as _f:
+    SHELF_GUMP = json.load(_f)["dtf"]                     # the live Storage Shelf gump (DTF guild house)
 DOOR = (122, 200)                                        # a closed town door
 WALLS = {(122, y) for y in range(180, 236)} - {DOOR}     # long enough that going round costs more than the door
 GATES = {(121, y) for y in (199, 200, 201)}              # every route through the door crosses one
@@ -292,7 +300,7 @@ def pop_flush(x, y, pouch, hits=None, left=None):
         pk = [player_says(SELF, "Hackworth", "-1"), hits_pkt(hits)] + pk
     if left is not None:
         pk.append(sys_text(f"You now have {left} trapped pouches remaining."))
-    pk.append(contained(pouch, POUCH_G, 1, BACKPACK, x=40 + 10 * POUCHES.index(pouch), hue=0))
+    pk.append(contained(pouch, POUCH_G, 1, BACKPACK, x=40 + 10 * (POUCHES + SHELF_POUCHES).index(pouch), hue=0))
     return pk
 
 
@@ -429,6 +437,12 @@ class World:
         self.room_presses = []            # (gump kind, button) the agent pressed on room menus
         self.room_log = []                # ("enter" | "exit", time) of every way into and out of the room
         self.keeper_far = 0               # the steward's menu picked from beyond 2 tiles (refused)
+        self.shelf_stock = None           # {"room": n, "landing": n} trapped pouches per shelf; None: no shelves
+        self.shelf_gumps = {}             # shelf gump serial -> "room" | "landing", open
+        self.shelf_seen = False           # the landing's shelves sent (in update range, facet 0)
+        self.resupplies = []              # (shelf, pouches given) per Resupply press
+        self.shelf_presses = []           # every button pressed on a shelf gump
+        self.secured_tries = 0            # double-clicks on the shelf secured against us
         self.steward_clicks = 0           # single clicks on the steward (each answered with his label)
         self.recalls_book = []            # recalls to our runebook's 'Sim Woods' rune
         self.thief_pos = None             # thief: where the blue stands
@@ -508,7 +522,8 @@ class World:
         return s
 
     def pouch_pkt(self, p):
-        return contained(p, POUCH_G, 1, BACKPACK, x=40 + 10 * POUCHES.index(p), hue=self.pouch_hue[p])
+        return contained(p, POUCH_G, 1, BACKPACK, x=40 + 10 * (POUCHES + SHELF_POUCHES).index(p),
+                         hue=self.pouch_hue[p])
 
     def pouch_goes_off(self, p, by):
         """Our double-click on a live pouch ('us': a hit, back a moment later as hits regenerate, and the
@@ -557,13 +572,40 @@ class World:
             return
         for flag, d, pkts in (("steward_seen", self.cheb(STEWARD_POS), lambda: [mobile_pkt(STEWARD, *STEWARD_POS)]),
                               ("tome_seen", self.cheb(TOME_POS), lambda: [ground_item(TOME, 0x71AF, *TOME_POS, 0)]),
-                              ("door_seen", self.cheb(DOOR), self.door_pkts)):
+                              ("door_seen", self.cheb(DOOR), self.door_pkts),
+                              ("shelf_seen", self.cheb(LANDING_SHELF_POS), self.landing_shelf_pkts)):
             if d <= 18 and not getattr(self, flag):
                 setattr(self, flag, True)
                 for p in pkts():
                     self.send(p)
             elif d > 24:
                 setattr(self, flag, False)
+
+    def landing_shelf_pkts(self):
+        if self.shelf_stock is None:
+            return []
+        return [ground_item(SECURED_SHELF, 0xDC38, *LANDING_SHELF_POS, 0),     # "spring storage shelf" (live)
+                ground_item(LANDING_SHELF, 0xDC38, *LANDING_SHELF_POS, 0)]
+
+    def shelf_gump(self, which):
+        self.shelf_gumps[self.next_gump()] = which
+        self.send(gump(self.gump_serial, 0xC0B1026D, SHELF_GUMP["layout"], SHELF_GUMP["lines"]))
+
+    def resupply(self, which):
+        """The loadout's trapped pouches topped up from this shelf's stock, the server's lines as live."""
+        need = max(0, LOADOUT_POUCHES - sum(1 for h in self.pouch_hue.values() if h == 38))
+        give = min(need, self.shelf_stock[which])
+        self.shelf_stock[which] -= give
+        fresh = [s for s in SHELF_POUCHES if s not in self.pouch_hue][:give]
+        for s in fresh:
+            self.pouch_hue[s] = 38
+            self.send(self.pouch_pkt(s))
+        self.resupplies.append((which, len(fresh)))
+        if not fresh:
+            self.send(sys_text("Unable to resupply: no items available."))
+        elif len(fresh) < need:
+            self.send(sys_text("No resupply: Trapped Pouch"))
+        self.shelf_gump(which)
 
     def door_pkts(self):
         return [ground_item(0x40005CE3, 0x06AD, *DOOR, 0)] + [      # the town door (demo art), blue moongates
@@ -599,7 +641,7 @@ class World:
         """Into Logan Wolf's room: the map change to facet 3 (the world model prunes everything we
         don't carry), our new tile, the door and the chest, the server's line."""
         self.facet, self.pos = ROOM_FACET, list(ROOM_ARRIVAL)
-        self.steward_seen = self.tome_seen = self.door_seen = False
+        self.steward_seen = self.tome_seen = self.door_seen = self.shelf_seen = False
         self.door_open = False
         self.room_log.append(("enter", time.time()))
         self.send(map_change(ROOM_FACET))
@@ -610,6 +652,8 @@ class World:
     def send_room_items(self):
         self.send(ground_item(ROOM_DOOR, 0x06A5, *ROOM_DOOR_POS, 1))      # "wooden door"
         self.send(ground_item(CHEST, 0x0E40, *CHEST_POS, 2))               # the secure chest
+        if self.shelf_stock is not None:
+            self.send(ground_item(ROOM_SHELF, 0xAFC5, *ROOM_SHELF_POS, 2))   # "storage shelf" (live)
 
     def leave_room(self):
         """'Exit to House Steward': back on facet 0 at the home landing (live: 4134,1429)."""
@@ -892,6 +936,16 @@ class World:
                 else:
                     self.containers_opened.append(serial)
                     self.send(b"\x24" + u32(serial) + bytes.fromhex("0000003c007d"))
+            elif serial == ROOM_SHELF and self.shelf_stock is not None and self.facet == ROOM_FACET \
+                    and self.cheb(ROOM_SHELF_POS) <= 2:
+                self.shelf_gump("room")
+            elif serial == SECURED_SHELF and self.shelf_stock is not None and self.facet == 0 \
+                    and self.cheb(LANDING_SHELF_POS) <= 2:
+                self.secured_tries += 1
+                self.send(cliloc(501647))                # "That is secure."
+            elif serial == LANDING_SHELF and self.shelf_stock is not None and self.facet == 0 \
+                    and self.cheb(LANDING_SHELF_POS) <= 2:
+                self.shelf_gump("landing")
             elif serial == TOME:                         # a locked-down tome opens within 2 tiles only
                 if self.cheb(TOME_POS) > 2:
                     self.tome_far += 1
@@ -921,6 +975,11 @@ class World:
                 self.decoy_replies += 1
             elif f["serial"] in self.tome_gumps and f["button_id"] == 110:     # row 10: "286 - Midlands ..."
                 self.recall_to(RUNE_POS, self.recalls_out)
+            elif f["serial"] in self.shelf_gumps:
+                which = self.shelf_gumps.pop(f["serial"])
+                self.shelf_presses.append(f["button_id"])
+                if f["button_id"] == 7:                                        # Resupply
+                    self.resupply(which)
             elif f["serial"] in self.room_gumps:
                 kind = self.room_gumps.pop(f["serial"])
                 self.room_presses.append((kind, f["button_id"]))
@@ -2015,11 +2074,14 @@ async def pouch_pop():
 
 
 async def no_pouch():
-    """No trapped pouch in the pack: a `low_supplies` juncture (item 'trapped pouch') and no trip, exit 1."""
-    print("\n== no trapped pouch: low_supplies, no trip ==")
+    """No trapped pouch in the pack and none on the shelves: the room's shelf and the landing's (out of the room
+    for it, the secured one skipped) give nothing, then a `low_supplies` juncture (item 'trapped pouch'), no
+    trip, back into the room, exit 1."""
+    print("\n== no trapped pouch, none on the shelves: low_supplies, no trip, back in the room ==")
     world = World("home")
     world.scripted = False
     world.pouch_hue = {}
+    world.shelf_stock = {"room": 0, "landing": 0}
     text, code, store, _ = await run_scenario(world, "no_pouch", 12800, [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
     low = [j for j in store.junctures() if j["kind"] == "low_supplies"]
@@ -2027,6 +2089,38 @@ async def no_pouch():
           code == 1 and len(low) == 1 and low[0]["data"]["item"] == "trapped pouch"
           and low[0]["severity"] == "attention" and store.episodes("lumber") == [] and not world.self_targets,
           f"exit {code} {low}\n{text[-400:]}")
+    check("both shelves tried (the room's, then out of the room the landing's, the secured one skipped), "
+          "only Resupply and close pressed; then back into the room",
+          world.resupplies == [("room", 0), ("landing", 0)] and world.secured_tries == 1
+          and set(world.shelf_presses) == {7, 0} and world.facet == ROOM_FACET
+          and [k for k, _ in world.room_log] == ["exit", "enter"],
+          f"{world.resupplies} secured {world.secured_tries} presses {world.shelf_presses} log {world.room_log}")
+    store.close()
+
+
+async def resupply():
+    """No trapped pouch in the pack; the room's shelf has none, the landing's has 3: out of the room, Resupply
+    there gives 3, the trip goes, its row says what each shelf gave."""
+    print("\n== resupply: the room's shelf is empty, the landing's gives the trapped pouches, the trip goes ==")
+    world = World("home")
+    world.scripted = False
+    world.pouch_hue = {}
+    world.shelf_stock = {"room": 0, "landing": 3}
+    text, code, store, _ = await run_scenario(world, "resupply", 12820, [GOOD_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "10", "--human", "off"])
+    eps = store.episodes("lumber")
+    res = (eps[0].get("resupply") or []) if eps else []
+    check("the room's shelf gave nothing, the landing's (past the secured one) gave 3 trapped pouches",
+          world.resupplies == [("room", 0), ("landing", 3)] and world.secured_tries == 1,
+          f"{world.resupplies} secured {world.secured_tries}")
+    check("the trip went and stored (exit 0, outcome stored) with a resupplied pouch, spent into the chest",
+          code == 0 and len(eps) == 1 and eps[0]["outcome"] == "stored"
+          and world.chest_items and world.chest_items[0][0] in SHELF_POUCHES,
+          f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]} chest {world.chest_items}\n{text[-600:]}")
+    check("the trip row's resupply: the room's none_available, the landing's 3 pouches (hue 38)",
+          [r["where"] for r in res] == ["room", "landing"] and res[0]["none_available"] and res[0]["added"] == []
+          and [(a["amount"], a["hue"]) for a in res[1]["added"]] == [(1, 38)] * 3 and res[1]["missing"] == [],
+          str(res)[:600])
     store.close()
 
 
@@ -2489,7 +2583,7 @@ def run_parallel(names, jobs):
 
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
-            wary, red_aim, thief_keep_away, pouch_pop, no_pouch, staff_in_view, unit_hatchet, unit_hit_verdict,
+            wary, red_aim, thief_keep_away, pouch_pop, no_pouch, resupply, staff_in_view, unit_hatchet, unit_hit_verdict,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`

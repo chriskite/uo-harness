@@ -95,6 +95,14 @@ def gained(before: dict, after: dict, labels: dict | None = None) -> list[dict]:
     return out
 
 
+def summary(added: list) -> str:
+    """'3 pouch, 10 Garlic': the added items by name, amounts summed ('nothing' when none)."""
+    total = {}
+    for x in added:
+        total[x["name"]] = total.get(x["name"], 0) + (x["amount"] or 0)
+    return ", ".join(f"{n} {name}" for name, n in total.items()) or "nothing"
+
+
 class _Flow:
     def __init__(self, io, human):
         self.io, self.human, self.heard = io, human, []

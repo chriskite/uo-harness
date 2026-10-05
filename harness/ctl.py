@@ -1827,7 +1827,7 @@ def _act_resupply(a, mem) -> dict:
         stc.intent("Resupplying from a storage shelf", "resupply")
         out = shelf.resupply(io, human, want, walk=walk)
         stc.intent(None)
-        got = ", ".join(f"{x['amount']} {x['name']}" for x in out["added"]) or "nothing"
+        got = shelf.summary(out["added"])
         return {**out, "heard": [journal_view(e) for e in out["heard"]],
                 "reply": (f"resupplied from {out['shelf']}: {got}"
                           + (f"; missing {', '.join(out['missing'])}" if out["missing"] else ""))
