@@ -800,8 +800,12 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - **Re-think the tree on the way, chop where we are** (`tree_rethink`, `add_local_trees`; user,
     2026-10-05): every `TREE_RECHECK_S` (5 s) on the way to a tree, the map's trees within
     `LOCAL_TREES_R` (15) of us join the candidates, and the walk ends (the tree goes back on the
-    list) when a zone now covers it or a clear tree is `TREE_SWITCH_GAIN` (8) tiles nearer; the next
-    stand is then chosen from where we are. Trees around us also join after every escape and when
+    list) when a zone now covers it or a clear tree's planned route is `TREE_SWITCH_GAIN` (8) steps
+    shorter than the route left (the `RETHINK_PLANS` (3) nearest by straight line are planned); that
+    tree is the next stand (`switch_tree`). A tree no route reaches (`no_route_tree`) leaves the
+    candidates for the trip (live witcher_98: a tree 5 tiles off up a cliff was "nearer" 13 times in
+    2 min by straight line while next_stand, finding no route, sent Dan back to the far trees each
+    time). Trees around us also join after every escape and when
     every candidate waits on a creature. A creature that leaves the view keeps its zone at its last
     tile for `RECENT_ZONE_S` (60 s) for choosing trees (not for routes): its trees come after every
     fully clear one; and a tree dropped because a zone covered it waits `TREE_DROP_COOLDOWN_S`

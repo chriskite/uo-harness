@@ -2433,6 +2433,52 @@ def unit_hit_verdict():
           "escapes" in (v(escapes=loop_lumber.ESCAPES_PER_TRIP) or "") and "speech hold" in (v(can_escape=False) or ""))
 
 
+def unit_tree_rethink():
+    """tree_rethink switches to a nearer tree only along a planned route, and next_stand then takes that tree (live
+    witcher_98, lumber-20261005-181911-a999: a tree 5 tiles off up a cliff was "nearer and clear" 13 times in 2 min
+    while next_stand, finding no route there, sent Dan back to the far trees each time)."""
+    print("\n== tree_rethink: nearer by planned route, and next_stand takes the tree it switched to ==")
+    import types
+    import loop_lumber
+    far, cliff, near = {"x": 40, "y": 0}, {"x": 5, "y": 0}, {"x": 8, "y": 2}
+    cluster = [{"x": 41, "y": 1}, {"x": 39, "y": 1}, {"x": 40, "y": 2}]
+    routes = {(40, 0): 41, (41, 1): 42, (39, 1): 40, (40, 2): 41, (8, 2): 30}   # tiles of each planned path
+    plans = []
+
+    def plan(st, goal):
+        plans.append(goal.center)
+        n = routes.get(goal.center)
+        return (None if n is None else [(i, 0) for i in range(n)]), None
+    fake = SimpleNamespace(
+        tree_guards=lambda st, recent=True: [], add_local_trees=lambda trees: 0, out_of_reach=lambda x, y: True,
+        tree_z_ok=lambda t: None, link=SimpleNamespace(pos=lambda st: (0, 0, 0), state=lambda: {}),
+        mover=SimpleNamespace(plan=plan), no_route=set(), switch_tree=None, dropped_trees={}, avoided=set(),
+        creature={"avoided_trees": 0}, human=SimpleNamespace(rng=SimpleNamespace(uniform=lambda a, b: 1.0)))
+    for name in ("tree_rethink", "next_stand", "no_route_tree"):
+        setattr(fake, name, types.MethodType(getattr(loop_lumber.LumberLoop, name), fake))
+    recheck, loop_lumber.TREE_RECHECK_S = loop_lumber.TREE_RECHECK_S, 0
+    try:
+        trees = [cliff, *cluster]
+        why = fake.tree_rethink((40, 0), trees)({})
+        check("a nearer tree no route reaches: walk on, and it leaves the candidates for the trip",
+              why is None and cliff not in trees and (5, 0) in fake.no_route, repr(why))
+        plans.clear()
+        check("asked again: no plan for it", fake.tree_rethink((40, 0), trees)({}) is None and (5, 0) not in plans)
+        trees.append(near)
+        why = fake.tree_rethink((40, 0), trees)({}) or ""
+        check("a nearer tree with a route 11 steps shorter: switch", "8,2 is nearer and clear (29 steps)" in why, why)
+        pick = fake.next_stand(trees)
+        check("next_stand takes the tree switched to, though the far cluster costs less per tree",
+              pick is near and near not in trees and fake.switch_tree is None, repr(pick))
+        trees.append(near)
+        check("without a switch it takes the cluster", fake.next_stand(trees) in cluster)
+        routes[(8, 2)] = 36
+        check("a nearer tree whose route is only 5 steps shorter: walk on",
+              fake.tree_rethink((40, 0), [near, *cluster])({}) is None)
+    finally:
+        loop_lumber.TREE_RECHECK_S = recheck
+
+
 def unit_hatchet():
     """loop_lumber hatchet(): worn first, then the shallowest in the pack; never the bank box."""
     print("\n== hatchet(): worn, else the shallowest in the backpack's bags ==")
@@ -2820,7 +2866,7 @@ if __name__ == "__main__":
             landing_escape,
             ghost_horse,
             staff_in_view,
-            unit_hatchet, unit_hit_verdict, unit_recall_reagents,
+            unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`

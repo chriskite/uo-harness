@@ -128,6 +128,7 @@ import shelf as shelf_mod  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 NEXT_STAND_PLANS = 6          # nearest trees (straight line) whose stands next_stand() compares
+RETHINK_PLANS = 3             # nearer trees (straight line) whose routes tree_rethink plans per look
 # Smart Harvest's reach (Chebyshev tiles from our tile to a tree it may chop). UNMEASURED: to be
 # measured on the first attended Smart Harvest trip (docs/PLAN.md "Smart Harvest for lumber"; the
 # `stand` job events carry what the measurement needs). 1 is the only value the evidence proves:
@@ -386,6 +387,8 @@ class LumberLoop:
         self.avoided = set()         # (tree, creature serial) pairs logged as left alone (next_stand)
         self.recent_guards = {}      # creature serial -> (threat, (x, y), zone tiles, monotonic time last seen) (tree_guards)
         self.dropped_trees = {}      # (x, y) -> monotonic time a creature's zone made us drop the walk to it
+        self.no_route = set()        # (x, y) of trees no route reached this trip (no_route_tree)
+        self.switch_tree = None      # (x, y) tree_rethink switched the walk to: next_stand's next pick
         self.swingers = {}           # attacker serial -> time of its latest swing or spell at us since the last escape
         self._swing_scan = 0         # link.events index scanned for swings and spells on us
         self.spelled = []            # (time, caster or None) of spells on us (threats.spell_on_us) not yet dealt with
@@ -1852,7 +1855,7 @@ class LumberLoop:
         now = time.time()
         new = [{"x": tx, "y": ty, "z": tz, "graphic": f"0x{g:04X}"}
                for tx, ty, tz, g in walk.m.find_trees(x - r, y - r, x + r, y + r)
-               if (tx, ty) not in have
+               if (tx, ty) not in have and (tx, ty) not in self.no_route
                and self.memory.harvest_available(self.facet, tx, ty, tz, self.args.regrow_min * 60, now)]
         if new:
             trees.extend(new)
@@ -1947,18 +1950,35 @@ class LumberLoop:
         free = [t for t in free if not waiting(t)] or [t for t in later if not waiting(t)]
         if not free:
             return None
-        best, best_cost = 0, None
+        switch, self.switch_tree = self.switch_tree, None
+        best = next((i for i, t in enumerate(free) if (t["x"], t["y"]) == switch), None)
+        if best is not None:                       # tree_rethink planned the way there already
+            trees.remove(free[best])
+            return free[best]
+        best, best_cost = None, None
         for i, t in enumerate(free[:NEXT_STAND_PLANS]):
             path, _ = self.mover.plan(st, nav.within((t["x"], t["y"]), 1, self.tree_z_ok(t)))
             if path is None:
+                self.no_route_tree(t, trees)
                 continue
             stand = tuple(t["stand"]) if "stand" in t else path[-1]
             n = sum(1 for o in trees if cheb(stand, (o["x"], o["y"])) <= SMART_RANGE)
             c = len(path) * self.human.rng.uniform(1.0, 1.15) / max(n, 1)
             if best_cost is None or c < best_cost:
                 best, best_cost = i, c
+        if best is None:                           # no way to any of the nearest: the next ones
+            return self.next_stand(trees)
         trees.remove(free[best])
         return free[best]
+
+    def no_route_tree(self, t, trees: list):
+        """No route reaches tree `t` from here (a cliff, water): it leaves the trip's candidates
+        and add_local_trees doesn't bring it back."""
+        xy = (t["x"], t["y"])
+        self.no_route.add(xy)
+        if t in trees:
+            trees.remove(t)
+        log(f"tree {xy[0]},{xy[1]}: no route there; leaving it")
 
     def tree_guards(self, st, recent: bool = True) -> list:
         """[(threat, (x, y), tiles)]: every creature that may come for us (may_aggro: not a pet, a
@@ -2021,14 +2041,17 @@ class LumberLoop:
             if prev is None or cheb(prev[0], xy) >= travel_guard.MOVED_REPLAN:
                 self.mover.replan_requested = True
 
-    def tree_rethink(self, spot, trees: list):
+    def tree_rethink(self, spot, trees: list, z_ok=None):
         """walk_to's `stop` on the way to the tree at `spot`: the walk ends (its reason returned)
         as soon as a creature's zone covers that tree (live 2026-10-05: an air dragon came back
         into view by the tree, and the walk replanned round it and went on to that tree), and,
         looked at every TREE_RECHECK_S with the trees around us as candidates (add_local_trees),
-        when a clear candidate is TREE_SWITCH_GAIN tiles nearer than it (user, 2026-10-05: staying
-        away from a creature, Dan kept heading for the same tree, 2 min and 123 replans round an
-        air dragon, past trees he could chop)."""
+        when a clear candidate's planned route is TREE_SWITCH_GAIN steps shorter than the one left
+        to `spot` (user, 2026-10-05: staying away from a creature, Dan kept heading for the same
+        tree, 2 min and 123 replans round an air dragon, past trees he could chop). That tree is
+        next_stand's next pick (switch_tree). Planned routes, not straight lines: live witcher_98
+        a tree 5 tiles off up a cliff no route reaches was "nearer" 13 times in 2 min while
+        next_stand, finding no way there, sent us back to the far trees each time."""
         last = [time.monotonic()]
 
         def stop(st):
@@ -2043,10 +2066,22 @@ class LumberLoop:
             self.add_local_trees(trees)
             here = tuple(self.link.pos(st)[:2])
             left = cheb(here, spot)
-            for t in trees:
+            near = sorted((t for t in trees
+                           if (t["x"], t["y"]) not in self.no_route
+                           and cheb(here, (t["x"], t["y"])) + TREE_SWITCH_GAIN <= left
+                           and not guarded((t["x"], t["y"])) and self.out_of_reach(t["x"], t["y"])),
+                          key=lambda t: cheb(here, (t["x"], t["y"])))[:RETHINK_PLANS]
+            if not near:
+                return None
+            route, _ = self.mover.plan(st, nav.within(spot, 1, z_ok))
+            for t in near:
                 xy = (t["x"], t["y"])
-                if cheb(here, xy) + TREE_SWITCH_GAIN <= left and not guarded(xy) and self.out_of_reach(*xy):
-                    return f"tree {xy[0]},{xy[1]} is nearer and clear"
+                path, _ = self.mover.plan(st, nav.within(xy, 1, self.tree_z_ok(t)))
+                if path is None:
+                    self.no_route_tree(t, trees)
+                elif route is None or len(path) + TREE_SWITCH_GAIN <= len(route):
+                    self.switch_tree = xy
+                    return f"tree {xy[0]},{xy[1]} is nearer and clear ({len(path) - 1} steps)"
             return None
         return stop
 
@@ -2077,7 +2112,7 @@ class LumberLoop:
         # live 2026-10-05 (witcher_58, near death): mobiles cut the way 28 tiles to a tree and the
         # planner sent us on a 255-step detour through the wilds into a fen daemon and a brackish water
         max_route = max(TREE_ROUTE_MIN, TREE_DETOUR * cheb(here, spot))
-        rethink = self.tree_rethink(spot, trees)
+        rethink = self.tree_rethink(spot, trees, z_ok)
         try:
             if "stand" in tree:
                 why = self.mover.walk_to(lambda: tree["stand"], 0, f"to {label}", z_ok=z_ok, max_route=max_route,
@@ -2950,7 +2985,7 @@ class LumberLoop:
         self.escapes, self.danger = 0, {}
         self.mover.danger = {}
         self.run_arrived, self.creature, self.avoided = None, self.new_creature_tally(), set()
-        self.recent_guards, self.dropped_trees = {}, {}
+        self.recent_guards, self.dropped_trees, self.no_route, self.switch_tree = {}, {}, set(), None
         # the trip began with resupply_home (run): its time and steps are the trip's overhead too
         t0, s0, b0 = self.pre_trip or (time.time(), self.mover.steps, self.mover.blocked_count)
         self.pre_trip = None

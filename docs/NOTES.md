@@ -684,6 +684,12 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   else was free, so the 120 s cooldown didn't hold. Now it holds whatever is left (the harvest ends
   instead). The overseer also saw llamas, forest ostards and a bison get zones: farm/grazing animal
   names are now passive (`threats.Params.passive_names`).
+- **Cliff ping-pong (lumber-20261005-181911-a999, witcher_98, 18:25:20–18:27:43, Seer5):** tree_rethink
+  said "tree 1493,2010 is nearer and clear" 13 times by straight line; the tree (z 25, facet 0) stands on
+  a slope `pathfind.plan` reaches from none of (1488,2010), (1503,2011), (1481,2003) (offline check;
+  an unreachable plan costs ~0.9 s exhausting 30000 nodes), so next_stand skipped it and picked far trees
+  again. Now rethink plans the nearer trees' routes, switches only if 8 steps shorter, and hands that
+  tree to next_stand; trees with no route leave the trip's candidates.
 - **Shift summary (Seer4, 15:57–17:56):** 8 runs, 3962 boards (2747 finished by hand after the convert
   abort, 1215 in run 7), Lumberjacking 66.8 → 77.9, no death, no disturbed recall, 5 captchas
   auto-solved, every trip ridden. Hatchet 0x61AF05AC is down to 8 uses; the spare 0x61AF05AD is in
