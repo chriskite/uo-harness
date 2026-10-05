@@ -84,14 +84,17 @@ A spot is a tree area plus **how we get there** (`access`) and **how we get home
     212 with too few trees. A throwaway probe of the 200-tile search on 2026-10-03 found 126
     groves (25–204 trees, median 96 tiles from the rune, median walk 113 tiles; 433 route checks
     in ~250 s).
-  - The planner treats standing at a library as being at hand for every rune spot it can reach
-    from there (any library holding the spot's rune). The runner recalls out from the library
-    nearest to where the trip starts (`places.library_for`). The walk to the library, both recalls
-    and the lockout are part of the trip overhead (LUMBER_LOOP §6).
+  - Since 2026-10-04 (user: "always recall as close to the lumbering spot as we can") a lumber trip
+    starts at the character's home and recalls out to the landing nearest the grove among the
+    home library's rows and the character's own books' runes (`places.landings`,
+    `lumber_opt.landing_for`, a walking route into the grove required); a library elsewhere is out
+    of reach on foot. The walk to the library, both recalls and the lockout are part of the trip
+    overhead (LUMBER_LOOP §6).
+  - Own runebooks' sextant lines read into tiles (2026-10-04): `escape.runebook_entries`;
+    `ctl act recall <book> --check` remembers them (`places.known_books`).
 - **Not built:**
   - hiking to Atlas POIs (needs the campfire and Atlas gump flows, and each POI unlocked by a visit)
   - marking our own runes at the best spots (needs a Mark capture; Magery ≥ 60 is a given now)
-  - reading a runebook's sextant lines into tiles (our own book: names only)
 
 **Live trial (Hackworth, 2026-10-03):**
 - With `ctl act recall --witcher 291`, standing by the tomes, the agent found row 15 of tome

@@ -4,8 +4,11 @@ written from (logs/session_20260929_204225, docs/LUMBER_LOOP.md §4).
 Every loop fact the agent will act on must be visible in that capture: the
 real captcha gump (id, answer entry, submit button) vs. the decoy "Captcha"
 gumps, the harvest prompt and outcomes, log -> board conversion, the deed
-quantum message, the rental-room menu flow, and the 60 s post-teleport harvest
-lockout. A wrong id or text in lumber.json fails here instead of live.
+quantum message and the 60 s post-teleport harvest lockout. A wrong id or text
+in lumber.json fails here instead of live. The demo's banker and its Shelter
+rental room (DEMO_BANKER, DEMO_ROOM) are kept here as capture facts only: the
+runner no longer banks and finds its own room through harness/home.py
+(docs/LUMBER_LOOP.md §12.5, 2026-10-04).
 
 Run: python harness/test_loop_demo.py   (offline replay, a few seconds)
 """
@@ -22,6 +25,11 @@ import viz_feed  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOOP = json.load(open(os.path.join(ROOT, "harness", "data", "loops", "lumber.json"), encoding="utf-8"))
 FAILURES = []
+DEMO_BANKER = {"serial": "0x000001EA", "name": "Len the banker"}
+DEMO_ROOM = {"menu_gump_id": "0x8EAEFBDB", "enter_button": 4, "enter_text": "You enter the rental room.",
+             "rent_ok_text": "You are now renting a room.", "door": {"serial": "0x45757DCB"},
+             "exit_text": "You exit the rental room.", "secure_container": {"serial": "0x44ADB583"},
+             "drop_into_container_xy": 2147483647}
 
 
 def check(name, cond, detail=""):
@@ -114,7 +122,7 @@ def main():
     check("conversion text seen", LOOP["convert"]["ok_text"] in said)
     check("deed prompt + quantum message", LOOP["deed"]["prompt_text"] in said and LOOP["deed"]["too_few_text"] in said)
     check("quantum in the message", str(LOOP["deed"]["quantum"]) in LOOP["deed"]["too_few_text"])
-    menu = next((e for _, e in evs if e["ev"] == "popup" and e["serial"] == h(LOOP["npcs"]["banker"]["serial"])), None)
+    menu = next((e for _, e in evs if e["ev"] == "popup" and e["serial"] == h(DEMO_BANKER["serial"])), None)
     buy_idx = LOOP["vendor"]["banker_context_menu"]["buy_index"]
     check("banker menu index -> Buy (3006103)",
           menu is not None and any(x["index"] == buy_idx and x["cliloc"] == 3006103 for x in menu["entries"]))
@@ -124,7 +132,7 @@ def main():
     check("purchase acknowledged", LOOP["vendor"]["buy_ok_text"] in said)
 
     print("== rental room")
-    room = LOOP["room"]
+    room = DEMO_ROOM
     menu_id = h(room["menu_gump_id"])
     enters = [t for t, e in evs if e["ev"] == "gump_response" and e["gump_id"] == menu_id
               and e["button_id"] == room["enter_button"]]

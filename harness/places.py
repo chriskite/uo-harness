@@ -12,10 +12,14 @@
 - The World Atlas packs the client ships in ClassicUO/Data/Client/*.xml
   (read-only install data, like guards.bank_markers): points of interest,
   healer caravans, shrines, townships, moongates, dungeons.
+- The character's own runebooks and rune tomes (escape.read_book, remembered in
+  the memory store's meta `own_books`) and landings(): every known rune that lands
+  near a tile, libraries and own books together (the lumber loop's way out).
 """
 import json
 import os
 import re
+import time
 import xml.etree.ElementTree as ET
 
 import uomap
@@ -138,12 +142,6 @@ def find_runes(words, lib_id: str | None = None) -> list:
     return [r for r in runes(lib_id) if ws and all(w in r["name"].lower() for w in ws)]
 
 
-def nearest_runes(x: int, y: int, lib_id: str | None = None, limit: int = 5) -> list:
-    """The library rows that land nearest (x, y), each with `dist` (Chebyshev tiles)."""
-    rows = [{**r, "dist": max(abs(r["x"] - x), abs(r["y"] - y))} for r in runes(lib_id) if r["x"] is not None]
-    return sorted(rows, key=lambda r: r["dist"])[:limit]
-
-
 def library_at(pos, facet=0, radius: int = AT_LIBRARY) -> dict | None:
     """The library whose stand is within `radius` tiles of pos on this facet, nearest first."""
     if not pos:
@@ -152,33 +150,6 @@ def library_at(pos, facet=0, radius: int = AT_LIBRARY) -> dict | None:
             if lb["facet"] == int(facet or 0)]
     near = [(d, lb) for d, lb in near if d <= radius]
     return min(near, key=lambda dl: dl[0])[1] if near else None
-
-
-def libraries_holding(rune_id: str) -> list:
-    """Ids of the libraries with a row for Witcher rune `rune_id`."""
-    if "holding" not in _cache:
-        idx = {}
-        for r in runes():
-            if r["witcher"] is not None and r["library"] not in idx.setdefault(r["witcher"], []):
-                idx[r["witcher"]].append(r["library"])
-        _cache["holding"] = idx
-    return list(_cache["holding"].get(str(rune_id).strip().lower(), []))
-
-
-def library_for(rune_id: str, pos, facet=0, prefer: str | None = None) -> str:
-    """The library to recall to Witcher rune `rune_id` from: the one holding it whose
-    stand is nearest pos on this facet (the walk to it is part of the trip), `prefer`
-    on a tie or without a position. KeyError when no library holds it."""
-    held = libraries_holding(rune_id)
-    if not held:
-        raise KeyError(f"no rune library holds Witcher rune {rune_id!r}")
-
-    def key(lid):
-        lb = library(lid)
-        far = 10 ** 6 if not pos or lb["facet"] != int(facet or 0) else \
-            max(abs(lb["stand"][0] - pos[0]), abs(lb["stand"][1] - pos[1]))
-        return (far, lid != prefer, lid)
-    return min(held, key=key)
 
 
 def witcher_runes_in(lib_id: str) -> list:
@@ -245,3 +216,71 @@ def danger_hint(name: str) -> list:
     """DANGER_WORDS in a place name ([] = nothing known)."""
     words = _WORD.findall((name or "").lower())
     return sorted({d for d in DANGER_WORDS for w in words if w.startswith(d)})
+
+
+# ------------------------------------------------------------ own books and landings
+OWN_BOOKS_KEY = "own_books"      # meta key: {character: {book serial: escape.read_book dict + t}}
+
+
+def _own_books(mem) -> dict:
+    import task_wrap
+    return json.loads(task_wrap.meta_get(mem, OWN_BOOKS_KEY) or "{}")
+
+
+def remember_book(mem, character: str, book: dict):
+    """Store what escape.read_book read of `character`'s runebook or rune tome
+    (memory-store meta `own_books`, replacing that book's earlier reading)."""
+    import task_wrap
+    books = _own_books(mem)
+    books.setdefault(character, {})[book["serial"]] = {**book, "t": round(time.time(), 1)}
+    task_wrap.meta_set(mem, OWN_BOOKS_KEY, json.dumps(books))
+
+
+def known_books(mem, character: str | None) -> list:
+    """The books remembered for `character` (case-blind; None: every character's),
+    newest reading first."""
+    want = None if character is None else character.strip().lower()
+    out = [b for name, books in _own_books(mem).items() if want is None or name.strip().lower() == want
+           for b in books.values()]
+    return sorted(out, key=lambda b: -(b.get("t") or 0))
+
+
+def _danger(name: str, title: str | None) -> list:
+    return danger_hint(name) + (["bad places"] if "bad places" in (title or "").lower() else [])
+
+
+def landings(x: int, y: int, facet: int = 0, *, libraries=("cambria",), books=(),
+             include_dangerous: bool = False, limit: int | None = None) -> list:
+    """Every rune that lands somewhere known on `facet`, nearest (x, y) first
+    (Chebyshev `dist`; a tie goes to the own book): the rows of the rune libraries
+    `libraries` (ids) and the runes of the own `books` (known_books dicts; a rune
+    without a facet counts as facet 0 in a tome, which carries none; a runebook rune whose map hue
+    isn't known is left out). Rows {source "library"|"book", library,
+    tome, tome_title, tome_pos, witcher, book, kind, book_title, entry (the book's index), name, x, y, dist,
+    danger}; library fields are None on book rows and the reverse. `danger`: the
+    danger_hint words of the name, plus "bad places" when the tome or book is titled
+    so (the DTF 'Bad Places' tome); such rows are left out unless include_dangerous."""
+    rows = []
+    for lib_id in libraries:
+        if library(lib_id)["facet"] != facet:
+            continue
+        for r in runes(lib_id):
+            if r["x"] is not None:
+                rows.append({"source": "library", **r, "book": None, "kind": None, "book_title": None,
+                             "entry": None, "danger": _danger(r["name"], r["tome_title"])})
+    for b in books:
+        for r in b.get("runes") or []:
+            rf = r.get("facet")
+            if rf is None and b.get("kind") == "runetome":
+                rf = 0
+            if r.get("x") is None or rf != facet:
+                continue
+            rows.append({"source": "book", "library": None, "tome": None, "tome_title": None, "tome_pos": None,
+                         "witcher": None, "book": b["serial"], "kind": b.get("kind"), "book_title": b.get("title"),
+                         "entry": r.get("i"), "name": r["name"], "x": r["x"], "y": r["y"],
+                         "danger": _danger(r["name"], b.get("title"))})
+    for r in rows:
+        r["dist"] = max(abs(r["x"] - x), abs(r["y"] - y))
+    rows = sorted((r for r in rows if include_dangerous or not r["danger"]),
+                  key=lambda r: (r["dist"], r["source"] != "book"))
+    return rows if limit is None else rows[:limit]

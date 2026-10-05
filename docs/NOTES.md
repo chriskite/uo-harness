@@ -463,6 +463,10 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
 - **Contents (single-click):** secure backpack 0x5CF2B3BC (0 items), secure "paragon chest
   (drake)" 0x4AE0DD2C (2 items, 31 st), secure storage shelf 0x6CEB65CD (graphic 0xAFC5),
   locked-down "(sealed) paragon chest (fleshweaver)" 0x68C0B8A8.
+- **The secure chest for the lumber loop's boards:** "paragon chest (drake)" 0x4AE0DD2C stands at
+  (404, 922, 2), 1 tile from the arrival (403, 923, 1). A drop into it worked live 2026-10-04
+  (`ctl act drop` of a rope stack: the chest opened by double-click, lift `0x07` + drop `0x08` with
+  auto position; then taken back out). `harness/data/homes.json` names it per character.
 - **Mounts:** the DTF guild house has the purchasable house option that stashes mounts while
   you're in the house; the rental room doesn't (user, 2026-10-04). Leaving the guild house into
   the room: "Your mount returns."; back into the guild house: "Your mount finds a quiet place to
@@ -1034,7 +1038,30 @@ Read from the memory-store `gump_open` events and the session capture
 
   The default entry's set-default button is drawn with art **2360**, the others with 2361. A
   freshly filled book has no default until one is set. Lines start `"Charges: ", "<n>",
-  "Max Charges: ", "10"`. Rune names are the region ("Prevalia"); coordinates are sextant lines.
+  "Max Charges: ", "10"`. A freshly marked rune is named after the region ("Prevalia"); the
+  player renames it.
+- **Runebook names and tiles (live 2026-10-04, Outland Dan's book, memory-store `gump_open`
+  session 64; fixture `runebook_dan_dtf`).** Page 1 lists the 16 slots (croppedtext names, hue
+  81 = Felucca/map 0 per RunUO's GetMapHue; unfilled slots "Empty" in hue 0). Pages 2–9 show two
+  entries each, left column x≈130, right x≈290: button 2+6i (art 2103) at the column's top, the
+  name (croppedtext), two `text` lines below it at y 80 and 95: latitude then longitude in
+  sextant form (`"17° 8'N"`, `"162° 21'W"`), and the recall icon 5+6i (filled entries only).
+  - **The text list is interned:** equal strings are sent once. Dan's 11 runes had 21 sextant
+    strings, 'Shelter Stairs' reusing Khal Draco's longitude line 31, and in the TestWorth book
+    both entries pointed at the one "Prevalia" name. So `escape.runebook_entries` ties each
+    text to its entry by page and column in the layout, never by list order.
+  - **Sextant → tile** (RunUO Sextant.Format, map 0, `escape.sextant_to_tile`): x = 1323 +
+    lon·5120/360, y = 1624 + lat·4096/360, east and south positive, wrapped mod 5120 / 4096 (past
+    180° east the server prints west). Degrees and minutes are truncated, so the minute's middle
+    is used: a tile within one tile of the mark (round trip over the whole map in the test). Dan's
+    'DTF Loot Chest' 17°8'N 162°21'W = (4134, 1429), the DTF guild-house landing; 'Prev Bank'
+    8°47'N 19°53'E = (1606, 1524); 'Cambria MG' (1706, 3130).
+  - Tiles carry no facet; the name's hue gives it (81 → 0, seen live; 10 → 1, 1154 → 4 from
+    RunUO's GetMapHue, not seen live; Ilshenar and Malas share 1102, left unknown).
+  - `escape.read_book` reads either book kind without recalling (`ctl act recall --check`) and
+    `places.remember_book` keeps it per character in meta `own_books`, so `places.landings` can
+    rank the own book's runes with the library rows. `recall(rune=NAME)` finds a runebook entry
+    by name (case-blind) and presses 2+6i / 5+6i like the default path.
 - **Rune tome, gump 0x09F5976B.**
   - **Main page** ("Manage Runes"): row i has button **100+i**, the gem, which recalls with a
     charge. Without one: "That rune tome is out of recall charges." Button **200+i** opens the
@@ -1148,6 +1175,16 @@ Read from the memory-store `gump_open` events and the session capture
   `time()` untouched). `stop` keeps the real clock: its grace waits on the task wrapper, a real
   process. The `wait` wake tests still spawn the real `python ctl.py`, so the CLI entry stays
   covered. Production ctl is unchanged.
+- **`test_loop_lumber.py` speed (2026-10-04): ~10 min → ~2 min.** Its 15 end-to-end scenarios
+  each run a real proxy, the simulated server and the runner in real time (proxy step floors, the
+  sim's 2.1 s recalls and lockouts), so a fake clock as in test_ctl would have to reach three
+  processes. They already had private ports and temp dirs, so the file now runs them as parallel
+  child processes (`LOOP_TEST_JOBS`, default 8; 32 cores here) and the unit checks inline. Per
+  scenario 3–73 s; `main` (114 s) is the critical path: ~25 s of it is trip 1 learning the town
+  wall from walk denials (`--no-map`, by design). Also fixed then: the simulator's teleport `0x20`
+  sent direction 0 while it kept its own facing, so after a recall a step the proxy meant as a
+  turn moved the simulated character (a one-tile desync, seen as tracking/gazer distances off by
+  one once trips began with a room exit); it now sends its facing like a real server.
 
 ## Backups (NAS, since 2026-10-01)
 

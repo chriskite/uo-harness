@@ -258,8 +258,8 @@ def test_jobs():
 def test_lumber_travel():
     print("== lumber travel, time split and supplies (harness/jobs.py) ==")
     tome = "0x546ACD06"                      # the Cambria tome holding Witcher rune 291 (data/witcher.json)
-    row = {"loop": "lumber", "spot": "w", "trip": 1, "outcome": "banked", "t_start": 1000.0, "t_end": 2000.0,
-           "phases_s": {"harvest": 900.0, "convert": 10.0, "to_bank": 80.0, "store": 10.0},
+    row = {"loop": "lumber", "spot": "w", "trip": 1, "outcome": "stored", "t_start": 1000.0, "t_end": 2000.0,
+           "phases_s": {"harvest": 900.0, "to_room": 80.0, "convert": 10.0, "store": 10.0},
            "walk_out_s": 100.0, "lockout_s": 60.0, "chop_s": 500.0, "logs": 200, "travel_s": 50.0,
            "supplies": {"library_charges": 1, "own_charges": 1, "recall_casts": 1, "reagents_used": {"mandrake root": 1}}}
     events = [  # a row from before 2026-10-03: no book, the rune only in the tome row's name
@@ -398,9 +398,12 @@ def test_overseer_routes(logdir):
         got = get(base + "/api/jobs?job=lumber&tz=0")
         plan = got.pop("plan")
         want.pop("plan")
-        check("GET /api/jobs == jobs.analytics(store) + store flag + the plan at the server's clock",
+        check("GET /api/jobs == jobs.analytics(store) + store flag + the plan at the server's clock (the seeded "
+              "trips name no character, so no home: ok false with the reason, the spots still ranked)",
               got.pop("store") is True and json.dumps(got, sort_keys=True) == json.dumps(want, sort_keys=True)
-              and isinstance(plan, dict) and {r["id"] for r in plan["spots"]} >= {"shelter_island", "terran_wilds"},
+              and isinstance(plan, dict) and {r["id"] for r in plan["spots"]} >= {"horseshoe_bay", "terran_wilds"}
+              and "shelter_island" not in {r["id"] for r in plan["spots"]} and plan["ok"] is False
+              and plan["error"].startswith("no home in harness/data/homes.json for"),
               str(plan)[:300])
         code, _ = get_status(base + "/api/jobs?tz=abc")
         check("GET /api/jobs bad tz: 400", code == 400, str(code))

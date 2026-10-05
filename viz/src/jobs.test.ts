@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { eventView, legText, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, phaseList, theftLoss, woodShares, type HuntTotals, type JobEvent, type JobTotals } from "./jobs.ts";
+import { eventView, legText, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, phaseList, theftLoss, tripHome, woodShares, type HuntTotals, type JobEvent, type JobTotals } from "./jobs.ts";
 
 function totals(p: Partial<JobTotals> = {}): JobTotals {
   return {
@@ -118,14 +118,18 @@ describe("woodShares / phaseList", () => {
     ]);
     expect(woodShares([])).toEqual([]);
   });
-  test("phases in loop order, missing as 0, extras after", () => {
-    expect(phaseList({ store: 1.8, harvest: 108.8, exit: 3 })).toEqual([
+  test("phases in loop order, missing as 0, extras after (a bank-era to_bank too)", () => {
+    expect(phaseList({ store: 1.8, harvest: 108.8, to_bank: 40, exit: 3 })).toEqual([
       ["harvest", 108.8],
+      ["to_room", 0],
       ["convert", 0],
-      ["to_bank", 0],
       ["store", 1.8],
+      ["to_bank", 40],
       ["exit", 3],
     ]);
+  });
+  test("a trip brought its wood home: stored, or banked in the bank era", () => {
+    expect([tripHome("stored"), tripHome("banked"), tripHome("aborted"), tripHome(null)]).toEqual([true, true, false, false]);
   });
 });
 

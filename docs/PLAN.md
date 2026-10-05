@@ -148,7 +148,7 @@ LLM planner over the world model + skill library; safety rails: captcha auto-sol
   - Venue: Shelter Island first (TestWorth is Young; the capture shows the Young-only welcome gump), the overworld later as a user-initiated move. Leaving Shelter renounces Young permanently, so the agent never travels off the island and never confirms a renounce gump.
   - Logs must become boards for commodity deeds.
   - The return trigger trades carried-goods PK risk against trip overhead, including the 60 s harvest lockout after recall/teleport (LUMBER_LOOP.md §6: `Q* = r·sqrt(2T/h)`). Shelter has no hostile player actions, so `h = 0` there and trips end on breaks. The overworld learns `h` per region from our own data, and a red name means an immediate recall out.
-  - Boards bank in the room every trip; a deed is made when the room stock reaches the quantum. **Superseded 2026-10-01 (user decision, LUMBER_LOOP.md §12.5):** boards go into the bank box every trip and the rental room is out of the loop. This drops the rent, the daily room wipe, the hand-secured container and the 60 s post-exit harvest lockout, and works in any town with a banker. It still runs on Shelter, with a fresh Young character (the Shelter bank needs Young).
+  - Boards bank in the room every trip; a deed is made when the room stock reaches the quantum. **Superseded 2026-10-01 (user decision, LUMBER_LOOP.md §12.5):** boards go into the bank box every trip and the rental room is out of the loop. This drops the rent, the daily room wipe, the hand-secured container and the 60 s post-exit harvest lockout, and works in any town with a banker. It still runs on Shelter, with a fresh Young character (the Shelter bank needs Young). **That bank decision is itself superseded 2026-10-04: "Lumber trips end in the rental room, not at a bank" (below).**
   - Optimizer autonomy: statistics update automatically within bounds; structural changes are user-approved.
   - **Come back to before the overworld (user note 2026-09-29, LUMBER_LOOP.md §11):**
     - `h` learned from our own exposure and hazard data per region
@@ -1147,13 +1147,34 @@ have, "similar to the Cambria rune library". Built (docs/research/WORLD_LOCATION
   that holds the rune (`places.library_for`), and the planner counts a spot as at hand from any
   such library's hub. So existing Cambria-discovered spots work for Dan from the guild house and
   for Hackworth from Cambria, with no copy per library. The spot's own `library` breaks ties and
-  still sets its overhead prior.
+  still sets its overhead prior. **Superseded 2026-10-04** ("Lumber trips end in the rental room,
+  not at a bank"): a trip recalls out to the landing nearest the grove from the home library or
+  the character's own books (`lumber_opt.landing_for`); `places.library_for` is gone.
 - **Named places:** `ctl runes find|near` say which row lands nearest a destination and print the
   exact `act recall --library … --rune … [--tome …]`; 20 names repeat across tomes, so a recall
   refuses an ambiguous name instead of guessing.
 - Open: the guild library's tomes are guild property; their charges are spent like Cambria's
   public ones (the runner prefers a charge, else Dan's own Recall spell). If the guild wants
   members to cast instead, `escape.recall(prefer="spell")` is the switch.
+
+## Lumber trips end in the rental room, not at a bank (decided and built offline 2026-10-04)
+
+User decision (clean cutover, no shims): the lumber loop never travels to a bank. Supersedes the
+2026-10-01 bank decision (Phase 4 notes above). Every trip starts at home (the rental room or the
+DTF guild house, `harness/data/homes.json` keyed by character), leaves the room through its door
+("Exit to House Steward"), and goes out by recalling "as close to the lumbering spot as we can via
+rune tomes in the rune library or our own rune tomes/books in our backpack, never public moongates
+or starting at banks and walking" (user): the landing nearest the grove with a walking route into
+it, dangerous ones left out (`lumber_opt.landing_for`, shared by the runner and `ctl lumber plan`).
+Home is the own book's default rune (Outland Dan: "DTF Loot Chest"), in through the house steward
+(`harness/room.py`), convert in the room, boards and the spent trapped pouch into the room's secure
+chest. The run ends in the room. Why: the room is the safe place (no recall reaches it, nothing
+converts in the field under attack), the boards collect in one secure container at home, no speech
+and no banker, one travel rule for every spot. Removed: bankers in spots, `--bank-range`,
+`open_bank`/`deposit`, `--recall off` (the home book is required for every spot: it is the way
+home), Young-only Shelter. A PvP escape still stops at home outside the room (entry may be refused
+for 2 min after PvP). Details: LUMBER_LOOP.md §12.5, §13 "Trip"; offline proof
+`test_loop_lumber.py` (a simulated steward, room menus from the live gumps, door, chest).
 
 ## Risks
 

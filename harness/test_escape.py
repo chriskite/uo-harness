@@ -51,6 +51,97 @@ def test_runebook():
     check("runebook: empty book has no entries and no default", r == {"default": None, "charges": 0, "entries": 0}, r)
 
 
+def test_sextant():
+    check("sextant: DTF Loot Chest 17°8'N 162°21'W is the DTF landing (4134, 1429) within 2 tiles",
+          max(abs(a - b) for a, b in zip(escape.sextant_to_tile("17° 8'N", "162° 21'W"), (4134, 1429))) <= 2,
+          escape.sextant_to_tile("17° 8'N", "162° 21'W"))
+    check("sextant: Prev Bank 8°47'N 19°53'E is Prevalia's bank (1606, 1524)",
+          escape.sextant_to_tile("8° 47'N", "19° 53'E") == (1606, 1524), escape.sextant_to_tile("8° 47'N", "19° 53'E"))
+    check("sextant: past 180 degrees east wraps to west (tile -> lines)",
+          escape.tile_to_sextant(4134, 1429) == ("17° 8'N", "162° 21'W"), escape.tile_to_sextant(4134, 1429))
+    bad = [(x, y) for x in range(0, 5120, 97) for y in range(0, 4096, 89)
+           if max(abs(a - b) for a, b in zip(escape.sextant_to_tile(*escape.tile_to_sextant(x, y)), (x, y))) > 1]
+    check("sextant: tile -> lines -> tile within a tile over the whole map", not bad, bad[:5])
+    check("sextant: not a sextant line", escape.sextant_value("Charges: ") is None)
+
+
+def test_runebook_entries():
+    e = parse(escape.runebook_entries, "runebook_dan_dtf")
+    names = [r["name"] for r in e]
+    check("Dan's runebook: 11 named runes in entry order, 'Empty' slots left out",
+          names == ["Prev Bank", "Cambria MG", "Terran MG", "Cambria Bank", "Anchor's Rest", "Ossuary",
+                    "Anchor's Rest MG", "Khal Draco", "SSC", "Shelter Stairs", "DTF Loot Chest"]
+          and [r["i"] for r in e] == list(range(11)), names)
+    by = {r["name"]: r for r in e}
+    check("Dan's runebook: DTF Loot Chest lands at the DTF landing (4134, 1429), facet 0 (hue 81)",
+          (by["DTF Loot Chest"]["x"], by["DTF Loot Chest"]["y"], by["DTF Loot Chest"]["facet"]) == (4134, 1429, 0),
+          by["DTF Loot Chest"])
+    check("interned texts: Shelter Stairs shares Khal Draco's longitude line, tied by layout position",
+          by["Shelter Stairs"]["x"] == by["Khal Draco"]["x"] and by["Shelter Stairs"]["y"] != by["Khal Draco"]["y"],
+          (by["Shelter Stairs"], by["Khal Draco"]))
+    check("Dan's runebook: default entry 10, 8 charges",
+          parse(escape.parse_runebook, "runebook_dan_dtf") == {"default": 10, "charges": 8, "entries": 11})
+    e = parse(escape.runebook_entries, "runebook_charges")
+    check("two entries drawn from one interned name, each with its own sextant lines",
+          [(r["name"], r["x"], r["y"]) for r in e] == [("Prevalia",) + escape.sextant_to_tile("8° 42'N", "19° 41'E"),
+                                                       ("Prevalia",) + escape.sextant_to_tile("10° 27'N", "19° 58'E")], e)
+    check("empty runebook: no entries", parse(escape.runebook_entries, "runebook_empty") == [])
+
+
+class BookServer:
+    """Dan's runebook (the live gump): a double-click opens it, a recall button (2+6i
+    charge, 5+6i spell) lands on entry i's tile; 0 closes it."""
+
+    BOOK = 0x49865F8F
+
+    def __init__(self):
+        self.g = G["runebook_dan_dtf"]
+        self.tiles = {r["i"]: [r["x"], r["y"], 0] for r in escape.runebook_entries(self.g["layout"], self.g["lines"])}
+        self.pos, self.pressed, self.queue = [1706, 3181, 0], [], []
+
+    def send(self, pkt):
+        if pkt[0] == 0x06:
+            self.queue.append({"ev": "gump_open", **self.g})
+            return
+        button = int.from_bytes(pkt[11:15], "big")
+        self.pressed.append(button)
+        if button >= 2 and (button - 2) % 6 in (0, 3):
+            self.pos = self.tiles[(button - 2) // 6]
+
+    def poll(self):
+        evs, self.queue = self.queue, []
+        items = {h(PACK): {"graphic": 0x0E75, "layer": 0x15, "container": h(ME)},
+                 h(self.BOOK): {"graphic": 0x22C5, "container": h(PACK), "name": "Dan's book"}}
+        return ({"movement": {"self_serial": ME, "pos": list(self.pos)},
+                 "world": {"items": items, "self": {"map": 0, "mana": 60}}}, evs)
+
+
+def test_runebook_read_and_recall_by_name():
+    s = BookServer()
+    b = escape.read_book(s, s.BOOK)
+    check("read_book: runebook read in one gump and closed, nothing recalled",
+          s.pressed == [0] and b["kind"] == "runebook" and b["serial"] == "0x49865F8F" and len(b["runes"]) == 11,
+          (s.pressed, b["kind"], len(b["runes"])))
+    check("read_book: default entry and its name, charges, title from the item name",
+          (b["default"], b["default_name"], b["charges"], b["title"]) == (10, "DTF Loot Chest", 8, "Dan's book"), b)
+    r = escape.recall(s, s.BOOK, rune="ssc")
+    check("recall by name in a runebook: 'ssc' is entry 8, its charge button 2+6*8",
+          r["ok"] and r["rune"] == 8 and r["name"] == "SSC" and s.pressed[-1] == 50 and r["to"] == s.tiles[8][:2],
+          (r, s.pressed))
+    r = escape.recall(s, s.BOOK)
+    check("recall without a name: the default rune (DTF Loot Chest, button 62)",
+          r["ok"] and r["name"] == "DTF Loot Chest" and s.pressed[-1] == 62, (r, s.pressed))
+    r = escape.recall(s, s.BOOK, rune="SSC", entry=0)
+    check("recall by entry: the index wins over the name (two runes may share one), entry 0's charge button 2",
+          r["ok"] and r["rune"] == 0 and r["name"] == "Prev Bank" and s.pressed[-1] == 2 and r["to"] == s.tiles[0][:2],
+          (r, s.pressed))
+    try:
+        escape.recall(s, s.BOOK, rune="Nowhere")
+        check("an unknown rune name raises", False)
+    except escape.RecallError:
+        check("an unknown rune name raises and closes the book", s.pressed[-1] == 0, s.pressed)
+
+
 def test_runetome():
     r = parse(escape.parse_runetome_main, "runetome_main_default_2nd")
     check("runetome: default is the row whose name is in hue 63 (the second)",
@@ -355,7 +446,8 @@ def test_escape_stops():
 
 
 if __name__ == "__main__":
-    for t in (test_runebook, test_runetome, test_library_tome_read, test_failures, test_can_cast, test_find_books,
+    for t in (test_runebook, test_sextant, test_runebook_entries, test_runebook_read_and_recall_by_name,
+              test_runetome, test_library_tome_read, test_failures, test_can_cast, test_find_books,
               test_disturb_recovery_fits_live_retries, test_escape_nusero_replay, test_escape_early_disturb,
               test_escape_stops):
         print(t.__name__)

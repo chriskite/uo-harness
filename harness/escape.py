@@ -7,8 +7,10 @@ rune tome gumps"):
 
   runebook  gump 0x5C7DB029. Entry i: 2+6i recall with a charge, 3+6i drop the
             rune, 4+6i set default, 5+6i cast Recall, 6+6i cast Gate. The default
-            entry's set-default button shows gump art 2360 (others 2361).
-            "Charges: " is followed by the count.
+            entry shows art 2360 (others 2361). "Charges: " is followed by the
+            count. Pages 2.. show two entries each: name and two sextant lines
+            (runebook_entries -> tiles; the text list is interned, so texts
+            are tied to entries by layout position).
   runetome  gump 0x09F5976B. Main page row i: 100+i recall with a charge (no
             charge: "That rune tome is out of recall charges."), 200+i the rune's
             detail page. The default row's name is drawn in hue 63 (others 2655).
@@ -187,6 +189,101 @@ def parse_runebook(layout: str, lines) -> dict:
         if i + 1 < len(lines) and lines[i + 1].strip().isdigit():
             charges = int(lines[i + 1])
     return {"default": default, "charges": charges, "entries": len(ids)}
+
+
+# Sextant lines (RunUO Sextant.Format, map 0): longitude across a 5120-tile map and
+# latitude across 4096 tiles, both 360 degrees, centred on the Lord British throne
+# tile (1323, 1624); east and south are positive, past 180 they wrap to west/north.
+# Degrees and minutes are truncated, so a reading's tile is the middle of its minute.
+SEXTANT_CENTER = (1323, 1624)
+SEXTANT_SIZE = (5120, 4096)
+_SEXTANT = re.compile(r"^\s*(\d+)\D*?(\d+)\s*'\s*([NSEW])\s*$", re.I)
+
+
+def sextant_value(text: str) -> tuple[str, float] | None:
+    """("lat"|"lon", signed degrees: south/east positive) of a sextant line like
+    "17° 8'N" or "162° 21'W", the minute's middle; None if it isn't one."""
+    m = _SEXTANT.match(text or "")
+    if not m:
+        return None
+    deg, mins, hemi = int(m.group(1)), int(m.group(2)), m.group(3).upper()
+    v = deg + (mins + 0.5) / 60
+    return ("lat" if hemi in "NS" else "lon"), (-v if hemi in "NW" else v)
+
+
+def sextant_to_tile(lat: str, lon: str) -> tuple[int, int]:
+    """The map-0 tile of a latitude and a longitude sextant line: "17° 8'N",
+    "162° 21'W" -> (4134, 1429) (Outland Dan's 'DTF Loot Chest' rune, live 2026-10-04)."""
+    la, lo = sextant_value(lat), sextant_value(lon)
+    if not la or not lo or la[0] != "lat" or lo[0] != "lon":
+        raise ValueError(f"not a latitude/longitude pair: {lat!r}, {lon!r}")
+    (cx, cy), (w, h) = SEXTANT_CENTER, SEXTANT_SIZE
+    return round(cx + lo[1] * w / 360) % w, round(cy + la[1] * h / 360) % h
+
+
+def tile_to_sextant(x: int, y: int) -> tuple[str, str]:
+    """The sextant lines the server shows for a map-0 tile (RunUO Sextant.Format)."""
+    (cx, cy), (w, h) = SEXTANT_CENTER, SEXTANT_SIZE
+    lon, lat = (x - cx) * 360 / w, (y - cy) * 360 / h
+    lon = -180 + lon % 180 if lon > 180 else lon
+    lat = -180 + lat % 180 if lat > 180 else lat
+
+    def fmt(v, pos, neg):
+        a = abs(v)
+        return f"{int(a)}° {int(a % 1 * 60)}'{pos if v >= 0 else neg}"
+    return fmt(lat, "S", "N"), fmt(lon, "E", "W")
+
+
+# Runebook entry name hue -> facet (RunUO RunebookGump.GetMapHue; Ilshenar and Malas share 1102)
+RUNEBOOK_MAP_HUES = {81: 0, 10: 1, 1154: 4}
+
+
+def runebook_entries(layout: str, lines) -> list[dict]:
+    """[{i, name, x, y, facet}] of a runebook's filled entries. Pages 2.. hold two
+    entries each (left and right column): the entry's button 2+6i (art 2103), its
+    name (croppedtext, hue = its facet) and two sextant texts below. The server
+    interns the text list (live 2026-10-04: Dan's 11 runes had 21 sextant strings,
+    'Shelter Stairs' sharing Khal Draco's longitude line), so every text is tied to
+    its entry by where the layout draws it, never by its position in the list. An
+    entry without a recall icon (5+6i) is an empty slot."""
+    lines = list(lines or [])
+    page, cols, texts, filled = 0, {}, [], set()
+    for kind, f in _tokens(layout):
+        if kind == "page" and f:
+            page = int(f[0])
+        elif page < 2:
+            continue
+        elif kind == "button" and len(f) >= 7:
+            art, bid = int(f[2]), int(f[6])
+            if bid >= 2 and (bid - 2) % 6 == 0 and art == 2103:
+                cols[(page, int(f[0]))] = (bid - 2) // 6
+            elif bid >= 5 and (bid - 5) % 6 == 0 and art == RECALL_ICON_ART:
+                filled.add((bid - 5) // 6)
+        elif kind == "croppedtext" and len(f) >= 6:
+            texts.append((page, int(f[0]), int(f[1]), "name", int(f[5]), int(f[4])))
+        elif kind == "text" and len(f) >= 4:
+            texts.append((page, int(f[0]), int(f[1]), "text", int(f[3]), int(f[2])))
+    found = {}
+    for page, x, y, what, li, hue in texts:
+        left = [(cx, i) for (p, cx), i in cols.items() if p == page and cx <= x + 10]
+        if not left or li >= len(lines):
+            continue
+        i = max(left)[1]
+        e = found.setdefault(i, {"i": i, "name": None, "x": None, "y": None, "facet": None, "_s": []})
+        if what == "name":
+            e["name"], e["facet"] = lines[li], RUNEBOOK_MAP_HUES.get(hue)
+        else:
+            e["_s"].append((y, lines[li]))
+    out = []
+    for i in sorted(found):
+        e = found[i]
+        axes = {v[0]: s for _, s in sorted(e.pop("_s")) if (v := sextant_value(s))}
+        if i not in filled:
+            continue
+        if "lat" in axes and "lon" in axes:
+            e["x"], e["y"] = sextant_to_tile(axes["lat"], axes["lon"])
+        out.append(e)
+    return out
 
 
 def _runetome_row_texts(layout: str) -> dict:
@@ -396,15 +493,17 @@ def _hold(not_before: float | None):
         time.sleep(not_before - time.monotonic())
 
 
-def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None,
+def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None, entry: int | None = None,
            timeout: float = ARRIVE_WAIT_S, not_before: float | None = None) -> dict:
-    """One recall with `book`: to its default rune, or (rune tomes) to the row
-    named `rune` (rune_matches: a Witcher number like "286" finds "286 - Midlands
-    Ruins 1 (South)"); the book may be a locked-down library tome within reach.
+    """One recall with `book`: to its default rune, or to the rune named `rune`
+    (rune_matches, case-blind: a Witcher number like "286" finds "286 - Midlands
+    Ruins 1 (South)"; runebook entries by their runebook_entries name, tome rows by
+    their main-page name); the book may be a locked-down library tome within reach.
     The book opens at once; the press that casts waits for `not_before` (the
     monotonic time the server takes a cast again), so a retry loses no round trip.
-    Returns {ok, kind, method, rune, name, from, to, elapsed_s, failure, charges,
-    cast_s}; raises RecallError when it can't be tried."""
+    `entry` picks the rune by its index instead (runebook entry / tome row, read_book's
+    `i`): two runes may share a name. Returns {ok, kind, method, rune, name, from, to,
+    elapsed_s, failure, charges, cast_s}; raises RecallError when it can't be tried."""
     st, _ = io.poll()
     me = st["movement"]["self_serial"]
     world = st["world"]
@@ -419,13 +518,24 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None,
     if kind == "runebook":
         g = _open(io, book, RUNEBOOK_GUMP, me)
         info = parse_runebook(g.get("layout"), g.get("lines"))
-        if rune is not None:
-            _press(io, g, 0)
-            raise RecallError("picking a rune by name works for rune tomes only")
-        rune = info["default"] if info["default"] is not None else (0 if info["entries"] == 1 else None)
-        if rune is None:
-            _press(io, g, 0)
-            raise RecallError("the runebook has no default rune")
+        entries = {e["i"]: e["name"] for e in runebook_entries(g.get("layout"), g.get("lines"))}
+        if entry is not None:
+            if entry not in entries:
+                _press(io, g, 0)
+                raise RecallError(f"no entry {entry} in the runebook 0x{book:08X}")
+            rune = entry
+        elif rune is not None:
+            index = next((i for i, n in sorted(entries.items()) if rune_matches(n, rune)), None)
+            if index is None:
+                _press(io, g, 0)
+                raise RecallError(f"no rune {rune!r} in the runebook 0x{book:08X}")
+            rune = index
+        else:
+            rune = info["default"] if info["default"] is not None else (0 if info["entries"] == 1 else None)
+            if rune is None:
+                _press(io, g, 0)
+                raise RecallError("the runebook has no default rune")
+        name = entries.get(rune)
         method = "charge" if info["charges"] > 0 and prefer == "charge" else "spell"
         if method == "spell" and not can_cast_recall(world, me, mana) and info["charges"] > 0:
             method = "charge"
@@ -435,7 +545,12 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None,
         g = _open(io, book, RUNETOME_GUMP, me)
         info = parse_runetome_main(g.get("layout"), g.get("lines"))
         rows = runetome_rows(g.get("layout"), g.get("lines"))
-        if rune is not None:
+        if entry is not None:
+            if entry not in rows:
+                _press(io, g, 0)
+                raise RecallError(f"no row {entry} in the rune tome 0x{book:08X}")
+            index = entry
+        elif rune is not None:
             index = next((i for i, n in sorted(rows.items()) if rune_matches(n, rune)), None)
             if index is None:
                 _press(io, g, 0)
@@ -518,7 +633,7 @@ def retry_wait(res: dict) -> float | None:
 
 
 def escape(io, book: int, *, attempts: int | None = None, budget_s: float = ESCAPE_BUDGET_S,
-           log=print, rune: str | None = None) -> dict:
+           log=print, rune: str | None = None, entry: int | None = None) -> dict:
     """Recall until it lands. A disturbed cast is recast as soon as the server
     takes it again (retry_wait / disturb_recovery: a press before that only earns
     'not recovered'); refusals that started no cast (NOT_CAST) are retried after
@@ -529,14 +644,14 @@ def escape(io, book: int, *, attempts: int | None = None, budget_s: float = ESCA
     after the first press. Keeping on matters: a PK has to land a fresh
     interrupt within every 2 s cast (live 2026-10-03 at Nusero the old three-try
     limit gave up 4.4 s before his first melee hit; SPELL_INTERRUPTS.md).
-    `rune`: a tome row by name (recall()), else the default. Returns the last
+    `rune` / `entry`: a book's rune by name or index (recall()), else the default. Returns the last
     recall() result plus 'attempts' (casts made) and 'tries' (every try's method,
     ok, failure, elapsed_s, cast_s and the wait before the next: the travel
     record of what each cast cost)."""
     prefer, last, tries, casts, not_before = "charge", None, [], 0, None
     t0 = time.monotonic()
     while True:
-        last = recall(io, book, prefer=prefer, rune=rune, not_before=not_before)
+        last = recall(io, book, prefer=prefer, rune=rune, entry=entry, not_before=not_before)
         if last["failure"] not in NOT_CAST:
             casts += 1
         last["attempts"] = casts
@@ -577,3 +692,31 @@ def check_ready(io, book: int) -> dict:
     info["kind"] = kind
     info["can_cast"] = can_cast_recall(world, me, (world.get("self") or {}).get("mana"))
     return info
+
+
+def read_book(io, book: int, wait=None) -> dict:
+    """Read an own runebook or rune tome without recalling: {serial "0x…", kind,
+    title, default (entry index or None), default_name, charges, entries, runes:
+    [{i, name, x, y, facet}]}. A runebook is one gump (opened, parsed, closed as
+    check_ready does; tiles from the sextant lines, facet from the name's hue,
+    title = the item's name when the world model has one); a tome is read page by
+    page (read_runetome, `wait` before each page press; its runes' facet is None)."""
+    st, _ = io.poll()
+    me, world = st["movement"]["self_serial"], st["world"]
+    kind = book_kind(world, book)
+    if kind is None:
+        raise RecallError(f"0x{book:08X} is not a runebook or rune tome")
+    if kind == "runebook":
+        g = _open(io, book, RUNEBOOK_GUMP, me)
+        info = parse_runebook(g.get("layout"), g.get("lines"))
+        runes = runebook_entries(g.get("layout"), g.get("lines"))
+        _press(io, g, 0)
+        title = (world["items"].get(f"0x{book:08X}") or {}).get("name")
+    else:
+        t = read_runetome(io, book, **({} if wait is None else {"wait": wait}))
+        info = {k: t[k] for k in ("default", "charges", "entries")}
+        runes = [{"i": r["row"], "name": r["name"], "x": r["x"], "y": r["y"], "facet": None} for r in t["rows"]]
+        title = t["title"]
+    default_name = next((r["name"] for r in runes if r["i"] == info["default"]), None)
+    return {"serial": f"0x{book:08X}", "kind": kind, "title": title, "default": info["default"],
+            "default_name": default_name, "charges": info["charges"], "entries": info["entries"], "runes": runes}

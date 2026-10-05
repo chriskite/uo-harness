@@ -154,10 +154,8 @@ export interface PlanSpot {
   supply_gp_trip: number;
   supply_unpriced: number;
   place_fails: number;
-  travel_min: number;
-  travel_samples: number;
-  access: string;
-  rune: string | null;
+  /** the landing rune a trip recalls to (lumber_opt.landing_for), null when none qualifies or no home */
+  landing: Landing | null;
   last_trip_h_ago: number | null;
   p_best: number;
   pk_escapes: number;
@@ -165,14 +163,33 @@ export interface PlanSpot {
   creature_hits: number;        // monster_hit damage episodes at the spot
   last_outcome: string | null;
   last_why: string | null;
-  reach: string;
+  /** the landing as text: name (library or own book, tiles from the grove) */
+  reach: string | null;
   pvp: boolean;
+}
+
+/** A landing rune: a library tome row or a rune of our own book (places.landings) */
+export interface Landing {
+  source: "library" | "book";
+  library: string | null;
+  tome: string | null;
+  book: string | null;
+  name: string;
+  x: number;
+  y: number;
+  /** tiles from the grove's centre */
+  dist: number;
+  /** planned walk from the landing into the grove (tiles), null: not planned */
+  route_tiles: number | null;
+  route_checked: boolean;
 }
 
 export interface LumberPlan {
   ok: boolean;
   error?: string;
   now: number;
+  /** the character's home (harness/data/homes.json); null: none for it (ok false) */
+  home: { character: string | null; library: string | null; landing: number[]; at_home: boolean | null } | null;
   skill: number | null;
   success_p: number | null;
   regrow: { minutes: number; pairs: number; regrown?: number; fitted: boolean };
@@ -203,11 +220,13 @@ export interface LumberPlan {
     mode: "explore" | "exploit";
     greedy: string;
     p_best: number;
+    landing: Landing | null;
     logs_per_trip: number;
     trips: number;
     expected_trip_min: number;
     expected_net_logs_h: number;
-    expected_banked_trip: number;
+    /** logs per trip expected in the room's chest (renewal-reward: a death stores nothing) */
+    expected_stored_trip: number;
     p_death_trip: number;
     p_sent_home_trip: number;
     command: string;
@@ -335,7 +354,14 @@ export function fmtCounts(c: Record<string, number> | undefined | null): string 
   return e.length ? e.map(([k, n]) => `${k} ${n}`).join(", ") : "—";
 }
 
-export const PHASES = ["harvest", "convert", "to_bank", "store"] as const;
+/** Phases of a trip (since 2026-10-04: home, out, chop, recall home, into the room, convert, store);
+ * bank-era rows' to_bank comes after as an extra. */
+export const PHASES = ["harvest", "to_room", "convert", "store"] as const;
+
+/** A trip that brought its wood home: "stored" (the room's chest), or the bank era's "banked". */
+export function tripHome(outcome: string | null | undefined): boolean {
+  return outcome === "stored" || outcome === "banked";
+}
 
 /** Number or an em dash for unknown; `digits` decimals, trailing zeros dropped. */
 export function fmtNum(v: number | null | undefined, digits = 1): string {

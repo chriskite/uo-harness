@@ -1,12 +1,16 @@
 """Lumber loop runner (docs/LUMBER_LOOP.md §3, §6, §12, §13).
 
-One trip = harvest trees (each chop's logs dragged into a trapped pouch) → walk to
-the banker → say "bank" → set the pouch off ourselves, open it, convert the logs
-to boards → drop the boards into the bank box. The run ends at the bank. No
-rental room and no deed creation (user decision 2026-10-01: bank the boards).
+One trip (docs/LUMBER_LOOP.md §12.5, user decision 2026-10-04) starts at home, in
+the rental room or the guild house (harness/home.py, harness/data/homes.json): out of
+the room through its door, recall to the landing nearest the grove (a rune of a rune
+library we may use or of our own books, places.landings) → harvest trees (each chop's
+logs dragged into a trapped pouch) → recall home with our own book's default rune →
+into the rental room through the house steward → set the pouch off ourselves, open
+it, convert the logs to boards → store the boards in the room's secure chest. The
+run ends in the room. No bank, no deed creation.
 
 Thieves (docs/PLAN.md "Keep thieves off the logs"; harness/pouch.py): the logs ride
-in a trapped pouch (hue 38) from the chop to the bank, so a thief's snoop sets it
+in a trapped pouch (hue 38) from the chop to the room, so a thief's snoop sets it
 off. A pouch going off without our double-click (the explosion around us, its
 sound, or its hue 38 -> 0) recalls home like a red and keeps us off the spot for
 lumber_opt.THIEF_COOLDOWN_S. A player within STEAL_GUARD tiles while we chop at a
@@ -45,10 +49,11 @@ the stock 0xB1; an unreadable layout or rejected answers fall back to the
 human wait. The runner never replies to a gump without a reply button (the
 decoys).
 
-The runner answers no other gump, except that its Mover closes (button 0) the
-gump of a moongate a route only passes over (agent_link.Mover.close_gate_gumps).
-The only speech is "bank", and "guards" once inside a guard zone after a flight
-with a hostile player within 12 tiles.
+The runner answers no other gump, except the rental room menus (harness/room.py:
+into the room and out of it, buttons by their labels, never End Rental Contract or
+Expand) and that its Mover closes (button 0) the gump of a moongate a route only
+passes over (agent_link.Mover.close_gate_gumps). It says nothing, except "guards"
+once inside a guard zone after a flight with a hostile player within 12 tiles.
 
 Guards: jittered pacing, overall timeout, HP loss, movement stall, the agent
 gate (pause/break wait, kill/budget abort), bounded retries everywhere.
@@ -70,8 +75,8 @@ Trees within reach of a known-aggressive creature in view are left for later.
 A player/red threat, or a monster that keeps coming stops the run. An abort
 while harvesting stashes loose logs in the trapped pouch when that is safe (with
 no live pouch it converts them), so carried wood is protected. A break announced
-by the agent gate (break_due) ends the trip early: bank, convert, store, exit 0
-for `ctl break`.
+by the agent gate (break_due) ends the trip early: home, convert, store, exit 0
+for `ctl break` in the rental room.
 
 Tracking (tracking.py; LUMBER_LOOP.md §13 "Tracking reds"): Hunting murderer
 players is kept on for the whole run (at the start, after travel, between chops
@@ -93,7 +98,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
-from agent_link import (Abort, Link, Mover, bank_opened, cheb, containers_to_open, log, reach_z,  # noqa: E402
+from agent_link import (Abort, Link, Mover, cheb, containers_to_open, label_since, log, look_at, reach_z,  # noqa: E402
                         same_floor, serial_of)
 import uomap  # noqa: E402
 import nav  # noqa: E402
@@ -111,6 +116,8 @@ import lumber_opt  # noqa: E402
 import travel_guard  # noqa: E402
 import stationary  # noqa: E402
 import places  # noqa: E402
+import home as home_mod  # noqa: E402
+import room as room_mod  # noqa: E402
 import captcha  # noqa: E402
 import combat  # noqa: E402
 import tracking  # noqa: E402
@@ -130,7 +137,11 @@ NEXT_STAND_PLANS = 6          # nearest trees (straight line) whose stands next_
 SMART_RANGE = 1
 SURVEY_R = 6                  # trees within this many tiles of a stand go into its `stand` event (the measurement)
 DIR_NAMES = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
-HOME_NEAR = 60               # tiles from the banker: close enough to walk instead of recalling home
+AT_GROVE = 10                 # tiles beyond the area's radius that count as being at the grove already (no travel)
+LANDING_SLACK = 3             # tiles from the chosen rune's tile a recall out may land (live: on the tile) before it is wrong
+KEEPER_SEARCH = 18            # tiles around us whose human NPCs are clicked to find the house steward
+KEEPER_CLICKS = 12
+CHEST_REACH = 2               # tiles from the home chest to drop into it [INFERENCE: RunUO's 2-tile item reach]
 # Coloured-wood success, e.g. "You chop some dullwood logs and put them in your backpack."
 # (live 2026-10-02, Terran; unmatched it counted as an unknown outcome and aborted the trip)
 COLORED_CHOP = re.compile(r"You chop some [a-z]+ logs and put them in your backpack\.$")
@@ -191,8 +202,8 @@ def facing_to(a, b) -> int:
     return 5 if dy > 0 else 7
 
 
-LEG_KEYS = ("leg", "kind", "method", "book", "witcher_rune", "ok", "attempts", "s", "walk_s", "failure",
-            "charges", "mana_used", "reagents_used")
+LEG_KEYS = ("leg", "kind", "method", "book", "library", "witcher_rune", "landing", "ok", "attempts", "s", "walk_s",
+            "failure", "charges", "mana_used", "reagents_used")
 
 
 def leg_summary(data: dict) -> dict:
@@ -205,8 +216,8 @@ def leg_summary(data: dict) -> dict:
 
 def pack_depth(items: dict, container: int, me: int, pack: int) -> int | None:
     """How deep an item whose container is `container` sits: 0 worn (on `me`),
-    1 in the backpack, 2 in a bag in it, ... None elsewhere (the bank box,
-    the ground, a container the world model doesn't know)."""
+    1 in the backpack, 2 in a bag in it, ... None elsewhere (a chest, the
+    ground, a container the world model doesn't know)."""
     if container == me:
         return 0
     depth = 1
@@ -229,7 +240,7 @@ def row_hatchet(start: dict | None, worn_chopping: bool | None) -> dict | None:
     """The trip row's `hatchet` (lumber_opt.character's entry at the trip start) with
     `worn` as it was when the last chop's cursor came, when the trip chopped: the server
     equips a packed hatchet on the double-click, and every cast (Magic Reflection at
-    the bank, a recall) puts it back in the pack, so at the start it is often packed
+    home, a recall) puts it back in the pack, so at the start it is often packed
     (live 2026-10-03, trip 1: worn False at 21:43:43, in hand from the first chop at
     21:44:39 to the end). `worn_at_start` keeps the start reading."""
     if start is None or worn_chopping is None:
@@ -341,7 +352,12 @@ class LumberLoop:
         self.hit_by = []             # serials creature_hit blamed in this threat check (the junctures' `attackers`)
         self.hatchet_worn = None     # this trip: the hatchet in hand when a chop's cursor came (trip row hatchet.worn)
         self.break_due = False       # the agent gate announced a break (break_due)
-        self.recall_book = None      # runebook / rune tome serial: the red escape (prepare_recall)
+        self.recall_book = None      # our book whose default rune lands at home: the way home and the red escape
+        self.home_rune = None        # (x, y, facet) that default rune lands on (prepare_recall)
+        self.home = None             # this character's home (harness/home.py: landing, room, chest), run()
+        self.home_name = None        # the character's name it is keyed by
+        self.books = []              # our own runebooks / rune tomes as read at the start (escape.read_book)
+        self.out_landing = None      # the landing trips recall to (lumber_opt.landing_for), chosen once a run
         self.aspect_hue = aspects.HARVEST_HUE   # worn armor in this hue counts as Harvest-aspected (aspect_ensure)
         self.aspect_warned = set()   # aspect problems already posted as a juncture this run
         self._attack_scan = 0        # link.events index scanned for "... is attacking you!"
@@ -417,14 +433,14 @@ class LumberLoop:
 
     def check_gate(self, st):
         """The agent gate's break_due (harness/agent_gate.py, docs/OVERSEER.md):
-        stop harvesting and finish this trip at the bank, so the overseer can
+        stop harvesting and finish this trip in the rental room, so the overseer can
         start the break there (`ctl break`)."""
         gate = st.get("gate") or {}
         if gate.get("break_due_at") is not None and not self.break_due:
             self.break_due = True
             left = gate.get("break_starts_in_s")
             log("break due" + (f" (it starts in {left:.0f} s)" if left is not None else "")
-                + ": ending the trip at the bank")
+                + ": ending the trip in the rental room")
 
     # ------------------------------------------------------------ watchful waits
     def look(self, st=None):
@@ -590,9 +606,12 @@ class LumberLoop:
                      and s not in {t.serial for t in monsters}]
         if players or aggressors:
             worst = players[0] if players else None
-            why = self.recall_out(st, a, worst, swung) if self.recall_book is not None else "no recall book"
-            if self.k["pvp"]:
-                self.flee_to_guards(st, a, worst, swung, why)
+            if self.on_home_rune(st):
+                why = "at home, on the way-home rune's tile: no recall"   # threat_stop stops here
+            else:
+                why = self.recall_out(st, a, worst, swung) if self.recall_book is not None else "no recall book"
+                if self.k["pvp"]:
+                    self.flee_to_guards(st, a, worst, swung, why)
             self.threat_stop(st, a, worst, swung, Unsafe, why)
         self.check_tracking(st, a, swung)
         if self.mode == "salvage":
@@ -798,37 +817,74 @@ class LumberLoop:
                                                      "skill": tracking.skill(st["world"]), "trip": self.trip_n},
                               **self._where(st))
 
-    def prepare_recall(self, st) -> int | None:
-        """The red escape's book (escape.py), read once at the start like a player
-        glancing at it: a runebook or rune tome in the pack with a default rune and a
-        charge or a castable Recall. Required at spots where players can attack
-        (pvp) unless --recall off."""
-        if self.args.recall == "off" or not self.k["pvp"]:
-            return None
-        books = escape_mod.find_books(st["world"], self.self_serial(st))
-        why = "no runebook or rune tome in the backpack"
-        for book, kind in books:
+    def read_books(self, st) -> list[dict]:
+        """Our own runebooks and rune tomes, read once at the start like a player leafing
+        through them (escape.read_book: title, default rune, charges, every rune's
+        landing tile) and remembered in the store for `ctl lumber plan`
+        (places.remember_book, keyed by the character). An unreadable one is skipped."""
+        books = []
+        for serial, kind in escape_mod.find_books(st["world"], self.self_serial(st)):
             try:
-                info = escape_mod.check_ready(escape_mod.LinkIO(self.link), book)
+                book = escape_mod.read_book(escape_mod.LinkIO(self.link), serial,
+                                            wait=lambda: self.human.wait("read"))
             except escape_mod.RecallError as e:
-                why = str(e)
+                log(f"{kind} 0x{serial:08X} not read: {e}")
                 continue
-            if info["default"] is None and info["entries"] != 1:
-                why = f"{kind} 0x{book:08X} has no default rune"
-            elif info["charges"] <= 0 and not info["can_cast"]:
-                why = f"{kind} 0x{book:08X}: no charges and Recall can't be cast (mana/reagents)"
+            places.remember_book(self.memory, self.home_name, book)
+            books.append(book)
+            log(f"{kind} 0x{serial:08X} {book.get('title') or ''!r}: {len(book['runes'])} rune(s), "
+                f"{book['charges']} charge(s), default {book.get('default_name')!r}")
+        return books
+
+    @staticmethod
+    def default_rune(book: dict) -> dict | None:
+        """The rune a book recalls to without a name: its default, else its only rune (escape.recall)."""
+        i = book.get("default")
+        if i is None and len(book["runes"]) == 1:
+            i = book["runes"][0]["i"]
+        return next((r for r in book["runes"] if r["i"] == i), None) if i is not None else None
+
+    def prepare_recall(self, st) -> int:
+        """The way home, which is also the red escape (escape.py): our own book whose
+        default rune lands at home (home.at_home: by the landing, e.g. Outland Dan's
+        'DTF Loot Chest' rune), with a charge or a castable Recall. Every trip comes home
+        by it, so no run starts without one."""
+        me = self.self_serial(st)
+        can_cast = escape_mod.can_cast_recall(st["world"], me, (st["world"].get("self") or {}).get("mana"))
+        why = "no runebook or rune tome in the backpack"
+        for book in self.books:
+            serial, rune = int(book["serial"], 16), self.default_rune(book)
+            if rune is None:
+                why = f"{book['kind']} {book['serial']} has no default rune"
+            elif rune.get("x") is None:
+                why = f"{book['kind']} {book['serial']}: its default rune {rune['name']!r} shows no tile"
+            elif not home_mod.at_home((rune["x"], rune["y"]), rune.get("facet") or 0, self.home):
+                why = (f"{book['kind']} {book['serial']}: its default rune {rune['name']!r} lands at "
+                       f"{rune['x']},{rune['y']}, not by home ({tuple(self.home['landing'][:2])})")
+            elif book["charges"] <= 0 and not can_cast:
+                why = f"{book['kind']} {book['serial']}: no charges and Recall can't be cast (mana/reagents)"
             else:
-                log(f"red escape ready: {kind} 0x{book:08X}, default rune "
-                    f"{(info['default'] or 0) + 1}, {info['charges']} charge(s)")
-                return book
-        raise Abort(f"no recall escape ({why}); refusing to work where players can attack without one "
-                    f"(--recall off to override)")
+                log(f"way home ready: {book['kind']} {book['serial']}, default rune {rune['name']!r} "
+                    f"({rune['x']},{rune['y']}), {book['charges']} charge(s)")
+                self.home_rune = (rune["x"], rune["y"], rune.get("facet") or 0)
+                return serial
+        raise Abort(f"no way home ({why}): a trip needs our own runebook or rune tome whose default rune "
+                    f"lands at home")
+
+    def on_home_rune(self, st) -> bool:
+        """In the room, or so near the way-home rune's tile that a recall wouldn't move us
+        (escape.JUMP_TILES: it would read as no arrival and recast until the budget is spent)."""
+        if home_mod.in_room(self.facet_now(st), self.home):
+            return True
+        if self.home_rune is None or self.facet_now(st) != self.home_rune[2]:
+            return False
+        return cheb(self.link.pos(st), self.home_rune[:2]) <= escape_mod.JUMP_TILES
 
     def aspect_ensure(self, where: str):
         """Head out in a suit of Harvest aspect armor (user, 2026-10-04; docs/NOTES.md
         "Aspects"). Passive first: the six armor layers worn in the aspect's hue (the
         server re-sends each piece in it on activation; a piece that left the
-        character since, e.g. dropped or banked, came back in its own hue). Only when a
+        character since, e.g. dropped or stored, came back in its own hue). Only when a
         piece isn't, the Aspect Mastery menu like a player (aspects.activate: armor,
         Harvest, Activate twice; 5 Arcane Essence, nothing when the server says the
         armor already has it, which then teaches the suit's hue). A missing piece, a
@@ -897,10 +953,11 @@ class LumberLoop:
         time to convert logs (live 2026-10-03, witcher_291: 85 -> 40 hits during a 12 s
         conversion, then the run exited in the field and the overseer's recall landed at
         15/100). So: recall home at once when away from home with a book ready, and stop
-        without converting (Unsafe). Near home, or without a book, stop where we stand.
+        without converting (Unsafe). At home (home.at_home: in the room or by the landing),
+        or without a book, stop where we stand.
         The trip row's `creature` gets the why and whether the recall landed."""
         self.creature["why"] = why
-        if self.recall_book is not None and cheb(self.link.pos(st), self.banker_pos()) > HOME_NEAR:
+        if self.recall_book is not None and not self.at_home(st):
             try:
                 why = f"{why}; {self.recall_out(st, a, worst, swung, pk=False, why=why)}"
             except Unsafe:
@@ -1704,10 +1761,11 @@ class LumberLoop:
                 except KeepAway as e:
                     self.keep_away(e)
             if self.break_due:
-                log(f"break due: stopping the harvest at {tally['gained']} logs; banking and converting")
+                log(f"break due: stopping the harvest at {tally['gained']} logs; going home to convert and store")
             elif not trees and tally["gained"] < self.args.logs_per_trip:
                 self.stats["dry"] = True
-                log(f"the area ran dry at {tally['gained']} logs (every candidate tree out of wood or tried); banking")
+                log(f"the area ran dry at {tally['gained']} logs (every candidate tree out of wood or tried); "
+                    f"going home")
             return tally["gained"]
         finally:
             self.harvesting = False
@@ -2028,7 +2086,7 @@ class LumberLoop:
         """Drag the wood lying directly in the backpack (a chop's new logs) into the trapped
         pouch (log_pouch; docs/PLAN.md "Keep thieves off the logs"), with the stock lift and
         drop at a player's pace: the drop onto the pouch's icon in the open backpack, as the
-        bank deposit drops onto the box. The ledger knows the drag (ledger "moving"). A stack
+        store drops into the chest. The ledger knows the drag (ledger "moving"). A stack
         not seen in the pouch within 3 s stays where it is (the next chop tries again).
         Returns the units moved; none without a live pouch (pouch_ready starts no trip
         without one)."""
@@ -2074,8 +2132,8 @@ class LumberLoop:
             self.human.wait("read")
 
     def pouch_ready(self, st):
-        """A trip carries its logs in a live trapped pouch, and uses one up (unpack, at the
-        bank). Without one: an attention `low_supplies` juncture (item 'trapped pouch') and
+        """A trip carries its logs in a live trapped pouch, and uses one up (unpack, in the
+        rental room). Without one: an attention `low_supplies` juncture (item 'trapped pouch') and
         the run stops before the trip; the overseer buys them at a provisioner (`ctl act buy
         <provisioner> trapped pouch --amount N`; Errol, 25 gp)."""
         pp = pouch.pack_pouches(st["world"], self.backpack(st))
@@ -2092,7 +2150,7 @@ class LumberLoop:
 
     # ------------------------------------------------------------ converting
     def convert(self):
-        """Every log stack in the pack into boards (at the bank, before the deposit): the
+        """Every log stack in the pack into boards (in the rental room, before storing): the
         trapped pouch holding them is set off first (unpack) and opened on the way
         (open_for), the logs targeted with the hatchet's cursor; the boards land where
         the logs were [INFERENCE: RunUO ScissorHelper drops them into the logs' container]."""
@@ -2139,89 +2197,138 @@ class LumberLoop:
         it = uomap.tiledata().item(h(tree["graphic"]))
         return reach_z(tree["z"], it.height if it else 0)
 
-    # ------------------------------------------------------------ the bank
-    def banker_mobile(self):
-        return self.link.state()["world"]["mobiles"].get(self.k["npcs"]["banker"]["serial"]) or {}
+    # ------------------------------------------------------------ home (harness/home.py)
+    @staticmethod
+    def facet_now(st) -> int | None:
+        return (st["world"].get("self") or {}).get("map")
 
-    def banker_pos(self):
-        """Where the banker stands now (world model), else the demo position."""
-        m = self.banker_mobile()
-        if m.get("x") is not None:
-            return (m["x"], m["y"])
-        return tuple(self.k["npcs"]["banker"]["pos"][:2])
+    def at_home(self, st) -> bool:
+        """In the rental room, or within home.NEAR_LANDING tiles of the home landing."""
+        return self.home is not None and home_mod.at_home(self.link.pos(st), self.facet_now(st), self.home)
 
-    def banker_z(self) -> int:
-        z = self.banker_mobile().get("z")
-        return z if z is not None else self.k["npcs"]["banker"]["pos"][2]
+    def find_home(self, st) -> dict:
+        """This character's home (harness/home.py, --homes) by its name in the world model."""
+        name = (st["world"].get("self") or {}).get("name")
+        found = home_mod.for_character(name, self.args.homes)
+        if found is None:
+            raise Abort(f"no home for {name!r} in {self.args.homes}: every trip starts and ends there (the "
+                        f"landing our book's default rune recalls to, the rental room and its chest)")
+        self.home_name = name
+        log(f"home of {name}: landing {tuple(found['landing'][:2])} (facet {found['facet']}), the rental room "
+            f"(owner {found['room'].get('owner') or 'ourselves'}), chest {found['chest']['serial']}")
+        return found
 
-    # ------------------------------------------------------------ travel (spots reached by recall)
+    def leave_room(self):
+        """Out of the rental room through its door (room.leave: the door's menu, the home's exit,
+        "Exit to House Steward" for Outland Dan): a teleport to the landing, so the 60 s harvest
+        lockout and the Stationary Penalty follow (the first chop waits them out, unstick)."""
+        self.doing("leave_room", "Leaving the rental room")
+        try:
+            res = room_mod.leave(escape_mod.LinkIO(self.link), self.human, self.home["room"].get("exit") or "steward")
+        except room_mod.RoomError as e:
+            raise Abort(f"leaving the rental room: {e}")
+        if not res["ok"]:
+            raise Abort(f"leaving the rental room: {res.get('error')}")
+        log(f"left the rental room to {res['exit']} at {res['pos']} (facet {res['facet']})")
+
+    def landing(self) -> dict | None:
+        """The landing trips recall to, chosen once a run (lumber_opt.landing_for, as `ctl lumber
+        plan` shows it): the rune nearest the grove of our home's rune library (home.libraries)
+        and our own books, dangerous ones left out, with a walking route from it into the grove.
+        Routes are planned on the map with the Mover's planner (lumber_opt.make_route_fn) and
+        cached in the store (lumber_opt.landing_routes); without a map (--no-map) only cached
+        answers count and an unknown route counts as there."""
+        if self.out_landing is None:
+            spot = {**self.k["spot"], "area": self.k["harvest"]["area"]}
+            walk = self.mover.walkers.get(self.facet) if self.mover.use_map else None
+            routes, new = lumber_opt.landing_routes(self.memory), {}
+            ok = lumber_opt.make_route_ok(lumber_opt.make_route_fn(walk) if walk is not None else None, routes, new)
+            self.out_landing = lumber_opt.landing_for(spot, self.home, self.books, route_ok=ok)
+            lumber_opt.save_landing_routes(self.memory, new)
+        return self.out_landing
+
     def go_out(self):
-        """Witcher-rune spots (spot access {"method": "witcher", "rune": N}): unless we
-        stand in the spot's area already, walk to the nearest rune library that holds
-        rune N (places.library_for; the spot's own library on a tie: the DTF guild
-        house for a character living there, Cambria for one living there), stand by
-        the tome that holds it and recall (escape.recall: one of the tome's charges,
-        else our own spell; docs/research/WORLD_LOCATIONS.md). The 60 s harvest
-        lockout after it is waited out by the first chop (outcome 'lockout'). Every
-        attempt is a `travel` job event (travel_leg), a failed walk or recall too."""
-        access = self.k["spot"].get("access") or {}
-        if access.get("method") != "witcher":
-            return
+        """Out to the grove (docs/LUMBER_LOOP.md §12.5, user decision 2026-10-04: recall as close
+        to it as we can): from the rental room first through its door (leave_room). Unless we
+        stand at the grove already (its area + AT_GROVE) or no farther from it than the landing
+        (then the harvest walks), recall to the landing (landing): a rune library's row by
+        walking to the tome that holds it and recalling from it (escape: one of its charges,
+        else our own spell), a rune of our own book where we stand. The 60 s harvest lockout
+        after it is waited out by the first chop (outcome 'lockout'). Every attempt is a
+        `travel` job event (travel_leg, leg 'out' with the landing), a failed walk or recall too."""
         st = self.state()
+        if home_mod.in_room(self.facet_now(st), self.home):
+            self.leave_room()
+            st = self.state()
         area = self.k["harvest"]["area"]
-        pos = self.link.pos(st)
-        if cheb(pos, area["center"]) <= area["radius"] + 10:
+        here = cheb(self.link.pos(st), area["center"]) if self.facet_now(st) == self.facet else None
+        if here is not None and here <= area["radius"] + AT_GROVE:
             return
-        facet = (st["world"].get("self") or {}).get("map")
-        try:
-            lib = places.library(places.library_for(access["rune"], pos, facet,
-                                                    prefer=access.get("library", "cambria")))
-            rune = places.library_rune(lib["id"], access["rune"])
-        except KeyError as e:
-            raise Abort(e.args[0])
-        rid, name = rune["witcher"], places.witcher_rune(rune["witcher"])["name"]
-        leg = {"leg": "out", "witcher_rune": rid, "library": lib["id"], "book": rune["tome"]}
+        row = self.landing()
+        if row is None:
+            raise Abort(f"no landing for spot {self.k['spot']['id']}: no rune of the rune library "
+                        f"({', '.join(home_mod.libraries(self.home)) or 'none'}) or of our own books lands near it "
+                        f"with a walking route into it")
+        if here is not None and here <= row["dist"]:
+            log(f"the grove is {here} tiles away, no landing nearer ({row['name']!r}: {row['dist']}); walking")
+            return
+        library = row["source"] == "library"
+        landing = {k: row.get(k) for k in ("source", "library", "tome", "book", "name", "x", "y")}
+        leg = {"leg": "out", "landing": landing, "library": row.get("library"),
+               "book": row["tome"] if library else row["book"], "witcher_rune": row.get("witcher")}
+        where = f"the {row['library']} rune library" if library else f"our {row.get('kind') or 'book'} {row['book']}"
         t0 = time.monotonic()
-        # No distance limit (user decision 2026-10-03): the walk goes as far as the map planner
-        # routes; "no route" from far away still aborts (bring us closer by moongate first).
-        tome_xy = tuple(rune["tome_pos"][:2])
-        self.doing("to_library", f"Walking to the {lib['name']}", tome_xy)
-        try:
-            self.mover.walk_to(lambda: tome_xy, lib["use_range"] - 1, "to the rune library")
-            if self.wait_for(lambda s: rune["tome"] in s["world"]["items"], 3.0) is None:
-                raise Abort(f"the tome {rune['tome']} for rune {rid} isn't at the {lib['name']} ({tome_xy})")
-        except Abort as e:
-            self.travel_leg(leg, t0, failure=f"walk: {e}")
-            raise
-        leg["walk_s"] = round(time.monotonic() - t0, 1)
-        self.doing("recall_out", f"Recalling to rune {rid} ({name})", (rune["x"], rune["y"]))
+        if library:
+            lib = places.library(row["library"])
+            tome_xy = tuple(row["tome_pos"][:2])
+            self.doing("to_library", f"Walking to the {lib['name']}", tome_xy)
+            try:
+                self.mover.walk_to(lambda: tome_xy, lib["use_range"] - 1, "to the rune library")
+                if self.wait_for(lambda s: row["tome"] in s["world"]["items"], 3.0) is None:
+                    raise Abort(f"the tome {row['tome']} holding {row['name']!r} isn't at the {lib['name']} "
+                                f"({tome_xy})")
+            except Abort as e:
+                self.travel_leg(leg, t0, failure=f"walk: {e}")
+                raise
+            leg["walk_s"] = round(time.monotonic() - t0, 1)
+        self.doing("recall_out", f"Recalling to {row['name']}", (row["x"], row["y"]))
         self.human.wait("use")
         before = self.supplies_now(self.link.state())
         try:
-            res = escape_mod.escape(escape_mod.LinkIO(self.link), int(rune["tome"], 16), attempts=2, log=log,
-                                    rune=rune["name"])
+            res = escape_mod.escape(escape_mod.LinkIO(self.link), int(leg["book"], 16), attempts=2, log=log,
+                                    rune=row["name"], entry=row.get("entry"))
         except escape_mod.RecallError as e:
             self.travel_leg(leg, t0, failure=f"recall: {e}")
-            raise Abort(f"library recall to rune {rid} not possible: {e}")
+            raise Abort(f"recall to {row['name']!r} from {where} not possible: {e}")
         self.travel_leg(leg, t0, res, before)
         if not res["ok"]:
-            raise Abort(f"library recall to rune {rid} failed: {res['failure']}")
-        log(f"recalled to rune {rid} ({name}) from the {lib['name']} at {tuple(res['to'])} ({res['method']})")
+            raise Abort(f"recall to {row['name']!r} from {where} failed: {res['failure']}")
+        to = tuple(res["to"][:2]) if res.get("to") else None
+        if to is None or cheb(to, (row["x"], row["y"])) > LANDING_SLACK:
+            why = (f"the recall to {row['name']!r} from {where} landed at {to}, not by its tile "
+                   f"({row['x']},{row['y']})")
+            log(f"{why}: recalling home")
+            try:
+                self.go_home()
+            except Abort as e:
+                why += f"; {e}"
+            raise Abort(why)
+        log(f"recalled to {row['name']!r} from {where} at {to} ({res['method']}; "
+            f"{row['dist']} tiles from the grove's centre)")
 
     def go_home(self):
-        """Spots with home {"method": "recall"}: recall to the default rune of our
-        book (the same one the red escape uses), unless the banker is already near;
-        open_bank walks the rest. A `travel` job event either way it goes."""
-        if (self.k["spot"].get("home") or {}).get("method") != "recall":
+        """Home by our own book's default rune (prepare_recall), unless at home already
+        (home.at_home: in the room or within NEAR_LANDING of the landing; to_room walks the
+        rest). A `travel` job event (leg 'home'); a recall that lands anywhere but home aborts.
+        Either way we're no longer out at the spot (afield)."""
+        st = self.link.state()
+        if self.at_home(st):
+            self.afield = False
             return
-        if cheb(self.link.pos(self.link.state()), self.banker_pos()) <= HOME_NEAR:
-            return
-        if self.recall_book is None:
-            raise Abort("this spot goes home by recall, and there is no runebook or rune tome ready")
         self.doing("recall_home", "Recalling home")
         self.human.wait("use")
         leg, t0 = {"leg": "home", "book": f"0x{self.recall_book:08X}"}, time.monotonic()
-        before = self.supplies_now(self.link.state())
+        before = self.supplies_now(st)
         try:
             res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, attempts=3, log=log)
         except escape_mod.RecallError as e:
@@ -2231,6 +2338,10 @@ class LumberLoop:
         if not res["ok"]:
             raise Abort(f"recall home failed: {res['failure']}")
         self.afield = False
+        st = self.link.state()
+        if not self.at_home(st):
+            raise Abort(f"the recall home landed at {tuple(self.link.pos(st)[:2])} (facet {self.facet_now(st)}), "
+                        f"not by home {tuple(self.home['landing'][:2])}")
 
     def supplies_now(self, st) -> dict:
         """Mana and reagents in the pack now (travel legs: what a recall cost)."""
@@ -2240,7 +2351,7 @@ class LumberLoop:
 
     def travel_leg(self, leg: dict, t0: float, res: dict | None = None, before: dict | None = None,
                    failure: str | None = None):
-        """One travel leg (out by a library tome, home by our book): a `travel` job
+        """One travel leg (out to the landing, home by our book): a `travel` job
         event with the trip, the spot, the book, how long it took (`s`, the walk to the
         library included, `walk_s`), escape.escape's result (method, every try, the
         charges the book showed) or why it couldn't be tried, and the mana and reagents
@@ -2269,63 +2380,126 @@ class LumberLoop:
         if casts:
             self.ledger.expect(*[("spent", g, casts) for g in combat.SPELL_REAGENTS[escape_mod.RECALL]])
 
-    def open_bank(self) -> int:
-        """Walk up to where the banker stands now and say "bank"; the bank box
-        serial once the server has opened it (0x24). NPCs move, so the demo
-        position is only the fallback (the innkeeper's lesson, LUMBER_LOOP.md §13).
-        A spot whose way home is a recall recalls first (go_home)."""
+    def to_room(self):
+        """Home (go_home), then into the rental room through the house steward (room.enter:
+        his context menu "Room", "Visit Other Rooms" and the owner's row, home.room.owner;
+        none: our own room), walking up to him first (walk_to_keeper). Home by distance only
+        (go_home walked, the keeper not known in view): to the landing first, where he stands
+        by. Converting and storing happen in the room, the safe place."""
         self.go_home()
         self.track_ensure("home")
-        self.doing("to_bank", "Going to the bank: heading to the banker", self.banker_pos())
-        self.mover.walk_to(self.banker_pos, self.args.bank_range, "to the banker",
-                           z_ok=same_floor(self.banker_z()))
-        self.doing("open_bank", "Opening the bank box", self.banker_pos())
-        self.human.wait("speak")
-        mark = len(self.link.events)
-        self.link.act(actions.say_unicode("bank"))
-        st = self.wait_for(lambda s: bank_opened(s["world"], self.self_serial(s), self.since(mark)), 5.0)
-        if st is None:
-            raise Abort("the bank box did not open (no banker in range?)")
-        box = bank_opened(st["world"], self.self_serial(st), self.since(mark))
-        log(f"bank box opened (0x{box:08X})")
-        self.afield = False
-        return box
+        st = self.state()
+        if home_mod.in_room(self.facet_now(st), self.home):
+            return
+        landing = tuple(self.home["landing"][:2])
+        if room_mod.find_keeper(st) is None and cheb(self.link.pos(st), landing) > room_mod.KEEPER_RANGE:
+            self.doing("to_room", "Walking home to the landing", landing)
+            self.mover.walk_to(lambda: landing, room_mod.KEEPER_RANGE, "to the home landing")
+        serial, label = self.find_keeper()
+        self.doing("to_room", f"Going into the rental room via {label}", self.mobile_xy(serial))
+        try:
+            res = room_mod.enter(escape_mod.LinkIO(self.link), self.human,
+                                 (self.home["room"].get("owner") or "").split(), walk=self.walk_to_keeper)
+        except room_mod.RoomError as e:
+            raise Abort(f"into the rental room: {e}")
+        st = self.link.state()
+        if not res["ok"] or not home_mod.in_room(self.facet_now(st), self.home):
+            raise Abort(f"into the rental room: {res.get('error') or f'on facet {self.facet_now(st)} after it'}")
+        log(f"in the rental room ({res['room']}) via {res['via']} at {res['pos']}")
 
-    def deposit(self, box: int) -> int:
-        """Drag every board stack in the pack (the opened pouch included; a live pouch
-        holding boards is set off first, unpack) into the open bank box, right after it
-        opened: no step in between (moving closes a bank box in RunUO [INFERENCE for
-        Outlands]). Then the spent pouches we set off, now empty, go into the box too, so
-        they don't pile up in the pack (one a trip)."""
-        stored = 0
+    def mobile_xy(self, serial: int):
+        m = self.link.state()["world"]["mobiles"].get(f"0x{serial:08X}") or {}
+        return (m["x"], m["y"]) if m.get("x") is not None else None
+
+    def find_keeper(self) -> tuple[int, str]:
+        """The house steward (or innkeeper) room.enter goes through: one whose click label is
+        known (room.find_keeper), else single-click the invulnerable human NPCs within
+        KEEPER_SEARCH tiles, nearest first at a player's pace (agent_link.look_at, the stock
+        click), until one's label names a keeper."""
+        st = self.state()
+        found = room_mod.find_keeper(st)
+        if found is not None:
+            return found
+        me, my = tuple(self.link.pos(st)[:2]), self.self_serial(st)
+        cands = sorted((cheb(me, (m["x"], m["y"])), serial_of(key), m.get("name"))
+                       for key, m in st["world"]["mobiles"].items()
+                       if m.get("x") is not None and m.get("graphic") in threats.HUMAN_BODIES
+                       and m.get("notoriety") == 7 and serial_of(key) != my)
+        cands = [c for c in cands if c[0] <= KEEPER_SEARCH][:KEEPER_CLICKS]
+        log(f"house steward search: {len(cands)} NPC(s) nearby to look at")
+        for dist, serial, name in cands:
+            self.human.wait("use")
+            mark = len(self.link.events)
+            look_at(self.link, serial, known_name=bool(name))
+            self.wait_for(lambda s: label_since(self.link, serial, mark) is not None, 1.5)
+            label = label_since(self.link, serial, mark)
+            log(f"  looked at {name or f'0x{serial:08X}'} ({dist} tiles): {label!r}")
+            if room_mod.keeper_kind(label):
+                return serial, label
+        raise Abort(f"no house steward or innkeeper by home ({len(cands)} NPC(s) looked at)")
+
+    def walk_to_keeper(self, serial: int, rng: int):
+        """room.enter's walker: up to where the keeper stands now, on his floor (guarded Mover)."""
+        last = [self.mobile_xy(serial)]
+        z = (self.link.state()["world"]["mobiles"].get(f"0x{serial:08X}") or {}).get("z")
+
+        def where():
+            last[0] = self.mobile_xy(serial) or last[0]
+            return last[0]
+        if last[0] is None:
+            raise Abort(f"the house steward 0x{serial:08X} isn't in view")
+        self.mover.walk_to(where, rng, "to the house steward", z_ok=same_floor(z) if z is not None else None)
+
+    def store(self) -> int:
+        """Into the room's secure chest (home.chest, within reach of the arrival): every board
+        stack in the pack (the opened pouch included; a live pouch holding boards is set off
+        first, unpack), then the spent pouches we set off, now empty, so they don't pile up in
+        the pack (one a trip). The chest is opened first like a player would (open_for: the
+        double-click, the server's 0x24); each item is declared to the ledger, lifted and
+        dropped into it at the auto position (put_away; live 2026-10-04: `ctl act drop` of a
+        stack into this chest). Facet 3 has no map: a walk to the chest, only needed when we
+        stand beyond CHEST_REACH, plans on walk memory."""
+        chest, where = home_mod.chest_serial(self.home), tuple(self.home["chest"]["pos"][:2])
+        name = self.home["chest"].get("name") or "chest"
         self.unpack(BOARDS)
-        stacks = self.in_pack(self.state(), BOARDS)
-        if stacks:  # the bank gump is open from the speech; the backpack (and pouch) may still need opening
-            self.open_for(*[(serial, False) for serial, _ in stacks])
+        st = self.state()
+        stacks = self.in_pack(st, BOARDS)
+        spent = self.spent_pouches(st)
+        if not stacks and not spent:
+            return 0
+        if self.wait_for(lambda s: self.item(s, chest) is not None, 3.0) is None:
+            raise Abort(f"the {name} {self.home['chest']['serial']} isn't in view in the rental room")
+        if cheb(self.link.pos(self.link.state()), where) > CHEST_REACH:
+            self.doing("store", f"Going to the {name}", where)
+            self.mover.walk_to(lambda: where, 1, f"to the {name}")
+        stored = 0
+        self.open_for((chest, True), *[(serial, False) for serial, _ in stacks])
         for serial, it in stacks:
             amount = it.get("amount") or 1
-            self.doing("store", f"Banking {amount} boards", self.banker_pos())
-            self.bank_item(serial, amount, box, "board stack")
+            self.doing("store", f"Storing {amount} boards in the {name}", where)
+            self.put_away(serial, amount, chest, "board stack")
             stored += amount
-            log(f"banked {amount} boards")
-        st = self.state()
-        pack = self.backpack(st)
-        spent = [s for s, p in pouch.pack_pouches(st["world"], pack).items()
-                 if s in self.pops.own and not p["live"] and not pouch.contents(st["world"], s)]
+            log(f"stored {amount} boards in the {name}")
+        spent = self.spent_pouches(self.state())
         for s in spent:
-            self.bank_item(s, 1, box, "spent trapped pouch")
+            self.put_away(s, 1, chest, "spent trapped pouch")
         if spent:
-            log(f"banked {len(spent)} spent trapped pouch(es)")
+            log(f"stored {len(spent)} spent trapped pouch(es) in the {name}")
         self.stats["stored"] = self.stats.get("stored", 0) + stored
         return stored
 
-    def bank_item(self, serial: int, amount: int, box: int, what: str):
-        """Lift `serial` out of the pack and drop it into the open bank box (declared to the ledger)."""
+    def spent_pouches(self, st) -> list[int]:
+        """Trapped pouches we set off ourselves this run, gone off and empty."""
+        return [s for s, p in pouch.pack_pouches(st["world"], self.backpack(st)).items()
+                if s in self.pops.own and not p["live"] and not pouch.contents(st["world"], s)]
+
+    def put_away(self, serial: int, amount: int, chest: int, what: str):
+        """Lift `serial` out of the pack and drop it into the open chest (declared to the ledger)."""
         self.human.wait("use")
-        self.ledger.expect(("moved_out", serial))    # into the bank box: not theft
+        self.ledger.expect(("moved_out", serial))    # into our own chest: not theft
         self.link.act(actions.lift(serial, amount))
         self.human.wait("drag")
-        self.link.act(actions.drop(serial, DROP_AUTO, DROP_AUTO, 0, 0, box))
+        self.link.act(actions.drop(serial, DROP_AUTO, DROP_AUTO, 0, 0, chest))
         pack = self.backpack(self.link.state())
         if self.wait_for(lambda s: serial not in ledger_mod.pack_items(s, pack), 4.0) is None:
             raise Abort(f"{what} 0x{serial:08X} did not leave the backpack")
@@ -2335,9 +2509,10 @@ class LumberLoop:
         self.memory.episode("lumber", row)
 
     def trip(self, n):
-        """One trip: harvest (logs into the trapped pouch) -> walk to the banker and open
-        the bank box -> convert (the pouch set off and opened) -> bank the boards. The run
-        ends at the bank. A monster escape in any phase is followed by that phase again
+        """One trip: from home out to the grove (go_out) and harvest (logs into the trapped
+        pouch) -> home and into the rental room (to_room) -> convert (the pouch set off and
+        opened) -> store the boards in the room's chest. The run ends in the room. A monster
+        escape in any phase is followed by that phase again
         (the harvest goes on at the next stand out of reach); an abort while harvesting
         stashes the loose logs in the pouch first when that's safe (salvage). Every trip
         leaves an episode row, an aborted one too (outcome 'aborted' + why): leaving those
@@ -2373,12 +2548,12 @@ class LumberLoop:
                 self.salvage(e)
                 raise
 
-            def bank():                     # convert by the banker: the logs stay in the pouch until then
-                box = timed("to_bank", self.open_bank, retry=False)
+            def room_phase():               # convert in the rental room: the logs stay in the pouch until then
+                timed("to_room", self.to_room, retry=False)
                 timed("convert", self.convert, retry=False)
-                timed("store", lambda: self.deposit(box), retry=False)
-            self.guarded(bank)              # an escape after the box opened: walk back and say bank again
-            outcome = "banked"
+                timed("store", self.store, retry=False)
+            self.guarded(room_phase)        # an escape on the way: home and into the room again
+            outcome = "stored"
         except BaseException as e:
             why = str(e) if isinstance(e, Abort) else f"{type(e).__name__}: {e}"
             raise
@@ -2397,7 +2572,7 @@ class LumberLoop:
             self.episode(row)
             log(f"trip {n} {outcome}: {row}")
         self.doing("trip_done", f"Trip {n} done: {self.stats.get('logs', 0)} logs, "
-                                f"{self.stats.get('stored', 0)} boards banked")
+                                f"{self.stats.get('stored', 0)} boards stored")
 
     def trip_end(self, snap: dict) -> dict:
         """The rest of the trip row (docs/LUMBER_LOOP.md "What the optimizer learns
@@ -2409,10 +2584,13 @@ class LumberLoop:
                "players_seen": len(self.players_seen),
                "players": sorted({n for n in self.players_seen.values() if n})[:10]}
         tries = [(leg, t) for leg in self.travel for t in leg["tries"]]
+
+        def by_library(leg):                # out by a rune library's tome (its charges), not our own book
+            return leg["leg"] == "out" and (leg.get("landing") or {}).get("source") == "library"
         out["supplies"] = {
             # a charge is spent when the recall lands [INFERENCE: RunUO takes it in the spell's effect]
-            "library_charges": sum(1 for leg, t in tries if t[0] == "charge" and t[1] is None and leg["leg"] == "out"),
-            "own_charges": sum(1 for leg, t in tries if t[0] == "charge" and t[1] is None and leg["leg"] != "out"),
+            "library_charges": sum(1 for leg, t in tries if t[0] == "charge" and t[1] is None and by_library(leg)),
+            "own_charges": sum(1 for leg, t in tries if t[0] == "charge" and t[1] is None and not by_library(leg)),
             "recall_casts": sum(1 for _, t in tries if t[0] == "spell"),
             "trapped_pouches": self.pouches_used}
         hatchet = (snap.get("hatchet") or {}).get("serial")
@@ -2488,9 +2666,14 @@ class LumberLoop:
                             and s["movement"]["self_serial"] is not None, 5.0)
         if st is None:
             raise Abort("proxy has no player position yet (log in first)")
+        st = self.link.wait(lambda s: (s["world"].get("self") or {}).get("name"), 5.0)
+        if st is None:
+            raise Abort("the proxy doesn't know the character's name yet (it keys the home: harness/data/homes.json)")
         self.guarded(lambda: self.check_guards(self.link.state()))
+        self.home = self.find_home(st)
         self.hatchet(st, self.want_hatchet)
-        self.recall_book = self.prepare_recall(st)
+        self.books = self.read_books(st)
+        self.recall_book = self.prepare_recall(self.link.state())
         self.guarded(lambda: self.track_ensure("start"))   # its human pauses watch for threats (pause)
         # routes bend around where hostile creatures were seen lately (travel_guard)
         self.mover.danger_tiles = travel_guard.remembered_tiles(self.memory, self.facet, self.link.pos(st)[:2])
@@ -2498,11 +2681,11 @@ class LumberLoop:
             self.pouch_ready(self.link.state())     # a trip uses a trapped pouch up: none left, no trip
             self.trip(n)
             if self.break_due:
-                log(f"break due: banked after trip {n}; stopping for the break (ctl break)")
-                self.doing("break_due", "Break due: boards banked; waiting at the bank for the break")
+                log(f"break due: boards stored after trip {n}; stopping for the break (ctl break)")
+                self.doing("break_due", "Break due: boards stored; waiting in the rental room for the break")
                 return
-        log(f"loop complete: {self.args.trips} trip(s); waiting at the bank")
-        self.doing("done", f"Finished: {self.args.trips} trip(s); waiting at the bank")
+        log(f"loop complete: {self.args.trips} trip(s); waiting in the rental room")
+        self.doing("done", f"Finished: {self.args.trips} trip(s); waiting in the rental room")
 
 
 def stop_intent(loop, text):
@@ -2520,6 +2703,8 @@ def main():
     ap.add_argument("--spots", default=lumber_opt.SEEDS, help="seed spot file (tests)")
     ap.add_argument("--witcher", default=places.WITCHER, help="Witcher rune table (tests: a simulated library)")
     ap.add_argument("--libraries", default=places.LIBRARIES, help="rune library table (tests: a simulated library)")
+    ap.add_argument("--homes", default=home_mod.HOMES,
+                    help="homes by character name: landing, rental room, chest (tests: a simulated home)")
     ap.add_argument("--trips", type=int, default=1)
     ap.add_argument("--logs-per-trip", type=int, default=15)
     ap.add_argument("--hatchet", default=None,
@@ -2549,12 +2734,6 @@ def main():
     ap.add_argument("--quiet", action="store_true", help="no handoff sound (tests)")
     ap.add_argument("--triage-url", default=triage.DEFAULT_URL,
                     help="laya-serve for speech triage (triage.py); empty = off")
-    ap.add_argument("--bank-range", type=int, default=4,
-                    help="walk to within this many tiles of the banker's current position")
-    ap.add_argument("--recall", choices=("require", "off"), default="require",
-                    help="red escape by recall (escape.py): where players can attack (pvp spots) a runebook "
-                         "or rune tome with a default rune and a charge or a castable Recall is required to "
-                         "start; 'off' runs without it (a red then only stops the run)")
     ap.add_argument("--harvest-aspect", choices=("ensure", "off"), default="ensure",
                     help="before heading out each trip, make sure the six worn armor pieces carry the Harvest "
                          "aspect (its hue); activate it through the [aspect menu when one doesn't (5 Arcane "

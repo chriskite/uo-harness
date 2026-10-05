@@ -1,6 +1,6 @@
 // Plain-SVG charts for the Jobs page (geometry in chart.ts).
 import { barSlots, linePath, linScale, niceTicks, timeTicks } from "../chart.ts";
-import { eventView, fmtInt, fmtNum, fmtStamp, oneLocalDay, type HuntVisit, type JobEvent, type JobTrip } from "../jobs.ts";
+import { eventView, fmtInt, fmtNum, fmtStamp, oneLocalDay, tripHome, type HuntVisit, type JobEvent, type JobTrip } from "../jobs.ts";
 import { fmtDuration } from "../format.ts";
 
 const W = 560;
@@ -211,7 +211,7 @@ export function TimeSplitChart({ trips }: { trips: JobTrip[] }) {
                   </rect>
                 );
               })}
-              {t.outcome !== "banked" && (
+              {!tripHome(t.outcome) && (
                 <text x={s.cx} y={y(acc) - 4} textAnchor="middle" className="mark-abort">
                   {t.place_fail ? "∅" : "!"}
                   <title>{t.why ?? t.outcome}</title>

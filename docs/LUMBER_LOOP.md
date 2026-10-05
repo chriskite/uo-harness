@@ -1,11 +1,13 @@
-# LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → bank (→ deed later)
+# LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → the rental room's chest (→ deed later)
 
-Status (2026-10-02): **self-optimizing (§6, "Built 2026-10-02").** `ctl lumber plan` picks the spot
+Status (2026-10-04): **self-optimizing (§6, "Built 2026-10-02").** `ctl lumber plan` picks the spot
 (Thompson sampling over spots learned from every trip), the trip size (death, sent-home and theft risk vs. walking
-overhead) and the hatchet; the runner takes `--spot`. Boards go into the bank box; the rental room
-is out of the loop (user decision, §12.5). The room-storage version ran live on 2026-09-29 (3 trips,
-50 boards, captcha solved and resumed; run 3, §13); the bank version ran live off Shelter on
-2026-10-02 (Horseshoe Bay, Corpse Creek, Terran).
+overhead) and the hatchet; the runner takes `--spot`. Every trip starts and ends at home: out of the
+rental room, recall to the landing nearest the grove, chop, recall home by our own book's default rune,
+into the room through the house steward, convert there and store the boards in the room's secure
+chest (user decision 2026-10-04, §12.5; the 2026-10-01 bank version ran live off Shelter on
+2026-10-02 at Horseshoe Bay, Corpse Creek and Terran, the first room-storage version on Shelter on
+2026-09-29: 3 trips, 50 boards, captcha solved and resumed; run 3, §13).
 - M0: the user's demonstration run (`logs/session_20260929_204225`) is mined into
   `harness/data/loops/lumber.json` and pinned by `harness/test_loop_demo.py`; findings are in §12.
 - Runner: `harness/loop_lumber.py`, proven offline by `test_loop_lumber.py`. Optimizer:
@@ -18,12 +20,13 @@ library, the rails and the captcha handling all get exercised by it.
 
 The agent should **learn** the loop, **run** it, and **improve** it over sessions:
 - chop trees
-- convert the logs to boards
-- walk to the banker and open the bank box
-- bank the boards (commodity deeds later)
+- recall home, enter the rental room
+- convert the logs to boards there
+- store the boards in its secure chest (commodity deeds later)
 
-Character: a fresh Young character on Shelter Island (TestWorth until 2026-10-01). Venue: Shelter
-Island first, the regular overworld later (§7).
+Character: Outland Dan since 2026-10-04 (home: the DTF guild house and Logan Wolf's rental room,
+`harness/data/homes.json`); a fresh Young character on Shelter Island before that (TestWorth until
+2026-10-01).
 
 These constraints come from existing docs and aren't optimization targets:
 - **Captcha = human-solved by default, auto-solve by toggle (user decision 2026-10-01).** Lumberjacking triggers a captcha every 5–10 min, and a solved one
@@ -33,8 +36,9 @@ These constraints come from existing docs and aren't optimization targets:
   Expect ~4–6 captchas per hour (derived from the wiki cadence).
 - **Pacing is a floor, not a knob.** The optimizer never tightens jitter, proxy walk pacing
   (0.2/0.4 s), break schedule or daily cap (PLAN.md Phase 4).
-- **Speech allowlist.** The loop's one trigger word is `bank` near the banker (since 2026-10-01;
-  before that `room` near the innkeeper).
+- **Speech allowlist.** The loop says nothing (since 2026-10-04: the room goes by context menu and
+  gumps; 2026-10-01..04 it said `bank` near the banker, before that `room` near the innkeeper). The
+  one exception is "guards" after a guard flight with a hostile player close (§13).
 - **Nothing server-visible that a stock client wouldn't send.** Skills use the existing
   `actions.py` builders only.
 - **Never renounce Young status (Shelter phase).** Leaving Shelter Island by moongate, hike, recall
@@ -65,9 +69,9 @@ These constraints come from existing docs and aren't optimization targets:
 | Double-click logs with a hatchet in the pack → boards (**user-confirmed: deeds need boards**) | Harvesting, Lumberjacking | Conversion is a loop step; can run in the field |
 | Blank commodity deed: 5 gp at a banker; double-click the deed, target the resource | [Commodities](https://wiki.uooutlands.com/Commodities) | Needs gold + the target-cursor flow (S2C `0x6C` → `actions.target_object`) |
 | 5 000 regular boards (2 500 colored) per commodity deed | Commodities | Unknown: partial stacks allowed? Must the boards sit in the bank box (RunUO rule, [INFERENCE] for Outlands)? The demo tests it |
-| Rental room: say `rent`/`room`/`house` near an Innkeeper (or context menu "Rent") → room gump → Enter Room. Exit: dclick the front door → Exit to Town → **random room at the inn** | [Rental Room System](https://wiki.uooutlands.com/Rental_Room_System) | Two gump flows to learn. After exiting, the start position varies, so plan from the live position. Renting on Shelter while Young keeps Young |
-| No recall/gate into a room; no access within 2 min of PvP | Rental Room System | Walking return is the only way in |
-| Floor items decay after 1 h unless locked down; secure containers don't decay | Rental Room System | Boards and deeds go into a secure container (one-time human setup) |
+| Rental room: say `rent`/`room`/`house` near an Innkeeper (or context menu "Rent") → room gump → Enter Room. Exit: dclick the front door → Exit to Town → **random room at the inn**. **Live 2026-10-04 (Outland Dan, docs/NOTES.md "Rental room via the DTF house steward"):** a house steward works like an innkeeper (context menu "Room"); a co-owner reaches the room by "Visit Other Rooms" → the owner's row; the door's menu also offers "Exit to House Steward" (back to the guild house landing) | [Rental Room System](https://wiki.uooutlands.com/Rental_Room_System) + live | The runner's way in and out (`harness/room.py`, §13 Trip): in through the steward, out through the door to the steward, so the trip starts and ends at the home landing, not a random inn room |
+| No recall/gate into a room; no access within 2 min of PvP | Rental Room System | Home is the recall to the landing by the room's keeper, then the menu. After a PvP escape the runner stops at home outside the room (the logs stay in the trapped pouch); the overseer takes it in later |
+| Floor items decay after 1 h unless locked down; secure containers don't decay | Rental Room System | Boards go into a secure container: Logan Wolf's room has the secure "paragon chest (drake)" `0x4AE0DD2C` 1 tile from the arrival (`homes.json` `chest`); a drop into it works (live `ctl act drop`, 2026-10-04) |
 | Commodities aren't blessed and can be looted | Commodities | Whatever is carried is at risk; §6 prices that |
 | **Test Shard: all houses and inn rooms are cleared every 24 h at midnight UTC** | [Test Shard](https://wiki.uooutlands.com/Test_Shard) | Room contents are ephemeral on the Test Shard. The loop needs a "room missing → re-rent + re-secure" path, or stored goods are treated as a daily scratch pad. Test Shard state also re-mirrors from live saves occasionally |
 | Renting costs gold (small room 5 000 gp/week, from the bank box); the first character on an account gets a 10 000 gp Rental Room Credit Deed | Rental Room System | TestWorth has 0 gold (2026-09-29). Renting works only if it holds a credit deed; otherwise gold comes first |
@@ -80,25 +84,24 @@ These constraints come from existing docs and aren't optimization targets:
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Prep
-  Prep --> TravelOut: hatchet equipped
-  TravelOut --> Harvest
-  Harvest --> Harvest: spot depleted → next spot
-  Harvest --> Convert: return trigger (§6)
-  Harvest --> Escape: red name sighted (overworld) → recall out (§11)
-  Escape --> Bank: walk from the recall point to the banker
-  Convert --> TravelBack
-  TravelBack --> Bank: say "bank" near the banker
-  Bank --> Deposit: boards into the bank box
-  Deposit --> Deed: stock ≥ deed quantum
-  Deposit --> Prep: stock < quantum
-  Deed --> Prep
+  [*] --> Home: in the rental room or by the home landing (homes.json)
+  Home --> TravelOut: out of the room through its door (Exit to House Steward)
+  TravelOut --> Harvest: recall to the landing nearest the grove (library tome or own book), walk in
+  Harvest --> Harvest: stand out of wood → next stand
+  Harvest --> TravelHome: return trigger (§6), dry, break due
+  Harvest --> Escape: red, thief, creature that keeps coming (§13)
+  Escape --> [*]: recall home by the own book's default rune, stop (logs stay in the pouch)
+  TravelHome --> Room: recall home by the own book's default rune (walk when within 60 tiles)
+  Room --> Convert: house steward → "Room" → "Visit Other Rooms" → owner's row
+  Convert --> Store: trapped pouch set off, logs → boards
+  Store --> Home: boards + spent pouch into the secure chest
+  Store --> Deed: stock ≥ deed quantum (not built)
   Harvest --> CaptchaHandoff: captcha gump
   CaptchaHandoff --> Harvest: captcha solved
 ```
 
-The trip threshold and the deed quantum are decoupled. Boards go into the bank box every trip; a
-deed is made once the bank stock reaches the quantum (deeds aren't built yet, §12.4).
+The trip threshold and the deed quantum are decoupled. Boards go into the rental room's chest every
+trip; a deed is made once the stock reaches the quantum (deeds aren't built yet, §12.4).
 
 Any state can be pre-empted by a proxy-enforced pause, break or kill (agent gate), or by a failure
 (HP loss, movement stall, unknown gump). A failure goes to the LLM planner (§5).
@@ -170,7 +173,8 @@ runtime data, AGENTS.md Rule 0):
 
 ## 6. Optimize
 
-Objective: **boards banked per agent-active hour, net of expected losses**, subject to §1.
+Objective: **boards stored at home per agent-active hour, net of expected losses**, subject to §1
+(since 2026-10-04 the boards go into the rental room's secure chest; before that, the bank box).
 
 ### Return trigger: carried-value risk vs. trip overhead (user decision 2026-09-29)
 
@@ -184,7 +188,7 @@ trip, with the quantities measured from the episode log:
 - `h`: hazard of losing the carried goods, per minute in the field (PK encounters × P(death))
 
 If a trip returns at `Q` boards, the carried load grows linearly, so the expected loss per trip is
-about `h·Q²/(2r)`, plus `h·Q·T_back` on the way home. Cost per banked board:
+about `h·Q²/(2r)`, plus `h·Q·T_back` on the way home. Cost per stored board:
 
 $$c(Q) = \frac{rT}{Q} + \frac{hQ}{2r} + h\,T_{back} \quad\Rightarrow\quad Q^* = r\sqrt{2T/h}$$
 
@@ -214,17 +218,40 @@ Logs/hour stands in for gold/hour until colored-wood prices exist (user, 2026-10
 `harness/lumber_opt.py` (model), `ctl lumber …` (docs/OVERSEER.md), `harness/test_lumber_opt.py`.
 Decision and rejected alternatives: docs/PLAN.md "Self-optimizing lumber".
 
-**Spots.** A spot = a tree area plus the bank its trips end at (`area`, `banker`, `pvp`,
-`requires_young`, `hazard_prior`, `travel`, `travel_min`). Seeds: `harness/data/lumber_spots.json`
-(Shelter, Horseshoe Bay, Corpse Creek, Terran; they replace the per-venue `loops/lumber_*.json`).
-The store's `lumber_spots` table holds the spots the overseer adds and the candidates `ctl lumber
-discover` proposes from the map (tree-dense windows 30–110 tiles from each bank marker, or since
-2026-10-03 up to 200 tiles from each Witcher rune with a walk of at most 300 tiles from its landing;
-not next to a learned guard point, not overlapping a known spot; each discovery replaces its own
-unreviewed candidates), and overrides a seed's status. Only `active` spots are planned; a candidate
-becomes active when the overseer approves it. Tree density doesn't enter the chopping rate (live
-2026-10-03: it didn't predict logs per field hour across the 7 spots with trips); it enters as the
-grove's **capacity** (below), which bounds the trip.
+**Spots.** A spot = a tree area (`area`, `trees`, `pvp`, `hazard_prior`; discovered ones also
+`danger_hint`, `route_tiles`, `tree_count`). Nothing about getting there: **every trip starts and
+ends at the character's home** (user decision 2026-10-04, "Home and the way out" below), so no spot
+has a bank, a banker, a travel note or a Young flag any more (store rows that still carry `banker`,
+`access`, `home`, `requires_young`, `travel`, `travel_min` are ignored). Seeds:
+`harness/data/lumber_spots.json` (Horseshoe Bay, Corpse Creek, Terran; they replace the per-venue
+`loops/lumber_*.json`). Shelter Island is no spot since 2026-10-04: a non-Young character can't
+harvest there (Codex #4086, live 2026-10-04) and a Young one can't recall off it. The store's
+`lumber_spots` table holds the spots the overseer adds and the candidates `ctl lumber discover`
+proposes from the map (since 2026-10-03 up to 200 tiles from each Witcher rune of a library with a
+walk of at most 300 tiles from its landing; not next to a learned guard point or a town, not
+overlapping a known spot; each discovery replaces the unreviewed candidates; the old `--from banks`
+search around bank markers is gone with the banks), and overrides a seed's status. Only `active`
+spots are planned; a candidate becomes active when the overseer approves it. Tree density doesn't
+enter the chopping rate (live 2026-10-03: it didn't predict logs per field hour across the 7 spots
+with trips); it enters as the grove's **capacity** (below), which bounds the trip.
+
+**Home and the way out (user decision 2026-10-04).** The character's home comes from
+`harness/data/homes.json` (`home.for_character`, keyed by the character's name: the proxy's
+`world.self.name`, else the newest trip row's `character.name`); Outland Dan's is the DTF guild
+house (landing 4134,1429), the DTF rune library (stand 4152,1429) and Logan Wolf's rental room with
+its secure chest. A trip leaves the room through the house steward, recalls out to the **landing
+nearest the grove** (`lumber_opt.landing_for`: the first `places.landings` row from the home rune
+library and the character's own runebooks/rune tomes, `places.known_books`, nearest the area's
+centre; a landing whose name has a monster word or whose tome/book is titled "Bad Places" is
+skipped; a landing needs a walking route into the grove, else the next nearest), chops, recalls home
+on its own book's default rune, enters the room, converts and stores. No public moongates, no
+walking from a bank. The route check plans on the map with the runner's budget (`make_route_fn`,
+the same machinery as discover), at most 3 plans per spot per `plan`, landings farther than 300
+tiles from the area's edge failing unplanned; answers are cached in the store's meta
+(`lumber_landing_routes`, keyed by landing tile and area), so later plans answer at once (the 3 seed
+spots took 0.1 s on 2026-10-04). An active spot no landing reaches can't be picked; a character
+without a home gets `ok: false`, "no home in harness/data/homes.json for <name>", and the spots
+still ranked.
 
 **Evidence.** Every trip writes an episode row, aborted ones too (§13), with `spot`, `outcome`/`why`,
 the phases, `walk_out_s` (start to first chop), `chop_s` (attempts and the pauses between them,
@@ -238,7 +265,10 @@ are the `pk_seen` job events inside a trip; deaths are the proxy's `death` event
 when they fall in a trip there or within 30 min after it (the Terran PK killed us 11 s after the
 runner stopped) and near its area, or, with no trip row around them, inside its area. Rows written
 before 2026-10-02 count too: their walk out is
-taken equal to the walk to the bank, chops cost 9.5 s each, and they aren't skill-rescaled. Field
+taken equal to the walk to the bank, chops cost 9.5 s each, and they aren't skill-rescaled. Rows of
+the bank era (outcome `banked`, or none) stay history: their overhead is walk out + lockout +
+convert + `to_bank` + store, next to the `stored` rows' walk out + lockout + `to_room` + convert +
+store. Field
 time excludes the travel lockout waited at the first tree (`lockout_s`: overhead, like the recall
 itself), and a trip whose walk out never ended (`walk_out_s` null: the recall failed, the walk to the
 library gave up) has no field time, so a travel failure doesn't count as a 0-log hour of the place.
@@ -257,8 +287,13 @@ patches show up within weeks):
   skill, and spots don't need re-exploring as Lumberjacking rises. The formula gives 0.69 at 69.1
   skill; Terran measured 44/63 = 0.70. Harvest Aspect isn't modelled explicitly (its buffs are
   recorded): its double yield shows up through the recency weighting.
-- overhead T (walk out + convert + walk to the bank + store): Normal posterior, prior from the
-  bank-to-area distance.
+- overhead T (since 2026-10-04: room exit, walk to the landing's rune, recall out, walk into the
+  grove, lockout, recall home, into the room, convert, store): Normal posterior over the trips'
+  overheads; prior `overhead_prior_s` = room exit 10 s + the walk from the home landing to the
+  library's stand when the landing is a library rune (18 tiles at DTF; 0 for an own book) + 2
+  recalls of 4 s + the walk from the landing into the grove (its cached route, else the straight
+  distance to the area's inner half) at 0.45 s/tile + the 60 s lockout + into the room 15 s +
+  convert and store 40 s (room times [INFERENCE] until trips measure them).
 - **hazards (rewritten 2026-10-03, user decisions):** three competing hazards per field hour, each a
   Gamma posterior per spot over recency-weighted field hours, shrunk to a pooled rate:
   - **death h_D** (PK or creature): prior mean = the spot's hostile-player sightings per field hour
@@ -285,12 +320,12 @@ patches show up within weeks):
   $$B(Q) = e^{-h t_f} C(t_f) + h_S\int_0^{t_f} e^{-ht} C(t)\,dt, \qquad
   E[\text{time}] = T + \int_0^{t_f} e^{-ht}dt + R\,P_D, \qquad P_D = h_D\int_0^{t_f} e^{-ht}dt$$
 
-  A death banks nothing (the carried logs are lost) and costs R = 20 min of recovery [INFERENCE];
-  a trip sent home ends at τ and banks what it carries (the cycle just ends early); a theft lets
+  A death stores nothing (the carried logs are lost) and costs R = 20 min of recovery [INFERENCE];
+  a trip sent home ends at τ and stores what it carries (the cycle just ends early); a theft lets
   the trip run on. Net rate = (B − supplies − G·P_D) / E[time], in logs at the board price, where
   G = **every unblessed item we carry at full replacement price**: all hatchets worn or packed (a
   newbied/blessed one, by its name, stays), reagents at `reagent:<name>`; the rune tome is blessed;
-  nothing is lost when Young (the "(young)" name label or `--young`; Hackworth isn't). Without a
+  nothing is lost when Young (the "(young)" name label; Hackworth isn't). Without a
   live character the newest trip row's hatchet stands in. All integrals are closed form
   (`trip_terms`), so P_D ≤ 1 and the rate stays defined for any Q. Q* maximises it over 200…10 000
   logs (user decision; a log-spaced grid, then a golden-section refine to 10 logs), capped by what
@@ -311,26 +346,28 @@ patches show up within weeks):
     138 × 0.46 × 19.3 ≈ 1225 (400 + 800 in two trips 16 min apart).
 
   Q* is capped at `grove_logs`; when that binds (`grove_bound`), the run is that one trip (the spot
-  is then out until its trees regrow), so the trip's overhead and the travel to the spot buy only
+  is then out until its trees regrow), so the trip's overhead buys only
   those logs, and the runner gets `--trips 1` with the uncapped Q* as its quota, so it chops until
   the trees really run out instead of stopping at the estimate. Thompson draws include the yielding
-  share, so an untried dense grove beats an untried sparse one more often. With a recall to the
-  hub before every trip the effect on Witcher spots is a few percent (2–4 min overhead per
-  30–60 min trip); on small walking spots it's larger (Corpse Creek, 34 trees: ~570 logs per trip
+  share, so an untried dense grove beats an untried sparse one more often. With a recall out before
+  every trip the effect on recall-reached groves is a few percent (2–4 min overhead per
+  30–60 min trip); on small groves it's larger (Corpse Creek, 34 trees: ~570 logs per trip
   with every tree back, fewer while the last trip's trees regrow, against a hazard-optimal Q* of ~1000).
 - **choice:** Thompson sampling: one posterior draw per eligible spot (λ, T, sightings, P(death |
-  sighting), h_D, h_S, h_T), the best wins; a spot other than the one we stand at pays `travel_min`
-  out of the run (a stint, or one trip when that's longer). `plan` reports P(best) per spot from
+  sighting), h_D, h_S, h_T), the best wins. No spot pays travel beyond its overhead (since
+  2026-10-04 every trip starts at home; the learned moves between spots and `travel_min` are gone).
+  `plan` reports P(best) per spot from
   2 000 draws (the draws search every other grid point), `mode: explore` when the pick isn't the
   best by posterior mean, and the runner command (`--spot`, `--trips`, `--logs-per-trip` Q*,
   `--regrow-min`, `--timeout`, `--hatchet`). Per spot it reports `deaths_per_h`, `sent_home_per_h`,
   `thefts_per_h`, `p_death_trip` and `loss_logs_trip` (logs lost to death and thieves plus the gear
-  in logs, per trip of Q*); per plan the pooled rates, `theft_fraction`, `gear_at_risk` and
-  `capacity_logs` (what we can still carry); per spot `trees`, `trees_out`, `yield_share`,
-  `grove_logs`, `grove_bound`; per pick `expected_banked_trip`, `p_death_trip`, `p_sent_home_trip`,
-  `grove_logs`, `grove_bound`.
-- **eligibility:** `active` status; Young-only spots only for a Young character (`--young` or the
-  self label); 30 min after a death or a trip cut short with a hostile player in sight there; after
+  in logs, per trip of Q*); per plan the pooled rates, `theft_fraction`, `gear_at_risk`,
+  `capacity_logs` (what we can still carry) and `home` (character, library, landing, `at_home`); per
+  spot `trees`, `trees_out`, `yield_share`, `grove_logs`, `grove_bound` and its `landing` (source
+  library/book, library, tome, book, name, x, y, dist, route_tiles, route_checked); per pick
+  `landing`, `expected_stored_trip`, `p_death_trip`, `p_sent_home_trip`, `grove_logs`, `grove_bound`.
+- **eligibility:** `active` status; a landing rune with a walking route into the grove (above); 30
+  min after a death or a trip cut short with a hostile player in sight there; after
   a `dry` trip until the trees regrow; **unworkable** for 7 days after 2 trips in a row that got
   nothing for a reason that is the place's (no reachable tree, harvesting answered with something
   the runner doesn't know, e.g. a town region), then one more try (since 2026-10-03).
@@ -338,10 +375,6 @@ patches show up within weeks):
   its 0 logs, so a spot that can't be worked loses its optimistic prior instead of looking untried
   forever. Trips stopped by monsters or players aren't the place's fault in this sense; their time
   already counts.
-- **travel (since 2026-10-03):** the gap between the last trip at one spot and the first at another
-  (under an hour) is a sample of the move; a spot's travel is its `travel_min` prior averaged with
-  them. Standing within 60 tiles of the rune library is the hub (`here: hub:cambria`): every spot it
-  reaches costs no travel, because walking to the library is part of each trip.
 - **regrowth:** pairs (depleted, later attempt on the same tree) from `harvest_attempts`; an
   isotonic fit of P(regrown | gap); the estimate is where it reaches 0.6. On the data of 2026-10-02
   (137 pairs): 0/14 regrown at 15–30 min, 7/50 at 30–45, 12/25 at 45–60, 41/45 later → 65 min. The
@@ -375,12 +408,11 @@ is 3–9 %.
 signature (ANTICHEAT.md §8.3). Thompson sampling varies the spot from stint to stint, and the runner's
 human noise varies the rest. Variation is required, not an inefficiency to remove.
 
-**Spots reached by recall (built 2026-10-03, docs/research/WORLD_LOCATIONS.md).** A spot may carry
-`access {"method": "witcher", "rune": N, "library": "cambria"}` (out by the library tome's rune) and
-`home {"method": "recall"}` (home by our book's default rune, then walk to its banker). `ctl lumber
-discover --from witcher` proposes them near the ~360 Witcher runes, so the whole map is in reach,
-not only the band around banks. Their overhead prior adds the walk from the bank to the library, two
-recalls and the 60 s lockout.
+**Spots reached by recall (built 2026-10-03, superseded 2026-10-04).** Spots used to carry
+`access {"method": "witcher", ...}` and `home {"method": "recall"}` plus the bank by the home rune;
+since 2026-10-04 every spot is reached the same way, by the landing nearest it from home ("Home and
+the way out" above), and `ctl lumber discover` keeps only the area, trees and the route from the
+Witcher rune it was found by.
 
 ### What the optimizer learns from (audit 2026-10-03/04)
 
@@ -607,49 +639,91 @@ won't reach a deed at the demo rate. Decision: first prove the agent runs the lo
 creation on Shelter, with the room as daily scratch storage. Efficiency (and with it where the
 stock lives and whether to raise skill first) comes after the proof.
 
-### 12.5 Decided (user, 2026-10-01): bank the boards, no rental room
-The runner no longer enters a rental room: each trip ends at the banker and drops the boards into
-the bank box. The loop still runs on Shelter Island, with a fresh character. Why this is simpler:
-- no room to rent, so the 5 000 gp rent and the daily Test Shard room wipe drop out
-- no secure container to set up by hand
-- no teleport out of a room, so no 60 s harvest lockout per trip
-- any town with a banker works, so the Horseshoe Bay blocker (§13, the room exits to the town it
-  was rented in) is gone.
+### 12.5 Decided (user, 2026-10-04): no bank; boards into the rental room's chest, recall to the nearest landing
+Supersedes the 2026-10-01 decision "bank the boards, no rental room" (kept below as history).
+Every trip starts and ends at the character's home (`harness/data/homes.json`, `harness/home.py`):
+in the rental room or the guild house by it. Out: through the room's door ("Exit to House
+Steward", a teleport to the landing: the 60 s harvest lockout and the Stationary Penalty follow,
+both waited out by the first chop), then the user's rule: "always recall as close to the
+lumbering spot as we can via rune tomes in the rune library or our own rune tomes/books in our
+backpack, never public moongates or starting at banks and walking". The landing is the rune
+nearest the grove of the home rune library or the character's own books, with a walking route
+into the grove, dangerous ones (`places.danger_hint`, the DTF "Bad Places" tome) left out
+(`lumber_opt.landing_for`, the same choice `ctl lumber plan` shows). Home: the own book's default
+rune (Outland Dan: runebook `0x49865F8F`, "DTF Loot Chest" → 4134,1429), the house steward's
+"Room" → "Visit Other Rooms" → the owner's row (Logan Wolf's room, arrival 403,923 on facet 3),
+the logs converted there and the boards plus the spent trapped pouch dropped into the secure chest
+`0x4AE0DD2C` 1 tile from the arrival. The run ends in the room. Why:
+- the room is the safe place: no one follows in, no recall reaches it, and the logs are converted
+  away from the grove (live 2026-10-03 a 12 s conversion under attack in the field cost 45 hits)
+- the boards collect in one secure container at home instead of a town bank on the way, so no
+  speech, no banker search and no walk from a bank into the grove
+- the nearest landing replaces the per-spot travel notes, moongates and banks: one rule for every
+  spot, the shortest walk into the grove, no public moongate crowds
+- the costs the 2026-10-01 decision avoided are gone: Outland Dan co-owns a rented room (no rent of
+  his own, no Test Shard wipe on the live shard), and the room exit lands at the guild house, not a
+  random inn
 
-Constraint: the Shelter bank serves only Young characters (§2). A fresh character is Young.
-The room knowledge stays in lumber.json (pinned by `test_loop_demo.py`), but the runner doesn't use it.
+After a PvP escape the run still stops at home outside the room: entry may be refused for 2 min
+after PvP (wiki), and the logs stay in the trapped pouch. A hostile player in view while we stand
+on the way-home rune's tile (the room exit and the recall home both land there) or in the room
+stops the run without a recall (`on_home_rune`): a recall onto our own tile shows no arrival and
+would recast until the 20 s escape budget is spent.
+
+**History, 2026-10-01 (superseded): bank the boards, no rental room.** The runner then ended each
+trip at a banker and dropped the boards into the bank box, on Shelter Island with a fresh Young
+character: no rent, no Test Shard room wipe, no lockout from a room exit, any town with a banker.
+The demo's Shelter room knowledge left lumber.json on 2026-10-04 (its capture facts stay in
+`harness/test_loop_demo.py`).
 
 ## 13. Runner (`harness/loop_lumber.py`, built 2026-09-29)
 
 Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports, gate-aware
 `act()`) and `Mover` (walking, learned blocks, doors). `errand_bank.py` uses it too.
 
-- **Trip** (since 2026-10-01, user decision §12.5: bank the boards):
-  1. Harvest by Smart Harvest at stands by the spot's trees (§13 "Harvest attempt", "Trees"; trees
-     out of wood in the last `--regrow-min` are skipped).
-  2. Convert every log stack.
-  3. Walk to within `--bank-range` (4) of where the spot's banker (`banker` in the spot, e.g. Len
-     `0x000001EA` on Shelter) stands now. Fall back to the spot's banker position (a bank marker when
-     the serial is unknown), then on that floor (`same_floor`).
-  4. Say `bank` and wait for the server's `0x24` on the layer-0x1D item
-     (`agent_link.bank_opened`, shared with `errand_bank.py`). If it doesn't open, abort.
-  5. Without taking a step (moving closes a bank box in RunUO `[INFERENCE for Outlands]`),
-     lift each board stack and drop it into the bank box (auto-position, as `ctl act drop`).
+- **Trip** (since 2026-10-04, user decision §12.5: home is the rental room):
+  1. **Home:** the character's home by its name (`world.self.name`; `--homes`, default
+     `harness/data/homes.json`); none: abort "no home …". At the start the runner reads its own
+     runebooks and rune tomes once (`escape.read_book`: title, default rune, charges, every rune's
+     landing tile; remembered for `lumber plan` by `places.remember_book`) and takes the one whose
+     default rune lands at home (`home.at_home`) with a charge or a castable Recall as the way home
+     and red escape (`prepare_recall`, required for every spot; `--recall off` is gone).
+  2. **Out** (`go_out`): in the room, out through its door (`room.leave`, the home's exit). Unless
+     already at the grove (its area + 10) or no farther from it than the landing, recall to the
+     landing (`lumber_opt.landing_for`, chosen once a run; the route check plans on the map with the
+     Mover's planner and caches answers, `--no-map`: cached only): a library row by walking to its
+     tome and `escape.escape(tome, rune=name)`, an own-book row by `escape.escape(book, rune=name)`
+     where we stand. The `travel` leg `out` carries `landing` {source, library, tome, book, name,
+     x, y}.
+  3. **Harvest** by Smart Harvest at stands by the spot's trees (§13 "Harvest attempt", "Trees";
+     trees out of wood in the last `--regrow-min` are skipped); each chop's logs into the trapped pouch.
+  4. **Home** (`to_room`): recall by the own book's default rune (`go_home`, the `travel` leg
+     `home`), unless within `home.NEAR_LANDING` (60) of the landing already, then walk; a recall that
+     lands anywhere but home aborts. With no keeper's click label known in view, walk to the landing
+     first; find the house steward by his label, else single-click the invulnerable human NPCs
+     within 18 tiles nearest first (`find_keeper`); `room.enter` (walks within 2 of him, his context
+     menu "Room", "Visit Other Rooms", the owner's row from `homes.json` `room.owner`).
+  5. **Convert** in the room: the trapped pouch set off ourselves, opened, every log stack → boards.
+  6. **Store** (`store`): the chest opened like a player would (double-click, the server's 0x24),
+     each board stack and then the spent pouches lifted and dropped into it at the auto position,
+     each declared to the ledger. Facet 3 has no map: the chest is within reach of the arrival; a walk
+     to it (only beyond 2 tiles) plans on walk memory.
 
   Like a player, the runner opens the backpack before targeting logs in it, whenever the server
-  hasn't opened it this session (ANTICHEAT.md §10, closed containers). It never double-clicks
-  the bank box. The speech opens it.
+  hasn't opened it this session (ANTICHEAT.md §10, closed containers). It says nothing.
 
-  A run ends at the bank. The trip phases are `harvest`, `convert`, `to_bank` (walk + open),
-  `store`. The intents are `to_tree`, `chop`, `convert`, `to_bank`, `open_bank`, `store`,
-  `trip_done`, plus `escape` and `break_due` (below).
+  A run ends in the room. The trip phases are `harvest` (the way out included), `to_room`
+  (home + into the room), `convert`, `store`; the outcome `stored` (rows of the bank era say
+  `banked` with `to_bank`). The intents are `leave_room`, `to_library`, `recall_out`, `to_tree`,
+  `chop`, `recall_home`, `to_room`, `convert`, `store`, `trip_done`, plus `escape` and `break_due`
+  (below).
 - **Hatchet (since 2026-10-01):** a worn hatchet, else the shallowest one in the backpack or in a
-  bag in it at any depth (`hatchet()`, `pack_depth`); one in the bank box doesn't count. Before
+  bag in it at any depth (`hatchet()`, `pack_depth`); one in a chest or the bank box doesn't count. Before
   each use, the containers on the way that the server hasn't opened yet are opened outermost
   first (`containers_to_open` + `Link.open_containers`, the closed-containers rule). Only items the
   world model knows are found: a bag the server never listed has to be opened once in the client.
   **In hand while chopping (2026-10-03, session 20261003_213125):** every spell cast (Magic
-  Reflection at the bank, a recall) moves the hatchet from the hand to the pack (`0x1D` + `0x25`),
+  Reflection at home, a recall) moves the hatchet from the hand to the pack (`0x1D` + `0x25`),
   and the double-click on a packed hatchet makes the server equip it (`0x1D` + `0x2E` layer 2)
   before the target cursor comes, so the runner never equips it itself and chopping works either
   way. The trip row's `hatchet.worn` is whether it was in hand when the last chop's cursor came
@@ -659,7 +733,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
 - **Harvest aspect armor (since 2026-10-04, user; `aspect_ensure`, `harness/aspects.py`):** before
   heading out each trip (before `go_out`), the runner checks the six armor layers (legs, helmet,
   gloves, gorget, chest, arms) passively: worn, and in the aspect's hue (2086 for Harvest; a piece
-  that was dropped or banked comes back in its own hue, the shadowhide chest 2406). Only when one
+  that was dropped or stored comes back in its own hue, the shadowhide chest 2406). Only when one
   isn't, it opens the `[aspect` menu like a player and activates Harvest on the armor (Activate
   twice; 5 Arcane Essence). "Your armor is already of that aspect." costs nothing and teaches the
   run the suit's real hue (a custom aspect hue from "Manage Hues"). A missing piece, a failed
@@ -729,8 +803,8 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     The damage so far is acknowledged (`threats.Watch.acknowledge`); only new drops count after.
     A hit while still walking away, at healthy hits, walks on (`walk_on`). Line of sight isn't
     used: the map reader has no LOS test yet, so distance alone takes us out of reach.
-  - **Home instead** (`monster_stop`: recall when more than 60 tiles from the banker with a book
-    ready, else stop in place; no log conversion either way) on: hits below the threshold, two or
+  - **Home instead** (`monster_stop`: recall home with the book when not already at home
+    (`home.at_home`), else stop in place; no log conversion either way) on: hits below the threshold, two or
     more possible attackers, damage with nothing in view to blame, a hostile player in view, damage
     within 10 s of arriving from a walk-away ("still taking damage … after the walk-away"), no
     escapes left, a speech hold. "It kept coming" and the conversion rules are unchanged.
@@ -747,7 +821,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     from sheep or a tamer's pets) makes every tree within its zone ineligible while it is in view,
     so the runner picks one away from it instead of chopping next to it until it attacks. The trees
     stay in the trip's list and come back when it leaves; when every tree left is guarded the
-    harvest ends (`creature_blocked`, not `dry`) and the trip banks.
+    harvest ends (`creature_blocked`, not `dry`) and the trip goes home.
   - **Recorded:** a `monster_hit` job event per damage episode (`body`, `name`, `serial`,
     `distance`, `hits_lost`, `trip`, `spot`, `hits`/`hits_max`, `spells` (spells on us in it),
     `attackers` (count) and `attacker_serials`, `ranged`, `reach`, `aggression`, `escapes`,
@@ -762,18 +836,19 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     PK model, and a creature's cost already shows in the field rate and overhead of the trips it
     cut short; another change owns the model.
   - **Test:** `test_loop_lumber.py` scenarios `gazer_run` (a gazer casts once from 10 tiles: run
-    to beyond 12, chop on at the far tree, bank), `gazer_rehit` (it outranges the walk-away and
+    to beyond 12, chop on at the far tree, store), `gazer_rehit` (it outranges the walk-away and
     hits again: recall home, no conversion), `gazer_reflect` (its first spell lands on Magic
-    Reflection, no hits lost: run at that spell, bank) and `wary` (a war-mode creature 2 tiles from
+    Reflection, no hits lost: run at that spell, store) and `wary` (a war-mode creature 2 tiles from
     the nearest tree: the farther tree first, the near one once it has gone); `unit_hit_verdict`;
     `unit_capture_*` on the 2026-10-03 packets (the witcher_280 larva, juncture 222, trip 1's
     hatchet, buffs and named players); `harness/test_threats.py` (attribution, acknowledgement,
     spells), `harness/test_travel_guard.py` (learning from `monster_hit`).
 - **Recall escape on players (since 2026-10-02, docs/PLAN.md "Red sighting"; `harness/escape.py`):**
-  - **Readiness:** off Shelter the runner starts only with a runebook or rune tome in the pack
-    that has a default rune and either a charge or a castable Recall (mana plus reagents or a
-    spellstone). It reads the book once at the start (`prepare_recall`). `--recall off` runs
-    without it.
+  - **Readiness:** the runner starts only with its own runebook or rune tome in the pack whose
+    default rune lands at home and that has a charge or a castable Recall (mana plus reagents or a
+    spellstone). It reads its books once at the start (`read_books`, `prepare_recall`). Since
+    2026-10-04 that book is also the way home of every trip, so it is required at every spot (the
+    old `--recall off` is gone).
   - **Trigger:** a red anywhere in view (no ETA test), a hostile player in flee range, a
     non-creature swinging at us, or a player named in "… is attacking you!".
   - **Action:** the runner recalls at once, with no pause and before any bookkeeping. It
@@ -791,7 +866,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - **After landing:** the `threat` juncture (`action: recall`), an urgent `pk_escape` juncture
     and a `recall` job event, then the run stops without converting.
   - **Guard flight when the recall fails (since 2026-10-02, docs/PLAN.md "Guard flight";
-    `harness/guards.py`):** a failed escape, or no book (`--recall off`), off Shelter: the runner
+    `harness/guards.py`):** a failed escape at a pvp spot (until 2026-10-04 also no book, `--recall off`): the runner
     runs (`Mover.walk_to(..., goal_fn=nav.any_of(goals), urgent=True)`: no pauses, sidesteps or
     reading waits; a walk at stamina ≤ 1 like the stock client) to the nearest learned guard
     point or bank marker within 250 tiles, avoiding ones nearer the attacker. It stops on the
@@ -914,15 +989,15 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
 - **A creature stop recalls home first (since 2026-10-03):** damage the run rule above doesn't
   cover (since 2026-10-03; before, any damage), a creature that kept
   coming after the walk-away escape, too many escapes, or a creature during a speech hold ends the
-  run without converting (`monster_stop`), and when the runner is more than `HOME_NEAR` (60) tiles
-  from the banker with a recall book ready, it recalls home first (`recall_out`, the same retries) and
+  run without converting (`monster_stop`), and when the runner is away from home (`home.at_home`:
+  not in the room, more than 60 tiles from the landing) with its book ready, it recalls home first (`recall_out`, the same retries) and
   posts an urgent `threat` juncture "Recalled away from …" (a player escape posts `pk_escape`).
   Live 2026-10-03 at witcher_291 the old path converted logs for 12 s under attack (85 → 40 hits)
   and then exited in the field; the overseer's own recall landed at 15/100. The logs stay logs in
   the pack. Test: `test_loop_lumber.py` scenario `library_chased`.
 - **Break due (since 2026-10-01):** when the state port's `gate.break_due_at` is set (agent gate
-  `break_due`, docs/OVERSEER.md), the runner stops harvesting at the next attempt, converts, walks
-  to the bank, stores, logs `break due: banked after trip N`, marks the episode row `break_due`
+  `break_due`, docs/OVERSEER.md), the runner stops harvesting at the next attempt, goes home into
+  the rental room, converts, stores, logs `break due: boards stored after trip N`, marks the episode row `break_due`
   and exits 0, so the overseer can `ctl break` there. Logs and boards weigh ~0.025 stone each
   (knowledge #88), so there is no weight trigger.
 
@@ -957,10 +1032,10 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   rental room (blank facet 3) it falls back to walk memory.
 - **Spot (since 2026-10-02, §6):** `--spot ID` (required) picks a spot from
   `harness/data/lumber_spots.json` plus the store's `lumber_spots` rows
-  (`lumber_opt.load_spots`); a disabled or unknown spot aborts at once. Its banker, area, seed
+  (`lumber_opt.load_spots`); a disabled or unknown spot aborts at once. Its area, seed
   trees and `pvp` flag are merged over `loops/lumber.json`, which keeps the demonstration's texts,
-  captcha shape and conversion. `pvp: false` (Shelter) skips the recall readiness and the guard
-  flight. The per-venue `loops/lumber_*.json` files are gone.
+  captcha shape and conversion. `pvp: false` skips the tracking escape and the guard flight; the
+  way home (our book) is required everywhere. The per-venue `loops/lumber_*.json` files are gone.
 - **Trees:** candidates are the spot's seed trees plus every tree static in its area, all of them
   by default (`--max-trees 0`; it was 8 per trip, which capped a trip at ~180 logs). Trees out of
   wood (depleted before 2026-10-04, or `nothing_near` since) within `--regrow-min` are skipped: 45
@@ -983,15 +1058,19 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
 - **Hatchet choice (since 2026-10-02):** `--hatchet copper` (or `copper+exceptional`) uses only a
   hatchet of that material (by hue, `harness/data/hatchets.json`) and quality (by its clicked
   name); none such aborts the start. Without it: worn, else the shallowest in the pack.
-- **Recall travel (since 2026-10-03, §6 "Spots reached by recall"):** with a Witcher `access`, the
-  harvest starts (unless we already stand in the area) by walking to the library tome that holds the
-  rune (within its 2-tile use range; we wait until the world model has the tome, since it re-enters
-  view only when we're near), then `escape.escape(tome, rune=N)`: a shared charge, else our spell,
-  up to 2 casts. With `home: recall`, the bank phase starts with a recall on the PK-escape book's
-  default rune (skipped within 60 tiles of the banker), then walks to the banker. Both legs are
-  `travel` job events (`leg` out/home, the recall result). A recall that can't be made aborts the
-  trip. The offline proof is `test_loop_lumber.py` scenario `library` (two trips out and home,
-  the captured tome and runebook layouts).
+- **Recall travel (since 2026-10-03; since 2026-10-04 for every spot, §12.5):** out, the landing's
+  library row is reached by walking to the tome that holds it (within its 2-tile use range; we wait
+  until the world model has the tome, since it re-enters view only when we're near), then
+  `escape.escape(tome, rune=name)`: a shared charge, else our spell, up to 2 casts; an own-book row
+  recalls where we stand, by the rune's index in the book (`entry`: two runes may share a name). A
+  landing more than LANDING_SLACK (3) tiles from the chosen rune's tile is wrong: the runner recalls
+  home and aborts. Own-runebook runes count only on the map their name hue says (81 = facet 0);
+  tome runes carry no facet and count as facet 0. Home is a recall on the own book's default rune
+  (skipped within 60 tiles of the landing; a default rune that shows no tile doesn't count as the
+  way home), then the room. Both legs are `travel` job events (`leg` out/home, the recall
+  result, `landing` on the out leg). A recall that can't be made aborts the trip. The offline proof
+  is `test_loop_lumber.py` scenarios `library` (the library row, two trips) and the main run (the own
+  book's row), with the captured tome and runebook layouts.
 - **Routes around monsters (since 2026-10-03, `harness/travel_guard.py`):** creatures escaped from
   this trip become Mover danger zones (routes bend around them), every escape is a `monster_seen`
   job event, bodies seen hostile (or that hit us alone, `monster_hit`) count as aggressive from
@@ -1007,7 +1086,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   as an unknown outcome, and the unknown counter never reset, so four dullwood chops spread over a
   30-min Terran trip aborted it. The abort now needs more than 3 unknowns **in a row**.
 - **A trip ends when its candidate trees run out**, whatever `--logs-per-trip` says, and the end
-  of a trip is convert + bank; the row is marked `dry`, and the planner keeps the spot out until its
+  of a trip is home, convert, store; the row is marked `dry`, and the planner keeps the spot out until its
   trees regrow. A 12-radius area (33 trees) ran dry in 11 min (Terran, 2026-10-02). The list is
   fixed at the trip's start (trees out of wood come back after `--regrow-min`).
 - **Doors** (tiledata Door flag, or classic door art 0x0675–0x06F4: the demo's inn doors
@@ -1018,7 +1097,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   after a reaction time. Routes never cut diagonally past a door. Plain walls never trigger a
   request.
 - **Guards:** overall timeout, HP loss, movement stall, the agent gate (pause/break → wait;
-  kill/budget → abort; break_due → finish the trip at the bank, above), threats (escape or stop,
+  kill/budget → abort; break_due → finish the trip in the rental room, above), threats (escape or stop,
   above), and the speech hold (a character speaking nearby → send nothing until the
   overseer acks the `speech_nearby` juncture; the pause doesn't count against the timeout).
 - **Human texture (user request 2026-09-29; `harness/humanize.py`, used by every runner via
@@ -1070,14 +1149,20 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - `episodes` (loop `lumber`): one row per trip with phase durations, steps, blocks, doors,
     captchas and human wait, attempts, successes, logs, stored, escapes, break_due
 
-Offline proof, `test_loop_lumber.py`: the real proxy plus a simulated Shelter server with the
-demo's packet shapes and texts, and a "human" that answers the captcha through the client
-connection. It runs 2 trips and checks:
-- one real captcha, answered only by the human
-- 16 decoys, none answered
-- the only agent gump replies are 2 room enters and 2 exits
-- all 18 logs end up as boards in the box
-- the dry tree is tried once per trip (since Smart Harvest, 2026-10-04: every chop cursor is
+Offline proof, `test_loop_lumber.py` (since 2026-10-04 with the home): the real proxy plus a
+simulated server with the demo's packet shapes and texts and the live rental room menus
+(`harness/testdata/room_gumps.json`, the steward's captured context menu), a test homes file
+(`--homes`) and libraries file, and a "human" that answers the captcha through the client
+connection. The main run starts in the room and runs 2 trips; it checks:
+- out of the room by its door each trip, back in by the steward (Room, Visit Other Rooms, Logan
+  Wolf's row), never End Rental Contract or Expand; the run ends in the room
+- out by our runebook's rune nearest the grove, home on foot (within 60 tiles of the landing) through
+  the town door and its moongate prompts (closed with button 0); the steward found by one click
+- one real captcha auto-solved, one answered only by the human; the decoys never answered
+- the only agent gump replies are the auto-solved captcha, the gate prompts, the runebook (read once,
+  one recall a trip) and the room menus
+- every log not stolen ends up as boards in the chest, with each trip's spent trapped pouch
+- the dry tree is tried once per trip after the travel lockout (since Smart Harvest, 2026-10-04: every chop cursor is
   answered with ourselves, byte-checked against the stock client's form; the simulated server
   chops the nearest tree with wood within 2 tiles, else says "nothing nearby", once at the dry
   tree's stand per trip and once when the good tree runs out; the runner moves on each time,
@@ -1085,32 +1170,31 @@ connection. It runs 2 trips and checks:
   event per stand. `unit_capture_smart_harvest` pins the cursor answer to capture
   `20261001_214649`)
 - open-door requests only happen when a door blocks the move (none at plain walls)
-- the post-exit lockout is waited out, with no lockout message provoked
-- the only speech is `room`
-- two episode rows
+- no speech at all
+- two episode rows: outcome `stored`, phases `harvest`, `to_room`, `convert`, `store`
 
-Since 2026-10-01 the same file runs two more simulated sessions, each behind its own proxy, and
+Since 2026-10-01 the same file runs more simulated sessions, each behind its own proxy, and
 a unit check of `hatchet()` (worn first, then the shallowest bag; never the bank box). The
-simulated banker now comes into view within 18 tiles and leaves it beyond 24, since the world
-model prunes mobiles out of view.
+simulated steward, tome and town door come into view within 18 tiles and leave it beyond 24, since
+the world model prunes them out of view (and on every facet change).
 - **skirmish:** the hatchet is in a bag in the backpack (backpack, then bag, opened before the
   first use). A war-mode great hart 4 tiles from the tree trades 0x2F swings with a player and is
   no threat (a passive body in war mode, threats.py). A creature then swings at the agent: `escape` juncture, a walk beyond its flee
   radius, harvesting resumes at the far tree out of its reach. There the creature comes back and
   follows step for step: a second `escape`, then `abort` ("it kept coming"), and the 6 carried
   logs stay logs: a creature still coming stops at once (since 2026-10-03; code 1).
-- **break:** a pre-written agent gate file makes the break due after 4 s of agent activity; the
-  harvest stops early, the 5 carried and the new logs are converted and banked, `break due:
-  banked`, exit 0, one episode row with `break_due`.
+- **break:** a pre-written agent gate file makes the break due after 10 s of agent activity; the
+  harvest stops early, the 5 carried and the new logs are converted and stored in the room, `break
+  due: boards stored`, exit 0 in the room, one episode row with `break_due`.
 - **gazer_run / gazer_rehit / wary** (since 2026-10-03, "Running from a creature" above): a gazer
-  that casts from 10 tiles once (run beyond 12, chop on at the far tree, bank, exit 0), the same
+  that casts from 10 tiles once (run beyond 12, chop on at the far tree, store, exit 0), the same
   gazer outranging the walk-away (hit again within 10 s of arriving: recall home, no conversion,
   exit 1), and a war-mode creature by the nearest tree (the farther tree first, no escape).
   `python test_loop_lumber.py gazer_run wary` runs named scenarios alone.
 - **gazer_reflect** (since 2026-10-03, "Spells on us count as damage" above): the gazer's first
   spell lands on Magic Reflection ("Magic reflect removed." + 0xC0 0x37B9, no 0xA1): a
   `monster_hit` with `spells` and 0 hits lost, a run at that spell, the `threat` juncture's
-  `attackers` naming the gazer, the trip banks. `unit_capture_*` replay the captured packets of
+  `attackers` naming the gazer, the trip stores. `unit_capture_*` replay the captured packets of
   2026-10-03 through the world model (no simulator).
 
 **Live proof, run by the user or the agent while the user is at the client:**
@@ -1270,11 +1354,11 @@ in that cave can't see or click a tree on the surface, so it's an inhuman signal
 - Two trips aborted on passive wildlife (a walrus, a goat). Fixed in `threats.py`: unknown
   creatures count as threats only in war mode (NOTES.md).
 - ~~**Open, blocks multi-trip runs from Horseshoe Bay:** the rental room always exits to the town
-  it was rented in.~~ **Gone with §12.5 (2026-10-01):** trips end at a banker, so there's no
-  room to exit.
-- **Open:** the runner has no venue settings other than the whole `--loop` file (banker, tree
-  area), so every non-Shelter spot needs its own copy. A committed file per venue, or CLI
-  overrides, would fix that.
+  it was rented in.~~ **Gone (2026-10-01: trips ended at a banker; since 2026-10-04 the room's
+  "Exit to House Steward" lands at the home landing, §12.5).**
+- ~~**Open:** the runner has no venue settings other than the whole `--loop` file (banker, tree
+  area), so every non-Shelter spot needs its own copy.~~ **Gone:** spots (2026-10-02, §6) and homes
+  (2026-10-04, `homes.json`) carry the venue.
 - **Shelter run 2026-10-01 aborted on a battle trainer** (juncture 44): Beaman the battle
   trainer (gray, war mode) was assessed 62 ms before his click label arrived and read as a grey
   player. Fixed in `threats.py`: a 1 s label grace for unlabeled humans (NOTES.md).

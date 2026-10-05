@@ -45,6 +45,7 @@ import ctl  # noqa: E402
 import healing  # noqa: E402
 import humanize  # noqa: E402
 import nav  # noqa: E402
+import room  # noqa: E402
 import task_wrap as tw  # noqa: E402
 import tracking  # noqa: E402
 from memory import Memory  # noqa: E402
@@ -1562,16 +1563,164 @@ def test_track(proxy):
     proxy.tracker, proxy.gumps = None, []
 
 
+def _room_gumps() -> dict:
+    with open(os.path.join(HERE, "testdata", "room_gumps.json"), encoding="utf-8") as f:
+        return json.load(f)
+
+
 def test_room_buttons():
     print("== room: the rental room menus' buttons by their labels (live gumps, DTF guild house) ==")
-    with open(os.path.join(HERE, "testdata", "room_gumps.json"), encoding="utf-8") as f:
-        g = json.load(f)
-    find = lambda key, label: ctl._labelled_button(ctl.gump_view(g[key]), label)  # noqa: E731
+    g = _room_gumps()
+    find = lambda key, label: room.labelled_button(g[key], label)  # noqa: E731
     check("steward menu without a room: 'Visit Other Rooms' is 2, no 'Enter Your Room'",
           find("steward_no_room", "Visit Other Rooms") == 2 and find("steward_no_room", "Enter Your Room") is None)
     check("the visit list: Logan Wolf's row is 100", find("visit_list", "Logan Wolf") == 100)
     check("the door: Exit to House Steward 6 and Exit to Town 4, not the View Players button between them",
           find("door", "Exit to House Steward") == 6 and find("door", "Exit to Town") == 4)
+
+
+class RoomIO:
+    """room.enter/leave's IO over a scripted server: each packet the flow sends is
+    answered by `answer(pkt)` -> world events (the live room gumps)."""
+
+    KEEPER, DOOR = 0x009F57FB, 0x5CDC6B4F
+
+    def __init__(self, facet: int, pos, keeper_at=(4138, 1431), gumps=None):
+        self.gumps = gumps or _room_gumps()
+        self.state = {"movement": {"pos": list(pos)},
+                      "world": {"self": {"serial": "0x00001234", "map": facet},
+                                "mobiles": {f"0x{self.KEEPER:08X}": {"x": keeper_at[0], "y": keeper_at[1]},
+                                            "0x00000777": {"x": pos[0], "y": pos[1] + 1}},
+                                "labels": {f"0x{self.KEEPER:08X}": "Chase the house steward",
+                                           "0x00000777": "a rabbit"},
+                                "items": {f"0x{self.DOOR:08X}": {"x": 403, "y": 929, "graphic": 0x0675},
+                                          "0x4AE0DD2C": {"x": 404, "y": 922, "graphic": 0x0E43}}}}
+        self.sent, self.pending, self.walked = [], [], []
+        self.menu = "steward_no_room"           # what the keeper's "Room" opens
+        self.entries = [(0, "Open Paperdoll"), (1, "Room")]
+
+    def gump(self, key: str, serial: int) -> dict:
+        return {"ev": "gump_open", "serial": f"0x{serial:08X}", **self.gumps[key]}
+
+    def send(self, pkt: bytes):
+        self.sent.append(pkt)
+        k = self.KEEPER
+        if pkt == actions.request_popup(k):
+            self.pending.append({"ev": "popup", "serial": f"0x{k:08X}",
+                                 "entries": [{"index": i, "text": t, "flags": 0} for i, t in self.entries]})
+        elif pkt == actions.popup_selection(k, 1):
+            self.pending.append(self.gump(self.menu, 0x501))
+        elif pkt == actions.dclick(self.DOOR):
+            self.pending.append(self.gump("door", 0x502))
+        elif pkt[0] == 0xB1:
+            serial, button = int.from_bytes(pkt[3:7], "big"), int.from_bytes(pkt[11:15], "big")
+            if (serial, button) == (0x501, 2):
+                self.pending.append(self.gump("visit_list", 0x503))
+            elif (serial, button) in ((0x503, 100), (0x501, 9)):
+                self.state["world"]["self"]["map"] = 3
+                self.state["movement"]["pos"] = [403, 923, 1]
+                self.pending += [{"ev": "map_change", "map": 3},
+                                 {"ev": "speech_heard", "serial": 0xFFFFFFFF, "text": room.ENTERED}]
+            elif serial == 0x502 and button in (4, 6):
+                self.state["world"]["self"]["map"] = 0
+                self.state["movement"]["pos"] = [4134, 1429, 6]
+                self.pending += [{"ev": "speech_heard", "serial": 0xFFFFFFFF, "text": room.EXITED},
+                                 {"ev": "map_change", "map": 0}]
+
+    def poll(self):
+        new, self.pending = self.pending, []
+        return self.state, new
+
+    def walk(self, serial: int, rng: int):
+        self.walked.append((serial, rng))
+        self.state["movement"]["pos"] = [4138, 1433, 6]
+
+    def replies(self) -> list:
+        """(gump serial, button) of every 0xB1 sent."""
+        return [(int.from_bytes(p[3:7], "big"), int.from_bytes(p[11:15], "big")) for p in self.sent if p[0] == 0xB1]
+
+
+def test_room_flow():
+    print("== room: enter / leave against the live room gumps (fake io, no proxy) ==")
+    human = humanize.Human("off", seed=1)
+    tile_name = room._tile_name
+    room._tile_name = lambda graphic: "wooden door" if graphic == 0x0675 else "paragon chest"
+    try:
+        io = RoomIO(0, (4134, 1429, 6))
+        check("find_keeper: the steward by his click label, not the nearer rabbit",
+              room.find_keeper(io.state) == (RoomIO.KEEPER, "Chase the house steward"))
+        out = room.enter(io, human, ["logan"], walk=io.walk, timeout=0.5)
+        k = RoomIO.KEEPER
+        check("enter logan: walked to the steward (2 tiles), right-click, 'Room', Visit Other Rooms, the row",
+              out["ok"] and io.walked == [(k, room.KEEPER_RANGE)]
+              and io.sent[:3] == [actions.single_click(k), actions.request_popup(k), actions.popup_selection(k, 1)]
+              and io.replies() == [(0x501, 2), (0x503, 100)], str(out)[:300])
+        check("enter: arrival on facet 3 at 403,923 with the room and keeper named",
+              out["facet"] == 3 and out["pos"][:2] == [403, 923] and out["room"] == "Logan Wolf (DTF)"
+              and out["via"] == "Chase the house steward"
+              and any(e.get("text") == room.ENTERED for e in out["heard"]), str(out)[:300])
+        check("enter when already inside: nothing sent",
+              room.enter(io, human, walk=io.walk)["already"] and len(io.sent) == 5)
+
+        io = RoomIO(0, (4137, 1431, 6))
+        own = dict(io.gumps["steward_no_room"])
+        own["layout"] = own["layout"].replace("\x00", "") + "{ text 223 478 2599 8 18 0 1 0 0 0 }{ button 188 475 2151 2154 1 0 9 }"
+        own["lines"] = own["lines"] + ["Enter Your Room"]
+        io.gumps = {**io.gumps, "own_room": own}
+        io.menu = "own_room"
+        out = room.enter(io, human, walk=None, timeout=0.5)
+        check("enter with no owner and an 'Enter Your Room' button: that button, no walk (in range)",
+              out["ok"] and out["room"] == "your own" and io.replies() == [(0x501, 9)], str(out)[:300])
+
+        io = RoomIO(0, (4137, 1431, 6))
+        try:
+            room.enter(io, human, ["nobody"], timeout=0.5)
+            check("enter nobody: refused", False)
+        except room.RoomError as e:
+            check("enter with no matching row: the list is closed with 0 and the error names the rooms",
+                  io.replies() == [(0x501, 2), (0x503, 0)] and "Logan Wolf (DTF)" in str(e), str(e))
+        io = RoomIO(0, (4137, 1431, 6))
+        io.menu = "visit_list"            # a menu without 'Visit Other Rooms' (nor 'Enter Your Room')
+        io.gumps = {**io.gumps, "visit_list": {**io.gumps["visit_list"],
+                                               "lines": [t.replace("Logan", "x") for t in io.gumps["visit_list"]["lines"]]}}
+        try:
+            room.enter(io, human, ["logan"], timeout=0.5)
+            check("menu without the step: refused", False)
+        except room.RoomError as e:
+            check("a menu missing the step is closed with 0 and raises", io.replies() == [(0x501, 0)]
+                  and "Visit Other Rooms" in str(e), str(e))
+        io = RoomIO(0, (4134, 1429, 6))
+        try:
+            room.enter(io, human, ["logan"], timeout=0.5)
+            check("keeper far, no walker: refused", False)
+        except room.RoomError as e:
+            check("keeper farther than 2 tiles and no walker: raises before any packet", io.sent == [], str(e))
+
+        io = RoomIO(3, (403, 923, 1))
+        out = room.leave(io, human, timeout=0.5)
+        check("leave: the door double-clicked, Exit to House Steward (6), back on facet 0",
+              out["ok"] and io.sent[0] == actions.dclick(RoomIO.DOOR) and io.replies() == [(0x502, 6)]
+              and out["exit"] == "the house steward" and out["facet"] == 0, str(out)[:300])
+        io = RoomIO(3, (403, 923, 1))
+        out = room.leave(io, human, ("town", "steward"), timeout=0.5)
+        check("leave preferring town: Exit to Town (4)", out["ok"] and io.replies() == [(0x502, 4)]
+              and out["exit"] == "town", str(out)[:300])
+        flow = room._Flow(RoomIO(3, (403, 923, 1)), human, 0.5)
+        door = {"ev": "gump_open", "serial": "0x00000502", **_room_gumps()["door"]}
+        for b in room.ROOM_REFUSED:
+            try:
+                flow.press(door, b, lambda e: False, "test", timeout=0.0)
+                check(f"refused button {b} pressed", False)
+            except room.RoomError:
+                check(f"never a refused button: {b} ({room.ROOM_REFUSED[b]}) raises, nothing sent",
+                      flow.io.sent == [])
+        try:
+            room.leave(RoomIO(0, (4134, 1429, 6)), human)
+            check("leave outside: refused", False)
+        except room.RoomError as e:
+            check("leave when not in a room: raises", "not in a rental room" in str(e), str(e))
+    finally:
+        room._tile_name = tile_name
 
 
 def main():
@@ -1592,6 +1741,7 @@ def main():
     test_drop(proxy)
     test_track(proxy)
     test_room_buttons()
+    test_room_flow()
     reset_events(proxy)
     test_overseer_acts(proxy)
     if FAILURES:

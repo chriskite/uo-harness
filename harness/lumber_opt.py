@@ -1,12 +1,14 @@
 """Self-optimizing lumber job (docs/LUMBER_LOOP.md §6): where to chop, how much
 to carry home, and which hatchet to use, learned from the memory store.
 
-The objective is banked logs per hour of agent time, net of expected PK losses
-(logs/hour is the proxy for gold/hour until colored-wood prices are known; user
-decision 2026-10-02). The overseer asks `ctl lumber plan` before each lumber run
-and gets one runner command back.
+The objective is stored logs per hour of agent time (what reaches the rental
+room's chest at home), net of expected PK losses (logs/hour is the proxy for
+gold/hour until colored-wood prices are known; user decision 2026-10-02). The
+overseer asks `ctl lumber plan` before each lumber run and gets one runner
+command back.
 
-Model (one spot = a tree area plus its bank, `load_spots`):
+Model (one spot = a tree area, `load_spots`; every trip starts and ends at the
+character's home, harness/home.py, user decision 2026-10-04):
   - field rate λ: logs per hour in the field (walking between trees, chopping,
     escapes and holds included), per spot. Gamma posterior over recency-weighted
     trips (half-life HALF_LIFE_DAYS), quasi-Poisson with dispersion φ (logs come
@@ -19,25 +21,26 @@ Model (one spot = a tree area plus its bank, `load_spots`):
     regular wood [INFERENCE]; Terran 2026-10-02 measured 44/63 = 0.70 at 69.1
     skill, the formula says 0.69), so a spot measured at lower skill is
     credited with what it would yield now. Walking time doesn't scale.
-  - overhead T: walk out + convert + walk to the bank + store, per trip. Normal
-    posterior; prior from the bank-to-area distance.
+  - overhead T: room exit + walk to the landing's rune + recall out + walk into
+    the grove + lockout + recall home + into the room + convert + store, per
+    trip. Normal posterior; prior from the spot's landing (landing_for: the rune
+    landing nearest the grove, from our libraries and own books).
   - hazards per field hour, three kinds competing while we chop (trip_terms):
-    death h_D (PK or creature; the trip banks nothing, the carried logs and
+    death h_D (PK or creature; the trip stores nothing, the carried logs and
     every unblessed item we carry are lost, RECOVERY_H), sent home h_S (a
     threat ended the trip early: recall escape, guard flight, a creature stop;
     the carried logs come home) and theft h_T (a thief takes a fraction f of
     what we carry; the trip goes on). Each is a Gamma posterior per spot shrunk
     to a pooled rate; h_D's prior is the spot's hostile-player sightings per
     field hour × P(death | sighting) plus the pooled creature-death rate.
-  - trip size Q*: maximises the renewal-reward rate E[banked logs per trip
+  - trip size Q*: maximises the renewal-reward rate E[stored logs per trip
     cycle] / E[cycle time], minus supplies and the expected gear loss in logs,
     over Q_MIN…Q_MAX and what we can still carry (LUMBER_LOOP §6: Q* ≈
     λ·sqrt(2T/h) for a small death hazard alone).
   - choice: Thompson sampling. One posterior draw per eligible spot, the best
-    draw wins; a spot other than the one we stand at pays travel_min out of a
-    run (a stint, or one trip when that's longer). That keeps exploring the
-    uncertain spots while the evidence favours the good ones, and varies the
-    routine (ANTICHEAT.md §8.3).
+    draw wins (no spot pays travel beyond its overhead: all start at home).
+    That keeps exploring the uncertain spots while the evidence favours the good
+    ones, and varies the routine (ANTICHEAT.md §8.3).
   - hatchet: per owned or buyable hatchet, the net logs/hour at the chosen spot
     minus wear (one use per success), in logs at the ordinary board price. Every
     carried hatchet is lost on death whichever is used; buying one adds its
@@ -83,7 +86,10 @@ LOGS_PER_TREE = 19.0              # logs a tree gives before 'depleted' (harvest
 LOGS_PER_TREE_MIN_CYCLES = 20
 YIELD_PRIOR_TILES = 10.0          # tree tiles of pseudo-data behind a spot's yielding share (pooled mean)
 SEC_PER_TILE = 0.45               # overhead prior: walking pace incl. detours [INFERENCE: mounted 0.1-0.2 s/step, on foot 0.4]
-OVERHEAD_FIXED_S = 40.0           # convert + open the bank + store + human pauses (live 10-20 s + pauses)
+OVERHEAD_FIXED_S = 40.0           # convert in the room + store in the chest + human pauses (live 10-20 s + pauses)
+ROOM_EXIT_S = 10.0                # the room door's menu, "Exit to House Steward", the teleport [INFERENCE]
+ROOM_ENTER_S = 15.0               # landing -> house steward, Visit Other Rooms, the owner's row [INFERENCE]
+NO_LANDING_TILES = 60             # landing -> grove walk when no landing is known (display only) [INFERENCE]
 OVERHEAD_SD_MIN_S = 30.0
 HAZARD_PRIOR_H = 2.0              # field hours of pseudo-data behind a spot's hazard_prior (sightings)
 DEATH_PRIOR = (1.0, 3.0)          # Beta prior of P(death | hostile player sighted) [INFERENCE]
@@ -109,19 +115,16 @@ REGROW_P = 0.6                    # revisit a depleted tree once P(regrown) reac
 REGROW_DEFAULT_MIN = 45.0         # until enough depleted-then-retried trees are seen
 REGROW_MIN_PAIRS = 20
 DRAWS = 2000                      # Monte Carlo draws for P(best)
-CURRENT_SPOT_MARGIN = 40          # tiles beyond a spot's radius that still count as standing at it
-NEAR_BANK = 30
-HUB_RADIUS = 60                   # tiles from a rune library: its rune spots are at hand
+CURRENT_SPOT_MARGIN = 40          # tiles beyond a spot's radius where a death still counts for it
 LOCKOUT_S = 60.0                  # harvest lockout after any travel (TRAVEL_DEATH §2)
 RECALL_TRIP_S = 4.0               # open the book, press, the 2 s cast, arrival (live 2.1 s + the book)
-HOME_RUNE_TILES = 10              # walk from the home rune to the banker [INFERENCE: mark it by the bank]
 FAIL_EXPOSURE_H = 0.25            # a trip the place itself spoiled counts at least this many field hours
 UNWORKABLE_TRIPS = 2              # that many such trips in a row: the spot is out ...
 UNWORKABLE_DAYS = 7.0             # ... for this long, then gets one more try
-TRAVEL_GAP_S = 3600.0             # a gap this short between trips at two spots is the travel between them
 # Abort reasons that say the place can't be worked (not the character, the server or a player):
 # no tree we can reach, harvesting answered by something the runner doesn't know (a town region)
 PLACE_FAILURES = ("no harvestable tree", "without a known outcome")
+ROUTES_META = "lumber_landing_routes"   # memory meta: {landing>grove key: route tiles or null} (landing_routes)
 
 
 # ------------------------------------------------------------------ small helpers
@@ -164,75 +167,104 @@ def load_spots(memory, seeds_path: str = SEEDS) -> dict:
 
 
 def check_spot(spot: dict):
-    """A spot the runner can work: an area and a banker position."""
-    area, banker = spot.get("area") or {}, spot.get("banker") or {}
+    """A spot the runner can work: an area (center [x, y] and radius)."""
+    area = spot.get("area") or {}
     if len(area.get("center") or ()) != 2 or _num(area.get("radius")) is None:
         raise ValueError(f"spot {spot.get('id')}: area needs center [x, y] and radius")
-    if len(banker.get("pos") or ()) != 3:
-        raise ValueError(f"spot {spot.get('id')}: banker needs pos [x, y, z]")
 
 
 def spot_knowledge(know: dict, spot: dict) -> dict:
     """The runner's knowledge for one spot: loops/lumber.json's common facts
-    (texts, captcha, conversion) with the spot's venue fields over them."""
+    (texts, captcha, conversion) with the spot's area, trees and PvP flag over them.
+    No banker: trips start and end at home (harness/home.py)."""
     check_spot(spot)
     k = copy.deepcopy(know)
     k.pop("venue", None)                         # the demo's venue; the spot says where we are
-    k["spot"] = {key: spot.get(key) for key in ("id", "name", "facet", "pvp", "requires_young", "access", "home")}
+    k.get("npcs", {}).pop("banker", None)        # the demo's banker: no trip goes to a bank
+    k["spot"] = {key: spot.get(key) for key in ("id", "name", "facet", "pvp")}
     k["pvp"] = bool(spot.get("pvp", True))
     k["facet"] = int(spot.get("facet") or 0)
-    k.setdefault("npcs", {})["banker"] = dict(spot["banker"])
     k["harvest"]["trees"] = list(spot.get("trees") or [])
     k["harvest"]["area"] = dict(spot["area"])
     return k
 
 
-def current_spot(spots: dict, pos, facet) -> str | None:
-    """The spot we stand at or by: inside its area (+ CURRENT_SPOT_MARGIN) or
-    within NEAR_BANK tiles of its bank; the nearest such one. A Witcher spot's
-    bank is the shared home, so standing there (or within HUB_RADIUS of a rune
-    library) gives "hub:<library id>": every spot reached from that library is
-    at hand, its travel being the trip overhead from home."""
-    if not pos:
+# ------------------------------------------------------------------ the way out: landings
+def landing_for(spot: dict, home: dict | None, books=(), route_ok=None) -> dict | None:
+    """The landing a trip to `spot` recalls to (user decision 2026-10-04: always as
+    close to the grove as we can): the first places.landings row nearest the area's
+    centre, from the rune library at home (home.libraries: trips start at home and
+    reach its tomes on foot) and the character's own books (places.known_books), dangerous
+    landings left out, for which route_ok(row, spot) holds (a walking route from the
+    landing into the grove; None: no check). None when no landing qualifies."""
+    import home as homes
+    import places
+    (cx, cy) = spot["area"]["center"]
+    for row in places.landings(cx, cy, int(spot.get("facet") or 0), libraries=homes.libraries(home),
+                               books=books):
+        if route_ok is None or route_ok(row, spot):
+            return row
+    return None
+
+
+def landing_view(row: dict | None) -> dict | None:
+    """A landing as the plan shows it (and the runner's `out` travel leg records it)."""
+    if row is None:
         return None
-    best, home_hub = None, None
-    for sid, s in spots.items():
-        if int(s.get("facet") or 0) != int(facet or 0) or not s.get("area"):
-            continue
-        d_area = cheb(pos, s["area"]["center"])
-        # A Witcher spot's bank is the home every such spot shares, not the field: standing
-        # there isn't being at the spot (live 2026-10-03 at the Cambria bank, "here" was an
-        # arbitrary Witcher candidate). Its travel is the overhead from that bank.
-        home_only = (s.get("access") or {}).get("method") == "witcher"
-        d_bank = cheb(pos, s["banker"]["pos"]) if s.get("banker") and not home_only else 10 ** 6
-        if home_only and s.get("banker") and cheb(pos, s["banker"]["pos"]) <= NEAR_BANK:
-            home_hub = hub_of(s)
-        if d_area <= s["area"]["radius"] + CURRENT_SPOT_MARGIN or d_bank <= NEAR_BANK:
-            d = min(d_area, d_bank)
-            if best is None or d < best[0]:
-                best = (d, sid)
-    if best:
-        return best[1]
-    if home_hub:
-        return home_hub
-    import places
-    lib = places.library_at(pos, facet, HUB_RADIUS)
-    return f"hub:{lib['id']}" if lib else None
+    return {k: row.get(k) for k in ("source", "library", "tome", "book", "name", "x", "y", "dist",
+                                    "route_tiles", "route_checked")}
 
 
-def hub_of(spot: dict) -> str | None:
-    """"hub:<library>" for a spot reached by a library rune (its access library), else None."""
-    access = spot.get("access") or {}
-    return f"hub:{access.get('library', 'cambria')}" if access.get("method") == "witcher" else None
+def route_key(row: dict, spot: dict) -> str:
+    """The landing-route cache key: facet, the landing tile, the grove's area."""
+    (cx, cy), r = spot["area"]["center"], spot["area"]["radius"]
+    return f"{int(spot.get('facet') or 0)}:{row['x']},{row['y']}>{cx},{cy},{r}"
 
 
-def hubs_of(spot: dict) -> set:
-    """Every "hub:<library>" a library-rune spot can be reached from: each library
-    that holds its Witcher rune (the runner recalls from the nearest, places.library_for)."""
-    if hub_of(spot) is None:
-        return set()
-    import places
-    return {hub_of(spot)} | {f"hub:{lid}" for lid in places.libraries_holding(spot["access"].get("rune"))}
+def landing_routes(memory) -> dict:
+    """{route_key: route tiles or None (no route)} cached in the memory store's meta."""
+    import task_wrap
+    try:
+        got = json.loads(task_wrap.meta_get(memory, ROUTES_META) or "{}")
+    except ValueError:
+        return {}
+    return got if isinstance(got, dict) else {}
+
+
+def save_landing_routes(memory, new: dict):
+    """Merge newly planned routes into the cache (another process may have added some)."""
+    import task_wrap
+    if new:
+        task_wrap.meta_update_json(memory, ROUTES_META, lambda cur: ({**(cur or {}), **new}, None), {})
+
+
+def make_route_ok(route_fn, routes: dict, new: dict, tries: int = None, max_route: int = None):
+    """route_ok for landing_for: the landing has a walking route into the grove no longer
+    than max_route (MAX_RUNE_ROUTE) tiles. Answers come from `routes` (the cache); an
+    unknown one is planned with route_fn (make_route_fn: the runner's planning budget)
+    and added to `routes` and `new`, at most `tries` (ROUTE_TRIES) plans per spot a call
+    (later landings of that spot fail unplanned: the next plan tries them). route_fn None:
+    cached answers only, an unknown route counts as there. A landing farther from the
+    area's edge than max_route fails without planning."""
+    tries = ROUTE_TRIES if tries is None else tries
+    max_route = MAX_RUNE_ROUTE if max_route is None else max_route
+    planned = {}
+
+    def ok(row, spot):
+        key = route_key(row, spot)
+        if key not in routes:
+            if cheb((row["x"], row["y"]), spot["area"]["center"]) - spot["area"]["radius"] > max_route:
+                return False
+            if route_fn is None:
+                return True
+            if planned.get(spot["id"], 0) >= tries:
+                return False
+            planned[spot["id"]] = planned.get(spot["id"], 0) + 1
+            routes[key] = new[key] = route_fn((row["x"], row["y"]), tuple(spot["area"]["center"]),
+                                              spot["area"]["radius"])
+        n = routes[key]
+        return n is not None and n <= max_route
+    return ok
 
 
 # ------------------------------------------------------------------ hatchets and the character
@@ -378,20 +410,26 @@ def supply_gp(supplies: dict | None, prices: dict) -> tuple[float, int]:
 
 def trip_obs(ep: dict, prices: dict | None = None) -> dict | None:
     """One trip row (episodes, loop lumber) as the model's observation, or None
-    without times. Rows written before 2026-10-02 lack walk_out_s/chop_s/skill:
-    the walk out is taken to equal the walk to the bank, chops cost
-    DEFAULT_CHOP_S each, and their chopping isn't rescaled. Field time excludes
-    the travel lockout waited out at the first tree (`lockout_s`, since
-    2026-10-03; it's overhead); a row whose walk out never ended (walk_out_s
-    null: no chop, e.g. the recall failed) has no field time. `sent_home`: a
-    threat ended the trip early without killing us (a "threat: …" abort: recall
-    escape, guard flight, a creature or damage stop; or the row's `creature`
-    says it recalled); plan() adds trips with a recall/guard_flight event."""
+    without times. A trip that ended at home (outcome "stored", since 2026-10-04: the
+    boards went into the rental room's chest) has an overhead: the walk out (room exit,
+    library, recall, walk into the grove), the lockout, the way into the room
+    (`to_room`: recall home, the house steward), convert and store. Legacy rows of the
+    bank era (outcome "banked", or none: the oldest rows) keep their form (walk out,
+    lockout, convert, to_bank, store) as history. Rows written before 2026-10-02 lack
+    walk_out_s/chop_s/skill: the walk out is taken to equal the walk to the bank, chops
+    cost DEFAULT_CHOP_S each, and their chopping isn't rescaled. Field time excludes
+    the travel lockout waited out at the first tree (`lockout_s`, since 2026-10-03;
+    it's overhead); a row whose walk out never ended (walk_out_s null: no chop, e.g.
+    the recall failed) has no field time. `sent_home`: a threat ended the trip early
+    without killing us (a "threat: …" abort: recall escape, guard flight, a creature
+    or damage stop; or the row's `creature` says it recalled); plan() adds trips with
+    a recall/guard_flight event."""
     t0, t1 = _num(ep.get("t_start")), _num(ep.get("t_end"))
     if t0 is None or t1 is None or t1 < t0:
         return None
     ph = {k: v for k, v in (ep.get("phases_s") or {}).items() if _num(v) is not None}
-    outcome = ep.get("outcome") or "banked"
+    outcome = ep.get("outcome") or "banked"      # rows without one are the oldest, bank-era trips
+    stored = outcome == "stored" and "to_room" in ph
     banked = outcome == "banked" and "to_bank" in ph
     harvest = ph.get("harvest")
     if harvest is None:
@@ -405,8 +443,9 @@ def trip_obs(ep: dict, prices: dict | None = None) -> dict | None:
     if chop_s is None:
         chop_s = _num(ep.get("attempts"), 0) * DEFAULT_CHOP_S
     chop_s = min(chop_s, field_s)
-    overhead = (walk_out + lockout + ph.get("convert", 0.0) + ph.get("to_bank", 0.0) + ph.get("store", 0.0)
-                if banked else None)
+    back = "to_room" if stored else "to_bank" if banked else None
+    overhead = (walk_out + lockout + ph.get(back, 0.0) + ph.get("convert", 0.0) + ph.get("store", 0.0)
+                if back else None)
     hatchet = ep.get("hatchet") or {}
     logs = _num(ep.get("logs"), 0)
     why = ep.get("why") or ""
@@ -620,29 +659,36 @@ def capacity_logs(cap: dict | None, logs_per_tree: float, rng=None):
 
 
 # ------------------------------------------------------------------ the model
-def overhead_prior_s(spot: dict) -> float:
-    """Walk out + back between the bank and the area's edge, plus the bank work.
-    A spot reached by a library rune: bank -> library walk, two recalls (out and
-    home), the 60 s harvest lockout after the recall out, the walk from the rune's
-    landing into the grove (its discovered route, else the straight distance to
-    the area's inner half) and a short walk from the home rune to the banker."""
-    if not spot.get("banker") or not spot.get("area"):
-        return OVERHEAD_FIXED_S + 120.0
-    if hub_of(spot):
-        import places
-        access = spot["access"]
-        lib = places.library(access.get("library", "cambria"))
-        into = spot.get("route_tiles")
+def library_walk(landing: dict | None, home: dict | None) -> int:
+    """Tiles walked at home to reach the landing's rune on a trip out: 0 for an own
+    book's rune (recalled where we stand), else from the home landing to the stand of
+    the library holding it (home.libraries: the home library only; DTF: 4134,1429 ->
+    4152,1429, 18 tiles)."""
+    if landing is None or landing.get("source") != "library" or not home:
+        return 0
+    import places
+    return cheb(home["landing"], places.library(landing["library"])["stand"])
+
+
+def overhead_prior_s(spot: dict, landing: dict | None = None, home: dict | None = None) -> float:
+    """Prior seconds of one trip's overhead, every trip starting and ending at home
+    (docs/LUMBER_LOOP.md §6): out of the rental room (ROOM_EXIT_S), the walk to the
+    landing's rune (library_walk), the recall out, the
+    walk from the landing into the grove (its planned route when known, else the
+    straight distance to the area's inner half), the harvest lockout after the recall
+    (LOCKOUT_S), the recall home on our book's default rune, into the room
+    (ROOM_ENTER_S), convert and store (OVERHEAD_FIXED_S). Without a landing (no home
+    known) the walk in is the spot's discovered route_tiles, else NO_LANDING_TILES."""
+    area = spot.get("area") or {}
+    if landing is None or len(area.get("center") or ()) != 2:
+        into = _num(spot.get("route_tiles"), NO_LANDING_TILES)
+    else:
+        into = landing.get("route_tiles")
         if into is None:
-            try:
-                r = places.library_rune(lib["id"], access["rune"])
-                into = max(0, cheb((r["x"], r["y"]), spot["area"]["center"]) - spot["area"]["radius"] // 2)
-            except (KeyError, TypeError):
-                into = 0
-        walk = cheb(spot["banker"]["pos"], lib["stand"]) + HOME_RUNE_TILES + into
-        return OVERHEAD_FIXED_S + LOCKOUT_S + 2 * RECALL_TRIP_S + walk * SEC_PER_TILE
-    d = max(0, cheb(spot["banker"]["pos"], spot["area"]["center"]) - spot["area"]["radius"] // 2)
-    return OVERHEAD_FIXED_S + 2 * d * SEC_PER_TILE
+            into = max(0, cheb((landing["x"], landing["y"]), area["center"]) - int(area.get("radius") or 0) // 2)
+    walk = library_walk(landing, home)
+    return (ROOM_EXIT_S + (walk + into) * SEC_PER_TILE + 2 * RECALL_TRIP_S + LOCKOUT_S
+            + ROOM_ENTER_S + OVERHEAD_FIXED_S)
 
 
 def dispersion(trips_by_spot: dict, p_now) -> float:
@@ -682,18 +728,18 @@ def trip_terms(q, lam, t_h, hz, recovery_h=RECOVERY_H) -> dict:
     """One trip cycle of q logs as a renewal-reward cycle (LUMBER_LOOP §6). Field
     rate lam (logs/h): chopping q logs takes tf = q/lam field hours, the load
     grows by lam per hour. hz = (h_D, h_S, h_T, f) per field hour, competing:
-      - death (h_D): the trip ends and banks nothing; the cycle costs the field
+      - death (h_D): the trip ends and stores nothing; the cycle costs the field
         time so far + recovery_h;
       - sent home (h_S): the trip ends at τ and what we carry comes home;
       - theft (h_T): a thief takes the share f of what we carry; the trip goes
         on (the runner counts logs gained, so it still ends at q gained).
     With k = h_T·f the expected load at t is lam·(1 − e^(−k·t))/k, so with
     h = h_D + h_S:
-      banked = e^(−h·tf)·C(tf) + h_S·∫₀^tf e^(−h·t)·C(t) dt
+      stored = e^(−h·tf)·C(tf) + h_S·∫₀^tf e^(−h·t)·C(t) dt
       time   = t_h + ∫₀^tf e^(−h·t) dt + recovery_h·P(death)
       P(death) = h_D·∫₀^tf e^(−h·t) dt   (≤ 1 for any q)
-    Returns banked, time_h, p_death, p_home and the expected logs lost to death
-    (lost_death) and to thieves (lost_theft)."""
+    Returns stored (the logs that reach the chest at home), time_h, p_death, p_home
+    and the expected logs lost to death (lost_death) and to thieves (lost_theft)."""
     hd, hs, ht, f = hz
     tf = q / lam
     h, k = hd + hs, ht * f
@@ -702,19 +748,19 @@ def trip_terms(q, lam, t_h, hz, recovery_h=RECOVERY_H) -> dict:
         load_tf, load_int = q, lam * _e2(h, tf)         # ∫ e^(−ht)·lam·t dt
     else:
         load_tf, load_int = lam * _e1(k, tf), lam * (stay - _e1(h + k, tf)) / k
-    banked = math.exp(-h * tf) * load_tf + hs * load_int
+    stored = math.exp(-h * tf) * load_tf + hs * load_int
     p_death = hd * stay
     lost_death = hd * load_int
-    return {"banked": banked, "time_h": t_h + stay + recovery_h * p_death, "p_death": p_death,
-            "p_home": hs * stay, "lost_death": lost_death, "lost_theft": lam * stay - banked - lost_death}
+    return {"stored": stored, "time_h": t_h + stay + recovery_h * p_death, "p_death": p_death,
+            "p_home": hs * stay, "lost_death": lost_death, "lost_theft": lam * stay - stored - lost_death}
 
 
 def net_rate(q, lam, t_h, hz, gear_logs, cost_logs=0.0, recovery_h=RECOVERY_H) -> float:
-    """Banked logs per hour (renewal-reward: E[banked] / E[cycle time], trip_terms)
+    """Stored logs per hour (renewal-reward: E[stored] / E[cycle time], trip_terms)
     net of the supplies one trip uses (cost_logs: recall charges, reagents) and the
     gear a death loses (gear_logs × P(death)), all in logs at the board price."""
     tt = trip_terms(q, lam, t_h, hz, recovery_h)
-    return (tt["banked"] - cost_logs - gear_logs * tt["p_death"]) / tt["time_h"]
+    return (tt["stored"] - cost_logs - gear_logs * tt["p_death"]) / tt["time_h"]
 
 
 def best_q(lam, t_h, hz, gear_logs, q_cap=Q_MAX, cost_logs=0.0, refine=True) -> int:
@@ -761,7 +807,7 @@ def rate_prior(by_spot: dict, p_now, now) -> tuple:
     return mu * mu / tau2, mu / tau2
 
 
-def spot_model(spot, trips, hev, pooled, prior, phi, p_now, now) -> dict:
+def spot_model(spot, trips, hev, pooled, prior, phi, p_now, now, landing=None, home=None) -> dict:
     """Posterior parameters of one spot from its trips (trip_obs dicts), its
     hazard evidence hev (sightings {trip t0: n}, deaths [t], thefts [t], trips
     sent home {t0}), the pooled hazard rates (plan) and the rate prior
@@ -769,14 +815,15 @@ def spot_model(spot, trips, hev, pooled, prior, phi, p_now, now) -> dict:
     hours, each shrunk to its pooled rate: h_D's prior mean = sightings per
     field hour × P(death | sighting) + the creature-death rate, worth
     DEATH_SHRINK_H field hours; h_S's = the pooled rate, HOME_SHRINK_H; h_T's =
-    the pooled rate, THEFT_SHRINK_H."""
+    the pooled rate, THEFT_SHRINK_H. The overhead's prior: overhead_prior_s with the
+    spot's landing (landing_for) from home."""
     w = [weight(tr["t1"], now) for tr in trips]
     logs = sum(wi * tr["logs"] for wi, tr in zip(w, trips))
     hrs = sum(wi * adjusted_field_h(tr, p_now) for wi, tr in zip(w, trips))
     exposure = sum(wi * tr["field_s"] / 3600.0 for wi, tr in zip(w, trips))
     alpha = prior[0] + logs / phi
     beta = prior[1] + hrs / phi
-    t0 = overhead_prior_s(spot)
+    t0 = overhead_prior_s(spot, landing, home)
     obs = [(wi, tr["overhead_s"]) for wi, tr in zip(w, trips) if tr["overhead_s"] is not None]
     n = 1.0 + sum(wi for wi, _ in obs)
     mean = (t0 + sum(wi * o for wi, o in obs)) / n
@@ -837,28 +884,24 @@ def _draw(m, pooled, rng):
                       pooled["f"])
 
 
-def _value(lam, t_h, hz, gear_logs, stint_h, travel_h, cost_logs=0.0, q_cap=Q_MAX, refine=False, cap_logs=None):
-    """(net logs/hour of a run there, Q*, capacity-bound): the travel to the spot
-    is paid out of the run, which lasts a stint or one trip when that's longer.
-    cap_logs (what the spot's trees hold, capacity_logs) caps Q*. When it binds,
-    the trip ends dry and the spot is out until its trees regrow, so the run is
-    that one trip: its overhead and the travel buy only those logs."""
+def _value(lam, t_h, hz, gear_logs, cost_logs=0.0, q_cap=Q_MAX, refine=False, cap_logs=None):
+    """(net logs/hour at a spot, Q*, capacity-bound). Every trip starts and ends at
+    home, so no spot pays travel beyond its trip overhead t_h. cap_logs (what the
+    spot's trees hold, capacity_logs) caps Q*; when it binds, the trip ends dry and
+    the spot is out until its trees regrow."""
     q = best_q(lam, t_h, hz, gear_logs, q_cap if cap_logs is None else min(q_cap, cap_logs), cost_logs,
                refine=refine)
     tt = trip_terms(q, lam, t_h, hz)
-    v = (tt["banked"] - cost_logs - gear_logs * tt["p_death"]) / tt["time_h"]
+    v = (tt["stored"] - cost_logs - gear_logs * tt["p_death"]) / tt["time_h"]
     bound = cap_logs is not None and cap_logs < min(q_cap, Q_MAX) and q >= int(cap_logs)
-    run_h = tt["time_h"] if bound else max(stint_h, tt["time_h"])
-    return v * run_h / (run_h + travel_h), q, bound
+    return v, q, bound
 
 
-def eligibility(spot, trips, threats, now, young, regrow_min, thieves=()) -> str | None:
+def eligibility(spot, trips, threats, now, regrow_min, thieves=()) -> str | None:
     """Why the spot can't be picked now, or None. thieves: [t] of `thief` job events there
     that made us leave (THIEF_COOLDOWN_S)."""
     if spot.get("status") != "active":
         return f"status {spot.get('status')}" + (f": {spot['reason']}" if spot.get("reason") else "")
-    if spot.get("requires_young") and not young:
-        return "Young characters only"
     try:
         check_spot(spot)
     except ValueError as e:
@@ -879,29 +922,6 @@ def eligibility(spot, trips, threats, now, young, regrow_min, thieves=()) -> str
     if dry and now - max(dry) < regrow_min * 60:
         return f"ran dry {int((now - max(dry)) / 60)} min ago (trees regrow in ~{int(regrow_min)} min)"
     return None
-
-
-def learned_travel(trips: list, spots: dict) -> dict:
-    """{spot id: [minutes]}: the gap between the last trip at one spot and the
-    first at another, when shorter than TRAVEL_GAP_S (moving between them; a
-    longer gap was a break or a session end)."""
-    out = {}
-    seq = sorted(trips, key=lambda tr: tr["t0"])
-    for a, b in zip(seq, seq[1:]):
-        if a["spot"] != b["spot"] and b["spot"] in spots and 0 < b["t0"] - a["t1"] < TRAVEL_GAP_S:
-            out.setdefault(b["spot"], []).append((b["t0"] - a["t1"]) / 60.0)
-    return out
-
-
-def travel_h(spot: dict, here: str | None, learned: dict) -> float:
-    """Hours to get to `spot` from `here` (current_spot): 0 there or at its
-    library hub; else its travel_min prior averaged with the learned moves
-    (learned_travel), one pseudo-observation for the prior."""
-    if spot["id"] == here or (here is not None and here in hubs_of(spot)):
-        return 0.0
-    samples = learned.get(spot["id"], [])
-    prior = _num(spot.get("travel_min"), 10)
-    return (prior + sum(samples)) / (1 + len(samples)) / 60.0
 
 
 def hatchet_price(material: str, quality, table: dict, prices: dict):
@@ -969,7 +989,7 @@ def gear_at_risk(char: dict, table: dict, prices: dict, young: bool) -> dict:
     return out
 
 
-def hatchet_value(opt, m, gear_gp, skill, p_ref, logs_per_success, gp_per_log, stint_h, q_cap=Q_MAX,
+def hatchet_value(opt, m, gear_gp, skill, p_ref, logs_per_success, gp_per_log, q_cap=Q_MAX,
                   price=None) -> float:
     """Net logs/hour (wear in logs at gp_per_log) with hatchet opt at spot model m
     (posterior means). A death loses gear_gp (gear_at_risk: every hatchet we
@@ -982,17 +1002,17 @@ def hatchet_value(opt, m, gear_gp, skill, p_ref, logs_per_success, gp_per_log, s
         c = m["chop_share"]
         lam = 1.0 / (c / lam * p_ref / p + (1.0 - c) / lam)
     gear = gear_gp + (0.0 if opt["owned"] or opt["newbied"] else (price or 0.0))
-    v, _, _ = _value(lam, m["overhead_s"] / 3600.0, m["hz"], gear / gp_per_log, stint_h, 0.0,
+    v, _, _ = _value(lam, m["overhead_s"] / 3600.0, m["hz"], gear / gp_per_log,
                      m.get("supply_gp", 0.0) / gp_per_log, q_cap, refine=True, cap_logs=m.get("cap_logs"))
     wear = v / logs_per_success * (price or 0.0) / opt["uses"] / gp_per_log
     return v - wear
 
 
-def breakeven_price(opt, m, gear_gp, skill, p_ref, lps, gpl, stint_h, q_cap, target) -> float | None:
+def breakeven_price(opt, m, gear_gp, skill, p_ref, lps, gpl, q_cap, target) -> float | None:
     """The highest price at which opt still nets `target` logs/hour (None: it
     doesn't even at price 0)."""
     def f(price):
-        return hatchet_value(opt, m, gear_gp, skill, p_ref, lps, gpl, stint_h, q_cap, price=price) - target
+        return hatchet_value(opt, m, gear_gp, skill, p_ref, lps, gpl, q_cap, price=price) - target
     if f(0.0) <= 0:
         return None
     lo, hi = 0.0, 1.0
@@ -1005,19 +1025,23 @@ def breakeven_price(opt, m, gear_gp, skill, p_ref, lps, gpl, stint_h, q_cap, tar
 
 
 def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dict, char: dict | None,
-         table: dict, prices: dict, now: float, rng: random.Random, young: bool = False,
-         stint_min: float = STINT_MIN, here: str | None = None, logs_per_success: float = LOGS_PER_SUCCESS,
-         gp_per_log: float = 9.5, draws: int = DRAWS, events: list = (), trees: dict | None = None) -> dict:
+         table: dict, prices: dict, now: float, rng: random.Random, stint_min: float = STINT_MIN,
+         home: dict | None = None, landings: dict | None = None, who: str | None = None, at_home=None,
+         logs_per_success: float = LOGS_PER_SUCCESS, gp_per_log: float = 9.5, draws: int = DRAWS,
+         events: list = (), trees: dict | None = None) -> dict:
     """The pure planner. episodes: lumber trip rows; sightings: [t] of pk_seen
     job events; deaths: [{t, x, y}] (world `death` events); regrow: regrowth();
-    char: character() or None; here: the spot we stand at (current_spot);
-    prices: Memory.prices() (hatchets, reagents, the board price, supplies:
+    char: character() or None (Young by its name label: a death loses nothing);
+    home: the character's home (home.for_character; None: ok false, no pick, the
+    spots still ranked), who: its name, at_home: whether it is there now (shown);
+    landings: {spot id: landing_for row or None} (an active spot without one can't be
+    picked); prices: Memory.prices() (hatchets, reagents, the board price, supplies:
     supply_gp); events: lumber job events and theft_suspected junctures
     ({t, kind, data}: death causes, recall/guard_flight escapes, thefts);
     trees: tree_yield() (each spot's trees, what they give, which are out now);
     a spot without an entry has no capacity limit."""
     char = char or {}
-    young = bool(young or char.get("young"))
+    young = bool(char.get("young"))
     trips = [tr for tr in (trip_obs(e, prices) for e in episodes) if tr is not None and tr["spot"] in spots]
     by_spot = {sid: [tr for tr in trips if tr["spot"] == sid] for sid in spots}
     hatchets = char.get("hatchets") or []
@@ -1072,7 +1096,7 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
 
     prior = rate_prior(by_spot, p_now, now)
     phi = dispersion(by_spot, p_now)
-    stint_h = stint_min / 60.0
+    landings = landings or {}
     gear_char, gear_src = char, "proxy"
     if not hatchets:
         last = next((tr["hatchet"] for tr in sorted(trips, key=lambda tr: -tr["t0"])
@@ -1088,24 +1112,26 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
     infos = list(trees["spots"].values())
     share0 = (sum(i["yielded"] for i in infos) + 1.0) / (sum(i["tried"] for i in infos) + 2.0)
 
-    learned = learned_travel(trips, spots)
     models, rows = {}, []
     thieves = {sid: [e["t"] for e in events if e["kind"] == "thief" and (e.get("data") or {}).get("spot") == sid
                      and (e.get("data") or {}).get("action") != "keep_away"] for sid in spots}
     for sid, s in spots.items():
-        m = spot_model(s, by_spot[sid], hev[sid], pooled, prior, phi, p_now, now)
-        why = eligibility(s, by_spot[sid], threats[sid], now, young, regrow["minutes"], thieves[sid])
-        trav = travel_h(s, here, learned)
+        landing = landings.get(sid)
+        m = spot_model(s, by_spot[sid], hev[sid], pooled, prior, phi, p_now, now, landing, home)
+        why = eligibility(s, by_spot[sid], threats[sid], now, regrow["minutes"], thieves[sid])
+        if why is None and home is not None and landing is None:
+            why = ("no landing rune near the grove with a walking route into it "
+                   "(the home rune library, our own books)")
         m["cost_logs"] = m["supply_gp"] / gp_per_log
         t_h = m["overhead_s"] / 3600.0
         m["cap"] = capacity_model(trees["spots"].get(sid), share0)
         m["cap_logs"] = capacity_logs(m["cap"], lpt)
-        v, q, bound = _value(m["rate"], t_h, m["hz"], gear_logs, stint_h, trav, m["cost_logs"], q_cap, refine=True,
+        v, q, bound = _value(m["rate"], t_h, m["hz"], gear_logs, m["cost_logs"], q_cap, refine=True,
                              cap_logs=m["cap_logs"])
         tt = trip_terms(q, m["rate"], t_h, m["hz"])
         lo = gamma_quantile(m["alpha"], m["beta"], 0.1)
         hi = gamma_quantile(m["alpha"], m["beta"], 0.9)
-        m.update(travel_h=trav, value=v, q=q, bound=bound, why=why, terms=tt)
+        m.update(value=v, q=q, bound=bound, why=why, terms=tt)
         models[sid] = m
         hd, hs, ht, _ = m["hz"]
         last = max((tr["t1"] for tr in by_spot[sid]), default=None)
@@ -1127,15 +1153,14 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
                      "grove_bound": bound,
                      "supply_gp_trip": round(m["supply_gp"], 1), "supply_unpriced": m["supply_unpriced"],
                      "place_fails": m["place_fails"],
-                     "here": sid == here or (here is not None and hub_of(s) == here),
-                     "travel_min": round(trav * 60), "travel_samples": len(learned.get(sid, [])),
-                     "access": (s.get("access") or {}).get("method", "walk"),
-                     "rune": (s.get("access") or {}).get("rune"),
+                     "landing": landing_view(landing),
                      "last_trip_h_ago": None if last is None else round((now - last) / 3600.0, 1)})
 
     eligible = [sid for sid in spots if models[sid]["why"] is None]
     out = {"ok": True, "now": now, "skill": skill, "success_p": None if p_now is None else round(p_now, 3),
-           "here": here, "regrow": regrow, "dispersion": round(phi, 1), "young": young,
+           "home": None if home is None else {"character": who, "library": home.get("library"),
+                                              "landing": home.get("landing"), "at_home": at_home},
+           "regrow": regrow, "dispersion": round(phi, 1), "young": young,
            "death_given_sighting": round(pooled["p_pk"], 3),
            "creature_deaths_per_h": round(pooled["creature"], 4),
            "sent_home_pooled_per_h": round(pooled["home"], 3), "thefts_pooled_per_h": round(pooled["theft"], 4),
@@ -1145,6 +1170,10 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
            "prior_rate_logs_h": round(prior[0] / prior[1]), "prior_cv": round(1 / math.sqrt(prior[0]), 2),
            "spots": sorted(rows, key=lambda r: (not r["eligible"], -r["net_logs_h"])), "pick": None}
     out["pouches"] = pouch_plan(char)
+    if home is None:
+        out["ok"] = False
+        out["error"] = f"no home in harness/data/homes.json for {who or 'an unknown character (no proxy, no trip row)'}"
+        return out
     if not eligible:
         out["ok"] = False
         out["error"] = "no eligible lumber spot (see spots[].why_not)"
@@ -1152,7 +1181,7 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
 
     def value(sid):
         mm = models[sid]
-        return _value(*_draw(mm, pooled, rng), gear_logs, stint_h, mm["travel_h"], mm["cost_logs"], q_cap,
+        return _value(*_draw(mm, pooled, rng), gear_logs, mm["cost_logs"], q_cap,
                       cap_logs=capacity_logs(mm["cap"], lpt, rng))[0]
 
     wins = {sid: 0 for sid in eligible}
@@ -1176,8 +1205,7 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
         run_q = best_q(m["rate"], m["overhead_s"] / 3600.0, m["hz"], gear_logs, q_cap, m["cost_logs"])
     timeout = int(max(1800, 2 * n * (run_q / m["rate"] * 3600.0 + m["overhead_s"]) + 600))
 
-    hat = hatchet_choice(char, table, prices, m, gear["gp"], skill, p_now, logs_per_success, gp_per_log,
-                         stint_h, q_cap)
+    hat = hatchet_choice(char, table, prices, m, gear["gp"], skill, p_now, logs_per_success, gp_per_log, q_cap)
     args = ["--spot", pick, "--trips", str(n), "--logs-per-trip", str(run_q),
             "--regrow-min", f"{regrow['minutes']:g}", "--timeout", str(timeout)]
     if hat.get("use"):
@@ -1185,19 +1213,19 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
     tt = m["terms"]
     out["pick"] = {"spot": pick, "mode": "exploit" if pick == greedy else "explore",
                    "greedy": greedy, "p_best": round(wins[pick] / draws, 3),
-                   "travel": None if models[pick]["travel_h"] == 0 else spots[pick].get("travel"),
+                   "landing": landing_view(landings.get(pick)),
                    "logs_per_trip": q, "trips": n, "timeout_s": timeout,
                    "grove_logs": None if m["cap_logs"] is None else round(m["cap_logs"]),
                    "grove_bound": m["bound"],
                    "expected_trip_min": round(trip_s / 60.0, 1), "expected_net_logs_h": round(m["value"]),
-                   "expected_banked_trip": round(tt["banked"]), "p_death_trip": round(tt["p_death"], 3),
+                   "expected_stored_trip": round(tt["stored"]), "p_death_trip": round(tt["p_death"], 3),
                    "p_sent_home_trip": round(tt["p_home"], 3),
                    "args": args, "command": "ctl run lumber " + " ".join(args)}
     out["hatchets"] = hat
     return out
 
 
-def hatchet_choice(char, table, prices, m, gear_gp, skill, p_now, lps, gpl, stint_h, q_cap=Q_MAX) -> dict:
+def hatchet_choice(char, table, prices, m, gear_gp, skill, p_now, lps, gpl, q_cap=Q_MAX) -> dict:
     """Rank hatchet options at spot model m; `use` = the material[+quality] to
     pass the runner when an owned one wins and isn't what it would pick anyway
     (the worn one), `buy` = a better one we don't own at a known price. Every
@@ -1210,14 +1238,14 @@ def hatchet_choice(char, table, prices, m, gear_gp, skill, p_now, lps, gpl, stin
     rows = []
     for o in opts:
         known = o["price_gp"] is not None
-        v = hatchet_value(o, m, gear_gp, skill, p_now, lps, gpl, stint_h, q_cap)
+        v = hatchet_value(o, m, gear_gp, skill, p_now, lps, gpl, q_cap)
         rows.append({**o, "net_logs_h": round(v, 1), "priced": known})
     priced = [r for r in rows if r["priced"]]
     best = max(priced, key=lambda r: r["net_logs_h"]) if priced else None
     target = best["net_logs_h"] if best else 0.0
     for r in rows:
         r["breakeven_gp"] = None if r is best else breakeven_price(r, m, gear_gp, skill, p_now, lps, gpl,
-                                                                    stint_h, q_cap, target)
+                                                                    q_cap, target)
     spec = None
     if best and best["owned"] and not best["worn"]:
         spec = best["material"] + (f"+{best['quality']}" if best["quality"] else "")
@@ -1272,7 +1300,28 @@ def store_inputs(memory) -> dict:
             "events": [e for e in events if e["kind"] in ("death", "recall", "guard_flight", "theft",
                                                           "theft_suspected", "thief")]}
 
-_MAPS, _TILES = {}, {}
+
+_MAPS, _WALKS, _TILES = {}, {}, {}
+
+
+def _umap(facet: int):
+    """The facet's uomap.UoMap (cached), or None when its files can't be read."""
+    import uomap
+    if facet not in _MAPS:
+        try:
+            _MAPS[facet] = uomap.UoMap(facet)
+        except (OSError, ValueError):
+            _MAPS[facet] = None
+    return _MAPS[facet]
+
+
+def _walk(facet: int):
+    """pathfind.Walk over the facet's map (cached), or None when its files can't be read."""
+    import pathfind
+    if facet not in _WALKS:
+        um = _umap(facet)
+        _WALKS[facet] = None if um is None else pathfind.Walk(um)
+    return _WALKS[facet]
 
 
 def spot_tree_tiles(spots: dict) -> dict:
@@ -1280,7 +1329,6 @@ def spot_tree_tiles(spots: dict) -> dict:
     its seed trees plus the map's tree statics in its area square (as
     loop_lumber.candidate_trees). Spots on a facet whose map files can't be read
     are left out (no capacity limit). Map tiles are cached per area."""
-    import uomap
     out = {}
     for sid, s in spots.items():
         area = s.get("area")
@@ -1290,12 +1338,7 @@ def spot_tree_tiles(spots: dict) -> dict:
         (cx, cy), r = area["center"], area["radius"]
         key = (facet, cx, cy, r)
         if key not in _TILES:
-            if facet not in _MAPS:
-                try:
-                    _MAPS[facet] = uomap.UoMap(facet)
-                except (OSError, ValueError):
-                    _MAPS[facet] = None
-            um = _MAPS[facet]
+            um = _umap(facet)
             _TILES[key] = None if um is None else frozenset(
                 (x, y) for x, y, _z, _g in um.find_trees(cx - r, cy - r, cx + r, cy + r))
         if _TILES[key] is not None:
@@ -1303,12 +1346,41 @@ def spot_tree_tiles(spots: dict) -> dict:
     return out
 
 
+def spot_landings(memory, spots: dict, home: dict, books=(), route_check: bool = True) -> dict:
+    """{spot id: landing_for row or None} with `route_tiles` (the planned walk into the
+    grove, None: not planned) and `route_checked`. Active spots get the route check: cached
+    routes (memory meta ROUTES_META) answer at once, unknown ones are planned on the map
+    (make_route_fn, the runner's planning budget), at most ROUTE_TRIES per spot a plan,
+    and cached. route_check False (the dashboard) or no map: cached answers only, an
+    unplanned landing taken unchecked. Other spots: the nearest landing, unchecked."""
+    routes, new, oks, out = landing_routes(memory), {}, {}, {}
+    for sid, s in spots.items():
+        try:
+            check_spot(s)
+        except ValueError:
+            out[sid] = None
+            continue
+        route_ok = None
+        if s.get("status") == "active":
+            facet = int(s.get("facet") or 0)
+            if facet not in oks:
+                walk = _walk(facet) if route_check else None
+                oks[facet] = make_route_ok(None if walk is None else make_route_fn(walk), routes, new)
+            route_ok = oks[facet]
+        row = landing_for(s, home, books, route_ok)
+        if row is not None:
+            key = route_key(row, s)
+            row = {**row, "route_tiles": routes.get(key), "route_checked": key in routes}
+        out[sid] = row
+    save_landing_routes(memory, new)
+    return out
+
 
 def pouch_plan(char: dict | None) -> dict:
     """The trapped pouches the run carries (docs/PLAN.md "Keep thieves off the logs"): each
-    trip keeps its logs in one and uses it up (the runner sets it off at the bank to convert),
-    so carry pouch.CARRY; `buy` = how many to buy at a provisioner first. The runner starts
-    no trip without a live one (`low_supplies`). Unknown without the proxy."""
+    trip keeps its logs in one and uses it up (the runner sets it off in the rental room to
+    convert), so carry pouch.CARRY; `buy` = how many to buy at a provisioner first. The runner
+    starts no trip without a live one (`low_supplies`). Unknown without the proxy."""
     import pouch
     have = (char or {}).get("pouches")
     out = {"carry": pouch.CARRY, "per_trip": 1, "live": None, "spent": None, "buy": None,
@@ -1318,19 +1390,32 @@ def pouch_plan(char: dict | None) -> dict:
     return out
 
 
-def plan_from_store(memory, world: dict | None, self_serial, pos, facet, young=False,
-                    stint_min=STINT_MIN, seed=None, seeds_path=SEEDS, now=None) -> dict:
+def plan_from_store(memory, world: dict | None, self_serial, pos, facet, stint_min=STINT_MIN, seed=None,
+                    seeds_path=SEEDS, now=None, route_check: bool = True) -> dict:
+    """plan() over the memory store and a state-port snapshot (world None: no proxy).
+    The character is the proxy's (world self name), else the newest trip row's; its
+    home comes from harness/data/homes.json (home.for_character), its own books from
+    the store (places.known_books), each spot's landing from spot_landings."""
+    import home as homes
+    import places
+    now = time.time() if now is None else now
     spots = load_spots(memory, seeds_path)
     table = load_hatchets()
     inp = store_inputs(memory)
     char = character(world, self_serial, table) if world is not None and self_serial is not None else None
+    who = (char or {}).get("name") or next(
+        (e["character"]["name"] for e in reversed(inp["episodes"])
+         if isinstance(e.get("character"), dict) and e["character"].get("name")), None)
+    home = homes.for_character(who)
+    landings = None
+    if home is not None:
+        landings = spot_landings(memory, spots, home, places.known_books(memory, who), route_check)
     out = plan(spots, inp["episodes"], inp["sightings"], inp["deaths"], inp["regrow"], char, table,
-               inp["prices"], time.time() if now is None else now, random.Random(seed), young=young,
-               stint_min=stint_min, here=current_spot(spots, pos, facet),
+               inp["prices"], now, random.Random(seed), stint_min=stint_min, home=home, landings=landings,
+               who=who, at_home=None if home is None or facet is None else homes.at_home(pos, facet, home),
                logs_per_success=inp["logs_per_success"], gp_per_log=gp_per_log(inp["prices"]),
                events=inp["events"],
-               trees=tree_yield(inp["attempts"], spot_tree_tiles(spots), time.time() if now is None else now,
-                                inp["regrow"]["minutes"]))
+               trees=tree_yield(inp["attempts"], spot_tree_tiles(spots), now, inp["regrow"]["minutes"]))
     out["character"] = None if char is None else {k: char[k] for k in ("name", "serial", "skill", "mounted", "buffs",
                                                                        "weight", "weight_max", "young", "pouches")}
     return out
@@ -1338,103 +1423,11 @@ def plan_from_store(memory, world: dict | None, self_serial, pos, facet, young=F
 
 # ------------------------------------------------------------------ discovering spots
 SLUG = re.compile(r"[^a-z0-9]+")
-YOUNG_TOWNS = ("Shelter Island",)  # no hostile player actions; bank and harvesting for Young only (wiki)
 TOWN_RADIUS = 50                   # tiles from a township marker: likely inside the town region (no harvesting)
 RUNE_SEARCH = 200                  # tiles from a Witcher rune a grove's window centre may lie (user 2026-10-03)
 MAX_RUNE_ROUTE = 300               # tiles: the longest walk from a rune's landing into its grove
 WINDOW_GRID = 7                    # window centres lie on this global lattice (one grove, one score)
-ROUTE_TRIES = 3                    # windows per rune whose route check may fail before the rune is given up
-
-
-def floor_z(walk, x, y) -> int:
-    """Where a banker at a bank marker stands: the lowest floor tile at or above
-    the land, else the land. Markers carry no z; bank floors sit at or above the
-    land (Shelter 20 on land 0, Terran 35 on 35, Horseshoe Bay 35 on 18), and
-    Cambria's has a basement at -20 that isn't it. The runner's banker check
-    allows a storey either way (agent_link.same_floor)."""
-    objs = walk.objects(x, y)
-    land = next((o[0] for o in objs if o[4][0] == "flat"), objs[0][0] if objs else 0)
-    return next((o[0] for o in objs if o[4][0] == "item" and o[0] >= land), land)
-
-
-def bank_list(path=None) -> list:
-    """[(town, (x, y), facet)] of the client's bank markers, lawless towns included."""
-    import xml.etree.ElementTree as ET
-    import guards
-    try:
-        root = ET.parse(path or guards.MARKERS).getroot()
-    except (OSError, ET.ParseError):
-        return []
-    out = []
-    for mk in root.iter("Marker"):
-        if mk.get("Icon") != "BANK":
-            continue
-        try:
-            out.append(((mk.get("Name") or "bank").removesuffix(" Bank"), (int(mk.get("X")), int(mk.get("Y"))),
-                        int(mk.get("Facet") or 0)))
-        except (TypeError, ValueError):
-            continue
-    return out
-
-
-def discover(trees_fn, bank_z_fn, banks, guard_points, spots, ring=(30, 110), radius=14, min_trees=25,
-             per_bank=3, route_fn=None) -> list:
-    """Candidate spots around banks: square windows (side 2·radius+1) on a
-    radius-step grid whose centres lie ring[0]..ring[1] tiles from a bank,
-    ranked by tree count, minus windows near a known guard point (town:
-    harvesting is blocked there) or overlapping a known spot, at most
-    per_bank per bank and none overlapping each other. trees_fn(x0, y0, x1, y1)
-    -> [(x, y, z, graphic)] (uomap.UoMap.find_trees); bank_z_fn(x, y) -> the banker's z (floor_z).
-    route_fn(start, center, radius) -> route length in tiles or None (make_route_fn):
-    windows the bank has no walking route to are dropped."""
-    import guards
-    taken = [(tuple(s["area"]["center"]), s["area"]["radius"]) for s in spots.values() if s.get("area")]
-    out = []
-    for town, (bx, by), facet in banks:
-        r0, r1 = ring
-        trees = trees_fn(bx - r1 - radius, by - r1 - radius, bx + r1 + radius, by + r1 + radius)
-        grid = {}
-        for x, y, _z, _g in trees:
-            grid.setdefault((x // radius, y // radius), []).append((x, y))
-        cands = []
-        for cx in range(bx - r1, bx + r1 + 1, radius):
-            for cy in range(by - r1, by + r1 + 1, radius):
-                d = cheb((cx, cy), (bx, by))
-                if not r0 <= d <= r1:
-                    continue
-                if any(cheb((cx, cy), g) <= radius + 4 for g in guard_points):
-                    continue
-                if any(cheb((cx, cy), c) <= r + radius for c, r in taken):
-                    continue
-                n = 0
-                for gx in range((cx - radius) // radius, (cx + radius) // radius + 1):
-                    for gy in range((cy - radius) // radius, (cy + radius) // radius + 1):
-                        n += sum(1 for x, y in grid.get((gx, gy), ()) if cheb((x, y), (cx, cy)) <= radius)
-                if n >= min_trees:
-                    cands.append((n, d, cx, cy))
-        cands.sort(key=lambda c: (-c[0], c[1]))
-        kept = 0
-        for n, d, cx, cy in cands:
-            if kept >= per_bank:
-                break
-            if any(cheb((cx, cy), c) <= r + radius for c, r in taken):
-                continue
-            route = route_fn((bx, by), (cx, cy), radius) if route_fn is not None else None
-            if route_fn is not None and route is None:
-                continue
-            sid = f"auto_{SLUG.sub('_', town.lower()).strip('_')}_{cx}_{cy}"
-            out.append({"id": sid, "name": f"{town}: {n} trees at ({cx},{cy}), {d} tiles from the bank",
-                        "facet": facet, "area": {"center": [cx, cy], "radius": radius,
-                                                 "note": f"discovered from the map: {n} tree statics"},
-                        "trees": [], "pvp": town not in YOUNG_TOWNS, "requires_young": town in YOUNG_TOWNS,
-                        "banker": {"serial": "0x00000000", "name": f"{town} bank (marker)",
-                                   "pos": [bx, by, bank_z_fn(bx, by)]},
-                        "hazard_prior": 0.0 if town in YOUNG_TOWNS else (1.0 if town in guards.LAWLESS_TOWNS else 0.5),
-                        "travel": f"{town} moongate, then walk to the bank", "travel_min": 10,
-                        "tree_count": n, "bank_distance": d, "route_tiles": route})
-            taken.append(((cx, cy), radius))
-            kept += 1
-    return out
+ROUTE_TRIES = 3                    # route plans that may fail per rune (discover) or per spot (a plan's landings)
 
 
 def grove_windows(pts, x, y, search: int, radius: int):
@@ -1466,7 +1459,7 @@ def _lattice(c, reach: int) -> set:
             for ky in range(-((reach - c[1]) // g), (c[1] + reach) // g + 1)}
 
 
-def discover_witcher(trees_fn, runes, spots, home_bank, *, library: str = "cambria", radius=14,
+def discover_witcher(trees_fn, runes, spots, *, library: str = "cambria", radius=14,
                      search=RUNE_SEARCH, min_trees=25, max_route=MAX_RUNE_ROUTE, route_fn=None,
                      include_dangerous=False, towns=(), guard_points=()) -> tuple:
     """Candidate spots reached by Witcher runes (places.witcher()["runes"]), at most
@@ -1480,9 +1473,10 @@ def discover_witcher(trees_fn, runes, spots, home_bank, *, library: str = "cambr
     reach goes to the nearer one, and a rune whose best grove is taken gets its
     next best. Runes named after monster places (places.danger_hint: "Brigand
     Camp", "Orc Fort", ...) are left out unless include_dangerous, and so are runes
-    that already have a spot (`witcher_<id>`). The way out is the library tome's
-    recall, the way home our book's default rune (home_bank: {name, pos, serial} of
-    the bank next to it). Returns (candidates, {reason: count} of the runes left out)."""
+    that already have a spot (`witcher_<id>`). A candidate is an area like any spot:
+    trips reach it from home by the landing nearest it (landing_for), which need not be
+    this rune; route_tiles is the walk from this rune's landing. Returns (candidates,
+    {reason: count} of the runes left out)."""
     import numpy as np
     import places
     skipped = {}
@@ -1540,12 +1534,8 @@ def discover_witcher(trees_fn, runes, spots, home_bank, *, library: str = "cambr
         out.append({"id": f"witcher_{r['id']}", "name": f"Witcher {r['id']}: {r['name']} ({n} trees, {d} tiles off)",
                     "facet": 0, "area": {"center": [cx, cy], "radius": radius,
                                          "note": f"{n} tree statics {d} tiles from Witcher rune {r['id']} "
-                                                 f"({r['x']},{r['y']})"},
-                    "trees": [], "pvp": True,
-                    "access": {"method": "witcher", "rune": r["id"], "library": library},
-                    "home": {"method": "recall"},
-                    "banker": dict(home_bank), "hazard_prior": 0.5, "danger_hint": danger,
-                    "travel": f"the {library} rune library (Witcher rune {r['id']})", "travel_min": 10,
+                                                 f"({r['x']},{r['y']}, {library} library)"},
+                    "trees": [], "pvp": True, "hazard_prior": 0.5, "danger_hint": danger,
                     "tree_count": n, "rune_distance": d, "route_tiles": route})
         done.add(i)
         taken |= _lattice((cx, cy), 2 * radius)
@@ -1564,10 +1554,11 @@ def discover_witcher(trees_fn, runes, spots, home_bank, *, library: str = "cambr
 
 
 def make_route_fn(walk):
-    """route_fn for discover*: the planned walking route (pathfind.plan on the
-    map) from a start tile into a window, as its length in tiles, or None. It
-    plans with the runner's search budget (pathfind.plan's default), so a route
-    found here is one the runner's Mover can plan too."""
+    """route_fn for discover_witcher and the planner's landing check (make_route_ok):
+    the planned walking route (pathfind.plan on the map) from a start tile into a
+    window, as its length in tiles, or None. It plans with the runner's search budget
+    (pathfind.plan's default), so a route found here is one the runner's Mover can
+    plan too."""
     import nav
     import pathfind
 

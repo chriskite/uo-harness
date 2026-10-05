@@ -66,6 +66,8 @@ import combat  # noqa: E402
 import healing  # noqa: E402
 import nav  # noqa: E402
 import task_wrap as tw  # noqa: E402
+import room  # noqa: E402
+from room import ROOM_GUMP_ID, ROOM_REFUSED  # noqa: E402  (rental room menu; `act gump` refuses those buttons)
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 from uo import cliloc as cliloc_mod  # noqa: E402
@@ -135,14 +137,6 @@ POLICY_PATH = os.path.join(HERE, "data", "policy.json")
 CAPTCHA_GUMP_ID = 0x00000001          # lumber.json captcha.gump_id; never answered by the overseer
 GUMP_TEXT_MAX = 239                  # chars per gump text entry (the client's text box limit)
 RENOUNCE_WORDS = ("renounce",)        # Young renounce prompt (clilocs 502085/3006307): close only
-ROOM_GUMP_ID = 0x8EAEFBDB            # rental room menu (innkeeper, house steward, the room's door)
-# Its buttons that change a rental contract (live 2026-10-04 in Logan Wolf's room, which Outland Dan
-# co-owns): never the overseer's call. Refused when the menu shows that label.
-ROOM_REFUSED = {3: "End Rental Contract", 7: "Expand"}
-ROOM_FACET = 3                       # rental rooms are on facet 3 (no map geometry)
-ROOM_KEEPERS = ("house steward", "innkeeper")   # who opens the room menu (their click label)
-ROOM_MENU_ENTRIES = ("room", "rent")  # their context menu entry: steward "Room", innkeeper "Rent"
-ROOM_KEEPER_RANGE = 2                # walk this close first (the steward's menu, live; innkeepers answer from 11)
 ROOM_VIA_KEY = "room_entered_via"    # meta: the keeper kind `room enter` used, for `room leave`'s default exit
 GOTO_Z_TOL = 10                      # goto --z / ground item: stand within this of the target z
 GROUND_RANGE = 12                    # status: ground items within this many tiles
@@ -952,7 +946,7 @@ def _act(a, mem) -> dict:
     if a.name == "drop":
         return _act_drop(a)
     if a.name == "recall":
-        return _act_recall(a)
+        return _act_recall(a, mem)
     if a.name == "read_tomes":
         return _act_read_tomes(a)
     if a.name == "room":
@@ -1546,27 +1540,33 @@ class _CtlIO:
         return self.stc.state(), [e["data"] for e in evs if e.get("origin") == "world"]
 
 
-def _act_recall(a) -> dict:
+def _act_recall(a, mem) -> dict:
     """recall [book serial] [--rune NAME] [--check] | recall --witcher N [--library L] |
     recall --library L --rune NAME: recall to the default rune of a runebook or rune
     tome in your backpack (harness/escape.py, the job runners' red escape), to a named
-    row of your rune tome (--rune), or with a rune library's tome (harness/places.py,
-    harness/data/rune_libraries.json; stand within 2 tiles of the tome): Witcher rune N
-    (--witcher; the library you stand in, else --library, else Cambria) or a library
-    row by name (--library L --rune NAME: the exact name or words only it holds;
-    `ctl runes find` lists them). A charge when the book has one, else the Recall
-    spell. --check only opens the book and reads it (default rune, charges). Without
-    a serial: the first book found, tomes first."""
+    rune of your runebook or rune tome (--rune; without a serial the backpack book
+    whose remembered runes hold that name, else the first book), or with a rune
+    library's tome (harness/places.py, harness/data/rune_libraries.json; stand within
+    2 tiles of the tome): Witcher rune N (--witcher; the library you stand in, else
+    --library, else Cambria) or a library row by name (--library L --rune NAME: the
+    exact name or words only it holds; `ctl runes find` lists them). A charge when the
+    book has one, else the Recall spell. --check only opens your book and reads it
+    (escape.read_book: default rune, charges, every rune's name and tile; a tome page
+    by page) and remembers it for this character (places.remember_book, meta
+    `own_books`: `runes near` and the lumber loop's landings use it); with --library
+    it only reads the library tome's default and charges. Without a serial: the first
+    book found, tomes first."""
     import escape
+    import places
     ctl, stc = _connect(a)
     try:
         st = stc.state()
         me = st["movement"].get("self_serial")
+        character = (st["world"].get("self") or {}).get("name")
         books = escape.find_books(st["world"], me)
-        rune, want = a.rune, None
+        rune, want, own = a.rune, None, None
         pos = st["movement"].get("pos")
         if a.witcher or a.library:
-            import places
             lib_id = a.library
             if lib_id is None:
                 here = places.library_at(pos, (st["world"].get("self") or {}).get("map"))
@@ -1593,16 +1593,34 @@ def _act_recall(a) -> dict:
                 raise CtlError(f"0x{book:08X} isn't a runebook or rune tome in your backpack")
         elif books:
             book = books[0][0]
+            if a.rune:              # the backpack book whose remembered runes hold that name
+                held = {b for b, _ in books}
+                own = next(((int(kb["serial"], 16), r) for kb in places.known_books(mem, character)
+                            if int(kb["serial"], 16) in held for r in kb.get("runes") or []
+                            if escape.rune_matches(r["name"], a.rune)), None)
+                if own:
+                    book = own[0]
         else:
             raise CtlError("no runebook or rune tome in your backpack")
+        if a.rune and want is None and own is None:
+            own = next(((book, r) for kb in places.known_books(mem, character) if int(kb["serial"], 16) == book
+                        for r in kb.get("runes") or [] if escape.rune_matches(r["name"], a.rune)), None)
         io = _CtlIO(ctl, stc, escape.RecallError)
         weapon = next((k for k, it in st["world"]["items"].items()
                        if it.get("layer") in (1, 2) and it.get("container") is not None
                        and _serial(it["container"]) == me), None)
         try:
+            if a.check and want is None:
+                human = Human(a.human, seed=a.seed)
+                info = escape.read_book(io, book, wait=lambda: human.wait("read"))
+                if character:
+                    places.remember_book(mem, character, info)
+                return {"ok": True, "book": info["serial"], **info, "character": character,
+                        "remembered": bool(character),
+                        "can_cast": escape.can_cast_recall(st["world"], me, (st["world"].get("self") or {}).get("mana"))}
             if a.check:
                 return {"ok": True, "book": f"0x{book:08X}", **escape.check_ready(io, book)}
-            where = None if want is None else (f"Witcher rune {want['witcher']} "
+            where = rune if want is None else (f"Witcher rune {want['witcher']} "
                                                f"({places.witcher_rune(want['witcher'])['name']})"
                                                if want["witcher"] else want["name"])
             stc.intent(f"Recalling to {where}" if where else "Recalling home", "travel")
@@ -1612,9 +1630,11 @@ def _act_recall(a) -> dict:
         res = {**out, "book": f"0x{book:08X}"}
         if want and out.get("ok") and out.get("to"):
             res["library"] = lib_id
-            res["expected"] = [want["x"], want["y"]]
-            res["on_rune"] = want["x"] is not None and max(abs(out["to"][0] - want["x"]),
-                                                             abs(out["to"][1] - want["y"])) <= 2
+        exp = want or (own[1] if own else None)
+        if exp and out.get("ok") and out.get("to"):
+            res["expected"] = [exp["x"], exp["y"]]
+            res["on_rune"] = exp["x"] is not None and max(abs(out["to"][0] - exp["x"]),
+                                                            abs(out["to"][1] - exp["y"])) <= 2
         if weapon is not None:
             res["weapon"] = _rewield(ctl, stc, me, weapon, Human(a.human, seed=a.seed))
         return res
@@ -1697,20 +1717,10 @@ def _act_read_tomes(a) -> dict:
         stc.close()
 
 
-def _labelled_button(view: dict, label: str) -> int | None:
-    """The reply button whose own label (the text right of it on its row) starts with
-    `label`, case-blind (rental room menus: "Visit Other Rooms", "Exit to House Steward")."""
-    want = label.lower()
-    for b in view["controls"]["buttons"]:
-        for n in b.get("near") or []:
-            if 0 < n.get("dx", 0) <= 60 and abs(n.get("dy", 0)) <= 8 and n["text"].strip().lower().startswith(want):
-                return b["id"]
-    return None
-
-
 def _act_room(a, mem) -> dict:
     """room enter [OWNER WORDS…] | room leave [steward|town]: the rental room, as
-    one deterministic act (docs/NOTES.md "Rental room via the DTF house steward").
+    one deterministic act (harness/room.py, shared with the lumber runner;
+    docs/NOTES.md "Rental room via the DTF house steward").
 
     enter: the nearest house steward or innkeeper in view (their click label) is
     walked to (2 tiles, guarded goto), right-clicked, "Room"/"Rent" picked; on the
@@ -1720,156 +1730,65 @@ def _act_room(a, mem) -> dict:
     leave: the room's door (the nearest door item in view) is double-clicked and
     its menu's "Exit to House Steward" or "Exit to Town" pressed: as asked, else
     the way you came in (a steward or innkeeper), else the steward when offered.
-    Every press goes through `gump_reply` (End Rental Contract / Expand refused)
-    with a reading pause before it; a menu that doesn't offer the step is an
+    End Rental Contract / Expand are never pressed, with a reading pause before
+    every press; a menu that doesn't offer the step is closed (button 0) and is an
     error that names what it offers."""
     import contextlib
-    import uomap
     op = (a.args[0].lower() if a.args else "")
     if op not in ("enter", "leave"):
         raise CtlError("room enter [OWNER WORDS…] | room leave [steward|town]")
     human = Human(a.human, seed=a.seed)
     ctl, stc = _connect(a)
-    heard = []
+    io = _CtlIO(ctl, stc, room.RoomError)
 
-    def press(view: dict, button: int, kind: str = "menu"):
-        human.wait(kind)
-        mark = stc.mark()
-        if ctl.send(gump_reply(stc.state(), view["serial"], str(button))) != "OK":
-            raise CtlError(f"proxy refused the reply to gump {view['serial']}")
-        return mark
+    def heard(out: dict) -> dict:
+        return {**out, "heard": [journal_view(e) for e in out["heard"]]}
 
-    def next_room_gump(mark: int, what: str) -> dict:
-        got = stc.wait_events(mark, lambda evs: any(e.get("ev") == "gump_open" and _serial(e.get("gump_id"))
-                                                    == ROOM_GUMP_ID for e in evs))
-        heard.extend(journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS and e.get("ev") != "gump_open")
-        g = next((e for e in reversed(got) if e.get("ev") == "gump_open"
-                  and _serial(e.get("gump_id")) == ROOM_GUMP_ID), None)
-        if g is None:
-            raise CtlError(f"no rental room menu after {what}")
-        return gump_view(g)
-
-    def moved(mark: int, done, text: str) -> dict:
-        got = stc.wait_events(mark, lambda evs: any(done(e) for e in evs), timeout=5.0)
-        heard.extend(journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS)
-        st = stc.state()
-        facet = (st["world"].get("self") or {}).get("map")
-        ok = any(done(e) for e in got)
-        return {"ok": ok, "pos": st["movement"].get("pos"), "facet": facet, "heard": heard,
-                **({} if ok else {"error": f"no '{text}' within 5 s"})}
+    def walk(serial: int, rng: int):
+        io.ctl.close()                # the walk opens its own control connection (agent_link.Link)
+        try:
+            with contextlib.redirect_stdout(sys.stderr):
+                res = _act_goto(argparse.Namespace(**{**vars(a), "args": [f"0x{serial:08X}"], "range": rng,
+                                                      "z": None, "max_moves": None}), mem)
+        finally:
+            io.ctl = Control(a.control_port)
+        if not res["ok"]:
+            raise CtlError(f"walking to {label}: {res.get('error') or res['reply']}")
 
     try:
         st = stc.state()
-        world = st["world"]
-        facet = (world.get("self") or {}).get("map")
+        facet = (st["world"].get("self") or {}).get("map")
         pos = st["movement"].get("pos")
         if op == "enter":
-            if facet == ROOM_FACET:
+            if facet == room.ROOM_FACET:
                 return {"ok": True, "already": "inside a rental room", "pos": pos, "facet": facet}
-            labels = world.get("labels") or {}
-            keepers = sorted(((nav.chebyshev((m["x"], m["y"]), tuple(pos[:2])), key, labels.get(key) or "")
-                              for key, m in (world.get("mobiles") or {}).items()
-                              if m.get("x") is not None and any(k in (labels.get(key) or "").lower()
-                                                                for k in ROOM_KEEPERS)))
-            if not keepers:
-                raise CtlError("no house steward or innkeeper in view (by their click label): go to one first "
-                               "(`ctl npcs steward`, `ctl npcs innkeeper`)")
-            dist, key, label = keepers[0]
-            via = next(k for k in ROOM_KEEPERS if k in label.lower())
-            stc.intent(f"Entering a rental room via {label}", "room")
-            if dist > ROOM_KEEPER_RANGE:
-                ctl.close()               # the walk opens its own control connection (agent_link.Link)
-                try:
-                    with contextlib.redirect_stdout(sys.stderr):
-                        walk = _act_goto(argparse.Namespace(**{**vars(a), "args": [key], "range": ROOM_KEEPER_RANGE,
-                                                               "z": None, "max_moves": None}), mem)
-                finally:
-                    ctl = Control(a.control_port)
-                if not walk["ok"]:
-                    raise CtlError(f"walking to {label}: {walk.get('error') or walk['reply']}")
-            keeper = _serial(key)
-            human.wait("use")
-            mark = stc.mark()
-            for p in context_menu_packets(keeper):
-                if ctl.send(p) != "OK":
-                    raise CtlError(f"proxy refused the right-click on {label}")
-            got = stc.wait_events(mark, lambda evs: any(e.get("ev") == "popup" for e in evs))
-            menu = next((journal_view(e) for e in got if e.get("ev") == "popup"), None)
-            entry = next((e for e in (menu or {}).get("entries") or []
-                          if (e.get("text") or "").strip().lower() in ROOM_MENU_ENTRIES and not e.get("disabled")),
-                         None)
-            if entry is None:
-                raise CtlError(f"{label}'s context menu has no Room/Rent entry: "
-                               f"{[e.get('text') for e in (menu or {}).get('entries') or []]}")
-            human.wait("menu")
-            mark = stc.mark()
-            if ctl.send(actions.popup_selection(keeper, entry["index"])) != "OK":
-                raise CtlError("proxy refused the context menu pick")
-            view = next_room_gump(mark, f"picking '{entry['text']}'")
-            owner = " ".join(a.args[1:]).strip()
-            own = _labelled_button(view, "Enter Your Room")
-            if own is not None and not owner:
-                mark = press(view, own)
-                room = "your own"
-            else:
-                visit = _labelled_button(view, "Visit Other Rooms")
-                if visit is None:
-                    press(view, 0)
-                    raise CtlError(f"the room menu offers no 'Visit Other Rooms': {view['texts']}")
-                view = next_room_gump(press(view, visit), "'Visit Other Rooms'")
-                rows = [(b["id"], n["text"]) for b in view["controls"]["buttons"] if b["id"] >= 100
-                        for n in (b.get("near") or [])[:1] if n.get("dx", 0) > 0]
-                words = [w.lower() for w in owner.split()]
-                hit = [r for r in rows if all(w in r[1].lower() for w in words)]
-                if len(hit) != 1:
-                    press(view, 0)
-                    raise CtlError(f"{'no' if not hit else len(hit)} room(s) match {owner or '(no owner given)'}; "
-                                   f"rooms you may visit: {[r[1] for r in rows]}")
-                mark = press(view, hit[0][0])
-                room = hit[0][1]
-            out = moved(mark, lambda e: e.get("ev") == "map_change" and e.get("map") == ROOM_FACET
-                        or e.get("ev") == "speech_heard" and e.get("text") == "You enter the rental room.",
-                        "You enter the rental room.")
+            found = room.find_keeper(st)
+            label = found[1] if found else None
+            if found:
+                stc.intent(f"Entering a rental room via {label}", "room")
+            out = heard(room.enter(io, human, a.args[1:], walk=walk))
             if out["ok"]:
-                tw.meta_set(mem, ROOM_VIA_KEY, via)
-            stc.intent(f"In the rental room ({room})" if out["ok"] else None, "room")
-            return {**out, "room": room, "via": label, "reply": f"entered {room}" if out["ok"] else out["error"]}
+                tw.meta_set(mem, ROOM_VIA_KEY, room.keeper_kind(out["via"]))
+            stc.intent(f"In the rental room ({out['room']})" if out["ok"] else None, "room")
+            return {**out, "reply": f"entered {out['room']}" if out["ok"] else out["error"]}
         # leave
-        if facet != ROOM_FACET:
+        if facet != room.ROOM_FACET:
             raise CtlError(f"not in a rental room (facet {facet})")
         want = a.args[1].lower() if len(a.args) > 1 else None
         if want not in (None, "steward", "town"):
             raise CtlError("room leave [steward|town]")
-        td = uomap.tiledata()
-        doors = sorted((nav.chebyshev((it["x"], it["y"]), tuple(pos[:2])), key)
-                       for key, it in world["items"].items()
-                       if it.get("container") is None and it.get("x") is not None and it.get("graphic") is not None
-                       and "door" in (td.item(it["graphic"]).name or "").lower())
-        if not doors:
-            raise CtlError("no door in view in this room")
-        human.wait("use")
-        mark = stc.mark()
-        if ctl.send(actions.dclick(_serial(doors[0][1]))) != "OK":
-            raise CtlError("proxy refused the double-click on the door")
-        view = next_room_gump(mark, "double-clicking the door")
-        steward, town = _labelled_button(view, "Exit to House Steward"), _labelled_button(view, "Exit to Town")
         came = tw.meta_get(mem, ROOM_VIA_KEY)
-        pick = {"steward": steward, "town": town}.get(want) if want else \
-            (town if came == "innkeeper" and town is not None else steward if steward is not None else town)
-        if pick is None:
-            press(view, 0)
-            raise CtlError(f"the door's menu offers no {want or 'exit'} button: {view['texts']}")
-        exit_to = "the house steward" if pick == steward else "town"
-        stc.intent(f"Leaving the rental room to {exit_to}", "room")
-        out = moved(press(view, pick), lambda e: e.get("ev") == "map_change" and e.get("map") != ROOM_FACET
-                    or e.get("ev") == "speech_heard" and e.get("text") == "You exit the rental room.",
-                    "You exit the rental room.")
+        exit_to = want or (("town", "steward") if came == "innkeeper" else ("steward", "town"))
+        stc.intent("Leaving the rental room", "room")
+        out = heard(room.leave(io, human, exit_to))
         if out["ok"]:
             tw.meta_set(mem, ROOM_VIA_KEY, None)
         stc.intent(None)
-        return {**out, "exit": exit_to, "reply": f"left to {exit_to}" if out["ok"] else out["error"]}
+        return {**out, "reply": f"left to {out['exit']}" if out["ok"] else out["error"]}
+    except room.RoomError as e:
+        raise CtlError(str(e))
     finally:
-        ctl.close()
+        io.ctl.close()
         stc.close()
 
 
@@ -2778,13 +2697,22 @@ def cmd_journal(a, mem):
 def cmd_runes(a, mem):
     """Rune libraries (harness/places.py, harness/data/rune_libraries.json): `libraries`
     lists them; `find WORDS…` and `near X Y` say which tome's rune gets you where, with
-    the command that recalls with it once you stand by that tome. Reading a library
-    is the act `read_tomes`."""
+    the command that recalls with it once you stand by that tome. `near` also lists
+    the runes of the character's own books (`act recall --check` remembers them;
+    character: --character, else the logged-in one, else every character's), each
+    row with its `source` (library|book) and `danger` (places.landings). Reading a
+    library is the act `read_tomes`."""
     import places
 
     def row(r):
+        if r.get("source") == "book":
+            return {"source": "book", "book": r["book"], "kind": r["kind"], "book_title": r["book_title"],
+                    "name": r["name"], "tile": [r["x"], r["y"]], "dist": r["dist"], "danger": r["danger"],
+                    "recall": f"ctl act recall {r['book']} --rune \"{r['name'].strip()}\""}
         out = {"library": r["library"], "name": r["name"], "tile": [r["x"], r["y"]], "tome": r["tome"],
                "tome_title": r["tome_title"], "tome_pos": r["tome_pos"][:2]}
+        if "source" in r:
+            out = {"source": r["source"], **out, "danger": r["danger"]}
         if r["witcher"]:
             out["witcher"] = r["witcher"]
             out["witcher_name"] = places.witcher_rune(r["witcher"])["name"]
@@ -2817,8 +2745,17 @@ def cmd_runes(a, mem):
                 hits = [r for r in places.runes(a.library) if r["witcher"] in ids]
             return {"ok": True, "found": len(hits), "runes": [row(r) for r in hits[:a.limit]]}
         if a.runes_op == "near":
-            return {"ok": True, "to": [a.x, a.y],
-                    "runes": [row(r) for r in places.nearest_runes(a.x, a.y, a.library, a.limit)]}
+            character = a.character
+            if character is None:
+                try:
+                    resp = state_query(a.state_port)
+                except (OSError, ValueError):
+                    resp = {}
+                character = ((resp.get("world") or {}).get("self") or {}).get("name") if resp.get("ok") else None
+            libs = [a.library] if a.library else [lb["id"] for lb in places.libraries()]
+            rows = places.landings(a.x, a.y, a.facet, libraries=libs, books=places.known_books(mem, character),
+                                   include_dangerous=True, limit=a.limit)
+            return {"ok": True, "to": [a.x, a.y], "character": character, "runes": [row(r) for r in rows]}
     except KeyError as e:
         raise CtlError(e.args[0])
     raise CtlError(f"unknown runes op {a.runes_op}")
@@ -2842,23 +2779,24 @@ def cmd_lumber(a, mem):
             world, mv = resp.get("world") or {}, resp.get("movement") or {}
             serial, pos = mv.get("self_serial"), mv.get("pos")
             facet = (world.get("self") or {}).get("map")
-        # Young: --young or the "(young)" name label (lumber_opt.character)
-        out = lumber_opt.plan_from_store(mem, world, serial, pos, facet, young=a.young,
-                                         stint_min=a.stint_min, seed=a.seed)
+        # the character (world self name) picks its home (harness/data/homes.json) and books;
+        # Young by the "(young)" name label (lumber_opt.character): a death loses nothing
+        out = lumber_opt.plan_from_store(mem, world, serial, pos, facet, stint_min=a.stint_min, seed=a.seed)
         out["proxy"] = bool(resp.get("ok"))
         if not a.all:
             out["spots"] = [r for r in out["spots"] if r["status"] == "active"]
             out["regrow"] = {k: v for k, v in out["regrow"].items() if k != "curve"}
         p = out.get("pick")
         text = (f"lumber plan: {p['spot']} ({p['mode']}, P(best) {p['p_best']:.2f}, ~{p['expected_net_logs_h']} "
-                f"logs/h) -> {p['command']}") if p else f"lumber plan: {out.get('error')}"
+                f"logs/h, landing {(p.get('landing') or {}).get('name')}) -> {p['command']}") if p \
+            else f"lumber plan: {out.get('error')}"
         mem.chat_post("overseer", text, "action", data={"cmd": "lumber plan", "pick": p})
         return out
     if op == "spots":
         spots = lumber_opt.load_spots(mem)
         return {"ok": True, "spots": [
-            {k: s.get(k) for k in ("id", "name", "status", "reason", "source", "facet", "area", "banker", "pvp",
-                                   "requires_young", "hazard_prior", "travel", "travel_min", "tree_count")}
+            {k: s.get(k) for k in ("id", "name", "status", "reason", "source", "facet", "area", "pvp",
+                                   "hazard_prior", "danger_hint", "route_tiles", "tree_count")}
             for s in sorted(spots.values(), key=lambda s: (s["status"] != "active", s["id"]))]}
     if op == "spot" and a.spot_op == "add":
         spots = lumber_opt.load_spots(mem)
@@ -2866,9 +2804,7 @@ def cmd_lumber(a, mem):
             raise CtlError(f"spot {a.id} exists; use `lumber spot set`")
         spot = {"id": a.id, "name": a.name or a.id, "facet": a.facet,
                 "area": {"center": list(a.center), "radius": a.radius, "note": a.note or ""},
-                "trees": [], "pvp": not a.no_pvp,
-                "banker": {"serial": a.banker_serial, "name": a.banker_name or "banker", "pos": list(a.bank)},
-                "hazard_prior": a.hazard_prior, "travel": a.travel, "travel_min": a.travel_min}
+                "trees": [], "pvp": not a.no_pvp, "hazard_prior": a.hazard_prior}
         try:
             lumber_opt.check_spot(spot)
         except ValueError as e:
@@ -2895,45 +2831,28 @@ def cmd_lumber(a, mem):
         walk = pathfind.Walk(umap)
         route_fn = None if a.no_route_check else lumber_opt.make_route_fn(walk)
         all_spots = lumber_opt.load_spots(mem)
-        # A new discovery replaces this source's earlier candidates nobody has acted on;
+        # A new discovery replaces the earlier candidates nobody has acted on;
         # approved (active) and disabled spots stay and keep their ground.
         replaced = {sid for sid, s in all_spots.items()
-                    if s["status"] == "candidate" and s.get("source") == "discover"
-                    and ("witcher" if lumber_opt.hub_of(s) else "banks") == a.source}
+                    if s["status"] == "candidate" and s.get("source") == "discover"}
         spots = {sid: s for sid, s in all_spots.items() if sid not in replaced}
-        banks = [b for b in lumber_opt.bank_list() if b[2] == a.facet
-                 and (not a.bank or any(w.lower() in b[0].lower() for w in a.bank))]
-        skipped = {}
-        if a.source == "witcher":
-            lib = places.library(a.library)
-            if a.home_bank:
-                hx, hy, hz = a.home_bank
-                town = "home"
-            else:
-                town, (hx, hy), _ = min(lumber_opt.bank_list(), key=lambda b: lumber_opt.cheb(b[1], lib["stand"]))
-                hz = lumber_opt.floor_z(walk, hx, hy)
-            home = {"serial": "0x00000000", "name": f"{town} bank (where the home rune is marked)", "pos": [hx, hy, hz]}
-            found, skipped = lumber_opt.discover_witcher(
-                umap.find_trees, places.witcher_runes_in(a.library), spots, home, library=a.library, radius=a.radius,
-                search=lumber_opt.RUNE_SEARCH if a.search is None else a.search, min_trees=a.min_trees,
-                max_route=lumber_opt.MAX_RUNE_ROUTE if a.max_route is None else a.max_route, route_fn=route_fn,
-                include_dangerous=a.include_dangerous,
-                towns=[(t["x"], t["y"]) for t in places.atlas(("town",)) if t["facet"] == a.facet],
-                guard_points=mem.guard_points(a.facet))
-        else:
-            found = lumber_opt.discover(umap.find_trees, lambda x, y: lumber_opt.floor_z(walk, x, y), banks,
-                                        mem.guard_points(a.facet), spots, ring=tuple(a.ring), radius=a.radius,
-                                        min_trees=a.min_trees, per_bank=a.per_bank, route_fn=route_fn)
+        found, skipped = lumber_opt.discover_witcher(
+            umap.find_trees, places.witcher_runes_in(a.library), spots, library=a.library, radius=a.radius,
+            search=lumber_opt.RUNE_SEARCH if a.search is None else a.search, min_trees=a.min_trees,
+            max_route=lumber_opt.MAX_RUNE_ROUTE if a.max_route is None else a.max_route, route_fn=route_fn,
+            include_dangerous=a.include_dangerous,
+            towns=[(t["x"], t["y"]) for t in places.atlas(("town",)) if t["facet"] == a.facet],
+            guard_points=mem.guard_points(a.facet))
         found.sort(key=lambda s: -s["tree_count"])
         if not a.dry_run:
             for sid in replaced - {s["id"] for s in found}:
                 mem.lumber_spot_delete(sid)
             for s in found:
                 mem.lumber_spot_put(s["id"], "candidate", s, "discover")
-            mem.chat_post("overseer", f"lumber discover ({a.source}): {len(found)} candidate spot(s), "
+            mem.chat_post("overseer", f"lumber discover ({a.library}): {len(found)} candidate spot(s), "
                                       f"replacing {len(replaced)}", "action",
                           data={"cmd": "lumber discover", "ids": [s["id"] for s in found]})
-        return {"ok": True, "from": a.source, "banks": [b[0] for b in banks] if a.source == "banks" else None,
+        return {"ok": True, "library": a.library,
                 "candidates": found, "left_out": skipped, "replaced": len(replaced), "saved": not a.dry_run,
                 "next": "inspect each with `ctl map` near its area (no dungeon, outside town), then "
                         "`ctl lumber spot set <id> --status active` or `--status disabled --reason ...`"}
@@ -3010,9 +2929,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="heal: missing hits from which the spell is Greater Heal, not Heal "
                         "(default: the mana break-even for your Magery, 19 at Magery 60)")
     p.add_argument("--check", action="store_true",
-                   help="recall: only open the book and read it (default rune, charges)")
+                   help="recall: only open the book and read it (default rune, charges; your own book: every "
+                        "rune's name and tile, remembered for this character)")
     p.add_argument("--rune", default=None,
-                   help="recall: a rune tome's row by name instead of the default (with --library: a library row)")
+                   help="recall: a rune of your runebook or rune tome by name instead of the default (with "
+                        "--library: a library row)")
     p.add_argument("--witcher", default=None,
                    help="recall: Witcher rune N from a rune library's tome (stand by it; the library you stand "
                         "in, else --library, else Cambria)")
@@ -3056,10 +2977,13 @@ def build_parser() -> argparse.ArgumentParser:
     q.add_argument("words", nargs="+")
     q.add_argument("--library", default=None, help="only this library (cambria, dtf)")
     q.add_argument("--limit", type=int, default=30)
-    q = rs.add_parser("near", help="the library runes that land nearest a tile")
+    q = rs.add_parser("near", help="the library runes and your own books' runes that land nearest a tile")
     q.add_argument("x", type=int)
     q.add_argument("y", type=int)
-    q.add_argument("--library", default=None, help="only this library (cambria, dtf)")
+    q.add_argument("--facet", type=int, default=0)
+    q.add_argument("--library", default=None, help="only this library's rows (cambria, dtf); own books still listed")
+    q.add_argument("--character", default=None,
+                   help="whose remembered books (default: the logged-in character, else every character's)")
     q.add_argument("--limit", type=int, default=8)
     p.set_defaults(fn=cmd_runes)
     p = sub.add_parser("intent", help="tell the viz what you're trying to do (a goal between acts)")
@@ -3082,8 +3006,8 @@ def build_parser() -> argparse.ArgumentParser:
 def _lumber_parser(sub):
     p = sub.add_parser("lumber", help="self-optimizing lumber job: plan, spots, discover, prices")
     ls = p.add_subparsers(dest="lumber_op", required=True)
-    q = ls.add_parser("plan", help="where to chop next, how much per trip, which hatchet (Thompson sampling)")
-    q.add_argument("--young", action="store_true", help="the character is Young (Shelter Island spots)")
+    q = ls.add_parser("plan", help="where to chop next (and the landing rune out), how much per trip, which "
+                                   "hatchet (Thompson sampling); trips start and end at the character's home")
     q.add_argument("--stint-min", type=float, default=60.0,
                    help="how long this run should last (sets --trips; a longer trip runs once)")
     q.add_argument("--seed", type=int, default=None, help=argparse.SUPPRESS)
@@ -3091,45 +3015,31 @@ def _lumber_parser(sub):
     ls.add_parser("spots", help="every spot with its status")
     q = ls.add_parser("spot")
     ss = q.add_subparsers(dest="spot_op", required=True)
-    r = ss.add_parser("add", help="a new spot: a tree area plus the bank its trips end at")
+    r = ss.add_parser("add", help="a new spot: a tree area (trips reach it from home by the nearest landing rune)")
     r.add_argument("id")
     r.add_argument("--name")
     r.add_argument("--center", type=int, nargs=2, required=True, metavar=("X", "Y"))
     r.add_argument("--radius", type=int, required=True)
-    r.add_argument("--bank", type=int, nargs=3, required=True, metavar=("X", "Y", "Z"),
-                   help="where the banker stands (the runner walks there and says bank)")
-    r.add_argument("--banker-serial", default="0x00000000")
-    r.add_argument("--banker-name")
     r.add_argument("--facet", type=int, default=0)
     r.add_argument("--no-pvp", action="store_true", help="no hostile player actions there (no recall needed)")
     r.add_argument("--hazard-prior", type=float, default=0.5, help="expected hostile players seen per field hour")
-    r.add_argument("--travel", help="how to get there (moongate, route)")
-    r.add_argument("--travel-min", type=float, default=10.0)
     r.add_argument("--note")
     r.add_argument("--status", choices=("active", "candidate"), default="active")
     r = ss.add_parser("set", help="approve (active), park (candidate) or disable a spot")
     r.add_argument("id")
     r.add_argument("--status", choices=("active", "candidate", "disabled"), required=True)
     r.add_argument("--reason")
-    q = ls.add_parser("discover", help="propose tree-dense areas as candidate spots (map data): near Witcher "
-                                        "runes (reached by the rune library) or near banks")
-    q.add_argument("--from", dest="source", choices=("witcher", "banks"), default="witcher")
-    q.add_argument("--library", default="cambria", help="witcher: the rune library that holds the runes")
-    q.add_argument("--home-bank", type=int, nargs=3, metavar=("X", "Y", "Z"),
-                   help="witcher: the bank by your home rune (default: the bank marker nearest the library)")
+    q = ls.add_parser("discover", help="propose tree-dense areas near Witcher runes as candidate spots (map data)")
+    q.add_argument("--library", default="cambria", help="the rune library whose Witcher runes to search around")
     q.add_argument("--include-dangerous", action="store_true",
-                   help="witcher: also runes named after monster places (Brigand Camp, Orc Fort, ...)")
-    q.add_argument("--bank", action="append", help="banks: only banks whose town name contains this (repeatable)")
+                   help="also runes named after monster places (Brigand Camp, Orc Fort, ...)")
     q.add_argument("--facet", type=int, default=0)
-    q.add_argument("--ring", type=int, nargs=2, default=(30, 110), metavar=("MIN", "MAX"),
-                   help="banks: area centres this many tiles from the bank")
     q.add_argument("--radius", type=int, default=14)
     q.add_argument("--min-trees", type=int, default=25)
-    q.add_argument("--per-bank", type=int, default=3)
     q.add_argument("--search", type=int, default=None,
-                   help="witcher: grove window centres up to this many tiles from the rune (default 200)")
+                   help="grove window centres up to this many tiles from the rune (default 200)")
     q.add_argument("--max-route", type=int, default=None,
-                   help="witcher: the longest walk (tiles) from the rune's landing into its grove (default 300)")
+                   help="the longest walk (tiles) from the rune's landing into its grove (default 300)")
     q.add_argument("--no-route-check", action="store_true", help="skip the walking-route check (faster)")
     q.add_argument("--dry-run", action="store_true", help="list, don't save")
     q = ls.add_parser("price", help="record an observed price, e.g. hatchet:copper 1200, board:ordinary 9, "

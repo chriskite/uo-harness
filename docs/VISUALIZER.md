@@ -243,11 +243,12 @@ The runners report what they are trying to do right now on the proxy's state por
     - Any other intent, or a clear, closes the previous entry with `until`.
     - In the e2e run, 38 updates made 26 entries. The replay reproduces them exactly.
 - **Kinds (lumber loop):**
-  - `to_tree`, `chop` (text carries the log count), `captcha` (the previous intent is restored
-    afterwards), `lockout`, `convert`
-  - `to_bank` ("Going to the bank: …"), `open_bank`, `store` (since 2026-10-01; the room-era
-    kinds were `to_inn`, `enter_room`, `to_box`, `store`, `exit_room`)
-  - `trip_done`, `done`, `stopped` (abort or crash reason)
+  - `leave_room`, `to_library`, `recall_out`, `to_tree`, `chop` (text carries the log count),
+    `captcha` (the previous intent is restored afterwards), `lockout`, `track`, `aspect`
+  - `recall_home`, `to_room` (walk to the landing, then "Going into the rental room via …"),
+    `convert`, `store` (into the room's chest) (since 2026-10-04; the bank era's were `to_bank`,
+    `open_bank`, `store`, and before 2026-10-01 `to_inn`, `enter_room`, `to_box`, `store`, `exit_room`)
+  - `escape`, `flee`, `speech`, `trip_done`, `break_due`, `done`, `stopped` (abort or crash reason)
 - **Kinds (bank errand):** `to_start`, `find_banker`, `to_bank`, `open_bank`, `home`, `done`,
   `stopped`.
 - **Kinds (overseer, via `ctl`; added 2026-09-30):**
@@ -333,10 +334,11 @@ table has no job column) and `harness/data/woods.json` when present.
 
 **Lumber optimizer analytics (added 2026-10-03, user request: the dashboard shows what the
 self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
-- **Per trip** besides the above: `spot`, `outcome`, `why`, `place_fail`, `field_s` and
+- **Per trip** besides the above: `spot`, `outcome` (`stored` since 2026-10-04, `aborted`, or the
+  bank era's `banked`; stored and banked show green), `why`, `place_fail`, `field_s` and
   `field_logs_per_hour` (field time as `lumber_opt.trip_obs` counts it: the λ sample),
   `time_split` {travel (recall legs and the walk to the library), lockout, field, other (walks,
-  convert, bank)} summing to the duration, the `travel` legs, `skill`/`skill_end`, `supplies`,
+  room, convert, store)} summing to the duration, the `travel` legs, `skill`/`skill_end`, `supplies`,
   `players_seen`, `escapes`, `stationary_clears`, the hatchet and its last seen uses.
 - `travel`: from the `travel` and `recall` job events, per leg kind (out/home/escape) the count,
   landed, casts, charge/spell, failures by reason, mean seconds and the mean walk to the library;
@@ -345,12 +347,15 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
   its row name and the Witcher table.
 - `supplies` (summed trip `supplies`, priced from the store's `reagent:<name>` / `recall_charge`
   prices: `gp`, `unpriced`), `time_split` totals, `skill` points (trip start and end).
-- `plan` = `jobs.lumber_plan`: `lumber_opt.plan_from_store` with no live character (skill from the
-  newest trip row) and no position (every spot pays its travel prior), seeded by the minute, plus
-  per spot the PK escapes (`recall`/`guard_flight` events), the last trip's outcome and why, and how
-  it's reached (`Witcher rune N` or a walk). 0.18 s on the live store (2026-10-03: three hazards and a
-  finer trip-size search), so it's computed per request (inside the 2 s cache).
-  `analytics(plan_now=None)` (tests, the CLI) leaves it null.
+- `plan` = `jobs.lumber_plan`: `lumber_opt.plan_from_store` with no live character (the newest trip
+  row's `character` and skill; its home from harness/data/homes.json; no home → `ok: false` with
+  the reason and the spots still ranked) and no new route planning (cached landing routes only,
+  `route_check=False`; `ctl lumber plan` plans and caches them), seeded by the minute, plus per spot
+  the PK escapes (`recall`/`guard_flight` events), the last trip's outcome and why, and how it's
+  reached (`reach`: the landing rune's name, its library or "own book", tiles from the grove).
+  0.18 s on the live store (2026-10-03: three hazards and a finer trip-size search), so it's
+  computed per request (inside the 2 s cache). `analytics(plan_now=None)` (tests, the CLI) leaves
+  it null.
 
 **Hunt analytics (`jobs.compute_hunt`, pure; added 2026-10-02).** Inputs: `Memory.episodes("hunt")`
 (one row per visit to the spot, docs/HUNT_LOOP.md "Memory") and the hunt job events.
@@ -400,15 +405,16 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
   - A line under the tiles: the estimated value (and how many logs are unpriced) and the chop
     outcomes from `harvest_attempts`.
   - **Optimizer: next pick** (2026-10-03; hazards 2026-10-03): the plan's spot with
-    `explore`/`exploit`, P(best), trips × Q* logs, expected trip minutes, expected logs banked per
-    trip with P(death) and P(sent home) per trip, and net logs/hr; then skill and chop success,
+    `explore`/`exploit`, P(best), trips × Q* logs, expected trip minutes, the landing it recalls
+    out to (since 2026-10-04; library or own book and the walk in on hover), expected logs stored
+    per trip with P(death) and P(sent home) per trip, and net logs/hr; then skill and chop success,
     the regrowth window (fitted or default), P(death | PK seen), the pooled creature-death and
     theft rates (thefts seen, share of the load each), the gear at risk on death (items on hover;
     "none (Young)"), the room left for logs when known, the new-spot prior, the dispersion and the
     `ctl run lumber` command.
   - **Spots**: every active spot and every spot with trips (the untried candidates are counted in
-    the head): status, how it's reached, trips, field hours, field logs/hr with its 80% interval,
-    net logs/hr, Q*, overhead, travel minutes, PK sightings/hr, deaths/hr (h_D; count on hover),
+    the head): status, how it's reached (the landing), trips, field hours, field logs/hr with its
+    80% interval, net logs/hr, Q*, overhead (room to grove and back), PK sightings/hr, deaths/hr (h_D; count on hover),
     sent home/hr (h_S), thefts/hr (h_T), loss/trip (logs lost to death and thieves plus the gear,
     P(death) per trip on hover), PK escapes, place failures, supplies per trip, the last trip
     (hours ago, outcome, why on hover), P(best) and why it can't be picked. The pick's row is

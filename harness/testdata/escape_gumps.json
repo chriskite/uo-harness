@@ -1,5 +1,5 @@
 {
- "_doc": "Runebook (0x5C7DB029) and rune tome (0x09F5976B) gumps as the Outlands Test Shard sent them to TestWorth, 2026-10-02 21:50-22:20 (memory-store gump_open events). Used by harness/test_escape.py. runetome_main_witcher_276: the Cambria Rune Library's Witcher tome 276-301 (locked down, public), live 2026-10-03 (Hackworth), 40/50 recall charges; its row 10 ('286 - Midlands Ruins 1 (South)', button 110) recalled to (1765, 2007). runetome_main_dtf_bad_places / runetome_detail_dtf_bad_places_24: the DTF guild house library's tome 'Bad Places' (locked down, guild), live 2026-10-04 (Outland Dan): main page (26 rows, 49/50 charges) and the detail page of runes 24-25 (button 224), whose long right-hand name is centred ~75 px left of its tile.",
+ "_doc": "Runebook (0x5C7DB029) and rune tome (0x09F5976B) gumps as the Outlands Test Shard sent them to TestWorth, 2026-10-02 21:50-22:20 (memory-store gump_open events). Used by harness/test_escape.py. runetome_main_witcher_276: the Cambria Rune Library's Witcher tome 276-301 (locked down, public), live 2026-10-03 (Hackworth), 40/50 recall charges; its row 10 ('286 - Midlands Ruins 1 (South)', button 110) recalled to (1765, 2007). runetome_main_dtf_bad_places / runetome_detail_dtf_bad_places_24: the DTF guild house library's tome 'Bad Places' (locked down, guild), live 2026-10-04 (Outland Dan): main page (26 rows, 49/50 charges) and the detail page of runes 24-25 (button 224), whose long right-hand name is centred ~75 px left of its tile. runebook_dan_dtf: Outland Dan's own runebook 0x49865F8F, live 2026-10-04 (memory-store gump_open, session 64): 11 runes, default entry 10 'DTF Loot Chest' (17° 8'N 162° 21'W = 4134,1429, the DTF guild-house landing), 8/10 charges; its interned text list has 21 sextant strings for 11 runes ('Shelter Stairs' reuses Khal Draco's longitude line 31), so runebook_entries ties texts to entries by layout position.",
  "runebook_default_2nd": {
   "gump_id": "0x5C7DB029",
   "serial": 2861210,
@@ -194,6 +194,50 @@
    "Show on World Map",
    "Undermountain NW Entrance (Rear)",
    "(1815, 669)"
+  ]
+ },
+ "runebook_dan_dtf": {
+  "gump_id": "0x5C7DB029",
+  "serial": 88502679,
+  "layout": "{ page 0 }{ gumppic 100 10 2200 }{ gumppic 125 50 57 }{ gumppic 145 50 58 }{ gumppic 160 50 58 }{ gumppic 175 50 58 }{ gumppic 190 50 58 }{ gumppic 205 50 58 }{ gumppic 220 50 58 }{ gumppic 230 50 59 }{ gumppic 290 50 57 }{ gumppic 310 50 58 }{ gumppic 325 50 58 }{ gumppic 340 50 58 }{ gumppic 355 50 58 }{ gumppic 370 50 58 }{ gumppic 385 50 58 }{ gumppic 395 50 59 }{ button 130 187 2225 2225 0 2 0 }{ button 165 187 2226 2226 0 3 0 }{ button 200 187 2227 2227 0 4 0 }{ button 235 187 2228 2228 0 5 0 }{ button 300 187 2229 2229 0 6 0 }{ button 335 187 2230 2230 0 7 0 }{ button 370 187 2231 2231 0 8 0 }{ button 405 187 2232 2232 0 9 0 }{ text 140 40 0 0 18 0 1 0 0 0 }{ text 195 40 0 1 18 0 1 0 0 0 }{ text 300 40 0 2 18 0 1 0 0 0 }{ text 385 40 0 3 18 0 1 0 0 0 }{ page 1 }{ button 125 15 2472 2473 1 0 1 }{ xmfhtmlgump 158 22 100 18 1011299 0 0 }{ button 130 65 2103 2104 1 0 2 }{ croppedtext 145 60 115 17 81 4 }{ button 130 80 2103 2104 1 0 8 }{ croppedtext 145 75 115 17 81 5 }{ button 130 95 2103 2104 1 0 14 }{ croppedtext 145 90 115 17 81 6 }{ button 130 110 2103 2104 1 0 20 }{ croppedtext 145 105 115 17 81 7 }{ button 130 125 2103 2104 1 0 26 }{ croppedtext 145 120 115 17 81 8 }{ button 130 140 2103 2104 1 0 32 }{ croppedtext 145 135 115 17 81 9 }{ button 130 155 2103 2104 1 0 38 }{ croppedtext 145 150 115 17 81 10 }{ button 130 170 2103 2104 1 0 44 }{ croppedtext 145 165 115 17 81 11 }{ button 290 65 2103 2104 1 0 50 }{ croppedtext 305 60 115 17 81 12 }{ button 290 80 2103 2104 1 0 56 }{ croppedtext 305 75 115 17 81 13 }{ button 290 95 2103 2104 1 0 62 }{ croppedtext 305 90 115 17 81 14 }{ button 290 110 2103 2104 1 0 68 }{ croppedtext 305 105 115 17 0 15 }{ button 290 125 2103 2104 1 0 74 }{ croppedtext 305 120 115 17 0 15 }{ button 290 140 2103 2104 1 0 80 }{ croppedtext 305 135 115 17 0 15 }{ button 290 155 2103 2104 1 0 86 }{ croppedtext 305 150 115 17 0 15 }{ button 290 170 2103 2104 1 0 92 }{ croppedtext 305 165 115 17 0 15 }{ button 393 14 2206 2206 0 2 0 }{ page 2 }{ button 125 14 2205 2205 0 1 0 }{ button 393 14 2206 2206 0 3 0 }{ button 130 65 2103 2104 1 0 2 }{ text 135 80 0 16 18 0 1 0 0 0 }{ text 135 95 0 17 18 0 1 0 0 0 }{ button 135 115 2437 2438 1 0 3 }{ xmfhtmlgump 150 115 100 18 1011298 0 0 }{ button 160 20 2361 2361 1 0 4 }{ xmfhtmlgump 175 15 100 18 1011300 0 0 }{ button 135 140 2271 2271 1 0 5 }{ button 205 140 2291 2291 1 0 6 }{ croppedtext 145 60 115 17 81 4 }{ button 290 65 2103 2104 1 0 8 }{ text 295 80 0 18 18 0 1 0 0 0 }{ text 295 95 0 19 18 0 1 0 0 0 }{ button 295 115 2437 2438 1 0 9 }{ xmfhtmlgump 310 115 100 18 1011298 0 0 }{ button 300 20 2361 2361 1 0 10 }{ xmfhtmlgump 315 15 100 18 1011300 0 0 }{ button 295 140 2271 2271 1 0 11 }{ button 365 140 2291 2291 1 0 12 }{ croppedtext 305 60 115 17 81 5 }{ page 3 }{ button 125 14 2205 2205 0 2 0 }{ button 393 14 2206 2206 0 4 0 }{ button 130 65 2103 2104 1 0 14 }{ text 135 80 0 20 18 0 1 0 0 0 }{ text 135 95 0 21 18 0 1 0 0 0 }{ button 135 115 2437 2438 1 0 15 }{ xmfhtmlgump 150 115 100 18 1011298 0 0 }{ button 160 20 2361 2361 1 0 16 }{ xmfhtmlgump 175 15 100 18 1011300 0 0 }{ button 135 140 2271 2271 1 0 17 }{ button 205 140 2291 2291 1 0 18 }{ croppedtext 145 60 115 17 81 6 }{ button 290 65 2103 2104 1 0 20 }{ text 295 80 0 22 18 0 1 0 0 0 }{ text 295 95 0 23 18 0 1 0 0 0 }{ button 295 115 2437 2438 1 0 21 }{ xmfhtmlgump 310 115 100 18 1011298 0 0 }{ button 300 20 2361 2361 1 0 22 }{ xmfhtmlgump 315 15 100 18 1011300 0 0 }{ button 295 140 2271 2271 1 0 23 }{ button 365 140 2291 2291 1 0 24 }{ croppedtext 305 60 115 17 81 7 }{ page 4 }{ button 125 14 2205 2205 0 3 0 }{ button 393 14 2206 2206 0 5 0 }{ button 130 65 2103 2104 1 0 26 }{ text 135 80 0 24 18 0 1 0 0 0 }{ text 135 95 0 25 18 0 1 0 0 0 }{ button 135 115 2437 2438 1 0 27 }{ xmfhtmlgump 150 115 100 18 1011298 0 0 }{ button 160 20 2361 2361 1 0 28 }{ xmfhtmlgump 175 15 100 18 1011300 0 0 }{ button 135 140 2271 2271 1 0 29 }{ button 205 140 2291 2291 1 0 30 }{ croppedtext 145 60 115 17 81 8 }{ button 290 65 2103 2104 1 0 32 }{ text 295 80 0 26 18 0 1 0 0 0 }{ text 295 95 0 27 18 0 1 0 0 0 }{ button 295 115 2437 2438 1 0 33 }{ xmfhtmlgump 310 115 100 18 1011298 0 0 }{ button 300 20 2361 2361 1 0 34 }{ xmfhtmlgump 315 15 100 18 1011300 0 0 }{ button 295 140 2271 2271 1 0 35 }{ button 365 140 2291 2291 1 0 36 }{ croppedtext 305 60 115 17 81 9 }{ page 5 }{ button 125 14 2205 2205 0 4 0 }{ button 393 14 2206 2206 0 6 0 }{ button 130 65 2103 2104 1 0 38 }{ text 135 80 0 28 18 0 1 0 0 0 }{ text 135 95 0 29 18 0 1 0 0 0 }{ button 135 115 2437 2438 1 0 39 }{ xmfhtmlgump 150 115 100 18 1011298 0 0 }{ button 160 20 2361 2361 1 0 40 }{ xmfhtmlgump 175 15 100 18 1011300 0 0 }{ button 135 140 2271 2271 1 0 41 }{ button 205 140 2291 2291 1 0 42 }{ croppedtext 145 60 115 17 81 10 }{ button 290 65 2103 2104 1 0 44 }{ text 295 80 0 30 18 0 1 0 0 0 }{ text 295 95 0 31 18 0 1 0 0 0 }{ button 295 115 2437 2438 1 0 45 }{ xmfhtmlgump 310 115 100 18 1011298 0 0 }{ button 300 20 2361 2361 1 0 46 }{ xmfhtmlgump 315 15 100 18 1011300 0 0 }{ button 295 140 2271 2271 1 0 47 }{ button 365 140 2291 2291 1 0 48 }{ croppedtext 305 60 115 17 81 11 }{ page 6 }{ button 125 14 2205 2205 0 5 0 }{ button 393 14 2206 2206 0 7 0 }{ button 130 65 2103 2104 1 0 50 }{ text 135 80 0 32 18 0 1 0 0 0 }{ text 135 95 0 33 18 0 1 0 0 0 }{ button 135 115 2437 2438 1 0 51 }{ xmfhtmlgump 150 115 100 18 1011298 0 0 }{ button 160 20 2361 2361 1 0 52 }{ xmfhtmlgump 175 15 100 18 1011300 0 0 }{ button 135 140 2271 2271 1 0 53 }{ button 205 140 2291 2291 1 0 54 }{ croppedtext 145 60 115 17 81 12 }{ button 290 65 2103 2104 1 0 56 }{ text 295 80 0 34 18 0 1 0 0 0 }{ text 295 95 0 31 18 0 1 0 0 0 }{ button 295 115 2437 2438 1 0 57 }{ xmfhtmlgump 310 115 100 18 1011298 0 0 }{ button 300 20 2361 2361 1 0 58 }{ xmfhtmlgump 315 15 100 18 1011300 0 0 }{ button 295 140 2271 2271 1 0 59 }{ button 365 140 2291 2291 1 0 60 }{ croppedtext 305 60 115 17 81 13 }{ page 7 }{ button 125 14 2205 2205 0 6 0 }{ button 393 14 2206 2206 0 8 0 }{ button 130 65 2103 2104 1 0 62 }{ text 135 80 0 35 18 0 1 0 0 0 }{ text 135 95 0 36 18 0 1 0 0 0 }{ button 135 115 2437 2438 1 0 63 }{ xmfhtmlgump 150 115 100 18 1011298 0 0 }{ button 160 20 2360 2360 1 0 64 }{ xmfhtmlgump 175 15 100 18 1011300 0 0 }{ button 135 140 2271 2271 1 0 65 }{ button 205 140 2291 2291 1 0 66 }{ croppedtext 145 60 115 17 81 14 }{ button 290 65 2103 2104 1 0 68 }{ croppedtext 305 60 115 17 0 15 }{ page 8 }{ button 125 14 2205 2205 0 7 0 }{ button 393 14 2206 2206 0 9 0 }{ button 130 65 2103 2104 1 0 74 }{ croppedtext 145 60 115 17 0 15 }{ button 290 65 2103 2104 1 0 80 }{ croppedtext 305 60 115 17 0 15 }{ page 9 }{ button 125 14 2205 2205 0 8 0 }{ button 130 65 2103 2104 1 0 86 }{ croppedtext 145 60 115 17 0 15 }{ button 290 65 2103 2104 1 0 92 }{ croppedtext 305 60 115 17 0 15 }\u0000",
+  "lines": [
+   "Charges: ",
+   "8",
+   "Max Charges: ",
+   "10",
+   "Prev Bank",
+   "Cambria MG",
+   "Terran MG",
+   "Cambria Bank",
+   "Anchor's Rest",
+   "Ossuary",
+   "Anchor's Rest MG",
+   "Khal Draco",
+   "SSC",
+   "Shelter Stairs",
+   "DTF Loot Chest",
+   "Empty",
+   "8° 47'N",
+   "19° 53'E",
+   "132° 21'S",
+   "26° 55'E",
+   "3° 20'N",
+   "31° 51'W",
+   "121° 38'S",
+   "29° 57'E",
+   "95° 53'N",
+   "171° 4'E",
+   "105° 38'S",
+   "8° 38'W",
+   "96° 3'N",
+   "172° 20'W",
+   "16° 10'S",
+   "47° 31'E",
+   "79° 11'N",
+   "147° 30'E",
+   "81° 39'S",
+   "17° 8'N",
+   "162° 21'W"
   ]
  }
 }

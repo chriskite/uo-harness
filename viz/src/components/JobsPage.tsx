@@ -12,6 +12,7 @@ import {
   phaseList,
   splitShares,
   spotRows,
+  tripHome,
   woodShares,
   type JobsResponse,
 } from "../jobs.ts";
@@ -193,7 +194,7 @@ function LumberJobs({ onJob }: { onJob: (j: JobKind) => void }) {
                     <td className="mono">{r.t_start ? fmtStamp(r.t_start, sameDay) : "—"}</td>
                     <td className="mono">{r.spot ?? "—"}</td>
                     <td>
-                      <Badge kind={r.outcome === "banked" ? "ok" : r.place_fail ? "bad" : "warn"} title={r.why ?? undefined}>
+                      <Badge kind={tripHome(r.outcome) ? "ok" : r.place_fail ? "bad" : "warn"} title={r.why ?? undefined}>
                         {r.outcome}
                       </Badge>
                       {r.why && <span className="dim small"> {r.why.length > 48 ? `${r.why.slice(0, 48)}…` : r.why}</span>}
@@ -321,8 +322,13 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
                     {pick.trips} trip{pick.trips === 1 ? "" : "s"} of {pick.logs_per_trip} logs (Q*)
                   </span>
                   <span>~{fmtNum(pick.expected_trip_min, 0)} min/trip</span>
-                  <span title="renewal-reward: a death banks nothing, a trip sent home banks what it carries">
-                    ~{pick.expected_banked_trip} banked/trip · P(death) {fmtNum(pick.p_death_trip * 100, 1)}% · sent home{" "}
+                  {pick.landing && (
+                    <span title={`${pick.landing.source === "library" ? `${pick.landing.library} library` : "own book"}; walk in ${pick.landing.route_tiles ?? "?"} tiles`}>
+                      out by <b>{pick.landing.name}</b> ({pick.landing.dist} tiles off)
+                    </span>
+                  )}
+                  <span title="renewal-reward: a death stores nothing, a trip sent home stores what it carries">
+                    ~{pick.expected_stored_trip} stored/trip · P(death) {fmtNum(pick.p_death_trip * 100, 1)}% · sent home{" "}
                     {Math.round(pick.p_sent_home_trip * 100)}%
                   </span>
                   <span>expected {pick.expected_net_logs_h} net logs/hr</span>
@@ -364,14 +370,13 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
                 <tr>
                   <th>spot</th>
                   <th>status</th>
-                  <th>reached by</th>
+                  <th title="the landing rune a trip recalls to from home (nearest the grove)">reached by</th>
                   <th className="num">trips</th>
                   <th className="num">field h</th>
                   <th className="num" title="posterior mean field rate, 80% interval, rescaled to today's skill">field logs/hr</th>
-                  <th className="num" title="banked logs per hour of a stint, travel, overhead, deaths and supplies included">net logs/hr</th>
+                  <th className="num" title="logs stored at home per hour, overhead, deaths and supplies included">net logs/hr</th>
                   <th className="num">Q*</th>
-                  <th className="num">overhead</th>
-                  <th className="num">travel</th>
+                  <th className="num" title="per trip: room exit, recall out, walk in, lockout, recall home, room, convert, store">overhead</th>
                   <th className="num" title="hostile players sighted per field hour">PKs/hr</th>
                   <th className="num" title="h_D: deaths (PK or creature) per field hour; deaths here in the tooltip">deaths/hr</th>
                   <th className="num" title="h_S: trips a threat ended early without killing us (recall, guard flight, creature stop), per field hour">
@@ -399,7 +404,7 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
                     <td>
                       <Badge kind={s.status === "active" ? (s.eligible ? "ok" : "warn") : "dim"}>{s.status}</Badge>
                     </td>
-                    <td className="dim">{s.reach}</td>
+                    <td className="dim">{s.reach ?? "—"}</td>
                     <td className="mono num">{s.trips}</td>
                     <td className="mono num">{fmtNum(s.field_h, 2)}</td>
                     <td className="mono num">
@@ -408,9 +413,6 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
                     <td className="mono num">{s.net_logs_h}</td>
                     <td className="mono num">{s.logs_per_trip}</td>
                     <td className="mono num">{fmtDuration(s.overhead_s)}</td>
-                    <td className="mono num" title={`${s.travel_samples} learned move(s)`}>
-                      {s.travel_min} min
-                    </td>
                     <td className="mono num" title={`${s.sightings} sighting(s) in trips`}>
                       {fmtNum(s.sightings_per_h, 2)}
                     </td>
@@ -439,7 +441,7 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
                       ) : (
                         <>
                           <span className="mono">{fmtNum(s.last_trip_h_ago, 1)} h ago</span>{" "}
-                          <Badge kind={s.last_outcome === "banked" ? "ok" : "warn"}>{s.last_outcome ?? "?"}</Badge>
+                          <Badge kind={tripHome(s.last_outcome) ? "ok" : "warn"}>{s.last_outcome ?? "?"}</Badge>
                         </>
                       )}
                     </td>

@@ -1,6 +1,7 @@
 """Behaviour of the lumber optimizer (harness/lumber_opt.py, docs/LUMBER_LOOP.md §6):
-which spot it picks, how much it carries, which hatchet, and what it learns from
-trips, deaths and depleted trees. Synthetic trip rows; no network, no game.
+which spot it picks (and the landing rune a trip recalls to from home), how much it
+carries, which hatchet, and what it learns from trips, deaths and depleted trees.
+Synthetic trip rows; no network, no game.
 
 Run: python harness/test_lumber_opt.py
 """
@@ -18,6 +19,10 @@ from memory import Memory  # noqa: E402
 FAILURES = []
 NOW = 1_800_000_000.0
 TABLE = lo.load_hatchets()
+# Outland Dan's home (harness/data/homes.json, live 2026-10-04)
+HOME = {"library": "dtf", "landing": [4134, 1429, 6], "facet": 0,
+        "room": {"owner": "logan", "facet": 3, "arrival": [403, 923, 1], "exit": "steward"},
+        "chest": {"serial": "0x4AE0DD2C", "name": "paragon chest (drake)", "pos": [404, 922, 2]}}
 
 
 def check(name, cond, detail=""):
@@ -27,15 +32,26 @@ def check(name, cond, detail=""):
 
 
 def spot(sid, x=1000, y=1000, pvp=True, hazard=0.5, **kw):
-    return {"id": sid, "name": sid, "facet": 0, "area": {"center": [x, y], "radius": 20},
-            "banker": {"serial": "0x00000000", "name": "b", "pos": [x - 40, y, 0]}, "pvp": pvp,
-            "hazard_prior": hazard, "travel_min": 0, "status": "active", **kw}
+    return {"id": sid, "name": sid, "facet": 0, "area": {"center": [x, y], "radius": 20}, "pvp": pvp,
+            "hazard_prior": hazard, "status": "active", **kw}
 
 
-def trip(sid, t1, logs, field_s, chop_share=0.7, skill=None, outcome="banked", dry=False, why=None,
-         walk_out=60.0, convert=10.0, to_bank=60.0, store=5.0):
+def landing(s, dist=20, **kw):
+    """An own book's rune `dist` tiles east of the spot's centre (landing_for's row shape)."""
+    (cx, cy) = s["area"]["center"]
+    return {"source": "book", "library": None, "tome": None, "tome_title": None, "tome_pos": None,
+            "book": "0x49865F8F", "kind": "runebook", "name": f"{s['id']} rune", "x": cx + dist, "y": cy,
+            "dist": dist, "danger": [], "route_tiles": None, "route_checked": False, **kw}
+
+
+def trip(sid, t1, logs, field_s, chop_share=0.7, skill=None, outcome="stored", dry=False, why=None,
+         walk_out=60.0, to_room=20.0, convert=10.0, store=5.0, to_bank=60.0):
+    """A trip row as the runner writes it: home -> grove -> home ('stored': into the room's chest);
+    outcome 'banked' writes a bank-era row (to_bank instead of to_room)."""
     phases = {"harvest": walk_out + field_s}
-    if outcome == "banked":
+    if outcome == "stored":
+        phases.update(to_room=to_room, convert=convert, store=store)
+    elif outcome == "banked":
         phases.update(convert=convert, to_bank=to_bank, store=store)
     t0 = t1 - sum(phases.values())
     return {"loop": "lumber", "spot": sid, "t_start": t0, "t_end": t1, "outcome": outcome, "why": why, "dry": dry,
@@ -44,7 +60,7 @@ def trip(sid, t1, logs, field_s, chop_share=0.7, skill=None, outcome="banked", d
 
 
 def series(sid, n, rate, field_s=1800.0, skill=None, start=NOW - 86400, gap=3600):
-    """n banked trips of field_s seconds at `rate` logs per field hour."""
+    """n stored trips of field_s seconds at `rate` logs per field hour."""
     return [trip(sid, start + i * gap, round(rate * field_s / 3600.0), field_s, skill=skill) for i in range(n)]
 
 
@@ -53,6 +69,9 @@ def regrow(minutes=45.0):
 
 
 def plan(spots, episodes, char=None, deaths=(), sightings=(), seed=1, **kw):
+    """lo.plan at HOME with one landing 20 tiles off per spot (kw landings/home override)."""
+    kw.setdefault("home", HOME)
+    kw.setdefault("landings", {s["id"]: landing(s) for s in spots})
     return lo.plan({s["id"]: s for s in spots}, episodes, list(sightings), list(deaths), kw.pop("regrow", regrow()),
                    char, TABLE, kw.pop("prices", {}), kw.pop("now", NOW), random.Random(seed), draws=600, **kw)
 
@@ -122,25 +141,25 @@ def test_trip_size():
     q, h = 1500, 0.4
     dead, home = lo.trip_terms(q, lam, t_h, hz(death=h)), lo.trip_terms(q, lam, t_h, hz(home=h))
     surv = math.exp(-h * q / lam)
-    check("a dying trip banks nothing: only the trips that live bank, all q of them",
-          abs(dead["banked"] - q * surv) < 1e-6 and abs(dead["p_death"] - (1 - surv)) < 1e-9, dead)
-    check("a trip sent home at the same rate banks everything it chopped, and loses nothing",
-          abs(home["banked"] - lam * (1 - surv) / h) < 1e-6 and home["banked"] > dead["banked"]
+    check("a dying trip stores nothing: only the trips that live store, all q of them",
+          abs(dead["stored"] - q * surv) < 1e-6 and abs(dead["p_death"] - (1 - surv)) < 1e-9, dead)
+    check("a trip sent home at the same rate stores everything it chopped, and loses nothing",
+          abs(home["stored"] - lam * (1 - surv) / h) < 1e-6 and home["stored"] > dead["stored"]
           and home["lost_death"] == 0 and dead["lost_death"] > 0 and home["p_death"] == 0, (home, dead))
     check("being sent home alone never shrinks the trip (nothing is lost)",
           lo.best_q(lam, t_h, hz(home=3.0), 3.0) == lo.Q_MAX)
     long = lo.trip_terms(10000, 500.0, t_h, hz(death=1.0))           # 20 field hours at 1 death/h
     rate = lo.net_rate(10000, 500.0, t_h, hz(death=1.0), 3.0)
-    check("long trips stay well-defined: P(death) <= 1, nothing banked below 0, the rate no worse than losing "
+    check("long trips stay well-defined: P(death) <= 1, nothing stored below 0, the rate no worse than losing "
           "the gear every cycle",
-          abs(long["p_death"] - (1 - math.exp(-20))) < 1e-9 and 0 <= long["banked"] < 1
+          abs(long["p_death"] - (1 - math.exp(-20))) < 1e-9 and 0 <= long["stored"] < 1
           and -3.0 / long["time_h"] <= rate < 0, (long, rate))
     calm, robbed = lo.best_q(lam, t_h, hz(0.05), 3.0), lo.best_q(lam, t_h, hz(0.05, theft=2.0), 3.0)
     check("thieves lower Q* (a grab takes a share of the load)", robbed < calm, (calm, robbed))
     lost = lo.trip_terms(2000, lam, t_h, hz(theft=1.0, share=0.5))
     check("theft: the trip runs its full length, the share taken is gone",
           abs(lost["time_h"] - (t_h + 2000 / lam)) < 1e-9 and lost["lost_theft"] > 0
-          and abs(lost["banked"] + lost["lost_theft"] - 2000) < 1e-6, lost)
+          and abs(lost["stored"] + lost["lost_theft"] - 2000) < 1e-6, lost)
     check("gear at risk lowers Q*", lo.best_q(lam, t_h, hz(0.05), 300.0) < calm)
 
     spots = [spot("calm", hazard=0.05), spot("pk", 2000, 2000, hazard=3.0)]
@@ -306,7 +325,7 @@ def test_gear_and_capacity():
 
 
 def test_eligibility():
-    print("== when a spot can't be picked: cooldown after a death or PK, dry, status, Young ==")
+    print("== when a spot can't be picked: cooldown after a death or PK, dry, status, no landing ==")
     spots = [spot("a"), spot("b", 3000, 3000)]
     aborted = trip("a", NOW - 600, 100, 400, outcome="aborted", why="threat: red X")
     eps = series("a", 5, 1500) + series("b", 5, 1000) + [aborted]
@@ -333,11 +352,12 @@ def test_eligibility():
           not row(plan(spots, dry, regrow=regrow(45)), "a")["eligible"]
           and row(plan(spots, dry, regrow=regrow(45), now=NOW + 3000), "a")["eligible"])
     st = [spot("a"), spot("c", 3000, 3000, status="candidate"), spot("d", 5000, 5000, status="disabled"),
-          spot("y", 7000, 7000, requires_young=True)]
-    out = plan(st, series("a", 3, 1000))
-    check("candidate and disabled spots aren't picked; a Young-only spot only for a Young character",
-          not row(out, "c")["eligible"] and not row(out, "d")["eligible"] and not row(out, "y")["eligible"]
-          and row(plan(st, [], young=True), "y")["eligible"])
+          spot("n", 7000, 7000)]
+    out = plan(st, series("a", 3, 1000), landings={"a": landing(st[0])})
+    check("candidate and disabled spots aren't picked; nor an active one no landing rune reaches",
+          not row(out, "c")["eligible"] and not row(out, "d")["eligible"] and not row(out, "n")["eligible"]
+          and "no landing rune" in row(out, "n")["why_not"] and out["pick"]["spot"] == "a"
+          and out["pick"]["landing"]["name"] == "a rune", (row(out, "n"), out["pick"]))
     thief = {"t": NOW - 300, "kind": "thief", "data": {"spot": "a", "trigger": "pouch_pop", "action": "recall"}}
     step = {"t": NOW - 300, "kind": "thief", "data": {"spot": "a", "trigger": "near", "action": "keep_away"}}
     base = series("a", 5, 1500) + series("b", 5, 1000)
@@ -409,41 +429,28 @@ def test_spots_store():
     mem.lumber_spot_put("auto_x", "candidate", spot("auto_x"), "discover")
     spots = lo.load_spots(mem)
     check("a store row disables a seed and keeps the seed's definition",
-          spots["corpse_creek"]["status"] == "disabled" and spots["corpse_creek"]["banker"]["name"].startswith("Zakia")
+          spots["corpse_creek"]["status"] == "disabled" and spots["corpse_creek"]["area"]["radius"] == 45
           and spots["corpse_creek"]["reason"])
     check("a store-only spot appears with its status", spots["auto_x"]["status"] == "candidate")
-    know = {"venue": "shelter_island", "harvest": {"trees": [{"x": 1}], "area": None}, "npcs": {"banker": {}},
-            "captcha": {"gump_id": "0x1"}}
+    check("no seed carries a bank, travel or Young field; Shelter Island is no spot (no harvesting for non-Young)",
+          "shelter_island" not in spots and not any(k in s for s in lo.load_seeds().values()
+                                                    for k in ("banker", "travel", "travel_min", "requires_young",
+                                                              "access", "home")))
+    know = {"venue": "shelter_island", "harvest": {"trees": [{"x": 1}], "area": None},
+            "npcs": {"banker": {"pos": [1, 2, 3]}, "innkeeper": {}}, "captcha": {"gump_id": "0x1"}}
     k = lo.spot_knowledge(know, spots["terran_wilds"])
-    check("the runner's knowledge: the spot's banker, area, no seed trees, pvp; the demo's venue gone",
-          k["npcs"]["banker"]["pos"] == [726, 1508, 0] and k["harvest"]["area"]["radius"] == 30
-          and k["harvest"]["trees"] == [] and k["pvp"] is True and "venue" not in k and k["captcha"])
-    check("Shelter is no-PvP", lo.spot_knowledge(know, spots["shelter_island"])["pvp"] is False)
-    check("the spot we stand at: in its area or by its bank",
-          lo.current_spot(spots, (880, 1490), 0) == "terran_wilds"
-          and lo.current_spot(spots, (730, 1510), 0) == "terran_wilds"
-          and lo.current_spot(spots, (100, 100), 0) is None)
+    check("the runner's knowledge: the spot's area, no seed trees, pvp; no banker, the demo's venue gone",
+          "banker" not in k["npcs"] and "innkeeper" in k["npcs"] and k["harvest"]["area"]["radius"] == 30
+          and k["harvest"]["trees"] == [] and k["pvp"] is True and "venue" not in k and k["captcha"]
+          and k["spot"] == {"id": "terran_wilds", "name": spots["terran_wilds"]["name"], "facet": 0, "pvp": True})
+    check("a spot needs only an area", lo.check_spot(spot("z")) is None)
+    try:
+        lo.check_spot({"id": "q", "area": {"center": [1]}})
+        refused = False
+    except ValueError as e:
+        refused = "area needs center" in str(e)
+    check("... and is refused without one", refused)
     mem.close()
-
-
-def test_discover():
-    print("== discover: tree-dense areas near banks, never in town or on a known spot ==")
-    trees = [(x, y, 0, 0x0CE0) for x in range(1060, 1080, 2) for y in range(990, 1010, 2)]     # 100 east
-    trees += [(x, y, 0, 0x0CE0) for x in range(940, 950, 3) for y in range(995, 1005, 3)]     # 16 west
-    fn = lambda x0, y0, x1, y1: [t for t in trees if x0 <= t[0] <= x1 and y0 <= t[1] <= y1]  # noqa: E731
-    banks = [("Town", (1000, 1000), 0)]
-    found = lo.discover(fn, lambda x, y: 5, banks, set(), {}, min_trees=25, per_bank=3)
-    check("the dense grove east of the bank is proposed; the sparse one isn't",
-          len(found) >= 1 and all(c["area"]["center"][0] > 1040 for c in found)
-          and found[0]["banker"]["pos"] == [1000, 1000, 5] and found[0]["tree_count"] >= 25, found)
-    check("candidates don't overlap each other", all(
-        lo.cheb(a["area"]["center"], b["area"]["center"]) > a["area"]["radius"] + b["area"]["radius"]
-        for i, a in enumerate(found) for b in found[i + 1:]))
-    guarded = lo.discover(fn, lambda x, y: 5, banks, {(1070, 1000)}, {}, min_trees=25)
-    check("not next to a known guard point (town: no harvesting)",
-          all(lo.cheb(c["area"]["center"], (1070, 1000)) > c["area"]["radius"] + 4 for c in guarded), guarded)
-    known = {"s": spot("s", 1070, 1000)}
-    check("not on a spot we already have", lo.discover(fn, lambda x, y: 5, banks, set(), known, min_trees=25) == [])
 
 
 def test_failed_places():
@@ -466,38 +473,126 @@ def test_failed_places():
     check("trips stopped by a monster aren't the place's fault", row(plan(spots, other), "bad")["eligible"])
 
 
-def test_travel_and_hub():
-    print("== travel: learned from moves between spots; nothing to travel from a rune library ==")
-    w = spot("w", 4000, 1000, access={"method": "witcher", "rune": "286", "library": "cambria"},
-             home={"method": "recall"}, travel_min=10)
-    a, b = spot("a", travel_min=10), spot("b", 2000, 2000, travel_min=10)
-    eps = [trip("a", NOW - 7200, 300, 900), trip("b", NOW - 7200 + 20 * 60 + 1035, 300, 900)]   # b lasts 1035 s
-    out = plan([a, b, w], eps, here="a")
-    check("one move a -> b took 20 min: b's travel is (prior 10 + 20) / 2",
-          row(out, "b")["travel_min"] == 15 and row(out, "b")["travel_samples"] == 1, row(out, "b"))
-    hub = plan([a, b, w], [], here="hub:cambria")
-    check("at the library hub a Witcher spot is at hand (no travel), others aren't",
-          row(hub, "w")["travel_min"] == 0 and row(hub, "a")["travel_min"] == 10)
-    check("standing at the Cambria library is the hub", lo.current_spot({}, (1706, 3181), 0) == "hub:cambria")
-    wb = {**w, "banker": {"pos": [1750, 3003, 0]}}
-    check("at a Witcher spot's home bank: the hub, not that spot (its area is ~2,200 tiles away)",
-          lo.current_spot({"w": wb, "w2": {**wb, "id": "w2"}}, (1752, 3001), 0) == "hub:cambria")
-    check("inside a Witcher spot's area: that spot", lo.current_spot({"w": wb}, (4000, 1000), 0) == "w")
-    check("a Witcher spot's overhead prior holds the 60 s lockout and two recalls",
-          lo.overhead_prior_s({**w, "banker": {"pos": [1750, 3003, 0]}}) > lo.OVERHEAD_FIXED_S + 60 + 8)
-    dtf = plan([a, b, w], [], here="hub:dtf")
-    check("at the DTF guild library, which holds rune 286 too, the Cambria-listed spot is at hand as well",
-          row(dtf, "w")["travel_min"] == 0 and row(dtf, "a")["travel_min"] == 10)
-    check("standing in the DTF guild house library is its hub", lo.current_spot({}, (4152, 1429), 0) == "hub:dtf")
+def test_landings():
+    print("== the way out: the landing rune nearest the grove (home library, own books), a route in, no bad places ==")
+    import home as homes
+    import places
+    s = spot("g", 3000, 3000)
+    book = {"serial": "0x49865F8F", "kind": "runebook", "title": "Dan's book", "default": 0,
+            "runes": [{"i": 0, "name": "DTF Loot Chest", "x": 4134, "y": 1429, "facet": 0},
+                      {"i": 1, "name": "Orc Fort 9", "x": 3000, "y": 3000, "facet": 0},
+                      {"i": 2, "name": "Grove A", "x": 3001, "y": 3000, "facet": 0},
+                      {"i": 3, "name": "Grove B", "x": 3003, "y": 3000, "facet": 0}]}
+    bad = {"serial": "0x1", "kind": "runetome", "title": "Bad Places", "runes": [{"i": 0, "name": "Glade", "x": 3000,
+                                                                               "y": 3002}]}
+    books = [book, bad]
+    got = lo.landing_for(s, HOME, books)
+    check("the nearest landing wins; a monster-named rune and a 'Bad Places' book are skipped",
+          got is not None and got["name"] == "Grove A" and got["source"] == "book" and got["dist"] == 1, got)
+    asked = []
+
+    def no_a(row, sp):
+        asked.append(row["name"])
+        return row["name"] != "Grove A"
+    nxt = lo.landing_for(s, HOME, books, no_a)
+    check("no walking route from it: the next nearest", nxt["name"] == "Grove B" and asked == ["Grove A", "Grove B"],
+          (nxt, asked))
+    lib = lo.landing_for(s, HOME, books, lambda row, sp: row["source"] == "library")
+    check("no own rune with a route: the home library's nearest (DTF)", lib["source"] == "library"
+          and lib["library"] == "dtf" and lib["dist"] > 3, lib)
+    check("nothing reachable: None", lo.landing_for(s, HOME, books, lambda row, sp: False) is None)
+    check("the home in harness/data/homes.json is this one; it recalls out from its own library only",
+          homes.for_character("outland dan") == HOME and homes.libraries(HOME) == ["dtf"])
+
+    # overhead prior: every trip from home
+    lib_row = {**lib, "x": 3001, "y": 3000, "dist": 1, "route_tiles": None}
+    by_book, by_lib = lo.overhead_prior_s(s, got, HOME), lo.overhead_prior_s(s, lib_row, HOME)
+    stand = places.library("dtf")["stand"]
+    check("a library rune costs the walk from the home landing to the library's stand (DTF: 18 tiles); "
+          "an own book's is recalled on the spot",
+          lo.library_walk(lib_row, HOME) == lo.cheb(HOME["landing"], stand) == 18
+          and lo.library_walk(got, HOME) == 0 and abs(by_lib - by_book - 18 * lo.SEC_PER_TILE) < 1e-9,
+          (by_book, by_lib))
+    fixed = (lo.ROOM_EXIT_S + 2 * lo.RECALL_TRIP_S + lo.LOCKOUT_S + lo.ROOM_ENTER_S + lo.OVERHEAD_FIXED_S)
+    check("the prior: room exit, two recalls, the lockout, into the room, convert and store, plus the walk into "
+          "the grove (to the area's inner half, or the planned route when known)",
+          abs(by_book - fixed) < 1e-9
+          and abs(lo.overhead_prior_s(s, {**got, "route_tiles": 40}, HOME) - fixed - 40 * lo.SEC_PER_TILE) < 1e-9
+          and abs(lo.overhead_prior_s(s, {**got, "x": 3100}, HOME) - fixed - 90 * lo.SEC_PER_TILE) < 1e-9,
+          by_book)
+
+    # the route check: cached answers, planning budget per spot, too far without planning
+    planned = []
+
+    def route_fn(start, center, radius):
+        planned.append(start)
+        return None if start == (3001, 3000) else 7
+    routes = {lo.route_key({"x": 3003, "y": 3000}, s): 9}
+    new = {}
+    ok = lo.make_route_ok(route_fn, routes, new, tries=1)
+    first = lo.landing_for(s, HOME, books, ok)
+    check("unknown route planned (no route from Grove A), a cached one answers without planning (Grove B)",
+          first["name"] == "Grove B" and planned == [(3001, 3000)]
+          and new == {lo.route_key({"x": 3001, "y": 3000}, s): None}, (first, planned, new))
+    far = spot("f", 3000, 3400)
+    check("past the spot's planning budget, unknown landings fail unplanned; a landing beyond MAX_RUNE_ROUTE of "
+          "the area's edge fails without planning",
+          not ok({"x": 3010, "y": 3000}, s) and not ok({"x": 3000, "y": 3000 - lo.MAX_RUNE_ROUTE - 21}, far)
+          and planned == [(3001, 3000)])
+    check("no planner (the dashboard): cached answers hold, an unknown landing is taken unchecked",
+          lo.make_route_ok(None, {lo.route_key({"x": 3001, "y": 3000}, s): None}, {})({"x": 3001, "y": 3000}, s)
+          is False and lo.make_route_ok(None, {}, {})({"x": 3001, "y": 3000}, s) is True)
+    db = os.path.join(tempfile.mkdtemp(), "h.db")
+    mem = Memory(db)
+    lo.save_landing_routes(mem, new)
+    lo.save_landing_routes(mem, {"0:1,1>2,2,3": 5})
+    check("routes are cached in the memory store, merged", lo.landing_routes(mem) == {**new, "0:1,1>2,2,3": 5},
+          lo.landing_routes(mem))
+    mem.close()
+
+
+def test_home_and_trips():
+    print("== trips start and end at home: stored trips teach the overhead; no home, no plan ==")
+    tr = trip("a", NOW - 3600, 300, 900, walk_out=100.0, to_room=25.0, convert=12.0, store=6.0)
+    tr["lockout_s"] = 30.0
+    o = lo.trip_obs(tr)
+    check("a stored trip's overhead: walk out + lockout + into the room + convert + store",
+          o["outcome"] == "stored" and o["overhead_s"] == 100 + 30 + 25 + 12 + 6 and o["field_s"] == 900 - 30, o)
+    old = lo.trip_obs(trip("a", NOW - 7200, 300, 900, outcome="banked", walk_out=80.0, to_bank=50.0))
+    check("a bank-era row still counts, with its to_bank form", old["overhead_s"] == 80 + 10 + 50 + 5, old)
+    out = plan([spot("a")], [trip("a", NOW - 7200, 300, 900, outcome="banked"), trip("a", NOW - 3600, 300, 900)])
+    check("the planner learns from both", row(out, "a")["trips"] == 2 and out["ok"], row(out, "a"))
+    check("the pick names its landing and the logs it expects in the chest; no travel",
+          out["pick"]["landing"]["name"] == "a rune" and out["pick"]["expected_stored_trip"] > 0
+          and "travel" not in out["pick"] and "expected_banked_trip" not in out["pick"]
+          and out["home"]["library"] == "dtf", out["pick"])
+    lost = plan([spot("a")], series("a", 3, 1000), home=None, landings=None, who="Hackworth")
+    check("no home for the character: ok false, a clear error, no pick, the spots still ranked",
+          not lost["ok"] and lost["error"] == "no home in harness/data/homes.json for Hackworth"
+          and lost["pick"] is None and row(lost, "a")["rate_logs_h"] > 0, lost.get("error"))
+    db = os.path.join(tempfile.mkdtemp(), "h.db")
+    mem = Memory(db)
+    none = lo.plan_from_store(mem, None, None, None, None, seed=1, now=NOW, route_check=False)
+    check("no proxy and no trip row naming the character: the same error",
+          not none["ok"] and none["error"].startswith("no home in harness/data/homes.json for")
+          and none["home"] is None, none.get("error"))
+    import jobs
+    mem.episode("lumber", {**trip("terran_wilds", NOW - 3600, 300, 900),
+                           "character": {"serial": "0x00000001", "name": "Outland Dan"}})
+    dash = jobs.lumber_plan(mem, NOW)
+    active = [r for r in dash["spots"] if r["status"] == "active"]
+    check("the newest trip row names the character: its home, a landing from the DTF library for every seed spot "
+          "(the dashboard plans no routes), a pick that names its landing",
+          dash["ok"] and dash["home"]["character"] == "Outland Dan" and dash["home"]["at_home"] is None
+          and active and all(r["landing"] and r["landing"]["library"] == "dtf" and r["reach"] for r in active)
+          and dash["pick"]["landing"] == next(r["landing"] for r in active if r["id"] == dash["pick"]["spot"])
+          and lo.landing_routes(mem) == {}, (dash.get("error"), [(r["id"], r["reach"]) for r in active]))
+    mem.close()
 
 
 def test_libraries():
     print("== rune libraries: which library and tome a rune is recalled from, and where it lands ==")
     import places
-    check("a Witcher spot is reached from the library nearest us: the guild house from the east, Cambria from the south",
-          places.library_for("286", (4100, 1400), 0, prefer="cambria") == "dtf"
-          and places.library_for("286", (1750, 3003), 0, prefer="cambria") == "cambria")
-    check("no position: the spot's own library", places.library_for("286", None, 0, prefer="cambria") == "cambria")
     d, c = places.library_rune("dtf", "286"), places.library_rune("cambria", "286")
     check("each library's rune 286 lands where its own rune was marked (DTF read off the tome, Cambria = dig tile)",
           (d["x"], d["y"]) == (1768, 2003) and d["name"] == "286" and (c["x"], c["y"]) == (1765, 2007)
@@ -528,13 +623,13 @@ def test_discover_witcher():
              for dy in range(-8, 9, 2)]                     # 81 trees just south of runes 1-4, none at 5
     fn = lambda x0, y0, x1, y1: [t for t in trees if x0 <= t[0] <= x1 and y0 <= t[1] <= y1]  # noqa: E731
     route = lambda start, c, r: None if start == (4000, 1000) else 12                     # noqa: E731
-    home = {"serial": "0x0", "name": "home bank", "pos": [1, 2, 0]}
-    found, skipped = lo.discover_witcher(fn, runes, {}, home, route_fn=route, towns=[(3000, 1030)])
+    found, skipped = lo.discover_witcher(fn, runes, {}, route_fn=route, towns=[(3000, 1030)])
     check("only the quiet grove", [s["id"] for s in found] == ["witcher_1"], [s["id"] for s in found])
     s = found[0] if found else {}
-    check("reached by its library rune, home by our book's default rune, banked at the home bank",
-          s.get("access") == {"method": "witcher", "rune": "1", "library": "cambria"}
-          and s.get("home") == {"method": "recall"} and s.get("banker") == home
+    check("an area like any spot (no bank, access or travel: trips reach it from home), with the route in "
+          "from its rune",
+          not any(k in s for k in ("banker", "access", "home", "travel", "travel_min", "requires_young"))
+          and s.get("route_tiles") == 12 and s.get("pvp") is True
           and s.get("tree_count", 0) >= 60 and abs(s["area"]["center"][1] - 1010) <= 7, s)
     check("the others left out for the right reasons",
           skipped == {"monster name": 1, "in or by a town (no harvesting there)": 1,
@@ -554,7 +649,7 @@ def test_discover_witcher():
     big = [(6150 + dx, 1010 + dy, 0, 0x0CE0) for dx in range(-8, 9, 2) for dy in range(-8, 9, 2)]   # 81
     small = [(5900 + dx, 1000 + dy, 0, 0x0CE0) for dx in range(-5, 7, 2) for dy in range(-5, 7, 2)]  # 36
     fn2 = lambda x0, y0, x1, y1: [t for t in big + small if x0 <= t[0] <= x1 and y0 <= t[1] <= y1]  # noqa: E731
-    found2, skipped2 = lo.discover_witcher(fn2, far, {}, home, route_fn=lambda s, c, r: lo.cheb(s, c))
+    found2, skipped2 = lo.discover_witcher(fn2, far, {}, route_fn=lambda s, c, r: lo.cheb(s, c))
     got = {s["id"]: (s["tree_count"], s["area"]["center"]) for s in found2}
     check("the 81-tree grove 110 tiles from rune 11 (150 from rune 10) goes to rune 11",
           got.get("witcher_11", (0,))[0] == 81 and lo.cheb(got["witcher_11"][1], (6150, 1010)) <= 7, got)
@@ -564,11 +659,11 @@ def test_discover_witcher():
           "witcher_12" not in got and skipped2 == {"its groves are taken (a spot or a nearer/denser candidate)": 1},
           skipped2)
     s11 = next(s for s in found2 if s["id"] == "witcher_11")
-    check("its overhead prior includes the walk from the rune into the grove",
+    check("with no landing known yet, its overhead prior walks the route from the rune into the grove",
           abs(lo.overhead_prior_s(s11) - lo.overhead_prior_s({**s11, "route_tiles": 0})
               - s11["route_tiles"] * lo.SEC_PER_TILE) < 1e-6 and s11["route_tiles"] >= 100, s11)
     check("a rune that already has a spot is left alone",
-          lo.discover_witcher(fn2, far[1:2], {"witcher_11": spot("witcher_11", 1, 1)}, home)
+          lo.discover_witcher(fn2, far[1:2], {"witcher_11": spot("witcher_11", 1, 1)})
           == ([], {"already a spot": 1}))
 
 
@@ -601,7 +696,7 @@ def test_travel_costs():
 if __name__ == "__main__":
     for fn in (test_explore_exploit, test_skill_rescaling, test_trip_size, test_hazard_evidence,
                test_gear_and_capacity, test_eligibility, test_regrowth, test_hatchets, test_spots_store,
-               test_discover, test_failed_places, test_travel_and_hub, test_libraries, test_discover_witcher,
+               test_failed_places, test_landings, test_home_and_trips, test_libraries, test_discover_witcher,
                test_travel_costs, test_capacity):
         fn()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))

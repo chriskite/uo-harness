@@ -1,22 +1,6 @@
 {
-  "_doc": "Seed lumber spots for the self-optimizing lumber job (harness/lumber_opt.py, docs/LUMBER_LOOP.md §6). A spot = a tree area plus the bank its trips end at. The runner takes one with --spot ID (loop_lumber.py merges it over the common knowledge in loops/lumber.json). Statistics never live here: they come from the memory store (episodes, job_events, events). The overseer adds spots and `ctl lumber discover` proposes candidates in the store's lumber_spots table, which also overrides a seed's status. Ids equal the `venue` of the trip rows written before spots existed, so those rows count for their spot. hazard_prior = prior mean of hostile-player sightings per field hour [INFERENCE: a judgement per area type, replaced by data as trips accumulate]. travel_min = rough minutes to get there from another town (moongate + walk) [INFERENCE].",
+  "_doc": "Seed lumber spots for the self-optimizing lumber job (harness/lumber_opt.py, docs/LUMBER_LOOP.md §6). A spot = a tree area; nothing else about getting there: every trip starts and ends at the character's home (harness/data/homes.json, user decision 2026-10-04), goes out by recalling to the landing rune nearest the area (lumber_opt.landing_for: the rune libraries the character may use and its own books) and comes home on its own book's default rune, where the boards go into the rental room's chest. No bank anywhere. The runner takes one with --spot ID (loop_lumber.py merges it over the common knowledge in loops/lumber.json). Statistics never live here: they come from the memory store (episodes, job_events, events). The overseer adds spots and `ctl lumber discover` proposes candidates in the store's lumber_spots table, which also overrides a seed's status. Ids equal the `venue` of the trip rows written before spots existed, so those rows count for their spot. hazard_prior = prior mean of hostile-player sightings per field hour [INFERENCE: a judgement per area type, replaced by data as trips accumulate]. Shelter Island is no spot: a non-Young character can't harvest there (Codex #4086, live 2026-10-04) and a Young one can't recall off it.",
   "spots": [
-    {
-      "id": "shelter_island",
-      "name": "Shelter Island (Young only)",
-      "facet": 0,
-      "area": {"center": [1935, 2605], "radius": 60,
-               "note": "Young may harvest in town on Shelter; harvest chance there is 50 % of normal and skills cap at 80 (wiki Shelter Island)."},
-      "trees": [{"x": 1898, "y": 2622, "z": 10, "graphic": "0x0CE0", "stand": [1898, 2621]},
-                {"x": 1984, "y": 2602, "z": 0, "graphic": "0x0CE0"}],
-      "banker": {"serial": "0x000001EA", "name": "Len the banker", "pos": [1953, 2581, 20]},
-      "pvp": false,
-      "requires_young": true,
-      "hazard_prior": 0.0,
-      "travel": "Shelter Island moongate; the bank and its banker serve Young characters only",
-      "travel_min": 10,
-      "source": "demonstration 20260929_204225 (loops/lumber.json)"
-    },
     {
       "id": "horseshoe_bay",
       "name": "Horseshoe Bay, south-east of town",
@@ -24,12 +8,9 @@
       "area": {"center": [2108, 2258], "radius": 22,
                "note": "Outside the south-east guard edge (harvesting is blocked in town). A skeleton roams around (2109,2209)."},
       "trees": [],
-      "banker": {"serial": "0x00000AD8", "name": "Sun the banker", "pos": [2008, 2220, 35]},
       "pvp": true,
       "hazard_prior": 0.3,
-      "travel": "Horseshoe Bay moongate (home town, policy.json)",
-      "travel_min": 8,
-      "source": "live 2026-10-02 (banker); knowledge #49, 2026-09-30 (tree area); was loops/lumber_hsb.json"
+      "source": "knowledge #49, 2026-09-30 (tree area); was loops/lumber_hsb.json"
     },
     {
       "id": "corpse_creek",
@@ -38,11 +19,8 @@
       "area": {"center": [920, 780], "radius": 45,
                "note": "Lawless: everyone reads grey, so a red can't be told by notoriety and any grey player within 18 tiles stops the runner (docs/NOTES.md 'PK death in the Terran wilds'). The first area (960,822 r25) ran dry after ~240 logs."},
       "trees": [],
-      "banker": {"serial": "0x00000E02", "name": "Zakia the banker", "pos": [864, 699, 11]},
       "pvp": true,
       "hazard_prior": 1.0,
-      "travel": "Corpse Creek moongate, arrival (954,822,16)",
-      "travel_min": 8,
       "source": "live 2026-10-02 (user chat#1218); was loops/lumber_cc.json"
     },
     {
@@ -50,13 +28,10 @@
       "name": "Terran wilds, north-east of the pass road",
       "facet": 0,
       "area": {"center": [880, 1480], "radius": 30,
-               "note": "115 tree statics x850-910 y1450-1510. A 12-radius area here ran dry in 11 min. Hackworth was killed here by a mounted red (2026-10-02 19:43, docs/NOTES.md)."},
+               "note": "115 tree statics x850-910 y1450-1510. A 12-radius area here ran dry in 11 min. Hackworth was killed here by a mounted red (2026-10-02 19:43, docs/NOTES.md). Guarded at the Terran gate (865,1570): 'You have left the protection of the town guards.' at (852,1547)."},
       "trees": [],
-      "banker": {"serial": "0x00000000", "name": "Terran banker (unknown serial: the runner walks to the bank marker)", "pos": [726, 1508, 0]},
       "pvp": true,
       "hazard_prior": 0.5,
-      "travel": "Terran moongate (865,1570,16); guarded at the gate, 'You have left the protection of the town guards.' at (852,1547)",
-      "travel_min": 10,
       "source": "live 2026-10-02 (user chat#1262); was loops/lumber_terran.json"
     }
   ]

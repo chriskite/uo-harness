@@ -1,8 +1,18 @@
 """Offline end-to-end test of the lumber loop runner (harness/loop_lumber.py).
 
-A simulated Shelter server behind the real proxy, with the packet shapes and
-texts of the demonstration capture (logs/session_20260929_204225):
+A simulated server behind the real proxy, with the packet shapes and texts of the
+demonstration capture (logs/session_20260929_204225) and of the live rental room
+(docs/NOTES.md "Rental room via the DTF house steward", 2026-10-04):
 
+- home (docs/LUMBER_LOOP.md §12.5): the character (CHAR_NAME, a test homes file) starts in its
+  rental room (facet 3, ROOM_ARRIVAL) with the secure chest 1 tile off and a door whose menu (the
+  live gump) "Exit to House Steward" puts it on the home landing (facet 0); there the house
+  steward (click label, the live context menu "Room") opens the live room menus: "Visit Other
+  Rooms", then the owner's row ("Logan Wolf (DTF)") back into the room; drops into the open chest
+  are counted (boards merge like RunUO)
+- our runebook (the captured layout, two runes): "Sim Woods" (BOOK_RUNE_POS, by the trees of the
+  main run) and the default "Home" (the home landing); the home rune library (one tome at TOME_POS,
+  rune 286 by the library trees)
 - hatchet dclick → cliloc 1010018 + cursor; the runner answers it with itself (Smart Harvest; the
   stock client's bytes, capture 20261001_214649) and the server chops the nearest tree with wood
   within SIM_RANGE, else says "You do not see any harvestable resources nearby." + "You cannot
@@ -13,16 +23,16 @@ texts of the demonstration capture (logs/session_20260929_204225):
   'nothing nearby', the second unreadable (pause + beep fallback), then fail/success results;
   the dry tree never has wood, the good one runs out after GOOD_VISIT attempts per visit
 - log stack target → "You shape the logs into boards." (1:1)
-- "bank" within 12 tiles of the banker → the bank box (layer 0x1D) opens (0x24); any step
-  closes it again (RunUO); lift + drop into the open box, merging stacks like RunUO
-- a closed town door between the trees and the bank that opens on the stock open-door
+- a closed town door between the trees and the home landing that opens on the stock open-door
   request and swings shut once the agent is past it
-- a moongate on each tile west of that door, so every route to the bank and back steps on
+- a moongate on each tile west of that door, so every walk between the trees and home steps on
   one: like Shelter's player-cast gates (session 20261001_191355) it opens the renounce-Young
   prompt before the step's confirm and never closes it; the agent must close it (button 0)
 
-The "human" answers the unreadable (fallback) captcha through the client connection. Two trips run.
-The banker comes into view within 18 tiles and leaves it beyond 24 (the world model prunes him).
+The main run: two trips, each out of the room, by the runebook's "Sim Woods" rune to the trees,
+home on foot (the trees lie within home.NEAR_LANDING of the landing) through the door, into the
+room, convert, store in the chest. The "human" answers the unreadable (fallback) captcha through
+the client connection. The steward comes into view within 18 tiles and leaves it beyond 24.
 
 More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
 - skirmish: the hatchet in a bag in the pack; 'a great hart' in war mode 4 tiles from the tree
@@ -30,17 +40,18 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
   it escape and harvest the next tree out of reach; the same creature then hunts it down there
   (escape, kept coming: stop at once, the logs stay logs)
 - break: the agent gate (pre-written budget file) announces a break mid-harvest; the trip ends
-  at the bank with the carried and new logs banked as boards, exit 0
-- library: recall out from a public tome, recall home with our runebook, bank; twice
+  in the room with the carried and new logs stored as boards, exit 0
+- library: out by the home library's tome (the landing nearest the grove), home with our runebook's
+  default rune, into the room, store; twice
 - tracking reds: the library trip with the Tracking gump, buff and arrows as captured; Hunting
   murderers before going out, back on after the recall out stops it, a far red logged, a near one
   recalled from
 - gazer_run / gazer_rehit (LUMBER_LOOP.md §13 "Running from a creature"): at the library spot a gazer
-  casts from 10 tiles; the runner walks out of its 12-tile reach and chops on (banks), or, when it
+  casts from 10 tiles; the runner walks out of its 12-tile reach and chops on (stores), or, when it
   outranges the walk-away and hits again, recalls home without converting
 - gazer_reflect: the same gazer's first spell is taken by Magic Reflection (the server's "Magic reflect
   removed." and the 0xC0 0x37B9 on us, no hits lost; live 2026-10-03 witcher_280): the runner runs at
-  that spell, before any damage, and banks
+  that spell, before any damage, and stores
 - wary: a war-mode creature by the nearest tree: the farther tree first, the near one once it has gone
 - red_aim (§13 "Blind waits"): at the library spot a red comes into view during the chop's human aim pause
   (--human normal): the cursor is cancelled and the recall home pressed within REACT_MAX_S of sight, no chop target
@@ -54,7 +65,11 @@ and unit_capture_smart_harvest: the runner's self-target 0x6C byte-equal to the 
 20261001_214649 (23:20 and 23:47), and its 'nothing nearby' answer mapped by outcome().
 Named scenarios run alone: `python test_loop_lumber.py gazer_run wary`.
 
-Run: python test_loop_lumber.py   (~2-3 min; private ports; safe while the live proxy runs)
+Run: python test_loop_lumber.py   (~2 min; private ports; safe while the live proxy runs). Two or
+more scenarios run as parallel child processes (`python test_loop_lumber.py <name>` each, at most
+LOOP_TEST_JOBS = 8 at a time; LOOP_TEST_JOBS=1 runs them in this process one after another): each
+already has its own ports and temp dir. Serially the suite took ~10 min (2026-10-04); main (two
+trips, the human profile, the town wall learned from walk denials) is the critical path at ~2 min.
 """
 import asyncio
 import datetime
@@ -71,6 +86,7 @@ PY = sys.executable
 sys.path.insert(0, f"{ROOT}/harness")
 
 import actions  # noqa: E402
+import escape  # noqa: E402
 import memory  # noqa: E402
 import nav  # noqa: E402
 from uo.packets import packet_length, C2S_OVERRIDES  # noqa: E402
@@ -83,12 +99,22 @@ LOGDIR = f"{ROOT}/logs_test_loop"
 C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
 SELF, BACKPACK, HATCHET = 0x00094375, 0x44ADA059, 0x44ADB57A
-BANKBOX, BANKER = 0x40000B0B, 0x000001EA
-START = (100, 200)
+START = (100, 200)                                       # the main run's trees around it; BOOK_RUNE_POS lands here
 GOOD_TREE = {"x": 111, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [110, 200]}
 DRY_TREE = {"x": 105, "y": 194, "z": 0, "graphic": "0x0CE0", "stand": [105, 195]}
-BANK_POS = (127, 200)                                    # where the banker actually stands: past the town door
-BANK_KNOWN = (107, 200)     # knowledge from an older demo: 20 tiles off (NPCs move; speech range 12)
+# home (docs/LUMBER_LOOP.md §12.5; harness/home.py): the landing past the town door, the house steward by it,
+# the rental room on facet 3 (live values: Outland Dan's DTF guild house and Logan Wolf's room, 2026-10-04)
+CHAR_NAME = "Testwood"                                   # the test homes file's key (the world model's self name)
+HOME_RUNE_POS = (125, 205)                                # our runebook's default rune "Home": the home landing
+STEWARD, STEWARD_POS = 0x009F57FB, (129, 205)             # Chase the house steward (live serial), 4 tiles from it
+STEWARD_LABEL = "Chase the house steward"
+STEWARD_POPUP = bytes.fromhex("bf001c00140002009f57fb02002ddeab000000000010b77d00010000")  # live 162411: 1 "Room"
+ROOM_FACET, ROOM_ARRIVAL = 3, (403, 923)
+ROOM_DOOR, ROOM_DOOR_POS = 0x5CDC6B4F, (403, 929)          # the room's wooden door (live serial and tile)
+CHEST, CHEST_POS = 0x4AE0DD2C, (404, 922)                 # the secure paragon chest, 1 tile from the arrival
+BOOK_RUNE_POS = START                                     # our runebook's rune "Sim Woods"
+with open(f"{ROOT}/harness/testdata/room_gumps.json", encoding="utf-8") as _f:
+    ROOM_GUMPS = json.load(_f)                             # the live room menus (steward, visit list, door)
 DOOR = (122, 200)                                        # a closed town door
 WALLS = {(122, y) for y in range(180, 236)} - {DOOR}     # long enough that going round costs more than the door
 GATES = {(121, y) for y in (199, 200, 201)}              # every route through the door crosses one
@@ -122,14 +148,13 @@ FIGHTER_POS, OTHER_POS = (113, 204), (114, 204)          # 4 tiles from the good
 ATTACKER_POS = (107, 200)                                 # 3 tiles west of the good tree's stand
 # break scenario
 INITIAL_LOGS = 5                                          # logs carried from an earlier trip
-BREAK_AFTER_S = 4.0                                       # agent-active seconds left before the break is due
-# library scenario (docs/research/WORLD_LOCATIONS.md): a Witcher-style spot reached by recalling from a
-# public library tome, banked after recalling home with our runebook's default rune
+BREAK_AFTER_S = 10.0                                      # agent-active seconds left before the break is due
+# library scenario (docs/research/WORLD_LOCATIONS.md): a Witcher-style spot reached from the home rune
+# library's tome (the landing nearest the grove), home by our runebook's default rune
 TOME, RUNEBOOK = 0x546ACD06, 0x44ADB00C
-LIB_START, TOME_POS = (132, 212), (133, 212)              # the library is in town, by the bank: no door between
+LIB_START, TOME_POS = (132, 212), (133, 212)              # the home library, 7 tiles from the landing: no door between
 RUNE_POS = (40, 250)                                      # where the tome's rune "286" puts us
 LIB_TREE = {"x": 40, "y": 253, "z": 0, "graphic": "0x0CE0", "stand": [40, 252]}
-HOME_RUNE_POS = (125, 205)                                # our runebook's default rune: by the bank, past the door
 with open(f"{ROOT}/harness/testdata/escape_gumps.json", encoding="utf-8") as _f:
     _G = json.load(_f)
 TOME_GUMP, BOOK_GUMP = _G["runetome_main_witcher_276"], _G["runebook_charges"]   # captured layouts
@@ -146,7 +171,7 @@ RED_FAR, RED_NEAR = 100, 55                               # tiles from us at the
 # creature runs (LUMBER_LOOP.md §13 "Running from a creature"): a gazer (body 22, ranged) casts at us from 10
 # tiles at the library spot; a war-mode creature stands by the nearest tree on Shelter
 GAZER, GAZER_BODY, GAZER_DMG, GAZER_CAST_S = 0x0000CA5E, 22, 10, 2.5
-# south of the gazer's zone (20 tiles from it) and > HOME_NEAR (60) from the banker's known spot: home is a recall
+# south of the gazer's zone (20 tiles from it) and > home.NEAR_LANDING (60) from the home landing: home is a recall
 LIB_FAR_TREE = {"x": 46, "y": 272, "z": 0, "graphic": "0x0CE0", "stand": [46, 271]}
 WARY, WARY_POS = 0x0000BA76, (113, 201)                    # 2 tiles from the good tree, 13 from the start
 WEST_TREE = {"x": 86, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [87, 200]}      # 13 steps west; good: 10
@@ -174,17 +199,47 @@ def var(pid, body):
     return bytes([pid]) + u16(3 + len(body)) + body
 
 
-def login_pkt():
-    body = u32(SELF) + bytes(4) + u32(0x190) + u32(START[0]) + u32(START[1]) + u32(0) + bytes([0x80])
+def login_pkt(pos):
+    body = u32(SELF) + bytes(4) + u32(0x190) + u32(pos[0]) + u32(pos[1]) + u32(0) + bytes([0x80])
     return b"\x1b" + body + bytes(42 - len(body))
+
+
+def map_change(facet):
+    """0xBF sub 8 as live (bf0006000800 on the room exit, 20261004_162411)."""
+    return bytes.fromhex("bf00060008") + bytes([facet])
+
+
+def status_pkt(name):
+    """0x11 MobileStatus for us, the captured one (Hackworth, 20261003_213125) with our serial and name:
+    the world model's self name keys the home (harness/home.py)."""
+    pkt = bytearray(bytes.fromhex(next(h for _, h in CAP_WITCHER if h.startswith("11"))))
+    pkt[3:7] = u32(SELF)
+    pkt[7:37] = name.encode().ljust(30, b"\x00")
+    return bytes(pkt)
+
+
+def label_pkt(serial, name, text):
+    """0x1C type 6: the server's answer to a single click (the click label), as live (Chase, 162411)."""
+    return var(0x1C, u32(serial) + u16(0x190) + b"\x06" + u16(0x35) + u16(3)
+               + name.encode().ljust(30, b"\x00") + text.encode() + b"\x00")
+
+
+def book_gump():
+    """Our runebook: the captured layout and texts with two runes, entry 0 'Sim Woods' (BOOK_RUNE_POS) and
+    the default entry 1 'Home' (the home landing), their sextant lines as the server prints them."""
+    lines = list(BOOK_GUMP["lines"])
+    lines[1], lines[4] = "10", "Sim Woods"
+    lines[6:10] = [*escape.tile_to_sextant(*BOOK_RUNE_POS), *escape.tile_to_sextant(*HOME_RUNE_POS)]
+    lines.append("Home")
+    return BOOK_GUMP["layout"].replace("{ croppedtext 305 60 115 17 81 4 }", "{ croppedtext 305 60 115 17 81 10 }"), lines
 
 
 def seed_pkt(token):
     return bytes.fromhex("bf001d0001") + u32(token) + bytes(20)
 
 
-def self_at(x, y):          # 0x20 V10 for the player (teleport anchor)
-    return b"\x20" + u32(SELF) + u32(0x190) + b"\x01\x83\xea\x20" + u32(x) + u32(y) + b"\x00\x00\x00" + u32(0)
+def self_at(x, y, d):       # 0x20 V10 for the player (teleport anchor), facing d like a real server's
+    return b"\x20" + u32(SELF) + u32(0x190) + b"\x01\x83\xea\x20" + u32(x) + u32(y) + b"\x00\x00" + bytes([d]) + u32(0)
 
 
 def mobile_pkt(serial, x, y):
@@ -331,17 +386,17 @@ DECOY_LAYOUT = ("{ nomove }{ noclose }{ nodispose }{ noresize }{ page 0 }{ page 
 
 
 class World:
-    def __init__(self, scenario="bank"):
-        self.scenario = scenario          # "bank" (the main run), "skirmish", "break", "library", "tracking",
+    def __init__(self, scenario="home"):
+        self.scenario = scenario          # "home" (the main run), "skirmish", "break", "library", "tracking",
         #                                   "gazer" (a ranged creature hits once), "wary" (an aggressive creature
         #                                   by a tree), "red_aim" (a red comes into view during the aim pause),
         #                                   "thief" (a blue walks up while we chop, then follows us),
         #                                   "pouch_pop" (a hidden thief sets our trapped pouch off) or
         #                                   "staff" (a vendor next to us, then an invulnerable player in view)
-        self.scripted = scenario == "bank"  # captchas, the passer-by's speech, the pickpocket
+        self.scripted = scenario == "home"  # captchas, the passer-by's speech, the pickpocket
         self.library = scenario in ("library", "tracking", "gazer", "red_aim", "thief", "pouch_pop")
-        #                                   the rune library, our runebook, a pvp spot
-        self.pos = list(LIB_START) if self.library else list(START)
+        #                                   the library spot (pvp), black pearls in the pack
+        self.facet, self.pos = ROOM_FACET, list(ROOM_ARRIVAL)   # every run starts in the rental room
         self.facing = 0
         self.writer = None
         self.c2s = []
@@ -362,11 +417,19 @@ class World:
         self.stacks = {}                  # log/board stacks in the pack: serial -> [graphic, amount, container]
         self.next_stack = 0x45000001
         self.stolen = 0
-        self.bank_stack = None            # (serial, amount)
+        self.chest_stack = None           # (serial, amount): the boards in the home chest
         self.pouch_hue = {p: 38 for p in POUCHES}   # trapped pouches in the pack (hue 38 live, 0 gone off)
         self.pops = []                    # (pouch, time, 'us' | 'thief')
         self.stashed = []                 # (stack serial, amount, pouch) per drop of logs/boards into a pouch
-        self.banked_items = []            # other items dropped into the bank box (spent pouches)
+        self.chest_items = []             # other items dropped into the chest (spent pouches): (serial, hue)
+        self.chest_opens = 0              # the chest double-clicked (opened) within reach in the room
+        self.room_gumps = {}              # rental room menu serial -> which live gump (room_gumps.json key), open
+        self.room_serials = set()         # every room menu serial sent
+        self.room_presses = []            # (gump kind, button) the agent pressed on room menus
+        self.room_log = []                # ("enter" | "exit", time) of every way into and out of the room
+        self.keeper_far = 0               # the steward's menu picked from beyond 2 tiles (refused)
+        self.steward_clicks = 0           # single clicks on the steward (each answered with his label)
+        self.recalls_book = []            # recalls to our runebook's 'Sim Woods' rune
         self.thief_pos = None             # thief: where the blue stands
         self.thief_at = []                # thief: every place he stepped next to us
         self.thief_followed = False       # thief: he came back next to us at the next stand
@@ -374,10 +437,6 @@ class World:
         self.lifted = None
         self.door_open = False
         self.open_door_reqs = 0
-        self.bank_open = False
-        self.bank_opens = 0
-        self.far_bank_speech = 0          # "bank" said out of the banker's range
-        self.bank_dclicks = 0             # a dclick can't open a bank box; the stock client never sends one
         self.drops_refused = 0
         self.harvested = 0
         self.good_left = GOOD_VISIT       # chops the trees with wood give before 'nothing nearby' (per visit)
@@ -392,7 +451,7 @@ class World:
         self.chase = False                # skirmish: the attacker follows the agent step for step
         self.attacker_swings = 0
         self.far_attempts = 0             # skirmish: harvest attempts at the far tree
-        self.banker_seen = False          # the banker's 0x20 sent since he last left the client's view
+        self.steward_seen = False         # the steward's 0x20 sent since he last left the client's view
         self.book_gumps, self.tome_gumps = set(), set()   # library scenario: gumps we sent
         self.recalls_out, self.recalls_home, self.tome_far = [], [], 0
         self.tome_seen = False
@@ -415,13 +474,17 @@ class World:
         self.reflect = False              # gazer_reflect: Magic Reflection is up and takes the next spell
         self.reflected = []               # (time, our distance from it) per spell Magic Reflection took
         self.wary_left_t = None           # wary: when the creature by the near tree left view
-        self.door_seen = True             # the door and gates go out at login, then again like the banker
+        self.door_seen = False            # the door and gates go out on facet 0, then again like the steward
         self.red_due = False              # red_aim: the red is on its way (RED_AIM_S after the chop's cursor)
         self.red_t = None                 # red_aim: when the red's 0x20 went out
         self.vendor_t = None              # staff: when the vendor's 0x20 went out
         self.gm_t = None                  # staff: when the invulnerable player's 0x20 went out
 
     # ---- the pack's wood and trapped pouches ----
+    @property
+    def room_entries(self):
+        return sum(1 for k, _ in self.room_log if k == "enter")
+
     @property
     def logs(self):
         return sum(n for g, n, _ in self.stacks.values() if g == LOG_G)
@@ -485,50 +548,87 @@ class World:
         return max(abs(self.pos[0] - p[0]), abs(self.pos[1] - p[1]))
 
     def update_view(self):
-        """The banker comes into view within the server's update range (18) and leaves the
-        client's beyond its view range (24, ClassicUO MAX_VIEW_RANGE), as the proxy's world
-        model prunes it; so he is sent again on the way back."""
-        d = self.cheb(BANK_POS)
-        if d <= 18 and not self.banker_seen:
-            self.banker_seen = True
-            self.send(mobile_pkt(BANKER, *BANK_POS))
-        elif d > 24:
-            self.banker_seen = False
-        if self.library:                                 # the library tome, like any item, the same way
-            t = self.cheb(TOME_POS)
-            if t <= 18 and not self.tome_seen:
-                self.tome_seen = True
-                self.send(ground_item(TOME, 0x71AF, *TOME_POS, 0))
-            elif t > 24:
-                self.tome_seen = False
-        door = self.cheb(DOOR)                           # the town door and its gates the same way
-        if door <= 18 and not self.door_seen:
-            self.door_seen = True
-            self.send_door()
-        elif door > 24:
-            self.door_seen = False
+        """On facet 0 the steward comes into view within the server's update range (18) and leaves
+        the client's beyond its view range (24, ClassicUO MAX_VIEW_RANGE), as the proxy's world
+        model prunes it; so he is sent again on the way back. The library tome, the town door and
+        its gates the same way. A facet change prunes all of them (enter_room resets the flags)."""
+        if self.facet != 0:
+            return
+        for flag, d, pkts in (("steward_seen", self.cheb(STEWARD_POS), lambda: [mobile_pkt(STEWARD, *STEWARD_POS)]),
+                              ("tome_seen", self.cheb(TOME_POS), lambda: [ground_item(TOME, 0x71AF, *TOME_POS, 0)]),
+                              ("door_seen", self.cheb(DOOR), self.door_pkts)):
+            if d <= 18 and not getattr(self, flag):
+                setattr(self, flag, True)
+                for p in pkts():
+                    self.send(p)
+            elif d > 24:
+                setattr(self, flag, False)
 
-    def send_door(self):
-        self.send(ground_item(0x40005CE3, 0x06AD, *DOOR, 0))     # the town door (demo art)
-        for i, (gx, gy) in enumerate(sorted(GATES)):
-            self.send(ground_item(0x40006000 + i, 0x0F6C, gx, gy, 0))  # blue moongates
+    def door_pkts(self):
+        return [ground_item(0x40005CE3, 0x06AD, *DOOR, 0)] + [      # the town door (demo art), blue moongates
+            ground_item(0x40006000 + i, 0x0F6C, gx, gy, 0) for i, (gx, gy) in enumerate(sorted(GATES))]
 
     def teleport(self, x, y):
         self.pos = [x, y]
-        self.send(self_at(x, y))
+        self.send(self_at(x, y, self.facing))
         self.update_view()
 
     def recall_to(self, dest, log):
-        """Kal Ort Por, then the jump about 2.1 s later (live 2026-10-02/03). Out at the
-        library rune: a player chops nearby (crowding) and the travel lockout comes."""
+        """Kal Ort Por, then the jump about 2.1 s later (live 2026-10-02/03). Out (the library's
+        rune or our book's): the travel lockout comes; at the library rune a player chops nearby
+        (crowding)."""
         log.append(dest)
         self.send(sys_text("Kal Ort Por"))
         asyncio.get_running_loop().call_later(2.1, self.teleport, *dest)
-        if log is self.recalls_out:
+        if log is not self.recalls_home:
             self.lockout_due = True
-            self.later(2.3, [player_update(OTHER, LIB_TREE["x"] + 4, LIB_TREE["y"])])
+            if dest == RUNE_POS:
+                self.later(2.3, [player_update(OTHER, LIB_TREE["x"] + 4, LIB_TREE["y"])])
             if self.tracking and self.hunt["on"]:      # the hunt stops on landing (simulated: live ones don't)
                 asyncio.get_running_loop().call_later(2.2, self.drop_hunt)
+
+    # ---- the rental room (live 2026-10-04: docs/NOTES.md "Rental room via the DTF house steward") ----
+    def room_gump(self, kind):
+        self.room_gumps[self.next_gump()] = kind
+        self.room_serials.add(self.gump_serial)
+        g = ROOM_GUMPS[kind]
+        self.send(gump(self.gump_serial, int(g["gump_id"], 16), g["layout"], g["lines"]))
+
+    def enter_room(self):
+        """Into Logan Wolf's room: the map change to facet 3 (the world model prunes everything we
+        don't carry), our new tile, the door and the chest, the server's line."""
+        self.facet, self.pos = ROOM_FACET, list(ROOM_ARRIVAL)
+        self.steward_seen = self.tome_seen = self.door_seen = False
+        self.door_open = False
+        self.room_log.append(("enter", time.time()))
+        self.send(map_change(ROOM_FACET))
+        self.send(self_at(*ROOM_ARRIVAL, self.facing))
+        self.send_room_items()
+        self.send(sys_text("You enter the rental room."))
+
+    def send_room_items(self):
+        self.send(ground_item(ROOM_DOOR, 0x06A5, *ROOM_DOOR_POS, 1))      # "wooden door"
+        self.send(ground_item(CHEST, 0x0E40, *CHEST_POS, 2))               # the secure chest
+
+    def leave_room(self):
+        """'Exit to House Steward': back on facet 0 at the home landing (live: 4134,1429)."""
+        self.facet, self.pos = 0, list(HOME_RUNE_POS)
+        self.room_log.append(("exit", time.time()))
+        self.send(map_change(0))
+        self.send(self_at(*HOME_RUNE_POS, self.facing))
+        self.send(sys_text("You exit the rental room."))
+        self.update_view()
+        self.field_mobiles()
+
+    def field_mobiles(self):
+        """Mobiles standing in the field, sent on coming out on facet 0 (a facet change prunes them):
+        skirmish's 'great hart' in war mode fighting a player (knowledge #89), wary's war-mode creature
+        by the near tree (until it has wandered off)."""
+        if self.scenario == "skirmish":
+            self.send(creature_pkt(FIGHTER, 0xEA, *FIGHTER_POS))
+            self.send(player_update(OTHER, *OTHER_POS))
+        if self.scenario == "wary" and self.wary_left_t is None:
+            self.send(creature_pkt(WARY, 0x27, *WARY_POS))
 
     # ---- tracking (live 20261001_214649: docs/NOTES.md "Tracking") ----
     def tracking_gump(self):
@@ -722,19 +822,18 @@ class World:
                 self.send(bytes([0x22, seq, 0x01]))
                 return
             nx, ny = self.pos[0] + DD[d][0], self.pos[1] + DD[d][1]
-            blocked = (nx, ny) in WALLS or ((nx, ny) == DOOR and not self.door_open) \
-                or (nx, ny) == BANK_POS
+            blocked = self.facet == 0 and ((nx, ny) in WALLS or ((nx, ny) == DOOR and not self.door_open)
+                                           or (nx, ny) == STEWARD_POS)
             if blocked:
                 self.send(b"\x21" + bytes([seq]) + u32(self.pos[0]) + u32(self.pos[1])
                           + bytes([self.facing]) + u32(0))
                 return
             old, self.pos = tuple(self.pos), [nx, ny]
-            if (nx, ny) in GATES:                        # the gate's gump comes before the confirm
+            if self.facet == 0 and (nx, ny) in GATES:    # the gate's gump comes before the confirm
                 self.gate_gumps[self.next_gump()] = []
                 self.send(gump(self.gump_serial, RENOUNCE_ID, RENOUNCE_LAYOUT,
                                ["Young Player Status", "Guide",
                                 "Leaving Shelter Island will cause you to renounce your"]))
-            self.bank_open = False                       # moving closes the bank box (RunUO)
             if self.door_open and self.cheb(DOOR) > 2:   # the door swings shut behind the agent
                 self.door_open = False
             self.send(bytes([0x22, seq, 0x01]))
@@ -744,7 +843,7 @@ class World:
                 self.send(creature_pkt(ATTACKER, 0x27, *old))
         elif pid == 0x12 and p[3] == 0x58:
             self.open_door_reqs += 1
-            if self.cheb(DOOR) <= 1:
+            if self.facet == 0 and self.cheb(DOOR) <= 1:
                 self.door_open = True
                 self.doors_opened += 1
                 self.send(cliloc(500024))
@@ -753,6 +852,19 @@ class World:
             if self.tracking:
                 self.send(cliloc(1011350))               # "What do you wish to track?"
                 self.tracking_gump()
+        elif pid == 0x09:                                # single click: the steward answers with his label
+            if int.from_bytes(p[1:5], "big") == STEWARD and self.facet == 0 and self.cheb(STEWARD_POS) <= 18:
+                self.steward_clicks += 1
+                self.later(0.05, [label_pkt(STEWARD, "Chase", STEWARD_LABEL)])
+        elif pid == 0xBF and p[3:5] == b"\x00\x13":    # context menu request (right-click)
+            if int.from_bytes(p[5:9], "big") == STEWARD and self.facet == 0 and self.cheb(STEWARD_POS) <= 18:
+                self.later(0.06, [STEWARD_POPUP])
+        elif pid == 0xBF and p[3:5] == b"\x00\x15":    # context menu pick: 1 "Room" (within 2 tiles, live)
+            if int.from_bytes(p[5:9], "big") == STEWARD and int.from_bytes(p[9:11], "big") == 1:
+                if self.facet != 0 or self.cheb(STEWARD_POS) > 2:
+                    self.keeper_far += 1
+                    return
+                self.room_gump("steward_no_room")
         elif pid == 0x06:
             serial = int.from_bytes(p[1:5], "big")
             if serial == HATCHET:
@@ -763,8 +875,13 @@ class World:
                 if self.scenario == "red_aim" and not self.red_due and self.cheb(RUNE_POS) <= 5:
                     self.red_due = True
                     asyncio.get_running_loop().call_later(RED_AIM_S, self.red_appears)
-            elif serial == BANKBOX:
-                self.bank_dclicks += 1
+            elif serial == ROOM_DOOR and self.facet == ROOM_FACET:     # the door's menu (opened from 6 tiles live)
+                self.room_gump("door")
+            elif serial == CHEST and self.facet == ROOM_FACET and self.cheb(CHEST_POS) <= 2:
+                self.chest_opens += 1
+                self.send(b"\x24" + u32(CHEST) + bytes.fromhex("0000003c007d"))
+                if self.chest_stack:
+                    self.send(contained(self.chest_stack[0], BOARD_G, self.chest_stack[1], CHEST))
             elif serial in (BACKPACK, BAG):
                 self.containers_opened.append(serial)
                 self.send(b"\x24" + u32(serial) + bytes.fromhex("0000003c007d"))   # as captured (204225)
@@ -782,7 +899,7 @@ class World:
                 self.send(gump(self.gump_serial, 0x09F5976B, TOME_GUMP["layout"], TOME_GUMP["lines"]))
             elif serial == RUNEBOOK:
                 self.book_gumps.add(self.next_gump())
-                self.send(gump(self.gump_serial, 0x5C7DB029, BOOK_GUMP["layout"], BOOK_GUMP["lines"]))
+                self.send(gump(self.gump_serial, 0x5C7DB029, *book_gump()))
         elif pid == 0x6C:
             f = parse_packet("c2s", p)
             if f["cursor_id"] != self.cursor_for:
@@ -803,7 +920,18 @@ class World:
                 self.decoy_replies += 1
             elif f["serial"] in self.tome_gumps and f["button_id"] == 110:     # row 10: "286 - Midlands ..."
                 self.recall_to(RUNE_POS, self.recalls_out)
-            elif f["serial"] in self.book_gumps and f["button_id"] == 8:       # default entry 1, a charge
+            elif f["serial"] in self.room_gumps:
+                kind = self.room_gumps.pop(f["serial"])
+                self.room_presses.append((kind, f["button_id"]))
+                if kind == "steward_no_room" and f["button_id"] == 2:          # Visit Other Rooms
+                    self.room_gump("visit_list")
+                elif kind == "visit_list" and f["button_id"] == 100 and self.facet == 0:   # Logan Wolf (DTF)
+                    asyncio.get_running_loop().call_later(0.1, self.enter_room)
+                elif kind == "door" and f["button_id"] == 6 and self.facet == ROOM_FACET:  # Exit to House Steward
+                    asyncio.get_running_loop().call_later(0.1, self.leave_room)
+            elif f["serial"] in self.book_gumps and f["button_id"] == 2:       # entry 0 'Sim Woods', a charge
+                self.recall_to(BOOK_RUNE_POS, self.recalls_book)
+            elif f["serial"] in self.book_gumps and f["button_id"] == 8:       # default entry 1 'Home', a charge
                 if self.home_disturbed == 0:                                   # the first one is disturbed
                     self.home_disturbed += 1
                     self.send(sys_text("Kal Ort Por"))
@@ -837,19 +965,6 @@ class World:
                 if self.pending_attempt:
                     then, self.pending_attempt = self.pending_attempt, None
                     then()
-        elif pid == 0xAD:
-            f = parse_packet("c2s", p)
-            if f.get("text") != "bank":
-                return
-            if self.cheb(BANK_POS) > 12:
-                self.far_bank_speech += 1
-                return
-            self.bank_open = True
-            self.bank_opens += 1
-            self.send(equip(BANKBOX, 0x0E7C, 0x1D))
-            self.send(b"\x24" + u32(BANKBOX) + bytes.fromhex("0000004a007d"))
-            if self.bank_stack:
-                self.send(contained(self.bank_stack[0], 0x1BD7, self.bank_stack[1], BANKBOX))
         elif pid == 0x07:
             self.lifted = parse_packet("c2s", p)
             self.send(delete(self.lifted["serial"]))     # out of our view while on the cursor (live 113229)
@@ -857,21 +972,21 @@ class World:
             f = parse_packet("c2s", p)
             lf, self.lifted = self.lifted, None
             s, dest = f["serial"], f["container"]
-            at_bank = dest == BANKBOX and self.bank_open and self.cheb(BANK_POS) <= 12
+            in_chest = dest == CHEST and self.facet == ROOM_FACET and self.cheb(CHEST_POS) <= 2
             if lf is None or lf["serial"] != s:
                 self.drops_refused += 1
-            elif at_bank and s in self.stacks and self.stacks[s][0] == BOARD_G:
+            elif in_chest and s in self.stacks and self.stacks[s][0] == BOARD_G:
                 amount = self.stacks.pop(s)[1]
-                if self.bank_stack is None:
-                    self.bank_stack = (s, amount)
-                    self.send(contained(s, 0x1BD7, amount, BANKBOX))
+                if self.chest_stack is None:
+                    self.chest_stack = (s, amount)
+                    self.send(contained(s, BOARD_G, amount, CHEST))
                 else:                                    # RunUO stacks with the existing pile
-                    self.bank_stack = (self.bank_stack[0], self.bank_stack[1] + amount)
-                    self.send(contained(self.bank_stack[0], 0x1BD7, self.bank_stack[1], BANKBOX))
+                    self.chest_stack = (self.chest_stack[0], self.chest_stack[1] + amount)
+                    self.send(contained(self.chest_stack[0], BOARD_G, self.chest_stack[1], CHEST))
                 return
-            elif at_bank and s in self.pouch_hue:        # a spent pouch put away
-                self.banked_items.append((s, self.pouch_hue.pop(s)))
-                self.send(contained(s, POUCH_G, 1, BANKBOX))
+            elif in_chest and s in self.pouch_hue:       # a spent pouch put away
+                self.chest_items.append((s, self.pouch_hue.pop(s)))
+                self.send(contained(s, POUCH_G, 1, CHEST))
                 return
             elif dest in self.pouch_hue and s in self.stacks:   # wood dropped onto a pouch: into it,
                 g, n, _ = self.stacks.pop(s)                     # onto its stack of that wood (RunUO TryDropItem)
@@ -897,32 +1012,28 @@ class World:
         await reader.readexactly(5)
         self.writer = writer
         writer.write(PRELUDE)
-        self.send(login_pkt())
+        self.send(login_pkt(self.pos))
         for token in (5, 6, 7, 8):
             self.send(seed_pkt(token))
+        self.send(map_change(ROOM_FACET))                        # logged out in the rental room
+        self.send(status_pkt(CHAR_NAME))                         # our name: it keys the home
         self.send(equip(BACKPACK, 0x0E75, 0x15))
         self.send(skills_pkt(600 if self.tracking else 0))      # Tracking 60 (Hackworth's) or none
         if self.scenario == "skirmish":                         # the hatchet is in a bag in the pack
             self.send(contained(BAG, 0x0E76, 1, BACKPACK))
             self.send(contained(HATCHET, 0x0F44, 1, BAG))
-            self.send(creature_pkt(FIGHTER, 0xEA, *FIGHTER_POS))      # 'a great hart' in war mode ...
-            self.send(player_update(OTHER, *OTHER_POS))               # ... fighting a player (knowledge #89)
             asyncio.get_running_loop().create_task(self.combat())
         else:
             self.send(equip(HATCHET, 0x0F44, 0x02))
+        self.send(contained(RUNEBOOK, 0x22C5, 1, BACKPACK))     # the way out and home
         if self.library:
-            self.send(self_at(*LIB_START))
-            self.send(contained(RUNEBOOK, 0x22C5, 1, BACKPACK))
             self.send(contained(0x44ADB0FF, 0x0F7A, 10, BACKPACK))   # black pearl: charges spend none
         for pch in self.pouch_hue:                              # the trapped pouches (hue 38)
             self.send(self.pouch_pkt(pch))
         if self.scenario == "break":                            # logs carried from an earlier trip
             self.send(self.stack_pkt(self.add_wood(LOG_G, INITIAL_LOGS, BACKPACK)))
         self.send(hits_pkt(self.hits))                          # our hits: the runner reads damage from them
-        if self.scenario == "wary":                             # a war-mode creature by the near tree
-            self.send(creature_pkt(WARY, 0x27, *WARY_POS))
-        self.update_view()                                      # the banker, once within range
-        self.send_door()
+        self.send_room_items()
         await writer.drain()
         buf = bytearray()
         while True:
@@ -952,27 +1063,60 @@ class World:
 
 
 def write_spot(path, trees=(GOOD_TREE, DRY_TREE), **extra):
-    """The simulator's spot 'sim' (lumber_opt spot format, a --spots file): its trees and
-    banker; no hostile player actions there, so no recall book is needed (extra fields
-    override). The common knowledge is the committed loops/lumber.json."""
-    spot = {"id": "sim", "name": "simulated Shelter trees", "facet": 0,
-            "area": {"center": list(START), "radius": 30}, "trees": list(trees),
-            "banker": {"serial": f"0x{BANKER:08X}", "name": "Len the banker", "pos": [*BANK_KNOWN, 0]},
-            "pvp": False, **extra}
+    """The simulator's spot 'sim' (lumber_opt spot format, a --spots file): its trees around START, no
+    hostile player actions there (extra fields override). The area's edge lies beyond AT_GROVE from the
+    home landing, so a trip recalls out (our runebook's 'Sim Woods'). The common knowledge is the
+    committed loops/lumber.json."""
+    spot = {"id": "sim", "name": "simulated trees", "facet": 0,
+            "area": {"center": list(START), "radius": 12}, "trees": list(trees), "pvp": False, **extra}
     with open(path, "w", encoding="utf-8") as f:
         json.dump({"spots": [spot]}, f)
 
 
 def write_witcher(path):
-    """A Witcher table for the simulated library: one tome at TOME_POS holding rune 286."""
-    doc = {"libraries": [{"id": "cambria", "name": "Sim Rune Library", "facet": 0, "stand": list(LIB_START),
-                          "moongate": "Sim", "use_range": 2,
-                          "tomes": [{"serial": f"0x{TOME:08X}", "first": "276", "last": "301",
-                                     "pos": [*TOME_POS, 0]}]}],
-           "runes": [{"id": "286", "name": "Midlands Ruins 1 (South)", "x": RUNE_POS[0], "y": RUNE_POS[1],
-                      "tome": f"0x{TOME:08X}"}]}
+    """A Witcher table with the one rune the simulated library holds (286)."""
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"runes": [{"id": "286", "name": "Midlands Ruins 1 (South)", "x": RUNE_POS[0], "y": RUNE_POS[1]}]}, f)
+
+
+def write_libraries(path):
+    """The home rune library (places.py format): one tome at TOME_POS, its row 10 '286 - Midlands Ruins 1
+    (South)' landing at RUNE_POS (the captured tome page; its other rows are left out)."""
+    doc = {"libraries": [{"id": "simhome", "name": "Sim Rune Library", "facet": 0, "stand": list(LIB_START),
+                          "use_range": 2, "access": "guild",
+                          "tomes": [{"serial": f"0x{TOME:08X}", "title": "276-301", "pos": [*TOME_POS, 0],
+                                     "rows": [{"name": "286 - Midlands Ruins 1 (South)",
+                                               "x": RUNE_POS[0], "y": RUNE_POS[1]}]}]}]}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(doc, f)
+
+
+def write_homes(path):
+    """The test character's home (harness/home.py format): the simulated landing, home library, room
+    (Logan Wolf's, as live) and chest."""
+    doc = {"homes": {CHAR_NAME: {"library": "simhome", "landing": [*HOME_RUNE_POS, 0], "facet": 0,
+                                 "room": {"owner": "logan", "facet": ROOM_FACET, "arrival": [*ROOM_ARRIVAL, 1],
+                                          "exit": "steward"},
+                                 "chest": {"serial": f"0x{CHEST:08X}", "name": "paragon chest (drake)",
+                                           "pos": [*CHEST_POS, 2]}}}}
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(doc, f)
+
+
+def write_world_files(tmp, trees=(GOOD_TREE, DRY_TREE), spot_extra=None) -> dict:
+    """The runner's simulated data files in `tmp`: spots, Witcher table, rune libraries, homes, memory db."""
+    paths = {n: os.path.join(tmp, f"{n}.json") for n in ("spots", "witcher", "libraries", "homes")}
+    paths["db"] = os.path.join(tmp, "harness.db")
+    write_spot(paths["spots"], trees, **(spot_extra or {}))
+    write_witcher(paths["witcher"])
+    write_libraries(paths["libraries"])
+    write_homes(paths["homes"])
+    return paths
+
+
+def runner_files(paths) -> list:
+    return ["--spot", "sim", "--spots", paths["spots"], "--witcher", paths["witcher"],
+            "--libraries", paths["libraries"], "--homes", paths["homes"], "--memory", paths["db"]]
 
 
 async def main():
@@ -981,8 +1125,7 @@ async def main():
         if os.path.isfile(os.path.join(LOGDIR, f)):      # the other scenarios keep subdirectories
             os.remove(os.path.join(LOGDIR, f))
     tmp = tempfile.mkdtemp()
-    paths = {"spots": os.path.join(tmp, "spots.json"), "db": os.path.join(tmp, "harness.db")}
-    write_spot(paths["spots"])
+    paths = write_world_files(tmp)
     # captcha mode `auto` (the viz toggle; the default is `human`): trip 1's readable captcha is
     # the solver's, trip 2's unreadable one falls back to the human wait
     store = memory.Memory(paths["db"])
@@ -1048,7 +1191,7 @@ async def main():
             PY, f"{ROOT}/harness/loop_lumber.py", "--trips", "2", "--logs-per-trip", "100",
             "--regrow-min", "0.05",
             "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT),
-            "--spot", "sim", "--spots", paths["spots"], "--memory", paths["db"],
+            *runner_files(paths),
             "--human", "normal", "--seed", "11", "--human-fast", "0.25", "--timeout", "300", "--quiet",
             # --no-map: walk memory only, and the town wall (21 tiles) is unknown; per-plan route
             # noise can send the agent along it, learning one denied edge per try (up to 3 a tile)
@@ -1133,23 +1276,40 @@ async def main():
         check("decoy gumps were shown and never answered",
               len(world.decoys) >= 4 and world.decoy_replies == 0, f"{len(world.decoys)} decoys")
         b1_gate = [e for e in b1_agent if int(e["hex"][6:14], 16) in world.gate_gumps]
-        check("agent gump replies = the auto-solved captcha + the moongate prompts it closed",
-              len(b1_agent) - len(b1_gate) == 1, f"{len(b1_agent)} agent replies, {len(b1_gate)} to gates")
+        b1_book = [e for e in b1_agent if int(e["hex"][6:14], 16) in world.book_gumps]
+        b1_room = [e for e in b1_agent if int(e["hex"][6:14], 16) in world.room_serials]
+        check("agent gump replies = the auto-solved captcha + the moongate prompts it closed + our runebook "
+              "(read once and closed, one recall out a trip) + the room menus",
+              len(b1_agent) - len(b1_gate) - len(b1_book) - len(b1_room) == 1 and len(b1_book) == 3,
+              f"{len(b1_agent)} agent replies, {len(b1_gate)} to gates, {len(b1_book)} book, {len(b1_room)} room")
         closes = [e for e in log if e.get("ev") == "gump_close_client"]
         check("every moongate prompt the route opened was closed once, with button 0 (the stock right-click), "
               "and the client's copy closed by the proxy",
-              len(world.gate_gumps) >= 3 and all(v == [0] for v in world.gate_gumps.values())
+              len(world.gate_gumps) >= 2 and all(v == [0] for v in world.gate_gumps.values())
               and len(b1_gate) == len(world.gate_gumps) and len(closes) == len(b1_agent),
               f"{world.gate_gumps} client closes {len(closes)}")
-        check("each trip opened the bank box by saying 'bank' next to the banker; the run ends at the bank",
-              world.bank_opens == 2 and world.cheb(BANK_POS) <= 4 and "waiting at the bank" in text,
-              f"{world.bank_opens} opens, at {world.pos}")
-        check("walked to the banker's live position: never spoke out of range (knowledge pos is 20 tiles off)",
-              world.far_bank_speech == 0, str(world.far_bank_speech))
-        check("every harvested log not stolen ended in the bank box as boards; no drop refused",
-              world.bank_stack is not None and world.harvested == 2 * 3 * LOGS_PER_SUCCESS
-              and world.bank_stack[1] == world.harvested - world.stolen and world.drops_refused == 0,
-              f"bank {world.bank_stack}, harvested {world.harvested}, stolen {world.stolen}, "
+        check("each trip left the room by its door (Exit to House Steward) and came back through the steward "
+              "(Room, Visit Other Rooms, Logan Wolf's row); never End Rental Contract or Expand; ends in the room",
+              [k for k, _ in world.room_log] == ["exit", "enter", "exit", "enter"]
+              and world.room_presses == [("door", 6), ("steward_no_room", 2), ("visit_list", 100)] * 2
+              and world.keeper_far == 0 and world.facet == ROOM_FACET and "waiting in the rental room" in text,
+              f"{world.room_log} {world.room_presses} far {world.keeper_far} facet {world.facet}")
+        check("the steward was found by one single click on trip 1 (his label), known on trip 2",
+              text.count("house steward search") == 1 and world.steward_clicks >= 3, str(world.steward_clicks))
+        check("out by our runebook's 'Sim Woods' rune (the landing nearest the grove), home on foot (within "
+              "NEAR_LANDING of the landing): no library or home recall",
+              world.recalls_book == [BOOK_RUNE_POS, BOOK_RUNE_POS] and world.recalls_home == []
+              and world.recalls_out == [], f"{world.recalls_book} {world.recalls_home} {world.recalls_out}")
+        trav = [e["data"] for e in store.job_events("lumber") if e["kind"] == "travel"]
+        check("each trip's travel leg names the landing: our book's rune, its tile",
+              [(d["leg"], (d.get("landing") or {}).get("source"), d["landing"].get("name"), d["book"])
+               for d in trav] == [("out", "book", "Sim Woods", f"0x{RUNEBOOK:08X}")] * 2
+              and all((d["landing"]["x"], d["landing"]["y"]) == BOOK_RUNE_POS and d["ok"] for d in trav),
+              str(trav)[:600])
+        check("every harvested log not stolen ended in the home chest as boards; no drop refused",
+              world.chest_stack is not None and world.harvested == 2 * 3 * LOGS_PER_SUCCESS
+              and world.chest_stack[1] == world.harvested - world.stolen and world.drops_refused == 0,
+              f"chest {world.chest_stack}, harvested {world.harvested}, stolen {world.stolen}, "
               f"refused {world.drops_refused}")
         check("nothing left in the backpack", world.logs == 0 and not world.pack_boards)
         stash_to = {d for _, _, d in world.stashed}
@@ -1158,13 +1318,13 @@ async def main():
               world.stashed and stash_to == {POUCHES[0], POUCHES[1]}
               and sum(n for _, n, _ in world.stashed) >= world.harvested and world.converts_refused == 0,
               f"{world.stashed} refused {world.converts_refused}")
-        check("at the bank each trip set its own pouch off (a double-click: a hit, no alarm), opened it, converted "
-              "there; the spent pouch went into the bank box",
+        check("in the room each trip set its own pouch off (a double-click: a hit, no alarm), opened it, converted "
+              "there; the spent pouch went into the chest",
               [(p, by) for p, _, by in world.pops] == [(POUCHES[0], "us"), (POUCHES[1], "us")]
-              and world.banked_items == [(POUCHES[0], 0), (POUCHES[1], 0)]
+              and world.chest_items == [(POUCHES[0], 0), (POUCHES[1], 0)]
               and text.count("set off our trapped pouch") == 2 and text.count("not an attack") >= 1
               and not [e for e in store.job_events("lumber") if e["kind"] == "thief"],
-              f"{world.pops} banked {world.banked_items}")
+              f"{world.pops} chest {world.chest_items}")
         check("each trip row counts the trapped pouch it used", [(r.get("supplies") or {}).get("trapped_pouches")
                                                                  for r in rows] == [1, 1], str([r.get("supplies")
                                                                                                for r in rows]))
@@ -1174,9 +1334,10 @@ async def main():
               len(world.self_targets) >= 14 and all(ok for _, ok in world.self_targets)
               and world.location_answers == 0, f"{world.self_targets[:4]} locations {world.location_answers}")
         check("'nothing nearby' at the dry tree once per trip, and at the good tree when its wood ran out; each "
-              "time the runner moved on (one self-target at the dry stand per visit)",
+              "time the runner moved on (at the dry stand per visit: the travel lockout after the recall out, "
+              "then one self-target)",
               sorted(world.nothing_near_at) == sorted([dry_stand, good_stand, good_stand, dry_stand])
-              and sum(1 for p, _ in world.self_targets if p == dry_stand) == 2
+              and world.lockouts == 2 and sum(1 for p, _ in world.self_targets if p == dry_stand) == 2 + 2
               and {p for p, _ in world.self_targets} == {dry_stand, good_stand},
               f"{world.nothing_near_at} {[p for p, _ in world.self_targets]}")
         att = store.con.execute("SELECT x, y, outcome, amount FROM harvest_attempts ORDER BY t").fetchall()
@@ -1206,25 +1367,24 @@ async def main():
         check("open-door requests only next to a door, like the client's auto-open (never at plain walls)",
               world.open_door_reqs == world.doors_opened, f"{world.open_door_reqs} requests, "
               f"{world.doors_opened} opened")
-        check("the town door opened on each of the 3 crossings (to the bank, back out, to the bank)",
-              world.doors_opened >= 3, str(world.doors_opened))
+        check("the town door opened on each of the 2 crossings (the walk home each trip)",
+              world.doors_opened >= 2, str(world.doors_opened))
         fidget_opens = text.count("(idle: opening the backpack)")    # human texture (humanize.fidget), seed-dependent
         check("like a player, the agent opened the backpack once before dragging the logs (any other open is a "
-              "logged idle fidget), and each trip's spent pouch once to convert in it; the bank box is never "
-              "double-clicked (only 'bank' opens it)",
+              "logged idle fidget), each trip's spent pouch once to convert in it, and the chest once a trip "
+              "(leaving the room closes it)",
               [c for c in world.containers_opened if c != BACKPACK] == [POUCHES[0], POUCHES[1]]
               and world.containers_opened.count(BACKPACK) == 1 + fidget_opens
-              and text.count(f"opening container 0x{BACKPACK:08X}") == 1 and world.bank_dclicks == 0,
-              f"{world.containers_opened} fidget opens {fidget_opens} bank dclicks {world.bank_dclicks}")
-        check("only speech: 'bank', stock-encoded, once per trip",
-              len(speech) == 2 and all(p == actions.say_unicode("bank") for p in speech), str(len(speech)))
-        check("two episode rows with logs and banked boards",
+              and text.count(f"opening container 0x{BACKPACK:08X}") == 1 and world.chest_opens == 2,
+              f"{world.containers_opened} fidget opens {fidget_opens} chest opens {world.chest_opens}")
+        check("no speech at all (the room goes by menus, no 'bank')", speech == [], str([p.hex() for p in speech]))
+        check("two episode rows with logs and stored boards",
               len(rows) == 2 and all(r.get("logs", 0) >= 6 and r.get("stored", 0) >= 6
-                                     and set(r["phases_s"]) == {"harvest", "convert", "to_bank", "store"}
+                                     and set(r["phases_s"]) == {"harvest", "to_room", "convert", "store"}
                                      for r in rows), str(rows))
-        check("trip rows say where, how it ended and with what: spot sim, banked, the worn iron hatchet, "
+        check("trip rows say where, how it ended and with what: spot sim, stored, the worn iron hatchet, "
               "the walk out and the chopping inside the harvest time, nothing carried at the end",
-              all(r.get("spot") == "sim" and r.get("outcome") == "banked" and r.get("why") is None
+              all(r.get("spot") == "sim" and r.get("outcome") == "stored" and r.get("why") is None
                   and (r.get("hatchet") or {}).get("material") == "iron" and r["hatchet"].get("worn")
                   and 0 < r["walk_out_s"] < r["phases_s"]["harvest"]
                   and 0 < r["chop_s"] < r["phases_s"]["harvest"] - r["walk_out_s"]
@@ -1238,7 +1398,7 @@ async def main():
         check("malformed intents rejected by the proxy (and not recorded)",
               all(not r["ok"] for r in bad_intents) and all(i and i.get("text") for i in intents),
               str(bad_intents))
-        phase = ["to_tree", "chop", "to_bank", "open_bank", "convert", "store", "trip_done"]
+        phase = ["leave_room", "recall_out", "to_tree", "chop", "to_room", "convert", "store", "trip_done"]
         for n in (1, 2):
             seq = [i["kind"] for i in intents if i and i.get("trip") == n]
             check(f"trip {n}: intents follow the loop's phases in order",
@@ -1291,10 +1451,8 @@ async def run_scenario(world, tag, port_base, trees, runner_args, budget=None, s
     if budget is not None:
         with open(os.path.join(logdir, "agent_budget.json"), "w", encoding="utf-8") as f:
             json.dump(budget, f)
-    tmp = tempfile.mkdtemp()
-    spots, db, witcher = (os.path.join(tmp, n) for n in ("spots.json", "harness.db", "witcher.json"))
-    write_spot(spots, trees, **(spot_extra or {}))
-    write_witcher(witcher)
+    paths = write_world_files(tempfile.mkdtemp(), trees, spot_extra)
+    db = paths["db"]
     proxy_port, upstream, control, state = (port_base + i for i in range(4))
     server = await asyncio.start_server(world.handle, "127.0.0.1", upstream)
     proxy = subprocess.Popen(
@@ -1316,7 +1474,7 @@ async def run_scenario(world, tag, port_base, trees, runner_args, budget=None, s
         await asyncio.sleep(0.5)
         runner = await asyncio.create_subprocess_exec(
             PY, f"{ROOT}/harness/loop_lumber.py", "--control-port", str(control), "--state-port", str(state),
-            "--spot", "sim", "--spots", spots, "--witcher", witcher, "--memory", db, "--timeout", "300",
+            *runner_files(paths), "--timeout", "300",
             "--quiet", "--no-map", "--max-blocked", "80",
             "--triage-url", "", *runner_args,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
@@ -1373,9 +1531,9 @@ async def skirmish():
           code == 1 and "kept coming after the escape" in text and world.attacker_swings >= 2,
           f"exit {code}, {world.attacker_swings} swings")
     check("a creature still coming: stop at once, no 10 s log conversion next to it (live 2026-10-03: "
-          "85 -> 40 hits while converting); the logs stay logs, no bank trip",
+          "85 -> 40 hits while converting); the logs stay logs, no way home (home is near: no recall either)",
           world.logs == 2 * LOGS_PER_SUCCESS and world.harvested == 2 * LOGS_PER_SUCCESS
-          and not world.pack_boards and world.bank_opens == 0
+          and not world.pack_boards and [k for k, _ in world.room_log] == ["exit"] and not world.recalls_home
           and "stopping at once, logs not converted" in text
           and "converting the carried logs before stopping" not in text,
           f"logs {world.logs}, boards {world.pack_boards}, harvested {world.harvested}")
@@ -1386,15 +1544,15 @@ async def skirmish():
           and eps[0].get("logs") == world.harvested
           and eps[0].get("carried_end") == {"logs": world.harvested, "boards": 0}
           and (eps[0].get("hatchet") or {}).get("worn") is False
-          and "harvest" in eps[0]["phases_s"] and "to_bank" not in eps[0]["phases_s"],
+          and "harvest" in eps[0]["phases_s"] and "to_room" not in eps[0]["phases_s"],
           str(eps)[:600])
     store.close()
 
 
 async def break_due():
     """docs/OVERSEER.md break_due: the agent gate announces a break mid-harvest; the
-    trip ends early at the bank (carried and new logs banked as boards), exit 0."""
-    print("\n== break due: stop harvesting, convert, bank, exit 0 ==")
+    trip ends early in the rental room (carried and new logs stored in the chest as boards), exit 0."""
+    print("\n== break due: stop harvesting, convert, store, exit 0 ==")
     world = World("break")
     budget = {"day": datetime.date.today().isoformat(), "active_today_s": 0.0,
               "since_break_s": 7200.0 - BREAK_AFTER_S, "next_break_after_s": 7200.0,
@@ -1404,54 +1562,59 @@ async def break_due():
                                               ["--trips", "2", "--logs-per-trip", "100", "--human", "off"],
                                               budget=budget)
     eps = store.episodes("lumber")
-    check("one trip, 'break due: banked', exit 0 (for ctl break), episode row marked break_due",
-          code == 0 and "break due: banked" in text and "loop complete" not in text
-          and len(eps) == 1 and eps[0].get("break_due") is True
-          and set(eps[0]["phases_s"]) == {"harvest", "convert", "to_bank", "store"},
-          f"exit {code}, {len(eps)} episodes")
+    check("one trip, 'break due: boards stored', exit 0 (for ctl break) in the room, episode row marked break_due",
+          code == 0 and "break due: boards stored" in text and "loop complete" not in text
+          and len(eps) == 1 and eps[0].get("break_due") is True and world.facet == ROOM_FACET
+          and set(eps[0]["phases_s"]) == {"harvest", "to_room", "convert", "store"},
+          f"exit {code}, {len(eps)} episodes, facet {world.facet}")
     check("the harvest stopped early (the good tree still had wood)",
           "break due: stopping the harvest" in text and world.good_left > 0, str(world.good_left))
-    check("carried and new logs became boards in the bank box; nothing left in the pack",
-          world.bank_stack is not None and world.bank_stack[1] == INITIAL_LOGS + world.harvested
-          and world.logs == 0 and not world.pack_boards and world.bank_opens == 1,
-          f"bank {world.bank_stack}, harvested {world.harvested}")
+    check("carried and new logs became boards in the chest; nothing left in the pack",
+          world.chest_stack is not None and world.chest_stack[1] == INITIAL_LOGS + world.harvested
+          and world.logs == 0 and not world.pack_boards and world.room_log[-1][0] == "enter",
+          f"chest {world.chest_stack}, harvested {world.harvested}")
     check("no threat juncture", not [j for j in store.junctures() if j["kind"] == "threat"])
     store.close()
 
 
 async def library():
-    """docs/research/WORLD_LOCATIONS.md: a spot reached by a library rune and left by our
-    own runebook. Each trip: walk to the library tome, recall to rune 286 with one of its
-    charges, wait out the travel lockout, chop (a player chops nearby), convert, recall home
-    with the runebook's default rune (trip 1's first cast is disturbed), bank; trip 2
-    walks from the bank back to the library. The travel legs and supplies are recorded."""
-    print("\n== library: recall out from a public tome, recall home with our runebook, bank; twice ==")
+    """docs/research/WORLD_LOCATIONS.md, LUMBER_LOOP.md §12.5: a grove whose nearest landing is the home
+    rune library's rune 286. Each trip: out of the room, walk to the library tome, recall to rune 286 with
+    one of its charges, wait out the travel lockout, chop (a player chops nearby), recall home with the
+    runebook's default rune (trip 1's first cast is disturbed), into the room through the steward,
+    convert, store. The travel legs (with the landing) and supplies are recorded."""
+    print("\n== library: out by the home library's tome, home by our runebook, into the room; twice ==")
     world = World("library")
-    spot = {"access": {"method": "witcher", "rune": "286", "library": "cambria"}, "home": {"method": "recall"},
-            "area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 10}, "pvp": True}
+    spot = LIB_SPOT
     text, code, store, _ = await run_scenario(world, "library", 12700, [LIB_TREE],
                                               ["--trips", "2", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=spot)
     eps = store.episodes("lumber")
     trav = [e for e in store.job_events("lumber") if e["kind"] == "travel"]
-    check("two trips banked, exit 0", code == 0 and "loop complete: 2 trip(s)" in text
-          and [e.get("outcome") for e in eps] == ["banked", "banked"], f"exit {code}, {[e.get('outcome') for e in eps]}")
-    check("each trip recalled out from the tome's row for rune 286 (gem 110), standing within its 2 tiles",
-          world.recalls_out == [RUNE_POS, RUNE_POS] and world.tome_far == 0, f"{world.recalls_out} far {world.tome_far}")
-    check("each trip recalled home with the runebook's default rune (a charge), then banked",
-          world.recalls_home == [HOME_RUNE_POS, HOME_RUNE_POS] and world.bank_opens == 2,
-          f"{world.recalls_home} opens {world.bank_opens}")
-    check("everything harvested ended in the bank box", world.harvested > 0 and world.bank_stack is not None
-          and world.bank_stack[1] == world.harvested and world.logs == 0, f"{world.bank_stack} {world.harvested}")
+    check("two trips stored, exit 0", code == 0 and "loop complete: 2 trip(s)" in text
+          and [e.get("outcome") for e in eps] == ["stored", "stored"], f"exit {code}, {[e.get('outcome') for e in eps]}")
+    check("each trip recalled out from the tome's row for rune 286 (gem 110), standing within its 2 tiles; "
+          "never by our book's 'Sim Woods' (farther from the grove)",
+          world.recalls_out == [RUNE_POS, RUNE_POS] and world.tome_far == 0 and world.recalls_book == [],
+          f"{world.recalls_out} far {world.tome_far} book {world.recalls_book}")
+    check("each trip recalled home with the runebook's default rune (a charge), then went into the room",
+          world.recalls_home == [HOME_RUNE_POS, HOME_RUNE_POS]
+          and [k for k, _ in world.room_log] == ["exit", "enter", "exit", "enter"],
+          f"{world.recalls_home} room {world.room_log}")
+    check("everything harvested ended in the chest", world.harvested > 0 and world.chest_stack is not None
+          and world.chest_stack[1] == world.harvested and world.logs == 0, f"{world.chest_stack} {world.harvested}")
     check("the travels are job events (out then home, twice, all landed) and the walk out includes the recall",
           [e["data"]["leg"] for e in trav] == ["out", "home", "out", "home"] and all(e["data"]["ok"] for e in trav)
           and all(e["walk_out_s"] and e["walk_out_s"] > 2 for e in eps),
           f"{[(e['data'].get('to'), e['data'].get('ok')) for e in trav]} {[e.get('walk_out_s') for e in eps]}")
     out = [e["data"] for e in trav if e["data"]["leg"] == "out"]
     home = [e["data"] for e in trav if e["data"]["leg"] == "home"]
-    check("each travel event names its trip, spot, book and Witcher rune (not the tome's row) and what it cost",
-          [(d["trip"], d["spot"], d["book"], d.get("witcher_rune")) for d in out]
-          == [(1, "sim", f"0x{TOME:08X}", "286"), (2, "sim", f"0x{TOME:08X}", "286")]
+    check("each travel event names its trip, spot, book, Witcher rune and the landing (the library row), and "
+          "what it cost",
+          [(d["trip"], d["spot"], d["book"], d.get("witcher_rune"), d["landing"]["source"], d["landing"]["library"],
+            d["landing"]["name"], (d["landing"]["x"], d["landing"]["y"])) for d in out]
+          == [(n, "sim", f"0x{TOME:08X}", "286", "library", "simhome", "286 - Midlands Ruins 1 (South)", RUNE_POS)
+              for n in (1, 2)]
           and [(d["trip"], d["book"]) for d in home] == [(1, f"0x{RUNEBOOK:08X}"), (2, f"0x{RUNEBOOK:08X}")]
           and all(d["walk_s"] is not None and d["s"] >= d["walk_s"] and isinstance(d["charges"], int)
                   and d["reagents_used"] == {} for d in out),
@@ -1487,8 +1650,7 @@ async def track_reds():
     print("\n== tracking reds: hunt murderers all run; a far red is logged, a near one sends us home ==")
     import lumber_opt
     world = World("tracking")
-    spot = {"access": {"method": "witcher", "rune": "286", "library": "cambria"}, "home": {"method": "recall"},
-            "area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 10}, "pvp": True}
+    spot = LIB_SPOT
     text, code, store, _ = await run_scenario(world, "tracking", 12710, [LIB_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05", "--track-retry-s", "1"], spot_extra=spot)
@@ -1552,8 +1714,7 @@ async def library_chased():
     print("\n== library, chased: a creature keeps coming at a far spot: recall home first, no conversion ==")
     world = World("library")
     world.chaser = True
-    spot = {"access": {"method": "witcher", "rune": "286", "library": "cambria"}, "home": {"method": "recall"},
-            "area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 10}, "pvp": True}
+    spot = LIB_SPOT
     text, code, store, _ = await run_scenario(world, "library_chased", 12720, [LIB_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=spot)
@@ -1562,9 +1723,9 @@ async def library_chased():
           code == 1 and "kept coming after the escape" in text and world.recalls_home
           and world.recalls_home[-1] == HOME_RUNE_POS and "escaped by recall" in text,
           f"exit {code}, home {world.recalls_home}\n{text[-600:]}")
-    check("no 10 s log conversion before leaving, no bank trip",
+    check("no 10 s log conversion before leaving, no room trip",
           "converting the carried logs before stopping" not in text and not world.pack_boards
-          and world.bank_opens == 0, f"boards {world.pack_boards} opens {world.bank_opens}")
+          and world.room_entries == 0, f"boards {world.pack_boards} room {world.room_log}")
     check("an urgent threat juncture says it recalled away (a creature: not a pk_escape)",
           any(j["kind"] == "threat" and "Recalled away" in j["summary"] for j in js)
           and not any(j["kind"] == "pk_escape" for j in js), str([(j["kind"], j["summary"]) for j in js]))
@@ -1585,10 +1746,10 @@ async def library_chased():
     store.close()
 
 
-GAZER_SPOT = {"access": {"method": "witcher", "rune": "286", "library": "cambria"}, "home": {"method": "recall"},
-              "area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 20}, "pvp": True,
-              # known where he stands: the walk-away never brings the banker within HOME_NEAR (60), so home is a recall
-              "banker": {"serial": f"0x{BANKER:08X}", "name": "Len the banker", "pos": [*BANK_POS, 0]}}
+# the library spot: a pvp grove by the home library's rune 286 (the landing nearest it), 85 tiles from home
+LIB_SPOT = {"area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 10}, "pvp": True}
+# the gazer's: wider, so the walk-away stays in it; never within home.NEAR_LANDING (60) of home: home is a recall
+GAZER_SPOT = {"area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 20}, "pvp": True}
 
 
 async def gazer_run():
@@ -1603,8 +1764,8 @@ async def gazer_run():
                                                "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
     eps = store.episodes("lumber")
     hits = [e["data"] for e in store.job_events("lumber") if e["kind"] == "monster_hit"]
-    check("the trip banked, exit 0 (no recall away, no stop)",
-          code == 0 and [e.get("outcome") for e in eps] == ["banked"] and world.bank_opens == 1
+    check("the trip stored its boards in the room, exit 0 (no recall away, no stop)",
+          code == 0 and [e.get("outcome") for e in eps] == ["stored"] and world.room_entries == 1
           and not [e for e in store.job_events("lumber") if e["kind"] == "recall"],
           f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]}\n{text[-800:]}")
     check("the first damage is a monster_hit: the gazer, 10 tiles off, ranged, the only attacker, a run",
@@ -1617,9 +1778,9 @@ async def gazer_run():
           to is not None and world.gazer_pos is not None and world.cheb(world.gazer_pos) > 12
           and max(abs(to[0] - world.gazer_pos[0]), abs(to[1] - world.gazer_pos[1])) > 12, f"{to} {world.gazer_pos}")
     far = [s for s in stand_events(store) if s["anchor"] == [LIB_FAR_TREE["x"], LIB_FAR_TREE["y"]]]
-    check("chopped on at a stand by the far tree, outside the gazer's reach; everything banked",
-          sum(s["successes"] for s in far) >= 1 and world.bank_stack is not None
-          and world.bank_stack[1] == world.harvested and world.logs == 0, f"{far} bank {world.bank_stack}")
+    check("chopped on at a stand by the far tree, outside the gazer's reach; everything in the chest",
+          sum(s["successes"] for s in far) >= 1 and world.chest_stack is not None
+          and world.chest_stack[1] == world.harvested and world.logs == 0, f"{far} chest {world.chest_stack}")
     check("no hit after the walk-away: at most one more cast landed while walking (walk_on)",
           1 <= len(world.gazer_hits) <= 2 and [h["action"] for h in hits] == ["run", "walk_on"][:len(hits)]
           and len(hits) == len(world.gazer_hits), f"{world.gazer_hits} {[h['action'] for h in hits]}")
@@ -1653,10 +1814,10 @@ async def gazer_rehit():
           code == 1 and world.recalls_home == [HOME_RUNE_POS] and len(rec) == 1 and rec[0]["ok"]
           and rec[0]["cause"] == "creature" and "escaped by recall" in text,
           f"exit {code} home {world.recalls_home} {str(rec)[:300]}\n{text[-600:]}")
-    check("no conversion, no bank trip: the logs stay logs",
+    check("no conversion, no room trip: the logs stay logs",
           "converting the carried logs before stopping" not in text and not world.pack_boards
-          and world.logs == world.harvested > 0 and world.bank_opens == 0,
-          f"logs {world.logs} boards {world.pack_boards} opens {world.bank_opens}")
+          and world.logs == world.harvested > 0 and world.room_entries == 0,
+          f"logs {world.logs} boards {world.pack_boards} room {world.room_log}")
     js = [j for j in store.junctures() if j["source"] == "lumber" and j["severity"] == "urgent"]
     check("urgent threat juncture 'Recalled away' (a creature: no pk_escape)",
           any(j["kind"] == "threat" and "Recalled away" in j["summary"] for j in js)
@@ -1685,8 +1846,8 @@ async def gazer_reflect():
     eps = store.episodes("lumber")
     hits = [e["data"] for e in store.job_events("lumber") if e["kind"] == "monster_hit"]
     check("Magic Reflection took the first spell", len(world.reflected) == 1, str(world.reflected))
-    check("the trip banked, exit 0 (no recall away, no stop)",
-          code == 0 and [e.get("outcome") for e in eps] == ["banked"]
+    check("the trip stored its boards in the room, exit 0 (no recall away, no stop)",
+          code == 0 and [e.get("outcome") for e in eps] == ["stored"] and world.room_entries == 1
           and not [e for e in store.job_events("lumber") if e["kind"] == "recall"],
           f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]}\n{text[-800:]}")
     check("the spell is a monster_hit: the gazer, 10 tiles off, ranged, the only attacker, no hits lost, a run",
@@ -1725,8 +1886,8 @@ async def wary():
           and all(t > world.wary_left_t for x, t in targets if x == good), str(targets)[:400])
     eps = store.episodes("lumber")
     cr = (eps[0].get("creature") or {}) if eps else {}
-    check("banked, exit 0; no threat juncture, no escape; the trip row counts the tree left alone",
-          code == 0 and [e.get("outcome") for e in eps] == ["banked"]
+    check("stored, exit 0; no threat juncture, no escape; the trip row counts the tree left alone",
+          code == 0 and [e.get("outcome") for e in eps] == ["stored"] and world.chest_stack is not None
           and not [j for j in store.junctures() if j["kind"] == "threat"]
           and cr.get("escapes") == 0 and cr.get("avoided_trees", 0) >= 1, f"exit {code} {cr}\n{text[-600:]}")
     store.close()
@@ -1740,8 +1901,7 @@ async def red_aim():
     cancel, the recall home starts within REACT_MAX_S of sight; no chop target is answered after him."""
     print("\n== red during the aim pause: cancel the chop cursor, recall at once ==")
     world = World("red_aim")
-    spot = {"access": {"method": "witcher", "rune": "286", "library": "cambria"}, "home": {"method": "recall"},
-            "area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 10}, "pvp": True}
+    spot = LIB_SPOT
     text, code, store, rows = await run_scenario(world, "red_aim", 12760, [LIB_TREE],
                                                  ["--trips", "1", "--logs-per-trip", "100", "--human", "normal",
                                                   "--seed", "5", "--regrow-min", "0.05"], spot_extra=spot)
@@ -1813,8 +1973,9 @@ async def thief_keep_away():
           and len(rec) == 1 and rec[0]["ok"] and rec[0]["threat"]["serial"] == THIEF
           and any(j["kind"] == "pk_escape" for j in store.junctures()) and "escaped by recall" in text,
           f"exit {code} {[e['data'].get('trigger') for e in ev]} home {world.recalls_home}\n{text[-600:]}")
-    check("the logs stayed in the trapped pouch (never set off), nothing converted or banked",
-          world.pops == [] and world.logs == world.harvested > 0 and world.stashed and world.bank_opens == 0,
+    check("the logs stayed in the trapped pouch (never set off), nothing converted or stored; the run stopped "
+          "at home, outside the room (it may refuse entry for 2 min after PvP)",
+          world.pops == [] and world.logs == world.harvested > 0 and world.stashed and world.room_entries == 0,
           f"pops {world.pops} logs {world.logs} harvested {world.harvested}")
     inp = lumber_opt.store_inputs(store)
     check("lumber_opt reads the thief events (the recall one puts the spot on THIEF_COOLDOWN_S)",
@@ -1857,7 +2018,7 @@ async def pouch_pop():
 async def no_pouch():
     """No trapped pouch in the pack: a `low_supplies` juncture (item 'trapped pouch') and no trip, exit 1."""
     print("\n== no trapped pouch: low_supplies, no trip ==")
-    world = World("bank")
+    world = World("home")
     world.scripted = False
     world.pouch_hue = {}
     text, code, store, _ = await run_scenario(world, "no_pouch", 12800, [GOOD_TREE],
@@ -1902,8 +2063,7 @@ async def staff_in_view():
         finally:
             store.close()
 
-    # one tree: banking from WEST_TREE fails in this simulator (the walk ends at the knowledge position,
-    # 20 tiles short of the banker, who only comes into view within 18 tiles of him)
+    # one tree, as before (the walk home from GOOD_TREE crosses the door)
     text, code, store, _ = await run_scenario(world, "staff_in_view", 12810, [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"],
                                               during=overseer)
@@ -1942,8 +2102,8 @@ async def staff_in_view():
           and [(w["serial"], w["layer"], w["graphic"], w["hue"]) for w in s["worn"]]
           == [(f"0x{GM_ROBE:08X}", 0x16, 0x204F, 0x0481)] and s["trip"] == 1, str(sights))
     eps = store.episodes("lumber")
-    check("it stayed in view and raised nothing more; the job resumed after the all-clear and banked, exit 0",
-          code == 0 and [e.get("outcome") for e in eps] == ["banked"] and "all-clear after" in text
+    check("it stayed in view and raised nothing more; the job resumed after the all-clear and stored, exit 0",
+          code == 0 and [e.get("outcome") for e in eps] == ["stored"] and "all-clear after" in text
           and sum(r.get("speech_holds", 0) for r in eps) == 1 and text.count("STAFF IN VIEW") == 1,
           f"exit {code} {[(e.get('outcome'), e.get('speech_holds')) for e in eps]}\n{text[-600:]}")
     store.close()
@@ -1978,12 +2138,12 @@ def unit_hatchet():
     print("\n== hatchet(): worn, else the shallowest in the backpack's bags ==")
     import loop_lumber
     from agent_link import Abort
-    inner = 0x44ADC0DF
+    inner, bankbox = 0x44ADC0DF, 0x40000B0B                 # a bank box worn by us (layer 0x1D): outside the pack
     base = {BACKPACK: {"graphic": 0x0E75, "layer": 0x15, "container": SELF},
             BAG: {"graphic": 0x0E76, "container": BACKPACK},
             inner: {"graphic": 0x0E76, "container": BAG},
-            BANKBOX: {"graphic": 0x0E7C, "layer": 0x1D, "container": SELF}}
-    hatchets = {"worn": (0x4001, SELF), "bag": (0x4002, BAG), "inner": (0x4003, inner), "bank": (0x4004, BANKBOX)}
+            bankbox: {"graphic": 0x0E7C, "layer": 0x1D, "container": SELF}}
+    hatchets = {"worn": (0x4001, SELF), "bag": (0x4002, BAG), "inner": (0x4003, inner), "bank": (0x4004, bankbox)}
     loop = loop_lumber.LumberLoop.__new__(loop_lumber.LumberLoop)
 
     def pick(*which):
@@ -2306,15 +2466,41 @@ def is_subsequence(want, seq):
     return all(any(k == w for k in it) for w in want)
 
 
+def run_parallel(names, jobs):
+    """Each async scenario in its own `python test_loop_lumber.py <name>` (they already have private
+    ports and temp dirs), at most `jobs` at a time; output printed per scenario in list order.
+    Returns the names whose child failed."""
+    import concurrent.futures
+
+    def one(name):
+        t = time.time()
+        p = subprocess.run([PY, os.path.abspath(__file__), name], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", cwd=ROOT)
+        return name, p.returncode, p.stdout + p.stderr, time.time() - t
+
+    failed = []
+    with concurrent.futures.ThreadPoolExecutor(jobs) as pool:
+        for name, code, out, secs in pool.map(one, names):
+            print(out.rstrip().removesuffix("ALL PASS").rstrip())
+            print(f"-- {name}: {'ok' if code == 0 else f'FAILED (exit {code})'} in {secs:.0f} s")
+            if code != 0:
+                failed.append(name)
+    return failed
+
+
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
             wary, red_aim, thief_keep_away, pouch_pop, no_pouch, staff_in_view, unit_hatchet, unit_hit_verdict,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`
-    for fn in runs:
-        if pick and fn.__name__ not in pick:
-            continue
+    chosen = [fn for fn in runs if not pick or fn.__name__ in pick]
+    scenarios = [fn.__name__ for fn in chosen if asyncio.iscoroutinefunction(fn)]
+    jobs = int(os.environ.get("LOOP_TEST_JOBS", "8"))
+    if len(scenarios) > 1 and jobs > 1:      # each in its own process, several at once
+        FAILURES.extend(f"scenario {n}" for n in run_parallel(scenarios, jobs))
+        chosen = [fn for fn in chosen if not asyncio.iscoroutinefunction(fn)]
+    for fn in chosen:
         if asyncio.iscoroutinefunction(fn):
             asyncio.run(fn())
         else:

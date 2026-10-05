@@ -169,6 +169,8 @@ def _trip_row(i, row, woods):
         else:
             value = round((value or 0) + v * n, 2)
     phases = row.get("phases_s") if isinstance(row.get("phases_s"), dict) else {}
+    # outcome: "stored" (home, boards in the room's chest, since 2026-10-04), "aborted", or the
+    # bank era's "banked" (rows without an outcome are the oldest bank-era trips; lumber_opt.trip_obs)
     return {"n": i + 1, "trip": row.get("trip"), "spot": row.get("spot") or row.get("venue"),
             "outcome": row.get("outcome") or "banked", "why": row.get("why"), "t_start": t0, "t_end": t1,
             "duration_s": duration, "logs": logs, "stored": int(_num(row.get("stored"))),
@@ -412,15 +414,16 @@ def recall_cause(data: dict) -> str:
 
 def lumber_plan(memory, now: float) -> dict:
     """`ctl lumber plan` as the dashboard sees it: lumber_opt.plan_from_store with no
-    live character (skill from the newest trip row; no hatchet options) and standing
-    nowhere (every spot pays its travel prior), seeded by the minute so a refresh
-    within the minute shows the same draws. Per spot it adds what the trip rows and
-    job events say beyond the model: PK escapes (recall or guard flight), creature
-    recalls (a recall away from a creature, data.cause 'creature', since 2026-10-03)
-    and creature hits (monster_hit episodes), the last trip's outcome and why, how
-    the spot is reached."""
+    live character (the newest trip row's character and skill; no hatchet options) and
+    no new route planning (cached landing routes only, route_check False), seeded by the
+    minute so a refresh within the minute shows the same draws. Per spot it adds what
+    the trip rows and job events say beyond the model: PK escapes (recall or guard
+    flight), creature recalls (a recall away from a creature, data.cause 'creature',
+    since 2026-10-03) and creature hits (monster_hit episodes), the last trip's outcome
+    and why, and the landing rune a trip recalls to (`reach`)."""
     import lumber_opt
-    out = lumber_opt.plan_from_store(memory, None, None, None, None, seed=int(now // 60), now=now)
+    out = lumber_opt.plan_from_store(memory, None, None, None, None, seed=int(now // 60), now=now,
+                                     route_check=False)
     spots = lumber_opt.load_spots(memory)
     trips = [(r.get("spot") or r.get("venue"), r) for r in memory.episodes("lumber")]
     escapes, creature_recalls, creature_hits = {}, {}, {}
@@ -436,14 +439,15 @@ def lumber_plan(memory, now: float) -> dict:
     for r in out["spots"]:
         s = spots.get(r["id"]) or {}
         last = next((row for sid, row in reversed(trips) if sid == r["id"]), None)
-        access = s.get("access") or {}
+        landing = r.get("landing") or {}
         r["pk_escapes"] = escapes.get(r["id"], 0)
         r["creature_recalls"] = creature_recalls.get(r["id"], 0)
         r["creature_hits"] = creature_hits.get(r["id"], 0)
         r["last_outcome"] = None if last is None else (last.get("outcome") or "banked")
         r["last_why"] = None if last is None else last.get("why")
-        r["reach"] = (f"Witcher rune {access.get('rune')} ({access.get('library', 'cambria')})"
-                      if access.get("method") == "witcher" else "walk from the bank")
+        r["reach"] = None if not landing else (
+            f"{landing.get('name')} ({landing.get('library') if landing.get('source') == 'library' else 'own book'}, "
+            f"{landing.get('dist')} tiles off)")
         r["pvp"] = s.get("pvp", True)
     out.pop("hatchets", None)
     return out
