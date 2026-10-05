@@ -2,6 +2,8 @@
 # Inbound TCP <port>, Private profile only, remote addresses limited to the local subnet.
 # Run from an ADMINISTRATOR PowerShell (it does not self-elevate; an earlier self-elevating
 # version relaunched itself in a loop). Idempotent. Remove the rule with: -Remove
+# Execution policy is unset (= Restricted) on these machines, so invoke it as:
+#   powershell -ExecutionPolicy Bypass -File .\allow_viz_lan.ps1
 param([int]$Port = 8080, [switch]$Remove)
 
 $name = "uo-harness viz $Port"
