@@ -796,7 +796,11 @@ disturb recovery; a reflected opener would have saved Nusero; flight and healing
   Open: how long it lasts on Outlands,
   how to see it's up (buff icon), and recasting it at the start of each trip and after each reflect.
 
-## Smart Harvest for lumber: built offline 2026-10-04, attended live trip pending
+## Smart Harvest for lumber: built offline 2026-10-04, first live trip 2026-10-04 22:06
+
+Live 2026-10-04 22:06–22:17 (Outland Dan, Horseshoe Bay, the room-storage trip in docs/NOTES.md
+"First live room-storage trip"): 527 s of Smart Harvest chopping over 11 stands, each ended by
+"nothing nearby has wood" and the next stand; 240 logs. The reach measurement isn't analysed yet.
 
 **Decision (user, 2026-10-04): the lumber runner switches from targeting a tree to Smart Harvest,
 and that is the next lumber work.** Another agent implements it. Smart Harvest: double-click the
@@ -893,11 +897,13 @@ and whether a 'nothing nearby' came with candidate trees 2+ tiles away that late
 tree it picks = the faced trees per chop (nearest first? the same tree until dry?). Then set
 `SMART_RANGE` and write the numbers into docs/NOTES.md and LUMBER_LOOP.md §2.
 
-## Keep thieves off the logs: trapped pouch + keep-away (built offline 2026-10-04, attended live trip pending)
+## Keep thieves off the logs: trapped pouch + keep-away (built offline 2026-10-04, pouch flow live 2026-10-04)
 
 User request (2026-10-04): add protecting our logs from thieves to the plan, after seeing the
-community's trapped-pouch scripts. Built offline 2026-10-04 (below, "Built offline"); the attended
-live trip is pending.
+community's trapped-pouch scripts. Built offline 2026-10-04 (below, "Built offline"). Live
+2026-10-04 22:06–22:17 (docs/NOTES.md "First live room-storage trip"): the logs went into the
+trapped pouch, our own set-off in the room cost 1 hit and was not taken for an attack, the spent
+pouch went into the chest. No thief came, so the keep-away and the pop alarm are still unproven live.
 
 **Where we stand:**
 - `harness/ledger.py` only notices a theft afterwards: a `theft` job event plus a `theft_suspected`

@@ -426,8 +426,9 @@ def test_spells():
        [spell_on_us({**reflect, "graphic": g}, ME) for g in (0x37B9, 0x374A, 0x3709)], [(True, None)] * 3)
     eq("lightning (type 1, graphic 0) on us", spell_on_us({**reflect, "type": 1, "graphic": 0}, ME), (True, None))
     eq("our own cast start (0), Magic Reflection up (0x375A), a fizzle (0x3735), a heal (0x376A), "
-       "a cure (0x373A): not attacks",
-       [spell_on_us({**reflect, "graphic": g}, ME)[0] for g in (0, 0x375A, 0x3735, 0x376A, 0x373A)], [False] * 5)
+       "a cure (0x373A), the Harvest aspect's double-yield proc (0x37BE, live 2026-10-04): not attacks",
+       [spell_on_us({**reflect, "graphic": g}, ME)[0] for g in (0, 0x375A, 0x3735, 0x376A, 0x373A, 0x37BE)],
+       [False] * 6)
     eq("an effect on someone else (the bolt reflected onto the larva)",
        spell_on_us({**reflect, "type": 1, "source": 0x42E6DB, "target": 0x42E6DB, "graphic": 0}, ME), (False, None))
     eq("a moving effect at us names its caster (an arrow 0xF42)",

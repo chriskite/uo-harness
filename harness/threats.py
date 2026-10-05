@@ -175,7 +175,10 @@ on us, fixed effects 0x37B9 (reflect, absorb or parry), 0x374A, 0x3779, 0x3709
 effects (type 0) at us from the attacker (arrows 0xF42, a fireball 0x36D4). Our
 own casts make graphic 0 (the cast start), 0x375A (Magic Reflection up), 0x3735
 (a fizzle); heals, cures and buffs are 0x376A, 0x373A, 0x375A (RunUO's
-graphics; 0x376A is also Paralyze). Those are BENIGN_EFFECTS and never count.
+graphics; 0x376A is also Paralyze). Those are BENIGN_EFFECTS and never count, and so
+is 0x37BE (hue 0x8A0): the Harvest aspect's proc on us with "Harvest double yield/loot
+triggered." (live 2026-10-04 22:05:37, session 20261004_220218, Outland Dan at
+Horseshoe Bay with nothing in view; counted as a spell, it sent the trip home).
 So a spell on us is: a lightning effect on us, a fixed effect on us with a graphic
 outside BENIGN_EFFECTS, a moving effect at us (its source is the caster), or one
 of the server's SPELL_TEXTS ("Magic reflect removed.", "You absorb their
@@ -231,7 +234,7 @@ RANGED_BODIES = frozenset({22})  # gazer (live 2026-10-03: hit us from 11-12 til
 # Spells on us (module docstring "Spells on us")
 SPELL_TEXTS = frozenset({"Magic reflect removed.", "You absorb their spell.", "Spell siphon active."})
 EFFECT_MOVING, EFFECT_LIGHTNING, EFFECT_FIXED = 0, 1, 3      # S2C 0xC0 effect types
-BENIGN_EFFECTS = frozenset({0x0000, 0x3735, 0x373A, 0x375A, 0x376A})
+BENIGN_EFFECTS = frozenset({0x0000, 0x3735, 0x373A, 0x375A, 0x376A, 0x37BE})
 SYSTEM_SERIAL = 0xFFFFFFFF
 
 

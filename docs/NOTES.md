@@ -477,6 +477,28 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   ("Logan Wolf (DTF)") and closed the menu. Fixtures: `harness/testdata/room_gumps.json`.
 - Memory: #4082 (procedure, `char:outland_dan`, standing in his brief; #4081 superseded).
 
+## First live room-storage trip (2026-10-04, Outland Dan)
+
+Task `lumber-20261004-220633-af62` (`logs/tasks/`, local), session `logs/session_20261004_220218.jsonl`.
+`ctl run lumber --spot horseshoe_bay --trips 1 --logs-per-trip 200 --regrow-min 65 --timeout 2400
+--hatchet iron` (Horseshoe Bay chosen over the plan's explore pick witcher_284 for its record: 7
+trips, P(death) 0.03), started at the guild-house landing after a first attempt (below). The room
+exit (door → "Exit to House Steward" → (4134,1429)) was proven by that first attempt at 22:03:12.
+- **Out:** 15 steps to the DTF tomes, tome "Witcher 48-68" rune `67` by a charge (2.17 s), landing
+  (2167,2202), 59 tiles from the grove; walk_out 21.7 s to the first chop.
+- **Field:** 527 s chopping at 11 stands (Smart Harvest), 240 logs with the earlier attempt's 11 and
+  "Harvest double yield/loot triggered." procs; Lumberjacking 50.1 → 51.7.
+- **Home:** the runebook's default 'DTF Loot Chest' (2.19 s) → (4134,1429), 4 steps to Chase,
+  `room.enter` into Logan Wolf's room (to_room 9.5 s); the trapped pouch set off by us (1 hit,
+  acknowledged), 240 logs → 240 boards (convert 14.7 s), boards and the spent pouch dropped into the
+  paragon chest 0x4AE0DD2C (store 4.1 s). Exit 0 in the room.
+- **First attempt's false alarm (fixed):** the Harvest aspect's proc puts an S2C 0xC0 fixed effect
+  on us, graphic 0x37BE hue 0x8A0, with "Harvest double yield/loot triggered." and two sounds
+  (`c0 03 0014683f 0014683f 000037be …`). `threats.spell_on_us` counted it as a spell landing on us
+  with nothing in view and the runner recalled home ("taking damage, no creature in view") after
+  11 logs. 0x37BE is now a BENIGN_EFFECT. That aborted trip row (horseshoe_bay, sent home) is a
+  false hazard sample in the planner's data.
+
 ## Aspects (live 2026-10-04, user demo on Outland Dan)
 
 Session `logs/session_20261004_162411.jsonl` from line 39895 (local), memory-store events after

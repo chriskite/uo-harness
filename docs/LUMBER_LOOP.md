@@ -5,9 +5,10 @@ Status (2026-10-04): **self-optimizing (§6, "Built 2026-10-02").** `ctl lumber 
 overhead) and the hatchet; the runner takes `--spot`. Every trip starts and ends at home: out of the
 rental room, recall to the landing nearest the grove, chop, recall home by our own book's default rune,
 into the room through the house steward, convert there and store the boards in the room's secure
-chest (user decision 2026-10-04, §12.5; the 2026-10-01 bank version ran live off Shelter on
-2026-10-02 at Horseshoe Bay, Corpse Creek and Terran, the first room-storage version on Shelter on
-2026-09-29: 3 trips, 50 boards, captcha solved and resumed; run 3, §13).
+chest (user decision 2026-10-04, §12.5; first live trip 2026-10-04 22:06–22:17 at Horseshoe Bay: 240
+boards into the chest, docs/NOTES.md "First live room-storage trip"; the 2026-10-01 bank version ran
+live off Shelter on 2026-10-02 at Horseshoe Bay, Corpse Creek and Terran, the first room-storage
+version on Shelter on 2026-09-29: 3 trips, 50 boards, captcha solved and resumed; run 3, §13).
 - M0: the user's demonstration run (`logs/session_20260929_204225`) is mined into
   `harness/data/loops/lumber.json` and pinned by `harness/test_loop_demo.py`; findings are in §12.
 - Runner: `harness/loop_lumber.py`, proven offline by `test_loop_lumber.py`. Optimizer:
@@ -58,7 +59,7 @@ These constraints come from existing docs and aren't optimization targets:
 
 | Fact | Source | Loop consequence |
 |---|---|---|
-| Smart Harvest: double-click the equipped hatchet and target yourself → the server chops a nearby tree with wood left | [Smart Harvest](https://wiki.uooutlands.com/Smart_Harvest); capture `20261001_214649` (docs/NOTES.md) | Confirmed 2026-10-04. **The runner uses it since 2026-10-04** (built offline, attended live trip pending; docs/PLAN.md "Smart Harvest for lumber", §13 "Harvest attempt"). With nothing in reach: "You do not see any harvestable resources nearby." → the runner moves to the next stand. Reach and which tree it picks: unmeasured (`SMART_RANGE` = 1, the proven minimum: 23:47 chopped the one tree at distance 1) |
+| Smart Harvest: double-click the equipped hatchet and target yourself → the server chops a nearby tree with wood left | [Smart Harvest](https://wiki.uooutlands.com/Smart_Harvest); capture `20261001_214649` (docs/NOTES.md) | Confirmed 2026-10-04. **The runner uses it since 2026-10-04** (built offline; first live trip 2026-10-04 22:06, docs/NOTES.md "First live room-storage trip"; docs/PLAN.md "Smart Harvest for lumber", §13 "Harvest attempt"). With nothing in reach: "You do not see any harvestable resources nearby." → the runner moves to the next stand. Reach and which tree it picks: unmeasured (`SMART_RANGE` = 1, the proven minimum: 23:47 chopped the one tree at distance 1) |
 | Harvesting on Shelter Island needs Young status. Harvest chance there is 50 % of normal, and skills cap at 80 | [Shelter Island](https://wiki.uooutlands.com/Shelter_Island) | Shelter yield is half the overworld's, so the r measured there doesn't transfer (§6). Lumberjacking is otherwise blocked in town regions |
 | No hostile player actions on Shelter Island. Bank and vendors need Young status | Shelter Island | PK hazard on Shelter = 0 (§6). Bank and banker purchases work only while Young |
 | **TestWorth is Young (capture evidence, 2026-09-29).** The client received the Young-only login gump "Welcome to Shelter Island" (`0xC16E0192`) in sessions 163420 and 202723 | Shelter Island + `loop_mine.py timeline 20260929_163420` | Venue decision holds |
