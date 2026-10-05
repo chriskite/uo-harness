@@ -665,6 +665,12 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   run out of reach keeps going with fresh goals until 14 tiles or its 60 steps. The ping-pong runs
   also flooded the live viz (7–8 k S2C 0xF3 in 2.5 min as Dan crossed the view edge back and forth);
   it showed Dan bouncing for minutes after he had recalled home (investigated separately).
+- **Convert left logs (lumber-20261005-164216-2557, witcher_40, 17:18):** the trip itself went well (tree
+  drops and switches, no replan storm, 0 escapes). At home the pouch held 4 log stacks (other woods and
+  what aborted runs 1–3 left); one hatchet use brought no cursor and the 4-try convert loop aborted
+  ("logs left after 4 conversions") with a 9-log stack left and nothing stored; the overseer finished
+  by hand (2747 boards in the chest). Now convert tries once per stack plus 3 retries
+  (`test_loop_lumber.py` `convert_stacks`, failing before).
 - **The death robe (user, 2026-10-05: take it off after the resurrection):** `ctl act gump <res gump> 1`
   now takes it off once alive. Live 11:05: the worn "death robe" 0x60935864 (graphic 0x1F03, layer
   robe) was lifted (0x1D 43 ms after the 0x07) and dropped into the pack, and it **never came back**:

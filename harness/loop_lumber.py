@@ -144,6 +144,7 @@ LOCAL_TREES_R = 15            # trees this close to us join the candidates when 
 #                               after an escape (local_trees; user, 2026-10-05: chop the trees where we are)
 TREE_DROP_COOLDOWN_S = 120.0  # a tree dropped because a zone covered it waits this long (next_stand)
 RECENT_ZONE_S = 60.0          # a creature that left the view keeps its zone at its last tile this long (tree_guards)
+CONVERT_RETRIES = 3           # hatchet uses without a cursor tolerated while converting (convert)
 DIR_NAMES = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 AT_GROVE = 10                 # tiles beyond the area's radius that count as being at the grove already (no travel)
 LANDING_SLACK = 3             # tiles from the chosen rune's tile a recall out may land (live: on the tile) before it is wrong
@@ -2420,7 +2421,11 @@ class LumberLoop:
         the logs were [INFERENCE: RunUO ScissorHelper drops them into the logs' container]."""
         ok_text = self.k["convert"]["ok_text"]
         self.unpack(LOGS)
-        for _ in range(4):
+        # one conversion per stack (a trip's woods plus what earlier aborted trips left: live
+        # 2026-10-05, 4 stacks), and CONVERT_RETRIES for hatchet uses that bring no cursor (one did
+        # after the pouch went off, and the 4-try loop left a 9-log stack)
+        tries = len(self.in_pack(self.state(), LOGS)) + CONVERT_RETRIES
+        for _ in range(tries):
             st = self.state()
             stacks = self.in_pack(st, LOGS)
             if not stacks:
@@ -2432,6 +2437,7 @@ class LumberLoop:
             self.open_for((serial, False))              # the logs are targeted in their open container
             cur = self.use_hatchet()
             if cur is None:
+                log("convert: the hatchet brought no cursor; trying again")
                 continue
             self.human.wait("aim")
             mark = len(self.link.events)
@@ -2443,7 +2449,7 @@ class LumberLoop:
                 raise Abort(f"log stack 0x{serial:08X} did not convert")
             log(f"converted {it.get('amount') or 1} logs to boards")
             self.human.wait("between")
-        raise Abort("logs left after 4 conversions")
+        raise Abort(f"logs left after {tries} conversion tries")
 
     def open_for(self, *needs):
         """Open what the client must show first (agent_link.containers_to_open;

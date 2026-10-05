@@ -511,6 +511,8 @@ class World:
         self.wary_flags = 0x40            # wary: its 0x20 flags (war mode; 0: idle, idle_mob)
         self.wary_late = False            # zone_on_way: the creature isn't there at first; it shows up as we come
         self.wary_shown = False           # zone_on_way: it has come into view
+        self.carried = []                 # convert_stacks: (log graphic, amount) stacks in the pack at login
+        self.no_cursor_once = False       # convert_stacks: the first hatchet use in the room brings no cursor
         self.door_seen = False            # the door and gates go out on facet 0, then again like the steward
         self.red_due = False              # red_aim: the red is on its way (RED_AIM_S after the chop's cursor)
         self.red_t = None                 # red_aim: when the red's 0x20 went out
@@ -902,7 +904,7 @@ class World:
         """The log stack targeted, wherever it lies (in the opened pouch), becomes boards in the same
         container [INFERENCE: RunUO ScissorHelper]; a trapped pouch that never went off can't be seen
         into, so its logs can't be targeted (refused)."""
-        if serial not in self.stacks or self.stacks[serial][0] != LOG_G:
+        if serial not in self.stacks or self.stacks[serial][0] not in range(0x1BDD, 0x1BE3):
             return
         g, n, c = self.stacks.pop(serial)
         if self.pouch_hue.get(c) == 38:
@@ -982,6 +984,8 @@ class World:
                     self.mounted = True
                     self.send(delete(HORSE))
                     self.send(equip(MOUNT_ITEM, 0x3EA1, 0x19))
+            elif serial == HATCHET and self.no_cursor_once and self.facet == ROOM_FACET:
+                self.no_cursor_once = False              # convert_stacks: this use brings no cursor
             elif serial == HATCHET:
                 self.cid += 1
                 self.cursor_for = self.cid
@@ -1162,6 +1166,8 @@ class World:
             self.send(self.pouch_pkt(pch))
         if self.scenario == "break":                            # logs carried from an earlier trip
             self.send(self.stack_pkt(self.add_wood(LOG_G, INITIAL_LOGS, BACKPACK)))
+        for g, n in self.carried:                              # convert_stacks: logs of other woods carried
+            self.send(self.stack_pkt(self.add_wood(g, n, BACKPACK)))
         self.send(hits_pkt(self.hits))                          # our hits: the runner reads damage from them
         self.send_room_items()
         self.send_horse()
@@ -2271,6 +2277,26 @@ async def no_pouch():
     store.close()
 
 
+async def convert_stacks():
+    """Live 2026-10-05 (lumber-20261005-164216-2557): 4 log stacks came home (other woods, and logs earlier aborted
+    trips left), one hatchet use brought no cursor, and the 4-try convert loop aborted with a 9-log stack left and
+    nothing stored. Now one try per stack plus CONVERT_RETRIES: every stack becomes boards, all go into the chest."""
+    print("\n== several log stacks and a hatchet use without a cursor: everything converted and stored ==")
+    world = World("home")
+    world.scripted = False
+    world.carried = [(0x1BDE, 7), (0x1BDF, 5), (0x1BE0, 3)]
+    world.no_cursor_once = True
+    text, code, store, _ = await run_scenario(world, "convert_stacks", 12870, [GOOD_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "10", "--human", "off"])
+    check("the use without a cursor was tried again; 4 stacks converted; exit 0",
+          code == 0 and not world.no_cursor_once and "the hatchet brought no cursor" in text
+          and text.count("logs to boards") == 4, f"exit {code}\n{text[-800:]}")
+    check("every log went into the chest as boards: 15 carried + this trip's",
+          world.chest_stack is not None and world.chest_stack[1] == 15 + world.harvested and world.logs == 0,
+          f"chest {world.chest_stack}, harvested {world.harvested}, logs {world.logs}")
+    store.close()
+
+
 async def resupply():
     """No trapped pouch in the pack; the room's shelf has none, the landing's has 3: out of the room, Resupply
     there gives 3, the trip goes, its row says what each shelf gave."""
@@ -2790,7 +2816,8 @@ def run_parallel(names, jobs):
 
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
-            wary, idle_mob, zone_on_way, red_aim, thief_keep_away, pouch_pop, no_pouch, resupply, landing_escape,
+            wary, idle_mob, zone_on_way, red_aim, thief_keep_away, pouch_pop, no_pouch, resupply, convert_stacks,
+            landing_escape,
             ghost_horse,
             staff_in_view,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents,
