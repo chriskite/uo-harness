@@ -519,11 +519,13 @@ class Mover:
     # ---------------------------------------------------------------- map
     def walk_map(self, st):
         """pathfind.Walk for the player's facet, or None (no map data there).
-        Ground items from the world model are added as dynamic objects."""
+        Ground items from the world model are added as dynamic objects; the doors of
+        houses we're not standing in are locked (Walkers.get `inside`)."""
         if not self.use_map:
             return None
         return self.walkers.get(st["world"]["self"].get("map"),
-                                pathfind.ground_items(st["world"]["items"].values()))
+                                pathfind.ground_items(st["world"]["items"].values()),
+                                inside=tuple(self.link.pos(st)[:2]))
 
     def step_walkable(self, st, cur, z, d) -> bool:
         """The client's own check right before a step: walkable from (cur, z) in

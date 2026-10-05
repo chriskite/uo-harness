@@ -150,10 +150,12 @@ DD = nav.DIR_DELTA
 FAILURES = []
 # skirmish scenario (LUMBER_LOOP.md §13: monsters fighting others, escapes, convert on abort)
 BAG = 0x44ADC0DE                                         # the hatchet sits in this bag inside the backpack
-FAR_TREE = {"x": 119, "y": 212, "z": 0, "graphic": "0x0CE0", "stand": [119, 211]}
+# skirmish: the attacker 3 tiles east of the good tree's stand; escapes run ESCAPE_RUN (20) tiles, so west (the
+# town wall lies east); the far tree beyond the attacker's aggro zone (AGGRO_R) from where it stood
+FAR_TREE = {"x": 80, "y": 214, "z": 0, "graphic": "0x0CE0", "stand": [80, 213]}
 FIGHTER, OTHER, ATTACKER = 0x0000F161, 0x0000A0A0, 0x0000BA75
 FIGHTER_POS, OTHER_POS = (113, 204), (114, 204)          # 4 tiles from the good tree's stand: in flee range (8)
-ATTACKER_POS = (107, 200)                                 # 3 tiles west of the good tree's stand
+ATTACKER_POS = (113, 200)                                 # 3 tiles east of the good tree's stand
 # break scenario
 INITIAL_LOGS = 5                                          # logs carried from an earlier trip
 BREAK_AFTER_S = 10.0                                      # agent-active seconds left before the break is due
@@ -506,6 +508,7 @@ class World:
         self.reflect = False              # gazer_reflect: Magic Reflection is up and takes the next spell
         self.reflected = []               # (time, our distance from it) per spell Magic Reflection took
         self.wary_left_t = None           # wary: when the creature by the near tree left view
+        self.wary_flags = 0x40            # wary: its 0x20 flags (war mode; 0: idle, idle_mob)
         self.door_seen = False            # the door and gates go out on facet 0, then again like the steward
         self.red_due = False              # red_aim: the red is on its way (RED_AIM_S after the chop's cursor)
         self.red_t = None                 # red_aim: when the red's 0x20 went out
@@ -725,7 +728,7 @@ class World:
             self.send(creature_pkt(FIGHTER, 0xEA, *FIGHTER_POS))
             self.send(player_update(OTHER, *OTHER_POS))
         if self.scenario == "wary" and self.wary_left_t is None:
-            self.send(creature_pkt(WARY, 0x27, *WARY_POS))
+            self.send(creature_pkt(WARY, 0x27, *WARY_POS, flags=self.wary_flags))
 
     # ---- tracking (live 20261001_214649: docs/NOTES.md "Tracking") ----
     def tracking_gump(self):
@@ -1618,8 +1621,9 @@ async def run_scenario(world, tag, port_base, trees, runner_args, budget=None, s
 async def skirmish():
     """LUMBER_LOOP.md §13: the hatchet in a bag in the pack; 'a great hart' in war mode
     4 tiles from the tree, fighting a player (knowledge #89); a creature that goes for
-    the agent (escape, then the next tree out of its reach); the same creature hunting
-    it down at that tree (escape, kept coming: stop, logs converted first)."""
+    the agent (escape ESCAPE_RUN tiles, then the next tree out of its reach); the same creature
+    hunting it down at that tree (escape, kept coming: run RECALL_GAP away, recall home, no
+    conversion)."""
     print("\n== skirmish: hatchet in a bag, a hart fighting a player, a creature that goes for us ==")
     world = World("skirmish")
     text, code, store, _ = await run_scenario(world, "skirmish", 12680, [GOOD_TREE, FAR_TREE],
@@ -1629,34 +1633,39 @@ async def skirmish():
           world.containers_opened == [BACKPACK, BAG] and HATCHET in dclicks
           and dclicks.index(BACKPACK) < dclicks.index(BAG) < dclicks.index(HATCHET), str(dclicks[:6]))
     threat_js = [j for j in store.junctures() if j["kind"] == "threat"]
-    acts = [j["data"].get("action") for j in threat_js]
-    check("threat junctures (urgent): escape, escape (it came back), abort (it kept coming)",
-          acts == ["escape", "escape", "abort"] and all(j["severity"] == "urgent" for j in threat_js),
+    acts = [j["data"].get("action") for j in threat_js if "threats" in j["data"]]
+    check("threat junctures (urgent): escape, escape (it came back), recall (it kept coming), then 'Recalled away'",
+          acts == ["escape", "escape", "recall"] and "Recalled away" in threat_js[-1]["summary"]
+          and all(j["severity"] == "urgent" for j in threat_js),
           str([(j["summary"], j["data"].get("action")) for j in threat_js]))
-    hart = [next((t for t in j["data"]["threats"] if t["serial"] == FIGHTER), {}) for j in threat_js]
+    with_threats = [j for j in threat_js if "threats" in j["data"]]
+    hart = [next((t for t in j["data"]["threats"] if t["serial"] == FIGHTER), {}) for j in with_threats]
     check("every threat was the attacker; the hart fighting the player (in flee range, war mode) wasn't a "
           "threat (a passive body in war mode is fighting someone else, threats.py)",
-          threat_js and all(j["data"]["threats"][0]["serial"] == ATTACKER for j in threat_js)
+          with_threats and all(j["data"]["threats"][0]["serial"] == ATTACKER for j in with_threats)
           and hart[0].get("action") in ("watch", "ignore") and not hart[0].get("hostile")
           and hart[0].get("distance", 99) <= hart[0].get("flee_radius", 0), str(hart[:1]))
     m = re.search(r"escaped to \((\d+), (\d+)\)", text)
     to = (int(m[1]), int(m[2])) if m else None
-    check("first escape: walked away from the attacker to beyond its flee radius (8)",
-          to is not None and to[0] > GOOD_TREE["stand"][0]
-          and max(abs(to[0] - ATTACKER_POS[0]), abs(to[1] - ATTACKER_POS[1])) > 8, str(to))
+    check("first escape: ran from the attacker, away from it, at least ESCAPE_RUN (20) tiles (a few steps don't "
+          "break aggro; user 2026-10-05)",
+          to is not None and to[0] < GOOD_TREE["stand"][0]
+          and max(abs(to[0] - ATTACKER_POS[0]), abs(to[1] - ATTACKER_POS[1])) >= 19, str(to))
     far = [s for s in stand_events(store) if s["anchor"] == [FAR_TREE["x"], FAR_TREE["y"]]]
     check("resumed at a stand by the next tree out of the attacker's reach and harvested there",
           world.far_attempts >= 2 and sum(s["successes"] for s in far) >= 1, f"{world.far_attempts} attempts, {far}")
     check("the attacker kept coming after the second escape: the run stopped (exit 1)",
           code == 1 and "kept coming after the escape" in text and world.attacker_swings >= 2,
           f"exit {code}, {world.attacker_swings} swings")
-    check("a creature still coming: stop at once, no 10 s log conversion next to it (live 2026-10-03: "
-          "85 -> 40 hits while converting); the logs stay logs, no way home (home is near: no recall either)",
-          world.logs == 2 * LOGS_PER_SUCCESS and world.harvested == 2 * LOGS_PER_SUCCESS
-          and not world.pack_boards and [k for k, _ in world.room_log] == ["exit"] and not world.recalls_home
+    check("a creature at our heels: no 10 s log conversion next to it (live 2026-10-03: 85 -> 40 hits while "
+          "converting); first a run RECALL_GAP away (user 2026-10-05: a few steps don't break aggro), then the "
+          "recall home; the logs stay logs",
+          world.logs == world.harvested > 0 and not world.pack_boards and [k for k, _ in world.room_log] == ["exit"]
+          and world.recalls_home == [HOME_RUNE_POS] and "out of reach before the recall" in text
+          and text.index("out of reach before the recall") < text.index("recalling out")
           and "stopping at once, logs not converted" in text
           and "converting the carried logs before stopping" not in text,
-          f"logs {world.logs}, boards {world.pack_boards}, harvested {world.harvested}")
+          f"logs {world.logs}, boards {world.pack_boards}, harvested {world.harvested}, home {world.recalls_home}")
     eps = store.episodes("lumber")
     check("the stopped trip still left its episode row: aborted, why, the logs it got and still "
           "carries, the hatchet from the bag",
@@ -2064,6 +2073,28 @@ async def wary():
           code == 0 and [e.get("outcome") for e in eps] == ["stored"] and world.chest_stack is not None
           and not [j for j in store.junctures() if j["kind"] == "threat"]
           and cr.get("escapes") == 0 and cr.get("avoided_trees", 0) >= 1, f"exit {code} {cr}\n{text[-600:]}")
+    store.close()
+
+
+async def idle_mob():
+    """User 2026-10-05: never move into aggro range of a creature we can see. The wary scenario's creature, idle (no
+    war mode, its aggression unknown): the tree 2 tiles from it waits all the same (AGGRO_R), the west tree first,
+    the near one only after it has gone. No threat, no escape."""
+    print("\n== an idle creature by the nearest tree -> chop one away from it first ==")
+    world = World("wary")
+    world.wary_flags = 0
+    text, code, store, _ = await run_scenario(world, "idle_mob", 12850, [GOOD_TREE, WEST_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
+    targets = world.chopped
+    good = (GOOD_TREE["x"], GOOD_TREE["y"])
+    check("the idle creature's tree waited: the west tree first, the near one only after it had gone",
+          targets and targets[0][0] == (WEST_TREE["x"], WEST_TREE["y"]) and "choosing a tree away from it" in text
+          and world.wary_left_t is not None and all(t > world.wary_left_t for x, t in targets if x == good),
+          str([x for x, _ in targets][:4]))
+    eps = store.episodes("lumber")
+    check("stored, exit 0; no threat juncture, no escape",
+          code == 0 and [e.get("outcome") for e in eps] == ["stored"]
+          and not [j for j in store.junctures() if j["kind"] == "threat"], f"exit {code}\n{text[-600:]}")
     store.close()
 
 
@@ -2733,7 +2764,8 @@ def run_parallel(names, jobs):
 
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
-            wary, red_aim, thief_keep_away, pouch_pop, no_pouch, resupply, landing_escape, ghost_horse, staff_in_view,
+            wary, idle_mob, red_aim, thief_keep_away, pouch_pop, no_pouch, resupply, landing_escape, ghost_horse,
+            staff_in_view,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]

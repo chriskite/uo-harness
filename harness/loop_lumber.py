@@ -168,6 +168,17 @@ BOARDS = (0x1BD7,)
 DROP_AUTO = 0x7FFFFFFF        # client drop-into-container auto-position (demo)
 ESCAPE_MARGIN = 2             # an escape ends this many tiles beyond the monster's reach (flee radius or spell range)
 ESCAPES_PER_TRIP = 3          # monster escapes per trip (runs from damage included); one more threat stops the run
+# Creatures we can see (user, 2026-10-05: "just not move into aggro range of mobs we can see while
+# lumbering"): RunUO's monsters perceive within 10 tiles (BaseCreature rangePerception, the usual
+# spawn argument) [INFERENCE for Outlands]; trees and routes keep AGGRO_R from every one in view
+AGGRO_R = 13
+# An escape runs far, not a few steps (user, 2026-10-05: "a few steps isn't going to break aggro"):
+# its goal is at least ESCAPE_RUN tiles from what we flee [INFERENCE: past perception and view]
+ESCAPE_RUN = 20
+# Before a recall away from creatures, run until each attacker is this far: a 2 s cast next to them
+# is disturbed, and a caster's spells reach 12 (threats.CREATURE_SPELL_RANGE)
+RECALL_GAP = threats.CREATURE_SPELL_RANGE + 2
+RECALL_GAP_MAX_MOVES = 60
 PACK_DEPTH_MAX = 16           # container nesting bound when looking for the hatchet
 FLEE_MAX_MOVES = 400          # a guard flight's step bound (guards.FLEE_MAX_DIST tiles and detours)
 FLEE_ARRIVAL_WAIT_S = 1.5     # after a flight arrives: how long its 500112 may still come (data.confirmed)
@@ -429,7 +440,7 @@ class LumberLoop:
 
     # ------------------------------------------------------------ guards
     def check_guards(self, st: dict):
-        relaxed = self.mode in ("salvage", "flee")
+        relaxed = self.mode in ("salvage", "flee", "gap")
         if not relaxed and time.monotonic() > self.deadline:
             raise Abort(f"overall timeout ({self.args.timeout}s)")
         mv = st["movement"]
@@ -603,11 +614,14 @@ class LumberLoop:
         a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
         self.last_threats = a
         self.note_sightings(st)
+        self.aggro_zones(st)
         if a.dead:
             self.died(st, "ghost body")
         if self.mode == "flee":
             if self.guards_entered(self._flee_mark):
                 raise InGuards()
+            return
+        if self.mode == "gap":                 # running out of reach before a recall (gain_distance)
             return
         for t in a.threats:
             if t.hostile and t.player and t.serial not in self.seen_hostiles:
@@ -980,18 +994,59 @@ class LumberLoop:
         """A creature ends the run: under attack or with monsters closing in there is no
         time to convert logs (live 2026-10-03, witcher_291: 85 -> 40 hits during a 12 s
         conversion, then the run exited in the field and the overseer's recall landed at
-        15/100). So: recall home at once when away from home with a book ready, and stop
-        without converting (Unsafe). At home (home.at_home: in the room or by the landing),
-        or without a book, stop where we stand.
-        The trip row's `creature` gets the why and whether the recall landed."""
+        15/100). So: away from home with a book ready, first run until every creature after
+        us is RECALL_GAP tiles off (gain_distance: a cast next to it is disturbed, and it
+        keeps hitting; user, 2026-10-05), then recall home, and stop without converting
+        (Unsafe). At home (home.at_home: in the room or by the landing), or without a book,
+        stop where we stand. The trip row's `creature` gets the why and whether the recall landed."""
         self.creature["why"] = why
         if self.recall_book is not None and not self.at_home(st):
+            if self.gain_distance(st, a, swung):
+                st = self.link.state()
+                a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
             try:
                 why = f"{why}; {self.recall_out(st, a, worst, swung, pk=False, why=why)}"
             except Unsafe:
                 self.creature["recalled"] = True
                 raise
         self.threat_stop(st, a, worst, swung, Unsafe, why)
+
+    def gain_distance(self, st, a, swung) -> bool:
+        """Before a recall away from creatures: run (urgent: no pauses, running while
+        stamina allows) until each creature after us (hostile ones in view within
+        RECALL_GAP, and those swinging or casting at us) is RECALL_GAP tiles off or out of
+        view, at most RECALL_GAP_MAX_MOVES steps, toward escape_tiles' goals (ESCAPE_RUN
+        from them). Only death interrupts it (mode 'gap'). True when it walked. Live
+        2026-10-05: a recall cast with a brackish water hitting lost 44 hits in 2.2 s, and
+        a hoarfrost caught up with a short walk-away and killed Dan."""
+        mobs = st["world"]["mobiles"]
+        foes = {t.serial for t in a.threats if t.kind == "monster" and t.hostile and 0 <= t.distance < RECALL_GAP}
+        foes |= {s for s in swung if (by := next((t for t in a.threats if t.serial == s), None)) is not None
+                 and by.kind == "monster"}
+        at = [(m["x"], m["y"]) for m in (mobs.get(f"0x{s:08X}") or {} for s in foes) if m.get("x") is not None]
+        if not at:
+            return False
+
+        def clear(s):
+            pos = self.link.pos(s)[:2]
+            ms = s["world"]["mobiles"]
+            return all((m := ms.get(f"0x{f:08X}")) is None or m.get("x") is None
+                       or cheb(pos, (m["x"], m["y"])) >= RECALL_GAP for f in foes) and "clear"
+        log(f"out of reach before the recall: running {RECALL_GAP} tiles from {len(foes)} creature(s)")
+        mode, self.mode = self.mode, "gap"
+        try:
+            for goal in self.escape_tiles(st, at):
+                try:
+                    self.mover.walk_to(lambda: goal, 1, "out of reach", max_moves=RECALL_GAP_MAX_MOVES,
+                                       urgent=True, stop=clear)
+                    break
+                except Abort as x:
+                    if "no route" not in str(x) and "detour" not in str(x):
+                        log(f"out of reach: {str(x).split(': ', 1)[-1]}; recalling from here")
+                        break
+        finally:
+            self.mode = mode
+        return True
 
     def recall_out(self, st, a, worst, swung, pk: bool = True, why: str | None = None,
                    what: str | None = None) -> str:
@@ -1852,18 +1907,48 @@ class LumberLoop:
         return free[best]
 
     def tree_guards(self, st) -> list:
-        """[(threat, (x, y), tiles)]: known-aggressive creatures in view (hostile in the
-        last assessment: learned bodies, war mode, notoriety 6; never pets or passive
-        bodies) with the zone (zone_r) whose trees wait while they are around."""
+        """[(threat, (x, y), tiles)]: every creature in view that may come for us (may_aggro:
+        not a pet, a passive body or name; user, 2026-10-05: never move into aggro range of a
+        mob we can see) with its zone, aggro_r: its trees wait while it is around, and routes
+        bend around it (aggro_zones)."""
         a = self.last_threats
         mobs = st["world"]["mobiles"]
         out = []
         for t in (a.threats if a else []):
             m = mobs.get(f"0x{t.serial:08X}") or {}
-            if t.kind == "monster" and t.hostile and 0 <= t.distance <= self.watch.params.max_range \
-                    and m.get("x") is not None:
-                out.append((t, (m["x"], m["y"]), self.zone_r(t)))
+            if self.may_aggro(t) and 0 <= t.distance <= self.watch.params.max_range and m.get("x") is not None:
+                out.append((t, (m["x"], m["y"]), self.aggro_r(t)))
         return out
+
+    def may_aggro(self, t) -> bool:
+        """A creature that may come for us: a monster that isn't a pet (the "(tame)" / "(bonded)"
+        line) or of a passive body or name (threats.Params). Hostile ones (war mode, learned
+        bodies, notoriety 6) of course; idle ones too, since they turn when we come near."""
+        p = self.watch.params
+        return (t.kind == "monster" and (t.hostile or (
+            "pet" not in (t.aggression or "") and t.body not in p.passive_bodies
+            and (t.name or "").lower() not in p.passive_names)))
+
+    def aggro_r(self, t) -> int:
+        """Tiles around a creature we stay out of: zone_r, at least AGGRO_R."""
+        return max(self.zone_r(t), AGGRO_R)
+
+    def aggro_zones(self, st):
+        """The Mover's ("seen", serial) danger zones: the tree_guards of this state read, so
+        every walk bends around the creatures in view; a new or moved one asks for a replan. A
+        zone we already stand in is left out: there is no going round it, and a creature at our
+        heels moving it every few steps sent an escape replanning back and forth (the threat
+        checks deal with that creature)."""
+        here = tuple(self.link.pos(st)[:2])
+        zones = {("seen", t.serial): (xy, r) for t, xy, r in self.tree_guards(st) if cheb(here, xy) > r}
+        old = {k: v for k, v in self.mover.danger.items() if isinstance(k, tuple) and k[0] == "seen"}
+        for k in old.keys() - zones.keys():
+            del self.mover.danger[k]
+        for k, (xy, r) in zones.items():
+            prev = old.get(k)
+            if prev is None or cheb(prev[0], xy) >= travel_guard.MOVED_REPLAN:
+                self.mover.danger[k] = (xy, r)
+                self.mover.replan_requested = True
 
     def zone_r(self, t) -> int:
         """Tiles around a creature that are out of bounds: its reach (a ranged one's at
@@ -2048,10 +2133,11 @@ class LumberLoop:
         return True
 
     def escape(self, e: Escape):
-        """Walk away from e's monsters to a tile beyond each one's zone (zone_r: its
-        flee radius or, for a ranged one, CREATURE_SPELL_RANGE, + ESCAPE_MARGIN;
-        escape_tiles), then check that none followed: one still in flee range, or a
-        ranged one within its reach, stops the run ('it kept coming'). The zones
+        """Walk away from e's monsters to a tile at least ESCAPE_RUN tiles from each of them
+        and out of every zone (escape_tiles: theirs, zone_r, and the aggro zones of the other
+        creatures in view; user, 2026-10-05: a few steps don't break aggro), then check that
+        none followed: one still in flee range, or a ranged one within its reach, stops the run
+        ('it kept coming'; monster_stop runs RECALL_GAP away before the recall). The zones
         stay for the rest of the trip, around the creature and around where it was."""
         st = self.link.state()
         mobs = st["world"]["mobiles"]
@@ -2066,7 +2152,12 @@ class LumberLoop:
                 self.mover.danger[t.serial] = self.mover.danger[("was", t.serial)] = zone   # routes bend around
                 travel_guard.record(self.memory, st, t, (m["x"], m["y"]), job="lumber")
         names = ", ".join(t.name or f"0x{t.serial:08X}" for t in e.monsters)
-        goals = self.escape_tiles(st)
+        run_from = [(m["x"], m["y"]) for m in (mobs.get(f"0x{t.serial:08X}") or {} for t in e.monsters)
+                    if m.get("x") is not None]
+        goals = self.escape_tiles(st, run_from)
+        if not goals:
+            self.monster_stop(st, self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S),
+                              e.monsters[0], {}, "nowhere clear to run to")
         log(f"ESCAPE {self.escapes}/{ESCAPES_PER_TRIP}: {e.summary}; backing away to {goals[0]}")
         self.mode, self.walk_hits = "escape", 0
         here = tuple(st["movement"]["pos"][:2])
@@ -2102,16 +2193,18 @@ class LumberLoop:
         self.run_arrived = time.time()
         log(f"escaped to {tuple(st['movement']['pos'][:2])}; carrying on")
 
-    def escape_tiles(self, st) -> list:
+    def escape_tiles(self, st, run_from=()) -> list:
         """Escape goals, best first: up to two tiles walked before (walk memory)
-        out of every escaped-from monster's reach, within 60 degrees of straight
-        away from them, nearest first; then the first such tile straight away
-        and 45 degrees to either side."""
+        at least ESCAPE_RUN tiles from each of `run_from` and out of every zone (the
+        runner's escaped-from monsters, the Mover's: aggro zones of the creatures in view,
+        thieves), within 60 degrees of straight away from them, nearest first; then the
+        first such tile straight away and 45 degrees to either side."""
         pos = tuple(st["movement"]["pos"][:2])
         zones = list(self.danger.values())
+        avoid = zones + [z for k, z in self.mover.danger.items() if isinstance(k, tuple) and k[0] == "seen"]
 
         def clear(t):
-            return all(cheb(t, z) > r for z, r in zones)
+            return all(cheb(t, z) > r for z, r in avoid) and all(cheb(t, p) >= ESCAPE_RUN for p in run_from)
         vx = vy = 0.0
         for (zx, zy), _ in zones:
             n = math.hypot(pos[0] - zx, pos[1] - zy) or 1.0

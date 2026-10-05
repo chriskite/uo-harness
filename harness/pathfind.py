@@ -40,12 +40,17 @@ class Walkers:
     def __init__(self):
         self._walks = {}
 
-    def get(self, facet, ground=()) -> "Walk | None":
+    def get(self, facet, ground=(), inside=None) -> "Walk | None":
         """The Walk for `facet` (None: no geometry there), with `ground` =
         iterable of (x, y, graphic, z, multi) ground items as dynamic objects
         (ground_items builds it). A multi (a house) stands for its pieces from
         multi.mul, placed around its tile like the client does (Item.LoadMulti);
-        the client's pathfinder never uses the multi's own graphic."""
+        the client's pathfinder never uses the multi's own graphic. `inside`: the
+        walker's (x, y); then the doors of every house it isn't standing in are
+        `locked` (another player's house doesn't open to us: live 2026-10-05 an
+        escape route through such a door stopped at it and Outland Dan died). A
+        house's doors are separate door items (multi.mul pieces have none) on or
+        next to its footprint (house_rect)."""
         facet = 0 if facet is None else facet
         if facet not in MAP_FACETS:
             return None
@@ -53,23 +58,47 @@ class Walkers:
         if w is None:
             w = Walk(uomap.UoMap(facet))
             self._walks[facet] = w
-        index = {}
+        index, houses, singles = {}, [], []
         for x, y, g, z, multi in ground:
             if x is None or g is None:
                 continue
             z = z or 0
             if multi:
-                for dx, dy, dz, pg in uomap.multi_components(g, w.m.root):
+                comps = uomap.multi_components(g, w.m.root)
+                for dx, dy, dz, pg in comps:
                     index.setdefault((x + dx, y + dy), []).append((pg, z + dz))
+                if comps:
+                    houses.append(house_rect(x, y, comps))
             else:
                 index.setdefault((x, y), []).append((g, z))
+                singles.append((x, y, g))
         w.dynamic = lambda x, y: index.get((x, y), ())
+        foreign = [r for r in houses if not _in_rect(inside, r)] if inside is not None else []
+        locked = set()
+        if foreign:
+            td = uomap.tiledata()
+            for x, y, g in singles:
+                it = td.item(g)
+                if it is not None and it.flags & uomap.DOOR and any(_in_rect((x, y), r) for r in foreign):
+                    locked.add((x, y))
+        w.locked = frozenset(locked)
         w.clear()
         return w
 
     def put(self, facet, walk: "Walk"):
         """Use `walk` for `facet` (tests with synthetic geometry)."""
         self._walks[facet] = walk
+
+
+def house_rect(x: int, y: int, comps) -> tuple:
+    """(x0, y0, x1, y1): a house's footprint from its pieces, one tile wider each way (its
+    doors stand on the outline's edge or just outside the pieces' bounding box)."""
+    xs, ys = [dx for dx, _, _, _ in comps], [dy for _, dy, _, _ in comps]
+    return x + min(xs) - 1, y + min(ys) - 1, x + max(xs) + 1, y + max(ys) + 1
+
+
+def _in_rect(t, r) -> bool:
+    return r[0] <= t[0] <= r[2] and r[1] <= t[1] <= r[3]
 
 
 def ground_items(items) -> list:
@@ -92,6 +121,7 @@ class Walk:
         self.m = umap
         self.td = umap.tiledata
         self.dynamic = dynamic or (lambda x, y: ())
+        self.locked = frozenset()    # door tiles of houses we're outside of (Walkers.get `inside`)
         self._objs = {}
         self._land = {}
 
@@ -228,12 +258,15 @@ class Walk:
         (nx, ny, nz) of a step from (x, y, z) in direction d, or None.
 
         A door on the target tile doesn't block (the walker opens it ahead, like
-        the client's auto-open). A door on either corner tile of a diagonal does
+        the client's auto-open), unless it is `locked` (another player's house). A
+        door on either corner tile of a diagonal does
         (door_corners): door items are impassable for the client, open or closed,
         so it never sends that diagonal (live 20260930_182751: a diagonal past a
         closed double-door leaf was denied). The proxy's z tracking of
         server-confirmed steps passes door_corners=False."""
         nx, ny = x + DX[d], y + DY[d]
+        if (nx, ny) in self.locked:
+            return None
         nz = self.new_z(nx, ny, z, d)
         if nz is None:
             return None

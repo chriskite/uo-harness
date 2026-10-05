@@ -135,6 +135,20 @@ def main():
           all(g != 0x154 for g, _ in with_house.dynamic(943, 774)))
     check("a walk past the house front stays open",
           with_house.can_walk(940, 779, 2, 2) == (941, 779, 2))
+    # a door item on the house's front edge (RunUO houses place doors as items; multi.mul pieces have none)
+    door_tile = (943, 779)
+    td = uomap.tiledata()
+    door_g = next(g for g in range(0x0675, 0x0700) if td.item(g) and td.item(g).flags & uomap.DOOR)
+    ground = house + [(*door_tile, door_g, 1, False)]
+    outside = walkers.get(0, ground, inside=(943, 781))
+    check("another player's house: its door is locked from outside (no step onto it)",
+          door_tile in outside.locked and outside.can_walk(943, 780, 2, 0) is None, sorted(outside.locked))
+    inside = walkers.get(0, ground, inside=(943, 776))
+    check("standing inside the house (ours, or we got in): its door opens as usual",
+          not inside.locked, sorted(inside.locked))
+    plain = walkers.get(0, ground)
+    check("no walker tile given (z tracking, ctl): nothing locked, and the door tile is a step like any door",
+          not plain.locked and plain.can_walk(943, 780, 2, 0) is not None, str(plain.can_walk(943, 780, 2, 0)))
 
     print("== proxy z per confirmed step matches the server (walk confirms carry no z) ==")
     import proxy

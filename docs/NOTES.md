@@ -635,6 +635,12 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   map-planned escape route longer than max(12, 2 × the goal's distance) is refused, and with no
   short one the runner recalls home at once; a hit from a creature next to us while walking away
   sends us home (LUMBER_LOOP.md §13). Both hatchets were in the pack and are on the corpse.
+  **The door was another player's house** (user): you can't walk into one uninvited, so the escape
+  stopped there. The user's direction (2026-10-05): run much farther from mobs before recalling or
+  expecting them to stop (a few steps don't break aggro), and never move into aggro range of mobs we
+  can see while lumbering (no fighting them for now). Built: foreign house doors locked to the
+  planner, aggro zones round every visible creature, escapes of 20 tiles, a run out of reach before a
+  creature recall (LUMBER_LOOP.md §13 "Keep away from creatures in view").
 - **The death robe (user, 2026-10-05: take it off after the resurrection):** `ctl act gump <res gump> 1`
   now takes it off once alive. Live 11:05: the worn "death robe" 0x60935864 (graphic 0x1F03, layer
   robe) was lifted (0x1D 43 ms after the 0x07) and dropped into the pack, and it **never came back**:

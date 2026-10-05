@@ -784,6 +784,29 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   escapes in a trip (`ESCAPES_PER_TRIP`), during a speech hold, on damage when the rule below
   says so (until 2026-10-03: on any damage), and, as before, at once for a hostile
   player/red/grey/orange in flee range or a non-creature swinging at us.
+- **Keep away from creatures in view, run far, run before recalling (since 2026-10-05, user: "never
+  move into aggro range of mobs we can see while lumbering"; "a few steps isn't going to break aggro";
+  fighting them is for later):**
+  - **Aggro zones** (`may_aggro`, `aggro_r`, `tree_guards`, `aggro_zones`): every monster in view
+    that isn't a pet or of a passive body/name, idle ones included, has a zone of max(its zone_r,
+    `AGGRO_R` 13) tiles [INFERENCE: RunUO monsters perceive within 10]. Trees in a zone wait while
+    the creature is around, and walks bend around the zones (Mover danger keys ("seen", serial),
+    refreshed every state read; a new or moved one replans). A zone we already stand in doesn't
+    steer (no going round it; a creature at our heels moving it replanned an escape back and forth).
+  - **Escapes run `ESCAPE_RUN` (20) tiles** from the creatures fled (`escape_tiles(run_from=)`), to a
+    tile also outside every other zone; no such tile: recall home at once.
+  - **Before a recall away from creatures, run out of reach** (`monster_stop` → `gain_distance`):
+    urgent, up to `RECALL_GAP_MAX_MOVES` (60) steps, until each creature after us (hostile within
+    `RECALL_GAP` 14, or swinging/casting at us) is 14 tiles off (out of a caster's 12) or out of
+    view; only death interrupts it (mode `gap`). Then the recall. (Live 2026-10-05: a recall cast
+    under a brackish water's spells lost 44 hits; a short walk-away let a hoarfrost catch Dan.)
+  - **Other players' houses** (`pathfind.Walkers.get(inside=)`): the doors of a house we aren't
+    standing in are locked to the planner, since we can't walk in uninvited (user, 2026-10-05; at
+    witcher_149 the escape stopped at such a door and Dan died). A house's doors are door items on
+    or next to its footprint (multi.mul pieces carry none).
+  Offline: `test_loop_lumber.py` `skirmish` (escape 20 tiles; at our heels: run out of reach, then
+  the recall) and `idle_mob` (an idle creature's tree waits); `harness/test_pathfind.py` (locked
+  doors).
 - **Running from a creature (since 2026-10-03; `creature_hit`, `hit_verdict`,
   `threats.hit_attackers`):** live 2026-10-03 at witcher_291 a gazer (body 22) at 6 tiles got the
   melee-sized escape (flee radius 8 + 2: we stopped 11 tiles from it), and 4 s later it hit us
