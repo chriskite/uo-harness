@@ -100,6 +100,7 @@ class FakeProxy:
         self.potion_answers = {}  # item key -> cliloc the server answers its double-click with
         self.self_noto = 1
         self.gold = 110
+        self.dead = False         # world.self.dead (a ghost); the Resurrection gump's Accept revives
         self.buy_list = None      # {"container": int, "items": [{"price", "name"}]} sent on a menu pick
         self.buy_content = None   # [[container, [serials in 0x3C packet order]]] sent just before it
         self.prices = {}          # item serial -> price charged by a 0x3B
@@ -194,6 +195,8 @@ class FakeProxy:
                         self.target = {"active": False, "target_type": None, "cursor_id": None, "cursor_type": None}
                     elif pkt[0] == 0x07:
                         self.lifted = (f"0x{int.from_bytes(pkt[1:5], 'big'):08X}", int.from_bytes(pkt[5:7], "big"))
+                        if self.ground_items.get(self.lifted[0], {}).get("graphic") == 0x1F03:
+                            del self.ground_items[self.lifted[0]]    # a death robe is deleted when lifted (live)
                     elif pkt[0] == 0x08 and len(pkt) == 22:          # drop into a container
                         key = f"0x{int.from_bytes(pkt[1:5], 'big'):08X}"
                         dest = f"0x{int.from_bytes(pkt[18:22], 'big'):08X}"
@@ -212,6 +215,11 @@ class FakeProxy:
                             it.update(container=f"0x{int.from_bytes(pkt[6:10], 'big'):08X}", layer=pkt[5])
                     elif pkt[0] == 0x12 and pkt[3] == 0x24 and self.tracker is not None:
                         self._tracking_gump()
+                    elif pkt[0] == 0xB1 and int.from_bytes(pkt[7:11], "big") == ctl.RESURRECT_GUMP_ID \
+                            and int.from_bytes(pkt[11:15], "big") == 1:   # Accept: up again, in a death robe
+                        self.dead = False
+                        self.ground_items["0x40000099"] = {"graphic": 0x1F03, "layer": 0x16, "name": "death robe",
+                                                           "container": "0x00000001"}
                     elif pkt[0] == 0xB1 and self.tracker is not None \
                             and int.from_bytes(pkt[7:11], "big") == tracking.GUMP_ID:
                         self._tracking_click(int.from_bytes(pkt[3:7], "big"), int.from_bytes(pkt[11:15], "big"))
@@ -276,7 +284,7 @@ class FakeProxy:
                     "self": {"serial": "0x00000001", "name": "TestWorth", "hits": self.self_hits, "hits_max": 60,
                              "stam": 40, "stam_max": 45, "mana": self.mana, "mana_max": 25, "weight": 123, "map": 0,
                              "warmode": self.warmode, "notoriety": self.self_noto, "gold": self.gold,
-                             "body": 0x190, "skill_names": [],
+                             "body": 0x192 if self.dead else 0x190, "dead": self.dead, "skill_names": [],
                              "skills": {"25": {"value": 600, "base": 600, "lock": 0, "cap": 1000},
                                         "17": {"value": 0, "base": 0, "lock": 0, "cap": 1000}},
                              "stats": dict(self.stats)},
@@ -921,6 +929,23 @@ def test_overseer_acts(proxy):
     code, out = c("act", "gump", "0x106", "6")
     check("rental room menu: Exit to House Steward (6) is sent",
           code == 0 and [p for _, p in proxy.take()] == [actions.gump_response(0x106, 0x8EAEFBDB, 6)], str(out))
+    # the healer's Resurrection gump (live 0xB04C9A31, Accept 1): up again in a death robe, which comes off
+    res = "{ button 10 10 1 2 1 0 1 }{ button 10 30 1 2 1 0 2 }"
+    proxy.gumps.append(gump_row(0x109, ctl.RESURRECT_GUMP_ID, res, ["Resurrection", "Accept", "Decline"]))
+    proxy.dead = True
+    code, out = c("act", "gump", "0x109", "1")
+    sent = [p for _, p in proxy.take()]
+    check("resurrection Accept: the 0xB1, then the death robe lifted off; the server deletes it (live), so "
+          "no drop follows",
+          code == 0 and out.get("resurrected") and (out.get("death_robe") or {}).get("ok")
+          and out["death_robe"].get("deleted") and sent[0] == actions.gump_response(0x109, ctl.RESURRECT_GUMP_ID, 1)
+          and [p[0] for p in sent[1:]] == [0x07] and sent[1][1:5] == bytes.fromhex("40000099")
+          and "0x40000099" not in proxy.ground_items, (out, [p.hex() for p in sent]))
+    proxy.gumps.append(gump_row(0x10A, ctl.RESURRECT_GUMP_ID, res, ["Resurrection", "Accept", "Decline"]))
+    code, out = c("act", "gump", "0x10A", "2")
+    check("Decline (2): only the 0xB1, nothing taken off",
+          code == 0 and "death_robe" not in out and [p for _, p in proxy.take()]
+          == [actions.gump_response(0x10A, ctl.RESURRECT_GUMP_ID, 2)], str(out))
     # Retrieve Items-style gump (live 0xBEC6217A): an amount entry (id 1, default "", limit 5),
     # a label to its left, a checked checkbox (id 7) and an OKAY button (2)
     shelf = ("{ text 58 99 2599 3 18 0 1 0 0 0 }{ textentrylimited 147 100 78 20 2655 1 4 5 2 2 }"

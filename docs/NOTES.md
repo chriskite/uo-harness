@@ -586,6 +586,11 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   hatchet, armor, ~106 logs and supplies (no corpse runs, policy #2). `ctl act resupply` at the DTF
   shelf then re-dressed him: all six studded pieces (worn; no Harvest aspect until activated again),
   reagents, potions, pouches and a bag; no hatchet (the shelf has none it will give).
+- **The death robe (user, 2026-10-05: take it off after the resurrection):** `ctl act gump <res gump> 1`
+  now takes it off once alive. Live 11:05: lifting the worn "death robe" 0x60935864 (graphic 0x1F03,
+  layer robe) made the server **delete it at once** (0x1D 43 ms after the 0x07), so nothing is
+  dropped: `unequip` reports `deleted` (the first try also sent a drop for the gone item and called
+  it a failure; fixed). Codex #13 superseded by #4094.
 
 ## Aspects (live 2026-10-04, user demo on Outland Dan)
 

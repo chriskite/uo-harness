@@ -145,6 +145,12 @@ GOTO_Z_TOL = 10                      # goto --z / ground item: stand within this
 GROUND_RANGE = 12                    # status: ground items within this many tiles
 GROUND_MAX = 20
 EVENT_WAIT_S = 3.0
+# The healer's "Resurrection" gump (live 2026-09-30 Minka, 2026-10-03 Galatea, 2026-10-05 Shawn: Accept 1,
+# Decline 2). After Accept the character stands up in a death robe; `act gump` then takes it off.
+RESURRECT_GUMP_ID, RESURRECT_ACCEPT = 0xB04C9A31, 1
+DEATH_ROBES = (0x1F03, 0x204E)        # "death robe" (live 2026-10-05, layer robe 0x16); RunUO DeathRobe 0x204E
+LAYER_ROBE = 0x16
+RESURRECT_WAIT_S = 8.0               # Accept -> the body is a living one again
 # What `journal` shows: what a player reads on screen (messages, gumps, menus).
 JOURNAL_EVS = ("speech_heard", "cliloc", "gump_open", "gump_response", "popup", "buy_list",
                "menu", "quest_arrow", "quest_arrow_set", "target", "map_change")
@@ -1016,8 +1022,11 @@ def _act(a, mem) -> dict:
                 raise CtlError("no target cursor is up")
             pkts = [actions.target_cancel(cur["cursor_id"], cur.get("target_type") or 0,
                                           cur.get("cursor_type") or 0)]
+        res_accept = False
         if a.name == "gump":
-            pkts = [gump_reply(stc.state(), a.args[0], a.args[1], a.text or ())]
+            st0 = stc.state()
+            pkts = [gump_reply(st0, a.args[0], a.args[1], a.text or ())]
+            res_accept = _is_resurrect_accept(st0, a.args[0], a.args[1])
         mark = stc.mark()
         for p in pkts:                 # companion packets go out back to back, as the client sends them
             resp = ctl.send(p)
@@ -1037,10 +1046,56 @@ def _act(a, mem) -> dict:
             out["menu"] = menu
             if menu is None:
                 out["error"] = "no context menu came back"
-        return out
+        if res_accept:
+            end = time.monotonic() + RESURRECT_WAIT_S
+            while (stc.state()["world"].get("self") or {}).get("dead") and time.monotonic() < end:
+                time.sleep(0.2)
+            out["resurrected"] = not (stc.state()["world"].get("self") or {}).get("dead")
     finally:
         ctl.close()
         stc.close()
+    if out.get("resurrected"):
+        out["death_robe"] = _take_off_death_robe(a)
+    return out
+
+
+def _is_resurrect_accept(state: dict, serial_arg: str, button_arg: str) -> bool:
+    """The reply is Accept on the healer's Resurrection gump (RESURRECT_GUMP_ID)."""
+    serial = _parse_serial(serial_arg)
+    g = next((g for g in (state.get("world") or {}).get("gumps") or [] if _serial(g.get("serial")) == serial), None)
+    return (g is not None and _serial(g.get("gump_id")) == RESURRECT_GUMP_ID
+            and int(button_arg, 0) == RESURRECT_ACCEPT)
+
+
+def death_robe(world: dict, me) -> int | None:
+    """The death robe we wear (robe layer, a death robe graphic or name), else None."""
+    for key, it in (world.get("items") or {}).items():
+        if it.get("container") is not None and me is not None and _serial(it["container"]) == me \
+                and it.get("layer") == LAYER_ROBE and (it.get("graphic") in DEATH_ROBES
+                                                       or "death" in (it.get("name") or "").lower()):
+            return _serial(key)
+    return None
+
+
+def _take_off_death_robe(a) -> dict:
+    """Back from the dead (user, 2026-10-05): the death robe off, like a player undressing after the
+    healer (`unequip`'s lift after a reading pause; the server deletes a death robe the moment it's
+    lifted, live 2026-10-05, so no drop follows). {ok, serial, deleted} or {ok: False, error}."""
+    try:
+        stc = StateConn(a.state_port)
+        try:
+            st = stc.state()
+        finally:
+            stc.close()
+        robe = death_robe(st["world"], st["movement"].get("self_serial"))
+        if robe is None:
+            return {"ok": False, "error": "no death robe worn"}
+        Human(a.human, seed=a.seed).wait("read")
+        res = _act_wear(argparse.Namespace(**{**vars(a), "name": "unequip", "args": [f"0x{robe:08X}"]}))
+        return {"ok": res["ok"], "serial": f"0x{robe:08X}", "deleted": bool(res.get("deleted")),
+                **({} if res["ok"] else {"error": res.get("error")})}
+    except (CtlError, OSError) as e:
+        return {"ok": False, "error": str(e)}
 
 
 def _open_first(ctl: "Control", stc: "StateConn", human, *needs) -> list[str]:
@@ -2309,6 +2364,13 @@ def _act_wear(a) -> dict:
         if resp != "OK":
             return {"ok": False, "reply": resp}
         human.wait("drag")
+        if key not in stc.state()["world"]["items"]:
+            # the server deleted what we lifted (live 2026-10-05: a death robe is gone the moment it's
+            # lifted, 0x1D 43 ms later): nothing is on the cursor, so the client drops nothing
+            got = stc.wait_events(mark, lambda evs: False, timeout=0.5)
+            return {"ok": True, "reply": resp, "moved": False, "deleted": True,
+                    "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS],
+                    **({"opened": opened} if opened else {})}
         resp = ctl.send(second)
         if resp != "OK":
             return {"ok": False, "reply": resp,
