@@ -1023,37 +1023,46 @@ class LumberLoop:
         """Before a recall away from creatures: run (urgent: no pauses, running while
         stamina allows) until each creature after us (hostile ones in view within
         RECALL_GAP, and those swinging or casting at us) is RECALL_GAP tiles off or out of
-        view, at most RECALL_GAP_MAX_MOVES steps, toward escape_tiles' goals (ESCAPE_RUN
-        from them). Only death interrupts it (mode 'gap'). True when it walked. Live
-        2026-10-05: a recall cast with a brackish water hitting lost 44 hits in 2.2 s, and
-        a hoarfrost caught up with a short walk-away and killed Dan."""
-        mobs = st["world"]["mobiles"]
+        view, at most RECALL_GAP_MAX_MOVES steps in all, toward escape_tiles' goals (ESCAPE_RUN
+        from where they are), new goals from where they are now each time one is reached and
+        they followed (live 2026-10-05, Prevalia Gate: the first goal reached, the ratmen 9 tiles
+        behind, the recall came there and cost 34 hits). Only death interrupts it (mode 'gap').
+        True when it walked. Live 2026-10-05: a recall cast with a brackish water hitting lost 44
+        hits in 2.2 s, and a hoarfrost caught up with a short walk-away and killed Dan."""
         foes = {t.serial for t in a.threats if t.kind == "monster" and t.hostile and 0 <= t.distance < RECALL_GAP}
         foes |= {s for s in swung if (by := next((t for t in a.threats if t.serial == s), None)) is not None
                  and by.kind == "monster"}
-        at = [(m["x"], m["y"]) for m in (mobs.get(f"0x{s:08X}") or {} for s in foes) if m.get("x") is not None]
-        if not at:
+
+        def where(s) -> list:
+            ms = s["world"]["mobiles"]
+            return [(m["x"], m["y"]) for m in (ms.get(f"0x{f:08X}") or {} for f in foes) if m.get("x") is not None]
+        if not where(st):
             return False
 
         def clear(s):
             pos = self.link.pos(s)[:2]
-            ms = s["world"]["mobiles"]
-            return all((m := ms.get(f"0x{f:08X}")) is None or m.get("x") is None
-                       or cheb(pos, (m["x"], m["y"])) >= RECALL_GAP for f in foes) and "clear"
+            return all(cheb(pos, xy) >= RECALL_GAP for xy in where(s)) and "clear"
         log(f"out of reach before the recall: running {RECALL_GAP} tiles from {len(foes)} creature(s)")
         mode, self.mode = self.mode, "gap"
+        start = self.mover.steps
         try:
-            for goal in self.escape_tiles(st, at):
-                try:
-                    self.mover.walk_to(lambda: goal, 1, "out of reach", max_moves=RECALL_GAP_MAX_MOVES,
-                                       urgent=True, stop=clear)
-                    break
-                except Abort as x:
-                    if "no route" not in str(x) and "detour" not in str(x):
-                        log(f"out of reach: {str(x).split(': ', 1)[-1]}; recalling from here")
+            while not clear(st) and self.mover.steps - start < RECALL_GAP_MAX_MOVES:
+                left, before = RECALL_GAP_MAX_MOVES - (self.mover.steps - start), self.mover.steps
+                for goal in self.escape_tiles(st, where(st)):
+                    try:
+                        self.mover.walk_to(lambda: goal, 1, "out of reach", max_moves=left, urgent=True, stop=clear)
                         break
+                    except Abort as x:
+                        if "no route" not in str(x) and "detour" not in str(x):
+                            log(f"out of reach: {str(x).split(': ', 1)[-1]}; recalling from here")
+                            return True
+                if self.mover.steps == before:          # nowhere to go from here
+                    break
+                st = self.link.state()
         finally:
             self.mode = mode
+        log("out of reach: " + ("clear" if clear(self.link.state()) else
+                                f"still within {RECALL_GAP} tiles after {self.mover.steps - start} steps") + "; recalling")
         return True
 
     def recall_out(self, st, a, worst, swung, pk: bool = True, why: str | None = None,
@@ -1993,18 +2002,20 @@ class LumberLoop:
     def aggro_zones(self, st):
         """The Mover's ("seen", serial) danger zones: the tree_guards of this state read, so
         every walk bends around the creatures in view; a new or moved one asks for a replan. A
-        zone we already stand in is left out: there is no going round it, and a creature at our
-        heels moving it every few steps sent an escape replanning back and forth (the threat
-        checks deal with that creature)."""
+        zone we already stand in shrinks to just inside where we stand: no going round it, but
+        no closer either (live 2026-10-05: leaving it out let a walk from the Prevalia Gate
+        landing pass 2 tiles from a ratman 6 tiles off; keeping it whole, a creature at our heels
+        bent an escape back and forth)."""
         here = tuple(self.link.pos(st)[:2])
-        zones = {("seen", t.serial): (xy, r) for t, xy, r in self.tree_guards(st, recent=False) if cheb(here, xy) > r}
+        zones = {("seen", t.serial): (xy, min(r, cheb(here, xy) - 1)) for t, xy, r in self.tree_guards(st, recent=False)}
+        zones = {k: z for k, z in zones.items() if z[1] >= 0}
         old = {k: v for k, v in self.mover.danger.items() if isinstance(k, tuple) and k[0] == "seen"}
         for k in old.keys() - zones.keys():
             del self.mover.danger[k]
         for k, (xy, r) in zones.items():
             prev = old.get(k)
+            self.mover.danger[k] = (xy, r)
             if prev is None or cheb(prev[0], xy) >= travel_guard.MOVED_REPLAN:
-                self.mover.danger[k] = (xy, r)
                 self.mover.replan_requested = True
 
     def tree_rethink(self, spot, trees: list):

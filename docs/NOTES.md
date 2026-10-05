@@ -658,6 +658,13 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   replans, Dan going 2621↔2629 for 2.5 min with no chop, until the trees around (2658,457) joined.
   Now a creature that leaves the view keeps its zone at its last tile for 60 s and a dropped tree
   waits 120 s (unless nothing else is left).
+- **Prevalia Gate (lumber-20261005-163659-92ea, witcher_105, 16:37):** a ratman gutterrunner 6 tiles from
+  the landing; the walk to a clear tree passed 2 tiles from it (the zone we stood in was left out of
+  routing) → escape; the run out of reach stopped at its first goal with the ratmen 9 tiles behind and
+  recalled, -34 hits. Now a zone we stand in shrinks to just inside our distance (no closer), and the
+  run out of reach keeps going with fresh goals until 14 tiles or its 60 steps. The ping-pong runs
+  also flooded the live viz (7–8 k S2C 0xF3 in 2.5 min as Dan crossed the view edge back and forth);
+  it showed Dan bouncing for minutes after he had recalled home (investigated separately).
 - **The death robe (user, 2026-10-05: take it off after the resurrection):** `ctl act gump <res gump> 1`
   now takes it off once alive. Live 11:05: the worn "death robe" 0x60935864 (graphic 0x1F03, layer
   robe) was lifted (0x1D 43 ms after the 0x07) and dropped into the pack, and it **never came back**:

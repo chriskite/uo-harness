@@ -792,7 +792,9 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     `AGGRO_R` 13) tiles [INFERENCE: RunUO monsters perceive within 10]. Trees in a zone wait while
     the creature is around, and walks bend around the zones (Mover danger keys ("seen", serial),
     refreshed every state read; a new or moved one replans). A zone we already stand in doesn't
-    steer (no going round it; a creature at our heels moving it replanned an escape back and forth).
+    steer as a whole: it shrinks to just inside where we stand, so routes don't get any closer
+    (Prevalia Gate, live: left out entirely, a walk from the landing passed 2 tiles from a ratman 6
+    tiles off; whole, a creature at our heels bent an escape back and forth).
     A new or moved zone replans a walk only when it touches the rest of the route (live witcher_23:
     an air dragon wandering 20 tiles off cost 123 replans in a 2-minute walk to one tree).
   - **Re-think the tree on the way, chop where we are** (`tree_rethink`, `add_local_trees`; user,
@@ -810,8 +812,11 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - **Before a recall away from creatures, run out of reach** (`monster_stop` → `gain_distance`):
     urgent, up to `RECALL_GAP_MAX_MOVES` (60) steps, until each creature after us (hostile within
     `RECALL_GAP` 14, or swinging/casting at us) is 14 tiles off (out of a caster's 12) or out of
-    view; only death interrupts it (mode `gap`). Then the recall. (Live 2026-10-05: a recall cast
-    under a brackish water's spells lost 44 hits; a short walk-away let a hoarfrost catch Dan.)
+    view; only death interrupts it (mode `gap`). A goal reached with them still following: new goals
+    from where they are now, within the step budget (Prevalia Gate, live: the recall came at the
+    first goal with ratmen 9 tiles behind and cost 34 hits). Then the recall. (Live 2026-10-05: a
+    recall cast under a brackish water's spells lost 44 hits; a short walk-away let a hoarfrost
+    catch Dan.)
   - **Other players' houses** (`pathfind.Walkers.get(inside=)`): the doors of a house we aren't
     standing in are locked to the planner, since we can't walk in uninvited (user, 2026-10-05; at
     witcher_149 the escape stopped at such a door and Dan died). A house's doors are door items on
