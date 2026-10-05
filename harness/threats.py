@@ -254,7 +254,12 @@ class Params:
     # hind 0xED, great hart 0xEA, eagle/seagull 0x05, magpie/crow 0x06;
     # observed harmless near lumber trips (2026-09-30): goat 0xD1, walrus 0xDD
     passive_bodies: frozenset = frozenset({0xCF, 0xED, 0xEA, 0x05, 0x06, 0xD1, 0xDD})
-    passive_names: frozenset = frozenset()   # lower-case labels, e.g. "a sheep"
+    # lower-case labels; RunUO's farm and wild grazers fight only when attacked (FightMode.Aggressor)
+    # [INFERENCE for Outlands]; live 2026-10-05 a llama, a forest ostard and a bison got aggro zones
+    passive_names: frozenset = frozenset({
+        "a llama", "a pack llama", "a forest ostard", "a desert ostard", "a bison", "a hind", "a great hart",
+        "a horse", "a pack horse", "a cow", "a bull", "a pig", "a sheep", "a goat", "a mountain goat",
+        "a rabbit", "a jack rabbit", "a cat", "a dog", "a chicken"})
     aggressive_notoriety: frozenset = frozenset({6})
     monster_default_aggressive: bool = False
     # creature reach (module docstring "Reach"): ranged bodies, and the farthest

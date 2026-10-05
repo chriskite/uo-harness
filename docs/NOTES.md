@@ -679,6 +679,15 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   over (witcher_165 now lands at 'Ice Prison', 79 tiles out). Same shift: witcher_40 sat out 30 min as
   "player threat or death here" because the convert abort counted as an aborted trip with a sighting
   (lumber_opt eligibility) [not changed].
+- **Run 8 ping-pong (lumber-20261005-175337-5074, witcher_48, 17:55:11–17:55:56):** 48 "covers it now"
+  drops alternating trees 1775,1065 and 1795,1035: next_stand fell back to dropped trees when nothing
+  else was free, so the 120 s cooldown didn't hold. Now it holds whatever is left (the harvest ends
+  instead). The overseer also saw llamas, forest ostards and a bison get zones: farm/grazing animal
+  names are now passive (`threats.Params.passive_names`).
+- **Shift summary (Seer4, 15:57–17:56):** 8 runs, 3962 boards (2747 finished by hand after the convert
+  abort, 1215 in run 7), Lumberjacking 66.8 → 77.9, no death, no disturbed recall, 5 captchas
+  auto-solved, every trip ridden. Hatchet 0x61AF05AC is down to 8 uses; the spare 0x61AF05AD is in
+  the room chest (the runner only looks in the pack).
 - **The death robe (user, 2026-10-05: take it off after the resurrection):** `ctl act gump <res gump> 1`
   now takes it off once alive. Live 11:05: the worn "death robe" 0x60935864 (graphic 0x1F03, layer
   robe) was lifted (0x1D 43 ms after the 0x07) and dropped into the pack, and it **never came back**:

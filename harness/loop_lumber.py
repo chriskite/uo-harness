@@ -1940,9 +1940,11 @@ class LumberLoop:
                 log(f"tree {t['x']},{t['y']}: within {g[2]} tiles of {g[0].name or f'0x{g[0].serial:08X}'} "
                     f"at {g[1]} ({g[0].aggression}); choosing a tree away from it")
         now = time.monotonic()
-        fresh = [t for t in free if now - self.dropped_trees.get((t["x"], t["y"]), -1e9) >= TREE_DROP_COOLDOWN_S]
-        # trees a zone made us drop a moment ago wait, then those only a creature now out of view guards
-        free = fresh or free or later
+        waiting = lambda t: now - self.dropped_trees.get((t["x"], t["y"]), -1e9) < TREE_DROP_COOLDOWN_S  # noqa: E731
+        # trees a zone made us drop a moment ago wait their cooldown whatever else is left (live witcher_48: a
+        # fallback to them alternated two covered trees twice a second); then those only a creature now out
+        # of view guards
+        free = [t for t in free if not waiting(t)] or [t for t in later if not waiting(t)]
         if not free:
             return None
         best, best_cost = 0, None
