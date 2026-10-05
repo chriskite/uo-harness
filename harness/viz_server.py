@@ -5,9 +5,11 @@
 
 Routes:
   GET  /api/state     latest state-port response (+ `viz` block); `events` = the ring (≤2000)
-  GET  /api/events    SSE: `event: world_event` (id = envelope seq) + `event: state`
-                      (response without events, ≤4 Hz, only when changed). Resume with
-                      the Last-Event-ID header (seq > id) or ?since=N (seq >= N).
+  GET  /api/events    SSE: `event: world_events` (a JSON array of envelopes, id = the last
+                      seq) + `event: state` (response without events, ≤4 Hz, only when
+                      changed); a slow reader gets the newest state, never a backlog of old
+                      ones (viz_feed.Subscriber). Resume with the Last-Event-ID header
+                      (seq > id) or ?since=N (seq >= N).
   GET  /api/walkmem   walk memory (facet 0) from the harness memory store, in the
                       nav.WalkMemory JSON format (docs/MEMORY.md)
   GET  /api/paperdoll.png  the player's paperdoll from the current state (body, skin hue,
@@ -82,6 +84,9 @@ from uo import cliloc  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SSE_KEEPALIVE_S = 15.0
+# Kernel send buffer of an SSE connection: a slow reader's backlog then waits in its
+# Subscriber mailbox, where a newer state replaces an older one, not in the socket.
+SSE_SNDBUF = 256 * 1024
 GATE_ACTIONS = ("pause", "resume", "kill")   # "rearm" is CLI-only by policy (harness/agent_gate.py)
 GATE_TIMEOUT_S = 3.0
 CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "application/javascript; charset=utf-8",
@@ -563,18 +568,21 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Connection", "close")
         self.end_headers()
         self.close_connection = True
-        q = feed.subscribe(since)
+        try:
+            self.connection.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, SSE_SNDBUF)
+        except OSError:
+            pass
+        sub = feed.subscribe(since)
         try:
             self.wfile.write(b"retry: 1000\n\n")
             self.wfile.flush()
-            while not q.closed and not self.server.stopping:
-                frames = q.drain(SSE_KEEPALIVE_S)
-                self.wfile.write(("".join(frames) if frames else ": keepalive\n\n").encode())
+            while not sub.closed and not self.server.stopping:
+                self.wfile.write((sub.take(SSE_KEEPALIVE_S) or ": keepalive\n\n").encode())
                 self.wfile.flush()
         except (ConnectionError, OSError):
             pass
         finally:
-            feed.unsubscribe(q)
+            feed.unsubscribe(sub)
 
     def _static(self, path: str):
         dist = os.path.realpath(self.server.dist)
@@ -667,9 +675,8 @@ class VizServer(ThreadingHTTPServer):
 
     def shutdown(self):
         self.stopping = True
-        for q in list(self.feed.subscribers):
-            q.closed = True
-            q.notify()
+        for sub in list(self.feed.subscribers):
+            sub.close()
         super().shutdown()
 
     def server_close(self):

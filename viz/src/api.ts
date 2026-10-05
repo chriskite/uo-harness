@@ -1,8 +1,10 @@
 // viz_server client (docs/VISUALIZER.md §2.1): initial REST fetch, SSE stream
-// with resume, periodic walk-memory refresh, playback and agent-gate control,
-// job analytics and the overseer chat (§2.4).
+// with resume (event batches + newest state, coalesced per task, sse.ts),
+// periodic walk-memory refresh, playback and agent-gate control, job analytics
+// and the overseer chat (§2.4).
 import type { HuntResponse, JobsResponse } from "./jobs.ts";
 import type { OverseerResponse } from "./overseer.ts";
+import { supersede, type SseMessage } from "./sse.ts";
 import type { VizStore } from "./store.ts";
 import type { EventEnvelope, Gate, GateAction, GateResponse, PlaybackAction, StateResponse, WalkMemoryFile } from "./types.ts";
 
@@ -133,16 +135,31 @@ export function connect(store: VizStore): () => void {
     if (store.setState(resp)) void loadState();
   };
 
+  // SSE messages wait for the end of the dispatching task, then apply in order
+  // with only the newest state parsed (sse.ts).
+  let inbox: SseMessage[] = [];
+  const drainInbox = () => {
+    const msgs = supersede(inbox);
+    inbox = [];
+    if (stopped) return;
+    for (const m of msgs) {
+      if (m.kind === "state") applyState(JSON.parse(m.data) as StateResponse);
+      else store.ingest(JSON.parse(m.data) as EventEnvelope[]);
+    }
+  };
+  const receive = (kind: SseMessage["kind"]) => (m: Event) => {
+    if (inbox.length === 0) setTimeout(drainInbox, 0);
+    inbox.push({ kind, data: (m as MessageEvent<string>).data });
+  };
+
   const open = () => {
     if (stopped) return;
     const since = store.getSnapshot().lastSeq + 1;
     const es = new EventSource(since > 0 ? `/api/events?since=${since}` : "/api/events");
     source = es;
     es.onopen = () => store.setConnected(true);
-    es.addEventListener("state", (m) => applyState(JSON.parse((m as MessageEvent<string>).data) as StateResponse));
-    es.addEventListener("world_event", (m) =>
-      store.ingest([JSON.parse((m as MessageEvent<string>).data) as EventEnvelope]),
-    );
+    es.addEventListener("state", receive("state"));
+    es.addEventListener("world_events", receive("events"));
     es.onerror = () => {
       store.setConnected(false);
       // CONNECTING: the browser retries itself, resuming via Last-Event-ID.

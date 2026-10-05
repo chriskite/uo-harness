@@ -506,7 +506,7 @@ def _gump_open(rt, f):
     g = GumpState(serial=f["serial"], gump_id=f["gump_id"], x=f["x"],
                   y=f["y"], layout=f["layout"], lines=f["lines"], open=True,
                   compressed=bool(f.get("compressed")))
-    rt.state.gumps[(g.serial, g.gump_id)] = g
+    rt.state.open_gump(g)
     rt._emit("gump_open", serial=g.serial, gump_id=g.gump_id, x=g.x, y=g.y,
              layout=g.layout, lines=g.lines)
 
@@ -645,6 +645,7 @@ def _h_gump_response(rt, f):
     if g is not None:
         g.responses += 1
         g.open = False
+        rt.state.forget_closed_gumps()
     rt._emit("gump_response", serial=f["serial"], gump_id=f["gump_id"],
              button_id=f["button_id"], switches=f["switches"],
              texts=f["texts"])
@@ -711,6 +712,7 @@ def _extended_handler(direction):
                 if g.gump_id == f["gump_id"] and g.open:
                     g.open = False
                     closed += 1
+            rt.state.forget_closed_gumps()
             rt._emit("gump_close", gump_id=f["gump_id"], button=f["button"], closed=closed, by="server")
         elif sub == 0x13 and direction == C2S:
             rt._emit("popup_request", serial=f["serial"])

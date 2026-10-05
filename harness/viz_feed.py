@@ -3,9 +3,17 @@
 Both feeds produce state-port responses (`SessionTap.state()` shape, event
 envelopes `{"seq", "t", "origin", "data"}`) and merge them into a `Feed`:
 a ring of the last RING envelopes plus the latest response without events
-(pre-serialized, swapped atomically), fanned out to subscriber queues as SSE
-frames. A pump thread refreshes it at most PUMP_HZ times a second, and a
-`state` frame goes out only when the serialized state changed.
+(pre-serialized, swapped atomically), fanned out to one `Subscriber` mailbox
+per SSE connection. A pump thread refreshes it at most PUMP_HZ times a second,
+and a new state goes out only when the serialized state changed.
+
+A mailbox never queues states: it holds the newest one only, plus the
+envelopes not yet written (bounded by SUB_EVENTS_MAX; a connection that falls
+that far behind loses superseded entity churn and the oldest CHURN_EVS
+first). Each write sends all of it as one `world_events` frame and one
+`state` frame, so a slow reader skips intermediate states instead of falling
+behind (docs/NOTES.md "Viz lag": a 1.8 MB state at ~3/s queued 20000 frames
+deep put a LAN reader minutes behind the game).
 
 - StatePortPoller(host, port): LIVE. Polls the proxy's JSON-lines state port
   with the `since` cursor. Read-only: it never opens the control port.
@@ -50,7 +58,18 @@ from uo.s2c import PRELUDE_LEN, S2CStream, prelude_keys  # noqa: E402
 
 RING = 2000            # envelopes kept for /api/state and Last-Event-ID resume
 PUMP_HZ = 4            # state refreshes / SSE state pushes per second, at most
-SUB_QUEUE_MAX = 20000  # SSE frames buffered per subscriber before it is dropped
+SUB_EVENTS_MAX = RING  # unsent envelopes one SSE connection may hold before compaction
+# Envelopes about one serial whose current truth the state frame carries: of these, a
+# compaction keeps only the newest per serial.
+ENTITY_EVS = frozenset({"item_seen", "prune", "delete", "query", "item_query", "animation"})
+# High-volume events a lagging connection loses first (oldest first): entity churn, walk
+# bookkeeping, per-packet summaries and keepalives, all of which the state frame (movement,
+# world, traffic) carries. Speech, cliloc, gumps, targets, containers, intents, deaths and
+# the rest are never dropped while these remain.
+CHURN_EVS = ENTITY_EVS | frozenset({
+    "names", "sound", "keepalive", "walk", "walk_confirm", "walk_deny", "step", "c2s",
+    "s2c_confirm_hidden", "s2c_confirm_rewritten", "reanchor_client", "c2s_token_stamped",
+    "c2s_token_passthrough", "c2s_resync_seen"})
 POLL_TIMEOUT_S = 5.0
 RETRY_S = 1.0
 TIMER_EVENTS = ("walk_rejected", "resync_ignored", "reanchor_client")  # jsonl rows of timer decisions
@@ -72,7 +91,8 @@ class Feed:
         self.state_json = None     # latest response without events, + viz block
         self.last_ok = None        # wall time of the last successful pump
         self.last_error = None
-        self.subscribers = set()
+        self.subscribers = set()   # Subscriber mailboxes, one per SSE connection
+        self.sse_dropped = 0       # envelopes compacted away for lagging connections
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread = None
@@ -113,18 +133,13 @@ class Feed:
             if "viz" not in resp:  # a replay query carries its own, consistent with the state
                 resp["viz"] = self.viz()
             sj = json.dumps(resp)
-            frames = [sse_event(e) for e in fresh]
+            batch = [pending(e) for e in fresh]
+            state = None
             if sj != self.state_json:
-                self.state_json = sj
-                frames.append(sse_state(sj))
-            if frames:
-                for q in list(self.subscribers):
-                    if len(q) + len(frames) > SUB_QUEUE_MAX:
-                        self.subscribers.discard(q)   # too slow: drop; it reconnects + resumes
-                        q.closed = True
-                        q.notify()
-                        continue
-                    q.extend(frames)
+                self.state_json = state = sj
+            if batch or state is not None:
+                for sub in self.subscribers:
+                    self.sse_dropped += sub.put(batch, state)
 
     def run(self):
         """Start the pump thread (≤ PUMP_HZ)."""
@@ -162,22 +177,20 @@ class Feed:
         return '{"events": ' + ev + ", " + sj[1:]
 
     def subscribe(self, since: int | None):
-        """Register an SSE subscriber. Returns its queue, pre-loaded with the
+        """Register an SSE subscriber. Returns its mailbox, pre-loaded with the
         ring suffix seq >= since (whole ring if since is None or beyond `next`)
         and the current state, atomically with publishing (no gaps/dups)."""
-        q = FrameQueue()
+        sub = Subscriber()
         with self.lock:
             if since is None or since > self.cursor:
                 since = 0
-            q.extend(sse_event(e) for e in self.ring if e["seq"] >= since)
-            if self.state_json is not None:
-                q.extend([sse_state(self.state_json)])
-            self.subscribers.add(q)
-        return q
+            sub.put([pending(e) for e in self.ring if e["seq"] >= since], self.state_json)
+            self.subscribers.add(sub)
+        return sub
 
-    def unsubscribe(self, q):
+    def unsubscribe(self, sub):
         with self.lock:
-            self.subscribers.discard(q)
+            self.subscribers.discard(sub)
 
     def health(self) -> dict:
         with self.lock:
@@ -187,45 +200,88 @@ class Feed:
         return {"ok": True, **self.viz(),
                 "poll_lag": None if self.last_ok is None else round(time.time() - self.last_ok, 3),
                 "last_error": self.last_error, "ring": {"first": first, "next": self.cursor},
-                "sse_clients": subs, "diagnostics": diag}
+                "sse_clients": subs, "sse_dropped": self.sse_dropped, "diagnostics": diag}
 
 
-class FrameQueue:
-    """Unbounded SSE frame queue with a length check (Feed drops slow readers)."""
+def pending(env: dict) -> tuple:
+    """(seq, ev, serial, JSON) of an envelope: serialized once for every mailbox."""
+    d = env.get("data") or {}
+    return env["seq"], d.get("ev"), d.get("serial"), json.dumps(env)
+
+
+def compact(events: list) -> list:
+    """A lagging connection's unsent envelopes cut to SUB_EVENTS_MAX // 2, order
+    kept: entity churn superseded by a newer ENTITY_EVS envelope about the same
+    serial goes first, then the oldest CHURN_EVS, and only if the rest is still
+    over SUB_EVENTS_MAX, the oldest of what remains."""
+    target = SUB_EVENTS_MAX // 2
+    seen, kept = set(), []
+    for p in reversed(events):
+        if p[1] in ENTITY_EVS and p[2] is not None:
+            if p[2] in seen:
+                continue
+            seen.add(p[2])
+        kept.append(p)
+    kept.reverse()
+    extra = len(kept) - target
+    if extra > 0:
+        out = []
+        for p in kept:
+            if extra > 0 and p[1] in CHURN_EVS:
+                extra -= 1
+                continue
+            out.append(p)
+        kept = out
+    return kept[-target:] if len(kept) > SUB_EVENTS_MAX else kept
+
+
+class Subscriber:
+    """One SSE connection's unsent output: envelopes in order (compacted beyond
+    SUB_EVENTS_MAX) and only the newest state, which replaces an unsent older one."""
 
     def __init__(self):
-        self._d = collections.deque()
         self._cv = threading.Condition()
+        self._events = []          # pending() tuples, oldest first
+        self._state = None         # newest unsent state JSON
         self.closed = False
 
     def __len__(self):
-        return len(self._d)
+        return len(self._events) + (self._state is not None)
 
-    def extend(self, frames):
+    def put(self, events: list, state: str | None = None) -> int:
+        """Queue envelopes and/or a newer state; returns how many envelopes compaction dropped."""
         with self._cv:
-            self._d.extend(frames)
+            self._events.extend(events)
+            dropped = 0
+            if len(self._events) > SUB_EVENTS_MAX:
+                kept = compact(self._events)
+                dropped = len(self._events) - len(kept)
+                self._events = kept
+            if state is not None:
+                self._state = state
+            self._cv.notify()
+            return dropped
+
+    def close(self):
+        with self._cv:
+            self.closed = True
             self._cv.notify()
 
-    def notify(self):
+    def take(self, timeout: float) -> str:
+        """SSE text of everything unsent ("" when nothing came within timeout): one
+        `world_events` frame (a JSON array of envelopes, id = the last seq), then
+        the newest `state`."""
         with self._cv:
-            self._cv.notify()
-
-    def drain(self, timeout: float) -> list[str]:
-        """All queued frames (waits up to timeout for the first)."""
-        with self._cv:
-            if not self._d and not self.closed:
+            if not self._events and self._state is None and not self.closed:
                 self._cv.wait(timeout)
-            out = list(self._d)
-            self._d.clear()
-            return out
-
-
-def sse_event(env: dict) -> str:
-    return f"id: {env['seq']}\nevent: world_event\ndata: {json.dumps(env)}\n\n"
-
-
-def sse_state(state_json: str) -> str:
-    return f"event: state\ndata: {state_json}\n\n"
+            events, state = self._events, self._state
+            self._events, self._state = [], None
+        out = ""
+        if events:
+            out = f"id: {events[-1][0]}\nevent: world_events\ndata: [{','.join(p[3] for p in events)}]\n\n"
+        if state is not None:
+            out += f"event: state\ndata: {state}\n\n"
+        return out
 
 
 # ------------------------------------------------------------------------ live

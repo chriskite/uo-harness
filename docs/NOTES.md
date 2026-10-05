@@ -674,6 +674,42 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   on the server's cursor until a raw drop into the pack brought it back; fixed. Codex #13
   superseded by #4094, then #4095 (with the mount).
 
+## Viz lag (2026-10-05, session 20261005_093927; fixed 2026-10-05)
+
+- **Symptom (user):** during the lumber ping-pong (t 1791235352–508 = 16:22–16:25 and
+  1791235980–6160 = 16:33–16:36) the viz map kept showing Dan bouncing between trees for minutes
+  after he had recalled home.
+- **The live viz at 16:50:** viz_server pid 13116 (`--live --host 0.0.0.0`, up since 13:58) held
+  3.2 GB of private memory and had used 2820 s of CPU. Its only clients were 6 connections from
+  192.168.42.83, a LAN device.
+- **Measured** by replaying the capture through window 1 at real cadence (`viz_feed.ReplayDriver`,
+  4 Hz pump, 216 s):
+  - **The state frame was 1.84 MB, and 1.69 MB of it was `world.gumps`.** The world held 1134
+    gumps (902 closed captchas, 164 guide pages, 43 charge prompts): the world model never dropped
+    a closed gump, so every snapshot grew all session.
+  - The state changed on 638 of 864 pumps (each step moves the position), so every viewer got
+    ~5.4 MB/s. Events came at 62/s (7351 of the 13341 were `item_seen`), each its own SSE message.
+  - Each SSE connection had a FIFO of up to 20000 frames (~1250 states, ~2.2 GB, ~5 min at that
+    rate) before the connection was dropped. A new state waited behind every older one.
+  - A reader limited to 1.5 MB/s: lag 7 s after 10 s, 147 s after 200 s, still growing, with 585 MB
+    queued for it.
+  - **Not the bottleneck:** the state port (each poll gets everything since its cursor, capped at
+    5000; 2.4 ms per query), the pump (5 ms per publish), and a desktop browser (headless Chromium
+    kept up with the 5.4 MB/s stream, even at 6× CPU throttle).
+- **Fix** (docs/VISUALIZER.md §2.10):
+  - The world keeps open gumps plus the 20 newest closed ones (`world/state.py`
+    `CLOSED_GUMPS_MAX`), which brings the state to ~170 KB.
+  - Each SSE connection has a mailbox (`viz_feed.Subscriber`) holding only the newest state plus
+    the unsent events, written as one `world_events` batch and one state. It's bounded at 2000
+    events; superseded entity churn and the oldest churn go first, while speech, clilocs, gumps
+    and intents keep their order.
+  - The browser parses only the newest state of a burst.
+- **After:** the same 1.5 MB/s reader with today's 1.8 MB states stays 2–3.7 s behind, flat. With
+  the gump bound too it is ≤ 0.1 s behind. `harness/test_viz.py` `test_burst` pins it: a 4 MB/s
+  reader has the newest state 0.24 s after a burst of this size; the old FIFO took 11.5 s.
+- **Takes effect** for the viz at its next restart, after `bun run build`. The gump bound needs
+  the next proxy restart; until then a slow reader trails by a few seconds but no longer falls behind.
+
 ## Our mount (live 2026-10-05, Outland Dan's bonded horse)
 
 User: the overseer and the runner must get the horse back and ride it after a death. Evidence from

@@ -6,8 +6,13 @@
   recorded the bank errand, since the live proxy may still append to the file):
   exact order, errand outcome, proxy events, /api/state == SessionTap.state()
 - order fallback: 20260928_141253 (pre-fix S2C rows) replays as "approx"
-- SSE framing, monotonic seqs, verbatim envelopes, Last-Event-ID resume
-  without duplicates, and state coalescing
+- SSE framing (one `world_events` batch per write + the newest state),
+  monotonic seqs, verbatim envelopes, Last-Event-ID resume without
+  duplicates, and state coalescing
+- ping-pong burst the size of session 20261005_093927's (624 pumps, ~15000
+  events): a stalled reader's mailbox stays bounded and its next write is the
+  newest state; a 4 MB/s reader over HTTP has the newest state <1 s after the
+  burst, with every speech/intent/cliloc/gump event, in order
 - live: viz_server --live against a proxy subprocess (fake upstream, private
   ports), started before the proxy (proxy down -> connected=false); asserts
   the viz never connects to the proxy's control port and adds no C2S packets
@@ -503,6 +508,22 @@ def test_overseer_routes(logdir):
         srv.server_close()
 
 
+def parse_frame(raw: str) -> dict:
+    """One SSE frame (without its blank-line terminator) as {id, event, data}."""
+    f = {}
+    for line in raw.split("\n"):
+        if line.startswith(":") or not line:
+            continue
+        k, _, v = line.partition(": ")
+        f[k] = v
+    return f
+
+
+def sse_frames(text: str) -> list:
+    """The frames (with an event) of an SSE text."""
+    return [f for f in map(parse_frame, text.split("\n\n")) if "event" in f]
+
+
 class SSE:
     """Minimal SSE reader: frames as dicts {id, event, data}."""
 
@@ -526,12 +547,7 @@ class SSE:
         while time.monotonic() < end:
             while b"\n\n" in self.buf:
                 raw, self.buf = self.buf.split(b"\n\n", 1)
-                f = {}
-                for line in raw.decode().split("\n"):
-                    if line.startswith(":") or not line:
-                        continue
-                    k, _, v = line.partition(": ")
-                    f[k] = v
+                f = parse_frame(raw.decode())
                 if "event" in f:
                     out.append(f)
             if until(out):
@@ -552,6 +568,11 @@ class SSE:
 
 def has_state(fr):
     return any(f["event"] == "state" for f in fr)
+
+
+def batch_envs(fr) -> list:
+    """The envelopes of every `world_events` frame, in arrival order."""
+    return [e for f in fr if f["event"] == "world_events" for e in json.loads(f["data"])]
 
 
 # --------------------------------------------------------------------- replay
@@ -659,16 +680,18 @@ def test_sse(logdir):
         check("SSE content type", "text/event-stream" in s.headers.lower(), s.headers.splitlines()[0])
         fr = s.frames(has_state)
         s.close()
-        evs = [f for f in fr if f["event"] == "world_event"]
-        ids = [int(f["id"]) for f in evs]
-        check("fresh connect: whole ring then one state", ids == list(range(d.cursor)) and fr[-1]["event"] == "state"
-              and sum(f["event"] == "state" for f in fr) == 1, f"{len(ids)} events, next {d.cursor}")
-        check("frames carry id == envelope seq, data verbatim",
-              all(json.loads(f["data"]) == json.loads(json.dumps(d.tap.events[int(f["id"])])) for f in evs))
+        evs = batch_envs(fr)
+        ids = [e["seq"] for e in evs]
+        check("fresh connect: the whole ring as one world_events frame, then one state",
+              ids == list(range(d.cursor)) and [f["event"] for f in fr] == ["world_events", "state"],
+              f"{len(ids)} events, next {d.cursor}, frames {[f['event'] for f in fr]}")
+        check("batch frame id == its last envelope's seq; envelopes verbatim",
+              int(fr[0]["id"]) == ids[-1]
+              and all(e == json.loads(json.dumps(d.tap.events[e["seq"]])) for e in evs))
         state = json.loads(fr[-1]["data"])
         check("state frame = response without events, with viz", "events" not in state and state["ok"]
               and state["viz"]["playback"]["position"] == 300 and "movement" in state and "world" in state)
-        last = ids[-1]
+        last = int(fr[0]["id"])
 
         for _ in range(400):
             d.step()
@@ -676,15 +699,14 @@ def test_sse(logdir):
         s = SSE(url, last_id=last)
         fr2 = s.frames(has_state)
         s.close()
-        ids2 = [int(f["id"]) for f in fr2 if f["event"] == "world_event"]
+        ids2 = [e["seq"] for e in batch_envs(fr2)]
         check("Last-Event-ID resume: exactly the missed suffix, no duplicates",
               ids2 == list(range(last + 1, d.cursor)) and ids2, f"{ids2[:3]}..{ids2[-3:]} next {d.cursor}")
         check("resume + first stream = gapless seqs", ids + ids2 == list(range(d.cursor)))
         s = SSE(url + f"?since={d.cursor - 5}")
         fr3 = s.frames(has_state)
         s.close()
-        check("?since=N resume", [int(f["id"]) for f in fr3 if f["event"] == "world_event"]
-              == list(range(d.cursor - 5, d.cursor)))
+        check("?since=N resume", [e["seq"] for e in batch_envs(fr3)] == list(range(d.cursor - 5, d.cursor)))
 
         # coalescing: pump thread running; a 500-packet burst -> one state frame
         d.run()
@@ -698,7 +720,7 @@ def test_sse(logdir):
                 d.step()
         fr4 = s.frames(lambda f: False, timeout=1.2)
         s.close()
-        ids4 = [int(f["id"]) for f in fr4 if f["event"] == "world_event"]
+        ids4 = [e["seq"] for e in batch_envs(fr4)]
         check("idle: no frames while nothing changes", quiet == [], str(quiet[:2]))
         check("burst coalesced into one state frame", sum(f["event"] == "state" for f in fr4) == 1,
               str([f["event"] for f in fr4 if f["event"] == "state"]))
@@ -706,6 +728,183 @@ def test_sse(logdir):
               f"{len(ids4)} of {d.cursor - before}")
     finally:
         d.stop()
+        srv.shutdown()
+        srv.server_close()
+
+
+# ------------------------------------------------------------ ping-pong burst
+
+BURST_PUMPS = 624          # 156 s at 4 Hz: session 20261005_093927's first ping-pong window
+BURST_READER_BPS = 4e6     # a slow SSE reader (a LAN device), bytes/s
+KEEP_EVS = ("speech_heard", "agent_intent", "cliloc", "gump_open", "gump_response")
+
+
+class HandFeed(viz_feed.Feed):
+    """A live-shaped feed the test publishes by hand, one state-port response per pump."""
+
+    mode = "live"
+
+    def viz(self) -> dict:
+        return {"mode": "live", "session": None, "order": None, "playback": None, "connected": True}
+
+
+def burst_responses() -> list:
+    """State-port responses of a ping-pong burst the size of session 20261005_093927's
+    window t 1791235352-508 (the runner crossing the view edge for 156 s): ~8500
+    item_seen (S2C 0xF3 re-sends of 475 objects), ~1900 other entity churn, ~780 each of
+    walk / c2s / walk_confirm / s2c_confirm_hidden / reanchor_client, ~550 steps, plus
+    speech, intents, clilocs and a gump. Every state differs (the position bounces)."""
+    items = {f"0x{0x40000000 + i:08X}": {"graphic": 0x0CD0 + i % 40, "hue": 0, "amount": 1, "x": 1900 + i % 40,
+                                         "y": 2560 + i // 40, "z": 0, "name": f"item {i}"} for i in range(475)}
+    last_seen = {f"0x{0x00010000 + i:08X}": {"name": f"a mongbat {i}", "x": 1900 + i % 30, "y": 2600, "z": 0,
+                                             "t": 1000.0 + i, "facet": 0, "why": "range"} for i in range(200)}
+    out, seq, walk = [], 0, 0
+    for i in range(BURST_PUMPS):
+        t = round(1000.0 + i / 4, 3)
+        x = 1925 + (i % 40 if (i // 40) % 2 == 0 else 39 - i % 40)
+        mob = 0x00010000 + i % 200
+        data = [("world", {"ev": "item_seen", "serial": 0x40000000 + (i * 14 + k) % 475, "graphic": 0x0CD0,
+                           "container": None}) for k in range(14 if i % 3 else 13)]
+        data += [("world", {"ev": "names", "count": 1, "entries": [{"serial": mob, "name": "a mongbat"}]}),
+                 ("world", {"ev": "sound", "sound": 0x23A, "x": x, "y": 2580}),
+                 ("world", {"ev": "query", "serial": mob, "kind": 0x34})]
+        for _ in range(2 if i % 4 == 0 else 1):
+            data += [("world", {"ev": "walk", "dir": 2, "seq": walk % 256}),
+                     ("proxy", {"ev": "c2s", "src": "agent", "id": "0x02"}),
+                     ("world", {"ev": "walk_confirm", "seq": walk % 256}),
+                     ("proxy", {"ev": "s2c_confirm_hidden", "seq": walk % 256}),
+                     ("proxy", {"ev": "reanchor_client", "on": "confirm"})]
+            walk += 1
+        if i % 9:
+            data.append(("proxy", {"ev": "step", "from": [x - 1, 2580], "to": [x, 2580], "z": 0}))
+        if i % 2 == 0:
+            data.append(("world", {"ev": "speech_heard", "serial": mob, "type": 0, "text": f"line {i}"}))
+        if i % 6 == 0:
+            data.append(("proxy", {"ev": "agent_intent", "intent": {"text": f"Heading to tree {i}", "kind": "to_tree"}}))
+        if i % 25 == 0:
+            data.append(("world", {"ev": "cliloc", "cliloc": 500495, "args": ""}))
+        if i == 300:
+            data.append(("world", {"ev": "gump_open", "serial": 0x0604, "gump_id": 0x165FF74B, "lines": ["Captcha"]}))
+        if i == 320:
+            data.append(("world", {"ev": "gump_response", "serial": 0x0604, "gump_id": 0x165FF74B, "button_id": 1}))
+        envs = []
+        for origin, d in data:
+            envs.append({"seq": seq, "t": t, "origin": origin, "data": d})
+            seq += 1
+        out.append({"ok": True, "movement": {"pos": [x, 2580, 0, 2], "self_serial": SELF, "inflight": 0},
+                    "world": {"self": {"serial": f"0x{SELF:08X}", "x": x, "y": 2580, "z": 0},
+                              "items": items, "last_seen": last_seen},
+                    "events": envs, "next": seq, "world_errors": 0,
+                    "intent": {"text": f"Heading to tree {i - i % 6}", "kind": "to_tree"}})
+    return out
+
+
+class ThrottledSSE:
+    """SSE reader thread consuming at most `bps` bytes/s with a small receive buffer."""
+
+    def __init__(self, port: int, bps: float):
+        self.sock = socket.socket()
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 64 * 1024)
+        self.sock.connect(("127.0.0.1", port))
+        self.sock.sendall(b"GET /api/events HTTP/1.1\r\nHost: x\r\n\r\n")
+        self.bps, self.bytes, self.states, self.envs = bps, 0, 0, []
+        self.last_state = self.last_state_at = None
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self):
+        buf, t0 = b"", time.monotonic()
+        try:
+            while True:
+                d = self.sock.recv(65536)
+                if not d:
+                    return
+                self.bytes += len(d)
+                buf += d
+                while b"\n\n" in buf:
+                    raw, buf = buf.split(b"\n\n", 1)
+                    f = parse_frame(raw.decode())
+                    if f.get("event") == "state":
+                        self.states += 1
+                        self.last_state, self.last_state_at = f["data"], time.monotonic()
+                    elif f.get("event") == "world_events":
+                        self.envs += json.loads(f["data"])
+                ahead = self.bytes / self.bps - (time.monotonic() - t0)
+                if ahead > 0:
+                    time.sleep(ahead)
+        except OSError:
+            return
+
+    def close(self):
+        self.sock.close()
+
+
+def test_burst():
+    print("== ping-pong burst (session 20261005_093927 size): the newest state within 1 s ==")
+    resps = burst_responses()
+    n = resps[-1]["next"]
+    counts = collections.Counter(e["data"]["ev"] for r in resps for e in r["events"])
+    keep = [e["seq"] for r in resps for e in r["events"] if e["data"]["ev"] in KEEP_EVS]
+    feed = HandFeed()
+    want = json.loads(json.dumps({**{k: v for k, v in resps[-1].items() if k != "events"}, "viz": feed.viz()}))
+    print(f"  {BURST_PUMPS} pumps, {n} events: {counts['item_seen']} item_seen, {counts['walk']} walks, "
+          f"{counts['step']} steps, {len(keep)} speech/intent/cliloc/gump")
+
+    # a connection that stops reading for the whole burst
+    sub = feed.subscribe(None)
+    deepest = 0
+    for r in resps:
+        feed._publish(dict(r))
+        deepest = max(deepest, len(sub))
+    t0 = time.perf_counter()
+    fr = sse_frames(sub.take(0))
+    took = time.perf_counter() - t0
+    feed.unsubscribe(sub)
+    seqs = [e["seq"] for e in batch_envs(fr)]
+    check("stalled reader: its mailbox stays bounded (no frame backlog)",
+          deepest <= viz_feed.SUB_EVENTS_MAX + 1, f"deepest {deepest}")
+    check("after the burst: one events batch, then the newest state = the last proxy response, in <1 s",
+          [f["event"] for f in fr] == ["world_events", "state"] and json.loads(fr[-1]["data"]) == want
+          and took < 1.0, f"{[f['event'] for f in fr]} {took:.3f}s")
+    check("events in seq order up to the newest; every speech/intent/cliloc/gump kept, in order",
+          seqs == sorted(set(seqs)) and seqs[-1] == n - 1 and [s for s in seqs if s in set(keep)] == keep,
+          f"{len(seqs)} of {n} kept")
+    check("only superseded or old churn was dropped (counted in health)",
+          feed.sse_dropped == n - len(seqs) > 0 and feed.health()["sse_dropped"] == feed.sse_dropped,
+          str(feed.sse_dropped))
+
+    # end to end: a reader slower than the burst over HTTP
+    feed = HandFeed()
+    srv = serve(feed, SERVER_PORT + 2)
+    rd = ThrottledSSE(SERVER_PORT + 2, BURST_READER_BPS)
+    try:
+        end = time.monotonic() + 5
+        while not feed.subscribers and time.monotonic() < end:
+            time.sleep(0.01)
+        made = 0
+        for r in resps:
+            feed._publish(dict(r))
+            made += len(feed.state_json)
+        t_end = time.monotonic()
+        final = feed.state_json
+        end = t_end + 10
+        while rd.last_state != final and time.monotonic() < end:
+            time.sleep(0.01)
+        lag = rd.last_state_at - t_end if rd.last_state == final else None
+        check(f"reader at {BURST_READER_BPS / 1e6:g} MB/s: the newest state arrives <1 s after the burst",
+              lag is not None and lag < 1.0,
+              f"{'never' if lag is None else f'{lag:.2f}s'}; read {rd.bytes / 1e6:.1f} MB of {made / 1e6:.1f} MB "
+              f"of states published, {rd.states} of {BURST_PUMPS} states")
+        check("... by skipping stale states, not queueing them", rd.states < BURST_PUMPS / 2, str(rd.states))
+        time.sleep(0.2)
+        got = [e["seq"] for e in rd.envs]
+        check("... events in seq order; every speech/intent/cliloc/gump arrived",
+              got == sorted(set(got)) and got[-1] == n - 1 and [s for s in got if s in set(keep)] == keep,
+              f"{len(got)} of {n}")
+        st = get(f"http://127.0.0.1:{SERVER_PORT + 2}/api/state")
+        check("/api/state = the newest response + viz, ring up to the newest event",
+              {k: v for k, v in st.items() if k != "events"} == want and st["events"][-1]["seq"] == n - 1)
+    finally:
+        rd.close()
         srv.shutdown()
         srv.server_close()
 
@@ -827,7 +1026,7 @@ def test_live():
         fr = s.frames(has_state)
         s.close()
         check("live SSE: gapless ring + state", has_state(fr)
-              and [int(f["id"]) for f in fr if f["event"] == "world_event"] == list(range(st["next"])))
+              and [e["seq"] for e in batch_envs(fr)] == list(range(st["next"])))
 
         # agent gate through the viz (the proxy's budget file lives in the private logdir)
         check("state responses carry the gate", (st.get("gate") or {}).get("state") == "running", str(st.get("gate")))
@@ -885,6 +1084,7 @@ def main():
         test_replay_parity(logdir)
         test_order_fallback()
         test_sse(logdir)
+        test_burst()
         test_jobs()
         test_lumber_travel()
         test_hunt_jobs()

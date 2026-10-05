@@ -24,6 +24,10 @@ GHOST_BODIES = frozenset([0x192, 0x193, 0x25F, 0x260, 0x2B6, 0x2B7])
 DEFAULT_VIEW_RANGE = 24
 # Pruned mobiles kept in `last_seen` (oldest dropped first)
 LAST_SEEN_MAX = 500
+# Closed gumps kept in `gumps` besides the open ones (the oldest-opened dropped first).
+# Keeping them all made every snapshot grow for the whole session: a day of lumber
+# closed ~900 captcha gumps, 1.7 MB of each state-port response (docs/NOTES.md "Viz lag").
+CLOSED_GUMPS_MAX = 20
 LAYER_MOUNT = 0x19   # equipment layer of the item that stands for the ridden mount
 
 
@@ -350,6 +354,19 @@ class StateStore:
             self.containers.discard(serial)
             self._drop_items([serial])
         return it
+
+    def open_gump(self, g):
+        """Store a gump the server opened; a reopened (serial, gump_id) moves to the
+        newest end, so the closed ones forget_closed_gumps drops are the oldest-opened."""
+        key = (g.serial, g.gump_id)
+        self.gumps.pop(key, None)
+        self.gumps[key] = g
+
+    def forget_closed_gumps(self):
+        """Keep every open gump and the CLOSED_GUMPS_MAX newest closed ones."""
+        closed = [k for k, g in self.gumps.items() if not g.open]
+        for k in closed[:max(len(closed) - CLOSED_GUMPS_MAX, 0)]:
+            del self.gumps[k]
 
     def _pop_mobile(self, serial, why, facet):
         m = self.mobiles.pop(serial, None)

@@ -987,6 +987,28 @@ def test_event_semantics():
     rt.feed_packet("c2s", bytes.fromhex("bf" "0008" "0004" "00" "0005"))   # C2S sub 4 = cast spell: not a close
     eq("C2S 0xBF sub 4 (cast spell) is not a gump close",
        [e["ev"] for e in rt.drain_events() if e["ev"] == "gump_close"], [])
+    # closed gumps are bounded (a day of captchas made every snapshot 1.7 MB): every open
+    # gump stays, plus the CLOSED_GUMPS_MAX newest closed ones
+    from world.state import CLOSED_GUMPS_MAX
+    rt2 = WorldRuntime()
+
+    def open_pkt(serial):
+        b = (serial.to_bytes(4, "big").hex() + "c16e0192" "0000000a" "00000014"
+             + len(layout).to_bytes(2, "big").hex() + layout.hex() + "0000")
+        return bytes.fromhex("b0") + (3 + len(bytes.fromhex(b))).to_bytes(2, "big") + bytes.fromhex(b)
+
+    rt2.feed_packet("s2c", open_pkt(0x7000))                            # stays open throughout
+    for s in range(0x100, 0x100 + CLOSED_GUMPS_MAX + 30):
+        rt2.feed_packet("s2c", open_pkt(s))
+        rt2.feed_packet("c2s", bytes.fromhex("b10017") + s.to_bytes(4, "big") + GUMPRESP[7:])
+    kept = [(g.serial, g.open) for g in rt2.state.gumps.values()]
+    eq("closed gumps: the open one plus the newest CLOSED_GUMPS_MAX closed",
+       kept, [(0x7000, True)] + [(s, False) for s in range(0x100 + 30, 0x100 + CLOSED_GUMPS_MAX + 30)])
+    rt2.feed_packet("s2c", open_pkt(0x7000 + 1))
+    rt2.feed_packet("s2c", bytes.fromhex("bf" "000f" "0004" "c16e0192" "00000000"))   # server closes all
+    eq("a server close keeps CLOSED_GUMPS_MAX too",
+       (len(rt2.state.gumps), any(g.open for g in rt2.state.gumps.values()),
+        len(rt2.state.snapshot()["gumps"])), (CLOSED_GUMPS_MAX, False, CLOSED_GUMPS_MAX))
     # every event payload is dict-serializable
     try:
         json.dumps(events)

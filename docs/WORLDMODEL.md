@@ -961,6 +961,13 @@ the player and every item not carried by the player.
   player's kill, opening it is refused; 3 = grey: ours. Captures 20261003_113952/_123614/_125556:
   all 35 refused agent opens were 1, all 90 opened corpses 3; the 0xDEAD came after the corpse
   item in all 1435 cases, so it is set only on an item the model has).
+- `gumps`: every open gump plus the 20 most recently opened closed ones (`CLOSED_GUMPS_MAX`,
+  since 2026-10-05; a reopened serial/gump id counts as new). Before, closed gumps stayed for the
+  whole session: at 16:25 on 2026-10-05 (session 20261005_093927, up since 09:39) the world held
+  1134 gumps (902 closed captchas) = 1.69 MB of a 1.84 MB snapshot, sent on every state-port poll
+  (docs/NOTES.md "Viz lag").
+  Everything that acts on a gump reads the open ones; the viz's Gumps tab shows the recent closed
+  ones as history.
 
 **Events:** `prune {serial, why}` per mobile removed by range/facet/death (not for items);
 `mobile_death {serial, corpse, name, notoriety}` once per corpse from 0xDEAD (name = the corpse's,

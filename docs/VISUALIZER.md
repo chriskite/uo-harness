@@ -57,8 +57,11 @@ Serial keys are `0x%08X` strings. `None` fields are omitted. Current facts:
   `layer`, `grid`. The bank box is the self item on layer 0x1D (graphic 0x0E7C).
 - `gumps`, `target`, `census` (serials the client queried), `names`, `buffs`, `containers` (open
   set), `characters`.
-- Size: about 30 KB for a town scene (163420: 15 mobiles, 180 items). Full-snapshot pushes at
-  ≤4 Hz are fine on localhost.
+- Size: about 30 KB for a town scene (163420: 15 mobiles, 180 items); ~170 KB in the Shelter
+  Island woods (2026-10-05: 475 items, 206 last_seen). It used to grow all session, because closed
+  gumps were never dropped: 1.84 MB at 16:25 on 2026-10-05, 1.69 MB of it 1134 gumps. Since
+  2026-10-05 the world keeps open gumps plus the 20 newest closed ones (docs/WORLDMODEL.md §7).
+  Full-snapshot pushes at ≤4 Hz are fine; a reader that can't keep up skips states (§2.10).
 
 ### 1.3 `events` = world-model events
 Flat `{"ev": ..., ...}` dicts. **Serials are ints** (the snapshot uses hex strings; the frontend
@@ -133,16 +136,16 @@ channels.
   - **Older captures** have garbage s2c jsonl rows (pre-fix decode) and, for three sessions,
     empty c2s.raw. They replay in canonical order (all C2S then all S2C, as `replay.py` does),
     badged "approximate order". Their movement truth is unreliable, and the UI says so.
-- **Backend stack: stdlib only.** `http.server.ThreadingHTTPServer`, a poller/feeder thread, and a
-  `queue.Queue` SSE fanout. HTTP threads serve a pre-serialized snapshot string that the
-  poller/feeder thread swaps atomically (≤4 Hz, coalesced).
+- **Backend stack: stdlib only.** `http.server.ThreadingHTTPServer`, a poller/feeder thread, and
+  one `viz_feed.Subscriber` mailbox per SSE connection (§2.10). HTTP threads serve a
+  pre-serialized snapshot string that the poller/feeder thread swaps atomically (≤4 Hz, coalesced).
 
 ### 2.1 HTTP API (viz_server → browser)
 
 | Route | Content |
 |---|---|
 | `GET /api/state` | the latest state-port response, verbatim (movement + world + recent events + diagnostics) |
-| `GET /api/events` | SSE: `event: state` (full response, dirty-checked, ≤4 Hz) and `event: world_event` (each event envelope verbatim); `id:` = event seq; `Last-Event-ID` resume from a 2000-entry ring |
+| `GET /api/events` | SSE, per write: `event: world_events` (a JSON array of the new envelopes, verbatim; `id:` = its last seq), then `event: state` (the newest full response, dirty-checked, ≤4 Hz). A slow reader gets fewer, newer states, never a backlog (§2.10). `Last-Event-ID` resume from a 2000-entry ring |
 | `GET /api/walkmem` | walk memory (facet 0) projected from the harness memory store (docs/MEMORY.md), in the `nav.WalkMemory` JSON format (tiles, edges, blocked), cached 2 s |
 | `GET /api/health` | viz_server mode (live/replay + session tag + order quality), poll lag, connection status, proxy diagnostics |
 | `POST /api/playback` | replay only: `{play,pause,rate,step}` |
@@ -575,6 +578,42 @@ The Self panel draws game art next to two values: the gold coin pile (item `0x0E
 - Verified in headless Chromium on replay 20260929_163420: both icons load (32×24, 18×29) and
   sit before their labels; `/api/art/4116.png` (fully transparent) → 404, `zz` → 400.
 
+### 2.10 Keeping up under bursts (2026-10-05, user report)
+
+During the 2026-10-05 lumber ping-pong the map kept showing Dan bouncing between trees for
+minutes after he had recalled home. The full finding and numbers are in docs/NOTES.md "Viz lag".
+In short: every state frame was 1.8 MB (the closed-gump leak, §1.2), it changed ~3 times a second,
+and each SSE connection had a FIFO of up to 20000 frames. A LAN reader slower than ~5.4 MB/s fell
+behind, and the queue kept every stale state in front of the newest one.
+
+How the feed keeps every reader current now (`harness/viz_feed.py`):
+- **One mailbox per connection** (`Subscriber`): the newest unsent state only (a newer state
+  replaces it) plus the unsent envelopes. The SSE thread writes everything in it at once: one
+  `world_events` frame, then the state. While a slow reader's write blocks, publishes just update
+  the mailbox, so its next write carries the state of that moment.
+- **Bounded:** at most `SUB_EVENTS_MAX` (2000) unsent envelopes per connection. Past that,
+  `compact()` cuts them to 1000, in this order:
+  1. entity churn (`ENTITY_EVS`: item_seen, prune, delete, query, …) superseded by a newer one
+     about the same serial;
+  2. the oldest `CHURN_EVS` (walk bookkeeping, steps, `c2s` summaries, keepalives, sounds, names);
+  3. only if still over the bound, the oldest of the rest.
+  Speech, clilocs, gumps, targets, containers, intents and deaths keep their order and are never
+  dropped while churn remains. The state frame carries what churn described (entities, movement,
+  traffic). `health.sse_dropped` counts the dropped envelopes.
+- **Small socket buffer** (`SSE_SNDBUF` 256 KB): a slow reader's backlog waits in the mailbox,
+  where it coalesces, not in the kernel.
+- **Browser** (`api.ts`, `sse.ts`): messages queue until the end of the dispatching task. They
+  then apply in order, and only the newest state among them is parsed (`supersede`).
+
+Measured on a replay of session 20261005_093927 through the first ping-pong window (16:22–16:25)
+at real cadence, with an SSE reader limited to 1.5 MB/s:
+- before: lag 7 s after 10 s, 147 s after 200 s, still growing; 585 MB queued for that reader;
+- the feed change alone, with today's 1.8 MB states: lag 2–3.7 s, flat;
+- both changes: states ~170 KB, lag ≤ 0.1 s.
+
+A fresh headless Chromium on localhost kept up even before the fix. The live viz's only clients
+were a LAN device (192.168.42.83), and its process held 3.2 GB.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see
@@ -732,7 +771,7 @@ serial link) opens the drawer on the Inspector tab.
 | `harness/test_viz.py` | backend tests (§7) |
 | `viz/package.json`, `bun.lock`, `tsconfig.json`, `index.html` | scaffold; scripts `build` (`bun build src/main.tsx --outdir dist`), `watch`, `test`, `typecheck` |
 | `viz/src/types.ts` | TS types for §1 (StateResponse, Movement, Snapshot, Mobile, Item, Gump, EventEnvelope, WalkMemory) |
-| `viz/src/api.ts`, `store.ts`, `serial.ts` | SSE client + resume; `useSyncExternalStore` store; int↔hex serial normalization and entity lookup |
+| `viz/src/api.ts`, `sse.ts`, `store.ts`, `serial.ts` | SSE client + resume, with per-task state supersession (§2.10); `useSyncExternalStore` store; int↔hex serial normalization and entity lookup |
 | `viz/src/gate.ts`, `components/GateControls.tsx` | agent gate badge vocabulary and button rules; the header gate controls (§2.2) |
 | `components/CaptchaToggle.tsx` | the header captcha mode toggle (§2.2a) |
 | `viz/src/intent.ts`, `components/IntentPanel.tsx` | agent intent view (tone, trip context, age against the live or replay clock) and the Avatar panel (§2.3) |
@@ -781,7 +820,10 @@ serial link) opens the drawer on the Inspector tab.
     fallback on 141253.
   - SSE framing: `id`/`event`/`data`, monotonic seq, envelopes verbatim.
   - Resume: `Last-Event-ID` replays the missed suffix plus a fresh state, with no duplicates.
-  - Coalescing: a burst yields one `state` message.
+  - Coalescing: a burst yields one `state` message. A ping-pong burst the size of 20261005_093927's
+    (624 pumps, ~15300 events): a stalled reader's mailbox stays ≤ 2000 and its next write is the
+    newest state; a 4 MB/s reader over HTTP has the newest state < 1 s after the burst (0.24 s;
+    11.5 s with the old FIFO), with every speech/intent/cliloc/gump envelope in order (§2.10).
   - Live poller against a proxy subprocess fed by the `test_errand.py`-style fake server; also
     asserts **zero C2S packets with `src` other than client/agent**, so the viz never injects.
   - Agent gate: `/api/gate` 409 in replay, 400 for `rearm`, 502 with the proxy down; live pause
@@ -791,6 +833,7 @@ serial link) opens the drawer on the Inspector tab.
 - **Proxy:** extend `test_movement.py` to check that proxy events and envelopes appear in the
   state-port event log.
 - **Frontend (`bun test`), pure helpers only:** serial normalization, entity lookup precedence,
+  SSE state supersession (only the newest state of a burst is applied, events keep their places),
   EventLog filters, ContainerTree builder, walk-memory layer builder, true-vs-dead-reckoned
   divergence rule, duration formatting, gate button rules per state, the store keeping a
   newer gate over an older state frame, and (§2.4) chart scales/ticks/bars, KPI tiles and tones,
@@ -842,7 +885,7 @@ serial link) opens the drawer on the Inspector tab.
     390×844 with touch emulation: no horizontal overflow on Live, Jobs (lumber, hunt); a CDP
     two-finger spread took the map from 16 to 59 px/tile. Not tried on a real phone.
 
-**Files:** `harness/viz_feed.py` (Feed base: 2000-envelope ring, SSE fanout, ≤4 Hz pump;
+**Files:** `harness/viz_feed.py` (Feed base: 2000-envelope ring, per-connection SSE mailboxes, ≤4 Hz pump;
 `StatePortPoller`; `ReplayDriver`), `harness/viz_server.py`, `harness/test_viz.py`, and `viz/`
 (React 19 + TSX; `build.ts` bundles into `viz/dist/assets/main.{js,css}`; dev dependencies also
 include `@types/bun` so `bun:test`/`Bun.build` type-check).
