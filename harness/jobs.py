@@ -346,8 +346,8 @@ def travel_stats(events: list[dict]) -> dict:
                                    if d.get("method") else [])
         a["casts"] += len(tries) if tries else int(_num(d.get("attempts")))
         for t in tries:
-            if t.get("method") in ("charge", "spell"):
-                a[t["method"]] += 1
+            if t.get("method") in ("charge", "spell", "spell_on_book"):
+                a["charge" if t["method"] == "charge" else "spell"] += 1
             if t.get("failure"):
                 a["failures"][t["failure"]] = a["failures"].get(t["failure"], 0) + 1
         if not tries and d.get("failure"):

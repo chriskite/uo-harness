@@ -2370,6 +2370,32 @@ def unit_hatchet():
     check("one in the bank box doesn't count", pick("bank") is None)
 
 
+def unit_recall_reagents():
+    """A recall cast by the spell on the book spends Recall's reagents like one from the gump: the ledger must not
+    call them theft (live 2026-10-05, run lumber-20261005-124519-d565: theft_suspected for 1 black pearl, blood
+    moss and mandrake root right after the escape's spell_on_book recall)."""
+    print("\n== expect_casts: reagents spent by spell and spell_on_book recalls aren't theft ==")
+    import combat
+    import ledger as ledger_mod
+    import loop_lumber
+    regs = combat.SPELL_REAGENTS[loop_lumber.escape_mod.RECALL]
+
+    def state(n):
+        items = {f"0x{BACKPACK:08X}": {"graphic": 0x0E75, "layer": 0x15, "container": f"0x{SELF:08X}"},
+                 **{f"0x4000{i:04X}": {"graphic": g, "amount": n, "container": f"0x{BACKPACK:08X}"}
+                    for i, g in enumerate(regs)}}
+        return {"movement": {"self_serial": SELF}, "world": {"items": items, "self": {"serial": f"0x{SELF:08X}"}}}
+    for method in ("spell", "spell_on_book"):
+        loop = loop_lumber.LumberLoop.__new__(loop_lumber.LumberLoop)
+        loop.ledger = ledger_mod.Ledger()
+        loop.ledger.observe(state(10))
+        loop.expect_casts({"tries": [{"method": "charge", "failure": "disturbed"},
+                                     {"method": method, "failure": None}]})
+        d = loop.ledger.observe(state(9))
+        check(f"one {method} recall: one of each reagent spent, no theft", not d.theft_suspected,
+              str(d.unexplained_losses))
+
+
 # unit_capture_*: packets captured live in session 20261003_213125 (Hackworth 0x0020F127; offsets in s):
 #   CAP_WITCHER      witcher_280 (Nusero Island SW) from 22:17:28.0: the recall's arrival, a starling, a
 #                    cougar, an eagle, a gazer larva and a raven in view; at +4.136 the larva's spell on
@@ -2700,7 +2726,7 @@ def run_parallel(names, jobs):
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
             wary, red_aim, thief_keep_away, pouch_pop, no_pouch, resupply, landing_escape, ghost_horse, staff_in_view,
-            unit_hatchet, unit_hit_verdict,
+            unit_hatchet, unit_hit_verdict, unit_recall_reagents,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`

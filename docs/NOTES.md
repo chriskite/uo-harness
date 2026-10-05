@@ -592,6 +592,14 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   line computed `rune + 1` with no rune index (the default rune) → TypeError, trip aborted, exit 1
   (juncture #249). Fixed: it logs "rune the default"; `test_escape.py` now runs `escape()` over
   the recharging book.
+- **The spell on the book's reagents read as theft (run lumber-20261005-124519-d565, 12:46:21):** an
+  ettin's escape recall went charge (disturbed) → spell on the book (landed, 2.48 s); the ledger then
+  flagged 1 black pearl, blood moss and mandrake root as "left the pack unexplained" (juncture 252)
+  because `expect_casts` counted only method `spell`. Now `escape.SPELL_METHODS` (spell,
+  spell_on_book) is what spends reagents, for the ledger, the trip row's `recall_casts` and the jobs
+  report (`test_loop_lumber.py` unit `unit_recall_reagents`, failing before). The false `theft` job
+  event (907) and juncture 252 were deleted from the memory store so the planner doesn't count a
+  theft at witcher_66.
 - **The death robe (user, 2026-10-05: take it off after the resurrection):** `ctl act gump <res gump> 1`
   now takes it off once alive. Live 11:05: the worn "death robe" 0x60935864 (graphic 0x1F03, layer
   robe) was lifted (0x1D 43 ms after the 0x07) and dropped into the pack, and it **never came back**:

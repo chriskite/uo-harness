@@ -2552,10 +2552,11 @@ class LumberLoop:
         self.travel.append(leg_summary(data))
 
     def expect_casts(self, res: dict):
-        """Recall casts by spell spend one of each recall reagent: tell the ledger, so a
-        tome without charges doesn't read as theft."""
+        """Recall casts by spell (from the book's gump, or the spell on the book) spend one of each
+        recall reagent: tell the ledger, so they don't read as theft (live 2026-10-05: a spell on the
+        book's reagents became a theft_suspected juncture)."""
         casts = sum(1 for t in res.get("tries") or []
-                    if t.get("method") == "spell" and t.get("failure") not in escape_mod.NOT_CAST)
+                    if t.get("method") in escape_mod.SPELL_METHODS and t.get("failure") not in escape_mod.NOT_CAST)
         if casts:
             self.ledger.expect(*[("spent", g, casts) for g in combat.SPELL_REAGENTS[escape_mod.RECALL]])
 
@@ -2773,7 +2774,7 @@ class LumberLoop:
             # a charge is spent when the recall lands [INFERENCE: RunUO takes it in the spell's effect]
             "library_charges": sum(1 for leg, t in tries if t[0] == "charge" and t[1] is None and by_library(leg)),
             "own_charges": sum(1 for leg, t in tries if t[0] == "charge" and t[1] is None and not by_library(leg)),
-            "recall_casts": sum(1 for _, t in tries if t[0] == "spell"),
+            "recall_casts": sum(1 for _, t in tries if t[0] in escape_mod.SPELL_METHODS),
             "trapped_pouches": self.pouches_used}
         hatchet = (snap.get("hatchet") or {}).get("serial")
         try:

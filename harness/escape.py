@@ -67,6 +67,7 @@ CAST_RECOVERY_S = 0.2             # Outlands' recovery after a finished or fizzl
 RECALL_SPELL = 32                 # Magery Recall (ClassicUO SpellsMagery.cs), cast with 0xFF sub 4
 SPELL_CURSOR_WAIT_S = 4.0         # cast -> the spell's target cursor
 RECHARGE_WAIT_S = 1.0             # a book still recharging, Recall not castable: look again after this
+SPELL_METHODS = ("spell", "spell_on_book")   # tries cast by the Recall spell: they spend reagents and mana
 
 # Failure messages (cliloc ids from the local Cliloc.enu, docs/research/TRAVEL_DEATH.md §1.2;
 # the tome's text seen live). Any of them ends the attempt.
