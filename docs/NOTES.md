@@ -586,6 +586,12 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   hatchet, armor, ~106 logs and supplies (no corpse runs, policy #2). `ctl act resupply` at the DTF
   shelf then re-dressed him: all six studded pieces (worn; no Harvest aspect until activated again),
   reagents, potions, pouches and a bag; no hatchet (the shelf has none it will give).
+- **The spell-on-book fallback's first live use crashed the log line (run lumber-20261005-123221-09e7,
+  12:38:06):** a giant rat kept coming, the escape recall was disturbed 0.117 s into the cast, the
+  next try went by the Recall spell on the book and **landed home**, but `escape()`'s per-try log
+  line computed `rune + 1` with no rune index (the default rune) → TypeError, trip aborted, exit 1
+  (juncture #249). Fixed: it logs "rune the default"; `test_escape.py` now runs `escape()` over
+  the recharging book.
 - **The death robe (user, 2026-10-05: take it off after the resurrection):** `ctl act gump <res gump> 1`
   now takes it off once alive. Live 11:05: the worn "death robe" 0x60935864 (graphic 0x1F03, layer
   robe) was lifted (0x1D 43 ms after the 0x07) and dropped into the pack, and it **never came back**:
@@ -617,12 +623,14 @@ session log t 1791215164–1791215431 (the Wintertop death) and a live test at 1
   re-sent it on facet 3 without the flag at 10/100 hits: alive. [INFERENCE: the room's teleport
   takes pets the way a stable does, and a stable claim revives a bonded pet (wiki: "stable it and
   take it back out").] One observation.
-- **The guild house rests a ridden mount (live 12:00):** a recall home into the DTF guild house
-  (4134,1429) → "Your mount finds a quiet place to rest safely." (the mount item 0x1D, followers
-  stay 0/5, no horse in view); `act room enter` → "Your mount returns." Leaving the room keeps it
-  under us (Dan rode from the room to the tomes and recalled out mounted). So every trip home
-  puts the horse away and the next room entry gives it back; `mount_home` goes into the room for
-  a remembered mount that isn't here outside it (scenario `ghost_horse`, two trips).
+- **The guild house rests a ridden mount (live 12:00 and 12:32):** coming into the DTF guild house
+  (4134,1429) by a recall home **or out of the rental room** → "Your mount finds a quiet place to
+  rest safely." (the mount item 0x1D, followers stay 0/5, no horse in view); leaving it by a recall
+  out ("Kal Ort Por" 12:32:56 → "Your mount returns." 12:32:58) or into the room (`act room
+  enter`) → "Your mount returns." So outside the room at home a remembered mount that isn't in
+  view is resting: `mount_home` records `resting` and goes, and `mount_after_recall` checks we ride
+  after the recall out (the first version detoured into the room for it each trip: useless, the
+  overseer's report, run lumber-20261005-123221-09e7). Scenario `ghost_horse`, two trips.
 - **Built:** `ctl act mount` (ride our pet within 3 tiles: the one remembered for this character in
   meta `own_mounts`, else the pet whose menu offers Release; a ghost gets "revive it first"; live
   11:31 it mounted 0x0154FE11 after a dismount, and a second call answered `already`). The runner's

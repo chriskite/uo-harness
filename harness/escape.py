@@ -718,8 +718,9 @@ def escape(io, book: int, *, attempts: int | None = None, budget_s: float = ESCA
         last["attempts"] = casts
         tries.append({k: last[k] for k in ("method", "ok", "failure", "elapsed_s", "cast_s")})
         last["tries"] = tries
+        which = last["name"] or (f"#{last['rune'] + 1}" if last["rune"] is not None else "the default")
         log(f"recall try {len(tries)} (cast {casts}): {'arrived' if last['ok'] else last['failure']} "
-            f"({last['kind']}, {last['method']}, rune {last['name'] or last['rune'] + 1}, {last['elapsed_s']} s"
+            f"({last['kind']}, {last['method']}, rune {which}, {last['elapsed_s']} s"
             + (f", {last['cast_s']} s into the cast" if last["cast_s"] is not None else "") + ")")
         if last["ok"]:
             return last

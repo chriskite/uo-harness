@@ -11,9 +11,10 @@ horse; docs/NOTES.md "Our mount").
   world `mobiles[s].dead`). Live 2026-10-05 the ghost followed Dan through a recall home and came
   back alive (10/100 hits) when he entered the rental room through the house steward
   [mechanism unknown, one observation]; healers and stable masters also revive pets (wiki).
-- A recall into the DTF guild house sends a ridden mount to rest ("Your mount finds a quiet place
-  to rest safely.": the mount item goes, followers stay 0/5); going into the rental room gives it
-  back ("Your mount returns.", live 2026-10-05). Leaving the room keeps it under us.
+- The DTF guild house sends a ridden mount to rest when we come into it, by a recall or out of
+  the rental room ("Your mount finds a quiet place to rest safely.": the mount item goes, followers
+  stay 0/5), and gives it back when we leave it by a recall out or into the room ("Your mount
+  returns.", live 2026-10-05).
 
 IO-agnostic like room.py: `io` has send(pkt) and poll() -> (state, new world events)."""
 

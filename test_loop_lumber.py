@@ -451,7 +451,8 @@ class World:
         self.shelf_stock = None           # {"room": n, "landing": n} trapped pouches per shelf; None: no shelves
         self.horse = None                 # our bonded horse off the mount: {"dead": bool}; None: no horse
         self.mounted = False              # riding it (the mount item on layer 0x19)
-        self.mount_rested = 0             # recalls into the guild house that sent the ridden mount to rest
+        self.mount_rested = 0             # times the guild house sent the ridden mount to rest
+        self.mount_resting = False        # it rests now (no mount item); a recall out or the room returns it
         self.horse_menus = 0              # context menus asked for on it
         self.horse_dclicks = []           # per double-click on it: was it a ghost then
         self.shelf_gumps = {}             # shelf gump serial -> "room" | "landing", open
@@ -647,15 +648,22 @@ class World:
                 self.later(2.1, [creature_pkt(LANDER, 0x27, *LANDER_POS)])
             if self.tracking and self.hunt["on"]:      # the hunt stops on landing (simulated: live ones don't)
                 asyncio.get_running_loop().call_later(2.2, self.drop_hunt)
+            if self.mount_resting:                     # live: "Your mount returns." as we leave the guild house
+                asyncio.get_running_loop().call_later(2.15, self.mount_returns)
         elif self.mounted:                             # live: the guild house sends a ridden mount to rest
             asyncio.get_running_loop().call_later(2.15, self.mount_rests)
 
     def mount_rests(self):
-        """'Your mount finds a quiet place to rest safely.' (live 2026-10-05, a recall into the DTF guild house):
-        the mount item goes; the rental room gives it back ('Your mount returns.')."""
-        self.mounted, self.mount_rested = False, self.mount_rested + 1
+        """'Your mount finds a quiet place to rest safely.' (live 2026-10-05: into the DTF guild house by a recall
+        or out of the rental room): the mount item goes until we leave the house (recall out, the room)."""
+        self.mounted, self.mount_resting, self.mount_rested = False, True, self.mount_rested + 1
         self.send(delete(MOUNT_ITEM))
         self.send(sys_text("Your mount finds a quiet place to rest safely."))
+
+    def mount_returns(self):
+        self.mounted, self.mount_resting = True, False
+        self.send(equip(MOUNT_ITEM, 0x3EA1, 0x19))
+        self.send(sys_text("Your mount returns."))
 
     # ---- the rental room (live 2026-10-04: docs/NOTES.md "Rental room via the DTF house steward") ----
     def room_gump(self, kind):
@@ -674,18 +682,17 @@ class World:
         self.send(map_change(ROOM_FACET))
         self.send(self_at(*ROOM_ARRIVAL, self.facing))
         self.send_room_items()
-        if self.mount_rested and not self.mounted and self.horse is not None and not self.horse["dead"]:
-            self.mounted = True                       # live: "Your mount returns."
-            self.send(equip(MOUNT_ITEM, 0x3EA1, 0x19))
-            self.send(sys_text("Your mount returns."))
+        if self.mount_resting:                        # live: "Your mount returns."
+            self.mount_returns()
         elif self.horse is not None and not self.mounted:   # live: its ghost came back alive in the room
             self.horse["dead"] = False
             self.send_horse()
         self.send(sys_text("You enter the rental room."))
 
     def send_horse(self):
-        """Our horse following us, a tile off (with the ghost flag, 0xBF sub 0x19, when it's dead)."""
-        if self.horse is None or self.mounted:
+        """Our horse following us, a tile off (with the ghost flag, 0xBF sub 0x19, when it's dead); not while
+        we ride it or it rests in the guild house."""
+        if self.horse is None or self.mounted or self.mount_resting:
             return
         self.send(creature_pkt(HORSE, HORSE_BODY, self.pos[0] + 1, self.pos[1], noto=2, flags=0))
         if self.horse["dead"]:
@@ -704,6 +711,8 @@ class World:
         self.send(map_change(0))
         self.send(self_at(*HOME_RUNE_POS, self.facing))
         self.send(sys_text("You exit the rental room."))
+        if self.mounted:                               # live 12:32: out of the room into the guild house
+            self.mount_rests()
         self.update_view()
         self.field_mobiles()
         self.send_horse()
@@ -1927,28 +1936,36 @@ async def landing_escape():
 
 
 async def ghost_horse():
-    """Live 2026-10-05 (docs/NOTES.md "Our mount"): our bonded horse's ghost follows us in the rental room. Before
-    the first trip the runner finds it (its menu offers Release: ours), revives it by going out of the room and in
-    again through the steward, mounts it with a double-click and rides out. Each recall home sends the ridden
-    mount to rest in the guild house and the room gives it back: the second trip rides out with no double-click."""
-    print("\n== our horse is a ghost: revived through the rental room, mounted, the trip rides out ==")
+    """Live 2026-10-05 (docs/NOTES.md "Our mount"): our bonded horse's ghost follows us. The room's storage shelf
+    lacks something, so the runner is out at the landing when it looks: its menu offers Release (ours), it's a
+    ghost, so into the rental room (revived), a double-click mounts it, and the trip rides. The guild house rests
+    the mount whenever we come into it (out of the room, a recall home) and gives it back on the recall out or in
+    the room: the second trip finds it resting at the landing (no detour) and rides again after the recall out."""
+    print("\n== our horse is a ghost: revived through the rental room, mounted; it rests in the guild house ==")
     world = World("ghost_horse")
     world.horse = {"dead": True}
+    world.shelf_stock = {"room": 0, "landing": 0}      # the room's shelf gives nothing: out to the landing's
     text, code, store, _ = await run_scenario(world, "ghost_horse", 12840, [LIB_TREE],
                                               ["--trips", "2", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
     eps = store.episodes("lumber")
-    check("its menu asked once (ours: Release), no double-click on the ghost; out of the room and in again "
-          "revived it; one double-click mounted it before the first trip",
+    check("its menu asked once (ours: Release), no double-click on the ghost; into the room revived it; one "
+          "double-click mounted it before the first trip",
           world.horse_menus == 1 and world.horse_dclicks == [False]
           and [k for k, _ in world.room_log][:2] == ["exit", "enter"] and "is a ghost: into the rental room" in text,
           f"menus {world.horse_menus} dclicks {world.horse_dclicks} {world.room_log}")
-    check("both trips stored (exit 0); the first row's mount: riding 0x0154FE11; the second needed nothing",
+    check("both trips stored (exit 0); rows' mount: riding after the recall out, the second from its rest "
+          "(no room detour for it)",
           code == 0 and [e["outcome"] for e in eps] == ["stored", "stored"]
-          and eps[0].get("mount") == {"pet": "0x0154FE11", "mounted": True} and "mount" not in eps[1],
-          f"exit {code} {[(e.get('outcome'), e.get('why'), e.get('mount')) for e in eps]}\n{text[-600:]}")
-    check("each recall home sent the mount to rest; the room gave it back: riding at the end",
-          world.mount_rested == 2 and world.mounted, f"rested {world.mount_rested} mounted {world.mounted}")
+          and eps[0].get("mount") == {"pet": "0x0154FE11", "mounted": True}
+          and eps[1].get("mount") == {"pet": "0x0154FE11", "mounted": True, "resting": True}
+          and [k for k, _ in world.room_log] == ["exit", "enter", "exit", "enter", "exit", "enter"]
+          and not any(j["data"].get("item") == "mount" for j in store.junctures()),
+          f"exit {code} {[(e.get('outcome'), e.get('why'), e.get('mount')) for e in eps]} {world.room_log}\n"
+          f"{text[-600:]}")
+    check("the guild house rested it 4 times (out of the room, home, twice) and gave it back each time: riding "
+          "at the end", world.mount_rested == 4 and world.mounted,
+          f"rested {world.mount_rested} mounted {world.mounted}")
     store.close()
 
 

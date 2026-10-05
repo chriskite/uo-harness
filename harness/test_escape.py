@@ -160,6 +160,17 @@ def test_recharging_book():
     r = escape.recall(s, s.BOOK, rune="SSC")
     check("a named rune can't go by the spell on the book: 'recharging'", not r["ok"] and r["failure"] == "recharging"
           and actions.cast_spell(escape.RECALL_SPELL) not in s.sent, r)
+    s = RechargingBookServer()
+    lines = []
+    r = escape.escape(s, s.BOOK, attempts=2, log=lines.append)
+    check("escape() over a recharging book lands by the spell on the book and logs the try (live 2026-10-05 its "
+          "log line raised TypeError on the default rune: no name, no index)",
+          r["ok"] and r["method"] == "spell_on_book" and lines and "rune the default" in lines[-1], (r, lines))
+    s = RechargingBookServer(reagents=False)
+    lines = []
+    r = escape.escape(s, s.BOOK, attempts=2, budget_s=2.5, log=lines.append)
+    check("escape() with the book recharging and no reagents: 'recharging' tries logged until the budget ends",
+          not r["ok"] and r["failure"] == "recharging" and len(lines) >= 2, (r, lines))
 
 
 def test_runebook_read_and_recall_by_name():

@@ -2295,13 +2295,16 @@ class LumberLoop:
     def mount_home(self):
         """Ride out (user, 2026-10-05; docs/NOTES.md "Our mount"): at home before each trip, not
         riding, our pet within reach (mount.find_own: the one remembered for this character, else
-        the pet whose menu offers "Release") gets the stock double-click. Through the rental room
-        first (out and in again when already inside) when it's a ghost (live 2026-10-05 the horse's
-        ghost came back alive that way), or when the remembered one isn't here outside the room: a
-        recall into the DTF guild house sends a ridden mount to rest ("Your mount finds a quiet
-        place to rest safely.") and the room gives it back ("Your mount returns.", live). A
-        remembered mount that still can't be ridden is an attention `low_supplies` juncture (item
-        'mount', once a run) and the trip goes on foot. The trip row's `mount` says what happened."""
+        the pet whose menu offers "Release") gets the stock double-click. A ghost is revived first
+        through the rental room (out and in again when already inside; live 2026-10-05 the horse's
+        ghost came back alive that way). The DTF guild house sends a ridden mount to rest when we
+        come into it, by a recall or out of the room ("Your mount finds a quiet place to rest
+        safely."), and gives it back when we leave it by recall or into the room ("Your mount
+        returns.", live): outside the room a remembered mount that isn't here is resting, and the
+        trip rides from the landing (`resting`; mount_after_recall checks it came back). A
+        remembered mount missing in the room or still a ghost is an attention `low_supplies`
+        juncture (item 'mount', once a run) and the trip goes on foot. The trip row's `mount` says
+        what happened."""
         if self.args.mount == "off":
             return
         st = self.state()
@@ -2311,33 +2314,26 @@ class LumberLoop:
         known = mount_mod.remembered(self.memory, self.home_name)
         found = mount_mod.find_own(io, self.human, st, known)
         in_room = home_mod.in_room(self.facet_now(st), self.home)
-        ghost = found is not None and found[1].get("dead")
-        if ghost or (found is None and known is not None and not in_room):
-            pet = found[0] if found is not None else known
-            if ghost:
-                mount_mod.remember(self.memory, self.home_name, pet, found[1].get("name"))
-            log(f"our mount 0x{pet:08X} {'is a ghost' if ghost else 'is not here'}: into the rental room "
-                f"to {'revive it' if ghost else 'get it back'}")
+        if found is None and known is not None and not in_room:
+            log(f"mount: 0x{known:08X} rests in the guild house; it comes back when we recall out")
+            self.pre_stats["mount"] = {"pet": f"0x{known:08X}", "mounted": False, "resting": True}
+            return
+        if found is not None and found[1].get("dead"):
+            pet = found[0]
+            mount_mod.remember(self.memory, self.home_name, pet, found[1].get("name"))
+            log(f"our mount 0x{pet:08X} is a ghost: into the rental room to revive it")
             if in_room:
                 self.leave_room()
             self.to_room()
             st = self.state()
-            if mount_mod.mounted(st):                  # "Your mount returns."
-                log(f"mount: riding 0x{pet:08X} again (back from its rest)")
-                self.pre_stats["mount"] = {"pet": f"0x{pet:08X}", "mounted": True, "returned": True}
-                return
             m = st["world"]["mobiles"].get(f"0x{pet:08X}") or {}
             found = (pet, m) if m.get("x") is not None else None
         rec = {"pet": None if found is None else f"0x{found[0]:08X}", "mounted": False}
         if found is None or found[1].get("dead"):
             rec["why"] = "no pet of ours in reach" if found is None else "still a ghost after the rental room"
             log(f"mount: {rec['why']}; the trip goes on foot")
-            if known is not None and not self.mount_warned:
-                self.mount_warned = True
-                self.memory.juncture("lumber", "low_supplies", f"Our mount 0x{known:08X} can't be ridden ("
-                                     f"{rec['why']}); the trips go on foot", "attention",
-                                     {"item": "mount", "pet": f"0x{known:08X}", "why": rec["why"],
-                                      "how": "find it, or revive its ghost (act room enter / a healer); then act mount"})
+            if known is not None:
+                self.mount_missing(known, rec["why"])
             self.pre_stats["mount"] = rec
             return
         pet, m = found
@@ -2346,6 +2342,33 @@ class LumberLoop:
         rec["mounted"] = mount_mod.mount(io, self.human, pet)
         log(f"mount: {'riding' if rec['mounted'] else 'no mount after the double-click on'} 0x{pet:08X}")
         self.pre_stats["mount"] = rec
+
+    def mount_missing(self, pet: int, why: str):
+        """A remembered mount we can't ride: an attention `low_supplies` juncture (item 'mount'), once a run."""
+        if self.mount_warned:
+            return
+        self.mount_warned = True
+        self.memory.juncture("lumber", "low_supplies", f"Our mount 0x{pet:08X} can't be ridden ({why}); the "
+                             "trips go on foot", "attention",
+                             {"item": "mount", "pet": f"0x{pet:08X}", "why": why,
+                              "how": "find it, or revive its ghost (act room enter / a healer); then act mount"})
+
+    def mount_after_recall(self):
+        """After the recall out: our remembered mount is under us again. The guild house rests it
+        when we come out of the room or recall in, and gives it back on the recall out ("Your mount
+        returns.", live 2026-10-05). The trip row's `mount.mounted` says whether we ride; a
+        juncture when a mount that rested didn't come back."""
+        known = mount_mod.remembered(self.memory, self.home_name)
+        if self.args.mount == "off" or known is None:
+            return
+        end = time.time() + 2.0
+        while not mount_mod.mounted(self.state()) and time.time() < end:
+            time.sleep(0.1)
+        rec = self.stats.setdefault("mount", {"pet": f"0x{known:08X}"})
+        rec["mounted"] = mount_mod.mounted(self.state())
+        log(f"mount: {'riding' if rec['mounted'] else 'not riding'} after the recall out")
+        if not rec["mounted"] and "why" not in rec:
+            self.mount_missing(known, "it didn't come back after the recall out")
 
     def resupply_here(self, where: str) -> dict | None:
         """shelf.resupply from the nearest usable storage shelf in view (None: no shelf here)."""
@@ -2468,6 +2491,7 @@ class LumberLoop:
                 why += f"; {e}"
             raise Abort(why)
         self.afield = True                       # out: an escape from here on harvests on, not travels again
+        self.mount_after_recall()
         log(f"recalled to {row['name']!r} from {where} at {to} ({res['method']}; "
             f"{row['dist']} tiles from the grove's centre)")
 
