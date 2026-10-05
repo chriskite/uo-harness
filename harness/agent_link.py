@@ -812,6 +812,9 @@ class Mover:
                     self.mem.add_step(cur, new)
                     if new != gate and self.moongate_at(new, after, z=here[2]):
                         self.close_gate_gumps(self.step_mark, new, label)
+                    if self.replan_requested and new == nxt \
+                            and not any(self.in_danger(t) for t in path[i + 1:]):
+                        self.replan_requested = False     # the new or moved zone isn't on the rest of the route
                     if new != nxt or self.replan_requested:
                         if self.replan_requested:
                             log(f"{label}: danger ahead changed; replanning from {new}")

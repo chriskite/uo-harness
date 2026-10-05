@@ -247,6 +247,32 @@ def test_max_route():
     check("within the bound: walked round", tuple(link.here) == (6, 0), str(link.here))
 
 
+def test_danger_replan_on_route_only():
+    print("== a new danger zone replans the walk only when it touches the rest of the route ==")
+    # live 2026-10-05 (witcher_23): an air dragon wandering 20 tiles off moved its zone every few steps and the
+    # walk to a tree replanned 123 times in 2 min, swinging between two routes
+    for zone, want in ((((2, 6), 1), 0), (((4, 0), 0), 1)):     # off the route; on it (the goal tile)
+        link = FakeLink((0, 0), facing=2)
+        mv = map_mover(link, OPEN)
+        plans = []
+        real_plan, real_fresh = mv.plan, mv.fresh_state
+
+        def plan(st, goal, mobiles=True, real_plan=real_plan):
+            plans.append(1)
+            return real_plan(st, goal, mobiles)
+
+        def fresh(zone=zone, mv=mv, real_fresh=real_fresh):
+            st = real_fresh()
+            if tuple(link.here) != (0, 0) and not mv.danger:     # the zone appears after the first step
+                mv.danger["seen"] = zone
+                mv.replan_requested = True
+            return st
+        mv.plan, mv.fresh_state = plan, fresh
+        mv.walk_to(lambda: (4, 0), 0, "t")
+        check(f"zone {zone}: {'a replan' if want else 'no replan'}, arrived",
+              len(plans) - 1 == want and tuple(link.here) == (4, 0), f"{len(plans) - 1} replans, at {link.here}")
+
+
 def test_shove_denied():
     print("== shove denied (low stamina): not a wall; wait, then go once the NPC moves ==")
     link = FakeLink((0, 0), facing=2, mobiles=[(3, 0, 12)], can_shove=False)
@@ -382,6 +408,7 @@ if __name__ == "__main__":
     test_go_around_when_cheap()
     test_object_arrives_after_plan()
     test_max_route()
+    test_danger_replan_on_route_only()
     test_shove_denied()
     test_height_goal()
     test_teleporter()

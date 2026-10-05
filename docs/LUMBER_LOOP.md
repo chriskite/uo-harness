@@ -793,6 +793,14 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     the creature is around, and walks bend around the zones (Mover danger keys ("seen", serial),
     refreshed every state read; a new or moved one replans). A zone we already stand in doesn't
     steer (no going round it; a creature at our heels moving it replanned an escape back and forth).
+    A new or moved zone replans a walk only when it touches the rest of the route (live witcher_23:
+    an air dragon wandering 20 tiles off cost 123 replans in a 2-minute walk to one tree).
+  - **Re-think the tree on the way, chop where we are** (`tree_rethink`, `add_local_trees`; user,
+    2026-10-05): every `TREE_RECHECK_S` (5 s) on the way to a tree, the map's trees within
+    `LOCAL_TREES_R` (15) of us join the candidates, and the walk ends (the tree goes back on the
+    list) when a zone now covers it or a clear tree is `TREE_SWITCH_GAIN` (8) tiles nearer; the next
+    stand is then chosen from where we are. Trees around us also join after every escape and when
+    every candidate waits on a creature.
   - **Escapes run `ESCAPE_RUN` (20) tiles** from the creatures fled (`escape_tiles(run_from=)`), to a
     tile also outside every other zone; no such tile: recall home at once.
   - **Before a recall away from creatures, run out of reach** (`monster_stop` → `gain_distance`):

@@ -509,6 +509,8 @@ class World:
         self.reflected = []               # (time, our distance from it) per spell Magic Reflection took
         self.wary_left_t = None           # wary: when the creature by the near tree left view
         self.wary_flags = 0x40            # wary: its 0x20 flags (war mode; 0: idle, idle_mob)
+        self.wary_late = False            # zone_on_way: the creature isn't there at first; it shows up as we come
+        self.wary_shown = False           # zone_on_way: it has come into view
         self.door_seen = False            # the door and gates go out on facet 0, then again like the steward
         self.red_due = False              # red_aim: the red is on its way (RED_AIM_S after the chop's cursor)
         self.red_t = None                 # red_aim: when the red's 0x20 went out
@@ -727,7 +729,7 @@ class World:
         if self.scenario == "skirmish":
             self.send(creature_pkt(FIGHTER, 0xEA, *FIGHTER_POS))
             self.send(player_update(OTHER, *OTHER_POS))
-        if self.scenario == "wary" and self.wary_left_t is None:
+        if self.scenario == "wary" and self.wary_left_t is None and (not self.wary_late or self.wary_shown):
             self.send(creature_pkt(WARY, 0x27, *WARY_POS, flags=self.wary_flags))
 
     # ---- tracking (live 20261001_214649: docs/NOTES.md "Tracking") ----
@@ -938,6 +940,10 @@ class World:
                 self.door_open = False
             self.send(bytes([0x22, seq, 0x01]))
             self.update_view()
+            if self.wary_late and not self.wary_shown and self.facet == 0 and self.pos[0] >= 103 \
+                    and abs(self.pos[1] - 200) <= 3:     # zone_on_way: it comes into view by the near tree
+                self.wary_shown = True
+                self.send(creature_pkt(WARY, 0x27, *WARY_POS, flags=self.wary_flags))
             if self.chase:                               # the attacker keeps at the agent's heels
                 self.attacker_pos = old
                 self.send(creature_pkt(ATTACKER, 0x27, *old))
@@ -2098,6 +2104,26 @@ async def idle_mob():
     store.close()
 
 
+async def zone_on_way():
+    """Live 2026-10-05 (witcher_23): an air dragon came back into view by the tree we were walking to; the walk
+    replanned round it and went on to that tree, and it found us there. Now: the idle creature shows up by the
+    near tree while we walk to it; the walk ends ("a creature's zone covers it now") and the west tree comes first."""
+    print("\n== a creature shows up by the tree we walk to -> drop it, chop away from it ==")
+    world = World("wary")
+    world.wary_flags, world.wary_late = 0, True
+    text, code, store, _ = await run_scenario(world, "zone_on_way", 12860, [GOOD_TREE, WEST_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
+    targets = world.chopped
+    check("it showed up on the way; the walk to the near tree ended, the west tree was chopped first",
+          world.wary_shown and "a creature's zone covers it now" in text
+          and targets and targets[0][0] == (WEST_TREE["x"], WEST_TREE["y"]), str([x for x, _ in targets][:4]))
+    eps = store.episodes("lumber")
+    check("stored, exit 0; no threat juncture",
+          code == 0 and [e.get("outcome") for e in eps] == ["stored"]
+          and not [j for j in store.junctures() if j["kind"] == "threat"], f"exit {code}\n{text[-600:]}")
+    store.close()
+
+
 async def red_aim():
     """LUMBER_LOOP.md §13 "Blind waits" (live 2026-10-03: Bastet came into view during the chop's 2.1 s
     aim pause; the runner answered the cursor, then recalled 2.5 s after sight and was hit out of the
@@ -2764,7 +2790,8 @@ def run_parallel(names, jobs):
 
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
-            wary, idle_mob, red_aim, thief_keep_away, pouch_pop, no_pouch, resupply, landing_escape, ghost_horse,
+            wary, idle_mob, zone_on_way, red_aim, thief_keep_away, pouch_pop, no_pouch, resupply, landing_escape,
+            ghost_horse,
             staff_in_view,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents,
             unit_capture_spell_witcher, unit_capture_juncture_222,

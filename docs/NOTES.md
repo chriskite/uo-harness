@@ -641,6 +641,17 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   can see while lumbering (no fighting them for now). Built: foreign house doors locked to the
   planner, aggro zones round every visible creature, escapes of 20 tiles, a run out of reach before a
   creature recall (LUMBER_LOOP.md §13 "Keep away from creatures in view").
+- **First run with the keep-away rules (lumber-20261005-160037-560c, witcher_23, Seer4):** an air dragon
+  (0x00569849, body 0x0C, notoriety 3, idle) at (1685,660) ruled out ~30 trees within 13 tiles; the
+  walk to the next clear tree (1704,665, ~30 tiles) took 2 min 17 s with 123 "danger ahead changed"
+  replans as the dragon wandered, swinging between a 59- and a 37-step route. Birds (crow, swallow,
+  starling: body 0x06) are passive and made no zones. The user saw Dan keep heading for that one tree
+  past others. Fixed: zones replan only when they touch the rest of the route (`test_mover.py`
+  `test_danger_replan_on_route_only`), and the walk re-thinks its tree every 5 s with the trees
+  around us as candidates (LUMBER_LOOP.md §13). Same run, 16:10: the dragon came back into view by
+  the next target tree (1693,663); the walk replanned round its zone and went on to that tree, and
+  the dragon found Dan there (escape, run out of reach 1 s, recall, 0 hits lost). Now the walk ends
+  the moment a zone covers its tree (`test_loop_lumber.py` `zone_on_way`).
 - **The death robe (user, 2026-10-05: take it off after the resurrection):** `ctl act gump <res gump> 1`
   now takes it off once alive. Live 11:05: the worn "death robe" 0x60935864 (graphic 0x1F03, layer
   robe) was lifted (0x1D 43 ms after the 0x07) and dropped into the pack, and it **never came back**:
