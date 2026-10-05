@@ -1082,8 +1082,9 @@ def death_robe(world: dict, me) -> int | None:
 
 def _take_off_death_robe(a) -> dict:
     """Back from the dead (user, 2026-10-05): the death robe off, like a player undressing after the
-    healer (`unequip`'s lift after a reading pause; the server deletes a death robe the moment it's
-    lifted, live 2026-10-05, so no drop follows). {ok, serial, deleted} or {ok: False, error}."""
+    healer (`unequip`'s drag into the pack after a reading pause; live 2026-10-05 the server took the
+    death robe away instead, it never came back after the drop: `gone`). {ok, serial, gone} or
+    {ok: False, error}."""
     try:
         stc = StateConn(a.state_port)
         try:
@@ -1095,8 +1096,9 @@ def _take_off_death_robe(a) -> dict:
             return {"ok": False, "error": "no death robe worn"}
         Human(a.human, seed=a.seed).wait("read")
         res = _act_wear(argparse.Namespace(**{**vars(a), "name": "unequip", "args": [f"0x{robe:08X}"]}))
-        return {"ok": res["ok"], "serial": f"0x{robe:08X}", "deleted": bool(res.get("deleted")),
-                **({} if res["ok"] else {"error": res.get("error")})}
+        off = res["ok"] or bool(res.get("gone"))
+        return {"ok": off, "serial": f"0x{robe:08X}", "gone": bool(res.get("gone")),
+                **({} if off else {"error": res.get("error")})}
     except (CtlError, OSError) as e:
         return {"ok": False, "error": str(e)}
 
@@ -2394,13 +2396,6 @@ def _act_wear(a) -> dict:
         if resp != "OK":
             return {"ok": False, "reply": resp}
         human.wait("drag")
-        if key not in stc.state()["world"]["items"]:
-            # the server deleted what we lifted (live 2026-10-05: a death robe is gone the moment it's
-            # lifted, 0x1D 43 ms later): nothing is on the cursor, so the client drops nothing
-            got = stc.wait_events(mark, lambda evs: False, timeout=0.5)
-            return {"ok": True, "reply": resp, "moved": False, "deleted": True,
-                    "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS],
-                    **({"opened": opened} if opened else {})}
         resp = ctl.send(second)
         if resp != "OK":
             return {"ok": False, "reply": resp,
@@ -2410,12 +2405,16 @@ def _act_wear(a) -> dict:
             time.sleep(0.1)
         moved = done()
         got = stc.wait_events(mark, lambda evs: False, timeout=0.5)
-        out = {"ok": moved, "reply": resp, "moved": moved,
+        # Outlands sends 0x1D for every lifted item (live 2026-10-05: a hatchet 47 ms after its lift);
+        # one that never comes back after the drop was taken by the server (a death robe, live)
+        gone = not moved and key not in stc.state()["world"]["items"]
+        out = {"ok": moved, "reply": resp, "moved": moved, "gone": gone,
                "heard": [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]}
         if opened:
             out["opened"] = opened
         if not moved:
-            out["error"] = "the world model doesn't show the item moved (check journal/status)"
+            out["error"] = ("the item is gone from the world model after the drop (the server took it)" if gone
+                            else "the world model doesn't show the item moved (check journal/status)")
         return out
     finally:
         ctl.close()

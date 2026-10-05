@@ -703,9 +703,11 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
      riding, our pet within 3 tiles (the one remembered for this character, else the pet whose menu
      offers Release) gets the stock double-click (`harness/mount.py`; docs/NOTES.md "Our mount"). A
      ghost (0xBF sub 0x19) is revived first by out of the room and in again through the steward (live:
-     that revived Dan's horse; the healer didn't). A remembered mount it can't ride is an attention
-     `low_supplies` juncture (item `mount`) and the trip goes on foot. Trip row `mount` {pet, mounted,
-     why}. Offline: scenario `ghost_horse`.
+     that revived Dan's horse; the healer didn't). A recall into the DTF guild house sends a ridden
+     mount to rest and the room gives it back ("Your mount returns."), so a remembered mount missing
+     outside the room means a room visit first. A remembered mount it still can't ride is an
+     attention `low_supplies` juncture (item `mount`) and the trip goes on foot. Trip row `mount`
+     {pet, mounted, returned, why}. Offline: scenario `ghost_horse`.
   2. **Out** (`go_out`): in the room, out through its door (`room.leave`, the home's exit). Unless
      already at the grove (its area + 10) or no farther from it than the landing, recall to the
      landing (`lumber_opt.landing_for`, chosen once a run; the route check plans on the map with the

@@ -587,10 +587,13 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   shelf then re-dressed him: all six studded pieces (worn; no Harvest aspect until activated again),
   reagents, potions, pouches and a bag; no hatchet (the shelf has none it will give).
 - **The death robe (user, 2026-10-05: take it off after the resurrection):** `ctl act gump <res gump> 1`
-  now takes it off once alive. Live 11:05: lifting the worn "death robe" 0x60935864 (graphic 0x1F03,
-  layer robe) made the server **delete it at once** (0x1D 43 ms after the 0x07), so nothing is
-  dropped: `unequip` reports `deleted` (the first try also sent a drop for the gone item and called
-  it a failure; fixed). Codex #13 superseded by #4094, then #4095 (with the mount).
+  now takes it off once alive. Live 11:05: the worn "death robe" 0x60935864 (graphic 0x1F03, layer
+  robe) was lifted (0x1D 43 ms after the 0x07) and dropped into the pack, and it **never came back**:
+  the server took it away. `unequip` reports that as `gone`, and the death robe counts as off.
+  **Every lifted item gets a 0x1D on Outlands** (a hatchet 47 ms after its lift, 12:01): a first
+  fix that read "gone after the lift" as deleted skipped the drop and left a bought hatchet held
+  on the server's cursor until a raw drop into the pack brought it back; fixed. Codex #13
+  superseded by #4094, then #4095 (with the mount).
 
 ## Our mount (live 2026-10-05, Outland Dan's bonded horse)
 
@@ -614,6 +617,12 @@ session log t 1791215164–1791215431 (the Wintertop death) and a live test at 1
   re-sent it on facet 3 without the flag at 10/100 hits: alive. [INFERENCE: the room's teleport
   takes pets the way a stable does, and a stable claim revives a bonded pet (wiki: "stable it and
   take it back out").] One observation.
+- **The guild house rests a ridden mount (live 12:00):** a recall home into the DTF guild house
+  (4134,1429) → "Your mount finds a quiet place to rest safely." (the mount item 0x1D, followers
+  stay 0/5, no horse in view); `act room enter` → "Your mount returns." Leaving the room keeps it
+  under us (Dan rode from the room to the tomes and recalled out mounted). So every trip home
+  puts the horse away and the next room entry gives it back; `mount_home` goes into the room for
+  a remembered mount that isn't here outside it (scenario `ghost_horse`, two trips).
 - **Built:** `ctl act mount` (ride our pet within 3 tiles: the one remembered for this character in
   meta `own_mounts`, else the pet whose menu offers Release; a ghost gets "revive it first"; live
   11:31 it mounted 0x0154FE11 after a dismount, and a second call answered `already`). The runner's

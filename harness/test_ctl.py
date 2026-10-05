@@ -935,11 +935,11 @@ def test_overseer_acts(proxy):
     proxy.dead = True
     code, out = c("act", "gump", "0x109", "1")
     sent = [p for _, p in proxy.take()]
-    check("resurrection Accept: the 0xB1, then the death robe lifted off; the server deletes it (live), so "
-          "no drop follows",
+    check("resurrection Accept: the 0xB1, then the death robe dragged to the pack (lift, drop); the server takes "
+          "it away (live), so it's `gone` and counts as off",
           code == 0 and out.get("resurrected") and (out.get("death_robe") or {}).get("ok")
-          and out["death_robe"].get("deleted") and sent[0] == actions.gump_response(0x109, ctl.RESURRECT_GUMP_ID, 1)
-          and [p[0] for p in sent[1:]] == [0x07] and sent[1][1:5] == bytes.fromhex("40000099")
+          and out["death_robe"].get("gone") and sent[0] == actions.gump_response(0x109, ctl.RESURRECT_GUMP_ID, 1)
+          and [p[0] for p in sent[1:]] == [0x07, 0x08] and sent[1][1:5] == bytes.fromhex("40000099")
           and "0x40000099" not in proxy.ground_items, (out, [p.hex() for p in sent]))
     proxy.gumps.append(gump_row(0x10A, ctl.RESURRECT_GUMP_ID, res, ["Resurrection", "Accept", "Decline"]))
     code, out = c("act", "gump", "0x10A", "2")
