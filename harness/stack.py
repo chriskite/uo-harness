@@ -15,7 +15,8 @@ docs/PLAN.md "One supervisor for the stack", docs/NOTES.md "Stack supervisor").
           lookup port 25943, and when that drops (or a start fails) it posts an urgent `nat_down`
           juncture and runs the script once per outage (another UAC prompt). `restart nat` asks
           again.
-  viz     harness/viz_server.py --live, up when :8080 listens.
+  viz     harness/viz_server.py --live --host 0.0.0.0 (the LAN; allow_viz_lan.ps1), up when :8080
+          listens. `--viz-host 127.0.0.1` keeps it on this machine.
   laya    harness/triage.py serve, up when /health on :25970 answers.
   bridge  harness/telegram_bridge.py run (the overseer chat on Telegram); skipped while no bot
           token is configured.
@@ -208,8 +209,8 @@ class Service:
                 "note": self.note}
 
 
-def default_services(viz_host=None):
-    viz = ["harness/viz_server.py", "--live"] + (["--host", viz_host] if viz_host else [])
+def default_services(viz_host="0.0.0.0"):
+    viz = ["harness/viz_server.py", "--live", "--host", viz_host]
     return [
         Service("proxy", ["harness/proxy.py", "--nat-lookup-port", "25943", "--upstream-bind", "0.0.0.0",
                           "--upstream-bind-port", "25940", "--logdir", "logs",
@@ -498,7 +499,8 @@ def main(argv=None):
     up = sub.add_parser("up", help="start everything and keep it up (foreground; Ctrl-C = down)")
     for name in ("viz", "laya", "bridge", "nat"):
         up.add_argument(f"--no-{name}", action="store_true", help=f"don't run {name}")
-    up.add_argument("--viz-host", help="viz_server --host (0.0.0.0 for the LAN, see allow_viz_lan.ps1)")
+    up.add_argument("--viz-host", default="0.0.0.0",
+                    help="viz_server --host (default 0.0.0.0, the LAN: run allow_viz_lan.ps1 once; 127.0.0.1 = local only)")
     sub.add_parser("status", help="what runs, as the supervisor last saw it")
     rs = sub.add_parser("restart", help="ask the running supervisor to restart one service")
     rs.add_argument("service", choices=list(SERVICES) + ["nat"])
