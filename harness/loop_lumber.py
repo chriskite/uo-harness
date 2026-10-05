@@ -2718,6 +2718,10 @@ class LumberLoop:
             raise Abort(f"recall to {row['name']!r} from {where} not possible: {e}")
         self.travel_leg(leg, t0, res, before)
         if not res["ok"]:
+            if res["failure"] in ("blocked", "unmarked", "restricted"):
+                # the rune can't take us there (live 2026-10-05: DTF "Kaern's Manor", "That location is
+                # blocked." twice): passed over from now on, like a landing that puts us elsewhere
+                lumber_opt.mark_bad_landing(self.memory, row, self.facet, None, why=res["failure"])
             raise Abort(f"recall to {row['name']!r} from {where} failed: {res['failure']}")
         to = tuple(res["to"][:2]) if res.get("to") else None
         if to is None or cheb(to, (row["x"], row["y"])) > LANDING_SLACK:

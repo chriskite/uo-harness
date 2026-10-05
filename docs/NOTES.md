@@ -671,6 +671,14 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   ("logs left after 4 conversions") with a 9-log stack left and nothing stored; the overseer finished
   by hand (2747 boards in the chest). Now convert tries once per stack plus 3 retries
   (`test_loop_lumber.py` `convert_stacks`, failing before).
+- **A blocked rune (lumber-20261005-172734-983f, witcher_165, 17:28):** DTF tome rune "Kaern's Manor"
+  (3947,145): after each Kal Ort Por the server said **"That location is blocked."** (cliloc 501942,
+  System), which escape.py didn't know, so each try waited 5 s for an arrival ("no arrival … 4.9 s")
+  and the run aborted at the library. Now 501942 is a `blocked` failure (no retry), and a recall out
+  that fails blocked / unmarked / restricted marks the rune as a bad landing (`why`), so plans pass it
+  over (witcher_165 now lands at 'Ice Prison', 79 tiles out). Same shift: witcher_40 sat out 30 min as
+  "player threat or death here" because the convert abort counted as an aborted trip with a sighting
+  (lumber_opt eligibility) [not changed].
 - **The death robe (user, 2026-10-05: take it off after the resurrection):** `ctl act gump <res gump> 1`
   now takes it off once alive. Live 11:05: the worn "death robe" 0x60935864 (graphic 0x1F03, layer
   robe) was lifted (0x1D 43 ms after the 0x07) and dropped into the pack, and it **never came back**:

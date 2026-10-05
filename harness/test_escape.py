@@ -308,6 +308,9 @@ class TomeServer:
 def test_failures():
     check("cliloc 500641 is a disturbed cast",
           escape.failure({"ev": "cliloc", "cliloc": 500641}, ME) == "disturbed")
+    check("cliloc 501942 'That location is blocked.' (live 2026-10-05, a DTF tome rune) is blocked: no retry",
+          escape.failure({"ev": "cliloc", "cliloc": 501942}, ME) == "blocked"
+          and escape.retry_wait({"failure": "blocked"}) is None)
     check("the tome's out-of-charges text",
           escape.failure({"ev": "speech_heard", "text": "That rune tome is out of recall charges."}, ME)
           == "no charges")

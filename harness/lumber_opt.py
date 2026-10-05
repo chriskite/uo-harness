@@ -228,10 +228,12 @@ def bad_landings(memory) -> dict:
     return got if isinstance(got, dict) else {}
 
 
-def mark_bad_landing(memory, row: dict, facet: int, landed):
-    """Remember that the recall to `row` landed at `landed`, not by its tile: plans and runs pass it over."""
+def mark_bad_landing(memory, row: dict, facet: int, landed, why: str | None = None):
+    """Remember that the recall to `row` landed at `landed`, not by its tile, or couldn't be made
+    at all (`why`, landed None: e.g. "blocked"): plans and runs pass it over."""
     import task_wrap
-    entry = {"name": row.get("name"), "landed": list(landed) if landed else None, "t": round(time.time(), 1)}
+    entry = {"name": row.get("name"), "landed": list(landed) if landed else None, "why": why,
+             "t": round(time.time(), 1)}
     task_wrap.meta_update_json(memory, BAD_LANDINGS_META,
                                lambda cur: ({**(cur or {}), landing_key(row, facet): entry}, None), {})
 

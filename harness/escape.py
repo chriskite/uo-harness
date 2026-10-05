@@ -86,6 +86,8 @@ FAIL_CLILOCS = {
     502406: "recharging",          # This book needs time to recharge. (live 2026-10-05: the runebook,
                                    # double-clicked again ~1 s after a disturbed charge recall)
     501025: "blocked",             # Something is blocking the location.
+    501942: "blocked",             # That location is blocked. (live 2026-10-05: DTF rune "Kaern's Manor",
+                                   # after each Kal Ort Por, 4.9 s into the wait)
     501803: "unmarked",            # That rune is not yet marked.
     # RunUO SpellHelper.SendInvalidMessage: recalling from a place that forbids it (Outlands:
     # dungeons away from golden gates) / to one. Not seen live yet [INFERENCE: Outlands may word it
