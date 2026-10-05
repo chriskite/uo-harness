@@ -477,6 +477,42 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   ("Logan Wolf (DTF)") and closed the menu. Fixtures: `harness/testdata/room_gumps.json`.
 - Memory: #4082 (procedure, `char:outland_dan`, standing in his brief; #4081 superseded).
 
+## Storage shelves (live 2026-10-04/05, Outland Dan)
+
+Wiki: [Storage Shelf](https://wiki.uooutlands.com/Storage_Shelf). Fixtures:
+`harness/testdata/shelf_gumps.json`. Act: `ctl act resupply` (`harness/shelf.py`).
+- **What it is:** players stock a shelf with items; each character has **one Loadout, saved per
+  character and shared by every shelf** (the user set Dan's up: trapped pouches, reagents, the
+  armor and other essentials). **Resupply** equips missing loadout gear and tops pack quantities
+  up to the loadout amounts. The shelf only gives what it holds: per missing item the server says
+  **"No resupply: <item>"** (System speech; live "No resupply: Hatchet"), and when it can give
+  nothing it says **"Unable to resupply: no items available."** (live at both shelves; also when
+  the only shortfall was an item it lacks).
+- **Only some gear goes in (user, 2026-10-05):** for some item types the shelf takes only
+  player-crafted GM (exceptional) items with full uses: not a vendor-bought hatchet, not a hatchet
+  with uses spent, but a freshly crafted GM coloured hatchet. That is why Dan's loadout's 4
+  hatchets come back "No resupply: Hatchet" at the DTF shelf.
+- **Where:** the DTF guild house has two "spring storage shelf" items stacked on (4133,1427): z 6
+  `0x40050A3B` answers "That is secure." (cliloc 501647: not for Dan), z 11 `0x40B84C55` opens and
+  is stocked (2 tiles from the home landing 4134,1429: no walk). Logan Wolf's rental room has
+  "storage shelf" `0x6CEB65CD` at (402,921,2), 2 tiles from the arrival; nearly empty (3 of one
+  reagent), to be stocked later.
+- **Gump 0xC0B1026D** (Razor scripts wait for 3232825965). Buttons, by the labels on the live
+  layout: **7 Resupply** (label right of it), 1000 Restock, 1001 Edit Loadout, 16 Clear (the
+  label left of it), 3 the category page arrow ("Page 1/6"), 9 the loadout page arrow ("Page
+  1/2"), 24 Rename, 22/23 Retrieve one/many, 30/40 the material selector, 50–57 the categories,
+  130+/230+/330+ the item rows of the three columns (a click opens "Retrieve Items" 0xBEC6217A).
+  The left pane shows the stock per item; the right pane "Loadout (37 Items)" the loadout, 10 per
+  page with amounts. Dan's (2026-10-05): 7 reagents ×10 and black pearl ×10, the six shadowhide
+  studded pieces ×1, a bag ×1, heal/cure/refresh potions ×5, trapped pouches ×3, hatchets ×4. The
+  older #54 button map (Test Shard, 2026-09-30: "3 = Restock, 7 = Edit Loadout") doesn't match
+  this layout. `ctl act gump` refuses 1000 and 16 here; `act resupply` presses only 7 and 0.
+- **Live resupply:** with 2 trapped pouches against the loadout's 3, Resupply at the DTF shelf
+  added one (hue 38) into the bag already holding the others, with "No resupply: Hatchet". After a
+  pouch went into the room chest: the room shelf said "Unable to resupply: no items available.",
+  the DTF shelf gave it back. `act resupply` took 4.9 s at the DTF shelf (no walk); the shelf's
+  answer is its lines, then the shelf's gump again (closed with 0).
+
 ## First live room-storage trip (2026-10-04, Outland Dan)
 
 Task `lumber-20261004-220633-af62` (`logs/tasks/`, local), session `logs/session_20261004_220218.jsonl`.

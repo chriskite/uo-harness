@@ -68,6 +68,8 @@ import nav  # noqa: E402
 import task_wrap as tw  # noqa: E402
 import room  # noqa: E402
 from room import ROOM_GUMP_ID, ROOM_REFUSED  # noqa: E402  (rental room menu; `act gump` refuses those buttons)
+import shelf  # noqa: E402
+from shelf import SHELF_GUMP_ID, SHELF_REFUSED  # noqa: E402  (storage shelf; `act gump` refuses Restock/Clear)
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 from uo import cliloc as cliloc_mod  # noqa: E402
@@ -116,7 +118,8 @@ LAYER_NAMES = {1: "one_handed", 2: "two_handed", 3: "shoes", 4: "pants", 5: "shi
                0x17: "skirt", 0x18: "legs", 0x19: "mount", 0x1D: "bank"}
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
         "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot",
-        "target", "cast", "heal", "buy", "use", "drop", "track", "recall", "read_tomes", "room", "aspect")
+        "target", "cast", "heal", "buy", "use", "drop", "track", "recall", "read_tomes", "room", "aspect",
+        "resupply")
 # meta key: epoch seconds of ctl's last heal-potion drink (healing.PotionClock across ctl calls)
 HEAL_POTION_KEY = "heal_potion_t"
 PACK_ITEMS_MAX = 60                  # status.backpack.items
@@ -953,6 +956,8 @@ def _act(a, mem) -> dict:
         return _act_room(a, mem)
     if a.name == "aspect":
         return _act_aspect(a)
+    if a.name == "resupply":
+        return _act_resupply(a, mem)
     pkt = None
     serial = None
     if a.name == "say":
@@ -1792,6 +1797,49 @@ def _act_room(a, mem) -> dict:
         stc.close()
 
 
+def _act_resupply(a, mem) -> dict:
+    """resupply [SHELF SERIAL]: the Storage Shelf's Resupply, as one act (harness/shelf.py;
+    docs/NOTES.md "Storage shelves"). The shelf given, else the nearest storage shelf in
+    view that this character may use (a secured one answers "That is secure." and the next
+    is tried), walked to within 2 tiles (guarded goto), double-clicked, "Resupply" pressed
+    after a reading pause, its answer read and the shelf closed. Your loadout (per
+    character, the same at every shelf) says what you get; what the shelf lacks comes as
+    "No resupply: <item>" (`missing`). Returns `added` (what came into the pack or onto
+    you), `missing`, `lines`, `secure`. Never edits the loadout, Restock or Clear."""
+    import contextlib
+    want = _parse_serial(a.args[0]) if a.args else None
+    human = Human(a.human, seed=a.seed)
+    ctl, stc = _connect(a)
+    io = _CtlIO(ctl, stc, shelf.ShelfError)
+
+    def walk(serial: int, rng: int):
+        io.ctl.close()                # the walk opens its own control connection (agent_link.Link)
+        try:
+            with contextlib.redirect_stdout(sys.stderr):
+                res = _act_goto(argparse.Namespace(**{**vars(a), "args": [f"0x{serial:08X}"], "range": rng,
+                                                      "z": None, "max_moves": None}), mem)
+        finally:
+            io.ctl = Control(a.control_port)
+        if not res["ok"]:
+            raise CtlError(f"walking to the shelf 0x{serial:08X}: {res.get('error') or res['reply']}")
+
+    try:
+        stc.intent("Resupplying from a storage shelf", "resupply")
+        out = shelf.resupply(io, human, want, walk=walk)
+        stc.intent(None)
+        got = ", ".join(f"{x['amount']} {x['name']}" for x in out["added"]) or "nothing"
+        return {**out, "heard": [journal_view(e) for e in out["heard"]],
+                "reply": (f"resupplied from {out['shelf']}: {got}"
+                          + (f"; missing {', '.join(out['missing'])}" if out["missing"] else ""))
+                if out["ok"] else out["error"]}
+    except shelf.ShelfError as e:
+        raise CtlError(str(e))
+    finally:
+        io.ctl.close()
+        stc.close()
+
+
+
 def _act_aspect(a) -> dict:
     """aspect | aspect activate <weapon|spellbook|armor> [ASPECT]: the Aspect Mastery
     menu (harness/aspects.py, the same flow the lumber runner uses; docs/NOTES.md
@@ -2312,6 +2360,9 @@ def gump_reply(state: dict, serial_arg: str, button_arg: str, texts=()) -> bytes
     if _serial(g.get("gump_id")) == ROOM_GUMP_ID and ROOM_REFUSED.get(button) in view["texts"]:
         raise CtlError(f"rental room menu: button {button} is '{ROOM_REFUSED[button]}', which changes the rent "
                        "contract: the human's decision")
+    if _serial(g.get("gump_id")) == SHELF_GUMP_ID and SHELF_REFUSED.get(button) in view["texts"]:
+        raise CtlError(f"storage shelf: button {button} is '{SHELF_REFUSED[button]}', which changes the shelf or the "
+                       "loadout: the human's decision (`act resupply` only takes what the loadout says)")
     if button == 0 and not view["closable"]:
         raise CtlError("gump is noclose; button 0 isn't available")
     if button != 0 and button not in view["buttons"]:

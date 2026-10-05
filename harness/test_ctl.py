@@ -46,6 +46,7 @@ import healing  # noqa: E402
 import humanize  # noqa: E402
 import nav  # noqa: E402
 import room  # noqa: E402
+import shelf  # noqa: E402
 import task_wrap as tw  # noqa: E402
 import tracking  # noqa: E402
 from memory import Memory  # noqa: E402
@@ -899,13 +900,18 @@ def test_overseer_acts(proxy):
         gump_row(0x103, 0x33, "{ noclose }" + btns, ["Resurrection"]),
         gump_row(0x106, 0x8EAEFBDB, "".join(f"{{ button 10 {10 * b} 1 2 1 0 {b} }}" for b in (3, 4, 6, 7)),
                  ["Rental Room", "End Rental Contract", "Expand", "Exit to Town", "Exit to House Steward"]),
+        gump_row(0x107, 0xC0B1026D, _shelf_gumps()["dtf"]["layout"], _shelf_gumps()["dtf"]["lines"]),
     ]
     for serial, button, why in ((0x100, 2, "captcha"), (0x101, 0, "no reply buttons"), (0x102, 1, "renounce"),
                                 (0x103, 0, "noclose"), (0x103, 9, "not in the gump's reply buttons"),
                                 (0x104, 1, "no open gump"), (0x106, 3, "rental room: End Rental Contract"),
-                                (0x106, 7, "rental room: Expand")):
+                                (0x106, 7, "rental room: Expand"), (0x107, 1000, "storage shelf: Restock"),
+                                (0x107, 16, "storage shelf: Clear")):
         code, out = c("act", "gump", f"0x{serial:X}", str(button))
         check(f"gump refused: {why}", code == 1 and proxy.take() == [], str(out))
+    code, out = c("act", "gump", "0x107", "9")
+    check("storage shelf: the loadout page arrow (9) is sent",
+          code == 0 and len([p for _, p in proxy.take()]) == 1, str(out))
     code, out = c("act", "gump", "0x102", "0")
     check("renounce prompt: closing it (button 0) is allowed",
           code == 0 and [p for _, p in proxy.take()] == [actions.gump_response(0x102, 0x22, 0)], str(out))
@@ -1723,6 +1729,89 @@ def test_room_flow():
         room._tile_name = tile_name
 
 
+def _shelf_gumps() -> dict:
+    with open(os.path.join(HERE, "testdata", "shelf_gumps.json"), encoding="utf-8") as f:
+        return json.load(f)
+
+
+class ShelfIO:
+    """shelf.resupply's IO over a scripted server: the DTF guild house's two shelves on one
+    tile (live 2026-10-04: the first answers "That is secure.", the second opens the live
+    gump); Resupply (7) adds a trapped pouch to the pack and says what it couldn't give."""
+
+    ME, PACK, SECURED, OPEN = 0x00001234, 0x46F90508, 0x40050A3B, 0x40B84C55
+
+    def __init__(self, missing=("Hatchet",), adds=True):
+        self.state = {"movement": {"pos": [4134, 1429, 6], "self_serial": self.ME},
+                      "world": {"self": {"serial": f"0x{self.ME:08X}", "map": 0}, "labels": {},
+                                "items": {f"0x{self.PACK:08X}": {"layer": 0x15, "container": f"0x{self.ME:08X}",
+                                                                 "graphic": 0x0E75},
+                                          "0x5CF80710": {"container": f"0x{self.PACK:08X}", "graphic": 0x0E79,
+                                                         "hue": 38, "amount": 1},
+                                          f"0x{self.SECURED:08X}": {"x": 4133, "y": 1427, "graphic": 0xDC38},
+                                          f"0x{self.OPEN:08X}": {"x": 4133, "y": 1427, "graphic": 0xDC38}}}}
+        self.sent, self.pending, self.missing, self.adds = [], [], list(missing), adds
+
+    def gump(self, serial: int) -> dict:
+        return {"ev": "gump_open", "serial": f"0x{serial:08X}", **_shelf_gumps()["dtf"]}
+
+    def send(self, pkt: bytes):
+        self.sent.append(pkt)
+        if pkt == actions.dclick(self.SECURED):
+            self.pending.append({"ev": "cliloc", "cliloc": shelf.SECURE_CLILOC, "text": "That is secure."})
+        elif pkt == actions.dclick(self.OPEN):
+            self.pending.append(self.gump(0x601))
+        elif pkt[0] == 0xB1 and int.from_bytes(pkt[11:15], "big") == 7:
+            if self.adds:
+                self.state["world"]["items"]["0x6064D7DE"] = {"container": f"0x{self.PACK:08X}", "graphic": 0x0E79,
+                                                              "hue": 38, "amount": 1}
+            self.pending += [{"ev": "speech_heard", "serial": 0xFFFFFFFF, "text": f"No resupply: {m}"}
+                             for m in self.missing]
+            if not self.adds and not self.missing:
+                self.pending.append({"ev": "speech_heard", "serial": 0xFFFFFFFF, "text": shelf.NONE_AVAILABLE})
+            self.pending.append(self.gump(0x602))
+
+    def poll(self):
+        new, self.pending = self.pending, []
+        return self.state, new
+
+    def replies(self) -> list:
+        return [(int.from_bytes(p[3:7], "big"), int.from_bytes(p[11:15], "big")) for p in self.sent if p[0] == 0xB1]
+
+
+def test_shelf_flow():
+    print("== shelf: Resupply against the live Storage Shelf gump (fake io, no proxy) ==")
+    human = humanize.Human("off", seed=1)
+    tile_name = shelf._tile_name
+    shelf._tile_name = lambda graphic: "spring storage shelf" if graphic == 0xDC38 else "pouch"
+    try:
+        check("the live gump's Resupply button by its label: 7",
+              room.labelled_button(_shelf_gumps()["dtf"], "Resupply") == 7)
+        io = ShelfIO()
+        out = shelf.resupply(io, human, timeout=0.3)
+        check("the secured shelf ('That is secure.') is skipped, the next opened, Resupply (7) pressed, the "
+              "shelf's answer closed (0); nothing else sent (never Restock 1000 or Clear 16)",
+              out["ok"] and out["shelf"] == "0x40B84C55" and out["secure"] == ["0x40050A3B"]
+              and io.sent[:2] == [actions.dclick(ShelfIO.SECURED), actions.dclick(ShelfIO.OPEN)]
+              and io.replies() == [(0x601, 7), (0x602, 0)], str(out)[:300])
+        check("added: the new trapped pouch; missing: 'No resupply: Hatchet' -> Hatchet",
+              [(x["serial"], x["hue"], x["amount"]) for x in out["added"]] == [("0x6064D7DE", 38, 1)]
+              and out["missing"] == ["Hatchet"] and not out["none_available"], str(out)[:300])
+        out = shelf.resupply(ShelfIO(missing=(), adds=False), human, timeout=0.3)
+        check("nothing to give: 'Unable to resupply: no items available.' -> none_available, nothing added",
+              out["ok"] and out["none_available"] and out["added"] == [] and out["missing"] == [], str(out)[:300])
+        io = ShelfIO()
+        io.state["movement"]["pos"] = [4140, 1429, 6]
+        try:
+            shelf.resupply(io, human, timeout=0.3)
+            check("a shelf beyond reach without a walker raises", False)
+        except shelf.ShelfError as e:
+            check("a shelf beyond reach without a walker raises, nothing sent", io.sent == [], str(e))
+    finally:
+        shelf._tile_name = tile_name
+
+
+
 def main():
     proxy = FakeProxy()
     for port in (proxy.control_port, proxy.state_port):
@@ -1742,6 +1831,7 @@ def main():
     test_track(proxy)
     test_room_buttons()
     test_room_flow()
+    test_shelf_flow()
     reset_events(proxy)
     test_overseer_acts(proxy)
     if FAILURES:
