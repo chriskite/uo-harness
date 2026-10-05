@@ -590,7 +590,37 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   now takes it off once alive. Live 11:05: lifting the worn "death robe" 0x60935864 (graphic 0x1F03,
   layer robe) made the server **delete it at once** (0x1D 43 ms after the 0x07), so nothing is
   dropped: `unequip` reports `deleted` (the first try also sent a drop for the gone item and called
-  it a failure; fixed). Codex #13 superseded by #4094.
+  it a failure; fixed). Codex #13 superseded by #4094, then #4095 (with the mount).
+
+## Our mount (live 2026-10-05, Outland Dan's bonded horse)
+
+User: the overseer and the runner must get the horse back and ride it after a death. Evidence from
+session log t 1791215164–1791215431 (the Wintertop death) and a live test at 11:30:
+- **Riding** is an item on layer 0x19 on us ("deck" 0x4816EF0E for Dan's horse); off it, the horse
+  is a mobile (0x0154FE11, body 0xE4, hue 0x76E, notoriety 2) that follows us, followers 0/5 → 1/5.
+  Dismount: the stock double-click on ourselves. Mount: the stock double-click on the horse.
+- **Our pet's context menu** (cliloc mode 2): Animal Lore 1002007, then Outlands' own 3006314–3006323
+  Kill, Patrol, Guard, Follow, Come, Move, Stay, Stop, **Release**, Transfer (Stable 3006324, Tame
+  3006325 nearby in Cliloc.enu). Release is offered to the owner only [INFERENCE: RunUO], so
+  `harness/mount.py` takes "Release" in the menu to mean "ours".
+- **A bonded pet's death:** at t 1791215178.5 the horse got 0xAF (death, corpse 0x6090E6F8), 0xA1
+  hits 0/100 and **0xBF sub 0x19 `bf000b 0019 00 <serial> 01`** (bonded status, dead = 1); the
+  ghost keeps the same serial and body and follows us. The world model now keeps it as
+  `mobiles[s].dead` and emits `pet_status`.
+- **What revived it — not the healer:** the ghost walked next to Dan to Shawn the healer (3575,526,
+  1 tile from Dan when he took his own Resurrection gump); only Dan's gump 0xB04C9A31 opened (three
+  0xDD, no other gump) and the horse stayed dead through the recall home (0xBF sub 0x19 dead = 1
+  again on arrival at 1791215422). **Entering the rental room through the steward** (t 1791215430.6)
+  re-sent it on facet 3 without the flag at 10/100 hits: alive. [INFERENCE: the room's teleport
+  takes pets the way a stable does, and a stable claim revives a bonded pet (wiki: "stable it and
+  take it back out").] One observation.
+- **Built:** `ctl act mount` (ride our pet within 3 tiles: the one remembered for this character in
+  meta `own_mounts`, else the pet whose menu offers Release; a ghost gets "revive it first"; live
+  11:31 it mounted 0x0154FE11 after a dismount, and a second call answered `already`). The runner's
+  `mount_home` (`--mount on`, default) does the same before each trip at home, revives a ghost by
+  out of the room and back in through the steward, and writes the trip row's `mount`; a remembered
+  mount it can't ride is an attention `low_supplies` juncture (item `mount`), and the trip goes on
+  foot. Offline: `test_loop_lumber.py` scenario `ghost_horse`.
 
 ## Aspects (live 2026-10-04, user demo on Outland Dan)
 

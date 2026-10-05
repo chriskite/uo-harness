@@ -115,6 +115,9 @@ class Mobile:
     # "tame" / "bonded" / "summoned": the server's "(tame)" etc. line under a pet's
     # click label (S2C 0x1C type 0, hue 946), sent each time the client asks on sight
     pet: str | None = None
+    # a bonded pet's ghost (S2C 0xBF sub 0x19 dead flag); cleared when the server re-sends it alive
+    # (it deletes and re-adds the mobile, 0x1D + 0x20, without the flag: live 2026-10-05)
+    dead: bool | None = None
 
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items() if v is not None

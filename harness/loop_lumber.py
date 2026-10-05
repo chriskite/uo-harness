@@ -118,6 +118,7 @@ import stationary  # noqa: E402
 import places  # noqa: E402
 import home as home_mod  # noqa: E402
 import room as room_mod  # noqa: E402
+import mount as mount_mod  # noqa: E402
 import captcha  # noqa: E402
 import combat  # noqa: E402
 import tracking  # noqa: E402
@@ -362,7 +363,8 @@ class LumberLoop:
         self.home_name = None        # the character's name it is keyed by
         self.books = []              # our own runebooks / rune tomes as read at the start (escape.read_book)
         self.out_landing = None      # the landing trips recall to (lumber_opt.landing_for), chosen once a run
-        self.pending_resupply = None   # this trip's resupply at home (resupply_home), for its trip row
+        self.pre_stats = {}          # this trip's steps at home before it (resupply, mount), for its trip row
+        self.mount_warned = False    # the missing-mount juncture went out this run
         self.pre_trip = None         # (time, mover steps, blocked) when resupply_home began this trip
         self.aspect_hue = aspects.HARVEST_HUE   # worn armor in this hue counts as Harvest-aspected (aspect_ensure)
         self.aspect_warned = set()   # aspect problems already posted as a juncture this run
@@ -2281,13 +2283,58 @@ class LumberLoop:
             if res is not None:
                 done.append(res)
                 if not res.get("error") and not res["missing"] and not res["none_available"]:
-                    self.pending_resupply = done
+                    self.pre_stats["resupply"] = done
                     return
             self.leave_room()
         res = self.resupply_here("landing")
         if res is not None:
             done.append(res)
-        self.pending_resupply = done or None
+        if done:
+            self.pre_stats["resupply"] = done
+
+    def mount_home(self):
+        """Ride out (user, 2026-10-05; docs/NOTES.md "Our mount"): at home before each trip, not
+        riding, our pet within reach (mount.find_own: the one remembered for this character, else
+        the pet whose menu offers "Release") gets the stock double-click. A ghost (it died) is
+        revived first by going into the rental room through the steward (live 2026-10-05 the
+        horse's ghost came back alive that way; already inside: out and in again). A remembered
+        mount that can't be ridden is an attention `low_supplies` juncture (item 'mount', once a
+        run) and the trip goes on foot. The trip row's `mount` says what happened."""
+        if self.args.mount == "off":
+            return
+        st = self.state()
+        if mount_mod.mounted(st) or not self.at_home(st):
+            return
+        io = escape_mod.LinkIO(self.link)
+        known = mount_mod.remembered(self.memory, self.home_name)
+        found = mount_mod.find_own(io, self.human, st, known)
+        if found is not None and found[1].get("dead"):
+            pet = found[0]
+            mount_mod.remember(self.memory, self.home_name, pet, found[1].get("name"))
+            log(f"our mount 0x{pet:08X} is a ghost: into the rental room to revive it")
+            if home_mod.in_room(self.facet_now(st), self.home):
+                self.leave_room()
+            self.to_room()
+            m = self.state()["world"]["mobiles"].get(f"0x{pet:08X}") or {}
+            found = (pet, m) if m.get("x") is not None else None
+        rec = {"pet": None if found is None else f"0x{found[0]:08X}", "mounted": False}
+        if found is None or found[1].get("dead"):
+            rec["why"] = "no pet of ours in reach" if found is None else "still a ghost after the rental room"
+            log(f"mount: {rec['why']}; the trip goes on foot")
+            if known is not None and not self.mount_warned:
+                self.mount_warned = True
+                self.memory.juncture("lumber", "low_supplies", f"Our mount 0x{known:08X} can't be ridden ("
+                                     f"{rec['why']}); the trips go on foot", "attention",
+                                     {"item": "mount", "pet": f"0x{known:08X}", "why": rec["why"],
+                                      "how": "find it, or revive its ghost (act room enter / a healer); then act mount"})
+            self.pre_stats["mount"] = rec
+            return
+        pet, m = found
+        mount_mod.remember(self.memory, self.home_name, pet, m.get("name"))
+        self.doing("mount", f"Mounting {m.get('name') or 'our pet'}")
+        rec["mounted"] = mount_mod.mount(io, self.human, pet)
+        log(f"mount: {'riding' if rec['mounted'] else 'no mount after the double-click on'} 0x{pet:08X}")
+        self.pre_stats["mount"] = rec
 
     def resupply_here(self, where: str) -> dict | None:
         """shelf.resupply from the nearest usable storage shelf in view (None: no shelf here)."""
@@ -2614,8 +2661,8 @@ class LumberLoop:
         stashes the loose logs in the pouch first when that's safe (salvage). Every trip
         leaves an episode row, an aborted one too (outcome 'aborted' + why): leaving those
         out would flatter exactly the spots where trips get cut short."""
-        self.stats = {"resupply": self.pending_resupply} if self.pending_resupply else {}
-        self.pending_resupply = None
+        self.stats = dict(self.pre_stats)
+        self.pre_stats = {}
         self.trip_n = n
         self.escapes, self.danger = 0, {}
         self.mover.danger = {}
@@ -2781,6 +2828,7 @@ class LumberLoop:
             self.trip_n = n                          # intents from here on are this trip's
             self.pre_trip = (time.time(), self.mover.steps, self.mover.blocked_count)
             self.resupply_home()                    # the loadout from the storage shelf at home
+            self.mount_home()                       # ride out on our pet (its ghost revived in the room)
             try:
                 self.pouch_ready(self.link.state())  # a trip uses a trapped pouch up: none left, no trip
             except Abort:
@@ -2858,6 +2906,9 @@ def main():
     ap.add_argument("--resupply", choices=("on", "off"), default="on",
                     help="before each trip at home, top up the loadout from the storage shelf (shelf.py): the "
                          "rental room's, then the one by the landing when the room's lacks something")
+    ap.add_argument("--mount", choices=("on", "off"), default="on",
+                    help="before each trip at home, ride our pet (mount.py): the one remembered, else the pet "
+                         "whose menu offers Release; a ghost is revived by going into the rental room")
     ap.add_argument("--track", choices=("reds", "off"), default="reds",
                     help="keep Tracking's Hunting mode on murderer players all run (tracking.py); murderer hits "
                          "within --track-react-range at a pvp spot send us home like a red in view")

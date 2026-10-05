@@ -70,6 +70,7 @@ import room  # noqa: E402
 from room import ROOM_GUMP_ID, ROOM_REFUSED  # noqa: E402  (rental room menu; `act gump` refuses those buttons)
 import shelf  # noqa: E402
 from shelf import SHELF_GUMP_ID, SHELF_REFUSED  # noqa: E402  (storage shelf; `act gump` refuses Restock/Clear)
+import mount as mount_mod  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 from uo import cliloc as cliloc_mod  # noqa: E402
@@ -119,7 +120,7 @@ LAYER_NAMES = {1: "one_handed", 2: "two_handed", 3: "shoes", 4: "pants", 5: "shi
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
         "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot",
         "target", "cast", "heal", "buy", "use", "drop", "track", "recall", "read_tomes", "room", "aspect",
-        "resupply")
+        "resupply", "mount")
 # meta key: epoch seconds of ctl's last heal-potion drink (healing.PotionClock across ctl calls)
 HEAL_POTION_KEY = "heal_potion_t"
 PACK_ITEMS_MAX = 60                  # status.backpack.items
@@ -964,6 +965,8 @@ def _act(a, mem) -> dict:
         return _act_aspect(a)
     if a.name == "resupply":
         return _act_resupply(a, mem)
+    if a.name == "mount":
+        return _act_mount(a, mem)
     pkt = None
     serial = None
     if a.name == "say":
@@ -1847,6 +1850,33 @@ def _act_room(a, mem) -> dict:
         return {**out, "reply": f"left to {out['exit']}" if out["ok"] else out["error"]}
     except room.RoomError as e:
         raise CtlError(str(e))
+    finally:
+        io.ctl.close()
+        stc.close()
+
+
+def _act_mount(a, mem) -> dict:
+    """mount: ride our pet (harness/mount.py; docs/NOTES.md "Our mount"). Already riding: nothing
+    sent. Else our pet within 3 tiles (the one remembered for this character, else the nearby pet
+    whose context menu offers "Release": it's ours, and it is remembered) gets the stock
+    double-click. A ghost pet (it died) can't be ridden: revive it first, by going into the rental
+    room through the house steward (`act room enter`: it came back alive that way, live 2026-10-05)
+    or at a healer or stable master (wiki). Returns {ok, mounted, pet, name, dead, why}."""
+    if a.args:
+        raise CtlError("mount takes no arguments")
+    human = Human(a.human, seed=a.seed)
+    ctl, stc = _connect(a)
+    io = _CtlIO(ctl, stc, CtlError)
+    try:
+        name = (stc.state()["world"].get("self") or {}).get("name")
+        res = mount_mod.mount_up(io, human, mount_mod.remembered(mem, name))
+        if res.get("pet"):
+            mount_mod.remember(mem, name, _serial(res["pet"]), res.get("name"))
+        if res.get("mounted"):
+            stc.intent("Riding", "mount")
+        reply = ("riding" if res["ok"] else res.get("why")) + (
+            "; go into the rental room (act room enter) or to a healer to revive it" if res.get("dead") else "")
+        return {**res, "character": name, "reply": reply, **({} if res["ok"] else {"error": reply})}
     finally:
         io.ctl.close()
         stc.close()

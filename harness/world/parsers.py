@@ -699,7 +699,9 @@ def _p_extended(pkt):
     (mode u16, serial u32, count u8, entries; mode 2 = cliloc u32, index u16,
     flags u16 [+ hue u16 if flags & 0x20]; mode 1 = index u16, cliloc u16
     (+3000000), flags u16 [+ hue]), C2S 0x13 menu request (serial), C2S 0x15
-    menu selection (serial, index u16). Other subs: {"sub": n} only."""
+    menu selection (serial, index u16), S2C 0x19 bonded status (version u8, serial u32; version 0:
+    dead u8: a bonded pet's ghost, live 2026-10-05 `bf000b 0019 00 0154fe11 01` as Outland Dan's horse
+    died). Other subs: {"sub": n} only."""
     r = _Reader(pkt)
     r.take(3)
     sub = r.u16()
@@ -727,6 +729,10 @@ def _p_extended(pkt):
         d["gump_id"], d["button"] = r.u32(), r.u32()   # ClassicUO PacketHandlers.cs:4154-4156
     elif sub == 0x0C and r.remaining() >= 4:      # C2S close status: `bf 0009 000c <serial>`
         d["serial"] = r.u32()                     # (GameActions.SendCloseStatus)
+    elif sub == 0x19 and r.remaining() >= 6:
+        d["version"], d["serial"] = r.u8(), r.u32()
+        if d["version"] == 0:
+            d["dead"] = bool(r.u8())
     return d
 
 

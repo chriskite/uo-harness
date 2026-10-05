@@ -186,6 +186,11 @@ LIB_FAR_TREE = {"x": 46, "y": 272, "z": 0, "graphic": "0x0CE0", "stand": [46, 27
 # farther from it than the landing and beyond AT_GROVE: the old code then set out for the home library again
 LANDER, LANDER_POS = 0x0000A1A1, (40, 256)
 LANDER_SPOT = {"area": {"center": [40, 262], "radius": 2}, "pvp": True}
+# ghost_horse (live 2026-10-05, docs/NOTES.md "Our mount"): Outland Dan's bonded horse died with him and its ghost
+# followed him home; going into the rental room brought it back alive. Our pet's menu offers Release (cliloc 3006322)
+HORSE, HORSE_BODY, MOUNT_ITEM = 0x0154FE11, 0xE4, 0x4816EF0E
+PET_POPUP = (bytes.fromhex("bf0024001400020154fe1103") + bytes.fromhex("000f4a1700000000")      # 0 Animal Lore
+             + bytes.fromhex("002ddf6a00010000") + bytes.fromhex("002ddf7200090000"))       # 1 Kill, 9 Release
 WARY, WARY_POS = 0x0000BA76, (113, 201)                    # 2 tiles from the good tree, 13 from the start
 WEST_TREE = {"x": 86, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [87, 200]}      # 13 steps west; good: 10
 # red_aim (LUMBER_LOOP.md §13 "Blind waits"; live 2026-10-03, Bastet came into view during the chop's aim pause)
@@ -443,6 +448,10 @@ class World:
         self.room_log = []                # ("enter" | "exit", time) of every way into and out of the room
         self.keeper_far = 0               # the steward's menu picked from beyond 2 tiles (refused)
         self.shelf_stock = None           # {"room": n, "landing": n} trapped pouches per shelf; None: no shelves
+        self.horse = None                 # our bonded horse off the mount: {"dead": bool}; None: no horse
+        self.mounted = False              # riding it (the mount item on layer 0x19)
+        self.horse_menus = 0              # context menus asked for on it
+        self.horse_dclicks = []           # per double-click on it: was it a ghost then
         self.shelf_gumps = {}             # shelf gump serial -> "room" | "landing", open
         self.shelf_seen = False           # the landing's shelves sent (in update range, facet 0)
         self.resupplies = []              # (shelf, pouches given) per Resupply press
@@ -654,7 +663,18 @@ class World:
         self.send(map_change(ROOM_FACET))
         self.send(self_at(*ROOM_ARRIVAL, self.facing))
         self.send_room_items()
+        if self.horse is not None and not self.mounted:   # live: its ghost came back alive in the room
+            self.horse["dead"] = False
+            self.send_horse()
         self.send(sys_text("You enter the rental room."))
+
+    def send_horse(self):
+        """Our horse following us, a tile off (with the ghost flag, 0xBF sub 0x19, when it's dead)."""
+        if self.horse is None or self.mounted:
+            return
+        self.send(creature_pkt(HORSE, HORSE_BODY, self.pos[0] + 1, self.pos[1], noto=2, flags=0))
+        if self.horse["dead"]:
+            self.send(bytes.fromhex("bf000b001900") + u32(HORSE) + b"\x01")
 
     def send_room_items(self):
         self.send(ground_item(ROOM_DOOR, 0x06A5, *ROOM_DOOR_POS, 1))      # "wooden door"
@@ -671,6 +691,7 @@ class World:
         self.send(sys_text("You exit the rental room."))
         self.update_view()
         self.field_mobiles()
+        self.send_horse()
 
     def field_mobiles(self):
         """Mobiles standing in the field, sent on coming out on facet 0 (a facet change prunes them):
@@ -911,6 +932,9 @@ class World:
         elif pid == 0xBF and p[3:5] == b"\x00\x13":    # context menu request (right-click)
             if int.from_bytes(p[5:9], "big") == STEWARD and self.facet == 0 and self.cheb(STEWARD_POS) <= 18:
                 self.later(0.06, [STEWARD_POPUP])
+            elif int.from_bytes(p[5:9], "big") == HORSE and self.horse is not None and not self.mounted:
+                self.horse_menus += 1
+                self.later(0.06, [PET_POPUP])
         elif pid == 0xBF and p[3:5] == b"\x00\x15":    # context menu pick: 1 "Room" (within 2 tiles, live)
             if int.from_bytes(p[5:9], "big") == STEWARD and int.from_bytes(p[9:11], "big") == 1:
                 if self.facet != 0 or self.cheb(STEWARD_POS) > 2:
@@ -919,7 +943,13 @@ class World:
                 self.room_gump("steward_no_room")
         elif pid == 0x06:
             serial = int.from_bytes(p[1:5], "big")
-            if serial == HATCHET:
+            if serial == HORSE and self.horse is not None and not self.mounted:
+                self.horse_dclicks.append(self.horse["dead"])
+                if not self.horse["dead"]:                 # up on it: the mobile goes, the mount item comes
+                    self.mounted = True
+                    self.send(delete(HORSE))
+                    self.send(equip(MOUNT_ITEM, 0x3EA1, 0x19))
+            elif serial == HATCHET:
                 self.cid += 1
                 self.cursor_for = self.cid
                 self.send(cliloc(1010018))
@@ -1101,6 +1131,7 @@ class World:
             self.send(self.stack_pkt(self.add_wood(LOG_G, INITIAL_LOGS, BACKPACK)))
         self.send(hits_pkt(self.hits))                          # our hits: the runner reads damage from them
         self.send_room_items()
+        self.send_horse()
         await writer.drain()
         buf = bytearray()
         while True:
@@ -1880,6 +1911,28 @@ async def landing_escape():
     store.close()
 
 
+async def ghost_horse():
+    """Live 2026-10-05 (docs/NOTES.md "Our mount"): our bonded horse's ghost follows us in the rental room. Before
+    the trip the runner finds it (its menu offers Release: ours), revives it by going out of the room and in again
+    through the steward, mounts it with a double-click and rides out; the trip row says so."""
+    print("\n== our horse is a ghost: revived through the rental room, mounted, the trip rides out ==")
+    world = World("ghost_horse")
+    world.horse = {"dead": True}
+    text, code, store, _ = await run_scenario(world, "ghost_horse", 12840, [GOOD_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "10", "--human", "off"])
+    eps = store.episodes("lumber")
+    check("its menu asked once (ours: Release), no double-click on the ghost; out of the room and in again "
+          "revived it; one double-click mounted it before the trip",
+          world.horse_menus == 1 and world.horse_dclicks == [False] and world.mounted
+          and [k for k, _ in world.room_log][:2] == ["exit", "enter"] and "is a ghost: into the rental room" in text,
+          f"menus {world.horse_menus} dclicks {world.horse_dclicks} mounted {world.mounted} {world.room_log}")
+    check("the trip went and stored (exit 0); its row's mount: riding 0x0154FE11",
+          code == 0 and len(eps) == 1 and eps[0]["outcome"] == "stored"
+          and eps[0].get("mount") == {"pet": "0x0154FE11", "mounted": True},
+          f"exit {code} {[(e.get('outcome'), e.get('why'), e.get('mount')) for e in eps]}\n{text[-600:]}")
+    store.close()
+
+
 async def gazer_rehit():
     """The same gazer outranges the walk-away (it casts from 20 tiles in this simulation): damage again
     within --creature-rehit-s of arriving -> recall home at once, no conversion, exit 1."""
@@ -2610,7 +2663,7 @@ def run_parallel(names, jobs):
 
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
-            wary, red_aim, thief_keep_away, pouch_pop, no_pouch, resupply, landing_escape, staff_in_view,
+            wary, red_aim, thief_keep_away, pouch_pop, no_pouch, resupply, landing_escape, ghost_horse, staff_in_view,
             unit_hatchet, unit_hit_verdict,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]

@@ -793,7 +793,7 @@ def test_vendor_popup_command():
     rt = WorldRuntime()
     rt.feed_packet("c2s", bytes.fromhex("bf000b00150008aae00002"))
     rt.feed_packet("s2c", bytes.fromhex("bf0006000803"))  # sub 8: map change to facet 3
-    rt.feed_packet("s2c", bytes.fromhex("bf0006001900"))  # sub 0x19: not handled
+    rt.feed_packet("s2c", bytes.fromhex("bf0006001a00"))  # sub 0x1A (Outlands' 0xBF form): not handled
     eq("BF events", [e["ev"] for e in rt.drain_events()], ["popup_select", "map_change"])
     eq("BF sub 8 sets the facet", rt.state.self.map, 3)
     eq("BF other sub counted unhandled", rt.unhandled[("s2c", 0xBF)], 1)
@@ -1120,6 +1120,24 @@ SIPHON_221735 = bytes.fromhex(
     "000010b7a4000000000000000000")
 
 
+def test_bonded_pet_dead():
+    print("== 0xBF sub 0x19: a bonded pet's ghost, alive again when the server re-sends it ==")
+    # live 2026-10-05 (Outland Dan's horse at Wintertop): `bf000b 0019 00 0154fe11 01` as it died
+    eq("BF 0x19 layout", parse_packet("s2c", bytes.fromhex("bf000b0019000154fe1101")),
+       {"sub": 0x19, "version": 0, "serial": 0x0154FE11, "dead": True})
+    rt = WorldRuntime()
+    rt.feed_packet("s2c", _login(1000, 1000))
+    HORSE = 0x0154FE11
+    rt.feed_packet("s2c", _mob20(HORSE, 1000, 1000, noto=2))
+    rt.feed_packet("s2c", bytes.fromhex("bf000b0019000154fe1101"))
+    eq("the horse is a ghost", rt.state.mobiles[HORSE].to_dict().get("dead"), True)
+    eq("a pet_status event", [e for e in rt.drain_events() if e["ev"] == "pet_status"],
+       [{"ev": "pet_status", "serial": HORSE, "dead": True}])
+    rt.feed_packet("s2c", bytes.fromhex("1d0154fe11"))       # revived (live: the rental room entry)
+    rt.feed_packet("s2c", _mob20(HORSE, 1000, 1000, noto=2))
+    eq("re-sent without the flag: alive", rt.state.mobiles[HORSE].to_dict().get("dead"), None)
+
+
 def test_buff_end():
     print("== a buff's end on the server's clock (Spell Siphon is an hour, not 0.06 s) ==")
     clock = [1791083855.015]
@@ -1333,7 +1351,7 @@ def test_pruning():
 TESTS = [test_fixed_s2c, test_fixed_c2s, test_character_status_11,
          test_skills_3a, test_world_item_1a, test_container_content_3c,
          test_corpse_equipment_89, test_healthbar_16_17, test_gumps_b0_dd,
-         test_dialect_ff, test_c2s_procedural, test_mobile_parsers, test_cliloc,
+         test_dialect_ff, test_c2s_procedural, test_mobile_parsers, test_cliloc, test_bonded_pet_dead,
          test_vendor_popup_command, test_tracking_packets,
          test_mobile_routing, test_truncation, test_runtime_edges,
          test_event_semantics, test_status_requested, test_pruning, test_worn_layers,

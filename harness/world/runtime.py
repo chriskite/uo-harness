@@ -718,6 +718,9 @@ def _extended_handler(direction):
             rt._emit("popup_select", serial=f["serial"], index=f["index"])
         elif sub == 0x0C and direction == C2S and "serial" in f:
             rt.state.status_requested.discard(f["serial"])   # SendCloseStatus: HitsRequest -> None
+        elif sub == 0x19 and direction == S2C and "dead" in f:
+            rt.state.update_mobile(f["serial"], dead=f["dead"] or None)
+            rt._emit("pet_status", serial=f["serial"], dead=f["dead"])
         else:
             rt.unhandled[(direction, 0xBF)] += 1
     return h

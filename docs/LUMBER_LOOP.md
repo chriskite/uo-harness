@@ -699,6 +699,13 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
      none_available}]. Then the trapped-pouch check (`pouch_ready`): still none, a `low_supplies`
      juncture, back into the room, exit 1. Offline: `test_loop_lumber.py` scenarios `resupply` (the
      room's shelf empty, the landing's gives 3 pouches, the trip goes) and `no_pouch` (both empty).
+  1b. **Mount** (since 2026-10-05, user; `mount_home`, `--mount on|off`, default on): at home and not
+     riding, our pet within 3 tiles (the one remembered for this character, else the pet whose menu
+     offers Release) gets the stock double-click (`harness/mount.py`; docs/NOTES.md "Our mount"). A
+     ghost (0xBF sub 0x19) is revived first by out of the room and in again through the steward (live:
+     that revived Dan's horse; the healer didn't). A remembered mount it can't ride is an attention
+     `low_supplies` juncture (item `mount`) and the trip goes on foot. Trip row `mount` {pet, mounted,
+     why}. Offline: scenario `ghost_horse`.
   2. **Out** (`go_out`): in the room, out through its door (`room.leave`, the home's exit). Unless
      already at the grove (its area + 10) or no farther from it than the landing, recall to the
      landing (`lumber_opt.landing_for`, chosen once a run; the route check plans on the map with the
