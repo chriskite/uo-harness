@@ -142,6 +142,8 @@ TREE_RECHECK_S = 5.0          # on the way to a tree, look this often for a near
 TREE_SWITCH_GAIN = 8          # ... at least this many tiles nearer than the one we walk to
 LOCAL_TREES_R = 15            # trees this close to us join the candidates when the spot's are all guarded or
 #                               after an escape (local_trees; user, 2026-10-05: chop the trees where we are)
+TREE_DROP_COOLDOWN_S = 120.0  # a tree dropped because a zone covered it waits this long (next_stand)
+RECENT_ZONE_S = 60.0          # a creature that left the view keeps its zone at its last tile this long (tree_guards)
 DIR_NAMES = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 AT_GROVE = 10                 # tiles beyond the area's radius that count as being at the grove already (no travel)
 LANDING_SLACK = 3             # tiles from the chosen rune's tile a recall out may land (live: on the tile) before it is wrong
@@ -381,6 +383,8 @@ class LumberLoop:
         self.walk_hits = 0           # hits that cost hits during the current walk-away (hit_verdict walk_hits)
         self.creature = self.new_creature_tally()   # this trip's creature cost: the episode row's `creature`
         self.avoided = set()         # (tree, creature serial) pairs logged as left alone (next_stand)
+        self.recent_guards = {}      # creature serial -> (threat, (x, y), zone tiles, monotonic time last seen) (tree_guards)
+        self.dropped_trees = {}      # (x, y) -> monotonic time a creature's zone made us drop the walk to it
         self.swingers = {}           # attacker serial -> time of its latest swing or spell at us since the last escape
         self._swing_scan = 0         # link.events index scanned for swings and spells on us
         self.spelled = []            # (time, caster or None) of spells on us (threats.spell_on_us) not yet dealt with
@@ -1911,16 +1915,24 @@ class LumberLoop:
         pos = self.link.pos(st)
         trees.sort(key=lambda t: cheb(pos, (t["x"], t["y"])))
         guards = self.tree_guards(st)
-        free = []
+        in_view = {g[0].serial for g in self.tree_guards(st, recent=False)}
+        free, later = [], []
         for t in trees:
             g = next((g for g in guards if cheb(g[1], (t["x"], t["y"])) <= g[2]), None)
             if g is None:
                 free.append(t)
-            elif ((t["x"], t["y"]), g[0].serial) not in self.avoided:
+                continue
+            if not any(cheb(h[1], (t["x"], t["y"])) <= h[2] for h in guards if h[0].serial in in_view):
+                later.append(t)            # only a creature that has left the view guards it
+            if ((t["x"], t["y"]), g[0].serial) not in self.avoided:
                 self.avoided.add(((t["x"], t["y"]), g[0].serial))
                 self.creature["avoided_trees"] += 1
                 log(f"tree {t['x']},{t['y']}: within {g[2]} tiles of {g[0].name or f'0x{g[0].serial:08X}'} "
                     f"at {g[1]} ({g[0].aggression}); choosing a tree away from it")
+        now = time.monotonic()
+        fresh = [t for t in free if now - self.dropped_trees.get((t["x"], t["y"]), -1e9) >= TREE_DROP_COOLDOWN_S]
+        # trees a zone made us drop a moment ago wait, then those only a creature now out of view guards
+        free = fresh or free or later
         if not free:
             return None
         best, best_cost = 0, None
@@ -1936,18 +1948,33 @@ class LumberLoop:
         trees.remove(free[best])
         return free[best]
 
-    def tree_guards(self, st) -> list:
-        """[(threat, (x, y), tiles)]: every creature in view that may come for us (may_aggro:
-        not a pet, a passive body or name; user, 2026-10-05: never move into aggro range of a
-        mob we can see) with its zone, aggro_r: its trees wait while it is around, and routes
-        bend around it (aggro_zones)."""
+    def tree_guards(self, st, recent: bool = True) -> list:
+        """[(threat, (x, y), tiles)]: every creature that may come for us (may_aggro: not a pet, a
+        passive body or name; user, 2026-10-05: never move into aggro range of a mob we can see)
+        with its zone, aggro_r: its trees wait while it is around, and routes bend around it
+        (aggro_zones, in view only). One in view now at its tile; with `recent`, one seen within
+        RECENT_ZONE_S that has left the view at its last tile (next_stand takes trees only those
+        guard when nothing else is left; live 2026-10-05, witcher_267: two norse bear riders
+        patrolling in and out of view had Dan pick trees, then drop them as the zone came back,
+        2.5 min of back and forth)."""
         a = self.last_threats
         mobs = st["world"]["mobiles"]
+        now = time.monotonic()
         out = []
         for t in (a.threats if a else []):
             m = mobs.get(f"0x{t.serial:08X}") or {}
             if self.may_aggro(t) and 0 <= t.distance <= self.watch.params.max_range and m.get("x") is not None:
-                out.append((t, (m["x"], m["y"]), self.aggro_r(t)))
+                g = (t, (m["x"], m["y"]), self.aggro_r(t))
+                out.append(g)
+                self.recent_guards[t.serial] = (*g, now)
+        if not recent:
+            return out
+        here = {g[0].serial for g in out}
+        for s, (t, xy, r, seen) in list(self.recent_guards.items()):
+            if now - seen > RECENT_ZONE_S:
+                del self.recent_guards[s]
+            elif s not in here:
+                out.append((t, xy, r))
         return out
 
     def may_aggro(self, t) -> bool:
@@ -1970,7 +1997,7 @@ class LumberLoop:
         heels moving it every few steps sent an escape replanning back and forth (the threat
         checks deal with that creature)."""
         here = tuple(self.link.pos(st)[:2])
-        zones = {("seen", t.serial): (xy, r) for t, xy, r in self.tree_guards(st) if cheb(here, xy) > r}
+        zones = {("seen", t.serial): (xy, r) for t, xy, r in self.tree_guards(st, recent=False) if cheb(here, xy) > r}
         old = {k: v for k, v in self.mover.danger.items() if isinstance(k, tuple) and k[0] == "seen"}
         for k in old.keys() - zones.keys():
             del self.mover.danger[k]
@@ -1993,7 +2020,7 @@ class LumberLoop:
         def stop(st):
             guards = self.tree_guards(st)
             guarded = lambda xy: any(cheb(g[1], xy) <= g[2] for g in guards)   # noqa: E731
-            if guarded(spot):
+            if any(cheb(g[1], spot) <= g[2] for g in self.tree_guards(st, recent=False)):
                 return "a creature's zone covers it now"
             now = time.monotonic()
             if now - last[0] < TREE_RECHECK_S:
@@ -2046,6 +2073,8 @@ class LumberLoop:
                                          max_route=max_route, stop=rethink)
             if why:
                 trees.append(tree)               # still a candidate, for later or from elsewhere
+                if why.startswith("a creature's zone"):
+                    self.dropped_trees[spot] = time.monotonic()
                 log(f"{label}: {why}; choosing the next stand from here")
                 return
         except Abort as e:
@@ -2898,6 +2927,7 @@ class LumberLoop:
         self.escapes, self.danger = 0, {}
         self.mover.danger = {}
         self.run_arrived, self.creature, self.avoided = None, self.new_creature_tally(), set()
+        self.recent_guards, self.dropped_trees = {}, {}
         # the trip began with resupply_home (run): its time and steps are the trip's overhead too
         t0, s0, b0 = self.pre_trip or (time.time(), self.mover.steps, self.mover.blocked_count)
         self.pre_trip = None

@@ -652,6 +652,12 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   the next target tree (1693,663); the walk replanned round its zone and went on to that tree, and
   the dragon found Dan there (escape, run out of reach 1 s, recall, 0 hits lost). Now the walk ends
   the moment a zone covers its tree (`test_loop_lumber.py` `zone_on_way`).
+- **Ping-pong between trees (lumber-20261005-161957-b86c, witcher_267, 16:22:32–16:25:08):** two norse
+  bear riders and a norse hammerman patrolling in and out of view: next_stand picked trees that were
+  clear at that read, the walk dropped them ("a creature's zone covers it now") a second later, 84
+  replans, Dan going 2621↔2629 for 2.5 min with no chop, until the trees around (2658,457) joined.
+  Now a creature that leaves the view keeps its zone at its last tile for 60 s and a dropped tree
+  waits 120 s (unless nothing else is left).
 - **The death robe (user, 2026-10-05: take it off after the resurrection):** `ctl act gump <res gump> 1`
   now takes it off once alive. Live 11:05: the worn "death robe" 0x60935864 (graphic 0x1F03, layer
   robe) was lifted (0x1D 43 ms after the 0x07) and dropped into the pack, and it **never came back**:

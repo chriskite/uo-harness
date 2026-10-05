@@ -800,7 +800,11 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     `LOCAL_TREES_R` (15) of us join the candidates, and the walk ends (the tree goes back on the
     list) when a zone now covers it or a clear tree is `TREE_SWITCH_GAIN` (8) tiles nearer; the next
     stand is then chosen from where we are. Trees around us also join after every escape and when
-    every candidate waits on a creature.
+    every candidate waits on a creature. A creature that leaves the view keeps its zone at its last
+    tile for `RECENT_ZONE_S` (60 s) for choosing trees (not for routes): its trees come after every
+    fully clear one; and a tree dropped because a zone covered it waits `TREE_DROP_COOLDOWN_S`
+    (120 s) unless nothing else is left (live witcher_267: two norse bear riders patrolling in and
+    out of view had Dan pick and drop trees east and west for 2.5 min).
   - **Escapes run `ESCAPE_RUN` (20) tiles** from the creatures fled (`escape_tiles(run_from=)`), to a
     tile also outside every other zone; no such tile: recall home at once.
   - **Before a recall away from creatures, run out of reach** (`monster_stop` → `gain_distance`):
