@@ -760,6 +760,19 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   stopped the task and `act recall` landed home, Seer6 disabled witcher_137. Now a walk aborts as
   "boxed in" after `DANGER_STALL_REPLANS` (10) danger replans without a shorter route, and the
   runner disables the spot, posts an attention `stuck` juncture and recalls home (`boxed_in`).
+- **Runs ending at the landing with logs unconverted, and the witcher_46 swing (Seer6, 20:57–21:15):**
+  run 4 (lumber-20261005-205742-040a, witcher_46): the walk swung between (2798,424) and (2801,426),
+  routes 86 and 62 steps, on every step as wolves and a wolfhound moved round a reaper. It was boxed
+  in and recalled home. Run 5 (lumber-20261005-210141-d98d, witcher_98): 868 logs, then a red at
+  18 tiles and a pk_escape recall. Each creature or player recall stopped the run at the guild
+  landing, so ~1380 logs stayed unconverted in the pouch over the shift (0 boards stored). Now:
+  - after any escape recall that lands home, the trip goes into the room, converts and stores
+    before the stop (`home_after_recall`; the recall's damage, swings and spells are acknowledged
+    first);
+  - a zone that moves asks for a replan only once it touches the next `DANGER_LOOKAHEAD` (8)
+    route tiles;
+  - a creature that swung at us and left the view is still a creature (`Watch.monsters`), not a
+    player aggressor.
 - **Wisp box-in at witcher_36 (lumber-20261005-203104-4d45, 20:39:25–20:39:50):** the threats were an
   eagle (passive body) and "a wisp" at 17 tiles (`default` aggression, so a 13-tile zone). The wisp
   wandered and the walk swung between routes of 31–93 steps from (1529,1034) and (1548,1045), until

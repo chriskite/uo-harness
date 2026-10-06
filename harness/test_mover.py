@@ -273,6 +273,34 @@ def test_danger_replan_on_route_only():
               len(plans) - 1 == want and tuple(link.here) == (4, 0), f"{len(plans) - 1} replans, at {link.here}")
 
 
+def test_danger_replan_when_near():
+    print("== a zone that moves onto the route far ahead: the walk goes on and replans once it gets near ==")
+    # live 2026-10-05 (witcher_46): wolves moving far ahead replanned the walk on every step, swinging it between
+    # two routes
+    from agent_link import DANGER_LOOKAHEAD
+    band = {(x, y) for x in range(0, 30) for y in range(-2, 3)}
+    link = FakeLink((0, 0), facing=2)
+    mv = map_mover(link, band)
+    plans = []
+    real_plan, real_fresh = mv.plan, mv.fresh_state
+
+    def plan(st, goal, mobiles=True, max_steps=None):
+        plans.append(tuple(link.here))
+        return real_plan(st, goal, mobiles, max_steps)
+
+    def fresh():
+        st = real_fresh()
+        if tuple(link.here) != (0, 0) and not mv.danger:      # after the first step, a zone across the band at 24
+            mv.danger[("seen", 1)] = ((24, 0), 2)
+            mv.replan_requested = True
+        return st
+    mv.plan, mv.fresh_state = plan, fresh
+    mv.walk_to(lambda: (28, 0), 0, "t")
+    check("one replan, once the zone's edge (x 22) was within DANGER_LOOKAHEAD; arrived",
+          len(plans) == 2 and 22 - plans[1][0] <= DANGER_LOOKAHEAD and plans[1][0] > 2
+          and tuple(link.here) == (28, 0), f"plans from {plans}, at {link.here}")
+
+
 def test_no_pause_in_danger():
     print("== walk pauses: none while a creature's zone is set ==")
     # live 2026-10-05 (witcher_23): an 8.9 s walk pause with an air dragon closing in 10 tiles off, then its breath
@@ -484,6 +512,7 @@ if __name__ == "__main__":
     test_object_arrives_after_plan()
     test_max_route()
     test_danger_replan_on_route_only()
+    test_danger_replan_when_near()
     test_no_pause_in_danger()
     test_boxed_in()
     test_danger_rims()

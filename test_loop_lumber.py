@@ -686,8 +686,15 @@ class World:
                 asyncio.get_running_loop().call_later(2.2, self.drop_hunt)
             if self.mount_resting:                     # live: "Your mount returns." as we leave the guild house
                 asyncio.get_running_loop().call_later(2.15, self.mount_returns)
-        elif self.mounted:                             # live: the guild house sends a ridden mount to rest
-            asyncio.get_running_loop().call_later(2.15, self.mount_rests)
+        else:
+            if self.chase:                             # a creature at our heels stays behind (a recall jumps)
+                asyncio.get_running_loop().call_later(2.1, self.attacker_left)
+            if self.mounted:                           # live: the guild house sends a ridden mount to rest
+                asyncio.get_running_loop().call_later(2.15, self.mount_rests)
+
+    def attacker_left(self):
+        self.chase, self.attacker_pos = False, None
+        self.send(delete(ATTACKER))
 
     def mount_rests(self):
         """'Your mount finds a quiet place to rest safely.' (live 2026-10-05: into the DTF guild house by a recall
@@ -1722,7 +1729,7 @@ async def skirmish():
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
     dclicks = [int.from_bytes(p[1:5], "big") for p in world.c2s if p[0] == 0x06]
     check("hatchet in a bag in the pack: backpack, then the bag opened (once each), before the first hatchet use",
-          world.containers_opened == [BACKPACK, BAG] and HATCHET in dclicks
+          world.containers_opened[:2] == [BACKPACK, BAG] and HATCHET in dclicks
           and dclicks.index(BACKPACK) < dclicks.index(BAG) < dclicks.index(HATCHET), str(dclicks[:6]))
     threat_js = [j for j in store.junctures() if j["kind"] == "threat"]
     acts = [j["data"].get("action") for j in threat_js if "threats" in j["data"]]
@@ -1751,21 +1758,23 @@ async def skirmish():
           f"exit {code}, {world.attacker_swings} swings")
     check("a creature at our heels: no 10 s log conversion next to it (live 2026-10-03: 85 -> 40 hits while "
           "converting); first a run RECALL_GAP away (user 2026-10-05: a few steps don't break aggro), then the "
-          "recall home; the logs stay logs",
-          world.logs == world.harvested > 0 and not world.pack_boards and [k for k, _ in world.room_log] == ["exit"]
+          "recall home; there, into the room, the logs converted and stored (Seer6 2026-10-05: they stayed logs)",
+          world.logs == 0 and world.harvested > 0 and world.chest_stack == (world.chest_stack or (0, 0))[:1]
+          + (world.harvested,) and [k for k, _ in world.room_log] == ["exit", "enter"]
           and world.recalls_home == [HOME_RUNE_POS] and "out of reach before the recall" in text
           and text.index("out of reach before the recall") < text.index("recalling out")
-          and "stopping at once, logs not converted" in text
+          < text.index("into the rental room to convert and store")
           and "converting the carried logs before stopping" not in text,
-          f"logs {world.logs}, boards {world.pack_boards}, harvested {world.harvested}, home {world.recalls_home}")
+          f"logs {world.logs}, chest {world.chest_stack}, harvested {world.harvested}, home {world.recalls_home} "
+          f"room {world.room_log}")
     eps = store.episodes("lumber")
-    check("the stopped trip still left its episode row: aborted, why, the logs it got and still "
-          "carries, the hatchet from the bag",
+    check("the stopped trip still left its episode row: aborted, why, the logs it got, now stored; the hatchet "
+          "from the bag",
           len(eps) == 1 and eps[0].get("outcome") == "aborted" and "followed us" in (eps[0].get("why") or "")
-          and eps[0].get("logs") == world.harvested
-          and eps[0].get("carried_end") == {"logs": world.harvested, "boards": 0}
+          and eps[0].get("logs") == world.harvested and eps[0].get("stored") == world.harvested
+          and eps[0].get("carried_end") == {"logs": 0, "boards": 0}
           and (eps[0].get("hatchet") or {}).get("worn") is False
-          and "harvest" in eps[0]["phases_s"] and "to_room" not in eps[0]["phases_s"],
+          and {"harvest", "to_room", "convert", "store"} <= set(eps[0]["phases_s"]),
           str(eps)[:600])
     store.close()
 
@@ -1944,9 +1953,10 @@ async def library_chased():
           code == 1 and "kept coming after the escape" in text and world.recalls_home
           and world.recalls_home[-1] == HOME_RUNE_POS and "escaped by recall" in text,
           f"exit {code}, home {world.recalls_home}\n{text[-600:]}")
-    check("no 10 s log conversion before leaving, no room trip",
-          "converting the carried logs before stopping" not in text and not world.pack_boards
-          and world.room_entries == 0, f"boards {world.pack_boards} room {world.room_log}")
+    check("no 10 s log conversion before leaving; home, into the room, converted and stored there",
+          "converting the carried logs before stopping" not in text and world.room_entries == 1
+          and world.logs == 0 and world.chest_stack is not None and world.chest_stack[1] == world.harvested > 0,
+          f"logs {world.logs} chest {world.chest_stack} harvested {world.harvested} room {world.room_log}")
     check("an urgent threat juncture says it recalled away (a creature: not a pk_escape)",
           any(j["kind"] == "threat" and "Recalled away" in j["summary"] for j in js)
           and not any(j["kind"] == "pk_escape" for j in js), str([(j["kind"], j["summary"]) for j in js]))
@@ -2093,10 +2103,10 @@ async def gazer_rehit():
           code == 1 and world.recalls_home == [HOME_RUNE_POS] and len(rec) == 1 and rec[0]["ok"]
           and rec[0]["cause"] == "creature" and "escaped by recall" in text,
           f"exit {code} home {world.recalls_home} {str(rec)[:300]}\n{text[-600:]}")
-    check("no conversion, no room trip: the logs stay logs",
-          "converting the carried logs before stopping" not in text and not world.pack_boards
-          and world.logs == world.harvested > 0 and world.room_entries == 0,
-          f"logs {world.logs} boards {world.pack_boards} room {world.room_log}")
+    check("no conversion in the field; home, into the room, converted and stored there",
+          "converting the carried logs before stopping" not in text and world.room_entries == 1
+          and world.logs == 0 and world.chest_stack is not None and world.chest_stack[1] == world.harvested > 0,
+          f"logs {world.logs} chest {world.chest_stack} harvested {world.harvested} room {world.room_log}")
     js = [j for j in store.junctures() if j["source"] == "lumber" and j["severity"] == "urgent"]
     check("urgent threat juncture 'Recalled away' (a creature: no pk_escape)",
           any(j["kind"] == "threat" and "Recalled away" in j["summary"] for j in js)
@@ -2294,10 +2304,12 @@ async def thief_keep_away():
           and len(rec) == 1 and rec[0]["ok"] and rec[0]["threat"]["serial"] == THIEF
           and any(j["kind"] == "pk_escape" for j in store.junctures()) and "escaped by recall" in text,
           f"exit {code} {[e['data'].get('trigger') for e in ev]} home {world.recalls_home}\n{text[-600:]}")
-    check("the logs stayed in the trapped pouch (never set off), nothing converted or stored; the run stopped "
-          "at home, outside the room (it may refuse entry for 2 min after PvP)",
-          world.pops == [] and world.logs == world.harvested > 0 and world.stashed and world.room_entries == 0,
-          f"pops {world.pops} logs {world.logs} harvested {world.harvested}")
+    check("the logs stayed in the trapped pouch (never set off in the field); home by the recall, into the room, "
+          "converted and stored there",
+          world.stashed and world.room_entries == 1 and world.logs == 0 and world.chest_stack is not None
+          and world.chest_stack[1] == world.harvested > 0 and all(by == "us" for _, _, by in world.pops),
+          f"pops {world.pops} logs {world.logs} harvested {world.harvested} chest {world.chest_stack} "
+          f"room {world.room_log}")
     inp = lumber_opt.store_inputs(store)
     check("lumber_opt reads the thief events (the recall one puts the spot on THIEF_COOLDOWN_S)",
           [e["data"]["action"] for e in inp["events"] if e["kind"] == "thief"] == ["keep_away", "recall"],
@@ -2318,10 +2330,13 @@ async def pouch_pop():
     book = next((t for p, t in zip(world.c2s, world.c2s_t) if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)
                  and pop_t is not None and t >= pop_t), None)
     ev = [e["data"] for e in store.job_events("lumber") if e["kind"] == "thief"]
-    check("the thief's pop (no double-click of ours on the pouch) recalled us home within 1.5 s: a `thief` "
-          "event (pouch_pop, recall) with the signals, no player in view",
+    pouch_clicks = [i for i, p in enumerate(world.c2s) if p[0] == 0x06 and p[1:5] == u32(POUCHES[0])]
+    book_clicks = [i for i, p in enumerate(world.c2s) if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)]
+    check("the thief's pop (no double-click of ours on the pouch before the recall home; in the room one opens "
+          "it to convert) recalled us home within 1.5 s: a `thief` event (pouch_pop, recall) with the signals, "
+          "no player in view",
           [(p, by) for p, _, by in world.pops] == [(POUCHES[0], "thief")]
-          and not any(p[0] == 0x06 and p[1:5] == u32(POUCHES[0]) for p in world.c2s)
+          and book_clicks and all(i > book_clicks[-1] for i in pouch_clicks)
           and book is not None and book - pop_t < 1.5
           and len(ev) == 1 and ev[0]["trigger"] == "pouch_pop" and ev[0]["action"] == "recall"
           and {s["signal"] for s in ev[0]["signals"]} == {"sound", "explosion", "hue"}

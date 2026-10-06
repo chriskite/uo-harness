@@ -830,6 +830,11 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - **A creature we already ran from that comes back into flee range ends the trip** (`check_threats`:
     its serial is in `self.danger`): it hunts us, and another escape only brings it along (the same
     air dragon followed two escapes).
+  - **Home by an escape recall: still convert and store** (`home_after_recall`, since 2026-10-05):
+    a recall away from a creature or a player that lands home is followed by the room, convert and
+    store, then the run stops as before (before, ~1380 logs sat unconverted after a shift of such
+    stops). A moved zone asks for a replan only when it touches the next `DANGER_LOOKAHEAD` (8)
+    route tiles (witcher_46: wolves moving far ahead swung the walk on every step).
   - **Routes round creatures** (`Mover.danger_cost`, `STICKY_X`, `pathfind.plan(max_steps, tick)`;
     user, 2026-10-05: "I saw paths Dan could take ... that didn't run straight into mobs"): a zone
     tile costs half of `DANGER_COST_X` flat plus half rising with depth, so a route that must cross

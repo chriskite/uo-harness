@@ -393,6 +393,7 @@ class LumberLoop:
         self.dropped_trees = {}      # (x, y) -> monotonic time a creature's zone made us drop the walk to it
         self.no_route = set()        # (x, y) of trees no route reached this trip (no_route_tree)
         self.switch_tree = None      # (x, y) tree_rethink switched the walk to: next_stand's next pick
+        self.recalled_home = False   # an escape recall landed this trip (recall_out): trip's home_after_recall
         self.swingers = {}           # attacker serial -> time of its latest swing or spell at us since the last escape
         self._swing_scan = 0         # link.events index scanned for swings and spells on us
         self.spelled = []            # (time, caster or None) of spells on us (threats.spell_on_us) not yet dealt with
@@ -656,9 +657,12 @@ class LumberLoop:
         players += [t for t in a.threats if t.player and t.kind == "red" and t.distance >= 0
                     and t not in players]
         players += [t for t in self.attacked_by_players(st, a) if t not in players]
-        aggressors = [s for s in swung if s not in by_serial or by_serial[s].kind != "monster"]
+        # a creature that swung at us and has left the view is still a creature, not a player
+        # (Watch.monsters); one never seen is read as a player, the safe side
+        aggressors = [s for s in swung
+                      if (by_serial[s].kind != "monster" if s in by_serial else s not in self.watch.monsters)]
         monsters = [t for t in a.flee if t.kind == "monster"]
-        monsters += [by_serial[s] for s in swung if s not in aggressors
+        monsters += [by_serial[s] for s in swung if s not in aggressors and s in by_serial
                      and s not in {t.serial for t in monsters}]
         if players or aggressors:
             worst = players[0] if players else None
@@ -1175,6 +1179,7 @@ class LumberLoop:
         self.memory.juncture("lumber", "pk_escape" if pk else "threat",
                              f"Recalled away from {summary} ({res['kind']} {res['method']}, "
                              f"{res['press_to_arrival_s']} s); stopped", "urgent", data)
+        self.recalled_home = True        # trip(): home_after_recall, into the room to convert and store
         raise Unsafe(f"threat: {summary}" + (f" ({why})" if why else "")
                      + f"; escaped by recall to {tuple(res['to'])} in {res['elapsed_s']} s")
 
@@ -3145,6 +3150,7 @@ class LumberLoop:
         self.mover.danger = {}
         self.run_arrived, self.creature, self.avoided = None, self.new_creature_tally(), set()
         self.recent_guards, self.dropped_trees, self.no_route, self.switch_tree = {}, {}, set(), None
+        self.recalled_home = False
         # the trip began with resupply_home (run): its time and steps are the trip's overhead too
         t0, s0, b0 = self.pre_trip or (time.time(), self.mover.steps, self.mover.blocked_count)
         self.pre_trip = None
@@ -3169,6 +3175,10 @@ class LumberLoop:
         try:
             try:
                 timed("harvest", self.harvest_trip)
+            except Unsafe as e:
+                if self.recalled_home and self.at_home(self.link.state()):
+                    self.home_after_recall(e, timed)
+                raise
             except Abort as e:
                 self.salvage(e)
                 raise
@@ -3198,6 +3208,25 @@ class LumberLoop:
             log(f"trip {n} {outcome}: {row}")
         self.doing("trip_done", f"Trip {n} done: {self.stats.get('logs', 0)} logs, "
                                 f"{self.stats.get('stored', 0)} boards stored")
+
+    def home_after_recall(self, e: Unsafe, timed):
+        """An escape recall (a creature's or a player's, recall_out) landed us home: the danger
+        stayed behind, so into the rental room, convert and store as a finished trip would, then
+        the stop goes on (Seer6, 2026-10-05: boxed-in and red-sighting recalls left run after run
+        at the landing, ~1380 logs unconverted). The room may refuse us for a while after PvP; a
+        failure here is logged and the stop stands either way."""
+        log(f"home by an escape recall ({e}); into the rental room to convert and store before stopping")
+        hits = self.link.state()["world"]["self"].get("hits")
+        self.watch.acknowledge(hits=hits)   # the recall dealt with the hits it cost
+        self.start_hits = hits              # check_guards' "hit points dropped": from here on
+        self.swingers.clear()         # and whoever swung or cast at us stayed behind
+        self.spelled.clear()
+        try:
+            timed("to_room", self.to_room, retry=False)
+            timed("convert", self.convert, retry=False)
+            timed("store", self.store, retry=False)
+        except (Abort, Escape) as e2:
+            log(f"after the recall home: {e2}")
 
     def trip_end(self, snap: dict) -> dict:
         """The rest of the trip row (docs/LUMBER_LOOP.md "What the optimizer learns

@@ -65,6 +65,11 @@ DANGER_STALL_REPLANS = 10
 # a tile shouldn't flip the route to the other side of it and back (live 2026-10-05, witcher_36: a
 # wandering wisp swung the walk between routes of 31 and 93 steps every second or two).
 STICKY_X = 1.25
+# A creature's zone that moved asks for a replan only when it touches the next this many tiles of
+# the route; farther ahead the walk goes on and looks again as it gets there (live 2026-10-05,
+# witcher_46: wolves and a wolfhound moving round a reaper swung the walk between routes of 62 and
+# 86 steps on every step; whole-route checks replanned on every far-off zone move).
+DANGER_LOOKAHEAD = 8
 # Some teleporters deny the step and then move you (S2C 0x21 at the current tile, then the
 # new position; the New Player Dungeon exit, live 2026-09-30). After a deny, look this long
 # for such a jump before calling the step blocked.
@@ -814,6 +819,7 @@ class Mover:
                 f"{'' if walk is not None else ' [walk memory]'}")
             replan = False
             danger_replan = False
+            zone_moved = False            # a guard reported a new or moved zone since this plan
             for i, nxt in enumerate(path[1:], start=1):
                 st = self.fresh_state()
                 if stop is not None and (why := stop(st)):
@@ -856,9 +862,11 @@ class Mover:
                     self.mem.add_step(cur, new)
                     if new != gate and self.moongate_at(new, after, z=here[2]):
                         self.close_gate_gumps(self.step_mark, new, label)
-                    if self.replan_requested and new == nxt \
-                            and not any(self.in_danger(t) for t in path[i + 1:]):
-                        self.replan_requested = False     # the new or moved zone isn't on the rest of the route
+                    if self.replan_requested:
+                        zone_moved, self.replan_requested = True, False
+                    if zone_moved and new == nxt \
+                            and any(self.in_danger(t) for t in path[i + 1:i + 1 + DANGER_LOOKAHEAD]):
+                        self.replan_requested = True      # a zone that moved since the plan is close ahead
                     if new != nxt or self.replan_requested:
                         if self.replan_requested:
                             log(f"{label}: danger ahead changed; replanning from {new}")
