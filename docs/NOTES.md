@@ -782,7 +782,9 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   10:14:37.9. The overseer's book clicks at 10:14:44 came from a ghost (cliloc 1019048). Lost on the
   corpse (1705,613): the six-piece exceptional shadowhide harvest-aspect studded set, the GM bronze
   hatchet 0x6270D238, the trapped pouches, reagents and potions. The room shelf then had none of
-  those ("No resupply:" for each); it gave a plain downgraded hatchet.
+  those ("No resupply:" for each); it gave a plain downgraded hatchet. Also: a plain abort away
+  from home now recalls home and stores first (`home_on_abort`), so a run never ends standing in
+  the field.
 - **Out-of-reach run stood still planning (lumber-20261006-095344-7066, witcher_23, Seer7, 09:54):** a
   snow elemental followed an escape, so monster_stop ran `gain_distance`; its walk to an escape
   goal had no route bound, and the search took 8 s (09:54:09 → 09:54:17) while Dan stood and fell

@@ -2634,6 +2634,35 @@ def unit_tree_rethink():
         loop_lumber.TREE_RECHECK_S = recheck
 
 
+def unit_home_on_abort():
+    """Live 2026-10-06 (lumber-20261006-101348-70b3): the run aborted with Dan already at a hot landing and exited
+    there; a snow elemental killed him 15 s later. A plain abort away from home now recalls home and stores first;
+    at home, dead, or without a book it does nothing."""
+    print("\n== an abort away from home: recall home, then the room; never left standing in the field ==")
+    import loop_lumber
+    calls = []
+
+    def recall_out(st, a, worst, swung, pk=True, why=None, what=None, attempts=None):
+        calls.append(("recall", pk, why))
+        raise loop_lumber.Unsafe("escaped by recall to (4134, 1429)")
+    state = {"world": {"self": {"dead": False}}}
+    home = [False]
+    fake = SimpleNamespace(
+        recall_book=0x49865F8F, link=SimpleNamespace(state=lambda: state), at_home=lambda st: home[0],
+        watch=SimpleNamespace(update=lambda st, **kw: SimpleNamespace(dead=False)), recall_out=recall_out,
+        home_after_recall=lambda e, timed: calls.append(("room", str(e))))
+    loop_lumber.LumberLoop.home_on_abort(fake, loop_lumber.Abort("recall to 'X' not possible"), None)
+    check("away from home: one recall (a creature-style one, not pk), then the room phase",
+          [c[0] for c in calls] == ["recall", "room"] and calls[0][1] is False and "abort away from home" in calls[0][2],
+          str(calls))
+    calls.clear()
+    home[0] = True
+    loop_lumber.LumberLoop.home_on_abort(fake, loop_lumber.Abort("x"), None)
+    home[0], state["world"]["self"]["dead"] = False, True
+    loop_lumber.LumberLoop.home_on_abort(fake, loop_lumber.Abort("x"), None)
+    check("at home, or dead: nothing", calls == [], str(calls))
+
+
 def unit_zone_view_edge():
     """Live 2026-10-05 (witcher_253): a giant rat at the edge of view came into view three tiles west and left it three
     tiles east; its zone came and went with it and the walk swung between the two until boxed in. A creature that
@@ -3173,7 +3202,7 @@ if __name__ == "__main__":
             ghost_horse,
             staff_in_view,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_run_and_recall, unit_boxed_in,
-            unit_zone_view_edge,
+            unit_zone_view_edge, unit_home_on_abort,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`

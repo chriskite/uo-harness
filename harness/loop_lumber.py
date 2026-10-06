@@ -3219,6 +3219,7 @@ class LumberLoop:
                 raise
             except Abort as e:
                 self.salvage(e)
+                self.home_on_abort(e, timed)
                 raise
 
             def room_phase():               # convert in the rental room: the logs stay in the pouch until then
@@ -3246,6 +3247,28 @@ class LumberLoop:
             log(f"trip {n} {outcome}: {row}")
         self.doing("trip_done", f"Trip {n} done: {self.stats.get('logs', 0)} logs, "
                                 f"{self.stats.get('stored', 0)} boards stored")
+
+    def home_on_abort(self, e: Abort, timed):
+        """A plain abort (not a threat stop) that leaves us away from home, alive, with the
+        recall book: recall home, then the room, convert and store (home_after_recall), so a run
+        never ends standing in the field (live 2026-10-06, lumber-20261006-101348-70b3: a world
+        save delayed the recall out past the arrival wait, the retry needed the tome left behind,
+        and the run exited at the landing; a snow elemental killed Dan 15 s later). Recall
+        failures are logged; the abort stands either way."""
+        st = self.link.state()
+        if self.recall_book is None or self.at_home(st) or (st["world"].get("self") or {}).get("dead"):
+            return
+        a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+        log(f"aborting away from home ({e}): recalling home first")
+        try:
+            fail = self.recall_out(st, a, None, {}, pk=False, why=f"abort away from home: {e}",
+                                   what="an abort in the field")
+        except Unsafe as u:
+            self.home_after_recall(u, timed)
+            return
+        except Abort as x:
+            fail = str(x)
+        log(f"recall home after the abort: {fail}")
 
     def home_after_recall(self, e: Unsafe, timed):
         """An escape recall (a creature's or a player's, recall_out) landed us home: the danger
