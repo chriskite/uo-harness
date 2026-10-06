@@ -119,7 +119,7 @@ def test_versions():
 def test_recall():
     print("== ranked recall ==")
     k, clock = fresh()
-    far = k.add("fact", "trees", "Walnut trees grow near the Shelter inn", at=(0, 1924, 2588), importance=5)["id"]
+    far = k.add("fact", "trees", "Dullwood trees grow near the Shelter inn", at=(0, 1924, 2588), importance=5)["id"]
     clock.t += 1
     near = k.add("fact", "trees", "Copperwood trees grow west of the moongate hill", at=(0, 1960, 2540),
                  importance=5)["id"]
@@ -131,7 +131,7 @@ def test_recall():
           [e["id"] for e in k.search("resurrecting healers")][:1] == [proc])
     check("location boost: 'trees' near the moongate ranks the copperwood first",
           [e["id"] for e in k.search("trees", near=(0, 1962, 2542))][:2] == [near, far])
-    check("... and near the inn the walnut first",
+    check("... and near the inn the dullwood first",
           [e["id"] for e in k.search("trees", near=(1925, 2590))][:2] == [far, near])
     check("kind and tag filters", [e["id"] for e in k.search("", kind="preference")] == [pref]
           and [e["id"] for e in k.search(None, tags="death")] == [proc])
@@ -244,7 +244,7 @@ class FakeEmbedder:
     """Words map to concept axes, so 'dying' and 'resurrect' meet without sharing a word."""
     MODEL = "fake-concepts"
     AXES = ({"die", "dying", "died", "dead", "death", "ghost", "resurrect", "healer"},
-            {"tree", "trees", "wood", "chop", "lumber", "walnut", "copperwood"},
+            {"tree", "trees", "wood", "chop", "lumber", "dullwood", "copperwood"},
             {"bank", "gold", "banker", "vault"})
 
     def __init__(self):
@@ -270,7 +270,7 @@ def test_semantic():
     emb = FakeEmbedder()
     k, words_only = Knowledge(con, now=clock, embed=emb), Knowledge(con, now=clock)
     proc = k.add("procedure", "resurrect", "Walk a ghost to a healer; the gump opens within 2 tiles")["id"]
-    tree = k.add("fact", "trees", "Walnut trees grow near the Shelter inn")["id"]
+    tree = k.add("fact", "trees", "Dullwood trees grow near the Shelter inn")["id"]
     old = k.add("fact", "death penalty", "Death costs 10% of skills when you die murdered")["id"]
     k.retract(old, "wrong: no skill loss")
     q = "what do I do after dying"
@@ -290,8 +290,8 @@ def test_semantic():
     res = k.search("where do I keep my gold", touch=False)
     check("an entry added after the last search is embedded and found",
           emb.embedded == n + 1 and res[0]["id"] == bank, str(res[:1]))
-    check("a word match still counts: 'walnut' finds the tree fact first",
-          k.search("walnut", touch=False)[0]["id"] == tree)
+    check("a word match still counts: 'dullwood' finds the tree fact first",
+          k.search("dullwood", touch=False)[0]["id"] == tree)
     b = k.brief({"intent": "my character died, find a healer", "junctures": []})
     check("brief by meaning: a dying intent calls up the resurrect procedure, not the unrelated tree/bank facts",
           [e["id"] for e in b["relevant"]] == [proc], str(b["relevant"]))
