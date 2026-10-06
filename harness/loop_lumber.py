@@ -3275,20 +3275,26 @@ class LumberLoop:
         """An escape recall (a creature's or a player's, recall_out) landed us home: the danger
         stayed behind, so into the rental room, convert and store as a finished trip would, then
         the stop goes on (Seer6, 2026-10-05: boxed-in and red-sighting recalls left run after run
-        at the landing, ~1380 logs unconverted). The room may refuse us for a while after PvP; a
-        failure here is logged and the stop stands either way."""
+        at the landing, ~1380 logs unconverted). It runs in mode 'salvage' (only players and death
+        count): a spell cast before the recall can still land on us at home (live 2026-10-06,
+        lumber-20261006-111829-94a3: a PK's Explosion went off on Dan 0.4 s after the landing,
+        -31), and that must not keep us out of the room. The room may refuse us for a while after
+        PvP; a failure here is logged and the stop stands either way."""
         log(f"home by an escape recall ({e}); into the rental room to convert and store before stopping")
         hits = self.link.state()["world"]["self"].get("hits")
         self.watch.acknowledge(hits=hits)   # the recall dealt with the hits it cost
         self.start_hits = hits              # check_guards' "hit points dropped": from here on
         self.swingers.clear()         # and whoever swung or cast at us stayed behind
         self.spelled.clear()
+        mode, self.mode = self.mode, "salvage"
         try:
             timed("to_room", self.to_room, retry=False)
             timed("convert", self.convert, retry=False)
             timed("store", self.store, retry=False)
         except (Abort, Escape) as e2:
             log(f"after the recall home: {e2}")
+        finally:
+            self.mode = mode
 
     def trip_end(self, snap: dict) -> dict:
         """The rest of the trip row (docs/LUMBER_LOOP.md "What the optimizer learns

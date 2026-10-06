@@ -781,7 +781,12 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   "trapped pouch went off without our double-click (sound)" and stopped the run at the landing. Our
   pouch 0x6508F1EB was still armed: `act convert --store` had to set it off, and stored all 1253.
   Now only one of our own live pouches going off (hue 38 → 0) is a thief (`pouch.thief_pops`); a
-  sound or explosion alone is not.
+  sound or explosion alone is not. **What it really was (user, confirmed in the session log):** the
+  PK's Explosion spell, which detonates after a delay. At 11:38:55.39, 0.4 s after the landing
+  home, an effect (0xC0 type 3) on Dan and the 0x307 sound on his tile, then hits 100 → 69 (0xA1 at
+  11:38:59.38). So `home_after_recall` now runs in mode 'salvage' (only players and death count):
+  damage from a spell cast before the recall no longer stops the room phase (`red_aim` sends that
+  blast; failing before).
 - **A late recall arrival left Dan at a hot landing (lumber-20261006-101348-70b3, witcher_23, Seer7,
   ~10:15, a death):** the recall out from the DTF tome ("Ruined Snow Fortress") landed after 5.18 s
   (the power words came, the cast ran 4.92 s). `escape._arrival` gave up at `ARRIVE_WAIT_S` (5 s)

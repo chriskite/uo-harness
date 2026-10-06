@@ -494,6 +494,7 @@ class World:
         self.gate_gumps = {}              # renounce-prompt serial -> buttons the agent/client replied
         self.attacker_pos = None          # skirmish: the creature that goes for the agent
         self.chase = False                # skirmish: the attacker follows the agent step for step
+        self.late_blast = False           # red_aim: a PK's Explosion goes off on us 0.4 s after the recall home lands
         self.attacker_swings = 0
         self.far_attempts = 0             # skirmish: harvest attempts at the far tree
         self.steward_seen = False         # the steward's 0x20 sent since he last left the client's view
@@ -689,8 +690,18 @@ class World:
         else:
             if self.chase:                             # a creature at our heels stays behind (a recall jumps)
                 asyncio.get_running_loop().call_later(2.1, self.attacker_left)
+            if self.late_blast:                        # red_aim: the PK's Explosion goes off on us at home
+                asyncio.get_running_loop().call_later(2.5, self.blast)
             if self.mounted:                           # live: the guild house sends a ridden mount to rest
                 asyncio.get_running_loop().call_later(2.15, self.mount_rests)
+
+    def blast(self):
+        """A PK's Explosion detonating on us 0.4 s after the recall landed (live 2026-10-06 11:38:55): the effect on
+        us, the explosion sound on our tile, -31; no pouch of ours goes off."""
+        self.hits -= 31
+        self.send(effect_on_self(0x36BD, *self.pos))
+        self.send(b"\x54\x01\x03\x07\x00\x00" + u32(self.pos[0]) + u32(self.pos[1]) + u32(0))
+        self.send(hits_pkt(self.hits))
 
     def attacker_left(self):
         self.chase, self.attacker_pos = False, None
@@ -2243,6 +2254,7 @@ async def red_aim():
     recall home starts within REACT_MAX_S of sight; no chop target is answered after him."""
     print("\n== red while the chop cursor is up: cancel it, recall at once ==")
     world = World("red_aim")
+    world.late_blast = True                       # live 2026-10-06: the PK's Explosion went off on us at home
     spot = LIB_SPOT
     text, code, store, rows = await run_scenario(world, "red_aim", 12760, [LIB_TREE],
                                                  ["--trips", "1", "--logs-per-trip", "100", "--human", "normal",
@@ -2273,6 +2285,10 @@ async def red_aim():
     check("the run stopped after the escape (exit 1, pk_escape juncture)",
           code == 1 and "escaped by recall" in text
           and any(j["kind"] == "pk_escape" for j in store.junctures()), f"exit {code}")
+    check("the PK's Explosion landing on us at home (-31, its sound on our tile, no pouch of ours gone off) neither "
+          "kept us out of the room nor read as a thief: into the room",
+          world.hits == 69 and world.room_entries == 1 and "THIEF" not in text and "after the recall home" not in text,
+          f"hits {world.hits} room {world.room_log}\n{text[-600:]}")
     print(f"  sim latency: red 0x20 -> cancel {round(cancels[0] - red, 3) if cancels else None} s, "
           f"-> runebook dclick {lat} s; react_s {rec[0]['react_s'] if rec else None}")
     store.close()
