@@ -31,7 +31,7 @@
 <ol class="timeline">
 <li><time datetime="2026-09-29T12:14">12:14</time><b>"Movement fully solved live", too early.</b> The fastwalk token model is committed as solved, but the owner's screen shows the character never moved (12:23, 12:31). <span class="src">9e0f3bf</span></li>
 <li><time datetime="2026-09-29T12:23">12:23</time><b>Pushback.</b> The agent suspects a server-side gate on walk trains; the owner is "not convinced". The lockout turns out to be client-side.</li>
-<li><time datetime="2026-09-29T13:54">13:54</time><b>Model switch.</b> <code>HANDOFF.md</code> written; sessions move from kimi-code/k3 to claude-opus-5-5.</li>
+<li><time datetime="2026-09-29T13:54">13:54</time><b>Model switch.</b> <code>HANDOFF.md</code> written; sessions move from kimi-code/k3 to claude-opus-5-5. Kimi had been chosen because Anthropic's guardrails kept Opus from the reverse engineering; with that largely done and walking still not working under Kimi, the owner switched.</li>
 <li class="major"><time datetime="2026-09-29T15:04">15:04</time><b>S2C decode corrected.</b> XOR with prelude byte 11, a 13-byte prelude, one Huffman flush per packet: 53,277/53,277 captured packets re-encode byte-exactly. The "dialect" was garbage. <span class="src">5eb2138</span></li>
 <li><time datetime="2026-09-29T16:16">16:16</time><b>Agent and human walk together.</b> A client-only fabricated <code>0x21</code> re-anchors the display: 0 resyncs, 0 proxy-originated server packets. <span class="src">9229390</span></li>
 <li class="major"><time datetime="2026-09-29T16:36">16:36</time><b>First unattended closed-loop task.</b> A bank errand completes live; Phase 3 done. <span class="src">5f8c228</span></li>
