@@ -41,6 +41,7 @@ INSTALL_TILEDATA = "C:/Program Files (x86)/Ultima Online Outlands/artdata.uoo"  
 
 import actions  # noqa: E402
 import agent_link  # noqa: E402
+import convert  # noqa: E402
 import ctl  # noqa: E402
 import healing  # noqa: E402
 import humanize  # noqa: E402
@@ -112,6 +113,11 @@ class FakeProxy:
         self.deny_jumps = {}      # tile -> destination: a teleporter that denies the step, then moves you
         self.pending_jump, self.jump_polls = None, 0
         self.events = []          # event envelopes; seq = index
+        # a server that converts logs (act convert): the hatchet's double-click raises a cursor (none
+        # once with no_cursor_once), a live trapped pouch (hue 38) goes off on its double-click (no
+        # 0x24), a log stack targeted outside a live pouch becomes boards in its container
+        self.convert_sim = None   # {"hatchet": serial, "no_cursor_once": bool, "refused": n} when on
+        self.gone = set()         # keys of the fixed items the server deleted (the pack's 5 logs, converted)
         # a server with the Tracking gump (live 20261001_214649): {"mode": index into tracking.MODES
         # (server truth), "heard": the client has seen a "You will now hunt" line, "hunting": bool}
         self.tracker = None
@@ -179,6 +185,9 @@ class FakeProxy:
                                             "patronage."})
                     elif pkt[0] == 0x72:
                         self.warmode = bool(pkt[1])
+                    elif pkt[0] == 0x06 and self.convert_sim is not None and self._convert_dclick(
+                            int.from_bytes(pkt[1:5], "big")):
+                        pass
                     elif pkt[0] == 0x06:                              # dclick a container -> the server's 0x24
                         s = int.from_bytes(pkt[1:5], "big")
                         key = f"0x{s:08X}"
@@ -193,6 +202,8 @@ class FakeProxy:
                         self.add_event({"ev": "target", "target_type": 0, "cursor_id": 0x78, "cursor_type": 2})
                     elif pkt[0] == 0x6C and self.cast_cursor:
                         self.target = {"active": False, "target_type": None, "cursor_id": None, "cursor_type": None}
+                    elif pkt[0] == 0x6C and self.convert_sim is not None:
+                        self._convert_target(int.from_bytes(pkt[7:11], "big"))
                     elif pkt[0] == 0x07:
                         self.lifted = (f"0x{int.from_bytes(pkt[1:5], 'big'):08X}", int.from_bytes(pkt[5:7], "big"))
                         if self.ground_items.get(self.lifted[0], {}).get("graphic") == 0x1F03:
@@ -229,6 +240,45 @@ class FakeProxy:
                 c.sendall(len(reply).to_bytes(2, "big") + reply)
         except (EOFError, OSError):
             c.close()
+
+    def _convert_dclick(self, s) -> bool:
+        """The convert server's answer to a double-click (lock held); False: not its business."""
+        key, sim = f"0x{s:08X}", self.convert_sim
+        it = self.ground_items.get(key)
+        if s == sim["hatchet"]:
+            if sim.get("no_cursor_once"):
+                sim["no_cursor_once"] = False
+            else:
+                self.target = {"active": True, "target_type": 0, "cursor_id": 0x99, "cursor_type": 0}
+                self.add_event({"ev": "target", "target_type": 0, "cursor_id": 0x99, "cursor_type": 0})
+            return True
+        if it is not None and it.get("graphic") == 0x0E79 and it.get("hue") == 38:
+            it["hue"] = 0                                     # it goes off: a hit, no 0x24
+            self.self_hits -= 1
+            return True
+        return False
+
+    def _convert_target(self, s):
+        """A log stack targeted with the hatchet's cursor (lock held)."""
+        key = f"0x{s:08X}"
+        self.target = {"active": False, "target_type": None, "cursor_id": None, "cursor_type": None}
+        fixed = {"0x40000011": {"graphic": 0x1BDD, "amount": 5, "container": f"0x{self.PACK:08X}"}}
+        it = self.ground_items.get(key) or (fixed.get(key) if key not in self.gone else None)
+        if it is None or it.get("graphic") not in range(0x1BDD, 0x1BE3):
+            return
+        box = self.ground_items.get(it["container"]) or {}
+        if box.get("hue") == 38:                               # inside a live pouch: can't be seen into
+            self.convert_sim["refused"] = self.convert_sim.get("refused", 0) + 1
+            return
+        if key in self.ground_items:
+            del self.ground_items[key]
+        else:
+            self.gone.add(key)
+        self.convert_sim["boards"] = n = self.convert_sim.get("boards", 0) + 1     # a new serial per stack
+        self.ground_items[f"0x4000{0xB000 + n:04X}"] = {"graphic": 0x1BD7, "amount": it.get("amount") or 1,
+                                                       "hue": it.get("hue"), "container": it["container"]}
+        self.add_event({"ev": "speech_heard", "serial": 0xFFFFFFFF, "name": "System", "type": 0,
+                        "text": "You shape the logs into boards."})
 
     TRACK_LAYOUT = ("{ resizepic 31 24 11571 662 150 }{ button 25 19 2094 2095 1 0 1 }"
                     "{ button 66 130 4017 4019 1 0 2 }{ button 416 130 4008 4010 1 0 6 }"
@@ -297,7 +347,8 @@ class FakeProxy:
                                 **self.fixed_mobiles},
                     "last_seen": dict(self.last_seen), "swings": dict(self.swings),
                     "items": {p: {"graphic": 0x0E75, "layer": 0x15, "container": "0x00000001"},
-                              "0x40000011": {"graphic": 0x1BDD, "amount": 5, "container": p},
+                              **({} if "0x40000011" in self.gone else
+                                 {"0x40000011": {"graphic": 0x1BDD, "amount": 5, "container": p}}),
                               "0x40000012": {"graphic": 0x0E76, "container": p},
                               "0x40000013": {"graphic": 0x1BD7, "amount": 10, "container": "0x40000012"},
                               "0x40000014": {"graphic": 0x1BD7, "amount": 99, "x": 1, "y": 1},
@@ -389,7 +440,7 @@ class FastClock:
 
 
 FAST_CLOCK = FastClock()
-CLOCKED = (ctl, agent_link, humanize, tracking)
+CLOCKED = (ctl, agent_link, humanize, tracking, convert)
 
 
 def run_ctl(argv, tasks=None, fast=True):
@@ -1809,6 +1860,51 @@ class ShelfIO:
         return [(int.from_bytes(p[3:7], "big"), int.from_bytes(p[11:15], "big")) for p in self.sent if p[0] == 0xB1]
 
 
+def test_convert(proxy):
+    print("== act convert: logs in a live trapped pouch and loose in the pack into boards (convert.py) ==")
+    tmp = tempfile.mkdtemp()
+    c = Ctl(os.path.join(tmp, "harness.db"), os.path.join(tmp, "tasks"), proxy)
+    pack = f"0x{proxy.PACK:08X}"
+    hatchet, pch, oak, plain = 0x44AD0001, 0x44AD0002, 0x44AD0003, 0x44AD0004
+    proxy.ground_items = {
+        f"0x{hatchet:08X}": {"graphic": 0x0F43, "hue": 0, "container": pack},
+        f"0x{pch:08X}": {"graphic": 0x0E79, "hue": 38, "container": pack},
+        f"0x{oak:08X}": {"graphic": 0x1BDE, "amount": 7, "hue": 0x7DA, "container": f"0x{pch:08X}"},
+        f"0x{plain:08X}": {"graphic": 0x1BDD, "amount": 3, "container": f"0x{pch:08X}"}}
+    proxy.convert_sim = {"hatchet": hatchet, "no_cursor_once": True}
+    proxy.opened, hits = [proxy.PACK], proxy.self_hits
+    proxy.take()
+    code, out = c("act", "convert", "--human", "off")
+    fr = [p for _, p in proxy.take()]
+    targets = [int.from_bytes(p[7:11], "big") for p in fr if p[0] == 0x6C]
+    check("every stack converted: the 5 loose logs and the 7 + 3 in the trapped pouch, 15 boards, none left",
+          code == 0 and out["ok"] and out["boards"] == 15 and out["logs_left"] == 0
+          and sorted((s["serial"], s["logs"], s["boards"]) for s in out["converted"])
+          == [("0x40000011", 5, 5), (f"0x{oak:08X}", 7, 7), (f"0x{plain:08X}", 3, 3)]
+          and out["hatchet"] == f"0x{hatchet:08X}", str(out))
+    check("the live pouch set off first by our double-click (a hit), then opened like a bag; no log targeted "
+          "while it was live",
+          fr[0] == actions.dclick(pch) and out["pouches"] == [f"0x{pch:08X}"] and proxy.self_hits == hits - 1
+          and fr.count(actions.dclick(pch)) == 2 and pch in proxy.opened
+          and not proxy.convert_sim.get("refused"), [p.hex() for p in fr[:4]])
+    check("a hatchet use without a cursor is tried again (convert.CONVERT_RETRIES); one target per stack",
+          out["no_cursor"] == 1 and out["tries"] == 4 and fr.count(actions.dclick(hatchet)) == 4
+          and sorted(targets) == sorted([0x40000011, oak, plain]), str(out))
+    code, out = c("act", "convert", "--human", "off")
+    check("no logs left: refused, nothing sent", code == 1 and "no logs" in out.get("error", "")
+          and proxy.take() == [], str(out))
+    proxy.ground_items["0x44AD0005"] = {"graphic": 0x1BDD, "amount": 4, "container": pack}
+    code, out = c("act", "convert", "--store", "--human", "off")
+    check("--store: converted, then the stockpile (TestWorth has no home with one: its error), no restock",
+          code == 1 and out["boards"] == 4 and out["logs_left"] == 0 and not out["stockpile"]["ok"]
+          and "Resource Stockpile" in out["stockpile"]["error"] and out["restock"] is None
+          and "no restock" in out["reply"], str(out))
+    proxy.ground_items, proxy.gone, proxy.convert_sim, proxy.self_hits = {}, set(), None, hits
+    proxy.opened = [proxy.PACK]
+    proxy.target = {"active": False, "target_type": None, "cursor_id": None, "cursor_type": None}
+    proxy.take()
+
+
 def test_shelf_flow():
     print("== shelf: Resupply against the live Storage Shelf gump (fake io, no proxy) ==")
     human = humanize.Human("off", seed=1)
@@ -1862,6 +1958,8 @@ def main():
     test_room_buttons()
     test_room_flow()
     test_shelf_flow()
+    reset_events(proxy)
+    test_convert(proxy)
     reset_events(proxy)
     test_overseer_acts(proxy)
     if FAILURES:

@@ -19,10 +19,11 @@ from memory import Memory  # noqa: E402
 FAILURES = []
 NOW = 1_800_000_000.0
 TABLE = lo.load_hatchets()
-# Outland Dan's home (harness/data/homes.json, live 2026-10-04)
+# Outland Dan's home (harness/data/homes.json, live 2026-10-04; the Resource Stockpile since 2026-10-05)
 HOME = {"library": "dtf", "landing": [4134, 1429, 6], "facet": 0,
         "room": {"owner": "logan", "facet": 3, "arrival": [403, 923, 1], "exit": "steward"},
-        "chest": {"serial": "0x4AE0DD2C", "name": "paragon chest (drake)", "pos": [404, 922, 2]}}
+        "chest": {"serial": "0x4AE0DD2C", "name": "paragon chest (drake)", "pos": [404, 922, 2]},
+        "stockpile": {"serial": "0x62645C82", "pos": [403, 921, 2]}}
 
 
 def check(name, cond, detail=""):
@@ -108,6 +109,40 @@ def test_explore_exploit():
     out2 = plan(spots, eps + series("new", 12, 500, start=NOW - 40000, gap=1800))
     check("once the new spot proves poor it stops being explored", row(out2, "new")["p_best"] < 0.02,
           row(out2, "new"))
+
+
+def test_greedy_command():
+    print("== an explore pick also gives the greedy spot's run, with that spot's own trip arguments; --exploit ==")
+    spots = [spot("good", 1000, 1000), spot("poor", 2000, 2000), spot("new", 3000, 3000)]
+    eps = series("good", 12, 1800) + series("poor", 12, 600)
+    outs = [plan(spots, eps, seed=s) for s in range(60)]
+    out = next((o for o in outs if o["pick"]["mode"] == "explore"), None)
+    check("some seed explores", out is not None)
+    if out is None:
+        return
+    p, g = out["pick"], out["greedy"]
+
+    def arg(view, name):
+        return view["args"][view["args"].index(name) + 1]
+    check("the explore pick names the greedy spot, and `greedy` is that spot's run",
+          p["spot"] != g["spot"] == p["greedy"] == "good" and g["command"] == "ctl run lumber " + " ".join(g["args"])
+          and arg(g, "--spot") == "good" and g["command"].startswith("ctl run lumber --spot good "), g)
+    gr, pr = row(out, "good"), row(out, p["spot"])
+    check("each run carries its own spot's quota, net rate, timeout and P(best), not the other's",
+          int(arg(g, "--logs-per-trip")) == g["logs_per_trip"] == gr["logs_per_trip"]
+          and int(arg(p, "--logs-per-trip")) == p["logs_per_trip"] == pr["logs_per_trip"]
+          and g["logs_per_trip"] != p["logs_per_trip"] and g["expected_net_logs_h"] == gr["net_logs_h"]
+          and int(arg(g, "--timeout")) == g["timeout_s"] and g["timeout_s"] != p["timeout_s"]
+          and g["p_best"] == gr["p_best"] and g["landing"] == gr["landing"], (p, g))
+    check("the timeout covers the greedy run's own trips (twice their full length)",
+          g["timeout_s"] >= 2 * g["trips"] * g["expected_trip_min"] * 60, g)
+    ex = plan(spots, eps, seed=outs.index(out), exploit=True)
+    check("--exploit: the pick is the greedy spot with the same run, chosen_by greedy",
+          ex["pick"]["spot"] == "good" and ex["pick"]["mode"] == "exploit"
+          and ex["pick"]["chosen_by"] == "greedy (--exploit)" and ex["pick"]["command"] == g["command"]
+          and ex["greedy"]["command"] == g["command"] and p["chosen_by"] == "thompson", ex["pick"])
+    same = next(o for o in outs if o["pick"]["mode"] == "exploit")
+    check("an exploit pick's `greedy` is the pick's own run", same["greedy"]["command"] == same["pick"]["command"])
 
 
 def test_skill_rescaling():
@@ -700,7 +735,7 @@ def test_travel_costs():
 
 
 if __name__ == "__main__":
-    for fn in (test_explore_exploit, test_skill_rescaling, test_trip_size, test_hazard_evidence,
+    for fn in (test_explore_exploit, test_greedy_command, test_skill_rescaling, test_trip_size, test_hazard_evidence,
                test_gear_and_capacity, test_eligibility, test_regrowth, test_hatchets, test_spots_store,
                test_failed_places, test_landings, test_home_and_trips, test_libraries, test_discover_witcher,
                test_travel_costs, test_capacity):

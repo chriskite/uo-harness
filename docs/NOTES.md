@@ -781,9 +781,23 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   witcher_40 (1326). Explore picks gave 262–392 boards each (small groves), so the overseer went to
   greedy picks from run 14 on (user's goal: boards). Spots witcher_36, witcher_46 and witcher_253
   were re-enabled after false box-ins (fixed). Hatchet 0x6270D238 (GM bronze) ended at 516 uses; none
-  bought. Open: there's no `ctl act convert` (logs left after aborts wait for the next trip), and
-  `lumber plan` prints no command for its greedy pick (the overseer used the pick's trip args with
-  `--spot`).
+  bought. Open then: there was no `ctl act convert` (logs left after aborts waited for the next trip),
+  and `lumber plan` printed no command for its greedy pick (the overseer used the pick's trip args with
+  `--spot`). Both closed 2026-10-06:
+  - `ctl act convert [--store]` (docs/OVERSEER.md §2): `harness/convert.py` is now the one convert
+    flow, IO-agnostic like shelf.py/stockpile.py; the runner calls it over `WatchIO` (escape.LinkIO
+    whose every read runs the runner's guards and threat checks) with its own hatchet use (captchas,
+    hesitation), pop watch and ledger as hooks, and ctl over `_CtlIO` with a plain hatchet use (a
+    captcha stops it). It returns the boards added per stack (the pack's board count before and after
+    each ok text), logs left and the pouches set off. `--store` then runs `act stockpile` and, when
+    that worked, `resupply --restock`, the runner's store order; chosen because finishing a trip by
+    hand is always all three in the room (the chest fallback for a home without a stockpile is left to
+    `act drop`). Tests: `test_ctl.py` `test_convert` (fake server: a live pouch, a use without a cursor,
+    --store), `test_loop_lumber.py` `convert_stacks` for the runner.
+  - `lumber plan` returns `greedy`, the greedy spot's own run (its Q*, trips, timeout, regrowth window
+    and hatchet computed for that spot by the same code as the pick, `run_for` in lumber_opt.plan), and
+    `--exploit` makes the pick itself greedy (`pick.chosen_by`). `test_lumber_opt.py`
+    `test_greedy_command`.
 - **Boxed in at Jungle Baths (lumber-20261005-201519-1738, witcher_137, Seer6, 20:15:50–20:20:29):**
   from the landing (2760,3422) the walk to tree 2821,3409 replanned round creature zones 178 times,
   swinging between routes of ~40 and ~62 steps from (2777,3427) and (2785,3432) (danger replans

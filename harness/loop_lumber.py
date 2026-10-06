@@ -125,6 +125,7 @@ import tracking  # noqa: E402
 import pouch  # noqa: E402
 import aspects  # noqa: E402
 import shelf as shelf_mod  # noqa: E402
+import convert as convert_mod  # noqa: E402
 import stockpile as stockpile_mod  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
@@ -152,7 +153,6 @@ RECENT_ZONE_S = 60.0          # a creature that left the view keeps its zone at 
 # memory only bends routes round where a creature no longer is (tree choice keeps RECENT_ZONE_S).
 VIEW_EDGE_R = 15
 ROUTE_ZONE_S = 10.0
-CONVERT_RETRIES = 3           # hatchet uses without a cursor tolerated while converting (convert)
 DIR_NAMES = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 AT_GROVE = 10                 # tiles beyond the area's radius that count as being at the grove already (no travel)
 LANDING_SLACK = 3             # tiles from the chosen rune's tile a recall out may land (live: on the tile) before it is wrong
@@ -273,6 +273,22 @@ def in_hand(world: dict, item: int, me: int) -> bool:
     """Whether `item` is worn by `me` (its container is us) in a state-port world."""
     it = (world.get("items") or {}).get(f"0x{item:08X}") or {}
     return it.get("container") is not None and serial_of(it["container"]) == me
+
+
+class WatchIO(escape_mod.LinkIO):
+    """convert.py's IO over the runner's link: every read is the runner's own (state: the guards;
+    look: the ledger, pouch and threat checks), as in its waits (wait_for)."""
+
+    def __init__(self, loop):
+        super().__init__(loop.link)
+        self.loop = loop
+
+    def poll(self):
+        st = self.loop.state()
+        self.loop.look(st)
+        new = self.link.events[self.cursor:]
+        self.cursor = len(self.link.events)
+        return st, new
 
 
 def row_hatchet(start: dict | None, worn_chopping: bool | None) -> dict | None:
@@ -2563,21 +2579,20 @@ class LumberLoop:
         return moved
 
     def unpack(self, graphics):
-        """Set off, ourselves, every live trapped pouch holding `graphics`, so that the next
-        double-click opens it (a double-click on a live one only sets it off; then it is an
-        ordinary pouch, hue 0). Our pop costs a hit and is no alarm (check_pouches: our click
-        names it, pouch.PopWatch). Abort when it doesn't go off."""
-        st = self.state()
-        for p in pouch.holding(st["world"], self.backpack(st), graphics):
-            self.open_for((p, False))
-            self.human.wait("use")
-            self.pops.own_pop(p, time.time())
-            self._own_pop_until = time.monotonic() + pouch.OWN_POP_S
-            self.link.act(actions.dclick(p))
-            if self.wait_for(lambda s: (self.item(s, p) or {}).get("hue") != pouch.TRAPPED_HUE, 4.0) is None:
-                raise Abort(f"trapped pouch 0x{p:08X} didn't go off on our double-click")
-            log(f"set off our trapped pouch 0x{p:08X} to open it")
-            self.human.wait("read")
+        """Set off, ourselves, every live trapped pouch holding `graphics` (convert.unpack: the
+        next double-click opens it). Our pop costs a hit and is no alarm (own_pop). Abort when
+        one doesn't go off."""
+        try:
+            convert_mod.unpack(WatchIO(self), self.human, graphics, open_for=self.open_for,
+                               on_pop=self.own_pop, log=log)
+        except convert_mod.ConvertError as e:
+            raise Abort(str(e))
+
+    def own_pop(self, p: int):
+        """Our double-click on the live pouch `p` goes out now: its pop is ours (check_pouches:
+        pouch.PopWatch, and the hit it costs is acknowledged for pouch.OWN_POP_S)."""
+        self.pops.own_pop(p, time.time())
+        self._own_pop_until = time.monotonic() + pouch.OWN_POP_S
 
     def pouch_ready(self, st):
         """A trip carries its logs in a live trapped pouch, and uses one up (unpack, in the
@@ -2599,41 +2614,21 @@ class LumberLoop:
 
     # ------------------------------------------------------------ converting
     def convert(self):
-        """Every log stack in the pack into boards (in the rental room, before storing): the
-        trapped pouch holding them is set off first (unpack) and opened on the way
-        (open_for), the logs targeted with the hatchet's cursor; the boards land where
-        the logs were [INFERENCE: RunUO ScissorHelper drops them into the logs' container]."""
-        ok_text = self.k["convert"]["ok_text"]
-        self.unpack(LOGS)
-        # one conversion per stack (a trip's woods plus what earlier aborted trips left: live
-        # 2026-10-05, 4 stacks), and CONVERT_RETRIES for hatchet uses that bring no cursor (one did
-        # after the pouch went off, and the 4-try loop left a 9-log stack)
-        tries = len(self.in_pack(self.state(), LOGS)) + CONVERT_RETRIES
-        for _ in range(tries):
-            st = self.state()
-            stacks = self.in_pack(st, LOGS)
-            if not stacks:
-                return
-            serial, it = stacks[0]
+        """Every log stack in the pack into boards (in the rental room, before storing): convert.py,
+        the flow `ctl act convert` runs too. The trapped pouch holding them is set off first
+        (own_pop) and opened on the way (open_for), the logs targeted with the hatchet's cursor
+        (use_hatchet: captchas, hesitation), one try per stack plus convert.CONVERT_RETRIES; each
+        stack is declared consumed to the ledger before its target. Abort on what it couldn't do."""
+        def converting(serial, it):
             if "woods" not in self.stats:           # this trip's logs by wood type (ledger.py, woods.json)
                 self.stats["woods"] = self.ledger.summary(kind="log")
             self.doing("convert", f"Making boards from {it.get('amount') or 1} logs")
-            self.open_for((serial, False))              # the logs are targeted in their open container
-            cur = self.use_hatchet()
-            if cur is None:
-                log("convert: the hatchet brought no cursor; trying again")
-                continue
-            self.human.wait("aim")
-            mark = len(self.link.events)
-            self.ledger.expect(("consumed", serial))     # the log stack becomes boards: not theft
-            self.link.act(actions.target_object(cur["cursor_id"], serial, it.get("x") or 0,
-                                                it.get("y") or 0, 0, it["graphic"],
-                                                cursor_type=cur["cursor_type"]))
-            if self.wait_for(lambda s: self.heard(mark, text=ok_text), 5.0) is None:
-                raise Abort(f"log stack 0x{serial:08X} did not convert")
-            log(f"converted {it.get('amount') or 1} logs to boards")
-            self.human.wait("between")
-        raise Abort(f"logs left after {tries} conversion tries")
+
+        res = convert_mod.convert(WatchIO(self), self.human, use_hatchet=self.use_hatchet, open_for=self.open_for,
+                                  ok_text=self.k["convert"]["ok_text"], on_pop=self.own_pop, on_stack=converting,
+                                  on_target=lambda s: self.ledger.expect(("consumed", s)), log=log)
+        if not res["ok"]:
+            raise Abort(res["error"])
 
     def open_for(self, *needs):
         """Open what the client must show first (agent_link.containers_to_open;

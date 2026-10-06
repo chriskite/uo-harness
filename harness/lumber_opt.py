@@ -1059,7 +1059,7 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
          table: dict, prices: dict, now: float, rng: random.Random, stint_min: float = STINT_MIN,
          home: dict | None = None, landings: dict | None = None, who: str | None = None, at_home=None,
          logs_per_success: float = LOGS_PER_SUCCESS, gp_per_log: float = 9.5, draws: int = DRAWS,
-         events: list = (), trees: dict | None = None) -> dict:
+         events: list = (), trees: dict | None = None, exploit: bool = False) -> dict:
     """The pure planner. episodes: lumber trip rows; sightings: [t] of pk_seen
     job events; deaths: [{t, x, y}] (world `death` events); regrow: regrowth();
     char: character() or None (Young by its name label: a death loses nothing);
@@ -1070,7 +1070,9 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
     supply_gp); events: lumber job events and theft_suspected junctures
     ({t, kind, data}: death causes, recall/guard_flight escapes, thefts);
     trees: tree_yield() (each spot's trees, what they give, which are out now);
-    a spot without an entry has no capacity limit."""
+    a spot without an entry has no capacity limit. exploit: the pick is the greedy spot
+    (highest posterior-mean net logs/h) instead of the Thompson draw's; `greedy` is that
+    spot's own run either way."""
     char = char or {}
     young = bool(char.get("young"))
     trips = [tr for tr in (trip_obs(e, prices) for e in episodes) if tr is not None and tr["spot"] in spots]
@@ -1222,36 +1224,45 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
     for r in out["spots"]:
         r["p_best"] = round(wins.get(r["id"], 0) / draws, 3) if r["eligible"] else 0.0
     sample = {sid: value(sid) for sid in eligible}
-    pick = max(sample, key=sample.get)
     greedy = max(eligible, key=lambda sid: models[sid]["value"])
-    m = models[pick]
-    q = m["q"]
-    trip_s = (q / m["rate"] + m["overhead_s"] / 3600.0) * 3600.0     # a full trip, nothing ending it early
-    n = max(1, round(stint_min * 60.0 / trip_s))
-    run_q = q
-    if m["bound"]:
-        # the grove holds less than Q*: one trip, told the uncapped Q* so it chops until
-        # the trees run out rather than stopping at our estimate of what they hold
-        n = 1
-        run_q = best_q(m["rate"], m["overhead_s"] / 3600.0, m["hz"], gear_logs, q_cap, m["cost_logs"])
-    timeout = int(max(1800, 2 * n * (run_q / m["rate"] * 3600.0 + m["overhead_s"]) + 600))
+    pick = greedy if exploit else max(sample, key=sample.get)
 
-    hat = hatchet_choice(char, table, prices, m, gear["gp"], skill, p_now, logs_per_success, gp_per_log, q_cap)
-    args = ["--spot", pick, "--trips", str(n), "--logs-per-trip", str(run_q),
-            "--regrow-min", f"{regrow['minutes']:g}", "--timeout", str(timeout)]
-    if hat.get("use"):
-        args += ["--hatchet", hat["use"]]
-    tt = m["terms"]
+    def run_for(sid) -> tuple[dict, dict]:
+        """(hatchet_choice, the run view) of spot sid with its own trip arguments: its Q*, the
+        trips filling the stint, the timeout and the hatchet for that spot's model."""
+        m = models[sid]
+        q = m["q"]
+        trip_s = (q / m["rate"] + m["overhead_s"] / 3600.0) * 3600.0     # a full trip, nothing ending it early
+        n = max(1, round(stint_min * 60.0 / trip_s))
+        run_q = q
+        if m["bound"]:
+            # the grove holds less than Q*: one trip, told the uncapped Q* so it chops until
+            # the trees run out rather than stopping at our estimate of what they hold
+            n = 1
+            run_q = best_q(m["rate"], m["overhead_s"] / 3600.0, m["hz"], gear_logs, q_cap, m["cost_logs"])
+        timeout = int(max(1800, 2 * n * (run_q / m["rate"] * 3600.0 + m["overhead_s"]) + 600))
+        hat = hatchet_choice(char, table, prices, m, gear["gp"], skill, p_now, logs_per_success, gp_per_log, q_cap)
+        args = ["--spot", sid, "--trips", str(n), "--logs-per-trip", str(run_q),
+                "--regrow-min", f"{regrow['minutes']:g}", "--timeout", str(timeout)]
+        if hat.get("use"):
+            args += ["--hatchet", hat["use"]]
+        tt = m["terms"]
+        return hat, {"spot": sid, "p_best": round(wins[sid] / draws, 3),
+                     "landing": landing_view(landings.get(sid)),
+                     "logs_per_trip": q, "trips": n, "timeout_s": timeout,
+                     "grove_logs": None if m["cap_logs"] is None else round(m["cap_logs"]),
+                     "grove_bound": m["bound"],
+                     "expected_trip_min": round(trip_s / 60.0, 1), "expected_net_logs_h": round(m["value"]),
+                     "expected_stored_trip": round(tt["stored"]), "p_death_trip": round(tt["p_death"], 3),
+                     "p_sent_home_trip": round(tt["p_home"], 3),
+                     "args": args, "command": "ctl run lumber " + " ".join(args)}
+
+    hat, run = run_for(pick)
     out["pick"] = {"spot": pick, "mode": "exploit" if pick == greedy else "explore",
-                   "greedy": greedy, "p_best": round(wins[pick] / draws, 3),
-                   "landing": landing_view(landings.get(pick)),
-                   "logs_per_trip": q, "trips": n, "timeout_s": timeout,
-                   "grove_logs": None if m["cap_logs"] is None else round(m["cap_logs"]),
-                   "grove_bound": m["bound"],
-                   "expected_trip_min": round(trip_s / 60.0, 1), "expected_net_logs_h": round(m["value"]),
-                   "expected_stored_trip": round(tt["stored"]), "p_death_trip": round(tt["p_death"], 3),
-                   "p_sent_home_trip": round(tt["p_home"], 3),
-                   "args": args, "command": "ctl run lumber " + " ".join(args)}
+                   "chosen_by": "greedy (--exploit)" if exploit else "thompson", "greedy": greedy, **run}
+    # the greedy spot's own run (its quota, timeout, regrowth window and hatchet), ready to start when
+    # the overseer has cause to exploit (the pick itself when it is the greedy one)
+    out["greedy"] = run if greedy == pick else run_for(greedy)[1]
     out["hatchets"] = hat
     return out
 
@@ -1423,7 +1434,7 @@ def pouch_plan(char: dict | None) -> dict:
 
 
 def plan_from_store(memory, world: dict | None, self_serial, pos, facet, stint_min=STINT_MIN, seed=None,
-                    seeds_path=SEEDS, now=None, route_check: bool = True) -> dict:
+                    seeds_path=SEEDS, now=None, route_check: bool = True, exploit: bool = False) -> dict:
     """plan() over the memory store and a state-port snapshot (world None: no proxy).
     The character is the proxy's (world self name), else the newest trip row's; its
     home comes from harness/data/homes.json (home.for_character), its own books from
@@ -1446,7 +1457,7 @@ def plan_from_store(memory, world: dict | None, self_serial, pos, facet, stint_m
                inp["prices"], now, random.Random(seed), stint_min=stint_min, home=home, landings=landings,
                who=who, at_home=None if home is None or facet is None else homes.at_home(pos, facet, home),
                logs_per_success=inp["logs_per_success"], gp_per_log=gp_per_log(inp["prices"]),
-               events=inp["events"],
+               events=inp["events"], exploit=exploit,
                trees=tree_yield(inp["attempts"], spot_tree_tiles(spots), now, inp["regrow"]["minutes"]))
     out["character"] = None if char is None else {k: char[k] for k in ("name", "serial", "skill", "mounted", "buffs",
                                                                        "weight", "weight_max", "young", "pouches")}

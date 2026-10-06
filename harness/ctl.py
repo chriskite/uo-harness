@@ -122,7 +122,7 @@ LAYER_NAMES = {1: "one_handed", 2: "two_handed", 3: "shoes", 4: "pants", 5: "shi
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
         "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot",
         "target", "cast", "heal", "buy", "use", "drop", "track", "recall", "read_tomes", "room", "aspect",
-        "resupply", "mount", "stockpile")
+        "resupply", "mount", "stockpile", "convert")
 # meta key: epoch seconds of ctl's last heal-potion drink (healing.PotionClock across ctl calls)
 HEAL_POTION_KEY = "heal_potion_t"
 PACK_ITEMS_MAX = 60                  # status.backpack.items
@@ -969,6 +969,8 @@ def _act(a, mem) -> dict:
         return _act_resupply(a, mem)
     if a.name == "stockpile":
         return _act_stockpile(a)
+    if a.name == "convert":
+        return _act_convert(a, mem)
     if a.name == "mount":
         return _act_mount(a, mem)
     pkt = None
@@ -1975,6 +1977,75 @@ def _act_stockpile(a) -> dict:
         stc.close()
 
 
+def _act_convert(a, mem) -> dict:
+    """convert [--store]: every log stack in your pack (any bag depth) into boards, as one act
+    (harness/convert.py, the lumber runner's own convert): each live trapped pouch holding logs is
+    set off by our double-click first (a hit, no alarm) and opened, then per stack the hatchet's
+    double-click (worn first, else the best in the pack: lumber_opt.character) and a target on the
+    stack ("You shape the logs into boards."); a use without a cursor is tried again (convert.
+    CONVERT_RETRIES). A captcha stops it (answer it in the client). Returns `converted` [{serial,
+    graphic, hue, logs, boards}], `boards`, `logs_left`, `pouches` (set off), `error`. With --store,
+    once every log is converted, the runner's store: `stockpile` (every board stack into your
+    home's Resource Stockpile) and, when that worked, `resupply --restock` at the shelf in view
+    (`stockpile` and `restock` hold their results)."""
+    import convert as convert_mod
+    import lumber_opt
+    if a.args:
+        raise CtlError("convert takes no arguments: every log stack in your pack")
+    human = Human(a.human, seed=a.seed)
+    ctl, stc = _connect(a)
+    io = _CtlIO(ctl, stc, convert_mod.ConvertError)
+
+    def open_for(*needs):
+        try:
+            _open_first(io.ctl, stc, human, *needs)
+        except CtlError as e:
+            raise convert_mod.ConvertError(str(e))
+
+    try:
+        st = stc.state()
+        try:
+            logs = convert_mod.stacks(st)
+        except convert_mod.ConvertError as e:
+            raise CtlError(str(e))
+        if not logs:
+            raise CtlError("no logs in your pack")
+        mine = lumber_opt.character(st["world"], st["movement"].get("self_serial"), lumber_opt.load_hatchets())
+        if not mine["hatchets"]:
+            raise CtlError("no hatchet worn or in your pack")
+        hatchet = _parse_serial(mine["hatchets"][0]["serial"])
+        with open(os.path.join(HERE, "data", "loops", "lumber.json"), encoding="utf-8") as f:
+            ok_text = json.load(f)["convert"]["ok_text"]
+        stc.intent(f"Making boards from {sum(it.get('amount') or 1 for _, it in logs)} logs", "convert")
+        out = convert_mod.convert(
+            io, human, open_for=open_for, ok_text=ok_text, log=lambda m: print(m, file=sys.stderr),
+            use_hatchet=lambda: convert_mod.use_tool(io, human, hatchet, open_for=open_for,
+                                                     captcha_gump_id=CAPTCHA_GUMP_ID))
+        stc.intent(None)
+    finally:
+        io.ctl.close()
+        stc.close()
+    reply = (f"converted {sum(c['logs'] for c in out['converted'])} logs into {out['boards']} boards "
+             f"({len(out['converted'])} stack(s))" + (f"; {out['error']}" if not out["ok"] else ""))
+    out = {**out, "hatchet": f"0x{hatchet:08X}"}
+    if not a.store:
+        return {**out, "reply": reply}
+    if not out["ok"]:
+        return {**out, "stockpile": None, "restock": None, "reply": reply + "; not stored (logs left)"}
+
+    def step(fn, *args) -> dict:
+        try:
+            return fn(argparse.Namespace(**{**vars(a), "args": [], "restock": True}), *args)
+        except CtlError as e:
+            return {"ok": False, "error": str(e), "reply": str(e)}
+    pile = step(_act_stockpile)
+    restock = step(_act_resupply, mem) if pile["ok"] else None
+    ok = pile["ok"] and restock["ok"]
+    return {**out, "ok": ok, "stockpile": pile, "restock": restock,
+            "reply": f"{reply}; stockpile: {pile['reply']}"
+                     + (f"; restock: {restock['reply']}" if restock is not None else "; no restock")}
+
+
 def _act_aspect(a) -> dict:
     """aspect | aspect activate <weapon|spellbook|armor> [ASPECT]: the Aspect Mastery
     menu (harness/aspects.py, the same flow the lumber runner uses; docs/NOTES.md
@@ -2972,16 +3043,19 @@ def cmd_lumber(a, mem):
             facet = (world.get("self") or {}).get("map")
         # the character (world self name) picks its home (harness/data/homes.json) and books;
         # Young by the "(young)" name label (lumber_opt.character): a death loses nothing
-        out = lumber_opt.plan_from_store(mem, world, serial, pos, facet, stint_min=a.stint_min, seed=a.seed)
+        out = lumber_opt.plan_from_store(mem, world, serial, pos, facet, stint_min=a.stint_min, seed=a.seed,
+                                         exploit=a.exploit)
         out["proxy"] = bool(resp.get("ok"))
         if not a.all:
             out["spots"] = [r for r in out["spots"] if r["status"] == "active"]
             out["regrow"] = {k: v for k, v in out["regrow"].items() if k != "curve"}
-        p = out.get("pick")
+        p, g = out.get("pick"), out.get("greedy")
         text = (f"lumber plan: {p['spot']} ({p['mode']}, P(best) {p['p_best']:.2f}, ~{p['expected_net_logs_h']} "
-                f"logs/h, landing {(p.get('landing') or {}).get('name')}) -> {p['command']}") if p \
+                f"logs/h, landing {(p.get('landing') or {}).get('name')}) -> {p['command']}"
+                + (f"; greedy {g['spot']} (~{g['expected_net_logs_h']} logs/h) -> {g['command']}"
+                   if g and g["spot"] != p["spot"] else "")) if p \
             else f"lumber plan: {out.get('error')}"
-        mem.chat_post("overseer", text, "action", data={"cmd": "lumber plan", "pick": p})
+        mem.chat_post("overseer", text, "action", data={"cmd": "lumber plan", "pick": p, "greedy": g})
         return out
     if op == "spots":
         spots = lumber_opt.load_spots(mem)
@@ -3155,6 +3229,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--restock", action="store_true",
                    help="resupply: first Restock with your backpack (the shelf takes what it may hold of "
                         "the pack), then Resupply: you keep exactly the loadout (the user's routine)")
+    p.add_argument("--store", action="store_true",
+                   help="convert: once every log is boards, the runner's store: `stockpile` (every board stack "
+                        "into your home's Resource Stockpile), then `resupply --restock` at the shelf in view")
     p.add_argument("--text", action="append", metavar="ID=VALUE",
                    help="gump: set text entry ID (repeatable); other entries keep their current text")
     p.add_argument("--z", type=int, default=None,
@@ -3216,6 +3293,9 @@ def _lumber_parser(sub):
                    help="how long this run should last (sets --trips; a longer trip runs once)")
     q.add_argument("--seed", type=int, default=None, help=argparse.SUPPRESS)
     q.add_argument("--all", action="store_true", help="also candidate/disabled spots and the regrowth curve")
+    q.add_argument("--exploit", action="store_true",
+                   help="pick the greedy spot (best posterior-mean net logs/h) instead of the Thompson draw; "
+                        "`greedy.command` is its run either way")
     ls.add_parser("spots", help="every spot with its status")
     q = ls.add_parser("spot")
     ss = q.add_subparsers(dest="spot_op", required=True)
