@@ -646,6 +646,9 @@ class LumberLoop:
                 raise InGuards()
             return
         if self.mode == "gap":                 # running out of reach before a recall (gain_distance)
+            if a.damage["lost"] > 0:            # still booked on the trip row (live 2026-10-06: -72, row said 0)
+                self.creature["hits_lost"] += a.damage["lost"]
+                self.watch.acknowledge(hits=st["world"]["self"].get("hits"))
             return
         for t in a.threats:
             if t.hostile and t.player and t.serial not in self.seen_hostiles:
@@ -1127,9 +1130,14 @@ class LumberLoop:
         try:
             while not clear(st) and self.mover.steps - start < RECALL_GAP_MAX_MOVES:
                 left, before = RECALL_GAP_MAX_MOVES - (self.mover.steps - start), self.mover.steps
+                here = tuple(self.link.pos(st)[:2])
                 for goal in self.escape_tiles(st, where(st)):
+                    # bounded like an escape route: an unbounded search stood us still for 8 s while a
+                    # snow elemental took 72 hits (live 2026-10-06 witcher_23), then offered 161 steps
+                    max_route = max(ESCAPE_ROUTE_MIN, ESCAPE_DETOUR * cheb(here, goal))
                     try:
-                        self.mover.walk_to(lambda: goal, 1, "out of reach", max_moves=left, urgent=True, stop=clear)
+                        self.mover.walk_to(lambda: goal, 1, "out of reach", max_moves=left, urgent=True, stop=clear,
+                                           max_route=max_route)
                         break
                     except Abort as x:
                         if "no route" not in str(x) and "detour" not in str(x):

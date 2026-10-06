@@ -767,6 +767,14 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   an unreachable plan costs ~0.9 s exhausting 30000 nodes), so next_stand skipped it and picked far trees
   again. Now rethink plans the nearer trees' routes, switches only if 8 steps shorter, and hands that
   tree to next_stand; trees with no route leave the trip's candidates.
+- **Out-of-reach run stood still planning (lumber-20261006-095344-7066, witcher_23, Seer7, 09:54):** a
+  snow elemental followed an escape, so monster_stop ran `gain_distance`; its walk to an escape
+  goal had no route bound, and the search took 8 s (09:54:09 → 09:54:17) while Dan stood and fell
+  100 → 28 (0xA1 at 09:54:12/15), then offered a 161-step route. The trip row said hits_lost 0
+  because gap mode skipped creature_hit. Now the out-of-reach walks are bounded like escapes
+  (max(`ESCAPE_ROUTE_MIN`, `ESCAPE_DETOUR` × goal distance), fast failure, next goal), and gap mode
+  books the hits lost. Earlier that morning (lumber-20261006-095124-76e4) a garou hit for 25 from 13
+  tiles at the same spot.
 - **Seer6 shift (20:15–23:25, 2026-10-05):** 15 runs, 8033 boards into the stockpile, Lumberjacking 81.1
   → 90.5, 1 death (norse bear rider at witcher_268, resurrected by Malila (2734,617); witcher_268
   disabled). Best trips: the greedy picks witcher_23 (2410 incl. ~1380 carried logs, then 1747) and
