@@ -54,10 +54,10 @@ describe("kpis", () => {
   test("today's shape: 5 trips, no deaths -> safety tiles are ok-toned zeros", () => {
     const k = kpis(totals({ trips: 5, logs: 89, stored: 118, stockpiled: 2410, active_s: 851.9, logs_per_hour: 376.1, logs_per_trip: 17.8, success_rate: 0.29, captchas: 1, captcha_wait_s: 10 }));
     const by = Object.fromEntries(k.map((x) => [x.key, x]));
-    expect(k.map((x) => x.key)).toEqual(["lph", "lpt", "stashed", "trips", "active", "pk", "mob", "theft", "captcha"]);
-    expect(by.stashed!.value).toBe("2,410");
+    expect(k.map((x) => x.key)).toEqual(["lph", "lpt", "stored", "trips", "active", "pk", "mob", "theft", "captcha"]);
+    expect(by.stored!.value).toBe("2,410");
     expect(by.lph!.value).toBe("376");
-    expect(by.lph!.sub).toBe("89 logs · 118 stored");
+    expect(by.lph!.sub).toBe("89 logs · 118 put away");
     expect(by.lpt!.value).toBe("17.8");
     expect(by.lpt!.sub).toBe("29% chops land");
     expect(by.pk!.value).toBe("0");

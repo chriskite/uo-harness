@@ -3142,7 +3142,7 @@ class LumberLoop:
         left = sum(it.get("amount") or 1 for _, it in self.in_pack(self.state(), BOARDS))
         added = total - left                          # only what the server took left the pack
         self.stats["stored"] = self.stats.get("stored", 0) + added     # a stop below still counts these
-        self.stats["stockpiled"] = self.stats.get("stockpiled", 0) + added   # the Jobs page's "boards stashed"
+        self.stats["stockpiled"] = self.stats.get("stockpiled", 0) + added   # the Jobs page's "boards stored"
         log(f"added {added} boards to the resource stockpile ({sum(a['items'] for a in res['added'])} stack(s), "
             f"{len(res['added'])} target(s))")
         if not res["ok"]:

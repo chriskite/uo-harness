@@ -217,8 +217,8 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
                   <th>outcome</th>
                   <th className="num">time</th>
                   <th className="num">logs</th>
-                  <th className="num">stored</th>
-                  <th className="num" title="boards the Resource Stockpile confirmed taking">stashed</th>
+                  <th className="num" title="boards put away at home: the chest, the bank (older trips) or the stockpile">put away</th>
+                  <th className="num" title="boards the Resource Stockpile confirmed taking">stored</th>
                   <th className="num">logs/hr</th>
                   <th className="num">field/hr</th>
                   <th className="num">chops</th>
@@ -304,7 +304,7 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
                 <th>day</th>
                 <th className="num">trips</th>
                 <th className="num">logs</th>
-                <th className="num" title="boards the Resource Stockpile confirmed taking">stashed</th>
+                <th className="num" title="boards the Resource Stockpile confirmed taking">stored</th>
                 <th className="num">active</th>
                 <th className="num">logs/hr</th>
                 <th className="num">logs/trip</th>

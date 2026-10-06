@@ -2432,7 +2432,7 @@ async def stockpile_store():
     check("its menu was closed once, at the end (each add brings it back)",
           pile["closed"] == 1 and not pile["gumps"], str(pile))
     eps = store.episodes("lumber")
-    check("the row stored them all and stockpiled them all (the Jobs page's boards stashed); no theft suspected "
+    check("the row stored them all and stockpiled them all (the Jobs page's boards stored); no theft suspected "
           "(the Restock below took pack items too)",
           len(eps) == 1 and eps[0]["outcome"] == "stored" and eps[0].get("stored") == pile["boards"]
           and eps[0].get("stockpiled") == pile["boards"]

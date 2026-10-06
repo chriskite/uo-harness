@@ -441,11 +441,12 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     and says "refresh failed" in the panel head.
 
   The lumber dashboard:
-  - KPI tiles: logs/hr, logs/trip (with the chop success rate), **boards stashed** (2026-10-05,
-    user request: only boards the Resource Stockpile confirmed taking, the trip rows'
-    `stockpiled`; the chest's don't count), trips, active hours, deaths to PKs (with PK
-    sightings), deaths to mobs, loss to thieves, captchas (with the wait time). Safety tiles are
-    green at 0, red or amber otherwise. The Trips and Per day tables have a `stashed` column too.
+  - KPI tiles: logs/hr (sub: logs and boards **put away**, the rows' `stored`: chest, bank or
+    stockpile), logs/trip (with the chop success rate), **boards stored** (2026-10-05, user
+    request: only boards the Resource Stockpile confirmed taking, the trip rows' `stockpiled`; the
+    chest's don't count), trips, active hours, deaths to PKs (with PK sightings), deaths to mobs,
+    loss to thieves, captchas (with the wait time). Safety tiles are green at 0, red or amber
+    otherwise. The Trips table has `put away` and `stored` columns, the Per day table `stored`.
   - A line under the tiles: the estimated value (and how many logs are unpriced) and the chop
     outcomes from `harvest_attempts`.
   - **Optimizer: next pick** (2026-10-03; hazards 2026-10-03): the plan's spot with
@@ -471,7 +472,7 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     - field rate per trip (field logs/hr and whole-trip logs/hr);
     - where trip time goes: stacked bars per trip (travel, lockout, field, the rest), `!` over an
       aborted trip, `∅` when the place gave nothing;
-    - logs per trip as bars, with the stored-boards mark, captcha dots, death marks and the mean;
+    - logs per trip as bars, with the boards-put-away mark, captcha dots, death marks and the mean;
     - a trips-and-events strip, with the event list below it (travel events are in the travel
       panel instead).
   - A wood-type breakdown when the trip rows carry one, and the woods.json status.

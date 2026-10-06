@@ -191,7 +191,7 @@ def test_jobs():
     t = a["totals"]
     check("totals: 3 lumber trips (errand row ignored), 62 logs, 57 stored",
           (t["trips"], t["logs"], t["stored"]) == (3, 62, 57), str({k: t[k] for k in ("trips", "logs", "stored")}))
-    check("boards stashed: only the stockpiled ones (trip #3's 12; the chest-era trips' 45 stored don't count), "
+    check("boards stored: only the stockpiled ones (trip #3's 12; the chest-era trips' 45 put away don't count), "
           "per trip and on day 2",
           (t["stockpiled"], [r["stockpiled"] for r in a["trips"]], [d["stockpiled"] for d in a["days"]])
           == (12, [0, 0, 12], [0, 12]), str((t["stockpiled"], [d["stockpiled"] for d in a["days"]])))

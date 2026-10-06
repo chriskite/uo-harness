@@ -129,7 +129,7 @@ export function LogsPerTripChart({ trips }: { trips: JobTrip[] }) {
             <g key={t.n}>
               <rect x={s.x} y={y(t.logs)} width={s.w} height={Math.max(0, y(0) - y(t.logs))} className="bar-logs">
                 <title>
-                  {`trip #${t.n}${t.t_start ? ` · ${fmtStamp(t.t_start)}` : ""}: ${t.logs} logs, ${t.stored} stored` +
+                  {`trip #${t.n}${t.t_start ? ` · ${fmtStamp(t.t_start)}` : ""}: ${t.logs} logs, ${t.stored} put away` +
                     `${t.duration_s ? ` in ${fmtDuration(t.duration_s)}` : ""}` +
                     `${t.captchas ? ` · ${t.captchas} captcha` : ""}${deaths ? ` · ${deaths} death` : ""}`}
                 </title>
@@ -156,7 +156,7 @@ export function LogsPerTripChart({ trips }: { trips: JobTrip[] }) {
           <i className="sw sw-bar" /> logs
         </span>
         <span>
-          <i className="sw sw-stored" /> boards stored
+          <i className="sw sw-stored" /> boards put away
         </span>
         <span>
           <i className="sw sw-captcha" /> captcha
