@@ -2627,7 +2627,7 @@ class LumberLoop:
             res = self.resupply_here("room")
             if res is not None:
                 done.append(res)
-                if not res.get("error") and not res["missing"] and not res["none_available"]:
+                if not res.get("error") and not res["missing"] and not res["partial"] and not res["none_available"]:
                     self.pre_stats["resupply"] = done
                     return
             self.leave_room()
@@ -2715,28 +2715,38 @@ class LumberLoop:
         if not rec["mounted"] and "why" not in rec:
             self.mount_missing(known, "it didn't come back after the recall out")
 
-    def resupply_here(self, where: str) -> dict | None:
-        """shelf.resupply from the nearest usable storage shelf in view (None: no shelf here)."""
+    def resupply_here(self, where: str, restock: bool = False) -> dict | None:
+        """shelf.resupply from the nearest usable storage shelf in view (None: no shelf here). With
+        `restock`, first the shelf's Restock with our backpack (the user's routine, 2026-10-05):
+        every pack item may leave, so each is declared to the ledger."""
         st = self.state()
         found = shelf_mod.find_shelves(st)
         if not found:
             log(f"resupply: no storage shelf in view ({where})")
             return None
-        self.doing("resupply", f"Resupplying from the storage shelf ({where})")
+        if restock:
+            for s in shelf_mod.carried(st):
+                self.ledger.expect(("moved_out", s))    # into our own shelf: not theft
+        self.doing("resupply", f"{'Restocking and resupplying' if restock else 'Resupplying'} from the storage "
+                               f"shelf ({where})")
         t0 = time.monotonic()
         try:
-            res = shelf_mod.resupply(escape_mod.LinkIO(self.link), self.human, walk=self.walk_to_item)
+            res = shelf_mod.resupply(escape_mod.LinkIO(self.link), self.human, walk=self.walk_to_item,
+                                     restock=restock)
         except shelf_mod.ShelfError as e:
             log(f"resupply ({where}): {e}")
             return {"where": where, "error": str(e), "s": round(time.monotonic() - t0, 1)}
         got = shelf_mod.summary(res["added"])
-        log(f"resupplied ({where}) from {res['shelf']}: {got}"
+        log((f"restocked ({where}): {'; '.join(res['restocked']) or 'no answer'}; " if restock else "")
+            + f"resupplied ({where}) from {res['shelf']}: {got}"
             + (f"; the shelf lacks {', '.join(res['missing'])}" if res["missing"] else "")
+            + (f"; only part of {', '.join(res['partial'])}" if res["partial"] else "")
             + ("; it had nothing to give" if res["none_available"] else ""))
         return {"where": where, "shelf": res["shelf"], "s": round(time.monotonic() - t0, 1),
                 "added": [{"name": x["name"], "amount": x["amount"], "graphic": x["graphic"], "hue": x["hue"]}
                           for x in res["added"]],
-                "missing": res["missing"], "none_available": res["none_available"],
+                "missing": res["missing"], "partial": res["partial"], "none_available": res["none_available"],
+                **({"restocked": res["restocked"], "gone": len(res["gone"])} if restock else {}),
                 **({} if res["ok"] else {"error": res.get("error")})}
 
     def walk_to_item(self, serial: int, rng: int):
@@ -2986,49 +2996,56 @@ class LumberLoop:
         """Every board stack in the pack (the opened pouch included; a live pouch holding boards is
         set off first, unpack) into the room's Resource Stockpile (home.stockpile; user,
         2026-10-05: "It is where we will now drop off all our boards"; stockpile.deposit: one Add
-        Items and one target per stack), else into the room's secure chest (home.chest); then the
-        spent pouches we set off, now empty, into the chest, so they don't pile up in the pack
-        (one a trip; the stockpile takes no pouches). The chest is opened first like a player
-        would (open_for: the double-click, the server's 0x24); each item is declared to the
-        ledger, lifted and dropped into it at the auto position (put_away; live 2026-10-04: `ctl
-        act drop` of a stack into this chest). Facet 3 has no map: a walk to the chest or the
-        stockpile, only needed when we stand beyond reach, plans on walk memory."""
-        chest, where = home_mod.chest_serial(self.home), tuple(self.home["chest"]["pos"][:2])
-        name = self.home["chest"].get("name") or "chest"
+        Items and one target per stack), else into the room's secure chest (home.chest). Then,
+        with the room's storage shelf in view, its Restock with our backpack and Resupply (the
+        user's routine, 2026-10-05: the shelf takes the spent pouches and whatever else of the
+        pack it may hold, and we keep exactly the loadout; the trip row's `restock`); without
+        one, the spent pouches we set off, now empty, into the chest so they don't pile up in
+        the pack. The chest is opened first like a player would (open_for: the double-click,
+        the server's 0x24); each item is declared to the ledger, lifted and dropped into it at
+        the auto position (put_away; live 2026-10-04: `ctl act drop` of a stack into this
+        chest). Facet 3 has no map: a walk to the chest or the stockpile, only needed when we
+        stand beyond reach, plans on walk memory."""
         pile = self.home.get("stockpile")
         self.unpack(BOARDS)
-        st = self.state()
-        stacks = self.in_pack(st, BOARDS)
-        spent = self.spent_pouches(st)
-        if not stacks and not spent:
-            return 0
-        piled = 0
-        if stacks and pile is not None:
-            piled = self.to_stockpile(pile, stacks)
-            stacks = []
-        spent = self.spent_pouches(self.state())
-        if not stacks and not spent:
-            return piled
+        stacks = self.in_pack(self.state(), BOARDS)
         stored = 0
+        if stacks and pile is not None:
+            stored = self.to_stockpile(pile, stacks)
+        elif stacks:
+            stored = self.to_chest(stacks)
+        st = self.state()
+        if self.args.resupply != "off" and shelf_mod.find_shelves(st):
+            self.stats["restock"] = self.resupply_here("room", restock=True)
+        else:
+            spent = self.spent_pouches(st)     # the pouch the boards were in is empty only now
+            if spent:
+                self.to_chest([(s, {"amount": 1}) for s in spent], "spent trapped pouch")
+        return stored
+
+    def to_chest(self, items: list, what: str = "board stack") -> int:
+        """`items` [(serial, item)] into the room's secure chest (open_for, put_away). Returns the
+        boards stored (booked in the trip row)."""
+        chest, where = home_mod.chest_serial(self.home), tuple(self.home["chest"]["pos"][:2])
+        name = self.home["chest"].get("name") or "chest"
         if self.wait_for(lambda s: self.item(s, chest) is not None, 3.0) is None:
             raise Abort(f"the {name} {self.home['chest']['serial']} isn't in view in the rental room")
         if cheb(self.link.pos(self.link.state()), where) > CHEST_REACH:
             self.doing("store", f"Going to the {name}", where)
             self.mover.walk_to(lambda: where, 1, f"to the {name}")
-        self.open_for((chest, True), *[(serial, False) for serial, _ in stacks])
-        for serial, it in stacks:
+        self.open_for((chest, True), *[(serial, False) for serial, _ in items])
+        stored = 0
+        for serial, it in items:
             amount = it.get("amount") or 1
-            self.doing("store", f"Storing {amount} boards in the {name}", where)
-            self.put_away(serial, amount, chest, "board stack")
+            if what == "board stack":
+                self.doing("store", f"Storing {amount} boards in the {name}", where)
+            self.put_away(serial, amount, chest, what)
             stored += amount
-            log(f"stored {amount} boards in the {name}")
-        spent = self.spent_pouches(self.state())     # the pouch the boards were in is empty only now
-        for s in spent:
-            self.put_away(s, 1, chest, "spent trapped pouch")
-        if spent:
-            log(f"stored {len(spent)} spent trapped pouch(es) in the {name}")
+        log(f"stored {stored} {'boards' if what == 'board stack' else what + '(s)'} in the {name}")
+        if what != "board stack":
+            return 0
         self.stats["stored"] = self.stats.get("stored", 0) + stored
-        return piled + stored
+        return stored
 
     def to_stockpile(self, pile: dict, stacks: list) -> int:
         """The board stacks into the home's Resource Stockpile (stockpile.deposit), declared to the

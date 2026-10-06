@@ -1,12 +1,14 @@
 """Resupply from a Storage Shelf as one deterministic flow (live 2026-10-04, Outland Dan;
 docs/NOTES.md "Storage shelves"; wiki Storage_Shelf).
 
-A Storage Shelf holds what players stocked in it; each character has one Loadout, saved
-per character and shared by every shelf. Its "Resupply" button (the wiki's "Begin
+A Storage Shelf holds what players stocked in it; each character has one Loadout, saved per
+character and shared by every shelf. Its "Resupply" button (the wiki's "Begin
 Resupply") equips the loadout's missing gear and tops the pack's quantities up to the
 loadout amounts. What the shelf lacks isn't given: the server says "No resupply: <item>"
-once per item. This module only resupplies: it never edits the loadout and never presses
-Restock (that moves the pack's items into the shelf) or Clear.
+once per item. "Restock" brings a target cursor; the user's routine (2026-10-05) answers it
+with our own backpack, so the shelf takes everything in the pack it may hold (spent pouches,
+spare potions, ...), and then Resupply: we walk away with exactly the loadout. This module
+never edits the loadout and never presses Clear.
 
 IO-agnostic like room.py: `io` has send(pkt) and poll() -> (state, new world events)
 (escape.LinkIO for runners, ctl._CtlIO for ctl)."""
@@ -25,7 +27,10 @@ SHELF_GUMP_ID = 0xC0B1026D            # "Storage Shelf" (live 2026-10-04; Razor 
 # Buttons that change the shelf or the loadout [INFERENCE from their labels and the wiki; never
 # pressed; live layout 2026-10-04]: never pressed here, and `ctl act gump` refuses them while the
 # shelf shows that label.
-SHELF_REFUSED = {1000: "Restock", 16: "Clear"}
+SHELF_REFUSED = {1000: "Restock", 16: "Clear"}   # Restock only through resupply(restock=True)
+RESTOCK_ADDED = re.compile(r"^(\d+) items? (?:were|was) added")   # "1 items were added." (live, a drop)
+NOTHING_TO_ADD = "does not contain any items that may be added"   # "That container does not ..." (live)
+PARTIAL = re.compile(r"^Partial resupply: (.+)$")   # some of the item given, not the loadout's amount (live)
 SHELF_NAME = "storage shelf"          # tiledata name part ("spring storage shelf", "storage shelf")
 SHELF_RANGE = 2                       # tiles: the DTF shelf opened from 2 (live)
 SECURE_CLILOC = 501647                # "That is secure." (a shelf this character may not use)
@@ -134,16 +139,20 @@ class _Flow:
                                   g.get("layout") or "", g.get("lines") or [])
 
 
-def resupply(io, human, shelf: int | None = None, *, walk=None, timeout: float = EVENT_WAIT_S) -> dict:
+def resupply(io, human, shelf: int | None = None, *, walk=None, timeout: float = EVENT_WAIT_S,
+             restock: bool = False) -> dict:
     """Resupply from `shelf` (a serial), else from the nearest storage shelf in view that this
     character may use ("That is secure." moves on to the next one). A shelf farther than
     SHELF_RANGE is walked to first (walk(serial, SHELF_RANGE), the caller's guarded walker).
-    The shelf is double-clicked, its "Resupply" button pressed after a reading pause, and the
-    shelf's answer read: "No resupply: <item>" per item it couldn't give, then the shelf again,
-    which is closed. Returns {ok, shelf, name, missing [item names], none_available ("Unable to
+    The shelf is double-clicked; with `restock`, "Restock" is pressed and its cursor answered
+    with our backpack (the shelf takes what it may hold of the pack; `restocked` its lines,
+    `gone` what left the pack); then "Resupply" after a reading pause and the shelf's answer
+    read: "No resupply: <item>" per item it couldn't give, then the shelf again, which is
+    closed. Returns {ok, shelf, name, missing [item names], none_available ("Unable to
     resupply: no items available.": the shelf had nothing the loadout still wanted), lines [the
     server's lines that mention resupply], added [{serial, graphic, hue, name, amount, worn}],
-    secure [shelves refused], heard}."""
+    partial ["Partial resupply: <item>": some given, short of the loadout's amount; live
+    2026-10-05], secure [shelves refused], heard} (+ restocked, gone with `restock`)."""
     flow = _Flow(io, human)
     st, _ = io.poll()
     shelves = find_shelves(st)
@@ -167,6 +176,9 @@ def resupply(io, human, shelf: int | None = None, *, walk=None, timeout: float =
                 secure.append(f"0x{serial:08X}")
                 continue
             raise ShelfError(f"the shelf 0x{serial:08X} didn't open within {timeout:g} s")
+        extra = {}
+        if restock:
+            g, extra = _restock(flow, io, human, g, timeout)
         button = labelled_button(g, "Resupply")
         if button is None:
             io.send(flow.reply(g, 0))
@@ -183,10 +195,54 @@ def resupply(io, human, shelf: int | None = None, *, walk=None, timeout: float =
         st, _ = io.poll()
         said = [(e.get("text") or "").strip() for e in got if e.get("ev") == "speech_heard"]
         missing = [m.group(1).strip() for t in said for m in [MISSING.match(t)] if m]
+        partial = [m.group(1).strip() for t in said for m in [PARTIAL.match(t)] if m]
         return {"ok": again is not None, "shelf": f"0x{serial:08X}", "name": name, "missing": missing,
+                "partial": partial,
                 "none_available": NONE_AVAILABLE in said,
                 "lines": [t for t in said if "resupply" in t.lower()],
                 "added": gained(before, carried(st), st["world"].get("labels")), "secure": secure,
-                "heard": flow.heard,
+                "heard": flow.heard, **extra,
                 **({} if again is not None else {"error": f"no answer from the shelf within {timeout:g} s"})}
     raise ShelfError(f"every storage shelf in view is secured against this character: {secure}")
+
+
+def _restock(flow: _Flow, io, human, g: dict, timeout: float) -> tuple[dict, dict]:
+    """Restock with our backpack (the user's routine, 2026-10-05): the button, its cursor
+    answered with the backpack, the shelf's answer read. Returns (the shelf's gump again,
+    {restocked: its lines, gone: [{serial, graphic, hue, amount}] that left the pack})."""
+    button = labelled_button(g, "Restock")
+    if button is None:
+        io.send(flow.reply(g, 0))
+        raise ShelfError(f"the shelf's menu has no Restock button: {[t for t in g.get('lines') or [] if t]}")
+    st, _ = io.poll()
+    world, me = st["world"], st["movement"].get("self_serial")
+    pack = escape.backpack(world, me) if me is not None else None
+    if pack is None:
+        io.send(flow.reply(g, 0))
+        raise ShelfError("the backpack isn't known to the world model")
+    before = carried(st)
+    human.wait("menu")
+    got = flow.send_wait(flow.reply(g, button), lambda e: e.get("ev") == "target", "pressing Restock", timeout)
+    cur = next((e for e in reversed(got) if e.get("ev") == "target"), None)
+    if cur is None:
+        again = next((e for e in reversed(got) if is_shelf_gump(e)), None)
+        if again is not None:
+            io.send(flow.reply(again, 0))
+        raise ShelfError(f"no target cursor after Restock: {[e.get('text') for e in got if e.get('ev') == 'speech_heard']}")
+    it = world["items"].get(f"0x{pack:08X}") or {}
+    human.wait("aim")
+    got = flow.send_wait(actions.target_object(cur["cursor_id"], pack, it.get("x") or 0, it.get("y") or 0,
+                                               it.get("z") or 0, it.get("graphic") or 0x0E75,
+                                               cur.get("cursor_type") or 0),
+                         is_shelf_gump, "targeting the backpack", timeout)
+    got += flow.wait(lambda e: False, SETTLE_S)
+    again = next((e for e in reversed(got) if is_shelf_gump(e)), None)
+    said = [(e.get("text") or "").strip() for e in got if e.get("ev") == "speech_heard"]
+    if again is None:
+        raise ShelfError(f"the shelf didn't come back after the Restock: {said}")
+    st, _ = io.poll()
+    after = carried(st)
+    gone = [{"serial": f"0x{s:08X}", "graphic": None if it["graphic"] is None else f"0x{it['graphic']:04X}",
+             "hue": it["hue"], "amount": it["amount"] - (after[s]["amount"] if s in after else 0)}
+            for s, it in before.items() if s not in after or after[s]["amount"] < it["amount"]]
+    return again, {"restocked": [t for t in said if RESTOCK_ADDED.match(t) or NOTHING_TO_ADD in t], "gone": gone}

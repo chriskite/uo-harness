@@ -469,6 +469,9 @@ class World:
         self.shelf_seen = False           # the landing's shelves sent (in update range, facet 0)
         self.resupplies = []              # (shelf, pouches given) per Resupply press
         self.shelf_presses = []           # every button pressed on a shelf gump
+        self.restock_cursor = None        # (cursor id, shelf) Restock gave
+        self.restocks = []                # (shelf, targeted serial) per Restock answer
+        self.shelf_pouches = []           # spent pouches the shelves took
         self.secured_tries = 0            # double-clicks on the shelf secured against us
         self.steward_clicks = 0           # single clicks on the steward (each answered with his label)
         self.recalls_book = []            # recalls to our runebook's 'Sim Woods' rune
@@ -637,6 +640,24 @@ class World:
             self.send(sys_text("Unable to resupply: no items available."))
         elif len(fresh) < need:
             self.send(sys_text("No resupply: Trapped Pouch"))
+        self.shelf_gump(which)
+
+    def restock_target(self, which, f):
+        """Restock's cursor answered (the user's routine: our backpack): the shelf takes every pouch in the pack,
+        live trapped ones back into its stock, the spent ones as plain pouches; "N items were added." (live), the
+        shelf's gump again."""
+        self.restocks.append((which, f["serial"]))
+        took = 0
+        if f["serial"] == BACKPACK:
+            for s in [s for s in self.pouch_hue if not any(c == s for _, _, c in self.stacks.values())]:
+                if self.pouch_hue.pop(s) == 38:
+                    self.shelf_stock[which] += 1
+                else:
+                    self.shelf_pouches.append(s)
+                self.send(delete(s))
+                took += 1
+        self.send(sys_text(f"{took} items were added." if took else
+                           "That container does not contain any items that may be added."))
         self.shelf_gump(which)
 
     def door_pkts(self):
@@ -1068,6 +1089,10 @@ class World:
                 self.pile_cursor = self.cursor_for = None
                 self.stockpile_target(f)
                 return
+            if self.restock_cursor is not None and f["cursor_id"] == self.restock_cursor[0]:
+                which, self.restock_cursor, self.cursor_for = self.restock_cursor[1], None, None
+                self.restock_target(which, f)
+                return
             if f["cursor_id"] != self.cursor_for:
                 return
             self.cursor_for = None
@@ -1101,6 +1126,13 @@ class World:
                 self.shelf_presses.append(f["button_id"])
                 if f["button_id"] == 7:                                        # Resupply
                     self.resupply(which)
+                elif f["button_id"] == 1000:                                   # Restock: a cursor (live)
+                    self.send(sys_text("Which container do you wish to restock this container from? (you may "
+                                       "target yourself or a nearby friendly pack animal)"))
+                    self.cid += 1
+                    self.restock_cursor = (self.cid, which)
+                    self.cursor_for = self.cid
+                    self.send(cursor(self.cid, 0))
             elif f["serial"] in self.room_gumps:
                 kind = self.room_gumps.pop(f["serial"])
                 self.room_presses.append((kind, f["button_id"]))
@@ -2352,13 +2384,15 @@ async def convert_stacks():
 async def stockpile_store():
     """User 2026-10-05: the boards now go into the Resource Stockpile in the room (live: its menu, Add Items, one
     target per stack). Carried boards and logs of another wood in the pack and this trip's logs in the pouch come
-    home as two board stacks: each is added on its own, the menu closed once at the end; the spent trapped pouch
-    still goes into the chest; no theft suspected; the row counts them."""
-    print("\n== the boards into the room's Resource Stockpile, one Add Items per stack; the spent pouch in the chest ==")
+    home as two board stacks: each is added on its own, the menu closed once at the end; then the room shelf's
+    Restock with our backpack and Resupply (the user's routine): the spent pouch goes into the shelf; no theft
+    suspected; the row counts them."""
+    print("\n== the boards into the room's Resource Stockpile, one Add Items per stack; then Restock + Resupply ==")
     world = World("home")
     world.scripted = False
     world.carried = [(0x1BDE, 7), (BOARD_G, 4)]
     world.stockpile = {"boards": 0, "adds": [], "refused": [], "gumps": set(), "closed": 0}
+    world.shelf_stock = {"room": 0, "landing": 0}
     text, code, store, _ = await run_scenario(world, "stockpile_store", 12880, [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "10", "--human", "off"])
     pile = world.stockpile
@@ -2370,11 +2404,18 @@ async def stockpile_store():
     check("its menu was closed once, at the end (each add brings it back)",
           pile["closed"] == 1 and not pile["gumps"], str(pile))
     eps = store.episodes("lumber")
-    check("the spent trapped pouch into the chest; the row stored them all; no theft suspected",
-          world.chest_items and len(eps) == 1 and eps[0]["outcome"] == "stored"
-          and eps[0].get("stored") == pile["boards"]
+    check("the row stored them all; no theft suspected (the Restock below took pack items too)",
+          len(eps) == 1 and eps[0]["outcome"] == "stored" and eps[0].get("stored") == pile["boards"]
           and not [j for j in store.junctures() if j["kind"] == "theft_suspected"],
-          f"chest {world.chest_items} {[(e.get('outcome'), e.get('stored')) for e in eps]}")
+          f"{[(e.get('outcome'), e.get('stored')) for e in eps]}\n{text[-600:]}")
+    rs = (eps[0].get("restock") or {}) if eps else {}
+    check("then the room shelf's Restock with our backpack (the user's routine) took the spent pouch and the two "
+          "live ones, and Resupply gave two back (all it had): nothing into the chest; the row's `restock`",
+          world.restocks == [("room", BACKPACK)] and len(world.shelf_pouches) == 1 and not world.chest_items
+          and world.resupplies[-1] == ("room", 2) and rs.get("restocked") == ["3 items were added."]
+          and rs.get("missing") == ["Trapped Pouch"],
+          f"restocks {world.restocks} shelf {world.shelf_pouches} chest {world.chest_items} "
+          f"resupplies {world.resupplies} row {rs}")
     store.close()
 
 
@@ -2391,12 +2432,14 @@ async def resupply():
     eps = store.episodes("lumber")
     res = (eps[0].get("resupply") or []) if eps else []
     check("the room's shelf gave nothing, the landing's (past the secured one) gave 3 trapped pouches",
-          world.resupplies == [("room", 0), ("landing", 3)] and world.secured_tries == 1,
+          world.resupplies[:2] == [("room", 0), ("landing", 3)] and world.secured_tries == 1,
           f"{world.resupplies} secured {world.secured_tries}")
-    check("the trip went and stored (exit 0, outcome stored) with a resupplied pouch, spent into the chest",
+    check("the trip went and stored (exit 0, outcome stored) with a resupplied pouch; at the end the room shelf's "
+          "Restock took the spent one (none into the chest)",
           code == 0 and len(eps) == 1 and eps[0]["outcome"] == "stored"
-          and world.chest_items and world.chest_items[0][0] in SHELF_POUCHES,
-          f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]} chest {world.chest_items}\n{text[-600:]}")
+          and world.shelf_pouches and world.shelf_pouches[0] in SHELF_POUCHES and not world.chest_items,
+          f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]} shelf {world.shelf_pouches} "
+          f"chest {world.chest_items}\n{text[-600:]}")
     check("the trip row's resupply: the room's none_available, the landing's 3 pouches (hue 38)",
           [r["where"] for r in res] == ["room", "landing"] and res[0]["none_available"] and res[0]["added"] == []
           and [(a["amount"], a["hue"]) for a in res[1]["added"]] == [(1, 38)] * 3 and res[1]["missing"] == [],

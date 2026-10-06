@@ -1916,7 +1916,7 @@ def _act_resupply(a, mem) -> dict:
 
     try:
         stc.intent("Resupplying from a storage shelf", "resupply")
-        out = shelf.resupply(io, human, want, walk=walk)
+        out = shelf.resupply(io, human, want, walk=walk, restock=a.restock)
         stc.intent(None)
         got = shelf.summary(out["added"])
         return {**out, "heard": [journal_view(e) for e in out["heard"]],
@@ -3147,6 +3147,9 @@ def build_parser() -> argparse.ArgumentParser:
                         "reach); only to walk into a fight on purpose")
     p.add_argument("--max-items", type=int, default=LOOT_MAX_ITEMS, help="loot: at most this many items")
     p.add_argument("--amount", type=int, default=None, help="buy: how many (default 1)")
+    p.add_argument("--restock", action="store_true",
+                   help="resupply: first Restock with your backpack (the shelf takes what it may hold of "
+                        "the pack), then Resupply: you keep exactly the loadout (the user's routine)")
     p.add_argument("--text", action="append", metavar="ID=VALUE",
                    help="gump: set text entry ID (repeatable); other entries keep their current text")
     p.add_argument("--z", type=int, default=None,

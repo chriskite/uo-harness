@@ -95,7 +95,7 @@ stateDiagram-v2
   TravelHome --> Room: recall home by the own book's default rune (walk when within 60 tiles)
   Room --> Convert: house steward → "Room" → "Visit Other Rooms" → owner's row
   Convert --> Store: trapped pouch set off, logs → boards
-  Store --> Home: boards into the Resource Stockpile, spent pouch into the secure chest
+  Store --> Home: boards into the Resource Stockpile, Restock (backpack) + Resupply at the room shelf
   Store --> Deed: stock ≥ deed quantum (not built)
   Harvest --> CaptchaHandoff: captcha gump
   CaptchaHandoff --> Harvest: captcha solved
@@ -656,9 +656,11 @@ rune (Outland Dan: runebook `0x49865F8F`, "DTF Loot Chest" → 4134,1429), the h
 "Room" → "Visit Other Rooms" → the owner's row (Logan Wolf's room, arrival 403,923 on facet 3),
 the logs converted there, the boards added to the room's **Resource Stockpile** `0x62645C82`
 (since 2026-10-05, user: "It is where we will now drop off all our boards"; `harness/stockpile.py`:
-its menu, Add Items and one target per stack; `homes.json` `stockpile`) and the spent trapped pouch
-dropped into the secure chest `0x4AE0DD2C` 1 tile from the arrival (a home without a stockpile
-puts the boards in the chest too). The run ends in the room. Why:
+its menu, Add Items and one target per stack; `homes.json` `stockpile`; a home without one puts
+them into the secure chest `0x4AE0DD2C` 1 tile from the arrival), then the room shelf's Restock
+with our backpack and Resupply (user, 2026-10-05: his routine; the shelf takes the spent trapped
+pouch and any spare supplies, and Dan keeps exactly the loadout; the trip row's `restock`; with no
+shelf in view the spent pouch goes into the chest). The run ends in the room. Why:
 - the room is the safe place: no one follows in, no recall reaches it, and the logs are converted
   away from the grove (live 2026-10-03 a 12 s conversion under attack in the field cost 45 hits)
 - the boards collect in one secure container at home instead of a town bank on the way, so no

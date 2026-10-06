@@ -519,6 +519,21 @@ Wiki: [Storage Shelf](https://wiki.uooutlands.com/Storage_Shelf). Fixtures:
   1a). Live 10:07 (task `lumber-20261005-100749-ece4`): the room's shelf "nothing to give" (3.2 s),
   out of the room, the DTF shelf "nothing to give" (Dan's pack already held the loadout but the
   hatchets), then the trip as before: 101 boards into the chest, exit 0 in the room.
+- **Restock with the backpack, then Resupply (user's routine, 2026-10-05: "I generally just
+  'restock' the shelf and target my own backpack letting it suck up everything. Then resupply."):**
+  Restock (button 1000) → "Which container do you wish to restock this container from? (you may
+  target yourself or a nearby friendly pack animal)" and a target cursor; the backpack targeted →
+  "16 items were added." (live at the room shelf 0x6CEB65CD: a spent pouch, the reagents, the
+  potions and the three trapped pouches left the pack; the spellbook, spyglass, spare clothes and
+  runebook stayed). Resupply right after gave the loadout back and said **"Partial resupply:
+  Greater Heal Potion"** (3 of 5): a third kind of line besides "No resupply:" and "Unable to
+  resupply:". `ctl act resupply --restock` does both (`shelf.resupply(restock=True)`); the runner
+  does it at the room shelf after storing the boards (spent pouches no longer go into the chest).
+  `act gump` still refuses 1000 by hand.
+- **Dropping a container onto a shelf adds its contents, not the container:** a spent (empty)
+  pouch dropped on the room shelf bounced back with "That container does not contain any items
+  that may be added."; with another spent pouch inside, the inner one went in ("1 items were
+  added.") and the outer came back. The shelf gump opens after each drop.
 - **A lift right after the hatchet's double-click is refused:** in that trip one stash (the chop's
   logs into the trapped pouch during the next chop) came 0.47 s after the hatchet's double-click
   and got "You must wait to perform another action." (cliloc 500119); the logs stayed loose until the
@@ -536,7 +551,8 @@ Wiki: [Resource Stockpile](https://wiki.uooutlands.com/Resource_Stockpile),
   item tome 0x62657BB3, a skill mastery tome 0x62658F0D, a treasure map tome 0x62659A52 (all
   locked down, empty). Names from single clicks; each also says "[blessed for 44m]".
   **All boards now go into the stockpile** (user: "It is where we will now drop off all our
-  boards"; homes.json `stockpile`); spent trapped pouches still go into the chest.
+  boards"; homes.json `stockpile`); spent trapped pouches go into the room's storage shelf by its
+  Restock (see "Storage shelves").
 - **Its menu:** double-click → gump 0x6ECE2ABE, lines `Guide`, `Resource Stockpile`, one count per
   row, `Settings`. The ingots/boards page lists ingots (tile 7154) and boards (tile 7127) per
   material hue: 0 (regular) and 2419, 2406, 2413, 2418, 2213, 2425, 2207, 2219, 1763 (the woods'
@@ -550,9 +566,12 @@ Wiki: [Resource Stockpile](https://wiki.uooutlands.com/Resource_Stockpile),
   with 0. `stockpile.deposit` does exactly that; the overseer's `ctl act stockpile` runs the same
   flow on every board stack in the pack. Never target yourself: per the wiki that adds every valid
   item in the pack, reagents and tools included, depending on the player's Settings.
-- **Board counts right after the tests:** 18 in the stockpile (10 + 5 regular, 3 dullwood). The chest
-  still holds about 8.3k regular boards and some coloured stacks; moving them over is the user's
-  call.
+- **Board counts:** after the tests 18 in the stockpile (10 + 5 regular, 3 dullwood). Then (user,
+  2026-10-05) every board stack in the chest went in with `ctl act stockpile <serials>`: a stack in
+  the open chest can be targeted directly, no lift. 36 copperwood first, then 147 shadowwood, 36
+  bronzewood, 8311 regular, 145 dullwood. The menu then read 8326 regular, 148 dullwood, 147
+  shadowwood, 36 + 36 (8693 in all; gump text lines are deduplicated, so the two 36s show once).
+  The chest holds no boards now.
 - **A partial lift moves the lifted serial:** `ctl act drop 0x5E9DB872 <pack> --amount 10` (of
   8326) put 0x5E9DB872 into the pack with 10, and the 8316 left in the chest became 0x62759AC6
   (RunUO's split). `ctl act drop` had expected the reverse and reported `moved: false`; fixed.
