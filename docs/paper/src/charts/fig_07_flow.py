@@ -28,7 +28,7 @@ inputs = [("character", "skill · hatchets · weight"),
 posts = [("field rate λ", "Gamma, φ, skill-rescaled"),
          ("overhead T", "Normal, structural prior"),
          ("landing", "nearest rune with a route"),
-         ("hazards h_D · h_S · h_T", "Gamma, shrunk to pooled"),
+         ('hazards h<tspan baseline-shift="sub" font-size="75%">D</tspan> · h<tspan baseline-shift="sub" font-size="75%">S</tspan> · h<tspan baseline-shift="sub" font-size="75%">T</tspan>', "Gamma, shrunk to pooled"),
          ("regrowth window", "isotonic fit"),
          ("grove capacity", "Beta yielding share")]
 

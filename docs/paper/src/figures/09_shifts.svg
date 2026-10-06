@@ -371,10 +371,10 @@ L 593.602891 220.536
     <text style="font-size: 8.6px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #4a5059" x="80.242891" y="188.152625" transform="rotate(-0 80.242891 188.152625)">Outland Dan: room loop</text>
    </g>
    <g id="text_28">
-    <text style="font-size: 8.6px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #4a5059" x="313.362891" y="188.320762" transform="rotate(-0 313.362891 188.320762)">Outland Dan: 3,962 boards</text>
+    <text style="font-size: 8.6px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #4a5059" x="313.362891" y="188.320762" transform="rotate(-0 313.362891 188.320762)">Outland Dan: Seer4–6</text>
    </g>
    <g id="line2d_23">
-    <path d="M 438.602891 31.347 
+    <path d="M 102.562891 31.347 
 " clip-path="url(#pee1a9b99c0)" style="fill: none; stroke: #b23a3a; stroke-width: 2; stroke-linecap: square"/>
     <defs>
      <path id="m3a6d88dc4c" d="M -2.25 4.5 
@@ -393,59 +393,66 @@ z
 " style="stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
     </defs>
     <g clip-path="url(#pee1a9b99c0)">
-     <use xlink:href="#m3a6d88dc4c" x="438.602891" y="31.347" style="fill: #b23a3a; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
+     <use xlink:href="#m3a6d88dc4c" x="102.562891" y="31.347" style="fill: #b23a3a; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
     </g>
    </g>
    <g id="line2d_24">
+    <path d="M 438.602891 31.347 
+" clip-path="url(#pee1a9b99c0)" style="fill: none; stroke: #b23a3a; stroke-width: 2; stroke-linecap: square"/>
+    <g clip-path="url(#pee1a9b99c0)">
+     <use xlink:href="#m3a6d88dc4c" x="438.602891" y="31.347" style="fill: #b23a3a; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
+    </g>
+   </g>
+   <g id="line2d_25">
     <path d="M 452.862891 98.9145 
 " clip-path="url(#pee1a9b99c0)" style="fill: none; stroke: #b23a3a; stroke-width: 2; stroke-linecap: square"/>
     <g clip-path="url(#pee1a9b99c0)">
      <use xlink:href="#m3a6d88dc4c" x="452.862891" y="98.9145" style="fill: #b23a3a; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
     </g>
    </g>
-   <g id="line2d_25">
+   <g id="line2d_26">
     <path d="M 105.662891 132.69825 
 " clip-path="url(#pee1a9b99c0)" style="fill: none; stroke: #b23a3a; stroke-width: 2; stroke-linecap: square"/>
     <g clip-path="url(#pee1a9b99c0)">
      <use xlink:href="#m3a6d88dc4c" x="105.662891" y="132.69825" style="fill: #b23a3a; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
     </g>
    </g>
-   <g id="line2d_26">
-    <path d="M 392.102891 132.69825 
+   <g id="line2d_27">
+    <path d="M 391.482891 132.69825 
 " clip-path="url(#pee1a9b99c0)" style="fill: none; stroke: #b23a3a; stroke-width: 2; stroke-linecap: square"/>
     <g clip-path="url(#pee1a9b99c0)">
-     <use xlink:href="#m3a6d88dc4c" x="392.102891" y="132.69825" style="fill: #b23a3a; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
+     <use xlink:href="#m3a6d88dc4c" x="391.482891" y="132.69825" style="fill: #b23a3a; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
     </g>
    </g>
-   <g id="line2d_27">
+   <g id="line2d_28">
     <path d="M 431.162891 132.69825 
 " clip-path="url(#pee1a9b99c0)" style="fill: none; stroke: #b23a3a; stroke-width: 2; stroke-linecap: square"/>
     <g clip-path="url(#pee1a9b99c0)">
      <use xlink:href="#m3a6d88dc4c" x="431.162891" y="132.69825" style="fill: #b23a3a; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
     </g>
    </g>
-   <g id="line2d_28">
+   <g id="line2d_29">
     <path d="M 482.002891 132.69825 
 " clip-path="url(#pee1a9b99c0)" style="fill: none; stroke: #b23a3a; stroke-width: 2; stroke-linecap: square"/>
     <g clip-path="url(#pee1a9b99c0)">
      <use xlink:href="#m3a6d88dc4c" x="482.002891" y="132.69825" style="fill: #b23a3a; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
     </g>
    </g>
-   <g id="line2d_29">
+   <g id="line2d_30">
     <path d="M 119.922891 200.26575 
 " clip-path="url(#pee1a9b99c0)" style="fill: none; stroke: #b23a3a; stroke-width: 2; stroke-linecap: square"/>
     <g clip-path="url(#pee1a9b99c0)">
      <use xlink:href="#m3a6d88dc4c" x="119.922891" y="200.26575" style="fill: #b23a3a; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
     </g>
    </g>
-   <g id="line2d_30">
+   <g id="line2d_31">
     <path d="M 245.162891 200.26575 
 " clip-path="url(#pee1a9b99c0)" style="fill: none; stroke: #b23a3a; stroke-width: 2; stroke-linecap: square"/>
     <g clip-path="url(#pee1a9b99c0)">
      <use xlink:href="#m3a6d88dc4c" x="245.162891" y="200.26575" style="fill: #b23a3a; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
     </g>
    </g>
-   <g id="line2d_31">
+   <g id="line2d_32">
     <path d="M 430.542891 200.26575 
 " clip-path="url(#pee1a9b99c0)" style="fill: none; stroke: #b23a3a; stroke-width: 2; stroke-linecap: square"/>
     <g clip-path="url(#pee1a9b99c0)">
@@ -497,7 +504,7 @@ z
     <g id="text_32">
      <text style="font-size: 9px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="382.092344" y="278.542012" transform="rotate(-0 382.092344 278.542012)">Outland Dan</text>
     </g>
-    <g id="line2d_32">
+    <g id="line2d_33">
      <defs>
       <path id="m5fdb3b94c0" d="M -2 4 
 L 0 2 

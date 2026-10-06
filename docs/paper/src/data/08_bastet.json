@@ -29,7 +29,7 @@
    "name": "Nusero SE, 10-03 18:04",
    "sight_tiles": 11,
    "react": "tome opened 0.92 s",
-   "attacking": null,
+   "attacking": 1.88,
    "hits": [
     8.07
    ],

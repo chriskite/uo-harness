@@ -15,7 +15,7 @@ from matplotlib.lines import Line2D  # noqa: E402
 
 LANES = ["TestWorth", "Hackworth", "Shackleworth", "Outland Dan"]
 CAUSE = OrderedDict([
-    ("Bastet (PK)", "#b23a3a"),
+    ("Bastet (PK)", PALETTE[7]),
     ("monster, runner trip", PALETTE[1]),
     ("overseer by hand", PALETTE[4]),
     ("blind goto", PALETTE[3]),
@@ -24,8 +24,9 @@ CAUSE = OrderedDict([
     ("false alarm", PALETTE[0]),
 ])
 KIND = {"death": ("X", 12), "near-death": ("^", 9), "theft": ("D", 7.5), "false_alarm": ("o", 8.5)}
-SHORT_FIX = {"same-day demo fixes": "demo fixes", "(none recorded)": "—", "BENIGN_EFFECTS": "benign fx",
-             "no corpse runs": "no corpse run", "travel_guard": "guarded goto"}
+SHORT_FIX = {"same-day demo fixes": "demo fixes", "(none recorded)": "none", "BENIGN_EFFECTS": "benign effects",
+             "no corpse runs": "no corpse run", "travel_guard": "guarded goto",
+             "0add311, c1b4eed": "0add311\nc1b4eed", "cb2e981, 5266884": "cb2e981\n5266884"}
 ORDER_KEY = {"night": "23:00", "≈16:45": "16:45"}
 SLOT = 1.25
 
@@ -61,7 +62,8 @@ for r in rows:
     ax.text(r["_x"], y + 0.2, f"{r['id']}\n{r['time']}", ha="center", va="bottom", fontsize=8, color=INK,
             linespacing=1.05)
     fx = SHORT_FIX.get(r["fix"], r["fix"])
-    ax.text(r["_x"], y - 0.2 - 0.17 * r["_alt"], fx, ha="center", va="top", fontsize=7.3, color=INK3,
+    # the lower row sits below a two-line upper label, so neighbours never collide
+    ax.text(r["_x"], y - 0.2 - 0.36 * r["_alt"], fx, ha="center", va="top", fontsize=7.3, color=INK3,
             family="monospace")
 
 ax.set_yticks(range(len(LANES)))

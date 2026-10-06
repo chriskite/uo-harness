@@ -31,7 +31,7 @@
 <text class="d-text" x="410.0" y="183" text-anchor="middle">landing</text>
 <text class="d-small" x="410.0" y="200" text-anchor="middle">nearest rune with a route</text>
 <rect class="d-box blue" x="300" y="224" width="220" height="46" rx="8"/>
-<text class="d-text" x="410.0" y="243" text-anchor="middle">hazards h_D · h_S · h_T</text>
+<text class="d-text" x="410.0" y="243" text-anchor="middle">hazards h<tspan baseline-shift="sub" font-size="75%">D</tspan> · h<tspan baseline-shift="sub" font-size="75%">S</tspan> · h<tspan baseline-shift="sub" font-size="75%">T</tspan></text>
 <text class="d-small" x="410.0" y="260" text-anchor="middle">Gamma, shrunk to pooled</text>
 <rect class="d-box blue" x="300" y="284" width="220" height="46" rx="8"/>
 <text class="d-text" x="410.0" y="303" text-anchor="middle">regrowth window</text>

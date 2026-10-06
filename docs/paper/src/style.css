@@ -131,12 +131,13 @@ aside.side code { font-size: 12px; }
 /* ---------- figures & tables ---------- */
 figure { margin: 30px 0 34px; }
 figure.wide { margin-right: calc(-1 * (var(--side-w) + var(--side-gap))); }
-figure.fig > .frame, figure.fig > svg, figure.fig > .mermaid-svg, figure.fig > pre.mermaid, figure.fig > img {
+figure.fig > .frame, figure.fig > .fig-scroll, figure.fig > .mermaid-svg, figure.fig > pre.mermaid, figure.fig > img {
   display: block; width: 100%;
 }
+figure.fig .fig-scroll > svg { display: block; width: 100%; }
 figure.fig .mermaid-svg { background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 18px 14px; text-align: center; }
 figure.fig .mermaid-svg svg { max-width: 100%; height: auto; }
-figure.fig > svg.chart, figure.fig .frame {
+figure.fig .fig-scroll > svg.chart, figure.fig .frame {
   background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 10px 8px 4px;
 }
 figure.fig .frame svg { width: 100%; height: auto; display: block; }
@@ -240,8 +241,15 @@ pre { background: #1e2329; color: #e6e1d7; border-radius: 10px; padding: 16px 18
 pre code { background: none; padding: 0; color: inherit; font: inherit; }
 pre .c { color: #8f99a6; } pre .k { color: #e5a76f; } pre .s { color: #9ccf88; } pre .n { color: #8cc2ef; }
 .math { font-size: 1.04em; }
-div.math { margin: 18px 0 22px; overflow-x: auto; overflow-y: hidden; position: relative; text-align: center; }
-div.math .eqno { position: absolute; right: 0; top: 50%; transform: translateY(-50%); font: 14px var(--sans); color: var(--ink-3); }
+div.math { margin: 18px 0 22px; overflow-x: auto; overflow-y: hidden; text-align: center; }
+/* numbered equation (build.py wraps the formula in .eq-body): the number never overlaps the formula.
+   The ::before spacer and the number grow equally, which centres the formula on the column; a formula
+   too wide to share its line pushes the number onto its own line below (right-aligned), and a formula
+   wider than the column scrolls inside .eq-body */
+div.math.numbered { display: flex; flex-wrap: wrap; align-items: center; overflow: visible; }
+div.math.numbered::before { content: ""; flex: 1 1 0; margin-right: 12px; }
+div.math .eq-body { flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden; }
+div.math .eqno { flex: 1 1 0; min-width: max-content; margin-left: 12px; text-align: right; font: 14px var(--sans); color: var(--ink-3); }
 math { font-family: "Cambria Math", "STIX Two Math", "Latin Modern Math", math; }
 
 /* ---------- small things ---------- */
@@ -288,6 +296,13 @@ footer.colophon { border-top: 1px solid var(--rule); margin-top: 80px; padding-t
   body { font-size: 17px; }
   figure.fig .pair { grid-template-columns: 1fr; }
   dl.glossary { grid-template-columns: 1fr; }
+  .src { white-space: normal; overflow-wrap: anywhere; }
+}
+/* wide figures keep a legible width (their natural width, at most 880px) and scroll sideways;
+   --fig-w is the SVG's viewBox width, set by build.py */
+@media screen and (max-width: 640px) {
+  figure.fig .frame, figure.fig .fig-scroll, figure.fig .mermaid-svg, figure.fig .pair > * { overflow-x: auto; overflow-y: hidden; }
+  figure.fig .frame svg, figure.fig .fig-scroll > svg, figure.fig .mermaid-svg svg, figure.fig .pair svg { min-width: min(880px, var(--fig-w, 640px)); }
 }
 
 /* ---------- print ---------- */
@@ -302,4 +317,11 @@ footer.colophon { border-top: 1px solid var(--rule); margin-top: 80px; padding-t
   figure, table, .callout, pre { break-inside: avoid; }
   h2, h3 { break-after: avoid; }
   a { color: inherit; text-decoration: none; }
+  /* nothing may clip on paper: no scroll boxes, wrapped code, tighter tables */
+  .tbl-scroll, div.math, div.math .eq-body, figure.fig .frame, figure.fig .fig-scroll, figure.fig .mermaid-svg { overflow: visible; }
+  pre { overflow: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
+  table, table.compact th, table.compact td { font-size: 8pt; }
+  th, td { padding: 3px 5px; }
+  thead th { white-space: normal; }
+  td code, th code { font-size: .9em; }
 }

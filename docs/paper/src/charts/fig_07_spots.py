@@ -12,7 +12,7 @@ pick = d["pick"][0] if isinstance(d["pick"], list) else d["pick"]
 plt = mpl()
 fig, (ax, bx) = plt.subplots(1, 2, figsize=(10, 5.0), gridspec_kw={"width_ratios": [1.05, 1]})
 
-# left: posterior mean field rate with 80 % interval, spots with measured field time
+# left: posterior mean field rate with 80% interval, spots with measured field time
 meas = sorted([s for s in spots if s["visited"] and s["field_h"] > 0], key=lambda s: s["rate_logs_h"])
 prior = 2316
 ax.axvspan(1246, 3540, color=GRID, alpha=0.9, zorder=0)
@@ -29,7 +29,7 @@ ax.set_yticks(range(len(meas)))
 ax.set_yticklabels([f"{s['id']}  ({s['trips']} tr, {s['field_h']:.2f} h)" for s in meas], fontsize=8.6)
 ax.set_ylim(-0.7, len(meas) + 0.9)
 ax.set_xlim(900, 4400)
-ax.set_xlabel("field rate λ, logs per field hour (mean, 80 % interval)")
+ax.set_xlabel("field rate λ, logs per field hour (mean, 80% interval)")
 ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:,.0f}"))
 ax.grid(axis="y", visible=False)
 

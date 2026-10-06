@@ -1143,7 +1143,7 @@ L 704.430625 204.12
    </g>
    <g id="text_64">
     <text style="font-size: 8.3px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #4a5059" transform="translate(534.625177 50.740396)">10-05 measured</text>
-    <text style="font-size: 8.3px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #4a5059" transform="translate(534.625177 59.721904)">2,589 per trip-h</text>
+    <text style="font-size: 8.3px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #4a5059" transform="translate(534.625177 59.721904)">2,589 logs/trip-h</text>
    </g>
   </g>
  </g>

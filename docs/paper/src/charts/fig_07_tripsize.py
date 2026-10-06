@@ -40,7 +40,7 @@ for sid, col in spots:
     if g < qs:
         ax.plot([g], [at(s, g)], marker="s", color=col, ms=6, zorder=5)
         ax.vlines(g, at(s, g) - 90, at(s, g) + 90, color=col, lw=1.2, ls=":", zorder=2)
-    label = f"{sid}  (λ {c['lam']:,}, T {c['T_s']} s,\nh_D {c['hz'][0]:.2f}, h_S {c['hz'][1]:.2f} /field h)"
+    label = f"{sid}  (λ {c['lam']:,}, T {c['T_s']} s,\n$h_D$ {c['hz'][0]:.2f}, $h_S$ {c['hz'][1]:.2f} per field h)"
     ax.text(10000 * 1.03, ys[-1] + LABEL_DY.get(sid, 0), label, color=col, fontsize=8.6, va="center")
 
 ax.set_xscale("log")
@@ -49,12 +49,12 @@ ax.set_xticks([100, 200, 500, 1000, 2000, 5000, 10000])
 ax.set_xticklabels(["100", "200", "500", "1,000", "2,000", "5,000", "10,000"])
 ax.set_ylim(800, 2900)
 ax.set_xlabel("logs per trip Q (log scale)")
-ax.set_ylabel("net stored logs per agent-hour")
+ax.set_ylabel("net stored logs/trip-h")
 ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:,.0f}"))
 
 # marker legend
 h1, = ax.plot([], [], "o", color=INK2, ms=7, label="Q* (renewal-reward optimum)")
-h2, = ax.plot([], [], "^", mfc="white", mec=INK2, mew=1.6, ms=7, label="first-order rule λ√(2T/h_D)")
+h2, = ax.plot([], [], "^", mfc="white", mec=INK2, mew=1.6, ms=7, label=r"first-order rule $\lambda\sqrt{2T/h_D}$")
 h3, = ax.plot([], [], "s", color=INK2, ms=6, label="grove capacity cap (where it binds)")
 ax.legend(handles=[h1, h2, h3], loc="lower right", fontsize=9)
 

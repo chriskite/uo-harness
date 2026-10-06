@@ -88,7 +88,7 @@
    "character": "Shackleworth",
    "kind": "death",
    "cause": "overseer by hand",
-   "fix": "0add311",
+   "fix": "0add311, c1b4eed",
    "sight_to_death_s": null
   },
   {
@@ -168,7 +168,7 @@
    "character": "Outland Dan",
    "kind": "death",
    "cause": "monster, runner trip",
-   "fix": "cb2e981",
+   "fix": "cb2e981, 5266884",
    "sight_to_death_s": null
   },
   {

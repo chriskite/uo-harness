@@ -5,7 +5,7 @@
 The NativeAOT reflection metadata was fully parsed (`mrt_parse.py` → `mrt_map.json`, 95,389 invoke entries, 100% name→RVA resolution). All 372 protocol methods (ClassicUO.Network.PacketHandlers, NetClientExt, Assistant.PacketHandlers, PacketsTable) were renamed and decompiled to `decompiled/protocol_handlers.c` (372/372, no failures).
 
 **Packet length table — authoritative** (`harness/uo/outlands_table.py` + `outlands_packet_table.json`):
-- Base tier (145 entries) from the client's own static initializer `FUN_1401a13c0` (`Add(dict,id,len)` calls). The 22 Outlands-extended standard packets: `0x08=22, 0x0B=7, 0x1B=43, 0x20=28, 0x21=15, 0x23=42, 0x24=11, 0x25=27, 0x2E=20, 0x54=18, 0x56=15, 0x6C=27, 0x76=22, 0x77=18, 0x90=31, 0x95=11, 0x99=36, 0xB9=5, 0xBA=14, 0xC0=52, 0xEF=5, 0xF3=38` (upstream value +6..+16 bytes of Outlands fields).
+- Base tier (145 entries) from the client's own static initializer `FUN_1401a13c0` (`Add(dict,id,len)` calls). The 22 Outlands-extended standard packets: `0x08=22, 0x0B=7, 0x1B=43, 0x20=28, 0x21=15, 0x23=42, 0x24=11, 0x25=27, 0x2E=20, 0x54=18, 0x56=15, 0x6C=27, 0x76=22, 0x77=18, 0x90=31, 0x95=11, 0x99=36, 0xB9=5, 0xBA=14, 0xC0=52, 0xEF=5, 0xF3=38` (vs upstream: 19 wider by 1–16 bytes of Outlands fields; `0xEF` narrower, 21→5; `0x0B` and `0xB9` unchanged in length).
 - **No wire-derived extras.** The former `0x00=106, 0x6F=76, 0x9E=65, 0xDC=15` entries were derived from the wrong S2C decode (below) and were removed 2026-09-29: none of these ids occurs in any correctly decoded capture.
 - Result (2026-09-29, correct decode): all 53 277 S2C packets in the 18 `logs/session_*.s2c.raw` captures have exactly the table length (0 mismatches).
 

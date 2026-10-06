@@ -143,7 +143,7 @@ L 354.129049 4.32
      </g>
     </g>
     <g id="text_8">
-     <text style="font-weight: 600; font-size: 10.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #4a5059" x="253.139774" y="339.400049" transform="rotate(-0 253.139774 339.400049)">field rate λ, logs per field hour (mean, 80 % interval)</text>
+     <text style="font-weight: 600; font-size: 10.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #4a5059" x="253.139774" y="339.400049" transform="rotate(-0 253.139774 339.400049)">field rate λ, logs per field hour (mean, 80% interval)</text>
     </g>
    </g>
    <g id="matplotlib.axis_2">

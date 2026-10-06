@@ -8,12 +8,12 @@
 <dt>Bastet</dt><dd>A mounted player killer whose title line read "Serial Killer [Prevalia]". Bastet killed our lumberjacks three times on 10-02 and 10-03, which is where recall-on-sight came from (<a class="ref" href="#sec-safety"></a>).</dd>
 <dt>Board / log</dt><dd>Trees yield logs; logs are converted into boards, the stored product. On 2026-10-05 a regular board was worth about 26.8 gp.</dd>
 <dt>Captcha</dt><dd>Outlands' anti-automation dialog for harvesters: a gump with a number to type, about every 5–10 minutes. Three wrong answers block harvesting for 6 h.</dd>
-<dt>Characters</dt><dd>TestWorth (Test Shard, from 09-28), Hackworth (fresh Young character from 10-01), Shackleworth (an Arcane Mage, 10-03), and Outland Dan (DTF guild, from 10-04).</dd>
+<dt>Characters</dt><dd>TestWorth (Test Shard, from 09-28), Hackworth (fresh Young character from 10-01), Shackleworth (an Arcane Mage, 10-03), Outland Dan (DTF guild, from 10-04), and Logan Wolf (holds the rental room; 0.37 h on 10-05, never agent-driven).</dd>
 <dt>ClassicUO</dt><dd>The open-source UO client. Outlands ships its own fork of it, compiled with NativeAOT and with Razor built in.</dd>
 <dt>Cliloc</dt><dd>The client's numbered table of localised strings (<code>Cliloc.enu</code>). Many server messages arrive as a cliloc number with arguments, e.g. 502406, "This book needs time to recharge."</dd>
 <dt><code>ctl</code></dt><dd><code>harness/ctl.py</code>, the command-line API through which the Seer (or a human) reads state, runs tasks, acts in game and answers junctures. Every call prints exactly one JSON object.</dd>
 <dt>DTF</dt><dd>Outland Dan's guild. Its guild house holds a rune library of 36 tomes and 839 runes, and a house steward that leads to Logan Wolf's rental room, Dan's home.</dd>
-<dt>Fastwalk key</dt><dd>A 32-bit token carried in each walk packet. The server hands tokens out (login seeds the value 8; an honored resync re-arms it with 1) and Outlands, unlike stock server emulators, checks them.</dd>
+<dt>Fastwalk key</dt><dd>A 32-bit token carried in each walk packet. The server hands tokens out (login usually ends on 8 and most re-arms carry 1, but the server also sends other small values; the proxy copies whatever it was given) and Outlands, unlike stock server emulators, checks them.</dd>
 <dt>Gump</dt><dd>A server-defined dialog window: a layout of text, images, buttons and text entries. Runebooks, room menus, shelves and the captcha are all gumps.</dd>
 <dt>Heat of Battle</dt><dd>The state after fighting a player, during which recall is blocked. It is one reason the harness never attacks players.</dd>
 <dt>Juncture</dt><dd>An event on the overseer bus (table <code>junctures</code>) that can wake the Seer: a threat, a failed or finished task, nearby speech, a captcha, a death, possible staff. The store held 314 juncture rows by 2026-10-05.</dd>
@@ -22,7 +22,7 @@
 <dt>Moongate</dt><dd>A public teleporter with a destination menu. On Shelter Island, taking one asks the player to renounce Young status.</dd>
 <dt>Multi</dt><dd>A many-piece structure, usually a house, that the server sends as one item whose graphic is an index into <code>multi.mul</code>. The harness expands multis into walls and doors so that routes stop running into houses.</dd>
 <dt>NativeAOT</dt><dd>.NET's ahead-of-time compilation to native machine code. The Outlands client is not a managed assembly, so there is no plugin loading and no IL decompiler shortcut; reverse engineering went through Ghidra and the binary's reflection metadata.</dd>
-<dt>Notoriety (noto)</dt><dd>A per-mobile reputation code in the mobile-update packet: 1–2 blue (innocent), 3–4 grey (attackable, criminal), 5 orange, 6 red (murderer), 7 invulnerable (NPCs, vendors, staff).</dd>
+<dt>Notoriety (noto)</dt><dd>A per-mobile reputation code in the mobile-update packet: 1 blue (innocent), 2 green (ally; the harness treats it as blue), 3–4 grey (attackable, criminal), 5 orange, 6 red (murderer), 7 invulnerable (NPCs, vendors, staff).</dd>
 <dt>NPD</dt><dd>The New Player Dungeon on Shelter Island, where TestWorth's death demo took place and where the hunt runner first fought.</dd>
 <dt>omp</dt><dd>The AI coding-agent harness that wrote this project. The Seer also runs on it, as an omp session or subagent.</dd>
 <dt>Razor</dt><dd>The UO assistant (macros, hotkeys, scripts) built into the Outlands client and the only sanctioned automation. Razor scripts can't walk on Outlands (removed 2023-07), and Outlands can gate them from the server.</dd>
@@ -30,16 +30,16 @@
 <dt>Red / PK</dt><dd>A player killer. "Red" refers to notoriety 6, the murderer's name colour. Our threat model doesn't treat colour as proof either way: a thief looks blue until the moment of the steal.</dd>
 <dt>Rental room</dt><dd>Outlands' inn-room housing. Nobody can follow you in and no recall reaches inside, so since 10-04 lumber trips end there.</dd>
 <dt>Rune, runebook, rune tome</dt><dd>A rune marks one location to recall to. A runebook holds runes, recall charges and a default rune. A rune tome is a larger Outlands book (up to 26 rows) that opens only within 2 tiles.</dd>
-<dt>Rune library</dt><dd>A collection of locked-down tomes others can use: the public Cambria library (14 tomes, 360 runes) and the DTF guild house (36 tomes, 839 runes).</dd>
+<dt>Rune library</dt><dd>A collection of locked-down tomes others can use: the public Cambria library (14 tomes, 360 runes, including the 359 numbered Witcher runes) and the DTF guild house (36 tomes, 839 runes).</dd>
 <dt>Secure chest</dt><dd>A locked-down container in the rental room that only its owners can open. Boards went there until the stockpile took over.</dd>
 <dt>Seer, the</dt><dd>The LLM overseer: an omp agent session that supervises the deterministic runners through <code>ctl</code>, wakes on junctures, and talks to the owner in the viz and on Telegram. It was named on 2026-10-03 and given Hawkwind's voice (<a class="ref" href="#sec-seer"></a>).</dd>
-<dt>Shelter Island</dt><dd>Outlands' new-player island. Harvesting there needs Young status, gives half the normal yield and caps skills at 80, but no hostile player actions are possible.</dd>
+<dt>Shelter Island</dt><dd>Outlands' new-player island. Harvesting there needs Young status, halves the harvest chance and caps skills at 80, but no hostile player actions are possible.</dd>
 <dt>Smart Harvest</dt><dd>Answering the hatchet's target cursor with yourself instead of a tree: the server then chops whatever harvestable tree is nearby. Adopted 2026-10-04.</dd>
 <dt>Stationary Penalty</dt><dd>An Outlands rule: after a recall or teleport, or after about 5 minutes standing still, harvesting fails until you walk 5 steps.</dd>
 <dt>Steward</dt><dd>The house NPC whose context menu ("Room" → "Visit Other Rooms") leads into a house's rental rooms. Leaving the room by its door returns you to the steward.</dd>
 <dt>Stockpile</dt><dd>A Resource Stockpile: Outlands storage for raw materials, added to the room on 2026-10-05. It holds boards by kind and read 8,693 boards after the chest was emptied into it.</dd>
 <dt>Storage shelf</dt><dd>A container that keeps a per-character loadout: "Resupply" tops the backpack up to it, "Restock" puts surplus and spent items back.</dd>
-<dt>Test Shard</dt><dd>Outlands' public test server. Houses and inn rooms are wiped every day at midnight UTC. The project started there with TestWorth before moving to the live shard.</dd>
+<dt>Test Shard</dt><dd>Outlands' public test server. Houses and inn rooms are wiped every day at midnight UTC. The project started there with TestWorth before moving to what we believe is the live shard.</dd>
 <dt>Trapped pouch</dt><dd>A pouch that explodes when opened. The runner stashes logs in one so that a thief who snoops it sets off an alarm: "a delay plus an alarm, not a lock".</dd>
 <dt>Walk sequence</dt><dd>The 8-bit counter in every walk packet: starts at 0, wraps from 255 to 1, and the server accepts only the value it expects next. The proxy keeps one shared ladder for the human's and the agent's walks.</dd>
 <dt>WinDivert</dt><dd>A Windows packet-diversion driver. The harness uses it as a small user-space NAT that redirects the client's port-2593 connection to the local proxy, because the client ignores its own server settings.</dd>

@@ -1077,7 +1077,7 @@ z
 " clip-path="url(#pa94d9194e4)" style="fill: none; stroke: #b4572b; stroke-width: 1.4"/>
    </g>
    <g id="text_26">
-    <text style="font-size: 8.8px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #4a5059" x="460.47054" y="221.126032" transform="rotate(-0 460.47054 221.126032)">09-29 Shelter baseline ≈ 355 boards per agent-active hour</text>
+    <text style="font-size: 8.8px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #4a5059" x="460.47054" y="221.126032" transform="rotate(-0 460.47054 221.126032)">09-29 Shelter baseline (Run 3) ≈ 355 logs (= boards)/trip-h</text>
    </g>
    <g id="patch_8">
     <path d="M 649.48683 29.893565 

@@ -354,7 +354,7 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
 
 - **Depleted trees come back after ~45–65 min, not 20.** 137 cases of a depleted tree tried
   again later (the runner's old `--regrow-min 20` produced them): regrown 0/14 at 15–30 min,
-  7/50 at 30–45, 12/25 at 45–60, 41/45 after 60 (a fail or a success counts as regrown; a
+  7/50 at 30–45, 12/25 at 45–60, 44/48 after 60 (a fail or a success counts as regrown; a
   depleted answer as not). The isotonic fit reaches P = 0.6 at 65 min. The runner's default is
   now 45 and `ctl lumber plan` passes the fitted value. Retry gaps shorter than the window in
   use are no longer observed, so the estimate can only move up from here unless the window is

@@ -173,7 +173,7 @@ z
     <text style="font-size: 8px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(104.292891 43.459721)">19:19</text>
    </g>
    <g id="text_14">
-    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="113.785391" y="80.736116" transform="rotate(-0 113.785391 80.736116)">—</text>
+    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="113.785391" y="90.937076" transform="rotate(-0 113.785391 90.937076)">none</text>
    </g>
    <g id="line2d_12">
     <defs>
@@ -196,7 +196,7 @@ z
    </g>
    <g id="line2d_13">
     <defs>
-     <path id="m98d342f56c" d="M -3 6 
+     <path id="mb567706927" d="M -3 6 
 L 0 3 
 L 3 6 
 L 6 3 
@@ -209,10 +209,10 @@ L -6 -3
 L -3 0 
 L -6 3 
 z
-" style="stroke: #b23a3a; stroke-width: 1.8; stroke-linejoin: miter"/>
+" style="stroke: #c44e74; stroke-width: 1.8; stroke-linejoin: miter"/>
     </defs>
     <g clip-path="url(#p8106c18f41)">
-     <use xlink:href="#m98d342f56c" x="193.499676" y="109.014063" style="fill: #b23a3a; stroke: #b23a3a; stroke-width: 1.8; stroke-linejoin: miter"/>
+     <use xlink:href="#mb567706927" x="193.499676" y="109.014063" style="fill: #c44e74; stroke: #c44e74; stroke-width: 1.8; stroke-linejoin: miter"/>
     </g>
    </g>
    <g id="text_17">
@@ -220,7 +220,7 @@ z
     <text style="font-size: 8px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(184.007176 97.148984)">19:43</text>
    </g>
    <g id="text_18">
-    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="193.499676" y="134.42595" transform="rotate(-0 193.499676 134.42595)">f7aab09</text>
+    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="193.499676" y="144.62691" transform="rotate(-0 193.499676 144.62691)">f7aab09</text>
    </g>
    <g id="line2d_14">
     <defs>
@@ -267,7 +267,7 @@ z
     <text style="font-size: 8px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(247.695748 97.148984)">≈16:45</text>
    </g>
    <g id="text_22">
-    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="259.928248" y="134.42595" transform="rotate(-0 259.928248 134.42595)">3316e5b</text>
+    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="259.928248" y="144.62691" transform="rotate(-0 259.928248 144.62691)">3316e5b</text>
    </g>
    <g id="line2d_16">
     <defs>
@@ -291,7 +291,7 @@ z
    </g>
    <g id="line2d_17">
     <g clip-path="url(#p8106c18f41)">
-     <use xlink:href="#m98d342f56c" x="313.071105" y="109.014063" style="fill: #b23a3a; stroke: #b23a3a; stroke-width: 1.8; stroke-linejoin: miter"/>
+     <use xlink:href="#mb567706927" x="313.071105" y="109.014063" style="fill: #c44e74; stroke: #c44e74; stroke-width: 1.8; stroke-linejoin: miter"/>
     </g>
    </g>
    <g id="text_25">
@@ -299,11 +299,11 @@ z
     <text style="font-size: 8px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(303.578605 97.148984)">18:04</text>
    </g>
    <g id="text_26">
-    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="313.071105" y="134.42595" transform="rotate(-0 313.071105 134.42595)">d6e6c63</text>
+    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="313.071105" y="144.62691" transform="rotate(-0 313.071105 144.62691)">d6e6c63</text>
    </g>
    <g id="line2d_18">
     <g clip-path="url(#p8106c18f41)">
-     <use xlink:href="#m98d342f56c" x="339.642533" y="109.014063" style="fill: #b23a3a; stroke: #b23a3a; stroke-width: 1.8; stroke-linejoin: miter"/>
+     <use xlink:href="#mb567706927" x="339.642533" y="109.014063" style="fill: #c44e74; stroke: #c44e74; stroke-width: 1.8; stroke-linejoin: miter"/>
     </g>
    </g>
    <g id="text_27">
@@ -323,7 +323,8 @@ z
     <text style="font-size: 8px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(356.721462 150.822622)">20:29</text>
    </g>
    <g id="text_30">
-    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="366.213962" y="188.115213" transform="rotate(-0 366.213962 188.115213)">0add311</text>
+    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; fill: #737a85" transform="translate(350.832064 199.046886)">0add311</text>
+    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; fill: #737a85" transform="translate(350.832064 207.808882)">c1b4eed</text>
    </g>
    <g id="line2d_20">
     <g clip-path="url(#p8106c18f41)">
@@ -347,7 +348,7 @@ z
     <text style="font-size: 8px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(409.864319 97.154609)">22:17</text>
    </g>
    <g id="text_34">
-    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="419.356819" y="134.42595" transform="rotate(-0 419.356819 134.42595)">be9ef19</text>
+    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="419.356819" y="144.62691" transform="rotate(-0 419.356819 144.62691)">be9ef19</text>
    </g>
    <g id="line2d_22">
     <defs>
@@ -372,7 +373,7 @@ z
     <text style="font-size: 8px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(449.721462 204.511885)">22:05</text>
    </g>
    <g id="text_36">
-    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="459.213962" y="232.677301" transform="rotate(-0 459.213962 232.677301)">benign fx</text>
+    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="459.213962" y="232.677301" transform="rotate(-0 459.213962 232.677301)">benign effects</text>
    </g>
    <g id="line2d_23">
     <g clip-path="url(#p8106c18f41)">
@@ -384,7 +385,7 @@ z
     <text style="font-size: 8px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(476.292891 204.511885)">22:33</text>
    </g>
    <g id="text_38">
-    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="485.785391" y="241.804476" transform="rotate(-0 485.785391 241.804476)">e82df6c</text>
+    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="485.785391" y="252.005436" transform="rotate(-0 485.785391 252.005436)">e82df6c</text>
    </g>
    <g id="line2d_24">
     <defs>
@@ -424,7 +425,7 @@ z
     <text style="font-size: 8px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(542.721462 204.52751)">13:30</text>
    </g>
    <g id="text_42">
-    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="552.213962" y="241.804476" transform="rotate(-0 552.213962 241.804476)">09db3bd</text>
+    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="552.213962" y="252.005436" transform="rotate(-0 552.213962 252.005436)">09db3bd</text>
    </g>
    <g id="line2d_26">
     <g clip-path="url(#p8106c18f41)">
@@ -436,7 +437,8 @@ z
     <text style="font-size: 8px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(569.292891 204.52751)">14:08</text>
    </g>
    <g id="text_44">
-    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="578.785391" y="232.677301" transform="rotate(-0 578.785391 232.677301)">cb2e981</text>
+    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; fill: #737a85" transform="translate(563.403492 233.408014)">cb2e981</text>
+    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; fill: #737a85" transform="translate(563.403492 242.16944)">5266884</text>
    </g>
    <g id="line2d_27">
     <g clip-path="url(#p8106c18f41)">
@@ -448,7 +450,7 @@ z
     <text style="font-size: 8px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(595.864319 204.52751)">19:07</text>
    </g>
    <g id="text_46">
-    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="605.356819" y="241.804476" transform="rotate(-0 605.356819 241.804476)">605782b</text>
+    <text style="font-size: 7.3px; font-family: 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle; fill: #737a85" x="605.356819" y="252.005436" transform="rotate(-0 605.356819 252.005436)">605782b</text>
    </g>
    <g id="legend_1">
     <g id="line2d_28">
@@ -531,15 +533,15 @@ z
    <g id="legend_2">
     <g id="line2d_32">
      <defs>
-      <path id="m6487a12092" d="M -4 4 
+      <path id="m2a8a3f651d" d="M -4 4 
 L 4 4 
 L 4 -4 
 L -4 -4 
 z
-" style="stroke: #b23a3a; stroke-linejoin: miter"/>
+" style="stroke: #c44e74; stroke-linejoin: miter"/>
      </defs>
      <g>
-      <use xlink:href="#m6487a12092" x="83.625391" y="293.484222" style="fill: #b23a3a; stroke: #b23a3a; stroke-linejoin: miter"/>
+      <use xlink:href="#m2a8a3f651d" x="83.625391" y="293.484222" style="fill: #c44e74; stroke: #c44e74; stroke-linejoin: miter"/>
      </g>
     </g>
     <g id="text_51">

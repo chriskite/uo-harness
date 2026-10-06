@@ -6,9 +6,11 @@ Steps:
   1. run every charts/fig_*.py (each writes figures/<name>.svg from data/*.json)
   2. assemble template.html + style.css + hero.html + sections/*.html (sorted), inlining
      <!--#include path--> directives (paths relative to this directory)
-  3. prerender in headless Chromium (Playwright): mermaid <pre class="mermaid"> -> inline SVG,
-     .math elements (TeX) -> MathML via temml, section/figure/table/equation numbering,
-     <a class="ref" href="#id"></a> cross-references, the tables of contents
+  3. prerender in headless Chromium (Playwright): mermaid <pre class="mermaid"> -> inline SVG
+     (fixed rough.js seed, labelled by its figcaption), .math elements (TeX) -> MathML via temml,
+     figure SVGs get a scroll wrapper and their natural width (narrow-screen minimum, style.css),
+     section/figure/table/equation numbering, <a class="ref" href="#id"></a> cross-references,
+     the tables of contents
   4. strip the build-time scripts and write the static page
 
 Needs: pip install playwright && python -m playwright install chromium; `bun install` in this dir
@@ -47,7 +49,9 @@ async () => {
   // 2. mermaid -> inline SVG
   const sans = '"Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif';
   mermaid.initialize({
-    startOnLoad: false, theme: 'base', fontFamily: sans, securityLevel: 'loose',
+    // handDrawnSeed: mermaid draws node/edge shapes with rough.js even in the classic look; seed 0 means
+    // Math.random, which made the ER diagram's border paths differ on every build
+    startOnLoad: false, theme: 'base', look: 'classic', handDrawnSeed: 1, fontFamily: sans, securityLevel: 'loose',
     themeVariables: {
       fontFamily: sans, fontSize: '14px', textColor: '#1f2328', lineColor: '#6b7480',
       primaryColor: '#eaf1f7', primaryBorderColor: '#1f5f8b', primaryTextColor: '#1f2328',
@@ -71,19 +75,45 @@ async () => {
   });
   let k = 0;
   for (const pre of [...document.querySelectorAll('pre.mermaid')]) {
-    // a raw <br/> in the HTML source parses as an element; give mermaid its text form back
+    // raw <br/>, <sub>, <sup> in the HTML source parse as elements; give mermaid their text form back
     pre.querySelectorAll('br').forEach(b => b.replaceWith(document.createTextNode('<br/>')));
+    pre.querySelectorAll('sub, sup').forEach(e => e.replaceWith(document.createTextNode(
+      '<' + e.localName + '>' + e.textContent + '</' + e.localName + '>')));
     const src = pre.textContent;
-    const where = pre.closest('figure')?.id || pre.closest('section')?.id || '?';
+    const fig = pre.closest('figure');
+    const where = fig?.id || pre.closest('section')?.id || '?';
+    const n = k++;
     try {
-      const { svg } = await mermaid.render('mmd' + (k++), src);
+      const { svg } = await mermaid.render('mmd' + n, src);
       const div = document.createElement('div');
       div.className = 'mermaid-svg';
       div.innerHTML = svg;
+      // accessible name: the figure caption (mermaid only sets a role description)
+      const cap = fig?.querySelector(':scope > figcaption');
+      const el = div.querySelector('svg');
+      if (cap && el) {
+        if (!cap.id) cap.id = (fig.id || 'mmd' + n) + '-caption';
+        el.setAttribute('role', 'img');
+        el.setAttribute('aria-labelledby', cap.id);
+      } else errors.push('mermaid without figure caption in #' + where);
       pre.replaceWith(div);
     } catch (e) { errors.push('mermaid in #' + where + ': ' + (e.message || e).toString().slice(0, 300)); }
   }
   document.querySelectorAll('body > svg[id^="dmmd"], body > div[id^="dmmd"]').forEach(n => n.remove());
+
+  // 2b. figure SVGs: a bare SVG gets a wrapper that can scroll; every top-level figure SVG records its
+  // natural (viewBox) width so narrow screens keep it legible instead of shrinking it (style.css)
+  for (const svg of document.querySelectorAll('main figure.fig > svg')) {
+    const wrap = document.createElement('div');
+    wrap.className = 'fig-scroll';
+    svg.replaceWith(wrap);
+    wrap.appendChild(svg);
+  }
+  for (const svg of document.querySelectorAll('main figure.fig svg')) {
+    if (svg.parentElement.closest('svg')) continue;
+    const w = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width;
+    if (w) svg.style.setProperty('--fig-w', Math.round(w) + 'px');
+  }
 
   // 3. numbering
   const labels = new Map();
@@ -128,6 +158,12 @@ async () => {
   }
   for (const eq of document.querySelectorAll('main div.math[id]')) {
     ne++;
+    // formula in its own scrolling box, number beside it (never overlapping a wide formula)
+    const body = document.createElement('div');
+    body.className = 'eq-body';
+    body.append(...eq.childNodes);
+    eq.append(body);
+    eq.classList.add('numbered');
     eq.insertAdjacentHTML('beforeend', '<span class="eqno">(' + ne + ')</span>');
     labels.set(eq.id, 'Eq.\u00a0(' + ne + ')');
   }

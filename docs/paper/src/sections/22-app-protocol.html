@@ -12,8 +12,8 @@
 <tr><td>Server prelude</td><td>13 bytes cleartext, <code>ff 00 0d | 7×00 | 0c K S</code>: itself an <code>0xFF</code> sub-0 handshake carrying protocol version 12, the S2C key <code>K</code> (byte 11) and the C2S key <code>S</code> (byte 12)</td></tr>
 <tr><td>Client → server</td><td>every byte XOR <code>S</code>; packets framed by the client's own v12 length table</td></tr>
 <tr><td>Server → client</td><td>every byte XOR <code>K</code>, then UO's static Huffman code (257 symbols, 2–11 bits, 4-bit flush); each packet is compressed separately and ends in a flush, so one flush segment is exactly one packet. Wire/plain size ratio 0.683 on a 1.6 h session</td></tr>
-<tr><td>Keys</td><td>new per session: 45 distinct C2S and 43 distinct S2C keys over 67 logged preludes</td></tr>
-<tr><td>Length table</td><td>145 base entries from the client's static initializer plus V10/V11/V12 tiers; 22 standard packets widened by 6–16 bytes; 27 ids where client framing differs from upstream ClassicUO</td></tr>
+<tr><td>Keys</td><td>new per session: 59 distinct C2S and 56 distinct S2C keys over 67 logged preludes; no (K, S) pair repeats</td></tr>
+<tr><td>Length table</td><td>145 base entries from the client's static initializer plus V10/V11/V12 tiers; 22 standard fixed-length ids carry Outlands values (19 wider than upstream by 1–16 bytes, <code>0xEF</code> narrower 21 → 5, <code>0x0B</code> and <code>0xB9</code> unchanged in length); 27 ids where client framing differs from upstream ClassicUO</td></tr>
 <tr><td>Login</td><td><code>0x91</code>, about 1,122 bytes: name plus the JWT from the HTTPS login. No password crosses the game wire</td></tr>
 <tr><td>Keepalive</td><td><code>ff 00 07 00 00 00 03</code> about once per second, no timestamp; the server answers with <code>0xFF</code> sub 3. Relayed untouched, never injected</td></tr>
 <tr><td>Validation</td><td>18 captures: 53,277 S2C packets re-encode byte-exactly; 19,773 C2S packets frame with 0 desyncs</td></tr>
@@ -46,7 +46,7 @@
 <tr><td><code>B1</code></td><td class="num">var</td><td>gump response</td><td>runebook/tome buttons, room menus, shelf, stockpile, captcha (solver)</td><td class="num">1,896</td></tr>
 <tr><td><code>07</code></td><td class="num">7</td><td>lift</td><td>pick up an item (stash, unequip, move)</td><td class="num">1,564</td></tr>
 <tr><td><code>08</code></td><td class="num">22</td><td>drop</td><td>drop into a container or onto the ground (V10+ form)</td><td class="num">1,517</td></tr>
-<tr><td><code>FF</code></td><td class="num">10 / 14</td><td>Outlands dialect</td><td>sub 4 cast spell (Recall, heals); sub 9 item detail query</td><td class="num">730</td></tr>
+<tr><td><code>FF</code></td><td class="num">10</td><td>Outlands dialect</td><td>sub 4 cast spell (Recall, heals): all 730. A sub 9 item-query builder (14 B) exists but was never sent</td><td class="num">730</td></tr>
 <tr><td><code>05</code></td><td class="num">5</td><td>attack</td><td>hunt runner, monsters only</td><td class="num">483</td></tr>
 <tr><td><code>72</code></td><td class="num">5</td><td>war mode</td><td>toggle war mode</td><td class="num">438</td></tr>
 <tr><td><code>BF</code></td><td class="num">var</td><td>extended</td><td>sub <code>0x13</code> context-menu request, sub <code>0x15</code> menu pick (steward, vendors)</td><td class="num">196</td></tr>
@@ -65,7 +65,7 @@
 <thead><tr><th>Purpose</th><th>Ids</th><th>Notes</th></tr></thead>
 <tbody>
 <tr><td>Self position and movement</td><td><code>1B</code> login confirm, <code>20</code> mobile update, <code>77</code> mobile move, <code>22</code> walk confirm, <code>21</code> walk deny</td><td><code>22 &lt;seq&gt; &lt;noto&gt;</code> carries no z, so the proxy computes z from the map. <code>77</code>: 7,423 in the captures</td></tr>
-<tr><td>Fastwalk keys</td><td><code>BF</code> sub 1 (seed), sub 2 (push)</td><td>login seeds token 8; an honored resync re-arms with 1</td></tr>
+<tr><td>Fastwalk keys</td><td><code>BF</code> sub 1 (seed), sub 2 (push)</td><td>seed/push carry the token: typically 8 at login (a 5, 6, 7, 8 burst) and 1 after an honored resync, but not constant (2–13 seen); the proxy copies it</td></tr>
 <tr><td>Mobiles, items, containers</td><td><code>20</code>, <code>77</code>, <code>78</code>, <code>F3</code>, <code>24</code>, <code>25</code>, <code>3C</code>, <code>2E</code>, <code>1D</code>, <code>89</code>, <code>98</code></td><td><code>F3</code> (38 B) also carries houses as multis; <code>20</code> byte 9 is notoriety</td></tr>
 <tr><td>Vitals, skills, buffs</td><td><code>11</code>, <code>A1</code>–<code>A3</code>, <code>3A</code>, <code>FF</code> sub 8</td><td>hits/mana/stamina drive healing and escapes</td></tr>
 <tr><td>Gumps and cursors</td><td><code>DD</code> compressed gump, <code>6C</code> target cursor</td><td>captcha, runebooks, tomes, room menus, shelf, stockpile</td></tr>

@@ -26,10 +26,11 @@ fig, ax = plt.subplots(figsize=(10, 7.4))
 ax.imshow(img, cmap=cmap, extent=(X0, X1, Y1, Y0), interpolation="nearest", aspect="equal", zorder=1)
 w = np.array(d["witcher_table"])
 p = np.array(d["dtf_places"])
+p_in = p[(p[:, 0] >= X0) & (p[:, 0] < X1) & (p[:, 1] >= Y0) & (p[:, 1] < Y1)]
 ax.scatter(w[:, 0], w[:, 1], s=9, marker="o", facecolors="none", edgecolors=PALETTE[1], linewidths=0.8,
-           label=f"Witcher rune landing tiles ({len(w)}, Cambria + DTF)", zorder=2)
-ax.scatter(p[:, 0], p[:, 1], s=9, marker="^", color=PALETTE[4], alpha=0.8, linewidths=0,
-           label=f"DTF named-place runes ({len(p)})", zorder=3)
+           label=f"Witcher runes, public table ({len(w)})", zorder=2)
+ax.scatter(p_in[:, 0], p_in[:, 1], s=9, marker="^", color=PALETTE[4], alpha=0.8, linewidths=0,
+           label=f"DTF named-place runes ({len(p_in)} of {len(p)} shown)", zorder=3)
 offs = {"Cambria Rune Library": (40, 260), "Shelter Island inn": (110, -150),
         "DTF guild house (rune library, home landing)": (-1350, -260)}
 for name, (x, y) in d["places"].items():
@@ -42,7 +43,7 @@ ax.scatter([], [], s=40, marker="s", color="#1f5f8b", label=f"walked tiles ({d['
 ax.set_xlim(X0, X1)
 ax.set_ylim(Y1, Y0)
 ax.set_xlabel("x (tiles, east →)")
-ax.set_ylabel("y (tiles, south ↓)")
+ax.set_ylabel("y (tiles, south = down)")
 ax.legend(loc="lower left", fontsize=9, markerscale=1.6)
 ax.grid(alpha=0.5)
 save("05_reach", mpl_svg(fig, "05_reach"))

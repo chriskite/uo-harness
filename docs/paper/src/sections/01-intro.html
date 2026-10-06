@@ -9,7 +9,7 @@
 
 <h3 id="sec-intro-why">Why this is harder than it sounds</h3>
 
-<aside class="side"><b>Ultima Online</b> (1997) is the original graphical MMO: an isometric tile world of 10,752&thinsp;&times;&thinsp;6,144 tiles, skills that rise with use, and full-loot player-versus-player. <b>Outlands</b> is a popular free shard (a privately run server) with its own client fork. <a class="ref" href="#sec-background"></a> has the details.</aside>
+<aside class="side"><b>Ultima Online</b> (1997) is one of the first graphical MMOs: an isometric tile world (Outlands' main map is 10,752&thinsp;&times;&thinsp;6,144 tiles; stock UO's is 7,168&thinsp;&times;&thinsp;4,096), skills that rise with use, and full-loot player-versus-player. <b>Outlands</b> is a popular free shard (a privately run server) with its own client fork. <a class="ref" href="#sec-background"></a> has the details.</aside>
 <p>Game bots are old news, and Ultima Online has had macro assistants since the last century. What made this project interesting is the combination of constraints we accepted (some on day one, some along the way):</p>
 
 <ul>
@@ -22,7 +22,7 @@
 
 <h3 id="sec-intro-glance">The system at a glance</h3>
 
-<p>The architecture we settled on is a man-in-the-middle of the most boring kind: a localhost TCP proxy (<a class="ref" href="#fig-intro-arch"></a>). A WinDivert NAT quietly redirects the stock client's game connection to the proxy, which decrypts and decompresses both directions, keeps a packet-built world model, and lets deterministic Python "runners" inject their own actions into the client's stream. A SQLite memory store records every event and doubles as a message bus. An LLM overseer, the Seer, sits <em>outside</em> the inner loop: it is woken at important junctures, reads the store through a small CLI, and decides what job to run next, while the runners do the reflexes.</p>
+<p>The architecture we settled on is a man-in-the-middle of the most boring kind: a localhost TCP proxy (<a class="ref" href="#fig-intro-arch"></a>). A WinDivert NAT quietly redirects the stock client's game connection to the proxy, which decrypts both directions and decompresses the server's, keeps a packet-built world model, and lets deterministic Python "runners" inject their own actions into the client's stream. A SQLite memory store records every event and doubles as a message bus. An LLM overseer, the Seer, sits <em>outside</em> the inner loop: it is woken at important junctures, reads the store through a small CLI, and decides what job to run next, while the runners do the reflexes.</p>
 
 <figure class="fig wide" id="fig-intro-arch">
 <svg class="diagram" viewBox="0 0 1000 566" role="img" aria-label="uo-harness architecture overview">
@@ -132,8 +132,9 @@
 
   <rect x="470" y="440" width="160" height="110" rx="8" class="d-box"/>
   <text x="484" y="464" class="d-title">Visualizer</text>
-  <text x="484" y="485" class="d-text">Bun + React :8080</text>
+  <text x="484" y="485" class="d-text">Python server :8080</text>
   <text x="484" y="501" class="d-text">map &#183; avatar &#183; chat</text>
+  <text x="484" y="533" class="d-small">React UI, built with Bun</text>
 
   <rect x="655" y="440" width="150" height="110" rx="8" class="d-box"/>
   <text x="669" y="464" class="d-title">Telegram</text>
@@ -154,7 +155,7 @@
   <path d="M730,440 L730,398" class="d-edge dash" style="marker-end:none"/>
   <path d="M905,440 L905,398" class="d-edge dash" style="marker-end:none"/>
 </svg>
-<figcaption>The system at a glance. The client and server (dashed) are untouched third parties; everything else runs on the player's PC and is brought up by one supervisor (<code>harness/stack.py</code>). Server packets flow up into the world model and the store; agent actions flow down through the proxy's injection hub, sharing one walk ladder with the human's own keystrokes. The LLM only ever acts through <code>ctl</code>. Chapters: wire <a class="ref" href="#sec-wire"></a>, world model <a class="ref" href="#sec-world"></a>, runners <a class="ref" href="#sec-lumber"></a>, planner <a class="ref" href="#sec-optimizer"></a>, control plane <a class="ref" href="#sec-seer"></a>.</figcaption>
+<figcaption>The system at a glance. The client and server (dashed) are untouched third parties; everything else runs on the player's PC. Since 10-04 one supervisor (<code>harness/stack.py</code>) brings up the proxy, NAT, visualizer, Laya and the Telegram bridge; the Seer is a separate omp session. Server packets flow up into the world model and the store; agent actions flow down through the proxy's injection hub, sharing one walk ladder with the human's own keystrokes. The LLM only ever acts through <code>ctl</code>. Chapters: wire <a class="ref" href="#sec-wire"></a>, world model <a class="ref" href="#sec-world"></a>, runners <a class="ref" href="#sec-lumber"></a>, planner <a class="ref" href="#sec-optimizer"></a>, control plane <a class="ref" href="#sec-seer"></a>.</figcaption>
 </figure>
 
 <p>Two design choices carry most of the weight. First, <strong>the proxy never originates a server-visible packet of its own</strong>: it forwards the client's traffic, it writes the agent's packets in the stock client's exact shapes, and the only thing it ever withholds is a duplicate reply to a target cursor the agent already answered. The fiction that keeps the client's screen honest (for example, a fake "you can't walk there" re-anchor after an agent step) is fabricated <em>toward the client only</em>. Second, <strong>the LLM is a manager, not a pair of hands</strong>. Chopping, walking, fleeing and storing are deterministic controllers with typed failures; an LLM in that loop would be slow, expensive and, as one dungeon fight demonstrated, fatal (<a class="ref" href="#sec-safety"></a>).</p>
@@ -163,13 +164,13 @@
 
 <p>Most of what follows is engineering narrative, but a few pieces are, we think, worth stealing:</p>
 <ol>
-<li><strong>A memory the whole system shares.</strong> One SQLite store that every component writes into and the overseer reads from: 1.7 million events, walk and harvest memory, trips, junctures, chat and a knowledge table with hybrid semantic search on the GPU, a local triage model (Laya) and a fact base vetted from the community Discord (<a class="ref" href="#sec-world"></a>, <a class="ref" href="#sec-seer"></a>).</li>
-<li><strong>Two senders, one character.</strong> A proxy that lets a human and an agent drive the same avatar at once, on one shared walk sequence and fast-walk key ladder, with client-only fabrications that keep the client's view consistent (<a class="ref" href="#sec-wire"></a>). Over 72 logged-in hours it produced zero client-to-server framing desyncs.</li>
+<li><strong>A memory the whole system shares.</strong> One SQLite store that every component writes into and the overseer reads from: 1.7 million events, walk and harvest memory, trips, junctures, chat, and a knowledge table with hybrid semantic search on the GPU that also holds facts vetted from the community Discord. Beside it sit a local triage model (Laya) and the raw Discord corpus in its own database (<a class="ref" href="#sec-world"></a>, <a class="ref" href="#sec-seer"></a>).</li>
+<li><strong>Two senders, one character.</strong> A proxy that lets a human and an agent drive the same avatar at once, on one shared walk sequence and fast-walk key ladder, with client-only fabrications that keep the client's view consistent (<a class="ref" href="#sec-wire"></a>). Re-framing all 65 non-empty captured client streams offline with the final length table (443,502 packets) gives zero client-to-server framing desyncs, and live the proxy logged none after the 09-29 length-table fix (47 sessions, about 67 h); before that fix two targets were misframed without being flagged.</li>
 <li><strong>A packet-built world model with real 3-D pathfinding</strong> from the client's own map files, houses included, and rune libraries read without ever casting a spell (<a class="ref" href="#sec-world"></a>).</li>
 <li><strong>A loop learned from demonstration</strong> and hardened against the shard's hazards, then made <strong>self-optimizing</strong>: Thompson sampling over lumber spots, competing death, sent-home and theft hazards, and a renewal-reward trip size (<a class="ref" href="#sec-lumber"></a>, <a class="ref" href="#sec-optimizer"></a>).</li>
 <li><strong>Survival engineering</strong> measured against an actual player-killer: recall-on-sight in about two seconds, a thief guard, keep-away from monsters, a CAPTCHA solver that went 43 for 43 (<a class="ref" href="#sec-safety"></a>).</li>
 <li><strong>An LLM overseer on a database bus</strong>: junctures, a CLI, a phone bridge and a vetted knowledge base distilled from the community Discord (<a class="ref" href="#sec-seer"></a>).</li>
-<li><strong>A field report on building it with AI agents</strong>: 545 human prompts, 53 top-level sessions and 90 subagents, in which the owner mostly steered and the agents made most of the design decisions themselves, including a loop where the Seer's reports from the field became runner fixes within the hour (<a class="ref" href="#sec-process"></a>).</li>
+<li><strong>A field report on building it with AI agents</strong>: 545 human prompts, 53 top-level sessions and 90 subagents, in which the owner set the goals and made the product and risk calls, and the agents worked out most implementation designs within them <span class="tag inferred">inferred</span> (the record holds 29 "user decision" or "(user, …)" attribution markers in <code>docs/NOTES.md</code> and 19 commit messages with such a marker at afbbf71, but no tally of agent-originated decisions), including a loop where the Seer's reports from the field became runner fixes within the hour (<a class="ref" href="#sec-process"></a>).</li>
 </ol>
 
 <h3 id="sec-intro-guide">How to read this</h3>
@@ -177,5 +178,5 @@
 <p><a class="ref" href="#sec-background"></a> is a crash course in Ultima Online for people who missed 1997. <a class="ref" href="#sec-wire"></a> through <a class="ref" href="#sec-seer"></a> walk up the stack from the network connection to the overseer; each chapter can be read alone. <a class="ref" href="#sec-results"></a> collects the numbers, <a class="ref" href="#sec-process"></a> is about the human&ndash;agent collaboration, and <a class="ref" href="#sec-discussion"></a> covers lessons, limitations and the uncomfortable parts. The appendices hold a timeline, a repository map, a protocol reference and a glossary (<a class="ref" href="#app-glossary"></a>).</p>
 
 <div class="callout aside"><p class="callout-title">Sources and conventions</p>
-<p>Every number in this paper comes from the repository, its git history, the harness's memory database (read-only, snapshot of 2026-10-05 around 20:30) or the 143 AI session logs from two computers. Claims we could not ground directly are marked <span class="tag inferred">inferred</span> or worded as such. Times are local (CDT, UTC&minus;5). Small grey pointers like <span class="src">docs/NOTES.md</span> name the source. The game shard is a live, changing system; treat every rate as "what we measured that week".</p></div>
+<p>Every number in this paper comes from the repository, its git history, the harness's memory database (read-only, snapshot of 2026-10-05 around 20:30 CDT), the proxy's 69 session captures, or the 143 AI session logs from two computers. Claims we could not ground directly are marked <span class="tag inferred">inferred</span> or worded as such. Times are local (CDT, UTC&minus;5). Small grey pointers like <span class="src">docs/NOTES.md</span> name the source. The game shard is a live, changing system; treat every rate as "what we measured that week".</p></div>
 </section>

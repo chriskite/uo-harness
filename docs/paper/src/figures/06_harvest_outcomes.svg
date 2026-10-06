@@ -154,33 +154,33 @@ L -3.5 0
    </g>
    <g id="patch_3">
     <path d="M 77.909063 136.62 
-L 351.478307 136.62 
-L 351.478307 88.397778 
+L 367.146938 136.62 
+L 367.146938 88.397778 
 L 77.909063 88.397778 
 z
 " clip-path="url(#p97464dd6e6)" style="fill: #3d7f4f"/>
    </g>
    <g id="patch_4">
-    <path d="M 351.478307 136.62 
-L 458.919693 136.62 
-L 458.919693 88.397778 
-L 351.478307 88.397778 
+    <path d="M 367.146938 136.62 
+L 480.742011 136.62 
+L 480.742011 88.397778 
+L 367.146938 88.397778 
 z
 " clip-path="url(#p97464dd6e6)" style="fill: #8a8f98"/>
    </g>
    <g id="patch_5">
-    <path d="M 458.919693 136.62 
-L 588.255648 136.62 
-L 588.255648 88.397778 
-L 458.919693 88.397778 
+    <path d="M 480.742011 136.62 
+L 587.893666 136.62 
+L 587.893666 88.397778 
+L 480.742011 88.397778 
 z
 " clip-path="url(#p97464dd6e6)" style="fill: #b4572b"/>
    </g>
    <g id="patch_6">
-    <path d="M 588.255648 136.62 
+    <path d="M 587.893666 136.62 
 L 594.575729 136.62 
 L 594.575729 88.397778 
-L 588.255648 88.397778 
+L 587.893666 88.397778 
 z
 " clip-path="url(#p97464dd6e6)" style="fill: #6b4fa0"/>
    </g>
@@ -235,31 +235,31 @@ L 635.909062 142.92
 " style="fill: none; stroke: #9aa0a8; stroke-width: 0.9; stroke-linejoin: miter; stroke-linecap: square"/>
    </g>
    <g id="text_10">
-    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(204.607903 110.161843)">1,212</text>
-    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(205.469192 119.255349)">53 %</text>
+    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(212.442219 110.161843)">1,212</text>
+    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(214.46761 119.255349)">56%</text>
    </g>
    <g id="text_11">
-    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(398.325953 110.161843)">476</text>
-    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(395.974508 119.255349)">21 %</text>
+    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(417.071427 110.161843)">476</text>
+    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(415.884084 119.255349)">22%</text>
    </g>
    <g id="text_12">
-    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(516.714623 110.161843)">573</text>
-    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(514.363178 119.255349)">25 %</text>
+    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(527.444792 110.161843)">449</text>
+    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(526.257448 119.255349)">21%</text>
    </g>
    <g id="text_13">
-    <text style="font-size: 9px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="599.742396" y="114.83799" transform="rotate(-0 599.742396 114.83799)">2,289</text>
+    <text style="font-size: 9px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="599.742396" y="114.83799" transform="rotate(-0 599.742396 114.83799)">2,165</text>
    </g>
    <g id="text_14">
     <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(174.73488 32.384065)">1,225</text>
-    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(175.596169 41.477571)">41 %</text>
+    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(176.760271 41.477571)">41%</text>
    </g>
    <g id="text_15">
-    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(366.635678 32.384065)">937</text>
-    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(364.284232 41.477571)">32 %</text>
+    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(366.635678 32.384065)">937</text>
+    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(365.448334 41.477571)">32%</text>
    </g>
    <g id="text_16">
     <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(514.042772 32.384065)">752</text>
-    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(511.691327 41.477571)">25 %</text>
+    <text style="font-size: 8.5px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; fill: #1f2328" transform="translate(512.855429 41.477571)">25%</text>
    </g>
    <g id="text_17">
     <text style="font-size: 9px; font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="599.742396" y="37.060213" transform="rotate(-0 599.742396 37.060213)">2,960</text>

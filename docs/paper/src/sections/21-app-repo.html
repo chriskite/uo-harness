@@ -2,26 +2,26 @@
 <h2>Repository map and code metrics</h2>
 <p class="lead">Every module in the repository at the last commit of the build window, grouped by layer, with its line count and a one-line purpose, followed by the tests, the reverse-engineering scripts and the documents.</p>
 
-<p>The numbers are physical lines in the working tree at <code>afbbf71</code> (2026-10-05 20:13, commit 348). Three files had uncommitted edits at measurement time, so the Python total is 54,804 lines in the working tree against 54,764 in the committed blobs <span class="src">brief 08 §3.3</span>. All 348 commits carry one author identity. In practice omp coding-agent sessions wrote them at the owner's direction: 300 on the laptop, then 48 on the desktop after it was cloned on 2026-10-04 at 15:58.</p>
+<p>The numbers are physical lines (newline counts) in the working tree at <code>afbbf71</code> (2026-10-05 20:13, commit 348); commit counts per file leave out the 4 merge commits (348 = 344 + 4). Three files had uncommitted edits at measurement time, so the Python total is 54,803 lines in the working tree against 54,764 in the committed blobs <span class="src">data/21_loc_by_layer.json</span>. All 348 commits carry one author identity. In practice omp coding-agent sessions wrote them at the owner's direction: 300 on the laptop, then 48 on the desktop after it was cloned on 2026-10-04 at 15:58.</p>
 
-<pre><code>harness/            83 modules, 35,168 lines (the system itself)
+<pre><code>harness/            83 modules, 35,167 lines (the system itself)
   uo/  world/       wire codecs; packet-driven world model
   data/  testdata/  committed fixtures: rune libraries, captcha font, gump captures
   test_*.py         41 unit/integration suites, 13,096 lines
 test_*.py           5 end-to-end suites at the root, 5,350 lines
 viz/src/            React + TypeScript visualizer, 66 files, 9,672 lines
 ghidra_scripts/     23 Java scripts, 1,397 lines
-*.py *.ps1 *.cmd    24 RE and operations scripts at the root, 1,492 lines
-docs/  docs/research/  docs/missions/   28 Markdown files in all
+*.py *.ps1 *.bat *.cmd  24 RE and operations scripts at the root, 1,492 lines
+docs/  docs/research/  docs/missions/   29 Markdown files (root + docs/)
 logs/               10 committed capture sessions</code></pre>
 
-<p>Two things stand out. The code is top-heavy at both ends. The lumber runner (<code>loop_lumber.py</code>, 3,443 lines) and the overseer's CLI (<code>ctl.py</code>, 3,327) are the two largest files and also the two most-changed code files (67 and 73 commits). The wire layer, which took the first two days, is comparatively small: the proxy itself is 1,087 lines, and the codecs under <code>uo/</code> are about 670. The project also writes more prose than code: the prose docs (192,421 words, excluding the generated Discord digest) outnumber Python lines 3.5 to 1, and <code>docs/NOTES.md</code> alone was touched by 160 of the 348 commits <span class="src">brief 08 §3.4–3.5</span>. Rule 0 of <code>AGENTS.md</code> asks every session to leave its knowledge in the repository, and these numbers are what that rule looks like over eight days.</p>
+<p>Two things stand out. The code is top-heavy at both ends. The lumber runner (<code>loop_lumber.py</code>, 3,443 lines) and the overseer's CLI (<code>ctl.py</code>, 3,327) are the two largest files and also the two most-changed code files (67 and 73 commits). The wire layer, which took the first two days, is comparatively small: the proxy itself is 1,087 lines, and the codecs under <code>uo/</code> are about 670. The project also writes more prose than code: the prose docs (192,421 words, excluding the generated Discord digest) outnumber Python lines 3.5 to 1, and <code>docs/NOTES.md</code> alone was touched by 160 of the 344 non-merge commits <span class="src">data/21_loc_by_layer.json; data/11_loc_growth.json; <code>git log --no-merges afbbf71</code></span>. Rule 0 of <code>AGENTS.md</code> asks every session to leave its knowledge in the repository, and these numbers are what that rule looks like over nine days.</p>
 
-<figure class="fig" id="fig-app-repo-loc"><!--#include figures/21_loc_by_layer.svg--><figcaption>Lines of code by layer at HEAD. The layer assignment is this appendix's own (tables below). Within the harness core, runners and the overseer's tools are the two big blocks; tests add up to about half the size of the harness core. Source: <code>loc_by_module.json</code>, working tree at <code>afbbf71</code>, 2026-10-05.</figcaption></figure>
+<figure class="fig" id="fig-app-repo-loc"><!--#include figures/21_loc_by_layer.svg--><figcaption>Lines of code by layer at HEAD. The layer assignment is this appendix's own (tables below). Within the harness core, runners and the overseer's tools are the two big blocks; tests add up to about half the size of the harness core. Source: <code>data/21_loc_by_layer.json</code>, newline counts in the working tree at <code>afbbf71</code>, 2026-10-05.</figcaption></figure>
 
 <h3 id="app-repo-core">Harness modules by layer</h3>
 <p>Purposes are condensed from each module's docstring. Each table is sorted by size. Several modules could sit in two layers. For example, <code>agent_gate.py</code> lives in the runners table but is enforced inside the proxy; <code>memory.py</code> is written by the proxy and read by everyone. We placed each one where its main caller lives.</p>
-<figure class="tbl" id="tab-app-repo-proxy"><figcaption>The proxy and protocol layer: interception, framing, ciphers and packet builders. 17 files, 3,011 lines.</figcaption><div class="tbl-scroll"><table class="compact">
+<figure class="tbl" id="tab-app-repo-proxy"><figcaption>The proxy and protocol layer: interception, framing, ciphers and packet builders. 17 files, 3,010 lines.</figcaption><div class="tbl-scroll"><table class="compact">
 <thead><tr><th>Module (<code>harness/</code>)</th><th class="num">Lines</th><th>Purpose</th></tr></thead>
 <tbody>
 <tr><td><code>proxy.py</code></td><td class="num">1,087</td><td>The proxy: relay, tap, MoveAuthority, injection hub, state port</td></tr>
@@ -40,7 +40,7 @@ logs/               10 committed capture sessions</code></pre>
 <tr><td><code>inject.py</code></td><td class="num">65</td><td>Drive action injections into the live proxy (Phase 3 validation)</td></tr>
 <tr><td><code>walk_cli.py</code></td><td class="num">64</td><td>Terminal arrow-key walk control through the proxy</td></tr>
 <tr><td><code>uo/outlands_table.py</code></td><td class="num">41</td><td>Authoritative Outlands packet length table</td></tr>
-<tr><td><code>uo/__init__.py</code></td><td class="num">1</td><td>Package marker</td></tr>
+<tr><td><code>uo/__init__.py</code></td><td class="num">0</td><td>Package marker (empty)</td></tr>
 </tbody></table></div></figure>
 <figure class="tbl" id="tab-app-repo-world"><figcaption>World model, map and memory: what the harness knows and remembers. 12 files, 4,978 lines.</figcaption><div class="tbl-scroll"><table class="compact">
 <thead><tr><th>Module (<code>harness/</code>)</th><th class="num">Lines</th><th>Purpose</th></tr></thead>
@@ -128,13 +128,13 @@ logs/               10 committed capture sessions</code></pre>
 <tr><td><code>facet.py</code></td><td class="num">107</td><td>Facet picture reader served as PNG chunks</td></tr>
 <tr><td><code>pngenc.py</code></td><td class="num">25</td><td>Minimal stdlib PNG writer</td></tr>
 <tr><td><code>viz/src/components/*.tsx</code> (23)</td><td class="num">3,559</td><td>React panels: map grid, jobs, overseer chat, live view, gate controls, inspectors (largest <code>MapGrid.tsx</code> 757)</td></tr>
-<tr><td><code>viz/src/*.ts</code> (24)</td><td class="num">2,835</td><td>Store, SSE client, event and job reducers, projections (largest <code>jobs.ts</code> 710)</td></tr>
+<tr><td><code>viz/src/**/*.ts</code> + <code>App.tsx</code>, <code>main.tsx</code> (24)</td><td class="num">2,835</td><td>Store, SSE client, event and job reducers, projections (largest <code>jobs.ts</code> 710)</td></tr>
 <tr><td><code>viz/src/*.test.ts</code> (18)</td><td class="num">1,319</td><td>Bun tests: 128 cases</td></tr>
 <tr><td><code>viz/src/App.css</code> (1)</td><td class="num">1,959</td><td>The whole stylesheet</td></tr>
 </tbody></table></div></figure>
 
 <h3 id="app-repo-tests">Tests</h3>
-<p>Most suites run offline against captured sessions or stand-ins (a fake Bot API, a simulated game server speaking the real wire format), and none of them connects to the game server. The pattern that dominates the later days is visible in the end-to-end runner tests: every live incident becomes a scenario that fails against the old code. Pass counts quoted in commits range from 118 world-model checks on 09-28 to 53,277/53,277 re-encoded server packets on 09-29 <span class="src">brief 08 §3.3</span>.</p>
+<p>Most suites run offline against captured sessions or stand-ins (a fake Bot API, a simulated game server speaking the real wire format), and none of them connects to the game server. The pattern that dominates the later days is visible in the end-to-end runner tests: every live incident becomes a scenario that fails against the old code. Pass counts quoted in commits range from 118 world-model checks on 09-28 to 53,277/53,277 re-encoded server packets on 09-29 <span class="src">commit messages, <code>git log afbbf71</code></span>.</p>
 <figure class="tbl" id="tab-app-repo-tests"><figcaption>Python tests: 46 files, 18,446 lines, 224 <code>def test_</code> functions and 1,748 <code>assert</code>/<code>check(</code> call sites. A dash means the suite uses the homegrown <code>check()</code> + <code>main()</code> runner instead of pytest-style functions. Root-level files are end-to-end tests; the rest live in <code>harness/</code>.</figcaption><div class="tbl-scroll"><table class="compact">
 <thead><tr><th>File</th><th class="num">Lines</th><th class="num"><code>test_</code></th><th>Covers</th></tr></thead>
 <tbody>
@@ -218,37 +218,37 @@ logs/               10 committed capture sessions</code></pre>
 </tbody></table></div></figure>
 
 <h3 id="app-repo-docs">Documents</h3>
-<figure class="tbl" id="tab-app-repo-docs"><figcaption>The 28 Markdown files at HEAD with words, lines and the number of commits that touched each. 665,598 words in all, 192,421 without the generated Discord digest. Source: <code>doc_growth.json</code>, brief 08 §3.4.</figcaption><div class="tbl-scroll"><table class="compact">
+<figure class="tbl" id="tab-app-repo-docs"><figcaption>The 29 Markdown files at HEAD with words, lines (newline counts) and the number of non-merge commits that touched each. 665,598 words in all, 192,421 without the generated Discord digest. Source: <code>git show afbbf71:&lt;file&gt;</code> and <code>git log --no-merges afbbf71 -- &lt;file&gt;</code>.</figcaption><div class="tbl-scroll"><table class="compact">
 <thead><tr><th>Document</th><th class="num">Words</th><th class="num">Lines</th><th class="num">Commits</th></tr></thead>
 <tbody>
-<tr><td><code>docs/research/DISCORD_KB.md</code> (generated)</td><td class="num">473,177</td><td class="num">13,708</td><td class="num">2</td></tr>
-<tr><td><code>docs/NOTES.md</code></td><td class="num">32,693</td><td class="num">1,705</td><td class="num">160</td></tr>
-<tr><td><code>docs/LUMBER_LOOP.md</code></td><td class="num">20,867</td><td class="num">1,484</td><td class="num">83</td></tr>
-<tr><td><code>docs/research/DEVICE_ID_RE.md</code></td><td class="num">18,644</td><td class="num">4,914</td><td class="num">2</td></tr>
-<tr><td><code>docs/PLAN.md</code></td><td class="num">18,081</td><td class="num">1,209</td><td class="num">98</td></tr>
-<tr><td><code>docs/OVERSEER.md</code></td><td class="num">14,006</td><td class="num">630</td><td class="num">95</td></tr>
-<tr><td><code>ANTICHEAT.md</code></td><td class="num">10,638</td><td class="num">538</td><td class="num">56</td></tr>
-<tr><td><code>docs/WORLDMODEL.md</code></td><td class="num">10,552</td><td class="num">1,017</td><td class="num">18</td></tr>
-<tr><td><code>docs/VISUALIZER.md</code></td><td class="num">10,363</td><td class="num">950</td><td class="num">52</td></tr>
-<tr><td><code>docs/HUNT_LOOP.md</code></td><td class="num">7,942</td><td class="num">605</td><td class="num">11</td></tr>
-<tr><td><code>docs/research/THREATS.md</code></td><td class="num">7,681</td><td class="num">608</td><td class="num">9</td></tr>
-<tr><td><code>docs/research/TRAVEL_DEATH.md</code></td><td class="num">6,496</td><td class="num">467</td><td class="num">6</td></tr>
-<tr><td><code>docs/MOVEMENT.md</code></td><td class="num">5,698</td><td class="num">458</td><td class="num">20</td></tr>
-<tr><td><code>docs/research/ECONOMY.md</code></td><td class="num">5,105</td><td class="num">494</td><td class="num">9</td></tr>
-<tr><td><code>docs/MAP.md</code></td><td class="num">2,929</td><td class="num">328</td><td class="num">6</td></tr>
-<tr><td><code>docs/MEMORY.md</code></td><td class="num">2,516</td><td class="num">180</td><td class="num">25</td></tr>
-<tr><td><code>docs/research/SPELL_INTERRUPTS.md</code></td><td class="num">2,369</td><td class="num">178</td><td class="num">1</td></tr>
-<tr><td><code>SETUP.md</code></td><td class="num">2,308</td><td class="num">249</td><td class="num">6</td></tr>
-<tr><td><code>docs/research/WORLD_LOCATIONS.md</code></td><td class="num">1,986</td><td class="num">137</td><td class="num">5</td></tr>
-<tr><td><code>docs/ROADMAP.md</code></td><td class="num">1,896</td><td class="num">129</td><td class="num">15</td></tr>
-<tr><td><code>docs/PROTOCOL.md</code></td><td class="num">1,855</td><td class="num">96</td><td class="num">6</td></tr>
-<tr><td><code>README.md</code></td><td class="num">1,337</td><td class="num">83</td><td class="num">25</td></tr>
-<tr><td><code>HANDOFF.md</code></td><td class="num">1,287</td><td class="num">134</td><td class="num">39</td></tr>
-<tr><td><code>docs/missions/YOUNG_DEMOS.md</code></td><td class="num">1,176</td><td class="num">122</td><td class="num">3</td></tr>
-<tr><td><code>docs/CIPHER.md</code></td><td class="num">964</td><td class="num">105</td><td class="num">3</td></tr>
-<tr><td><code>AGENTS.md</code></td><td class="num">943</td><td class="num">39</td><td class="num">9</td></tr>
-<tr><td><code>docs/INTERCEPTION.md</code></td><td class="num">845</td><td class="num">50</td><td class="num">5</td></tr>
-<tr><td><code>mrt_notes.md</code></td><td class="num">810</td><td class="num">98</td><td class="num">1</td></tr>
-<tr><td><code>docs/WORLDSTATE.md</code> (superseded)</td><td class="num">434</td><td class="num">58</td><td class="num">2</td></tr>
+<tr><td><code>docs/research/DISCORD_KB.md</code> (generated)</td><td class="num">473,177</td><td class="num">13,707</td><td class="num">2</td></tr>
+<tr><td><code>docs/NOTES.md</code></td><td class="num">32,693</td><td class="num">1,704</td><td class="num">160</td></tr>
+<tr><td><code>docs/LUMBER_LOOP.md</code></td><td class="num">20,867</td><td class="num">1,483</td><td class="num">83</td></tr>
+<tr><td><code>docs/research/DEVICE_ID_RE.md</code></td><td class="num">18,644</td><td class="num">4,913</td><td class="num">2</td></tr>
+<tr><td><code>docs/PLAN.md</code></td><td class="num">18,081</td><td class="num">1,208</td><td class="num">98</td></tr>
+<tr><td><code>docs/OVERSEER.md</code></td><td class="num">14,006</td><td class="num">629</td><td class="num">95</td></tr>
+<tr><td><code>ANTICHEAT.md</code></td><td class="num">10,638</td><td class="num">537</td><td class="num">56</td></tr>
+<tr><td><code>docs/WORLDMODEL.md</code></td><td class="num">10,552</td><td class="num">1,016</td><td class="num">18</td></tr>
+<tr><td><code>docs/VISUALIZER.md</code></td><td class="num">10,363</td><td class="num">949</td><td class="num">52</td></tr>
+<tr><td><code>docs/HUNT_LOOP.md</code></td><td class="num">7,942</td><td class="num">604</td><td class="num">11</td></tr>
+<tr><td><code>docs/research/THREATS.md</code></td><td class="num">7,681</td><td class="num">607</td><td class="num">9</td></tr>
+<tr><td><code>docs/research/TRAVEL_DEATH.md</code></td><td class="num">6,496</td><td class="num">466</td><td class="num">6</td></tr>
+<tr><td><code>docs/MOVEMENT.md</code></td><td class="num">5,698</td><td class="num">457</td><td class="num">20</td></tr>
+<tr><td><code>docs/research/ECONOMY.md</code></td><td class="num">5,105</td><td class="num">493</td><td class="num">9</td></tr>
+<tr><td><code>docs/MAP.md</code></td><td class="num">2,929</td><td class="num">327</td><td class="num">6</td></tr>
+<tr><td><code>docs/MEMORY.md</code></td><td class="num">2,516</td><td class="num">179</td><td class="num">25</td></tr>
+<tr><td><code>docs/research/SPELL_INTERRUPTS.md</code></td><td class="num">2,369</td><td class="num">177</td><td class="num">1</td></tr>
+<tr><td><code>SETUP.md</code></td><td class="num">2,308</td><td class="num">248</td><td class="num">6</td></tr>
+<tr><td><code>docs/research/WORLD_LOCATIONS.md</code></td><td class="num">1,986</td><td class="num">136</td><td class="num">5</td></tr>
+<tr><td><code>docs/ROADMAP.md</code></td><td class="num">1,896</td><td class="num">128</td><td class="num">15</td></tr>
+<tr><td><code>docs/PROTOCOL.md</code></td><td class="num">1,855</td><td class="num">95</td><td class="num">6</td></tr>
+<tr><td><code>README.md</code></td><td class="num">1,337</td><td class="num">82</td><td class="num">25</td></tr>
+<tr><td><code>HANDOFF.md</code></td><td class="num">1,287</td><td class="num">133</td><td class="num">39</td></tr>
+<tr><td><code>docs/missions/YOUNG_DEMOS.md</code></td><td class="num">1,176</td><td class="num">121</td><td class="num">3</td></tr>
+<tr><td><code>docs/CIPHER.md</code></td><td class="num">964</td><td class="num">104</td><td class="num">3</td></tr>
+<tr><td><code>AGENTS.md</code></td><td class="num">943</td><td class="num">38</td><td class="num">9</td></tr>
+<tr><td><code>docs/INTERCEPTION.md</code></td><td class="num">845</td><td class="num">49</td><td class="num">5</td></tr>
+<tr><td><code>mrt_notes.md</code></td><td class="num">810</td><td class="num">97</td><td class="num">1</td></tr>
+<tr><td><code>docs/WORLDSTATE.md</code> (superseded)</td><td class="num">434</td><td class="num">57</td><td class="num">2</td></tr>
 </tbody></table></div></figure>
 </section>

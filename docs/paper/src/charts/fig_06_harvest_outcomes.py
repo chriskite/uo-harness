@@ -29,8 +29,8 @@ for yi, (era, label) in enumerate(eras):
         share = 100 * n / tot
         ax.barh(yi, share, left=left, color=color, height=0.62, label=name if yi == 1 or k == "nothing_near" else None)
         if share >= 4:
-            ax.text(left + share / 2, yi, f"{n:,}\n{share:.0f} %", ha="center", va="center", fontsize=8.5,
-                    color="white" if k in ("success", "fail") else "#1f2328")
+            ax.text(left + share / 2, yi, f"{n:,}\n{share:.0f}%", ha="center", va="center", fontsize=8.5,
+                    color="white" if k == "success" else "#1f2328")
         left += share
     ax.text(101, yi, f"{tot:,}", va="center", fontsize=9)
 ax.set_yticks(range(len(eras)), [e[1] for e in eras])

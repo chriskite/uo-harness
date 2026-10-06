@@ -12,7 +12,7 @@ SHORT = [  # one short label per heuristic shift, same order as d["shifts"]
     "TestWorth: Young demos", "TestWorth: HSB lumber", "TestWorth: trip, wipe",
     "Hackworth: Shelter lumber", "NPD", "", "Hackworth: hunt, horse, lumber, PK test",
     "runebook research", "Shackleworth quest \u2192 Hackworth in Seer voice", "Urukton; LumberSeer",
-    "Outland Dan: DTF", "room trip", "Outland Dan: room loop", "Outland Dan: 3,962 boards",
+    "Outland Dan: DTF", "room trip", "Outland Dan: room loop", "Outland Dan: Seer4\u20136",
 ]
 CHAR = {"TestWorth": PALETTE[6], "Hackworth": PALETTE[0], "Shackleworth": PALETTE[4], "Outland Dan": PALETTE[2]}
 

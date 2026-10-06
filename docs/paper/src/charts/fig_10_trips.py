@@ -35,7 +35,7 @@ for char, color in colors.items():
                    label=f"{char}, {'completed' if done else 'aborted'}", zorder=3)
 
 ax.axhline(355, color=INK3, lw=1.1, ls="--", zorder=1)
-ax.text(41.5, 430, "09-29 Shelter baseline ≈ 355 boards per agent-active hour", fontsize=8.8, color=INK2)
+ax.text(41.5, 430, "09-29 Shelter baseline (Run 3) ≈ 355 logs (= boards)/trip-h", fontsize=8.8, color=INK2)
 best = max(range(len(trips)), key=lambda i: trips[i]["logs_per_trip_hour"] or 0)
 ax.annotate(f'trip {trips[best]["id"]}: {trips[best]["logs"]:,} logs in {trips[best]["duration_min"]:.1f} min',
             (best, trips[best]["logs_per_trip_hour"]), xytext=(-60, 28), textcoords="offset points", fontsize=8.8,

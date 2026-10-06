@@ -1,11 +1,11 @@
 {
- "source": "local://data/loc_by_module.json (research dataset; working tree at HEAD afbbf71, 2026-10-05; physical lines). Layer assignment by this appendix.",
+ "source": "research dataset loc_by_module.json (working tree at HEAD afbbf71, 2026-10-05; newline counts, so the empty uo/__init__.py is 0). Layer assignment by this appendix.",
  "layers": [
   {
    "key": "proxy",
    "name": "Proxy and protocol",
    "files": 17,
-   "lines": 3011,
+   "lines": 3010,
    "modules": [
     {
      "module": "proxy.py",
@@ -89,8 +89,8 @@
     },
     {
      "module": "uo/__init__.py",
-     "lines": 1,
-     "purpose": "Package marker"
+     "lines": 0,
+     "purpose": "Package marker (empty)"
     }
    ]
   },
