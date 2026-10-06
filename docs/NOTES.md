@@ -775,6 +775,12 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   stopped the task and `act recall` landed home, Seer6 disabled witcher_137. Now a walk aborts as
   "boxed in" after `DANGER_STALL_REPLANS` (10) danger replans without a shorter route, and the
   runner disables the spot, posts an attention `stuck` juncture and recalls home (`boxed_in`).
+- **Caught at Sacred Pools (lumber-20261005-223558-365b, witcher_82, 22:36, Seer6):** the landing
+  (1388,1839) was 6 tiles from a headless (1386,1833). The zone we stand in shrank to 5, then
+  shrank again on every step in (it is recomputed from where we stand), so the route to tree 1367,1829
+  crept to 4 tiles. The headless came at 3, caught up at 1 while we walked away, and we recalled
+  home (99/100, 0 boards). Now a shrunk zone keeps its radius while its creature stands still
+  (`aggro_zones`), and depth costs lead the route out.
 - **Runs ending at the landing with logs unconverted, and the witcher_46 swing (Seer6, 20:57–21:15):**
   run 4 (lumber-20261005-205742-040a, witcher_46): the walk swung between (2798,424) and (2801,426),
   routes 86 and 62 steps, on every step as wolves and a wolfhound moved round a reaper. It was boxed

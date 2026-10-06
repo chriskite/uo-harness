@@ -2670,6 +2670,19 @@ def unit_zone_view_edge():
     fake.aggro_zones(gone)
     check("one that vanished 6 tiles off (despawned, hidden: not walked out of view) leaves no route zone",
           ("seen", 0x223) not in mover.danger, str(mover.danger))
+    # live 2026-10-05 (Sacred Pools): landed 6 tiles from a headless; the zone shrank to 5, then a tile more per step in
+    head = SimpleNamespace(serial=0x224, name="a headless", body=0x1F, kind="monster", hostile=False,
+                           aggression="default", distance=6, flee_radius=8)
+    fake.last_threats = SimpleNamespace(threats=[head])
+    at = [(100, 100)]
+    fake.link = SimpleNamespace(pos=lambda st: (*at[0], 0, 0))
+    hl = {"world": {"mobiles": {"0x00000224": {"x": 106, "y": 100}}}}
+    fake.aggro_zones(hl)
+    first = mover.danger.get(("seen", 0x224))
+    at[0] = (101, 100)                                   # a step toward it (5 tiles): it didn't move
+    fake.aggro_zones(hl)
+    check("a zone we stand in shrinks to just inside us once, not a tile more per step in",
+          first == ((106, 100), 5) and mover.danger.get(("seen", 0x224)) == ((106, 100), 5), str(mover.danger))
 
 
 def unit_boxed_in():

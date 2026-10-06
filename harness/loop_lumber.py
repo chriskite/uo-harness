@@ -2126,9 +2126,22 @@ class LumberLoop:
         # one gone from view near us was removed (despawned, hidden, dead), not left behind by our move
         guards = [g for g in self.tree_guards(st) if g[0].serial in in_view or (
             g[0].distance >= VIEW_EDGE_R and now - self.recent_guards[g[0].serial][3] <= ROUTE_ZONE_S)]
-        zones = {("seen", t.serial): (xy, min(r, cheb(here, xy) - 1)) for t, xy, r in guards}
-        zones = {k: z for k, z in zones.items() if z[1] >= 0}
         old = {k: v for k, v in self.mover.danger.items() if isinstance(k, tuple) and k[0] == "seen"}
+        zones = {}
+        for t, xy, r in guards:
+            k, d = ("seen", t.serial), cheb(here, xy)
+            prev = old.get(k)
+            if d > r:
+                z = r
+            elif prev is not None and tuple(prev[0]) == tuple(xy):
+                # the creature stood still: its shrunk zone stays as it was, or each step in would shrink
+                # it a tile more (live 2026-10-05, Sacred Pools: from a landing 6 tiles from a headless
+                # the route crept to 4, it came at 3 and caught us); depth costs still lead us out
+                z = prev[1]
+            else:
+                z = min(r, d - 1)
+            if z >= 0:
+                zones[k] = (xy, z)
         for k in old.keys() - zones.keys():
             del self.mover.danger[k]
         for k, (xy, r) in zones.items():
