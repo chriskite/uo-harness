@@ -1,5 +1,5 @@
 {
- "source": "local://data/incidents.json captchas (harness.db events, read-only): every real captcha gump (id 1) to its 0xB1 answer; all 53 followed by \"Captcha successful.\"",
+ "source": "local://data/incidents.json method (P1 ReSafetyHunt/ReResultsData) re-run on the frozen harness.db copy of 2026-10-06 12:00 CDT (events, read-only, t < CUT) + logs/session_*.jsonl C2S 0xB1: every real captcha gump (id 1 with a text entry) to its 0xB1 answer; all 67 followed by \"Captcha successful.\" (57 answered by the solver, 10 by the owner).",
  "rows": [
   {
    "date": "2026-09-29 20:44:59",
@@ -134,7 +134,7 @@
   {
    "date": "2026-10-03 16:32:33",
    "by": "agent",
-   "answer_s": 22.5
+   "answer_s": 22.49
   },
   {
    "date": "2026-10-03 17:20:31",
@@ -219,7 +219,7 @@
   {
    "date": "2026-10-05 13:57:59",
    "by": "agent",
-   "answer_s": 8.42
+   "answer_s": 8.41
   },
   {
    "date": "2026-10-05 16:03:37",
@@ -265,18 +265,88 @@
    "date": "2026-10-05 20:16:28",
    "by": "agent",
    "answer_s": 16.75
+  },
+  {
+   "date": "2026-10-05 20:58:10",
+   "by": "agent",
+   "answer_s": 11.14
+  },
+  {
+   "date": "2026-10-05 21:25:23",
+   "by": "agent",
+   "answer_s": 12.69
+  },
+  {
+   "date": "2026-10-05 21:44:38",
+   "by": "agent",
+   "answer_s": 16.16
+  },
+  {
+   "date": "2026-10-05 22:06:56",
+   "by": "agent",
+   "answer_s": 14.58
+  },
+  {
+   "date": "2026-10-05 22:34:11",
+   "by": "agent",
+   "answer_s": 12.22
+  },
+  {
+   "date": "2026-10-05 23:01:27",
+   "by": "agent",
+   "answer_s": 14.61
+  },
+  {
+   "date": "2026-10-05 23:24:45",
+   "by": "agent",
+   "answer_s": 17.59
+  },
+  {
+   "date": "2026-10-06 09:52:05",
+   "by": "agent",
+   "answer_s": 13.1
+  },
+  {
+   "date": "2026-10-06 10:10:22",
+   "by": "agent",
+   "answer_s": 8.3
+  },
+  {
+   "date": "2026-10-06 10:35:31",
+   "by": "agent",
+   "answer_s": 13.18
+  },
+  {
+   "date": "2026-10-06 10:52:41",
+   "by": "agent",
+   "answer_s": 10.02
+  },
+  {
+   "date": "2026-10-06 11:10:55",
+   "by": "agent",
+   "answer_s": 14.28
+  },
+  {
+   "date": "2026-10-06 11:30:14",
+   "by": "agent",
+   "answer_s": 5.18
+  },
+  {
+   "date": "2026-10-06 11:55:22",
+   "by": "agent",
+   "answer_s": 20.69
   }
  ],
  "digit_counts": {
   "0": 0,
-  "1": 21,
-  "2": 18,
-  "3": 19,
-  "4": 18,
-  "5": 13,
-  "6": 12,
-  "7": 23,
-  "8": 20,
-  "9": 15
+  "1": 25,
+  "2": 22,
+  "3": 24,
+  "4": 21,
+  "5": 21,
+  "6": 14,
+  "7": 25,
+  "8": 28,
+  "9": 21
  }
 }

@@ -1,12 +1,12 @@
 {
- "source": "logs/session_*.jsonl, 69 sessions 2026-09-28 \u2192 10-05 grouped by session start date (research dataset proxy_sessions.json)",
+ "source": "logs/session_*.jsonl, 69 sessions 2026-09-28 → 2026-10-06 12:00 CDT (rows with t < 1791306000; the live capture 20261005_194043 is cut there), counted from dir/src/ev rows as in research dataset proxy_sessions.json (c2s_client includes the 16,479 untagged C2S packets from before 2026-09-29 14:22); days are local CDT dates of the rows, so a session that runs past midnight is split; hours = per-session span of rows within the day",
  "totals": {
-  "c2s_client": 363443,
-  "s2c_server": 2242441,
-  "c2s_agent": 75113,
-  "s2c_proxy": 52699
+  "c2s_client": 423349,
+  "s2c_server": 2619434,
+  "c2s_agent": 94295,
+  "s2c_proxy": 65534
  },
- "hours": 72.0,
+ "hours": 87.6,
  "days": [
   {
    "day": "09-28",
@@ -54,8 +54,8 @@
   },
   {
    "day": "10-02",
-   "hours": 20.17,
-   "c2s_client": 95270,
+   "hours": 10.04,
+   "c2s_client": 58892,
    "c2s_agent": 13384,
    "reanchor": 9162,
    "target_cancel": 1574,
@@ -65,8 +65,8 @@
   },
   {
    "day": "10-03",
-   "hours": 12.44,
-   "c2s_client": 85404,
+   "hours": 22.57,
+   "c2s_client": 121782,
    "c2s_agent": 21546,
    "reanchor": 16895,
    "target_cancel": 1443,
@@ -87,14 +87,25 @@
   },
   {
    "day": "10-05",
-   "hours": 10.74,
-   "c2s_client": 48542,
-   "c2s_agent": 19145,
-   "reanchor": 11845,
-   "target_cancel": 2038,
-   "gump_close": 387,
-   "confirm_hidden": 11841,
-   "spent_drop": 2038
+   "hours": 14.34,
+   "c2s_client": 65020,
+   "c2s_agent": 31116,
+   "reanchor": 18470,
+   "target_cancel": 3527,
+   "gump_close": 610,
+   "confirm_hidden": 18465,
+   "spent_drop": 3527
+  },
+  {
+   "day": "10-06",
+   "hours": 12.0,
+   "c2s_client": 43428,
+   "c2s_agent": 7211,
+   "reanchor": 3255,
+   "target_cancel": 1090,
+   "gump_close": 153,
+   "confirm_hidden": 3255,
+   "spent_drop": 1090
   }
  ]
 }

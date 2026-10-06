@@ -1,5 +1,5 @@
 {
- "source": "local://data/incidents.json (research brief 06; docs/NOTES.md, docs/PLAN.md, harness.db read-only); N2 time inferred from DB juncture 192 (10-03 16:45:12)",
+ "source": "local://data/incidents.json (research brief 06; docs/NOTES.md, docs/PLAN.md, harness.db read-only) for D1-D11, N1-N4, T1, F1-F2; D12, D13, N5 and F3 (after 2026-10-05 20:30 CDT) from the frozen memory DB copy harness_20261006_1200.db (events death, job_events lumber recall/pk_seen/thief, junctures 316-378, t < 2026-10-06 12:00 CDT) and docs/NOTES.md at ee59524; N2 time inferred from DB juncture 192 (10-03 16:45:12)",
  "incidents": [
   {
    "id": "D1",
@@ -179,6 +179,46 @@
    "kind": "death",
    "cause": "monster, runner trip",
    "fix": "605782b",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "D12",
+   "date": "2026-10-05",
+   "time": "20:43",
+   "character": "Outland Dan",
+   "kind": "death",
+   "cause": "monster, runner trip",
+   "fix": "8ad0908",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "N5",
+   "date": "2026-10-06",
+   "time": "09:54",
+   "character": "Outland Dan",
+   "kind": "near-death",
+   "cause": "monster, runner trip",
+   "fix": "87bbcab",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "D13",
+   "date": "2026-10-06",
+   "time": "10:14",
+   "character": "Outland Dan",
+   "kind": "death",
+   "cause": "monster, runner trip",
+   "fix": "ade127e, 5589433",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "F3",
+   "date": "2026-10-06",
+   "time": "11:38",
+   "character": "Outland Dan",
+   "kind": "false_alarm",
+   "cause": "false alarm",
+   "fix": "5e70fad, ee59524",
    "sight_to_death_s": null
   }
  ]

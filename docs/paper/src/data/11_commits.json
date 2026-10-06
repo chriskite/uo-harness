@@ -1,5 +1,5 @@
 {
- "source": "git log author dates (CDT), commits_by_day.json + commits_by_hour.json",
+ "source": "git log ee59524 author dates (CDT), 389 commits; per-day lines added from --numstat (python/docs/viz); docs/paper/ (the paper itself, added 2026-10-05) excluded",
  "by_day": [
   {
    "date": "2026-09-27",
@@ -75,12 +75,21 @@
   },
   {
    "date": "2026-10-05",
-   "commits": 31,
+   "commits": 54,
    "first": "09:54",
-   "last": "20:13",
-   "python_added": 3281,
-   "docs_added": 649,
-   "viz_added": 108
+   "last": "23:57",
+   "python_added": 4069,
+   "docs_added": 866,
+   "viz_added": 499
+  },
+  {
+   "date": "2026-10-06",
+   "commits": 18,
+   "first": "09:29",
+   "last": "11:49",
+   "python_added": 721,
+   "docs_added": 89,
+   "viz_added": 3
   }
  ],
  "by_hour": [
@@ -122,15 +131,15 @@
   },
   {
    "hour": 9,
-   "commits": 8
-  },
-  {
-   "hour": 10,
    "commits": 11
   },
   {
+   "hour": 10,
+   "commits": 16
+  },
+  {
    "hour": 11,
-   "commits": 25
+   "commits": 35
   },
   {
    "hour": 12,
@@ -166,19 +175,19 @@
   },
   {
    "hour": 20,
-   "commits": 33
+   "commits": 35
   },
   {
    "hour": 21,
-   "commits": 21
+   "commits": 26
   },
   {
    "hour": 22,
-   "commits": 30
+   "commits": 39
   },
   {
    "hour": 23,
-   "commits": 12
+   "commits": 19
   }
  ]
 }

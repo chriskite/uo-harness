@@ -1,5 +1,5 @@
 {
- "_source": "harness/data/harness.db knowledge table, read-only copy; no knowledge row was created after 2026-10-05 20:10 CDT, so the counts equal the 20:30 snapshot. composition: SELECT source_type, kind, count(*) FROM knowledge WHERE status='active' GROUP BY 1,2. importance: SELECT source_type, importance, count(*) ... status='active'. returned: SELECT source_type, count(*), sum(access_count>0), sum(access_count) FROM knowledge WHERE status='active' GROUP BY 1 (access_count counts every search/brief result, including ctl calls coding agents made while testing; read on a copy made ~23:35 CDT; no knowledge row has last_access_t after 20:30, so access stats equal the snapshot).",
+ "_source": "Frozen copy harness_20261006_1200.db of harness/data/harness.db (SQLite online backup API, 2026-10-06 12:00:05 CDT), knowledge table, read through a mode=ro connection; no knowledge row was created after 2026-10-05 20:10 CDT, so status, composition, importance and confidence equal the 2026-10-05 20:30 values; access counts changed (9 entries were returned between 20:30 and 12:00, none after 12:00). composition: SELECT source_type, kind, count(*) FROM knowledge WHERE status='active' GROUP BY 1,2. importance: SELECT source_type, importance, count(*) ... status='active'. returned: SELECT source_type, count(*), sum(access_count>0), sum(access_count) FROM knowledge WHERE status='active' GROUP BY 1 (access_count counts every search result and every brief 'relevant' result (get does not count), including ctl calls coding agents made while testing).",
  "status": {
   "active": 3715,
   "retracted": 26,
@@ -82,7 +82,7 @@
   "community": {
    "active": 3388,
    "returned": 232,
-   "accesses": 331
+   "accesses": 332
   },
   "doc": {
    "active": 173,
@@ -96,13 +96,13 @@
   },
   "observed": {
    "active": 116,
-   "returned": 95,
-   "accesses": 642
+   "returned": 98,
+   "accesses": 648
   },
   "user": {
    "active": 27,
    "returned": 24,
-   "accesses": 238
+   "accesses": 242
   },
   "wiki": {
    "active": 10,

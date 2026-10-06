@@ -1,5 +1,5 @@
 {
- "_schema": "isotonic (PAV) fit of P(regrown | gap minutes) over (depleted -> later attempt) pairs from harvest_attempts. 2026-10-02 doc numbers vs 2026-10-05 store recompute. estimate = first block with p>=0.6, ceil 5 min",
+ "_schema": "isotonic (PAV) fit of P(regrown | gap minutes) over (depleted -> later attempt) pairs from harvest_attempts. 2026-10-02 doc numbers vs 2026-10-06 12:00 CDT store recompute (lumber_opt.regrowth @ee59524 over harvest_attempts t < CUT, frozen DB copy; unchanged from 2026-10-05 since Smart Harvest adds no pairs). estimate = first block with p>=0.6, ceil 5 min",
  "doc_2026_10_02": {
   "pairs": 137,
   "bins": [
@@ -26,7 +26,7 @@
   ],
   "estimate_min": 65
  },
- "store_2026_10_05": {
+ "store_2026_10_06": {
   "pairs": 277,
   "regrown": 175,
   "minutes": 65.0,

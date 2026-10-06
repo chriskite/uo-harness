@@ -1,63 +1,64 @@
 {
- "_source": "Output of harness/lumber_opt.plan_from_store run READ-ONLY (sqlite mode=ro, world=None i.e. no live character, route_check=False, seed=1, now=2026-10-05 ~20:26 local) over the full store. 132 spots (3 seeds + 129 lumber_spots rows: 125 active discover candidates promoted, 4 disabled). P(best) per spot from 2000 Thompson draws. rate_logs_h = posterior mean field rate (Gamma, quasi-Poisson dispersion phi, recency half-life 14 d, skill-rescaled to now); rate_80 = 80% interval; net_logs_h = renewal-reward net stored logs/h at Q*; deaths/sent_home/thefts per field hour are Gamma posteriors shrunk to pooled rates. Unvisited spots all share the empirical-Bayes prior (2316 logs/h, CV 0.4). Pick at this snapshot: witcher_219 (explore, P(best)=0.006); greedy best witcher_23.",
+ "_source": "Output of harness/lumber_opt.plan_from_store at git ee59524 (extracted to scratch), run READ-ONLY on the frozen DB copy harness_20261006_1200.db (opened mode=ro, copied to an in-memory DB via the backup API, rows with t >= CUT dropped from the copy), world=None i.e. no live character, route_check=False, seed=1, now=CUT=1791306000 (2026-10-06 12:00 CDT), over the full store (86 lumber trip rows). 132 spots (127 active, 5 disabled; 123 eligible at this moment), 37 with at least one trip (25 single-trip, 23 with field time > 0.00 h). P(best) per spot from 2000 Thompson draws. rate_logs_h = posterior mean field rate (Gamma, quasi-Poisson dispersion phi, recency half-life 14 d, skill-rescaled to now); rate_80 = 80% interval; net_logs_h = renewal-reward net stored logs/h at Q*; deaths/sent_home/thefts per field hour are Gamma posteriors shrunk to pooled rates. Unvisited spots all share the empirical-Bayes prior (3166 logs/h, CV 0.35). Pick at this snapshot: witcher_244 (explore, P(best)=0.009); greedy best witcher_23.",
  "pooled": {
-  "now": 1791249966.5478733,
-  "skill": 80.1,
-  "success_p": 0.776,
-  "dispersion": 26.8,
-  "death_given_sighting": 0.193,
-  "creature_deaths_per_h": 0.0462,
-  "sent_home_pooled_per_h": 2.538,
-  "thefts_pooled_per_h": 0.0154,
-  "theft_fraction": 0.5,
-  "theft_events": 0,
+  "creature_deaths_per_h": 0.04,
+  "death_given_sighting": 0.132,
+  "dispersion": 17.0,
   "logs_per_tree": 19.3,
+  "prior_cv": 0.35,
+  "prior_rate_logs_h": 3166,
+  "sent_home_pooled_per_h": 2.984,
+  "skill": 95.0,
+  "success_p": 0.913,
+  "theft_events": 0,
+  "theft_fraction": 0.5,
+  "thefts_pooled_per_h": 0.0137,
   "yield_share_pooled": 0.63,
-  "prior_rate_logs_h": 2316,
-  "prior_cv": 0.4,
-  "now_local": "2026-10-05 20:26:06"
+  "now": 1791306000,
+  "now_local": "2026-10-06 12:00:00"
  },
  "pick": [
   {
-   "spot": "witcher_219",
+   "spot": "witcher_244",
    "mode": "explore",
+   "chosen_by": "thompson",
    "greedy": "witcher_23",
-   "p_best": 0.006,
+   "p_best": 0.009,
    "landing": {
     "source": "library",
     "library": "dtf",
-    "tome": "0x4A2F41BA",
+    "tome": "0x4A2F3173",
     "book": null,
-    "name": "217",
-    "x": 4019,
-    "y": 1154,
-    "dist": 64,
-    "route_tiles": 57,
+    "name": "246",
+    "x": 3912,
+    "y": 1852,
+    "dist": 22,
+    "route_tiles": 15,
     "route_checked": true
    },
-   "logs_per_trip": 470,
+   "logs_per_trip": 422,
    "trips": 1,
-   "timeout_s": 8270,
-   "grove_logs": 470,
+   "timeout_s": 9924,
+   "grove_logs": 422,
    "grove_bound": true,
-   "expected_trip_min": 15.0,
-   "expected_net_logs_h": 1700,
-   "expected_stored_trip": 357,
-   "p_death_trip": 0.022,
-   "p_sent_home_trip": 0.397,
+   "expected_trip_min": 10.5,
+   "expected_net_logs_h": 2228,
+   "expected_stored_trip": 343,
+   "p_death_trip": 0.012,
+   "p_sent_home_trip": 0.326,
    "args": [
     "--spot",
-    "witcher_219",
+    "witcher_244",
     "--trips",
     "1",
     "--logs-per-trip",
-    "2360",
+    "3970",
     "--regrow-min",
     "65",
     "--timeout",
-    "8270"
+    "9924"
    ],
-   "command": "ctl run lumber --spot witcher_219 --trips 1 --logs-per-trip 2360 --regrow-min 65 --timeout 8270"
+   "command": "ctl run lumber --spot witcher_244 --trips 1 --logs-per-trip 3970 --regrow-min 65 --timeout 9924"
   }
  ],
  "spots": [
@@ -66,17 +67,17 @@
    "status": "active",
    "eligible": true,
    "visited": true,
-   "trips": 3,
-   "field_h": 0.53,
-   "logs": 1735,
-   "rate_logs_h": 3483,
+   "trips": 8,
+   "field_h": 1.22,
+   "logs": 4512,
+   "rate_logs_h": 4008,
    "rate_80": [
-    2963,
-    4025
+    3696,
+    4327
    ],
-   "overhead_s": 135,
-   "net_logs_h": 2596,
-   "p_best": 0.007,
+   "overhead_s": 139,
+   "net_logs_h": 2959,
+   "p_best": 0.001,
    "logs_per_trip": 756,
    "grove_logs": 756,
    "grove_bound": true,
@@ -84,113 +85,47 @@
    "yield_share": 0.57
   },
   {
-   "id": "witcher_40",
-   "status": "active",
-   "eligible": true,
-   "visited": true,
-   "trips": 1,
-   "field_h": 0.57,
-   "logs": 1921,
-   "rate_logs_h": 3507,
-   "rate_80": [
-    3007,
-    4026
-   ],
-   "overhead_s": 153,
-   "net_logs_h": 2503,
-   "p_best": 0.013,
-   "logs_per_trip": 602,
-   "grove_logs": 603,
-   "grove_bound": true,
-   "trees": 50,
-   "yield_share": 0.63
-  },
-  {
    "id": "witcher_265",
    "status": "active",
    "eligible": true,
    "visited": true,
-   "trips": 1,
-   "field_h": 0.31,
-   "logs": 914,
-   "rate_logs_h": 3339,
+   "trips": 2,
+   "field_h": 0.65,
+   "logs": 2303,
+   "rate_logs_h": 3970,
    "rate_80": [
-    2682,
-    4032
+    3548,
+    4404
    ],
-   "overhead_s": 131,
-   "net_logs_h": 2458,
-   "p_best": 0.009,
-   "logs_per_trip": 615,
-   "grove_logs": 615,
+   "overhead_s": 133,
+   "net_logs_h": 2846,
+   "p_best": 0.0,
+   "logs_per_trip": 590,
+   "grove_logs": 591,
    "grove_bound": true,
    "trees": 51,
    "yield_share": 0.63
   },
   {
-   "id": "witcher_162",
+   "id": "witcher_98",
    "status": "active",
    "eligible": true,
    "visited": true,
    "trips": 1,
-   "field_h": 0.36,
-   "logs": 1215,
-   "rate_logs_h": 3279,
+   "field_h": 0.2,
+   "logs": 868,
+   "rate_logs_h": 4248,
    "rate_80": [
-    2708,
-    3877
+    3549,
+    4978
    ],
-   "overhead_s": 138,
-   "net_logs_h": 2361,
-   "p_best": 0.002,
-   "logs_per_trip": 554,
-   "grove_logs": 555,
+   "overhead_s": 189,
+   "net_logs_h": 2608,
+   "p_best": 0.005,
+   "logs_per_trip": 506,
+   "grove_logs": 507,
    "grove_bound": true,
-   "trees": 46,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_66",
-   "status": "active",
-   "eligible": true,
-   "visited": true,
-   "trips": 3,
-   "field_h": 0.06,
-   "logs": 218,
-   "rate_logs_h": 3141,
-   "rate_80": [
-    2137,
-    4238
-   ],
-   "overhead_s": 167,
-   "net_logs_h": 2176,
-   "p_best": 0.021,
-   "logs_per_trip": 627,
-   "grove_logs": 627,
-   "grove_bound": true,
-   "trees": 52,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_181",
-   "status": "active",
-   "eligible": true,
-   "visited": true,
-   "trips": 1,
-   "field_h": 0.09,
-   "logs": 279,
-   "rate_logs_h": 2905,
-   "rate_80": [
-    2038,
-    3847
-   ],
-   "overhead_s": 141,
-   "net_logs_h": 2082,
-   "p_best": 0.007,
-   "logs_per_trip": 470,
-   "grove_logs": 470,
-   "grove_bound": true,
-   "trees": 39,
+   "trees": 42,
    "yield_share": 0.63
   },
   {
@@ -201,18 +136,106 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 166,
-   "net_logs_h": 1874,
-   "p_best": 0.024,
-   "logs_per_trip": 2360,
+   "net_logs_h": 2581,
+   "p_best": 0.03,
+   "logs_per_trip": 2423,
    "grove_logs": 2424,
-   "grove_bound": false,
+   "grove_bound": true,
    "trees": 201,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_46",
+   "status": "active",
+   "eligible": true,
+   "visited": true,
+   "trips": 1,
+   "field_h": 0.03,
+   "logs": 101,
+   "rate_logs_h": 3379,
+   "rate_80": [
+    2284,
+    4578
+   ],
+   "overhead_s": 166,
+   "net_logs_h": 2576,
+   "p_best": 0.015,
+   "logs_per_trip": 1061,
+   "grove_logs": 1061,
+   "grove_bound": true,
+   "trees": 88,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_253",
+   "status": "active",
+   "eligible": true,
+   "visited": true,
+   "trips": 1,
+   "field_h": 0.2,
+   "logs": 769,
+   "rate_logs_h": 3698,
+   "rate_80": [
+    3059,
+    4368
+   ],
+   "overhead_s": 145,
+   "net_logs_h": 2520,
+   "p_best": 0.002,
+   "logs_per_trip": 494,
+   "grove_logs": 494,
+   "grove_bound": true,
+   "trees": 41,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_181",
+   "status": "active",
+   "eligible": true,
+   "visited": true,
+   "trips": 1,
+   "field_h": 0.09,
+   "logs": 279,
+   "rate_logs_h": 3617,
+   "rate_80": [
+    2706,
+    4592
+   ],
+   "overhead_s": 141,
+   "net_logs_h": 2502,
+   "p_best": 0.003,
+   "logs_per_trip": 470,
+   "grove_logs": 470,
+   "grove_bound": true,
+   "trees": 39,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_250",
+   "status": "active",
+   "eligible": true,
+   "visited": true,
+   "trips": 1,
+   "field_h": 0.08,
+   "logs": 328,
+   "rate_logs_h": 3609,
+   "rate_80": [
+    2752,
+    4524
+   ],
+   "overhead_s": 148,
+   "net_logs_h": 2499,
+   "p_best": 0.001,
+   "logs_per_trip": 482,
+   "grove_logs": 482,
+   "grove_bound": true,
+   "trees": 40,
    "yield_share": 0.63
   },
   {
@@ -223,14 +246,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 148,
-   "net_logs_h": 1858,
-   "p_best": 0.011,
+   "net_logs_h": 2497,
+   "p_best": 0.023,
    "logs_per_trip": 916,
    "grove_logs": 917,
    "grove_bound": true,
@@ -245,40 +268,18 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 152,
-   "net_logs_h": 1855,
-   "p_best": 0.012,
+   "net_logs_h": 2495,
+   "p_best": 0.018,
    "logs_per_trip": 952,
    "grove_logs": 953,
    "grove_bound": true,
    "trees": 79,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_46",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 166,
-   "net_logs_h": 1843,
-   "p_best": 0.013,
-   "logs_per_trip": 1061,
-   "grove_logs": 1061,
-   "grove_bound": true,
-   "trees": 88,
    "yield_share": 0.63
   },
   {
@@ -289,14 +290,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 141,
-   "net_logs_h": 1830,
-   "p_best": 0.01,
+   "net_logs_h": 2435,
+   "p_best": 0.019,
    "logs_per_trip": 675,
    "grove_logs": 675,
    "grove_bound": true,
@@ -311,40 +312,18 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 155,
-   "net_logs_h": 1822,
-   "p_best": 0.013,
+   "net_logs_h": 2427,
+   "p_best": 0.017,
    "logs_per_trip": 759,
    "grove_logs": 760,
    "grove_bound": true,
    "trees": 63,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_63",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 146,
-   "net_logs_h": 1816,
-   "p_best": 0.014,
-   "logs_per_trip": 663,
-   "grove_logs": 663,
-   "grove_bound": true,
-   "trees": 55,
    "yield_share": 0.63
   },
   {
@@ -355,14 +334,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 155,
-   "net_logs_h": 1814,
-   "p_best": 0.011,
+   "net_logs_h": 2412,
+   "p_best": 0.014,
    "logs_per_trip": 723,
    "grove_logs": 724,
    "grove_bound": true,
@@ -370,21 +349,21 @@
    "yield_share": 0.63
   },
   {
-   "id": "witcher_157",
+   "id": "witcher_63",
    "status": "active",
    "eligible": true,
    "visited": false,
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
-   "overhead_s": 151,
-   "net_logs_h": 1808,
-   "p_best": 0.011,
+   "overhead_s": 146,
+   "net_logs_h": 2411,
+   "p_best": 0.012,
    "logs_per_trip": 663,
    "grove_logs": 663,
    "grove_bound": true,
@@ -399,14 +378,14 @@
    "trips": 1,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 147,
-   "net_logs_h": 1806,
-   "p_best": 0.006,
+   "net_logs_h": 2410,
+   "p_best": 0.009,
    "logs_per_trip": 747,
    "grove_logs": 748,
    "grove_bound": true,
@@ -414,25 +393,25 @@
    "yield_share": 0.63
   },
   {
-   "id": "witcher_36",
+   "id": "witcher_157",
    "status": "active",
    "eligible": true,
    "visited": false,
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
-   "overhead_s": 148,
-   "net_logs_h": 1804,
-   "p_best": 0.013,
-   "logs_per_trip": 627,
-   "grove_logs": 627,
+   "overhead_s": 151,
+   "net_logs_h": 2398,
+   "p_best": 0.011,
+   "logs_per_trip": 663,
+   "grove_logs": 663,
    "grove_bound": true,
-   "trees": 52,
+   "trees": 55,
    "yield_share": 0.63
   },
   {
@@ -443,194 +422,18 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 156,
-   "net_logs_h": 1800,
-   "p_best": 0.009,
+   "net_logs_h": 2384,
+   "p_best": 0.013,
    "logs_per_trip": 675,
    "grove_logs": 675,
    "grove_bound": true,
    "trees": 56,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_34",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 148,
-   "net_logs_h": 1792,
-   "p_best": 0.012,
-   "logs_per_trip": 590,
-   "grove_logs": 591,
-   "grove_bound": true,
-   "trees": 49,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_284",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 147,
-   "net_logs_h": 1786,
-   "p_best": 0.007,
-   "logs_per_trip": 566,
-   "grove_logs": 567,
-   "grove_bound": true,
-   "trees": 47,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_90",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 141,
-   "net_logs_h": 1786,
-   "p_best": 0.014,
-   "logs_per_trip": 530,
-   "grove_logs": 531,
-   "grove_bound": true,
-   "trees": 44,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_30",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 152,
-   "net_logs_h": 1784,
-   "p_best": 0.012,
-   "logs_per_trip": 590,
-   "grove_logs": 591,
-   "grove_bound": true,
-   "trees": 49,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_176",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 148,
-   "net_logs_h": 1783,
-   "p_best": 0.013,
-   "logs_per_trip": 566,
-   "grove_logs": 567,
-   "grove_bound": true,
-   "trees": 47,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_82",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 151,
-   "net_logs_h": 1783,
-   "p_best": 0.011,
-   "logs_per_trip": 578,
-   "grove_logs": 579,
-   "grove_bound": true,
-   "trees": 48,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_286",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 167,
-   "net_logs_h": 1782,
-   "p_best": 0.013,
-   "logs_per_trip": 687,
-   "grove_logs": 687,
-   "grove_bound": true,
-   "trees": 57,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_245",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 141,
-   "net_logs_h": 1781,
-   "p_best": 0.006,
-   "logs_per_trip": 518,
-   "grove_logs": 519,
-   "grove_bound": true,
-   "trees": 43,
    "yield_share": 0.63
   },
   {
@@ -641,14 +444,14 @@
    "trips": 1,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 148,
-   "net_logs_h": 1778,
-   "p_best": 0.013,
+   "net_logs_h": 2373,
+   "p_best": 0.014,
    "logs_per_trip": 723,
    "grove_logs": 724,
    "grove_bound": true,
@@ -656,25 +459,157 @@
    "yield_share": 0.63
   },
   {
-   "id": "witcher_93",
+   "id": "witcher_36",
+   "status": "active",
+   "eligible": true,
+   "visited": true,
+   "trips": 1,
+   "field_h": 0.12,
+   "logs": 386,
+   "rate_logs_h": 3209,
+   "rate_80": [
+    2486,
+    3976
+   ],
+   "overhead_s": 148,
+   "net_logs_h": 2367,
+   "p_best": 0.002,
+   "logs_per_trip": 627,
+   "grove_logs": 627,
+   "grove_bound": true,
+   "trees": 52,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_34",
    "status": "active",
    "eligible": true,
    "visited": false,
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 148,
-   "net_logs_h": 1776,
-   "p_best": 0.008,
-   "logs_per_trip": 542,
-   "grove_logs": 543,
+   "net_logs_h": 2365,
+   "p_best": 0.015,
+   "logs_per_trip": 590,
+   "grove_logs": 591,
    "grove_bound": true,
-   "trees": 45,
+   "trees": 49,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_286",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 167,
+   "net_logs_h": 2356,
+   "p_best": 0.013,
+   "logs_per_trip": 687,
+   "grove_logs": 687,
+   "grove_bound": true,
+   "trees": 57,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_284",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 147,
+   "net_logs_h": 2354,
+   "p_best": 0.015,
+   "logs_per_trip": 566,
+   "grove_logs": 567,
+   "grove_bound": true,
+   "trees": 47,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_30",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 152,
+   "net_logs_h": 2352,
+   "p_best": 0.018,
+   "logs_per_trip": 590,
+   "grove_logs": 591,
+   "grove_bound": true,
+   "trees": 49,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_90",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 141,
+   "net_logs_h": 2351,
+   "p_best": 0.011,
+   "logs_per_trip": 530,
+   "grove_logs": 531,
+   "grove_bound": true,
+   "trees": 44,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_176",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 148,
+   "net_logs_h": 2349,
+   "p_best": 0.009,
+   "logs_per_trip": 566,
+   "grove_logs": 567,
+   "grove_bound": true,
+   "trees": 47,
    "yield_share": 0.63
   },
   {
@@ -685,14 +620,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 167,
-   "net_logs_h": 1775,
-   "p_best": 0.009,
+   "net_logs_h": 2344,
+   "p_best": 0.008,
    "logs_per_trip": 663,
    "grove_logs": 663,
    "grove_bound": true,
@@ -700,25 +635,47 @@
    "yield_share": 0.63
   },
   {
-   "id": "witcher_89",
+   "id": "witcher_245",
    "status": "active",
    "eligible": true,
    "visited": false,
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
-   "overhead_s": 143,
-   "net_logs_h": 1772,
+   "overhead_s": 141,
+   "net_logs_h": 2342,
    "p_best": 0.007,
-   "logs_per_trip": 506,
-   "grove_logs": 507,
+   "logs_per_trip": 518,
+   "grove_logs": 519,
    "grove_bound": true,
-   "trees": 42,
+   "trees": 43,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_93",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 148,
+   "net_logs_h": 2334,
+   "p_best": 0.009,
+   "logs_per_trip": 542,
+   "grove_logs": 543,
+   "grove_bound": true,
+   "trees": 45,
    "yield_share": 0.63
   },
   {
@@ -729,40 +686,18 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 156,
-   "net_logs_h": 1771,
+   "net_logs_h": 2330,
    "p_best": 0.011,
    "logs_per_trip": 578,
    "grove_logs": 579,
    "grove_bound": true,
    "trees": 48,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_38",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 155,
-   "net_logs_h": 1769,
-   "p_best": 0.01,
-   "logs_per_trip": 566,
-   "grove_logs": 567,
-   "grove_bound": true,
-   "trees": 47,
    "yield_share": 0.63
   },
   {
@@ -773,40 +708,18 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 163,
-   "net_logs_h": 1769,
+   "net_logs_h": 2330,
    "p_best": 0.009,
    "logs_per_trip": 615,
    "grove_logs": 615,
    "grove_bound": true,
    "trees": 51,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_56",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 149,
-   "net_logs_h": 1769,
-   "p_best": 0.01,
-   "logs_per_trip": 530,
-   "grove_logs": 531,
-   "grove_bound": true,
-   "trees": 44,
    "yield_share": 0.63
   },
   {
@@ -817,18 +730,84 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 170,
-   "net_logs_h": 1766,
-   "p_best": 0.011,
+   "net_logs_h": 2327,
+   "p_best": 0.017,
    "logs_per_trip": 651,
    "grove_logs": 651,
    "grove_bound": true,
    "trees": 54,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_38",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 155,
+   "net_logs_h": 2326,
+   "p_best": 0.013,
+   "logs_per_trip": 566,
+   "grove_logs": 567,
+   "grove_bound": true,
+   "trees": 47,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_89",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 143,
+   "net_logs_h": 2326,
+   "p_best": 0.007,
+   "logs_per_trip": 506,
+   "grove_logs": 507,
+   "grove_bound": true,
+   "trees": 42,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_56",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 149,
+   "net_logs_h": 2322,
+   "p_best": 0.009,
+   "logs_per_trip": 530,
+   "grove_logs": 531,
+   "grove_bound": true,
+   "trees": 44,
    "yield_share": 0.63
   },
   {
@@ -839,14 +818,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 156,
-   "net_logs_h": 1766,
-   "p_best": 0.01,
+   "net_logs_h": 2321,
+   "p_best": 0.007,
    "logs_per_trip": 566,
    "grove_logs": 567,
    "grove_bound": true,
@@ -861,14 +840,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 159,
-   "net_logs_h": 1765,
-   "p_best": 0.005,
+   "net_logs_h": 2320,
+   "p_best": 0.014,
    "logs_per_trip": 578,
    "grove_logs": 579,
    "grove_bound": true,
@@ -883,84 +862,18 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 155,
-   "net_logs_h": 1765,
-   "p_best": 0.004,
+   "net_logs_h": 2319,
+   "p_best": 0.009,
    "logs_per_trip": 554,
    "grove_logs": 555,
    "grove_bound": true,
    "trees": 46,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_248",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 149,
-   "net_logs_h": 1764,
-   "p_best": 0.008,
-   "logs_per_trip": 518,
-   "grove_logs": 519,
-   "grove_bound": true,
-   "trees": 43,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_215",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 148,
-   "net_logs_h": 1761,
-   "p_best": 0.009,
-   "logs_per_trip": 506,
-   "grove_logs": 507,
-   "grove_bound": true,
-   "trees": 42,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_253",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 145,
-   "net_logs_h": 1761,
-   "p_best": 0.007,
-   "logs_per_trip": 494,
-   "grove_logs": 494,
-   "grove_bound": true,
-   "trees": 41,
    "yield_share": 0.63
   },
   {
@@ -971,80 +884,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 169,
-   "net_logs_h": 1761,
+   "net_logs_h": 2318,
    "p_best": 0.01,
-   "logs_per_trip": 627,
-   "grove_logs": 627,
-   "grove_bound": true,
-   "trees": 52,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_84",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 155,
-   "net_logs_h": 1761,
-   "p_best": 0.006,
-   "logs_per_trip": 542,
-   "grove_logs": 543,
-   "grove_bound": true,
-   "trees": 45,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_87",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 146,
-   "net_logs_h": 1760,
-   "p_best": 0.013,
-   "logs_per_trip": 494,
-   "grove_logs": 494,
-   "grove_bound": true,
-   "trees": 41,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_26",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 171,
-   "net_logs_h": 1758,
-   "p_best": 0.011,
    "logs_per_trip": 627,
    "grove_logs": 627,
    "grove_bound": true,
@@ -1059,14 +906,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 187,
-   "net_logs_h": 1756,
-   "p_best": 0.013,
+   "net_logs_h": 2316,
+   "p_best": 0.014,
    "logs_per_trip": 723,
    "grove_logs": 724,
    "grove_bound": true,
@@ -1074,43 +921,43 @@
    "yield_share": 0.63
   },
   {
-   "id": "witcher_230",
+   "id": "witcher_248",
    "status": "active",
    "eligible": true,
    "visited": false,
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
-   "overhead_s": 158,
-   "net_logs_h": 1753,
+   "overhead_s": 149,
+   "net_logs_h": 2313,
    "p_best": 0.011,
-   "logs_per_trip": 542,
-   "grove_logs": 543,
+   "logs_per_trip": 518,
+   "grove_logs": 519,
    "grove_bound": true,
-   "trees": 45,
+   "trees": 43,
    "yield_share": 0.63
   },
   {
-   "id": "witcher_264",
+   "id": "witcher_26",
    "status": "active",
    "eligible": true,
    "visited": false,
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
-   "overhead_s": 174,
-   "net_logs_h": 1752,
-   "p_best": 0.01,
+   "overhead_s": 171,
+   "net_logs_h": 2312,
+   "p_best": 0.009,
    "logs_per_trip": 627,
    "grove_logs": 627,
    "grove_bound": true,
@@ -1118,25 +965,25 @@
    "yield_share": 0.63
   },
   {
-   "id": "witcher_1",
+   "id": "witcher_84",
    "status": "active",
    "eligible": true,
    "visited": false,
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
-   "overhead_s": 150,
-   "net_logs_h": 1751,
-   "p_best": 0.006,
-   "logs_per_trip": 494,
-   "grove_logs": 494,
+   "overhead_s": 155,
+   "net_logs_h": 2310,
+   "p_best": 0.013,
+   "logs_per_trip": 542,
+   "grove_logs": 543,
    "grove_bound": true,
-   "trees": 41,
+   "trees": 45,
    "yield_share": 0.63
   },
   {
@@ -1147,14 +994,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 193,
-   "net_logs_h": 1750,
-   "p_best": 0.013,
+   "net_logs_h": 2309,
+   "p_best": 0.011,
    "logs_per_trip": 747,
    "grove_logs": 748,
    "grove_bound": true,
@@ -1162,25 +1009,91 @@
    "yield_share": 0.63
   },
   {
-   "id": "witcher_211",
+   "id": "witcher_215",
    "status": "active",
    "eligible": true,
    "visited": false,
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
+   ],
+   "overhead_s": 148,
+   "net_logs_h": 2307,
+   "p_best": 0.009,
+   "logs_per_trip": 506,
+   "grove_logs": 507,
+   "grove_bound": true,
+   "trees": 42,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_87",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
    ],
    "overhead_s": 146,
-   "net_logs_h": 1749,
-   "p_best": 0.01,
-   "logs_per_trip": 470,
-   "grove_logs": 470,
+   "net_logs_h": 2306,
+   "p_best": 0.015,
+   "logs_per_trip": 494,
+   "grove_logs": 494,
    "grove_bound": true,
-   "trees": 39,
+   "trees": 41,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_264",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 174,
+   "net_logs_h": 2303,
+   "p_best": 0.011,
+   "logs_per_trip": 627,
+   "grove_logs": 627,
+   "grove_bound": true,
+   "trees": 52,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_230",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 158,
+   "net_logs_h": 2297,
+   "p_best": 0.009,
+   "logs_per_trip": 542,
+   "grove_logs": 543,
+   "grove_bound": true,
+   "trees": 45,
    "yield_share": 0.63
   },
   {
@@ -1191,14 +1104,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 171,
-   "net_logs_h": 1749,
-   "p_best": 0.006,
+   "net_logs_h": 2295,
+   "p_best": 0.007,
    "logs_per_trip": 602,
    "grove_logs": 603,
    "grove_bound": true,
@@ -1213,18 +1126,40 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 169,
-   "net_logs_h": 1748,
-   "p_best": 0.009,
+   "net_logs_h": 2293,
+   "p_best": 0.013,
    "logs_per_trip": 590,
    "grove_logs": 591,
    "grove_bound": true,
    "trees": 49,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_82",
+   "status": "active",
+   "eligible": true,
+   "visited": true,
+   "trips": 1,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 151,
+   "net_logs_h": 2287,
+   "p_best": 0.012,
+   "logs_per_trip": 578,
+   "grove_logs": 579,
+   "grove_bound": true,
+   "trees": 48,
    "yield_share": 0.63
   },
   {
@@ -1235,14 +1170,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 197,
-   "net_logs_h": 1737,
-   "p_best": 0.009,
+   "net_logs_h": 2286,
+   "p_best": 0.011,
    "logs_per_trip": 723,
    "grove_logs": 724,
    "grove_bound": true,
@@ -1250,47 +1185,25 @@
    "yield_share": 0.63
   },
   {
-   "id": "witcher_247",
+   "id": "witcher_211",
    "status": "active",
    "eligible": true,
    "visited": false,
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
-   "overhead_s": 143,
-   "net_logs_h": 1736,
-   "p_best": 0.008,
-   "logs_per_trip": 434,
-   "grove_logs": 434,
+   "overhead_s": 146,
+   "net_logs_h": 2285,
+   "p_best": 0.011,
+   "logs_per_trip": 470,
+   "grove_logs": 470,
    "grove_bound": true,
-   "trees": 36,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_3",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 148,
-   "net_logs_h": 1736,
-   "p_best": 0.01,
-   "logs_per_trip": 458,
-   "grove_logs": 458,
-   "grove_bound": true,
-   "trees": 38,
+   "trees": 39,
    "yield_share": 0.63
   },
   {
@@ -1301,40 +1214,18 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 178,
-   "net_logs_h": 1735,
-   "p_best": 0.011,
+   "net_logs_h": 2273,
+   "p_best": 0.009,
    "logs_per_trip": 602,
    "grove_logs": 603,
    "grove_bound": true,
    "trees": 50,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_216",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 144,
-   "net_logs_h": 1734,
-   "p_best": 0.008,
-   "logs_per_trip": 434,
-   "grove_logs": 434,
-   "grove_bound": true,
-   "trees": 36,
    "yield_share": 0.63
   },
   {
@@ -1345,18 +1236,194 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 168,
-   "net_logs_h": 1733,
-   "p_best": 0.007,
+   "net_logs_h": 2265,
+   "p_best": 0.011,
    "logs_per_trip": 542,
    "grove_logs": 543,
    "grove_bound": true,
    "trees": 45,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_263",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 196,
+   "net_logs_h": 2263,
+   "p_best": 0.011,
+   "logs_per_trip": 675,
+   "grove_logs": 675,
+   "grove_bound": true,
+   "trees": 56,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_3",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 148,
+   "net_logs_h": 2263,
+   "p_best": 0.011,
+   "logs_per_trip": 458,
+   "grove_logs": 458,
+   "grove_bound": true,
+   "trees": 38,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_247",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 143,
+   "net_logs_h": 2260,
+   "p_best": 0.006,
+   "logs_per_trip": 434,
+   "grove_logs": 434,
+   "grove_bound": true,
+   "trees": 36,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_216",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 144,
+   "net_logs_h": 2257,
+   "p_best": 0.01,
+   "logs_per_trip": 434,
+   "grove_logs": 434,
+   "grove_bound": true,
+   "trees": 36,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_80a",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 176,
+   "net_logs_h": 2256,
+   "p_best": 0.004,
+   "logs_per_trip": 566,
+   "grove_logs": 567,
+   "grove_bound": true,
+   "trees": 47,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_274",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 187,
+   "net_logs_h": 2254,
+   "p_best": 0.005,
+   "logs_per_trip": 615,
+   "grove_logs": 615,
+   "grove_bound": true,
+   "trees": 51,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_31",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 232,
+   "net_logs_h": 2254,
+   "p_best": 0.011,
+   "logs_per_trip": 856,
+   "grove_logs": 856,
+   "grove_bound": true,
+   "trees": 71,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_193",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 166,
+   "net_logs_h": 2250,
+   "p_best": 0.009,
+   "logs_per_trip": 518,
+   "grove_logs": 519,
+   "grove_bound": true,
+   "trees": 43,
    "yield_share": 0.63
   },
   {
@@ -1367,14 +1434,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 152,
-   "net_logs_h": 1728,
-   "p_best": 0.011,
+   "net_logs_h": 2249,
+   "p_best": 0.006,
    "logs_per_trip": 458,
    "grove_logs": 458,
    "grove_bound": true,
@@ -1389,13 +1456,13 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 155,
-   "net_logs_h": 1727,
+   "net_logs_h": 2249,
    "p_best": 0.007,
    "logs_per_trip": 470,
    "grove_logs": 470,
@@ -1404,113 +1471,25 @@
    "yield_share": 0.63
   },
   {
-   "id": "witcher_80a",
+   "id": "witcher_189",
    "status": "active",
    "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
+   "visited": true,
+   "trips": 1,
+   "field_h": 0.06,
+   "logs": 262,
+   "rate_logs_h": 3696,
    "rate_80": [
-    1246,
-    3540
+    2752,
+    4707
    ],
-   "overhead_s": 176,
-   "net_logs_h": 1726,
-   "p_best": 0.009,
-   "logs_per_trip": 566,
-   "grove_logs": 567,
+   "overhead_s": 133,
+   "net_logs_h": 2247,
+   "p_best": 0.0,
+   "logs_per_trip": 289,
+   "grove_logs": 289,
    "grove_bound": true,
-   "trees": 47,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_193",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 166,
-   "net_logs_h": 1725,
-   "p_best": 0.011,
-   "logs_per_trip": 518,
-   "grove_logs": 519,
-   "grove_bound": true,
-   "trees": 43,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_263",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 196,
-   "net_logs_h": 1725,
-   "p_best": 0.009,
-   "logs_per_trip": 675,
-   "grove_logs": 675,
-   "grove_bound": true,
-   "trees": 56,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_180",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 160,
-   "net_logs_h": 1722,
-   "p_best": 0.007,
-   "logs_per_trip": 482,
-   "grove_logs": 482,
-   "grove_bound": true,
-   "trees": 40,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_274",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 187,
-   "net_logs_h": 1722,
-   "p_best": 0.007,
-   "logs_per_trip": 615,
-   "grove_logs": 615,
-   "grove_bound": true,
-   "trees": 51,
+   "trees": 24,
    "yield_share": 0.63
   },
   {
@@ -1521,18 +1500,62 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 171,
-   "net_logs_h": 1721,
+   "net_logs_h": 2244,
    "p_best": 0.011,
    "logs_per_trip": 530,
    "grove_logs": 531,
    "grove_bound": true,
    "trees": 44,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_180",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 160,
+   "net_logs_h": 2241,
+   "p_best": 0.006,
+   "logs_per_trip": 482,
+   "grove_logs": 482,
+   "grove_bound": true,
+   "trees": 40,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_213",
+   "status": "active",
+   "eligible": true,
+   "visited": true,
+   "trips": 1,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 159,
+   "net_logs_h": 2231,
+   "p_best": 0.007,
+   "logs_per_trip": 615,
+   "grove_logs": 615,
+   "grove_bound": true,
+   "trees": 51,
    "yield_share": 0.63
   },
   {
@@ -1543,13 +1566,13 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 148,
-   "net_logs_h": 1716,
+   "net_logs_h": 2228,
    "p_best": 0.009,
    "logs_per_trip": 422,
    "grove_logs": 422,
@@ -1565,106 +1588,18 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 145,
-   "net_logs_h": 1715,
-   "p_best": 0.004,
+   "net_logs_h": 2225,
+   "p_best": 0.007,
    "logs_per_trip": 410,
    "grove_logs": 410,
    "grove_bound": true,
    "trees": 34,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_268",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 169,
-   "net_logs_h": 1714,
-   "p_best": 0.005,
-   "logs_per_trip": 506,
-   "grove_logs": 507,
-   "grove_bound": true,
-   "trees": 42,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_31",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 232,
-   "net_logs_h": 1711,
-   "p_best": 0.01,
-   "logs_per_trip": 856,
-   "grove_logs": 856,
-   "grove_bound": true,
-   "trees": 71,
-   "yield_share": 0.63
-  },
-  {
-   "id": "horseshoe_bay",
-   "status": "active",
-   "eligible": true,
-   "visited": true,
-   "trips": 13,
-   "field_h": 1.63,
-   "logs": 2717,
-   "rate_logs_h": 1997,
-   "rate_80": [
-    1746,
-    2257
-   ],
-   "overhead_s": 102,
-   "net_logs_h": 1710,
-   "p_best": 0.0,
-   "logs_per_trip": 620,
-   "grove_logs": 620,
-   "grove_bound": true,
-   "trees": 40,
-   "yield_share": 0.81
-  },
-  {
-   "id": "witcher_250",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 166,
-   "net_logs_h": 1708,
-   "p_best": 0.009,
-   "logs_per_trip": 482,
-   "grove_logs": 482,
-   "grove_bound": true,
-   "trees": 40,
    "yield_share": 0.63
   },
   {
@@ -1675,84 +1610,18 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 155,
-   "net_logs_h": 1707,
-   "p_best": 0.013,
+   "net_logs_h": 2214,
+   "p_best": 0.01,
    "logs_per_trip": 434,
    "grove_logs": 434,
    "grove_bound": true,
    "trees": 36,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_218",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 157,
-   "net_logs_h": 1702,
-   "p_best": 0.005,
-   "logs_per_trip": 434,
-   "grove_logs": 434,
-   "grove_bound": true,
-   "trees": 36,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_204",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 173,
-   "net_logs_h": 1700,
-   "p_best": 0.008,
-   "logs_per_trip": 494,
-   "grove_logs": 494,
-   "grove_bound": true,
-   "trees": 41,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_219",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 167,
-   "net_logs_h": 1700,
-   "p_best": 0.006,
-   "logs_per_trip": 470,
-   "grove_logs": 470,
-   "grove_bound": true,
-   "trees": 39,
    "yield_share": 0.63
   },
   {
@@ -1763,18 +1632,84 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 199,
-   "net_logs_h": 1695,
-   "p_best": 0.007,
+   "net_logs_h": 2208,
+   "p_best": 0.004,
    "logs_per_trip": 602,
    "grove_logs": 603,
    "grove_bound": true,
    "trees": 50,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_204",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 173,
+   "net_logs_h": 2207,
+   "p_best": 0.009,
+   "logs_per_trip": 494,
+   "grove_logs": 494,
+   "grove_bound": true,
+   "trees": 41,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_218",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 157,
+   "net_logs_h": 2205,
+   "p_best": 0.005,
+   "logs_per_trip": 434,
+   "grove_logs": 434,
+   "grove_bound": true,
+   "trees": 36,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_219",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 167,
+   "net_logs_h": 2205,
+   "p_best": 0.009,
+   "logs_per_trip": 470,
+   "grove_logs": 470,
+   "grove_bound": true,
+   "trees": 39,
    "yield_share": 0.63
   },
   {
@@ -1785,14 +1720,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 182,
-   "net_logs_h": 1691,
-   "p_best": 0.009,
+   "net_logs_h": 2195,
+   "p_best": 0.011,
    "logs_per_trip": 518,
    "grove_logs": 519,
    "grove_bound": true,
@@ -1807,13 +1742,13 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 177,
-   "net_logs_h": 1691,
+   "net_logs_h": 2193,
    "p_best": 0.005,
    "logs_per_trip": 494,
    "grove_logs": 494,
@@ -1829,13 +1764,13 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 153,
-   "net_logs_h": 1686,
+   "net_logs_h": 2177,
    "p_best": 0.006,
    "logs_per_trip": 397,
    "grove_logs": 398,
@@ -1844,25 +1779,47 @@
    "yield_share": 0.63
   },
   {
-   "id": "witcher_124",
+   "id": "witcher_29",
    "status": "active",
    "eligible": true,
    "visited": false,
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
-   "overhead_s": 148,
-   "net_logs_h": 1681,
-   "p_best": 0.008,
-   "logs_per_trip": 373,
-   "grove_logs": 374,
+   "overhead_s": 210,
+   "net_logs_h": 2175,
+   "p_best": 0.009,
+   "logs_per_trip": 602,
+   "grove_logs": 603,
    "grove_bound": true,
-   "trees": 31,
+   "trees": 50,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_272",
+   "status": "active",
+   "eligible": true,
+   "visited": true,
+   "trips": 1,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 164,
+   "net_logs_h": 2172,
+   "p_best": 0.006,
+   "logs_per_trip": 627,
+   "grove_logs": 627,
+   "grove_bound": true,
+   "trees": 52,
    "yield_share": 0.63
   },
   {
@@ -1873,14 +1830,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 170,
-   "net_logs_h": 1679,
-   "p_best": 0.006,
+   "net_logs_h": 2169,
+   "p_best": 0.005,
    "logs_per_trip": 446,
    "grove_logs": 446,
    "grove_bound": true,
@@ -1895,14 +1852,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 178,
-   "net_logs_h": 1676,
-   "p_best": 0.007,
+   "net_logs_h": 2167,
+   "p_best": 0.009,
    "logs_per_trip": 470,
    "grove_logs": 470,
    "grove_bound": true,
@@ -1910,47 +1867,47 @@
    "yield_share": 0.63
   },
   {
-   "id": "witcher_29",
+   "id": "witcher_124",
    "status": "active",
    "eligible": true,
    "visited": false,
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
-   "overhead_s": 210,
-   "net_logs_h": 1674,
-   "p_best": 0.007,
-   "logs_per_trip": 602,
-   "grove_logs": 603,
+   "overhead_s": 148,
+   "net_logs_h": 2166,
+   "p_best": 0.006,
+   "logs_per_trip": 373,
+   "grove_logs": 374,
    "grove_bound": true,
-   "trees": 50,
+   "trees": 31,
    "yield_share": 0.63
   },
   {
-   "id": "witcher_98",
+   "id": "witcher_175",
    "status": "active",
    "eligible": true,
-   "visited": false,
-   "trips": 0,
+   "visited": true,
+   "trips": 1,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
-   "overhead_s": 189,
-   "net_logs_h": 1672,
+   "overhead_s": 164,
+   "net_logs_h": 2151,
    "p_best": 0.007,
-   "logs_per_trip": 506,
-   "grove_logs": 507,
+   "logs_per_trip": 518,
+   "grove_logs": 519,
    "grove_bound": true,
-   "trees": 42,
+   "trees": 43,
    "yield_share": 0.63
   },
   {
@@ -1961,13 +1918,13 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 141,
-   "net_logs_h": 1670,
+   "net_logs_h": 2145,
    "p_best": 0.007,
    "logs_per_trip": 337,
    "grove_logs": 338,
@@ -1983,18 +1940,40 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 141,
-   "net_logs_h": 1670,
-   "p_best": 0.008,
+   "net_logs_h": 2145,
+   "p_best": 0.006,
    "logs_per_trip": 337,
    "grove_logs": 338,
    "grove_bound": true,
    "trees": 28,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_85",
+   "status": "active",
+   "eligible": true,
+   "visited": true,
+   "trips": 1,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 179,
+   "net_logs_h": 2144,
+   "p_best": 0.005,
+   "logs_per_trip": 578,
+   "grove_logs": 579,
+   "grove_bound": true,
+   "trees": 48,
    "yield_share": 0.63
   },
   {
@@ -2005,14 +1984,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 166,
-   "net_logs_h": 1664,
-   "p_best": 0.009,
+   "net_logs_h": 2143,
+   "p_best": 0.004,
    "logs_per_trip": 410,
    "grove_logs": 410,
    "grove_bound": true,
@@ -2020,47 +1999,25 @@
    "yield_share": 0.63
   },
   {
-   "id": "witcher_213",
+   "id": "witcher_190",
    "status": "active",
    "eligible": true,
    "visited": true,
    "trips": 1,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
+   "field_h": 0.02,
+   "logs": 72,
+   "rate_logs_h": 3499,
    "rate_80": [
-    1246,
-    3540
+    2297,
+    4822
    ],
-   "overhead_s": 159,
-   "net_logs_h": 1663,
+   "overhead_s": 153,
+   "net_logs_h": 2141,
    "p_best": 0.006,
-   "logs_per_trip": 615,
-   "grove_logs": 615,
+   "logs_per_trip": 337,
+   "grove_logs": 338,
    "grove_bound": true,
-   "trees": 51,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_188",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 161,
-   "net_logs_h": 1657,
-   "p_best": 0.006,
-   "logs_per_trip": 385,
-   "grove_logs": 386,
-   "grove_bound": true,
-   "trees": 32,
+   "trees": 28,
    "yield_share": 0.63
   },
   {
@@ -2071,14 +2028,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 194,
-   "net_logs_h": 1655,
-   "p_best": 0.006,
+   "net_logs_h": 2136,
+   "p_best": 0.005,
    "logs_per_trip": 494,
    "grove_logs": 494,
    "grove_bound": true,
@@ -2086,25 +2043,69 @@
    "yield_share": 0.63
   },
   {
-   "id": "witcher_187",
+   "id": "witcher_188",
    "status": "active",
    "eligible": true,
    "visited": false,
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
-   "overhead_s": 155,
-   "net_logs_h": 1644,
+   "overhead_s": 161,
+   "net_logs_h": 2129,
    "p_best": 0.006,
-   "logs_per_trip": 349,
-   "grove_logs": 350,
+   "logs_per_trip": 385,
+   "grove_logs": 386,
    "grove_bound": true,
-   "trees": 29,
+   "trees": 32,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_168",
+   "status": "active",
+   "eligible": true,
+   "visited": true,
+   "trips": 1,
+   "field_h": 0.1,
+   "logs": 392,
+   "rate_logs_h": 3580,
+   "rate_80": [
+    2780,
+    4430
+   ],
+   "overhead_s": 187,
+   "net_logs_h": 2123,
+   "p_best": 0.002,
+   "logs_per_trip": 385,
+   "grove_logs": 386,
+   "grove_bound": true,
+   "trees": 32,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_55",
+   "status": "active",
+   "eligible": true,
+   "visited": true,
+   "trips": 1,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 203,
+   "net_logs_h": 2123,
+   "p_best": 0.006,
+   "logs_per_trip": 554,
+   "grove_logs": 555,
+   "grove_bound": true,
+   "trees": 46,
    "yield_share": 0.63
   },
   {
@@ -2115,18 +2116,40 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 183,
-   "net_logs_h": 1641,
-   "p_best": 0.007,
+   "net_logs_h": 2108,
+   "p_best": 0.004,
    "logs_per_trip": 434,
    "grove_logs": 434,
    "grove_bound": true,
    "trees": 36,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_187",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 155,
+   "net_logs_h": 2105,
+   "p_best": 0.007,
+   "logs_per_trip": 349,
+   "grove_logs": 350,
+   "grove_bound": true,
+   "trees": 29,
    "yield_share": 0.63
   },
   {
@@ -2137,14 +2160,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 172,
-   "net_logs_h": 1640,
-   "p_best": 0.006,
+   "net_logs_h": 2103,
+   "p_best": 0.003,
    "logs_per_trip": 397,
    "grove_logs": 398,
    "grove_bound": true,
@@ -2159,14 +2182,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 173,
-   "net_logs_h": 1639,
-   "p_best": 0.004,
+   "net_logs_h": 2102,
+   "p_best": 0.005,
    "logs_per_trip": 397,
    "grove_logs": 398,
    "grove_bound": true,
@@ -2181,84 +2204,18 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 164,
-   "net_logs_h": 1639,
-   "p_best": 0.005,
+   "net_logs_h": 2100,
+   "p_best": 0.011,
    "logs_per_trip": 373,
    "grove_logs": 374,
    "grove_bound": true,
    "trees": 31,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_190",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 153,
-   "net_logs_h": 1638,
-   "p_best": 0.005,
-   "logs_per_trip": 337,
-   "grove_logs": 338,
-   "grove_bound": true,
-   "trees": 28,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_55",
-   "status": "active",
-   "eligible": true,
-   "visited": true,
-   "trips": 1,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 203,
-   "net_logs_h": 1637,
-   "p_best": 0.004,
-   "logs_per_trip": 554,
-   "grove_logs": 555,
-   "grove_bound": true,
-   "trees": 46,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_199",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 157,
-   "net_logs_h": 1627,
-   "p_best": 0.004,
-   "logs_per_trip": 337,
-   "grove_logs": 338,
-   "grove_bound": true,
-   "trees": 28,
    "yield_share": 0.63
   },
   {
@@ -2269,62 +2226,18 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 221,
-   "net_logs_h": 1627,
-   "p_best": 0.008,
+   "net_logs_h": 2095,
+   "p_best": 0.009,
    "logs_per_trip": 542,
    "grove_logs": 543,
    "grove_bound": true,
    "trees": 45,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_170",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 144,
-   "net_logs_h": 1624,
-   "p_best": 0.007,
-   "logs_per_trip": 301,
-   "grove_logs": 301,
-   "grove_bound": true,
-   "trees": 25,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_123",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 152,
-   "net_logs_h": 1623,
-   "p_best": 0.004,
-   "logs_per_trip": 320,
-   "grove_logs": 326,
-   "grove_bound": false,
-   "trees": 27,
    "yield_share": 0.63
   },
   {
@@ -2335,13 +2248,13 @@
    "trips": 1,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 173,
-   "net_logs_h": 1620,
+   "net_logs_h": 2083,
    "p_best": 0.004,
    "logs_per_trip": 410,
    "grove_logs": 410,
@@ -2350,25 +2263,69 @@
    "yield_share": 0.63
   },
   {
-   "id": "witcher_175",
+   "id": "witcher_199",
    "status": "active",
    "eligible": true,
-   "visited": true,
-   "trips": 1,
+   "visited": false,
+   "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
-   "overhead_s": 164,
-   "net_logs_h": 1620,
-   "p_best": 0.006,
-   "logs_per_trip": 518,
-   "grove_logs": 519,
+   "overhead_s": 157,
+   "net_logs_h": 2077,
+   "p_best": 0.005,
+   "logs_per_trip": 337,
+   "grove_logs": 338,
    "grove_bound": true,
-   "trees": 43,
+   "trees": 28,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_123",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 152,
+   "net_logs_h": 2070,
+   "p_best": 0.004,
+   "logs_per_trip": 320,
+   "grove_logs": 326,
+   "grove_bound": false,
+   "trees": 27,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_170",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 144,
+   "net_logs_h": 2070,
+   "p_best": 0.004,
+   "logs_per_trip": 301,
+   "grove_logs": 301,
+   "grove_bound": true,
+   "trees": 25,
    "yield_share": 0.63
   },
   {
@@ -2379,84 +2336,18 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 141,
-   "net_logs_h": 1620,
+   "net_logs_h": 2062,
    "p_best": 0.004,
    "logs_per_trip": 289,
    "grove_logs": 289,
    "grove_bound": true,
    "trees": 24,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_184",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 155,
-   "net_logs_h": 1614,
-   "p_best": 0.004,
-   "logs_per_trip": 320,
-   "grove_logs": 326,
-   "grove_bound": false,
-   "trees": 27,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_242",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 156,
-   "net_logs_h": 1612,
-   "p_best": 0.005,
-   "logs_per_trip": 320,
-   "grove_logs": 326,
-   "grove_bound": false,
-   "trees": 27,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_85",
-   "status": "active",
-   "eligible": true,
-   "visited": true,
-   "trips": 1,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 179,
-   "net_logs_h": 1612,
-   "p_best": 0.005,
-   "logs_per_trip": 578,
-   "grove_logs": 579,
-   "grove_bound": true,
-   "trees": 48,
    "yield_share": 0.63
   },
   {
@@ -2467,18 +2358,40 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 193,
-   "net_logs_h": 1611,
-   "p_best": 0.004,
+   "net_logs_h": 2061,
+   "p_best": 0.006,
    "logs_per_trip": 422,
    "grove_logs": 422,
    "grove_bound": true,
    "trees": 35,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_184",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 155,
+   "net_logs_h": 2056,
+   "p_best": 0.004,
+   "logs_per_trip": 320,
+   "grove_logs": 326,
+   "grove_bound": false,
+   "trees": 27,
    "yield_share": 0.63
   },
   {
@@ -2489,18 +2402,40 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 167,
-   "net_logs_h": 1611,
-   "p_best": 0.004,
+   "net_logs_h": 2054,
+   "p_best": 0.006,
    "logs_per_trip": 349,
    "grove_logs": 350,
    "grove_bound": true,
    "trees": 29,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_242",
+   "status": "active",
+   "eligible": true,
+   "visited": false,
+   "trips": 0,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 156,
+   "net_logs_h": 2052,
+   "p_best": 0.007,
+   "logs_per_trip": 320,
+   "grove_logs": 326,
+   "grove_bound": false,
+   "trees": 27,
    "yield_share": 0.63
   },
   {
@@ -2511,40 +2446,18 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 155,
-   "net_logs_h": 1608,
-   "p_best": 0.004,
+   "net_logs_h": 2046,
+   "p_best": 0.006,
    "logs_per_trip": 313,
    "grove_logs": 314,
    "grove_bound": true,
    "trees": 26,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_189",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 145,
-   "net_logs_h": 1608,
-   "p_best": 0.005,
-   "logs_per_trip": 289,
-   "grove_logs": 289,
-   "grove_bound": true,
-   "trees": 24,
    "yield_share": 0.63
   },
   {
@@ -2555,14 +2468,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 159,
-   "net_logs_h": 1605,
-   "p_best": 0.005,
+   "net_logs_h": 2041,
+   "p_best": 0.006,
    "logs_per_trip": 320,
    "grove_logs": 326,
    "grove_bound": false,
@@ -2577,62 +2490,18 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 151,
-   "net_logs_h": 1604,
-   "p_best": 0.004,
+   "net_logs_h": 2037,
+   "p_best": 0.006,
    "logs_per_trip": 301,
    "grove_logs": 301,
    "grove_bound": true,
    "trees": 25,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_272",
-   "status": "active",
-   "eligible": true,
-   "visited": true,
-   "trips": 1,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 164,
-   "net_logs_h": 1596,
-   "p_best": 0.004,
-   "logs_per_trip": 627,
-   "grove_logs": 627,
-   "grove_bound": true,
-   "trees": 52,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_168",
-   "status": "active",
-   "eligible": true,
-   "visited": false,
-   "trips": 0,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 187,
-   "net_logs_h": 1595,
-   "p_best": 0.006,
-   "logs_per_trip": 385,
-   "grove_logs": 386,
-   "grove_bound": true,
-   "trees": 32,
    "yield_share": 0.63
   },
   {
@@ -2643,18 +2512,40 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 160,
-   "net_logs_h": 1593,
-   "p_best": 0.004,
+   "net_logs_h": 2023,
+   "p_best": 0.002,
    "logs_per_trip": 313,
    "grove_logs": 314,
    "grove_bound": true,
    "trees": 26,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_165",
+   "status": "active",
+   "eligible": true,
+   "visited": true,
+   "trips": 1,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 214,
+   "net_logs_h": 2021,
+   "p_best": 0.006,
+   "logs_per_trip": 446,
+   "grove_logs": 446,
+   "grove_bound": true,
+   "trees": 37,
    "yield_share": 0.63
   },
   {
@@ -2665,14 +2556,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 164,
-   "net_logs_h": 1591,
-   "p_best": 0.005,
+   "net_logs_h": 2020,
+   "p_best": 0.007,
    "logs_per_trip": 320,
    "grove_logs": 326,
    "grove_bound": false,
@@ -2687,40 +2578,18 @@
    "trips": 1,
    "field_h": 0.05,
    "logs": 106,
-   "rate_logs_h": 2461,
+   "rate_logs_h": 3116,
    "rate_80": [
-    1541,
-    3482
+    2111,
+    4215
    ],
    "overhead_s": 166,
-   "net_logs_h": 1588,
-   "p_best": 0.001,
+   "net_logs_h": 2012,
+   "p_best": 0.003,
    "logs_per_trip": 482,
    "grove_logs": 482,
    "grove_bound": true,
    "trees": 40,
-   "yield_share": 0.63
-  },
-  {
-   "id": "witcher_165",
-   "status": "active",
-   "eligible": true,
-   "visited": true,
-   "trips": 1,
-   "field_h": 0.0,
-   "logs": 0,
-   "rate_logs_h": 2316,
-   "rate_80": [
-    1246,
-    3540
-   ],
-   "overhead_s": 214,
-   "net_logs_h": 1585,
-   "p_best": 0.005,
-   "logs_per_trip": 446,
-   "grove_logs": 446,
-   "grove_bound": true,
-   "trees": 37,
    "yield_share": 0.63
   },
   {
@@ -2731,14 +2600,14 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 167,
-   "net_logs_h": 1560,
-   "p_best": 0.007,
+   "net_logs_h": 1970,
+   "p_best": 0.005,
    "logs_per_trip": 301,
    "grove_logs": 301,
    "grove_bound": true,
@@ -2753,19 +2622,41 @@
    "trips": 1,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 251,
-   "net_logs_h": 1499,
+   "net_logs_h": 1913,
    "p_best": 0.005,
    "logs_per_trip": 504,
    "grove_logs": 504,
    "grove_bound": true,
    "trees": 46,
    "yield_share": 0.57
+  },
+  {
+   "id": "horseshoe_bay",
+   "status": "active",
+   "eligible": true,
+   "visited": true,
+   "trips": 13,
+   "field_h": 1.63,
+   "logs": 2717,
+   "rate_logs_h": 2247,
+   "rate_80": [
+    2016,
+    2485
+   ],
+   "overhead_s": 102,
+   "net_logs_h": 1911,
+   "p_best": 0.0,
+   "logs_per_trip": 620,
+   "grove_logs": 620,
+   "grove_bound": true,
+   "trees": 40,
+   "yield_share": 0.81
   },
   {
    "id": "terran_wilds",
@@ -2775,15 +2666,15 @@
    "trips": 2,
    "field_h": 0.79,
    "logs": 1404,
-   "rate_logs_h": 1987,
+   "rate_logs_h": 2259,
    "rate_80": [
-    1646,
-    2344
+    1941,
+    2589
    ],
    "overhead_s": 159,
-   "net_logs_h": 1447,
+   "net_logs_h": 1683,
    "p_best": 0.0,
-   "logs_per_trip": 1110,
+   "logs_per_trip": 1440,
    "grove_logs": 1812,
    "grove_bound": false,
    "trees": 115,
@@ -2797,19 +2688,41 @@
    "trips": 3,
    "field_h": 0.88,
    "logs": 1313,
-   "rate_logs_h": 1722,
+   "rate_logs_h": 2005,
    "rate_80": [
-    1419,
-    2039
+    1715,
+    2306
    ],
-   "overhead_s": 146,
-   "net_logs_h": 1347,
+   "overhead_s": 147,
+   "net_logs_h": 1599,
    "p_best": 0.0,
-   "logs_per_trip": 1040,
+   "logs_per_trip": 1244,
    "grove_logs": 1244,
-   "grove_bound": false,
+   "grove_bound": true,
    "trees": 138,
    "yield_share": 0.47
+  },
+  {
+   "id": "witcher_280",
+   "status": "active",
+   "eligible": true,
+   "visited": true,
+   "trips": 3,
+   "field_h": 0.09,
+   "logs": 81,
+   "rate_logs_h": 1976,
+   "rate_80": [
+    1298,
+    2722
+   ],
+   "overhead_s": 146,
+   "net_logs_h": 1530,
+   "p_best": 0.0,
+   "logs_per_trip": 1449,
+   "grove_logs": 1449,
+   "grove_bound": true,
+   "trees": 154,
+   "yield_share": 0.49
   },
   {
    "id": "corpse_creek",
@@ -2819,13 +2732,13 @@
    "trips": 3,
    "field_h": 0.32,
    "logs": 493,
-   "rate_logs_h": 1821,
+   "rate_logs_h": 2076,
    "rate_80": [
-    1353,
-    2323
+    1630,
+    2548
    ],
    "overhead_s": 150,
-   "net_logs_h": 1320,
+   "net_logs_h": 1529,
    "p_best": 0.0,
    "logs_per_trip": 563,
    "grove_logs": 564,
@@ -2841,41 +2754,19 @@
    "trips": 5,
    "field_h": 0.27,
    "logs": 407,
-   "rate_logs_h": 1824,
+   "rate_logs_h": 2148,
    "rate_80": [
-    1325,
-    2363
+    1655,
+    2672
    ],
    "overhead_s": 145,
-   "net_logs_h": 1261,
+   "net_logs_h": 1518,
    "p_best": 0.0,
    "logs_per_trip": 517,
    "grove_logs": 517,
    "grove_bound": true,
    "trees": 46,
    "yield_share": 0.58
-  },
-  {
-   "id": "witcher_280",
-   "status": "active",
-   "eligible": true,
-   "visited": true,
-   "trips": 3,
-   "field_h": 0.09,
-   "logs": 81,
-   "rate_logs_h": 1652,
-   "rate_80": [
-    1000,
-    2380
-   ],
-   "overhead_s": 146,
-   "net_logs_h": 1248,
-   "p_best": 0.0,
-   "logs_per_trip": 1370,
-   "grove_logs": 1449,
-   "grove_bound": false,
-   "trees": 154,
-   "yield_share": 0.49
   },
   {
    "id": "witcher_137",
@@ -2885,18 +2776,62 @@
    "trips": 1,
    "field_h": 0.33,
    "logs": 1198,
-   "rate_logs_h": 3444,
+   "rate_logs_h": 4088,
    "rate_80": [
-    2842,
-    4076
+    3501,
+    4699
    ],
    "overhead_s": 142,
-   "net_logs_h": 2454,
+   "net_logs_h": 2861,
    "p_best": 0.0,
    "logs_per_trip": 566,
    "grove_logs": 567,
    "grove_bound": true,
    "trees": 47,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_66",
+   "status": "active",
+   "eligible": false,
+   "visited": true,
+   "trips": 4,
+   "field_h": 0.12,
+   "logs": 445,
+   "rate_logs_h": 4104,
+   "rate_80": [
+    3229,
+    5032
+   ],
+   "overhead_s": 167,
+   "net_logs_h": 2684,
+   "p_best": 0.0,
+   "logs_per_trip": 627,
+   "grove_logs": 627,
+   "grove_bound": true,
+   "trees": 52,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_1",
+   "status": "active",
+   "eligible": false,
+   "visited": true,
+   "trips": 2,
+   "field_h": 0.31,
+   "logs": 1247,
+   "rate_logs_h": 3788,
+   "rate_80": [
+    3258,
+    4339
+   ],
+   "overhead_s": 150,
+   "net_logs_h": 2540,
+   "p_best": 0.0,
+   "logs_per_trip": 494,
+   "grove_logs": 494,
+   "grove_bound": true,
+   "trees": 41,
    "yield_share": 0.63
   },
   {
@@ -2907,18 +2842,40 @@
    "trips": 0,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 164,
-   "net_logs_h": 1770,
+   "net_logs_h": 2332,
    "p_best": 0.0,
    "logs_per_trip": 627,
    "grove_logs": 627,
    "grove_bound": true,
    "trees": 52,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_268",
+   "status": "disabled",
+   "eligible": false,
+   "visited": true,
+   "trips": 1,
+   "field_h": 0.0,
+   "logs": 0,
+   "rate_logs_h": 3166,
+   "rate_80": [
+    1856,
+    4640
+   ],
+   "overhead_s": 169,
+   "net_logs_h": 2132,
+   "p_best": 0.0,
+   "logs_per_trip": 506,
+   "grove_logs": 507,
+   "grove_bound": true,
+   "trees": 42,
    "yield_share": 0.63
   },
   {
@@ -2929,18 +2886,40 @@
    "trips": 1,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 149,
-   "net_logs_h": 1526,
+   "net_logs_h": 2036,
    "p_best": 0.0,
    "logs_per_trip": 470,
    "grove_logs": 470,
    "grove_bound": true,
    "trees": 39,
+   "yield_share": 0.63
+  },
+  {
+   "id": "witcher_40",
+   "status": "active",
+   "eligible": false,
+   "visited": true,
+   "trips": 4,
+   "field_h": 1.45,
+   "logs": 5485,
+   "rate_logs_h": 3956,
+   "rate_80": [
+    3677,
+    4240
+   ],
+   "overhead_s": 143,
+   "net_logs_h": 1858,
+   "p_best": 0.0,
+   "logs_per_trip": 168,
+   "grove_logs": 169,
+   "grove_bound": true,
+   "trees": 50,
    "yield_share": 0.63
   },
   {
@@ -2951,19 +2930,41 @@
    "trips": 1,
    "field_h": 0.0,
    "logs": 0,
-   "rate_logs_h": 2316,
+   "rate_logs_h": 3166,
    "rate_80": [
-    1246,
-    3540
+    1856,
+    4640
    ],
    "overhead_s": 211,
-   "net_logs_h": 970,
+   "net_logs_h": 1128,
    "p_best": 0.0,
    "logs_per_trip": 124,
    "grove_logs": 125,
    "grove_bound": true,
    "trees": 29,
    "yield_share": 0.22
+  },
+  {
+   "id": "witcher_162",
+   "status": "active",
+   "eligible": false,
+   "visited": true,
+   "trips": 2,
+   "field_h": 0.75,
+   "logs": 2684,
+   "rate_logs_h": 3751,
+   "rate_80": [
+    3380,
+    4132
+   ],
+   "overhead_s": 141,
+   "net_logs_h": 1067,
+   "p_best": 0.0,
+   "logs_per_trip": 72,
+   "grove_logs": 72,
+   "grove_bound": true,
+   "trees": 46,
+   "yield_share": 0.63
   }
  ]
 }

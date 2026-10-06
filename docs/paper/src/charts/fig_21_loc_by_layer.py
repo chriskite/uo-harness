@@ -1,4 +1,4 @@
-"""Appendix B: lines of code by layer at HEAD (afbbf71), from data/21_loc_by_layer.json."""
+"""Appendix B: lines of code by layer at the snapshot commit (ee59524), from data/21_loc_by_layer.json."""
 import os
 import sys
 
@@ -11,7 +11,7 @@ rows = [(f"{L['name']} ({L['files']})", L["lines"]) for L in d["layers"]]
 rows += [(f"{o['name']} ({o['files']})", o["lines"]) for o in d["other"]]
 rows.sort(key=lambda r: -r[1])
 svg = hbar([r[0] for r in rows], [r[1] for r in rows],
-           xlabel="physical lines at HEAD (files in parentheses)",
+           xlabel="physical lines at ee59524 (files in parentheses)",
            label_w=300, bar_h=18,
            fmt=lambda v: f"{int(v):,}")
 save("21_loc_by_layer", svg)

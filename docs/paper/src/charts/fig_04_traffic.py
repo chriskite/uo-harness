@@ -21,7 +21,7 @@ a.set_xticks(x)
 a.set_xticklabels(days)
 a.set_ylabel("C2S packets the server saw (thousands)")
 a.legend(loc="upper left")
-a.set_ylim(0, 125)
+a.set_ylim(0, 1.15 * max(r["c2s_client"] + r["c2s_agent"] for r in d) / 1000)
 
 re_ = [r["reanchor"] / 1000 for r in d]
 tc = [r["target_cancel"] / 1000 for r in d]

@@ -1,4 +1,4 @@
-"""Deaths, near-deaths, theft and false alarms as a character swimlane, 09-30 -> 10-05 -> figures/08_incidents.svg.
+"""Deaths, near-deaths, theft and false alarms as a character swimlane, 09-30 -> 10-06 -> figures/08_incidents.svg.
 
 Days are columns sized by their number of incidents; inside a day the incidents are in clock order
 (spacing not to scale)."""
@@ -26,7 +26,8 @@ CAUSE = OrderedDict([
 KIND = {"death": ("X", 12), "near-death": ("^", 9), "theft": ("D", 7.5), "false_alarm": ("o", 8.5)}
 SHORT_FIX = {"same-day demo fixes": "demo fixes", "(none recorded)": "none", "BENIGN_EFFECTS": "benign effects",
              "no corpse runs": "no corpse run", "travel_guard": "guarded goto",
-             "0add311, c1b4eed": "0add311\nc1b4eed", "cb2e981, 5266884": "cb2e981\n5266884"}
+             "0add311, c1b4eed": "0add311\nc1b4eed", "cb2e981, 5266884": "cb2e981\n5266884",
+             "ade127e, 5589433": "ade127e\n5589433", "5e70fad, ee59524": "5e70fad\nee59524"}
 ORDER_KEY = {"night": "23:00", "≈16:45": "16:45"}
 SLOT = 1.25
 
@@ -35,7 +36,7 @@ days = OrderedDict()
 for r in rows:
     days.setdefault(r["date"], []).append(r)
 
-fig, ax = plt.subplots(figsize=(10, 4.6))
+fig, ax = plt.subplots(figsize=(11.5, 4.7))
 x = 0.0
 day_spans = []
 for day, evs in days.items():

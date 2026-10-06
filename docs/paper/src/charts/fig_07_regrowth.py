@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import load, save, mpl, mpl_svg, PALETTE, INK2, INK3
 
 d = load("07_regrowth")
-cur = d["store_2026_10_05"]["curve"]
+cur = d["store_2026_10_06"]["curve"]
 plt = mpl()
 fig, ax = plt.subplots(figsize=(7.2, 3.7))
 
@@ -39,7 +39,7 @@ ax.text(68, 0.05, "65 min window", fontsize=9, color=PALETTE[2])
 ax.axvline(20, color=PALETTE[7], lw=1.2, ls=":", zorder=1)
 ax.text(19, 0.30, "old 20 min", fontsize=8.6, color=PALETTE[7], rotation=90, ha="right", va="center")
 
-ax.plot([], [], color=PALETTE[0], lw=2.4, label="isotonic fit, 2026-10-05 (277 pairs)")
+ax.plot([], [], color=PALETTE[0], lw=2.4, label="isotonic fit, 2026-10-06 (277 pairs)")
 ax.legend(loc="lower right", fontsize=8.8)
 ax.set_xscale("log")
 ax.set_xlim(14, X_END)

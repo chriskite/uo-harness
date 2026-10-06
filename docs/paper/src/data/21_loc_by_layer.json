@@ -1,5 +1,5 @@
 {
- "source": "research dataset loc_by_module.json (working tree at HEAD afbbf71, 2026-10-05; newline counts, so the empty uo/__init__.py is 0). Layer assignment by this appendix.",
+ "source": "git show ee59524:<file> for every tracked file (snapshot commit, 2026-10-06 11:49 CDT; committed blobs, newline counts, so the empty uo/__init__.py is 0). Layer assignment by this appendix.",
  "layers": [
   {
    "key": "proxy",
@@ -98,7 +98,7 @@
    "key": "world",
    "name": "World model, map and memory",
    "files": 12,
-   "lines": 4978,
+   "lines": 5003,
    "modules": [
     {
      "module": "world/runtime.py",
@@ -112,7 +112,7 @@
     },
     {
      "module": "memory.py",
-     "lines": 678,
+     "lines": 689,
      "purpose": "One durable, indexed SQLite store"
     },
     {
@@ -132,7 +132,7 @@
     },
     {
      "module": "pathfind.py",
-     "lines": 326,
+     "lines": 340,
      "purpose": "3-D walkability and route planning over the map"
     },
     {
@@ -165,12 +165,12 @@
   {
    "key": "runners",
    "name": "Runners",
-   "files": 18,
-   "lines": 9885,
+   "files": 19,
+   "lines": 10265,
    "modules": [
     {
      "module": "loop_lumber.py",
-     "lines": 3443,
+     "lines": 3550,
      "purpose": "Lumber loop runner"
     },
     {
@@ -180,7 +180,7 @@
     },
     {
      "module": "agent_link.py",
-     "lines": 876,
+     "lines": 930,
      "purpose": "Shared plumbing for closed-loop runners (Link, Mover)"
     },
     {
@@ -229,6 +229,11 @@
      "purpose": "Human-like timing and texture for agent runners"
     },
     {
+     "module": "convert.py",
+     "lines": 198,
+     "purpose": "Logs into boards: the one convert flow for the runner and ctl act convert"
+    },
+    {
      "module": "stationary.py",
      "lines": 179,
      "purpose": "Outlands' Stationary Penalty: see it, walk it off"
@@ -244,14 +249,14 @@
      "purpose": "Find, ride and revive our mount"
     },
     {
+     "module": "stockpile.py",
+     "lines": 136,
+     "purpose": "Deposit items into a Resource Stockpile"
+    },
+    {
      "module": "healing.py",
      "lines": 126,
      "purpose": "Self-healing choice (potion vs spell)"
-    },
-    {
-     "module": "stockpile.py",
-     "lines": 115,
-     "purpose": "Deposit items into a Resource Stockpile"
     },
     {
      "module": "home.py",
@@ -264,11 +269,11 @@
    "key": "planner",
    "name": "Planner",
    "files": 1,
-   "lines": 1602,
+   "lines": 1613,
    "modules": [
     {
      "module": "lumber_opt.py",
-     "lines": 1602,
+     "lines": 1613,
      "purpose": "Self-optimizing lumber job: where to chop, how much to carry, which hatchet"
     }
    ]
@@ -277,16 +282,16 @@
    "key": "safety",
    "name": "Safety",
    "files": 9,
-   "lines": 3005,
+   "lines": 3034,
    "modules": [
     {
      "module": "escape.py",
-     "lines": 787,
+     "lines": 792,
      "purpose": "Recall to the default rune of a runebook/tome on a red sighting"
     },
     {
      "module": "threats.py",
-     "lines": 707,
+     "lines": 721,
      "purpose": "Threat assessment over one state-port response (pure)"
     },
     {
@@ -310,14 +315,14 @@
      "purpose": "Mine accepted captchas from captures into the dataset"
     },
     {
+     "module": "pouch.py",
+     "lines": 147,
+     "purpose": "Trapped pouches and the thief alarm"
+    },
+    {
      "module": "captcha.py",
      "lines": 142,
      "purpose": "Captcha solver from the gump layout (no OCR)"
-    },
-    {
-     "module": "pouch.py",
-     "lines": 137,
-     "purpose": "Trapped pouches and the thief alarm"
     },
     {
      "module": "guards.py",
@@ -330,11 +335,11 @@
    "key": "overseer",
    "name": "Overseer and tools",
    "files": 18,
-   "lines": 9858,
+   "lines": 9943,
    "modules": [
     {
      "module": "ctl.py",
-     "lines": 3327,
+     "lines": 3412,
      "purpose": "Overseer control CLI: the AI overseer's hands and ears"
     },
     {
@@ -428,16 +433,16 @@
    "key": "vizpy",
    "name": "Viz backend",
    "files": 8,
-   "lines": 2829,
+   "lines": 2888,
    "modules": [
     {
      "module": "jobs.py",
-     "lines": 762,
+     "lines": 785,
      "purpose": "Job analytics for the viz Jobs page"
     },
     {
      "module": "viz_server.py",
-     "lines": 746,
+     "lines": 782,
      "purpose": "Visualizer backend: REST + SSE"
     },
     {
@@ -478,35 +483,35 @@
    "key": "tests_harness",
    "name": "Tests (harness unit/integration)",
    "files": 41,
-   "lines": 13096
+   "lines": 13436
   },
   {
    "key": "tests_root",
    "name": "Tests (root end-to-end)",
    "files": 5,
-   "lines": 5350
+   "lines": 5508
   },
   {
    "key": "viz_front",
    "name": "Viz frontend (TS/TSX/CSS)",
    "files": 66,
-   "lines": 9672,
+   "lines": 9983,
    "split": {
     "css": {
      "files": 1,
-     "lines": 1959
+     "lines": 2001
     },
     "components": {
      "files": 23,
-     "lines": 3559
+     "lines": 3696
     },
     "logic": {
      "files": 24,
-     "lines": 2835
+     "lines": 2935
     },
     "tests": {
      "files": 18,
-     "lines": 1319
+     "lines": 1351
     }
    }
   },
@@ -526,14 +531,14 @@
  "tests": [
   {
    "path": "test_loop_lumber.py",
-   "lines": 3079,
+   "lines": 3237,
    "test_functions": 0,
    "doc": "Offline end-to-end test of the lumber loop runner (harness/loop_lumber.py)."
   },
   {
    "path": "harness/test_ctl.py",
-   "lines": 1874,
-   "test_functions": 17,
+   "lines": 1972,
+   "test_functions": 18,
    "doc": "Tests for harness/ctl.py + harness/task_wrap.py: the overseer bus CLI (docs/OVERSEER.md)."
   },
   {
@@ -550,9 +555,15 @@
   },
   {
    "path": "harness/test_viz.py",
-   "lines": 1125,
+   "lines": 1178,
    "test_functions": 9,
    "doc": "Backend tests for the visualizer (docs/VISUALIZER.md §7): viz_feed + viz_server."
+  },
+  {
+   "path": "harness/test_lumber_opt.py",
+   "lines": 744,
+   "test_functions": 17,
+   "doc": "Behaviour of the lumber optimizer (harness/lumber_opt.py, docs/LUMBER_LOOP.md §6): which spot it picks (and the landing rune a trip recalls to from home), how much it carries, which hatchet, and what it learns from trips"
   },
   {
    "path": "harness/test_actions.py",
@@ -561,20 +572,20 @@
    "doc": "Phase 3 tests: action builders, proxy injection path, replay integration."
   },
   {
-   "path": "harness/test_lumber_opt.py",
-   "lines": 709,
-   "test_functions": 16,
-   "doc": "Behaviour of the lumber optimizer (harness/lumber_opt.py, docs/LUMBER_LOOP.md §6): which spot it picks (and the landing rune a trip recalls to from home), how much it carries, which hatchet, and what it learns from trips"
-  },
-  {
    "path": "harness/test_escape.py",
-   "lines": 517,
-   "test_functions": 14,
+   "lines": 528,
+   "test_functions": 15,
    "doc": "Tests for harness/escape.py: reading the default rune, the charges and the Cast Recall button from the runebook and rune tome gumps exactly as the server sent them (harness/testdata/escape_gumps.json, captured live 2026-"
   },
   {
+   "path": "harness/test_mover.py",
+   "lines": 525,
+   "test_functions": 16,
+   "doc": "Deterministic tests for agent_link.Mover human behaviour on a fake grid world."
+  },
+  {
    "path": "harness/test_threats.py",
-   "lines": 469,
+   "lines": 482,
    "test_functions": 11,
    "doc": "Tests for harness/threats.py on synthetic state-port responses (no network)."
   },
@@ -583,12 +594,6 @@
    "lines": 447,
    "test_functions": 2,
    "doc": "Movement tests for the proxy's MoveAuthority (docs/MOVEMENT.md)."
-  },
-  {
-   "path": "harness/test_mover.py",
-   "lines": 432,
-   "test_functions": 12,
-   "doc": "Deterministic tests for agent_link.Mover human behaviour on a fake grid world."
   },
   {
    "path": "harness/test_uomap.py",
@@ -657,16 +662,22 @@
    "doc": "Tests for harness/telegram_bridge.py against a fake Bot API on localhost: what reaches the phone (and in what order, loud or silent), what comes back as user chat, and delivery through rate limits and refusals. No networ"
   },
   {
+   "path": "harness/test_pathfind.py",
+   "lines": 207,
+   "test_functions": 0,
+   "doc": "Tests for harness/pathfind.py on the real Outlands map (read-only install files)."
+  },
+  {
    "path": "harness/test_dbhandoff.py",
    "lines": 199,
    "test_functions": 0,
    "doc": "Memory store handoff tests (harness/dbhandoff.py, docs/NOTES.md \"Two computers (memory store handoff)\"). Two computers A and B share one temp \"NAS\" folder."
   },
   {
-   "path": "harness/test_pathfind.py",
-   "lines": 180,
-   "test_functions": 0,
-   "doc": "Tests for harness/pathfind.py on the real Outlands map (read-only install files)."
+   "path": "harness/test_pouch.py",
+   "lines": 174,
+   "test_functions": 4,
+   "doc": "Tests for harness/pouch.py (trapped pouches and the pop alarm) and nav.beyond. No network."
   },
   {
    "path": "harness/test_aspects.py",
@@ -691,12 +702,6 @@
    "lines": 166,
    "test_functions": 0,
    "doc": "Pins harness/data/loops/lumber.json to the demonstration capture it was written from (logs/session_20260929_204225, docs/LUMBER_LOOP.md §4)."
-  },
-  {
-   "path": "harness/test_pouch.py",
-   "lines": 164,
-   "test_functions": 4,
-   "doc": "Tests for harness/pouch.py (trapped pouches and the pop alarm) and nav.beyond. No network."
   },
   {
    "path": "harness/test_travel_guard.py",
@@ -925,6 +930,6 @@
  ],
  "viz_tests": {
   "files": 18,
-  "test_cases": 128
+  "test_cases": 131
  }
 }

@@ -1,5 +1,5 @@
 {
- "_schema": "Aggregates from harness.db harvest_attempts (read-only, queried 2026-10-05 20:37 local). gaps: seconds between consecutive success/fail attempt rows 1-30 s apart (consecutive chops at one stand/tree), split at script pace go-live 2026-10-04 22:34 CDT; hist bins 0.5 s from 1 to 20 s (gaps >20 s omitted from hist, kept in n/median). outcomes: attempt outcome counts per harvest era, split at the first Smart Harvest 'nothing_near' row (2026-10-04 22:07 CDT); Smart Harvest writes one 'nothing_near' row per tree marked, so its nothing_near is counted per answer (573 marks grouped <=1 s apart = 449 answers, matching job_events stand end='nothing_near'). capture: target-to-target medians from NOTES.md 'First live room-storage trip' (session 20261004_220218).",
+ "_schema": "Aggregates from harness.db harvest_attempts (frozen copy of 2026-10-06 12:00 CDT, read-only, rows t < 2026-10-06 12:00 CDT). gaps: seconds between consecutive success/fail attempt rows 1-30 s apart (consecutive chops at one stand/tree), split at script pace go-live 2026-10-04 22:34 CDT; hist bins 0.5 s from 1 to 20 s (gaps >20 s omitted from hist, kept in n/median). outcomes: attempt outcome counts per harvest era, split at the first Smart Harvest 'nothing_near' row (2026-10-04 22:07 CDT); Smart Harvest writes one 'nothing_near' row per tree marked, so its nothing_near is counted per answer (1,403 marks grouped <=1 s apart = 1,125 answers; job_events rows mentioning nothing_near: 1,124). capture: target-to-target medians from NOTES.md 'First live room-storage trip' (session 20261004_220218).",
  "gaps": {
   "bins": [
    1.0,
@@ -87,8 +87,8 @@
    ]
   },
   "script": {
-   "n": 1302,
-   "median": 5.15,
+   "n": 2518,
+   "median": 5.17,
    "hist": [
     0,
     0,
@@ -97,15 +97,15 @@
     0,
     0,
     0,
-    267,
-    984,
-    36,
+    439,
+    1966,
+    88,
+    1,
     0,
-    0,
-    0,
+    1,
     2,
-    2,
-    2,
+    5,
+    5,
     0,
     1,
     1,
@@ -115,7 +115,7 @@
     0,
     0,
     0,
-    0,
+    1,
     0,
     0,
     1,
@@ -125,7 +125,7 @@
     0,
     0,
     0,
-    2,
+    3,
     0,
     1
    ]
@@ -147,10 +147,10 @@
    "not_tree": 10
   },
   "smart_harvest": {
-   "nothing_near": 449,
-   "success": 1212,
-   "fail": 476,
-   "unreachable": 28
+   "success": 2900,
+   "fail": 503,
+   "unreachable": 28,
+   "nothing_near": 1125
   }
  },
  "era_split_local": {

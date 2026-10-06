@@ -1,5 +1,5 @@
 {
- "_source": "Shifts = overseer chat rows in harness.db split at gaps > 60 min (heuristic; includes some ctl calls made by coding agents). Deaths from DB chat and session logs (research briefs 05, 10, 11). Named subagent shifts from session transcripts (seer_shifts.json).",
+ "_source": "Shifts = overseer chat rows in the frozen harness.db copy (snapshot/harness_20261006_1200.db), t < 2026-10-06 12:00 CDT, split at gaps > 60 min (heuristic; includes some ctl calls made by coding agents). Deaths from DB chat/junctures and session logs (research briefs 05, 10, 11; Seer6/Seer7 from junctures, docs/NOTES.md commit ec339a1 and commit ade127e). Named subagent shifts from session transcripts (seer_shifts.json; Seer6/Seer7 from session 2026-10-04T22-55-45-652Z_01a10921, runs and boards from episodes ids 99-122, stored).",
  "shifts": [
   {
    "start": "2026-09-30T09:18",
@@ -94,10 +94,17 @@
   },
   {
    "start": "2026-10-05T15:58",
-   "end": "2026-10-05T20:21",
-   "hours": 4.39,
-   "overseer_rows": 177,
-   "label": "Outland Dan: 8 runs 3962 boards LJ 66.8->77.9 no deaths (17:56); witcher_23 air-dragon death 19:07"
+   "end": "2026-10-05T23:39",
+   "hours": 7.7,
+   "overseer_rows": 270,
+   "label": "Outland Dan: 8 runs 3962 boards LJ 66.8->77.9 no deaths (17:56); witcher_23 air-dragon death 19:07; Seer6 15 runs 8,033 boards LJ 81.1->90.5, Norse Settlement death 20:43"
+  },
+  {
+   "start": "2026-10-06T09:50",
+   "end": "2026-10-06T11:57",
+   "hours": 2.12,
+   "overseer_rows": 71,
+   "label": "Outland Dan (Seer7, cut at 12:00): 9 runs 4,590 boards LJ 90.5->95.6; witcher_23 landing death 10:14"
   }
  ],
  "deaths": [
@@ -150,6 +157,16 @@
    "day": "2026-10-05",
    "time": "19:07",
    "what": "Outland Dan, air dragon"
+  },
+  {
+   "day": "2026-10-05",
+   "time": "20:43",
+   "what": "Outland Dan, norse bear rider (Norse Settlement, witcher_268)"
+  },
+  {
+   "day": "2026-10-06",
+   "time": "10:14",
+   "what": "Outland Dan, snow elemental at the witcher_23 landing (late recall arrival)"
   }
  ],
  "named_shifts": [
@@ -316,12 +333,22 @@
   {
    "date": "2026-10-05",
    "start": "20:14",
-   "end": "20:22",
+   "end": "23:39",
    "who": "Seer6",
    "character": "Outland Dan",
-   "runs": 1,
-   "output": "held: surrounded by mobs at witcher_137, replanning ~1/s; main agent recalled him",
-   "deaths": 0
+   "runs": 15,
+   "output": "8,033 boards; LJ 81.1->90.5; greedy picks from run 14 on",
+   "deaths": 1
+  },
+  {
+   "date": "2026-10-06",
+   "start": "09:50",
+   "end": "12:00 (running at the cut)",
+   "who": "Seer7",
+   "character": "Outland Dan",
+   "runs": 9,
+   "output": "4,590 boards; LJ 90.5->95.6; witcher_23 set aside after the death",
+   "deaths": 1
   }
  ]
 }

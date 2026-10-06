@@ -1,5 +1,5 @@
 {
- "_source": "harness/captcha.py and harness/data/captcha_font.json / captcha_samples.json at HEAD (unchanged since the snapshot commit e1e024d; font last changed b83b713, 2026-10-03 17:02 CDT). example: sample 0 (answer 326, session 20260929_204225) read against the font without that session's references, with each reference drawn at its best alignment shift. loso: every one of the 26 dataset captchas read against the font without its own session (harness/test_captcha.py section 5). live: the 27 real CAPTCHAs in harness/data/harness.db (events ev='gump_open', gump_id 1 with a textentry, t < 2026-10-05 20:30 CDT, read-only) whose layout is not in the dataset, read with the full 79-reference font; sent = the text entry of the 0xB1 to that gump decoded from logs/session_*.jsonl. bootstrap: harness/test_captcha.py section 2 as measured 2026-10-03 (seed 23). misread_2026_10_01: ANTICHEAT.md section 8.8.",
+ "_source": "harness/captcha.py and harness/data/captcha_font.json / captcha_samples.json at the snapshot commit ee59524 (unchanged since e1e024d; font last changed b83b713, 2026-10-03 17:02 CDT). example: sample 0 (answer 326, session 20260929_204225) read against the font without that session's references, with each reference drawn at its best alignment shift. loso: every one of the 26 dataset captchas read against the font without its own session (harness/test_captcha.py section 5). live: the 41 real CAPTCHAs in the frozen harness.db copy of 2026-10-06 12:00 CDT (events ev='gump_open', gump_id 1 with a textentry, t < 2026-10-06 12:00 CDT, read-only) whose layout is not in the dataset, read with the full 79-reference font; sent = the text entry of the 0xB1 to that gump decoded from logs/session_*.jsonl. bootstrap: harness/test_captcha.py section 2 as measured 2026-10-03 (seed 23). misread_2026_10_01: ANTICHEAT.md section 8.8.",
  "gate": {
   "MIN_MARGIN": 0.09,
   "TRIM": 0.15,
@@ -1365,6 +1365,174 @@
     0.547,
     0.551,
     0.63
+   ]
+  },
+  {
+   "time": "2026-10-05 20:58",
+   "after_font": true,
+   "solver": "423",
+   "sent": "423",
+   "sent_by": "agent",
+   "margins": [
+    0.514,
+    0.651,
+    0.433
+   ]
+  },
+  {
+   "time": "2026-10-05 21:25",
+   "after_font": true,
+   "solver": "178",
+   "sent": "178",
+   "sent_by": "agent",
+   "margins": [
+    0.746,
+    0.806,
+    0.363
+   ]
+  },
+  {
+   "time": "2026-10-05 21:44",
+   "after_font": true,
+   "solver": "638",
+   "sent": "638",
+   "sent_by": "agent",
+   "margins": [
+    0.428,
+    0.334,
+    0.41
+   ]
+  },
+  {
+   "time": "2026-10-05 22:06",
+   "after_font": true,
+   "solver": "535",
+   "sent": "535",
+   "sent_by": "agent",
+   "margins": [
+    0.561,
+    0.527,
+    0.587
+   ]
+  },
+  {
+   "time": "2026-10-05 22:34",
+   "after_font": true,
+   "solver": "315",
+   "sent": "315",
+   "sent_by": "agent",
+   "margins": [
+    0.339,
+    0.664,
+    0.573
+   ]
+  },
+  {
+   "time": "2026-10-05 23:01",
+   "after_font": true,
+   "solver": "957",
+   "sent": "957",
+   "sent_by": "agent",
+   "margins": [
+    0.514,
+    0.675,
+    0.721
+   ]
+  },
+  {
+   "time": "2026-10-05 23:24",
+   "after_font": true,
+   "solver": "519",
+   "sent": "519",
+   "sent_by": "agent",
+   "margins": [
+    0.542,
+    0.617,
+    0.508
+   ]
+  },
+  {
+   "time": "2026-10-06 09:52",
+   "after_font": true,
+   "solver": "999",
+   "sent": "999",
+   "sent_by": "agent",
+   "margins": [
+    0.451,
+    0.561,
+    0.415
+   ]
+  },
+  {
+   "time": "2026-10-06 10:10",
+   "after_font": true,
+   "solver": "694",
+   "sent": "694",
+   "sent_by": "agent",
+   "margins": [
+    0.518,
+    0.583,
+    0.536
+   ]
+  },
+  {
+   "time": "2026-10-06 10:35",
+   "after_font": true,
+   "solver": "588",
+   "sent": "588",
+   "sent_by": "agent",
+   "margins": [
+    0.432,
+    0.315,
+    0.191
+   ]
+  },
+  {
+   "time": "2026-10-06 10:52",
+   "after_font": true,
+   "solver": "228",
+   "sent": "228",
+   "sent_by": "agent",
+   "margins": [
+    0.55,
+    0.575,
+    0.565
+   ]
+  },
+  {
+   "time": "2026-10-06 11:10",
+   "after_font": true,
+   "solver": "882",
+   "sent": "882",
+   "sent_by": "agent",
+   "margins": [
+    0.629,
+    0.488,
+    0.61
+   ]
+  },
+  {
+   "time": "2026-10-06 11:30",
+   "after_font": true,
+   "solver": "341",
+   "sent": "341",
+   "sent_by": "agent",
+   "margins": [
+    0.494,
+    0.552,
+    0.751
+   ]
+  },
+  {
+   "time": "2026-10-06 11:55",
+   "after_font": true,
+   "solver": "558",
+   "sent": "558",
+   "sent_by": "agent",
+   "margins": [
+    0.588,
+    0.513,
+    0.425
    ]
   }
  ],

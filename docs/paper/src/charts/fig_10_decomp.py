@@ -19,7 +19,7 @@ lab = [d["date"][5:] for d in days]
 col = [colors[d["character"]] for d in days]
 panels = [
     ("cadence_s", "median chop cycle (s)", (0, 11), "{:.1f}"),
-    ("success_rate", "success / (success + fail)", (0, 0.85), "{:.2f}"),
+    ("success_rate", "success / (success + fail)", (0, 1.1), "{:.2f}"),
     ("logs_per_success", "logs per successful chop", (0, 9.5), "{:.1f}"),
 ]
 for k, (key, ylabel, ylim, fmt) in enumerate(panels):
@@ -33,7 +33,8 @@ for k, (key, ylabel, ylim, fmt) in enumerate(panels):
     ax.set_ylabel(ylabel, fontsize=9.5)
 
 # waterfall (log scale): 09-29 -> 10-05
-a, z = days[0], days[-1]
+a = days[0]
+z = next(d for d in days if d["date"] == "2026-10-05")  # the best completed trip's day
 steps = [
     ("09-29\nimplied", a["implied_logs_per_chop_h"], None),
     ("cycle\n×%.2f" % (a["cadence_s"] / z["cadence_s"]), a["cadence_s"] / z["cadence_s"], PALETTE[5]),
@@ -56,7 +57,7 @@ w.text(0, steps[0][1] * 1.08, f"{steps[0][1]:,.0f}", ha="center", fontsize=8.8, 
 w.axhline(z["logs_per_trip_h"], color=INK3, ls="--", lw=1)
 w.text(-0.4, z["logs_per_trip_h"] * 1.07, f"10-05 measured\n{z['logs_per_trip_h']:,} logs/trip-h", fontsize=8.3, color=INK2)
 w.set_yscale("log")
-w.set_ylim(300, 6500)
+w.set_ylim(300, 7500)
 w.set_yticks([300, 500, 1000, 2000, 4000], ["300", "500", "1,000", "2,000", "4,000"])
 w.minorticks_off()
 w.set_xticks(range(len(steps) + 1), [s[0] for s in steps] + ["10-05\nimplied"], fontsize=8.3)

@@ -1,23 +1,23 @@
 <section class="appendix" id="app-repo">
 <h2>Repository map and code metrics</h2>
-<p class="lead">Every module in the repository at the last commit of the build window, grouped by layer, with its line count and a one-line purpose, followed by the tests, the reverse-engineering scripts and the documents.</p>
+<p class="lead">Every module in the repository at the snapshot commit, grouped by layer, with its line count and a one-line purpose, followed by the tests, the reverse-engineering scripts and the documents.</p>
 
-<p>The numbers are physical lines (newline counts) in the working tree at <code>afbbf71</code> (2026-10-05 20:13, commit 348); commit counts per file leave out the 4 merge commits (348 = 344 + 4). Three files had uncommitted edits at measurement time, so the Python total is 54,803 lines in the working tree against 54,764 in the committed blobs <span class="src">data/21_loc_by_layer.json</span>. All 348 commits carry one author identity. In practice omp coding-agent sessions wrote them at the owner's direction: 300 on the laptop, then 48 on the desktop after it was cloned on 2026-10-04 at 15:58.</p>
+<p>The numbers are physical lines (newline counts) in the committed blobs at <code>ee59524</code> (2026-10-06 11:49 CDT, commit 389, the last before the 12:00 snapshot); commit counts per file leave out the 4 merge commits (389 = 385 + 4). The paper itself (<code>docs/paper/</code>, committed on 2026-10-05) is left out of every count here <span class="src">data/21_loc_by_layer.json</span>. All 389 commits carry one author identity. In practice omp coding-agent sessions wrote them at the owner's direction: 300 on the laptop, then 89 on the desktop after it was cloned on 2026-10-04 at 15:58.</p>
 
-<pre><code>harness/            83 modules, 35,167 lines (the system itself)
+<pre><code>harness/            84 modules, 35,756 lines (the system itself)
   uo/  world/       wire codecs; packet-driven world model
   data/  testdata/  committed fixtures: rune libraries, captcha font, gump captures
-  test_*.py         41 unit/integration suites, 13,096 lines
-test_*.py           5 end-to-end suites at the root, 5,350 lines
-viz/src/            React + TypeScript visualizer, 66 files, 9,672 lines
+  test_*.py         41 unit/integration suites, 13,436 lines
+test_*.py           5 end-to-end suites at the root, 5,508 lines
+viz/src/            React + TypeScript visualizer, 66 files, 9,983 lines
 ghidra_scripts/     23 Java scripts, 1,397 lines
 *.py *.ps1 *.bat *.cmd  24 RE and operations scripts at the root, 1,492 lines
 docs/  docs/research/  docs/missions/   29 Markdown files (root + docs/)
 logs/               10 committed capture sessions</code></pre>
 
-<p>Two things stand out. The code is top-heavy at both ends. The lumber runner (<code>loop_lumber.py</code>, 3,443 lines) and the overseer's CLI (<code>ctl.py</code>, 3,327) are the two largest files and also the two most-changed code files (67 and 73 commits). The wire layer, which took the first two days, is comparatively small: the proxy itself is 1,087 lines, and the codecs under <code>uo/</code> are about 670. The project also writes more prose than code: the prose docs (192,421 words, excluding the generated Discord digest) outnumber Python lines 3.5 to 1, and <code>docs/NOTES.md</code> alone was touched by 160 of the 344 non-merge commits <span class="src">data/21_loc_by_layer.json; data/11_loc_growth.json; <code>git log --no-merges afbbf71</code></span>. Rule 0 of <code>AGENTS.md</code> asks every session to leave its knowledge in the repository, and these numbers are what that rule looks like over nine days.</p>
+<p>Two things stand out. The code is top-heavy at both ends. The lumber runner (<code>loop_lumber.py</code>, 3,550 lines) and the overseer's CLI (<code>ctl.py</code>, 3,412) are the two largest files and also the two most-changed code files (80 and 75 commits). The wire layer, which took the first two days, is comparatively small: the proxy itself is 1,087 lines, and the codecs under <code>uo/</code> are about 670. The project also writes more prose than code: the prose docs (196,525 words, excluding the generated Discord digest) outnumber Python lines 3.5 to 1, and <code>docs/NOTES.md</code> alone was touched by 175 of the 385 non-merge commits <span class="src">data/21_loc_by_layer.json; data/11_loc_growth.json; <code>git log --no-merges ee59524</code></span>. Rule 0 of <code>AGENTS.md</code> asks every session to leave its knowledge in the repository, and these numbers are what that rule looks like over ten days.</p>
 
-<figure class="fig" id="fig-app-repo-loc"><!--#include figures/21_loc_by_layer.svg--><figcaption>Lines of code by layer at HEAD. The layer assignment is this appendix's own (tables below). Within the harness core, runners and the overseer's tools are the two big blocks; tests add up to about half the size of the harness core. Source: <code>data/21_loc_by_layer.json</code>, newline counts in the working tree at <code>afbbf71</code>, 2026-10-05.</figcaption></figure>
+<figure class="fig" id="fig-app-repo-loc"><!--#include figures/21_loc_by_layer.svg--><figcaption>Lines of code by layer at the snapshot commit. The layer assignment is this appendix's own (tables below). Within the harness core, runners and the overseer's tools are the two big blocks; tests add up to about half the size of the harness core. Source: <code>data/21_loc_by_layer.json</code>, newline counts at <code>ee59524</code>, 2026-10-06.</figcaption></figure>
 
 <h3 id="app-repo-core">Harness modules by layer</h3>
 <p>Purposes are condensed from each module's docstring. Each table is sorted by size. Several modules could sit in two layers. For example, <code>agent_gate.py</code> lives in the runners table but is enforced inside the proxy; <code>memory.py</code> is written by the proxy and read by everyone (<a class="ref" href="#sec-memory"></a>). We placed each one where its main caller lives.</p>
@@ -42,29 +42,29 @@ logs/               10 committed capture sessions</code></pre>
 <tr><td><code>uo/outlands_table.py</code></td><td class="num">41</td><td>Authoritative Outlands packet length table</td></tr>
 <tr><td><code>uo/__init__.py</code></td><td class="num">0</td><td>Package marker (empty)</td></tr>
 </tbody></table></div></figure>
-<figure class="tbl" id="tab-app-repo-world"><figcaption>World model, map and memory: what the harness knows and remembers. 12 files, 4,978 lines.</figcaption><div class="tbl-scroll"><table class="compact">
+<figure class="tbl" id="tab-app-repo-world"><figcaption>World model, map and memory: what the harness knows and remembers. 12 files, 5,003 lines.</figcaption><div class="tbl-scroll"><table class="compact">
 <thead><tr><th>Module (<code>harness/</code>)</th><th class="num">Lines</th><th>Purpose</th></tr></thead>
 <tbody>
 <tr><td><code>world/runtime.py</code></td><td class="num">798</td><td>WorldRuntime: framed packets into the StateStore + event queue</td></tr>
 <tr><td><code>world/parsers.py</code></td><td class="num">789</td><td>One generic table reader plus procedural parsers</td></tr>
-<tr><td><code>memory.py</code></td><td class="num">678</td><td>One durable, indexed SQLite store</td></tr>
+<tr><td><code>memory.py</code></td><td class="num">689</td><td>One durable, indexed SQLite store</td></tr>
 <tr><td><code>nav.py</code></td><td class="num">543</td><td>2-D walk memory + optimistic route planner (8-neighbour grid)</td></tr>
 <tr><td><code>uomap.py</code></td><td class="num">511</td><td>Read-only reader for the .uoo map, tiledata and multis</td></tr>
 <tr><td><code>world/state.py</code></td><td class="num">492</td><td>Last-write-wins snapshots with lazy identity resolution</td></tr>
-<tr><td><code>pathfind.py</code></td><td class="num">326</td><td>3-D walkability and route planning over the map</td></tr>
+<tr><td><code>pathfind.py</code></td><td class="num">340</td><td>3-D walkability and route planning over the map</td></tr>
 <tr><td><code>places.py</code></td><td class="num">286</td><td>Named places to travel to (books, landings)</td></tr>
 <tr><td><code>localmap.py</code></td><td class="num">187</td><td>ASCII map of the surroundings for the overseer (ctl map)</td></tr>
 <tr><td><code>world/layouts.py</code></td><td class="num">183</td><td>Declarative packet field tables</td></tr>
 <tr><td><code>replay.py</code></td><td class="num">174</td><td>Offline session replay through the full world-model pipeline</td></tr>
 <tr><td><code>world/__init__.py</code></td><td class="num">11</td><td>Package exports</td></tr>
 </tbody></table></div></figure>
-<figure class="tbl" id="tab-app-repo-runners"><figcaption>Runners and the planner: deterministic loops and their building blocks, plus <code>lumber_opt.py</code>. 19 files, 11,487 lines.</figcaption><div class="tbl-scroll"><table class="compact">
+<figure class="tbl" id="tab-app-repo-runners"><figcaption>Runners and the planner: deterministic loops and their building blocks, plus <code>lumber_opt.py</code>. 20 files, 11,878 lines.</figcaption><div class="tbl-scroll"><table class="compact">
 <thead><tr><th>Module (<code>harness/</code>)</th><th class="num">Lines</th><th>Purpose</th></tr></thead>
 <tbody>
-<tr><td><code>loop_lumber.py</code></td><td class="num">3,443</td><td>Lumber loop runner</td></tr>
+<tr><td><code>loop_lumber.py</code></td><td class="num">3,550</td><td>Lumber loop runner</td></tr>
 <tr><td><code>loop_hunt.py</code></td><td class="num">1,831</td><td>Hunt loop: fight at a spot, heal, loot, leave when hurt</td></tr>
-<tr><td><code>lumber_opt.py</code></td><td class="num">1,602</td><td>Self-optimizing lumber job: where to chop, how much to carry, which hatchet (the planner)</td></tr>
-<tr><td><code>agent_link.py</code></td><td class="num">876</td><td>Shared plumbing for closed-loop runners (Link, Mover)</td></tr>
+<tr><td><code>lumber_opt.py</code></td><td class="num">1,613</td><td>Self-optimizing lumber job: where to chop, how much to carry, which hatchet (the planner)</td></tr>
+<tr><td><code>agent_link.py</code></td><td class="num">930</td><td>Shared plumbing for closed-loop runners (Link, Mover)</td></tr>
 <tr><td><code>crawl.py</code></td><td class="num">782</td><td>Dungeon crawl for the hunt runner</td></tr>
 <tr><td><code>tracking.py</code></td><td class="num">338</td><td>Tracking&#x27;s Hunting mode via the Tracking gump</td></tr>
 <tr><td><code>loop_mine.py</code></td><td class="num">328</td><td>Demonstration miner (M0)</td></tr>
@@ -74,30 +74,31 @@ logs/               10 committed capture sessions</code></pre>
 <tr><td><code>agent_gate.py</code></td><td class="num">237</td><td>Pause, kill switch, mandatory breaks, daily budget</td></tr>
 <tr><td><code>aspects.py</code></td><td class="num">236</td><td>The Aspect Mastery gump</td></tr>
 <tr><td><code>humanize.py</code></td><td class="num">198</td><td>Human-like timing and texture for agent runners</td></tr>
+<tr><td><code>convert.py</code></td><td class="num">198</td><td>Logs into boards as one deterministic flow, shared by the lumber runner and <code>ctl act convert</code></td></tr>
 <tr><td><code>stationary.py</code></td><td class="num">179</td><td>Outlands&#x27; Stationary Penalty: see it, walk it off</td></tr>
 <tr><td><code>errand_bank.py</code></td><td class="num">166</td><td>Unattended bank run (Phase 3 acceptance task)</td></tr>
 <tr><td><code>mount.py</code></td><td class="num">151</td><td>Find, ride and revive our mount</td></tr>
+<tr><td><code>stockpile.py</code></td><td class="num">136</td><td>Deposit items into a Resource Stockpile</td></tr>
 <tr><td><code>healing.py</code></td><td class="num">126</td><td>Self-healing choice (potion vs spell)</td></tr>
-<tr><td><code>stockpile.py</code></td><td class="num">115</td><td>Deposit items into a Resource Stockpile</td></tr>
 <tr><td><code>home.py</code></td><td class="num">52</td><td>A character&#x27;s home for harvest trips</td></tr>
 </tbody></table></div></figure>
-<figure class="tbl" id="tab-app-repo-safety"><figcaption>Safety: threats, escapes, guards and alarms. 9 files, 3,005 lines.</figcaption><div class="tbl-scroll"><table class="compact">
+<figure class="tbl" id="tab-app-repo-safety"><figcaption>Safety: threats, escapes, guards and alarms. 9 files, 3,034 lines.</figcaption><div class="tbl-scroll"><table class="compact">
 <thead><tr><th>Module (<code>harness/</code>)</th><th class="num">Lines</th><th>Purpose</th></tr></thead>
 <tbody>
-<tr><td><code>escape.py</code></td><td class="num">787</td><td>Recall to the default rune of a runebook/tome on a red sighting</td></tr>
-<tr><td><code>threats.py</code></td><td class="num">707</td><td>Threat assessment over one state-port response (pure)</td></tr>
+<tr><td><code>escape.py</code></td><td class="num">792</td><td>Recall to the default rune of a runebook/tome on a red sighting</td></tr>
+<tr><td><code>threats.py</code></td><td class="num">721</td><td>Threat assessment over one state-port response (pure)</td></tr>
 <tr><td><code>ledger.py</code></td><td class="num">435</td><td>Backpack ledger: inventory accounting, theft/death detection</td></tr>
 <tr><td><code>speech_guard.py</code></td><td class="num">275</td><td>Speech guard for automated harvest jobs</td></tr>
 <tr><td><code>travel_guard.py</code></td><td class="num">204</td><td>Safety rules for the overseer&#x27;s own walks</td></tr>
 <tr><td><code>captcha_mine.py</code></td><td class="num">190</td><td>Mine accepted captchas from captures into the dataset</td></tr>
+<tr><td><code>pouch.py</code></td><td class="num">147</td><td>Trapped pouches and the thief alarm</td></tr>
 <tr><td><code>captcha.py</code></td><td class="num">142</td><td>Captcha solver from the gump layout (no OCR)</td></tr>
-<tr><td><code>pouch.py</code></td><td class="num">137</td><td>Trapped pouches and the thief alarm</td></tr>
 <tr><td><code>guards.py</code></td><td class="num">128</td><td>Town-guard zones to run to when recall fails</td></tr>
 </tbody></table></div></figure>
-<figure class="tbl" id="tab-app-repo-overseer"><figcaption>The overseer and its tools: <code>ctl</code>, the bus, knowledge, Laya, operations. 18 files, 9,858 lines.</figcaption><div class="tbl-scroll"><table class="compact">
+<figure class="tbl" id="tab-app-repo-overseer"><figcaption>The overseer and its tools: <code>ctl</code>, the bus, knowledge, Laya, operations. 18 files, 9,943 lines.</figcaption><div class="tbl-scroll"><table class="compact">
 <thead><tr><th>Module (<code>harness/</code>)</th><th class="num">Lines</th><th>Purpose</th></tr></thead>
 <tbody>
-<tr><td><code>ctl.py</code></td><td class="num">3,327</td><td>Overseer control CLI: the AI overseer&#x27;s hands and ears</td></tr>
+<tr><td><code>ctl.py</code></td><td class="num">3,412</td><td>Overseer control CLI: the AI overseer&#x27;s hands and ears</td></tr>
 <tr><td><code>discord_kb.py</code></td><td class="num">1,102</td><td>Discord corpus → vetted game facts</td></tr>
 <tr><td><code>discord_capture.py</code></td><td class="num">1,085</td><td>Capture Discord history through a real browser</td></tr>
 <tr><td><code>triage_data.py</code></td><td class="num">628</td><td>Build Laya&#x27;s fine-tuning set and held-out lines</td></tr>
@@ -116,39 +117,39 @@ logs/               10 committed capture sessions</code></pre>
 <tr><td><code>embedder.py</code></td><td class="num">70</td><td>Local text embedder (bge-small-en-v1.5, GPU)</td></tr>
 <tr><td><code>laya_serve_local.py</code></td><td class="num">29</td><td>laya-serve with a local fine-tuned checkpoint</td></tr>
 </tbody></table></div></figure>
-<figure class="tbl" id="tab-app-repo-viz"><figcaption>The visualizer: the Python backend (8 files, 2,829 lines) and the React frontend in <code>viz/src</code> (66 files, 9,672 lines), the latter summarised by kind.</figcaption><div class="tbl-scroll"><table class="compact">
+<figure class="tbl" id="tab-app-repo-viz"><figcaption>The visualizer: the Python backend (8 files, 2,888 lines) and the React frontend in <code>viz/src</code> (66 files, 9,983 lines), the latter summarised by kind.</figcaption><div class="tbl-scroll"><table class="compact">
 <thead><tr><th>Module (<code>harness/</code>)</th><th class="num">Lines</th><th>Purpose</th></tr></thead>
 <tbody>
-<tr><td><code>jobs.py</code></td><td class="num">762</td><td>Job analytics for the viz Jobs page</td></tr>
-<tr><td><code>viz_server.py</code></td><td class="num">746</td><td>Visualizer backend: REST + SSE</td></tr>
+<tr><td><code>jobs.py</code></td><td class="num">785</td><td>Job analytics for the viz Jobs page</td></tr>
+<tr><td><code>viz_server.py</code></td><td class="num">782</td><td>Visualizer backend: REST + SSE</td></tr>
 <tr><td><code>viz_feed.py</code></td><td class="num">622</td><td>Data feeds for the visualizer</td></tr>
 <tr><td><code>liveview.py</code></td><td class="num">252</td><td>Cropped live capture of the game window as JPEG frames</td></tr>
 <tr><td><code>paperdoll.py</code></td><td class="num">195</td><td>Paperdoll from the client&#x27;s own art</td></tr>
 <tr><td><code>uoart.py</code></td><td class="num">120</td><td>gumps.uoo / art.uoo readers</td></tr>
 <tr><td><code>facet.py</code></td><td class="num">107</td><td>Facet picture reader served as PNG chunks</td></tr>
 <tr><td><code>pngenc.py</code></td><td class="num">25</td><td>Minimal stdlib PNG writer</td></tr>
-<tr><td><code>viz/src/components/*.tsx</code> (23)</td><td class="num">3,559</td><td>React panels: map grid, jobs, overseer chat, live view, gate controls, inspectors (largest <code>MapGrid.tsx</code> 757)</td></tr>
-<tr><td><code>viz/src/**/*.ts</code> + <code>App.tsx</code>, <code>main.tsx</code> (24)</td><td class="num">2,835</td><td>Store, SSE client, event and job reducers, projections (largest <code>jobs.ts</code> 710)</td></tr>
-<tr><td><code>viz/src/*.test.ts</code> (18)</td><td class="num">1,319</td><td>Bun tests: 128 cases</td></tr>
-<tr><td><code>viz/src/App.css</code> (1)</td><td class="num">1,959</td><td>The whole stylesheet</td></tr>
+<tr><td><code>viz/src/components/*.tsx</code> (23)</td><td class="num">3,696</td><td>React panels: map grid, jobs, overseer chat, live view, gate controls, inspectors (largest <code>MapGrid.tsx</code> 757)</td></tr>
+<tr><td><code>viz/src/**/*.ts</code> + <code>App.tsx</code>, <code>main.tsx</code> (24)</td><td class="num">2,935</td><td>Store, SSE client, event and job reducers, projections (largest <code>jobs.ts</code> 794)</td></tr>
+<tr><td><code>viz/src/*.test.ts</code> (18)</td><td class="num">1,351</td><td>Bun tests: 131 cases</td></tr>
+<tr><td><code>viz/src/App.css</code> (1)</td><td class="num">2,001</td><td>The whole stylesheet</td></tr>
 </tbody></table></div></figure>
 
 <h3 id="app-repo-tests">Tests</h3>
-<p>Most suites run offline against captured sessions or stand-ins (a fake Bot API, a simulated game server speaking the real wire format), and none of them connects to the game server. The pattern that dominates the later days is visible in the end-to-end runner tests: every live incident becomes a scenario that fails against the old code. Pass counts quoted in commits range from 118 world-model checks on 09-28 to 53,277/53,277 re-encoded server packets on 09-29 <span class="src">commit messages, <code>git log afbbf71</code></span>.</p>
-<figure class="tbl" id="tab-app-repo-tests"><figcaption>Python tests: 46 files, 18,446 lines, 224 <code>def test_</code> functions and 1,748 <code>assert</code>/<code>check(</code> call sites. A dash means the suite uses the homegrown <code>check()</code> + <code>main()</code> runner instead of pytest-style functions. Root-level files are end-to-end tests; the rest live in <code>harness/</code>.</figcaption><div class="tbl-scroll"><table class="compact">
+<p>Most suites run offline against captured sessions or stand-ins (a fake Bot API, a simulated game server speaking the real wire format), and none of them connects to the game server. The pattern that dominates the later days is visible in the end-to-end runner tests: every live incident becomes a scenario that fails against the old code. Pass counts quoted in commits range from 118 world-model checks on 09-28 to 53,277/53,277 re-encoded server packets on 09-29 <span class="src">commit messages, <code>git log ee59524</code></span>.</p>
+<figure class="tbl" id="tab-app-repo-tests"><figcaption>Python tests: 46 files, 18,944 lines, 231 <code>def test_</code> functions and 1,789 <code>assert</code>/<code>check(</code> call sites. A dash means the suite uses the homegrown <code>check()</code> + <code>main()</code> runner instead of pytest-style functions. Root-level files are end-to-end tests; the rest live in <code>harness/</code>.</figcaption><div class="tbl-scroll"><table class="compact">
 <thead><tr><th>File</th><th class="num">Lines</th><th class="num"><code>test_</code></th><th>Covers</th></tr></thead>
 <tbody>
-<tr><td><code>test_loop_lumber.py</code></td><td class="num">3,079</td><td class="num">–</td><td>Lumber runner end to end: real proxy, simulated server, 22 scenarios</td></tr>
-<tr><td><code>harness/test_ctl.py</code></td><td class="num">1,874</td><td class="num">17</td><td>ctl + task_wrap (the overseer bus CLI)</td></tr>
+<tr><td><code>test_loop_lumber.py</code></td><td class="num">3,237</td><td class="num">–</td><td>Lumber runner end to end: real proxy, simulated server, 22 scenarios</td></tr>
+<tr><td><code>harness/test_ctl.py</code></td><td class="num">1,972</td><td class="num">18</td><td>ctl + task_wrap (the overseer bus CLI)</td></tr>
 <tr><td><code>test_loop_hunt.py</code></td><td class="num">1,454</td><td class="num">–</td><td>Hunt runner end to end</td></tr>
 <tr><td><code>harness/test_world_units.py</code></td><td class="num">1,391</td><td class="num">27</td><td>World-model parsers and runtime mechanics</td></tr>
-<tr><td><code>harness/test_viz.py</code></td><td class="num">1,125</td><td class="num">9</td><td>viz_feed + viz_server</td></tr>
+<tr><td><code>harness/test_viz.py</code></td><td class="num">1,178</td><td class="num">9</td><td>viz_feed + viz_server</td></tr>
+<tr><td><code>harness/test_lumber_opt.py</code></td><td class="num">744</td><td class="num">17</td><td><code>lumber_opt.py</code></td></tr>
 <tr><td><code>harness/test_actions.py</code></td><td class="num">727</td><td class="num">15</td><td>Action builders, injection path, replay</td></tr>
-<tr><td><code>harness/test_lumber_opt.py</code></td><td class="num">709</td><td class="num">16</td><td><code>lumber_opt.py</code></td></tr>
-<tr><td><code>harness/test_escape.py</code></td><td class="num">517</td><td class="num">14</td><td><code>escape.py</code></td></tr>
-<tr><td><code>harness/test_threats.py</code></td><td class="num">469</td><td class="num">11</td><td><code>threats.py</code></td></tr>
+<tr><td><code>harness/test_escape.py</code></td><td class="num">528</td><td class="num">15</td><td><code>escape.py</code></td></tr>
+<tr><td><code>harness/test_mover.py</code></td><td class="num">525</td><td class="num">16</td><td>agent_link.Mover on a fake grid world</td></tr>
+<tr><td><code>harness/test_threats.py</code></td><td class="num">482</td><td class="num">11</td><td><code>threats.py</code></td></tr>
 <tr><td><code>test_movement.py</code></td><td class="num">447</td><td class="num">2</td><td>MoveAuthority: unit, real capture, fake-server e2e</td></tr>
-<tr><td><code>harness/test_mover.py</code></td><td class="num">432</td><td class="num">12</td><td>agent_link.Mover on a fake grid world</td></tr>
 <tr><td><code>harness/test_uomap.py</code></td><td class="num">428</td><td class="num">7</td><td><code>uomap.py</code></td></tr>
 <tr><td><code>harness/test_ledger.py</code></td><td class="num">339</td><td class="num">5</td><td><code>ledger.py</code></td></tr>
 <tr><td><code>harness/test_knowledge.py</code></td><td class="num">309</td><td class="num">7</td><td><code>knowledge.py</code></td></tr>
@@ -160,13 +161,13 @@ logs/               10 committed capture sessions</code></pre>
 <tr><td><code>harness/test_crawl.py</code></td><td class="num">238</td><td class="num">5</td><td><code>crawl.py</code></td></tr>
 <tr><td><code>test_errand.py</code></td><td class="num">224</td><td class="num">–</td><td>Bank errand end to end</td></tr>
 <tr><td><code>harness/test_telegram_bridge.py</code></td><td class="num">222</td><td class="num">4</td><td><code>telegram_bridge.py</code></td></tr>
+<tr><td><code>harness/test_pathfind.py</code></td><td class="num">207</td><td class="num">–</td><td><code>pathfind.py</code></td></tr>
 <tr><td><code>harness/test_dbhandoff.py</code></td><td class="num">199</td><td class="num">–</td><td><code>dbhandoff.py</code></td></tr>
-<tr><td><code>harness/test_pathfind.py</code></td><td class="num">180</td><td class="num">–</td><td><code>pathfind.py</code></td></tr>
+<tr><td><code>harness/test_pouch.py</code></td><td class="num">174</td><td class="num">4</td><td>Trapped pouch, pop alarm, nav.beyond</td></tr>
 <tr><td><code>harness/test_aspects.py</code></td><td class="num">171</td><td class="num">4</td><td><code>aspects.py</code></td></tr>
 <tr><td><code>harness/test_memory.py</code></td><td class="num">169</td><td class="num">5</td><td><code>memory.py</code></td></tr>
 <tr><td><code>harness/test_stack.py</code></td><td class="num">169</td><td class="num">–</td><td><code>stack.py</code></td></tr>
 <tr><td><code>harness/test_loop_demo.py</code></td><td class="num">166</td><td class="num">–</td><td>Pins loops/lumber.json to its demo capture</td></tr>
-<tr><td><code>harness/test_pouch.py</code></td><td class="num">164</td><td class="num">4</td><td>Trapped pouch, pop alarm, nav.beyond</td></tr>
 <tr><td><code>harness/test_travel_guard.py</code></td><td class="num">159</td><td class="num">5</td><td><code>travel_guard.py</code></td></tr>
 <tr><td><code>harness/test_captcha.py</code></td><td class="num">156</td><td class="num">5</td><td><code>captcha.py</code></td></tr>
 <tr><td><code>harness/test_discord_capture.py</code></td><td class="num">149</td><td class="num">3</td><td><code>discord_capture.py</code></td></tr>
@@ -218,31 +219,31 @@ logs/               10 committed capture sessions</code></pre>
 </tbody></table></div></figure>
 
 <h3 id="app-repo-docs">Documents</h3>
-<figure class="tbl" id="tab-app-repo-docs"><figcaption>The 29 Markdown files at HEAD with words, lines (newline counts) and the number of non-merge commits that touched each. 665,598 words in all, 192,421 without the generated Discord digest. Source: <code>git show afbbf71:&lt;file&gt;</code> and <code>git log --no-merges afbbf71 -- &lt;file&gt;</code>.</figcaption><div class="tbl-scroll"><table class="compact">
+<figure class="tbl" id="tab-app-repo-docs"><figcaption>The 29 Markdown files at the snapshot commit with words, lines (newline counts) and the number of non-merge commits that touched each. 669,702 words in all, 196,525 without the generated Discord digest. Source: <code>git show ee59524:&lt;file&gt;</code> and <code>git log --no-merges ee59524 -- &lt;file&gt;</code>.</figcaption><div class="tbl-scroll"><table class="compact">
 <thead><tr><th>Document</th><th class="num">Words</th><th class="num">Lines</th><th class="num">Commits</th></tr></thead>
 <tbody>
 <tr><td><code>docs/research/DISCORD_KB.md</code> (generated)</td><td class="num">473,177</td><td class="num">13,707</td><td class="num">2</td></tr>
-<tr><td><code>docs/NOTES.md</code></td><td class="num">32,693</td><td class="num">1,704</td><td class="num">160</td></tr>
-<tr><td><code>docs/LUMBER_LOOP.md</code></td><td class="num">20,867</td><td class="num">1,483</td><td class="num">83</td></tr>
+<tr><td><code>docs/NOTES.md</code></td><td class="num">34,765</td><td class="num">1,841</td><td class="num">175</td></tr>
+<tr><td><code>docs/LUMBER_LOOP.md</code></td><td class="num">21,355</td><td class="num">1,510</td><td class="num">92</td></tr>
 <tr><td><code>docs/research/DEVICE_ID_RE.md</code></td><td class="num">18,644</td><td class="num">4,913</td><td class="num">2</td></tr>
-<tr><td><code>docs/PLAN.md</code></td><td class="num">18,081</td><td class="num">1,208</td><td class="num">98</td></tr>
-<tr><td><code>docs/OVERSEER.md</code></td><td class="num">14,006</td><td class="num">629</td><td class="num">95</td></tr>
+<tr><td><code>docs/PLAN.md</code></td><td class="num">18,449</td><td class="num">1,237</td><td class="num">100</td></tr>
+<tr><td><code>docs/OVERSEER.md</code></td><td class="num">14,434</td><td class="num">639</td><td class="num">96</td></tr>
+<tr><td><code>docs/VISUALIZER.md</code></td><td class="num">10,890</td><td class="num">988</td><td class="num">56</td></tr>
 <tr><td><code>ANTICHEAT.md</code></td><td class="num">10,638</td><td class="num">537</td><td class="num">56</td></tr>
 <tr><td><code>docs/WORLDMODEL.md</code></td><td class="num">10,552</td><td class="num">1,016</td><td class="num">18</td></tr>
-<tr><td><code>docs/VISUALIZER.md</code></td><td class="num">10,363</td><td class="num">949</td><td class="num">52</td></tr>
 <tr><td><code>docs/HUNT_LOOP.md</code></td><td class="num">7,942</td><td class="num">604</td><td class="num">11</td></tr>
 <tr><td><code>docs/research/THREATS.md</code></td><td class="num">7,681</td><td class="num">607</td><td class="num">9</td></tr>
 <tr><td><code>docs/research/TRAVEL_DEATH.md</code></td><td class="num">6,496</td><td class="num">466</td><td class="num">6</td></tr>
 <tr><td><code>docs/MOVEMENT.md</code></td><td class="num">5,698</td><td class="num">457</td><td class="num">20</td></tr>
-<tr><td><code>docs/research/ECONOMY.md</code></td><td class="num">5,105</td><td class="num">493</td><td class="num">9</td></tr>
+<tr><td><code>docs/research/ECONOMY.md</code></td><td class="num">5,135</td><td class="num">493</td><td class="num">11</td></tr>
 <tr><td><code>docs/MAP.md</code></td><td class="num">2,929</td><td class="num">327</td><td class="num">6</td></tr>
-<tr><td><code>docs/MEMORY.md</code></td><td class="num">2,516</td><td class="num">179</td><td class="num">25</td></tr>
+<tr><td><code>docs/MEMORY.md</code></td><td class="num">2,602</td><td class="num">186</td><td class="num">26</td></tr>
 <tr><td><code>docs/research/SPELL_INTERRUPTS.md</code></td><td class="num">2,369</td><td class="num">177</td><td class="num">1</td></tr>
 <tr><td><code>SETUP.md</code></td><td class="num">2,308</td><td class="num">248</td><td class="num">6</td></tr>
 <tr><td><code>docs/research/WORLD_LOCATIONS.md</code></td><td class="num">1,986</td><td class="num">136</td><td class="num">5</td></tr>
-<tr><td><code>docs/ROADMAP.md</code></td><td class="num">1,896</td><td class="num">128</td><td class="num">15</td></tr>
-<tr><td><code>docs/PROTOCOL.md</code></td><td class="num">1,855</td><td class="num">95</td><td class="num">6</td></tr>
-<tr><td><code>README.md</code></td><td class="num">1,337</td><td class="num">82</td><td class="num">25</td></tr>
+<tr><td><code>docs/ROADMAP.md</code></td><td class="num">1,927</td><td class="num">128</td><td class="num">18</td></tr>
+<tr><td><code>docs/PROTOCOL.md</code></td><td class="num">1,867</td><td class="num">95</td><td class="num">7</td></tr>
+<tr><td><code>README.md</code></td><td class="num">1,399</td><td class="num">83</td><td class="num">27</td></tr>
 <tr><td><code>HANDOFF.md</code></td><td class="num">1,287</td><td class="num">133</td><td class="num">39</td></tr>
 <tr><td><code>docs/missions/YOUNG_DEMOS.md</code></td><td class="num">1,176</td><td class="num">121</td><td class="num">3</td></tr>
 <tr><td><code>docs/CIPHER.md</code></td><td class="num">964</td><td class="num">104</td><td class="num">3</td></tr>

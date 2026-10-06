@@ -9,7 +9,8 @@ from common import INK3, PALETTE, load, mpl, mpl_svg, save  # noqa: E402
 
 d = load("05b_growth")
 days = d["days"]
-labels = [day[5:] for day in days]  # MM-DD
+partial = d.get("days_partial", {})
+labels = [day[5:] + ("\n(to 12:00)" if day in partial else "") for day in days]  # MM-DD; a partial day says so
 order = ["events_world", "events_proxy", "walk_moves", "harvest_attempts", "bus", "knowledge"]
 colour = dict(zip(order, [PALETTE[0], "#7fa7c4", PALETTE[2], PALETTE[3], PALETTE[1], PALETTE[4]]))
 marker = dict(zip(order, ["o", "o", "s", "D", "^", "v"]))
@@ -37,7 +38,7 @@ mb = [b["db_bytes"] / 1e6 for b in d["backups"]]
 gz = [b["gz_bytes"] / 1e6 for b in d["backups"]]
 bx.plot(ts, mb, marker="o", ms=3.5, lw=1.8, color=PALETTE[0], label="store (uncompressed)")
 bx.plot(ts, gz, marker="o", ms=3.0, lw=1.4, color=PALETTE[3], label="gzipped backup")
-bx.set_ylim(0, 320)
+bx.set_ylim(0, 380)
 bx.set_ylabel("MB")
 bx.set_title("Store size in the hourly backups", loc="left")
 import matplotlib.dates as mdates  # noqa: E402

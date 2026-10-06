@@ -1,5 +1,5 @@
 {
- "source": "omp session logs (laptop+desktop), snapshot 2026-10-05 ~20:30 CDT, via research datasets sessions_by_day.json + models_by_day.json; turns by model attributed by turn timestamp; prompts = human-typed prompts; cost = omp list-price-equivalent (notional)",
+ "source": "omp session logs (laptop+desktop), snapshot 2026-10-06 12:00 CDT (entries with timestamp < 2026-10-06T17:00Z; the laptop copy ends 2026-10-05 20:15 CDT), via sessions_by_day.json + models_by_day.json from omp_sessions_quant.py (paper-writing and paper-review sessions excluded); turns by model attributed by turn timestamp; prompts = human-typed prompts; commits = git log ee59524 by author date; cost = omp list-price-equivalent (notional)",
  "rows": [
   {
    "date": "2026-09-27",
@@ -116,16 +116,30 @@
   {
    "date": "2026-10-05",
    "turns_kimi_k3": 0,
-   "turns_opus_5_5": 1844,
+   "turns_opus_5_5": 2295,
    "turns_sonnet_5_5": 0,
    "prompts_laptop": 1,
-   "prompts_desktop": 36,
-   "turns_top": 1062,
-   "turns_sub": 782,
-   "sessions_top": 4,
+   "prompts_desktop": 50,
+   "turns_top": 1410,
+   "turns_sub": 885,
+   "sessions_top": 5,
    "sessions_sub": 8,
-   "commits": 31,
-   "cost_usd_notional": 157.64
+   "commits": 54,
+   "cost_usd_notional": 200.37
+  },
+  {
+   "date": "2026-10-06",
+   "turns_kimi_k3": 0,
+   "turns_opus_5_5": 357,
+   "turns_sonnet_5_5": 0,
+   "prompts_laptop": 0,
+   "prompts_desktop": 9,
+   "turns_top": 126,
+   "turns_sub": 231,
+   "sessions_top": 0,
+   "sessions_sub": 2,
+   "commits": 18,
+   "cost_usd_notional": 37.94
   }
  ]
 }

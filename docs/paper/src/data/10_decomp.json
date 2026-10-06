@@ -1,5 +1,5 @@
 {
- "_source": "local://data/07_harvest_memory.json: chop cadence = median gap between consecutive success/fail results (1-30 s) per day; success rate = success/(success+fail) from harvest_attempts; logs per success = logs/successes; implied logs per chop-hour = 3600/cadence x success x logs per success. logs_per_trip_h from 07_lumber_trips per_day_character.",
+ "_source": "Memory DB harvest_attempts, t < CUT (2026-10-06 12:00 CDT snapshot (CUT=1791306000); memory DB = frozen copy harness_20261006_1200.db opened read-only, rows filtered t < CUT), same method as local://data/07_harvest_memory.json: chop cadence = median gap between consecutive success/fail results (1-30 s) per local day; success rate = success/(success+fail); logs per success = logs/successes; implied logs per chop-hour = 3600/cadence x success x logs per success. logs_per_trip_h = trip-row logs / trip hours per day (episodes loop=lumber, t_end < CUT). 10-06 covers 00:00-12:00 only (9 trips, 09:51-11:57).",
  "days": [
   {
    "date": "2026-09-29",
@@ -10,7 +10,13 @@
    "success_rate": 0.311,
    "logs_per_success": 7.93,
    "implied_logs_per_chop_h": 989,
-   "logs_per_trip_h": 376
+   "logs_per_trip_h": 376,
+   "trips": 5,
+   "trip_logs": 89,
+   "trip_hours": 0.24,
+   "boards_stored": 118,
+   "logs_chopped": 111,
+   "successes": 14
   },
   {
    "date": "2026-09-30",
@@ -21,7 +27,13 @@
    "success_rate": 0.712,
    "logs_per_success": 7.81,
    "implied_logs_per_chop_h": 2075,
-   "logs_per_trip_h": 847
+   "logs_per_trip_h": 847,
+   "trips": 5,
+   "trip_logs": 271,
+   "trip_hours": 0.32,
+   "boards_stored": 294,
+   "logs_chopped": 289,
+   "successes": 37
   },
   {
    "date": "2026-10-01",
@@ -32,7 +44,13 @@
    "success_rate": 0.366,
    "logs_per_success": 7.73,
    "implied_logs_per_chop_h": 1077,
-   "logs_per_trip_h": 553
+   "logs_per_trip_h": 553,
+   "trips": 1,
+   "trip_logs": 40,
+   "trip_hours": 0.07,
+   "boards_stored": 40,
+   "logs_chopped": 1044,
+   "successes": 135
   },
   {
    "date": "2026-10-02",
@@ -43,7 +61,13 @@
    "success_rate": 0.58,
    "logs_per_success": 7.53,
    "implied_logs_per_chop_h": 1658,
-   "logs_per_trip_h": 897
+   "logs_per_trip_h": 897,
+   "trips": 7,
+   "trip_logs": 998,
+   "trip_hours": 1.11,
+   "boards_stored": 1526,
+   "logs_chopped": 3374,
+   "successes": 448
   },
   {
    "date": "2026-10-03",
@@ -54,7 +78,13 @@
    "success_rate": 0.642,
    "logs_per_success": 7.54,
    "implied_logs_per_chop_h": 1783,
-   "logs_per_trip_h": 1304
+   "logs_per_trip_h": 1304,
+   "trips": 15,
+   "trip_logs": 4443,
+   "trip_hours": 3.41,
+   "boards_stored": 2676,
+   "logs_chopped": 4443,
+   "successes": 589
   },
   {
    "date": "2026-10-04",
@@ -65,18 +95,47 @@
    "success_rate": 0.532,
    "logs_per_success": 7.95,
    "implied_logs_per_chop_h": 1697,
-   "logs_per_trip_h": 1104
+   "logs_per_trip_h": 1104,
+   "trips": 3,
+   "trip_logs": 334,
+   "trip_hours": 0.3,
+   "boards_stored": 354,
+   "logs_chopped": 334,
+   "successes": 42
   },
   {
    "date": "2026-10-05",
    "character": "Outland Dan",
    "cadence_s": 5.21,
    "cad_p25": 5.06,
-   "cad_p75": 5.44,
-   "success_rate": 0.721,
-   "logs_per_success": 8.07,
-   "implied_logs_per_chop_h": 4020,
-   "logs_per_trip_h": 2589
+   "cad_p75": 5.52,
+   "success_rate": 0.822,
+   "logs_per_success": 8.11,
+   "implied_logs_per_chop_h": 4609,
+   "logs_per_trip_h": 2890,
+   "trips": 41,
+   "trip_logs": 16430,
+   "trip_hours": 5.68,
+   "boards_stored": 13405,
+   "logs_chopped": 17170,
+   "successes": 2116
+  },
+  {
+   "date": "2026-10-06",
+   "character": "Outland Dan",
+   "cadence_s": 5.33,
+   "cad_p25": 5.21,
+   "cad_p75": 9.26,
+   "success_rate": 0.983,
+   "logs_per_success": 7.94,
+   "implied_logs_per_chop_h": 5274,
+   "logs_per_trip_h": 3341,
+   "trips": 9,
+   "trip_logs": 5843,
+   "trip_hours": 1.75,
+   "boards_stored": 4590,
+   "logs_chopped": 5911,
+   "successes": 744
   }
  ]
 }

@@ -12,7 +12,7 @@ SHORT = [  # one short label per heuristic shift, same order as d["shifts"]
     "TestWorth: Young demos", "TestWorth: HSB lumber", "TestWorth: trip, wipe",
     "Hackworth: Shelter lumber", "NPD", "", "Hackworth: hunt, horse, lumber, PK test",
     "runebook research", "Shackleworth quest \u2192 Hackworth in Seer voice", "Urukton; LumberSeer",
-    "Outland Dan: DTF", "room trip", "Outland Dan: room loop", "Outland Dan: Seer4\u20136",
+    "Outland Dan: DTF", "room trip", "Outland Dan: room loop", "Outland Dan: Seer4\u20136", "Outland Dan: Seer7",
 ]
 CHAR = {"TestWorth": PALETTE[6], "Hackworth": PALETTE[0], "Shackleworth": PALETTE[4], "Outland Dan": PALETTE[2]}
 
@@ -39,9 +39,9 @@ for k in d["deaths"]:
 ax.set_yticks(range(len(days)))
 ax.set_yticklabels([day[5:] for day in reversed(days)])
 ax.set_ylim(-0.6, len(days) - 0.2)
-ax.set_xlim(8.5, 23.5)
-ax.set_xticks(range(9, 24, 2))
-ax.set_xticklabels([f"{h:02d}:00" for h in range(9, 24, 2)])
+ax.set_xlim(8.5, 24)
+ax.set_xticks(range(9, 25, 2))
+ax.set_xticklabels([f"{h:02d}:00" for h in range(9, 25, 2)])
 ax.set_xlabel("local time (CDT)")
 ax.grid(axis="y", visible=False)
 handles = [plt.Rectangle((0, 0), 1, 1, color=c, alpha=0.85) for c in CHAR.values()]

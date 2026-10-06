@@ -30,12 +30,17 @@ for i, r in enumerate(d):
     ax.text(i, r["logged_in_h"] + 0.35, f'{r["logged_in_h"]:.1f} h', ha="center", fontsize=8.8, color=INK)
 ax.plot(x, [r["agent_active_h"] for r in d], "D-", color=INK, lw=1.4, ms=5.5, label="agent-active hours")
 ax.plot(x, [r["human_input_h"] for r in d], "o--", color=PALETTE[2], lw=1.4, ms=5, label="human-input hours")
-ax.annotate("12.49 h overnight Test Shard\nsession, mostly idle", (4.2, 10.5), xytext=(5.6, 17.5), fontsize=8.8,
+i03 = next(i for i, r in enumerate(d) if r["date"] == "2026-10-03")
+ax.annotate("overnight Test Shard session\n(10-02 21:38, 12.49 h), mostly idle", (i03 - 0.2, 5.0), xytext=(i03 + 1.35, 20.5), fontsize=8.8,
             color=INK2, ha="center", arrowprops=dict(arrowstyle="-", color=INK3, lw=0.8))
+i06 = next(i for i, r in enumerate(d) if r["date"] == "2026-10-06")
+ax.annotate("10-05 19:40 session continues;\nclient idle 00–09",
+            (i06, 9.0), xytext=(i06 - 0.75, 17.0), fontsize=8.8, color=INK2, ha="center",
+            arrowprops=dict(arrowstyle="-", color=INK3, lw=0.8))
 ax.set_xticks(x, [r["date"][5:] for r in d])
-ax.set_xlabel("day (2026, CDT; a session counts on the day it started)")
+ax.set_xlabel("day (2026, CDT; hours split at local midnight; 10-06 to 12:00)")
 ax.set_ylabel("hours")
-ax.set_ylim(0, 22)
+ax.set_ylim(0, 25)
 ax.legend(loc="upper left", ncol=2, fontsize=9)
 fig.tight_layout()
 save("10_hours", mpl_svg(fig, "10_hours"))

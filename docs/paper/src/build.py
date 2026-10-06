@@ -22,6 +22,13 @@ figures are not touched; --no-charts does not apply), the assembled page is rewr
 captions, mermaid sources, byline, plus an edition note), and the finished page is refused if any
 of the rules' forbidden patterns is still in it.
 
+Snapshot: every number in the paper is pinned to one cutoff (now 2026-10-06 12:00 CDT, git ee59524); each
+data/*.json says in its _source/source note how it was computed. To refresh: copy harness.db with the SQLite
+online backup API from a mode=ro connection, filter every table by its own timestamp < cutoff (rows written at
+trip end: t_end < cutoff), cut logs/session_*.jsonl and the omp session logs at the cutoff, count git at the
+last commit before it, re-run the same methods (check each reproduces the old values at the old cutoff first),
+then update the prose, the abstract/intro/hero/discussion headline numbers and the "Sources" callout in §1.
+
 Needs: pip install playwright && python -m playwright install chromium; `bun install` in this dir
 (mermaid + temml). Fails on a broken diagram, bad TeX, a duplicate id, a dangling reference or a
 packet id that packets.json does not describe.

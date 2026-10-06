@@ -43,7 +43,7 @@ py_end = rows[-1]["py_loc"]
 ax.annotate(f"577 Python lines\n(09-27 23:01)", (t[4], rows[4]["py_loc"]), xytext=(18, 40),
             textcoords="offset points", fontsize=8.8, color=INK2,
             arrowprops=dict(arrowstyle="-", color=INK3, lw=0.8))
-ax.annotate(f"{py_end:,} Python + {viz[-1]:,} viz\n(10-05 20:13)", (t[-1], py_end + viz[-1]), xytext=(-150, 6),
+ax.annotate(f"{py_end:,} Python + {viz[-1]:,} viz\n(10-06 11:49)", (t[-1], py_end + viz[-1]), xytext=(-150, 6),
             textcoords="offset points", fontsize=8.8, color=INK2,
             arrowprops=dict(arrowstyle="-", color=INK3, lw=0.8))
 h1, l1 = ax.get_legend_handles_labels()

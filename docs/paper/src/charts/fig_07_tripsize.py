@@ -15,7 +15,7 @@ spots = [("witcher_23", PALETTE[0]), ("horseshoe_bay", PALETTE[1]),
 ref = d["reference_h0"]
 xs, ys = zip(*ref["series"])
 ax.plot(xs, ys, color=INK3, lw=1.4, ls=(0, (4, 3)), zorder=1)
-ax.text(10000 * 1.03, ys[-1], "no hazards\n(λ 2,000, T 150 s)", color=INK3, fontsize=9, va="center")
+ax.text(10000 * 1.03, ys[-1] + 180, "no hazards\n(λ 2,000, T 150 s)", color=INK3, fontsize=9, va="center")
 
 
 def at(series, q):
@@ -26,7 +26,7 @@ def at(series, q):
     return series[-1][1]
 
 
-LABEL_DY = {"terran_wilds": 55, "witcher_291": -70}
+LABEL_DY = {"horseshoe_bay": 600, "terran_wilds": 150, "witcher_291": -160}
 for sid, col in spots:
     c = d[sid]
     s = c["series"]
@@ -47,7 +47,7 @@ ax.set_xscale("log")
 ax.set_xlim(100, 10000)
 ax.set_xticks([100, 200, 500, 1000, 2000, 5000, 10000])
 ax.set_xticklabels(["100", "200", "500", "1,000", "2,000", "5,000", "10,000"])
-ax.set_ylim(800, 2900)
+ax.set_ylim(800, 3450)
 ax.set_xlabel("logs per trip Q (log scale)")
 ax.set_ylabel("net stored logs/trip-h")
 ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:,.0f}"))

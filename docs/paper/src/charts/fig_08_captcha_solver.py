@@ -54,7 +54,7 @@ plt = mpl()
 fig, ax = plt.subplots(figsize=(9.6, 2.7))
 rng = np.random.default_rng(5)
 rows = [("held out by session\n(26 dataset captchas)", [m for x in d["loso"] for m in x["margins"]], 1, PALETTE[0]),
-        ("live, after the last\nfont update (27 captchas)", [m for x in d["live"] for m in x["margins"]], 0, PALETTE[2])]
+        (f"live, not in the\ndataset ({len(d['live'])} captchas)", [m for x in d["live"] for m in x["margins"]], 0, PALETTE[2])]
 gate = d["gate"]["MIN_MARGIN"]
 ax.axvspan(0, gate, color="#f3dcda", lw=0, zorder=0)
 ax.axvline(gate, color=RED, lw=1.2)

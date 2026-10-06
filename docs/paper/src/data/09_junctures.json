@@ -1,25 +1,26 @@
 {
- "_source": "Read-only snapshot of harness/data/harness.db `junctures` (desktop copy after dbhandoff pull, ~2026-10-05 20:30 CDT); local days. 'other' = notice, death, thief_near, service_down, service_up, low_supplies.",
- "total": 314,
+ "_source": "Read-only frozen copy of harness/data/harness.db (snapshot/harness_20261006_1200.db, SQLite backup at 2026-10-06 12:00:05 CDT), rows with t < 2026-10-06 12:00 CDT; `junctures` and `chat`; local days (CDT). Ack latency = acked_t − t over acked rows. 'other' = notice, death, stuck, thief_near, service_down, service_up, low_supplies.",
+ "total": 377,
  "by_kind": {
-  "threat": 95,
-  "task_failed": 88,
+  "threat": 127,
+  "task_failed": 103,
   "speech_nearby": 67,
-  "task_done": 34,
-  "pk_escape": 8,
+  "task_done": 42,
+  "pk_escape": 12,
   "captcha": 6,
   "gm_suspected": 4,
   "notice": 3,
   "death": 3,
+  "stuck": 3,
   "thief_near": 2,
   "service_down": 2,
-  "low_supplies": 1,
-  "service_up": 1
+  "service_up": 2,
+  "low_supplies": 1
  },
  "by_severity": {
-  "urgent": 156,
-  "attention": 123,
-  "info": 35
+  "urgent": 192,
+  "attention": 141,
+  "info": 44
  },
  "by_day_kind": {
   "2026-09-30": {
@@ -83,20 +84,32 @@
    "other_detail": {}
   },
   "2026-10-05": {
-   "threat": 38,
-   "task_failed": 21,
+   "threat": 57,
+   "task_failed": 30,
    "speech_nearby": 1,
-   "task_done": 9,
-   "pk_escape": 4,
+   "task_done": 14,
+   "pk_escape": 6,
    "captcha": 0,
    "gm_suspected": 0,
-   "other": 7,
+   "other": 11,
    "other_detail": {
     "thief_near": 2,
     "service_down": 2,
     "death": 2,
-    "service_up": 1
+    "service_up": 2,
+    "stuck": 3
    }
+  },
+  "2026-10-06": {
+   "threat": 13,
+   "task_failed": 6,
+   "speech_nearby": 0,
+   "task_done": 3,
+   "pk_escape": 2,
+   "captcha": 0,
+   "gm_suspected": 0,
+   "other": 0,
+   "other_detail": {}
   }
  },
  "ack_latency_s_by_kind": {
@@ -106,8 +119,8 @@
    "max": 12.9
   },
   "task_done": {
-   "n": 34,
-   "median": 11.6,
+   "n": 42,
+   "median": 8.9,
    "max": 41077.8
   },
   "notice": {
@@ -116,13 +129,13 @@
    "max": 9.0
   },
   "threat": {
-   "n": 95,
-   "median": 19.1,
-   "max": 2571.5
+   "n": 127,
+   "median": 14.9,
+   "max": 10620.1
   },
   "task_failed": {
-   "n": 87,
-   "median": 24.6,
+   "n": 103,
+   "median": 21.3,
    "max": 13185.7
   },
   "speech_nearby": {
@@ -141,8 +154,8 @@
    "max": 10.1
   },
   "pk_escape": {
-   "n": 8,
-   "median": 12.2,
+   "n": 12,
+   "median": 8.4,
    "max": 6100.6
   },
   "death": {
@@ -161,17 +174,22 @@
    "max": 40.9
   },
   "service_up": {
-   "n": 1,
-   "median": 51.9,
-   "max": 51.9
+   "n": 2,
+   "median": 384.6,
+   "max": 717.3
+  },
+  "stuck": {
+   "n": 3,
+   "median": 68.5,
+   "max": 97.6
   }
  },
  "chat_by_rolekind": {
-  "overseer/action": 1903,
-  "overseer/memory": 359,
-  "overseer/thought": 291,
-  "overseer/message": 227,
-  "user/message": 74,
+  "overseer/action": 2033,
+  "overseer/memory": 365,
+  "overseer/thought": 315,
+  "overseer/message": 231,
+  "user/message": 76,
   "system/message": 1
  },
  "chat_by_day_rolekind": {
@@ -211,10 +229,17 @@
    "overseer/message": 2
   },
   "2026-10-05": {
-   "overseer/action": 263,
-   "overseer/memory": 49,
-   "overseer/thought": 52,
-   "overseer/message": 17
+   "overseer/action": 337,
+   "overseer/memory": 52,
+   "overseer/thought": 66,
+   "overseer/message": 19,
+   "user/message": 2
+  },
+  "2026-10-06": {
+   "overseer/memory": 3,
+   "overseer/action": 56,
+   "overseer/thought": 10,
+   "overseer/message": 2
   }
  }
 }

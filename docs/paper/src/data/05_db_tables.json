@@ -1,23 +1,23 @@
 {
- "_note": "Row counts per table of harness/data/harness.db, read-only (mode=ro) on 2026-10-05 ~20:25 local while the live proxy may be writing (WAL); counts are a snapshot. Schema v5 (meta.schema_version). knowledge_fts_* are FTS5 shadow tables. Source: python sqlite3 SELECT count(*) per table. FTS5 shadow tables omitted. writer = main writer process (docs/MEMORY.md \"Who writes what\").",
- "snapshot_t_local": "2026-10-05T20:25",
- "file_bytes": 288759808,
- "wal_bytes": 4449632,
+ "_note": "Row counts per table of the memory store at the snapshot 2026-10-06 12:00 CDT (cutoff t < 1791306000), read through a mode=ro connection from the frozen copy harness_20261006_1200.db that the SQLite online backup API took from harness/data/harness.db at 12:00:05 CDT. Each table is filtered by its own timestamp: events, harvest_attempts, chat, job_events, junctures, prices by t; walk_moves, guard_points, teleporters by first_t; knowledge and lumber_spots by created_t; sessions by started; episodes by t_end (a trip row exists once the trip ends); knowledge_vec by its knowledge row's created_t. harvest_nodes and meta have no timestamp column: counted in the frozen copy as it is (5 s after the cutoff). file_bytes is the size of that backup-API copy, which has the WAL's rows folded in and no -wal file (wal_bytes 0); the live store's own file and WAL size were not read. Schema v5 (meta.schema_version). FTS5 shadow tables (knowledge_fts_*) omitted. writer = main writer process (docs/MEMORY.md \"Who writes what\").",
+ "snapshot_t_local": "2026-10-06T12:00",
+ "file_bytes": 352305152,
+ "wal_bytes": 0,
  "schema_version": 5,
  "tables": [
   {
    "table": "events",
-   "rows": 1685252,
+   "rows": 2073515,
    "writer": "proxy"
   },
   {
    "table": "walk_moves",
-   "rows": 27281,
+   "rows": 32735,
    "writer": "proxy"
   },
   {
    "table": "harvest_attempts",
-   "rows": 5193,
+   "rows": 7794,
    "writer": "runners"
   },
   {
@@ -32,22 +32,22 @@
   },
   {
    "table": "chat",
-   "rows": 2855,
+   "rows": 3021,
    "writer": "overseer/ctl"
   },
   {
    "table": "job_events",
-   "rows": 1370,
+   "rows": 2161,
    "writer": "runners"
   },
   {
    "table": "harvest_nodes",
-   "rows": 1259,
+   "rows": 2055,
    "writer": "runners"
   },
   {
    "table": "junctures",
-   "rows": 314,
+   "rows": 377,
    "writer": "runners"
   },
   {
@@ -57,7 +57,7 @@
   },
   {
    "table": "episodes",
-   "rows": 99,
+   "rows": 122,
    "writer": "runners"
   },
   {
@@ -77,7 +77,7 @@
   },
   {
    "table": "prices",
-   "rows": 11,
+   "rows": 16,
    "writer": "overseer/ctl"
   },
   {

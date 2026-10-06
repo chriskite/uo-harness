@@ -1,10 +1,10 @@
 <section class="appendix" id="app-timeline">
 <h2>Project timeline</h2>
-<p class="lead">The nine days from the first research prompt on 2026-09-27 to the 348th commit on 2026-10-05, one entry per milestone, wrong turn or decision, grouped by day.</p>
+<p class="lead">The ten days from the first research prompt on 2026-09-27 to the 389th commit on 2026-10-06, the last before the 12:00 CDT snapshot, one entry per milestone, wrong turn or decision, grouped by day.</p>
 
-<p>Times are local (CDT, UTC−5), the zone of every commit. Most entries carry the commit that landed the change as a source pointer. Entries without one come from the omp session logs (a user message, a live event the agent reported) or from the memory store. Filled dots mark the milestones the rest of the paper keeps returning to. The list merges three research datasets: the git-derived milestone list, the early-session timeline (09-27 → 10-01), and the late-session timeline (10-02 → 10-05). Where they disagree on a time, we used the commit time. Live in-game events use the time the session log or the store recorded them.</p>
+<p>Times are local (CDT, UTC−5), the zone of every commit. Most entries carry the commit that landed the change as a source pointer. Entries without one come from the omp session logs (a user message, a live event the agent reported) or from the memory store. Filled dots mark the milestones the rest of the paper keeps returning to. The list merges three research datasets: the git-derived milestone list, the early-session timeline (09-27 → 10-01), and the late-session timeline (10-02 → 10-05), plus the commits, <code>docs/NOTES.md</code> and store junctures from 10-05 20:30 to the snapshot. Where they disagree on a time, we used the commit time. Live in-game events use the time the session log or the store recorded them.</p>
 
-<p>A few patterns are easier to see here than in the chapters. Each day has one dominant theme: the cipher on 09-27/28, movement and the decode correction on 09-29, the overseer and the audit on 09-30, safety on 10-02/03, home logistics on 10-04/05. No commit landed between 01:00 and 08:59, and 28% (96 of 348) landed at 20:00 or later <span class="src">brief 08 §3.1</span>. Wrong turns are usually corrected within the same day. The longest-lived mistake, the S2C "phantom dialect", lasted about 24 hours (<a class="ref" href="#sec-wire"></a>).</p>
+<p>A few patterns are easier to see here than in the chapters. Each day has one dominant theme: the cipher on 09-27/28, movement and the decode correction on 09-29, the overseer and the audit on 09-30, safety on 10-02/03, home logistics on 10-04/05, and on the morning of 10-06 fixes for what the lumber shifts ran into. No commit landed between 01:00 and 08:59, and 31% (119 of 389) landed at 20:00 or later <span class="src">git log ee59524</span>. Wrong turns are usually corrected within the same day. The longest-lived mistake, the S2C "phantom dialect", lasted about 24 hours (<a class="ref" href="#sec-wire"></a>).</p>
 
 <h3 id="app-timeline-0927">Sunday 2026-09-27: research first</h3>
 <ol class="timeline">
@@ -114,6 +114,21 @@
 <li><time datetime="2026-10-05T17:24">17:24</time><b>The viz never falls behind:</b> per-connection SSE mailboxes. A Seer shift ends at 17:56 with 8 runs, 3,962 boards and no deaths. <span class="src">2536e09</span></li>
 <li><time datetime="2026-10-05T19:07">19:07</time><b>An air dragon kills Dan</b> during an 8.9 s humanizing pause. New policy: run and recall until home, never stop in the field. About ten minutes earlier Dan's Lumberjacking had reached 80.1. <span class="src">605782b</span></li>
 <li><time datetime="2026-10-05T20:01">20:01</time><b>Resource Stockpile and market-priced trips</b> (about 27 gp per board). <span class="src">bfeb1b2</span></li>
-<li class="major"><time datetime="2026-10-05T20:13">20:13</time><b>Commit 348, the last in the window.</b> After storing, restock the shelf and resupply. <span class="src">afbbf71</span></li>
+<li><time datetime="2026-10-05T20:13">20:13</time><b>After storing, restock the shelf and resupply.</b> <span class="src">afbbf71</span></li>
+<li><time datetime="2026-10-05T20:30">20:30</time><b>Boxed in by creatures.</b> At Jungle Baths a walk replanned round creature zones 178 times; now a walk gives up after 10 danger replans without a shorter route, and the runner disables the spot and recalls home. <span class="src">e1e024d</span></li>
+<li><time datetime="2026-10-05T20:43">20:43</time><b>A norse bear rider kills Dan</b> at witcher_268 after one failed recall. A creature now stays a creature when its notoriety flips, and wisps count as passive (20:57). <span class="src">8ad0908</span></li>
+<li><time datetime="2026-10-05T21:09">21:09</time><b>This paper enters the repository</b> as a self-contained HTML build. <span class="src">f9bd0e9</span></li>
+<li><time datetime="2026-10-05T21:53">21:53</time><b>The Jobs page counts boards the Resource Stockpile confirmed taking</b>, after a date-range selector and new store indexes (21:24); the stockpile takes a whole pouch of boards in one target from 22:19. <span class="src">972b95d</span> <span class="src">2d892a3</span> <span class="src">1038b59</span></li>
+<li class="major"><time datetime="2026-10-05T23:25">23:25</time><b>The Seer6 shift ends</b> (started 20:15): 15 runs, 8,033 boards into the stockpile, Lumberjacking 81.1 → 90.5, one death. <span class="src">ec339a1</span></li>
+</ol>
+
+<h3 id="app-timeline-1006">Tuesday 2026-10-06: the morning shift and its fixes</h3>
+<ol class="timeline">
+<li><time datetime="2026-10-06T09:49">09:49</time><b>Two jobs at once.</b> The owner: “Spawn a subagent to fix those two open items, and in the meantime spawn an overseer to exploit and get us boards”. The Seer7 shift starts at 09:51.</li>
+<li><time datetime="2026-10-06T10:03">10:03</time><b><code>ctl act convert</code> and a greedy run in <code>lumber plan</code></b>, the two items Seer6 had left open. <span class="src">89130d8</span></li>
+<li><time datetime="2026-10-06T10:14">10:14</time><b>A world save delays a recall, and Dan dies at the landing</b> to a snow elemental; his armour set and GM hatchet stay on the corpse. Fixed at 10:23 (wait longer for a late arrival) and 10:27 (an abort away from home recalls home and stores first). <span class="src">ade127e</span> <span class="src">5589433</span></li>
+<li><time datetime="2026-10-06T11:21">11:21</time><b>All ten woods priced</b> from the owner's Vendor Search asks. <span class="src">1b919e8</span> <span class="src">d96eb16</span></li>
+<li><time datetime="2026-10-06T11:38">11:38</time><b>A PK's delayed Explosion lands at home</b> and stops the run as a false thief alarm; only our own pouch going off counts as theft from 11:43. <span class="src">5e70fad</span></li>
+<li class="major"><time datetime="2026-10-06T11:49">11:49</time><b>Commit 389, the last before the snapshot.</b> The room phase after an escape recall runs in salvage mode. At 12:00 the store holds 86 lumber trip rows and 32,676 chopped logs. <span class="src">ee59524</span></li>
 </ol>
 </section>

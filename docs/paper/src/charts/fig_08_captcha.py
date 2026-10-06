@@ -37,6 +37,6 @@ counts = [d["digit_counts"][k] for k in digits]
 bars = bx.bar(digits, counts, color=[RUST if c == 0 else BLUE for c in counts], width=0.7)
 bx.text(0, 1.2, "0", ha="center", va="bottom", fontsize=9, color=RUST, fontweight="bold")
 bx.set_xlabel("digit")
-bx.set_ylabel("times seen (159 digits)")
+bx.set_ylabel(f"times seen ({sum(counts)} digits)")
 bx.grid(axis="x", visible=False)
 save("08_captcha", mpl_svg(fig, "08_captcha"))

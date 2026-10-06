@@ -36,25 +36,25 @@
 </tbody></table></div></figure>
 
 <h3 id="app-protocol-c2s">Client → server packets the harness sends</h3>
-<p>Every agent packet is built by <code>harness/actions.py</code> in the byte layout the stock client uses for the same gesture, padded to the client's length table. The counts are agent-originated packets across all 69 desktop session logs. For scale, the human's client sent 251,770 <code>0xFF</code> packets over the same logs, most of them keepalives.</p>
+<p>Every agent packet is built by <code>harness/actions.py</code> in the byte layout the stock client uses for the same gesture, padded to the client's length table. The counts are agent-originated packets across all 69 desktop session logs up to 2026-10-06 12:00 CDT. For scale, the human's client sent 306,060 <code>0xFF</code> packets over the same logs, most of them keepalives.</p>
 <figure class="tbl" id="tab-app-protocol-c2s"><figcaption>C2S packet ids injected by the harness, with length (var = length-prefixed), meaning and use. Source: <code>docs/PROTOCOL.md</code>, <code>harness/actions.py</code>; counts from <code>logs/session_*.jsonl</code> (brief 02 §2.7).</figcaption><div class="tbl-scroll"><table class="compact">
 <thead><tr><th>Id</th><th class="num">Bytes</th><th>Name</th><th>Harness use</th><th class="num">Agent sent</th></tr></thead>
 <tbody>
-<tr><td><code>02</code></td><td class="num">7</td><td>walk</td><td><code>02 &lt;dir|0x80&gt; &lt;seq&gt; &lt;key u32&gt;</code>; the proxy stamps seq and fastwalk key on one ladder shared with the human</td><td class="num">55,615</td></tr>
-<tr><td><code>06</code></td><td class="num">5</td><td>double-click</td><td>use hatchet, open books, doors, containers</td><td class="num">6,256</td></tr>
-<tr><td><code>6C</code></td><td class="num">27</td><td>target response</td><td>answer a server cursor: object, ground/tree, or ourselves (Smart Harvest)</td><td class="num">5,824</td></tr>
-<tr><td><code>B1</code></td><td class="num">var</td><td>gump response</td><td>runebook/tome buttons, room menus, shelf, stockpile, captcha (solver)</td><td class="num">1,896</td></tr>
-<tr><td><code>07</code></td><td class="num">7</td><td>lift</td><td>pick up an item (stash, unequip, move)</td><td class="num">1,564</td></tr>
-<tr><td><code>08</code></td><td class="num">22</td><td>drop</td><td>drop into a container or onto the ground (V10+ form)</td><td class="num">1,517</td></tr>
+<tr><td><code>02</code></td><td class="num">7</td><td>walk</td><td><code>02 &lt;dir|0x80&gt; &lt;seq&gt; &lt;key u32&gt;</code>; the proxy stamps seq and fastwalk key on one ladder shared with the human</td><td class="num">65,495</td></tr>
+<tr><td><code>06</code></td><td class="num">5</td><td>double-click</td><td>use hatchet, open books, doors, containers</td><td class="num">9,055</td></tr>
+<tr><td><code>6C</code></td><td class="num">27</td><td>target response</td><td>answer a server cursor: object, ground/tree, or ourselves (Smart Harvest)</td><td class="num">8,403</td></tr>
+<tr><td><code>07</code></td><td class="num">7</td><td>lift</td><td>pick up an item (stash, unequip, move)</td><td class="num">3,299</td></tr>
+<tr><td><code>08</code></td><td class="num">22</td><td>drop</td><td>drop into a container or onto the ground (V10+ form)</td><td class="num">3,246</td></tr>
+<tr><td><code>B1</code></td><td class="num">var</td><td>gump response</td><td>runebook/tome buttons, room menus, shelf, stockpile, captcha (solver)</td><td class="num">2,272</td></tr>
 <tr><td><code>FF</code></td><td class="num">10</td><td>Outlands dialect</td><td>sub 4 cast spell (Recall, heals): all 730. A sub 9 item-query builder (14 B) exists but was never sent</td><td class="num">730</td></tr>
 <tr><td><code>05</code></td><td class="num">5</td><td>attack</td><td>hunt runner, monsters only</td><td class="num">483</td></tr>
 <tr><td><code>72</code></td><td class="num">5</td><td>war mode</td><td>toggle war mode</td><td class="num">438</td></tr>
-<tr><td><code>BF</code></td><td class="num">var</td><td>extended</td><td>sub <code>0x13</code> context-menu request, sub <code>0x15</code> menu pick (steward, vendors)</td><td class="num">196</td></tr>
+<tr><td><code>BF</code></td><td class="num">var</td><td>extended</td><td>sub <code>0x13</code> context-menu request, sub <code>0x15</code> menu pick (steward, vendors)</td><td class="num">244</td></tr>
+<tr><td><code>09</code></td><td class="num">5</td><td>single-click</td><td>name/label query</td><td class="num">215</td></tr>
 <tr><td><code>12</code></td><td class="num">var</td><td>text command</td><td>use skill (Tracking), open door</td><td class="num">195</td></tr>
-<tr><td><code>09</code></td><td class="num">5</td><td>single-click</td><td>name/label query</td><td class="num">189</td></tr>
-<tr><td><code>AD</code></td><td class="num">var</td><td>unicode speech</td><td>keyword-encoded like the stock client when <code>speech.mul</code> matches ("bank")</td><td class="num">76</td></tr>
-<tr><td><code>34</code></td><td class="num">10</td><td>status/skills query</td><td>type 4 status, type 5 skills</td><td class="num">56</td></tr>
-<tr><td><code>13</code></td><td class="num">10</td><td>equip</td><td>wear an item (weapon after recall, hatchet)</td><td class="num">47</td></tr>
+<tr><td><code>AD</code></td><td class="num">var</td><td>unicode speech</td><td>keyword-encoded like the stock client when <code>speech.mul</code> matches ("bank")</td><td class="num">79</td></tr>
+<tr><td><code>34</code></td><td class="num">10</td><td>status/skills query</td><td>type 4 status, type 5 skills</td><td class="num">57</td></tr>
+<tr><td><code>13</code></td><td class="num">10</td><td>equip</td><td>wear an item (weapon after recall, hatchet)</td><td class="num">53</td></tr>
 <tr><td><code>3B</code></td><td class="num">var</td><td>vendor buy</td><td>buy supplies, capped by <code>policy.json</code></td><td class="num">31</td></tr>
 </tbody></table></div></figure>
 <p>Builders also exist for vendor sell (<code>9F</code>) and prompt and text-entry replies (<code>9A</code>, <code>AC</code>, <code>C2</code>). The login (<code>91</code>), character select (<code>5D</code>) and the keepalive are always the client's own.</p>
@@ -75,7 +75,7 @@
 <tr><td>Death and pets</td><td><code>AF</code>, <code>FF</code> sub <code>0xDEAD</code>, <code>BF</code> sub <code>0x19</code></td><td>ghost bodies on <code>20</code>; sub <code>0x19</code> = bonded pet status (the ghost horse)</td></tr>
 <tr><td>Time</td><td><code>FF</code> sub 3</td><td>answer to the keepalive (u64 server time)</td></tr>
 </tbody></table></div></figure>
-<p>The proxy also writes three kinds of packet to the client alone, encoded with the session key, which never reach the server. A <code>0x21</code> re-anchors the client's display after an agent step. A <code>0x6C</code> cancel takes down a cursor the agent already answered. A <code>0xBF</code> sub 4 closes a gump the agent already answered. Over the 69 desktop logs that came to 45,136, 5,688 and 1,875 packets respectively <span class="src">brief 02 §3.3</span>. Why these exist is told in <a class="ref" href="#sec-wire"></a>.</p>
+<p>The proxy also writes three kinds of packet to the client alone, encoded with the session key, which never reach the server. A <code>0x21</code> re-anchors the client's display after an agent step. A <code>0x6C</code> cancel takes down a cursor the agent already answered. A <code>0xBF</code> sub 4 closes a gump the agent already answered. Over the 69 desktop logs up to 2026-10-06 12:00 CDT that came to 55,016, 8,267 and 2,251 packets respectively (method of <span class="src">brief 02 §3.3</span>). Why these exist is told in <a class="ref" href="#sec-wire"></a>.</p>
 
 <h3 id="app-protocol-files">File formats</h3>
 <figure class="tbl" id="tab-app-protocol-files"><figcaption>Data files the harness reads or writes. Source: <code>docs/MAP.md</code>, <code>docs/MEMORY.md</code>, <code>harness/uomap.py</code>, brief 03 §2.2, §2.5, §2.8, §3.1.</figcaption><div class="tbl-scroll"><table class="compact">
@@ -87,7 +87,7 @@
 <tr><td><code>facet00.mul</code></td><td>ready-made 1 px/tile picture, RLE ARGB1555</td><td>viz map underlay only</td></tr>
 <tr><td><code>gumps.uoo</code> / <code>art.uoo</code></td><td>raw-deflate RGB555 images</td><td>paperdoll and item art in the viz</td></tr>
 <tr><td><code>logs/session_&lt;ts&gt;.jsonl</code> + <code>.c2s.raw</code> / <code>.s2c.raw</code></td><td>one JSON row per packet (<code>dir</code>, <code>src</code> client/agent/proxy, <code>id</code>, <code>len</code>, first 64 B hex) plus event rows; raw wire bytes flushed on every write</td><td>replay, tests, audits</td></tr>
-<tr><td><code>harness/data/harness.db</code></td><td>SQLite, WAL, schema v5; tables <code>events</code> (1,685,252 rows on 2026-10-05), <code>walk_moves</code>, <code>harvest_nodes</code>/<code>_attempts</code>, <code>episodes</code>, <code>junctures</code>, <code>chat</code>, <code>job_events</code>, <code>knowledge</code> (+ FTS5 and 384-d vectors), <code>lumber_spots</code>, <code>prices</code>, <code>teleporters</code>, <code>guard_points</code>, <code>meta</code>, <code>sessions</code>; 289 MB. Gitignored, backed up hourly, handed between computers</td><td>the memory of everything played (<a class="ref" href="#sec-memory"></a>)</td></tr>
+<tr><td><code>harness/data/harness.db</code></td><td>SQLite, WAL, schema v5; tables <code>events</code> (2,073,515 rows at 2026-10-06 12:00 CDT), <code>walk_moves</code>, <code>harvest_nodes</code>/<code>_attempts</code>, <code>episodes</code>, <code>junctures</code>, <code>chat</code>, <code>job_events</code>, <code>knowledge</code> (+ FTS5 and 384-d vectors), <code>lumber_spots</code>, <code>prices</code>, <code>teleporters</code>, <code>guard_points</code>, <code>meta</code>, <code>sessions</code>; 352 MB. Gitignored, backed up hourly, handed between computers</td><td>the memory of everything played (<a class="ref" href="#sec-memory"></a>)</td></tr>
 <tr><td><code>harness/data/discord.db</code></td><td>SQLite + FTS5, separate from the memory store; laptop only</td><td>captured Discord history for the knowledge base</td></tr>
 </tbody></table></div></figure>
 </section>

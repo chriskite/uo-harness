@@ -1,4 +1,4 @@
-"""Logs per trip-hour for each of the 63 lumber trips, in trip order, by character and outcome.
+"""Logs per trip-hour for each recorded lumber trip, in trip order, by character and outcome.
 
 Writes figures/10_trips.svg from data/10_trips.json.
 """
@@ -12,6 +12,7 @@ trips = load("10_trips")["trips"]
 colors = {"TestWorth": PALETTE[6], "Hackworth": PALETTE[0], "Outland Dan": PALETTE[1]}
 plt = mpl()
 fig, ax = plt.subplots(figsize=(10, 4.2))
+YTOP = 4600
 
 # day bands
 days = []
@@ -22,7 +23,7 @@ for i, t in enumerate(trips):
 for k, (day, a, b) in enumerate(days):
     if k % 2:
         ax.axvspan(a - 0.5, b + 0.5, color="#f1ede4", zorder=0, lw=0)
-    ax.text((a + b) / 2, 3950, day[5:], ha="center", va="top", fontsize=8.8, color=INK3)
+    ax.text((a + b) / 2, YTOP - 60 - (220 if b - a < 3 else 0), day[5:], ha="center", va="top", fontsize=8.8, color=INK3)
 
 for char, color in colors.items():
     for done in (True, False):
@@ -31,17 +32,19 @@ for char, color in colors.items():
         if not pts:
             continue
         xs, ys = zip(*pts)
-        ax.scatter(xs, ys, s=[34] * len(xs), color=color if done else "none", edgecolors=color, linewidths=1.4,
+        ax.scatter(xs, ys, s=[30] * len(xs), color=color if done else "none", edgecolors=color, linewidths=1.3,
                    label=f"{char}, {'completed' if done else 'aborted'}", zorder=3)
 
 ax.axhline(355, color=INK3, lw=1.1, ls="--", zorder=1)
-ax.text(41.5, 430, "09-29 Shelter baseline (Run 3) ≈ 355 logs (= boards)/trip-h", fontsize=8.8, color=INK2)
-best = max(range(len(trips)), key=lambda i: trips[i]["logs_per_trip_hour"] or 0)
-ax.annotate(f'trip {trips[best]["id"]}: {trips[best]["logs"]:,} logs in {trips[best]["duration_min"]:.1f} min',
-            (best, trips[best]["logs_per_trip_hour"]), xytext=(-60, 28), textcoords="offset points", fontsize=8.8,
+ax.text(len(trips) - 1, 430, "09-29 Shelter baseline (Run 3) ≈ 355 logs (= boards)/trip-h", fontsize=8.8,
+        color=INK2, ha="right")
+done = [i for i, t in enumerate(trips) if t["category"].startswith("completed")]
+best = max(done, key=lambda i: trips[i]["logs_per_trip_hour"] or 0)
+ax.annotate(f'best completed: trip {trips[best]["id"]}, {trips[best]["logs"]:,} logs in {trips[best]["duration_min"]:.1f} min',
+            (best, trips[best]["logs_per_trip_hour"]), xytext=(-250, 2), textcoords="offset points", fontsize=8.8,
             color=INK2, va="center", arrowprops=dict(arrowstyle="-", color=INK3, lw=0.8))
 ax.set_xlim(-0.8, len(trips) - 0.2)
-ax.set_ylim(-120, 4000)
+ax.set_ylim(-120, YTOP)
 ax.set_xlabel("lumber trip, in start order (shaded bands = days, 2026)")
 ax.set_ylabel("logs per trip-hour")
 ax.legend(loc="upper left", bbox_to_anchor=(0.0, 0.93), ncol=2, fontsize=8.8)

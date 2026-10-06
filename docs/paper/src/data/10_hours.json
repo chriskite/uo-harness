@@ -1,5 +1,5 @@
 {
- "_source": "local://data/07_sessions.json (69 proxy captures logs/session_*.jsonl): hours per session summed by start date (CDT) and character; agent_active_h = distinct minutes with >=1 agent C2S packet; human_input_h = minutes with a human-driven client opcode. TestWorth = Test Shard 74.91.115.123; others = 35.71.142.123 / 52.223.17.219.",
+ "_source": "logs/session_*.jsonl (69 proxy captures, rows with t < 2026-10-06 12:00 CDT; per-session method as local://data/07_sessions.json). Grouped by the local (CDT) date of the time itself, not the session start: each session's span (first to last timestamp) is split at local midnights, and agent-active / human-input minutes count on the minute's own date (same day grouping as data/04_*). So the 2026-10-02 21:38 Test Shard session (12.49 h) puts 2.36 h on 10-02 and 10.13 h on 10-03, and the live capture 20261005_194043 (16.32 h to the cutoff) 4.32 h on 10-05 and 12.0 h on 10-06. agent_active_h = distinct minutes with >=1 agent C2S packet; human_input_h = minutes with a human-driven client opcode (0x02/0x06/0x6C/0xB1/0x07/0x08/0x05/0xAD/0x12/0x13/0x72/0x3B/0x75, src client or untagged). sessions_started = captures whose tag date is that day. Character from DB events ev=char_select. TestWorth = Test Shard 74.91.115.123; others = 35.71.142.123 / 52.223.17.219.",
  "days": [
   {
    "date": "2026-09-28",
@@ -12,7 +12,7 @@
    "human_input_h": 0.48,
    "test_h": 1.75,
    "live_h": 0,
-   "sessions": 5
+   "sessions_started": 5
   },
   {
    "date": "2026-09-29",
@@ -25,7 +25,7 @@
    "human_input_h": 1.27,
    "test_h": 6.69,
    "live_h": 0,
-   "sessions": 22
+   "sessions_started": 22
   },
   {
    "date": "2026-09-30",
@@ -39,7 +39,7 @@
    "human_input_h": 0.63,
    "test_h": 12.26,
    "live_h": 0.18,
-   "sessions": 10
+   "sessions_started": 10
   },
   {
    "date": "2026-10-01",
@@ -51,34 +51,35 @@
    "human_input_h": 0.32,
    "test_h": 0,
    "live_h": 2.62,
-   "sessions": 2
+   "sessions_started": 2
   },
   {
    "date": "2026-10-02",
    "by_character": {
     "Hackworth": 7.68,
-    "TestWorth": 12.49
+    "TestWorth": 2.36
    },
-   "logged_in_h": 20.17,
+   "logged_in_h": 10.04,
    "agent_active_h": 6.12,
    "human_input_h": 1.67,
-   "test_h": 12.49,
+   "test_h": 2.36,
    "live_h": 7.68,
-   "sessions": 6
+   "sessions_started": 6
   },
   {
    "date": "2026-10-03",
    "by_character": {
+    "TestWorth": 10.13,
     "Hackworth": 8.03,
     "(no character select)": 0.01,
-    "Shackleworth": 4.4
+    "Shackleworth": 4.41
    },
-   "logged_in_h": 12.44,
+   "logged_in_h": 22.57,
    "agent_active_h": 8.37,
    "human_input_h": 3.15,
-   "test_h": 0,
+   "test_h": 10.13,
    "live_h": 12.44,
-   "sessions": 17
+   "sessions_started": 17
   },
   {
    "date": "2026-10-04",
@@ -91,20 +92,32 @@
    "human_input_h": 0.32,
    "test_h": 0,
    "live_h": 5.17,
-   "sessions": 3
+   "sessions_started": 3
   },
   {
    "date": "2026-10-05",
    "by_character": {
-    "Outland Dan": 10.34,
+    "Outland Dan": 13.97,
     "Logan Wolf": 0.37
    },
-   "logged_in_h": 10.71,
-   "agent_active_h": 5.03,
-   "human_input_h": 1.5,
+   "logged_in_h": 14.34,
+   "agent_active_h": 7.72,
+   "human_input_h": 1.93,
    "test_h": 0,
-   "live_h": 10.71,
-   "sessions": 4
+   "live_h": 14.34,
+   "sessions_started": 4
+  },
+  {
+   "date": "2026-10-06",
+   "by_character": {
+    "Outland Dan": 12.0
+   },
+   "logged_in_h": 12.0,
+   "agent_active_h": 2.02,
+   "human_input_h": 0.35,
+   "test_h": 0,
+   "live_h": 12.0,
+   "sessions_started": 0
   }
  ]
 }
