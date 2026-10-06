@@ -330,10 +330,12 @@ table has no job column) and `harness/data/woods.json` when present.
   hour of wall time (active time only) plus cumulative logs/hr.
 - **Value (as-of prices since 2026-10-05):** each log of a wood at the price that wood's boards had
   when the trip ended (one log makes one board): the newest `board:<wood>` row of the store's
-  `prices` table with `t` ≤ the trip's `t_end` (`t_start` if there's no end), else woods.json
-  `value_gp` (an undated wiki figure). A price recorded later never revalues an older trip. Each
-  trip row's `board_prices` gives `{wood: {gp, t, source}}` (t null = woods.json, null = unpriced),
-  shown as the tooltip on the trip's value. Wood rows carry the price now (`value_gp`, `price_t`,
+  `prices` table with `t` ≤ the trip's `t_end` (`t_start` if there's no end). A trip from before
+  that wood's first recorded price uses that first price. Only a wood with no recorded price at
+  all falls back to woods.json `value_gp` (an undated wiki figure). A newer price never revalues
+  an older trip. Each trip row's `board_prices` gives `{wood: {gp, t, source}}` (t null =
+  woods.json, t after the trip = the first price used for an earlier trip, null = unpriced), shown
+  as the tooltip on the trip's value. Wood rows carry the price now (`value_gp`, `price_t`,
   `price_source`: the newest row, else woods.json) and `total_gp` = their logs at each trip's own
   price. A trip without a `woods` breakdown counts all its logs as `ordinary`, since the Shelter
   Island loop only chops ordinary trees. Logs of a wood with no known value are counted in

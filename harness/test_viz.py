@@ -258,25 +258,27 @@ def test_jobs():
           == (6, {"board": 4, "0x1BDD": 1, "axe": 1}))
     missing = jobs.load_woods(os.path.join(tempfile.mkdtemp(), "woods.json"))
     check("load_woods: absent file -> None", missing is None)
-    # board price history: each trip at the newest board:<wood> price at or before its t_end
+    # board price history: each trip at the newest board:<wood> price at or before its t_end; before
+    # a wood's first price, that first price
     m.price_record("board:ordinary", 20.0, "vendor search", t=2800.5)   # just after trip #1 ended
     m.price_record("board:ordinary", 30.0, "vendor search", t=6200.0)   # exactly trip #2's t_end
     m.price_record("board:ordinary", 25.0, "vendor search", t=DAY)      # before trip #3
     m.price_record("board:oak", 50.0, "vendor search", t=DAY + 800)     # after every trip
     m.price_record("hatchet:copper", 999.0, "vendor search", t=0.0)     # not a board: ignored
     h = jobs.analytics(m, "lumber", 0, woods=WOODS)
-    check("price history: #1 before any price -> woods.json 20 x 9.5 = 190; #2 at its t_end (inclusive) "
-          "20 x 30 = 600, oak priced only later -> unpriced; #3 12 x 25 = 300",
-          [r["value_gp"] for r in h["trips"]] == [190.0, 600.0, 300.0]
-          and (h["totals"]["value_gp"], h["totals"]["value_unpriced_logs"]) == (1090.0, 10),
+    check("price history: #1 before any price -> the first one (not woods.json) 20 x 20 = 400; #2 at its t_end "
+          "(inclusive) 20 x 30 + oak at its first (later) price 10 x 50 = 1100; #3 12 x 25 = 300",
+          [r["value_gp"] for r in h["trips"]] == [400.0, 1100.0, 300.0]
+          and (h["totals"]["value_gp"], h["totals"]["value_unpriced_logs"]) == (1800.0, 0),
           str([r["value_gp"] for r in h["trips"]]))
     check("trip rows say which price they used",
-          h["trips"][0]["board_prices"] == {"ordinary": {"gp": 9.5, "t": None, "source": "woods.json"}}
+          h["trips"][0]["board_prices"] == {"ordinary": {"gp": 20.0, "t": 2800.5, "source": "vendor search"}}
           and h["trips"][1]["board_prices"] == {"ordinary": {"gp": 30.0, "t": 6200.0, "source": "vendor search"},
-                                                "oak": None}, str([r["board_prices"] for r in h["trips"]]))
+                                                "oak": {"gp": 50.0, "t": DAY + 800, "source": "vendor search"}},
+          str([r["board_prices"] for r in h["trips"]]))
     check("wood rows: price now = newest row (ordinary 25, oak 50); totals from the trips' own prices",
           [(w["name"], w["value_gp"], w["price_t"], w["total_gp"]) for w in h["woods"]]
-          == [("oak", 50.0, DAY + 800, None), ("ordinary", 25.0, DAY, 600.0)], str(h["woods"]))
+          == [("oak", 50.0, DAY + 800, 500.0), ("ordinary", 25.0, DAY, 600.0)], str(h["woods"]))
     check("price_history keeps every observation, oldest first",
           [(r["item"], r["price_gp"]) for r in m.price_history("board:")]
           == [("board:ordinary", 20.0), ("board:ordinary", 30.0), ("board:ordinary", 25.0), ("board:oak", 50.0)])

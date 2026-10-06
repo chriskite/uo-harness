@@ -554,13 +554,15 @@ plus the store, hatchets in `harness/data/hatchets.json`; the model is docs/LUMB
   guessing one. Prices come from what the overseer sees (`ctl lumber price`).
 - **Trip value at the board price as of the trip (user, 2026-10-05).** The `prices` table is
   append-only, so price history is kept. `harness/jobs.py` values each trip's logs at the newest
-  `board:<wood>` price with `t` ≤ the trip's end. A trip from before the first recorded price
-  falls back to the woods.json value (9.5 gp, undated wiki) instead of being unpriced. Planning
+  `board:<wood>` price with `t` ≤ the trip's end. A trip from before that wood's first recorded
+  price uses the first price (user, 2026-10-05: not the woods.json 9.5 gp, which the commodity asks
+  showed to be ~3× too low). Only a wood with no recorded price falls back to woods.json. Planning
   still uses the newest price. Rejected: revaluing every trip at today's price, which loses the
   history and makes old days look richer or poorer as prices move. `ctl lumber price --at`
   backdates an older observation (e.g. from `#sell-archive`), and `ctl lumber prices --history
-  board:` lists them all. First board price: `board:ordinary` 26.8 gp on 2026-10-05, the lowest
-  commodity ask (ECONOMY §5.3), so the 63 trips before it stay at 9.5 gp.
+  board:` lists them all. First board prices: `board:ordinary` 26.8 gp on 2026-10-05, the lowest
+  commodity ask (ECONOMY §5.3), plus four colored woods from the user. Effect on the 63 trips up to
+  then: value 147 773 gp (9.5 gp, 481 colored logs unpriced) → 428 442 gp, no log unpriced.
 - **Regrowth from our own data.** Depleted trees came back after ~45–65 min (137 retries), not the
   20 min the runner assumed; the plan passes the fitted window (docs/NOTES.md).
 - **Open:** gold/hour (ECONOMY §6 value rate; `board:<wood>` prices exist for 5 of 10 woods since 2026-10-05), routine recall home

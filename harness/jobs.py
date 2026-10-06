@@ -21,12 +21,14 @@ Conventions
     may be {name: n}, [{name|graphic, amount}] or [name, ...]
   - value: each log of a wood at the price that wood's boards had when the trip
     ended (one log makes one board): the newest `board:<wood>` row of the store's
-    prices with t <= the trip's t_end (t_start when t_end is missing), else the
-    woods.json value_gp (an undated wiki figure). Each trip row's `board_prices`
-    says which price it used. A trip without a `woods` breakdown counts all its
-    logs as DEFAULT_WOOD (the Shelter Island loop chops only ordinary trees).
-    Logs of a wood without a known value are counted in `value_unpriced_logs`,
-    never priced by guess; value is null when no log could be priced.
+    prices with t <= the trip's t_end (t_start when t_end is missing). A trip from
+    before that wood's first recorded price (or with no time) uses that first
+    price; a wood with no recorded price at all uses the woods.json value_gp (an
+    undated wiki figure). Each trip row's `board_prices` says which price it used.
+    A trip without a `woods` breakdown counts all its logs as DEFAULT_WOOD (the
+    Shelter Island loop chops only ordinary trees). Logs of a wood without a
+    known value are counted in `value_unpriced_logs`, never priced by guess;
+    value is null when no log could be priced.
 """
 import argparse
 import bisect
@@ -86,13 +88,13 @@ def board_prices(rows: list[dict]) -> dict:
 
 
 def price_at(boards: dict | None, woods: dict | None, name: str, t) -> dict | None:
-    """The price of one log of wood `name` at time t: the newest board:<name> row at or
-    before t ({gp, t, source}), else the woods.json value ({gp, t: None, source:
-    "woods.json"}), else None. t None: woods.json only."""
+    """The price of one log of wood `name` at time t ({gp, t, source}): the newest
+    board:<name> row at or before t; before the first row (or t None) the first row;
+    with no row the woods.json value ({gp, t: None, source: "woods.json"}); else None."""
     ts, ps = (boards or {}).get(name, ((), ()))
-    i = bisect.bisect_right(ts, t) if t is not None else 0
-    if i:
-        p = ps[i - 1]
+    if ps:
+        i = bisect.bisect_right(ts, t) if t is not None else 0
+        p = ps[max(i, 1) - 1]
         return {"gp": p["price_gp"], "t": p["t"], "source": p.get("source")}
     v = wood_value(woods, name)
     return None if v is None else {"gp": v, "t": None, "source": "woods.json"}
