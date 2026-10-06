@@ -874,6 +874,26 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
     ~2.1 s, but a hatchet use cancels it; Outlands Recall is 2.00 s, and a 4th-8th circle hostile spell
     always disturbs it (Protection is armor only). An Energy Bolt chain (one every ~1.95 s) can't be
     out-cast standing, hence option E. Not built yet: both need live checks first.
+- **`[RecallCharge` live test (2026-10-06 17:34-17:36, Outland Dan, guild-house landing ↔ Cambria Bank):**
+  the official speech command (`say_unicode("[RecallCharge <rune name>")`, any rune in a book in the
+  backpack; patch notes 2025-06-04) works: our power words came **0.082/0.086/0.088 s** after the speech
+  packet, and we landed **2.10/2.16/2.16 s** after it. Our runebook gump path (`escape.recall`): double-click
+  → land **2.19/2.25/2.21 s** (double-click → button ≈ 0.1 s, button → land 2.12-2.14 s). So the command saves
+  ~0.1 s per recall and needs no gump. One command 0.3 s after a landing got 502644 "You have not yet
+  recovered from casting a spell"; one ~0.7 s after landing (2.9 s after the previous charge press) worked
+  ("You generate mana for your spell." first). That doesn't settle whether it also obeys the book's
+  post-use lockout (seen at ~1.8 s on 16:33). It spends a book charge like the button; 6 charges
+  used by the test. The room shelf doesn't refill runebook charges, the guild shelf 0x40B84C55 does.
+  Not adopted in `escape.py` yet.
+- **Seer8 shift (14:13–17:55, 2026-10-06):** 11 runs, 8,555 boards into the stockpile, Lumberjacking
+  99.1 → 100.0 (run 1). Deaths: the inherited 14:08 ghost (resurrected by Irma the healer, 2018,2255, ~2 min
+  walk) and run 5 (witcher_162, the red Lord Saisho Hakai; Morgana the healer, 3816,417, 532 steps, the
+  cliffs south forced a route east). The room shelf was empty both times; the guild shelf re-geared
+  everything. Run 11: Tracking found the red Bastet at 71 tiles and the runner recalled home 2 s later.
+  Skipped witcher_23/66 all shift and witcher_162 after the death. **Open (not fixed): a false
+  `theft_suspected`** (juncture 421, run 11, 17:51:06): convert's double-click on the packed hatchet
+  0x6627697C brought its 0x1D remove 16 ms before the 0x2E equip, and the ledger booked the remove as a loss
+  (session_20261006_164724 t 1791327066.408-.478); nothing was lost.
 - **Seer6 shift (20:15–23:25, 2026-10-05):** 15 runs, 8033 boards into the stockpile, Lumberjacking 81.1
   → 90.5, 1 death (norse bear rider at witcher_268, resurrected by Malila (2734,617); witcher_268
   disabled). Best trips: the greedy picks witcher_23 (2410 incl. ~1380 carried logs, then 1747) and
