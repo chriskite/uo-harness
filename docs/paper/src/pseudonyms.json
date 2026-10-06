@@ -1,0 +1,42 @@
+{
+  "_doc": [
+    "Pseudonymized edition of the paper: python docs/paper/src/build.py --pseudonymize",
+    "replace: ordered [regex, replacement] pairs (Python re, case-sensitive), applied to the chart text at render time and to the assembled page (prose, captions, mermaid sources, byline). Specific forms first, then the generic name.",
+    "forbid: case-insensitive regexes that must not occur anywhere in the finished page; the build refuses to write the file if one does.",
+    "withhold: chart elements, by their original label, that the edition leaves out (charts check PSEUDO.withholds(label)).",
+    "Kept on purpose: the PK Bastet and other hostile players, public places, rune sets and shard addresses."
+  ],
+  "output": "uo-harness-paper-pseudonymized.html",
+  "notice": "Pseudonymized edition: the project's characters, guild and author are renamed; the guild house's location, the rental room's coordinates and two item serials are withheld.",
+  "replace": [
+    ["Outland Dan", "Character Omega"],
+    ["\\bDan\\b", "Omega"],
+    ["TestWorth", "Character Alpha"],
+    ["Shackleworth", "Character Kappa"],
+    ["Hackworth", "Character Delta"],
+    ["Logan Wolf", "Character Zeta"],
+    ["<dt>DTF</dt>", "<dt>The Guild</dt>"],
+    ["DTF guild house", "Guild house"],
+    ["\\bguild DTF\\b", "the Guild"],
+    ["\\bDTF guild\\b", "the Guild"],
+    ["\\bDTF\\b", "Guild"],
+    ["\\bdtf\\b", "guild"],
+    ["Caputo Wood", "Player T"],
+    ["C:\\\\Users\\\\Chris Kite", "C:\\\\Users\\\\First Last"],
+    ["C:\\\\Users\\\\chris\\b", "C:\\\\Users\\\\first"],
+    ["Chris Kite", "Anonymous"],
+    ["\\(4152,\\s*1429\\)", "(withheld)"],
+    ["\\(4134,\\s*1429(?:,\\s*z\\s*6)?\\)", "(withheld)"],
+    ["\\b4134,\\s*1429\\b", "the landing"],
+    ["arrive \\(403,\\s*923\\) on facet 3", "arrive in the room on facet 3"],
+    ["\\(403,\\s*923\\)", "(withheld)"],
+    ["0x44ADB57A", "0x…"],
+    ["0x6ECE2ABE", "0x…"]
+  ],
+  "forbid": [
+    "outland\\s*dan", "\\bdan\\b", "testworth", "hackworth", "shackleworth", "logan\\s*wolf",
+    "\\bdtf\\b", "caputo", "chris", "\\bkite\\b",
+    "4152,\\s*1429", "4134,\\s*1429", "403,\\s*923", "44ADB57A", "6ECE2ABE"
+  ],
+  "withhold": ["DTF guild house (rune library, home landing)"]
+}

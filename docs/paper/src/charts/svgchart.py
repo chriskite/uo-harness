@@ -15,12 +15,15 @@ from __future__ import annotations
 import html
 import math
 
+from common import PSEUDO
+
 W, H = 720, 320
 PAD_L, PAD_R, PAD_T, PAD_B = 64, 20, 28, 56
 
 
 def _esc(s) -> str:
-    return html.escape(str(s), quote=True)
+    s = str(s)
+    return html.escape(PSEUDO.apply(s) if PSEUDO else s, quote=True)
 
 
 def _nice_max(v: float) -> float:

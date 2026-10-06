@@ -6,6 +6,9 @@
 
 Simple bar/line/heatmap charts: svgchart.py (themed by the page CSS). Anything statistical
 (densities, CDFs, posteriors, annotated scatter): matplotlib via mpl() + mpl_svg(fig, name).
+
+For the pseudonymized edition build.py sets PAPER_FIGURES_DIR (a temp dir, so the committed
+figures stay as they are) and PAPER_PSEUDONYMS (the rules); PSEUDO then rewrites every chart text.
 """
 from __future__ import annotations
 
@@ -13,9 +16,15 @@ import io
 import json
 import os
 import re
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.dirname(HERE)
+sys.path.insert(0, SRC)
+from pseudonyms import from_env  # noqa: E402
+
+PSEUDO = from_env()
+FIGURES = os.environ.get("PAPER_FIGURES_DIR") or os.path.join(SRC, "figures")
 PALETTE = ["#1f5f8b", "#b4572b", "#3d7f4f", "#b8892a", "#6b4fa0", "#2a9d8f", "#8a8f98", "#c44e74"]
 INK, INK2, INK3, GRID = "#1f2328", "#4a5059", "#737a85", "#ece8df"
 
@@ -26,8 +35,8 @@ def load(name: str):
 
 
 def save(name: str, svg: str) -> None:
-    os.makedirs(os.path.join(SRC, "figures"), exist_ok=True)
-    with open(os.path.join(SRC, "figures", f"{name}.svg"), "w", encoding="utf-8") as f:
+    os.makedirs(FIGURES, exist_ok=True)
+    with open(os.path.join(FIGURES, f"{name}.svg"), "w", encoding="utf-8") as f:
         f.write(svg)
 
 
@@ -76,7 +85,22 @@ def mpl():
 def mpl_svg(fig, name: str) -> str:
     """Serialize a matplotlib figure to a responsive inline SVG (class 'chart mpl')."""
     import matplotlib.pyplot as plt
+    from matplotlib.text import Text
+    from matplotlib.ticker import FixedFormatter, FuncFormatter
 
+    if PSEUDO:  # before layout, so bbox_inches="tight" measures the replaced text
+        for t in fig.findobj(Text):
+            if t.get_text():
+                t.set_text(PSEUDO.apply(t.get_text()))
+        # tick labels are re-created from the formatter at draw time (set_*ticklabels makes a
+        # FuncFormatter or FixedFormatter), so the mapping goes into the formatter itself
+        for ax in fig.axes:
+            for axis in (ax.xaxis, ax.yaxis):
+                for fmt in (axis.get_major_formatter(), axis.get_minor_formatter()):
+                    if isinstance(fmt, FixedFormatter):
+                        fmt.seq = [PSEUDO.apply(str(s)) for s in fmt.seq]
+                    elif isinstance(fmt, FuncFormatter):
+                        fmt.func = lambda x, pos=None, f=fmt.func: PSEUDO.apply(str(f(x, pos)))
     plt.rcParams["svg.hashsalt"] = name  # unique, deterministic clip-path ids per figure
     buf = io.StringIO()
     fig.savefig(buf, format="svg", bbox_inches="tight", pad_inches=0.06)

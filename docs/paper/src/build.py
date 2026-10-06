@@ -1,6 +1,7 @@
 """Build docs/paper/uo-harness-paper.html: one self-contained page, no network, no runtime libraries.
 
     python docs/paper/src/build.py [--no-charts] [--only 'NN-*' --out PREVIEW.html]
+    python docs/paper/src/build.py --pseudonymize   # -> uo-harness-paper-pseudonymized.html
 
 Steps:
   1. run every charts/fig_*.py (each writes figures/<name>.svg from data/*.json)
@@ -13,6 +14,12 @@ Steps:
      the tables of contents
   4. strip the build-time scripts and write the static page
 
+--pseudonymize builds the shareable edition from the same sources with the rules in pseudonyms.json:
+the charts are re-rendered into a temp dir with their text rewritten before layout (the committed
+figures are not touched; --no-charts does not apply), the assembled page is rewritten (prose,
+captions, mermaid sources, byline, plus an edition note), and the finished page is refused if any
+of the rules' forbidden patterns is still in it.
+
 Needs: pip install playwright && python -m playwright install chromium; `bun install` in this dir
 (mermaid + temml). Fails on a broken diagram, bad TeX, a duplicate id or a dangling reference.
 """
@@ -23,6 +30,7 @@ import glob
 import html
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -194,39 +202,43 @@ async () => {
 """
 
 
-def run_charts() -> None:
+def run_charts(env: dict | None = None) -> None:
     for script in sorted(glob.glob(str(SRC / "charts" / "fig_*.py"))):
-        r = subprocess.run([sys.executable, script], cwd=SRC, capture_output=True, text=True)
+        r = subprocess.run([sys.executable, script], cwd=SRC, capture_output=True, text=True,
+                           env={**os.environ, **env} if env else None)
         if r.returncode:
             sys.exit(f"chart script failed: {script}\n{r.stdout}\n{r.stderr}")
         print(f"chart  {os.path.basename(script)}")
 
 
-def inline_includes(text: str, depth: int = 0) -> str:
+def inline_includes(text: str, depth: int = 0, figdir: Path | None = None) -> str:
+    """Inline <!--#include path--> (relative to SRC); figures/* come from figdir when given."""
     if depth > 4:
         sys.exit("include nesting too deep")
 
     def sub(m: re.Match) -> str:
-        p = SRC / m.group(1)
+        rel = m.group(1)
+        p = figdir / rel[len("figures/"):] if figdir and rel.startswith("figures/") else SRC / rel
         if not p.is_file():
-            sys.exit(f"missing include: {m.group(1)}")
+            sys.exit(f"missing include: {rel} ({p})")
         body = p.read_text(encoding="utf-8")
         body = re.sub(r"^\s*<\?xml[^>]*>\s*", "", body)
         body = re.sub(r"<!DOCTYPE[^>]*>\s*", "", body)
-        return inline_includes(body, depth + 1)
+        return inline_includes(body, depth + 1, figdir)
 
     return INCLUDE.sub(sub, text)
 
 
-def assemble(only: str | None = None) -> str:
+def assemble(only: str | None = None, figdir: Path | None = None, edition: str = "") -> str:
     tpl = (SRC / "template.html").read_text(encoding="utf-8")
-    hero = inline_includes((SRC / "hero.html").read_text(encoding="utf-8"))
+    hero = inline_includes((SRC / "hero.html").read_text(encoding="utf-8"), figdir=figdir)
+    hero = hero.replace("<!--@@EDITION@@-->", f"\n  <div><b>Edition</b>{edition}</div>" if edition else "")
     sections = []
     files = sorted(glob.glob(str(SRC / "sections" / (f"{only}.html" if only and not only.endswith(".html") else only or "*.html"))))
     if not files:
         sys.exit(f"no sections match {only!r}")
     for f in files:
-        sections.append(f"<!-- {os.path.basename(f)} -->\n" + inline_includes(Path(f).read_text(encoding="utf-8")))
+        sections.append(f"<!-- {os.path.basename(f)} -->\n" + inline_includes(Path(f).read_text(encoding="utf-8"), figdir=figdir))
     title = re.search(r"<h1[^>]*>(.*?)</h1>", hero, re.S)
     sub = re.search(r'class="subtitle"[^>]*>(.*?)</p>', hero, re.S)
     strip = lambda s: html.escape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", html.unescape(s))).strip())
@@ -262,20 +274,46 @@ def main() -> None:
     ap.add_argument("--only", metavar="GLOB", help="preview: build only sections/GLOB (e.g. '04-*'); "
                     "references into other sections become warnings")
     ap.add_argument("--out", metavar="PATH", help=f"output file (default {OUT.name}; use one per preview)")
+    ap.add_argument("--pseudonymize", action="store_true",
+                    help="build the pseudonymized edition (rules and default file name in pseudonyms.json)")
     args = ap.parse_args()
-    out_path = Path(args.out).resolve() if args.out else OUT
-    if not args.no_charts:
-        run_charts()
+    rules = figdir = None
+    if args.pseudonymize:
+        from pseudonyms import ENV, Rules
+
+        rules = Rules()
+        figdir = Path(tempfile.mkdtemp(prefix="paper-pseudo-figures-"))
+    out_path = Path(args.out).resolve() if args.out else (SRC.parent / rules.output if rules else OUT)
     fd, tmp = tempfile.mkstemp(suffix=".html", prefix="paper-assembling-")
     os.close(fd)
     assembled = Path(tmp)
     try:
-        assembled.write_text(assemble(args.only), encoding="utf-8")
+        if rules:
+            run_charts({"PAPER_FIGURES_DIR": str(figdir), ENV: str(rules.path)})
+            # chart text must be replaced before layout, not by the page pass below, or the
+            # longer pseudonyms overflow the figure
+            for svg in sorted(figdir.glob("*.svg")):
+                for leak in rules.leaks(svg.read_text(encoding="utf-8")):
+                    sys.exit(f"chart {svg.name} was not pseudonymized at render time: {leak}")
+            page = rules.apply(assemble(args.only, figdir, rules.notice))
+        else:
+            if not args.no_charts:
+                run_charts()
+            page = assemble(args.only)
+        assembled.write_text(page, encoding="utf-8")
         out, stats = prerender(assembled)
     finally:
         assembled.unlink(missing_ok=True)
+        if figdir:
+            shutil.rmtree(figdir, ignore_errors=True)
     if not out.lstrip().lower().startswith("<!doctype"):
         out = "<!doctype html>\n" + out
+    if rules:
+        leaks = rules.leaks(out)
+        for leak in leaks:
+            print("LEAK ", leak)
+        if leaks:
+            sys.exit(f"refusing to write {out_path}: {len(leaks)} forbidden match(es); extend pseudonyms.json")
     out_path.write_text(out, encoding="utf-8")
     errors = stats["errors"]
     if args.only:

@@ -5,7 +5,7 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import PALETTE, load, mpl, mpl_svg, save  # noqa: E402
+from common import PALETTE, PSEUDO, load, mpl, mpl_svg, save  # noqa: E402
 
 d = load("05_walk_reach")
 B = d["bin"]
@@ -34,6 +34,8 @@ ax.scatter(p_in[:, 0], p_in[:, 1], s=9, marker="^", color=PALETTE[4], alpha=0.8,
 offs = {"Cambria Rune Library": (40, 260), "Shelter Island inn": (110, -150),
         "DTF guild house (rune library, home landing)": (-1350, -260)}
 for name, (x, y) in d["places"].items():
+    if PSEUDO and PSEUDO.withholds(name):  # the pseudonymized edition does not mark the guild house
+        continue
     ax.scatter([x], [y], s=70, marker="*", color=PALETTE[3], edgecolors="#1f2328", linewidths=0.6, zorder=4)
     dx, dy = offs.get(name, (60, -60))
     ax.annotate(name, (x, y), (x + dx, y + dy), fontsize=9, color="#1f2328",
