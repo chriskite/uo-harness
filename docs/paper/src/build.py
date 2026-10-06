@@ -11,8 +11,9 @@ Steps:
      (fixed rough.js seed, labelled by its figcaption), .math elements (TeX) -> MathML via temml,
      figure SVGs get a scroll wrapper and their natural width (narrow-screen minimum, style.css),
      section/figure/table/equation numbering, <a class="ref" href="#id"></a> cross-references,
-     hover tooltips on packet ids from packets.json (<abbr class="pkt" title> in text, an SVG
-     <title> on diagram and chart text), the tables of contents
+     <a class="cite" href="#ref-x"></a> citations numbered from the References list
+     (sections/24-app-references.html), hover tooltips on packet ids from packets.json
+     (<abbr class="pkt" title> in text, an SVG <title> on diagram and chart text), the tables of contents
   4. strip the build-time scripts and write the static page
 
 --pseudonymize builds the shareable edition from the same sources with the rules in pseudonyms.json:
@@ -186,6 +187,19 @@ async (PACKETS) => {
   for (const a of document.querySelectorAll('main a[href^="#"]:not(.ref)')) {
     const id = a.getAttribute('href').slice(1);
     if (id && !document.getElementById(id)) errors.push('dangling link: #' + id);
+  }
+
+  // 3b. citations: <a class="cite" href="#ref-x"></a> -> [n], n = the entry's position in the
+  // References list; a citation without an entry, or an entry nothing cites, fails the build
+  const cited = new Set();
+  for (const a of document.querySelectorAll('main a.cite')) {
+    const id = (a.getAttribute('href') || '').slice(1), li = document.getElementById(id);
+    if (!li || li.tagName !== 'LI' || !li.parentElement.matches('ol.refs')) { errors.push('citation without a reference: #' + id); continue; }
+    cited.add(id);
+    if (!a.textContent.trim()) a.textContent = '[' + ([...li.parentElement.children].indexOf(li) + 1) + ']';
+  }
+  for (const li of document.querySelectorAll('main ol.refs > li')) {
+    if (!cited.has(li.id)) errors.push('reference never cited: #' + li.id);
   }
 
   // 3c. packet tooltips: every 0xNN packet id explains itself on hover (packets.json). Text in

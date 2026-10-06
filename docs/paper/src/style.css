@@ -206,6 +206,12 @@ svg.diagram { width: 100%; height: auto; font-family: var(--sans); }
 /* packet ids explain themselves on hover (build.py, packets.json) */
 abbr.pkt { text-decoration: underline dotted var(--ink-3); text-underline-offset: .18em; cursor: help; }
 
+/* citations [n] (build.py) and the References appendix */
+a.cite { white-space: nowrap; }
+ol.refs { list-style: none; padding-left: 0; counter-reset: ref; }
+ol.refs > li { counter-increment: ref; position: relative; padding-left: 2.6em; margin: .5em 0; }
+ol.refs > li::before { content: "[" counter(ref) "]"; position: absolute; left: 0; color: var(--ink-3); }
+
 /* ---------- callouts ---------- */
 .callout {
   border: 1px solid var(--rule); border-left: 4px solid var(--accent); background: var(--paper);
