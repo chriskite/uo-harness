@@ -317,7 +317,7 @@ def _h_talk(rt, f):
             rt.state.update_mobile(f["serial"], **tags)
     rt.state.tracking.on_text(f["serial"], f["text"], rt.state.self.serial)
     rt._emit("speech_heard", serial=f["serial"], name=f["name"],
-             type=f["type"], hue=f["hue"], text=f["text"])
+             type=f["type"], hue=f["hue"], text=f["text"], body=f.get("graphic"))
 
 
 def _h_cliloc(rt, f):

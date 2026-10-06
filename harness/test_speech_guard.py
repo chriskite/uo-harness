@@ -79,6 +79,13 @@ def test_speaker():
           speaker(w, said(PLAYER, "die", name="an andarian footman")) is not None)
     w["labels"].pop(f"0x{PLAYER:08X}")
     w["mobiles"][f"0x{PLAYER:08X}"].update(flags=0, notoriety=1)
+    gone = 0x005F0B9D                     # live 2026-10-06 15:13: deleted 1 s after its bark, no longer in mobiles
+    check("ignored: a soldier's bark when it has left the world by the time we look (its name, body 0x191)",
+          speaker(w, {**said(gone, "*charges*", name="an andarian captain"), "body": 0x191}) is None)
+    check("ignored: an off-screen speaker whose speech header has a creature body",
+          speaker(w, {**said(gone, "Grrr", name="Rex"), "body": 0xE4}) is None)
+    check("an off-screen speaker with a human body and a player's name still counts (hidden staff)",
+          speaker(w, {**said(gone, "What are you doing?", name="Ann"), "body": 0x190}) is not None)
     staff = speaker(w, said(STAFF, "Hello there", name="GM Kemp"))
     check("player flag at notoriety 7 still counts (staff may be invulnerable), with staff hints",
           staff is not None and "GM body 0x03DB" in staff["evidence"] and "staff-like name" in staff["evidence"],

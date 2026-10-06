@@ -59,6 +59,8 @@ _NUMBER = re.compile(r"^\s*[-+]?\d+\s*$")
 # names staff are often given on UO shards [INFERENCE: no Outlands staff seen yet]
 _STAFF_NAME = re.compile(r"\b(gm|game ?master|seer|counselor|admin|staff|developer|dev)\b", re.I)
 STAFF_BODIES = (0x3DB, 0x3DF)    # ClassicUO Mobile.IsHuman includes the GM body 0x3DB [INFERENCE: use]
+# a server-spawned mobile's name: a lowercase article ("an andarian captain"; threats._CREATURE ignores case)
+_SPAWN_NAME = re.compile(r"^(a|an) ")
 
 # Pet command words: the English pet keywords of speech.mul (0x155-0x170, read
 # 2026-10-02: come drop fetch get bring follow friend guard kill attack patrol
@@ -132,6 +134,11 @@ def speaker(world: dict, ev: dict) -> dict | None:
     info = {"serial": key, "name": ev.get("name") or None, "label": label, "text": text,
             "type": SPEECH_TYPES[ev["type"]], "hue": ev.get("hue"), "on_screen": mob is not None}
     if mob is None:
+        # gone from the world by the time we look (live 2026-10-06 15:13, witcher_265: "an andarian captain"
+        # barked "*charges*" and was deleted 1 s later): the speech header's own body and name still tell
+        body = ev.get("body")
+        if (body is not None and body not in threats.HUMAN_BODIES) or _SPAWN_NAME.match(info["name"] or ""):
+            return None
         info["evidence"] = ["not on screen (hidden or out of view)"]
     else:
         body, noto, flags = mob.get("graphic"), mob.get("notoriety"), mob.get("flags") or 0
