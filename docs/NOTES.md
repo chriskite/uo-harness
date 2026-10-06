@@ -767,6 +767,15 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   an unreachable plan costs ~0.9 s exhausting 30000 nodes), so next_stand skipped it and picked far trees
   again. Now rethink plans the nearer trees' routes, switches only if 8 steps shorter, and hands that
   tree to next_stand; trees with no route leave the trip's candidates.
+- **Seer6 shift (20:15–23:25, 2026-10-05):** 15 runs, 8033 boards into the stockpile, Lumberjacking 81.1
+  → 90.5, 1 death (norse bear rider at witcher_268, resurrected by Malila (2734,617); witcher_268
+  disabled). Best trips: the greedy picks witcher_23 (2410 incl. ~1380 carried logs, then 1747) and
+  witcher_40 (1326). Explore picks gave 262–392 boards each (small groves), so the overseer went to
+  greedy picks from run 14 on (user's goal: boards). Spots witcher_36, witcher_46 and witcher_253
+  were re-enabled after false box-ins (fixed). Hatchet 0x6270D238 (GM bronze) ended at 516 uses; none
+  bought. Open: there's no `ctl act convert` (logs left after aborts wait for the next trip), and
+  `lumber plan` prints no command for its greedy pick (the overseer used the pick's trip args with
+  `--spot`).
 - **Boxed in at Jungle Baths (lumber-20261005-201519-1738, witcher_137, Seer6, 20:15:50–20:20:29):**
   from the landing (2760,3422) the walk to tree 2821,3409 replanned round creature zones 178 times,
   swinging between routes of ~40 and ~62 steps from (2777,3427) and (2785,3432) (danger replans
