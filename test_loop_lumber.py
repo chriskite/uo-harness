@@ -1634,8 +1634,8 @@ async def skirmish():
     """LUMBER_LOOP.md §13: the hatchet in a bag in the pack; 'a great hart' in war mode
     4 tiles from the tree, fighting a player (knowledge #89); a creature that goes for
     the agent (escape ESCAPE_RUN tiles, then the next tree out of its reach); the same creature
-    hunting it down at that tree (escape, kept coming: run RECALL_GAP away, recall home, no
-    conversion)."""
+    hunting it down at that tree (one we already ran from: no second escape, run RECALL_GAP away,
+    recall home, no conversion; live 2026-10-05 an air dragon followed two escapes and killed Dan)."""
     print("\n== skirmish: hatchet in a bag, a hart fighting a player, a creature that goes for us ==")
     world = World("skirmish")
     text, code, store, _ = await run_scenario(world, "skirmish", 12680, [GOOD_TREE, FAR_TREE],
@@ -1646,8 +1646,8 @@ async def skirmish():
           and dclicks.index(BACKPACK) < dclicks.index(BAG) < dclicks.index(HATCHET), str(dclicks[:6]))
     threat_js = [j for j in store.junctures() if j["kind"] == "threat"]
     acts = [j["data"].get("action") for j in threat_js if "threats" in j["data"]]
-    check("threat junctures (urgent): escape, escape (it came back), recall (it kept coming), then 'Recalled away'",
-          acts == ["escape", "escape", "recall"] and "Recalled away" in threat_js[-1]["summary"]
+    check("threat junctures (urgent): escape, recall (it followed us after the escape), then 'Recalled away'",
+          acts == ["escape", "recall"] and "Recalled away" in threat_js[-1]["summary"]
           and all(j["severity"] == "urgent" for j in threat_js),
           str([(j["summary"], j["data"].get("action")) for j in threat_js]))
     with_threats = [j for j in threat_js if "threats" in j["data"]]
@@ -1666,8 +1666,8 @@ async def skirmish():
     far = [s for s in stand_events(store) if s["anchor"] == [FAR_TREE["x"], FAR_TREE["y"]]]
     check("resumed at a stand by the next tree out of the attacker's reach and harvested there",
           world.far_attempts >= 2 and sum(s["successes"] for s in far) >= 1, f"{world.far_attempts} attempts, {far}")
-    check("the attacker kept coming after the second escape: the run stopped (exit 1)",
-          code == 1 and "kept coming after the escape" in text and world.attacker_swings >= 2,
+    check("the attacker followed us after the escape: the run stopped (exit 1)",
+          code == 1 and "followed us after an escape" in text and world.attacker_swings >= 1,
           f"exit {code}, {world.attacker_swings} swings")
     check("a creature at our heels: no 10 s log conversion next to it (live 2026-10-03: 85 -> 40 hits while "
           "converting); first a run RECALL_GAP away (user 2026-10-05: a few steps don't break aggro), then the "
@@ -1681,7 +1681,7 @@ async def skirmish():
     eps = store.episodes("lumber")
     check("the stopped trip still left its episode row: aborted, why, the logs it got and still "
           "carries, the hatchet from the bag",
-          len(eps) == 1 and eps[0].get("outcome") == "aborted" and "kept coming" in (eps[0].get("why") or "")
+          len(eps) == 1 and eps[0].get("outcome") == "aborted" and "followed us" in (eps[0].get("why") or "")
           and eps[0].get("logs") == world.harvested
           and eps[0].get("carried_end") == {"logs": world.harvested, "boards": 0}
           and (eps[0].get("hatchet") or {}).get("worn") is False
@@ -1881,9 +1881,13 @@ async def library_chased():
     eps = store.episodes("lumber")
     rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
     cr = (eps[0].get("creature") or {}) if eps else {}
-    check("the trip row books the creature's cost: one escape, recalled, why; the recall event says a creature",
+    check("the trip row books the creature's cost: one escape, recalled, why; the recall events say a creature",
           cr.get("escapes") == 1 and cr.get("recalled") is True and "kept coming" in (cr.get("why") or "")
-          and [d.get("cause") for d in rec] == ["creature"], f"{cr} {[d.get('cause') for d in rec]}")
+          and [d.get("cause") for d in rec] == ["creature", "creature"], f"{cr} {[d.get('cause') for d in rec]}")
+    check("the first home recall (disturbed) was one cast, then 'running on' and another that landed; no stop "
+          "in the field between them",
+          [(d["ok"], d["attempts"]) for d in rec] == [(False, 1), (True, 1)] and cr.get("recall_fails") == 1
+          and "disturbed; running on" in text, f"{[(d['ok'], d['attempts']) for d in rec]} {cr}")
     store.close()
 
 
@@ -2479,6 +2483,65 @@ def unit_tree_rethink():
         loop_lumber.TREE_RECHECK_S = recheck
 
 
+def unit_run_and_recall():
+    """run_and_recall never stops in the field (user, 2026-10-05: "If we fail to recall, we should just run away"):
+    run, one cast, run again; with nothing after us, a stand-and-recast try, the next one RECALL_RETRY_S later
+    unless something comes after us; the overseer hears of it after RECALL_ALERT_TRIES failures; only a recall that
+    lands or death ends it."""
+    print("\n== run_and_recall: run, cast, run again until a recall lands; the overseer told after 2 failures ==")
+    import types
+    import loop_lumber
+    log_, juncs = [], []
+    after_us = [True, True, False, False, True]       # gain_distance: something within RECALL_GAP before each try
+    outcome = {"casts": 0, "land_at": 4, "die_at": None}
+    state = {"dead": False}
+
+    def gain_distance(st, a, swung):
+        ran = after_us.pop(0) if after_us else False
+        log_.append("run" if ran else "look")
+        return ran
+
+    def recall_out(st, a, worst, swung, pk=True, why=None, what=None, attempts=None):
+        outcome["casts"] += 1
+        log_.append(f"cast:{attempts}")
+        if outcome["casts"] == outcome["land_at"]:
+            raise loop_lumber.Unsafe("escaped by recall")
+        if outcome["casts"] == outcome["die_at"]:
+            state["dead"] = True
+        return "recall failed after 1 cast(s): disturbed"
+    fake = SimpleNamespace(
+        gain_distance=gain_distance, recall_out=recall_out, creature={"recalled": False, "recall_fails": 0},
+        link=SimpleNamespace(state=lambda: {}, pos=lambda st: (5, 6, 0, 0)),
+        watch=SimpleNamespace(update=lambda st, **kw: SimpleNamespace(dead=state["dead"])),
+        memory=SimpleNamespace(juncture=lambda *a: juncs.append(a)), trip_n=1, k={"spot": {"id": "sim"}})
+    fake.threat_name = loop_lumber.LumberLoop.threat_name
+    fake.run_and_recall = types.MethodType(loop_lumber.LumberLoop.run_and_recall, fake)
+    retry, look = loop_lumber.RECALL_RETRY_S, loop_lumber.KEEP_RUNNING_LOOK_S
+    loop_lumber.RECALL_RETRY_S, loop_lumber.KEEP_RUNNING_LOOK_S = 5.0, 0.05
+    try:
+        landed = False
+        try:
+            fake.run_and_recall({}, SimpleNamespace(dead=False), None, {}, "it followed us")
+        except loop_lumber.Unsafe:
+            landed = True
+        check("a run before each one-cast try while something is after us; with nothing after us a stand-and-recast "
+              "try, then a look-around (no cast) until something came after us again: a run, a cast that landed",
+              landed and log_ == ["run", "cast:1", "run", "cast:1", "look", "cast:None", "look", "run", "cast:1"]
+              and fake.creature["recalled"] is True and fake.creature["recall_fails"] == 3, str(log_))
+        check("one urgent keep_running threat juncture, after the second failure",
+              len(juncs) == 1 and juncs[0][1] == "threat" and juncs[0][3] == "urgent"
+              and juncs[0][4]["action"] == "keep_running" and juncs[0][4]["fails"] == 2, str(juncs))
+        log_.clear(), juncs.clear()
+        after_us[:] = [True, True, True]
+        outcome.update(casts=0, land_at=None, die_at=3)
+        fake.creature["recalled"] = False
+        fake.run_and_recall({}, SimpleNamespace(dead=False), None, {}, "it followed us")
+        check("death ends it (the caller then stops)", outcome["casts"] == 3 and not fake.creature["recalled"],
+              str(log_))
+    finally:
+        loop_lumber.RECALL_RETRY_S, loop_lumber.KEEP_RUNNING_LOOK_S = retry, look
+
+
 def unit_hatchet():
     """loop_lumber hatchet(): worn first, then the shallowest in the pack; never the bank box."""
     print("\n== hatchet(): worn, else the shallowest in the backpack's bags ==")
@@ -2866,7 +2929,7 @@ if __name__ == "__main__":
             landing_escape,
             ghost_horse,
             staff_in_view,
-            unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink,
+            unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_run_and_recall,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`

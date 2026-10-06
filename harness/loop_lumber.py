@@ -176,6 +176,9 @@ BOARDS = (0x1BD7,)
 DROP_AUTO = 0x7FFFFFFF        # client drop-into-container auto-position (demo)
 ESCAPE_MARGIN = 2             # an escape ends this many tiles beyond the monster's reach (flee radius or spell range)
 ESCAPES_PER_TRIP = 3          # monster escapes per trip (runs from damage included); one more threat stops the run
+RECALL_ALERT_TRIES = 2        # failed recalls away from a creature before the urgent keep_running juncture
+RECALL_RETRY_S = 10.0         # between recall casts while nothing is after us (run_and_recall)
+KEEP_RUNNING_LOOK_S = 0.5     # how often run_and_recall looks around while nothing is after us
 # Creatures we can see (user, 2026-10-05: "just not move into aggro range of mobs we can see while
 # lumbering"): RunUO's monsters perceive within 10 tiles (BaseCreature rangePerception, the usual
 # spawn argument) [INFERENCE for Outlands]; trees and routes keep AGGRO_R from every one in view
@@ -440,10 +443,11 @@ class LumberLoop:
     def new_creature_tally() -> dict:
         """The trip row's `creature`: escapes (walk-aways, runs from damage included), hits
         lost to creatures, whether a creature sent us home by recall and why it ended the
-        trip (null when none did); runs (walk-aways after damage), hits (damage episodes)
-        and avoided_trees (trees left alone near a known-aggressive creature)."""
+        trip (null when none did); runs (walk-aways after damage), hits (damage episodes),
+        avoided_trees (trees left alone near a known-aggressive creature) and recall_fails
+        (recalls away from a creature that failed; run_and_recall ran on after each)."""
         return {"escapes": 0, "hits_lost": 0, "recalled": False, "why": None,
-                "runs": 0, "hits": 0, "avoided_trees": 0}
+                "runs": 0, "hits": 0, "avoided_trees": 0, "recall_fails": 0}
 
     def doing(self, kind: str, text: str, target=None):
         """Tell the visualizer what the agent is trying to do (proxy-side only)."""
@@ -677,6 +681,11 @@ class LumberLoop:
             self.monster_stop(st, a, monsters[0], swung, "speech hold: no escape")
         if self.escapes >= ESCAPES_PER_TRIP:
             self.monster_stop(st, a, monsters[0], swung, f"{self.escapes} escapes this trip already")
+        # one we already ran from is on us again: it hunts us, and another run only brings it along (live
+        # 2026-10-05, witcher_23: an air dragon followed two escapes, then breathed twice from 9 tiles)
+        back = next((t for t in monsters if t.serial in self.danger), None)
+        if back is not None:
+            self.monster_stop(st, a, back, swung, f"{back.name or f'0x{back.serial:08X}'} followed us after an escape")
         raise Escape(monsters, self.post_threat(st, a, monsters[0], swung, "escape"))
 
     def creature_hit(self, st, a, swung, monsters, escape: bool):
@@ -1006,22 +1015,77 @@ class LumberLoop:
         """A creature ends the run: under attack or with monsters closing in there is no
         time to convert logs (live 2026-10-03, witcher_291: 85 -> 40 hits during a 12 s
         conversion, then the run exited in the field and the overseer's recall landed at
-        15/100). So: away from home with a book ready, first run until every creature after
-        us is RECALL_GAP tiles off (gain_distance: a cast next to it is disturbed, and it
-        keeps hitting; user, 2026-10-05), then recall home, and stop without converting
-        (Unsafe). At home (home.at_home: in the room or by the landing), or without a book,
-        stop where we stand. The trip row's `creature` gets the why and whether the recall landed."""
+        15/100). So: with a book, unless a recall wouldn't move us (on_home_rune: in the room
+        or on the way-home rune's tile), run_and_recall (it returns only when we died); else
+        out of the room run out of reach while anything is after us (run_clear). Then stop
+        without converting (Unsafe). The trip row's `creature` gets the why and whether the
+        recall landed."""
         self.creature["why"] = why
-        if self.recall_book is not None and not self.at_home(st):
-            if self.gain_distance(st, a, swung):
+        if self.recall_book is not None and not self.on_home_rune(st):
+            self.run_and_recall(st, a, worst, swung, why)
+            why = f"{why}; died while running from it"
+        elif not home_mod.in_room(self.facet_now(st), self.home):
+            self.run_clear(st, a, swung)
+        st = self.link.state()
+        a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+        self.threat_stop(st, a, worst, swung, Unsafe, why)
+
+    def run_clear(self, st, a, swung):
+        """No recall to make: run out of reach (gain_distance) until nothing is after us, we
+        die, or there is nowhere left to run."""
+        while not a.dead:
+            steps = self.mover.steps
+            if not self.gain_distance(st, a, swung) or self.mover.steps == steps:
+                return
+            st = self.link.state()
+            a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+
+    def run_and_recall(self, st, a, worst, swung, why: str):
+        """Run out of reach (gain_distance), cast Recall once, and again: until a recall lands
+        (recall_out raises Unsafe) or we die (returns). Never standing still with a creature
+        after us (user, 2026-10-05: "we're on a horse and can outrun any mob in the overworld. If
+        we fail to recall, we should just run away", even on an island with recall failing and a
+        demon chasing). With something after us: run, then one cast, then run again. With
+        nothing within RECALL_GAP: escape.escape's own recasting (its budget, standing); when
+        that gave up, the next try RECALL_RETRY_S later (mana comes back), running whenever
+        something comes after us meanwhile. After RECALL_ALERT_TRIES failed recalls an urgent
+        `threat` juncture (action 'keep_running') asks the overseer to find out why; it stops
+        the task when it must (ctl stop)."""
+        fails, gave_up = 0, None
+        while not a.dead:
+            ran = self.gain_distance(st, a, swung)
+            st = self.link.state()
+            a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+            if a.dead:
+                return
+            if not ran and gave_up is not None and time.monotonic() - gave_up < RECALL_RETRY_S:
+                time.sleep(KEEP_RUNNING_LOOK_S)          # nothing after us: watch until the next try
                 st = self.link.state()
                 a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+                continue
             try:
-                why = f"{why}; {self.recall_out(st, a, worst, swung, pk=False, why=why)}"
+                fail = self.recall_out(st, a, worst, swung, pk=False, why=why, attempts=1 if ran else None)
             except Unsafe:
                 self.creature["recalled"] = True
                 raise
-        self.threat_stop(st, a, worst, swung, Unsafe, why)
+            if not ran:
+                gave_up = time.monotonic()
+            fails += 1
+            self.creature["recall_fails"] = fails
+            log(f"{fail}; running on")
+            if fails == RECALL_ALERT_TRIES:
+                pos = tuple(self.link.pos(self.link.state())[:2])
+                self.memory.juncture("lumber", "threat", f"Recall failing ({fail}) with {self.threat_name(worst)} "
+                                     f"after us at {pos}: still running from it", "urgent",
+                                     {"action": "keep_running", "why": why, "failure": fail, "fails": fails,
+                                      "pos": list(pos), "trip": self.trip_n, "spot": self.k["spot"]["id"],
+                                      "threat": worst.to_dict() if worst else None})
+            st = self.link.state()
+            a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+
+    @staticmethod
+    def threat_name(t) -> str:
+        return "a creature" if t is None else (t.name or f"0x{t.serial:08X}")
 
     def gain_distance(self, st, a, swung) -> bool:
         """Before a recall away from creatures: run (urgent: no pauses, running while
@@ -1070,7 +1134,7 @@ class LumberLoop:
         return True
 
     def recall_out(self, st, a, worst, swung, pk: bool = True, why: str | None = None,
-                   what: str | None = None) -> str:
+                   what: str | None = None, attempts: int | None = None) -> str:
         """Recall to the book's default rune at once (escape.escape: recasts as soon as the
         server takes a cast again, until it lands or escape.ESCAPE_BUDGET_S is spent),
         before any bookkeeping, then stop: the `threat` juncture (action 'recall') and
@@ -1080,13 +1144,14 @@ class LumberLoop:
         first (drop_cursor); the `recall` job event's `react_s` is first sight
         (sight_t) -> the escape's first packet (the book's double-click), and
         `cursor_cancelled` whether a cursor had to go first. `what` names the threat when no
-        mobile does (post_threat), e.g. a trapped pouch going off with nobody in view."""
+        mobile does (post_threat), e.g. a trapped pouch going off with nobody in view. `attempts`:
+        casts before giving up (escape.escape; None: until its budget is spent)."""
         cancelled = self.drop_cursor()
         sight, pressed = self.sight_t(worst, swung), time.time()
         react = round(pressed - sight, 2) if sight is not None else None
         log(f"recalling out: {react} s after first sight" if react is not None else "recalling out")
         try:
-            res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, log=log)
+            res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, log=log, attempts=attempts)
         except escape_mod.RecallError as e:
             return f"recall not possible: {e}"
         data = {**res, "trip": self.trip_n, "spot": self.k["spot"]["id"], "book": f"0x{self.recall_book:08X}",
@@ -2312,7 +2377,8 @@ class LumberLoop:
                 # building and through a door; the hoarfrost caught us on it
                 max_route = max(ESCAPE_ROUTE_MIN, ESCAPE_DETOUR * cheb(here, goal))
                 try:
-                    self.mover.walk_to(lambda: goal, 1, "escape", max_moves=80, max_route=max_route)
+                    # no pauses while running from a creature (user, 2026-10-05)
+                    self.mover.walk_to(lambda: goal, 1, "escape", max_moves=80, max_route=max_route, urgent=True)
                     break
                 except Abort as x:
                     if "no route" not in str(x) and "detour" not in str(x):

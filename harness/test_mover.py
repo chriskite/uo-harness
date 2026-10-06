@@ -273,6 +273,20 @@ def test_danger_replan_on_route_only():
               len(plans) - 1 == want and tuple(link.here) == (4, 0), f"{len(plans) - 1} replans, at {link.here}")
 
 
+def test_no_pause_in_danger():
+    print("== walk pauses: none while a creature's zone is set ==")
+    # live 2026-10-05 (witcher_23): an 8.9 s walk pause with an air dragon closing in 10 tiles off, then its breath
+    for danger, want in (({}, True), ({("seen", 7): ((20, 20), 13)}, False)):
+        link = FakeLink((0, 0), facing=2)
+        mv = map_mover(link, OPEN)
+        paused = []
+        mv.human.after_step = lambda: paused.append(1) or 0.0
+        mv.danger = dict(danger)
+        mv.walk_to(lambda: (4, 0), 0, "t")
+        check(f"danger {danger}: {'pauses offered' if want else 'no pause'}", bool(paused) == want,
+              f"{len(paused)} pauses")
+
+
 def test_shove_denied():
     print("== shove denied (low stamina): not a wall; wait, then go once the NPC moves ==")
     link = FakeLink((0, 0), facing=2, mobiles=[(3, 0, 12)], can_shove=False)
@@ -409,6 +423,7 @@ if __name__ == "__main__":
     test_object_arrives_after_plan()
     test_max_route()
     test_danger_replan_on_route_only()
+    test_no_pause_in_danger()
     test_shove_denied()
     test_height_goal()
     test_teleporter()

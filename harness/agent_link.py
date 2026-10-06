@@ -829,7 +829,9 @@ class Mover:
                     if i + 1 < len(path) and nav.direction(new, path[i + 1]) == d:
                         # landed facing the next tile: the client's auto-open fires on the step
                         self._open_ahead(path[i + 1], here[2], opened, label, after)
-                    if urgent:
+                    if urgent or self.danger:
+                        # no idling or sidesteps with a creature's zone set (live 2026-10-05, witcher_23: an
+                        # 8.9 s walk pause with an air dragon closing in 10 tiles off, then its breath)
                         continue
                     self.human.after_step()
                     if len(path) - i > 3 and self.human.wander():

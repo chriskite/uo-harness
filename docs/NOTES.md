@@ -690,6 +690,20 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   an unreachable plan costs ~0.9 s exhausting 30000 nodes), so next_stand skipped it and picked far trees
   again. Now rethink plans the nearer trees' routes, switches only if 8 steps shorter, and hands that
   tree to next_stand; trees with no route leave the trip's candidates.
+- **Air dragon death (lumber-20261005-185806-6bdc, witcher_23, 19:07:42, Seer5; capture
+  session_20261005_093927):** air dragon 0x00569849 (notoriety 4) in view 19:07:15 at 8 tiles; ESCAPE
+  1 and 2 from it (it followed both). 19:07:31.25 a humanize `walk_pause` of 8.93 s idled Dan at
+  (1728,643) on the way to a tree while it closed in. 19:07:36.78 its anim 0x0C, 19:07:37.78–38.69 ten
+  0xC0 effects from it to us (breath), 19:07:38.66 hits 100 → 39; the gap run (begun 37) met a closed
+  door, replanned 44 → 83 steps; 19:07:42.47 second breath, dead (horse 0x0154FE11 died too). Lost on
+  the corpse: ~428 logs, harvest-aspect studded set, hatchet 0x61AF05AD, reagent bag. Fixes: no walk
+  pauses with a creature zone set; escapes urgent; a creature that follows us after an escape ends
+  the trip; and (user, 2026-10-05) run and recall until home, never stopping in the field
+  (`run_and_recall`, urgent `threat` juncture `keep_running` after 2 failed recalls).
+- **Seer5 shift (18:14–19:12):** 4 runs, 1418 boards (220 converted by hand after the cliff
+  ping-pong), Lumberjacking 77.9 → 80.1, 1 death. witcher_210 disabled (grove unreachable from the
+  landing). After the res the first recall failed on mana (10); it worked at ~20. Hatchets: none
+  left (one broke, the spare went with the corpse); the shelf has none, so the next run buys one.
 - **Shift summary (Seer4, 15:57–17:56):** 8 runs, 3962 boards (2747 finished by hand after the convert
   abort, 1215 in run 7), Lumberjacking 66.8 → 77.9, no death, no disturbed recall, 5 captchas
   auto-solved, every trip ridden. Hatchet 0x61AF05AC is down to 8 uses; the spare 0x61AF05AD is in

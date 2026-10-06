@@ -815,15 +815,27 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     animals by name (llama, ostards, bison, hind, horse, cow, bull, pig, sheep, goat, rabbit, cat,
     dog, chicken: `threats.Params.passive_names`) get no zone [INFERENCE: RunUO FightMode.Aggressor].
   - **Escapes run `ESCAPE_RUN` (20) tiles** from the creatures fled (`escape_tiles(run_from=)`), to a
-    tile also outside every other zone; no such tile: recall home at once.
-  - **Before a recall away from creatures, run out of reach** (`monster_stop` → `gain_distance`):
-    urgent, up to `RECALL_GAP_MAX_MOVES` (60) steps, until each creature after us (hostile within
-    `RECALL_GAP` 14, or swinging/casting at us) is 14 tiles off (out of a caster's 12) or out of
-    view; only death interrupts it (mode `gap`). A goal reached with them still following: new goals
-    from where they are now, within the step budget (Prevalia Gate, live: the recall came at the
-    first goal with ratmen 9 tiles behind and cost 34 hits). Then the recall. (Live 2026-10-05: a
-    recall cast under a brackish water's spells lost 44 hits; a short walk-away let a hoarfrost
-    catch Dan.)
+    tile also outside every other zone; no such tile: recall home at once. Escape walks are urgent
+    (no pauses), and no walk idles or sidesteps while any creature zone is set (`Mover.danger`; live
+    2026-10-05, witcher_23: an 8.9 s walk pause with an air dragon closing in, then two breaths, -61
+    and -39, killed Dan).
+  - **A creature we already ran from that comes back into flee range ends the trip** (`check_threats`:
+    its serial is in `self.danger`): it hunts us, and another escape only brings it along (the same
+    air dragon followed two escapes).
+  - **Run and recall until home** (`monster_stop` → `run_and_recall`; user, 2026-10-05: "we're on a
+    horse and can outrun any mob in the overworld. If we fail to recall, we should just run away"):
+    first run out of reach (`gain_distance`): urgent, up to `RECALL_GAP_MAX_MOVES` (60) steps, until
+    each creature after us (hostile within `RECALL_GAP` 14, or swinging/casting at us) is 14 tiles off
+    (out of a caster's 12) or out of view; only death interrupts it (mode `gap`). A goal reached with
+    them still following: new goals from where they are now (Prevalia Gate, live: the recall came at
+    the first goal with ratmen 9 tiles behind and cost 34 hits). Then one cast; failed, run again and
+    cast again. With nothing within 14 tiles the cast is `escape.escape`'s own recasting; when that
+    gives up, the next try comes `RECALL_RETRY_S` (10 s) later, running whenever something comes after
+    us. It never stops in the field: only a recall that lands, death or the overseer's `ctl stop`
+    end it. After `RECALL_ALERT_TRIES` (2) failed recalls an urgent `threat` juncture with
+    `action: keep_running` asks the overseer to find out why. The trip row's `creature.recall_fails`
+    counts them. (Live 2026-10-05: a recall cast under a brackish water's spells lost 44 hits; a
+    short walk-away let a hoarfrost catch Dan.)
   - **Other players' houses** (`pathfind.Walkers.get(inside=)`): the doors of a house we aren't
     standing in are locked to the planner, since we can't walk in uninvited (user, 2026-10-05; at
     witcher_149 the escape stopped at such a door and Dan died). A house's doors are door items on
@@ -885,11 +897,15 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     and the next stand is tried (the tree isn't marked unreachable). Live at witcher_58 mobiles cut
     the way to a tree 28 tiles from the landing and the planner sent Dan on a 255-step route
     through the wilds, into the fen daemon and brackish water above (`test_mover.py` `test_max_route`).
-  - **Home instead** (`monster_stop`: recall home with the book when not already at home
-    (`home.at_home`), else stop in place; no log conversion either way) on: hits below the threshold, two or
-    more possible attackers, damage with nothing in view to blame, a hostile player in view, damage
-    within 10 s of arriving from a walk-away ("still taking damage … after the walk-away"), no
-    escapes left, a speech hold. "It kept coming" and the conversion rules are unchanged.
+  - **Home instead** (`monster_stop`: `run_and_recall` with the book unless a recall wouldn't move
+    us (`on_home_rune`: in the room or on the way-home rune's tile); there, out of the room, run out
+    of reach while anything is after us (`run_clear`), then stop; no log conversion either way; since
+    2026-10-05 the guild house's 60-tile `at_home` radius no longer means "stop in place") on: hits
+    below the threshold, two or more possible attackers, damage with nothing in view to blame, a
+    hostile player in view, damage within 10 s of arriving from a walk-away ("still taking damage …
+    after the walk-away"), no escapes left, a speech hold, a creature we already ran from back in
+    flee range ("followed us after an escape"). "It kept coming" and the conversion rules are
+    unchanged.
   - **Reach** (`threats.creature_reach`): melee 1; ranged 12 for `threats.RANGED_BODIES` (the
     gazer, 22) and for every body that hit us as the only candidate from beyond melee range
     (`travel_guard.learn_hit`, also from the store's `monster_hit` rows at start, so the next run
