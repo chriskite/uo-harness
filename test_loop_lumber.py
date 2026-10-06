@@ -2603,6 +2603,36 @@ def unit_tree_rethink():
         loop_lumber.TREE_RECHECK_S = recheck
 
 
+def unit_boxed_in():
+    """User 2026-10-05 (witcher_137, surrounded by mobs on all sides): "He needs to recall home and mark this place
+    unworkable". boxed_in disables the spot in the store (lumber_opt plans no trip there), tells the overseer, and
+    hands over to monster_stop (run out of reach, recall home)."""
+    print("\n== boxed in by creatures: the spot disabled, the overseer told, home by monster_stop ==")
+    import loop_lumber
+    import lumber_opt
+    mem = memory.Memory(os.path.join(tempfile.mkdtemp(), "m.db"))
+    stops = []
+    wolf = SimpleNamespace(serial=0x111, name="a dire wolf", distance=6)
+    fake = SimpleNamespace(
+        link=SimpleNamespace(state=lambda: {}, pos=lambda st: (100, 100, 0, 0)),
+        watch=SimpleNamespace(update=lambda st, **kw: SimpleNamespace(dead=False)),
+        tree_guards=lambda st, recent=True: [(wolf, (106, 100), 13)], k={"spot": {"id": "witcher_137"}},
+        memory=mem, trip_n=1, monster_stop=lambda st, a, worst, swung, why: stops.append((worst, why)))
+    loop_lumber.LumberLoop.boxed_in(fake, "boxed in by creatures (11 replans round them without getting nearer)")
+    row = next((r for r in mem.lumber_spot_rows() if r["id"] == "witcher_137"), None)
+    check("the spot is disabled with the reason (out of the planner's picks)",
+          row is not None and row["status"] == "disabled" and "boxed in" in (row["reason"] or "")
+          and "a dire wolf" in (row["reason"] or "")
+          and lumber_opt.load_spots(mem).get("witcher_137", {}).get("status") == "disabled", str(row))
+    js = [j for j in mem.junctures() if j["kind"] == "stuck"]
+    check("an attention `stuck` juncture says the spot is disabled, with the creatures",
+          len(js) == 1 and js[0]["severity"] == "attention" and js[0]["data"]["disabled"] is True
+          and js[0]["data"]["creatures"][0]["name"] == "a dire wolf", str(js))
+    check("then monster_stop with the nearest creature: out of reach and recall home",
+          stops == [(wolf, "boxed in by creatures (11 replans round them without getting nearer)")], str(stops))
+    mem.close()
+
+
 def unit_run_and_recall():
     """run_and_recall never stops in the field (user, 2026-10-05: "If we fail to recall, we should just run away"):
     run, one cast, run again; with nothing after us, a stand-and-recast try, the next one RECALL_RETRY_S later
@@ -3060,7 +3090,7 @@ if __name__ == "__main__":
             landing_escape, stockpile_store,
             ghost_horse,
             staff_in_view,
-            unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_run_and_recall,
+            unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_run_and_recall, unit_boxed_in,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`

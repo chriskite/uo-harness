@@ -830,6 +830,14 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - **A creature we already ran from that comes back into flee range ends the trip** (`check_threats`:
     its serial is in `self.danger`): it hunts us, and another escape only brings it along (the same
     air dragon followed two escapes).
+  - **Boxed in: recall home, the spot disabled** (`Mover.walk_to`, `boxed_in`; user, 2026-10-05,
+    witcher_137: "surrounded on all sides … He needs to recall home and mark this place
+    unworkable"): a walk that replans round creature zones `DANGER_STALL_REPLANS` (10) times in a
+    row without its route getting shorter aborts "boxed in"; on the way to a tree the runner then
+    disables the spot in the store (`lumber_spot_put` status `disabled` with the creatures in the
+    reason; `ctl lumber spot set <id> --status active` undoes it), posts an attention `stuck`
+    juncture (`data.disabled`, `creatures`) and goes home by `monster_stop`. Before, danger replans
+    weren't counted at all: 178 of them in 4.5 min there.
   - **Run and recall until home** (`monster_stop` → `run_and_recall`; user, 2026-10-05: "we're on a
     horse and can outrun any mob in the overworld. If we fail to recall, we should just run away"):
     first run out of reach (`gain_distance`): urgent, up to `RECALL_GAP_MAX_MOVES` (60) steps, until

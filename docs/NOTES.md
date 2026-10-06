@@ -752,6 +752,14 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   an unreachable plan costs ~0.9 s exhausting 30000 nodes), so next_stand skipped it and picked far trees
   again. Now rethink plans the nearer trees' routes, switches only if 8 steps shorter, and hands that
   tree to next_stand; trees with no route leave the trip's candidates.
+- **Boxed in at Jungle Baths (lumber-20261005-201519-1738, witcher_137, Seer6, 20:15:50–20:20:29):**
+  from the landing (2760,3422) the walk to tree 2821,3409 replanned round creature zones 178 times,
+  swinging between routes of ~40 and ~62 steps from (2777,3427) and (2785,3432) (danger replans
+  weren't counted against `too many replans`). The user saw Dan running back and forth,
+  "surrounded on all sides", and asked for a recall home and the place marked unworkable: main
+  stopped the task and `act recall` landed home, Seer6 disabled witcher_137. Now a walk aborts as
+  "boxed in" after `DANGER_STALL_REPLANS` (10) danger replans without a shorter route, and the
+  runner disables the spot, posts an attention `stuck` juncture and recalls home (`boxed_in`).
 - **Air dragon death (lumber-20261005-185806-6bdc, witcher_23, 19:07:42, Seer5; capture
   session_20261005_093927):** air dragon 0x00569849 (notoriety 4) in view 19:07:15 at 8 tiles; ESCAPE
   1 and 2 from it (it followed both). 19:07:31.25 a humanize `walk_pause` of 8.93 s idled Dan at

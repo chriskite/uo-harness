@@ -287,6 +287,37 @@ def test_no_pause_in_danger():
               f"{len(paused)} pauses")
 
 
+def test_boxed_in():
+    print("== creatures on every side: a walk replanning round them without getting nearer gives up ==")
+    # live 2026-10-05 (witcher_137): 178 danger replans in 4.5 min, the walk swinging between two routes
+    from agent_link import DANGER_STALL_REPLANS
+    link = FakeLink((0, 0), facing=2)
+    mv = map_mover(link, OPEN)
+    mv.danger = {("seen", 1): ((0, 0), 30)}
+    plans, flip = [], [1]
+
+    def plan(st, goal, mobiles=True):
+        cur = tuple(link.here)
+        flip[0] = -flip[0]                                  # east, then back west: never nearer
+        step = (cur[0] + flip[0], cur[1])
+        plans.append(cur)
+        return [cur, step, *[(step[0] + flip[0] * k, 0) for k in range(1, 20)]], mv.walk_map(st)
+    real_fresh = mv.fresh_state
+
+    def fresh():
+        st = real_fresh()
+        mv.replan_requested = True                          # a creature moved: every step asks for a replan
+        return st
+    mv.plan, mv.fresh_state = plan, fresh
+    try:
+        mv.walk_to(lambda: (40, 0), 0, "t")
+        msg = "arrived"
+    except Abort as e:
+        msg = str(e)
+    check("boxed in after DANGER_STALL_REPLANS replans without a shorter route",
+          "boxed in" in msg and len(plans) == DANGER_STALL_REPLANS + 1, f"{msg} plans {len(plans)}")
+
+
 def test_shove_denied():
     print("== shove denied (low stamina): not a wall; wait, then go once the NPC moves ==")
     link = FakeLink((0, 0), facing=2, mobiles=[(3, 0, 12)], can_shove=False)
@@ -424,6 +455,7 @@ if __name__ == "__main__":
     test_max_route()
     test_danger_replan_on_route_only()
     test_no_pause_in_danger()
+    test_boxed_in()
     test_shove_denied()
     test_height_goal()
     test_teleporter()

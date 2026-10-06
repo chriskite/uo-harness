@@ -57,6 +57,10 @@ MOBILE_WAIT_S = 90.0
 # tile inside one costs DANGER_COST_X normal steps, so routes bend around monster groups
 # when a way around exists (live 2026-10-03: a straight map route through a harpy nest).
 DANGER_COST_X = 30.0
+# A walk replanned round danger zones this many times in a row without its route getting shorter
+# is boxed in and given up (live 2026-10-05, witcher_137: 178 replans in 4.5 min swinging between
+# two routes round creatures on every side, while the user watched Dan run back and forth).
+DANGER_STALL_REPLANS = 10
 # Some teleporters deny the step and then move you (S2C 0x21 at the current tile, then the
 # new position; the New Player Dungeon exit, live 2026-09-30). After a deny, look this long
 # for such a jump before calling the step blocked.
@@ -732,6 +736,7 @@ class Mover:
         the walk arrived."""
         gate = tuple(gate) if gate is not None else None
         replans = 0
+        best_route, stalled = None, 0  # danger replans since the planned route last got shorter (boxed in)
         start_steps = self.steps
         tried_doors = set()          # doors that denied a step: one more open request each
         opened = set()               # doors opened ahead on this route (the client's auto-open)
@@ -766,6 +771,8 @@ class Mover:
             mobile_wait_until = None
             if max_route is not None and walk is not None and len(path) - 1 > max_route:
                 raise Abort(f"{label}: only a {len(path) - 1}-step detour from {cur} (more than {max_route})")
+            if best_route is None or len(path) < best_route:
+                best_route, stalled = len(path), 0
             log(f"{label}: route {len(path) - 1} steps from {cur}{'' if run else ' (walking)'}"
                 f"{'' if walk is not None else ' [walk memory]'}")
             replan = False
@@ -860,5 +867,10 @@ class Mover:
                 break
             if replan and not danger_replan:
                 replans += 1
+            if danger_replan:
+                stalled += 1
+                if stalled > DANGER_STALL_REPLANS:
+                    raise Abort(f"{label}: boxed in by creatures ({stalled} replans round them without getting "
+                                f"nearer than {best_route - 1} steps)")
             if replans > 30:
                 raise Abort(f"{label}: too many replans")

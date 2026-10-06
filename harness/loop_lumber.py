@@ -2154,6 +2154,31 @@ class LumberLoop:
             return None
         return stop
 
+    def boxed_in(self, why: str):
+        """A walk replanned round creatures on every side without getting nearer (Mover's
+        DANGER_STALL_REPLANS; user, 2026-10-05, witcher_137: "He needs to recall home and mark this
+        place unworkable"): the spot is disabled in the store (lumber_opt plans no more trips there;
+        `ctl lumber spot set <id> --status active` brings it back), an attention `stuck` juncture
+        says so, and monster_stop runs out of reach and recalls home."""
+        st = self.link.state()
+        a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+        guards = sorted(self.tree_guards(st, recent=False), key=lambda g: cheb(self.link.pos(st), g[1]))
+        spot_id = self.k["spot"]["id"]
+        reason = (f"boxed in by creatures on all sides ({len(guards)} in view: "
+                  f"{', '.join(sorted({g[0].name or f'0x{g[0].serial:08X}' for g in guards})) or 'none named'}); "
+                  f"unworkable (runner, {time.strftime('%Y-%m-%d %H:%M')})")
+        row = next((r for r in self.memory.lumber_spot_rows() if r["id"] == spot_id), None)
+        self.memory.lumber_spot_put(spot_id, "disabled", row["data"] if row else {},
+                                    row["source"] if row else "runner", reason)
+        pos = list(self.link.pos(st)[:2])
+        log(f"{why}: spot {spot_id} disabled ({reason}); recalling home")
+        self.memory.juncture("lumber", "stuck", f"Boxed in by creatures at {spot_id} {tuple(pos)}: spot disabled, "
+                             f"recalling home", "attention",
+                             {"pos": pos, "reason": why, "spot": spot_id, "disabled": True, "trip": self.trip_n,
+                              "creatures": [{"serial": f"0x{g[0].serial:08X}", "name": g[0].name, "at": list(g[1]),
+                                             "zone": g[2]} for g in guards]})
+        self.monster_stop(st, a, guards[0][0] if guards else None, {}, why)
+
     def zone_r(self, t) -> int:
         """Tiles around a creature that are out of bounds: its reach (a ranged one's at
         least CREATURE_SPELL_RANGE, threats.creature_reach) or its flee radius, whichever
@@ -2199,6 +2224,8 @@ class LumberLoop:
             if "detour" in str(e):
                 log(f"{label}: {str(e).split(': ', 1)[-1]}; trying the next stand")
                 return
+            if "boxed in" in str(e):
+                self.boxed_in(str(e).split(": ", 1)[-1])
             if "no route" not in str(e):
                 raise
             self.memory.harvest_record(self.facet, tree["x"], tree["y"], tree["z"], h(tree["graphic"]), "unreachable")
