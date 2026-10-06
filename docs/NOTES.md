@@ -775,6 +775,13 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   an unreachable plan costs ~0.9 s exhausting 30000 nodes), so next_stand skipped it and picked far trees
   again. Now rethink plans the nearer trees' routes, switches only if 8 steps shorter, and hands that
   tree to next_stand; trees with no route leave the trip's candidates.
+- **False thief alarm at the guild-house landing (lumber-20261006-111829-94a3, witcher_40, Seer7,
+  11:38:56):** a pk_escape recall from a grey ("khiizriel", 5 tiles) landed home with 1253 logs.
+  Before the room, an explosion *sound* near us (the busy landing: someone else's pouch) read as
+  "trapped pouch went off without our double-click (sound)" and stopped the run at the landing. Our
+  pouch 0x6508F1EB was still armed: `act convert --store` had to set it off, and stored all 1253.
+  Now only one of our own live pouches going off (hue 38 → 0) is a thief (`pouch.thief_pops`); a
+  sound or explosion alone is not.
 - **A late recall arrival left Dan at a hot landing (lumber-20261006-101348-70b3, witcher_23, Seer7,
   ~10:15, a death):** the recall out from the DTF tome ("Ruined Snow Fortress") landed after 5.18 s
   (the power words came, the cast ran 4.92 s). `escape._arrival` gave up at `ARRIVE_WAIT_S` (5 s)

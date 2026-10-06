@@ -93,6 +93,16 @@ def test_popwatch_synthetic():
     w.observe(trapped, PACK, (100, 100), [], 9.0)
     gone = w.observe(world({}), PACK, (100, 100), [], 10.0)
     check("a live pouch leaving the pack is no pop (the ledger sees a loss)", gone == [], gone)
+    w = pouch.PopWatch()
+    w.observe(trapped, PACK, (100, 100), [], 9.0)
+    noise = w.observe(trapped, PACK, (100, 100), boom, 10.1)
+    check("someone else's pouch going off next to us (sound and explosion, ours still armed): pops, no thief "
+          "(live 2026-10-06 at the busy guild-house landing)",
+          len(noise) == 2 and pouch.thief_pops(noise) == [], noise)
+    w = pouch.PopWatch()
+    w.observe(trapped, PACK, (100, 100), [], 9.0)
+    got = w.observe(popped, PACK, (100, 100), boom, 10.1)
+    check("ours going off without our click: all three signals are the thief's", len(pouch.thief_pops(got)) == 3, got)
 
 
 def test_beyond():

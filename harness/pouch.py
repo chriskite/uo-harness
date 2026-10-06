@@ -135,3 +135,13 @@ class PopWatch:
                                  "x": None, "y": None, "hue": pouches[s]["hue"]})
         self.live = cur if pack is not None else self.live
         return pops
+
+
+def thief_pops(pops: list[dict]) -> list[dict]:
+    """The pops that are a thief at our logs: not ours, and one of our live pouches went off (its
+    hue 38 -> 0). An explosion or its sound near us alone is someone else's pouch: live 2026-10-06
+    (lumber-20261006-111829-94a3) a sound at the busy guild-house landing right after our recall
+    stopped the run as a thief while our pouch was still armed. With the hue change, the sound and
+    explosion come along as evidence."""
+    alarm = [p for p in pops if not p["own"]]
+    return alarm if any(p["signal"] == "hue" for p in alarm) else []

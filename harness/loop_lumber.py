@@ -1341,9 +1341,10 @@ class LumberLoop:
         """pouch.PopWatch over every state read (docs/PLAN.md "Keep thieves off the logs").
         Our own pouch going off (we double-clicked it to open it, unpack) costs a hit: that
         drop is acknowledged (threats.Watch.acknowledge, the HP guard's start_hits) on every
-        read for pouch.OWN_POP_S after our click or its signals. A pop we didn't cause (the
-        explosion around us, its sound, or a hue 38 -> 0 on a pouch we never clicked) is a
-        thief at our logs: pouch_alarm. Counts this trip's spent pouches (pouches_used)."""
+        read for pouch.OWN_POP_S after our click or its signals. A pouch of ours going off (hue 38 ->
+        0) that we never clicked is a thief at our logs (pouch.thief_pops: an explosion or its
+        sound near us alone is someone else's pouch): pouch_alarm. Counts this trip's spent
+        pouches (pouches_used)."""
         ev, ts = self.link.events, self.link.event_t
         new = [(t, e) for t, e in zip(ts[self._pop_scan:], ev[self._pop_scan:])
                if t is None or t >= self._pop_since]
@@ -1363,7 +1364,7 @@ class LumberLoop:
             if hits is not None and self.start_hits is not None and hits < self.start_hits:
                 log(f"our trapped pouch took {self.start_hits - hits} hit(s); not an attack")
                 self.start_hits = hits
-        alarm = [p for p in pops if not p["own"]]
+        alarm = pouch.thief_pops(pops)
         if alarm and self.mode != "flee":
             self.pouch_alarm(st, alarm)
 
