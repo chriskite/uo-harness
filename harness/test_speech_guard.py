@@ -70,6 +70,15 @@ def test_speaker():
     w["labels"].pop(f"0x{PLAYER:08X}")
     check("a human body without npc evidence counts (the conservative reading)",
           speaker(w, said(PLAYER, "hello")) is not None)
+    w["mobiles"][f"0x{PLAYER:08X}"].update(flags=0x40, notoriety=1)   # live 2026-10-06 (witcher_265): war mode, no 0x20
+    w["labels"][f"0x{PLAYER:08X}"] = "an andarian footman"
+    check("ignored: a creature-named human, no player flag, innocent (an andarian footman's '*shield bash*')",
+          speaker(w, said(PLAYER, "*shield bash*", name="an andarian footman")) is None)
+    w["mobiles"][f"0x{PLAYER:08X}"]["notoriety"] = 6
+    check("a creature-named human at notoriety 6 still counts (a red stays a player whatever his name)",
+          speaker(w, said(PLAYER, "die", name="an andarian footman")) is not None)
+    w["labels"].pop(f"0x{PLAYER:08X}")
+    w["mobiles"][f"0x{PLAYER:08X}"].update(flags=0, notoriety=1)
     staff = speaker(w, said(STAFF, "Hello there", name="GM Kemp"))
     check("player flag at notoriety 7 still counts (staff may be invulnerable), with staff hints",
           staff is not None and "GM body 0x03DB" in staff["evidence"] and "staff-like name" in staff["evidence"],

@@ -18,7 +18,8 @@ What counts as "a character speaking" (measured on the 27 captures, 2026-10-01):
   within CLICK_ECHO_S of a click on its speaker is ignored.
 - the speaker isn't an NPC or a creature: the player flag 0x20 (threats.py
   heuristic) always counts as a character, even at notoriety 7 (staff may be
-  invulnerable [INFERENCE]); without it, notoriety 7, a "Name the <title>" label
+  invulnerable [INFERENCE]); without it, notoriety 7, a "Name the <title>" label,
+  a creature-style name ("an andarian footman", notoriety 1-3: threats.identify)
   or a non-human body (pets: "(bonded)") is an NPC or a creature.
 - a speaker the client doesn't have (hidden or out of view) counts: a hidden
   GM speaks without a body on screen [INFERENCE].
@@ -97,12 +98,17 @@ def _serial(v) -> int:
 
 
 def is_character(mob: dict, label: str | None) -> bool:
-    """A player character, not an NPC or a creature: the player flag 0x20, or
-    a human body with no NPC evidence (notoriety 7, a "Name the <title>" label)."""
+    """A player character, not an NPC or a creature: the player flag 0x20, or a
+    human body with no NPC evidence: not notoriety 7, and not what
+    threats.identify calls an NPC or a monster (a "Name the <title>" label, or a
+    creature-style name, "an andarian footman", at notoriety 1-3: spawned
+    soldiers whose battle barks held a lumber job five times, live 2026-10-06)."""
     if (mob.get("flags") or 0) & threats.FLAG_PLAYER_HINT:
         return True
-    return not (mob.get("notoriety") == 7 or (label and threats._TITLE.match(label))
-                or mob.get("graphic") not in threats.HUMAN_BODIES)
+    if mob.get("notoriety") == 7 or mob.get("graphic") not in threats.HUMAN_BODIES:
+        return False
+    kind, player, _ = threats.identify(mob, label)
+    return player is not False and kind != "monster"
 
 
 def speaker(world: dict, ev: dict) -> dict | None:
