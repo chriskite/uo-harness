@@ -310,10 +310,10 @@ Test Shard's public shelves or one of our own in the rental room.
 
 | Good | Price | Conf. | Source |
 |---|---|---|---|
-| Regular board | "around 9–10 gp" (player to player) | M (undated wiki) | [New Player Guide](https://wiki.uooutlands.com/New_Player_Guide) |
+| Regular board | "around 9–10 gp" (player to player). **Outdated:** commodity listings on 2026-10-05 work out to ~27 gp per board (next row) | M (undated wiki) | [New Player Guide](https://wiki.uooutlands.com/New_Player_Guide) |
 | Iron ingot / plain leather (context) | 12–14 gp / ~3 gp | M | same |
 | Colored boards | "vary with demand": **no number published** | none | same |
-| Board commodity (5 000 regular) | not published. [INFERENCE] 5 000 × 9–10 ≈ 45–50 k gp, if the per-board price holds in bulk | none | none |
+| Board commodity (5 000 regular) | **Asking prices on 2026-10-05:** 134 000–138 000 gp per deed, mostly 135 000; 15 listings, 21 deeds. Lowest = 26.8 gp/board, mostly 27.0. These are asks, not sales; the vendor fee (§5.2) is not subtracted. Recorded as `board:ordinary` 26.8 in the price table. The earlier 45–50 k inference was wrong | H (asks) | Vendor Search screenshot from the user |
 | Blank commodity | 5 gp | H | capture + Banker |
 | NPC buys boards? | Shelter NPCs refused ("You have nothing I would be interested in"). No NPC board buyer is documented | H (Shelter only) | LUMBER_LOOP §2 |
 
