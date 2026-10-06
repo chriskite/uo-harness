@@ -1,0 +1,119 @@
+<section class="appendix" id="app-timeline">
+<h2>Project timeline</h2>
+<p class="lead">The nine days from the first research prompt on 2026-09-27 to the 348th commit on 2026-10-05, one entry per milestone, wrong turn or decision, grouped by day.</p>
+
+<p>Times are local (CDT, UTC−5), the zone of every commit. Most entries carry the commit that landed the change as a source pointer. Entries without one come from the omp session logs (a user message, a live event the agent reported) or from the memory store. Filled dots mark the milestones the rest of the paper keeps returning to. The list merges three research datasets: the git-derived milestone list, the early-session timeline (09-27 → 10-01), and the late-session timeline (10-02 → 10-05). Where they disagree on a time, we used the commit time. Live in-game events use the time the session log or the store recorded them.</p>
+
+<p>A few patterns are easier to see here than in the chapters. Each day has one dominant theme: the cipher on 09-27/28, movement and the decode correction on 09-29, the overseer and the audit on 09-30, safety on 10-02/03, home logistics on 10-04/05. No commit landed between 01:00 and 08:59, and 22% landed after 20:00 <span class="src">brief 08 §3.1</span>. Wrong turns are usually corrected within the same day. The longest-lived mistake, the S2C "phantom dialect", lasted about 24 hours (<a class="ref" href="#sec-wire"></a>).</p>
+
+<h3 id="app-timeline-0927">Saturday 2026-09-27: research first</h3>
+<ol class="timeline">
+<li><time datetime="2026-09-27T19:18">19:18</time><b>The goal.</b> The owner asks for an AI agent harness that plays UO Outlands, with Ghidra available. Asked where to start: "Ideally test shard. But first research how UO Outlands anti-cheat mechanisms work."</li>
+<li><time datetime="2026-09-27T20:10">20:10</time><b>The client is NativeAOT.</b> <code>ClassicUO.exe</code> is not managed .NET, so no plugin and no decompiler shortcut: Ghidra becomes the tool.</li>
+<li class="major"><time datetime="2026-09-27T21:47">21:47</time><b>First commit: anti-cheat research.</b> <code>ANTICHEAT.md</code>, string scanners, a Ghidra xref script and a behavioural endpoint capture of the client. <span class="src">e937fba</span></li>
+<li><time datetime="2026-09-27T22:03">22:03</time><b><code>AGENTS.md</code> and Rule 0.</b> Every agent session must record and commit its engineering knowledge before it ends. <span class="src">56208c5</span></li>
+<li><time datetime="2026-09-27T23:01">23:01</time><b>A first C2S cipher model.</b> A per-position keystream <code>c = p ^ K ^ S</code> fitted to the owner's 20-step walk capture; replaced 13 hours later. <span class="src">076fa82</span></li>
+</ol>
+
+<h3 id="app-timeline-0928">Sunday 2026-09-28: through the proxy</h3>
+<ol class="timeline">
+<li class="major"><time datetime="2026-09-28T12:09">12:09</time><b>C2S solved: one XOR byte per session.</b> <code>c = p ^ S</code> with <code>S</code> = server prelude byte 12; 242/242 client frames parse. <span class="src">0663786</span></li>
+<li><time datetime="2026-09-28T13:32">13:32</time><b>The client ignores <code>-ip</code> and <code>settings.json</code>.</b> The server address arrives as a literal IP in the HTTPS login response, so interception moves into the kernel (WinDivert NAT).</li>
+<li class="major"><time datetime="2026-09-28T14:15">14:15</time><b>Phase 1 live.</b> TestWorth logs into the Test Shard through the proxy and says "howdy"; every packet is decoded on the way. <span class="src">8c8b408</span></li>
+<li><time datetime="2026-09-28T14:33">14:33</time><b>A wrong turn begins.</b> Server payloads are declared an "S2C custom dialect". It was a decode bug, corrected the next afternoon. <span class="src">2b297cb</span></li>
+<li><time datetime="2026-09-28T15:49">15:49</time><b>Authoritative packet table.</b> A NativeFormat metadata parser (95,389 entries) names all 372 protocol methods for decompilation. <span class="src">2207ace</span></li>
+<li><time datetime="2026-09-28T18:05">18:05</time><b>World-model runtime (Phase 2).</b> Declarative parsers, <code>StateStore</code>, replay tests: 118 checks pass. <span class="src">3ab269d</span></li>
+<li><time datetime="2026-09-28T19:12">19:12</time><b>Action API and injection hub (Phase 3 code).</b> <span class="src">eb52b0b</span></li>
+<li><time datetime="2026-09-28T22:48">22:48</time><b>First injected packets live.</b> Speech and double-clicks work; injected walks turn the character but never step. <span class="src">5793f03</span></li>
+</ol>
+
+<h3 id="app-timeline-0929">Monday 2026-09-29: walking, the decode fix, the first loop</h3>
+<ol class="timeline">
+<li><time datetime="2026-09-29T12:14">12:14</time><b>Sustained injected walking.</b> The fastwalk token model (login seeds 8, re-arm 1) moves the character. <span class="src">9e0f3bf</span></li>
+<li><time datetime="2026-09-29T12:23">12:23</time><b>Pushback.</b> The agent suspects a server-side gate on walk trains; the owner is "not convinced". The lockout turns out to be client-side.</li>
+<li><time datetime="2026-09-29T13:54">13:54</time><b>Model switch.</b> <code>HANDOFF.md</code> written; sessions move from kimi-code/k3 to claude-opus-5-5.</li>
+<li class="major"><time datetime="2026-09-29T15:04">15:04</time><b>S2C decode corrected.</b> XOR with prelude byte 11, a 13-byte prelude, one Huffman flush per packet: 53,277/53,277 captured packets re-encode byte-exactly. The "dialect" was garbage. <span class="src">5eb2138</span></li>
+<li><time datetime="2026-09-29T16:16">16:16</time><b>Agent and human walk together.</b> A client-only fabricated <code>0x21</code> re-anchors the display: 0 resyncs, 0 proxy-originated server packets. <span class="src">9229390</span></li>
+<li class="major"><time datetime="2026-09-29T16:36">16:36</time><b>First unattended closed-loop task.</b> A bank errand completes live; Phase 3 done. <span class="src">5f8c228</span></li>
+<li><time datetime="2026-09-29T17:19">17:19</time><b>Visualizer frontend</b> (React + TSX on Bun), built by subagents. <span class="src">456f110</span></li>
+<li><time datetime="2026-09-29T18:04">18:04</time><b>Agent gate.</b> Pause and kill switch, jittered ~2 h breaks, an 8 h/day budget, enforced by the proxy on every injection. <span class="src">2ffb29a</span></li>
+<li><time datetime="2026-09-29T21:03">21:03</time><b>Learning by demonstration.</b> The owner's recorded lumber run is mined into <code>loops/lumber.json</code>. <span class="src">39330c9</span></li>
+<li class="major"><time datetime="2026-09-29T21:57">21:57</time><b>Map decoded, 3-D pathfinding.</b> The <code>.uoo</code> reader and a port of the client's walk rules: 1,249/1,249 confirmed moves walkable. <span class="src">216f26c</span></li>
+<li><time datetime="2026-09-29T22:06">22:06</time><b>SQLite memory store.</b> <span class="src">7a3e26f</span></li>
+<li class="major"><time datetime="2026-09-29T22:30">22:30</time><b>First live lumber trip.</b> 46 boards stored in the Shelter inn room. <span class="src">770753f</span></li>
+<li><time datetime="2026-09-29T22:56">22:56</time><b>First captcha handed to the human</b> during a 3-trip, 50-board run. Minutes later the owner notices the agent chopping from a cave under the inn. <span class="src">67e73ef</span></li>
+<li><time datetime="2026-09-29T23:47">23:47</time><b>Overseer bus and <code>ctl</code>.</b> Built overnight from a 10-point brief. <span class="src">49d433d</span></li>
+</ol>
+
+<h3 id="app-timeline-0930">Tuesday 2026-09-30: the overseer, the audit, the reframe</h3>
+<ol class="timeline">
+<li class="major"><time datetime="2026-09-30T09:28">09:28</time><b>First live overseer session.</b> Its first bug: a finished task didn't wake <code>ctl wait</code>. <span class="src">b264824</span></li>
+<li><time datetime="2026-09-30T12:09">12:09</time><b>Off Shelter Island.</b> The owner renounces Young; the overseer takes the moongate to Horseshoe Bay.</li>
+<li><time datetime="2026-09-30T15:32">15:32</time><b>First Horseshoe Bay runs:</b> 232 boards. <span class="src">0fc0c22</span></li>
+<li class="major"><time datetime="2026-09-30T17:34">17:34</time><b>Detection-surface audit.</b> Wire forensics over 11 sessions and 63,441 client packets find deviations A1–A10 from the stock client; fixes A1–A8 land at 18:24. <span class="src">cbf497d</span> <span class="src">37a2b00</span></li>
+<li><time datetime="2026-09-30T21:58">21:58</time><b>Compliance framing removed.</b> <code>ANTICHEAT.md</code> becomes evasion intel; the "Test Shard only" rule is deleted. <span class="src">2f60ad9</span></li>
+<li><time datetime="2026-09-30T22:29">22:29</time><b>Any server IP.</b> The client silently switched server addresses twice; the NAT now catches any destination on port 2593. <span class="src">d0c7eb9</span></li>
+<li><time datetime="2026-09-30T23:31">23:31</time><b>Captcha auto-solver.</b> Digits read from the gump layout, no OCR; 7/7 captured captchas. <span class="src">84c2711</span></li>
+</ol>
+
+<h3 id="app-timeline-1001">Wednesday 2026-10-01: policy and a fresh character</h3>
+<ol class="timeline">
+<li><time datetime="2026-10-01T09:30">09:30</time><b>Captcha policy: human by default, auto by toggle.</b> <span class="src">d152c00</span></li>
+<li><time datetime="2026-10-01T09:34">09:34</time><b>Hourly NAS backup.</b> <span class="src">6e851c6</span></li>
+<li><time datetime="2026-10-01T09:54">09:54</time><b>Pivot: bank the boards.</b> The rental room leaves the loop (it returns on 10-04). <span class="src">a29b7b1</span></li>
+<li><time datetime="2026-10-01T19:13">19:13</time><b>Hackworth's first overseer shift</b> on Shelter Island: about 570 logs/h, Lumberjacking 60.0 → 67.4.</li>
+<li><time datetime="2026-10-01T19:57">19:57</time><b>Laya speech triage.</b> A local model scores nearby speech; a staff hint raises <code>gm_suspected</code>. <span class="src">55f83b3</span></li>
+<li><time datetime="2026-10-01T23:21">23:21</time><b>World model prunes like the client</b> after the overseer attacked mongbats the client had already dropped; the hunt task arrives too. <span class="src">f5008fd</span></li>
+</ol>
+
+<h3 id="app-timeline-1002">Thursday 2026-10-02: hunting, the first PK, the optimizer</h3>
+<ol class="timeline">
+<li><time datetime="2026-10-02T15:38">15:38</time><b>First live hunt runs</b> in the New Player Dungeon; Hackworth buys a horse after 72 kills. <span class="src">22096b0</span></li>
+<li><time datetime="2026-10-02T17:22">17:22</time><b>First overworld lumber venue:</b> Horseshoe Bay, 128 boards on the first trip. <span class="src">2328149</span></li>
+<li><time datetime="2026-10-02T18:50">18:50</time><b>Telegram bridge.</b> Overseer chat and waking junctures reach the owner's phone. <span class="src">adb880e</span></li>
+<li class="major"><time datetime="2026-10-02T19:43">19:43</time><b>First PK death.</b> Bastet, mounted, in the Terran wilds: 11.0 s from sighting to death. The owner had asked for exactly this experiment, "for science". <span class="src">54d5926</span></li>
+<li class="major"><time datetime="2026-10-02T22:16">22:16</time><b>Recall-on-sight.</b> <code>escape.py</code> recalls on a runebook or rune tome's default rune; guard-zone flight follows at 22:48. <span class="src">f7aab09</span> <span class="src">4cb8b9c</span></li>
+<li class="major"><time datetime="2026-10-02T23:26">23:26</time><b>Self-optimizing lumber job.</b> Thompson sampling over spots, skill-rescaled yields, hazard-aware trip size, learned regrowth, hatchet economics. <span class="src">5a33805</span></li>
+</ol>
+
+<h3 id="app-timeline-1003">Friday 2026-10-03: the busiest day (76 commits)</h3>
+<ol class="timeline">
+<li><time datetime="2026-10-03T10:23">10:23</time><b>Death on a blind walk.</b> The main agent walks Hackworth through a witch-harpy nest; every overseer walk now runs through <code>travel_guard</code>.</li>
+<li><time datetime="2026-10-03T10:57">10:57</time><b>Discord capture</b> through a real browser into <code>discord.db</code>. <span class="src">22a8047</span></li>
+<li><time datetime="2026-10-03T11:03">11:03</time><b>Whole-map lumbering via the Witcher runes</b> of the Cambria rune library. <span class="src">2967f1c</span></li>
+<li><time datetime="2026-10-03T14:13">14:13</time><b>Hunt dungeon crawl.</b> <span class="src">ee62f02</span></li>
+<li class="major"><time datetime="2026-10-03T14:48">14:48</time><b>The overseer becomes "the Seer".</b> Hawkwind's voice from 15:15; the owner becomes "Avatar". <span class="src">a4aa4ee</span></li>
+<li><time datetime="2026-10-03T15:24">15:24</time><b>Discord knowledge base.</b> 820 vetted facts promoted into <code>ctl know</code> ($26.26 list price); hybrid semantic search follows at 15:37. <span class="src">4b4d296</span> <span class="src">f55bc2c</span></li>
+<li><time datetime="2026-10-03T18:02">18:02</time><b>Renewal-reward trip sizing.</b> Trip size from death, sent-home and theft hazards. <span class="src">86075f3</span></li>
+<li><time datetime="2026-10-03T19:08">19:08</time><b>Third death to Bastet</b> (the second came at 18:04). Tracked reds within 80 tiles, up from 40, now send the character home. <span class="src">4017175</span></li>
+<li><time datetime="2026-10-03T20:30">20:30</time><b>The Seer fights by hand and dies</b> at Urukton Bluffs. New rule: no manual fights in dungeons. <span class="src">0add311</span></li>
+<li><time datetime="2026-10-03T22:43">22:43</time><b>Grove capacity.</b> Discovery finds 126 Witcher groves; tree density caps the trip size. <span class="src">aa1de12</span></li>
+</ol>
+
+<h3 id="app-timeline-1004">Saturday 2026-10-04: two computers, a new home</h3>
+<ol class="timeline">
+<li><time datetime="2026-10-04T11:05">11:05</time><b>Memory-store handoff</b> between computers via the NAS: one holder, generations, fork refusal. <span class="src">da0bcb9</span></li>
+<li><time datetime="2026-10-04T12:12">12:12</time><b>Smart Harvest.</b> The hatchet's cursor is answered with ourselves instead of a tree. <span class="src">b3d9f0d</span></li>
+<li><time datetime="2026-10-04T12:53">12:53</time><b>Thief defence.</b> Trapped-pouch stash, pop alarm, 2-tile keep-away; the invulnerable-player staff alarm follows at 13:25. <span class="src">ad5a6c0</span> <span class="src">8e9cff7</span></li>
+<li><time datetime="2026-10-04T14:33">14:33</time><b>Stack supervisor</b> for proxy, viz, Laya and Telegram. <span class="src">ec1aee1</span></li>
+<li><time datetime="2026-10-04T15:58">15:58</time><b>The desktop joins.</b> Cloned from GitHub; all later commits are made there.</li>
+<li><time datetime="2026-10-04T17:04">17:04</time><b>Rune libraries.</b> Outland Dan reads the DTF guild house: 36 tomes, 839 runes. <span class="src">96466c6</span></li>
+<li class="major"><time datetime="2026-10-04T19:15">19:15</time><b>Trips end in the rental room.</b> No bank; recall to the landing nearest the grove; boards go into the secure chest. <span class="src">e5345b9</span></li>
+<li><time datetime="2026-10-04T22:06">22:06</time><b>First live room-storage trip:</b> 240 boards. <span class="src">7db581a</span></li>
+<li><time datetime="2026-10-04T22:40">22:40</time><b>Chop at a Razor script's pace.</b> The chop cycle drops from 9.4 s to 4.9 s. <span class="src">e82df6c</span></li>
+</ol>
+
+<h3 id="app-timeline-1005">Sunday 2026-10-05: shifts, deaths, the stockpile</h3>
+<ol class="timeline">
+<li><time datetime="2026-10-05T09:54">09:54</time><b>Storage-shelf resupply.</b> <span class="src">68ea826</span></li>
+<li><time datetime="2026-10-05T10:46">10:46</time><b>Dan dies at Wintertop.</b> An escape at the landing chains into a recharging runebook; fixed at 11:03. <span class="src">87b53fe</span></li>
+<li><time datetime="2026-10-05T11:51">11:51</time><b>Mount.</b> Ride the bonded horse; revive its ghost through the rental room. <span class="src">5e32428</span></li>
+<li class="major"><time datetime="2026-10-05T12:14">12:14</time><b>First Seer shift on the fixed home loop.</b> 2,776 boards; Lumberjacking 53.9 → 66.2.</li>
+<li><time datetime="2026-10-05T14:08">14:08</time><b>Second death of the day</b> (witcher_149): an escape route through another player's house door. <span class="src">cb2e981</span></li>
+<li><time datetime="2026-10-05T15:24">15:24</time><b>Creature keep-away zones</b> around every visible mob shape tree choice and routes. <span class="src">5266884</span></li>
+<li><time datetime="2026-10-05T17:24">17:24</time><b>The viz never falls behind:</b> per-connection SSE mailboxes. A Seer shift ends at 17:56 with 8 runs, 3,962 boards and no deaths. <span class="src">2536e09</span></li>
+<li><time datetime="2026-10-05T19:07">19:07</time><b>An air dragon kills Dan</b> during an 8.9 s humanizing pause. New policy: run and recall until home, never stop in the field. Five minutes later Dan's Lumberjacking reaches 80.1. <span class="src">605782b</span></li>
+<li><time datetime="2026-10-05T20:01">20:01</time><b>Resource Stockpile and market-priced trips</b> (about 27 gp per board). <span class="src">bfeb1b2</span></li>
+<li class="major"><time datetime="2026-10-05T20:13">20:13</time><b>Commit 348, the last in the window.</b> After storing, restock the shelf and resupply. <span class="src">afbbf71</span></li>
+</ol>
+</section>

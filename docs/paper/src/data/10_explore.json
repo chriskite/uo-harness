@@ -1,0 +1,514 @@
+{
+ "_source": "local://data/07_explore_exploit.json (63 trip rows, new vs revisited spot) and 07_spot_posteriors (P(best) shares at the 2026-10-05 ~20:26 snapshot).",
+ "trips": [
+  [
+   1,
+   "2026-09-29 22:27:12",
+   "TestWorth",
+   "shelter_island",
+   true,
+   1
+  ],
+  [
+   2,
+   "2026-09-29 22:47:36",
+   "TestWorth",
+   "shelter_island",
+   false,
+   1
+  ],
+  [
+   3,
+   "2026-09-29 22:51:32",
+   "TestWorth",
+   "shelter_island",
+   false,
+   1
+  ],
+  [
+   4,
+   "2026-09-29 22:53:59",
+   "TestWorth",
+   "shelter_island",
+   false,
+   1
+  ],
+  [
+   5,
+   "2026-09-29 23:05:12",
+   "TestWorth",
+   "shelter_island",
+   false,
+   1
+  ],
+  [
+   6,
+   "2026-09-30 09:18:31",
+   "TestWorth",
+   "shelter_island",
+   false,
+   1
+  ],
+  [
+   7,
+   "2026-09-30 14:09:26",
+   "TestWorth",
+   "horseshoe_bay",
+   true,
+   2
+  ],
+  [
+   8,
+   "2026-09-30 15:13:31",
+   "TestWorth",
+   "horseshoe_bay",
+   false,
+   2
+  ],
+  [
+   9,
+   "2026-09-30 15:24:07",
+   "TestWorth",
+   "horseshoe_bay",
+   false,
+   2
+  ],
+  [
+   10,
+   "2026-09-30 18:54:44",
+   "TestWorth",
+   "horseshoe_bay",
+   false,
+   2
+  ],
+  [
+   11,
+   "2026-10-01 19:19:12",
+   "Hackworth",
+   "shelter_island",
+   false,
+   2
+  ],
+  [
+   30,
+   "2026-10-02 15:48:28",
+   "Hackworth",
+   "shelter_island",
+   false,
+   2
+  ],
+  [
+   31,
+   "2026-10-02 16:25:27",
+   "Hackworth",
+   "shelter_island",
+   false,
+   2
+  ],
+  [
+   32,
+   "2026-10-02 16:41:23",
+   "Hackworth",
+   "shelter_island",
+   false,
+   2
+  ],
+  [
+   33,
+   "2026-10-02 17:16:03",
+   "Hackworth",
+   "horseshoe_bay",
+   false,
+   2
+  ],
+  [
+   34,
+   "2026-10-02 17:33:13",
+   "Hackworth",
+   "corpse_creek",
+   true,
+   3
+  ],
+  [
+   35,
+   "2026-10-02 17:41:41",
+   "Hackworth",
+   "corpse_creek",
+   false,
+   3
+  ],
+  [
+   36,
+   "2026-10-02 18:17:35",
+   "Hackworth",
+   "terran_wilds",
+   true,
+   4
+  ],
+  [
+   51,
+   "2026-10-03 15:15:54",
+   "Hackworth",
+   "witcher_291",
+   true,
+   5
+  ],
+  [
+   52,
+   "2026-10-03 15:23:43",
+   "Hackworth",
+   "witcher_291",
+   false,
+   5
+  ],
+  [
+   53,
+   "2026-10-03 15:35:50",
+   "Hackworth",
+   "witcher_282",
+   true,
+   6
+  ],
+  [
+   54,
+   "2026-10-03 15:51:20",
+   "Hackworth",
+   "witcher_282",
+   false,
+   6
+  ],
+  [
+   55,
+   "2026-10-03 16:29:32",
+   "Hackworth",
+   "witcher_280",
+   true,
+   7
+  ],
+  [
+   56,
+   "2026-10-03 16:37:13",
+   "Hackworth",
+   "witcher_291",
+   false,
+   7
+  ],
+  [
+   57,
+   "2026-10-03 17:16:09",
+   "Hackworth",
+   "witcher_291",
+   false,
+   7
+  ],
+  [
+   58,
+   "2026-10-03 17:18:21",
+   "Hackworth",
+   "witcher_280",
+   false,
+   7
+  ],
+  [
+   59,
+   "2026-10-03 17:21:53",
+   "Hackworth",
+   "witcher_291",
+   false,
+   7
+  ],
+  [
+   60,
+   "2026-10-03 17:30:25",
+   "Hackworth",
+   "horseshoe_bay",
+   false,
+   7
+  ],
+  [
+   61,
+   "2026-10-03 17:58:08",
+   "Hackworth",
+   "witcher_282",
+   false,
+   7
+  ],
+  [
+   62,
+   "2026-10-03 18:29:51",
+   "Hackworth",
+   "terran_wilds",
+   false,
+   7
+  ],
+  [
+   67,
+   "2026-10-03 21:43:49",
+   "Hackworth",
+   "horseshoe_bay",
+   false,
+   7
+  ],
+  [
+   68,
+   "2026-10-03 22:17:14",
+   "Hackworth",
+   "witcher_280",
+   false,
+   7
+  ],
+  [
+   69,
+   "2026-10-03 22:22:21",
+   "Hackworth",
+   "corpse_creek",
+   false,
+   7
+  ],
+  [
+   70,
+   "2026-10-04 22:03:10",
+   "Outland Dan",
+   "horseshoe_bay",
+   false,
+   7
+  ],
+  [
+   71,
+   "2026-10-04 22:06:33",
+   "Outland Dan",
+   "horseshoe_bay",
+   false,
+   7
+  ],
+  [
+   72,
+   "2026-10-04 22:34:49",
+   "Outland Dan",
+   "horseshoe_bay",
+   false,
+   7
+  ],
+  [
+   73,
+   "2026-10-05 10:07:56",
+   "Outland Dan",
+   "horseshoe_bay",
+   false,
+   7
+  ],
+  [
+   74,
+   "2026-10-05 10:20:07",
+   "Outland Dan",
+   "horseshoe_bay",
+   false,
+   7
+  ],
+  [
+   75,
+   "2026-10-05 10:40:46",
+   "Outland Dan",
+   "witcher_254",
+   true,
+   8
+  ],
+  [
+   76,
+   "2026-10-05 10:45:50",
+   "Outland Dan",
+   "witcher_196",
+   true,
+   9
+  ],
+  [
+   77,
+   "2026-10-05 12:14:15",
+   "Outland Dan",
+   "horseshoe_bay",
+   false,
+   9
+  ],
+  [
+   78,
+   "2026-10-05 12:32:22",
+   "Outland Dan",
+   "witcher_66",
+   true,
+   10
+  ],
+  [
+   79,
+   "2026-10-05 12:45:19",
+   "Outland Dan",
+   "witcher_66",
+   false,
+   10
+  ],
+  [
+   80,
+   "2026-10-05 12:49:29",
+   "Outland Dan",
+   "witcher_265",
+   true,
+   11
+  ],
+  [
+   81,
+   "2026-10-05 13:10:53",
+   "Outland Dan",
+   "witcher_23",
+   true,
+   12
+  ],
+  [
+   82,
+   "2026-10-05 13:30:33",
+   "Outland Dan",
+   "witcher_58",
+   true,
+   13
+  ],
+  [
+   83,
+   "2026-10-05 13:52:13",
+   "Outland Dan",
+   "witcher_55",
+   true,
+   14
+  ],
+  [
+   84,
+   "2026-10-05 13:54:34",
+   "Outland Dan",
+   "witcher_66",
+   false,
+   14
+  ],
+  [
+   85,
+   "2026-10-05 13:55:46",
+   "Outland Dan",
+   "witcher_272",
+   true,
+   15
+  ],
+  [
+   86,
+   "2026-10-05 13:56:31",
+   "Outland Dan",
+   "witcher_85",
+   true,
+   16
+  ],
+  [
+   87,
+   "2026-10-05 13:57:40",
+   "Outland Dan",
+   "witcher_181",
+   true,
+   17
+  ],
+  [
+   88,
+   "2026-10-05 14:05:41",
+   "Outland Dan",
+   "witcher_175",
+   true,
+   18
+  ],
+  [
+   89,
+   "2026-10-05 14:07:53",
+   "Outland Dan",
+   "witcher_149",
+   true,
+   19
+  ],
+  [
+   90,
+   "2026-10-05 16:00:37",
+   "Outland Dan",
+   "witcher_23",
+   false,
+   19
+  ],
+  [
+   91,
+   "2026-10-05 16:37:00",
+   "Outland Dan",
+   "witcher_105",
+   true,
+   20
+  ],
+  [
+   92,
+   "2026-10-05 16:42:17",
+   "Outland Dan",
+   "witcher_40",
+   true,
+   21
+  ],
+  [
+   93,
+   "2026-10-05 17:26:37",
+   "Outland Dan",
+   "witcher_213",
+   true,
+   22
+  ],
+  [
+   94,
+   "2026-10-05 17:27:35",
+   "Outland Dan",
+   "witcher_165",
+   true,
+   23
+  ],
+  [
+   95,
+   "2026-10-05 17:28:48",
+   "Outland Dan",
+   "witcher_162",
+   true,
+   24
+  ],
+  [
+   96,
+   "2026-10-05 17:53:38",
+   "Outland Dan",
+   "witcher_48",
+   true,
+   25
+  ],
+  [
+   97,
+   "2026-10-05 18:14:16",
+   "Outland Dan",
+   "witcher_210",
+   true,
+   26
+  ],
+  [
+   98,
+   "2026-10-05 18:35:55",
+   "Outland Dan",
+   "witcher_137",
+   true,
+   27
+  ],
+  [
+   99,
+   "2026-10-05 18:58:07",
+   "Outland Dan",
+   "witcher_23",
+   false,
+   27
+  ]
+ ],
+ "planner_live": "2026-10-02 23:26",
+ "pbest_visited": 0.118,
+ "pbest_unvisited": 0.874,
+ "spots_total": 132,
+ "spots_visited": 26
+}

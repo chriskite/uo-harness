@@ -1,0 +1,110 @@
+{
+ "_source": "local://data/07_sessions.json (69 proxy captures logs/session_*.jsonl): hours per session summed by start date (CDT) and character; agent_active_h = distinct minutes with >=1 agent C2S packet; human_input_h = minutes with a human-driven client opcode. TestWorth = Test Shard 74.91.115.123; others = 35.71.142.123 / 52.223.17.219.",
+ "days": [
+  {
+   "date": "2026-09-28",
+   "by_character": {
+    "(no character select)": 0.0,
+    "TestWorth": 1.75
+   },
+   "logged_in_h": 1.75,
+   "agent_active_h": 0.0,
+   "human_input_h": 0.48,
+   "test_h": 1.75,
+   "live_h": 0,
+   "sessions": 5
+  },
+  {
+   "date": "2026-09-29",
+   "by_character": {
+    "TestWorth": 6.44,
+    "(no character select)": 0.25
+   },
+   "logged_in_h": 6.69,
+   "agent_active_h": 0.6,
+   "human_input_h": 1.27,
+   "test_h": 6.69,
+   "live_h": 0,
+   "sessions": 22
+  },
+  {
+   "date": "2026-09-30",
+   "by_character": {
+    "TestWorth": 12.26,
+    "Hackworth": 0.15,
+    "(no character select)": 0.04
+   },
+   "logged_in_h": 12.45,
+   "agent_active_h": 3.13,
+   "human_input_h": 0.63,
+   "test_h": 12.26,
+   "live_h": 0.18,
+   "sessions": 10
+  },
+  {
+   "date": "2026-10-01",
+   "by_character": {
+    "Hackworth": 2.62
+   },
+   "logged_in_h": 2.62,
+   "agent_active_h": 1.83,
+   "human_input_h": 0.32,
+   "test_h": 0,
+   "live_h": 2.62,
+   "sessions": 2
+  },
+  {
+   "date": "2026-10-02",
+   "by_character": {
+    "Hackworth": 7.68,
+    "TestWorth": 12.49
+   },
+   "logged_in_h": 20.17,
+   "agent_active_h": 6.12,
+   "human_input_h": 1.67,
+   "test_h": 12.49,
+   "live_h": 7.68,
+   "sessions": 6
+  },
+  {
+   "date": "2026-10-03",
+   "by_character": {
+    "Hackworth": 8.03,
+    "(no character select)": 0.01,
+    "Shackleworth": 4.4
+   },
+   "logged_in_h": 12.44,
+   "agent_active_h": 8.37,
+   "human_input_h": 3.15,
+   "test_h": 0,
+   "live_h": 12.44,
+   "sessions": 17
+  },
+  {
+   "date": "2026-10-04",
+   "by_character": {
+    "Hackworth": 2.02,
+    "Outland Dan": 3.14
+   },
+   "logged_in_h": 5.17,
+   "agent_active_h": 1.02,
+   "human_input_h": 0.32,
+   "test_h": 0,
+   "live_h": 5.17,
+   "sessions": 3
+  },
+  {
+   "date": "2026-10-05",
+   "by_character": {
+    "Outland Dan": 10.34,
+    "Logan Wolf": 0.37
+   },
+   "logged_in_h": 10.71,
+   "agent_active_h": 5.03,
+   "human_input_h": 1.5,
+   "test_h": 0,
+   "live_h": 10.71,
+   "sessions": 4
+  }
+ ]
+}

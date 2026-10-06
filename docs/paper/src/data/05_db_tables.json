@@ -1,0 +1,89 @@
+{
+ "_note": "Row counts per table of harness/data/harness.db, read-only (mode=ro) on 2026-10-05 ~20:25 local while the live proxy may be writing (WAL); counts are a snapshot. Schema v5 (meta.schema_version). knowledge_fts_* are FTS5 shadow tables. Source: python sqlite3 SELECT count(*) per table. FTS5 shadow tables omitted. writer = main writer process (docs/MEMORY.md \"Who writes what\").",
+ "snapshot_t_local": "2026-10-05T20:25",
+ "file_bytes": 288759808,
+ "wal_bytes": 4449632,
+ "schema_version": 5,
+ "tables": [
+  {
+   "table": "events",
+   "rows": 1685252,
+   "writer": "proxy"
+  },
+  {
+   "table": "walk_moves",
+   "rows": 27281,
+   "writer": "proxy"
+  },
+  {
+   "table": "harvest_attempts",
+   "rows": 5193,
+   "writer": "runners"
+  },
+  {
+   "table": "knowledge",
+   "rows": 4107,
+   "writer": "overseer/ctl"
+  },
+  {
+   "table": "knowledge_vec",
+   "rows": 4107,
+   "writer": "overseer/ctl"
+  },
+  {
+   "table": "chat",
+   "rows": 2855,
+   "writer": "overseer/ctl"
+  },
+  {
+   "table": "job_events",
+   "rows": 1370,
+   "writer": "runners"
+  },
+  {
+   "table": "harvest_nodes",
+   "rows": 1259,
+   "writer": "runners"
+  },
+  {
+   "table": "junctures",
+   "rows": 314,
+   "writer": "runners"
+  },
+  {
+   "table": "lumber_spots",
+   "rows": 129,
+   "writer": "overseer/ctl"
+  },
+  {
+   "table": "episodes",
+   "rows": 99,
+   "writer": "runners"
+  },
+  {
+   "table": "sessions",
+   "rows": 69,
+   "writer": "proxy"
+  },
+  {
+   "table": "guard_points",
+   "rows": 39,
+   "writer": "Mover"
+  },
+  {
+   "table": "meta",
+   "rows": 16,
+   "writer": "shared bus"
+  },
+  {
+   "table": "prices",
+   "rows": 11,
+   "writer": "overseer/ctl"
+  },
+  {
+   "table": "teleporters",
+   "rows": 6,
+   "writer": "Mover"
+  }
+ ]
+}

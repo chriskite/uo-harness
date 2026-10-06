@@ -1,0 +1,50 @@
+<section id="sec-discussion">
+<h2>Discussion</h2>
+<p class="lead">What we would tell someone starting this tomorrow, where the evidence is thin, and the parts that are not purely technical.</p>
+
+<h3 id="sec-discussion-lessons">Lessons</h3>
+
+<div class="callout lesson"><p class="callout-title">1. Put the LLM above the loop, not in it</p>
+<p>Every attempt to let a language model act inside a reflex loop ended badly. The hand-fought dungeon hunt that killed Shackleworth in about fifteen seconds produced the rule we now quote most: "An LLM is way too slow to react for combat" (<a class="ref" href="#sec-safety"></a>). The design that worked gives the model a database of junctures, a small CLI and a wake-up call, and leaves chopping, walking and fleeing to code with typed failures (<a class="ref" href="#sec-seer"></a>). The model's best contributions were judgement calls no controller could make: abandoning an unworkable grove, noticing a pattern across shifts, writing up what went wrong.</p></div>
+
+<div class="callout lesson"><p class="callout-title">2. A shared store is the cheapest integration layer</p>
+<p>Putting every event, trip, chat line and fact into one SQLite file gave us a message bus, an analytics warehouse, a training set for the planner and the paper's own results chapter for the price of one schema (<a class="ref" href="#sec-world"></a>). The costs were real: a 289 MB file that had to be handed between computers like a baton, a visualizer that fell 147 seconds behind until its state updates were trimmed, and constant care about who is allowed to write.</p></div>
+
+<div class="callout lesson"><p class="callout-title">3. Model uncertainty, then act on samples of it</p>
+<p>The planner never needed to be right about any one spot. Thompson sampling plus honest posteriors (and a prior that says how many logs a grove can hold) produced "almost always exploring" behaviour at the start, which the owner insisted was exactly right for a Bayesian process with 132 candidate spots and 26 visits (<a class="ref" href="#sec-optimizer"></a>). The same discipline caught real mistakes: aborted trips that had been silently flattering dangerous spots, and a board price assumed at 9.5 gp that the market put at 26.8.</p></div>
+
+<div class="callout lesson"><p class="callout-title">4. The field report loop is the product</p>
+<p>The most valuable feedback came from the Seer playing live and posting what hurt: a runner idling next to an air dragon, a door that ate a step, a landing rune eight tiles off. A coding agent in the main session fixed it, a test pinned it, the next shift ran on the fix. Over the last two days that loop closed in well under an hour per issue. We think this, more than any single algorithm, is why a nine-day project reached 3,000 logs per trip-hour (<a class="ref" href="#sec-results"></a>).</p></div>
+
+<div class="callout lesson"><p class="callout-title">5. Write it down, or it did not happen</p>
+<p>Rule 0 (record and push engineering knowledge before a session ends) turned out to be the project's real memory. Sessions ended, models changed, two computers took turns, and nothing was lost because every finding was in <code>docs/NOTES.md</code> or <code>docs/PLAN.md</code>. Its price is a 210 KB notes file that touched 46% of all commits; its payoff is that a fresh agent on a fresh machine rebuilt the working stack in about half an hour (<a class="ref" href="#sec-process"></a>).</p></div>
+
+<h3 id="sec-discussion-agents">Working with the agents</h3>
+<p>The owner steered; the agents decided. Prompts were short (median 90 characters), design choices were mostly made by whichever agent was holding the problem, and the owner's most useful moves were interrupting, asking "can you measure that?", and supplying game knowledge the agents could not look up ("thieves look friendly to us until they steal"). Two of the biggest wins started as the owner's hunches: moving the overseer from a bespoke daemon to an omp session talking to a CLI, and moving live play into subagents so the main session could keep engineering.</p>
+<p>The agents' characteristic failure was confident wrongness that propagated into the docs: a day of conclusions built on a mis-decoded stream, a "gate" that was actually the client's own state, a claim of "movement solved" that a quick look at the screen contradicted. The cure was cultural, not technical: evidence-first prose, <code>[INFERENCE]</code> labels, and an owner who kept asking for a capture. We also recorded a milder pattern: when two agents disagreed with the owner's intent, they asked; when three sessions in a row hesitated, the owner changed the instruction instead of arguing (<a class="ref" href="#sec-process-guardrails"></a>).</p>
+
+<h3 id="sec-discussion-limits">Limitations</h3>
+<ul>
+<li><strong>One game, one skill, one week.</strong> Everything measured is lumberjacking plus a little hunting. The planner's structure should transfer to mining or fishing; we have not tried.</li>
+<li><strong>Small samples.</strong> Sixty-three trips over three characters, eighteen of the twenty-seven visited spots with a single trip, three PK encounters. Rates like the 0.046 creature deaths per field hour will move.</li>
+<li><strong>Confounded progress.</strong> Throughput rose from about 355 boards/h to over 3,000 logs per trip-hour, but the rise mixes a faster chop cycle, a better success rate, a different character, a different venue, Harvest Aspect armor and a Test Shard editor shortcut. <a class="ref" href="#sec-results"></a> decomposes what it can; it is not a controlled experiment.</li>
+<li><strong>Which shard?</strong> TestWorth lived on the Test Shard. The other characters connected to server addresses that the docs disagree about. We believe, from circumstantial evidence, that it was the production shard; no log line says so.</li>
+<li><strong>Notional costs.</strong> The $1,559 of model spend in <a class="ref" href="#sec-process"></a> is list price for an owner on subscription plans.</li>
+<li><strong>A moving target.</strong> Outlands patches its client and rules; Smart Harvest, the stationary-harvest penalty and the harvest chance all changed under us. Every rate here is "that week".</li>
+</ul>
+
+<h3 id="sec-discussion-ethics">Ethics and the shard's rules</h3>
+<p>This project automates play on a shard whose published rules prohibit unsanctioned automation. We did it knowingly, as a personal engineering project on the owner's own accounts, and we said so in the repo. The early constraints (Test Shard only, a human solves every CAPTCHA) were relaxed by the owner on 09-30, and the agents' hesitation about that is part of the record (<a class="ref" href="#sec-process-guardrails"></a>). Several things stayed fixed throughout: the harness never attacks other players, never speaks about itself in game, never touches the client or its files, and treats a staff member in view as a reason to stop. Whether any of that makes it acceptable to the shard's community is a separate question, and the answer from the shard's own rules is no. The owner bears that risk, which is one reason this document is a private record and not a recipe.</p>
+<p>There is also a small ecosystem point. A harvest bot competes for the same groves as human lumberjacks, and the planner's explicit objective is to out-earn them. The harness's rule that it never fights players protects the other characters; it does not make the competition fair.</p>
+
+<h3 id="sec-discussion-next">What next</h3>
+<ol>
+<li><strong>Better threat models.</strong> Bastet beat a two-second recall three times; the open questions in <a class="ref" href="#sec-safety"></a> (stealthed attackers, Magic Reflection, mounted flight) are where most of the expected loss now sits.</li>
+<li><strong>Close the economic loop.</strong> Valuation uses asking prices from a vendor search. Real sales, colored-wood premiums (the data say "usually worth more" is false) and a shop that actually sells would turn logs/hour into gold/hour.</li>
+<li><strong>A Seer that learns across shifts.</strong> Its memory is a knowledge table and pinned notes. The data to fine-tune its judgements (14 shifts, 314 junctures, 2,855 chat rows) exist; whether a small local model like Laya can take over triage entirely is open.</li>
+<li><strong>Other jobs.</strong> Mining, fishing and a proper dungeon crawler reuse the same runner contract, planner and store.</li>
+</ol>
+
+<h3 id="sec-discussion-conclusion">Conclusion</h3>
+<p>In nine days a person and a handful of AI coding agents built a system that played a twenty-nine-year-old MMO for 26 hours of agent-driven time, chopped 18,757 logs, answered every CAPTCHA, and improved its own choices from its own records. The parts that carried the weight were unglamorous: a proxy that forwards almost everything unchanged, a world model that forgets what the client forgets, a database every component can write to, a planner that admits it does not know yet, and an LLM that is allowed to be slow because nothing urgent depends on it. The agents wrote most of the code and made most of the decisions; the owner decided what mattered and what not to do. The next thing to learn is how much of that division of labour survives when the problems are harder than chopping wood.</p>
+</section>

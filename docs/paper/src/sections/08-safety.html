@@ -1,0 +1,152 @@
+<section id="sec-safety">
+<h2>Staying alive</h2>
+<p class="lead">The harness never fights a player, so survival is a matter of noticing early and leaving fast. This chapter shows how it tells a player killer from a goat, how the escape grew from &ldquo;stop&rdquo; to a recall that recasts until it lands, and how each of eleven deaths became a rule within hours. It also covers the thief guard, the staff alarm, the CAPTCHA solver and the one runner that is allowed to fight.</p>
+
+<div class="kpis">
+<div class="kpi rust"><b>11</b><span>character deaths, 09-30 → 10-05 (3 to one player killer)</span></div>
+<div class="kpi green"><b>8 / 8</b><span>recalls landed after a <code>pk_escape</code> trigger</span></div>
+<div class="kpi"><b>53 / 53</b><span>CAPTCHAs accepted, 0 strikes</span></div>
+<div class="kpi gold"><b>0</b><span>deaths in 36 hunt-runner visits (173 kills)</span></div>
+</div>
+
+<h3 id="sec-safety-stance">The stance: never fight back</h3>
+<aside class="side"><b>Notoriety</b> is the colour of a name: blue innocent, grey attackable or criminal, orange enemy, <b>red</b> murderer, yellow invulnerable (code 7). A <b>PK</b> (player killer) is a red who kills other players for their loot. See <a class="ref" href="#sec-background"></a>.</aside>
+<p>The threat research of 2026-09-29 opens with one rule: &ldquo;<strong>The harness never attacks a player.</strong>&rdquo; Hitting a player brings <em>Heat of Battle</em>, which blocks recall (the one fast way out), makes you criminal and draws staff attention <span class="src">docs/research/THREATS.md §0</span>. Everything below is detection and evasion, never retaliation.</p>
+<p>The data for that evasion came partly from accidents and partly on purpose:</p>
+<blockquote class="pull"><p>Let's bank what we've got and go somewhere potentially more dangerous and see if we can get PK'd or killed by mobs for science (data to improve our agent harness)</p><cite>— the owner, viz chat to the overseer, 2026-10-02 17:27</cite></blockquote>
+<p>Two hours later a red named Bastet killed Hackworth in the Terran wilds, and the owner replied by phone: &ldquo;that's exactly the data we were hoping for&rdquo;.</p>
+
+<h3 id="sec-safety-classifier">Reading a mobile: the threat classifier</h3>
+<p>Outlands gives no clean &ldquo;this is a PK&rdquo; signal. Monsters show grey, mongbats turn criminal, human-bodied NPCs exist, and a pickpocket is blue until he steals. <code>threats.assess()</code> is a pure function of one state snapshot, so it can be unit-tested and replayed over captures <span class="src">harness/threats.py</span>.</p>
+<p><code>identify()</code> decides what a mobile is, in order: a ghost is ignored; notoriety 7 is an NPC; mobile flag <code>0x20</code> or a &ldquo;(Young)&rdquo; label makes a player; a non-human body named &ldquo;a/an …&rdquo; is a monster; a &ldquo;Name the <em>title</em>&rdquo; label is an NPC; a human body with a creature name and no flag is a monster at notoriety 3 (the orc-hunter fix, <span class="src">0add311</span>). Any other human body counts as a player. The <code>0x20</code> flag is an empirical find: by 10-04 it was on 1,474 human mobiles at notoriety 1/3/4/6 and never on 2,607 notoriety-7 sightings or about 2,400 non-humans <span class="src">docs/PLAN.md "Staff alarm"</span>.</p>
+<p>Movement turns Chebyshev distance into an arrival estimate, <span class="math">\text{ETA} = \max(0, d - r_s)\cdot s</span>, with <span class="math">s</span> = 0.2 s/tile running and 0.1 mounted, and strike range <span class="math">r_s</span> = 12 tiles for a player, 1 for a monster. The flee radius is the distance at which a recall still lands first:</p>
+<div class="math" id="eq-safety-flee">R_\text{flee} = r_s + \left\lfloor \frac{t_\text{recall} + t_\text{margin}}{s} \right\rfloor</div>
+<p>A 4 s recall and 1 s margin against a red on foot give 12 + 25 = 37 tiles, past the 18-tile view, &ldquo;so any visible red means flee&rdquo;.</p>
+<p>Creatures are judged by aggression: swinging or casting at us, war-mode flag <code>0x40</code> unless the body or name is on a passive list, known aggressive bodies, else <em>not</em> aggressive. That default changed on 09-30 after lumber trips stopped for a walrus and a goat <span class="src">c7dc39c</span>.</p>
+<p>Damage was harder than it sounds. &ldquo;Outlands has never sent one with us as the defender&rdquo;: all 2,172 swing packets (<code>0x2F</code>) in the store are our own, so the live damage signal is the hits trend. Spells are caught by their visual effects on us or by lines such as &ldquo;Magic reflect removed.&rdquo;; all 93 such signals in the captures came with an attack. Since the server never names an attacker, <code>hit_attackers</code> blames adjacent creatures first, then ranged ones in reach, then anything within 12 tiles.</p>
+
+<figure class="fig wide" id="fig-safety-flow">
+<pre class="mermaid">flowchart TD
+  S["state read<br/>every 0.2 s, also inside waits"] --> A{"threats.assess()"}
+  A -->|"red in view · 'X is attacking you!'<br/>tracked red ≤ 80 tiles · player damage"| C["cancel open cursor (0x6C)"]
+  C --> E["escape(): charge, else Recall spell<br/>recast at end of disturb recovery · ≤ 20 s"]
+  E -->|landed| P["pk_escape juncture,<br/>stop at home"]
+  E -->|failed| G["guard flight:<br/>A* to learned guard points"]
+  A -->|"player ≤ 2 tiles while chopping"| K["KeepAway: walk to ≥ 4 tiles"]
+  K -->|closes again| T["thief_out: recall,<br/>20 min spot cooldown"]
+  A -->|"trapped pouch popped, not by us"| T
+  A -->|"notoriety 7 + flag 0x20 · staff speech"| H["gm_suspected alarm,<br/>hold until acked"]
+  A -->|"monster in view"| Z["aggro zone ≥ 13 tiles;<br/>trees inside it wait"]
+  Z -->|"closing · hit · spell on us"| R["escape run 20 tiles,<br/>no pauses"]
+  R -->|"follows · hits &lt; 60 % · 2nd hit"| RR["run_and_recall: 14-tile gap,<br/>recall, repeat until home"]
+  A -->|nothing| W["keep chopping"]
+  classDef red fill:#f8e6e4,stroke:#b23a3a,color:#1f2328
+  classDef green fill:#e8f3ea,stroke:#3d7f4f,color:#1f2328
+  classDef gold fill:#fbf3dc,stroke:#b8892a,color:#1f2328
+  classDef purple fill:#efeaf7,stroke:#6b4fa0,color:#1f2328
+  classDef rust fill:#fbeee6,stroke:#b4572b,color:#1f2328
+  class C,E,G red
+  class P,W green
+  class K,T gold
+  class H purple
+  class Z,R,RR rust</pre>
+<figcaption>How the lumber runner answers a threat, as of 2026-10-05. Player threats (red) go straight to a recall; thieves (gold) get distance first; staff (purple) get a human; monsters (rust) get a wide berth and, if they persist, a run-then-recall. Source: <code>harness/threats.py</code>, <code>escape.py</code>, <code>loop_lumber.py</code>; docs/LUMBER_LOOP.md §13.</figcaption>
+</figure>
+
+<h3 id="sec-safety-bastet">Bastet, three times</h3>
+<p>The same red killed Hackworth three times in 24 hours, and each encounter broke a different assumption (<a class="ref" href="#fig-safety-bastet"></a>).</p>
+<p><strong>Terran wilds, 10-02 19:43.</strong> Bastet rode into view at 18 tiles. The runner aborted at 0.29 s and then <em>stood still</em>: its only response to danger was an <code>Unsafe</code> stop. &ldquo;Bastet is attacking you!&rdquo; came at 2.80 s; the first hit at 4.58 s carried a hamstring (no running for about 3 s); five hits and 102 damage later Hackworth was dead at 10.96 s. The &ldquo;5…1&rdquo; countdown over Bastet's head was an explosion-potion fuse that blew 1.2 s <em>after</em> the death: &ldquo;<strong>Weapon, not explosion.</strong>&rdquo; Tracking never fired, and the runner's ETA guess of 0.6 s was eight times too pessimistic <span class="src">docs/NOTES.md "Bastet"</span>.</p>
+<p>That last number flipped the design. The one live runebook recall on record took 2.09 s from button to arrival, and Bastet needed 4.63 s from sight to first hit. &ldquo;So a recall started within ~2.4 s of sight lands before the first hit. … A recall is the only action with a chance, so it wins.&rdquo; Recall-on-sight shipped at 22:16 that night <span class="src">f7aab09</span>.</p>
+<p><strong>Nusero, 10-03 18:04.</strong> Bastet appeared at 11 tiles carrying the Stationary Penalty, so he had just recalled in or come out of hiding. The new escape reacted fast, starting a recall at 1.05 s, but his Weaken landed at 1.88 s and broke it. The instant retry was refused as &ldquo;not recovered&rdquo;, his Harm broke the third try, and the three-try escape gave up at 3.64 s. Then nothing hit Hackworth for 4.5 s (Bastet's potion blew on his own tile, two swings missed), and no escape was running to use it. The verdict: &ldquo;<strong>A mage PK who recalls onto us beats a 2 s recall escape</strong>&rdquo;.</p>
+<aside class="side">The commit and NOTES say Bastet &ldquo;struck 5.5 s later&rdquo; after the tracking hit. The DB event clock gives 6.51 s to &ldquo;attacking you&rdquo; and 7.59 s to the first hit. We suspect the note was rounded from a different anchor.</aside>
+<p><strong>Terran wilds again, 10-03 19:08.</strong> This time Tracking reported &ldquo;Bastet (55 spaces to target)&rdquo;, but the react range was 40 tiles, so it was only logged. He came into view 4.57 s later, during the chop's 2.1 s aim pause. The runner answered the chop cursor first and opened the tome 2.5 s after sight; the first hit at 3.02 s broke the cast, and Hackworth died at 8.39 s. The real bug: &ldquo;<strong>The runner was blind inside every pause and result wait</strong>&rdquo;, because <code>Human.wait</code> was a plain sleep <span class="src">c4db365</span>. The owner asked by phone for a 60-tile react range; the agent set 80 <span class="src">4017175</span>.</p>
+<figure class="fig wide" id="fig-safety-bastet"><div class="frame"><!--#include figures/08_bastet.svg--></div><figcaption>Bastet's three kills on one clock, seconds from first sight. At Terran 1 a recall pressed at the runner's 0.29 s reaction would have landed at about 2.3 s, before even the attack notice. At Nusero a caster revealed at 11 tiles broke every attempt. At Terran 2 the recall started 2.5 s late, inside a blind pause. Source: <code>data/08_bastet.json</code> from docs/NOTES.md, docs/research/SPELL_INTERRUPTS.md and memory DB events (session 58).</figcaption></figure>
+
+<h3 id="sec-safety-escape">The escape, v1 to v3</h3>
+<p>The escape (<code>harness/escape.py</code>) presses the default rune's charge in the runebook or rune tome and falls back to casting Recall. It was rebuilt twice, each time from measurements.</p>
+<p><strong>v2 (10-03 18:27)</strong> came from a study of the casts in the store <span class="src">docs/research/SPELL_INTERRUPTS.md</span>. Recall takes a median 2.03 s from power words to arrival (1.95–2.09 s, 27 casts). Creature melee breaks a cast 44 % of the time (26/59), damage-over-time ticks never (0/13), Bastet 3/3. After a disturbed cast, all 30 live retries fit RunUO's pre-AOS recovery rule, where <span class="math">e</span> is how far into the cast it broke and <span class="math">T</span> the cast time:</p>
+<div class="math" id="eq-safety-disturb">t_\text{rec} = \max\!\left(0.2,\; 1 - \sqrt{e / T}\right)\ \text{s}</div>
+<p>So v2 has no try limit, only a 20 s budget, and presses each retry the moment recovery ends. Replayed on Nusero, the old code gives up 2.73 s after the double-click (live: 2.72 s); the new one lands at 5.0 s <span class="src">d6e6c63</span>. &ldquo;A PK has to land a fresh interrupt within every 2 s cast, and giving up hands him the time.&rdquo;</p>
+<p><strong>v3 (10-05)</strong> learned the failure that killed Outland Dan at Wintertop, &ldquo;This book needs time to recharge.&rdquo;: a recharging book is now answered by casting Recall <em>on the book itself</em>, which worked live at 10:59 <span class="src">87b53fe</span>.</p>
+<p>In the store, 18 of 20 lumber escape recalls landed, 2.09–2.16 s from press to arrival; both failures were Bastet, under the old three-try code. All eight urgent <code>pk_escape</code> junctures were clean recalls, the last four on 10-05, when Tracking finally reported reds at 35–64 tiles. If a recall fails off guarded ground, a <em>guard flight</em> runs A* to guard points learned from &ldquo;now protected&rdquo; notices at the tile where they appeared <span class="src">4cb8b9c</span>.</p>
+
+<h3 id="sec-safety-ledger">Eleven deaths and what each one bought</h3>
+<p><a class="ref" href="#fig-safety-incidents"></a> and <a class="ref" href="#tab-safety-incidents"></a> list every death, near-death, theft and costly false alarm. The memory store holds 10 deaths; the eleventh, TestWorth's planned demo, predates it. Three were Bastet, three the overseer acting by hand, three monsters on runner trips, one a blind long walk, one the demo. 10-03 alone had five.</p>
+<figure class="fig wide" id="fig-safety-incidents"><div class="frame"><!--#include figures/08_incidents.svg--></div><figcaption>Every recorded death, near-death, theft and costly false alarm by character, with the commit or rule that answered it (grey, below each marker). Days are columns; within a day incidents are in clock order, not to scale. Source: <code>data/08_incidents.json</code> from research brief 06 (docs/NOTES.md, docs/PLAN.md, memory DB events and junctures, read-only); N2's time is inferred from DB juncture 192.</figcaption></figure>
+<figure class="tbl" id="tab-safety-incidents"><figcaption>The incident ledger. D = death, N = near-death, T = theft, F = false alarm. Times local; D2 is reconstructed from DB events only.</figcaption><div class="tbl-scroll"><table class="compact">
+<thead><tr><th>ID</th><th>When</th><th>Who</th><th>What happened</th><th>What changed</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td>D1</td><td>09-30 10:18</td><td>TestWorth</td><td>Planned death demo in the New Player Dungeon</td><td>Death/resurrection flow learned; demo gaps fixed</td><td>same day</td></tr>
+<tr><td>D2</td><td>09-30 19:19</td><td>TestWorth</td><td>Overseer melee vs skeletons, −2 dealt per swing</td><td>None recorded; first &ldquo;overseer improvises a fight&rdquo;</td><td>—</td></tr>
+<tr><td>N1</td><td>10-01 night</td><td>Hackworth</td><td>Overseer fight loop, down to 2/96 hits</td><td>Deterministic hunt runner, shared <code>combat.py</code></td><td><code>f5008fd</code></td></tr>
+<tr><td>D3</td><td>10-02 19:43</td><td>Hackworth</td><td>Bastet #1 (the experiment); runner stood still</td><td>Recall-on-sight; guard flight</td><td><code>f7aab09</code></td></tr>
+<tr><td>D4</td><td>10-03 10:23</td><td>Hackworth</td><td>Blind <code>ctl act goto</code> into a harpy nest</td><td>Overseer walks guarded by default</td><td><code>travel_guard</code></td></tr>
+<tr><td>N2</td><td>10-03 ≈16:45</td><td>Hackworth</td><td>Converted logs 12 s under attack, 85 → 40</td><td>Creature stop recalls home first</td><td><code>3316e5b</code></td></tr>
+<tr><td>T1</td><td>10-03 17:24</td><td>Hackworth</td><td>Blue &ldquo;Caputo Wood&rdquo; turned grey, 10 mandrake root gone 75 ms later</td><td>Ledger before threats; escapes book losses</td><td><code>0d43095</code></td></tr>
+<tr><td>D5</td><td>10-03 18:04</td><td>Hackworth</td><td>Bastet #2, mage from hiding, 3 casts broken</td><td>Recast until landed</td><td><code>d6e6c63</code></td></tr>
+<tr><td>D6</td><td>10-03 19:08</td><td>Hackworth</td><td>Bastet #3, tracked at 55 tiles, blind pause</td><td>Watchful waits; 80-tile tracked reds</td><td><code>c4db365</code></td></tr>
+<tr><td>D7</td><td>10-03 20:29</td><td>Shackleworth</td><td>Overseer fist-fights orcs in Urukton Bluffs</td><td>No manual fights in dungeons; re-wield</td><td><code>c1b4eed</code></td></tr>
+<tr><td>D8</td><td>10-03 20:44</td><td>Shackleworth</td><td>Overseer corpse run, dead 8 s after arriving</td><td>No corpse runs</td><td>policy</td></tr>
+<tr><td>N3</td><td>10-03 22:17</td><td>Hackworth</td><td>Gazer larva's spell reflected; runner reacted 7.75 s late</td><td>A spell on us counts as an attack</td><td><code>be9ef19</code></td></tr>
+<tr><td>F1</td><td>10-04 22:05</td><td>Outland Dan</td><td>Harvest-aspect effect <code>0x37BE</code> read as a spell</td><td>Added to <code>BENIGN_EFFECTS</code></td><td>—</td></tr>
+<tr><td>F2</td><td>10-04 22:33</td><td>Outland Dan</td><td>Previous run's own pouch pop read as a thief</td><td>Ignore events before run start</td><td><code>e82df6c</code></td></tr>
+<tr><td>D9</td><td>10-05 10:46</td><td>Outland Dan</td><td>Escape chain at Wintertop; book recharging (502406)</td><td>No travel once afield; Recall on the book</td><td><code>87b53fe</code></td></tr>
+<tr><td>N4</td><td>10-05 13:30</td><td>Outland Dan</td><td>255-step route into a fen daemon; home at 7/100</td><td>Route-length cap; 2nd hit sends home</td><td><code>09db3bd</code></td></tr>
+<tr><td>D10</td><td>10-05 14:08</td><td>Outland Dan</td><td>Escape route through another player's house door</td><td>Long escapes refused; aggro zones 13 tiles</td><td><code>cb2e981</code></td></tr>
+<tr><td>D11</td><td>10-05 19:07</td><td>Outland Dan</td><td>Air dragon followed two escapes during an 8.93 s pause</td><td>Run and recall until home, never stop</td><td><code>605782b</code></td></tr>
+</tbody></table></div></figure>
+<p>The overseer deaths taught the bluntest lesson. At Urukton Bluffs the recall-in had knocked Shackleworth's arcane staff into his pack; the overseer walked about 85 steps into an orc room and fought bare-fisted for 2 damage a blow while losing about 6 hit points a second.</p>
+<blockquote class="pull"><p>Yeah no manual fights in dungeons is a good rule. An LLM is way too slow to react for combat.</p><cite>— the owner, omp session, 2026-10-03 20:31</cite></blockquote>
+<div class="callout lesson"><p class="callout-title">Lesson</p><p>Early on, false <em>positives</em> cost trips: a walrus, a goat, a battle trainer. By 10-05, false <em>negatives</em> were killing Dan: an unknown failure message, a house door in an escape route, an 8.93 s humanizing pause. Each fix made the runner more cautious; lumber <code>flee</code> events rose from 2 a day to 31 on 10-05, the price of the owner's final policy: &ldquo;run and recall until home, never stopping in the field&rdquo;.</p></div>
+
+<h3 id="sec-safety-thief">Thieves: step away, and a trapped pouch</h3>
+<p>At 100 Stealing a thief takes about 200 logs per grab, once every 5 s, from 1 tile away. The one we met, Caputo Wood, was blue until the instant the reagents left the pack (T1). The owner's summary, &ldquo;They look friendly until they steal&rdquo;, became the rule that &ldquo;any player within 2 tiles of us while we harvest is almost certainly a thief&rdquo; <span class="src">2516411</span>. Attacking him is out, so the guard has three layers <span class="src">ad5a6c0</span>:</p>
+<ol>
+<li><strong>Keep-away.</strong> The runner pauses as if reading, then walks to ≥ 4 tiles: &ldquo;One step beats the 5 s steal cooldown, where a 2 s recall would still leave them in reach.&rdquo; If he closes again: recall, and a 20-minute cooldown on that spot.</li>
+<li><strong>Trapped pouch.</strong> Logs go into a trapped pouch after each chop. Its pop was decoded from our own set-off (hue 38 → 0, an explosion effect, a sound, −1 hit) <span class="src">a929050</span>; a pop we did not cause is an alarm. &ldquo;<strong>A pouch is a delay plus an alarm, not a lock.</strong>&rdquo;</li>
+<li><strong>Ledger.</strong> Losses become <code>theft</code> events that feed the optimizer's theft hazard (<a class="ref" href="#sec-optimizer"></a>).</li>
+</ol>
+<p>Live, keep-away fired twice on 10-05, both for mounted blues at 2 tiles. Neither came closer and nothing was stolen; we suspect passers-by. The only pouch alarm so far was F2, a false one.</p>
+
+<h3 id="sec-safety-staff">Staff: an alarm that has never rung for real</h3>
+<p>Staff are the one encounter the agent must not handle alone: &ldquo;a player unresponsive to a GM for ~2 minutes while gathering is jailed, then banned on repeat.&rdquo; Since 09-30 anyone speaking nearby holds a harvest job until a human or the overseer acks <span class="src">38c427d</span>, and staff hints in that speech raise <code>gm_suspected</code> with a repeating alarm <span class="src">021bcec</span>. On 10-04 the owner suggested a GM is probably an invulnerable player, so sight alone should alarm. Notoriety 7 alone would have fired in 12 of 13 lumber sessions, mostly on player vendors; notoriety 7 <em>with</em> flag <code>0x20</code> had never been seen (<a class="ref" href="#tab-safety-staff"></a>) <span class="src">8e9cff7</span>.</p>
+<figure class="tbl" id="tab-safety-staff"><figcaption>Why the on-sight staff rule is quiet. Left: all captures through 10-04 (mobile sightings). Right: the four live <code>gm_suspected</code> alarms, every one a false positive.</figcaption><div class="tbl-scroll"><table class="compact">
+<thead><tr><th></th><th>flag 0x20</th><th>no flag</th><th></th><th>Alarm</th><th>Trigger</th><th>Really</th></tr></thead>
+<tbody>
+<tr><td>notoriety 7</td><td class="num"><strong>0</strong></td><td class="num">2,607</td><td></td><td>10-02 13:31</td><td>not on screen</td><td>&ldquo;Boo!!!&rdquo; from a player</td></tr>
+<tr><td>notoriety 1/3/4/6, human</td><td class="num">1,474</td><td>—</td><td></td><td>10-02 15:27</td><td>not on screen</td><td>tamer's &ldquo;All Guard&rdquo;</td></tr>
+<tr><td>non-human</td><td class="num">0</td><td class="num">≈ 2,400</td><td></td><td>10-02 15:49</td><td>attendance (Laya 0.64)</td><td>guild recruiting</td></tr>
+<tr><td>replay test (10 captures)</td><td colspan="2">2,597 checks, 0 hints</td><td></td><td>10-02 16:25</td><td>attendance (Laya 0.69)</td><td>guild recruiting</td></tr>
+</tbody></table></div></figure>
+<p>No <code>staff_sighting</code> exists in the store, and no staff alarm has fired since 10-02. A GM shown blue or grey, or hidden, would still get past the sight rule, so the speech hold remains the backstop.</p>
+
+<h3 id="sec-safety-captcha">The CAPTCHA solver</h3>
+<p>Harvesting raises a CAPTCHA every 5–10 minutes, and three wrong answers mean a 6-hour harvest block, so a wrong answer is far more expensive than a slow one. The policy is that a human answers by default (the runner pauses and beeps) and the solver sits behind a toggle in the viz header. Here we cover the solver's design and its record. It needs no OCR: the digits arrive as dot glyphs placed in the gump layout, so the packet already carries the shapes, and the solver matches each one against a small reference font captured from earlier CAPTCHAs (<a class="ref" href="#fig-safety-solver"></a>).</p>
+<figure class="fig" id="fig-safety-solver">
+<pre class="mermaid">flowchart LR
+  G["CAPTCHA gump<br/>(decoys ignored)"] --> M{"captcha_mode"}
+  M -->|"human (default)"| H["urgent juncture + beep;<br/>a person answers in the client"]
+  M -->|auto| S["glyphs → three digits"]
+  S --> C["template match against<br/>the captured reference font"]
+  C --> MG{"every digit clearly<br/>better than its runner-up?"}
+  MG -->|yes| A["answer at a human pace"]
+  MG -->|no| H
+  classDef green fill:#e8f3ea,stroke:#3d7f4f,color:#1f2328
+  classDef gold fill:#fbf3dc,stroke:#b8892a,color:#1f2328
+  class A green
+  class H gold</pre>
+<figcaption>The CAPTCHA path in the lumber runner, at the level of design. Anything the solver is unsure of goes to the human: &ldquo;never guess — a wrong answer is a strike&rdquo;. Source: <code>harness/captcha.py</code>, <code>loop_lumber.py</code> captcha handoff.</figcaption>
+</figure>
+<p>The confidence margin is the safety mechanism, and calibration showed its limit. With the only real 9 held out, the solver &ldquo;confidently misreads 194 as 184&rdquo;: &ldquo;the margin gate guards ambiguity, not a digit shape the font has never seen&rdquo;. A gate can refuse an ambiguous reading; it cannot know that a glyph is new. So the reference font kept growing, from 21 digit samples at launch to 73 references by 10-03, when leave-one-session-out scoring was 24/24.</p>
+<figure class="fig wide" id="fig-safety-captcha"><div class="frame"><!--#include figures/08_captcha.svg--></div><figcaption>Left: time from CAPTCHA gump to answer for the 53 real CAPTCHAs in the store, 2026-09-29 → 10-05, by who answered. The solver waits a human-like delay before answering, so by design it is no faster than a person. Right: the 159 digits seen; 0 never appeared, so the 0 template is still synthetic. Source: <code>data/08_captchas.json</code> (memory DB events, read-only).</figcaption></figure>
+<p>The outcome: 53 real CAPTCHAs, 53 answers, 53 &ldquo;Captcha successful.&rdquo;, 0 strikes. The solver answered 43 (median 13.25 s) and a human in the client answered 10 (median 10.21 s). We suspect the shard simply never uses 0, which would explain why we never captured a real one.</p>
+
+<h3 id="sec-safety-hunt">The one runner that fights: hunt loop and crawl</h3>
+<p>After the overseer let Hackworth fall to 2/96, fighting moved into a deterministic runner, <code>loop_hunt.py</code> <span class="src">f5008fd</span>. Each tick it takes the first of Leave → Speech hold → Heal → Stationary Penalty → Loot → Fight → Idle that applies. It leaves for a hostile player within 12 tiles, for two or more attackers below 80 % hits, or below 60 % plus a margin for the walk out, and heals with a potion when it can, else by spell.</p>
+<aside class="side">The <b>Stationary Penalty</b> is an Outlands debuff: it appeared 301.0–314.8 s after the last step in all 40 measured cases, and 5 steps clear it.</aside>
+<p>One fight spot yields only 0.4–0.5 kills a minute and invites the Stationary Penalty, so the <em>crawl</em> patrols the New Player Dungeon instead <span class="src">ee62f02</span>. Its floor graph has 10,829 tiles, up to 182 route steps deep, cut into five depth zones with 147 waypoints. Zone 1 starts at the store's measured 23.4 hits lost per minute; each deeper zone's prior is the one above times a depth risk of 1.5; and a zone opens only when its predicted damage is at most 30 hits/min. Since <span class="math">23.4 \times 1.5 = 35.1 > 30</span>, zone 2 stays shut until zone 1 proves cheaper than about 20 hits/min.</p>
+<p>Across 10-02 and 10-03 the hunt runner made 36 visits (265.7 minutes) for 173 kills and 2,785 gold. It left 32 times (18 for low hits, 9 for multiple attackers, 5 done) and died 0 times. The crawl has run live in zone 1 only.</p>
+
+<h3 id="sec-safety-open">What still kills us</h3>
+<p>Nusero set the open problem: a stealthing mage who appears at 11 tiles and casts within 1.9 s beats a 2.03 s recall. <span class="src">docs/PLAN.md "PK survival"</span> lists three answers. <strong>Detecting stealthers</strong>: Hackworth's Tracking sees hidden players only within about 8 tiles. <strong>Magic Reflection</strong>: at Nusero it would have bounced the Weaken, and recall 1 would have landed 0.49 s before his Harm; Hackworth lumbered with it up on the evening of 10-03, when it absorbed a gazer larva's spell (N3). <strong>Mounted flight with scripted healing</strong> helps only with a guard zone or line-of-sight break in reach. None has met a real PK yet. The system survives the threats it has met, and it learned each one by dying to it first.</p>
+</section>

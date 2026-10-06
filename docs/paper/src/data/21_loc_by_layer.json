@@ -1,0 +1,930 @@
+{
+ "source": "local://data/loc_by_module.json (research dataset; working tree at HEAD afbbf71, 2026-10-05; physical lines). Layer assignment by this appendix.",
+ "layers": [
+  {
+   "key": "proxy",
+   "name": "Proxy and protocol",
+   "files": 17,
+   "lines": 3011,
+   "modules": [
+    {
+     "module": "proxy.py",
+     "lines": 1087,
+     "purpose": "The proxy: relay, tap, MoveAuthority, injection hub, state port"
+    },
+    {
+     "module": "actions.py",
+     "lines": 527,
+     "purpose": "Typed action API: builders for stock-shaped client→server packets"
+    },
+    {
+     "module": "movement_driver.py",
+     "lines": 236,
+     "purpose": "Reference walk-packet model (offline replay of real walks)"
+    },
+    {
+     "module": "uo/speech.py",
+     "lines": 144,
+     "purpose": "Speech keyword table (speech.mul) and 0xAD keyword encoding"
+    },
+    {
+     "module": "audit_ghost_targets.py",
+     "lines": 127,
+     "purpose": "Audit a capture for packets aimed at serials the client had dropped"
+    },
+    {
+     "module": "uo/s2c.py",
+     "lines": 118,
+     "purpose": "Outlands S2C wire format: prelude, XOR layer, per-packet Huffman"
+    },
+    {
+     "module": "uo/gumps.py",
+     "lines": 116,
+     "purpose": "Gump layout parsing"
+    },
+    {
+     "module": "uo/packets.py",
+     "lines": 107,
+     "purpose": "UO packet framing; upstream table + C2S overrides"
+    },
+    {
+     "module": "divert_nat.py",
+     "lines": 88,
+     "purpose": "WinDivert NAT: redirects game traffic to the proxy"
+    },
+    {
+     "module": "tail_log.py",
+     "lines": 77,
+     "purpose": "Human-readable live tail of the newest proxy session log"
+    },
+    {
+     "module": "watch_walk.py",
+     "lines": 73,
+     "purpose": "Watch-and-mirror walk injector (retired experiment)"
+    },
+    {
+     "module": "uo/_generated_tables.py",
+     "lines": 71,
+     "purpose": "Huffman tree + upstream table, generated from ClassicUO C#"
+    },
+    {
+     "module": "uo/cliloc.py",
+     "lines": 69,
+     "purpose": "Cliloc string table (Cliloc.enu) and argument formatting"
+    },
+    {
+     "module": "inject.py",
+     "lines": 65,
+     "purpose": "Drive action injections into the live proxy (Phase 3 validation)"
+    },
+    {
+     "module": "walk_cli.py",
+     "lines": 64,
+     "purpose": "Terminal arrow-key walk control through the proxy"
+    },
+    {
+     "module": "uo/outlands_table.py",
+     "lines": 41,
+     "purpose": "Authoritative Outlands packet length table"
+    },
+    {
+     "module": "uo/__init__.py",
+     "lines": 1,
+     "purpose": "Package marker"
+    }
+   ]
+  },
+  {
+   "key": "world",
+   "name": "World model, map and memory",
+   "files": 12,
+   "lines": 4978,
+   "modules": [
+    {
+     "module": "world/runtime.py",
+     "lines": 798,
+     "purpose": "WorldRuntime: framed packets into the StateStore + event queue"
+    },
+    {
+     "module": "world/parsers.py",
+     "lines": 789,
+     "purpose": "One generic table reader plus procedural parsers"
+    },
+    {
+     "module": "memory.py",
+     "lines": 678,
+     "purpose": "One durable, indexed SQLite store"
+    },
+    {
+     "module": "nav.py",
+     "lines": 543,
+     "purpose": "2-D walk memory + optimistic route planner (8-neighbour grid)"
+    },
+    {
+     "module": "uomap.py",
+     "lines": 511,
+     "purpose": "Read-only reader for the .uoo map, tiledata and multis"
+    },
+    {
+     "module": "world/state.py",
+     "lines": 492,
+     "purpose": "Last-write-wins snapshots with lazy identity resolution"
+    },
+    {
+     "module": "pathfind.py",
+     "lines": 326,
+     "purpose": "3-D walkability and route planning over the map"
+    },
+    {
+     "module": "places.py",
+     "lines": 286,
+     "purpose": "Named places to travel to (books, landings)"
+    },
+    {
+     "module": "localmap.py",
+     "lines": 187,
+     "purpose": "ASCII map of the surroundings for the overseer (ctl map)"
+    },
+    {
+     "module": "world/layouts.py",
+     "lines": 183,
+     "purpose": "Declarative packet field tables"
+    },
+    {
+     "module": "replay.py",
+     "lines": 174,
+     "purpose": "Offline session replay through the full world-model pipeline"
+    },
+    {
+     "module": "world/__init__.py",
+     "lines": 11,
+     "purpose": "Package exports"
+    }
+   ]
+  },
+  {
+   "key": "runners",
+   "name": "Runners",
+   "files": 18,
+   "lines": 9885,
+   "modules": [
+    {
+     "module": "loop_lumber.py",
+     "lines": 3443,
+     "purpose": "Lumber loop runner"
+    },
+    {
+     "module": "loop_hunt.py",
+     "lines": 1831,
+     "purpose": "Hunt loop: fight at a spot, heal, loot, leave when hurt"
+    },
+    {
+     "module": "agent_link.py",
+     "lines": 876,
+     "purpose": "Shared plumbing for closed-loop runners (Link, Mover)"
+    },
+    {
+     "module": "crawl.py",
+     "lines": 782,
+     "purpose": "Dungeon crawl for the hunt runner"
+    },
+    {
+     "module": "tracking.py",
+     "lines": 338,
+     "purpose": "Tracking's Hunting mode via the Tracking gump"
+    },
+    {
+     "module": "loop_mine.py",
+     "lines": 328,
+     "purpose": "Demonstration miner (M0)"
+    },
+    {
+     "module": "combat.py",
+     "lines": 316,
+     "purpose": "Combat rules and stock packet sequences"
+    },
+    {
+     "module": "room.py",
+     "lines": 263,
+     "purpose": "Rental room menu flow in/out"
+    },
+    {
+     "module": "shelf.py",
+     "lines": 248,
+     "purpose": "Resupply from a Storage Shelf"
+    },
+    {
+     "module": "agent_gate.py",
+     "lines": 237,
+     "purpose": "Pause, kill switch, mandatory breaks, daily budget"
+    },
+    {
+     "module": "aspects.py",
+     "lines": 236,
+     "purpose": "The Aspect Mastery gump"
+    },
+    {
+     "module": "humanize.py",
+     "lines": 198,
+     "purpose": "Human-like timing and texture for agent runners"
+    },
+    {
+     "module": "stationary.py",
+     "lines": 179,
+     "purpose": "Outlands' Stationary Penalty: see it, walk it off"
+    },
+    {
+     "module": "errand_bank.py",
+     "lines": 166,
+     "purpose": "Unattended bank run (Phase 3 acceptance task)"
+    },
+    {
+     "module": "mount.py",
+     "lines": 151,
+     "purpose": "Find, ride and revive our mount"
+    },
+    {
+     "module": "healing.py",
+     "lines": 126,
+     "purpose": "Self-healing choice (potion vs spell)"
+    },
+    {
+     "module": "stockpile.py",
+     "lines": 115,
+     "purpose": "Deposit items into a Resource Stockpile"
+    },
+    {
+     "module": "home.py",
+     "lines": 52,
+     "purpose": "A character's home for harvest trips"
+    }
+   ]
+  },
+  {
+   "key": "planner",
+   "name": "Planner",
+   "files": 1,
+   "lines": 1602,
+   "modules": [
+    {
+     "module": "lumber_opt.py",
+     "lines": 1602,
+     "purpose": "Self-optimizing lumber job: where to chop, how much to carry, which hatchet"
+    }
+   ]
+  },
+  {
+   "key": "safety",
+   "name": "Safety",
+   "files": 9,
+   "lines": 3005,
+   "modules": [
+    {
+     "module": "escape.py",
+     "lines": 787,
+     "purpose": "Recall to the default rune of a runebook/tome on a red sighting"
+    },
+    {
+     "module": "threats.py",
+     "lines": 707,
+     "purpose": "Threat assessment over one state-port response (pure)"
+    },
+    {
+     "module": "ledger.py",
+     "lines": 435,
+     "purpose": "Backpack ledger: inventory accounting, theft/death detection"
+    },
+    {
+     "module": "speech_guard.py",
+     "lines": 275,
+     "purpose": "Speech guard for automated harvest jobs"
+    },
+    {
+     "module": "travel_guard.py",
+     "lines": 204,
+     "purpose": "Safety rules for the overseer's own walks"
+    },
+    {
+     "module": "captcha_mine.py",
+     "lines": 190,
+     "purpose": "Mine accepted captchas from captures into the dataset"
+    },
+    {
+     "module": "captcha.py",
+     "lines": 142,
+     "purpose": "Captcha solver from the gump layout (no OCR)"
+    },
+    {
+     "module": "pouch.py",
+     "lines": 137,
+     "purpose": "Trapped pouches and the thief alarm"
+    },
+    {
+     "module": "guards.py",
+     "lines": 128,
+     "purpose": "Town-guard zones to run to when recall fails"
+    }
+   ]
+  },
+  {
+   "key": "overseer",
+   "name": "Overseer and tools",
+   "files": 18,
+   "lines": 9858,
+   "modules": [
+    {
+     "module": "ctl.py",
+     "lines": 3327,
+     "purpose": "Overseer control CLI: the AI overseer's hands and ears"
+    },
+    {
+     "module": "discord_kb.py",
+     "lines": 1102,
+     "purpose": "Discord corpus → vetted game facts"
+    },
+    {
+     "module": "discord_capture.py",
+     "lines": 1085,
+     "purpose": "Capture Discord history through a real browser"
+    },
+    {
+     "module": "triage_data.py",
+     "lines": 628,
+     "purpose": "Build Laya's fine-tuning set and held-out lines"
+    },
+    {
+     "module": "stack.py",
+     "lines": 534,
+     "purpose": "Supervisor for proxy, viz, Laya, Telegram"
+    },
+    {
+     "module": "knowledge.py",
+     "lines": 505,
+     "purpose": "Overseer long-term memory (ctl know)"
+    },
+    {
+     "module": "dbhandoff.py",
+     "lines": 491,
+     "purpose": "Hand the memory store between computers via the NAS"
+    },
+    {
+     "module": "telegram_bridge.py",
+     "lines": 350,
+     "purpose": "Telegram bridge for the overseer bus"
+    },
+    {
+     "module": "task_wrap.py",
+     "lines": 287,
+     "purpose": "Runs one whitelisted task for the overseer"
+    },
+    {
+     "module": "triage_train.py",
+     "lines": 269,
+     "purpose": "Fine-tune Laya's English checkpoint"
+    },
+    {
+     "module": "backup.py",
+     "lines": 255,
+     "purpose": "NAS backup of gitignored data"
+    },
+    {
+     "module": "discord_search.py",
+     "lines": 249,
+     "purpose": "Semantic search over the captured Discord history"
+    },
+    {
+     "module": "triage.py",
+     "lines": 233,
+     "purpose": "Speech triage with Laya"
+    },
+    {
+     "module": "eval_triage.py",
+     "lines": 203,
+     "purpose": "Measure Laya triage on a labeled set"
+    },
+    {
+     "module": "screen.py",
+     "lines": 170,
+     "purpose": "Screenshot of the game window for the overseer"
+    },
+    {
+     "module": "alerts.py",
+     "lines": 71,
+     "purpose": "Sounds for the human at the PC"
+    },
+    {
+     "module": "embedder.py",
+     "lines": 70,
+     "purpose": "Local text embedder (bge-small-en-v1.5, GPU)"
+    },
+    {
+     "module": "laya_serve_local.py",
+     "lines": 29,
+     "purpose": "laya-serve with a local fine-tuned checkpoint"
+    }
+   ]
+  },
+  {
+   "key": "vizpy",
+   "name": "Viz backend",
+   "files": 8,
+   "lines": 2829,
+   "modules": [
+    {
+     "module": "jobs.py",
+     "lines": 762,
+     "purpose": "Job analytics for the viz Jobs page"
+    },
+    {
+     "module": "viz_server.py",
+     "lines": 746,
+     "purpose": "Visualizer backend: REST + SSE"
+    },
+    {
+     "module": "viz_feed.py",
+     "lines": 622,
+     "purpose": "Data feeds for the visualizer"
+    },
+    {
+     "module": "liveview.py",
+     "lines": 252,
+     "purpose": "Cropped live capture of the game window as JPEG frames"
+    },
+    {
+     "module": "paperdoll.py",
+     "lines": 195,
+     "purpose": "Paperdoll from the client's own art"
+    },
+    {
+     "module": "uoart.py",
+     "lines": 120,
+     "purpose": "gumps.uoo / art.uoo readers"
+    },
+    {
+     "module": "facet.py",
+     "lines": 107,
+     "purpose": "Facet picture reader served as PNG chunks"
+    },
+    {
+     "module": "pngenc.py",
+     "lines": 25,
+     "purpose": "Minimal stdlib PNG writer"
+    }
+   ]
+  }
+ ],
+ "other": [
+  {
+   "key": "tests_harness",
+   "name": "Tests (harness unit/integration)",
+   "files": 41,
+   "lines": 13096
+  },
+  {
+   "key": "tests_root",
+   "name": "Tests (root end-to-end)",
+   "files": 5,
+   "lines": 5350
+  },
+  {
+   "key": "viz_front",
+   "name": "Viz frontend (TS/TSX/CSS)",
+   "files": 66,
+   "lines": 9672,
+   "split": {
+    "css": {
+     "files": 1,
+     "lines": 1959
+    },
+    "components": {
+     "files": 23,
+     "lines": 3559
+    },
+    "logic": {
+     "files": 24,
+     "lines": 2835
+    },
+    "tests": {
+     "files": 18,
+     "lines": 1319
+    }
+   }
+  },
+  {
+   "key": "re_scripts",
+   "name": "RE + ops scripts (root .py/.ps1/.cmd)",
+   "files": 24,
+   "lines": 1492
+  },
+  {
+   "key": "ghidra",
+   "name": "Ghidra scripts (Java)",
+   "files": 23,
+   "lines": 1397
+  }
+ ],
+ "tests": [
+  {
+   "path": "test_loop_lumber.py",
+   "lines": 3079,
+   "test_functions": 0,
+   "doc": "Offline end-to-end test of the lumber loop runner (harness/loop_lumber.py)."
+  },
+  {
+   "path": "harness/test_ctl.py",
+   "lines": 1874,
+   "test_functions": 17,
+   "doc": "Tests for harness/ctl.py + harness/task_wrap.py: the overseer bus CLI (docs/OVERSEER.md)."
+  },
+  {
+   "path": "test_loop_hunt.py",
+   "lines": 1454,
+   "test_functions": 0,
+   "doc": "Offline end-to-end test of the hunt loop runner (harness/loop_hunt.py)."
+  },
+  {
+   "path": "harness/test_world_units.py",
+   "lines": 1391,
+   "test_functions": 27,
+   "doc": "Unit tests for the world-model parsers and runtime mechanics."
+  },
+  {
+   "path": "harness/test_viz.py",
+   "lines": 1125,
+   "test_functions": 9,
+   "doc": "Backend tests for the visualizer (docs/VISUALIZER.md §7): viz_feed + viz_server."
+  },
+  {
+   "path": "harness/test_actions.py",
+   "lines": 727,
+   "test_functions": 15,
+   "doc": "Phase 3 tests: action builders, proxy injection path, replay integration."
+  },
+  {
+   "path": "harness/test_lumber_opt.py",
+   "lines": 709,
+   "test_functions": 16,
+   "doc": "Behaviour of the lumber optimizer (harness/lumber_opt.py, docs/LUMBER_LOOP.md §6): which spot it picks (and the landing rune a trip recalls to from home), how much it carries, which hatchet, and what it learns from trips"
+  },
+  {
+   "path": "harness/test_escape.py",
+   "lines": 517,
+   "test_functions": 14,
+   "doc": "Tests for harness/escape.py: reading the default rune, the charges and the Cast Recall button from the runebook and rune tome gumps exactly as the server sent them (harness/testdata/escape_gumps.json, captured live 2026-"
+  },
+  {
+   "path": "harness/test_threats.py",
+   "lines": 469,
+   "test_functions": 11,
+   "doc": "Tests for harness/threats.py on synthetic state-port responses (no network)."
+  },
+  {
+   "path": "test_movement.py",
+   "lines": 447,
+   "test_functions": 2,
+   "doc": "Movement tests for the proxy's MoveAuthority (docs/MOVEMENT.md)."
+  },
+  {
+   "path": "harness/test_mover.py",
+   "lines": 432,
+   "test_functions": 12,
+   "doc": "Deterministic tests for agent_link.Mover human behaviour on a fake grid world."
+  },
+  {
+   "path": "harness/test_uomap.py",
+   "lines": 428,
+   "test_functions": 7,
+   "doc": "Tests for harness/uomap.py: Outlands .uoo map + tiledata reader."
+  },
+  {
+   "path": "harness/test_ledger.py",
+   "lines": 339,
+   "test_functions": 5,
+   "doc": "Tests for harness/ledger.py on synthetic state-port responses (no network)."
+  },
+  {
+   "path": "harness/test_knowledge.py",
+   "lines": 309,
+   "test_functions": 7,
+   "doc": "Tests for harness/knowledge.py: the overseer's long-term memory."
+  },
+  {
+   "path": "harness/test_nav.py",
+   "lines": 283,
+   "test_functions": 12,
+   "doc": "Tests for harness/nav.py: walk-memory reconstruction and the A* planner."
+  },
+  {
+   "path": "harness/test_discord_kb.py",
+   "lines": 269,
+   "test_functions": 6,
+   "doc": "discord_kb tests (harness/discord_kb.py, docs/NOTES.md \"Discord knowledge base\")."
+  },
+  {
+   "path": "harness/test_speech_guard.py",
+   "lines": 248,
+   "test_functions": 6,
+   "doc": "Tests for harness/speech_guard.py: who counts as a character speaking near us during a harvest job. Cases are shapes seen in the captures (2026-10-01 survey): player speech (\"bank\" from Kanbalt), Outlands' click echoes ("
+  },
+  {
+   "path": "harness/test_world_replay.py",
+   "lines": 246,
+   "test_functions": 7,
+   "doc": "Replay integration tests: feed captured sessions through the full pipeline."
+  },
+  {
+   "path": "harness/test_agent_gate.py",
+   "lines": 245,
+   "test_functions": 0,
+   "doc": "Tests for harness/agent_gate.py and its proxy wiring."
+  },
+  {
+   "path": "harness/test_crawl.py",
+   "lines": 238,
+   "test_functions": 5,
+   "doc": "The dungeon crawl's geometry and efficiency model (harness/crawl.py), offline."
+  },
+  {
+   "path": "test_errand.py",
+   "lines": 224,
+   "test_functions": 0,
+   "doc": "Offline end-to-end test of the bank errand (harness/errand_bank.py)."
+  },
+  {
+   "path": "harness/test_telegram_bridge.py",
+   "lines": 222,
+   "test_functions": 4,
+   "doc": "Tests for harness/telegram_bridge.py against a fake Bot API on localhost: what reaches the phone (and in what order, loud or silent), what comes back as user chat, and delivery through rate limits and refusals. No networ"
+  },
+  {
+   "path": "harness/test_dbhandoff.py",
+   "lines": 199,
+   "test_functions": 0,
+   "doc": "Memory store handoff tests (harness/dbhandoff.py, docs/NOTES.md \"Two computers (memory store handoff)\"). Two computers A and B share one temp \"NAS\" folder."
+  },
+  {
+   "path": "harness/test_pathfind.py",
+   "lines": 180,
+   "test_functions": 0,
+   "doc": "Tests for harness/pathfind.py on the real Outlands map (read-only install files)."
+  },
+  {
+   "path": "harness/test_aspects.py",
+   "lines": 171,
+   "test_functions": 4,
+   "doc": "Tests for harness/aspects.py: the Aspect Mastery gump exactly as the server sent it (harness/testdata/aspect_gumps.json, Outland Dan 2026-10-04) and the server's lines around an activation. No network."
+  },
+  {
+   "path": "harness/test_memory.py",
+   "lines": 169,
+   "test_functions": 5,
+   "doc": "Tests for harness/memory.py: the durable harness memory (docs/MEMORY.md)."
+  },
+  {
+   "path": "harness/test_stack.py",
+   "lines": 169,
+   "test_functions": 0,
+   "doc": "Stack supervisor tests (harness/stack.py, docs/NOTES.md \"Stack supervisor\"), with stand-in services: small Python listeners on free ports, in a temp folder and a temp memory store."
+  },
+  {
+   "path": "harness/test_loop_demo.py",
+   "lines": 166,
+   "test_functions": 0,
+   "doc": "Pins harness/data/loops/lumber.json to the demonstration capture it was written from (logs/session_20260929_204225, docs/LUMBER_LOOP.md §4)."
+  },
+  {
+   "path": "harness/test_pouch.py",
+   "lines": 164,
+   "test_functions": 4,
+   "doc": "Tests for harness/pouch.py (trapped pouches and the pop alarm) and nav.beyond. No network."
+  },
+  {
+   "path": "harness/test_travel_guard.py",
+   "lines": 159,
+   "test_functions": 5,
+   "doc": "The overseer's walk guard (harness/travel_guard.py) on test_mover's fake grid world: routes bend around hostile creatures, a goal inside one's reach or a hostile player stops the walk, a ghost may still walk to a healer,"
+  },
+  {
+   "path": "harness/test_captcha.py",
+   "lines": 156,
+   "test_functions": 5,
+   "doc": "Captcha solver tests (harness/captcha.py, ANTICHEAT.md §8.8/§8.13)."
+  },
+  {
+   "path": "harness/test_discord_capture.py",
+   "lines": 149,
+   "test_functions": 3,
+   "doc": "Discord capture tests (harness/discord_capture.py, docs/NOTES.md \"Discord capture\")."
+  },
+  {
+   "path": "test_proxy.py",
+   "lines": 146,
+   "test_functions": 0,
+   "doc": "Offline end-to-end test: replay the captured session through the proxy."
+  },
+  {
+   "path": "harness/test_healing.py",
+   "lines": 144,
+   "test_functions": 0,
+   "doc": "Tests for harness/healing.py: what to heal with (potion first, else Heal or Greater Heal by the missing hits and what can be paid for: mana, reagents or a spellstone), on synthetic world snapshots (no network)."
+  },
+  {
+   "path": "harness/test_triage.py",
+   "lines": 139,
+   "test_functions": 3,
+   "doc": "Tests for harness/triage.py: the Laya verdict on a line heard during a harvest job. A stand-in laya-serve (stdlib HTTP) returns fixed scores, so the tests cover our side: the escalation threshold, the prompt we send, fai"
+  },
+  {
+   "path": "harness/test_facet.py",
+   "lines": 137,
+   "test_functions": 0,
+   "doc": "Tests for harness/facet.py and viz_server's /api/facet routes."
+  },
+  {
+   "path": "harness/test_liveview.py",
+   "lines": 135,
+   "test_functions": 2,
+   "doc": "Tests for harness/liveview.py and the viz_server live routes."
+  },
+  {
+   "path": "harness/test_paperdoll.py",
+   "lines": 132,
+   "test_functions": 0,
+   "doc": "Tests for harness/paperdoll.py."
+  },
+  {
+   "path": "harness/test_places.py",
+   "lines": 107,
+   "test_functions": 2,
+   "doc": "Tests for harness/places.py's own books and landings(): every known rune that lands near a tile, from the rune libraries (harness/data/rune_libraries.json) and the character's own books (memory-store meta `own_books`)."
+  },
+  {
+   "path": "harness/test_backup.py",
+   "lines": 104,
+   "test_functions": 2,
+   "doc": "Backup tests (harness/backup.py, docs/NOTES.md \"Backups\")."
+  },
+  {
+   "path": "harness/test_guards.py",
+   "lines": 102,
+   "test_functions": 6,
+   "doc": "Tests for harness/guards.py (guard-zone crossings, flight goals, bank markers), nav.any_of, agent_link.stamina_ok and the memory store's guard_points. No network."
+  },
+  {
+   "path": "harness/test_staff_sighting_replay.py",
+   "lines": 102,
+   "test_functions": 0,
+   "doc": "Regression: the invulnerable-player staff hint (speech_guard.invulnerable_player, notoriety 7 + player flag 0x20; docs/PLAN.md \"Staff alarm on an invulnerable player in view\") never fires on any committed capture."
+  },
+  {
+   "path": "harness/test_uoart.py",
+   "lines": 81,
+   "test_functions": 0,
+   "doc": "Tests for harness/uoart.py."
+  },
+  {
+   "path": "harness/test_pngenc.py",
+   "lines": 69,
+   "test_functions": 0,
+   "doc": "Tests for harness/pngenc.py (screenshots, paperdoll)."
+  },
+  {
+   "path": "harness/test_discord_search.py",
+   "lines": 66,
+   "test_functions": 1,
+   "doc": "Discord semantic search chunking tests (harness/discord_search.py)."
+  },
+  {
+   "path": "harness/test_world.py",
+   "lines": 25,
+   "test_functions": 0,
+   "doc": "Phase 2 world-model test entry point."
+  }
+ ],
+ "re_scripts": [
+  {
+   "path": "mrt_parse.py",
+   "lines": 649,
+   "doc": "mrt_parse.py - NativeAOT NativeFormat (.mrt) reflection metadata parser."
+  },
+  {
+   "path": "start_proxy_nat.ps1",
+   "lines": 98,
+   "doc": ""
+  },
+  {
+   "path": "walk_handlers.py",
+   "lines": 67,
+   "doc": "Walk the frozen NativeAOT statics for PacketHandlers.Handler and dump the delegate array."
+  },
+  {
+   "path": "analyze_capture.py",
+   "lines": 64,
+   "doc": "Offline verification: decode the pktmon capture of a real Test Shard session."
+  },
+  {
+   "path": "greedy_decode.py",
+   "lines": 64,
+   "doc": "Greedy-decode C2S streams with the per-packet cipher model c[i] = p[i] ^ KS[i]."
+  },
+  {
+   "path": "scan_launcher.py",
+   "lines": 59,
+   "doc": ""
+  },
+  {
+   "path": "scan_ac.py",
+   "lines": 58,
+   "doc": ""
+  },
+  {
+   "path": "capture_window.ps1",
+   "lines": 50,
+   "doc": ""
+  },
+  {
+   "path": "reassemble.py",
+   "lines": 49,
+   "doc": "Proper TCP reassembly from the fixed pcap: per-direction, seq-ordered, retransmission-safe."
+  },
+  {
+   "path": "extract_strings.py",
+   "lines": 45,
+   "doc": ""
+  },
+  {
+   "path": "extract_resources.py",
+   "lines": 38,
+   "doc": "Extract NativeAOT embedded resources (RTR sections 324 ResourceIndex / 325 ResourceData)."
+  },
+  {
+   "path": "gen_tables.py",
+   "lines": 36,
+   "doc": "Regenerate Python tables from upstream C# source (no manual transcription)."
+  },
+  {
+   "path": "fix_pcap.py",
+   "lines": 32,
+   "doc": ""
+  },
+  {
+   "path": "monitor_endpoints.ps1",
+   "lines": 30,
+   "doc": ""
+  },
+  {
+   "path": "scan_endpoints.py",
+   "lines": 29,
+   "doc": ""
+  },
+  {
+   "path": "capture_game_screen.ps1",
+   "lines": 28,
+   "doc": ""
+  },
+  {
+   "path": "allow_viz_lan.ps1",
+   "lines": 26,
+   "doc": ""
+  },
+  {
+   "path": "register_backup_task.ps1",
+   "lines": 22,
+   "doc": ""
+  },
+  {
+   "path": "restart_divert.ps1",
+   "lines": 16,
+   "doc": ""
+  },
+  {
+   "path": "point_at_proxy.ps1",
+   "lines": 10,
+   "doc": ""
+  },
+  {
+   "path": "launch_game.ps1",
+   "lines": 7,
+   "doc": ""
+  },
+  {
+   "path": "capture_start.bat",
+   "lines": 5,
+   "doc": ""
+  },
+  {
+   "path": "capture_stop.bat",
+   "lines": 5,
+   "doc": ""
+  },
+  {
+   "path": "ctl.cmd",
+   "lines": 5,
+   "doc": ""
+  }
+ ],
+ "viz_tests": {
+  "files": 18,
+  "test_cases": 128
+ }
+}

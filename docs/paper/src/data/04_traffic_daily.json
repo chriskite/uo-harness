@@ -1,0 +1,100 @@
+{
+ "source": "logs/session_*.jsonl, 69 sessions 2026-09-28 \u2192 10-05 grouped by session start date (research dataset proxy_sessions.json)",
+ "totals": {
+  "c2s_client": 363443,
+  "s2c_server": 2242441,
+  "c2s_agent": 75113,
+  "s2c_proxy": 52699
+ },
+ "hours": 72.0,
+ "days": [
+  {
+   "day": "09-28",
+   "hours": 1.75,
+   "c2s_client": 7288,
+   "c2s_agent": 0,
+   "reanchor": 0,
+   "target_cancel": 0,
+   "gump_close": 0,
+   "confirm_hidden": 0,
+   "spent_drop": 0
+  },
+  {
+   "day": "09-29",
+   "hours": 6.69,
+   "c2s_client": 32568,
+   "c2s_agent": 1499,
+   "reanchor": 134,
+   "target_cancel": 0,
+   "gump_close": 0,
+   "confirm_hidden": 1240,
+   "spent_drop": 0
+  },
+  {
+   "day": "09-30",
+   "hours": 12.45,
+   "c2s_client": 50058,
+   "c2s_agent": 11329,
+   "reanchor": 1558,
+   "target_cancel": 4,
+   "gump_close": 135,
+   "confirm_hidden": 10501,
+   "spent_drop": 4
+  },
+  {
+   "day": "10-01",
+   "hours": 2.62,
+   "c2s_client": 22177,
+   "c2s_agent": 5965,
+   "reanchor": 4844,
+   "target_cancel": 513,
+   "gump_close": 9,
+   "confirm_hidden": 4842,
+   "spent_drop": 513
+  },
+  {
+   "day": "10-02",
+   "hours": 20.17,
+   "c2s_client": 95270,
+   "c2s_agent": 13384,
+   "reanchor": 9162,
+   "target_cancel": 1574,
+   "gump_close": 131,
+   "confirm_hidden": 9161,
+   "spent_drop": 1574
+  },
+  {
+   "day": "10-03",
+   "hours": 12.44,
+   "c2s_client": 85404,
+   "c2s_agent": 21546,
+   "reanchor": 16895,
+   "target_cancel": 1443,
+   "gump_close": 162,
+   "confirm_hidden": 16893,
+   "spent_drop": 1443
+  },
+  {
+   "day": "10-04",
+   "hours": 5.17,
+   "c2s_client": 22136,
+   "c2s_agent": 2245,
+   "reanchor": 698,
+   "target_cancel": 116,
+   "gump_close": 1051,
+   "confirm_hidden": 698,
+   "spent_drop": 116
+  },
+  {
+   "day": "10-05",
+   "hours": 10.74,
+   "c2s_client": 48542,
+   "c2s_agent": 19145,
+   "reanchor": 11845,
+   "target_cancel": 2038,
+   "gump_close": 387,
+   "confirm_hidden": 11841,
+   "spent_drop": 2038
+  }
+ ]
+}

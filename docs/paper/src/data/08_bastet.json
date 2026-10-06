@@ -1,0 +1,89 @@
+{
+ "source": "local://data/incidents.json bastet_encounters (docs/NOTES.md:305-319; docs/research/SPELL_INTERRUPTS.md:72-88; harness.db events session 58). Seconds from first sight.",
+ "recall_cast_s": 2.03,
+ "encounters": [
+  {
+   "name": "Terran wilds, 10-02 19:43",
+   "sight_tiles": 18,
+   "react": "runner stopped (0.29 s); no recall tried",
+   "attacking": 2.8,
+   "hits": [
+    4.58,
+    6.48,
+    8.35,
+    9.65,
+    10.96
+   ],
+   "death": 10.96,
+   "casts": [],
+   "hypothetical_cast": [
+    0.29,
+    2.32
+   ],
+   "tracking": null,
+   "notes": {
+    "hamstring": 4.58
+   }
+  },
+  {
+   "name": "Nusero SE, 10-03 18:04",
+   "sight_tiles": 11,
+   "react": "tome opened 0.92 s",
+   "attacking": null,
+   "hits": [
+    8.07
+   ],
+   "hits_span": [
+    8.07,
+    14.58
+   ],
+   "death": 14.58,
+   "casts": [
+    [
+     1.05,
+     1.88,
+     "disturbed (Weaken)"
+    ],
+    [
+     2.05,
+     2.05,
+     "not recovered"
+    ],
+    [
+     2.61,
+     3.57,
+     "disturbed (Harm)"
+    ]
+   ],
+   "gave_up": 3.64,
+   "spells": [
+    1.88,
+    3.57
+   ],
+   "tracking": null
+  },
+  {
+   "name": "Terran wilds, 10-03 19:08",
+   "sight_tiles": null,
+   "react": "tome opened 2.5 s (inside a 2.1 s aim pause)",
+   "attacking": 1.94,
+   "hits": [
+    3.02,
+    4.32,
+    5.61,
+    8.39
+   ],
+   "death": 8.39,
+   "casts": [
+    [
+     2.5,
+     3.02,
+     "disturbed (first hit)"
+    ]
+   ],
+   "tracking": -4.57,
+   "tracking_tiles": 55,
+   "tracking_10_tiles": 0.98
+  }
+ ]
+}

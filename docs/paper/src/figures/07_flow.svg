@@ -1,0 +1,71 @@
+<svg class="diagram" viewBox="0 0 1000 470" role="img" aria-label="Planner data flow">
+<rect class="d-zone" x="16" y="16" width="228" height="390" rx="10"/>
+<text class="d-small" x="130" y="32" text-anchor="middle">memory store + live state</text>
+<rect class="d-zone" x="286" y="16" width="248" height="390" rx="10"/>
+<text class="d-small" x="410" y="32" text-anchor="middle">posteriors (per spot, pooled)</text>
+<rect class="d-box gold" x="30" y="44" width="200" height="46" rx="8"/>
+<text class="d-text" x="130.0" y="63" text-anchor="middle">character</text>
+<text class="d-small" x="130.0" y="80" text-anchor="middle">skill · hatchets · weight</text>
+<rect class="d-box gold" x="30" y="104" width="200" height="46" rx="8"/>
+<text class="d-text" x="130.0" y="123" text-anchor="middle">trip rows</text>
+<text class="d-small" x="130.0" y="140" text-anchor="middle">every trip, aborted ones too</text>
+<rect class="d-box gold" x="30" y="164" width="200" height="46" rx="8"/>
+<text class="d-text" x="130.0" y="183" text-anchor="middle">home + rune libraries</text>
+<text class="d-small" x="130.0" y="200" text-anchor="middle">landings, own books</text>
+<rect class="d-box gold" x="30" y="224" width="200" height="46" rx="8"/>
+<text class="d-text" x="130.0" y="243" text-anchor="middle">job events</text>
+<text class="d-small" x="130.0" y="260" text-anchor="middle">pk_seen · recall · thief · death</text>
+<rect class="d-box gold" x="30" y="284" width="200" height="46" rx="8"/>
+<text class="d-text" x="130.0" y="303" text-anchor="middle">harvest_attempts</text>
+<text class="d-small" x="130.0" y="320" text-anchor="middle">per-tree outcomes</text>
+<rect class="d-box gold" x="30" y="344" width="200" height="46" rx="8"/>
+<text class="d-text" x="130.0" y="363" text-anchor="middle">prices</text>
+<text class="d-small" x="130.0" y="380" text-anchor="middle">board · hatchets · supplies</text>
+<rect class="d-box blue" x="300" y="44" width="220" height="46" rx="8"/>
+<text class="d-text" x="410.0" y="63" text-anchor="middle">field rate λ</text>
+<text class="d-small" x="410.0" y="80" text-anchor="middle">Gamma, φ, skill-rescaled</text>
+<rect class="d-box blue" x="300" y="104" width="220" height="46" rx="8"/>
+<text class="d-text" x="410.0" y="123" text-anchor="middle">overhead T</text>
+<text class="d-small" x="410.0" y="140" text-anchor="middle">Normal, structural prior</text>
+<rect class="d-box blue" x="300" y="164" width="220" height="46" rx="8"/>
+<text class="d-text" x="410.0" y="183" text-anchor="middle">landing</text>
+<text class="d-small" x="410.0" y="200" text-anchor="middle">nearest rune with a route</text>
+<rect class="d-box blue" x="300" y="224" width="220" height="46" rx="8"/>
+<text class="d-text" x="410.0" y="243" text-anchor="middle">hazards h_D · h_S · h_T</text>
+<text class="d-small" x="410.0" y="260" text-anchor="middle">Gamma, shrunk to pooled</text>
+<rect class="d-box blue" x="300" y="284" width="220" height="46" rx="8"/>
+<text class="d-text" x="410.0" y="303" text-anchor="middle">regrowth window</text>
+<text class="d-small" x="410.0" y="320" text-anchor="middle">isotonic fit</text>
+<rect class="d-box blue" x="300" y="344" width="220" height="46" rx="8"/>
+<text class="d-text" x="410.0" y="363" text-anchor="middle">grove capacity</text>
+<text class="d-small" x="410.0" y="380" text-anchor="middle">Beta yielding share</text>
+<rect class="d-box purple" x="590" y="168" width="180" height="74" rx="8"/>
+<text class="d-text" x="680.0" y="190" text-anchor="middle" font-weight="700">Thompson sampling</text>
+<text class="d-small" x="680.0" y="209" text-anchor="middle">one draw per eligible spot</text>
+<text class="d-small" x="680.0" y="226" text-anchor="middle">value = max over Q of Rate(Q)</text>
+<rect class="d-box green" x="820" y="150" width="160" height="46" rx="8"/>
+<text class="d-text" x="900.0" y="169" text-anchor="middle">spot · Q* · trips</text>
+<text class="d-small" x="900.0" y="186" text-anchor="middle">timeout · hatchet · regrow</text>
+<rect class="d-box green" x="820" y="260" width="160" height="46" rx="8"/>
+<text class="d-text" x="900.0" y="279" text-anchor="middle">ctl run lumber …</text>
+<text class="d-small" x="900.0" y="296" text-anchor="middle">the runner (one spot)</text>
+<path class="d-edge" d="M 230 67.0 L 298 67.0"/>
+<path class="d-edge" d="M 230 119.0 L 298 75.0"/>
+<path class="d-edge" d="M 230 127.0 L 298 127.0"/>
+<path class="d-edge" d="M 230 135.0 L 298 239.0"/>
+<path class="d-edge" d="M 230 187.0 L 298 187.0"/>
+<path class="d-edge" d="M 230 247.0 L 298 247.0"/>
+<path class="d-edge" d="M 230 307.0 L 298 307.0"/>
+<path class="d-edge" d="M 410.0 164 L 410.0 152"/>
+<path class="d-edge" d="M 410.0 330 L 410.0 342"/>
+<path class="d-edge blue" d="M 520 67.0 L 588 182"/>
+<path class="d-edge blue" d="M 520 127.0 L 588 196"/>
+<path class="d-edge blue" d="M 520 247.0 L 588 214"/>
+<path class="d-edge blue" d="M 520 367.0 L 588 230"/>
+<path class="d-edge" d="M 230 377.0 C 260 430, 560 430, 680.0 244"/>
+<text class="d-elabel" x="430" y="424" text-anchor="middle">gear and supplies in logs</text>
+<path class="d-edge" d="M 770 198 L 818 173.0"/>
+<path class="d-edge" d="M 900.0 196 L 900.0 258"/>
+<path class="d-edge dash" d="M 900.0 306 L 900.0 452 L 130 452 L 130 408"/>
+<text class="d-elabel" x="700" y="456" text-anchor="middle">a new trip row per trip</text>
+</svg>

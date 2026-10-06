@@ -1,0 +1,271 @@
+<section id="sec-wire">
+<h2>The wire</h2>
+<p class="lead">Everything the harness knows and everything it does passes through one asyncio process on localhost. This chapter shows how the stock client was put on that wire, how the stream is decoded (including the day we spent decoding it wrong), and how agent packets are spliced in so the server sees one ordinary client while the client is quietly kept in step.</p>
+
+<h3 id="sec-wire-why">Why a proxy</h3>
+<p>The first commit (<span class="src">e937fba</span>, 2026-09-27 21:47) was an anti-cheat research report, and it set one rule before any code existed: the Outlands client stays 100% stock. The Outlands build of ClassicUO is compiled to native code (NativeAOT), so that rule ruled out most of the obvious designs (<a class="ref" href="#tab-wire-alternatives"></a>).</p>
+
+<figure class="tbl" id="tab-wire-alternatives"><figcaption>Interception approaches considered on 2026-09-27. Verdicts quoted from docs/PLAN.md "Why a localhost proxy".</figcaption>
+<div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Approach</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td><strong>Localhost TCP proxy</strong> (chosen)</td><td>"Client 100% stock; full structured game state from packets; actions are protocol-identical to play; no anti-cheat tamper surface on the machine."</td></tr>
+<tr><td>Custom ClassicUO plugin</td><td>"Client is NativeAOT — no plugin loading possible. Dead."</td></tr>
+<tr><td>Binary patching / injection</td><td>"Technically hard (AOT, stripped), detectable via version checks. Dead."</td></tr>
+<tr><td>Computer vision + synthetic input</td><td>Low-fidelity and detectable. Dead as primary; screen capture kept only for sanity checks and CAPTCHA cropping.</td></tr>
+<tr><td>Razor scripts only</td><td>Sanctioned but capped: no programmatic state, "can't host an agent". Kept as an optional copilot mode.</td></tr>
+<tr><td>Local ServUO sandbox</td><td>"Deferred, not rejected." Fallback if Test Shard access became a problem.</td></tr>
+</tbody></table></div></figure>
+
+<p>A proxy sees what the client sees, and an injected packet is, on the wire, the same thing as a key press. The price is speaking the Outlands protocol perfectly in both directions. This chapter is about how the harness does that.</p>
+
+<h3 id="sec-wire-nat">Getting in the middle</h3>
+<p>The plan assumed upstream ClassicUO's <code>-ip</code>/<code>-port</code> arguments. On 2026-09-28 the Outlands fork turned out to ignore them, and <code>settings.json</code> too. The game server's address arrives as a literal IP in the HTTPS login response, and <code>play.uooutlands.com</code> "does not exist in DNS at all" <span class="src">docs/INTERCEPTION.md</span>, so there is no name to hijack either.</p>
+
+<aside class="side">WinDivert is a signed Windows driver that lets a user-mode program intercept and rewrite IP packets. <code>divert_nat.py</code> is 88 lines of pydivert on top of it and has to run elevated.</aside>
+<p>So the redirect moved below the client, into the kernel. <code>harness/divert_nat.py</code> catches outbound TCP to port 2593, rewrites <em>both</em> addresses to <code>127.0.0.1</code>, and remembers which server IP <em>S</em> each client source port <em>P</em> was dialling; a return rule undoes it. Rewriting only the destination failed silently, because Windows drops loopback-destination packets with a non-loopback source as martians. The proxy dials out from ports 25940–25960, which the filter excludes, so its own traffic doesn't loop.</p>
+
+<p>The first NAT matched one server IP, 74.91.115.123. On 2026-09-30 at 22:14 the client went to 35.71.142.123 instead, around the proxy "with no error shown", and twelve minutes later to 52.223.17.219. By 22:29 the NAT diverted <em>any</em> IP on :2593 (<span class="src">d0c7eb9</span>), and the proxy asks its lookup service on :25943 which IP the client meant, dials that, and drops connections the NAT doesn't know. Across the 69 session logs the upstream split 35 / 19 / 15 between the three addresses. No payload byte changes; the server sees the player's IP with a different source port, like any home router.</p>
+
+<figure class="fig wide" id="fig-wire-arch">
+<svg class="diagram" viewBox="0 0 960 530" role="img" aria-label="Proxy architecture">
+  <rect class="d-box blue" x="20" y="40" width="150" height="66" rx="8"/>
+  <text class="d-title" x="95" y="64" text-anchor="middle">ClassicUO.exe</text>
+  <text class="d-small" x="95" y="82" text-anchor="middle">stock Outlands client</text>
+  <text class="d-small" x="95" y="97" text-anchor="middle">connects to S:2593</text>
+
+  <rect class="d-box ext" x="20" y="200" width="150" height="66" rx="8"/>
+  <text class="d-text" x="95" y="224" text-anchor="middle">login.uooutlands.com</text>
+  <text class="d-small" x="95" y="242" text-anchor="middle">HTTPS, not intercepted</text>
+  <text class="d-small" x="95" y="257" text-anchor="middle">JWT + literal server IP S</text>
+  <path class="d-edge both" d="M95,106 L95,198"/>
+  <text class="d-elabel" x="104" y="156">login</text>
+
+  <rect class="d-box gold" x="240" y="40" width="190" height="112" rx="8"/>
+  <text class="d-title" x="335" y="62" text-anchor="middle">WinDivert NAT</text>
+  <text class="d-mono" x="335" y="82" text-anchor="middle">tcp.DstPort == 2593</text>
+  <text class="d-small" x="335" y="99" text-anchor="middle">any server IP, src port ∉ 25940–60</text>
+  <text class="d-small" x="335" y="115" text-anchor="middle">rewrite src+dst → 127.0.0.1</text>
+  <text class="d-small" x="335" y="131" text-anchor="middle">remember P → S; lookup :25943</text>
+  <text class="d-small" x="335" y="146" text-anchor="middle">divert_nat.py (elevated)</text>
+  <path class="d-edge both" d="M170,73 L238,73"/>
+  <text class="d-elabel" x="204" y="66" text-anchor="middle">S:2593</text>
+
+  <rect class="d-zone" x="465" y="18" width="295" height="342" rx="10"/>
+  <text class="d-title" x="612" y="38" text-anchor="middle">proxy.py (asyncio, 1,087 LOC)</text>
+
+  <rect class="d-box blue" x="482" y="50" width="262" height="64" rx="8"/>
+  <text class="d-text" x="613" y="68" text-anchor="middle" font-weight="700">SessionTap · listen 127.0.0.1:2593</text>
+  <text class="d-mono" x="613" y="86" text-anchor="middle">C2S: ^S, frame by v12 table</text>
+  <text class="d-mono" x="613" y="103" text-anchor="middle">S2C: ^K, Huffman per packet</text>
+  <path class="d-edge both" d="M430,73 L480,73"/>
+  <text class="d-elabel" x="455" y="66" text-anchor="middle">:2593</text>
+  <path class="d-edge dash" d="M482,104 L432,132"/>
+  <text class="d-elabel" x="457" y="134" text-anchor="middle">P?</text>
+
+  <rect class="d-box rust" x="482" y="124" width="262" height="50" rx="8"/>
+  <text class="d-text" x="613" y="144" text-anchor="middle" font-weight="700">MoveAuthority</text>
+  <text class="d-small" x="613" y="162" text-anchor="middle">seq/key ladder · hides agent confirms · re-anchors</text>
+
+  <rect class="d-box purple" x="482" y="184" width="262" height="50" rx="8"/>
+  <text class="d-text" x="613" y="204" text-anchor="middle" font-weight="700">InjectionHub + AgentGate</text>
+  <text class="d-small" x="613" y="222" text-anchor="middle">gate → walk gate → upstream → client fix-up</text>
+
+  <rect class="d-box green" x="482" y="244" width="262" height="46" rx="8"/>
+  <text class="d-text" x="613" y="263" text-anchor="middle" font-weight="700">WorldRuntime</text>
+  <text class="d-small" x="613" y="280" text-anchor="middle">world model fed with what the server saw</text>
+
+  <rect class="d-box" x="482" y="300" width="262" height="46" rx="8"/>
+  <text class="d-text" x="613" y="319" text-anchor="middle" font-weight="700">MemoryWriter · session logs</text>
+  <text class="d-small" x="613" y="336" text-anchor="middle">events → SQLite; .jsonl + .c2s.raw / .s2c.raw</text>
+
+  <rect class="d-box ext" x="800" y="40" width="145" height="150" rx="8"/>
+  <text class="d-title" x="872" y="62" text-anchor="middle">Outlands server</text>
+  <text class="d-mono" x="872" y="82" text-anchor="middle">S:2593, one of</text>
+  <text class="d-mono" x="872" y="100" text-anchor="middle">74.91.115.123</text>
+  <text class="d-mono" x="872" y="117" text-anchor="middle">35.71.142.123</text>
+  <text class="d-mono" x="872" y="134" text-anchor="middle">52.223.17.219</text>
+  <path class="d-edge both" d="M746,73 L798,73"/>
+  <text class="d-small" x="872" y="158" text-anchor="middle">proxy dials out from</text>
+  <text class="d-small" x="872" y="174" text-anchor="middle">ports 25940–25960</text>
+
+  <rect class="d-box gold" x="800" y="296" width="145" height="54" rx="8"/>
+  <text class="d-text" x="872" y="318" text-anchor="middle" font-weight="700">harness.db</text>
+  <text class="d-small" x="872" y="336" text-anchor="middle">SQLite memory store</text>
+  <path class="d-edge" d="M744,323 L798,323"/>
+
+  <rect class="d-box purple" x="240" y="400" width="190" height="62" rx="8"/>
+  <text class="d-text" x="335" y="422" text-anchor="middle" font-weight="700">Agent tools</text>
+  <text class="d-small" x="335" y="440" text-anchor="middle">ctl.py · runners · Mover</text>
+  <text class="d-small" x="335" y="454" text-anchor="middle">(driven by the Seer)</text>
+  <path class="d-edge" d="M335,400 L335,209 L480,209"/>
+  <text class="d-elabel" x="345" y="300">:25941 control</text>
+  <text class="d-elabel" x="345" y="316">u16be frames → OK / ERR</text>
+
+  <rect class="d-box green" x="482" y="400" width="262" height="62" rx="8"/>
+  <text class="d-text" x="613" y="422" text-anchor="middle" font-weight="700">State readers</text>
+  <text class="d-small" x="613" y="440" text-anchor="middle">viz · ctl · runners · gate CLI</text>
+  <path class="d-edge both" d="M613,362 L613,398"/>
+  <text class="d-elabel" x="622" y="384">:25942 JSON lines</text>
+
+  <rect class="d-box ext" x="800" y="400" width="145" height="62" rx="8"/>
+  <text class="d-text" x="872" y="422" text-anchor="middle" font-weight="700">stack.py</text>
+  <text class="d-small" x="872" y="440" text-anchor="middle">supervises proxy,</text>
+  <text class="d-small" x="872" y="454" text-anchor="middle">watches NAT :25943</text>
+
+  <text class="d-small" x="20" y="494">Server sees: client packets + agent packets on one seq/key ladder. Nothing proxy-originated, ever.</text>
+  <text class="d-small" x="20" y="512">Client-only: hidden agent 0x22 confirms; fabricated 0x21 re-anchors, 0x6C cancels, 0xBF sub 4 gump closes. The one client packet ever dropped: a reply to a spent target cursor.</text>
+</svg>
+<figcaption>The interception path and the proxy's internals. The client dials the real server; the kernel NAT rewrites the connection onto the proxy, which dials the original IP from its own port range. Agents act on the control port and read state on the state port. Source: docs/INTERCEPTION.md, harness/proxy.py, harness/divert_nat.py.</figcaption>
+</figure>
+
+<aside class="side">Ports: 2593 game listen; 25940–25960 upstream source ports; 25941 control (agent packets in); 25942 state (JSON out); 25943 NAT lookup. Full reference in <a class="ref" href="#app-protocol"></a>.</aside>
+<p>Inside, <code>harness/proxy.py</code> is one asyncio process: 218 lines at Phase 1 (<span class="src">0663786</span>), 1,087 now. A <code>SessionTap</code> per connection decodes both directions packet by packet, feeds the world model (<a class="ref" href="#sec-world"></a>), and logs every packet plus the raw wire, flushed on every call "so a killed proxy loses nothing". World-model exceptions are caught: "relay must survive any model bug".</p>
+
+<h3 id="sec-wire-codec">Two ciphers, one of them a compressor</h3>
+<p>The two directions are obfuscated differently. Client to server (C2S): a 5-byte cleartext preamble, then every byte XORed with one per-session key, <span class="math">c_i = p_i \oplus S</span> (we had first modelled a per-position keystream; "one byte explains everything"). Server to client (S2C): a 13-byte cleartext prelude carrying both keys, then every byte XORed with <em>K</em> and run through UO's standard static Huffman code.</p>
+
+<pre><code>prelude  ff 00 0d 00 00 00 00 00 00 00 0c K S    (K = S2C key, S = C2S key)
+C2S      ef 00 00 00 0c | packets ^ S
+S2C      prelude | per packet: Huffman(packet) FLUSH pad-to-byte, all ^ K</code></pre>
+
+<p>The S2C property everything later depends on: each server packet is compressed on its own and ends in the flush symbol, padded to a byte boundary, so <strong>one flush segment is exactly one packet</strong>. The proxy can forward a packet's original wire bytes, drop it, or substitute <code>encode_packet(new)</code> without touching the rest of the stream. Re-measured on session 20261001_191355, <code>harness/uo/s2c.py</code> decodes 1,298,764 raw bytes into 83,929 packets with no leftover bytes, and re-encoding reproduces the wire with <strong>0 mismatches</strong> (compression ratio 0.683).</p>
+
+<h3 id="sec-wire-phantom">The phantom dialect</h3>
+<p>For the first day we didn't know that, and the decode we had looked fine. The Phase 1 proxy (<span class="src">0663786</span>, 2026-09-28 12:09) started Huffman at byte 19 and applied no XOR. A static Huffman tree decodes any bit string, and garbage throws up a flush symbol every so often, so out came a steady supply of "packets"; a length table extended "by desync search" framed them "cleanly" for long runs. By evening there was a story: Outlands spoke a custom S2C dialect, with a "world-state stream" of ids <code>0x00/0x40/0x3F/0x52</code>, recurring 155- and 627-byte records, a MessagePack hypothesis, and a commit titled "World-state stream resolved (negative result)" (<span class="src">9265c57</span>, 18:22). Movement analysis then explained the missing fastwalk-key packets as "swallowed by the desynced regions".</p>
+
+<blockquote class="pull"><p>One wrong assumption (no XOR, Huffman from byte 19) produced a self-consistent-looking but false picture that survived for a day.</p><cite>— docs/PROTOCOL.md, lessons</cite></blockquote>
+
+<p>The correction came from the client. The decompiled <code>NetClient.ProcessRecv</code> XORs every received byte with a key at <code>NetClient+0x71</code> (prelude byte 11) before <code>DecompressBuffer</code>; upstream ClassicUO has no such step. Commit <span class="src">5eb2138</span> (2026-09-29 15:04) fixed the decoder. Ten minutes later <span class="src">8cc2724</span>, "garbage-decode artifacts removed", deleted the wire-derived table entries (<code>0x00=106, 0x6F=76, 0x9E=65, 0xDC=15</code>) and the old decoder, fixed nine world-model parser layouts against real packets, and reduced <code>docs/WORLDSTATE.md</code> to a supersession notice: "All of that was decode garbage." On the capture where the old proxy had framed 103 S2C packets with 4 desyncs, the test fixture now asserts 2,835.</p>
+
+<figure class="fig" id="fig-wire-phantom"><!--#include figures/04_phantom.svg--><figcaption>The same eight early captures, decoded twice. The old decoder (as written live into the session logs) framed 7,165 packets with 1,624 desync events; the corrected decoder frames 46,245 with 0 length mismatches and 0 leftover bytes (two captures happen to give 2,835 each). Source: logs/session_*.jsonl (old) and logs/session_*.s2c.raw re-decoded offline with harness/uo/s2c.py, 2026-10-05.</figcaption></figure>
+
+<div class="callout lesson"><p class="callout-title">Lesson</p><p>A decode that frames is not a decode that is right. The rule we adopted: "Accept a decode only if it reproduces known plaintext and frames every capture end-to-end under the client's own length table without per-id guesses." The cheap check that would have caught it on day one was to look for the player's serial or name in the S2C stream. Once the stream is decoded correctly, those appear everywhere.</p></div>
+
+<h3 id="sec-wire-table">A length table from the binary</h3>
+<p>UO packets are fixed-length by id or carry a big-endian <code>u16</code> length at bytes 1–2, so framing needs a length table. We took it from the client's own packet table: 145 base entries, with protocol-version tiers on top. Twenty-two standard packets are 6–16 bytes wider on Outlands (<code>0x6C</code> target is 27 bytes, <code>0x08</code> drop 22).</p>
+<p>The client pads what it <em>sends</em> to the same table, so C2S framing uses it too: <code>C2S_OVERRIDES</code> holds the 27 ids where Outlands differs from upstream. Until 2026-09-29 17:21 (<span class="src">f73f64e</span>) the only override was <code>0x91</code>, and a real 27-byte target framed as 19 bytes; "the rest of the captured target became an 0x00 'packet' of 106 bytes that swallowed the following client traffic". Since then: <strong>0 C2S desyncs in 69 logs and 72 hours</strong>. Should one happen, the proxy logs it and forwards a byte anyway, so the relay never stalls.</p>
+
+<h3 id="sec-wire-inject">Injection discipline</h3>
+<p>An agent action enters as a plaintext packet on the control port: a <code>u16be</code> length prefix, the packet, and an <code>OK</code> or <code>ERR &lt;reason&gt;</code> reply. <code>InjectionHub.inject</code> applies the same order every time:</p>
+<ol>
+<li><strong>Gate.</strong> <code>AgentGate.block_reason()</code> checks kill, pause, mandatory break and the 8 h/day budget (<span class="src">2ffb29a</span>). Client traffic is never gated.</li>
+<li><strong>Walk gate.</strong> For <code>0x02</code> walks, <code>MoveAuthority.agent_walk_block</code> checks pacing and in-flight steps (next subsection).</li>
+<li><strong>Upstream write.</strong> The packet goes through exactly the client's path (same rewrite, log and XOR) and is spliced in between whole client packets, never inside one.</li>
+<li><strong>Client-only fix-up.</strong> Only after the server write: a gump reply is followed by a fabricated gump close toward the client, and a target reply by a fabricated cursor cancel.</li>
+</ol>
+<p>The packets come from <code>harness/actions.py</code> (527 lines), where "every builder returns the exact plaintext bytes a stock Outlands ClassicUO client would emit", with layouts from the decompiled <code>NetClientExt.Send_*</code> methods, checked against captures. The proxy never injects the ~1/s keepalive: it carries no timestamp, and its timing is left entirely to the client.</p>
+
+<div class="callout decision"><p class="callout-title">Decision, 2026-09-30</p><p>"Byte-correct packets weren't enough: the audit found sequences the client can't produce (a context menu without its click, replies with missing entries, a cursor answered twice, steps into walls…)." The rule since then: agent traffic reproduces what the stock client sends for the same UI gesture, including the packets that accompany it, and an action the client couldn't perform right now is refused rather than sent (<span class="src">37a2b00</span>).</p></div>
+
+<h3 id="sec-wire-walk">One walk ladder for two walkers</h3>
+<aside class="side">A walk is 7 bytes: <code>02 &lt;dir|0x80 run&gt; &lt;seq&gt; &lt;key u32&gt;</code>. The server answers with <code>0x22</code> ConfirmWalk or <code>0x21</code> DenyWalk.</aside>
+<p>Movement caused the most trouble. The client and the agent both send <code>0x02</code> walks on one TCP stream. The server accepts a walk only if its sequence number is the next one expected and its fastwalk key matches the token the server last armed, a field stock RunUO ignores but which "on Outlands it is <em>alive</em>". The sequence wraps <code>0xFF → 1</code> and resets only on a deny or a teleport seed; the tokens are constants, 8 after login and 1 after an honored resync (<span class="src">9e0f3bf</span>). Two independent senders on that ladder desync each other, and they did, in several ways (<a class="ref" href="#tab-wire-walkfix"></a>).</p>
+
+<figure class="tbl" id="tab-wire-walkfix"><figcaption>How agent walking evolved, 2026-09-28 → 10-02. Source: docs/MOVEMENT.md, docs/PLAN.md Phase 3, ANTICHEAT.md §10, git.</figcaption>
+<div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Stage</th><th>Mechanism</th><th>Agent pace (rate or step floor, run / walk)</th><th>Why it was abandoned</th></tr></thead>
+<tbody>
+<tr><td>Naive (09-28)</td><td><code>02 82 00 00000000</code> at exactly 1.000 / 0.250 s</td><td>0</td><td>turned but never stepped: key 0 while a token was outstanding</td></tr>
+<tr><td>Token re-arm (09-29 12:14)</td><td>one <code>walk(seq=0, key=1)</code> per client resync cycle</td><td>~1.5 steps/s</td><td>every agent step made the client send a bad-step resync, a server-visible signature</td></tr>
+<tr><td>Resync suppression</td><td>drop the client's <code>22 0000</code></td><td>—</td><td>"tested and is WRONG": deadlocks the client's own recovery</td></tr>
+<tr><td>One ladder (13:26–14:21)</td><td><code>MoveAuthority</code> rewrites every walk's seq, stamps tokens</td><td>—</td><td>server confirms for walks the client never sent froze its walker</td></tr>
+<tr><td>Fix A (14:30)</td><td>agent step only as a cycle opener, ≥ 5 s apart</td><td>~1 step / 5 s</td><td>safe but slow; still one resync per step</td></tr>
+<tr><td>Fix B (15:04)</td><td>hide agent confirms, rewrite client confirms; proxy sends a resync per burst</td><td>0.2 / 0.4 s</td><td>a proxy-originated resync is a pattern no stock client produces</td></tr>
+<tr><td>Client-only re-anchor (16:08)</td><td>fabricated S2C <code>0x21</code> after 0.5 s of quiet</td><td>0.2 / 0.4 s</td><td>client display fell up to 53 tiles behind</td></tr>
+<tr><td>A11 (09-30 19:42)</td><td>re-anchor on every hidden agent confirm</td><td>0.2 / 0.4 s; mounted 0.1 / 0.2 s (10-02)</td><td>current</td></tr>
+</tbody></table></div></figure>
+
+<p>Two stages rested on beliefs that the corrected decode disproved. We had read the frozen client as a server-side "behavioral gate on walk trains"; with the server's packets visible, session 142237 showed all 12 agent walks confirmed while the client drew nothing. "The lockout was 100% client-side": the client freezes when it gets a <code>0x22</code> for a step it never took. And fix B needed the S2C stream editable packet by packet, which the phantom had made look impossible. Fix B and the decode correction landed in the same commit.</p>
+
+<p>The current design lives in <code>MoveAuthority</code>. Every walk from either sender gets <code>pkt[2] = next_seq</code> on one ladder; the first walk after a seed carries the armed token, and the client's leftover copy is zeroed once "so the server never sees a spent token". The server's confirm for an agent step is hidden from the client and replaced by a fabricated <code>0x21</code> DenyWalk at the tracked server-true position. The client's handler resets its walker and calls <code>SetInWorldTile</code>: a teleport-in-place it accepts without complaint. (A fabricated self <code>0x20</code> would have been simpler, but the V10 handler ignores position for the player.) Client confirms are rewritten back to the client's own sequence. A walk unconfirmed after 3 s counts as rejected and the ladder rewinds; three rejections in a row stall agent walking; at most 5 steps are in flight, the stock client's limit.</p>
+
+<figure class="fig wide" id="fig-wire-walkseq">
+<pre class="mermaid">sequenceDiagram
+    participant M as Mover (agent)
+    participant P as Proxy
+    participant S as Server
+    participant C as Client
+    M->>P: :25941  02 85 00 00000000 (run SW, seq/key left 0)
+    Note over P,S: gates open (pace ≥ 0.2 s, in flight &lt; 5)<br/>ladder seq 0, token 1 armed → stamp it
+    P->>S: 02 85 00 00000001 (XOR S)
+    P-->>M: OK
+    S->>P: 22 00 01  ConfirmWalk (+74 ms)
+    Note over P,S: agent's confirm → hidden, new facing only (turn)
+    P->>C: fabricated 21 00 (1961, 2562) dir 5 z 0
+    Note over C: DenyWalk → walker reset,<br/>SetInWorldTile
+    M->>P: :25942 poll until inflight = 0, then next step (+227 ms)
+    P->>S: 02 85 01 00000000 (seq 1, no token armed)
+    S->>P: 22 01 01 (+226 ms)
+    Note over P,S: step (1961, 2562) → (1960, 2563), hidden
+    P->>C: fabricated 21 00 (1960, 2563) dir 5
+    alt server denies
+        S->>P: 21 … DenyWalk
+        P->>C: forwarded, ladder reset, blocked recorded
+    else no confirm in 3 s
+        Note over P,S: ladder rewinds, 5 s late window,<br/>re-anchor after 0.5 s quiet
+    end</pre>
+<figcaption>Two consecutive agent steps, from session 20261001_191355. The server sees two stock walks on the shared ladder. The client sees no confirms, only two DenyWalks that place it on the tile the server already confirmed. Source: research brief 02 §5 F2, harness/proxy.py.</figcaption>
+</figure>
+
+<p>Re-anchoring only after quiet (the 16:08 design) had a visible cost. During long agent walks the client's picture lagged a median of 10 tiles (max 53) behind the character, so it dropped mobiles it thought out of range and closed their status bars within 10 ms of the click: 93% of the time during agent walking, against 1–5% in human sessions, "a per-mobile signature a server log sees directly". A11 re-anchors on every hidden confirm and brought that to 0.3% (6 of 2,072). Its own side effect: each re-anchor re-fired the client's Auto Open Doors and Auto Open Corpses, so both were switched off and the Mover opens doors itself.</p>
+
+<h3 id="sec-wire-twoviews">Two views of one session</h3>
+<p>The server and the client thus see different sessions on purpose (<a class="ref" href="#tab-wire-views"></a>).</p>
+
+<figure class="tbl" id="tab-wire-views"><figcaption>What each end sees. The server's view is a single stock client; every divergence is on the client side and is invisible to the server. Source: harness/proxy.py, ANTICHEAT.md §10.</figcaption>
+<div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Event</th><th>Server sees</th><th>Client sees</th></tr></thead>
+<tbody>
+<tr><td>client walk</td><td>the walk, seq/key rewritten onto the ladder</td><td>its confirm, mapped back to its own seq</td></tr>
+<tr><td>agent walk</td><td>a stock walk</td><td>no confirm; a fabricated <code>0x21</code> at the new tile</td></tr>
+<tr><td>server deny <code>0x21</code></td><td>—</td><td>forwarded unchanged</td></tr>
+<tr><td>agent gump reply <code>0xB1</code></td><td>a full stock reply</td><td>fabricated <code>0xBF</code> sub 4 close</td></tr>
+<tr><td>agent target reply <code>0x6C</code></td><td>a stock target answer</td><td>fabricated cancel, byte-identical to the server's</td></tr>
+<tr><td>client reply to that spent cursor</td><td>nothing (dropped)</td><td>—</td></tr>
+<tr><td>keepalive <code>ff 0007…03</code></td><td>the client's own, untouched</td><td>the server's answer, untouched</td></tr>
+<tr><td>proxy-originated C2S</td><td>never</td><td>—</td></tr>
+</tbody></table></div></figure>
+
+<p>Target cursors needed the most care. When the server raises a cursor (a spell, a hatchet) and the agent answers it, the client's cursor is still up, and a later click would send a second reply to a cursor the server already consumed: "a stock client can't reply to one cursor twice". The 09-30 audit found exactly that 4 times in one session. Cancelling only the client's copy is not enough, because the stock client answers a cancel with its own C2S cancel. So the proxy sends the client the server's exact cancel, marks the cursor id spent, and drops the client's reply to it (<a class="ref" href="#fig-wire-target"></a>), the only client packet the proxy ever drops.</p>
+
+<figure class="fig wide" id="fig-wire-target">
+<pre class="mermaid">sequenceDiagram
+    participant A as Agent (lumber runner)
+    participant P as Proxy
+    participant S as Server
+    participant C as Client
+    S->>P: 6c 01 00ee060c … (ground cursor)
+    P->>C: forwarded (client_cursor = 0x00EE060C)
+    Note over C: cursor shown
+    A->>P: :25941  6c 01 00ee060c … x 1946 y 2624 z −1 tree 0x0CD3 (+1.785 s)
+    P->>S: 6c … (XOR S), server consumes the cursor
+    P->>C: fabricated 6c 00 00000000 03 + 20 × 00 (+1 ms)
+    Note over P,S: spent_cursors += 0x00EE060C
+    C->>P: 6c 00 00ee060c 03 … 7fffffff × 3 (+6 ms)
+    Note over P,S: reply to a spent cursor → dropped,<br/>the server sees exactly one answer</pre>
+<figcaption>An agent answering a target cursor, from session 20261001_191355. Gump answers follow the same pattern with a client-only <code>0xBF</code> sub 4 close, which the client does not answer. Source: research brief 02 §5 F3, harness/proxy.py <code>_spent_cursor_reply</code>.</figcaption>
+</figure>
+
+<p>It balances exactly. Across all 69 logs there are 5,688 fabricated cancels and 5,688 dropped client replies, a 1:1 match that the memory store's event table reproduces independently. In the 20261001_191355 audit, all 479 agent target answers went to live server cursors and 0 client <code>0x6C</code> replies were relayed.</p>
+
+<h3 id="sec-wire-numbers">Traffic and timing</h3>
+<div class="kpis wide">
+<div class="kpi"><b>363,443</b><span>C2S packets relayed from the client</span></div>
+<div class="kpi rust"><b>75,113</b><span>C2S packets injected by agents</span></div>
+<div class="kpi"><b>2.24M</b><span>S2C packets from the server</span></div>
+<div class="kpi green"><b>52,699</b><span>client-only fabrications, never sent upstream</span></div>
+<div class="kpi gold"><b>0</b><span>C2S desyncs in 69 logs / 72 h</span></div>
+</div>
+
+<p>Over the 69 session logs on this machine (2026-09-28 → 10-05, 72.0 hours connected), the agent produced 17% of what the server received. Three quarters of that (55,615) were walks; then come <code>0x06</code> double-clicks (6,256) and <code>0x6C</code> targets (5,824). The client-only stream breaks down into 45,136 re-anchors, 5,688 cursor cancels and 1,875 gump closes. <a class="ref" href="#fig-wire-traffic"></a> splits both by day. The right panel also shows the A11 change: on 09-30 the proxy hid 10,501 agent confirms but sent only 1,558 re-anchors. From 10-01 the two counts are equal.</p>
+
+<figure class="fig wide" id="fig-wire-traffic"><div class="frame"><!--#include figures/04_traffic.svg--></div><figcaption>Left: C2S packets the server received per day, by sender, labelled with hours connected. Right: S2C packets fabricated for the client only, by kind, against agent confirms hidden. Days are by session start date. Source: logs/session_*.jsonl, 69 sessions, 2026-09-28 → 10-05.</figcaption></figure>
+
+<p>Walking is fast now. The median time from an agent walk to the server's confirm is 46–63 ms across the three big sessions, about one round trip (the keepalive RTT is 47–63 ms), so the proxy's own overhead is small. The maxima of 3.2–3.5 s are world saves, which is why the confirm timeout is 3 s rather than the 1.5 s first tried. Above the proxy's floors, the Mover adds the stock held-key cadence plus 3–15 ms of jitter, giving a median gap of 0.248 s on foot and 0.117 s mounted (<span class="src">6917539</span>). A human running on foot has a median of about 0.200 s.</p>
+
+<figure class="fig wide" id="fig-wire-latency"><div class="frame"><!--#include figures/04_walk_latency.svg--></div><figcaption>Left: gap between consecutive agent steps, with the proxy's pacing floors. Right: walk-to-confirm latency (bar p10–p90, dot median, tick p99). Source: logs/session_*.jsonl, agent <code>0x02</code> paired with the server's <code>0x22</code> by ladder seq; sessions 20261001_191355 (4,666 steps), 20261002_153718 (5,721), 20261005_093927 (9,952).</figcaption></figure>
+
+<aside class="side">Lines of code, 2026-10-05: <code>proxy.py</code> 1,087; <code>actions.py</code> 527; <code>agent_link.py</code> 872; <code>agent_gate.py</code> 237; <code>uo/s2c.py</code> 118; <code>uo/packets.py</code> 107; <code>divert_nat.py</code> 88.</aside>
+<p>The wire layer is small: about 2,000 lines across the proxy, NAT, codec, tables and action builders, out of roughly 46,000 in the harness. <code>proxy.py</code> has not changed since 10-02. The rest of the system builds on it: the world model reads what the server saw (<a class="ref" href="#sec-world"></a>), the runners and the Seer act through port 25941 (<a class="ref" href="#sec-lumber"></a>, <a class="ref" href="#sec-seer"></a>), and the cross-cutting results are in <a class="ref" href="#sec-results"></a>.</p>
+</section>

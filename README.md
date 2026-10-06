@@ -59,6 +59,7 @@ flowchart LR
 |---|---|
 | `ANTICHEAT.md` | Anti-cheat/automation-detection research report (the core document) |
 | `docs/PLAN.md` | Build plan: phases, deliverables, rejected alternatives |
+| `docs/paper/` | The case-study paper: [`uo-harness-paper.html`](docs/paper/uo-harness-paper.html) (one self-contained page, no network). Rebuild with `python docs/paper/src/build.py` (sources in `docs/paper/src/`; needs `bun install` there and `playwright install chromium`) |
 | `docs/NOTES.md` | Operational knowledge base (environment, gotchas, protocol nuggets) |
 | `extract_strings.py` | ASCII+UTF-16 string extractor for native binaries |
 | `scan_ac.py` | Categorized anti-cheat string scanner + context dumper |

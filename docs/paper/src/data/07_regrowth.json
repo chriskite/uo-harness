@@ -1,0 +1,82 @@
+{
+ "_schema": "isotonic (PAV) fit of P(regrown | gap minutes) over (depleted -> later attempt) pairs from harvest_attempts. 2026-10-02 doc numbers vs 2026-10-05 store recompute. estimate = first block with p>=0.6, ceil 5 min",
+ "doc_2026_10_02": {
+  "pairs": 137,
+  "bins": [
+   {
+    "gap": "15-30",
+    "regrown": 0,
+    "n": 14
+   },
+   {
+    "gap": "30-45",
+    "regrown": 7,
+    "n": 50
+   },
+   {
+    "gap": "45-60",
+    "regrown": 12,
+    "n": 25
+   },
+   {
+    "gap": ">60",
+    "regrown": 41,
+    "n": 45
+   }
+  ],
+  "estimate_min": 65
+ },
+ "store_2026_10_05": {
+  "pairs": 277,
+  "regrown": 175,
+  "minutes": 65.0,
+  "fitted": true,
+  "curve": [
+   {
+    "from_min": 21.7,
+    "p": 0.0,
+    "n": 28
+   },
+   {
+    "from_min": 33.6,
+    "p": 0.11,
+    "n": 19
+   },
+   {
+    "from_min": 37.8,
+    "p": 0.11,
+    "n": 9
+   },
+   {
+    "from_min": 39.1,
+    "p": 0.25,
+    "n": 4
+   },
+   {
+    "from_min": 41.5,
+    "p": 0.52,
+    "n": 29
+   },
+   {
+    "from_min": 63.6,
+    "p": 0.67,
+    "n": 24
+   },
+   {
+    "from_min": 242.9,
+    "p": 0.84,
+    "n": 134
+   },
+   {
+    "from_min": 1420.6,
+    "p": 0.85,
+    "n": 20
+   },
+   {
+    "from_min": 2747.9,
+    "p": 1.0,
+    "n": 10
+   }
+  ]
+ }
+}

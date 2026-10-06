@@ -1,0 +1,166 @@
+<section id="sec-lumber">
+<h2>The lumberjack loop</h2>
+<p class="lead">Chopping wood was the first job the agent learned end to end. One hand-played demonstration was mined into facts, and those facts became a deterministic runner. The runner leaves home, chops at script pace, comes back through a house steward and stores boards. Every live failure became an offline scenario test.</p>
+
+<h3 id="sec-lumber-goals">Goal and hard constraints</h3>
+<p>The brief in <code>docs/LUMBER_LOOP.md</code> is short. The agent should <em>learn</em> the loop, <em>run</em> it and <em>improve</em> it: chop trees, recall home, enter the rental room, convert the logs to boards there and store them. The plan, committed on 2026-09-29 at 18:05 <span class="src">8b4291c</span>, fixed a division of labour that held all week. We learn by demonstration and run a deterministic routine. An LLM is called only to compose, repair or reflect. The optimizer works only inside constraints that are not optimisation targets:</p>
+<ul>
+<li>CAPTCHAs go to the human by default, with an auto-solve toggle since 10-01 (<a class="ref" href="#sec-safety"></a>).</li>
+<li>"Pacing is a floor, not a knob": no tightening of jitter, walk pacing, breaks or the daily cap.</li>
+<li>No speech except "guards" after a guard flight. No packet a stock client wouldn't send.</li>
+<li>On Shelter Island, never renounce Young status, so no travel there at all.</li>
+</ul>
+<p>Three characters ran the loop: TestWorth (Young, Shelter, 09-29 to 10-01), Hackworth (overworld, 10-01 to 10-04) and Outland Dan (guild DTF, from 10-04). The runner, <code>harness/loop_lumber.py</code>, is now 3,443 lines. The planner that picks its spot and trip size is described in <a class="ref" href="#sec-optimizer"></a>.</p>
+
+<h3 id="sec-lumber-demo">Learning by demonstration</h3>
+<p>A loop like this hinges on numbers nobody can guess: serials, gump and button ids, cliloc message numbers, the order of menu clicks. Exploring live to find them costs CAPTCHAs and deaths. So at about 20:42 on 2026-09-29 the owner played one full loop by hand through the proxy (session <code>20260929_204225</code>). "Nothing in the harness injects during the demonstration; the proxy only relays and records."</p>
+<aside class="side"><b>Cliloc</b>: a numbered localized message. The server sends <code>1010018</code> and the client shows "What do you want to use this item on?" from <code>Cliloc.enu</code>.</aside>
+<p><code>loop_mine.py timeline</code> replays a capture through the proxy's own <code>SessionTap</code>. It prints walks collapsed to "N steps", clicks, lifts, drops and cursors, gumps with their button ids, rendered clilocs and per-container amount changes. It ends with every serial acted on and the packet ids it could not parse. By 21:03 the demo had become <code>harness/data/loops/lumber.json</code>, pinned by <code>test_loop_demo.py</code> <span class="src">39330c9</span>. Among the facts:</p>
+<ul>
+<li><strong>One attempt per use.</strong> Double-click the hatchet, get cliloc 1010018 and a cursor, and target a tree. About 4.1 s later the server answers with fail cliloc 500495 or "You chop some logs and put them in your backpack."</li>
+<li><strong>1 log → 1 board</strong>, both at 0.025 stones, so the runner converts once per trip, just before storing.</li>
+<li><strong>A 60 s travel lockout</strong> after leaving the room (41.5 s of walking plus a "must wait 19 seconds"). The deed quantum is 5,000.</li>
+<li><strong>The real CAPTCHA</strong> (gump id <code>0x00000001</code>) came with a buttonless decoy on <em>every</em> attempt. That shaped the detector (<a class="ref" href="#sec-safety"></a>).</li>
+</ul>
+<blockquote class="pull"><p>Extracting them automatically before seeing a demo would mean guessing at their shape; after the demo they're read off the timeline.</p><cite>— docs/LUMBER_LOOP.md §4, 2026-09-29</cite></blockquote>
+<p>The demo was tiny: 12 attempts at Lumberjacking 60.2, 2 successes, 12 logs, one attempt per ~9.5 s. It was enough. Eighteen minutes after the mining commit the runner and its offline end-to-end test were green <span class="src">0e22e17</span>.</p>
+<p>Some facts were cheaper to fetch by sending the overseer. On 2026-09-30, 09:18 to 10:25, it ran four "Young demos" through <code>ctl</code> while the owner watched (<span class="src">docs/missions/YOUNG_DEMOS.md</span>). Hatchet <code>0x44ADB57A</code> went from 483 to 477 uses over 19 attempts and 6 successes. That means <strong>one use per successful chop</strong>; failures and conversion are free. The overseer also read vendor price lists without buying, closed a moongate gump to stay Young, and died on purpose in the New Player Dungeon to learn how resurrection works. It surfaced seven harness gaps, all fixed that day (<a class="ref" href="#sec-seer"></a>).</p>
+
+<h3 id="sec-lumber-states">The runner as a state machine</h3>
+<p>Since 2026-10-05 a trip starts in the rental room, or within <code>NEAR_LANDING</code> = 60 tiles of the home landing (<a class="ref" href="#fig-lumber-states"></a>). The runner restocks, mounts, checks for a live trapped pouch and the Harvest Aspect armor, goes out, chops stand after stand, then comes home to convert, store and restock. The pre-emptions make it a machine rather than a script. A CAPTCHA hands off and resumes the same attempt. A creature triggers a walk-away of <code>ESCAPE_RUN</code> = 20 tiles, at most three per trip. A player at 2 tiles triggers a keep-away to 4. A red, a pouch pop or low hits end the trip by recall, and those red edges stop <em>outside</em> the room because entry may be refused for 2 minutes after PvP. Each trip writes its episode row in a <code>finally</code> block.</p>
+
+<figure class="fig wide" id="fig-lumber-states">
+<pre class="mermaid">stateDiagram-v2
+  [*] --> Home: in room or ≤ 60 tiles of landing
+  Home --> Resupply: shelf Resupply
+  Resupply --> Mount: ride pet ≤ 3 tiles
+  Mount --> PouchCheck
+  PouchCheck --> AspectCheck: live trapped pouch
+  AspectCheck --> TravelOut: hue 2086 set on
+  TravelOut --> Harvest: door → landing → recall nearest rune
+  Harvest --> Harvest: out of wood → next stand
+  Harvest --> CaptchaHandoff: captcha
+  CaptchaHandoff --> Harvest
+  Harvest --> Escape: creature
+  Escape --> Harvest: 20 tiles off
+  Harvest --> KeepAway: player ≤ 2
+  KeepAway --> Harvest: ≥ 4 tiles
+  Harvest --> EscapeHome: red, pouch pop, low hits
+  Escape --> EscapeHome: it kept coming
+  EscapeHome --> GuardFlight: recall failed
+  Harvest --> TravelHome: quota, dry, break due
+  TravelHome --> Room: own book default rune, steward
+  Room --> Convert: pouch set off, logs → boards
+  Convert --> Store: Resource Stockpile
+  Store --> Restock: shelf Restock + Resupply
+  Restock --> Home: next trip
+  Store --> Deed: ≥ 5,000 (not built)
+  EscapeHome --> [*]: stop outside room
+  classDef red fill:#f8e6e4,stroke:#b23a3a,color:#1f2328
+  classDef green fill:#e8f3ea,stroke:#3d7f4f,color:#1f2328
+  classDef ext fill:#f4f1ea,stroke:#8a8f98,stroke-dasharray:4 3,color:#1f2328
+  classDef gold fill:#fbf3dc,stroke:#b8892a,color:#1f2328
+  classDef blue fill:#eaf1f7,stroke:#1f5f8b,color:#1f2328
+  class Home,Resupply,Mount,PouchCheck,AspectCheck,TravelOut,Harvest,Escape,KeepAway,TravelHome blue
+  class EscapeHome,GuardFlight red
+  class Room,Convert,Store,Restock green
+  class Deed ext
+  class CaptchaHandoff gold
+</pre>
+<figcaption>The lumber runner's states and transitions as of 2026-10-05. Red: trip-ending escapes that stop at home outside the room with no conversion. Green: the in-room tail. Dashed: the deed step, designed but not built. Any state can also be pre-empted by the agent gate (pause, break, kill) or a speech hold. Source: <code>docs/LUMBER_LOOP.md</code> §3; <code>LumberLoop.run</code>, <code>trip</code>, <code>harvest_trip</code> in <code>harness/loop_lumber.py</code>.</figcaption>
+</figure>
+
+<h3 id="sec-lumber-skills">Skills, not prompts</h3>
+<p>Under the states sit deterministic controllers: <code>goto</code>, <code>smart_harvest(spot)</code>, <code>convert_logs</code>, <code>enter_room</code>, <code>store_in_container</code>, <code>exit_room</code>, plus deed skills that are designed but unbuilt. They generalise <code>errand_bank.py</code>, the Phase 3 acceptance task that walked to a banker and back. Every skill has <strong>preconditions, a success check against world-model evidence, a timeout and a typed failure</strong>. They share <code>agent_link.py</code>. <code>Link</code> talks to the proxy's ports and respects the agent gate. <code>Mover</code> plans 3-D routes (<a class="ref" href="#sec-world"></a>), charging 4× for a tile holding a mobile.</p>
+<div class="callout decision"><p class="callout-title">Decision</p><p>The LLM picks skills; it does not run the loop. It is called at start, on a typed failure the routine can't handle, and afterwards for reflection, so a steady-state cycle costs <strong>0 API calls</strong>. We rejected an LLM per cycle ("nothing to decide in the steady state") and Voyager-style LLM-written skills <span class="src">docs/PLAN.md</span>.</p></div>
+
+<h3 id="sec-lumber-harvest">The harvest attempt and Smart Harvest</h3>
+<p>Until 2026-10-04 each attempt aimed at one tree static from the map. The runner walked a planned order of trees and moved on at "depleted" (500488/500493). On 10-04 at 12:12 <span class="src">b3d9f0d</span> the owner switched it to <strong>Smart Harvest</strong>: target <em>yourself</em> and the server chops a nearby tree that still has wood. The runner's answer is byte-equal to the stock client's in capture <code>20261001_214649</code>:</p>
+<pre><code>6c 00 &lt;cursor&gt; 00 0020f127 &lt;x&gt; &lt;y&gt; 00000000 00000190
+# our serial, our x/y/z, our body graphic (0x0190)
+# "The z must be movement's: the world model's self z said 10
+#  there while the client sent 0."</code></pre>
+<p>The docs call it "a simplification, not a detection fix", because there is no tree to aim at and fewer walks. The unit of work became the <em>stand</em>. <code>next_stand</code> plans walks to within 1 tile of the 6 nearest trees, preferring stands with more trees in reach. It stays until "You do not see any harvestable resources nearby." The store's 452 stands averaged 3.66 attempts and 21.0 logs, with a median stay of 18.8 s.</p>
+<aside class="side"><code>SMART_RANGE</code> = 1 is "the only value the evidence proves". Every stand had a tree at distance 1, so the server's true reach is still unmeasured.</aside>
+<p>The share of attempts lost to "move on" answers did not change (<a class="ref" href="#fig-lumber-outcomes"></a>): 25 % depleted per tree before, 25 % nothing-nearby per stand after. Successes rose from 41 % to 53 % of attempts, but that is confounded. Dan's skill went from 50 to 81 under the Harvest Aspect, and the early era includes Shelter's halved odds (<a class="ref" href="#sec-results"></a>).</p>
+
+<figure class="fig wide" id="fig-lumber-outcomes">
+<div class="frame"><!--#include figures/06_harvest_outcomes.svg--></div>
+<figcaption>Harvest-attempt outcomes before and after Smart Harvest, split at the first "nothing nearby" answer (2026-10-04 22:07). Per-tree: 2,960 attempts, 09-29 → 10-04 (TestWorth, Hackworth). Smart Harvest: 2,289 attempts, 10-04 → 10-05 (Outland Dan). Source: memory DB <code>harvest_attempts</code>, read-only query 2026-10-05 evening; data <code>data/06_harvest.json</code>.</figcaption>
+</figure>
+
+<h3 id="sec-lumber-pace">Chop pacing: from human to script</h3>
+<p>The first runner chopped like a careful person. It used lognormal delays (0.95 s median to aim, 2.2 s between attempts), a 12 %/h fatigue drift, hesitations and fidgets, under the doc's rule that "the agent only ever gets slower or less direct". On 2026-10-04 the owner overruled that rule for the harvest cycle alone:</p>
+<blockquote class="pull"><p>every harvester on the shard runs a script</p><cite>— the owner's decision, 2026-10-04, docs/LUMBER_LOOP.md §13</cite></blockquote>
+<p>The cycle now runs at a Razor script's pace (<code>humanize.SCRIPT_MEDIAN</code>): hatchet ~0.2 s after the reply, cursor answered ~0.1 s after it appears, no fatigue. Stashing the last chop's logs moved inside the server's ~4.2 s chop, 0.8 s after the target, because a lift 0.47 s after the click drew "You must wait to perform another action." Walking, menus and the room keep their human texture. Live that evening <span class="src">e82df6c</span>, target-to-target time fell from <strong>9.36 s (62 cycles) to 4.92 s (39)</strong>, with the server's reply at 4.17 s both times. In the doc's words, "the cycle is now the server's chop time plus ~0.75 s".</p>
+
+<figure class="fig wide" id="fig-lumber-pace">
+<div class="frame"><!--#include figures/06_chop_pace.svg--></div>
+<figcaption>Gaps between consecutive chop results (success or fail, 1–30 s apart) before and after script pace went live at 2026-10-04 22:34. Dashed lines: medians, 9.17 s → 5.15 s. Dotted: the server's own chop time. The capture-based target-to-target medians in the text (9.36 → 4.92 s) measure a slightly different interval. Source: memory DB <code>harvest_attempts</code> (3,000 gaps), NOTES.md "First live room-storage trip"; data <code>data/06_harvest.json</code>.</figcaption>
+</figure>
+
+<h3 id="sec-lumber-home">The home trip</h3>
+<p>Storage moved three times. The first home was the Shelter inn room, entered by saying <code>room</code>. From 2026-10-01 the boards went to the bank instead (no rent, no Test Shard wipe) <span class="src">a29b7b1</span>. On 10-04 at 19:15 storage went back to a room <span class="src">e5345b9</span>: "the room is the safe place: no one follows in, no recall reaches it". The logs get converted away from the grove; a 12 s conversion under attack in the field had cost 45 hits the day before. There is also no speech and no banker search, and Dan co-owns a room whose exit lands at the guild house.</p>
+<p>Out is the door's "Exit to House Steward", a teleport to the landing at (4134, 1429). That teleport starts the 60 s lockout and the Stationary Penalty, and both are walked off before the first chop. From there the runner recalls "as close to the lumbering spot as we can via rune tomes in the rune library or our own rune tomes/books" (the owner's rule; the landing choice is in <a class="ref" href="#sec-optimizer"></a>). Home is always the default rune of Dan's own runebook, "DTF Loot Chest". Live recalls took 1.95–2.09 s over 34 casts. At home the runner finds the house steward and walks its menu, "Room" → "Visit Other Rooms" → the owner's row. <code>room.py</code> never presses End Rental Contract.</p>
+
+<figure class="fig wide" id="fig-lumber-home">
+<pre class="mermaid">sequenceDiagram
+  autonumber
+  participant D as Runner (Dan)
+  participant R as Room (shelf, door)
+  participant G as Guild house (landing, tomes)
+  participant W as Grove
+  participant S as House steward
+  participant P as Stockpile
+  D->>R: Resupply at room shelf (then landing's shelf if short)
+  D->>R: door menu "Exit to House Steward"
+  R-->>G: teleport to 4134,1429 (60 s lockout starts)
+  D->>G: walk to DTF tome, recall by charge to rune nearest grove
+  G-->>W: land, walk in (lockout + Stationary Penalty walked off)
+  loop each stand until quota, dry or break
+    D->>W: hatchet, target self (Smart Harvest), stash logs in trapped pouch
+  end
+  D->>G: own runebook default rune "DTF Loot Chest"
+  D->>S: context "Room" → "Visit Other Rooms" → "Logan Wolf (DTF)"
+  S-->>R: arrive (403,923) on facet 3
+  D->>R: set off own pouch (1 hit), open, each log stack → boards
+  D->>P: menu 0x6ECE2ABE, Add Items (button 2), one target per stack
+  D->>R: shelf Restock (target backpack), then Resupply
+  Note over D,R: episode row written in finally
+</pre>
+<figcaption>One home-based trip as of 2026-10-05, with no bank and no speech. Escapes leave the sequence at step 6 and stop at the guild house outside the room. Source: <code>docs/LUMBER_LOOP.md</code> §12.5 and §13 "Trip"; <code>harness/data/homes.json</code>; <code>room.py</code>, <code>stockpile.py</code>, <code>shelf.py</code>, <code>escape.py</code>.</figcaption>
+</figure>
+
+<p>In the room the logs come out of the hue-38 trapped pouch of the thief guard (<a class="ref" href="#sec-safety"></a>). Dan sets it off himself, takes one hit, and converts each stack (one try per stack plus 3 retries). Since 2026-10-05 the boards go into the Resource Stockpile ("It is where we will now drop off all our boards", the owner), one target per stack, never ourselves, which "would add every valid item in the pack". After the chest's boards moved in, it read 8,693. Restock and Resupply at the room shelf then return the spent pouch, and "Dan keeps exactly the loadout". The first live trip of this design (10-04, 22:06–22:17, Horseshoe Bay) chopped 240 logs at 11 stands in 527 s. It then took 9.5 s to enter the room, 14.7 s to convert and 4.1 s to store.</p>
+
+<h3 id="sec-lumber-tests">Testing from captures</h3>
+<p><code>test_loop_lumber.py</code> (3,109 lines) puts the <em>real proxy</em> in front of a simulated server. The simulator speaks the demo's packet shapes and the room's captured menus, and a scripted "human" answers CAPTCHAs. It serves decoys on every attempt, one solver-readable and one unreadable real CAPTCHA, a door that swings shut and moongates whose renounce prompt must be closed. The main run's two trips assert the invariants. The agent goes out by the door and in by the steward. It replies only to the CAPTCHA, gate prompts, runebook and room menus. It sends <strong>no speech at all</strong>, and every log not stolen ends up stored.</p>
+<p>The working rule was that <strong>every live incident becomes a scenario that fails against the old code</strong>. The suite now holds 22 end-to-end scenarios, each in its own process with private ports, up to 8 in parallel (about 2 min critical path, 10 min serial). It also holds 12 unit checks, some of which replay live captures through the world model with no simulator (<a class="ref" href="#tab-lumber-tests"></a>).</p>
+<figure class="tbl" id="tab-lumber-tests"><figcaption>Selected scenarios in <code>test_loop_lumber.py</code> and the live event each pins. Source: test docstrings and run list; NOTES.md; LUMBER_LOOP.md §13.</figcaption>
+<div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Scenario</th><th>Live origin</th><th>Requires</th></tr></thead>
+<tbody>
+<tr><td><code>main</code></td><td>demo, 10-04 room menus</td><td>2 trips home → grove → home, no speech, decoys ignored</td></tr>
+<tr><td><code>library_chased</code></td><td>conversion under attack, 10-03</td><td>chased: recall home, don't convert</td></tr>
+<tr><td><code>gazer_reflect</code></td><td>witcher_280 gazer, 10-03</td><td>a spell on Magic Reflection counts as an attack</td></tr>
+<tr><td><code>red_aim</code></td><td>a Bastet death's blind aim pause</td><td>red in view with cursor up: cancel, recall at once</td></tr>
+<tr><td><code>landing_escape</code></td><td>Wintertop death, 10-05</td><td>after an escape at the landing, harvest on</td></tr>
+<tr><td><code>convert_stacks</code></td><td>trip 92, "logs left after 4 conversions"</td><td>one try per stack plus 3 retries</td></tr>
+<tr><td><code>unit_capture_smart_harvest</code></td><td>capture <code>20261001_214649</code></td><td>self-target 0x6C byte-equal to stock</td></tr>
+<tr><td><code>unit_boxed_in</code></td><td>witcher_137, "mark this place unworkable"</td><td>disable spot, alert overseer, recall</td></tr>
+</tbody></table></div>
+</figure>
+
+<h3 id="sec-lumber-pivots">Failures and pivots</h3>
+<p>The first evening alone brought four live attempts and four fixes. The overworld deaths behind later entries are in <a class="ref" href="#sec-safety"></a>.</p>
+<ol class="timeline">
+<li><time>2026-09-29 21:23</time><b>Lost upstairs.</b> The room exit dropped TestWorth on an inn's upper floor, where 2-D walk memory failed after 21 blocked moves. The owner's directive, "the full x/y/z Outlands map", produced the map decode and pathfinder within the hour.</li>
+<li><time>2026-09-29 22:10</time><b>NPCs as walls.</b> Two NPCs in a hallway made all 8 trees "unreachable". The owner noted that "in UOO you shove through mobiles", so mobiles became a cost rather than a wall.</li>
+<li class="major"><time>2026-09-29 22:27</time><b>First full trip:</b> 46 boards stored, after fixing vendor range and a random CAPTCHA button id. Run 3 stored 50 boards in 8 min 25 s, about 355 boards per agent-active hour.</li>
+<li><time>2026-09-29 23:04</time><b>Chopping from a cave.</b> The agent stood at z −20 under trees at z 5. The server allowed it, but "a player in that cave can't see or click a tree on the surface". Goals became height-aware.</li>
+<li><time>2026-10-02</time><b>Survivorship bias.</b> Only trips that reached the bank had been recorded, which "flattered exactly the spots where trips get cut short". The episode row moved into <code>finally</code>.</li>
+<li class="major"><time>2026-10-04</time><b>Smart Harvest, the room again, script pace.</b> Two false alarms followed. The Harvest Aspect's proc effect was read as a spell on us, and a new run saw the previous run's own pouch pop as a theft.</li>
+<li><time>2026-10-05</time><b>A day of fixes.</b> The Wintertop death, a stuck conversion, bad landings, aggro zones, the stockpile and Restock. Each fix came with a scenario.</li>
+</ol>
+<div class="callout lesson"><p class="callout-title">Lesson</p><p>The demonstration bought exact ids; it could not show other floors, crowded hallways, caves under trees, monsters or thieves. Each of those gaps surfaced live, got fixed once and was pinned by a test.</p></div>
+</section>

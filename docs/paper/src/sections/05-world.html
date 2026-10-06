@@ -1,0 +1,191 @@
+<section id="sec-world">
+<h2>World model, maps and memory</h2>
+<p class="lead">The agent knows only what the stock client knows, rebuilt from packets; it walks only where the client would let it walk, from map files we had to reverse-engineer first; and everything it experiences lands in one SQLite file that never leaves the owner's hands.</p>
+
+<h3 id="sec-world-model">A mirror of the client, not a better client</h3>
+
+<p>The world model (<code>harness/world/</code>) is a packet-driven copy of the client's state. It is not a game engine and not a cheat: its ground truth is the stock client's own handlers, decompiled, and the rule is that the harness never acts on anything the client has already forgotten. The field layouts came from the decompiled NativeAOT client plus upstream ClassicUO and Razor sources, and every field carries a confidence label: <em>upstream</em>, <em>decomp</em> or <em>unknown</em>. Layouts branch on a protocol version dword set during the handshake. Live Outlands reports <strong>12</strong>, and many packets are longer than upstream (0xF3 world item 26→38 bytes, 0xC0 effect 36→52, 0x20 mobile update 19→28, and so on) <span class="src">docs/WORLDMODEL.md</span>.</p>
+
+<p>Declarative tables (<code>layouts.py</code>) feed one bounds-checked big-endian reader; procedural parsers cover list and flag packets. <code>WorldRuntime</code> dispatches 46 server-to-client and 17 client-to-server packet ids into a <code>StateStore</code>: <code>self</code> (position, vitals, gold, weight, facet, skills), <code>mobiles</code>, <code>items</code> as a container tree, open <code>gumps</code> (UO's server-defined dialog windows), the target cursor, buffs and names: "Last-write-wins entity snapshots plus the lazy name map." Client traffic counts as input too: a walk request stays pending until the server's 0x22 confirm, and the self position moves only on confirms, which matched the proxy's own position at all 23,652 settled points of a replay <span class="src">1520d7e</span>.</p>
+
+<p>Each change also comes out as an event (<code>step</code>, <code>blocked</code>, <code>item_seen</code>, <code>delete</code>, <code>speech_heard</code>, <code>death</code>, …). The proxy keeps the newest 5,000 in a ring for state-port readers and hands every one to the memory store. The overseer's "journal" is just a filter over that stream (<code>ctl journal</code>).</p>
+
+<aside class="side">The 18-tile view range was a surprise: Outlands sends <code>c8 12</code>, against ClassicUO's default of 24.</aside>
+<p>Forgetting was the subtle part. On 2026-10-01 the overseer cast Lightning at mongbats that the model still held and the client had long dropped, and the server answered "That is too far away." Since then the model prunes exactly as the decompiled <code>World.ProcessDeletes</code> does: on the roughly once-a-second 0xFF sub 5 tick and on every self move, drop whatever lies beyond the view range set by S2C 0xC8. All 395 range prunes in one session landed within −0.68 to +0.06 s of the client's own close-status packet for the same serial <span class="src">docs/WORLDMODEL.md "Pruning"</span>.</p>
+
+<p>A cautionary footnote: on 2026-09-28 we spent an evening documenting an Outlands "world-state stream" of 106-byte records that turned out, the next afternoon, to be decode garbage from a skipped XOR (<a class="ref" href="#sec-wire"></a>). With the corrected decode, all 18 captures (53,277 packets) parse with zero failures.</p>
+
+<figure class="fig" id="fig-world-flow">
+<pre class="mermaid">flowchart TB
+  SV["Outlands server"]:::ext
+  CL["ClassicUO client"]:::ext
+  subgraph FILES["install files, read-only"]
+    UOO["mapN.uoo, land/artdata.uoo,&lt;br/&gt;multi.idx/mul"]:::ext
+    WK["uomap → pathfind.Walkers"]:::rust
+  end
+  subgraph PX["proxy process"]
+    WR["WorldRuntime&lt;br/&gt;46 S2C / 17 C2S ids"]
+    MA["MoveAuthority&lt;br/&gt;z per confirmed step"]
+    ST["StateStore&lt;br/&gt;self, mobiles, items,&lt;br/&gt;gumps, target, names"]:::green
+    MW["event ring (5,000) and&lt;br/&gt;MemoryWriter (0.25 s / 500 rows)"]:::gold
+  end
+  DB[("harness.db&lt;br/&gt;events, walk_moves")]:::gold
+  USE["Mover and runners, ctl,&lt;br/&gt;viz, overseer"]:::purple
+  SV -- "decoded S2C&lt;br/&gt;0x1B 0x20 0x22 0xF3 0xB0 …" --> WR
+  CL -- "C2S walk 0x02,&lt;br/&gt;entity queries" --> WR
+  UOO --> WK --> MA
+  WR --> ST
+  WR -- "events" --> MW --> DB
+  MA --> ST
+  ST -- "state port (JSON)" --> USE
+  WK -- "route plans" --> USE
+  DB -- "walk memory, harvest, trips" --> USE
+  classDef rust fill:#fbeee6,stroke:#b4572b,color:#1f2328
+  classDef green fill:#e8f3ea,stroke:#3d7f4f,color:#1f2328
+  classDef gold fill:#fbf3dc,stroke:#b8892a,color:#1f2328
+  classDef purple fill:#efeaf7,stroke:#6b4fa0,color:#1f2328
+  classDef ext fill:#f4f1ea,stroke:#8a8f98,stroke-dasharray:4 3,color:#1f2328
+</pre>
+<figcaption>World-model data flow inside the proxy. Server packets and the client's own requests feed <code>WorldRuntime</code>. Its <code>StateStore</code> is served as JSON on the state port; its events go to a hot ring and to the batched SQLite writer. The map stack supplies z for every confirmed step and plans routes for the Mover. Source: <code>harness/world/</code>, <code>harness/proxy.py</code>, docs/WORLDMODEL.md, docs/MEMORY.md.</figcaption>
+</figure>
+
+<h3 id="sec-world-map">Upstairs, and the map in 34 minutes</h3>
+
+<p>Until 2026-09-29 the harness walked by a 2-D "walk memory": tiles and edges it had seen the server confirm. The first live lumber attempt ended that era. At 21:23 the character TestWorth left its rental room and came out <em>upstairs</em> in the Shelter Island inn, at (1938, 2584, z 20). The walk memory knew only the ground floor at those x, y, so "A* kept routing through upstairs walls": 21 blocked moves, then <code>ABORTED: too many blocked moves</code>. Worse, the 40 upstairs blocks it had learned would have poisoned ground-floor routes, so that change was reverted <span class="src">docs/LUMBER_LOOP.md §13</span>.</p>
+
+<blockquote class="pull"><p>the harness needs the full x/y/z Outlands map, like the client has, for its own pathfinding and to find trees to harvest.</p><cite>— user directive, recorded in docs/LUMBER_LOOP.md, 2026-09-29</cite></blockquote>
+
+<p>Outlands ships none of the standard <code>map*.mul</code>, <code>statics*.mul</code> or <code>tiledata.mul</code> files; the client reads proprietary <code>.uoo</code> containers through its own <code>UOO.*</code> classes. An agent read those loaders in Ghidra and committed a working <code>mmap</code> reader at 21:49, 26 minutes after the abort, with 42 checks against capture evidence (tree targets, inn floors at z 0 and 20, stairs, a sunken area at −20). The 3-D pathfinder followed at 21:57 <span class="src">f92f680</span> <span class="src">216f26c</span>. <a class="ref" href="#tab-world-uoo"></a> lists the differences from the classic formats.</p>
+
+<figure class="tbl" id="tab-world-uoo"><figcaption>Outlands <code>.uoo</code> map layouts against the classic MUL files they replace (all little-endian). Source: docs/MAP.md, <code>harness/uomap.py</code>.</figcaption>
+<div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Part</th><th>Classic MUL</th><th>Outlands <code>mapN.uoo</code> / tiledata</th></tr></thead>
+<tbody>
+<tr><td>Header</td><td>none</td><td>0x12 bytes: magic <code>0xE532363F</code>, version 1, 8×8 chunk, width/height in blocks (map0 1344×768 → 10,752×6,144 tiles)</td></tr>
+<tr><td>Land blocks</td><td>column-major (<code>x·H + y</code>), 4-byte block header</td><td>row-major (<code>by·W + bx</code>), no header; 6-byte cell = u32 land id + <strong>i16 z</strong></td></tr>
+<tr><td>Statics index</td><td>separate <code>staidx.mul</code></td><td>in-file LUT of W·H <strong>i64</strong> offsets, <code>0x7FFF…FF</code> = none</td></tr>
+<tr><td>Static record</td><td>7 B: explicit x, y, sbyte z</td><td>9 B: u8 cell delta (running sum), u32 graphic, u16 hue, i16 z</td></tr>
+<tr><td>Patching</td><td>separate diff files</td><td>append a block and rewrite the LUT; map0 carries 82,174,514 B of orphaned gaps</td></tr>
+<tr><td>Tile flags</td><td>u32 (<code>tiledata.mul</code>)</td><td>u64 in <code>landdata.uoo</code> (48 B) / <code>artdata.uoo</code> (72 B); Outlands-only high bits such as NoClip</td></tr>
+</tbody></table></div>
+</figure>
+
+<p>Facet 0, the main world, holds 10,773,929 statics. Two findings shaped the rest of the code. Facet 3 is a blank placeholder of impassable land, yet the rental rooms live there, so the old walk memory survives as the planner for rooms. And doors are not statics at all but dynamic items sent by the server <span class="src">docs/MAP.md</span>.</p>
+
+<h3 id="sec-world-path">Walking like the client</h3>
+
+<p><code>harness/pathfind.py</code> ports ClassicUO's <code>Pathfinder.cs</code> (<code>CreateItemList</code>, <code>CalculateMinMaxZ</code>, <code>CalculateNewZ</code>, <code>CanWalk</code>), with z widened to int as in the Outlands build. The land surface is "stretched" between its four corner heights (top = own tile, right, left, bottom), and the walkable average takes the flatter diagonal:</p>
+
+<div class="math" id="eq-world-stretch">z_\text{avg} = \begin{cases} \lfloor (z_\text{top}+z_\text{bottom})/2 \rfloor &amp; |z_\text{top}-z_\text{bottom}| \le |z_\text{left}-z_\text{right}| \\ \lfloor (z_\text{left}+z_\text{right})/2 \rfloor &amp; \text{otherwise} \end{cases}</div>
+
+<p>A capture confirmed it: the server put us at z 10 on a tile whose raw land z is 11 (corners 11/10/10/10). <code>new_z</code> then chooses, among the land, surfaces and bridges on the target tile, the one whose height is closest to the current z and leaves 16 units of clearance (one body) under the next blocker. The proof set: all 1,249 server-confirmed moves in the walk memory are walkable, all 20 non-door denies upstairs are walls, and a route from upstairs to the innkeeper exists. The same <code>Walkers</code> object also gives the proxy a z for every confirmed step, because 0x22 confirms carry none; before that, the proxy's z was wrong at 12 of 57 live anchors <span class="src">d602ea8</span>.</p>
+
+<p>Planning is plain heap A* over (x, y, z) with 8 neighbours. A diagonal costs the same as a straight step, as on the server. Costs are shaped rather than forbidden:</p>
+
+<pre><code>MOBILE_COST_X  = 4.0    # tile occupied by a mobile (they move)
+DANGER_COST_X  = 30.0   # inside a creature's danger zone
+SHOVE_RETRY_S  = 15.0   # a denied shove makes the tile a wall this long
+MOBILE_WAIT_S  = 90.0   # a route cut only by mobiles is waited out
+max_expand     = 30000  # A* node budget (3-D)</code></pre>
+
+<p>Per-plan humanizer noise scales these, and <code>nav.straighten</code> irons out zig-zags (agent paths had 37 % heading changes against 21 % for a human). Server denies become blocked <code>(x, y, dir)</code> moves for the session. Each step is re-checked with <code>CanWalk</code> against items that arrived after planning, because the stock client never sends a step it would refuse. Doors are opened ahead with the stock request; teleporters are learned by stepping (a landing that isn't the next tile) into the <code>teleporters</code> table. The map knows terrain but not spawns; the blind 250-tile goto through a harpy nest belongs to <a class="ref" href="#sec-safety"></a>.</p>
+
+<h3 id="sec-world-houses">Houses are multis</h3>
+
+<p>"Player houses block walking, and the map files don't show them." A house arrives as an 0xF3 item whose graphic indexes <code>multi.mul</code>, not art, and until 2026-10-02 the harness ignored its pieces. At Corpse Creek, house 0x154 drew 12 server denies on one trip, each step walkable on the bare map. Two bugs were stacked: the walk rules didn't expand multis, and the model pruned the house the instant it arrived at 22 tiles. The fix expands each 16-byte <code>multi.mul</code> record (<code>graphic, dx, dy, dz, flags</code>) into dynamic objects and keeps a house within view range plus its reach, as ClassicUO's <code>HouseManager.IsHouseInRange</code> does. Now the house is present at all 12 deny points, and routes enter houses by the front door <span class="src">docs/NOTES.md "Houses"</span>.</p>
+
+<p>We rejected learning houses from denies: "It costs a deny burst per house, which no client produces, and a house can be placed or removed at any time." The last rule came from a death on 2026-10-05: an escape route ran through another player's door ("you can't walk into one uninvited", as the owner put it). Now every door on or beside a house we are not standing in is <code>locked</code> to the planner.</p>
+
+<h3 id="sec-world-runes">Rune libraries: reaching the whole map</h3>
+
+<aside class="side">A <em>rune</em> marks a spot; casting Recall on it teleports you there. A <em>rune tome</em> or runebook holds many, and each recall spends mana or one of the book's charges.</aside>
+<p>Walking from banks reached little: 354 of 359 public treasure-map runes lie more than 110 tiles from every bank. The community "Witcher" rune set (runes 1–353 plus letter suffixes; a public table of 359 dig tiles) stands as 14 public tomes in the Cambria Rune Library. On 2026-10-04 Outland Dan's guild library at the DTF house turned out to be much bigger: 36 locked-down tomes, 839 runes.</p>
+
+<p>The trick that made libraries cheap was reading without recalling. In the rune-tome gump, row <span class="math">i</span>'s button <span class="math">100+i</span> recalls (and spends a charge), but <span class="math">200+i</span> opens the rune's detail page, which shows each rune's name and its tile "(x, y)". Button 5 pages on. <code>ctl act read_tomes dtf</code> read all 36 tomes in 463 s, every tile, "with nothing cast and no charge spent." Runebooks show only sextant strings, which convert as</p>
+
+<div class="math" id="eq-world-sextant">x = 1323 + \text{lon}\cdot\tfrac{5120}{360}, \qquad y = 1624 + \text{lat}\cdot\tfrac{4096}{360}</div>
+
+<p>(east and south positive, wrapped), within one tile. Reading also showed that the guild's Witcher runes had been marked by someone else: 58 of 359 land away from the public table's tile (301 exact, 31 off by 1–5 tiles, 23 by 6–17, 3 by 18–40; rune 165 by 100). Hence the decision "a tome row's own tile is the only truth": one library table with rows per tome, and ambiguous names (20 repeat across DTF tomes) refused rather than guessed <span class="src">docs/PLAN.md "Rune libraries"</span>.</p>
+
+<figure class="tbl" id="tab-world-runes"><figcaption>The two rune libraries the harness has read. Source: <code>harness/data/rune_libraries.json</code>, docs/NOTES.md, docs/WORLD_LOCATIONS.md.</figcaption>
+<div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Library</th><th>Stand tile</th><th class="num">Tomes</th><th class="num">Runes</th><th>Contents</th><th>Charges when read</th></tr></thead>
+<tbody>
+<tr><td>Cambria Rune Library (public)</td><td>(1706, 3181)</td><td class="num">14</td><td class="num">360</td><td>Witcher 1–353; tiles = public table</td><td>9 of 14 had 10–44 of 50</td></tr>
+<tr><td>DTF guild house</td><td>(4152, 1429)</td><td class="num">36</td><td class="num">839</td><td>15 Witcher tomes (360) + 21 named-place tomes (479): towns, docks, A–Z points of interest, "Bad Places", factions, Time Quests</td><td>45–50 of 50</td></tr>
+</tbody></table></div>
+</figure>
+
+<p>Home is data, not code. <code>harness/data/homes.json</code> maps each character to a landing (Outland Dan's book's default rune, the "DTF Loot Chest" at (4134, 1429, z 6)), its library, and a facet-3 rental room reached through the house steward. <code>home.py</code> counts anything within 60 tiles of the landing as home. Recall as the way out to a grove is in <a class="ref" href="#sec-optimizer"></a>; recall as an escape is in <a class="ref" href="#sec-safety"></a>.</p>
+
+<figure class="fig wide" id="fig-world-reach">
+<div class="frame"><!--#include figures/05_reach.svg--></div>
+<figcaption>Where the agent has walked, and where the libraries can drop it. Blue cells are 8×8-tile bins holding distinct facet-0 tiles with at least one server-confirmed step (darker = more tiles); circles are Witcher landing tiles, triangles the DTF library's named places. Walking stays in small patches around Shelter Island, groves and towns (only 115 walked tiles lie within 60 of the DTF house, which is entered and left by recall), while the runes cover the continent. Source: memory DB <code>walk_moves</code> (facet 0, ok = 1), read-only query 2026-10-05 20:37 (18,966 tiles by then, against 18,751 in the 20:25 snapshot quoted in the text); <code>harness/data/rune_libraries.json</code>.</figcaption>
+</figure>
+
+<h3 id="sec-world-memory">One SQLite file for everything</h3>
+
+<p>Everything the harness experiences goes into <code>harness/data/harness.db</code>: SQLite in WAL mode with <code>synchronous=NORMAL</code>, gitignored because it "is runtime memory, not engineering knowledge, and it is never committed." It replaced three JSON/JSONL files in one cut-over at 22:06 on 2026-09-29, the same evening as the map <span class="src">7a3e26f</span>.</p>
+
+<div class="callout decision"><p class="callout-title">Decision</p><p>SQLite, because it is durable (the WAL survives crashes), indexed, in the standard library, and lets the proxy, runners, viz, <code>ctl</code>, overseer and Telegram bridge read while one process writes. Rejected: JSON files (<code>walkmem.json</code> "was 2D, facet-less and rewritten whole"), Postgres ("needs a service"), DuckDB ("analytics-first, not in the stdlib, single-writer file lock").</p></div>
+
+<p>The proxy's <code>MemoryWriter</code> is built so that "the relay never waits on disk": <code>record()</code> only enqueues, and a daemon thread inserts events plus derived walk rows, committing every 0.25 s or 500 rows. <code>walk_moves</code> is keyed on (facet, x, y, z, dir, ok) with a hit count. A move counts as blocked only while its latest deny is newer than its latest confirm, because "doors and mobiles block only for a while." Each open runs <code>CREATE … IF NOT EXISTS</code>, so additive tables arrived without migrations. The schema reached v5, with <code>knowledge</code> and its FTS5 and vector companions as the overseer's long-term memory (<a class="ref" href="#sec-seer"></a>).</p>
+
+<figure class="fig" id="fig-world-er">
+<pre class="mermaid">erDiagram
+  sessions ||--o{ events : "records"
+  events ||..o{ walk_moves : "derives (MemoryWriter)"
+  harvest_nodes ||--o{ harvest_attempts : "node key"
+  knowledge ||--|| knowledge_vec : "embedding"
+  knowledge ||--|| knowledge_fts : "FTS5 triggers"
+  sessions { int id PK
+    text tag
+    text source }
+  events { int session PK
+    int seq PK
+    real t
+    text ev
+    json data }
+  walk_moves { int facet PK
+    int x PK
+    int y PK
+    int z PK
+    int dir PK
+    int ok PK
+    int n }
+  harvest_nodes { int facet PK
+    int x PK
+    int y PK
+    int z PK
+    real depleted_at }
+  harvest_attempts { real t
+    text outcome
+    int amount }
+  knowledge { int id PK
+    text kind
+    real confidence
+    text status }
+</pre>
+<figcaption>The three linked groups of tables in the memory store (schema v5): the event log and the walk evidence derived from it, harvest memory, and the overseer's knowledge with its embedding and full-text companions. <code>episodes</code>, <code>junctures</code>, <code>chat</code>, <code>job_events</code>, <code>teleporters</code>, <code>guard_points</code>, <code>lumber_spots</code>, <code>prices</code> and <code>meta</code> stand alone; <code>meta</code> doubles as a cross-process bus (captcha mode, overseer tasks and cursors). Source: <code>harness/memory.py</code> <code>SCHEMA</code>, docs/MEMORY.md.</figcaption>
+</figure>
+
+<div class="kpis">
+<div class="kpi"><b>1,685,252</b><span>events (world 1,419,900 / proxy 265,364)</span></div>
+<div class="kpi green"><b>18,751</b><span>distinct facet-0 tiles stood on, from 27,281 walk rows</span></div>
+<div class="kpi gold"><b>18,757</b><span>logs from 2,400 successful chops, among 5,193 harvest rows</span></div>
+<div class="kpi purple"><b>289 MB</b><span>store size, plus a 4.4 MB WAL, on 2026-10-05</span></div>
+</div>
+
+<figure class="fig" id="fig-world-tables">
+<div class="frame"><!--#include figures/05_db_tables.svg--></div>
+<figcaption>Rows per table, log scale, coloured by main writer. Events dominate by two orders of magnitude; the 4,107 knowledge rows outnumber every runner table except harvest attempts. Source: memory DB, read-only <code>count(*)</code> per table, 2026-10-05 ~20:25 (FTS5 shadow tables omitted).</figcaption>
+</figure>
+
+<h3 id="sec-world-handoff">Backups and the two-computer handoff</h3>
+
+<p>Since 2026-10-01 an hourly scheduled task copies the store to the NAS with the SQLite online backup API from a <code>mode=ro</code> connection: it never checkpoints or writes the live file, yet includes the WAL's rows. The copy is switched to a rollback journal so it stands alone, checked, gzipped and deduplicated by sha256. That day's restore drill matched all 11 tables row for row (247,502 events) <span class="src">docs/NOTES.md "Backups"</span>.</p>
+
+<p>On 2026-10-04 the owner wanted to "play on a desktop for a while and find its changes on the laptop afterwards." <code>dbhandoff.py</code> keeps one holder and numbered generations on the NAS: <code>push</code> uploads a verified snapshot as generation N+1 and releases it; <code>pull</code> installs it and records the holder. Two checks make it safe. The writer check: <code>PRAGMA journal_mode=DELETE</code> on a WAL store succeeds only for the sole connection, so <code>push</code> refuses while anything else has the store open, even a read-only reader. The fork check: a per-table fingerprint (row count plus sha256 over rows in rowid order; 1.15 M events in 1.9 s) is compared with the one recorded at the last sync, so a pull never silently overwrites local changes. The very first desktop <code>pull</code> refused, "this store has unsynced changes", because a harness command had created an empty database first <span class="src">da0bcb9</span>.</p>
+
+<div class="callout lesson"><p class="callout-title">Lesson</p><p>Sync tools and network shares were rejected. They would copy <code>harness.db</code> and its <code>-wal</code> at different moments and tear the store, and merging diverged stores would collide autoincrement ids in eight tables. In the plan's words: "Preventing forks is cheap and merging isn't, so forks are refused."</p></div>
+</section>

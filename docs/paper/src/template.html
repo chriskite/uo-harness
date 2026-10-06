@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@@TITLE@@</title>
+<meta name="description" content="@@DESCRIPTION@@">
+<style>
+@@STYLE@@
+</style>
+</head>
+<body>
+@@HERO@@
+<div class="layout">
+<nav id="toc" aria-label="Contents"></nav>
+<main id="paper">
+@@SECTIONS@@
+</main>
+</div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7480"/></marker>
+    <marker id="arr-start" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7480"/></marker>
+    <marker id="arr-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f5f8b"/></marker>
+    <marker id="arr-rust" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b4572b"/></marker>
+  </defs>
+</svg>
+<script>
+/* Table-of-contents scroll spy: the only script in the page. */
+(() => {
+  const links = [...document.querySelectorAll('#toc a')];
+  const byId = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const heads = [...document.querySelectorAll('main h2[id], main h3[id]')];
+  let ticking = false;
+  function update() {
+    ticking = false;
+    let cur = null;
+    for (const h of heads) { if (h.getBoundingClientRect().top < 120) cur = h; else break; }
+    links.forEach(a => a.classList.remove('active'));
+    document.querySelectorAll('#toc li.open').forEach(li => li.classList.remove('open'));
+    if (!cur) return;
+    const a = byId.get(cur.id);
+    if (!a) return;
+    a.classList.add('active');
+    let li = a.closest('li');
+    while (li) { li.classList.add('open'); li = li.parentElement.closest('li'); }
+  }
+  addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+  update();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+{
+ "source": "local://data/incidents.json (research brief 06; docs/NOTES.md, docs/PLAN.md, harness.db read-only); N2 time inferred from DB juncture 192 (10-03 16:45:12)",
+ "incidents": [
+  {
+   "id": "D1",
+   "date": "2026-09-30",
+   "time": "10:18",
+   "character": "TestWorth",
+   "kind": "death",
+   "cause": "planned demo",
+   "fix": "same-day demo fixes",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "D2",
+   "date": "2026-09-30",
+   "time": "19:19",
+   "character": "TestWorth",
+   "kind": "death",
+   "cause": "overseer by hand",
+   "fix": "(none recorded)",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "N1",
+   "date": "2026-10-01",
+   "time": "night",
+   "character": "Hackworth",
+   "kind": "near-death",
+   "cause": "overseer by hand",
+   "fix": "f5008fd",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "D3",
+   "date": "2026-10-02",
+   "time": "19:43",
+   "character": "Hackworth",
+   "kind": "death",
+   "cause": "Bastet (PK)",
+   "fix": "f7aab09",
+   "sight_to_death_s": 10.96
+  },
+  {
+   "id": "D4",
+   "date": "2026-10-03",
+   "time": "10:23",
+   "character": "Hackworth",
+   "kind": "death",
+   "cause": "blind goto",
+   "fix": "travel_guard",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "T1",
+   "date": "2026-10-03",
+   "time": "17:24",
+   "character": "Hackworth",
+   "kind": "theft",
+   "cause": "thief",
+   "fix": "0d43095",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "D5",
+   "date": "2026-10-03",
+   "time": "18:04",
+   "character": "Hackworth",
+   "kind": "death",
+   "cause": "Bastet (PK)",
+   "fix": "d6e6c63",
+   "sight_to_death_s": 14.58
+  },
+  {
+   "id": "D6",
+   "date": "2026-10-03",
+   "time": "19:08",
+   "character": "Hackworth",
+   "kind": "death",
+   "cause": "Bastet (PK)",
+   "fix": "c4db365",
+   "sight_to_death_s": 8.39
+  },
+  {
+   "id": "D7",
+   "date": "2026-10-03",
+   "time": "20:29",
+   "character": "Shackleworth",
+   "kind": "death",
+   "cause": "overseer by hand",
+   "fix": "0add311",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "D8",
+   "date": "2026-10-03",
+   "time": "20:44",
+   "character": "Shackleworth",
+   "kind": "death",
+   "cause": "overseer by hand",
+   "fix": "no corpse runs",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "N2",
+   "date": "2026-10-03",
+   "time": "≈16:45",
+   "character": "Hackworth",
+   "kind": "near-death",
+   "cause": "monster, runner trip",
+   "fix": "3316e5b",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "N3",
+   "date": "2026-10-03",
+   "time": "22:17",
+   "character": "Hackworth",
+   "kind": "near-death",
+   "cause": "monster, runner trip",
+   "fix": "be9ef19",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "F1",
+   "date": "2026-10-04",
+   "time": "22:05",
+   "character": "Outland Dan",
+   "kind": "false_alarm",
+   "cause": "false alarm",
+   "fix": "BENIGN_EFFECTS",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "F2",
+   "date": "2026-10-04",
+   "time": "22:33",
+   "character": "Outland Dan",
+   "kind": "false_alarm",
+   "cause": "false alarm",
+   "fix": "e82df6c",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "D9",
+   "date": "2026-10-05",
+   "time": "10:46",
+   "character": "Outland Dan",
+   "kind": "death",
+   "cause": "monster, runner trip",
+   "fix": "87b53fe",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "N4",
+   "date": "2026-10-05",
+   "time": "13:30",
+   "character": "Outland Dan",
+   "kind": "near-death",
+   "cause": "monster, runner trip",
+   "fix": "09db3bd",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "D10",
+   "date": "2026-10-05",
+   "time": "14:08",
+   "character": "Outland Dan",
+   "kind": "death",
+   "cause": "monster, runner trip",
+   "fix": "cb2e981",
+   "sight_to_death_s": null
+  },
+  {
+   "id": "D11",
+   "date": "2026-10-05",
+   "time": "19:07",
+   "character": "Outland Dan",
+   "kind": "death",
+   "cause": "monster, runner trip",
+   "fix": "605782b",
+   "sight_to_death_s": null
+  }
+ ]
+}

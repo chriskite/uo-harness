@@ -1,0 +1,59 @@
+<section id="sec-background">
+<h2>Background: Ultima Online for the rest of us</h2>
+<p class="lead">Just enough Ultima Online to follow the rest of the paper: the game, the shard, the client, the protocol, and the cast of characters.</p>
+
+<h3 id="sec-background-game">The game</h3>
+<p><em>Ultima Online</em> (Origin Systems, 1997) is one of the first graphical MMOs and still one of the strangest. The world of Britannia is a grid of tiles (the main map, facet 0, is 10,752&thinsp;&times;&thinsp;6,144 of them) seen from an isometric camera, with height levels, buildings, caves and dungeons stacked in the <span class="math">z</span> axis. There are no classes. A character's skills (Lumberjacking, Magery, Tracking and some fifty others) start low and rise by being used, so a character that chops trees for hours becomes a better lumberjack, slowly. Death is a big deal: you become a ghost, and anything not "blessed" or "newbied" stays on your corpse for whoever gets there first. Other players can attack you almost anywhere outside guarded towns. A player who kills other players a lot is flagged as a murderer and shown with a red name; the community calls them PKs (player-killers). A player who steals or attacks innocents turns grey for a while. Everyone else is blue.</p>
+
+<aside class="side"><b>Recall</b> is the teleport spell that moves you to a marked rune. A <b>runebook</b> holds 16 marked locations; a <b>rune tome</b> holds more. A <b>rune library</b> is a shelf of public tomes in someone's house. See <a class="ref" href="#app-glossary"></a> for the rest of the jargon.</aside>
+<p>Travel is mostly by foot, by horse, through moongates, or by casting Recall on a marked rune. Interaction is through <em>gumps</em> (the generic UO dialog box), target cursors ("what do you want to use this on?"), context menus, and the journal, where the server prints what happens to you, mostly as numbered localized messages (<em>clilocs</em>).</p>
+
+<h3 id="sec-background-shard">Outlands, ClassicUO and Razor</h3>
+<p>The official servers still run, but much of the remaining population plays on <em>free shards</em>: independently run servers with their own rules and content. <strong>UO Outlands</strong> is one of the largest and most heavily customized. It ships its own launcher (with an OutlandsID account system and e-mail device verification) and its own build of <strong>ClassicUO</strong>, the open-source C# reimplementation of the UO client. Unlike upstream ClassicUO, the Outlands build is compiled ahead of time to native code with .NET NativeAOT, so there is no plugin surface to build on, which is why the harness lives on the network instead (<a class="ref" href="#sec-wire"></a>). At the start of the project the client was version 1.0.2.544; the launcher patched it to 1.0.2.550 a day later.</p>
+<p><strong>Razor</strong> is the classic UO "assistant": macros, hotkeys, a scripting language. Outlands compiles a fork of Razor CE into its client and treats it as the only sanctioned automation surface; it also restricts what Razor scripts may do (walking was removed from Razor on Outlands in 2023, for example). That fact turns out to shape the harness: anything a Razor script can do at Razor's speed is, in a sense, normal behaviour on this shard, and anything beyond that is not.</p>
+<p>Outlands documents its anti-automation stance in its rules and wiki: no unsanctioned tools, no unattended harvesting, CAPTCHAs that interrupt resource gathering every few minutes (three failures block harvesting for six hours), and staff who check on suspicious gatherers in person. <a class="ref" href="#sec-safety"></a> covers how the harness deals with CAPTCHAs and with the chance of a staff member walking up.</p>
+
+<h3 id="sec-background-protocol">The protocol in one page</h3>
+<p>The client talks to the game server over a single long-lived TCP connection on port 2593. The protocol is old, binary and refreshingly simple. Every message is a packet that starts with a one-byte id. Most ids have a fixed length known to both sides; variable-length packets carry a two-byte length right after the id. The server compresses everything it sends with a static Huffman code that dates from 1997. Outlands wraps both directions in an additional per-session XOR layer (more in <a class="ref" href="#sec-wire"></a>), widens about two dozen standard packets with extra fields, and adds a few of its own.</p>
+
+<figure class="fig" id="fig-background-login">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant P as Player
+  participant L as Outlands launcher
+  participant A as login.uooutlands.com
+  participant C as ClassicUO client
+  participant S as Game server :2593
+  P->>L: e-mail + password
+  L->>A: HTTPS login (+ device id)
+  A-->>L: JWT + game server address
+  L->>C: start client
+  C->>S: TCP connect
+  S-->>C: 13-byte prelude (session keys)
+  C->>S: 0x91 game login (account, JWT)
+  S-->>C: login confirm, then a stream of world packets
+  Note over C,S: steady state: 0x02 walk ⇄ 0x22 confirm / 0x21 deny,<br/>0x06 use, 0x6C target, 0xB1 gump reply, 0xAD speech,<br/>and an ff 00 07 keepalive about once a second
+</pre>
+<figcaption>How an Outlands session starts. Only two connections ever exist: the short HTTPS login and the persistent game socket (a 30-minute endpoint monitor saw nothing else). Packet ids are standard UO; the prelude and keepalive are Outlands-specific. Sources: ANTICHEAT.md §7, docs/CIPHER.md, docs/PROTOCOL.md.</figcaption>
+</figure>
+
+<aside class="side">The walk handshake is the one piece of protocol everyone in this paper ends up knowing by heart. Each <code>0x02</code> carries a direction, a sequence number (1&ndash;255, wrapping to 1) and a "fast-walk key" that the server handed out earlier.</aside>
+<p>A handful of packets do most of the work. Moving is a request (<code>0x02</code>) that the server either confirms (<code>0x22</code>) or denies (<code>0x21</code>, which also snaps you back to where the server thinks you are). Using an object is a double-click (<code>0x06</code>); many actions then open a target cursor (<code>0x6C</code>) that the client answers with whatever you clicked on. Dialogs arrive as gump packets (<code>0xB0</code>/<code>0xDD</code>) and are answered with a button press (<code>0xB1</code>). The server describes the world with mobile and item packets (<code>0x20</code>, <code>0x78</code>, <code>0xF3</code> and friends) and narrates events with cliloc messages (<code>0xC1</code>/<code>0xCC</code>). A full list of what the harness reads and writes is in <a class="ref" href="#app-protocol"></a>.</p>
+
+<h3 id="sec-background-cast">Venues and the cast of characters</h3>
+<p>New Outlands characters start on <strong>Shelter Island</strong> with <em>Young</em> status: no hostile player actions are possible there, the bank and vendors serve only Young characters, skills cap at 80 and the harvest chance is halved. Leaving the island renounces Young status permanently, after a two-click confirmation that the harness was never allowed to press. There is also a <strong>Test Shard</strong> with a player editor for setting skills and spawning items, which we used for the first week of experiments. Five characters appear in the data (<a class="ref" href="#tab-background-cast"></a>).</p>
+
+<figure class="tbl" id="tab-background-cast"><figcaption>The characters. "Logged in" is wall-clock time connected through the proxy; "agent" is time with at least one agent-sent packet that minute. Shard attribution for everyone except TestWorth is inferred (the logs record server IPs, not shard names; see <a class="ref" href="#sec-results"></a>). Sources: memory DB, <code>07_sessions.json</code>, docs/NOTES.md.</figcaption>
+<div class="tbl-scroll"><table>
+<thead><tr><th>Character</th><th>Where</th><th>When</th><th class="num">Logged in / agent h</th><th>Role in the story</th></tr></thead>
+<tbody>
+<tr><td><strong>TestWorth</strong></td><td>Test Shard (74.91.115.123)</td><td>09-28 &rarr; 10-02</td><td class="num">32.95 / 4.23</td><td>The lab rat. First login through the proxy, first injected walk, first lumber loop, the Young demos; Lumberjacking set to 100 with the Test Shard editor.</td></tr>
+<tr><td><strong>Hackworth</strong></td><td>35.71.142.123 / 52.223.17.219 <span class="tag inferred">production?</span></td><td>10-01 &rarr; 10-03</td><td class="num">20.51 / 12.23</td><td>The first fresh character run by the overseer. Shelter Island, then Horseshoe Bay; killed three times by the PK Bastet.</td></tr>
+<tr><td><strong>Shackleworth</strong></td><td>same</td><td>10-03</td><td class="num">4.41 / 3.55</td><td>An arcane-mage alt made to earn a blessed rune tome in the New Player Dungeon; died twice in an orc fortress during a hand-fought hunt.</td></tr>
+<tr><td><strong>Outland Dan</strong></td><td>same</td><td>10-04 &rarr; 10-05</td><td class="num">13.48 / 6.05</td><td>"Our first real lumberjacker": guild DTF's house and rune library, a rented room, Lumberjacking 50.1 &rarr; 81.2.</td></tr>
+<tr><td><strong>Logan Wolf</strong></td><td>same</td><td>10-04</td><td class="num">0.37 / 0</td><td>Holds the rental room Dan stores his boards in; never driven by the agent.</td></tr>
+</tbody></table></div></figure>
+
+<p>The places that recur are Shelter Island (start zone, inn and bank), <strong>Horseshoe Bay</strong> (the first mainland lumber spot), the Terran wilds and Nusero (where Bastet hunted), Wintertop (a death), and dozens of forest clearings near the community's "Witcher" rune set that the planner explores (<a class="ref" href="#sec-optimizer"></a>).</p>
+</section>

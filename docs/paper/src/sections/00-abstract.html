@@ -1,0 +1,17 @@
+<section class="nonum notoc" id="sec-abstract">
+<div class="abstract">
+<h2>Abstract</h2>
+<p>We describe <strong>uo-harness</strong>, an AI agent harness that plays the Ultima Online free shard <em>Outlands</em> through a localhost proxy between the stock game client and the server. Deterministic Python runners do the reflex work: walking, chopping trees, fleeing, storing. They act on a world model built from server packets and a single SQLite memory that every part of the system shares. A Bayesian planner (Thompson sampling over lumber spots, with a renewal-reward trip size under competing death, sent-home and theft hazards) decides where to go and how long to stay. An LLM overseer, the Seer, sits outside the inner loop on a database message bus. It wakes at junctures, talks to the owner through a web visualizer and Telegram, and consults a knowledge base distilled from the community Discord through hybrid semantic search. The whole system was built in nine days by one person directing AI coding agents, mainly Claude Opus, with Kimi and Sonnet for some jobs: 545 human prompts became 348 commits and about 55k lines of Python. Over 72 logged-in hours the harness ran 63 lumber trips, chopped 18,757 logs, stored 10,380 boards, raised a character's Lumberjacking from 50.1 to 81.2, answered 53 of 53 harvest CAPTCHAs, and died 10 times, three of them to the same player-killer. We report what worked, what we got wrong first, and what it was like to let the agents make most of the decisions.</p>
+</div>
+
+<div class="kpis wide">
+  <div class="kpi"><b>9 days</b><span>from first prompt to an overseer-run lumber business</span></div>
+  <div class="kpi"><b>545 &rarr; 348</b><span>human prompts &rarr; commits</span></div>
+  <div class="kpi rust"><b>72 h</b><span>logged in through the proxy, 26 h with the agent driving</span></div>
+  <div class="kpi green"><b>18,757</b><span>logs chopped in 63 trips; 10,380 boards stored at home</span></div>
+  <div class="kpi gold"><b>~355 &rarr; 3,300</b><span>boards/h on Shelter Island vs logs per trip-hour on 10-05</span></div>
+  <div class="kpi purple"><b>53 / 53</b><span>harvest CAPTCHAs answered and accepted (43 by the solver)</span></div>
+</div>
+
+<nav class="toc-inline" aria-label="Contents"></nav>
+</section>

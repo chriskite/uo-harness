@@ -1,0 +1,82 @@
+{
+ "_source": "local://data/07_harvest_memory.json: chop cadence = median gap between consecutive success/fail results (1-30 s) per day; success rate = success/(success+fail) from harvest_attempts; logs per success = logs/successes; implied logs per chop-hour = 3600/cadence x success x logs per success. logs_per_trip_h from 07_lumber_trips per_day_character.",
+ "days": [
+  {
+   "date": "2026-09-29",
+   "character": "TestWorth",
+   "cadence_s": 8.98,
+   "cad_p25": 8.26,
+   "cad_p75": 10.44,
+   "success_rate": 0.311,
+   "logs_per_success": 7.93,
+   "implied_logs_per_chop_h": 989,
+   "logs_per_trip_h": 376
+  },
+  {
+   "date": "2026-09-30",
+   "character": "TestWorth",
+   "cadence_s": 9.64,
+   "cad_p25": 8.64,
+   "cad_p75": 11.75,
+   "success_rate": 0.712,
+   "logs_per_success": 7.81,
+   "implied_logs_per_chop_h": 2075,
+   "logs_per_trip_h": 847
+  },
+  {
+   "date": "2026-10-01",
+   "character": "Hackworth",
+   "cadence_s": 9.46,
+   "cad_p25": 8.82,
+   "cad_p75": 10.45,
+   "success_rate": 0.366,
+   "logs_per_success": 7.73,
+   "implied_logs_per_chop_h": 1077,
+   "logs_per_trip_h": 553
+  },
+  {
+   "date": "2026-10-02",
+   "character": "Hackworth",
+   "cadence_s": 9.49,
+   "cad_p25": 8.51,
+   "cad_p75": 11.01,
+   "success_rate": 0.58,
+   "logs_per_success": 7.53,
+   "implied_logs_per_chop_h": 1658,
+   "logs_per_trip_h": 897
+  },
+  {
+   "date": "2026-10-03",
+   "character": "Hackworth",
+   "cadence_s": 9.78,
+   "cad_p25": 8.72,
+   "cad_p75": 11.79,
+   "success_rate": 0.642,
+   "logs_per_success": 7.54,
+   "implied_logs_per_chop_h": 1783,
+   "logs_per_trip_h": 1304
+  },
+  {
+   "date": "2026-10-04",
+   "character": "Outland Dan",
+   "cadence_s": 8.97,
+   "cad_p25": 6.47,
+   "cad_p75": 10.89,
+   "success_rate": 0.532,
+   "logs_per_success": 7.95,
+   "implied_logs_per_chop_h": 1697,
+   "logs_per_trip_h": 1104
+  },
+  {
+   "date": "2026-10-05",
+   "character": "Outland Dan",
+   "cadence_s": 5.21,
+   "cad_p25": 5.06,
+   "cad_p75": 5.44,
+   "success_rate": 0.721,
+   "logs_per_success": 8.07,
+   "implied_logs_per_chop_h": 4020,
+   "logs_per_trip_h": 2589
+  }
+ ]
+}

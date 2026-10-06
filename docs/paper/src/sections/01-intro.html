@@ -1,0 +1,181 @@
+<section id="sec-intro">
+<h2>Introduction</h2>
+
+<p class="lead dropcap">On a Sunday evening in late September 2026 the owner of this repository typed a one-paragraph prompt into an AI coding agent: build an agent harness that plays <em>Ultima Online Outlands</em>, research how, and present a plan. Nine days and 348 commits later, a character named Outland Dan was recalling out of a guild house rune library to a forest a few hundred tiles away, chopping trees as fast as the server allows, running from air dragons, fleeing player-killers, carrying boards home to a rented room, and reporting all of it to an LLM overseer that styles itself after Hawkwind the Seer. Nobody modified the game client.</p>
+
+<blockquote class="pull"><p>Goal: create an AI agent harness that plays Ultima Online Outlands. [&hellip;] Research how best to accomplish this and present a high level plan.</p><cite>&mdash; the founding prompt, 2026-09-27 19:18 (laptop session log)</cite></blockquote>
+
+<p>This paper is the long-form record of how that happened: what we built, the techniques we borrowed and invented, the many things we got wrong first, and what the numbers say so far. "We" means the owner and the fleet of coding agents he directed; the split of credit is itself one of the subjects (<a class="ref" href="#sec-process"></a>).</p>
+
+<h3 id="sec-intro-why">Why this is harder than it sounds</h3>
+
+<aside class="side"><b>Ultima Online</b> (1997) is the original graphical MMO: an isometric tile world of 10,752&thinsp;&times;&thinsp;6,144 tiles, skills that rise with use, and full-loot player-versus-player. <b>Outlands</b> is a popular free shard (a privately run server) with its own client fork. <a class="ref" href="#sec-background"></a> has the details.</aside>
+<p>Game bots are old news, and Ultima Online has had macro assistants since the last century. What made this project interesting is the combination of constraints we accepted (some on day one, some along the way):</p>
+
+<ul>
+<li><strong>The client is a fortress.</strong> The Outlands build of ClassicUO is compiled ahead of time to native code (NativeAOT). There is no .NET intermediate language to decompile, no runtime to hook, and no sanctioned plugin surface. We decided early never to inject into it, never to patch it, never to send synthetic keyboard or mouse input to its window, and never to write a byte into its install directory.</li>
+<li><strong>The server must see a normal client.</strong> Everything the harness does has to arrive at the server as packets the stock client could have sent, in the order and shape it sends them, interleaved with the human's own traffic on the same connection.</li>
+<li><strong>The agent must never reveal itself.</strong> No injected speech that mentions harnesses, testing or AI; a standing rule since day two <span class="src">AGENTS.md Constraint 4</span>.</li>
+<li><strong>The world is hostile.</strong> Outlands has full-loot PvP, thieves who pick pockets, monsters that wander into lumber groves, harvesting CAPTCHAs, and staff who watch for unattended play.</li>
+<li><strong>The code has to explain itself.</strong> Every engineering finding is written down and pushed before a session ends (Rule 0), so that a fresh agent with no memory of the conversation can carry on. That rule is why this paper could be written at all.</li>
+</ul>
+
+<h3 id="sec-intro-glance">The system at a glance</h3>
+
+<p>The architecture we settled on is a man-in-the-middle of the most boring kind: a localhost TCP proxy (<a class="ref" href="#fig-intro-arch"></a>). A WinDivert NAT quietly redirects the stock client's game connection to the proxy, which decrypts and decompresses both directions, keeps a packet-built world model, and lets deterministic Python "runners" inject their own actions into the client's stream. A SQLite memory store records every event and doubles as a message bus. An LLM overseer, the Seer, sits <em>outside</em> the inner loop: it is woken at important junctures, reads the store through a small CLI, and decides what job to run next, while the runners do the reflexes.</p>
+
+<figure class="fig wide" id="fig-intro-arch">
+<svg class="diagram" viewBox="0 0 1000 566" role="img" aria-label="uo-harness architecture overview">
+  <text x="20" y="22" class="d-small" style="letter-spacing:.12em;font-weight:700">THE WIRE</text>
+  <text x="20" y="226" class="d-small" style="letter-spacing:.12em;font-weight:700">THE HARNESS</text>
+  <text x="20" y="428" class="d-small" style="letter-spacing:.12em;font-weight:700">CONTROL PLANE</text>
+
+  <rect x="20" y="34" width="160" height="150" rx="8" class="d-box ext"/>
+  <text x="34" y="60" class="d-title">Outlands client</text>
+  <text x="34" y="82" class="d-text">ClassicUO.exe</text>
+  <text x="34" y="98" class="d-text">NativeAOT, stock</text>
+  <text x="34" y="114" class="d-text">never modified</text>
+  <text x="34" y="164" class="d-small">human plays here too</text>
+
+  <rect x="215" y="34" width="120" height="150" rx="8" class="d-box rust"/>
+  <text x="229" y="60" class="d-title">WinDivert</text>
+  <text x="229" y="82" class="d-small">NAT: any IP :2593</text>
+  <text x="229" y="97" class="d-small">&#8594; localhost</text>
+  <text x="229" y="112" class="d-small">orig. dst :25943</text>
+  <text x="229" y="164" class="d-small">settings untouched</text>
+
+  <rect x="370" y="34" width="375" height="150" rx="8" class="d-box blue"/>
+  <text x="384" y="58" class="d-title">Rewriting proxy (Python asyncio)</text>
+  <rect x="381" y="72" width="115" height="46" rx="6" class="d-box"/>
+  <text x="391" y="91" class="d-text" style="font-weight:600">Codec</text>
+  <text x="391" y="107" class="d-small">XOR + Huffman</text>
+  <rect x="503" y="72" width="115" height="46" rx="6" class="d-box"/>
+  <text x="513" y="91" class="d-text" style="font-weight:600">Framer</text>
+  <text x="513" y="107" class="d-small">145-entry lengths</text>
+  <rect x="625" y="72" width="115" height="46" rx="6" class="d-box"/>
+  <text x="635" y="91" class="d-text" style="font-weight:600">Walk ladder</text>
+  <text x="635" y="107" class="d-small">shared seq + key</text>
+  <rect x="381" y="126" width="115" height="46" rx="6" class="d-box"/>
+  <text x="391" y="145" class="d-text" style="font-weight:600">Injection hub</text>
+  <text x="391" y="161" class="d-small">control :25941</text>
+  <rect x="503" y="126" width="115" height="46" rx="6" class="d-box"/>
+  <text x="513" y="145" class="d-text" style="font-weight:600">Client-only fixes</text>
+  <text x="513" y="161" class="d-small">0x21 re-anchors</text>
+  <rect x="625" y="126" width="115" height="46" rx="6" class="d-box"/>
+  <text x="635" y="145" class="d-text" style="font-weight:600">Target arbiter</text>
+  <text x="635" y="161" class="d-small">drops dup replies</text>
+
+  <rect x="780" y="34" width="200" height="150" rx="8" class="d-box ext"/>
+  <text x="794" y="60" class="d-title">Outlands server</text>
+  <text x="794" y="82" class="d-text">:2593, IP per login</text>
+  <text x="794" y="98" class="d-text">HTTPS login &#8594; JWT</text>
+  <text x="794" y="114" class="d-small">sees only stock-shaped</text>
+  <text x="794" y="128" class="d-small">client traffic</text>
+
+  <path d="M182,110 L213,110" class="d-edge both"/>
+  <path d="M337,110 L368,110" class="d-edge both"/>
+  <path d="M747,110 L778,110" class="d-edge both"/>
+
+  <rect x="20" y="238" width="220" height="120" rx="8" class="d-box"/>
+  <text x="34" y="262" class="d-title">World model</text>
+  <text x="34" y="283" class="d-text">entities &#183; gumps &#183; journal</text>
+  <text x="34" y="299" class="d-text">.uoo map + 3-D A*</text>
+  <text x="34" y="315" class="d-text">houses from multi.mul</text>
+  <text x="34" y="341" class="d-small">state port :25942</text>
+
+  <rect x="265" y="238" width="230" height="120" rx="8" class="d-box green"/>
+  <text x="279" y="262" class="d-title">Runners &amp; skills</text>
+  <text x="279" y="283" class="d-text">lumber &#183; hunt &#183; errands</text>
+  <text x="279" y="299" class="d-text">mover &#183; threats &#183; escape</text>
+  <text x="279" y="315" class="d-text">captcha &#183; thief guard</text>
+  <text x="279" y="341" class="d-small">deterministic Python, no LLM</text>
+
+  <rect x="520" y="238" width="200" height="120" rx="8" class="d-box gold"/>
+  <text x="534" y="262" class="d-title">Planner</text>
+  <text x="534" y="283" class="d-text">Thompson sampling</text>
+  <text x="534" y="299" class="d-text">over lumber spots</text>
+  <text x="534" y="315" class="d-text">renewal-reward trip size</text>
+  <text x="534" y="341" class="d-small">harness/lumber_opt.py</text>
+
+  <rect x="745" y="238" width="235" height="120" rx="8" class="d-box"/>
+  <text x="759" y="262" class="d-title">Memory store</text>
+  <text x="759" y="283" class="d-text">SQLite harness.db</text>
+  <text x="759" y="299" class="d-text">events &#183; walks &#183; harvests</text>
+  <text x="759" y="315" class="d-text">trips &#183; junctures &#183; knowledge</text>
+  <text x="759" y="341" class="d-small">1.7 M events, 289 MB</text>
+
+  <path d="M420,186 C420,214 130,208 130,236" class="d-edge blue"/>
+  <text x="236" y="207" class="d-elabel">server packets &#8594; state</text>
+  <path d="M400,236 C400,212 560,214 560,188" class="d-edge rust"/>
+  <text x="452" y="216" class="d-elabel">agent actions</text>
+  <path d="M700,186 C700,214 862,208 862,236" class="d-edge"/>
+  <text x="760" y="207" class="d-elabel">every packet &#8594; events</text>
+  <path d="M242,298 L263,298" class="d-edge"/>
+  <path d="M518,298 L497,298" class="d-edge"/>
+  <path d="M743,298 L722,298" class="d-edge"/>
+
+  <path d="M420,398 L960,398" class="d-edge dash" style="marker-end:none"/>
+  <path d="M862,360 L862,398" class="d-edge dash" style="marker-end:none"/>
+  <text x="600" y="391" class="d-elabel">store bus: junctures &#183; chat &#183; knowledge &#183; actions</text>
+
+  <rect x="20" y="440" width="230" height="110" rx="8" class="d-box purple"/>
+  <text x="34" y="464" class="d-title">The Seer</text>
+  <text x="34" y="485" class="d-text">LLM overseer (omp session)</text>
+  <text x="34" y="501" class="d-text">wakes on junctures</text>
+  <text x="34" y="517" class="d-text">picks jobs, talks to you</text>
+
+  <rect x="275" y="440" width="170" height="110" rx="8" class="d-box purple"/>
+  <text x="289" y="464" class="d-title">ctl CLI</text>
+  <text x="289" y="485" class="d-text">status &#183; run &#183; act</text>
+  <text x="289" y="501" class="d-text">know &#183; say &#183; wait</text>
+  <text x="289" y="533" class="d-small">the agent's API</text>
+
+  <rect x="470" y="440" width="160" height="110" rx="8" class="d-box"/>
+  <text x="484" y="464" class="d-title">Visualizer</text>
+  <text x="484" y="485" class="d-text">Bun + React :8080</text>
+  <text x="484" y="501" class="d-text">map &#183; avatar &#183; chat</text>
+
+  <rect x="655" y="440" width="150" height="110" rx="8" class="d-box"/>
+  <text x="669" y="464" class="d-title">Telegram</text>
+  <text x="669" y="485" class="d-text">phone chat</text>
+  <text x="669" y="501" class="d-text">and alerts</text>
+
+  <rect x="830" y="440" width="150" height="110" rx="8" class="d-box"/>
+  <text x="844" y="464" class="d-title">Knowledge</text>
+  <text x="844" y="485" class="d-text">Discord KB</text>
+  <text x="844" y="501" class="d-text">semantic search</text>
+  <text x="844" y="517" class="d-text">Laya triage</text>
+
+  <path d="M252,495 L273,495" class="d-edge both"/>
+  <path d="M320,438 L320,360" class="d-edge rust"/>
+  <text x="326" y="414" class="d-elabel" style="text-anchor:start">run &#183; stop &#183; act</text>
+  <path d="M420,440 L420,398" class="d-edge dash" style="marker-end:none"/>
+  <path d="M550,440 L550,398" class="d-edge dash" style="marker-end:none"/>
+  <path d="M730,440 L730,398" class="d-edge dash" style="marker-end:none"/>
+  <path d="M905,440 L905,398" class="d-edge dash" style="marker-end:none"/>
+</svg>
+<figcaption>The system at a glance. The client and server (dashed) are untouched third parties; everything else runs on the player's PC and is brought up by one supervisor (<code>harness/stack.py</code>). Server packets flow up into the world model and the store; agent actions flow down through the proxy's injection hub, sharing one walk ladder with the human's own keystrokes. The LLM only ever acts through <code>ctl</code>. Chapters: wire <a class="ref" href="#sec-wire"></a>, world model <a class="ref" href="#sec-world"></a>, runners <a class="ref" href="#sec-lumber"></a>, planner <a class="ref" href="#sec-optimizer"></a>, control plane <a class="ref" href="#sec-seer"></a>.</figcaption>
+</figure>
+
+<p>Two design choices carry most of the weight. First, <strong>the proxy never originates a server-visible packet of its own</strong>: it forwards the client's traffic, it writes the agent's packets in the stock client's exact shapes, and the only thing it ever withholds is a duplicate reply to a target cursor the agent already answered. The fiction that keeps the client's screen honest (for example, a fake "you can't walk there" re-anchor after an agent step) is fabricated <em>toward the client only</em>. Second, <strong>the LLM is a manager, not a pair of hands</strong>. Chopping, walking, fleeing and storing are deterministic controllers with typed failures; an LLM in that loop would be slow, expensive and, as one dungeon fight demonstrated, fatal (<a class="ref" href="#sec-safety"></a>).</p>
+
+<h3 id="sec-intro-contrib">What this paper contributes</h3>
+
+<p>Most of what follows is engineering narrative, but a few pieces are, we think, worth stealing:</p>
+<ol>
+<li><strong>A memory the whole system shares.</strong> One SQLite store that every component writes into and the overseer reads from: 1.7 million events, walk and harvest memory, trips, junctures, chat and a knowledge table with hybrid semantic search on the GPU, a local triage model (Laya) and a fact base vetted from the community Discord (<a class="ref" href="#sec-world"></a>, <a class="ref" href="#sec-seer"></a>).</li>
+<li><strong>Two senders, one character.</strong> A proxy that lets a human and an agent drive the same avatar at once, on one shared walk sequence and fast-walk key ladder, with client-only fabrications that keep the client's view consistent (<a class="ref" href="#sec-wire"></a>). Over 72 logged-in hours it produced zero client-to-server framing desyncs.</li>
+<li><strong>A packet-built world model with real 3-D pathfinding</strong> from the client's own map files, houses included, and rune libraries read without ever casting a spell (<a class="ref" href="#sec-world"></a>).</li>
+<li><strong>A loop learned from demonstration</strong> and hardened against the shard's hazards, then made <strong>self-optimizing</strong>: Thompson sampling over lumber spots, competing death, sent-home and theft hazards, and a renewal-reward trip size (<a class="ref" href="#sec-lumber"></a>, <a class="ref" href="#sec-optimizer"></a>).</li>
+<li><strong>Survival engineering</strong> measured against an actual player-killer: recall-on-sight in about two seconds, a thief guard, keep-away from monsters, a CAPTCHA solver that went 43 for 43 (<a class="ref" href="#sec-safety"></a>).</li>
+<li><strong>An LLM overseer on a database bus</strong>: junctures, a CLI, a phone bridge and a vetted knowledge base distilled from the community Discord (<a class="ref" href="#sec-seer"></a>).</li>
+<li><strong>A field report on building it with AI agents</strong>: 545 human prompts, 53 top-level sessions and 90 subagents, in which the owner mostly steered and the agents made most of the design decisions themselves, including a loop where the Seer's reports from the field became runner fixes within the hour (<a class="ref" href="#sec-process"></a>).</li>
+</ol>
+
+<h3 id="sec-intro-guide">How to read this</h3>
+
+<p><a class="ref" href="#sec-background"></a> is a crash course in Ultima Online for people who missed 1997. <a class="ref" href="#sec-wire"></a> through <a class="ref" href="#sec-seer"></a> walk up the stack from the network connection to the overseer; each chapter can be read alone. <a class="ref" href="#sec-results"></a> collects the numbers, <a class="ref" href="#sec-process"></a> is about the human&ndash;agent collaboration, and <a class="ref" href="#sec-discussion"></a> covers lessons, limitations and the uncomfortable parts. The appendices hold a timeline, a repository map, a protocol reference and a glossary (<a class="ref" href="#app-glossary"></a>).</p>
+
+<div class="callout aside"><p class="callout-title">Sources and conventions</p>
+<p>Every number in this paper comes from the repository, its git history, the harness's memory database (read-only, snapshot of 2026-10-05 around 20:30) or the 143 AI session logs from two computers. Claims we could not ground directly are marked <span class="tag inferred">inferred</span> or worded as such. Times are local (CDT, UTC&minus;5). Small grey pointers like <span class="src">docs/NOTES.md</span> name the source. The game shard is a live, changing system; treat every rate as "what we measured that week".</p></div>
+</section>

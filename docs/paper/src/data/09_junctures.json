@@ -1,0 +1,220 @@
+{
+ "_source": "Read-only snapshot of harness/data/harness.db `junctures` (desktop copy after dbhandoff pull, ~2026-10-05 20:30 CDT); local days. 'other' = notice, death, thief_near, service_down, service_up, low_supplies.",
+ "total": 314,
+ "by_kind": {
+  "threat": 95,
+  "task_failed": 88,
+  "speech_nearby": 67,
+  "task_done": 34,
+  "pk_escape": 8,
+  "captcha": 6,
+  "gm_suspected": 4,
+  "notice": 3,
+  "death": 3,
+  "thief_near": 2,
+  "service_down": 2,
+  "low_supplies": 1,
+  "service_up": 1
+ },
+ "by_severity": {
+  "urgent": 156,
+  "attention": 123,
+  "info": 35
+ },
+ "by_day_kind": {
+  "2026-09-30": {
+   "threat": 2,
+   "task_failed": 2,
+   "speech_nearby": 0,
+   "task_done": 5,
+   "pk_escape": 0,
+   "captcha": 4,
+   "gm_suspected": 0,
+   "other": 3,
+   "other_detail": {
+    "notice": 3
+   }
+  },
+  "2026-10-01": {
+   "threat": 4,
+   "task_failed": 7,
+   "speech_nearby": 23,
+   "task_done": 0,
+   "pk_escape": 0,
+   "captcha": 1,
+   "gm_suspected": 0,
+   "other": 0,
+   "other_detail": {}
+  },
+  "2026-10-02": {
+   "threat": 17,
+   "task_failed": 22,
+   "speech_nearby": 26,
+   "task_done": 12,
+   "pk_escape": 0,
+   "captcha": 0,
+   "gm_suspected": 4,
+   "other": 0,
+   "other_detail": {}
+  },
+  "2026-10-03": {
+   "threat": 31,
+   "task_failed": 34,
+   "speech_nearby": 17,
+   "task_done": 6,
+   "pk_escape": 4,
+   "captcha": 1,
+   "gm_suspected": 0,
+   "other": 2,
+   "other_detail": {
+    "low_supplies": 1,
+    "death": 1
+   }
+  },
+  "2026-10-04": {
+   "threat": 3,
+   "task_failed": 2,
+   "speech_nearby": 0,
+   "task_done": 2,
+   "pk_escape": 0,
+   "captcha": 0,
+   "gm_suspected": 0,
+   "other": 0,
+   "other_detail": {}
+  },
+  "2026-10-05": {
+   "threat": 38,
+   "task_failed": 21,
+   "speech_nearby": 1,
+   "task_done": 9,
+   "pk_escape": 4,
+   "captcha": 0,
+   "gm_suspected": 0,
+   "other": 7,
+   "other_detail": {
+    "thief_near": 2,
+    "service_down": 2,
+    "death": 2,
+    "service_up": 1
+   }
+  }
+ },
+ "ack_latency_s_by_kind": {
+  "captcha": {
+   "n": 6,
+   "median": 11.1,
+   "max": 12.9
+  },
+  "task_done": {
+   "n": 34,
+   "median": 11.6,
+   "max": 41077.8
+  },
+  "notice": {
+   "n": 3,
+   "median": 8.0,
+   "max": 9.0
+  },
+  "threat": {
+   "n": 95,
+   "median": 19.1,
+   "max": 2571.5
+  },
+  "task_failed": {
+   "n": 87,
+   "median": 24.6,
+   "max": 13185.7
+  },
+  "speech_nearby": {
+   "n": 67,
+   "median": 6.2,
+   "max": 1202.3
+  },
+  "gm_suspected": {
+   "n": 4,
+   "median": 40.6,
+   "max": 1201.9
+  },
+  "low_supplies": {
+   "n": 1,
+   "median": 10.1,
+   "max": 10.1
+  },
+  "pk_escape": {
+   "n": 8,
+   "median": 12.2,
+   "max": 6100.6
+  },
+  "death": {
+   "n": 3,
+   "median": 295.7,
+   "max": 355.0
+  },
+  "thief_near": {
+   "n": 2,
+   "median": 13.0,
+   "max": 21.3
+  },
+  "service_down": {
+   "n": 2,
+   "median": 23.2,
+   "max": 40.9
+  },
+  "service_up": {
+   "n": 1,
+   "median": 51.9,
+   "max": 51.9
+  }
+ },
+ "chat_by_rolekind": {
+  "overseer/action": 1903,
+  "overseer/memory": 359,
+  "overseer/thought": 291,
+  "overseer/message": 227,
+  "user/message": 74,
+  "system/message": 1
+ },
+ "chat_by_day_rolekind": {
+  "2026-09-30": {
+   "overseer/message": 112,
+   "overseer/thought": 62,
+   "overseer/action": 481,
+   "user/message": 37,
+   "overseer/memory": 114
+  },
+  "2026-10-01": {
+   "overseer/memory": 21,
+   "overseer/message": 11,
+   "overseer/thought": 43,
+   "user/message": 5,
+   "overseer/action": 114
+  },
+  "2026-10-02": {
+   "overseer/memory": 43,
+   "overseer/message": 50,
+   "overseer/thought": 90,
+   "overseer/action": 335,
+   "user/message": 16,
+   "system/message": 1
+  },
+  "2026-10-03": {
+   "overseer/action": 644,
+   "overseer/message": 35,
+   "user/message": 16,
+   "overseer/thought": 43,
+   "overseer/memory": 102
+  },
+  "2026-10-04": {
+   "overseer/memory": 30,
+   "overseer/action": 66,
+   "overseer/thought": 1,
+   "overseer/message": 2
+  },
+  "2026-10-05": {
+   "overseer/action": 263,
+   "overseer/memory": 49,
+   "overseer/thought": 52,
+   "overseer/message": 17
+  }
+ }
+}

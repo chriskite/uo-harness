@@ -1,0 +1,77 @@
+{
+ "source": "old: s2c rows and s2c_desync events in logs/session_<tag>.jsonl as written live by the pre-correction proxy; corrected: logs/session_<tag>.s2c.raw re-decoded offline with harness/uo/s2c.py (XOR prelude byte 11, one flush = one packet), lengths checked against the Outlands table",
+ "sessions": [
+  {
+   "tag": "20260928_141253",
+   "raw_bytes": 83820,
+   "old_framed": 103,
+   "old_desync": 4,
+   "corrected_framed": 2835,
+   "corrected_length_mismatches": 0,
+   "leftover_bytes": 0
+  },
+  {
+   "tag": "20260928_164548",
+   "raw_bytes": 37168,
+   "old_framed": 42,
+   "old_desync": 1,
+   "corrected_framed": 2433,
+   "corrected_length_mismatches": 0,
+   "leftover_bytes": 0
+  },
+  {
+   "tag": "20260928_211622",
+   "raw_bytes": 133801,
+   "old_framed": 2620,
+   "old_desync": 635,
+   "corrected_framed": 16615,
+   "corrected_length_mismatches": 0,
+   "leftover_bytes": 0
+  },
+  {
+   "tag": "20260928_223537",
+   "raw_bytes": 27562,
+   "old_framed": 503,
+   "old_desync": 106,
+   "corrected_framed": 2835,
+   "corrected_length_mismatches": 0,
+   "leftover_bytes": 0
+  },
+  {
+   "tag": "20260929_110455",
+   "raw_bytes": 40913,
+   "old_framed": 852,
+   "old_desync": 185,
+   "corrected_framed": 4317,
+   "corrected_length_mismatches": 0,
+   "leftover_bytes": 0
+  },
+  {
+   "tag": "20260929_113311",
+   "raw_bytes": 76650,
+   "old_framed": 1400,
+   "old_desync": 234,
+   "corrected_framed": 9447,
+   "corrected_length_mismatches": 0,
+   "leftover_bytes": 0
+  },
+  {
+   "tag": "20260929_121927",
+   "raw_bytes": 52425,
+   "old_framed": 986,
+   "old_desync": 289,
+   "corrected_framed": 5187,
+   "corrected_length_mismatches": 0,
+   "leftover_bytes": 0
+  },
+  {
+   "tag": "20260929_124055",
+   "raw_bytes": 29628,
+   "old_framed": 659,
+   "old_desync": 170,
+   "corrected_framed": 2576,
+   "corrected_length_mismatches": 0,
+   "leftover_bytes": 0
+  }
+ ]
+}

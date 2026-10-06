@@ -1,0 +1,184 @@
+{
+ "source": "git log author dates (CDT), commits_by_day.json + commits_by_hour.json",
+ "by_day": [
+  {
+   "date": "2026-09-27",
+   "commits": 5,
+   "first": "21:47",
+   "last": "23:01",
+   "python_added": 577,
+   "docs_added": 485,
+   "viz_added": 0
+  },
+  {
+   "date": "2026-09-28",
+   "commits": 18,
+   "first": "12:09",
+   "last": "22:48",
+   "python_added": 4740,
+   "docs_added": 1887,
+   "viz_added": 0
+  },
+  {
+   "date": "2026-09-29",
+   "commits": 68,
+   "first": "00:13",
+   "last": "23:47",
+   "python_added": 16064,
+   "docs_added": 4882,
+   "viz_added": 6780
+  },
+  {
+   "date": "2026-09-30",
+   "commits": 67,
+   "first": "09:16",
+   "last": "23:35",
+   "python_added": 7010,
+   "docs_added": 6235,
+   "viz_added": 720
+  },
+  {
+   "date": "2026-10-01",
+   "commits": 17,
+   "first": "09:30",
+   "last": "23:21",
+   "python_added": 4930,
+   "docs_added": 778,
+   "viz_added": 161
+  },
+  {
+   "date": "2026-10-02",
+   "commits": 28,
+   "first": "10:02",
+   "last": "23:26",
+   "python_added": 4667,
+   "docs_added": 913,
+   "viz_added": 1526
+  },
+  {
+   "date": "2026-10-03",
+   "commits": 76,
+   "first": "10:09",
+   "last": "23:32",
+   "python_added": 13068,
+   "docs_added": 6918,
+   "viz_added": 994
+  },
+  {
+   "date": "2026-10-04",
+   "commits": 38,
+   "first": "11:05",
+   "last": "22:40",
+   "python_added": 8895,
+   "docs_added": 12380,
+   "viz_added": 69
+  },
+  {
+   "date": "2026-10-05",
+   "commits": 31,
+   "first": "09:54",
+   "last": "20:13",
+   "python_added": 3281,
+   "docs_added": 649,
+   "viz_added": 108
+  }
+ ],
+ "by_hour": [
+  {
+   "hour": 0,
+   "commits": 1
+  },
+  {
+   "hour": 1,
+   "commits": 0
+  },
+  {
+   "hour": 2,
+   "commits": 0
+  },
+  {
+   "hour": 3,
+   "commits": 0
+  },
+  {
+   "hour": 4,
+   "commits": 0
+  },
+  {
+   "hour": 5,
+   "commits": 0
+  },
+  {
+   "hour": 6,
+   "commits": 0
+  },
+  {
+   "hour": 7,
+   "commits": 0
+  },
+  {
+   "hour": 8,
+   "commits": 0
+  },
+  {
+   "hour": 9,
+   "commits": 8
+  },
+  {
+   "hour": 10,
+   "commits": 11
+  },
+  {
+   "hour": 11,
+   "commits": 25
+  },
+  {
+   "hour": 12,
+   "commits": 34
+  },
+  {
+   "hour": 13,
+   "commits": 22
+  },
+  {
+   "hour": 14,
+   "commits": 21
+  },
+  {
+   "hour": 15,
+   "commits": 21
+  },
+  {
+   "hour": 16,
+   "commits": 28
+  },
+  {
+   "hour": 17,
+   "commits": 34
+  },
+  {
+   "hour": 18,
+   "commits": 27
+  },
+  {
+   "hour": 19,
+   "commits": 20
+  },
+  {
+   "hour": 20,
+   "commits": 33
+  },
+  {
+   "hour": 21,
+   "commits": 21
+  },
+  {
+   "hour": 22,
+   "commits": 30
+  },
+  {
+   "hour": 23,
+   "commits": 12
+  }
+ ]
+}

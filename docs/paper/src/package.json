@@ -1,0 +1,9 @@
+{
+  "name": "uo-harness-paper",
+  "private": true,
+  "description": "Build-time renderers for docs/paper (mermaid diagrams, TeX to MathML); loaded by build.py in headless Chromium",
+  "dependencies": {
+    "mermaid": "11",
+    "temml": "^0.13.5"
+  }
+}

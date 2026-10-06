@@ -1,0 +1,109 @@
+{
+ "source": "tool_usage.json (omp session logs, all 143 session files)",
+ "rows": [
+  {
+   "tool": "bash",
+   "calls": 6787,
+   "calls_top": 3827,
+   "calls_sub": 2960,
+   "errors": 304,
+   "wall_s": 43219.2
+  },
+  {
+   "tool": "read",
+   "calls": 4656,
+   "calls_top": 2487,
+   "calls_sub": 2169,
+   "errors": 15,
+   "wall_s": 377.4
+  },
+  {
+   "tool": "edit",
+   "calls": 3981,
+   "calls_top": 2551,
+   "calls_sub": 1430,
+   "errors": 508,
+   "wall_s": 100.1
+  },
+  {
+   "tool": "grep",
+   "calls": 3121,
+   "calls_top": 1880,
+   "calls_sub": 1241,
+   "errors": 19,
+   "wall_s": 135.2
+  },
+  {
+   "tool": "eval",
+   "calls": 1778,
+   "calls_top": 894,
+   "calls_sub": 884,
+   "errors": 93,
+   "wall_s": 28499.5
+  },
+  {
+   "tool": "write",
+   "calls": 767,
+   "calls_top": 470,
+   "calls_sub": 297,
+   "errors": 4,
+   "wall_s": 13.1
+  },
+  {
+   "tool": "wait",
+   "calls": 766,
+   "calls_top": 413,
+   "calls_sub": 353,
+   "errors": 59,
+   "wall_s": 129315.3
+  },
+  {
+   "tool": "todo",
+   "calls": 163,
+   "calls_top": 163,
+   "calls_sub": 0,
+   "errors": 0,
+   "wall_s": 0.4
+  },
+  {
+   "tool": "yield",
+   "calls": 113,
+   "calls_top": 0,
+   "calls_sub": 113,
+   "errors": 4,
+   "wall_s": 0.2
+  },
+  {
+   "tool": "glob",
+   "calls": 111,
+   "calls_top": 70,
+   "calls_sub": 41,
+   "errors": 2,
+   "wall_s": 8.5
+  },
+  {
+   "tool": "web_search",
+   "calls": 68,
+   "calls_top": 41,
+   "calls_sub": 27,
+   "errors": 0,
+   "wall_s": 165.1
+  },
+  {
+   "tool": "task",
+   "calls": 63,
+   "calls_top": 63,
+   "calls_sub": 0,
+   "errors": 0,
+   "wall_s": 1.5
+  },
+  {
+   "tool": "ask",
+   "calls": 14,
+   "calls_top": 14,
+   "calls_sub": 0,
+   "errors": 1,
+   "wall_s": 8210.6
+  }
+ ]
+}

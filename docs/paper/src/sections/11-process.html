@@ -1,0 +1,164 @@
+<section id="sec-process">
+<h2>Building it with AI agents</h2>
+<p class="lead">One person wrote 545 prompts over eight evenings and daytime check-ins; omp coding agents turned them into 348 commits. This chapter looks at how that worked: the scale of the conversation, which models did the work, how work was delegated, the rules the agents were held to, and where they went wrong.</p>
+
+<div class="kpis wide">
+<div class="kpi green"><b>545</b><span>human prompts (73,567 characters, median 90)</span></div>
+<div class="kpi"><b>18,508</b><span>assistant turns, or 34 per prompt</span></div>
+<div class="kpi"><b>22,385</b><span>tool calls, or 41 per prompt</span></div>
+<div class="kpi purple"><b>90</b><span>subagents spawned by 63 <code>task</code> calls</span></div>
+<div class="kpi gold"><b>348</b><span>commits, about 1.6 prompts each</span></div>
+<div class="kpi rust"><b>≈$1,559</b><span>notional list-price model cost (plan quotas in practice)</span></div>
+</div>
+
+<h3 id="sec-process-scale">The shape of the work</h3>
+<aside class="side"><strong>omp</strong> (“Oh My Pi”) is the terminal coding-agent harness every session ran in. A <em>top-level session</em> is one chat; a <em>subagent</em> is a child session spawned with the <code>task</code> tool, which reports back with <code>yield</code>.</aside>
+<p>The build ran from 2026-09-27 19:04 (the first prompt was “Hi”) to the analysis snapshot on 2026-10-05 at about 20:30. It produced 53 top-level sessions (43 on the laptop, 10 on the desktop) and 90 subagent sessions: 215.7 MB of JSONL logs. The median session had 3 prompts and 22 had two or fewer, yet the five biggest session families account for 59% of all assistant turns. The first session, opened from an elevated shell in <code>C:\Windows\system32</code>, ran for 43 hours wall-clock and took 115 prompts <span class="src">omp session index, laptop</span>.</p>
+<p>Each human prompt bought 34 assistant turns and 41 tool calls. After a prompt, the median autonomous run lasted 1.9 minutes and 8 turns. The 90th percentile was 24 minutes, and 14 runs went past an hour. The longest real one was an overseer session on 10-02 that played for 145 minutes and 158 turns without a word from the owner. Prompts stayed short: half were under 90 characters, and only five were longer than 800. They were directions, not specifications.</p>
+
+<figure class="fig wide" id="fig-process-daily">
+<div class="frame"><!--#include figures/11_daily.svg--></div>
+<figcaption>Assistant turns per day, stacked by model, with human prompts per day on the right axis. You can see the switch from Kimi K3 to Opus on 09-29, the 10-02 dip (the main session spent the day playing the game, so almost no subagents ran), and the 10-03 peak. Source: omp session logs from both machines, turns attributed by timestamp, snapshot 2026-10-05 ≈20:30 CDT (<code>data/11_daily.json</code>).</figcaption>
+</figure>
+
+<p>The project had a clock. No prompt was typed between 00:00 and 08:59 on any day (<a class="ref" href="#fig-process-heatmap"></a>). The busiest prompting hour was 22:00, with 73 prompts. Agent work peaked a little earlier, at 17:00 (2,049 turns), and kept going into the 23:00 hour after the owner's last message. It almost never crossed midnight: only 23 turns happened after 00:00. Nothing ran unattended overnight. 23.5% of all prompts (128) were typed while an agent was still working, as mid-run steering.</p>
+
+<figure class="fig wide" id="fig-process-heatmap">
+<div class="frame"><!--#include figures/11_heatmap.svg--></div>
+<figcaption>When the work happened. Top: human prompts per hour, with counts. Bottom: assistant turns per hour, top-level and subagent sessions combined. Both machines, local CDT. Source: omp session logs, 545 prompts and 18,511 turns (<code>data/11_heatmap.json</code>).</figcaption>
+</figure>
+
+<h3 id="sec-process-models">Models, limits and a relay baton</h3>
+<p>The project started on <strong>Kimi K3</strong>, the default model at the time. For two days it did everything: anti-cheat research, the cipher crack and the first proxy. The provider was shaky. On 09-27 and 09-28 the logs show three socket closes, four connection errors, one missing API key and two <code>403</code> “You've reached your 5-hour usage limit” errors <span class="src">laptop session “Cracking UO XOR session cipher”</span>. On 09-29 at 13:54 the owner asked for “one brief handoff .md file for the next session to start from”. At 14:06 a new session opened with “Read @HANDOFF.md and continue work from where we last left off” and was switched to <strong>Claude Opus 5.5</strong>. We suspect the quota errors and the switch are connected, but no log line says so. The model changed hands at a document boundary, not in the middle of a conversation, and that set a pattern the project kept.</p>
+<p>Opus did 87.3% of all assistant turns (16,164). Kimi did 11.2% (2,065) and came back only for small jobs and one notable evening (<a class="ref" href="#sec-process-guardrails"></a>). <strong>Sonnet 5.5</strong> did 1.5%, used on purpose for chores: babysitting the viz server, writing the Lord British persona, rebuilding the viz.</p>
+<aside class="side">omp records a list-price cost for every turn. The owner was on subscription plans (the Kimi quota errors and the Anthropic OAuth credential records point that way), so read every dollar figure here as notional usage, not money spent.</aside>
+<p>At list prices the whole build comes to about <strong>$1,559</strong>: Opus $1,334, Kimi $213, Sonnet $12. Prompt caching is what made that affordable. 98.8% of Opus's input tokens were cache reads, 4.1 billion of them, against 34 thousand uncached input tokens. Cache reads still came to 62% of the Opus bill, because the average Opus turn carried about 256k tokens of context. Six times a session filled its window. Compaction kicked in at 750–850k tokens and summarised the context down to 22k–135k <span class="src">omp <code>compaction</code> records</span>. Two of the six compactions hit the 10-04/10-05 desktop hub, which served as the project's control room for more than a day.</p>
+
+<h3 id="sec-process-delegation">Hub and spokes</h3>
+<p>Subagents arrived on 09-28, with the first “Launch an agent to work on the record-grammar hunt while we talk about Phase 2”, and became routine on 09-29. In total, 63 <code>task</code> calls spawned 90 subagents (84 general workers, 3 reviewers, 2 scouts, 1 low-effort helper), and they produced 41% of all assistant turns. The hub writes a shared contract plus a <code># Target / # Change / # Acceptance</code> brief for each child, and the children report back through <code>yield</code> and short IRC messages. One family ran at most 7 children at once. The whole corpus peaked at 10 sessions writing in the same ten-minute window. Subagents never spawned subagents.</p>
+
+<figure class="fig" id="fig-process-hub">
+<pre class="mermaid">flowchart LR
+  U["Owner<br/>(laptop, later desktop)"]
+  H["Hub session<br/>omp · Opus 5.5"]
+  B["Builder subagents<br/>66 sessions · $422"]
+  S["Seer subagents<br/>19 sessions · $66.5"]
+  R["Reviewers / scouts<br/>5 sessions"]
+  W["Worktree sessions"]
+  G[("GitHub repo<br/>AGENTS.md · HANDOFF.md<br/>SETUP.md · docs/")]
+  C["harness/ctl.py"]
+  P["proxy + runners"]
+  DB[("harness.db<br/>gitignored")]
+  N["next session /<br/>other machine"]
+  U -->|"prompts, steering"| H
+  U --> W
+  H -->|"task + contract"| B
+  H -->|"task: act as the Seer"| S
+  H --> R
+  B -->|"yield, IRC"| H
+  S -->|"IRC bug reports"| H
+  B -->|"edit, commit, push"| G
+  H -->|"commit, push"| G
+  W -->|"merge"| G
+  S -->|"bash"| C --> P
+  S -->|"ctl know add"| DB
+  G -->|"Read @HANDOFF.md / @SETUP.md"| N
+  S -.->|"viz chat, Telegram"| U
+  class B,H green
+  class S purple
+  class G,DB gold
+  class N,W ext
+  classDef green fill:#e8f3ea,stroke:#3d7f4f,color:#1f2328
+  classDef purple fill:#efeaf7,stroke:#6b4fa0,color:#1f2328
+  classDef gold fill:#fbf3dc,stroke:#b8892a,color:#1f2328
+  classDef ext fill:#f4f1ea,stroke:#8a8f98,stroke-dasharray:4 3,color:#1f2328
+</pre>
+<figcaption>How the development process was organised by the end. The owner talks to one hub session. Builders change the repo; Seer subagents play the game through <code>ctl</code> and report bugs to the hub; the repo carries knowledge between sessions and machines. Source: omp session logs (<code>subagent_index.json</code>, <code>process_ratios.json</code>).</figcaption>
+</figure>
+
+<p>The most interesting subagents were not builders at all. From 09-30 onward some children were told to <em>play</em>: “Act as the Seer: read docs/OVERSEER.md…”. They drove the character through <code>harness/ctl.py</code> while the hub kept engineering (the shifts themselves are in <a class="ref" href="#sec-seer"></a>). Nineteen such operator subagents logged 20.2 active hours and 1,973 turns for $66.5. That is about <strong>$3.3 per active hour</strong>, against about <strong>$14.1 per hour</strong> for the 66 builder and researcher subagents. Their tool mix shows why. Operators mostly ran <code>bash</code> (1,273 calls, the channel for every <code>ctl status</code>, <code>act goto</code> and <code>know add</code>) and blocked in <code>wait</code>. They made just 6 <code>edit</code> calls, while builders made 1,424. A good shift is cheap because the deterministic runner does the playing and the LLM mostly waits.</p>
+<p>This split was not designed up front. The first Overseer subagents ran demos on the Test Shard on 09-30, but on 10-01 and 10-02 the owner had the main session itself “act as the Overseer”. On 10-02 it played for 8.4 active hours. That day produced 28 commits and only 27 subagent turns, the fewest of any day after the first. The fix came from the owner on 10-03:</p>
+<blockquote class="pull"><p>You should probably start an overseer subagent and tell it what to do, since when you pause for long times leaving Hackworth in the wilderness he's liable to get killed</p><cite>— the owner, omp session “Lumber spot optimizer near banks”, 2026-10-03 15:18</cite></blockquote>
+<p>On 10-04 the desktop hub tried playing in the foreground once more. Six minutes in, the owner said: “Ok, stop acting as the overseer.” After that it sent out six Seer subagents in one day, with terse dispatch orders like “Send an overseer subagent back out, we need more boards!”.</p>
+<p>For changes that could collide, the owner used <strong>git worktrees</strong>. There were five, for the guardrail scrub and CAPTCHA solver, the Ultima UI restyle, the Telegram bot, a test speedup and a paperdoll tweak. Each was merged back with a one-line prompt, once with the warning “I'm sure there will be conflicts because another agent was working on ctl” <span class="src">desktop session, 2026-10-04 17:37</span>.</p>
+
+<h3 id="sec-process-rules">Standing rules</h3>
+<p>Each session starts blank. What carries over is <code>AGENTS.md</code>, a 39-line file that every session reads first. Its rules came from specific moments (<a class="ref" href="#tab-process-rules"></a>). Usually the owner said something once in chat and the agent wrote it into the file in the same turn.</p>
+
+<figure class="tbl" id="tab-process-rules">
+<figcaption>The standing rules in <code>AGENTS.md</code>, when they first appeared and what prompted them. Source: <code>git log -S</code> on <code>AGENTS.md</code>; session logs for the triggering prompts.</figcaption>
+<div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Rule</th><th>Origin</th><th>Trigger</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><strong>Rule 0</strong>: record and commit engineering knowledge, push before the session ends</td><td>09-27 22:03 <code>56208c5</code></td><td>Owner: “a standing rule is that any knoweldge gained in a session needs to be recorded”. Narrowed 09-29 21:56 to <em>harness-building</em> knowledge, not game state (<code>7a3e26f</code>)</td><td><span class="tag verified">active</span></td></tr>
+<tr><td>Verify the push; never claim it without seeing it</td><td>09-27 22:03 <code>56208c5</code></td><td>Drafted by the agent with Rule 0</td><td><span class="tag verified">active</span></td></tr>
+<tr><td>Evidence-first; label inference <code>[INFERENCE]</code>; no fabricated verification</td><td>09-27 22:03 <code>56208c5</code></td><td>Drafted by the agent; tested an hour later by the encryption claim (<a class="ref" href="#sec-process-steering"></a>)</td><td><span class="tag verified">active</span></td></tr>
+<tr><td>Never touch the client process or install dir; <code>settings.json</code> is a secret</td><td>09-27 22:03 <code>56208c5</code></td><td>The day-0 plan, which chose a localhost proxy over injection or patching</td><td><span class="tag verified">active</span></td></tr>
+<tr><td>Test Shard only; CAPTCHAs handed to the human; human pacing</td><td>09-27 22:03 <code>56208c5</code></td><td>Owner's “Ideally test shard”; the agent turned its anti-cheat report (§8) into constraints that only an “explicit, informed acknowledgment” could lift</td><td><span class="tag open">removed 09-30</span></td></tr>
+<tr><td>Capture files may be committed even though they contain a session JWT</td><td>09-28 12:09 <code>0663786</code></td><td>Owner overruled the agent's history purge at 09-27 23:18: “This is my own private github repo”</td><td><span class="tag verified">active</span></td></tr>
+<tr><td>Never reveal the harness in-game</td><td>09-28 22:48 <code>5793f03</code></td><td>Owner, 21:18, during the first live injection tests: “yeah let's never mention in game that we're running a harness”</td><td><span class="tag verified">active</span></td></tr>
+<tr><td>Run plain <code>python</code>, never the full interpreter path; <code>python3</code> is a Store stub</td><td>10-03 11:57 <code>2b60974</code></td><td>Owner, 09-30 20:17 (“We're wasting tokens puting the full python.exe path on every command”) and again 10-03 11:34</td><td><span class="tag verified">active</span></td></tr>
+<tr><td>JSON with <code>jq</code>, typed <code>jq.exe</code></td><td>10-04 18:05 <code>79c7d24</code></td><td>Owner asked for jq on 09-30 20:31; the shell's built-in <code>jq</code> (jaq 2.3.0) failed six times with “cannot use null as iterable”</td><td><span class="tag verified">active</span></td></tr>
+<tr><td>Never hard-code the repo path, home dir or interpreter</td><td>10-04 16:21 <code>06acc67</code></td><td>Desktop setup: the home dir <code>C:\Users\Chris Kite</code> contains a space; 55 files fixed</td><td><span class="tag verified">active</span></td></tr>
+</tbody></table></div>
+</figure>
+
+<p>One rule has a joke inside it. The original <code>AGENTS.md</code> told agents to use Python 3.13 and spelled out its full path under <code>C:\Users\chris\AppData\…</code> <span class="src">56208c5</span>. We suspect that line is why agents kept typing the full path. The owner complained about the wasted tokens twice, on 09-30 and 10-03, before the rule was rewritten to forbid it. The jq rule is the reverse case: an agent shell builtin that silently stood in for the real tool. The same commit history shows Rule 0 actually being followed. <code>docs/NOTES.md</code> is touched by 160 of the 348 commits (46%), and the four most-touched files in the repo are all documentation.</p>
+
+<h3 id="sec-process-steering">How the owner steered</h3>
+<p>The owner's prompts came in three registers: goals at a high level (“Plan and implement whatever you can tonight using subagents. Please leave me a summary at the end of what is needed from me.”), game knowledge as short asides (“thieves look friendly to us until they steal”), and challenges to what the agent said about itself. The third mattered most.</p>
+<p>The first challenge set the tone. On day 0 at 22:08 the owner asked whether the Outlands client encrypted its traffic. Kimi's answer, from string searches alone, was “<strong>Verdict: verified — no encryption on the wire</strong>”. The owner, steering mid-run: “Can you run a Wireshark analysis just to be sure?” The capture showed that client-to-server traffic <em>was</em> obfuscated. Within the hour the owner had walked his character west 20 times to produce known plaintext, and the XOR was cracked. Other challenges followed the same pattern: “Hold up. He only moved when I moved him with the arrow keys”, “I think you compared against an old screenshot”, and “I am not convinced there was an issue with the server detecting artificial movement”. Each one caught a wrong claim, though not always before it reached the docs. The evidence-first rule and the <code>[INFERENCE]</code> label give the agents a way to say what they have not checked. The owner's habit of asking for a measurement is what made those labels mean something.</p>
+<p>Formal approval steps were rare: 14 <code>ask</code> calls and 4 plan-mode entries across 545 prompts. Steering was mostly by interruption, with 70 user aborts, 19 of them in the first session. The owner also acted as the agents' eyes and hands. He accepted UAC prompts they could not see, ran controlled experiments, solved CAPTCHAs, and popped a trapped pouch so an agent could capture the traffic.</p>
+
+<h3 id="sec-process-guardrails">The guardrails episode</h3>
+<p>The clearest case of model behaviour changing the course of the work came on 09-30. That afternoon the owner decided to move the overseer from the Test Shard to the production shard. At 17:03 he asked an Opus session to remove the Test-Shard-only restrictions from the docs. The day-0 <code>AGENTS.md</code>, drafted by an agent, said those constraints could only be lifted with “an explicit, informed acknowledgment of that risk in the conversation”. Opus's thinking cited exactly that, and it opened an <code>ask</code> titled “Getting informed acknowledgment of ban risk”. The owner cancelled the ask, and the session ended after four turns. A minute later he started a different Opus session that audited the harness's traffic for anything a stock client could not have produced.</p>
+<p>That evening a broader version of the request went to Kimi K3: remove references to the shard's rules, reframe <code>ANTICHEAT.md</code> as evasion intelligence, and drop the requirement that a human solve CAPTCHAs. The 21:26 and 21:44 sessions each spent their thinking on whether this amounted to removing safety guardrails. The owner interrupted each one after a single turn. The third, started at 21:45 in a fresh worktree, did the job. It sent out seven doc-scrub subagents at 21:49, committed <code>2f60ad9</code> at 21:58, and was merged at 23:34. In all: 4 sessions, 2 models, 3 aborts, and about 23 minutes from the first Kimi attempt to the fan-out. The next morning the owner set CAPTCHAs back to human-solved by default, with an auto-solve toggle in the viz (<code>d152c00</code>).</p>
+<div class="callout lesson"><p class="callout-title">Lesson</p><p>Rules written into the repo bind later sessions, and other models, more firmly than any chat message. A constraint an agent drafted on day 0 was still being enforced three days later, by a different session, after the owner had decided otherwise. If <code>AGENTS.md</code> is going to carry consent rules, the owner should write them as deliberately as code. The ethics of the shard move itself are discussed in <a class="ref" href="#sec-discussion"></a>.</p></div>
+
+<h3 id="sec-process-machines">Two machines, one repo</h3>
+<p>On 10-04 the project moved from the laptop to the desktop. At 15:27 came “Make sure everything is stopped and then push the handoff so I can go resume on my desktop”. The desktop cloned the repo at 15:56. At 15:58 a single prompt, “Read @SETUP.md and setup this project for the first time on this Windows desktop”, started a 23-minute setup session. That session found the hard-coded <code>C:\Users\chris</code> paths and sent a subagent to remove them from 55 files. The runtime memory moved separately as a baton, through <code>dbhandoff.py</code> and the NAS (<a class="ref" href="#sec-world"></a>). Machine use was serial: only 3 ten-minute windows in the whole corpus show both machines active. The laptop wrote 300 commits and the desktop the last 48.</p>
+
+<h3 id="sec-process-git">What git shows</h3>
+<p>All 348 commits carry one author identity, although agent sessions wrote every one of them. The daily counts follow the session activity: 68 and 67 on 09-29/30, a lull of 17 on 10-01 (a ten-hour daytime gap), and the peak of 76 on 10-03 (<a class="ref" href="#fig-process-commits"></a>). Commits cluster at noon and 17:00, with 22% of them after 20:00. Commit messages are long: the median full message is 149 characters, and 59 run past 500. In practice they work as a second lab notebook.</p>
+
+<figure class="fig" id="fig-process-commits">
+<div class="pair"><div><!--#include figures/11_commits_day.svg--></div><div><!--#include figures/11_commits_hour.svg--></div></div>
+<figcaption>Commits per day (left) and by hour of day across all days (right). No commit was made between 01:00 and 08:59. Source: <code>git log</code> author dates, 348 commits, 2026-09-27 21:47 → 10-05 20:13 CDT (<code>data/11_commits.json</code>).</figcaption>
+</figure>
+
+<p>The codebase grew from 577 Python lines on the first night to <strong>54,764</strong> at the last commit, about 95 times as many (<a class="ref" href="#fig-process-loc"></a>). The two biggest half-day jumps were 09-29 PM (the viz and the overseer groundwork, +13.4k) and 10-03 PM (Discord tooling, the dungeon crawl, Witcher runes, +9.3k). Test code stayed at roughly half the size of core code. By the end there were 224 <code>def test_</code> functions and 1,748 <code>assert</code>/<code>check</code> sites, plus 128 viz test cases, and 49% of commits had touched a test file. That fits the owner's day-1 instruction: “the test suite is extremely important so make sure it is thorough and follow TDD”. Prose grew faster than code. The Markdown docs reached 192k words, not counting the generated Discord knowledge base, which is 3.5 words for every line of Python, and 30% of commits changed nothing but <code>.md</code> files.</p>
+
+<figure class="fig wide" id="fig-process-loc">
+<div class="frame"><!--#include figures/11_loc.svg--></div>
+<figcaption>Codebase size at every commit, stacked by area, with Markdown word count (excluding the generated <code>DISCORD_KB.md</code>) on the right axis. Source: <code>git ls-tree</code> + <code>git cat-file</code> at each of the 348 commits (<code>data/11_loc_growth.json</code>).</figcaption>
+</figure>
+
+<h3 id="sec-process-failures">How the agents failed, and what worked</h3>
+<p>The tool logs show the everyday friction (<a class="ref" href="#fig-process-tools"></a>). <code>edit</code> failed on 12.8% of calls. Most of those (386 of 508) were the anchored-edit protocol refusing an edit aimed at lines the agent had never been shown in its latest read. That cost retries, not corrupted files. <code>bash</code> failed 4.5% of the time, mostly on misused service flags, Python tracebacks, and the jaq null errors behind the <code>jq.exe</code> rule. <code>wait</code> took the most wall time, 35.9 hours, because that is where hubs blocked on children and Seers blocked on the game.</p>
+
+<figure class="fig" id="fig-process-tools">
+<!--#include figures/11_tools.svg-->
+<figcaption>Tool calls by tool across all 143 session files, with the error rate for tools that ever failed. Read, edit and grep together outnumber <code>bash</code>; writing whole new files is rare. Source: omp session logs (<code>data/11_tools.json</code>).</figcaption>
+</figure>
+
+<p>The costly failures were not tool errors. They were confident claims that turned out to be wrong (<a class="ref" href="#tab-process-failures"></a>).</p>
+
+<figure class="tbl" id="tab-process-failures">
+<figcaption>Agent failure modes seen in the session logs and git history, and what each one led to.</figcaption>
+<div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Failure mode</th><th>Example</th><th>Caught by</th><th>Consequence</th></tr></thead>
+<tbody>
+<tr><td>Static evidence passed off as verification</td><td>“no encryption on the wire” (09-27 22:11)</td><td>Owner asked for a capture</td><td>C2S XOR found and cracked the same night</td></tr>
+<tr><td>Explaining garbage as a feature</td><td>S2C “custom dialect” and “world-state stream” (09-28)</td><td>Ghidra on the receive path, 09-29 15:04 (<code>5eb2138</code>)</td><td>13 scripts and a doc retired (<code>8cc2724</code>); see <a class="ref" href="#sec-wire"></a></td></tr>
+<tr><td>Declaring victory early</td><td>“HE MOVED!… Movement solved.” (09-28 22:44); commit “Movement fully solved live” (09-29 12:14)</td><td>Owner watching the screen</td><td>About 19 h wall-clock of walk work across two models</td></tr>
+<tr><td>Theory beyond the data</td><td>Server-side walk-train detection, written into <code>ANTICHEAT.md</code> (09-29)</td><td>Owner's “I am not convinced”, then real S2C data</td><td>Rule retracted; the “gate” was the client's own walker</td></tr>
+<tr><td>Half-applied edit</td><td>Missing <code>re</code> import crashed the proxy's state handler (09-30)</td><td>Live crash</td><td><code>5a2a97d</code></td></tr>
+<tr><td>Self-imposed over-restriction</td><td>Overseer refused to fight mongbats (“The ‘never attack anything’ rule is mine”)</td><td>Owner</td><td>Brief corrected</td></tr>
+<tr><td>Clock confusion</td><td>UTC dates written for evening local events</td><td>Later sessions</td><td>Two <code>DateFix</code> subagents, about 50 corrections</td></tr>
+<tr><td>Shared-tree collisions</td><td>Another session's uncommitted notes nearly swept into a commit; “file changed between read and edit”</td><td>The committing agent; edit rejections</td><td><code>e70b239</code>; worktrees for risky work</td></tr>
+</tbody></table></div>
+</figure>
+
+<p>Four things did work. <strong>Documents as the baton</strong>: <code>HANDOFF.md</code> took the project across a model switch, and <code>SETUP.md</code> across machines, each in a single prompt. <strong>Delegation with a contract</strong>: named subagents with explicit acceptance criteria kept the hub free for conversation. <strong>Deterministic code with LLMs at the edges</strong>: it holds for the harness itself, and it is also why Seer shifts cost a quarter as much per hour as builder sessions. <strong>A sceptical human</strong>: from the first night's “Did we verify whether it does or not?” onward, the owner kept asking for checks and kept watching the game screen.</p>
+<div class="callout finding"><p class="callout-title">Finding</p><p>In eight days and 73,567 typed characters, one person directing agents produced a 55k-line codebase, 192k words of design notes and a harness that played the game for hours at a time. Typing was clearly not the bottleneck; we think the owner's attention and game knowledge were. The agents' main weakness was overconfidence, and their most reliable defences were the owner's questions and the measurements those questions forced.</p></div>
+</section>

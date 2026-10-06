@@ -1,0 +1,322 @@
+{
+ "_source": "Shifts = overseer chat rows in harness.db split at gaps > 60 min (heuristic; includes some ctl calls made by coding agents). Deaths from DB chat and session logs (research briefs 05, 10, 11). Named subagent shifts from session transcripts (seer_shifts.json).",
+ "shifts": [
+  {
+   "start": "2026-09-30T09:18",
+   "end": "2026-09-30T12:33",
+   "hours": 3.26,
+   "overseer_rows": 332,
+   "label": "TestWorth (Test Shard): Young demos, first NPD gold run, leave Shelter for HSB"
+  },
+  {
+   "start": "2026-09-30T13:59",
+   "end": "2026-09-30T16:48",
+   "hours": 2.82,
+   "overseer_rows": 318,
+   "label": "TestWorth: HSB lumber rounds (232 boards), Prevalia test area, runebook crafted, runes marked"
+  },
+  {
+   "start": "2026-09-30T18:48",
+   "end": "2026-09-30T20:37",
+   "hours": 1.82,
+   "overseer_rows": 119,
+   "label": "TestWorth: 10-log trip, hatchet, room re-rent after wipe, graveyard death 19:20 (combat-packet test)"
+  },
+  {
+   "start": "2026-10-01T19:14",
+   "end": "2026-10-01T20:46",
+   "hours": 1.53,
+   "overseer_rows": 58,
+   "label": "Hackworth (Young, Shelter): autonomous lumber goal 5000 boards / LJ 80"
+  },
+  {
+   "start": "2026-10-01T22:11",
+   "end": "2026-10-01T22:53",
+   "hours": 0.7,
+   "overseer_rows": 131,
+   "label": "Hackworth: switch to NPD mongbats; ghost-mobile world-model bug found"
+  },
+  {
+   "start": "2026-10-02T09:56",
+   "end": "2026-10-02T09:56",
+   "hours": 0.0,
+   "overseer_rows": 1,
+   "label": "(single memory lookup)"
+  },
+  {
+   "start": "2026-10-02T12:19",
+   "end": "2026-10-02T20:11",
+   "hours": 7.87,
+   "overseer_rows": 330,
+   "label": "Hackworth: hunt runner runs for 750 gp horse; mounted lumber; leave Shelter; PK-death experiment (Bastet 19:43); Telegram connected 18:59"
+  },
+  {
+   "start": "2026-10-02T21:40",
+   "end": "2026-10-02T22:45",
+   "hours": 1.08,
+   "overseer_rows": 187,
+   "label": "TestWorth (Test Shard): runebook/rune tome research for recall-on-sight (mostly actions)"
+  },
+  {
+   "start": "2026-10-03T10:17",
+   "end": "2026-10-03T19:08",
+   "hours": 8.86,
+   "overseer_rows": 488,
+   "label": "Shackleworth NPD quest 'Rune All You Like' (complete 14:39) then Hackworth Witcher lumber in Seer voice from 15:23; Bastet deaths 18:05 and 19:08"
+  },
+  {
+   "start": "2026-10-03T20:09",
+   "end": "2026-10-03T22:41",
+   "hours": 2.53,
+   "overseer_rows": 336,
+   "label": "Shackleworth Urukton Bluffs manual-fight death 20:30 + failed corpse run; Hackworth evening lumber shift (LumberSeer) 613 boards"
+  },
+  {
+   "start": "2026-10-04T16:07",
+   "end": "2026-10-04T18:34",
+   "hours": 2.46,
+   "overseer_rows": 93,
+   "label": "Outland Dan (DTF guild house): Shelter refuses non-Young harvest; rune library learning"
+  },
+  {
+   "start": "2026-10-04T22:02",
+   "end": "2026-10-04T22:34",
+   "hours": 0.53,
+   "overseer_rows": 6,
+   "label": "First live room-storage trip (Outland Dan, 22:06)"
+  },
+  {
+   "start": "2026-10-05T09:42",
+   "end": "2026-10-05T14:16",
+   "hours": 4.58,
+   "overseer_rows": 204,
+   "label": "Outland Dan room-loop shift: Wintertop death 10:46; 6 runs 2776 boards LJ 53.9->66.2; witcher_149 hoarfrost death 14:08"
+  },
+  {
+   "start": "2026-10-05T15:58",
+   "end": "2026-10-05T20:21",
+   "hours": 4.39,
+   "overseer_rows": 177,
+   "label": "Outland Dan: 8 runs 3962 boards LJ 66.8->77.9 no deaths (17:56); witcher_23 air-dragon death 19:07"
+  }
+ ],
+ "deaths": [
+  {
+   "day": "2026-09-30",
+   "time": "19:20",
+   "what": "TestWorth, graveyard"
+  },
+  {
+   "day": "2026-10-02",
+   "time": "19:43",
+   "what": "Hackworth, Bastet (experiment)"
+  },
+  {
+   "day": "2026-10-03",
+   "time": "10:23",
+   "what": "Hackworth, harpy nest"
+  },
+  {
+   "day": "2026-10-03",
+   "time": "18:05",
+   "what": "Hackworth, Bastet"
+  },
+  {
+   "day": "2026-10-03",
+   "time": "19:08",
+   "what": "Hackworth, Bastet"
+  },
+  {
+   "day": "2026-10-03",
+   "time": "20:30",
+   "what": "Shackleworth, Urukton"
+  },
+  {
+   "day": "2026-10-05",
+   "time": "10:46",
+   "what": "Outland Dan, Wintertop"
+  },
+  {
+   "day": "2026-10-05",
+   "time": "14:08",
+   "what": "Outland Dan, hoarfrost"
+  },
+  {
+   "day": "2026-10-05",
+   "time": "19:07",
+   "what": "Outland Dan, air dragon"
+  }
+ ],
+ "named_shifts": [
+  {
+   "date": "2026-10-02",
+   "start": "12:19",
+   "end": "19:53",
+   "who": "main session (Overseer, pre-Seer name)",
+   "character": "Hackworth",
+   "runs": "11 hunt runs + ~8 lumber trips",
+   "output": "72 kills, ~980 gold; horse bought 15:44 (750 gp); boards banked to 1,581+; then 968 boards + 447 logs lost",
+   "deaths": 1
+  },
+  {
+   "date": "2026-10-03",
+   "start": "11:53",
+   "end": "14:40",
+   "who": "NPDOverseer (subagent)",
+   "character": "Shackleworth",
+   "runs": "~10 hunt runs (fixed spot, fight-spot, then crawl)",
+   "output": "quest complete 14:39, blessed 'New Player Locations' tome (50 charges); ~110 kills; bank 1,818 gp",
+   "deaths": 0
+  },
+  {
+   "date": "2026-10-03",
+   "start": "15:23",
+   "end": "17:15",
+   "who": "LumberOverseer",
+   "character": "Hackworth",
+   "runs": 4,
+   "output": "~1,460 boards banked",
+   "deaths": 0
+  },
+  {
+   "date": "2026-10-03",
+   "start": "17:15",
+   "end": "18:05",
+   "who": "LumberShift",
+   "character": "Hackworth",
+   "runs": 5,
+   "output": "605 logs (one HSB trip); others aborted: gazer, red, thief (Caputo Wood), Bastet",
+   "deaths": 1
+  },
+  {
+   "date": "2026-10-03",
+   "start": "18:20",
+   "end": "19:09",
+   "who": "LumberShift2",
+   "character": "Hackworth",
+   "runs": 1,
+   "output": "0 stored (1,070 logs lost)",
+   "deaths": 1
+  },
+  {
+   "date": "2026-10-03",
+   "start": "20:09",
+   "end": "20:16",
+   "who": "ParkHackworth",
+   "character": "Hackworth",
+   "runs": 0,
+   "output": "found server teleports unresurrected ghosts every ~30 min; spell not in book",
+   "deaths": 0
+  },
+  {
+   "date": "2026-10-03",
+   "start": "20:25",
+   "end": "20:30",
+   "who": "UruktonOverseer",
+   "character": "Shackleworth",
+   "runs": 0,
+   "output": "0",
+   "deaths": 1
+  },
+  {
+   "date": "2026-10-03",
+   "start": "20:40",
+   "end": "20:45",
+   "who": "CorpseRun",
+   "character": "Shackleworth",
+   "runs": 0,
+   "output": "failed; gear recovered later by main agent after other players cleared the orcs",
+   "deaths": 1
+  },
+  {
+   "date": "2026-10-03",
+   "start": "20:55",
+   "end": "21:31",
+   "who": "NpdHuntOverseer",
+   "character": "Shackleworth",
+   "runs": 2,
+   "output": "474 gp ('good enough'), carried to Outpost rental room",
+   "deaths": 0
+  },
+  {
+   "date": "2026-10-03",
+   "start": "21:38",
+   "end": "22:39",
+   "who": "LumberSeer",
+   "character": "Hackworth",
+   "runs": 3,
+   "output": "613 boards + 354 logs",
+   "deaths": 0
+  },
+  {
+   "date": "2026-10-04",
+   "start": "17:56",
+   "end": "18:03",
+   "who": "main desktop session as overseer",
+   "character": "Outland Dan",
+   "runs": 0,
+   "output": "fact #4086: only Young can harvest on Shelter",
+   "deaths": 0
+  },
+  {
+   "date": "2026-10-05",
+   "start": "10:40",
+   "end": "10:51",
+   "who": "Seer",
+   "character": "Outland Dan",
+   "runs": 2,
+   "output": "0 boards; LJ 53.1->53.9",
+   "deaths": 1
+  },
+  {
+   "date": "2026-10-05",
+   "start": "12:11",
+   "end": "13:34",
+   "who": "Seer-2",
+   "character": "Outland Dan",
+   "runs": 6,
+   "output": "2,776 boards; LJ 53.9->66.2",
+   "deaths": 0
+  },
+  {
+   "date": "2026-10-05",
+   "start": "13:51",
+   "end": "14:17",
+   "who": "Seer3",
+   "character": "Outland Dan",
+   "runs": 7,
+   "output": "0 boards; LJ 66.2->66.8",
+   "deaths": 1
+  },
+  {
+   "date": "2026-10-05",
+   "start": "15:56",
+   "end": "17:57",
+   "who": "Seer4",
+   "character": "Outland Dan",
+   "runs": 8,
+   "output": "3,962 boards; LJ 66.8->77.9",
+   "deaths": 0
+  },
+  {
+   "date": "2026-10-05",
+   "start": "18:13",
+   "end": "19:18",
+   "who": "Seer5",
+   "character": "Outland Dan",
+   "runs": 4,
+   "output": "1,418 boards; LJ 77.9->80.1",
+   "deaths": 1
+  },
+  {
+   "date": "2026-10-05",
+   "start": "20:14",
+   "end": "20:22",
+   "who": "Seer6",
+   "character": "Outland Dan",
+   "runs": 1,
+   "output": "held: surrounded by mobs at witcher_137, replanning ~1/s; main agent recalled him",
+   "deaths": 0
+  }
+ ]
+}

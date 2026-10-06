@@ -1,0 +1,93 @@
+<section class="appendix" id="app-protocol">
+<h2>Packet, port and file-format reference</h2>
+<p class="lead">The protocol facts, packet ids, local ports and file formats the harness depends on, in one place. The chapters explain how each was found; this appendix is for looking things up.</p>
+
+<p>All values are for the Outlands fork of ClassicUO (client 1.0.2.544, patched to 550 on 2026-09-28 without changing the wire), protocol version 12. Multi-byte packet fields are big-endian. The proprietary <code>.uoo</code> data files are little-endian. Sources are <code>docs/PROTOCOL.md</code>, <code>docs/CIPHER.md</code>, <code>docs/MOVEMENT.md</code>, <code>docs/MAP.md</code> and <code>docs/MEMORY.md</code>, by way of research briefs 02 and 03. For the stories behind them, see <a class="ref" href="#sec-wire"></a> and <a class="ref" href="#sec-world"></a>.</p>
+
+<h3 id="app-protocol-wire">The wire in brief</h3>
+<figure class="tbl" id="tab-app-protocol-wire"><figcaption>Framing and encoding of the game connection, both directions.</figcaption><div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Item</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Client preamble</td><td><code>ef 00 00 00 0c</code>, 5 bytes cleartext</td></tr>
+<tr><td>Server prelude</td><td>13 bytes cleartext, <code>ff 00 0d | 7×00 | 0c K S</code>: itself an <code>0xFF</code> sub-0 handshake carrying protocol version 12, the S2C key <code>K</code> (byte 11) and the C2S key <code>S</code> (byte 12)</td></tr>
+<tr><td>Client → server</td><td>every byte XOR <code>S</code>; packets framed by the client's own v12 length table</td></tr>
+<tr><td>Server → client</td><td>every byte XOR <code>K</code>, then UO's static Huffman code (257 symbols, 2–11 bits, 4-bit flush); each packet is compressed separately and ends in a flush, so one flush segment is exactly one packet. Wire/plain size ratio 0.683 on a 1.6 h session</td></tr>
+<tr><td>Keys</td><td>new per session: 45 distinct C2S and 43 distinct S2C keys over 67 logged preludes</td></tr>
+<tr><td>Length table</td><td>145 base entries from the client's static initializer plus V10/V11/V12 tiers; 22 standard packets widened by 6–16 bytes; 27 ids where client framing differs from upstream ClassicUO</td></tr>
+<tr><td>Login</td><td><code>0x91</code>, about 1,122 bytes: name plus the JWT from the HTTPS login. No password crosses the game wire</td></tr>
+<tr><td>Keepalive</td><td><code>ff 00 07 00 00 00 03</code> about once per second, no timestamp; the server answers with <code>0xFF</code> sub 3. Relayed untouched, never injected</td></tr>
+<tr><td>Validation</td><td>18 captures: 53,277 S2C packets re-encode byte-exactly; 19,773 C2S packets frame with 0 desyncs</td></tr>
+</tbody></table></div></figure>
+
+<h3 id="app-protocol-ports">Ports and endpoints</h3>
+<figure class="tbl" id="tab-app-protocol-ports"><figcaption>Network endpoints of a running stack. Everything except the game server and the HTTPS login is on the local machine.</figcaption><div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Port</th><th>Owner</th><th>Protocol and use</th></tr></thead>
+<tbody>
+<tr><td class="num">443</td><td><code>login.uooutlands.com</code></td><td>HTTPS login; returns the JWT and the game server's literal IP. Not intercepted</td></tr>
+<tr><td class="num">2593</td><td>game server</td><td>UO game protocol. Server IPs seen: 74.91.115.123 (35 sessions), 35.71.142.123 (19), 52.223.17.219 (15)</td></tr>
+<tr><td class="num">127.0.0.1:2593</td><td><code>proxy.py</code></td><td>where the WinDivert NAT delivers the client's game connection</td></tr>
+<tr><td class="num">25940–25960</td><td><code>proxy.py</code></td><td>source ports of the proxy's upstream leg, excluded from diversion so the relay doesn't loop</td></tr>
+<tr><td class="num">25941</td><td><code>proxy.py</code></td><td>control: u16be-length-prefixed plaintext packets to inject; reply <code>OK</code> / <code>ERR &lt;reason&gt;</code></td></tr>
+<tr><td class="num">25942</td><td><code>proxy.py</code></td><td>state: JSON lines (<code>state</code>, <code>gate</code>, <code>intent</code>), the contract shared by runners, <code>ctl</code> and the viz</td></tr>
+<tr><td class="num">25943</td><td><code>divert_nat.py</code></td><td>NAT lookup: <code>"&lt;client port&gt;\n"</code> → original server IP</td></tr>
+<tr><td class="num">25970</td><td><code>laya-serve</code></td><td>Laya speech triage over HTTP</td></tr>
+<tr><td class="num">8080</td><td><code>viz_server.py</code></td><td>visualizer REST + SSE</td></tr>
+<tr><td class="num">12597–12599, ≥12700</td><td>tests</td><td>private proxy ports for <code>test_actions</code>, <code>test_movement</code>, <code>test_proxy</code>, <code>test_ctl</code></td></tr>
+</tbody></table></div></figure>
+
+<h3 id="app-protocol-c2s">Client → server packets the harness sends</h3>
+<p>Every agent packet is built by <code>harness/actions.py</code> in the byte layout the stock client uses for the same gesture, padded to the client's length table. The counts are agent-originated packets across all 69 desktop session logs. For scale, the human's client sent 251,770 <code>0xFF</code> packets over the same logs, most of them keepalives.</p>
+<figure class="tbl" id="tab-app-protocol-c2s"><figcaption>C2S packet ids injected by the harness, with length (var = length-prefixed), meaning and use. Source: <code>docs/PROTOCOL.md</code>, <code>harness/actions.py</code>; counts from <code>logs/session_*.jsonl</code> (brief 02 §2.7).</figcaption><div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Id</th><th class="num">Bytes</th><th>Name</th><th>Harness use</th><th class="num">Agent sent</th></tr></thead>
+<tbody>
+<tr><td><code>02</code></td><td class="num">7</td><td>walk</td><td><code>02 &lt;dir|0x80&gt; &lt;seq&gt; &lt;key u32&gt;</code>; the proxy stamps seq and fastwalk key on one ladder shared with the human</td><td class="num">55,615</td></tr>
+<tr><td><code>06</code></td><td class="num">5</td><td>double-click</td><td>use hatchet, open books, doors, containers</td><td class="num">6,256</td></tr>
+<tr><td><code>6C</code></td><td class="num">27</td><td>target response</td><td>answer a server cursor: object, ground/tree, or ourselves (Smart Harvest)</td><td class="num">5,824</td></tr>
+<tr><td><code>B1</code></td><td class="num">var</td><td>gump response</td><td>runebook/tome buttons, room menus, shelf, stockpile, captcha (solver)</td><td class="num">1,896</td></tr>
+<tr><td><code>07</code></td><td class="num">7</td><td>lift</td><td>pick up an item (stash, unequip, move)</td><td class="num">1,564</td></tr>
+<tr><td><code>08</code></td><td class="num">22</td><td>drop</td><td>drop into a container or onto the ground (V10+ form)</td><td class="num">1,517</td></tr>
+<tr><td><code>FF</code></td><td class="num">10 / 14</td><td>Outlands dialect</td><td>sub 4 cast spell (Recall, heals); sub 9 item detail query</td><td class="num">730</td></tr>
+<tr><td><code>05</code></td><td class="num">5</td><td>attack</td><td>hunt runner, monsters only</td><td class="num">483</td></tr>
+<tr><td><code>72</code></td><td class="num">5</td><td>war mode</td><td>toggle war mode</td><td class="num">438</td></tr>
+<tr><td><code>BF</code></td><td class="num">var</td><td>extended</td><td>sub <code>0x13</code> context-menu request, sub <code>0x15</code> menu pick (steward, vendors)</td><td class="num">196</td></tr>
+<tr><td><code>12</code></td><td class="num">var</td><td>text command</td><td>use skill (Tracking), open door</td><td class="num">195</td></tr>
+<tr><td><code>09</code></td><td class="num">5</td><td>single-click</td><td>name/label query</td><td class="num">189</td></tr>
+<tr><td><code>AD</code></td><td class="num">var</td><td>unicode speech</td><td>keyword-encoded like the stock client when <code>speech.mul</code> matches ("bank")</td><td class="num">76</td></tr>
+<tr><td><code>34</code></td><td class="num">10</td><td>status/skills query</td><td>type 4 status, type 5 skills</td><td class="num">56</td></tr>
+<tr><td><code>13</code></td><td class="num">10</td><td>equip</td><td>wear an item (weapon after recall, hatchet)</td><td class="num">47</td></tr>
+<tr><td><code>3B</code></td><td class="num">var</td><td>vendor buy</td><td>buy supplies, capped by <code>policy.json</code></td><td class="num">31</td></tr>
+</tbody></table></div></figure>
+<p>Builders also exist for vendor sell (<code>9F</code>) and prompt and text-entry replies (<code>9A</code>, <code>AC</code>, <code>C2</code>). The login (<code>91</code>), character select (<code>5D</code>) and the keepalive are always the client's own.</p>
+
+<h3 id="app-protocol-s2c">Server → client packets the harness reads</h3>
+<p>The world model has handlers for 46 S2C ids and 17 C2S ids. Every parsed id parses on every real packet in the 18 reference captures. The table groups the ones that matter by what the harness does with them.</p>
+<figure class="tbl" id="tab-app-protocol-s2c"><figcaption>S2C packet ids by purpose. Source: <code>docs/PROTOCOL.md</code>, <code>docs/WORLDMODEL.md</code>, brief 03 §2.1.</figcaption><div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Purpose</th><th>Ids</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Self position and movement</td><td><code>1B</code> login confirm, <code>20</code> mobile update, <code>77</code> mobile move, <code>22</code> walk confirm, <code>21</code> walk deny</td><td><code>22 &lt;seq&gt; &lt;noto&gt;</code> carries no z, so the proxy computes z from the map. <code>77</code>: 7,423 in the captures</td></tr>
+<tr><td>Fastwalk keys</td><td><code>BF</code> sub 1 (seed), sub 2 (push)</td><td>login seeds token 8; an honored resync re-arms with 1</td></tr>
+<tr><td>Mobiles, items, containers</td><td><code>20</code>, <code>77</code>, <code>78</code>, <code>F3</code>, <code>24</code>, <code>25</code>, <code>3C</code>, <code>2E</code>, <code>1D</code>, <code>89</code>, <code>98</code></td><td><code>F3</code> (38 B) also carries houses as multis; <code>20</code> byte 9 is notoriety</td></tr>
+<tr><td>Vitals, skills, buffs</td><td><code>11</code>, <code>A1</code>–<code>A3</code>, <code>3A</code>, <code>FF</code> sub 8</td><td>hits/mana/stamina drive healing and escapes</td></tr>
+<tr><td>Gumps and cursors</td><td><code>DD</code> compressed gump, <code>6C</code> target cursor</td><td>captcha, runebooks, tomes, room menus, shelf, stockpile</td></tr>
+<tr><td>Journal</td><td><code>1C</code>, <code>AE</code>, <code>C1</code>, <code>CC</code></td><td>system messages, speech (speech hold, Laya), cliloc results of every action</td></tr>
+<tr><td>Effects and sounds</td><td><code>C0</code> (52 B), <code>54</code>, <code>6E</code></td><td>trapped-pouch pop (effect <code>0x36BD</code>, sound <code>0x0307</code>), dragon breath</td></tr>
+<tr><td>Pruning and range</td><td><code>FF</code> sub 5, <code>C8</code>, <code>BF</code> sub 8</td><td>Outlands sends <code>c8 12</code>: view range 18, not 24; sub 8 = facet change</td></tr>
+<tr><td>Death and pets</td><td><code>AF</code>, <code>FF</code> sub <code>0xDEAD</code>, <code>BF</code> sub <code>0x19</code></td><td>ghost bodies on <code>20</code>; sub <code>0x19</code> = bonded pet status (the ghost horse)</td></tr>
+<tr><td>Time</td><td><code>FF</code> sub 3</td><td>answer to the keepalive (u64 server time)</td></tr>
+</tbody></table></div></figure>
+<p>The proxy also writes three kinds of packet to the client alone, encoded with the session key, which never reach the server. A <code>0x21</code> re-anchors the client's display after an agent step. A <code>0x6C</code> cancel takes down a cursor the agent already answered. A <code>0xBF</code> sub 4 closes a gump the agent already answered. Over the 69 desktop logs that came to 45,136, 5,688 and 1,875 packets respectively <span class="src">brief 02 §3.3</span>. Why these exist is told in <a class="ref" href="#sec-wire"></a>.</p>
+
+<h3 id="app-protocol-files">File formats</h3>
+<figure class="tbl" id="tab-app-protocol-files"><figcaption>Data files the harness reads or writes. Source: <code>docs/MAP.md</code>, <code>docs/MEMORY.md</code>, <code>harness/uomap.py</code>, brief 03 §2.2, §2.5, §2.8, §3.1.</figcaption><div class="tbl-scroll"><table class="compact">
+<thead><tr><th>File</th><th>Layout</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td><code>mapN.uoo</code></td><td>0x12-byte header (magic <code>0xE532363F</code>, 8×8 chunks, size in blocks); land blocks row-major by block y, 64 cells × 6 B (u32 land id + i16 z), no block header; then a W×H table of i64 statics offsets and statics blocks of u32 count + 9-byte records (cell delta, u32 graphic, u16 hue, i16 z). Map 0 is 10,752×6,144 tiles with 10,773,929 statics and 82,174,514 B of orphaned patch gaps</td><td>walkability, z, tree tiles, routes</td></tr>
+<tr><td><code>landdata.uoo</code> / <code>artdata.uoo</code></td><td>0x4000 × 48 B and 0x1167C × 72 B records (u64 tile flags, height, name); header magic <code>0x1E7FAB6D</code>. Flags above bit 31 are Outlands-only (NoClip, NoDraw…)</td><td>tiledata for the walk rules</td></tr>
+<tr><td><code>multi.idx</code> / <code>multi.mul</code></td><td>12-byte index entries; 16-byte records <code>graphic u16, dx/dy/dz i16, flags u32, u32</code>, a piece drawn iff flags ≠ 0</td><td>houses: an <code>F3</code> item with data type 2 is a multi id, expanded into walls and doors</td></tr>
+<tr><td><code>facet00.mul</code></td><td>ready-made 1 px/tile picture, RLE ARGB1555</td><td>viz map underlay only</td></tr>
+<tr><td><code>gumps.uoo</code> / <code>art.uoo</code></td><td>raw-deflate RGB555 images</td><td>paperdoll and item art in the viz</td></tr>
+<tr><td><code>logs/session_&lt;ts&gt;.jsonl</code> + <code>.c2s.raw</code> / <code>.s2c.raw</code></td><td>one JSON row per packet (<code>dir</code>, <code>src</code> client/agent/proxy, <code>id</code>, <code>len</code>, first 64 B hex) plus event rows; raw wire bytes flushed on every write</td><td>replay, tests, audits</td></tr>
+<tr><td><code>harness/data/harness.db</code></td><td>SQLite, WAL, schema v5; tables <code>events</code> (1,685,252 rows on 2026-10-05), <code>walk_moves</code>, <code>harvest_nodes</code>/<code>_attempts</code>, <code>episodes</code>, <code>junctures</code>, <code>chat</code>, <code>job_events</code>, <code>knowledge</code> (+ FTS5 and 384-d vectors), <code>lumber_spots</code>, <code>prices</code>, <code>teleporters</code>, <code>guard_points</code>, <code>meta</code>, <code>sessions</code>; 289 MB. Gitignored, backed up hourly, handed between computers</td><td>the memory of everything played (<a class="ref" href="#sec-world"></a>)</td></tr>
+<tr><td><code>harness/data/discord.db</code></td><td>SQLite + FTS5, separate from the memory store; laptop only</td><td>captured Discord history for the knowledge base</td></tr>
+</tbody></table></div></figure>
+</section>
