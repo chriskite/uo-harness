@@ -125,6 +125,7 @@ import tracking  # noqa: E402
 import pouch  # noqa: E402
 import aspects  # noqa: E402
 import shelf as shelf_mod  # noqa: E402
+import stockpile as stockpile_mod  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 NEXT_STAND_PLANS = 6          # nearest trees (straight line) whose stands next_stand() compares
@@ -1587,19 +1588,22 @@ class LumberLoop:
         return sum(it.get("amount") or 1 for _, it in pouch.contents(st["world"], container, graphics))
 
     def hatchet(self, st, want=None) -> int:
-        """A worn hatchet, else the shallowest one in the backpack or in a bag in
-        it (any depth); with `want` (lumber_opt.parse_hatchet_spec, --hatchet)
-        only one of that material and quality. use_hatchet opens the bags on the
-        way like a player."""
+        """The hatchet with the best tool bonus by its material (lumber_opt.hatchet_kind: the hue;
+        the shelf hands out GM coloured ones, user 2026-10-05), worn first among equals, else the
+        shallowest in the backpack or in a bag in it (any depth); with `want`
+        (lumber_opt.parse_hatchet_spec, --hatchet) only one of that material and quality.
+        use_hatchet opens the bags on the way like a player."""
         me, pack, items = self.self_serial(st), self.backpack(st), st["world"]["items"]
         best = None
         for key, it in items.items():
             if it.get("graphic") in HATCHETS and it.get("container") is not None:
-                if want is not None and not lumber_opt.matches(lumber_opt.hatchet_kind(it, self.hatchets), want):
+                kind = lumber_opt.hatchet_kind(it, self.hatchets)
+                if want is not None and not lumber_opt.matches(kind, want):
                     continue
                 depth = pack_depth(items, serial_of(it["container"]), me, pack)
-                if depth is not None and (best is None or depth < best[0]):
-                    best = (depth, serial_of(key))
+                rank = (-kind["tool_bonus"], depth)
+                if depth is not None and (best is None or rank < best[0]):
+                    best = (rank, serial_of(key))
         if best is None:
             what = "hatchet" if want is None else "+".join(w for w in want if w) + " hatchet"
             raise Abort(f"no {what} worn, in the backpack or in a bag in it")
@@ -2979,28 +2983,38 @@ class LumberLoop:
         self.mover.walk_to(where, rng, "to the house steward", z_ok=same_floor(z) if z is not None else None)
 
     def store(self) -> int:
-        """Into the room's secure chest (home.chest, within reach of the arrival): every board
-        stack in the pack (the opened pouch included; a live pouch holding boards is set off
-        first, unpack), then the spent pouches we set off, now empty, so they don't pile up in
-        the pack (one a trip). The chest is opened first like a player would (open_for: the
-        double-click, the server's 0x24); each item is declared to the ledger, lifted and
-        dropped into it at the auto position (put_away; live 2026-10-04: `ctl act drop` of a
-        stack into this chest). Facet 3 has no map: a walk to the chest, only needed when we
-        stand beyond CHEST_REACH, plans on walk memory."""
+        """Every board stack in the pack (the opened pouch included; a live pouch holding boards is
+        set off first, unpack) into the room's Resource Stockpile (home.stockpile; user,
+        2026-10-05: "It is where we will now drop off all our boards"; stockpile.deposit: one Add
+        Items and one target per stack), else into the room's secure chest (home.chest); then the
+        spent pouches we set off, now empty, into the chest, so they don't pile up in the pack
+        (one a trip; the stockpile takes no pouches). The chest is opened first like a player
+        would (open_for: the double-click, the server's 0x24); each item is declared to the
+        ledger, lifted and dropped into it at the auto position (put_away; live 2026-10-04: `ctl
+        act drop` of a stack into this chest). Facet 3 has no map: a walk to the chest or the
+        stockpile, only needed when we stand beyond reach, plans on walk memory."""
         chest, where = home_mod.chest_serial(self.home), tuple(self.home["chest"]["pos"][:2])
         name = self.home["chest"].get("name") or "chest"
+        pile = self.home.get("stockpile")
         self.unpack(BOARDS)
         st = self.state()
         stacks = self.in_pack(st, BOARDS)
         spent = self.spent_pouches(st)
         if not stacks and not spent:
             return 0
+        piled = 0
+        if stacks and pile is not None:
+            piled = self.to_stockpile(pile, stacks)
+            stacks = []
+        spent = self.spent_pouches(self.state())
+        if not stacks and not spent:
+            return piled
+        stored = 0
         if self.wait_for(lambda s: self.item(s, chest) is not None, 3.0) is None:
             raise Abort(f"the {name} {self.home['chest']['serial']} isn't in view in the rental room")
         if cheb(self.link.pos(self.link.state()), where) > CHEST_REACH:
             self.doing("store", f"Going to the {name}", where)
             self.mover.walk_to(lambda: where, 1, f"to the {name}")
-        stored = 0
         self.open_for((chest, True), *[(serial, False) for serial, _ in stacks])
         for serial, it in stacks:
             amount = it.get("amount") or 1
@@ -3008,13 +3022,38 @@ class LumberLoop:
             self.put_away(serial, amount, chest, "board stack")
             stored += amount
             log(f"stored {amount} boards in the {name}")
-        spent = self.spent_pouches(self.state())
+        spent = self.spent_pouches(self.state())     # the pouch the boards were in is empty only now
         for s in spent:
             self.put_away(s, 1, chest, "spent trapped pouch")
         if spent:
             log(f"stored {len(spent)} spent trapped pouch(es) in the {name}")
         self.stats["stored"] = self.stats.get("stored", 0) + stored
-        return stored
+        return piled + stored
+
+    def to_stockpile(self, pile: dict, stacks: list) -> int:
+        """The board stacks into the home's Resource Stockpile (stockpile.deposit), declared to the
+        ledger first. Returns the boards added; a stack it didn't take aborts the run with the
+        boards still in the pack."""
+        serial, where = int(pile["serial"], 16), tuple(pile["pos"][:2])
+        if self.wait_for(lambda s: self.item(s, serial) is not None, 3.0) is None:
+            raise Abort(f"the resource stockpile {pile['serial']} isn't in view in the rental room")
+        if cheb(self.link.pos(self.link.state()), where) > stockpile_mod.STOCKPILE_RANGE:
+            self.doing("store", "Going to the resource stockpile", where)
+            self.mover.walk_to(lambda: where, stockpile_mod.STOCKPILE_RANGE, "to the resource stockpile")
+        total = sum(it.get("amount") or 1 for _, it in stacks)
+        self.doing("store", f"Adding {total} boards to the resource stockpile", where)
+        for s, _ in stacks:
+            self.ledger.expect(("moved_out", s))     # into our own stockpile: not theft
+        try:
+            res = stockpile_mod.deposit(escape_mod.LinkIO(self.link), self.human, serial, [s for s, _ in stacks])
+        except stockpile_mod.StockpileError as e:
+            raise Abort(f"resource stockpile: {e}")
+        added = sum(a["amount"] for a in res["added"])
+        self.stats["stored"] = self.stats.get("stored", 0) + added     # a stop below still counts these
+        log(f"added {added} boards to the resource stockpile ({len(res['added'])} stack(s))")
+        if not res["ok"]:
+            raise Abort(f"resource stockpile: {res['error']}; {len(res['left'])} board stack(s) left in the pack")
+        return added
 
     def spent_pouches(self, st) -> list[int]:
         """Trapped pouches we set off ourselves this run, gone off and empty."""

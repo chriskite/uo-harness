@@ -2,8 +2,9 @@
 
 Trips start and end at home: the character's own book's default rune lands at the
 home `landing`, the rental room is entered from there, and the boards go into the
-room's secure `chest`. The way out is the landing rune nearest the grove, from the
-home rune library or the character's own books (places.landings)."""
+room's Resource Stockpile (`stockpile`, when the home has one) or its secure `chest`.
+The way out is the landing rune nearest the grove, from the home rune library or the
+character's own books (places.landings)."""
 import json
 import os
 

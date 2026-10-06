@@ -1,12 +1,13 @@
 {
-  "_doc": "Where each character's harvest trips start and end (docs/LUMBER_LOOP.md §3; harness/home.py). The way home is the character's own book's default rune, which lands at `landing` (facet `facet`); from there the house steward or innkeeper takes it into the rental room `room` (owner words for the room menu's Visit Other Rooms row; empty = the character's own room), on facet `room.facet`, where the boards go into the secure container `chest` (within reach of `room.arrival`). `library` is the rune library at home (places.py; the Cambria library is public and always usable). Live values: docs/NOTES.md 'Rental room via the DTF house steward' (2026-10-04).",
+  "_doc": "Where each character's harvest trips start and end (docs/LUMBER_LOOP.md §3; harness/home.py). The way home is the character's own book's default rune, which lands at `landing` (facet `facet`); from there the house steward or innkeeper takes it into the rental room `room` (owner words for the room menu's Visit Other Rooms row; empty = the character's own room), on facet `room.facet`. The boards go into the room's Resource Stockpile `stockpile` (harness/stockpile.py) when the home has one, else into the secure container `chest` (within reach of `room.arrival`); spent trapped pouches always go into `chest`. `library` is the rune library at home (places.py; the Cambria library is public and always usable). Live values: docs/NOTES.md 'Rental room via the DTF house steward' (2026-10-04) and 'Resource Stockpile' (2026-10-05).",
   "homes": {
     "Outland Dan": {
       "library": "dtf",
       "landing": [4134, 1429, 6],
       "facet": 0,
       "room": {"owner": "logan", "facet": 3, "arrival": [403, 923, 1], "exit": "steward"},
-      "chest": {"serial": "0x4AE0DD2C", "name": "paragon chest (drake)", "pos": [404, 922, 2]}
+      "chest": {"serial": "0x4AE0DD2C", "name": "paragon chest (drake)", "pos": [404, 922, 2]},
+      "stockpile": {"serial": "0x62645C82", "pos": [403, 921, 2]}
     }
   }
 }

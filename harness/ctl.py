@@ -71,6 +71,7 @@ import room  # noqa: E402
 from room import ROOM_GUMP_ID, ROOM_REFUSED  # noqa: E402  (rental room menu; `act gump` refuses those buttons)
 import shelf  # noqa: E402
 from shelf import SHELF_GUMP_ID, SHELF_REFUSED  # noqa: E402  (storage shelf; `act gump` refuses Restock/Clear)
+import stockpile as stockpile_mod  # noqa: E402
 import mount as mount_mod  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
@@ -121,7 +122,7 @@ LAYER_NAMES = {1: "one_handed", 2: "two_handed", 3: "shoes", 4: "pants", 5: "shi
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
         "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot",
         "target", "cast", "heal", "buy", "use", "drop", "track", "recall", "read_tomes", "room", "aspect",
-        "resupply", "mount")
+        "resupply", "mount", "stockpile")
 # meta key: epoch seconds of ctl's last heal-potion drink (healing.PotionClock across ctl calls)
 HEAL_POTION_KEY = "heal_potion_t"
 PACK_ITEMS_MAX = 60                  # status.backpack.items
@@ -966,6 +967,8 @@ def _act(a, mem) -> dict:
         return _act_aspect(a)
     if a.name == "resupply":
         return _act_resupply(a, mem)
+    if a.name == "stockpile":
+        return _act_stockpile(a)
     if a.name == "mount":
         return _act_mount(a, mem)
     pkt = None
@@ -1927,6 +1930,45 @@ def _act_resupply(a, mem) -> dict:
         stc.close()
 
 
+def _act_stockpile(a) -> dict:
+    """stockpile [STACK SERIAL ...]: add board stacks in the pack (default: every one, at any depth)
+    to your home's Resource Stockpile (homes.json `stockpile`; harness/stockpile.py, the flow the
+    lumber runner stores with): its menu, Add Items and one target per stack, the menu closed.
+    Stand within 2 tiles of it (in Logan Wolf's room the arrival tile is). Never targets you
+    (that would add every valid item in the pack, reagents and tools too)."""
+    import home as home_mod
+    human = Human(a.human, seed=a.seed)
+    ctl, stc = _connect(a)
+    io = _CtlIO(ctl, stc, stockpile_mod.StockpileError)
+    try:
+        st = stc.state()
+        home = home_mod.for_character((st["world"].get("self") or {}).get("name"))
+        if not home or not home.get("stockpile"):
+            raise CtlError("no Resource Stockpile in your home (harness/data/homes.json `stockpile`)")
+        pile, where = int(home["stockpile"]["serial"], 16), tuple(home["stockpile"]["pos"][:2])
+        pos = st["movement"].get("pos")
+        if (st["world"]["items"].get(f"0x{pile:08X}") is None or not pos
+                or nav.chebyshev(tuple(pos[:2]), where) > stockpile_mod.STOCKPILE_RANGE):
+            raise CtlError(f"the stockpile 0x{pile:08X} isn't in view within {stockpile_mod.STOCKPILE_RANGE} tiles "
+                           f"(it stands at {where} in your rental room)")
+        if a.args:
+            stacks = [_parse_serial(s) for s in a.args]
+        else:
+            stacks = [s for s, it in shelf.carried(st).items() if it["graphic"] == 0x1BD7 and not it["worn"]]
+        if not stacks:
+            raise CtlError("no board stack in your pack")
+        stc.intent("Adding boards to the resource stockpile", "store")
+        out = stockpile_mod.deposit(io, human, pile, stacks)
+        stc.intent(None)
+        n = sum(x["amount"] for x in out["added"])
+        return {**out, "heard": [journal_view(e) for e in out["heard"]],
+                "reply": f"added {n} boards ({len(out['added'])} stack(s))" if out["ok"] else out["error"]}
+    except stockpile_mod.StockpileError as e:
+        raise CtlError(str(e))
+    finally:
+        io.ctl.close()
+        stc.close()
+
 
 def _act_aspect(a) -> dict:
     """aspect | aspect activate <weapon|spellbook|armor> [ASPECT]: the Aspect Mastery
@@ -2136,8 +2178,9 @@ def _act_drop(a) -> dict:
             v = stc.state()["world"]["items"].get(ikey)
             if v is None:                          # merged into a stack there (gold) or used up
                 return None                        # (a rune into a book): settled only at the end
-            if amount < have:                      # a partial lift leaves the rest behind
-                return (v.get("amount") or 1) == have - amount
+            # a partial lift moves this serial with the lifted amount; the rest stays behind under a new
+            # serial (live 2026-10-05: 10 of 8326 boards out of the chest kept 0x5E9DB872, the rest became
+            # 0x62759AC6; RunUO's lift splits the stack the same way)
             return v.get("container") is not None and _serial(v["container"]) == cont_s
         # A refused drop bounces the item back (live 2026-10-02: "You cannot place objects
         # in the book while viewing the contents."), so "gone" only counts once it stays gone.

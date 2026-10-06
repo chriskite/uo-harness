@@ -491,7 +491,9 @@ Wiki: [Storage Shelf](https://wiki.uooutlands.com/Storage_Shelf). Fixtures:
 - **Only some gear goes in (user, 2026-10-05):** for some item types the shelf takes only
   player-crafted GM (exceptional) items with full uses: not a vendor-bought hatchet, not a hatchet
   with uses spent, but a freshly crafted GM coloured hatchet. That is why Dan's loadout's 4
-  hatchets come back "No resupply: Hatchet" at the DTF shelf.
+  hatchets came back "No resupply: Hatchet" at the DTF shelf. Since the evening of 2026-10-05 the
+  user stocks GM coloured hatchets and the loadout asks for the best one (see "Resource Stockpile
+  and GM coloured hatchets").
 - **Where:** the DTF guild house has two "spring storage shelf" items stacked on (4133,1427): z 6
   `0x40050A3B` answers "That is secure." (cliloc 501647: not for Dan), z 11 `0x40B84C55` opens and
   is stocked (2 tiles from the home landing 4134,1429: no walk). Logan Wolf's rental room has
@@ -521,6 +523,47 @@ Wiki: [Storage Shelf](https://wiki.uooutlands.com/Storage_Shelf). Fixtures:
   logs into the trapped pouch during the next chop) came 0.47 s after the hatchet's double-click
   and got "You must wait to perform another action." (cliloc 500119); the logs stayed loose until the
   next chop's stash. The stash now waits STASH_AFTER_S (0.8 s) after the chop's target.
+
+## Resource Stockpile and GM coloured hatchets (live 2026-10-05, Outland Dan)
+
+Wiki: [Resource Stockpile](https://wiki.uooutlands.com/Resource_Stockpile),
+[Lumberjacking](https://wiki.uooutlands.com/Lumberjacking) ("Colored Hatchets"). Code:
+`harness/stockpile.py`, `ctl act stockpile`, `LumberLoop.store` / `to_stockpile`.
+
+- **The user bought for Logan Wolf's room (2026-10-05):** "a resource stockpile" 0x62645C82
+  (graphic 0x59FA, locked down) at (403,921,2), 2 tiles north of the room's arrival (403,923); also
+  a magic item recycler 0x6264BB54, a magic item vault 0x6264CB96 (both secure, empty), an aspect
+  item tome 0x62657BB3, a skill mastery tome 0x62658F0D, a treasure map tome 0x62659A52 (all
+  locked down, empty). Names from single clicks; each also says "[blessed for 44m]".
+  **All boards now go into the stockpile** (user: "It is where we will now drop off all our
+  boards"; homes.json `stockpile`); spent trapped pouches still go into the chest.
+- **Its menu:** double-click → gump 0x6ECE2ABE, lines `Guide`, `Resource Stockpile`, one count per
+  row, `Settings`. The ingots/boards page lists ingots (tile 7154) and boards (tile 7127) per
+  material hue: 0 (regular) and 2419, 2406, 2413, 2418, 2213, 2425, 2207, 2219, 1763 (the woods'
+  hues); row buttons 100–109 ingots, 110–119 boards (retrieval). Button **2** = Add Items (bottom
+  left, no text label), 3–7 category tabs, 12 Settings.
+- **Deposit, as tested (4 stacks, 18 boards):** button 2 → "Target an item or container of items
+  you wish to add to this Resource Stockpile. Target yourself to add all valid items in your
+  backpack." and a target cursor (type 0). Targeting a board stack in the pack → "You add 1 item(s)
+  to the Resource Stockpile.", the stack is deleted, and the menu comes back with the new count
+  under a new serial (no cursor). So it's one press and one target per stack, then close the menu
+  with 0. `stockpile.deposit` does exactly that; the overseer's `ctl act stockpile` runs the same
+  flow on every board stack in the pack. Never target yourself: per the wiki that adds every valid
+  item in the pack, reagents and tools included, depending on the player's Settings.
+- **Board counts right after the tests:** 18 in the stockpile (10 + 5 regular, 3 dullwood). The chest
+  still holds about 8.3k regular boards and some coloured stacks; moving them over is the user's
+  call.
+- **A partial lift moves the lifted serial:** `ctl act drop 0x5E9DB872 <pack> --amount 10` (of
+  8326) put 0x5E9DB872 into the pack with 10, and the 8316 left in the chest became 0x62759AC6
+  (RunUO's split). `ctl act drop` had expected the reverse and reported `moved: false`; fixed.
+- **GM coloured hatchets (user: the shelf loadout now hands out "the best quality colored hatchet
+  available"):** Dan was wearing 0x6270D238, hue **2418** (bronze, which confirms that hatchets.json
+  hue on a hatchet). Click labels: "exceptional bronze hatchet", "(1500 uses remaining)",
+  "[mastercrafted by Sage Godfrey]". 1500 = 500 base + 250 exceptional + 250 mastercrafted + 500
+  bronze, so the wiki's tool bonus is 0.08 + 0.04 + 0.04 = 0.16. The world model keeps only the
+  latest label per serial (`labels`), so hatchet_kind sees the material (hue) but not the quality.
+  `LumberLoop.hatchet` now picks the best material in hand or in the pack (worn first among equals).
+  `ctl act resupply` at the room shelf right after: "Unable to resupply: no items available."
 
 ## First live room-storage trip (2026-10-04, Outland Dan)
 

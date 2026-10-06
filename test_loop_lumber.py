@@ -89,6 +89,7 @@ import actions  # noqa: E402
 import escape  # noqa: E402
 import memory  # noqa: E402
 import nav  # noqa: E402
+import stockpile as stockpile_mod  # noqa: E402
 from uo.packets import packet_length, C2S_OVERRIDES  # noqa: E402
 from uo.s2c import encode_packet  # noqa: E402
 from world.parsers import parse_packet  # noqa: E402
@@ -121,6 +122,11 @@ ROOM_SHELF, ROOM_SHELF_POS = 0x6CEB65CD, (402, 921)
 SECURED_SHELF, LANDING_SHELF, LANDING_SHELF_POS = 0x40050A3B, 0x40B84C55, (124, 203)
 SHELF_POUCHES = (0x44ADD101, 0x44ADD102, 0x44ADD103)      # what a shelf hands out, in this order
 LOADOUT_POUCHES = 3
+# the room's Resource Stockpile (live 2026-10-05: Logan Wolf's room, 2 tiles north of the arrival): its menu, the
+# Add Items button (2) with the server's prompt and a cursor; a targeted stack "You add 1 item(s) ..."
+STOCKPILE, STOCKPILE_POS, STOCKPILE_GUMP = 0x62645C82, (403, 921), 0x6ECE2ABE
+STOCKPILE_LAYOUT = ("{ resizepic 18 25 11571 666 535 }{ text 305 16 2655 1 }{ button 93 53 2118 2118 1 0 100 }"
+                    "{ button 96 508 2151 2154 1 0 2 }{ button 589 516 2118 2117 1 0 12 }{ text 610 513 149 3 }")
 with open(f"{ROOT}/harness/testdata/shelf_gumps.json", encoding="utf-8") as _f:
     SHELF_GUMP = json.load(_f)["dtf"]                     # the live Storage Shelf gump (DTF guild house)
 DOOR = (122, 200)                                        # a closed town door
@@ -440,6 +446,8 @@ class World:
         self.next_stack = 0x45000001
         self.stolen = 0
         self.chest_stack = None           # (serial, amount): the boards in the home chest
+        self.stockpile = None             # {"boards": n, "adds": [stack serials], "gumps": set, "closed": n}: none
+        self.pile_cursor = None           # the cursor id Add Items gave
         self.pouch_hue = {p: 38 for p in POUCHES}   # trapped pouches in the pack (hue 38 live, 0 gone off)
         self.pops = []                    # (pouch, time, 'us' | 'thief')
         self.stashed = []                 # (stack serial, amount, pouch) per drop of logs/boards into a pouch
@@ -710,6 +718,28 @@ class World:
         self.send(ground_item(CHEST, 0x0E40, *CHEST_POS, 2))               # the secure chest
         if self.shelf_stock is not None:
             self.send(ground_item(ROOM_SHELF, 0xAFC5, *ROOM_SHELF_POS, 2))   # "storage shelf" (live)
+        if self.stockpile is not None:
+            self.send(ground_item(STOCKPILE, 0x59FA, *STOCKPILE_POS, 2))     # "a resource stockpile" (live)
+
+    def stockpile_gump(self):
+        """The Resource Stockpile's menu (a fresh serial each time, as live), the board count on its line."""
+        self.stockpile["gumps"].add(self.next_gump())
+        self.send(gump(self.gump_serial, STOCKPILE_GUMP, STOCKPILE_LAYOUT,
+                       ["Guide", "Resource Stockpile", str(self.stockpile["boards"]), "Settings"]))
+
+    def stockpile_target(self, f):
+        """Add Items' cursor answered: a board stack in the pack goes in ("You add 1 item(s) ...", the stack
+        deleted, the menu again); anything else, or ourselves, is refused here."""
+        s = f["serial"]
+        if f["target_type"] == 0 and s in self.stacks and self.stacks[s][0] == BOARD_G:
+            self.stockpile["boards"] += self.stacks.pop(s)[1]
+            self.stockpile["adds"].append(s)
+            self.send(delete(s))
+            self.send(sys_text("You add 1 item(s) to the Resource Stockpile."))
+        else:
+            self.stockpile["refused"].append(s)
+            self.send(sys_text("You cannot add that to the Resource Stockpile."))
+        self.stockpile_gump()
 
     def leave_room(self):
         """'Exit to House Steward': back on facet 0 at the home landing (live: 4134,1429)."""
@@ -996,6 +1026,9 @@ class World:
                     asyncio.get_running_loop().call_later(RED_AIM_S, self.red_appears)
             elif serial == ROOM_DOOR and self.facet == ROOM_FACET:     # the door's menu (opened from 6 tiles live)
                 self.room_gump("door")
+            elif serial == STOCKPILE and self.stockpile is not None and self.facet == ROOM_FACET \
+                    and self.cheb(STOCKPILE_POS) <= 2:
+                self.stockpile_gump()
             elif serial == CHEST and self.facet == ROOM_FACET and self.cheb(CHEST_POS) <= 2:
                 self.chest_opens += 1
                 self.send(b"\x24" + u32(CHEST) + bytes.fromhex("0000003c007d"))
@@ -1031,6 +1064,10 @@ class World:
                 self.send(gump(self.gump_serial, 0x5C7DB029, *book_gump()))
         elif pid == 0x6C:
             f = parse_packet("c2s", p)
+            if f["cursor_id"] == self.pile_cursor and self.pile_cursor is not None:
+                self.pile_cursor = self.cursor_for = None
+                self.stockpile_target(f)
+                return
             if f["cursor_id"] != self.cursor_for:
                 return
             self.cursor_for = None
@@ -1045,7 +1082,17 @@ class World:
                 self.location_answers += 1
         elif pid == 0xB1:
             f = parse_packet("c2s", p)
-            if f["serial"] in self.decoys:
+            if f["serial"] in (self.stockpile or {}).get("gumps", ()):
+                self.stockpile["gumps"].discard(f["serial"])
+                if f["button_id"] == 2:                  # Add Items: the server's prompt and a cursor
+                    self.send(sys_text(stockpile_mod.ADD_PROMPT + ". Target yourself to add all valid items "
+                                       "in your backpack."))
+                    self.cid += 1
+                    self.pile_cursor = self.cursor_for = self.cid
+                    self.send(cursor(self.cid, 0))
+                else:
+                    self.stockpile["closed"] += 1
+            elif f["serial"] in self.decoys:
                 self.decoy_replies += 1
             elif f["serial"] in self.tome_gumps and f["button_id"] == 110:     # row 10: "286 - Midlands ..."
                 self.recall_to(RUNE_POS, self.recalls_out)
@@ -1228,26 +1275,27 @@ def write_libraries(path):
         json.dump(doc, f)
 
 
-def write_homes(path):
+def write_homes(path, stockpile=False):
     """The test character's home (harness/home.py format): the simulated landing, home library, room
-    (Logan Wolf's, as live) and chest."""
-    doc = {"homes": {CHAR_NAME: {"library": "simhome", "landing": [*HOME_RUNE_POS, 0], "facet": 0,
-                                 "room": {"owner": "logan", "facet": ROOM_FACET, "arrival": [*ROOM_ARRIVAL, 1],
-                                          "exit": "steward"},
-                                 "chest": {"serial": f"0x{CHEST:08X}", "name": "paragon chest (drake)",
-                                           "pos": [*CHEST_POS, 2]}}}}
+    (Logan Wolf's, as live) and chest; with `stockpile`, the room's Resource Stockpile."""
+    home = {"library": "simhome", "landing": [*HOME_RUNE_POS, 0], "facet": 0,
+            "room": {"owner": "logan", "facet": ROOM_FACET, "arrival": [*ROOM_ARRIVAL, 1], "exit": "steward"},
+            "chest": {"serial": f"0x{CHEST:08X}", "name": "paragon chest (drake)", "pos": [*CHEST_POS, 2]}}
+    if stockpile:
+        home["stockpile"] = {"serial": f"0x{STOCKPILE:08X}", "pos": [*STOCKPILE_POS, 2]}
+    doc = {"homes": {CHAR_NAME: home}}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(doc, f)
 
 
-def write_world_files(tmp, trees=(GOOD_TREE, DRY_TREE), spot_extra=None) -> dict:
+def write_world_files(tmp, trees=(GOOD_TREE, DRY_TREE), spot_extra=None, stockpile=False) -> dict:
     """The runner's simulated data files in `tmp`: spots, Witcher table, rune libraries, homes, memory db."""
     paths = {n: os.path.join(tmp, f"{n}.json") for n in ("spots", "witcher", "libraries", "homes")}
     paths["db"] = os.path.join(tmp, "harness.db")
     write_spot(paths["spots"], trees, **(spot_extra or {}))
     write_witcher(paths["witcher"])
     write_libraries(paths["libraries"])
-    write_homes(paths["homes"])
+    write_homes(paths["homes"], stockpile)
     return paths
 
 
@@ -1586,7 +1634,7 @@ async def run_scenario(world, tag, port_base, trees, runner_args, budget=None, s
     if budget is not None:
         with open(os.path.join(logdir, "agent_budget.json"), "w", encoding="utf-8") as f:
             json.dump(budget, f)
-    paths = write_world_files(tempfile.mkdtemp(), trees, spot_extra)
+    paths = write_world_files(tempfile.mkdtemp(), trees, spot_extra, stockpile=world.stockpile is not None)
     db = paths["db"]
     proxy_port, upstream, control, state = (port_base + i for i in range(4))
     server = await asyncio.start_server(world.handle, "127.0.0.1", upstream)
@@ -2301,6 +2349,35 @@ async def convert_stacks():
     store.close()
 
 
+async def stockpile_store():
+    """User 2026-10-05: the boards now go into the Resource Stockpile in the room (live: its menu, Add Items, one
+    target per stack). Carried boards and logs of another wood in the pack and this trip's logs in the pouch come
+    home as two board stacks: each is added on its own, the menu closed once at the end; the spent trapped pouch
+    still goes into the chest; no theft suspected; the row counts them."""
+    print("\n== the boards into the room's Resource Stockpile, one Add Items per stack; the spent pouch in the chest ==")
+    world = World("home")
+    world.scripted = False
+    world.carried = [(0x1BDE, 7), (BOARD_G, 4)]
+    world.stockpile = {"boards": 0, "adds": [], "refused": [], "gumps": set(), "closed": 0}
+    text, code, store, _ = await run_scenario(world, "stockpile_store", 12880, [GOOD_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "10", "--human", "off"])
+    pile = world.stockpile
+    check("every board went into the stockpile, one add per stack (the pack's and the pouch's), nothing refused, "
+          "none in the chest",
+          code == 0 and pile["boards"] == 11 + world.harvested and len(pile["adds"]) == 2 and not pile["refused"]
+          and world.chest_stack is None and world.logs == 0,
+          f"exit {code} pile {pile} chest {world.chest_stack} harvested {world.harvested}\n{text[-800:]}")
+    check("its menu was closed once, at the end (each add brings it back)",
+          pile["closed"] == 1 and not pile["gumps"], str(pile))
+    eps = store.episodes("lumber")
+    check("the spent trapped pouch into the chest; the row stored them all; no theft suspected",
+          world.chest_items and len(eps) == 1 and eps[0]["outcome"] == "stored"
+          and eps[0].get("stored") == pile["boards"]
+          and not [j for j in store.junctures() if j["kind"] == "theft_suspected"],
+          f"chest {world.chest_items} {[(e.get('outcome'), e.get('stored')) for e in eps]}")
+    store.close()
+
+
 async def resupply():
     """No trapped pouch in the pack; the room's shelf has none, the landing's has 3: out of the room, Resupply
     there gives 3, the trip goes, its row says what each shelf gave."""
@@ -2543,9 +2620,11 @@ def unit_run_and_recall():
 
 
 def unit_hatchet():
-    """loop_lumber hatchet(): worn first, then the shallowest in the pack; never the bank box."""
-    print("\n== hatchet(): worn, else the shallowest in the backpack's bags ==")
+    """loop_lumber hatchet(): the best tool bonus by material (hue; the shelf hands out GM coloured ones, user
+    2026-10-05), worn first among equals, then the shallowest in the pack; never the bank box."""
+    print("\n== hatchet(): the best material, worn first among equals, else the shallowest in the backpack's bags ==")
     import loop_lumber
+    import lumber_opt
     from agent_link import Abort
     inner, bankbox = 0x44ADC0DF, 0x40000B0B                 # a bank box worn by us (layer 0x1D): outside the pack
     base = {BACKPACK: {"graphic": 0x0E75, "layer": 0x15, "container": SELF},
@@ -2554,9 +2633,13 @@ def unit_hatchet():
             bankbox: {"graphic": 0x0E7C, "layer": 0x1D, "container": SELF}}
     hatchets = {"worn": (0x4001, SELF), "bag": (0x4002, BAG), "inner": (0x4003, inner), "bank": (0x4004, bankbox)}
     loop = loop_lumber.LumberLoop.__new__(loop_lumber.LumberLoop)
+    loop.hatchets = lumber_opt.load_hatchets()
+    bronze, copper, valorite = 2418, 2413, 2219              # hatchets.json hues (bronze seen live 2026-10-05)
 
-    def pick(*which):
-        items = {**base, **{hatchets[w][0]: {"graphic": 0x0F43, "container": hatchets[w][1]} for w in which}}
+    def pick(*which, hue=None):
+        hue = hue or {}
+        items = {**base, **{hatchets[w][0]: {"graphic": 0x0F43, "container": hatchets[w][1], "hue": hue.get(w, 0)}
+                            for w in which}}
         st = {"movement": {"self_serial": SELF},
               "world": {"items": {f"0x{s:08X}": dict(it, container=f"0x{it['container']:08X}")
                                   for s, it in items.items()}}}
@@ -2564,10 +2647,15 @@ def unit_hatchet():
             return loop.hatchet(st)
         except Abort:
             return None
-    check("worn beats any in the pack", pick("inner", "bag", "worn", "bank") == hatchets["worn"][0])
+    check("same material: worn beats any in the pack", pick("inner", "bag", "worn", "bank") == hatchets["worn"][0])
     check("the shallowest bag wins", pick("inner", "bag", "bank") == hatchets["bag"][0])
     check("found at any depth", pick("inner", "bank") == hatchets["inner"][0])
     check("one in the bank box doesn't count", pick("bank") is None)
+    check("a bronze one in a bag beats a worn iron one; copper deeper loses to bronze shallower",
+          pick("worn", "bag", hue={"bag": bronze}) == hatchets["bag"][0]
+          and pick("bag", "inner", hue={"bag": bronze, "inner": copper}) == hatchets["bag"][0])
+    check("a valorite one in the bank box still doesn't count",
+          pick("worn", "bank", hue={"bank": valorite}) == hatchets["worn"][0])
 
 
 def unit_recall_reagents():
@@ -2926,7 +3014,7 @@ def run_parallel(names, jobs):
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
             wary, idle_mob, zone_on_way, red_aim, thief_keep_away, pouch_pop, no_pouch, resupply, convert_stacks,
-            landing_escape,
+            landing_escape, stockpile_store,
             ghost_horse,
             staff_in_view,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_run_and_recall,

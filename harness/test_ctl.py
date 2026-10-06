@@ -203,8 +203,10 @@ class FakeProxy:
                         it = self.ground_items.get(key)
                         n = self.lifted[1] if getattr(self, "lifted", (None,))[0] == key else None
                         if it is not None and n is not None and n < (it.get("amount") or 1):
-                            it["amount"] -= n                         # a partial lift: the rest stays
-                            self.ground_items["0x4000FFFF"] = {**it, "amount": n, "container": dest}
+                            # a partial lift: this serial goes with n, the rest stays behind as a new item
+                            # (live 2026-10-05, RunUO's split)
+                            self.ground_items["0x4000FFFF"] = {**it, "amount": it["amount"] - n}
+                            it.update(amount=n, container=dest)
                         elif it is not None and it.get("graphic") == 0x0EED:
                             del self.ground_items[key]                # gold merges into the pack's pile
                         elif it is not None:
@@ -1424,7 +1426,10 @@ def test_drop(proxy):
     code, out = c("act", "drop", "0x40000502", "0x40000504", "--amount", "4", "--human", "off")
     fr = [p for _, p in proxy.take()]
     check("part of a stack into a closed bag in the bank (--amount): the bag is opened first, then the stock "
-          "lift + drop", code == 0 and out["moved"] and proxy.ground_items["0x40000502"]["amount"] == 6
+          "lift + drop; the lifted serial moved with 4, 6 stayed behind (live split)",
+          code == 0 and out["moved"] and proxy.ground_items["0x40000502"]["amount"] == 4
+          and proxy.ground_items["0x40000502"]["container"] == "0x40000504"
+          and proxy.ground_items["0x4000FFFF"]["amount"] == 6
           and out.get("opened") == ["0x40000504"]
           and fr[:2] == [actions.dclick(0x40000504), actions.lift(0x40000502, 4)], f"{out} {fr}")
     proxy.ground_items["0x40000507"] = {"graphic": 0x2006, "amount": 0x27, "x": 5, "y": 5}          # a corpse
@@ -1435,7 +1440,7 @@ def test_drop(proxy):
     boxes = {b["serial"]: b for b in out.get("containers", [])}
     bank_rows = {r["serial"]: r for r in boxes.get(bank, {}).get("items", [])}
     check("status.containers: the bank box with its items at any depth (sub-bag noted)",
-          boxes.get(bank, {}).get("kind") == "bank" and bank_rows.get("0x4000FFFF", {}).get("amount") == 4
+          boxes.get(bank, {}).get("kind") == "bank" and bank_rows.get("0x40000502", {}).get("amount") == 4
           and bank_rows.get("0x40000505", {}).get("in") == "0x40000504", str(boxes.get(bank)))
     check("status.containers: an opened corpse listed; the backpack and vendor stock left out",
           set(boxes) == {bank, "0x40000507"} and boxes["0x40000507"]["kind"] == "corpse"
@@ -1458,8 +1463,8 @@ def test_drop(proxy):
     for args, why in ((("0x40000504", "0x40000504"), "into itself"),
                       ((bank, "0x40000504"), "into itself"),
                       (("0x40009998", pack), "not known"),
-                      (("0x40000502", "0x40009999"), "not known"),
-                      (("0x40000502", pack, "--amount", "7"), "--amount must be 1..6")):
+                      (("0x4000FFFF", "0x40009999"), "not known"),
+                      (("0x4000FFFF", pack, "--amount", "7"), "--amount must be 1..6")):
         code, out = c("act", "drop", *args, "--human", "off")
         check(f"drop refused: {why}", code == 1 and why in out.get("error", "") and proxy.take() == [], str(out))
 

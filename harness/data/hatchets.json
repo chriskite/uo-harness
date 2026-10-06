@@ -1,5 +1,5 @@
 {
-  "source": "https://wiki.uooutlands.com/Lumberjacking (tool bonus, uses); docs/missions/YOUNG_DEMOS.md results 1-2 (live 2026-09-30: 1 use per successful chop, failed chops and conversion cost nothing; hatchet 25 gp at the Shelter provisioner, tinker and lumberjack); hues = the ore hues woods.json lists for the matching woods (community Razor scripts, not yet seen on a hatchet in a capture)",
+  "source": "https://wiki.uooutlands.com/Lumberjacking (tool bonus, uses); docs/missions/YOUNG_DEMOS.md results 1-2 (live 2026-09-30: 1 use per successful chop, failed chops and conversion cost nothing; hatchet 25 gp at the Shelter provisioner, tinker and lumberjack); hues = the ore hues woods.json lists for the matching woods (community Razor scripts); bronze 2418 seen live on a hatchet 2026-10-05 (an exceptional mastercrafted bronze hatchet, 1500 uses: docs/NOTES.md 'Resource Stockpile and GM coloured hatchets'), the others not yet",
   "base_uses": 500,
   "wear": "one use per successful chop",
   "success": "per wood: min(1, (skill - offset) / divisor x (1 + tool bonus)) (woods.json); bonuses stack (material + quality)",

@@ -23,7 +23,7 @@ The agent should **learn** the loop, **run** it, and **improve** it over session
 - chop trees
 - recall home, enter the rental room
 - convert the logs to boards there
-- store the boards in its secure chest (commodity deeds later)
+- store the boards in its Resource Stockpile (since 2026-10-05; the secure chest before)
 
 Character: Outland Dan since 2026-10-04 (home: the DTF guild house and Logan Wolf's rental room,
 `harness/data/homes.json`); a fresh Young character on Shelter Island before that (TestWorth until
@@ -95,7 +95,7 @@ stateDiagram-v2
   TravelHome --> Room: recall home by the own book's default rune (walk when within 60 tiles)
   Room --> Convert: house steward → "Room" → "Visit Other Rooms" → owner's row
   Convert --> Store: trapped pouch set off, logs → boards
-  Store --> Home: boards + spent pouch into the secure chest
+  Store --> Home: boards into the Resource Stockpile, spent pouch into the secure chest
   Store --> Deed: stock ≥ deed quantum (not built)
   Harvest --> CaptchaHandoff: captcha gump
   CaptchaHandoff --> Harvest: captcha solved
@@ -175,7 +175,8 @@ runtime data, AGENTS.md Rule 0):
 ## 6. Optimize
 
 Objective: **boards stored at home per agent-active hour, net of expected losses**, subject to §1
-(since 2026-10-04 the boards go into the rental room's secure chest; before that, the bank box).
+(since 2026-10-04 the boards go into the rental room's secure chest, since 2026-10-05 into its
+Resource Stockpile; before that, the bank box).
 
 ### Return trigger: carried-value risk vs. trip overhead (user decision 2026-09-29)
 
@@ -653,8 +654,11 @@ into the grove, dangerous ones (`places.danger_hint`, the DTF "Bad Places" tome)
 (`lumber_opt.landing_for`, the same choice `ctl lumber plan` shows). Home: the own book's default
 rune (Outland Dan: runebook `0x49865F8F`, "DTF Loot Chest" → 4134,1429), the house steward's
 "Room" → "Visit Other Rooms" → the owner's row (Logan Wolf's room, arrival 403,923 on facet 3),
-the logs converted there and the boards plus the spent trapped pouch dropped into the secure chest
-`0x4AE0DD2C` 1 tile from the arrival. The run ends in the room. Why:
+the logs converted there, the boards added to the room's **Resource Stockpile** `0x62645C82`
+(since 2026-10-05, user: "It is where we will now drop off all our boards"; `harness/stockpile.py`:
+its menu, Add Items and one target per stack; `homes.json` `stockpile`) and the spent trapped pouch
+dropped into the secure chest `0x4AE0DD2C` 1 tile from the arrival (a home without a stockpile
+puts the boards in the chest too). The run ends in the room. Why:
 - the room is the safe place: no one follows in, no recall reaches it, and the logs are converted
   away from the grove (live 2026-10-03 a 12 s conversion under attack in the field cost 45 hits)
 - the boards collect in one secure container at home instead of a town bank on the way, so no
@@ -739,8 +743,10 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   `banked` with `to_bank`). The intents are `leave_room`, `to_library`, `recall_out`, `to_tree`,
   `chop`, `recall_home`, `to_room`, `convert`, `store`, `trip_done`, plus `escape` and `break_due`
   (below).
-- **Hatchet (since 2026-10-01):** a worn hatchet, else the shallowest one in the backpack or in a
-  bag in it at any depth (`hatchet()`, `pack_depth`); one in a chest or the bank box doesn't count. Before
+- **Hatchet (since 2026-10-01):** the best tool bonus by material (the hue; since 2026-10-05, when
+  the shelf started handing out GM coloured hatchets), worn first among equals, else the shallowest
+  in the backpack or in a bag in it at any depth (`hatchet()`, `pack_depth`); one in a chest or the
+  bank box doesn't count. Before
   each use, the containers on the way that the server hasn't opened yet are opened outermost
   first (`containers_to_open` + `Link.open_containers`, the closed-containers rule). Only items the
   world model knows are found: a bag the server never listed has to be opened once in the client.
@@ -1155,7 +1161,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   docs/NOTES.md, traffic audit of the 2026-10-02/03 captures.
 - **Hatchet choice (since 2026-10-02):** `--hatchet copper` (or `copper+exceptional`) uses only a
   hatchet of that material (by hue, `harness/data/hatchets.json`) and quality (by its clicked
-  name); none such aborts the start. Without it: worn, else the shallowest in the pack.
+  name); none such aborts the start. Without it: the best material, worn first, else the shallowest.
 - **Recall travel (since 2026-10-03; since 2026-10-04 for every spot, §12.5):** out, the landing's
   library row is reached by walking to the tome that holds it (within its 2-tile use range; we wait
   until the world model has the tome, since it re-enters view only when we're near), then
@@ -1284,7 +1290,8 @@ connection. The main run starts in the room and runs 2 trips; it checks:
 - two episode rows: outcome `stored`, phases `harvest`, `to_room`, `convert`, `store`
 
 Since 2026-10-01 the same file runs more simulated sessions, each behind its own proxy, and
-a unit check of `hatchet()` (worn first, then the shallowest bag; never the bank box). The
+a unit check of `hatchet()` (the best material, worn first among equals, then the shallowest bag;
+never the bank box). The
 simulated steward, tome and town door come into view within 18 tiles and leave it beyond 24, since
 the world model prunes them out of view (and on every facet change).
 - **skirmish:** the hatchet is in a bag in the backpack (backpack, then bag, opened before the
