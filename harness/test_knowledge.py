@@ -79,7 +79,7 @@ def test_write_discipline():
           k.get(k.add("fact", "npd", "the NPD entrance leads to a dungeon on facet 0",
                       source="inferred")["id"])["confidence"] == 0.5)
     check("community entries (Discord-mined) start at 0.6",
-          k.get(k.add("fact", "cedar", "Cedar logs need 60 lumberjacking to chop",
+          k.get(k.add("fact", "copperwood", "Copperwood logs need 75 lumberjacking to chop",
                       source="community")["id"])["confidence"] == 0.6)
     for bad in (lambda: k.add("rumour", "t", "c"), lambda: k.add("fact", "", "c"),
                 lambda: k.add("fact", "t", "c", importance=11), lambda: k.add("fact", "t", "c", source="guess"),
@@ -121,7 +121,7 @@ def test_recall():
     k, clock = fresh()
     far = k.add("fact", "trees", "Walnut trees grow near the Shelter inn", at=(0, 1924, 2588), importance=5)["id"]
     clock.t += 1
-    near = k.add("fact", "trees", "Cedar trees grow west of the moongate hill", at=(0, 1960, 2540),
+    near = k.add("fact", "trees", "Copperwood trees grow west of the moongate hill", at=(0, 1960, 2540),
                  importance=5)["id"]
     proc = k.add("procedure", "resurrection", "Walk the ghost to a healer; the resurrection gump opens within "
                  "2 tiles; after Decline it is re-offered when you come back within 4 tiles",
@@ -129,7 +129,7 @@ def test_recall():
     pref = k.add("preference", "death policy", "No corpse runs and no [TestRes", source="user", importance=9)["id"]
     check("stemmed relevance: 'resurrecting healers' finds the procedure",
           [e["id"] for e in k.search("resurrecting healers")][:1] == [proc])
-    check("location boost: 'trees' near the moongate ranks the cedar first",
+    check("location boost: 'trees' near the moongate ranks the copperwood first",
           [e["id"] for e in k.search("trees", near=(0, 1962, 2542))][:2] == [near, far])
     check("... and near the inn the walnut first",
           [e["id"] for e in k.search("trees", near=(1925, 2590))][:2] == [far, near])
@@ -244,7 +244,7 @@ class FakeEmbedder:
     """Words map to concept axes, so 'dying' and 'resurrect' meet without sharing a word."""
     MODEL = "fake-concepts"
     AXES = ({"die", "dying", "died", "dead", "death", "ghost", "resurrect", "healer"},
-            {"tree", "trees", "wood", "chop", "lumber", "walnut", "cedar"},
+            {"tree", "trees", "wood", "chop", "lumber", "walnut", "copperwood"},
             {"bank", "gold", "banker", "vault"})
 
     def __init__(self):

@@ -322,7 +322,7 @@ GM_CORES = [
 ]
 # Players talking to us, not checking on us.
 TOYOU_CORES = [
-    "{me} how much for a stack of boards?", "can you sell me some cedar?", "{me} need any bandages?",
+    "{me} how much for a stack of boards?", "can you sell me some goldenwood?", "{me} need any bandages?",
     "hey {me} want to join our guild?", "thanks for the help {me}!", "nice mount {me}", "cool robe where'd you get it?",
     "{me} do you know where the bank is?", "{me} which way to the moongate?", "{me} you selling those?",
     "ty {me} :)", "gl with your grind {me}", "{me} want to group up for orcs later?", "lol nice hat {me}",
