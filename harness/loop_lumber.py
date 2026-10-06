@@ -2026,7 +2026,8 @@ class LumberLoop:
             return free[best]
         best, best_cost = None, None
         for i, t in enumerate(free[:NEXT_STAND_PLANS]):
-            path, _ = self.mover.plan(st, nav.within((t["x"], t["y"]), 1, self.tree_z_ok(t)))
+            path, _ = self.mover.plan(st, nav.within((t["x"], t["y"]), 1, self.tree_z_ok(t)),
+                                      max_steps=self.tree_route_max(pos, t))
             if path is None:
                 self.no_route_tree(t, trees)
                 continue
@@ -2040,14 +2041,21 @@ class LumberLoop:
         trees.remove(free[best])
         return free[best]
 
+    def tree_route_max(self, pos, t) -> int:
+        """The longest route to tree `t` from `pos` worth walking (work_stand's max_route): longer
+        is a detour, and the planner stops looking past it (fast; live 2026-10-05, Norse
+        Settlement: nine unbounded 7 s searches while a norse bear rider closed in)."""
+        return max(TREE_ROUTE_MIN, TREE_DETOUR * cheb(pos, (t["x"], t["y"])))
+
     def no_route_tree(self, t, trees: list):
-        """No route reaches tree `t` from here (a cliff, water): it leaves the trip's candidates
-        and add_local_trees doesn't bring it back."""
+        """No route of acceptable length (tree_route_max) reaches tree `t` from here (a cliff,
+        water, a long way round): it leaves the trip's candidates and add_local_trees doesn't
+        bring it back."""
         xy = (t["x"], t["y"])
         self.no_route.add(xy)
         if t in trees:
             trees.remove(t)
-        log(f"tree {xy[0]},{xy[1]}: no route there; leaving it")
+        log(f"tree {xy[0]},{xy[1]}: no route there short enough; leaving it")
 
     def tree_guards(self, st, recent: bool = True) -> list:
         """[(threat, (x, y), tiles)]: every creature that may come for us (may_aggro: not a pet, a
@@ -2142,10 +2150,12 @@ class LumberLoop:
                           key=lambda t: cheb(here, (t["x"], t["y"])))[:RETHINK_PLANS]
             if not near:
                 return None
-            route, _ = self.mover.plan(st, nav.within(spot, 1, z_ok))
+            route, _ = self.mover.plan(st, nav.within(spot, 1, z_ok),
+                                       max_steps=self.tree_route_max(here, {"x": spot[0], "y": spot[1]}))
             for t in near:
                 xy = (t["x"], t["y"])
-                path, _ = self.mover.plan(st, nav.within(xy, 1, self.tree_z_ok(t)))
+                path, _ = self.mover.plan(st, nav.within(xy, 1, self.tree_z_ok(t)),
+                                          max_steps=self.tree_route_max(here, t))
                 if path is None:
                     self.no_route_tree(t, trees)
                 elif route is None or len(path) + TREE_SWITCH_GAIN <= len(route):
@@ -2205,7 +2215,7 @@ class LumberLoop:
         here = tuple(self.link.pos(self.link.state())[:2])
         # live 2026-10-05 (witcher_58, near death): mobiles cut the way 28 tiles to a tree and the
         # planner sent us on a 255-step detour through the wilds into a fen daemon and a brackish water
-        max_route = max(TREE_ROUTE_MIN, TREE_DETOUR * cheb(here, spot))
+        max_route = self.tree_route_max(here, tree)
         rethink = self.tree_rethink(spot, trees, z_ok)
         try:
             if "stand" in tree:

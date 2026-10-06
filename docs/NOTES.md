@@ -760,6 +760,31 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   stopped the task and `act recall` landed home, Seer6 disabled witcher_137. Now a walk aborts as
   "boxed in" after `DANGER_STALL_REPLANS` (10) danger replans without a shorter route, and the
   runner disables the spot, posts an attention `stuck` juncture and recalls home (`boxed_in`).
+- **Wisp box-in at witcher_36 (lumber-20261005-203104-4d45, 20:39:25–20:39:50):** the threats were an
+  eagle (passive body) and "a wisp" at 17 tiles (`default` aggression, so a 13-tile zone). The wisp
+  wandered and the walk swung between routes of 31–93 steps from (1529,1034) and (1548,1045), until
+  the new boxed-in rule disabled the spot and recalled home. User: Dan stood right on top of a wisp
+  unharmed, "IIRC wisps are passive" (RunUO's Wisp is FightMode.Aggressor; the Outlands wiki gives
+  no aggression, and a wisp has 6000 hits and 175 Magery, so fighting it is out). Now "a wisp" is
+  in `passive_names`. The walk also had no hysteresis: a danger replan now favours the route it was
+  on (`STICKY_X` 1.25 on other tiles), and zone tiles cost by depth (half of `DANGER_COST_X` flat,
+  half rising to the centre), so a route that can't stay out keeps to the rims (user: "I saw paths
+  Dan could take ... that didn't run straight into mobs"). witcher_137's mobs (re-read from capture
+  `session_20261005_194043`): an ophidian mage, a jaguar, a ratman and stranglevines (body 8) with
+  13-tile zones around the Jungle Baths stables; the named humans there are notoriety-7 stablemasters
+  and vendors (ignored); no wisp.
+- **Death at Norse Settlement (lumber-20261005-204128-193d, witcher_268, 20:43:00, Seer6):** landing
+  (2728,621); "a norse bear rider" (body 400, notoriety 3, flags 0, a creature label: a monster,
+  `default`) stood 10–15 tiles off for 60 s. Meanwhile the runner planned nine trees, each a ~7 s
+  unbounded A* that came back as a 245–277-step detour (the direct way is 67 steps on the static
+  map, 0.05 s offline: the rider's zone made it costly), with no threat check during any search.
+  20:42:53 the rider went notoriety 4 and war mode at 9 tiles; 20:42:58 at 0 tiles Dan had 35 hits
+  (−65); read as a grey *player* the runner recalled on the spot (no run), the cast was disturbed
+  1.4 s in, dead at 20:43:00. Fixes: `pathfind.plan(max_steps=, tick=)`: tree and walk plans stop
+  looking past the detour bound (fast), and every `TICK_EVERY` (1500) expansions the Mover's guard
+  runs (a threat raises out of the search); `threats.Watch` keeps a serial that was a monster a
+  monster when its notoriety goes 4/5 without the player flag. Seer6 had him resurrected by Malila
+  (2734,617), home, horse revived, Harvest aspect re-activated.
 - **Air dragon death (lumber-20261005-185806-6bdc, witcher_23, 19:07:42, Seer5; capture
   session_20261005_093927):** air dragon 0x00569849 (notoriety 4) in view 19:07:15 at 8 tiles; ESCAPE
   1 and 2 from it (it followed both). 19:07:31.25 a humanize `walk_pause` of 8.93 s idled Dan at

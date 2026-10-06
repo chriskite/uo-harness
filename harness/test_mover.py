@@ -257,9 +257,9 @@ def test_danger_replan_on_route_only():
         plans = []
         real_plan, real_fresh = mv.plan, mv.fresh_state
 
-        def plan(st, goal, mobiles=True, real_plan=real_plan):
+        def plan(st, goal, mobiles=True, max_steps=None, real_plan=real_plan):
             plans.append(1)
-            return real_plan(st, goal, mobiles)
+            return real_plan(st, goal, mobiles, max_steps)
 
         def fresh(zone=zone, mv=mv, real_fresh=real_fresh):
             st = real_fresh()
@@ -296,7 +296,7 @@ def test_boxed_in():
     mv.danger = {("seen", 1): ((0, 0), 30)}
     plans, flip = [], [1]
 
-    def plan(st, goal, mobiles=True):
+    def plan(st, goal, mobiles=True, max_steps=None):
         cur = tuple(link.here)
         flip[0] = -flip[0]                                  # east, then back west: never nearer
         step = (cur[0] + flip[0], cur[1])
@@ -316,6 +316,36 @@ def test_boxed_in():
         msg = str(e)
     check("boxed in after DANGER_STALL_REPLANS replans without a shorter route",
           "boxed in" in msg and len(plans) == DANGER_STALL_REPLANS + 1, f"{msg} plans {len(plans)}")
+
+
+def test_danger_rims():
+    print("== a zone that can't be avoided: the route keeps to its rim, not through the creature ==")
+    # user 2026-10-05: "I saw paths Dan could take ... that didn't run straight into mobs"
+    band = {(x, y) for x in range(0, 21) for y in range(-3, 4)}
+    link = FakeLink((0, 0), facing=2)
+    mv = map_mover(link, band)
+    mv.danger = {("seen", 1): ((10, 0), 5)}            # covers the band's whole width from x 5 to 15
+    path, _ = mv.plan(link.state(), nav.within((20, 0), 0))
+    mid = [t for t in path if t[0] == 10]
+    check("through the zone at its edge (|y| 3 at the creature's x), not along y 0",
+          path is not None and mid and all(abs(y) == 3 for _, y in mid), str(path))
+
+
+def test_danger_sticky():
+    print("== after a danger replan the route keeps to the side it was on ==")
+    # live 2026-10-05 (witcher_36): a wandering wisp swung the walk between two sides every second or two
+    band = {(x, y) for x in range(0, 21) for y in range(-8, 6)}
+    link = FakeLink((0, 0), facing=2)
+    mv = map_mover(link, band)
+    mv.danger = {("seen", 1): ((10, -3), 3)}           # north round it: y <= -7; south: y >= 1; both 20 steps
+    sides = {}
+    for side, ys in (("north", range(-8, -6)), ("south", range(1, 6))):
+        mv.sticky = {(x, y) for x in range(0, 21) for y in ys} | {(0, 0), (20, 0)}
+        path, _ = mv.plan(link.state(), nav.within((20, 0), 0))
+        sides[side] = [y for x, y in path if x == 10]
+    mv.sticky = set()
+    check("the route stays on the side it was on",
+          all(y <= -7 for y in sides["north"]) and all(y >= 1 for y in sides["south"]), str(sides))
 
 
 def test_shove_denied():
@@ -456,6 +486,8 @@ if __name__ == "__main__":
     test_danger_replan_on_route_only()
     test_no_pause_in_danger()
     test_boxed_in()
+    test_danger_rims()
+    test_danger_sticky()
     test_shove_denied()
     test_height_goal()
     test_teleporter()

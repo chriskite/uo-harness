@@ -61,6 +61,10 @@ DANGER_COST_X = 30.0
 # is boxed in and given up (live 2026-10-05, witcher_137: 178 replans in 4.5 min swinging between
 # two routes round creatures on every side, while the user watched Dan run back and forth).
 DANGER_STALL_REPLANS = 10
+# After a danger replan, tiles off the route we were on cost this much more: a creature that moves
+# a tile shouldn't flip the route to the other side of it and back (live 2026-10-05, witcher_36: a
+# wandering wisp swung the walk between routes of 31 and 93 steps every second or two).
+STICKY_X = 1.25
 # Some teleporters deny the step and then move you (S2C 0x21 at the current tile, then the
 # new position; the New Player Dungeon exit, live 2026-09-30). After a deny, look this long
 # for such a jump before calling the step blocked.
@@ -409,12 +413,27 @@ class Mover:
         self.gate_gumps_closed = 0
         self.step_mark = 0           # len(link.events) when the last walk went out
         self._after = None           # (full state, monotonic time) fetched at the end of the last step
-        self.danger = {}             # key -> ((x, y), radius): tiles to route around (DANGER_COST_X)
+        self.danger = {}             # key -> ((x, y), radius): tiles to route around (danger_cost)
+        self.sticky = set()          # tiles of the route a danger replan left: cost STICKY_X (walk_to)
         self.danger_tiles = set()    # (x, y) around remembered monster sightings (travel_guard.remembered)
         self.replan_requested = False   # set by a guard (new danger): replan after this step
 
     def in_danger(self, tile) -> bool:
         return tile in self.danger_tiles or any(cheb(tile, c) <= r for c, r in self.danger.values())
+
+    def danger_cost(self, tile) -> float:
+        """A tile's cost factor from the danger zones: inside a zone half of DANGER_COST_X flat
+        (a detour of up to ~15 steps per zone tile still beats entering) and half by depth, from
+        the rim to the centre, summed over overlapping zones; so a route that can't stay out keeps
+        to the rims, as far from the creatures as it can (user, 2026-10-05: "he kept trying to go
+        that way instead of going around"; a flat factor made any crossing as good as straight
+        through the middle). Remembered sightings (danger_tiles) cost DANGER_COST_X flat."""
+        f = DANGER_COST_X if tile in self.danger_tiles else 1.0
+        for c, r in self.danger.values():
+            d = cheb(tile, c)
+            if d <= r:
+                f += DANGER_COST_X * (0.5 + 0.5 * (r + 1 - d) / (r + 1))
+        return f
 
     def step(self, d: int, run: bool = True, st=None) -> str:
         """Send one walk; wait for its outcome. Returns 'moved', 'turned',
@@ -667,13 +686,16 @@ class Mover:
             self._mems[facet] = m
         return m
 
-    def plan(self, st, goal, mobiles: bool = True):
+    def plan(self, st, goal, mobiles: bool = True, max_steps: int | None = None):
         """(path of (x, y) tiles including the start, walk or None). Also points
         self.mem at the current facet's walk memory. Mobiles' tiles cost
         MOBILE_COST_X (shove through them if going around is longer); tiles
         where a shove was denied in the last SHOVE_RETRY_S are walls unless
         mobiles=False (is the route only temporarily cut?). Zig-zag stretches are
-        regrouped into straight runs (nav.straighten), as a player walks them."""
+        regrouped into straight runs (nav.straighten), as a player walks them.
+        `max_steps`: the map planner looks only for routes that short (None when there's
+        none). A long map search runs the guard every pathfind.TICK_EVERY expansions, so a
+        threat raises out of it instead of waiting for the search to end."""
         pos = st["movement"]["pos"]
         cur = (pos[0], pos[1])
         occ = self.occupied(st) - {cur}
@@ -681,9 +703,12 @@ class Mover:
         hard = {t for t in occ if now - self.shove_denied.get(t, -1e9) < SHOVE_RETRY_S} if mobiles else set()
         noise = self.human.cost_scale()
 
+        sticky = self.sticky
+
         def cost(a, b):
             return ((noise(a, b) if noise else 1.0) * (MOBILE_COST_X if b in occ else 1.0)
-                    * (DANGER_COST_X if (self.danger or self.danger_tiles) and self.in_danger(b) else 1.0))
+                    * (self.danger_cost(b) if self.danger or self.danger_tiles else 1.0)
+                    * (STICKY_X if sticky and b not in sticky else 1.0))
 
         facet = st["world"]["self"].get("map")
         self.mem = self.mem_for(facet)
@@ -694,7 +719,8 @@ class Mover:
         walk = self.walk_map(st)
         if walk is not None:
             path = pathfind.plan(walk, (pos[0], pos[1], pos[2]), goal,
-                                 blocked_moves=self.denied, occupied=hard, cost_scale=cost)
+                                 blocked_moves=self.denied, occupied=hard, cost_scale=cost, max_steps=max_steps,
+                                 tick=lambda: self.guard(self.link.state()))
             if path is None:
                 return None, walk
             path = nav.straighten(
@@ -733,7 +759,15 @@ class Mover:
         cap still ends walks that make no progress. `max_route`: a map-planned route longer than
         this many steps raises Abort("... detour ...") before a step of it is taken (a walk-memory
         route keeps to tiles walked before, so its length says nothing about a detour). None when
-        the walk arrived."""
+        the walk arrived. A danger replan favours the route it leaves (sticky, STICKY_X); a walk
+        that keeps replanning round creatures without getting nearer is boxed in (Abort)."""
+        self.sticky = set()
+        try:
+            return self._walk_to(center_fn, radius, label, max_moves, z_ok, gate, goal_fn, urgent, stop, max_route)
+        finally:
+            self.sticky = set()
+
+    def _walk_to(self, center_fn, radius, label, max_moves, z_ok, gate, goal_fn, urgent, stop, max_route):
         gate = tuple(gate) if gate is not None else None
         replans = 0
         best_route, stalled = None, 0  # danger replans since the planned route last got shorter (boxed in)
@@ -753,9 +787,12 @@ class Mover:
             if goal(cur) and (z_ok is None or self.walk_map(st) is None or z_ok(self.link.pos(st)[2])):
                 log(f"{label}: arrived at {cur}")
                 return
-            path, walk = self.plan(st, goal)
+            path, walk = self.plan(st, goal, max_steps=max_route)
             if path is None:
-                if self.plan(st, goal, mobiles=False)[0] is None:
+                if self.plan(st, goal, mobiles=False, max_steps=max_route)[0] is None:
+                    if max_route is not None and walk is not None:
+                        raise Abort(f"{label}: no route within {max_route} steps from {cur} (a longer detour, "
+                                    f"if any)")
                     raise Abort(f"{label}: no route from {cur}")
                 now = time.monotonic()
                 if mobile_wait_until is None:
@@ -826,6 +863,8 @@ class Mover:
                         if self.replan_requested:
                             log(f"{label}: danger ahead changed; replanning from {new}")
                             danger_replan = True      # not a failure: don't count it as one
+                            self.sticky = set(path[i:])
+                            self.sticky.add(new)
                         else:
                             log(f"{label}: landed on {new}, expected {nxt}; replanning")
                         self.replan_requested = False

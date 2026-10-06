@@ -830,6 +830,14 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - **A creature we already ran from that comes back into flee range ends the trip** (`check_threats`:
     its serial is in `self.danger`): it hunts us, and another escape only brings it along (the same
     air dragon followed two escapes).
+  - **Routes round creatures** (`Mover.danger_cost`, `STICKY_X`, `pathfind.plan(max_steps, tick)`;
+    user, 2026-10-05: "I saw paths Dan could take ... that didn't run straight into mobs"): a zone
+    tile costs half of `DANGER_COST_X` flat plus half rising with depth, so a route that must cross
+    keeps to the rims; after a danger replan the other tiles cost `STICKY_X` (1.25) more, so a
+    creature moving a tile doesn't flip the route to its other side and back; tree routes are
+    searched only up to the detour bound (`tree_route_max`) and every `pathfind.TICK_EVERY`
+    expansions the guard looks for threats (live Norse Settlement: nine 7 s unbounded searches hid a
+    norse bear rider's approach; Dan died). Wisps are passive (`passive_names`, user).
   - **Boxed in: recall home, the spot disabled** (`Mover.walk_to`, `boxed_in`; user, 2026-10-05,
     witcher_137: "surrounded on all sides … He needs to recall home and mark this place
     unworkable"): a walk that replans round creature zones `DANGER_STALL_REPLANS` (10) times in a

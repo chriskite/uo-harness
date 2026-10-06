@@ -150,6 +150,33 @@ def main():
     check("no walker tile given (z tracking, ctl): nothing locked, and the door tile is a step like any door",
           not plain.locked and plain.can_walk(943, 780, 2, 0) is not None, str(plain.can_walk(943, 780, 2, 0)))
 
+    print("== a step bound fails a long way round fast; tick() runs during the search and may raise ==")
+    # live 2026-10-05 (Norse Settlement, witcher_268): nine unbounded ~7 s searches from the landing, no
+    # threat check in between, while a norse bear rider closed in; Dan died standing there
+    start = (2728, 621, walk.m.land(2728, 621)[1])
+    goal = nav.within((2681, 575), 1)
+    full = pathfind.plan(walk, start, goal)
+    short = pathfind.plan(walk, start, goal, max_steps=len(full) - 10)
+    ok = pathfind.plan(walk, start, goal, max_steps=len(full) + 5)
+    check("no route within fewer steps than the shortest; one within more, no longer than the bound",
+          full is not None and short is None and ok is not None and len(ok) - 1 <= len(full) + 5,
+          f"full {None if full is None else len(full)} short {short} ok {None if ok is None else len(ok)}")
+    ticks = []
+    pathfind.plan(walk, start, goal, tick=lambda: ticks.append(1), tick_every=10)
+
+    class Seen(Exception):
+        pass
+
+    def threat():
+        raise Seen()
+    try:
+        pathfind.plan(walk, start, goal, tick=threat, tick_every=10)
+        raised = False
+    except Seen:
+        raised = True
+    check("tick() every tick_every expansions, and its exception ends the search",
+          len(ticks) >= 2 and raised, f"{len(ticks)} ticks, raised {raised}")
+
     print("== proxy z per confirmed step matches the server (walk confirms carry no z) ==")
     import proxy
     import viz_feed

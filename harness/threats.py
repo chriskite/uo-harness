@@ -259,7 +259,10 @@ class Params:
     passive_names: frozenset = frozenset({
         "a llama", "a pack llama", "a forest ostard", "a desert ostard", "a bison", "a hind", "a great hart",
         "a horse", "a pack horse", "a cow", "a bull", "a pig", "a sheep", "a goat", "a mountain goat",
-        "a rabbit", "a jack rabbit", "a cat", "a dog", "a chicken"})
+        "a rabbit", "a jack rabbit", "a cat", "a dog", "a chicken",
+        # user 2026-10-05: Dan stood right on a wisp unharmed ("IIRC wisps are passive"; RunUO's Wisp is
+        # FightMode.Aggressor); its 13-tile zone boxed in witcher_36 (lumber-20261005-203104-4d45)
+        "a wisp"})
     aggressive_notoriety: frozenset = frozenset({6})
     monster_default_aggressive: bool = False
     # creature reach (module docstring "Reach"): ranged bodies, and the farthest
@@ -398,8 +401,9 @@ def _mounted_serials(world):
     return out
 
 
-def identify(mob: dict, label: str | None) -> tuple[str, bool | None, list]:
-    """(kind, player?, evidence) for one mobile dict from world.mobiles."""
+def identify(mob: dict, label: str | None, monster_before: bool = False) -> tuple[str, bool | None, list]:
+    """(kind, player?, evidence) for one mobile dict from world.mobiles. `monster_before`: this
+    serial was identified as a monster earlier (Watch.monsters)."""
     body = mob.get("graphic")
     noto = mob.get("notoriety")
     flags = mob.get("flags") or 0
@@ -434,6 +438,12 @@ def identify(mob: dict, label: str | None) -> tuple[str, bool | None, list]:
         # attack him, and the flag heuristic is only a heuristic.
         if noto == 3:
             return "monster", None, [f"creature label {text!r} on a human body, no player flag"]
+        if monster_before and noto in (4, 5):
+            # live 2026-10-05 (witcher_268): "a norse bear rider" (body 400, flags 0) went from 3 to 4
+            # as it attacked; read as a grey player, the runner recalled on the spot instead of running,
+            # the cast was disturbed and Dan died. The same spawned creature stays a monster.
+            return "monster", None, [f"creature label {text!r} on a human body, no player flag, "
+                                     f"a monster before notoriety {noto}"]
         if noto in (1, 2):
             return "npc", False, [f"creature label {text!r} on a human body, no player flag"]
     return KIND_BY_NOTORIETY.get(noto, "unknown"), True, [ASSUMED_PLAYER]
@@ -554,9 +564,11 @@ def damage_signal(state, *, now: float, params: Params, hits_history=(), since: 
 
 
 def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None = None,
-           params: Params = Params(), hits_history=(), first_seen=None, since: float | None = None) -> Assessment:
+           params: Params = Params(), hits_history=(), first_seen=None, since: float | None = None,
+           monsters=frozenset()) -> Assessment:
     """first_seen: {serial: time first in view} for the label grace (Watch);
-    since: damage before it is dealt with (Watch.acknowledge)."""
+    since: damage before it is dealt with (Watch.acknowledge); monsters: serials identified as
+    monsters before (identify's monster_before)."""
     now = time.time() if now is None else now
     world = state.get("world") or {}
     labels = world.get("labels") or {}
@@ -571,7 +583,7 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
         if serial == me or mob.get("x") is None or mob.get("y") is None:
             continue
         label = labels.get(key) or labels.get(f"0x{serial:08X}")
-        kind, player, evidence = identify(mob, label)
+        kind, player, evidence = identify(mob, label, serial in monsters)
         th = Threat(serial=serial, name=label or mob.get("name"), body=mob.get("graphic"),
                     notoriety=mob.get("notoriety"), kind=kind, player=player,
                     evidence=evidence, mounted=serial in mounted)
@@ -681,6 +693,7 @@ class Watch:
         self.params = params
         self.hits: list[tuple[float, int]] = []
         self.first_seen: dict[int, float] = {}
+        self.monsters: set[int] = set()      # serials ever identified as monsters (identify's monster_before)
         self.since: float | None = None      # acknowledge(): damage before this is dealt with
 
     def update(self, state, *, recall_s: float, margin_s: float,
@@ -690,7 +703,8 @@ class Watch:
         self.first_seen = {s: self.first_seen.get(s, now) for s in present}
         a = assess(state, recall_s=recall_s, margin_s=margin_s, now=now,
                    params=self.params, hits_history=self.hits,
-                   first_seen=self.first_seen, since=self.since)
+                   first_seen=self.first_seen, since=self.since, monsters=self.monsters)
+        self.monsters |= {t.serial for t in a.threats if t.kind == "monster"}
         hits = ((state.get("world") or {}).get("self") or {}).get("hits")
         if hits is not None:
             self.hits.append((now, hits))

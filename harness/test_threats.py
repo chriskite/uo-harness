@@ -149,6 +149,19 @@ def test_npcs_and_players():
                recall_s=4.0, margin_s=1.0, now=NOW)
     eq("a red human named like a creature stays a player (never attackable by mistake)",
        (one(a, 0x213).kind, one(a, 0x213).player), ("red", True))
+    # live 2026-10-05 (witcher_268): "a norse bear rider" (body 400, flags 0) went from notoriety 3 to 4 as it
+    # attacked; read as a grey player the runner recalled on the spot (disturbed) instead of running
+    w = Watch()
+    labels = {0x214: "a norse bear rider"}
+    w.update(state([mob(0x214, 12, 0, noto=3, flags=0)], labels=labels), recall_s=4.0, margin_s=1.0, now=NOW)
+    a = w.update(state([mob(0x214, 5, 0, noto=4, flags=0x40)], labels=labels), recall_s=4.0, margin_s=1.0,
+                 now=NOW + 1)
+    eq("a spawned creature seen as a monster stays one when it turns grey (4) to attack",
+       (one(a, 0x214).kind, one(a, 0x214).player, one(a, 0x214).hostile), ("monster", None, True))
+    a = assess(state([mob(0x215, 5, 0, noto=4, flags=0)], labels={0x215: "a norse bear rider"}),
+               recall_s=4.0, margin_s=1.0, now=NOW)
+    eq("first seen already grey: a player, as before (never attackable by mistake)",
+       (one(a, 0x215).kind, one(a, 0x215).player), ("grey", True))
 
 
 def test_monsters():

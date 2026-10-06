@@ -2569,16 +2569,17 @@ def unit_tree_rethink():
     routes = {(40, 0): 41, (41, 1): 42, (39, 1): 40, (40, 2): 41, (8, 2): 30}   # tiles of each planned path
     plans = []
 
-    def plan(st, goal):
+    def plan(st, goal, max_steps=None):
         plans.append(goal.center)
         n = routes.get(goal.center)
-        return (None if n is None else [(i, 0) for i in range(n)]), None
+        return (None if n is None or (max_steps is not None and n - 1 > max_steps)
+                else [(i, 0) for i in range(n)]), None
     fake = SimpleNamespace(
         tree_guards=lambda st, recent=True: [], add_local_trees=lambda trees: 0, out_of_reach=lambda x, y: True,
         tree_z_ok=lambda t: None, link=SimpleNamespace(pos=lambda st: (0, 0, 0), state=lambda: {}),
         mover=SimpleNamespace(plan=plan), no_route=set(), switch_tree=None, dropped_trees={}, avoided=set(),
         creature={"avoided_trees": 0}, human=SimpleNamespace(rng=SimpleNamespace(uniform=lambda a, b: 1.0)))
-    for name in ("tree_rethink", "next_stand", "no_route_tree"):
+    for name in ("tree_rethink", "next_stand", "no_route_tree", "tree_route_max"):
         setattr(fake, name, types.MethodType(getattr(loop_lumber.LumberLoop, name), fake))
     recheck, loop_lumber.TREE_RECHECK_S = loop_lumber.TREE_RECHECK_S, 0
     try:

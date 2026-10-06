@@ -23,6 +23,8 @@ import itertools
 
 import uomap
 
+TICK_EVERY = 1500        # plan(): expansions between tick() calls (~0.2 s of search) [INFERENCE: timing]
+
 POF_IMPASSABLE_OR_SURFACE = 1
 POF_SURFACE = 2
 POF_BRIDGE = 4
@@ -279,12 +281,17 @@ class Walk:
 
 
 def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=None,
-         max_expand: int = 30000):
+         max_expand: int = 30000, max_steps: int | None = None, tick=None, tick_every: int = TICK_EVERY):
     """A* over (x, y, z): the cheapest route from start (x, y, z) to the first
     tile satisfying goal_fn((x, y)) (and goal_fn.z_ok(z) when the goal has one:
     a tile below or above the target, e.g. a cave under a tree, isn't the
     target's), as [(x, y, z), ...] including start, or None. blocked_moves:
-    {(x, y, d)} learned server denies. occupied: {(x, y)}."""
+    {(x, y, d)} learned server denies. occupied: {(x, y)}. max_steps: only routes of
+    at most that many steps (a node that can't reach the goal within it, by the
+    heuristic, isn't expanded): a refused detour fails fast. tick(): called every
+    tick_every expansions, so a caller can look for threats during a long search (it
+    may raise; live 2026-10-05 nine 7 s plans at a landing hid a norse bear rider's
+    approach and Dan died standing there)."""
     start = (int(start[0]), int(start[1]), int(start[2]))
     h = getattr(goal_fn, "heuristic", None) or (lambda t: 0)
     z_ok = getattr(goal_fn, "z_ok", None)
@@ -292,6 +299,7 @@ def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=N
     occ = set(occupied)
     tie = itertools.count()
     g_best = {start: 0.0}
+    steps = {start: 0}
     parent = {}
     heap = [(h(start[:2]), next(tie), start)]
     closed = set()
@@ -310,17 +318,23 @@ def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=N
         expanded += 1
         if expanded > max_expand:
             return None
+        if tick is not None and expanded % tick_every == 0:
+            tick()
         x, y, z = cur
+        n = steps[cur] + 1
         for d in range(8):
             if (x, y, d) in blocked:
                 continue
             nxt = walk.can_walk(x, y, z, d)
             if nxt is None or nxt in closed or nxt[:2] in occ:
                 continue
+            if max_steps is not None and n + h(nxt[:2]) > max_steps:
+                continue
             step = cost_scale((x, y), nxt[:2]) if cost_scale else 1.0
             ng = g_best[cur] + step
             if ng < g_best.get(nxt, float("inf")):
                 g_best[nxt] = ng
+                steps[nxt] = n
                 parent[nxt] = cur
                 heapq.heappush(heap, (ng + h(nxt[:2]), next(tie), nxt))
     return None
