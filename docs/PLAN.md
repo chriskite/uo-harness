@@ -1233,9 +1233,9 @@ as the store grows. Built (docs/VISUALIZER.md §2.4, docs/MEMORY.md "Indexes for
 
 After the run-16 death at witcher_66 (docs/NOTES.md "PK death at a faction waypoint"), the user
 asked for solutions to "a hostile player can just speak to freeze us in place, then kill us", then
-chose two of the six proposed (F, G). Left out: A (keep distance during a speech hold), B (leave on a
-group of unknown players), C (a crowd rule without speech), D (a hold timeout) and E (run before the
-recall).
+chose two of the six proposed (F, G), and after run 5's death the same day also E. Left out: A (keep
+distance during a speech hold), B (leave on a group of unknown players), C (a crowd rule without
+speech) and D (a hold timeout).
 
 - **F, faction tags:** out at a pvp spot, a player whose click echo carries an Outlands faction tag
   is a flee-level threat at any distance in view, like a red. Evidence: the title lines were in the
@@ -1247,9 +1247,16 @@ recall).
   such words and 3 of those were followed by an attack. The proposal said "while nothing is fighting
   them". That filter was dropped because it could hide a PK who casts while a creature stands by;
   the cost is the other 3 trips cut short (a PvM mage casting near us).
-- **Recall at once, not run first:** G was proposed as run then recall. Built as the red escape:
-  recall at once. A mounted PK keeps pace with a run, and the lead the words give (5–7 s) covers a
-  2 s cast. To be revisited if a recall started on words gets disturbed.
+- **E, run before the recall (added the same day, after Seer8's run 5 death at witcher_162: a lone red
+  mage's Energy Bolts disturbed three standing recalls in a row, the first 1.26 s into the cast; you
+  can't move while casting, Outlands Discord):** any player escape (a red, a flee-level player, an
+  aggressor, F or G) with one of them within spell range (12 tiles) first runs until every one is
+  `PLAYER_RECALL_GAP` (18) tiles off or out of view (`gain_distance` toward the escape goals, at most
+  60 steps), then casts once; a disturbed cast means run again, then cast again. After 3 failed casts the
+  guard flight follows as before. Nobody within 12 tiles: recall at once, standing, as before. The chop
+  cursor is cancelled before the run. [INFERENCE: against a mounted mage holding a precast the gap
+  buys little; it beats one who has to cast after closing in.] Scenarios `red_aim`, `faction`, `precast`
+  check the first step away within 0.5 s and the book pressed 18+ tiles off.
 - **Friendly:** players of our guild or our faction never trigger (our own tags come from our own click
   echo). The hunt runner is unchanged.
 

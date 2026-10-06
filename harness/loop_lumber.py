@@ -200,6 +200,13 @@ ESCAPE_RUN = 20
 # is disturbed, and a caster's spells reach 12 (threats.CREATURE_SPELL_RANGE)
 RECALL_GAP = threats.CREATURE_SPELL_RANGE + 2
 RECALL_GAP_MAX_MOVES = 60
+# Players (option E, player_escape): one within spell range (12, threats.SPELL_WORDS_RANGE) is run from
+# until PLAYER_RECALL_GAP tiles off or out of view before the recall: a mounted PK then needs ~0.6 s to
+# be in range again plus his own cast, more than our 2 s Recall needs only when he has no spell held
+# [INFERENCE]; after PLAYER_RECALL_TRIES failed casts the guard flight follows.
+PLAYER_RUN_RANGE = threats.SPELL_WORDS_RANGE
+PLAYER_RECALL_GAP = threats.SPELL_WORDS_RANGE + 6
+PLAYER_RECALL_TRIES = 3
 PACK_DEPTH_MAX = 16           # container nesting bound when looking for the hatchet
 FLEE_MAX_MOVES = 400          # a guard flight's step bound (guards.FLEE_MAX_DIST tiles and detours)
 FLEE_ARRIVAL_WAIT_S = 1.5     # after a flight arrives: how long its 500112 may still come (data.confirmed)
@@ -439,6 +446,7 @@ class LumberLoop:
         self._attack_scan = 0        # link.events index scanned for "... is attacking you!"
         self._cast_scan = 0          # ... for harmful spell words (harmful_casts)
         self.waypost_seen = False    # this trip: a faction waypost marker noted (note_waypost)
+        self.player_foes = set()     # serials player_escape runs from (gain_distance players=True)
         self._flee_mark = 0          # len(link.events) when the guard flight started
         self.facet = know["facet"]   # the spot's facet: tree records and candidates
         self.hatchets = lumber_opt.load_hatchets()
@@ -701,7 +709,8 @@ class LumberLoop:
             if self.on_home_rune(st):
                 why = "at home, on the way-home rune's tile: no recall"   # threat_stop stops here
             else:
-                why = self.recall_out(st, a, worst, swung) if self.recall_book is not None else "no recall book"
+                why = (self.player_escape(st, a, worst, swung, players, aggressors) if self.recall_book is not None
+                       else "no recall book")
                 if self.k["pvp"]:
                     self.flee_to_guards(st, a, worst, swung, why)
             self.threat_stop(st, a, worst, swung, Unsafe, why)
@@ -1144,9 +1153,9 @@ class LumberLoop:
             st = self.link.state()
             a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
 
-    def run_and_recall(self, st, a, worst, swung, why: str):
+    def run_and_recall(self, st, a, worst, swung, why: str | None, players: bool = False) -> str | None:
         """Run out of reach (gain_distance), cast Recall once, and again: until a recall lands
-        (recall_out raises Unsafe) or we die (returns). Never standing still with a creature
+        (recall_out raises Unsafe) or we die (returns None). Never standing still with a creature
         after us (user, 2026-10-05: "we're on a horse and can outrun any mob in the overworld. If
         we fail to recall, we should just run away", even on an island with recall failing and a
         demon chasing). With something after us: run, then one cast, then run again. With
@@ -1154,27 +1163,37 @@ class LumberLoop:
         that gave up, the next try RECALL_RETRY_S later (mana comes back), running whenever
         something comes after us meanwhile. After RECALL_ALERT_TRIES failed recalls an urgent
         `threat` juncture (action 'keep_running') asks the overseer to find out why; it stops
-        the task when it must (ctl stop)."""
+        the task when it must (ctl stop).
+        `players` (player_escape): from the players in player_foes, PLAYER_RECALL_GAP, a pk
+        escape; after PLAYER_RECALL_TRIES failed casts it returns why (the guard flight follows)."""
         fails, gave_up = 0, None
         while not a.dead:
-            ran = self.gain_distance(st, a, swung)
+            ran = self.gain_distance(st, a, swung, players=players)
             st = self.link.state()
             a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
             if a.dead:
-                return
+                return None
             if not ran and gave_up is not None and time.monotonic() - gave_up < RECALL_RETRY_S:
                 time.sleep(KEEP_RUNNING_LOOK_S)          # nothing after us: watch until the next try
                 st = self.link.state()
                 a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
                 continue
             try:
-                fail = self.recall_out(st, a, worst, swung, pk=False, why=why, attempts=1 if ran else None)
+                fail = self.recall_out(st, a, worst, swung, pk=players, why=why, attempts=1 if ran else None)
             except Unsafe:
-                self.creature["recalled"] = True
+                if not players:
+                    self.creature["recalled"] = True
                 raise
             if not ran:
                 gave_up = time.monotonic()
             fails += 1
+            if players:
+                if fails >= PLAYER_RECALL_TRIES:
+                    return f"{fail} ({fails} tries, running between them)"
+                log(f"{fail}; running on")
+                st = self.link.state()
+                a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+                continue
             self.creature["recall_fails"] = fails
             log(f"{fail}; running on")
             if fails == RECALL_ALERT_TRIES:
@@ -1186,12 +1205,28 @@ class LumberLoop:
                                       "threat": worst.to_dict() if worst else None})
             st = self.link.state()
             a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+        return None
+
+    def player_escape(self, st, a, worst, swung, players: list, aggressors: list) -> str:
+        """Away from players (option E, user 2026-10-06, after run 5's death at witcher_162: a red
+        mage's Energy Bolts disturbed three standing recalls in a row, the first 1.26 s into the cast;
+        you can't move while casting). One of them within PLAYER_RUN_RANGE (spell range): run
+        PLAYER_RECALL_GAP tiles off or out of view first, then cast, and run again after a disturbed
+        cast (run_and_recall, players). None that near: recall at once, standing (recall_out). Returns
+        why it failed; died while running: that."""
+        self.player_foes = {t.serial for t in players} | set(aggressors)
+        near = [t for t in a.threats if t.serial in self.player_foes and 0 <= t.distance <= PLAYER_RUN_RANGE]
+        if not near:
+            return self.recall_out(st, a, worst, swung)
+        log(f"{self.threat_name(near[0])} within {near[0].distance} tiles (spell range): running before the recall")
+        self.drop_cursor()                       # no target answered after the threat, none up while we run
+        return self.run_and_recall(st, a, worst, swung, None, players=True) or "died while running from players"
 
     @staticmethod
     def threat_name(t) -> str:
         return "a creature" if t is None else (t.name or f"0x{t.serial:08X}")
 
-    def gain_distance(self, st, a, swung) -> bool:
+    def gain_distance(self, st, a, swung, players: bool = False) -> bool:
         """Before a recall away from creatures: run (urgent: no pauses, running while
         stamina allows) until each creature after us (hostile ones in view within
         RECALL_GAP, and those swinging or casting at us) is RECALL_GAP tiles off or out of
@@ -1200,10 +1235,16 @@ class LumberLoop:
         they followed (live 2026-10-05, Prevalia Gate: the first goal reached, the ratmen 9 tiles
         behind, the recall came there and cost 34 hits). Only death interrupts it (mode 'gap').
         True when it walked. Live 2026-10-05: a recall cast with a brackish water hitting lost 44
-        hits in 2.2 s, and a hoarfrost caught up with a short walk-away and killed Dan."""
-        foes = {t.serial for t in a.threats if t.kind == "monster" and t.hostile and 0 <= t.distance < RECALL_GAP}
-        foes |= {s for s in swung if (by := next((t for t in a.threats if t.serial == s), None)) is not None
-                 and by.kind == "monster"}
+        hits in 2.2 s, and a hoarfrost caught up with a short walk-away and killed Dan.
+        `players`: from the players player_escape named (player_foes) instead, PLAYER_RECALL_GAP."""
+        gap = PLAYER_RECALL_GAP if players else RECALL_GAP
+        if players:
+            foes = {t.serial for t in a.threats if t.serial in self.player_foes and 0 <= t.distance < gap}
+        else:
+            foes = {t.serial for t in a.threats if t.kind == "monster" and t.hostile and 0 <= t.distance < gap}
+            foes |= {s for s in swung if (by := next((t for t in a.threats if t.serial == s), None)) is not None
+                     and by.kind == "monster"}
+        who = "player(s)" if players else "creature(s)"
 
         def where(s) -> list:
             ms = s["world"]["mobiles"]
@@ -1213,8 +1254,8 @@ class LumberLoop:
 
         def clear(s):
             pos = self.link.pos(s)[:2]
-            return all(cheb(pos, xy) >= RECALL_GAP for xy in where(s)) and "clear"
-        log(f"out of reach before the recall: running {RECALL_GAP} tiles from {len(foes)} creature(s)")
+            return all(cheb(pos, xy) >= gap for xy in where(s)) and "clear"
+        log(f"out of reach before the recall: running {gap} tiles from {len(foes)} {who}")
         mode, self.mode = self.mode, "gap"
         start = self.mover.steps
         try:
@@ -1239,7 +1280,7 @@ class LumberLoop:
         finally:
             self.mode = mode
         log("out of reach: " + ("clear" if clear(self.link.state()) else
-                                f"still within {RECALL_GAP} tiles after {self.mover.steps - start} steps") + "; recalling")
+                                f"still within {gap} tiles after {self.mover.steps - start} steps") + "; recalling")
         return True
 
     def recall_out(self, st, a, worst, swung, pk: bool = True, why: str | None = None,

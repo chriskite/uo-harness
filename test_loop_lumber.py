@@ -532,6 +532,8 @@ class World:
         self.red_due = False              # red_aim: the red is on its way (RED_AIM_S after the chop's cursor)
         self.red_t = None                 # red_aim: when the red's 0x20 went out (faction/precast: the foe's tag / words)
         self.calm_t = None                # faction/precast: when the guildmate / the healer showed up
+        self.foe_pos = None               # red_aim/faction/precast: where the foe stands (static)
+        self.book_dists = []              # ... our distance to him at each runebook double-click
         self.vendor_t = None              # staff: when the vendor's 0x20 went out
         self.gm_t = None                  # staff: when the invulnerable player's 0x20 went out
 
@@ -956,7 +958,8 @@ class World:
     def red_appears(self):
         """red_aim: a red player comes into view 8 tiles east (Bastet, live 2026-10-03: 10 spaces)."""
         self.red_t = time.time()
-        self.send(player_update(BASTET, self.pos[0] + 8, self.pos[1], noto=6))
+        self.foe_pos = (self.pos[0] + 8, self.pos[1])
+        self.send(player_update(BASTET, *self.foe_pos, noto=6))
 
     def faction_appears(self):
         """faction (live 2026-10-06 witcher_66): our own guild tag; a guildmate whose guild is in a faction
@@ -975,7 +978,8 @@ class World:
 
     def foe_tagged(self):
         x, y = self.pos
-        self.send(player_update(FOE, x + 10, y))
+        self.foe_pos = (x + 10, y)
+        self.send(player_update(FOE, *self.foe_pos))
         self.red_t = time.time()
         self.send(player_says(FOE, "Bee Loga", "Elite Mercenary [Cambria]", hue=50))
         self.send(player_says(FOE, "Bee Loga", "[Officer, LoK]", hue=690))
@@ -992,7 +996,8 @@ class World:
 
     def foe_casts(self):
         x, y = self.pos
-        self.send(player_update(FOE, x + 5, y))
+        self.foe_pos = (x + 5, y)
+        self.send(player_update(FOE, *self.foe_pos))
         self.red_t = time.time()
         self.send(player_says(FOE, "Bee Loga", "Vas Ort Flam", hue=690, kind=10))
 
@@ -1152,6 +1157,8 @@ class World:
                 self.tome_gumps.add(self.next_gump())
                 self.send(gump(self.gump_serial, 0x09F5976B, TOME_GUMP["layout"], TOME_GUMP["lines"]))
             elif serial == RUNEBOOK:
+                if self.foe_pos is not None:                # faction/precast/red_aim: how far the foe was
+                    self.book_dists.append(self.cheb(self.foe_pos))
                 self.book_gumps.add(self.next_gump())
                 self.send(gump(self.gump_serial, 0x5C7DB029, *book_gump()))
         elif pid == 0x6C:
@@ -2296,9 +2303,10 @@ async def red_aim():
     aim pause; the runner answered the cursor, then recalled 2.5 s after sight and was hit out of the
     cast). Since 2026-10-04 the aim is a script's ~0.1 s (humanize SCRIPT_MEDIAN), so a red comes into
     view RED_AIM_S after the chop's cursor, while it is up (normal profile, full pace): whichever read
-    sees him first (the cursor's wait or the aim pause), the cursor goes with the stock 0x6C cancel, the
-    recall home starts within REACT_MAX_S of sight; no chop target is answered after him."""
-    print("\n== red while the chop cursor is up: cancel it, recall at once ==")
+    sees him first (the cursor's wait or the aim pause), the cursor goes with the stock 0x6C cancel and no
+    chop target is answered after him. Since 2026-10-06 (option E) a red within spell range (8 tiles) is
+    run from first: the first step away within REACT_MAX_S of sight, the book only PLAYER_RECALL_GAP off."""
+    print("\n== red while the chop cursor is up: cancel it, run out of his spell range, recall ==")
     world = World("red_aim")
     world.late_blast = True                       # live 2026-10-06: the PK's Explosion went off on us at home
     spot = LIB_SPOT
@@ -2310,24 +2318,23 @@ async def red_aim():
     targets = [(parse_packet("c2s", p), t) for p, t in after if p[0] == 0x6C]
     cancels = [t for f, t in targets if f["x"] == 0x7FFFFFFF]
     answers = [f for f, t in targets if f["x"] != 0x7FFFFFFF]
-    book = next((t for p, t in after if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)), None)
-    lat = None if book is None else round(book - red, 3)
+    step = next((t for p, t in after if p[0] == 0x02), None)
+    lat = None if step is None else round(step - red, 3)
     check("the red came into view (RED_AIM_S after the chop's cursor)", red is not None, text[-800:])
-    check("the chop cursor was cancelled (stock 0x6C cancel, once) before the runebook's double-click, and "
-          "no chop target was answered after the red appeared",
-          len(cancels) == 1 and book is not None and cancels[0] < book and answers == [],
-          f"cancels {cancels} answers {answers} book {book}")
-    check(f"the recall started within {REACT_MAX_S} s of the red's 0x20 (simulator clock): {lat} s",
+    check("the chop cursor was cancelled (stock 0x6C cancel, once) before the first step away, and no chop target "
+          "was answered after the red appeared",
+          len(cancels) == 1 and step is not None and cancels[0] < step and answers == [],
+          f"cancels {cancels} answers {answers} step {step}")
+    check(f"the run away started within {REACT_MAX_S} s of the red's 0x20 (simulator clock): {lat} s",
           lat is not None and lat <= REACT_MAX_S, str(lat))
+    check(f"the book was only pressed {PLAYER_RECALL_GAP}+ tiles from the red (option E)",
+          world.book_dists and min(world.book_dists) >= PLAYER_RECALL_GAP, str(world.book_dists))
     check("the proxy cleared the client's copy of the cursor (fabricated S2C cancel)",
           any(r.get("ev") == "target_cancel_client" for r in rows))
     rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
-    check(f"the recall event: landed home, the red as the threat, cursor_cancelled, react_s (from the proxy's "
-          f"packet time) <= {REACT_MAX_S} and within 0.1 s of the simulator's measure",
-          world.recalls_home == [HOME_RUNE_POS] and len(rec) == 1 and rec[0]["ok"]
-          and rec[0]["threat"]["serial"] == BASTET and rec[0]["threat"]["kind"] == "red"
-          and rec[0]["cursor_cancelled"] is True and rec[0]["react_s"] is not None and lat is not None
-          and 0 <= rec[0]["react_s"] <= REACT_MAX_S and abs(rec[0]["react_s"] - lat) <= 0.1, str(rec)[:600])
+    check("the recall events: the last landed home, the red as the threat",
+          world.recalls_home == [HOME_RUNE_POS] and rec and rec[-1]["ok"]
+          and rec[-1]["threat"]["serial"] == BASTET and rec[-1]["threat"]["kind"] == "red", str(rec)[:600])
     check("the run stopped after the escape (exit 1, pk_escape juncture)",
           code == 1 and "escaped by recall" in text
           and any(j["kind"] == "pk_escape" for j in store.junctures()), f"exit {code}")
@@ -2336,30 +2343,35 @@ async def red_aim():
           world.hits == 69 and world.room_entries == 1 and "THIEF" not in text and "after the recall home" not in text,
           f"hits {world.hits} room {world.room_log}\n{text[-600:]}")
     print(f"  sim latency: red 0x20 -> cancel {round(cancels[0] - red, 3) if cancels else None} s, "
-          f"-> runebook dclick {lat} s; react_s {rec[0]['react_s'] if rec else None}")
+          f"-> first step {lat} s; book at {world.book_dists} tiles")
     store.close()
 
 
 async def field_foe(tag, port, title, foe_why, calm_who):
     """faction / precast (user, 2026-10-06, after run 16's death at witcher_66): at the library spot (pvp)
-    someone harmless shows up first (calm_who), CALM_S later the foe: the recall home starts within
-    REACT_MAX_S of the foe's tag / words, nothing for the harmless one, the foe in the recall event and a
-    pk_seen sighting. Returns (world, store, text) for the scenario's own checks."""
+    someone harmless shows up first (calm_who), CALM_S later the foe within spell range: the run away
+    starts within REACT_MAX_S of the foe's tag / words (option E), the book only PLAYER_RECALL_GAP off;
+    nothing for the harmless one; the foe in the recall event and a pk_seen sighting. Returns (world,
+    store, text) for the scenario's own checks."""
     print(f"\n== {title} ==")
     world = World(tag)
     text, code, store, _ = await run_scenario(world, tag, port, [LIB_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "normal",
                                                "--seed", "5", "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
     calm, foe = world.calm_t, world.red_t
-    books = [t for p, t in zip(world.c2s, world.c2s_t) if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)
-             and calm is not None and t >= calm]
-    lat = None if foe is None or not books else round(books[0] - foe, 3)
-    check(f"{tag}: nothing for {calm_who}; the recall home started within {REACT_MAX_S} s of the foe: {lat} s",
-          foe is not None and books and books[0] >= foe and lat <= REACT_MAX_S, f"calm {calm} foe {foe} books {books}")
+    sent = [(p, t) for p, t in zip(world.c2s, world.c2s_t) if calm is not None and t >= calm]
+    books = [t for p, t in sent if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)]
+    step = next((t for p, t in sent if p[0] == 0x02 and foe is not None and t >= foe), None)
+    lat = None if step is None else round(step - foe, 3)
+    check(f"{tag}: nothing for {calm_who}; the run away started within {REACT_MAX_S} s of the foe ({lat} s), "
+          f"the book only {PLAYER_RECALL_GAP}+ tiles from him",
+          foe is not None and books and books[0] >= foe and lat is not None and lat <= REACT_MAX_S
+          and world.book_dists and min(world.book_dists) >= PLAYER_RECALL_GAP,
+          f"calm {calm} foe {foe} step {step} books {books} at {world.book_dists}")
     rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
     seen = [e["data"] for e in store.job_events("lumber") if e["kind"] == "pk_seen"]
-    check(f"{tag}: the recall event names the foe and why ({foe_why}); one pk_seen sighting, the foe's",
-          len(rec) == 1 and rec[0]["ok"] and rec[0]["threat"]["serial"] == FOE and foe_why in rec[0]["threat"]["reason"]
+    check(f"{tag}: the recall that landed names the foe and why ({foe_why}); one pk_seen sighting, the foe's",
+          rec and rec[-1]["ok"] and rec[-1]["threat"]["serial"] == FOE and foe_why in rec[-1]["threat"]["reason"]
           and [s["serial"] for s in seen] == [FOE], f"{str(rec)[:400]} seen {[s['serial'] for s in seen]}")
     check(f"{tag}: the run stopped after the escape (exit 1, pk_escape), in the room",
           code == 1 and any(j["kind"] == "pk_escape" for j in store.junctures()) and world.room_entries == 1,
@@ -2861,16 +2873,17 @@ def unit_run_and_recall():
     import loop_lumber
     log_, juncs = [], []
     after_us = [True, True, False, False, True]       # gain_distance: something within RECALL_GAP before each try
-    outcome = {"casts": 0, "land_at": 4, "die_at": None}
+    outcome = {"casts": 0, "land_at": 4, "die_at": None, "pk": []}
     state = {"dead": False}
 
-    def gain_distance(st, a, swung):
+    def gain_distance(st, a, swung, players=False):
         ran = after_us.pop(0) if after_us else False
         log_.append("run" if ran else "look")
         return ran
 
     def recall_out(st, a, worst, swung, pk=True, why=None, what=None, attempts=None):
         outcome["casts"] += 1
+        outcome["pk"].append(pk)
         log_.append(f"cast:{attempts}")
         if outcome["casts"] == outcome["land_at"]:
             raise loop_lumber.Unsafe("escaped by recall")
@@ -2906,6 +2919,17 @@ def unit_run_and_recall():
         fake.run_and_recall({}, SimpleNamespace(dead=False), None, {}, "it followed us")
         check("death ends it (the caller then stops)", outcome["casts"] == 3 and not fake.creature["recalled"],
               str(log_))
+        log_.clear(), juncs.clear()
+        after_us[:] = [True, True, True, True]
+        outcome.update(casts=0, land_at=None, die_at=None, pk=[])
+        fake.creature.update(recalled=False, recall_fails=0)
+        state["dead"] = False
+        why = fake.run_and_recall({}, SimpleNamespace(dead=False), None, {}, None, players=True)
+        check(f"players (option E): run, a pk cast, run again; after {loop_lumber.PLAYER_RECALL_TRIES} failed casts it "
+              "returns why (the guard flight follows), no keep_running juncture, the creature tally untouched",
+              log_ == ["run", "cast:1"] * loop_lumber.PLAYER_RECALL_TRIES and outcome["pk"] == [True] * 3
+              and why and "disturbed" in why and juncs == [] and fake.creature["recall_fails"] == 0,
+              f"{log_} {outcome} {why} {juncs}")
     finally:
         loop_lumber.RECALL_RETRY_S, loop_lumber.KEEP_RUNNING_LOOK_S = retry, look
 
@@ -2988,7 +3012,7 @@ def unit_recall_reagents():
 from types import SimpleNamespace  # noqa: E402
 import lumber_opt  # noqa: E402
 import threats  # noqa: E402
-from loop_lumber import LumberLoop, hit_verdict, in_hand, row_hatchet  # noqa: E402
+from loop_lumber import LumberLoop, PLAYER_RECALL_GAP, hit_verdict, in_hand, row_hatchet  # noqa: E402
 from uo import cliloc as cliloc_mod  # noqa: E402  (the simulator's cliloc() builds packets)
 from world.runtime import WorldRuntime  # noqa: E402
 

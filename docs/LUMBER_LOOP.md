@@ -1004,7 +1004,11 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
       Scenarios `faction`, `precast`.
   - **Action:** the runner recalls at once, with no pause and before any bookkeeping. It
     double-clicks the book and presses the default rune's charge button, else the Recall spell
-    (tome: its detail page's Cast Recall), spell after "no charges".
+    (tome: its detail page's Cast Recall), spell after "no charges". Since 2026-10-06 (option E,
+    `player_escape`), when one of the players is within spell range (12 tiles) it first cancels any
+    target cursor and runs until each is 18 tiles off (`PLAYER_RECALL_GAP`) or out of view, then casts
+    once, and runs again after a disturbed cast; 3 failed casts, then the guard flight (docs/PLAN.md
+    "Leave on faction tags and on precasts").
   - **Retries (since 2026-10-03, docs/research/SPELL_INTERRUPTS.md):** it recasts until the
     recall lands, the character dies, the spell can't be cast (heat of battle, no reagents or
     mana, unmarked, blocked) or 20 s after the first press (`escape.ESCAPE_BUDGET_S`); there is
