@@ -1,0 +1,12 @@
+{
+  "_doc": "A real captcha (gump id 1) that captcha.solve refused before 2026-10-06: a stray dot of the 3rd digit 29 px right of the rest tied the 29 px gap between digits 1 and 2, so the two-widest-gaps split cut it off. Live 2026-10-06 14:01 (Outland Dan, witcher_40, session 20261005_194043); the human answered 175 (0xB1 button 535) and the server said Captcha successful. Used by harness/test_captcha.py.",
+  "answer": "175",
+  "button": 535,
+  "layout": "{ resizepic 27 25 11571 391 278 }{ button 21 19 2094 2095 1 0 1 }{ text 17 7 149 0 18 0 1 0 0 0 }{ gumppic 139 19 2446 }{ text 198 19 149 1 18 0 1 0 0 0 }{ tilepic 81 73 5930 }{ tilepic 127 138 5930 }{ tilepic 104 146 5930 }{ tilepic 72 76 5930 }{ tilepic 83 134 5930 }{ tilepic 83 121 5930 }{ tilepic 70 145 5930 }{ tilepic 66 80 5930 }{ tilepic 81 145 5930 }{ tilepic 83 111 5930 }{ tilepic 82 86 5930 }{ tilepic 57 86 5930 }{ tilepic 94 146 5930 }{ tilepic 61 146 5930 }{ tilepic 212 71 3699 }{ tilepic 223 73 3699 }{ tilepic 237 88 3699 }{ tilepic 156 104 3699 }{ tilepic 221 82 3699 }{ tilepic 200 116 3699 }{ tilepic 185 135 3699 }{ tilepic 179 143 3699 }{ tilepic 178 70 3699 }{ tilepic 189 70 3699 }{ tilepic 182 104 3699 }{ tilepic 193 125 3699 }{ tilepic 201 72 3699 }{ tilepic 190 71 3699 }{ tilepic 327 119 2457 }{ tilepic 276 110 2457 }{ tilepic 293 106 2457 }{ tilepic 303 107 2457 }{ tilepic 292 135 2457 }{ tilepic 325 141 2457 }{ tilepic 262 134 2457 }{ tilepic 293 81 2457 }{ tilepic 302 145 2457 }{ tilepic 293 95 2457 }{ tilepic 324 70 2457 }{ tilepic 327 106 2457 }{ tilepic 292 70 2457 }{ tilepic 314 71 2457 }{ tilepic 356 112 2457 }{ tilepic 303 69 2457 }{ gumppic 37 204 96 hue=2428 }{ gumppic 150 204 96 hue=2428 }{ gumppic 226 204 96 hue=2428 }{ gumppic 153 248 2444 hue=2401 }{ textentrylimited 163 251 40 20 2655 2 2 3 0 -1 }{ text 173 223 63 3 18 0 1 0 0 0 }{ button 222 248 247 249 1 0 535 }\u0000",
+  "lines": [
+    "Guide",
+    "Captcha",
+    "",
+    "Type The Value"
+  ]
+}

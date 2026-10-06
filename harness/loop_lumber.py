@@ -1780,6 +1780,8 @@ class LumberLoop:
             digits = captcha.solve(ev.get("layout", ""))
             submit = captcha.submit_button(ev.get("layout", ""), cap["guide_button"])
             if digits is None or submit is None:
+                log(f"captcha auto-solve gave up: "
+                    f"{'no submit button' if submit is None else 'layout unreadable or a digit under the margin'}")
                 return False
             self.doing("captcha", "Solving the captcha")
             self.human.wait("captcha")

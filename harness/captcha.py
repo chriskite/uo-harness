@@ -4,8 +4,9 @@ drawn as `tilepic` dot glyphs at layout coordinates, and the dot cluster of
 each digit is a fixed shape with displaced dots, so a layout carries the
 answer explicitly.
 
-Method: tilepics are split into the three digit clusters at the two largest
-x gaps, each cluster is normalized (centroid-centered, y-span scaled to 1.0)
+Method: tilepics are split into the three digit clusters at the pair of x gaps
+that leaves three plausible digits, the widest such pair (until 2026-10-06 simply
+the two largest x gaps; see digit_clusters), each cluster is normalized (centroid-centered, y-span scaled to 1.0)
 and matched against the captured reference set (data/captcha_font.json) with
 a translation-aligned trimmed Chamfer distance (the dots are displaced, so
 per-dot lattice assignment is ambiguous; trimmed nearest-neighbor means are
@@ -52,27 +53,41 @@ def _font():
     return _FONT
 
 
+def _plausible(cl) -> bool:
+    xs = [p[0] for p in cl]
+    ys = [p[1] for p in cl]
+    return (MIN_DOTS <= len(cl) <= MAX_DOTS
+            and MIN_YS <= max(ys) - min(ys) <= MAX_YS
+            and max(xs) - min(xs) <= MAX_XS)
+
+
 def digit_clusters(layout: str):
     """The captcha's three digit dot clusters, left to right, as raw (x, y)
     lists — or None when the layout doesn't look like a captcha digit field
-    (decoys have no tilepics; a partial/garbled gump fails the sanity gates)."""
+    (decoys have no tilepics; a partial/garbled gump fails the sanity gates).
+    The two cuts are the x gaps that leave three plausible digits, the widest
+    such pair (by its narrower gap, then their sum): the two widest gaps alone
+    can both fall at one digit's edges, a stray dot 29 px off the 3rd digit of
+    175 (live 2026-10-06 14:01) tying the 29 px gap between digits 1 and 2."""
     pts = [(int(x), int(y))
            for x, y, _ in re.findall(r"\{ tilepic (\d+) (\d+) (-?\d+) \}", layout)]
     if len(pts) < 3 * MIN_DOTS:
         return None
     pts.sort()
-    gaps = sorted(((b[0] - a[0], i) for i, (a, b) in enumerate(zip(pts, pts[1:]))),
-                  reverse=True)[:2]
-    cuts = sorted(i + 1 for _, i in gaps)
-    clusters = [pts[:cuts[0]], pts[cuts[0]:cuts[1]], pts[cuts[1]:]]
-    for cl in clusters:
-        xs = [p[0] for p in cl]
-        ys = [p[1] for p in cl]
-        if not (MIN_DOTS <= len(cl) <= MAX_DOTS
-                and MIN_YS <= max(ys) - min(ys) <= MAX_YS
-                and max(xs) - min(xs) <= MAX_XS):
-            return None
-    return clusters
+    gaps = [(b[0] - a[0], i + 1) for i, (a, b) in enumerate(zip(pts, pts[1:])) if b[0] > a[0]]
+    best = None
+    for n, (g1, c1) in enumerate(gaps):
+        if not _plausible(pts[:c1]):
+            continue
+        for g2, c2 in gaps[n + 1:]:
+            if _plausible(pts[c1:c2]) and _plausible(pts[c2:]):
+                key = (min(g1, g2), g1 + g2)
+                if best is None or key > best[0]:
+                    best = (key, c1, c2)
+    if best is None:
+        return None
+    _, c1, c2 = best
+    return [pts[:c1], pts[c1:c2], pts[c2:]]
 
 
 def submit_button(layout: str, guide_button: int = 1):

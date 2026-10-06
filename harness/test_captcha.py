@@ -103,6 +103,18 @@ def test_confidence_gate():
     check("two smeared digits -> solve() is None", captcha.solve(gutted) is None)
 
 
+def test_stray_dot_split():
+    print("== a stray dot as far from its digit as the digits are apart (live 2026-10-06) ==")
+    s = json.load(open(os.path.join(HERE, "testdata", "captcha_split.json")))
+    cl = captcha.digit_clusters(s["layout"])
+    check("three clusters, the 3rd keeping its outlying dot at x 356",
+          cl is not None and [len(c) for c in cl] == [14, 14, 16] and max(p[0] for p in cl[2]) == 356,
+          str(cl and [len(c) for c in cl]))
+    check(f"solved {s['answer']} (the accepted answer), submit {s['button']}",
+          captcha.solve(s["layout"]) == s["answer"] and captcha.submit_button(s["layout"]) == s["button"],
+          repr(captcha.solve(s["layout"])))
+
+
 def test_detection_sanity():
     print("== decoys and garbage are not captchas ==")
     decoy = ("{ nomove }{ noclose }{ nodispose }{ noresize }{ page 0 }{ page 1 }"
@@ -146,6 +158,7 @@ def main():
     test_real_captchas()
     test_noise_tolerance()
     test_confidence_gate()
+    test_stray_dot_split()
     test_detection_sanity()
     test_held_out()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))

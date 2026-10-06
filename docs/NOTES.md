@@ -823,6 +823,20 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   (max(`ESCAPE_ROUTE_MIN`, `ESCAPE_DETOUR` × goal distance), fast failure, next goal), and gap mode
   books the hits lost. Earlier that morning (lumber-20261006-095124-76e4) a garou hit for 25 from 13
   tiles at the same spot.
+- **PK death at a faction waypoint; the speech hold did not delay the recall (lumber-20261006-140711-048c,
+  witcher_66, Seer7 run 16, 14:08:55):** Seer7 suspected that the speech hold (Bee Loga's "come",
+  14:08:37 → its ack at 14:08:50) had blocked the escape. The session log says otherwise. Bee Loga (0x00447976) came into
+  view at 14:08:32.4 as a **blue** (0x20 notoriety 1, flags 0x20), in a group of five players by "FACTION
+  WP 17". KeepAway stepped Dan 2 tiles off at 14:08:34. Bee Loga stayed blue through the whole hold, and a blue is no
+  flee-level threat, with or without a hold (player threats recall even in a hold: `check_threats`
+  checks `players` before the `escape` flag). At 14:08:50.57 the server sent 0xAA (our combatant = Bee
+  Loga) and a fresh 0x20 with **notoriety 4**: he attacked. The runbook double-click went out 0.75 s
+  later (14:08:51.32; "18.52 s after first sight" counts from the blue sighting). Explosion (0x36BD)
+  and Flame Strike (0x3709) effects landed on Dan at 14:08:53.1-53.5, so the cast was disturbed 1.5 s in.
+  The book then said "recharging" twice, and he died at 14:08:55.3 (a ghost at 1784,2153) from 100 hits in ~4 s. The ack landing at 14:08:50 just
+  before the attack was a coincidence. The open question is policy, not a bug: a group of unknown
+  blues next to a faction waypoint, one walking up to 2 tiles and talking, gets no reaction until one
+  of them flags. [INFERENCE: a single recall can't beat a multi-mage burst that starts at 3 tiles.]
 - **Seer6 shift (20:15–23:25, 2026-10-05):** 15 runs, 8033 boards into the stockpile, Lumberjacking 81.1
   → 90.5, 1 death (norse bear rider at witcher_268, resurrected by Malila (2734,617); witcher_268
   disabled). Best trips: the greedy picks witcher_23 (2410 incl. ~1380 carried logs, then 1747) and
