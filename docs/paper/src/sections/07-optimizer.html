@@ -1,6 +1,6 @@
 <section id="sec-optimizer">
 <h2>Self-optimization: where to chop and how much to carry</h2>
-<p class="lead">The runner works one spot; a pure-function planner decides which spot, how many logs per trip and which hatchet, using a small Bayesian model of place, character and danger, a renewal-reward trip size and Thompson sampling. In its latest snapshot it is deliberately exploring: no spot has more than a 3.0% chance of being the best, and nearly every trip is sized by the grove, not by the hazards.</p>
+<p class="lead">The runner works one spot; a pure-function planner decides which spot, how many logs per trip and which hatchet, using a small Bayesian model of place, character and danger, a renewal-reward trip size and Thompson sampling. In its latest snapshot it is deliberately exploring: no spot has more than a 3.0% chance of being the best, and nearly every trip is sized by the grove, not by the hazards. <a class="ref" href="#app-bayes"></a> collects the notation and the derivations, with one spot worked through by hand.</p>
 
 <h3 id="sec-optimizer-objective">Objective and architecture</h3>
 <p>The objective: <strong>boards stored at home per agent-active hour, net of expected losses</strong> <span class="src">docs/LUMBER_LOOP.md:177</span>. One log makes one board. Pacing is a floor, not a knob: the optimizer picks places and trip sizes but never tightens the delays, breaks or daily cap that the runners' pacing rules fix.</p>
