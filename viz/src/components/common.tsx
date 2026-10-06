@@ -54,3 +54,14 @@ export function Badge({ kind, children, title }: { kind: "ok" | "warn" | "bad" |
     </span>
   );
 }
+
+/** Shimmering placeholder bars (one per width) while slow data loads; `label` is what screen readers hear. */
+export function Skeleton({ widths, label }: { widths: readonly string[]; label: string }) {
+  return (
+    <div className="skeleton" role="status" aria-busy="true" aria-label={label}>
+      {widths.map((w, i) => (
+        <div key={i} className="skeleton-bar" style={{ width: w }} />
+      ))}
+    </div>
+  );
+}

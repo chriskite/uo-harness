@@ -2,7 +2,7 @@
 // with resume (event batches + newest state, coalesced per task, sse.ts),
 // periodic walk-memory refresh, playback and agent-gate control, job analytics
 // and the overseer chat (§2.4).
-import type { HuntResponse, JobsResponse, RangeBounds } from "./jobs.ts";
+import type { HuntResponse, JobsResponse, PlanResponse, RangeBounds } from "./jobs.ts";
 import type { OverseerResponse } from "./overseer.ts";
 import { supersede, type SseMessage } from "./sse.ts";
 import type { VizStore } from "./store.ts";
@@ -45,6 +45,13 @@ export async function fetchJobs(job: string, tz: number, range: RangeBounds): Pr
   const r = await fetch(`/api/jobs?${q}`, { cache: "no-store" });
   if (!r.ok) throw new Error(`/api/jobs: HTTP ${r.status} ${await r.text()}`);
   return (await r.json()) as JobsResponse | HuntResponse;
+}
+
+/** The lumber optimizer's plan (seconds to compute when the server's per-minute cache is cold). */
+export async function fetchLumberPlan(): Promise<PlanResponse> {
+  const r = await fetch("/api/jobs/plan", { cache: "no-store" });
+  if (!r.ok) throw new Error(`/api/jobs/plan: HTTP ${r.status} ${await r.text()}`);
+  return (await r.json()) as PlanResponse;
 }
 
 /** Chat rows and junctures above the cursors (0 = the newest 200), open junctures, heartbeat. */

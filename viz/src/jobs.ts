@@ -335,8 +335,12 @@ export interface JobsResponse {
   supplies: SuppliesTotal;
   time_split: TimeSplit;
   skill: { t: number; skill: number; n: number }[];
-  /** lumber_opt plan at the server's clock (null without a store) */
+}
+
+/** /api/jobs/plan: the lumber_opt plan at the server's clock over all history (null without a store). */
+export interface PlanResponse {
   plan: LumberPlan | null;
+  store: boolean;
 }
 
 /** Plan rows worth a line: active spots and any spot with trips; `hidden` = the untried candidates/disabled. */

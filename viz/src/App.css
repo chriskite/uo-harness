@@ -1498,6 +1498,32 @@ ol.lines {
 .jobs-range input[type="date"] {
   color-scheme: dark;
 }
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 4px 0;
+}
+.skeleton-bar {
+  height: 12px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #2a1e12 0%, #4a3620 50%, #2a1e12 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-bar {
+    animation: none;
+  }
+}
 .kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));

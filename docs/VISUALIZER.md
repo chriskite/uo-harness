@@ -152,6 +152,7 @@ channels.
 | `GET /api/gate` | live only: the proxy's agent gate (`{"op":"gate"}` on the state port), verbatim |
 | `POST /api/gate` | live only: `{"action": "pause"\|"resume"\|"kill"}`, forwarded as `{"op":"gate","action":...}` (§2.2) |
 | `GET /api/jobs?job=lumber[&since=T][&until=T][&tz=M]` | job analytics over [since, until) from the memory store (`harness/jobs.py`, §2.4), cached 2 s |
+| `GET /api/jobs/plan` | the lumber optimizer's plan over all history, recomputed once a minute on its own connection and lock (§2.4) |
 | `GET /api/overseer?after_chat=N&after_juncture=M` | overseer chat rows and junctures above the cursors, open junctures, heartbeat (§2.4) |
 | `POST /api/chat` | `{"text": T}` → a `user` chat row for the overseer (§2.4) |
 | `GET /api/captcha`, `POST /api/captcha` | who answers the harvest captcha, `{"mode": "human"\|"auto"}` (§2.2a) |
@@ -314,9 +315,13 @@ not per poll). **GETs never create the store**; the first `POST /api/chat` does.
   bound the range [since, until) in epoch seconds (no `until` = open-ended); a non-finite value or
   `until` <= `since` is **400**. `tz` is minutes east of UTC for the per-day split (the browser
   sends its own; default the server's local offset). Cached 2 s per (job, since, until, tz).
-  Lumber also gets `plan`, computed at the server's clock over all history (below) and cached
-  per wall-clock minute (its seed), shared by every range: the optimizer takes ~3 s on the
-  2026-10-05 store while the ranged analytics take 10–40 ms, so a range change doesn't rerun it.
+  The lumber plan is not in it: see the next route.
+- `GET /api/jobs/plan` → `{plan, store}`: `jobs.lumber_plan` (below) at the server's clock over all
+  history, `plan` null without a store (which it never creates). Recomputed once per wall-clock
+  minute (its seed) and shared by every caller. It has its own `Memory` connection and lock, so its
+  seconds of Monte Carlo (~3.4 s on the 2026-10-05 store, against 10–40 ms for the ranged
+  analytics) never hold up `/api/jobs`, `/api/overseer` or the chat (2026-10-05, user request:
+  the page waited for the plan before showing anything).
 
 **Analytics (`harness/jobs.py`, pure: `compute()` reads no clock).** Inputs:
 `Memory.episodes(job, since, until)` (trip rows), `Memory.job_events(job, since, until)`, the
@@ -373,9 +378,7 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
   `route_check=False`; `ctl lumber plan` plans and caches them), seeded by the minute, plus per spot
   the PK escapes (`recall`/`guard_flight` events), the last trip's outcome and why, and how it's
   reached (`reach`: the landing rune's name, its library or "own book", tiles from the grove).
-  0.18 s on the live store (2026-10-03: three hazards and a finer trip-size search), so it's
-  computed per request (inside the 2 s cache). `analytics(plan_now=None)` (tests, the CLI) leaves
-  it null.
+  0.18 s on the live store on 2026-10-03; ~3.4 s on 2026-10-05 (131 spots), hence its own route.
 
 **Hunt analytics (`jobs.compute_hunt`, pure; added 2026-10-02).** Inputs: `Memory.episodes("hunt")`
 (one row per visit to the spot, docs/HUNT_LOOP.md "Memory") and the hunt job events.
@@ -429,6 +432,11 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     fetches at once; the old numbers stay up with `loading…` beside the picker until it answers,
     and an answer for a range no longer shown is dropped. The Optimizer and Spots panels come
     from the plan, which uses all history whatever the range (their head says so).
+  - **The plan loads on its own** (`/api/jobs/plan`, polled every 15 s and by ↻): the rest of the
+    lumber dashboard renders as soon as `/api/jobs` answers, with shimmering skeleton bars in the
+    Optimizer and Spots panels until the plan arrives (live store 2026-10-05: KPIs at 0.2 s, the
+    plan at 3.6 s). A failed first load shows the error there; a later failure keeps the last plan
+    and says "refresh failed" in the panel head.
 
   The lumber dashboard:
   - KPI tiles: logs/hr, logs/trip (with the chop success rate), trips, active hours, deaths to PKs
@@ -875,7 +883,8 @@ serial link) opens the drawer on the Inspector tab.
   without woods, `since`, `until` exclusive at the boundary, a [since, until) window, a trip
   without `t_start` only in the unbounded range, determinism, empty data); `/api/jobs` equals
   `jobs.analytics`, also with `since`+`until`, and answers 400 to an empty, reversed, NaN or
-  non-numeric range;
+  non-numeric range; `/api/jobs/plan` serves the plan (null with no store) and, while it computes,
+  `/api/jobs` and `/api/overseer` answer at once;
   `/api/overseer` cursors, the newest-200 window, open ids after an ack, and heartbeat;
   `POST /api/chat` stores a trimmed `user` row and rejects empty, whitespace, missing,
   non-string and 2001-character text with 400; `/api/captcha` defaults to `human`, writes where

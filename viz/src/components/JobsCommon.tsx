@@ -17,7 +17,7 @@ export interface JobDashboardProps {
   onRange: (r: DateRange) => void;
 }
 
-const REFRESH_MS = 15_000;
+export const REFRESH_MS = 15_000;
 
 /** Polls `fetch(tz, bounds)` every 15 s for `range`; `reload` refreshes now. A range
  *  change fetches at once; until it answers, `data` is the old range's and `loading`

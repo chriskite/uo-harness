@@ -1222,6 +1222,12 @@ as the store grows. Built (docs/VISUALIZER.md §2.4, docs/MEMORY.md "Indexes for
   separate cache every range click would rerun it; now a range change answers in 10–40 ms. The
   plan can lag new trips by up to a minute. The optimizer's own cost grows with spots × draws, not
   with the store, so indexes don't help it.
+- **The plan then moved to its own route, loaded async** (same day, user request: the first page
+  load still waited ~3.4 s). `/api/jobs/plan` with its own connection and lock, so the plan never
+  holds the lock the chat and analytics share; the page renders from `/api/jobs` and shows
+  skeletons in the two plan panels until the plan comes. Live store: KPIs at 0.2 s, plan at
+  3.6 s. Rejected: streaming one response in parts (the server is plain `http.server` JSON) and
+  precomputing the plan in a background thread (it would run every minute with nobody watching).
 
 ## Risks
 

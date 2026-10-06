@@ -1,4 +1,5 @@
-import { fetchJobs } from "../api.ts";
+import { useCallback, useEffect, useState } from "react";
+import { fetchJobs, fetchLumberPlan } from "../api.ts";
 import { fmtDuration } from "../format.ts";
 import {
   eventView,
@@ -16,14 +17,44 @@ import {
   tripHome,
   woodShares,
   type JobsResponse,
+  type PlanResponse,
   type RangeBounds,
 } from "../jobs.ts";
 import { EventStrip, LogsPerTripChart, RateChart, TimeSplitChart } from "./Charts.tsx";
-import { Badge, Panel } from "./common.tsx";
+import { Badge, Panel, Skeleton } from "./common.tsx";
 import { HuntJobs } from "./HuntJobs.tsx";
-import { JobsHead, JobsLoading, useJobPoll, type JobDashboardProps, type JobKind } from "./JobsCommon.tsx";
+import { JobsHead, JobsLoading, REFRESH_MS, useJobPoll, type JobDashboardProps, type JobKind } from "./JobsCommon.tsx";
 
 const fetchLumber = (tz: number, range: RangeBounds) => fetchJobs("lumber", tz, range);
+
+/** The plan poll: the last answer (null until the first), the last error, refresh now. */
+interface PlanState {
+  res: PlanResponse | null;
+  error: string | null;
+  reload: () => void;
+}
+
+/** The optimizer's plan, polled on its own (seconds when the server's per-minute cache is
+ *  cold) so the rest of the dashboard never waits for it. */
+function usePlan(): PlanState {
+  const [res, setRes] = useState<PlanResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const reload = useCallback(() => {
+    fetchLumberPlan().then(
+      (r) => {
+        setRes(r);
+        setError(null);
+      },
+      (e: unknown) => setError(String(e)),
+    );
+  }, []);
+  useEffect(() => {
+    reload();
+    const t = setInterval(reload, REFRESH_MS);
+    return () => clearInterval(t);
+  }, [reload]);
+  return { res, error, reload };
+}
 
 /** The Jobs page: one dashboard per job, picked by the switch in its head, over the head's date range. */
 export function JobsPage({ job, ...props }: JobDashboardProps & { job: JobKind }) {
@@ -33,6 +64,7 @@ export function JobsPage({ job, ...props }: JobDashboardProps & { job: JobKind }
 /** Lumber job dashboard from /api/jobs?job=lumber (harness/jobs.py compute). */
 function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
   const { data, error, at, reload, loading } = useJobPoll(fetchLumber, range);
+  const plan = usePlan();
   if (!data) return <JobsLoading job="lumber" onJob={onJob} error={error} />;
   const t = data.totals;
   const trips = data.trips;
@@ -53,7 +85,10 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
         store={data.store}
         error={error}
         at={at}
-        onRefresh={reload}
+        onRefresh={() => {
+          reload();
+          plan.reload();
+        }}
         range={range}
         onRange={onRange}
         loading={loading}
@@ -81,7 +116,7 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
         )}
       </div>
 
-      <OptimizerPanels data={data} />
+      <OptimizerPanels data={data} plan={plan} />
 
       <div className="jobs-charts">
         <Panel title="Logs / hr over time">
@@ -305,9 +340,11 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
 }
 
 /** What the self-optimizing lumber job (harness/lumber_opt.py) decides and learns from:
- *  the next pick, the per-spot model, skill over time, travel legs, tomes and supplies. */
-function OptimizerPanels({ data }: { data: JobsResponse }) {
-  const plan = data.plan;
+ *  the next pick, the per-spot model, skill over time, travel legs, tomes and supplies.
+ *  The first two come from the plan, which loads on its own: skeletons until it answers. */
+function OptimizerPanels({ data, plan: planState }: { data: JobsResponse; plan: PlanState }) {
+  const pending = planState.res === null;
+  const plan = planState.res?.plan ?? null;
   const { rows, hidden } = spotRows(plan);
   const pick = plan?.pick ?? null;
   const sup = data.supplies;
@@ -315,8 +352,22 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
   const splitTotal = shares.reduce((a, s) => a + s.s, 0);
   return (
     <>
-      <Panel title="Optimizer: next pick" extra={<span className="dim small">ctl lumber plan over all history (not the date range), recomputed each minute</span>}>
-        {!plan ? (
+      <Panel
+        title="Optimizer: next pick"
+        extra={
+          <span className="dim small">
+            ctl lumber plan over all history (not the date range), recomputed each minute
+            {planState.error && !pending && <span className="error"> · refresh failed: {planState.error}</span>}
+          </span>
+        }
+      >
+        {pending ? (
+          planState.error ? (
+            <p className="error">{planState.error}</p>
+          ) : (
+            <Skeleton widths={["60%", "92%", "78%"]} label="computing the optimizer plan" />
+          )
+        ) : !plan ? (
           <p className="dim">No plan: no Codex yet.</p>
         ) : (
           <>
@@ -372,8 +423,17 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
         )}
       </Panel>
 
-      <Panel title={`Spots (${rows.length})`} extra={hidden > 0 ? <span className="dim small">+{hidden} untried candidates or disabled (ctl lumber spots)</span> : undefined}>
-        {rows.length === 0 ? (
+      <Panel
+        title={pending ? "Spots" : `Spots (${rows.length})`}
+        extra={hidden > 0 ? <span className="dim small">+{hidden} untried candidates or disabled (ctl lumber spots)</span> : undefined}
+      >
+        {pending ? (
+          planState.error ? (
+            <p className="dim">No plan to rank the spots by.</p>
+          ) : (
+            <Skeleton widths={["100%", "100%", "100%", "100%", "100%"]} label="loading the spot model" />
+          )
+        ) : rows.length === 0 ? (
           <p className="dim">No active spots.</p>
         ) : (
           <div className="table-wrap">

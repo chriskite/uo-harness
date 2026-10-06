@@ -43,8 +43,9 @@ Routes:
                       (harness/facet.py; read-only from the install dir)
   GET  /api/jobs?job=lumber|hunt[&since=T][&until=T][&tz=M]  job analytics from the memory
                       store over [since, until) epoch s (harness/jobs.py; tz = minutes east of
-                      UTC for the per-day split, default the server's local offset), cached 2 s;
-                      the lumber plan (all history) is cached per minute
+                      UTC for the per-day split, default the server's local offset), cached 2 s
+  GET  /api/jobs/plan  {plan, store}: the lumber optimizer's plan (jobs.lumber_plan, all
+                      history), recomputed once a minute; the Jobs page loads it on its own
   GET  /api/overseer?after_chat=N&after_juncture=M  {chat, junctures, open, open_ids,
                       heartbeat}: rows with id above the cursors (the newest 200 when 0),
                       the open-juncture count and ids, the overseer's last heartbeat
@@ -133,7 +134,8 @@ class OverseerDB:
     (docs/OVERSEER.md, harness/jobs.py). One Memory connection, opened lazily and
     shared by the HTTP threads under a lock: WAL readers see every commit, and the
     schema bookkeeping write happens once, not per poll. GETs never create the
-    store; POST /api/chat does."""
+    store; POST /api/chat does. The lumber plan has its own connection and lock, so
+    its seconds of Monte Carlo never hold up the chat, junctures or job analytics."""
 
     JOBS_CACHE_S = 2.0
     PLAN_CACHE_S = 60          # the plan's draws are seeded by the minute (jobs.lumber_plan)
@@ -144,8 +146,9 @@ class OverseerDB:
         self.lock = threading.Lock()
         self.mem = None
         self.jobs_cache = {}
-        self.plan_cache = None     # (minute, plan): shared by every range, so a range change
-                                   # doesn't rerun the optimizer (~3 s on the 2026-10-05 store)
+        self.plan_lock = threading.Lock()
+        self.plan_mem = None
+        self.plan_cache = None     # (minute, body): ~3 s to compute on the 2026-10-05 store
 
     def _open(self, create: bool):
         if self.mem is None and (create or os.path.exists(self.path)):
@@ -157,6 +160,10 @@ class OverseerDB:
             if self.mem is not None:
                 self.mem.close()
                 self.mem = None
+        with self.plan_lock:
+            if self.plan_mem is not None:
+                self.plan_mem.close()
+                self.plan_mem = None
 
     def jobs(self, job: str, since: float, until: float | None, utc_offset_s: int) -> bytes:
         key = (job, since, until, utc_offset_s)
@@ -167,8 +174,6 @@ class OverseerDB:
                 return hit[1]
             mem = self._open(False)
             out = jobs_mod.analytics(mem, job, since, until, utc_offset_s=utc_offset_s)
-            if job == "lumber":
-                out["plan"] = self._plan(mem)
             out["store"] = mem is not None
             body = json.dumps(out).encode()
             if len(self.jobs_cache) > 16:
@@ -176,16 +181,23 @@ class OverseerDB:
             self.jobs_cache[key] = (now, body)
             return body
 
-    def _plan(self, mem):
-        """jobs.lumber_plan at the server's clock, recomputed once per wall-clock minute
-        (its seed), or None without a store. Caller holds the lock."""
-        if mem is None:
-            return None
-        t = time.time()
-        minute = int(t // self.PLAN_CACHE_S)
-        if self.plan_cache is None or self.plan_cache[0] != minute:
-            self.plan_cache = (minute, jobs_mod.lumber_plan(mem, t))
-        return self.plan_cache[1]
+    def plan(self) -> bytes:
+        """{plan, store}: jobs.lumber_plan at the server's clock, recomputed once per
+        wall-clock minute (its seed); plan null without a store. Concurrent callers wait
+        for one computation."""
+        with self.plan_lock:
+            t = time.time()
+            minute = int(t // self.PLAN_CACHE_S)
+            if self.plan_cache is not None and self.plan_cache[0] == minute:
+                return self.plan_cache[1]
+            if self.plan_mem is None and os.path.exists(self.path):
+                self.plan_mem = memory_mod.Memory(self.path)
+            mem = self.plan_mem
+            body = json.dumps({"plan": jobs_mod.lumber_plan(mem, t) if mem is not None else None,
+                               "store": mem is not None}).encode()
+            if mem is not None:
+                self.plan_cache = (minute, body)
+            return body
 
     def overseer(self, after_chat: int, after_juncture: int) -> dict:
         """Rows with id above the cursors, oldest first; a 0 cursor starts at the
@@ -436,6 +448,8 @@ class Handler(BaseHTTPRequestHandler):
             self._facet_chunk(url.path[len("/api/facet/"):-len(".png")])
         elif url.path == "/api/jobs":
             self._jobs(parse_qs(url.query))
+        elif url.path == "/api/jobs/plan":
+            self._send(200, self.server.overseer.plan())
         elif url.path == "/api/overseer":
             self._overseer(parse_qs(url.query))
         elif url.path == "/api/captcha":

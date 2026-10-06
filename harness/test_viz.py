@@ -443,15 +443,39 @@ def test_overseer_routes(logdir):
     srv = serve(d, port, path)
     try:
         got = get(base + "/api/jobs?job=lumber&tz=0")
-        plan = got.pop("plan")
-        want.pop("plan")
-        check("GET /api/jobs == jobs.analytics(store) + store flag + the plan at the server's clock (the seeded "
-              "trips name no character, so no home: ok false with the reason, the spots still ranked)",
-              got.pop("store") is True and json.dumps(got, sort_keys=True) == json.dumps(want, sort_keys=True)
-              and isinstance(plan, dict) and {r["id"] for r in plan["spots"]} >= {"horseshoe_bay", "terran_wilds"}
+        check("GET /api/jobs == jobs.analytics(store) + store flag, no plan (its own route)",
+              got.pop("store") is True and "plan" not in got
+              and json.dumps(got, sort_keys=True) == json.dumps(want, sort_keys=True))
+        pl = get(base + "/api/jobs/plan")
+        plan = pl["plan"]
+        check("GET /api/jobs/plan: the plan at the server's clock (the seeded trips name no character, so no "
+              "home: ok false with the reason, the spots still ranked)",
+              pl["store"] is True and isinstance(plan, dict)
+              and {r["id"] for r in plan["spots"]} >= {"horseshoe_bay", "terran_wilds"}
               and "shelter_island" not in {r["id"] for r in plan["spots"]} and plan["ok"] is False
               and plan["error"].startswith("no home in harness/data/homes.json for"),
               str(plan)[:300])
+        entered, release, real_plan = threading.Event(), threading.Event(), viz_server.jobs_mod.lumber_plan
+
+        def slow_plan(mem, t):
+            entered.set()
+            release.wait(10)
+            return real_plan(mem, t)
+        viz_server.jobs_mod.lumber_plan, srv.overseer.plan_cache = slow_plan, None
+        try:
+            pending = threading.Thread(target=get, args=(base + "/api/jobs/plan",), daemon=True)
+            pending.start()
+            entered.wait(5)
+            t0 = time.monotonic()
+            side = get(base + "/api/jobs?job=lumber&since=1&tz=0"), get(base + "/api/overseer")
+            waited = time.monotonic() - t0
+        finally:
+            release.set()
+            viz_server.jobs_mod.lumber_plan = real_plan
+        pending.join(10)
+        check("while the plan computes, /api/jobs and /api/overseer answer at once (the plan has its own lock)",
+              entered.is_set() and waited < 2 and side[0]["totals"]["trips"] == 3 and side[1]["store"] is True,
+              f"waited {waited:.2f} s")
         code, _ = get_status(base + "/api/jobs?tz=abc")
         check("GET /api/jobs bad tz: 400", code == 400, str(code))
         code, _ = get_status(base + "/api/jobs?since=soon")
@@ -524,6 +548,7 @@ def test_overseer_routes(logdir):
         ov = get(base + "/api/overseer")
         check("no store: /api/jobs empty with store=false", jb["store"] is False and jb["trips"] == []
               and jb["totals"]["trips"] == 0, str(jb["totals"]["trips"]))
+        check("no store: /api/jobs/plan null with store=false", get(base + "/api/jobs/plan") == {"plan": None, "store": False})
         hb = get(base + "/api/jobs?job=hunt")
         check("no store: /api/jobs?job=hunt is the hunt shape, empty, store=false",
               hb["store"] is False and hb["job"] == "hunt" and hb["visits"] == [] and hb["totals"]["kills"] == 0,

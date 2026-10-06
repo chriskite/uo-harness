@@ -728,7 +728,7 @@ _DEFAULT = object()
 
 
 def analytics(memory, job: str = "lumber", since: float = 0.0, until: float | None = None, woods=_DEFAULT,
-              utc_offset_s: int = 0, window_s: float = ROLLING_WINDOW_S, plan_now: float | None = None) -> dict:
+              utc_offset_s: int = 0, window_s: float = ROLLING_WINDOW_S) -> dict:
     """Analytics from a harness.memory.Memory, or empty ones for memory None (no store
     yet), over [since, until) (until None = open-ended); the store reads are bounded
     by the range too (indexes episodes_loop_t, job_events_job_t, harvest_attempts_t).
@@ -736,9 +736,9 @@ def analytics(memory, job: str = "lumber", since: float = 0.0, until: float | No
     from the store's board:<wood> price history. `woods`: a load_woods() dict, None for
     no fallback values, or default = harness/data/woods.json if present. Harvest
     outcomes come only for the lumber job (harvest_attempts has no job column).
-    Lumber: the supplies priced from the store's prices (lumber_opt.supply_gp) and,
-    with `plan_now` (the clock; the viz passes it), `plan` = lumber_plan() at that
-    time (all history, not the range), else null."""
+    Lumber: the supplies priced from the store's prices (lumber_opt.supply_gp). The
+    optimizer's plan is separate (lumber_plan, all history; the viz serves it on its own
+    route because it takes seconds)."""
     since = float(since)
     # no t_start bound when since <= 0: rows without t_start stay in the unbounded range (in_range)
     episodes = memory.episodes(job, since if since > 0 else None, until) if memory is not None else []
@@ -756,7 +756,6 @@ def analytics(memory, job: str = "lumber", since: float = 0.0, until: float | No
         gp = [lumber_opt.supply_gp(t["supplies"], prices) for t in out["trips"] if t["supplies"]]
         out["supplies"]["gp"] = round(sum(g for g, _ in gp), 1)
         out["supplies"]["unpriced"] = sum(u for _, u in gp)
-        out["plan"] = lumber_plan(memory, plan_now) if memory is not None and plan_now is not None else None
     return out
 
 
