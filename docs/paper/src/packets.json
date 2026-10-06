@@ -1,0 +1,60 @@
+{
+  "_doc": [
+    "Hover tooltips for packet ids in the paper (build.py PRERENDER_JS step 'packet tooltips').",
+    "ids: every 0xNN the text mentions as a packet id. The build fails on an id with no entry, so a new mention needs a line here.",
+    "sub: '<id> sub N' written in one run of text gets the sub's line appended. bf_sub: '... sub 0xNN' after 0xBF.",
+    "Names follow the Outlands client's own handler names (cuo_handler_table.json) and docs/PROTOCOL.md, docs/WORLDMODEL.md."
+  ],
+  "ids": {
+    "0x00": "0x00 (C2S) Create character in stock UO. Here only an artifact: leftover bytes framed as an '0x00 packet' by a wrong length table, and an id from the misdecoded phantom stream.",
+    "0x02": "0x02 (C2S) Walk request: one step in a direction (bit 0x80 = run), with a sequence number and a fastwalk key. 7 bytes.",
+    "0x06": "0x06 (C2S) Double-click: use an object (hatchet, door, book, container). 5 bytes.",
+    "0x08": "0x08 (C2S) Drop item into a container or onto the ground. 22 bytes on Outlands.",
+    "0x0B": "0x0B (S2C) Damage: the number shown over a mobile that took damage.",
+    "0x1B": "0x1B (S2C) Login confirm: the player's serial, body and position; the game scene starts.",
+    "0x20": "0x20 (S2C) Mobile update: a mobile's body, hue, flags and position (on Outlands any mobile, not only the player). A jump in our own position is a teleport.",
+    "0x21": "0x21 (S2C) Deny walk: the server refuses a step and puts the player back at x, y, z; the walk sequence resets. The proxy fabricates these toward the client as re-anchors after agent steps.",
+    "0x22": "0x22 (S2C) Confirm walk: the server accepts the step with that sequence number (plus our notoriety).",
+    "0x2F": "0x2F (S2C) Swing: an attacker swings at a defender (a fight in view).",
+    "0x3A": "0x3A (S2C) Skills: the full skill list, or one skill's update (value, base, lock, cap).",
+    "0x3F": "0x3F: no server-to-client handler in the Outlands client. In this paper an id the misdecoded 'phantom' stream produced.",
+    "0x40": "0x40: no server-to-client handler in the Outlands client. In this paper an id the misdecoded 'phantom' stream produced.",
+    "0x52": "0x52: no server-to-client handler in the Outlands client. In this paper an id the misdecoded 'phantom' stream produced.",
+    "0x6C": "0x6C (both) Target cursor: the server opens a cursor ('what do you want to use this on?'); the client answers it with an object, a ground tile or itself. 27 bytes on Outlands (19 upstream).",
+    "0x6F": "0x6F (both) Secure trade window between two players.",
+    "0x78": "0x78 (S2C) Mobile incoming: a creature or player with its equipment entering view.",
+    "0x91": "0x91 (C2S) Game-server login; on Outlands it carries the account and the session JWT.",
+    "0x9E": "0x9E (S2C) Vendor sell list: what an NPC will buy from you.",
+    "0xAD": "0xAD (C2S) Unicode speech; keyword-encoded like the stock client when speech.mul matches.",
+    "0xB0": "0xB0 (S2C) Gump: a server-defined dialog (layout, text, buttons).",
+    "0xB1": "0xB1 (C2S) Gump response: which button was pressed, plus switches and text entries.",
+    "0xB9": "0xB9 (S2C) Enable client features: the expansion flags the server allows.",
+    "0xBF": "0xBF (both) Extended command, with subcommands. Sub 1 seeds the fastwalk token, sub 2 pushes another, sub 4 closes a gump, sub 0x13/0x15 ask for and pick from a context menu, sub 0x19 carries extended stats.",
+    "0xC0": "0xC0 (S2C) Graphical effect (hued): a spell, sparkle or explosion. 52 bytes on Outlands (36 upstream).",
+    "0xC1": "0xC1 (S2C) Cliloc message: a numbered localized string with arguments.",
+    "0xC8": "0xC8 (both) View range. The server sets it at login (18 tiles on Outlands); the client forgets what lies beyond it.",
+    "0xCC": "0xCC (S2C) Cliloc message with an affix.",
+    "0xDC": "0xDC (S2C) Object property list revision: the tooltip hash of an item or mobile.",
+    "0xDD": "0xDD (S2C) Compressed gump: a dialog, zlib-compressed.",
+    "0xEF": "0xEF (C2S) Login seed. Stock clients send 21 bytes with the client version; Outlands sends a 5-byte cleartext preamble, ef 00 00 00 0c (protocol version 12).",
+    "0xF3": "0xF3 (S2C) World item: an item or a multi (house) entering view. 38 bytes on Outlands (26 upstream).",
+    "0xFF": "0xFF (both) Outlands' own protocol envelope, with subcommands: 0 handshake (the 13-byte prelude), 3 time sync (the keepalive), 4 cast spell, 5 the once-a-second range-prune tick, 8/9 buffs, 0x15 item names, 0xDEAD corpse data."
+  },
+  "sub": {
+    "0xBF": {
+      "1": "Sub 1: fastwalk seed; arms the token the next walk must carry.",
+      "2": "Sub 2: pushes one more fastwalk token.",
+      "4": "Sub 4: close a generic gump."
+    },
+    "0xFF": {
+      "3": "Sub 3: time sync, the client's ~1/s keepalive and the server's reply.",
+      "4": "Sub 4: cast a spell (spell id).",
+      "5": "Sub 5: ProcessDeletes, empty, about once a second; the client drops every mobile and item beyond its view range."
+    }
+  },
+  "bf_sub": {
+    "0x13": "0xBF sub 0x13 (C2S) Context-menu request: ask an NPC or house steward for its menu.",
+    "0x15": "0xBF sub 0x15 (C2S) Context-menu pick: the entry chosen from that menu.",
+    "0x19": "0xBF sub 0x19 (S2C) Extended stats: a bonded pet's status (subtype 0) or stat locks (subtype 2)."
+  }
+}

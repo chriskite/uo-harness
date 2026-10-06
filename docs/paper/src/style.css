@@ -203,6 +203,9 @@ svg.diagram { width: 100%; height: auto; font-family: var(--sans); }
 .diagram .d-edge.both { marker-start: url(#arr-start); }
 .diagram .d-elabel { font-size: 11px; fill: var(--ink-2); paint-order: stroke; stroke: var(--paper); stroke-width: 4px; }
 
+/* packet ids explain themselves on hover (build.py, packets.json) */
+abbr.pkt { text-decoration: underline dotted var(--ink-3); text-underline-offset: .18em; cursor: help; }
+
 /* ---------- callouts ---------- */
 .callout {
   border: 1px solid var(--rule); border-left: 4px solid var(--accent); background: var(--paper);

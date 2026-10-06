@@ -11,7 +11,8 @@ Steps:
      (fixed rough.js seed, labelled by its figcaption), .math elements (TeX) -> MathML via temml,
      figure SVGs get a scroll wrapper and their natural width (narrow-screen minimum, style.css),
      section/figure/table/equation numbering, <a class="ref" href="#id"></a> cross-references,
-     the tables of contents
+     hover tooltips on packet ids from packets.json (<abbr class="pkt" title> in text, an SVG
+     <title> on diagram and chart text), the tables of contents
   4. strip the build-time scripts and write the static page
 
 --pseudonymize builds the shareable edition from the same sources with the rules in pseudonyms.json:
@@ -21,13 +22,15 @@ captions, mermaid sources, byline, plus an edition note), and the finished page 
 of the rules' forbidden patterns is still in it.
 
 Needs: pip install playwright && python -m playwright install chromium; `bun install` in this dir
-(mermaid + temml). Fails on a broken diagram, bad TeX, a duplicate id or a dangling reference.
+(mermaid + temml). Fails on a broken diagram, bad TeX, a duplicate id, a dangling reference or a
+packet id that packets.json does not describe.
 """
 from __future__ import annotations
 
 import argparse
 import glob
 import html
+import json
 import os
 import re
 import shutil
@@ -41,7 +44,7 @@ OUT = SRC.parent / "uo-harness-paper.html"
 INCLUDE = re.compile(r"<!--#include\s+(\S+?)\s*-->")
 
 PRERENDER_JS = r"""
-async () => {
+async (PACKETS) => {
   const errors = [];
   const slug = s => s.toLowerCase().replace(/<[^>]+>/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
 
@@ -185,6 +188,70 @@ async () => {
     if (id && !document.getElementById(id)) errors.push('dangling link: #' + id);
   }
 
+  // 3c. packet tooltips: every 0xNN packet id explains itself on hover (packets.json). Text in
+  // HTML gets <abbr class="pkt" title>; an SVG <text> (diagrams, charts) gets a <title> child.
+  // Hex that is not a packet id is left alone: sizes ("0x12 bytes"), offsets ("+0x71"), flags
+  // ("|0x80", "flag 0x40"), the sequence wrap ("0xFF → 1"). "sub 0xNN" is an 0xBF subcommand.
+  const PKT = /0x([0-9A-Fa-f]{2})(?![0-9A-Fa-f])(?:\s+sub\s+(\d+))?/g;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, { acceptNode: n =>
+    n.parentElement.closest('head, script, style, title, .math, abbr.pkt') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  const texts = [];
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) texts.push(n);
+  const before = (i, off) => { let s = texts[i].data.slice(0, off); for (let j = i - 1; j >= 0 && s.length < 12; j--) s = texts[j].data + s; return s.slice(-12); };
+  const after = (i, off) => { let s = texts[i].data.slice(off); for (let j = i + 1; j < texts.length && s.length < 12; j++) s += texts[j].data; return s.slice(0, 12); };
+  const plan = [];
+  let pktSkipped = 0;
+  texts.forEach((node, i) => {
+    const hits = [];
+    for (const m of node.data.matchAll(PKT)) {
+      const id = '0x' + m[1].toUpperCase(), b = before(i, m.index), a = after(i, m.index + m[0].length);
+      if (/[+|]\s*$|flag\s*$/.test(b) || /^(-byte|\s+bytes\b|\s*→)/.test(a)) { pktSkipped++; continue; }
+      let tip;
+      if (/sub\s*$/.test(b)) tip = PACKETS.bf_sub[id];  // text nodes join without spaces: "extended" + "sub "
+      else {
+        tip = PACKETS.ids[id];
+        const sub = m[2] && (PACKETS.sub[id] || {})[m[2]];
+        if (tip && sub) tip += ' ' + sub;
+      }
+      if (!tip) { errors.push('no packets.json tooltip for ' + id + ' in "' + (b + m[0] + a).replace(/\s+/g, ' ').trim() + '"'); continue; }
+      hits.push([m.index, m[0].length, tip]);
+    }
+    if (hits.length) plan.push([node, hits]);
+  });
+  const svgTips = new Map();
+  let pktTips = 0;
+  for (const [node, hits] of plan) {
+    const el = node.parentElement;
+    if (el.closest('svg') && !el.closest('foreignObject')) {
+      const text = el.closest('text');
+      if (!text) continue;
+      const set = svgTips.get(text) || new Set();
+      hits.forEach(h => set.add(h[2]));
+      svgTips.set(text, set);
+      pktTips += hits.length;
+      continue;
+    }
+    const frag = document.createDocumentFragment();
+    let pos = 0;
+    for (const [at, len, tip] of hits) {
+      if (at > pos) frag.append(node.data.slice(pos, at));
+      const ab = document.createElement('abbr');
+      ab.className = 'pkt';
+      ab.title = tip;
+      ab.textContent = node.data.slice(at, at + len);
+      frag.append(ab);
+      pos = at + len;
+      pktTips++;
+    }
+    if (pos < node.data.length) frag.append(node.data.slice(pos));
+    node.replaceWith(frag);
+  }
+  for (const [text, set] of svgTips) {
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    t.textContent = [...set].join('\n');
+    text.prepend(t);
+  }
+
   // 4. tables of contents
   const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const item = e => '<li><a href="#' + e.id + '">' + (e.label ? '<span class="num">' + e.label + '</span>' : '') + esc(e.text) + '</a>' +
@@ -197,7 +264,7 @@ async () => {
 
   document.querySelectorAll('head script').forEach(s => s.remove());
   const words = (document.querySelector('main').innerText.match(/\S+/g) || []).length;
-  return { errors, words, figures: nf, tables: nt, equations: ne, sections: toc.length, diagrams: k };
+  return { errors, words, figures: nf, tables: nt, equations: ne, sections: toc.length, diagrams: k, pktTips, pktSkipped };
 }
 """
 
@@ -261,7 +328,7 @@ def prerender(assembled: Path) -> tuple[str, dict]:
         page.add_script_tag(path=str(SRC / "node_modules" / "mermaid" / "dist" / "mermaid.min.js"))
         page.add_script_tag(path=str(SRC / "node_modules" / "temml" / "dist" / "temml.min.js"))
         page.evaluate("document.fonts.ready")
-        stats = page.evaluate(PRERENDER_JS)
+        stats = page.evaluate(PRERENDER_JS, json.loads((SRC / "packets.json").read_text(encoding="utf-8")))
         stats["errors"] += [f"page error: {c}" for c in console]
         out = page.content()
         browser.close()
@@ -324,7 +391,8 @@ def main() -> None:
         print("ERROR", e)
     print(f"wrote {out_path}: {out_path.stat().st_size/1024:.0f} KB, "
           f"{stats['words']} words, {stats['sections']} sections, {stats['figures']} figures "
-          f"({stats['diagrams']} mermaid), {stats['tables']} tables, {stats['equations']} numbered equations")
+          f"({stats['diagrams']} mermaid), {stats['tables']} tables, {stats['equations']} numbered equations, "
+          f"{stats['pktTips']} packet tooltips ({stats['pktSkipped']} non-packet hex left alone)")
     if errors:
         sys.exit(1)
 
