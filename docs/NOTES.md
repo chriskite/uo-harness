@@ -767,6 +767,22 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   an unreachable plan costs ~0.9 s exhausting 30000 nodes), so next_stand skipped it and picked far trees
   again. Now rethink plans the nearer trees' routes, switches only if 8 steps shorter, and hands that
   tree to next_stand; trees with no route leave the trip's candidates.
+- **A late recall arrival left Dan at a hot landing (lumber-20261006-101348-70b3, witcher_23, Seer7,
+  ~10:15, a death):** the recall out from the DTF tome ("Ruined Snow Fortress") landed after 5.18 s
+  (the power words came, the cast ran 4.92 s). `escape._arrival` gave up at `ARRIVE_WAIT_S` (5 s)
+  with "no arrival", and the retry needed the tome, now out of reach ("0x400D6218 is not a runebook or
+  rune tome"). The run aborted with Dan already at the landing (1705,613), on foot (the mount
+  rests until a successful recall out), at 79 hits and falling. The overseer's `act recall` then
+  failed ("book's gump didn't open") and he died. Now, once our power words are heard, the arrival
+  wait runs at least `LATE_ARRIVAL_S` (10 s) past them (`test_escape.py`
+  `test_escape_late_arrival`, failing before). Why it was late (Seer7, from the session log): Kal Ort
+  Por at 10:14:17.7, then "The world is saving" / "World save complete" (10:14:18–21), which
+  delayed the landing to 10:14:22.8. The runner had exited at 10:14:23, so Dan stood dismounted for
+  ~15 s while a snow elemental (0x005C4FC1) swung from 10:14:27.8: −21, −23, −27, −30, dead at
+  10:14:37.9. The overseer's book clicks at 10:14:44 came from a ghost (cliloc 1019048). Lost on the
+  corpse (1705,613): the six-piece exceptional shadowhide harvest-aspect studded set, the GM bronze
+  hatchet 0x6270D238, the trapped pouches, reagents and potions. The room shelf then had none of
+  those ("No resupply:" for each); it gave a plain downgraded hatchet.
 - **Out-of-reach run stood still planning (lumber-20261006-095344-7066, witcher_23, Seer7, 09:54):** a
   snow elemental followed an escape, so monster_stop ran `gain_distance`; its walk to an escape
   goal had no route bound, and the search took 8 s (09:54:09 → 09:54:17) while Dan stood and fell

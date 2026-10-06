@@ -56,6 +56,7 @@ RECALL = combat.spell_id("recall")
 RECALL_MANA = combat.spell_mana(RECALL)   # 4th circle: 11; TestWorth spent 10 live
 GUMP_WAIT_S = 2.0                 # double-click -> the book's gump (48 ms live)
 ARRIVE_WAIT_S = 5.0               # press -> arrival (2.05-2.09 s live)
+LATE_ARRIVAL_S = 10.0             # after our power words, how long an arrival may still come (5.18 s seen live)
 JUMP_TILES = 2                    # an own-position change this large while frozen = arrived
 RECLICK_S = 0.6                   # no gump this long after the double-click: click once more
 RECALL_CAST_S = 2.0               # power words -> arrival 1.95-2.09 s (34 live recalls)
@@ -637,7 +638,10 @@ def _recharging(io, book, kind, me, world, start, facet, t0, mana, rune, entry, 
 
 def _arrival(io, me, kind, method, rune, name, start, facet, t0, charges, timeout) -> dict:
     """Wait for the recall just pressed (or cast) to land: a position jump of JUMP_TILES or a facet
-    change; a failure message ends it."""
+    change; a failure message ends it. Once our power words are heard the wait runs at least
+    LATE_ARRIVAL_S past them: live 2026-10-06 (lumber-20261006-101348-70b3) a recall out landed
+    after 5.18 s, read as "no arrival", and the retry from the tome no longer in reach left Dan
+    on foot at a hot landing; he died there."""
     pressed = time.monotonic()
     end = pressed + timeout
     why, words = None, None
@@ -647,6 +651,7 @@ def _arrival(io, me, kind, method, rune, name, start, facet, t0, charges, timeou
             if words is None and ev.get("ev") == "speech_heard" and ev.get("type") == 10 \
                     and ev.get("serial") == me:
                 words = time.monotonic()          # our power words: the server started the cast
+                end = max(end, words + LATE_ARRIVAL_S)
             why = why or failure(ev, me)
         pos = st["movement"]["pos"]
         moved = pos is not None and cheb(start, pos[:2]) >= JUMP_TILES

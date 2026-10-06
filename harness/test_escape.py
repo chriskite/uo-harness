@@ -382,7 +382,8 @@ class Server:
 
     L = 0.03                                    # one-way latency
 
-    def __init__(self, hits=(), death_at=None, recovered_at=0.0, refuse=None):
+    def __init__(self, hits=(), death_at=None, recovered_at=0.0, refuse=None, lag=0.0):
+        self.lag = lag                          # extra server delay before a cast lands (live 2026-10-06: 5.18 s)
         self.t = 0.0
         self.hits = sorted(hits)
         self.death_at = death_at
@@ -418,7 +419,7 @@ class Server:
             self.queue.append((s + self.L, {"ev": "cliloc", "cliloc": 502644}))
             return
         self.queue.append((s + self.L, {"ev": "speech_heard", "type": 10, "serial": ME, "text": "Kal Ort Por"}))
-        end = s + 2.0
+        end = s + 2.0 + self.lag
         hit = next((h for h in self.hits if s <= h < end), None)
         if hit is None:
             self.moves.append((end + self.L, [1500, 1600, 0]))
@@ -505,12 +506,22 @@ def test_escape_stops():
           r["tries"])
 
 
+def test_escape_late_arrival():
+    # live 2026-10-06 (lumber-20261006-101348-70b3): a recall out landed 5.18 s after the press, past ARRIVE_WAIT_S;
+    # read as "no arrival", the retry from a tome no longer in reach failed and Dan was left at a hot landing
+    s = Server(lag=3.2)
+    r = run_escape(s)
+    check("a recall that lands 5.2 s after the press is an arrival, after one cast",
+          r["ok"] and len(s.casts) == 1 and r["attempts"] == 1 and r["press_to_arrival_s"] > escape.ARRIVE_WAIT_S,
+          (r.get("failure"), s.casts, r.get("press_to_arrival_s")))
+
+
 if __name__ == "__main__":
     for t in (test_runebook, test_sextant, test_runebook_entries, test_runebook_read_and_recall_by_name,
               test_recharging_book,
               test_runetome, test_library_tome_read, test_failures, test_can_cast, test_find_books,
               test_disturb_recovery_fits_live_retries, test_escape_nusero_replay, test_escape_early_disturb,
-              test_escape_stops):
+              test_escape_stops, test_escape_late_arrival):
         print(t.__name__)
         t()
     print("FAILED: " + ", ".join(FAILURES) if FAILURES else "ALL PASS")
