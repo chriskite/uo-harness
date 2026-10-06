@@ -20,7 +20,7 @@ logs/               10 committed capture sessions</code></pre>
 <figure class="fig" id="fig-app-repo-loc"><!--#include figures/21_loc_by_layer.svg--><figcaption>Lines of code by layer at HEAD. The layer assignment is this appendix's own (tables below). Within the harness core, runners and the overseer's tools are the two big blocks; tests add up to about half the size of the harness core. Source: <code>data/21_loc_by_layer.json</code>, newline counts in the working tree at <code>afbbf71</code>, 2026-10-05.</figcaption></figure>
 
 <h3 id="app-repo-core">Harness modules by layer</h3>
-<p>Purposes are condensed from each module's docstring. Each table is sorted by size. Several modules could sit in two layers. For example, <code>agent_gate.py</code> lives in the runners table but is enforced inside the proxy; <code>memory.py</code> is written by the proxy and read by everyone. We placed each one where its main caller lives.</p>
+<p>Purposes are condensed from each module's docstring. Each table is sorted by size. Several modules could sit in two layers. For example, <code>agent_gate.py</code> lives in the runners table but is enforced inside the proxy; <code>memory.py</code> is written by the proxy and read by everyone (<a class="ref" href="#sec-memory"></a>). We placed each one where its main caller lives.</p>
 <figure class="tbl" id="tab-app-repo-proxy"><figcaption>The proxy and protocol layer: interception, framing, ciphers and packet builders. 17 files, 3,010 lines.</figcaption><div class="tbl-scroll"><table class="compact">
 <thead><tr><th>Module (<code>harness/</code>)</th><th class="num">Lines</th><th>Purpose</th></tr></thead>
 <tbody>

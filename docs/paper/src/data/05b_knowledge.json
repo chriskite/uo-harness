@@ -1,0 +1,123 @@
+{
+ "_source": "harness/data/harness.db knowledge table, read-only copy; no knowledge row was created after 2026-10-05 20:10 CDT, so the counts equal the 20:30 snapshot. composition: SELECT source_type, kind, count(*) FROM knowledge WHERE status='active' GROUP BY 1,2. importance: SELECT source_type, importance, count(*) ... status='active'. returned: SELECT source_type, count(*), sum(access_count>0), sum(access_count) FROM knowledge WHERE status='active' GROUP BY 1 (access_count counts every search/brief result, including ctl calls coding agents made while testing; read on a copy made ~23:35 CDT; no knowledge row has last_access_t after 20:30, so access stats equal the snapshot).",
+ "status": {
+  "active": 3715,
+  "retracted": 26,
+  "superseded": 366
+ },
+ "active_by_source_kind": {
+  "community": {
+   "fact": 2929,
+   "procedure": 459
+  },
+  "doc": {
+   "fact": 137,
+   "procedure": 36
+  },
+  "inferred": {
+   "insight": 1
+  },
+  "observed": {
+   "episode": 28,
+   "fact": 53,
+   "insight": 18,
+   "procedure": 17
+  },
+  "user": {
+   "episode": 2,
+   "fact": 4,
+   "insight": 2,
+   "preference": 14,
+   "procedure": 5
+  },
+  "wiki": {
+   "fact": 10
+  }
+ },
+ "importance_by_source": {
+  "community": {
+   "1": 26,
+   "2": 679,
+   "3": 1791,
+   "4": 817,
+   "5": 74,
+   "6": 1
+  },
+  "doc": {
+   "1": 7,
+   "2": 67,
+   "3": 74,
+   "4": 20,
+   "5": 5
+  },
+  "inferred": {
+   "9": 1
+  },
+  "observed": {
+   "3": 2,
+   "4": 4,
+   "5": 15,
+   "6": 28,
+   "7": 42,
+   "8": 21,
+   "9": 4
+  },
+  "user": {
+   "4": 1,
+   "5": 2,
+   "6": 5,
+   "7": 3,
+   "8": 8,
+   "9": 7,
+   "10": 1
+  },
+  "wiki": {
+   "6": 1,
+   "7": 5,
+   "8": 2,
+   "9": 2
+  }
+ },
+ "returned_by_source": {
+  "community": {
+   "active": 3388,
+   "returned": 232,
+   "accesses": 331
+  },
+  "doc": {
+   "active": 173,
+   "returned": 26,
+   "accesses": 30
+  },
+  "inferred": {
+   "active": 1,
+   "returned": 0,
+   "accesses": 0
+  },
+  "observed": {
+   "active": 116,
+   "returned": 95,
+   "accesses": 642
+  },
+  "user": {
+   "active": 27,
+   "returned": 24,
+   "accesses": 238
+  },
+  "wiki": {
+   "active": 10,
+   "returned": 6,
+   "accesses": 23
+  }
+ },
+ "confidence_active": {
+  "0.5": 1,
+  "0.65": 2172,
+  "0.7": 659,
+  "0.75": 273,
+  "0.8": 292,
+  "0.85": 175,
+  "0.9": 110,
+  "0.95": 33
+ }
+}

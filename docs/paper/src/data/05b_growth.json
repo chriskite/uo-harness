@@ -1,0 +1,211 @@
+{
+ "_source": "harness/data/harness.db, read through a mode=ro connection (copied with the SQLite online backup API), rows with their own timestamp < 1791250200 (2026-10-05 20:30 CDT), grouped by local day date(t - 5*3600, 'unixepoch'). events: SELECT date(t-5*3600,'unixepoch'), origin, count(*) FROM events WHERE t < 1791250200 GROUP BY 1, 2; walk_moves by first_t; harvest_attempts by t; bus = junctures (t) + chat (t) + job_events (t) + episodes (t_start); knowledge by created_t. Days 09-28/09-29 include the 25 ingested captures, replayed with their original timestamps. Store size: the hourly NAS backups \\\\STARGAZER\\files\\uo-harness\\db\\harness-*.db.gz up to the 20:00 one (older snapshots were thinned by retention); db_bytes = the gzip trailer's ISIZE (uncompressed size mod 2^32), gz_bytes = file size.",
+ "cutoff_local": "2026-10-05T20:30",
+ "days": [
+  "2026-09-28",
+  "2026-09-29",
+  "2026-09-30",
+  "2026-10-01",
+  "2026-10-02",
+  "2026-10-03",
+  "2026-10-04",
+  "2026-10-05"
+ ],
+ "series": {
+  "events_world": [
+   15426,
+   67615,
+   128511,
+   58835,
+   229715,
+   446331,
+   85342,
+   388985
+  ],
+  "events_proxy": [
+   13,
+   4888,
+   31049,
+   21660,
+   55495,
+   86088,
+   5973,
+   60198
+  ],
+  "walk_moves": [
+   195,
+   1776,
+   5386,
+   2413,
+   4259,
+   7718,
+   578,
+   4956
+  ],
+  "harvest_attempts": [
+   0,
+   51,
+   69,
+   481,
+   1065,
+   1287,
+   119,
+   2121
+  ],
+  "bus": [
+   0,
+   5,
+   835,
+   269,
+   868,
+   1456,
+   151,
+   1054
+  ],
+  "knowledge": [
+   0,
+   0,
+   84,
+   12,
+   28,
+   852,
+   3110,
+   21
+  ]
+ },
+ "labels": {
+  "events_world": "events, world model",
+  "events_proxy": "events, proxy",
+  "walk_moves": "walk_moves (new keys)",
+  "harvest_attempts": "harvest_attempts",
+  "bus": "junctures + chat + job_events + episodes",
+  "knowledge": "knowledge"
+ },
+ "backups": [
+  {
+   "snapshot_local": "2026-10-01T23:00",
+   "gz_bytes": 9176419,
+   "db_bytes": 52158464
+  },
+  {
+   "snapshot_local": "2026-10-02T23:00",
+   "gz_bytes": 17251223,
+   "db_bytes": 99237888
+  },
+  {
+   "snapshot_local": "2026-10-03T23:00",
+   "gz_bytes": 33365865,
+   "db_bytes": 187961344
+  },
+  {
+   "snapshot_local": "2026-10-04T12:00",
+   "gz_bytes": 33538101,
+   "db_bytes": 188923904
+  },
+  {
+   "snapshot_local": "2026-10-04T12:45",
+   "gz_bytes": 39214319,
+   "db_bytes": 198868992
+  },
+  {
+   "snapshot_local": "2026-10-04T12:45",
+   "gz_bytes": 39217309,
+   "db_bytes": 198881280
+  },
+  {
+   "snapshot_local": "2026-10-04T13:00",
+   "gz_bytes": 39275795,
+   "db_bytes": 199217152
+  },
+  {
+   "snapshot_local": "2026-10-04T14:00",
+   "gz_bytes": 39454131,
+   "db_bytes": 200232960
+  },
+  {
+   "snapshot_local": "2026-10-04T15:28",
+   "gz_bytes": 39454130,
+   "db_bytes": 200232960
+  },
+  {
+   "snapshot_local": "2026-10-04T16:07",
+   "gz_bytes": 39455664,
+   "db_bytes": 200237056
+  },
+  {
+   "snapshot_local": "2026-10-04T17:00",
+   "gz_bytes": 39939213,
+   "db_bytes": 206516224
+  },
+  {
+   "snapshot_local": "2026-10-04T18:00",
+   "gz_bytes": 40554819,
+   "db_bytes": 210374656
+  },
+  {
+   "snapshot_local": "2026-10-04T19:00",
+   "gz_bytes": 40802647,
+   "db_bytes": 212049920
+  },
+  {
+   "snapshot_local": "2026-10-04T23:00",
+   "gz_bytes": 41335751,
+   "db_bytes": 215191552
+  },
+  {
+   "snapshot_local": "2026-10-05T10:00",
+   "gz_bytes": 41517772,
+   "db_bytes": 216387584
+  },
+  {
+   "snapshot_local": "2026-10-05T11:00",
+   "gz_bytes": 42265851,
+   "db_bytes": 221011968
+  },
+  {
+   "snapshot_local": "2026-10-05T12:00",
+   "gz_bytes": 42491924,
+   "db_bytes": 222502912
+  },
+  {
+   "snapshot_local": "2026-10-05T13:00",
+   "gz_bytes": 43688929,
+   "db_bytes": 229724160
+  },
+  {
+   "snapshot_local": "2026-10-05T14:00",
+   "gz_bytes": 45015413,
+   "db_bytes": 237604864
+  },
+  {
+   "snapshot_local": "2026-10-05T15:00",
+   "gz_bytes": 45672523,
+   "db_bytes": 241954816
+  },
+  {
+   "snapshot_local": "2026-10-05T16:00",
+   "gz_bytes": 45892816,
+   "db_bytes": 243474432
+  },
+  {
+   "snapshot_local": "2026-10-05T17:00",
+   "gz_bytes": 48202656,
+   "db_bytes": 257753088
+  },
+  {
+   "snapshot_local": "2026-10-05T18:00",
+   "gz_bytes": 49925852,
+   "db_bytes": 267943936
+  },
+  {
+   "snapshot_local": "2026-10-05T19:00",
+   "gz_bytes": 51112827,
+   "db_bytes": 275038208
+  },
+  {
+   "snapshot_local": "2026-10-05T20:00",
+   "gz_bytes": 52151054,
+   "db_bytes": 281870336
+  }
+ ]
+}

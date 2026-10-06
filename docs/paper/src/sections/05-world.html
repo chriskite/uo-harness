@@ -1,6 +1,6 @@
 <section id="sec-world">
-<h2>World model, maps and memory</h2>
-<p class="lead">The agent knows only what the stock client knows, rebuilt from packets; it walks only where the client would let it walk, from map files we had to reverse-engineer first; and everything it experiences lands in one SQLite file that never leaves the owner's hands.</p>
+<h2>World model and maps</h2>
+<p class="lead">The agent knows only what the stock client knows, rebuilt from packets, and it walks only where the client would let it walk, from map files we had to reverse-engineer first. Everything it experiences is handed on to the memory store (<a class="ref" href="#sec-memory"></a>).</p>
 
 <h3 id="sec-world-model">A mirror of the client, not a better client</h3>
 
@@ -8,7 +8,7 @@
 
 <p>Declarative tables (<code>layouts.py</code>) feed one bounds-checked big-endian reader; procedural parsers cover list and flag packets. <code>WorldRuntime</code> dispatches 46 server-to-client and 17 client-to-server packet ids into a <code>StateStore</code>: <code>self</code> (position, vitals, gold, weight, facet, skills), <code>mobiles</code>, <code>items</code> as a container tree, open <code>gumps</code> (UO's server-defined dialog windows), the target cursor, buffs and names: "Last-write-wins entity snapshots plus the lazy name map." Client traffic counts as input too: a walk request stays pending until the server's 0x22 confirm, and the self position moves only on confirms, which matched the proxy's own position at all 23,652 settled points of a replay <span class="src">1520d7e</span>.</p>
 
-<p>Each change also comes out as an event: the world model emits <code>item_seen</code>, <code>delete</code>, <code>speech_heard</code>, <code>death</code>, …, and the proxy's MoveAuthority adds its own <code>step</code> and <code>blocked</code> events. The proxy keeps the newest 5,000 in a ring for state-port readers and hands every one to the memory store. The overseer's "journal" is just a filter over that stream (<code>ctl journal</code>).</p>
+<p>Each change also comes out as an event: the world model emits <code>item_seen</code>, <code>delete</code>, <code>speech_heard</code>, <code>death</code>, …, and the proxy's MoveAuthority adds its own <code>step</code> and <code>blocked</code> events. The proxy keeps the newest 5,000 in a ring for state-port readers and hands every one to the memory store, which keeps them all and derives walk evidence from the steps and denies (<a class="ref" href="#sec-memory-episodic"></a>). The overseer's "journal" is just a filter over that stream (<code>ctl journal</code>).</p>
 
 <aside class="side">The 18-tile view range was a surprise: Outlands sends <code>c8 12</code>, against ClassicUO's default of 24.</aside>
 <p>Forgetting was the subtle part. On 2026-10-01 the overseer cast Lightning at mongbats that the model still held and the client had long dropped, and the server answered "That is too far away." Since then the model prunes exactly as the decompiled <code>World.ProcessDeletes</code> does: on the roughly once-a-second 0xFF sub 5 tick and on every self move, drop whatever lies beyond the view range set by S2C 0xC8. All 395 range prunes in one session landed within −0.68 to +0.06 s of the client's own close-status packet for the same serial <span class="src">docs/WORLDMODEL.md "Pruning"</span>.</p>
@@ -120,72 +120,6 @@ max_expand     = 30000  # A* node budget (3-D)</code></pre>
 
 <figure class="fig wide" id="fig-world-reach">
 <div class="frame"><!--#include figures/05_reach.svg--></div>
-<figcaption>Where the agent has walked, and where the libraries can drop it. Blue cells are 8×8-tile bins holding distinct facet-0 tiles with at least one server-confirmed step (darker = more tiles); circles are the 359 Witcher landing tiles of the public table (the DTF copies, 58 of which differ, are not plotted), triangles the DTF library's named places (457 of 479 fall inside this crop). Walking stays in small patches around Shelter Island, groves and towns (only 115 walked tiles lie within 60 of the DTF house, which is entered and left by recall), while the runes cover the continent. Source: memory DB <code>walk_moves</code> (facet 0, ok = 1), one read-only query of tiles first confirmed by 2026-10-05 20:37:46 CDT (18,966 tiles by then, against 18,751 in the ≈20:25 CDT snapshot quoted in the text); <code>harness/data/rune_libraries.json</code>.</figcaption>
+<figcaption>Where the agent has walked, and where the libraries can drop it. Blue cells are 8×8-tile bins holding distinct facet-0 tiles with at least one server-confirmed step (darker = more tiles); circles are the 359 Witcher landing tiles of the public table (the DTF copies, 58 of which differ, are not plotted), triangles the DTF library's named places (457 of 479 fall inside this crop). Walking stays in small patches around Shelter Island, groves and towns (only 115 walked tiles lie within 60 of the DTF house, which is entered and left by recall), while the runes cover the continent. Source: memory DB <code>walk_moves</code> (facet 0, ok = 1), one read-only query of tiles first confirmed by 2026-10-05 20:37:46 CDT (18,966 tiles by then, against 18,751 in the ≈20:25 CDT snapshot quoted in <a class="ref" href="#sec-memory-store"></a>); <code>harness/data/rune_libraries.json</code>.</figcaption>
 </figure>
-
-<h3 id="sec-world-memory">One SQLite file for everything</h3>
-
-<p>Everything the harness experiences goes into <code>harness/data/harness.db</code>: SQLite in WAL mode with <code>synchronous=NORMAL</code>, gitignored because it "is runtime memory, not engineering knowledge, and it is never committed." It replaced three JSON/JSONL files in one cut-over at 22:06 on 2026-09-29, the same evening as the map <span class="src">7a3e26f</span>.</p>
-
-<div class="callout decision"><p class="callout-title">Decision</p><p>SQLite, because it is durable (the WAL survives crashes), indexed, in the standard library, and lets the proxy, runners, viz, <code>ctl</code>, overseer and Telegram bridge all read concurrently while writers take turns (one writer at a time). Rejected: JSON files (<code>walkmem.json</code> "was 2D, facet-less and rewritten whole"), Postgres ("needs a service"), DuckDB ("analytics-first, not in the stdlib, single-writer file lock").</p></div>
-
-<p>The proxy's <code>MemoryWriter</code> is built so that "the relay never waits on disk": <code>record()</code> only enqueues, and a daemon thread inserts events plus derived walk rows, committing every 0.25 s or 500 rows. <code>walk_moves</code> is keyed on (facet, x, y, z, dir, ok) with a hit count. A move counts as blocked only while its latest deny is newer than its latest confirm, because "doors and mobiles block only for a while." Each open runs <code>CREATE … IF NOT EXISTS</code>, so additive tables arrived without migrations. The schema reached v5: v4 added <code>knowledge</code> and its FTS5 index as the overseer's long-term memory (<a class="ref" href="#sec-seer"></a>), later joined by a vector table without a schema bump, and v5 added <code>lumber_spots</code> and <code>prices</code>.</p>
-
-<figure class="fig" id="fig-world-er">
-<pre class="mermaid">erDiagram
-  sessions ||--o{ events : "records"
-  events ||..o{ walk_moves : "derives (MemoryWriter)"
-  harvest_nodes ||--o{ harvest_attempts : "node key"
-  knowledge ||--|| knowledge_vec : "embedding"
-  knowledge ||--|| knowledge_fts : "FTS5 triggers"
-  sessions { int id PK
-    text tag
-    text source }
-  events { int session PK
-    int seq PK
-    real t
-    text ev
-    json data }
-  walk_moves { int facet PK
-    int x PK
-    int y PK
-    int z PK
-    int dir PK
-    int ok PK
-    int n }
-  harvest_nodes { int facet PK
-    int x PK
-    int y PK
-    int z PK
-    real depleted_at }
-  harvest_attempts { real t
-    text outcome
-    int amount }
-  knowledge { int id PK
-    text kind
-    real confidence
-    text status }
-</pre>
-<figcaption>The three linked groups of tables in the memory store (schema v5): the event log and the walk evidence derived from it, harvest memory, and the overseer's knowledge with its embedding and full-text companions. <code>episodes</code>, <code>junctures</code>, <code>chat</code>, <code>job_events</code>, <code>teleporters</code>, <code>guard_points</code>, <code>lumber_spots</code>, <code>prices</code> and <code>meta</code> stand alone; <code>meta</code> doubles as a cross-process bus (captcha mode, overseer tasks and cursors). Source: <code>harness/memory.py</code> <code>SCHEMA</code>, docs/MEMORY.md.</figcaption>
-</figure>
-
-<div class="kpis">
-<div class="kpi"><b>1,685,252</b><span>events (world 1,419,888 / proxy 265,364)</span></div>
-<div class="kpi green"><b>18,751</b><span>distinct facet-0 tiles stood on, from 27,281 walk rows</span></div>
-<div class="kpi gold"><b>18,757</b><span>logs from 2,400 successful chops, among 5,193 harvest rows</span></div>
-<div class="kpi purple"><b>289 MB</b><span>store size, plus a 4.4 MB WAL, on 2026-10-05</span></div>
-</div>
-
-<figure class="fig" id="fig-world-tables">
-<div class="frame"><!--#include figures/05_db_tables.svg--></div>
-<figcaption>Rows per table, log scale, coloured by main writer. Events outnumber walk evidence about 60 to 1 and every other table by more than two orders of magnitude; the 4,107 knowledge rows outnumber every runner table except harvest attempts. Source: memory DB, read-only <code>count(*)</code> per table, 2026-10-05 ≈20:25 CDT (FTS5 shadow tables omitted).</figcaption>
-</figure>
-
-<h3 id="sec-world-handoff">Backups and the two-computer handoff</h3>
-
-<p>Since 2026-10-01 an hourly scheduled task copies the store to the NAS with the SQLite online backup API from a <code>mode=ro</code> connection: it never checkpoints or writes the live file, yet includes the WAL's rows. The copy is switched to a rollback journal so it stands alone, checked, gzipped and deduplicated by sha256. That day's restore drill matched all 11 tables row for row (247,502 events) <span class="src">docs/NOTES.md "Backups"</span>.</p>
-
-<p>On 2026-10-04 the owner wanted to "play on a desktop for a while and find its changes on the laptop afterwards." <code>dbhandoff.py</code> keeps one holder and numbered generations on the NAS: <code>push</code> uploads a verified snapshot as generation N+1 and releases it; <code>pull</code> installs it and records the holder. Two checks make it safe. The writer check: <code>PRAGMA journal_mode=DELETE</code> on a WAL store succeeds only for the sole connection, so <code>push</code> refuses while anything else has the store open, even a read-only reader. The fork check: a per-table fingerprint (row count plus sha256 over rows in rowid order; 1.15 M events in 1.9 s) is compared with the one recorded at the last sync, so a pull never silently overwrites local changes. The very first desktop <code>pull</code> refused, "this store has unsynced changes", because a harness command had created an empty database first <span class="src">da0bcb9</span>.</p>
-
-<div class="callout lesson"><p class="callout-title">Lesson</p><p>A live store on the network share was rejected because WAL needs every connection on one host; sync clients (OneDrive, Syncthing) were rejected because they would copy <code>harness.db</code> and its <code>-wal</code> at different moments and tear the store. Merging diverged stores would collide autoincrement ids in eight tables. In the plan's words: "Preventing forks is cheap and merging isn't, so forks are refused."</p></div>
 </section>

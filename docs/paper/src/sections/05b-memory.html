@@ -1,0 +1,340 @@
+<section id="sec-memory">
+<h2>Memory</h2>
+<p class="lead">Everything the harness sees, does and concludes goes into one SQLite file. Deterministic code reads it to walk, chop and plan; the LLM reads a small, curated part of it through a ranked search. The store also serves as the message bus, the analytics warehouse, the training set and this paper's data source. This chapter covers how it is built, how each part is read, and what we can and cannot say about how well it works.</p>
+
+<h3 id="sec-memory-three">Three memories and the line between them</h3>
+
+<p>Three different things in this project could be called memory (<a class="ref" href="#tab-memory-three"></a>). The coding agents that built the harness remember through the git repository. The harness remembers through its runtime store, <code>harness/data/harness.db</code>. The Seer, the LLM that supervises the harness (<a class="ref" href="#sec-seer"></a>), also has its context window, which lasts one session and gets compacted. This chapter is mostly about the second, but the boundaries between the three were deliberate design decisions.</p>
+
+<figure class="tbl" id="tab-memory-three"><figcaption>The three memories. Sources: AGENTS.md Rule 0; docs/MEMORY.md; docs/OVERSEER.md §5; memory DB, read-only, 2026-10-05 20:30 CDT; omp <code>compaction</code> records (<a class="ref" href="#sec-process"></a>).</figcaption>
+<div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Memory</th><th>Holds</th><th>Written by</th><th>Read by</th><th>Lifetime</th></tr></thead>
+<tbody>
+<tr><td>Engineering memory (git)</td><td>how the harness works: decisions, protocol findings, gotchas, code, test fixtures</td><td>coding agents, under Rule 0</td><td>the next coding session</td><td>permanent, pushed before a session ends</td></tr>
+<tr><td>Runtime memory (<code>harness.db</code>)</td><td>what the harness experienced and learned while playing: 1.69 M events, walks, harvests, trips, the bus, 4,107 knowledge entries</td><td>proxy, runners, <code>ctl</code>, the Discord pipeline</td><td>runners, planner, Seer, viz, Telegram bridge, analysis</td><td>permanent, never committed; hourly NAS backups</td></tr>
+<tr><td>Context window</td><td>the current shift: prompt, tool output, the Seer's own reasoning</td><td>the omp session</td><td>the model</td><td>one session; compacted when full</td></tr>
+</tbody></table></div>
+</figure>
+
+<p>The line between the first two came from a clarification by the owner. Rule 0 orders every coding session to "record and commit engineering knowledge". On 2026-09-29, when the store was built, the rule gained a second paragraph: it "does NOT cover the harness's own runtime memory … game state, what the agent learned while playing (walk/harvest memory, episodes, hazard stats), event logs and captures of its play" <span class="src">AGENTS.md:9; 7a3e26f</span>. The repository keeps <em>how</em> the memory works (the code, docs/MEMORY.md) plus the captures that tests cite as evidence; the contents stay in a gitignored file. This keeps a 289 MB, fast-changing, partly personal data set out of a repository that agents read at the start of every session, and it means that a new checkout knows how to remember but has no memories. It is also why moving to a second computer needed its own tool (<a class="ref" href="#sec-memory-ops"></a>).</p>
+
+<p>The line between the store and the context window is just as deliberate. A Seer's context does not outlive its session, and on 10-05 alone six numbered Seers played one after another (<a class="ref" href="#sec-seer-shifts"></a>). Whatever one Seer should know about the previous one's work therefore has to be in the store. A new Seer starts with <code>ctl status</code>, the open junctures and <code>ctl know brief</code>, and the prompt makes it read and follow every <em>pinned</em> entry first <span class="src">docs/OVERSEER.md:376-379</span>. Pinning was added on 10-04 at the owner's request because importance alone could not guarantee recall: 26 standing candidates were competing for the brief's 12 slots. The first pinned entry, #4079, is the procedure for using the guild's rune library <span class="src">71e4207</span>. How often the Seer's own context was compacted during shifts was not measured <span class="tag inferred">inferred</span>: the compaction figures in <a class="ref" href="#sec-process-models"></a> are for the coding sessions.</p>
+
+<h3 id="sec-memory-store">One store, many roles</h3>
+
+<p>The store is SQLite in WAL mode with <code>synchronous=NORMAL</code>. It replaced three JSON/JSONL files (walk memory, harvest memory, lumber episodes) in one cut-over at 22:06 on 2026-09-29, the same evening as the map <span class="src">7a3e26f</span>.</p>
+
+<div class="callout decision"><p class="callout-title">Decision</p><p>SQLite, because it is durable (the WAL survives crashes), indexed, in the standard library, and lets the proxy, runners, viz, <code>ctl</code>, overseer and Telegram bridge all read concurrently while writers take turns (one writer at a time). Rejected: JSON files (<code>walkmem.json</code> "was 2D, facet-less and rewritten whole"), Postgres ("needs a service"), DuckDB ("analytics-first, not in the stdlib, single-writer file lock").</p></div>
+
+<p><strong>Schema growth without migrations.</strong> Every connection runs the whole schema as <code>CREATE … IF NOT EXISTS</code> and then writes <code>schema_version</code> <span class="src">harness/memory.py:166-174</span>. A new table therefore appears the first time any process opens the store; there are no migration scripts. The schema went from v1 to v5 in 25 hours. After that, three more additions (<code>guard_points</code>, <code>knowledge_vec</code>, two time indexes) came without a version bump (<a class="ref" href="#tab-memory-schema"></a>). Columns were never altered. New fields went into JSON <code>data</code> columns, which is how a lumber trip row reached 44 keys without a schema change. One side effect: opening the store is itself a write. Anything that must not write (the backups, the Laya data builder and every query in this paper) uses a separate <code>mode=ro</code> connection.</p>
+
+<figure class="tbl" id="tab-memory-schema"><figcaption>How the schema grew. "No bump": added by <code>IF NOT EXISTS</code> without changing <code>SCHEMA_VERSION</code>. The two indexes landed after the snapshot commit e1e024d. Source: <code>git show &lt;commit&gt;:harness/memory.py</code>.</figcaption>
+<div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Version</th><th>When</th><th>Commit</th><th>Added</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>v1</td><td>09-29 22:06</td><td><code>7a3e26f</code></td><td><code>meta</code>, <code>sessions</code>, <code>events</code>, <code>walk_moves</code>, <code>harvest_nodes</code>, <code>harvest_attempts</code>, <code>episodes</code></td><td>replace the JSON files; keep every event</td></tr>
+<tr><td>v2</td><td>09-29 23:23</td><td><code>a98fe04</code></td><td><code>junctures</code>, <code>chat</code>, <code>job_events</code></td><td>overseer wake-ups and chat; deaths, thefts, PK sightings</td></tr>
+<tr><td>v3</td><td>09-30 10:33</td><td><code>b24ab4e</code></td><td><code>teleporters</code></td><td>a step that landed off the next tile had crashed the Mover</td></tr>
+<tr><td>v4</td><td>09-30 10:39</td><td><code>c0bf3ce</code></td><td><code>knowledge</code>, <code>knowledge_fts</code> + triggers</td><td>the overseer's long-term memory</td></tr>
+<tr><td>no bump</td><td>10-02 22:48</td><td><code>4cb8b9c</code></td><td><code>guard_points</code></td><td>guard flight when a recall fails</td></tr>
+<tr><td>v5</td><td>10-02 23:26</td><td><code>5a33805</code></td><td><code>lumber_spots</code>, <code>prices</code></td><td>the self-optimizing lumber job</td></tr>
+<tr><td>no bump</td><td>10-03 15:37</td><td><code>f55bc2c</code></td><td><code>knowledge_vec</code></td><td>hybrid semantic recall</td></tr>
+<tr><td>no bump</td><td>10-05 21:24</td><td><code>2d892a3</code></td><td>indexes on <code>episodes(loop, t_start)</code>, <code>harvest_attempts(t)</code></td><td>date ranges on the viz Jobs page</td></tr>
+</tbody></table></div>
+</figure>
+
+<p><strong>The write path.</strong> The proxy is the heaviest writer and the one that must never stall, because it relays the game connection. Its <code>MemoryWriter</code> is built so that "the relay never waits on disk": <code>record()</code> puts the event envelope on an in-process queue and returns. A daemon thread with its own connection inserts each event, derives walk rows from it in the same transaction, and commits every 0.25 s or every 500 rows, whichever comes first <span class="src">harness/memory.py:512-586</span>. Events are keyed on (session, seq) and inserted with <code>INSERT OR IGNORE</code>, so replaying a capture twice is harmless. A failed insert is counted in <code>errors</code> and skipped; nothing retries it. Runners write through the <code>Memory</code> class on their own connection and commit after every call, a harvest attempt or a trip row at a time. That is cheap at their rate, a few rows a minute.</p>
+
+<p><strong>Concurrency.</strong> WAL gives one writer at a time and any number of readers on the same host. Writers wait up to 30 s for the lock <span class="src">harness/memory.py:168</span>. The store has six kinds of writer (proxy, runners, <code>ctl</code>, the Telegram bridge, the Discord pipeline, the capture ingester) and more readers. We found no record of a lock timeout in normal operation <span class="tag inferred">inferred</span>: the docs mention "database is locked" only for the handoff's deliberate writer check, and the writer's error counter is not persisted. "Same host" turned out to be the real constraint, and it is why the store could not live on the NAS (<a class="ref" href="#sec-memory-ops"></a>).</p>
+
+<p><a class="ref" href="#fig-memory-arch"></a> groups the tables by the kind of memory they hold and shows who writes and who reads each group. The rest of the chapter follows those groups.</p>
+
+<figure class="fig wide" id="fig-memory-arch"><svg class="diagram" viewBox="0 0 1000 500" role="img" aria-label="Memory architecture: writers, the three groups of tables, readers">
+<text class="d-small" x="20" y="16" style="letter-spacing:.12em;font-weight:700">WRITERS</text>
+<text class="d-small" x="260" y="16" style="letter-spacing:.12em;font-weight:700">HARNESS.DB, BY KIND OF MEMORY</text>
+<text class="d-small" x="760" y="16" style="letter-spacing:.12em;font-weight:700">READERS</text>
+<rect class="d-box blue" x="20" y="28" width="190" height="72" rx="8"/><text class="d-title" x="34" y="52">Proxy</text><text class="d-text" x="34" y="71">events; derives walk rows</text><text class="d-small" x="34" y="88">commit every 0.25 s / 500 rows</text>
+<rect class="d-box" x="20" y="112" width="190" height="56" rx="8"/><text class="d-title" x="34" y="135">memory.py ingest</text><text class="d-small" x="34" y="153">old captures, replayed</text>
+<rect class="d-box green" x="20" y="180" width="190" height="80" rx="8"/><text class="d-title" x="34" y="204">Runners</text><text class="d-text" x="34" y="223">lumber, hunt, Mover</text><text class="d-small" x="34" y="241">Memory class, commit per call</text>
+<rect class="d-box purple" x="20" y="272" width="190" height="84" rx="8"/><text class="d-title" x="34" y="296">Seer through ctl</text><text class="d-text" x="34" y="315">know add, chat, tasks</text><text class="d-small" x="34" y="333">lumber spot / price</text>
+<rect class="d-box ext" x="20" y="368" width="190" height="72" rx="8"/><text class="d-title" x="34" y="392">discord_kb promote</text><text class="d-small" x="34" y="411">vetted community facts</text><text class="d-small" x="34" y="426">importance ≤ 6</text>
+<rect class="d-zone" x="258" y="26" width="444" height="146" rx="10"/>
+<text class="d-title" x="274" y="50">Episodic: what happened</text>
+<text class="d-mono" x="274" y="74">events 1.69 M · sessions 69</text>
+<text class="d-mono" x="274" y="94">episodes 99 (trip rows) · job_events 1,370</text>
+<text class="d-mono" x="274" y="114">junctures 314 · chat 2,855</text>
+<text class="d-small" x="274" y="140">append-only, timestamped; raw captures in logs/ beside it</text>
+<text class="d-small" x="274" y="157">one envelope per state-port event, JSON payload</text>
+<rect class="d-zone" x="258" y="184" width="444" height="160" rx="10"/>
+<text class="d-title" x="274" y="208">Learned: read by deterministic code</text>
+<text class="d-mono" x="274" y="232">walk_moves 27,281 · teleporters 6 · guard_points 39</text>
+<text class="d-mono" x="274" y="252">harvest_nodes 1,259 · harvest_attempts 5,193</text>
+<text class="d-mono" x="274" y="272">lumber_spots 129 · prices 11</text>
+<text class="d-mono" x="274" y="292">meta: own_books, bad landings, routes, mounts</text>
+<text class="d-small" x="274" y="318">counters and upserts keyed by place; no LLM on the read path</text>
+<rect class="d-zone" x="258" y="356" width="444" height="126" rx="10"/>
+<text class="d-title" x="274" y="380">Semantic: read by the Seer</text>
+<text class="d-mono" x="274" y="404">knowledge 4,107 · knowledge_fts · knowledge_vec</text>
+<text class="d-text" x="274" y="426">fact · procedure · episode · preference · insight</text>
+<text class="d-small" x="274" y="448">provenance, confidence, importance, location, versions</text>
+<text class="d-small" x="274" y="465">hybrid recall: FTS5 + 384-d bge-small vectors</text>
+<rect class="d-box" x="760" y="28" width="220" height="56" rx="8"/><text class="d-title" x="774" y="51">Viz, Jobs page, paper</text><text class="d-small" x="774" y="70">plain SQL over everything</text>
+<rect class="d-box" x="760" y="96" width="220" height="66" rx="8"/><text class="d-title" x="774" y="119">Laya data, tests, replay</text><text class="d-small" x="774" y="138">real speech lines, fixtures,</text><text class="d-small" x="774" y="153">viz replay of captures</text>
+<rect class="d-box green" x="760" y="176" width="220" height="56" rx="8"/><text class="d-title" x="774" y="199">Mover</text><text class="d-small" x="774" y="218">teleporters, room walks (facet 3)</text>
+<rect class="d-box green" x="760" y="244" width="220" height="56" rx="8"/><text class="d-title" x="774" y="267">Lumber runner</text><text class="d-small" x="774" y="286">trees out of wood, guard flight</text>
+<rect class="d-box gold" x="760" y="312" width="220" height="62" rx="8"/><text class="d-title" x="774" y="335">Planner (lumber_opt)</text><text class="d-small" x="774" y="353">trips, hazards, regrowth,</text><text class="d-small" x="774" y="367">yields, prices</text>
+<rect class="d-box purple" x="760" y="386" width="220" height="96" rx="8"/><text class="d-title" x="774" y="410">Seer</text><text class="d-text" x="774" y="430">ctl wait: junctures, chat</text><text class="d-text" x="774" y="449">ctl know search / brief</text>
+<path class="d-edge blue" d="M210,58 H256"/>
+<path class="d-edge blue" d="M210,88 C236,88 232,214 256,214"/>
+<path class="d-edge" d="M210,140 H256"/>
+<path class="d-edge" d="M210,196 C234,196 234,164 256,164"/>
+<path class="d-edge" d="M210,240 H256"/>
+<path class="d-edge" d="M210,300 H256"/>
+<path class="d-edge" d="M210,334 C234,334 234,390 256,390"/>
+<path class="d-edge" d="M210,410 C234,410 234,420 256,420"/>
+<path class="d-edge" d="M702,56 H758"/>
+<path class="d-edge" d="M702,129 H758"/>
+<path class="d-edge" d="M702,160 H736 V336 H758"/>
+<path class="d-edge" d="M702,160 H736 V404 H758"/>
+<path class="d-edge" d="M702,204 H758"/>
+<path class="d-edge" d="M702,272 H758"/>
+<path class="d-edge" d="M702,328 C728,328 730,350 758,350"/>
+<path class="d-edge" d="M702,440 H758"/>
+</svg>
+<figcaption>Memory architecture at the snapshot. Writers on the left, the store's tables grouped by the kind of memory they hold, readers on the right. Every reader shown except the Seer is deterministic code: only the semantic group passes through the LLM. Counts: rows at 2026-10-05 ≈20:25–20:30 CDT (<code>harvest_nodes</code> has no timestamp; 1,259 is the ≈20:25 count). Sources: <code>harness/memory.py</code>, <code>harness/knowledge.py</code>, docs/MEMORY.md "Who writes what", "Who reads what"; memory DB, read-only.</figcaption>
+</figure>
+
+<figure class="fig" id="fig-memory-er">
+<pre class="mermaid">erDiagram
+  sessions ||--o{ events : "records"
+  events ||..o{ walk_moves : "derives (MemoryWriter)"
+  harvest_nodes ||--o{ harvest_attempts : "node key"
+  knowledge ||--|| knowledge_vec : "embedding"
+  knowledge ||--|| knowledge_fts : "FTS5 triggers"
+  sessions { int id PK
+    text tag
+    text source }
+  events { int session PK
+    int seq PK
+    real t
+    text ev
+    json data }
+  walk_moves { int facet PK
+    int x PK
+    int y PK
+    int z PK
+    int dir PK
+    int ok PK
+    int n }
+  harvest_nodes { int facet PK
+    int x PK
+    int y PK
+    int z PK
+    real depleted_at }
+  harvest_attempts { real t
+    text outcome
+    int amount }
+  knowledge { int id PK
+    text kind
+    real confidence
+    text status }
+</pre>
+<figcaption>The three linked groups of tables in the memory store (schema v5): the event log and the walk evidence derived from it, harvest memory, and the overseer's knowledge with its embedding and full-text companions. <code>episodes</code>, <code>junctures</code>, <code>chat</code>, <code>job_events</code>, <code>teleporters</code>, <code>guard_points</code>, <code>lumber_spots</code>, <code>prices</code> and <code>meta</code> stand alone; <code>meta</code> doubles as a cross-process bus (captcha mode, overseer tasks and cursors). Source: <code>harness/memory.py</code> <code>SCHEMA</code>, docs/MEMORY.md.</figcaption>
+</figure>
+
+<div class="kpis">
+<div class="kpi"><b>1,685,252</b><span>events (world 1,419,888 / proxy 265,364)</span></div>
+<div class="kpi green"><b>18,751</b><span>distinct facet-0 tiles stood on, from 27,281 walk rows</span></div>
+<div class="kpi gold"><b>18,757</b><span>logs from 2,400 successful chops, among 5,193 harvest rows</span></div>
+<div class="kpi purple"><b>289 MB</b><span>store size, plus a 4.4 MB WAL, on 2026-10-05</span></div>
+</div>
+
+<figure class="fig" id="fig-memory-tables">
+<div class="frame"><!--#include figures/05_db_tables.svg--></div>
+<figcaption>Rows per table, log scale, coloured by main writer. Events outnumber walk evidence about 60 to 1 and every other table by more than two orders of magnitude; the 4,107 knowledge rows outnumber every runner table except harvest attempts. Source: memory DB, read-only <code>count(*)</code> per table, 2026-10-05 ≈20:25 CDT (FTS5 shadow tables omitted).</figcaption>
+</figure>
+
+<h3 id="sec-memory-episodic">Episodic memory: what happened</h3>
+
+<p><strong>The event log.</strong> Every event the proxy's state port emits is stored as an envelope: session, sequence number, time, origin (<code>world</code> for the world model, <code>proxy</code> for the proxy's own movement and control logic), event name and a JSON payload. Here is a real row, a server-confirmed step north at 19:00:10 on 10-05, during a lumber trip to the spot <code>witcher_23</code>, and the walk row it created:</p>
+
+<pre><code>events     (session 66, seq 365982, t 1791244810.477, origin 'proxy', ev 'step',
+            data {"ev": "step", "from": [1681, 660], "to": [1681, 659], "z": 1})
+walk_moves (facet 0, x 1681, y 660, z 1, dir 0, ok 1)  n = 1, first_t = last_t = t</code></pre>
+
+<p>A second confirmation of the same move would only raise <code>n</code> and <code>last_t</code> <span class="src">harness/memory.py:178-205</span>. The log holds 64 event kinds. It is not curated, and the volumes show it: the server's keepalives are the largest kind, 488,223 rows or 29% of the log; items coming into view (<code>item_seen</code>, 364,582), deletes (116,249) and animations (101,551) follow. By payload bytes, <code>item_seen</code> (22%) leads keepalives (20%). The payloads total 128 MB of JSON, about 76 bytes per event <span class="src">SELECT ev, count(*), sum(length(data)) FROM events WHERE t &lt; 20:30 GROUP BY ev</span>. We kept everything because nobody could say in advance which events would matter. That bet paid off several times (below).</p>
+
+<p><strong>Sessions and captures.</strong> The 69 sessions are 44 live proxy sessions and 25 older captures. <code>python harness/memory.py ingest</code> replays a capture through the proxy's own <code>SessionTap</code> and writes the rows a live session would have written; all 25 captures (70.6k events) took 7.7 s <span class="src">docs/MEMORY.md "Who writes what"</span>. Since live and replayed sessions go through the same code, the raw captures in <code>logs/</code> are a second, lossless episodic memory, the bytes on the wire. Ten of them are committed as test fixtures, the only runtime data allowed in git under Rule 0 <span class="src"><code>git ls-files logs</code>; AGENTS.md:9</span>.</p>
+
+<p><strong>Trip rows.</strong> <code>episodes</code> holds one JSON row per runner trip or hunt visit: 63 lumber rows and 36 hunt rows at the snapshot. The latest lumber row has 44 keys: spot, outcome and <code>why</code>, phase times (<code>harvest</code>, <code>to_room</code>, <code>convert</code>, <code>store</code>), walking and chopping seconds, steps and blocked moves, skill before and after, hatchet and its uses, travel legs, supplies, players seen, captchas, escapes, attempts, successes and logs. On average a lumber row is 1.6 KB. The row is written in a <code>finally</code> block, so a trip that ends in an exception still leaves one <span class="src">harness/loop_lumber.py:3179-3180, 3230-3242 at HEAD</span>. That was not always so. Until 2026-10-02 only trips that reached the bank were recorded, and "leaving those out flattered exactly the spots where trips get cut short: of the 2026-10-02 Terran and Corpse Creek runs only the trips that banked were recorded" <span class="src">docs/LUMBER_LOOP.md:1219-1222</span>. The size of that bias shows in the rows since: of the 45 lumber rows that carry an outcome, 30 are <code>aborted</code>, against 15 <code>banked</code> or <code>stored</code>. A process kill still writes nothing.</p>
+
+<p><strong>Everything else that happened.</strong> <code>job_events</code> (1,370 rows, 19 kinds) records facts that are not trips: Smart Harvest stands (452), kills (229) and loot (213) on hunts, speech holds and clears, flights, player-killer sightings, recalls, monster sightings and hits, thefts and deaths. <code>junctures</code> (314) and <code>chat</code> (2,855) are the overseer bus and the conversation; <a class="ref" href="#sec-memory-bus"></a> covers them.</p>
+
+<h3 id="sec-memory-learned">Learned memory read by code, not by the model</h3>
+
+<p>Most of what the harness learns is never shown to the LLM. The runners and the planner read the store directly, with plain SQL and no prompt, so the system gets better from its own records without any model in the loop. <a class="ref" href="#tab-memory-consumers"></a> lists each piece of learned memory, where it is read and what it changes.</p>
+
+<figure class="tbl" id="tab-memory-consumers"><figcaption>Learned memory and its deterministic readers. Line numbers are at HEAD; <code>agent_link.py</code> and <code>loop_lumber.py</code> changed after the snapshot commit e1e024d, but the reader functions shown did not. Rows at 2026-10-05 20:30 CDT, except <code>harvest_nodes</code> (no timestamp column; the ≈20:25 count).</figcaption>
+<div class="tbl-scroll"><table class="compact">
+<thead><tr><th>Memory</th><th>Written when</th><th>Read by</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td><code>walk_moves</code> (27,009 confirmed keys, 272 deny keys)</td><td>every server-confirmed step or deny, by the proxy</td><td><code>Memory.walk_memory</code> (memory.py:220-235) via <code>Mover.mem_for</code> (agent_link.py:688-697); viz walk layer</td><td>route plans on facet 3, which has no map geometry (the rental rooms)</td></tr>
+<tr><td><code>teleporters</code> (6)</td><td>a step lands somewhere other than the next tile</td><td><code>Mover.teleporter_tiles</code> (agent_link.py:535-543)</td><td>routes stop crossing invisible teleporters by accident</td></tr>
+<tr><td><code>harvest_nodes</code> (1,259)</td><td>each chop, depletion, "nothing nearby" or unreachable tree</td><td><code>Memory.harvest_available</code> (memory.py:251-257) in the lumber runner (loop_lumber.py:1916, 1939)</td><td>trees out of wood or unreachable are skipped for the regrowth window; a non-tree forever</td></tr>
+<tr><td><code>harvest_attempts</code> (5,193)</td><td>every attempt outcome</td><td><code>lumber_opt.regrowth</code>, <code>logs_per_success</code>, <code>tree_yield</code> (lumber_opt.py:578, 1300-1303)</td><td>the regrowth window (65 min), logs per success, logs per tree</td></tr>
+<tr><td><code>episodes</code>, <code>job_events</code>, <code>theft_suspected</code> junctures, proxy <code>death</code> events</td><td>trip ends, sightings, escapes, thefts, deaths</td><td><code>lumber_opt.store_inputs</code> (lumber_opt.py:1313-1332)</td><td>posteriors of each spot's field rate, overhead and hazards; the next spot and trip size</td></tr>
+<tr><td><code>prices</code> (11)</td><td><code>ctl lumber price</code></td><td><code>Memory.prices</code>; planner and Jobs page</td><td>hatchet economics, supply costs, the board value of each trip</td></tr>
+<tr><td><code>guard_points</code> (39)</td><td>"under the protection of the town guards" right after a step</td><td><code>guards.flee_goals</code> in the lumber runner (loop_lumber.py:1216)</td><td>where to run when a recall escape fails</td></tr>
+<tr><td><code>meta</code>: <code>own_books</code>, <code>lumber_bad_landings</code>, <code>lumber_landing_routes</code>, <code>own_mounts</code></td><td>a book read, a recall landing elsewhere, a route check, a pet ridden</td><td><code>places.known_books</code>, <code>lumber_opt.spot_landings</code>, <code>mount.remembered</code></td><td>which rune to recall on, which landings to avoid, which pet is ours</td></tr>
+<tr><td><code>events</code> (<code>speech_heard</code>)</td><td>any "(N uses remaining)" label the server sends</td><td><code>Memory.uses_seen</code> (memory.py:408-418)</td><td>hatchet wear in each trip row</td></tr>
+</tbody></table></div>
+</figure>
+
+<p><strong>Walk evidence.</strong> <code>walk_moves</code> is keyed on (facet, x, y, z, direction, ok) with a hit count and first and last times. The projection the planner sees treats a move as blocked "only while its latest deny is newer than its latest confirm", because "doors and mobiles block only for a while" <span class="src">harness/memory.py:220-235</span>. The human's walking teaches it as well as the agent's. Until the 3-D map arrived on the evening of 09-29, this was the only planner the harness had, and it failed the first time the character came out on an upper floor (<a class="ref" href="#sec-world-map"></a>). Today the map planner (<a class="ref" href="#sec-world-path"></a>) does not consult walk memory at all. The table still serves the rental rooms on facet 3, the viz's walk layer, and evidence: the map's walk rules were accepted because all 1,249 server-confirmed moves then in the table came out walkable.</p>
+
+<p><strong>Harvest memory and the planner.</strong> A tree tile that ran dry or proved unreachable is skipped until the regrowth window has passed. The window itself is learned: <code>lumber_opt.regrowth</code> pairs every depleted attempt with the next attempt on the same tree and fits P(regrown | gap) isotonically, giving 65 minutes at the snapshot (<a class="ref" href="#fig-optimizer-regrowth"></a>). Each <code>ctl lumber plan</code> call reads every lumber trip row, every sighting, escape, theft and death, and the whole attempt table, then turns them into the posteriors of <a class="ref" href="#sec-optimizer"></a>. At this scale, a few thousand rows, a full read costs less than keeping a cache in sync. Because every new row is evidence for the next plan, the quality of the records matters as much as the model. The survivorship fix above is one example; another is the rule that the Seer runs the planner's command "verbatim", because "hand-picked arguments spoil the data" (<a class="ref" href="#sec-seer-why"></a>).</p>
+
+<p><strong>Recorded once, used later.</strong> Several consumers appeared after the data they read. <code>guard_points</code> came on 10-02, and <code>python harness/guards.py backfill</code> filled it by replaying the event log for the guard message, including events recorded before the table existed <span class="src">docs/MEMORY.md, <code>guard_points</code> row</span>. Hatchet wear is read from <code>speech_heard</code> events that were stored for the journal. Laya's training set drew real player lines from the same events (<a class="ref" href="#sec-memory-bus"></a>). The <code>meta</code> table shows the opposite tendency: small learned facts (a character's books, landings that put us somewhere else, its pet) went in as JSON blobs under a key because no table fit them. That was quick to build but invisible to the schema.</p>
+
+<h3 id="sec-memory-semantic">Semantic memory for the LLM: <code>ctl know</code></h3>
+
+<p>The other tables record events. <code>knowledge</code> holds what the agent <em>concluded</em>: game knowledge and its dealings with players and the owner, kept across shifts <span class="src">docs/MEMORY.md "Knowledge"</span>. It is the only part of the store the LLM reads as memory, and it is built like a small agent-memory system: typed entries, provenance on each one, versioning instead of overwrites, and ranked hybrid retrieval. An example, the resurrection procedure as it stood at the snapshot:</p>
+
+<pre><code>#4095  procedure  "resurrection"   source user, confidence 0.9, importance 9, tags death healer
+  "On death there's no gump and no Young transport; the ghost stays put and the corpse takes
+   the gold. Walk the ghost to a healer (…): the Resurrection gump (Accept 1 / Decline 2) opens
+   within 2 tiles; stand still, then ctl act gump &lt;serial&gt; 1; …"
+  supersedes #4094 (10-05 11:07), which superseded #13 (09-30 10:38, from the Young demos)</code></pre>
+
+<p><strong>Data model.</strong> Each entry has a <code>kind</code> (fact, procedure, episode, preference for a standing directive of the owner's, insight for a lesson drawn from episodes), a topic, the content, tags, the <code>entities</code> it is about, and optionally a location (facet, x, y). Provenance is a <code>source_type</code> plus a <code>source_ref</code> (capture tag, chat or juncture id, URL). Confidence starts at a prior for the source: user 0.95, observed 0.9, doc 0.8, wiki 0.7, community 0.6, inferred 0.5 <span class="src">harness/knowledge.py:54</span>. The writer sets an importance from 1 to 10 ("how much it matters if forgotten"). <code>status</code> is active, superseded or retracted, and supersede links form a version chain. <code>access_count</code> and <code>last_access_t</code> record retrieval. A tag <code>char:&lt;name&gt;</code> scopes an entry to one character, and the tag <code>pinned</code> makes it a standing memory.</p>
+
+<p><strong>Write discipline.</strong> Writers call <code>ctl know add</code>; code enforces the hygiene. If the normalised content hashes the same as an active entry's, or it shares ≥ 85% of its words with an active entry on the same topic, the write confirms that entry instead of adding a copy: confirmations go up by one, and confidence closes half the gap to 1, capped at the new evidence's source prior plus 0.05 <span class="src">harness/knowledge.py:140-191, 247-259</span>. Every write returns up to three <code>related</code> entries (same topic or ≥ 35% word overlap), so the writer sees a likely contradiction while it is still one entry. A content change creates a new version that supersedes the old one, and a wrong entry is retracted with a reason; nothing is deleted. The prompt adds the rest: write "one self-contained statement that names the item, place, NPC or spot … search finds entries by their topic and content, so an entry that leans on context you had at the time is lost", label guesses <code>--source inferred</code>, and scope character-specific entries <span class="src">docs/OVERSEER.md:457-472</span>.</p>
+
+<p><strong>Retrieval.</strong> Word search came first. On 09-30 embeddings were left out on purpose: "FTS5 + stemming is enough at this size and needs no model or network" <span class="src">c0bf3ce:docs/MEMORY.md</span>. Three days later it had stopped being enough: word search missed paraphrases ("my character died" against "resurrection"), and the table had just taken in 820 Discord facts. Relevance became hybrid on 10-03 <span class="src">f55bc2c; docs/PLAN.md:686-707</span>. A query is embedded with bge-small-en-v1.5 (384 dimensions, local, on the GPU) and compared by cosine with a vector of "topic: content" for every active entry. Separately, FTS5 ranks entries by BM25, with the topic weighted 3× and tags and entities 2×. The top 60 of each ranking are fused by reciprocal rank and scaled so the best candidate gets 1:</p>
+
+<div class="math" id="eq-memory-rrf">\text{rel}(e) = \frac{f(e)}{\max_{e'} f(e')}, \qquad f(e) = \sum_{r \in \{\text{cos},\,\text{BM25}\}} \frac{1}{60 + \text{rank}_r(e)}</div>
+
+<p>Candidates are then reranked in the style of Generative Agents <span class="src">harness/knowledge.py:351-374</span>:</p>
+
+<div class="math" id="eq-memory-rank">\text{score} = \text{rel} + 0.4\,e^{-\ln 2\cdot \text{age}_d/14} + 0.5\,\tfrac{\text{importance}}{10} + 0.3\,\text{conf} + 0.6\,\max\!\left(0,\,1-\tfrac{d_\infty}{40}\right)</div>
+
+<p>Recency halves every 14 days, and its age counts from the later of the last update and the last <em>access</em>, so retrieving an entry also makes it recent. Importance and confidence are the write-time values. Nearness applies only when the caller passes a position: <span class="math">d_\infty</span> is the Chebyshev distance in tiles to the entry's location on the same facet, and the bonus fades to zero at 40 tiles. Every returned result counts as an access. Vectors live in <code>knowledge_vec</code>, keyed by a SHA-1 of the model name and the text, and the <em>searcher</em> embeds whatever changed before each search. Writers (the proxy, <code>ctl know add</code>, the Discord promoter) therefore never load the model. A sidecar vector database was rejected as "another file to back up and keep in sync for ~1k rows that numpy scans in microseconds" <span class="src">docs/PLAN.md:696-700</span>. On a copy of the store, loading the model took 0.56 s and a hybrid search over 4,107 vectors 0.18 s on the desktop GPU; a <code>ctl</code> call costs about 1.5 s in all, mostly process start and model load <span class="src">measured on the copy; docs/PLAN.md:704</span>. When the running Python lacks the embedder, recall falls back to BM25 and says so (<code>recall: words</code>).</p>
+
+<p><strong>The brief.</strong> <code>ctl know brief</code> builds the start-of-shift context without a query string. It returns three disjoint lists for the character being played: <code>pinned</code> (every pinned entry, in full, uncapped), <code>standing</code> (unlocated procedures and preferences of importance ≥ 7, capped at 12), and <code>relevant</code> (entries within 40 tiles, entries whose <code>entities</code> name a mobile in view, and entries whose cosine with the current intent, open junctures or task is at least 0.65) <span class="src">harness/knowledge.py:423-470</span>. The 0.65 floor and the exact-name match replaced a looser design on 10-04. The old brief embedded one query made of every mobile's label, and at the guild house a stablemaster's label called up the Shelter Island stablemaster's prices at cosine 0.70 <span class="src">docs/MEMORY.md "Situational brief"</span>.</p>
+
+<p><strong>Calibration.</strong> <code>search</code> has no similarity floor: it always returns its top results. The prompt therefore teaches the Seer to read the cosine, "around 0.6 and up is on topic; below ~0.55 is noise" <span class="src">docs/OVERSEER.md:438-441</span>. On a copy of the store, "what is the capital of France" peaks at cosine 0.54, and the pinned guild-library procedure (importance 8) still comes back first.</p>
+
+<p><strong>What the store holds.</strong> At the snapshot the table has 4,107 rows: 3,715 active, 366 superseded and 26 retracted (<a class="ref" href="#tab-memory-knowledge"></a>). It is mostly imported. 3,388 of the active entries (91%) are community facts from the Discord pipeline and 173 more are official ones stored as <code>doc</code>. The Seer's own observations number 116, the owner's directives and corrections 27. The two groups also differ in the ranking inputs (<a class="ref" href="#fig-memory-knowledge"></a>): Discord facts are capped at importance 6, almost all sit at 2–4, and their confidence is 0.65–0.85; the Seer's and owner's entries sit mostly at 5–9 with confidence 0.85–0.95. All 62 located entries are the Seer's or the owner's, so the nearness term helps only them. 49 entries are scoped to a character.</p>
+
+<figure class="tbl" id="tab-memory-knowledge"><figcaption>Active knowledge entries by source and kind at the snapshot (no knowledge row was created after 20:10). Retracted: 25 by the Discord pipeline after a verdict changed, 1 by the Seer as a duplicate. Source: <code>SELECT source_type, kind, count(*) FROM knowledge WHERE status = 'active' GROUP BY 1, 2</code>, read-only; <code>data/05b_knowledge.json</code>.</figcaption>
+<div class="tbl-scroll"><table class="compact">
+<thead><tr><th>source_type</th><th class="num">fact</th><th class="num">procedure</th><th class="num">episode</th><th class="num">preference</th><th class="num">insight</th><th class="num">active</th><th class="num">superseded</th></tr></thead>
+<tbody>
+<tr><td><code>community</code> (Discord consensus)</td><td class="num">2,929</td><td class="num">459</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">3,388</td><td class="num">336</td></tr>
+<tr><td><code>doc</code> (official posts)</td><td class="num">137</td><td class="num">36</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">173</td><td class="num">1</td></tr>
+<tr><td><code>observed</code> (the Seer)</td><td class="num">53</td><td class="num">17</td><td class="num">28</td><td class="num"></td><td class="num">18</td><td class="num">116</td><td class="num">20</td></tr>
+<tr><td><code>user</code> (the owner)</td><td class="num">4</td><td class="num">5</td><td class="num">2</td><td class="num">14</td><td class="num">2</td><td class="num">27</td><td class="num">8</td></tr>
+<tr><td><code>wiki</code></td><td class="num">10</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">10</td><td class="num"></td></tr>
+<tr><td><code>inferred</code></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">1</td><td class="num">1</td><td class="num">1</td></tr>
+</tbody></table></div>
+</figure>
+
+<figure class="fig wide" id="fig-memory-knowledge">
+<div class="frame"><!--#include figures/05b_knowledge.svg--></div>
+<figcaption>Left: importance of active entries, as a share of each origin group. Discord-promoted entries are capped at 6 and so never reach the brief's standing list (dashed line). Right: the share of active entries that any <code>search</code> or <code>brief</code> has ever returned, by source. 232 of the 3,388 community entries (6.8%) have ever been returned, against 95 of the Seer's 116 (82%). Access counts include <code>ctl</code> calls that coding agents made while testing. Source: memory DB <code>knowledge</code> (<code>importance</code>, <code>access_count</code>), read-only, 2026-10-05 20:30 CDT; <code>data/05b_knowledge.json</code>.</figcaption>
+</figure>
+
+<p><strong>A worked example.</strong> At 20:21 on 10-05 a Seer playing Outland Dan asked its memory "finish a lumber trip by hand convert logs to boards" (chat #2855). <a class="ref" href="#tab-memory-recall"></a> shows the ten results the Seer got back, with the score taken apart term by term. We re-ran the same search on a copy of the store with the clock set to that moment.</p>
+
+<figure class="tbl" id="tab-memory-recall"><figcaption>The live search of chat #2855, decomposed. Ranks and scores are the live ones. rel, imp and conf come from a re-run on a copy of the store, which returned the same ten entries (ranks 3 and 4 swapped). rec is the live value: the re-run's minus the score difference, since the live search had itself touched these ten. No position was given, so nearness is 0. Source: memory DB <code>chat</code> #2855; <code>knowledge.Knowledge.search(…, touch=False)</code> on a backup-API copy; <code>data/05b_recall_example.json</code>.</figcaption>
+<div class="tbl-scroll"><table class="compact">
+<thead><tr><th class="num">#</th><th>Entry</th><th>source</th><th class="num">cosine</th><th class="num">rel</th><th class="num">rec</th><th class="num">imp</th><th class="num">conf</th><th class="num">score</th></tr></thead>
+<tbody>
+<tr><td class="num">1</td><td>#86 preference: Hackworth's lumber goal (tagged for Hackworth)</td><td>user</td><td class="num">0.722</td><td class="num">0.867</td><td class="num">0.379</td><td class="num">0.45</td><td class="num">0.285</td><td class="num">1.981</td></tr>
+<tr><td class="num">2</td><td>#87 preference "shelter banking cadence" (tagged for Hackworth)</td><td>user</td><td class="num">0.714</td><td class="num">0.911</td><td class="num">0.378</td><td class="num">0.40</td><td class="num">0.285</td><td class="num">1.974</td></tr>
+<tr><td class="num">3</td><td>#88 fact "log and board weight"</td><td>observed</td><td class="num">0.704</td><td class="num">0.919</td><td class="num">0.399</td><td class="num">0.35</td><td class="num">0.270</td><td class="num">1.938</td></tr>
+<tr><td class="num">4</td><td>#118 insight "endless lumber trip ends when the area runs dry"</td><td>observed</td><td class="num">0.773</td><td class="num">1.000</td><td class="num">0.364</td><td class="num">0.30</td><td class="num">0.270</td><td class="num">1.934</td></tr>
+<tr><td class="num">5</td><td>#51 procedure "lumber trip from horseshoe bay"</td><td>observed</td><td class="num">0.723</td><td class="num">0.917</td><td class="num">0.394</td><td class="num">0.35</td><td class="num">0.270</td><td class="num">1.931</td></tr>
+<tr><td class="num">6</td><td>#60 fact "lumber yield at 100 skill"</td><td>observed</td><td class="num">0.766</td><td class="num">0.961</td><td class="num">0.364</td><td class="num">0.30</td><td class="num">0.270</td><td class="num">1.895</td></tr>
+<tr><td class="num">7</td><td>#50 episode "first horseshoe bay lumber trip"</td><td>observed</td><td class="num">0.692</td><td class="num">0.896</td><td class="num">0.379</td><td class="num">0.30</td><td class="num">0.270</td><td class="num">1.845</td></tr>
+<tr><td class="num">8</td><td>#79 episode "horseshoe bay lumber trip 2026-09-30 evening"</td><td>observed</td><td class="num">0.728</td><td class="num">0.968</td><td class="num">0.379</td><td class="num">0.15</td><td class="num">0.270</td><td class="num">1.767</td></tr>
+<tr><td class="num">9</td><td>#115 procedure "horseshoe bay lumber runs"</td><td>observed</td><td class="num">0.673</td><td class="num">0.740</td><td class="num">0.394</td><td class="num">0.35</td><td class="num">0.270</td><td class="num">1.754</td></tr>
+<tr><td class="num">10</td><td>#62 episode "overseer session 2026-09-30 afternoon"</td><td>observed</td><td class="num">0.689</td><td class="num">0.769</td><td class="num">0.378</td><td class="num">0.30</td><td class="num">0.270</td><td class="num">1.717</td></tr>
+</tbody></table></div>
+</figure>
+
+<p>The example shows three properties of the ranking that we had not designed for. First, <strong>fusion compresses relevance</strong>. Ranked first in both lists, an entry gets <span class="math">2/61</span>; tenth in both, <span class="math">2/70</span>, which scales to 0.87; first in only one list, 0.5. All ten results here have rel between 0.74 and 1.0, while the prior terms (rec + imp + conf) differ by up to 0.3 among them. In the full re-run, across the 60 entries ranked, relevance spanned 0.26–1.0 and the priors 0.67–1.14. The most relevant entry (#118, rel 1.0, the highest cosine) came fourth, behind two entries with higher importance.</p>
+
+<p>Second, <strong>the priors favour the store's own entries</strong>. Importance, confidence and location are all higher for what the Seer and the owner wrote, so imported facts lose ties. The third most similar entry overall is a community fact (cosine 0.748) that ranks 17th. In a re-run of "my character died, how do I come back", the most similar entry is a community procedure for resurrection after dying in the wilderness (cosine 0.759). It ranks 14th, behind the Seer's account of Outland Dan's death at Wintertop and the owner's resurrection procedure. For a Seer that is supposed to treat Discord facts as "leads, not truth", this bias may be what we want; it was never measured.</p>
+
+<p>Third, <strong>scope is enforced in one path only</strong>. <code>brief</code> drops entries tagged for other characters; <code>search</code> does not <span class="src">harness/knowledge.py:311-349 vs 440-466</span>. So the top two answers to a question about Outland Dan's trip were Hackworth's lumber goal and banking routine from 10-01, both on Shelter Island. The other eight came from the first two days of play. The Seer got a stale, partly foreign context and had to filter it by reading.</p>
+
+<p><strong>How it was used.</strong> Every <code>ctl know</code> call except <code>stats</code> also posts a chat row of kind <code>memory</code>, so usage is on record. By the snapshot there were 359 such rows: 149 adds, 135 searches, 29 briefs, 19 updates, 18 gets, 8 confirms and 1 pin <span class="src">SELECT json_extract(data, '$.op'), count(*) FROM chat WHERE kind = 'memory'</span>. These include calls coding agents made while testing, which we cannot separate. Only 9 entries have ever been confirmed (5 observed, 2 community, 2 doc). The Seer retracted one entry, its own duplicate, and no Discord fact. The design assumed the Seer would confirm or retract community leads as play tested them; in practice that loop barely ran.</p>
+
+<div class="callout finding"><p class="callout-title">Finding</p><p>There was no retrieval evaluation. No labelled set of questions with expected entries exists, so we report no precision or recall figures. The unit tests check the mechanics on toy entries (deduplication, versions, the location boost, and a fake three-axis embedder under which "dying" meets "resurrect") <span class="src">harness/test_knowledge.py</span>. The only quality evidence is what the logs show: the calibration probe, the cases above and the access counts. The 10-04 changes to the brief (the 0.65 floor, character scoping) came from the owner's complaint that most of a brief did not apply to Outland Dan and from one bad live match, not from a metric.</p></div>
+
+<h3 id="sec-memory-discord">Importing community knowledge</h3>
+<p>Most of the knowledge table was imported. A read-only capture records the pages the Outlands Discord web app itself loads while scrolling, at a reader's pace: about 10k messages an hour <span class="src">22a8047</span>, 97k in all <span class="src">docs/PLAN.md:93</span>. Raw chat is "unreliable: jokes, outdated patch info, wrong answers", so only vetted facts reach the Seer (<a class="ref" href="#fig-memory-kb"></a>). The pipeline is memory ingestion with provenance: each promoted entry carries <code>source_type</code> <code>community</code> (or <code>doc</code> for official posts), the tag <code>discord</code> and a reference to its fact id and a jump link to the message.</p>
+<figure class="fig wide" id="fig-memory-kb"><svg class="diagram" viewBox="0 0 990 312" role="img" aria-label="Discord knowledge pipeline"><rect class="d-box ext" x="20" y="30" width="150" height="66" rx="8"/><text class="d-title" x="95.0" y="61.0" text-anchor="middle">Discord web app</text><text class="d-small" x="95.0" y="77.0" text-anchor="middle">read-only capture</text>
+<rect class="d-box " x="200" y="30" width="150" height="66" rx="8"/><text class="d-title" x="275.0" y="61.0" text-anchor="middle">discord.db</text><text class="d-small" x="275.0" y="77.0" text-anchor="middle">97k messages</text>
+<rect class="d-box purple" x="380" y="30" width="200" height="66" rx="8"/><text class="d-title" x="480.0" y="54.0" text-anchor="middle">Sonnet extraction</text><text class="d-small" x="480.0" y="70.0" text-anchor="middle">1 channel × 1 UTC day</text><text class="d-small" x="480.0" y="84.0" text-anchor="middle">claims + cited ids + quote</text>
+<rect class="d-box gold" x="610" y="30" width="180" height="66" rx="8"/><text class="d-title" x="700.0" y="54.0" text-anchor="middle">grounding check</text><text class="d-small" x="700.0" y="70.0" text-anchor="middle">quote in a cited message?</text><text class="d-small" x="700.0" y="84.0" text-anchor="middle">20,053 kept (rebuild)</text>
+<rect class="d-box rust" x="830" y="38" width="140" height="50" rx="8"/><text class="d-title" x="900.0" y="61.0" text-anchor="middle">dropped</text><text class="d-small" x="900.0" y="77.0" text-anchor="middle">126 claims</text>
+<rect class="d-box " x="790" y="170" width="180" height="66" rx="8"/><text class="d-title" x="880.0" y="194.0" text-anchor="middle">leader clustering</text><text class="d-small" x="880.0" y="210.0" text-anchor="middle">cosine ≥ 0.86, same kind</text><text class="d-small" x="880.0" y="224.0" text-anchor="middle">14,016 clusters</text>
+<rect class="d-box purple" x="570" y="170" width="190" height="66" rx="8"/><text class="d-title" x="665.0" y="194.0" text-anchor="middle">Sonnet adjudication</text><text class="d-small" x="665.0" y="210.0" text-anchor="middle">8 clusters per call</text><text class="d-small" x="665.0" y="224.0" text-anchor="middle">proposes fact + verdict</text>
+<rect class="d-box gold" x="340" y="170" width="200" height="66" rx="8"/><text class="d-title" x="440.0" y="194.0" text-anchor="middle">code decides</text><text class="d-small" x="440.0" y="210.0" text-anchor="middle">recounts authors, caps verdict</text><text class="d-small" x="440.0" y="224.0" text-anchor="middle">confidence fixed by verdict</text>
+<rect class="d-box gold" x="130" y="170" width="170" height="66" rx="8"/><text class="d-title" x="215.0" y="194.0" text-anchor="middle">ctl know</text><text class="d-small" x="215.0" y="210.0" text-anchor="middle">official + consensus</text><text class="d-small" x="215.0" y="224.0" text-anchor="middle">3,561 active, importance ≤ 6</text>
+<rect class="d-box purple" x="20" y="176" width="80" height="54" rx="8"/><text class="d-title" x="60.0" y="208.0" text-anchor="middle">Seer</text>
+<rect class="d-box ext" x="340" y="268" width="200" height="36" rx="8"/><text class="d-title" x="440.0" y="291.0" text-anchor="middle">digest DISCORD_KB.md</text>
+<path class="d-edge " d="M170,63 H198"/>
+<path class="d-edge " d="M350,63 H378"/>
+<path class="d-edge " d="M580,63 H608"/>
+<path class="d-edge " d="M790,63 H828"/>
+<text class="d-elabel" x="809" y="55" text-anchor="middle">no</text>
+<path class="d-edge " d="M700,98 V132 H880 V168"/>
+<text class="d-elabel" x="790" y="126" text-anchor="middle">yes</text>
+<path class="d-edge " d="M790,203 H762"/>
+<path class="d-edge " d="M570,203 H542"/>
+<path class="d-edge " d="M340,203 H302"/>
+<path class="d-edge " d="M130,203 H102"/>
+<path class="d-edge " d="M440,238 V266"/></svg><figcaption>The Discord knowledge pipeline, with counts from the 10-04 rebuild: the model proposes, deterministic code decides what counts as evidence. Source: harness/discord_kb.py; docs/PLAN.md:635-684; docs/NOTES.md.</figcaption></figure>
+<p>A claim survives only if it cites message ids and quotes one verbatim. The adjudicating model proposes a fact and verdict, but code recounts independent authors: <code>official</code> needs an official-channel claim, <code>consensus</code> at least two supporting authors outnumbering dissent, else <code>single_source</code> or <code>disputed</code>, and confidence is "a fixed function of the final verdict … not the model's opinion". Promotions are capped at importance 6, below standing-brief level. The first run (10-03) promoted 820 facts for $26.26 over 761 calls; the rebuild (10-04) took 20,053 grounded claims to 14,016 clusters and 3,561 active entries for $71.11 over 1,953 calls, list-price estimates on the owner's subscription.</p>
+<p>The pipeline also keeps the store consistent over re-runs. Promotion state is kept per target database, so a trial run into a copy never mixes up the real store's ids. An entry the Seer retracted or superseded is never re-added, even under new wording. When a fact's verdict drops, the pipeline retracts the entry only if it added it and nobody has confirmed it since <span class="src">docs/PLAN.md:668-674</span>. At the snapshot the 3,561 are still there: 3,388 consensus facts as <code>community</code> and 173 official ones as <code>doc</code>. The 3,102 rows of the 10-04 promotion arrived between 12:00 and 12:45 and grew the store by 10 MB (<a class="ref" href="#fig-memory-growth"></a>).</p>
+
+<h3 id="sec-memory-bus">Memory as a bus and as training data</h3>
+
+<p><strong>A durable bus.</strong> The Seer, the runners, the viz and the Telegram bridge never talk to each other directly. Runners post <code>junctures</code>, everyone posts <code>chat</code> rows, and <code>meta</code> holds the running tasks, a heartbeat and one cursor per consumer (<a class="ref" href="#sec-seer-bus"></a>). Since there are no queues, only rows and cursors, any party can restart alone, and every message stays on record. That is how the paper can report median acknowledgement times per juncture kind, and how this chapter can count memory lookups.</p>
+
+<p><strong>Labelled data.</strong> The store doubles as a data set. Laya's fine-tuning set took its 221 real player lines from <code>speech_heard</code> events, read through a <code>mode=ro</code> connection <span class="src">harness/triage_data.py:23-25, 151-153</span> (<a class="ref" href="#tab-seer-laya-data"></a>). Every speech hold that ends in a clear writes a <code>speech_clear</code> job event with the lines, their context, Laya's <code>check</code> and <code>direct</code> scores and how long the hold lasted. At the snapshot there were 53 such rows, every one with a Laya score, and each is a real verdict on a real line. They are labels waiting for a use: the current training set does not read them (<a class="ref" href="#sec-seer-laya"></a>). The planner's training data is the trip rows. Ten committed captures are test fixtures, the viz replays captures through the same <code>ReplayDriver</code> as <code>memory.py ingest</code>, and most charts in this paper are read-only queries over the store.</p>
+
+<h3 id="sec-memory-ops">Operating it: backups, handoff, growth, cost</h3>
+
+<p>Since 2026-10-01 an hourly scheduled task copies the store to the NAS with the SQLite online backup API from a <code>mode=ro</code> connection: it never checkpoints or writes the live file, yet includes the WAL's rows. The copy is switched to a rollback journal so it stands alone, checked, gzipped and deduplicated by sha256. That day's restore drill matched all 11 tables row for row (247,502 events) <span class="src">docs/NOTES.md "Backups"</span>.</p>
+
+<p>On 2026-10-04 the owner wanted to "play on a desktop for a while and find its changes on the laptop afterwards." <code>dbhandoff.py</code> keeps one holder and numbered generations on the NAS: <code>push</code> uploads a verified snapshot as generation N+1 and releases it; <code>pull</code> installs it and records the holder. Two checks make it safe. The writer check: <code>PRAGMA journal_mode=DELETE</code> on a WAL store succeeds only for the sole connection, so <code>push</code> refuses while anything else has the store open, even a read-only reader. The fork check: a per-table fingerprint (row count plus sha256 over rows in rowid order; 1.15 M events in 1.9 s) is compared with the one recorded at the last sync, so a pull never silently overwrites local changes. The very first desktop <code>pull</code> refused, "this store has unsynced changes", because a harness command had created an empty database first <span class="src">da0bcb9</span>. Opening the store writes to it, so the empty file already counted as local history.</p>
+
+<div class="callout lesson"><p class="callout-title">Lesson</p><p>A live store on the network share was rejected because WAL needs every connection on one host; sync clients (OneDrive, Syncthing) were rejected because they would copy <code>harness.db</code> and its <code>-wal</code> at different moments and tear the store. Merging diverged stores would collide autoincrement ids in eight tables. In the plan's words: "Preventing forks is cheap and merging isn't, so forks are refused."</p></div>
+
+<p><strong>Growth.</strong> <a class="ref" href="#fig-memory-growth"></a> shows how the store filled. Event volume follows time in game: 532,419 events on 10-03, the busiest day, and 91,315 on 10-04, the day of the move to the desktop. The hourly backups show the file growing from 52 MB on 10-01 at 23:00 to 282 MB at 20:00 on 10-05, about 6.5 MB per hour between 10:00 and 20:00 on 10-05. Gzip shrinks it 5.4 times. Knowledge grew in two steps, the two Discord promotions; everything the Seer wrote itself fits in a few dozen rows a day.</p>
+
+<figure class="fig wide" id="fig-memory-growth">
+<div class="frame"><!--#include figures/05b_growth.svg--></div>
+<figcaption>Left: rows added per local day, log scale (walk rows by the day a key was first seen; "bus" = junctures + chat + job events + trip rows). 09-28 and 09-29 include the 25 ingested captures, replayed with their original timestamps. Right: store size in the hourly NAS backups, uncompressed and gzipped (older snapshots were thinned by retention). Snapshot cutoff 2026-10-05 20:30 CDT: 1,686,124 events by then; the 1,685,252 of <a class="ref" href="#fig-memory-tables"></a> were counted at ≈20:25. Source: memory DB, read-only, rows by their own timestamps; the NAS backup files <code>harness-*.db.gz</code> (size and gzip ISIZE); <code>data/05b_growth.json</code>.</figcaption>
+</figure>
+
+<p><strong>Reading a live store.</strong> Every database number in this paper was read from a store a runner was still writing (<a class="ref" href="#sec-results-trust"></a>). Three rules made that safe. Connect with <code>mode=ro</code>, because the harness's own <code>connect()</code> writes the schema on open. For anything heavier than a count, take a consistent copy with the backup API first. And cut every count at a timestamp rather than "now". The knowledge searches in this chapter ran on such a copy, because a real <code>ctl know search</code> updates access statistics and would have changed what it measured.</p>
+
+<p><strong>Cost.</strong> Storage: 289 MB for six days, 128 MB of it the JSON payloads of events, a fifth of those keepalives. Compute: local embedding, a fraction of a second per search plus the model load. Money: the two Discord runs, $26.26 and $71.11 at list price on a subscription. The rest is engineering time. <code>memory.py</code>, <code>knowledge.py</code>, <code>embedder.py</code>, <code>dbhandoff.py</code> and <code>backup.py</code> come to about 2,000 lines, and docs/MEMORY.md was touched by 25 commits (<a class="ref" href="#app-repo"></a>).</p>
+
+<h3 id="sec-memory-lessons">Lessons for AI engineers</h3>
+
+<div class="callout lesson"><p class="callout-title">1. Keep one append-only record and derive the rest</p><p>We stored every event before we knew what we would need. Guard points were backfilled from events recorded before their table existed, hatchet wear was read from journal events, Laya's real negatives came from speech events, and this paper is mostly a set of queries over the same file. The price was a log in which 29% of rows are keepalives. A single SQLite file with <code>IF NOT EXISTS</code> schema growth and JSON payload columns took seven schema additions in six days without a migration.</p></div>
+
+<div class="callout lesson"><p class="callout-title">2. Record failures with the same care as successes</p><p>A trip row written only on success made the dangerous spots look good. After the row moved into <code>finally</code>, 30 of the 45 trips that recorded an outcome turned out to be aborted ones. When code learns from its own history, the logging path is part of the model.</p></div>
+
+<div class="callout lesson"><p class="callout-title">3. Check the scale of every term in a reranker</p><p>Reciprocal-rank fusion squeezes the relevance of good candidates into a narrow band (0.5–1.0), and additive priors for importance, confidence and recency then decide the order. In our store this demoted imported facts systematically and put an earlier character's preferences first. Recency that counts from the last access also feeds on itself. None of this is visible without taking scores apart on real queries, and a small labelled query set would have been cheaper than finding it in a paper.</p></div>
+
+<div class="callout lesson"><p class="callout-title">4. Enforce provenance in code; give curation an owner</p><p>The Discord import worked because code, not the model, decided what counted as evidence: substring grounding, author recounts, confidence fixed by verdict, an importance cap. The curation loop that was left to the agent, confirming or retracting community leads as play tested them, hardly ran: 2 confirmations, no retractions, and 93% of imported facts never retrieved. A memory that only grows needs a process that prunes it.</p></div>
+
+<div class="callout lesson"><p class="callout-title">5. Prefer ground truth you can read over memory you have to learn</p><p>Walk memory was the harness's first planner and failed the first time the character came out upstairs. The client's own map files replaced it within an hour. Learned memory earns its place where nothing can be read (regrowth, yields, hazards, prices, who our pet is), and the LLM's memory where judgement is needed. Neither should stand in for data the system can read directly.</p></div>
+</section>
