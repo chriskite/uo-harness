@@ -3049,10 +3049,11 @@ class LumberLoop:
         self.mover.walk_to(where, rng, "to the house steward", z_ok=same_floor(z) if z is not None else None)
 
     def store(self) -> int:
-        """Every board stack in the pack (the opened pouch included; a live pouch holding boards is
-        set off first, unpack) into the room's Resource Stockpile (home.stockpile; user,
+        """Every board stack in the pack into the room's Resource Stockpile (home.stockpile; user,
         2026-10-05: "It is where we will now drop off all our boards"; stockpile.deposit: one Add
-        Items and one target per stack), else into the room's secure chest (home.chest). Then,
+        Items and one target per pouch holding boards, else per stack; a live trapped pouch is taken
+        from as it is, live), else into the room's secure chest (home.chest; a live pouch holding
+        boards is set off first there, unpack). Then,
         with the room's storage shelf in view, its Restock with our backpack and Resupply (the
         user's routine, 2026-10-05: the shelf takes the spent pouches and whatever else of the
         pack it may hold, and we keep exactly the loadout; the trip row's `restock`); without
@@ -3063,7 +3064,8 @@ class LumberLoop:
         chest). Facet 3 has no map: a walk to the chest or the stockpile, only needed when we
         stand beyond reach, plans on walk memory."""
         pile = self.home.get("stockpile")
-        self.unpack(BOARDS)
+        if pile is None:
+            self.unpack(BOARDS)
         stacks = self.in_pack(self.state(), BOARDS)
         stored = 0
         if stacks and pile is not None:
@@ -3104,9 +3106,10 @@ class LumberLoop:
         return stored
 
     def to_stockpile(self, pile: dict, stacks: list) -> int:
-        """The board stacks into the home's Resource Stockpile (stockpile.deposit), declared to the
-        ledger first. Returns the boards added; a stack it didn't take aborts the run with the
-        boards still in the pack."""
+        """The board stacks into the home's Resource Stockpile (stockpile.deposit; one target for
+        each pouch holding boards, stockpile.targets, user 2026-10-05), declared to the ledger
+        first. Returns the boards added (those that left the pack); a target it didn't take aborts
+        the run with the rest still in the pack."""
         serial, where = int(pile["serial"], 16), tuple(pile["pos"][:2])
         if self.wait_for(lambda s: self.item(s, serial) is not None, 3.0) is None:
             raise Abort(f"the resource stockpile {pile['serial']} isn't in view in the rental room")
@@ -3117,16 +3120,20 @@ class LumberLoop:
         self.doing("store", f"Adding {total} boards to the resource stockpile", where)
         for s, _ in stacks:
             self.ledger.expect(("moved_out", s))     # into our own stockpile: not theft
+        st = self.state()
+        aims = stockpile_mod.targets(st["world"], [s for s, _ in stacks], self.backpack(st))
         try:
-            res = stockpile_mod.deposit(escape_mod.LinkIO(self.link), self.human, serial, [s for s, _ in stacks])
+            res = stockpile_mod.deposit(escape_mod.LinkIO(self.link), self.human, serial, aims)
         except stockpile_mod.StockpileError as e:
             raise Abort(f"resource stockpile: {e}")
-        added = sum(a["amount"] for a in res["added"])     # only stacks the server confirmed ("You add ...")
+        left = sum(it.get("amount") or 1 for _, it in self.in_pack(self.state(), BOARDS))
+        added = total - left                          # only what the server took left the pack
         self.stats["stored"] = self.stats.get("stored", 0) + added     # a stop below still counts these
         self.stats["stockpiled"] = self.stats.get("stockpiled", 0) + added   # the Jobs page's "boards stashed"
-        log(f"added {added} boards to the resource stockpile ({len(res['added'])} stack(s))")
+        log(f"added {added} boards to the resource stockpile ({sum(a['items'] for a in res['added'])} stack(s), "
+            f"{len(res['added'])} target(s))")
         if not res["ok"]:
-            raise Abort(f"resource stockpile: {res['error']}; {len(res['left'])} board stack(s) left in the pack")
+            raise Abort(f"resource stockpile: {res['error']}; {left} board(s) left in the pack")
         return added
 
     def spent_pouches(self, st) -> list[int]:

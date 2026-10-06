@@ -1931,11 +1931,12 @@ def _act_resupply(a, mem) -> dict:
 
 
 def _act_stockpile(a) -> dict:
-    """stockpile [STACK SERIAL ...]: add board stacks in the pack (default: every one, at any depth)
+    """stockpile [STACK SERIAL ...]: add board stacks (default: every one in the pack, at any depth)
     to your home's Resource Stockpile (homes.json `stockpile`; harness/stockpile.py, the flow the
-    lumber runner stores with): its menu, Add Items and one target per stack, the menu closed.
-    Stand within 2 tiles of it (in Logan Wolf's room the arrival tile is). Never targets you
-    (that would add every valid item in the pack, reagents and tools too)."""
+    lumber runner stores with): its menu, Add Items and one target per pouch holding boards (all
+    its stacks at once) or per loose stack, the menu closed. Stand within 2 tiles of it (in Logan
+    Wolf's room the arrival tile is). Never targets you (that would add every valid item in the
+    pack, reagents and tools too)."""
     import home as home_mod
     human = Human(a.human, seed=a.seed)
     ctl, stc = _connect(a)
@@ -1958,11 +1959,15 @@ def _act_stockpile(a) -> dict:
         if not stacks:
             raise CtlError("no board stack in your pack")
         stc.intent("Adding boards to the resource stockpile", "store")
-        out = stockpile_mod.deposit(io, human, pile, stacks)
+        world = st["world"]
+        amount = {s: (world["items"].get(f"0x{s:08X}") or {}).get("amount") or 1 for s in stacks}
+        aims = stockpile_mod.targets(world, stacks, combat.backpack(world["items"], st["movement"].get("self_serial")))
+        out = stockpile_mod.deposit(io, human, pile, aims)
         stc.intent(None)
-        n = sum(x["amount"] for x in out["added"])
-        return {**out, "heard": [journal_view(e) for e in out["heard"]],
-                "reply": f"added {n} boards ({len(out['added'])} stack(s))" if out["ok"] else out["error"]}
+        after = stc.state()["world"]["items"]
+        n = sum(v for s, v in amount.items() if f"0x{s:08X}" not in after)
+        return {**out, "boards": n, "heard": [journal_view(e) for e in out["heard"]],
+                "reply": f"added {n} boards ({len(out['added'])} target(s))" if out["ok"] else out["error"]}
     except stockpile_mod.StockpileError as e:
         raise CtlError(str(e))
     finally:

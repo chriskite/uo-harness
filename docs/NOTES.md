@@ -566,6 +566,21 @@ Wiki: [Resource Stockpile](https://wiki.uooutlands.com/Resource_Stockpile),
   with 0. `stockpile.deposit` does exactly that; the overseer's `ctl act stockpile` runs the same
   flow on every board stack in the pack. Never target yourself: per the wiki that adds every valid
   item in the pack, reagents and tools included, depending on the player's Settings.
+- **A whole pouch at once (user's suggestion, live test 2026-10-05 22:05–22:17):**
+  - **Retrieval works:** the stockpile's Retrieval menu (row button 110 regular boards, 111
+    dullwood) is gump 0xCB355E84, lines "Retrieve Items", "Available", the count, "Retrieve", "",
+    "Create Commodity". Text entry 1 is the amount and button 2 retrieves it ("Retrieved 10
+    items." into the pack); entry 3 with button 4 is for commodity deeds.
+  - **One stack in a pouch:** 10 boards dropped into a live trapped pouch, Add Items, then
+    targeting the pouch: "You add 1 item(s) to the Resource Stockpile.", and the pouch stayed armed
+    (hue 38).
+  - **Two stacks in a pouch:** 5 regular + 5 dullwood in it: "You add 2 item(s) ...", one
+    target.
+  - **The new code, live:** `ctl act stockpile` on 4 + 4 boards in that pouch: "added 8 boards (1
+    target(s))".
+  - **What changed:** `stockpile.targets` aims at the pouch holding boards, never at the loot bag
+    (it holds reagents) or ourselves. `store` sets off a live pouch only on the chest path.
+  - A decoy captcha gump (0x4F52A7EB, no buttons) stayed open in the client from the last trip.
 - **Board counts:** after the tests 18 in the stockpile (10 + 5 regular, 3 dullwood). Then (user,
   2026-10-05) every board stack in the chest went in with `ctl act stockpile <serials>`: a stack in
   the open chest can be targeted directly, no lift. 36 copperwood first, then 147 shadowwood, 36

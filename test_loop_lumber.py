@@ -756,14 +756,22 @@ class World:
                        ["Guide", "Resource Stockpile", str(self.stockpile["boards"]), "Settings"]))
 
     def stockpile_target(self, f):
-        """Add Items' cursor answered: a board stack in the pack goes in ("You add 1 item(s) ...", the stack
-        deleted, the menu again); anything else, or ourselves, is refused here."""
+        """Add Items' cursor answered: a board stack in the pack goes in, or every board stack in a targeted
+        pouch ("You add N item(s) ...", live 2026-10-05; the stacks deleted, the menu again); anything else, or
+        ourselves, is refused here."""
         s = f["serial"]
-        if f["target_type"] == 0 and s in self.stacks and self.stacks[s][0] == BOARD_G:
-            self.stockpile["boards"] += self.stacks.pop(s)[1]
+        if f["target_type"] == 0 and s in self.pouch_hue:
+            inside = [b for b, (g, _, c) in self.stacks.items() if g == BOARD_G and c == s]
+        elif f["target_type"] == 0 and s in self.stacks and self.stacks[s][0] == BOARD_G:
+            inside = [s]
+        else:
+            inside = []
+        if inside:
+            for b in inside:
+                self.stockpile["boards"] += self.stacks.pop(b)[1]
+                self.send(delete(b))
             self.stockpile["adds"].append(s)
-            self.send(delete(s))
-            self.send(sys_text("You add 1 item(s) to the Resource Stockpile."))
+            self.send(sys_text(f"You add {len(inside)} item(s) to the Resource Stockpile."))
         else:
             self.stockpile["refused"].append(s)
             self.send(sys_text("You cannot add that to the Resource Stockpile."))
@@ -2400,8 +2408,9 @@ async def convert_stacks():
 
 async def stockpile_store():
     """User 2026-10-05: the boards now go into the Resource Stockpile in the room (live: its menu, Add Items, one
-    target per stack). Carried boards and logs of another wood in the pack and this trip's logs in the pouch come
-    home as two board stacks: each is added on its own, the menu closed once at the end; then the room shelf's
+    target per pouch holding boards, else per stack). Carried boards and logs of another wood in the pack and this
+    trip's logs in the pouch come home as a loose stack and a pouch of boards: two targets, the menu closed once at
+    the end; then the room shelf's
     Restock with our backpack and Resupply (the user's routine): the spent pouch goes into the shelf; no theft
     suspected; the row counts them."""
     print("\n== the boards into the room's Resource Stockpile, one Add Items per stack; then Restock + Resupply ==")
@@ -2413,11 +2422,13 @@ async def stockpile_store():
     text, code, store, _ = await run_scenario(world, "stockpile_store", 12880, [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "10", "--human", "off"])
     pile = world.stockpile
-    check("every board went into the stockpile, one add per stack (the pack's and the pouch's), nothing refused, "
-          "none in the chest",
+    pouch_used = world.stashed[0][2] if world.stashed else None
+    check("every board went into the stockpile: the loose stack in the pack on its own, the pouch's boards by "
+          "targeting the pouch (user 2026-10-05), nothing refused, none in the chest",
           code == 0 and pile["boards"] == 11 + world.harvested and len(pile["adds"]) == 2 and not pile["refused"]
-          and world.chest_stack is None and world.logs == 0,
-          f"exit {code} pile {pile} chest {world.chest_stack} harvested {world.harvested}\n{text[-800:]}")
+          and pouch_used in pile["adds"] and world.chest_stack is None and world.logs == 0,
+          f"exit {code} pile {pile} pouch {pouch_used} chest {world.chest_stack} harvested {world.harvested}\n"
+          f"{text[-800:]}")
     check("its menu was closed once, at the end (each add brings it back)",
           pile["closed"] == 1 and not pile["gumps"], str(pile))
     eps = store.episodes("lumber")

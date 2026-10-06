@@ -7,8 +7,11 @@ the "Add Items" button (2, the blue one bottom left, no text label) brings the s
 "Target an item or container of items you wish to add to this Resource Stockpile. Target
 yourself to add all valid items in your backpack." and a target cursor. Targeting a stack
 answers "You add 1 item(s) to the Resource Stockpile.", the stack leaves the pack and the menu
-comes back with the counts (no cursor). So one press and one target per stack. Never ourselves:
-that would add every valid item in the pack, reagents and tools too (per the player's Settings).
+comes back with the counts (no cursor). Targeting a pouch adds every stack in it in one go: "You
+add 2 item(s) ..." for two board stacks in a live (unsprung) trapped pouch, which stayed armed and
+in the pack (user's suggestion, live test 2026-10-05). So one press and one target per pouch
+holding boards (`targets`), and per loose stack. Never ourselves or a bag of supplies: that would
+add every valid item in it, reagents and tools too (per the player's Settings).
 
 IO-agnostic like shelf.py: `io` has send(pkt) and poll() -> (state, new world events)
 (escape.LinkIO for runners, ctl._CtlIO for ctl)."""
@@ -26,6 +29,7 @@ ADD_PROMPT = "Target an item or container of items you wish to add to this Resou
 ADDED = re.compile(r"^You add (\d+) item\(s\) to the Resource Stockpile\.")
 STOCKPILE_RANGE = 2                   # tiles: opened from 2 in the room (live)
 EVENT_WAIT_S = 4.0
+POUCH_GRAPHIC = 0x0E79                # pouch (trapped or spent): the logs' and boards' container on a trip
 
 
 class StockpileError(Exception):
@@ -72,11 +76,27 @@ def _reply(g: dict, button: int) -> bytes:
                               g.get("layout") or "", g.get("lines") or [])
 
 
+def targets(world: dict, stacks: list[int], pack: int | None) -> list[int]:
+    """What to target for `stacks` (board serials): the pouch a stack lies in (only boards and
+    logs go into it on a trip), once for all of its stacks; a stack anywhere else (the backpack, a
+    bag that also holds supplies) on its own. In stack order."""
+    items, out = world.get("items") or {}, []
+    for s in stacks:
+        c = (items.get(f"0x{s:08X}") or {}).get("container")
+        c = int(c, 16) if isinstance(c, str) else c
+        box = items.get(f"0x{c:08X}") if c is not None else None
+        t = c if box is not None and box.get("graphic") == POUCH_GRAPHIC and c != pack else s
+        if t not in out:
+            out.append(t)
+    return out
+
+
 def deposit(io, human, stockpile: int, stacks: list[int], *, timeout: float = EVENT_WAIT_S) -> dict:
-    """Add each item of `stacks` (serials in the backpack) to `stockpile`: its menu is opened,
-    then per stack Add Items, a reading pause, the stack targeted; the menu that comes back is
-    used for the next one and closed at the end. Stops at the first stack the server doesn't
-    take. Returns {ok, added [{serial, amount}], left [serials not added], error?, heard}."""
+    """Add each item of `stacks` (serials in the backpack: stacks, or the pouches holding them,
+    see targets) to `stockpile`: its menu is opened, then per item Add Items, a reading pause,
+    the item targeted; the menu that comes back is used for the next one and closed at the end.
+    Stops at the first one the server doesn't take. Returns {ok, added [{serial, items}: how
+    many stacks the server said it added], left [serials not added], error?, heard}."""
     flow = _Flow(io)
     human.wait("use")
     got = flow.send_wait(actions.dclick(stockpile), is_stockpile_gump,
@@ -103,10 +123,11 @@ def deposit(io, human, stockpile: int, stacks: list[int], *, timeout: float = EV
                                                    cur.get("cursor_type") or 0),
                              is_stockpile_gump, f"targeting 0x{serial:08X}", timeout)
         g = next((e for e in reversed(got) if is_stockpile_gump(e)), None)
-        if not any(ADDED.match(t) for t in _said(got)):
+        m = next((m for t in _said(got) for m in [ADDED.match(t)] if m), None)
+        if m is None:
             error = f"0x{serial:08X} not added: {_said(got) or 'no answer'}"
             break
-        added.append({"serial": f"0x{serial:08X}", "amount": it.get("amount") or 1})
+        added.append({"serial": f"0x{serial:08X}", "items": int(m.group(1))})
     if g is not None:
         human.wait("read")
         io.send(_reply(g, 0))
