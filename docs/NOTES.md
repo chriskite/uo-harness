@@ -488,6 +488,8 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   never made that click it never closed it: the menu stayed up on screen. `room.enter` now walks
   within 2 tiles and says "room" (`ROOM_WORD`, plain 0xAD: not a speech.mul keyword) instead; the
   room menu opens the same way (the room menu's own text already says to rent "by saying 'Room'").
+  Live 2026-10-06 13:25 at Chase from 2 tiles: `act room enter logan` ok in 6.5 s (4-step walk,
+  "room", Visit Other Rooms, Logan Wolf's row, "You enter the rental room."), no context menu.
   The lumber sim's steward no longer answers a right-click, and the main scenario checks he is
   never right-clicked. Same risk remains for other injected right-clicks (`mount.py` pet menu,
   `ctl act menu`, vendor `buy`) [not changed].
