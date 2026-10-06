@@ -111,12 +111,12 @@ describe("woodShares / phaseList", () => {
   test("only woods with logs, most first, shares sum to 1", () => {
     const s = woodShares([
       { name: "ordinary", logs: 30, value_gp: 26.8, price_t: 1791158400, price_source: "vendor search", total_gp: 285, known: true },
-      { name: "oak", logs: 0, value_gp: null, price_t: null, price_source: null, total_gp: null, known: true },
-      { name: "ash", logs: 10, value_gp: null, price_t: null, price_source: null, total_gp: null, known: true },
+      { name: "goldenwood", logs: 0, value_gp: null, price_t: null, price_source: null, total_gp: null, known: true },
+      { name: "dullwood", logs: 10, value_gp: null, price_t: null, price_source: null, total_gp: null, known: true },
     ]);
     expect(s.map((w) => [w.name, w.share])).toEqual([
       ["ordinary", 0.75],
-      ["ash", 0.25],
+      ["dullwood", 0.25],
     ]);
     expect(s.map((w) => w.price)).toEqual([{ gp: 26.8, t: 1791158400, source: "vendor search" }, null]);
     expect(woodShares([])).toEqual([]);

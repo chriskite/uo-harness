@@ -67,7 +67,7 @@ def test_windows():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:   # open sqlite handles lock files on Windows
         path, con = msgs_db(td)
         add_msg(con, sf("2026-09-10", 10, 0), "cedar needs 60 lumberjacking")
-        add_msg(con, sf("2026-09-10", 10, 1), "yes and oak needs 30", author_id=8, author="ann")
+        add_msg(con, sf("2026-09-10", 10, 1), "yes and dullwood needs 65", author_id=8, author="ann")
         add_msg(con, sf("2026-09-10", 12, 0), "a different chat")
         add_msg(con, sf("2026-10-01", 9, 0), "today's message, not processed yet")
         m = kbm.Msgs(path)
@@ -102,7 +102,7 @@ def test_grounding():
         path, con = msgs_db(td)
         a, b = sf("2026-09-10", 10, 0), sf("2026-09-10", 10, 1)
         add_msg(con, a, "Cedar needs **60** lumberjacking\nto chop", author_id=7)
-        add_msg(con, b, "and oak needs 30", author_id=8)
+        add_msg(con, b, "and dullwood needs 65", author_id=8)
         w = kbm.channel_windows(kbm.Msgs(path), CH, "harvesting", "2026-10-01")[0]
         good = {"kind": "fact", "topic": "cedar", "statement": "Cedar needs 60 lumberjacking.", "stance": "asserts",
                 "uncertain": False, "message_ids": [str(a)], "quote": "cedar needs 60 lumberjacking to chop",
@@ -160,8 +160,8 @@ def test_promote():
         kb = kbm.open_kb(os.path.join(td, "kb.db"))
         quiet = lambda *_: None  # noqa: E731
         f1 = _fact(kb, 1, "Cedar trees need 60 lumberjacking to chop")
-        f2 = _fact(kb, 2, "Oak logs weigh two stones each in Outlands", verdict="official", conf=0.85)
-        f3 = _fact(kb, 3, "Ash trees appear near Prevalia only", verdict="single_source", conf=0.5)
+        f2 = _fact(kb, 2, "Dullwood logs weigh two stones each in Outlands", verdict="official", conf=0.85)
+        f3 = _fact(kb, 3, "Shadowwood trees appear near Prevalia only", verdict="single_source", conf=0.5)
         r = kbm.promote(kb, m, hdb, log=quiet)
         k = Knowledge(memory.connect(hdb))
         e1, e2 = k.get(_f(kb, f1, "knowledge_id")), k.get(_f(kb, f2, "knowledge_id"))
@@ -188,10 +188,10 @@ def test_promote():
               and _f(kb, f1, "knowledge_status") == "retracted", "an overseer-retracted entry is never re-added")
 
         # verdict drops: our unconfirmed entry is retracted; a confirmed one and an entry we only confirmed stay
-        f4 = _fact(kb, 4, "Yew trees need 80 lumberjacking to chop")
+        f4 = _fact(kb, 4, "Goldenwood trees need 85 lumberjacking to chop")
         f5 = _fact(kb, 5, "Hatchets are sold by the provisioner in Prevalia")
-        pre = k.add("fact", "bloodwood", "Bloodwood needs 95 lumberjacking", source="observed")["id"]
-        f6 = _fact(kb, 6, "Bloodwood needs 95 lumberjacking")
+        pre = k.add("fact", "avarwood", "Avarwood needs 110 lumberjacking", source="observed")["id"]
+        f6 = _fact(kb, 6, "Avarwood needs 110 lumberjacking")
         kbm.promote(kb, m, hdb, log=quiet)
         check(_f(kb, f6, "knowledge_action") == "confirmed" and _f(kb, f6, "knowledge_id") == pre,
               "a fact matching an existing entry confirms it")
@@ -214,7 +214,7 @@ def test_promote():
 
 
 def fake_embed(texts):
-    axes = ("cedar", "oak", "yew")
+    axes = ("cedar", "dullwood", "goldenwood")
     out = []
     for t in texts:
         v = np.array([1.0 if a in t.lower() else 0.0 for a in axes] + [0.01], dtype=np.float32)
@@ -236,7 +236,7 @@ def test_clusters():
             return kb.execute("SELECT max(id) FROM claims").fetchone()[0]
         lead = claim("cedar needs 60")
         c2, c3 = claim("cedar needs sixty"), claim("cedar bark is thick")
-        o = claim("oak needs 30")
+        o = claim("dullwood needs 65")
         claim("cedar chopping steps", kind="procedure")
         quiet = lambda *_: None  # noqa: E731
         kbm.cluster(kb, log=quiet)

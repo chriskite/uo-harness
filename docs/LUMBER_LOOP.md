@@ -448,13 +448,13 @@ read-only, 2026-10-03 ~16:00, Hackworth on Witcher spots): 21 lumber trip rows (
 | Weight cutoff | weight carried at the end | `world.self.weight`, max in `world.self.stats.weight_max` (status packet type ≥ 5, `world/parsers.py`) | **added** `weight_end`; the planner caps Q by (weight_max − weight) / 0.025 st |
 | Bank deposit | boards stored | trip row `stored` (18; counted when the stack left the pack for the open box) | had |
 | Boards into the Resource Stockpile | boards the stockpile took | trip row `stockpiled` (since 2026-10-05): the boards of the stacks the server confirmed ("You add 1 item(s) to the Resource Stockpile."; `stockpile.deposit`'s `added`); a refused stack or a stop before it doesn't count. `stored` still counts every board put away, chest included. Trips 104 (21:24, 2 410 boards) and 105 (769, a run started on the code before the field) were backfilled from their stockpile confirmations in the `events` table (6 and 2) | **added**; the Jobs page's "boards stored" (the row's `stored` shows there as "put away") |
-| Colored wood mix → gold/hour | logs by wood, board prices | trip row `woods` (13 rows; ordinary 2 015, dullwood 43, copperwood 5), prices `board:<wood>` since 2026-10-05: ordinary 26.8 (commodity asks, ECONOMY §5.3), shadowwood 30, dullwood 22, copperwood 20, bronzewood 19; since 2026-10-06 goldenwood 70, rosewood 20 (all from the user); none yet for verewood, valewood, avarwood | prices partly in. The Jobs page values each trip at the board price as of its end (2026-10-05). The objective is still logs/hour: gold/hour isn't built (ECONOMY §6) |
+| Colored wood mix → gold/hour | logs by wood, board prices | trip row `woods` (13 rows; ordinary 2 015, dullwood 43, copperwood 5), prices `board:<wood>` since 2026-10-05: ordinary 26.8 (commodity asks, ECONOMY §5.3), shadowwood 30, dullwood 22, copperwood 20, bronzewood 19; since 2026-10-06 goldenwood 70, rosewood 20, verewood 170, valewood 119, avarwood 698 (all from the user; every wood in woods.json priced) | prices in. The Jobs page values each trip at the board price as of its end (2026-10-05). The objective is still logs/hour: gold/hour isn't built (ECONOMY §6) |
 
 Not recorded on purpose: per-trip mana regeneration (meaningless between legs), every step of the
 walks (the proxy's `walk_moves` already has them).
 
 **Not built (data or decisions missing):** gold/hour with per-wood prices (the objective would
-become value per hour, ECONOMY §6; `board:<wood>` prices exist for 7 of 10 woods since 2026-10-06),
+become value per hour, ECONOMY §6; `board:<wood>` prices exist for all 10 woods since 2026-10-06),
 our own marked runes at good spots (needs a Mark capture), hiking to Atlas POIs,
 time-of-day hazard, per-spot regrowth, the Harvest Aspect tier (above).
 

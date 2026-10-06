@@ -1865,11 +1865,11 @@ def test_convert(proxy):
     tmp = tempfile.mkdtemp()
     c = Ctl(os.path.join(tmp, "harness.db"), os.path.join(tmp, "tasks"), proxy)
     pack = f"0x{proxy.PACK:08X}"
-    hatchet, pch, oak, plain = 0x44AD0001, 0x44AD0002, 0x44AD0003, 0x44AD0004
+    hatchet, pch, colored, plain = 0x44AD0001, 0x44AD0002, 0x44AD0003, 0x44AD0004
     proxy.ground_items = {
         f"0x{hatchet:08X}": {"graphic": 0x0F43, "hue": 0, "container": pack},
         f"0x{pch:08X}": {"graphic": 0x0E79, "hue": 38, "container": pack},
-        f"0x{oak:08X}": {"graphic": 0x1BDE, "amount": 7, "hue": 0x7DA, "container": f"0x{pch:08X}"},
+        f"0x{colored:08X}": {"graphic": 0x1BDE, "amount": 7, "hue": 0x7DA, "container": f"0x{pch:08X}"},
         f"0x{plain:08X}": {"graphic": 0x1BDD, "amount": 3, "container": f"0x{pch:08X}"}}
     proxy.convert_sim = {"hatchet": hatchet, "no_cursor_once": True}
     proxy.opened, hits = [proxy.PACK], proxy.self_hits
@@ -1880,7 +1880,7 @@ def test_convert(proxy):
     check("every stack converted: the 5 loose logs and the 7 + 3 in the trapped pouch, 15 boards, none left",
           code == 0 and out["ok"] and out["boards"] == 15 and out["logs_left"] == 0
           and sorted((s["serial"], s["logs"], s["boards"]) for s in out["converted"])
-          == [("0x40000011", 5, 5), (f"0x{oak:08X}", 7, 7), (f"0x{plain:08X}", 3, 3)]
+          == [("0x40000011", 5, 5), (f"0x{colored:08X}", 7, 7), (f"0x{plain:08X}", 3, 3)]
           and out["hatchet"] == f"0x{hatchet:08X}", str(out))
     check("the live pouch set off first by our double-click (a hit), then opened like a bag; no log targeted "
           "while it was live",
@@ -1889,7 +1889,7 @@ def test_convert(proxy):
           and not proxy.convert_sim.get("refused"), [p.hex() for p in fr[:4]])
     check("a hatchet use without a cursor is tried again (convert.CONVERT_RETRIES); one target per stack",
           out["no_cursor"] == 1 and out["tries"] == 4 and fr.count(actions.dclick(hatchet)) == 4
-          and sorted(targets) == sorted([0x40000011, oak, plain]), str(out))
+          and sorted(targets) == sorted([0x40000011, colored, plain]), str(out))
     code, out = c("act", "convert", "--human", "off")
     check("no logs left: refused, nothing sent", code == 1 and "no logs" in out.get("error", "")
           and proxy.take() == [], str(out))

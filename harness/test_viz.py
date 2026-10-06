@@ -155,7 +155,7 @@ def get_status(url, timeout=5) -> tuple[int, dict]:
 
 
 DAY = 86400.0
-WOODS = {"ordinary": {"name": "ordinary", "value_gp": 9.5}, "oak": {"name": "oak", "value_gp": None}}
+WOODS = {"ordinary": {"name": "ordinary", "value_gp": 9.5}, "goldenwood": {"name": "goldenwood", "value_gp": None}}
 
 
 def seed_jobs(m: memory.Memory):
@@ -166,7 +166,7 @@ def seed_jobs(m: memory.Memory):
                          "phases_s": {"harvest": 1500.0, "convert": 60.0, "to_room": 200.0, "store": 20.0, "exit": 20.0}})
     m.episode("errand", {"t_start": 1500.0, "t_end": 1600.0, "logs": 999})
     m.episode("lumber", {"trip": 2, "t_start": 5000.0, "t_end": 6200.0, "logs": 30, "stored": 25,
-                         "woods": {"ordinary": 20, "oak": 10}, "attempts": 12, "successes": 6})
+                         "woods": {"ordinary": 20, "goldenwood": 10}, "attempts": 12, "successes": 6})
     m.episode("lumber", {"trip": 1, "t_start": DAY + 100, "t_end": DAY + 700, "logs": 12, "stored": 12, "stockpiled": 12})
     m.job_event("lumber", "death", {"cause": "pk", "name": "Bob"}, 0, 10, 20, t=1500.0)
     m.job_event("lumber", "death", {"cause": "mob"}, t=5100.0)
@@ -205,9 +205,9 @@ def test_jobs():
     check("thefts: 2, loss 7 (items) + 5 (amount) = 12", t["thefts"] == {"count": 2, "amount": 12, "items": {"board": 7}},
           str(t["thefts"]))
     check("pk_seen 2, flees 1", (t["pk_seen"], t["flees"]) == (2, 1))
-    check("value: 52 ordinary logs x 9.5 (unbroken-down trips count as ordinary) = 494, 10 oak unpriced",
+    check("value: 52 ordinary logs x 9.5 (unbroken-down trips count as ordinary) = 494, 10 goldenwood unpriced",
           t["value_gp"] == 494.0 and t["value_unpriced_logs"] == 10, f"{t['value_gp']} {t['value_unpriced_logs']}")
-    check("wood breakdown from the rows that carry one", t["woods"] == {"ordinary": 20, "oak": 10}, str(t["woods"]))
+    check("wood breakdown from the rows that carry one", t["woods"] == {"ordinary": 20, "goldenwood": 10}, str(t["woods"]))
     check("span first/last", (t["first_t"], t["last_t"]) == (1000.0, DAY + 700), str((t["first_t"], t["last_t"])))
     tr = a["trips"]
     check("trip rows in start order: n, duration, logs/hr",
@@ -240,8 +240,8 @@ def test_jobs():
     check("timeline: 8 lumber events in time order",
           [e["kind"] for e in a["events"]] == ["pk_seen", "flee", "death", "death", "theft", "death", "theft", "pk_seen"],
           str([e["kind"] for e in a["events"]]))
-    check("wood rows: ordinary priced, oak known without a value",
-          [(w["name"], w["logs"], w["total_gp"]) for w in a["woods"]] == [("oak", 10, None), ("ordinary", 20, 190.0)],
+    check("wood rows: ordinary priced, goldenwood known without a value",
+          [(w["name"], w["logs"], w["total_gp"]) for w in a["woods"]] == [("goldenwood", 10, None), ("ordinary", 20, 190.0)],
           str(a["woods"]))
     since = jobs.analytics(m, "lumber", 4000, woods=WOODS)
     check("since=4000: trips #2 and #3, events from t>=4000",
@@ -280,25 +280,25 @@ def test_jobs():
     m.price_record("board:ordinary", 20.0, "vendor search", t=2800.5)   # just after trip #1 ended
     m.price_record("board:ordinary", 30.0, "vendor search", t=6200.0)   # exactly trip #2's t_end
     m.price_record("board:ordinary", 25.0, "vendor search", t=DAY)      # before trip #3
-    m.price_record("board:oak", 50.0, "vendor search", t=DAY + 800)     # after every trip
+    m.price_record("board:goldenwood", 50.0, "vendor search", t=DAY + 800)     # after every trip
     m.price_record("hatchet:copper", 999.0, "vendor search", t=0.0)     # not a board: ignored
     h = jobs.analytics(m, "lumber", 0, woods=WOODS)
     check("price history: #1 before any price -> the first one (not woods.json) 20 x 20 = 400; #2 at its t_end "
-          "(inclusive) 20 x 30 + oak at its first (later) price 10 x 50 = 1100; #3 12 x 25 = 300",
+          "(inclusive) 20 x 30 + goldenwood at its first (later) price 10 x 50 = 1100; #3 12 x 25 = 300",
           [r["value_gp"] for r in h["trips"]] == [400.0, 1100.0, 300.0]
           and (h["totals"]["value_gp"], h["totals"]["value_unpriced_logs"]) == (1800.0, 0),
           str([r["value_gp"] for r in h["trips"]]))
     check("trip rows say which price they used",
           h["trips"][0]["board_prices"] == {"ordinary": {"gp": 20.0, "t": 2800.5, "source": "vendor search"}}
           and h["trips"][1]["board_prices"] == {"ordinary": {"gp": 30.0, "t": 6200.0, "source": "vendor search"},
-                                                "oak": {"gp": 50.0, "t": DAY + 800, "source": "vendor search"}},
+                                                "goldenwood": {"gp": 50.0, "t": DAY + 800, "source": "vendor search"}},
           str([r["board_prices"] for r in h["trips"]]))
-    check("wood rows: price now = newest row (ordinary 25, oak 50); totals from the trips' own prices",
+    check("wood rows: price now = newest row (ordinary 25, goldenwood 50); totals from the trips' own prices",
           [(w["name"], w["value_gp"], w["price_t"], w["total_gp"]) for w in h["woods"]]
-          == [("oak", 50.0, DAY + 800, 500.0), ("ordinary", 25.0, DAY, 600.0)], str(h["woods"]))
+          == [("goldenwood", 50.0, DAY + 800, 500.0), ("ordinary", 25.0, DAY, 600.0)], str(h["woods"]))
     check("price_history keeps every observation, oldest first",
           [(r["item"], r["price_gp"]) for r in m.price_history("board:")]
-          == [("board:ordinary", 20.0), ("board:ordinary", 30.0), ("board:ordinary", 25.0), ("board:oak", 50.0)])
+          == [("board:ordinary", 20.0), ("board:ordinary", 30.0), ("board:ordinary", 25.0), ("board:goldenwood", 50.0)])
     m.close()
 
 

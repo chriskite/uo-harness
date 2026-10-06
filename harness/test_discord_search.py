@@ -35,13 +35,13 @@ def row(t, ch=1, content="hi", author="bob", embed=None):
 
 def test_chunks():
     names = {1: "harvesting", 2: "newplayer"}
-    rows = [row(0, content="where are the yew trees"), row(60, content="north of Prevalia"),
+    rows = [row(0, content="where are the goldenwood trees"), row(60, content="north of Prevalia"),
             row(60 + 2 * ds.GAP_S, content="next morning question"),
             row(61 + 2 * ds.GAP_S, content=""),                  # empty: skipped
             row(62 + 2 * ds.GAP_S, ch=2, content="other channel")]
     ch = ds.build_chunks(rows, names)
     check([c["n_msgs"] for c in ch] == [2, 1, 1], f"split on gap and channel: {[c['n_msgs'] for c in ch]}")
-    check(ch[0]["text"].startswith("#harvesting 2026-07-01\nbob: where are the yew trees"),
+    check(ch[0]["text"].startswith("#harvesting 2026-07-01\nbob: where are the goldenwood trees"),
           f"chunk text has channel, date and author lines: {ch[0]['text'][:40]!r}")
 
     burst = [row(i, content=f"line {i}") for i in range(ds.MAX_MSGS + 3)]
