@@ -124,12 +124,15 @@ class RechargingBookServer(BookServer):
 
     def __init__(self, reagents=True):
         super().__init__()
-        self.reagents, self.sent, self.cursor = reagents, [], None
+        self.reagents, self.sent, self.cursor, self.disturb = reagents, [], None, False
 
     def send(self, pkt):
         self.sent.append(pkt)
         if pkt[0] == 0x06:
             self.queue.append({"ev": "cliloc", "cliloc": 502406, "text": "This book needs time to recharge."})
+        elif pkt == actions.cast_spell(escape.RECALL_SPELL) and self.disturb:
+            self.queue += [{"ev": "speech_heard", "serial": ME, "type": 10, "text": "Kal Ort Por"},
+                           {"ev": "cliloc", "cliloc": 500641, "text": "Your concentration is disturbed, thus ruining thy spell."}]
         elif pkt == actions.cast_spell(escape.RECALL_SPELL):
             self.cursor = {"active": True, "cursor_id": 0x77, "cursor_type": 0, "target_type": 0}
         elif pkt[0] == 0x6C and self.cursor and int.from_bytes(pkt[7:11], "big") == self.BOOK:
@@ -171,6 +174,16 @@ def test_recharging_book():
     r = escape.escape(s, s.BOOK, attempts=2, budget_s=2.5, log=lines.append)
     check("escape() with the book recharging and no reagents: 'recharging' tries logged until the budget ends",
           not r["ok"] and r["failure"] == "recharging" and len(lines) >= 2, (r, lines))
+    s = RechargingBookServer()
+    s.disturb = True                      # live 2026-10-06 16:33: a red's Energy Bolt 1.4 s into the Recall
+    r = escape.recall(s, s.BOOK)
+    check("the spell on the book disturbed before its cursor: a 'disturbed' cast (method spell_on_book, cast_s from "
+          "our words) that waits its disturb recovery, not a 'recharging' refusal",
+          not r["ok"] and r["failure"] == "disturbed" and r["method"] == "spell_on_book" and r["cast_s"] is not None
+          and escape.retry_wait(r) == escape.disturb_recovery(r["cast_s"]) + escape.RECOVERY_MARGIN_S, r)
+    lines = []
+    r = escape.escape(s, s.BOOK, attempts=1, log=lines.append)
+    check("escape() counts it as a cast (attempts 1 spent: it stops)", not r["ok"] and r["attempts"] == 1, (r, lines))
 
 
 def test_runebook_read_and_recall_by_name():

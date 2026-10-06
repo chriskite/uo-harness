@@ -841,6 +841,17 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   "Banner Captain [Cambria]", guild "[Officer, LoK]") from 14:08:32.5, and precasts ("In Por Ylem"
   14:08:43.9, "Vas Ort Flam" 14:08:45.4). Since then the runner leaves on both (docs/PLAN.md "Leave on
   faction tags and on precasts").
+- **PK death by a lone mage at witcher_162 (lumber-20261006-160011-d152, Seer8 run 5, 16:33:30):** "Lord
+  Saisho Hakai" (red, guild tag "[BJV]", no faction tag) came into view at 17 tiles at 16:33:23.0 with no
+  Tracking hit before. The book was double-clicked 0.49 s later and Kal Ort Por began at 16:33:23.8.
+  He attacked at 16:33:24.5 ("Corp Por") and hit for −42 at 16:33:25.0, which disturbed the cast 1.26 s in.
+  The book was then recharging, and Recall cast on the book began at 16:33:25.6: Energy Bolt −43 at
+  16:33:27.0, before its cursor. The book again: Kal Ort Por at 16:33:28.3, Magic Arrow −17 at 16:33:29.2,
+  dead (−102 in 4.2 s, ~1906 logs on the corpse). No guarded place within 250 tiles. A mage chaining
+  bolts every ~2 s disturbs every 2 s recall cast; standing still there was no way out. The runner logged
+  try 2 as "recharging" with no cast counted, but it was a disturbed Recall-on-book cast. `escape._recharging`
+  now reports that cast's own failure ("disturbed", method `spell_on_book`, `cast_s`), and the retry waits
+  its disturb recovery (`test_escape.py`).
 - **Seer6 shift (20:15–23:25, 2026-10-05):** 15 runs, 8033 boards into the stockpile, Lumberjacking 81.1
   → 90.5, 1 death (norse bear rider at witcher_268, resurrected by Malila (2734,617); witcher_268
   disabled). Best trips: the greedy picks witcher_23 (2410 incl. ~1380 carried logs, then 1747) and

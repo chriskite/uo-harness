@@ -486,27 +486,33 @@ def _open(io, book: int, gump_id: int, me: int, timeout: float = GUMP_WAIT_S) ->
     raise RecallError(f"the book's gump 0x{gump_id:08X} didn't open")
 
 
-def _spell_on_book(io, book: int, me: int, world: dict, not_before: float | None) -> bool:
+def _spell_on_book(io, book: int, me: int, world: dict, not_before: float | None) -> tuple[str | None, float | None]:
     """Cast Recall and answer its cursor with the book itself: the spell goes to the book's default
     rune without opening it (live 2026-10-05: Outland Dan, from 16 tiles off, landed on 'DTF Loot
     Chest'; RunUO RecallSpell.OnTarget takes a runebook's Default). The way home while the book is
-    recharging. False when no cursor came."""
+    recharging. (None, None) once the cursor is answered; else (the failure, seconds into the cast
+    when our power words came first): e.g. disturbed before the cursor (live 2026-10-06 16:33, a red's
+    Energy Bolt 1.4 s in; it was logged as 'recharging', no cast counted), 'no cursor' when none came."""
     it = world["items"].get(f"0x{book:08X}") or {}
     _hold(not_before)
     io.poll()
     io.send(actions.cast_spell(RECALL_SPELL))
-    end = time.monotonic() + SPELL_CURSOR_WAIT_S
+    sent = time.monotonic()
+    end, words = sent + SPELL_CURSOR_WAIT_S, None
     while time.monotonic() < end:
         st, evs = io.poll()
-        if any(failure(ev, me) for ev in evs):
-            return False
+        for ev in evs:
+            if words is None and ev.get("ev") == "speech_heard" and ev.get("type") == 10 and ev.get("serial") == me:
+                words = time.monotonic()
+            if why := failure(ev, me):
+                return why, None if why in NOT_CAST else round(time.monotonic() - (words or sent), 3)
         cur = st["world"].get("target") or {}
         if cur.get("active") and cur.get("cursor_id") is not None:
             io.send(actions.target_object(cur["cursor_id"], book, it.get("x") or 0, it.get("y") or 0,
                                           it.get("z") or 0, it.get("graphic") or 0, cur.get("cursor_type") or 0))
-            return True
+            return None, None
         time.sleep(0.03)
-    return False
+    return "no cursor", None
 
 
 def _press(io, g: dict, button: int):
@@ -626,11 +632,17 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None, en
 def _recharging(io, book, kind, me, world, start, facet, t0, mana, rune, entry, not_before, timeout) -> dict:
     """The book won't open ("needs time to recharge", a use moments before: live 2026-10-05, a
     disturbed escape recall, then death). For its default rune: the Recall spell answered with the
-    book (_spell_on_book) when we can cast it. Else, or for a named rune, a 'recharging' failure
-    (escape() looks again after RECHARGE_WAIT_S)."""
-    if rune is None and entry is None and can_cast_recall(world, me, mana) \
-            and _spell_on_book(io, book, me, world, not_before):
-        return _arrival(io, me, kind, "spell_on_book", None, None, start, facet, t0, None, timeout)
+    book (_spell_on_book) when we can cast it; a cast that failed before its cursor is that failure
+    (a disturbed one counts as a cast and waits its disturb recovery). Else, or for a named rune, or
+    when no cursor came, a 'recharging' failure (escape() looks again after RECHARGE_WAIT_S)."""
+    if rune is None and entry is None and can_cast_recall(world, me, mana):
+        why, cast_s = _spell_on_book(io, book, me, world, not_before)
+        if why is None:
+            return _arrival(io, me, kind, "spell_on_book", None, None, start, facet, t0, None, timeout)
+        if why != "no cursor":
+            return {"ok": False, "kind": kind, "method": "spell_on_book", "rune": None, "name": None,
+                    "from": list(start), "to": None, "elapsed_s": round(time.monotonic() - t0, 2), "charges": None,
+                    "failure": why, "cast_s": cast_s}
     return {"ok": False, "kind": kind, "method": "charge", "rune": rune, "name": None, "from": list(start),
             "to": None, "elapsed_s": round(time.monotonic() - t0, 2), "charges": None,
             "failure": "recharging", "cast_s": None}
