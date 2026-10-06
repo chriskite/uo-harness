@@ -45,6 +45,7 @@ client sends no packet when a shop window is closed without buying
 (ClassicUO ShopGump.cs:590-610, Send_BuyRequest only on Accept).
 """
 import argparse
+import datetime
 import json
 import os
 import re
@@ -2999,11 +3000,21 @@ def cmd_lumber(a, mem):
                 "next": "inspect each with `ctl map` near its area (no dungeon, outside town), then "
                         "`ctl lumber spot set <id> --status active` or `--status disabled --reason ...`"}
     if op == "price":
-        pid = mem.price_record(a.item, a.gp, a.source, a.note)
+        t = None
+        if a.at:
+            try:
+                t = datetime.datetime.fromisoformat(a.at).timestamp()
+            except ValueError:
+                raise CtlError(f"--at {a.at!r}: want YYYY-MM-DD or YYYY-MM-DDTHH:MM (local time)")
+            if t > time.time():
+                raise CtlError(f"--at {a.at} is in the future")
+        pid = mem.price_record(a.item, a.gp, a.source, a.note, t=t)
         mem.chat_post("overseer", f"price {a.item} = {a.gp:g} gp ({a.source})", "action",
-                      data={"cmd": "lumber price", "item": a.item, "gp": a.gp, "id": pid})
-        return {"ok": True, "id": pid, "item": a.item, "price_gp": a.gp}
+                      data={"cmd": "lumber price", "item": a.item, "gp": a.gp, "id": pid, "t": t})
+        return {"ok": True, "id": pid, "item": a.item, "price_gp": a.gp, **({"t": t} if t is not None else {})}
     if op == "prices":
+        if a.history is not None:
+            return {"ok": True, "history": mem.price_history(a.history or None)}
         return {"ok": True, "prices": mem.prices()}
     raise CtlError(f"unknown lumber op {op}")
 
@@ -3190,7 +3201,12 @@ def _lumber_parser(sub):
     q.add_argument("gp", type=float)
     q.add_argument("--source", default="observed", help="where: vendor search, NPC, player, chat#")
     q.add_argument("--note")
-    ls.add_parser("prices", help="the newest price per item")
+    q.add_argument("--at", help="when it was observed, local time (YYYY-MM-DD or YYYY-MM-DDTHH:MM; default now): "
+                                "for older prices, e.g. from #sell-archive. Trips are valued at the price as of "
+                                "their end (harness/jobs.py)")
+    q = ls.add_parser("prices", help="the newest price per item")
+    q.add_argument("--history", nargs="?", const="", metavar="PREFIX",
+                   help="every observation, oldest first; PREFIX keeps matching items (e.g. board:)")
     p.set_defaults(fn=cmd_lumber)
 
 

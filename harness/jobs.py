@@ -4,8 +4,9 @@
 
 `analytics(memory, job, since)` folds the memory store's trip rows
 (`Memory.episodes(job)`), job events (`Memory.job_events(job, since)`: death,
-theft, pk_seen, flee, ...), the `harvest_attempts` outcomes and, when present,
-`harness/data/woods.json` (wood names and values) into one JSON-able dict:
+theft, pk_seen, flee, ...), the `harvest_attempts` outcomes, the store's
+`board:<wood>` price history and, when present, `harness/data/woods.json`
+(wood names and fallback values) into one JSON-able dict:
 per-trip rows, totals, per-day aggregates, a rolling logs/hr series and an
 event timeline. `compute(...)` is the pure core over plain lists; it reads no
 clock, so equal inputs give equal output.
@@ -18,14 +19,17 @@ Conventions
   - deaths by cause: data.cause 'pk' | 'mob', anything else (or none) -> 'other'
   - theft loss: data.amount when numeric, else the item counts summed; data.items
     may be {name: n}, [{name|graphic, amount}] or [name, ...]
-  - value: woods.json value_gp per log of that wood [INFERENCE: per unit; the
-    economy research defines the unit]. A trip without a `woods` breakdown counts
-    all its logs as DEFAULT_WOOD (the Shelter Island loop chops only ordinary
-    trees). Logs of a wood without a known value are counted in
-    `value_unpriced_logs`, never priced by guess; value is null when no log could
-    be priced.
+  - value: each log of a wood at the price that wood's boards had when the trip
+    ended (one log makes one board): the newest `board:<wood>` row of the store's
+    prices with t <= the trip's t_end (t_start when t_end is missing), else the
+    woods.json value_gp (an undated wiki figure). Each trip row's `board_prices`
+    says which price it used. A trip without a `woods` breakdown counts all its
+    logs as DEFAULT_WOOD (the Shelter Island loop chops only ordinary trees).
+    Logs of a wood without a known value are counted in `value_unpriced_logs`,
+    never priced by guess; value is null when no log could be priced.
 """
 import argparse
+import bisect
 import json
 import os
 import re
@@ -65,6 +69,33 @@ def wood_value(woods: dict | None, name: str):
     """value_gp of a wood, or None when unknown (no file, no entry, null, not a number)."""
     v = (woods or {}).get(name, {}).get("value_gp")
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def board_prices(rows: list[dict]) -> dict:
+    """{wood: ([t, ...], [row, ...])}, oldest first, from price rows ({item, price_gp,
+    t, source}, e.g. Memory.price_history("board:")); items other than board:<wood>
+    and rows without a numeric t or price are skipped."""
+    out = {}
+    ok = [r for r in rows if str(r.get("item", "")).startswith("board:")
+          and _num(r.get("t"), None) is not None and _num(r.get("price_gp"), None) is not None]
+    for r in sorted(ok, key=lambda r: r["t"]):
+        ts, ps = out.setdefault(r["item"][len("board:"):], ([], []))
+        ts.append(r["t"])
+        ps.append(r)
+    return out
+
+
+def price_at(boards: dict | None, woods: dict | None, name: str, t) -> dict | None:
+    """The price of one log of wood `name` at time t: the newest board:<name> row at or
+    before t ({gp, t, source}), else the woods.json value ({gp, t: None, source:
+    "woods.json"}), else None. t None: woods.json only."""
+    ts, ps = (boards or {}).get(name, ((), ()))
+    i = bisect.bisect_right(ts, t) if t is not None else 0
+    if i:
+        p = ps[i - 1]
+        return {"gp": p["price_gp"], "t": p["t"], "source": p.get("source")}
+    v = wood_value(woods, name)
+    return None if v is None else {"gp": v, "t": None, "source": "woods.json"}
 
 
 def _num(v, default=0):
@@ -155,19 +186,20 @@ def _finish(agg):
     return agg
 
 
-def _trip_row(i, row, woods):
+def _trip_row(i, row, woods, boards):
     t0, t1 = row.get("t_start"), row.get("t_end")
     duration = round(t1 - t0, 1) if _num(t0, None) is not None and _num(t1, None) is not None else None
     logs = int(_num(row.get("logs")))
     breakdown = {str(k): int(_num(v)) for k, v in row["woods"].items()} if isinstance(row.get("woods"), dict) else {}
     priced = breakdown or ({DEFAULT_WOOD: logs} if logs else {})
-    value, unpriced = None, 0
+    t_at = _num(t1, None) if _num(t1, None) is not None else _num(t0, None)
+    value, unpriced, used = None, 0, {}
     for name, n in priced.items():
-        v = wood_value(woods, name)
-        if v is None:
+        p = used[name] = price_at(boards, woods, name, t_at)
+        if p is None:
             unpriced += n
         else:
-            value = round((value or 0) + v * n, 2)
+            value = round((value or 0) + p["gp"] * n, 2)
     phases = row.get("phases_s") if isinstance(row.get("phases_s"), dict) else {}
     # outcome: "stored" (home, boards in the room's chest, since 2026-10-04), "aborted", or the
     # bank era's "banked" (rows without an outcome are the oldest bank-era trips; lumber_opt.trip_obs)
@@ -179,7 +211,7 @@ def _trip_row(i, row, woods):
             "attempts": int(_num(row.get("attempts"))), "successes": int(_num(row.get("successes"))),
             "phases_s": {k: v for k, v in phases.items() if _num(v, None) is not None},
             "steps": row.get("steps"), "blocked": row.get("blocked"),
-            "woods": breakdown, "value_gp": value, "value_unpriced_logs": unpriced,
+            "woods": breakdown, "value_gp": value, "value_unpriced_logs": unpriced, "board_prices": used,
             "events": {}, **_trip_extra(row, duration, logs)}
 
 
@@ -232,14 +264,14 @@ def rolling_series(trips: list[dict], window_s: float = ROLLING_WINDOW_S) -> lis
 
 def compute(episodes: list[dict], events: list[dict], attempts: list[tuple] | None = None,
             woods: dict | None = None, job: str = "lumber", since: float = 0.0,
-            utc_offset_s: int = 0, window_s: float = ROLLING_WINDOW_S) -> dict:
+            utc_offset_s: int = 0, window_s: float = ROLLING_WINDOW_S, boards: dict | None = None) -> dict:
     """Pure core. episodes: trip row dicts; events: job_events dicts
     ({t, kind, data, facet, x, y}); attempts: harvest_attempts rows
-    (t, facet, x, y, z, outcome, amount)."""
+    (t, facet, x, y, z, outcome, amount); boards: board_prices() of the price history."""
     since = float(since)
     rows = [r for r in episodes if isinstance(r, dict) and _num(r.get("t_start"), 0) >= since]
     rows.sort(key=lambda r: _num(r.get("t_start"), 0))
-    trips = [_trip_row(i, r, woods) for i, r in enumerate(rows)]
+    trips = [_trip_row(i, r, woods, boards) for i, r in enumerate(rows)]
     evs = sorted(({**e, "data": e.get("data") if isinstance(e.get("data"), dict) else {}}
                   for e in events if _num(e.get("t"), 0) >= since),
                  key=lambda e: (e["t"], e.get("id") or 0))
@@ -274,15 +306,24 @@ def compute(episodes: list[dict], events: list[dict], attempts: list[tuple] | No
         tried = harvest["success"] + harvest["fail"]
         harvest["success_rate"] = _ratio(harvest["success"], tried)
 
+    # value_gp: the price now (newest board row, else woods.json); total_gp: each trip's logs of
+    # that wood at the price the trip used
+    totals_gp = {}
+    for trip in trips:
+        for name, n in trip["woods"].items():
+            p = trip["board_prices"].get(name)
+            if p is not None:
+                totals_gp[name] = round(totals_gp.get(name, 0) + p["gp"] * n, 2)
     names = sorted(set(totals["woods"]) | set(woods or {}))
     wood_rows = []
     for name in names:
         entry = (woods or {}).get(name, {})
         n = totals["woods"].get(name, 0)
-        v = wood_value(woods, name)
+        now = price_at(boards, woods, name, float("inf"))
         if n or entry:
-            wood_rows.append({"name": name, "logs": n, "value_gp": v,
-                              "total_gp": round(v * n, 2) if v is not None else None,
+            wood_rows.append({"name": name, "logs": n, "value_gp": now and now["gp"],
+                              "price_t": now and now["t"], "price_source": now and now["source"],
+                              "total_gp": totals_gp.get(name),
                               "min_skill": entry.get("min_skill"), "known": bool(entry)})
     return {
         "job": job, "since": since, "utc_offset_s": utc_offset_s, "window_s": window_s,
@@ -672,12 +713,13 @@ _DEFAULT = object()
 def analytics(memory, job: str = "lumber", since: float = 0.0, woods=_DEFAULT,
               utc_offset_s: int = 0, window_s: float = ROLLING_WINDOW_S, plan_now: float | None = None) -> dict:
     """Analytics from a harness.memory.Memory, or empty ones for memory None (no store
-    yet). `hunt` gets compute_hunt(); every other job the trip analytics. `woods`: a
-    load_woods() dict, None for no values, or default = harness/data/woods.json if
-    present. Harvest outcomes come only for the lumber job (harvest_attempts has no
-    job column). Lumber: the supplies priced from the store's prices
-    (lumber_opt.supply_gp) and, with `plan_now` (the clock; the viz passes it),
-    `plan` = lumber_plan() at that time, else null."""
+    yet). `hunt` gets compute_hunt(); every other job the trip analytics, logs valued
+    from the store's board:<wood> price history. `woods`: a load_woods() dict, None for
+    no fallback values, or default = harness/data/woods.json if present. Harvest
+    outcomes come only for the lumber job (harvest_attempts has no job column).
+    Lumber: the supplies priced from the store's prices (lumber_opt.supply_gp) and,
+    with `plan_now` (the clock; the viz passes it), `plan` = lumber_plan() at that
+    time, else null."""
     episodes = memory.episodes(job) if memory is not None else []
     events = memory.job_events(job, since) if memory is not None else []
     if job == "hunt":
@@ -685,7 +727,8 @@ def analytics(memory, job: str = "lumber", since: float = 0.0, woods=_DEFAULT,
     if woods is _DEFAULT:
         woods = load_woods()
     attempts = harvest_rows(memory, since) if memory is not None and job == "lumber" else None
-    out = compute(episodes, events, attempts, woods, job, since, utc_offset_s, window_s)
+    boards = board_prices(memory.price_history("board:")) if memory is not None else None
+    out = compute(episodes, events, attempts, woods, job, since, utc_offset_s, window_s, boards)
     if job == "lumber":
         import lumber_opt
         prices = memory.prices() if memory is not None else {}

@@ -552,9 +552,18 @@ plus the store, hatchets in `harness/data/hatchets.json`; the model is docs/LUMB
   (measured, YOUNG_DEMOS); a hatchet that isn't newbied is lost on death (Terran: the corpse kept
   it). With no price, a hatchet isn't used and the plan gives the break-even price instead of
   guessing one. Prices come from what the overseer sees (`ctl lumber price`).
+- **Trip value at the board price as of the trip (user, 2026-10-05).** The `prices` table is
+  append-only, so price history is kept. `harness/jobs.py` values each trip's logs at the newest
+  `board:<wood>` price with `t` ≤ the trip's end. A trip from before the first recorded price
+  falls back to the woods.json value (9.5 gp, undated wiki) instead of being unpriced. Planning
+  still uses the newest price. Rejected: revaluing every trip at today's price, which loses the
+  history and makes old days look richer or poorer as prices move. `ctl lumber price --at`
+  backdates an older observation (e.g. from `#sell-archive`), and `ctl lumber prices --history
+  board:` lists them all. First board price: `board:ordinary` 26.8 gp on 2026-10-05, the lowest
+  commodity ask (ECONOMY §5.3), so the 63 trips before it stay at 9.5 gp.
 - **Regrowth from our own data.** Depleted trees came back after ~45–65 min (137 retries), not the
   20 min the runner assumed; the plan passes the fitted window (docs/NOTES.md).
-- **Open:** gold/hour once colored-board prices exist (ECONOMY §6 value rate), routine recall home
+- **Open:** gold/hour (ECONOMY §6 value rate; `board:<wood>` prices exist for 5 of 10 woods since 2026-10-05), routine recall home
   when a spot has a marked rune, time-of-day hazard, the Harvest Aspect tier (not observable
   without opening the `[aspect` gump). Done criterion
   (LUMBER_LOOP §9 M5): banked logs per active hour improve over the weeks on the same character

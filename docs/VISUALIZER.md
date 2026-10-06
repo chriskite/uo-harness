@@ -328,11 +328,16 @@ table has no job column) and `harness/data/woods.json` when present.
 - **Active time** is the sum of trip durations, so idle time between runs doesn't dilute logs/hr.
 - **Rolling series:** one point per trip end, with logs/hr over the trips that ended in the last
   hour of wall time (active time only) plus cumulative logs/hr.
-- **Value:** `value_gp` per log of that wood from woods.json [INFERENCE: per unit; the economy
-  research defines the unit]. A trip without a `woods` breakdown counts all its logs as
-  `ordinary`, since the Shelter Island loop only chops ordinary trees. Logs of a wood with no known
-  value are counted in `value_unpriced_logs` and never priced by guess. The value is null when no
-  log could be priced, including when woods.json is absent.
+- **Value (as-of prices since 2026-10-05):** each log of a wood at the price that wood's boards had
+  when the trip ended (one log makes one board): the newest `board:<wood>` row of the store's
+  `prices` table with `t` ≤ the trip's `t_end` (`t_start` if there's no end), else woods.json
+  `value_gp` (an undated wiki figure). A price recorded later never revalues an older trip. Each
+  trip row's `board_prices` gives `{wood: {gp, t, source}}` (t null = woods.json, null = unpriced),
+  shown as the tooltip on the trip's value. Wood rows carry the price now (`value_gp`, `price_t`,
+  `price_source`: the newest row, else woods.json) and `total_gp` = their logs at each trip's own
+  price. A trip without a `woods` breakdown counts all its logs as `ordinary`, since the Shelter
+  Island loop only chops ordinary trees. Logs of a wood with no known value are counted in
+  `value_unpriced_logs` and never priced by guess. The value is null when no log could be priced.
 - CLI: `python harness/jobs.py [--db PATH] [--job lumber|hunt] [--since T]` prints totals, days and
   harvest outcomes (hunt: totals, days and monsters).
 

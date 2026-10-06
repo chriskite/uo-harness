@@ -28,6 +28,8 @@ export interface JobTrip {
   woods: Record<string, number>;
   value_gp: number | null;
   value_unpriced_logs: number;
+  /** {wood: the per-log price the value used (newest board:<wood> price at the trip's end, else woods.json), null = unpriced} */
+  board_prices: Record<string, BoardPrice | null>;
   /** job_events kinds that happened during the trip, counted. */
   events: Record<string, number>;
   // what the lumber optimizer learns from (harness/jobs.py _trip_extra; null in older rows)
@@ -282,10 +284,21 @@ export interface JobEvent {
   data: Record<string, unknown>;
 }
 
+/** One log's price: t null = the woods.json fallback (undated), else the price row's time. */
+export interface BoardPrice {
+  gp: number;
+  t: number | null;
+  source: string | null;
+}
+
 export interface WoodRow {
   name: string;
   logs: number;
+  /** the price now: the newest board:<wood> price, else woods.json */
   value_gp: number | null;
+  price_t: number | null;
+  price_source: string | null;
+  /** the logs at the price each trip used */
   total_gp: number | null;
   min_skill?: number | null;
   known: boolean;
@@ -371,6 +384,13 @@ export function fmtNum(v: number | null | undefined, digits = 1): string {
 
 export function fmtGp(v: number | null | undefined): string {
   return v === null || v === undefined ? "—" : `${Math.round(v).toLocaleString("en-US")} gp`;
+}
+
+/** "26.8 gp/log (vendor search, 2026-10-05)"; "unpriced" for null. */
+export function fmtPrice(p: BoardPrice | null): string {
+  if (p === null) return "unpriced";
+  const when = p.t === null ? "" : `, ${new Date(p.t * 1000).toLocaleDateString("en-CA")}`;
+  return `${p.gp} gp/log (${p.source ?? "?"}${when})`;
 }
 
 /** "0.24 h" plus "14m" / "2h 05m" for the active-time tile. */
@@ -493,7 +513,8 @@ export interface WoodShare {
   name: string;
   logs: number;
   share: number;
-  value_gp: number | null;
+  /** the price now, null when the wood has none */
+  price: BoardPrice | null;
   total_gp: number | null;
 }
 
@@ -502,7 +523,13 @@ export function woodShares(rows: readonly WoodRow[]): WoodShare[] {
   const withLogs = rows.filter((r) => r.logs > 0);
   const sum = withLogs.reduce((a, r) => a + r.logs, 0);
   return withLogs
-    .map((r) => ({ name: r.name, logs: r.logs, share: sum ? r.logs / sum : 0, value_gp: r.value_gp, total_gp: r.total_gp }))
+    .map((r) => ({
+      name: r.name,
+      logs: r.logs,
+      share: sum ? r.logs / sum : 0,
+      price: r.value_gp === null ? null : { gp: r.value_gp, t: r.price_t, source: r.price_source },
+      total_gp: r.total_gp,
+    }))
     .sort((a, b) => b.logs - a.logs || a.name.localeCompare(b.name));
 }
 

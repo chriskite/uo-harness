@@ -20,7 +20,8 @@
   (proxy reports paused, control-port injection gets ERR ...paused), resume,
   kill, resume-while-killed 409
 - job analytics (harness/jobs.py): trip rows, totals, per-day split, rolling
-  logs/hr, deaths by cause, thefts, value from woods, since filter, determinism
+  logs/hr, deaths by cause, thefts, value from woods and the board price
+  history (as of each trip's end), since filter, determinism
 - /api/jobs, /api/overseer (cursors, newest-200 window, open junctures,
   heartbeat), POST /api/chat (stored as a user row; empty / whitespace / too
   long / non-string -> 400); GET/POST /api/captcha (default human, written
@@ -257,6 +258,28 @@ def test_jobs():
           == (6, {"board": 4, "0x1BDD": 1, "axe": 1}))
     missing = jobs.load_woods(os.path.join(tempfile.mkdtemp(), "woods.json"))
     check("load_woods: absent file -> None", missing is None)
+    # board price history: each trip at the newest board:<wood> price at or before its t_end
+    m.price_record("board:ordinary", 20.0, "vendor search", t=2800.5)   # just after trip #1 ended
+    m.price_record("board:ordinary", 30.0, "vendor search", t=6200.0)   # exactly trip #2's t_end
+    m.price_record("board:ordinary", 25.0, "vendor search", t=DAY)      # before trip #3
+    m.price_record("board:oak", 50.0, "vendor search", t=DAY + 800)     # after every trip
+    m.price_record("hatchet:copper", 999.0, "vendor search", t=0.0)     # not a board: ignored
+    h = jobs.analytics(m, "lumber", 0, woods=WOODS)
+    check("price history: #1 before any price -> woods.json 20 x 9.5 = 190; #2 at its t_end (inclusive) "
+          "20 x 30 = 600, oak priced only later -> unpriced; #3 12 x 25 = 300",
+          [r["value_gp"] for r in h["trips"]] == [190.0, 600.0, 300.0]
+          and (h["totals"]["value_gp"], h["totals"]["value_unpriced_logs"]) == (1090.0, 10),
+          str([r["value_gp"] for r in h["trips"]]))
+    check("trip rows say which price they used",
+          h["trips"][0]["board_prices"] == {"ordinary": {"gp": 9.5, "t": None, "source": "woods.json"}}
+          and h["trips"][1]["board_prices"] == {"ordinary": {"gp": 30.0, "t": 6200.0, "source": "vendor search"},
+                                                "oak": None}, str([r["board_prices"] for r in h["trips"]]))
+    check("wood rows: price now = newest row (ordinary 25, oak 50); totals from the trips' own prices",
+          [(w["name"], w["value_gp"], w["price_t"], w["total_gp"]) for w in h["woods"]]
+          == [("oak", 50.0, DAY + 800, None), ("ordinary", 25.0, DAY, 600.0)], str(h["woods"]))
+    check("price_history keeps every observation, oldest first",
+          [(r["item"], r["price_gp"]) for r in m.price_history("board:")]
+          == [("board:ordinary", 20.0), ("board:ordinary", 30.0), ("board:ordinary", 25.0), ("board:oak", 50.0)])
     m.close()
 
 

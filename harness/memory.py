@@ -38,8 +38,10 @@ Tables
   lumber_spots      v5. Lumber spots the optimizer chooses between (lumber_opt.py):
                     rows the overseer added or `discover` proposed, and status
                     overrides of the seed spots in harness/data/lumber_spots.json
-  prices            v5. Observed market prices (gp) by item key, append-only; the
-                    newest per item counts (hatchet economics, later gold/hour)
+  prices            v5. Observed market prices (gp) by item key, append-only, so the
+                    history stays: the newest per item drives planning (hatchet
+                    economics, supplies); jobs.py values each trip's logs at the
+                    board:<wood> price as of the trip
 
 Writers
   - the proxy: MemoryWriter, a background thread with batched commits, fed from
@@ -484,6 +486,15 @@ class Memory:
                 "SELECT item, price_gp, t, source, note FROM prices ORDER BY t, id"):
             out[item] = {"price_gp": gp, "t": t, "source": source, "note": note}
         return out
+
+    def price_history(self, prefix: str | None = None) -> list[dict]:
+        """Every observation, oldest first: [{item, price_gp, t, source, note}];
+        `prefix` keeps the items that start with it (e.g. "board:")."""
+        sql, args = "SELECT item, price_gp, t, source, note FROM prices", ()
+        if prefix:
+            sql, args = sql + " WHERE substr(item, 1, ?) = ?", (len(prefix), prefix)
+        return [{"item": item, "price_gp": gp, "t": t, "source": source, "note": note}
+                for item, gp, t, source, note in self.con.execute(sql + " ORDER BY t, id", args)]
 
 
 # ----------------------------------------------------------------------- writer

@@ -4,6 +4,7 @@ import {
   eventView,
   fmtCounts,
   fmtGp,
+  fmtPrice,
   fmtNum,
   fmtStamp,
   kpis,
@@ -148,14 +149,16 @@ function LumberJobs({ onJob }: { onJob: (j: JobKind) => void }) {
                   <span className="mono num">
                     {w.logs} · {Math.round(w.share * 100)}%
                   </span>
-                  <span className="mono num dim">{fmtGp(w.total_gp)}</span>
+                  <span className="mono num dim" title={`at each trip's price; now ${fmtPrice(w.price)}`}>
+                    {fmtGp(w.total_gp)}
+                  </span>
                 </div>
               ))}
             </div>
           )}
           <p className="dim small">
             {data.woods_file
-              ? `woods.json: ${data.woods.length} woods, ${priced.length} with a value`
+              ? `${data.woods.length} woods, ${priced.length} with a price (ctl lumber price board:<wood>; else woods.json)`
               : "woods.json not found: values unknown"}
           </p>
         </Panel>
@@ -238,7 +241,12 @@ function LumberJobs({ onJob }: { onJob: (j: JobKind) => void }) {
                         </Badge>
                       ))}
                     </td>
-                    <td className="mono num">{fmtGp(r.value_gp)}</td>
+                    <td
+                      className="mono num"
+                      title={Object.entries(r.board_prices).map(([w, p]) => `${w}: ${fmtPrice(p)}`).join("\n") || undefined}
+                    >
+                      {fmtGp(r.value_gp)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
