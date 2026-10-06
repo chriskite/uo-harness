@@ -318,6 +318,7 @@ export interface HarvestStats {
 export interface JobsResponse {
   job: string;
   since: number;
+  until: number | null;
   utc_offset_s: number;
   window_s: number;
   woods_file: boolean;
@@ -559,6 +560,80 @@ export function tzMinutesEast(now = new Date()): number {
   return -now.getTimezoneOffset();
 }
 
+// ------------------------------------------------------------------ date range
+/** The Jobs page's date range: local calendar days "YYYY-MM-DD", both inclusive; null = open-ended. */
+export interface DateRange {
+  from: string | null;
+  to: string | null;
+}
+
+/** [since, until) in epoch seconds for /api/jobs; null = unbounded. */
+export interface RangeBounds {
+  since: number | null;
+  until: number | null;
+}
+
+const DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function dayDate(day: string, plus = 0): Date | null {
+  const m = DAY_RE.exec(day);
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]) - 1, Number(m[3])];
+  const probe = new Date(y, mo, d);
+  if (probe.getFullYear() !== y || probe.getMonth() !== mo || probe.getDate() !== d) return null; // 2026-02-30
+  return new Date(y, mo, d + plus);
+}
+
+/** Local "YYYY-MM-DD" of epoch seconds `t`. */
+export function localDay(t: number): string {
+  const d = new Date(t * 1000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** `day` moved by `n` calendar days (local, so DST days stay whole), or null for a bad day. */
+export function addDays(day: string, n: number): string | null {
+  const d = dayDate(day, n);
+  return d ? localDay(d.getTime() / 1000) : null;
+}
+
+/** since = local midnight starting `from`; until = local midnight after `to` (exclusive). */
+export function rangeBounds(r: DateRange): RangeBounds {
+  const a = r.from ? dayDate(r.from) : null;
+  const b = r.to ? dayDate(r.to, 1) : null;
+  return { since: a ? a.getTime() / 1000 : null, until: b ? b.getTime() / 1000 : null };
+}
+
+/** The range in a URL query ("from=YYYY-MM-DD&to=YYYY-MM-DD", either optional): bad
+ *  dates are dropped, a reversed pair swapped. */
+export function parseRange(query: string): DateRange {
+  const q = new URLSearchParams(query);
+  const [from = null, to = null] = [q.get("from"), q.get("to")].map((v) => (v !== null && dayDate(v) ? v : null));
+  return from && to && from > to ? { from: to, to: from } : { from, to };
+}
+
+/** The canonical query of a range ("" for all time); parseRange's inverse. */
+export function rangeQuery(r: DateRange): string {
+  const parts: string[] = [];
+  if (r.from) parts.push(`from=${r.from}`);
+  if (r.to) parts.push(`to=${r.to}`);
+  return parts.join("&");
+}
+
+export const RANGE_PRESETS = [
+  { key: "all", label: "All" },
+  { key: "today", label: "Today" },
+  { key: "7d", label: "7 days" },
+  { key: "30d", label: "30 days" },
+] as const;
+export type RangePreset = (typeof RANGE_PRESETS)[number]["key"];
+
+/** A preset as days, open-ended so new trips keep showing: the last N days including `today`. */
+export function presetRange(key: RangePreset, today: string): DateRange {
+  const back = { all: null, today: 0, "7d": 6, "30d": 29 }[key];
+  return back === null ? { from: null, to: null } : { from: addDays(today, -back), to: null };
+}
+
 // ------------------------------------------------------------------ hunt job
 // /api/jobs?job=hunt (harness/jobs.py compute_hunt). XP is Outlands mastery-chain
 // experience: a kill's creature gold value x our damage share, estimated as the gold
@@ -653,6 +728,7 @@ export interface MonsterRow {
 export interface HuntResponse {
   job: "hunt";
   since: number;
+  until: number | null;
   utc_offset_s: number;
   window_s: number;
   store: boolean;

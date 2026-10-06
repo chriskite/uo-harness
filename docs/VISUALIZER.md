@@ -151,7 +151,7 @@ channels.
 | `POST /api/playback` | replay only: `{play,pause,rate,step}` |
 | `GET /api/gate` | live only: the proxy's agent gate (`{"op":"gate"}` on the state port), verbatim |
 | `POST /api/gate` | live only: `{"action": "pause"\|"resume"\|"kill"}`, forwarded as `{"op":"gate","action":...}` (§2.2) |
-| `GET /api/jobs?job=lumber[&since=T][&tz=M]` | job analytics from the memory store (`harness/jobs.py`, §2.4), cached 2 s |
+| `GET /api/jobs?job=lumber[&since=T][&until=T][&tz=M]` | job analytics over [since, until) from the memory store (`harness/jobs.py`, §2.4), cached 2 s |
 | `GET /api/overseer?after_chat=N&after_juncture=M` | overseer chat rows and junctures above the cursors, open junctures, heartbeat (§2.4) |
 | `POST /api/chat` | `{"text": T}` → a `user` chat row for the overseer (§2.4) |
 | `GET /api/captcha`, `POST /api/captcha` | who answers the harvest captcha, `{"mode": "human"\|"auto"}` (§2.2a) |
@@ -309,14 +309,23 @@ not per poll). **GETs never create the store**; the first `POST /api/chat` does.
 - `POST /api/chat {"text": T}` → `Memory.chat_post("user", T.strip())` → `{"ok": true, "id": N}`.
   Text must be a string of 1..2000 characters after trimming; anything else is **400**, and bodies
   over 64 KiB are **413**. Besides this, the viz writes only the captcha mode (§2.2a).
-- `GET /api/jobs?job=lumber|hunt[&since=T][&tz=M]` → `harness/jobs.py` `analytics()` plus `store`
-  (`hunt` gets the hunt shape below, any other job the trip shape). `tz` is minutes east of UTC
-  for the per-day split (the browser sends its own; default the server's local offset). Cached 2 s
-  per (job, since, tz). Lumber also gets `plan`, computed at the server's clock (below).
+- `GET /api/jobs?job=lumber|hunt[&since=T][&until=T][&tz=M]` → `harness/jobs.py` `analytics()`
+  plus `store` (`hunt` gets the hunt shape below, any other job the trip shape). `since`/`until`
+  bound the range [since, until) in epoch seconds (no `until` = open-ended); a non-finite value or
+  `until` <= `since` is **400**. `tz` is minutes east of UTC for the per-day split (the browser
+  sends its own; default the server's local offset). Cached 2 s per (job, since, until, tz).
+  Lumber also gets `plan`, computed at the server's clock over all history (below) and cached
+  per wall-clock minute (its seed), shared by every range: the optimizer takes ~3 s on the
+  2026-10-05 store while the ranged analytics take 10–40 ms, so a range change doesn't rerun it.
 
-**Analytics (`harness/jobs.py`, pure: `compute()` reads no clock).** Inputs: `Memory.episodes(job)`
-(trip rows), `Memory.job_events(job, since)`, the `harvest_attempts` outcomes (lumber only; the
-table has no job column) and `harness/data/woods.json` when present.
+**Analytics (`harness/jobs.py`, pure: `compute()` reads no clock).** Inputs:
+`Memory.episodes(job, since, until)` (trip rows), `Memory.job_events(job, since, until)`, the
+`harvest_attempts` outcomes (lumber only; the table has no job column) and
+`harness/data/woods.json` when present. All three reads are bounded by the range in SQL, on the
+indexes of docs/MEMORY.md "Indexes for time-range reads".
+- **Range:** a trip is in it when its `t_start` is, an event or harvest attempt by its `t`. A
+  trip row without `t_start` shows only in the unbounded range. Prices are not ranged: a trip is
+  still valued at the board price as of its end.
 - **Per trip:** start/end, duration, logs, stored, logs/hr, captchas and wait, chop attempts and
   successes, phase times, the `woods: {name: n}` breakdown when the row has one, estimated value,
   and the job events that fell inside the trip.
@@ -408,8 +417,20 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     and that messages wait in the store until then.
   - Compose: Enter sends, Shift+Enter adds a new line, with an `n/2000` counter. It uses the same
     validation as the server.
-- **Jobs page:** one dashboard per job, switched in its head (`Lumber` / `Hunting`; the hash is
-  `#jobs` or `#jobs/hunt`). Both refresh every 15 s or with ↻. The lumber dashboard:
+- **Jobs page:** one dashboard per job, switched in its head (`Lumber` / `Hunting`). Both refresh
+  every 15 s or with ↻.
+  - **Date range** (2026-10-05, user request), a row under the head shared by both jobs: presets
+    `All`, `Today`, `7 days`, `30 days` (the last N local days including today, open-ended so new
+    trips keep showing) and a `from`/`to` pair of local dates, both inclusive (`to`'s `min` is
+    `from`). It lives in the hash with the job, so it survives reloads and can be linked:
+    `#jobs?from=2026-10-01&to=2026-10-05`, `#jobs/hunt?from=2026-10-01` (bad dates are dropped, a
+    reversed pair swapped; `viz/src/jobs.ts` `parseRange`). The browser turns it into
+    [local midnight of `from`, local midnight after `to`) for `since`/`until`. A range change
+    fetches at once; the old numbers stay up with `loading…` beside the picker until it answers,
+    and an answer for a range no longer shown is dropped. The Optimizer and Spots panels come
+    from the plan, which uses all history whatever the range (their head says so).
+
+  The lumber dashboard:
   - KPI tiles: logs/hr, logs/trip (with the chop success rate), trips, active hours, deaths to PKs
     (with PK sightings), deaths to mobs, loss to thieves, captchas (with the wait time). Safety
     tiles are green at 0, red or amber otherwise.
@@ -845,12 +866,16 @@ serial link) opens the drawer on the Inspector tab.
   divergence rule, duration formatting, gate button rules per state, the store keeping a
   newer gate over an older state frame, and (§2.4) chart scales/ticks/bars, KPI tiles and tones,
   event wording, the theft-loss rule, wood shares, overseer cursor merging, timeline order,
-  heartbeat status and chat validation.
+  heartbeat status and chat validation, and the Jobs date range (query parsing and its inverse,
+  local-midnight bounds on DST days, presets).
   `bunx tsc --noEmit` must pass. No DOM snapshot tests; M2–M4 acceptance runs
   are the integration check.
 - **Jobs and overseer (`harness/test_viz.py`):** `jobs.analytics` numbers on a seeded store
   (totals, per-day split and UTC offset, rolling series, deaths by cause, thefts, value with and
-  without woods, `since`, determinism, empty data); `/api/jobs` equals `jobs.analytics`;
+  without woods, `since`, `until` exclusive at the boundary, a [since, until) window, a trip
+  without `t_start` only in the unbounded range, determinism, empty data); `/api/jobs` equals
+  `jobs.analytics`, also with `since`+`until`, and answers 400 to an empty, reversed, NaN or
+  non-numeric range;
   `/api/overseer` cursors, the newest-200 window, open ids after an ack, and heartbeat;
   `POST /api/chat` stores a trimmed `user` row and rejects empty, whitespace, missing,
   non-string and 2001-character text with 400; `/api/captcha` defaults to `human`, writes where

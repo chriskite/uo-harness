@@ -54,6 +54,13 @@ Rejected:
 | `prices` | `id` | v5. Observed market prices, append-only (the history is kept): `item` (`hatchet:<material>[:<quality>]`, `board:<wood>`, `reagent:<name>` with spaces as `_`, `recall_charge`), `price_gp`, `t` (when observed; `ctl lumber price --at` backdates), `source`, `note`. Planning uses the newest per item (`Memory.prices`); `harness/jobs.py` values each trip at the `board:<wood>` price as of its end (`Memory.price_history`). Written by `ctl lumber price` |
 | `meta` | `key` | `schema_version`; `captcha_mode` (`human`/`auto`, missing = `human`; who answers the harvest captcha, set from the viz header, read by the runner at every captcha); overseer bus (docs/OVERSEER.md): `tasks` (running task entries), `task_stop`, `overseer_juncture_cursor`, `overseer_chat_cursor`, `overseer_heartbeat` (epoch s); Telegram bridge (docs/OVERSEER.md §8): `telegram_chat_cursor`, `telegram_juncture_cursor`, `telegram_update_offset`; `lumber_landing_routes` (since 2026-10-04: `lumber_opt` route checks, JSON {"facet:lx,ly>cx,cy,r": walk tiles from landing lx,ly into the area, or null = no route}; regenerable, written by `ctl lumber plan`, docs/LUMBER_LOOP.md §6 "Home and the way out") |
 
+**Indexes for time-range reads** (the viz Jobs page's date range, docs/VISUALIZER.md §2.4): `episodes(loop, t_start)`
+(`episodes_loop_t`, added 2026-10-05), `job_events(job, t)` (`job_events_job_t`, since v2) and `harvest_attempts(t)`
+(`harvest_attempts_t`, added 2026-10-05; it also serves `lumber_opt.logs_per_success`'s newest-300 scan). Both new
+ones came without a schema bump: `CREATE INDEX IF NOT EXISTS` in `memory.SCHEMA` builds them the first time any
+process opens the store. `Memory.episodes(loop, since, until)` and `Memory.job_events(job, since, until)` take the
+range as [since, until); `EXPLAIN QUERY PLAN` on the 2026-10-05 store shows all three range reads as index SEARCHes.
+
 ## Who writes what
 
 - **Proxy** (`--memory-db harness/data/harness.db`; off when empty, which is what tests use):

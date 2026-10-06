@@ -41,9 +41,10 @@ Routes:
   GET  /api/facet     facet picture metadata ({"available": false, "error"} without one)
   GET  /api/facet/<cx>/<cy>.png  256x256-tile chunk of the 1 px/tile facet picture
                       (harness/facet.py; read-only from the install dir)
-  GET  /api/jobs?job=lumber|hunt[&since=T][&tz=M]  job analytics from the memory store
-                      (harness/jobs.py; tz = minutes east of UTC for the per-day split,
-                      default the server's local offset), cached 2 s
+  GET  /api/jobs?job=lumber|hunt[&since=T][&until=T][&tz=M]  job analytics from the memory
+                      store over [since, until) epoch s (harness/jobs.py; tz = minutes east of
+                      UTC for the per-day split, default the server's local offset), cached 2 s;
+                      the lumber plan (all history) is cached per minute
   GET  /api/overseer?after_chat=N&after_juncture=M  {chat, junctures, open, open_ids,
                       heartbeat}: rows with id above the cursors (the newest 200 when 0),
                       the open-juncture count and ids, the overseer's last heartbeat
@@ -65,6 +66,7 @@ Everything else is observation.
 """
 import argparse
 import json
+import math
 import os
 import socket
 import struct
@@ -134,6 +136,7 @@ class OverseerDB:
     store; POST /api/chat does."""
 
     JOBS_CACHE_S = 2.0
+    PLAN_CACHE_S = 60          # the plan's draws are seeded by the minute (jobs.lumber_plan)
     PAGE = 200
 
     def __init__(self, path: str):
@@ -141,6 +144,8 @@ class OverseerDB:
         self.lock = threading.Lock()
         self.mem = None
         self.jobs_cache = {}
+        self.plan_cache = None     # (minute, plan): shared by every range, so a range change
+                                   # doesn't rerun the optimizer (~3 s on the 2026-10-05 store)
 
     def _open(self, create: bool):
         if self.mem is None and (create or os.path.exists(self.path)):
@@ -153,22 +158,34 @@ class OverseerDB:
                 self.mem.close()
                 self.mem = None
 
-    def jobs(self, job: str, since: float, utc_offset_s: int) -> bytes:
-        key = (job, since, utc_offset_s)
+    def jobs(self, job: str, since: float, until: float | None, utc_offset_s: int) -> bytes:
+        key = (job, since, until, utc_offset_s)
         with self.lock:
             now = time.monotonic()
             hit = self.jobs_cache.get(key)
             if hit is not None and now - hit[0] < self.JOBS_CACHE_S:
                 return hit[1]
             mem = self._open(False)
-            out = jobs_mod.analytics(mem, job, since, utc_offset_s=utc_offset_s,
-                                     plan_now=time.time() if job == "lumber" else None)
+            out = jobs_mod.analytics(mem, job, since, until, utc_offset_s=utc_offset_s)
+            if job == "lumber":
+                out["plan"] = self._plan(mem)
             out["store"] = mem is not None
             body = json.dumps(out).encode()
             if len(self.jobs_cache) > 16:
                 self.jobs_cache.clear()
             self.jobs_cache[key] = (now, body)
             return body
+
+    def _plan(self, mem):
+        """jobs.lumber_plan at the server's clock, recomputed once per wall-clock minute
+        (its seed), or None without a store. Caller holds the lock."""
+        if mem is None:
+            return None
+        t = time.time()
+        minute = int(t // self.PLAN_CACHE_S)
+        if self.plan_cache is None or self.plan_cache[0] != minute:
+            self.plan_cache = (minute, jobs_mod.lumber_plan(mem, t))
+        return self.plan_cache[1]
 
     def overseer(self, after_chat: int, after_juncture: int) -> dict:
         """Rows with id above the cursors, oldest first; a 0 cursor starts at the
@@ -445,15 +462,20 @@ class Handler(BaseHTTPRequestHandler):
         job = qs.get("job", ["lumber"])[0]
         try:
             since = float(qs.get("since", ["0"])[0])
+            until = qs.get("until", [None])[0]
+            until = None if until in (None, "") else float(until)
             tz = qs.get("tz", [None])[0]
             utc_offset_s = time.localtime().tm_gmtoff if tz is None else int(tz) * 60
         except ValueError:
-            self._json(400, {"error": "since must be a number, tz whole minutes east of UTC"})
+            self._json(400, {"error": "since/until must be numbers, tz whole minutes east of UTC"})
             return
         if not (0 < len(job) <= 64) or abs(utc_offset_s) > 24 * 3600:
             self._json(400, {"error": "job must be 1..64 chars, |tz| <= 1440"})
             return
-        self._send(200, self.server.overseer.jobs(job, since, utc_offset_s))
+        if not math.isfinite(since) or (until is not None and not (math.isfinite(until) and until > since)):
+            self._json(400, {"error": "since/until must be finite, until after since"})
+            return
+        self._send(200, self.server.overseer.jobs(job, since, until, utc_offset_s))
 
     def _overseer(self, qs: dict):
         try:

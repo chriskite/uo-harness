@@ -16,22 +16,23 @@ import {
   tripHome,
   woodShares,
   type JobsResponse,
+  type RangeBounds,
 } from "../jobs.ts";
 import { EventStrip, LogsPerTripChart, RateChart, TimeSplitChart } from "./Charts.tsx";
 import { Badge, Panel } from "./common.tsx";
 import { HuntJobs } from "./HuntJobs.tsx";
-import { JobsHead, JobsLoading, useJobPoll, type JobKind } from "./JobsCommon.tsx";
+import { JobsHead, JobsLoading, useJobPoll, type JobDashboardProps, type JobKind } from "./JobsCommon.tsx";
 
-const fetchLumber = (tz: number) => fetchJobs("lumber", tz);
+const fetchLumber = (tz: number, range: RangeBounds) => fetchJobs("lumber", tz, range);
 
-/** The Jobs page: one dashboard per job, picked by the switch in its head. */
-export function JobsPage({ job, onJob }: { job: JobKind; onJob: (j: JobKind) => void }) {
-  return job === "hunt" ? <HuntJobs onJob={onJob} /> : <LumberJobs onJob={onJob} />;
+/** The Jobs page: one dashboard per job, picked by the switch in its head, over the head's date range. */
+export function JobsPage({ job, ...props }: JobDashboardProps & { job: JobKind }) {
+  return job === "hunt" ? <HuntJobs {...props} /> : <LumberJobs {...props} />;
 }
 
 /** Lumber job dashboard from /api/jobs?job=lumber (harness/jobs.py compute). */
-function LumberJobs({ onJob }: { onJob: (j: JobKind) => void }) {
-  const { data, error, at, reload } = useJobPoll(fetchLumber);
+function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
+  const { data, error, at, reload, loading } = useJobPoll(fetchLumber, range);
   if (!data) return <JobsLoading job="lumber" onJob={onJob} error={error} />;
   const t = data.totals;
   const trips = data.trips;
@@ -46,13 +47,16 @@ function LumberJobs({ onJob }: { onJob: (j: JobKind) => void }) {
         onJob={onJob}
         title={
           <>
-            Lumber job <span className="dim">· {t.trips ? `${fmtStamp(t.first_t!)} → ${fmtStamp(t.last_t!)}` : "no trips recorded"}</span>
+            Lumber job <span className="dim">· {t.trips ? `${fmtStamp(t.first_t!)} → ${fmtStamp(t.last_t!)}` : data.since > 0 || data.until !== null ? "no trips in this range" : "no trips recorded"}</span>
           </>
         }
         store={data.store}
         error={error}
         at={at}
         onRefresh={reload}
+        range={range}
+        onRange={onRange}
+        loading={loading}
       />
 
       <div className="kpis">
@@ -311,7 +315,7 @@ function OptimizerPanels({ data }: { data: JobsResponse }) {
   const splitTotal = shares.reduce((a, s) => a + s.s, 0);
   return (
     <>
-      <Panel title="Optimizer: next pick" extra={<span className="dim small">ctl lumber plan, as of this refresh</span>}>
+      <Panel title="Optimizer: next pick" extra={<span className="dim small">ctl lumber plan over all history (not the date range), recomputed each minute</span>}>
         {!plan ? (
           <p className="dim">No plan: no Codex yet.</p>
         ) : (

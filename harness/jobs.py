@@ -1,17 +1,21 @@
 """Job analytics for the visualizer's Jobs page (docs/VISUALIZER.md §2.4).
 
-  python harness/jobs.py [--db harness/data/harness.db] [--job lumber] [--since T]
+  python harness/jobs.py [--db harness/data/harness.db] [--job lumber] [--since T] [--until T]
 
-`analytics(memory, job, since)` folds the memory store's trip rows
-(`Memory.episodes(job)`), job events (`Memory.job_events(job, since)`: death,
-theft, pk_seen, flee, ...), the `harvest_attempts` outcomes, the store's
-`board:<wood>` price history and, when present, `harness/data/woods.json`
-(wood names and fallback values) into one JSON-able dict:
-per-trip rows, totals, per-day aggregates, a rolling logs/hr series and an
+`analytics(memory, job, since, until)` folds the memory store's trip rows
+(`Memory.episodes(job, since, until)`), job events (`Memory.job_events(job,
+since, until)`: death, theft, pk_seen, flee, ...), the `harvest_attempts`
+outcomes, the store's `board:<wood>` price history and, when present,
+`harness/data/woods.json` (wood names and fallback values) into one JSON-able
+dict: per-trip rows, totals, per-day aggregates, a rolling logs/hr series and an
 event timeline. `compute(...)` is the pure core over plain lists; it reads no
 clock, so equal inputs give equal output.
 
 Conventions
+  - range: [since, until) in epoch seconds (until None = open-ended). A trip is
+    in it when its t_start is, an event or harvest attempt by its t. A trip
+    without t_start shows only in the unbounded range (since <= 0, no until).
+    The lumber `plan` ignores the range: the optimizer learns from all history
   - active time = the sum of trip durations (t_end - t_start); idle time between
     runs does not dilute logs/hr
   - a trip belongs to the day (at `utc_offset_s`) its t_start falls on; an event
@@ -110,6 +114,13 @@ def _rate(n, seconds):
 
 def _ratio(n, d):
     return round(n / d, 2) if d else None
+
+
+def in_range(t, since: float = 0.0, until: float | None = None) -> bool:
+    """Whether time t falls in [since, until); a missing t only in the unbounded range."""
+    if not isinstance(t, (int, float)) or isinstance(t, bool):
+        return since <= 0 and until is None
+    return t >= since and (until is None or t < until)
 
 
 def _day(t: float, utc_offset_s: int) -> str:
@@ -266,16 +277,18 @@ def rolling_series(trips: list[dict], window_s: float = ROLLING_WINDOW_S) -> lis
 
 def compute(episodes: list[dict], events: list[dict], attempts: list[tuple] | None = None,
             woods: dict | None = None, job: str = "lumber", since: float = 0.0,
-            utc_offset_s: int = 0, window_s: float = ROLLING_WINDOW_S, boards: dict | None = None) -> dict:
+            utc_offset_s: int = 0, window_s: float = ROLLING_WINDOW_S, boards: dict | None = None,
+            until: float | None = None) -> dict:
     """Pure core. episodes: trip row dicts; events: job_events dicts
     ({t, kind, data, facet, x, y}); attempts: harvest_attempts rows
-    (t, facet, x, y, z, outcome, amount); boards: board_prices() of the price history."""
+    (t, facet, x, y, z, outcome, amount); boards: board_prices() of the price history.
+    Only what falls in [since, until) counts (module conventions)."""
     since = float(since)
-    rows = [r for r in episodes if isinstance(r, dict) and _num(r.get("t_start"), 0) >= since]
+    rows = [r for r in episodes if isinstance(r, dict) and in_range(r.get("t_start"), since, until)]
     rows.sort(key=lambda r: _num(r.get("t_start"), 0))
     trips = [_trip_row(i, r, woods, boards) for i, r in enumerate(rows)]
     evs = sorted(({**e, "data": e.get("data") if isinstance(e.get("data"), dict) else {}}
-                  for e in events if _num(e.get("t"), 0) >= since),
+                  for e in events if in_range(_num(e.get("t"), 0), since, until)),
                  key=lambda e: (e["t"], e.get("id") or 0))
 
     totals, days = _blank(), {}
@@ -301,7 +314,7 @@ def compute(episodes: list[dict], events: list[dict], attempts: list[tuple] | No
         harvest["yield"] = 0
         for row in attempts:
             t, outcome, amount = row[0], row[5], row[6]
-            if t < since:
+            if not in_range(t, since, until):
                 continue
             harvest[outcome] = harvest.get(outcome, 0) + 1
             harvest["yield"] += amount or 0
@@ -328,7 +341,7 @@ def compute(episodes: list[dict], events: list[dict], attempts: list[tuple] | No
                               "total_gp": totals_gp.get(name),
                               "min_skill": entry.get("min_skill"), "known": bool(entry)})
     return {
-        "job": job, "since": since, "utc_offset_s": utc_offset_s, "window_s": window_s,
+        "job": job, "since": since, "until": until, "utc_offset_s": utc_offset_s, "window_s": window_s,
         "woods_file": woods is not None,
         "trips": trips,
         "totals": totals,
@@ -496,9 +509,11 @@ def lumber_plan(memory, now: float) -> dict:
     return out
 
 
-def harvest_rows(memory, since: float = 0.0) -> list[tuple]:
-    return memory.con.execute("SELECT t, facet, x, y, z, outcome, amount FROM harvest_attempts "
-                              "WHERE t >= ? ORDER BY t", (since,)).fetchall()
+def harvest_rows(memory, since: float = 0.0, until: float | None = None) -> list[tuple]:
+    sql, args = "SELECT t, facet, x, y, z, outcome, amount FROM harvest_attempts WHERE t >= ?", [since]
+    if until is not None:
+        sql, args = sql + " AND t < ?", args + [until]
+    return memory.con.execute(sql + " ORDER BY t", args).fetchall()
 
 
 # ------------------------------------------------------------------ hunt
@@ -611,7 +626,7 @@ def hunt_rolling(visits: list[dict], window_s: float = ROLLING_WINDOW_S) -> list
 
 
 def compute_hunt(episodes: list[dict], events: list[dict], since: float = 0.0, utc_offset_s: int = 0,
-                 window_s: float = ROLLING_WINDOW_S) -> dict:
+                 window_s: float = ROLLING_WINDOW_S, until: float | None = None) -> dict:
     """Pure core of the hunt dashboard. episodes: loop_hunt visit rows; events:
     job_events dicts of the hunt job.
 
@@ -623,11 +638,11 @@ def compute_hunt(episodes: list[dict], events: list[dict], since: float = 0.0, u
     data.name names, else the kill whose serial is data.mob, else (loot rows before
     2026-10-02 carry neither) the latest earlier kill no loot claimed yet."""
     since = float(since)
-    rows = [r for r in episodes if isinstance(r, dict) and _num(r.get("t_start"), 0) >= since]
+    rows = [r for r in episodes if isinstance(r, dict) and in_range(r.get("t_start"), since, until)]
     rows.sort(key=lambda r: _num(r.get("t_start"), 0))
     visits = [_visit_row(i, r) for i, r in enumerate(rows)]
     evs = sorted(({**e, "data": e.get("data") if isinstance(e.get("data"), dict) else {}}
-                  for e in events if _num(e.get("t"), 0) >= since),
+                  for e in events if in_range(_num(e.get("t"), 0), since, until)),
                  key=lambda e: (e["t"], e.get("id") or 0))
 
     totals, days, monsters = _hunt_blank(), {}, {}
@@ -697,7 +712,7 @@ def compute_hunt(episodes: list[dict], events: list[dict], since: float = 0.0, u
                      "xp_per_kill": _ratio(m["xp"], m["xp_kills"])}
                     for name, m in sorted(monsters.items(), key=lambda kv: (-kv[1]["kills"], kv[0]))]
     return {
-        "job": "hunt", "since": since, "utc_offset_s": utc_offset_s, "window_s": window_s,
+        "job": "hunt", "since": since, "until": until, "utc_offset_s": utc_offset_s, "window_s": window_s,
         "visits": visits,
         "totals": totals,
         "days": day_rows,
@@ -712,25 +727,29 @@ def compute_hunt(episodes: list[dict], events: list[dict], since: float = 0.0, u
 _DEFAULT = object()
 
 
-def analytics(memory, job: str = "lumber", since: float = 0.0, woods=_DEFAULT,
+def analytics(memory, job: str = "lumber", since: float = 0.0, until: float | None = None, woods=_DEFAULT,
               utc_offset_s: int = 0, window_s: float = ROLLING_WINDOW_S, plan_now: float | None = None) -> dict:
     """Analytics from a harness.memory.Memory, or empty ones for memory None (no store
-    yet). `hunt` gets compute_hunt(); every other job the trip analytics, logs valued
+    yet), over [since, until) (until None = open-ended); the store reads are bounded
+    by the range too (indexes episodes_loop_t, job_events_job_t, harvest_attempts_t).
+    `hunt` gets compute_hunt(); every other job the trip analytics, logs valued
     from the store's board:<wood> price history. `woods`: a load_woods() dict, None for
     no fallback values, or default = harness/data/woods.json if present. Harvest
     outcomes come only for the lumber job (harvest_attempts has no job column).
     Lumber: the supplies priced from the store's prices (lumber_opt.supply_gp) and,
     with `plan_now` (the clock; the viz passes it), `plan` = lumber_plan() at that
-    time, else null."""
-    episodes = memory.episodes(job) if memory is not None else []
-    events = memory.job_events(job, since) if memory is not None else []
+    time (all history, not the range), else null."""
+    since = float(since)
+    # no t_start bound when since <= 0: rows without t_start stay in the unbounded range (in_range)
+    episodes = memory.episodes(job, since if since > 0 else None, until) if memory is not None else []
+    events = memory.job_events(job, since, until) if memory is not None else []
     if job == "hunt":
-        return compute_hunt(episodes, events, since, utc_offset_s, window_s)
+        return compute_hunt(episodes, events, since, utc_offset_s, window_s, until)
     if woods is _DEFAULT:
         woods = load_woods()
-    attempts = harvest_rows(memory, since) if memory is not None and job == "lumber" else None
+    attempts = harvest_rows(memory, since, until) if memory is not None and job == "lumber" else None
     boards = board_prices(memory.price_history("board:")) if memory is not None else None
-    out = compute(episodes, events, attempts, woods, job, since, utc_offset_s, window_s, boards)
+    out = compute(episodes, events, attempts, woods, job, since, utc_offset_s, window_s, boards, until)
     if job == "lumber":
         import lumber_opt
         prices = memory.prices() if memory is not None else {}
@@ -747,10 +766,11 @@ def main(argv=None):
     ap.add_argument("--db", default=memory_mod.DEFAULT_DB)
     ap.add_argument("--job", default="lumber")
     ap.add_argument("--since", type=float, default=0.0)
+    ap.add_argument("--until", type=float, default=None)
     a = ap.parse_args(argv)
     m = memory_mod.Memory(a.db)
     try:
-        out = analytics(m, a.job, a.since, utc_offset_s=time.localtime().tm_gmtoff)
+        out = analytics(m, a.job, a.since, a.until, utc_offset_s=time.localtime().tm_gmtoff)
     finally:
         m.close()
     keys = ("totals", "days", "monsters") if a.job == "hunt" else ("totals", "days", "harvest")

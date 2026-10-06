@@ -2,7 +2,7 @@
 // with resume (event batches + newest state, coalesced per task, sse.ts),
 // periodic walk-memory refresh, playback and agent-gate control, job analytics
 // and the overseer chat (§2.4).
-import type { HuntResponse, JobsResponse } from "./jobs.ts";
+import type { HuntResponse, JobsResponse, RangeBounds } from "./jobs.ts";
 import type { OverseerResponse } from "./overseer.ts";
 import { supersede, type SseMessage } from "./sse.ts";
 import type { VizStore } from "./store.ts";
@@ -34,11 +34,15 @@ export async function postPlayback(action: PlaybackAction): Promise<void> {
   if (!r.ok) throw new Error(`/api/playback: HTTP ${r.status} ${await r.text()}`);
 }
 
-/** Job analytics (harness/jobs.py); `tz` = minutes east of UTC for the per-day split. */
-export function fetchJobs(job: "lumber", tz: number): Promise<JobsResponse>;
-export function fetchJobs(job: "hunt", tz: number): Promise<HuntResponse>;
-export async function fetchJobs(job: string, tz: number): Promise<JobsResponse | HuntResponse> {
-  const r = await fetch(`/api/jobs?job=${encodeURIComponent(job)}&tz=${tz}`, { cache: "no-store" });
+/** Job analytics (harness/jobs.py) over [since, until) epoch s (null = unbounded);
+ *  `tz` = minutes east of UTC for the per-day split. */
+export function fetchJobs(job: "lumber", tz: number, range: RangeBounds): Promise<JobsResponse>;
+export function fetchJobs(job: "hunt", tz: number, range: RangeBounds): Promise<HuntResponse>;
+export async function fetchJobs(job: string, tz: number, range: RangeBounds): Promise<JobsResponse | HuntResponse> {
+  const q = new URLSearchParams({ job, tz: String(tz) });
+  if (range.since !== null) q.set("since", String(range.since));
+  if (range.until !== null) q.set("until", String(range.until));
+  const r = await fetch(`/api/jobs?${q}`, { cache: "no-store" });
   if (!r.ok) throw new Error(`/api/jobs: HTTP ${r.status} ${await r.text()}`);
   return (await r.json()) as JobsResponse | HuntResponse;
 }

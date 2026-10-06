@@ -17,6 +17,7 @@ import { OverseerPanel, useOverseer } from "./components/OverseerPanel.tsx";
 import { PaperdollPanel } from "./components/PaperdollPanel.tsx";
 import { SelfPanel } from "./components/SelfPanel.tsx";
 import { TrafficPanel } from "./components/TrafficPanel.tsx";
+import { parseRange, rangeQuery, type DateRange } from "./jobs.ts";
 import { useViz } from "./store.ts";
 
 const TABS = ["Inspector", "Gumps", "Census", "Diagnostics", "Events"] as const;
@@ -26,10 +27,13 @@ type Tab = (typeof TABS)[number];
 type MainView = "map" | "live";
 const MAIN_VIEW_KEY = "uo-viz-main";
 
-/** The page lives in the URL hash (#jobs, #jobs/hunt), so it survives reloads and can be linked. */
-function routeFromHash(): { page: Page; job: JobKind } {
-  if (location.hash === "#jobs/hunt") return { page: "Jobs", job: "hunt" };
-  return { page: location.hash === "#jobs" ? "Jobs" : "Live", job: "lumber" };
+/** The page and the Jobs date range live in the URL hash (#jobs, #jobs/hunt, with
+ *  ?from=YYYY-MM-DD&to=YYYY-MM-DD), so they survive reloads and can be linked. */
+function routeFromHash(): { page: Page; job: JobKind; range: DateRange } {
+  const [path = "", query = ""] = location.hash.split("?", 2);
+  const range = parseRange(query);
+  if (path === "#jobs/hunt") return { page: "Jobs", job: "hunt", range };
+  return { page: path === "#jobs" ? "Jobs" : "Live", job: "lumber", range };
 }
 
 export function App() {
@@ -65,16 +69,17 @@ export function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  const go = (p: Page, job: JobKind = route.job) => {
-    location.hash = p === "Live" ? "" : job === "hunt" ? "jobs/hunt" : "jobs";
-    setRoute({ page: p, job });
+  const go = (p: Page, job: JobKind = route.job, range: DateRange = route.range) => {
+    const q = rangeQuery(range);
+    location.hash = p === "Live" ? "" : (job === "hunt" ? "jobs/hunt" : "jobs") + (q ? `?${q}` : "");
+    setRoute({ page: p, job, range });
   };
 
   if (page === "Jobs") {
     return (
       <div className="app-jobs">
         <Header viz={viz} page={page} onPage={(p) => go(p)} />
-        <JobsPage job={route.job} onJob={(j) => go("Jobs", j)} />
+        <JobsPage job={route.job} onJob={(j) => go("Jobs", j)} range={route.range} onRange={(r) => go("Jobs", route.job, parseRange(rangeQuery(r)))} />
       </div>
     );
   }

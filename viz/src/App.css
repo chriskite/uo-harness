@@ -1482,6 +1482,22 @@ ol.lines {
   margin: 0;
   font-size: 17px;
 }
+.jobs-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.jobs-range label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--dim);
+}
+.jobs-range input[type="date"] {
+  color-scheme: dark;
+}
 .kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));

@@ -99,8 +99,10 @@ CREATE TABLE IF NOT EXISTS harvest_attempts(
     t REAL NOT NULL, facet INTEGER NOT NULL, x INTEGER NOT NULL, y INTEGER NOT NULL,
     z INTEGER NOT NULL, outcome TEXT NOT NULL, amount INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS harvest_attempts_node ON harvest_attempts(facet, x, y, t);
+CREATE INDEX IF NOT EXISTS harvest_attempts_t ON harvest_attempts(t);
 CREATE TABLE IF NOT EXISTS episodes(
     id INTEGER PRIMARY KEY, loop TEXT NOT NULL, t_start REAL, t_end REAL, data TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS episodes_loop_t ON episodes(loop, t_start);
 CREATE TABLE IF NOT EXISTS junctures(
     id INTEGER PRIMARY KEY, t REAL NOT NULL, source TEXT NOT NULL, kind TEXT NOT NULL,
     severity TEXT NOT NULL, summary TEXT NOT NULL, data TEXT NOT NULL, acked_t REAL);
@@ -286,9 +288,15 @@ class Memory:
                          (loop, row.get("t_start"), row.get("t_end"), json.dumps(row)))
         self.con.commit()
 
-    def episodes(self, loop: str):
-        return [json.loads(d) for (d,) in self.con.execute(
-            "SELECT data FROM episodes WHERE loop=? ORDER BY id", (loop,))]
+    def episodes(self, loop: str, since: float | None = None, until: float | None = None):
+        """Trip rows of `loop` in insert order; `since`/`until` bound t_start to
+        [since, until) (a row without t_start matches only when both are None)."""
+        sql, args = "SELECT data FROM episodes WHERE loop=?", [loop]
+        if since is not None:
+            sql, args = sql + " AND t_start >= ?", args + [since]
+        if until is not None:
+            sql, args = sql + " AND t_start < ?", args + [until]
+        return [json.loads(d) for (d,) in self.con.execute(sql + " ORDER BY id", args)]
 
     # -- overseer bus (docs/OVERSEER.md) -----------------------------------------
     SEVERITIES = ("info", "attention", "urgent")
@@ -382,11 +390,14 @@ class Memory:
         self.con.commit()
         return cur.lastrowid
 
-    def job_events(self, job: str, since: float = 0.0) -> list[dict]:
+    def job_events(self, job: str, since: float = 0.0, until: float | None = None) -> list[dict]:
+        """Events of `job` with t in [since, until), oldest first."""
         keys = ("id", "t", "job", "kind", "facet", "x", "y", "data")
         out = []
-        for row in self.con.execute("SELECT id, t, job, kind, facet, x, y, data FROM job_events "
-                                    "WHERE job = ? AND t >= ? ORDER BY t, id", (job, since)):
+        sql, args = "SELECT id, t, job, kind, facet, x, y, data FROM job_events WHERE job = ? AND t >= ?", [job, since]
+        if until is not None:
+            sql, args = sql + " AND t < ?", args + [until]
+        for row in self.con.execute(sql + " ORDER BY t, id", args):
             d = dict(zip(keys, row))
             d["data"] = json.loads(d["data"])
             out.append(d)

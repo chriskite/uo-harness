@@ -243,6 +243,19 @@ def test_jobs():
     check("since=4000: trips #2 and #3, events from t>=4000",
           since["totals"]["trips"] == 2 and since["totals"]["logs"] == 42 and since["totals"]["deaths"]["total"] == 2
           and since["harvest"]["success"] == 0, str(since["totals"]["trips"]))
+    upto = jobs.analytics(m, "lumber", 0, 5000, woods=WOODS)
+    check("until=5000 is exclusive: trip #1 only (trip #2 starts at 5000), events and attempts before it",
+          (upto["totals"]["trips"], upto["totals"]["deaths"]["total"], upto["totals"]["pk_seen"],
+           upto["harvest"]["success"], upto["until"]) == (1, 1, 1, 3, 5000),
+          str((upto["totals"]["trips"], upto["totals"]["deaths"], upto["harvest"])))
+    window = jobs.analytics(m, "lumber", 4000, DAY, woods=WOODS)
+    check("[4000, DAY): trip #2, its death and theft and the fall at 7000; nothing from day 2",
+          (window["totals"]["trips"], window["totals"]["deaths"]["total"], window["totals"]["thefts"]["count"],
+           [d["day"] for d in window["days"]]) == (1, 2, 1, ["1970-01-01"]), str(window["totals"]))
+    no_start = [{"logs": 5}]
+    check("a trip without t_start: only in the unbounded range",
+          [jobs.compute(no_start, [], None, None, since=s, until=u)["totals"]["trips"]
+           for s, u in ((0, None), (1, None), (0, 10_000))] == [1, 0, 0])
     nowoods = jobs.analytics(m, "lumber", 0, woods=None)
     check("no woods.json: value null, every log unpriced",
           nowoods["totals"]["value_gp"] is None and nowoods["totals"]["value_unpriced_logs"] == 62
@@ -394,6 +407,10 @@ def test_hunt_jobs():
     check("since=4000: visits 2 and 3, the outside kill and the orc",
           (since["totals"]["visits"], since["totals"]["kills"], since["totals"]["xp"]) == (2, 3, 145),
           str(since["totals"]))
+    upto = jobs.analytics(m, "hunt", 0, DAY)
+    check("until=DAY: visits 1 and 2, the four day-1 kills, no orc",
+          (upto["totals"]["visits"], upto["totals"]["kills"], [r["name"] for r in upto["monsters"]])
+          == (2, 4, ["a mongbat"]), str(upto["totals"]))
     empty = jobs.analytics(None, "hunt", 0)
     check("no store: zeros and nulls, no division errors",
           empty["totals"]["kills"] == 0 and empty["totals"]["xp_per_hour"] is None
@@ -439,6 +456,13 @@ def test_overseer_routes(logdir):
         check("GET /api/jobs bad tz: 400", code == 400, str(code))
         code, _ = get_status(base + "/api/jobs?since=soon")
         check("GET /api/jobs bad since: 400", code == 400, str(code))
+        ranged = get(base + "/api/jobs?job=lumber&since=4000&until=86400&tz=0")
+        check("GET /api/jobs since+until == jobs.analytics over [since, until)",
+              (ranged["since"], ranged["until"], ranged["totals"]["trips"]) == (4000, 86400, 1),
+              str((ranged["since"], ranged["until"], ranged["totals"]["trips"])))
+        for q in ("since=5000&until=5000", "since=5000&until=4000", "until=nan", "until=later"):
+            code, _ = get_status(base + f"/api/jobs?{q}")
+            check(f"GET /api/jobs {q}: 400", code == 400, str(code))
         ov = get(base + "/api/overseer")
         check("GET /api/overseer: all chat rows oldest first, roles/kinds kept",
               [(c["role"], c["kind"]) for c in ov["chat"]] == [("system", "message"), ("overseer", "message"),

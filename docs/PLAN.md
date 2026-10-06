@@ -1200,6 +1200,29 @@ home), Young-only Shelter. A PvP escape still stops at home outside the room (en
 for 2 min after PvP). Details: LUMBER_LOOP.md §12.5, §13 "Trip"; offline proof
 `test_loop_lumber.py` (a simulated steward, room menus from the live gumps, door, chest).
 
+## Jobs page date range (decided and built 2026-10-05)
+
+User request: a date range selector on the viz Jobs page, with whatever SQLite indexes keep it fast
+as the store grows. Built (docs/VISUALIZER.md §2.4, docs/MEMORY.md "Indexes for time-range reads"):
+
+- **Range = local calendar days, inclusive, in the URL hash** (`#jobs?from=…&to=…`), turned into
+  [since, until) epoch seconds by the browser. The server already had `since`; `until` is the only
+  new parameter, so the server stays timezone-free for the range (the `tz` query still does the
+  per-day split). Rejected: relative presets in the URL (`range=7d`) since a link would mean a
+  different window tomorrow; the presets write dates.
+- **Trips by `t_start`**, like `since` already did, so a trip never splits across ranges.
+- **The range goes into SQL**, not only the Python filter: `Memory.episodes/job_events` and
+  `jobs.harvest_rows` take [since, until). New indexes `episodes(loop, t_start)` and
+  `harvest_attempts(t)`; `job_events(job, t)` already existed. `EXPLAIN QUERY PLAN` on the
+  2026-10-05 store: all three are index SEARCHes (before: `episodes` and `harvest_attempts` were
+  full scans). No schema bump: `CREATE INDEX IF NOT EXISTS` builds them on the next open.
+- **The lumber plan stays all-history and is cached per minute** in `viz_server` (its seed is the
+  minute). Profiling the 2026-10-05 store: one lumber `/api/jobs` took 3.4 s, of which the
+  optimizer's Monte Carlo (`lumber_opt.plan`) was ~all and the SQL reads milliseconds. Without the
+  separate cache every range click would rerun it; now a range change answers in 10–40 ms. The
+  plan can lag new trips by up to a minute. The optimizer's own cost grows with spots × draws, not
+  with the store, so indexes don't help it.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

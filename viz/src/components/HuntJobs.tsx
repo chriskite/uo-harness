@@ -1,15 +1,15 @@
 import { fetchJobs } from "../api.ts";
 import { fmtDuration } from "../format.ts";
-import { eventView, fmtGp, fmtInt, fmtNum, fmtStamp, huntKpis, oneLocalDay } from "../jobs.ts";
+import { eventView, fmtGp, fmtInt, fmtNum, fmtStamp, huntKpis, oneLocalDay, type RangeBounds } from "../jobs.ts";
 import { EventStrip, RateChart, VisitBarsChart } from "./Charts.tsx";
 import { Badge, Panel } from "./common.tsx";
-import { JobsHead, JobsLoading, useJobPoll, type JobKind } from "./JobsCommon.tsx";
+import { JobsHead, JobsLoading, useJobPoll, type JobDashboardProps } from "./JobsCommon.tsx";
 
-const fetchHunt = (tz: number) => fetchJobs("hunt", tz);
+const fetchHunt = (tz: number, range: RangeBounds) => fetchJobs("hunt", tz, range);
 
 /** Hunting job dashboard from /api/jobs?job=hunt (harness/jobs.py compute_hunt). */
-export function HuntJobs({ onJob }: { onJob: (j: JobKind) => void }) {
-  const { data, error, at, reload } = useJobPoll(fetchHunt);
+export function HuntJobs({ onJob, range, onRange }: JobDashboardProps) {
+  const { data, error, at, reload, loading } = useJobPoll(fetchHunt, range);
   if (!data) return <JobsLoading job="hunt" onJob={onJob} error={error} />;
   const t = data.totals;
   const visits = data.visits;
@@ -25,13 +25,16 @@ export function HuntJobs({ onJob }: { onJob: (j: JobKind) => void }) {
         onJob={onJob}
         title={
           <>
-            Hunting job <span className="dim">· {recorded && t.first_t !== null ? `${fmtStamp(t.first_t)} → ${fmtStamp(t.last_t!)}` : "no visits recorded"}</span>
+            Hunting job <span className="dim">· {recorded && t.first_t !== null ? `${fmtStamp(t.first_t)} → ${fmtStamp(t.last_t!)}` : data.since > 0 || data.until !== null ? "no visits in this range" : "no visits recorded"}</span>
           </>
         }
         store={data.store}
         error={error}
         at={at}
         onRefresh={reload}
+        range={range}
+        onRange={onRange}
+        loading={loading}
       />
 
       <div className="kpis">

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { eventView, legText, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, phaseList, theftLoss, tripHome, woodShares, type HuntTotals, type JobEvent, type JobTotals } from "./jobs.ts";
+import { addDays, eventView, legText, localDay, parseRange, presetRange, rangeBounds, rangeQuery, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, phaseList, theftLoss, tripHome, woodShares, type HuntTotals, type JobEvent, type JobTotals } from "./jobs.ts";
 
 function totals(p: Partial<JobTotals> = {}): JobTotals {
   return {
@@ -217,5 +217,35 @@ describe("lumber travel helpers", () => {
       ["other", 0.1],
     ]);
     expect(splitShares({ travel: 0, lockout: 0, field: 0, other: 0 }).every((s) => s.share === 0)).toBe(true);
+  });
+});
+
+describe("date range", () => {
+  test("parseRange: bad or impossible dates dropped, a reversed pair swapped; rangeQuery is its inverse", () => {
+    expect(parseRange("from=2026-10-01&to=2026-10-05")).toEqual({ from: "2026-10-01", to: "2026-10-05" });
+    expect(parseRange("from=2026-02-30&to=2026-10-05")).toEqual({ from: null, to: "2026-10-05" });
+    expect(parseRange("from=yesterday&to=")).toEqual({ from: null, to: null });
+    expect(parseRange("from=2026-10-05&to=2026-10-01")).toEqual({ from: "2026-10-01", to: "2026-10-05" });
+    expect(rangeQuery(parseRange("to=2026-10-05"))).toBe("to=2026-10-05");
+    expect(rangeQuery({ from: null, to: null })).toBe("");
+  });
+  test("rangeBounds: since at the local midnight starting `from`, until at the one after `to` (to is inclusive)", () => {
+    // 2026-03-08 and 2026-11-01 are DST switch days in the US: a day isn't always 86 400 s
+    for (const day of ["2026-03-08", "2026-11-01", "2026-12-31"]) {
+      const { since, until } = rangeBounds({ from: day, to: day });
+      expect(localDay(since!)).toBe(day);
+      expect(new Date(since! * 1000).getHours()).toBe(0);
+      expect(localDay(until!)).toBe(addDays(day, 1)!);
+      expect(new Date(until! * 1000).getHours()).toBe(0);
+    }
+    expect(rangeBounds({ from: null, to: null })).toEqual({ since: null, until: null });
+  });
+  test("presets end open so new trips keep showing; N days include today; month and year edges", () => {
+    expect(presetRange("all", "2026-10-05")).toEqual({ from: null, to: null });
+    expect(presetRange("today", "2026-10-05")).toEqual({ from: "2026-10-05", to: null });
+    expect(presetRange("7d", "2026-10-05")).toEqual({ from: "2026-09-29", to: null });
+    expect(presetRange("30d", "2026-01-10")).toEqual({ from: "2025-12-12", to: null });
+    expect(addDays("2026-02-28", 1)).toBe("2026-03-01");
+    expect(addDays("2026-02-30", 1)).toBeNull();
   });
 });
