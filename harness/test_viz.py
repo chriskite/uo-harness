@@ -167,7 +167,7 @@ def seed_jobs(m: memory.Memory):
     m.episode("errand", {"t_start": 1500.0, "t_end": 1600.0, "logs": 999})
     m.episode("lumber", {"trip": 2, "t_start": 5000.0, "t_end": 6200.0, "logs": 30, "stored": 25,
                          "woods": {"ordinary": 20, "oak": 10}, "attempts": 12, "successes": 6})
-    m.episode("lumber", {"trip": 1, "t_start": DAY + 100, "t_end": DAY + 700, "logs": 12, "stored": 12})
+    m.episode("lumber", {"trip": 1, "t_start": DAY + 100, "t_end": DAY + 700, "logs": 12, "stored": 12, "stockpiled": 12})
     m.job_event("lumber", "death", {"cause": "pk", "name": "Bob"}, 0, 10, 20, t=1500.0)
     m.job_event("lumber", "death", {"cause": "mob"}, t=5100.0)
     m.job_event("lumber", "death", {"cause": "fall"}, t=7000.0)
@@ -191,6 +191,10 @@ def test_jobs():
     t = a["totals"]
     check("totals: 3 lumber trips (errand row ignored), 62 logs, 57 stored",
           (t["trips"], t["logs"], t["stored"]) == (3, 62, 57), str({k: t[k] for k in ("trips", "logs", "stored")}))
+    check("boards stashed: only the stockpiled ones (trip #3's 12; the chest-era trips' 45 stored don't count), "
+          "per trip and on day 2",
+          (t["stockpiled"], [r["stockpiled"] for r in a["trips"]], [d["stockpiled"] for d in a["days"]])
+          == (12, [0, 0, 12], [0, 12]), str((t["stockpiled"], [d["stockpiled"] for d in a["days"]])))
     check("active time = sum of trip durations (1800+1200+600 s = 1 h), gaps excluded",
           t["active_s"] == 3600.0 and t["active_hours"] == 1.0, f"{t['active_s']} {t['active_hours']}")
     check("logs/hr 62.0, logs/trip 20.67, chop success 10/22",

@@ -331,10 +331,12 @@ indexes of docs/MEMORY.md "Indexes for time-range reads".
 - **Range:** a trip is in it when its `t_start` is, an event or harvest attempt by its `t`. A
   trip row without `t_start` shows only in the unbounded range. Prices are not ranged: a trip is
   still valued at the board price as of its end.
-- **Per trip:** start/end, duration, logs, stored, logs/hr, captchas and wait, chop attempts and
+- **Per trip:** start/end, duration, logs, stored, stockpiled (boards the Resource Stockpile
+  confirmed taking; 0 for chest- and bank-era trips), logs/hr, captchas and wait, chop attempts and
   successes, phase times, the `woods: {name: n}` breakdown when the row has one, estimated value,
   and the job events that fell inside the trip.
 - **Totals and per day** (a trip counts on the day its start falls on): trips, logs, stored,
+  stockpiled,
   active hours, logs/hr, logs/trip, captchas, deaths by cause (`death` events, `data.cause` `pk` /
   `mob` / anything else → `other`), thefts (`theft` events: `data.amount` when numeric, else the
   summed `data.items`, which may be `{name: n}`, `[{name|graphic, amount}]` or `[name]`), PK
@@ -439,9 +441,11 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     and says "refresh failed" in the panel head.
 
   The lumber dashboard:
-  - KPI tiles: logs/hr, logs/trip (with the chop success rate), trips, active hours, deaths to PKs
-    (with PK sightings), deaths to mobs, loss to thieves, captchas (with the wait time). Safety
-    tiles are green at 0, red or amber otherwise.
+  - KPI tiles: logs/hr, logs/trip (with the chop success rate), **boards stashed** (2026-10-05,
+    user request: only boards the Resource Stockpile confirmed taking, the trip rows'
+    `stockpiled`; the chest's don't count), trips, active hours, deaths to PKs (with PK
+    sightings), deaths to mobs, loss to thieves, captchas (with the wait time). Safety tiles are
+    green at 0, red or amber otherwise. The Trips and Per day tables have a `stashed` column too.
   - A line under the tiles: the estimated value (and how many logs are unpriced) and the chop
     outcomes from `harvest_attempts`.
   - **Optimizer: next pick** (2026-10-03; hazards 2026-10-03): the plan's spot with

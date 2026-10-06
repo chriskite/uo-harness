@@ -1600,8 +1600,8 @@ async def main():
               and text.count(f"opening container 0x{BACKPACK:08X}") == 1 and world.chest_opens == 2,
               f"{world.containers_opened} chest opens {world.chest_opens}")
         check("no speech at all (the room goes by menus, no 'bank')", speech == [], str([p.hex() for p in speech]))
-        check("two episode rows with logs and stored boards",
-              len(rows) == 2 and all(r.get("logs", 0) >= 6 and r.get("stored", 0) >= 6
+        check("two episode rows with logs and stored boards, none stockpiled (this home has only the chest)",
+              len(rows) == 2 and all(r.get("logs", 0) >= 6 and r.get("stored", 0) >= 6 and "stockpiled" not in r
                                      and set(r["phases_s"]) == {"harvest", "to_room", "convert", "store"}
                                      for r in rows), str(rows))
         check("trip rows say where, how it ended and with what: spot sim, stored, the worn iron hatchet, "
@@ -2419,10 +2419,12 @@ async def stockpile_store():
     check("its menu was closed once, at the end (each add brings it back)",
           pile["closed"] == 1 and not pile["gumps"], str(pile))
     eps = store.episodes("lumber")
-    check("the row stored them all; no theft suspected (the Restock below took pack items too)",
+    check("the row stored them all and stockpiled them all (the Jobs page's boards stashed); no theft suspected "
+          "(the Restock below took pack items too)",
           len(eps) == 1 and eps[0]["outcome"] == "stored" and eps[0].get("stored") == pile["boards"]
+          and eps[0].get("stockpiled") == pile["boards"]
           and not [j for j in store.junctures() if j["kind"] == "theft_suspected"],
-          f"{[(e.get('outcome'), e.get('stored')) for e in eps]}\n{text[-600:]}")
+          f"{[(e.get('outcome'), e.get('stored'), e.get('stockpiled')) for e in eps]}\n{text[-600:]}")
     rs = (eps[0].get("restock") or {}) if eps else {}
     check("then the room shelf's Restock with our backpack (the user's routine) took the spent pouch and the two "
           "live ones, and Resupply gave two back (all it had): nothing into the chest; the row's `restock`",

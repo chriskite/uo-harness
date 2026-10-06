@@ -148,7 +148,7 @@ def theft_loss(data: dict) -> tuple[int, dict]:
 
 # ------------------------------------------------------------------ folding
 def _blank():
-    return {"trips": 0, "logs": 0, "stored": 0, "active_s": 0.0, "captchas": 0, "captcha_wait_s": 0.0,
+    return {"trips": 0, "logs": 0, "stored": 0, "stockpiled": 0, "active_s": 0.0, "captchas": 0, "captcha_wait_s": 0.0,
             "attempts": 0, "successes": 0, "woods": {},
             "deaths": {c: 0 for c in DEATH_CAUSES}, "thefts": {"count": 0, "amount": 0, "items": {}},
             "pk_seen": 0, "flees": 0, "value_gp": None, "value_unpriced_logs": 0}
@@ -158,6 +158,7 @@ def _add_trip(agg, trip):
     agg["trips"] += 1
     agg["logs"] += trip["logs"]
     agg["stored"] += trip["stored"]
+    agg["stockpiled"] += trip["stockpiled"]
     agg["active_s"] += trip["duration_s"] or 0.0
     agg["captchas"] += trip["captchas"]
     agg["captcha_wait_s"] += trip["captcha_wait_s"]
@@ -215,10 +216,13 @@ def _trip_row(i, row, woods, boards):
             value = round((value or 0) + p["gp"] * n, 2)
     phases = row.get("phases_s") if isinstance(row.get("phases_s"), dict) else {}
     # outcome: "stored" (home, boards in the room's chest, since 2026-10-04), "aborted", or the
-    # bank era's "banked" (rows without an outcome are the oldest bank-era trips; lumber_opt.trip_obs)
+    # bank era's "banked" (rows without an outcome are the oldest bank-era trips; lumber_opt.trip_obs).
+    # stored = boards put away (bank, chest or stockpile); stockpiled = only those the Resource
+    # Stockpile confirmed taking (rows since 2026-10-05; none before: boards went to the chest)
     return {"n": i + 1, "trip": row.get("trip"), "spot": row.get("spot") or row.get("venue"),
             "outcome": row.get("outcome") or "banked", "why": row.get("why"), "t_start": t0, "t_end": t1,
             "duration_s": duration, "logs": logs, "stored": int(_num(row.get("stored"))),
+            "stockpiled": int(_num(row.get("stockpiled"))),
             "logs_per_hour": _rate(logs, duration),
             "captchas": int(_num(row.get("captchas"))), "captcha_wait_s": round(_num(row.get("captcha_wait_s")), 1),
             "attempts": int(_num(row.get("attempts"))), "successes": int(_num(row.get("successes"))),

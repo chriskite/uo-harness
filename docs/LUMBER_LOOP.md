@@ -379,7 +379,7 @@ patches show up within weeks):
   already counts.
 - **regrowth:** pairs (depleted, later attempt on the same tree) from `harvest_attempts`; an
   isotonic fit of P(regrown | gap); the estimate is where it reaches 0.6. On the data of 2026-10-02
-  (137 pairs): 0/14 regrown at 15–30 min, 7/50 at 30–45, 12/25 at 45–60, 41/45 later → 65 min. The
+  (137 pairs): 0/14 regrown at 15–30 min, 7/50 at 30–45, 12/25 at 45–60, 44/48 later → 65 min. The
   old 20-min window sent the runner to depleted trees (docs/NOTES.md).
 - **hatchet:** for every owned hatchet (worn or packed; material by hue, quality by clicked name)
   and every buyable one with a known price (iron 25 gp at NPCs; `ctl lumber price hatchet:<material>
@@ -447,6 +447,7 @@ read-only, 2026-10-03 ~16:00, Hackworth on Witcher spots): 21 lumber trip rows (
 | Stationary penalty | clears, repositions, time | trip row `stationary_clears` (1 row), `buff_update` "Stationary Penalty" events (733) | had; **added** `stationary_s` |
 | Weight cutoff | weight carried at the end | `world.self.weight`, max in `world.self.stats.weight_max` (status packet type ≥ 5, `world/parsers.py`) | **added** `weight_end`; the planner caps Q by (weight_max − weight) / 0.025 st |
 | Bank deposit | boards stored | trip row `stored` (18; counted when the stack left the pack for the open box) | had |
+| Boards into the Resource Stockpile | boards the stockpile took | trip row `stockpiled` (since 2026-10-05): the boards of the stacks the server confirmed ("You add 1 item(s) to the Resource Stockpile."; `stockpile.deposit`'s `added`); a refused stack or a stop before it doesn't count. `stored` still counts every board put away, chest included. Trip 104 (21:24, 2 410 boards, the only stockpile trip before the field) was backfilled from its 6 confirmations in the `events` table | **added**; the Jobs page's "boards stashed" |
 | Colored wood mix → gold/hour | logs by wood, board prices | trip row `woods` (13 rows; ordinary 2 015, dullwood 43, copperwood 5), prices `board:<wood>` since 2026-10-05: ordinary 26.8 (commodity asks, ECONOMY §5.3), shadowwood 30, dullwood 22, copperwood 20, bronzewood 19 (from the user); none yet for oak, ash, yew, heartwood, bloodwood, frostwood | prices partly in. The Jobs page values each trip at the board price as of its end (2026-10-05). The objective is still logs/hour: gold/hour isn't built (ECONOMY §6) |
 
 Not recorded on purpose: per-trip mana regeneration (meaningless between legs), every step of the

@@ -16,6 +16,8 @@ export interface JobTrip {
   duration_s: number | null;
   logs: number;
   stored: number;
+  /** boards the Resource Stockpile confirmed taking (rows since 2026-10-05; 0 before) */
+  stockpiled: number;
   logs_per_hour: number | null;
   captchas: number;
   captcha_wait_s: number;
@@ -239,6 +241,7 @@ export interface JobAgg {
   trips: number;
   logs: number;
   stored: number;
+  stockpiled: number;
   active_s: number;
   active_hours: number;
   logs_per_hour: number | null;
@@ -420,6 +423,7 @@ export function kpis(t: JobTotals): Kpi[] {
   return [
     { key: "lph", label: "logs / hr", value: fmtNum(t.logs_per_hour, 0), sub: `${t.logs} logs · ${t.stored} stored`, tone: "info" },
     { key: "lpt", label: "logs / trip", value: fmtNum(t.logs_per_trip, 1), sub: t.success_rate === null ? undefined : `${Math.round(t.success_rate * 100)}% chops land`, tone: "info" },
+    { key: "stashed", label: "boards stashed", value: fmtInt(t.stockpiled), sub: "in the resource stockpile", tone: "info" },
     { key: "trips", label: "trips", value: String(t.trips), tone: "dim" },
     { key: "active", label: "active hours", value: hours.value, sub: hours.sub, tone: "dim" },
     { key: "pk", label: "deaths to PKs", value: String(t.deaths.pk), sub: t.pk_seen ? `${t.pk_seen} PK sighting${t.pk_seen === 1 ? "" : "s"}` : undefined, tone: t.deaths.pk ? "bad" : "ok" },

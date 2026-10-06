@@ -3107,8 +3107,9 @@ class LumberLoop:
             res = stockpile_mod.deposit(escape_mod.LinkIO(self.link), self.human, serial, [s for s, _ in stacks])
         except stockpile_mod.StockpileError as e:
             raise Abort(f"resource stockpile: {e}")
-        added = sum(a["amount"] for a in res["added"])
+        added = sum(a["amount"] for a in res["added"])     # only stacks the server confirmed ("You add ...")
         self.stats["stored"] = self.stats.get("stored", 0) + added     # a stop below still counts these
+        self.stats["stockpiled"] = self.stats.get("stockpiled", 0) + added   # the Jobs page's "boards stashed"
         log(f"added {added} boards to the resource stockpile ({len(res['added'])} stack(s))")
         if not res["ok"]:
             raise Abort(f"resource stockpile: {res['error']}; {len(res['left'])} board stack(s) left in the pack")

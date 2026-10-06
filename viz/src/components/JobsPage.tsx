@@ -218,6 +218,7 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
                   <th className="num">time</th>
                   <th className="num">logs</th>
                   <th className="num">stored</th>
+                  <th className="num" title="boards the Resource Stockpile confirmed taking">stashed</th>
                   <th className="num">logs/hr</th>
                   <th className="num">field/hr</th>
                   <th className="num">chops</th>
@@ -244,6 +245,7 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
                     <td className="mono num">{r.duration_s === null ? "—" : fmtDuration(r.duration_s)}</td>
                     <td className="mono num">{r.logs}</td>
                     <td className="mono num">{r.stored}</td>
+                    <td className="mono num">{r.stockpiled}</td>
                     <td className="mono num">{fmtNum(r.logs_per_hour, 0)}</td>
                     <td className="mono num">{fmtNum(r.field_logs_per_hour, 0)}</td>
                     <td className="mono num" title="successful chops / attempts">
@@ -302,6 +304,7 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
                 <th>day</th>
                 <th className="num">trips</th>
                 <th className="num">logs</th>
+                <th className="num" title="boards the Resource Stockpile confirmed taking">stashed</th>
                 <th className="num">active</th>
                 <th className="num">logs/hr</th>
                 <th className="num">logs/trip</th>
@@ -317,6 +320,7 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
                   <td className="mono">{d.day}</td>
                   <td className="mono num">{d.trips}</td>
                   <td className="mono num">{d.logs}</td>
+                  <td className="mono num">{d.stockpiled}</td>
                   <td className="mono num">{fmtDuration(d.active_s)}</td>
                   <td className="mono num">{fmtNum(d.logs_per_hour, 0)}</td>
                   <td className="mono num">{fmtNum(d.logs_per_trip, 1)}</td>
