@@ -423,17 +423,17 @@ footer.colophon { border-top: 1px solid var(--rule); margin-top: 80px; padding-t
   <text x="391" y="91" class="d-text" style="font-weight:600">Codec</text>
   <text x="391" y="107" class="d-small">XOR + Huffman</text>
   <rect x="503" y="72" width="115" height="46" rx="6" class="d-box"></rect>
-  <text x="513" y="91" class="d-text" style="font-weight:600">Framer</text>
-  <text x="513" y="107" class="d-small">145-entry lengths</text>
+  <text x="513" y="91" class="d-text" style="font-weight:600">Walk ladder</text>
+  <text x="513" y="107" class="d-small">shared seq + key</text>
   <rect x="625" y="72" width="115" height="46" rx="6" class="d-box"></rect>
-  <text x="635" y="91" class="d-text" style="font-weight:600">Walk ladder</text>
-  <text x="635" y="107" class="d-small">shared seq + key</text>
+  <text x="635" y="91" class="d-text" style="font-weight:600">Client-only fixes</text>
+  <text x="635" y="107" class="d-small">0x21 re-anchors</text>
   <rect x="381" y="126" width="115" height="46" rx="6" class="d-box"></rect>
-  <text x="391" y="145" class="d-text" style="font-weight:600">Injection hub</text>
-  <text x="391" y="161" class="d-small">control :25941</text>
+  <text x="391" y="145" class="d-text" style="font-weight:600">Framer</text>
+  <text x="391" y="161" class="d-small">145-entry lengths</text>
   <rect x="503" y="126" width="115" height="46" rx="6" class="d-box"></rect>
-  <text x="513" y="145" class="d-text" style="font-weight:600">Client-only fixes</text>
-  <text x="513" y="161" class="d-small">0x21 re-anchors</text>
+  <text x="513" y="145" class="d-text" style="font-weight:600">Injection hub</text>
+  <text x="513" y="161" class="d-small">control :25941</text>
   <rect x="625" y="126" width="115" height="46" rx="6" class="d-box"></rect>
   <text x="635" y="145" class="d-text" style="font-weight:600">Target arbiter</text>
   <text x="635" y="161" class="d-small">drops dup replies</text>
@@ -477,12 +477,12 @@ footer.colophon { border-top: 1px solid var(--rule); margin-top: 80px; padding-t
   <text x="759" y="315" class="d-text">trips · junctures · knowledge</text>
   <text x="759" y="341" class="d-small">1.7 M events, 289 MB</text>
 
-  <path d="M420,186 C420,214 130,208 130,236" class="d-edge blue"></path>
+  <path d="M430,186 C430,214 130,208 130,236" class="d-edge blue"></path>
   <text x="236" y="207" class="d-elabel">server packets → state</text>
   <path d="M400,236 C400,212 560,214 560,188" class="d-edge rust"></path>
-  <text x="452" y="216" class="d-elabel">agent actions</text>
-  <path d="M700,186 C700,214 862,208 862,236" class="d-edge"></path>
-  <text x="760" y="207" class="d-elabel">every packet → events</text>
+  <text x="466" y="217" class="d-elabel">agent actions</text>
+  <path d="M747,178 C770,205 862,200 862,236" class="d-edge"></path>
+  <text x="850" y="224" class="d-elabel" style="text-anchor:end">every packet → events</text>
   <path d="M242,298 L263,298" class="d-edge"></path>
   <path d="M518,298 L497,298" class="d-edge"></path>
   <path d="M743,298 L722,298" class="d-edge"></path>
@@ -528,7 +528,7 @@ footer.colophon { border-top: 1px solid var(--rule); margin-top: 80px; padding-t
   <path d="M730,440 L730,398" class="d-edge dash" style="marker-end:none"></path>
   <path d="M905,440 L905,398" class="d-edge dash" style="marker-end:none"></path>
 </svg></div>
-<figcaption><span class="fig-num">Figure 1.</span>The system at a glance. The client and server (dashed) are untouched third parties; everything else runs on the player's PC. Since 10-04 one supervisor (<code>harness/stack.py</code>) brings up the proxy, NAT, visualizer, Laya and the Telegram bridge; the Seer is a separate omp session. Server packets flow up into the world model and the store; agent actions flow down through the proxy's injection hub, sharing one walk ladder with the human's own keystrokes. The LLM only ever acts through <code>ctl</code>. Chapters: wire <a class="ref" href="#sec-wire">§3</a>, world model <a class="ref" href="#sec-world">§4</a>, runners <a class="ref" href="#sec-lumber">§5</a>, planner <a class="ref" href="#sec-optimizer">§6</a>, control plane <a class="ref" href="#sec-seer">§8</a>.</figcaption>
+<figcaption><span class="fig-num">Figure 1.</span>The system at a glance. The client and server (dashed) are untouched third parties; everything else runs on the player's PC. Since 10-04 one supervisor (<code>harness/stack.py</code>) brings up the proxy, NAT, visualizer, Laya and the Telegram bridge; the Seer is a separate omp session. Server packets, framed by the proxy, flow down into the world model and the store; agent actions flow up into the proxy's injection hub, sharing one walk ladder with the human's own keystrokes. The LLM only ever acts through <code>ctl</code>. Chapters: wire <a class="ref" href="#sec-wire">§3</a>, world model <a class="ref" href="#sec-world">§4</a>, runners <a class="ref" href="#sec-lumber">§5</a>, planner <a class="ref" href="#sec-optimizer">§6</a>, control plane <a class="ref" href="#sec-seer">§8</a>.</figcaption>
 </figure>
 
 <p>Two design choices carry most of the weight. First, <strong>the proxy never originates a server-visible packet of its own</strong>: it forwards the client's traffic, it writes the agent's packets in the stock client's exact shapes, and the only thing it ever withholds is a duplicate reply to a target cursor the agent already answered. The fiction that keeps the client's screen honest (for example, a fake "you can't walk there" re-anchor after an agent step) is fabricated <em>toward the client only</em>. Second, <strong>the LLM is a manager, not a pair of hands</strong>. Chopping, walking, fleeing and storing are deterministic controllers with typed failures; an LLM in that loop would be slow, expensive and, as one dungeon fight demonstrated, fatal (<a class="ref" href="#sec-safety">§7</a>).</p>
