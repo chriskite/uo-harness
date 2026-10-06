@@ -92,6 +92,10 @@ ROOM_ENTER_S = 15.0               # landing -> house steward, Visit Other Rooms,
 NO_LANDING_TILES = 60             # landing -> grove walk when no landing is known (display only) [INFERENCE]
 OVERHEAD_SD_MIN_S = 30.0
 HAZARD_PRIOR_H = 2.0              # field hours of pseudo-data behind a spot's hazard_prior (sightings)
+# hostile sightings per field hour assumed at a spot where a faction waypost marker was seen (the
+# runner's `faction_zone`; witcher_66, 2026-10-06: a faction group by "FACTION WP 17" killed Dan)
+# [INFERENCE: 4x the default hazard_prior; faction players in view now count as sightings]
+FACTION_ZONE_PRIOR = 2.0
 DEATH_PRIOR = (1.0, 3.0)          # Beta prior of P(death | hostile player sighted) [INFERENCE]
 CREATURE_DEATH_PRIOR = (0.01, 20.0)  # pooled creature deaths per field hour, pseudo field hours [INFERENCE]
 DEATH_SHRINK_H = 10.0             # field hours a spot's death-rate prior counts for (deaths are rare)
@@ -864,6 +868,8 @@ def spot_model(spot, trips, hev, pooled, prior, phi, p_now, now, landing=None, h
     sightings = hev["sight"]
     seen = sum(wi * sightings.get(tr["t0"], 0) for wi, tr in zip(w, trips))
     hp = _num(spot.get("hazard_prior"), 0.5) if pvp else 0.0
+    if pvp and spot.get("faction_zone"):
+        hp = max(hp, FACTION_ZONE_PRIOR)
     sight_a, sight_b = hp * HAZARD_PRIOR_H + seen, HAZARD_PRIOR_H + exposure
     home = sum(wi for wi, tr in zip(w, trips) if tr["t0"] in hev["home"])
     died = sum(weight(t, now) for t in hev["deaths"])
@@ -1173,6 +1179,7 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
                      "rate_logs_h": round(m["rate"]), "rate_80": [round(lo), round(hi)],
                      "overhead_s": round(m["overhead_s"]), "sightings": m["sightings"],
                      "sightings_per_h": round(m["sight_a"] / m["sight_b"], 2),
+                     "faction_zone": (s.get("faction_zone") or {}).get("label"),
                      "deaths": len(hev[sid]["deaths"]), "deaths_per_h": round(hd, 3),
                      "sent_home": m["sent_home"], "sent_home_per_h": round(hs, 2),
                      "thefts": m["thefts"], "thefts_per_h": round(ht, 3),

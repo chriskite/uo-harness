@@ -837,6 +837,10 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   before the attack was a coincidence. The open question is policy, not a bug: a group of unknown
   blues next to a faction waypoint, one walking up to 2 tiles and talking, gets no reaction until one
   of them flags. [INFERENCE: a single recall can't beat a multi-mage burst that starts at 3 tiles.]
+  The signs were in the log: click echoes with faction tags ("Elite Mercenary [Cambria]",
+  "Banner Captain [Cambria]", guild "[Officer, LoK]") from 14:08:32.5, and precasts ("In Por Ylem"
+  14:08:43.9, "Vas Ort Flam" 14:08:45.4). Since then the runner leaves on both (docs/PLAN.md "Leave on
+  faction tags and on precasts").
 - **Seer6 shift (20:15–23:25, 2026-10-05):** 15 runs, 8033 boards into the stockpile, Lumberjacking 81.1
   → 90.5, 1 death (norse bear rider at witcher_268, resurrected by Malila (2734,617); witcher_268
   disabled). Best trips: the greedy picks witcher_23 (2410 incl. ~1380 carried logs, then 1747) and

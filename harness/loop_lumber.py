@@ -129,6 +129,9 @@ import convert as convert_mod  # noqa: E402
 import stockpile as stockpile_mod  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
+# An Outlands faction waypost marker's click label (live: "FACTION WP 17" at witcher_66, 6 sightings;
+# "1Frozen Ruin Waypost", 17; wiki.uooutlands.com/Factions "Wayposts")
+WAYPOST = re.compile(r"Waypost$|^FACTION WP \d+$", re.IGNORECASE)
 NEXT_STAND_PLANS = 6          # nearest trees (straight line) whose stands next_stand() compares
 RETHINK_PLANS = 3             # nearer trees (straight line) whose routes tree_rethink plans per look
 # Smart Harvest's reach (Chebyshev tiles from our tile to a tree it may chop). UNMEASURED: to be
@@ -434,6 +437,8 @@ class LumberLoop:
         self.aspect_hue = aspects.HARVEST_HUE   # worn armor in this hue counts as Harvest-aspected (aspect_ensure)
         self.aspect_warned = set()   # aspect problems already posted as a juncture this run
         self._attack_scan = 0        # link.events index scanned for "... is attacking you!"
+        self._cast_scan = 0          # ... for harmful spell words (harmful_casts)
+        self.waypost_seen = False    # this trip: a faction waypost marker noted (note_waypost)
         self._flee_mark = 0          # len(link.events) when the guard flight started
         self.facet = know["facet"]   # the spot's facet: tree records and candidates
         self.hatchets = lumber_opt.load_hatchets()
@@ -666,6 +671,7 @@ class LumberLoop:
                 self.creature["hits_lost"] += a.damage["lost"]
                 self.watch.acknowledge(hits=st["world"]["self"].get("hits"))
             return
+        field = self.field_players(st, a)      # faction tags and precasts: hostile out at a pvp spot
         for t in a.threats:
             if t.hostile and t.player and t.serial not in self.seen_hostiles:
                 self.seen_hostiles.add(t.serial)
@@ -682,6 +688,7 @@ class LumberLoop:
         players += [t for t in a.threats if t.player and t.kind == "red" and t.distance >= 0
                     and t not in players]
         players += [t for t in self.attacked_by_players(st, a) if t not in players]
+        players += [t for t in field if t not in players]
         # a creature that swung at us and has left the view is still a creature, not a player
         # (Watch.monsters); one never seen is read as a player, the safe side
         aggressors = [s for s in swung
@@ -797,6 +804,73 @@ class LumberLoop:
                 names.add(text[: -len(" is attacking you!")])
         self._attack_scan = len(ev)
         return [t for t in a.threats if t.player and t.name in names]
+
+    def harmful_casts(self, st) -> dict:
+        """{caster serial: spell} for each harmful spell's power words (threats.harmful_spell) said
+        by someone else since the last check (speech type 10)."""
+        ev, me = self.link.events, self.self_serial(st)
+        out = {}
+        for i in range(self._cast_scan, len(ev)):
+            e = ev[i]
+            if e.get("ev") == "speech_heard" and e.get("type") == 10 and e.get("serial") != me \
+                    and (spell := threats.harmful_spell(e.get("text"))):
+                out[e["serial"]] = spell
+        self._cast_scan = len(ev)
+        return out
+
+    def field_players(self, st, a) -> list:
+        """Out at a pvp spot (afield), players that send us home before any flag (user, 2026-10-06,
+        after run 16's death at witcher_66): one who says a harmful spell's power words within
+        threats.SPELL_WORDS_RANGE (a precast held for us: the words came 5-7 s before the attack),
+        and any player with an Outlands faction tag in view (2 of the 4 lumber trips with one in view
+        ended in an attack; 3 of the 5 players who ever attacked Dan carried one). Not one of our
+        guild or faction (threats.friendly). Each is marked hostile with the why (pk_seen, the
+        threat juncture) and recalled from at once like a red. The spell words are read every check,
+        so ones said at home don't count later. A faction waypost marker in view marks the spot
+        (note_waypost)."""
+        casts = self.harmful_casts(st)
+        if not (self.afield and self.k["pvp"]):
+            return []
+        self.note_waypost(st)
+        me = st["world"].get("self") or {}
+        out = []
+        for t in a.threats:
+            if not t.player or t.distance < 0 or threats.friendly(t, me):
+                continue
+            if t.serial in casts and t.distance <= threats.SPELL_WORDS_RANGE:
+                t.reason = f"said the words of {casts[t.serial]} {t.distance} tiles off (a precast)"
+            elif t.faction:
+                t.reason = f"faction tag [{t.faction}] at {t.distance} tiles"
+            else:
+                continue
+            t.hostile, t.action = True, "flee"
+            t.evidence.append(t.reason)
+            out.append(t)
+        return out
+
+    def note_waypost(self, st):
+        """A faction waypost marker in view (its click label, e.g. "FACTION WP 17", "1Frozen Ruin
+        Waypost"): the first one this trip marks the spot `faction_zone` (lumber_opt ranks it as
+        more hostile, FACTION_ZONE_PRIOR) and is a `faction_waypost` job event."""
+        if self.waypost_seen:
+            return
+        world = st["world"]
+        labels = world.get("labels") or {}
+        for key, m in (world.get("mobiles") or {}).items():
+            label = labels.get(key) or ""
+            if m.get("x") is None or not WAYPOST.search(label):
+                continue
+            self.waypost_seen = True
+            spot = self.k["spot"]["id"]
+            data = {"label": label, "serial": key, "x": m["x"], "y": m["y"], "spot": spot, "trip": self.trip_n}
+            log(f"faction waypost {label!r} at ({m['x']}, {m['y']}): spot {spot} marked a faction zone")
+            self.memory.job_event("lumber", "faction_waypost", data, **self._where(st))
+            row = next((r for r in self.memory.lumber_spot_rows() if r["id"] == spot), None)
+            zone = {"label": label, "x": m["x"], "y": m["y"], "t": round(time.time())}
+            self.memory.lumber_spot_put(spot, row["status"] if row else "active",
+                                        {**(row["data"] if row else {}), "faction_zone": zone},
+                                        row["source"] if row else "runner", row["reason"] if row else None)
+            return
 
     # ------------------------------------------------------------ tracking reds
     def track_observe(self, st):
@@ -3191,7 +3265,7 @@ class LumberLoop:
         self.mover.danger = {}
         self.run_arrived, self.creature, self.avoided = None, self.new_creature_tally(), set()
         self.recent_guards, self.dropped_trees, self.no_route, self.switch_tree = {}, {}, set(), None
-        self.recalled_home = False
+        self.recalled_home, self.waypost_seen = False, False
         # the trip began with resupply_home (run): its time and steps are the trip's overhead too
         t0, s0, b0 = self.pre_trip or (time.time(), self.mover.steps, self.mover.blocked_count)
         self.pre_trip = None

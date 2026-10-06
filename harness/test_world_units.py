@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions
 from world.parsers import PacketIncomplete, parse_packet, parse_fixed
-from world.runtime import WorldRuntime
+from world.runtime import WorldRuntime, title_tags
 
 FAILURES = []
 
@@ -1160,6 +1160,35 @@ def test_bonded_pet_dead():
     eq("re-sent without the flag: alive", rt.state.mobiles[HORSE].to_dict().get("dead"), None)
 
 
+def test_title_tags():
+    print("== a player's faction and guild tags from the title lines under its click label ==")
+    # live 2026-10-06 14:08 (witcher_66), the client's click on each player as it came into view
+    def said(serial, text, hue, kind=0):
+        return _var(0xAE, f"{serial:08x}" "0190" f"{kind:02x}" f"{hue:04x}" "0003" + b"ENU\x00".hex()
+                    + b"x".ljust(30, b"\x00").hex() + (text.encode("utf-16-be") + b"\x00\x00").hex())
+    BEE, GAME, TOWN = 0x00447976, 0x00A55BC8, 0x00123456
+    rt = WorldRuntime()
+    rt.feed_packet("s2c", _login(1000, 1000))
+    for s in (BEE, GAME, TOWN):
+        rt.feed_packet("s2c", _mob20(s, 1001, 1001, noto=1))
+    for p in (said(BEE, "Elite Mercenary [Cambria]", 50), said(BEE, "[Officer, LoK]", 690),
+              said(BEE, "Bee Loga", 89, kind=6),
+              said(GAME, "Cambria", 50), said(GAME, "[LoK]", 55),
+              said(TOWN, "Prevalia", 946),                       # the town's name in plain server text
+              said(TOWN, "[3/5 slots]", 946),
+              said(ME, "[Farm Around Find Out, DTF]", 690)):
+        rt.feed_packet("s2c", p)
+    m = rt.state.mobiles
+    eq("Bee Loga: faction Cambria (titled tag, its hue), guild LoK",
+       (m[BEE].faction, m[BEE].guild), ("Cambria", "LoK"))
+    eq("gamechanger: the bare faction name in its hue counts; guild from a tag without a title",
+       (m[GAME].faction, m[GAME].guild), ("Cambria", "LoK"))
+    eq("plain server text (hue 946) is neither", (m[TOWN].faction, m[TOWN].guild), (None, None))
+    eq("our own guild tag goes on self, in the snapshot",
+       (rt.state.snapshot()["self"]["guild"], rt.state.snapshot()["self"]["faction"]), ("DTF", None))
+    eq("a faction tag in another faction's hue is not one", title_tags("Banner Captain [Cambria]", 2603), {})
+
+
 def test_buff_end():
     print("== a buff's end on the server's clock (Spell Siphon is an hour, not 0.06 s) ==")
     clock = [1791083855.015]
@@ -1373,7 +1402,7 @@ def test_pruning():
 TESTS = [test_fixed_s2c, test_fixed_c2s, test_character_status_11,
          test_skills_3a, test_world_item_1a, test_container_content_3c,
          test_corpse_equipment_89, test_healthbar_16_17, test_gumps_b0_dd,
-         test_dialect_ff, test_c2s_procedural, test_mobile_parsers, test_cliloc, test_bonded_pet_dead,
+         test_dialect_ff, test_c2s_procedural, test_mobile_parsers, test_cliloc, test_bonded_pet_dead, test_title_tags,
          test_vendor_popup_command, test_tracking_packets,
          test_mobile_routing, test_truncation, test_runtime_edges,
          test_event_semantics, test_status_requested, test_pruning, test_worn_layers,

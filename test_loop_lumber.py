@@ -203,6 +203,8 @@ WEST_TREE = {"x": 86, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [87, 200]}
 # red_aim (LUMBER_LOOP.md §13 "Blind waits"; live 2026-10-03, Bastet came into view during the chop's aim pause)
 BASTET, RED_AIM_S, REACT_MAX_S = 0x0009BA57, 0.02, 0.5   # a red, in view this long after the chop's cursor
 # (the aim is a script's ~0.1 s since 2026-10-04, humanize SCRIPT_MEDIAN; the live aim pause was 2.1 s)
+# faction / precast (live 2026-10-06 witcher_66): a guildmate / a blue healing himself, then CALM_S later the foe
+GUILDY, FOE, WAYPOST_MOB, CALM_S = 0x0050CE5C, 0x00447976, 0x000D8F4D, 2.0
 # every tree of the simulated world, whichever the scenario's spot lists (they stand far apart)
 SIM_TREES = [(t["x"], t["y"]) for t in (GOOD_TREE, DRY_TREE, FAR_TREE, LIB_TREE, LIB_FAR_TREE, WEST_TREE)]
 
@@ -342,8 +344,9 @@ def player_update(serial, x, y, noto=1):
             + b"\x00\x00\x02" + u32(0))
 
 
-def player_says(serial, name, text):
-    return var(0x1C, u32(serial) + u16(0x190) + b"\x00" + u16(0x3B2) + u16(3)
+def player_says(serial, name, text, hue=0x3B2, kind=0):
+    """0x1C speech from `serial`: type 0 (said; also the title lines under a click label) or 10 (spell words)."""
+    return var(0x1C, u32(serial) + u16(0x190) + bytes([kind]) + u16(hue) + u16(3)
                + name.encode().ljust(30, b"\x00") + text.encode() + b"\x00")
 
 
@@ -421,7 +424,7 @@ class World:
         #                                   "staff" (a vendor next to us, then an invulnerable player in view)
         self.scripted = scenario == "home"  # captchas, the passer-by's speech, the pickpocket
         self.library = scenario in ("library", "tracking", "gazer", "red_aim", "thief", "pouch_pop", "landing_monster",
-                                    "ghost_horse")
+                                    "ghost_horse", "faction", "precast")
         #                                   the library spot (pvp), black pearls in the pack
         self.facet, self.pos = ROOM_FACET, list(ROOM_ARRIVAL)   # every run starts in the rental room
         self.facing = 0
@@ -527,7 +530,8 @@ class World:
         self.no_cursor_once = False       # convert_stacks: the first hatchet use in the room brings no cursor
         self.door_seen = False            # the door and gates go out on facet 0, then again like the steward
         self.red_due = False              # red_aim: the red is on its way (RED_AIM_S after the chop's cursor)
-        self.red_t = None                 # red_aim: when the red's 0x20 went out
+        self.red_t = None                 # red_aim: when the red's 0x20 went out (faction/precast: the foe's tag / words)
+        self.calm_t = None                # faction/precast: when the guildmate / the healer showed up
         self.vendor_t = None              # staff: when the vendor's 0x20 went out
         self.gm_t = None                  # staff: when the invulnerable player's 0x20 went out
 
@@ -954,6 +958,44 @@ class World:
         self.red_t = time.time()
         self.send(player_update(BASTET, self.pos[0] + 8, self.pos[1], noto=6))
 
+    def faction_appears(self):
+        """faction (live 2026-10-06 witcher_66): our own guild tag; a guildmate whose guild is in a faction
+        (his tag "[Cambria]", ours none: we don't take part), 4 tiles off; the faction waypost marker
+        "FACTION WP 17" 9 tiles off. CALM_S later a Cambria faction player of another guild 10 tiles off
+        (Bee Loga: still blue). The title lines come as the server's answer to the client's click on sight."""
+        x, y = self.pos
+        self.calm_t = time.time()
+        self.send(player_says(SELF, CHAR_NAME, "[Farm Around Find Out, DTF]", hue=690))
+        self.send(player_update(GUILDY, x + 4, y))
+        self.send(player_says(GUILDY, "Proud Momma", "Banner Captain [Cambria]", hue=50))
+        self.send(player_says(GUILDY, "Proud Momma", "[Proud Momma, DTF]", hue=690))
+        self.send(mobile_pkt(WAYPOST_MOB, x - 9, y))
+        self.send(label_pkt(WAYPOST_MOB, "FACTION WP 17", "FACTION WP 17"))
+        asyncio.get_running_loop().call_later(CALM_S, self.foe_tagged)
+
+    def foe_tagged(self):
+        x, y = self.pos
+        self.send(player_update(FOE, x + 10, y))
+        self.red_t = time.time()
+        self.send(player_says(FOE, "Bee Loga", "Elite Mercenary [Cambria]", hue=50))
+        self.send(player_says(FOE, "Bee Loga", "[Officer, LoK]", hue=690))
+
+    def precast_appears(self):
+        """precast (live 2026-10-06 witcher_66: "Vas Ort Flam" 5.2 s before the attack): a blue healing
+        himself 6 tiles off ("In Vas Mani", not harmful), then CALM_S later a blue 5 tiles off says
+        Explosion's words. Neither carries a tag."""
+        x, y = self.pos
+        self.calm_t = time.time()
+        self.send(player_update(GUILDY, x + 6, y))
+        self.send(player_says(GUILDY, "Healer", "In Vas Mani", hue=690, kind=10))
+        asyncio.get_running_loop().call_later(CALM_S, self.foe_casts)
+
+    def foe_casts(self):
+        x, y = self.pos
+        self.send(player_update(FOE, x + 5, y))
+        self.red_t = time.time()
+        self.send(player_says(FOE, "Bee Loga", "Vas Ort Flam", hue=690, kind=10))
+
     def gazer_appears(self):
         """A gazer comes into view 10 tiles west of us, not in war mode (its aggression unknown to
         the runner), and casts at us every GAZER_CAST_S while we're within its range (no line of sight)."""
@@ -1069,9 +1111,11 @@ class World:
                 self.cursor_for = self.cid
                 self.send(cliloc(1010018))
                 self.send(cursor(self.cid))
-                if self.scenario == "red_aim" and not self.red_due and self.cheb(RUNE_POS) <= 5:
+                if self.scenario in ("red_aim", "faction", "precast") and not self.red_due and self.cheb(RUNE_POS) <= 5:
                     self.red_due = True
-                    asyncio.get_running_loop().call_later(RED_AIM_S, self.red_appears)
+                    act = {"red_aim": self.red_appears, "faction": self.faction_appears,
+                           "precast": self.precast_appears}[self.scenario]
+                    asyncio.get_running_loop().call_later(RED_AIM_S, act)
             elif serial == ROOM_DOOR and self.facet == ROOM_FACET:     # the door's menu (opened from 6 tiles live)
                 self.room_gump("door")
             elif serial == STOCKPILE and self.stockpile is not None and self.facet == ROOM_FACET \
@@ -2296,6 +2340,51 @@ async def red_aim():
     store.close()
 
 
+async def field_foe(tag, port, title, foe_why, calm_who):
+    """faction / precast (user, 2026-10-06, after run 16's death at witcher_66): at the library spot (pvp)
+    someone harmless shows up first (calm_who), CALM_S later the foe: the recall home starts within
+    REACT_MAX_S of the foe's tag / words, nothing for the harmless one, the foe in the recall event and a
+    pk_seen sighting. Returns (world, store, text) for the scenario's own checks."""
+    print(f"\n== {title} ==")
+    world = World(tag)
+    text, code, store, _ = await run_scenario(world, tag, port, [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "normal",
+                                               "--seed", "5", "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
+    calm, foe = world.calm_t, world.red_t
+    books = [t for p, t in zip(world.c2s, world.c2s_t) if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)
+             and calm is not None and t >= calm]
+    lat = None if foe is None or not books else round(books[0] - foe, 3)
+    check(f"{tag}: nothing for {calm_who}; the recall home started within {REACT_MAX_S} s of the foe: {lat} s",
+          foe is not None and books and books[0] >= foe and lat <= REACT_MAX_S, f"calm {calm} foe {foe} books {books}")
+    rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
+    seen = [e["data"] for e in store.job_events("lumber") if e["kind"] == "pk_seen"]
+    check(f"{tag}: the recall event names the foe and why ({foe_why}); one pk_seen sighting, the foe's",
+          len(rec) == 1 and rec[0]["ok"] and rec[0]["threat"]["serial"] == FOE and foe_why in rec[0]["threat"]["reason"]
+          and [s["serial"] for s in seen] == [FOE], f"{str(rec)[:400]} seen {[s['serial'] for s in seen]}")
+    check(f"{tag}: the run stopped after the escape (exit 1, pk_escape), in the room",
+          code == 1 and any(j["kind"] == "pk_escape" for j in store.junctures()) and world.room_entries == 1,
+          f"exit {code} room {world.room_log}")
+    return world, store, text
+
+
+async def faction():
+    world, store, text = await field_foe("faction", 12890, "a faction-tagged player in view at a pvp spot: recall at once",
+                                         "faction tag [Cambria]", "a guildmate with a faction tag")
+    ev = [e["data"] for e in store.job_events("lumber") if e["kind"] == "faction_waypost"]
+    row = next((r for r in store.lumber_spot_rows() if r["id"] == "sim"), None)
+    check("the faction waypost marker in view: a faction_waypost event, the spot marked a faction zone (lumber_opt)",
+          len(ev) == 1 and ev[0]["label"] == "FACTION WP 17" and row is not None
+          and (row["data"].get("faction_zone") or {}).get("label") == "FACTION WP 17" and row["status"] == "active",
+          f"{ev} {row}")
+    store.close()
+
+
+async def precast():
+    _, store, _ = await field_foe("precast", 12900, "a player saying a harmful spell's words near us: recall at once",
+                                  "Explosion", "a blue healing himself")
+    store.close()
+
+
 async def thief_keep_away():
     """docs/PLAN.md "Keep thieves off the logs" (THREATS.md §7 T3): at the library spot a blue player
     (Caputo Wood, live 2026-10-03) steps next to us while we chop: the runner steps out of his reach after a
@@ -3215,7 +3304,8 @@ def run_parallel(names, jobs):
 
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
-            wary, idle_mob, zone_on_way, red_aim, thief_keep_away, pouch_pop, no_pouch, resupply, convert_stacks,
+            wary, idle_mob, zone_on_way, red_aim, faction, precast, thief_keep_away, pouch_pop, no_pouch, resupply,
+            convert_stacks,
             landing_escape, stockpile_store,
             ghost_horse,
             staff_in_view,

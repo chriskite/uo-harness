@@ -1229,6 +1229,36 @@ as the store grows. Built (docs/VISUALIZER.md §2.4, docs/MEMORY.md "Indexes for
   3.6 s. Rejected: streaming one response in parts (the server is plain `http.server` JSON) and
   precomputing the plan in a background thread (it would run every minute with nobody watching).
 
+## Leave on faction tags and on precasts (decided and built offline 2026-10-06)
+
+After the run-16 death at witcher_66 (docs/NOTES.md "PK death at a faction waypoint"), the user
+asked for solutions to "a hostile player can just speak to freeze us in place, then kill us", then
+chose two of the six proposed (F, G). Left out: A (keep distance during a speech hold), B (leave on a
+group of unknown players), C (a crowd rule without speech), D (a hold timeout) and E (run before the
+recall).
+
+- **F, faction tags:** out at a pvp spot, a player whose click echo carries an Outlands faction tag
+  is a flee-level threat at any distance in view, like a red. Evidence: the title lines were in the
+  store all along (357 lines, one hue per faction); 4 of 75 lumber trips had a tagged player in view
+  and 2 of them ended in an attack; 3 of the 5 players who ever attacked Dan carried a tag. A
+  faction waypost marker in view marks the spot as a faction zone for the planner.
+- **G, precasts:** out at a pvp spot, a player saying a harmful spell's power words within 12 tiles
+  is a flee-level threat. On run 16 the words came 5–7 s before the attack. Over 75 trips 6 had
+  such words and 3 of those were followed by an attack. The proposal said "while nothing is fighting
+  them". That filter was dropped because it could hide a PK who casts while a creature stands by;
+  the cost is the other 3 trips cut short (a PvM mage casting near us).
+- **Recall at once, not run first:** G was proposed as run then recall. Built as the red escape:
+  recall at once. A mounted PK keeps pace with a run, and the lead the words give (5–7 s) covers a
+  2 s cast. To be revisited if a recall started on words gets disturbed.
+- **Friendly:** players of our guild or our faction never trigger (our own tags come from our own click
+  echo). The hunt runner is unchanged.
+
+Code: world `runtime.title_tags` (Mobile/SelfState `faction`, `guild`), `threats.HARMFUL_WORDS`,
+`harmful_spell`, `friendly`, `loop_lumber.field_players` / `note_waypost`, `lumber_opt.FACTION_ZONE_PRIOR`.
+Tests: `test_world_units.py` `test_title_tags`, `test_lumber_opt.py` (faction zone), scenarios `faction`
+and `precast` in `test_loop_lumber.py` (both failing before). Details: docs/LUMBER_LOOP.md §13
+"Recall escape on players".
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

@@ -317,6 +317,14 @@ def test_hazard_evidence():
     check("a theft_suspected juncture next to its theft event counts once; alone it counts",
           row(plan(spots, base, events=[grab, junct]), "a")["thefts"] == 1
           and row(plan(spots, base, events=[junct]), "a")["thefts"] == 1)
+    zone = {"label": "FACTION WP 17", "x": 1784, "y": 2150, "t": NOW - 3600}
+    marked = plan([spot("a", faction_zone=zone), spot("b", 3000, 3000)], base)
+    check("a spot where the runner saw a faction waypost: its expected sightings and deaths rise, the plan names "
+          "the waypost (two equal spots otherwise)",
+          row(marked, "a")["sightings_per_h"] > row(marked, "b")["sightings_per_h"] == row(out, "b")["sightings_per_h"]
+          and row(marked, "a")["deaths_per_h"] > row(out, "a")["deaths_per_h"]
+          and row(marked, "a")["faction_zone"] == "FACTION WP 17" and row(marked, "b")["faction_zone"] is None,
+          (row(marked, "a")["sightings_per_h"], row(marked, "b")["sightings_per_h"], row(marked, "a")["deaths_per_h"]))
 
 
 def test_gear_and_capacity():

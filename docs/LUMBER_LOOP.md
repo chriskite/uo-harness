@@ -983,7 +983,25 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     2026-10-04 that book is also the way home of every trip, so it is required at every spot (the
     old `--recall off` is gone).
   - **Trigger:** a red anywhere in view (no ETA test), a hostile player in flee range, a
-    non-creature swinging at us, or a player named in "… is attacking you!".
+    non-creature swinging at us, or a player named in "… is attacking you!". Since 2026-10-06
+    (user, after the run-16 death at witcher_66, docs/NOTES.md), out at a pvp spot (`afield`) also:
+    - **a player with an Outlands faction tag in view** (`field_players`): the title line under its
+      click label, "Elite Mercenary [Cambria]" or a bare "Cambria", in that faction's hue (world
+      `runtime.title_tags`: Cambria 50, Andaria 2603, Terran 2127, Prevalia 38). Faction players
+      look blue to us (we take no part) until they attack. Of 75 lumber trips, 4 had one in view and
+      2 of those ended in an attack; 3 of the 5 players who ever attacked us were tagged.
+    - **a player saying a harmful spell's power words within 12 tiles** (`threats.HARMFUL_WORDS`:
+      Magic Arrow … Earthquake, the fields, Paralyze; not heals, buffs or travel): a precast held for
+      us. On run 16 "In Por Ylem" and "Vas Ort Flam" came 6.6 and 5.2 s before "… is attacking you!".
+      Over 75 trips 6 had such words from players and 3 of those were followed by an attack.
+    - Not a player of our guild or our faction (`threats.friendly`; our own tags come from our own
+      click echo). The player gets `hostile`, its reason in the threat juncture and `recall` event,
+      and a `pk_seen` sighting. A **faction waypost marker** in view ("FACTION WP 17", "… Waypost")
+      marks the spot `faction_zone` in its lumber_spots row (a `faction_waypost` job event);
+      lumber_opt then assumes at least `FACTION_ZONE_PRIOR` (2.0) hostile sightings per field hour
+      there, and `ctl lumber plan` shows the marker. These triggers need the client's click on each
+      mobile as it comes into view (the stock client sends one; the title lines are its answer).
+      Scenarios `faction`, `precast`.
   - **Action:** the runner recalls at once, with no pause and before any bookkeeping. It
     double-clicks the book and presses the default rune's charge button, else the Recall spell
     (tome: its detail page's Cast Recall), spell after "no charges".

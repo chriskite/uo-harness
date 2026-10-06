@@ -63,6 +63,8 @@ class SelfState:
     warmode: bool = False
     notoriety: int | None = None
     map: int | None = None           # facet index from S2C 0xBF sub 8 (0 = map0.uoo)
+    faction: str | None = None       # our faction / guild tag from our own click echo (runtime.title_tags)
+    guild: str | None = None
     stats: dict = field(default_factory=dict)
     skills: dict = field(default_factory=dict)
     skill_names: list = field(default_factory=list)
@@ -89,6 +91,7 @@ class SelfState:
             "stam": self.stam, "stam_max": self.stam_max,
             "gold": self.gold, "weight": self.weight,
             "warmode": self.warmode, "notoriety": self.notoriety, "map": self.map,
+            "faction": self.faction, "guild": self.guild,
             "body": self.body, "dead": self.dead,
             "stats": self.stats,
             "skills": {str(k): v for k, v in sorted(self.skills.items())},
@@ -122,6 +125,10 @@ class Mobile:
     # a bonded pet's ghost (S2C 0xBF sub 0x19 dead flag); cleared when the server re-sends it alive
     # (it deletes and re-adds the mobile, 0x1D + 0x20, without the flag: live 2026-10-05)
     dead: bool | None = None
+    # an Outlands faction member's tag ("[Cambria]") and the guild tag ("[Officer, LoK]") from the
+    # title lines under its click label (runtime.title_tags), sent each time the client asks on sight
+    faction: str | None = None
+    guild: str | None = None
 
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items() if v is not None

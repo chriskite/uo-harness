@@ -236,6 +236,32 @@ SPELL_TEXTS = frozenset({"Magic reflect removed.", "You absorb their spell.", "S
 EFFECT_MOVING, EFFECT_LIGHTNING, EFFECT_FIXED = 0, 1, 3      # S2C 0xC0 effect types
 BENIGN_EFFECTS = frozenset({0x0000, 0x3735, 0x373A, 0x375A, 0x376A, 0x37BE})
 SYSTEM_SERIAL = 0xFFFFFFFF
+# Magery power words of the spells that harm or trap another player (uo.com/wiki/ultima-online-wiki/
+# skills/magery/magery-spells; Meteor Swarm in both word orders, RunUO's and uo.com's). A player
+# saying one near us out in the field is read as a precast held for us: live 2026-10-06 (witcher_66)
+# "In Por Ylem" and "Vas Ort Flam" came 6.6 and 5.2 s before "... is attacking you!", Bastet's
+# 1.4 s, khiizriel's 3.9 s; over 75 lumber trips 6 had such words from players, 3 then an attack.
+HARMFUL_WORDS = {
+    "uus jux": "Clumsy", "rel wis": "Feeblemind", "in por ylem": "Magic Arrow", "des mani": "Weaken",
+    "an mani": "Harm", "vas flam": "Fireball", "in nox": "Poison", "des sanct": "Curse",
+    "in flam grav": "Fire Field", "por ort grav": "Lightning", "ort rel": "Mana Drain",
+    "in sanct ylem": "Wall of Stone", "in jux hur ylem": "Blade Spirits", "por corp wis": "Mind Blast",
+    "an ex por": "Paralyze", "in nox grav": "Poison Field", "corp por": "Energy Bolt",
+    "vas ort flam": "Explosion", "vas des sanct": "Mass Curse", "in ex grav": "Paralyze Field",
+    "vas ort grav": "Chain Lightning", "in sanct grav": "Energy Field", "kal vas flam": "Flamestrike",
+    "ort sanct": "Mana Vampire", "flam kal des ylem": "Meteor Swarm", "kal des flam ylem": "Meteor Swarm",
+    "in vas por": "Earthquake", "vas corp por": "Energy Vortex"}
+SPELL_WORDS_RANGE = 12          # tiles: a caster this near can reach us (RunUO spell range)
+
+
+def harmful_spell(text: str | None) -> str | None:
+    """The harmful spell whose power words `text` is (HARMFUL_WORDS), else None."""
+    return HARMFUL_WORDS.get(" ".join((text or "").lower().split()))
+
+
+def friendly(t, me: dict) -> bool:
+    """A player of our guild or our faction (their tags against world.self's)."""
+    return bool((t.guild and t.guild == me.get("guild")) or (t.faction and t.faction == me.get("faction")))
 
 
 @dataclass(frozen=True)
@@ -301,6 +327,8 @@ class Threat:
     reach: int = 0                                 # creatures: tiles from which it can hit us (creature_reach)
     action: str = "ignore"
     reason: str = ""
+    faction: str | None = None                     # players: Outlands faction tag (world runtime.title_tags)
+    guild: str | None = None                       # players: guild tag
 
     def to_dict(self):
         return asdict(self)
@@ -586,7 +614,10 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
         kind, player, evidence = identify(mob, label, serial in monsters)
         th = Threat(serial=serial, name=label or mob.get("name"), body=mob.get("graphic"),
                     notoriety=mob.get("notoriety"), kind=kind, player=player,
-                    evidence=evidence, mounted=serial in mounted)
+                    evidence=evidence, mounted=serial in mounted,
+                    faction=mob.get("faction"), guild=mob.get("guild"))
+        if th.faction:
+            th.evidence.append(f"faction tag [{th.faction}]")
         if kind == "monster":
             th.s_per_tile = params.monster_s_per_tile
             th.strike_range = params.monster_strike_range

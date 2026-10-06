@@ -24,6 +24,7 @@ each lands in `state.last_seen` and emits `prune`. Packets without a
 position update only mobiles the model still has.
 """
 import collections
+import re
 import time
 
 from . import parsers
@@ -40,11 +41,30 @@ CORPSES_MAX = 1000      # corpse serials remembered for one `mobile_death` per c
 # the server's line under a pet's click label ("(bonded)" etc., type 0 hue 946): RunUO
 # BaseCreature.OnSingleClick; 681 bonded / 573 tame / 116 summoned in the store by 2026-10-03
 PET_TAGS = {"(tame)": "tame", "(bonded)": "bonded", "(summoned)": "summoned"}
+# Outlands title lines under a player's click label (type 0): an active faction member's tag
+# ("Elite Mercenary [Cambria]", or the bare "Cambria" when no title) in the faction's hue
+# (357 lines in the store by 2026-10-06, each faction one hue; wiki.uooutlands.com/Factions:
+# only "Participate in Factions" members show it), and the guild tag "[Officer, LoK]" / "[LoK]".
+FACTION_HUES = {"Cambria": 50, "Andaria": 2603, "Terran": 2127, "Prevalia": 38}
+_FACTION_TAG = re.compile(r"(?:^|\s)\[(Cambria|Andaria|Terran|Prevalia)\]$|^(Cambria|Andaria|Terran|Prevalia)$")
+_GUILD_TAG = re.compile(r"^\[(?:[^\[\]/]*, )?([^\[\],/]+)\]$")
+SYSTEM_HUE = 946                      # plain server text ("[3/5 ...]" slot lines, a "Prevalia" sign)
+MOBILE_SERIAL_MAX = 0x3FFFFFFF
 # Location effects (0xC0 type 2) and sounds (0x54) within this many tiles of self become events:
 # a trapped pouch in our pack going off plays its sound on our tile and its five explosions on the
 # tiles around it (live 2026-10-04, session 20261004_113229; RunUO TrapableContainer MagicTrap)
 NEAR_SELF = 2
 EFFECT_AT_LOCATION = 2
+
+
+def title_tags(text: str, hue: int | None) -> dict:
+    """{"faction": name} or {"guild": abbreviation} from one title line, else {}."""
+    m = _FACTION_TAG.search(text or "")
+    if m:
+        name = m.group(1) or m.group(2)
+        return {"faction": name} if FACTION_HUES[name] == hue else {}
+    m = _GUILD_TAG.match(text or "")
+    return {"guild": m.group(1).strip()} if m and hue != SYSTEM_HUE else {}
 
 
 class WorldRuntime:
@@ -283,11 +303,18 @@ def _h_talk(rt, f):
     """0x1C / 0xAE: speech or system text heard by the client. Type 6 is a
     click label (the server's answer to 0x09, e.g. "Len the banker"); the
     latest one per entity is kept in state.labels. A pet's "(tame)" /
-    "(bonded)" / "(summoned)" line sets Mobile.pet."""
+    "(bonded)" / "(summoned)" line sets Mobile.pet; a player's faction or guild
+    tag line (title_tags) sets its `faction` / `guild` (ours on state.self)."""
     if f["type"] == 6 and f["serial"] not in (0, 0xFFFFFFFF):
         rt.state.labels[f["serial"]] = f["text"]
     elif f["text"] in PET_TAGS:
         rt.state.update_mobile(f["serial"], pet=PET_TAGS[f["text"]])
+    elif f["type"] == 0 and 0 < f["serial"] <= MOBILE_SERIAL_MAX and (tags := title_tags(f["text"], f["hue"])):
+        if f["serial"] == rt.state.self.serial:
+            for k, v in tags.items():
+                setattr(rt.state.self, k, v)
+        else:
+            rt.state.update_mobile(f["serial"], **tags)
     rt.state.tracking.on_text(f["serial"], f["text"], rt.state.self.serial)
     rt._emit("speech_heard", serial=f["serial"], name=f["name"],
              type=f["type"], hue=f["hue"], text=f["text"])
