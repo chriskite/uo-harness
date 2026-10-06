@@ -66,8 +66,8 @@ def add_msg(con, mid, content, author_id=7, author="bob", ch=CH):
 def test_windows():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:   # open sqlite handles lock files on Windows
         path, con = msgs_db(td)
-        add_msg(con, sf("2026-09-10", 10, 0), "copperwood needs 75 lumberjacking")
-        add_msg(con, sf("2026-09-10", 10, 1), "yes and dullwood needs 65", author_id=8, author="ann")
+        add_msg(con, sf("2026-09-10", 10, 0), "cedar needs 60 lumberjacking")
+        add_msg(con, sf("2026-09-10", 10, 1), "yes and oak needs 30", author_id=8, author="ann")
         add_msg(con, sf("2026-09-10", 12, 0), "a different chat")
         add_msg(con, sf("2026-10-01", 9, 0), "today's message, not processed yet")
         m = kbm.Msgs(path)
@@ -84,7 +84,7 @@ def test_windows():
 
         def fake(prompt, model, thinking, stage, ref=None, validate=None):
             calls.append(ref)
-            if "copperwood" in prompt and "a different chat" in prompt:   # the whole 09-10 window, not its halves
+            if "cedar" in prompt and "a different chat" in prompt:   # the whole 09-10 window, not its halves
                 raise kbm.Truncated("too long")
             return {"claims": []}, {"model": "fake"}
         kbm.llm_json = fake
@@ -101,14 +101,14 @@ def test_grounding():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
         path, con = msgs_db(td)
         a, b = sf("2026-09-10", 10, 0), sf("2026-09-10", 10, 1)
-        add_msg(con, a, "Copperwood needs **75** lumberjacking\nto chop", author_id=7)
-        add_msg(con, b, "and dullwood needs 65", author_id=8)
+        add_msg(con, a, "Cedar needs **60** lumberjacking\nto chop", author_id=7)
+        add_msg(con, b, "and oak needs 30", author_id=8)
         w = kbm.channel_windows(kbm.Msgs(path), CH, "harvesting", "2026-10-01")[0]
-        good = {"kind": "fact", "topic": "copperwood", "statement": "Copperwood needs 75 lumberjacking.",
-                "stance": "asserts", "uncertain": False, "message_ids": [str(a)],
-                "quote": "copperwood needs 75 lumberjacking to chop", "entities": ["copperwood"]}
+        good = {"kind": "fact", "topic": "cedar", "statement": "Cedar needs 60 lumberjacking.", "stance": "asserts",
+                "uncertain": False, "message_ids": [str(a)], "quote": "cedar needs 60 lumberjacking to chop",
+                "entities": ["cedar"]}
         outside = dict(good, message_ids=[str(a), "12345"])
-        badquote = dict(good, quote="copperwood needs 80 lumberjacking")
+        badquote = dict(good, quote="cedar needs 70 lumberjacking")
         kept, dropped = kbm.check_claims(w, [good, outside, badquote], False)
         check(len(kept) == 1 and dropped == 2, "out-of-window ids and non-substring quotes are dropped")
         check(kept and json.loads(kept[0]["author_ids"]) == [7] and kept[0]["first_ts"].startswith("2026-09-10T10:00"),
@@ -159,9 +159,9 @@ def test_promote():
         m, hdb = kbm.Msgs(path), os.path.join(td, "harness.db")
         kb = kbm.open_kb(os.path.join(td, "kb.db"))
         quiet = lambda *_: None  # noqa: E731
-        f1 = _fact(kb, 1, "Copperwood trees need 75 lumberjacking to chop")
+        f1 = _fact(kb, 1, "Cedar trees need 60 lumberjacking to chop")
         f2 = _fact(kb, 2, "Dullwood logs weigh two stones each in Outlands", verdict="official", conf=0.85)
-        f3 = _fact(kb, 3, "Shadowwood trees appear near Prevalia only", verdict="single_source", conf=0.5)
+        f3 = _fact(kb, 3, "Ash trees appear near Prevalia only", verdict="single_source", conf=0.5)
         r = kbm.promote(kb, m, hdb, log=quiet)
         k = Knowledge(memory.connect(hdb))
         e1, e2 = k.get(_f(kb, f1, "knowledge_id")), k.get(_f(kb, f2, "knowledge_id"))
@@ -179,8 +179,8 @@ def test_promote():
         kb.commit()
 
         # the overseer retracts #1; the statement changes; promote must not bring it back
-        k.retract(e1["id"], "wrong: copperwood needs 80")
-        kb.execute("UPDATE facts SET statement='Copperwood trees need 80 lumberjacking to chop' WHERE id=?", (f1,))
+        k.retract(e1["id"], "wrong: cedar needs 70")
+        kb.execute("UPDATE facts SET statement='Cedar trees need 65 lumberjacking to chop' WHERE id=?", (f1,))
         kb.commit()
         n_active = k.con.execute("SELECT count(*) FROM knowledge WHERE status='active'").fetchone()[0]
         kbm.promote(kb, m, hdb, log=quiet)
@@ -188,7 +188,7 @@ def test_promote():
               and _f(kb, f1, "knowledge_status") == "retracted", "an overseer-retracted entry is never re-added")
 
         # verdict drops: our unconfirmed entry is retracted; a confirmed one and an entry we only confirmed stay
-        f4 = _fact(kb, 4, "Goldenwood trees need 85 lumberjacking to chop")
+        f4 = _fact(kb, 4, "Yew trees need 80 lumberjacking to chop")
         f5 = _fact(kb, 5, "Hatchets are sold by the provisioner in Prevalia")
         pre = k.add("fact", "avarwood", "Avarwood needs 110 lumberjacking", source="observed")["id"]
         f6 = _fact(kb, 6, "Avarwood needs 110 lumberjacking")
@@ -214,12 +214,12 @@ def test_promote():
 
 
 def fake_embed(texts):
-    axes = ("copperwood", "dullwood", "goldenwood")
+    axes = ("cedar", "oak", "yew")
     out = []
     for t in texts:
         v = np.array([1.0 if a in t.lower() else 0.0 for a in axes] + [0.01], dtype=np.float32)
         if "bark" in t.lower():
-            v[3] = 0.5    # a copperwood claim that is close but not identical
+            v[3] = 0.5    # a cedar claim that is close but not identical
         out.append(v / np.linalg.norm(v))
     return np.vstack(out)
 
@@ -234,10 +234,10 @@ def test_clusters():
                        "first_ts, official, stance, uncertain, entities) VALUES ('w', ?, 't', ?, '[1]', '[7]', 'q', "
                        "'2026-09-10', 0, 'asserts', 0, '[]')", (kind, statement))
             return kb.execute("SELECT max(id) FROM claims").fetchone()[0]
-        lead = claim("copperwood needs 75")
-        c2, c3 = claim("copperwood needs seventy-five"), claim("copperwood bark is thick")
-        o = claim("dullwood needs 65")
-        claim("copperwood chopping steps", kind="procedure")
+        lead = claim("cedar needs 60")
+        c2, c3 = claim("cedar needs sixty"), claim("cedar bark is thick")
+        o = claim("oak needs 30")
+        claim("cedar chopping steps", kind="procedure")
         quiet = lambda *_: None  # noqa: E731
         kbm.cluster(kb, log=quiet)
         cid = kb.execute("SELECT cluster_id FROM claims WHERE id=?", (lead,)).fetchone()[0]

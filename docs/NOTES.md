@@ -371,6 +371,14 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   11 s after the runner had stopped, so no lumber `death` job event either. The proxy's own
   `death` event (`events` table, ev `death` with x/y) has it; with no trip row around it, the
   optimizer blames it on the spot whose area it's in (terran_wilds).
+- **Tree types and wood types are different names (user, 2026-10-06).** A tree is named for its
+  kind (walnut, cedar, oak, yew, ash, …; the tiledata tree names, and place names like "Cedar
+  Forest"), and those are fine to use for trees. What a chop gives, the logs and boards, follows
+  the Outlands wood ladder in `harness/data/woods.json` (ordinary, dullwood, shadowwood, copperwood,
+  bronzewood, goldenwood, rosewood, verewood, valewood, avarwood). The colour comes from the
+  wood chance roll (woods.json base chances × skill), not from the tree's kind. So `board:<wood>`
+  prices, trip `woods` breakdowns and any "X logs/boards" use the wood names only; heartwood,
+  bloodwood and frostwood (stock UO woods) don't exist on Outlands at all.
 
 ## Cambria Witcher library and a death on an overseer ride (live 2026-10-03, Hackworth)
 
