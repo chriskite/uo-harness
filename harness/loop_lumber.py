@@ -146,6 +146,12 @@ LOCAL_TREES_R = 15            # trees this close to us join the candidates when 
 #                               after an escape (local_trees; user, 2026-10-05: chop the trees where we are)
 TREE_DROP_COOLDOWN_S = 120.0  # a tree dropped because a zone covered it waits this long (next_stand)
 RECENT_ZONE_S = 60.0          # a creature that left the view keeps its zone at its last tile this long (tree_guards)
+# A creature last seen at least VIEW_EDGE_R off that left the view keeps its route zone for ROUTE_ZONE_S
+# (aggro_zones): we walked it out of view and may walk it back in [INFERENCE: update range 18 on
+# Outlands, witcher_253's giant rat flickered at 19]; one that vanished nearer was removed. Longer
+# memory only bends routes round where a creature no longer is (tree choice keeps RECENT_ZONE_S).
+VIEW_EDGE_R = 15
+ROUTE_ZONE_S = 10.0
 CONVERT_RETRIES = 3           # hatchet uses without a cursor tolerated while converting (convert)
 DIR_NAMES = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 AT_GROVE = 10                 # tiles beyond the area's radius that count as being at the grove already (no travel)
@@ -2066,7 +2072,7 @@ class LumberLoop:
         """[(threat, (x, y), tiles)]: every creature that may come for us (may_aggro: not a pet, a
         passive body or name; user, 2026-10-05: never move into aggro range of a mob we can see)
         with its zone, aggro_r: its trees wait while it is around, and routes bend around it
-        (aggro_zones, in view only). One in view now at its tile; with `recent`, one seen within
+        (aggro_zones, out-of-view ones too). One in view now at its tile; with `recent`, one seen within
         RECENT_ZONE_S that has left the view at its last tile (next_stand takes trees only those
         guard when nothing else is left; live 2026-10-05, witcher_267: two norse bear riders
         patrolling in and out of view had Dan pick trees, then drop them as the zone came back,
@@ -2105,14 +2111,22 @@ class LumberLoop:
         return max(self.zone_r(t), AGGRO_R)
 
     def aggro_zones(self, st):
-        """The Mover's ("seen", serial) danger zones: the tree_guards of this state read, so
-        every walk bends around the creatures in view; a new or moved one asks for a replan. A
-        zone we already stand in shrinks to just inside where we stand: no going round it, but
-        no closer either (live 2026-10-05: leaving it out let a walk from the Prevalia Gate
-        landing pass 2 tiles from a ratman 6 tiles off; keeping it whole, a creature at our heels
-        bent an escape back and forth)."""
+        """The Mover's ("seen", serial) danger zones: the tree_guards of this state read, and for
+        ROUTE_ZONE_S those that left the view from VIEW_EDGE_R or farther, at their last tile, so
+        every walk bends around them; a new or moved one asks for a replan. Out-of-view ones stay because the view
+        edge moves with us: live 2026-10-05 (witcher_253) a giant rat 19 tiles off came into view
+        three tiles west and left it three tiles east, and the walk swung between the two for
+        11 replans until it was boxed in. A zone we already stand in shrinks to just inside where
+        we stand: no going round it, but no closer either (live 2026-10-05: leaving it out let a
+        walk from the Prevalia Gate landing pass 2 tiles from a ratman 6 tiles off; keeping it
+        whole, a creature at our heels bent an escape back and forth)."""
         here = tuple(self.link.pos(st)[:2])
-        zones = {("seen", t.serial): (xy, min(r, cheb(here, xy) - 1)) for t, xy, r in self.tree_guards(st, recent=False)}
+        in_view = {g[0].serial for g in self.tree_guards(st, recent=False)}
+        now = time.monotonic()
+        # one gone from view near us was removed (despawned, hidden, dead), not left behind by our move
+        guards = [g for g in self.tree_guards(st) if g[0].serial in in_view or (
+            g[0].distance >= VIEW_EDGE_R and now - self.recent_guards[g[0].serial][3] <= ROUTE_ZONE_S)]
+        zones = {("seen", t.serial): (xy, min(r, cheb(here, xy) - 1)) for t, xy, r in guards}
         zones = {k: z for k, z in zones.items() if z[1] >= 0}
         old = {k: v for k, v in self.mover.danger.items() if isinstance(k, tuple) and k[0] == "seen"}
         for k in old.keys() - zones.keys():

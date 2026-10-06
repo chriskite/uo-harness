@@ -876,7 +876,9 @@ class World:
         self.good_n += 1
         if self.scenario == "wary" and self.good_n == 1:   # the creature by the near tree wanders off
             self.wary_left_t = time.time() + 0.3
-            self.later(0.3, [delete(WARY)])
+            # it walks off out of view (its last tile far from our routes), then is gone
+            self.later(0.3, [creature_pkt(WARY, 0x27, WARY_POS[0], WARY_POS[1] + 60, flags=self.wary_flags),
+                             delete(WARY)])
         if self.tracking and self.good_n in (2, 4):   # mid-chop: the hunt finds the red far, then near
             self.red_hit(RED_FAR if self.good_n == 2 else RED_NEAR)
         if self.good_n % 2 == 1:
@@ -2621,6 +2623,44 @@ def unit_tree_rethink():
         loop_lumber.TREE_RECHECK_S = recheck
 
 
+def unit_zone_view_edge():
+    """Live 2026-10-05 (witcher_253): a giant rat at the edge of view came into view three tiles west and left it three
+    tiles east; its zone came and went with it and the walk swung between the two until boxed in. A creature that
+    leaves the view from its edge keeps its zone for routes at its last tile for ROUTE_ZONE_S, without asking for a
+    replan; one that vanished nearby (despawned, hidden) leaves none."""
+    print("\n== a creature walked out of view keeps its route zone for ROUTE_ZONE_S ==")
+    import types
+    import loop_lumber
+    rat = SimpleNamespace(serial=0x222, name="a giant rat", body=0xD7, kind="monster", hostile=False,
+                          aggression="default", distance=17, flee_radius=8)
+    mover = SimpleNamespace(danger={}, replan_requested=False)
+    fake = SimpleNamespace(last_threats=SimpleNamespace(threats=[rat]), recent_guards={}, mover=mover,
+                           watch=threats.Watch(), link=SimpleNamespace(pos=lambda st: (100, 100, 0, 0)))
+    for name in ("tree_guards", "may_aggro", "aggro_r", "zone_r", "aggro_zones"):
+        setattr(fake, name, types.MethodType(getattr(loop_lumber.LumberLoop, name), fake))
+    seen = {"world": {"mobiles": {"0x00000222": {"x": 117, "y": 100}}}}
+    gone = {"world": {"mobiles": {}}}
+    fake.aggro_zones(seen)
+    check("in view: its zone, and a replan for the new zone", mover.danger.get(("seen", 0x222)) == ((117, 100), 13)
+          and mover.replan_requested, str(mover.danger))
+    mover.replan_requested = False
+    fake.aggro_zones(gone)
+    check("out of view: the zone stays at its last tile, no replan",
+          mover.danger.get(("seen", 0x222)) == ((117, 100), 13) and not mover.replan_requested, str(mover.danger))
+    t, xy, r, _ = fake.recent_guards[0x222]
+    fake.recent_guards[0x222] = (t, xy, r, time.monotonic() - loop_lumber.ROUTE_ZONE_S - 1)
+    fake.aggro_zones(gone)
+    check("after ROUTE_ZONE_S: gone", ("seen", 0x222) not in mover.danger, str(mover.danger))
+    near = SimpleNamespace(serial=0x223, name="a wolf", body=0xE1, kind="monster", hostile=False,
+                           aggression="default", distance=6, flee_radius=8)
+    fake.last_threats = SimpleNamespace(threats=[near])
+    fake.aggro_zones({"world": {"mobiles": {"0x00000223": {"x": 106, "y": 100}}}})
+    fake.last_threats = SimpleNamespace(threats=[])
+    fake.aggro_zones(gone)
+    check("one that vanished 6 tiles off (despawned, hidden: not walked out of view) leaves no route zone",
+          ("seen", 0x223) not in mover.danger, str(mover.danger))
+
+
 def unit_boxed_in():
     """User 2026-10-05 (witcher_137, surrounded by mobs on all sides): "He needs to recall home and mark this place
     unworkable". boxed_in disables the spot in the store (lumber_opt plans no trip there), tells the overseer, and
@@ -3109,6 +3149,7 @@ if __name__ == "__main__":
             ghost_horse,
             staff_in_view,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_run_and_recall, unit_boxed_in,
+            unit_zone_view_edge,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`

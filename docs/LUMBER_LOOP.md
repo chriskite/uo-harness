@@ -816,7 +816,12 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     2 min by straight line while next_stand, finding no route, sent Dan back to the far trees each
     time). Trees around us also join after every escape and when
     every candidate waits on a creature. A creature that leaves the view keeps its zone at its last
-    tile for `RECENT_ZONE_S` (60 s) for choosing trees (not for routes): its trees come after every
+    tile for `RECENT_ZONE_S` (60 s) for choosing trees, and since 2026-10-05 for `ROUTE_ZONE_S`
+    (10 s) for routes too when it was `VIEW_EDGE_R` (15) or more tiles off (the view edge moves
+    with us: at witcher_253 a giant rat 19 tiles off came into view three tiles west and left it
+    three tiles east, and the walk swung between the two until boxed in; one that vanishes nearer
+    was removed and leaves no route zone; a new route is also kept for `DANGER_COMMIT_STEPS` (5)
+    unless a zone covers the next 2 tiles): its trees come after every
     fully clear one; and a tree dropped because a zone covered it waits `TREE_DROP_COOLDOWN_S`
     (120 s) whatever else is left: with nothing else, the harvest ends (live witcher_267: two norse
     bear riders patrolling in and out of view had Dan pick and drop trees east and west for 2.5 min;

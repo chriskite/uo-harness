@@ -70,6 +70,11 @@ STICKY_X = 1.25
 # witcher_46: wolves and a wolfhound moving round a reaper swung the walk between routes of 62 and
 # 86 steps on every step; whole-route checks replanned on every far-off zone move).
 DANGER_LOOKAHEAD = 8
+# After a danger replan the new route is kept for this many steps unless a zone covers the next
+# DANGER_NEXT tiles: a fresh route abandoned after one step swings back and forth (live 2026-10-05,
+# witcher_253: one wolf, the walk alternating between (861,834) and (865,833), routes 74 and 56)
+DANGER_COMMIT_STEPS = 5
+DANGER_NEXT = 2
 # Some teleporters deny the step and then move you (S2C 0x21 at the current tile, then the
 # new position; the New Player Dungeon exit, live 2026-09-30). After a deny, look this long
 # for such a jump before calling the step blocked.
@@ -776,6 +781,7 @@ class Mover:
         gate = tuple(gate) if gate is not None else None
         replans = 0
         best_route, stalled = None, 0  # danger replans since the planned route last got shorter (boxed in)
+        committed_until = 0            # self.steps up to which a danger replan's route is kept (DANGER_COMMIT_STEPS)
         start_steps = self.steps
         tried_doors = set()          # doors that denied a step: one more open request each
         opened = set()               # doors opened ahead on this route (the client's auto-open)
@@ -864,8 +870,8 @@ class Mover:
                         self.close_gate_gumps(self.step_mark, new, label)
                     if self.replan_requested:
                         zone_moved, self.replan_requested = True, False
-                    if zone_moved and new == nxt \
-                            and any(self.in_danger(t) for t in path[i + 1:i + 1 + DANGER_LOOKAHEAD]):
+                    ahead = DANGER_NEXT if self.steps < committed_until else DANGER_LOOKAHEAD
+                    if zone_moved and new == nxt and any(self.in_danger(t) for t in path[i + 1:i + 1 + ahead]):
                         self.replan_requested = True      # a zone that moved since the plan is close ahead
                     if new != nxt or self.replan_requested:
                         if self.replan_requested:
@@ -873,6 +879,7 @@ class Mover:
                             danger_replan = True      # not a failure: don't count it as one
                             self.sticky = set(path[i:])
                             self.sticky.add(new)
+                            committed_until = self.steps + DANGER_COMMIT_STEPS
                         else:
                             log(f"{label}: landed on {new}, expected {nxt}; replanning")
                         self.replan_requested = False
