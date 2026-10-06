@@ -852,6 +852,28 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   try 2 as "recharging" with no cast counted, but it was a disturbed Recall-on-book cast. `escape._recharging`
   now reports that cast's own failure ("disturbed", method `spell_on_book`, `cast_s`), and the retry waits
   its disturb recovery (`test_escape.py`).
+- **Escape latency: a stale proxy and a store write before the escape (2026-10-06):**
+  - **Stale proxy.** The live proxy had been running since 2026-10-04 16:23, so it predated the
+    closed-gump bound (`CLOSED_GUMPS_MAX`, 2026-10-05). It kept 5,631 closed captcha gumps: every
+    state-port read was 7 MB and ~60 ms, and every runner poll and escape round trip paid that. It also
+    lacked the faction tags and the speech `body`, which run in the proxy's world model. After the user's
+    stack restart (16:5x): 14 KB, 0.5 ms. **Code in `harness/world/` only takes effect when the proxy
+    restarts.** Check its age when a world-model fix seems not to work live (`Win32_Process`
+    CreationDate of the `proxy.py` python process).
+  - **A store write before the escape.** In `red_aim`, 0x20 → the chop cursor's cancel took 0.28 s. The
+    `pk_seen` job event (SQLite commit beside the proxy's memory writer) cost 0.26 s of it. The escape's
+    own walk re-entered the threat check, which flushed it again before the first step. Now
+    `check_threats` defers its store writes (`later`: pk_seen in view and from Tracking, the
+    faction-waypost spot mark) until the outermost check, and any escape it started, is over. Sight → the
+    first step away: 0.29 → 0.04 s (sim). `LOOK_EVERY_S` went 0.2 → 0.05 s and `Link.wait`'s poll
+    0.1 → 0.05 s now that a read is cheap.
+  - **Faster recall sequences researched** (Razor scripts, the Outlands wiki and patch notes; full report
+    from the RecallSpeedResearch agent, summarised): `[RecallCharge <rune>` / `[Recall <rune>` (official
+    speech commands since 2025-06-04) skip the book's gump round trip, about 0.1-0.2 s; a Recall precast
+    held on its cursor while walking (answered with the book on a threat) would land in ~0.1 s instead of
+    ~2.1 s, but a hatchet use cancels it; Outlands Recall is 2.00 s, and a 4th-8th circle hostile spell
+    always disturbs it (Protection is armor only). An Energy Bolt chain (one every ~1.95 s) can't be
+    out-cast standing, hence option E. Not built yet: both need live checks first.
 - **Seer6 shift (20:15–23:25, 2026-10-05):** 15 runs, 8033 boards into the stockpile, Lumberjacking 81.1
   → 90.5, 1 death (norse bear rider at witcher_268, resurrected by Malila (2734,617); witcher_268
   disabled). Best trips: the greedy picks witcher_23 (2410 incl. ~1380 carried logs, then 1747) and

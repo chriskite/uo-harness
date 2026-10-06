@@ -358,7 +358,7 @@ class Link:
             self.st_file = self.st.makefile("rb")
         log("intent not shown: the proxy dropped the state connection")
 
-    def wait(self, pred, timeout: float, poll: float = 0.1, full: bool = True):
+    def wait(self, pred, timeout: float, poll: float = 0.05, full: bool = True):
         """Poll until pred(state) holds; None on timeout. full=False polls
         `movement()` (pred may only read `movement` and the events)."""
         end = time.monotonic() + timeout

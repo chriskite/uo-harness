@@ -173,7 +173,9 @@ THREAT_MARGIN_S = 1.0         # reaction + packet latency on top of the cast
 # Waits stay watchful (LUMBER_LOOP.md §13 "Blind waits"; live 2026-10-03, Bastet: the red came into
 # view during the chop's 2.1 s aim pause and the recall went out 2.5 s after sight): every human pause
 # and every wait for a server result reads the state and runs the threat checks at least this often.
-LOOK_EVERY_S = 0.2
+# 0.2 s until 2026-10-06, when a state read cost ~60 ms (a proxy keeping 5,600 closed captcha gumps);
+# a read is ~0.5 ms since, so looking every 0.05 s takes a quarter off the sight -> escape latency.
+LOOK_EVERY_S = 0.05
 BLIND_PAUSES = frozenset({"drag"})   # lift -> drop: nothing may come between (an item on the cursor)
 TOOL_CURSOR_WAIT_S = 0.5      # a threat right after the hatchet's dclick: its cursor still comes, then is cancelled
 
@@ -445,6 +447,8 @@ class LumberLoop:
         self.aspect_warned = set()   # aspect problems already posted as a juncture this run
         self._attack_scan = 0        # link.events index scanned for "... is attacking you!"
         self._cast_scan = 0          # ... for harmful spell words (harmful_casts)
+        self._later = []             # store writes check_threats defers until after its escape (later)
+        self._checking = 0           # check_threats nesting (an escape's walk checks again): flush at 0
         self.waypost_seen = False    # this trip: a faction waypost marker noted (note_waypost)
         self.player_foes = set()     # serials player_escape runs from (gain_distance players=True)
         self._flee_mark = 0          # len(link.events) when the guard flight started
@@ -637,6 +641,28 @@ class LumberLoop:
         return {s: t for s, t in self.swingers.items() if t >= lo}
 
     def check_threats(self, st, escape: bool = True):
+        """_check_threats, then the store writes it deferred (later): a sighting's job event cost
+        0.26 s before the escape (SQLite commit beside the proxy's own writer; measured 2026-10-06 in
+        red_aim: 0x20 -> cursor cancel 0.28 s, 0.02 s without the write), so the escape goes first.
+        The escape's own walk checks again (nested): only the outermost check writes, once it's over."""
+        self._checking += 1
+        try:
+            self._check_threats(st, escape)
+        finally:
+            self._checking -= 1
+            if self._checking == 0:
+                self.flush_later()
+
+    def later(self, fn):
+        """A store write that waits until this threat check (and any escape it starts) is over."""
+        self._later.append(fn)
+
+    def flush_later(self):
+        due, self._later = self._later, []
+        for fn in due:
+            fn()
+
+    def _check_threats(self, st, escape: bool = True):
         """threats.py over every state read. Hostile players are logged once each
         (pk_seen). A flee-level threat posts an urgent `threat` juncture whose
         data.action says what follows:
@@ -685,7 +711,8 @@ class LumberLoop:
                 self.seen_hostiles.add(t.serial)
                 data = {**t.to_dict(), "source": "view", "counted": t.serial not in self.counted}
                 self.counted.add(t.serial)
-                self.memory.job_event("lumber", "pk_seen", data, **self._where(st))
+                self.later(lambda data=data, where=self._where(st):
+                           self.memory.job_event("lumber", "pk_seen", data, **where))
             if t.player and t.distance >= 0:
                 self.players_seen[t.serial] = t.name
         by_serial = {t.serial: t for t in a.threats}
@@ -873,12 +900,16 @@ class LumberLoop:
             spot = self.k["spot"]["id"]
             data = {"label": label, "serial": key, "x": m["x"], "y": m["y"], "spot": spot, "trip": self.trip_n}
             log(f"faction waypost {label!r} at ({m['x']}, {m['y']}): spot {spot} marked a faction zone")
-            self.memory.job_event("lumber", "faction_waypost", data, **self._where(st))
-            row = next((r for r in self.memory.lumber_spot_rows() if r["id"] == spot), None)
             zone = {"label": label, "x": m["x"], "y": m["y"], "t": round(time.time())}
-            self.memory.lumber_spot_put(spot, row["status"] if row else "active",
-                                        {**(row["data"] if row else {}), "faction_zone": zone},
-                                        row["source"] if row else "runner", row["reason"] if row else None)
+            where = self._where(st)
+
+            def write():
+                self.memory.job_event("lumber", "faction_waypost", data, **where)
+                row = next((r for r in self.memory.lumber_spot_rows() if r["id"] == spot), None)
+                self.memory.lumber_spot_put(spot, row["status"] if row else "active",
+                                            {**(row["data"] if row else {}), "faction_zone": zone},
+                                            row["source"] if row else "runner", row["reason"] if row else None)
+            self.later(write)                  # after this check's escape (check_threats)
             return
 
     # ------------------------------------------------------------ tracking reds
@@ -938,7 +969,8 @@ class LumberLoop:
                 "hostile": True, "x": hit["x"], "y": hit["y"], "z": hit["z"], "distance": hit["distance"],
                 "spaces": hit["spaces"], "mode": hit["mode"], "in_range": near, "react": react,
                 "react_range": self.args.track_react_range, "counted": counted, "trip": self.trip_n}
-        self.memory.job_event("lumber", "pk_seen", data, **self._where(st))
+        self.later(lambda data=data, where=self._where(st):
+                   self.memory.job_event("lumber", "pk_seen", data, **where))
         log(f"tracking: red {hit['name'] or f'0x{serial:08X}'} {hit['distance']} tiles away"
             + ("" if near else f" (beyond {self.args.track_react_range}: logged only)"))
 
