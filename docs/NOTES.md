@@ -483,6 +483,14 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   whole flow (buttons found by their labels, not fixed ids). Live 17:31: enter 7.0 s (a 4-step walk
   to Chase included), leave 7.0 s, `enter logan` the same; `enter nobody` refused with the list
   ("Logan Wolf (DTF)") and closed the menu. Fixtures: `harness/testdata/room_gumps.json`.
+- **Say "room", don't right-click (user, 2026-10-06):** the harness's injected right-click on the
+  steward got his context menu ("Open Paperdoll / Room") drawn by the client, and since the client
+  never made that click it never closed it: the menu stayed up on screen. `room.enter` now walks
+  within 2 tiles and says "room" (`ROOM_WORD`, plain 0xAD: not a speech.mul keyword) instead; the
+  room menu opens the same way (the room menu's own text already says to rent "by saying 'Room'").
+  The lumber sim's steward no longer answers a right-click, and the main scenario checks he is
+  never right-clicked. Same risk remains for other injected right-clicks (`mount.py` pet menu,
+  `ctl act menu`, vendor `buy`) [not changed].
 - Memory: #4082 (procedure, `char:outland_dan`, standing in his brief; #4081 superseded).
 
 ## Storage shelves (live 2026-10-04/05, Outland Dan)

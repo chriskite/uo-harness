@@ -1683,19 +1683,14 @@ class RoomIO:
                                 "items": {f"0x{self.DOOR:08X}": {"x": 403, "y": 929, "graphic": 0x0675},
                                           "0x4AE0DD2C": {"x": 404, "y": 922, "graphic": 0x0E43}}}}
         self.sent, self.pending, self.walked = [], [], []
-        self.menu = "steward_no_room"           # what the keeper's "Room" opens
-        self.entries = [(0, "Open Paperdoll"), (1, "Room")]
+        self.menu = "steward_no_room"           # what saying "room" by the keeper opens
 
     def gump(self, key: str, serial: int) -> dict:
         return {"ev": "gump_open", "serial": f"0x{serial:08X}", **self.gumps[key]}
 
     def send(self, pkt: bytes):
         self.sent.append(pkt)
-        k = self.KEEPER
-        if pkt == actions.request_popup(k):
-            self.pending.append({"ev": "popup", "serial": f"0x{k:08X}",
-                                 "entries": [{"index": i, "text": t, "flags": 0} for i, t in self.entries]})
-        elif pkt == actions.popup_selection(k, 1):
+        if pkt == actions.say_unicode(room.ROOM_WORD):
             self.pending.append(self.gump(self.menu, 0x501))
         elif pkt == actions.dclick(self.DOOR):
             self.pending.append(self.gump("door", 0x502))
@@ -1738,16 +1733,17 @@ def test_room_flow():
               room.find_keeper(io.state) == (RoomIO.KEEPER, "Chase the house steward"))
         out = room.enter(io, human, ["logan"], walk=io.walk, timeout=0.5)
         k = RoomIO.KEEPER
-        check("enter logan: walked to the steward (2 tiles), right-click, 'Room', Visit Other Rooms, the row",
+        check("enter logan: walked to the steward (2 tiles), said 'room' (no click, no context menu), "
+              "Visit Other Rooms, the row",
               out["ok"] and io.walked == [(k, room.KEEPER_RANGE)]
-              and io.sent[:3] == [actions.single_click(k), actions.request_popup(k), actions.popup_selection(k, 1)]
+              and [p for p in io.sent if p[0] != 0xB1] == [actions.say_unicode("room")]
               and io.replies() == [(0x501, 2), (0x503, 100)], str(out)[:300])
         check("enter: arrival on facet 3 at 403,923 with the room and keeper named",
               out["facet"] == 3 and out["pos"][:2] == [403, 923] and out["room"] == "Logan Wolf (DTF)"
               and out["via"] == "Chase the house steward"
               and any(e.get("text") == room.ENTERED for e in out["heard"]), str(out)[:300])
         check("enter when already inside: nothing sent",
-              room.enter(io, human, walk=io.walk)["already"] and len(io.sent) == 5)
+              room.enter(io, human, walk=io.walk)["already"] and len(io.sent) == 3)
 
         io = RoomIO(0, (4137, 1431, 6))
         own = dict(io.gumps["steward_no_room"])

@@ -1794,7 +1794,8 @@ def _act_room(a, mem) -> dict:
     docs/NOTES.md "Rental room via the DTF house steward").
 
     enter: the nearest house steward or innkeeper in view (their click label) is
-    walked to (2 tiles, guarded goto), right-clicked, "Room"/"Rent" picked; on the
+    walked to (2 tiles, guarded goto) and "room" said by him (not his context menu,
+    which would stay open on the client's screen); on the
     room menu (gump 0x8EAEFBDB) "Enter Your Room" when you rent one and no OWNER
     is named, else "Visit Other Rooms" and the row whose name holds OWNER's words
     (no OWNER: the only row). Done on "You enter the rental room." / facet 3.

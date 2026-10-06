@@ -7,7 +7,7 @@ demonstration capture (logs/session_20260929_204225) and of the live rental room
 - home (docs/LUMBER_LOOP.md §12.5): the character (CHAR_NAME, a test homes file) starts in its
   rental room (facet 3, ROOM_ARRIVAL) with the secure chest 1 tile off and a door whose menu (the
   live gump) "Exit to House Steward" puts it on the home landing (facet 0); there the house
-  steward (click label, the live context menu "Room") opens the live room menus: "Visit Other
+  steward (click label; "room" said within 2 tiles of him) opens the live room menus: "Visit Other
   Rooms", then the owner's row ("Logan Wolf (DTF)") back into the room; drops into the open chest
   are counted (boards merge like RunUO)
 - our runebook (the captured layout, two runes): "Sim Woods" (BOOK_RUNE_POS, by the trees of the
@@ -109,7 +109,6 @@ CHAR_NAME = "Testwood"                                   # the test homes file's
 HOME_RUNE_POS = (125, 205)                                # our runebook's default rune "Home": the home landing
 STEWARD, STEWARD_POS = 0x009F57FB, (129, 205)             # Chase the house steward (live serial), 4 tiles from it
 STEWARD_LABEL = "Chase the house steward"
-STEWARD_POPUP = bytes.fromhex("bf001c00140002009f57fb02002ddeab000000000010b77d00010000")  # live 162411: 1 "Room"
 ROOM_FACET, ROOM_ARRIVAL = 3, (403, 923)
 ROOM_DOOR, ROOM_DOOR_POS = 0x5CDC6B4F, (403, 929)          # the room's wooden door (live serial and tile)
 CHEST, CHEST_POS = 0x4AE0DD2C, (404, 922)                 # the secure paragon chest, 1 tile from the arrival
@@ -474,6 +473,7 @@ class World:
         self.shelf_pouches = []           # spent pouches the shelves took
         self.secured_tries = 0            # double-clicks on the shelf secured against us
         self.steward_clicks = 0           # single clicks on the steward (each answered with his label)
+        self.steward_menus = 0            # right-clicks on the steward (none: "room" is said)
         self.recalls_book = []            # recalls to our runebook's 'Sim Woods' rune
         self.thief_pos = None             # thief: where the blue stands
         self.thief_at = []                # thief: every place he stepped next to us
@@ -1044,17 +1044,16 @@ class World:
                 self.steward_clicks += 1
                 self.later(0.05, [label_pkt(STEWARD, "Chase", STEWARD_LABEL)])
         elif pid == 0xBF and p[3:5] == b"\x00\x13":    # context menu request (right-click)
-            if int.from_bytes(p[5:9], "big") == STEWARD and self.facet == 0 and self.cheb(STEWARD_POS) <= 18:
-                self.later(0.06, [STEWARD_POPUP])
+            if int.from_bytes(p[5:9], "big") == STEWARD:
+                self.steward_menus += 1                  # the runner says "room" instead (the menu stays up)
             elif int.from_bytes(p[5:9], "big") == HORSE and self.horse is not None and not self.mounted:
                 self.horse_menus += 1
                 self.later(0.06, [PET_POPUP])
-        elif pid == 0xBF and p[3:5] == b"\x00\x15":    # context menu pick: 1 "Room" (within 2 tiles, live)
-            if int.from_bytes(p[5:9], "big") == STEWARD and int.from_bytes(p[9:11], "big") == 1:
-                if self.facet != 0 or self.cheb(STEWARD_POS) > 2:
-                    self.keeper_far += 1
-                    return
-                self.room_gump("steward_no_room")
+        elif p == actions.say_unicode("room"):          # "room" by the steward opens the room menu (within 2 tiles)
+            if self.facet != 0 or self.cheb(STEWARD_POS) > 2:
+                self.keeper_far += 1
+                return
+            self.room_gump("steward_no_room")
         elif pid == 0x06:
             serial = int.from_bytes(p[1:5], "big")
             if serial == HORSE and self.horse is not None and not self.mounted:
@@ -1539,8 +1538,10 @@ async def main():
               and world.room_presses == [("door", 6), ("steward_no_room", 2), ("visit_list", 100)] * 2
               and world.keeper_far == 0 and world.facet == ROOM_FACET and "waiting in the rental room" in text,
               f"{world.room_log} {world.room_presses} far {world.keeper_far} facet {world.facet}")
-        check("the steward was found by one single click on trip 1 (his label), known on trip 2",
-              text.count("house steward search") == 1 and world.steward_clicks >= 3, str(world.steward_clicks))
+        check("the steward was found by one single click on trip 1 (his label), known on trip 2; never "
+              "right-clicked (his context menu stays up on the client's screen)",
+              text.count("house steward search") == 1 and world.steward_clicks == 1 and world.steward_menus == 0,
+              f"clicks {world.steward_clicks} menus {world.steward_menus}")
         check("out by our runebook's 'Sim Woods' rune (the landing nearest the grove), home on foot (within "
               "NEAR_LANDING of the landing): no library or home recall",
               world.recalls_book == [BOOK_RUNE_POS, BOOK_RUNE_POS] and world.recalls_home == []
@@ -1620,7 +1621,8 @@ async def main():
               and world.containers_opened.count(BACKPACK) == 1
               and text.count(f"opening container 0x{BACKPACK:08X}") == 1 and world.chest_opens == 2,
               f"{world.containers_opened} chest opens {world.chest_opens}")
-        check("no speech at all (the room goes by menus, no 'bank')", speech == [], str([p.hex() for p in speech]))
+        check("the only speech is 'room' by the steward, once per trip (no 'bank')",
+              speech == [actions.say_unicode("room")] * 2, str([p.hex() for p in speech]))
         check("two episode rows with logs and stored boards, none stockpiled (this home has only the chest)",
               len(rows) == 2 and all(r.get("logs", 0) >= 6 and r.get("stored", 0) >= 6 and "stockpiled" not in r
                                      and set(r["phases_s"]) == {"harvest", "to_room", "convert", "store"}

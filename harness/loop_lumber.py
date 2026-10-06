@@ -2997,7 +2997,7 @@ class LumberLoop:
 
     def to_room(self):
         """Home (go_home), then into the rental room through the house steward (room.enter:
-        his context menu "Room", "Visit Other Rooms" and the owner's row, home.room.owner;
+        "room" said by him, "Visit Other Rooms" and the owner's row, home.room.owner;
         none: our own room), walking up to him first (walk_to_keeper). Home by distance only
         (go_home walked, the keeper not known in view): to the landing first, where he stands
         by. Converting and storing happen in the room, the safe place."""

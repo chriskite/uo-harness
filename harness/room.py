@@ -3,7 +3,9 @@ steward or innkeeper, out through the room's door (docs/NOTES.md "Rental room vi
 the DTF house steward"). Shared by `ctl act room` and the lumber runner.
 
 Live 2026-10-04 (Outland Dan, DTF guild house): the keeper's context menu entry
-"Room" (steward) / "Rent" (innkeeper) opens gump 0x8EAEFBDB; "Enter Your Room"
+"Room" (steward) / "Rent" (innkeeper) opens gump 0x8EAEFBDB, and so does saying
+"room" by him, which is what `enter` does: the injected right-click left the menu
+open on the client's screen (user, 2026-10-06). On it "Enter Your Room"
 when the character rents one, else "Visit Other Rooms" and a row per room he may
 visit ("Logan Wolf (DTF)", button 100). Arrival: "You enter the rental room.",
 facet 3. The door's menu offers "Exit to House Steward" / "Exit to Town"
@@ -31,7 +33,7 @@ ROOM_GUMP_ID = 0x8EAEFBDB            # rental room menu (innkeeper, house stewar
 ROOM_REFUSED = {3: "End Rental Contract", 7: "Expand"}
 ROOM_FACET = 3                       # rental rooms are on facet 3 (no map geometry)
 ROOM_KEEPERS = ("house steward", "innkeeper")   # who opens the room menu (their click label)
-ROOM_MENU_ENTRIES = ("room", "rent")  # their context menu entry: steward "Room", innkeeper "Rent"
+ROOM_WORD = "room"                   # said within KEEPER_RANGE of the keeper: opens the room menu (user, 2026-10-06)
 KEEPER_RANGE = 2                     # walk this close first (the steward's menu, live; innkeepers answer from 11)
 ENTERED = "You enter the rental room."
 EXITED = "You exit the rental room."
@@ -169,11 +171,12 @@ def _is_room_gump(e: dict) -> bool:
 def enter(io, human, owner_words=(), *, walk=None, timeout: float = 5.0) -> dict:
     """Into a rental room via the nearest house steward or innkeeper in view: walked to
     (walk(serial, KEEPER_RANGE), the caller's guarded walker) when farther than
-    KEEPER_RANGE, right-clicked, "Room"/"Rent" picked; on the room menu "Enter Your
-    Room" when one is offered and no owner is named, else "Visit Other Rooms" and the
-    row whose name holds every owner word (none: the only row). Done on
-    "You enter the rental room." or facet 3. Returns {ok, room, via, pos, facet, heard
-    [, error | already]}."""
+    KEEPER_RANGE, then "room" said by him (ROOM_WORD; not his context menu "Room"/"Rent",
+    which a right-click the client never made leaves open on its screen: user,
+    2026-10-06); on the room menu "Enter Your Room" when one is offered and no owner is
+    named, else "Visit Other Rooms" and the row whose name holds every owner word (none:
+    the only row). Done on "You enter the rental room." or facet 3. Returns {ok, room,
+    via, pos, facet, heard[, error | already]}."""
     flow = _Flow(io, human, timeout)
     st = flow.state()
     facet = (st["world"].get("self") or {}).get("map")
@@ -190,19 +193,9 @@ def enter(io, human, owner_words=(), *, walk=None, timeout: float = 5.0) -> dict
         if walk is None:
             raise RoomError(f"{label} is farther than {KEEPER_RANGE} tiles and no walker was given")
         walk(keeper, KEEPER_RANGE)
-    human.wait("use")
-    got = flow.send_wait([actions.single_click(keeper), actions.request_popup(keeper)],
-                         lambda e: e.get("ev") == "popup", f"right-clicking {label}")
-    menu = next((e for e in got if e.get("ev") == "popup"), None)
-    entries = [{"index": e.get("index"), "text": e.get("text") or _cliloc(e.get("cliloc")),
-                "disabled": bool((e.get("flags") or 0) & 0x01)} for e in (menu or {}).get("entries") or []]
-    entry = next((e for e in entries if e["text"].strip().lower() in ROOM_MENU_ENTRIES and not e["disabled"]), None)
-    if entry is None:
-        raise RoomError(f"{label}'s context menu has no Room/Rent entry: {[e['text'] for e in entries]}")
-    human.wait("menu")
-    got = flow.send_wait([actions.popup_selection(keeper, entry["index"])], _is_room_gump,
-                         f"picking '{entry['text']}'")
-    g = flow.room_gump(got, f"picking '{entry['text']}'")
+    human.wait("speak")
+    got = flow.send_wait([actions.say_unicode(ROOM_WORD)], _is_room_gump, f"saying '{ROOM_WORD}' by {label}")
+    g = flow.room_gump(got, f"saying '{ROOM_WORD}' by {label}")
     owner = " ".join(owner_words).strip()
     arrived = (lambda e: e.get("ev") == "map_change" and e.get("map") == ROOM_FACET
                or e.get("ev") == "speech_heard" and e.get("text") == ENTERED)
