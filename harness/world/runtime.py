@@ -499,6 +499,13 @@ def _h_corpse_equipment(rt, f):
 
 
 def _h_healthbar(rt, f):
+    """0x16/0x17 health-bar flags: type 1 = poisoned. Outlands sends them for the player too
+    (session_20261003_170434: `17000c0020f1270001000105` then `...0100` for self 0x0020F127),
+    so self's lands in state.self.poisoned; anyone else's on the mobile."""
+    if f["serial"] == rt.state.self.serial:
+        for e in f["entries"]:
+            if e["type"] == 1:
+                rt.state.self.poisoned = bool(e["enabled"])
     m = rt.state.update_mobile(f["serial"])
     if m is None:
         return

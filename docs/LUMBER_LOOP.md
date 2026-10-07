@@ -1032,6 +1032,42 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     no timeout, HP, creature or speech checks.
   - **Live check (TestWorth, Test Shard):** the runner's path with a fake red, 2.11 s from press
     to arrival. `test_escape.py` pins the gump parsing on the captured layouts.
+- **Healing on the run (since 2026-10-06; docs/PLAN.md "Healing on the run"; `healing.FleeAid`,
+  `LumberLoop.flee_aid`):** the Razor 'PK Getaway' idea for our flights. Today's two PK deaths were
+  ~100 hits lost in ~4 s while recall casts were disturbed (docs/NOTES.md, witcher_66 and witcher_162).
+  - **When:** every guard check while the mode is `gap` (`gain_distance`), `flee` (guard flight) or
+    `escape` (walk-aways), first thing, before the `stalled` check, so a paralysis is popped before
+    refused steps end the run. Standing: once in `recall_out` before `escape.escape`, and between
+    its tries (`escape.escape(between=...)`, after a failed try, with `frozen_hint` when the server
+    said "You cannot cast a spell while frozen.").
+  - **What, one item use at a time, in order:** (1) paralyzed (self 0x20 flag 0x01, or the frozen
+    refusal) and a live trapped pouch: double-click it (its explosion breaks paralysis; costs ~1
+    hit); (2) poisoned (`world.self.poisoned`) and a cure potion (0x0F07): cure; (3) not poisoned,
+    the heal potion clock ready (`PotionClock`, 10 s) and hurt: a heal potion (0x0F0C), running
+    from 25 % of hits_max missing (`RUN_HEAL_MISSING`), standing only at ≤ 50 % of hits_max
+    (`STAND_HEAL_HITS`: a drink there delays the book); (4) running only, stamina ≤ 50 %
+    (`RUN_REFRESH_STAM`) and a refresh potion (0x0F0B): refresh. Only items lying directly in the
+    backpack (the shelf resupply puts them there); no bag is opened mid-flight.
+  - **Spacing:** no two uses within `USE_GAP_S` 0.55 s; a kind used recently is skipped for its
+    retry gap (`RETRY_S`: pouch 1.0 s, cure 1.5 s, refresh 3 s) and the next kind may go. Before
+    the runebook's double-click `recall_out` sleeps until `FleeAid.ready_at()` (the last use +
+    0.55 s), and `escape.escape` holds the next try's double-click until the time `between` returns.
+    [INFERENCE: RunUO PacketHandlers.UseReq refuses an item use within Mobile.ActionDelay 0.5 s of
+    the last, cliloc 500119]; live, a book double-click 0.3 s after another action was ignored
+    (`escape._open`). [INFERENCE: RunUO Spell.OnCasterUsingObject disturbs a cast being sequenced],
+    so nothing is double-clicked while our recall is being cast: the aid runs only between tries.
+  - **Bookkeeping:** each potion is declared to the ledger first (`("spent", graphic, 1)`, not
+    theft), the pouch to PopWatch (`own_pop`: its hit is ours); one log line (what, why, hits,
+    stamina) and a deferred `flee_aid` job event (kind, why, item, hits, hits_max, stam, stam_max,
+    poisoned, frozen, standing, mode, trip, spot).
+  - **Evidence and gaps:** Outlands sends 0x17 type 1 for the player
+    (session_20261003_170434 `17000c0020f1270001000105`, then `…0100`); the world model kept only
+    mobiles' poison until now (`world.self.poisoned` needs a proxy restart). Flag 0x01 =
+    paralyzed is [INFERENCE: ClassicUO Flags.Frozen; RunUO Mobile.GetPacketFlags] and was never
+    seen on Dan (all 1,378 captured self 0x20s carry 0x20). [INFERENCE: pre-AOS poison ticks
+    disturb casting], so curing before the cast matters. Not used: healing spells (casting stops
+    the run and takes the recall's slot), bandages (no Healing skill), moongates, Hiding.
+    Scenario `flee_aid`; `test_healing.py` (`flight_aid`), `test_escape.py` (`test_escape_between`).
 - **Blind waits: every wait watches (since 2026-10-03; `LumberLoop.pause` / `wait_for` /
   `drop_cursor`):**
   - **The death that showed it (Hackworth, Terran wilds, 2026-10-03, store events):** the runner

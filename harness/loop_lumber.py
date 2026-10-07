@@ -121,6 +121,7 @@ import room as room_mod  # noqa: E402
 import mount as mount_mod  # noqa: E402
 import captcha  # noqa: E402
 import combat  # noqa: E402
+import healing  # noqa: E402
 import tracking  # noqa: E402
 import pouch  # noqa: E402
 import aspects  # noqa: E402
@@ -472,6 +473,7 @@ class LumberLoop:
         self._cancelled = None       # cursor id of the last target cursor cancelled by drop_cursor
         self._sight = {}             # mobile key -> wall time it came into view (note_sightings: react_s)
         self.pops = pouch.PopWatch()   # our trapped pouches going off: ours, or a thief's (check_pouches)
+        self.aid = healing.FleeAid()   # potions / a trapped pouch while running or between recall casts (flee_aid)
         self._pop_scan = 0           # link.events index folded into self.pops
         self._pop_since = time.time()  # pops before this run started are another run's (its own set-off)
         self._stash_due = None       # monotonic: when the last chop's stash may lift (attempt, stash_now)
@@ -503,6 +505,8 @@ class LumberLoop:
     # ------------------------------------------------------------ guards
     def check_guards(self, st: dict):
         relaxed = self.mode in ("salvage", "flee", "gap")
+        if self.mode in ("gap", "flee", "escape"):
+            self.flee_aid(st)        # before the stalled check: a paralysis is popped before rejected steps end the run
         if not relaxed and time.monotonic() > self.deadline:
             raise Abort(f"overall timeout ({self.args.timeout}s)")
         mv = st["movement"]
@@ -666,6 +670,33 @@ class LumberLoop:
         due, self._later = self._later, []
         for fn in due:
             fn()
+
+    def flee_aid(self, st, standing: bool = False, frozen_hint: bool = False) -> bool:
+        """One flight aid (healing.FleeAid, docs/LUMBER_LOOP.md §13 "Healing on the run") when one is due:
+        a live trapped pouch when paralyzed, a cure potion when poisoned, a heal potion when hurt, a refresh
+        potion when tired (running only). Potions are declared to the ledger (spent, not stolen) and the
+        pouch to PopWatch (own_pop) before the double-click; a `flee_aid` job event is deferred (later).
+        `standing`: before or between recall casts. True when something was used."""
+        me = st["world"]["self"]
+        now = time.monotonic()
+        aid = self.aid.choose(st["world"], self.self_serial(st), now, standing, frozen_hint)
+        if aid is None:
+            return False
+        if aid.kind == "pouch":
+            self.own_pop(aid.serial)
+        else:
+            self.ledger.expect(("spent", aid.graphic, 1))
+        self.link.act(actions.dclick(aid.serial))
+        self.aid.used(aid, now)
+        frozen = bool((me.get("stats") or {}).get("flags", 0) & healing.FLAG_FROZEN)
+        log(f"flight aid: {aid.kind} ({aid.why}; hits {me.get('hits')}/{me.get('hits_max')}, "
+            f"stam {me.get('stam')}/{me.get('stam_max')}{', standing' if standing else ''})")
+        data = {"kind": aid.kind, "why": aid.why, "item": f"0x{aid.serial:08X}",
+                "hits": me.get("hits"), "hits_max": me.get("hits_max"), "stam": me.get("stam"),
+                "stam_max": me.get("stam_max"), "poisoned": me.get("poisoned"), "frozen": frozen or frozen_hint,
+                "standing": standing, "mode": self.mode, "trip": self.trip_n, "spot": self.k["spot"]["id"]}
+        self.later(lambda data=data, where=self._where(st): self.memory.job_event("lumber", "flee_aid", data, **where))
+        return True
 
     def _check_threats(self, st, escape: bool = True):
         """threats.py over every state read. Hostile players are logged once each
@@ -1337,10 +1368,22 @@ class LumberLoop:
         sight, pressed = self.sight_t(worst, swung), time.time()
         react = round(pressed - sight, 2) if sight is not None else None
         log(f"recalling out: {react} s after first sight" if react is not None else "recalling out")
+        # a cure / pouch / heal now if one is due, and the book's double-click not within the server's
+        # action delay of it or of a drink just made on the run (healing.USE_GAP_S)
+        self.flee_aid(self.link.state(), standing=True)
+        if (hold := self.aid.ready_at() - time.monotonic()) > 0:
+            time.sleep(hold)
+
+        def between(s, last):
+            used = self.flee_aid(s, standing=True, frozen_hint=last["failure"] == "frozen")
+            return self.aid.ready_at() if used else None
         try:
-            res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, log=log, attempts=attempts)
+            res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, log=log, attempts=attempts,
+                                    between=between)
         except escape_mod.RecallError as e:
             return f"recall not possible: {e}"
+        if self._checking == 0:              # not inside a threat check (an abort's way home): its writes now
+            self.flush_later()
         data = {**res, "trip": self.trip_n, "spot": self.k["spot"]["id"], "book": f"0x{self.recall_book:08X}",
                 "threat": worst.to_dict() if worst else None, "attackers": self.attacker_list(swung),
                 "cause": "player" if pk else "creature", "react_s": react, "cursor_cancelled": cancelled}

@@ -450,6 +450,17 @@ def test_healthbar_16_17():
     pkt = bytes.fromhex("17" "0009" "04050607" "0000")
     eq("0x17 empty", parse_packet("s2c", pkt),
        {"serial": 0x04050607, "entries": []})
+    # Outlands sends 0x17 for the player too (session_20261003_170434, self 0x0020F127): type 1
+    # (poisoned) enabled 5, later 0. Self isn't in mobiles, so it lands in state.self.poisoned.
+    rt = WorldRuntime()
+    rt.state.self.serial = 0x0020F127
+    eq("self poisoned unknown before any 0x16/0x17", rt.state.self.to_dict()["poisoned"], None)
+    rt.feed_packet("s2c", bytes.fromhex("17000c0020f1270001000105"))
+    eq("self 0x17 type 1 enabled 5: poisoned", (rt.state.self.poisoned, rt.state.self.to_dict()["poisoned"]),
+       (True, True))
+    rt.feed_packet("s2c", bytes.fromhex("17000c0020f1270001000100"))
+    eq("self 0x17 type 1 enabled 0: cured", rt.state.self.poisoned, False)
+    eq("self is no mobile", 0x0020F127 in rt.state.mobiles, False)
 
 
 def test_gumps_b0_dd():

@@ -714,7 +714,7 @@ def retry_wait(res: dict) -> float | None:
 
 
 def escape(io, book: int, *, attempts: int | None = None, budget_s: float = ESCAPE_BUDGET_S,
-           log=print, rune: str | None = None, entry: int | None = None) -> dict:
+           log=print, rune: str | None = None, entry: int | None = None, between=None) -> dict:
     """Recall until it lands. A disturbed cast is recast as soon as the server
     takes it again (retry_wait / disturb_recovery: a press before that only earns
     'not recovered'); refusals that started no cast (NOT_CAST) are retried after
@@ -725,7 +725,11 @@ def escape(io, book: int, *, attempts: int | None = None, budget_s: float = ESCA
     after the first press. Keeping on matters: a PK has to land a fresh
     interrupt within every 2 s cast (live 2026-10-03 at Nusero the old three-try
     limit gave up 4.4 s before his first melee hit; SPELL_INTERRUPTS.md).
-    `rune` / `entry`: a book's rune by name or index (recall()), else the default. Returns the last
+    `rune` / `entry`: a book's rune by name or index (recall()), else the default. `between(state,
+    last)`: called after a failed try (once it isn't death), before the next; it may use an item (a
+    potion, a trapped pouch: healing.FleeAid) and returns the monotonic time from which the next item
+    use is taken, or None. The next try's book double-click waits until then (one sent within the
+    server's action delay is ignored: _open). Returns the last
     recall() result plus 'attempts' (casts made) and 'tries' (every try's method,
     ok, failure, elapsed_s, cast_s and the wait before the next: the travel
     record of what each cast cost)."""
@@ -758,6 +762,8 @@ def escape(io, book: int, *, attempts: int | None = None, budget_s: float = ESCA
             return last
         tries[-1]["wait_s"] = round(wait, 3)
         not_before = time.monotonic() + wait      # recall() opens the book meanwhile
+        if between is not None:
+            _hold(between(st, last))
 
 
 def check_ready(io, book: int) -> dict:

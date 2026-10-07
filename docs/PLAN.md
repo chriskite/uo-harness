@@ -1266,6 +1266,34 @@ Tests: `test_world_units.py` `test_title_tags`, `test_lumber_opt.py` (faction zo
 and `precast` in `test_loop_lumber.py` (both failing before). Details: docs/LUMBER_LOOP.md §13
 "Recall escape on players".
 
+## Healing on the run (decided and built offline 2026-10-06, not yet tried live)
+
+User request 2026-10-06, inspired by their Razor 'PK Getaway' script for Outlands: while running,
+pop a trapped pouch when paralyzed (`[pouch`), drink a cure potion when poisoned, a heal potion when
+hurt, a refresh potion when stamina is low. Both of that day's PK deaths were ~100 hits lost in ~4 s
+while recall casts were disturbed (docs/NOTES.md, witcher_66 14:08, witcher_162 16:33).
+
+- **Adopted for the lumber runner:** `healing.FleeAid` chooses one item use at a time (pouch if
+  paralyzed, cure if poisoned, heal if hurt and not poisoned, refresh if tired and running) from items
+  lying directly in the backpack; `LumberLoop.flee_aid` uses it on every guard check while running
+  (`gap`, `flee`, `escape`), once standing before the recall, and between recall tries
+  (`escape.escape(between=...)`). Uses are 0.55 s apart and the runebook's double-click waits 0.55 s
+  after the last one [INFERENCE: the server's 0.5 s action delay on item use; live, a book click 0.3 s
+  after another action was ignored]. Standing, a heal potion only at ≤ 50 % hits (it delays the book);
+  running, from 25 % missing. Thresholds and evidence: docs/LUMBER_LOOP.md §13 "Healing on the run".
+- **World model:** the player's own poison (0x16/0x17 type 1 for self, which Outlands sends) now lands
+  in `world.self.poisoned`; before, only other mobiles' poison was kept.
+- **Not adopted:** healing spells while running (casting stops movement on Outlands and the cast is
+  the recall's slot); bandages (Dan has no Healing skill, and bandaging takes seconds standing in
+  reach); moongates (none where Dan chops; a gate's prompt and its destination are their own risk);
+  Hiding (no skill). No change to the hunt runner or `ctl`.
+
+Code: `healing.FleeAid` / `Aid` / `in_pack_top`, `loop_lumber.LumberLoop.flee_aid` (check_guards,
+recall_out), `escape.escape(between=)`, world `SelfState.poisoned`. Tests: `test_healing.py`
+(`flight_aid`), `test_escape.py` (`test_escape_between`), `test_world_units.py` (self 0x17), scenario
+`flee_aid` in `test_loop_lumber.py`. Live checks for the first run: docs/NOTES.md "Healing on the run:
+live checks".
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

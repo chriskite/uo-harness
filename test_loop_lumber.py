@@ -55,6 +55,9 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
 - wary: a war-mode creature by the nearest tree: the farther tree first, the near one once it has gone
 - red_aim (§13 "Blind waits"): at the library spot a red comes into view while the chop's cursor is up
   (--human normal): the cursor is cancelled and the recall home pressed within REACT_MAX_S of sight, no chop target
+- flee_aid (§13 "Healing on the run"): at the library spot a red's spells leave us at 55 hits, poisoned and
+  paralyzed (steps refused): a trapped pouch pops the paralysis, a cure, then a heal potion on the run; the book's
+  double-click never within 0.5 s of them; no potion read as stolen
 - staff_in_view (docs/PLAN.md "Staff alarm on an invulnerable player in view"): a vendor (notoriety 7, no
   player flag) next to us mid-harvest raises nothing; an invulnerable player (notoriety 7 + 0x20) coming into
   view raises one gm_suspected + staff alarm, a staff_sighting with its gear, and holds the job until acked
@@ -205,6 +208,11 @@ BASTET, RED_AIM_S, REACT_MAX_S = 0x0009BA57, 0.02, 0.5   # a red, in view this l
 # (the aim is a script's ~0.1 s since 2026-10-04, humanize SCRIPT_MEDIAN; the live aim pause was 2.1 s)
 # faction / precast (live 2026-10-06 witcher_66): a guildmate / a blue healing himself, then CALM_S later the foe
 GUILDY, FOE, WAYPOST_MOB, CALM_S = 0x0050CE5C, 0x00447976, 0x000D8F4D, 2.0
+# flee_aid (LUMBER_LOOP.md §13 "Healing on the run"): Outland Dan's potions in the pack (ctl status 2026-10-06), the red's
+# hit (hits to PK_HITS, poisoned, paralyzed) PK_HURT_S after he comes into view; a heal potion gives HEAL_POT_HP
+CURE_G, HEAL_G, REFRESH_G = 0x0F07, 0x0F0C, 0x0F0B
+POTIONS = {0x44ADE001: CURE_G, 0x44ADE002: HEAL_G, 0x44ADE003: REFRESH_G}
+PK_HURT_S, PK_HITS, HEAL_POT_HP = 0.3, 55, 30
 # every tree of the simulated world, whichever the scenario's spot lists (they stand far apart)
 SIM_TREES = [(t["x"], t["y"]) for t in (GOOD_TREE, DRY_TREE, FAR_TREE, LIB_TREE, LIB_FAR_TREE, WEST_TREE)]
 
@@ -266,8 +274,15 @@ def seed_pkt(token):
     return bytes.fromhex("bf001d0001") + u32(token) + bytes(20)
 
 
-def self_at(x, y, d):       # 0x20 V10 for the player (teleport anchor), facing d like a real server's
-    return b"\x20" + u32(SELF) + u32(0x190) + b"\x01\x83\xea\x20" + u32(x) + u32(y) + b"\x00\x00" + bytes([d]) + u32(0)
+def self_at(x, y, d, flags=0x20):   # 0x20 V10 for the player (teleport anchor), facing d like a real server's
+    return b"\x20" + u32(SELF) + u32(0x190) + b"\x01\x83\xea" + bytes([flags]) + u32(x) + u32(y) + b"\x00\x00" \
+        + bytes([d]) + u32(0)
+
+
+def poison_pkt(on):
+    """0x17 health-bar flag for us, type 1 (poisoned), as Outlands sends it (session_20261003_170434:
+    17000c0020f1270001000105 / ...0100)."""
+    return b"\x17\x00\x0c" + u32(SELF) + b"\x00\x01\x00\x01" + bytes([5 if on else 0])
 
 
 def mobile_pkt(serial, x, y):
@@ -424,7 +439,7 @@ class World:
         #                                   "staff" (a vendor next to us, then an invulnerable player in view)
         self.scripted = scenario == "home"  # captchas, the passer-by's speech, the pickpocket
         self.library = scenario in ("library", "tracking", "gazer", "red_aim", "thief", "pouch_pop", "landing_monster",
-                                    "ghost_horse", "faction", "precast")
+                                    "ghost_horse", "faction", "precast", "flee_aid")
         #                                   the library spot (pvp), black pearls in the pack
         self.facet, self.pos = ROOM_FACET, list(ROOM_ARRIVAL)   # every run starts in the rental room
         self.facing = 0
@@ -536,6 +551,12 @@ class World:
         self.book_dists = []              # ... our distance to him at each runebook double-click
         self.vendor_t = None              # staff: when the vendor's 0x20 went out
         self.gm_t = None                  # staff: when the invulnerable player's 0x20 went out
+        # flee_aid: our potions (serial -> [graphic, amount]), the red's hit, and what the runner used
+        self.potions = {s: [g, 5] for s, g in POTIONS.items()} if scenario == "flee_aid" else {}
+        self.frozen = self.poisoned = False
+        self.hurt_t = self.unfrozen_t = None
+        self.aid_clicks = []              # (time, "cure" | "heal" | "refresh" | "pouch", frozen then)
+        self.steps = []                   # (time, accepted) per walk request after the hit
 
     # ---- the pack's wood and trapped pouches ----
     @property
@@ -575,7 +596,8 @@ class World:
         if by == "us":
             left = sum(1 for h in self.pouch_hue.values() if h == 38)
             self.later(0.05, pop_flush(*self.pos, p, hits=self.hits - 1, left=left))
-            self.later(1.5, [hits_pkt(self.hits)])
+            # back as hits regenerate: the hits then (a heal potion may have come in between)
+            asyncio.get_running_loop().call_later(1.5, lambda: self.send(hits_pkt(self.hits)))
         else:
             self.later(0.05, pop_flush(*self.pos, p))
 
@@ -961,6 +983,44 @@ class World:
         self.foe_pos = (self.pos[0] + 8, self.pos[1])
         self.send(player_update(BASTET, *self.foe_pos, noto=6))
 
+    def pk_attacks(self):
+        """flee_aid: the red comes into view (red_appears), PK_HURT_S later his spells land: hits to PK_HITS
+        (0xA1), poisoned (0x17 for us) and paralyzed (our 0x20 with flag 0x01: 0x21); steps are refused
+        until a trapped pouch of ours goes off."""
+        self.red_appears()
+        asyncio.get_running_loop().call_later(PK_HURT_S, self.pk_hurts)
+
+    def pk_hurts(self):
+        self.hurt_t, self.hits, self.poisoned, self.frozen = time.time(), PK_HITS, True, True
+        self.send(hits_pkt(self.hits))
+        self.send(poison_pkt(True))
+        self.send(self_at(*self.pos, self.facing, flags=0x21))
+
+    def unfreeze(self):
+        """Our 0x20 without the frozen flag: steps are taken again."""
+        self.frozen, self.unfrozen_t = False, time.time()
+        self.send(self_at(*self.pos, self.facing))
+
+    def drink(self, serial):
+        """A potion double-clicked [INFERENCE: RunUO BasePotion]: cure clears the poison, heal (not while
+        poisoned: RunUO BaseHealPotion, cliloc 1005000) gives HEAL_POT_HP; one less in the stack when it worked."""
+        g, n = self.potions[serial]
+        kind = {CURE_G: "cure", HEAL_G: "heal", REFRESH_G: "refresh"}[g]
+        self.aid_clicks.append((time.time(), kind, self.frozen))
+        if kind == "cure" and self.poisoned:
+            self.poisoned = False
+            self.send(poison_pkt(False))
+        elif kind == "heal" and not self.poisoned and self.hits < 100:
+            self.hits = min(100, self.hits + HEAL_POT_HP)
+            self.send(hits_pkt(self.hits))
+        elif kind == "heal":
+            self.send(cliloc(1005000))                  # "You can not heal yourself in your current state."
+            return
+        elif kind == "cure":
+            return
+        self.potions[serial][1] = n - 1
+        self.send(contained(serial, g, n - 1, BACKPACK) if n > 1 else delete(serial))
+
     def faction_appears(self):
         """faction (live 2026-10-06 witcher_66): our own guild tag; a guildmate whose guild is in a faction
         (his tag "[Cambria]", ours none: we don't take part), 4 tiles off; the faction waypost marker
@@ -1045,7 +1105,12 @@ class World:
         self.c2s.append(p)
         self.c2s_t.append(time.time())
         pid = p[0]
-        if pid == 0x02:
+        if pid == 0x02 and self.hurt_t is not None:
+            self.steps.append((time.time(), not self.frozen))
+        if pid == 0x02 and self.frozen:                  # paralyzed: "You are frozen and can not move." (RunUO 500111)
+            self.send(b"\x21" + bytes([p[2]]) + u32(self.pos[0]) + u32(self.pos[1]) + bytes([self.facing]) + u32(0))
+            self.send(cliloc(500111))
+        elif pid == 0x02:
             seq, d = p[2], p[1] & 7
             if d != self.facing:
                 self.facing = d
@@ -1116,10 +1181,11 @@ class World:
                 self.cursor_for = self.cid
                 self.send(cliloc(1010018))
                 self.send(cursor(self.cid))
-                if self.scenario in ("red_aim", "faction", "precast") and not self.red_due and self.cheb(RUNE_POS) <= 5:
+                if self.scenario in ("red_aim", "faction", "precast", "flee_aid") and not self.red_due \
+                        and self.cheb(RUNE_POS) <= 5:
                     self.red_due = True
                     act = {"red_aim": self.red_appears, "faction": self.faction_appears,
-                           "precast": self.precast_appears}[self.scenario]
+                           "precast": self.precast_appears, "flee_aid": self.pk_attacks}[self.scenario]
                     asyncio.get_running_loop().call_later(RED_AIM_S, act)
             elif serial == ROOM_DOOR and self.facet == ROOM_FACET:     # the door's menu (opened from 6 tiles live)
                 self.room_gump("door")
@@ -1134,8 +1200,14 @@ class World:
             elif serial in (BACKPACK, BAG):
                 self.containers_opened.append(serial)
                 self.send(b"\x24" + u32(serial) + bytes.fromhex("0000003c007d"))   # as captured (204225)
+            elif serial in self.potions:
+                self.drink(serial)
             elif serial in self.pouch_hue:               # live: it goes off (no 0x24); gone off: it opens
                 if self.pouch_hue[serial] == 38:
+                    if self.scenario == "flee_aid":
+                        self.aid_clicks.append((time.time(), "pouch", self.frozen))
+                    if self.frozen:                      # its damage breaks the paralysis (pop_flush first)
+                        asyncio.get_running_loop().call_later(0.08, self.unfreeze)
                     self.pouch_goes_off(serial, "us")
                 else:
                     self.containers_opened.append(serial)
@@ -1321,6 +1393,8 @@ class World:
             self.send(contained(0x44ADB0FF, 0x0F7A, 10, BACKPACK))   # black pearl: charges spend none
         for pch in self.pouch_hue:                              # the trapped pouches (hue 38)
             self.send(self.pouch_pkt(pch))
+        for s, (g, n) in self.potions.items():                 # flee_aid: cure, heal, refresh potions
+            self.send(contained(s, g, n, BACKPACK, x=60 + 10 * list(POTIONS).index(s)))
         if self.scenario == "break":                            # logs carried from an earlier trip
             self.send(self.stack_pkt(self.add_wood(LOG_G, INITIAL_LOGS, BACKPACK)))
         for g, n in self.carried:                              # convert_stacks: logs of other woods carried
@@ -2397,6 +2471,62 @@ async def precast():
     store.close()
 
 
+async def flee_aid():
+    """LUMBER_LOOP.md §13 "Healing on the run" (user request 2026-10-06, the Razor 'PK Getaway' script): at the
+    library spot a red comes into view within spell range and PK_HURT_S later his spells land: hits 100 -> 55,
+    poisoned (0x17 for us), paralyzed (our 0x20 flags 0x21, steps refused). Running from him the runner pops a
+    live trapped pouch (it breaks the paralysis), drinks a cure, then a heal potion; the book's double-click never
+    within 0.5 s of a potion or pouch click (the server's action delay); the recall home lands (the first is
+    disturbed and recast); no potion read as stolen."""
+    print("\n== flight aid: paralyzed, poisoned, hurt by a red: pouch, cure, heal on the run; then the recall ==")
+    world = World("flee_aid")
+    text, code, store, _ = await run_scenario(world, "flee_aid", 12910, [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "normal",
+                                               "--seed", "5", "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
+    hurt = world.hurt_t
+    clicks = world.aid_clicks
+    kinds = [k for _, k, _ in clicks]
+    books = [t for p, t in zip(world.c2s, world.c2s_t) if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)
+             and hurt is not None and t >= hurt]
+    check("the red's spells landed (hits 55, poisoned, paralyzed)", hurt is not None, text[-800:])
+    pouch_t = next((t for t, k, frozen in clicks if k == "pouch" and frozen), None)
+    moved = [t for t, ok in world.steps if ok and world.unfrozen_t is not None and t > world.unfrozen_t
+             and (not books or t < books[0])]
+    check("a live trapped pouch double-clicked while paralyzed, and the run went on afterwards (steps taken)",
+          pouch_t is not None and world.unfrozen_t is not None and len(moved) >= 2,
+          f"clicks {kinds} unfrozen {world.unfrozen_t} steps after {len(moved)} refused "
+          f"{sum(1 for _, ok in world.steps if not ok)}")
+    check("the cure before the heal (a heal potion does nothing while poisoned); no heal refused",
+          "cure" in kinds and "heal" in kinds and kinds.index("cure") < kinds.index("heal") and not world.poisoned
+          and "You can not heal" not in text, str(kinds))
+    heal_t = next((t for t, k, _ in clicks if k == "heal"), None)
+    check("the heal potion drunk on the run, before the first book double-click",
+          heal_t is not None and books and heal_t < books[0], f"heal {heal_t} books {books}")
+    gaps = []
+    for b in books:
+        before = [t for t, _, _ in clicks if t <= b]
+        gaps.append(round(b - before[-1], 3) if before else None)
+    check("every runebook double-click 0.5 s or more after the last potion/pouch click before it",
+          books and all(g is None or g >= 0.5 for g in gaps), f"gaps {gaps}")
+    rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
+    check("the recall home landed (the red as the threat)", world.recalls_home == [HOME_RUNE_POS] and rec
+          and rec[-1]["ok"] and rec[-1]["threat"]["serial"] == BASTET, str(rec)[:600])
+    junc = [j["kind"] for j in store.junctures()]
+    check("no theft_suspected: the potions drunk were declared to the ledger; the pk_escape juncture",
+          "theft_suspected" not in junc and "pk_escape" in junc and "THIEF" not in text, str(junc))
+    ev = [e["data"] for e in store.job_events("lumber") if e["kind"] == "flee_aid"]
+    check("flee_aid job events: pouch (frozen), cure (poisoned), heal (running), with hits and stamina",
+          [e["kind"] for e in ev][:3] == ["pouch", "cure", "heal"] and ev[0]["frozen"] and ev[1]["poisoned"]
+          and not ev[2]["standing"] and ev[2]["hits"] is not None and ev[2]["hits_max"] == 100
+          and all(k in ev[0] for k in ("stam", "stam_max", "trip", "spot", "why")), str(ev)[:800])
+    check("potions spent: one cure, one heal", [n for _, n in world.potions.values()] == [4, 4, 5],
+          str(world.potions))
+    check("the run stopped after the escape (exit 1), in the room", code == 1 and world.room_entries == 1,
+          f"exit {code} room {world.room_log}")
+    print(f"  sim: hurt -> {[(k, round(t - hurt, 2), f) for t, k, f in clicks] if hurt else None}; book gaps {gaps}")
+    store.close()
+
+
 async def thief_keep_away():
     """docs/PLAN.md "Keep thieves off the logs" (THREATS.md §7 T3): at the library spot a blue player
     (Caputo Wood, live 2026-10-03) steps next to us while we chop: the runner steps out of his reach after a
@@ -3328,7 +3458,8 @@ def run_parallel(names, jobs):
 
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
-            wary, idle_mob, zone_on_way, red_aim, faction, precast, thief_keep_away, pouch_pop, no_pouch, resupply,
+            wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, thief_keep_away, pouch_pop, no_pouch,
+            resupply,
             convert_stacks,
             landing_escape, stockpile_store,
             ghost_horse,

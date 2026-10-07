@@ -1004,6 +1004,30 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   on the server's cursor until a raw drop into the pack brought it back; fixed. Codex #13
   superseded by #4094, then #4095 (with the mount).
 
+## Healing on the run: live checks (built offline 2026-10-06, first live run pending)
+
+The lumber runner now uses a trapped pouch / cure / heal / refresh potion while running from a
+threat and between recall casts (docs/PLAN.md "Healing on the run", docs/LUMBER_LOOP.md §13). Dan's
+pack (ctl status 2026-10-06 22:50): "Yellow Potion" ×5 0x0F0C (Greater Heal), "Orange Potion" ×5
+0x0F07 (cure), "Red Potion" ×5 0x0F0B (refresh), trapped pouches, all directly in the backpack.
+**Restart the proxy first:** `world.self.poisoned` is world-model code (harness/world/), live only
+after a proxy restart; without it a poisoned Dan is never cured and heal potions are drunk while
+poisoned (they do nothing then [INFERENCE: RunUO BaseHealPotion]). Check on the first flight:
+
+- **Self flag 0x01 when paralyzed:** `world.self.stats.flags` should read 0x21 while frozen
+  [INFERENCE: ClassicUO Flags.Frozen]; never seen on Dan (all 1,378 captured self 0x20s were 0x20).
+  If it stays 0x20, only a "frozen" cast refusal (`frozen_hint`) pops the pouch.
+- **Self 0x17 poison now in `world.self.poisoned`** (`curl -s http://127.0.0.1:8080/api/state |
+  jq.exe -c '.world.self.poisoned'`: null until the server's first 0x16/0x17 about us, then
+  true/false).
+- **Drinking while mounted and running works** (no free hand needed on Outlands, wiki Alchemy; a
+  drink should not stop the run): look for `flight aid:` log lines and the `flee_aid` job events,
+  and that steps keep coming after them.
+- **The book click after a drink:** is a double-click within 0.5 s of a potion refused ("You must
+  wait to perform another action", cliloc 500119 [INFERENCE: RunUO UseReq])? The runner waits
+  0.55 s; a `RECLICK_S` reclick or a missing gump in the escape's tries would say the delay is longer.
+- **The pouch pop breaks paralysis** and costs ~1 hit (PopWatch books it as ours, no thief alarm).
+
 ## Viz lag (2026-10-05, session 20261005_093927; fixed 2026-10-05)
 
 - **Symptom (user):** during the lumber ping-pong (t 1791235352–508 = 16:22–16:25 and

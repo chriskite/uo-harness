@@ -62,6 +62,7 @@ class SelfState:
     weight: int | None = None
     warmode: bool = False
     notoriety: int | None = None
+    poisoned: bool | None = None     # 0x16/0x17 type 1 about self (None until the server says)
     map: int | None = None           # facet index from S2C 0xBF sub 8 (0 = map0.uoo)
     faction: str | None = None       # our faction / guild tag from our own click echo (runtime.title_tags)
     guild: str | None = None
@@ -91,6 +92,7 @@ class SelfState:
             "stam": self.stam, "stam_max": self.stam_max,
             "gold": self.gold, "weight": self.weight,
             "warmode": self.warmode, "notoriety": self.notoriety, "map": self.map,
+            "poisoned": self.poisoned,
             "faction": self.faction, "guild": self.guild,
             "body": self.body, "dead": self.dead,
             "stats": self.stats,

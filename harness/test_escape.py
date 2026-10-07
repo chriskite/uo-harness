@@ -395,8 +395,10 @@ class Server:
 
     L = 0.03                                    # one-way latency
 
-    def __init__(self, hits=(), death_at=None, recovered_at=0.0, refuse=None, lag=0.0):
+    def __init__(self, hits=(), death_at=None, recovered_at=0.0, refuse=None, lag=0.0, frozen=False):
         self.lag = lag                          # extra server delay before a cast lands (live 2026-10-06: 5.18 s)
+        self.frozen = frozen                    # paralyzed: every cast "You cannot cast a spell while frozen."
+        self.dclicks = []                       # client time of every double-click (the book)
         self.t = 0.0
         self.hits = sorted(hits)
         self.death_at = death_at
@@ -419,13 +421,14 @@ class Server:
     def send(self, pkt: bytes):
         s = self.t + self.L
         if pkt[0] == 0x06:
+            self.dclicks.append(self.t)
             self.queue.append((s + self.L, {"ev": "gump_open", **self.gump}))
             return
         button = int.from_bytes(pkt[11:15], "big")
         if pkt[0] != 0xB1 or button == 0:
             return
-        if self.refuse:
-            self.queue.append((s + self.L, {"ev": "cliloc", "cliloc": self.refuse}))
+        if self.refuse or self.frozen:
+            self.queue.append((s + self.L, {"ev": "cliloc", "cliloc": self.refuse or 502643}))
             return
         if s < self.next_spell:
             self.refused += 1
@@ -529,12 +532,35 @@ def test_escape_late_arrival():
           (r.get("failure"), s.casts, r.get("press_to_arrival_s")))
 
 
+def test_escape_between():
+    s = Server(frozen=True)
+    calls = []
+
+    def between(st, last):          # the runner's flight aid: a trapped pouch pops and frees us
+        calls.append((s.t, last["failure"], (st["world"].get("self") or {}).get("mana")))
+        s.frozen = False
+        return s.t + 0.55
+    r = run_escape(s, between=between)
+    check("a 'frozen' refusal reaches `between` (with the state), once; the next try lands",
+          r["ok"] and [c[1:] for c in calls] == [("frozen", 60)] and [t["failure"] for t in r["tries"]] == ["frozen", None],
+          (calls, r["tries"]))
+    check("the next book double-click waits for the time `between` returned (the server's action delay)",
+          len(s.dclicks) == 2 and s.dclicks[1] >= calls[0][0] + 0.55, (s.dclicks, calls))
+    plain = run_escape(Server([0.25, 1.2]))
+    s = Server([0.25, 1.2])
+    seen = []
+    r = run_escape(s, between=lambda st, last: seen.append(last["failure"]))
+    check("`between` returning None changes nothing: the early-disturb escape's tries are the same as without it",
+          r["ok"] and r["tries"] == plain["tries"] and seen == [t["failure"] for t in plain["tries"][:-1]],
+          (seen, r["tries"], plain["tries"]))
+
+
 if __name__ == "__main__":
     for t in (test_runebook, test_sextant, test_runebook_entries, test_runebook_read_and_recall_by_name,
               test_recharging_book,
               test_runetome, test_library_tome_read, test_failures, test_can_cast, test_find_books,
               test_disturb_recovery_fits_live_retries, test_escape_nusero_replay, test_escape_early_disturb,
-              test_escape_stops, test_escape_late_arrival):
+              test_escape_stops, test_escape_late_arrival, test_escape_between):
         print(t.__name__)
         t()
     print("FAILED: " + ", ".join(FAILURES) if FAILURES else "ALL PASS")

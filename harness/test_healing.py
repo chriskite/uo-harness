@@ -1,6 +1,7 @@
 """Tests for harness/healing.py: what to heal with (potion first, else Heal or
 Greater Heal by the missing hits and what can be paid for: mana, reagents or a
-spellstone), on synthetic world snapshots (no network).
+spellstone), and the flight aid (FleeAid: pouch, cure, heal, refresh while running
+or between recall casts), on synthetic world snapshots (no network).
 
 Run: python harness/test_healing.py
 """
@@ -53,6 +54,97 @@ def world(hits, mana=78, magery=600, potions=((POT_SMALL, BAG, 2), (POT_BIG, PAC
 
 def pick(c):
     return (c.kind, c.potion if c.kind == "potion" else c.spell)
+
+
+CURE, HEALP, REFRESH, POUCH, POUCH_SPENT, BAG_CURE = (0x4B6BC001, 0x4B6BC002, 0x4B6BC003, 0x4B6BC004,
+                                                     0x4B6BC005, 0x4B6BC006)
+
+
+def flight(hits=100, stam=25, flags=0x20, poisoned=None, cure=True, heal=True, refresh=True, pouch=True,
+           cure_in_bag=False):
+    """Outland Dan mid-flight (100 hits, 25 stamina, ctl status 2026-10-06): potions and pouches in the pack."""
+    items = {h(PACK): {"graphic": 0x0E75, "layer": 0x15, "container": h(ME)},
+             h(BAG): {"graphic": 0x0E76, "container": h(PACK)},
+             h(POUCH_SPENT): {"graphic": 0x0E79, "hue": 0, "container": h(PACK)}}       # gone off: no use
+    for on, serial, g in ((cure, CURE, healing.CURE_POTION_GRAPHIC), (heal, HEALP, healing.HEAL_POTION_GRAPHIC),
+                          (refresh, REFRESH, healing.REFRESH_POTION_GRAPHIC)):
+        if on:
+            items[h(serial)] = {"graphic": g, "amount": 5, "container": h(PACK)}
+    if cure_in_bag:
+        items[h(BAG_CURE)] = {"graphic": healing.CURE_POTION_GRAPHIC, "amount": 5, "container": h(BAG)}
+    if pouch:
+        items[h(POUCH)] = {"graphic": 0x0E79, "hue": 38, "container": h(PACK)}
+    return {"self": {"hits": hits, "hits_max": 100, "stam": stam, "stam_max": 25, "poisoned": poisoned,
+                     "stats": {"flags": flags}}, "items": items}
+
+
+def kind(aid):
+    return None if aid is None else (aid.kind, aid.serial)
+
+
+def flight_aid():
+    print("== flight aid (FleeAid): one use at a time, by priority ==")
+    t = 1000.0
+    a = healing.FleeAid()
+    w = flight(hits=55, stam=10, flags=0x21, poisoned=True)
+    check("paralyzed, poisoned, hurt, tired: the live pouch first (not the spent one)",
+          kind(a.choose(w, ME, t, standing=False)) == ("pouch", POUCH))
+    check("ready_at before any use: at once", a.ready_at() == 0.0)
+    a.used(a.choose(w, ME, t, standing=False), t)
+    check("within USE_GAP_S of a use: nothing", a.choose(w, ME, t + 0.5, standing=False) is None)
+    check("ready_at: the use + USE_GAP_S", a.ready_at() == t + healing.USE_GAP_S)
+    c = a.choose(w, ME, t + 0.6, standing=False)
+    check("still flagged frozen 0.6 s after the pouch (its retry gap): the cure goes next", kind(c) == ("cure", CURE),
+          str(c))
+    a.used(c, t + 0.6)
+    c = a.choose(w, ME, t + 1.2, standing=False)
+    check("1.2 s: the pouch again (its 1 s retry gap is over, still frozen)", kind(c) == ("pouch", POUCH), str(c))
+    w = flight(hits=55, stam=10, poisoned=True)
+    a = healing.FleeAid()
+    a.used(healing.Aid("cure", CURE, healing.CURE_POTION_GRAPHIC, "poisoned"), t)
+    c = a.choose(w, ME, t + 0.6, standing=False)
+    check("still poisoned within the cure's retry gap: no heal (it does nothing while poisoned), refresh instead",
+          kind(c) == ("refresh", REFRESH), str(c))
+    check("poisoned, cure retry gap over: cure again", kind(a.choose(w, ME, t + 1.6, standing=False)) == ("cure", CURE))
+    a = healing.FleeAid()
+    c = a.choose(flight(hits=55, stam=10, poisoned=False), ME, t, standing=False)
+    check("cured, 45 missing, running: heal before refresh", kind(c) == ("heal", HEALP), str(c))
+    a.used(c, t)
+    c = a.choose(flight(hits=55, stam=10, poisoned=False), ME, t + 0.6, standing=False)
+    check("heal potion cooling down (PotionClock): refresh", kind(c) == ("refresh", REFRESH), str(c))
+    a.used(c, t + 0.6)
+    check("refresh within its 3 s retry gap and the heal clock running: nothing",
+          a.choose(flight(hits=55, stam=10), ME, t + 2.0, standing=False) is None)
+    check("10 s after the heal: heal again", kind(a.choose(flight(hits=55), ME, t + 10.0, standing=False))
+          == ("heal", HEALP))
+
+    print("== flight aid thresholds: running vs standing ==")
+    a = healing.FleeAid()
+    check("running, 25 missing: heal", kind(a.choose(flight(hits=75), ME, t, standing=False)) == ("heal", HEALP))
+    check("running, 24 missing: nothing", a.choose(flight(hits=76), ME, t, standing=False) is None)
+    check("standing, 51 hits: nothing (a drink holds the book's click back)",
+          a.choose(flight(hits=51), ME, t, standing=True) is None)
+    check("standing, 50 hits: heal", kind(a.choose(flight(hits=50), ME, t, standing=True)) == ("heal", HEALP))
+    check("standing, stamina 5/25: no refresh (running only)",
+          a.choose(flight(stam=5), ME, t, standing=True) is None)
+    check("running, stamina 12/25: refresh", kind(a.choose(flight(stam=12), ME, t, standing=False)) == ("refresh", REFRESH))
+    check("running, stamina 13/25: nothing", a.choose(flight(stam=13), ME, t, standing=False) is None)
+    check("standing, poisoned: cure", kind(a.choose(flight(poisoned=True), ME, t, standing=True)) == ("cure", CURE))
+
+    print("== flight aid: only what lies in the backpack itself ==")
+    check("frozen, no live pouch: the cure when poisoned",
+          kind(a.choose(flight(flags=0x21, poisoned=True, pouch=False), ME, t, standing=False)) == ("cure", CURE))
+    check("poisoned, the cure potions only in a bag: nothing (no bag opened mid-flight)",
+          a.choose(flight(poisoned=True, cure=False, cure_in_bag=True), ME, t, standing=True) is None)
+    check("hurt, no heal potion: nothing", a.choose(flight(hits=40, heal=False), ME, t, standing=True) is None)
+    check("poisoned unknown (None): not poisoned, heal when hurt",
+          kind(a.choose(flight(hits=40, poisoned=None), ME, t, standing=True)) == ("heal", HEALP))
+    check("self flag 0x20 only: not frozen", a.choose(flight(flags=0x20), ME, t, standing=False) is None)
+    c = a.choose(flight(), ME, t, standing=True, frozen_hint=True)
+    check("frozen_hint (a cast refused 'while frozen') with flags 0x20: the pouch", kind(c) == ("pouch", POUCH)
+          and "frozen" in c.why, str(c))
+    check("no backpack: nothing", a.choose({"self": {"hits": 10, "hits_max": 100}, "items": {}}, ME, t,
+                                           standing=True) is None)
 
 
 def main():
@@ -135,6 +227,8 @@ def main():
     clock.started(100.0)
     check("9.9 s after a drink: not ready", not clock.ready(109.9))
     check("10 s after: ready", clock.ready(110.0))
+
+    flight_aid()
 
     print("ALL PASS" if not FAILURES else f"{len(FAILURES)} FAILURES")
     return 1 if FAILURES else 0

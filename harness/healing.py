@@ -22,11 +22,15 @@ otherwise Magery, Heal or Greater Heal by how much health is missing.
 - Live potion evidence (session 20261001_214649): two Lesser Heal potions drunk
   in a fight healed +34 and +24, each answered with "+N" overhead and cliloc
   1008158 "some damage has been healed : " with the amount as its argument.
+
+Flight aid (FleeAid, user request 2026-10-06 after the Razor 'PK Getaway' script): what to use from
+the backpack while running from a threat or between recall casts. See FleeAid's docstring.
 """
 import math
 from dataclasses import dataclass
 
 import combat
+import pouch
 
 HEAL_POTION_GRAPHIC = 0x0F0C
 POTION_COOLDOWN_S = 10.0
@@ -124,3 +128,102 @@ def choose(world: dict, me: int, potion_ready: bool, gheal_min_missing: int | No
                           missing, spell=sid)
     return Choice(None, f"{missing} missing; {no_pot}; Heal: {why_not[HEAL]}; "
                         f"Greater Heal: {why_not[GREATER_HEAL]}", missing)
+
+
+# ------------------------------------------------------------ flight aid
+CURE_POTION_GRAPHIC = 0x0F07          # "Orange Potion" (Outland Dan's pack, ctl status 2026-10-06 22:50)
+REFRESH_POTION_GRAPHIC = 0x0F0B       # "Red Potion"
+FLAG_FROZEN = 0x01                     # self 0x20 flags [INFERENCE: ClassicUO Flags.Frozen 0x01; RunUO
+#                                        Mobile.GetPacketFlags sets it when Paralyzed or Frozen]; not seen on Dan yet
+# Item use (C2S 0x06) has a server action delay [INFERENCE: RunUO PacketHandlers.UseReq refuses a use within
+# Mobile.ActionDelay 0.5 s of the last, cliloc 500119 "You must wait to perform another action"]; live, a book
+# double-click 0.3 s after another action was ignored (escape._open). One use at a time, this far apart:
+USE_GAP_S = 0.55
+# a use that was refused or didn't take (the pouch didn't unfreeze us, still poisoned) is retried after this
+RETRY_S = {"pouch": 1.0, "cure": 1.5, "refresh": 3.0}   # heal: PotionClock (one every POTION_COOLDOWN_S)
+RUN_HEAL_MISSING = 0.25                # running: drink a heal potion with this share of hits_max missing
+STAND_HEAL_HITS = 0.50                 # standing (before / between recall casts): only at or below this share
+RUN_REFRESH_STAM = 0.50                # running: a refresh potion at or below this share of stam_max
+
+
+@dataclass
+class Aid:
+    kind: str           # "pouch", "cure", "heal" or "refresh"
+    serial: int         # the item to double-click
+    graphic: int
+    why: str
+
+
+def in_pack_top(world: dict, me: int, graphic: int, hue: int | None = None) -> list[tuple[int, dict]]:
+    """(serial, item) of the items of `graphic` (and `hue`) directly in the backpack, not in its bags
+    (no bag is opened mid-flight), smallest stack first, then by serial."""
+    items = world.get("items") or {}
+    pack = combat.backpack(items, me)
+    if pack is None:
+        return []
+    found = [(combat._serial(k), it) for k, it in items.items()
+             if it.get("graphic") == graphic and it.get("container") is not None
+             and combat._serial(it["container"]) == pack and (hue is None or it.get("hue") == hue)]
+    return sorted(found, key=lambda kv: (kv[1].get("amount") or 1, kv[0]))
+
+
+class FleeAid:
+    """What to use while running from a threat or between recall casts (user request 2026-10-06, after
+    the Razor 'PK Getaway' script), one item use at a time, in this order:
+      1. paralyzed (self flags & FLAG_FROZEN, or `frozen_hint`: the server refused a cast "while frozen")
+         and a live trapped pouch (hue 38) in the pack: the pouch. Its explosion's damage breaks
+         paralysis; we can't walk or cast while frozen.
+      2. poisoned (world.self.poisoned, the server's 0x16/0x17 about us) and a cure potion: cure.
+         [INFERENCE: pre-AOS poison ticks disturb casting] and a heal potion does nothing while poisoned
+         [INFERENCE: RunUO BaseHealPotion.Drink, cliloc 1005000].
+      3. not poisoned, the heal potion clock ready (PotionClock) and hurt: a heal potion. Running
+         (`standing` False) from RUN_HEAL_MISSING missing; standing (before or between recall casts,
+         where a drink holds the book's double-click back USE_GAP_S) only at or below STAND_HEAL_HITS.
+      4. running only: stamina at or below RUN_REFRESH_STAM and a refresh potion: refresh.
+    Only items lying directly in the backpack count. No two uses within USE_GAP_S (the server's action
+    delay); a kind used RETRY_S ago is skipped (the next kind may go). No spells: casting stops a run on
+    Outlands and the cast slot belongs to the recall."""
+
+    def __init__(self):
+        self.clock = PotionClock()
+        self.last: float | None = None              # monotonic time of the last use
+        self.last_kind: dict[str, float] = {}
+
+    def ready_at(self) -> float:
+        """Monotonic time from which the next item use (e.g. the runebook's double-click) is taken."""
+        return 0.0 if self.last is None else self.last + USE_GAP_S
+
+    def used(self, aid: Aid, now: float):
+        self.last = now
+        self.last_kind[aid.kind] = now
+        if aid.kind == "heal":
+            self.clock.started(now)
+
+    def _due(self, kind: str, now: float) -> bool:
+        t = self.last_kind.get(kind)
+        return t is None or now - t >= RETRY_S[kind]
+
+    def choose(self, world: dict, me: int, now: float, standing: bool, frozen_hint: bool = False) -> Aid | None:
+        if now < self.ready_at():
+            return None
+        s = world.get("self") or {}
+        frozen = bool((s.get("stats") or {}).get("flags", 0) & FLAG_FROZEN) or frozen_hint
+        if frozen and self._due("pouch", now):
+            if live := in_pack_top(world, me, pouch.POUCH_GRAPHIC, pouch.TRAPPED_HUE):
+                why = "paralyzed" if not frozen_hint else "the server says we're frozen"
+                return Aid("pouch", live[0][0], pouch.POUCH_GRAPHIC, why)
+        poisoned = bool(s.get("poisoned"))
+        if poisoned and self._due("cure", now):
+            if pots := in_pack_top(world, me, CURE_POTION_GRAPHIC):
+                return Aid("cure", pots[0][0], CURE_POTION_GRAPHIC, "poisoned")
+        hits, hmax = s.get("hits"), s.get("hits_max")
+        if not poisoned and hits is not None and hmax and self.clock.ready(now):
+            hurt = hits <= hmax * STAND_HEAL_HITS if standing else hmax - hits >= hmax * RUN_HEAL_MISSING
+            if hurt and (pots := in_pack_top(world, me, HEAL_POTION_GRAPHIC)):
+                return Aid("heal", pots[0][0], HEAL_POTION_GRAPHIC, f"{hmax - hits} hits missing")
+        stam, smax = s.get("stam"), s.get("stam_max")
+        if not standing and stam is not None and smax and stam <= smax * RUN_REFRESH_STAM \
+                and self._due("refresh", now):
+            if pots := in_pack_top(world, me, REFRESH_POTION_GRAPHIC):
+                return Aid("refresh", pots[0][0], REFRESH_POTION_GRAPHIC, f"stamina {stam}/{smax}")
+        return None
