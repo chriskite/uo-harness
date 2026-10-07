@@ -1,6 +1,6 @@
 // Plain-SVG charts for the Jobs page (geometry in chart.ts).
 import { barSlots, linePath, linScale, niceTicks, timeTicks } from "../chart.ts";
-import { eventView, fmtInt, fmtNum, fmtStamp, oneLocalDay, tripHome, type HuntVisit, type JobEvent, type JobTrip } from "../jobs.ts";
+import { EVENT_HELP, eventView, fmtInt, fmtNum, fmtStamp, oneLocalDay, tripHome, type HuntVisit, type JobEvent, type JobTrip } from "../jobs.ts";
 import { fmtDuration } from "../format.ts";
 
 const W = 560;
@@ -61,6 +61,8 @@ export interface RateSeries {
   values: (number | null)[];
   /** dots with a tooltip on this series' points */
   dots?: boolean;
+  /** what the series measures, shown on hover over its legend entry */
+  hint?: string;
 }
 
 /** Rates at each trip / visit end, one line per series (all share the points' times). */
@@ -100,7 +102,7 @@ export function RateChart({ points, series, what, unit, note }: { points: { t: n
       </svg>
       <div className="legend">
         {series.map((s) => (
-          <span key={s.cls}>
+          <span key={s.cls} className={s.hint ? "hint" : undefined} title={s.hint}>
             <i className={`sw sw-${s.cls}`} /> {s.label}
           </span>
         ))}
@@ -152,19 +154,19 @@ export function LogsPerTripChart({ trips }: { trips: JobTrip[] }) {
         <line x1={M.l} x2={W - M.r} y1={y(mean)} y2={y(mean)} className="mean" />
       </svg>
       <div className="legend">
-        <span>
+        <span className="hint" title="Logs the trip chopped (bar height); hover a bar for the numbers">
           <i className="sw sw-bar" /> logs
         </span>
-        <span>
+        <span className="hint" title="Boards put away at home at the end of the trip (stockpile, chest or bank); can exceed the trip's logs when it also stored wood carried from an earlier aborted trip">
           <i className="sw sw-stored" /> boards put away
         </span>
-        <span>
+        <span className="hint" title="The trip met at least one real captcha">
           <i className="sw sw-captcha" /> captcha
         </span>
-        <span>
+        <span className="hint" title="Mean logs per trip over the trips shown">
           <i className="sw sw-mean" /> mean {fmtNum(mean, 1)}
         </span>
-        <span>
+        <span className="hint" title="We died during the trip">
           <span className="mark-death-key">✕</span> death
         </span>
       </div>
@@ -178,6 +180,12 @@ const SPLIT_LABEL: Record<(typeof SPLIT_KEYS)[number], string> = {
   lockout: "travel lockout",
   field: "field (chopping, between trees)",
   other: "walks, convert, bank",
+};
+const SPLIT_HELP: Record<(typeof SPLIT_KEYS)[number], string> = {
+  travel: "Recall casts out, home and away from threats, plus the walk from the landing to a library tome",
+  lockout: "The 60 s harvest lockout after any travel, as far as it wasn't spent walking",
+  field: "Time at the grove: walking between stands and chopping, holds and escapes there included",
+  other: "Everything else: room exit, walks to the landing and the steward, into the room, converting logs, storing boards",
 };
 
 /** Where each trip's time went (harness/jobs.py time_split) as stacked bars in minutes. */
@@ -228,11 +236,13 @@ export function TimeSplitChart({ trips }: { trips: JobTrip[] }) {
       </svg>
       <div className="legend">
         {SPLIT_KEYS.map((k) => (
-          <span key={k}>
+          <span key={k} className="hint" title={SPLIT_HELP[k]}>
             <i className={`sw sw-seg seg-${k}`} /> {SPLIT_LABEL[k]}
           </span>
         ))}
-        <span className="dim">minutes · ! aborted · ∅ the place gave nothing</span>
+        <span className="dim hint" title="Bar height in minutes. ! = the trip was aborted (why on hover); ∅ = aborted with no logs because the place couldn't be worked (no reachable tree, or harvesting refused)">
+          minutes · ! aborted · ∅ the place gave nothing
+        </span>
       </div>
     </>
   );
@@ -312,6 +322,19 @@ const EVENT_CLASS: Record<string, string> = {
   speech_clear: "ev-ok",
 };
 
+/** Legend order of the strip's dot colours (EVENT_CLASS; anything else is ev-other). */
+const EVENT_LEGEND = ["ev-death", "ev-pk", "ev-theft", "ev-flee", "ev-ok", "ev-other"] as const;
+
+/** Short legend names of event kinds; others show their kind with spaces. */
+const EVENT_NAME: Record<string, string> = {
+  death: "died",
+  pk_seen: "PK seen",
+  flee: "fled",
+  leave: "left",
+  speech_hold: "paused (speech)",
+  speech_clear: "resumed",
+};
+
 /** A trip or visit on the strip: grey span from t_start to t_end. */
 export interface Span {
   n: number;
@@ -320,7 +343,8 @@ export interface Span {
   label: string;
 }
 
-/** Trips / visits as grey spans and job events as coloured marks on one time axis. */
+/** Trips / visits as grey spans and job events as coloured marks on one time axis, with a
+ *  legend of the colours present (each entry names its event kinds; their meaning on hover). */
 export function EventStrip({ spans, events }: { spans: Span[]; events: JobEvent[] }) {
   const stamps = [...spans.flatMap((t) => [t.t_start, t.t_end]), ...events.map((e) => e.t)].filter((t): t is number => t !== null);
   if (stamps.length === 0) return <Empty text="nothing recorded yet" h={STRIP_H} />;
@@ -329,25 +353,46 @@ export function EventStrip({ spans, events }: { spans: Span[]; events: JobEvent[
   const sh = STRIP_H;
   const x = linScale(t0, t1, M.l, W - M.r);
   const sameDay = oneLocalDay([t0, t1]);
+  const kindsByClass = new Map<string, Set<string>>();
+  for (const e of events) {
+    const cls = EVENT_CLASS[e.kind] ?? "ev-other";
+    kindsByClass.set(cls, (kindsByClass.get(cls) ?? new Set<string>()).add(e.kind));
+  }
+  const name = (kind: string) => EVENT_NAME[kind] ?? kind.replace(/_/g, " ");
   return (
-    <svg className="chart strip" viewBox={`0 0 ${W} ${sh}`} role="img" aria-label="trips and job events over time">
-      <line x1={M.l} x2={W - M.r} y1={24} y2={24} className="grid" />
-      {spans.map((t) =>
-        t.t_start !== null && t.t_end !== null ? (
-          <rect key={t.n} x={x(t.t_start)} y={17} width={Math.max(2, x(t.t_end) - x(t.t_start))} height={14} className="span-trip">
-            <title>{`${t.label}: ${fmtStamp(t.t_start)}–${fmtStamp(t.t_end, true)}`}</title>
-          </rect>
-        ) : null,
-      )}
-      {events.map((e, i) => {
-        const v = eventView(e);
-        return (
-          <circle key={e.id ?? i} cx={x(e.t)} cy={24} r={5} className={`ev-mark ${EVENT_CLASS[e.kind] ?? "ev-other"}`}>
-            <title>{`${fmtStamp(e.t)} ${v.label}${v.detail ? ` · ${v.detail}` : ""}`}</title>
-          </circle>
-        );
-      })}
-      <TimeAxis t0={t0} t1={t1} x={x} y={sh - 6} sameDay={sameDay} />
-    </svg>
+    <>
+      <svg className="chart strip" viewBox={`0 0 ${W} ${sh}`} role="img" aria-label="trips and job events over time">
+        <line x1={M.l} x2={W - M.r} y1={24} y2={24} className="grid" />
+        {spans.map((t) =>
+          t.t_start !== null && t.t_end !== null ? (
+            <rect key={t.n} x={x(t.t_start)} y={17} width={Math.max(2, x(t.t_end) - x(t.t_start))} height={14} className="span-trip">
+              <title>{`${t.label}: ${fmtStamp(t.t_start)}–${fmtStamp(t.t_end, true)}`}</title>
+            </rect>
+          ) : null,
+        )}
+        {events.map((e, i) => {
+          const v = eventView(e);
+          return (
+            <circle key={e.id ?? i} cx={x(e.t)} cy={24} r={5} className={`ev-mark ${EVENT_CLASS[e.kind] ?? "ev-other"}`}>
+              <title>{`${fmtStamp(e.t)} ${v.label}${v.detail ? ` · ${v.detail}` : ""}`}</title>
+            </circle>
+          );
+        })}
+        <TimeAxis t0={t0} t1={t1} x={x} y={sh - 6} sameDay={sameDay} />
+      </svg>
+      <div className="legend">
+        <span className="hint" title="A trip (or hunt visit), from its start to its end">
+          <i className="sw sw-span" /> trip
+        </span>
+        {EVENT_LEGEND.filter((c) => kindsByClass.has(c)).map((c) => {
+          const kinds = [...kindsByClass.get(c)!];
+          return (
+            <span key={c} className="hint" title={kinds.map((k) => `${name(k)}: ${EVENT_HELP[k] ?? "(no description)"}`).join("\n")}>
+              <i className={`sw sw-dot ${c}`} /> {kinds.map(name).join(", ")}
+            </span>
+          );
+        })}
+      </div>
+    </>
   );
 }

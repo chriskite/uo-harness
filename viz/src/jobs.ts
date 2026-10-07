@@ -413,6 +413,8 @@ export interface Kpi {
   label: string;
   value: string;
   sub?: string;
+  /** what the tile counts, shown on hover */
+  hint?: string;
   tone: Tone;
 }
 
@@ -421,15 +423,37 @@ export function kpis(t: JobTotals): Kpi[] {
   const hours = fmtHours(t.active_s);
   const lost = t.thefts.amount;
   return [
-    { key: "lph", label: "logs / hr", value: fmtNum(t.logs_per_hour, 0), sub: `${t.logs} logs · ${t.stored} put away`, tone: "info" },
-    { key: "lpt", label: "logs / trip", value: fmtNum(t.logs_per_trip, 1), sub: t.success_rate === null ? undefined : `${Math.round(t.success_rate * 100)}% chops land`, tone: "info" },
-    { key: "stored", label: "boards stored", value: fmtInt(t.stockpiled), sub: "in the resource stockpile", tone: "info" },
-    { key: "trips", label: "trips", value: String(t.trips), tone: "dim" },
-    { key: "active", label: "active hours", value: hours.value, sub: hours.sub, tone: "dim" },
-    { key: "pk", label: "deaths to PKs", value: String(t.deaths.pk), sub: t.pk_seen ? `${t.pk_seen} PK sighting${t.pk_seen === 1 ? "" : "s"}` : undefined, tone: t.deaths.pk ? "bad" : "ok" },
-    { key: "mob", label: "deaths to mobs", value: String(t.deaths.mob), sub: t.deaths.other ? `+${t.deaths.other} other` : undefined, tone: t.deaths.mob ? "bad" : "ok" },
-    { key: "theft", label: "loss to thieves", value: String(lost), sub: `${t.thefts.count} theft${t.thefts.count === 1 ? "" : "s"}`, tone: lost || t.thefts.count ? "warn" : "ok" },
-    { key: "captcha", label: "captchas", value: String(t.captchas), sub: t.captchas ? `${fmtDuration(t.captcha_wait_s)} waiting` : undefined, tone: t.captchas ? "warn" : "ok" },
+    {
+      key: "lph", label: "logs / hr", value: fmtNum(t.logs_per_hour, 0), sub: `${t.logs} logs · ${t.stored} put away`, tone: "info",
+      hint: "Logs chopped per active hour (the sum of trip durations; idle time between runs doesn't count). " +
+        "Below: logs chopped, and boards put away at home (stockpile, chest or, on old trips, the bank).",
+    },
+    {
+      key: "lpt", label: "logs / trip", value: fmtNum(t.logs_per_trip, 1), sub: t.success_rate === null ? undefined : `${Math.round(t.success_rate * 100)}% chops land`, tone: "info",
+      hint: "Mean logs per trip, aborted trips included. Below: the share of chop attempts that gave logs (success / (success + fail)).",
+    },
+    {
+      key: "stored", label: "boards stored", value: fmtInt(t.stockpiled), sub: "in the resource stockpile", tone: "info",
+      hint: "Boards the Resource Stockpile confirmed taking (\"You add … to the Resource Stockpile.\"). Boards put in the chest don't count.",
+    },
+    { key: "trips", label: "trips", value: String(t.trips), tone: "dim", hint: "Trips that started in the date range, aborted ones included." },
+    { key: "active", label: "active hours", value: hours.value, sub: hours.sub, tone: "dim", hint: "The sum of trip durations, start to end." },
+    {
+      key: "pk", label: "deaths to PKs", value: String(t.deaths.pk), sub: t.pk_seen ? `${t.pk_seen} PK sighting${t.pk_seen === 1 ? "" : "s"}` : undefined, tone: t.deaths.pk ? "bad" : "ok",
+      hint: "Deaths recorded with a player as the cause. Below: hostile players (red, grey, attackers) seen during trips.",
+    },
+    {
+      key: "mob", label: "deaths to mobs", value: String(t.deaths.mob), sub: t.deaths.other ? `+${t.deaths.other} other` : undefined, tone: t.deaths.mob ? "bad" : "ok",
+      hint: "Deaths recorded with a creature as the cause. \"Other\": deaths with no known cause.",
+    },
+    {
+      key: "theft", label: "loss to thieves", value: String(lost), sub: `${t.thefts.count} theft${t.thefts.count === 1 ? "" : "s"}`, tone: lost || t.thefts.count ? "warn" : "ok",
+      hint: "Logs, boards and items lost to suspected thefts: the pack count dropped with no action of ours.",
+    },
+    {
+      key: "captcha", label: "captchas", value: String(t.captchas), sub: t.captchas ? `${fmtDuration(t.captcha_wait_s)} waiting` : undefined, tone: t.captchas ? "warn" : "ok",
+      hint: "Real harvest captchas met (decoy captcha gumps aren't counted). Below: time spent waiting for the answer.",
+    },
   ];
 }
 
@@ -438,6 +462,31 @@ export interface EventView {
   detail: string;
   tone: Tone;
 }
+
+/** What each job event kind means, for hover text in the event list and on the strip. */
+export const EVENT_HELP: Record<string, string> = {
+  death: "We died. The cause is pk (a player), mob (a creature) or unknown.",
+  theft: "A suspected theft: wood or items left the pack with no action of ours.",
+  pk_seen: "A hostile player (red, grey, or attacking us) came into view.",
+  flee: "We walked or ran away from a threat and carried on.",
+  recall: "A recall away from a threat (an escape leg).",
+  guard_flight: "We ran into a guarded town to escape a threat.",
+  speech_hold: "Someone spoke nearby, so the runner paused for the human or the overseer.",
+  speech_clear: "The speech hold ended and work resumed.",
+  stand:
+    "One Smart Harvest stand: a tile the runner stood on and chopped from (it targets itself and the server picks a tree in reach). " +
+    "Records the trees in reach, chops, logs and why it moved on (out of wood, quota, break…).",
+  monster_seen: "A hostile creature the runner steered clear of. These teach which bodies are aggressive and which areas to avoid.",
+  monster_hit: "A creature damaged us. Records who, how much and what the runner did (run, walk on, recall or stop).",
+  tracking: "A Tracking skill use to check for murderers nearby.",
+  thief:
+    "The thief guard reacted: our trapped pouch went off in someone else's hands, or a suspect was walked away from. " +
+    "One that made us leave keeps the spot off the plan for 20 min.",
+  aspect: "The Harvest Aspect was activated before chopping.",
+  resurrect: "We were resurrected.",
+  mob_attack: "A creature attacked us.",
+  leave: "The hunt runner left the spot (low hits, done, …).",
+};
 
 function str(v: unknown): string | null {
   return typeof v === "string" && v ? v : null;

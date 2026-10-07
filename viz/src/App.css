@@ -1767,6 +1767,42 @@ svg.chart.strip {
   font-weight: 700;
   margin-right: 4px;
 }
+.sw-span {
+  background: #1c3036;
+  border: 1px solid #2e6e7e;
+  height: 9px;
+}
+.sw-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.sw-dot.ev-death {
+  background: var(--bad);
+}
+.sw-dot.ev-theft {
+  background: var(--warn);
+}
+.sw-dot.ev-pk {
+  background: #f09048;
+}
+.sw-dot.ev-flee {
+  background: var(--info);
+}
+.sw-dot.ev-ok {
+  background: var(--ok);
+}
+.sw-dot.ev-other {
+  background: #a09888;
+}
+/* Jobs page: a term with an explanation on hover (title) */
+.jobs th[title],
+.jobs .hint {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-decoration-color: #6b5a3e;
+  text-underline-offset: 3px;
+}
 ol.job-events {
   list-style: none;
   margin: 6px 0 0;

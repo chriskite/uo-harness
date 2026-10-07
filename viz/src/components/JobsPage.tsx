@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { fetchJobs, fetchLumberPlan } from "../api.ts";
 import { fmtDuration } from "../format.ts";
 import {
+  EVENT_HELP,
   eventView,
   fmtCounts,
   fmtGp,
@@ -96,19 +97,38 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
 
       <div className="kpis">
         {kpis(t).map((k) => (
-          <div key={k.key} className={`kpi kpi-${k.tone}`}>
-            <span className="kpi-label">{k.label}</span>
+          <div key={k.key} className={`kpi kpi-${k.tone}`} title={k.hint}>
+            <span className={k.hint ? "kpi-label hint" : "kpi-label"}>{k.label}</span>
             <span className="kpi-value">{k.value}</span>
             <span className="kpi-sub">{k.sub ?? " "}</span>
           </div>
         ))}
       </div>
       <div className="jobs-sub dim">
-        estimated value <span className="mono">{fmtGp(t.value_gp)}</span>
+        <span className="hint" title="Each trip's logs at the board price of their wood as of the trip's end (ctl lumber price board:<wood>); a wood with no recorded price uses woods.json">
+          estimated value
+        </span>{" "}
+        <span className="mono">{fmtGp(t.value_gp)}</span>
         {t.value_unpriced_logs > 0 && ` (${t.value_unpriced_logs} logs unpriced${data.woods_file ? "" : ": no harness/data/woods.json"})`}
         {data.harvest && (
           <>
-            {" · "}chop attempts: {data.harvest.success} success / {data.harvest.fail} fail / {data.harvest.depleted} depleted /{" "}
+            {" · "}
+            <span
+              className="hint"
+              title={
+                "Every chop attempt by its result:\n" +
+                "success: the chop gave logs\n" +
+                "fail: no logs this time (the tree still has wood)\n" +
+                "depleted: the tree is out of wood until it regrows\n" +
+                "unreachable: no way to get within reach of the tree\n" +
+                "not a tree: the target wasn't harvestable\n" +
+                "nothing nearby: a Smart Harvest stand found no tree with wood in reach; the trees around it are marked out of wood\n" +
+                "% land: success / (success + fail)"
+              }
+            >
+              chop attempts
+            </span>
+            : {data.harvest.success} success / {data.harvest.fail} fail / {data.harvest.depleted} depleted /{" "}
             {data.harvest.unreachable} unreachable{data.harvest.not_tree ? ` / ${data.harvest.not_tree} not a tree` : ""}
             {data.harvest.nothing_near ? ` · ${data.harvest.nothing_near} trees out of wood (nothing nearby)` : ""}
             {data.harvest.success_rate !== null && ` (${Math.round(data.harvest.success_rate * 100)}% land)`}
@@ -123,8 +143,14 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
           <RateChart
             points={data.rolling}
             series={[
-              { label: `rolling ${windowMin} min`, cls: "roll", values: data.rolling.map((p) => p.logs_per_hour), dots: true },
-              { label: "cumulative", cls: "cum", values: data.rolling.map((p) => (p.logs_per_hour === null ? null : p.cum_logs_per_hour)) },
+              {
+                label: `rolling ${windowMin} min`, cls: "roll", values: data.rolling.map((p) => p.logs_per_hour), dots: true,
+                hint: `At each trip's end: logs per active hour over the trips that ended in the last ${windowMin} min of wall time`,
+              },
+              {
+                label: "cumulative", cls: "cum", values: data.rolling.map((p) => (p.logs_per_hour === null ? null : p.cum_logs_per_hour)),
+                hint: "At each trip's end: all logs so far over all active time so far",
+              },
             ]}
             what="trip"
             unit="logs/hr"
@@ -135,12 +161,18 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
           <RateChart
             points={trips.flatMap((r) => (r.t_end === null ? [] : [{ t: r.t_end, n: r.n }]))}
             series={[
-              { label: "field logs/hr", cls: "field", values: trips.filter((r) => r.t_end !== null).map((r) => r.field_logs_per_hour), dots: true },
-              { label: "whole-trip logs/hr", cls: "cum", values: trips.filter((r) => r.t_end !== null).map((r) => r.logs_per_hour) },
+              {
+                label: "field logs/hr", cls: "field", values: trips.filter((r) => r.t_end !== null).map((r) => r.field_logs_per_hour), dots: true,
+                hint: "Logs per hour at the grove only (chopping and walking between stands): no travel, lockout, room or storing. This is the field rate λ the optimizer learns per spot",
+              },
+              {
+                label: "whole-trip logs/hr", cls: "cum", values: trips.filter((r) => r.t_end !== null).map((r) => r.logs_per_hour),
+                hint: "The trip's logs over its whole duration, travel and home time included",
+              },
             ]}
             what="trip"
             unit="logs/hr"
-            note="field = the optimizer's λ sample (no travel, lockout or banking)"
+            note="field = time at the trees only; the gap to whole-trip is the overhead"
           />
         </Panel>
       </div>
@@ -166,7 +198,9 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
                 return (
                   <li key={e.id ?? i}>
                     <span className="mono dim">{fmtStamp(e.t)}</span>
-                    <Badge kind={v.tone}>{v.label}</Badge>
+                    <Badge kind={v.tone} title={EVENT_HELP[e.kind]}>
+                      {v.label}
+                    </Badge>
                     <span className="dim">{v.detail}</span>
                   </li>
                 );
@@ -211,23 +245,31 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
             <table className="counts trips-table">
               <thead>
                 <tr>
-                  <th>#</th>
+                  <th title="Trip number in this range, oldest = 1">#</th>
                   <th>start</th>
-                  <th>spot</th>
-                  <th>outcome</th>
-                  <th className="num">time</th>
-                  <th className="num">logs</th>
-                  <th className="num" title="boards put away at home: the chest, the bank (older trips) or the stockpile">put away</th>
-                  <th className="num" title="boards the Resource Stockpile confirmed taking">stored</th>
-                  <th className="num">logs/hr</th>
-                  <th className="num">field/hr</th>
-                  <th className="num">chops</th>
-                  <th className="num">captchas</th>
-                  <th>split (travel · lockout · field · rest)</th>
-                  <th>travel legs</th>
-                  <th className="num">skill</th>
-                  <th>events</th>
-                  <th className="num">value</th>
+                  <th title="The lumber spot (tree area) the trip went to">spot</th>
+                  <th title="stored: back home with the boards put away; aborted: the trip ended early (why beside it; red: the place couldn't be worked); banked: an old trip that ended at a bank">
+                    outcome
+                  </th>
+                  <th className="num" title="Trip duration, start to end">time</th>
+                  <th className="num" title="Logs chopped on the trip">logs</th>
+                  <th className="num" title="Boards put away at home: the chest, the bank (older trips) or the stockpile">put away</th>
+                  <th className="num" title="Boards the Resource Stockpile confirmed taking">stored</th>
+                  <th className="num" title="Logs per hour over the whole trip, travel and home time included">logs/hr</th>
+                  <th className="num" title="Logs per field hour: time at the grove only (chopping and walking between stands); blank under 1 min of field time">
+                    field/hr
+                  </th>
+                  <th className="num" title="Chops that gave logs / chop attempts">chops</th>
+                  <th className="num" title="Real captchas met (time waiting on hover)">captchas</th>
+                  <th title="Where the time went. travel: recall casts + the walk to a library tome; lockout: the 60 s harvest lockout after travel; field: at the grove; rest: room, walks, convert, store. Each phase's time on hover">
+                    split (travel · lockout · field · rest)
+                  </th>
+                  <th title="Each recall: out (home → landing), home (back) or escape (away from a threat). ✓ landed, ✗ failed; 'N casts' when it took retries, with why in brackets. Book, charges and seconds on hover">
+                    travel legs
+                  </th>
+                  <th className="num" title="Lumberjacking at the trip's end (start → end on hover)">skill</th>
+                  <th title="Job events during the trip, by kind (meaning on hover)">events</th>
+                  <th className="num" title="The trip's logs at the board price of their wood as of the trip's end (prices used on hover)">value</th>
                 </tr>
               </thead>
               <tbody>
@@ -277,7 +319,7 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
                     </td>
                     <td>
                       {Object.entries(r.events).map(([k, n]) => (
-                        <Badge key={k} kind={k === "death" ? "bad" : "warn"}>
+                        <Badge key={k} kind={k === "death" ? "bad" : "warn"} title={EVENT_HELP[k]}>
                           {k} {n}
                         </Badge>
                       ))}
@@ -302,16 +344,16 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
             <thead>
               <tr>
                 <th>day</th>
-                <th className="num">trips</th>
+                <th className="num" title="Trips started that day">trips</th>
                 <th className="num">logs</th>
-                <th className="num" title="boards the Resource Stockpile confirmed taking">stored</th>
-                <th className="num">active</th>
-                <th className="num">logs/hr</th>
+                <th className="num" title="Boards the Resource Stockpile confirmed taking">stored</th>
+                <th className="num" title="The sum of the day's trip durations">active</th>
+                <th className="num" title="Logs per active hour">logs/hr</th>
                 <th className="num">logs/trip</th>
                 <th className="num">captchas</th>
-                <th className="num">deaths pk/mob</th>
-                <th className="num">thefts</th>
-                <th className="num">value</th>
+                <th className="num" title="Deaths to players / deaths to creatures">deaths pk/mob</th>
+                <th className="num" title="Suspected thefts (logs, boards and items lost)">thefts</th>
+                <th className="num" title="The day's logs at the board prices of each trip's end">value</th>
               </tr>
             </thead>
             <tbody>
@@ -380,46 +422,117 @@ function OptimizerPanels({ data, plan: planState }: { data: JobsResponse; plan: 
                 <>
                   <span>
                     <b className="mono">{pick.spot}</b>{" "}
-                    <Badge kind={pick.mode === "exploit" ? "ok" : "info"} title={`best by posterior mean: ${pick.greedy}`}>
+                    <Badge
+                      kind={pick.mode === "exploit" ? "ok" : "info"}
+                      title={
+                        `exploit: the pick is also the best spot by posterior mean. explore: Thompson sampling drew a less certain spot, ` +
+                        `to learn more about it. Best by posterior mean: ${pick.greedy}`
+                      }
+                    >
                       {pick.mode}
                     </Badge>
                   </span>
-                  <span>P(best) {Math.round(pick.p_best * 100)}%</span>
-                  <span>
+                  <span className="hint" title="The share of the Monte Carlo draws (one posterior sample per spot each) in which this spot had the best net logs/hr">
+                    P(best) {Math.round(pick.p_best * 100)}%
+                  </span>
+                  <span
+                    className="hint"
+                    title={
+                      "The run to start: this many trips (about an hour's worth), each carrying Q* logs home. " +
+                      "Q* is the trip size that maximises net logs/hr: longer trips spread the overhead, " +
+                      "but carry more to lose to a death, a thief or a threat that sends us home (≈ λ·√(2T/h) for a small death hazard)"
+                    }
+                  >
                     {pick.trips} trip{pick.trips === 1 ? "" : "s"} of {pick.logs_per_trip} logs (Q*)
                   </span>
-                  <span>~{fmtNum(pick.expected_trip_min, 0)} min/trip</span>
+                  <span className="hint" title="Expected minutes per trip at Q*: the overhead plus the field time to chop Q* logs">
+                    ~{fmtNum(pick.expected_trip_min, 0)} min/trip
+                  </span>
                   {pick.landing && (
-                    <span title={`${pick.landing.source === "library" ? `${pick.landing.library} library` : "own book"}; walk in ${pick.landing.route_tiles ?? "?"} tiles`}>
+                    <span
+                      className="hint"
+                      title={`The rune the trip recalls to from home, the one nearest the grove: ${pick.landing.source === "library" ? `${pick.landing.library} library` : "our own book"}; walk in ${pick.landing.route_tiles ?? "?"} tiles`}
+                    >
                       out by <b>{pick.landing.name}</b> ({pick.landing.dist} tiles off)
                     </span>
                   )}
-                  <span title="renewal-reward: a death stores nothing, a trip sent home stores what it carries">
+                  <span
+                    className="hint"
+                    title="Per trip at Q*: expected logs stored at home (a death stores nothing, a trip sent home stores what it carries), the chance the trip ends in a death, and the chance a threat sends us home early"
+                  >
                     ~{pick.expected_stored_trip} stored/trip · P(death) {fmtNum(pick.p_death_trip * 100, 1)}% · sent home{" "}
                     {Math.round(pick.p_sent_home_trip * 100)}%
                   </span>
-                  <span>expected {pick.expected_net_logs_h} net logs/hr</span>
+                  <span className="hint" title="Expected logs stored at home per hour of agent time at Q*: overhead, deaths (logs, gear and 20 min recovery), thefts and supplies included">
+                    expected {pick.expected_net_logs_h} net logs/hr
+                  </span>
                 </>
               ) : (
                 <Badge kind="bad">{plan.error ?? "no pick"}</Badge>
               )}
             </div>
             <p className="dim small">
-              skill {fmtNum(plan.skill, 1)} (chop success {plan.success_p === null ? "—" : `${Math.round(plan.success_p * 100)}%`}) · regrowth{" "}
-              {plan.regrow.minutes} min ({plan.regrow.fitted ? `fitted on ${plan.regrow.pairs} retried trees` : "default"}) · P(death | PK seen){" "}
-              {Math.round(plan.death_given_sighting * 100)}% · creature deaths {fmtNum(plan.creature_deaths_per_h, 3)}/hr · thefts{" "}
-              {fmtNum(plan.thefts_pooled_per_h, 3)}/hr ({plan.theft_events} seen, {Math.round(plan.theft_fraction * 100)}% of the load each) · gear at
-              risk{" "}
-              <span title={plan.gear_at_risk.items.map((i) => `${i.n} × ${i.item}: ${i.gp} gp`).join("\n") || undefined}>
-                {plan.gear_at_risk.young ? "none (Young)" : fmtGp(plan.gear_at_risk.gp)}
+              <span className="hint" title="Lumberjacking from the newest trip row; chop success = the chance one chop gives logs at that skill and hatchet bonus (woods.json formulas)">
+                skill {fmtNum(plan.skill, 1)} (chop success {plan.success_p === null ? "—" : `${Math.round(plan.success_p * 100)}%`})
+              </span>
+              {" · "}
+              <span
+                className="hint"
+                title="How long a tree out of wood is left alone before it's tried again: where the chance it has regrown reaches 60%, fitted on depleted trees tried again later (else the 45 min default)"
+              >
+                regrowth {plan.regrow.minutes} min ({plan.regrow.fitted ? `fitted on ${plan.regrow.pairs} retried trees` : "default"})
+              </span>
+              {" · "}
+              <span className="hint" title="Pooled over all spots: the chance a hostile-player sighting ends in our death">
+                P(death | PK seen) {Math.round(plan.death_given_sighting * 100)}%
+              </span>
+              {" · "}
+              <span className="hint" title="Pooled over all spots: deaths to creatures per field hour">
+                creature deaths {fmtNum(plan.creature_deaths_per_h, 3)}/hr
+              </span>
+              {" · "}
+              <span className="hint" title="Pooled over all spots: thefts per field hour, how many were seen, and the expected share of the carried logs one theft takes">
+                thefts {fmtNum(plan.thefts_pooled_per_h, 3)}/hr ({plan.theft_events} seen, {Math.round(plan.theft_fraction * 100)}% of the load each)
+              </span>
+              {" · "}
+              <span
+                className="hint"
+                title={
+                  "What a death would cost in gear we carry, at recorded prices (a Young character loses nothing)" +
+                  (plan.gear_at_risk.items.length ? `:\n${plan.gear_at_risk.items.map((i) => `${i.n} × ${i.item}: ${i.gp} gp`).join("\n")}` : "")
+                }
+              >
+                gear at risk {plan.gear_at_risk.young ? "none (Young)" : fmtGp(plan.gear_at_risk.gp)}
                 {plan.gear_at_risk.unpriced.length ? ` + ${plan.gear_at_risk.unpriced.length} unpriced` : ""}
               </span>
-              {plan.capacity_logs !== null && <> · room for {plan.capacity_logs} logs</>} · new-spot prior {plan.prior_rate_logs_h} logs/hr (CV{" "}
-              {plan.prior_cv}) · dispersion {plan.dispersion}
+              {plan.capacity_logs !== null && (
+                <>
+                  {" · "}
+                  <span className="hint" title="Logs the pack can still take before the weight limit (0.025 stone each); Q* is capped by it">
+                    room for {plan.capacity_logs} logs
+                  </span>
+                </>
+              )}
+              {" · "}
+              <span
+                className="hint"
+                title="The field rate an untried spot starts from: a spot like the measured ones (their spread). CV is its relative uncertainty, at least 0.35, so new spots get explored but not trusted"
+              >
+                new-spot prior {plan.prior_rate_logs_h} logs/hr (CV {plan.prior_cv})
+              </span>
+              {" · "}
+              <span
+                className="hint"
+                title="φ: how much more per-trip log counts scatter than a Poisson count would (logs come about 8 to a successful chop); at least 8. It widens every spot's rate interval"
+              >
+                dispersion {plan.dispersion}
+              </span>
               {pick && (
                 <>
                   {" · "}
-                  <code>{pick.command}</code>
+                  <code className="hint" title="The runner command the overseer would start for this pick">
+                    {pick.command}
+                  </code>
                 </>
               )}
             </p>
@@ -429,7 +542,14 @@ function OptimizerPanels({ data, plan: planState }: { data: JobsResponse; plan: 
 
       <Panel
         title={pending ? "Spots" : `Spots (${rows.length})`}
-        extra={hidden > 0 ? <span className="dim small">+{hidden} untried candidates or disabled (ctl lumber spots)</span> : undefined}
+        extra={
+          <span className="dim small">
+            <span className="hint" title="The highlighted row is the next pick; dimmed rows can't be picked now (see why not)">
+              highlighted = next pick · dimmed = not eligible
+            </span>
+            {hidden > 0 && <> · +{hidden} untried candidates or disabled (ctl lumber spots)</>}
+          </span>
+        }
       >
         {pending ? (
           planState.error ? (
@@ -444,31 +564,84 @@ function OptimizerPanels({ data, plan: planState }: { data: JobsResponse; plan: 
             <table className="counts trips-table">
               <thead>
                 <tr>
-                  <th>spot</th>
-                  <th>status</th>
-                  <th title="the landing rune a trip recalls to from home (nearest the grove)">reached by</th>
-                  <th className="num">trips</th>
-                  <th className="num">field h</th>
-                  <th className="num" title="posterior mean field rate, 80% interval, rescaled to today's skill">field logs/hr</th>
-                  <th className="num" title="logs stored at home per hour, overhead, deaths and supplies included">net logs/hr</th>
-                  <th className="num">Q*</th>
-                  <th className="num" title="per trip: room exit, recall out, walk in, lockout, recall home, room, convert, store">overhead</th>
-                  <th className="num" title="hostile players sighted per field hour">PKs/hr</th>
-                  <th className="num" title="h_D: deaths (PK or creature) per field hour; deaths here in the tooltip">deaths/hr</th>
-                  <th className="num" title="h_S: trips a threat ended early without killing us (recall, guard flight, creature stop), per field hour">
+                  <th title="Spot id (its name on hover)">spot</th>
+                  <th title="active (green: can be picked now; amber: not right now, see why not), candidate (proposed, untried) or disabled">status</th>
+                  <th title="The landing rune a trip recalls to from home (nearest the grove): its name, library or own book, and tiles from the grove">
+                    reached by
+                  </th>
+                  <th className="num" title="Trips recorded here (all history)">trips</th>
+                  <th
+                    className="num"
+                    title="Field hours here, summed over all trips: time at the grove only (the harvest phase minus the walk out and the 60 s travel lockout). The evidence behind the field rate"
+                  >
+                    field h
+                  </th>
+                  <th
+                    className="num"
+                    title="λ, logs per field hour: the posterior mean and its 80% interval. Trips count less as they age (half-life 14 days) and are rescaled to today's chop success"
+                  >
+                    field logs/hr
+                  </th>
+                  <th
+                    className="num"
+                    title="Expected logs stored at home per hour of agent time at Q*: field time, overhead, deaths (carried logs, gear and 20 min recovery), thefts and supply cost included. The pick maximises this"
+                  >
+                    net logs/hr
+                  </th>
+                  <th
+                    className="num"
+                    title="Q*: the logs per trip the planner would carry home before recalling. Longer trips spread the overhead but carry more to lose; Q* maximises net logs/hr, capped by what the pack can hold"
+                  >
+                    Q*
+                  </th>
+                  <th
+                    className="num"
+                    title="T: mean time per trip spent not chopping here (recency-weighted): room exit, walk to the landing's rune, recall out, walk into the grove, lockout, recall home, into the room, convert, store"
+                  >
+                    overhead
+                  </th>
+                  <th className="num" title="Hostile players sighted per field hour here (posterior mean; sightings in trips on hover)">PKs/hr</th>
+                  <th className="num" title="h_D: deaths (player or creature) per field hour, posterior mean shrunk toward the pooled rate; deaths here on hover">
+                    deaths/hr
+                  </th>
+                  <th
+                    className="num"
+                    title="h_S: trips a threat ended early without killing us (recall away, guard flight, a creature stop) per field hour; the carried logs still come home"
+                  >
                     sent home/hr
                   </th>
-                  <th className="num" title="h_T: thefts per field hour (pooled heavily: rare)">thefts/hr</th>
-                  <th className="num" title="expected logs lost per trip of Q* to death and thieves, plus the gear a death loses (in logs); P(death) per trip">
+                  <th className="num" title="h_T: thefts per field hour (rare, so it leans heavily on the pooled rate); thefts here on hover">thefts/hr</th>
+                  <th
+                    className="num"
+                    title="Expected logs lost per trip of Q*: to a death (what we carry), to thieves, plus the gear a death loses converted to logs. P(death) per trip on hover"
+                  >
                     loss/trip
                   </th>
-                  <th className="num">PK escapes</th>
-                  <th className="num">creature recalls</th>
-                  <th className="num">place fails</th>
-                  <th className="num">supplies/trip</th>
-                  <th>last trip</th>
-                  <th className="num">P(best)</th>
-                  <th>why not</th>
+                  <th className="num" title="Recalls and guard flights away from players here (all history)">PK escapes</th>
+                  <th className="num" title="Recalls away from a creature here; creature hits taken here on hover">creature recalls</th>
+                  <th
+                    className="num"
+                    title="Aborted trips with no logs because the place couldn't be worked (no reachable tree, or harvesting answered with something unknown). Two in a row keep the spot out for 7 days"
+                  >
+                    place fails
+                  </th>
+                  <th
+                    className="num"
+                    title={
+                      "Mean gp of the supplies one trip here used, recent trips weighted more (half-life 14 days): " +
+                      "reagents at reagent:<name>, our own runebook's charges at recall_charge, trapped pouches set off at trapped_pouch. " +
+                      "Public library tome charges are free. Items with no recorded price count 0 and show as unpriced (ctl lumber price)"
+                    }
+                  >
+                    supplies/trip
+                  </th>
+                  <th title="Hours since the last trip here and how it ended (why on hover)">last trip</th>
+                  <th className="num" title="The share of the Monte Carlo draws (one posterior sample per spot each) in which this spot had the best net logs/hr">
+                    P(best)
+                  </th>
+                  <th title="Why the spot can't be picked now: its status, a cooldown (30 min after a death or player threat here, 20 min after a thief made us leave), place failures, no landing, …">
+                    why not
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -535,21 +708,43 @@ function OptimizerPanels({ data, plan: planState }: { data: JobsResponse; plan: 
         <Panel title="Lumberjacking skill">
           <RateChart
             points={data.skill.map((p) => ({ t: p.t, n: p.n }))}
-            series={[{ label: "skill at trip start / end", cls: "skill", values: data.skill.map((p) => p.skill), dots: true }]}
+            series={[
+              {
+                label: "skill at trip start / end", cls: "skill", values: data.skill.map((p) => p.skill), dots: true,
+                hint: "Lumberjacking as each trip row recorded it, at its start and (since 2026-10-03) its end",
+              },
+            ]}
             what="trip"
             unit="skill"
             note="from the trip rows (start; end since 2026-10-03). Harvest Aspect: not observable yet"
           />
         </Panel>
         <Panel title="Travel and supplies">
-          <div className="split-bar" title={shares.map((s) => `${s.key} ${fmtDuration(s.s)}`).join(", ")}>
+          <div
+            className="split-bar"
+            title={
+              "All trips' time: travel (recall casts + the walk to a library tome), lockout (the 60 s harvest lockout after travel), " +
+              "field (at the grove), other (room, walks, convert, store). " +
+              shares.map((s) => `${s.key} ${fmtDuration(s.s)}`).join(", ")
+            }
+          >
             {shares.map((s) => (
               <div key={s.key} className={`seg-${s.key}`} style={{ width: `${s.share * 100}%` }} />
             ))}
           </div>
           <p className="dim small">
-            all trips: {shares.map((s) => `${s.key} ${splitTotal ? Math.round(s.share * 100) : 0}%`).join(" · ")} · supplies over {sup.trips} trip(s):{" "}
-            {sup.library_charges} library charges, {sup.own_charges} own charges, {sup.recall_casts} recall casts, reagents {fmtCounts(sup.reagents_used)}
+            all trips: {shares.map((s) => `${s.key} ${splitTotal ? Math.round(s.share * 100) : 0}%`).join(" · ")} ·{" "}
+            <span
+              className="hint"
+              title={
+                "Summed over the trips whose rows record supplies. Library charges: from public library tomes (free). " +
+                "Own charges: from our runebook (priced at recall_charge). Recall casts: the Recall spell (reagents). " +
+                "Reagents: what left the pack. The gp total uses the recorded prices; unpriced units are counted, not guessed"
+              }
+            >
+              supplies over {sup.trips} trip(s)
+            </span>
+            : {sup.library_charges} library charges, {sup.own_charges} own charges, {sup.recall_casts} recall casts, reagents {fmtCounts(sup.reagents_used)}
             {sup.gp !== undefined && ` · ${fmtGp(sup.gp)}${sup.unpriced ? ` (+${sup.unpriced} unpriced)` : ""}`}
           </p>
           {data.travel.legs.length === 0 ? (
@@ -558,14 +753,14 @@ function OptimizerPanels({ data, plan: planState }: { data: JobsResponse; plan: 
             <table className="counts">
               <thead>
                 <tr>
-                  <th>leg</th>
-                  <th className="num">n</th>
-                  <th className="num">landed</th>
-                  <th className="num">casts</th>
-                  <th className="num">charge / spell</th>
-                  <th className="num">mean</th>
-                  <th className="num">walk to library</th>
-                  <th>failures</th>
+                  <th title="out: from home to the grove's landing; home: back; escape: away from a threat">leg</th>
+                  <th className="num" title="Legs of this kind">n</th>
+                  <th className="num" title="Legs that arrived where they meant to">landed</th>
+                  <th className="num" title="Recall attempts (a failed cast is retried)">casts</th>
+                  <th className="num" title="Casts from a book's charge / by the Recall spell">charge / spell</th>
+                  <th className="num" title="Mean seconds per leg, from the start to the arrival (the walk to a library tome included)">mean</th>
+                  <th className="num" title="Mean walk from where we stood to the library tome, for legs that used one">walk to library</th>
+                  <th title="Failed casts by reason">failures</th>
                 </tr>
               </thead>
               <tbody>
@@ -590,13 +785,13 @@ function OptimizerPanels({ data, plan: planState }: { data: JobsResponse; plan: 
             <table className="counts">
               <thead>
                 <tr>
-                  <th>book</th>
-                  <th>whose</th>
-                  <th>runes used</th>
-                  <th className="num">uses</th>
-                  <th className="num" title="charges the book showed before the newest recall">charges</th>
-                  <th className="num">lowest seen</th>
-                  <th>last seen</th>
+                  <th title="The book's serial">book</th>
+                  <th title="ours, or a public rune library's tome">whose</th>
+                  <th title="Runes recalled to from this book (Witcher numbers for library tomes)">runes used</th>
+                  <th className="num" title="Recalls from this book">uses</th>
+                  <th className="num" title="Charges the book showed before the newest recall (history on hover)">charges</th>
+                  <th className="num" title="The fewest charges it ever showed">lowest seen</th>
+                  <th title="When it was last used">last seen</th>
                 </tr>
               </thead>
               <tbody>

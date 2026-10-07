@@ -474,7 +474,17 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
       aborted trip, `∅` when the place gave nothing;
     - logs per trip as bars, with the boards-put-away mark, captcha dots, death marks and the mean;
     - a trips-and-events strip, with the event list below it (travel events are in the travel
-      panel instead).
+      panel instead). Since 2026-10-06 the strip has a legend of the dot colours present (red
+      died, orange PK seen, amber theft/speech pause, blue fled, green resumed, grey everything
+      else: stands, recalls, creatures, tracking, the thief guard, the aspect), each entry naming its
+      event kinds with their meaning on hover (`jobs.ts` `EVENT_HELP`, also on the list's badges).
+  - **Hover explanations (2026-10-06, user request):** every non-obvious term on the lumber
+    dashboard explains itself on hover: the KPI tiles (`Kpi.hint`), the chop-outcome line, the
+    chart legends (`RateSeries.hint`, the split and logs-per-trip keys), the optimizer's pick and
+    plan line (explore/exploit, P(best), Q*, regrowth, dispersion, …), every Spots, Trips, Per day,
+    legs and books column (`field h`, `Q*`, `supplies/trip` with how it's priced, h_D/h_S/h_T, …).
+    Terms with an explanation are dotted-underlined with a help cursor (`.jobs th[title]`,
+    `.jobs .hint`).
   - A wood-type breakdown when the trip rows carry one, and the woods.json status.
   - The per-trip table (newest first): spot, outcome (why), time, logs, stored, logs/hr, field/hr,
     chops, captchas, the time split, the travel legs as badges ("home ✓ 2 casts (disturbed)"),
