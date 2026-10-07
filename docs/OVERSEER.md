@@ -553,6 +553,14 @@ Paste this (or point the session at this section) to start an overseer.
    and no task is running unless you want the overseer to adopt it.
 2. Open omp in the repo checkout and send: *"Act as the Seer: follow
    docs/OVERSEER.md §5."* (optionally add the goal, e.g. "run lumber trips until 500 boards").
+   **As a subagent** (an omp session that starts the overseer for you): dispatch the project agent
+   `overseer` (`.omp/agents/overseer.md`) with the shift's goal as the task. In the batch `task`
+   call, `agent: "overseer"` goes on the `tasks[]` item: a top-level `agent` is ignored and the
+   child silently runs as the bundled `task` agent on the parent's model (seen 2026-10-07).
+   Its frontmatter `model: "@OVERSEER"` binds it to omp's `OVERSEER` model role
+   (`modelRoles.OVERSEER` in the omp config; `/model` → Roles changes it), so every overseer
+   subagent runs on that model instead of the parent's (user decision 2026-10-07). The agent's
+   prompt sends it to §5.
 3. Talk to it through the viz chat (or directly in omp), or from your phone once the Telegram
    bridge runs (§8). Pause/kill in the viz still stop the agent at the proxy regardless of the
    overseer.
