@@ -67,7 +67,7 @@ LLM planner over the world model + skill library; safety rails: captcha auto-sol
   - A forced pause every ~2 h of agent activity, with the interval jittered ±20 min.
   - Break length 3–5 min, jittered (user decision 2026-10-02; it was 15–30 min, too long). A gap
     of at least 3 min without agent actions counts as a break taken.
-  - At most 8 h of agent-active time per local calendar day. Paused and break time don't count.
+  - At most 10 h of agent-active time per local calendar day (user decision 2026-10-06; it was 8 h, and the overseer kept ending shifts well short of it). Paused and break time don't count.
   - The usage counter is persisted to disk, so restarts don't reset it.
   - Enforced through the same proxy flag as pause/kill, so the planner can't bypass it. The visualizer shows the time left until the next break and the daily budget.
   - **Implemented 2026-09-29:** `harness/agent_gate.py` (`AgentGate` plus the CLI), checked first in `InjectionHub.inject`.

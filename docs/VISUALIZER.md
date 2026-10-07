@@ -167,7 +167,7 @@ is last-write-wins and small.
 ### 2.2 Agent gate controls
 
 The proxy's agent gate (`harness/agent_gate.py`): a manual pause, a kill switch, forced jittered
-breaks after ~2 h of agent-active time, and an 8 h/day agent-active cap. While it is closed every
+breaks after ~2 h of agent-active time, and a 10 h/day agent-active cap (8 h until 2026-10-06). While it is closed every
 agent injection on the control port gets `ERR <reason>`; client traffic and the relay are
 untouched. Every state-port response (including `{"ok": false, "error": "no active session"}`)
 carries a top-level `gate` object (`state` running/paused/break/budget_exhausted/break_due/killed with

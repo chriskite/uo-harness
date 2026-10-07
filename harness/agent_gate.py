@@ -44,7 +44,7 @@ import random
 import socket
 import time
 
-DAILY_CAP_S = 8 * 3600.0
+DAILY_CAP_S = 10 * 3600.0          # user decision 2026-10-06 (was 8 h: the overseer stops well short of it)
 BREAK_EVERY_S = 2 * 3600.0
 BREAK_JITTER_S = 20 * 60.0
 BREAK_LEN_S = (3 * 60.0, 5 * 60.0)   # user decision 2026-10-02 (was 15-30 min: too long)

@@ -58,7 +58,7 @@ def run_until_blocked(gate, clock, step=30.0, limit=20 * 3600):
 
 
 def unit_tests(tmp):
-    # a morning start so the whole 8 h run stays on one local day
+    # a morning start so the whole capped run (DAILY_CAP_S) stays on one local day
     t0 = datetime.datetime.combine(datetime.date.today(), datetime.time(6, 0)).timestamp()
 
     print("forced break: due, grace, then the break")
@@ -141,7 +141,10 @@ def unit_tests(tmp):
                                          datetime.time(0, 0, 1)).timestamp()
     c.t = tomorrow
     st = g.status()
-    check("budget reopens at local midnight", st["state"] == "running" and st["active_today_s"] == 0.0, st)
+    # the cap can close while a break is due (the 10 h cap, 2026-10-06): that break then runs after midnight
+    check("budget reopens at local midnight (the day's count back to 0; at most a due break left)",
+          st["state"] in ("running", "break") and st["active_today_s"] == 0.0
+          and st["daily_remaining_s"] == ag.DAILY_CAP_S, st)
 
     print("persistence + controls")
     path = os.path.join(tmp, "persist.json")
