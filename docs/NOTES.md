@@ -890,10 +890,18 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   walk) and run 5 (witcher_162, the red Lord Saisho Hakai; Morgana the healer, 3816,417, 532 steps, the
   cliffs south forced a route east). The room shelf was empty both times; the guild shelf re-geared
   everything. Run 11: Tracking found the red Bastet at 71 tiles and the runner recalled home 2 s later.
-  Skipped witcher_23/66 all shift and witcher_162 after the death. **Open (not fixed): a false
-  `theft_suspected`** (juncture 421, run 11, 17:51:06): convert's double-click on the packed hatchet
-  0x6627697C brought its 0x1D remove 16 ms before the 0x2E equip, and the ledger booked the remove as a loss
-  (session_20261006_164724 t 1791327066.408-.478); nothing was lost.
+  Skipped witcher_23/66 all shift and witcher_162 after the death. **Fixed (cd3e7be): a false
+  `theft_suspected`** (juncture 421, run 11, 17:51:06; nothing was lost). The recall at 17:50:53 had put
+  the hatchet 0x6627697C in the pack (0x1D + 0x25). Convert's double-click on it (c2s 0x06,
+  t 1791327066.408, session_20261006_164724) brought the server's 0x1D remove at .462 and the 0x2E equip
+  (layer 2, on us) at .478. The runner's state read fell between the two, with the hatchet in no
+  container at all. `ledger.observe` saw it gone (`to: gone`): not on us, so not `equipped`, and with no
+  expectation it was `unexplained`. The next view saw it worn, but by then it was out of the baseline.
+  Now a whole item gone with no cause stays in the baseline for `settle_s` (1 s) from the first view
+  without it. If it turns up on us it is `equipped`; back in the pack, it is nothing. Still gone after
+  that, it is booked as before, so a thief's grab costs one window. Stack decreases are booked at once.
+  Tests: `test_ledger.py` `test_hatchet_used_from_pack` (the live 0x25/0x1D/0x2E through WorldRuntime,
+  failing before) and the single-item theft in `test_death`, booked once settled.
 - **Seer6 shift (20:15–23:25, 2026-10-05):** 15 runs, 8033 boards into the stockpile, Lumberjacking 81.1
   → 90.5, 1 death (norse bear rider at witcher_268, resurrected by Malila (2734,617); witcher_268
   disabled). Best trips: the greedy picks witcher_23 (2410 incl. ~1380 carried logs, then 1747) and
