@@ -19,6 +19,8 @@
 - agent gate via /api/gate: replay 409, rearm 400, proxy down 502; live pause
   (proxy reports paused, control-port injection gets ERR ...paused), resume,
   kill, resume-while-killed 409
+- agent intent: lumber spot + per-wood tally kept, malformed ones dropped, a
+  tally update stays one step
 - job analytics (harness/jobs.py): trip rows, totals, per-day split, rolling
   logs/hr, deaths by cause, thefts, value from woods and the board price
   history (as of each trip's end), since filter, determinism
@@ -48,6 +50,7 @@ sys.path.insert(0, HERE)
 
 import jobs  # noqa: E402
 import memory  # noqa: E402
+import proxy  # noqa: E402
 import viz_feed  # noqa: E402
 import viz_server  # noqa: E402
 from uo.s2c import encode_packet  # noqa: E402
@@ -180,6 +183,26 @@ def seed_jobs(m: memory.Memory):
     for i, (outcome, amount) in enumerate([("success", 5), ("success", 6), ("fail", 0), ("success", 7),
                                            ("fail", 0), ("depleted", 0)]):
         m.harvest_record(0, 100 + i, 200, 0, 0x0CD0, outcome, amount, t=1100.0 + i)
+
+
+def test_intent_fields():
+    print("== agent intent: lumber spot and per-wood tally (proxy.SessionTap.set_intent) ==")
+    tap = proxy.SessionTap(viz_feed._Null(), viz_feed._Null(), viz_feed._Null())
+    base = {"text": "Chopping by 1,2 (3/15 logs)", "kind": "chop", "loop": "lumber", "trip": 1, "trips": 2,
+            "target": [1, 2]}
+    err = tap.set_intent({**base, "spot": "horseshoe_bay", "woods": {"ordinary": 2, "oak": 1}})
+    check("spot and woods kept", err is None and tap.intent.get("spot") == "horseshoe_bay"
+          and tap.intent.get("woods") == {"ordinary": 2, "oak": 1}, f"{err} {tap.intent}")
+    tap.set_intent({**base, "spot": "horseshoe_bay", "woods": {"ordinary": 3, "oak": 1}})
+    check("a tally update replaces the intent and stays one step",
+          tap.intent.get("woods") == {"ordinary": 3, "oak": 1} and len(tap.intents) == 1
+          and "until" not in tap.intents[-1], f"{tap.intent} {tap.intents}")
+    bad = [{"oak": -1}, {"oak": "2"}, {"": 1}, {"oak": True}, ["oak"], {f"w{i}": 1 for i in range(33)}]
+    for woods in bad:
+        tap.set_intent({**base, "woods": woods})
+        check(f"malformed woods dropped: {str(woods)[:40]}", "woods" not in tap.intent, str(tap.intent))
+    tap.set_intent({**base, "spot": "s" * 65})
+    check("a too-long spot id dropped", "spot" not in tap.intent, str(tap.intent))
 
 
 def test_jobs():
@@ -1163,6 +1186,7 @@ def main():
         test_order_fallback()
         test_sse(logdir)
         test_burst()
+        test_intent_fields()
         test_jobs()
         test_lumber_travel()
         test_hunt_jobs()

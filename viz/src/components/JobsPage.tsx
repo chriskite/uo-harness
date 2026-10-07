@@ -1,5 +1,3 @@
-import { useCallback, useEffect, useState } from "react";
-import { fetchJobs, fetchLumberPlan } from "../api.ts";
 import { fmtDuration } from "../format.ts";
 import {
   EVENT_HELP,
@@ -19,44 +17,11 @@ import {
   tripHome,
   woodShares,
   type JobsResponse,
-  type PlanResponse,
-  type RangeBounds,
 } from "../jobs.ts";
 import { EventStrip, LogsPerTripChart, RateChart, TimeSplitChart } from "./Charts.tsx";
 import { Badge, Panel, Skeleton } from "./common.tsx";
 import { HuntJobs } from "./HuntJobs.tsx";
-import { JobsHead, JobsLoading, REFRESH_MS, useJobPoll, type JobDashboardProps, type JobKind } from "./JobsCommon.tsx";
-
-const fetchLumber = (tz: number, range: RangeBounds) => fetchJobs("lumber", tz, range);
-
-/** The plan poll: the last answer (null until the first), the last error, refresh now. */
-interface PlanState {
-  res: PlanResponse | null;
-  error: string | null;
-  reload: () => void;
-}
-
-/** The optimizer's plan, polled on its own (seconds when the server's per-minute cache is
- *  cold) so the rest of the dashboard never waits for it. */
-function usePlan(): PlanState {
-  const [res, setRes] = useState<PlanResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const reload = useCallback(() => {
-    fetchLumberPlan().then(
-      (r) => {
-        setRes(r);
-        setError(null);
-      },
-      (e: unknown) => setError(String(e)),
-    );
-  }, []);
-  useEffect(() => {
-    reload();
-    const t = setInterval(reload, REFRESH_MS);
-    return () => clearInterval(t);
-  }, [reload]);
-  return { res, error, reload };
-}
+import { fetchLumber, JobsHead, JobsLoading, useJobPoll, usePlan, type JobDashboardProps, type JobKind, type PlanState } from "./JobsCommon.tsx";
 
 /** The Jobs page: one dashboard per job, picked by the switch in its head, over the head's date range. */
 export function JobsPage({ job, ...props }: JobDashboardProps & { job: JobKind }) {

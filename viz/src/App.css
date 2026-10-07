@@ -1826,6 +1826,23 @@ ol.job-events li {
 .wood-fill {
   background: #a16207;
 }
+/* the left-column Lumber job pane */
+.lj-spot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.lumber-job h3 {
+  margin: 8px 0 4px;
+}
+.lumber-job .wood-row {
+  grid-template-columns: 64px 1fr 32px 70px;
+  gap: 6px;
+}
+.lumber-job .wood-row > :last-child {
+  white-space: nowrap;
+}
 /* lumber: where trip time goes (TimeSplitChart, the totals bar) */
 .seg-travel {
   fill: #7c3aed;

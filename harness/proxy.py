@@ -65,6 +65,9 @@ EVENT_CAP = 5000  # event envelopes kept for state-port readers
 DIAG_TOP = 20     # packet_counts entries in the state response's diagnostics
 INTENT_TEXT_MAX = 200  # chars of an agent intent's text (set_intent)
 INTENT_HISTORY = 30    # recent agent intents kept in the state (set_intent)
+INTENT_SPOT_MAX = 64        # chars of a lumber spot id (set_intent)
+INTENT_WOODS_MAX = 32       # entries in an intent's per-wood log tally (set_intent)
+INTENT_WOOD_NAME_MAX = 40   # chars of a wood name in it
 
 # Movement timing (docs/MOVEMENT.md, sessions 20260929_142237/_143051/_144541):
 RESYNC_REPLY_TIMEOUT_S = 1.5  # client resync: no 0xBF sub1 seed by then -> the server ignored it
@@ -512,7 +515,8 @@ class SessionTap:
         """The agent's current intent, for readers only (never sent anywhere):
         {"text": str, "kind"?: str, "target"?: [x, y], "target_serial"?: "0x..." (an entity
         the viz follows, e.g. the mob being fought), "loop"?: str, "trip"?: int,
-        "trips"?: int} or None to clear. Stamped with `since`, logged to the jsonl
+        "trips"?: int, "spot"?: str (the lumber spot id), "woods"?: {wood: logs} (this
+        trip's logs by wood)} or None to clear. Stamped with `since`, logged to the jsonl
         (so replays reproduce it) and emitted as proxy event `agent_intent`.
 
         Also kept in `intents` (the last INTENT_HISTORY, oldest first) so late
@@ -537,6 +541,15 @@ class SessionTap:
                 clean["target_serial"] = f"0x{ts:08X}"
             elif isinstance(ts, str) and re.fullmatch(r"0x[0-9A-Fa-f]{1,8}", ts):
                 clean["target_serial"] = f"0x{int(ts, 16):08X}"
+            spot = intent.get("spot")                        # the lumber spot id
+            if isinstance(spot, str) and 0 < len(spot) <= INTENT_SPOT_MAX:
+                clean["spot"] = spot
+            woods = intent.get("woods")                      # this trip's logs by wood; all or nothing
+            if isinstance(woods, dict) and len(woods) <= INTENT_WOODS_MAX and all(
+                    isinstance(w, str) and 0 < len(w) <= INTENT_WOOD_NAME_MAX
+                    and isinstance(n, int) and not isinstance(n, bool) and n >= 0
+                    for w, n in woods.items()):
+                clean["woods"] = dict(woods)
             cur = self.intent
             same = (cur is not None and clean.get("kind") is not None
                     and all(cur.get(k) == clean.get(k) for k in ("kind", "target", "target_serial", "loop", "trip")))

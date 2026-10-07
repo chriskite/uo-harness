@@ -11,6 +11,7 @@ import { IntentPanel } from "./components/IntentPanel.tsx";
 import { JobsPage } from "./components/JobsPage.tsx";
 import type { JobKind } from "./components/JobsCommon.tsx";
 import { LivePanel } from "./components/LivePanel.tsx";
+import { LumberJobPanel } from "./components/LumberJobPanel.tsx";
 import { MapGrid } from "./components/MapGrid.tsx";
 import { MovementPanel } from "./components/MovementPanel.tsx";
 import { OverseerPanel, useOverseer } from "./components/OverseerPanel.tsx";
@@ -18,6 +19,7 @@ import { PaperdollPanel } from "./components/PaperdollPanel.tsx";
 import { SelfPanel } from "./components/SelfPanel.tsx";
 import { TrafficPanel } from "./components/TrafficPanel.tsx";
 import { parseRange, rangeQuery, type DateRange } from "./jobs.ts";
+import { runningLumber } from "./lumberjob.ts";
 import { useViz } from "./store.ts";
 
 const TABS = ["Inspector", "Gumps", "Census", "Diagnostics", "Movement", "Events"] as const;
@@ -39,6 +41,7 @@ function routeFromHash(): { page: Page; job: JobKind; range: DateRange } {
 export function App() {
   const viz = useViz();
   const overseer = useOverseer();
+  const lumber = runningLumber(viz.state?.intent);
   const [route, setRoute] = useState(routeFromHash);
   const page = route.page;
   const [tab, setTab] = useState<Tab>("Inspector");
@@ -97,6 +100,7 @@ export function App() {
           <LivePanel viz={viz} onSwap={swap} />
         )}
         <PaperdollPanel viz={viz} />
+        {lumber && <LumberJobPanel intent={lumber} intents={viz.state?.intents} />}
       </aside>
       {liveMain ? (
         <main className="map">

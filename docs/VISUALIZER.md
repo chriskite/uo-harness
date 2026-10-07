@@ -266,6 +266,14 @@ The runners report what they are trying to do right now on the proxy's state por
     the overseer fought (user report 2026-09-30).
   - The proxy accepts `target_serial` from the 2026-09-30 build on. Older proxies drop it, and
     the marker then stays on the tile.
+- **`spot` and `woods`** (lumber runs, 2026-10-06): the runner's spot id (`lumber_opt` / plan
+  spot id, ≤ 64 chars) and this trip's logs by wood (`{wood: logs}`, ≤ 32 entries, names ≤ 40
+  chars, non-negative ints). `woods` is all or nothing: one bad entry drops the field. Neither
+  field is part of the same-step key, so a chop that only changes the tally stays one step.
+  - The runner (`LumberLoop.trip_woods`) sends the pack's logs from the ledger
+    (`ledger.summary(kind="log")`), frozen at `stats["woods"]` once converting starts; the chop
+    intent is re-sent before every chop, so the tally lags at most one chop.
+  - Older proxies drop both fields; older runners don't send them.
 - **Healthbars:** under TestWorth and under every mobile whose hits are known (other mobiles'
   hits arrive as percentages). Hurt mobiles always show one; full ones from 8 px/tile zoom up.
   Colours: green, yellow below 50%, red below 25%. The attack marker is red.
@@ -667,6 +675,31 @@ at real cadence, with an SSE reader limited to 1.5 MB/s:
 A fresh headless Chromium on localhost kept up even before the fix. The live viz's only clients
 were a LAN device (192.168.42.83), and its process held 3.2 GB.
 
+### 2.11 Lumber job pane (added 2026-10-06, user request)
+
+A **Lumber job** panel in the left column, below the Paperdoll (where Movement & traffic used to
+be), shows while a lumber run is going: the current intent has `loop: "lumber"` and a kind other
+than `done`, `break_due` or `stopped` (`trip_done` is between trips and keeps it).
+- **Spot line:** a leg badge (`heading to` / `at` / `back from`, from the intent kind; kinds that
+  happen anywhere, such as `captcha`, `speech` and `track`, take the newest earlier history entry
+  with a leg), the spot's name and id from the plan, PvP and non-active status badges, and the
+  landing (`via …`).
+- **Expected:** the plan row's field and net logs/hr (with the 80% band), P(death)/trip,
+  deaths/hr (red when the spot has deaths), PKs seen/hr, sent home/hr and thefts/hr.
+- **This trip:** the intent's `woods` as bars, with each wood's share in past trips at the spot.
+- **History here:** the plan row's trips, field hours, logs, deaths and last trip, the newest 5
+  trips at the spot (all-time `/api/jobs?job=lumber`) and the spot's wood mix.
+- It polls `/api/jobs/plan` and `/api/jobs` every 15 s only while it is shown (`usePlan`,
+  `useJobPoll`, shared with the Jobs page in `JobsCommon.tsx`).
+- Without `spot` (a proxy or runner older than §2.3's `spot`/`woods`) it shows the leg and trip
+  with "spot unknown"; replays follow the replayed intent, but stats and history come from the
+  live memory store.
+- Running is decided from the intent alone: a runner killed hard (no `stopped` intent) leaves the
+  pane up until the next intent.
+- `viz/src/lumberjob.ts` is the pure model (bun tests); `components/LumberJobPanel.tsx` draws it.
+- Verified in headless Chromium against the live viz with a mocked state (spot `witcher_23`):
+  the Expected, This trip and History sections; `recall_out` reads "heading to"; `done` hides it.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see
@@ -695,8 +728,9 @@ fixtures ("replay X, state at event N").
 │──────────────│               MapGrid                    │                  │
 │ Paperdoll    │  (full height: terrain, walk memory,     │ OverseerPanel    │
 │──────────────│   entities, trail)                       │ (chat timeline,  │
-│              │                                          │ junctures, open  │
-│              │                                          │ count, compose)  │
+│ Lumber job   │                                          │ junctures, open  │
+│ (lumber run) │                                          │ count, compose)  │
+│              │                                          │                  │
 ├──────────────┴──────────────────────────────────────────┴──────────────────┤
 │ ▸ details — Containers · Inspector · Gumps · Census · Diagnostics ·        │
 │             Movement · Events                                              │
@@ -832,6 +866,7 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
 | `harness/jobs.py` | job analytics over the memory store (§2.4) |
 | `viz/src/overseer.ts`, `components/OverseerPanel.tsx` | overseer timeline model (cursor merge, heartbeat status, chat validation) and the Overseer panel (§2.4) |
 | `viz/src/jobs.ts`, `chart.ts`, `components/JobsPage.tsx`, `components/Charts.tsx` | Jobs page view model (KPIs, event wording, theft rule, wood shares), SVG chart geometry, the dashboard and its charts (§2.4) |
+| `viz/src/lumberjob.ts`, `components/LumberJobPanel.tsx` | left-column Lumber job pane: run/leg detection, spot trips and wood mixes, and the panel (§2.11) |
 | `harness/uoart.py`, `harness/test_uoart.py` | `UooImages` (gumps.uoo / art.uoo reader, shared with `paperdoll.py`) and `ItemArt` for `/api/art` (§2.9) |
 | `viz/src/App.tsx`, `components/*.tsx`, `App.css` | §4 panels |
 | `viz/src/fonts/` | Cinzel + Caudex woff2 (OFL; licences alongside), inlined into `main.css` by the build (§4 Theme) |
@@ -884,6 +919,8 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
     (the proxy's own `{"op":"gate"}` reports paused, and a control-port injection from the test
     gets `ERR agent paused`), resume, kill, and resume-while-killed 409. The proxy's control-port
     log shows only the test's own connection.
+  - Agent intent: `spot` and `woods` kept, a tally-only update stays one step, malformed `woods`
+    (negative, string, empty name, bool, list, 33 entries) and a 65-char `spot` dropped (§2.3).
 - **Proxy:** extend `test_movement.py` to check that proxy events and envelopes appear in the
   state-port event log.
 - **Frontend (`bun test`), pure helpers only:** serial normalization, entity lookup precedence,
@@ -893,7 +930,8 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
   newer gate over an older state frame, and (§2.4) chart scales/ticks/bars, KPI tiles and tones,
   event wording, the theft-loss rule, wood shares, overseer cursor merging, timeline order,
   heartbeat status and chat validation, and the Jobs date range (query parsing and its inverse,
-  local-midnight bounds on DST days, presets).
+  local-midnight bounds on DST days, presets), and (§2.11) the lumber run/leg rules, spot trips
+  and wood mixes.
   `bunx tsc --noEmit` must pass. No DOM snapshot tests; M2–M4 acceptance runs
   are the integration check.
 - **Jobs and overseer (`harness/test_viz.py`):** `jobs.analytics` numbers on a seeded store

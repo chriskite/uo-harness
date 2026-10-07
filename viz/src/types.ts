@@ -238,6 +238,10 @@ export interface AgentIntent {
   loop?: string;
   trip?: number;
   trips?: number;
+  /** Lumber runs: the spot id (lumber_opt / plan spot id). */
+  spot?: string;
+  /** Lumber runs: this trip's logs by wood name (the runner's pack ledger). */
+  woods?: Record<string, number>;
   /** Proxy wall clock (epoch s) when this step started (kept across merged updates). */
   since: number;
   /** History entries only: when the next intent replaced it (or it was cleared). */

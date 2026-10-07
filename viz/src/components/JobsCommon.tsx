@@ -1,7 +1,8 @@
 // Shared by the job dashboards (docs/VISUALIZER.md §2.4): polling /api/jobs over the
 // page's date range, and the page head with the job switch and the range picker.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { fmtStamp, localDay, parseRange, presetRange, RANGE_PRESETS, rangeBounds, rangeQuery, tzMinutesEast, type DateRange, type RangeBounds } from "../jobs.ts";
+import { fetchJobs, fetchLumberPlan } from "../api.ts";
+import { fmtStamp, localDay, parseRange, presetRange, RANGE_PRESETS, rangeBounds, rangeQuery, tzMinutesEast, type DateRange, type PlanResponse, type RangeBounds } from "../jobs.ts";
 import { Badge } from "./common.tsx";
 
 export const JOBS = [
@@ -54,6 +55,37 @@ export function useJobPoll<T>(fetch: (tz: number, range: RangeBounds) => Promise
   }, [reload, key]);
 
   return { data, error, at, reload, loading: dataKey !== key };
+}
+
+export const fetchLumber = (tz: number, range: RangeBounds) => fetchJobs("lumber", tz, range);
+
+/** The plan poll: the last answer (null until the first), the last error, refresh now. */
+export interface PlanState {
+  res: PlanResponse | null;
+  error: string | null;
+  reload: () => void;
+}
+
+/** The optimizer's plan, polled on its own (seconds when the server's per-minute cache is
+ *  cold) so the rest of the dashboard never waits for it. */
+export function usePlan(): PlanState {
+  const [res, setRes] = useState<PlanResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const reload = useCallback(() => {
+    fetchLumberPlan().then(
+      (r) => {
+        setRes(r);
+        setError(null);
+      },
+      (e: unknown) => setError(String(e)),
+    );
+  }, []);
+  useEffect(() => {
+    reload();
+    const t = setInterval(reload, REFRESH_MS);
+    return () => clearInterval(t);
+  }, [reload]);
+  return { res, error, reload };
 }
 
 export function JobSwitch({ job, onJob }: { job: JobKind; onJob: (j: JobKind) => void }) {

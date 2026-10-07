@@ -493,7 +493,12 @@ class LumberLoop:
     def doing(self, kind: str, text: str, target=None):
         """Tell the visualizer what the agent is trying to do (proxy-side only)."""
         self._intent = (kind, text, target)
-        self.link.intent(text, kind, target, loop="lumber", trip=self.trip_n, trips=self.args.trips)
+        self.link.intent(text, kind, target, loop="lumber", trip=self.trip_n, trips=self.args.trips,
+                         spot=self.k["spot"]["id"], woods=self.trip_woods())
+
+    def trip_woods(self) -> dict:
+        """This trip's logs by wood: frozen when converting starts (stats["woods"]), else the logs in the pack now."""
+        return self.stats.get("woods") or self.ledger.summary(kind="log")
 
     # ------------------------------------------------------------ guards
     def check_guards(self, st: dict):
