@@ -20,7 +20,7 @@ import { TrafficPanel } from "./components/TrafficPanel.tsx";
 import { parseRange, rangeQuery, type DateRange } from "./jobs.ts";
 import { useViz } from "./store.ts";
 
-const TABS = ["Inspector", "Gumps", "Census", "Diagnostics", "Events"] as const;
+const TABS = ["Inspector", "Gumps", "Census", "Diagnostics", "Movement", "Events"] as const;
 type Tab = (typeof TABS)[number];
 
 /** Which view fills the centre; the other sits in the left column. */
@@ -97,13 +97,6 @@ export function App() {
           <LivePanel viz={viz} onSwap={swap} />
         )}
         <PaperdollPanel viz={viz} />
-        <details className="panel min-panel">
-          <summary className="panel-head">
-            <h2>Movement &amp; traffic</h2>
-          </summary>
-          <MovementPanel state={viz.state} agg={viz.agg} />
-          <TrafficPanel traffic={viz.state?.traffic} lastAgent={viz.agg.lastAgent} world={world} />
-        </details>
       </aside>
       {liveMain ? (
         <main className="map">
@@ -125,7 +118,7 @@ export function App() {
         open={detailsOpen}
         onToggle={(e) => setDetailsOpen(e.currentTarget.open)}
       >
-        <summary className="details-bar">details — containers · inspector · gumps · census · diagnostics · events</summary>
+        <summary className="details-bar">details — containers · inspector · gumps · census · diagnostics · movement · events</summary>
         <div className="details-inner">
           <div className="details-containers panel">
             <ContainerTree state={viz.state} selected={viz.selected} />
@@ -143,6 +136,12 @@ export function App() {
               {tab === "Gumps" && <GumpViewer world={world} />}
               {tab === "Census" && <CensusPanel world={world} streamLabels={viz.agg.labels} selected={viz.selected} />}
               {tab === "Diagnostics" && <DiagnosticsPanel state={viz.state} />}
+              {tab === "Movement" && (
+                <div className="tab-stack">
+                  <MovementPanel state={viz.state} agg={viz.agg} />
+                  <TrafficPanel traffic={viz.state?.traffic} lastAgent={viz.agg.lastAgent} world={world} />
+                </div>
+              )}
               {tab === "Events" && <EventLog events={viz.events} world={world} selected={viz.selected} />}
             </div>
           </div>

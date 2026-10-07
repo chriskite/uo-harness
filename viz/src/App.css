@@ -303,13 +303,8 @@ h4 {
 .left > .panel {
   flex: none;
 }
-.min-panel > summary {
-  border-radius: 3px;
-}
-.min-panel[open] > summary {
-  border-radius: 3px 3px 0 0;
-}
-.min-panel > .panel {
+/* panels stacked inside a details tab: the tab frame is the border */
+.tab-stack > .panel {
   border: none;
   border-top: 1px solid var(--border);
   border-radius: 0;

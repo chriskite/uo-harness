@@ -695,19 +695,20 @@ fixtures ("replay X, state at event N").
 │──────────────│               MapGrid                    │                  │
 │ Paperdoll    │  (full height: terrain, walk memory,     │ OverseerPanel    │
 │──────────────│   entities, trail)                       │ (chat timeline,  │
-│ ▸ Movement & │                                          │ junctures, open  │
-│   traffic    │                                          │ count, compose)  │
+│              │                                          │ junctures, open  │
+│              │                                          │ count, compose)  │
 ├──────────────┴──────────────────────────────────────────┴──────────────────┤
-│ ▸ details — Containers · Inspector · Gumps · Census · Diagnostics · Events │
+│ ▸ details — Containers · Inspector · Gumps · Census · Diagnostics ·        │
+│             Movement · Events                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Layout (reworked 2026-09-30, user request):** the map, the agent intent, the live view,
 self/state and the overseer chat are the primary surface; everything else starts minimized.
-MovementPanel and TrafficPanel fold into a collapsed `<details>` at the foot of the left
-column; ContainerTree and the Inspector/Gumps/Census/Diagnostics tabs plus the EventLog sit in
-a collapsed bottom drawer (`<details>`, 300 px when open). Selecting an entity (map click,
-serial link) opens the drawer on the Inspector tab.
+ContainerTree and the Inspector/Gumps/Census/Diagnostics/Movement tabs plus the EventLog sit
+in a collapsed bottom drawer (`<details>`, 300 px when open); the Movement tab stacks
+MovementPanel and TrafficPanel (moved there from the left column 2026-10-06, user request).
+Selecting an entity (map click, serial link) opens the drawer on the Inspector tab.
 
 - **SelfPanel.** `world.self`: name, serial, vitals bars, stats, gold/weight, warmode,
   notoriety, buffs (`world.buffs[self]`), skills (top N; values ×10 fixed point, joined with
