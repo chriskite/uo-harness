@@ -687,6 +687,16 @@ than `done`, `break_due` or `stopped` (`trip_done` is between trips and keeps it
 - **Expected:** the plan row's field and net logs/hr (with the 80% band), P(death)/trip,
   deaths/hr (red when the spot has deaths), PKs seen/hr, sent home/hr and thefts/hr.
 - **This trip:** the intent's `woods` as bars, with each wood's share in past trips at the spot.
+- **Current logs/hr** (2026-10-06, user request), at the top of This trip: the logs gained over
+  the last 5 min at the grove, per hour (`currentRate`), next to the plan's expected field rate.
+  - The samples come from the intent history, with no new proxy field. A closed step's `woods` is
+    its last update, so the tally at its `until` is known. The window ends at the clock (live:
+    wall clock; replay: newest event), so it falls while no logs come in.
+  - The window can't start before the field run began: the end of the last step that isn't at
+    the grove, or of the travel lockout. It never crosses trips, and a tally drop (a theft)
+    restarts it.
+  - It shows "not chopping" away from the grove and during the lockout, and "measuring" for the
+    first minute.
 - **History here:** the plan row's trips, field hours, logs, deaths and last trip, the newest 5
   trips at the spot (all-time `/api/jobs?job=lumber`) and the spot's wood mix.
 - It polls `/api/jobs/plan` and `/api/jobs` every 15 s only while it is shown (`usePlan`,
@@ -930,8 +940,8 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
   newer gate over an older state frame, and (§2.4) chart scales/ticks/bars, KPI tiles and tones,
   event wording, the theft-loss rule, wood shares, overseer cursor merging, timeline order,
   heartbeat status and chat validation, and the Jobs date range (query parsing and its inverse,
-  local-midnight bounds on DST days, presets), and (§2.11) the lumber run/leg rules, spot trips
-  and wood mixes.
+  local-midnight bounds on DST days, presets), and (§2.11) the lumber run/leg rules, the current
+  logs/hr window, spot trips and wood mixes.
   `bunx tsc --noEmit` must pass. No DOM snapshot tests; M2–M4 acceptance runs
   are the integration check.
 - **Jobs and overseer (`harness/test_viz.py`):** `jobs.analytics` numbers on a seeded store

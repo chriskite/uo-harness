@@ -1836,6 +1836,13 @@ ol.job-events li {
 .lumber-job h3 {
   margin: 8px 0 4px;
 }
+.lj-rate {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
 .lumber-job .wood-row {
   grid-template-columns: 64px 1fr 32px 70px;
   gap: 6px;

@@ -100,7 +100,7 @@ export function App() {
           <LivePanel viz={viz} onSwap={swap} />
         )}
         <PaperdollPanel viz={viz} />
-        {lumber && <LumberJobPanel intent={lumber} intents={viz.state?.intents} />}
+        {lumber && <LumberJobPanel intent={lumber} viz={viz} />}
       </aside>
       {liveMain ? (
         <main className="map">

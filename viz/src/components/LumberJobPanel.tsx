@@ -1,8 +1,12 @@
 // The left-column Lumber job pane: shown while a lumber run is going (App.tsx, runningLumber).
 // The spot and this trip's per-wood logs come from the runner's intent; the spot's expected
 // rates and its past trips from /api/jobs/plan and /api/jobs?job=lumber (all time).
+import { useEffect, useState } from "react";
+import { fmtDuration } from "../format.ts";
+import { intentClock } from "../intent.ts";
 import { fmtNum, fmtStamp, tripHome, type DateRange } from "../jobs.ts";
-import { lumberLeg, spotTrips, sumWoods, woodMix } from "../lumberjob.ts";
+import { currentRate, lumberLeg, RATE_MIN_S, spotTrips, sumWoods, woodMix } from "../lumberjob.ts";
+import type { VizSnapshot } from "../store.ts";
 import type { AgentIntent } from "../types.ts";
 import { Badge, Panel, Skeleton } from "./common.tsx";
 import { fetchLumber, useJobPoll, usePlan } from "./JobsCommon.tsx";
@@ -16,7 +20,13 @@ const LEG_BADGE = {
   home: <Badge kind="dim">back from</Badge>,
 } as const;
 
-export function LumberJobPanel({ intent, intents }: { intent: AgentIntent; intents: readonly AgentIntent[] | undefined }) {
+export function LumberJobPanel({ intent, viz }: { intent: AgentIntent; viz: VizSnapshot }) {
+  const [wallNow, setWallNow] = useState(() => Date.now() / 1000);
+  useEffect(() => {
+    const t = setInterval(() => setWallNow(Date.now() / 1000), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const intents = viz.state?.intents;
   const { data, error } = useJobPoll(fetchLumber, ALL_TIME);
   const plan = usePlan();
   const spot = intent.spot ? (plan.res?.plan?.spots.find((s) => s.id === intent.spot) ?? null) : null;
@@ -24,7 +34,9 @@ export function LumberJobPanel({ intent, intents }: { intent: AgentIntent; inten
   const pastMix = woodMix(sumWoods(here));
   const mix = woodMix(intent.woods);
   const total = mix.reduce((s, w) => s + w.logs, 0);
-  const leg = LEG_BADGE[lumberLeg(intent, intents)];
+  const legKey = lumberLeg(intent, intents);
+  const leg = LEG_BADGE[legKey];
+  const rate = currentRate(intent, intents, intentClock(viz.state, viz.events, wallNow));
 
   return (
     <Panel
@@ -90,6 +102,25 @@ export function LumberJobPanel({ intent, intents }: { intent: AgentIntent; inten
         )}
 
         <h3>This trip</h3>
+        {intent.woods !== undefined && (
+          <div className="lj-rate" title="Logs gained per hour over the last 5 min at the grove (shorter right after arriving)">
+            <span>now</span>
+            {rate ? (
+              <>
+                <b className="mono">{fmtNum(rate.logsH, 0)}</b>
+                <span>logs/hr</span>
+                <span className="dim small">
+                  over {fmtDuration(rate.spanS)}
+                  {spot ? ` · expected ${fmtNum(spot.rate_logs_h, 0)}` : ""}
+                </span>
+              </>
+            ) : (
+              <span className="dim">
+                {legKey !== "grove" || intent.kind === "lockout" ? "— not chopping" : `— measuring (needs ${RATE_MIN_S} s at the grove)`}
+              </span>
+            )}
+          </div>
+        )}
         {intent.woods === undefined ? (
           <span className="dim">no per-wood tally (the proxy or runner predates it)</span>
         ) : mix.length === 0 ? (
