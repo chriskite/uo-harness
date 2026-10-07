@@ -717,7 +717,10 @@ While a lumber run is going (§2.11's rule), the Live page map shows the spot's 
 wanted to see why a spot counts fewer trees than the game shows (findings: docs/NOTES.md "Grove
 tree counts").
 - **Area:** the spot's square (centre ± radius, Chebyshev) as a dashed yellow outline over a faint
-  fill.
+  fill; a forest spot (docs/LUMBER_LOOP.md §6 "Forest spots") as its cells over the faint fill with
+  the outline of their outer edges (`grove.ts` `cellOutline`; the API sends `area.cells` and
+  `area.cell`, the cell size). Trees count as inside when they stand in a cell, and only trees within
+  the margin of a cell come along.
 - **Trees** (`uomap.find_trees`, one per tile, seeds first; the runner's own list via
   `lumber_opt.area_trees`), coloured by harvest memory as `Memory.harvest_available` reads it:
   - green: choppable;
@@ -743,6 +746,8 @@ tree counts").
   - 27 trees in the area, 22 past the edge, 2 not counted;
   - hovering (1382, 2987) read "cypress tree 0x0CF8: choppable";
   - a mocked `done` intent hid the button and the legend.
+- Forest outline verified 2026-10-07 the same way on witcher_104a (578 trees, 203 cells): the dashed
+  cell outline and the legend's "forest (578 trees)" drew over the facet picture.
 
 ## 3. Parity principle
 

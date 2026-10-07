@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } 
 import { entityCaption, labelOf } from "../events.ts";
 import { DIR_NAMES, NOTORIETY, UNKNOWN_NOTORIETY_COLOR } from "../format.ts";
 import { FacetChunks, chunksInView, fetchFacetMeta, type FacetMeta } from "../facet.ts";
-import { fetchGrove, groveQuery, treeAt, treeText, type GroveResponse, type TreeState } from "../grove.ts";
+import { cellOutline, fetchGrove, groveQuery, treeAt, treeText, type GroveResponse, type TreeState } from "../grove.ts";
 import { runningLumber } from "../lumberjob.ts";
 import { MultiFootprints, houseAt, houseOf, type FootprintTile, type House } from "../multis.ts";
 import { hex } from "../serial.ts";
@@ -345,20 +345,38 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
       }
     }
 
-    // Lumber grove: the spot's area square and its trees by harvest-memory state; trees past
-    // the edge faint and hollow, tree-named statics the runner doesn't count as small squares.
+    // Lumber grove: the spot's area (its square, a forest spot's cells) and its trees by
+    // harvest-memory state; trees past the edge faint and hollow, tree-named statics the runner
+    // doesn't count as small squares.
     const g = s.grove;
     if (g?.spot) {
-      const { center, radius: r } = g.spot.area;
+      const { center, radius: r, cells, cell } = g.spot.area;
       const [cx, cy] = center;
       ctx.beginPath();
-      ctx.moveTo(...P(cx - r, cy - r));
-      ctx.lineTo(...P(cx + r + 1, cy - r));
-      ctx.lineTo(...P(cx + r + 1, cy + r + 1));
-      ctx.lineTo(...P(cx - r, cy + r + 1));
-      ctx.closePath();
-      ctx.fillStyle = "rgba(250, 204, 21, 0.05)";
-      ctx.fill();
+      if (cells?.length && cell) {
+        ctx.fillStyle = "rgba(250, 204, 21, 0.05)";
+        for (const [gx, gy] of cells) {
+          ctx.moveTo(...P(gx * cell, gy * cell));
+          ctx.lineTo(...P(gx * cell + cell, gy * cell));
+          ctx.lineTo(...P(gx * cell + cell, gy * cell + cell));
+          ctx.lineTo(...P(gx * cell, gy * cell + cell));
+          ctx.closePath();
+        }
+        ctx.fill();
+        ctx.beginPath();
+        for (const [x0, y0, x1, y1] of cellOutline(cells, cell)) {
+          ctx.moveTo(...P(x0, y0));
+          ctx.lineTo(...P(x1, y1));
+        }
+      } else {
+        ctx.moveTo(...P(cx - r, cy - r));
+        ctx.lineTo(...P(cx + r + 1, cy - r));
+        ctx.lineTo(...P(cx + r + 1, cy + r + 1));
+        ctx.lineTo(...P(cx - r, cy + r + 1));
+        ctx.closePath();
+        ctx.fillStyle = "rgba(250, 204, 21, 0.05)";
+        ctx.fill();
+      }
       ctx.setLineDash([8, 5]);
       ctx.strokeStyle = "#facc15";
       ctx.lineWidth = 2;

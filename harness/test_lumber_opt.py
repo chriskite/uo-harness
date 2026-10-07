@@ -570,7 +570,7 @@ def test_landings():
     # the route check: cached answers, planning budget per spot, too far without planning
     planned = []
 
-    def route_fn(start, center, radius):
+    def route_fn(start, area):
         planned.append(start)
         return None if start == (3001, 3000) else 7
     routes = {lo.route_key({"x": 3003, "y": 3000}, s): 9}
@@ -671,7 +671,7 @@ def test_discover_witcher():
     trees = [(r["x"] + dx, r["y"] + 10 + dy, 0, 0x0CE0) for r in runes[:4] for dx in range(-8, 9, 2)
              for dy in range(-8, 9, 2)]                     # 81 trees just south of runes 1-4, none at 5
     fn = lambda x0, y0, x1, y1: [t for t in trees if x0 <= t[0] <= x1 and y0 <= t[1] <= y1]  # noqa: E731
-    route = lambda start, c, r: None if start == (4000, 1000) else 12                     # noqa: E731
+    route = lambda start, area: None if start == (4000, 1000) else 12                     # noqa: E731
     found, skipped = lo.discover_witcher(fn, runes, {}, route_fn=route, towns=[(3000, 1030)])
     check("only the quiet grove", [s["id"] for s in found] == ["witcher_1"], [s["id"] for s in found])
     s = found[0] if found else {}
@@ -698,7 +698,7 @@ def test_discover_witcher():
     big = [(6150 + dx, 1010 + dy, 0, 0x0CE0) for dx in range(-8, 9, 2) for dy in range(-8, 9, 2)]   # 81
     small = [(5900 + dx, 1000 + dy, 0, 0x0CE0) for dx in range(-5, 7, 2) for dy in range(-5, 7, 2)]  # 36
     fn2 = lambda x0, y0, x1, y1: [t for t in big + small if x0 <= t[0] <= x1 and y0 <= t[1] <= y1]  # noqa: E731
-    found2, skipped2 = lo.discover_witcher(fn2, far, {}, route_fn=lambda s, c, r: lo.cheb(s, c))
+    found2, skipped2 = lo.discover_witcher(fn2, far, {}, route_fn=lambda s, area: lo.cheb(s, area["center"]))
     got = {s["id"]: (s["tree_count"], s["area"]["center"]) for s in found2}
     check("the 81-tree grove 110 tiles from rune 11 (150 from rune 10) goes to rune 11",
           got.get("witcher_11", (0,))[0] == 81 and lo.cheb(got["witcher_11"][1], (6150, 1010)) <= 7, got)
@@ -742,11 +742,54 @@ def test_travel_costs():
           and row(paid, "s")["net_logs_h"] < row(bare, "s")["net_logs_h"] - 10, (row(paid, "s"), row(bare, "s")))
 
 
+def test_forest_spots():
+    print("== forest spots: an area of cells; the landing nearest its edge; merged spots' trips count for it ==")
+    C = lo.CELL
+    # an L: cells (100..104, 100) and (100, 101..104); the square around it is centred on an empty cell
+    cells = [[100 + i, 100] for i in range(5)] + [[100, 101 + i] for i in range(4)]
+    f = spot("f", status="active")
+    f["area"] = {"center": [100 * C + 20, 100 * C + 20], "radius": 20, "cells": cells}
+    inside, corner = (100 * C + 3, 100 * C + 3), (100 * C + 30, 100 * C + 30)
+    check("a tile is in a forest by its cells, not by the square around them",
+          lo.in_area(f["area"], *inside) and not lo.in_area(f["area"], *corner)
+          and lo.in_area({"center": f["area"]["center"], "radius": 20}, *corner))
+    check("distance to the area: 0 inside, else to the nearest cell's edge (a square's: past its radius)",
+          lo.area_dist(f["area"], inside) == 0 and lo.area_dist(f["area"], corner) == 30 - C + 1
+          and lo.area_dist({"center": [0, 0], "radius": 5}, (9, 2)) == 4, lo.area_dist(f["area"], corner))
+    lo.check_spot(f)
+    bad_cells = False
+    try:
+        lo.check_spot({**f, "area": {**f["area"], "cells": [[1, 2, 3]]}})
+    except ValueError:
+        bad_cells = True
+    check("cells must be [cx, cy] pairs", bad_cells)
+    cx, cy = f["area"]["center"]
+    book = {"serial": "0x49865F8F", "kind": "runebook", "title": "Dan's book", "default": 0,
+            "runes": [{"i": 0, "name": "Mid Glade", "x": cx + 2, "y": cy + 2, "facet": 0},
+                      {"i": 1, "name": "Edge Glade", "x": 105 * C + 1, "y": 100 * C + 3, "facet": 0}]}
+    got = lo.landing_for(f, HOME, [book])
+    check("the landing nearest the forest's edge wins over the one nearest its square's centre; dist is to the edge",
+          got is not None and got["name"] == "Edge Glade" and got["dist"] == 2, got)
+    sq = {**f, "area": {"center": f["area"]["center"], "radius": 20}}
+    check("a forest's route cache key isn't its square's", lo.route_key(got, f) != lo.route_key(got, sq))
+
+    class Map:
+        def find_trees(self, x0, y0, x1, y1):
+            return [(x, y, 0, 0x0CE0) for x, y in (inside, corner) if x0 <= x <= x1 and y0 <= y <= y1]
+    check("the runner's trees: those in the cells only",
+          [(t["x"], t["y"]) for t in lo.area_trees(Map(), f["area"])] == [inside])
+    old = spot("old", status="disabled", merged_into="f", reason="merged into forest f")
+    out = plan([f, old], series("old", 6, 2000) + series("f", 2, 2000), landings={"f": landing(f), "old": None})
+    check("a merged spot's trips count for its forest (8 trips), it has none and can't be picked",
+          row(out, "f")["trips"] == 8 and row(out, "old")["trips"] == 0 and not row(out, "old")["eligible"],
+          (row(out, "f")["trips"], row(out, "old")["trips"]))
+
+
 if __name__ == "__main__":
     for fn in (test_explore_exploit, test_greedy_command, test_skill_rescaling, test_trip_size, test_hazard_evidence,
                test_gear_and_capacity, test_eligibility, test_regrowth, test_hatchets, test_spots_store,
                test_failed_places, test_landings, test_home_and_trips, test_libraries, test_discover_witcher,
-               test_travel_costs, test_capacity):
+               test_travel_costs, test_capacity, test_forest_spots):
         fn()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

@@ -158,7 +158,7 @@ RECENT_ZONE_S = 60.0          # a creature that left the view keeps its zone at 
 VIEW_EDGE_R = 15
 ROUTE_ZONE_S = 10.0
 DIR_NAMES = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
-AT_GROVE = 10                 # tiles beyond the area's radius that count as being at the grove already (no travel)
+AT_GROVE = 10                 # tiles from the area's edge that count as being at the grove already (no travel)
 LANDING_SLACK = 3             # tiles from the chosen rune's tile a recall out may land (live: on the tile) before it is wrong
 # the stash's lift waits this long after the chop's target (live 2026-10-05 10:09:30: a lift 0.47 s after the
 # hatchet's double-click got "You must wait to perform another action." and the logs stayed loose)
@@ -3056,9 +3056,10 @@ class LumberLoop:
             self.leave_room()
             st = self.state()
         area = self.k["harvest"]["area"]
-        here = cheb(self.link.pos(st), area["center"]) if self.facet_now(st) == self.facet else None
-        if here is not None and here <= area["radius"] + AT_GROVE:
+        pos = self.link.pos(st) if self.facet_now(st) == self.facet else None
+        if pos is not None and lumber_opt.area_dist(area, pos) <= AT_GROVE:
             return
+        here = None if pos is None else lumber_opt.landing_dist(area, pos)
         row = self.landing()
         if row is None:
             raise Abort(f"no landing for spot {self.k['spot']['id']}: no rune of the rune library "
@@ -3117,7 +3118,7 @@ class LumberLoop:
         self.afield = True                       # out: an escape from here on harvests on, not travels again
         self.mount_after_recall()
         log(f"recalled to {row['name']!r} from {where} at {to} ({res['method']}; "
-            f"{row['dist']} tiles from the grove's centre)")
+            f"{row['dist']} tiles from the grove)")
 
     def go_home(self):
         """Home by our own book's default rune (prepare_recall), unless at home already

@@ -491,6 +491,18 @@ def test_grove_route(m: memory.Memory, base: str):
     for q in ("", "x=12", "x=a&y=2"):
         code, _ = get_status(base + f"/api/lumber/grove?{q}")
         check(f"GET /api/lumber/grove?{q}: 400", code == 400, str(code))
+    C = lumber_opt.CELL
+    cell = [a["x"] // C, a["y"] // C]               # a forest of one cell: the tree `a` stands in it
+    m.lumber_spot_put("horseshoe_bay", "active", {"area": {"center": [cell[0] * C + 3, cell[1] * C + 3], "radius": 4,
+                                                           "cells": [cell]}}, "seed")
+    f = get(base + "/api/lumber/grove?spot=horseshoe_bay")
+    ins = [t for t in f.get("trees", []) if t["inside"]]
+    check("a forest spot: its cells and their size come with the area; inside = in a cell; trees within the "
+          "margin of the cells only",
+          f["spot"]["area"].get("cells") == [cell] and f["spot"]["area"].get("cell") == C
+          and ins and all([t["x"] // C, t["y"] // C] == cell for t in ins)
+          and all(lumber_opt.area_dist(f["spot"]["area"], (t["x"], t["y"])) <= f["margin"] for t in f["trees"]),
+          str(f.get("counts")))
 
 
 def test_overseer_routes(logdir):

@@ -406,6 +406,29 @@ class any_of:
         return min(max(0, chebyshev(t, c) - r) for c, r in self.goals)
 
 
+class in_cells:
+    """Goal predicate: on a tile of one of `cells`, squares of side `size` (cell (cx, cy)
+    covers x in cx·size .. cx·size + size − 1, likewise y): a lumber forest spot's area
+    (lumber_opt.CELL). Admissible heuristic: tiles to the cells' bounding box. No `center`."""
+
+    __slots__ = ("cells", "size", "box", "z_ok")
+
+    def __init__(self, cells: Iterable, size: int):
+        self.cells = frozenset((int(c[0]), int(c[1])) for c in cells)
+        self.size = int(size)
+        xs, ys = [c[0] for c in self.cells], [c[1] for c in self.cells]
+        self.box = (min(xs) * self.size, min(ys) * self.size,
+                    max(xs) * self.size + self.size - 1, max(ys) * self.size + self.size - 1)
+        self.z_ok = None
+
+    def __call__(self, t: Tile) -> bool:
+        return (t[0] // self.size, t[1] // self.size) in self.cells
+
+    def heuristic(self, t: Tile) -> int:
+        x0, y0, x1, y1 = self.box
+        return max(0, x0 - t[0], t[0] - x1, y0 - t[1], t[1] - y1)
+
+
 class beyond:
     """Goal predicate: more than `radius` tiles (Chebyshev) from every center, e.g. out of a
     thief's reach (loop_lumber keep_away). Admissible heuristic: the steps still needed to

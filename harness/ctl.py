@@ -3027,8 +3027,8 @@ def cmd_runes(a, mem):
 def cmd_lumber(a, mem):
     """The self-optimizing lumber job (harness/lumber_opt.py, docs/LUMBER_LOOP.md §6):
     `plan` picks the spot (Thompson sampling), trip size and hatchet for the next
-    `run lumber`; `spots`, `spot add|set`, `discover` manage the spots; `price`
-    and `prices` keep observed market prices."""
+    `run lumber`; `spots`, `spot add|set`, `discover` and `forests` (lumber_forest.py)
+    manage the spots; `price` and `prices` keep observed market prices."""
     import lumber_opt
     heartbeat(mem)
     op = a.lumber_op
@@ -3061,8 +3061,9 @@ def cmd_lumber(a, mem):
     if op == "spots":
         spots = lumber_opt.load_spots(mem)
         return {"ok": True, "spots": [
-            {k: s.get(k) for k in ("id", "name", "status", "reason", "source", "facet", "area", "pvp",
-                                   "hazard_prior", "danger_hint", "route_tiles", "tree_count")}
+            {**{k: s.get(k) for k in ("id", "name", "status", "reason", "source", "facet", "pvp",
+                                      "hazard_prior", "danger_hint", "route_tiles", "tree_count", "merged_into")},
+             "area": {k: (len(v) if k == "cells" else v) for k, v in (s.get("area") or {}).items()}}
             for s in sorted(spots.values(), key=lambda s: (s["status"] != "active", s["id"]))]}
     if op == "spot" and a.spot_op == "add":
         spots = lumber_opt.load_spots(mem)
@@ -3122,6 +3123,27 @@ def cmd_lumber(a, mem):
                 "candidates": found, "left_out": skipped, "replaced": len(replaced), "saved": not a.dry_run,
                 "next": "inspect each with `ctl map` near its area (no dungeon, outside town), then "
                         "`ctl lumber spot set <id> --status active` or `--status disabled --reason ...`"}
+    if op == "forests":
+        import lumber_forest
+        import pathfind
+        import places
+        import uomap
+        umap = uomap.UoMap(a.facet)
+        stand_z, step = lumber_forest.walk_fns(pathfind.Walk(umap))
+        spots = lumber_opt.load_spots(mem)
+        t0 = time.time()
+        got = lumber_forest.build(
+            spots, a.facet, lumber_forest.Trees(umap.find_trees), stand_z, step, lumber_forest.trip_counts(mem),
+            towns=[(t["x"], t["y"]) for t in places.atlas(("town",)) if t["facet"] == a.facet],
+            guard_points=mem.guard_points(a.facet), cap=lumber_forest.CAP if a.cap is None else a.cap)
+        if not a.dry_run:
+            lumber_forest.apply(mem, got["writes"], spots)
+            mem.chat_post("overseer", f"lumber forests (facet {a.facet}): {len(got['forests'])} forest spot(s), "
+                                      f"{sum(len(f['merged']) for f in got['forests'])} spot(s) merged", "action",
+                          data={"cmd": "lumber forests", "forests": [[f["id"], f["trees"], f["merged"]]
+                                                                    for f in got["forests"]]})
+        return {"ok": True, "facet": a.facet, "forests": got["forests"], "ungrown": got["ungrown"],
+                "saved": not a.dry_run, "seconds": round(time.time() - t0, 1)}
     if op == "price":
         t = None
         if a.at:
@@ -3326,6 +3348,11 @@ def _lumber_parser(sub):
     q.add_argument("--max-route", type=int, default=None,
                    help="the longest walk (tiles) from the rune's landing into its grove (default 300)")
     q.add_argument("--no-route-check", action="store_true", help="skip the walking-route check (faster)")
+    q.add_argument("--dry-run", action="store_true", help="list, don't save")
+    q = ls.add_parser("forests", help="grow every active spot over the forest around it (map data; "
+                                      "spots that meet merge up to the cap; docs/LUMBER_LOOP.md §6 'Forest spots')")
+    q.add_argument("--facet", type=int, default=0)
+    q.add_argument("--cap", type=int, default=None, help="trees per forest spot at most (default 800)")
     q.add_argument("--dry-run", action="store_true", help="list, don't save")
     q = ls.add_parser("price", help="record an observed price, e.g. hatchet:copper 1200, board:ordinary 9, "
                                     "reagent:black_pearl 5 or recall_charge 30 (supplies: what a trip's recalls cost)")

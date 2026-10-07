@@ -171,11 +171,60 @@ def load_spots(memory, seeds_path: str = SEEDS) -> dict:
     return out
 
 
+def merged_alias(spots: dict) -> dict:
+    """{spot id: forest spot id} for the spots `ctl lumber forests` merged into a forest
+    (their `merged_into`, lumber_forest.py): their trips and thefts count for that forest."""
+    return {sid: s["merged_into"] for sid, s in spots.items()
+            if s.get("merged_into") in spots and s["merged_into"] != sid}
+
+
 def check_spot(spot: dict):
-    """A spot the runner can work: an area (center [x, y] and radius)."""
+    """A spot the runner can work: an area (center [x, y] and radius; a forest spot also
+    `cells`, its CELL squares as [cx, cy] pairs, inside that square)."""
     area = spot.get("area") or {}
     if len(area.get("center") or ()) != 2 or _num(area.get("radius")) is None:
         raise ValueError(f"spot {spot.get('id')}: area needs center [x, y] and radius")
+    cells = area.get("cells")
+    if cells is not None and (not isinstance(cells, list) or not cells
+                              or any(not isinstance(c, (list, tuple)) or len(c) != 2 for c in cells)):
+        raise ValueError(f"spot {spot.get('id')}: area cells must be a non-empty list of [cx, cy] pairs")
+
+
+# A forest spot's area (lumber_forest.py, docs/LUMBER_LOOP.md §6 "Forest spots") is a set of
+# CELL x CELL squares (one map block each); its center and radius are the square that holds
+# them. A spot without `cells` is that square itself.
+CELL = 8
+
+
+def area_cells(area: dict) -> frozenset | None:
+    """A forest area's cells as {(cx, cy)}, None for a plain square."""
+    cells = area.get("cells")
+    return None if not cells else frozenset((int(c[0]), int(c[1])) for c in cells)
+
+
+def in_area(area: dict, x: int, y: int, cells: frozenset | None = None) -> bool:
+    """(x, y) lies in the area: one of its cells, else its square. cells: area_cells(area)
+    computed once by a caller testing many tiles."""
+    cells = area_cells(area) if cells is None else cells
+    if cells is None:
+        return cheb((x, y), area["center"]) <= area["radius"]
+    return (x // CELL, y // CELL) in cells
+
+
+def area_dist(area: dict, p, cells: frozenset | None = None) -> int:
+    """Chebyshev tiles from p to the area (0 inside it)."""
+    cells = area_cells(area) if cells is None else cells
+    x, y = int(p[0]), int(p[1])
+    if cells is None:
+        return max(0, cheb((x, y), area["center"]) - int(area["radius"]))
+    return min(max(0, cx * CELL - x, x - cx * CELL - CELL + 1, cy * CELL - y, y - cy * CELL - CELL + 1)
+               for cx, cy in cells)
+
+
+def landing_dist(area: dict, p) -> int:
+    """What a landing row's `dist` measures (landing_for): tiles from a square area's
+    centre, from a forest's edge (its centre may lie outside it)."""
+    return area_dist(area, p) if area.get("cells") else cheb(p, area["center"])
 
 
 def spot_knowledge(know: dict, spot: dict) -> dict:
@@ -197,17 +246,24 @@ def spot_knowledge(know: dict, spot: dict) -> dict:
 # ------------------------------------------------------------------ the way out: landings
 def landing_for(spot: dict, home: dict | None, books=(), route_ok=None, bad=()) -> dict | None:
     """The landing a trip to `spot` recalls to (user decision 2026-10-04: always as
-    close to the grove as we can): the first places.landings row nearest the area's
-    centre, from the rune library at home (home.libraries: trips start at home and
+    close to the grove as we can): the first places.landings row nearest the area
+    (a square's centre, a forest's nearest edge: `dist` is landing_dist), from the rune
+    library at home (home.libraries: trips start at home and
     reach its tomes on foot) and the character's own books (places.known_books), dangerous
     landings left out, and those in `bad` (landing_key: a recall to them landed elsewhere,
     bad_landings), for which route_ok(row, spot) holds (a walking route from the
     landing into the grove; None: no check). None when no landing qualifies."""
     import home as homes
     import places
-    (cx, cy) = spot["area"]["center"]
+    area = spot["area"]
+    (cx, cy) = area["center"]
     facet = int(spot.get("facet") or 0)
-    for row in places.landings(cx, cy, facet, libraries=homes.libraries(home), books=books):
+    rows = places.landings(cx, cy, facet, libraries=homes.libraries(home), books=books)
+    cells = area_cells(area)
+    if cells is not None:                            # stable: a tie keeps landings' own-book-first order
+        rows = sorted(({**row, "dist": area_dist(area, (row["x"], row["y"]), cells)} for row in rows),
+                      key=lambda row: row["dist"])
+    for row in rows:
         if landing_key(row, facet) in bad:
             continue
         if route_ok is None or route_ok(row, spot):
@@ -251,9 +307,16 @@ def landing_view(row: dict | None) -> dict | None:
 
 
 def route_key(row: dict, spot: dict) -> str:
-    """The landing-route cache key: facet, the landing tile, the grove's area."""
-    (cx, cy), r = spot["area"]["center"], spot["area"]["radius"]
-    return f"{int(spot.get('facet') or 0)}:{row['x']},{row['y']}>{cx},{cy},{r}"
+    """The landing-route cache key: facet, the landing tile, the grove's area (a forest's
+    cells by count and checksum)."""
+    area = spot["area"]
+    (cx, cy), r = area["center"], area["radius"]
+    key = f"{int(spot.get('facet') or 0)}:{row['x']},{row['y']}>{cx},{cy},{r}"
+    if area.get("cells"):
+        import zlib
+        cells = sorted((int(c[0]), int(c[1])) for c in area["cells"])
+        key += f"/{len(cells)}:{zlib.crc32(json.dumps(cells).encode()):08x}"
+    return key
 
 
 def landing_routes(memory) -> dict:
@@ -288,15 +351,14 @@ def make_route_ok(route_fn, routes: dict, new: dict, tries: int = None, max_rout
     def ok(row, spot):
         key = route_key(row, spot)
         if key not in routes:
-            if cheb((row["x"], row["y"]), spot["area"]["center"]) - spot["area"]["radius"] > max_route:
+            if area_dist(spot["area"], (row["x"], row["y"])) > max_route:
                 return False
             if route_fn is None:
                 return True
             if planned.get(spot["id"], 0) >= tries:
                 return False
             planned[spot["id"]] = planned.get(spot["id"], 0) + 1
-            routes[key] = new[key] = route_fn((row["x"], row["y"]), tuple(spot["area"]["center"]),
-                                              spot["area"]["radius"])
+            routes[key] = new[key] = route_fn((row["x"], row["y"]), spot["area"])
         n = routes[key]
         return n is not None and n <= max_route
     return ok
@@ -521,7 +583,7 @@ def weight(t: float, now: float) -> float:
 def attribute_deaths(trips: list, deaths: list, spots: dict) -> list:
     """[(death, spot id, trip or None)] for deaths (dicts t, x, y): during a lumber trip or
     within DEATH_LINK_S after one ended (the Terran PK killed us 11 s after the
-    runner stopped), at most CURRENT_SPOT_MARGIN + radius from that spot's
+    runner stopped), at most CURRENT_SPOT_MARGIN from that spot's
     area; else, with no such trip (rows of aborted trips only exist since
     2026-10-02), inside a spot's area. Deaths elsewhere (hunting) don't count."""
     out = []
@@ -532,13 +594,13 @@ def attribute_deaths(trips: list, deaths: list, spots: dict) -> list:
             tr = max(cands, key=lambda tr: tr["t0"])
             sid = tr["spot"]
             s = spots.get(sid)
-            if s is None or (pos is not None and s.get("area") and cheb(pos, s["area"]["center"])
-                             > s["area"]["radius"] + CURRENT_SPOT_MARGIN):
+            if s is None or (pos is not None and s.get("area")
+                             and area_dist(s["area"], pos) > CURRENT_SPOT_MARGIN):
                 continue
             out.append((d, sid, tr))
         elif pos is not None:
             inside = [(cheb(pos, s["area"]["center"]), sid) for sid, s in spots.items()
-                      if s.get("area") and cheb(pos, s["area"]["center"]) <= s["area"]["radius"]]
+                      if s.get("area") and in_area(s["area"], *pos)]
             if inside:
                 out.append((d, min(inside)[1], None))
     return out
@@ -710,7 +772,7 @@ def overhead_prior_s(spot: dict, landing: dict | None = None, home: dict | None 
     (docs/LUMBER_LOOP.md §6): out of the rental room (ROOM_EXIT_S), the walk to the
     landing's rune (library_walk), the recall out, the
     walk from the landing into the grove (its planned route when known, else the
-    straight distance to the area's inner half), the harvest lockout after the recall
+    straight distance to a square's inner half, a forest's edge plus half a cell), the harvest lockout after the recall
     (LOCKOUT_S), the recall home on our book's default rune, into the room
     (ROOM_ENTER_S), convert and store (OVERHEAD_FIXED_S). Without a landing (no home
     known) the walk in is the spot's discovered route_tiles, else NO_LANDING_TILES."""
@@ -719,7 +781,9 @@ def overhead_prior_s(spot: dict, landing: dict | None = None, home: dict | None 
         into = _num(spot.get("route_tiles"), NO_LANDING_TILES)
     else:
         into = landing.get("route_tiles")
-        if into is None:
+        if into is None and area.get("cells"):
+            into = area_dist(area, (landing["x"], landing["y"])) + CELL // 2
+        elif into is None:
             into = max(0, cheb((landing["x"], landing["y"]), area["center"]) - int(area.get("radius") or 0) // 2)
     walk = library_walk(landing, home)
     return (ROOM_EXIT_S + (walk + into) * SEC_PER_TILE + 2 * RECALL_TRIP_S + LOCKOUT_S
@@ -1081,7 +1145,11 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
     spot's own run either way."""
     char = char or {}
     young = bool(char.get("young"))
-    trips = [tr for tr in (trip_obs(e, prices) for e in episodes) if tr is not None and tr["spot"] in spots]
+    alias = merged_alias(spots)
+    trips = []
+    for tr in (trip_obs(e, prices) for e in episodes):  # a merged spot's trips are its forest's
+        if tr is not None and alias.get(tr["spot"], tr["spot"]) in spots:
+            trips.append({**tr, "spot": alias.get(tr["spot"], tr["spot"])})
     by_spot = {sid: [tr for tr in trips if tr["spot"] == sid] for sid in spots}
     hatchets = char.get("hatchets") or []
     worn = hatchets[0] if hatchets else None
@@ -1152,7 +1220,8 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
     share0 = (sum(i["yielded"] for i in infos) + 1.0) / (sum(i["tried"] for i in infos) + 2.0)
 
     models, rows = {}, []
-    thieves = {sid: [e["t"] for e in events if e["kind"] == "thief" and (e.get("data") or {}).get("spot") == sid
+    thieves = {sid: [e["t"] for e in events if e["kind"] == "thief"
+                     and alias.get((e.get("data") or {}).get("spot"), (e.get("data") or {}).get("spot")) == sid
                      and (e.get("data") or {}).get("action") != "keep_away"] for sid in spots}
     for sid, s in spots.items():
         landing = landings.get(sid)
@@ -1375,7 +1444,7 @@ def _walk(facet: int):
 
 def spot_tree_tiles(spots: dict) -> dict:
     """{spot id: (facet, {(x, y)})}: the tree tiles the runner tries at each spot,
-    its seed trees plus the map's tree statics in its area square (as
+    its seed trees plus the map's tree statics in its area (as
     loop_lumber.candidate_trees). Spots on a facet whose map files can't be read
     are left out (no capacity limit). Map tiles are cached per area."""
     out = {}
@@ -1384,12 +1453,11 @@ def spot_tree_tiles(spots: dict) -> dict:
         if not area:
             continue
         facet = int(s.get("facet") or 0)
-        (cx, cy), r = area["center"], area["radius"]
-        key = (facet, cx, cy, r)
+        cells = area_cells(area)
+        key = (facet, tuple(area["center"]), area["radius"], cells)
         if key not in _TILES:
             um = _umap(facet)
-            _TILES[key] = None if um is None else frozenset(
-                (x, y) for x, y, _z, _g in um.find_trees(cx - r, cy - r, cx + r, cy + r))
+            _TILES[key] = None if um is None else frozenset((t["x"], t["y"]) for t in area_trees(um, area))
         if _TILES[key] is not None:
             out[sid] = (facet, _TILES[key] | {(t["x"], t["y"]) for t in s.get("trees") or []})
     return out
@@ -1397,10 +1465,13 @@ def spot_tree_tiles(spots: dict) -> dict:
 
 def area_trees(um, area: dict, seeds=()) -> list:
     """The trees the runner works at a spot (loop_lumber.candidate_trees before harvest
-    memory and ordering): the seed trees, then the map's tree statics in the area square,
-    one per tile (the first one wins). -> [{x, y, z, graphic: "0x....", seed}]"""
+    memory and ordering): the seed trees, then the map's tree statics in the area (its
+    square, a forest's cells), one per tile (the first one wins).
+    -> [{x, y, z, graphic: "0x....", seed}]"""
     (cx, cy), r = area["center"], area["radius"]
-    found = [{"x": x, "y": y, "z": z, "graphic": f"0x{g:04X}"} for x, y, z, g in um.find_trees(cx - r, cy - r, cx + r, cy + r)]
+    cells = area_cells(area)
+    found = [{"x": x, "y": y, "z": z, "graphic": f"0x{g:04X}"} for x, y, z, g in um.find_trees(cx - r, cy - r, cx + r, cy + r)
+             if cells is None or (x // CELL, y // CELL) in cells]
     seen, out = set(), []
     for t, seed in [(t, True) for t in seeds] + [(t, False) for t in found]:
         if (t["x"], t["y"]) not in seen:
@@ -1410,15 +1481,15 @@ def area_trees(um, area: dict, seeds=()) -> list:
 
 
 def spot_at(spots: dict, facet: int, x: int, y: int):
-    """The spot whose area square holds (x, y) on `facet` (the nearest centre when
-    several do), else None."""
+    """The spot whose area holds (x, y) on `facet` (the nearest centre when several do;
+    spots merged into a forest left out), else None."""
     best = None
     for s in spots.values():
         area = s.get("area")
-        if not area or int(s.get("facet") or 0) != facet:
+        if not area or int(s.get("facet") or 0) != facet or s.get("merged_into"):
             continue
         d = cheb((x, y), area["center"])
-        if d <= area["radius"] and (best is None or d < best[0]):
+        if in_area(area, x, y) and (best is None or d < best[0]):
             best = (d, s)
     return None if best is None else best[1]
 
@@ -1427,11 +1498,11 @@ GROVE_MARGIN = 10                 # tiles around a spot's area the grove view al
 
 
 def grove_view(memory, spot: dict, now: float, margin: int = GROVE_MARGIN) -> dict:
-    """A spot's trees as the runner sees them, for the visualizer's map: its area, and
-    every tree-named static in the area plus `margin` tiles with
+    """A spot's trees as the runner sees them, for the visualizer's map: its area (a
+    forest's with its `cells`), and every tree-named static within `margin` tiles of the area with
       - kind "tree" (uomap.find_trees: a tree the runner tries when inside the area) or
         "excluded" (why: passable / unchoppable / potted / stump), one per tile, trees first;
-      - inside: within the area square (the runner's candidates);
+      - inside: within the area (the runner's candidates);
       - state for trees, from harvest memory as Memory.harvest_available reads it over the
         regrowth window of the plan (regrowth() over harvest_attempts, as `ctl lumber plan`
         passes it): "ready", "not_tree" (the server said so), "depleted" (depleted or a
@@ -1444,6 +1515,7 @@ def grove_view(memory, spot: dict, now: float, margin: int = GROVE_MARGIN) -> di
     facet = int(spot.get("facet") or 0)
     area = spot["area"]
     (cx, cy), r = area["center"], area["radius"]
+    cells = area_cells(area)
     attempts = memory.con.execute("SELECT t, facet, x, y, z, outcome FROM harvest_attempts ORDER BY t").fetchall()
     regrow = regrowth(attempts)
     window = regrow["minutes"] * 60.0
@@ -1452,12 +1524,13 @@ def grove_view(memory, spot: dict, now: float, margin: int = GROVE_MARGIN) -> di
         "SELECT x, y, z, depleted_at, unreachable_at, not_tree FROM harvest_nodes WHERE facet=? "
         "AND x BETWEEN ? AND ? AND y BETWEEN ? AND ?", (facet, cx - R, cx + R, cy - R, cy + R))}
     td = um.tiledata
-    trees = area_trees(um, {"center": [cx, cy], "radius": R}, spot.get("trees") or [])
+    trees = [t for t in area_trees(um, {"center": [cx, cy], "radius": R}, spot.get("trees") or [])
+             if cells is None or area_dist(area, (t["x"], t["y"]), cells) <= margin]
     out, seen = [], set()
     for t in trees:
         seen.add((t["x"], t["y"]))
         dep, unr, not_tree = nodes.get((t["x"], t["y"], t["z"]), (None, None, False))
-        row = {**t, "kind": "tree", "inside": cheb((t["x"], t["y"]), (cx, cy)) <= r, "state": "ready"}
+        row = {**t, "kind": "tree", "inside": in_area(area, t["x"], t["y"], cells), "state": "ready"}
         g = t.get("graphic")
         it = td.item(int(g, 16) if isinstance(g, str) else g) if g is not None else None
         row["name"] = it.name if it else None
@@ -1470,18 +1543,20 @@ def grove_view(memory, spot: dict, now: float, margin: int = GROVE_MARGIN) -> di
                     break
         out.append(row)
     for x, y, z, g, why in um.tree_statics(cx - R, cy - R, cx + R, cy + R):
-        if why is None or (x, y) in seen:
+        if why is None or (x, y) in seen or (cells is not None and area_dist(area, (x, y), cells) > margin):
             continue
         seen.add((x, y))
         it = td.item(g)
         out.append({"x": x, "y": y, "z": z, "graphic": f"0x{g:04X}", "seed": False, "kind": "excluded", "why": why,
-                    "inside": cheb((x, y), (cx, cy)) <= r, "name": it.name if it else None})
+                    "inside": in_area(area, x, y, cells), "name": it.name if it else None})
     inside = [t for t in out if t["kind"] == "tree" and t["inside"]]
     counts = {"trees": len(inside), "excluded": sum(1 for t in out if t["kind"] == "excluded" and t["inside"]),
               "outside": sum(1 for t in out if t["kind"] == "tree" and not t["inside"])}
     for state in ("ready", "depleted", "unreachable", "not_tree"):
         counts[state] = sum(1 for t in inside if t["state"] == state)
-    return {"spot": {k: spot.get(k) for k in ("id", "name", "facet", "status", "pvp")} | {"area": {"center": [cx, cy], "radius": r}},
+    view_area = {"center": [cx, cy], "radius": r} | ({"cells": sorted([int(c[0]), int(c[1])] for c in cells),
+                                                      "cell": CELL} if cells is not None else {})
+    return {"spot": {k: spot.get(k) for k in ("id", "name", "facet", "status", "pvp")} | {"area": view_area},
             "regrow_min": regrow["minutes"], "regrow_fitted": regrow["fitted"], "margin": margin, "now": now,
             "counts": counts, "trees": out}
 
@@ -1667,7 +1742,7 @@ def discover_witcher(trees_fn, runes, spots, *, library: str = "cambria", radius
             hits.setdefault(i, set()).add("taken" if key in taken else "town")
             continue
         r, danger = eligible[i]
-        route = route_fn((r["x"], r["y"]), (cx, cy), radius) if route_fn is not None else None
+        route = route_fn((r["x"], r["y"]), {"center": [cx, cy], "radius": radius}) if route_fn is not None else None
         if route_fn is not None and (route is None or route > max_route):
             failed[i] = failed.get(i, 0) + 1
             continue
@@ -1696,16 +1771,19 @@ def discover_witcher(trees_fn, runes, spots, *, library: str = "cambria", radius
 
 def make_route_fn(walk):
     """route_fn for discover_witcher and the planner's landing check (make_route_ok):
-    the planned walking route (pathfind.plan on the map) from a start tile into a
-    window, as its length in tiles, or None. It plans with the runner's search budget
-    (pathfind.plan's default), so a route found here is one the runner's Mover can
-    plan too."""
+    the planned walking route (pathfind.plan on the map) from a start tile into an area
+    (a square's inner half, any cell of a forest), as its length in tiles, or None. It
+    plans with the runner's search budget (pathfind.plan's default), so a route found
+    here is one the runner's Mover can plan too."""
     import nav
     import pathfind
 
-    def route(start, center, radius):
+    def route(start, area):
         objs = walk.objects(start[0], start[1])
         z = next((o[0] + o[1] for o in objs if o[4][0] in ("flat", "item")), 0) if objs else 0
-        path = pathfind.plan(walk, (start[0], start[1], z), nav.within(tuple(center), max(1, radius // 2)))
+        cells = area_cells(area)
+        goal = nav.within(tuple(area["center"]), max(1, int(area["radius"]) // 2)) if cells is None \
+            else nav.in_cells(cells, CELL)
+        path = pathfind.plan(walk, (start[0], start[1], z), goal)
         return None if path is None else len(path) - 1
     return route

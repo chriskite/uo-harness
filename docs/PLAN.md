@@ -577,6 +577,32 @@ plus the store, hatchets in `harness/data/hatchets.json`; the model is docs/LUMB
   The Jobs page shows the plan, the per-spot model, travel, tomes and supplies (VISUALIZER §2.4).
   Rejected: a separate travel table (the job events already index by job and time, and the trip
   row is what the planner reads).
+- **Forest spots: a spot is the whole forest around its window (user decisions 2026-10-07).**
+  Evidence (store, trips since 2026-10-04): the discovered 29×29 windows held ~500–1 000 logs
+  against a hazard-optimal trip of 4 200–5 900, so 118 of 123 eligible spots were grove-bound, and
+  30 of 35 stored trips ended because the window ran out of usable trees (11 dry, 19 every tree
+  left within a monster's reach). Each new trip pays ~135 s (walk out 27 s, lockout 49 s, room 11 s,
+  convert 33 s, store 12 s) plus the gap between runs; the plan with the grove cap lifted put the
+  median spot at +17 % net logs/h. Built: `harness/lumber_forest.py`, `ctl lumber forests`
+  (LUMBER_LOOP §6 "Forest spots"). The window grows like a paint bucket over walkable tiles within
+  3 tiles of a tree; every spot grows at once, stops at **800 trees** (user: "your recommended
+  cap", about two trips' worth), and spots whose territories meet merge while together under the
+  cap. The merged spot with the most trips keeps its id; the others are disabled with
+  `merged_into` and their trips count for it. The area is a set of 8×8 cells (the map's blocks).
+  First build on the live store: 127 spots → 93 forests (34 merged), median 165 trees, 54 of 90
+  eligible still grove-bound (was 118 of 123), median planned net 2 427 → 2 717 logs/h.
+  Rejected: the whole connected forest without a cap (one forest would mix areas with different
+  monster and PK traffic in one posterior, and a 30-min PK cooldown would close a whole woodland);
+  4-tile links (whole woodlands percolate: witcher_56 280 → 2 056 trees); storing every tree tile
+  (cells also answer "where is the area" for landings, deaths and the map, and stay small);
+  forests from the land texture (tree statics are what the runner chops).
+- **Next (user decision 2026-10-07): hop through the rune library instead of going home.** When a
+  trip ends early (dry, every tree guarded, a monster escape) carrying less than the plan would
+  risk, recall to the library, skip the room, and recall to the next spot; after a red sighting
+  too, letting the planner choose another spot with the load ("hop elsewhere with the load").
+  The rule: hop when a trip that starts with the carried load at the next spot (trip_terms with
+  an initial load, the hop's shorter overhead) beats storing first. Expected gain ~+2–4 % (the
+  library is at home, so a hop saves only the room: ~56 s plus the run gap); not built yet.
 
 ## Discord history capture (decided 2026-10-03)
 

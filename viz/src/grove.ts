@@ -17,7 +17,7 @@ export interface GroveTree {
   /** "tree": one the runner tries when inside the area; "excluded": find_trees leaves it out (`why`) */
   kind: "tree" | "excluded";
   why?: "passable" | "unchoppable" | "potted" | "stump";
-  /** within the spot's area square (the runner's candidates) */
+  /** within the spot's area: its square, a forest's cells (the runner's candidates) */
   inside: boolean;
   /** trees only: harvest memory over the plan's regrowth window */
   state?: TreeState;
@@ -42,7 +42,8 @@ export interface GroveSpot {
   facet: number | null;
   status: string | null;
   pvp: boolean | null;
-  area: { center: Tile; radius: number };
+  /** the area's square; a forest spot (harness/lumber_forest.py) also its `cells`, squares of `cell` tiles */
+  area: { center: Tile; radius: number; cells?: [number, number][]; cell?: number };
 }
 
 export interface GroveResponse {
@@ -75,6 +76,24 @@ export async function fetchGrove(query: string): Promise<GroveResponse> {
 /** The grove's tree on tile (x, y), if any. */
 export function treeAt(g: GroveResponse | null, x: number, y: number): GroveTree | null {
   return g?.trees?.find((t) => t.x === x && t.y === y) ?? null;
+}
+
+/** A forest's outline: the edges of its cells (cell [cx, cy] covers tiles cx·size .. cx·size + size − 1)
+ *  that don't face another of its cells, as [x0, y0, x1, y1] in tile-corner coordinates. */
+export function cellOutline(cells: readonly (readonly [number, number])[], size: number): [number, number, number, number][] {
+  const has = new Set(cells.map(([x, y]) => `${x},${y}`));
+  const out: [number, number, number, number][] = [];
+  for (const [cx, cy] of cells) {
+    const x0 = cx * size;
+    const y0 = cy * size;
+    const x1 = x0 + size;
+    const y1 = y0 + size;
+    if (!has.has(`${cx},${cy - 1}`)) out.push([x0, y0, x1, y0]);
+    if (!has.has(`${cx + 1},${cy}`)) out.push([x1, y0, x1, y1]);
+    if (!has.has(`${cx},${cy + 1}`)) out.push([x0, y1, x1, y1]);
+    if (!has.has(`${cx - 1},${cy}`)) out.push([x0, y0, x0, y1]);
+  }
+  return out;
 }
 
 const WHY_TEXT: Record<string, string> = {

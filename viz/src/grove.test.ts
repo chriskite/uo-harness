@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { groveQuery, treeAt, treeText, type GroveResponse, type GroveTree } from "./grove.ts";
+import { cellOutline, groveQuery, treeAt, treeText, type GroveResponse, type GroveTree } from "./grove.ts";
 import type { AgentIntent } from "./types.ts";
 
 const intent = (spot?: string): AgentIntent => ({ text: "chop", kind: "chop", loop: "lumber", since: 0, ...(spot ? { spot } : {}) });
@@ -14,6 +14,17 @@ describe("groveQuery", () => {
     expect(groveQuery(intent(), [1694, 672], null)).toBe("facet=0&x=1694&y=672");
     expect(groveQuery(intent(), null, 0)).toBeNull();
     expect(groveQuery(null, [1, 2], 0)).toBeNull();
+  });
+});
+
+describe("cellOutline", () => {
+  test("an L of three cells: only the edges that don't face another cell, in tile corners", () => {
+    const segs = cellOutline([[10, 10], [11, 10], [10, 11]], 8);
+    expect(segs).toHaveLength(8);
+    expect(segs).not.toContainEqual([88, 80, 88, 88]); // between (10,10) and (11,10)
+    expect(segs).not.toContainEqual([80, 88, 88, 88]); // between (10,10) and (10,11)
+    expect(segs).toContainEqual([96, 80, 96, 88]); // (11,10)'s east edge
+    expect(segs).toContainEqual([80, 96, 88, 96]); // (10,11)'s south edge
   });
 });
 

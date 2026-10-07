@@ -1,6 +1,6 @@
 # LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → the rental room's chest (→ deed later)
 
-Status (2026-10-04): **self-optimizing (§6, "Built 2026-10-02").** `ctl lumber plan` picks the spot
+Status (2026-10-07): **self-optimizing (§6, "Built 2026-10-02"); spots are forests since 2026-10-07 (§6 "Forest spots").** `ctl lumber plan` picks the spot
 (Thompson sampling over spots learned from every trip), the trip size (death, sent-home and theft risk vs. walking
 overhead) and the hatchet; the runner takes `--spot`. Every trip starts and ends at home: out of the
 rental room, recall to the landing nearest the grove, chop, recall home by our own book's default rune,
@@ -233,9 +233,39 @@ proposes from the map (since 2026-10-03 up to 200 tiles from each Witcher rune o
 walk of at most 300 tiles from its landing; not next to a learned guard point or a town, not
 overlapping a known spot; each discovery replaces the unreviewed candidates; the old `--from banks`
 search around bank markers is gone with the banks), and overrides a seed's status. Only `active`
-spots are planned; a candidate becomes active when the overseer approves it. Tree density doesn't
+spots are planned; a candidate becomes active when the overseer approves it (then run `ctl lumber
+forests`, below, so it grows into its forest). Tree density doesn't
 enter the chopping rate (live 2026-10-03: it didn't predict logs per field hour across the 7 spots
 with trips); it enters as the grove's **capacity** (below), which bounds the trip.
+
+**Forest spots (user decisions 2026-10-07, `harness/lumber_forest.py`, `ctl lumber forests`).** A
+discovered window held ~500–1 000 logs against a hazard-optimal trip of ~5 000, so nearly every
+trip ended dry or with every tree left by a monster (evidence: docs/PLAN.md "Forest spots"). Now a
+spot's area is the forest around its window:
+- **Fill:** breadth-first over tiles we can walk onto (`pathfind.Walk.can_walk`, 4 directions)
+  that lie within 3 tiles (`LINK`) of a tree static, from every such tile of the window. Trees up
+  to 7 tiles apart belong together; water, a cliff or a wider clearing ends the forest. A tree
+  within 2 tiles (`REACH`) of a filled tile is the forest's.
+- **No-go:** towns (50 tiles from a township marker), learned guard points (18 tiles) and spots
+  disabled by hand; the window itself is always in.
+- **Cap and merges:** every active spot grows at once, so spots in one woodland split it; a spot
+  stops at 800 trees (`CAP`, user: about two trips' worth). Territories that meet merge, smallest
+  pair first, while together under the cap. The merged spot with the most trips keeps its id and
+  becomes "<name> forest (N trees, k spots)"; the others turn `disabled` with `merged_into` and
+  reason "merged into forest <id>", and the plan counts their trips and thefts for the forest
+  (`lumber_opt.merged_alias`).
+- **Stored area:** `area.cells`, the 8×8 squares (`lumber_opt.CELL`, one map block) the fill
+  covered (each to the territory with most tiles in it; none touching a no-go zone outside the
+  windows), and `center`/`radius`, the square around them. `forest` keeps the window, the base
+  name, the counts and the build time, so a rebuild grows from the same windows and gives the same
+  forests. `in_area`, `area_dist` and `area_trees` read the cells; the runner works every tree in
+  them (nearest first) and counts as at the grove within 10 tiles of a cell (`AT_GROVE`).
+- **Rebuild** after approving candidates or disabling a spot: `ctl lumber forests [--dry-run]`
+  (~12 s for 127 spots on facet 0).
+- First build (2026-10-07): 127 spots → 93 forests (34 merged), 35–836 trees, median 165; 54 of
+  90 eligible spots are still grove-bound (was 118 of 123); median planned net logs/h 2 427 →
+  2 717. witcher_265 51 → 558 trees (its woodland is split with witcher_26, 656), witcher_89
+  42 → 607. A dry trip of a spot's old window keeps the forest out for one regrowth window.
 
 **Home and the way out (user decision 2026-10-04).** The character's home comes from
 `harness/data/homes.json` (`home.for_character`, keyed by the character's name: the proxy's
@@ -243,14 +273,16 @@ with trips); it enters as the grove's **capacity** (below), which bounds the tri
 house (landing 4134,1429), the DTF rune library (stand 4152,1429) and Logan Wolf's rental room with
 its secure chest. A trip leaves the room through the house steward, recalls out to the **landing
 nearest the grove** (`lumber_opt.landing_for`: the first `places.landings` row from the home rune
-library and the character's own runebooks/rune tomes, `places.known_books`, nearest the area's
-centre; a landing whose name has a monster word or whose tome/book is titled "Bad Places" is
-skipped; a landing needs a walking route into the grove, else the next nearest), chops, recalls home
+library and the character's own runebooks/rune tomes, `places.known_books`, nearest the area: a
+square's centre, a forest's nearest cell, where `dist` is tiles to that edge; a landing whose name
+has a monster word or whose tome/book is titled "Bad Places" is
+skipped; a landing needs a walking route into the grove (a square's inner half, any cell of a
+forest), else the next nearest), chops, recalls home
 on its own book's default rune, enters the room, converts and stores. No public moongates, no
 walking from a bank. The route check plans on the map with the runner's budget (`make_route_fn`,
 the same machinery as discover), at most 3 plans per spot per `plan`, landings farther than 300
 tiles from the area's edge failing unplanned; answers are cached in the store's meta
-(`lumber_landing_routes`, keyed by landing tile and area), so later plans answer at once (the 3 seed
+(`lumber_landing_routes`, keyed by landing tile and area, a forest's cells by checksum), so later plans answer at once (the 3 seed
 spots took 0.1 s on 2026-10-04). An active spot no landing reaches can't be picked; a character
 without a home gets `ok: false`, "no home in harness/data/homes.json for <name>", and the spots
 still ranked.
