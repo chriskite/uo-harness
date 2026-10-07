@@ -21,6 +21,8 @@
   kill, resume-while-killed 409
 - agent intent: lumber spot + per-wood tally kept, malformed ones dropped, a
   tally update stays one step
+- GET /api/lumber/grove: a spot's area and trees with their harvest-memory
+  states, by spot id or by a position inside it; bad params 400
 - job analytics (harness/jobs.py): trip rows, totals, per-day split, rolling
   logs/hr, deaths by cause, thefts, value from woods and the board price
   history (as of each trip's end), since filter, determinism
@@ -450,6 +452,47 @@ def test_hunt_jobs():
     m.close()
 
 
+def test_grove_route(m: memory.Memory, base: str):
+    """GET /api/lumber/grove on the server over store `m` (the map files are read-only
+    from the install dir; without them the route has no trees to show)."""
+    import lumber_opt
+    spots = lumber_opt.load_spots(m)
+    s = spots["horseshoe_bay"]
+    facet = int(s.get("facet") or 0)
+    um = lumber_opt._umap(facet)
+    if um is None:
+        print("  [SKIP] /api/lumber/grove: no map files")
+        return
+    (cx, cy), r = s["area"]["center"], s["area"]["radius"]
+    inside = [t for t in lumber_opt.area_trees(um, s["area"], s.get("trees") or [])]
+    a, b, c = inside[:3]
+    now = time.time()
+    for t, outcome, at in ((a, "depleted", now - 60), (b, "not_tree", now - 60), (c, "unreachable", now - 10 * 86400)):
+        m.harvest_record(facet, t["x"], t["y"], t["z"], int(t["graphic"], 16), outcome, t=at)
+    g = get(base + "/api/lumber/grove?spot=horseshoe_bay")
+    by = {(t["x"], t["y"]): t for t in g.get("trees", [])}
+    st = [by.get((t["x"], t["y"]), {}).get("state") for t in (a, b, c)]
+    check("GET /api/lumber/grove?spot=: the area, every runner tree inside it, harvest memory states "
+          "(depleted a minute ago until the regrowth window ends, not_tree, an old unreachable is ready again)",
+          g["spot"]["id"] == "horseshoe_bay" and g["spot"]["area"] == {"center": [cx, cy], "radius": r}
+          and g["counts"]["trees"] == len(inside) and g["counts"]["ready"] == len(inside) - 2
+          and st == ["depleted", "not_tree", "ready"]
+          and by[(a["x"], a["y"])]["until"] == round(now - 60 + g["regrow_min"] * 60, 1)
+          and all(t["inside"] for t in (by[(a["x"], a["y"])], by[(b["x"], b["y"])])),
+          f"{g.get('counts')} {st}")
+    out = [t for t in g["trees"] if not t["inside"]]
+    check("trees past the area (up to the margin) come marked outside, none further",
+          all(max(abs(t["x"] - cx), abs(t["y"] - cy)) <= r + g["margin"] for t in g["trees"])
+          and all(max(abs(t["x"] - cx), abs(t["y"] - cy)) > r for t in out), str(len(out)))
+    at = get(base + f"/api/lumber/grove?facet={facet}&x={cx}&y={cy}")
+    far = get(base + f"/api/lumber/grove?facet={facet}&x=1&y=1")
+    check("GET /api/lumber/grove by position: the spot whose area holds it, else spot null",
+          at["spot"]["id"] == "horseshoe_bay" and far == {"spot": None, "store": True}, str(far))
+    for q in ("", "x=12", "x=a&y=2"):
+        code, _ = get_status(base + f"/api/lumber/grove?{q}")
+        check(f"GET /api/lumber/grove?{q}: 400", code == 400, str(code))
+
+
 def test_overseer_routes(logdir):
     print("== /api/jobs, /api/overseer, POST /api/chat ==")
     path = os.path.join(tempfile.mkdtemp(), "harness.db")
@@ -543,6 +586,7 @@ def test_overseer_routes(logdir):
         check("rejected posts stored nothing", len(m.chat(role="user")) == 2, str(len(m.chat(role="user"))))
         code, _ = get_status(base + "/api/overseer?after_chat=x")
         check("GET /api/overseer bad cursor: 400", code == 400, str(code))
+        test_grove_route(m, base)
     finally:
         srv.shutdown()
         srv.server_close()

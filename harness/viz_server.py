@@ -236,6 +236,24 @@ class OverseerDB:
         with self.lock:
             self._open(True).set_captcha_mode(mode)
 
+    def grove(self, spot_id: str | None, facet: int, x: int | None, y: int | None) -> dict:
+        """lumber_opt.grove_view of spot `spot_id`, else of the spot whose area holds
+        (x, y) on `facet`; spot null when neither names one (or no store / no map files)."""
+        import lumber_opt
+        with self.lock:
+            mem = self._open(False)
+            if mem is None:
+                return {"spot": None, "store": False}
+            spots = lumber_opt.load_spots(mem)
+            spot = spots.get(spot_id) if spot_id else (
+                lumber_opt.spot_at(spots, facet, x, y) if x is not None and y is not None else None)
+            if spot is None or not spot.get("area"):
+                return {"spot": None, "store": True}
+            view = lumber_opt.grove_view(mem, spot, time.time())
+            if view is None:
+                return {"spot": None, "store": True, "error": f"no map files for facet {spot.get('facet') or 0}"}
+            return {**view, "store": True}
+
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "uo-viz/1"
@@ -450,6 +468,8 @@ class Handler(BaseHTTPRequestHandler):
             self._jobs(parse_qs(url.query))
         elif url.path == "/api/jobs/plan":
             self._send(200, self.server.overseer.plan())
+        elif url.path == "/api/lumber/grove":
+            self._grove(parse_qs(url.query))
         elif url.path == "/api/overseer":
             self._overseer(parse_qs(url.query))
         elif url.path == "/api/captcha":
@@ -490,6 +510,19 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"error": "since/until must be finite, until after since"})
             return
         self._send(200, self.server.overseer.jobs(job, since, until, utc_offset_s))
+
+    def _grove(self, qs: dict):
+        spot = qs.get("spot", [None])[0] or None
+        try:
+            facet = int(qs.get("facet", ["0"])[0])
+            x, y = (None if qs.get(k, [""])[0] == "" else int(qs[k][0]) for k in ("x", "y"))
+        except ValueError:
+            self._json(400, {"error": "facet/x/y must be integers"})
+            return
+        if spot is None and (x is None or y is None):
+            self._json(400, {"error": "give spot=<id> or x and y (and facet)"})
+            return
+        self._json(200, self.server.overseer.grove(spot, facet, x, y))
 
     def _overseer(self, qs: dict):
         try:

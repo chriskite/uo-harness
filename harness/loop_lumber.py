@@ -2120,20 +2120,12 @@ class LumberLoop:
         area, minus what harvest memory rules out (regrowth window --regrow-min),
         nearest first with human noise; at most --max-trees (0 = all). Smart
         Harvest picks the tree itself: the list decides where to stand (next_stand)."""
-        seeds = list(self.k["harvest"]["trees"])
-        found = []
         area = self.k["harvest"].get("area")
         walk = self.mover.walk_map(st)
         if area and walk is not None:
-            cx, cy = area["center"]
-            r = area["radius"]
-            found = [{"x": x, "y": y, "z": z, "graphic": f"0x{g:04X}"}
-                     for x, y, z, g in walk.m.find_trees(cx - r, cy - r, cx + r, cy + r)]
-        seen, trees = set(), []
-        for t in seeds + found:
-            if (t["x"], t["y"]) not in seen:
-                seen.add((t["x"], t["y"]))
-                trees.append(t)
+            trees = lumber_opt.area_trees(walk.m, area, self.k["harvest"]["trees"])
+        else:
+            trees = [{**t, "seed": True} for t in self.k["harvest"]["trees"]]
         now = time.time()
         trees = [t for t in trees if self.memory.harvest_available(
             self.facet, t["x"], t["y"], t["z"], self.args.regrow_min * 60, now)]

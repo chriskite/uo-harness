@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } 
 import { entityCaption, labelOf } from "../events.ts";
 import { DIR_NAMES, NOTORIETY, UNKNOWN_NOTORIETY_COLOR } from "../format.ts";
 import { FacetChunks, chunksInView, fetchFacetMeta, type FacetMeta } from "../facet.ts";
+import { fetchGrove, groveQuery, treeAt, treeText, type GroveResponse, type TreeState } from "../grove.ts";
+import { runningLumber } from "../lumberjob.ts";
 import { MultiFootprints, houseAt, houseOf, type FootprintTile, type House } from "../multis.ts";
 import { hex } from "../serial.ts";
 import { screenDeltaToWorld, toScreen, toWorld, worldBounds, type Projection } from "../projection.ts";
@@ -16,6 +18,16 @@ const DEFAULT_ZOOM = 16;
 const CLICK_SLOP_PX = 4;
 const PROJECTION_KEY = "viz.mapProjection";
 const TERRAIN_KEY = "viz.mapTerrain";
+const GROVE_KEY = "viz.mapGrove";
+const GROVE_POLL_MS = 15_000;
+
+/** Grove layer tree colours per harvest-memory state (legend: .lg-tree-*). */
+const TREE_COLORS: Record<TreeState, string> = {
+  ready: "#22c55e",
+  depleted: "#f97316",
+  unreachable: "#a855f7",
+  not_tree: "#6b7280",
+};
 
 interface Dot {
   serial: HexSerial;
@@ -56,9 +68,11 @@ interface Scene {
   /** The agent intent's target tile and phase kind (state-port `intent`). */
   goal: Tile | null;
   goalKind: string | null;
+  /** The running lumber job's grove (/api/lumber/grove) when on this facet, else null. */
+  grove: GroveResponse | null;
 }
 
-function buildScene(viz: VizSnapshot, layer: WalkLayer): Scene {
+function buildScene(viz: VizSnapshot, layer: WalkLayer, grove: GroveResponse | null): Scene {
   const st = viz.state;
   const world = st?.world;
   const self = world?.self;
@@ -118,6 +132,7 @@ function buildScene(viz: VizSnapshot, layer: WalkLayer): Scene {
     selected: viz.selected,
     goal: intentGoal(st?.intent, world),
     goalKind: st?.intent && intentGoal(st.intent, world) ? (st.intent.kind ?? "target") : null,
+    grove: grove?.spot && (grove.spot.facet ?? 0) === (self?.map ?? 0) ? grove : null,
   };
 }
 
@@ -173,8 +188,44 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
   const footprints = useRef<MultiFootprints | null>(null);
   const footprint = useCallback((id: number) => footprints.current?.get(id) ?? null, []);
 
+  // Grove layer: polled only while a lumber run is going (the intent's spot, else the spot around us).
+  const initialGrove = localStorage.getItem(GROVE_KEY) !== "off";
+  const [groveOn, setGroveOn] = useState(initialGrove);
+  const [grove, setGrove] = useState<GroveResponse | null>(null);
+  const [groveError, setGroveError] = useState<string | null>(null);
+  const lumber = runningLumber(viz.state?.intent);
+  const self = viz.state?.world?.self;
+  const groveQ = groveQuery(lumber, truePosition(viz.state?.movement, self), self?.map);
+  const groveQRef = useRef(groveQ);
+  groveQRef.current = groveQ;
+  const groveKey = lumber && groveQ ? (lumber.spot ?? "around") : null;
+  useEffect(() => {
+    setGrove(null);
+    setGroveError(null);
+    if (!groveKey) return;
+    let live = true;
+    const load = () => {
+      const q = groveQRef.current;
+      if (!q) return;
+      fetchGrove(q).then(
+        (g) => {
+          if (!live) return;
+          setGrove(g);
+          setGroveError(g.error ?? null);
+        },
+        (e: unknown) => live && setGroveError(String(e)),
+      );
+    };
+    load();
+    const t = setInterval(load, GROVE_POLL_MS);
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
+  }, [groveKey]);
+
   const layer = useMemo(() => buildWalkLayer(viz.walkmem, viz.agg.live), [viz.walkmem, viz.agg.live]);
-  const scene = useMemo(() => buildScene(viz, layer), [viz, layer]);
+  const scene = useMemo(() => buildScene(viz, layer, groveOn ? grove : null), [viz, layer, groveOn, grove]);
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
 
@@ -292,6 +343,68 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
         }
         ctx.fill();
       }
+    }
+
+    // Lumber grove: the spot's area square and its trees by harvest-memory state; trees past
+    // the edge faint and hollow, tree-named statics the runner doesn't count as small squares.
+    const g = s.grove;
+    if (g?.spot) {
+      const { center, radius: r } = g.spot.area;
+      const [cx, cy] = center;
+      ctx.beginPath();
+      ctx.moveTo(...P(cx - r, cy - r));
+      ctx.lineTo(...P(cx + r + 1, cy - r));
+      ctx.lineTo(...P(cx + r + 1, cy + r + 1));
+      ctx.lineTo(...P(cx - r, cy + r + 1));
+      ctx.closePath();
+      ctx.fillStyle = "rgba(250, 204, 21, 0.05)";
+      ctx.fill();
+      ctx.setLineDash([8, 5]);
+      ctx.strokeStyle = "#facc15";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const sq = Math.max(2, z * 0.3);
+      ctx.lineWidth = 1;
+      for (const t of g.trees ?? []) {
+        if (t.kind !== "excluded" || !visible(t.x, t.y)) continue;
+        const [tx, ty] = C(t.x, t.y);
+        ctx.globalAlpha = t.inside ? 0.8 : 0.4;
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.strokeRect(tx - sq / 2, ty - sq / 2, sq, sq);
+      }
+      const tr = Math.max(2, z * 0.3);
+      for (const t of g.trees ?? []) {
+        if (t.kind !== "tree" || !visible(t.x, t.y)) continue;
+        const [tx, ty] = C(t.x, t.y);
+        const col = TREE_COLORS[t.state ?? "ready"];
+        ctx.beginPath();
+        ctx.arc(tx, ty, tr, 0, Math.PI * 2);
+        if (t.inside) {
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = col;
+          ctx.fill();
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = "#0a0705";
+          ctx.stroke();
+        } else {
+          ctx.globalAlpha = 0.5;
+          ctx.lineWidth = Math.max(1, z / 16);
+          ctx.strokeStyle = col;
+          ctx.stroke();
+        }
+        if (t.state === "not_tree") {
+          ctx.strokeStyle = "#e5e7eb";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(tx - tr, ty - tr);
+          ctx.lineTo(tx + tr, ty + tr);
+          ctx.moveTo(tx + tr, ty - tr);
+          ctx.lineTo(tx - tr, ty + tr);
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
     }
 
     // Trail of true positions.
@@ -465,6 +578,12 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
       const [hx, hy] = toWorld(v.proj, v, v.hover.mx, v.hover.my);
       hud.push(`cursor ${Math.floor(hx)},${Math.floor(hy)}`);
     }
+    let treeLine: string | null = null;
+    if (v.hover && s.grove) {
+      const [hx, hy] = toWorld(v.proj, v, v.hover.mx, v.hover.my);
+      const t = treeAt(s.grove, Math.floor(hx), Math.floor(hy));
+      if (t) treeLine = treeText(t, Date.now() / 1000);
+    }
     if (hovered) {
       const m = s.mobiles.find((mm) => mm.serial === hovered);
       const h = s.houses.find((hh) => hh.serial === hovered);
@@ -476,6 +595,12 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
     ctx.fillRect(6, 6, ctx.measureText(text).width + 12, 20);
     ctx.fillStyle = "#e8dcc0";
     ctx.fillText(text, 12, 20);
+    if (treeLine) {
+      ctx.fillStyle = "rgba(12, 8, 5, 0.8)";
+      ctx.fillRect(6, 28, ctx.measureText(treeLine).width + 12, 20);
+      ctx.fillStyle = "#e8dcc0";
+      ctx.fillText(treeLine, 12, 42);
+    }
   }, [footprint]);
 
   useEffect(() => {
@@ -686,6 +811,19 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
         >
           terrain
         </button>
+        {lumber && (
+          <button
+            type="button"
+            className={groveOn ? "active" : ""}
+            title="the lumber spot's area and its trees as the runner sees them (harvest memory)"
+            onClick={() => {
+              localStorage.setItem(GROVE_KEY, groveOn ? "off" : "on");
+              setGroveOn(!groveOn);
+            }}
+          >
+            grove
+          </button>
+        )}
         {onSwap && (
           <button type="button" title="swap the map and the live view" onClick={onSwap}>
             ⇄ swap
@@ -701,6 +839,34 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
         <span className="lg lg-item" /> ground item
         <span className="lg lg-house" /> house
       </div>
+      {lumber && groveOn && <GroveLegend grove={scene.grove} error={groveError} loaded={grove !== null} />}
+    </div>
+  );
+}
+
+/** The grove layer's key and counts (the area's trees by state), or why there is no grove. */
+function GroveLegend({ grove, error, loaded }: { grove: GroveResponse | null; error: string | null; loaded: boolean }) {
+  if (!grove?.spot || !grove.counts) {
+    return (
+      <div className="map-legend grove-legend">
+        <span className="dim">grove: {error ?? (loaded ? "no lumber spot here (or on another facet)" : "loading")}</span>
+      </div>
+    );
+  }
+  const c = grove.counts;
+  return (
+    <div className="map-legend grove-legend">
+      <span className="lg lg-grove" />
+      <b>{grove.spot.name ?? grove.spot.id}</b> {c.trees} trees in the area:
+      <span className="lg lg-tree lg-tree-ready" /> {c.ready} choppable
+      <span className="lg lg-tree lg-tree-depleted" /> {c.depleted} depleted
+      <span className="lg lg-tree lg-tree-unreachable" /> {c.unreachable} unreachable
+      <span className="lg lg-tree lg-tree-not_tree" /> {c.not_tree} not a tree
+      <span className="lg lg-tree-excluded" /> {c.excluded} not counted
+      <span className="lg lg-tree lg-tree-outside" /> {c.outside} past the edge
+      <span className="dim">
+        · regrowth {grove.regrow_min} min{grove.regrow_fitted ? "" : " (default)"}
+      </span>
     </div>
   );
 }

@@ -380,6 +380,24 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   prices, trip `woods` breakdowns and any "X logs/boards" use the wood names only; heartwood,
   bloodwood and frostwood (stock UO woods) don't exist on Outlands at all.
 
+## Grove tree counts: what the runner counts (2026-10-07, viz grove layer)
+
+The user saw more trees in game than a spot's "N trees". Read with `lumber_opt.grove_view` (the
+viz map's grove layer, docs/VISUALIZER.md §2.12) on the 2026-10-07 store:
+- **A spot's area is a square:** centre ± radius in Chebyshev distance (29×29 tiles at the
+  Witcher spots' radius 14). The runner's candidates are the trees inside it (`candidate_trees`,
+  now via `lumber_opt.area_trees`), plus `add_local_trees` near wherever an escape leaves it.
+- **A tree is one tile:** an impassable static whose tiledata name says tree (not potted, not a
+  stump, not 0x0C9E). One per tile (`uomap.find_trees`); the big trees' other art ("snow tree"
+  branches and crowns, "leaves") is passable and isn't counted.
+- **witcher_23** (Ruined Snow Fortress): 69 trees inside, **59 more within 10 tiles outside**.
+  All 57 passable "snow tree" statics within 24 tiles sit on a counted trunk tile.
+- **witcher_123** (Savannah and Watering Hole): 27 trees inside, 22 within 10 tiles outside, 2
+  tree-named statics not counted.
+- [INFERENCE] So most of the trees the user sees but the count misses are just past the square's
+  edge, not missing from the map reading. The layer shows both; whether a passable "snow tree"
+  tile could be chopped is untested.
+
 ## Cambria Witcher library and a death on an overseer ride (live 2026-10-03, Hackworth)
 
 - **The Cambria Witcher library works as documented** (docs/research/WORLD_LOCATIONS.md). Moongate

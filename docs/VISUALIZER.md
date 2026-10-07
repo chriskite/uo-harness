@@ -153,6 +153,7 @@ channels.
 | `POST /api/gate` | live only: `{"action": "pause"\|"resume"\|"kill"}`, forwarded as `{"op":"gate","action":...}` (§2.2) |
 | `GET /api/jobs?job=lumber[&since=T][&until=T][&tz=M]` | job analytics over [since, until) from the memory store (`harness/jobs.py`, §2.4), cached 2 s |
 | `GET /api/jobs/plan` | the lumber optimizer's plan over all history, recomputed once a minute on its own connection and lock (§2.4) |
+| `GET /api/lumber/grove?spot=ID` or `?facet=F&x=X&y=Y` | a lumber spot's area and its trees with their harvest-memory states (`lumber_opt.grove_view`, §2.12); by position: the spot whose area holds the tile, else `spot` null; 400 without either |
 | `GET /api/overseer?after_chat=N&after_juncture=M` | overseer chat rows and junctures above the cursors, open junctures, heartbeat (§2.4) |
 | `POST /api/chat` | `{"text": T}` → a `user` chat row for the overseer (§2.4) |
 | `GET /api/captcha`, `POST /api/captcha` | who answers the harvest captcha, `{"mode": "human"\|"auto"}` (§2.2a) |
@@ -710,6 +711,39 @@ than `done`, `break_due` or `stopped` (`trip_done` is between trips and keeps it
 - Verified in headless Chromium against the live viz with a mocked state (spot `witcher_23`):
   the Expected, This trip and History sections; `recall_out` reads "heading to"; `done` hides it.
 
+### 2.12 Lumber grove on the map (added 2026-10-07, user request)
+
+While a lumber run is going (§2.11's rule), the Live page map shows the spot's grove. The user
+wanted to see why a spot counts fewer trees than the game shows (findings: docs/NOTES.md "Grove
+tree counts").
+- **Area:** the spot's square (centre ± radius, Chebyshev) as a dashed yellow outline over a faint
+  fill.
+- **Trees** (`uomap.find_trees`, one per tile, seeds first; the runner's own list via
+  `lumber_opt.area_trees`), coloured by harvest memory as `Memory.harvest_available` reads it:
+  - green: choppable;
+  - orange: depleted (a depleted chop or a stand's "nothing nearby" within the regrowth window);
+  - purple: unreachable within the window;
+  - grey with an ✕: the server said it isn't a tree.
+  - Trees up to 10 tiles past the edge are drawn hollow and faint: the runner doesn't try them.
+- **Not counted:** tree-named statics `find_trees` leaves out (passable art, unchoppable,
+  potted, stump), as small squares; `uomap.tree_statics` says why.
+- **Hover** a tree for its name, graphic and state, with how long ago it ran dry and when it's
+  ready again.
+- **Legend:** a second row above the main legend: the spot, its counts by state, and the
+  regrowth window.
+  - The window is the plan's (`regrowth()` over `harvest_attempts`, what `ctl lumber plan`
+    passes as `--regrow-min`). A run started with another `--regrow-min` judges by that one.
+  - The runner's per-trip `no_route` set isn't visible to the viz.
+- **Source:** `GET /api/lumber/grove` (§2.1). The intent's `spot`, else the spot whose area
+  holds the true position (older runners). Polled every 15 s while the run lasts; a "grove"
+  map button (only during a run) hides it (`localStorage["viz.mapGrove"]`).
+- `viz/src/grove.ts` is the pure model (bun tests). `MapGrid.tsx` draws it.
+- Verified live in headless Chromium on 2026-10-07 against a second viz server (port 8091) during
+  the witcher_123 run:
+  - 27 trees in the area, 22 past the edge, 2 not counted;
+  - hovering (1382, 2987) read "cypress tree 0x0CF8: choppable";
+  - a mocked `done` intent hid the button and the legend.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see
@@ -877,6 +911,7 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
 | `viz/src/overseer.ts`, `components/OverseerPanel.tsx` | overseer timeline model (cursor merge, heartbeat status, chat validation) and the Overseer panel (§2.4) |
 | `viz/src/jobs.ts`, `chart.ts`, `components/JobsPage.tsx`, `components/Charts.tsx` | Jobs page view model (KPIs, event wording, theft rule, wood shares), SVG chart geometry, the dashboard and its charts (§2.4) |
 | `viz/src/lumberjob.ts`, `components/LumberJobPanel.tsx` | left-column Lumber job pane: run/leg detection, spot trips and wood mixes, and the panel (§2.11) |
+| `viz/src/grove.ts` | the map's lumber grove layer: query choice, tree lookup and hover text (§2.12) |
 | `harness/uoart.py`, `harness/test_uoart.py` | `UooImages` (gumps.uoo / art.uoo reader, shared with `paperdoll.py`) and `ItemArt` for `/api/art` (§2.9) |
 | `viz/src/App.tsx`, `components/*.tsx`, `App.css` | §4 panels |
 | `viz/src/fonts/` | Cinzel + Caudex woff2 (OFL; licences alongside), inlined into `main.css` by the build (§4 Theme) |
@@ -931,6 +966,9 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
     log shows only the test's own connection.
   - Agent intent: `spot` and `woods` kept, a tally-only update stays one step, malformed `woods`
     (negative, string, empty name, bool, list, 33 entries) and a 65-char `spot` dropped (§2.3).
+  - `/api/lumber/grove` (§2.12): the area, every runner tree inside it, harvest-memory states
+    (a fresh depleted mark with its window end, not_tree, an old unreachable ready again), trees
+    past the edge only up to the margin, lookup by position (else `spot` null), 400s.
 - **Proxy:** extend `test_movement.py` to check that proxy events and envelopes appear in the
   state-port event log.
 - **Frontend (`bun test`), pure helpers only:** serial normalization, entity lookup precedence,
@@ -941,7 +979,8 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
   event wording, the theft-loss rule, wood shares, overseer cursor merging, timeline order,
   heartbeat status and chat validation, and the Jobs date range (query parsing and its inverse,
   local-midnight bounds on DST days, presets), and (§2.11) the lumber run/leg rules, the current
-  logs/hr window, spot trips and wood mixes.
+  logs/hr window, spot trips and wood mixes, and (§2.12) the grove query choice and tree hover
+  text.
   `bunx tsc --noEmit` must pass. No DOM snapshot tests; M2–M4 acceptance runs
   are the integration check.
 - **Jobs and overseer (`harness/test_viz.py`):** `jobs.analytics` numbers on a seeded store

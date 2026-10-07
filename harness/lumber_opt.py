@@ -1395,6 +1395,97 @@ def spot_tree_tiles(spots: dict) -> dict:
     return out
 
 
+def area_trees(um, area: dict, seeds=()) -> list:
+    """The trees the runner works at a spot (loop_lumber.candidate_trees before harvest
+    memory and ordering): the seed trees, then the map's tree statics in the area square,
+    one per tile (the first one wins). -> [{x, y, z, graphic: "0x....", seed}]"""
+    (cx, cy), r = area["center"], area["radius"]
+    found = [{"x": x, "y": y, "z": z, "graphic": f"0x{g:04X}"} for x, y, z, g in um.find_trees(cx - r, cy - r, cx + r, cy + r)]
+    seen, out = set(), []
+    for t, seed in [(t, True) for t in seeds] + [(t, False) for t in found]:
+        if (t["x"], t["y"]) not in seen:
+            seen.add((t["x"], t["y"]))
+            out.append({**t, "seed": seed})
+    return out
+
+
+def spot_at(spots: dict, facet: int, x: int, y: int):
+    """The spot whose area square holds (x, y) on `facet` (the nearest centre when
+    several do), else None."""
+    best = None
+    for s in spots.values():
+        area = s.get("area")
+        if not area or int(s.get("facet") or 0) != facet:
+            continue
+        d = cheb((x, y), area["center"])
+        if d <= area["radius"] and (best is None or d < best[0]):
+            best = (d, s)
+    return None if best is None else best[1]
+
+
+GROVE_MARGIN = 10                 # tiles around a spot's area the grove view also shows (trees the runner doesn't try)
+
+
+def grove_view(memory, spot: dict, now: float, margin: int = GROVE_MARGIN) -> dict:
+    """A spot's trees as the runner sees them, for the visualizer's map: its area, and
+    every tree-named static in the area plus `margin` tiles with
+      - kind "tree" (uomap.find_trees: a tree the runner tries when inside the area) or
+        "excluded" (why: passable / unchoppable / potted / stump), one per tile, trees first;
+      - inside: within the area square (the runner's candidates);
+      - state for trees, from harvest memory as Memory.harvest_available reads it over the
+        regrowth window of the plan (regrowth() over harvest_attempts, as `ctl lumber plan`
+        passes it): "ready", "not_tree" (the server said so), "depleted" (depleted or a
+        stand's nothing-nearby within the window) or "unreachable" (within the window), with
+        `since` and `until` (when the window ends) for the last two.
+    None when the facet's map files can't be read."""
+    um = _umap(int(spot.get("facet") or 0))
+    if um is None:
+        return None
+    facet = int(spot.get("facet") or 0)
+    area = spot["area"]
+    (cx, cy), r = area["center"], area["radius"]
+    attempts = memory.con.execute("SELECT t, facet, x, y, z, outcome FROM harvest_attempts ORDER BY t").fetchall()
+    regrow = regrowth(attempts)
+    window = regrow["minutes"] * 60.0
+    R = r + margin
+    nodes = {(x, y, z): (dep, unr, bool(nt)) for x, y, z, dep, unr, nt in memory.con.execute(
+        "SELECT x, y, z, depleted_at, unreachable_at, not_tree FROM harvest_nodes WHERE facet=? "
+        "AND x BETWEEN ? AND ? AND y BETWEEN ? AND ?", (facet, cx - R, cx + R, cy - R, cy + R))}
+    td = um.tiledata
+    trees = area_trees(um, {"center": [cx, cy], "radius": R}, spot.get("trees") or [])
+    out, seen = [], set()
+    for t in trees:
+        seen.add((t["x"], t["y"]))
+        dep, unr, not_tree = nodes.get((t["x"], t["y"], t["z"]), (None, None, False))
+        row = {**t, "kind": "tree", "inside": cheb((t["x"], t["y"]), (cx, cy)) <= r, "state": "ready"}
+        g = t.get("graphic")
+        it = td.item(int(g, 16) if isinstance(g, str) else g) if g is not None else None
+        row["name"] = it.name if it else None
+        if not_tree:
+            row["state"] = "not_tree"
+        else:
+            for state, since in (("depleted", dep), ("unreachable", unr)):
+                if since is not None and now - since < window:
+                    row.update(state=state, since=round(since, 1), until=round(since + window, 1))
+                    break
+        out.append(row)
+    for x, y, z, g, why in um.tree_statics(cx - R, cy - R, cx + R, cy + R):
+        if why is None or (x, y) in seen:
+            continue
+        seen.add((x, y))
+        it = td.item(g)
+        out.append({"x": x, "y": y, "z": z, "graphic": f"0x{g:04X}", "seed": False, "kind": "excluded", "why": why,
+                    "inside": cheb((x, y), (cx, cy)) <= r, "name": it.name if it else None})
+    inside = [t for t in out if t["kind"] == "tree" and t["inside"]]
+    counts = {"trees": len(inside), "excluded": sum(1 for t in out if t["kind"] == "excluded" and t["inside"]),
+              "outside": sum(1 for t in out if t["kind"] == "tree" and not t["inside"])}
+    for state in ("ready", "depleted", "unreachable", "not_tree"):
+        counts[state] = sum(1 for t in inside if t["state"] == state)
+    return {"spot": {k: spot.get(k) for k in ("id", "name", "facet", "status", "pvp")} | {"area": {"center": [cx, cy], "radius": r}},
+            "regrow_min": regrow["minutes"], "regrow_fitted": regrow["fitted"], "margin": margin, "now": now,
+            "counts": counts, "trees": out}
+
+
 def spot_landings(memory, spots: dict, home: dict, books=(), route_check: bool = True) -> dict:
     """{spot id: landing_for row or None} with `route_tiles` (the planned walk into the
     grove, None: not planned) and `route_checked`. Active spots get the route check: cached

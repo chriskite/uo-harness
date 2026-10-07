@@ -451,23 +451,32 @@ class UoMap:
     # single sample and is deliberately not listed.
     UNCHOPPABLE_TREES = frozenset({0x0C9E})
 
+    def tree_statics(self, x0, y0, x1, y1):
+        """Statics in the rectangle whose tiledata name says tree, with why find_trees
+        leaves them out: None (a tree), "unchoppable" (UNCHOPPABLE_TREES), "passable"
+        (not impassable: e.g. the branches and crown tiles of a big tree's art), "potted"
+        or "stump". -> [(x, y, z, graphic, why)]"""
+        td = self.tiledata
+        out = []
+        for x, y, s in self.iter_statics(x0, y0, x1, y1):
+            it = td.item(s.graphic)
+            if it is None:
+                continue
+            name = it.name.lower()
+            if "tree" not in name:
+                continue
+            why = ("potted" if "potted" in name else "stump" if "stump" in name
+                   else "unchoppable" if s.graphic in self.UNCHOPPABLE_TREES
+                   else None if it.flags & IMPASSABLE else "passable")
+            out.append((x, y, s.z, s.graphic, why))
+        return out
+
     def find_trees(self, x0, y0, x1, y1):
         """Tree statics in the rectangle: impassable statics whose tiledata name
         says tree (not potted trees or stumps), minus UNCHOPPABLE_TREES.
         Harvestability of the rest is learned by the harvester (a non-tree
         answers cliloc 500489). -> [(x, y, z, graphic)]"""
-        td = self.tiledata
-        out = []
-        for x, y, s in self.iter_statics(x0, y0, x1, y1):
-            if s.graphic in self.UNCHOPPABLE_TREES:
-                continue
-            it = td.item(s.graphic)
-            if it is None or not it.flags & IMPASSABLE:
-                continue
-            name = it.name.lower()
-            if "tree" in name and "potted" not in name and "stump" not in name:
-                out.append((x, y, s.z, s.graphic))
-        return out
+        return [(x, y, z, g) for x, y, z, g, why in self.tree_statics(x0, y0, x1, y1) if why is None]
 
 
 # -- CLI -------------------------------------------------------------------
