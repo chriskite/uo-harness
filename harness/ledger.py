@@ -27,6 +27,15 @@ The runner may declare them before the server confirms the move. Nested containe
 carried: a stack moved into a pouch in the pack is no loss, and a loss out of the pouch is
 classified like any other (a thief's grab from it is `unexplained`).
 
+Settling: an item that leaves the pack whole with no cause stays in the baseline for
+`settle_s` (default 1 s) from the first view without it, and is booked only if a view after
+that still misses it. The server moves an item in two packets and a view can fall between
+them: a packed hatchet used is removed (0x1D) and then worn (0x2E) 16 ms later (live
+2026-10-06, run lumber-20261006-173734-54c3: a view in between booked the hatchet as theft).
+Turned up on the character it is `equipped`, back in the pack nothing; still gone after the
+window it is classified as below (a thief's grab is booked one window late). A stack
+decrease is booked at once.
+
 Classification of each loss (Delta.lost[i]["cause"]):
     equipped      it went onto the character (container = self), e.g. the
                   hatchet. Never theft.
@@ -258,17 +267,19 @@ class Delta:
 class Ledger:
     def __init__(self, woods: Woods | str | None = None, *, expect_ttl_s: float = 30.0,
                  mass_loss_min: int = 2, mass_loss_frac: float = 0.8,
-                 death_hold_s: float = 60.0):
+                 death_hold_s: float = 60.0, settle_s: float = 1.0):
         self.woods = load_woods(woods) if isinstance(woods, str) else (woods or default_woods())
         self.expect_ttl_s = expect_ttl_s
         self.mass_loss_min = mass_loss_min
         self.mass_loss_frac = mass_loss_frac
         self.death_hold_s = death_hold_s    # a heuristic death holds this long without a ghost body
+        self.settle_s = settle_s            # a whole item gone with no cause is booked after this long
         self.items: dict[int, dict] | None = None     # last pack view
         self.pack: int | None = None
         self.dead = False
         self.dead_until: float | None = None          # None = confirmed (ghost body / hits 0)
         self.pending: list[dict] = []                 # open expectations
+        self.settling: dict[int, float] = {}          # serial -> first view without it (still in the baseline)
 
     # ------------------------------------------------------------ expectations
     def expect(self, *entries, now: float | None = None):
@@ -329,7 +340,7 @@ class Ledger:
         cur = pack_items(state, pack)
         if self.items is None or self.pack != pack:
             d.first = self.items is None
-            self.items, self.pack = cur, pack
+            self.items, self.pack, self.settling = cur, pack, {}
             if reason and not self.dead:
                 self._die(d, reason, now, heuristic=False)
             return d
@@ -398,8 +409,9 @@ class Ledger:
         if rest and not reason and not self.dead:
             corpse = next((w for *_, w in rest if isinstance(w, str) and w.startswith("0x")
                            and (world_items.get(w) or {}).get("graphic") == CORPSE_GRAPHIC), None)
-            gone_whole = sum(1 for *_, whole, _w in rest if whole)
-            top = sum(1 for r in prev.values() if r["container"] == pack)
+            # a mass vanish is one view's: items already settling were counted when they left
+            gone_whole = sum(1 for s, *_, whole, _w in rest if whole and s not in self.settling)
+            top = sum(1 for s, r in prev.items() if r["container"] == pack and s not in self.settling)
             if corpse:
                 reason = f"pack items moved to corpse {corpse}"
             elif gone_whole >= self.mass_loss_min and \
@@ -409,17 +421,31 @@ class Ledger:
         if reason and not self.dead:
             self._die(d, reason, now, heuristic=heuristic)
         d.alive = not self.dead
-        for s, rec, n, _whole, where in rest:
+        held = {}
+        for s, rec, n, whole, where in rest:
             if self.dead:
                 d.lost.append(self._entry(s, rec, n, cause="death", to=where))
-            else:
-                e = self._entry(s, rec, n, cause="unexplained", to=where)
-                d.lost.append(e)
-                d.unexplained_losses.append(e)
+                continue
+            since = self.settling.get(s, now)
+            if whole and now - since < self.settle_s:  # may still turn up on us or back in the pack
+                held[s] = since
+                continue
+            e = self._entry(s, rec, n, cause="unexplained", to=where)
+            d.lost.append(e)
+            d.unexplained_losses.append(e)
         for e in d.lost:
             if e["serial"] in nested:
                 e["contents"] = nested[e["serial"]]
-        self.items = cur
+        # a settling item (with what it holds) stays in the baseline for the next view to judge
+        keep = {}
+        for s in gone:
+            top = s
+            while top not in held and prev[top]["container"] in gone:
+                top = prev[top]["container"]
+            if top in held:
+                keep[s] = prev[s]
+        self.items = {**keep, **cur}
+        self.settling = held
         # a drag within the pack is over once its stack shows in the destination
         self.pending = [p for p in self.pending if not (
             p["kind"] == "moving" and (cur.get(p["key"]) or {}).get("container") == p["dest"])]
