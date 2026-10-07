@@ -3,6 +3,7 @@ import { fetchJobs, fetchLumberPlan } from "../api.ts";
 import { fmtDuration } from "../format.ts";
 import {
   EVENT_HELP,
+  eventName,
   eventView,
   fmtCounts,
   fmtGp,
@@ -320,7 +321,7 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
                     <td>
                       {Object.entries(r.events).map(([k, n]) => (
                         <Badge key={k} kind={k === "death" ? "bad" : "warn"} title={EVENT_HELP[k]}>
-                          {k} {n}
+                          {eventName(k)} {n}
                         </Badge>
                       ))}
                     </td>

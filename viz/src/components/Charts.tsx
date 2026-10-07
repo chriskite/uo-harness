@@ -1,6 +1,6 @@
 // Plain-SVG charts for the Jobs page (geometry in chart.ts).
 import { barSlots, linePath, linScale, niceTicks, timeTicks } from "../chart.ts";
-import { EVENT_HELP, eventView, fmtInt, fmtNum, fmtStamp, oneLocalDay, tripHome, type HuntVisit, type JobEvent, type JobTrip } from "../jobs.ts";
+import { EVENT_HELP, eventName, eventView, fmtInt, fmtNum, fmtStamp, oneLocalDay, tripHome, type HuntVisit, type JobEvent, type JobTrip } from "../jobs.ts";
 import { fmtDuration } from "../format.ts";
 
 const W = 560;
@@ -325,16 +325,6 @@ const EVENT_CLASS: Record<string, string> = {
 /** Legend order of the strip's dot colours (EVENT_CLASS; anything else is ev-other). */
 const EVENT_LEGEND = ["ev-death", "ev-pk", "ev-theft", "ev-flee", "ev-ok", "ev-other"] as const;
 
-/** Short legend names of event kinds; others show their kind with spaces. */
-const EVENT_NAME: Record<string, string> = {
-  death: "died",
-  pk_seen: "PK seen",
-  flee: "fled",
-  leave: "left",
-  speech_hold: "paused (speech)",
-  speech_clear: "resumed",
-};
-
 /** A trip or visit on the strip: grey span from t_start to t_end. */
 export interface Span {
   n: number;
@@ -358,7 +348,6 @@ export function EventStrip({ spans, events }: { spans: Span[]; events: JobEvent[
     const cls = EVENT_CLASS[e.kind] ?? "ev-other";
     kindsByClass.set(cls, (kindsByClass.get(cls) ?? new Set<string>()).add(e.kind));
   }
-  const name = (kind: string) => EVENT_NAME[kind] ?? kind.replace(/_/g, " ");
   return (
     <>
       <svg className="chart strip" viewBox={`0 0 ${W} ${sh}`} role="img" aria-label="trips and job events over time">
@@ -387,8 +376,8 @@ export function EventStrip({ spans, events }: { spans: Span[]; events: JobEvent[
         {EVENT_LEGEND.filter((c) => kindsByClass.has(c)).map((c) => {
           const kinds = [...kindsByClass.get(c)!];
           return (
-            <span key={c} className="hint" title={kinds.map((k) => `${name(k)}: ${EVENT_HELP[k] ?? "(no description)"}`).join("\n")}>
-              <i className={`sw sw-dot ${c}`} /> {kinds.map(name).join(", ")}
+            <span key={c} className="hint" title={kinds.map((k) => `${eventName(k)}: ${EVENT_HELP[k] ?? "(no description)"}`).join("\n")}>
+              <i className={`sw sw-dot ${c}`} /> {kinds.map(eventName).join(", ")}
             </span>
           );
         })}

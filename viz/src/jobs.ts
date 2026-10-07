@@ -474,8 +474,8 @@ export const EVENT_HELP: Record<string, string> = {
   speech_hold: "Someone spoke nearby, so the runner paused for the human or the overseer.",
   speech_clear: "The speech hold ended and work resumed.",
   stand:
-    "One Smart Harvest stand: a tile the runner stood on and chopped from (it targets itself and the server picks a tree in reach). " +
-    "Records the trees in reach, chops, logs and why it moved on (out of wood, quota, break…).",
+    "One harvest (stored as a `stand` event): a tile the runner stood on and chopped from with Smart Harvest (it targets itself and " +
+    "the server picks a tree in reach). Records the trees in reach, chops, logs and why it moved on (out of wood, quota, break…).",
   monster_seen: "A hostile creature the runner steered clear of. These teach which bodies are aggressive and which areas to avoid.",
   monster_hit: "A creature damaged us. Records who, how much and what the runner did (run, walk on, recall or stop).",
   tracking: "A Tracking skill use to check for murderers nearby.",
@@ -487,6 +487,22 @@ export const EVENT_HELP: Record<string, string> = {
   mob_attack: "A creature attacked us.",
   leave: "The hunt runner left the spot (low hits, done, …).",
 };
+
+/** Short display names of event kinds where the stored kind isn't clear (`stand` is a harvest). */
+const EVENT_NAME: Record<string, string> = {
+  death: "died",
+  pk_seen: "PK seen",
+  flee: "fled",
+  leave: "left",
+  speech_hold: "paused (speech)",
+  speech_clear: "resumed",
+  stand: "harvest",
+};
+
+/** An event kind as the dashboards show it: its short name, else the kind with spaces. */
+export function eventName(kind: string): string {
+  return EVENT_NAME[kind] ?? kind.replace(/_/g, " ");
+}
 
 function str(v: unknown): string | null {
   return typeof v === "string" && v ? v : null;
@@ -542,7 +558,7 @@ export function eventView(e: JobEvent): EventView {
     case "guard_flight":
       return { label: "Fled into the guards", detail, tone: "warn" };
     default:
-      return { label: e.kind, detail, tone: "dim" };
+      return { label: eventName(e.kind), detail, tone: "dim" };
   }
 }
 
