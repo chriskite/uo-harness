@@ -1486,7 +1486,9 @@ class LumberLoop:
     def post_threat(self, st, a, worst, swung, action, why=None, extra=None, what=None) -> str:
         """The urgent `threat` juncture + `flee` job event (`extra` merged into its
         data, e.g. the monster_hit episode as `hit`); returns the summary (`what` when no
-        mobile names the threat). A target cursor still up is cancelled (drop_cursor): an
+        mobile names the threat). `data.threat` is the threat the summary names: a red
+        found by Tracking is out of view, so it isn't in the assessment's `threats`
+        (juncture 508, 2026-10-07). A target cursor still up is cancelled (drop_cursor): an
         escape walks off, a stop leaves."""
         self.drop_cursor()
         if worst is not None:
@@ -1496,7 +1498,8 @@ class LumberLoop:
             summary = "attacked by " + ", ".join(f"0x{s:08X}" for s in swung)
         else:
             summary = what or "taking damage"
-        data = {**a.to_dict(), "action": action, "attackers": self.attacker_list(swung), **(extra or {})}
+        data = {**a.to_dict(), "threat": worst.to_dict() if worst else None, "action": action,
+                "attackers": self.attacker_list(swung), **(extra or {})}
         if why:
             data["why"] = why
         what = "escaping" if action == "escape" else "stopping"

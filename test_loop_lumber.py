@@ -2071,6 +2071,13 @@ async def track_reds():
           code == 1 and js.get("threat", {}).get("data", {}).get("action") == "recall"
           and f"tracking: {RED_NAME} {RED_NEAR} spaces" in js["threat"]["summary"] and "pk_escape" in js
           and "escaped by recall" in text, f"exit {code} {[(j['kind'], j['summary']) for j in js.values()]}")
+    flee = [e["data"] for e in store.job_events("lumber") if e["kind"] == "flee"]
+    check("the threat juncture and its flee event name the tracked red (out of view, so not in the assessment's "
+          "threats; live 2026-10-07 juncture 508 listed only the town NPCs in view)",
+          (js.get("threat", {}).get("data", {}).get("threat") or {}).get("serial") == RED
+          and js["threat"]["data"]["threat"]["name"] == RED_NAME and js["threat"]["data"]["threat"]["kind"] == "red"
+          and len(flee) == 1 and (flee[0].get("threat") or {}).get("serial") == RED,
+          str(js.get("threat", {}).get("data", {}).get("threat"))[:300])
     eps = store.episodes("lumber")
     tr = (eps[0].get("tracking") or {}) if eps else {}
     check("the trip row has the hunt's coverage: on part of the time (off after the recall until turned back "
