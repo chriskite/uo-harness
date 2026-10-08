@@ -157,6 +157,9 @@ channels.
 | `GET /api/overseer?after_chat=N&after_juncture=M` | overseer chat rows and junctures above the cursors, open junctures, heartbeat (§2.4) |
 | `POST /api/chat` | `{"text": T}` → a `user` chat row for the overseer (§2.4) |
 | `GET /api/captcha`, `POST /api/captcha` | who answers the harvest captcha, `{"mode": "human"\|"auto"}` (§2.2a) |
+| `GET /api/nystul` | Nystul the Wizard's conversations, newest first: `{conversations: [{id, title, t_updated, messages, running}], available, model, thinking}` (§2.13) |
+| `GET /api/nystul/<id>` | `{conversation, messages}`; a running answer's `text` and `steps` are partial and grow between polls; 404 unknown, 400 non-integer id (§2.13) |
+| `POST /api/nystul/ask`, `POST /api/nystul/cancel` | `{"conversation": id\|null, "text": T}` → `{ok, conversation, message}` (400 text, 404 conversation, 409 busy, 503 no omp); `{"conversation": id}` → `{ok}` or 404 when nothing runs (§2.13) |
 | `GET /api/art/<graphic>.png` | an item's art from the client's `art.uoo`, cropped to its opaque pixels (§2.9); 404 JSON for an unknown/empty graphic or missing install data, 400 for a non-number |
 | `GET /api/multi/<id>` | a house's footprint from the client's `multi.mul` (decimal or 0x hex multi id = a data_type 2 item's graphic): `{"id", "source", "tiles": [[dx, dy, "wall"\|"floor"]]}`, "wall" = an impassable piece below 20 z; 404 JSON for an unknown id (§4 MapGrid) |
 | `GET /`, `/assets/*` | built frontend (`viz/dist/`) |
@@ -749,6 +752,53 @@ tree counts").
 - Forest outline verified 2026-10-07 the same way on witcher_104a (578 trees, 203 cells): the dashed
   cell outline and the legend's "forest (578 trees)" drew over the facet picture.
 
+### 2.13 Nystul the Wizard: the AI assistant (added 2026-10-08, user request)
+
+A chat that answers the operator's questions by looking things up, the way a coding agent does in
+this repo: the live state, the memory store (knowledge included), the Discord KB, docs and logs.
+Persona: Nystul, court mage of Lord British, in full roleplay; facts are copied exactly from tool
+output and every answer ends with `**Sources:**`. Read-only: it never acts in game, never writes
+the memory store, never reads secrets. Decision and rejected alternatives: docs/PLAN.md "Nystul
+the Wizard".
+- **Run:** each question is one headless `omp -p --mode json --no-session` run (`harness/nystul.py`),
+  model `--nystul-model` (default `sonnet`), thinking `--nystul-thinking` (default `medium`), cwd the
+  temp dir. The system prompt is `harness/nystul_prompt.md`. The last 12 messages (≤24k chars) and a
+  `Now:` header (local time, UTC offset, epoch) go into an `@` prompt file. At most 2 runs at once
+  (409 otherwise), 300 s each, cancelable (the process tree is killed).
+- **Tools:** only the eight `uo_*` tools of the extension `harness/nystul_ext.ts` (`-e`, `--tools`).
+  Each call runs `harness/nystul_tools.py TOOL BASE64(JSON)` with an argv, no shell. That script is
+  the boundary:
+  - `uo_api`: GET on an allowlist of this server's read routes, with a dotted `path` projection.
+  - `uo_ctl`: `status`, `journal`, `npcs`, `map`, `runes libraries|find|near`, `junctures`, `chat`.
+    `know`, `lumber` and every acting command are excluded: they write, inject, or bump the Seer's
+    heartbeat.
+  - `uo_sql`: `harness`, `discord` or `discord_kb`, opened `mode=ro` + `query_only` + an authorizer
+    that allows reads and five schema pragmas; 20 s cap, ≤500 rows.
+  - `uo_knowledge` (`Knowledge.search(touch=False)` on a read-only connection), `uo_discord`
+    (`facts` or `messages`; "not on this computer" without the Discord DBs).
+  - `uo_read`, `uo_grep`, `uo_list`: under the repo root only; `.git`, `ClassicUO`,
+    `discord_profile`, `settings.json*`, `telegram.json*`, `handoff.json*` and sqlite files are sealed.
+- **Store:** `harness/data/nystul.db` (gitignored), not the memory store, so the Seer's chat bus is
+  untouched. Created on the first ask; a `running` row left by a dead viz becomes `error`
+  ("interrupted").
+- **UI:** a `Nystul` page (`#nystul`: conversation list + chat) and a collapsible "Nystul the Wizard"
+  panel under the Seer on the Live page (`localStorage["uo-viz-nystul-open"]`), both on the same
+  active conversation (`localStorage["uo-viz-nystul-conv"]`). Answers render through a small
+  built-in markdown renderer (`viz/src/markdown.ts`, React elements only; links only for
+  `http(s)://` and `#`). Each answer shows its lookups (`stepLabel`, ✓/✗), time, count and cost; the
+  send button turns into "stop" while it runs. Polls the conversation every 1 s while it runs, the
+  list every 10 s.
+- Access is whoever can open the viz (the same as the Seer chat; user decision). The protection
+  against a prompt-injected LAN user is the tool surface, not access control.
+- Verified live 2026-10-08 on a second viz server (port 8091, `--live`): position and hits matched
+  `world.self`; "the Codex on hatchets" cited 10 entry ids, all present; "lumber trips in the last
+  7 days" said 142, as `/api/jobs` totals did; a follow-up used the prior answer; a request to print
+  `settings.json`/`telegram.json` and "make the character say hello" were refused in character
+  (the latter naming `ctl act say hello`); stop from the Live panel left the answer `cancelled`
+  and showed on `#nystul`. The memory store's chat and knowledge counts were unchanged.
+- Tests: `harness/test_nystul.py` (tool confinement, parser, runs on a fake omp, HTTP routes),
+  `viz/src/markdown.test.ts`, `viz/src/nystul.test.ts`.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see
@@ -917,6 +967,8 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
 | `viz/src/jobs.ts`, `chart.ts`, `components/JobsPage.tsx`, `components/Charts.tsx` | Jobs page view model (KPIs, event wording, theft rule, wood shares), SVG chart geometry, the dashboard and its charts (§2.4) |
 | `viz/src/lumberjob.ts`, `components/LumberJobPanel.tsx` | left-column Lumber job pane: run/leg detection, spot trips and wood mixes, and the panel (§2.11) |
 | `viz/src/grove.ts` | the map's lumber grove layer: query choice, tree lookup and hover text (§2.12) |
+| `harness/nystul.py`, `nystul_ext.ts`, `nystul_tools.py`, `nystul_prompt.md`, `test_nystul.py` | Nystul the Wizard: conversations and omp runs, the omp extension, the read-only tool boundary, the system prompt, tests (§2.13) |
+| `viz/src/nystul.ts`, `markdown.ts`, `components/NystulChat.tsx`, `NystulPage.tsx`, `Markdown.tsx` | Nystul view model (validation, step labels, run summary), the markdown parser, the chat, page and renderer (§2.13) |
 | `harness/uoart.py`, `harness/test_uoart.py` | `UooImages` (gumps.uoo / art.uoo reader, shared with `paperdoll.py`) and `ItemArt` for `/api/art` (§2.9) |
 | `viz/src/App.tsx`, `components/*.tsx`, `App.css` | §4 panels |
 | `viz/src/fonts/` | Cinzel + Caudex woff2 (OFL; licences alongside), inlined into `main.css` by the build (§4 Theme) |

@@ -1,8 +1,9 @@
 // viz_server client (docs/VISUALIZER.md §2.1): initial REST fetch, SSE stream
 // with resume (event batches + newest state, coalesced per task, sse.ts),
 // periodic walk-memory refresh, playback and agent-gate control, job analytics
-// and the overseer chat (§2.4).
+// and the overseer chat (§2.4), and the Nystul assistant chat.
 import type { HuntResponse, JobsResponse, PlanResponse, RangeBounds } from "./jobs.ts";
+import type { NystulConversation, NystulList } from "./nystul.ts";
 import type { OverseerResponse } from "./overseer.ts";
 import { supersede, type SseMessage } from "./sse.ts";
 import type { VizStore } from "./store.ts";
@@ -71,6 +72,55 @@ export async function postChat(text: string): Promise<number> {
   const body = (await r.json().catch(() => null)) as { ok?: boolean; id?: number; error?: string } | null;
   if (!r.ok || !body?.ok || typeof body.id !== "number") throw new Error(`chat: ${body?.error ?? `HTTP ${r.status}`}`);
   return body.id;
+}
+
+/** GET a Nystul route; null on 404, throws `nystul: <server error>` otherwise. */
+async function getNystul(path: string): Promise<unknown> {
+  const r = await fetch(path, { cache: "no-store" });
+  if (r.status === 404) return null;
+  const body: unknown = await r.json().catch(() => null);
+  if (!r.ok || !body) {
+    const err = body && typeof body === "object" && "error" in body ? String(body.error) : `HTTP ${r.status}`;
+    throw new Error(`nystul: ${err}`);
+  }
+  return body;
+}
+
+/** Nystul's conversations (newest first) and whether omp is available. */
+export async function fetchNystulList(): Promise<NystulList> {
+  const body = await getNystul("/api/nystul");
+  if (!body) throw new Error("nystul: HTTP 404");
+  return body as NystulList;
+}
+
+/** One conversation with its messages; null when the server no longer has it (404). */
+export async function fetchNystulConversation(id: number): Promise<NystulConversation | null> {
+  return (await getNystul(`/api/nystul/${id}`)) as NystulConversation | null;
+}
+
+/** Ask Nystul (conversation null = start a new one); resolves to the conversation and Nystul's message id. */
+export async function postNystulAsk(conversation: number | null, text: string): Promise<{ conversation: number; message: number }> {
+  const r = await fetch("/api/nystul/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ conversation, text }),
+  });
+  const body = (await r.json().catch(() => null)) as { ok?: boolean; conversation?: number; message?: number; error?: string } | null;
+  if (!r.ok || !body?.ok || typeof body.conversation !== "number" || typeof body.message !== "number") {
+    throw new Error(`nystul: ${body?.error ?? `HTTP ${r.status}`}`);
+  }
+  return { conversation: body.conversation, message: body.message };
+}
+
+/** Stop the running answer in `conversation`. */
+export async function postNystulCancel(conversation: number): Promise<void> {
+  const r = await fetch("/api/nystul/cancel", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ conversation }),
+  });
+  const body = (await r.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+  if (!r.ok || !body?.ok) throw new Error(`nystul: ${body?.error ?? `HTTP ${r.status}`}`);
 }
 
 export type CaptchaMode = "human" | "auto";

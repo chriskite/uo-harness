@@ -55,6 +55,13 @@ Routes:
                       captcha (Memory.captcha_mode; "human" when unset or no store)
   POST /api/captcha   {"mode": "human"|"auto"} -> Memory.set_captcha_mode -> {"ok": true,
                       "mode": M}; 400 otherwise. Runners read it at every captcha
+  GET  /api/nystul    {conversations: [{id, title, t_updated, messages, running}], available,
+                      model, thinking}: Nystul the Wizard, the AI assistant (harness/nystul.py)
+  GET  /api/nystul/<id>  {conversation, messages}; a running answer's text and lookup steps
+                      are partial and grow between polls; 404 unknown, 400 non-integer id
+  POST /api/nystul/ask  {"conversation": id|null, "text": T} -> {"ok": true, "conversation",
+                      "message"}; 400 bad text, 404 unknown conversation, 409 busy, 503 no omp
+  POST /api/nystul/cancel  {"conversation": id} -> {"ok": true}; 404 when nothing runs
   GET  /, /assets/*   the built frontend (viz/dist)
 
 Live mode only ever opens the proxy's state port (JSON lines). It never connects
@@ -63,6 +70,8 @@ to the control port and never injects or sends anything toward the game server
 flip the proxy's gate, which only decides whether agent injections on the control
 port are rejected. Its writes to the memory store are a user chat row (POST
 /api/chat) for the overseer AI to read and the captcha mode (POST /api/captcha).
+Nystul runs headless `omp` subprocesses whose only tools are read-only lookups
+(harness/nystul_tools.py); it writes only its own harness/data/nystul.db.
 Everything else is observation.
 """
 import argparse
@@ -83,6 +92,7 @@ import viz_feed  # noqa: E402
 import facet as facet_mod  # noqa: E402
 import jobs as jobs_mod  # noqa: E402
 import memory as memory_mod  # noqa: E402
+import nystul as nystul_mod  # noqa: E402
 from uo import cliloc  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -474,6 +484,10 @@ class Handler(BaseHTTPRequestHandler):
             self._overseer(parse_qs(url.query))
         elif url.path == "/api/captcha":
             self._json(200, self.server.overseer.captcha_mode())
+        elif url.path == "/api/nystul":
+            self._json(200, self.server.nystul.list())
+        elif url.path.startswith("/api/nystul/"):
+            self._nystul_get(url.path[len("/api/nystul/"):])
         elif url.path.startswith("/api/"):
             self._json(404, {"error": f"unknown route {url.path}"})
         else:
@@ -548,9 +562,46 @@ class Handler(BaseHTTPRequestHandler):
         self.server.overseer.set_captcha_mode(mode)
         self._json(200, {"ok": True, "mode": mode})
 
+    def _nystul_get(self, spec: str):
+        try:
+            conv = int(spec)
+        except ValueError:
+            self._json(400, {"error": "conversation id must be an integer"})
+            return
+        out = self.server.nystul.get(conv)
+        if out is None:
+            self._json(404, {"error": "no such conversation"})
+        else:
+            self._json(200, out)
+
+    def _nystul_ask(self, req: dict):
+        conv, text = req.get("conversation"), req.get("text")
+        if conv is not None and (isinstance(conv, bool) or not isinstance(conv, int)):
+            self._json(400, {"ok": False, "error": "conversation must be an integer or null"})
+            return
+        if not isinstance(text, str):
+            self._json(400, {"ok": False, "error": "text must be a string"})
+            return
+        try:
+            out = self.server.nystul.ask(conv, text)
+        except nystul_mod.NystulError as e:
+            self._json(e.code, {"ok": False, "error": str(e)})
+            return
+        self._json(200, {"ok": True, **out})
+
+    def _nystul_cancel(self, req: dict):
+        conv = req.get("conversation")
+        if isinstance(conv, bool) or not isinstance(conv, int):
+            self._json(400, {"ok": False, "error": "conversation must be an integer"})
+        elif self.server.nystul.cancel(conv):
+            self._json(200, {"ok": True})
+        else:
+            self._json(404, {"ok": False, "error": "nothing running"})
+
     def do_POST(self):
         url = urlsplit(self.path)
-        if url.path not in ("/api/playback", "/api/gate", "/api/chat", "/api/captcha"):
+        if url.path not in ("/api/playback", "/api/gate", "/api/chat", "/api/captcha", "/api/nystul/ask",
+                            "/api/nystul/cancel"):
             self._json(404, {"error": f"unknown route {url.path}"})
             return
         n = int(self.headers.get("Content-Length") or 0)
@@ -572,6 +623,10 @@ class Handler(BaseHTTPRequestHandler):
             self._chat(req)
         elif url.path == "/api/captcha":
             self._captcha(req)
+        elif url.path == "/api/nystul/ask":
+            self._nystul_ask(req)
+        elif url.path == "/api/nystul/cancel":
+            self._nystul_cancel(req)
         else:
             self._playback(req)
 
@@ -713,7 +768,8 @@ class VizServer(ThreadingHTTPServer):
     allow_reuse_address = False
 
     def __init__(self, addr, feed, dist: str, memory_db: str, facet_path: str | None = None,
-                 live_factory=None):
+                 live_factory=None, *, state_port: int = 25942, nystul_db: str = nystul_mod.DEFAULT_DB,
+                 nystul_model: str = "sonnet", nystul_thinking: str = "medium"):
         super().__init__(addr, Handler)
         self.feed = feed
         self.dist = dist
@@ -734,6 +790,15 @@ class VizServer(ThreadingHTTPServer):
             except (OSError, ValueError, struct.error) as e:
                 self.facet_error = f"{facet_path}: {e}"
         self.stopping = False
+        # Nystul's tools read the store, this server's read routes and ctl's read-only subset
+        host = self.server_address[0]
+        host = "127.0.0.1" if host in ("", "0.0.0.0", "::") else host
+        self.nystul = nystul_mod.Nystul(
+            nystul_db, model=nystul_model, thinking=nystul_thinking,
+            env={"NYSTUL_MEMORY_DB": os.path.abspath(memory_db),
+                 "NYSTUL_VIZ": f"http://{host}:{self.server_address[1]}",
+                 "NYSTUL_STATE_PORT": str(state_port)},
+            context=lambda: {k: feed.health().get(k) for k in ("mode", "session")})
 
     def handle_error(self, request, client_address):
         # A browser or phone dropping a keep-alive connection is routine on a LAN; its traceback
@@ -751,6 +816,7 @@ class VizServer(ThreadingHTTPServer):
     def server_close(self):
         super().server_close()
         self.overseer.close()
+        self.nystul.close()
         with self.live_lock:
             if self.live is not None:
                 self.live.stop_locked()
@@ -787,6 +853,9 @@ def main():
                    help="facet picture drawn under the map (read-only; install dir facet00.mul)")
     p.add_argument("--no-facet", action="store_true", help="don't load a facet picture")
     p.add_argument("--no-live", action="store_true", help="disable the live game-window view")
+    p.add_argument("--nystul-db", default=nystul_mod.DEFAULT_DB, help="Nystul the Wizard's conversations")
+    p.add_argument("--nystul-model", default="sonnet", help="omp model for Nystul the Wizard")
+    p.add_argument("--nystul-thinking", default="medium", help="omp thinking level for Nystul the Wizard")
     args = p.parse_args()
 
     feed = build_feed(args)
@@ -796,7 +865,8 @@ def main():
             import liveview
             return liveview.LiveCapture()
     srv = VizServer((args.host, args.port), feed, os.path.abspath(args.dist), args.memory_db,
-                    None if args.no_facet else args.facet, live_factory=live_factory)
+                    None if args.no_facet else args.facet, live_factory=live_factory, state_port=args.state_port,
+                    nystul_db=args.nystul_db, nystul_model=args.nystul_model, nystul_thinking=args.nystul_thinking)
     what = (f"replay {args.replay} ({feed.order} order, {len(feed.items)} items)" if args.replay
             else f"live state port {args.state_host}:{args.state_port}")
     print(f"[viz] {what}; http://{args.host}:{args.port}/", flush=True)

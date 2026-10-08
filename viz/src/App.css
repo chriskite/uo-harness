@@ -1197,6 +1197,29 @@ ol.lines {
   min-height: 0;
   overflow: hidden;
 }
+/* closed: just its title bar; open: shares the column with the Seer */
+.right-nystul {
+  flex: none;
+  overflow: hidden;
+}
+.right-nystul[open] {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.right-nystul > summary {
+  cursor: pointer;
+}
+.right-nystul > .nystul {
+  flex: 1;
+  min-height: 0;
+}
+.ny-full {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--link);
+}
 
 /* ---------------------------------------------------------------- overseer panel */
 
@@ -1482,6 +1505,241 @@ ol.lines {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* ---------------------------------------------------------------- Nystul the Wizard */
+
+.app-nystul {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 0 6px 6px;
+}
+.app-nystul > .header {
+  flex: none;
+  height: 44px;
+}
+.nystul-page {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 6px;
+}
+.ny-list {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+}
+.ny-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ny-conv {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  text-align: left;
+  padding: 4px 8px;
+}
+.ny-conv.active {
+  border-color: #5a4a9a;
+  background: #1b1630;
+}
+.ny-conv-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.ny-conv-time {
+  font-size: 11px;
+}
+.ny-main {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ny-title {
+  flex: none;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--frame);
+}
+.ny-title h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 20px;
+  color: var(--gold);
+  letter-spacing: 0.06em;
+}
+.ny-main > .nystul {
+  flex: 1;
+  min-height: 0;
+}
+.nystul {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.ny-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.1));
+}
+.ny-msg {
+  max-width: 88%;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 6px 10px;
+  font-size: 13px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+.ny-user {
+  align-self: flex-end;
+  background: linear-gradient(180deg, #1f3058, #15213f);
+  border-color: #3e5d9c;
+}
+.ny-user .ov-role {
+  color: #b4cbf2;
+}
+/* the wizard's arcane vellum */
+.ny-wizard {
+  align-self: flex-start;
+  color: var(--text);
+  background: #1b1630;
+  border-color: #5a4a9a;
+  box-shadow:
+    0 0 0 1px #0a0714,
+    inset 0 0 14px rgba(120, 90, 220, 0.18),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.ny-wizard .ov-role {
+  color: #c8b4ff;
+}
+.ny-steps {
+  font-size: 12px;
+  color: var(--dim);
+  margin: 2px 0 4px;
+}
+.ny-steps ol {
+  margin: 2px 0;
+  padding-left: 18px;
+  list-style: none;
+}
+.ny-steps li {
+  cursor: help;
+}
+.ny-mark {
+  display: inline-block;
+  width: 1.2em;
+}
+.ny-ponder {
+  font-style: italic;
+  margin: 4px 0;
+}
+.ny-summary {
+  font-size: 11px;
+  margin-top: 4px;
+}
+.ny-compact .ny-body {
+  padding: 6px;
+  gap: 6px;
+}
+.ny-compact .ny-msg {
+  padding: 4px 8px;
+  font-size: 12.5px;
+}
+
+/* markdown (components/Markdown.tsx) */
+.md {
+  overflow-wrap: anywhere;
+}
+.md p {
+  margin: 4px 0;
+}
+.md h3,
+.md h4,
+.md h5 {
+  margin: 8px 0 4px;
+  font-family: var(--display);
+  color: var(--gold);
+}
+.md h3 {
+  font-size: 15px;
+}
+.md h4 {
+  font-size: 14px;
+}
+.md h5 {
+  font-size: 13px;
+}
+.md ul,
+.md ol {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+.md pre {
+  margin: 4px 0;
+  padding: 6px 8px;
+  background: #0f0b07;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow-x: auto;
+  white-space: pre;
+}
+.md code {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.md :not(pre) > code {
+  padding: 0 3px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 2px;
+}
+.md blockquote {
+  margin: 4px 0;
+  padding-left: 10px;
+  border-left: 3px solid #5a4a9a;
+  color: var(--dim);
+}
+.md hr {
+  border: none;
+  border-top: 1px solid var(--frame);
+  margin: 8px 0;
+}
+.md a {
+  color: var(--link);
+}
+.md-table {
+  overflow-x: auto;
+  margin: 4px 0;
+}
+.md table {
+  border-collapse: collapse;
+}
+.md th,
+.md td {
+  border: 1px solid var(--frame);
+  padding: 2px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+.md th {
+  color: var(--gold);
 }
 
 /* ---------------------------------------------------------------- jobs page */
@@ -2000,14 +2258,26 @@ tr.spot-out td {
     gap: 8px;
     padding: 0 6px 16px;
   }
-  .app-jobs {
+  .app-jobs,
+  .app-nystul {
     height: auto;
+  }
+  .nystul-page {
+    grid-template-columns: 1fr;
+  }
+  .ny-list {
+    max-height: 200px;
+  }
+  .ny-main {
+    height: 80vh;
+    height: 80svh;
   }
   .jobs {
     overflow: visible;
   }
   .header,
-  .app-jobs > .header {
+  .app-jobs > .header,
+  .app-nystul > .header {
     flex: none;
     height: auto;
     flex-wrap: wrap;
@@ -2034,6 +2304,12 @@ tr.spot-out td {
     overflow: visible;
   }
   .right-overseer {
+    flex: none;
+    height: 70vh;
+    height: 70svh;
+    min-height: 360px;
+  }
+  .right-nystul[open] {
     flex: none;
     height: 70vh;
     height: 70svh;

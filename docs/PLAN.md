@@ -1443,6 +1443,29 @@ User request: a faster test suite with every existing check kept. Serial, the 46
   runner (it would hide flakes). The e2e files now take as long as their longest real-time
   scenario (`test_loop_lumber` `main` ~100 s), which sets the suite's floor.
 
+## Nystul the Wizard: an AI assistant in the viz (decided and built 2026-10-08)
+
+User request: an "AI Assistant" chat in the viz that answers the operator's questions by looking
+things up (memory store and knowledge, Discord KB, live state, docs, logs), as a coding agent does
+here, with the persona Nystul the Wizard. User decisions: Sonnet with thinking medium; open to
+anyone who can open the viz (like the Seer chat); a full `#nystul` page plus a compact Live-page
+panel on the same conversation; local sources only (no web search); a small built-in markdown
+renderer; full roleplay with exact, sourced facts. As built: docs/VISUALIZER.md §2.13.
+- **Adopted:** one headless `omp` run per question (`harness/nystul.py`), whose only tools come from
+  a project extension (`harness/nystul_ext.ts`) that execs `harness/nystul_tools.py` with an argv.
+  That script is the read-only, secret-free boundary (sealed paths, `mode=ro` + `query_only` + an
+  authorizer for SQL, a read-only `ctl` subset, an allowlist of viz GET routes). Conversations in
+  their own `harness/data/nystul.db`; the UI polls.
+- **Rejected:** omp's built-in `read`/`grep`/`bash` tools: they can't be confined to paths, so a
+  prompt-injected LAN user could read `settings.json`/`telegram.json` or run `ctl act`. Using
+  `ctl know search` for the knowledge lookup: it posts a `memory` chat row on the Seer's bus and
+  bumps `overseer_heartbeat`, which would fake "seer active". Storing conversations in the memory
+  store's `chat` table: it is the Seer's bus. A long-lived omp RPC session per conversation: more
+  moving parts for no gain at this volume; the transcript (12 messages, ≤24k chars) rides in the
+  prompt file instead. Web search: user decision.
+- **Risk:** the boundary is `nystul_tools.py`; any tool added to the extension must stay read-only
+  (omp's `--tools` doesn't filter extension tools, docs/NOTES.md "Nystul").
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

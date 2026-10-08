@@ -211,6 +211,17 @@ def search(query, k=8, channel=None, since=None, db_path=dc.DEFAULT_DB, vec_path
     return out
 
 
+def format_hits(hits) -> str:
+    """search() results as the CLI prints them: a header line, then the chunk's messages."""
+    out = []
+    for r in hits:
+        out.append(f"[{r['score']:.4f} sim {r['similarity']:.2f}{' +words' if r['word_match'] else ''}] "
+                   f"#{r['channel']} {r['date']}  {r['link']}")
+        out.append("  " + r["text"].split("\n", 1)[1].replace("\n", "\n  ")[:1200])
+        out.append("")
+    return "\n".join(out)
+
+
 def main():
     ap = argparse.ArgumentParser(description="semantic search over the captured Discord history")
     ap.add_argument("--db", default=dc.DEFAULT_DB)
@@ -237,11 +248,8 @@ def main():
     if a.json:
         print(json.dumps(res, indent=1, ensure_ascii=False))
         return 0
-    for r in res:
-        print(f"[{r['score']:.4f} sim {r['similarity']:.2f}{' +words' if r['word_match'] else ''}] "
-              f"#{r['channel']} {r['date']}  {r['link']}")
-        print("  " + r["text"].split("\n", 1)[1].replace("\n", "\n  ")[:1200])
-        print()
+    if res:
+        print(format_hits(res))
     return 0
 
 

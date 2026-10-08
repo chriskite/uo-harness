@@ -8,7 +8,7 @@ import { GateControls } from "./GateControls.tsx";
 
 const RATES = [0.25, 0.5, 1, 2, 4, 8, 16, 32];
 
-export const PAGES = ["Live", "Jobs"] as const;
+export const PAGES = ["Live", "Jobs", "Nystul"] as const;
 export type Page = (typeof PAGES)[number];
 
 export function Header({ viz, page, onPage }: { viz: VizSnapshot; page: Page; onPage: (p: Page) => void }) {
