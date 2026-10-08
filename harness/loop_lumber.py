@@ -179,6 +179,10 @@ CHEST_REACH = 2               # tiles from the home chest to drop into it [INFER
 COLORED_CHOP = re.compile(r"You chop some [a-z]+ logs and put them in your backpack\.$")
 SPEECH_POLL_S = 1.0           # while paused for speech: state reads + all-clear checks
 THREAT_MARGIN_S = 1.0         # reaction + packet latency on top of the cast
+# Self care casts (care_cast): the spell's target cursor (Greater Heal's cast delay ~1.5 s [INFERENCE: RunUO
+# circle 4 casting delay]), then the heal or cure taking effect after our target answer
+CARE_CURSOR_WAIT_S = 4.0
+CARE_RESULT_WAIT_S = 2.5
 # Waits stay watchful (LUMBER_LOOP.md §13 "Blind waits"; live 2026-10-03, Bastet: the red came into
 # view during the chop's 2.1 s aim pause and the recall went out 2.5 s after sight): every human pause
 # and every wait for a server result reads the state and runs the threat checks at least this often.
@@ -483,7 +487,9 @@ class LumberLoop:
         self._cancelled = None       # cursor id of the last target cursor cancelled by drop_cursor
         self._sight = {}             # mobile key -> wall time it came into view (note_sightings: react_s)
         self.pops = pouch.PopWatch()   # our trapped pouches going off: ours, or a thief's (check_pouches)
-        self.aid = healing.FleeAid()   # potions / a trapped pouch while running or between recall casts (flee_aid)
+        self.aid = healing.SelfCare()  # potions / a trapped pouch at any moment (flee_aid, self_care)
+        self._acting = False         # a chop attempt or a self-care cast in flight: no potion in between
+        self.no_reagents = set()     # spell ids the server refused for reagents this run (care_cast)
         self._pop_scan = 0           # link.events index folded into self.pops
         self._pop_since = time.time()  # pops before this run started are another run's (its own set-off)
         self._stash_due = None       # monotonic: when the last chop's stash may lift (attempt, stash_now)
@@ -517,6 +523,9 @@ class LumberLoop:
         relaxed = self.mode in ("salvage", "flee", "gap")
         if self.mode in ("gap", "flee", "escape"):
             self.flee_aid(st)        # before the stalled check: a paralysis is popped before rejected steps end the run
+        elif self.mode == "work" and self.care_ok(st) and self.flee_aid(st) \
+                and (hold := self.aid.ready_at() - time.monotonic()) > 0:
+            time.sleep(hold)         # whatever we send next (a hatchet, a book, a lift) clears the action delay
         if not relaxed and time.monotonic() > self.deadline:
             raise Abort(f"overall timeout ({self.args.timeout}s)")
         mv = st["movement"]
@@ -681,16 +690,15 @@ class LumberLoop:
         for fn in due:
             fn()
 
-    def flee_aid(self, st, standing: bool = False, frozen_hint: bool = False, working: bool = False) -> bool:
-        """One flight aid (healing.FleeAid, docs/LUMBER_LOOP.md §13 "Healing on the run") when one is due:
-        a live trapped pouch when paralyzed, a cure potion when poisoned, a heal potion when hurt, a refresh
-        potion when tired (running only). Potions are declared to the ledger (spent, not stolen) and the
-        pouch to PopWatch (own_pop) before the double-click; a `flee_aid` job event is deferred (later).
-        `standing`: before or between recall casts; `working`: between chops (self_care). True when
-        something was used."""
+    def flee_aid(self, st, standing: bool = False, frozen_hint: bool = False) -> bool:
+        """One potion or pouch (healing.SelfCare, docs/LUMBER_LOOP.md §13 "Healing on the run" and "Self
+        care") when one is due: a live trapped pouch when paralyzed, a cure potion when poisoned, a heal
+        potion when hurt and off cooldown, a refresh or strength potion. Potions are declared to the ledger
+        (spent, not stolen) and the pouch to PopWatch (own_pop) before the double-click; a `flee_aid` job
+        event is deferred (later). `standing`: before or between recall casts. True when something was used."""
         me = st["world"]["self"]
         now = time.monotonic()
-        aid = self.aid.choose(st["world"], self.self_serial(st), now, standing, frozen_hint, working)
+        aid = self.aid.choose(st["world"], self.self_serial(st), now, frozen_hint)
         if aid is None:
             return False
         if aid.kind == "pouch":
@@ -700,8 +708,9 @@ class LumberLoop:
         self.link.act(actions.dclick(aid.serial))
         self.aid.used(aid, now)
         frozen = bool((me.get("stats") or {}).get("flags", 0) & healing.FLAG_FROZEN)
-        log(f"{'self care' if working else 'flight aid'}: {aid.kind} ({aid.why}; hits {me.get('hits')}/"
-            f"{me.get('hits_max')}, stam {me.get('stam')}/{me.get('stam_max')}{', standing' if standing else ''})")
+        what = "self care" if self.mode == "work" and not standing else "flight aid"
+        log(f"{what}: {aid.kind} ({aid.why}; hits {me.get('hits')}/{me.get('hits_max')}, "
+            f"stam {me.get('stam')}/{me.get('stam_max')}{', standing' if standing else ''})")
         data = {"kind": aid.kind, "why": aid.why, "item": f"0x{aid.serial:08X}",
                 "hits": me.get("hits"), "hits_max": me.get("hits_max"), "stam": me.get("stam"),
                 "stam_max": me.get("stam_max"), "poisoned": me.get("poisoned"), "frozen": frozen or frozen_hint,
@@ -709,13 +718,75 @@ class LumberLoop:
         self.later(lambda data=data, where=self._where(st): self.memory.job_event("lumber", "flee_aid", data, **where))
         return True
 
+    def care_ok(self, st) -> bool:
+        """A potion may go now outside a getaway: no speech hold (we send nothing then), no chop attempt
+        or self-care cast in flight, no hatchet use awaiting its cursor, no target cursor up."""
+        return not (self.holding or self._acting or self._tool_sent is not None
+                    or (st["world"].get("target") or {}).get("active"))
+
     def self_care(self, st):
-        """Between chops (attempt, before the hatchet's use; user 2026-10-07, after their Razor heal
-        script): a cure potion when poisoned, else a heal potion with any hit missing, found anywhere in
-        the pack (healing.in_pack) and drunk by serial. The hatchet's double-click then waits out the
-        server's action delay after the drink (FleeAid.ready_at, USE_GAP_S)."""
-        if self.flee_aid(st, working=True) and (hold := self.aid.ready_at() - time.monotonic()) > 0:
-            time.sleep(hold)
+        """Between chops (attempt, before the hatchet's use; the user's Razor 'PK Getaway' script without
+        its moongates, 2026-10-07): a potion when one is due (flee_aid: cure, heal off cooldown, refresh,
+        strength, from anywhere in the pack); else the spell healing.care_spell picks (Cure while poisoned,
+        Heal or Greater Heal from 15 missing), keeping Recall's mana for the way home. Getaways never cast:
+        the recall, or running, comes first. The hatchet's double-click waits out the action delay."""
+        if not self.care_ok(st):
+            return
+        if self.flee_aid(st):
+            if (hold := self.aid.ready_at() - time.monotonic()) > 0:
+                time.sleep(hold)
+            return
+        c = healing.care_spell(st["world"], self.self_serial(st), combat.spell_mana(escape_mod.RECALL),
+                               self.no_reagents)
+        if c.kind == "spell":
+            self.care_cast(st, c)
+
+    def care_cast(self, st, c) -> bool:
+        """Cast `c.spell` (Cure, Heal or Greater Heal) on ourselves: 0xFF sub 4, then the cursor answered
+        with us (combat.target_self), as the script's `cast` + `hotkey 'Target Self'`. Its reagents are
+        declared to the ledger first (spent, not stolen; none with a spellstone). A cast that brings no
+        cursor (fizzle, the server's refusal) is let go; 'more reagents needed' stops that spell for the
+        run. The cast puts the hatchet in the pack: use_hatchet's double-click equips it again."""
+        sid, me0 = c.spell, st["world"]["self"]
+        name = combat.MAGERY_SPELLS[sid - 1]
+        self._acting = True
+        try:
+            mark = len(self.link.events)
+            self.link.act(actions.cast_spell(sid))
+            self.wait_for(lambda s: self.cursor(mark) is not None
+                          or any(e.get("ev") == "cliloc" for e in self.link.events[mark:]), CARE_CURSOR_WAIT_S)
+            cur = self.cursor(mark)
+            if cur is None:
+                if combat.no_reagents_answer(self.link.events[mark:]):
+                    self.no_reagents.add(sid)
+                heard = [e.get("cliloc") for e in self.link.events[mark:] if e.get("ev") == "cliloc"]
+                log(f"self care: {name} brought no target cursor (clilocs {heard})")
+                return False
+            st = self.link.last or self.link.state()
+            if not combat.reagents(st["world"], self.self_serial(st))[1]:
+                self.ledger.expect(*[("spent", g, 1) for g in combat.SPELL_REAGENTS[sid]])
+            self.link.act(combat.target_self(cur, self.self_serial(st), self.link.pos(st),
+                                             st["world"]["self"].get("body")))
+            hits0 = me0.get("hits") or 0
+            self.wait_for(lambda s: (s["world"]["self"].get("hits") or 0) > hits0
+                          or (sid == healing.CURE and not s["world"]["self"].get("poisoned"))
+                          or combat.no_reagents_answer(self.link.events[mark:]), CARE_RESULT_WAIT_S)
+            if combat.no_reagents_answer(self.link.events[mark:]):
+                self.no_reagents.add(sid)
+                log(f"self care: the server wants more reagents for {name}; not casting it again this run")
+                return False
+            now = self.link.last["world"]["self"]
+            log(f"self care: {name} ({c.why}; hits {me0.get('hits')} -> {now.get('hits')}/{now.get('hits_max')}, "
+                f"mana {me0.get('mana')} -> {now.get('mana')})")
+            data = {"kind": "spell", "spell": name, "why": c.why, "hits": me0.get("hits"),
+                    "hits_after": now.get("hits"), "hits_max": now.get("hits_max"), "mana": me0.get("mana"),
+                    "poisoned": me0.get("poisoned"), "standing": False, "mode": self.mode, "trip": self.trip_n,
+                    "spot": self.k["spot"]["id"]}
+            self.later(lambda data=data, where=self._where(st):
+                       self.memory.job_event("lumber", "flee_aid", data, **where))
+            return True
+        finally:
+            self._acting = False
 
     def _check_threats(self, st, escape: bool = True):
         """threats.py over every state read. Hostile players are logged once each
@@ -2104,6 +2175,14 @@ class LumberLoop:
         st = self.state()
         before = self.count(st, LOGS)
         self.self_care(st)
+        self._acting = True                          # no potion between the hatchet's use and the reply
+        try:
+            return self._chop(before)
+        finally:
+            self._acting = False
+
+    def _chop(self, before: int):
+        """attempt() from the hatchet's use to the server's reply."""
         cur = self.use_hatchet("chop_use", hesitate=False)
         if cur is None:
             return ("captcha", 0)

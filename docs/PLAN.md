@@ -1320,7 +1320,7 @@ while recall casts were disturbed (docs/NOTES.md, witcher_66 14:08, witcher_162 
   reach); moongates (none where Dan chops; a gate's prompt and its destination are their own risk);
   Hiding (no skill). No change to the hunt runner or `ctl`.
 
-Code: `healing.FleeAid` / `Aid` / `in_pack`, `loop_lumber.LumberLoop.flee_aid` (check_guards,
+Code: `healing.SelfCare` / `Aid` / `in_pack` / `care_spell`, `loop_lumber.LumberLoop.flee_aid` (check_guards,
 recall_out), `escape.escape(between=)`, world `SelfState.poisoned`. Tests: `test_healing.py`
 (`flight_aid`), `test_escape.py` (`test_escape_between`), `test_world_units.py` (self 0x17), scenario
 `flee_aid` in `test_loop_lumber.py`. Live checks for the first run: docs/NOTES.md "Healing on the run:
@@ -1335,11 +1335,30 @@ maxhits` → `potion "heal"`) finds potions at any bag depth and drinks by seria
   `Item.FindItemsById(recurse: true)`; `potion` = `PlayerData.UseItem`, recursive over the client's
   known containers, one 0x06 by serial, no bag opened). The earlier "no bag is opened mid-flight"
   limit was ours, not the client's: the sanctioned assistant built into the Outlands client sends
-  exactly this. And `LumberLoop.self_care` runs the user's script before every hatchet use: cure when
-  poisoned, else a heal potion with any hit missing (potion clock 10 s), the hatchet 0.55 s after a drink.
-- **Not adopted:** healing spells between chops (a cast unequips the two-handed hatchet, docs/NOTES.md,
-  and Dan's script uses potions); a missing-hits threshold above 1 (the user's script heals at any loss;
-  `WORK_HEAL_MISSING` is the knob if potions run short).
+  exactly this.
+
+**Revised again 2026-10-07 (user): heal and cure like the PK Getaway script, always, recalling instead
+of its moongates.** The user's words: "Healing should always be using a potion if its not on cooldown,
+and otherwise keep using heal and greater heal as appropriate, like the PK escape script does … the
+only real difference … is that we don't try to take a moongate like this script does; we try to recall
+as appropriate." The script (Jaseowns' 'PK Getaway', kept in the session paste, not committed) loops:
+bandages if Healing, `[pouch` if paralyzed, a cure potion if poisoned, a refresh at `diffstam >= 5`, a
+strength potion below 100 Str without the buff, and with Magery ≥ 60 a heal potion, then Heal / Greater
+Heal from 15 / 30 missing with mana ≥ 12, Cure by spell while poisoned; without Magery a heal potion at
+any loss. Moongates and an overweight gold drop serve its escape.
+- **Adopted (`healing.SelfCare`, `care_spell`; LUMBER_LOOP.md §13 "Self care"):** potions at every
+  guard check, getaway or not (outside a chop attempt, a cast, a speech hold or a target cursor): pouch,
+  cure, heal at any hit missing whenever off cooldown, refresh at 5 stamina missing, strength below 100
+  Str. Between chops, when no potion went: Cure while poisoned, else Heal / Greater Heal from 15 missing
+  (Greater Heal by `healing.choose`'s mana break-even, the hunt runner's rule, 25 missing at Dan's
+  Magery 80.2), keeping Recall's 11 mana for the way home. Our recall decisions are unchanged.
+  This replaces the thresholds of the first two versions (25 % running, 50 % standing, heal potions only
+  between chops).
+- **Not adopted:** spells during a getaway (casting holds the run [INFERENCE: RunUO
+  Spell.BlocksMovement] and the cast slot belongs to the recall: "recall as appropriate"); the script's
+  Heal-from-60 / Greater-Heal-from-30 split (it reads inverted; the break-even is about the same at
+  Magery 100); bandages (no character has Healing: say so if one does); moongates and the overweight
+  gold drop (we recall). The hunt runner keeps its own `--heal-at` rules (docs/HUNT_LOOP.md).
 
 ## Risks
 

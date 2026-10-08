@@ -727,7 +727,7 @@ def escape(io, book: int, *, attempts: int | None = None, budget_s: float = ESCA
     limit gave up 4.4 s before his first melee hit; SPELL_INTERRUPTS.md).
     `rune` / `entry`: a book's rune by name or index (recall()), else the default. `between(state,
     last)`: called after a failed try (once it isn't death), before the next; it may use an item (a
-    potion, a trapped pouch: healing.FleeAid) and returns the monotonic time from which the next item
+    potion, a trapped pouch: healing.SelfCare) and returns the monotonic time from which the next item
     use is taken, or None. The next try's book double-click waits until then (one sent within the
     server's action delay is ignored: _open). Returns the last
     recall() result plus 'attempts' (casts made) and 'tries' (every try's method,

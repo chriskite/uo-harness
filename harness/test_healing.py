@@ -1,7 +1,8 @@
 """Tests for harness/healing.py: what to heal with (potion first, else Heal or
 Greater Heal by the missing hits and what can be paid for: mana, reagents or a
-spellstone), and the flight aid (FleeAid: pouch, cure, heal, refresh while running
-or between recall casts), on synthetic world snapshots (no network).
+spellstone), and self care (SelfCare: pouch, cure, heal, refresh, strength potions at
+any moment; care_spell: Cure, Heal, Greater Heal between chops), on synthetic world
+snapshots (no network).
 
 Run: python harness/test_healing.py
 """
@@ -56,26 +57,32 @@ def pick(c):
     return (c.kind, c.potion if c.kind == "potion" else c.spell)
 
 
-CURE, HEALP, REFRESH, POUCH, POUCH_SPENT, BAG_CURE = (0x4B6BC001, 0x4B6BC002, 0x4B6BC003, 0x4B6BC004,
-                                                     0x4B6BC005, 0x4B6BC006)
+CURE, HEALP, REFRESH, POUCH, POUCH_SPENT, BAG_CURE, STRP = (0x4B6BC001, 0x4B6BC002, 0x4B6BC003, 0x4B6BC004,
+                                                           0x4B6BC005, 0x4B6BC006, 0x4B6BC007)
 
 
 def flight(hits=100, stam=25, flags=0x20, poisoned=None, cure=True, heal=True, refresh=True, pouch=True,
-           cure_in_bag=False):
-    """Outland Dan mid-flight (100 hits, 25 stamina, ctl status 2026-10-06): potions and pouches in the pack."""
+           cure_in_bag=False, strength=0, str_=100, buffs=None, mana=100, magery=802, regs=ALL_REGS):
+    """Outland Dan (100 hits, 25 stamina, Str 100, Magery 80.2, ctl status 2026-10-06/07): potions and pouches in
+    the pack, reagents in a bag."""
     items = {h(PACK): {"graphic": 0x0E75, "layer": 0x15, "container": h(ME)},
              h(BAG): {"graphic": 0x0E76, "container": h(PACK)},
              h(POUCH_SPENT): {"graphic": 0x0E79, "hue": 0, "container": h(PACK)}}       # gone off: no use
     for on, serial, g in ((cure, CURE, healing.CURE_POTION_GRAPHIC), (heal, HEALP, healing.HEAL_POTION_GRAPHIC),
-                          (refresh, REFRESH, healing.REFRESH_POTION_GRAPHIC)):
+                          (refresh, REFRESH, healing.REFRESH_POTION_GRAPHIC),
+                          (strength, STRP, healing.STRENGTH_POTION_GRAPHIC)):
         if on:
             items[h(serial)] = {"graphic": g, "amount": 5, "container": h(PACK)}
     if cure_in_bag:
         items[h(BAG_CURE)] = {"graphic": healing.CURE_POTION_GRAPHIC, "amount": 5, "container": h(BAG)}
     if pouch:
         items[h(POUCH)] = {"graphic": 0x0E79, "hue": 38, "container": h(PACK)}
+    for i, g in enumerate(regs):
+        items[h(REG_BAG + 1 + i)] = {"graphic": g, "amount": 3, "container": h(BAG)}
     return {"self": {"hits": hits, "hits_max": 100, "stam": stam, "stam_max": 25, "poisoned": poisoned,
-                     "stats": {"flags": flags}}, "items": items}
+                     "mana": mana, "skills": {str(healing.MAGERY_SKILL_ID): {"value": magery}},
+                     "stats": {"flags": flags, "str": str_}},
+            "items": items, "buffs": {h(ME): buffs or {}}}
 
 
 def kind(aid):
@@ -83,83 +90,86 @@ def kind(aid):
 
 
 def flight_aid():
-    print("== flight aid (FleeAid): one use at a time, by priority ==")
+    print("== self care potions (SelfCare): one use at a time, by priority ==")
     t = 1000.0
-    a = healing.FleeAid()
+    a = healing.SelfCare()
     w = flight(hits=55, stam=10, flags=0x21, poisoned=True)
     check("paralyzed, poisoned, hurt, tired: the live pouch first (not the spent one)",
-          kind(a.choose(w, ME, t, standing=False)) == ("pouch", POUCH))
+          kind(a.choose(w, ME, t)) == ("pouch", POUCH))
     check("ready_at before any use: at once", a.ready_at() == 0.0)
-    a.used(a.choose(w, ME, t, standing=False), t)
-    check("within USE_GAP_S of a use: nothing", a.choose(w, ME, t + 0.5, standing=False) is None)
+    a.used(a.choose(w, ME, t), t)
+    check("within USE_GAP_S of a use: nothing", a.choose(w, ME, t + 0.5) is None)
     check("ready_at: the use + USE_GAP_S", a.ready_at() == t + healing.USE_GAP_S)
-    c = a.choose(w, ME, t + 0.6, standing=False)
+    c = a.choose(w, ME, t + 0.6)
     check("still flagged frozen 0.6 s after the pouch (its retry gap): the cure goes next", kind(c) == ("cure", CURE),
           str(c))
     a.used(c, t + 0.6)
-    c = a.choose(w, ME, t + 1.2, standing=False)
+    c = a.choose(w, ME, t + 1.2)
     check("1.2 s: the pouch again (its 1 s retry gap is over, still frozen)", kind(c) == ("pouch", POUCH), str(c))
     w = flight(hits=55, stam=10, poisoned=True)
-    a = healing.FleeAid()
+    a = healing.SelfCare()
     a.used(healing.Aid("cure", CURE, healing.CURE_POTION_GRAPHIC, "poisoned"), t)
-    c = a.choose(w, ME, t + 0.6, standing=False)
+    c = a.choose(w, ME, t + 0.6)
     check("still poisoned within the cure's retry gap: no heal (it does nothing while poisoned), refresh instead",
           kind(c) == ("refresh", REFRESH), str(c))
-    check("poisoned, cure retry gap over: cure again", kind(a.choose(w, ME, t + 1.6, standing=False)) == ("cure", CURE))
-    a = healing.FleeAid()
-    c = a.choose(flight(hits=55, stam=10, poisoned=False), ME, t, standing=False)
-    check("cured, 45 missing, running: heal before refresh", kind(c) == ("heal", HEALP), str(c))
+    check("poisoned, cure retry gap over: cure again", kind(a.choose(w, ME, t + 1.6)) == ("cure", CURE))
+    a = healing.SelfCare()
+    c = a.choose(flight(hits=55, stam=10, poisoned=False), ME, t)
+    check("cured, 45 missing: heal before refresh", kind(c) == ("heal", HEALP), str(c))
     a.used(c, t)
-    c = a.choose(flight(hits=55, stam=10, poisoned=False), ME, t + 0.6, standing=False)
+    c = a.choose(flight(hits=55, stam=10, poisoned=False), ME, t + 0.6)
     check("heal potion cooling down (PotionClock): refresh", kind(c) == ("refresh", REFRESH), str(c))
     a.used(c, t + 0.6)
     check("refresh within its 3 s retry gap and the heal clock running: nothing",
-          a.choose(flight(hits=55, stam=10), ME, t + 2.0, standing=False) is None)
-    check("10 s after the heal: heal again", kind(a.choose(flight(hits=55), ME, t + 10.0, standing=False))
-          == ("heal", HEALP))
+          a.choose(flight(hits=55, stam=10), ME, t + 2.0) is None)
+    check("10 s after the heal: heal again", kind(a.choose(flight(hits=55), ME, t + 10.0)) == ("heal", HEALP))
 
-    print("== flight aid thresholds: running vs standing ==")
-    a = healing.FleeAid()
-    check("running, 25 missing: heal", kind(a.choose(flight(hits=75), ME, t, standing=False)) == ("heal", HEALP))
-    check("running, 24 missing: nothing", a.choose(flight(hits=76), ME, t, standing=False) is None)
-    check("standing, 51 hits: nothing (a drink holds the book's click back)",
-          a.choose(flight(hits=51), ME, t, standing=True) is None)
-    check("standing, 50 hits: heal", kind(a.choose(flight(hits=50), ME, t, standing=True)) == ("heal", HEALP))
-    check("standing, stamina 5/25: no refresh (running only)",
-          a.choose(flight(stam=5), ME, t, standing=True) is None)
-    check("running, stamina 12/25: refresh", kind(a.choose(flight(stam=12), ME, t, standing=False)) == ("refresh", REFRESH))
-    check("running, stamina 13/25: nothing", a.choose(flight(stam=13), ME, t, standing=False) is None)
-    check("standing, poisoned: cure", kind(a.choose(flight(poisoned=True), ME, t, standing=True)) == ("cure", CURE))
+    print("== the PK Getaway script's thresholds (user 2026-10-07): a heal potion whenever off cooldown ==")
+    a = healing.SelfCare()
+    check("1 hit missing: heal (`hp < maxhp`)", kind(a.choose(flight(hits=99), ME, t)) == ("heal", HEALP))
+    check("full hits, full stamina, Str 100: nothing", a.choose(flight(), ME, t) is None)
+    check("5 stamina missing: refresh (`diffstam >= 5`)", kind(a.choose(flight(stam=20), ME, t)) == ("refresh", REFRESH))
+    check("4 stamina missing: nothing", a.choose(flight(stam=21), ME, t) is None)
+    check("Str 90, no Strength buff: a strength potion (`str < 100`)",
+          kind(a.choose(flight(str_=90, strength=True), ME, t)) == ("strength", STRP))
+    check("Str 90 with a Strength buff: nothing",
+          a.choose(flight(str_=90, strength=True, buffs={"1047": {"title": "Strength"}}), ME, t) is None)
+    check("Str 100: no strength potion", a.choose(flight(strength=True), ME, t) is None)
 
-    print("== flight aid: anything in the backpack, bags included (Razor's findtype/potion) ==")
+    print("== self care: anything in the backpack, bags included (Razor's findtype/potion) ==")
     check("frozen, no live pouch: the cure when poisoned",
-          kind(a.choose(flight(flags=0x21, poisoned=True, pouch=False), ME, t, standing=False)) == ("cure", CURE))
+          kind(a.choose(flight(flags=0x21, poisoned=True, pouch=False), ME, t)) == ("cure", CURE))
     check("poisoned, the cure potions only in a bag: that cure, drunk by serial (live 2026-10-07: Dan's potions sat "
           "in a bag and the flight aid never saw them)",
-          kind(a.choose(flight(poisoned=True, cure=False, cure_in_bag=True), ME, t, standing=True)) == ("cure", BAG_CURE))
-    check("hurt, no heal potion: nothing", a.choose(flight(hits=40, heal=False), ME, t, standing=True) is None)
+          kind(a.choose(flight(poisoned=True, cure=False, cure_in_bag=True), ME, t)) == ("cure", BAG_CURE))
+    check("hurt, no heal potion: nothing", a.choose(flight(hits=40, heal=False), ME, t) is None)
     check("poisoned unknown (None): not poisoned, heal when hurt",
-          kind(a.choose(flight(hits=40, poisoned=None), ME, t, standing=True)) == ("heal", HEALP))
-    check("self flag 0x20 only: not frozen", a.choose(flight(flags=0x20), ME, t, standing=False) is None)
-    c = a.choose(flight(), ME, t, standing=True, frozen_hint=True)
+          kind(a.choose(flight(hits=40, poisoned=None), ME, t)) == ("heal", HEALP))
+    check("self flag 0x20 only: not frozen", a.choose(flight(flags=0x20), ME, t) is None)
+    c = a.choose(flight(), ME, t, frozen_hint=True)
     check("frozen_hint (a cast refused 'while frozen') with flags 0x20: the pouch", kind(c) == ("pouch", POUCH)
           and "frozen" in c.why, str(c))
-    check("no backpack: nothing", a.choose({"self": {"hits": 10, "hits_max": 100}, "items": {}}, ME, t,
-                                           standing=True) is None)
+    check("no backpack: nothing", a.choose({"self": {"hits": 10, "hits_max": 100}, "items": {}}, ME, t) is None)
 
-    print("== self care between chops (working): the user's Razor heal script ==")
-    a = healing.FleeAid()
-    check("working, 1 hit missing: heal (`if hp < maxhits`)",
-          kind(a.choose(flight(hits=99), ME, t, standing=False, working=True)) == ("heal", HEALP))
-    check("working, full hits: nothing", a.choose(flight(hits=100), ME, t, standing=False, working=True) is None)
-    check("working, poisoned and hurt: cure first",
-          kind(a.choose(flight(hits=70, poisoned=True), ME, t, standing=False, working=True)) == ("cure", CURE))
-    check("working, stamina 5/25: no refresh (running only)",
-          a.choose(flight(stam=5), ME, t, standing=False, working=True) is None)
-    a.used(healing.Aid("heal", HEALP, healing.HEAL_POTION_GRAPHIC, "30 hits missing"), t)
-    check("working, heal potion cooling down: nothing until the 10 s clock",
-          a.choose(flight(hits=70), ME, t + 5.0, standing=False, working=True) is None
-          and kind(a.choose(flight(hits=70), ME, t + 10.0, standing=False, working=True)) == ("heal", HEALP))
+    print("== care_spell: the script's spell branch when no potion went ==")
+    recall = 11
+
+    def spell(**kw):
+        c = healing.care_spell(flight(**kw), ME, recall)
+        return c.spell if c.kind == "spell" else None
+    check("14 missing: no spell (the script heals by spell from 15)", spell(hits=86) is None)
+    check("15 missing: Heal", spell(hits=85) == healing.HEAL)
+    check("40 missing at Magery 80.2 (Greater Heal from 25): Greater Heal", spell(hits=60) == healing.GREATER_HEAL)
+    check("poisoned: Cure, not a heal (it does nothing while poisoned)",
+          spell(hits=40, poisoned=True) == healing.CURE)
+    check("Magery 59.9: no spell", spell(hits=40, magery=599) is None)
+    check("Recall's 11 mana kept: 21 mana -> Heal (4), not Greater Heal (11)",
+          spell(hits=40, mana=21) == healing.HEAL)
+    check("14 mana: nothing (Heal would leave 10, below Recall's 11)", spell(hits=40, mana=14) is None)
+    check("poisoned, no garlic: no Cure", spell(poisoned=True, regs=tuple(g for g in ALL_REGS
+                                                                            if combat.REAGENTS[g] != "garlic")) is None)
+    check("Cure refused for reagents this run: none",
+          healing.care_spell(flight(poisoned=True), ME, recall, blocked={healing.CURE}).kind is None)
 
 
 def main():
