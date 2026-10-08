@@ -56,6 +56,8 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
 - gazer_reflect: the same gazer's first spell is taken by Magic Reflection (the server's "Magic reflect
   removed." and the 0xC0 0x37B9 on us, no hits lost; live 2026-10-03 witcher_280): the runner runs at
   that spell, before any damage, and stores
+- unseen_caster (live 2026-10-08 witcher_86): a gargoyle 26 tiles west, past the view range, is pruned at once and
+  its Flamestrike lands 1 s later: it is the attacker at its last tile; the runner walks out of its reach and stores
 - wary: a war-mode creature by the nearest tree: the farther tree first, the near one once it has gone
 - red_aim (§13 "Blind waits"): at the library spot a red comes into view while the chop's cursor is up
   (--human normal): the cursor is cancelled and the recall home pressed within REACT_MAX_S of sight, no chop target
@@ -204,6 +206,8 @@ RED_FAR, RED_NEAR = 100, 55                               # tiles from us at the
 # creature runs (LUMBER_LOOP.md §13 "Running from a creature"): a gazer (body 22, ranged) casts at us from 10
 # tiles at the library spot; a war-mode creature stands by the nearest tree on Shelter
 GAZER, GAZER_BODY, GAZER_DMG, GAZER_CAST_S = 0x0000CA5E, 22, 10, 2.5
+# unseen_caster (live 2026-10-08, witcher_86): a gargoyle past the view range; its Flamestrike lands on us
+CASTER, CASTER_BODY, CASTER_DMG, CASTER_OFF = 0x0000CA57, 4, 27, 26
 # south of the gazer's zone (20 tiles from it) and > home.NEAR_LANDING (60) from the home landing: home is a recall
 LIB_FAR_TREE = {"x": 46, "y": 272, "z": 0, "graphic": "0x0CE0", "stand": [46, 271]}
 # landing_escape (live 2026-10-05 Wintertop): a war-mode creature 6 tiles south of the library rune's landing,
@@ -571,6 +575,8 @@ class World:
         self.gazer_hits = []              # (time, our distance from it) per cast that hit
         self.reflect = False              # gazer_reflect: Magic Reflection is up and takes the next spell
         self.reflected = []               # (time, our distance from it) per spell Magic Reflection took
+        self.unseen_caster = False        # unseen_caster: instead of the gazer, a caster past the view range strikes once
+        self.caster_hits = []             # unseen_caster: times its Flamestrike landed
         self.wary_left_t = None           # wary: when the creature by the near tree left view
         self.wary_flags = 0x40            # wary: its 0x20 flags (war mode; 0: idle, idle_mob)
         self.wary_late = False            # zone_on_way: the creature isn't there at first; it shows up as we come
@@ -989,7 +995,8 @@ class World:
                 # root gone 75 ms after the thief's flag change; the run fled before booking it)
                 self.later(0.5, [delete(0x44ADB0FF)])
             elif self.scenario == "gazer" and self.good_n == 2 and self.gazer_pos is None:
-                asyncio.get_running_loop().call_later(0.5, self.gazer_appears)
+                asyncio.get_running_loop().call_later(0.5, self.caster_leaves if self.unseen_caster
+                                                      else self.gazer_appears)
             elif self.scenario == "staff" and self.good_n == 2:     # a vendor steps next to us: nothing
                 self.vendor_t = time.time() + 0.3
                 self.later(0.3, [mobile_pkt(VENDOR_NEAR, self.pos[0] + 1, self.pos[1])])
@@ -1161,6 +1168,21 @@ class World:
         self.gazer_pos = (self.pos[0] - 10, self.pos[1])
         self.send(creature_pkt(GAZER, GAZER_BODY, *self.gazer_pos, flags=0))
         asyncio.get_running_loop().create_task(self.gazer_casts())
+
+    def caster_leaves(self):
+        """unseen_caster (live 2026-10-08, witcher_86): a gargoyle CASTER_OFF tiles west, past the client's view range
+        (24 here, 18 live), shows and is pruned at once (an S2C 0xC8 view range prunes, World.ProcessDeletes); 1.0 s
+        later its Flamestrike lands: the 0xC0 0x3709 on us and CASTER_DMG off our hits."""
+        self.gazer_pos = (self.pos[0] - CASTER_OFF, self.pos[1])
+        self.send(creature_pkt(CASTER, CASTER_BODY, *self.gazer_pos, flags=0))
+        self.send(bytes([0xC8, 24]))
+        asyncio.get_running_loop().call_later(1.0, self.caster_strikes)
+
+    def caster_strikes(self):
+        self.hits -= CASTER_DMG
+        self.caster_hits.append(time.time())
+        self.send(effect_on_self(0x3709, *self.pos))
+        self.send(hits_pkt(self.hits))
 
     async def gazer_casts(self):
         await asyncio.sleep(0.8)
@@ -2561,6 +2583,46 @@ async def gazer_reflect():
     store.close()
 
 
+async def unseen_caster():
+    """Live 2026-10-08 (witcher_86, juncture 536): a gargoyle cast from just past the view edge; its Flamestrike
+    (-27) landed 1.1 s after the world model pruned it, nothing in view could have hit us, and the runner recalled
+    home. User: move out of its range, heal and carry on. Here a gargoyle shows CASTER_OFF tiles west, past the view
+    range, is pruned at once, and its Flamestrike lands 1 s later: it is the attacker (threats.unseen_attackers);
+    the runner walks out of its reach from its last tile, chops on at the far tree and stores. No recall."""
+    print("\n== unseen caster: a spell from a creature just out of view -> walk out of its reach, chop on ==")
+    world = World("gazer")
+    world.unseen_caster = True
+    text, code, store, _ = await run_scenario(world, "unseen_caster", [LIB_TREE, LIB_FAR_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
+    eps = store.episodes("lumber")
+    hits = [e["data"] for e in store.job_events("lumber") if e["kind"] == "monster_hit"]
+    leash = [e["data"] for e in store.job_events("lumber") if e["kind"] == "leash"]
+    check("the Flamestrike landed once", len(world.caster_hits) == 1, str(world.caster_hits))
+    check("the trip stored its boards in the room, exit 0 (no recall away, no stop)",
+          code == 0 and [e.get("outcome") for e in eps] == ["stored"] and world.room_entries == 1
+          and not [e for e in store.job_events("lumber") if e["kind"] == "recall"],
+          f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]}\n{text[-800:]}")
+    check("the hit is the gargoyle's, out of view at its last tile (26 off), ranged, the only attacker, a run; the "
+          "-27 after it while walking (walk_on)",
+          hits and hits[0]["serial"] == f"0x{CASTER:08X}" and hits[0]["body"] == CASTER_BODY and hits[0]["unseen"]
+          and hits[0]["distance"] == CASTER_OFF and hits[0]["ranged"] is True and hits[0]["attackers"] == 1
+          and [h["action"] for h in hits] == ["run", "walk_on"][:len(hits)]
+          and sum(h["hits_lost"] for h in hits) == CASTER_DMG, str(hits)[:900])
+    m = re.search(r"escaped to \((\d+), (\d+)\)", text)
+    to = (int(m[1]), int(m[2])) if m else None
+    check("walked out of its learned reach (the 26 tiles it hit from) from its last tile; shaken off 'out of view all "
+          "along' (no leash measured)",
+          to is not None and max(abs(to[0] - world.gazer_pos[0]), abs(to[1] - world.gazer_pos[1])) > CASTER_OFF
+          and [lv["how"] for lv in leash] == ["out of view all along"],
+          f"{to} {world.gazer_pos} {[lv.get('how') for lv in leash]}")
+    far = [s for s in stand_events(store) if s["anchor"] == [LIB_FAR_TREE["x"], LIB_FAR_TREE["y"]]]
+    check("chopped on at the far tree, outside its reach; everything in the chest",
+          sum(s["successes"] for s in far) >= 1 and world.chest_stack is not None
+          and world.chest_stack[1] == world.harvested and world.logs == 0, f"{far} chest {world.chest_stack}")
+    store.close()
+
+
 async def wary():
     """A war-mode creature (known aggressive) stands 2 tiles from the nearest tree, 13 from us: that
     tree waits while it is around; the runner chops the farther west tree first, comes back to the
@@ -3871,7 +3933,7 @@ async def run_async(fn):
 
 if __name__ == "__main__":
     runs = [main, skirmish, leash, break_due, stop_after_trip, library, library_chased, track_reds, gazer_run,
-            gazer_rehit, gazer_reflect,
+            gazer_rehit, gazer_reflect, unseen_caster,
             wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, work_heal, work_spell, thief_keep_away,
             pouch_pop,
             no_pouch,

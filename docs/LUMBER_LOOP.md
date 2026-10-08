@@ -1032,11 +1032,23 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     us (`on_home_rune`: in the room or on the way-home rune's tile); there, out of the room, run out
     of reach while anything is after us (`run_clear`), then stop; no log conversion either way; since
     2026-10-05 the guild house's 60-tile `at_home` radius no longer means "stop in place") on: hits
-    below the threshold, two or more possible attackers, damage with nothing in view to blame, a
+    below the threshold, two or more possible attackers, damage with nothing in view or just out of it
+    to blame (next bullet), a
     hostile player in view, damage within 10 s of arriving from a walk-away ("still taking damage …
     after the walk-away"), no escapes left, a speech hold, a creature back for a 4th escape ("came back
     after 3 escapes"; until 2026-10-07 any creature we already ran from back in flee range: "followed
     us after an escape"). "It kept coming" and the conversion rules are unchanged.
+  - **Hit from just out of view** (since 2026-10-08, `threats.unseen_attackers`): with no candidate in
+    view, a monster that left the view within 30 s (pruned for range or deleted by the server), last
+    seen within the view range + 6 tiles, hostile or of unknown aggression, is the attacker at its last
+    tile. One such: the normal run (escape from that tile, self-care heals, chop on outside its zone;
+    the hit teaches its body the distance as reach); two: home. The `monster_hit` row has `unseen`; its
+    `leash` row says "out of view all along" (no leash measured). Live 2026-10-08 (witcher_86, juncture
+    536, events 10:55:58–10:56:00): a gargoyle near the trees all run sent a cast animation (0x6E action
+    11), the world model pruned it 0.3 s later at the 18-tile view edge, and its Flamestrike (0xC0
+    0x3709 on us, sound 0x208) landed 1.1 s after that, then -27; "no creature in view" recalled home
+    (try 1 disturbed by the -27). User: a player would move out of the gargoyle's range, heal and
+    carry on. Scenario `unseen_caster`; `test_threats.py` `test_unseen_attackers`.
   - **Reach** (`threats.creature_reach`): melee 1; ranged 12 for `threats.RANGED_BODIES` (the
     gazer, 22) and for every body that hit us as the only candidate from beyond melee range
     (`travel_guard.learn_hit`, also from the store's `monster_hit` rows at start, so the next run

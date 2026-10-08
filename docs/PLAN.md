@@ -1312,6 +1312,21 @@ Tests: `test_world_units.py` `test_title_tags`, `test_lumber_opt.py` (faction zo
 and `precast` in `test_loop_lumber.py` (both failing before). Details: docs/LUMBER_LOOP.md §13
 "Recall escape on players".
 
+## Hits from just out of view: run, don't recall (decided and built 2026-10-08)
+
+User, after Seer-7's run 1 at witcher_86: a gargoyle's Flamestrike from just out of view sent the trip
+home ("taking damage, no creature in view that could have hit us"); "a human player would just have
+moved out of range of the gargoyle, healed, and carried on". The events show its cast animation 1.4 s
+before the strike and the world model pruning it at the 18-tile edge in between.
+- **Adopted:** `threats.unseen_attackers`. With no candidate in view, monsters that left the view
+  within 30 s (last_seen: range or delete), last seen within view range + 6, hostile or of unknown
+  aggression, are the candidates at their last tile; one is run from like any single ranged attacker,
+  and its body learns the distance as reach (so the next run keeps its trees that far from it).
+- **Kept:** home when nothing was seen at all (a hidden player stays possible), on two candidates,
+  and on every other recall rule (hits below the threshold, a re-hit within 10 s, a 4th return, …).
+- **Rejected:** walking away from damage with no candidate at all (no direction to walk; the hidden
+  player case), and seeding gargoyles as a ranged body by hand (one live hit teaches it).
+
 ## Graceful stop: `ctl stop --after-trip` (decided and built 2026-10-07)
 
 User approval of Main's incident proposal. On the end-the-day order of 2026-10-07 the overseer ran a

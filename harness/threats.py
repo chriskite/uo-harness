@@ -200,6 +200,12 @@ when no hostile one is within reach: juncture 222 (witcher_280) said "2
 creatures attacking" for the war-mode larva at 10 tiles plus a calm cougar at 8
 that never moved at us. A non-hostile creature's reason names its aggression
 ("passive creature (default)"), so the threat list shows which ones could be blamed.
+With no candidate in view, a creature that left the view within UNSEEN_HIT_S
+(pruned for range or deleted by the server), last seen within the view range +
+UNSEEN_SLACK of us, is one (unseen_attackers, at its last tile): live 2026-10-08
+(witcher_86, session events 10:55:58-10:56:00) a gargoyle's cast animation came
+0.3 s before the world model pruned it at the 18-tile view edge, and its
+Flamestrike (0xC0 0x3709 on us, sound 0x208, -27) landed 1.1 s later.
 """
 from __future__ import annotations
 
@@ -231,6 +237,8 @@ _YOUNG = re.compile(r"\(Young\)\s*$")
 ACTIONS = ("flee", "thief", "watch", "ignore")
 CREATURE_SPELL_RANGE = 12       # tiles: a ranged/caster creature's reach (user decision 2026-10-03)
 RANGED_BODIES = frozenset({22})  # gazer (live 2026-10-03: hit us from 11-12 tiles, LUMBER_LOOP.md §13)
+UNSEEN_HIT_S = 30.0             # a creature that left the view this recently may still hit us (unseen_attackers)
+UNSEEN_SLACK = 6                # ... from this many tiles past the view range
 # Spells on us (module docstring "Spells on us")
 SPELL_TEXTS = frozenset({"Magic reflect removed.", "You absorb their spell.", "Spell siphon active."})
 EFFECT_MOVING, EFFECT_LIGHTNING, EFFECT_FIXED = 0, 1, 3      # S2C 0xC0 effect types
@@ -714,6 +722,32 @@ def hit_attackers(a: Assessment, params: Params, swung=()) -> tuple[list, bool]:
             out = [t for t in out if t.hostile or t.reach > melee]
         out.sort(key=lambda t: (t.reach <= melee, not t.hostile, t.distance))
     return out, all(t.distance > melee for t in out)
+
+
+def unseen_attackers(state: dict, params: Params, *, now: float | None = None, monsters=frozenset(),
+                     recent_s: float = UNSEEN_HIT_S, slack: int = UNSEEN_SLACK) -> list:
+    """Candidates for a hit nothing in view could have made (module docstring "Who hit us"): monsters
+    that left the view within recent_s (world last_seen: pruned for range or deleted by the server) on
+    our facet, last seen within the view range + slack of us, hostile or of unknown aggression; as
+    assess makes their Threats at the last-seen tile, hostile first, then nearest."""
+    now = time.time() if now is None else now
+    world = state.get("world") or {}
+    live = world.get("mobiles") or {}
+    facet = (world.get("self") or {}).get("map")
+    gone = {k: m for k, m in (world.get("last_seen") or {}).items()
+            if m.get("why") in ("range", "delete") and k not in live and m.get("facet") in (facet, None)
+            and now - (m.get("t") or 0) <= recent_s}
+    if not gone:
+        return []
+    a = assess({**state, "world": {**world, "mobiles": gone, "swings": {}}}, recall_s=0.0, margin_s=0.0,
+               now=now, params=params, monsters=monsters)
+    far = int(world.get("view_range") or 18) + slack
+    out = [t for t in a.threats if t.kind == "monster" and (t.hostile or t.aggression == "default")
+           and 0 <= t.distance <= far]
+    for t in out:
+        t.reason = f"out of view {now - gone[f'0x{t.serial:08X}']['t']:.1f} s, last seen {t.distance} tiles off"
+    out.sort(key=lambda t: (not t.hostile, t.distance))
+    return out
 
 
 class Watch:

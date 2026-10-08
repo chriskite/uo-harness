@@ -343,8 +343,9 @@ def hit_verdict(*, hits, hits_max, recall_at: float, attackers: list, players: l
     """Damage taken (LUMBER_LOOP.md §13 "Running from a creature"): why it must send
     us home (monster_stop), or None to run from it (walk out of its reach and chop on
     at a stand outside it; while already walking away: walk on). Home when a hostile
-    player is in view, nothing in view could have hit us, two or more creatures
-    could have, hits are below recall_at of max, the walk-away has already taken
+    player is in view, nothing in view or just out of it (threats.unseen_attackers) could
+    have hit us, two or more creatures could have, hits are below recall_at of max, the
+    walk-away has already taken
     WALK_HITS_MAX hits that cost hits (`walk_hits`, this one included: it outranges the
     walk; live 2026-10-05 a brackish water's -20, -16 on the way, then -44 during the late
     recall: home at 7/100), the attacker is next to us while we walk away (it caught up:
@@ -354,7 +355,7 @@ def hit_verdict(*, hits, hits_max, recall_at: float, attackers: list, players: l
     if players:
         return f"taking damage with a hostile player in view ({players[0]})"
     if not attackers:
-        return "taking damage, no creature in view that could have hit us"
+        return "taking damage, no creature in view or just out of it that could have hit us"
     if len(attackers) >= 2:
         return f"taking damage, {len(attackers)} creatures attacking"
     if hits is None or not hits_max:
@@ -929,12 +930,17 @@ class LumberLoop:
         that is still in view is taken to outrange it (its distance is learned as reach).
         A spell landing on us (swung_at_us: `spelled`) is a hit like a hits drop, even
         when Magic Reflection took it and no hits were lost; a caster its effect names
-        is in `swung`, an unnamed one is found like a ranged hit."""
+        is in `swung`, an unnamed one is found like a ranged hit. With no candidate in view,
+        a creature that just left it is one (threats.unseen_attackers, at its last tile; user
+        2026-10-08: move out of its range, heal and carry on, not recall)."""
         spells, self.spelled = len(self.spelled), []
         attackers, ranged = threats.hit_attackers(a, self.watch.params, swung)
         if not attackers:
             attackers = [t for t in a.threats if t.serial in self.danger and t.kind == "monster"
                          and 0 <= t.distance <= self.watch.params.max_range]
+        unseen = not attackers
+        if unseen:
+            attackers = threats.unseen_attackers(st, self.watch.params, monsters=self.watch.monsters)
         self.hit_by = [t.serial for t in attackers]
         me = st["world"]["self"]
         hits, hmax = me.get("hits"), me.get("hits_max")
@@ -957,7 +963,8 @@ class LumberLoop:
                "hits": hits, "hits_max": hmax, "damage_events": a.damage["damage_events"], "spells": spells,
                "attackers": len(attackers), "attacker_serials": [f"0x{t.serial:08X}" for t in attackers],
                "ranged": ranged if attackers else None, "aggression": worst.aggression if worst else None,
-               "escapes": self.escapes, "walking": walking, "since_run_s": since_run}
+               "escapes": self.escapes, "walking": walking, "since_run_s": since_run,
+               "unseen": unseen and bool(attackers)}
         if worst is not None:
             hit["reach"] = threats.creature_reach(worst.body, self.watch.params, ranged=ranged)
         if why:
@@ -974,7 +981,7 @@ class LumberLoop:
         self.watch.acknowledge()
         self.start_hits = hits                    # the drop is dealt with (check_guards' HP guard)
         what = (f"{worst.name or f'0x{worst.serial:08X}'} at {worst.distance} tiles"
-                f"{' (ranged)' if ranged else ''}")
+                f"{' (ranged)' if ranged else ''}{' (out of view)' if hit['unseen'] else ''}")
         if walking:
             log(f"hit again while walking away (-{lost}, {hits}/{hmax}{', a spell' if spells else ''}) by {what}; "
                 f"walking on")
@@ -2772,17 +2779,22 @@ class LumberLoop:
         not closing in: shaken off; we watch LEASH_LOOK_S (one coming back: more legs) and chop on. Each
         shaken creature is a `leash` job event (how, legs, steps, seconds, where it was and was last
         seen). The zones stay for the rest of the trip, around each creature (where it last chased us)
-        and around where it was when we fled."""
+        and around where it was when we fled. One that hit us from out of view (threats.unseen_attackers) is
+        fled from its last-seen tile; it is shaken off 'out of view all along' after the first leg."""
         st = self.link.state()
-        mobs = st["world"]["mobiles"]
+        mobs, left = st["world"]["mobiles"], st["world"].get("last_seen") or {}
         self.escapes += 1
         self.stats["escapes"] = self.stats.get("escapes", 0) + 1
         self.creature["escapes"] += 1
-        fled, start, last = {}, {}, {}
+        fled, start, last, unseen = {}, {}, {}, set()
         for t in e.monsters:
             self.escaped_from[t.serial] = self.escaped_from.get(t.serial, 0) + 1
             fled[t.serial] = t
-            m = mobs.get(f"0x{t.serial:08X}") or {}
+            key = f"0x{t.serial:08X}"
+            m = mobs.get(key) or {}
+            if m.get("x") is None and (left.get(key) or {}).get("why") in ("range", "delete"):
+                m = left[key]
+                unseen.add(t.serial)
             if m.get("x") is not None:
                 start[t.serial] = last[t.serial] = (m["x"], m["y"])
                 zone = ((m["x"], m["y"]), self.zone_r(t))
@@ -2842,6 +2854,8 @@ class LumberLoop:
             if how == "out of view":         # nor does its last chasing tile guard trees (tree_guards' RECENT_ZONE_S)
                 self.recent_guards.pop(s, None)
                 self.mover.danger.pop(("seen", s), None)
+                if s in unseen:              # it hit us from out of view: no leash measured
+                    how = gone[s] = "out of view all along"
             self.memory.job_event("lumber", "leash", {
                 "serial": f"0x{s:08X}", "name": t.name, "body": t.body, "how": how, "legs": legs, "steps": steps,
                 "seconds": secs, "from": list(start[s]) if s in start else None,

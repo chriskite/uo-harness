@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from threats import (CREATURE_SPELL_RANGE, Params, Watch, assess, flee_radius, hit_attackers,  # noqa: E402
-                     spell_on_us)
+                     spell_on_us, unseen_attackers)
 
 FAILURES = []
 ME = 0x00094375
@@ -467,8 +467,34 @@ def test_spells():
        [t.serial for t in hit_attackers(a, Params(), {0x600: NOW - 1})[0]], [0x600])
 
 
+def test_unseen_attackers():
+    print("== who hit us from out of view: a creature that just left it (live 2026-10-08, witcher_86) ==")
+    calm = {"noto": 3, "flags": 0}
+
+    def gone(serial, dx, *, body=4, why="range", ago=1.0, facet=0):
+        key, m = mob(serial, dx, 0, body=body, **calm)
+        return key, {**m, "why": why, "t": NOW - ago, "facet": facet}
+
+    def blamed(left, mobs=()):
+        st = state(mobs)
+        st["world"]["self"]["map"] = 0
+        st["world"]["view_range"] = 18
+        st["world"]["last_seen"] = dict(left)
+        return [t.serial for t in unseen_attackers(st, Params(), now=NOW)]
+    eq("a gargoyle pruned at the view edge 1 s ago, 19 tiles off: it", blamed([gone(0x700, 19)]), [0x700])
+    eq("one the server deleted counts too", blamed([gone(0x700, 19, why="delete")]), [0x700])
+    eq("not one that died, changed facet, left 31 s ago or is on another facet",
+       blamed([gone(0x701, 19, why="dead"), gone(0x702, 19, why="facet"), gone(0x703, 19, ago=31.0),
+               gone(0x704, 19, facet=1)]), [])
+    eq("not one last seen beyond the view range + slack (25 > 18 + 6)", blamed([gone(0x705, 25)]), [])
+    eq("not a passive body (a sheep)", blamed([gone(0x706, 19, body=0xCF)]), [])
+    eq("not one back in view (mobiles has it)", blamed([gone(0x707, 19)], [mob(0x707, 19, 0, body=4, **calm)]), [])
+    eq("two of them: both, nearest first", blamed([gone(0x708, 22), gone(0x709, 19)]), [0x709, 0x708])
+
+
 TESTS = [test_reds, test_npcs_and_players, test_monsters, test_pets, test_damage, test_label_grace,
-         test_fighting_others, test_acknowledge, test_steal_guard, test_hit_attackers, test_spells]
+         test_fighting_others, test_acknowledge, test_steal_guard, test_hit_attackers, test_spells,
+         test_unseen_attackers]
 
 
 def main():
