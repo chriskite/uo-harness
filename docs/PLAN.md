@@ -1312,6 +1312,22 @@ Tests: `test_world_units.py` `test_title_tags`, `test_lumber_opt.py` (faction zo
 and `precast` in `test_loop_lumber.py` (both failing before). Details: docs/LUMBER_LOOP.md §13
 "Recall escape on players".
 
+## Graceful stop: `ctl stop --after-trip` (decided and built 2026-10-07)
+
+User approval of Main's incident proposal. On the end-the-day order of 2026-10-07 the overseer ran a
+plain `ctl stop` on a run that was already home converting: 561 boards were left unstored in the
+trapped pouch, and the overseer reported them stored without checking.
+- **Adopted:** `ctl stop --after-trip` writes the meta key `task_finish` (task_wrap.FINISH_KEY)
+  naming the task and returns at once. The wrapper hands the task its id (env `UO_TASK_ID`) and
+  clears the key at the end. The lumber runner reads the key every 2 s and winds down like a due
+  break (`LumberLoop.ending`: no more harvesting, home, convert, store, no further trip or hop,
+  exit 0). docs/OVERSEER.md §5 now says to end a shift this way and to check the backpack after
+  any stop; a plain `stop` is for what can't wait (possible staff, a server restriction).
+- **Rejected:** sending the runner a signal (Windows has no SIGTERM handler for a detached
+  process the wrapper could use cleanly, and the meta key reuses the bus everything else uses);
+  making plain `stop` graceful (the emergency stop must stay immediate). Only lumber runs honour it
+  for now; `ctl` refuses it for other tasks rather than pretending.
+
 ## Healing on the run (decided and built offline 2026-10-06, not yet tried live)
 
 User request 2026-10-06, inspired by their Razor 'PK Getaway' script for Outlands: while running,

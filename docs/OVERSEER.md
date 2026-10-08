@@ -65,7 +65,7 @@ open file /tmp/r.json").
 |---|---|
 | `status` | Proxy snapshot: `pos` `[x,y,z,dir]`, `facet`, `hits`/`stam`/`mana` as `[cur,max]`, `weight`, `gold`, `gate`, `intent` + the last 5 `intents`, `mobiles` the client has within 18 tiles (serial, name, notoriety + name, hits, distance, `age_s` since the server last updated it; nearest first), `attackers` (mobiles whose latest swing, S2C `0x2F`, was at you within 10 s: serial, name, label, dist, hits `[cur,max]`, `last_swing_age_s`; nearest first), `backpack.counts` by graphic and `backpack.items` (up to 60: serial, graphic, name, amount, `in` = sub-bag or null; nested bags included), `target` cursor, open gumps, plus `tasks` and `open_junctures` from the DB. Proxy unreachable → `ok:false` (DB fields still present). The world model drops what the client drops (out of the 18-tile view, dead, another facet; docs/WORLDMODEL.md §7), so a mob missing from `mobiles` can't be clicked, attacked or targeted. |
 | `run <task> [args…]` | Starts a whitelisted task detached: `lumber` → `loop_lumber.py` (`--spot` is required: take the whole command from `lumber plan`), `bank` → `errand_bank.py`, `hunt` → `loop_hunt.py` (fight monsters at a spot, NPD mongbats by default; thresholds are its arguments, e.g. `run hunt --kills 5 --heal-at 0.75 --leave-at 0.6`; `--crawl` patrols the dungeon floor instead, going zone by zone deeper (internal depth bands numbered from 1, all on the NPD's dungeon level 1) only when it's efficient and safe: docs/HUNT_LOOP.md "Crawl"; `--enter-recall BOOK --enter-rune NAME --leave-recall BOOK [--bank-gold N] [--recall-spot X Y] [--pk-wait S]` hunts at a place reached and left by recall: from town it recalls to the tome row, fights at the arrival, leaves by recalling to the book's default rune (at once, cursor cancelled, on a hostile player close, a red in view or "X is attacking you!"; a refused recall walks to the recall spot, default the arrival, and recalls from there), banks the pack's gold at home, rests, waits `--pk-wait` after a hostile player and recalls back in; the Urukton Bluffs command is in docs/HUNT_LOOP.md "Recall in, recall out"). `args` pass through; `--control-port/--state-port/--memory` are appended from ctl's options unless given. Refused while a task runs (one character). Returns `task_id`, `pid`, `log`. |
-| `stop [task_id]` | Asks the wrapper to terminate the task; it ends with a `task_failed` juncture marked `stopped`. If the wrapper doesn't report within `--grace` (20 s), ctl kills both processes itself and posts the juncture (`source: ctl`, "(forced)"). |
+| `stop [task_id] [--after-trip]` | Asks the wrapper to terminate the task; it ends with a `task_failed` juncture marked `stopped`. If the wrapper doesn't report within `--grace` (20 s), ctl kills both processes itself and posts the juncture (`source: ctl`, "(forced)"). A killed run leaves its trip where it was (logs in the pouch, boards not stored: §5 "Finishing a trip by hand"). **`--after-trip`** (since 2026-10-07, lumber runs only): the graceful stop. It writes the meta key `task_finish` naming the task and returns at once; the runner (it gets its id as `UO_TASK_ID` from the wrapper) sees it within 2 s and winds down like a due break: stops harvesting, goes home into the rental room, converts, stores, logs `stop requested: boards stored after trip N` and exits 0 (`task_done`; the trip row has `stop_requested`). Already home converting or storing, it finishes that and starts no other trip or library hop. |
 | `wait [--timeout S] [--include-info]` | Blocks (polling ~1 s) until there is an **open** juncture with id > the juncture cursor and severity ≥ `attention` (any severity with `--include-info`), or a `user` chat row with id > the chat cursor. Returns `{"ok":true,"event":<first>,"events":[…up to 20…],"cursors":{…}}` and advances the cursors past what it returned. Timeout (default 1800 s; ≤ 0 = forever) → `{"ok":true,"event":null}`. Events are `{"type":"juncture",id,t,source,kind,severity,summary,data,acked_t}` or `{"type":"chat",id,t,role,kind,text,data}`. |
 | `ack <id>` | Closes a juncture (`acked_t`). Acking `gm_suspected` stops the staff alarm. |
 | `alert <why> [--serial S]` | **Possible staff (GM).** Posts an urgent `gm_suspected` juncture (`{reason, serial}`) and sounds the staff alarm (two-tone, distinct from the captcha alert beeps) so the human at the PC comes to check. It repeats every 30 s from a holding harvest job and from `wait` until the juncture is acked; a holding job won't resume while one is open. Allowed while a task runs. A second `alert` while one is open re-sounds it (`already_open`). |
@@ -500,6 +500,11 @@ Paste this (or point the session at this section) to start an overseer.
 > run, plan and start the next one. Stop only when the user says so, on a death, possible staff, a
 > server restriction, or a bug you can't get past; a `break_due` means finish the trip, `ctl break`,
 > then carry on. Every few trips, `ctl say` one progress line (trips, logs stored, spots tried).
+> **Ending a shift** (the user says stop, end the day, …): `ctl stop --after-trip` (since
+> 2026-10-07) and wait for the run's `task_done`: it ends its trip at home with the boards stored.
+> Plain `ctl stop` only when it can't wait (possible staff, a server restriction, a runner gone
+> wrong): it kills the run where it stands. After any stop, check `status.backpack.items` for logs
+> and boards before saying they're stored; finish by hand if any are left (below).
 > **Never leave the character idle in the wilderness.** While a run is on, check `status` and the
 > task log every 2–3 min (`ctl wait --timeout 150`). A run ends in the rental room (the safe
 > place). When one ends elsewhere (failed, stopped), recall home with the escape book first
@@ -567,9 +572,9 @@ Paste this (or point the session at this section) to start an overseer.
 3. Talk to it through the viz chat (or directly in omp), or from your phone once the Telegram
    bridge runs (§8). Pause/kill in the viz still stop the agent at the proxy regardless of the
    overseer.
-4. To end the shift: tell it to `ctl stop` and stop waiting, or just close the session. A running
-   task keeps running and reports to the DB, and a new overseer picks up the open junctures on
-   its first `wait`.
+4. To end the shift: tell it to end the shift (it runs `ctl stop --after-trip` and waits for the
+   run's `task_done`), or just close the session. A running task keeps running and reports to the
+   DB, and a new overseer picks up the open junctures on its first `wait`.
 
 ## 7. Limits
 
@@ -583,7 +588,7 @@ Paste this (or point the session at this section) to start an overseer.
 - The omp session's context grows with every wake. Long shifts need a fresh session; the DB
   (open junctures, cursors, chat) carries the state across.
 - `stop` terminates the runner process: it doesn't get to clear its viz intent or finish a
-  trip, and items mid-move stay where they were.
+  trip, and items mid-move stay where they were. `stop --after-trip` doesn't (lumber runs).
 - `status` is one snapshot; notoriety names are the RunUO constants (1 innocent … 7
   invulnerable) `[INFERENCE: not in the local ClassicUO tree]`.
 

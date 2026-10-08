@@ -43,6 +43,8 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
   spawn 10 tiles out: escape legs until it gave up (a `leash` event), then chop on at the far tree; stored, exit 0
 - break: the agent gate (pre-written budget file) announces a break mid-harvest; the trip ends
   in the room with the carried and new logs stored as boards, exit 0
+- stop_after_trip: `ctl stop --after-trip`'s request (meta task_finish for our UO_TASK_ID) mid-harvest: the
+  harvest stops, home, the carried and new logs stored as boards, exit 0 in the room, no trip 2
 - library: out by the home library's tome (the landing nearest the grove), home with our runebook's
   default rune, into the room, store; twice
 - tracking reds: the library trip with the Tracking gump, buff and arrows as captured; Hunting
@@ -98,6 +100,7 @@ sys.path.insert(0, f"{ROOT}/harness")
 import actions  # noqa: E402
 import escape  # noqa: E402
 import combat  # noqa: E402
+import task_wrap  # noqa: E402
 import memory  # noqa: E402
 import nav  # noqa: E402
 import stockpile as stockpile_mod  # noqa: E402
@@ -2073,6 +2076,45 @@ async def leash():
     store.close()
 
 
+async def stop_after_trip():
+    """`ctl stop --after-trip` (user 2026-10-07, after a plain stop killed a run mid-store and left 561 boards in the
+    pack): the request (meta task_finish naming our UO_TASK_ID) arrives mid-harvest; the run stops harvesting, goes
+    home, converts and stores the carried and new logs, and exits 0 in the room without starting trip 2."""
+    print("\n== stop after trip: a graceful stop mid-harvest -> home, convert, store, exit 0 ==")
+    world = World("break")
+    task_id = "lumber-sim-stop"
+    asked = []
+
+    async def overseer(db):
+        while world.harvested < 1:
+            await asyncio.sleep(0.2)
+        m = memory.Memory(db)
+        task_wrap.meta_set(m, task_wrap.FINISH_KEY, json.dumps({"task_id": task_id, "t": time.time()}))
+        m.close()
+        asked.append(time.time())
+    os.environ["UO_TASK_ID"] = task_id
+    try:
+        text, code, store, _ = await run_scenario(world, "stop_after_trip", 12980, [GOOD_TREE, DRY_TREE],
+                                                  ["--trips", "2", "--logs-per-trip", "100", "--human", "off"],
+                                                  during=overseer)
+    finally:
+        os.environ.pop("UO_TASK_ID", None)
+    eps = store.episodes("lumber")
+    check("asked mid-harvest: the harvest stopped early (the good tree still had wood)",
+          asked and "stop requested: stopping the harvest" in text and world.good_left > 0,
+          f"asked {asked} good_left {world.good_left}")
+    check("one trip, 'stop requested: boards stored', exit 0 in the room, episode row marked stop_requested",
+          code == 0 and "stop requested: boards stored after trip 1" in text and len(eps) == 1
+          and eps[0].get("stop_requested") is True and not eps[0].get("break_due") and world.facet == ROOM_FACET
+          and {"harvest", "to_room", "convert", "store"} <= set(eps[0]["phases_s"]),
+          f"exit {code}, {len(eps)} episodes, facet {world.facet}\n{text[-600:]}")
+    check("carried and new logs became boards in the chest; nothing left in the pack",
+          world.logs == 0 and world.chest_stack is not None
+          and world.chest_stack[1] == INITIAL_LOGS + world.harvested,
+          f"logs {world.logs} chest {world.chest_stack} harvested {world.harvested}")
+    store.close()
+
+
 async def break_due():
     """docs/OVERSEER.md break_due: the agent gate announces a break mid-harvest; the
     trip ends early in the rental room (carried and new logs stored in the chest as boards), exit 0."""
@@ -3745,7 +3787,8 @@ def run_parallel(names, jobs):
 
 
 if __name__ == "__main__":
-    runs = [main, skirmish, leash, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
+    runs = [main, skirmish, leash, break_due, stop_after_trip, library, library_chased, track_reds, gazer_run,
+            gazer_rehit, gazer_reflect,
             wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, work_heal, work_spell, thief_keep_away,
             pouch_pop,
             no_pouch,

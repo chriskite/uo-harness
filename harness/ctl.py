@@ -650,6 +650,16 @@ def cmd_stop(a, mem):
         raise CtlError("no running task" + (f" {a.task_id}" if a.task_id else ""))
     e = alive[0]
     tid = e["task_id"]
+    if a.after_trip:
+        # the graceful stop: the task ends itself at home (the lumber runner: LumberLoop.ending, like a break
+        # due: stop harvesting, home, convert, store, exit 0); task_done wakes `wait` when it has
+        if e.get("task") != "lumber":
+            raise CtlError(f"--after-trip is honoured by lumber runs only ({tid} is {e.get('task')}); plain stop")
+        tw.meta_set(mem, tw.FINISH_KEY, json.dumps({"task_id": tid, "t": time.time()}))
+        mem.chat_post("overseer", f"stop --after-trip {tid}", "action",
+                      data={"cmd": "stop", "task_id": tid, "after_trip": True})
+        return {"ok": True, "task_id": tid, "after_trip": True,
+                "next": "the run ends its trip at home (convert, store) and exits 0: wait for its task_done"}
     tw.meta_set(mem, tw.STOP_KEY, json.dumps({"task_id": tid, "t": time.time()}))
     mem.chat_post("overseer", f"stop {tid}", "action", data={"cmd": "stop", "task_id": tid})
     end = time.monotonic() + a.grace
@@ -3187,6 +3197,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("stop")
     p.add_argument("task_id", nargs="?")
     p.add_argument("--grace", type=float, default=20.0, help="seconds to let the wrapper report")
+    p.add_argument("--after-trip", action="store_true",
+                   help="end gracefully: the lumber run stops harvesting, goes home, converts, stores and exits 0 "
+                        "(returns at once; task_done follows). Without it the task is killed where it stands")
     p.set_defaults(fn=cmd_stop)
     sub.add_parser("break").set_defaults(fn=cmd_break)
     p = sub.add_parser("alert")

@@ -2,7 +2,9 @@
 
 Started detached by `ctl.py run`; never run by hand. It runs the task script
 with its output in logs/tasks/<task_id>.log, honours a stop request from
-`ctl.py stop` (meta key `task_stop`), and on exit removes the task from the
+`ctl.py stop` (meta key `task_stop`), passes the task its id (env UO_TASK_ID,
+for `ctl stop --after-trip`'s meta key `task_finish`, which it clears at the
+end), and on exit removes the task from the
 `meta` key `tasks` and posts a juncture:
   task_done   (exit 0, severity info)
   task_failed (non-zero exit or stopped, severity attention)
@@ -30,6 +32,7 @@ from memory import Memory  # noqa: E402
 
 TASKS_KEY = "tasks"
 STOP_KEY = "task_stop"
+FINISH_KEY = "task_finish"    # ctl stop --after-trip: {task_id, t}; the task ends itself at home
 TAIL_LINES = 20
 STOP_GRACE_S = 10.0
 POLL_S = 0.5
@@ -225,7 +228,16 @@ def post_end(mem: Memory, spec: dict, code: int, stopped: bool, source: str = No
 
 
 def stop_requested(mem: Memory, task_id: str) -> bool:
-    raw = meta_get(mem, STOP_KEY)
+    return _names_task(meta_get(mem, STOP_KEY), task_id)
+
+
+def finish_requested(mem: Memory, task_id: str) -> bool:
+    """`ctl stop --after-trip` asked task `task_id` to end at home after its trip (FINISH_KEY). The task
+    itself reads it (the lumber runner: LumberLoop.ending); the wrapper only clears it at the end."""
+    return _names_task(meta_get(mem, FINISH_KEY), task_id)
+
+
+def _names_task(raw, task_id: str) -> bool:
     if raw is None:
         return False
     try:
@@ -244,7 +256,7 @@ def run(spec: dict) -> int:
             logf.write(f"== task {spec['task_id']}: {spec['task']} {' '.join(spec.get('args', []))} "
                        f"({time.strftime('%Y-%m-%d %H:%M:%S')})\n".encode())
             logf.flush()
-            env = dict(os.environ, PYTHONUNBUFFERED="1")
+            env = dict(os.environ, PYTHONUNBUFFERED="1", UO_TASK_ID=spec["task_id"])   # finish_requested
             child = subprocess.Popen(
                 [sys.executable, "-u", spec["script"], *spec.get("argv", [])],
                 stdin=subprocess.DEVNULL, stdout=logf, stderr=subprocess.STDOUT, cwd=ROOT, env=env,
@@ -270,6 +282,8 @@ def run(spec: dict) -> int:
         remove_entry(mem, spec["task_id"])
         if stopped:
             meta_set(mem, STOP_KEY, None)
+        if finish_requested(mem, spec["task_id"]):
+            meta_set(mem, FINISH_KEY, None)
         post_end(mem, spec, code, stopped)
         mem.close()
     return code

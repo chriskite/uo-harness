@@ -700,6 +700,14 @@ STUBS = {
     "ok": "import sys\nprint('stub start', sys.argv[1:3])\nprint('stored 30 boards')\n",
     "fail": "import sys\nprint('working')\nprint('12:00:00 ABORTED: stub abort')\nsys.exit(1)\n",
     "slow": "import time\nprint('slow start', flush=True)\nfor _ in range(600):\n    time.sleep(0.1)\n",
+    # `ctl stop --after-trip`: a lumber run that ends itself once the wrapper's UO_TASK_ID is named in task_finish
+    "lumber": (f"import os, sys, time\nsys.path.insert(0, {os.path.dirname(os.path.abspath(__file__))!r})\n"
+               "import task_wrap\nfrom memory import Memory\n"
+               "db = sys.argv[sys.argv.index('--memory') + 1]\nprint('lumber stub', flush=True)\n"
+               "for _ in range(300):\n    m = Memory(db)\n"
+               "    asked = task_wrap.finish_requested(m, os.environ['UO_TASK_ID'])\n    m.close()\n"
+               "    if asked:\n        print('stop requested: boards stored after trip 1', flush=True)\n"
+               "        sys.exit(0)\n    time.sleep(0.1)\nsys.exit(3)\n"),
 }
 
 
@@ -729,7 +737,7 @@ def test_run_act(proxy):
 
     code, out = prod("run", "evil")
     check("unknown task refused", code == 1 and "unknown task" in out.get("error", ""), str(out))
-    code, out = c("run", "lumber")
+    code, out = c("run", "hunt")
     check("the test override replaces the whitelist", code == 1 and "unknown task" in out.get("error", ""), str(out))
 
     code, out = c("run", "ok", "a", "b")
@@ -797,6 +805,10 @@ def test_run_act(proxy):
           str(out))
     m.close()
 
+    code, out = c("stop", "--after-trip")
+    check("stop --after-trip refused for a task that isn't a lumber run; nothing asked, the task runs on",
+          code == 1 and "lumber runs only" in out.get("error", "") and meta(db, tw.FINISH_KEY) is None
+          and json.loads(meta(db, tw.TASKS_KEY) or "[]"), str(out))
     t0 = time.time()
     code, out = c("stop")
     j = out.get("juncture") or {}
@@ -807,6 +819,21 @@ def test_run_act(proxy):
     check("no running task after stop", meta(db, tw.TASKS_KEY) == "[]" and meta(db, tw.STOP_KEY) is None)
     code, out = c("stop")
     check("stop with nothing running -> ok false", code == 1 and out["ok"] is False)
+
+    code, out = c("run", "lumber")
+    lumber_id = out.get("task_id")
+    wait_for(lambda: any(e.get("child_pid") for e in json.loads(meta(db, tw.TASKS_KEY) or "[]")), 10)
+    t0 = time.time()
+    code, out = c("stop", "--after-trip")
+    check("stop --after-trip: returns at once, asking the lumber run (meta task_finish names it)",
+          code == 0 and out.get("after_trip") is True and out.get("task_id") == lumber_id and time.time() - t0 < 5,
+          str(out))
+    j = task_juncture(db, lumber_id)
+    check("the run ended itself: task_done, exit 0, not marked stopped (the wrapper gave it UO_TASK_ID)",
+          j is not None and j["kind"] == "task_done" and j["data"]["exit_code"] == 0 and not j["data"].get("stopped")
+          and any("stop requested" in ln for ln in j["data"]["tail"]), str(j))
+    check("the request cleared and no task left", wait_for(lambda: meta(db, tw.TASKS_KEY) == "[]", 5) is not None
+          and meta(db, tw.FINISH_KEY) is None, f"{meta(db, tw.TASKS_KEY)} {meta(db, tw.FINISH_KEY)}")
 
     # a wrapper that died without reporting (crash, reboot) must not lock the character out
     gone = subprocess.Popen([PY, "-c", "pass"])

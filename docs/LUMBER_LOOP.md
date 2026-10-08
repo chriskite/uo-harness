@@ -1314,6 +1314,18 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   Until 2026-10-01 the trip ended in the rental room instead: say `room` to the innkeeper,
   press Enter, store in the secure container, and exit by the door at the start of the next
   trip. The live runs below used that version.
+- **Stop requested (since 2026-10-07; `ctl stop --after-trip`, docs/OVERSEER.md §2):** the graceful
+  stop, the same wind-down as a due break (`LumberLoop.ending`). Earlier the same evening, a plain
+  `ctl stop` on an end-the-day order killed a run that was already home: it had converted 561 logs
+  and was about to store them, and the boards stayed in the trapped pouch. Now `ctl` writes the
+  meta key `task_finish` naming the task; the runner, which gets its id as `UO_TASK_ID` from
+  `task_wrap`, reads it every 2 s (`FINISH_CHECK_S`, in `check_gate`) and: out at the grove,
+  stops harvesting, goes home, converts, stores; already home, finishes the convert and store;
+  starts no other trip and no library hop; logs `stop requested: boards stored after trip N`, marks
+  the episode row `stop_requested` (stand rows `end: "stop"`) and exits 0 (`task_done`). The
+  wrapper clears the key when the task ends. Scenario `stop_after_trip` (asked mid-harvest: home,
+  5 carried + 3 new logs stored as 8 boards, exit 0, no trip 2); `test_ctl.py` (refused for a
+  non-lumber task; a lumber stub ends itself on the request: `task_done`, key cleared).
 - **Harvest attempt (Smart Harvest since 2026-10-04; docs/PLAN.md "Smart Harvest for lumber"):**
   - dclick the hatchet, wait for the cursor, pause for "aim" time, answer the cursor with ourselves
     (`self_target` = `combat.target_self`, what `ctl act target self` sends: our serial,

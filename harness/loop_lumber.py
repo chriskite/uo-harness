@@ -135,8 +135,10 @@ import aspects  # noqa: E402
 import shelf as shelf_mod  # noqa: E402
 import convert as convert_mod  # noqa: E402
 import stockpile as stockpile_mod  # noqa: E402
+import task_wrap  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
+FINISH_CHECK_S = 2.0          # how often the run looks for a `ctl stop --after-trip` request (a meta read)
 # An Outlands faction waypost marker's click label (live: "FACTION WP 17" at witcher_66, 6 sightings;
 # "1Frozen Ruin Waypost", 17; wiki.uooutlands.com/Factions "Wayposts")
 WAYPOST = re.compile(r"Waypost$|^FACTION WP \d+$", re.IGNORECASE)
@@ -456,6 +458,9 @@ class LumberLoop:
         self.hit_by = []             # serials creature_hit blamed in this threat check (the junctures' `attackers`)
         self.hatchet_worn = None     # this trip: the hatchet in hand when a chop's cursor came (trip row hatchet.worn)
         self.break_due = False       # the agent gate announced a break (break_due)
+        self.task_id = os.environ.get("UO_TASK_ID")   # set by task_wrap: our `ctl stop --after-trip` request
+        self.finish_requested = False  # ctl stop --after-trip asked this run to end at home (check_gate)
+        self._finish_checked = 0.0   # monotonic: the last look at that request
         self.recall_book = None      # our book whose default rune lands at home: the way home and the red escape
         self.home_rune = None        # (x, y, facet) that default rune lands on (prepare_recall)
         self.home = None             # this character's home (harness/home.py: landing, room, chest), run()
@@ -564,13 +569,26 @@ class LumberLoop:
     def check_gate(self, st):
         """The agent gate's break_due (harness/agent_gate.py, docs/OVERSEER.md):
         stop harvesting and finish this trip in the rental room, so the overseer can
-        start the break there (`ctl break`)."""
+        start the break there (`ctl break`). The same for `ctl stop --after-trip`
+        (task_wrap.finish_requested for our UO_TASK_ID, read every FINISH_CHECK_S)."""
         gate = st.get("gate") or {}
         if gate.get("break_due_at") is not None and not self.break_due:
             self.break_due = True
             left = gate.get("break_starts_in_s")
             log("break due" + (f" (it starts in {left:.0f} s)" if left is not None else "")
                 + ": ending the trip in the rental room")
+        if self.task_id and not self.finish_requested and time.monotonic() - self._finish_checked >= FINISH_CHECK_S:
+            self._finish_checked = time.monotonic()
+            if task_wrap.finish_requested(self.memory, self.task_id):
+                self.finish_requested = True
+                log("stop requested (ctl stop --after-trip): ending the trip in the rental room")
+
+    @property
+    def ending(self) -> str | None:
+        """Why this trip winds down early and the run ends at home after it: "break due" (the
+        agent gate) or "stop requested" (ctl stop --after-trip); None to carry on. Either way: stop
+        harvesting, home into the rental room, convert, store, exit 0 (docs/LUMBER_LOOP.md §13)."""
+        return "break due" if self.break_due else "stop requested" if self.finish_requested else None
 
     # ------------------------------------------------------------ watchful waits
     def look(self, st=None):
@@ -2280,8 +2298,8 @@ class LumberLoop:
         the spot out of the plan until the trees regrow)."""
         tally = {"gained": 0, "attempts": 0, "successes": 0, "unknown": 0}
         try:
-            if self.break_due:
-                log("break due: no harvesting this trip")
+            if self.ending:
+                log(f"{self.ending}: no harvesting this trip")
                 return 0
             self.aspect_ensure("heading out")
             self.go_out()
@@ -2291,7 +2309,7 @@ class LumberLoop:
             if not trees:
                 self.stats["dry"] = True
                 raise Abort("no harvestable tree available (all depleted, unreachable or ruled out)")
-            while trees and tally["gained"] < self.args.logs_per_trip and not self.break_due:
+            while trees and tally["gained"] < self.args.logs_per_trip and not self.ending:
                 tree = self.next_stand(trees)
                 if tree is None and self.add_local_trees(trees):
                     tree = self.next_stand(trees)
@@ -2311,8 +2329,8 @@ class LumberLoop:
                     self.add_local_trees(trees)
                 except KeepAway as e:
                     self.keep_away(e)
-            if self.break_due:
-                log(f"break due: stopping the harvest at {tally['gained']} logs; going home to convert and store")
+            if self.ending:
+                log(f"{self.ending}: stopping the harvest at {tally['gained']} logs; going home to convert and store")
             elif not trees and tally["gained"] < self.args.logs_per_trip:
                 self.stats["dry"] = True
                 log(f"the area ran dry at {tally['gained']} logs (every candidate tree out of wood or tried); "
@@ -2619,7 +2637,7 @@ class LumberLoop:
         self.harvesting = True       # the keep-away is on while we stand and chop (a thief comes to us)
         try:
             while rec["attempts"] < self.args.max_attempts_per_stand and tally["gained"] < self.args.logs_per_trip \
-                    and not self.break_due:
+                    and not self.ending:
                 self.track_ensure("between chops")
                 if self.unstick(stand):
                     continue
@@ -2675,7 +2693,8 @@ class LumberLoop:
                     if tally["unknown"] > 3:
                         raise Abort("harvest attempts keep ending without a known outcome")
             self.stash_now()                   # the last chop's logs (each chop stashes the one before)
-            rec["end"] = ("break" if self.break_due else "quota" if tally["gained"] >= self.args.logs_per_trip
+            rec["end"] = ("break" if self.break_due else "stop" if self.finish_requested
+                          else "quota" if tally["gained"] >= self.args.logs_per_trip
                           else "max_attempts")
         except BaseException as e:
             rec["end"] = rec["end"] or f"interrupted: {type(e).__name__}: {e}"[:200]
@@ -3654,6 +3673,8 @@ class LumberLoop:
         finally:
             if self.break_due:
                 self.stats["break_due"] = True
+            if self.finish_requested:
+                self.stats["stop_requested"] = True
             woods = self.stats.get("woods") or (self.ledger.summary(kind="log") if outcome == "hopped" else None)
             if woods is not None:           # this leg's logs by wood: what it carried in isn't its own
                 woods = {w: n - woods0.get(w, 0) for w, n in woods.items() if n - woods0.get(w, 0) > 0}
@@ -3678,7 +3699,7 @@ class LumberLoop:
 
     def ended_early(self) -> str | None:
         """Why the harvest ended before its quota with no break due (a library hop may follow), or None."""
-        if self.break_due or self.stats.get("logs", 0) >= self.args.logs_per_trip:
+        if self.ending or self.stats.get("logs", 0) >= self.args.logs_per_trip:
             return None
         if self.stats.get("dry"):
             return f"the area ran dry at {self.stats.get('logs', 0)} logs"
@@ -3695,8 +3716,8 @@ class LumberLoop:
         hits, hits_max = me.get("hits"), me.get("hits_max")
         if self.hops_done >= self.args.hops:
             return f"--hops {self.args.hops} used"
-        if self.break_due:
-            return "break due"
+        if self.ending:
+            return self.ending
         if gate.get("blocked"):
             return f"agent gate closed ({gate.get('reason')})"
         if alerts.open_gm(self.memory):
@@ -3919,6 +3940,10 @@ class LumberLoop:
         # routes bend around where hostile creatures were seen lately (travel_guard)
         self.mover.danger_tiles = travel_guard.remembered_tiles(self.memory, self.facet, self.link.pos(st)[:2])
         for n in range(1, self.args.trips + 1):
+            if self.ending:                          # asked between trips: no new one
+                log(f"{self.ending}: no trip {n}; waiting in the rental room")
+                self.doing("done", f"Stopped before trip {n} ({self.ending}); waiting in the rental room")
+                return
             self.trip_n = n                          # intents from here on are this trip's
             self.pre_trip = (time.time(), self.mover.steps, self.mover.blocked_count)
             self.resupply_home()                    # the loadout from the storage shelf at home
@@ -3932,6 +3957,10 @@ class LumberLoop:
             if self.break_due:
                 log(f"break due: boards stored after trip {n}; stopping for the break (ctl break)")
                 self.doing("break_due", "Break due: boards stored; waiting in the rental room for the break")
+                return
+            if self.finish_requested:
+                log(f"stop requested: boards stored after trip {n}; the run ends here, in the rental room")
+                self.doing("done", f"Stop requested: boards stored after trip {n}; waiting in the rental room")
                 return
             if hopped and n < self.args.trips:
                 # the trip moved on to other spots: the run's own trips no longer fit; the overseer plans afresh
