@@ -27,6 +27,15 @@ What counts as "a character speaking" (measured on the 27 captures, 2026-10-01):
   say "all guard me", "All Kill" all the time (junctures 52/56/57/58/60,
   2026-10-02). Such a line still goes into `context`; one from a speaker with
   staff hints still counts.
+- not a line the shard speaks over a player (`shard_line`, 2026-10-07): status
+  lines wrapped in asterisks in the system hue 946 ("*hiking to destination*",
+  "*regens*", "*inspired*", "*shield bash*", "*area taunt*", "*charges*"), a few
+  fixed ones in other hues ("*herds followers*", the poison stages), and "**…**"
+  region banners. 23 of the first 76 holds were such lines (juncture 532 held
+  24 s on "*hiking to destination*"). Typed emotes come in the player's own hue
+  ("*flips through the pages of her book*" 25) and still count; so do plain
+  lines in hue 946, which NPCs and title echoes use too. Like pet commands they
+  stay in `context`, and a speaker with staff hints still counts.
 
 Every line is also judged by Laya (triage.py) from the recent speech around
 it (`context`); a likely attendance check is a staff hint.
@@ -69,6 +78,25 @@ PET_COMMANDS = frozenset({
     "kill", "attack", "guard", "guard me", "follow", "follow me", "come", "stop", "stay", "drop",
     "patrol", "release", "transfer", "friend", "unfriend", "fetch", "get", "bring", "report"})
 _TRAILING = re.compile(r"[\s.!?,;:]+$")
+# The shard's own lines over a mobile (speech_heard type 0, measured in the memory store 2026-10-07):
+# asterisk-wrapped in the system hue, a few fixed ones in other hues, region banners in BANNER_HUE
+SYSTEM_HUE = 0x3B2
+BANNER_HUE = 68
+SHARD_LINES = frozenset({(2117, "*herds followers*"), (33, "*You begin to feel pain throughout your body!*"),
+                         (33, "*You feel a bit nauseous*"), (33, "*begins to spasm uncontrollably*")})
+
+
+def shard_line(text: str, hue) -> bool:
+    """`text` (in `hue`) is a line the shard speaks over a mobile, not one a player typed: wrapped in
+    asterisks and in SYSTEM_HUE, a "**…**" banner in BANNER_HUE, or one of SHARD_LINES."""
+    t = (text or "").strip()
+    if len(t) < 3 or not (t.startswith("*") and t.endswith("*")):
+        return False
+    if hue == SYSTEM_HUE:
+        return True
+    if hue == BANNER_HUE and t.startswith("**") and t.endswith("**"):
+        return True
+    return (hue, t) in SHARD_LINES
 
 
 def pet_command(text: str, world: dict) -> bool:
@@ -255,7 +283,7 @@ class SpeechGuard:
                 self.names[who["serial"]] = who["name"]
             if self.cleared.get(who["serial"], 0) > self.now():
                 continue
-            if pet_command(who["text"], world) and not staff_hints(who):
+            if (pet_command(who["text"], world) or shard_line(who["text"], who["hue"])) and not staff_hints(who):
                 continue
             who["t"] = t
             who["context"] = [{"name": ln["name"], "text": ln["text"]} for ln in self.recent if t - ln["t"] <= RECENT_S]

@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import alerts  # noqa: E402
 from memory import Memory  # noqa: E402
-from speech_guard import (CLEAR_S, INVULNERABLE_EVIDENCE, SpeechGuard, pet_command, speaker,  # noqa: E402
+from speech_guard import (CLEAR_S, INVULNERABLE_EVIDENCE, SpeechGuard, pet_command, shard_line, speaker,  # noqa: E402
                           staff_hints, what)
 
 FAILURES = []
@@ -40,8 +40,8 @@ def world():
             "labels": {f"0x{VENDOR:08X}": "Jamie the provisioner", f"0x{PLAYER:08X}": "Kanbalt"}}
 
 
-def said(serial, text, type_=0, name="x"):
-    return {"ev": "speech_heard", "serial": serial, "name": name, "type": type_, "hue": 0x3B2, "text": text}
+def said(serial, text, type_=0, name="x", hue=0x3B2):
+    return {"ev": "speech_heard", "serial": serial, "name": name, "type": type_, "hue": hue, "text": text}
 
 
 def test_speaker():
@@ -204,6 +204,33 @@ def test_pet_commands():
           [c["text"] for c in got[0]["context"]] == live + ["Hackworth stop"], str(got[0]["context"]))
 
 
+def test_shard_lines():
+    print("== lines the shard speaks over a player are not a character speaking to us (juncture 532, 2026-10-07) ==")
+    w = world()
+    shard = [("*hiking to destination*", 946), ("*regens*", 946), ("*shield bash*", 946), ("*area taunt*", 946),
+             ("*herds followers*", 2117), ("*You begin to feel pain throughout your body!*", 33),
+             ("**PREVALIAN FORTRESS**", 68)]
+    check("the live shard lines are shard lines", all(shard_line(t, h) for t, h in shard))
+    for text, hue, why in (("*waves*", 0x2B2, "a typed emote in a player's own hue"),
+                           ("hiking to destination", 946, "no asterisks"),
+                           ("*herds followers*", 946 + 1, "a fixed line in another hue"),
+                           ("**", 946, "asterisks only"), ("*hi there", 946, "not closed")):
+        check(f"not a shard line: {why} ({text!r} hue {hue})", not shard_line(text, hue))
+    g = SpeechGuard(now=lambda: 1000.0)
+    events, times = [], []
+    g.scan(w, events, times)
+    events += [said(PLAYER, t, name="Unstabled", hue=h) for t, h in shard]
+    times += [10.0 + i for i in range(len(shard))]
+    check("scan: the shard lines hold nothing", g.scan(w, events, times) == [])
+    events += [said(PLAYER, "*waves*", name="Unstabled", hue=0x2B2), said(STAFF, "*hiking to destination*", name="GM Kemp")]
+    times += [30.0, 31.0]
+    got = g.scan(w, events, times)
+    check("scan: a typed emote and a staff-hinted speaker's shard line still hold; shard lines stay in context",
+          [x["text"] for x in got] == ["*waves*", "*hiking to destination*"] and staff_hints(got[1])
+          and "**PREVALIAN FORTRESS**" in [c["text"] for c in got[0]["context"]],
+          str([(x["text"], x["evidence"]) for x in got]))
+
+
 def test_sightings():
     print("== SpeechGuard.sightings: an invulnerable player in view is a staff hint without a word ==")
     now = [1000.0]
@@ -259,6 +286,7 @@ if __name__ == "__main__":
     test_context()
     test_staff()
     test_pet_commands()
+    test_shard_lines()
     test_sightings()
     print("ALL PASS" if not FAILURES else f"FAILED: {len(FAILURES)}: {FAILURES}")
     sys.exit(1 if FAILURES else 0)
