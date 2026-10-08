@@ -6,6 +6,8 @@
   2. Snapshot: rows still only in the live WAL make it into the snapshot, the
      snapshot restores (gunzip) to a standalone DB, an unchanged store writes
      no new snapshot, a changed one does.
+  3. Discord DBs ship only from the capture computer (the one with the Discord
+     login profile): a restored copy elsewhere never becomes a snapshot.
 """
 
 import datetime
@@ -93,9 +95,38 @@ def test_snapshot():
         check(n4 == "discord-20261001-100000.db.gz", f"prefixed snapshot name: {n4}")
 
 
+def test_discord_capture_only():
+    saved = backup.DBS, backup.TREES, backup.DISCORD_PROFILE, backup.LOG
+    with tempfile.TemporaryDirectory() as td:
+        db = os.path.join(td, "discord.db")
+        con = sqlite3.connect(db)
+        con.execute("CREATE TABLE m (v)")
+        con.commit()
+        con.close()
+        dest = os.path.join(td, "dest")
+        os.makedirs(dest)
+        profile = os.path.join(td, "discord_profile")
+        backup.DBS = [(db, "discord", "discord", False, True)]
+        backup.TREES = []
+        backup.DISCORD_PROFILE = profile
+        backup.LOG = os.path.join(td, "backup.log")
+        try:
+            rc = backup.run(dest)
+            check(rc == 0 and not os.path.exists(os.path.join(dest, "discord")),
+                  "no Discord profile here: the Discord DB is not snapshotted")
+            os.makedirs(profile)
+            rc = backup.run(dest)
+            snaps = os.listdir(os.path.join(dest, "discord")) if os.path.isdir(os.path.join(dest, "discord")) else []
+            check(rc == 0 and any(n.startswith("discord-") for n in snaps),
+                  f"capture computer: the Discord DB is snapshotted {snaps}")
+        finally:
+            backup.DBS, backup.TREES, backup.DISCORD_PROFILE, backup.LOG = saved
+
+
 def main():
     test_retention()
     test_snapshot()
+    test_discord_capture_only()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     return 0 if not FAILURES else 1
 

@@ -24,6 +24,11 @@ so the default is the UNC path):
                                      the Discord history (paid LLM output, so costly
                                      to regenerate); skipped while it doesn't exist.
                                      discord_vec.db is not backed up: it regenerates.
+                                     Both Discord DBs are backed up only from the
+                                     capture computer (the one with the Discord login
+                                     profile harness/data/discord_profile/): another
+                                     computer's restored read-only copy goes stale and
+                                     must never land as the newest snapshot.
   logs/                              logs/ (session captures, screens, overseer
                                      task logs). Additive: files deleted locally
                                      stay on the share.
@@ -77,11 +82,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DEST = r"\\STARGAZER\files\uo-harness"
 DB = os.path.join(ROOT, "harness", "data", "harness.db")
 DISCORD_DB = os.path.join(ROOT, "harness", "data", "discord.db")
-# (live DB, dest subdir, snapshot prefix, required)
+DISCORD_PROFILE = os.path.join(ROOT, "harness", "data", "discord_profile")
+# (live DB, dest subdir, snapshot prefix, required, capture computer only)
 DBS = [
-    (DB, "db", "harness", True),
-    (DISCORD_DB, "discord", "discord", False),
-    (os.path.join(ROOT, "harness", "data", "discord_kb.db"), "discord_kb", "discordkb", False),
+    (DB, "db", "harness", True, False),
+    (DISCORD_DB, "discord", "discord", False, True),
+    (os.path.join(ROOT, "harness", "data", "discord_kb.db"), "discord_kb", "discordkb", False, True),
 ]
 LOG = os.path.join(ROOT, "logs", "backup.log")
 KEEP_ALL_HOURS = 48
@@ -202,9 +208,12 @@ def run(dest):
         return 1
 
     import dbhandoff  # imports this module, so not at module level
-    for db, sub, prefix, required in DBS:
+    for db, sub, prefix, required, capture_only in DBS:
         if not required and not os.path.exists(db):
             results[sub] = {"ok": True, "snapshot": None, "absent": True}
+            continue
+        if capture_only and not os.path.isdir(DISCORD_PROFILE):
+            results[sub] = {"ok": True, "snapshot": None, "skipped": "not the Discord capture computer"}
             continue
         if db == DB:
             try:
