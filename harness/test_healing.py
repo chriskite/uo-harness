@@ -131,11 +131,12 @@ def flight_aid():
     check("running, stamina 13/25: nothing", a.choose(flight(stam=13), ME, t, standing=False) is None)
     check("standing, poisoned: cure", kind(a.choose(flight(poisoned=True), ME, t, standing=True)) == ("cure", CURE))
 
-    print("== flight aid: only what lies in the backpack itself ==")
+    print("== flight aid: anything in the backpack, bags included (Razor's findtype/potion) ==")
     check("frozen, no live pouch: the cure when poisoned",
           kind(a.choose(flight(flags=0x21, poisoned=True, pouch=False), ME, t, standing=False)) == ("cure", CURE))
-    check("poisoned, the cure potions only in a bag: nothing (no bag opened mid-flight)",
-          a.choose(flight(poisoned=True, cure=False, cure_in_bag=True), ME, t, standing=True) is None)
+    check("poisoned, the cure potions only in a bag: that cure, drunk by serial (live 2026-10-07: Dan's potions sat "
+          "in a bag and the flight aid never saw them)",
+          kind(a.choose(flight(poisoned=True, cure=False, cure_in_bag=True), ME, t, standing=True)) == ("cure", BAG_CURE))
     check("hurt, no heal potion: nothing", a.choose(flight(hits=40, heal=False), ME, t, standing=True) is None)
     check("poisoned unknown (None): not poisoned, heal when hurt",
           kind(a.choose(flight(hits=40, poisoned=None), ME, t, standing=True)) == ("heal", HEALP))
@@ -145,6 +146,20 @@ def flight_aid():
           and "frozen" in c.why, str(c))
     check("no backpack: nothing", a.choose({"self": {"hits": 10, "hits_max": 100}, "items": {}}, ME, t,
                                            standing=True) is None)
+
+    print("== self care between chops (working): the user's Razor heal script ==")
+    a = healing.FleeAid()
+    check("working, 1 hit missing: heal (`if hp < maxhits`)",
+          kind(a.choose(flight(hits=99), ME, t, standing=False, working=True)) == ("heal", HEALP))
+    check("working, full hits: nothing", a.choose(flight(hits=100), ME, t, standing=False, working=True) is None)
+    check("working, poisoned and hurt: cure first",
+          kind(a.choose(flight(hits=70, poisoned=True), ME, t, standing=False, working=True)) == ("cure", CURE))
+    check("working, stamina 5/25: no refresh (running only)",
+          a.choose(flight(stam=5), ME, t, standing=False, working=True) is None)
+    a.used(healing.Aid("heal", HEALP, healing.HEAL_POTION_GRAPHIC, "30 hits missing"), t)
+    check("working, heal potion cooling down: nothing until the 10 s clock",
+          a.choose(flight(hits=70), ME, t + 5.0, standing=False, working=True) is None
+          and kind(a.choose(flight(hits=70), ME, t + 10.0, standing=False, working=True)) == ("heal", HEALP))
 
 
 def main():

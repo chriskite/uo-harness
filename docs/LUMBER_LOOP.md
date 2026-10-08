@@ -1115,8 +1115,11 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     the heal potion clock ready (`PotionClock`, 10 s) and hurt: a heal potion (0x0F0C), running
     from 25 % of hits_max missing (`RUN_HEAL_MISSING`), standing only at ≤ 50 % of hits_max
     (`STAND_HEAL_HITS`: a drink there delays the book); (4) running only, stamina ≤ 50 %
-    (`RUN_REFRESH_STAM`) and a refresh potion (0x0F0B): refresh. Only items lying directly in the
-    backpack (the shelf resupply puts them there); no bag is opened mid-flight.
+    (`RUN_REFRESH_STAM`) and a refresh potion (0x0F0B): refresh. Items anywhere in the backpack,
+    bags included (`healing.in_pack`, since 2026-10-07; before, only items lying directly in the pack
+    counted, and Dan's potions in a bag were never drunk): drunk by serial with one double-click and no
+    bag opened, as Razor's `findtype … backpack` / `potion "heal"` do (Razor CE
+    `Item.FindItemsById(recurse: true)`, `PlayerData.UseItem`).
   - **Spacing:** no two uses within `USE_GAP_S` 0.55 s; a kind used recently is skipped for its
     retry gap (`RETRY_S`: pouch 1.0 s, cure 1.5 s, refresh 3 s) and the next kind may go. Before
     the runebook's double-click `recall_out` sleeps until `FleeAid.ready_at()` (the last use +
@@ -1137,6 +1140,15 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     disturb casting], so curing before the cast matters. Not used: healing spells (casting stops
     the run and takes the recall's slot), bandages (no Healing skill), moongates, Hiding.
     Scenario `flee_aid`; `test_healing.py` (`flight_aid`), `test_escape.py` (`test_escape_between`).
+- **Self care between chops (since 2026-10-07, user request after their Razor heal script;
+  `LumberLoop.self_care`, `FleeAid.choose(working=True)`):** Dan took a ranged hit to 75/100 while
+  walking away from a brigand knifeman at witcher_20 (lumber-20261007-213615-1a70, 21:44:22) and chopped
+  on hurt: the flight aid only ran during getaways and couldn't see his potions in a bag. Now, before
+  each hatchet use in `attempt()`, the user's script: poisoned → a cure potion; else any hit missing
+  (`WORK_HEAL_MISSING` 1: `if hp < maxhits`) and the heal potion clock ready → a heal potion; no refresh,
+  no spells. The hatchet's double-click then waits until `FleeAid.ready_at()` (the drink + 0.55 s). The
+  log says `self care: …`, the `flee_aid` job event has `mode: work`. Scenario `work_heal` (poisoned at
+  70 hits, potions in a bag: cure, heal, each ≥ 0.5 s before the next hatchet use); `test_healing.py`.
 - **Blind waits: every wait watches (since 2026-10-03; `LumberLoop.pause` / `wait_for` /
   `drop_cursor`):**
   - **The death that showed it (Hackworth, Terran wilds, 2026-10-03, store events):** the runner

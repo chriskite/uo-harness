@@ -1320,11 +1320,26 @@ while recall casts were disturbed (docs/NOTES.md, witcher_66 14:08, witcher_162 
   reach); moongates (none where Dan chops; a gate's prompt and its destination are their own risk);
   Hiding (no skill). No change to the hunt runner or `ctl`.
 
-Code: `healing.FleeAid` / `Aid` / `in_pack_top`, `loop_lumber.LumberLoop.flee_aid` (check_guards,
+Code: `healing.FleeAid` / `Aid` / `in_pack`, `loop_lumber.LumberLoop.flee_aid` (check_guards,
 recall_out), `escape.escape(between=)`, world `SelfState.poisoned`. Tests: `test_healing.py`
 (`flight_aid`), `test_escape.py` (`test_escape_between`), `test_world_units.py` (self 0x17), scenario
 `flee_aid` in `test_loop_lumber.py`. Live checks for the first run: docs/NOTES.md "Healing on the run:
 live checks".
+
+**Revised 2026-10-07 (user): the whole pack, and self care between chops.** Live, Dan took a ranged hit
+to 75/100 at witcher_20 and chopped on without healing: the aid only ran during getaways, and it only
+looked at items lying directly in the backpack, while all his potions sat in a bag. The user pointed at
+Razor: their heal script (`if poisoned` → `findtype "Orange Potion" backpack` → `dclick`; `if hp <
+maxhits` → `potion "heal"`) finds potions at any bag depth and drinks by serial.
+- **Adopted:** `healing.in_pack` searches the backpack at any depth (Razor CE `findtype … backpack` =
+  `Item.FindItemsById(recurse: true)`; `potion` = `PlayerData.UseItem`, recursive over the client's
+  known containers, one 0x06 by serial, no bag opened). The earlier "no bag is opened mid-flight"
+  limit was ours, not the client's: the sanctioned assistant built into the Outlands client sends
+  exactly this. And `LumberLoop.self_care` runs the user's script before every hatchet use: cure when
+  poisoned, else a heal potion with any hit missing (potion clock 10 s), the hatchet 0.55 s after a drink.
+- **Not adopted:** healing spells between chops (a cast unequips the two-handed hatchet, docs/NOTES.md,
+  and Dan's script uses potions); a missing-hits threshold above 1 (the user's script heals at any loss;
+  `WORK_HEAL_MISSING` is the knob if potions run short).
 
 ## Risks
 

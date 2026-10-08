@@ -681,15 +681,16 @@ class LumberLoop:
         for fn in due:
             fn()
 
-    def flee_aid(self, st, standing: bool = False, frozen_hint: bool = False) -> bool:
+    def flee_aid(self, st, standing: bool = False, frozen_hint: bool = False, working: bool = False) -> bool:
         """One flight aid (healing.FleeAid, docs/LUMBER_LOOP.md §13 "Healing on the run") when one is due:
         a live trapped pouch when paralyzed, a cure potion when poisoned, a heal potion when hurt, a refresh
         potion when tired (running only). Potions are declared to the ledger (spent, not stolen) and the
         pouch to PopWatch (own_pop) before the double-click; a `flee_aid` job event is deferred (later).
-        `standing`: before or between recall casts. True when something was used."""
+        `standing`: before or between recall casts; `working`: between chops (self_care). True when
+        something was used."""
         me = st["world"]["self"]
         now = time.monotonic()
-        aid = self.aid.choose(st["world"], self.self_serial(st), now, standing, frozen_hint)
+        aid = self.aid.choose(st["world"], self.self_serial(st), now, standing, frozen_hint, working)
         if aid is None:
             return False
         if aid.kind == "pouch":
@@ -699,14 +700,22 @@ class LumberLoop:
         self.link.act(actions.dclick(aid.serial))
         self.aid.used(aid, now)
         frozen = bool((me.get("stats") or {}).get("flags", 0) & healing.FLAG_FROZEN)
-        log(f"flight aid: {aid.kind} ({aid.why}; hits {me.get('hits')}/{me.get('hits_max')}, "
-            f"stam {me.get('stam')}/{me.get('stam_max')}{', standing' if standing else ''})")
+        log(f"{'self care' if working else 'flight aid'}: {aid.kind} ({aid.why}; hits {me.get('hits')}/"
+            f"{me.get('hits_max')}, stam {me.get('stam')}/{me.get('stam_max')}{', standing' if standing else ''})")
         data = {"kind": aid.kind, "why": aid.why, "item": f"0x{aid.serial:08X}",
                 "hits": me.get("hits"), "hits_max": me.get("hits_max"), "stam": me.get("stam"),
                 "stam_max": me.get("stam_max"), "poisoned": me.get("poisoned"), "frozen": frozen or frozen_hint,
                 "standing": standing, "mode": self.mode, "trip": self.trip_n, "spot": self.k["spot"]["id"]}
         self.later(lambda data=data, where=self._where(st): self.memory.job_event("lumber", "flee_aid", data, **where))
         return True
+
+    def self_care(self, st):
+        """Between chops (attempt, before the hatchet's use; user 2026-10-07, after their Razor heal
+        script): a cure potion when poisoned, else a heal potion with any hit missing, found anywhere in
+        the pack (healing.in_pack) and drunk by serial. The hatchet's double-click then waits out the
+        server's action delay after the drink (FleeAid.ready_at, USE_GAP_S)."""
+        if self.flee_aid(st, working=True) and (hold := self.aid.ready_at() - time.monotonic()) > 0:
+            time.sleep(hold)
 
     def _check_threats(self, st, escape: bool = True):
         """threats.py over every state read. Hostile players are logged once each
@@ -2094,6 +2103,7 @@ class LumberLoop:
         self._stash_due = None                       # this chop's stash covers anything left loose
         st = self.state()
         before = self.count(st, LOGS)
+        self.self_care(st)
         cur = self.use_hatchet("chop_use", hesitate=False)
         if cur is None:
             return ("captcha", 0)

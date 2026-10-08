@@ -406,6 +406,17 @@ nothing. Equip/unequip with the client-opened backpack re-opened nothing either.
 worn item (`unequip`) needs the paperdoll open in a stock client; the harness doesn't open it
 (not a container, not addressed).
 
+**Exception: potions and the trapped pouch by serial, like Razor (2026-10-07, user decision).** The
+lumber runner's flight aid and between-chop self care (`healing.in_pack`, LUMBER_LOOP.md §13) double-
+click a potion or a live trapped pouch anywhere in the backpack by serial, without opening its bag
+first. That is what the assistant built into the Outlands client does. Razor CE `potion "heal"`
+(`PlayerData.UseItem`) and `findtype … backpack` + `dclick` (`Item.FindItemsById(recurse: true)`)
+walk the client's known pack tree and send one `0x06` for the item, with no `0x06` for its bag (Razor
+CE `master`, Scripts/Commands.cs `Potion`, Core/Player.cs `UseItem`, read 2026-10-07). The user's own
+heal script does it. The harness's world model only holds items the server sent this client, so
+the server has shown these items to it. Every other reach into a container (lift, drop, target,
+`ctl act use`) still opens the container first.
+
 **Live audit (session 20261001_191355, 2026-10-01, 97 min, lumber runner on Shelter, captcha mode
 `auto`).** Replayed offline through `viz_feed.ReplayDriver`: exact interleave, every jsonl row
 matched its raw packet (20 744 C2S, 83 929 S2C), 0 parse failures, 0 world-model anomalies. The

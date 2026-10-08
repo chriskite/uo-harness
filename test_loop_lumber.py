@@ -58,6 +58,9 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
 - flee_aid (§13 "Healing on the run"): at the library spot a red's spells leave us at 55 hits, poisoned and
   paralyzed (steps refused): a trapped pouch pops the paralysis, a cure, then a heal potion on the run; the book's
   double-click never within 0.5 s of them; no potion read as stolen
+- work_heal (§13 "Self care between chops"): we set out poisoned at 70 hits with the potions in a bag in the pack
+  (Dan's, live 2026-10-07): a cure, then a heal potion between chops, drunk by serial from the bag (Razor's
+  findtype/potion); the hatchet's double-click never within 0.5 s of a drink; no potion read as stolen
 - staff_in_view (docs/PLAN.md "Staff alarm on an invulnerable player in view"): a vendor (notoriety 7, no
   player flag) next to us mid-harvest raises nothing; an invulnerable player (notoriety 7 + 0x20) coming into
   view raises one gm_suspected + staff alarm, a staff_sighting with its gear, and holds the job until acked
@@ -532,7 +535,7 @@ class World:
         self.red_hits = []                # (distance, sent while hunting murderers)
         # gazer: our hits (sent as 0xA1) and the creature's spell range in the simulation (12: what the runner
         # assumes; larger: it outranges the walk-away)
-        self.hits = 100
+        self.hits = 70 if scenario == "work_heal" else 100
         self.gazer_pos, self.gazer_range = None, 12
         self.gazer_hits = []              # (time, our distance from it) per cast that hit
         self.reflect = False              # gazer_reflect: Magic Reflection is up and takes the next spell
@@ -552,8 +555,9 @@ class World:
         self.vendor_t = None              # staff: when the vendor's 0x20 went out
         self.gm_t = None                  # staff: when the invulnerable player's 0x20 went out
         # flee_aid: our potions (serial -> [graphic, amount]), the red's hit, and what the runner used
-        self.potions = {s: [g, 5] for s, g in POTIONS.items()} if scenario == "flee_aid" else {}
-        self.frozen = self.poisoned = False
+        self.potions = {s: [g, 5] for s, g in POTIONS.items()} if scenario in ("flee_aid", "work_heal") else {}
+        self.potion_box = BAG if scenario == "work_heal" else BACKPACK   # work_heal: Dan's potions sit in a bag
+        self.frozen, self.poisoned = False, scenario == "work_heal"
         self.hurt_t = self.unfrozen_t = None
         self.aid_clicks = []              # (time, "cure" | "heal" | "refresh" | "pouch", frozen then)
         self.steps = []                   # (time, accepted) per walk request after the hit
@@ -1019,7 +1023,7 @@ class World:
         elif kind == "cure":
             return
         self.potions[serial][1] = n - 1
-        self.send(contained(serial, g, n - 1, BACKPACK) if n > 1 else delete(serial))
+        self.send(contained(serial, g, n - 1, self.potion_box) if n > 1 else delete(serial))
 
     def faction_appears(self):
         """faction (live 2026-10-06 witcher_66): our own guild tag; a guildmate whose guild is in a faction
@@ -1393,13 +1397,17 @@ class World:
             self.send(contained(0x44ADB0FF, 0x0F7A, 10, BACKPACK))   # black pearl: charges spend none
         for pch in self.pouch_hue:                              # the trapped pouches (hue 38)
             self.send(self.pouch_pkt(pch))
-        for s, (g, n) in self.potions.items():                 # flee_aid: cure, heal, refresh potions
-            self.send(contained(s, g, n, BACKPACK, x=60 + 10 * list(POTIONS).index(s)))
+        if self.potion_box != BACKPACK:                         # work_heal: the bag the potions sit in
+            self.send(contained(self.potion_box, 0x0E76, 1, BACKPACK))
+        for s, (g, n) in self.potions.items():                 # flee_aid / work_heal: cure, heal, refresh potions
+            self.send(contained(s, g, n, self.potion_box, x=60 + 10 * list(POTIONS).index(s)))
         if self.scenario == "break":                            # logs carried from an earlier trip
             self.send(self.stack_pkt(self.add_wood(LOG_G, INITIAL_LOGS, BACKPACK)))
         for g, n in self.carried:                              # convert_stacks: logs of other woods carried
             self.send(self.stack_pkt(self.add_wood(g, n, BACKPACK)))
         self.send(hits_pkt(self.hits))                          # our hits: the runner reads damage from them
+        if self.poisoned:                                       # work_heal: poisoned before we set out
+            self.send(poison_pkt(True))
         self.send_room_items()
         self.send_horse()
         await writer.drain()
@@ -2545,6 +2553,36 @@ async def flee_aid():
     store.close()
 
 
+async def work_heal():
+    """LUMBER_LOOP.md §13 "Self care between chops" (user 2026-10-07, after their Razor heal script and Dan's hit at
+    witcher_20: 75/100 and never healed, his potions in a bag the flight aid couldn't see). We set out poisoned at 70
+    hits with every potion in a bag in the pack: between chops the runner drinks a cure, then a heal potion, by serial
+    from the bag; the hatchet's double-click comes 0.5 s or more after each drink; the trip stores, no theft."""
+    print("\n== self care: poisoned at 70 hits, potions in a bag -> cure, then heal between chops ==")
+    world = World("work_heal")
+    text, code, store, _ = await run_scenario(world, "work_heal", 12950, [GOOD_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
+    clicks = world.aid_clicks
+    kinds = [k for _, k, _ in clicks]
+    check("a cure, then one heal potion (poisoned first; 70 + 30 = full), both from the bag; nothing more",
+          kinds == ["cure", "heal"] and not world.poisoned and world.hits == 100
+          and "You can not heal" not in text, f"{kinds} poisoned {world.poisoned} hits {world.hits}")
+    hatchet = [t for p, t in zip(world.c2s, world.c2s_t) if p[0] == 0x06 and p[1:5] == u32(HATCHET)]
+    gaps = [round(min(h - t for h in hatchet if h > t), 3) for t, _, _ in clicks if any(h > t for h in hatchet)]
+    check("each drink came before a hatchet use, which waited 0.5 s or more after it (the server's action delay)",
+          len(gaps) == len(clicks) and all(g >= 0.5 for g in gaps), f"gaps {gaps}")
+    check("potions spent: one cure, one heal, both from the bag", [n for _, n in world.potions.values()] == [4, 4, 5],
+          str(world.potions))
+    ev = [e["data"] for e in store.job_events("lumber") if e["kind"] == "flee_aid"]
+    junc = [j["kind"] for j in store.junctures()]
+    check("flee_aid events cure, heal in work mode; 'self care' logged; no theft_suspected",
+          [e["kind"] for e in ev] == ["cure", "heal"] and all(e["mode"] == "work" for e in ev)
+          and "self care: heal" in text and "theft_suspected" not in junc, f"{ev} {junc}")
+    eps = store.episodes("lumber")
+    check("stored, exit 0", code == 0 and [e.get("outcome") for e in eps] == ["stored"], f"exit {code}\n{text[-600:]}")
+    store.close()
+
+
 async def thief_keep_away():
     """docs/PLAN.md "Keep thieves off the logs" (THREATS.md §7 T3): at the library spot a blue player
     (Caputo Wood, live 2026-10-03) steps next to us while we chop: the runner steps out of his reach after a
@@ -3550,7 +3588,8 @@ def run_parallel(names, jobs):
 
 if __name__ == "__main__":
     runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
-            wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, thief_keep_away, pouch_pop, no_pouch,
+            wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, work_heal, thief_keep_away, pouch_pop,
+            no_pouch,
             resupply,
             convert_stacks,
             landing_escape, stockpile_store,
