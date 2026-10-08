@@ -1127,6 +1127,15 @@ session log t 1791215164–1791215431 (the Wintertop death) and a live test at 1
   out of the room and back in through the steward, and writes the trip row's `mount`; a remembered
   mount it can't ride is an attention `low_supplies` juncture (item `mount`), and the trip goes on
   foot. Offline: `test_loop_lumber.py` scenario `ghost_horse`.
+- **A following (not ridden) mount can't be ridden in the guild house (live 2026-10-08 13:26:52):**
+  after the 11:45 death at witcher_336 the horse came home walking beside Dan (alive, a follower,
+  not resting). The runner's double-click at the home landing got **"Your mount refuses to let you
+  ride it while in this area."** (System speech); after the recall out the horse was beside Dan
+  again at the grove (it came along the recall), but `mount_after_recall` only waited for a resting
+  mount's "Your mount returns.", so run `lumber-20261008-132635-28a9` went on foot until the overseer
+  stopped it. Now `mount.try_mount` reads that line as `refused`, `mount_home` records the trip row's
+  `mount.deferred`, and `mount_after_recall` double-clicks a mount that isn't under us once it's in
+  reach (up to `MOUNT_FOLLOW_S` 4 s), `mount.mounted_at_landing`. Scenario `horse_follows`.
 
 ## Aspects (live 2026-10-04, user demo on Outland Dan)
 

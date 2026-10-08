@@ -525,6 +525,8 @@ class World:
         self.mounted = False              # riding it (the mount item on layer 0x19)
         self.mount_rested = 0             # times the guild house sent the ridden mount to rest
         self.mount_resting = False        # it rests now (no mount item); a recall out or the room returns it
+        self.no_ride_home = False         # horse_follows: riding refused within 10 tiles of the home landing (live
+        #                                   2026-10-08, the DTF guild house); the following horse comes along a recall out
         self.horse_menus = 0              # context menus asked for on it
         self.horse_dclicks = []           # per double-click on it: was it a ghost then
         self.shelf_gumps = {}             # shelf gump serial -> "room" | "landing", open
@@ -779,6 +781,8 @@ class World:
                 asyncio.get_running_loop().call_later(2.2, self.drop_hunt)
             if self.mount_resting:                     # live: "Your mount returns." as we leave the guild house
                 asyncio.get_running_loop().call_later(2.15, self.mount_returns)
+            elif self.no_ride_home and self.horse is not None and not self.mounted:   # it follows us out
+                asyncio.get_running_loop().call_later(2.2, self.send_horse)
         else:
             if self.chase:                             # a creature at our heels stays behind (a recall jumps)
                 handles.append(asyncio.get_running_loop().call_later(2.1, self.attacker_left))
@@ -1331,7 +1335,11 @@ class World:
             self.room_gump("steward_no_room")
         elif pid == 0x06:
             serial = int.from_bytes(p[1:5], "big")
-            if serial == HORSE and self.horse is not None and not self.mounted:
+            if serial == HORSE and self.horse is not None and not self.mounted \
+                    and self.no_ride_home and self.facet == 0 and self.cheb(HOME_RUNE_POS) <= 10:
+                self.horse_dclicks.append("refused")
+                self.send(sys_text("Your mount refuses to let you ride it while in this area."))
+            elif serial == HORSE and self.horse is not None and not self.mounted:
                 self.horse_dclicks.append(self.horse["dead"])
                 if not self.horse["dead"]:                 # up on it: the mobile goes, the mount item comes
                     self.mounted = True
@@ -2066,11 +2074,12 @@ async def main():
 
 
 async def run_scenario(world, tag, trees, runner_args, budget=None, spot_extra=None, during=None,
-                       more_spots=(), routes=None):
+                       more_spots=(), routes=None, prepare=None):
     """The real proxy in front of `world` on free private ports (logdir
     LOGDIR/<tag>, an optional pre-written agent gate file), then the runner with
     runner_args; `during(db)`, a coroutine function, runs alongside it (a test
-    overseer). Returns (runner output, exit code, memory store, capture rows)."""
+    overseer); `prepare(db)` writes to the store before anything starts. Returns (runner output, exit code,
+    memory store, capture rows)."""
     logdir = os.path.join(LOGDIR, tag)
     os.makedirs(logdir, exist_ok=True)
     if budget is not None:
@@ -2079,6 +2088,8 @@ async def run_scenario(world, tag, trees, runner_args, budget=None, spot_extra=N
     paths = write_world_files(tempfile.mkdtemp(dir=LOGDIR), trees, spot_extra, stockpile=world.stockpile is not None,
                               more_spots=more_spots, routes=routes)
     db = paths["db"]
+    if prepare is not None:                             # the store as an earlier run left it
+        prepare(db)
     server, upstream = await start_server(world)
     proxy, (proxy_port, control, state) = await start_proxy(upstream, logdir, db)
     try:
@@ -2519,6 +2530,37 @@ async def landing_escape():
           and "to the rune library: no route" not in text, f"{world.recalls_out}\n{text[-900:]}")
     check("the trip went on out there and ended in the room (exit 0), not an abort",
           code == 0 and [e.get("outcome") for e in eps] == ["stored"],
+          f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]}")
+    store.close()
+
+
+async def horse_follows():
+    """Live 2026-10-08: after a death the horse followed Dan home on foot instead of resting in the guild house; the
+    runner's double-click there got "Your mount refuses to let you ride it while in this area." and, after the recall
+    out, it only waited for a resting mount to return: the whole trip went on foot with the horse beside Dan. Here
+    the guild house refuses riding and the horse follows the recall out: the runner mounts it at the landing."""
+    print("\n== horse follows: riding refused at home, mounted at the landing after the recall out ==")
+    world = World("ghost_horse")
+    world.horse = {"dead": False}
+    world.no_ride_home = True
+    world.shelf_stock = {"room": 0, "landing": 0}
+
+    def remembered(db):                               # an earlier run knew the horse as ours (live: own_mounts)
+        import mount as mount_mod
+        mem = memory.Memory(db)
+        mount_mod.remember(mem, CHAR_NAME, HORSE, "a horse")
+        mem.close()
+    text, code, store, _ = await run_scenario(world, "horse_follows", [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=LIB_SPOT, prepare=remembered)
+    eps = store.episodes("lumber")
+    check("refused at home, then one double-click at the landing: riding out there",
+          world.horse_dclicks == ["refused", False] and world.mount_rested >= 1
+          and "from the landing (it followed us out)" in text,
+          f"dclicks {world.horse_dclicks} rested {world.mount_rested}\n{text[-900:]}")
+    check("the trip stored (exit 0); no 'mount can't be ridden' juncture",
+          code == 0 and [e["outcome"] for e in eps] == ["stored"]
+          and not any(j["data"].get("item") == "mount" for j in store.junctures()),
           f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]}")
     store.close()
 
@@ -4042,7 +4084,7 @@ if __name__ == "__main__":
             resupply,
             convert_stacks,
             landing_escape, stockpile_store,
-            ghost_horse,
+            ghost_horse, horse_follows,
             staff_in_view,
             hop,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_run_and_recall, unit_boxed_in,

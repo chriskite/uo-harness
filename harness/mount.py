@@ -14,7 +14,9 @@ horse; docs/NOTES.md "Our mount").
 - The DTF guild house sends a ridden mount to rest when we come into it, by a recall or out of
   the rental room ("Your mount finds a quiet place to rest safely.": the mount item goes, followers
   stay 0/5), and gives it back when we leave it by a recall out or into the room ("Your mount
-  returns.", live 2026-10-05).
+  returns.", live 2026-10-05). A mount that follows us there (not ridden in: live 2026-10-08 after
+  a death the horse followed Dan home on foot) can't be ridden there: "Your mount refuses to let you
+  ride it while in this area." (REFUSED); it can once we're out (the runner mounts after the recall).
 
 IO-agnostic like room.py: `io` has send(pkt) and poll() -> (state, new world events)."""
 
@@ -34,6 +36,7 @@ MOUNT_WAIT_S = 3.0
 HUMAN_BODIES = frozenset([*range(0x190, 0x194), *range(0xB7, 0xBB), *range(0x25D, 0x261), 0x29A, 0x29B,
                           0x2B6, 0x2B7, 0x3DB, 0x3DF, 0x3E2, 0x2E8, 0x2E9, 0x4E5])
 OWN_MOUNTS_KEY = "own_mounts"       # memory-store meta: {character: {serial, name, t}}
+REFUSED = "Your mount refuses to let you ride it while in this area."   # live 2026-10-08, the DTF guild house
 
 
 def _serial(v) -> int:
@@ -120,16 +123,24 @@ def find_own(io, human, state: dict, known: int | None = None) -> tuple[int, dic
 
 def mount(io, human, pet: int, timeout: float = MOUNT_WAIT_S) -> bool:
     """The stock double-click on our pet; True once we ride (the mount layer)."""
+    return try_mount(io, human, pet, timeout) == "riding"
+
+
+def try_mount(io, human, pet: int, timeout: float = MOUNT_WAIT_S) -> str:
+    """The stock double-click on our pet: "riding" (the mount layer), "refused" (REFUSED: not in this
+    area) or "no mount" (nothing within `timeout`)."""
     human.wait("use")
     io.poll()
     io.send(actions.dclick(pet))
     end = time.monotonic() + timeout
     while time.monotonic() < end:
-        st, _ = io.poll()
+        st, evs = io.poll()
         if mounted(st):
-            return True
+            return "riding"
+        if any(e.get("ev") == "speech_heard" and (e.get("text") or "").strip() == REFUSED for e in evs):
+            return "refused"
         time.sleep(0.1)
-    return False
+    return "no mount"
 
 
 def mount_up(io, human, known: int | None = None) -> dict:

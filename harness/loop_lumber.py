@@ -236,6 +236,7 @@ PACE_SLACK = 1
 PACER_WAIT_MAX_S = 5.0        # the longest wait for a pacer's next shot before casting anyway
 PACER_SHOT_FRESH_S = 0.15     # a shot this recent when the wait starts counts as its next one
 DEATH_BLAME_S = 15.0          # a creature that hit us this recently is the death's cause (died)
+MOUNT_FOLLOW_S = 4.0          # after the recall out, how long a following mount gets to come into reach (mount_after_recall)
 # Players (option E, player_escape): one within spell range (12, threats.SPELL_WORDS_RANGE) is run from
 # until PLAYER_RECALL_GAP tiles off or out of view before the recall: a mounted PK then needs ~0.6 s to
 # be in range again plus his own cast, more than our 2 s Recall needs only when he has no spell held
@@ -3304,8 +3305,13 @@ class LumberLoop:
         pet, m = found
         mount_mod.remember(self.memory, self.home_name, pet, m.get("name"))
         self.doing("mount", f"Mounting {m.get('name') or 'our pet'}")
-        rec["mounted"] = mount_mod.mount(io, self.human, pet)
-        log(f"mount: {'riding' if rec['mounted'] else 'no mount after the double-click on'} 0x{pet:08X}")
+        got = mount_mod.try_mount(io, self.human, pet)
+        rec["mounted"] = got == "riding"
+        if got == "refused":                 # following us, not ridden in: the guild house won't let us (live 2026-10-08)
+            rec["deferred"] = True
+            log(f"mount: 0x{pet:08X} can't be ridden here ({mount_mod.REFUSED!r}); mounting after the recall out")
+        else:
+            log(f"mount: {'riding' if rec['mounted'] else 'no mount after the double-click on'} 0x{pet:08X}")
         self.pre_stats["mount"] = rec
 
     def mount_missing(self, pet: int, why: str):
@@ -3321,8 +3327,10 @@ class LumberLoop:
     def mount_after_recall(self):
         """After the recall out: our remembered mount is under us again. The guild house rests it
         when we come out of the room or recall in, and gives it back on the recall out ("Your mount
-        returns.", live 2026-10-05). The trip row's `mount.mounted` says whether we ride; a
-        juncture when a mount that rested didn't come back."""
+        returns.", live 2026-10-05). One that followed us instead (the guild house refused it:
+        mount_home's `deferred`; live 2026-10-08 after a death the horse walked with Dan, and the
+        whole trip went on foot) gets the double-click here once it's in reach (mount.mount_up).
+        The trip row's `mount.mounted` says whether we ride; a juncture when we still don't."""
         known = mount_mod.remembered(self.memory, self.home_name)
         if self.args.mount == "off" or known is None:
             return
@@ -3331,9 +3339,24 @@ class LumberLoop:
             time.sleep(0.1)
         rec = self.stats.setdefault("mount", {"pet": f"0x{known:08X}"})
         rec["mounted"] = mount_mod.mounted(self.state())
-        log(f"mount: {'riding' if rec['mounted'] else 'not riding'} after the recall out")
-        if not rec["mounted"] and "why" not in rec:
-            self.mount_missing(known, "it didn't come back after the recall out")
+        if not rec["mounted"]:
+            self.doing("mount", "Mounting our pet")
+            io, end = escape_mod.LinkIO(self.link), time.time() + MOUNT_FOLLOW_S
+            while True:                       # a follower comes along a moment after the jump
+                got = mount_mod.mount_up(io, self.human, known)
+                if got.get("mounted") or got.get("pet") is not None or time.time() >= end:
+                    break
+                time.sleep(0.5)
+            rec["mounted"] = bool(got.get("mounted"))
+            if rec["mounted"]:
+                rec["mounted_at_landing"] = True
+                log(f"mount: riding {got.get('pet')} from the landing (it followed us out)")
+            else:
+                rec["why"] = got.get("why")
+                log(f"mount: not riding after the recall out ({got.get('why')})")
+                self.mount_missing(known, f"it didn't come back after the recall out ({got.get('why')})")
+            return
+        log("mount: riding after the recall out")
 
     def resupply_here(self, where: str, restock: bool = False) -> dict | None:
         """shelf.resupply from the nearest usable storage shelf in view (None: no shelf here). With
