@@ -73,13 +73,13 @@ coming into view is a staff hint without a word: the alarm at once, a
 `staff_sighting` job event on its first sighting this run, and the same hold.
 
 Threats (threats.py; LUMBER_LOOP.md §13): a monster close enough to flee from
-gets an escape (walk beyond its flee radius, then harvest at the next stand out of
-its reach). Damage from a single creature at healthy hits (--creature-recall-at)
-gets a run: walk out of its reach (a ranged one's: 12 tiles + margin) and chop
-on at a stand outside it; damage again soon after the walk-away
-(--creature-rehit-s), low hits, two attackers or no escapes left recall home.
+gets an escape: legs of ESCAPE_RUN tiles until it gives up the chase (out of view,
+or far and not closing in: it rubber-bands back to its spawn), then harvest at the
+next stand out of its reach. Damage from a single creature at healthy hits
+(--creature-recall-at) gets a run the same way; damage again soon after the
+walk-away (--creature-rehit-s), low hits, two attackers or no escapes left recall home.
 Trees within reach of a known-aggressive creature in view are left for later.
-A player/red threat, or a monster that keeps coming stops the run. An abort
+A player/red threat, or a monster that keeps pace with us stops the run. An abort
 while harvesting stashes loose logs in the trapped pouch when that is safe (with
 no live pouch it converts them), so carried wood is protected. A break announced
 by the agent gate (break_due) ends the trip early: home, convert, store, exit 0
@@ -200,7 +200,14 @@ LOGS = tuple(range(0x1BDD, 0x1BE3))
 BOARDS = (0x1BD7,)
 DROP_AUTO = 0x7FFFFFFF        # client drop-into-container auto-position (demo)
 ESCAPE_MARGIN = 2             # an escape ends this many tiles beyond the monster's reach (flee radius or spell range)
-ESCAPES_PER_TRIP = 3          # monster escapes per trip (runs from damage included); one more threat stops the run
+ESCAPES_PER_TRIP = 8          # monster escapes per trip (runs from damage included); one more threat stops the run
+ESCAPES_PER_MONSTER = 3       # escapes from one creature per trip: one that comes back a 4th time guards the grove
+# A walk-away runs in legs until each creature has given up (user 2026-10-07: "if you run far enough from a
+# monster it rubber bands back to its spawn point, and you can continue chopping"; how far is unmeasured on
+# Outlands, so we run until it's out of view or ESCAPE_RUN off and not closing in, and log each `leash`)
+CHASE_LEGS_MAX = 6            # legs of an escape before a creature still following sends us home
+CHASE_MAX_MOVES = 200         # steps of an escape, all legs, before the same
+LEASH_LOOK_S = 2.0            # shaken off: watch this long before chopping on (one coming back: more legs)
 RECALL_ALERT_TRIES = 2        # failed recalls away from a creature before the urgent keep_running juncture
 RECALL_RETRY_S = 10.0         # between recall casts while nothing is after us (run_and_recall)
 KEEP_RUNNING_LOOK_S = 0.5     # how often run_and_recall looks around while nothing is after us
@@ -497,16 +504,18 @@ class LumberLoop:
         self.pouches_used = 0        # this trip: trapped pouches that went off (ours and a thief's)
         self.harvesting = False      # chopping at a stand (work_stand): the keep-away is on
         self.suspects = {}           # serial -> name: players we stepped away from this trip (keep_away)
+        self.escaped_from = {}       # serial -> escapes from that creature this trip (ESCAPES_PER_MONSTER)
 
     @staticmethod
     def new_creature_tally() -> dict:
         """The trip row's `creature`: escapes (walk-aways, runs from damage included), hits
         lost to creatures, whether a creature sent us home by recall and why it ended the
         trip (null when none did); runs (walk-aways after damage), hits (damage episodes),
-        avoided_trees (trees left alone near a known-aggressive creature) and recall_fails
-        (recalls away from a creature that failed; run_and_recall ran on after each)."""
+        avoided_trees (trees left alone near a known-aggressive creature), recall_fails
+        (recalls away from a creature that failed; run_and_recall ran on after each), legs
+        (escape legs run in all) and shaken (creatures that gave up the chase: `leash` events)."""
         return {"escapes": 0, "hits_lost": 0, "recalled": False, "why": None,
-                "runs": 0, "hits": 0, "avoided_trees": 0, "recall_fails": 0}
+                "runs": 0, "hits": 0, "avoided_trees": 0, "recall_fails": 0, "legs": 0, "shaken": 0}
 
     def doing(self, kind: str, text: str, target=None):
         """Tell the visualizer what the agent is trying to do (proxy-side only)."""
@@ -880,11 +889,13 @@ class LumberLoop:
             self.monster_stop(st, a, monsters[0], swung, "speech hold: no escape")
         if self.escapes >= ESCAPES_PER_TRIP:
             self.monster_stop(st, a, monsters[0], swung, f"{self.escapes} escapes this trip already")
-        # one we already ran from is on us again: it hunts us, and another run only brings it along (live
-        # 2026-10-05, witcher_23: an air dragon followed two escapes, then breathed twice from 9 tiles)
-        back = next((t for t in monsters if t.serial in self.danger), None)
+        # one we already ran from is on us again: run from it again, as far as it takes to shake it off (user
+        # 2026-10-07), but a 4th time it guards the grove: home (live 2026-10-05, witcher_23: an air dragon
+        # followed two escapes, then breathed twice from 9 tiles; a breath on the way still counts as a hit)
+        back = next((t for t in monsters if self.escaped_from.get(t.serial, 0) >= ESCAPES_PER_MONSTER), None)
         if back is not None:
-            self.monster_stop(st, a, back, swung, f"{back.name or f'0x{back.serial:08X}'} followed us after an escape")
+            self.monster_stop(st, a, back, swung, f"{back.name or f'0x{back.serial:08X}'} came back after "
+                                                  f"{self.escaped_from[back.serial]} escapes")
         raise Escape(monsters, self.post_threat(st, a, monsters[0], swung, "escape"))
 
     def creature_hit(self, st, a, swung, monsters, escape: bool):
@@ -2731,66 +2742,148 @@ class LumberLoop:
         return True
 
     def escape(self, e: Escape):
-        """Walk away from e's monsters to a tile at least ESCAPE_RUN tiles from each of them
-        and out of every zone (escape_tiles: theirs, zone_r, and the aggro zones of the other
-        creatures in view; user, 2026-10-05: a few steps don't break aggro), then check that
-        none followed: one still in flee range, or a ranged one within its reach, stops the run
-        ('it kept coming'; monster_stop runs RECALL_GAP away before the recall). The zones
-        stay for the rest of the trip, around the creature and around where it was."""
+        """Run from e's monsters until each has given up the chase (user 2026-10-07: "if you run far
+        enough from a monster it rubber bands back to its spawn point, and you can continue chopping").
+        In legs: each to a tile at least ESCAPE_RUN tiles from where they are now and out of every zone
+        (escape_tiles: theirs, zone_r, and the aggro zones of the other creatures in view; user,
+        2026-10-05: a few steps don't break aggro), then chase_check. One still in flee range (a ranged
+        one within its reach) kept pace: stop ('it kept coming'; monster_stop runs RECALL_GAP away before
+        the recall). One still following but falling behind: another leg from where it is now, up to
+        CHASE_LEGS_MAX legs and CHASE_MAX_MOVES steps (then home). All out of view, or ESCAPE_RUN off and
+        not closing in: shaken off; we watch LEASH_LOOK_S (one coming back: more legs) and chop on. Each
+        shaken creature is a `leash` job event (how, legs, steps, seconds, where it was and was last
+        seen). The zones stay for the rest of the trip, around each creature (where it last chased us)
+        and around where it was when we fled."""
         st = self.link.state()
         mobs = st["world"]["mobiles"]
         self.escapes += 1
         self.stats["escapes"] = self.stats.get("escapes", 0) + 1
         self.creature["escapes"] += 1
+        fled, start, last = {}, {}, {}
         for t in e.monsters:
+            self.escaped_from[t.serial] = self.escaped_from.get(t.serial, 0) + 1
+            fled[t.serial] = t
             m = mobs.get(f"0x{t.serial:08X}") or {}
             if m.get("x") is not None:
+                start[t.serial] = last[t.serial] = (m["x"], m["y"])
                 zone = ((m["x"], m["y"]), self.zone_r(t))
                 self.danger[t.serial] = self.danger[("was", t.serial)] = zone
                 self.mover.danger[t.serial] = self.mover.danger[("was", t.serial)] = zone   # routes bend around
                 travel_guard.record(self.memory, st, t, (m["x"], m["y"]), job="lumber")
         names = ", ".join(t.name or f"0x{t.serial:08X}" for t in e.monsters)
-        run_from = [(m["x"], m["y"]) for m in (mobs.get(f"0x{t.serial:08X}") or {} for t in e.monsters)
-                    if m.get("x") is not None]
-        goals = self.escape_tiles(st, run_from)
-        if not goals:
-            self.monster_stop(st, self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S),
-                              e.monsters[0], {}, "nowhere clear to run to")
-        log(f"ESCAPE {self.escapes}/{ESCAPES_PER_TRIP}: {e.summary}; backing away to {goals[0]}")
+        run_from = list(start.values())
+        log(f"ESCAPE {self.escapes}/{ESCAPES_PER_TRIP}: {e.summary}")
         self.mode, self.walk_hits = "escape", 0
-        here = tuple(st["movement"]["pos"][:2])
+        t0, steps0, legs, dist, gone = time.monotonic(), self.mover.steps, 0, {}, {}
         try:
-            for i, goal in enumerate(goals):
-                self.doing("escape", f"Backing away from {names}", goal)
-                # live 2026-10-05 (witcher_149, a death): a goal 4 tiles away took a 36-step route round a
-                # building and through a door; the hoarfrost caught us on it
-                max_route = max(ESCAPE_ROUTE_MIN, ESCAPE_DETOUR * cheb(here, goal))
-                try:
-                    # no pauses while running from a creature (user, 2026-10-05)
-                    self.mover.walk_to(lambda: goal, 1, "escape", max_moves=80, max_route=max_route, urgent=True)
-                    break
-                except Abort as x:
-                    if "no route" not in str(x) and "detour" not in str(x):
-                        raise
-                    if i == len(goals) - 1:
-                        st = self.link.state()
-                        a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
-                        self.monster_stop(st, a, e.monsters[0], {}, "no short way out of its reach")
-                    log(f"escape: {str(x).split(': ', 1)[-1]}; trying another way")
+            while True:
+                goals = self.escape_tiles(st, run_from)
+                if not goals:
+                    self.monster_stop(st, self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S),
+                                      e.monsters[0], {}, "nowhere clear to run to")
+                legs += 1
+                log(f"escape leg {legs}: backing away from {names} to {goals[0]}")
+                self.escape_leg(st, goals, names, e.monsters[0])
+                st = self.link.state()
+                a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+                kept, following, gone = self.chase_check(st, a, fled, dist, last)
+                if not kept and not following:
+                    self.pause(LEASH_LOOK_S, "escape_look")      # watching before going back to work
+                    st = self.link.state()
+                    a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+                    kept, following, gone = self.chase_check(st, a, fled, dist, last)
+                    if not kept and not following:
+                        break
+                self.last_threats = a
+                if kept:
+                    self.monster_stop(st, a, kept[0], {}, "it kept coming after the escape")
+                steps = self.mover.steps - steps0
+                if legs >= CHASE_LEGS_MAX or steps >= CHASE_MAX_MOVES:
+                    self.monster_stop(st, a, following[0], {}, f"still after us after {legs} escape legs "
+                                                                f"({steps} steps)")
+                run_from = [last[t.serial] for t in following if t.serial in last]
+                for t in following:
+                    if t.serial in last:
+                        zone = (last[t.serial], self.zone_r(t))
+                        self.danger[t.serial] = self.mover.danger[t.serial] = zone
+                log("escape: " + ", ".join(f"{self.threat_name(t)} still following at {t.distance} tiles"
+                                           for t in following) + "; running on")
         finally:
             self.mode = "work"
-        self.swingers.clear()                # the swings that caused this escape are dealt with
-        st = self.link.state()
-        a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
         self.last_threats = a
-        fled = {t.serial for t in e.monsters}
-        still = [t for t in a.flee if t.kind == "monster"]
-        still += [t for t in a.threats if t.serial in fled and t not in still and 0 <= t.distance
-                  and t.reach > self.watch.params.monster_strike_range and t.distance <= t.reach]
-        if still:
-            self.monster_stop(st, a, still[0], {}, "it kept coming after the escape")
+        self.swingers.clear()                # the swings that caused this escape are dealt with
+        secs, steps = round(time.monotonic() - t0, 1), self.mover.steps - steps0
+        here = tuple(st["movement"]["pos"][:2])
+        self.creature["legs"] += legs
+        self.creature["shaken"] += len(gone)
+        for s, how in gone.items():
+            t = fled[s]
+            if ("was", s) in self.danger:    # it went back where it came from: its zone too, not where it chased us
+                self.danger[s] = self.mover.danger[s] = self.danger[("was", s)]
+            if how == "out of view":         # nor does its last chasing tile guard trees (tree_guards' RECENT_ZONE_S)
+                self.recent_guards.pop(s, None)
+                self.mover.danger.pop(("seen", s), None)
+            self.memory.job_event("lumber", "leash", {
+                "serial": f"0x{s:08X}", "name": t.name, "body": t.body, "how": how, "legs": legs, "steps": steps,
+                "seconds": secs, "from": list(start[s]) if s in start else None,
+                "last_seen": list(last[s]) if s in last else None, "us": list(here),
+                "escape": self.escaped_from.get(s), "trip": self.trip_n, "spot": self.k["spot"]["id"]},
+                **self._where(st))
         self.run_arrived = time.time()
-        log(f"escaped to {tuple(st['movement']['pos'][:2])}; carrying on")
+        log(f"escaped to {here}: shook off {names} after {legs} leg(s), {steps} steps, {secs} s "
+            f"({'; '.join(gone.values())}); carrying on")
+
+    def escape_leg(self, st, goals, names, worst):
+        """One escape leg: the first of `goals` with a short way there (no pauses: user, 2026-10-05);
+        no goal reachable: home ('no short way out of its reach')."""
+        here = tuple(st["movement"]["pos"][:2])
+        for i, goal in enumerate(goals):
+            self.doing("escape", f"Backing away from {names}", goal)
+            # live 2026-10-05 (witcher_149, a death): a goal 4 tiles away took a 36-step route round a
+            # building and through a door; the hoarfrost caught us on it
+            max_route = max(ESCAPE_ROUTE_MIN, ESCAPE_DETOUR * cheb(here, goal))
+            try:
+                self.mover.walk_to(lambda: goal, 1, "escape", max_moves=80, max_route=max_route, urgent=True)
+                return
+            except Abort as x:
+                if "no route" not in str(x) and "detour" not in str(x):
+                    raise
+                if i == len(goals) - 1:
+                    st = self.link.state()
+                    a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+                    self.monster_stop(st, a, worst, {}, "no short way out of its reach")
+                log(f"escape: {str(x).split(': ', 1)[-1]}; trying another way")
+
+    def chase_check(self, st, a, fled: dict, dist: dict, last: dict):
+        """After an escape leg: (kept, following, gone). `kept`: creatures we fled still in flee range,
+        or ranged ones within their reach (they keep pace). `following`: ones still in view within
+        ESCAPE_RUN or closer than at the last check, and any other creature now in flee range (it joins
+        `fled`). `gone`: serial -> how it gave up ("out of view", "N tiles off, not closing in").
+        `dist` / `last`: each one's distance and position at the last check (updated)."""
+        by = {t.serial: t for t in a.threats}
+        mobs = st["world"]["mobiles"]
+        new = [t for t in a.flee if t.kind == "monster" and t.serial not in fled]
+        for t in new:
+            fled[t.serial] = t
+        kept, following, gone = [], list(new), {}
+        for s in fled:
+            t = by.get(s)
+            m = mobs.get(f"0x{s:08X}") or {}
+            if t is None or t.distance < 0:
+                gone[s] = "out of view"
+                continue
+            if m.get("x") is not None:
+                last[s] = (m["x"], m["y"])
+            prev, dist[s] = dist.get(s), t.distance
+            if t in new:
+                continue
+            if t in a.flee or (t.reach > self.watch.params.monster_strike_range and t.distance <= t.reach):
+                kept.append(t)
+            elif t.distance < ESCAPE_RUN - 1 or (prev is not None and t.distance < prev):
+                following.append(t)          # (a leg ends within 1 tile of its goal, ESCAPE_RUN off)
+            else:
+                gone[s] = f"{t.distance} tiles off, not closing in"
+        return kept, following, gone
 
     def escape_tiles(self, st, run_from=()) -> list:
         """Escape goals, best first: up to two tiles walked before (walk memory)
@@ -3494,7 +3587,7 @@ class LumberLoop:
         self.stats = dict(self.pre_stats)
         self.pre_stats = {}
         self.trip_n = n
-        self.escapes, self.danger = 0, {}
+        self.escapes, self.danger, self.escaped_from = 0, {}, {}
         self.mover.danger = {}
         self.run_arrived, self.creature, self.avoided = None, self.new_creature_tally(), set()
         self.recent_guards, self.dropped_trees, self.no_route, self.switch_tree = {}, {}, set(), None

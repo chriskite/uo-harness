@@ -319,6 +319,19 @@ chatter, is skipped for now: every speaker still holds a harvest job.
     radius and goes on with the next tree out of its reach. It stops if the creature still
     follows, after 3 escapes per trip, on damage, and at once for players and reds. Escape on
     foot for now; recall stays the PK answer (ROADMAP 2).
+  - **Revised 2026-10-07 (user): run until it gives up.** "Dan is still not running far away enough
+    from monsters; he's giving up and recalling out too soon. If you run far enough from a monster
+    it 'rubber bands' back to its spawn point, and you can continue chopping." Live that evening an
+    orc came back 3 s after a single 11-tile walk-away (witcher_177) and a third escape ended a trip
+    (witcher_188), both by recall home. Now an escape runs in legs until each creature is out of
+    view or 19+ tiles off and not closing in, watches 2 s, and chops on; it records each shake-off
+    (`leash` job event) so the chase distance gets measured. Still home: a creature that keeps pace
+    (in flee range, or a ranged one in reach, after a leg), 6 legs / 200 steps without shaking it,
+    a 4th escape from the same creature, 8 escapes in a trip (was 3), and the damage rules
+    (low hits, two attackers, two hits on one walk-away, a hit from next to us). Rejected: a fixed
+    leash distance (unmeasured on Outlands); dropping "kept coming" (the creatures at our heels
+    that killed Dan on 2026-10-05 still need the recall). Details: LUMBER_LOOP.md §13 "Run until it
+    gives up".
   - An abort during the harvest converts the carried logs first, unless that's unsafe.
   - A break that comes due ends the trip at the bank (convert, store, exit 0), then the
     overseer runs `ctl break`.

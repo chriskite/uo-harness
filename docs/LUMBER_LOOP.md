@@ -857,11 +857,38 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   before within 60° of straight away, else straight away or 45° to either side. Then it carries on
   with the next tree out of the reach of every creature it escaped from this trip, around where it
   is and where it was (an escape in the convert or bank phase repeats that phase). It stops
-  instead (`data.action = "abort"`, or `recall` far from home) when the creature is still in flee
-  range (a ranged one: within its reach) right after the escape ("it kept coming"), after 3
-  escapes in a trip (`ESCAPES_PER_TRIP`), during a speech hold, on damage when the rule below
-  says so (until 2026-10-03: on any damage), and, as before, at once for a hostile
-  player/red/grey/orange in flee range or a non-creature swinging at us.
+  instead (`data.action = "abort"`, or `recall` far from home) when the creature keeps pace (see
+  "Run until it gives up" below), after `ESCAPES_PER_TRIP` escapes in a trip (3 until 2026-10-07,
+  now 8) or a 4th from the same creature (`ESCAPES_PER_MONSTER` 3), during a speech hold, on damage
+  when the rule below says so (until 2026-10-03: on any damage), and, as before, at once for a
+  hostile player/red/grey/orange in flee range or a non-creature swinging at us.
+- **Run until it gives up (since 2026-10-07, user: "Dan is still not running far away enough from
+  monsters; he's giving up and recalling out too soon. If you run far enough from a monster it
+  'rubber bands' back to its spawn point, and you can continue chopping"; `escape`, `escape_leg`,
+  `chase_check`):** live 2026-10-07 at witcher_177 (lumber-20261007-215951-2a17, 22:01:16) the
+  walk-away from an orc ended 11 tiles out, the runner chopped again 1 tile from there with the orc
+  14 tiles off in war mode, it came 3 s later ("followed us after an escape") and Dan recalled home.
+  At witcher_188 (lumber-20261007-204506-4edc) the 3rd escape of the trip recalled home the same way.
+  Now an escape runs in legs, each to a tile `ESCAPE_RUN` (20) tiles from where the creatures are
+  now, and after each leg `chase_check` sorts the creatures we fled (plus any new one in flee range):
+  - still in flee range, or a ranged one within its reach: it keeps pace → home ("it kept coming
+    after the escape", as before; `monster_stop` runs `RECALL_GAP` away first);
+  - still in view and closer than 19 tiles, or closer than at the last check: following but falling
+    behind → another leg from where it is now (its zone moves with it), up to `CHASE_LEGS_MAX` (6)
+    legs or `CHASE_MAX_MOVES` (200) steps, then home ("still after us after N escape legs");
+  - out of view, or 19+ tiles off and not closing in: it gave up.
+  When all gave up the runner watches `LEASH_LOOK_S` (2 s, still in escape mode: damage there is a
+  hit "while walking away") and checks again; one coming back means more legs. Then it chops on at a
+  tree out of every zone. Each creature shaken off is a `leash` job event (serial, name, body, how,
+  legs, steps, seconds, `from` where it was when we fled, `last_seen`, `us`, which escape from it):
+  how far Outlands creatures chase before they snap back is unmeasured, and these events measure it.
+  A creature we already ran from back in flee range is a new escape (until 2026-10-07 it sent us home
+  at once: "followed us after an escape"), up to `ESCAPES_PER_MONSTER`; then home ("came back after
+  3 escapes"). The damage rules below are unchanged. The trip row's `creature` adds `legs` and
+  `shaken`. Scenarios `leash` (a creature at half our pace snaps back to its spawn 10 tiles out: one
+  escape, shaken off, chop on at the other tree, stored), `skirmish` (one at our heels through a
+  second escape: kept coming, home), `gazer_rehit` (a gazer that outranges the leg hits during the
+  look: kept coming, home).
 - **Keep away from creatures in view, run far, run before recalling (since 2026-10-05, user: "never
   move into aggro range of mobs we can see while lumbering"; "a few steps isn't going to break aggro";
   fighting them is for later):**
@@ -1007,9 +1034,9 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     2026-10-05 the guild house's 60-tile `at_home` radius no longer means "stop in place") on: hits
     below the threshold, two or more possible attackers, damage with nothing in view to blame, a
     hostile player in view, damage within 10 s of arriving from a walk-away ("still taking damage …
-    after the walk-away"), no escapes left, a speech hold, a creature we already ran from back in
-    flee range ("followed us after an escape"). "It kept coming" and the conversion rules are
-    unchanged.
+    after the walk-away"), no escapes left, a speech hold, a creature back for a 4th escape ("came back
+    after 3 escapes"; until 2026-10-07 any creature we already ran from back in flee range: "followed
+    us after an escape"). "It kept coming" and the conversion rules are unchanged.
   - **Reach** (`threats.creature_reach`): melee 1; ranged 12 for `threats.RANGED_BODIES` (the
     gazer, 22) and for every body that hit us as the only candidate from beyond melee range
     (`travel_guard.learn_hit`, also from the store's `monster_hit` rows at start, so the next run

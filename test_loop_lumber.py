@@ -38,7 +38,9 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
 - skirmish: the hatchet in a bag in the pack; 'a great hart' in war mode 4 tiles from the tree
   fighting a player (0x2F both ways) is no threat (passive body); a creature that swings at the agent makes
   it escape and harvest the next tree out of reach; the same creature then hunts it down there
-  (escape, kept coming: stop at once, the logs stay logs)
+  (a second escape; it keeps at our heels: kept coming, recall home, the logs stored there)
+- leash: at the library spot a war-mode creature at the first chop follows at half our pace and snaps back to its
+  spawn 10 tiles out: escape legs until it gave up (a `leash` event), then chop on at the far tree; stored, exit 0
 - break: the agent gate (pre-written budget file) announces a break mid-harvest; the trip ends
   in the room with the carried and new logs stored as boards, exit 0
 - library: out by the home library's tome (the landing nearest the grove), home with our runebook's
@@ -209,6 +211,12 @@ PET_POPUP = (bytes.fromhex("bf0024001400020154fe1103") + bytes.fromhex("000f4a17
              + bytes.fromhex("002ddf6a00010000") + bytes.fromhex("002ddf7200090000"))       # 1 Kill, 9 Release
 WARY, WARY_POS = 0x0000BA76, (113, 201)                    # 2 tiles from the good tree, 13 from the start
 WEST_TREE = {"x": 86, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [87, 200]}      # 13 steps west; good: 10
+# leash (LUMBER_LOOP.md §13 "Run until it gives up", user 2026-10-07: run far enough and a monster rubber-bands
+# back to its spawn): at the library spot a war-mode creature shows up 5 tiles north of the tree's stand at the
+# first chop and walks after us a tile every LEASH_STEP_S (half our running pace) until LEASH_R tiles from its
+# spawn, farther than one ESCAPE_RUN leg takes us (live, an orc caught up 3 s after a single walk-away): then it
+# snaps back to its spawn (peace). The far tree lies south, outside its zone, and home is a recall
+LEASHER, LEASH_SPAWN, LEASH_R, LEASH_STEP_S = 0x0000BA77, (40, 247), 25, 0.4
 # red_aim (LUMBER_LOOP.md §13 "Blind waits"; live 2026-10-03, Bastet came into view during the chop's aim pause)
 BASTET, RED_AIM_S, REACT_MAX_S = 0x0009BA57, 0.02, 0.5   # a red, in view this long after the chop's cursor
 # (the aim is a script's ~0.1 s since 2026-10-04, humanize SCRIPT_MEDIAN; the live aim pause was 2.1 s)
@@ -455,7 +463,7 @@ class World:
         #                                   "staff" (a vendor next to us, then an invulnerable player in view)
         self.scripted = scenario == "home"  # captchas, the passer-by's speech, the pickpocket
         self.library = scenario in ("library", "tracking", "gazer", "red_aim", "thief", "pouch_pop", "landing_monster",
-                                    "ghost_horse", "faction", "precast", "flee_aid")
+                                    "ghost_horse", "faction", "precast", "flee_aid", "leash")
         #                                   the library spot (pvp), black pearls in the pack
         self.facet, self.pos = ROOM_FACET, list(ROOM_ARRIVAL)   # every run starts in the rental room
         self.facing = 0
@@ -528,6 +536,9 @@ class World:
         self.gate_gumps = {}              # renounce-prompt serial -> buttons the agent/client replied
         self.attacker_pos = None          # skirmish: the creature that goes for the agent
         self.chase = False                # skirmish: the attacker follows the agent step for step
+        self.leash_pos = None             # leash: the creature's tile while in view
+        self.leash_chasing = False        # ... walking after us (leash_chase)
+        self.leash_t = None               # ... when it snapped back to its spawn
         self.late_blast = False           # red_aim: a PK's Explosion goes off on us 0.4 s after the recall home lands
         self.attacker_swings = 0
         self.far_attempts = 0             # skirmish: harvest attempts at the far tree
@@ -1003,6 +1014,25 @@ class World:
         self.chase = chase
         self.send(creature_pkt(ATTACKER, 0x27, *self.attacker_pos))
 
+    async def leash_chase(self):
+        """leash: a step toward us every LEASH_STEP_S (half our running pace), whether we move or not, until
+        LEASH_R tiles from its spawn: then it snaps back there in peace mode and stays (the user's live
+        observation, 2026-10-07; RunUO-style leash [INFERENCE]). Next to us it just stands."""
+        while self.leash_chasing and not self.writer.is_closing():
+            await asyncio.sleep(LEASH_STEP_S)
+            if self.facet != 0:
+                return
+            x, y = self.leash_pos
+            nxt = (x + (self.pos[0] > x) - (self.pos[0] < x), y + (self.pos[1] > y) - (self.pos[1] < y))
+            if nxt == tuple(self.pos):
+                continue
+            if max(abs(nxt[0] - LEASH_SPAWN[0]), abs(nxt[1] - LEASH_SPAWN[1])) >= LEASH_R:
+                self.leash_pos, self.leash_chasing, self.leash_t = LEASH_SPAWN, False, time.time()
+                self.send(creature_pkt(LEASHER, 0x27, *LEASH_SPAWN, flags=0))
+                return
+            self.leash_pos = nxt
+            self.send(creature_pkt(LEASHER, 0x27, *nxt))
+
     def red_appears(self):
         """red_aim: a red player comes into view 8 tiles east (Bastet, live 2026-10-03: 10 spaces)."""
         self.red_t = time.time()
@@ -1238,6 +1268,10 @@ class World:
                 self.cursor_for = self.cid
                 self.send(cliloc(1010018))
                 self.send(cursor(self.cid))
+                if self.scenario == "leash" and self.leash_pos is None and self.cheb(LIB_TREE["stand"]) <= 1:
+                    self.leash_pos, self.leash_chasing = LEASH_SPAWN, True
+                    self.send(creature_pkt(LEASHER, 0x27, *LEASH_SPAWN))
+                    asyncio.get_running_loop().create_task(self.leash_chase())
                 if self.scenario in ("red_aim", "faction", "precast", "flee_aid") and not self.red_due \
                         and self.cheb(RUNE_POS) <= 5:
                     self.red_due = True
@@ -1951,8 +1985,9 @@ async def skirmish():
     """LUMBER_LOOP.md §13: the hatchet in a bag in the pack; 'a great hart' in war mode
     4 tiles from the tree, fighting a player (knowledge #89); a creature that goes for
     the agent (escape ESCAPE_RUN tiles, then the next tree out of its reach); the same creature
-    hunting it down at that tree (one we already ran from: no second escape, run RECALL_GAP away,
-    recall home, no conversion; live 2026-10-05 an air dragon followed two escapes and killed Dan)."""
+    hunting it down at that tree: a second escape (user 2026-10-07: run until it gives up), but it
+    keeps at our heels (still in flee range after the leg: it keeps pace), so run RECALL_GAP away,
+    recall home, no conversion (live 2026-10-05 an air dragon followed two escapes and killed Dan)."""
     print("\n== skirmish: hatchet in a bag, a hart fighting a player, a creature that goes for us ==")
     world = World("skirmish")
     text, code, store, _ = await run_scenario(world, "skirmish", 12680, [GOOD_TREE, FAR_TREE],
@@ -1963,8 +1998,9 @@ async def skirmish():
           and dclicks.index(BACKPACK) < dclicks.index(BAG) < dclicks.index(HATCHET), str(dclicks[:6]))
     threat_js = [j for j in store.junctures() if j["kind"] == "threat"]
     acts = [j["data"].get("action") for j in threat_js if "threats" in j["data"]]
-    check("threat junctures (urgent): escape, recall (it followed us after the escape), then 'Recalled away'",
-          acts == ["escape", "recall"] and "Recalled away" in threat_js[-1]["summary"]
+    check("threat junctures (urgent): escape, escape again (it came back), recall (it kept coming), then "
+          "'Recalled away'",
+          acts == ["escape", "escape", "recall"] and "Recalled away" in threat_js[-1]["summary"]
           and all(j["severity"] == "urgent" for j in threat_js),
           str([(j["summary"], j["data"].get("action")) for j in threat_js]))
     with_threats = [j for j in threat_js if "threats" in j["data"]]
@@ -1983,8 +2019,8 @@ async def skirmish():
     far = [s for s in stand_events(store) if s["anchor"] == [FAR_TREE["x"], FAR_TREE["y"]]]
     check("resumed at a stand by the next tree out of the attacker's reach and harvested there",
           world.far_attempts >= 2 and sum(s["successes"] for s in far) >= 1, f"{world.far_attempts} attempts, {far}")
-    check("the attacker followed us after the escape: the run stopped (exit 1)",
-          code == 1 and "followed us after an escape" in text and world.attacker_swings >= 1,
+    check("the attacker came back and kept at our heels through the second escape: the run stopped (exit 1)",
+          code == 1 and "kept coming after the escape" in text and world.attacker_swings >= 1,
           f"exit {code}, {world.attacker_swings} swings")
     check("a creature at our heels: no 10 s log conversion next to it (live 2026-10-03: 85 -> 40 hits while "
           "converting); first a run RECALL_GAP away (user 2026-10-05: a few steps don't break aggro), then the "
@@ -2000,12 +2036,40 @@ async def skirmish():
     eps = store.episodes("lumber")
     check("the stopped trip still left its episode row: aborted, why, the logs it got, now stored; the hatchet "
           "from the bag",
-          len(eps) == 1 and eps[0].get("outcome") == "aborted" and "followed us" in (eps[0].get("why") or "")
+          len(eps) == 1 and eps[0].get("outcome") == "aborted" and "kept coming" in (eps[0].get("why") or "")
           and eps[0].get("logs") == world.harvested and eps[0].get("stored") == world.harvested
           and eps[0].get("carried_end") == {"logs": 0, "boards": 0}
           and (eps[0].get("hatchet") or {}).get("worn") is False
           and {"harvest", "to_room", "convert", "store"} <= set(eps[0]["phases_s"]),
           str(eps)[:600])
+    store.close()
+
+
+async def leash():
+    """User 2026-10-07: "If you run far enough from a monster it 'rubber bands' back to its spawn point, and you can
+    continue chopping." At the first chop a war-mode creature shows up 5 tiles off; it follows at half our pace and
+    snaps back to its spawn LEASH_R tiles out. The runner runs in legs until it has given up, records a `leash` job
+    event, and chops on at the west tree, out of its zone: the trip stores, exit 0, no recall away from it."""
+    print("\n== leash: a creature chases, falls behind and snaps back to its spawn -> shake it off, chop on ==")
+    world = World("leash")
+    text, code, store, _ = await run_scenario(world, "leash", 12970, [LIB_TREE, LIB_FAR_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
+    check("the creature came at the first chop, chased us and snapped back to its spawn",
+          world.leash_t is not None, text[-800:])
+    lev = [e["data"] for e in store.job_events("lumber") if e["kind"] == "leash"]
+    check("one escape, shaken off: a `leash` event with how, legs, steps and where it was",
+          len(lev) == 1 and lev[0]["serial"] == f"0x{LEASHER:08X}" and lev[0]["legs"] >= 1 and lev[0]["steps"] >= 10
+          and lev[0]["from"] is not None and lev[0]["how"] and "shook off" in text, str(lev))
+    far = [t for x, t in world.chopped if x == (LIB_FAR_TREE["x"], LIB_FAR_TREE["y"])]
+    check("chopped on at the far tree, out of its zone, after it gave up",
+          world.leash_t is not None and far and max(far) > world.leash_t, str(world.chopped)[:400])
+    eps = store.episodes("lumber")
+    cr = (eps[0].get("creature") or {}) if eps else {}
+    check("stored, exit 0, no recall away from it; the trip row: 1 escape, its legs, 1 shaken off",
+          code == 0 and [e.get("outcome") for e in eps] == ["stored"] and cr.get("escapes") == 1
+          and not cr.get("recalled") and cr.get("shaken") == 1 and cr.get("legs", 0) >= 1,
+          f"exit {code} {cr}\n{text[-800:]}")
     store.close()
 
 
@@ -2322,9 +2386,10 @@ async def ghost_horse():
 
 
 async def gazer_rehit():
-    """The same gazer outranges the walk-away (it casts from 20 tiles in this simulation): damage again
-    within --creature-rehit-s of arriving -> recall home at once, no conversion, exit 1."""
-    print("\n== gazer, re-hit: still taking damage after the walk-away -> recall home, no conversion ==")
+    """The same gazer outranges the walk-away (it casts from 20 tiles in this simulation): it hits again while
+    we watch after the leg (the escape's LEASH_LOOK_S), so its reach is learned as that distance and it 'kept
+    coming' -> recall home at once, no conversion, exit 1."""
+    print("\n== gazer, re-hit: still hit after the escape leg -> recall home, no conversion ==")
     world = World("gazer")
     world.gazer_range = 20
     text, code, store, _ = await run_scenario(world, "gazer_rehit", 12740, [LIB_TREE, LIB_FAR_TREE],
@@ -2332,10 +2397,9 @@ async def gazer_rehit():
                                                "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
     hits = [e["data"] for e in store.job_events("lumber") if e["kind"] == "monster_hit"]
     rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
-    check("first hit: a run; a hit after arriving: home ('still taking damage after the walk-away')",
-          hits and hits[0]["action"] == "run" and hits[-1]["action"] == "recall"
-          and "still taking damage" in hits[-1]["why"] and hits[-1]["since_run_s"] is not None
-          and hits[-1]["since_run_s"] <= 10, str([(h["action"], h.get("why"), h["since_run_s"]) for h in hits]))
+    check("first hit: a run; a second hit during the escape (walking on), then home: 'it kept coming'",
+          hits and hits[0]["action"] == "run" and len(hits) >= 2 and hits[1]["walking"]
+          and "kept coming" in text, str([(h["action"], h.get("why"), h["since_run_s"]) for h in hits]))
     check("recalled home with our book (the escape recall, cause creature), exit 1",
           code == 1 and world.recalls_home == [HOME_RUNE_POS] and len(rec) == 1 and rec[0]["ok"]
           and rec[0]["cause"] == "creature" and "escaped by recall" in text,
@@ -2353,7 +2417,7 @@ async def gazer_rehit():
     check("the trip row: aborted; creature escapes 1, hits lost, recalled, why",
           len(eps) == 1 and eps[0]["outcome"] == "aborted" and cr.get("escapes") == 1
           and cr.get("hits_lost", 0) >= 2 * GAZER_DMG and cr.get("recalled") is True
-          and "still taking damage" in (cr.get("why") or ""), str(cr))
+          and "kept coming" in (cr.get("why") or ""), str(cr))
     store.close()
 
 
@@ -3681,7 +3745,7 @@ def run_parallel(names, jobs):
 
 
 if __name__ == "__main__":
-    runs = [main, skirmish, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
+    runs = [main, skirmish, leash, break_due, library, library_chased, track_reds, gazer_run, gazer_rehit, gazer_reflect,
             wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, work_heal, work_spell, thief_keep_away,
             pouch_pop,
             no_pouch,
