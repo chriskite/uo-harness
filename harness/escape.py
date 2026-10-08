@@ -486,7 +486,8 @@ def _open(io, book: int, gump_id: int, me: int, timeout: float = GUMP_WAIT_S) ->
     raise RecallError(f"the book's gump 0x{gump_id:08X} didn't open")
 
 
-def _spell_on_book(io, book: int, me: int, world: dict, not_before: float | None) -> tuple[str | None, float | None]:
+def _spell_on_book(io, book: int, me: int, world: dict, not_before: float | None,
+                   gate=None) -> tuple[str | None, float | None]:
     """Cast Recall and answer its cursor with the book itself: the spell goes to the book's default
     rune without opening it (live 2026-10-05: Outland Dan, from 16 tiles off, landed on 'DTF Loot
     Chest'; RunUO RecallSpell.OnTarget takes a runebook's Default). The way home while the book is
@@ -494,7 +495,7 @@ def _spell_on_book(io, book: int, me: int, world: dict, not_before: float | None
     when our power words came first): e.g. disturbed before the cursor (live 2026-10-06 16:33, a red's
     Energy Bolt 1.4 s in; it was logged as 'recharging', no cast counted), 'no cursor' when none came."""
     it = world["items"].get(f"0x{book:08X}") or {}
-    _hold(not_before)
+    _ready(not_before, gate)
     io.poll()
     io.send(actions.cast_spell(RECALL_SPELL))
     sent = time.monotonic()
@@ -537,8 +538,16 @@ def _hold(not_before: float | None):
         time.sleep(not_before - time.monotonic())
 
 
+def _ready(not_before: float | None, gate=None):
+    """Right before the press that starts a cast: _hold(not_before), then `gate()` (a caller's
+    timing: e.g. the moment a pursuer's shot lands, so the cast fits before its next one)."""
+    _hold(not_before)
+    if gate is not None:
+        gate()
+
+
 def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None, entry: int | None = None,
-           timeout: float = ARRIVE_WAIT_S, not_before: float | None = None) -> dict:
+           timeout: float = ARRIVE_WAIT_S, not_before: float | None = None, gate=None) -> dict:
     """One recall with `book`: to its default rune, or to the rune named `rune`
     (rune_matches, case-blind: a Witcher number like "286" finds "286 - Midlands
     Ruins 1 (South)"; runebook entries by their runebook_entries name, tome rows by
@@ -547,7 +556,8 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None, en
     monotonic time the server takes a cast again), so a retry loses no round trip.
     `entry` picks the rune by its index instead (runebook entry / tome row, read_book's
     `i`): two runes may share a name. Returns {ok, kind, method, rune, name, from, to,
-    elapsed_s, failure, charges, cast_s}; raises RecallError when it can't be tried."""
+    elapsed_s, failure, charges, cast_s}; raises RecallError when it can't be tried. `gate`: called
+    right before the press that casts (_ready), after the book is open."""
     st, _ = io.poll()
     me = st["movement"]["self_serial"]
     world = st["world"]
@@ -563,7 +573,8 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None, en
         try:
             g = _open(io, book, RUNEBOOK_GUMP, me)
         except BookRecharging:
-            return _recharging(io, book, kind, me, world, start, facet, t0, mana, rune, entry, not_before, timeout)
+            return _recharging(io, book, kind, me, world, start, facet, t0, mana, rune, entry, not_before, timeout,
+                               gate)
         info = parse_runebook(g.get("layout"), g.get("lines"))
         entries = {e["i"]: e["name"] for e in runebook_entries(g.get("layout"), g.get("lines"))}
         if entry is not None:
@@ -586,13 +597,14 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None, en
         method = "charge" if info["charges"] > 0 and prefer == "charge" else "spell"
         if method == "spell" and not can_cast_recall(world, me, mana) and info["charges"] > 0:
             method = "charge"
-        _hold(not_before)
+        _ready(not_before, gate)
         _press(io, g, 2 + 6 * rune if method == "charge" else 5 + 6 * rune)
     else:
         try:
             g = _open(io, book, RUNETOME_GUMP, me)
         except BookRecharging:
-            return _recharging(io, book, kind, me, world, start, facet, t0, mana, rune, entry, not_before, timeout)
+            return _recharging(io, book, kind, me, world, start, facet, t0, mana, rune, entry, not_before, timeout,
+                               gate)
         info = parse_runetome_main(g.get("layout"), g.get("lines"))
         rows = runetome_rows(g.get("layout"), g.get("lines"))
         if entry is not None:
@@ -615,7 +627,7 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None, en
         if method == "spell" and not can_cast_recall(world, me, mana) and info["charges"] > 0:
             method = "charge"
         if method == "charge":
-            _hold(not_before)
+            _ready(not_before, gate)
             _press(io, g, 100 + rune)
         else:
             _press(io, g, 200 + rune)
@@ -624,19 +636,20 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None, en
             if button is None:
                 _press(io, d, 0)
                 raise RecallError("the rune tome's detail page has no Cast Recall button")
-            _hold(not_before)
+            _ready(not_before, gate)
             _press(io, d, button)
     return _arrival(io, me, kind, method, rune, name, start, facet, t0, info["charges"], timeout)
 
 
-def _recharging(io, book, kind, me, world, start, facet, t0, mana, rune, entry, not_before, timeout) -> dict:
+def _recharging(io, book, kind, me, world, start, facet, t0, mana, rune, entry, not_before, timeout,
+                gate=None) -> dict:
     """The book won't open ("needs time to recharge", a use moments before: live 2026-10-05, a
     disturbed escape recall, then death). For its default rune: the Recall spell answered with the
     book (_spell_on_book) when we can cast it; a cast that failed before its cursor is that failure
     (a disturbed one counts as a cast and waits its disturb recovery). Else, or for a named rune, or
     when no cursor came, a 'recharging' failure (escape() looks again after RECHARGE_WAIT_S)."""
     if rune is None and entry is None and can_cast_recall(world, me, mana):
-        why, cast_s = _spell_on_book(io, book, me, world, not_before)
+        why, cast_s = _spell_on_book(io, book, me, world, not_before, gate)
         if why is None:
             return _arrival(io, me, kind, "spell_on_book", None, None, start, facet, t0, None, timeout)
         if why != "no cursor":
@@ -714,7 +727,7 @@ def retry_wait(res: dict) -> float | None:
 
 
 def escape(io, book: int, *, attempts: int | None = None, budget_s: float = ESCAPE_BUDGET_S,
-           log=print, rune: str | None = None, entry: int | None = None, between=None) -> dict:
+           log=print, rune: str | None = None, entry: int | None = None, between=None, gate=None) -> dict:
     """Recall until it lands. A disturbed cast is recast as soon as the server
     takes it again (retry_wait / disturb_recovery: a press before that only earns
     'not recovered'); refusals that started no cast (NOT_CAST) are retried after
@@ -732,11 +745,11 @@ def escape(io, book: int, *, attempts: int | None = None, budget_s: float = ESCA
     server's action delay is ignored: _open). Returns the last
     recall() result plus 'attempts' (casts made) and 'tries' (every try's method,
     ok, failure, elapsed_s, cast_s and the wait before the next: the travel
-    record of what each cast cost)."""
+    record of what each cast cost). `gate`: recall()'s, before every try's casting press."""
     prefer, last, tries, casts, not_before = "charge", None, [], 0, None
     t0 = time.monotonic()
     while True:
-        last = recall(io, book, prefer=prefer, rune=rune, entry=entry, not_before=not_before)
+        last = recall(io, book, prefer=prefer, rune=rune, entry=entry, not_before=not_before, gate=gate)
         if last["failure"] not in NOT_CAST:
             casts += 1
         last["attempts"] = casts

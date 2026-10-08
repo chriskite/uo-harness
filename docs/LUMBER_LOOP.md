@@ -290,7 +290,15 @@ below what the plan would risk. Now such a leg asks the plan, at home, whether t
   (~70 s, ~50 logs at 2 500 logs/h), so it pays while the expected loss of the carried load stays
   below that: on the live store (2026-10-07) up to ~1 500–2 000 logs carried; the leg's quota shrinks
   as the load grows (e.g. 5 550 → 4 150 logs at 0 → 1 500 carried for witcher_124). Nothing carried
-  always hops (the room would only cost its time).
+  always hops (the room would only cost its time). **The way out is exposed too** (since
+  2026-10-08): a death on the hop's way out (`hop_out_s`: the landing and the walk into the grove,
+  at the spot's death hazard) loses the carried load and the gear and costs the recovery; it is
+  counted on both sides, so the difference is the carried load at risk. The `hop` row gains
+  `p_death_way_out` and `carried_lost_logs` (expected carried logs lost on the way out and the leg).
+  Live 2026-10-08 Dan died 28 s after a hop's landing at witcher_336 with 1 028 logs; at that spot's
+  hazard (`p_death_leg` 0.018 over a 1.4 h leg) the way out adds ~0.3 logs of expected loss, so the
+  model would still have hopped: what was missing there was the hazard estimate (no history at an
+  explored spot), and the area is now a no-go area (`lumber_opt.NO_GO_AREAS`).
 - **Rows:** each leg is an episode row of its spot with `leg` (1, 2, …) and `carried_in`; a leg that
   went on is outcome `hopped` (its `why` the reason, `hop` the decision, `woods` only its own logs)
   and the last leg is the usual `stored` (its `woods` without what it carried in). `trip_obs` counts
@@ -372,7 +380,10 @@ patches show up within weeks):
     deaths update it) + the pooled creature-death rate (prior 0.01/h worth 20 field hours
     [INFERENCE]); that prior counts 10 field hours against the spot's own deaths. A death is a PK
     death when the runner's `death` job event says `cause: pk`, or a sighting fell in the 5 min
-    before it; else a creature death.
+    before it; else a creature death. Since 2026-10-08 the runner's cause is whoever hit us within
+    15 s (`died`, `DEATH_BLAME_S`: a player among them `pk`, else `mob`); only with no hit blamed
+    does a hostile player in view make it `pk` (live that day an unlabelled grey body 18 tiles off
+    made a gloomwood hunter's kill a `pk`).
   - **sent home h_S**: trips a threat ended without killing us: the row's `why` starts `threat:`
     (recall escape, guard flight, a creature or damage stop), or a `recall`/`guard_flight` job event
     falls in the trip, or the row's `creature.recalled` (the CreatureRun field, when present). A
@@ -1049,6 +1060,21 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     0x3709 on us, sound 0x208) landed 1.1 s after that, then -27; "no creature in view" recalled home
     (try 1 disturbed by the -27). User: a player would move out of the gargoyle's range, heal and
     carry on. Scenario `unseen_caster`; `test_threats.py` `test_unseen_attackers`.
+  - **A pacer: recall timed on its shots** (since 2026-10-08, `pacer`, `next_shot_gate`,
+    `escape.recall(gate=)`): a ranged creature that keeps its distance as we run. Live (witcher_336,
+    events 11:45:11–27, juncture 550): a mounted gloomwood hunter (body 401, first read as a grey
+    "player" until its label came 2 s later) shot arrows (0xC0 type 0, 0x0F42) every 2.26–2.29 s from
+    9–10 tiles while Dan ran 7 tiles, and from 10 again after each 10–11-step run to RECALL_GAP; both
+    recalls, cast ~1 s after an arrow, were disturbed by the next (1.23 s and 1.07 s in); -25 -27 -30
+    -28 plus a disease tick, dead 7 s after the first arrow. Recall's cast takes ~2.0 s (power words to
+    cursor 2.02 s, 10:56:01), so a cast fits between two arrows only when it starts right after one.
+    Every moving effect at us that names its shooter is a shot (`shots`: time, its distance, our tile);
+    a creature in view whose last two shots came within 10 s, the later with us 3+ tiles on and it no
+    more than 1 tile farther off, is a pacer. `run_and_recall` doesn't run from a pacer: it opens the
+    book and presses the moment the pacer's next shot lands (a shot 0.15 s old counts; at most
+    min(5 s, 1.5 × its interval), then it casts anyway), every recast too. Scenario `pacer` (an archer
+    keeping 10 tiles off, an arrow every 2.26 s, an arrow during the cast disturbs it): the timed cast
+    lands at once. With the pacer check off, the same scenario never got home in 300 s.
   - **Reach** (`threats.creature_reach`): melee 1; ranged 12 for `threats.RANGED_BODIES` (the
     gazer, 22) and for every body that hit us as the only candidate from beyond melee range
     (`travel_guard.learn_hit`, also from the store's `monster_hit` rows at start, so the next run
@@ -1066,7 +1092,9 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - **Recorded:** a `monster_hit` job event per damage episode (`body`, `name`, `serial`,
     `distance`, `hits_lost`, `trip`, `spot`, `hits`/`hits_max`, `spells` (spells on us in it),
     `attackers` (count) and `attacker_serials`, `ranged`, `reach`, `aggression`, `escapes`,
-    `walking`, `since_run_s`, `action` run/walk_on/recall/stop, `why`); the `threat` /
+    `walking`, `since_run_s`, `unseen`, `action` run/walk_on/recall/stop, or (since 2026-10-08) `gap`
+    (hit while running out of reach before a recall) / `recall` (hit while the recall cast, blamed on
+    the pacer when it landed), `why`); the `threat` /
     `pk_escape` junctures' and recall/guard-flight events' `attackers` = those swinging or casting
     at us plus the ones the hit was blamed on (until 2026-10-03 the 0x2F swingers only, always []
     on Outlands); the trip row's `creature` = {`escapes`, `hits_lost`,

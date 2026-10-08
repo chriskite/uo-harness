@@ -830,11 +830,22 @@ def test_library_hops():
     check("a hostile player in sight on a hopped leg keeps that spot out for the cooldown, like an aborted trip",
           not row(pk, "a")["eligible"], row(pk, "a")["why_not"])
 
+
+def test_no_go():
+    print("== no-go areas: never planned, whatever the store's status says ==")
+    papua = spot("witcher_336", 3639, 2899)
+    why = lo.eligibility(papua, [], [], NOW, 65.0)
+    check("an active spot by Old Papua isn't eligible (user 2026-10-08)", (why or "").startswith("no-go area: Old Papua"),
+          why)
+    check("the same tiles on another facet are", lo.eligibility({**papua, "facet": 1}, [], [], NOW, 65.0) is None)
+    check("one 201 tiles from its centre is", lo.eligibility(spot("far", 3654 + 201, 2957), [], [], NOW, 65.0) is None)
+
+
 if __name__ == "__main__":
     for fn in (test_explore_exploit, test_greedy_command, test_skill_rescaling, test_trip_size, test_hazard_evidence,
                test_gear_and_capacity, test_eligibility, test_regrowth, test_hatchets, test_spots_store,
                test_failed_places, test_landings, test_home_and_trips, test_libraries, test_discover_witcher,
-               test_travel_costs, test_capacity, test_forest_spots, test_library_hops):
+               test_travel_costs, test_capacity, test_forest_spots, test_library_hops, test_no_go):
         fn()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

@@ -1312,6 +1312,27 @@ Tests: `test_world_units.py` `test_title_tags`, `test_lumber_opt.py` (faction zo
 and `precast` in `test_loop_lumber.py` (both failing before). Details: docs/LUMBER_LOOP.md §13
 "Recall escape on players".
 
+## After the witcher_336 death: pacers, hop risk, no-go areas (decided and built 2026-10-08)
+
+User approval of Main's proposals after Seer-8's death report (a mounted gloomwood hunter's arrows,
+every 2.26 s from 10 tiles, disturbed both recalls; Dan died 7 s after the first arrow with 1 028
+hopped-in logs). Details: docs/LUMBER_LOOP.md §13 "A pacer" and §6 "Library hops".
+- **Pacer recall timing (adopted):** a ranged creature that keeps its distance as we run isn't run
+  from; the recall opens the book and presses the moment its next shot lands (a ~2.0 s cast fits in
+  its 2.26 s interval). Rejected: running farther first (it kept 10 tiles at mounted pace); casting
+  a heal instead (the cast is disturbed the same way). Risk named to the user: the margin is ~0.15 s.
+- **Records (adopted):** hits while running before a recall and while it casts are `monster_hit` rows
+  (`gap`/`recall`); the death cause comes from who hit us, not from who was in view.
+- **Hop risk (adopted, user's option):** the hop's way out (landing to grove) now risks the carried
+  load at the spot's death hazard, on both sides of the comparison. Its effect at that spot was ~0.3
+  logs: the shortfall was the hazard estimate for an unexplored spot, not the formula.
+- **No-go areas (user decision):** `lumber_opt.NO_GO_AREAS`, committed so every machine and every
+  `lumber discover` honour it: Old Papua (200 tiles around 3654,2957, facet 0) is "unsurvivable for
+  Dan without significantly higher aspect and better armor". The store's two spots there
+  (witcher_336, witcher_318) are also set `disabled` on the desktop.
+- **Runebook charges (no change):** the reads were right; the guild shelf's resupply refills the
+  book to 10 (docs/NOTES.md "Storage shelves").
+
 ## Hits from just out of view: run, don't recall (decided and built 2026-10-08)
 
 User, after Seer-7's run 1 at witcher_86: a gargoyle's Flamestrike from just out of view sent the trip

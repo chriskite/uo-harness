@@ -574,6 +574,14 @@ Wiki: [Storage Shelf](https://wiki.uooutlands.com/Storage_Shelf). Fixtures:
   logs into the trapped pouch during the next chop) came 0.47 s after the hatchet's double-click
   and got "You must wait to perform another action." (cliloc 500119); the logs stayed loose until the
   next chop's stash. The stash now waits STASH_AFTER_S (0.8 s) after the chop's target.
+- **Resupply recharges the runebook (live, events DB 2026-10-07/08):** Dan's home runebook
+  `0x49865F8F` read Charges 10, 9, 8, 7 before each use on 2026-10-08 11:27–11:45 (the recall rows'
+  `charges` are the count before the use), 7 again at 11:47:35 after the death; the DTF shelf's
+  "Resupply complete." at 11:48:29 came 10 s before a read of 10. Every jump in the charge reads since
+  2026-10-07 (9→10, 7→10, 8→10, 1→10) follows a resupply. So the overseer's `act recall --check` after
+  a resupply is right, not stale: the shelf tops the book up to 10 from its recall scrolls (the
+  Discord KB's "storage shelf runebook recharging"; ROADMAP row 8). A low count only matters between
+  resupplies (the runner resupplies before every trip).
 
 ## Resource Stockpile and GM coloured hatchets (live 2026-10-05, Outland Dan)
 

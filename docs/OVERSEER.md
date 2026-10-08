@@ -533,7 +533,10 @@ Paste this (or point the session at this section) to start an overseer.
 > hatchet. Travel rules for yourself: never cross unknown wilderness on foot when a recall would
 > do; `ctl act goto` stops on danger (read its `error` before walking on) and can't plan beyond
 > ~200 tiles; to look at a far place, recall there (`act recall --witcher N` from a library)
-> rather than walk.
+> rather than walk. The guild shelf's Resupply (`act resupply`, and the runner's before every trip)
+> refills the runebook to 10 charges, so a charge count read after one is right, not stale. Old
+> Papua (200 tiles around 3654,2957) is a no-go area (user, 2026-10-08: unsurvivable for Dan at his
+> aspect and armor): `lumber plan` never offers a spot there; don't send Dan there yourself.
 >
 > **Safety.** One task at a time; never `act` while a task runs (ctl refuses anyway).  Gump replies only through
 > `act gump`, whose guards you must not try to work around: the captcha is refused (the human or the runner's solver answers it),

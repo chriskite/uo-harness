@@ -208,6 +208,9 @@ RED_FAR, RED_NEAR = 100, 55                               # tiles from us at the
 GAZER, GAZER_BODY, GAZER_DMG, GAZER_CAST_S = 0x0000CA5E, 22, 10, 2.5
 # unseen_caster (live 2026-10-08, witcher_86): a gargoyle past the view range; its Flamestrike lands on us
 CASTER, CASTER_BODY, CASTER_DMG, CASTER_OFF = 0x0000CA57, 4, 27, 26
+# pacer (live 2026-10-08, witcher_336): a mounted archer keeps 10 tiles off as we run and shoots every 2.26 s; a shot
+# landing while our recall casts disturbs it
+ARCHER, ARCHER_BODY, ARCHER_DMG, ARCHER_DIST, ARCHER_S = 0x0000A7C3, 0x30, 12, 10, 2.26
 # south of the gazer's zone (20 tiles from it) and > home.NEAR_LANDING (60) from the home landing: home is a recall
 LIB_FAR_TREE = {"x": 46, "y": 272, "z": 0, "graphic": "0x0CE0", "stand": [46, 271]}
 # landing_escape (live 2026-10-05 Wintertop): a war-mode creature 6 tiles south of the library rune's landing,
@@ -339,6 +342,13 @@ def effect_on_self(graphic, x, y):
     at = u32(x) + u32(y) + u32(0)
     return (b"\xc0\x03" + u32(SELF) + u32(SELF) + u32(graphic) + at + at + b"\x0a\x05" + u16(0) + b"\x01\x00"
             + u32(0) + u32(0))
+
+
+def arrow_at_self(src, sx, sy, x, y):
+    """0xC0 HuedEffect, Outlands 52-byte form, moving (type 0) from `src` at (sx, sy) to us at (x, y): an
+    arrow, 0x0F42 (live 2026-10-08 11:45:19.594, a gloomwood hunter's)."""
+    return (b"\xc0\x00" + u32(src) + u32(SELF) + u32(0x0F42) + u32(sx) + u32(sy) + u32(0) + u32(x) + u32(y) + u32(0)
+            + b"\x0a\x05" + u16(0) + b"\x01\x00" + u32(0) + u32(0))
 
 
 def equip(item, graphic, layer, parent=SELF, hue=0):
@@ -577,6 +587,10 @@ class World:
         self.reflected = []               # (time, our distance from it) per spell Magic Reflection took
         self.unseen_caster = False        # unseen_caster: instead of the gazer, a caster past the view range strikes once
         self.caster_hits = []             # unseen_caster: times its Flamestrike landed
+        self.archer = False               # pacer: instead of the gazer, an archer that keeps its distance
+        self.archer_pos, self.archer_shots = None, []   # where it stands; times its shots landed
+        self.cast_handles = []            # a home recall casting: its scheduled jump & co (a shot cancels them)
+        self.disturbed = 0                # home recalls a shot disturbed
         self.wary_left_t = None           # wary: when the creature by the near tree left view
         self.wary_flags = 0x40            # wary: its 0x20 flags (war mode; 0: idle, idle_mob)
         self.wary_late = False            # zone_on_way: the creature isn't there at first; it shows up as we come
@@ -754,7 +768,7 @@ class World:
         (crowding)."""
         log.append(dest)
         self.send(sys_text("Kal Ort Por"))
-        asyncio.get_running_loop().call_later(2.1, self.teleport, *dest)
+        handles = [asyncio.get_running_loop().call_later(2.1, self.jump, *dest)]
         if log is not self.recalls_home:
             self.lockout_due = True
             if dest == RUNE_POS:
@@ -767,11 +781,17 @@ class World:
                 asyncio.get_running_loop().call_later(2.15, self.mount_returns)
         else:
             if self.chase:                             # a creature at our heels stays behind (a recall jumps)
-                asyncio.get_running_loop().call_later(2.1, self.attacker_left)
+                handles.append(asyncio.get_running_loop().call_later(2.1, self.attacker_left))
             if self.late_blast:                        # red_aim: the PK's Explosion goes off on us at home
-                asyncio.get_running_loop().call_later(2.5, self.blast)
+                handles.append(asyncio.get_running_loop().call_later(2.5, self.blast))
             if self.mounted:                           # live: the guild house sends a ridden mount to rest
-                asyncio.get_running_loop().call_later(2.15, self.mount_rests)
+                handles.append(asyncio.get_running_loop().call_later(2.15, self.mount_rests))
+            self.cast_handles = handles
+
+    def jump(self, x, y):
+        """The recall's cast completed (no shot can disturb it now): the jump."""
+        self.cast_handles = []
+        self.teleport(x, y)
 
     def blast(self):
         """A PK's Explosion detonating on us 0.4 s after the recall landed (live 2026-10-06 11:38:55): the effect on
@@ -996,7 +1016,7 @@ class World:
                 self.later(0.5, [delete(0x44ADB0FF)])
             elif self.scenario == "gazer" and self.good_n == 2 and self.gazer_pos is None:
                 asyncio.get_running_loop().call_later(0.5, self.caster_leaves if self.unseen_caster
-                                                      else self.gazer_appears)
+                                                      else self.archer_appears if self.archer else self.gazer_appears)
             elif self.scenario == "staff" and self.good_n == 2:     # a vendor steps next to us: nothing
                 self.vendor_t = time.time() + 0.3
                 self.later(0.3, [mobile_pkt(VENDOR_NEAR, self.pos[0] + 1, self.pos[1])])
@@ -1183,6 +1203,33 @@ class World:
         self.caster_hits.append(time.time())
         self.send(effect_on_self(0x3709, *self.pos))
         self.send(hits_pkt(self.hits))
+
+    def archer_appears(self):
+        """pacer: an archer comes into view ARCHER_DIST tiles west of us in war mode and shoots every ARCHER_S."""
+        self.gazer_pos = self.archer_pos = (self.pos[0] - ARCHER_DIST, self.pos[1])
+        self.send(creature_pkt(ARCHER, ARCHER_BODY, *self.archer_pos))
+        asyncio.get_running_loop().create_task(self.archer_shoots())
+
+    async def archer_shoots(self):
+        """It keeps ARCHER_DIST tiles off however far we run (mounted, live 2026-10-08): before each shot it stands
+        that far west of us again. A shot landing while a home recall casts disturbs it (cliloc 500641, the jump
+        cancelled). It stops once we are home (out of its reach)."""
+        await asyncio.sleep(0.8)
+        while not self.writer.is_closing() and self.facet == 0 and self.cheb(self.archer_pos) <= 40:
+            self.archer_pos = (self.pos[0] - ARCHER_DIST, self.pos[1])
+            self.send(creature_pkt(ARCHER, ARCHER_BODY, *self.archer_pos))
+            self.hits -= ARCHER_DMG
+            self.archer_shots.append(time.time())
+            self.send(arrow_at_self(ARCHER, *self.archer_pos, *self.pos))
+            self.send(hits_pkt(self.hits))
+            if self.cast_handles:
+                for h in self.cast_handles:
+                    h.cancel()
+                self.cast_handles = []
+                self.disturbed += 1
+                self.send(cliloc(500641))
+            await self.writer.drain()
+            await asyncio.sleep(ARCHER_S)
 
     async def gazer_casts(self):
         await asyncio.sleep(0.8)
@@ -2623,6 +2670,34 @@ async def unseen_caster():
     store.close()
 
 
+async def pacer():
+    """Live 2026-10-08 (witcher_336, a death): a mounted gloomwood hunter kept 9-10 tiles off as Dan ran and shot
+    every 2.26 s; each recall, cast ~1 s after an arrow, was disturbed by the next, and running 14 tiles first
+    gained nothing. Here an archer keeps ARCHER_DIST tiles off and shoots every ARCHER_S; a shot during a home
+    recall's cast disturbs it. Once it has shot twice with us moved on (a pacer), the runner stops running and
+    presses the recall the moment its next arrow lands: the cast completes before the next one."""
+    print("\n== pacer: a ranged creature that keeps its distance -> recall timed right after its shot ==")
+    world = World("gazer")
+    world.archer = True
+    world.home_disturbed = 1                         # no scripted disturbance: only the archer's arrows disturb
+    text, code, store, _ = await run_scenario(world, "pacer", [LIB_TREE, LIB_FAR_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
+    rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
+    hits = [e["data"] for e in store.job_events("lumber") if e["kind"] == "monster_hit"]
+    check("it was taken for a pacer: no running before the recall, the press timed on its shot",
+          "keeps its distance" in text and "shot landed" in text, text[-1500:])
+    check("home by recall (exit 1, the trip aborted); the timed cast landed at once, no arrow disturbed it",
+          code == 1 and world.recalls_home == [HOME_RUNE_POS] and world.disturbed == 0
+          and rec and rec[-1]["ok"] and [t["failure"] for t in rec[-1]["tries"]] == [None],
+          f"exit {code} home {world.recalls_home} disturbed {world.disturbed} {[(r['ok'], r['tries']) for r in rec]}")
+    check("every arrow is a monster_hit row blamed on the archer, those during the recall too (action 'recall')",
+          len(hits) >= len(world.archer_shots) - 1 and "recall" in [h["action"] for h in hits]
+          and all(h["attacker_serials"] == [f"0x{ARCHER:08X}"] for h in hits),
+          f"{len(world.archer_shots)} shots {[(h['action'], h['hits_lost'], h['attacker_serials']) for h in hits]}")
+    store.close()
+
+
 async def wary():
     """A war-mode creature (known aggressive) stands 2 tiles from the nearest tree, 13 from us: that
     tree waits while it is around; the runner chops the farther west tree first, comes back to the
@@ -3446,6 +3521,32 @@ def unit_boxed_in():
     mem.close()
 
 
+def unit_death_cause():
+    """died's cause (the planner's PK vs creature hazards read it: lumber_opt.death_cause): live 2026-10-08 a
+    gloomwood hunter's arrows killed Dan while an unlabelled grey body stood 18 tiles off, and it said 'pk'.
+    Whoever hit us within DEATH_BLAME_S decides; only with no hit blamed does a hostile player in view."""
+    import loop_lumber
+    print("\n== death cause: who hit us, not who was in view ==")
+    grey = SimpleNamespace(serial=0x7196E8, hostile=True, player=True)
+
+    def cause(attacked):
+        rows = []
+        fake = SimpleNamespace(attacked=attacked, last_threats=SimpleNamespace(
+            threats=[grey], under_attack=True, to_dict=lambda: {}),
+            memory=SimpleNamespace(juncture=lambda *a: None, job_event=lambda job, kind, data, **kw: rows.append(data)),
+            _where=lambda st: {})
+        try:
+            loop_lumber.LumberLoop.died(fake, {}, "ghost body")
+        except loop_lumber.Unsafe:
+            pass
+        return rows[0]["cause"]
+    now = time.time()
+    check("a creature's arrows killed us, a grey body in view: mob", cause({0x71F989: (now - 1, False)}) == "mob")
+    check("a player hit us: pk", cause({0x71F989: (now - 1, False), 0x1234: (now - 2, True)}) == "pk")
+    check("the creature's hit was long ago: the player in view makes it pk",
+          cause({0x71F989: (now - loop_lumber.DEATH_BLAME_S - 1, False)}) == "pk")
+
+
 def unit_run_and_recall():
     """run_and_recall never stops in the field (user, 2026-10-05: "If we fail to recall, we should just run away"):
     run, one cast, run again; with nothing after us, a stand-and-recast try, the next one RECALL_RETRY_S later
@@ -3464,7 +3565,7 @@ def unit_run_and_recall():
         log_.append("run" if ran else "look")
         return ran
 
-    def recall_out(st, a, worst, swung, pk=True, why=None, what=None, attempts=None):
+    def recall_out(st, a, worst, swung, pk=True, why=None, what=None, attempts=None, gate=None):
         outcome["casts"] += 1
         outcome["pk"].append(pk)
         log_.append(f"cast:{attempts}")
@@ -3477,7 +3578,8 @@ def unit_run_and_recall():
         gain_distance=gain_distance, recall_out=recall_out, creature={"recalled": False, "recall_fails": 0},
         link=SimpleNamespace(state=lambda: {}, pos=lambda st: (5, 6, 0, 0)),
         watch=SimpleNamespace(update=lambda st, **kw: SimpleNamespace(dead=state["dead"])),
-        memory=SimpleNamespace(juncture=lambda *a: juncs.append(a)), trip_n=1, k={"spot": {"id": "sim"}})
+        memory=SimpleNamespace(juncture=lambda *a: juncs.append(a)), trip_n=1, k={"spot": {"id": "sim"}},
+        pacer=lambda st, a: None, flight_hit=lambda *a, **kw: None)
     fake.threat_name = loop_lumber.LumberLoop.threat_name
     fake.run_and_recall = types.MethodType(loop_lumber.LumberLoop.run_and_recall, fake)
     retry, look = loop_lumber.RECALL_RETRY_S, loop_lumber.KEEP_RUNNING_LOOK_S
@@ -3933,7 +4035,7 @@ async def run_async(fn):
 
 if __name__ == "__main__":
     runs = [main, skirmish, leash, break_due, stop_after_trip, library, library_chased, track_reds, gazer_run,
-            gazer_rehit, gazer_reflect, unseen_caster,
+            gazer_rehit, gazer_reflect, unseen_caster, pacer,
             wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, work_heal, work_spell, thief_keep_away,
             pouch_pop,
             no_pouch,
@@ -3944,6 +4046,7 @@ if __name__ == "__main__":
             staff_in_view,
             hop,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_run_and_recall, unit_boxed_in,
+            unit_death_cause,
             unit_zone_view_edge, unit_home_on_abort,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]

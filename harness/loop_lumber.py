@@ -224,6 +224,18 @@ ESCAPE_RUN = 20
 # is disturbed, and a caster's spells reach 12 (threats.CREATURE_SPELL_RANGE)
 RECALL_GAP = threats.CREATURE_SPELL_RANGE + 2
 RECALL_GAP_MAX_MOVES = 60
+# A pacer: a ranged creature that keeps its distance as we run (live 2026-10-08 witcher_336: a mounted gloomwood
+# hunter's arrows every 2.26-2.29 s from 9-10 tiles while Dan ran 7 tiles, and 10-11 more before each recall; both
+# recalls disturbed 1.07-1.23 s in, dead 7 s after the first arrow). Running gains nothing on it; Recall's cast takes
+# ~2.0 s (power words to cursor 2.02 s, live 10:56:01), so run_and_recall stands and casts the moment its next shot
+# lands (next_shot_gate). Two shots by one creature within PACE_WINDOW_S, the later one with us PACE_MOVED tiles
+# on and it no farther off (PACE_SLACK) make it one.
+PACE_WINDOW_S = 10.0
+PACE_MOVED = 3
+PACE_SLACK = 1
+PACER_WAIT_MAX_S = 5.0        # the longest wait for a pacer's next shot before casting anyway
+PACER_SHOT_FRESH_S = 0.15     # a shot this recent when the wait starts counts as its next one
+DEATH_BLAME_S = 15.0          # a creature that hit us this recently is the death's cause (died)
 # Players (option E, player_escape): one within spell range (12, threats.SPELL_WORDS_RANGE) is run from
 # until PLAYER_RECALL_GAP tiles off or out of view before the recall: a mounted PK then needs ~0.6 s to
 # be in range again plus his own cast, more than our 2 s Recall needs only when he has no spell held
@@ -457,6 +469,8 @@ class LumberLoop:
         self._swing_scan = 0         # link.events index scanned for swings and spells on us
         self.spelled = []            # (time, caster or None) of spells on us (threats.spell_on_us) not yet dealt with
         self.hit_by = []             # serials creature_hit blamed in this threat check (the junctures' `attackers`)
+        self.shots = {}              # serial -> [(time, its distance, our tile)] of ranged shots at us (pacer)
+        self.attacked = {}           # serial -> (time, player?) of the latest hit blamed on it (died's cause)
         self.hatchet_worn = None     # this trip: the hatchet in hand when a chop's cursor came (trip row hatchet.worn)
         self.break_due = False       # the agent gate announced a break (break_due)
         self.task_id = os.environ.get("UO_TASK_ID")   # set by task_wrap: our `ctl stop --after-trip` request
@@ -691,6 +705,10 @@ class LumberLoop:
                 self.spelled.append((ts[i], caster))
                 if caster is not None:
                     self.swingers[caster] = ts[i]
+                    e = ev[i]
+                    if e.get("x") is not None and e.get("tx") is not None:   # a moving effect: where both stood
+                        self.shots.setdefault(caster, []).append(
+                            (ts[i], cheb((e["x"], e["y"]), (e["tx"], e["ty"])), (e["tx"], e["ty"])))
         self._swing_scan = len(ev)
         lo = time.time() - self.watch.params.damage_window_s
         self.spelled = [s for s in self.spelled if s[0] >= lo]
@@ -855,9 +873,7 @@ class LumberLoop:
                 raise InGuards()
             return
         if self.mode == "gap":                 # running out of reach before a recall (gain_distance)
-            if a.damage["lost"] > 0:            # still booked on the trip row (live 2026-10-06: -72, row said 0)
-                self.creature["hits_lost"] += a.damage["lost"]
-                self.watch.acknowledge(hits=st["world"]["self"].get("hits"))
+            self.flight_hit(st, a, "gap")       # still booked on the trip row (live 2026-10-06: -72, row said 0)
             return
         field = self.field_players(st, a)      # faction tags and precasts: hostile out at a pvp spot
         for t in a.threats:
@@ -876,7 +892,8 @@ class LumberLoop:
         # Bastet's first hit came 4.6 s after sight, the straight-line ETA said 0.6 s).
         players += [t for t in a.threats if t.player and t.kind == "red" and t.distance >= 0
                     and t not in players]
-        players += [t for t in self.attacked_by_players(st, a) if t not in players]
+        named = self.attacked_by_players(st, a)
+        players += [t for t in named if t not in players]
         players += [t for t in field if t not in players]
         # a creature that swung at us and has left the view is still a creature, not a player
         # (Watch.monsters); one never seen is read as a player, the safe side
@@ -885,6 +902,8 @@ class LumberLoop:
         monsters = [t for t in a.flee if t.kind == "monster"]
         monsters += [by_serial[s] for s in swung if s not in aggressors and s in by_serial
                      and s not in {t.serial for t in monsters}]
+        for s in [*aggressors, *(t.serial for t in named)]:    # died's cause: players who went for us
+            self.attacked[s] = (time.time(), True)
         if players or aggressors:
             worst = players[0] if players else None
             if self.on_home_rune(st):
@@ -934,14 +953,7 @@ class LumberLoop:
         a creature that just left it is one (threats.unseen_attackers, at its last tile; user
         2026-10-08: move out of its range, heal and carry on, not recall)."""
         spells, self.spelled = len(self.spelled), []
-        attackers, ranged = threats.hit_attackers(a, self.watch.params, swung)
-        if not attackers:
-            attackers = [t for t in a.threats if t.serial in self.danger and t.kind == "monster"
-                         and 0 <= t.distance <= self.watch.params.max_range]
-        unseen = not attackers
-        if unseen:
-            attackers = threats.unseen_attackers(st, self.watch.params, monsters=self.watch.monsters)
-        self.hit_by = [t.serial for t in attackers]
+        attackers, ranged, unseen = self.blame(st, a, swung)
         me = st["world"]["self"]
         hits, hmax = me.get("hits"), me.get("hits_max")
         walking = self.mode == "escape"
@@ -957,16 +969,8 @@ class LumberLoop:
         worst = attackers[0] if attackers else (monsters[0] if monsters else None)
         self.creature["hits"] += 1
         self.creature["hits_lost"] += lost
-        hit = {"body": worst.body if worst else None, "name": worst.name if worst else None,
-               "serial": f"0x{worst.serial:08X}" if worst else None, "distance": worst.distance if worst else None,
-               "hits_lost": lost, "trip": self.trip_n, "spot": self.k["spot"]["id"],
-               "hits": hits, "hits_max": hmax, "damage_events": a.damage["damage_events"], "spells": spells,
-               "attackers": len(attackers), "attacker_serials": [f"0x{t.serial:08X}" for t in attackers],
-               "ranged": ranged if attackers else None, "aggression": worst.aggression if worst else None,
-               "escapes": self.escapes, "walking": walking, "since_run_s": since_run,
-               "unseen": unseen and bool(attackers)}
-        if worst is not None:
-            hit["reach"] = threats.creature_reach(worst.body, self.watch.params, ranged=ranged)
+        hit = self.hit_row(st, a, attackers, ranged, unseen, spells, worst=worst,
+                           walking=walking, since_run_s=since_run)
         if why:
             recalled = self.creature["recalled"]
             try:
@@ -989,6 +993,108 @@ class LumberLoop:
         self.creature["runs"] += 1
         desc = f"{'spell' if spells and not lost else 'hit'} by {what}: -{lost}, {hits}/{hmax}"
         raise Escape(attackers, self.post_threat(st, a, worst, swung, "escape", desc, extra={"hit": hit}), hit=hit)
+
+    def blame(self, st, a, swung) -> tuple[list, bool, bool]:
+        """(attackers, ranged, unseen) for damage just taken: threats.hit_attackers; else a creature
+        we escaped from this trip still in view; else one that just left the view
+        (threats.unseen_attackers). Each is noted in `attacked` (died's cause) and `hit_by`."""
+        attackers, ranged = threats.hit_attackers(a, self.watch.params, swung)
+        if not attackers:
+            attackers = [t for t in a.threats if t.serial in self.danger and t.kind == "monster"
+                         and 0 <= t.distance <= self.watch.params.max_range]
+        unseen = not attackers
+        if unseen:
+            attackers = threats.unseen_attackers(st, self.watch.params, monsters=self.watch.monsters)
+        self.hit_by = [t.serial for t in attackers]
+        now = time.time()
+        for t in attackers:
+            self.attacked[t.serial] = (now, bool(t.player))
+        return attackers, ranged, unseen and bool(attackers)
+
+    def hit_row(self, st, a, attackers, ranged, unseen, spells, *, worst, walking, since_run_s) -> dict:
+        """A `monster_hit` job event's data (LUMBER_LOOP.md §13 "Recorded"; `action` added by the caller)."""
+        me = st["world"]["self"]
+        row = {"body": worst.body if worst else None, "name": worst.name if worst else None,
+               "serial": f"0x{worst.serial:08X}" if worst else None, "distance": worst.distance if worst else None,
+               "hits_lost": a.damage["lost"], "trip": self.trip_n, "spot": self.k["spot"]["id"],
+               "hits": me.get("hits"), "hits_max": me.get("hits_max"), "damage_events": a.damage["damage_events"],
+               "spells": spells, "attackers": len(attackers), "attacker_serials": [f"0x{t.serial:08X}" for t in attackers],
+               "ranged": ranged if attackers else None, "aggression": worst.aggression if worst else None,
+               "escapes": self.escapes, "walking": walking, "since_run_s": since_run_s, "unseen": unseen}
+        if worst is not None:
+            row["reach"] = threats.creature_reach(worst.body, self.watch.params, ranged=ranged)
+        return row
+
+    def flight_hit(self, st, a, action: str, known=None, where_st=None):
+        """Damage taken on the way home: running out of reach before a recall ('gap', gain_distance)
+        or during the recall's casts ('recall', run_and_recall). Nothing decides anything here: the
+        recall goes on. A `monster_hit` row (action `action`) per episode, blamed as creature_hit
+        does (or on `known`: the pacer, when the recall landed and the field is out of view), booked
+        on the trip row, at `where_st`'s place (default st's); the damage is dealt with (live
+        2026-10-08: two of the five hits that killed Dan had a row, the threat snapshots said lost 0)."""
+        swung = self.swung_at_us(st)
+        spells, self.spelled = len(self.spelled), []
+        lost = a.damage["lost"]
+        if lost <= 0 and not spells:
+            return
+        if known:
+            attackers, ranged, unseen = list(known), True, False
+            self.hit_by = [t.serial for t in attackers]
+            for t in attackers:
+                self.attacked[t.serial] = (time.time(), bool(t.player))
+        else:
+            attackers, ranged, unseen = self.blame(st, a, swung)
+        self.creature["hits"] += 1
+        self.creature["hits_lost"] += max(0, lost)
+        row = self.hit_row(st, a, attackers, ranged, unseen, spells, worst=attackers[0] if attackers else None,
+                           walking=True, since_run_s=None)
+        write = (lambda row=row, where=self._where(where_st or st):
+                 self.memory.job_event("lumber", "monster_hit", {**row, "action": action}, **where))
+        if self._checking:
+            self.later(write)
+        else:
+            write()
+        self.watch.acknowledge(hits=st["world"]["self"].get("hits"))
+
+    def pacer(self, st, a):
+        """A ranged creature in view that keeps its distance as we run (PACE_*): its last two shots at
+        us (self.shots, moving effects naming it) within PACE_WINDOW_S, the later with us PACE_MOVED
+        tiles on and it no more than PACE_SLACK farther off. (its threat, seconds between the shots) or None."""
+        self.swung_at_us(st)                      # the shots up to this read
+        now, by = time.time(), {t.serial: t for t in a.threats}
+        for s in list(self.shots):
+            shots = [x for x in self.shots[s] if now - x[0] <= PACE_WINDOW_S]
+            if not shots:
+                del self.shots[s]
+                continue
+            self.shots[s] = shots
+            t = by.get(s)
+            if t is None or t.kind != "monster" or t.distance < 0 or len(shots) < 2:
+                continue
+            (t0, d0, p0), (t1, d1, p1) = shots[-2], shots[-1]
+            if cheb(p0, p1) >= PACE_MOVED and d1 <= d0 + PACE_SLACK:
+                return t, t1 - t0
+        return None
+
+    def next_shot_gate(self, st, pacer, interval: float):
+        """escape.recall's press gate against a pacer: with the book open, wait for its next shot at us to
+        land (its moving effect at us; one that landed PACER_SHOT_FRESH_S before the wait counts), at most
+        min(PACER_WAIT_MAX_S, 1.5 × its interval), then return: the cast starts in its quiet interval."""
+        me = self.self_serial(st)
+        wait = min(PACER_WAIT_MAX_S, 1.5 * interval)
+
+        def gate():
+            t0, since = time.monotonic(), time.time() - PACER_SHOT_FRESH_S
+            first = len(self.link.events)
+
+            def landed(_):
+                ev, ts = self.link.events, self.link.event_t
+                return any(ts[i] >= since and threats.spell_on_us(ev[i], me) == (True, pacer.serial)
+                           for i in range(max(0, first - 20), len(ev)))
+            got = self.link.wait(landed, wait, poll=0.01, full=False)
+            log(f"{self.threat_name(pacer)}'s shot landed {time.monotonic() - t0:.2f} s into the wait: casting"
+                if got is not None else f"no shot from {self.threat_name(pacer)} in {wait:.1f} s: casting anyway")
+        return gate
 
     def attacked_by_players(self, st, a) -> list:
         """Players named in a "<name> is attacking you!" since the last check: the
@@ -1359,25 +1465,41 @@ class LumberLoop:
         `threat` juncture (action 'keep_running') asks the overseer to find out why; it stops
         the task when it must (ctl stop).
         `players` (player_escape): from the players in player_foes, PLAYER_RECALL_GAP, a pk
-        escape; after PLAYER_RECALL_TRIES failed casts it returns why (the guard flight follows)."""
+        escape; after PLAYER_RECALL_TRIES failed casts it returns why (the guard flight follows).
+        A pacer (a ranged creature keeping its distance as we run: pacer) isn't run from: the book
+        opens and the cast starts the moment its next shot lands (next_shot_gate), each recast
+        too. Hits taken on the way and during the casts are monster_hit rows (flight_hit)."""
         fails, gave_up = 0, None
         while not a.dead:
-            ran = self.gain_distance(st, a, swung, players=players)
+            pace = None if players else self.pacer(st, a)
+            if pace is None:
+                ran = self.gain_distance(st, a, swung, players=players)
+            else:
+                ran = False
+                log(f"{self.threat_name(pace[0])} keeps its distance ({pace[0].distance} tiles, a shot every "
+                    f"{pace[1]:.2f} s): no running; recalling the moment its next shot lands")
             st = self.link.state()
             a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
             if a.dead:
                 return None
-            if not ran and gave_up is not None and time.monotonic() - gave_up < RECALL_RETRY_S:
+            if pace is None and not ran and gave_up is not None and time.monotonic() - gave_up < RECALL_RETRY_S:
                 time.sleep(KEEP_RUNNING_LOOK_S)          # nothing after us: watch until the next try
                 st = self.link.state()
                 a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
                 continue
             try:
-                fail = self.recall_out(st, a, worst, swung, pk=players, why=why, attempts=1 if ran else None)
+                fail = self.recall_out(st, a, worst, swung, pk=players, why=why, attempts=1 if ran else None,
+                                       gate=None if pace is None else self.next_shot_gate(st, *pace))
             except Unsafe:
                 if not players:
                     self.creature["recalled"] = True
+                    home = self.link.state()           # the hits taken while it cast (the pacer's, waited for)
+                    self.flight_hit(home, self.watch.update(home, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S),
+                                    "recall", known=[pace[0]] if pace is not None else None, where_st=st)
                 raise
+            if not players:
+                st = self.link.state()
+                self.flight_hit(st, self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S), "recall")
             if not ran:
                 gave_up = time.monotonic()
             fails += 1
@@ -1478,7 +1600,7 @@ class LumberLoop:
         return True
 
     def recall_out(self, st, a, worst, swung, pk: bool = True, why: str | None = None,
-                   what: str | None = None, attempts: int | None = None) -> str:
+                   what: str | None = None, attempts: int | None = None, gate=None) -> str:
         """Recall to the book's default rune at once (escape.escape: recasts as soon as the
         server takes a cast again, until it lands or escape.ESCAPE_BUDGET_S is spent),
         before any bookkeeping, then stop: the `threat` juncture (action 'recall') and
@@ -1489,7 +1611,8 @@ class LumberLoop:
         (sight_t) -> the escape's first packet (the book's double-click), and
         `cursor_cancelled` whether a cursor had to go first. `what` names the threat when no
         mobile does (post_threat), e.g. a trapped pouch going off with nobody in view. `attempts`:
-        casts before giving up (escape.escape; None: until its budget is spent)."""
+        casts before giving up (escape.escape; None: until its budget is spent). `gate`: escape.escape's,
+        right before each casting press (next_shot_gate against a pacer)."""
         cancelled = self.drop_cursor()
         sight, pressed = self.sight_t(worst, swung), time.time()
         react = round(pressed - sight, 2) if sight is not None else None
@@ -1505,7 +1628,7 @@ class LumberLoop:
             return self.aid.ready_at() if used else None
         try:
             res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, log=log, attempts=attempts,
-                                    between=between)
+                                    between=between, gate=gate)
         except escape_mod.RecallError as e:
             return f"recall not possible: {e}"
         if self._checking == 0:              # not inside a threat check (an abort's way home): its writes now
@@ -1896,9 +2019,16 @@ class LumberLoop:
         return bool(alerts.open_gm(self.memory))
 
     def died(self, st, reason):
+        """A death: the `death` juncture and job event with its cause. Whoever hit us within
+        DEATH_BLAME_S says it (`attacked`: a player among them "pk", else "mob"; live 2026-10-08 a
+        gloomwood hunter's arrows killed Dan and an unlabelled grey body at 18 tiles made it "pk");
+        with no hit blamed, a hostile player in view still makes it "pk"."""
         a = self.last_threats
+        now = time.time()
+        recent = [p for t, p in self.attacked.values() if now - t <= DEATH_BLAME_S]
         players = [t for t in (a.threats if a else []) if t.hostile and t.player]
-        cause = "pk" if players else ("mob" if a and a.under_attack else "unknown")
+        cause = ("pk" if any(recent) else "mob" if recent else
+                 "pk" if players else "mob" if a and a.under_attack else "unknown")
         data = {"reason": reason, "cause": cause, "threats": a.to_dict() if a else None}
         self.memory.juncture("lumber", "death", f"Died ({cause}): {reason}", "urgent", data)
         self.memory.job_event("lumber", "death", data, **self._where(st))

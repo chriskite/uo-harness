@@ -127,6 +127,12 @@ UNWORKABLE_TRIPS = 2              # that many such trips in a row: the spot is o
 UNWORKABLE_DAYS = 7.0             # ... for this long, then gets one more try
 HOP_BACK_S = RECALL_TRIP_S + ROOM_ENTER_S + OVERHEAD_FIXED_S   # a hop's last way home: the recall, the room, convert, store
 HOP_MIN_GAIN_LOGS = 0.0          # a library hop must be worth more than going home by this (docs/LUMBER_LOOP.md §6)
+# Areas no spot is planned or discovered in, whatever a store says (user decisions; committed so every machine's
+# store and every future `lumber discover` honour them): (facet, centre, Chebyshev radius, why)
+NO_GO_AREAS = (
+    (0, (3654, 2957), 200, "Old Papua: unsurvivable for Dan at his aspect and armor (user 2026-10-08, after a death "
+                           "to a mounted gloomwood hunter at witcher_336)"),
+)
 # Abort reasons that say the place can't be worked (not the character, the server or a player):
 # no tree we can reach, harvesting answered by something the runner doesn't know (a town region)
 PLACE_FAILURES = ("no harvestable tree", "without a known outcome")
@@ -1009,11 +1015,18 @@ def _value(lam, t_h, hz, gear_logs, cost_logs=0.0, q_cap=Q_MAX, refine=False, ca
     return v, q, bound
 
 
+def no_go(facet, p) -> str | None:
+    """Why (x, y) on `facet` lies in a NO_GO_AREAS area, or None."""
+    return next((why for f, c, r, why in NO_GO_AREAS if f == (facet or 0) and cheb(p, c) <= r), None)
+
+
 def eligibility(spot, trips, threats, now, regrow_min, thieves=()) -> str | None:
     """Why the spot can't be picked now, or None. thieves: [t] of `thief` job events there
     that made us leave (THIEF_COOLDOWN_S)."""
     if spot.get("status") != "active":
         return f"status {spot.get('status')}" + (f": {spot['reason']}" if spot.get("reason") else "")
+    if (why := no_go(spot.get("facet"), (spot.get("area") or {}).get("center") or (0, 0))) is not None:
+        return f"no-go area: {why}"
     try:
         check_spot(spot)
     except ValueError as e:
@@ -1392,7 +1405,10 @@ def hop_choice(models, target, gear_logs, q_cap, carried, regrow, landings, mode
     net rate (the rate a fresh trip there earns, so the fresh side is worth ~0 at its Q* and the
     hop leg's q stays near it). The heavier the load, the more a leg risks and the less it should
     chop, until storing first wins: that is the "less than the planner would risk" rule as one
-    comparison."""
+    comparison. The way out (hop_out_s: the landing and the walk into the grove) is exposed too (user
+    2026-10-08, after a death 28 s after a hop's landing lost 1028 carried logs): a death there (the
+    spot's death hazard over that time) loses what is carried and the gear and costs the recovery, on
+    both sides, so the difference is the carried load at risk (`carried_lost_logs`: expected)."""
     if target is None:
         return None, "no other eligible spot"
     room = min(Q_MAX, q_cap)
@@ -1408,10 +1424,15 @@ def hop_choice(models, target, gear_logs, q_cap, carried, regrow, landings, mode
         return max(((q, *leg_value(q, m["rate"], t_h, m["hz"], gear_logs, m["cost_logs"], load, g)) for q in grid),
                    key=lambda x: x[1])
     cap = m["cap_logs"]
+    p_out = -math.expm1(-m["hz"][0] * out_h)          # a death on the way out, before the first chop
+
+    def exposed(val):
+        return (1.0 - p_out) * val - p_out * (gear_logs + g * (out_h + RECOVERY_H))
     q, v, tt = best(out_h + back_h, carried, room if cap is None else min(room, cap))
+    v = exposed(v)
     qf, vf, _ = best(m["overhead_s"] / 3600.0, 0, min(Q_MAX, q_cap + carried) if cap is None
                      else min(Q_MAX, q_cap + carried, cap))
-    store_v = carried - g * back_h + vf
+    store_v = carried - g * back_h + exposed(vf)
     if v - store_v <= HOP_MIN_GAIN_LOGS:
         return None, (f"storing the {carried} logs first is worth more ({round(store_v)} vs {round(v)} logs "
                       f"for a hop to {target})")
@@ -1424,7 +1445,9 @@ def hop_choice(models, target, gear_logs, q_cap, carried, regrow, landings, mode
     return {"spot": target, "mode": mode, "logs_per_trip": quota, "carried": carried,
             "gain_logs": round(v - store_v, 1), "hop_value_logs": round(v, 1), "store_value_logs": round(store_v, 1),
             "fresh_logs_per_trip": qf, "rate_logs_h": round(g), "expected_stored": round(tt["stored"]),
-            "p_death_leg": round(tt["p_death"], 3), "hop_out_s": round(hop_out_s(m)), "timeout_s": timeout,
+            "p_death_leg": round(tt["p_death"], 3), "p_death_way_out": round(p_out, 4),
+            "carried_lost_logs": round(carried * (p_out + (1.0 - p_out) * tt["p_death"]), 1),
+            "hop_out_s": round(hop_out_s(m)), "timeout_s": timeout,
             "regrow_min": regrow["minutes"], "landing": landing_view((landings or {}).get(target))}, None
 
 
@@ -1825,8 +1848,8 @@ def discover_witcher(trees_fn, runes, spots, *, library: str = "cambria", radius
         if i in done or failed.get(i, 0) >= ROUTE_TRIES:
             continue
         key = (cx // WINDOW_GRID, cy // WINDOW_GRID)
-        if key in taken or key in townish:
-            hits.setdefault(i, set()).add("taken" if key in taken else "town")
+        if key in taken or key in townish or no_go(0, (cx, cy)) is not None:
+            hits.setdefault(i, set()).add("taken" if key in taken else "town" if key in townish else "no-go")
             continue
         r, danger = eligible[i]
         route = route_fn((r["x"], r["y"]), {"center": [cx, cy], "radius": radius}) if route_fn is not None else None
@@ -1851,8 +1874,10 @@ def discover_witcher(trees_fn, runes, spots, *, library: str = "cambria", radius
             skip("no short route from the rune")
         elif "taken" in hits.get(i, ()):
             skip("its groves are taken (a spot or a nearer/denser candidate)")
-        else:
+        elif "town" in hits.get(i, ()):
             skip("in or by a town (no harvesting there)")
+        else:
+            skip("in a no-go area (NO_GO_AREAS)")
     return out, skipped
 
 
