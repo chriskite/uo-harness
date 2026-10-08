@@ -1202,18 +1202,33 @@ ol.lines {
   flex: none;
   overflow: hidden;
 }
-.right-nystul[open] {
+.right-nystul.open {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
-.right-nystul > summary {
-  cursor: pointer;
+.right-nystul > .panel-head {
+  flex: none;
+}
+.right-nystul:not(.open) > .panel-head {
+  border-bottom: none;
 }
 .right-nystul > .nystul {
   flex: 1;
   min-height: 0;
+}
+.ny-toggle {
+  all: inherit;
+  cursor: pointer;
+  border: none;
+  box-shadow: none;
+  background: none;
+  padding: 0;
+}
+.ny-caret {
+  color: var(--frame-hi);
+  font-size: 0.8em;
 }
 .ny-full {
   margin-left: auto;
@@ -2309,7 +2324,7 @@ tr.spot-out td {
     height: 70svh;
     min-height: 360px;
   }
-  .right-nystul[open] {
+  .right-nystul.open {
     flex: none;
     height: 70vh;
     height: 70svh;

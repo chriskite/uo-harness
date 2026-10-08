@@ -132,23 +132,29 @@ export function App() {
         <div className="panel right-overseer">
           <OverseerPanel feed={overseer} />
         </div>
-        <details
-          className="panel right-nystul"
-          open={nyOpen}
-          onToggle={(e) => {
-            const open = e.currentTarget.open;
-            localStorage.setItem(NYSTUL_OPEN_KEY, open ? "1" : "0");
-            setNyOpen(open);
-          }}
-        >
-          <summary className="panel-head">
-            <h2>Nystul the Wizard</h2>
+        {/* A section, not <details>: details content sits in a slot box outside the flex
+            layout, so the chat grew past the panel and couldn't scroll. */}
+        <section className={`panel right-nystul${nyOpen ? " open" : ""}`}>
+          <div className="panel-head">
+            <h2>
+              <button
+                type="button"
+                className="ny-toggle"
+                aria-expanded={nyOpen}
+                onClick={() => {
+                  localStorage.setItem(NYSTUL_OPEN_KEY, nyOpen ? "0" : "1");
+                  setNyOpen(!nyOpen);
+                }}
+              >
+                <span className="ny-caret">{nyOpen ? "▾" : "▸"}</span> Nystul the Wizard
+              </button>
+            </h2>
             <a href="#nystul" className="ny-full">
               full page
             </a>
-          </summary>
-          <NystulChat feed={nystul} compact />
-        </details>
+          </div>
+          {nyOpen && <NystulChat feed={nystul} compact />}
+        </section>
       </aside>
       <details
         className="details-row"

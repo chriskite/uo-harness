@@ -782,7 +782,10 @@ the Wizard".
   untouched. Created on the first ask; a `running` row left by a dead viz becomes `error`
   ("interrupted").
 - **UI:** a `Nystul` page (`#nystul`: conversation list + chat) and a collapsible "Nystul the Wizard"
-  panel under the Seer on the Live page (`localStorage["uo-viz-nystul-open"]`), both on the same
+  panel under the Seer on the Live page (`localStorage["uo-viz-nystul-open"]`). The panel is a
+  `<section>` with a toggle button, not a `<details>`: a details element's content sits in a slot
+  box outside its flex layout, so the chat grew past the panel and couldn't scroll (user report
+  2026-10-08). Both views share the same
   active conversation (`localStorage["uo-viz-nystul-conv"]`). Answers render through a small
   built-in markdown renderer (`viz/src/markdown.ts`, React elements only; links only for
   `http(s)://` and `#`). Each answer shows its lookups (`stepLabel`, ✓/✗), time, count and cost; the
