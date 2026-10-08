@@ -9,6 +9,13 @@ into the rental room through the house steward → set the pouch off ourselves, 
 it, convert the logs to boards → store the boards in the room's secure chest. The
 run ends in the room. No bank, no deed creation.
 
+Library hops (docs/LUMBER_LOOP.md §6, user decision 2026-10-07): a leg that ends
+early (its trees dry or all within a creature's reach, an abort for no tree, or a
+threat whose escape recall landed us home) asks the plan at home whether to carry
+the logs on to the next spot from the home rune library instead of the room first
+(lumber_opt.hop_choice, --hops); each leg is its own episode row (outcome 'hopped'),
+and a run whose trip hopped ends after that trip.
+
 Thieves (docs/PLAN.md "Keep thieves off the logs"; harness/pouch.py): the logs ride
 in a trapped pouch (hue 38) from the chop to the room, so a thief's snoop sets it
 off. A pouch going off without our double-click (the explosion around us, its
@@ -160,6 +167,7 @@ ROUTE_ZONE_S = 10.0
 DIR_NAMES = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 AT_GROVE = 10                 # tiles from the area's edge that count as being at the grove already (no travel)
 LANDING_SLACK = 3             # tiles from the chosen rune's tile a recall out may land (live: on the tile) before it is wrong
+HOP_MIN_HITS = 0.8            # a library hop needs at least this share of max hits (else the room first)
 # the stash's lift waits this long after the chop's target (live 2026-10-05 10:09:30: a lift 0.47 s after the
 # hatchet's double-click got "You must wait to perform another action." and the logs stayed loose)
 STASH_AFTER_S = 0.8
@@ -390,10 +398,12 @@ def alert(sound: bool = True):
 
 
 class LumberLoop:
-    def __init__(self, link: Link, memory: Memory, know: dict, args):
+    def __init__(self, link: Link, memory: Memory, know: dict, args, base: dict | None = None):
         self.link = link
         self.k = know
+        self.know_base = base if base is not None else know   # loops/lumber.json before the spot: a hop's new spot
         self.args = args
+        self.hops_done = 0           # library hops so far this trip (leg)
         self.deadline = time.monotonic() + args.timeout
         self.start_hits = None
         self.human = Human(args.human, seed=args.seed, fast=args.human_fast, log=log, sleep=self.pause)
@@ -3366,15 +3376,32 @@ class LumberLoop:
     def episode(self, row):
         self.memory.episode("lumber", row)
 
-    def trip(self, n):
-        """One trip: from home out to the grove (go_out) and harvest (logs into the trapped
+    def trip(self, n) -> bool:
+        """One trip from home to home: a leg at the run's spot, and, when a leg ends early (its
+        trees ran dry or all wait on creatures, or a threat recalled us home) with less carried
+        than the plan would risk, more legs at other spots by the home rune library without the
+        room in between (library hops, docs/LUMBER_LOOP.md §6, user decision 2026-10-07; at most
+        --hops). Each leg is one episode row of its spot (leg). Returns whether it hopped: the
+        run then ends after this trip and the overseer plans the next."""
+        hops = 0
+        while True:
+            hop = self.leg(n, hops)
+            if hop is None:
+                return hops > 0
+            hops += 1
+            self.hop_to(hop)
+
+    def leg(self, n, hops: int) -> dict | None:
+        """One leg of trip n: from home out to the grove (go_out) and harvest (logs into the trapped
         pouch) -> home and into the rental room (to_room) -> convert (the pouch set off and
-        opened) -> store the boards in the room's chest. The run ends in the room. A monster
-        escape in any phase is followed by that phase again
+        opened) -> store the boards in the room's chest; or, ended early, home and on to the next
+        spot (try_hop: returns the hop, the room waits for a later leg). The run ends in the room.
+        A monster escape in any phase is followed by that phase again
         (the harvest goes on at the next stand out of reach); an abort while harvesting
-        stashes the loose logs in the pouch first when that's safe (salvage). Every trip
-        leaves an episode row, an aborted one too (outcome 'aborted' + why): leaving those
-        out would flatter exactly the spots where trips get cut short."""
+        stashes the loose logs in the pouch first when that's safe (salvage). Every leg
+        leaves an episode row, an aborted one too (outcome 'aborted' + why; 'hopped' when it
+        went on to another spot): leaving those out would flatter exactly the spots where trips
+        get cut short."""
         self.stats = dict(self.pre_stats)
         self.pre_stats = {}
         self.trip_n = n
@@ -3383,6 +3410,7 @@ class LumberLoop:
         self.run_arrived, self.creature, self.avoided = None, self.new_creature_tally(), set()
         self.recent_guards, self.dropped_trees, self.no_route, self.switch_tree = {}, {}, set(), None
         self.recalled_home, self.waypost_seen = False, False
+        self.hops_done = hops
         # the trip began with resupply_home (run): its time and steps are the trip's overhead too
         t0, s0, b0 = self.pre_trip or (time.time(), self.mover.steps, self.mover.blocked_count)
         self.pre_trip = None
@@ -3395,7 +3423,9 @@ class LumberLoop:
         st = self.link.state()
         snap = self.snapshot(st)
         self.reagents0 = self.supplies_now(st)["reagents"]
-        outcome, why = "aborted", None
+        woods0 = self.ledger.summary(kind="log")          # carried in: an earlier leg's logs are its own
+        carried_in = self.count(st, LOGS)
+        outcome, why, hop = "aborted", None, None
 
         def timed(name, fn, retry=True):
             t = time.time()
@@ -3407,14 +3437,28 @@ class LumberLoop:
         try:
             try:
                 timed("harvest", self.harvest_trip)
+                early = self.ended_early()
+                if early:
+                    hop = self.try_hop(early, timed, recall=True)
             except Unsafe as e:
                 if self.recalled_home and self.at_home(self.link.state()):
-                    self.home_after_recall(e, timed)
-                raise
+                    hop = self.try_hop(str(e), timed, recall=False)
+                    if hop is None:
+                        self.home_after_recall(e, timed)
+                if hop is None:
+                    raise
             except Abort as e:
                 self.salvage(e)
-                self.home_on_abort(e, timed)
-                raise
+                if self.stats.get("dry") and self.unsafe_stop(e) is None:
+                    hop = self.try_hop(str(e), timed, recall=True)
+                    if hop is None and self.at_home(self.link.state()):
+                        self.home_after_recall(e, timed)
+                if hop is None:
+                    self.home_on_abort(e, timed)
+                    raise
+            if hop is not None:
+                outcome, why = "hopped", hop["why"]
+                return hop
 
             def room_phase():               # convert in the rental room: the logs stay in the pouch until then
                 timed("to_room", self.to_room, retry=False)
@@ -3428,6 +3472,9 @@ class LumberLoop:
         finally:
             if self.break_due:
                 self.stats["break_due"] = True
+            woods = self.stats.get("woods") or (self.ledger.summary(kind="log") if outcome == "hopped" else None)
+            if woods is not None:           # this leg's logs by wood: what it carried in isn't its own
+                woods = {w: n - woods0.get(w, 0) for w, n in woods.items() if n - woods0.get(w, 0) > 0}
             row = {"loop": "lumber", "spot": self.k["spot"]["id"], "trip": n, "outcome": outcome, "why": why,
                    "t_start": round(t0, 1), "t_end": round(time.time(), 1), "phases_s": phases,
                    **{k: None if v is None else round(v, 1) for k, v in self.timing.items()},
@@ -3436,11 +3483,111 @@ class LumberLoop:
                    "human_session": dict(self.human.stats), **snap,
                    "hatchet": row_hatchet(snap["hatchet"], self.hatchet_worn), "carried_end": self.carried(),
                    **self.trip_end(snap), "tracking": self.trk.tally(), "creature": dict(self.creature),
-                   **self.stats}
+                   **self.stats, "leg": hops + 1, "carried_in": carried_in}
+            if woods is not None:
+                row["woods"] = woods
+            if hop is not None:
+                row["hop"] = {k: hop.get(k) for k in ("spot", "logs_per_trip", "carried", "gain_logs", "mode")}
             self.episode(row)
-            log(f"trip {n} {outcome}: {row}")
+            log(f"trip {n} leg {hops + 1} {outcome}: {row}")
         self.doing("trip_done", f"Trip {n} done: {self.stats.get('logs', 0)} logs, "
                                 f"{self.stats.get('stored', 0)} boards stored")
+        return None
+
+    def ended_early(self) -> str | None:
+        """Why the harvest ended before its quota with no break due (a library hop may follow), or None."""
+        if self.break_due or self.stats.get("logs", 0) >= self.args.logs_per_trip:
+            return None
+        if self.stats.get("dry"):
+            return f"the area ran dry at {self.stats.get('logs', 0)} logs"
+        if self.stats.get("creature_blocked"):
+            return f"every tree left was within a creature's reach at {self.stats.get('logs', 0)} logs"
+        return None
+
+    def hop_blocked(self, st) -> str | None:
+        """Why no library hop may follow this leg, or None: --hops used up, a break due, the agent
+        gate closed, possible staff, a speech hold, no way home, dead or hurt (below HOP_MIN_HITS
+        of max), or no live trapped pouch to carry the logs in."""
+        me = st["world"].get("self") or {}
+        gate = (self.link.last or {}).get("gate") or {}
+        hits, hits_max = me.get("hits"), me.get("hits_max")
+        if self.hops_done >= self.args.hops:
+            return f"--hops {self.args.hops} used"
+        if self.break_due:
+            return "break due"
+        if gate.get("blocked"):
+            return f"agent gate closed ({gate.get('reason')})"
+        if alerts.open_gm(self.memory):
+            return "possible staff nearby (gm_suspected open)"
+        if self.holding:
+            return "speech hold"
+        if self.recall_book is None:
+            return "no recall book"
+        if me.get("dead"):
+            return "dead"
+        if hits is not None and hits_max and hits < HOP_MIN_HITS * hits_max:
+            return f"hurt ({hits}/{hits_max} hits)"
+        if self.log_pouch(st) is None:
+            return "no live trapped pouch for the logs"
+        return None
+
+    def try_hop(self, reason: str, timed, recall: bool) -> dict | None:
+        """The leg ended early (`reason`): home (recall: by our book, else an escape recall already
+        landed us there), then ask the plan (lumber_opt.plan_from_store with what we carry; hop_choice)
+        whether to go on to another spot from the rune library. The hop, or None: the room as before
+        (hop_blocked, the recall home failed, or storing first is worth more). hop_blocked is asked
+        again after the plan: a spell cast before an escape recall can land at home (live 2026-10-06,
+        -31 0.4 s after the landing), and the plan takes seconds. A `hop` job event either way."""
+        why_not = self.hop_blocked(self.link.state())
+        if why_not is None and recall:
+            try:
+                timed("hop_home", self.go_home, retry=False)
+            except Abort as x:
+                why_not = f"recall home: {x}"
+        if why_not is not None:
+            log(f"no library hop ({reason}): {why_not}")
+            return None
+        st = self.link.state()
+        carried = self.count(st, LOGS)
+        self.doing("hop_plan", f"Home with {carried} logs: another spot, or the room?")
+        out = lumber_opt.plan_from_store(self.memory, st["world"], self.self_serial(st), self.link.pos(st),
+                                         self.facet_now(st), seeds_path=self.args.spots, carried=carried,
+                                         hop_from=self.k["spot"]["id"], home=self.home)
+        st = self.link.state()
+        hop = out.get("hop")
+        why_not = self.hop_blocked(st) or (None if hop else (out.get("hop_why") or out.get("error")))
+        data = {"trip": self.trip_n, "from": self.k["spot"]["id"], "reason": reason, "carried": carried,
+                "hop": hop if why_not is None else None, "why_not": why_not}
+        self.memory.job_event("lumber", "hop", data, **self._where(st))
+        if why_not is not None:
+            log(f"no library hop ({reason}): {why_not}")
+            return None
+        self.settle_at_home()
+        log(f"library hop ({reason}): on to {hop['spot']} with {carried} logs, quota {hop['logs_per_trip']} "
+            f"(worth {hop['gain_logs']} logs more than storing first)")
+        return {**hop, "why": reason}
+
+    def hop_to(self, hop: dict):
+        """The run's spot becomes the hop's (its area, trees, PvP flag; lumber_opt.spot_knowledge over
+        the common knowledge): its landing, quota and timeout; per-spot threat memory starts over."""
+        spot = lumber_opt.load_spots(self.memory, self.args.spots)[hop["spot"]]
+        self.k = lumber_opt.spot_knowledge(self.know_base, spot)
+        self.facet = self.k["facet"]
+        self.out_landing = None
+        self.args.logs_per_trip = hop["logs_per_trip"]
+        self.deadline = max(self.deadline, time.monotonic() + hop["timeout_s"])
+        self.afield = False
+        self.escaped, self.counted, self.sighted = set(), set(), {}
+        self.doing("hop", f"Going on to {spot.get('name') or hop['spot']} with {hop['carried']} logs")
+
+    def settle_at_home(self):
+        """Home after a recall: the hits it cost are dealt with (check_guards' "hit points dropped"
+        counts from here), and whoever swung or cast at us stayed behind."""
+        hits = self.link.state()["world"]["self"].get("hits")
+        self.watch.acknowledge(hits=hits)
+        self.start_hits = hits
+        self.swingers.clear()
+        self.spelled.clear()
 
     def home_on_abort(self, e: Abort, timed):
         """A plain abort (not a threat stop) that leaves us away from home, alive, with the
@@ -3464,7 +3611,7 @@ class LumberLoop:
             fail = str(x)
         log(f"recall home after the abort: {fail}")
 
-    def home_after_recall(self, e: Unsafe, timed):
+    def home_after_recall(self, e: Abort, timed):
         """An escape recall (a creature's or a player's, recall_out) landed us home: the danger
         stayed behind, so into the rental room, convert and store as a finished trip would, then
         the stop goes on (Seer6, 2026-10-05: boxed-in and red-sighting recalls left run after run
@@ -3472,13 +3619,10 @@ class LumberLoop:
         count): a spell cast before the recall can still land on us at home (live 2026-10-06,
         lumber-20261006-111829-94a3: a PK's Explosion went off on Dan 0.4 s after the landing,
         -31), and that must not keep us out of the room. The room may refuse us for a while after
-        PvP; a failure here is logged and the stop stands either way."""
-        log(f"home by an escape recall ({e}); into the rental room to convert and store before stopping")
-        hits = self.link.state()["world"]["self"].get("hits")
-        self.watch.acknowledge(hits=hits)   # the recall dealt with the hits it cost
-        self.start_hits = hits              # check_guards' "hit points dropped": from here on
-        self.swingers.clear()         # and whoever swung or cast at us stayed behind
-        self.spelled.clear()
+        PvP; a failure here is logged and the stop stands either way. Also the room after a leg
+        whose library hop didn't happen (try_hop)."""
+        log(f"home ({e}); into the rental room to convert and store before stopping")
+        self.settle_at_home()
         mode, self.mode = self.mode, "salvage"
         try:
             timed("to_room", self.to_room, retry=False)
@@ -3602,10 +3746,15 @@ class LumberLoop:
             except Abort:
                 self.back_in_room()
                 raise
-            self.trip(n)
+            hopped = self.trip(n)
             if self.break_due:
                 log(f"break due: boards stored after trip {n}; stopping for the break (ctl break)")
                 self.doing("break_due", "Break due: boards stored; waiting in the rental room for the break")
+                return
+            if hopped and n < self.args.trips:
+                # the trip moved on to other spots: the run's own trips no longer fit; the overseer plans afresh
+                log(f"trip {n} hopped to {self.k['spot']['id']}: the run ends here, in the rental room")
+                self.doing("done", f"Finished after trip {n} (library hops); waiting in the rental room")
                 return
         log(f"loop complete: {self.args.trips} trip(s); waiting in the rental room")
         self.doing("done", f"Finished: {self.args.trips} trip(s); waiting in the rental room")
@@ -3639,6 +3788,11 @@ def main():
     ap.add_argument("--homes", default=home_mod.HOMES,
                     help="homes by character name: landing, rental room, chest (tests: a simulated home)")
     ap.add_argument("--trips", type=int, default=1)
+    ap.add_argument("--hops", type=int, default=3,
+                    help="library hops per trip at most (docs/LUMBER_LOOP.md §6 'Library hops'): a leg that ends "
+                         "early (dry, every tree guarded, a threat recalled us home) goes on from the home rune "
+                         "library to the spot `ctl lumber plan` would pick, with the logs carried, when the plan "
+                         "says that beats storing them first; 0 = never")
     ap.add_argument("--logs-per-trip", type=int, default=15)
     ap.add_argument("--hatchet", default=None,
                     help="use only a hatchet of this material[+quality], e.g. copper or copper+exceptional "
@@ -3703,7 +3857,8 @@ def main():
     args = ap.parse_args()
 
     with open(args.loop, encoding="utf-8") as f:
-        know = json.load(f)
+        base = json.load(f)
+    know = base
     memory = Memory(args.memory)
     places.use(args.witcher, args.libraries)
     spots = lumber_opt.load_spots(memory, args.spots)
@@ -3715,7 +3870,7 @@ def main():
         why = f"spot {args.spot} is disabled" + (f": {spot['reason']}" if spot.get("reason") else "")
     else:
         try:
-            know = lumber_opt.spot_knowledge(know, spot)
+            know = lumber_opt.spot_knowledge(base, spot)
         except ValueError as e:
             why = str(e)
     if why:
@@ -3723,7 +3878,7 @@ def main():
         memory.close()
         sys.exit(1)
     link = Link(args.control_port, args.state_port)
-    loop = LumberLoop(link, memory, know, args)
+    loop = LumberLoop(link, memory, know, args, base)
     code = 0
     try:
         loop.run()

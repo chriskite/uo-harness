@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { addDays, eventView, legText, localDay, parseRange, presetRange, rangeBounds, rangeQuery, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, phaseList, theftLoss, tripHome, woodShares, type HuntTotals, type JobEvent, type JobTotals } from "./jobs.ts";
+import { addDays, eventView, legText, localDay, parseRange, presetRange, rangeBounds, rangeQuery, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, outcomeKind, phaseList, theftLoss, tripHome, woodShares, type HuntTotals, type JobEvent, type JobTotals } from "./jobs.ts";
 
 function totals(p: Partial<JobTotals> = {}): JobTotals {
   return {
@@ -133,6 +133,9 @@ describe("woodShares / phaseList", () => {
   });
   test("a trip brought its wood home: stored, or banked in the bank era", () => {
     expect([tripHome("stored"), tripHome("banked"), tripHome("aborted"), tripHome(null)]).toEqual([true, true, false, false]);
+  });
+  test("a library hop's leg is no abort: info, not warn; a place failure stays bad", () => {
+    expect([outcomeKind("stored"), outcomeKind("hopped"), outcomeKind("aborted"), outcomeKind("aborted", true)]).toEqual(["ok", "info", "warn", "bad"]);
   });
 });
 

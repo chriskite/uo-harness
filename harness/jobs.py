@@ -215,8 +215,9 @@ def _trip_row(i, row, woods, boards):
         else:
             value = round((value or 0) + p["gp"] * n, 2)
     phases = row.get("phases_s") if isinstance(row.get("phases_s"), dict) else {}
-    # outcome: "stored" (home, boards in the room's chest, since 2026-10-04), "aborted", or the
-    # bank era's "banked" (rows without an outcome are the oldest bank-era trips; lumber_opt.trip_obs).
+    # outcome: "stored" (home, boards in the room's chest, since 2026-10-04), "aborted", "hopped" (a leg
+    # that carried its logs on to another spot by the rune library, since 2026-10-07), or the bank era's
+    # "banked" (rows without an outcome are the oldest bank-era trips; lumber_opt.trip_obs).
     # stored = boards put away (bank, chest or stockpile); stockpiled = only those the Resource
     # Stockpile confirmed taking (rows since 2026-10-05; none before: boards went to the chest)
     return {"n": i + 1, "trip": row.get("trip"), "spot": row.get("spot") or row.get("venue"),

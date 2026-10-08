@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { fmtDuration } from "../format.ts";
 import { intentClock } from "../intent.ts";
-import { fmtNum, fmtStamp, tripHome, type DateRange } from "../jobs.ts";
+import { fmtNum, fmtStamp, outcomeKind, type DateRange } from "../jobs.ts";
 import { currentRate, lumberLeg, RATE_MIN_S, spotTrips, sumWoods, woodMix } from "../lumberjob.ts";
 import type { VizSnapshot } from "../store.ts";
 import type { AgentIntent } from "../types.ts";
@@ -190,7 +190,7 @@ export function LumberJobPanel({ intent, viz }: { intent: AgentIntent; viz: VizS
                           <td className="mono num">{r.logs}</td>
                           <td className="mono num">{fmtNum(r.field_logs_per_hour, 0)}</td>
                           <td>
-                            <Badge kind={tripHome(r.outcome) ? "ok" : r.place_fail ? "bad" : "warn"} title={r.why ?? undefined}>
+                            <Badge kind={outcomeKind(r.outcome, r.place_fail)} title={r.why ?? undefined}>
                               {r.outcome}
                             </Badge>
                           </td>

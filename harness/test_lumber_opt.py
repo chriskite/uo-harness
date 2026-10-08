@@ -785,11 +785,56 @@ def test_forest_spots():
           (row(out, "f")["trips"], row(out, "old")["trips"]))
 
 
+
+def test_library_hops():
+    print("== library hops: carry the load on to the next spot, or store it first ==")
+    hz0, hzr = (0.0, 0.0, 0.0, 0.5), (0.05, 0.5, 0.02, 0.5)
+    base, carried = lo.trip_terms(1000, 2000.0, 0.05, hz0), lo.trip_terms(1000, 2000.0, 0.05, hz0, load0=700)
+    check("no hazards: a leg stores what it carried in plus what it chops", abs(carried["stored"] - base["stored"] - 700) < 1e-6
+          and carried["time_h"] == base["time_h"], (base["stored"], carried["stored"]))
+    r0, r1 = lo.trip_terms(1000, 2000.0, 0.05, hzr), lo.trip_terms(1000, 2000.0, 0.05, hzr, load0=700)
+    added = r1["stored"] - r0["stored"]
+    check("with hazards some of the carried load is lost (death, thieves), never more than it",
+          0 < added < 700 and abs(r1["lost_death"] + r1["lost_theft"] - r0["lost_death"] - r0["lost_theft"]
+                                  - (700 - added)) < 1e-6, (added, r1))
+
+    spots = [spot("a"), spot("b", 3000, 3000), spot("c", 5000, 5000)]
+    eps = series("a", 8, 2500) + series("b", 8, 2400) + series("c", 8, 2300)
+
+    def hop(load, **kw):
+        out = plan(spots, eps, carried=load, hop_from="a", exploit=True, **kw)
+        return out.get("hop"), out.get("hop_why")
+    h0, _ = hop(0)
+    check("nothing carried: always on to the next spot (the room would only cost its time), never back to the spot "
+          "just left; the gain is about the room's time at that spot's rate",
+          h0 is not None and h0["spot"] == "b" and h0["carried"] == 0
+          and 0.5 * (lo.ROOM_EXIT_S + lo.HOP_BACK_S) / 3600 * h0["rate_logs_h"] < h0["gain_logs"]
+          < 1.5 * (lo.ROOM_EXIT_S + lo.HOP_BACK_S) / 3600 * h0["rate_logs_h"], h0)
+    sizes = [hop(load)[0] for load in (0, 200, 400)]
+    check("the more carried, the shorter the leg it is worth (the load is at risk all along)",
+          all(s is not None for s in sizes) and sizes[0]["logs_per_trip"] >= sizes[1]["logs_per_trip"]
+          >= sizes[2]["logs_per_trip"] and sizes[0]["gain_logs"] > sizes[1]["gain_logs"] > sizes[2]["gain_logs"],
+          [(s or {}).get("logs_per_trip") for s in sizes])
+    heavy, why = hop(9000)
+    check("a load near what a trip would risk: store it first", heavy is None and "storing" in (why or ""), why)
+    gone = plan([spot("a"), spot("b", 3000, 3000, status="disabled")], series("a", 8, 2500), carried=0, hop_from="a")
+    check("no other eligible spot: no hop", gone["hop"] is None and gone["hop_why"] == "no other eligible spot",
+          gone["hop_why"])
+    check("no question asked (a fresh plan): no hop field", "hop" not in plan(spots, eps))
+
+    hopped = trip("a", NOW - 600, 400, 600, outcome="hopped", why="threat: red X at 30 tiles")
+    obs = lo.trip_obs(hopped)
+    check("a hopped leg: its logs and field time count, a threat ending it is 'sent home', no overhead of its own",
+          obs["logs"] == 400 and obs["field_s"] > 0 and obs["sent_home"] and obs["overhead_s"] is None, obs)
+    pk = plan(spots, eps + [hopped], sightings=[NOW - 900])
+    check("a hostile player in sight on a hopped leg keeps that spot out for the cooldown, like an aborted trip",
+          not row(pk, "a")["eligible"], row(pk, "a")["why_not"])
+
 if __name__ == "__main__":
     for fn in (test_explore_exploit, test_greedy_command, test_skill_rescaling, test_trip_size, test_hazard_evidence,
                test_gear_and_capacity, test_eligibility, test_regrowth, test_hatchets, test_spots_store,
                test_failed_places, test_landings, test_home_and_trips, test_libraries, test_discover_witcher,
-               test_travel_costs, test_capacity, test_forest_spots):
+               test_travel_costs, test_capacity, test_forest_spots, test_library_hops):
         fn()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

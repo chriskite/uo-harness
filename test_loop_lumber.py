@@ -1430,15 +1430,15 @@ class World:
             await self.writer.drain()
 
 
-def write_spot(path, trees=(GOOD_TREE, DRY_TREE), **extra):
+def write_spot(path, trees=(GOOD_TREE, DRY_TREE), more=(), **extra):
     """The simulator's spot 'sim' (lumber_opt spot format, a --spots file): its trees around START, no
-    hostile player actions there (extra fields override). The area's edge lies beyond AT_GROVE from the
-    home landing, so a trip recalls out (our runebook's 'Sim Woods'). The common knowledge is the
-    committed loops/lumber.json."""
+    hostile player actions there (extra fields override); `more`: further spots (whole dicts). The area's
+    edge lies beyond AT_GROVE from the home landing, so a trip recalls out (our runebook's 'Sim Woods').
+    The common knowledge is the committed loops/lumber.json."""
     spot = {"id": "sim", "name": "simulated trees", "facet": 0,
             "area": {"center": list(START), "radius": 12}, "trees": list(trees), "pvp": False, **extra}
     with open(path, "w", encoding="utf-8") as f:
-        json.dump({"spots": [spot]}, f)
+        json.dump({"spots": [spot, *more]}, f)
 
 
 def write_witcher(path):
@@ -1472,14 +1472,21 @@ def write_homes(path, stockpile=False):
         json.dump(doc, f)
 
 
-def write_world_files(tmp, trees=(GOOD_TREE, DRY_TREE), spot_extra=None, stockpile=False) -> dict:
-    """The runner's simulated data files in `tmp`: spots, Witcher table, rune libraries, homes, memory db."""
+def write_world_files(tmp, trees=(GOOD_TREE, DRY_TREE), spot_extra=None, stockpile=False, more_spots=(),
+                      routes=None) -> dict:
+    """The runner's simulated data files in `tmp`: spots, Witcher table, rune libraries, homes, memory db;
+    `routes` ({lumber_opt.route_key: tiles}) pre-seeds the db's landing-route cache (the planner's route
+    check plans on the real map otherwise, where the simulated landings mean nothing)."""
     paths = {n: os.path.join(tmp, f"{n}.json") for n in ("spots", "witcher", "libraries", "homes")}
     paths["db"] = os.path.join(tmp, "harness.db")
-    write_spot(paths["spots"], trees, **(spot_extra or {}))
+    write_spot(paths["spots"], trees, more_spots, **(spot_extra or {}))
     write_witcher(paths["witcher"])
     write_libraries(paths["libraries"])
     write_homes(paths["homes"], stockpile)
+    if routes:
+        mem = memory.Memory(paths["db"])
+        lumber_opt.save_landing_routes(mem, routes)
+        mem.close()
     return paths
 
 
@@ -1748,9 +1755,11 @@ async def main():
               f"{world.containers_opened} chest opens {world.chest_opens}")
         check("the only speech is 'room' by the steward, once per trip (no 'bank')",
               speech == [actions.say_unicode("room")] * 2, str([p.hex() for p in speech]))
-        check("two episode rows with logs and stored boards, none stockpiled (this home has only the chest)",
+        check("two episode rows with logs and stored boards, none stockpiled (this home has only the chest); a dry "
+              "trip asked about a library hop first (the `hop_home` phase, docs/LUMBER_LOOP.md §6: no other spot here)",
               len(rows) == 2 and all(r.get("logs", 0) >= 6 and r.get("stored", 0) >= 6 and "stockpiled" not in r
-                                     and set(r["phases_s"]) == {"harvest", "to_room", "convert", "store"}
+                                     and set(r["phases_s"]) - ({"hop_home"} if r.get("dry") else set())
+                                     == {"harvest", "to_room", "convert", "store"}
                                      for r in rows), str(rows))
         check("trip rows say where, how it ended and with what: spot sim, stored, the worn iron hatchet, "
               "the walk out and the chopping inside the harvest time, nothing carried at the end",
@@ -1809,7 +1818,8 @@ async def main():
         server.close()
 
 
-async def run_scenario(world, tag, port_base, trees, runner_args, budget=None, spot_extra=None, during=None):
+async def run_scenario(world, tag, port_base, trees, runner_args, budget=None, spot_extra=None, during=None,
+                       more_spots=(), routes=None):
     """The real proxy in front of `world` on private ports port_base..+3 (logdir
     LOGDIR/<tag>, an optional pre-written agent gate file), then the runner with
     runner_args; `during(db)`, a coroutine function, runs alongside it (a test
@@ -1821,7 +1831,8 @@ async def run_scenario(world, tag, port_base, trees, runner_args, budget=None, s
     if budget is not None:
         with open(os.path.join(logdir, "agent_budget.json"), "w", encoding="utf-8") as f:
             json.dump(budget, f)
-    paths = write_world_files(tempfile.mkdtemp(), trees, spot_extra, stockpile=world.stockpile is not None)
+    paths = write_world_files(tempfile.mkdtemp(), trees, spot_extra, stockpile=world.stockpile is not None,
+                              more_spots=more_spots, routes=routes)
     db = paths["db"]
     proxy_port, upstream, control, state = (port_base + i for i in range(4))
     server = await asyncio.start_server(world.handle, "127.0.0.1", upstream)
@@ -2811,6 +2822,80 @@ async def staff_in_view():
     store.close()
 
 
+# hop scenario (docs/PLAN.md "hop through the rune library", user decision 2026-10-07): a second spot by the home
+# library's rune 286, no hazards; the planner's landing-route cache pre-seeded (its route check plans on the real
+# map, where these simulated tiles mean nothing): both landings reach both groves
+HOP_SPOT = {"id": "sim2", "name": "simulated trees by rune 286", "facet": 0,
+            "area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 10}, "trees": [LIB_TREE], "pvp": False}
+
+
+def hop_routes() -> dict:
+    return {lumber_opt.route_key({"x": lx, "y": ly}, s): max(1, lumber_opt.area_dist(s["area"], (lx, ly)))
+            for s in ({"area": {"center": list(START), "radius": 12}}, HOP_SPOT)
+            for (lx, ly) in (BOOK_RUNE_POS, RUNE_POS)}
+
+
+async def hop():
+    """docs/PLAN.md "Next: hop through the rune library": the 'sim' leg runs dry short of its quota with the logs
+    in the pouch; home (on foot: 'sim' lies within home.NEAR_LANDING), the plan (carried, hop_from 'sim') sends
+    us on to 'sim2' (the only other eligible spot) instead of the room: leg 1's row 'hopped', then the walk to
+    the home library's tome, its rune 286 out, chop, home by our book and into the room once, both legs' logs
+    stored. Alongside, --hops 0: the dry leg goes home through the room as before (one 'stored' row, no hop)."""
+    print("\n== hop: a dry leg goes on from the home rune library to the next spot, the room once at the end ==")
+    world, off = World("hop"), World("hop")
+    args, routes = ["--trips", "1", "--logs-per-trip", "100", "--human", "off"], hop_routes()
+    (text, code, store, _), (otext, ocode, ostore, _) = await asyncio.gather(
+        run_scenario(world, "hop", 12920, [GOOD_TREE, DRY_TREE], args, more_spots=[HOP_SPOT], routes=routes),
+        run_scenario(off, "hop_off", 12930, [GOOD_TREE, DRY_TREE], args + ["--hops", "0"], more_spots=[HOP_SPOT],
+                     routes=routes))
+    eps = store.episodes("lumber")
+    brief = [{k: e.get(k) for k in ("spot", "leg", "outcome", "why", "dry", "logs", "carried_in", "hop", "stored",
+                                     "woods")} for e in eps]
+    check("exit 0; two lumber rows for the one trip", code == 0 and len(eps) == 2,
+          f"exit {code} {brief}\n{text[-1200:]}")
+    one, two = (eps + [{}, {}])[:2]
+    check("leg 1 at 'sim': hopped, dry, nothing carried in, some logs of its own (woods), its hop to 'sim2'",
+          one.get("spot") == "sim" and one.get("leg") == 1 and one.get("outcome") == "hopped" and one.get("dry") is True
+          and one.get("carried_in") == 0 and (one.get("logs") or 0) > 0
+          and sum((one.get("woods") or {}).values()) == one.get("logs")
+          and (one.get("hop") or {}).get("spot") == "sim2" and (one["hop"].get("gain_logs") or 0) > 0
+          and one["hop"].get("carried") == one.get("logs"), str(brief[:1]))
+    check("leg 2 at 'sim2': stored, leg 2, carrying leg 1's logs in (not counted in its own woods)",
+          two.get("spot") == "sim2" and two.get("leg") == 2 and two.get("outcome") == "stored"
+          and two.get("carried_in") == one.get("logs") and (two.get("logs") or 0) > 0
+          and ("woods" not in two or sum(two["woods"].values()) == two["logs"]), str(brief[1:]))
+    check("the rental room once (out at the start, in at the end): no room visit between the legs",
+          [k for k, _ in world.room_log] == ["exit", "enter"], str(world.room_log))
+    check("both legs' logs became boards in the chest, nothing left in the pack",
+          world.chest_stack is not None and world.chest_stack[1] == one.get("logs", 0) + two.get("logs", 0)
+          == world.harvested and world.logs == 0 and two.get("stored") == world.harvested,
+          f"chest {world.chest_stack}, harvested {world.harvested}, logs {world.logs}, stored {two.get('stored')}")
+    trav = [e["data"] for e in store.job_events("lumber") if e["kind"] == "travel"]
+    outs = [(d["spot"], d["book"], (d.get("landing") or {}).get("source")) for d in trav if d["leg"] == "out"]
+    check("out to 'sim' by our book's 'Sim Woods', home on foot after the dry leg (within home.NEAR_LANDING: no "
+          "recall), out to 'sim2' by the home library's tome (landing source 'library', rune 286), home by our book",
+          world.recalls_book == [BOOK_RUNE_POS] and world.recalls_out == [RUNE_POS] and world.tome_far == 0
+          and world.recalls_home == [HOME_RUNE_POS] and len(outs) == 2
+          and outs[0][0] == "sim" and outs[1] == ("sim2", f"0x{TOME:08X}", "library"),
+          f"book {world.recalls_book} out {world.recalls_out} home {world.recalls_home} travel {outs}")
+    hops = [e["data"] for e in store.job_events("lumber") if e["kind"] == "hop"]
+    check("a `hop` job event from 'sim' with the hop to 'sim2' and the logs carried",
+          any(h["from"] == "sim" and (h.get("hop") or {}).get("spot") == "sim2" and h["carried"] == one.get("logs")
+              and h["why_not"] is None for h in hops), str(hops)[:800])
+    oeps = ostore.episodes("lumber")
+    check("--hops 0: the dry leg goes home through the room as before: one 'stored' row (dry, leg 1, no hop), "
+          "every log in the chest, no hop job event with a hop",
+          ocode == 0 and len(oeps) == 1 and oeps[0].get("outcome") == "stored" and oeps[0].get("dry") is True
+          and oeps[0].get("leg") == 1 and "hop" not in oeps[0] and off.recalls_out == []
+          and [k for k, _ in off.room_log] == ["exit", "enter"]
+          and off.chest_stack is not None and off.chest_stack[1] == off.harvested > 0
+          and not any(e["data"].get("hop") for e in ostore.job_events("lumber") if e["kind"] == "hop"),
+          f"exit {ocode} {[(e.get('outcome'), e.get('dry'), e.get('leg'), e.get('hop')) for e in oeps]} "
+          f"room {off.room_log} chest {off.chest_stack}\n{otext[-800:]}")
+    store.close()
+    ostore.close()
+
+
 def unit_hit_verdict():
     """loop_lumber.hit_verdict: when creature damage sends us home instead of a run."""
     print("\n== hit_verdict: run from one creature at healthy hits, else home ==")
@@ -3471,6 +3556,7 @@ if __name__ == "__main__":
             landing_escape, stockpile_store,
             ghost_horse,
             staff_in_view,
+            hop,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_run_and_recall, unit_boxed_in,
             unit_zone_view_edge, unit_home_on_abort,
             unit_capture_spell_witcher, unit_capture_juncture_222,

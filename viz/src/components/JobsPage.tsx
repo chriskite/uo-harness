@@ -14,7 +14,7 @@ import {
   phaseList,
   splitShares,
   spotRows,
-  tripHome,
+  outcomeKind,
   woodShares,
   type JobsResponse,
 } from "../jobs.ts";
@@ -214,7 +214,7 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
                   <th title="Trip number in this range, oldest = 1">#</th>
                   <th>start</th>
                   <th title="The lumber spot (tree area) the trip went to">spot</th>
-                  <th title="stored: back home with the boards put away; aborted: the trip ended early (why beside it; red: the place couldn't be worked); banked: an old trip that ended at a bank">
+                  <th title="stored: back home with the boards put away; hopped: a leg that carried its logs on to another spot by the home rune library; aborted: the trip ended early (why beside it; red: the place couldn't be worked); banked: an old trip that ended at a bank">
                     outcome
                   </th>
                   <th className="num" title="Trip duration, start to end">time</th>
@@ -245,7 +245,7 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
                     <td className="mono">{r.t_start ? fmtStamp(r.t_start, sameDay) : "—"}</td>
                     <td className="mono">{r.spot ?? "—"}</td>
                     <td>
-                      <Badge kind={tripHome(r.outcome) ? "ok" : r.place_fail ? "bad" : "warn"} title={r.why ?? undefined}>
+                      <Badge kind={outcomeKind(r.outcome, r.place_fail)} title={r.why ?? undefined}>
                         {r.outcome}
                       </Badge>
                       {r.why && <span className="dim small"> {r.why.length > 48 ? `${r.why.slice(0, 48)}…` : r.why}</span>}
@@ -656,7 +656,7 @@ function OptimizerPanels({ data, plan: planState }: { data: JobsResponse; plan: 
                       ) : (
                         <>
                           <span className="mono">{fmtNum(s.last_trip_h_ago, 1)} h ago</span>{" "}
-                          <Badge kind={tripHome(s.last_outcome) ? "ok" : "warn"}>{s.last_outcome ?? "?"}</Badge>
+                          <Badge kind={outcomeKind(s.last_outcome)}>{s.last_outcome ?? "?"}</Badge>
                         </>
                       )}
                     </td>

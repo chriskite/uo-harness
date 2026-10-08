@@ -125,6 +125,8 @@ RECALL_TRIP_S = 4.0               # open the book, press, the 2 s cast, arrival 
 FAIL_EXPOSURE_H = 0.25            # a trip the place itself spoiled counts at least this many field hours
 UNWORKABLE_TRIPS = 2              # that many such trips in a row: the spot is out ...
 UNWORKABLE_DAYS = 7.0             # ... for this long, then gets one more try
+HOP_BACK_S = RECALL_TRIP_S + ROOM_ENTER_S + OVERHEAD_FIXED_S   # a hop's last way home: the recall, the room, convert, store
+HOP_MIN_GAIN_LOGS = 0.0          # a library hop must be worth more than going home by this (docs/LUMBER_LOOP.md §6)
 # Abort reasons that say the place can't be worked (not the character, the server or a player):
 # no tree we can reach, harvesting answered by something the runner doesn't know (a town region)
 PLACE_FAILURES = ("no harvestable tree", "without a known outcome")
@@ -520,7 +522,11 @@ def trip_obs(ep: dict, prices: dict | None = None) -> dict | None:
     the recall failed) has no field time. `sent_home`: a threat ended the trip early
     without killing us (a "threat: …" abort: recall escape, guard flight, a creature
     or damage stop; or the row's `creature` says it recalled); plan() adds trips with
-    a recall/guard_flight event."""
+    a recall/guard_flight event. A leg that ended in a library hop (outcome "hopped",
+    docs/LUMBER_LOOP.md §6 "Library hops") is a trip of its spot like an aborted one: its
+    logs and field time count, a threat that ended it counts as sent home, and it has no
+    overhead of its own (the next leg's walk out holds the hop, its room phases the way home); a
+    stored leg's `hop_home` phase (the recall home before the hop question) is overhead."""
     t0, t1 = _num(ep.get("t_start")), _num(ep.get("t_end"))
     if t0 is None or t1 is None or t1 < t0:
         return None
@@ -541,20 +547,21 @@ def trip_obs(ep: dict, prices: dict | None = None) -> dict | None:
         chop_s = _num(ep.get("attempts"), 0) * DEFAULT_CHOP_S
     chop_s = min(chop_s, field_s)
     back = "to_room" if stored else "to_bank" if banked else None
-    overhead = (walk_out + lockout + ph.get(back, 0.0) + ph.get("convert", 0.0) + ph.get("store", 0.0)
-                if back else None)
+    overhead = (walk_out + lockout + ph.get("hop_home", 0.0) + ph.get(back, 0.0) + ph.get("convert", 0.0)
+                + ph.get("store", 0.0) if back else None)    # hop_home: the recall home before a hop question
     hatchet = ep.get("hatchet") or {}
     logs = _num(ep.get("logs"), 0)
     why = ep.get("why") or ""
     creature = ep.get("creature") if isinstance(ep.get("creature"), dict) else {}
-    sent_home = outcome == "aborted" and (why.startswith("threat:") or "escaped by recall" in why
-                                          or "fled into the guards" in why or bool(creature.get("recalled")))
+    cut = outcome in ("aborted", "hopped")
+    sent_home = cut and (why.startswith("threat:") or "escaped by recall" in why
+                         or "fled into the guards" in why or bool(creature.get("recalled")))
     carried = ep.get("carried_end") if isinstance(ep.get("carried_end"), dict) else {}
     gp, unpriced = supply_gp(ep["supplies"], prices or {}) if ep.get("supplies") is not None else (None, 0)
     return {"spot": ep.get("spot") or ep.get("venue"), "t0": t0, "t1": t1, "outcome": outcome,
             "why": ep.get("why"), "dry": bool(ep.get("dry")), "logs": logs,
             "field_s": field_s, "chop_s": chop_s, "overhead_s": overhead,
-            "place_fail": outcome == "aborted" and logs == 0 and any(p in why for p in PLACE_FAILURES),
+            "place_fail": cut and logs == 0 and any(p in why for p in PLACE_FAILURES),
             "sent_home": sent_home and not why.startswith("died"),
             "carried_end": sum(_num(v, 0) for v in carried.values()) if carried else None,
             "hatchet": hatchet or None,
@@ -823,7 +830,7 @@ def _e2(a: float, x: float) -> float:
     return (-math.expm1(-ax) - ax * math.exp(-ax)) / (a * a)
 
 
-def trip_terms(q, lam, t_h, hz, recovery_h=RECOVERY_H) -> dict:
+def trip_terms(q, lam, t_h, hz, recovery_h=RECOVERY_H, load0=0.0) -> dict:
     """One trip cycle of q logs as a renewal-reward cycle (LUMBER_LOOP §6). Field
     rate lam (logs/h): chopping q logs takes tf = q/lam field hours, the load
     grows by lam per hour. hz = (h_D, h_S, h_T, f) per field hour, competing:
@@ -832,8 +839,9 @@ def trip_terms(q, lam, t_h, hz, recovery_h=RECOVERY_H) -> dict:
       - sent home (h_S): the trip ends at τ and what we carry comes home;
       - theft (h_T): a thief takes the share f of what we carry; the trip goes
         on (the runner counts logs gained, so it still ends at q gained).
-    With k = h_T·f the expected load at t is lam·(1 − e^(−k·t))/k, so with
-    h = h_D + h_S:
+    With k = h_T·f the expected load at t is load0·e^(−k·t) + lam·(1 − e^(−k·t))/k
+    (load0: logs carried in from an earlier spot of the same trip, a library hop),
+    so with h = h_D + h_S:
       stored = e^(−h·tf)·C(tf) + h_S·∫₀^tf e^(−h·t)·C(t) dt
       time   = t_h + ∫₀^tf e^(−h·t) dt + recovery_h·P(death)
       P(death) = h_D·∫₀^tf e^(−h·t) dt   (≤ 1 for any q)
@@ -847,11 +855,14 @@ def trip_terms(q, lam, t_h, hz, recovery_h=RECOVERY_H) -> dict:
         load_tf, load_int = q, lam * _e2(h, tf)         # ∫ e^(−ht)·lam·t dt
     else:
         load_tf, load_int = lam * _e1(k, tf), lam * (stay - _e1(h + k, tf)) / k
+    if load0:                                           # the carried-in load: kept, stolen at k, lost at death
+        load_tf += load0 * math.exp(-k * tf)
+        load_int += load0 * _e1(h + k, tf)
     stored = math.exp(-h * tf) * load_tf + hs * load_int
     p_death = hd * stay
     lost_death = hd * load_int
     return {"stored": stored, "time_h": t_h + stay + recovery_h * p_death, "p_death": p_death,
-            "p_home": hs * stay, "lost_death": lost_death, "lost_theft": lam * stay - stored - lost_death}
+            "p_home": hs * stay, "lost_death": lost_death, "lost_theft": load0 + lam * stay - stored - lost_death}
 
 
 def net_rate(q, lam, t_h, hz, gear_logs, cost_logs=0.0, recovery_h=RECOVERY_H) -> float:
@@ -1129,7 +1140,8 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
          table: dict, prices: dict, now: float, rng: random.Random, stint_min: float = STINT_MIN,
          home: dict | None = None, landings: dict | None = None, who: str | None = None, at_home=None,
          logs_per_success: float = LOGS_PER_SUCCESS, gp_per_log: float = 9.5, draws: int = DRAWS,
-         events: list = (), trees: dict | None = None, exploit: bool = False) -> dict:
+         events: list = (), trees: dict | None = None, exploit: bool = False,
+         carried: int | None = None, hop_from: str | None = None) -> dict:
     """The pure planner. episodes: lumber trip rows; sightings: [t] of pk_seen
     job events; deaths: [{t, x, y}] (world `death` events); regrow: regrowth();
     char: character() or None (Young by its name label: a death loses nothing);
@@ -1142,7 +1154,9 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
     trees: tree_yield() (each spot's trees, what they give, which are out now);
     a spot without an entry has no capacity limit. exploit: the pick is the greedy spot
     (highest posterior-mean net logs/h) instead of the Thompson draw's; `greedy` is that
-    spot's own run either way."""
+    spot's own run either way. carried (a runner in the middle of a trip, at home after a
+    leg that ended early with that many logs): `hop` says whether to go out again to another
+    spot from the home rune library instead of the room (hop_choice)."""
     char = char or {}
     young = bool(char.get("young"))
     alias = merged_alias(spots)
@@ -1183,7 +1197,7 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
         else:
             creature_w += weight(d["t"], now)
     for tr in trips:
-        if tr["outcome"] == "aborted" and sight_by_trip.get(tr["t0"]):
+        if tr["outcome"] in ("aborted", "hopped") and sight_by_trip.get(tr["t0"]):
             threats[tr["spot"]].append(tr["t1"])
     thefts = [(t, tr, share) for t, tr, share in theft_obs(events, trips) if tr is not None]
     for t, tr, _ in thefts:
@@ -1340,7 +1354,78 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
     # the overseer has cause to exploit (the pick itself when it is the greedy one)
     out["greedy"] = run if greedy == pick else run_for(greedy)[1]
     out["hatchets"] = hat
+    if carried is not None:
+        others = [sid for sid in eligible if sid != hop_from]
+        target = None if not others else (max(others, key=lambda s: models[s]["value"]) if exploit
+                                          else max(others, key=sample.get))
+        out["hop"], out["hop_why"] = hop_choice(models, target, gear_logs, q_cap, carried, regrow, landings,
+                                                "exploit" if exploit else "thompson")
     return out
+
+
+def leg_value(q, lam, t_h, hz, gear_logs, cost_logs, load, g) -> tuple:
+    """(logs, trip_terms) of a leg that chops q logs at a spot with `load` carried in, its
+    overhead t_h (hours), against the long-run rate g (logs/h): what reaches the chest, net of
+    supplies and the gear a death loses, minus g × the time it takes (the overhead, the leg, a
+    death's recovery). Renewal-reward: of two ways to go on, the one with more reward − g·time
+    wins (docs/LUMBER_LOOP.md §6 "Library hops")."""
+    tt = trip_terms(q, lam, t_h, hz, load0=load)
+    return tt["stored"] - cost_logs - gear_logs * tt["p_death"] - g * tt["time_h"], tt
+
+
+def hop_out_s(m) -> float:
+    """A hop's way out to a spot: its trip overhead without the room (exit, way in, convert,
+    store) and the last recall home (HOP_BACK_S has those), at least the lockout."""
+    return max(LOCKOUT_S, m["overhead_s"] - ROOM_EXIT_S - ROOM_ENTER_S - OVERHEAD_FIXED_S - RECALL_TRIP_S)
+
+
+def hop_choice(models, target, gear_logs, q_cap, carried, regrow, landings, mode) -> tuple:
+    """(hop or None, why not) for a runner at home after a leg that ended early (dry, every tree
+    guarded, a threat that recalled it) with `carried` logs (user decision 2026-10-07). The next
+    spot is the one the plan would send a fresh trip to (`target`: its Thompson pick, else the
+    greedy spot, the spot just left excluded); the question is only whether to carry the load
+    along from the rune library or to store it first:
+      - store first: carried − g·HOP_BACK_S now, then a fresh trip to the spot (its full overhead);
+      - hop: one leg there with the load at risk (its death and theft hazards), the hop's way out
+        (hop_out_s) and HOP_BACK_S at its end; it saves the room visit and the room exit.
+    Each side at its best q by reward − g·time (leg_value), g = the target's own posterior-mean
+    net rate (the rate a fresh trip there earns, so the fresh side is worth ~0 at its Q* and the
+    hop leg's q stays near it). The heavier the load, the more a leg risks and the less it should
+    chop, until storing first wins: that is the "less than the planner would risk" rule as one
+    comparison."""
+    if target is None:
+        return None, "no other eligible spot"
+    room = min(Q_MAX, q_cap)
+    if room < 1:
+        return None, "no room in the pack for more logs"
+    m = models[target]
+    g = max(0.0, m["value"])
+    out_h, back_h = hop_out_s(m) / 3600.0, HOP_BACK_S / 3600.0
+
+    def best(t_h, load, hi):
+        hi = max(1, int(hi))
+        grid = [q for q in Q_GRID if q < hi] + [hi]
+        return max(((q, *leg_value(q, m["rate"], t_h, m["hz"], gear_logs, m["cost_logs"], load, g)) for q in grid),
+                   key=lambda x: x[1])
+    cap = m["cap_logs"]
+    q, v, tt = best(out_h + back_h, carried, room if cap is None else min(room, cap))
+    qf, vf, _ = best(m["overhead_s"] / 3600.0, 0, min(Q_MAX, q_cap + carried) if cap is None
+                     else min(Q_MAX, q_cap + carried, cap))
+    store_v = carried - g * back_h + vf
+    if v - store_v <= HOP_MIN_GAIN_LOGS:
+        return None, (f"storing the {carried} logs first is worth more ({round(store_v)} vs {round(v)} logs "
+                      f"for a hop to {target})")
+    quota = q
+    if cap is not None and q >= int(cap) and room > q:
+        # the grove holds less than the best leg: chop until its trees really run out, told the leg's
+        # uncapped Q* (as plan's run_for; reward − g·time at the cap-bound g would grow without end)
+        quota = max(q, best_q(m["rate"], out_h + back_h, m["hz"], gear_logs, room, m["cost_logs"]))
+    timeout = int(max(1800, 2 * (quota / m["rate"] * 3600.0 + hop_out_s(m) + HOP_BACK_S) + 600))
+    return {"spot": target, "mode": mode, "logs_per_trip": quota, "carried": carried,
+            "gain_logs": round(v - store_v, 1), "hop_value_logs": round(v, 1), "store_value_logs": round(store_v, 1),
+            "fresh_logs_per_trip": qf, "rate_logs_h": round(g), "expected_stored": round(tt["stored"]),
+            "p_death_leg": round(tt["p_death"], 3), "hop_out_s": round(hop_out_s(m)), "timeout_s": timeout,
+            "regrow_min": regrow["minutes"], "landing": landing_view((landings or {}).get(target))}, None
 
 
 def hatchet_choice(char, table, prices, m, gear_gp, skill, p_now, lps, gpl, q_cap=Q_MAX) -> dict:
@@ -1607,11 +1692,13 @@ def pouch_plan(char: dict | None) -> dict:
 
 
 def plan_from_store(memory, world: dict | None, self_serial, pos, facet, stint_min=STINT_MIN, seed=None,
-                    seeds_path=SEEDS, now=None, route_check: bool = True, exploit: bool = False) -> dict:
+                    seeds_path=SEEDS, now=None, route_check: bool = True, exploit: bool = False,
+                    carried: int | None = None, hop_from: str | None = None, home: dict | None = None) -> dict:
     """plan() over the memory store and a state-port snapshot (world None: no proxy).
     The character is the proxy's (world self name), else the newest trip row's; its
-    home comes from harness/data/homes.json (home.for_character), its own books from
-    the store (places.known_books), each spot's landing from spot_landings."""
+    home comes from harness/data/homes.json (home.for_character; `home` overrides: the
+    runner's own), its own books from the store (places.known_books), each spot's landing
+    from spot_landings. carried/hop_from: the runner's library hop question (plan, hop_choice)."""
     import home as homes
     import places
     now = time.time() if now is None else now
@@ -1622,7 +1709,7 @@ def plan_from_store(memory, world: dict | None, self_serial, pos, facet, stint_m
     who = (char or {}).get("name") or next(
         (e["character"]["name"] for e in reversed(inp["episodes"])
          if isinstance(e.get("character"), dict) and e["character"].get("name")), None)
-    home = homes.for_character(who)
+    home = homes.for_character(who) if home is None else home
     landings = None
     if home is not None:
         landings = spot_landings(memory, spots, home, places.known_books(memory, who), route_check)
@@ -1630,7 +1717,7 @@ def plan_from_store(memory, world: dict | None, self_serial, pos, facet, stint_m
                inp["prices"], now, random.Random(seed), stint_min=stint_min, home=home, landings=landings,
                who=who, at_home=None if home is None or facet is None else homes.at_home(pos, facet, home),
                logs_per_success=inp["logs_per_success"], gp_per_log=gp_per_log(inp["prices"]),
-               events=inp["events"], exploit=exploit,
+               events=inp["events"], exploit=exploit, carried=carried, hop_from=hop_from,
                trees=tree_yield(inp["attempts"], spot_tree_tiles(spots), now, inp["regrow"]["minutes"]))
     out["character"] = None if char is None else {k: char[k] for k in ("name", "serial", "skill", "mounted", "buffs",
                                                                        "weight", "weight_max", "young", "pouches")}

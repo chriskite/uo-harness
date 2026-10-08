@@ -267,6 +267,43 @@ spot's area is the forest around its window:
   2 717. witcher_265 51 → 558 trees (its woodland is split with witcher_26, 656), witcher_89
   42 → 607. A dry trip of a spot's old window keeps the forest out for one regrowth window.
 
+**Library hops (user decisions 2026-10-07, `lumber_opt.hop_choice`, `loop_lumber.try_hop`).** The rune
+library is at home, so a leg that ends early used to pay the room (in, convert, store: ~56 s
+measured) and the room exit plus a new run's start before the next spot, while its load was often far
+below what the plan would risk. Now such a leg asks the plan, at home, whether to carry the load on:
+- **When:** the harvest ended before its quota with no break due because the trees ran dry
+  (`dry`, also the "no harvestable tree" abort) or every tree left was within a creature's reach
+  (`creature_blocked`), or a threat's escape recall landed us home (a monster, and a red or other
+  player too: user, "hop elsewhere with the load"). The runner recalls home first (`hop_home`
+  phase) unless the escape already did. Not after: a break, a closed agent gate, possible staff, a
+  speech hold, death, hits below 80 % (`HOP_MIN_HITS`, checked again after the plan: a spell cast
+  before the escape can land at home), no live trapped pouch, or `--hops` (default 3) used.
+- **Where:** the spot a fresh plan would send a trip to (its Thompson pick; the greedy spot with
+  `--exploit`), never the spot just left. `plan_from_store(carried=, hop_from=, home=)` asks
+  `plan(carried=…)`; the answer is `hop` (or `hop_why`).
+- **Whether:** renewal-reward at that spot's own posterior-mean net rate g. Storing first is
+  worth carried − g·`HOP_BACK_S` (recall, into the room, convert, store) and then a fresh trip
+  (worth ~0 at its Q* by the definition of g). The hop is worth the best leg with the load carried
+  in (`trip_terms(load0=)`: the load is lost to a death and thinned by thieves like the logs chopped
+  there) with overhead `hop_out_s` (the spot's overhead minus room exit, room and the last recall)
+  plus `HOP_BACK_S`, each side as reward − g·time (`leg_value`). It saves the room and the room exit
+  (~70 s, ~50 logs at 2 500 logs/h), so it pays while the expected loss of the carried load stays
+  below that: on the live store (2026-10-07) up to ~1 500–2 000 logs carried; the leg's quota shrinks
+  as the load grows (e.g. 5 550 → 4 150 logs at 0 → 1 500 carried for witcher_124). Nothing carried
+  always hops (the room would only cost its time).
+- **Rows:** each leg is an episode row of its spot with `leg` (1, 2, …) and `carried_in`; a leg that
+  went on is outcome `hopped` (its `why` the reason, `hop` the decision, `woods` only its own logs)
+  and the last leg is the usual `stored` (its `woods` without what it carried in). `trip_obs` counts
+  a hopped leg like an aborted one: logs and field time count, a threat ending it is "sent home", a
+  hostile player in sight starts the spot's 30-min cooldown, and it has no overhead of its own (the
+  next leg's walk out holds the hop, its room phases the way home); a stored leg's `hop_home` phase
+  (the recall home before the question) is overhead. Every hop question is a `hop`
+  job event (from, reason, carried, the hop or why not).
+- **Runs:** the hop leg gets the plan's quota, regrowth window and a timeout that extends the run's
+  deadline; per-spot threat memory (tracked reds escaped from, counted sightings) starts over. A run
+  whose trip hopped ends after that trip in the room; the overseer plans the next as usual.
+  `--hops 0` restores going home after every leg.
+
 **Home and the way out (user decision 2026-10-04).** The character's home comes from
 `harness/data/homes.json` (`home.for_character`, keyed by the character's name: the proxy's
 `world.self.name`, else the newest trip row's `character.name`); Outland Dan's is the DTF guild

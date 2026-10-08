@@ -596,13 +596,19 @@ plus the store, hatchets in `harness/data/hatchets.json`; the model is docs/LUMB
   4-tile links (whole woodlands percolate: witcher_56 280 → 2 056 trees); storing every tree tile
   (cells also answer "where is the area" for landings, deaths and the map, and stay small);
   forests from the land texture (tree statics are what the runner chops).
-- **Next (user decision 2026-10-07): hop through the rune library instead of going home.** When a
-  trip ends early (dry, every tree guarded, a monster escape) carrying less than the plan would
-  risk, recall to the library, skip the room, and recall to the next spot; after a red sighting
-  too, letting the planner choose another spot with the load ("hop elsewhere with the load").
-  The rule: hop when a trip that starts with the carried load at the next spot (trip_terms with
-  an initial load, the hop's shorter overhead) beats storing first. Expected gain ~+2–4 % (the
-  library is at home, so a hop saves only the room: ~56 s plus the run gap); not built yet.
+- **Library hops (user decisions 2026-10-07, built the same day): go on from the rune library
+  instead of going home.** When a leg ends early (dry, every tree guarded, a monster escape, a red
+  sighting: "hop elsewhere with the load") carrying less than the plan would risk, the runner
+  recalls home, skips the room, and recalls to the spot a fresh plan would pick. The rule is one
+  renewal-reward comparison at that spot's own rate: a leg that starts with the carried load
+  (`trip_terms(load0=)`, the hop's shorter overhead) against storing first and a fresh trip
+  (LUMBER_LOOP §6 "Library hops"). The library is at home, so a hop saves only the room and the
+  room exit (~70 s, ~2–4 % of logs/h); with forest spots, early ends are rarer. Rejected: hop
+  whenever carried < Q* (ignores that the carried load is at risk for the whole next leg, and
+  Q* is a fresh trip's size, not a continuation's), and hopping to the best spot by a g of the
+  greedy spot's rate (on the live store only the greedy spot ever qualified, so hops would undo
+  the Thompson exploration the fresh plans do). Each leg is its own episode row (outcome
+  `hopped`), so per-spot statistics stay per spot.
 
 ## Discord history capture (decided 2026-10-03)
 

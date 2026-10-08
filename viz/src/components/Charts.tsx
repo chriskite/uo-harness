@@ -219,7 +219,7 @@ export function TimeSplitChart({ trips }: { trips: JobTrip[] }) {
                   </rect>
                 );
               })}
-              {!tripHome(t.outcome) && (
+              {!tripHome(t.outcome) && t.outcome !== "hopped" && (
                 <text x={s.cx} y={y(acc) - 4} textAnchor="middle" className="mark-abort">
                   {t.place_fail ? "∅" : "!"}
                   <title>{t.why ?? t.outcome}</title>

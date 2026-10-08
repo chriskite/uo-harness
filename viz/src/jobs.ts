@@ -384,6 +384,13 @@ export function tripHome(outcome: string | null | undefined): boolean {
   return outcome === "stored" || outcome === "banked";
 }
 
+/** The outcome badge's kind: home ok; "hopped" (a leg that carried its logs on to another spot by the
+ *  home rune library: no abort, the wood comes home with a later leg) info; a place that couldn't be
+ *  worked bad; else warn. */
+export function outcomeKind(outcome: string | null | undefined, placeFail = false): "ok" | "info" | "bad" | "warn" {
+  return tripHome(outcome) ? "ok" : outcome === "hopped" ? "info" : placeFail ? "bad" : "warn";
+}
+
 /** Number or an em dash for unknown; `digits` decimals, trailing zeros dropped. */
 export function fmtNum(v: number | null | undefined, digits = 1): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return "—";
