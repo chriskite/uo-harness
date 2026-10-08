@@ -775,7 +775,11 @@ the Wizard".
   - `uo_sql`: `harness`, `discord` or `discord_kb`, opened `mode=ro` + `query_only` + an authorizer
     that allows reads and five schema pragmas; 20 s cap, ≤500 rows.
   - `uo_knowledge` (`Knowledge.search(touch=False)` on a read-only connection), `uo_discord`
-    (`facts` or `messages`; "not on this computer" without the Discord DBs).
+    (`facts` or `messages`; "not on this computer" without the Discord DBs, which live only where
+    `discord_capture.py` runs). There the prompt sends Nystul to the committed digest
+    `docs/research/DISCORD_KB.md` via `uo_grep` (the 2026-10-04 vetted facts) and says so in the
+    answer. Verified on the desktop 2026-10-08: "What are some popular builds?" answered from the
+    digest (8 builds, cited by line) after `uo_discord` failed.
   - `uo_read`, `uo_grep`, `uo_list`: under the repo root only; `.git`, `ClassicUO`,
     `discord_profile`, `settings.json*`, `telegram.json*`, `handoff.json*` and sqlite files are sealed.
 - **Store:** `harness/data/nystul.db` (gitignored), not the memory store, so the Seer's chat bus is

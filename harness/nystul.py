@@ -38,6 +38,7 @@ TOOL_NAMES = ("uo_api", "uo_ctl", "uo_sql", "uo_knowledge", "uo_discord", "uo_re
 EV_TOOL_START = "tool_execution_start"
 EV_TOOL_END = "tool_execution_end"
 F_TOOL_NAME = "toolName"
+F_TOOL_ID = "toolCallId"
 F_TOOL_ARGS = "args"
 F_TOOL_ERR = "isError"
 
@@ -110,10 +111,12 @@ def parse_event(run: Run, line: str) -> None:
             except ValueError:
                 pass
         run.steps.append({"tool": ev.get(F_TOOL_NAME), "args": args if args is not None else {},
-                          "t": time.time(), "ok": None})
+                          "t": time.time(), "ok": None, "id": ev.get(F_TOOL_ID)})
     elif kind == EV_TOOL_END:
-        for s in reversed(run.steps):
-            if s["ok"] is None:
+        # Parallel calls end in any order: match the call id (the oldest open step without one).
+        cid = ev.get(F_TOOL_ID)
+        for s in run.steps:
+            if s["ok"] is None and (cid is None or s.get("id") in (cid, None)):
                 s["ok"] = not ev.get(F_TOOL_ERR)
                 break
     elif kind == "message_end" and msg.get("role") == "assistant":

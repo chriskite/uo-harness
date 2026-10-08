@@ -155,8 +155,12 @@ def test_parse_event():
         nystul.parse_event(run, line)
     check("partial text streams", run.partial == "Ah, friend", run.partial)
     for line in (
-        json.dumps({"type": nystul.EV_TOOL_START, "toolName": "uo_api", "args": {"route": "/api/state"}}),
-        json.dumps({"type": nystul.EV_TOOL_END, "toolName": "uo_api", "isError": False}),
+        json.dumps({"type": nystul.EV_TOOL_START, "toolCallId": "a", "toolName": "uo_discord", "args": {"query": "x"}}),
+        json.dumps({"type": nystul.EV_TOOL_START, "toolCallId": "b", "toolName": "uo_api",
+                    "args": {"route": "/api/state"}}),
+        # parallel calls: the first one ends first (live 2026-10-08 the flags came out swapped)
+        json.dumps({"type": nystul.EV_TOOL_END, "toolCallId": "a", "toolName": "uo_discord", "isError": True}),
+        json.dumps({"type": nystul.EV_TOOL_END, "toolCallId": "b", "toolName": "uo_api", "isError": False}),
         json.dumps({"type": "message_end", "message": {
             "role": "assistant", "model": "m", "stopReason": "stop", "content": [{"type": "text", "text": "Done."}],
             "usage": {"input": 100, "cacheRead": 50, "cacheWrite": 10, "output": 20, "cost": {"total": 0.02}}}}),
@@ -165,8 +169,8 @@ def test_parse_event():
             "usage": {"input": 1, "output": 1, "cost": {"total": 0.01}}}}),
     ):
         nystul.parse_event(run, line)
-    check("one ok step", [(s["tool"], s["args"], s["ok"]) for s in run.steps]
-          == [("uo_api", {"route": "/api/state"}, True)], str(run.steps))
+    check("parallel steps keep their own result", [(s["tool"], s["args"], s["ok"]) for s in run.steps]
+          == [("uo_discord", {"query": "x"}, False), ("uo_api", {"route": "/api/state"}, True)], str(run.steps))
     check("cost and tokens summed", abs(run.cost - 0.03) < 1e-9 and run.tokens_in == 161 and run.tokens_out == 21,
           f"{run.cost} {run.tokens_in} {run.tokens_out}")
     check("final = last non-empty assistant text", run.final == "Done." and run.model == "m", run.final)
