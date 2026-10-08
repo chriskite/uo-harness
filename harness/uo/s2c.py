@@ -61,20 +61,45 @@ def encode_packet(packet: bytes, key: int) -> bytes:
     return bytes(out)
 
 
+_XOR = [bytes(b ^ k for b in range(256)) for k in range(256)]   # key -> bytes.translate table
+_STEP: list = [None] * (256 * 256)   # (tree node << 8) | byte -> _step result, filled on first use
+
+
+def _step(node: int, byte: int) -> tuple[bytes, bool, int]:
+    """Walk one de-XORed wire byte down the decode tree from `node`, MSB first:
+    (symbols completed, whether the flush symbol ended the segment, node after).
+    The bits after a flush are zero padding and ignored; the next segment starts
+    on the next byte at the root. Cached in _STEP."""
+    t = _TREE
+    syms = bytearray()
+    at = node
+    mask = 0x80
+    while mask:
+        at = t[at * 2] if byte & mask else t[at * 2 + 1]
+        mask >>= 1
+        if at <= 0:
+            if at == FLUSH:
+                res = (bytes(syms), True, 0)
+                break
+            syms.append(-at)
+            at = 0
+    else:
+        res = (bytes(syms), False, at)
+    _STEP[(node << 8) | byte] = res
+    return res
+
+
 class S2CStream:
     """Streaming post-prelude decoder that yields whole packets with their wire bytes."""
 
-    __slots__ = ("key", "_pending", "_pos", "_out", "_bitnum", "_value", "_mask", "_treepos")
+    __slots__ = ("key", "_pending", "_pos", "_out", "_treepos")
 
     def __init__(self, key: int):
         self.key = key
         self._pending = bytearray()  # wire bytes of the current, incomplete segment
         self._pos = 0                # next unread index in _pending
         self._out = bytearray()      # decoded bytes of the current segment
-        self._bitnum = 8
-        self._value = 0
-        self._mask = 0
-        self._treepos = 0
+        self._treepos = 0            # decode tree node between bytes (0: root)
 
     @property
     def buffered(self) -> int:
@@ -83,36 +108,26 @@ class S2CStream:
 
     def feed(self, wire: bytes) -> list[tuple[bytes, bytes]]:
         """Consume post-prelude wire bytes; return completed (wire_segment, packet)
-        pairs in order. An incomplete trailing segment is retained."""
+        pairs in order. An incomplete trailing segment is retained. Decodes a byte
+        at a time through _STEP (a segment always ends on a byte boundary)."""
         pend = self._pending
         pend += wire
-        t = _TREE
-        key = self.key
+        step = _STEP
         out = self._out
-        bitnum, value, mask, tp, pos = self._bitnum, self._value, self._mask, self._treepos, self._pos
-        n = len(pend)
+        tp, pos = self._treepos, self._pos
+        start = 0                    # first wire byte of the current segment
         done: list[tuple[bytes, bytes]] = []
-        while True:
-            if bitnum >= 8:
-                if pos >= n:
-                    break
-                value = pend[pos] ^ key
-                pos += 1
-                bitnum = 0
-                mask = 0x80
-            tp = t[tp * 2] if value & mask else t[tp * 2 + 1]
-            mask >>= 1
-            bitnum += 1
-            if tp <= 0:
-                if tp == FLUSH:
-                    done.append((bytes(pend[:pos]), bytes(out)))
-                    del pend[:pos]
-                    n -= pos
-                    pos = 0
-                    out.clear()
-                    bitnum = 8
-                else:
-                    out.append(-tp)
-                tp = 0
-        self._bitnum, self._value, self._mask, self._treepos, self._pos = bitnum, value, mask, tp, pos
+        for b in pend[pos:].translate(_XOR[self.key]):
+            pos += 1
+            syms, flushed, tp = step[(tp << 8) | b] or _step(tp, b)
+            if syms:
+                out += syms
+            if flushed:
+                done.append((bytes(pend[start:pos]), bytes(out)))
+                out.clear()
+                start = pos
+        if start:
+            del pend[:start]
+            pos -= start
+        self._treepos, self._pos = tp, pos
         return done

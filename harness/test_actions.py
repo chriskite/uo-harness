@@ -18,8 +18,11 @@ import asyncio
 import collections
 import json
 import os
+import shutil
+import socket
 import subprocess
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -40,10 +43,18 @@ SESSION_KEY = S2C_RAW[12]  # prelude byte 12: C2S key (0x07 in this capture)
 PRELUDE = S2C_RAW[:PRELUDE_LEN] + encode_packet(
     bytes.fromhex("bf001d0001 00000008") + bytes(20), S2C_RAW[11])
 
-PROXY_PORT = 12595
-UPSTREAM_PORT = 12596
-CONTROL_PORT = 12597
-LOGDIR = f"{ROOT}/logs_test_actions"
+def _free_ports(n):
+    socks = [socket.socket() for _ in range(n)]
+    for s in socks:
+        s.bind(("127.0.0.1", 0))
+    ports = [s.getsockname()[1] for s in socks]
+    for s in socks:
+        s.close()
+    return ports
+
+
+PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT = _free_ports(4)
+LOGDIR = tempfile.mkdtemp(prefix="logs_test_actions_")
 
 FAILURES = []
 
@@ -490,6 +501,7 @@ def test_c2s_framing():
 
 GOT_UPSTREAM = bytearray()  # everything the fake server received post-preamble
 UPSTREAM_GOT_PRELUDE_ACK = asyncio.Event()
+UPSTREAM_READY = asyncio.Event()
 
 
 async def fake_upstream():
@@ -507,6 +519,7 @@ async def fake_upstream():
         writer.close()
 
     server = await asyncio.start_server(handle, "127.0.0.1", UPSTREAM_PORT)
+    UPSTREAM_READY.set()
     async with server:
         await server.serve_forever()
 
@@ -522,6 +535,19 @@ async def ctrl_send(payload, expect_reply_prefix):
     return reader, writer, reply
 
 
+async def retry_connect(connect, timeout=30.0):
+    """Run `connect()` until the proxy subprocess accepts (ConnectionRefused while it starts)."""
+    loop = asyncio.get_running_loop()
+    end = loop.time() + timeout
+    while True:
+        try:
+            return await connect()
+        except ConnectionRefusedError:
+            if loop.time() > end:
+                raise
+            await asyncio.sleep(0.05)
+
+
 async def injection_test():
     os.makedirs(LOGDIR, exist_ok=True)
     for f in os.listdir(LOGDIR):
@@ -532,24 +558,24 @@ async def injection_test():
          "--listen-port", str(PROXY_PORT),
          "--upstream-host", "127.0.0.1", "--upstream-port", str(UPSTREAM_PORT),
          "--control-port", str(CONTROL_PORT),
-         "--state-port", "12603",
+         "--state-port", str(STATE_PORT),
          "--logdir", LOGDIR],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    await asyncio.sleep(1.0)
 
     server_task = asyncio.create_task(fake_upstream())
     try:
-        await asyncio.sleep(0.3)
+        await UPSTREAM_READY.wait()
 
         # --- edge: inject before any session exists -> clean rejection
-        r, w, reply = await ctrl_send(actions.walk(2, seq=0), b"ERR")
+        # (retried until the proxy subprocess listens; replaces a fixed startup sleep)
+        r, w, reply = await retry_connect(lambda: ctrl_send(actions.walk(2, seq=0), b"ERR"))
         check("inject before session rejected", reply.startswith(b"ERR"),
               reply)
         w.close()
 
         # --- game client connects; preamble flows, prelude sets the key
-        game_reader, game_writer = await asyncio.open_connection(
-            "127.0.0.1", PROXY_PORT)
+        game_reader, game_writer = await retry_connect(
+            lambda: asyncio.open_connection("127.0.0.1", PROXY_PORT))
         game_writer.write(b"\xef\x00\x00\x00\x0c")
         await game_writer.drain()
         await asyncio.wait_for(UPSTREAM_GOT_PRELUDE_ACK.wait(), timeout=5)
@@ -720,6 +746,10 @@ def main():
     asyncio.run(injection_test())
     test_replay_actions()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
+    if FAILURES:
+        print(f"logs kept: {LOGDIR}")
+    else:
+        shutil.rmtree(LOGDIR, ignore_errors=True)
     return 0 if not FAILURES else 1
 
 

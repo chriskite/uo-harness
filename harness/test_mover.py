@@ -4,10 +4,12 @@ The fake Link answers walk packets like the server (confirm or deny, turn
 first when the facing changes) and exposes the state-port shape Mover reads.
 Human profiles are overridden so the behaviour under test always fires.
 
-Run: python harness/test_mover.py   (no network, ~10 s: the 'off' profile still paces steps)
+Run: python harness/test_mover.py   (no network, ~1 s: the 'off' profile still paces steps, on a
+virtual clock that skips each sleep instead of waiting it out)
 """
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -17,6 +19,36 @@ from agent_link import Abort, Mover  # noqa: E402
 from humanize import Human, PROFILES  # noqa: E402
 
 FAILURES = []
+
+
+class VirtualClock:
+    """Sleeping skips ahead instead of blocking: while installed, time.sleep(s) returns at once and
+    adds s to an offset that time.monotonic() and time.time() include, so every pacing gap, poll
+    deadline and time window (step cadence, STATE_REUSE_S, SHOVE_RETRY_S, MOBILE_WAIT_S ...) sees
+    the same elapsed time as a real run, compute time included. Patches the time module itself, so
+    it covers humanize, agent_link, travel_guard, threats, memory and this file alike; the code under
+    test runs on this one thread (no background threads sleep while it is installed)."""
+
+    def __init__(self):
+        self.skipped = 0.0
+        self.saved = None
+
+    def sleep(self, seconds):
+        if seconds < 0:
+            raise ValueError("sleep length must be non-negative")   # as time.sleep
+        self.skipped += seconds
+
+    def __enter__(self):
+        self.saved = (time.sleep, time.monotonic, time.time)
+        _, mono, wall = self.saved
+        time.sleep = self.sleep
+        time.monotonic = lambda: mono() + self.skipped
+        time.time = lambda: wall() + self.skipped
+        return self
+
+    def __exit__(self, *exc):
+        time.sleep, time.monotonic, time.time = self.saved
+        return False
 
 
 def check(name, cond, detail=""):
@@ -504,7 +536,7 @@ def test_moongate_gumps():
           f"{[r.hex() for r in link.replies]}")
 
 
-if __name__ == "__main__":
+def main():
     test_no_walk_into_known_wall()
     test_door()
     test_shove_through()
@@ -522,4 +554,10 @@ if __name__ == "__main__":
     test_teleporter()
     test_moongate_gumps()
     print(f"\nmover: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
-    sys.exit(0 if not FAILURES else 1)
+    return 0 if not FAILURES else 1
+
+
+if __name__ == "__main__":
+    with VirtualClock():
+        rc = main()
+    sys.exit(rc)

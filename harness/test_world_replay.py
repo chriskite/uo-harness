@@ -12,6 +12,7 @@ that are grounded in the real server packets:
 
 Run directly (python harness/test_world_replay.py) or via harness/test_world.py.
 """
+import concurrent.futures
 import glob
 import json
 import os
@@ -149,25 +150,47 @@ def test_session_144541_full():
     _walks_confirmed(result.events)
 
 
+def _capture_facts(tag):
+    """(s2c length mismatches, parse failures, self serial, anomalies) of one
+    capture's replay: what `test_all_captures` checks, picklable for the pool."""
+    result = replay.replay_session(*paths(tag))
+    rt = result.runtime
+    return (rt.replay_stats["s2c_length_mismatch"], rt.parse_failures,
+            result.state.self.serial, dict(rt.anomalies))
+
+
+def _replay_all(tags):
+    """_capture_facts of each tag, in tag order. The captures are independent, so they
+    replay in worker processes, the biggest first (the replays are most of this suite;
+    UO_TEST_WORKERS caps the workers, set by run_tests.py)."""
+    workers = min(len(tags), int(os.environ.get("UO_TEST_WORKERS") or 0) or os.cpu_count() or 1, 16)
+    if workers <= 1:
+        yield from map(_capture_facts, tags)
+        return
+    with concurrent.futures.ProcessPoolExecutor(workers) as ex:
+        by_size = sorted(tags, key=lambda t: -os.path.getsize(paths(t)[1]))
+        futures = {t: ex.submit(_capture_facts, t) for t in by_size}
+        for t in tags:
+            yield futures[t].result()
+
+
 def test_all_captures():
     print("== every capture: framing, parsing, identity ==")
     tags = sorted(os.path.basename(p)[len("session_"):-len(".s2c.raw")]
                   for p in glob.glob(f"{ROOT}/logs/session_*.s2c.raw")
                   if os.path.getsize(p) > PRELUDE_LEN)
     check("captures found", len(tags) >= 3, f"(got {tags})")
-    for tag in tags:
-        result = replay.replay_session(*paths(tag))
-        rt = result.runtime
-        ok = (rt.replay_stats["s2c_length_mismatch"] == 0
-              and rt.parse_failures == 0
+    for tag, (mismatch, parse_failures, serial, anomalies) in zip(tags, _replay_all(tags)):
+        ok = (mismatch == 0
+              and parse_failures == 0
               # a capture cut before the login confirm (client closed at the char screen) has none
-              and result.state.self.serial in OUR_SERIALS | {None}
-              and not rt.anomalies)
+              and serial in OUR_SERIALS | {None}
+              and not anomalies)
         check(f"{tag} clean", ok,
-              f"(mismatch {rt.replay_stats['s2c_length_mismatch']}, "
-              f"parse_failures {rt.parse_failures}, "
-              f"serial {result.state.self.serial!r}, "
-              f"anomalies {dict(rt.anomalies)})")
+              f"(mismatch {mismatch}, "
+              f"parse_failures {parse_failures}, "
+              f"serial {serial!r}, "
+              f"anomalies {anomalies})")
 
 
 def test_determinism():

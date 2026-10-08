@@ -17,16 +17,21 @@ Offline: temp DB, stub task scripts in a temp dir, a fake proxy (control +
 state ports) on private ports >= 12700. Never touches the live ports.
 
 Speed: commands run in-process through ctl.main(argv) (stdout captured, exit code
-returned) with a fast clock (FastClock) in the modules a command waits in, so
+returned) with a skip-ahead clock (FastClock) in the modules a command waits in, so
 ctl's fixed listen windows don't cost real seconds against a fake that answers
-synchronously. The `wait` wake tests still spawn the real `python ctl.py` CLI.
-Run: python harness/test_ctl.py   (~20 s)
+synchronously; loopback connects without Windows' timeout-connect delay (LoopbackSocket);
+one idle connection per store held open (_connect_kept_open). The `wait` wake tests and
+the unreachable-proxy `status` (Windows refuses a closed port only after ~2 s; it runs
+alongside from the start) spawn the real `python ctl.py` CLI.
+Run: python harness/test_ctl.py   (~7 s)
 """
 import contextlib
+import functools
 import io
 import json
 import os
 import socket
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -45,12 +50,35 @@ import convert  # noqa: E402
 import ctl  # noqa: E402
 import healing  # noqa: E402
 import humanize  # noqa: E402
+import memory  # noqa: E402
 import nav  # noqa: E402
 import room  # noqa: E402
 import shelf  # noqa: E402
 import task_wrap as tw  # noqa: E402
 import tracking  # noqa: E402
 from memory import Memory  # noqa: E402
+
+_memory_connect = memory.connect
+_KEPT_OPEN = {}     # normalized store path -> an idle connection held for the whole run
+
+
+def _connect_kept_open(path):
+    """memory.connect, with one idle connection to each store held open for the whole run,
+    the way the proxy's MemoryWriter holds the live store: a closing Memory (every ctl
+    command, every meta() check) is then never the store's last connection, so it doesn't
+    checkpoint and delete the WAL, and the next open doesn't start a new WAL (each one a
+    disk flush: ~10 ms on Windows, ~1 s under load). The idle connection holds no lock and
+    no read snapshot; what every connection reads is the same."""
+    con = _memory_connect(path)
+    key = os.path.normcase(os.path.abspath(path))
+    if key not in _KEPT_OPEN:
+        keep = sqlite3.connect(path, check_same_thread=False)
+        keep.execute("SELECT COUNT(*) FROM meta").fetchall()    # attach to the WAL, then go idle
+        _KEPT_OPEN[key] = keep
+    return con
+
+
+memory.connect = _connect_kept_open
 
 PY = sys.executable
 CTL = os.path.join(HERE, "ctl.py")
@@ -416,31 +444,95 @@ def env_with(tasks=None):
     return env
 
 
-CLOCK_SCALE = 10
 REAL_CLOCK_CMDS = {"stop"}    # waits on the task wrapper, a real process: keep its grace in real seconds
 
 
 class FastClock:
     """`time` for the modules a ctl command waits in (ctl, agent_link's Mover, humanize,
-    tracking): monotonic() runs CLOCK_SCALE x fast and sleep() is that much shorter, so
-    the fixed windows (1.5 s listening after a send, 4 s for a cast cursor, the 3 s move
-    confirmations) pass quickly. One clock for all of them: they hand each other monotonic
-    stamps (Human.pace_step). time() stays the wall clock (meta stamps, buff ends, ages)."""
+    tracking, convert): sleep() returns at once and moves monotonic() on by the seconds it
+    was asked to sleep (real time still passes on top), so the fixed windows (1.5 s listening
+    after a send, 4 s for a cast cursor, the 3 s move confirmations) cost no real seconds
+    against fakes that answer synchronously, and a window never ends sooner in real time
+    than its polls take. One clock for all of them: they hand each other monotonic stamps
+    (Human.pace_step), and it never runs back. time() stays the wall clock (meta stamps,
+    buff ends, ages)."""
+
+    def __init__(self):
+        self.skipped = 0.0
 
     def __getattr__(self, name):
         return getattr(time, name)
 
-    @staticmethod
-    def monotonic():
-        return time.monotonic() * CLOCK_SCALE
+    def monotonic(self):
+        return time.monotonic() + self.skipped
 
-    @staticmethod
-    def sleep(s):
-        time.sleep(s / CLOCK_SCALE)
+    def sleep(self, s):
+        if s < 0:
+            time.sleep(s)            # ValueError, like time.sleep
+        self.skipped += s
 
 
 FAST_CLOCK = FastClock()
 CLOCKED = (ctl, agent_link, humanize, tracking, convert)
+
+
+class LoopbackSocket:
+    """`socket` for ctl and agent_link in this process: create_connection to the fake proxy
+    connects blocking, then sets the timeout. Windows reports a loopback connect made with a
+    timeout (non-blocking connect + select) done ~10 ms late, a blocking one at once; a
+    loopback connect ends long before the timeout either way, refused or accepted."""
+
+    def __getattr__(self, name):
+        return getattr(socket, name)
+
+    @staticmethod
+    def create_connection(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT, *args, **kw):
+        if args or kw or address[0] != "127.0.0.1":
+            return socket.create_connection(address, timeout, *args, **kw)
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.connect(address)
+        except BaseException:
+            s.close()
+            raise
+        if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+            s.settimeout(timeout)
+        return s
+
+
+LOOPBACK = LoopbackSocket()
+CONNECTING = (ctl, agent_link)
+
+
+@contextlib.contextmanager
+def swapped(mods, name, value):
+    """Each module's global `name` is `value` inside the block."""
+    saved = [getattr(mod, name) for mod in mods]
+    for mod in mods:
+        setattr(mod, name, value)
+    try:
+        yield
+    finally:
+        for mod, v in zip(mods, saved):
+            setattr(mod, name, v)
+
+
+def fast_clock(mods=CLOCKED):
+    return swapped(mods, "time", FAST_CLOCK)
+
+
+# ctl.main builds its argparse tree (and argparse looks up gettext catalogs on disk for every
+# help string) on each call: one tree serves every in-process command, parse_args leaves it as is
+ctl.build_parser = functools.cache(ctl.build_parser)
+
+
+def ctl_result(out, err):
+    """`python ctl.py`'s one JSON stdout line; anything else comes back as _bad_stdout."""
+    lines = out.strip().splitlines()
+    try:
+        return json.loads(lines[-1]) if len(lines) == 1 else {"_bad_stdout": out, "_stderr": err}
+    except ValueError:
+        return {"_bad_stdout": out, "_stderr": err}
 
 
 def run_ctl(argv, tasks=None, fast=True):
@@ -450,26 +542,30 @@ def run_ctl(argv, tasks=None, fast=True):
     saved_env = os.environ.pop(ctl.TEST_TASKS_ENV, None)
     if tasks is not None:
         os.environ[ctl.TEST_TASKS_ENV] = json.dumps(tasks)
-    for mod in CLOCKED:
-        mod.time = FAST_CLOCK if fast else time
     try:
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        with fast_clock(CLOCKED if fast else ()), swapped(CONNECTING, "socket", LOOPBACK), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = ctl.main(argv)
     except Exception:
         code = 1
         err.write(traceback.format_exc())
     finally:
-        for mod in CLOCKED:
-            mod.time = time
         os.environ.pop(ctl.TEST_TASKS_ENV, None)
         if saved_env is not None:
             os.environ[ctl.TEST_TASKS_ENV] = saved_env
-    lines = out.getvalue().strip().splitlines()
-    try:
-        res = json.loads(lines[-1]) if len(lines) == 1 else {"_bad_stdout": out.getvalue(), "_stderr": err.getvalue()}
-    except ValueError:
-        res = {"_bad_stdout": out.getvalue(), "_stderr": err.getvalue()}
-    return code, res
+    return code, ctl_result(out.getvalue(), err.getvalue())
+
+
+def spawn_ctl(argv):
+    """`python ctl.py ARGV` in its own process (no test task override), to run alongside the
+    in-process commands; finish_ctl() gives what run_ctl(argv) would."""
+    return subprocess.Popen([PY, CTL] + argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                            env=env_with())
+
+
+def finish_ctl(p, timeout=60):
+    out, err = p.communicate(timeout=timeout)
+    return p.returncode, ctl_result(out, err)
 
 
 class Ctl:
@@ -501,7 +597,7 @@ def meta(db, key):
         m.close()
 
 
-def wait_for(pred, timeout=20.0, poll=0.1):
+def wait_for(pred, timeout=20.0, poll=0.05):
     end = time.monotonic() + timeout
     while time.monotonic() < end:
         v = pred()
@@ -543,8 +639,9 @@ def test_wait(proxy):
     hb0 = time.time()
     p = c.spawn("wait", "--timeout", "20", "--poll", "0.1")
     hb1 = beat_since(hb0)
-    time.sleep(0.4)
-    hb2 = float(meta(db, ctl.HEARTBEAT_KEY) or 0)
+    # the 0.4 s the heartbeat gets to advance, ended early once it has
+    hb2 = wait_for(lambda: (lambda v: v > float(hb1 or 0) and v)(float(meta(db, ctl.HEARTBEAT_KEY) or 0)), 0.4) \
+        or float(meta(db, ctl.HEARTBEAT_KEY) or 0)
     check("heartbeat written while waiting (epoch seconds)", bool(hb1) and abs(float(hb1) - time.time()) < 5,
           str(hb1))
     check("heartbeat advances on every poll", bool(hb1) and hb2 > float(hb1), f"{hb1} -> {hb2}")
@@ -637,7 +734,7 @@ def test_wait(proxy):
     m.close()
 
 
-def test_status(proxy):
+def test_status(proxy, unreachable):
     print("== status ==")
     tmp = tempfile.mkdtemp()
     db = os.path.join(tmp, "harness.db")
@@ -688,10 +785,7 @@ def test_status(proxy):
     check("status.buffs: past its end and not removed by the server: still listed, expired",
           [(x["icon"], x["expired"]) for x in b] == [(167, True)] and b[0]["ends_in_s"] < -880, str(b))
     proxy.stats, proxy.buffs = {}, {}
-    dead = free_port(13100)
-    port = dead.getsockname()[1]
-    dead.close()
-    code, out = run_ctl(["--db", db, "--state-port", str(port), "status"])
+    code, out = finish_ctl(unreachable)
     check("proxy unreachable -> ok false", code == 1 and out.get("ok") is False
           and "unreachable" in out["error"] and out["tasks"] == [], str(out))
 
@@ -1960,13 +2054,24 @@ def test_shelf_flow():
         shelf._tile_name = tile_name
 
 
+def spawn_unreachable_status():
+    """test_status's last check, `status` against a closed state port, as the real CLI started
+    first: Windows refuses a connection to a closed local port only after its SYN retries
+    (~2 s), which this way pass while the other tests run."""
+    tmp = tempfile.mkdtemp()
+    dead = free_port(13100)
+    port = dead.getsockname()[1]
+    dead.close()
+    return spawn_ctl(["--db", os.path.join(tmp, "harness.db"), "--state-port", str(port), "status"])
+
 
 def main():
     proxy = FakeProxy()
     for port in (proxy.control_port, proxy.state_port):
         assert port >= 12700 and port not in (25941, 25942)
+    unreachable = spawn_unreachable_status()
     test_wait(proxy)
-    test_status(proxy)
+    test_status(proxy, unreachable)
     test_run_act(proxy)
     test_map(proxy)
     test_know(proxy)
@@ -1979,8 +2084,9 @@ def main():
     test_drop(proxy)
     test_track(proxy)
     test_room_buttons()
-    test_room_flow()
-    test_shelf_flow()
+    with fast_clock((room, shelf, humanize)):     # their fake IO answers synchronously, like FakeProxy
+        test_room_flow()
+        test_shelf_flow()
     reset_events(proxy)
     test_convert(proxy)
     reset_events(proxy)

@@ -48,28 +48,50 @@ class _Reader:
         self.p += n
         return v
 
+    # The fixed-width reads below are take(n) inlined (same bounds check, same
+    # message): the parsers call them tens of millions of times per replay.
     def u8(self):
-        return self.take(1)[0]
+        p, b = self.p, self.b
+        if p + 1 > len(b):
+            raise PacketIncomplete(f"need 1 bytes at {p}, have {len(b)}")
+        self.p = p + 1
+        return b[p]
 
     def i8(self):
         v = self.u8()
         return v - 256 if v > 127 else v
 
     def u16(self):
-        return int.from_bytes(self.take(2), "big")
+        p, b = self.p, self.b
+        if p + 2 > len(b):
+            raise PacketIncomplete(f"need 2 bytes at {p}, have {len(b)}")
+        self.p = p + 2
+        return int.from_bytes(b[p:p + 2], "big")
 
     def i16(self):
         v = self.u16()
         return v - 65536 if v > 32767 else v
 
     def u32(self):
-        return int.from_bytes(self.take(4), "big")
+        p, b = self.p, self.b
+        if p + 4 > len(b):
+            raise PacketIncomplete(f"need 4 bytes at {p}, have {len(b)}")
+        self.p = p + 4
+        return int.from_bytes(b[p:p + 4], "big")
 
     def i32(self):
-        return int.from_bytes(self.take(4), "big", signed=True)
+        p, b = self.p, self.b
+        if p + 4 > len(b):
+            raise PacketIncomplete(f"need 4 bytes at {p}, have {len(b)}")
+        self.p = p + 4
+        return int.from_bytes(b[p:p + 4], "big", signed=True)
 
     def u64(self):
-        return int.from_bytes(self.take(8), "big")
+        p, b = self.p, self.b
+        if p + 8 > len(b):
+            raise PacketIncomplete(f"need 8 bytes at {p}, have {len(b)}")
+        self.p = p + 8
+        return int.from_bytes(b[p:p + 8], "big")
 
     def f32(self):
         # dialect floats decode big-endian on the wire (0xFF sub 8 timer
@@ -145,13 +167,51 @@ def _post_0x21(fields):
 _POST = {0x21: _post_0x21}
 
 
+# Integer field types a fixed layout can unpack in one big-endian struct call.
+_STRUCT_CODES = {"u8": "B", "i8": "b", "u16be": "H", "u32be": "I", "i32be": "i"}
+
+
+def _struct_plan(layout):
+    """(end, Struct, names) reading `layout` in one unpack_from, for a table of
+    only big-endian integers and skips at ascending, non-overlapping offsets
+    (every table in layouts.py but 0x5D), else None. Given len(pkt) >= end
+    read_layout reads every field in bounds, so the unpack gives its exact result."""
+    fmt, names, pos, end = [">"], [], 0, 0
+    for name, ftype, off in layout:
+        if ftype.startswith("skip:"):
+            n = int(ftype[5:])
+            if off < 0 or n < 0:
+                return None
+            end = max(end, off + n)
+            continue
+        code = _STRUCT_CODES.get(ftype)
+        if code is None or off < pos:
+            return None
+        fmt.append("x" * (off - pos) + code)
+        names.append(name)
+        pos = off + struct.calcsize(">" + code)
+        end = max(end, pos)
+    return end, struct.Struct("".join(fmt)), tuple(names)
+
+
+# (direction, pid) -> (layout, plan); layouts.py tables are constants
+_PLANS = {}
+
+
 def parse_fixed(pid, pkt, direction="s2c"):
     """Parse a table-driven packet, or return None if no layout is registered."""
     table = LAYOUTS_S2C if direction == "s2c" else LAYOUTS_C2S
     layout = table.get(pid)
     if layout is None:
         return None
-    fields = read_layout(layout, pkt)
+    cached = _PLANS.get((direction, pid))
+    if cached is None or cached[0] is not layout:
+        cached = _PLANS[(direction, pid)] = (layout, _struct_plan(layout))
+    plan = cached[1]
+    if plan is not None and len(pkt) >= plan[0]:
+        fields = dict(zip(plan[2], plan[1].unpack_from(pkt)))
+    else:   # a short packet (raises PacketIncomplete as read_layout does) or a non-integer table
+        fields = read_layout(layout, pkt)
     post = _POST.get(pid)
     return post(fields) if post else fields
 

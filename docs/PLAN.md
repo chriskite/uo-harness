@@ -1390,6 +1390,23 @@ any loss. Moongates and an overweight gold drop serve its escape.
   Magery 100); bandages (no character has Healing: say so if one does); moongates and the overweight
   gold drop (we recall). The hunt runner keeps its own `--heal-at` rules (docs/HUNT_LOOP.md).
 
+## Test suite speed (decided and built 2026-10-08)
+
+User request: a faster test suite with every existing check kept. Serial, the 46 files took ~30 min
+(captcha alone 17 min); `python harness/run_tests.py` now runs them in ~105 s (docs/NOTES.md
+"Whole-suite speed").
+- **Adopted:** speed up the code under test where the tests showed it slow, provably bit-identical
+  (captcha numpy scoring with an exact rescore of the near-best candidates, table-driven S2C
+  Huffman decode, world-model hot paths); skip-ahead clocks in the in-process tests whose time was
+  sleeps; independent end-to-end scenarios and capture replays run concurrently; free ports and
+  temp dirs everywhere so all files run side by side; a runner that starts the slowest first and
+  caps worker pools so the CPU isn't oversubscribed.
+- **Rejected:** shorter proxy/runner pacing or test-only fast paths in production timing (the
+  cadence is what the server sees, ANTICHEAT.md); fewer samples, scenarios or iterations; float32
+  captcha scoring (20 % faster but a looser exactness argument); retrying failed files in the
+  runner (it would hide flakes). The e2e files now take as long as their longest real-time
+  scenario (`test_loop_lumber` `main` ~100 s), which sets the suite's floor.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

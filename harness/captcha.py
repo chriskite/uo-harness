@@ -109,35 +109,92 @@ def _normalize(pts):
     return [((x - cx) / h, (y - cy) / h) for x, y in pts]
 
 
-def _dist(a, b):
+_OFFSETS = [-SHIFT + 2 * SHIFT * s / (STEPS - 1) for s in range(STEPS)]   # shift grid per axis
+
+
+def _shift_cost(diffs, dx, dy, ka, kb):
+    """Trimmed Chamfer cost of one alignment shift (the reference arithmetic)."""
+    m = [[(ex - dx) ** 2 + (ey - dy) ** 2 for ex, ey in row] for row in diffs]
+    ab = sorted(math.sqrt(min(row)) for row in m)
+    ba = sorted(math.sqrt(min(col)) for col in zip(*m))
+    return (sum(ab[:ka]) / ka + sum(ba[:kb]) / kb) / 2
+
+
+def _costs(a, refs):
+    """Approximate _shift_cost of every shift for each reference in refs, as a
+    (len(refs), STEPS, STEPS) numpy array: the same arithmetic vectorized,
+    equal to _shift_cost up to float noise (numpy squares and sums can differ
+    in the last ulp). References are padded to one length with far-away dots,
+    which are never a row minimum and sort behind every real column minimum."""
+    import numpy as np
+    ka = max(1, int(len(a) * (1 - TRIM)))
+    width = max(len(r) for r in refs)
+    pb = np.full((len(refs), width, 2), 1e3)
+    for k, r in enumerate(refs):
+        pb[k, :len(r)] = r
+    kb = np.maximum(1, (np.array([len(r) for r in refs]) * (1 - TRIM)).astype(int))
+    keep = np.arange(width)[None, None, :] < kb[:, None, None]
+    pa = np.array(a, dtype=float)
+    off = np.array(_OFFSETS)[None, :, None, None]
+    sx = (pa[None, :, None, 0] - pb[:, None, :, 0])[:, None] - off   # (refs, dx, na, nb)
+    sy = (pa[None, :, None, 1] - pb[:, None, :, 1])[:, None] - off   # (refs, dy, na, nb)
+    sx **= 2
+    sy **= 2
+    out = np.empty((len(refs), STEPS, STEPS))
+    for i in range(STEPS):
+        m = sx[:, i, None] + sy                                         # (refs, dy, na, nb)
+        ab = np.sort(np.sqrt(m.min(axis=3)), axis=-1)[..., :ka].sum(axis=-1) / ka
+        ba = np.where(keep, np.sort(np.sqrt(m.min(axis=2)), axis=-1), 0).sum(axis=-1) / kb[:, None]
+        out[:, i] = (ab + ba) / 2
+    return out
+
+
+def _near(values, lo):
+    """Which approximate values may hold an exact minimum lo stands for
+    (tolerance far above the ulp-level numpy/Python difference)."""
+    return values <= lo + abs(lo) * 1e-9 + 1e-12
+
+
+def _dist(a, b, costs=None):
     """Translation-aligned trimmed Chamfer distance between normalized point
-    sets (lower = more similar). One squared-distance matrix per shift serves
-    both directions (row minima: a -> b, column minima: b -> a)."""
-    diffs = [[(x - u, y - v) for u, v in b] for x, y in a]
+    sets (lower = more similar): the minimum _shift_cost over the STEPS x STEPS
+    shift grid. One squared-distance matrix per shift serves both directions
+    (row minima: a -> b, column minima: b -> a). _costs scores every shift at
+    once; only the shifts within float noise of its minimum are rescored with
+    _shift_cost, so the result is bit-identical to scoring every shift with it.
+    costs: b's (STEPS, STEPS) slice of a _costs call, when already computed."""
+    import numpy as np
+    c = _costs(a, [b])[0] if costs is None else costs
     ka = max(1, int(len(a) * (1 - TRIM)))
     kb = max(1, int(len(b) * (1 - TRIM)))
-    best = 1e9
-    for si in range(STEPS):
-        dx = -SHIFT + 2 * SHIFT * si / (STEPS - 1)
-        for sj in range(STEPS):
-            dy = -SHIFT + 2 * SHIFT * sj / (STEPS - 1)
-            m = [[(ex - dx) ** 2 + (ey - dy) ** 2 for ex, ey in row] for row in diffs]
-            ab = sorted(math.sqrt(min(row)) for row in m)
-            ba = sorted(math.sqrt(min(col)) for col in zip(*m))
-            c = (sum(ab[:ka]) / ka + sum(ba[:kb]) / kb) / 2
-            if c < best:
-                best = c
-    return best
+    diffs = [[(x - u, y - v) for u, v in b] for x, y in a]
+    return min(_shift_cost(diffs, _OFFSETS[i], _OFFSETS[j], ka, kb)
+               for i, j in zip(*np.nonzero(_near(c, c.min()))))
 
 
 def read_digit(pts):
     """(digit, distance, margin) for one normalized dot cluster: the nearest
     reference, its distance, and how much closer it is than the nearest
-    reference of any other digit (1.0 = unopposed)."""
+    reference of any other digit (1.0 = unopposed). Exact distances are
+    computed only for the references whose approximate distance is within
+    float noise of the best (overall, then of the other digits): the answer
+    is the one exact distances to every reference would give."""
     n = _normalize(pts)
-    scores = sorted((_dist(n, ref), digit) for digit, ref in _font())
-    best_d, best_digit = scores[0]
-    second_d = next(c for c, d in scores if d != best_digit)
+    font = _font()
+    costs = _costs(n, [ref for _, ref in font])
+    approx = costs.min(axis=(1, 2))
+    exact = {}
+
+    def dist(k):
+        if k not in exact:
+            exact[k] = _dist(n, font[k][1], costs[k])
+        return exact[k]
+
+    near = _near(approx, approx.min())
+    best_d, best_digit = min((dist(k), font[k][0]) for k in range(len(font)) if near[k])
+    other = [k for k in range(len(font)) if font[k][0] != best_digit]
+    near = _near(approx, approx[other].min())
+    second_d = min(dist(k) for k in other if near[k])
     return best_digit, best_d, (second_d - best_d) / second_d
 
 

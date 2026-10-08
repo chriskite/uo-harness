@@ -3,7 +3,8 @@ routes bend around hostile creatures, a goal inside one's reach or a hostile pla
 stops the walk, a ghost may still walk to a healer, and sightings are remembered so
 the next walk avoids the area before anything is in view.
 
-Run: python harness/test_travel_guard.py   (no network, ~20 s: the 'off' profile still paces steps)
+Run: python harness/test_travel_guard.py   (no network, ~1 s: the 'off' profile still paces steps,
+on test_mover's virtual clock that skips each sleep instead of waiting it out)
 """
 import os
 import sys
@@ -16,7 +17,7 @@ import travel_guard  # noqa: E402
 from agent_link import Abort, Mover, cheb  # noqa: E402
 from humanize import Human  # noqa: E402
 from memory import Memory  # noqa: E402
-from test_mover import FakeLink  # noqa: E402
+from test_mover import FakeLink, VirtualClock  # noqa: E402
 
 FAILURES = []
 HARPY = {"graphic": 0x1E, "notoriety": 3, "flags": 0x40, "name": "a harpy"}      # war mode: aggressive
@@ -149,11 +150,17 @@ def test_learned_from_hits():
     mem.close()
 
 
-if __name__ == "__main__":
+def main():
     test_routes_around_a_harpy()
     test_goal_in_reach_or_hostile_player()
     test_not_a_threat_to_us()
     test_remembered()
     test_learned_from_hits()
     print(f"\ntravel guard: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
-    sys.exit(0 if not FAILURES else 1)
+    return 0 if not FAILURES else 1
+
+
+if __name__ == "__main__":
+    with VirtualClock():      # the walks' step pacing and polls skip ahead instead of waiting
+        rc = main()
+    sys.exit(rc)

@@ -47,6 +47,11 @@ ReplayResult = collections.namedtuple("ReplayResult",
                                       ["state", "events", "runtime"])
 
 
+def _xor_table(key):
+    """bytes.translate table XORing every byte with `key` (one byte)."""
+    return bytes(b ^ key for b in range(256))
+
+
 def _frame_c2s(buf, stats):
     """Consume buf into C2S packets; drop-byte resync on implausible lengths."""
     pkts = []
@@ -89,7 +94,7 @@ def replay_session(c2s_path, s2c_path, on_s2c=None):
     rt.feed_packet(S2C, s2c_raw[:PRELUDE_LEN])
 
     # C2S: skip the 5-byte preamble, XOR with the c2s key, frame
-    c2s_plain = bytes(b ^ c2s_key for b in c2s_raw[CLIENT_PREAMBLE_LEN:])
+    c2s_plain = c2s_raw[CLIENT_PREAMBLE_LEN:].translate(_xor_table(c2s_key))
     for pkt in _frame_c2s(bytearray(c2s_plain), stats):
         rt.feed_packet(C2S, pkt)
 
@@ -118,7 +123,7 @@ def timed_packets(base):
     c2s_raw = open(base + ".c2s.raw", "rb").read()
     _, c2s_key, s2c_pkts = s2c_packets(s2c_raw)
     stats = {"c2s_desyncs": 0, "c2s_leftover": 0}
-    c2s_pkts = _frame_c2s(bytearray(b ^ c2s_key for b in c2s_raw[CLIENT_PREAMBLE_LEN:]), stats)
+    c2s_pkts = _frame_c2s(bytearray(c2s_raw[CLIENT_PREAMBLE_LEN:].translate(_xor_table(c2s_key))), stats)
     out, ci, si = [], 0, 0
     with open(base + ".jsonl", encoding="utf-8") as f:
         for n, line in enumerate(f):

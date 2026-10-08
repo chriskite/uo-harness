@@ -90,7 +90,7 @@ The core harness is mostly stdlib. Third-party imports found by grep over `harne
 | Package | Used by | Install |
 |---|---|---|
 | `pydivert` | `harness/divert_nat.py` (the NAT) | `python -m pip install pydivert==3.1.3` (the laptop's version) |
-| `numpy` | `harness/knowledge.py`, `harness/embedder.py` (top-level), `harness/lumber_opt.py` (lazy) | from the GPU stack line below |
+| `numpy` | `harness/knowledge.py`, `harness/embedder.py` (top-level), `harness/lumber_opt.py`, `harness/captcha.py` (the lumber runner's captcha auto-solve) (lazy) | from the GPU stack line below |
 | `fastembed-gpu`, `onnxruntime-gpu`, `nvidia-*` | `harness/embedder.py` (`ctl know search`/`brief`) | NOTES "Discord capture" → "System Python has the GPU stack too": `python -m pip install "fastembed-gpu==0.8.1" "onnxruntime-gpu==1.30.0" "nvidia-cuda-runtime==13.4.92" "nvidia-cublas==13.8.0.4" "nvidia-cufft==12.4.0.43" "nvidia-cudnn-cu13==9.27.0.42" "numpy==2.5.3"`. Never also install CPU `fastembed`/`onnxruntime`. Without CUDA it falls back to CPU; `UO_EMBED_CPU=1` forces CPU |
 | `windows-capture` (pulls numpy, opencv-python) | `harness/screen.py`, `harness/liveview.py` (`ctl screenshot`, live view) | `python -m pip install --user windows-capture` (NOTES "Windows shell / tooling gotchas"; laptop has 2.0.1) |
 

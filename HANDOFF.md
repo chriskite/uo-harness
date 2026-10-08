@@ -115,13 +115,14 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
   `python harness/viz_server.py --live` (or `--replay <TAG> [--rate 8]`) → http://127.0.0.1:8080/.
   Terrain underlay comes from the install dir's `facet00.mul` (read-only; `--no-facet` to skip).
   The viz only observes, except for the agent-gate buttons, the captcha mode toggle and chat.
-- Tests: `python test_proxy.py`, `python test_movement.py`, `python test_errand.py`,
-  `python harness/test_world.py`, `python harness/test_world_replay.py`,
-  `python harness/test_actions.py`, `python harness/test_nav.py`, `python harness/test_viz.py`,
-  `python harness/test_agent_gate.py`, `python harness/test_loop_demo.py`, `python harness/test_facet.py`,
-  `python test_loop_lumber.py` (~1.5 min), `python harness/test_mover.py`, `python harness/test_triage.py`,
-  `cd viz && bun test && bun run typecheck` (all use private control/state ports; safe while
-  the live proxy runs).
+- Tests: `python harness/run_tests.py` runs every Python test file (`harness/test_*.py` and the
+  root end-to-end `test_*.py`) 16 at a time in ~2 min, with each file's output in
+  `logs/tests/`. Pass name patterns to run fewer (`python harness/run_tests.py nav mover`); any
+  single file still runs on its own (`python test_loop_lumber.py`, ~100 s, the slowest).
+  `test_pathfind` (1 FAIL) and `test_world_replay` (15 FAILs, captures 20261004_162411 on) failed
+  on the desktop's local session logs before the 2026-10-08 speedup too (cause not investigated).
+  Viz: `cd viz && bun test && bun run typecheck`.
+  Every test uses free ports and its own temp dirs, so it is safe while the live proxy runs.
 - Push works via SSH alias `github.com-uoharness` (deploy key `~/.ssh/uo_harness_deploy`).
 
 ## Doc map

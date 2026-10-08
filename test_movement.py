@@ -12,9 +12,11 @@
 import asyncio
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PY = sys.executable
@@ -227,8 +229,18 @@ def test_real_capture():
 
 # ---------------------------------------------------------------- end-to-end
 
-PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT = 12593, 12594, 12598, 12602
-LOGDIR = f"{ROOT}/logs_test"
+def _free_ports(n):
+    socks = [socket.socket() for _ in range(n)]
+    for s in socks:
+        s.bind(("127.0.0.1", 0))
+    ports = [s.getsockname()[1] for s in socks]
+    for s in socks:
+        s.close()
+    return ports
+
+
+PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT = _free_ports(4)
+LOGDIR = tempfile.mkdtemp(prefix="logs_test_movement_")
 C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
 SERIAL = 0x00094375
@@ -270,6 +282,19 @@ class FakeServer:
         await self.writer.drain()
 
 
+async def connect_retry(port, timeout=30.0):
+    """Connect once the proxy subprocess listens (replaces a fixed startup sleep)."""
+    loop = asyncio.get_running_loop()
+    end = loop.time() + timeout
+    while True:
+        try:
+            return await asyncio.open_connection("127.0.0.1", port)
+        except OSError:
+            if loop.time() > end:
+                raise
+            await asyncio.sleep(0.05)
+
+
 async def e2e():
     print("== proxy end-to-end ==")
     os.makedirs(LOGDIR, exist_ok=True)
@@ -283,8 +308,7 @@ async def e2e():
     srv = FakeServer()
     server = await asyncio.start_server(srv.handle, "127.0.0.1", UPSTREAM_PORT)
     try:
-        await asyncio.sleep(1.0)
-        reader, writer = await asyncio.open_connection("127.0.0.1", PROXY_PORT)
+        reader, writer = await connect_retry(PROXY_PORT)
         writer.write(bytes.fromhex("ef0000000c"))
         await writer.drain()
         await asyncio.wait_for(srv.ready.wait(), 5)
@@ -440,6 +464,10 @@ def main():
     test_real_capture()
     asyncio.run(e2e())
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
+    if FAILURES:
+        print(f"logs kept: {LOGDIR}")
+    else:
+        shutil.rmtree(LOGDIR, ignore_errors=True)
     sys.exit(0 if not FAILURES else 1)
 
 

@@ -7,18 +7,33 @@ import asyncio
 import collections
 import json
 import os
+import shutil
+import socket
 import subprocess
 import sys
+import tempfile
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PY = sys.executable
 C2S = open(f"{ROOT}/logs/session_20260928_141253.c2s.raw", "rb").read()
 S2C = open(f"{ROOT}/logs/session_20260928_141253.s2c.raw", "rb").read()
-PROXY_PORT = 12593
-UPSTREAM_PORT = 12594
-LOGDIR = f"{ROOT}/logs_test"
+
+
+def _free_ports(n):
+    socks = [socket.socket() for _ in range(n)]
+    for s in socks:
+        s.bind(("127.0.0.1", 0))
+    ports = [s.getsockname()[1] for s in socks]
+    for s in socks:
+        s.close()
+    return ports
+
+
+PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT = _free_ports(4)
+LOGDIR = tempfile.mkdtemp(prefix="logs_test_proxy_")
 
 GOT_C2S = bytearray()  # what the fake server received
+UPSTREAM_READY = asyncio.Event()
 
 
 async def fake_server():
@@ -43,6 +58,7 @@ async def fake_server():
         await asyncio.gather(pump(), sink())
 
     server = await asyncio.start_server(handle, "127.0.0.1", UPSTREAM_PORT)
+    UPSTREAM_READY.set()
     async with server:
         await server.serve_forever()
 
@@ -56,16 +72,23 @@ async def main():
         [PY, f"{ROOT}/harness/proxy.py",
          "--listen-port", str(PROXY_PORT),
          "--upstream-host", "127.0.0.1", "--upstream-port", str(UPSTREAM_PORT),
-         "--control-port", "12599", "--state-port", "12600",
+         "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT),
          "--logdir", LOGDIR],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    await asyncio.sleep(1.0)
 
     server_task = asyncio.create_task(fake_server())
-    await asyncio.sleep(0.3)
+    await UPSTREAM_READY.wait()
 
     got_s2c = bytearray()
-    reader, writer = await asyncio.open_connection("127.0.0.1", PROXY_PORT)
+    end = asyncio.get_running_loop().time() + 30
+    while True:  # connect once the proxy subprocess listens (replaces a fixed startup sleep)
+        try:
+            reader, writer = await asyncio.open_connection("127.0.0.1", PROXY_PORT)
+            break
+        except OSError:
+            if asyncio.get_running_loop().time() > end:
+                raise
+            await asyncio.sleep(0.05)
     writer.write(C2S[:5])
     await writer.drain()
 
@@ -140,6 +163,10 @@ async def main():
     check("malformed target_serial dropped, intent kept", tap.intent.get("text") == base["text"]
           and "target_serial" not in tap.intent, str(tap.intent))
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
+    if ok:
+        shutil.rmtree(LOGDIR, ignore_errors=True)
+    else:
+        print(f"logs kept: {LOGDIR}")
     sys.exit(0 if ok else 1)
 
 

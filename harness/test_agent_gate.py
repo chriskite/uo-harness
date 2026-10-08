@@ -25,7 +25,19 @@ import agent_gate as ag  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PY = sys.executable
-CONTROL_PORT, STATE_PORT, LISTEN_PORT = 12611, 12612, 12613
+
+
+def _free_ports(n):
+    socks = [socket.socket() for _ in range(n)]
+    for s in socks:
+        s.bind(("127.0.0.1", 0))
+    ports = [s.getsockname()[1] for s in socks]
+    for s in socks:
+        s.close()
+    return ports
+
+
+CONTROL_PORT, STATE_PORT, LISTEN_PORT = _free_ports(3)
 FAILURES = []
 
 

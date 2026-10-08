@@ -1829,6 +1829,50 @@ Read from the memory-store `gump_open` events and the session capture
   sent direction 0 while it kept its own facing, so after a recall a step the proxy meant as a
   turn moved the simulated character (a one-tile desync, seen as tracking/gazer distances off by
   one once trips began with a room exit); it now sends its facing like a real server.
+- **Whole-suite speed (2026-10-08): ~30 min serial → ~105 s with `python harness/run_tests.py`.**
+  Serial times on the desktop before (idle, HEAD 08c436f): test_captcha 1008 s, test_loop_hunt 209,
+  test_loop_lumber 201, test_world 76 (= units + replay), test_world_replay 72, test_travel_guard 58,
+  test_pathfind 42, test_mover 41, test_nav 39, test_ctl 28. Each check line kept its verdict
+  (compared file by file against the HEAD outputs; only temp paths, ports, timestamps, measured
+  seconds and printed-set order differ, as they do between two HEAD runs). What each fix was:
+  - **captcha.py: 0.36 s → ~14 ms per `read_digit`.** `_costs` scores every reference and every
+    alignment shift at once in numpy; only the references and shifts within float noise (1e-9
+    relative) of the minimum are rescored with the original Python arithmetic (`_shift_cost`), so
+    the distances, digits and margins are bit-identical (checked on all 2,824 `read_digit` calls
+    the test makes, held-out fonts included). The live solve speeds up the same way.
+  - **uo/s2c.py: `S2CStream.feed` ~4× faster.** It walked the Huffman tree bit by bit, and
+    `del pend[:pos]` after every packet made a whole-file feed quadratic. Now one de-XORed byte at
+    a time through a lazily filled (node, byte) → (symbols, flush, node) table, and the consumed
+    bytes are dropped once per feed. Same (wire, packet) pairs and `buffered` on all 78 captures,
+    whole and in random chunks.
+  - **world/state.py, parsers.py, replay.py:** `prune_range` without the per-entity closure,
+    struct-cached fixed layouts, `bytes.translate` for the C2S XOR (identical states over 76
+    captures). test_world_replay, nav.build_from_logs and test_uomap fan the captures out to worker
+    processes (results merged in file order, so set order is unchanged).
+  - **test_mover / test_travel_guard / test_ctl:** a skip-ahead clock (`VirtualClock`,
+    `FastClock`): `time.sleep` returns at once and moves `monotonic()` forward, so pacing gaps and
+    time windows see the same elapsed time. Nothing they test sleeps in another thread.
+  - **test_loop_lumber (all 30 scenarios at once, `LOOP_TEST_JOBS` default = CPU count) and
+    test_loop_hunt (its 5 proxy scenarios as parallel children):** the scenarios are sleep-bound
+    real-time runs, so the file takes about as long as its longest scenario (`main` ~100 s, crawl
+    ~50 s).
+  - **Free ports and temp log dirs in every test** (test_errand and test_agent_gate shared
+    12611-12613; test_movement and test_proxy shared 12593/12594 and `logs_test`), and connect
+    retries instead of fixed 1 s startup sleeps. A passing run deletes its temp log dir; a failing
+    one prints the path.
+- **The suite oversubscribing the CPU breaks timing checks.** With the log-scanning tests each
+  spawning up to 32 workers at suite start, `test_ctl`'s "heartbeat advances on every poll" (0.4 s
+  for a spawned `ctl wait --poll 0.1`) failed in 1 of 2 whole-suite runs and 1 of 3 runs next to
+  those tests; with the pools capped at `UO_TEST_WORKERS` (run_tests.py sets CPU count // jobs) it
+  passed 4 of 4 next to them. HEAD's test_ctl fails the same check in 8 of 20 copies run at once.
+  Then `test_movement`'s 0.25–0.3 s pacing windows failed once in 3 suite runs ("walk gated:
+  pacing"): test_loop_lumber started its 30 scenarios (each a proxy + runner) at once, and total CPU
+  read 98 / 88 / 70 % for the suite's first seconds. Its first wave now launches 0.25 s apart
+  (`LAUNCH_GAP_S`; peak 76 %, the file still ~100 s); 5 of 5 suite runs after that were clean.
+- **Windows loopback connects:** `socket.create_connection(..., timeout=x)` to 127.0.0.1 costs
+  ~7–10 ms (non-blocking connect + select), a blocking connect ~0.15 ms; a connect to a closed
+  local port is refused only after ~2 s of SYN retries. test_ctl starts its unreachable-proxy CLI
+  check first so those 2 s overlap other sections.
 
 ## Backups (NAS, since 2026-10-01)
 

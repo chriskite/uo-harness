@@ -9,6 +9,10 @@ dataclass-free primitives produced by to_dict()); serials are rendered as
 0x-prefixed hex strings for readability.
 """
 from dataclasses import dataclass, field
+from itertools import compress
+from operator import attrgetter
+
+_CONTAINER = attrgetter("container")
 
 
 def _h(serial):
@@ -350,10 +354,12 @@ class StateStore:
         """Remove the items under `roots` (any serials) recursively, like
         ClassicUO RemoveItem/RemoveMobile remove their children."""
         frontier = set(roots)
+        items = self.items
         while frontier:
-            kids = [s for s, it in self.items.items() if it.container in frontier]
+            # [s for s, it in items.items() if it.container in frontier], at C speed
+            kids = list(compress(items, map(frontier.__contains__, map(_CONTAINER, items.values()))))
             for s in kids:
-                del self.items[s]
+                del items[s]
                 self.containers.discard(s)
             frontier = set(kids)
 
@@ -439,12 +445,25 @@ class StateStore:
         Positionless mobiles (0x78 before their first 0x20) stay. Returns the removed
         mobile serials."""
         r = self.view_range
-
-        def far(e, extra=0):
-            return e.x is not None and e.y is not None and max(abs(e.x - x), abs(e.y - y)) > r + extra
-        gone = [s for s, m in self.mobiles.items() if s != self.self.serial and far(m)]
-        ground = [s for s, it in self.items.items() if it.container is None
-                  and far(it, multi_reach(it.graphic) if it.data_type == 2 and it.graphic is not None else 0)]
+        me = self.self.serial
+        # max(abs(dx), abs(dy)) > r inlined as a bounds test: this runs on every
+        # self move and 0xFF sub 5, over every entity
+        xl, xh, yl, yh = x - r, x + r, y - r, y + r
+        gone = [s for s, m in self.mobiles.items()
+                if s != me and (ex := m.x) is not None and (ey := m.y) is not None
+                and not (xl <= ex <= xh and yl <= ey <= yh)]
+        ground = []
+        for s, it in self.items.items():
+            if it.container is None:
+                ex, ey = it.x, it.y
+                if it.data_type == 2 and it.graphic is not None:
+                    # a house reaches farther (looked up whether or not it has a position)
+                    lim = r + multi_reach(it.graphic)
+                    if ex is not None and ey is not None and not (
+                            x - lim <= ex <= x + lim and y - lim <= ey <= y + lim):
+                        ground.append(s)
+                elif ex is not None and ey is not None and not (xl <= ex <= xh and yl <= ey <= yh):
+                    ground.append(s)
         self._remove_many(gone, ground, "range", facet)
         return gone
 

@@ -15,8 +15,10 @@ Run: python harness/test_uomap.py   (read-only, a few seconds)
 """
 import json
 import os
+import re
 import struct
 import sys
+from concurrent.futures import ProcessPoolExecutor
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -51,6 +53,16 @@ def _be(fmt, b, o):
     return struct.unpack_from(">" + fmt, b, o)[0]
 
 
+# A plain packet row as the proxy writes it (exactly these keys, no `ev`, no
+# escapes in any string). A row matching it whose (dir, first hex byte) is not
+# one scan_session reads is ignored there whatever json.loads makes of it, so
+# it is skipped without decoding; every other line takes the full path.
+_PACKET_ROW = re.compile(r'\{"dir": "(s2c|c2s)", (?:"src": "[a-z]+", )?"id": "0x[0-9A-Fa-f]{2}", '
+                         r'"len": [0-9]+, "hex": "([0-9a-f]{2})[0-9a-f]*", "t": [0-9.eE+-]+\}\n?')
+_READ_PIDS = {("s2c", "1b"), ("s2c", "20"), ("s2c", "77"), ("s2c", "21"), ("s2c", "bf"),
+              ("s2c", "f3"), ("c2s", "6c")}
+
+
 def scan_session(tag):
     """(positions, targets, items, steps) from one session's jsonl.
 
@@ -72,8 +84,12 @@ def scan_session(tag):
         else:
             dest.append(row[:at] + (facet,) + row[at:])
 
+    skip_row, read_pids = _PACKET_ROW.fullmatch, _READ_PIDS
     with open(os.path.join(LOGS, f"session_{tag}.jsonl"), encoding="utf-8") as fh:
         for line in fh:
+            pm = skip_row(line)
+            if pm is not None and pm.groups() not in read_pids:
+                continue
             try:
                 ev = json.loads(line)
             except ValueError:
@@ -122,6 +138,17 @@ def scan_session(tag):
 def all_sessions():
     return sorted(f[len("session_"):-len(".jsonl")] for f in os.listdir(LOGS)
                   if f.startswith("session_") and f.endswith(".jsonl"))
+
+
+def scan_all(tags):
+    """{tag: scan_session(tag)}, the sessions scanned in parallel worker processes
+    (largest file first; UO_TEST_WORKERS caps them, set by run_tests.py); the same
+    dict as scanning them one by one."""
+    by_size = sorted(tags, key=lambda t: -os.path.getsize(os.path.join(LOGS, f"session_{t}.jsonl")))
+    cap = int(os.environ.get("UO_TEST_WORKERS") or 0) or os.cpu_count() or 1
+    with ProcessPoolExecutor(max_workers=max(1, min(len(tags), cap))) as ex:
+        done = dict(zip(by_size, ex.map(scan_session, by_size)))
+    return {t: done[t] for t in tags}
 
 
 def tree_graphics():
@@ -181,7 +208,7 @@ def dynamic_index(m, items, facet):
     showed on `facet`. A multi (0xF3 data_type 2) stands for its multi.mul
     pieces around its tile, as the client places them (uomap.multi_components)."""
     out = {}
-    for f, data_type, g, x, y, z in items:
+    for f, data_type, g, x, y, z in dict.fromkeys(items):   # repeats add nothing
         if f != facet:
             continue
         if data_type == 2:
@@ -404,7 +431,7 @@ def test_display_name():
 
 def main():
     maps = {i: UoMap(i) for i in (0, 1, 3)}
-    scans = {tag: scan_session(tag) for tag in all_sessions()}
+    scans = scan_all(all_sessions())
     positions = [p for s in scans.values() for p in s[0]]
     targets, items = scans[DEMO][1], scans[DEMO][2]
     dyn = dynamic_index(maps[0], [it for s in scans.values() for it in s[2]], 0)

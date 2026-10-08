@@ -22,7 +22,6 @@ import numpy as np  # noqa: E402
 import liveview  # noqa: E402
 import viz_server  # noqa: E402
 
-PORT = 12780
 FAILURES = []
 
 
@@ -82,10 +81,10 @@ def test_routes():
     tmp = tempfile.mkdtemp()
     img = np.full((1200, 1600, 3), 40, np.uint8)
     fake = FakeLive(img)
-    srv = viz_server.VizServer(("127.0.0.1", PORT), FakeFeed(), tmp, os.path.join(tmp, "h.db"),
+    srv = viz_server.VizServer(("127.0.0.1", 0), FakeFeed(), tmp, os.path.join(tmp, "h.db"),
                                live_factory=lambda: fake)
     threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
-    base = f"http://127.0.0.1:{PORT}"
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
     try:
         r = urllib.request.urlopen(f"{base}/api/live.jpg?zoom=3")
         body = r.read()

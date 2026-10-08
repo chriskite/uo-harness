@@ -77,11 +77,12 @@ and unit_capture_smart_harvest: the runner's self-target 0x6C byte-equal to the 
 20261001_214649 (23:20 and 23:47), and its 'nothing nearby' answer mapped by outcome().
 Named scenarios run alone: `python test_loop_lumber.py gazer_run wary`.
 
-Run: python test_loop_lumber.py   (~2 min; private ports; safe while the live proxy runs). Two or
-more scenarios run as parallel child processes (`python test_loop_lumber.py <name>` each, at most
-LOOP_TEST_JOBS = 8 at a time; LOOP_TEST_JOBS=1 runs them in this process one after another): each
-already has its own ports and temp dir. Serially the suite took ~10 min (2026-10-04); main (two
-trips, the human profile, the town wall learned from walk denials) is the critical path at ~2 min.
+Run: python test_loop_lumber.py   (~1.7 min; free private ports and a private temp log dir, removed when all
+pass; safe while the live proxy or other tests run). Two or more scenarios run as parallel child processes
+(`python test_loop_lumber.py <name>` each, at most LOOP_TEST_JOBS at a time, default the CPU count (at least 8):
+on 32 cores all at once; they mostly wait on the runner's pacing; LOOP_TEST_JOBS=1 runs them in this process
+one after another): each has its own ports and temp dir. Serially the suite took ~10 min (2026-10-04); main
+(two trips, the human profile, the town wall learned from walk denials) is the critical path at ~100 s.
 """
 import asyncio
 import datetime
@@ -109,8 +110,11 @@ from uo.s2c import encode_packet  # noqa: E402
 from world.parsers import parse_packet  # noqa: E402
 import viz_feed  # noqa: E402
 
-PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT = 12670, 12671, 12672, 12673
-LOGDIR = f"{ROOT}/logs_test_loop"
+# every process of one run (the parallel scenario children inherit it) logs under this private dir, removed
+# at the end of a passing run
+LOGDIR = os.environ.get("LOOP_TEST_LOGDIR") or tempfile.mkdtemp(prefix="logs_test_loop_")
+OWN_LOGDIR = "LOOP_TEST_LOGDIR" not in os.environ
+os.environ["LOOP_TEST_LOGDIR"] = LOGDIR
 C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
 SELF, BACKPACK, HATCHET = 0x00094375, 0x44ADA059, 0x44ADB57A
@@ -1603,12 +1607,84 @@ def runner_files(paths) -> list:
             "--libraries", paths["libraries"], "--homes", paths["homes"], "--memory", paths["db"]]
 
 
+def free_ports(n) -> list:
+    """n distinct TCP ports nothing listens on at 127.0.0.1, drawn at random below the OS's ephemeral ranges
+    (Windows 49152+, Linux 32768+): no outgoing connection or port-0 bind of a concurrent test takes one before
+    the proxy binds it. Should another test pick the same one anyway, start_proxy retries on new ports."""
+    import random
+    import socket
+    held = []
+    try:
+        while len(held) < n:
+            s = socket.socket()
+            try:
+                s.bind(("127.0.0.1", random.randint(20000, 32000)))
+            except OSError:
+                s.close()
+                continue
+            held.append(s)
+        return [s.getsockname()[1] for s in held]
+    finally:
+        for s in held:
+            s.close()
+
+
+async def start_server(world):
+    """The simulated server for `world` on a port the OS picks; returns (server, port)."""
+    server = await asyncio.start_server(world.handle, "127.0.0.1", 0)
+    return server, server.sockets[0].getsockname()[1]
+
+
+async def start_proxy(upstream, logdir, db):
+    """The real proxy in front of the simulated server's port `upstream` on free ports; returns
+    (process, (listen, control, state)) once it listens (its startup line: the control and state ports are
+    bound before it), on new ports if it couldn't bind these. Its output is drained (and dropped) after."""
+    for _ in range(5):
+        ports = free_ports(3)
+        proc = await asyncio.create_subprocess_exec(
+            PY, "-u", f"{ROOT}/harness/proxy.py", "--listen-port", str(ports[0]),
+            "--upstream-host", "127.0.0.1", "--upstream-port", str(upstream),
+            "--control-port", str(ports[1]), "--state-port", str(ports[2]), "--logdir", logdir,
+            "--memory-db", db,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+
+        async def listening():
+            while line := await proc.stdout.readline():
+                if line.startswith(b"[proxy] listening on"):
+                    return True
+            return False
+        try:
+            up = await asyncio.wait_for(listening(), timeout=120)
+        except asyncio.TimeoutError:
+            up = False
+        if up:
+            async def drain():
+                while await proc.stdout.read(65536):
+                    pass
+            proc.drainer = asyncio.create_task(drain())
+            PROXIES.append(proc)
+            return proc, ports
+        kill_proxy(proc)
+        await proc.wait()
+    raise RuntimeError("the proxy never came up")
+
+
+PROXIES = []                                             # started this process; reaped by run_async
+
+
+def kill_proxy(proc):
+    """Terminates the proxy without waiting for it (run_async reaps it once the scenario is over)."""
+    if proc.returncode is None:
+        try:
+            proc.terminate()
+        except ProcessLookupError:
+            pass
+
+
 async def main():
-    os.makedirs(LOGDIR, exist_ok=True)
-    for f in os.listdir(LOGDIR):
-        if os.path.isfile(os.path.join(LOGDIR, f)):      # the other scenarios keep subdirectories
-            os.remove(os.path.join(LOGDIR, f))
-    tmp = tempfile.mkdtemp()
+    logdir = os.path.join(LOGDIR, "main")
+    os.makedirs(logdir, exist_ok=True)
+    tmp = tempfile.mkdtemp(dir=LOGDIR)
     paths = write_world_files(tmp)
     # captcha mode `auto` (the viz toggle; the default is `human`): trip 1's readable captcha is
     # the solver's, trip 2's unreadable one falls back to the human wait
@@ -1617,16 +1693,10 @@ async def main():
     store.close()
 
     world = World()
-    server = await asyncio.start_server(world.handle, "127.0.0.1", UPSTREAM_PORT)
-    proxy = subprocess.Popen(
-        [PY, f"{ROOT}/harness/proxy.py", "--listen-port", str(PROXY_PORT),
-         "--upstream-host", "127.0.0.1", "--upstream-port", str(UPSTREAM_PORT),
-         "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--logdir", LOGDIR,
-         "--memory-db", paths["db"]],
-        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    server, upstream = await start_server(world)
+    proxy, (proxy_port, control_port, state_port) = await start_proxy(upstream, logdir, paths["db"])
     try:
-        await asyncio.sleep(1.0)
-        reader, writer = await asyncio.open_connection("127.0.0.1", PROXY_PORT)
+        reader, writer = await asyncio.open_connection("127.0.0.1", proxy_port)
         writer.write(bytes.fromhex("ef0000000c"))
         await writer.drain()
 
@@ -1674,7 +1744,7 @@ async def main():
         runner = await asyncio.create_subprocess_exec(
             PY, f"{ROOT}/harness/loop_lumber.py", "--trips", "2", "--logs-per-trip", "100",
             "--regrow-min", "0.05",
-            "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT),
+            "--control-port", str(control_port), "--state-port", str(state_port),
             *runner_files(paths),
             "--human", "normal", "--seed", "11", "--human-fast", "0.25", "--timeout", "300", "--quiet",
             # --no-map: walk memory only, and the town wall (21 tiles) is unknown; per-plan route
@@ -1685,9 +1755,9 @@ async def main():
         out, _ = await asyncio.wait_for(runner.communicate(), timeout=360)
         text = out.decode(errors="replace")
         print("---- runner output ----\n" + text + "-----------------------")
-        bad_intents = [state_req({"op": "intent", "intent": b})
+        bad_intents = [state_req(state_port, {"op": "intent", "intent": b})
                        for b in ({"text": ""}, {"text": 5}, ["not", "a", "dict"], {"text": "x" * 201})]
-        live_hist = state_req({"op": "state", "since": 0, "snapshot": False}).get("intents") or []
+        live_hist = state_req(state_port, {"op": "state", "since": 0, "snapshot": False}).get("intents") or []
         solver.cancel()
         clearer.cancel()
         writer.close()
@@ -1700,8 +1770,8 @@ async def main():
         good_node = store.harvest_node(0, GOOD_TREE["x"], GOOD_TREE["y"], GOOD_TREE["z"]) or {}
         walked = store.walk_memory(0)
         speech = [p for p in world.c2s if p[0] == 0xAD]
-        log = [json.loads(l) for f in os.listdir(LOGDIR) if f.endswith(".jsonl")
-               for l in open(os.path.join(LOGDIR, f), encoding="utf-8")]
+        log = [json.loads(l) for f in os.listdir(logdir) if f.endswith(".jsonl")
+               for l in open(os.path.join(logdir, f), encoding="utf-8")]
         srcs = {e.get("src") for e in log if e.get("dir") == "c2s"}
         b1_client = [e for e in log if e.get("dir") == "c2s" and e.get("id") == "0xB1" and e.get("src") == "client"]
         b1_agent = [e for e in log if e.get("dir") == "c2s" and e.get("id") == "0xB1" and e.get("src") == "agent"]
@@ -1899,8 +1969,8 @@ async def main():
         check("last intent: finished, lumber loop, 2 trips",
               intents and intents[-1]["kind"] == "done" and intents[-1]["loop"] == "lumber"
               and intents[-1]["trips"] == 2, str(intents[-1:]))
-        tag = next(f for f in os.listdir(LOGDIR) if f.endswith(".jsonl"))[len("session_"):-len(".jsonl")]
-        drv = viz_feed.ReplayDriver(tag, LOGDIR)
+        tag = next(f for f in os.listdir(logdir) if f.endswith(".jsonl"))[len("session_"):-len(".jsonl")]
+        drv = viz_feed.ReplayDriver(tag, logdir)
         drv.run_to_end()
         replayed = drv.query(0)
         got = replayed.get("intent") or {}
@@ -1922,36 +1992,27 @@ async def main():
               [(h["kind"], h["text"]) for h in replayed.get("intents", [])]
               == [(h["kind"], h["text"]) for h in live_hist], str(len(replayed.get("intents", []))))
     finally:
-        proxy.terminate()
+        kill_proxy(proxy)
         server.close()
 
 
-async def run_scenario(world, tag, port_base, trees, runner_args, budget=None, spot_extra=None, during=None,
+async def run_scenario(world, tag, trees, runner_args, budget=None, spot_extra=None, during=None,
                        more_spots=(), routes=None):
-    """The real proxy in front of `world` on private ports port_base..+3 (logdir
+    """The real proxy in front of `world` on free private ports (logdir
     LOGDIR/<tag>, an optional pre-written agent gate file), then the runner with
     runner_args; `during(db)`, a coroutine function, runs alongside it (a test
     overseer). Returns (runner output, exit code, memory store, capture rows)."""
     logdir = os.path.join(LOGDIR, tag)
     os.makedirs(logdir, exist_ok=True)
-    for f in os.listdir(logdir):
-        os.remove(os.path.join(logdir, f))
     if budget is not None:
         with open(os.path.join(logdir, "agent_budget.json"), "w", encoding="utf-8") as f:
             json.dump(budget, f)
-    paths = write_world_files(tempfile.mkdtemp(), trees, spot_extra, stockpile=world.stockpile is not None,
+    paths = write_world_files(tempfile.mkdtemp(dir=LOGDIR), trees, spot_extra, stockpile=world.stockpile is not None,
                               more_spots=more_spots, routes=routes)
     db = paths["db"]
-    proxy_port, upstream, control, state = (port_base + i for i in range(4))
-    server = await asyncio.start_server(world.handle, "127.0.0.1", upstream)
-    proxy = subprocess.Popen(
-        [PY, f"{ROOT}/harness/proxy.py", "--listen-port", str(proxy_port),
-         "--upstream-host", "127.0.0.1", "--upstream-port", str(upstream),
-         "--control-port", str(control), "--state-port", str(state), "--logdir", logdir,
-         "--memory-db", db],
-        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    server, upstream = await start_server(world)
+    proxy, (proxy_port, control, state) = await start_proxy(upstream, logdir, db)
     try:
-        await asyncio.sleep(1.0)
         reader, writer = await asyncio.open_connection("127.0.0.1", proxy_port)
         writer.write(bytes.fromhex("ef0000000c"))
         await writer.drain()
@@ -1980,7 +2041,7 @@ async def run_scenario(world, tag, port_base, trees, runner_args, budget=None, s
                 for line in open(os.path.join(logdir, f), encoding="utf-8")]
         return text, runner.returncode, memory.Memory(db), rows
     finally:
-        proxy.terminate()
+        kill_proxy(proxy)
         server.close()
 
 
@@ -1993,7 +2054,7 @@ async def skirmish():
     recall home, no conversion (live 2026-10-05 an air dragon followed two escapes and killed Dan)."""
     print("\n== skirmish: hatchet in a bag, a hart fighting a player, a creature that goes for us ==")
     world = World("skirmish")
-    text, code, store, _ = await run_scenario(world, "skirmish", 12680, [GOOD_TREE, FAR_TREE],
+    text, code, store, _ = await run_scenario(world, "skirmish", [GOOD_TREE, FAR_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
     dclicks = [int.from_bytes(p[1:5], "big") for p in world.c2s if p[0] == 0x06]
     check("hatchet in a bag in the pack: backpack, then the bag opened (once each), before the first hatchet use",
@@ -2055,7 +2116,7 @@ async def leash():
     event, and chops on at the west tree, out of its zone: the trip stores, exit 0, no recall away from it."""
     print("\n== leash: a creature chases, falls behind and snaps back to its spawn -> shake it off, chop on ==")
     world = World("leash")
-    text, code, store, _ = await run_scenario(world, "leash", 12970, [LIB_TREE, LIB_FAR_TREE],
+    text, code, store, _ = await run_scenario(world, "leash", [LIB_TREE, LIB_FAR_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
     check("the creature came at the first chop, chased us and snapped back to its spawn",
@@ -2094,7 +2155,7 @@ async def stop_after_trip():
         asked.append(time.time())
     os.environ["UO_TASK_ID"] = task_id
     try:
-        text, code, store, _ = await run_scenario(world, "stop_after_trip", 12980, [GOOD_TREE, DRY_TREE],
+        text, code, store, _ = await run_scenario(world, "stop_after_trip", [GOOD_TREE, DRY_TREE],
                                                   ["--trips", "2", "--logs-per-trip", "100", "--human", "off"],
                                                   during=overseer)
     finally:
@@ -2124,7 +2185,7 @@ async def break_due():
               "since_break_s": 7200.0 - BREAK_AFTER_S, "next_break_after_s": 7200.0,
               "break_until": None, "break_due_at": None, "last_active": None,
               "paused": False, "killed": False}
-    text, code, store, _ = await run_scenario(world, "break", 12690, [GOOD_TREE, DRY_TREE],
+    text, code, store, _ = await run_scenario(world, "break", [GOOD_TREE, DRY_TREE],
                                               ["--trips", "2", "--logs-per-trip", "100", "--human", "off"],
                                               budget=budget)
     eps = store.episodes("lumber")
@@ -2152,7 +2213,7 @@ async def library():
     print("\n== library: out by the home library's tome, home by our runebook, into the room; twice ==")
     world = World("library")
     spot = LIB_SPOT
-    text, code, store, _ = await run_scenario(world, "library", 12700, [LIB_TREE],
+    text, code, store, _ = await run_scenario(world, "library", [LIB_TREE],
                                               ["--trips", "2", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=spot)
     eps = store.episodes("lumber")
@@ -2217,7 +2278,7 @@ async def track_reds():
     import lumber_opt
     world = World("tracking")
     spot = LIB_SPOT
-    text, code, store, _ = await run_scenario(world, "tracking", 12710, [LIB_TREE],
+    text, code, store, _ = await run_scenario(world, "tracking", [LIB_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05", "--track-retry-s", "1"], spot_extra=spot)
     tome_t = next((t for p, t in zip(world.c2s, world.c2s_t) if p[0] == 0x06 and p[1:5] == u32(TOME)), None)
@@ -2288,7 +2349,7 @@ async def library_chased():
     world = World("library")
     world.chaser = True
     spot = LIB_SPOT
-    text, code, store, _ = await run_scenario(world, "library_chased", 12720, [LIB_TREE],
+    text, code, store, _ = await run_scenario(world, "library_chased", [LIB_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=spot)
     js = [j for j in store.junctures() if j["source"] == "lumber" and j["severity"] == "urgent"]
@@ -2337,7 +2398,7 @@ async def gazer_run():
     chops on at the far tree, and the trip banks: no recall away, no stop."""
     print("\n== gazer, run: a ranged creature hits once -> walk out of its reach, chop on, bank ==")
     world = World("gazer")
-    text, code, store, _ = await run_scenario(world, "gazer_run", 12730, [LIB_TREE, LIB_FAR_TREE],
+    text, code, store, _ = await run_scenario(world, "gazer_run", [LIB_TREE, LIB_FAR_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
     eps = store.episodes("lumber")
@@ -2379,7 +2440,7 @@ async def landing_escape():
     escape and set out for the home rune library from the field ("to the rune library: no route"), aborting."""
     print("\n== a creature at the landing: escape on arrival, then harvest on (no trip back to the library) ==")
     world = World("landing_monster")
-    text, code, store, _ = await run_scenario(world, "landing_escape", 12830, [LIB_TREE],
+    text, code, store, _ = await run_scenario(world, "landing_escape", [LIB_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=LANDER_SPOT)
     eps = store.episodes("lumber")
@@ -2403,7 +2464,7 @@ async def ghost_horse():
     world = World("ghost_horse")
     world.horse = {"dead": True}
     world.shelf_stock = {"room": 0, "landing": 0}      # the room's shelf gives nothing: out to the landing's
-    text, code, store, _ = await run_scenario(world, "ghost_horse", 12840, [LIB_TREE],
+    text, code, store, _ = await run_scenario(world, "ghost_horse", [LIB_TREE],
                                               ["--trips", "2", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
     eps = store.episodes("lumber")
@@ -2434,7 +2495,7 @@ async def gazer_rehit():
     print("\n== gazer, re-hit: still hit after the escape leg -> recall home, no conversion ==")
     world = World("gazer")
     world.gazer_range = 20
-    text, code, store, _ = await run_scenario(world, "gazer_rehit", 12740, [LIB_TREE, LIB_FAR_TREE],
+    text, code, store, _ = await run_scenario(world, "gazer_rehit", [LIB_TREE, LIB_FAR_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
     hits = [e["data"] for e in store.job_events("lumber") if e["kind"] == "monster_hit"]
@@ -2472,7 +2533,7 @@ async def gazer_reflect():
     print("\n== gazer, reflected: a spell that costs no hits is an attack -> walk out of its reach, bank ==")
     world = World("gazer")
     world.reflect = True
-    text, code, store, _ = await run_scenario(world, "gazer_reflect", 12770, [LIB_TREE, LIB_FAR_TREE],
+    text, code, store, _ = await run_scenario(world, "gazer_reflect", [LIB_TREE, LIB_FAR_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
     eps = store.episodes("lumber")
@@ -2506,7 +2567,7 @@ async def wary():
     near one once the creature has gone, and banks. No damage, no escape."""
     print("\n== wary: an aggressive creature by the nearest tree -> chop one away from it first ==")
     world = World("wary")
-    text, code, store, _ = await run_scenario(world, "wary", 12750, [GOOD_TREE, WEST_TREE],
+    text, code, store, _ = await run_scenario(world, "wary", [GOOD_TREE, WEST_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
     targets = world.chopped                              # (tree the server chopped, time)
     good = (GOOD_TREE["x"], GOOD_TREE["y"])
@@ -2532,7 +2593,7 @@ async def idle_mob():
     print("\n== an idle creature by the nearest tree -> chop one away from it first ==")
     world = World("wary")
     world.wary_flags = 0
-    text, code, store, _ = await run_scenario(world, "idle_mob", 12850, [GOOD_TREE, WEST_TREE],
+    text, code, store, _ = await run_scenario(world, "idle_mob", [GOOD_TREE, WEST_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
     targets = world.chopped
     good = (GOOD_TREE["x"], GOOD_TREE["y"])
@@ -2554,7 +2615,7 @@ async def zone_on_way():
     print("\n== a creature shows up by the tree we walk to -> drop it, chop away from it ==")
     world = World("wary")
     world.wary_flags, world.wary_late = 0, True
-    text, code, store, _ = await run_scenario(world, "zone_on_way", 12860, [GOOD_TREE, WEST_TREE],
+    text, code, store, _ = await run_scenario(world, "zone_on_way", [GOOD_TREE, WEST_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
     targets = world.chopped
     check("it showed up on the way; the walk to the near tree ended, the west tree was chopped first",
@@ -2579,7 +2640,7 @@ async def red_aim():
     world = World("red_aim")
     world.late_blast = True                       # live 2026-10-06: the PK's Explosion went off on us at home
     spot = LIB_SPOT
-    text, code, store, rows = await run_scenario(world, "red_aim", 12760, [LIB_TREE],
+    text, code, store, rows = await run_scenario(world, "red_aim", [LIB_TREE],
                                                  ["--trips", "1", "--logs-per-trip", "100", "--human", "normal",
                                                   "--seed", "5", "--regrow-min", "0.05"], spot_extra=spot)
     red = world.red_t
@@ -2616,7 +2677,7 @@ async def red_aim():
     store.close()
 
 
-async def field_foe(tag, port, title, foe_why, calm_who):
+async def field_foe(tag, title, foe_why, calm_who):
     """faction / precast (user, 2026-10-06, after run 16's death at witcher_66): at the library spot (pvp)
     someone harmless shows up first (calm_who), CALM_S later the foe within spell range: the run away
     starts within REACT_MAX_S of the foe's tag / words (option E), the book only PLAYER_RECALL_GAP off;
@@ -2624,7 +2685,7 @@ async def field_foe(tag, port, title, foe_why, calm_who):
     store, text) for the scenario's own checks."""
     print(f"\n== {title} ==")
     world = World(tag)
-    text, code, store, _ = await run_scenario(world, tag, port, [LIB_TREE],
+    text, code, store, _ = await run_scenario(world, tag, [LIB_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "normal",
                                                "--seed", "5", "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
     calm, foe = world.calm_t, world.red_t
@@ -2649,7 +2710,7 @@ async def field_foe(tag, port, title, foe_why, calm_who):
 
 
 async def faction():
-    world, store, text = await field_foe("faction", 12890, "a faction-tagged player in view at a pvp spot: recall at once",
+    world, store, text = await field_foe("faction", "a faction-tagged player in view at a pvp spot: recall at once",
                                          "faction tag [Cambria]", "a guildmate with a faction tag")
     ev = [e["data"] for e in store.job_events("lumber") if e["kind"] == "faction_waypost"]
     row = next((r for r in store.lumber_spot_rows() if r["id"] == "sim"), None)
@@ -2661,7 +2722,7 @@ async def faction():
 
 
 async def precast():
-    _, store, _ = await field_foe("precast", 12900, "a player saying a harmful spell's words near us: recall at once",
+    _, store, _ = await field_foe("precast", "a player saying a harmful spell's words near us: recall at once",
                                   "Explosion", "a blue healing himself")
     store.close()
 
@@ -2675,7 +2736,7 @@ async def flee_aid():
     disturbed and recast); no potion read as stolen."""
     print("\n== flight aid: paralyzed, poisoned, hurt by a red: pouch, cure, heal on the run; then the recall ==")
     world = World("flee_aid")
-    text, code, store, _ = await run_scenario(world, "flee_aid", 12910, [LIB_TREE],
+    text, code, store, _ = await run_scenario(world, "flee_aid", [LIB_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "normal",
                                                "--seed", "5", "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
     hurt = world.hurt_t
@@ -2731,7 +2792,7 @@ async def work_heal():
     missing, off cooldown: the user's rule)."""
     print("\n== self care: poisoned at 70 hits, potions in a bag -> cure, then heal ==")
     world = World("work_heal")
-    text, code, store, _ = await run_scenario(world, "work_heal", 12950, [GOOD_TREE],
+    text, code, store, _ = await run_scenario(world, "work_heal", [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
     clicks = world.aid_clicks
     kinds = [k for _, k, _ in clicks]
@@ -2761,7 +2822,7 @@ async def work_spell():
     ourselves before the next hatchet use; the reagents read as spent, not stolen; the trip stores."""
     print("\n== self care by spell: poisoned at 50 hits, no potions -> Cure, Greater Heal, Heal between chops ==")
     world = World("work_spell")
-    text, code, store, _ = await run_scenario(world, "work_spell", 12960, [GOOD_TREE],
+    text, code, store, _ = await run_scenario(world, "work_spell", [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
     cure, heal, gheal = combat.spell_id("cure"), combat.spell_id("heal"), combat.spell_id("greater heal")
     landed = [s for _, s in world.spells_landed]
@@ -2791,7 +2852,7 @@ async def thief_keep_away():
     print("\n== thief: a blue next to us while chopping -> step away; he closes again -> recall ==")
     import lumber_opt
     world = World("thief")
-    text, code, store, _ = await run_scenario(world, "thief", 12780, [LIB_TREE, LIB_FAR_TREE],
+    text, code, store, _ = await run_scenario(world, "thief", [LIB_TREE, LIB_FAR_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
     ev = [e for e in store.job_events("lumber") if e["kind"] == "thief"]
@@ -2838,7 +2899,7 @@ async def pouch_pop():
     owner"): recall home like for a red, a `thief` pouch_pop event, exit 1."""
     print("\n== pouch pop: our trapped pouch goes off without our double-click -> recall ==")
     world = World("pouch_pop")
-    text, code, store, _ = await run_scenario(world, "pouch_pop", 12790, [LIB_TREE],
+    text, code, store, _ = await run_scenario(world, "pouch_pop", [LIB_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
     pop_t = world.pops[0][1] if world.pops else None
@@ -2875,7 +2936,7 @@ async def no_pouch():
     world.scripted = False
     world.pouch_hue = {}
     world.shelf_stock = {"room": 0, "landing": 0}
-    text, code, store, _ = await run_scenario(world, "no_pouch", 12800, [GOOD_TREE],
+    text, code, store, _ = await run_scenario(world, "no_pouch", [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
     low = [j for j in store.junctures() if j["kind"] == "low_supplies"]
     check("a low_supplies juncture for the trapped pouch, no trip row, nothing sent to chop, exit 1",
@@ -2900,7 +2961,7 @@ async def convert_stacks():
     world.scripted = False
     world.carried = [(0x1BDE, 7), (0x1BDF, 5), (0x1BE0, 3)]
     world.no_cursor_once = True
-    text, code, store, _ = await run_scenario(world, "convert_stacks", 12870, [GOOD_TREE],
+    text, code, store, _ = await run_scenario(world, "convert_stacks", [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "10", "--human", "off"])
     check("the use without a cursor was tried again; 4 stacks converted; exit 0",
           code == 0 and not world.no_cursor_once and "the hatchet brought no cursor" in text
@@ -2924,7 +2985,7 @@ async def stockpile_store():
     world.carried = [(0x1BDE, 7), (BOARD_G, 4)]
     world.stockpile = {"boards": 0, "adds": [], "refused": [], "gumps": set(), "closed": 0}
     world.shelf_stock = {"room": 0, "landing": 0}
-    text, code, store, _ = await run_scenario(world, "stockpile_store", 12880, [GOOD_TREE],
+    text, code, store, _ = await run_scenario(world, "stockpile_store", [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "10", "--human", "off"])
     pile = world.stockpile
     pouch_used = world.stashed[0][2] if world.stashed else None
@@ -2962,7 +3023,7 @@ async def resupply():
     world.scripted = False
     world.pouch_hue = {}
     world.shelf_stock = {"room": 0, "landing": 3}
-    text, code, store, _ = await run_scenario(world, "resupply", 12820, [GOOD_TREE],
+    text, code, store, _ = await run_scenario(world, "resupply", [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "10", "--human", "off"])
     eps = store.episodes("lumber")
     res = (eps[0].get("resupply") or []) if eps else []
@@ -3015,7 +3076,7 @@ async def staff_in_view():
             store.close()
 
     # one tree, as before (the walk home from GOOD_TREE crosses the door)
-    text, code, store, _ = await run_scenario(world, "staff_in_view", 12810, [GOOD_TREE],
+    text, code, store, _ = await run_scenario(world, "staff_in_view", [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"],
                                               during=overseer)
     gm_key, vendor_key = f"0x{GM_SEEN:08X}", f"0x{VENDOR_NEAR:08X}"
@@ -3083,8 +3144,8 @@ async def hop():
     world, off = World("hop"), World("hop")
     args, routes = ["--trips", "1", "--logs-per-trip", "100", "--human", "off"], hop_routes()
     (text, code, store, _), (otext, ocode, ostore, _) = await asyncio.gather(
-        run_scenario(world, "hop", 12920, [GOOD_TREE, DRY_TREE], args, more_spots=[HOP_SPOT], routes=routes),
-        run_scenario(off, "hop_off", 12930, [GOOD_TREE, DRY_TREE], args + ["--hops", "0"], more_spots=[HOP_SPOT],
+        run_scenario(world, "hop", [GOOD_TREE, DRY_TREE], args, more_spots=[HOP_SPOT], routes=routes),
+        run_scenario(off, "hop_off", [GOOD_TREE, DRY_TREE], args + ["--hops", "0"], more_spots=[HOP_SPOT],
                      routes=routes))
     eps = store.episodes("lumber")
     brief = [{k: e.get(k) for k in ("spot", "leg", "outcome", "why", "dry", "logs", "carried_in", "hop", "stored",
@@ -3748,9 +3809,9 @@ def stand_events(store):
     return [e["data"] for e in store.job_events("lumber") if e["kind"] == "stand"]
 
 
-def state_req(req):
+def state_req(port, req):
     import socket
-    with socket.create_connection(("127.0.0.1", STATE_PORT), timeout=5) as s:
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as s:
         s.sendall((json.dumps(req) + "\n").encode())
         return json.loads(s.makefile("rb").readline())
 
@@ -3764,13 +3825,19 @@ def is_subsequence(want, seq):
     return all(any(k == w for k in it) for w in want)
 
 
+LAUNCH_GAP_S = 0.25    # between the first wave's launches: 30 proxies + runners starting at once saturate
+                       # all cores for seconds, which starves timing checks of tests running alongside
+
+
 def run_parallel(names, jobs):
     """Each async scenario in its own `python test_loop_lumber.py <name>` (they already have private
-    ports and temp dirs), at most `jobs` at a time; output printed per scenario in list order.
-    Returns the names whose child failed."""
+    ports and temp dirs), at most `jobs` at a time, the first wave LAUNCH_GAP_S apart; output printed
+    per scenario in list order. Returns the names whose child failed."""
     import concurrent.futures
 
-    def one(name):
+    def one(k, name):
+        if k < jobs:
+            time.sleep(k * LAUNCH_GAP_S)
         t = time.time()
         p = subprocess.run([PY, os.path.abspath(__file__), name], capture_output=True, text=True,
                            encoding="utf-8", errors="replace", cwd=ROOT)
@@ -3778,12 +3845,28 @@ def run_parallel(names, jobs):
 
     failed = []
     with concurrent.futures.ThreadPoolExecutor(jobs) as pool:
-        for name, code, out, secs in pool.map(one, names):
+        for name, code, out, secs in pool.map(one, range(len(names)), names):
             print(out.rstrip().removesuffix("ALL PASS").rstrip())
             print(f"-- {name}: {'ok' if code == 0 else f'FAILED (exit {code})'} in {secs:.0f} s")
             if code != 0:
                 failed.append(name)
     return failed
+
+
+async def run_async(fn):
+    """Runs scenario `fn`, then, as asyncio.run's shutdown would, cancels what it left running (the simulated
+    world's tasks) and reaps its proxies (killed as it ended) so their logs can be removed."""
+    try:
+        await fn()
+    finally:
+        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        for p in PROXIES:
+            kill_proxy(p)
+            await p.wait()
+        PROXIES.clear()
 
 
 if __name__ == "__main__":
@@ -3805,14 +3888,20 @@ if __name__ == "__main__":
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`
     chosen = [fn for fn in runs if not pick or fn.__name__ in pick]
     scenarios = [fn.__name__ for fn in chosen if asyncio.iscoroutinefunction(fn)]
-    jobs = int(os.environ.get("LOOP_TEST_JOBS", "8"))
+    jobs = int(os.environ.get("LOOP_TEST_JOBS") or max(8, os.cpu_count() or 1))
     if len(scenarios) > 1 and jobs > 1:      # each in its own process, several at once
         FAILURES.extend(f"scenario {n}" for n in run_parallel(scenarios, jobs))
         chosen = [fn for fn in chosen if not asyncio.iscoroutinefunction(fn)]
     for fn in chosen:
         if asyncio.iscoroutinefunction(fn):
-            asyncio.run(fn())
+            asyncio.run(run_async(fn))
         else:
             fn()
+    if OWN_LOGDIR:                           # keep the logs of a failed run for inspection
+        if FAILURES:
+            print(f"\nlogs kept in {LOGDIR}")
+        else:
+            import shutil
+            shutil.rmtree(LOGDIR, ignore_errors=True)
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

@@ -214,7 +214,7 @@ class WalkMemory:
 
 def c2s_walks(c2s_raw: bytes, c2s_key: int) -> list[tuple[int, int]]:
     """[(dir 0..7, seq)] of every C2S walk (0x02) in a raw C2S capture."""
-    buf = bytes(b ^ c2s_key for b in c2s_raw[CLIENT_PREAMBLE_LEN:])
+    buf = bytes(c2s_raw[CLIENT_PREAMBLE_LEN:]).translate(bytes(b ^ c2s_key for b in range(256)))
     mv = memoryview(buf)
     walks = []
     i, n = 0, len(buf)
@@ -328,39 +328,98 @@ def apply_log_row(memory: WalkMemory, row: dict) -> bool:
     return True
 
 
+class _StepLog(WalkMemory):
+    """Records add_step calls in order, for build_from_logs to replay."""
+
+    def __init__(self):
+        super().__init__()
+        self.steps: list[tuple[Tile, Tile]] = []
+
+    def add_step(self, a: Tile, b: Tile) -> None:
+        self.steps.append((a, b))
+
+
+def _session_steps(c2s_path: str, s2c_path: str):
+    """(add_step calls in order, stats) of one capture pair, None if unreadable."""
+    try:
+        with open(c2s_path, "rb") as f:
+            c2s_raw = f.read()
+        with open(s2c_path, "rb") as f:
+            s2c_raw = f.read()
+    except OSError:
+        return None
+    log, st = _StepLog(), {}
+    reconstruct_session(c2s_raw, s2c_raw, log, st)
+    return log.steps, st
+
+
+def _size(path: str) -> int:
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0
+
+
 def build_from_logs(logdir: str = DEFAULT_LOGDIR, stats: dict | None = None) -> WalkMemory:
     """WalkMemory from every capture pair with a non-empty c2s.raw plus every
     jsonl step/blocked row under logdir. Unreadable or garbage files add nothing.
-    `stats`, if given, receives the reconstruct_session counters plus `rows`."""
+    `stats`, if given, receives the reconstruct_session counters plus `rows`.
+    The capture pairs are decoded in worker processes (at most UO_TEST_WORKERS
+    when set, as harness/run_tests.py does); their moves are applied in file
+    order, then the rows, so the memory (set insertion order included) is the
+    one a serial pass builds."""
     memory = WalkMemory()
     st = stats if stats is not None else {}
     st.setdefault("rows", 0)
+    pairs = []
     for s2c_path in sorted(glob.glob(os.path.join(logdir, "session_*.s2c.raw"))):
         c2s_path = s2c_path[:-len(".s2c.raw")] + ".c2s.raw"
         try:
             if os.path.getsize(c2s_path) <= CLIENT_PREAMBLE_LEN:
                 continue  # lost C2S buffer: confirms can't be matched to walks
-            with open(c2s_path, "rb") as f:
-                c2s_raw = f.read()
-            with open(s2c_path, "rb") as f:
-                s2c_raw = f.read()
         except OSError:
             continue
-        reconstruct_session(c2s_raw, s2c_raw, memory, st)
-    for jl in sorted(glob.glob(os.path.join(logdir, "session_*.jsonl"))):
-        try:
-            with open(jl, encoding="utf-8", errors="replace") as f:
-                for line in f:
-                    if '"step"' not in line and '"blocked"' not in line:
-                        continue  # cheap pre-filter; logs are large
-                    try:
-                        row = json.loads(line)
-                    except ValueError:
-                        continue
-                    if isinstance(row, dict) and apply_log_row(memory, row):
-                        st["rows"] += 1
-        except OSError:
-            continue
+        pairs.append((c2s_path, s2c_path))
+    if len(pairs) > 1:
+        from concurrent.futures import ProcessPoolExecutor
+        cap = int(os.environ.get("UO_TEST_WORKERS") or 0) or os.cpu_count() or 1
+        ex = ProcessPoolExecutor(max_workers=min(len(pairs), cap))
+        big_first = sorted(pairs, key=lambda p: -_size(p[1]))
+        futures = dict(zip(big_first, (ex.submit(_session_steps, *p) for p in big_first)))
+        results = (futures[p].result() for p in pairs)
+    else:
+        ex = None
+        results = (_session_steps(*p) for p in pairs)
+    try:
+        rows = []  # parsed while the workers decode
+        for jl in sorted(glob.glob(os.path.join(logdir, "session_*.jsonl"))):
+            try:
+                with open(jl, encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        if '"step"' not in line and '"blocked"' not in line:
+                            continue  # cheap pre-filter; logs are large
+                        try:
+                            row = json.loads(line)
+                        except ValueError:
+                            continue
+                        if isinstance(row, dict):
+                            rows.append(row)
+            except OSError:
+                continue
+        for res in results:
+            if res is None:
+                continue
+            steps, session_st = res
+            for a, b in steps:
+                memory.add_step(a, b)
+            for k, v in session_st.items():
+                st[k] = st.get(k, 0) + v
+    finally:
+        if ex is not None:
+            ex.shutdown(cancel_futures=True)
+    for row in rows:
+        if apply_log_row(memory, row):
+            st["rows"] += 1
     return memory
 
 

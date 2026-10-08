@@ -16,6 +16,8 @@ client-identical "bank" packet, and every C2S packet came from the client or age
 import asyncio
 import json
 import os
+import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -31,8 +33,18 @@ from uo.packets import packet_length, C2S_OVERRIDES  # noqa: E402
 from uo.s2c import encode_packet  # noqa: E402
 from world.parsers import parse_packet  # noqa: E402
 
-PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT = 12610, 12611, 12612, 12613
-LOGDIR = f"{ROOT}/logs_test_errand"
+def _free_ports(n):
+    socks = [socket.socket() for _ in range(n)]
+    for s in socks:
+        s.bind(("127.0.0.1", 0))
+    ports = [s.getsockname()[1] for s in socks]
+    for s in socks:
+        s.close()
+    return ports
+
+
+PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT = _free_ports(4)
+LOGDIR = tempfile.mkdtemp(prefix="logs_test_errand_")
 C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
 SELF = 0x00094375
@@ -151,6 +163,19 @@ class World:
             await writer.drain()
 
 
+async def connect_retry(port, timeout=30.0):
+    """Connect once the proxy subprocess listens (replaces a fixed startup sleep)."""
+    loop = asyncio.get_running_loop()
+    end = loop.time() + timeout
+    while True:
+        try:
+            return await asyncio.open_connection("127.0.0.1", port)
+        except OSError:
+            if loop.time() > end:
+                raise
+            await asyncio.sleep(0.05)
+
+
 async def main():
     os.makedirs(LOGDIR, exist_ok=True)
     for f in os.listdir(LOGDIR):
@@ -166,8 +191,7 @@ async def main():
          "--memory-db", mem_path],
         stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     try:
-        await asyncio.sleep(1.0)
-        reader, writer = await asyncio.open_connection("127.0.0.1", PROXY_PORT)
+        reader, writer = await connect_retry(PROXY_PORT)
         writer.write(bytes.fromhex("ef0000000c"))
         await writer.drain()
 
@@ -221,4 +245,8 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
+    if FAILURES:
+        print(f"logs kept: {LOGDIR}")
+    else:
+        shutil.rmtree(LOGDIR, ignore_errors=True)
     sys.exit(0 if not FAILURES else 1)

@@ -51,13 +51,16 @@ recall walked to the arrival, gold banked at home, back in after --pk-wait (note
 Then, in process (no proxy), the loot-rights run: a blue corpse skipped without a packet, a refused
 open with no lift, a rejected lift not counted (docs/HUNT_LOOP.md "Loot rights").
 
-Run: python test_loop_hunt.py [rights|default|staff|fight|crawl|recall]   (a few minutes for all;
-     private ports; safe while the live proxy runs)
+Run: python test_loop_hunt.py [rights|default|staff|fight|crawl|recall]   (about a minute for all:
+     the proxy runs go in parallel child processes, output in this order; private ports and log
+     dirs; safe while the live proxy runs)
 """
 import asyncio
 import json
 import os
 import re
+import shutil
+import socket
 import subprocess
 import sys
 import struct
@@ -77,8 +80,22 @@ from uo.packets import packet_length, C2S_OVERRIDES  # noqa: E402
 from uo.s2c import encode_packet  # noqa: E402
 from world.parsers import parse_packet  # noqa: E402
 
-PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT = 12680, 12681, 12682, 12683
-LOGDIR = f"{ROOT}/logs_test_hunt"
+
+def _free_ports(n):
+    socks = [socket.socket() for _ in range(n)]
+    for s in socks:
+        s.bind(("127.0.0.1", 0))
+    ports = [s.getsockname()[1] for s in socks]
+    for s in socks:
+        s.close()
+    return ports
+
+
+# private ports and log dir per process: a parallel run hands each scenario child its own ports
+# (HUNT_PORTS, picked together so they never collide)
+PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT = (
+    [int(p) for p in os.environ["HUNT_PORTS"].split(",")] if os.environ.get("HUNT_PORTS") else _free_ports(4))
+LOGDIR = tempfile.mkdtemp(prefix="logs_test_hunt_")
 C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
 SELF, BACKPACK, PACK_GOLD = 0x00094375, 0x44ADA059, 0x44AD0001
@@ -1436,19 +1453,74 @@ def rights():
 
 
 
+SCENARIOS = {"default": {}, "staff": {"staff": True}, "fight": {"fight": FIGHT}, "crawl": {"crawl": True},
+             "recall": {"recall": True}}
+
+
+def run_parallel(names):
+    """The proxy runs are independent (own ports, DB, log dir, sim): run each in a child process
+    (`--child NAME`) at once, rights in process meanwhile, then print every run's output in the
+    serial order, byte for byte; a child's check failures come back through HUNT_FAILURES_OUT."""
+    ports = _free_ports(4 * len(names))               # held together: distinct across the children
+    tmp = tempfile.mkdtemp(prefix="test_hunt_par_")
+    kids = []
+    for k, name in enumerate(names):
+        out = os.path.join(tmp, f"{name}.json")
+        env = dict(os.environ, HUNT_PORTS=",".join(map(str, ports[4 * k:4 * k + 4])), HUNT_FAILURES_OUT=out)
+        kids.append((subprocess.Popen([PY, os.path.abspath(__file__), "--child", name], env=env,
+                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT), out))
+    return kids, tmp
+
+
+def reap(kids, tmp):
+    """Stop the children still running (with their proxy and runner) and drop the scratch dir."""
+    for p, _ in kids:
+        if p.poll() is None:
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], capture_output=True)
+            else:
+                p.kill()
+            p.wait()
+    shutil.rmtree(tmp, ignore_errors=True)
+
+
+def collect(kids, tmp):
+    try:
+        for p, out in kids:
+            data = p.communicate()[0]
+            sys.stdout.flush()
+            sys.stdout.buffer.write(data)
+            sys.stdout.buffer.flush()
+            if not os.path.exists(out):               # the child died (a traceback, as serial would)
+                sys.exit(p.returncode or 1)
+            FAILURES.extend(json.load(open(out, encoding="utf-8")))
+    finally:
+        reap(kids, tmp)
+
+
 if __name__ == "__main__":
     only = sys.argv[1:]               # e.g. `crawl`: just that run (iterating); none: all six
-    if not only or "rights" in only:
-        rights()
-    if not only or "default" in only:
-        asyncio.run(main())
-    if not only or "staff" in only:
-        asyncio.run(main(staff=True))
-    if not only or "fight" in only:
-        asyncio.run(main(fight=FIGHT))
-    if not only or "crawl" in only:
-        asyncio.run(main(crawl=True))
-    if not only or "recall" in only:
-        asyncio.run(main(recall=True))
+    if only[:1] == ["--child"]:                       # one proxy run (run_parallel's child)
+        try:
+            asyncio.run(main(**SCENARIOS[only[1]]))
+        except BaseException:
+            print(f"(logs kept in {LOGDIR})")
+            raise
+        with open(os.environ["HUNT_FAILURES_OUT"], "w", encoding="utf-8") as fh:
+            json.dump(FAILURES, fh)
+        if FAILURES:
+            print(f"(logs kept in {LOGDIR})")
+        else:
+            shutil.rmtree(LOGDIR, ignore_errors=True)
+        sys.exit(0)
+    shutil.rmtree(LOGDIR, ignore_errors=True)         # unused here: the children have their own
+    kids, tmp = run_parallel([n for n in SCENARIOS if not only or n in only])
+    try:
+        if not only or "rights" in only:
+            rights()
+    except BaseException:                             # serial: the runs after it never started
+        reap(kids, tmp)
+        raise
+    collect(kids, tmp)
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

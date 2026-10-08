@@ -60,9 +60,20 @@ from uo.s2c import encode_packet  # noqa: E402
 TAG = "20260929_163420"
 TAG_COMMIT = "5f8c228"      # "Phase 3 DONE: unattended bank run ... session_20260929_163420"
 OLD_TAG = "20260928_141253"
-SERVER_PORT = 12630
-OVERSEER_PORT = 12764      # .. 12766: overseer/jobs route servers
-PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT, VIZ_PORT = 12620, 12621, 12622, 12623, 12624
+
+
+def _free_ports(n):
+    socks = [socket.socket() for _ in range(n)]
+    for s in socks:
+        s.bind(("127.0.0.1", 0))
+    ports = [s.getsockname()[1] for s in socks]
+    for s in socks:
+        s.close()
+    return ports
+
+
+(SERVER_PORT, SSE_PORT, BURST_PORT, OVERSEER_PORT, OVERSEER_PORT2, OVERSEER_PORT3,
+ PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT, VIZ_PORT) = _free_ports(11)
 C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
 SELF = 0x00094375
@@ -609,7 +620,7 @@ def test_overseer_routes(logdir):
         m.chat_post("overseer", f"n{i}", t=200.0 + i)
     top = m.con.execute("SELECT MAX(id) FROM chat").fetchone()[0]
     m.close()
-    port += 1
+    port = OVERSEER_PORT2
     base = f"http://127.0.0.1:{port}"
     srv = serve(viz_feed.ReplayDriver(TAG, logdir), port, path)
     try:
@@ -623,7 +634,7 @@ def test_overseer_routes(logdir):
 
     # no store yet: GETs answer empty and create nothing; the first chat creates it
     missing = os.path.join(tempfile.mkdtemp(), "harness.db")
-    port += 1
+    port = OVERSEER_PORT3
     base = f"http://127.0.0.1:{port}"
     srv = serve(viz_feed.ReplayDriver(TAG, logdir), port, missing)
     try:
@@ -827,8 +838,8 @@ def test_order_fallback():
 def test_sse(logdir):
     print("== SSE framing, resume, coalescing ==")
     d = viz_feed.ReplayDriver(TAG, logdir)
-    srv = serve(d, SERVER_PORT + 1)
-    url = f"http://127.0.0.1:{SERVER_PORT + 1}/api/events"
+    srv = serve(d, SSE_PORT)
+    url = f"http://127.0.0.1:{SSE_PORT}/api/events"
     try:
         for _ in range(300):
             d.step()
@@ -1031,8 +1042,8 @@ def test_burst():
 
     # end to end: a reader slower than the burst over HTTP
     feed = HandFeed()
-    srv = serve(feed, SERVER_PORT + 2)
-    rd = ThrottledSSE(SERVER_PORT + 2, BURST_READER_BPS)
+    srv = serve(feed, BURST_PORT)
+    rd = ThrottledSSE(BURST_PORT, BURST_READER_BPS)
     try:
         end = time.monotonic() + 5
         while not feed.subscribers and time.monotonic() < end:
@@ -1057,7 +1068,7 @@ def test_burst():
         check("... events in seq order; every speech/intent/cliloc/gump arrived",
               got == sorted(set(got)) and got[-1] == n - 1 and [s for s in got if s in set(keep)] == keep,
               f"{len(got)} of {n}")
-        st = get(f"http://127.0.0.1:{SERVER_PORT + 2}/api/state")
+        st = get(f"http://127.0.0.1:{BURST_PORT}/api/state")
         check("/api/state = the newest response + viz, ring up to the newest event",
               {k: v for k, v in st.items() if k != "events"} == want and st["events"][-1]["seq"] == n - 1)
     finally:
@@ -1158,8 +1169,15 @@ def test_live():
              "--upstream-host", "127.0.0.1", "--upstream-port", str(UPSTREAM_PORT),
              "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--logdir", logdir],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        time.sleep(1.0)
-        client = socket.create_connection(("127.0.0.1", PROXY_PORT), timeout=5)
+        end = time.monotonic() + 30
+        while True:   # connect once the proxy subprocess listens (replaces a fixed startup sleep)
+            try:
+                client = socket.create_connection(("127.0.0.1", PROXY_PORT), timeout=5)
+                break
+            except ConnectionRefusedError:
+                if time.monotonic() > end:
+                    raise
+                time.sleep(0.05)
         client.sendall(bytes.fromhex("ef0000000c"))
         time.sleep(0.3)
         client.sendall(xor(bytes([0x02, 0x80, 5, 0, 0, 0, 0]), C2S_KEY))   # client walks N
