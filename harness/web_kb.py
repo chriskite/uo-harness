@@ -20,7 +20,7 @@ The wiki and the official news posts are authoritative text, so they go into the
            Afterwards the new entries are embedded (embedder.py, GPU) when this Python has
            fastembed, so the first `ctl know search` doesn't pay for thousands of vectors.
 
-  python harness/web_kb.py sync [--db harness/data/harness.db] [--dry-run] [--only wiki|news]
+  python harness/web_kb.py sync [--db harness/data/harness.db] [--dry-run]
   python harness/web_kb.py chunks KEY                # wiki:<pageid> / news:<postid>
   python harness/web_kb.py stats [--db ...]
 """
@@ -167,15 +167,16 @@ def doc_chunks(key, source, kind, title, url, published, html):
     return out
 
 
-def all_chunks(web, only=None):
-    """Every doc's chunks. A chunk whose text (as knowledge.content_hash normalises it)
-    another chunk already has is left out, so the store doesn't confirm itself: template
-    boilerplate shared by wiki pages, and patch sections repeated by a later post (the newest
-    post keeps it)."""
+def all_chunks(web):
+    """Every doc's chunks. A chunk whose text (as knowledge.content_hash normalises it) another
+    chunk already has is left out, so the store doesn't confirm itself: template boilerplate
+    shared by wiki pages, patch sections a later post repeats, and patch text the wiki copied
+    word for word. The wiki (the current reference) keeps it over news, and a newer post over
+    an older one. Because the dedupe spans both sources, a sync always covers both: synced
+    alone, the wiki's copy of a patch section would confirm the news entry (2026-10-08)."""
     import knowledge
-    q = "SELECT key, source, kind, title, url, published, html FROM docs"
-    rows = web.execute(q + (" WHERE source=?" if only else "") + " ORDER BY source, published DESC, key",
-                       (only,) if only else ()).fetchall()
+    rows = web.execute("SELECT key, source, kind, title, url, published, html FROM docs "
+                       "ORDER BY source='wiki' DESC, published DESC, key").fetchall()
     out, texts = [], set()
     for r in rows:
         for c in doc_chunks(*r):
@@ -193,19 +194,17 @@ def chunk_hash(c):
 
 # ---------------------------------------------------------------------------- sync
 
-def sync(web, db=HARNESS_DB, only=None, dry_run=False, embed=True, log=print):
+def sync(web, db=HARNESS_DB, dry_run=False, embed=True, log=print):
     """Bring the knowledge store `db` in line with the chunks. Returns counts."""
     import knowledge
     import memory
     web.executescript(STATE_SCHEMA)
     target = os.path.normcase(os.path.abspath(db))
     k = knowledge.Knowledge(memory.connect(db))
-    chunks = all_chunks(web, only)
+    chunks = all_chunks(web)
     want = {c["key"]: c for c in chunks}
     state = {r[0]: dict(zip(("key", "knowledge_id", "action", "hash", "status"), r)) for r in web.execute(
         "SELECT key, knowledge_id, action, hash, status FROM kb_entries WHERE target=?", (target,))}
-    if only:
-        state = {key: s for key, s in state.items() if key.startswith(only + ":")}
     # entries this sync wrote but has no state for (a lost or other computer's outlands_web.db)
     # are found by their ref and adopted, instead of being confirmed by a second add
     by_ref = {}
@@ -327,7 +326,6 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("sync")
     p.add_argument("--db", default=HARNESS_DB, help="knowledge store")
-    p.add_argument("--only", choices=("wiki", "news"))
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--no-embed", action="store_true")
     p = sub.add_parser("chunks")
@@ -337,7 +335,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     web = ow.connect(a.web)
     if a.cmd == "sync":
-        sync(web, a.db, a.only, a.dry_run, embed=not a.no_embed)
+        sync(web, a.db, a.dry_run, embed=not a.no_embed)
     elif a.cmd == "chunks":
         r = web.execute("SELECT key, source, kind, title, url, published, html FROM docs WHERE key=?",
                         (a.key,)).fetchone()

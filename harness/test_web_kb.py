@@ -252,8 +252,26 @@ def test_repeated_heading():
         web.close()
 
 
+def test_wiki_copies_patch():
+    """The wiki copies a patch section word for word: one entry, the wiki's, unconfirmed."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+        web = web_db(td, news="<p><b>Hatchet Uses</b></p><ul><li>Iron: 500 base</li><li>Exceptional: +250</li>"
+                              "<li>Skill: Lumberjacking</li></ul>")
+        hdb = os.path.join(td, "harness.db")
+        memory.connect(hdb).close()
+        r = wk.sync(web, hdb, embed=False, log=lambda *_: None)
+        con = memory.connect(hdb)
+        rows = con.execute("SELECT source_type, topic, confirmations FROM knowledge "
+                           "WHERE content LIKE '%Iron: 500 base%'").fetchall()
+        check(rows == [("wiki", "Lumberjacking > Colored Hatchets > Uses", 0)] and not r.get("confirmed"),
+              f"the wiki's copy of a patch section is the one entry ({rows}, {r})")
+        con.close()
+        web.close()
+
+
 def main():
-    for t in (test_text, test_forum_pages, test_forum_resume, test_chunks, test_sync, test_repeated_heading):
+    for t in (test_text, test_forum_pages, test_forum_resume, test_chunks, test_sync, test_repeated_heading,
+              test_wiki_copies_patch):
         print(f"== {t.__name__} ==")
         t()
     print(f"\nweb_kb: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")

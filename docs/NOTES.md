@@ -2045,8 +2045,8 @@ Code: `harness/outlands_web.py` (capture), `harness/web_kb.py` (wiki + news → 
     `logs/outlands_web.log`. A first full crawl takes hours: launch it detached (`Start-Process`
     with `-RedirectStandardOutput`, as for discord_kb), one process per host is fine; re-runs fetch
     only what changed.
-  - `python harness/web_kb.py sync [--only wiki|news] [--dry-run] [--db PATH]`, `chunks <doc key>`
-    (preview a doc's entries), `stats`.
+  - `python harness/web_kb.py sync [--dry-run] [--db PATH]` (always wiki and news together),
+    `chunks <doc key>` (preview a doc's entries), `stats`.
   - `python harness/forum_kb.py run [--max-cost 40]` (or the stages `extract [--nodes] [--limit]`,
     `consolidate`, `promote [--dry-run]`, `digest`, `search`, `stats`; same rules and cost guard
     as discord_kb, exit 2 = cost cap hit, rerun resumes). Extract per section as the crawl
@@ -2088,10 +2088,18 @@ Code: `harness/outlands_web.py` (capture), `harness/web_kb.py` (wiki + news → 
     repeated heading now end in `#2`, `#3`…; the 18 affected entries were repaired by hand
     (confirmations 0, confidence 0.8, ref back to their own key) and the re-sync added the 21
     sections and renamed 122 repeated-heading topics (superseded versions kept).
-- **First news sync (2026-10-08, live store):** 6 140 chunks from 560 non-video posts (median
-  ~270 characters; sections repeated word for word by a later post are kept once, in the newest),
-  6 119 added in 379 s (~60 ms each: two FTS lookups and a commit per add), 4.5 s to embed on the
-  GPU.
+  - The wiki copies patch text word for word: the first wiki sync (run alone, `--only wiki`, since
+    removed) confirmed 301 news entries with its identical sections (and overwrote their refs). The
+    dedupe now spans both sources with the wiki first, a sync always covers both, and the 301
+    entries were handed to the wiki by hand (confirmation undone, a new version with the wiki
+    topic, ref and source superseding the news one). Test: `test_wiki_copies_patch`.
+- **First syncs (2026-10-08, live store):** news: 6 140 chunks from the 560 posts with text, 6 119
+  added in 379 s (~60 ms each: two FTS lookups and a commit per add), 4.5 s to embed on the GPU.
+  Wiki: 6 284 chunks from 2 139 articles (crawl 2 804 s, 2 149 API calls, all HTTP 200), 2.7 s to
+  embed. After the fixes above: **12 123 entries, 6 284 wiki (median 366 characters) + 5 839 news
+  (median 231)**, 0 self-confirmations; an unchanged re-sync takes 3 s. Store afterwards: 6 294
+  `wiki`, 6 012 `doc` (news + Discord official), 3 388 `community` active entries; a hybrid search
+  over all of it took 150–280 ms after the model load.
 - **Recall check (trial sync of 7 619 news + wiki chunks into a copy of the store, 11.7k entries):**
   a hybrid `Knowledge.search` took 100–115 ms after the model load (it reads all vectors per
   search). "what bonus does a bronze hatchet give to lumberjacking" → the wiki's Lumberjacking >
