@@ -202,7 +202,7 @@ TRACK_MODES = ("criminal players", "innocent players", "friendly players", "aggr
                "passive creatures", "townsfolk", "all players", "all hostile players",
                "enemy players", "murderer players")
 RED, RED_NAME = 0x0009E217, "Lord Red"                    # a murderer the hunt finds, never in view
-RED_FAR, RED_NEAR = 100, 55                               # tiles from us at the two hits (react range 80; Bastet 10-03: 55)
+RED_FAR, RED_NEAR = 100, 55                               # tiles from us at the two hits (react range 60; Bastet 10-03: 55)
 # creature runs (LUMBER_LOOP.md §13 "Running from a creature"): a gazer (body 22, ranged) casts at us from 10
 # tiles at the library spot; a war-mode creature stands by the nearest tree on Shelter
 GAZER, GAZER_BODY, GAZER_DMG, GAZER_CAST_S = 0x0000CA5E, 22, 10, 2.5
@@ -2380,7 +2380,7 @@ async def track_reds():
     far = [d for d in seen if d.get("source") == "tracking" and d.get("distance") == RED_FAR]
     near = [d for d in seen if d.get("source") == "tracking" and d.get("distance") == RED_NEAR]
     check("the far hit (100 tiles): a pk_seen event from tracking with the name, serial and arrow, logged only "
-          "(beyond the react range 80: no escape, not counted as hazard)",
+          "(beyond the react range 60: no escape, not counted as hazard)",
           len(far) == 1 and far[0]["serial"] == RED and far[0]["name"] == RED_NAME
           and far[0]["x"] == LIB_TREE["stand"][0] + RED_FAR and not far[0]["in_range"] and not far[0]["react"]
           and not far[0]["counted"] and far[0]["spaces"] == RED_FAR and far[0]["mode"] == "murderer players"

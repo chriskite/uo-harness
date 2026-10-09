@@ -1321,6 +1321,15 @@ Tests: `test_world_units.py` `test_title_tags`, `test_lumber_opt.py` (faction zo
 and `precast` in `test_loop_lumber.py` (both failing before). Details: docs/LUMBER_LOOP.md §13
 "Recall escape on players".
 
+## Tracked-red recall range 80 → 60 (decided 2026-10-08)
+
+User: "reduce the distance where we recall out when a red is tracked to 60 or less". `loop_lumber`
+`--track-react-range` default 60. Of the 24 tracked-red recalls on record (2026-10-03..08), 11 were at
+61–80 tiles (64–77) and now become logged-only sightings; 13 at 35–57 still recall. Risk named: the
+range went to 80 after Bastet, tracked at 55 tiles, struck mounted ~6.5 s later; 55 is still inside
+60, but a mounted red at 61–80 tiles is ~1–2 s from that point, and the in-view red rule (any red
+in view: recall) is the backstop. Reds beyond the range also stop counting as the spot's hazard.
+
 ## After the witcher_336 death: pacers, hop risk, no-go areas (decided and built 2026-10-08)
 
 User approval of Main's proposals after Seer-8's death report (a mounted gloomwood hunter's arrows,

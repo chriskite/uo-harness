@@ -1306,9 +1306,9 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     lumbers on. `--track off` disables all of it.
   - **React to hits:** a hit while hunting murderer players (the world model keeps the mode at
     hit time) is a red, possibly out of view. Its distance is Chebyshev from us to the arrow's x/y
-    (the "(N spaces to target)" line when there's no arrow). Within `--track-react-range` (80,
-    user decision 2026-10-03; it was 40 until Bastet's third kill: tracked at 55 tiles at 19:07:50,
-    logged only, striking 5.5 s later mounted) at a pvp spot while out at it (after the travel
+    (the "(N spaces to target)" line when there's no arrow). Within `--track-react-range` (60,
+    user decision 2026-10-08; 80 from 2026-10-03, and 40 until Bastet's third kill: tracked at 55
+    tiles at 19:07:50, logged only, striking 5.5 s later mounted) at a pvp spot while out at it (after the travel
     out, until home), it is the red escape above: `recall_out` with why `tracking: <name> N spaces`,
     the guard flight if that fails, then stop. Each new hit is checked, so a red first found far
     that comes within range triggers then. A red already recalled from never triggers again in the
@@ -1320,7 +1320,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     sightings feed `lumber_opt`** (`store_inputs`): within the react range, and once per serial per
     run across view and tracking. Farther hits weigh 0, not a lower weight: at high skill the hunt
     finds reds sitting in their houses far away, and any weight would keep charging a spot near a
-    red's house for every trip forever, while the house is no danger at 80+ tiles. A red that
+    red's house for every trip forever, while the house is no danger beyond the range. A red that
     walks into range does count. The Jobs page still counts every `pk_seen`.
   - **Recorded:** a `tracking` job event per try (`where`, `ok`, `clicks`, `error`, `skill`,
     `trip`; `unavailable` when there is no skill) and the trip row's `tracking`: `on_s`, `off_s`,

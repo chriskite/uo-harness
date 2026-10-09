@@ -1346,8 +1346,8 @@ t 1791153675; gump fixtures `harness/testdata/aspect_gumps.json`. Wiki: Aspect_M
   is re-sent). In 121 min of murderer hunting there were 0 murderer hits, even with Bastet in view
   at 18 tiles (Corpse Creek); why is open [INFERENCE: Tracking 60's chance or range, or the
   lawless region]. The hit reaction is so far tested only in the simulator.
-- **A tracked red within 80 tiles** (`--track-react-range`, user decision 2026-10-03; 40 until the
-  third Bastet death below) at a pvp spot is a red escape (recall home, "tracking: <name> N
+- **A tracked red within 60 tiles** (`--track-react-range`, user decision 2026-10-08; 80 from
+  2026-10-03, 40 until the third Bastet death below) at a pvp spot is a red escape (recall home, "tracking: <name> N
   spaces"). Farther reds (e.g. sitting in a house) are `pk_seen` events with `counted: false` and
   don't feed the spot hazard. Trip rows carry `tracking` coverage (on_frac, hits).
 - **Third Bastet death (live 2026-10-03 19:08, terran_wilds, Hackworth).** Tracking found him at
