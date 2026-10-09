@@ -1,6 +1,6 @@
 /* Theme: Ultima Online / Outlands. Dark leather-and-bronze gump frames, gold Cinzel
-   headings, a Caudex body face, parchment for the overseer's journal and a crimson
-   ribbon for the details drawer (after uooutlands.com). Fonts are bundled (OFL,
+   headings, a Georgia (system serif) body face, parchment for the overseer's journal and a crimson
+   ribbon for the details drawer (after uooutlands.com). Cinzel is bundled (OFL,
    src/fonts/) so the viz needs no network. Status colours (ok/warn/bad/info) and the
    game's own colours (notoriety, HP bands, map layers) keep their meaning. */
 
@@ -10,27 +10,6 @@
   font-weight: 400 900;
   font-display: swap;
   src: url("./fonts/Cinzel.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Caudex";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("./fonts/Caudex-Regular.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Caudex";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("./fonts/Caudex-Bold.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Caudex";
-  font-style: italic;
-  font-weight: 400;
-  font-display: swap;
-  src: url("./fonts/Caudex-Italic.woff2") format("woff2");
 }
 
 :root {
@@ -55,7 +34,7 @@
   --bad: #d23a30;
   --info: #6b9be0;
   --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  --serif: "Caudex", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  --serif: Georgia, "Palatino Linotype", "Book Antiqua", Palatino, serif;
   --display: "Cinzel", "Trajan Pro", "Palatino Linotype", "Book Antiqua", serif;
   /* fine dark grain (stone / leather) and low-frequency stains (parchment) */
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .6 -.22'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
@@ -89,7 +68,7 @@ body,
   margin: 0;
   height: 100%;
   color: var(--text);
-  font: 13px/1.38 var(--serif);
+  font: 14.5px/1.38 var(--serif);
 }
 
 button,
@@ -152,7 +131,7 @@ h4 {
 }
 h2 {
   font-family: var(--display);
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 700;
   letter-spacing: 0.07em;
   color: var(--gold);
@@ -162,13 +141,13 @@ h2 {
 }
 h3 {
   font-family: var(--display);
-  font-size: 14px;
+  font-size: 15.5px;
   font-weight: 700;
   color: var(--gold);
   margin: 2px 0 6px;
 }
 h4 {
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 700;
   color: #c9a865;
   margin: 10px 0 4px;
@@ -176,7 +155,7 @@ h4 {
 
 .mono {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13.5px;
 }
 .dim {
   color: var(--dim);
@@ -204,7 +183,7 @@ h4 {
 }
 .error {
   color: var(--bad);
-  font-size: 12px;
+  font-size: 13.5px;
 }
 
 /* ---------------------------------------------------------------- layout */
@@ -259,7 +238,7 @@ h4 {
     inset 0 1px 0 rgba(255, 190, 150, 0.15),
     0 3px 10px rgba(0, 0, 0, 0.55);
   font-family: var(--display);
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--gold-hi);
@@ -358,7 +337,7 @@ h4 {
   gap: 8px;
 }
 .intent-text {
-  font-size: 15.5px;
+  font-size: 17.5px;
   font-weight: 700;
   line-height: 1.3;
   color: #f2e6c8;
@@ -428,7 +407,7 @@ h4 {
   gap: 8px;
   align-items: baseline;
   padding: 1px 0;
-  font-size: 12px;
+  font-size: 13.5px;
   color: #b8a888;
 }
 .intent-past .ago {
@@ -472,7 +451,7 @@ h4 {
 }
 .title {
   font-family: var(--display);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
   letter-spacing: 0.04em;
   margin-right: 6px;
@@ -535,7 +514,7 @@ h4 {
   white-space: nowrap;
   flex-shrink: 1;
   min-width: 0;
-  font-size: 12px;
+  font-size: 13.5px;
 }
 button.danger {
   color: #f6c0b0;
@@ -548,7 +527,7 @@ button.danger {
   display: inline-block;
   padding: 1px 7px;
   border-radius: 2px;
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 700;
   letter-spacing: 0.04em;
   border: 1px solid transparent;
@@ -611,7 +590,7 @@ button.danger {
 .bar-label {
   color: var(--dim);
   font-family: var(--display);
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 700;
 }
 /* status-gump bars: an engraved slot with a glassy fill */
@@ -631,13 +610,13 @@ button.danger {
 }
 .bar-value {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12.5px;
   text-align: right;
 }
 
 button.serial {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13.5px;
   padding: 0 3px;
   background: none;
   border: none;
@@ -678,7 +657,7 @@ button.link:hover:not(:disabled) {
   margin: 6px 0;
 }
 .buff {
-  font-size: 11px;
+  font-size: 12.5px;
   padding: 1px 6px;
   border-radius: 2px;
   background: #2c1d3a;
@@ -702,7 +681,7 @@ details > summary::marker {
 }
 .noto {
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13.5px;
 }
 
 table.counts,
@@ -715,7 +694,7 @@ table.counts th {
   text-align: left;
   color: var(--gold);
   font-family: var(--display);
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 700;
   border-bottom: 1px solid var(--frame);
   padding: 2px 6px;
@@ -731,7 +710,7 @@ table.evtable tbody tr:hover td {
   background: rgba(196, 154, 82, 0.06);
 }
 table.evtable {
-  font-size: 12px;
+  font-size: 13.5px;
 }
 .movelog {
   max-height: 110px;
@@ -763,7 +742,7 @@ table.evtable {
 /* event names: proxy movement decisions stand out */
 .ev {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13.5px;
   color: #c9b0f0;
   white-space: nowrap;
 }
@@ -836,7 +815,7 @@ table.evtable {
   gap: 6px;
 }
 .live-controls select {
-  font-size: 11px;
+  font-size: 12.5px;
 }
 .live-controls a {
   text-decoration: none;
@@ -906,7 +885,7 @@ table.evtable {
   background: rgba(14, 12, 10, 0.88);
   color: #e8e4dc;
   font-family: var(--display);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -923,7 +902,7 @@ table.evtable {
   position: absolute;
   left: 8px;
   bottom: 6px;
-  font-size: 11px;
+  font-size: 12.5px;
   color: #c4b292;
   background: rgba(12, 8, 5, 0.85);
   border: 1px solid #4a3620;
@@ -1035,7 +1014,7 @@ table.evtable {
 }
 .chip {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12.5px;
   padding: 1px 6px;
   border-radius: 2px;
   background: #22180e;
@@ -1060,7 +1039,7 @@ table.evtable {
   gap: 6px;
   padding: 1px 8px;
   border-bottom: 1px solid #20170e;
-  font-size: 12px;
+  font-size: 13.5px;
   align-items: baseline;
 }
 .logrow.origin-proxy {
@@ -1071,7 +1050,7 @@ table.evtable {
 }
 .fields {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 13px;
   overflow-wrap: anywhere;
 }
 .field {
@@ -1094,7 +1073,7 @@ table.evtable {
 .tabs button,
 .page-switch button {
   font-family: var(--display);
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
   letter-spacing: 0.04em;
 }
@@ -1125,7 +1104,7 @@ ul.tree {
 }
 .layer {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12.5px;
   color: var(--dim);
 }
 .layer.strong {
@@ -1137,7 +1116,7 @@ ul.plain {
 }
 pre.raw {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 13px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   background: #0c0906;
@@ -1232,7 +1211,7 @@ ol.lines {
 }
 .ny-full {
   margin-left: auto;
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--link);
 }
 
@@ -1249,7 +1228,7 @@ ol.lines {
   padding: 0 6px;
   border-radius: 2px;
   font-family: var(--serif);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
   color: #f8e0a0;
   background: #634311;
@@ -1259,7 +1238,7 @@ ol.lines {
   text-shadow: none;
 }
 .ov-status {
-  font-size: 12px;
+  font-size: 13.5px;
 }
 .ov-status.active {
   color: #a8d890;
@@ -1280,7 +1259,7 @@ ol.lines {
 .ov-item {
   border-radius: 2px;
   padding: 4px 8px;
-  font-size: 12.5px;
+  font-size: 14px;
 }
 .ov-text {
   white-space: pre-wrap;
@@ -1290,17 +1269,17 @@ ol.lines {
   display: flex;
   gap: 8px;
   align-items: baseline;
-  font-size: 11px;
+  font-size: 12.5px;
   margin-bottom: 2px;
 }
 .ov-role {
   font-family: var(--display);
   font-weight: 700;
   letter-spacing: 0.06em;
-  font-size: 11px;
+  font-size: 12.5px;
 }
 .ov-time {
-  font-size: 11px;
+  font-size: 12.5px;
 }
 .ov-msg {
   max-width: 88%;
@@ -1339,7 +1318,7 @@ ol.lines {
   align-self: center;
   background: transparent;
   color: var(--dim);
-  font-size: 12px;
+  font-size: 13.5px;
   font-style: italic;
 }
 .ov-thought {
@@ -1362,7 +1341,7 @@ ol.lines {
 .ov-thinking {
   font-family: var(--display);
   font-style: normal;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: #c4a0ec;
@@ -1375,11 +1354,11 @@ ol.lines {
   align-self: flex-start;
   border-left: 3px solid #8a5ad6;
   background: linear-gradient(90deg, #231733, #18110f);
-  font-size: 12px;
+  font-size: 13.5px;
 }
 .ov-tag {
   font-family: var(--display);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: #cbb4f4;
@@ -1387,7 +1366,7 @@ ol.lines {
 /* ctl know: recalls (teal) and memory writes (amber) */
 .ov-memory {
   align-self: stretch;
-  font-size: 12px;
+  font-size: 13.5px;
   border-left: 3px solid #2a9a8a;
   background: linear-gradient(90deg, #0f2420, #13100b);
 }
@@ -1412,7 +1391,7 @@ ol.lines {
 }
 .ov-mem-label {
   font-family: var(--display);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.05em;
 }
@@ -1429,7 +1408,7 @@ ol.lines {
   text-decoration: line-through;
 }
 .ov-mem-kind {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   padding: 0 4px;
@@ -1452,7 +1431,7 @@ ol.lines {
   font-weight: 700;
 }
 .ov-mem-meta {
-  font-size: 10.5px;
+  font-size: 12px;
   margin-left: 4px;
 }
 .ov-juncture {
@@ -1463,7 +1442,7 @@ ol.lines {
   font-family: var(--display);
   font-weight: 700;
   letter-spacing: 0.06em;
-  font-size: 11px;
+  font-size: 12.5px;
 }
 .sev-info {
   border-color: #3e5d9c;
@@ -1513,7 +1492,7 @@ ol.lines {
   font-style: italic;
 }
 .ov-hint {
-  font-size: 11.5px;
+  font-size: 13px;
   color: #f0c86a;
 }
 .ov-send {
@@ -1577,7 +1556,7 @@ ol.lines {
   max-width: 100%;
 }
 .ny-conv-time {
-  font-size: 11px;
+  font-size: 12.5px;
 }
 .ny-main {
   min-height: 0;
@@ -1592,7 +1571,7 @@ ol.lines {
 .ny-title h1 {
   margin: 0;
   font-family: var(--display);
-  font-size: 20px;
+  font-size: 22.5px;
   color: var(--gold);
   letter-spacing: 0.06em;
 }
@@ -1620,7 +1599,7 @@ ol.lines {
   border: 1px solid var(--border);
   border-radius: 2px;
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: 14.5px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
 }
 .ny-user {
@@ -1646,7 +1625,7 @@ ol.lines {
   color: #c8b4ff;
 }
 .ny-steps {
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--dim);
   margin: 2px 0 4px;
 }
@@ -1667,7 +1646,7 @@ ol.lines {
   margin: 4px 0;
 }
 .ny-summary {
-  font-size: 11px;
+  font-size: 12.5px;
   margin-top: 4px;
 }
 /* a Codex change Nystul proposed: a sealed scroll awaiting the operator's Approve */
@@ -1677,7 +1656,7 @@ ol.lines {
   border: 1px dashed var(--frame-hi);
   border-radius: 2px;
   background: #231c10;
-  font-size: 12.5px;
+  font-size: 14px;
 }
 .ny-proposal-applied {
   border-style: solid;
@@ -1734,7 +1713,7 @@ button.ny-approve {
 }
 .ny-compact .ny-msg {
   padding: 4px 8px;
-  font-size: 12.5px;
+  font-size: 14px;
 }
 
 /* markdown (components/Markdown.tsx) */
@@ -1752,13 +1731,13 @@ button.ny-approve {
   color: var(--gold);
 }
 .md h3 {
-  font-size: 15px;
+  font-size: 17px;
 }
 .md h4 {
-  font-size: 14px;
+  font-size: 15.5px;
 }
 .md h5 {
-  font-size: 13px;
+  font-size: 14.5px;
 }
 .md ul,
 .md ol {
@@ -1776,7 +1755,7 @@ button.ny-approve {
 }
 .md code {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13.5px;
 }
 .md :not(pre) > code {
   padding: 0 3px;
@@ -1843,14 +1822,14 @@ button.ny-approve {
 }
 .jobs-head h3 {
   margin: 0;
-  font-size: 17px;
+  font-size: 19px;
 }
 .jobs-range {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
+  font-size: 14.5px;
 }
 .jobs-range label {
   display: inline-flex;
@@ -1907,13 +1886,13 @@ button.ny-approve {
 .kpi-label {
   color: var(--dim);
   font-family: var(--display);
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 700;
   letter-spacing: 0.06em;
 }
 .kpi-value {
   font-family: var(--display);
-  font-size: 26px;
+  font-size: 29px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
@@ -1922,7 +1901,7 @@ button.ny-approve {
 }
 .kpi-sub {
   color: var(--dim);
-  font-size: 11.5px;
+  font-size: 13px;
   min-height: 1.2em;
   white-space: nowrap;
   overflow: hidden;
@@ -1950,7 +1929,7 @@ button.ny-approve {
   border-top-color: #4a3a28;
 }
 .jobs-sub {
-  font-size: 12px;
+  font-size: 13.5px;
 }
 .jobs-charts {
   display: grid;
@@ -1969,7 +1948,7 @@ svg.chart.strip {
 .chart .axis text,
 .chart .axis-label {
   fill: var(--dim);
-  font-size: 10.5px;
+  font-size: 12px;
   font-family: var(--mono);
 }
 .chart .grid {
@@ -1983,7 +1962,7 @@ svg.chart.strip {
 }
 .chart-empty-text {
   fill: var(--dim);
-  font-size: 13px;
+  font-size: 14.5px;
 }
 .chart .line {
   fill: none;
@@ -2042,7 +2021,7 @@ svg.chart.strip {
 }
 .chart .mark-death {
   fill: var(--bad);
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
 }
 .chart .mean {
@@ -2079,7 +2058,7 @@ svg.chart.strip {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  font-size: 11.5px;
+  font-size: 13px;
   margin-top: 4px;
 }
 .sw {
@@ -2244,7 +2223,7 @@ ol.job-events li {
 }
 .chart .mark-abort {
   fill: var(--warn);
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 700;
 }
 .chart .line-field {
@@ -2280,7 +2259,7 @@ ol.job-events li {
 }
 .plan-pick code {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 13px;
   color: var(--dim);
 }
 tr.spot-picked td {
@@ -2302,7 +2281,7 @@ tr.spot-out td {
   background: #6d28d9;
 }
 .small {
-  font-size: 11.5px;
+  font-size: 13px;
 }
 .table-wrap {
   overflow-x: auto;
@@ -2437,6 +2416,6 @@ tr.spot-out td {
   input,
   textarea,
   select {
-    font-size: 16px;
+    font-size: 18px;
   }
 }

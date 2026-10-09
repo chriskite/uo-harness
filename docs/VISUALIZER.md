@@ -937,15 +937,17 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
 - **Theme (2026-10-02, user request: "a much more Ultima aesthetic").** All in `App.css`; no
   component changes except the map canvas chrome colours in `MapGrid.tsx`. Inspired by
   uooutlands.com (dark leather menu bar, gold bevelled title, parchment news scroll, crimson
-  sidebar ribbons, Caudex text) and the client's gumps (bronze frames, paperdoll backdrop).
+  sidebar ribbons, Georgia text) and the client's gumps (bronze frames, paperdoll backdrop).
   - Panels are gump frames: grained dark-leather gradient, bronze border with a black hairline
     and a faint gold inner bevel (`--frame-shadow`); panel heads are brushed-bronze title bars
     with gold Cinzel `h2`. The header is a leather bar with a gold rule and an ankh before the title.
   - Overseer journal entries are ink on parchment (`.ov-overseer` redefines `--text`/`--dim`/`--link`
     locally); operator messages are royal-blue cloth; the details drawer bar is the crimson ribbon.
-  - Fonts: Cinzel (display: headings, tabs, KPI values) and Caudex (body), latin subsets from Google
-    Fonts, OFL, in `viz/src/fonts/` with their licence files. `bun build` inlines them into
-    `main.css` as data URIs, so the viz needs no network and `viz_server` serves nothing new.
+  - Fonts: Cinzel (display: headings, tabs, KPI values; latin subset from Google Fonts, OFL, in
+    `viz/src/fonts/` with its licence file, inlined into `main.css` by `bun build` as a data URI) and
+    Georgia (body, `--serif`: system font, nothing bundled; Palatino fallbacks). Body was Caudex until
+    2026-10-08: its small x-height rendered jagged/tiny at 13px, so body is now Georgia 14.5px and every
+    `font-size` in `App.css` was scaled x1.12 (rounded to 0.5px). Canvas text in `MapGrid.tsx` is unchanged.
   - Textures are inline SVG `feTurbulence` data URIs (`--grain`, `--mottle`), no image files.
   - Meaning-bearing colours stay as they were: ok/warn/bad/info badges (re-toned, same hues),
     notoriety, HP bands, the map's layer colours and legend, chart series. The lumber chart's
@@ -1005,7 +1007,7 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
 | `viz/src/nystul.ts`, `markdown.ts`, `components/NystulChat.tsx`, `NystulPage.tsx`, `Markdown.tsx` | Nystul view model (validation, step labels, run summary), the markdown parser, the chat, page and renderer (§2.13) |
 | `harness/uoart.py`, `harness/test_uoart.py` | `UooImages` (gumps.uoo / art.uoo reader, shared with `paperdoll.py`) and `ItemArt` for `/api/art` (§2.9) |
 | `viz/src/App.tsx`, `components/*.tsx`, `App.css` | §4 panels |
-| `viz/src/fonts/` | Cinzel + Caudex woff2 (OFL; licences alongside), inlined into `main.css` by the build (§4 Theme) |
+| `viz/src/fonts/` | Cinzel woff2 (OFL; licence alongside), inlined into `main.css` by the build (§4 Theme) |
 
 ### Milestones
 
