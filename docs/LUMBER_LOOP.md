@@ -1104,6 +1104,16 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     so the runner picks one away from it instead of chopping next to it until it attacks. The trees
     stay in the trip's list and come back when it leaves; when every tree left is guarded the
     harvest ends (`creature_blocked`, not `dry`) and the trip goes home.
+  - **Roaming creatures boxing the grove out** (since 2026-10-09, user: "Dan is bouncing around too
+    much"; `zone_stalled`, `next_stand`). Live at witcher_181 (`lumber-20261009-164104-18ea`,
+    16:58:39–17:01:28) roaming ants and a cougar covered ~30 trees in a row while Dan walked 40–150
+    steps to each ("a creature's zone covers it now"): no logs for 2 min 50 s, and neither rule above
+    fired, since every tree was clear when picked. Now: **no logs for 90 s (`ZONE_STALL_S`) with at
+    least 5 trees dropped for a zone (`ZONE_STALL_DROPS`)** ends the harvest like every tree guarded
+    (`creature_blocked`: a library hop or home); and next_stand **passes over trees more than 30 tiles
+    off (`ZONE_FAR_TREE`) with a creature in view within its zone + 10 tiles (`ZONE_FAR_MARGIN`)** of
+    them, unless no other tree is free ("N tree(s) over 30 tiles off by a creature in view passed
+    over"). At witcher_181 the stall rule would have ended the harvest about 90 s in. `unit_zone_stall`.
   - **Recorded:** a `monster_hit` job event per damage episode (`body`, `name`, `serial`,
     `distance`, `hits_lost`, `trip`, `spot`, `hits`/`hits_max`, `spells` (spells on us in it),
     `attackers` (count) and `attacker_serials`, `ranged`, `reach`, `aggression`, `escapes`,

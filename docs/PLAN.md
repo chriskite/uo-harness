@@ -1333,6 +1333,16 @@ range went to 80 after Bastet, tracked at 55 tiles, struck mounted ~6.5 s later;
 60, but a mounted red at 61–80 tiles is ~1–2 s from that point, and the in-view red rule (any red
 in view: recall) is the backstop. Reds beyond the range also stop counting as the spot's hazard.
 
+## Roaming creatures boxing a grove out (decided and built 2026-10-09)
+
+Seer-14's witcher_181 leg: ~30 trees dropped for roaming ants' and a cougar's zones on 40–150-step walks,
+no logs for 2 min 50 s; the user saw Dan "bouncing around too much". Proposed and approved ("do both"):
+- **Stall rule:** no logs for 90 s with 5+ trees dropped for creature zones ends the harvest as
+  `creature_blocked` (library hop or home).
+- **Far-tree filter:** a tree over 30 tiles off with a creature in view within its zone + 10 tiles waits
+  while any other tree is free.
+Rejected: counting replans of one walk (`boxed_in` already does; here each walk was a new tree).
+
 ## After the witcher_193 death: red range back to 80, faction blues watched, run between player casts (decided and built 2026-10-09)
 
 Seer-13's shift ended in a death (`lumber-20261009-135029-f526`, 14:25): red "mauna kea" was tracked at

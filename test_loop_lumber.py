@@ -3590,6 +3590,43 @@ def unit_tree_rethink():
         loop_lumber.TREE_RECHECK_S = recheck
 
 
+def unit_zone_stall():
+    """User 2026-10-09 (witcher_181, lumber-20261009-164104-18ea 16:58:39-17:01:28: ~30 trees dropped for roaming ants'
+    and a cougar's zones on 40-150-step walks, no logs for 2 min 50 s). zone_stalled ends the harvest after ZONE_STALL_S
+    without logs and ZONE_STALL_DROPS zone drops; next_stand passes over trees beyond ZONE_FAR_TREE with a creature in
+    view within its zone + ZONE_FAR_MARGIN of them, unless nothing else is free."""
+    print("\n== creatures boxing the grove out: the stall rule, far trees by a roaming creature ==")
+    import types
+    import loop_lumber
+    fake = SimpleNamespace(zone_drops=[], last_gain_t=1000.0)
+    stalled = types.MethodType(loop_lumber.LumberLoop.zone_stalled, fake)
+    fake.zone_drops = [1001.0] * 5
+    check("89 s without logs, 5 zone drops: go on", stalled(1089.0) is None)
+    fake.zone_drops = [1001.0] * 4
+    check("90 s, 4 drops: go on (a quiet spell is no stall)", stalled(1090.0) is None)
+    fake.zone_drops = [1001.0] * 5
+    why = stalled(1090.0) or ""
+    check("90 s, 5 drops: end the harvest", "no logs for 90 s" in why and "covered 5 trees" in why, why)
+
+    ant = SimpleNamespace(serial=0x77, name="a giant black ant", aggression="default")
+    guard = [(ant, (60, 0), 13)]                              # in view, zone 13 around (60, 0)
+
+    def plan(st, goal, max_steps=None):
+        return [(i, 0) for i in range(max(goal.center[0], 2))], None
+    fake = SimpleNamespace(
+        tree_guards=lambda st, recent=True: guard, link=SimpleNamespace(pos=lambda st: (0, 0, 0), state=lambda: {}),
+        mover=SimpleNamespace(plan=plan), switch_tree=None, dropped_trees={}, avoided=set(),
+        creature={"avoided_trees": 0}, tree_z_ok=lambda t: None, no_route=set(),
+        human=SimpleNamespace(rng=SimpleNamespace(uniform=lambda a, b: 1.0)))
+    for name in ("next_stand", "no_route_tree", "tree_route_max"):
+        setattr(fake, name, types.MethodType(getattr(loop_lumber.LumberLoop, name), fake))
+    far, mid, safe = {"x": 80, "y": 0}, {"x": 40, "y": 0}, {"x": 50, "y": 40}
+    check("a tree 80 off within the ant's zone + 10 (20 from it) and one 40 off (20 from it): both passed over for "
+          "one 50 off far from it, though its walk is longer", fake.next_stand([far, mid, safe]) is safe)
+    check("only trees by the ant left: taken anyway (the stall rule ends it if they keep getting covered)",
+          fake.next_stand([far, mid]) is mid)
+
+
 def unit_smart_range():
     """Smart Harvest reaches 2 tiles (docs/NOTES.md "Reach is 2 tiles", 2026-10-08): a 'nothing nearby' marks every
     candidate within 2 of the stand out of wood, not just the adjacent ones (at 1, the trees 2 off that a stand had
@@ -4288,7 +4325,7 @@ if __name__ == "__main__":
             hop,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_smart_range,
             unit_run_and_recall, unit_boxed_in,
-            unit_death_cause,
+            unit_death_cause, unit_zone_stall,
             unit_zone_view_edge, unit_home_on_abort,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]

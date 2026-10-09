@@ -157,6 +157,15 @@ TREE_SWITCH_GAIN = 8          # ... at least this many tiles nearer than the one
 LOCAL_TREES_R = 15            # trees this close to us join the candidates when the spot's are all guarded or
 #                               after an escape (local_trees; user, 2026-10-05: chop the trees where we are)
 TREE_DROP_COOLDOWN_S = 120.0  # a tree dropped because a zone covered it waits this long (next_stand)
+# Roaming creatures boxing a grove out (user 2026-10-09, witcher_181: ants and a cougar covered ~30 trees in a row
+# on 40-150-step walks, no logs for 2 min 50 s, "Dan is bouncing around too much"): no logs for ZONE_STALL_S with
+# at least ZONE_STALL_DROPS trees dropped for creature zones ends the harvest like every tree guarded; and a tree
+# more than ZONE_FAR_TREE tiles off is passed over while a creature in view stands within its zone + ZONE_FAR_MARGIN
+# of it (taken only when no other tree is free)
+ZONE_STALL_S = 90.0
+ZONE_STALL_DROPS = 5
+ZONE_FAR_TREE = 30
+ZONE_FAR_MARGIN = 10
 RECENT_ZONE_S = 60.0          # a creature that left the view keeps its zone at its last tile this long (tree_guards)
 # A creature last seen at least VIEW_EDGE_R off that left the view keeps its route zone for ROUTE_ZONE_S
 # (aggro_zones): we walked it out of view and may walk it back in [INFERENCE: update range 18 on
@@ -505,6 +514,9 @@ class LumberLoop:
         self.waypost_seen = False    # this trip: a faction waypost marker noted (note_waypost)
         self.faction_first = {}      # this trip: faction-tagged serial -> its tile when first seen (faction_threat)
         self.faction_watched = set() # this trip: faction-tagged players logged as watched, not fled from
+        self.zone_drops = []         # this harvest: when trees were dropped for a creature's zone since the last logs
+        self.last_gain_t = time.monotonic()   # this harvest: when the last logs came (zone_stalled)
+        self.far_passed = 0          # far trees by a creature next_stand last passed over (its log line)
         self.player_foes = set()     # serials player_escape runs from (gain_distance players=True)
         self._flee_mark = 0          # len(link.events) when the guard flight started
         self.facet = know["facet"]   # the spot's facet: tree records and candidates
@@ -2586,7 +2598,12 @@ class LumberLoop:
             if not trees:
                 self.stats["dry"] = True
                 raise Abort("no harvestable tree available (all depleted, unreachable or ruled out)")
+            self.zone_drops, self.last_gain_t = [], time.monotonic()
             while trees and tally["gained"] < self.args.logs_per_trip and not self.ending:
+                if (why := self.zone_stalled()) is not None:
+                    self.stats["creature_blocked"] = True
+                    log(f"{why}; ending the harvest at {tally['gained']} logs")
+                    break
                 tree = self.next_stand(trees)
                 if tree is None and self.add_local_trees(trees):
                     tree = self.next_stand(trees)
@@ -2599,6 +2616,7 @@ class LumberLoop:
                     log(f"tree {tree['x']},{tree['y']}: within reach of a monster or a suspected thief we "
                         f"backed away from; skipping")
                     continue
+                gained = tally["gained"]
                 try:
                     self.work_stand(tree, trees, tally)
                 except Escape as e:
@@ -2606,6 +2624,8 @@ class LumberLoop:
                     self.add_local_trees(trees)
                 except KeepAway as e:
                     self.keep_away(e)
+                if tally["gained"] > gained:
+                    self.zone_drops, self.last_gain_t = [], time.monotonic()
             if self.ending:
                 log(f"{self.ending}: stopping the harvest at {tally['gained']} logs; going home to convert and store")
             elif not trees and tally["gained"] < self.args.logs_per_trip:
@@ -2616,6 +2636,16 @@ class LumberLoop:
         finally:
             self.harvesting = False
             self.stats.update(attempts=tally["attempts"], successes=tally["successes"], logs=tally["gained"])
+
+    def zone_stalled(self, now: float | None = None) -> str | None:
+        """Why roaming creatures have boxed the grove out (ZONE_STALL_S, ZONE_STALL_DROPS): no logs for that
+        long while that many trees were dropped because a creature's zone came over them; else None."""
+        now = time.monotonic() if now is None else now
+        idle = now - self.last_gain_t
+        if idle >= ZONE_STALL_S and len(self.zone_drops) >= ZONE_STALL_DROPS:
+            return (f"no logs for {idle:.0f} s while creature zones covered {len(self.zone_drops)} trees on the way: "
+                    f"the creatures here keep the trees out of reach")
+        return None
 
     def next_stand(self, trees: list) -> dict | None:
         """Remove and return the tree to stand by next (Smart Harvest then picks the tree
@@ -2650,6 +2680,16 @@ class LumberLoop:
         # fallback to them alternated two covered trees twice a second); then those only a creature now out
         # of view guards
         free = [t for t in free if not waiting(t)] or [t for t in later if not waiting(t)]
+        # far trees by a roaming creature in view (ZONE_FAR_TREE): its zone tends to cover them on the way
+        roam = [g for g in guards if g[0].serial in in_view]
+        near = [t for t in free if cheb(pos, (t["x"], t["y"])) <= ZONE_FAR_TREE
+                or not any(cheb(g[1], (t["x"], t["y"])) <= g[2] + ZONE_FAR_MARGIN for g in roam)]
+        passed = len(free) - len(near) if near else 0
+        if passed != getattr(self, "far_passed", 0):
+            self.far_passed = passed
+            if passed:
+                log(f"{passed} tree(s) over {ZONE_FAR_TREE} tiles off by a creature in view passed over")
+        free = near or free
         if not free:
             return None
         switch, self.switch_tree = self.switch_tree, None
@@ -2882,6 +2922,7 @@ class LumberLoop:
                 trees.append(tree)               # still a candidate, for later or from elsewhere
                 if why.startswith("a creature's zone"):
                     self.dropped_trees[spot] = time.monotonic()
+                    self.zone_drops.append(time.monotonic())
                 log(f"{label}: {why}; choosing the next stand from here")
                 return
         except Abort as e:
