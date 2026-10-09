@@ -2173,7 +2173,7 @@ ol.job-events li {
 }
 .wood-row {
   display: grid;
-  grid-template-columns: 90px 1fr 80px 70px;
+  grid-template-columns: 100px 1fr 80px 70px;
   gap: 8px;
   align-items: center;
 }
@@ -2198,8 +2198,13 @@ ol.job-events li {
   margin-bottom: 6px;
 }
 .lumber-job .wood-row {
-  grid-template-columns: 64px 1fr 32px 70px;
+  grid-template-columns: 88px 1fr 32px 70px;
   gap: 6px;
+}
+.wood-row > :first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .lumber-job .wood-row > :last-child {
   white-space: nowrap;

@@ -132,7 +132,7 @@ export function LumberJobPanel({ intent, viz }: { intent: AgentIntent; viz: VizS
                 const past = pastMix.find((p) => p.name === w.name);
                 return (
                   <div key={w.name} className="wood-row">
-                    <span>{w.name}</span>
+                    <span title={w.name}>{w.name}</span>
                     <div className="bar-track">
                       <div className="bar-fill wood-fill" style={{ width: `${w.share * 100}%` }} />
                     </div>
