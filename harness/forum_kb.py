@@ -100,15 +100,20 @@ class Forum:
     tag = "forum"
     ref_prefix = "forum-kb:"
     promote_since = PROMOTE_SINCE
+    # user decision 2026-10-08, on cost: a one-author cluster can't reach the store, so it isn't
+    # adjudicated (6,440 of the first run's 7,768 clusters), so the digest lists no one-author claims
+    adjudicate_min_authors = 2
     default_names = tuple(ow.FORUM_NODES)
     title = "Outlands forum knowledge base"
     script = "harness/forum_kb.py"
     confidence_note = (
         "- Confidence: everything here is community-derived. `official` = stated by staff in an official "
         "section (" + ", ".join(n for n, off in ow.FORUM_NODES.values() if off) + "); `consensus` = at least "
-        "two independent players agree and outnumber the dissent; `single_source` = one player said it, "
-        f"unverified. Facts last seen before {PROMOTE_SINCE} are listed but not promoted to the knowledge "
-        "store (Outlands overhauled many systems in 2022-2024). Verify in game before relying on it.")
+        "two independent players agree and outnumber the dissent; `single_source` = a cluster of two or "
+        "more players' claims that only one of them supports. Claims of a single player without staff "
+        "support aren't adjudicated, so they aren't listed. Facts last seen before "
+        f"{PROMOTE_SINCE} are listed but not promoted to the knowledge store (Outlands overhauled many "
+        "systems in 2022-2024). Verify in game before relying on it.")
 
     def __init__(self, path=ow.DEFAULT_DB):
         self.con = ds._open_msgs(path)

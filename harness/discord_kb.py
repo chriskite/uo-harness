@@ -352,6 +352,8 @@ def _sha1(s):
 #   tag, ref_prefix        knowledge tag / source_ref prefix of promoted entries (the prefix also
 #                          marks retractions the pipeline made itself)
 #   promote_since          ISO date: facts last seen before it aren't promoted (None: no limit)
+#   adjudicate_min_authors clusters with fewer distinct authors and no official claim aren't
+#                          adjudicated (1: all; they could only be single_source)
 #   default_names          what extract processes when no names are given
 #   title, script, confidence_note   digest header
 #   windows(names, today)  -> (windows, resolved channel ids); a window's rows have the shape
@@ -367,6 +369,7 @@ class Msgs:
     tag = "discord"
     ref_prefix = "discord-kb:"
     promote_since = None
+    adjudicate_min_authors = 1
     default_names = DEFAULT_CHANNELS
     title = "Outlands Discord knowledge base"
     script = "harness/discord_kb.py"
@@ -830,10 +833,34 @@ def _validator(cluster_ids):
     return check
 
 
-def adjudicate(kb, budget, log=print):
-    todo = kb.execute("SELECT id, kind, signature FROM clusters WHERE signature IS NOT adjudicated_signature "
-                      "ORDER BY id").fetchall()
-    log(f"adjudicate: {len(todo)} clusters")
+def _below_min_authors(kb, min_authors):
+    """Clusters with fewer than min_authors distinct authors and no official claim: they can
+    never become consensus or official, so never reach the knowledge store."""
+    if min_authors <= 1:
+        return set()
+    authors, official = collections.defaultdict(set), set()
+    for cid, a, off in kb.execute("SELECT cluster_id, author_ids, official FROM claims WHERE cluster_id IS NOT NULL"):
+        authors[cid] |= set(json.loads(a or "[]"))
+        if off:
+            official.add(cid)
+    return {cid for cid, a in authors.items() if len(a) < min_authors and cid not in official}
+
+
+def adjudicate(kb, budget, min_authors=1, log=print):
+    """LLM verdicts for the clusters whose members changed. min_authors > 1 (the corpus's
+    adjudicate_min_authors) leaves out clusters below it without an official claim; one that
+    drops below it loses its fact (verdict 'skipped')."""
+    skip = _below_min_authors(kb, min_authors)
+    todo = [r for r in kb.execute("SELECT id, kind, signature FROM clusters WHERE signature IS NOT "
+                                  "adjudicated_signature ORDER BY id") if r[0] not in skip]
+    gone = [cid for (cid,) in kb.execute("SELECT cluster_id FROM facts WHERE verdict NOT IN ('dissolved', 'skipped')")
+            if cid in skip]
+    for cid in gone:
+        kb.execute("UPDATE facts SET verdict='skipped', confidence=0.0, updated_t=? WHERE cluster_id=?",
+                   (time.time(), cid))
+        kb.execute("UPDATE clusters SET adjudicated_signature=NULL WHERE id=?", (cid,))
+    log(f"adjudicate: {len(todo)} clusters" + (f" ({len(skip)} below {min_authors} authors without an "
+                                               f"official claim left out)" if skip else ""))
     batches = [todo[i:i + ADJ_BATCH] for i in range(0, len(todo), ADJ_BATCH)]
     stats = collections.Counter()
 
@@ -883,8 +910,8 @@ def adjudicate(kb, budget, log=print):
     return dict(stats)
 
 
-def consolidate(kb, budget, recluster=False, log=print):
-    return {"cluster": cluster(kb, recluster, log), "adjudicate": adjudicate(kb, budget, log)}
+def consolidate(kb, budget, recluster=False, min_authors=1, log=print):
+    return {"cluster": cluster(kb, recluster, log), "adjudicate": adjudicate(kb, budget, min_authors, log)}
 
 
 # ---------------------------------------------------------------------------- promotion
@@ -1112,7 +1139,7 @@ def dispatch(a, kb, corpus):
         extract(kb, corpus, budget, names, limit=a.limit)
         return 2 if budget.hit else 0
     if a.cmd == "consolidate":
-        consolidate(kb, budget, recluster=a.recluster)
+        consolidate(kb, budget, recluster=a.recluster, min_authors=corpus.adjudicate_min_authors)
         return 2 if budget.hit else 0
     if a.cmd == "promote":
         promote(kb, corpus, a.db, dry_run=a.dry_run)
@@ -1128,7 +1155,7 @@ def dispatch(a, kb, corpus):
         if budget.hit:
             print("cost guard hit during extraction: stopping before consolidate/promote; rerun to resume")
             return 2
-        consolidate(kb, budget)
+        consolidate(kb, budget, min_authors=corpus.adjudicate_min_authors)
         promote(kb, corpus, a.db)
         digest(kb, corpus, a.out)
         print(json.dumps(stats(kb), indent=1))

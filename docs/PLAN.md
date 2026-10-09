@@ -1535,6 +1535,10 @@ wiki, news and forums".
   promoted**: Outlands overhauled dungeons, PvP, harvesting and more in 2022–2024, and an old
   forum consensus has no newer claim to mark it outdated. They stay in the digest
   `docs/research/FORUM_KB.md` (committed) with their dates.
+  **Only clusters with ≥ 2 authors or a staff claim are adjudicated** (user decision after the
+  extraction cost $27.66 list price, 2026-10-08): 6 440 of the 7 768 clusters had one author, can
+  never become consensus or official, and would only have added single-source lines to the digest
+  (≈ $19 more). The corpus attribute `adjudicate_min_authors` (Discord 1, forums 2) sets it.
 - **Rejected:**
   - Everything as raw chunks, forums included: 2018 forum answers would sit in recall next to vetted
     facts, the thing the Discord design avoided (user choice).

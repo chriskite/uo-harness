@@ -2119,6 +2119,18 @@ Code: `harness/outlands_web.py` (capture), `harness/web_kb.py` (wiki + news → 
   four Captcha wiki sections on top; "how do I get a rental room" → the 2020-06-09 patch that
   introduced rental rooms; "storage shelf loadouts" → the Discord fact, then the 2026-09-04 patch
   section.
+- **First forum KB run (2026-10-08):** crawl 2 707 s for the six sections (1 243 threads, 9 306
+  posts: General Discussion 5 803, Player Guides & Macros 1 674, New Player Questions 1 267, Corpse
+  Creek 480, Active Development 50, Announcements 32; 4 235 GETs in all, every one HTTP 200, no
+  challenge). Extraction: 1 323 thread windows → 10 045 claims kept, 89 dropped by grounding,
+  $27.66 list price (1 323 calls, 3.11M prompt and 1.52M output tokens). Clusters: 7 768 (6 440
+  one-author, not adjudicated, docs/PLAN.md). Adjudication: 1 328 clusters in 166 calls, $4.77, 0
+  failures →
+  consensus 821, official 167, single_source 211, disputed 90, outdated 36, not_useful 3. Promote:
+  381 added, 607 official/consensus facts held back as last seen before 2023. Total $32.43.
+  Digest `docs/research/FORUM_KB.md` (389 kB). The first `know search` afterwards took ~1 s (it
+  embedded the 381 new entries); later ones ~0.2 s. "how do I become a thief and what can I
+  steal" `--tag forum` → the 2026-07-09 staff notes on the thief's target.
 
 ## Nystul, the viz assistant: headless omp with extension tools (probed 2026-10-08, omp 18.8.3)
 

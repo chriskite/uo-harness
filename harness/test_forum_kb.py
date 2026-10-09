@@ -9,6 +9,8 @@
   4. Promotion: entries are tagged `forum` with a `forum-kb:` ref carrying the date span;
      facts last seen before PROMOTE_SINCE are not promoted, and are retracted when they go
      stale after promotion; entries the Discord corpus promoted are never touched.
+  5. Adjudication skips one-author clusters without a staff claim (they can't be promoted);
+     one that drops to a single author loses its fact. Discord still adjudicates all.
 
 Runs with plain python (numpy). The LLM and the embedder are faked.
 """
@@ -262,8 +264,48 @@ def test_promote():
         con.close()
 
 
+def test_adjudicate_min_authors():
+    """Forum clusters with one author and no staff claim are never sent to the LLM; a cluster
+    that drops to one author loses its fact."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+        kb = kbm.open_kb(os.path.join(td, "kb.db"))
+        rows = [(1, 1, [7], 0), (2, 1, [8], 0),        # cluster 1: two players
+                (3, 2, [7], 0), (4, 2, [7], 0),        # cluster 2: one player twice
+                (5, 3, [9], 1)]                        # cluster 3: one staff claim
+        for cid in (1, 2, 3):
+            kb.execute("INSERT INTO clusters(id, kind, leader_claim_id, signature) VALUES (?, 'fact', ?, ?)",
+                       (cid, cid, f"s{cid}"))
+        for claim, cid, authors, off in rows:
+            kb.execute("INSERT INTO claims(id, window_id, kind, topic, statement, entities, stance, uncertain, "
+                       "message_ids, author_ids, quote, first_ts, official, cluster_id) VALUES "
+                       "(?, 'w', 'fact', 't', 's', '[]', 'asserts', 0, ?, ?, 'q', '2024-01-01', ?, ?)",
+                       (claim, json.dumps([claim]), json.dumps(authors), off, cid))
+        kb.commit()
+        sent = []
+
+        def fake(prompt, model, thinking, stage, ref=None, validate=None):
+            ids = [int(x) for x in re.findall(r"^Cluster (\d+) ", prompt, re.M)]
+            sent.extend(ids)
+            out = {"facts": [{"cluster_id": c, "kind": "fact", "topic": "t", "statement": "s", "verdict": "consensus",
+                              "importance": 3, "section": "other", "supporting_claim_ids": [], "tags": []}
+                             for c in ids]}
+            validate(out)
+            return out, {"model": "fake"}
+        kbm.llm_json = fake
+        kbm.adjudicate(kb, kbm.Budget(1.0), fkb.Forum.adjudicate_min_authors, log=QUIET)
+        check(sorted(sent) == [1, 3], f"only multi-author or staff clusters are adjudicated ({sent})")
+        kb.execute("DELETE FROM claims WHERE id=2")
+        kb.execute("UPDATE clusters SET signature='s1b' WHERE id=1")
+        kb.commit()
+        sent.clear()
+        kbm.adjudicate(kb, kbm.Budget(1.0), fkb.Forum.adjudicate_min_authors, log=QUIET)
+        v = kb.execute("SELECT verdict FROM facts WHERE cluster_id=1").fetchone()[0]
+        check(sent == [] and v == "skipped", f"a cluster down to one author loses its fact ({sent}, {v})")
+        check(kbm.Msgs.adjudicate_min_authors == 1, "the Discord corpus still adjudicates every cluster")
+
+
 def main():
-    for t in (test_windows, test_grounding, test_official, test_promote):
+    for t in (test_windows, test_grounding, test_official, test_promote, test_adjudicate_min_authors):
         print(f"== {t.__name__} ==")
         t()
     print(f"\nforum_kb: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
