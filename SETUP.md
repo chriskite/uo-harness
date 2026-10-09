@@ -168,6 +168,10 @@ All procedures live in the docs; follow them as written.
   wiki, news and forums"): plain system Python (§3's GPU stack for embedding; `forum_kb` needs
   `omp` for its LLM calls). Run them on one computer, the one that holds `outlands_web.db` and
   `forum_kb.db`; they write into whichever `harness.db` is there.
+- **Vendor Search capture** (Firefox extension + native host, NOTES "Vendor Search capture"):
+  `python harness/vendor_search.py install` from the main checkout, then load
+  `harness/vendor_search_ext/` in Firefox. Plain system Python. It writes into this computer's
+  `harness.db`, so browse the portal on the computer that holds the store.
 
 ## 6. Backups
 

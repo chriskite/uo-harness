@@ -2130,6 +2130,67 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
 - **The model sees tool names with a leading underscore** (it called them `_uo_list` in its reply) while the events carry `uo_list` [INFERENCE: the provider's tool-name prefixing]. Harmless; the events and the prompt use the plain names.
 - **Cost:** a one-lookup answer (Sonnet, thinking medium) cost ~$0.01–0.03 and 4–6 s; a four-query SQL answer $0.02 and 10 s (live 2026-10-08).
 
+## Vendor Search capture (since 2026-10-08)
+
+Decision and rejected options: docs/PLAN.md "Vendor Search prices from the user's own browsing";
+detection: ANTICHEAT.md §11. Code: `harness/vendor_search_ext/` (Firefox extension),
+`harness/vendor_search.py` (native host + CLI). Test: `harness/test_vendor_search.py`.
+
+- **Set up (once per computer, from the checkout Firefox should write to):**
+  1. `python harness/vendor_search.py install`: writes `harness/data/vendor_search_host.bat`
+     (this `sys.executable` + this checkout's script) and `vendor_search_host.json` (both
+     gitignored), and points `HKCU\Software\Mozilla\NativeMessagingHosts\uo_vendor_prices` at the
+     JSON. Re-run it after moving the checkout or changing Python; `uninstall` removes all three.
+  2. Load the extension. Release Firefox only runs signed add-ons permanently:
+     - for now: `about:debugging#/runtime/this-firefox` → "Load Temporary Add-on…" →
+       `harness/vendor_search_ext/manifest.json`. It stays until Firefox quits.
+     - for good: sign it as unlisted on addons.mozilla.org (`npx web-ext sign --channel=unlisted
+       --api-key … --api-secret …` in `harness/vendor_search_ext/`, AMO API keys of the user's
+       Mozilla account; no listing, signed in minutes), then about:addons → gear → "Install
+       Add-on From File…" with the `.xpi`. Firefox Developer Edition / Nightly / ESR could instead
+       set `xpinstall.signatures.required=false`. This desktop has release Firefox 157.
+     The gecko id `vendor-prices@uo-harness` must stay: the host manifest only admits that id.
+  3. Browse the portal as usual. The toolbar badge counts responses saved this session (green);
+     red = the host or store failed, with the number of queued captures (tooltip: the error; click
+     to retry). Host errors also go to `logs/vendor_search.log`.
+- **Read it:** `python harness/vendor_search.py stats` (captures per endpoint, rows per kind,
+  newest); `asks goldenwood board [--days 7] [-n 20]` (lowest listings with every word, each item
+  at its newest sighting); plain SQL on `vendor_prices` / `vendor_captures` (docs/MEMORY.md).
+  After a parser change: `reparse` rebuilds `vendor_prices` from the stored responses.
+- **The portal API (read from the bundle 2026-10-08; requests carry `Authorization: Bearer
+  <OutlandsID JWT>`, never stored):**
+  - `POST /api/VendorSearch/Search` body `{page, pageSize, sortName, sortAscending, filterParams:
+    {name, category, vendorSerial, propertyFilters}}` → `{items, totalCount, page, pageSize}`. An
+    item: `id`, `itemSerial`, `name`, `amount`, `price` (per item), `totalPrice`, `vendorName`,
+    `vendorSerial`, `vendorLocationX/Y`, `listedTime`, `containerSerials`, plus properties. The
+    page groups items itself; the server returns them flat. The search page uses 20 per page.
+  - Vendor pages: `GET VendorInfo?vendorSerial=`, `POST VendorItems?vendorSerial=`, `POST
+    VendorSales?vendorSerial=` (sales: `itemName`, `amount`, `pricePerItem`, `totalPrice`,
+    `saleDate`); own data: `MyVendors`, `MyVendorItems`, `MyVendorSales`, `MyPurchases`; staff:
+    `Player*?outlandsId=`, `WindowShopping?section=`.
+  - Prices: `POST /api/VendorSearch/PriceOverview` `{category}` (rows `itemName`, `currentPrice`,
+    `lastListedPrice`, `minPrice`, `maxPrice`, 7/30-day change) and `POST /api/PriceHistory/Search`
+    `{filterParams, daysBack, …}` (daily `averagePrice`, `medianPrice`, `minPrice`, `maxPrice`,
+    `totalSales`, `totalVolume`).
+  - The SPA may rewrite `/api/` to `/prod-api/`; both are captured. Field names other than the
+    search item's are inferred from table column names in the bundle, not from a live response:
+    check the first real captures (`vendor_captures.response`) and `reparse` if a kind comes out
+    empty.
+- **Smoke test (2026-10-08, Firefox 157 headless under Selenium, temporary add-on, the installed
+  host):** a mock portal on 127.0.0.1:8443 (`network.dns.localDomains=portal.uooutlands.com`,
+  self-signed cert accepted) served a page that POSTed a search (gzip response), fetched
+  `vendorsearchstatus` and got a 401 from `MyVendors`. The page received its JSON unchanged, the
+  server saw only those three requests, and the store got one capture (request body and page URL
+  included) and one listing row (gzip decoded by Firefox before the filter). The status call and
+  the 401 were skipped.
+- **Gotchas:**
+  - The host writes `harness.db` on whichever computer runs Firefox. Browse on the computer that
+    holds the store (docs/NOTES.md "Two computers"); captures on the other one make it a store with
+    unsynced changes, which `dbhandoff.py pull` refuses to overwrite.
+  - Native-messaging hosts are registered per user, so `install` from a git worktree points
+    Firefox at the worktree; run it from the main checkout.
+  - Whether the portal covers the Test Shard is still unknown (docs/research/ECONOMY.md §5.1).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

@@ -44,6 +44,9 @@ settings.json*
 # Telegram bot token + paired chat (harness/telegram_bridge.py, docs/OVERSEER.md §8)
 harness/data/telegram.json
 harness/data/telegram.json.part
+# Vendor Search native messaging host, generated per computer by `vendor_search.py install`
+harness/data/vendor_search_host.bat
+harness/data/vendor_search_host.json
 # Discord capture browser profile: holds the login session (harness/discord_capture.py)
 harness/data/discord_profile/
 # Discord capture image attachments (backed up to the NAS, not committed)

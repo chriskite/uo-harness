@@ -1549,6 +1549,42 @@ wiki, news and forums".
   - Chunks of news posts merged per post: one patch post covers a dozen unrelated systems, and a
     mixed chunk's embedding matches none of them well; section chunks are what recall needs.
 
+## Vendor Search prices from the user's own browsing (decided and built 2026-10-08)
+
+User request: a Firefox extension that saves the price data of the UO Outlands Portal's Vendor
+Search into our SQLite store while the user browses it. This replaces the 2026-09-29 stance "never
+scrape it; prices are typed in by hand" (ROADMAP item 10): nothing is scraped, the user's own page
+loads are recorded. Operation: docs/NOTES.md "Vendor Search capture".
+
+- **Passive capture only.** The portal logs Vendor Search requests per OutlandsID and has automated
+  shadow-ban checks (ANTICHEAT.md §11), so the extension sends no request of its own: it copies the
+  JSON of API responses the page requested (`webRequest.filterResponseData`, bytes passed through
+  unchanged), for `/api/VendorSearch/*` and `/api/PriceHistory/*` (autocomplete and status calls
+  skipped, non-2xx skipped).
+- **Store: the memory store `harness/data/harness.db`**, beside `prices`, because that's "our"
+  store and what the planner and the Jobs page read. Two tables without a schema bump:
+  `vendor_captures` (every response verbatim, with its request body and page URL) and
+  `vendor_prices` (gp per item: listings, sales, price statistics) derived from them. The derived
+  rows are rebuilt by `vendor_search.py reparse`, because the field names come from the portal's
+  minified bundle, not from a documented API, and may change.
+- **Transport: Firefox native messaging** (`harness/vendor_search.py host`, registered under
+  HKCU by `install`). Firefox starts the host per message, so it runs with the browser, needs no
+  service, and holds no connection to the store between captures (dbhandoff can always move it).
+  A capture the host can't store yet (host missing, store locked) waits in the extension's
+  `storage.local` queue (200 newest) and goes out with the next capture or a toolbar click.
+- **The `prices` table stays manual.** The planner's `board:<wood>` and `hatchet:` keys need a
+  choice (lowest ask? median? which listings are commodity deeds?) that the captures don't make;
+  `vendor_search.py asks WORDS` shows the lowest current asks to choose from.
+- **Rejected:**
+  - A content script wrapping the page's `fetch`/`XMLHttpRequest`: it runs inside the page, where
+    the site's own script could notice it; filterResponseData stays outside the page.
+  - POSTing to a local HTTP endpoint (the viz): captures would be lost while the stack is down,
+    and the extension would need host permissions for localhost.
+  - Replaying or paging the API from the extension or Python with the user's token: it is exactly
+    the per-account request pattern the portal logs and bans.
+  - A separate DB (like discord.db): the user asked for our store, and the planner reads prices
+    from it.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

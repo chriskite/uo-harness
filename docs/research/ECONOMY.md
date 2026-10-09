@@ -290,9 +290,12 @@ Test Shard's public shelves or one of our own in the rental room.
 - **Conf.: M.** Source: [Vendor Search](https://wiki.uooutlands.com/Vendor_Search).
 - **Harness implication:**
   - The page is a login-gated Angular SPA; checked 2026-09-29, the raw HTML has no data.
-  - Scraping it would need the user's OutlandsID credentials and would run into undisclosed abuse
-    limits. **The harness should not automate it.**
-  - Prices from it are manual user input (or screenshots), recorded with a date.
+  - Scraping it would need the user's OutlandsID credentials and would run into the portal's
+    per-account request logs and automated shadow bans (ANTICHEAT.md §11). **The harness should not
+    automate it.**
+  - Prices from it are manual user input (or screenshots), recorded with a date. Since 2026-10-08 a
+    Firefox extension also saves every response the user's own browsing loads into the memory
+    store, without sending requests (docs/NOTES.md "Vendor Search capture").
   - It's unknown whether it covers the Test Shard. `[INFERENCE]` It probably covers only live
     vendors.
 

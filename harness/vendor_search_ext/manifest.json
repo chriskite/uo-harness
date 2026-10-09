@@ -1,0 +1,26 @@
+{
+  "manifest_version": 2,
+  "name": "Vendor Search price log",
+  "version": "1.0.0",
+  "description": "Copies the Vendor Search API responses this browser loads into a local SQLite store through a native messaging host. Sends no requests of its own.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "vendor-prices@uo-harness",
+      "strict_min_version": "115.0"
+    }
+  },
+  "permissions": [
+    "webRequest",
+    "webRequestBlocking",
+    "nativeMessaging",
+    "storage",
+    "https://portal.uooutlands.com/*"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  },
+  "browser_action": {
+    "default_title": "Vendor Search price log"
+  }
+}

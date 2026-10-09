@@ -549,6 +549,27 @@ refusal; a human might try the same once, the runner does it every time [INFEREN
 a blue (notoriety 1) corpse is a criminal act the server blocks (user, 2026-10-03), and every
 refused corpse was blue in its `0xDEAD`, so the runner can skip them before walking over.
 
+## 11. Vendor Search portal (2026-10-08)
+
+**Finding (high, from the portal's public bundle):** the portal at `portal.uooutlands.com` logs
+Vendor Search requests per OutlandsID and runs automated abuse checks on them. Its Angular bundle
+(`main-4F57STJX.js` and lazy chunks, fetched 2026-10-08 without logging in) has staff endpoints
+`/api/Admin/GetVendorSearchRequestLogs?outlandsId=`, `GetVendorSearchRequestAggregation`,
+`GetVendorSearchRequestSummaries`, `GetVendorSearchUniqueUsers`, `RunVendorSearchAutoShadowBanCheck`,
+`RunVendorSearchPolicyDryRun?windowHours=`, `VendorSearchApiBanOutlandsID`, `ShadowBanOutlandsID`,
+and a staff page "Search Request Logs" (`/admin/vendor-search-logs`). The search page answers too
+many searches with HTTP 429 ("Too many searches in a short time"). So a scraper on the user's login
+would be visible per account, and the penalty is a shadow ban (results silently degraded) or an API
+ban; whether that touches the game account isn't known.
+
+**Rule:** the harness never sends a Vendor Search request. The Firefox extension
+(`harness/vendor_search_ext/`, docs/NOTES.md "Vendor Search capture") only copies responses to
+requests the portal page itself made while the user browses; `webRequest.filterResponseData` passes
+every byte through unchanged and the extension injects nothing into the page, so neither the page
+script nor the server can tell it's there [INFERENCE, high: the server sees the same requests; the
+page has no content script or exposed resource to probe]. Verified against a local mock portal in
+Firefox 157: the server saw exactly the page's own three API requests.
+
 ---
 
 ### Appendix A — Evidence artifacts (local)

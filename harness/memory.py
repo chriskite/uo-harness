@@ -42,6 +42,9 @@ Tables
                     history stays: the newest per item drives planning (hatchet
                     economics, supplies); jobs.py values each trip's logs at the
                     board:<wood> price as of the trip
+  vendor_captures   Vendor Search API responses captured by the Firefox extension
+                    (harness/vendor_search.py), verbatim
+  vendor_prices     the listings, sales and price statistics derived from them
 
 Writers
   - the proxy: MemoryWriter, a background thread with batched commits, fed from
@@ -160,6 +163,19 @@ CREATE TABLE IF NOT EXISTS prices(
     id INTEGER PRIMARY KEY, item TEXT NOT NULL, price_gp REAL NOT NULL, t REAL NOT NULL,
     source TEXT NOT NULL, note TEXT);
 CREATE INDEX IF NOT EXISTS prices_item_t ON prices(item, t);
+-- Vendor Search capture (harness/vendor_search.py): every portal API response the user's Firefox
+-- loaded, verbatim, and the gp-per-item rows derived from it (rebuildable: `vendor_search.py reparse`)
+CREATE TABLE IF NOT EXISTS vendor_captures(
+    id INTEGER PRIMARY KEY, t REAL NOT NULL, endpoint TEXT NOT NULL, url TEXT NOT NULL,
+    method TEXT, status INTEGER, page TEXT, request TEXT, response TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS vendor_captures_endpoint_t ON vendor_captures(endpoint, t);
+CREATE TABLE IF NOT EXISTS vendor_prices(
+    id INTEGER PRIMARY KEY, capture INTEGER NOT NULL, t REAL NOT NULL, kind TEXT NOT NULL,
+    name TEXT NOT NULL, price_gp REAL NOT NULL, amount INTEGER, total_gp REAL,
+    item_serial INTEGER, vendor_serial INTEGER, vendor_name TEXT, shop_name TEXT,
+    x INTEGER, y INTEGER, at REAL, data TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS vendor_prices_name_t ON vendor_prices(name, t);
+CREATE INDEX IF NOT EXISTS vendor_prices_capture ON vendor_prices(capture);
 """
 
 
