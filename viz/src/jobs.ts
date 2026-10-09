@@ -445,7 +445,7 @@ export function kpis(t: JobTotals): Kpi[] {
     },
     {
       key: "stored", label: "boards stored", value: fmtInt(t.stockpiled),
-      sub: t.stored_ctl ? `in the resource stockpile · ${fmtInt(t.stored_ctl)} by hand` : "in the resource stockpile", tone: "info",
+      sub: t.stored_ctl ? `${fmtInt(t.stored_ctl)} by hand` : "in the resource stockpile", tone: "info",
       hint: "Boards the Resource Stockpile confirmed taking (\"You add … to the Resource Stockpile.\"): the trips' and the ones the " +
         "overseer put there by hand (an aborted trip's boards, `ctl act stockpile`). Boards put in the chest don't count.",
     },
