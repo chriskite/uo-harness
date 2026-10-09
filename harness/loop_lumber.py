@@ -30,8 +30,8 @@ for lumber"): double-click the hatchet and answer its cursor with ourselves
 (self_target); the server chops a tree within its reach that still has wood. The
 tree list only chooses where to stand (next_stand); the runner stays until the
 server says "You do not see any harvestable resources nearby.", then moves on.
-The reach is unmeasured (SMART_RANGE); every stand is a `stand` job event for
-measuring it.
+The reach is 2 tiles (SMART_RANGE, measured from the `stand` job events: docs/NOTES.md);
+every stand is still a `stand` job event.
 
 Where: one lumber spot (--spot; harness/lumber_opt.py load_spots: the seed
 spots in harness/data/lumber_spots.json plus the memory store's lumber_spots
@@ -144,15 +144,13 @@ FINISH_CHECK_S = 2.0          # how often the run looks for a `ctl stop --after-
 WAYPOST = re.compile(r"Waypost$|^FACTION WP \d+$", re.IGNORECASE)
 NEXT_STAND_PLANS = 6          # nearest trees (straight line) whose stands next_stand() compares
 RETHINK_PLANS = 3             # nearer trees (straight line) whose routes tree_rethink plans per look
-# Smart Harvest's reach (Chebyshev tiles from our tile to a tree it may chop). UNMEASURED: to be
-# measured on the first attended Smart Harvest trip (docs/PLAN.md "Smart Harvest for lumber"; the
-# `stand` job events carry what the measurement needs). 1 is the only value the evidence proves:
-# capture 20261001_214649 at 23:47, at (1905,2616) the one tree within 6 tiles stood at distance 1
-# (1906,2617), it chopped and the server turned us to face it (0x77 dir SE). RunUO's by-hand chop
-# reach is 2. It decides which trees a stand counts (next_stand) and which ones a "nothing nearby"
-# marks out of wood (work_stand); too small only costs a walk to a stand that then says nothing
-# nearby, too large would rule out trees that still have wood.
-SMART_RANGE = 1
+# Smart Harvest's reach (Chebyshev tiles from our tile to a tree it may chop): 2, measured 2026-10-08 over 4 768
+# `stand` job events (docs/NOTES.md "Reach is 2 tiles"): when the server turned us between two chops, the nearest
+# map tree that way stood at 1 tile 657 times, 2 tiles 348, 3+ 15. It decides which trees a stand counts
+# (next_stand) and which ones a "nothing nearby" marks out of wood (work_stand). At 1 the trees 2 tiles off that a
+# stand had emptied stayed candidates, and 25 % of stands said "nothing nearby" at the first attempt; at 3, trees
+# with wood would be ruled out (a 45 min replay: 1 015 stands skipped that still gave logs).
+SMART_RANGE = 2
 SURVEY_R = 6                  # trees within this many tiles of a stand go into its `stand` event (the measurement)
 TREE_RECHECK_S = 5.0          # on the way to a tree, look this often for a nearer clear one (work_stand)
 TREE_SWITCH_GAIN = 8          # ... at least this many tiles nearer than the one we walk to
@@ -2769,7 +2767,7 @@ class LumberLoop:
                "trees": [[t["x"] - x, t["y"] - y, cheb(stand, (t["x"], t["y"])), t["graphic"]] for t in near],
                "attempts": 0, "successes": 0, "logs": 0, "faced": [], "end": None}
         where = f"stand {x},{y}"
-        log(f"{where}: {len(reach)} candidate tree(s) within {SMART_RANGE} (reach unmeasured), "
+        log(f"{where}: {len(reach)} candidate tree(s) within {SMART_RANGE}, "
             f"{len(near)} within {SURVEY_R}: {[tuple(t[:3]) for t in rec['trees']]}")
         t_stand = time.monotonic()
         self.harvesting = True       # the keep-away is on while we stand and chop (a thief comes to us)

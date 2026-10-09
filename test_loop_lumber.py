@@ -1990,7 +1990,7 @@ async def main():
               "attempts, logs, the facing per chop, ended by 'nothing nearby'",
               sorted((tuple(s["stand"][:2]), s["trip"]) for s in stands)
               == sorted([(dry_stand, 1), (good_stand, 1), (good_stand, 2), (dry_stand, 2)])
-              and all(s["end"] == "nothing_near" and s["range"] == 1 and len(s["faced"]) == s["attempts"]
+              and all(s["end"] == "nothing_near" and s["range"] == 2 and len(s["faced"]) == s["attempts"]
                       and s["s"] >= 0 and s["attempts"] == want[tuple(s["stand"][:2])][0]
                       and want[tuple(s["stand"][:2])][1] in s["trees"] for s in stands)
               and sum(s["logs"] for s in stands) == sum(r["logs"] for r in rows) and len(by_tile) == 2,
@@ -3453,6 +3453,52 @@ def unit_tree_rethink():
         loop_lumber.TREE_RECHECK_S = recheck
 
 
+def unit_smart_range():
+    """Smart Harvest reaches 2 tiles (docs/NOTES.md "Reach is 2 tiles", 2026-10-08): a 'nothing nearby' marks every
+    candidate within 2 of the stand out of wood, not just the adjacent ones (at 1, the trees 2 off that a stand had
+    emptied stayed candidates and a quarter of all stands said 'nothing nearby' at the first attempt), and nothing
+    3 off; next_stand counts the trees within 2 of a stand."""
+    print("\n== SMART_RANGE 2: 'nothing nearby' marks the trees within 2 of the stand; next_stand counts them ==")
+    import types
+    import loop_lumber
+    anchor = {"x": 11, "y": 10, "z": 0, "graphic": "0x0CE0"}
+    two, three = {"x": 12, "y": 12, "z": 0, "graphic": "0x0CE0"}, {"x": 13, "y": 10, "z": 0, "graphic": "0x0CE0"}
+    marks, events = [], []
+    fake = SimpleNamespace(
+        doing=lambda *a: None, tree_z_ok=lambda t: None, tree_rethink=lambda *a: None,
+        link=SimpleNamespace(pos=lambda st: (10, 10, 0), state=lambda: {}, last={}),
+        mover=SimpleNamespace(walk_to=lambda *a, **kw: None), timing={"walk_out_s": 1.0, "tree_walk_s": 0.0},
+        trip_n=1, k={"spot": {"id": "s"}}, harvesting=False, ending=None, break_due=False, finish_requested=False,
+        args=SimpleNamespace(max_attempts_per_stand=60, logs_per_trip=500), track_ensure=lambda *a: None,
+        unstick=lambda stand: False, stats={}, attempt=lambda: ("nothing_near", 0), chopped=lambda *a: None,
+        stash_now=lambda: None, facet=0,
+        memory=SimpleNamespace(harvest_record=lambda f, x, y, z, g, out, n=0: marks.append(((x, y), out)),
+                               job_event=lambda job, kind, rec, **kw: events.append(rec)))
+    for name in ("work_stand", "tree_route_max"):
+        setattr(fake, name, types.MethodType(getattr(loop_lumber.LumberLoop, name), fake))
+    trees = [two, three]
+    fake.work_stand(anchor, trees, {"gained": 0, "attempts": 0, "successes": 0, "unknown": 0})
+    check("the tree 2 off is marked out of wood and leaves the trip's list with the anchor; the one 3 off stays",
+          sorted(marks) == [((11, 10), "nothing_near"), ((12, 12), "nothing_near")] and trees == [three]
+          and events[0]["range"] == 2 and events[0]["end"] == "nothing_near", f"{marks} {trees} {events}")
+
+    lone = {"x": 5, "y": 0, "stand": [5, 1]}
+    cluster = [{"x": 20, "y": 0, "stand": [20, 1]}, {"x": 22, "y": 2, "stand": [23, 2]},
+               {"x": 18, "y": 3, "stand": [17, 3]}]
+    routes = {(5, 0): 10, (20, 0): 25, (22, 2): 60, (18, 3): 60}
+    fake = SimpleNamespace(
+        tree_guards=lambda st, recent=True: [], tree_z_ok=lambda t: None,
+        link=SimpleNamespace(pos=lambda st: (0, 0, 0), state=lambda: {}),
+        mover=SimpleNamespace(plan=lambda st, goal, max_steps=None: ([(i, 0) for i in range(routes[goal.center])], None)),
+        no_route=set(), switch_tree=None, dropped_trees={}, avoided=set(), creature={"avoided_trees": 0},
+        human=SimpleNamespace(rng=SimpleNamespace(uniform=lambda a, b: 1.0)))
+    for name in ("next_stand", "no_route_tree", "tree_route_max"):
+        setattr(fake, name, types.MethodType(getattr(loop_lumber.LumberLoop, name), fake))
+    pick = fake.next_stand([lone, *cluster])
+    check("next_stand: a 25-step walk to a stand with 3 trees within 2 beats a 10-step walk to a lone tree",
+          pick is cluster[0], repr(pick))
+
+
 def unit_home_on_abort():
     """Live 2026-10-06 (lumber-20261006-101348-70b3): the run aborted with Dan already at a hot landing and exited
     there; a snow elemental killed him 15 s later. A plain abort away from home now recalls home and stores first;
@@ -4087,7 +4133,8 @@ if __name__ == "__main__":
             ghost_horse, horse_follows,
             staff_in_view,
             hop,
-            unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_run_and_recall, unit_boxed_in,
+            unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_smart_range,
+            unit_run_and_recall, unit_boxed_in,
             unit_death_cause,
             unit_zone_view_edge, unit_home_on_abort,
             unit_capture_spell_witcher, unit_capture_juncture_222,

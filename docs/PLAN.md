@@ -944,8 +944,11 @@ are written to docs/NOTES.md and LUMBER_LOOP.md §2.
   `--max-attempts-per-stand` (60, was `--max-attempts-per-tree` 25). `unstick` still runs before
   every chop, so long stays reposition or clear the Stationary Penalty as before; captchas are
   unchanged (the attempt resumes after the solve, as at 23:20 in the capture).
-- **Reach:** `SMART_RANGE = 1`, the only value the evidence proves (23:47: one tree within 6 tiles,
-  at distance 1, and the server turned us to face it, 0x77 dir SE). RunUO's by-hand reach is 2.
+- **Reach:** `SMART_RANGE = 2` since 2026-10-08, measured from 4 768 `stand` events (docs/NOTES.md
+  "Reach is 2 tiles"). It was 1 until then, the only value the capture proved (23:47: one tree
+  within 6 tiles, at distance 1, faced). At 1 the trees 2 tiles off that a stand had emptied stayed
+  candidates, and 25 % of stands said "nothing nearby" at the first attempt (~3.5 % of harvest time);
+  a 45-min replay at 2 predicts 61 % of those with 4 false skips in 4 768 stands.
 - **Memory:** attempts are recorded on the stand tile (`harvest_record(facet, x, y, z, None, …)`);
   trip and episode rows are unchanged (attempts, successes, logs, `chop_s`, `walk_out_s`,
   `tree_walk_s`, now the walks between stands). `lumber_opt.tree_yield` counts a `nothing_near`
