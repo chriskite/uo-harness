@@ -520,7 +520,7 @@ read-only, 2026-10-03 ~16:00, Hackworth on Witcher spots): 21 lumber trip rows (
 | Crowding | other players at the spot | not recorded (only hostile ones as `pk_seen`) | **added** trip row `players_seen` (distinct players in view) + `players` (names, ≤ 10). Players named like creatures count as players: 'a stinky mongbat' and 'a wet mongbat' at the HB bank (2026-10-03 21:43, session 20261003_213125) were human bodies (0x190) with the player flag 0x20, notoriety 1, a backpack and a mount, hits 100/90 and no "(tame)" line: not pets |
 | Skill growth over weeks | Lumberjacking per trip | trip row `skill` at the start (2); no skill-gain messages in the store (0 "has increased by"; the server sends skill packets only) | **added** `skill_end`, `skill_gain` |
 | Harvest Aspect | tier/XP of the Harvest aspect | **not observable passively**: no buff, cliloc or speech carries it; only the `[aspect` gump (Aspect Mastery, gump id 0x907FC735) shows "Harvest" "Tier 0" (30 opens, newest 2026-09-28, a test character) | **readable on demand since 2026-10-04:** `ctl act aspect` opens the gump, parses it (`harness/aspects.py`: armor "Harvest" Tier 1, 361/1000 xp for Outland Dan) and closes it. Still not in the trip row or the formula; the recency weighting absorbs its effect meanwhile. A lost aspect (dropped armor, death) is re-applied with `ctl act aspect activate armor harvest` |
-| Hatchet choice and wear | material, quality, tool bonus, uses left, price | trip row `hatchet` (2; `uses` is the table's total, not what's left); uses left only from a click: 4 "(N uses remaining)" labels (500 → 477, 2026-09-30); prices table 0 rows | **added** `hatchet_uses_seen` {n, t}: the newest label of that hatchet in the store (passive; nothing clicks it). Wear per trip = `successes` (one use per success, measured). Prices still need `ctl lumber price` |
+| Hatchet choice and wear | material, quality, tool bonus, uses left, price | trip row `hatchet` (2; `uses` is the table's total, not what's left); uses left only from a click: 4 "(N uses remaining)" labels (500 → 477, 2026-09-30); prices table 0 rows | **added** `hatchet_uses_seen` {n, t}: the newest label of that hatchet in the store. Wear per trip = `successes` (one use per success, measured). Since 2026-10-08 the runner clicks its hatchets before each trip (`hatchets` row: need, have, uses per serial). Prices still need `ctl lumber price` |
 | Supplies per trip and their gold | library/own charges, recall casts, reagents, mana | not recorded | **added** trip row `supplies` {library_charges, own_charges, recall_casts, reagents_used} (reagents = pack count at the start minus the end; a charge counts when its recall landed [INFERENCE: RunUO takes it in the spell's effect]); per leg `mana_used`, `reagents_used`, `charges` (shown before the cast). `lumber_opt` prices them with `reagent:<name>` and `recall_charge` from the prices table and subtracts the per-trip cost (in logs at the board price) from the spot's net value; unpriced units cost 0 and are reported |
 | Witcher library tomes | charges per public tome over time | `travel` out events carry `charges` (38, 37, 36: tome 0x546ACD06) | **added** the tome serial (`book`); the Jobs page lists every book with its charges over time |
 | Captcha / speech-hold time lost | count and seconds | trip row `captchas`/`captcha_wait_s` (10 rows), `speech_holds`/`speech_wait_s` (4), `speech_clear` events with `waited_s` | had |
@@ -786,6 +786,21 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
      none_available}]. Then the trapped-pouch check (`pouch_ready`): still none, a `low_supplies`
      juncture, back into the room, exit 1. Offline: `test_loop_lumber.py` scenarios `resupply` (the
      room's shelf empty, the landing's gives 3 pouches, the trip goes) and `no_pouch` (both empty).
+  1a'. **Hatchet uses** (since 2026-10-08, user: "carry enough hatchets to complete the max chops the
+     trip would require"; `hatchets_ready`, `hatchet_uses`, `uses_needed`): a hatchet loses one use per
+     successful chop and breaks at 0 ("You broke your axe.", cliloc 500499, with that chop's logs;
+     live hatchet 0x5D8F64ED: 1125 → 154 uses over 970 successes). After the room's resupply the
+     runner single-clicks each hatchet it wears or has in the backpack itself (the server's "(N uses
+     remaining)" label; else the newest label on record, else its kind's full uses) and needs
+     quota / 5 uses (`HATCHET_LOGS_MIN`: the fewest logs a success gave in 11 398 since 2026-10-06; mean
+     8.2). Short, in the room: the most worn hatchet goes into the room's chest and the room's shelf
+     resupplies the loadout's hatchet, until enough or the shelf gives none (a loadout of 2+ hatchets
+     keeps the worn one and tops up anyway; user, 2026-10-08: both). Still short: an attention
+     `low_supplies` juncture (item `hatchet uses`) and the trip goes on. A hatchet that breaks
+     mid-trip hands the chopping to the next one (`hatchet()` picks among those left); a library hop
+     whose quota the hatchets can't cover goes to the room first. The trip row's `hatchets` {need,
+     have, uses, how, swapped}. Scenarios `hatchet_swap` (10 uses for a 100-log trip: swapped for the
+     shelf's fresh one) and `hatchet_breaks` (the worn one breaks, the spare chops on, stored).
   1b. **Mount** (since 2026-10-05, user; `mount_home`, `--mount on|off`, default on): at home and not
      riding, our pet within 3 tiles (the one remembered for this character, else the pet whose menu
      offers Release) gets the stock double-click (`harness/mount.py`; docs/NOTES.md "Our mount"). A

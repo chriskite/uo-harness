@@ -120,6 +120,8 @@ os.environ["LOOP_TEST_LOGDIR"] = LOGDIR
 C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
 SELF, BACKPACK, HATCHET = 0x00094375, 0x44ADA059, 0x44ADB57A
+SPARE_HATCHET, SHELF_HATCHETS = 0x44ADB57B, (0x44ADB590, 0x44ADB591)   # a second hatchet in the pack; the shelf's
+HATCHET_USES = 1375                                      # an exceptional gold one's (hatchets.json), as handed out
 START = (100, 200)                                       # the main run's trees around it; BOOK_RUNE_POS lands here
 GOOD_TREE = {"x": 111, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [110, 200]}
 DRY_TREE = {"x": 105, "y": 194, "z": 0, "graphic": "0x0CE0", "stand": [105, 195]}
@@ -587,6 +589,12 @@ class World:
         self.gazer_hits = []              # (time, our distance from it) per cast that hit
         self.reflect = False              # gazer_reflect: Magic Reflection is up and takes the next spell
         self.reflected = []               # (time, our distance from it) per spell Magic Reflection took
+        self.hatchet_left = {HATCHET: HATCHET_USES}   # uses per hatchet we carry; a success spends one, 0 breaks it
+        self.active_hatchet = HATCHET                 # the one double-clicked last
+        self.loadout_hatchets = 0                     # hatchets the shelves' Resupply tops up to (the loadout's count)
+        self.shelf_hatchets = {"room": 0, "landing": 0}   # fresh hatchets in each shelf's stock
+        self.hatchet_clicks = []                      # (serial, uses) per single click on a hatchet
+        self.broke = []                               # hatchets that broke
         self.unseen_caster = False        # unseen_caster: instead of the gazer, a caster past the view range strikes once
         self.caster_hits = []             # unseen_caster: times its Flamestrike landed
         self.archer = False               # pacer: instead of the gazer, an archer that keeps its distance
@@ -722,7 +730,7 @@ class World:
         self.send(gump(self.gump_serial, 0xC0B1026D, SHELF_GUMP["layout"], SHELF_GUMP["lines"]))
 
     def resupply(self, which):
-        """The loadout's trapped pouches topped up from this shelf's stock, the server's lines as live."""
+        """The loadout's trapped pouches and hatchets topped up from this shelf's stock, the server's lines as live."""
         need = max(0, LOADOUT_POUCHES - sum(1 for h in self.pouch_hue.values() if h == 38))
         give = min(need, self.shelf_stock[which])
         self.shelf_stock[which] -= give
@@ -730,8 +738,15 @@ class World:
         for s in fresh:
             self.pouch_hue[s] = 38
             self.send(self.pouch_pkt(s))
+        axes = min(max(0, self.loadout_hatchets - len(self.hatchet_left)), self.shelf_hatchets[which])
+        gone = set(self.broke) | {c for c, _ in self.chest_items}
+        new = [s for s in SHELF_HATCHETS if s not in self.hatchet_left and s not in gone][:axes]
+        for s in new:
+            self.shelf_hatchets[which] -= 1
+            self.hatchet_left[s] = HATCHET_USES
+            self.send(contained(s, 0x0F44, 1, BACKPACK))
         self.resupplies.append((which, len(fresh)))
-        if not fresh:
+        if not fresh and not new:
             self.send(sys_text("Unable to resupply: no items available."))
         elif len(fresh) < need:
             self.send(sys_text("No resupply: Trapped Pouch"))
@@ -1008,6 +1023,13 @@ class World:
         s = self.add_wood(LOG_G, LOGS_PER_SUCCESS, BACKPACK)     # new logs lie in the pack (AddToBackpack)
         self.harvested += LOGS_PER_SUCCESS
         self.later(0.3, [self.stack_pkt(s), sys_text("You chop some logs and put them in your backpack.")])
+        h = self.active_hatchet
+        if h in self.hatchet_left:                    # a success spends a use; the last one breaks it (live 21:36:09)
+            self.hatchet_left[h] -= 1
+            if self.hatchet_left[h] <= 0:
+                del self.hatchet_left[h]
+                self.broke.append(h)
+                self.later(0.3, [delete(h), cliloc(500499)])
         if not self.scripted:
             if self.scenario == "skirmish" and self.good_n == 2:      # a creature goes for the agent
                 asyncio.get_running_loop().call_later(0.5, self.attacker_appears, ATTACKER_POS, False)
@@ -1318,6 +1340,10 @@ class World:
             if self.tracking:
                 self.send(cliloc(1011350))               # "What do you wish to track?"
                 self.tracking_gump()
+        elif pid == 0x09 and int.from_bytes(p[1:5], "big") in self.hatchet_left:   # its "(N uses remaining)" label
+            s = int.from_bytes(p[1:5], "big")
+            self.hatchet_clicks.append((s, self.hatchet_left[s]))
+            self.later(0.05, [label_pkt(s, "", f"({self.hatchet_left[s]} uses remaining)")])
         elif pid == 0x09:                                # single click: the steward answers with his label
             if int.from_bytes(p[1:5], "big") == STEWARD and self.facet == 0 and self.cheb(STEWARD_POS) <= 18:
                 self.steward_clicks += 1
@@ -1345,9 +1371,10 @@ class World:
                     self.mounted = True
                     self.send(delete(HORSE))
                     self.send(equip(MOUNT_ITEM, 0x3EA1, 0x19))
-            elif serial == HATCHET and self.no_cursor_once and self.facet == ROOM_FACET:
+            elif serial in self.hatchet_left and self.no_cursor_once and self.facet == ROOM_FACET:
                 self.no_cursor_once = False              # convert_stacks: this use brings no cursor
-            elif serial == HATCHET:
+            elif serial in self.hatchet_left:
+                self.active_hatchet = serial
                 self.cid += 1
                 self.cursor_for = self.cid
                 self.send(cliloc(1010018))
@@ -1529,6 +1556,10 @@ class World:
                     self.chest_stack = (self.chest_stack[0], self.chest_stack[1] + amount)
                     self.send(contained(self.chest_stack[0], BOARD_G, self.chest_stack[1], CHEST))
                 return
+            elif in_chest and s in self.hatchet_left:    # a worn hatchet put away
+                self.chest_items.append((s, self.hatchet_left.pop(s)))
+                self.send(contained(s, 0x0F44, 1, CHEST))
+                return
             elif in_chest and s in self.pouch_hue:       # a spent pouch put away
                 self.chest_items.append((s, self.pouch_hue.pop(s)))
                 self.send(contained(s, POUCH_G, 1, CHEST))
@@ -1571,6 +1602,9 @@ class World:
             asyncio.get_running_loop().create_task(self.combat())
         else:
             self.send(equip(HATCHET, 0x0F44, 0x02))
+        for s in self.hatchet_left:                             # spare hatchets lie in the pack
+            if s != HATCHET:
+                self.send(contained(s, 0x0F44, 1, BACKPACK))
         self.send(contained(RUNEBOOK, 0x22C5, 1, BACKPACK))     # the way out and home
         if self.library:
             self.send(contained(0x44ADB0FF, 0x0F7A, 10, BACKPACK))   # black pearl: charges spend none
@@ -2596,6 +2630,52 @@ async def ghost_horse():
     check("the guild house rested it 4 times (out of the room, home, twice) and gave it back each time: riding "
           "at the end", world.mount_rested == 4 and world.mounted,
           f"rested {world.mount_rested} mounted {world.mounted}")
+    store.close()
+
+
+async def hatchet_swap():
+    """User 2026-10-08 (a worn lone hatchet broke 1528 logs into a trip): before a trip the runner reads its hatchets'
+    uses (single clicks: "(N uses remaining)") and needs the quota's worth at 5 logs a success. A hatchet with 10 uses
+    for a 100-log trip (20 needed): into the room's chest, and the room shelf's Resupply gives the loadout's fresh one;
+    the trip chops with it and stores."""
+    print("\n== hatchet swap: too few uses for the trip -> the worn one into the chest, a fresh one from the shelf ==")
+    world = World("library")
+    world.shelf_stock = {"room": 0, "landing": 0}
+    world.hatchet_left = {HATCHET: 10}
+    world.loadout_hatchets, world.shelf_hatchets = 1, {"room": 1, "landing": 0}
+    text, code, store, _ = await run_scenario(world, "hatchet_swap", [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
+    eps = store.episodes("lumber")
+    hk = (eps[0].get("hatchets") or {}) if eps else {}
+    fresh = SHELF_HATCHETS[0]
+    check("the worn hatchet (10 uses) went into the chest; the shelf gave a fresh one (1375), read by a click",
+          (HATCHET, 10) in world.chest_items and fresh in world.hatchet_left and (HATCHET, 10) in world.hatchet_clicks
+          and (fresh, HATCHET_USES) in world.hatchet_clicks, f"chest {world.chest_items} clicks {world.hatchet_clicks}")
+    check("the trip row: 20 uses needed, the swap, 1375 carried; chopped with the fresh one and stored (exit 0)",
+          hk.get("need") == 20 and hk.get("have") == HATCHET_USES and hk.get("swapped") == [
+              {"serial": f"0x{HATCHET:08X}", "uses": 10}] and world.hatchet_left[fresh] < HATCHET_USES
+          and code == 0 and [e["outcome"] for e in eps] == ["stored"],
+          f"exit {code} {hk} left {world.hatchet_left}\n{text[-700:]}")
+    store.close()
+
+
+async def hatchet_breaks():
+    """A hatchet breaking mid-trip ("You broke your axe.") with a spare in the pack: the uses check counts both (2 +
+    1375 for the 20 a 100-log trip needs), the worn one breaks on its 2nd success and the chopping goes on with the
+    spare; the trip stores (live 2026-10-08 the lone hatchet broke and the run aborted)."""
+    print("\n== hatchet breaks: the spare takes over, the trip goes on ==")
+    world = World("library")
+    world.hatchet_left = {HATCHET: 2, SPARE_HATCHET: HATCHET_USES}
+    text, code, store, _ = await run_scenario(world, "hatchet_breaks", [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
+    eps = store.episodes("lumber")
+    check("the worn one broke; the spare chopped on; the trip stored (exit 0), no juncture about hatchets",
+          world.broke == [HATCHET] and world.hatchet_left.get(SPARE_HATCHET, HATCHET_USES) < HATCHET_USES
+          and code == 0 and [e["outcome"] for e in eps] == ["stored"]
+          and not any(j["data"].get("item") == "hatchet uses" for j in store.junctures()),
+          f"exit {code} broke {world.broke} left {world.hatchet_left}\n{text[-700:]}")
     store.close()
 
 
@@ -4130,7 +4210,7 @@ if __name__ == "__main__":
             resupply,
             convert_stacks,
             landing_escape, stockpile_store,
-            ghost_horse, horse_follows,
+            ghost_horse, horse_follows, hatchet_swap, hatchet_breaks,
             staff_in_view,
             hop,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_smart_range,

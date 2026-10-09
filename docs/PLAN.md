@@ -1333,6 +1333,21 @@ range went to 80 after Bastet, tracked at 55 tiles, struck mounted ~6.5 s later;
 60, but a mounted red at 61–80 tiles is ~1–2 s from that point, and the in-view red rule (any red
 in view: recall) is the backstop. Reds beyond the range also stop counting as the spot's hazard.
 
+## Enough hatchet uses for every trip (decided and built 2026-10-08)
+
+Seer-11's run 2 (`lumber-20261008-211509-2653`): Dan's only hatchet broke 1528 logs into a trip and the
+run aborted; the shelf loadout holds 1 hatchet and a worn one can't be restocked, so resupply never
+replaced it. User: "carry enough hatchets to complete the max chops the trip would require"; on how
+to get more, "Both":
+- **Adopted:** before each trip the runner reads each hatchet's uses (a single click) and needs
+  quota / 5 uses (5 = the fewest logs a success has given); short, in the room, the most worn one
+  goes into the room's chest and the shelf hands the loadout's fresh one, repeated until enough;
+  still short, a juncture and the trip goes on. A hop the hatchets can't cover goes to the room
+  first. The user raises Dan's loadout to 2+ hatchets in game, so a worn one is kept and topped up.
+- **Rejected:** retrieving extra hatchets through the shelf's Retrieve menu (an unverified gump);
+  cutting the trip quota to the uses left (the user wants full trips).
+- **Cost:** a swapped hatchet's leftover uses sit in the chest (a few hundred at most).
+
 ## After the witcher_336 death: pacers, hop risk, no-go areas (decided and built 2026-10-08)
 
 User approval of Main's proposals after Seer-8's death report (a mounted gloomwood hunter's arrows,
