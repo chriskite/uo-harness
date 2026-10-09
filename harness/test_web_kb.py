@@ -204,7 +204,7 @@ def test_forum_resume():
     def listing(tid):
         return (f'<div class="structItem structItem--thread" data-author="a"><div class="structItem-title">'
                 f'<a href="/index.php?threads/t.{tid}/">T{tid}</a></div><time data-timestamp="{tid}"></time>'
-                f'<dt>Replies</dt><dd>0</dd></div><a href="/index.php?forums/patches.14/page-4">4</a>')
+                f'<dt>Replies</dt><dd>0</dd></div><a href="/index.php?forums/general-discussion.3/page-4">4</a>')
 
     class Fake:
         def __init__(self):
@@ -212,7 +212,7 @@ def test_forum_resume():
 
         def get(self, url):
             self.urls.append(url)
-            base = f"{ow.FORUM}/index.php?forums/patches.14/"
+            base = f"{ow.FORUM}/index.php?forums/general-discussion.3/"
             if url.startswith(base):
                 page = int(url[len(base) + 5:]) if url != base else 1
                 return listing(5 - page)          # page 1 holds thread 4 (newest), page 4 thread 1
@@ -224,10 +224,10 @@ def test_forum_resume():
         for tid in (4, 3, 2, 1):
             fetched = (tid, 0, 1.0) if tid >= 3 else (None, None, None)
             con.execute("INSERT INTO threads VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                        (tid, 14, f"T{tid}", f"{ow.FORUM}/index.php?threads/t.{tid}/", "a", tid, tid, 0, *fetched))
+                        (tid, 3, f"T{tid}", f"{ow.FORUM}/index.php?threads/t.{tid}/", "a", tid, tid, 0, *fetched))
         con.commit()
         fake = Fake()
-        ow.crawl_forums(con, fake, nodes=[14])
+        ow.crawl_forums(con, fake, nodes=[3])
         got = {r[0] for r in con.execute("SELECT thread_id FROM posts")}
         check(got == {1, 2} and not any("page-3" in u for u in fake.urls),
               f"a resumed crawl fetches the threads listed but never fetched ({sorted(got)}, {len(fake.urls)} GETs)")
