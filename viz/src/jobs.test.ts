@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { addDays, eventView, legText, localDay, parseRange, presetRange, rangeBounds, rangeQuery, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, outcomeKind, phaseList, theftLoss, tripHome, woodShares, type HuntTotals, type JobEvent, type JobTotals } from "./jobs.ts";
+import { addDays, eventView, legText, localDay, parseRange, presetRange, rangeBounds, rangeQuery, routeQuery, routeRange, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, outcomeKind, phaseList, theftLoss, tripHome, woodShares, type HuntTotals, type JobEvent, type JobTotals } from "./jobs.ts";
 
 function totals(p: Partial<JobTotals> = {}): JobTotals {
   return {
@@ -236,6 +236,14 @@ describe("date range", () => {
     expect(parseRange("from=2026-10-05&to=2026-10-01")).toEqual({ from: "2026-10-01", to: "2026-10-05" });
     expect(rangeQuery(parseRange("to=2026-10-05"))).toBe("to=2026-10-05");
     expect(rangeQuery({ from: null, to: null })).toBe("");
+  });
+  test("routeRange: no dates means today, `all` is the explicit all-time, and routeQuery inverts both", () => {
+    expect(routeRange("", "2026-10-08")).toEqual({ from: "2026-10-08", to: null });
+    expect(routeRange("from=garbage", "2026-10-08")).toEqual({ from: "2026-10-08", to: null });
+    expect(routeRange("all", "2026-10-08")).toEqual({ from: null, to: null });
+    expect(routeRange("from=2026-10-01&to=2026-10-05", "2026-10-08")).toEqual({ from: "2026-10-01", to: "2026-10-05" });
+    expect(routeQuery({ from: null, to: null })).toBe("all");
+    expect(routeQuery({ from: "2026-10-01", to: null })).toBe("from=2026-10-01");
   });
   test("rangeBounds: since at the local midnight starting `from`, until at the one after `to` (to is inclusive)", () => {
     // 2026-03-08 and 2026-11-01 are DST switch days in the US: a day isn't always 86 400 s

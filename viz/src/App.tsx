@@ -20,7 +20,7 @@ import { OverseerPanel, useOverseer } from "./components/OverseerPanel.tsx";
 import { PaperdollPanel } from "./components/PaperdollPanel.tsx";
 import { SelfPanel } from "./components/SelfPanel.tsx";
 import { TrafficPanel } from "./components/TrafficPanel.tsx";
-import { parseRange, rangeQuery, type DateRange } from "./jobs.ts";
+import { localDay, parseRange, rangeQuery, routeQuery, routeRange, type DateRange } from "./jobs.ts";
 import { runningLumber } from "./lumberjob.ts";
 import { useViz } from "./store.ts";
 
@@ -33,10 +33,10 @@ const MAIN_VIEW_KEY = "uo-viz-main";
 const NYSTUL_OPEN_KEY = "uo-viz-nystul-open";
 
 /** The page and the Jobs date range live in the URL hash (#jobs, #jobs/hunt, #nystul, with
- *  ?from=YYYY-MM-DD&to=YYYY-MM-DD), so they survive reloads and can be linked. */
+ *  ?from=YYYY-MM-DD&to=YYYY-MM-DD, or ?all), so they survive reloads and can be linked. No dates = today. */
 function routeFromHash(): { page: Page; job: JobKind; range: DateRange } {
   const [path = "", query = ""] = location.hash.split("?", 2);
-  const range = parseRange(query);
+  const range = routeRange(query, localDay(Date.now() / 1000));
   if (path === "#jobs/hunt") return { page: "Jobs", job: "hunt", range };
   if (path === "#nystul") return { page: "Nystul", job: "lumber", range };
   return { page: path === "#jobs" ? "Jobs" : "Live", job: "lumber", range };
@@ -79,7 +79,7 @@ export function App() {
   }, []);
 
   const go = (p: Page, job: JobKind = route.job, range: DateRange = route.range) => {
-    const q = rangeQuery(range);
+    const q = routeQuery(range);
     location.hash =
       p === "Live" ? "" : p === "Nystul" ? "nystul" : (job === "hunt" ? "jobs/hunt" : "jobs") + (q ? `?${q}` : "");
     setRoute({ page: p, job, range });

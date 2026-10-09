@@ -445,7 +445,9 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     trips keep showing) and a `from`/`to` pair of local dates, both inclusive (`to`'s `min` is
     `from`). It lives in the hash with the job, so it survives reloads and can be linked:
     `#jobs?from=2026-10-01&to=2026-10-05`, `#jobs/hunt?from=2026-10-01` (bad dates are dropped, a
-    reversed pair swapped; `viz/src/jobs.ts` `parseRange`). The browser turns it into
+    reversed pair swapped; `viz/src/jobs.ts` `parseRange`). **Default: Today** (2026-10-08, user
+    request): a hash with no dates means today, and `All` is the explicit `#jobs?all`
+    (`routeRange`/`routeQuery`). The browser turns it into
     [local midnight of `from`, local midnight after `to`) for `since`/`until`. A range change
     fetches at once; the old numbers stay up with `loading…` beside the picker until it answers,
     and an answer for a range no longer shown is dropped. The Optimizer and Spots panels come

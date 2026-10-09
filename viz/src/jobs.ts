@@ -720,6 +720,19 @@ export function presetRange(key: RangePreset, today: string): DateRange {
   return back === null ? { from: null, to: null } : { from: addDays(today, -back), to: null };
 }
 
+/** The Jobs range a URL query means. No dates: today (the default); `all`: all time, the explicit
+ *  form of the empty range, since an empty query has to mean today. */
+export function routeRange(query: string, today: string): DateRange {
+  if (new URLSearchParams(query).has("all")) return { from: null, to: null };
+  const r = parseRange(query);
+  return r.from || r.to ? r : presetRange("today", today);
+}
+
+/** routeRange's inverse: the query of a range in the URL hash. */
+export function routeQuery(r: DateRange): string {
+  return rangeQuery(r) || "all";
+}
+
 // ------------------------------------------------------------------ hunt job
 // /api/jobs?job=hunt (harness/jobs.py compute_hunt). XP is Outlands mastery-chain
 // experience: a kill's creature gold value x our damage share, estimated as the gold
