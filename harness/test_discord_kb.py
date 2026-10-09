@@ -88,11 +88,11 @@ def test_windows():
                 raise kbm.Truncated("too long")
             return {"claims": []}, {"model": "fake"}
         kbm.llm_json = fake
-        kbm.extract(kb, m, kbm.Budget(1.0), channels=("harvesting",), today="2026-10-01", log=lambda *_: None)
+        kbm.extract(kb, m, kbm.Budget(1.0), names=("harvesting",), today="2026-10-01", log=lambda *_: None)
         st = dict(kb.execute("SELECT status, count(*) FROM windows GROUP BY status"))
         check(st == {"ok": 3, "split": 1}, f"a truncated window is split into two stored halves ({st})")
         n = len(calls)
-        kbm.extract(kb, m, kbm.Budget(1.0), channels=("harvesting",), today="2026-10-01", log=lambda *_: None)
+        kbm.extract(kb, m, kbm.Budget(1.0), names=("harvesting",), today="2026-10-01", log=lambda *_: None)
         check(len(calls) == n, "a second extract makes no calls")
         con.close()
 
@@ -109,7 +109,7 @@ def test_grounding():
                 "entities": ["cedar"]}
         outside = dict(good, message_ids=[str(a), "12345"])
         badquote = dict(good, quote="cedar needs 70 lumberjacking")
-        kept, dropped = kbm.check_claims(w, [good, outside, badquote], False)
+        kept, dropped = kbm.check_claims(w, [good, outside, badquote], kbm.Msgs(path).is_official)
         check(len(kept) == 1 and dropped == 2, "out-of-window ids and non-substring quotes are dropped")
         check(kept and json.loads(kept[0]["author_ids"]) == [7] and kept[0]["first_ts"].startswith("2026-09-10T10:00"),
               "authors and time come from the cited message")

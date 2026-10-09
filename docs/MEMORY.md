@@ -127,8 +127,12 @@ and its dealings with players and the user, kept across sessions. It is exposed 
   - `insight` (lessons generalised from episodes)
 - **Provenance on every entry.**
   - `source_type`: observed / user / doc / wiki / community / inferred (community = Discord
-    claims promoted by `harness/discord_kb.py`).
-  - `source_ref`: capture tag, chat#, juncture#, URL or screenshot.
+    and forum claims promoted by `harness/discord_kb.py` / `harness/forum_kb.py`; wiki = wiki
+    sections and doc = news posts and patch notes synced by `harness/web_kb.py`, since 2026-10-08;
+    docs/NOTES.md "Outlands wiki, news and forums").
+  - `source_ref`: capture tag, chat#, juncture#, URL or screenshot. Pipeline entries carry their
+    key: `discord-kb:<fact>`, `forum-kb:<fact> <post> (<first>..<last> seen)`, `web-kb:<doc
+    key>/<heading path>/<part> <url>`; tags `discord`, `forum`, `wiki`, `news` (+ `patch`/`event`).
   - Confidence defaults by source: user 0.95, observed 0.9, doc 0.8, wiki 0.7, community 0.6,
     inferred 0.5.
 - **No silent duplicates.** The same normalised content, or ≥ 85% word overlap on the same topic,

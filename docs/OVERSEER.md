@@ -436,17 +436,23 @@ Paste this (or point the session at this section) to start an overseer.
 >      a player ("how do I come back after dying", "is it safe to chop near witcher_282"), not a
 >      bag of keywords. Put in the exact names you have (item, NPC, spot id): they also match by
 >      word and rank such entries first.
->    - Narrow it when you know what you want: `--kind procedure` for how-tos, `--tag discord` for
->      community knowledge only, `--here` for entries located near you.
+>    - Narrow it when you know what you want: `--kind procedure` for how-tos, `--tag discord` /
+>      `--tag forum` for community knowledge only, `--tag wiki` for the wiki, `--tag patch` for
+>      patch notes, `--here` for entries located near you.
 >    - It always returns results, even when you know nothing on the subject. Read each result's
 >      `similarity`: around 0.6 and up is on topic; below ~0.55 is noise (a question with no
 >      entry, e.g. "what is the capital of France", tops out near 0.5). If nothing is on topic,
 >      say so in `ctl think` and decide from what you see, then `know add` what you learn.
 >    - Each search takes ~1.5 s: search once per decision, not before every step.
->    - Entries tagged `discord` (source `community`, or `doc` for patch notes; ref `discord-kb:N`)
->      are claims from the community Discord. Use them as leads, not truth. When play shows one
->      is true, `ctl know confirm ID --source observed --ref <evidence>`; when it's wrong,
->      `ctl know retract ID --reason …` (the pipeline never re-adds a retracted entry).
+>    - Entries tagged `discord` or `forum` (source `community`, or `doc` for staff/patch-note
+>      claims; ref `discord-kb:N` / `forum-kb:N … (first..last seen)`) are claims from the
+>      community. Use them as leads, not truth. When play shows one is true,
+>      `ctl know confirm ID --source observed --ref <evidence>`; when it's wrong,
+>      `ctl know retract ID --reason …` (the pipelines never re-add a retracted entry).
+>    - Entries tagged `wiki` (source `wiki`) are wiki sections as written, topic "Page > Section".
+>      Entries tagged `news` (source `doc`) are official news posts, `patch` ones patch notes;
+>      their topic starts with the post date. An older patch note may be superseded by a later
+>      one or by the wiki: prefer the newest. Confirm or retract them like any entry.
 >    Looking for an NPC or vendor? `ctl npcs <title>` first: the world model remembers everyone
 >    seen so far (out of view: last seen), so don't wander to find them.
 > 4. `ctl ack <id>` every juncture you have handled; `ctl note-action` anything you did outside

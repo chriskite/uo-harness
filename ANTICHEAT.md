@@ -258,6 +258,20 @@ Working rules, each tied to a detection surface above:
     drops, and only for a cursor id it saw the agent answer while the client showed it; a new
     server cursor with that id clears it. Test: `test_movement.py` e2e.
 
+19. **Reading the official websites (2026-10-08, user request; docs/PLAN.md "Wiki, patch notes and
+    forums in the knowledge base").** `harness/outlands_web.py` reads wiki.uooutlands.com (MediaWiki
+    API), uooutlands.com news (WordPress REST API) and forums.uooutlands.com (public HTML pages,
+    logged out) from this computer's home IP, the one the game account plays from.
+    - What the sites see: anonymous GETs with a desktop Edge User-Agent, no cookies or login, paced
+      1–2 s (wiki/news) and 1.5–3.5 s (forum) per request. A full first crawl is ~2 100 wiki API
+      calls and a few thousand forum pages over a few hours; later runs fetch only what changed.
+    - Exposure [INFERENCE]: none in-game; the requests carry no OutlandsID, JWT or game data, and
+      the game server never sees them. A web admin could link a steady anonymous reader to the
+      household IP through their web logs. Reading the wiki and forums is what players do, but
+      a first crawl's volume is above one person's reading. Mitigation: the pacing above, no
+      parallel requests per host, and incremental re-runs (no scheduled crawler).
+    - Nothing is posted; the tool has no code path that writes to a site.
+
 ## 9. Open questions
 
 - ~~What exactly does `Send_UOLive_HashResponse` hash?~~ **Answered: map-block CRC16s for UltimaLive world sync (upstream source).**

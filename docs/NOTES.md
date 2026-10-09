@@ -1896,6 +1896,7 @@ Read from the memory-store `gump_open` events and the session capture
 - **What:** `harness/backup.py` copies the gitignored data that can't be recreated easily to `\\STARGAZER\files\uo-harness` (mapped as `F:` interactively): gzipped snapshots of `harness/data/harness.db` (`db/`) and, since 2026-10-03, of the Discord capture `harness/data/discord.db` (`discord/`, same snapshot method and retention, skipped while it doesn't exist), the Discord images `harness/data/discord_media/` (`discord_media/`, additive, skipped while absent), `logs/` (session captures, screens, overseer task logs), repo-root `*.pcapng`/`*.etl`/`*.png`/`divert.log` (`artifacts/`) and the 1.4 GB Ghidra project (`ghidra/`). The module docstring lists what is deliberately left out (git-tracked files, `logs_test*/`, downloads, regenerable dumps, credentials, the Discord browser profile).
 - **Schedule:** Task Scheduler task `uo-harness backup`, hourly, registered by `register_backup_task.ps1` (re-run it to change anything). It runs `pythonw.exe` (no console window over the game) as the current user, non-elevated, only while logged on, so no password is stored.
 - **A computer without `ghidra/` (the desktop):** the tree used to be required, so robocopy's "source not found" made every run `FAIL` (desktop, 2026-10-04). It's now skipped while absent like `discord_media/`; that also keeps `/MIR` from ever mirroring an empty local dir over the share's project.
+- **Forum KB (since 2026-10-08):** `harness/data/forum_kb.db` is snapshotted like `discord_kb.db` into `forum_kb/` (`forumkb-*.db.gz`), from whichever computer has it, skipped while absent. The capture it reads, `outlands_web.db`, is not backed up: `outlands_web.py crawl all` rebuilds it, and `web_kb.py sync` adopts its existing entries by their `web-kb:` ref when its state is gone.
 - **Mapped drives are per logon session**, so a scheduled task doesn't reliably see `F:`. The script uses the UNC path, which works through the logon session's SMB connection (verified: `schtasks /run` → Last Result 0, snapshot written).
 - **DB snapshot:** SQLite online backup API from a `mode=ro` connection (never checkpoints or writes the live store; rows still in the WAL are included), switched to rollback-journal mode so the file stands alone, `PRAGMA quick_check` before shipping, then written as `.part` and renamed. Backups of an unchanged store are byte-identical, so a sha256 in `db/latest.json` skips duplicates. Retention: every snapshot from the last 48 h, then the newest per day, kept indefinitely (~6.5 MB each; 38 MB raw). Restore: stop the proxy, gunzip to `harness/data/harness.db`, delete stale `-wal`/`-shm`.
 - **Restore drill (2026-10-01, from the share, into a scratch dir):** all 3 snapshots gunzipped; the latest matched the sha256 recorded at backup time; the documented procedure (gunzip over a stale DB, delete stale `-wal`/`-shm`) gave `PRAGMA integrity_check` ok, schema v4. `memory.py --db <restored> stats`, `Memory.walk_memory(0)` (4774 tiles) and `Knowledge.search` (FTS) all worked on it, and all 11 tables matched the live store row-for-row (247,502 events). Note: the harness's `memory.connect` switches a restored file back to WAL on first open; that's expected.
@@ -2031,6 +2032,70 @@ Read from the memory-store `gump_open` events and the session capture
   - **Quality checks (same run):** 10 random clusters with ≥ 3 claims were all one topic (some combine related sub-facts into one compound statement), so the threshold stayed at 0.86. Residual duplicates across clusters: among the 4100 digest facts, 6 pairs have statement cosine ≥ 0.95, 25 ≥ 0.92, 80 ≥ 0.90 (e.g. two Item Identification wand facts). Lowering CLUSTER_SIM to 0.82 and `consolidate --recluster` would merge more but re-adjudicates everything (~$12) and replaces every promoted entry; not done.
   - **Rebuild after the full crawl (2026-10-04):** 496 new windows (#newplayer back to 2026-06-27, #template-builds 16.1k msgs, #scripting 2.4k, #announcements 146; #patch-notes still 6 posts, its crawl ended "stuck: no older page after 3 jumps") plus 2 re-extracted days that had been partial (their 42 clusters dissolved). Totals: 803 windows, 20,053 claims kept, 126 dropped → 14,016 clusters (79 % singletons, the largest 79 claims) → facts: single_source 10,105, consensus 3,388, official 173, disputed 214, outdated 82, not_useful 53, wrong 1. Promote: 2,765 added, 339 updated, 25 retracted (verdicts that dropped), 1 confirmation of an existing entry; 3,561 active in harness.db. 1,953 calls, $71.11 list price (subscription usage), ~2.5 h at concurrency 4, 0 window failures. One adjudication batch failed twice on "Extra data" (a second JSON object after the reply); `parse_json` now takes the first complete object, and a rerun adjudicated those 8 clusters. Pre-embedding the 3,106 new knowledge entries for `ctl know search` took 3.5 s on the GPU.
   - **Quality checks (rebuild):** 10 random clusters with ≥ 3 claims were all one topic (some hold conflicting values, e.g. arcane essence at 20 gp vs 1k gp, which adjudication resolves). Duplicates across clusters grew with the corpus: of 13,666 digest facts, 26 pairs have cosine ≥ 0.95, 166 ≥ 0.92, 459 ≥ 0.90 (~3 % of facts in a pair ≥ 0.90). Threshold unchanged; a `consolidate --recluster` at 0.82 would re-adjudicate all ~14k clusters (~$45 list price) and replace every promoted entry.
+
+## Outlands wiki, news and forums (since 2026-10-08)
+
+Decision and rejected options: docs/PLAN.md "Wiki, patch notes and forums in the knowledge base".
+Code: `harness/outlands_web.py` (capture), `harness/web_kb.py` (wiki + news → `knowledge`),
+`harness/forum_kb.py` (forums → the Discord KB pipeline). Tests: `test_web_kb.py`, `test_forum_kb.py`.
+
+- **Run (system Python, from the repo root):**
+  - `python harness/outlands_web.py crawl wiki|news|forums|all [--limit N] [--nodes 14,16]`; `stats`;
+    `text wiki:<pageid>|news:<postid>|thread:<id>` prints a stored doc as the pipelines read it. Log:
+    `logs/outlands_web.log`. A first full crawl takes hours: launch it detached (`Start-Process`
+    with `-RedirectStandardOutput`, as for discord_kb), one process per host is fine; re-runs fetch
+    only what changed.
+  - `python harness/web_kb.py sync [--only wiki|news] [--dry-run] [--db PATH]`, `chunks <doc key>`
+    (preview a doc's entries), `stats`.
+  - `python harness/forum_kb.py run [--max-cost 40]` (or the stages `extract [--nodes] [--limit]`,
+    `consolidate`, `promote [--dry-run]`, `digest`, `search`, `stats`; same rules and cost guard
+    as discord_kb, exit 2 = cost cap hit, rerun resumes). Extract per section as the crawl
+    finishes them; consolidate once at the end (a cluster whose members change is re-adjudicated).
+- **The sites (probed 2026-10-08):**
+  - Wiki: MediaWiki 1.41.1, API at `https://wiki.uooutlands.com/api.php`, 2 139 articles in
+    namespace 0 (no redirects), 1.83 MB of wikitext. 1 366 articles are under 100 bytes of
+    wikitext (trait groups, achievement lists built by templates), so the capture stores
+    `action=parse` HTML, not wikitext. Extensions: Scribunto, no TextExtracts. The wiki has no
+    robots.txt.
+  - News: WordPress REST `https://uooutlands.com/wp-json/wp/v2/posts`, 653 posts (2018-10-03 →
+    2026-10-01), one category; by title 240 PATCH (1.9 MB of text), 100 EVENT, 93 VIDEO (no text),
+    the rest announcements ("The PvP Patch Has Arrived!", expansions, rule changes). Patch posts
+    style section headings as bold paragraphs, not `<h*>`, hence web_kb's "short line before a list
+    is a heading" rule. Pre-2020 patch posts sometimes only say "Please click the title to review
+    the patch notes" (the notes were on the forum).
+  - Forum: XenForo 2 at `https://forums.uooutlands.com/index.php?…` (no public API, readable
+    logged out, 20 posts per thread page). 19 sections, 5 007 threads / 27 850 posts in total on
+    2026-10-08; the game-info subset crawled is `outlands_web.FORUM_NODES`. Patch notes are posted
+    in Patches (432 threads, 2017-09 →) by staff, most by Luthius.
+  - **Staff markup:** a post is staff when its name carries `username--staff|admin|moderator` or
+    its user cell has the "Staff Member" `message-userBanner`. Developers such as Luthius have only
+    `username--moderator username--admin` and the banner, no `username--staff`; the first crawl
+    keyed on `username--staff` alone and missed them (caught by the ForumKB agent, fixed, forum
+    tables wiped and recrawled).
+- **Gotchas met while building it:**
+  - A `web_kb.py sync` that held one write transaction on `outlands_web.db` for 4 min locked both
+    running crawlers out ("database is locked" after the 30 s busy timeout; both died). The sync now
+    commits its state after every entry, and a thread that hits a lock is logged and skipped.
+  - After that crash the forum listing walk (stop at the first page with nothing new) skipped the
+    threads the dead run had listed but not fetched; the fetch list now comes from the DB (every
+    thread whose fetched last-post/replies differ), regression test `test_forum_resume`.
+  - `knowledge.add` treats the same topic with ≥ 85 % word overlap as a duplicate. A patch post
+    that repeats a heading with near-identical text (2026-08-12: "Decode Map" for treasure and for
+    resource maps) confirmed its own first entry 21 times in the first news sync. Topics of a
+    repeated heading now end in `#2`, `#3`…; the 18 affected entries were repaired by hand
+    (confirmations 0, confidence 0.8, ref back to their own key) and the re-sync added the 21
+    sections and renamed 122 repeated-heading topics (superseded versions kept).
+- **First news sync (2026-10-08, live store):** 6 140 chunks from 560 non-video posts (median
+  ~270 characters; sections repeated word for word by a later post are kept once, in the newest),
+  6 119 added in 379 s (~60 ms each: two FTS lookups and a commit per add), 4.5 s to embed on the
+  GPU.
+- **Recall check (trial sync of 7 619 news + wiki chunks into a copy of the store, 11.7k entries):**
+  a hybrid `Knowledge.search` took 100–115 ms after the model load (it reads all vectors per
+  search). "what bonus does a bronze hatchet give to lumberjacking" → the wiki's Lumberjacking >
+  Colored Hatchets table first (cosine 0.86); "what happens when I fail the captcha three times" →
+  four Captcha wiki sections on top; "how do I get a rental room" → the 2020-06-09 patch that
+  introduced rental rooms; "storage shelf loadouts" → the Discord fact, then the 2026-09-04 patch
+  section.
 
 ## Nystul, the viz assistant: headless omp with extension tools (probed 2026-10-08, omp 18.8.3)
 

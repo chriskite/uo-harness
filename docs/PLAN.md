@@ -1476,6 +1476,51 @@ renderer; full roleplay with exact, sourced facts. As built: docs/VISUALIZER.md 
   Discord KB (its facts are rebuilt by `discord_kb.py run` and it has no override; a `user` Codex
   entry that overrules the fact does the job).
 
+## Wiki, patch notes and forums in the knowledge base (decided and built 2026-10-08)
+
+User request: the Outlands wiki, the forums and the patch notes in the knowledge base (the
+`knowledge` table behind `ctl know search`). User decisions: **hybrid** ingestion, and the forums'
+**game-info sections** only. Operation and numbers: docs/NOTES.md "Outlands wiki, news and forums".
+
+- **Capture: `harness/outlands_web.py` → `harness/data/outlands_web.db`** (gitignored; not backed up,
+  a recrawl rebuilds it). Each site through its cheapest stable interface: the wiki's MediaWiki API
+  (`action=parse`, rendered HTML, because 1 366 of the 2 139 articles are under 100 bytes of
+  wikitext that templates expand: trait groups, creatures), the news site's WordPress REST API (all
+  653 posts, 240 of them PATCH), and the XenForo forum's HTML pages (no public API). Paced GETs
+  (1–2 s per request on the wiki/news, 1.5–3.5 s on the forum), browser User-Agent; incremental
+  (wiki `touched`, news `modified`, a thread's last post time and reply count).
+- **Wiki and news go in as text, not through an LLM (`harness/web_kb.py`).** They are the
+  authoritative layer (staff-written; the wiki is kept current), so one entry per section chunk
+  (cut at headings, ≤ 1 200 characters) keeps every number and table row and costs nothing. Topic
+  = page and heading path, or the post's date and title for news, so old patch notes read as
+  history beside the current wiki. Source `wiki` (0.7) / `doc` (0.8), importance 5, tags `wiki` /
+  `news` + `patch|event|news`, ref `web-kb:<key> <url>`. The sync keeps per-key state, supersedes a
+  changed section (history kept), retracts a vanished one only if nobody confirmed it, and never
+  re-adds what the overseer retracted (same rules as the Discord promote). It embeds the new entries
+  itself (GPU) so the first `know search` after a sync stays fast.
+- **Forums go through the Discord KB pipeline (`harness/forum_kb.py`).** Forum posts are player
+  chatter of mixed age (2017–2026), like Discord, so only official/consensus facts reach the store.
+  `discord_kb.py` got a pluggable corpus (window building, official test, refs, digest header), and
+  forum_kb supplies the forum one: one thread per window (long patch posts split, not cut), official
+  = a staff post in Announcements / Patches / Active Development, tag `forum`, ref
+  `forum-kb:<fact> <post link> (<first>..<last>)`. **Facts last seen before 2023-01-01 aren't
+  promoted**: Outlands overhauled dungeons, PvP, harvesting and more in 2022–2024, and an old
+  forum consensus has no newer claim to mark it outdated. They stay in the digest
+  `docs/research/FORUM_KB.md` (committed) with their dates.
+- **Rejected:**
+  - Everything as raw chunks, forums included: 2018 forum answers would sit in recall next to vetted
+    facts, the thing the Discord design avoided (user choice).
+  - Everything through the LLM: loses table and number detail of the wiki and patch notes, and
+    costs more (user choice).
+  - Forum claims clustered together with the Discord claims in `discord_kb.db` (cross-source
+    consensus): that DB's canonical copy lives on the Discord capture computer (the laptop); this
+    desktop holds a read-only restored copy, so writing it here would fork it. Kept separate:
+    `harness/data/forum_kb.db` (backed up by `backup.py` as `forum_kb/`).
+  - Scraping the forum through a browser: plain GETs of public pages work (no login, no bot
+    challenge seen), so a browser adds nothing.
+  - Chunks of news posts merged per post: one patch post covers a dozen unrelated systems, and a
+    mixed chunk's embedding matches none of them well; section chunks are what recall needs.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

@@ -28,6 +28,9 @@ figure is omp's list-price estimate: omp's Anthropic login here is OAuth (the us
 subscription), so it measures subscription usage, not money billed.
 State: harness/data/discord_kb.db (gitignored, backed up by backup.py).
 
+The corpus is pluggable (see Msgs): harness/forum_kb.py runs the same stages over the
+Outlands forums with its own state DB, so forum claims only cluster among themselves.
+
 Needs the capture venv (numpy, fastembed):
   .venv-discord/Scripts/python.exe harness/discord_kb.py run [--channels a,b] [--max-cost 100]
   .venv-discord/Scripts/python.exe harness/discord_kb.py extract [--channels a,b] [--limit N]
@@ -89,7 +92,6 @@ SECTIONS = ("skills & training", "harvesting & resources", "crafting", "combat &
 VERDICTS = ("official", "consensus", "single_source", "disputed", "outdated", "wrong", "not_useful")
 PROMOTE_VERDICTS = ("official", "consensus")
 DIGEST_VERDICTS = ("official", "consensus", "single_source")
-RETRACT_PREFIX = "discord-kb:"
 
 SYSTEM_PROMPT = "You are a precise data-processing tool. Output exactly one JSON object and nothing else."
 
@@ -345,8 +347,32 @@ def _sha1(s):
     return hashlib.sha1(s.encode()).hexdigest()
 
 
+# A corpus is what extract, promote, digest and search read the source through: Msgs here,
+# forum_kb.Forum for the forums. It provides
+#   tag, ref_prefix        knowledge tag / source_ref prefix of promoted entries (the prefix also
+#                          marks retractions the pipeline made itself)
+#   promote_since          ISO date: facts last seen before it aren't promoted (None: no limit)
+#   default_names          what extract processes when no names are given
+#   title, script, confidence_note   digest header
+#   windows(names, today)  -> (windows, resolved channel ids); a window's rows have the shape
+#                          (id, channel_id, guild_id, author, content, embed_text, reply_to,
+#                          author_id, ts) that check_claims reads
+#   is_official(row)       a claim citing an official row is official
+#   extract_prompt(w), link(mid), ref(fact, evidence), describe(channel ids), range(channel ids)
+
 class Msgs:
-    """Read-only view of discord.db: channel names and message locations for links."""
+    """The Discord corpus: a read-only view of discord.db (channel names, message locations
+    for links)."""
+
+    tag = "discord"
+    ref_prefix = "discord-kb:"
+    promote_since = None
+    default_names = DEFAULT_CHANNELS
+    title = "Outlands Discord knowledge base"
+    script = "harness/discord_kb.py"
+    confidence_note = ("- Confidence: everything here is community-derived. `official` = stated in #patch-notes or "
+                       "#announcements; `consensus` = at least two independent players agree and outnumber the "
+                       "dissent; `single_source` = one player said it, unverified. Verify in game before relying on it.")
 
     def __init__(self, path=dc.DEFAULT_DB):
         self.con = ds._open_msgs(path)
@@ -363,12 +389,30 @@ class Msgs:
         r = self._loc[mid]
         return f"https://discord.com/channels/{r[0] or '@me'}/{r[1]}/{mid}" if r else None
 
+    def ref(self, fact, evidence):
+        link = self.link(evidence[0]) if evidence else None
+        return f"{self.ref_prefix}{fact['id']}" + (f" {link}" if link else "")
+
     def range(self, channel_ids):
         if not channel_ids:
             return None, None
         q = ",".join("?" * len(channel_ids))
         return self.con.execute(f"SELECT min(ts), max(ts) FROM messages WHERE channel_id IN ({q})",
                                 list(channel_ids)).fetchone()
+
+    def describe(self, channel_ids):
+        return "channels " + ", ".join(f"#{self.names.get(c, c)}" for c in channel_ids)
+
+    def windows(self, names, today):
+        chans = resolve_channels(self, names)
+        return [w for cid, name in chans for w in channel_windows(self, cid, name, today)], [c for c, _ in chans]
+
+    def is_official(self, row):
+        return self.names.get(row[1], str(row[1])) in OFFICIAL_CHANNELS
+
+    def extract_prompt(self, w):
+        lines = "\n".join(line for u in w["units"] for line, _ in u)
+        return EXTRACT_PROMPT.replace("<CHANNEL>", w["name"]).replace("<DAY>", w["day"]) + "\n" + lines + "\n"
 
 
 # ---------------------------------------------------------------------------- extraction
@@ -402,9 +446,8 @@ def halves(w):
     k = len(units) // 2
     out = []
     for suffix, part in (("a", units[:k]), ("b", units[k:])):
-        h = _window(w["channel_id"], w["name"], w["day"], w["part"] + suffix, part)
-        h["half"] = True
-        out.append(h)
+        # the corpus's own window fields (a forum thread's title) carry over
+        out.append({**w, **_window(w["channel_id"], w["name"], w["day"], w["part"] + suffix, part), "half": True})
     return out
 
 
@@ -438,11 +481,6 @@ def channel_windows(msgs, channel_id, name, today):
     return out
 
 
-def extract_prompt(w):
-    lines = "\n".join(line for u in w["units"] for line, _ in u)
-    return EXTRACT_PROMPT.replace("<CHANNEL>", w["name"]).replace("<DAY>", w["day"]) + "\n" + lines + "\n"
-
-
 def _shape_claims(out):
     if not isinstance(out.get("claims"), list):
         raise ValueError('expected {"claims": [...]}')
@@ -462,8 +500,9 @@ def _int_id(x):
         return None
 
 
-def check_claims(w, raw, official):
-    """Deterministic grounding checks. Returns (kept claim rows, dropped count)."""
+def check_claims(w, raw, is_official):
+    """Deterministic grounding checks; is_official(row) of the corpus. Returns (kept claim
+    rows, dropped count)."""
     msgs = {r[0]: r for u in w["units"] for _, r in u}
     kept, dropped = [], 0
     for c in raw:
@@ -491,7 +530,7 @@ def check_claims(w, raw, official):
             "stance": stance, "uncertain": int(bool(c.get("uncertain"))),
             "message_ids": json.dumps(sorted(set(mids))),
             "author_ids": json.dumps(sorted({r[7] for r in cited if r[7] is not None})),
-            "quote": quote, "first_ts": min(r[8] for r in cited), "official": int(official)})
+            "quote": quote, "first_ts": min(r[8] for r in cited), "official": int(any(is_official(r) for r in cited))})
     return kept, dropped
 
 
@@ -523,24 +562,23 @@ def resolve_channels(msgs, names):
     return out
 
 
-def extract(kb, msgs, budget, channels=DEFAULT_CHANNELS, limit=None, today=None, log=print):
+def extract(kb, corpus, budget, names=None, limit=None, today=None, log=print):
     today = today or f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%d}"
-    chans = resolve_channels(msgs, channels)
+    wins, chans = corpus.windows(corpus.default_names if names is None else names, today)
     stored = {r[0]: r[1:] for r in kb.execute(
         f"SELECT id, status, channel_id FROM windows WHERE channel_id IN ({','.join('?' * len(chans))})",
-        [c for c, _ in chans])} if chans else {}
+        chans)} if chans else {}
     todo, keep = [], set()
-    for cid, name in chans:
-        for w in channel_windows(msgs, cid, name, today):
-            keep.add(w["id"])
-            st = stored.get(w["id"], (None,))[0]
-            if st == "split":
-                for h in halves(w) or ():
-                    keep.add(h["id"])
-                    if stored.get(h["id"], (None,))[0] in (None, "failed"):
-                        todo.append(h)
-            elif st in (None, "failed"):
-                todo.append(w)
+    for w in wins:
+        keep.add(w["id"])
+        st = stored.get(w["id"], (None,))[0]
+        if st == "split":
+            for h in halves(w) or ():
+                keep.add(h["id"])
+                if stored.get(h["id"], (None,))[0] in (None, "failed"):
+                    todo.append(h)
+        elif st in (None, "failed"):
+            todo.append(w)
     stale = [i for i in stored if i not in keep]
     if stale:
         for i in stale:
@@ -551,11 +589,11 @@ def extract(kb, msgs, budget, channels=DEFAULT_CHANNELS, limit=None, today=None,
     if limit is not None:
         todo = todo[:limit]
     log(f"extract: {len(todo)} windows to process over {len(chans)} channels")
-    official = {cid for cid, name in chans if name in OFFICIAL_CHANNELS}
     stats = collections.Counter()
 
     def work(w):
-        return llm_json(extract_prompt(w), MODEL, EXTRACT_THINKING, "extract", ref=w["id"], validate=_shape_claims)
+        return llm_json(corpus.extract_prompt(w), MODEL, EXTRACT_THINKING, "extract", ref=w["id"],
+                        validate=_shape_claims)
 
     def done(w, f, jobs):
         try:
@@ -575,8 +613,7 @@ def extract(kb, msgs, budget, channels=DEFAULT_CHANNELS, limit=None, today=None,
             stats["failed"] += 1
             log(f"  #{w['name']} {w['day']}/{w['part']}: failed: {e}")
             return
-        kept, dropped = check_claims(w, [c for c in out["claims"] if isinstance(c, dict)],
-                                     w["channel_id"] in official)
+        kept, dropped = check_claims(w, [c for c in out["claims"] if isinstance(c, dict)], corpus.is_official)
         dropped += sum(1 for c in out["claims"] if not isinstance(c, dict))
         _store_window(kb, w, "ok", model=meta["model"], kept=kept, dropped=dropped)
         stats["ok"] += 1
@@ -856,20 +893,26 @@ def promote_hash(kind, topic, statement, conf, importance):
     return _sha1(f"{kind}|{topic}|{statement}|{conf:.2f}|{importance}")
 
 
-def promote(kb, msgs, db=HARNESS_DB, dry_run=False, log=print):
+def promote(kb, corpus, db=HARNESS_DB, dry_run=False, log=print):
     """Official/consensus facts into the knowledge store `db`. What was promoted where is
     kept per target DB (promotions), so a trial run into a copy never mixes up the real
-    store's entry ids."""
+    store's entry ids. A fact last seen before corpus.promote_since is treated like one
+    whose verdict dropped (counted as `stale`)."""
     import knowledge
     import memory
     target = os.path.normcase(os.path.abspath(db))
     k = knowledge.Knowledge(memory.connect(db))
     counts = collections.Counter()
-    cols = ("id", "kind", "topic", "statement", "verdict", "confidence", "importance", "tags", "entities", "evidence")
+    cols = ("id", "kind", "topic", "statement", "verdict", "confidence", "importance", "tags", "entities", "evidence",
+            "first_seen", "last_seen")
     pcols = ("knowledge_id", "knowledge_action", "promoted_hash", "knowledge_status")
     facts = [dict(zip(cols + pcols, r)) for r in kb.execute(
         f"SELECT {', '.join('f.' + c for c in cols)}, {', '.join('p.' + c for c in pcols)} FROM facts f "
         "LEFT JOIN promotions p ON p.fact_id = f.id AND p.target = ? ORDER BY f.id", (target,))]
+    prefix, since = corpus.ref_prefix, corpus.promote_since
+
+    def promotable(f):
+        return f["verdict"] in PROMOTE_VERDICTS and not (since and (f["last_seen"] or "") < since)
 
     def setf(fid, **kw):
         if not dry_run:
@@ -879,14 +922,15 @@ def promote(kb, msgs, db=HARNESS_DB, dry_run=False, log=print):
 
     # retractions first, so a re-clustered fact's new wording doesn't confirm its predecessor
     for f in facts:
-        if f["knowledge_id"] is None or f["verdict"] in PROMOTE_VERDICTS:
+        if f["knowledge_id"] is None or promotable(f):
             continue
         e = k.get(f["knowledge_id"])
         if (f["knowledge_action"] in ("added", "superseded") and e and e["status"] == "active"
                 and e["confirmations"] == 0):
             counts["retract"] += 1
             if not dry_run:
-                k.retract(f["knowledge_id"], f"{RETRACT_PREFIX} verdict now {f['verdict']}")
+                k.retract(f["knowledge_id"], f"{prefix} verdict now {f['verdict']}" if f["verdict"] not in
+                          PROMOTE_VERDICTS else f"{prefix} last seen {f['last_seen']}, before {since}")
             setf(f["id"], knowledge_status="retracted")
 
     def blocked(f):
@@ -894,23 +938,24 @@ def promote(kb, msgs, db=HARNESS_DB, dry_run=False, log=print):
         h = knowledge.content_hash(f["kind"], f["statement"])
         r = k.con.execute("SELECT retract_reason FROM knowledge WHERE content_hash=? AND status='retracted'",
                           (h,)).fetchall()
-        return any(not (x or "").startswith(RETRACT_PREFIX) for (x,) in r)
+        return any(not (x or "").startswith(prefix) for (x,) in r)
 
     for f in facts:
-        if f["verdict"] not in PROMOTE_VERDICTS:
+        if not promotable(f):
+            if f["verdict"] in PROMOTE_VERDICTS:
+                counts["stale"] += 1
             continue
         ev = json.loads(f["evidence"] or "[]")
         imp = max(1, min(PROMOTE_IMPORTANCE_MAX, f["importance"] or 1))
         conf = f["confidence"]
         h = promote_hash(f["kind"], f["topic"], f["statement"], conf, imp)
-        args = {"tags": ["discord"] + json.loads(f["tags"] or "[]"), "entities": json.loads(f["entities"] or "[]"),
-                "source": "doc" if f["verdict"] == "official" else "community",
-                "ref": f"{RETRACT_PREFIX}{f['id']}" + (f" {msgs.link(ev[0])}" if ev and msgs.link(ev[0]) else ""),
+        args = {"tags": [corpus.tag] + json.loads(f["tags"] or "[]"), "entities": json.loads(f["entities"] or "[]"),
+                "source": "doc" if f["verdict"] == "official" else "community", "ref": corpus.ref(f, ev),
                 "confidence": conf, "importance": imp}
         kid = f["knowledge_id"]
         e = k.get(kid) if kid is not None else None
         if kid is not None and (e is None or e["status"] != "active"):
-            ours = e is not None and e["status"] == "retracted" and (e["retract_reason"] or "").startswith(RETRACT_PREFIX)
+            ours = e is not None and e["status"] == "retracted" and (e["retract_reason"] or "").startswith(prefix)
             if not ours:
                 if f["knowledge_status"] != (e["status"] if e else "missing"):
                     setf(f["id"], knowledge_status=e["status"] if e else "missing")
@@ -957,24 +1002,21 @@ def promote(kb, msgs, db=HARNESS_DB, dry_run=False, log=print):
 
 # ---------------------------------------------------------------------------- consumers
 
-def digest(kb, msgs, out=DIGEST, log=print):
+def digest(kb, corpus, out=DIGEST, log=print):
     now = datetime.datetime.now(datetime.timezone.utc)
     chans = [r[0] for r in kb.execute("SELECT DISTINCT channel_id FROM windows WHERE status='ok' ORDER BY channel_id")]
-    lo, hi = msgs.range(chans)
+    lo, hi = corpus.range(chans)
     verdicts = dict(kb.execute("SELECT verdict, count(*) FROM facts GROUP BY verdict ORDER BY 2 DESC"))
     models = [r[0] for r in kb.execute("SELECT DISTINCT model FROM llm_calls WHERE ok=1 AND model IS NOT NULL")]
     lines = [
-        "# Outlands Discord knowledge base",
+        f"# {corpus.title}",
         "",
-        f"Generated by `harness/discord_kb.py digest` on {now:%Y-%m-%d %H:%M} UTC. Do not edit by hand.",
+        f"Generated by `{corpus.script} digest` on {now:%Y-%m-%d %H:%M} UTC. Do not edit by hand.",
         "",
-        f"- Corpus: {(lo or '?')[:10]} to {(hi or '?')[:10]}, channels "
-        + ", ".join(f"#{msgs.names.get(c, c)}" for c in chans) + ".",
+        f"- Corpus: {(lo or '?')[:10]} to {(hi or '?')[:10]}, {corpus.describe(chans)}.",
         "- Facts by verdict: " + ", ".join(f"{v} {n}" for v, n in verdicts.items()) + ".",
         f"- Model: {', '.join(models) or MODEL}; extraction prompt {PROMPT_VERSION}, adjudication {ADJUDICATE_VERSION}.",
-        "- Confidence: everything here is community-derived. `official` = stated in #patch-notes or "
-        "#announcements; `consensus` = at least two independent players agree and outnumber the "
-        "dissent; `single_source` = one player said it, unverified. Verify in game before relying on it.",
+        corpus.confidence_note,
         "",
     ]
     order = ",".join("?" * len(DIGEST_VERDICTS))
@@ -987,7 +1029,7 @@ def digest(kb, msgs, out=DIGEST, log=print):
         lines += [f"## {sec[0].upper() + sec[1:]}", ""]
         for topic, st, verdict, conf, sa, fs, ls, ev in rows:
             ev = json.loads(ev or "[]")
-            link = msgs.link(ev[0]) if ev else None
+            link = corpus.link(ev[0]) if ev else None
             lines.append(f"- **{topic}**: {st} _({verdict}, conf {conf:.2f}, {sa} author{'s' if sa != 1 else ''}, "
                          f"{fs}–{ls})_" + (f" [src]({link})" if link else ""))
         lines.append("")
@@ -1000,7 +1042,7 @@ def digest(kb, msgs, out=DIGEST, log=print):
     return out
 
 
-def search(kb, msgs, query, k=10, all_verdicts=False):
+def search(kb, corpus, query, k=10, all_verdicts=False):
     q = ds._fts_query(query)
     if not q:
         return []
@@ -1015,7 +1057,7 @@ def search(kb, msgs, query, k=10, all_verdicts=False):
     for fid, verdict, conf, topic, st, ev in kb.execute(sql, args + [k]):
         ev = json.loads(ev or "[]")
         out.append({"id": fid, "verdict": verdict, "confidence": conf, "topic": topic, "statement": st,
-                    "link": msgs.link(ev[0]) if ev else None})
+                    "link": corpus.link(ev[0]) if ev else None})
     return out
 
 
@@ -1034,68 +1076,75 @@ def stats(kb):
     }
 
 
-def main():
-    ap = argparse.ArgumentParser(description="Discord corpus -> vetted facts (docs/NOTES.md)")
-    ap.add_argument("--kb", default=KB_DB, help="pipeline state DB")
-    ap.add_argument("--msgs", default=dc.DEFAULT_DB, help="captured Discord DB (read-only)")
-    sub = ap.add_subparsers(dest="cmd", required=True)
-
+def add_commands(sub, names_flag, names_help, max_cost, db_default, digest_default):
+    """The subcommands shared by the corpus CLIs; names_flag (--channels/--nodes) lands in a.names."""
     def llm_flags(p):
-        p.add_argument("--channels", help="comma-separated channel names (default: %s)" % ",".join(DEFAULT_CHANNELS))
-        p.add_argument("--max-cost", type=float, default=MAX_COST, help="USD per run")
+        p.add_argument(names_flag, dest="names", help=names_help)
+        p.add_argument("--max-cost", type=float, default=max_cost, help="USD per run")
 
     p = sub.add_parser("run", help="extract, consolidate, promote, digest")
     llm_flags(p)
-    p.add_argument("--db", default=HARNESS_DB, help="knowledge store to promote into")
-    p.add_argument("--out", default=DIGEST)
+    p.add_argument("--db", default=db_default, help="knowledge store to promote into")
+    p.add_argument("--out", default=digest_default)
     p = sub.add_parser("extract")
     llm_flags(p)
     p.add_argument("--limit", type=int)
     p = sub.add_parser("consolidate")
-    p.add_argument("--max-cost", type=float, default=MAX_COST)
+    p.add_argument("--max-cost", type=float, default=max_cost)
     p.add_argument("--recluster", action="store_true")
     p = sub.add_parser("promote")
-    p.add_argument("--db", default=HARNESS_DB)
+    p.add_argument("--db", default=db_default)
     p.add_argument("--dry-run", action="store_true")
     p = sub.add_parser("digest")
-    p.add_argument("--out", default=DIGEST)
+    p.add_argument("--out", default=digest_default)
     p = sub.add_parser("search")
     p.add_argument("query")
     p.add_argument("-k", type=int, default=10)
     p.add_argument("--all", action="store_true", help="include disputed/outdated/wrong facts")
     sub.add_parser("stats")
-    a = ap.parse_args()
 
-    kb, msgs = open_kb(a.kb), Msgs(a.msgs)
+
+def dispatch(a, kb, corpus):
+    """Runs the subcommand parsed by add_commands; returns the exit code (2: cost guard hit)."""
     budget = Budget(getattr(a, "max_cost", MAX_COST))
-    channels = tuple(c.strip() for c in a.channels.split(",") if c.strip()) \
-        if getattr(a, "channels", None) else DEFAULT_CHANNELS
+    names = tuple(c.strip() for c in a.names.split(",") if c.strip()) if getattr(a, "names", None) else None
     if a.cmd == "extract":
-        extract(kb, msgs, budget, channels, limit=a.limit)
+        extract(kb, corpus, budget, names, limit=a.limit)
         return 2 if budget.hit else 0
     if a.cmd == "consolidate":
         consolidate(kb, budget, recluster=a.recluster)
         return 2 if budget.hit else 0
     if a.cmd == "promote":
-        promote(kb, msgs, a.db, dry_run=a.dry_run)
+        promote(kb, corpus, a.db, dry_run=a.dry_run)
     elif a.cmd == "digest":
-        digest(kb, msgs, a.out)
+        digest(kb, corpus, a.out)
     elif a.cmd == "search":
-        for r in search(kb, msgs, a.query, a.k, a.all):
+        for r in search(kb, corpus, a.query, a.k, a.all):
             print(f"[{r['verdict']} {r['confidence']:.2f}] {r['topic']}: {r['statement']}\n    {r['link'] or ''}")
     elif a.cmd == "stats":
         print(json.dumps(stats(kb), indent=1))
     elif a.cmd == "run":
-        extract(kb, msgs, budget, channels)
+        extract(kb, corpus, budget, names)
         if budget.hit:
             print("cost guard hit during extraction: stopping before consolidate/promote; rerun to resume")
             return 2
         consolidate(kb, budget)
-        promote(kb, msgs, a.db)
-        digest(kb, msgs, a.out)
+        promote(kb, corpus, a.db)
+        digest(kb, corpus, a.out)
         print(json.dumps(stats(kb), indent=1))
         return 2 if budget.hit else 0
     return 0
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Discord corpus -> vetted facts (docs/NOTES.md)")
+    ap.add_argument("--kb", default=KB_DB, help="pipeline state DB")
+    ap.add_argument("--msgs", default=dc.DEFAULT_DB, help="captured Discord DB (read-only)")
+    add_commands(ap.add_subparsers(dest="cmd", required=True), "--channels",
+                 "comma-separated channel names (default: %s)" % ",".join(DEFAULT_CHANNELS), MAX_COST, HARNESS_DB,
+                 DIGEST)
+    a = ap.parse_args()
+    return dispatch(a, open_kb(a.kb), Msgs(a.msgs))
 
 
 if __name__ == "__main__":

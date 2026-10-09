@@ -29,6 +29,12 @@ so the default is the UNC path):
                                      profile harness/data/discord_profile/): another
                                      computer's restored read-only copy goes stale and
                                      must never land as the newest snapshot.
+  forum_kb/forumkb-YYYYMMDD-HHMMSS.db.gz
+                                     the same for harness/data/forum_kb.db, the claims
+                                     and facts harness/forum_kb.py mined from the
+                                     Outlands forums (LLM output); skipped while it
+                                     doesn't exist. outlands_web.db (the wiki/news/forum
+                                     capture) is not backed up: a recrawl rebuilds it.
   logs/                              logs/ (session captures, screens, overseer
                                      task logs). Additive: files deleted locally
                                      stay on the share.
@@ -88,6 +94,7 @@ DBS = [
     (DB, "db", "harness", True, False),
     (DISCORD_DB, "discord", "discord", False, True),
     (os.path.join(ROOT, "harness", "data", "discord_kb.db"), "discord_kb", "discordkb", False, True),
+    (os.path.join(ROOT, "harness", "data", "forum_kb.db"), "forum_kb", "forumkb", False, False),
 ]
 LOG = os.path.join(ROOT, "logs", "backup.log")
 KEEP_ALL_HOURS = 48

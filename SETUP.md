@@ -78,6 +78,7 @@ Not in git (`.gitignore`) and what to do about it:
 | `harness/data/telegram.json` | Telegram bridge (bot token) | `dbhandoff.py pull` installs it (§7) |
 | `models/laya-triage/` | the deployed Laya triage model (`triage.py serve`), 843 MB | `dbhandoff.py pull` installs it (§7) |
 | `harness/data/discord*.db`, `discord_media/`, `discord_profile/` | Discord tooling | §5, stays on one computer |
+| `harness/data/outlands_web.db`, `forum_kb.db` | wiki/news/forum capture and the forum KB (§5) | built on the desktop 2026-10-08; stays on one computer (`forum_kb.db` is backed up, the capture recrawls) |
 | `.venv-laya/`, `.venv-discord/` | optional services | §5 |
 | `viz/node_modules/`, `viz/dist/` | visualizer | `bun install && bun run build` (§4) |
 | `windivert.zip`, `WinDivert-2.2.2-A/` | nothing at runtime | skip; the driver files the NAT uses (`harness/WinDivert.dll`, `harness/WinDivert64.sys`) are committed |
@@ -163,6 +164,10 @@ All procedures live in the docs; follow them as written.
   `py -3.13 -m venv .venv-discord && .venv-discord/Scripts/python.exe -m pip install patchright zstandard fastembed-gpu "nvidia-cuda-runtime==13.*" "nvidia-cublas==13.*" nvidia-cufft nvidia-cudnn-cu13`
   Needs Microsoft Edge. Its data (`discord.db`, `discord_kb.db`, `discord_media/`, the login
   profile) is **not** part of the store handoff: run the Discord tooling on one computer only.
+- **Wiki, news and forums** (`harness/outlands_web.py`, `web_kb.py`, `forum_kb.py`; NOTES "Outlands
+  wiki, news and forums"): plain system Python (§3's GPU stack for embedding; `forum_kb` needs
+  `omp` for its LLM calls). Run them on one computer, the one that holds `outlands_web.db` and
+  `forum_kb.db`; they write into whichever `harness.db` is there.
 
 ## 6. Backups
 
