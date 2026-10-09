@@ -16,6 +16,13 @@ u16be-prefixed reply: `OK`, or `ERR <reason>` (agent gate closed / no session /
 key unknown / malformed packet / agent walk gated). Malformed frames also close
 the control connection; the game relay is never affected.
 
+Several clients (characters) may be connected at once. A control connection
+picks its character with a frame `@char <selector>` (harness/charsel.py: a
+0xSERIAL or a name) -> `OK <label>` / `ERR <reason>`; it stays bound to that
+selector, which is re-resolved per frame. State requests carry `"char"`. With
+one session no selector is needed; with several, a request without one fails
+with `several sessions (A, B); pass char`.
+
 Agent gate (harness/agent_gate.py): pause, kill switch, mandatory jittered
 breaks (~2 h of agent activity) and the 8 h/day agent budget. It is checked
 first for every injected frame. It is controlled and inspected on the state
@@ -54,6 +61,7 @@ import time
 from uo.packets import packet_length, C2S_OVERRIDES
 from uo.s2c import PRELUDE_LEN, S2CStream, encode_packet, prelude_keys
 from agent_gate import AgentGate
+import charsel
 from memory import MemoryWriter
 import pathfind
 from world.runtime import WorldRuntime, C2S, S2C
@@ -332,33 +340,67 @@ class MoveAuthority:
 
 
 class InjectionHub:
-    """Tracks the one active game session for control-channel injection.
-
-    Single-client assumption (documented): the last attached session wins.
-    """
+    """Tracks the active game sessions (one per connected client) for
+    control-channel injection and state reads; `pick(char)` resolves a
+    character selector to one of them."""
 
     def __init__(self, gate: AgentGate):
-        self.session = None  # (SessionTap, upstream StreamWriter, client StreamWriter or None)
+        self.sessions = []   # [(SessionTap, upstream StreamWriter, client StreamWriter or None)], attach order
         self.gate = gate
 
     def attach(self, tap, upstream_writer, client_writer=None):
-        self.session = (tap, upstream_writer, client_writer)
+        self.sessions.append((tap, upstream_writer, client_writer))
 
     def detach(self, tap):
-        if self.session is not None and self.session[0] is tap:
-            self.session = None
+        self.sessions = [s for s in self.sessions if s[0] is not tap]
 
-    async def inject(self, payload: bytes) -> str | None:
-        """Process payload like client traffic and relay it upstream.
+    @staticmethod
+    def _who(tap):
+        s = tap.world.state.self
+        return s.serial, s.name
+
+    def pick(self, char: str | None):
+        """(session, None) or (None, reason). No selector: the only session, else an
+        error naming them; a selector matching several (an old connection not yet
+        closed): the most recently attached."""
+        if not self.sessions:
+            return None, "no active session"
+        if not char:
+            if len(self.sessions) == 1:
+                return self.sessions[0], None
+            names = ", ".join(charsel.label(*self._who(s[0])) for s in self.sessions)
+            return None, f"several sessions ({names}); pass char"
+        try:
+            p = charsel.parse(char)
+        except ValueError as e:
+            return None, f"bad char selector: {e}"
+        for s in reversed(self.sessions):
+            if charsel.matches(p, *self._who(s[0])):
+                return s, None
+        return None, f"no session for character '{char}'"
+
+    def sessions_info(self) -> list[dict]:
+        """[{tag, serial: "0x%08X"|None, name}] in attach order (no account: login
+        names don't leave the proxy)."""
+        out = []
+        for tap, _, _ in self.sessions:
+            serial, name = self._who(tap)
+            out.append({"tag": tap.tag, "serial": charsel.hex_serial(serial), "name": name})
+        return out
+
+    async def inject(self, payload: bytes, char: str | None = None) -> str | None:
+        """Process payload like client traffic and relay it upstream on the
+        session `char` selects (see pick).
 
         Returns None on success, or a rejection reason string.
         """
         blocked = self.gate.block_reason()
         if blocked is not None:
             return blocked
-        if self.session is None:
-            return "no active session"
-        tap, writer, client = self.session
+        session, err = self.pick(char)
+        if err is not None:
+            return err
+        tap, writer, client = session
         if tap.key is None or not tap.c2s_preamble_done:
             return "session key not known yet"
         now = time.monotonic()
@@ -387,8 +429,10 @@ class InjectionHub:
 
 
 async def handle_control(reader, writer, hub):
-    """One control connection: u16be-length-prefixed plaintext action packets."""
+    """One control connection: u16be-length-prefixed plaintext action packets,
+    or a `@char <selector>` frame binding the connection to a character."""
     peer = writer.get_extra_info("peername")
+    sel = None
 
     def reply(msg: bytes):
         writer.write(len(msg).to_bytes(2, "big") + msg)
@@ -401,11 +445,18 @@ async def handle_control(reader, writer, hub):
                 reply(b"ERR bad frame length")
                 break
             payload = await reader.readexactly(n)
+            if payload.startswith(charsel.CONTROL_PREFIX):
+                # bound even after an ERR: the character may log in later
+                sel = payload[len(charsel.CONTROL_PREFIX):].decode("utf-8", "replace").strip() or None
+                session, err = hub.pick(sel)
+                reply(f"ERR {err}".encode() if err is not None
+                      else f"OK {charsel.label(*hub._who(session[0]))}".encode())
+                continue
             plen = packet_length(payload, overrides=C2S_OVERRIDES)
             if plen <= 0 or plen != n:
                 reply(b"ERR malformed packet")
                 break
-            err = await hub.inject(payload)
+            err = await hub.inject(payload, sel)
             if err is not None:
                 reply(f"ERR {err}".encode())
                 continue  # clean rejection; connection stays usable
@@ -468,6 +519,7 @@ class SessionTap:
         # re-anchor the client on each hidden agent confirm (ANTICHEAT.md §10 A11); replays of
         # captures made before that switch it off to reproduce what the proxy did then
         self.reanchor_on_confirm = True
+        self.tag = None                  # session log tag (handle_client), for the `sessions` op
 
     def _log(self, **kw):
         kw["t"] = round(self.wall(), 3)
@@ -944,19 +996,26 @@ async def handle_client(client_reader, client_writer, args):
         return
 
     os.makedirs(args.logdir, exist_ok=True)
+    # unique per session: two clients may connect within the same second
     stamp = time.strftime("%Y%m%d_%H%M%S")
-    logf = open(os.path.join(args.logdir, f"session_{stamp}.jsonl"), "a", encoding="utf-8")
+    tag, n = stamp, 1
+    while tag in args.tags_used or os.path.exists(os.path.join(args.logdir, f"session_{tag}.jsonl")):
+        n += 1
+        tag = f"{stamp}_{n}"
+    args.tags_used.add(tag)
+    logf = open(os.path.join(args.logdir, f"session_{tag}.jsonl"), "a", encoding="utf-8")
     tap = SessionTap(
         logf,
-        open(os.path.join(args.logdir, f"session_{stamp}.c2s.raw"), "ab"),
-        open(os.path.join(args.logdir, f"session_{stamp}.s2c.raw"), "ab"),
+        open(os.path.join(args.logdir, f"session_{tag}.c2s.raw"), "ab"),
+        open(os.path.join(args.logdir, f"session_{tag}.s2c.raw"), "ab"),
         walkers=args.walkers,
     )
+    tap.tag = tag
     tap._log(ev="open", peer=str(peer), upstream=f"{upstream_host}:{args.upstream_port}")
     if args.memory_writer is not None:
-        args.memory_writer.open_session(stamp)
-        tap.sink = lambda env, facet: args.memory_writer.record(stamp, env, facet)
-    print(f"[proxy] {peer} connected -> {upstream_host}:{args.upstream_port} (log session_{stamp}.jsonl)")
+        args.memory_writer.open_session(tag)
+        tap.sink = lambda env, facet: args.memory_writer.record(tag, env, facet)
+    print(f"[proxy] {peer} connected -> {upstream_host}:{args.upstream_port} (log session_{tag}.jsonl)")
 
     timer = asyncio.create_task(_movement_timer(tap, client_writer))
     try:
@@ -970,7 +1029,7 @@ async def handle_client(client_reader, client_writer, args):
         args.hub.detach(tap)
         tap._log(ev="close")
         if args.memory_writer is not None:
-            args.memory_writer.close_session(stamp)
+            args.memory_writer.close_session(tag)
         logf.close()
         tap.raw_c2s.close()
         tap.raw_s2c.close()
@@ -980,18 +1039,24 @@ async def handle_client(client_reader, client_writer, args):
 async def handle_state(reader, writer, hub):
     """One state connection: JSON-lines request/response (localhost only).
 
-    Request  `{"op": "state", "since": N, "snapshot": true}`
+    Request  `{"op": "state", "since": N, "snapshot": true, "char": SEL}`
              -> SessionTap.state(N, snapshot) + {"ok": true}
-             (`snapshot: false` omits `world`: movement + new events only)
-    No session -> `{"ok": false, "error": "no active session"}`.
+             (`snapshot: false` omits `world`: movement + new events only;
+             `char` picks the character, needed when several are connected:
+             InjectionHub.pick)
+    No session -> `{"ok": false, "error": "no active session"}`; several and no
+    `char` -> `several sessions (A, B); pass char`; no match -> `no session for
+    character 'SEL'`.
+    Request  `{"op": "sessions"}` -> `{"sessions": [{tag, serial, name}]}`, the
+             connected characters (works with none).
     Request  `{"op": "gate"}` -> gate status only; with
              `"action": "pause"|"resume"|"kill"|"rearm"|"break"` -> applied first
              (`{"ok": false, "error": ...}` if refused, e.g. resume while killed;
              `break` starts the scheduled break now, e.g. once a due break's
-             character is somewhere safe).
-    Request  `{"op": "intent", "intent": {"text": ..., ...} | null}` -> the
-             agent's current intent for readers (SessionTap.set_intent); never
-             reaches the server. Needs a session.
+             character is somewhere safe). The gate is shared by every character.
+    Request  `{"op": "intent", "intent": {"text": ..., ...} | null, "char": SEL}`
+             -> the agent's current intent for readers (SessionTap.set_intent);
+             never reaches the server. Needs a session.
     Every response carries `"gate"`: the agent gate status (harness/agent_gate.py).
     """
     try:
@@ -1008,18 +1073,20 @@ async def handle_state(reader, writer, hub):
                 if op == "gate":
                     err = hub.gate.apply(req["action"]) if "action" in req else None
                     resp = {"ok": True} if err is None else {"ok": False, "error": err}
+                elif op == "sessions":
+                    resp = {"ok": True, "sessions": hub.sessions_info()}
                 elif op not in ("state", "intent"):
                     resp = {"ok": False, "error": f"unknown op {op!r}"}
-                elif hub.session is None:
-                    resp = {"ok": False, "error": "no active session"}
+                elif (picked := hub.pick(req.get("char")))[1] is not None:
+                    resp = {"ok": False, "error": picked[1]}
                 elif op == "intent":
                     try:
-                        err = hub.session[0].set_intent(req.get("intent"))
+                        err = picked[0][0].set_intent(req.get("intent"))
                     except Exception as e:  # noqa: BLE001  (a display-only op must never drop the connection)
                         err = f"intent failed: {type(e).__name__}: {e}"
                     resp = {"ok": True} if err is None else {"ok": False, "error": err}
                 else:
-                    tap = hub.session[0]
+                    tap = picked[0][0]
                     tap.tick(time.monotonic())
                     resp = {"ok": True, **tap.state(int(req.get("since", 0)),
                                                     snapshot=bool(req.get("snapshot", True)))}
@@ -1037,6 +1104,7 @@ async def handle_state(reader, writer, hub):
 
 async def amain(args):
     args.hub = InjectionHub(AgentGate(args.budget_file or os.path.join(args.logdir, "agent_budget.json")))
+    args.tags_used = set()
     args.memory_writer = MemoryWriter(args.memory_db) if args.memory_db else None
     args.walkers = None if args.no_map_z else pathfind.Walkers()
     print(f"[proxy] agent gate: {args.hub.gate.status()['state']} ({args.hub.gate.path}); "

@@ -61,6 +61,7 @@ sys.path.insert(0, HERE)
 
 import actions  # noqa: E402
 import alerts  # noqa: E402
+import charsel  # noqa: E402
 from combat import (ATTACK_MIN_HP, CORPSE_GRAPHIC, DROP_AUTO, GOLD_GRAPHIC, LOOT_RANGE,  # noqa: E402
                     MAGERY_SPELLS, NOTORIETY, VIEW_RANGE)
 import combat  # noqa: E402
@@ -165,12 +166,37 @@ class CtlError(Exception):
 
 # ------------------------------------------------------------------- store
 def heartbeat(mem: Memory):
-    tw.meta_set(mem, HEARTBEAT_KEY, f"{time.time():.2f}")
+    tw.meta_set(mem, charsel.meta_key(HEARTBEAT_KEY, mem.char_serial), f"{time.time():.2f}")
+
+
+def newest_heartbeat(mem: Memory) -> float | None:
+    """The newest overseer heartbeat of any character (epoch s), None if none ever beat."""
+    row = mem.con.execute("SELECT MAX(CAST(value AS REAL)) FROM meta WHERE key = ? OR key LIKE ?",
+                          (HEARTBEAT_KEY, HEARTBEAT_KEY + ":%")).fetchone()
+    return None if row is None or row[0] is None else float(row[0])
+
+
+def resolve_char(sel: str | None, mem: Memory) -> int | None:
+    """The player serial `--char` names (harness/charsel.py): a serial as is, a
+    name through the sessions the proxy recorded; None without a selector."""
+    if sel is None:
+        return None
+    try:
+        p = charsel.parse(sel)
+    except ValueError as e:
+        raise CtlError(f"bad --char: {e}")
+    if isinstance(p, int):
+        return p
+    serial = mem.char_serial_of(sel.strip())
+    if serial is None:
+        raise CtlError(f"unknown character {sel!r}: no proxy session has logged it in yet")
+    return serial
 
 
 def running_tasks(mem: Memory) -> list:
-    """Live task entries. An entry whose wrapper is gone without reporting
-    (crash, reboot) is removed and reported as task_failed once."""
+    """Live task entries of this character (and those without one; all of them
+    without --char). An entry whose wrapper is gone without reporting (crash,
+    reboot) is removed and reported as task_failed once, whoever's it was."""
     alive = []
     for e in tw.task_entries(mem):
         if tw.entry_alive(e):
@@ -180,8 +206,9 @@ def running_tasks(mem: Memory) -> list:
                          f"{e['task']} ended without a report (its wrapper is gone)"[:300],
                          severity="attention",
                          data={"task_id": e["task_id"], "task": e["task"], "args": e.get("args", []),
-                               "exit_code": None, "log": e.get("log"), "tail": tw.read_tail(e.get("log", ""))})
-    return alive
+                               "exit_code": None, "log": e.get("log"), "tail": tw.read_tail(e.get("log", ""))},
+                         char_serial=e.get("char_serial"))
+    return [e for e in alive if tw.in_scope(e.get("char_serial"), mem.char_serial)]
 
 
 def task_whitelist() -> dict:
@@ -190,24 +217,50 @@ def task_whitelist() -> dict:
 
 
 def open_juncture_count(mem: Memory) -> int:
-    return mem.con.execute("SELECT COUNT(*) FROM junctures WHERE acked_t IS NULL").fetchone()[0]
+    scope, params = mem.scope_sql()
+    return mem.con.execute("SELECT COUNT(*) FROM junctures WHERE acked_t IS NULL" + scope,
+                           params).fetchone()[0]
 
 
 # ------------------------------------------------------------------- proxy
-def state_query(port: int, timeout: float = 5.0) -> dict:
+def _with_char(req: dict, char: str | None) -> bytes:
+    """A state-port request line, naming the character when one is selected."""
+    if char:
+        req["char"] = char
+    return (json.dumps(req) + "\n").encode()
+
+
+def state_query(port: int, timeout: float = 5.0, char: str | None = None) -> dict:
     """One state-port snapshot without the event backlog."""
     with socket.create_connection((HOST, port), timeout=timeout) as s:
-        s.sendall((json.dumps({"op": "state", "since": 1 << 62}) + "\n").encode())
+        s.sendall(_with_char({"op": "state", "since": 1 << 62}, char))
         resp = json.loads(s.makefile("rb").readline() or b"{}")
     return resp
 
 
+def sessions_query(port: int, timeout: float = 3.0) -> list | None:
+    """The game sessions the proxy serves ([{tag, serial, name}]), None if it can't say."""
+    try:
+        with socket.create_connection((HOST, port), timeout=timeout) as s:
+            s.sendall(b'{"op": "sessions"}\n')
+            resp = json.loads(s.makefile("rb").readline() or b"{}")
+    except (OSError, ValueError):
+        return None
+    return resp.get("sessions") if resp.get("ok") else None
+
+
 class Control:
     """Proxy control port, framed like agent_link.Link.send (u16be length + packet;
-    reply u16be length + text). Gate refusals are returned, never waited out."""
+    reply u16be length + text). Gate refusals are returned, never waited out.
+    `char` binds the connection to that character (`@char` frame, harness/charsel.py)."""
 
-    def __init__(self, port: int):
+    def __init__(self, port: int, char: str | None = None):
         self.sock = socket.create_connection((HOST, port), timeout=10)
+        if char:
+            r = self.send(charsel.CONTROL_PREFIX + char.encode("utf-8"))
+            if not r.startswith("OK"):
+                self.sock.close()
+                raise CtlError(f"control port: {r}")
 
     def send(self, pkt: bytes) -> str:
         self.sock.sendall(len(pkt).to_bytes(2, "big") + pkt)
@@ -228,15 +281,16 @@ class Control:
 
 
 class StateConn:
-    """Persistent state-port connection for step outcomes."""
+    """Persistent state-port connection for step outcomes; every request names `char` when set."""
 
-    def __init__(self, port: int):
+    def __init__(self, port: int, char: str | None = None):
         self.port = port
+        self.char = char
         self.sock = socket.create_connection((HOST, port), timeout=10)
         self.f = self.sock.makefile("rb")
 
     def state(self) -> dict:
-        self.sock.sendall((json.dumps({"op": "state", "since": 1 << 62}) + "\n").encode())
+        self.sock.sendall(_with_char({"op": "state", "since": 1 << 62}, self.char))
         resp = json.loads(self.f.readline() or b"{}")
         if not resp.get("ok"):
             raise CtlError(f"state port: {resp.get('error')}")
@@ -244,7 +298,7 @@ class StateConn:
 
     def events(self, since: int) -> tuple[list, int]:
         """(event envelopes with seq >= since, next cursor), no world snapshot."""
-        self.sock.sendall((json.dumps({"op": "state", "since": since, "snapshot": False}) + "\n").encode())
+        self.sock.sendall(_with_char({"op": "state", "since": since, "snapshot": False}, self.char))
         resp = json.loads(self.f.readline() or b"{}")
         if not resp.get("ok"):
             raise CtlError(f"state port: {resp.get('error')}")
@@ -271,7 +325,7 @@ class StateConn:
                           if body and "target_serial" in body else [])
         for b in tries:
             try:
-                self.sock.sendall((json.dumps({"op": "intent", "intent": b}) + "\n").encode())
+                self.sock.sendall(_with_char({"op": "intent", "intent": b}, self.char))
                 line = self.f.readline()
                 if line:
                     return bool(json.loads(line).get("ok"))
@@ -575,11 +629,12 @@ def _tile_name(graphic, amount=None):
 
 # ------------------------------------------------------------------ commands
 def cmd_status(a, mem):
-    hb = tw.meta_get(mem, HEARTBEAT_KEY)
+    hb = tw.meta_get(mem, charsel.meta_key(HEARTBEAT_KEY, mem.char_serial))
     out = {"tasks": running_tasks(mem), "open_junctures": open_juncture_count(mem),
-           "overseer_heartbeat": None if hb is None else float(hb)}
+           "overseer_heartbeat": None if hb is None else float(hb),
+           "sessions": sessions_query(a.state_port)}
     try:
-        resp = state_query(a.state_port)
+        resp = state_query(a.state_port, char=a.char)
     except (OSError, ValueError) as e:
         return {"ok": False, "error": f"proxy state port {a.state_port} unreachable: {e}", **out}
     if not resp.get("ok"):
@@ -594,7 +649,7 @@ def cmd_run(a, mem):
         raise CtlError(f"unknown task {a.task!r}; allowed: {sorted(tasks)}")
     alive = running_tasks(mem)
     if alive:
-        raise CtlError(f"task {alive[0]['task_id']} is running; one task at a time (stop it first)")
+        raise CtlError(f"task {alive[0]['task_id']} is running; one task per character (stop it first)")
     task_id = f"{a.task}-{time.strftime('%Y%m%d-%H%M%S')}-{secrets.token_hex(2)}"
     log = os.path.join(a.log_dir, f"{task_id}.log")
     user_args = list(a.args)
@@ -602,20 +657,23 @@ def cmd_run(a, mem):
     for flag, val in (("--control-port", a.control_port), ("--state-port", a.state_port), ("--memory", a.db)):
         if flag not in argv:
             argv += [flag, str(val)]
+    if mem.char_serial is not None and "--char" not in argv:
+        argv += ["--char", f"0x{mem.char_serial:08X}"]
     entry = {"task_id": task_id, "task": a.task, "args": user_args, "pid": None,
-             "started": time.time(), "log": log}
+             "started": time.time(), "log": log, "char_serial": mem.char_serial}
 
     def add(cur):
-        live = [t for t in cur if tw.entry_alive(t)]
+        live = [t for t in cur if tw.entry_alive(t) and tw.in_scope(t.get("char_serial"), mem.char_serial)]
         if live:
             return cur, live[0]["task_id"]
         return cur + [entry], None
     busy = tw.meta_update_json(mem, tw.TASKS_KEY, add, [])
     if busy:
-        raise CtlError(f"task {busy} is running; one task at a time (stop it first)")
+        raise CtlError(f"task {busy} is running; one task per character (stop it first)")
     os.makedirs(a.log_dir, exist_ok=True)
     spec = {"task_id": task_id, "task": a.task, "script": os.path.abspath(tasks[a.task]),
-            "args": user_args, "argv": argv, "log": log, "db": os.path.abspath(a.db)}
+            "args": user_args, "argv": argv, "log": log, "db": os.path.abspath(a.db),
+            "char_serial": mem.char_serial}
     kw = {"creationflags": tw.DETACHED_PROCESS | tw.CREATE_NEW_PROCESS_GROUP} if tw.WINDOWS \
         else {"start_new_session": True}
     try:
@@ -632,8 +690,9 @@ def cmd_run(a, mem):
 
 
 def _task_juncture(mem, task_id):
-    rows = mem.con.execute("SELECT id FROM junctures WHERE kind IN ('task_done','task_failed') "
-                           "ORDER BY id DESC LIMIT 50").fetchall()
+    scope, params = mem.scope_sql()
+    rows = mem.con.execute("SELECT id FROM junctures WHERE kind IN ('task_done','task_failed')" + scope
+                           + " ORDER BY id DESC LIMIT 50", params).fetchall()
     for (jid,) in rows:
         j = mem.junctures(after_id=jid - 1, limit=1)[0]
         if j["data"].get("task_id") == task_id:
@@ -655,12 +714,12 @@ def cmd_stop(a, mem):
         # due: stop harvesting, home, convert, store, exit 0); task_done wakes `wait` when it has
         if e.get("task") != "lumber":
             raise CtlError(f"--after-trip is honoured by lumber runs only ({tid} is {e.get('task')}); plain stop")
-        tw.meta_set(mem, tw.FINISH_KEY, json.dumps({"task_id": tid, "t": time.time()}))
+        tw.meta_set(mem, tw.finish_key(tid), json.dumps({"task_id": tid, "t": time.time()}))
         mem.chat_post("overseer", f"stop --after-trip {tid}", "action",
                       data={"cmd": "stop", "task_id": tid, "after_trip": True})
         return {"ok": True, "task_id": tid, "after_trip": True,
                 "next": "the run ends its trip at home (convert, store) and exits 0: wait for its task_done"}
-    tw.meta_set(mem, tw.STOP_KEY, json.dumps({"task_id": tid, "t": time.time()}))
+    tw.meta_set(mem, tw.stop_key(tid), json.dumps({"task_id": tid, "t": time.time()}))
     mem.chat_post("overseer", f"stop {tid}", "action", data={"cmd": "stop", "task_id": tid})
     end = time.monotonic() + a.grace
     while time.monotonic() < end:
@@ -672,7 +731,7 @@ def cmd_stop(a, mem):
     tw.terminate(cur.get("child_pid"), cur.get("child_created"))
     tw.terminate(cur.get("pid"), cur.get("pid_created"))
     if tw.remove_entry(mem, tid):
-        tw.meta_set(mem, tw.STOP_KEY, None)
+        tw.meta_set(mem, tw.stop_key(tid), None)
         tw.post_end(mem, cur, -1, True, source="ctl", note=" (forced)")
     return {"ok": True, "task_id": tid, "forced": True, "juncture": _task_juncture(mem, tid)}
 
@@ -685,9 +744,10 @@ ALWAYS_WAKE = ("task_done", "task_failed")
 
 def _open_junctures(mem, after_id, min_rank, limit):
     sev = [s for s, r in SEVERITY_RANK.items() if r >= min_rank]
-    q = ("SELECT id FROM junctures WHERE id > ? AND acked_t IS NULL AND (severity IN (%s) OR kind IN (%s)) "
-         "ORDER BY id LIMIT ?" % (",".join("?" * len(sev)), ",".join("?" * len(ALWAYS_WAKE))))
-    ids = [r[0] for r in mem.con.execute(q, (after_id, *sev, *ALWAYS_WAKE, limit))]
+    scope, params = mem.scope_sql()
+    q = ("SELECT id FROM junctures WHERE id > ? AND acked_t IS NULL AND (severity IN (%s) OR kind IN (%s))%s "
+         "ORDER BY id LIMIT ?" % (",".join("?" * len(sev)), ",".join("?" * len(ALWAYS_WAKE)), scope))
+    ids = [r[0] for r in mem.con.execute(q, (after_id, *sev, *ALWAYS_WAKE, *params, limit))]
     return [mem.junctures(after_id=i - 1, limit=1)[0] for i in ids]
 
 
@@ -718,7 +778,8 @@ def check_break_due(mem, port: int):
                  f"Scheduled break is due: it starts by itself at {at} (in {starts / 60:.0f} min) wherever "
                  f"the character is. Stop or finish the task, get somewhere safe, then `ctl break`.",
                  severity="attention",
-                 data={"break_due_at": due, "break_starts_in_s": starts, "starts_at": at})
+                 data={"break_due_at": due, "break_starts_in_s": starts, "starts_at": at},
+                 char_serial=None)                   # the gate is shared: every character's overseer wakes
     tw.meta_set(mem, BREAK_NOTIFIED_KEY, f"{due:.3f}")
 
 
@@ -737,8 +798,10 @@ def cmd_break(a, mem):
 
 
 def cmd_wait(a, mem):
-    jcur = int(tw.meta_get(mem, JUNCTURE_CURSOR_KEY, "0"))
-    ccur = int(tw.meta_get(mem, CHAT_CURSOR_KEY, "0"))
+    jkey = charsel.meta_key(JUNCTURE_CURSOR_KEY, mem.char_serial)
+    ckey = charsel.meta_key(CHAT_CURSOR_KEY, mem.char_serial)
+    jcur = int(tw.meta_get(mem, jkey, "0"))
+    ccur = int(tw.meta_get(mem, ckey, "0"))
     min_rank = 0 if a.include_info else SEVERITY_RANK["attention"]
     end = None if a.timeout <= 0 else time.monotonic() + a.timeout
     next_gate = 0.0
@@ -753,10 +816,10 @@ def cmd_wait(a, mem):
         if js or cs:
             if js:
                 jcur = js[-1]["id"]
-                tw.meta_set(mem, JUNCTURE_CURSOR_KEY, str(jcur))
+                tw.meta_set(mem, jkey, str(jcur))
             if cs:
                 ccur = cs[-1]["id"]
-                tw.meta_set(mem, CHAT_CURSOR_KEY, str(ccur))
+                tw.meta_set(mem, ckey, str(ccur))
             events = sorted([{"type": "juncture", **j} for j in js] + [{"type": "chat", **c} for c in cs],
                             key=lambda ev: ev["t"])
             return {"ok": True, "event": events[0], "events": events,
@@ -921,8 +984,9 @@ def cmd_act(a, mem):
 
 def speech_hold(mem: Memory) -> dict | None:
     """The open `speech_nearby` juncture of a task holding for the overseer, if any."""
-    row = mem.con.execute("SELECT id FROM junctures WHERE kind='speech_nearby' AND acked_t IS NULL "
-                          "ORDER BY id DESC LIMIT 1").fetchone()
+    scope, params = mem.scope_sql()
+    row = mem.con.execute("SELECT id FROM junctures WHERE kind='speech_nearby' AND acked_t IS NULL"
+                          + scope + " ORDER BY id DESC LIMIT 1", params).fetchone()
     if row is None:
         return None
     j = mem.junctures(after_id=row[0] - 1, limit=1)[0]
@@ -1019,11 +1083,11 @@ def _act(a, mem) -> dict:
     elif a.name != "walk":
         raise CtlError(f"unknown act {a.name!r}; allowed: {list(ACTS)}")
     try:
-        ctl = Control(a.control_port)
+        ctl = Control(a.control_port, char=a.char)
     except OSError as e:
         raise CtlError(f"proxy control port {a.control_port} unreachable: {e}")
     try:
-        stc = StateConn(a.state_port)
+        stc = StateConn(a.state_port, char=a.char)
     except OSError as e:
         ctl.close()
         raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
@@ -1102,7 +1166,7 @@ def _take_off_death_robe(a) -> dict:
     death robe away instead, it never came back after the drop: `gone`). {ok, serial, gone} or
     {ok: False, error}."""
     try:
-        stc = StateConn(a.state_port)
+        stc = StateConn(a.state_port, char=a.char)
         try:
             st = stc.state()
         finally:
@@ -1241,11 +1305,11 @@ def _click_packets(name: str, serial: int, stc: "StateConn", index: int | None) 
 
 def _connect(a):
     try:
-        ctl = Control(a.control_port)
+        ctl = Control(a.control_port, char=a.char)
     except OSError as e:
         raise CtlError(f"proxy control port {a.control_port} unreachable: {e}")
     try:
-        return ctl, StateConn(a.state_port)
+        return ctl, StateConn(a.state_port, char=a.char)
     except OSError as e:
         ctl.close()
         raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
@@ -1528,7 +1592,7 @@ def _act_heal(a, mem) -> dict:
     (cliloc 500235) falls back to the spell in the same call."""
     if a.args:
         raise CtlError("heal takes no arguments (options: --gheal-min-missing N)")
-    last = tw.meta_get(mem, HEAL_POTION_KEY)
+    last = tw.meta_get(mem, charsel.meta_key(HEAL_POTION_KEY, mem.char_serial))
     clock = healing.PotionClock(None if last is None else float(last))
     ctl, stc = _connect(a)
     try:
@@ -1549,7 +1613,7 @@ def _act_heal(a, mem) -> dict:
             answers = (healing.CLILOC_HEALED, healing.CLILOC_POTION_WAIT, healing.CLILOC_FULL_HEALTH)
             got = stc.wait_events(mark, lambda evs: any(e.get("ev") == "cliloc" and e.get("cliloc") in answers
                                                         for e in evs), timeout=2.0)
-            tw.meta_set(mem, HEAL_POTION_KEY, f"{time.time():.2f}")
+            tw.meta_set(mem, charsel.meta_key(HEAL_POTION_KEY, mem.char_serial), f"{time.time():.2f}")
             heard += [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]
             if healing.CLILOC_POTION_WAIT not in {e.get("cliloc") for e in got if e.get("ev") == "cliloc"}:
                 return {"ok": True, "reply": resp, "used": "potion", "potion": choice.potion, "why": choice.why,
@@ -1833,7 +1897,7 @@ def _act_room(a, mem) -> dict:
                 res = _act_goto(argparse.Namespace(**{**vars(a), "args": [f"0x{serial:08X}"], "range": rng,
                                                       "z": None, "max_moves": None}), mem)
         finally:
-            io.ctl = Control(a.control_port)
+            io.ctl = Control(a.control_port, char=a.char)
         if not res["ok"]:
             raise CtlError(f"walking to {label}: {res.get('error') or res['reply']}")
 
@@ -1850,7 +1914,7 @@ def _act_room(a, mem) -> dict:
                 stc.intent(f"Entering a rental room via {label}", "room")
             out = heard(room.enter(io, human, a.args[1:], walk=walk))
             if out["ok"]:
-                tw.meta_set(mem, ROOM_VIA_KEY, room.keeper_kind(out["via"]))
+                tw.meta_set(mem, charsel.meta_key(ROOM_VIA_KEY, mem.char_serial), room.keeper_kind(out["via"]))
             stc.intent(f"In the rental room ({out['room']})" if out["ok"] else None, "room")
             return {**out, "reply": f"entered {out['room']}" if out["ok"] else out["error"]}
         # leave
@@ -1859,12 +1923,12 @@ def _act_room(a, mem) -> dict:
         want = a.args[1].lower() if len(a.args) > 1 else None
         if want not in (None, "steward", "town"):
             raise CtlError("room leave [steward|town]")
-        came = tw.meta_get(mem, ROOM_VIA_KEY)
+        came = tw.meta_get(mem, charsel.meta_key(ROOM_VIA_KEY, mem.char_serial))
         exit_to = want or (("town", "steward") if came == "innkeeper" else ("steward", "town"))
         stc.intent("Leaving the rental room", "room")
         out = heard(room.leave(io, human, exit_to))
         if out["ok"]:
-            tw.meta_set(mem, ROOM_VIA_KEY, None)
+            tw.meta_set(mem, charsel.meta_key(ROOM_VIA_KEY, mem.char_serial), None)
         stc.intent(None)
         return {**out, "reply": f"left to {out['exit']}" if out["ok"] else out["error"]}
     except room.RoomError as e:
@@ -1923,7 +1987,7 @@ def _act_resupply(a, mem) -> dict:
                 res = _act_goto(argparse.Namespace(**{**vars(a), "args": [f"0x{serial:08X}"], "range": rng,
                                                       "z": None, "max_moves": None}), mem)
         finally:
-            io.ctl = Control(a.control_port)
+            io.ctl = Control(a.control_port, char=a.char)
         if not res["ok"]:
             raise CtlError(f"walking to the shelf 0x{serial:08X}: {res.get('error') or res['reply']}")
 
@@ -2180,7 +2244,8 @@ def _act_track(a) -> dict:
 def _spent_today(mem) -> int:
     lt = time.localtime()
     midnight = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1))
-    return sum(int(e["data"].get("total") or 0) for e in mem.job_events("gold", since=midnight)
+    return sum(int(e["data"].get("total") or 0)
+               for e in mem.job_events("gold", since=midnight, char_serial=mem.char_serial)
                if e["kind"] == "spend")
 
 
@@ -2492,11 +2557,11 @@ def _act_wear(a) -> dict:
     serial = _parse_serial(a.args[0])
     key = f"0x{serial:08X}"
     try:
-        ctl = Control(a.control_port)
+        ctl = Control(a.control_port, char=a.char)
     except OSError as e:
         raise CtlError(f"proxy control port {a.control_port} unreachable: {e}")
     try:
-        stc = StateConn(a.state_port)
+        stc = StateConn(a.state_port, char=a.char)
     except OSError as e:
         ctl.close()
         raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
@@ -2642,9 +2707,11 @@ def _act_goto(a, mem) -> dict:
     level = lambda z0: (lambda z: abs(z - z0) <= GOTO_Z_TOL)  # noqa: E731
     with contextlib.redirect_stdout(sys.stderr):          # stdout is the one JSON reply
         try:
-            link = agent_link.Link(a.control_port, a.state_port)
+            link = agent_link.Link(a.control_port, a.state_port, char=a.char)
         except OSError as e:
             raise CtlError(f"proxy unreachable: {e}")
+        except agent_link.Abort as e:
+            raise CtlError(str(e))
         mover = agent_link.Mover(link, mem, Human(a.human, seed=a.seed), max_blocked=20, doors=True,
                                  use_map=not a.no_map)
         z_ok = None if a.z is None else level(a.z)
@@ -2726,7 +2793,7 @@ def cmd_map(a, mem):
     import pathfind
     import uomap
     try:
-        stc = StateConn(a.state_port)
+        stc = StateConn(a.state_port, char=a.char)
     except OSError as e:
         raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
     try:
@@ -2768,7 +2835,7 @@ def _situation(a, mem) -> dict:
     sit = {"junctures": [f"{j['kind']} {j['summary']}" for j in mem.junctures(open_only=True, limit=10)],
            "task": " ".join(t["task"] for t in running_tasks(mem))}
     try:
-        resp = state_query(a.state_port)
+        resp = state_query(a.state_port, char=a.char)
     except (OSError, ValueError):
         return sit
     if resp.get("ok"):
@@ -2888,7 +2955,7 @@ def cmd_intent(a, mem):
     their own step-level intents; this is for goals between them."""
     heartbeat(mem)
     try:
-        stc = StateConn(a.state_port)
+        stc = StateConn(a.state_port, char=a.char)
     except OSError as e:
         raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
     try:
@@ -2923,7 +2990,7 @@ def cmd_npcs(a, mem):
     left out. NPCs wander, so `goto <serial>` walks to the last-seen spot and
     follows the live position once the mobile is back in view."""
     try:
-        stc = StateConn(a.state_port)
+        stc = StateConn(a.state_port, char=a.char)
     except OSError as e:
         raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
     try:
@@ -2964,7 +3031,7 @@ def cmd_journal(a, mem):
     """Recent world events a player reads: messages, gumps, menus, vendor
     lists (the proxy's event ring), newest last."""
     try:
-        stc = StateConn(a.state_port)
+        stc = StateConn(a.state_port, char=a.char)
     except OSError as e:
         raise CtlError(f"proxy state port {a.state_port} unreachable: {e}")
     try:
@@ -3030,7 +3097,7 @@ def cmd_runes(a, mem):
             character = a.character
             if character is None:
                 try:
-                    resp = state_query(a.state_port)
+                    resp = state_query(a.state_port, char=a.char)
                 except (OSError, ValueError):
                     resp = {}
                 character = ((resp.get("world") or {}).get("self") or {}).get("name") if resp.get("ok") else None
@@ -3054,7 +3121,7 @@ def cmd_lumber(a, mem):
     if op == "plan":
         world = serial = pos = facet = None
         try:
-            resp = state_query(a.state_port)
+            resp = state_query(a.state_port, char=a.char)
         except (OSError, ValueError):
             resp = {}
         if resp.get("ok"):
@@ -3196,6 +3263,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--db", default=DEFAULT_DB)
     ap.add_argument("--state-port", type=int, default=25942)
     ap.add_argument("--control-port", type=int, default=25941)
+    ap.add_argument("--char", default=os.environ.get("UO_CHAR") or None,
+                    help="character (name or 0xSERIAL) when several are logged in through the proxy; "
+                         "scopes tasks, junctures, chat and cursors to it (default: $UO_CHAR)")
     ap.add_argument("--log-dir", default=LOG_DIR, help="task logs (default logs/tasks)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status").set_defaults(fn=cmd_status)
@@ -3449,6 +3519,7 @@ def main(argv=None) -> int:
     else:
         mem = Memory(a.db)
         try:
+            mem.char_serial = resolve_char(a.char, mem)
             out = a.fn(a, mem)
         except CtlError as e:
             out = {"ok": False, "error": str(e)}

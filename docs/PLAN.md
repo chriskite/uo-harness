@@ -1553,6 +1553,40 @@ wiki, news and forums".
   - Chunks of news posts merged per post: one patch post covers a dozen unrelated systems, and a
     mixed chunk's embedding matches none of them well; section chunks are what recall needs.
 
+## Several characters at once (decided and built 2026-10-08; live check with two clients pending)
+
+Several UO clients (different accounts/characters) run through the one proxy at the same time.
+Before, `InjectionHub` kept only the last-attached session and the store didn't know which
+character a row belonged to.
+
+- **A character is its player serial** (`char_serial INTEGER` in the store, from S2C 0x1B; the
+  runtime now emits `login_confirm {serial}`). Names are only selectors: one syntax everywhere
+  (`harness/charsel.py`): `0x…` or all digits = serial, anything else = name, compared with
+  `casefold`. Used by the state port's `char` field, the control port's `@char <sel>` frame,
+  ctl `--char` (default env `UO_CHAR`), runner `--char`, viz `?char=`.
+- **Proxy resolution** (`InjectionHub.pick`): no selector and one session = that session (old
+  behaviour unchanged); no selector and several = an error naming them; several matches (an old
+  connection not yet closed) = the newest. New state-port op `sessions`. Session log tags are
+  unique (`<stamp>_2` when two clients connect in the same second or the stamp exists).
+- **Store scoping, not separate stores.** `episodes`, `job_events`, `junctures`, `chat` gain a
+  `char_serial` column (NULL = unscoped). A reader scoped to S sees S + NULL rows, so gate
+  breaks, stack service junctures and Telegram user messages reach every character's overseer.
+  World facts (walk moves, harvest nodes, teleporters, guard points, knowledge) stay shared: they
+  are facts about the shard, not the character. The Jobs page stays aggregate.
+- **Per character:** overseer heartbeat, juncture and chat cursors, `heal_potion_t`,
+  `room_entered_via` (meta key `<base>:0x%08X`). **Shared:** the agent gate (one human
+  multiboxing: one budget, one break schedule), captcha mode, the GM alarm, Telegram cursors.
+- **One task per character, one overseer per character.** A task with a character conflicts
+  with live tasks of the same character or with none; a task with no character conflicts with
+  every live task, which keeps the one-task behaviour when nobody passes `--char`. Stop/finish
+  requests became per-task meta keys.
+- **Viz:** one server, a character picker in the header (live mode); per-character state
+  pollers are created lazily per `?char=`.
+- **Rejected:** one proxy per character (two NAT/divert setups, two state ports for every
+  consumer to know); a store per character (world facts would fork, and the Jobs page couldn't
+  aggregate); keying by account or name (an account has several characters, and names can be
+  reused; the serial is what the server uses).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

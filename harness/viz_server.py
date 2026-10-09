@@ -3,16 +3,21 @@
   python harness/viz_server.py --live [--state-port 25942] [--port 8080]
   python harness/viz_server.py --replay 20260929_163420 [--rate 1] [--paused] [--port 8080]
 
-Routes:
-  GET  /api/state     latest state-port response (+ `viz` block); `events` = the ring (≤2000)
-  GET  /api/events    SSE: `event: world_events` (a JSON array of envelopes, id = the last
+Routes (`?char=` = a character selector, harness/charsel.py: 0xSERIAL, digits, or a name;
+live only, replay ignores it; without one the proxy serves its only session or errors):
+  GET  /api/state     latest state-port response (+ `viz` block); `events` = the ring (≤2000);
+                      ?char= that character's (a feed per selector, made on first use)
+  GET  /api/sessions  live: {"ok": true, "sessions": [{tag, serial: "0x%08X"|null, name}]},
+                      the proxy's logged-in characters ({"op": "sessions"}); replay: [];
+                      502 when the state port is unreachable
+  GET  /api/events    SSE (?char= as /api/state): `event: world_events` (a JSON array of envelopes, id = the last
                       seq) + `event: state` (response without events, ≤4 Hz, only when
                       changed); a slow reader gets the newest state, never a backlog of old
                       ones (viz_feed.Subscriber). Resume with the Last-Event-ID header
                       (seq > id) or ?since=N (seq >= N).
   GET  /api/walkmem   walk memory (facet 0) from the harness memory store, in the
                       nav.WalkMemory JSON format (docs/MEMORY.md)
-  GET  /api/paperdoll.png  the player's paperdoll from the current state (body, skin hue,
+  GET  /api/paperdoll.png  (?char=) the player's paperdoll from the current state (body, skin hue,
                       worn items), drawn from the client's gump art (harness/paperdoll.py);
                       404 JSON when the state has no player or the install data is missing
   GET  /api/art/<graphic>.png  an item's art from the client's art.uoo (decimal or 0x hex
@@ -31,7 +36,7 @@ Routes:
   GET  /api/cliloc?n=N[,N...]  {"texts": {N: text}} from the client's Cliloc.enu (uo/cliloc.py,
                       read-only; at most CLILOC_MAX numbers, unknown ones left out): the
                       names of buffs the server sent as a cliloc with an empty title
-  GET  /api/health    mode, session, order, poll lag, connection, diagnostics
+  GET  /api/health    (?char=) mode, session, order, poll lag, connection, diagnostics
   POST /api/playback  replay only: {"action": "play"|"pause"|"step"|"rate", "rate": R}
   GET  /api/gate      live only: the proxy's agent gate ({"op": "gate"}), verbatim
   POST /api/gate      live only: {"action": "pause"|"resume"|"kill"} -> {"op": "gate",
@@ -46,11 +51,13 @@ Routes:
                       UTC for the per-day split, default the server's local offset), cached 2 s
   GET  /api/jobs/plan  {plan, store}: the lumber optimizer's plan (jobs.lumber_plan, all
                       history), recomputed once a minute; the Jobs page loads it on its own
-  GET  /api/overseer?after_chat=N&after_juncture=M  {chat, junctures, open, open_ids,
+  GET  /api/overseer?after_chat=N&after_juncture=M[&char=0xS]  {chat, junctures, open, open_ids,
                       heartbeat}: rows with id above the cursors (the newest 200 when 0),
-                      the open-juncture count and ids, the overseer's last heartbeat
-  POST /api/chat      {"text": T} (1..2000 chars after trimming) -> Memory.chat_post(
-                      "user", T) -> {"ok": true, "id": N}; 400 otherwise
+                      the open-juncture count and ids, the overseer's last heartbeat; char
+                      (a serial only, else 400): that character's rows + unscoped ones and
+                      its overseer's heartbeat; without: every character's, newest heartbeat
+  POST /api/chat      {"text": T[, "char": "0xS"]} (1..2000 chars after trimming) -> Memory.chat_post(
+                      "user", T, char_serial=S) -> {"ok": true, "id": N}; 400 otherwise
   GET  /api/captcha   {"mode": "human"|"auto", "store": bool}: who answers the harvest
                       captcha (Memory.captcha_mode; "human" when unset or no store)
   POST /api/captcha   {"mode": "human"|"auto"} -> Memory.set_captcha_mode -> {"ok": true,
@@ -59,7 +66,7 @@ Routes:
                       model, thinking}: Nystul the Wizard, the AI assistant (harness/nystul.py)
   GET  /api/nystul/<id>  {conversation, messages}; a running answer's text and lookup steps
                       are partial and grow between polls; 404 unknown, 400 non-integer id
-  POST /api/nystul/ask  {"conversation": id|null, "text": T} -> {"ok": true, "conversation",
+  POST /api/nystul/ask  {"conversation": id|null, "text": T[, "char": C]} -> {"ok": true, "conversation",
                       "message"}; 400 bad text, 404 unknown conversation, 409 busy, 503 no omp
   POST /api/nystul/cancel  {"conversation": id} -> {"ok": true}; 404 when nothing runs
   POST /api/nystul/approve  {"proposal": id} -> the operator approves a memory-store change
@@ -95,6 +102,7 @@ from urllib.parse import urlsplit, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import viz_feed  # noqa: E402
+import charsel  # noqa: E402
 import facet as facet_mod  # noqa: E402
 import jobs as jobs_mod  # noqa: E402
 import memory as memory_mod  # noqa: E402
@@ -117,6 +125,8 @@ MAX_BODY = 64 * 1024
 CHAT_MAX_CHARS = 2000
 CLILOC_MAX = 200   # numbers per /api/cliloc request
 STOREY_Z = 20       # a house piece this high above the house's tile is on an upper floor
+HEARTBEAT_KEY = "overseer_heartbeat"   # ctl.HEARTBEAT_KEY; per character charsel.meta_key(HEARTBEAT_KEY, s)
+SERIAL_ONLY = "char must be a serial (0x...)"
 
 
 class WalkMemDB:
@@ -216,9 +226,11 @@ class OverseerDB:
                 self.plan_cache = (minute, body)
             return body
 
-    def overseer(self, after_chat: int, after_juncture: int) -> dict:
+    def overseer(self, after_chat: int, after_juncture: int, char_serial: int | None = None) -> dict:
         """Rows with id above the cursors, oldest first; a 0 cursor starts at the
-        newest PAGE rows. `open`/`open_ids`: junctures not yet acked (any age)."""
+        newest PAGE rows. `open`/`open_ids`: junctures not yet acked (any age).
+        `char_serial`: that character's rows plus the unscoped ones (Memory.scope_sql),
+        and its heartbeat; None: every character, the newest heartbeat of any."""
         with self.lock:
             mem = self._open(False)
             if mem is None:
@@ -229,20 +241,24 @@ class OverseerDB:
                 after_chat = max(0, (c.execute("SELECT MAX(id) FROM chat").fetchone()[0] or 0) - self.PAGE)
             if after_juncture <= 0:
                 after_juncture = max(0, (c.execute("SELECT MAX(id) FROM junctures").fetchone()[0] or 0) - self.PAGE)
-            open_ids = [i for (i,) in c.execute("SELECT id FROM junctures WHERE acked_t IS NULL ORDER BY id")]
-            hb = c.execute("SELECT value FROM meta WHERE key = 'overseer_heartbeat'").fetchone()
-            try:
-                heartbeat = float(hb[0]) if hb and hb[0] is not None else None
-            except ValueError:
-                heartbeat = None
-            return {"chat": mem.chat(after_chat, limit=self.PAGE),
-                    "junctures": mem.junctures(after_juncture, limit=self.PAGE),
+            scope, params = mem.scope_sql(char_serial)
+            open_ids = [i for (i,) in c.execute(
+                f"SELECT id FROM junctures WHERE acked_t IS NULL{scope} ORDER BY id", params)]
+            if char_serial is None:
+                hb = c.execute("SELECT MAX(CAST(value AS REAL)) FROM meta WHERE key = ? OR key LIKE ?",
+                               (HEARTBEAT_KEY, HEARTBEAT_KEY + ":%")).fetchone()
+            else:
+                hb = c.execute("SELECT MAX(CAST(value AS REAL)) FROM meta WHERE key IN (?, ?)",
+                               (HEARTBEAT_KEY, charsel.meta_key(HEARTBEAT_KEY, char_serial))).fetchone()
+            heartbeat = float(hb[0]) if hb and hb[0] is not None else None
+            return {"chat": mem.chat(after_chat, limit=self.PAGE, char_serial=char_serial),
+                    "junctures": mem.junctures(after_juncture, limit=self.PAGE, char_serial=char_serial),
                     "open": len(open_ids), "open_ids": open_ids, "heartbeat": heartbeat,
                     "now": time.time(), "store": True}
 
-    def post_chat(self, text: str) -> int:
+    def post_chat(self, text: str, char_serial: int | None = None) -> int:
         with self.lock:
-            return self._open(True).chat_post("user", text)
+            return self._open(True).chat_post("user", text, char_serial=char_serial)
 
     def captcha_mode(self) -> dict:
         with self.lock:
@@ -296,10 +312,14 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "uo-viz/1"
     protocol_version = "HTTP/1.1"
 
-    def _paperdoll(self):
+    def _feed(self, url):
+        """The feed `?char=` names (VizServer.feed_for); the default feed without one."""
+        return self.server.feed_for((parse_qs(url.query).get("char") or [None])[0])
+
+    def _paperdoll(self, url):
         import paperdoll
         try:
-            spec = paperdoll.from_state(json.loads(self.server.feed.state_body()))
+            spec = paperdoll.from_state(json.loads(self._feed(url).state_body()))
         except ValueError:
             spec = None
         if spec is None:
@@ -467,9 +487,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         url = urlsplit(self.path)
-        feed = self.server.feed
         if url.path == "/api/state":
-            self._send(200, feed.state_body().encode())
+            self._send(200, self._feed(url).state_body().encode())
         elif url.path == "/api/events":
             self._sse(url)
         elif url.path == "/api/walkmem":
@@ -479,7 +498,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send(200, body)
         elif url.path == "/api/paperdoll.png":
-            self._paperdoll()
+            self._paperdoll(url)
         elif url.path.startswith("/api/art/") and url.path.endswith(".png"):
             self._item_art(url.path[len("/api/art/"):-len(".png")])
         elif url.path.startswith("/api/multi/"):
@@ -493,9 +512,11 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/api/cliloc":
             self._cliloc(parse_qs(url.query))
         elif url.path == "/api/health":
-            self._json(200, feed.health())
+            self._json(200, self._feed(url).health())
         elif url.path == "/api/gate":
             self._gate(None)
+        elif url.path == "/api/sessions":
+            self._sessions()
         elif url.path == "/api/facet":
             fp = self.server.facet
             self._json(200, fp.meta() if fp else {"available": False, "error": self.server.facet_error})
@@ -565,6 +586,20 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._json(200, self.server.overseer.grove(spot, facet, x, y))
 
+    def _char_serial(self, raw) -> tuple[bool, int | None]:
+        """(ok, serial) of a `char` the overseer routes take: absent/empty → (True, None),
+        a serial selector → (True, it); anything else answers 400 and gives (False, None)."""
+        if raw is None or (isinstance(raw, str) and not raw.strip()):
+            return True, None
+        try:
+            p = charsel.parse(raw) if isinstance(raw, str) else None
+        except ValueError:
+            p = None
+        if not isinstance(p, int):
+            self._json(400, {"ok": False, "error": SERIAL_ONLY})
+            return False, None
+        return True, p
+
     def _overseer(self, qs: dict):
         try:
             after_chat = int(qs.get("after_chat", ["0"])[0])
@@ -572,14 +607,18 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             self._json(400, {"error": "after_chat / after_juncture must be integers"})
             return
-        self._json(200, self.server.overseer.overseer(after_chat, after_juncture))
+        ok, char_serial = self._char_serial(qs.get("char", [None])[0])
+        if ok:
+            self._json(200, self.server.overseer.overseer(after_chat, after_juncture, char_serial))
 
     def _chat(self, req: dict):
         text = req.get("text")
         if not isinstance(text, str) or not (0 < len(text.strip()) <= CHAT_MAX_CHARS):
             self._json(400, {"ok": False, "error": f"text must be a string of 1..{CHAT_MAX_CHARS} characters"})
             return
-        self._json(200, {"ok": True, "id": self.server.overseer.post_chat(text.strip())})
+        ok, char_serial = self._char_serial(req.get("char"))
+        if ok:
+            self._json(200, {"ok": True, "id": self.server.overseer.post_chat(text.strip(), char_serial)})
 
     def _captcha(self, req: dict):
         mode = req.get("mode")
@@ -602,15 +641,18 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, out)
 
     def _nystul_ask(self, req: dict):
-        conv, text = req.get("conversation"), req.get("text")
+        conv, text, char = req.get("conversation"), req.get("text"), req.get("char")
         if conv is not None and (isinstance(conv, bool) or not isinstance(conv, int)):
             self._json(400, {"ok": False, "error": "conversation must be an integer or null"})
             return
         if not isinstance(text, str):
             self._json(400, {"ok": False, "error": "text must be a string"})
             return
+        if char is not None and not isinstance(char, str):
+            self._json(400, {"ok": False, "error": "char must be a string or null"})
+            return
         try:
-            out = self.server.nystul.ask(conv, text)
+            out = self.server.nystul.ask(conv, text, (char or "").strip() or None)
         except nystul_mod.NystulError as e:
             self._json(e.code, {"ok": False, "error": str(e)})
             return
@@ -707,16 +749,35 @@ class Handler(BaseHTTPRequestHandler):
             self._json(409, {"ok": False, "error": "no gate in replay"})
             return
         try:
-            resp = gate_request(feed.host, feed.port, action)
+            resp = state_request(feed.host, feed.port,
+                                 {"op": "gate"} if action is None else {"op": "gate", "action": action})
         except (OSError, ValueError) as e:
             self._json(502, {"ok": False, "error": f"state port unreachable: {type(e).__name__}: {e}"})
             return
         if action is not None:
-            feed.wake()   # push the new gate in the next state frame
+            for f in self.server.feeds():
+                f.wake()   # push the new gate in the next state frame
         self._json(200 if resp.get("ok") else 409, resp)
 
-    def _sse(self, url):
+    def _sessions(self):
+        """GET /api/sessions: the proxy's logged-in characters ({"op": "sessions"}) on a
+        short-lived state-port connection; replay has none."""
         feed = self.server.feed
+        if not isinstance(feed, viz_feed.StatePortPoller):
+            self._json(200, {"ok": True, "sessions": []})
+            return
+        try:
+            resp = state_request(feed.host, feed.port, {"op": "sessions"})
+        except (OSError, ValueError) as e:
+            self._json(502, {"ok": False, "error": f"proxy state port unreachable: {type(e).__name__}: {e}"})
+            return
+        if not resp.get("ok"):
+            self._json(502, {"ok": False, "error": f"proxy: {resp.get('error')}"})
+            return
+        self._json(200, {"ok": True, "sessions": resp.get("sessions") or []})
+
+    def _sse(self, url):
+        feed = self._feed(url)
         since = None
         last_id = self.headers.get("Last-Event-ID")
         qs = parse_qs(url.query)
@@ -789,9 +850,9 @@ def multi_footprint(multi_id: int, root: str | None = None) -> dict | None:
             "tiles": [[dx, dy, "wall" if w else "floor"] for (dx, dy), w in sorted(tiles.items())]}
 
 
-def gate_request(host: str, port: int, action: str | None = None) -> dict:
-    """`{"op": "gate"[, "action": A]}` on a fresh state-port connection."""
-    req = {"op": "gate"} if action is None else {"op": "gate", "action": action}
+def state_request(host: str, port: int, req: dict) -> dict:
+    """One request on a fresh state-port connection (the feed's connection and since
+    cursor stay untouched)."""
     with socket.create_connection((host, port), timeout=GATE_TIMEOUT_S) as s:
         s.sendall((json.dumps(req) + "\n").encode())
         with s.makefile("rb") as f:
@@ -813,6 +874,8 @@ class VizServer(ThreadingHTTPServer):
                  nystul_model: str = "sonnet", nystul_thinking: str = "medium"):
         super().__init__(addr, Handler)
         self.feed = feed
+        self.char_feeds: dict = {}       # charsel.parse(char) -> StatePortPoller for ?char=
+        self.char_feeds_lock = threading.Lock()
         self.dist = dist
         self.walkmem = WalkMemDB(memory_db)
         self.paperdoll = None            # paperdoll.Paperdoll, created on first use
@@ -849,14 +912,43 @@ class VizServer(ThreadingHTTPServer):
             return
         super().handle_error(request, client_address)
 
+    def feed_for(self, char: str | None):
+        """The feed of character `char` (a charsel selector): `self.feed` without one, in
+        replay (which has one character), or for a selector that doesn't parse; else a
+        StatePortPoller asking the proxy for that character, created and pumped once on
+        first use, kept until the server closes."""
+        feed = self.feed
+        if not char or not isinstance(feed, viz_feed.StatePortPoller):
+            return feed
+        try:
+            key = charsel.parse(char)
+        except ValueError:
+            return feed
+        with self.char_feeds_lock:
+            f = self.char_feeds.get(key)
+            if f is None:
+                f = viz_feed.StatePortPoller(feed.host, feed.port, char=char.strip())
+                f.pump()   # the first answer (state or the proxy's error) is there for this request
+                f.run()
+                self.char_feeds[key] = f
+            return f
+
+    def feeds(self) -> list:
+        with self.char_feeds_lock:
+            return [self.feed, *self.char_feeds.values()]
+
     def shutdown(self):
         self.stopping = True
-        for sub in list(self.feed.subscribers):
-            sub.close()
+        for f in self.feeds():
+            for sub in list(f.subscribers):
+                sub.close()
         super().shutdown()
 
     def server_close(self):
         super().server_close()
+        with self.char_feeds_lock:
+            for f in self.char_feeds.values():
+                f.stop()
         self.overseer.close()
         self.nystul.close()
         with self.live_lock:

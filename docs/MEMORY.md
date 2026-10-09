@@ -33,11 +33,11 @@ Rejected:
 - A server database (Postgres). It needs a service, which is too much for one local harness.
 - DuckDB. It's analytics-first, not in the stdlib, and has a single-writer file lock.
 
-## Schema (v5, `memory.SCHEMA`)
+## Schema (v6, `memory.SCHEMA`)
 
 | Table | Key | Contents |
 |---|---|---|
-| `sessions` | `id`, unique `tag` | `source` (`live` from the proxy, `ingest` from a capture), `started`, `ended` |
+| `sessions` | `id`, unique `tag` | `source` (`live` from the proxy, `ingest` from a capture), `started`, `ended`; v6: `account`, `char_name`, `char_serial` (who the session logged in as, set from its `login` / `char_select` / `login_confirm` events; `python harness/memory.py backfill-identity` fills older rows from their events, the raw S2C capture's first 0x1B, or the newest episode of the same character name) |
 | `events` | (`session`, `seq`) | every state-port envelope: `t`, `origin` (`world`/`proxy`), `ev`, `data` (JSON). Index (`ev`, `t`) |
 | `walk_moves` | (`facet`, `x`, `y`, `z`, `dir`, `ok`) | server-confirmed moves (`ok`=1) and denies (`ok`=0) with count `n`, `first_t`, `last_t`. `z` = -32768 when unknown |
 | `harvest_nodes` | (`facet`, `x`, `y`, `z`) | `graphic`, `attempts`, `successes`, `yield`, `depleted_at`, `unreachable_at`, `not_tree`. A node is a tree tile, or since Smart Harvest (2026-10-04) the tile the lumber runner stood on (`graphic` NULL: its attempts and yield; the server doesn't say which tree it chopped) |
@@ -52,7 +52,18 @@ Rejected:
 | `knowledge_vec` | `id` (= `knowledge.id`) | Since 2026-10-03, added without a schema bump. One embedding per entry for hybrid recall: `hash` (sha1 of model name + "topic: content"), `vec` (384 float32, L2-normalised). Filled lazily by `Knowledge.search`; regenerable, so losing it costs one re-embed (~1 s on the GPU for ~1k entries) |
 | `lumber_spots` | `id` | v5. Lumber spots for `lumber_opt.py` (docs/LUMBER_LOOP.md §6): `status` (active/candidate/disabled), `data` (the spot JSON; `{}` = a status override of a seed in `harness/data/lumber_spots.json`), `reason`, `source` (overseer/discover), `created_t`, `updated_t`. Written by `ctl lumber spot add\|set` and `ctl lumber discover` |
 | `prices` | `id` | v5. Observed market prices, append-only (the history is kept): `item` (`hatchet:<material>[:<quality>]`, `board:<wood>`, `reagent:<name>` with spaces as `_`, `recall_charge`), `price_gp`, `t` (when observed; `ctl lumber price --at` backdates), `source`, `note`. Planning uses the newest per item (`Memory.prices`); `harness/jobs.py` values each trip at the `board:<wood>` price as of its end (`Memory.price_history`). Written by `ctl lumber price` |
-| `meta` | `key` | `schema_version`; `captcha_mode` (`human`/`auto`, missing = `human`; who answers the harvest captcha, set from the viz header, read by the runner at every captcha); overseer bus (docs/OVERSEER.md): `tasks` (running task entries), `task_stop`, `overseer_juncture_cursor`, `overseer_chat_cursor`, `overseer_heartbeat` (epoch s); Telegram bridge (docs/OVERSEER.md §8): `telegram_chat_cursor`, `telegram_juncture_cursor`, `telegram_update_offset`; `lumber_landing_routes` (since 2026-10-04: `lumber_opt` route checks, JSON {"facet:lx,ly>cx,cy,r": walk tiles from landing lx,ly into the area, or null = no route}; regenerable, written by `ctl lumber plan`, docs/LUMBER_LOOP.md §6 "Home and the way out") |
+| `meta` | `key` | `schema_version`; `captcha_mode` (`human`/`auto`, missing = `human`; who answers the harvest captcha, set from the viz header, read by the runner at every captcha); overseer bus (docs/OVERSEER.md): `tasks` (running task entries, each with its `char_serial`), `task_stop:<task_id>`, `task_finish:<task_id>`, and per character (`<key>:0x%08X`, or the bare key when no character was given): `overseer_juncture_cursor`, `overseer_chat_cursor`, `overseer_heartbeat` (epoch s), `heal_potion_t`, `room_entered_via`; shared: `gate_break_due_notified`; Telegram bridge (docs/OVERSEER.md §8): `telegram_chat_cursor`, `telegram_juncture_cursor`, `telegram_update_offset`; `lumber_landing_routes` (since 2026-10-04: `lumber_opt` route checks, JSON {"facet:lx,ly>cx,cy,r": walk tiles from landing lx,ly into the area, or null = no route}; regenerable, written by `ctl lumber plan`, docs/LUMBER_LOOP.md §6 "Home and the way out") |
+
+**Characters (v6, 2026-10-08).** `episodes`, `job_events`, `junctures` and `chat` have a
+`char_serial` column: the player serial of the character the row belongs to, NULL when it isn't
+character-scoped (gate `break_due`, stack service junctures, Telegram user messages, `ctl`
+without `--char`) or predates v6. `Memory(path, char_serial=S)` tags what it writes with S (a
+writer may pass `char_serial=None` explicitly) and its `junctures`/`chat` reads see S's rows plus
+the NULL ones (`Memory.scope_sql`); a Memory without a character sees everything.
+`job_events` filters only when given a `char_serial` (`ctl`'s daily spend), so the Jobs page and
+planning stay aggregate. World facts (`walk_moves`, `harvest_*`, `teleporters`, `guard_points`,
+`knowledge`) are shared by all characters. Migration: `memory.connect` adds missing columns
+(`ALTER TABLE ADD COLUMN`, under `BEGIN IMMEDIATE`), the store's first in-place migration.
 
 **Indexes for time-range reads** (the viz Jobs page's date range, docs/VISUALIZER.md §2.4): `episodes(loop, t_start)`
 (`episodes_loop_t`, added 2026-10-05), `job_events(job, t)` (`job_events_job_t`, since v2) and `harvest_attempts(t)`

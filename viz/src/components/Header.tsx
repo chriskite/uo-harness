@@ -4,6 +4,7 @@ import type { VizSnapshot } from "../store.ts";
 import type { PlaybackAction } from "../types.ts";
 import { Badge } from "./common.tsx";
 import { CaptchaToggle } from "./CaptchaToggle.tsx";
+import { CharacterPicker } from "./CharacterPicker.tsx";
 import { GateControls } from "./GateControls.tsx";
 
 const RATES = [0.25, 0.5, 1, 2, 4, 8, 16, 32];
@@ -33,6 +34,7 @@ export function Header({ viz, page, onPage }: { viz: VizSnapshot; page: Page; on
           </button>
         ))}
       </nav>
+      {info?.mode === "live" && <CharacterPicker />}
       {!info ? (
         <Badge kind="dim">no state</Badge>
       ) : info.mode === "live" ? (

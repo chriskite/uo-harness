@@ -2,6 +2,7 @@
 // with resume (event batches + newest state, coalesced per task, sse.ts),
 // periodic walk-memory refresh, playback and agent-gate control, job analytics
 // and the overseer chat (§2.4), and the Nystul assistant chat.
+import { getChar, type Session, withChar } from "./character.ts";
 import type { HuntResponse, JobsResponse, PlanResponse, RangeBounds } from "./jobs.ts";
 import type { NystulConversation, NystulList } from "./nystul.ts";
 import type { OverseerResponse } from "./overseer.ts";
@@ -13,7 +14,7 @@ const WALKMEM_REFRESH_MS = 10_000;
 const RECONNECT_MS = 2_000;
 
 export async function fetchState(): Promise<StateResponse> {
-  const r = await fetch("/api/state", { cache: "no-store" });
+  const r = await fetch(withChar("/api/state"), { cache: "no-store" });
   if (!r.ok) throw new Error(`/api/state: HTTP ${r.status}`);
   return (await r.json()) as StateResponse;
 }
@@ -55,19 +56,22 @@ export async function fetchLumberPlan(): Promise<PlanResponse> {
   return (await r.json()) as PlanResponse;
 }
 
-/** Chat rows and junctures above the cursors (0 = the newest 200), open junctures, heartbeat. */
+/** Chat rows and junctures above the cursors (0 = the newest 200), open junctures, heartbeat;
+ *  the chosen character's rows (plus unscoped ones) when one is chosen. */
 export async function fetchOverseer(afterChat: number, afterJuncture: number): Promise<OverseerResponse> {
-  const r = await fetch(`/api/overseer?after_chat=${afterChat}&after_juncture=${afterJuncture}`, { cache: "no-store" });
+  const r = await fetch(withChar(`/api/overseer?after_chat=${afterChat}&after_juncture=${afterJuncture}`), {
+    cache: "no-store",
+  });
   if (!r.ok) throw new Error(`/api/overseer: HTTP ${r.status} ${await r.text()}`);
   return (await r.json()) as OverseerResponse;
 }
 
-/** A user chat message for the overseer; resolves to its row id. */
+/** A user chat message for the overseer (of the chosen character); resolves to its row id. */
 export async function postChat(text: string): Promise<number> {
   const r = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, char: getChar() }),
   });
   const body = (await r.json().catch(() => null)) as { ok?: boolean; id?: number; error?: string } | null;
   if (!r.ok || !body?.ok || typeof body.id !== "number") throw new Error(`chat: ${body?.error ?? `HTTP ${r.status}`}`);
@@ -103,7 +107,7 @@ export async function postNystulAsk(conversation: number | null, text: string): 
   const r = await fetch("/api/nystul/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ conversation, text }),
+    body: JSON.stringify({ conversation, text, char: getChar() }),
   });
   const body = (await r.json().catch(() => null)) as { ok?: boolean; conversation?: number; message?: number; error?: string } | null;
   if (!r.ok || !body?.ok || typeof body.conversation !== "number" || typeof body.message !== "number") {
@@ -185,6 +189,14 @@ export async function postGate(action: GateAction): Promise<Gate | undefined> {
   return resp.gate;
 }
 
+/** The proxy's logged-in characters (live; [] in replay). */
+export async function fetchSessions(): Promise<Session[]> {
+  const r = await fetch("/api/sessions", { cache: "no-store" });
+  const body = (await r.json().catch(() => null)) as { ok?: boolean; sessions?: Session[]; error?: string } | null;
+  if (!r.ok || !body?.ok || !Array.isArray(body.sessions)) throw new Error(`sessions: ${body?.error ?? `HTTP ${r.status}`}`);
+  return body.sessions;
+}
+
 /** Start feeding `store`; returns a stop function. */
 export function connect(store: VizStore): () => void {
   let stopped = false;
@@ -227,7 +239,7 @@ export function connect(store: VizStore): () => void {
   const open = () => {
     if (stopped) return;
     const since = store.getSnapshot().lastSeq + 1;
-    const es = new EventSource(since > 0 ? `/api/events?since=${since}` : "/api/events");
+    const es = new EventSource(withChar(since > 0 ? `/api/events?since=${since}` : "/api/events"));
     source = es;
     es.onopen = () => store.setConnected(true);
     es.addEventListener("state", receive("state"));

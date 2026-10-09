@@ -44,9 +44,11 @@ def staff(sound: bool = True):
 
 
 def open_gm(mem) -> list[int]:
-    """Ids of open gm_suspected junctures."""
+    """Ids of open gm_suspected junctures (this character's and unscoped ones; all without one)."""
+    scope, params = mem.scope_sql()
     return [r[0] for r in mem.con.execute(
-        "SELECT id FROM junctures WHERE kind=? AND acked_t IS NULL ORDER BY id", (GM_KIND,))]
+        "SELECT id FROM junctures WHERE kind=? AND acked_t IS NULL" + scope + " ORDER BY id",
+        (GM_KIND, *params))]
 
 
 def staff_alarm_due(mem, sound: bool = True, now: float | None = None) -> bool:

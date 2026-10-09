@@ -27,7 +27,8 @@
   logs/hr, deaths by cause, thefts, value from woods and the board price
   history (as of each trip's end), since filter, determinism
 - /api/jobs, /api/overseer (cursors, newest-200 window, open junctures,
-  heartbeat), POST /api/chat (stored as a user row; empty / whitespace / too
+  heartbeat; per character: ?char=<serial> scopes rows and heartbeat, names -> 400),
+  POST /api/chat (stored as a user row, with `char` its char_serial; empty / whitespace / too
   long / non-string -> 400); GET/POST /api/captcha (default human, written
   where the runner's Memory reads it, bad modes -> 400); a missing memory
   store is not created by GETs; live mode serves the same routes with the
@@ -618,6 +619,37 @@ def test_overseer_routes(logdir):
         check("rejected posts stored nothing", len(m.chat(role="user")) == 2, str(len(m.chat(role="user"))))
         code, _ = get_status(base + "/api/overseer?after_chat=x")
         check("GET /api/overseer bad cursor: 400", code == 400, str(code))
+        # per character: the viz's picker sends a serial; rows of other characters stay out
+        m.con.execute("INSERT OR REPLACE INTO meta VALUES('overseer_heartbeat:0x00000002', '1790742300.5')")
+        m.con.commit()
+        jc2 = m.juncture("lumber", "stuck", "char 2 stuck", "attention", char_serial=2)
+        jc3 = m.juncture("lumber", "stuck", "char 3 stuck", "attention", char_serial=3)
+        allc = get(base + "/api/overseer")
+        c2 = get(base + f"/api/overseer?char=0x00000002&after_juncture={j2}")
+        c3 = get(base + "/api/overseer?char=3")
+        check("no char: every character's junctures, the newest heartbeat of any",
+              {jc2, jc3} <= set(allc["open_ids"]) and allc["heartbeat"] == 1790742300.5, str(allc["open_ids"]))
+        check("char=0x00000002: its junctures + unscoped, not char 3's; its own heartbeat",
+              jc2 in c2["open_ids"] and jc3 not in c2["open_ids"] and j2 in c2["open_ids"]
+              and [j["id"] for j in c2["junctures"]] == [jc2] and c2["junctures"][0]["char_serial"] == 2
+              and c2["heartbeat"] == 1790742300.5, str(c2))
+        check("char=3 (digits): char 3's rows; no own heartbeat -> the global one",
+              jc3 in c3["open_ids"] and jc2 not in c3["open_ids"] and c3["heartbeat"] == 1790742202.14, str(c3))
+        for q in ("char=Nobody", "char=0xZZ"):
+            code, resp = get_status(base + f"/api/overseer?{q}")
+            check(f"GET /api/overseer {q}: 400 serial only", code == 400 and resp.get("error") == viz_server.SERIAL_ONLY,
+                  f"{code} {resp}")
+        code, resp = post(base + "/api/chat", {"text": "for two", "char": "0x00000002"})
+        row = m.con.execute("SELECT char_serial FROM chat WHERE id = ?", (resp.get("id"),)).fetchone()
+        check("POST /api/chat char=0x00000002: stored with char_serial 2", code == 200 and row == (2,),
+              f"{code} {resp} {row}")
+        code, resp = post(base + "/api/chat", {"text": "x", "char": "Hackworth"})
+        check("POST /api/chat char name: 400", code == 400 and resp["ok"] is False, f"{code} {resp}")
+        chat3 = get(base + f"/api/overseer?char=0x00000003&after_chat={last_chat}")
+        chat2 = get(base + f"/api/overseer?char=0x00000002&after_chat={last_chat}")
+        check("char 2's chat row: invisible to char 3, visible to char 2",
+              "for two" not in [c["text"] for c in chat3["chat"]] and "for two" in [c["text"] for c in chat2["chat"]],
+              str(chat3["chat"]))
         test_grove_route(m, base)
     finally:
         srv.shutdown()
@@ -1163,6 +1195,8 @@ def test_live():
               and st["viz"]["mode"] == "live", str(st.get("viz")))
         code, resp = post(base + "/api/gate", {"action": "pause"})
         check("proxy down: POST /api/gate 502", code == 502 and resp["ok"] is False, f"{code} {resp}")
+        code, resp = get_status(base + "/api/sessions")
+        check("proxy down: GET /api/sessions 502", code == 502 and resp["ok"] is False, f"{code} {resp}")
         code, resp = post(base + "/api/chat", {"text": "live hello"})
         ov = get(base + "/api/overseer")
         jb = get(base + "/api/jobs?job=lumber&tz=0")
@@ -1211,6 +1245,33 @@ def test_live():
         s.close()
         check("live SSE: gapless ring + state", has_state(fr)
               and [e["seq"] for e in batch_envs(fr)] == list(range(st["next"])))
+
+        # characters: the proxy's sessions, per-character feeds and overseer scoping
+        sel = f"0x{SELF:08X}"
+        ss = get(base + "/api/sessions")
+        check("GET /api/sessions lists the one fake session", ss.get("ok") is True and len(ss["sessions"]) == 1
+              and ss["sessions"][0]["serial"] == sel, str(ss))
+        by_char = get(base + f"/api/state?char={sel}")
+        default = get(base + "/api/state")
+        check("/api/state?char=<its serial> == the default feed's movement", by_char.get("ok") is True
+              and by_char["movement"] == default["movement"], str(by_char.get("movement")))
+        h = get(base + f"/api/health?char={sel}")
+        check("/api/health?char= answers from that character's feed", h["mode"] == "live" and h["connected"] is True
+              and h["last_error"] is None, str(h))
+        nobody = get(base + "/api/state?char=Nobody")
+        check("/api/state?char=Nobody: ok false, no session for character", nobody.get("ok") is False
+              and "no session for character" in (nobody.get("error") or ""), str(nobody.get("error")))
+        code, resp = get_status(base + "/api/overseer?char=Nobody")
+        check("live: /api/overseer?char=Nobody -> 400", code == 400, f"{code} {resp}")
+        code, resp = post(base + "/api/chat", {"text": "hi", "char": "0x00000002"})
+        lm = memory.Memory(live_db)
+        row = lm.con.execute("SELECT char_serial FROM chat WHERE id = ?", (resp.get("id"),)).fetchone()
+        lm.close()
+        ov3 = get(base + "/api/overseer?char=0x00000003")
+        ov2 = get(base + "/api/overseer?char=0x00000002")
+        check("live: chat with char 2 stored as char_serial 2, invisible to char 3, visible to char 2",
+              code == 200 and row == (2,) and "hi" not in [c["text"] for c in ov3["chat"]]
+              and "hi" in [c["text"] for c in ov2["chat"]], f"{code} {resp} {row}")
 
         # agent gate through the viz (the proxy's budget file lives in the private logdir)
         check("state responses carry the gate", (st.get("gate") or {}).get("state") == "running", str(st.get("gate")))

@@ -72,8 +72,9 @@ class NystulError(Exception):
 class Run:
     """One live omp run; the reader thread fills it from the JSON event stream."""
 
-    def __init__(self, conv: int, user_id: int, msg_id: int, question: str):
+    def __init__(self, conv: int, user_id: int, msg_id: int, question: str, char: str | None = None):
         self.conv, self.user_id, self.msg_id, self.question = conv, user_id, msg_id, question
+        self.char = char              # the viz's character selector: NYSTUL_CHAR for the tools
         self.t0 = time.time()
         self.proc = None
         self.partial = ""             # the assistant message being streamed
@@ -242,7 +243,7 @@ class Nystul:
         return {"conversation": dict(zip(("id", "title", "t_created", "t_updated"), c)), "messages": msgs}
 
     # ------------------------------------------------------------------ runs
-    def ask(self, conv_id, text: str) -> dict:
+    def ask(self, conv_id, text: str, char: str | None = None) -> dict:
         text = (text or "").strip()
         if not 1 <= len(text) <= MAX_CHARS:
             raise NystulError(400, f"the question must be 1..{MAX_CHARS} characters")
@@ -271,7 +272,7 @@ class Nystul:
             msg_id = con.execute("INSERT INTO messages(conv, t, role, text, status) VALUES (?, ?, 'nystul', '', "
                                  "'running')", (conv_id, now)).lastrowid
             con.commit()
-            run = Run(conv_id, user_id, msg_id, text)
+            run = Run(conv_id, user_id, msg_id, text, char)
             self._live[conv_id] = run
             th = threading.Thread(target=self._run, args=(run,), name=f"nystul-{conv_id}", daemon=True)
             self._threads = [t for t in self._threads if t.is_alive()] + [th]
@@ -372,7 +373,10 @@ class Nystul:
                 ctx = self.context() or {}
             except Exception:
                 ctx = {}
-        out = [_now_header(), f"Viz: {ctx.get('mode') or '?'} {ctx.get('session') or ''}".rstrip(), ""]
+        out = [_now_header(), f"Viz: {ctx.get('mode') or '?'} {ctx.get('session') or ''}".rstrip()]
+        if run.char:
+            out.append(f"Character: {run.char}")
+        out.append("")
         out += ["## Conversation so far", ""]
         out += ["\n\n".join(lines) if lines else "(none: this is the first question)", ""]
         out += ["## Question", "", run.question, ""]
@@ -394,9 +398,13 @@ class Nystul:
                 "--max-time", str(RUN_TIMEOUT_S), "-e", EXT_PATH, "--tools", ",".join(TOOL_NAMES),
                 "--system-prompt", system, f"@{path}", "Answer the operator's question at the end of the attached file."]
             # cwd = temp dir so no repo context files load; stdin closed or omp waits on it
+            env = {**os.environ, **self.env}
+            env.pop("NYSTUL_CHAR", None)
+            if run.char:
+                env["NYSTUL_CHAR"] = run.char
             proc = subprocess.Popen(cmd, cwd=tempfile.gettempdir(), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
-                                    env={**os.environ, **self.env})
+                                    env=env)
             with self._lock:
                 run.proc = proc
                 cancelled = run.cancelled

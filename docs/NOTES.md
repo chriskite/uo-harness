@@ -24,6 +24,10 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   - Shelter Island (the bank run's area, 1963,2597) renders as the town plaza next to the bank.
   - Confirmed: map0.uoo's header is 1344×768 blocks = 10752×6144 tiles.
 - **Client settings the harness assumes (user, 2026-10-01):** Always Run **on** (the client default; agent routes always run, `ctl act walk` runs unless `--walk`) and Auto Open Doors **off**. With the proxy re-anchoring the client after every agent step, Auto Open Doors would send a second open-door request next to the Mover's and shut the door again (ANTICHEAT.md §10 A11).
+- **Client data drift seen 2026-10-08 (not investigated):** `test_uomap` now counts 71376 artdata
+  records (it pins 71292), and `test_pathfind` finds 9 of 53689 server-confirmed moves
+  unwalkable around (3958..3961, 515..520). Neither test touches code changed that day
+  (multi-character work), so the installed client's map/art files have probably been patched.
 
 ## Login & identity
 
@@ -31,6 +35,16 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 - API model names found in binary (System.Text.Json source-gen contexts): `WebLoginRequestModel`, `PanelLoginRequestModel`, `PortalLoginResponseModel`, `PatchLoginResponseModel`, `GameLoginRequestModel/GameLoginResponse`, `ClientLoginRequestModel`, `GetClientInfoResponse`, `LinkRequestModel`, `CreateOutlandsIDModel`, `CreateGameAccountModel`, `GetOutlandsIDFromGameAccountRequest/Response`, `GetTotalPrevCoinsRequest/Response`, `VerifyOutlandsIDModel`, `VerifyDeviceModel`, `VerificationStatusResponse`, `AcceptPrivacyPolicyRequestModel`, `PrivacyPolicyCheckResponseModel`, `TPMModel`, `AccountInfo`, `ServerInfo`. Full list: `api_surface.txt`.
 - `ServerClientRestriction`, `VersionRestrictions`, `IsMostRecentVersion`, `IsMostRecentGameFilesVersion`: client/game-file version gating at login — keep files stock and the launcher will handle patching.
 - Launcher carries AWS SigV4 signing strings → patch downloads from AWS infra.
+- **Our characters' player serials** (from the S2C 0x1B login confirm; `memory.py backfill-identity`
+  on the 2026-10-08 store filled 81 sessions, 78 of them from the raw capture's first 0x1B):
+  TestWorth 0x00094375, Hackworth 0x0020F127, Shackleworth 0x003D701F, Outland Dan 0x0014683F,
+  Logan Wolf 0x00104A60 (first seen session 20261005_191829). 5 sessions stayed without a serial
+  (clients closed at the character screen). The store now records `account`/`char_name`/
+  `char_serial` per session live (docs/MEMORY.md v6). `test_world_replay` had been failing on
+  every Outland Dan and Logan Wolf capture because its `OUR_SERIALS` list predated them.
+- **Several clients at once (2026-10-08):** the proxy serves them all; with more than one logged
+  in, every state/control request must name its character (`--char`/`UO_CHAR`, docs/PLAN.md
+  "Several characters at once"). One shared agent gate for all of them.
 
 ## Protocol nuggets (for Phase 1–2)
 

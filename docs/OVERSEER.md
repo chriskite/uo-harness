@@ -45,10 +45,19 @@ flowchart LR
 
 ## 2. `ctl.py` reference
 
-`./ctl.cmd [--db P] [--state-port 25942] [--control-port 25941] [--log-dir logs/tasks] <cmd>` from the
-repo root (`ctl.cmd` runs `harness/ctl.py` with the Python 3.13 install; override with `UO_PY`).
+`./ctl.cmd [--db P] [--state-port 25942] [--control-port 25941] [--char NAME|0xSERIAL] [--log-dir logs/tasks] <cmd>`
+from the repo root (`ctl.cmd` runs `harness/ctl.py` with the Python 3.13 install; override with `UO_PY`).
 Global options go **before** the command. Every call prints exactly one JSON object on stdout
 (usage errors too: `{"ok": false, "error": "usage: …"}`); the exit code is 0 iff `ok` is true.
+
+**`--char`** (default: env `UO_CHAR`) picks the character when several are logged in through the
+proxy: a name (case-insensitive, looked up in the `sessions` the proxy recorded; never logged in →
+`unknown character`) or a player serial (`0x…` or digits). It goes to the proxy with every state,
+intent and control request (without it, several sessions → `several sessions (A, B); pass char`)
+and scopes the store to that character: `status`'s tasks and `open_junctures`, `run`/`stop`,
+`wait` (its own cursors), the heartbeat, `heal`'s potion clock and `act room`'s way in. Rows
+without a character (the gate's `break_due`, Telegram messages, anything written without
+`--char`) reach every character.
 
 **Reading the JSON: pipe it to `jq.exe`, never bare `jq`** (2026-10-04). In the omp shell `jq` is a
 builtin (jaq 2.3), and jaq's `.a.b` is an error when `.a` is missing or null ("cannot use null as
@@ -63,9 +72,9 @@ open file /tmp/r.json").
 
 | Command | Does |
 |---|---|
-| `status` | Proxy snapshot: `pos` `[x,y,z,dir]`, `facet`, `hits`/`stam`/`mana` as `[cur,max]`, `weight`, `gold`, `gate`, `intent` + the last 5 `intents`, `mobiles` the client has within 18 tiles (serial, name, notoriety + name, hits, distance, `age_s` since the server last updated it; nearest first), `attackers` (mobiles whose latest swing, S2C `0x2F`, was at you within 10 s: serial, name, label, dist, hits `[cur,max]`, `last_swing_age_s`; nearest first), `backpack.counts` by graphic and `backpack.items` (up to 60: serial, graphic, name, amount, `in` = sub-bag or null; nested bags included), `target` cursor, open gumps, plus `tasks` and `open_junctures` from the DB. Proxy unreachable → `ok:false` (DB fields still present). The world model drops what the client drops (out of the 18-tile view, dead, another facet; docs/WORLDMODEL.md §7), so a mob missing from `mobiles` can't be clicked, attacked or targeted. |
-| `run <task> [args…]` | Starts a whitelisted task detached: `lumber` → `loop_lumber.py` (`--spot` is required: take the whole command from `lumber plan`), `bank` → `errand_bank.py`, `hunt` → `loop_hunt.py` (fight monsters at a spot, NPD mongbats by default; thresholds are its arguments, e.g. `run hunt --kills 5 --heal-at 0.75 --leave-at 0.6`; `--crawl` patrols the dungeon floor instead, going zone by zone deeper (internal depth bands numbered from 1, all on the NPD's dungeon level 1) only when it's efficient and safe: docs/HUNT_LOOP.md "Crawl"; `--enter-recall BOOK --enter-rune NAME --leave-recall BOOK [--bank-gold N] [--recall-spot X Y] [--pk-wait S]` hunts at a place reached and left by recall: from town it recalls to the tome row, fights at the arrival, leaves by recalling to the book's default rune (at once, cursor cancelled, on a hostile player close, a red in view or "X is attacking you!"; a refused recall walks to the recall spot, default the arrival, and recalls from there), banks the pack's gold at home, rests, waits `--pk-wait` after a hostile player and recalls back in; the Urukton Bluffs command is in docs/HUNT_LOOP.md "Recall in, recall out"). `args` pass through; `--control-port/--state-port/--memory` are appended from ctl's options unless given. Refused while a task runs (one character). Returns `task_id`, `pid`, `log`. |
-| `stop [task_id] [--after-trip]` | Asks the wrapper to terminate the task; it ends with a `task_failed` juncture marked `stopped`. If the wrapper doesn't report within `--grace` (20 s), ctl kills both processes itself and posts the juncture (`source: ctl`, "(forced)"). A killed run leaves its trip where it was (logs in the pouch, boards not stored: §5 "Finishing a trip by hand"). **`--after-trip`** (since 2026-10-07, lumber runs only): the graceful stop. It writes the meta key `task_finish` naming the task and returns at once; the runner (it gets its id as `UO_TASK_ID` from the wrapper) sees it within 2 s and winds down like a due break: stops harvesting, goes home into the rental room, converts, stores, logs `stop requested: boards stored after trip N` and exits 0 (`task_done`; the trip row has `stop_requested`). Already home converting or storing, it finishes that and starts no other trip or library hop. |
+| `status` | Proxy snapshot: `pos` `[x,y,z,dir]`, `facet`, `hits`/`stam`/`mana` as `[cur,max]`, `weight`, `gold`, `gate`, `intent` + the last 5 `intents`, `mobiles` the client has within 18 tiles (serial, name, notoriety + name, hits, distance, `age_s` since the server last updated it; nearest first), `attackers` (mobiles whose latest swing, S2C `0x2F`, was at you within 10 s: serial, name, label, dist, hits `[cur,max]`, `last_swing_age_s`; nearest first), `backpack.counts` by graphic and `backpack.items` (up to 60: serial, graphic, name, amount, `in` = sub-bag or null; nested bags included), `target` cursor, open gumps, plus `tasks` and `open_junctures` from the DB and `sessions` (the characters the proxy serves: `{tag, serial, name}`; null if it can't say). Proxy unreachable → `ok:false` (DB fields still present). The world model drops what the client drops (out of the 18-tile view, dead, another facet; docs/WORLDMODEL.md §7), so a mob missing from `mobiles` can't be clicked, attacked or targeted. |
+| `run <task> [args…]` | Starts a whitelisted task detached: `lumber` → `loop_lumber.py` (`--spot` is required: take the whole command from `lumber plan`), `bank` → `errand_bank.py`, `hunt` → `loop_hunt.py` (fight monsters at a spot, NPD mongbats by default; thresholds are its arguments, e.g. `run hunt --kills 5 --heal-at 0.75 --leave-at 0.6`; `--crawl` patrols the dungeon floor instead, going zone by zone deeper (internal depth bands numbered from 1, all on the NPD's dungeon level 1) only when it's efficient and safe: docs/HUNT_LOOP.md "Crawl"; `--enter-recall BOOK --enter-rune NAME --leave-recall BOOK [--bank-gold N] [--recall-spot X Y] [--pk-wait S]` hunts at a place reached and left by recall: from town it recalls to the tome row, fights at the arrival, leaves by recalling to the book's default rune (at once, cursor cancelled, on a hostile player close, a red in view or "X is attacking you!"; a refused recall walks to the recall spot, default the arrival, and recalls from there), banks the pack's gold at home, rests, waits `--pk-wait` after a hostile player and recalls back in; the Urukton Bluffs command is in docs/HUNT_LOOP.md "Recall in, recall out"). `args` pass through; `--control-port/--state-port/--memory` are appended from ctl's options unless given, and `--char 0x<serial>` when ctl has `--char`. One task per character: refused while a task of the same character, or one without a character, runs; a run without `--char` is refused while any task runs. Returns `task_id`, `pid`, `log`. |
+| `stop [task_id] [--after-trip]` | Asks the wrapper to terminate the task (meta `task_stop:<task_id>`); it ends with a `task_failed` juncture marked `stopped`. If the wrapper doesn't report within `--grace` (20 s), ctl kills both processes itself and posts the juncture (`source: ctl`, "(forced)"). A killed run leaves its trip where it was (logs in the pouch, boards not stored: §5 "Finishing a trip by hand"). **`--after-trip`** (since 2026-10-07, lumber runs only): the graceful stop. It writes the meta key `task_finish:<task_id>` and returns at once; the runner (it gets its id as `UO_TASK_ID` from the wrapper) sees it within 2 s and winds down like a due break: stops harvesting, goes home into the rental room, converts, stores, logs `stop requested: boards stored after trip N` and exits 0 (`task_done`; the trip row has `stop_requested`). Already home converting or storing, it finishes that and starts no other trip or library hop. |
 | `wait [--timeout S] [--include-info]` | Blocks (polling ~1 s) until there is an **open** juncture with id > the juncture cursor and severity ≥ `attention` (any severity with `--include-info`), or a `user` chat row with id > the chat cursor. Returns `{"ok":true,"event":<first>,"events":[…up to 20…],"cursors":{…}}` and advances the cursors past what it returned. Timeout (default 1800 s; ≤ 0 = forever) → `{"ok":true,"event":null}`. Events are `{"type":"juncture",id,t,source,kind,severity,summary,data,acked_t}` or `{"type":"chat",id,t,role,kind,text,data}`. |
 | `ack <id>` | Closes a juncture (`acked_t`). Acking `gm_suspected` stops the staff alarm. |
 | `alert <why> [--serial S]` | **Possible staff (GM).** Posts an urgent `gm_suspected` juncture (`{reason, serial}`) and sounds the staff alarm (two-tone, distinct from the captcha alert beeps) so the human at the PC comes to check. It repeats every 30 s from a holding harvest job and from `wait` until the juncture is acked; a holding job won't resume while one is open. Allowed while a task runs. A second `alert` while one is open re-sounds it (`already_open`). |
@@ -240,11 +249,11 @@ The overseer follows it.
 
 | Key | Value |
 |---|---|
-| `tasks` | JSON list of `{task_id, task, args, pid, pid_created, child_pid, child_created, started, log}`. `pid` is the wrapper. `*_created` is the OS process creation time, checked so a recycled pid is never taken for (or killed as) our task. An entry whose wrapper is gone is removed by the next `ctl` call and reported once as `task_failed` (`source: ctl`, "ended without a report"). |
-| `task_stop` | `{task_id, t}`: stop request the wrapper polls every 0.5 s. |
-| `overseer_juncture_cursor`, `overseer_chat_cursor` | `wait` cursors (decimal ids). |
-| `gate_break_due_notified` | `break_due_at` of the last due break `wait` announced (one `break_due` juncture per break). |
-| `overseer_heartbeat` | Epoch seconds as a decimal string (`"1790742202.14"`). Written on every `wait` poll (~1 s) and by `say`, `think`, `note-action`, `act`, `run`, `stop`, `ack`. The viz shows "seer active" while it is < 90 s old. |
+| `tasks` | JSON list of `{task_id, task, args, pid, pid_created, child_pid, child_created, started, log, char_serial}`. `pid` is the wrapper. `*_created` is the OS process creation time, checked so a recycled pid is never taken for (or killed as) our task. `char_serial` is the `--char` of the `run` (null without one). An entry whose wrapper is gone is removed by the next `ctl` call and reported once as `task_failed` (`source: ctl`, "ended without a report"). |
+| `task_stop:<task_id>`, `task_finish:<task_id>` | `{task_id, t}`: `stop` request the wrapper polls every 0.5 s; `stop --after-trip` request the lumber runner polls. The wrapper clears both when the task ends. |
+| `overseer_juncture_cursor`, `overseer_chat_cursor` | `wait` cursors (decimal ids). With `--char`, per character: `<key>:0x%08X`. |
+| `gate_break_due_notified` | `break_due_at` of the last due break `wait` announced (one `break_due` juncture per break, posted without a character so every character's overseer wakes). |
+| `overseer_heartbeat` | Epoch seconds as a decimal string (`"1790742202.14"`). Written on every `wait` poll (~1 s) and by `say`, `think`, `note-action`, `act`, `run`, `stop`, `ack`; with `--char` under `overseer_heartbeat:0x%08X`. The viz shows "seer active" while it is < 90 s old; the Telegram bridge reads the newest of all of them. `heal_potion_t` and `room_entered_via` are keyed per character the same way. |
 | `captcha_mode` | `human` (also when missing) or `auto`: who answers the harvest captcha. Set by the user with the viz header toggle (VISUALIZER.md §2.2a); the runner reads it at every captcha. The overseer doesn't change it. |
 
 ### Long-term memory: `ctl know` (harness/knowledge.py)
@@ -338,6 +347,11 @@ Paste this (or point the session at this section) to start an overseer.
 > `./ctl.cmd …` from the repo root (it runs `harness/ctl.py` with Python 3.13). Read
 > ANTICHEAT.md §8 and docs/OVERSEER.md first. Never edit code or restart services during a
 > shift; never touch the proxy/viz services, the client, or the install dir.
+>
+> **One character.** You run one character, named in your dispatch task. Pass `--char "<name>"`
+> as a global option, before the command, on every `./ctl.cmd` call
+> (`./ctl.cmd --char "Outland Dan" status`). `ctl status` lists `sessions`. Rows of other
+> characters are not yours.
 >
 > **Voice.** You speak as Hawkwind the Seer does in Ultima IV. He gives a plain verdict on how
 > the Avatar is faring, then a short instruction, in "thou/thee/thy". The user is the
@@ -566,14 +580,17 @@ Paste this (or point the session at this section) to start an overseer.
 
 ## 6. Starting an overseer session in omp
 
-1. Make sure the proxy and client are running and logged in (`ctl status` returns `ok:true`),
-   and no task is running unless you want the overseer to adopt it.
-2. Open omp in the repo checkout and send: *"Act as the Seer: follow
+1. Make sure the proxy and client are running and logged in (`ctl --char <name> status` returns
+   `ok:true`), and no task is running for that character unless you want the overseer to adopt it.
+2. Open omp in the repo checkout and send: *"Act as the Seer for <character name>: follow
    docs/OVERSEER.md §5."* (optionally add the goal, e.g. "run lumber trips until 500 boards").
+   **One overseer per character**: with several characters logged in, start one session (or
+   dispatch one subagent) per character, each with its character's name in the task.
    **As a subagent** (an omp session that starts the overseer for you): dispatch the project agent
-   `overseer` (`.omp/agents/overseer.md`) with the shift's goal as the task. In the batch `task`
-   call, `agent: "overseer"` goes on the `tasks[]` item: a top-level `agent` is ignored and the
-   child silently runs as the bundled `task` agent on the parent's model (seen 2026-10-07).
+   `overseer` (`.omp/agents/overseer.md`) with the character name and the shift's goal as the task.
+   In the batch `task` call, `agent: "overseer"` goes on the `tasks[]` item: a top-level `agent`
+   is ignored and the child silently runs as the bundled `task` agent on the parent's model (seen
+   2026-10-07).
    Its frontmatter `model: "@OVERSEER"` binds it to omp's `OVERSEER` model role
    (`modelRoles.OVERSEER` in the omp config; `/model` → Roles changes it), so every overseer
    subagent runs on that model instead of the parent's (user decision 2026-10-07). The agent's

@@ -7,6 +7,9 @@ Covers what a consumer relies on:
   * MemoryWriter (the proxy's sink) persists events and walk moves
   * capture ingest: matches the capture's known walk (session_20260929_163420:
     36 proxy `step` events, VISUALIZER.md M1) and is idempotent per tag
+  * v6 characters: a v5 file migrates in place, sessions learn who logged in,
+    a character-scoped reader sees its own rows plus the unscoped ones, and
+    backfill-identity fills older sessions from events, the raw capture or episodes
 
 Run: python harness/test_memory.py   (offline, a few seconds)
 """
@@ -155,11 +158,144 @@ def test_ingest():
     check("the errand's login spot is walked ground", (1963, 2597) in wm.tiles, str(wm.stats()))
     again = memory.ingest(path, os.path.join(ROOT, "logs"), [TAG], verbose=False)
     check("re-ingest of a known tag is a no-op", again["sessions"] == 0 and again["skipped"] == 1, str(again))
+    ident = m.con.execute("SELECT char_name, char_serial FROM sessions WHERE tag=?", (TAG,)).fetchone()
+    check("ingest records the character", ident == ("TestWorth", 0x00094375), str(ident))
+    m.close()
+
+
+V5_DDL = """
+CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE sessions(id INTEGER PRIMARY KEY, tag TEXT UNIQUE NOT NULL, source TEXT NOT NULL,
+    started REAL, ended REAL);
+CREATE TABLE episodes(id INTEGER PRIMARY KEY, loop TEXT NOT NULL, t_start REAL, t_end REAL, data TEXT NOT NULL);
+CREATE TABLE junctures(id INTEGER PRIMARY KEY, t REAL NOT NULL, source TEXT NOT NULL, kind TEXT NOT NULL,
+    severity TEXT NOT NULL, summary TEXT NOT NULL, data TEXT NOT NULL, acked_t REAL);
+CREATE TABLE chat(id INTEGER PRIMARY KEY, t REAL NOT NULL, role TEXT NOT NULL, kind TEXT NOT NULL,
+    text TEXT NOT NULL, data TEXT NOT NULL);
+CREATE TABLE job_events(id INTEGER PRIMARY KEY, t REAL NOT NULL, job TEXT NOT NULL, kind TEXT NOT NULL,
+    facet INTEGER, x INTEGER, y INTEGER, data TEXT NOT NULL);
+INSERT INTO meta VALUES('schema_version', '5');
+INSERT INTO sessions(tag, source, started) VALUES('old', 'live', 1.0);
+INSERT INTO episodes(loop, t_start, t_end, data) VALUES('lumber', 1.0, 2.0, '{"logs": 3}');
+INSERT INTO junctures(t, source, kind, severity, summary, data) VALUES(1.0, 'lumber', 'stuck', 'attention', 's', '{}');
+INSERT INTO chat(t, role, kind, text, data) VALUES(1.0, 'user', 'message', 'hi', '{}');
+INSERT INTO job_events(t, job, kind, data) VALUES(1.0, 'lumber', 'death', '{}');
+"""
+
+
+def test_migrate_v5():
+    print("v5 -> v6 migration")
+    import sqlite3
+    path = tmpdb()
+    con = sqlite3.connect(path)
+    con.executescript(V5_DDL)
+    con.close()
+    m = Memory(path)
+    cols = {t: {r[1] for r in m.con.execute(f"PRAGMA table_info({t})")}
+            for t in ("sessions", "episodes", "junctures", "chat", "job_events")}
+    check("identity columns added to sessions", {"account", "char_serial", "char_name"} <= cols["sessions"],
+          str(cols["sessions"]))
+    check("char_serial added to the per-character tables",
+          all("char_serial" in cols[t] for t in ("episodes", "junctures", "chat", "job_events")), str(cols))
+    check("old rows survive, unscoped",
+          m.episodes("lumber") == [{"logs": 3}] and [j["char_serial"] for j in m.junctures()] == [None]
+          and [c["text"] for c in m.chat()] == ["hi"] and len(m.job_events("lumber")) == 1)
+    ver = m.con.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0]
+    check("schema version 6", ver == "6", ver)
+    m.close()
+    m = Memory(path)          # reconnecting an already migrated file is a no-op
+    check("second connect keeps the rows", len(m.junctures()) == 1)
+    m.close()
+
+
+def test_writer_identity():
+    print("MemoryWriter records who logged in")
+    path = tmpdb()
+    w = MemoryWriter(path)
+    w.open_session("t1")
+    for seq, data in enumerate(({"ev": "login", "account": "acct1"}, {"ev": "char_select", "name": "Hackworth"},
+                                {"ev": "login_confirm", "serial": 0x0020F127})):
+        w.record("t1", {"seq": seq, "t": 1.0 + seq, "origin": "world", "data": data}, 0)
+    w.flush()
+    m = Memory(path)
+    row = m.con.execute("SELECT account, char_name, char_serial FROM sessions WHERE tag='t1'").fetchone()
+    check("session row has account, name and serial", row == ("acct1", "Hackworth", 0x0020F127), str(row))
+    check("name -> serial lookup ignores case", m.char_serial_of("HACKWORTH") == 0x0020F127)
+    check("serial -> name lookup", m.char_name_of(0x0020F127) == "Hackworth")
+    check("unknown name -> None", m.char_serial_of("Nobody") is None)
+    m.close()
+
+
+def test_scoping():
+    print("character scoping")
+    path = tmpdb()
+    m1, m2, m0 = Memory(path, char_serial=1), Memory(path, char_serial=2), Memory(path)
+    m1.juncture("lumber", "stuck", "one")
+    m2.juncture("lumber", "stuck", "two")
+    m0.juncture("gate", "break_due", "all")
+    m1.chat_post("overseer", "from one")
+    m2.chat_post("overseer", "from two")
+    m0.chat_post("user", "to everyone")
+    m1.job_event("gold", "spent", {"gp": 5})
+    m2.job_event("gold", "spent", {"gp": 7})
+    m1.episode("lumber", {"t_start": 1.0})
+    check("scoped juncture reader: own + unscoped",
+          [j["summary"] for j in m1.junctures()] == ["one", "all"], str(m1.junctures()))
+    check("scoped chat reader: own + unscoped",
+          [c["text"] for c in m2.chat()] == ["from two", "to everyone"], str(m2.chat()))
+    check("unscoped reader sees every character",
+          [j["summary"] for j in m0.junctures()] == ["one", "two", "all"] and len(m0.chat()) == 3)
+    check("explicit char_serial overrides the Memory's own",
+          [j["summary"] for j in m0.junctures(char_serial=2)] == ["two", "all"])
+    check("rows are tagged with the writer's character",
+          [j["char_serial"] for j in m0.junctures()] == [1, 2, None])
+    check("job_events: every character unless asked",
+          len(m1.job_events("gold")) == 2 and [e["data"]["gp"] for e in m0.job_events("gold", char_serial=2)] == [7])
+    ep = m0.con.execute("SELECT char_serial FROM episodes").fetchall()
+    check("episodes tagged", ep == [(1,)], str(ep))
+    m1.juncture("gate", "break_due", "shared", char_serial=None)
+    check("a writer can post unscoped", m2.junctures()[-1]["summary"] == "shared")
+    for m in (m0, m1, m2):
+        m.close()
+
+
+def test_backfill():
+    print("backfill-identity")
+    path = tmpdb()
+    logdir = tempfile.mkdtemp()
+    m = Memory(path)
+    c = m.con
+    c.execute("INSERT INTO sessions(tag, source) VALUES('ev', 'live')")
+    sid = c.execute("SELECT id FROM sessions WHERE tag='ev'").fetchone()[0]
+    for seq, d in enumerate(('{"ev": "login", "account": "a1"}', '{"ev": "char_select", "name": "Hackworth"}',
+                             '{"ev": "login_confirm", "serial": 2158887}')):
+        c.execute("INSERT INTO events VALUES(?,?,?,?,?,?)", (sid, seq, 1.0, "world", d.split('"')[3], d))
+    c.execute("INSERT INTO sessions(tag, source) VALUES('epi', 'live')")
+    sid = c.execute("SELECT id FROM sessions WHERE tag='epi'").fetchone()[0]
+    c.execute("INSERT INTO events VALUES(?,?,?,?,?,?)",
+              (sid, 0, 1.0, "world", "char_select", '{"ev": "char_select", "name": "Outland Dan"}'))
+    m.episode("lumber", {"character": {"name": "Outland Dan", "serial": "0x0014683F"}})
+    c.execute("INSERT INTO sessions(tag, source) VALUES(?, 'live')", (TAG,))   # no events: the raw capture
+    c.commit()
+    m.close()
+    import shutil
+    shutil.copy(os.path.join(ROOT, "logs", f"session_{TAG}.s2c.raw"), logdir)
+    out = memory.backfill_identity(path, logdir)
+    m = Memory(path)
+    rows = dict((t, r) for t, *r in m.con.execute("SELECT tag, account, char_name, char_serial FROM sessions"))
+    check("from events", rows["ev"] == ["a1", "Hackworth", 0x0020F127], str(rows["ev"]))
+    check("serial from the newest episode of the same name", rows["epi"][2] == 0x0014683F, str(rows["epi"]))
+    check("serial from the raw capture's login confirm", rows[TAG][2] == 0x00094375, str(rows[TAG]))
+    check("counts", out == {"sessions": 3, "from_capture": 1, "from_episodes": 1}, str(out))
+    again = memory.backfill_identity(path, logdir)
+    rows2 = dict((t, r) for t, *r in m.con.execute("SELECT tag, account, char_name, char_serial FROM sessions"))
+    check("idempotent", rows2 == rows and again["from_episodes"] == 0, str(again))
     m.close()
 
 
 def main():
-    for t in (test_walk_rows, test_projection, test_harvest, test_writer, test_ingest):
+    for t in (test_walk_rows, test_projection, test_harvest, test_writer, test_ingest, test_migrate_v5,
+              test_writer_identity, test_scoping, test_backfill):
         t()
     print(f"\nmemory: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     return 1 if FAILURES else 0

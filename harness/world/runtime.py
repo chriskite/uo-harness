@@ -454,6 +454,7 @@ def _h_login_confirm(rt, f):
     _set_self_position(s, f)
     s.stats["graphic"] = f["graphic"]
     rt.prune()
+    rt._emit("login_confirm", serial=s.serial)
 
 
 def _h_character_status(rt, f):

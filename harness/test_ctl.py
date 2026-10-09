@@ -6,7 +6,7 @@ Covers what the overseer relies on:
     overseer chat, acked or info junctures (unless --include-info); cursors
     persist in meta; timeout -> event null; the heartbeat advances while waiting
   * `run` (stub tasks through the test-only whitelist override) -> task_done /
-    task_failed juncture with exit code, summary and tail; one task at a time;
+    task_failed juncture with exit code, summary and tail; one task per character;
     `stop` ends it with a stopped task_failed; a vanished wrapper is reported
   * `act`: allowlisted speech only, no actions while a task runs, walk sends
     the framed 0x02 packets and follows the step outcomes, target_cancel uses
@@ -411,6 +411,9 @@ class FakeProxy:
                                          "break_starts_in_s": None, "break_until": time.time() + 900}
                             self.gate_actions.append("break")
                         resp = {"ok": True, "gate": dict(self.gate)}
+                elif req.get("op") == "sessions":
+                    resp = {"ok": True, "sessions": [{"tag": "fake", "serial": f"0x{self.SELF:08X}",
+                                                      "name": "Hackworth"}]}
                 elif req.get("op") != "state":
                     resp = {"ok": False, "error": "op"}
                 else:
@@ -569,9 +572,11 @@ def finish_ctl(p, timeout=60):
 
 
 class Ctl:
-    def __init__(self, db, logdir, proxy, tasks=None):
+    def __init__(self, db, logdir, proxy, tasks=None, char=None):
         self.args = ["--db", db, "--log-dir", logdir,
                      "--control-port", str(proxy.control_port), "--state-port", str(proxy.state_port)]
+        if char is not None:
+            self.args += ["--char", char]
         self.tasks = tasks
         self.env = env_with(tasks)
 
@@ -901,7 +906,7 @@ def test_run_act(proxy):
 
     code, out = c("stop", "--after-trip")
     check("stop --after-trip refused for a task that isn't a lumber run; nothing asked, the task runs on",
-          code == 1 and "lumber runs only" in out.get("error", "") and meta(db, tw.FINISH_KEY) is None
+          code == 1 and "lumber runs only" in out.get("error", "") and meta(db, tw.finish_key(slow_id)) is None
           and json.loads(meta(db, tw.TASKS_KEY) or "[]"), str(out))
     t0 = time.time()
     code, out = c("stop")
@@ -910,7 +915,7 @@ def test_run_act(proxy):
     check("stop -> task_failed juncture marked stopped", j.get("kind") == "task_failed"
           and j["data"].get("stopped") is True and "stopped by the overseer" in j.get("summary", ""), str(j))
     check("stopped promptly", time.time() - t0 < 15, f"{time.time() - t0:.1f}s")
-    check("no running task after stop", meta(db, tw.TASKS_KEY) == "[]" and meta(db, tw.STOP_KEY) is None)
+    check("no running task after stop", meta(db, tw.TASKS_KEY) == "[]" and meta(db, tw.stop_key(slow_id)) is None)
     code, out = c("stop")
     check("stop with nothing running -> ok false", code == 1 and out["ok"] is False)
 
@@ -927,7 +932,8 @@ def test_run_act(proxy):
           j is not None and j["kind"] == "task_done" and j["data"]["exit_code"] == 0 and not j["data"].get("stopped")
           and any("stop requested" in ln for ln in j["data"]["tail"]), str(j))
     check("the request cleared and no task left", wait_for(lambda: meta(db, tw.TASKS_KEY) == "[]", 5) is not None
-          and meta(db, tw.FINISH_KEY) is None, f"{meta(db, tw.TASKS_KEY)} {meta(db, tw.FINISH_KEY)}")
+          and meta(db, tw.finish_key(lumber_id)) is None,
+          f"{meta(db, tw.TASKS_KEY)} {meta(db, tw.finish_key(lumber_id))}")
 
     # a wrapper that died without reporting (crash, reboot) must not lock the character out
     gone = subprocess.Popen([PY, "-c", "pass"])
@@ -2065,7 +2071,81 @@ def spawn_unreachable_status():
     return spawn_ctl(["--db", os.path.join(tmp, "harness.db"), "--state-port", str(port), "status"])
 
 
+def test_characters(proxy):
+    print("== characters: --char scopes tasks, wait and its cursors; names resolve through sessions ==")
+    tmp = tempfile.mkdtemp()
+    db = os.path.join(tmp, "harness.db")
+    logdir = os.path.join(tmp, "logs")
+    slow = os.path.join(tmp, "stub_slow.py")
+    with open(slow, "w", encoding="utf-8") as f:
+        f.write("import sys, time\nprint('slow start', sys.argv[1:], flush=True)\n"
+                "for _ in range(600):\n    time.sleep(0.1)\n")
+    tasks = {"slow": slow}
+    m = Memory(db)
+    m.con.execute("INSERT INTO sessions(tag, source, account, char_serial, char_name) "
+                  "VALUES ('20261008_120000', 'live', 'acct', 1, 'Hackworth')")
+    m.con.commit()
+    plain = Ctl(db, logdir, proxy, tasks=tasks)
+    one = Ctl(db, logdir, proxy, tasks=tasks, char="0x00000001")
+    two = Ctl(db, logdir, proxy, tasks=tasks, char="0x00000002")
+
+    code, out = Ctl(db, logdir, proxy, char="Nobody")("status")
+    check("--char Nobody -> unknown character", code == 1 and "unknown character" in out.get("error", ""), str(out))
+    code, out = Ctl(db, logdir, proxy, char="hackworth")("status")
+    check("--char by name (any case) resolves through sessions; status lists the proxy's sessions",
+          code == 0 and out.get("sessions") == [{"tag": "fake", "serial": "0x00000001", "name": "Hackworth"}],
+          str(out)[:300])
+
+    code, r1 = one("run", "slow")
+    check("a run for character 1 starts", code == 0 and r1.get("ok"), str(r1))
+    code, r2 = two("run", "slow")
+    check("a run for character 2 starts alongside it", code == 0 and r2.get("ok"), str(r2))
+    code, out = one("run", "slow")
+    check("a second run for character 1 is refused", code == 1 and "one task per character" in out.get("error", "")
+          and r1.get("task_id", "?") in out.get("error", ""), str(out))
+    code, out = plain("run", "slow")
+    check("a run without --char is refused while either runs", code == 1 and "is running" in out.get("error", ""),
+          str(out))
+    entries = {e["task_id"]: e for e in json.loads(meta(db, tw.TASKS_KEY) or "[]")}
+    check("task entries carry their character", entries.get(r1.get("task_id"), {}).get("char_serial") == 1
+          and entries.get(r2.get("task_id"), {}).get("char_serial") == 2, str(entries))
+    code, out = one("status")
+    check("status --char lists only that character's task",
+          [t["task_id"] for t in out.get("tasks", [])] == [r1.get("task_id")], str(out.get("tasks")))
+    wait_for(lambda: all(e.get("child_pid") for e in json.loads(meta(db, tw.TASKS_KEY) or "[]")), 10)
+    code, out = one("stop")
+    check("stop --char stops that character's task only", code == 0 and out.get("task_id") == r1.get("task_id")
+          and [e["task_id"] for e in json.loads(meta(db, tw.TASKS_KEY) or "[]")] == [r2.get("task_id")], str(out))
+    j = out.get("juncture") or {}
+    check("its end juncture is tagged with the character", j.get("char_serial") == 1, str(j))
+    check("the runner was told its character (--char forwarded)",
+          any("'--char', '0x00000001'" in ln for ln in j.get("data", {}).get("tail", [])), str(j.get("data")))
+    code, out = two("stop")
+    check("stop --char 2 stops the other", code == 0 and out.get("task_id") == r2.get("task_id"), str(out))
+
+    print("== characters: wait --char ==")
+    db = os.path.join(tmp, "wait.db")
+    m.close()
+    m = Memory(db)
+    one = Ctl(db, logdir, proxy, char="0x00000001")
+    m.juncture("lumber", "stuck", "the other character's", severity="attention", char_serial=2)
+    code, out = one("wait", "--timeout", "1", "--poll", "0.1")
+    check("wait --char 1 is not woken by character 2's juncture", code == 0 and out.get("event") is None, str(out))
+    mine = m.juncture("lumber", "stuck", "mine", severity="attention", char_serial=1)
+    code, out = one("wait", "--timeout", "3", "--poll", "0.1")
+    check("wait --char 1 is woken by its own juncture", (out.get("event") or {}).get("id") == mine, str(out))
+    check("the cursor is per character", meta(db, "overseer_juncture_cursor:0x00000001") == str(mine)
+          and meta(db, ctl.JUNCTURE_CURSOR_KEY) is None, str(meta(db, "overseer_juncture_cursor:0x00000001")))
+    check("the heartbeat is per character", meta(db, "overseer_heartbeat:0x00000001") is not None
+          and meta(db, ctl.HEARTBEAT_KEY) is None)
+    shared = m.juncture("gate", "stuck", "everyone's", severity="attention", char_serial=None)
+    code, out = one("wait", "--timeout", "3", "--poll", "0.1")
+    check("wait --char 1 is woken by an unscoped juncture", (out.get("event") or {}).get("id") == shared, str(out))
+    m.close()
+
+
 def main():
+    os.environ.pop("UO_CHAR", None)       # ctl's --char default: these tests pick characters explicitly
     proxy = FakeProxy()
     for port in (proxy.control_port, proxy.state_port):
         assert port >= 12700 and port not in (25941, 25942)
@@ -2073,6 +2153,7 @@ def main():
     test_wait(proxy)
     test_status(proxy, unreachable)
     test_run_act(proxy)
+    test_characters(proxy)
     test_map(proxy)
     test_know(proxy)
     test_combat(proxy)

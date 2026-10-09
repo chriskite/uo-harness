@@ -2,8 +2,8 @@
 
 Started detached by `ctl.py run`; never run by hand. It runs the task script
 with its output in logs/tasks/<task_id>.log, honours a stop request from
-`ctl.py stop` (meta key `task_stop`), passes the task its id (env UO_TASK_ID,
-for `ctl stop --after-trip`'s meta key `task_finish`, which it clears at the
+`ctl.py stop` (meta key `task_stop:<task_id>`), passes the task its id (env UO_TASK_ID,
+for `ctl stop --after-trip`'s meta key `task_finish:<task_id>`; it clears both at the
 end), and on exit removes the task from the
 `meta` key `tasks` and posts a juncture:
   task_done   (exit 0, severity info)
@@ -14,7 +14,7 @@ Also the shared process helpers (liveness with identity check, terminate)
 that ctl.py uses, so a recycled pid is never mistaken for our task.
 
 Usage (internal): python task_wrap.py --spec '<json>'
-  spec = {task_id, task, script, args, argv, log, db}
+  spec = {task_id, task, script, args, argv, log, db, char_serial}
 """
 import argparse
 import json
@@ -31,8 +31,8 @@ sys.path.insert(0, HERE)
 from memory import Memory  # noqa: E402
 
 TASKS_KEY = "tasks"
-STOP_KEY = "task_stop"
-FINISH_KEY = "task_finish"    # ctl stop --after-trip: {task_id, t}; the task ends itself at home
+STOP_KEY = "task_stop"        # stop_key(task_id): ctl stop asks that task's wrapper to terminate it
+FINISH_KEY = "task_finish"    # finish_key(task_id): ctl stop --after-trip; the task ends itself at home
 TAIL_LINES = 20
 STOP_GRACE_S = 10.0
 POLL_S = 0.5
@@ -224,31 +224,37 @@ def post_end(mem: Memory, spec: dict, code: int, stopped: bool, source: str = No
             "exit_code": code, "log": spec["log"], "tail": tail}
     if stopped:
         data["stopped"] = True
-    return mem.juncture(source or task, kind, summary, severity=sev, data=data)
+    return mem.juncture(source or task, kind, summary, severity=sev, data=data,
+                        char_serial=spec.get("char_serial"))
+
+
+def stop_key(task_id: str) -> str:
+    return f"{STOP_KEY}:{task_id}"
+
+
+def finish_key(task_id: str) -> str:
+    return f"{FINISH_KEY}:{task_id}"
+
+
+def in_scope(entry_char: int | None, mine: int | None) -> bool:
+    """A task entry of character `entry_char` concerns a reader of character `mine`:
+    either side without a character sees/conflicts with everything."""
+    return mine is None or entry_char is None or entry_char == mine
 
 
 def stop_requested(mem: Memory, task_id: str) -> bool:
-    return _names_task(meta_get(mem, STOP_KEY), task_id)
+    return meta_get(mem, stop_key(task_id)) is not None
 
 
 def finish_requested(mem: Memory, task_id: str) -> bool:
-    """`ctl stop --after-trip` asked task `task_id` to end at home after its trip (FINISH_KEY). The task
+    """`ctl stop --after-trip` asked task `task_id` to end at home after its trip (finish_key). The task
     itself reads it (the lumber runner: LumberLoop.ending); the wrapper only clears it at the end."""
-    return _names_task(meta_get(mem, FINISH_KEY), task_id)
-
-
-def _names_task(raw, task_id: str) -> bool:
-    if raw is None:
-        return False
-    try:
-        return json.loads(raw).get("task_id") == task_id
-    except (ValueError, AttributeError):
-        return False
+    return meta_get(mem, finish_key(task_id)) is not None
 
 
 # ----------------------------------------------------------------------- main
 def run(spec: dict) -> int:
-    mem = Memory(spec["db"])
+    mem = Memory(spec["db"], char_serial=spec.get("char_serial"))
     os.makedirs(os.path.dirname(os.path.abspath(spec["log"])), exist_ok=True)
     code, stopped = -1, False
     try:
@@ -280,10 +286,8 @@ def run(spec: dict) -> int:
         code = code if code != -1 else 1
     finally:
         remove_entry(mem, spec["task_id"])
-        if stopped:
-            meta_set(mem, STOP_KEY, None)
-        if finish_requested(mem, spec["task_id"]):
-            meta_set(mem, FINISH_KEY, None)
+        meta_set(mem, stop_key(spec["task_id"]), None)       # per-task keys: nothing else would clear them
+        meta_set(mem, finish_key(spec["task_id"]), None)
         post_end(mem, spec, code, stopped)
         mem.close()
     return code

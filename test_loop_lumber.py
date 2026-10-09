@@ -2230,7 +2230,7 @@ async def stop_after_trip():
         while world.harvested < 1:
             await asyncio.sleep(0.2)
         m = memory.Memory(db)
-        task_wrap.meta_set(m, task_wrap.FINISH_KEY, json.dumps({"task_id": task_id, "t": time.time()}))
+        task_wrap.meta_set(m, task_wrap.finish_key(task_id), json.dumps({"task_id": task_id, "t": time.time()}))
         m.close()
         asked.append(time.time())
     os.environ["UO_TASK_ID"] = task_id

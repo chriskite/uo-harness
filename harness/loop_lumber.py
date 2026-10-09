@@ -4093,6 +4093,7 @@ class LumberLoop:
                             and s["movement"]["self_serial"] is not None, 5.0)
         if st is None:
             raise Abort("proxy has no player position yet (log in first)")
+        self.memory.char_serial = int(st["movement"]["self_serial"])   # tags our rows; scopes our reads
         st = self.link.wait(lambda s: (s["world"].get("self") or {}).get("name"), 5.0)
         if st is None:
             raise Abort("the proxy doesn't know the character's name yet (it keys the home: harness/data/homes.json)")
@@ -4227,6 +4228,9 @@ def main():
     ap.add_argument("--max-blocked", type=int, default=20)
     ap.add_argument("--control-port", type=int, default=25941)
     ap.add_argument("--state-port", type=int, default=25942)
+    ap.add_argument("--char", default=None,
+                    help="character selector (name or 0xSERIAL); required by the proxy when several "
+                         "characters are logged in")
     ap.add_argument("--loop", default=os.path.join(DATA, "loops", "lumber.json"),
                     help="common lumber knowledge (texts, captcha, conversion); the spot adds the venue")
     ap.add_argument("--memory", default=DEFAULT_DB,
@@ -4254,7 +4258,7 @@ def main():
         log(f"ABORTED: {why}")
         memory.close()
         sys.exit(1)
-    link = Link(args.control_port, args.state_port)
+    link = Link(args.control_port, args.state_port, char=args.char)
     loop = LumberLoop(link, memory, know, args, base)
     code = 0
     try:

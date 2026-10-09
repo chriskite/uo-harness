@@ -140,12 +140,15 @@ def main():
                     help="plan on walk memory only (offline tests against simulated worlds)")
     ap.add_argument("--control-port", type=int, default=25941)
     ap.add_argument("--state-port", type=int, default=25942)
+    ap.add_argument("--char", default=None,
+                    help="character selector (name or 0xSERIAL); required by the proxy when several "
+                         "characters are logged in")
     ap.add_argument("--memory", default=DEFAULT_DB,
                     help="harness memory (SQLite, docs/MEMORY.md); the proxy records the walks")
     args = ap.parse_args()
 
     memory = Memory(args.memory)
-    link = Link(args.control_port, args.state_port)
+    link = Link(args.control_port, args.state_port, char=args.char)
     errand = Errand(link, memory, args)
     code = 0
     try:

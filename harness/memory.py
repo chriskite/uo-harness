@@ -6,7 +6,10 @@ Rule 0). Default location: harness/data/harness.db (WAL mode, so the proxy
 can write while runners and the visualizer read).
 
 Tables
-  sessions          one row per proxy session (live) or ingested capture
+  sessions          one row per proxy session (live) or ingested capture; v6: the
+                    account, char_name and char_serial it logged in as (from the
+                    login / char_select / login_confirm events; `backfill-identity`
+                    fills older rows)
   events            every state-port event envelope, durable (the proxy keeps
                     only a hot ring in memory)
   walk_moves        server-confirmed moves and denies with facet and z, counted,
@@ -43,12 +46,21 @@ Tables
                     economics, supplies); jobs.py values each trip's logs at the
                     board:<wood> price as of the trip
 
+Characters (v6)
+  episodes, job_events, junctures and chat carry char_serial (the player serial;
+  NULL = not character-scoped, or written before v6). A Memory built with a
+  char_serial tags what it writes and, for junctures/chat, reads only that
+  character's rows plus the NULL ones (scope_sql). World facts (walk_moves,
+  harvest_*, teleporters, guard_points, knowledge) are shared by every character.
+
 Writers
   - the proxy: MemoryWriter, a background thread with batched commits, fed from
     SessionTap events; it never blocks the relay
   - runners: Memory directly (harvest nodes/attempts, episodes)
   - `python harness/memory.py ingest [--logdir logs]`: replays captures not yet
     in the store through the proxy's own SessionTap (viz_feed.ReplayDriver)
+  - `python harness/memory.py backfill-identity [--logdir logs]`: fills the v6
+    identity columns of older sessions from their events, raw capture or episodes
 
 Readers
   - Memory.walk_memory(facet): nav.WalkMemory projection for the 2D fallback
@@ -72,14 +84,14 @@ import nav  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DB = os.path.join(ROOT, "harness", "data", "harness.db")
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 UNKNOWN_Z = -32768
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS sessions(
     id INTEGER PRIMARY KEY, tag TEXT UNIQUE NOT NULL, source TEXT NOT NULL,
-    started REAL, ended REAL);
+    started REAL, ended REAL, account TEXT, char_serial INTEGER, char_name TEXT);
 CREATE TABLE IF NOT EXISTS events(
     session INTEGER NOT NULL, seq INTEGER NOT NULL, t REAL, origin TEXT, ev TEXT,
     data TEXT NOT NULL, PRIMARY KEY(session, seq)) WITHOUT ROWID;
@@ -101,18 +113,20 @@ CREATE TABLE IF NOT EXISTS harvest_attempts(
 CREATE INDEX IF NOT EXISTS harvest_attempts_node ON harvest_attempts(facet, x, y, t);
 CREATE INDEX IF NOT EXISTS harvest_attempts_t ON harvest_attempts(t);
 CREATE TABLE IF NOT EXISTS episodes(
-    id INTEGER PRIMARY KEY, loop TEXT NOT NULL, t_start REAL, t_end REAL, data TEXT NOT NULL);
+    id INTEGER PRIMARY KEY, loop TEXT NOT NULL, t_start REAL, t_end REAL, data TEXT NOT NULL,
+    char_serial INTEGER);
 CREATE INDEX IF NOT EXISTS episodes_loop_t ON episodes(loop, t_start);
 CREATE TABLE IF NOT EXISTS junctures(
     id INTEGER PRIMARY KEY, t REAL NOT NULL, source TEXT NOT NULL, kind TEXT NOT NULL,
-    severity TEXT NOT NULL, summary TEXT NOT NULL, data TEXT NOT NULL, acked_t REAL);
+    severity TEXT NOT NULL, summary TEXT NOT NULL, data TEXT NOT NULL, acked_t REAL,
+    char_serial INTEGER);
 CREATE INDEX IF NOT EXISTS junctures_open ON junctures(acked_t, id);
 CREATE TABLE IF NOT EXISTS chat(
     id INTEGER PRIMARY KEY, t REAL NOT NULL, role TEXT NOT NULL, kind TEXT NOT NULL,
-    text TEXT NOT NULL, data TEXT NOT NULL);
+    text TEXT NOT NULL, data TEXT NOT NULL, char_serial INTEGER);
 CREATE TABLE IF NOT EXISTS job_events(
     id INTEGER PRIMARY KEY, t REAL NOT NULL, job TEXT NOT NULL, kind TEXT NOT NULL,
-    facet INTEGER, x INTEGER, y INTEGER, data TEXT NOT NULL);
+    facet INTEGER, x INTEGER, y INTEGER, data TEXT NOT NULL, char_serial INTEGER);
 CREATE INDEX IF NOT EXISTS job_events_job_t ON job_events(job, t);
 CREATE TABLE IF NOT EXISTS teleporters(
     facet INTEGER NOT NULL, x INTEGER NOT NULL, y INTEGER NOT NULL,
@@ -163,12 +177,45 @@ CREATE INDEX IF NOT EXISTS prices_item_t ON prices(item, t);
 """
 
 
+# v6: columns added to tables a v5 store already has (CREATE TABLE IF NOT EXISTS
+# leaves an existing table alone)
+CHAR_COLUMNS = (("sessions", "account", "TEXT"), ("sessions", "char_serial", "INTEGER"),
+                ("sessions", "char_name", "TEXT"), ("episodes", "char_serial", "INTEGER"),
+                ("job_events", "char_serial", "INTEGER"), ("junctures", "char_serial", "INTEGER"),
+                ("chat", "char_serial", "INTEGER"))
+
+
+def _missing_columns(con) -> list[tuple]:
+    have = {}
+    for t, _, _ in CHAR_COLUMNS:
+        if t not in have:
+            have[t] = {r[1] for r in con.execute(f"PRAGMA table_info({t})")}
+    return [(t, c, d) for t, c, d in CHAR_COLUMNS if c not in have[t]]
+
+
+def _add_columns(con):
+    """Migrate an older store: add the missing CHAR_COLUMNS, once, under a write lock
+    (two processes may connect at the same moment; the re-check inside the
+    transaction keeps the second from adding a column twice)."""
+    if not _missing_columns(con):
+        return
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        for t, c, d in _missing_columns(con):
+            con.execute(f"ALTER TABLE {t} ADD COLUMN {c} {d}")
+        con.commit()
+    except BaseException:
+        con.rollback()
+        raise
+
+
 def connect(path: str) -> sqlite3.Connection:
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     con = sqlite3.connect(path, timeout=30, check_same_thread=False)
     con.execute("PRAGMA journal_mode=WAL")
     con.execute("PRAGMA synchronous=NORMAL")
     con.executescript(SCHEMA)
+    _add_columns(con)
     con.execute("INSERT OR REPLACE INTO meta VALUES('schema_version', ?)", (str(SCHEMA_VERSION),))
     con.commit()
     return con
@@ -205,13 +252,57 @@ def _upsert_walk(cur, rows):
         [(f, x, y, z, d, ok, t, t) for f, x, y, z, d, ok, t in rows])
 
 
+# event -> (sessions column, event field): who a session logged in as
+IDENTITY_EVENTS = {"login": ("account", "account"), "char_select": ("char_name", "name"),
+                   "login_confirm": ("char_serial", "serial")}
+
+
+def _note_identity(cur, sid, data: dict):
+    """Record the session's account / character name / player serial from one event."""
+    m = IDENTITY_EVENTS.get(data.get("ev"))
+    if m is not None and data.get(m[1]) is not None:
+        cur.execute(f"UPDATE sessions SET {m[0]}=? WHERE id=?", (data[m[1]], sid))
+
+
+# Memory writer default: tag rows with the Memory's own char_serial
+INHERIT = object()
+
+
 # ----------------------------------------------------------------------- memory
 class Memory:
-    """Runner-side access (single thread)."""
+    """Runner-side access (single thread). `char_serial` (a player serial, or None)
+    tags the per-character rows it writes and scopes its juncture/chat reads; it may
+    be set after construction (a runner learns its serial from the state port)."""
 
-    def __init__(self, path: str = DEFAULT_DB):
+    def __init__(self, path: str = DEFAULT_DB, char_serial: int | None = None):
         self.path = path
+        self.char_serial = char_serial
         self.con = connect(path)
+
+    def _char(self, v):
+        return self.char_serial if v is INHERIT else v
+
+    def scope_sql(self, char_serial=INHERIT) -> tuple[str, tuple]:
+        """SQL to AND onto a WHERE over a char_serial table: that character's rows plus
+        the unscoped (NULL) ones; nothing when the character is None."""
+        s = self._char(char_serial)
+        if s is None:
+            return "", ()
+        return " AND (char_serial = ? OR char_serial IS NULL)", (s,)
+
+    def char_serial_of(self, name: str) -> int | None:
+        """The newest serial a session logged in under character `name` (any case)."""
+        row = self.con.execute(
+            "SELECT char_serial FROM sessions WHERE char_name = ? COLLATE NOCASE "
+            "AND char_serial IS NOT NULL ORDER BY id DESC LIMIT 1", (name,)).fetchone()
+        return row[0] if row else None
+
+    def char_name_of(self, serial: int) -> str | None:
+        """The newest character name a session logged in as with player `serial`."""
+        row = self.con.execute(
+            "SELECT char_name FROM sessions WHERE char_serial = ? AND char_name IS NOT NULL "
+            "ORDER BY id DESC LIMIT 1", (serial,)).fetchone()
+        return row[0] if row else None
 
     def close(self):
         self.con.close()
@@ -283,9 +374,10 @@ class Memory:
         c.commit()
 
     # -- episodes --------------------------------------------------------------
-    def episode(self, loop: str, row: dict):
-        self.con.execute("INSERT INTO episodes(loop, t_start, t_end, data) VALUES(?,?,?,?)",
-                         (loop, row.get("t_start"), row.get("t_end"), json.dumps(row)))
+    def episode(self, loop: str, row: dict, char_serial=INHERIT):
+        self.con.execute("INSERT INTO episodes(loop, t_start, t_end, data, char_serial) VALUES(?,?,?,?,?)",
+                         (loop, row.get("t_start"), row.get("t_end"), json.dumps(row),
+                          self._char(char_serial)))
         self.con.commit()
 
     def episodes(self, loop: str, since: float | None = None, until: float | None = None):
@@ -302,26 +394,31 @@ class Memory:
     SEVERITIES = ("info", "attention", "urgent")
 
     def juncture(self, source: str, kind: str, summary: str, severity: str = "attention",
-                 data: dict | None = None, t: float | None = None) -> int:
-        """Post a juncture for the overseer (never blocks the caller for long)."""
+                 data: dict | None = None, t: float | None = None, char_serial=INHERIT) -> int:
+        """Post a juncture for the overseer (never blocks the caller for long).
+        char_serial=None posts one every character's overseer sees."""
         if severity not in self.SEVERITIES:
             raise ValueError(f"severity must be one of {self.SEVERITIES}")
         cur = self.con.execute(
-            "INSERT INTO junctures(t, source, kind, severity, summary, data) VALUES(?,?,?,?,?,?)",
-            (time.time() if t is None else t, source, kind, severity, summary, json.dumps(data or {})))
+            "INSERT INTO junctures(t, source, kind, severity, summary, data, char_serial) "
+            "VALUES(?,?,?,?,?,?,?)",
+            (time.time() if t is None else t, source, kind, severity, summary, json.dumps(data or {}),
+             self._char(char_serial)))
         self.con.commit()
         return cur.lastrowid
 
     def junctures(self, after_id: int = 0, open_only: bool = False, limit: int = 100,
-                  newest: bool = False) -> list[dict]:
+                  newest: bool = False, char_serial=INHERIT) -> list[dict]:
         """Junctures with id > after_id, oldest first; `newest`: the last `limit` of them
-        (still oldest first)."""
-        q = ("SELECT id, t, source, kind, severity, summary, data, acked_t FROM junctures WHERE id > ?"
-             + (" AND acked_t IS NULL" if open_only else "")
+        (still oldest first). Scoped to a character like scope_sql."""
+        scope, sargs = self.scope_sql(char_serial)
+        q = ("SELECT id, t, source, kind, severity, summary, data, acked_t, char_serial "
+             "FROM junctures WHERE id > ?"
+             + (" AND acked_t IS NULL" if open_only else "") + scope
              + (" ORDER BY id DESC LIMIT ?" if newest else " ORDER BY id LIMIT ?"))
-        keys = ("id", "t", "source", "kind", "severity", "summary", "data", "acked_t")
+        keys = ("id", "t", "source", "kind", "severity", "summary", "data", "acked_t", "char_serial")
         out = []
-        rows = self.con.execute(q, (after_id, limit)).fetchall()
+        rows = self.con.execute(q, (after_id, *sargs, limit)).fetchall()
         for row in (reversed(rows) if newest else rows):
             d = dict(zip(keys, row))
             d["data"] = json.loads(d["data"])
@@ -338,26 +435,30 @@ class Memory:
     CHAT_KINDS = ("message", "thought", "action", "memory")
 
     def chat_post(self, role: str, text: str, kind: str = "message", data: dict | None = None,
-                  t: float | None = None) -> int:
+                  t: float | None = None, char_serial=INHERIT) -> int:
         if role not in self.CHAT_ROLES or kind not in self.CHAT_KINDS:
             raise ValueError(f"role in {self.CHAT_ROLES}, kind in {self.CHAT_KINDS}")
         if not text:
             raise ValueError("empty chat text")
-        cur = self.con.execute("INSERT INTO chat(t, role, kind, text, data) VALUES(?,?,?,?,?)",
-                               (time.time() if t is None else t, role, kind, text, json.dumps(data or {})))
+        cur = self.con.execute("INSERT INTO chat(t, role, kind, text, data, char_serial) VALUES(?,?,?,?,?,?)",
+                               (time.time() if t is None else t, role, kind, text, json.dumps(data or {}),
+                                self._char(char_serial)))
         self.con.commit()
         return cur.lastrowid
 
-    def chat(self, after_id: int = 0, limit: int = 200, role: str | None = None) -> list[dict]:
-        """Chat rows with id > after_id, oldest first (optionally one role)."""
-        q = "SELECT id, t, role, kind, text, data FROM chat WHERE id > ?"
+    def chat(self, after_id: int = 0, limit: int = 200, role: str | None = None,
+             char_serial=INHERIT) -> list[dict]:
+        """Chat rows with id > after_id, oldest first (optionally one role), scoped to a
+        character like scope_sql."""
+        q = "SELECT id, t, role, kind, text, data, char_serial FROM chat WHERE id > ?"
         args: list = [after_id]
         if role is not None:
             q += " AND role = ?"
             args.append(role)
-        q += " ORDER BY id LIMIT ?"
-        args.append(limit)
-        keys = ("id", "t", "role", "kind", "text", "data")
+        scope, sargs = self.scope_sql(char_serial)
+        q += scope + " ORDER BY id LIMIT ?"
+        args += [*sargs, limit]
+        keys = ("id", "t", "role", "kind", "text", "data", "char_serial")
         out = []
         for row in self.con.execute(q, args):
             d = dict(zip(keys, row))
@@ -383,20 +484,25 @@ class Memory:
 
     # -- job analytics ------------------------------------------------------------
     def job_event(self, job: str, kind: str, data: dict | None = None, facet=None, x=None, y=None,
-                  t: float | None = None) -> int:
+                  t: float | None = None, char_serial=INHERIT) -> int:
         cur = self.con.execute(
-            "INSERT INTO job_events(t, job, kind, facet, x, y, data) VALUES(?,?,?,?,?,?,?)",
-            (time.time() if t is None else t, job, kind, facet, x, y, json.dumps(data or {})))
+            "INSERT INTO job_events(t, job, kind, facet, x, y, data, char_serial) VALUES(?,?,?,?,?,?,?,?)",
+            (time.time() if t is None else t, job, kind, facet, x, y, json.dumps(data or {}),
+             self._char(char_serial)))
         self.con.commit()
         return cur.lastrowid
 
-    def job_events(self, job: str, since: float = 0.0, until: float | None = None) -> list[dict]:
-        """Events of `job` with t in [since, until), oldest first."""
+    def job_events(self, job: str, since: float = 0.0, until: float | None = None,
+                   char_serial: int | None = None) -> list[dict]:
+        """Events of `job` with t in [since, until), oldest first. Every character's,
+        unless `char_serial` is given (then that character's plus the untagged ones)."""
         keys = ("id", "t", "job", "kind", "facet", "x", "y", "data")
         out = []
         sql, args = "SELECT id, t, job, kind, facet, x, y, data FROM job_events WHERE job = ? AND t >= ?", [job, since]
         if until is not None:
             sql, args = sql + " AND t < ?", args + [until]
+        if char_serial is not None:
+            sql, args = sql + " AND (char_serial = ? OR char_serial IS NULL)", args + [char_serial]
         for row in self.con.execute(sql + " ORDER BY t, id", args):
             d = dict(zip(keys, row))
             d["data"] = json.loads(d["data"])
@@ -571,6 +677,7 @@ class MemoryWriter:
                         cur.execute("INSERT OR IGNORE INTO events VALUES(?,?,?,?,?,?)",
                                     (sid, env["seq"], env.get("t"), env.get("origin"),
                                      env["data"].get("ev"), json.dumps(env["data"])))
+                        _note_identity(cur, sid, env["data"])
                         rows = walk_rows(env, facet, env.get("t") or time.time())
                         if rows:
                             _upsert_walk(cur, rows)
@@ -620,6 +727,7 @@ def ingest(db: str, logdir: str, tags=None, verbose=True) -> dict:
                 cur.execute("INSERT OR IGNORE INTO events VALUES(?,?,?,?,?,?)",
                             (sid, env["seq"], env.get("t"), env.get("origin"),
                              env["data"].get("ev"), json.dumps(env["data"])))
+                _note_identity(cur, sid, env["data"])
                 rows = walk_rows(env, facet, env.get("t") or 0.0)
                 if rows:
                     _upsert_walk(cur, rows)
@@ -660,6 +768,73 @@ def _ingest_raw_walks(cur, logdir, tag, facet, t) -> int:
     return len(rows)
 
 
+RAW_HEAD = 262144
+
+
+def _capture_serial(path: str) -> int | None:
+    """The player serial from the first S2C 0x1B (login confirm) of a raw capture:
+    the first 256 KiB, then the whole file if that fails or holds no 0x1B."""
+    import replay
+    for limit in (RAW_HEAD, None):
+        try:
+            with open(path, "rb") as f:
+                data = f.read() if limit is None else f.read(limit)
+            for p in replay.s2c_packets(data)[2]:
+                if p[0] == 0x1B and len(p) >= 5:
+                    return int.from_bytes(p[1:5], "big")
+        except Exception:   # noqa: BLE001 - a cut head or odd capture: try the whole file, then skip
+            pass
+        if limit is not None and os.path.getsize(path) <= limit:
+            return None
+    return None
+
+
+def backfill_identity(db: str, logdir: str) -> dict:
+    """Fill the v6 identity columns (account, char_name, char_serial) of sessions that
+    lack one, only where NULL: from the session's events, then the player serial from
+    its raw S2C capture, then from the newest episode of the same character name."""
+    con = connect(db)
+    out = {"sessions": 0, "from_capture": 0, "from_episodes": 0}
+    rows = con.execute("SELECT id, tag, account, char_name, char_serial FROM sessions "
+                       "WHERE account IS NULL OR char_name IS NULL OR char_serial IS NULL").fetchall()
+    for sid, tag, account, name, serial in rows:
+        before = (account, name, serial)
+        for ev, (col, field) in IDENTITY_EVENTS.items():
+            if {"account": account, "char_name": name, "char_serial": serial}[col] is not None:
+                continue
+            r = con.execute(f"SELECT json_extract(data, '$.{field}') FROM events WHERE session = ? "
+                            f"AND ev = ? AND json_extract(data, '$.{field}') IS NOT NULL "
+                            f"ORDER BY seq DESC LIMIT 1", (sid, ev)).fetchone()
+            if r is not None:
+                if col == "account":
+                    account = r[0]
+                elif col == "char_name":
+                    name = r[0]
+                else:
+                    serial = int(r[0])
+        if serial is None:
+            raw = os.path.join(logdir, f"session_{tag}.s2c.raw")
+            if os.path.exists(raw):
+                serial = _capture_serial(raw)
+                if serial is not None:
+                    out["from_capture"] += 1
+        if serial is None and name is not None:
+            r = con.execute("SELECT json_extract(data, '$.character.serial') FROM episodes "
+                            "WHERE json_extract(data, '$.character.name') = ? "
+                            "AND json_extract(data, '$.character.serial') IS NOT NULL "
+                            "ORDER BY id DESC LIMIT 1", (name,)).fetchone()
+            if r is not None:
+                serial = int(r[0], 16) if isinstance(r[0], str) else int(r[0])
+                out["from_episodes"] += 1
+        if (account, name, serial) != before:
+            con.execute("UPDATE sessions SET account = COALESCE(account, ?), char_name = COALESCE(char_name, ?), "
+                        "char_serial = COALESCE(char_serial, ?) WHERE id = ?", (account, name, serial, sid))
+            out["sessions"] += 1
+    con.commit()
+    con.close()
+    return out
+
+
 def stats(db: str) -> dict:
     con = connect(db)
     out = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
@@ -677,9 +852,13 @@ def main(argv=None):
     i.add_argument("--logdir", default=os.path.join(ROOT, "logs"))
     i.add_argument("tags", nargs="*")
     sub.add_parser("stats", help="row counts")
+    b = sub.add_parser("backfill-identity", help="fill account/character of older sessions")
+    b.add_argument("--logdir", default=os.path.join(ROOT, "logs"))
     a = ap.parse_args(argv)
     if a.cmd == "ingest":
         print(ingest(a.db, a.logdir, a.tags or None))
+    elif a.cmd == "backfill-identity":
+        print(backfill_identity(a.db, a.logdir))
     else:
         print(stats(a.db))
     return 0

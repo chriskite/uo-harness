@@ -37,9 +37,10 @@ S2 = paths("20260928_164548")
 S3 = paths("20260929_144541")
 PLAYER_SERIAL = 0x00094375
 PLAYER_NAME = "TestWorth"
-# every character we played: TestWorth, Hackworth (fresh Young character from 2026-09-30 22:30)
-# and Shackleworth (created 2026-10-03 11:39, session 20261003_113952)
-OUR_SERIALS = {PLAYER_SERIAL, 0x0020F127, 0x003D701F}
+# every character we played: TestWorth, Hackworth (fresh Young character from 2026-09-30 22:30),
+# Shackleworth (created 2026-10-03 11:39, session 20261003_113952), Outland Dan (0x0014683F)
+# and Logan Wolf (0x00104A60, session 20261005_191829)
+OUR_SERIALS = {PLAYER_SERIAL, 0x0020F127, 0x003D701F, 0x0014683F, 0x00104A60}
 
 FAILURES = []
 

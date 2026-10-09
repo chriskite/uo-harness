@@ -128,6 +128,23 @@ def test_outbound(api):
                   (f"INFO trip_done #{trip} (lumber)", True)], str(got))
     api.reset()
 
+    # several characters: their overseers' rows and junctures say whose they are
+    mem.con.execute("INSERT INTO sessions(tag, source, char_serial, char_name) "
+                    "VALUES ('20261008_120000', 'live', 2160935, 'Hackworth')")
+    mem.con.commit()
+    mem.chat_post("overseer", "chopping", char_serial=2160935)
+    mem.chat_post("overseer", "why not", "thought", char_serial=2160935)
+    mem.chat_post("overseer", "act heal", "action", char_serial=2160935)
+    stuck = mem.juncture("lumber", "stuck", "route blocked", "attention", char_serial=2160935)
+    mem.chat_post("overseer", "unnamed char", char_serial=0x00ABCDEF)
+    b2.pump_out()
+    got = [p["text"].split("\n")[0] for p in api.sent()]
+    check("a character's rows are prefixed with its name; an unknown one's are not",
+          got == ["seer (Hackworth): chopping", "seer (Hackworth, thinking): why not",
+                  "seer (Hackworth) did: act heal", f"ATTENTION stuck #{stuck} (lumber, Hackworth)",
+                  "seer: unnamed char"], str(got))
+    api.reset()
+
 
 def test_delivery(api):
     print("== delivery: rate limits are waited out, refusals skipped, long text split ==")
@@ -182,6 +199,12 @@ def test_inbound(api):
     gu = [p for m, p in api.calls if m == "getUpdates"][-1]
     check("next poll from offset 105; with an overseer running, no reply",
           gu["offset"] == 105 and api.sent() == [] and mem.chat(role="user")[-1]["text"] == "status?", str(api.sent()))
+    api.reset()
+    tw.meta_set(mem, "overseer_heartbeat", "1.00")                    # the unscoped heartbeat is stale,
+    tw.meta_set(mem, "overseer_heartbeat:0x00000001", f"{time.time():.2f}")   # one character's is fresh
+    api.updates[:] = [msg(106, "anyone?")]
+    b.pump_in(timeout=0)
+    check("any character's fresh heartbeat counts as a seer running", api.sent() == [], str(api.sent()))
     api.reset()
     b.init_cursors()
     b.pump_out()

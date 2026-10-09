@@ -287,13 +287,16 @@ class Subscriber:
 # ------------------------------------------------------------------------ live
 
 class StatePortPoller(Feed):
-    """LIVE feed: the proxy's state port (JSON lines), polled with the since cursor."""
+    """LIVE feed: the proxy's state port (JSON lines), polled with the since cursor.
+    `char` (a charsel selector) picks one of several logged-in characters; None lets the
+    proxy choose (the only session, else an error naming them)."""
 
     mode = "live"
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 25942):
+    def __init__(self, host: str = "127.0.0.1", port: int = 25942, char: str | None = None):
         super().__init__()
         self.host, self.port = host, port
+        self.char = char
         self.sock = None
         self.rfile = None
         self.connected = False
@@ -317,7 +320,8 @@ class StatePortPoller(Feed):
             if self.sock is None:
                 self.sock = socket.create_connection((self.host, self.port), timeout=POLL_TIMEOUT_S)
                 self.rfile = self.sock.makefile("rb")
-            self.sock.sendall((json.dumps({"op": "state", "since": since}) + "\n").encode())
+            req = {"op": "state", "since": since, **({"char": self.char} if self.char else {})}
+            self.sock.sendall((json.dumps(req) + "\n").encode())
             line = self.rfile.readline()
             if not line:
                 raise ConnectionResetError("state port closed the connection")

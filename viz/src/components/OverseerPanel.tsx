@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { fetchOverseer, postChat } from "../api.ts";
+import { getChar, useChar } from "../character.ts";
 import { fmtClock } from "../format.ts";
 import {
   CHAT_MAX_CHARS,
@@ -26,8 +27,10 @@ export interface OverseerFeed {
   refresh: () => void;
 }
 
-/** Poll /api/overseer every 2 s, merging rows above the cursors. */
+/** Poll /api/overseer every 2 s, merging rows above the cursors; starts over (newest
+ *  rows) when the viz switches character. */
 export function useOverseer(): OverseerFeed {
+  const char = useChar();
   const [state, setState] = useState<OverseerState>(EMPTY_OVERSEER);
   const [error, setError] = useState<string | null>(null);
   const cursor = useRef({ chat: 0, juncture: 0 });
@@ -36,9 +39,11 @@ export function useOverseer(): OverseerFeed {
   const refresh = useCallback(() => {
     if (busy.current) return;
     busy.current = true;
+    const asked = getChar();
     fetchOverseer(cursor.current.chat, cursor.current.juncture)
       .then(
         (resp) => {
+          if (getChar() !== asked) return; // the previous character's rows
           setError(null);
           setState((s) => {
             const next = mergeOverseer(s, resp);
@@ -46,7 +51,7 @@ export function useOverseer(): OverseerFeed {
             return next;
           });
         },
-        (e: unknown) => setError(String(e)),
+        (e: unknown) => getChar() === asked && setError(String(e)),
       )
       .finally(() => {
         busy.current = false;
@@ -54,10 +59,12 @@ export function useOverseer(): OverseerFeed {
   }, []);
 
   useEffect(() => {
+    setState(EMPTY_OVERSEER);
+    cursor.current = { chat: 0, juncture: 0 };
     refresh();
     const t = setInterval(refresh, POLL_MS);
     return () => clearInterval(t);
-  }, [refresh]);
+  }, [char, refresh]);
 
   return { state, error, refresh };
 }

@@ -1358,7 +1358,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   stop, the same wind-down as a due break (`LumberLoop.ending`). Earlier the same evening, a plain
   `ctl stop` on an end-the-day order killed a run that was already home: it had converted 561 logs
   and was about to store them, and the boards stayed in the trapped pouch. Now `ctl` writes the
-  meta key `task_finish` naming the task; the runner, which gets its id as `UO_TASK_ID` from
+  meta key `task_finish:<task_id>`; the runner, which gets its id as `UO_TASK_ID` from
   `task_wrap`, reads it every 2 s (`FINISH_CHECK_S`, in `check_gate`) and: out at the grove,
   stops harvesting, goes home, converts, stores; already home, finishes the convert and store;
   starts no other trip and no library hop; logs `stop requested: boards stored after trip N`, marks

@@ -66,8 +66,8 @@ Serial keys are `0x%08X` strings. `None` fields are omitted. Current facts:
 ### 1.3 `events` = world-model events
 Flat `{"ev": ..., ...}` dicts. **Serials are ints** (the snapshot uses hex strings; the frontend
 normalizes). Vocabulary (`runtime.py` `_emit`):
-- Session: `login`, `char_select`, `character_list`, `dialect_handshake` (flag1/flag2 = the
-  S2C/C2S XOR keys), `keepalive`
+- Session: `login`, `char_select`, `login_confirm` {serial: the player serial, S2C 0x1B},
+  `character_list`, `dialect_handshake` (flag1/flag2 = the S2C/C2S XOR keys), `keepalive`
 - Movement: `walk`, `walk_confirm`, `walk_deny`
 - Entities: `query`, `item_query`, `names`, `item_seen`, `delete`, `prune` {serial, why: range |
   facet | dead} (a mobile the client dropped without a 0x1D), `animation`
@@ -144,22 +144,23 @@ channels.
 
 | Route | Content |
 |---|---|
-| `GET /api/state` | the latest state-port response, verbatim (movement + world + recent events + diagnostics) |
-| `GET /api/events` | SSE, per write: `event: world_events` (a JSON array of the new envelopes, verbatim; `id:` = its last seq), then `event: state` (the newest full response, dirty-checked, ≤4 Hz). A slow reader gets fewer, newer states, never a backlog (§2.10). `Last-Event-ID` resume from a 2000-entry ring |
+| `GET /api/state` | the latest state-port response, verbatim (movement + world + recent events + diagnostics); `?char=` that character's (§2.14) |
+| `GET /api/events` | SSE, per write: `event: world_events` (a JSON array of the new envelopes, verbatim; `id:` = its last seq), then `event: state` (the newest full response, dirty-checked, ≤4 Hz). A slow reader gets fewer, newer states, never a backlog (§2.10). `Last-Event-ID` resume from a 2000-entry ring; `?char=` as `/api/state` |
 | `GET /api/walkmem` | walk memory (facet 0) projected from the harness memory store (docs/MEMORY.md), in the `nav.WalkMemory` JSON format (tiles, edges, blocked), cached 2 s |
-| `GET /api/health` | viz_server mode (live/replay + session tag + order quality), poll lag, connection status, proxy diagnostics |
+| `GET /api/health` | viz_server mode (live/replay + session tag + order quality), poll lag, connection status, proxy diagnostics; `?char=` as `/api/state` |
+| `GET /api/sessions` | live: the proxy's logged-in characters, `{"ok": true, "sessions": [{tag, serial: "0x%08X"\|null, name}]}` (`{"op":"sessions"}` on the state port); replay: `[]`; 502 when the state port is unreachable (§2.14) |
 | `POST /api/playback` | replay only: `{play,pause,rate,step}` |
 | `GET /api/gate` | live only: the proxy's agent gate (`{"op":"gate"}` on the state port), verbatim |
 | `POST /api/gate` | live only: `{"action": "pause"\|"resume"\|"kill"}`, forwarded as `{"op":"gate","action":...}` (§2.2) |
 | `GET /api/jobs?job=lumber[&since=T][&until=T][&tz=M]` | job analytics over [since, until) from the memory store (`harness/jobs.py`, §2.4), cached 2 s |
 | `GET /api/jobs/plan` | the lumber optimizer's plan over all history, recomputed once a minute on its own connection and lock (§2.4) |
 | `GET /api/lumber/grove?spot=ID` or `?facet=F&x=X&y=Y` | a lumber spot's area and its trees with their harvest-memory states (`lumber_opt.grove_view`, §2.12); by position: the spot whose area holds the tile, else `spot` null; 400 without either |
-| `GET /api/overseer?after_chat=N&after_juncture=M` | overseer chat rows and junctures above the cursors, open junctures, heartbeat (§2.4) |
-| `POST /api/chat` | `{"text": T}` → a `user` chat row for the overseer (§2.4) |
+| `GET /api/overseer?after_chat=N&after_juncture=M[&char=0xS]` | overseer chat rows and junctures above the cursors, open junctures, heartbeat (§2.4); `char` (a serial) scopes them to one character (§2.14) |
+| `POST /api/chat` | `{"text": T[, "char": "0xS"]}` → a `user` chat row for the overseer (of that character) (§2.4, §2.14) |
 | `GET /api/captcha`, `POST /api/captcha` | who answers the harvest captcha, `{"mode": "human"\|"auto"}` (§2.2a) |
 | `GET /api/nystul` | Nystul the Wizard's conversations, newest first: `{conversations: [{id, title, t_updated, messages, running}], available, model, thinking}` (§2.13) |
 | `GET /api/nystul/<id>` | `{conversation, messages}`; a running answer's `text` and `steps` are partial and grow between polls; 404 unknown, 400 non-integer id (§2.13) |
-| `POST /api/nystul/ask`, `POST /api/nystul/cancel` | `{"conversation": id\|null, "text": T}` → `{ok, conversation, message}` (400 text, 404 conversation, 409 busy, 503 no omp); `{"conversation": id}` → `{ok}` or 404 when nothing runs (§2.13) |
+| `POST /api/nystul/ask`, `POST /api/nystul/cancel` | `{"conversation": id\|null, "text": T[, "char": C]}` → `{ok, conversation, message}` (400 text, 404 conversation, 409 busy, 503 no omp); `{"conversation": id}` → `{ok}` or 404 when nothing runs (§2.13, §2.14) |
 | `POST /api/nystul/approve` | `{"proposal": id}` → the operator approves a Codex change Nystul proposed; applied to the memory store → `{ok, result: {id, action}}`; 404 unknown, 409 not pending, 400 the store refused it (kept as failed), 503 no store (§2.13) |
 | `GET /api/art/<graphic>.png` | an item's art from the client's `art.uoo`, cropped to its opaque pixels (§2.9); 404 JSON for an unknown/empty graphic or missing install data, 400 for a non-number |
 | `GET /api/multi/<id>` | a house's footprint from the client's `multi.mul` (decimal or 0x hex multi id = a data_type 2 item's graphic): `{"id", "source", "tiles": [[dx, dy, "wall"\|"floor"]]}`, "wall" = an impassable piece below 20 z; 404 JSON for an unknown id (§4 MapGrid) |
@@ -319,8 +320,14 @@ not per poll). **GETs never create the store**; the first `POST /api/chat` does.
     client already has.
   - `heartbeat`: meta `overseer_heartbeat` (epoch seconds, written by the overseer's `ctl` on every
     poll; docs/OVERSEER.md) as a float, or null. `now` is the server clock to measure it against.
+    With several characters each overseer writes `overseer_heartbeat:0x%08X`: without `char` this
+    is the newest of all of them, with `char` the newer of that character's key and the global one.
+  - `char=0xS` (a serial; a name or anything else is **400** `char must be a serial (0x...)`):
+    chat, junctures and `open_ids` of that character plus the unscoped rows (`char_serial` NULL,
+    `Memory.scope_sql`); without it every character's rows (§2.14).
   - `store: false` when the store file does not exist (all empty).
-- `POST /api/chat {"text": T}` → `Memory.chat_post("user", T.strip())` → `{"ok": true, "id": N}`.
+- `POST /api/chat {"text": T[, "char": "0xS"]}` → `Memory.chat_post("user", T.strip(), char_serial=S)`
+  → `{"ok": true, "id": N}`; without `char` the row is unscoped and every character's overseer sees it.
   Text must be a string of 1..2000 characters after trimming; anything else is **400**, and bodies
   over 64 KiB are **413**. Besides this, the viz writes only the captcha mode (§2.2a).
 - `GET /api/jobs?job=lumber|hunt[&since=T][&until=T][&tz=M]` → `harness/jobs.py` `analytics()`
@@ -842,6 +849,34 @@ Wizard".
   proposals and approval), `viz/src/markdown.test.ts`, `viz/src/nystul.test.ts` (incl. the Approve
   card's `proposalView`).
 
+### 2.14 Several characters (added 2026-10-08, user request)
+
+Several clients (different accounts/characters) can play through the one proxy at once; the viz
+shows one character at a time.
+- **Selector** (harness/charsel.py, the same everywhere): `0x…` hex or all digits = player serial,
+  anything else = character name (case-insensitive). The proxy serves its only session without
+  one and answers `several sessions (A, B); pass char` when there are more.
+- **Feeds.** `?char=` on `/api/state`, `/api/events`, `/api/health` and `/api/paperdoll.png` picks
+  a per-character `StatePortPoller` (`{"op": "state", "char": C}`), made and pumped once on the
+  first request for that selector and kept until the server stops (`VizServer.feed_for`). Without
+  `char`, and always in replay (one character), the default feed answers. A selector no session
+  matches gives the proxy's `no session for character '<sel>'` as the state's error.
+- **`GET /api/sessions`** lists who is logged in (above). The gate stays shared (one human).
+- **Overseer** routes take a serial only (the picker always has one): `/api/overseer?char=` and
+  `POST /api/chat {"char"}` scope rows and heartbeat to that character (§2.4). The Jobs page and
+  `/api/jobs[/plan]` stay aggregate across characters.
+- **Nystul**: `POST /api/nystul/ask {"char"}` adds `Character: <char>` to the run's context and
+  `NYSTUL_CHAR` to its env; `uo_ctl` then passes `--char`, and `uo_api` appends `char=` to
+  `/api/state`, `/api/health` and (a serial only) `/api/overseer`.
+- **Picker** (`components/CharacterPicker.tsx`, header, live only): polls `/api/sessions` every
+  5 s and shows a `<select>` of the sessions (label = name, else `unidentified`, disabled: no
+  serial yet); nothing while the list is empty. The choice (a serial) lives in
+  `viz/src/character.ts` and `localStorage["viz.char"]`; `pickChar` keeps it while that character
+  is online, else takes the first identified session. A switch stops the SSE feed, resets the
+  store (`VizStore.reset`) and reconnects with the new `char`; the Overseer panel starts over from
+  the newest rows and drops replies fetched for the previous character; the Paperdoll image URL
+  carries `char`.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see
@@ -1010,6 +1045,7 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
 | `viz/src/api.ts`, `sse.ts`, `store.ts`, `serial.ts` | SSE client + resume, with per-task state supersession (§2.10); `useSyncExternalStore` store; int↔hex serial normalization and entity lookup |
 | `viz/src/gate.ts`, `components/GateControls.tsx` | agent gate badge vocabulary and button rules; the header gate controls (§2.2) |
 | `components/CaptchaToggle.tsx` | the header captcha mode toggle (§2.2a) |
+| `viz/src/character.ts`, `components/CharacterPicker.tsx` | the chosen character (selector state, `withChar`, `pickChar`) and the header picker (§2.14) |
 | `viz/src/intent.ts`, `components/IntentPanel.tsx` | agent intent view (tone, trip context, age against the live or replay clock) and the Avatar panel (§2.3) |
 | `harness/jobs.py` | job analytics over the memory store (§2.4) |
 | `viz/src/overseer.ts`, `components/OverseerPanel.tsx` | overseer timeline model (cursor merge, heartbeat status, chat validation) and the Overseer panel (§2.4) |
@@ -1070,6 +1106,10 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
     (the proxy's own `{"op":"gate"}` reports paused, and a control-port injection from the test
     gets `ERR agent paused`), resume, kill, and resume-while-killed 409. The proxy's control-port
     log shows only the test's own connection.
+  - Characters (§2.14): `/api/sessions` 502 with the proxy down and lists the fake session once
+    up; `/api/state?char=<serial>` matches the default feed, `?char=Nobody` gives `no session for
+    character`; `/api/overseer?char=` scopes junctures, chat and heartbeat, a name is 400;
+    `POST /api/chat {"char"}` stores `char_serial` and stays out of another character's view.
   - Agent intent: `spot` and `woods` kept, a tally-only update stays one step, malformed `woods`
     (negative, string, empty name, bool, list, 33 entries) and a 65-char `spot` dropped (§2.3).
   - `/api/lumber/grove` (§2.12): the area, every runner tree inside it, harvest-memory states

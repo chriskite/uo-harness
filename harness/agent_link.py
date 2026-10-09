@@ -23,6 +23,7 @@ import socket
 import time
 
 import actions
+import charsel
 import guards
 import nav
 import pathfind
@@ -260,10 +261,19 @@ def find_banker(link, human, radius: int, max_clicks: int, log=print):
 
 
 class Link:
-    """Control-port actions + state-port feedback, with an event cursor."""
+    """Control-port actions + state-port feedback, with an event cursor. `char`
+    (name or 0xSERIAL, harness/charsel.py) picks the character when several are
+    logged in through the proxy: the control connection is bound to it with an
+    `@char` frame and every state/intent request names it."""
 
-    def __init__(self, control_port: int, state_port: int):
+    def __init__(self, control_port: int, state_port: int, char: str | None = None):
+        self.char = char
         self.ctl = socket.create_connection((HOST, control_port), timeout=10)
+        if char:
+            r = self.send(charsel.CONTROL_PREFIX + char.encode("utf-8"))
+            if not r.startswith("OK"):
+                self.ctl.close()
+                raise Abort(f"control port: {r}")
         self.state_port = state_port
         self.st = socket.create_connection((HOST, state_port), timeout=10)
         self.st_file = self.st.makefile("rb")
@@ -271,6 +281,11 @@ class Link:
         self.events = []
         self.event_t = []            # each event's time (envelope t), parallel to events
         self.last = None
+
+    def _req(self, req: dict) -> bytes:
+        if self.char:
+            req["char"] = self.char
+        return (json.dumps(req) + "\n").encode()
 
     def send(self, pkt: bytes) -> str:
         """One control-port frame; the proxy's reply ("OK" or "ERR ...")."""
@@ -306,7 +321,7 @@ class Link:
         return buf
 
     def _query(self, snapshot: bool) -> dict:
-        self.st.sendall((json.dumps({"op": "state", "since": self.since, "snapshot": snapshot}) + "\n").encode())
+        self.st.sendall(self._req({"op": "state", "since": self.since, "snapshot": snapshot}))
         resp = json.loads(self.st_file.readline())
         if not resp.get("ok"):
             raise Abort(f"state port: {resp.get('error')}")
@@ -344,7 +359,7 @@ class Link:
                                           if k in ("text", "kind", "target", "loop", "trip", "trips")}
         for b in ([body, plain] if body != plain else [body]):
             try:
-                self.st.sendall((json.dumps({"op": "intent", "intent": b}) + "\n").encode())
+                self.st.sendall(self._req({"op": "intent", "intent": b}))
                 line = self.st_file.readline()
             except OSError:
                 line = b""

@@ -102,6 +102,12 @@ export class VizStore {
     this.patch({ selected });
   };
 
+  /** Forget the current feed (a character switch): events, state, connection, selection. */
+  reset(): void {
+    this.clearEvents();
+    this.patch({ state: null, connected: false, selected: null });
+  }
+
   private clearEvents(): void {
     this.ring = [];
     this.agg = emptyAggregates();

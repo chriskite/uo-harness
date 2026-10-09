@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useChar, withChar } from "../character.ts";
 import { paperdollKey } from "../paperdoll.ts";
 import type { VizSnapshot } from "../store.ts";
 import { Panel } from "./common.tsx";
@@ -9,6 +10,7 @@ export function PaperdollPanel({ viz }: { viz: VizSnapshot }) {
   const world = viz.state?.world;
   const key = paperdollKey(world);
   const [failed, setFailed] = useState<string | null>(null);
+  const char = useChar();
   const dead = world?.self?.dead === true;
   return (
     <Panel title="Paperdoll" className="paperdoll" extra={world?.self?.name ? <span className="dim">{world.self.name}</span> : undefined}>
@@ -20,7 +22,7 @@ export function PaperdollPanel({ viz }: { viz: VizSnapshot }) {
         <img
           key={key}
           className={dead ? "paperdoll-img dead" : "paperdoll-img"}
-          src={`api/paperdoll.png?k=${encodeURIComponent(key)}`}
+          src={withChar(`api/paperdoll.png?k=${encodeURIComponent(key)}`, char)}
           alt="paperdoll"
           width={260}
           height={237}

@@ -18,7 +18,8 @@ It prints the result text (capped at OUT_MAX chars) and exits 0, or prints
   only the operator's Approve click in the viz applies it (harness/nystul_memory.py).
 
 Env (set by harness/nystul.py; fallbacks for a manual run): NYSTUL_ROOT, NYSTUL_MEMORY_DB,
-NYSTUL_VIZ, NYSTUL_STATE_PORT, NYSTUL_DATA (tests only).
+NYSTUL_VIZ, NYSTUL_STATE_PORT, NYSTUL_CHAR (the viz's character: `ctl --char`, `char=` on
+/api/state, /api/health and, when a serial, /api/overseer), NYSTUL_DATA (tests only).
 """
 import base64
 import datetime
@@ -32,6 +33,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -55,6 +57,7 @@ LIST_MAX = 300
 
 API_ROUTES = {"/api/state", "/api/health", "/api/gate", "/api/jobs", "/api/jobs/plan", "/api/overseer",
               "/api/captcha", "/api/lumber/grove", "/api/skillnames", "/api/cliloc", "/api/facet"}
+CHAR_ROUTES = {"/api/state", "/api/health", "/api/overseer"}   # get char=NYSTUL_CHAR (_with_char)
 CTL_COMMANDS = ("status", "journal", "npcs", "map", "runes", "junctures", "chat")
 RUNES_OPS = ("libraries", "find", "near")
 SQL_PRAGMAS = {"table_info", "table_xinfo", "index_list", "index_info", "table_list"}
@@ -189,12 +192,30 @@ def _project(data, path: str):
     return data
 
 
+def _with_char(route: str) -> str:
+    """route + `char=<NYSTUL_CHAR>` on the per-character routes (not when it already has one;
+    /api/overseer only takes a serial)."""
+    char = os.environ.get("NYSTUL_CHAR")
+    path, _, query = route.partition("?")
+    if not char or path not in CHAR_ROUTES or "char" in urllib.parse.parse_qs(query):
+        return route
+    if path == "/api/overseer":
+        import charsel
+        try:
+            if not isinstance(charsel.parse(char), int):
+                return route
+        except ValueError:
+            return route
+    sep = "&" if query else ("" if route.endswith("?") else "?")
+    return f"{route}{sep}char={urllib.parse.quote(char)}"
+
+
 def uo_api(p) -> str:
     route = _str(p, "route")
     if not route.startswith("/api/") or route.split("?", 1)[0] not in API_ROUTES:
         raise ToolError("route not allowed")
     try:
-        with urllib.request.urlopen(viz() + route, timeout=HTTP_TIMEOUT_S) as r:
+        with urllib.request.urlopen(viz() + _with_char(route), timeout=HTTP_TIMEOUT_S) as r:
             body = r.read()
     except urllib.error.HTTPError as e:
         raise ToolError(f"HTTP {e.code}: {e.read()[:300].decode('utf-8', 'replace')}")
@@ -222,8 +243,9 @@ def uo_ctl(p) -> str:
         raise ToolError("args must be a list of strings")
     if command == "runes" and (not args or args[0] not in RUNES_OPS):
         raise ToolError(f"runes needs args[0] in {', '.join(RUNES_OPS)}")
+    char = os.environ.get("NYSTUL_CHAR")
     cmd = [sys.executable, os.path.join(root(), "harness", "ctl.py"), "--db", memory_db(),
-           "--state-port", str(state_port()), command, *args]
+           "--state-port", str(state_port()), *(["--char", char] if char else []), command, *args]
     try:
         r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
                            errors="replace", timeout=CTL_TIMEOUT_S, cwd=root())

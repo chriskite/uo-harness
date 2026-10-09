@@ -1654,6 +1654,7 @@ class HuntLoop:
                             and s["movement"]["self_serial"] is not None, 5.0)
         if st is None:
             raise Abort("proxy has no player position yet (log in first)")
+        self.memory.char_serial = int(st["movement"]["self_serial"])   # tags our rows; scopes our reads
         st = self.state()
         self.weapon = self.worn_weapon(st)
         if self.weapon is not None:
@@ -1789,6 +1790,9 @@ def arg_parser() -> argparse.ArgumentParser:
                     help="laya-serve for speech triage (triage.py); empty = off")
     ap.add_argument("--control-port", type=int, default=25941)
     ap.add_argument("--state-port", type=int, default=25942)
+    ap.add_argument("--char", default=None,
+                    help="character selector (name or 0xSERIAL); required by the proxy when several "
+                         "characters are logged in")
     ap.add_argument("--memory", default=DEFAULT_DB,
                     help="harness memory (SQLite, docs/MEMORY.md): walk memory, junctures, episodes")
     return ap
@@ -1809,7 +1813,7 @@ def main():
         ap.error("--enter-rune names a rune of --enter-recall's book")
 
     memory = Memory(args.memory)
-    link = Link(args.control_port, args.state_port)
+    link = Link(args.control_port, args.state_port, char=args.char)
     loop = HuntLoop(link, memory, args)
     code = 0
     try:

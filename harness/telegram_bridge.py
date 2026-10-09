@@ -31,7 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import task_wrap as tw  # noqa: E402
-from ctl import ALWAYS_WAKE, HEARTBEAT_KEY, SEVERITY_RANK  # noqa: E402
+from ctl import ALWAYS_WAKE, SEVERITY_RANK, newest_heartbeat  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 
 API = "https://api.telegram.org"
@@ -126,16 +126,19 @@ def save_config(path: str, token: str, chat_id: int):
 
 
 # ----------------------------------------------------------------------- formatting
-def format_chat(row: dict, thoughts: bool = False, actions: bool = False) -> tuple[str, bool] | None:
-    """(text, silent) for a chat row, or None when it isn't forwarded."""
+def format_chat(row: dict, thoughts: bool = False, actions: bool = False,
+                who: str | None = None) -> tuple[str, bool] | None:
+    """(text, silent) for a chat row, or None when it isn't forwarded. `who`: the
+    character whose overseer wrote it (several run at once), named in the prefix."""
     role, kind, text = row["role"], row["kind"], row["text"]
     if role == "overseer":
+        seer = f"seer ({who})" if who else "seer"
         if kind == "message":
-            return f"seer: {text}", False
+            return f"{seer}: {text}", False
         if kind == "thought" and thoughts:
-            return f"seer (thinking): {text}", True
+            return (f"seer ({who}, thinking): {text}" if who else f"seer (thinking): {text}"), True
         if kind == "action" and actions:
-            return f"seer did: {text}", True
+            return f"{seer} did: {text}", True
         return None                            # memory rows, and thoughts/actions unless asked for
     if role == "user":
         # the user's own Telegram lines are already in the chat; viz lines complete the transcript
@@ -143,12 +146,13 @@ def format_chat(row: dict, thoughts: bool = False, actions: bool = False) -> tup
     return f"system: {text}", True
 
 
-def format_juncture(j: dict, min_rank: int) -> tuple[str, bool] | None:
+def format_juncture(j: dict, min_rank: int, who: str | None = None) -> tuple[str, bool] | None:
     """(text, silent) for a juncture: what wakes `ctl wait` (severity >= min_rank,
-    and always a task's end), or None."""
+    and always a task's end), or None. `who`: the character it concerns."""
     if SEVERITY_RANK.get(j["severity"], 0) < min_rank and j["kind"] not in ALWAYS_WAKE:
         return None
-    text = f"{j['severity'].upper()} {j['kind']} #{j['id']} ({j['source']})\n{j['summary']}"
+    src = f"{j['source']}, {who}" if who else j["source"]
+    text = f"{j['severity'].upper()} {j['kind']} #{j['id']} ({src})\n{j['summary']}"
     if j.get("acked_t") is not None:
         text += "\n(already acked)"
     return text, j["severity"] == "info"
@@ -166,6 +170,7 @@ class Bridge:
         self.thoughts, self.actions, self.min_rank = thoughts, actions, min_rank
         self.sleep = sleep
         self._ignored_chats: set = set()
+        self._names: dict = {}       # char_serial -> character name (sessions), for the `who` prefixes
 
     # -- store -> Telegram ------------------------------------------------------
     def init_cursors(self):
@@ -186,12 +191,24 @@ class Bridge:
                            key=lambda x: x[0])
         sent = 0
         for _, key, row in rows:
-            msg = (format_chat(row, self.thoughts, self.actions) if key == CHAT_CURSOR_KEY
-                   else format_juncture(row, self.min_rank))
+            who = self.who(row.get("char_serial"))
+            msg = (format_chat(row, self.thoughts, self.actions, who) if key == CHAT_CURSOR_KEY
+                   else format_juncture(row, self.min_rank, who))
             if msg is not None and self.deliver(*msg):
                 sent += 1
             tw.meta_set(self.mem, key, str(row["id"]))
         return sent
+
+    def who(self, char_serial: int | None) -> str | None:
+        """The name of the character a row belongs to, None for an unscoped row."""
+        if not char_serial:
+            return None
+        if char_serial not in self._names:
+            name = self.mem.char_name_of(char_serial)
+            if name is None:
+                return None              # not logged in through the proxy yet: ask again next time
+            self._names[char_serial] = name
+        return self._names[char_serial]
 
     def deliver(self, text: str, silent: bool) -> bool:
         """Send, waiting out rate limits and outages; False if the API refuses the
@@ -241,8 +258,8 @@ class Bridge:
             self.reply(f"Too long for the Seer chat ({len(text)}/{CHAT_MAX} characters); not sent.")
             return 0
         self.mem.chat_post("user", text, data={"via": VIA, "message_id": msg.get("message_id")})
-        hb = tw.meta_get(self.mem, HEARTBEAT_KEY)
-        age = None if hb is None else time.time() - float(hb)
+        hb = newest_heartbeat(self.mem)
+        age = None if hb is None else time.time() - hb
         if age is None or age >= HEARTBEAT_FRESH_S:
             seen = "never seen" if age is None else f"last seen {ago(age)} ago"
             self.reply(f"No seer running ({seen}); your message waits in the store until one starts.")
