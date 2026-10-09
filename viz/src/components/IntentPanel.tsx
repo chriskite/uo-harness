@@ -27,7 +27,9 @@ export function IntentPanel({ viz }: { viz: VizSnapshot }) {
         <>
           <div className="intent-now">
             <span className={`intent-activity activity-${v.activity}`} aria-label={v.activity} />
-            <span className="intent-text">{v.text}</span>
+            <span className="intent-text" title={v.text}>
+              {v.text}
+            </span>
           </div>
           <div className="intent-meta">
             <Badge kind={v.tone}>{v.kind}</Badge>
