@@ -834,6 +834,15 @@ disturb recovery; a reflected opener would have saved Nusero; flight and healing
     character has the skill; Hackworth has none. Measure what it finds and its skill-use cost
     against the chop rhythm. Reveal (6th circle, 60/80 Magery) only covers 3 × Magery/100 tiles
     around its target point, so it isn't an early warning (#955).
+  - **Deferred (user, 2026-10-08):** Outland Dan has Detect Hidden 100, Tracking 100, Hiding 100.
+    Passively, Tracking (Hunting murderers) already sees hidden reds within 50 tiles; an active use
+    would add hidden greys/blues (thieves) within 8 tiles. Not built because no logs have been
+    stolen since the trapped pouches (2026-10-04): 10 `thief` events, 1 `theft` (2026-10-06, one
+    unexplained item, the 817 carried logs untouched). Proposed shape if it comes back: a use every
+    15–25 s (jittered) between chops at a stand, logging what it reveals, the chop-rhythm cost (chop
+    attempts are a median 4.9 s apart; estimated ≤ ~3 %) and any gap it leaves in Tracking's
+    5 s Hunting checks (whether skill cooldowns are shared on Outlands is unknown: the main risk).
+    Revisit if a hidden thief or a hidden non-red PK costs us.
 - **Mounted flight with scripted healing.** On horseback and healing on the move (potions, Greater
   Heal), we could probably have run from this PK and others instead of standing in a recall that
   gets interrupted. Hackworth's horse died on 10-03; mounted pace is 0.1 s per step (PLAN "Player
