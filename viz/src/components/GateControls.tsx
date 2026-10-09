@@ -106,7 +106,7 @@ export function GateControls({ gate, live }: { gate: Gate | undefined; live: boo
         </span>
       ) : gate.next_break_in_s !== null ? (
         <span className="mono dim" title="agent-active time left before the next forced break">
-          next break in {fmtDuration(gate.next_break_in_s)} active
+          break in {fmtDuration(gate.next_break_in_s)}
         </span>
       ) : null}
       <span className="mono dim" title={`agent-active time on ${gate.day} against the daily cap`}>

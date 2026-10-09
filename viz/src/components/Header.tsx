@@ -90,7 +90,7 @@ export function Header({ viz, page, onPage }: { viz: VizSnapshot; page: Page; on
       {error && <span className="error">{error}</span>}
       <span className="spacer" />
       {viz.state && (
-        <span className="mono dim">
+        <span className="mono dim header-stats" title="next event seq · world model errors (Diagnostics panel)">
           next {viz.state.next} · world_errors {viz.state.world_errors}
         </span>
       )}

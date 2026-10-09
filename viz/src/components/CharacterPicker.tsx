@@ -33,9 +33,13 @@ export function CharacterPicker() {
 
   if (sessions.length === 0) return error ? <span className="error">{error}</span> : null;
   return (
-    <span className="gate" title="the character this viz shows (proxy sessions)">
-      <span className="dim">character</span>
-      <select value={char ?? ""} onChange={(e) => setChar(e.target.value || null)} aria-label="character">
+    <span className="gate char-picker">
+      <select
+        value={char ?? ""}
+        onChange={(e) => setChar(e.target.value || null)}
+        aria-label="character"
+        title="the character this viz shows (the proxy's logged-in sessions)"
+      >
         {char === null && <option value="">choose…</option>}
         {sessions.map((s) => (
           <option key={s.tag} value={s.serial ?? ""} disabled={s.serial === null}>

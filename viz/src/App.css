@@ -504,15 +504,21 @@ h4 {
   width: 140px;
   accent-color: var(--gold);
 }
+/* gate groups keep their content width: a squeezed group would let its buttons spill over
+ * the next one (2026-10-09, with the character picker). When the bar gets too narrow the
+ * header sheds its least useful parts in steps (below) instead of overlapping */
 .gate {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-width: 0;
+  flex-shrink: 0;
 }
 .gate > * {
   white-space: nowrap;
   flex-shrink: 0;
+}
+.char-picker select {
+  max-width: 170px;
 }
 .gate-reason {
   max-width: 280px;
@@ -522,6 +528,37 @@ h4 {
   flex-shrink: 1;
   min-width: 0;
   font-size: 13.5px;
+}
+/* the event counter goes first (a debug figure; world_errors is also in the Diagnostics
+ * panel), then the title text (the ankh stays), then the bar wraps to two rows */
+@media (max-width: 1760px) {
+  .header-stats {
+    display: none;
+  }
+}
+@media (max-width: 1560px) {
+  .title {
+    font-size: 0;
+    margin-right: 0;
+  }
+  .title::before {
+    font-size: 20px;
+    margin-right: 0;
+  }
+}
+@media (max-width: 1340px) and (min-width: 901px) {
+  .app {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+  .header,
+  .app-jobs > header.header,
+  .app-nystul > header.header {
+    height: auto;
+    min-height: 44px;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    padding: 4px 12px;
+  }
 }
 button.danger {
   color: #f6c0b0;

@@ -201,8 +201,8 @@ proxy down or a pre-gate proxy):
 - Kill with a confirm step (`■ kill` → `confirm kill` / `cancel`, auto-cancels after 5 s). Once
   killed both buttons are disabled and the header shows
   `rearm is CLI-only: python harness/agent_gate.py rearm`;
-- `next break in H:MM:SS active`: agent-active time left, so it only runs down while the agent
-  works; during a break, `break until HH:MM:SS (M:SS left)` instead;
+- `break in H:MM:SS`: agent-active time left before the next forced break, so it only runs down
+  while the agent works; during a break, `break until HH:MM:SS (M:SS left)` instead;
 - `today 3:12 / 8:00`: agent-active time today against the cap.
 
 After a press, the reply's gate is shown at once (`VizStore.setGate`); a state frame polled before
@@ -989,6 +989,11 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
   - Panels are gump frames: grained dark-leather gradient, bronze border with a black hairline
     and a faint gold inner bevel (`--frame-shadow`); panel heads are brushed-bronze title bars
     with gold Cinzel `h2`. The header is a leather bar with a gold rule and an ankh before the title.
+  - The header is one 44 px row and never lets groups overlap (each keeps its content width).
+    When it doesn't fit, it sheds in steps: below 1760 px wide the `next N · world_errors N`
+    counter goes, below 1560 px the title text (the ankh stays), below 1340 px the bar wraps
+    to two rows (the ≤900 px phone layout below is separate). Measured 2026-10-09 in Chromium at
+    1920/1568/1400/1200 px with the character picker shown: no overlap on Live, Jobs or Nystul.
   - Overseer journal entries are ink on parchment (`.ov-overseer` redefines `--text`/`--dim`/`--link`
     locally); operator messages are royal-blue cloth; the details drawer bar is the crimson ribbon.
   - Fonts: Cinzel (display: headings, tabs, KPI values; latin subset from Google Fonts, OFL, in
