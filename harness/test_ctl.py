@@ -2141,6 +2141,15 @@ def test_characters(proxy):
     shared = m.juncture("gate", "stuck", "everyone's", severity="attention", char_serial=None)
     code, out = one("wait", "--timeout", "3", "--poll", "0.1")
     check("wait --char 1 is woken by an unscoped juncture", (out.get("event") or {}).get("id") == shared, str(out))
+    # a character's first wait continues from the shared cursor the pre-character overseer left
+    old = m.chat_post("user", "answered before characters existed", char_serial=None)
+    m.con.execute("INSERT OR REPLACE INTO meta VALUES(?, ?)", (ctl.CHAT_CURSOR_KEY, str(old)))
+    m.con.commit()
+    two = Ctl(db, logdir, proxy, char="0x00000002")
+    code, out = two("wait", "--timeout", "1", "--poll", "0.1", "--include-info")
+    check("first wait --char 2 starts at the shared cursor (no replay of old messages)",
+          code == 0 and not any(e.get("id") == old and e.get("type") == "chat" for e in out.get("events") or []),
+          str(out))
     m.close()
 
 

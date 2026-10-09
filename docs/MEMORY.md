@@ -65,6 +65,19 @@ planning stay aggregate. World facts (`walk_moves`, `harvest_*`, `teleporters`, 
 `knowledge`) are shared by all characters. Migration: `memory.connect` adds missing columns
 (`ALTER TABLE ADD COLUMN`, under `BEGIN IMMEDIATE`), the store's first in-place migration.
 
+**Pre-v6 chat and junctures** were all NULL, so every character's Seer panel showed the whole
+history (user report 2026-10-09). `backfill-identity` now also runs `memory.attribute_rows`: a
+NULL row older than the first live session whose proxy emitted `login_confirm` (the v6 proxy's
+first session) gets the character of the newest identified session that started at or before
+it; it stays NULL before any session or while a session of another character was still open.
+Run on the live store 2026-10-09: 3543 chat and 626 juncture rows tagged (TestWorth 994,
+Hackworth 1144, Shackleworth 238, Outland Dan 1167 chat rows). The rule put 10 Seer memory
+lookups of 2026-10-07 19:58 (about Outland Dan, while Logan Wolf was the one logged in) on
+Logan Wolf; they were retagged to Outland Dan by hand. Since v6 a NULL row is deliberate
+(every character), so the backfill leaves newer rows alone. `ctl wait --char X` starts a
+character's first cursor at the shared cursor the pre-character overseer left, so it doesn't
+replay old messages.
+
 **Indexes for time-range reads** (the viz Jobs page's date range, docs/VISUALIZER.md §2.4): `episodes(loop, t_start)`
 (`episodes_loop_t`, added 2026-10-05), `job_events(job, t)` (`job_events_job_t`, since v2) and `harvest_attempts(t)`
 (`harvest_attempts_t`, added 2026-10-05; it also serves `lumber_opt.logs_per_success`'s newest-300 scan). Both new

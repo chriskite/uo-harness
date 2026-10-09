@@ -60,7 +60,8 @@ Writers
   - `python harness/memory.py ingest [--logdir logs]`: replays captures not yet
     in the store through the proxy's own SessionTap (viz_feed.ReplayDriver)
   - `python harness/memory.py backfill-identity [--logdir logs]`: fills the v6
-    identity columns of older sessions from their events, raw capture or episodes
+    identity columns of older sessions from their events, raw capture or episodes,
+    then tags pre-v6 chat/juncture rows with the character online then (attribute_rows)
 
 Readers
   - Memory.walk_memory(facet): nav.WalkMemory projection for the 2D fallback
@@ -68,6 +69,7 @@ Readers
   - plain SQL for analysis (sqlite3 harness/data/harness.db)
 """
 import argparse
+import bisect
 import glob
 import json
 import os
@@ -792,7 +794,8 @@ def _capture_serial(path: str) -> int | None:
 def backfill_identity(db: str, logdir: str) -> dict:
     """Fill the v6 identity columns (account, char_name, char_serial) of sessions that
     lack one, only where NULL: from the session's events, then the player serial from
-    its raw S2C capture, then from the newest episode of the same character name."""
+    its raw S2C capture, then from the newest episode of the same character name.
+    Then attribute the pre-v6 chat and juncture rows to characters (attribute_rows)."""
     con = connect(db)
     out = {"sessions": 0, "from_capture": 0, "from_episodes": 0}
     rows = con.execute("SELECT id, tag, account, char_name, char_serial FROM sessions "
@@ -831,7 +834,44 @@ def backfill_identity(db: str, logdir: str) -> dict:
                         "char_serial = COALESCE(char_serial, ?) WHERE id = ?", (account, name, serial, sid))
             out["sessions"] += 1
     con.commit()
+    out.update(attribute_rows(con))
     con.close()
+    return out
+
+
+def attribute_rows(con) -> dict:
+    """Tag the chat and juncture rows written before v6 (char_serial NULL, t before the
+    first live session whose proxy emitted `login_confirm`, i.e. ran v6) with the
+    character of the newest identified session that started at or before the row:
+    until 2026-10-09 one client was logged in at a time. A row is left NULL when no
+    such session exists, or when a session of another character was still open at t.
+    Rows from v6 on are left alone: their NULL means "every character" (memory.py
+    "Characters (v6)"). Idempotent. Returns {"chat": n, "junctures": n} tagged."""
+    cutoff = con.execute("SELECT MIN(s.started) FROM sessions s WHERE s.source = 'live' AND EXISTS "
+                         "(SELECT 1 FROM events e WHERE e.session = s.id AND e.ev = 'login_confirm')"
+                         ).fetchone()[0]
+    sess = con.execute("SELECT started, ended, char_serial FROM sessions WHERE char_serial IS NOT NULL "
+                       "AND started IS NOT NULL ORDER BY started").fetchall()
+    starts = [s[0] for s in sess]
+
+    def owner(t):
+        i = bisect.bisect_right(starts, t) - 1
+        if i < 0:
+            return None
+        serial = sess[i][2]
+        for started, ended, other in sess[:i]:
+            if other != serial and ended is not None and ended > t:
+                return None            # two characters online at t: can't tell whose
+        return serial
+
+    out = {}
+    for table in ("chat", "junctures"):
+        q = f"SELECT id, t FROM {table} WHERE char_serial IS NULL" + ("" if cutoff is None else " AND t < ?")
+        updates = [(s, rid) for rid, t in con.execute(q, () if cutoff is None else (cutoff,))
+                   if (s := owner(t)) is not None]
+        con.executemany(f"UPDATE {table} SET char_serial = ? WHERE id = ?", updates)
+        out[table] = len(updates)
+    con.commit()
     return out
 
 
@@ -852,7 +892,8 @@ def main(argv=None):
     i.add_argument("--logdir", default=os.path.join(ROOT, "logs"))
     i.add_argument("tags", nargs="*")
     sub.add_parser("stats", help="row counts")
-    b = sub.add_parser("backfill-identity", help="fill account/character of older sessions")
+    b = sub.add_parser("backfill-identity",
+                       help="fill account/character of older sessions; tag pre-v6 chat/junctures")
     b.add_argument("--logdir", default=os.path.join(ROOT, "logs"))
     a = ap.parse_args(argv)
     if a.cmd == "ingest":

@@ -800,8 +800,10 @@ def cmd_break(a, mem):
 def cmd_wait(a, mem):
     jkey = charsel.meta_key(JUNCTURE_CURSOR_KEY, mem.char_serial)
     ckey = charsel.meta_key(CHAT_CURSOR_KEY, mem.char_serial)
-    jcur = int(tw.meta_get(mem, jkey, "0"))
-    ccur = int(tw.meta_get(mem, ckey, "0"))
+    # a character's first wait starts where the shared (pre-character) cursor got to, not at 0:
+    # otherwise it would replay every old message and open juncture as new
+    jcur = int(tw.meta_get(mem, jkey) or tw.meta_get(mem, JUNCTURE_CURSOR_KEY, "0"))
+    ccur = int(tw.meta_get(mem, ckey) or tw.meta_get(mem, CHAT_CURSOR_KEY, "0"))
     min_rank = 0 if a.include_info else SEVERITY_RANK["attention"]
     end = None if a.timeout <= 0 else time.monotonic() + a.timeout
     next_gate = 0.0

@@ -286,16 +286,46 @@ def test_backfill():
     check("from events", rows["ev"] == ["a1", "Hackworth", 0x0020F127], str(rows["ev"]))
     check("serial from the newest episode of the same name", rows["epi"][2] == 0x0014683F, str(rows["epi"]))
     check("serial from the raw capture's login confirm", rows[TAG][2] == 0x00094375, str(rows[TAG]))
-    check("counts", out == {"sessions": 3, "from_capture": 1, "from_episodes": 1}, str(out))
+    check("counts", out == {"sessions": 3, "from_capture": 1, "from_episodes": 1, "chat": 0, "junctures": 0},
+          str(out))
     again = memory.backfill_identity(path, logdir)
     rows2 = dict((t, r) for t, *r in m.con.execute("SELECT tag, account, char_name, char_serial FROM sessions"))
     check("idempotent", rows2 == rows and again["from_episodes"] == 0, str(again))
     m.close()
 
 
+def test_attribute_rows():
+    print("pre-v6 chat/junctures attributed to the character online then")
+    path = tmpdb()
+    m = Memory(path)
+    c = m.con
+    # (tag, started, ended, serial); B crashed (no end); C and D overlap; E is the first v6 proxy session
+    for tag, started, ended, serial in (("A", 100, 200, 1), ("B", 300, None, 2), ("C", 400, 500, 1),
+                                        ("D", 450, 600, 2), ("E", 1000, None, 1)):
+        c.execute("INSERT INTO sessions(tag, source, started, ended, char_serial) VALUES(?,?,?,?,?)",
+                  (tag, "live", started, ended, serial))
+    sid = c.execute("SELECT id FROM sessions WHERE tag='E'").fetchone()[0]
+    c.execute("INSERT INTO events VALUES(?,?,?,?,?,?)",
+              (sid, 0, 1000.0, "world", "login_confirm", '{"ev": "login_confirm", "serial": 1}'))
+    c.commit()
+    want = {50: None, 150: 1, 250: 1, 350: 2, 420: 1, 460: None, 700: 2, 1100: None}
+    ids = {t: m.chat_post("overseer", f"t{t}", t=t, char_serial=None) for t in want}
+    kept = m.chat_post("overseer", "already tagged", t=150, char_serial=2)
+    jid = m.juncture("lumber", "stuck", "s", t=350, char_serial=None)
+    out = memory.attribute_rows(c)
+    got = {t: c.execute("SELECT char_serial FROM chat WHERE id=?", (i,)).fetchone()[0] for t, i in ids.items()}
+    check("before any session / two characters online / written by v6: left unscoped; else the newest session's",
+          got == want, str(got))
+    check("a tagged row is kept", c.execute("SELECT char_serial FROM chat WHERE id=?", (kept,)).fetchone()[0] == 2)
+    check("junctures too", c.execute("SELECT char_serial FROM junctures WHERE id=?", (jid,)).fetchone()[0] == 2)
+    check("counts", out == {"chat": 5, "junctures": 1}, str(out))
+    check("idempotent", memory.attribute_rows(c) == {"chat": 0, "junctures": 0})
+    m.close()
+
+
 def main():
     for t in (test_walk_rows, test_projection, test_harvest, test_writer, test_ingest, test_migrate_v5,
-              test_writer_identity, test_scoping, test_backfill):
+              test_writer_identity, test_scoping, test_backfill, test_attribute_rows):
         t()
     print(f"\nmemory: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     return 1 if FAILURES else 0
