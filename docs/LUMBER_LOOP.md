@@ -1136,11 +1136,20 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - **Trigger:** a red anywhere in view (no ETA test), a hostile player in flee range, a
     non-creature swinging at us, or a player named in "… is attacking you!". Since 2026-10-06
     (user, after the run-16 death at witcher_66, docs/NOTES.md), out at a pvp spot (`afield`) also:
-    - **a player with an Outlands faction tag in view** (`field_players`): the title line under its
-      click label, "Elite Mercenary [Cambria]" or a bare "Cambria", in that faction's hue (world
-      `runtime.title_tags`: Cambria 50, Andaria 2603, Terran 2127, Prevalia 38). Faction players
+    - **a player with an Outlands faction tag** (`field_players`, `faction_threat`): the title line
+      under its click label, "Elite Mercenary [Cambria]" or a bare "Cambria", in that faction's hue
+      (world `runtime.title_tags`: Cambria 50, Andaria 2603, Terran 2127, Prevalia 38). Faction players
       look blue to us (we take no part) until they attack. Of 75 lumber trips, 4 had one in view and
-      2 of those ended in an attack; 3 of the 5 players who ever attacked us were tagged.
+      2 of those ended in an attack; 3 of the 5 players who ever attacked us were tagged. Until
+      2026-10-08 any tagged player in view sent us home: 8 recalls from 2026-10-06 to 10-09, each a
+      lone blue at 12–18 tiles, none of them attacked. Since 2026-10-09 (user: "we're recalling away
+      from blues too much") only when **two or more** tagged players are in view (the witcher_66 death:
+      five by a faction waypost), at a **faction zone** (a waypost seen this trip, or the spot's
+      stored `faction_zone`), when he is within **12 tiles** (`FACTION_NEAR`, the user's pick: a mounted
+      player covers it in ~1.2 s), or when he has come **3 tiles** nearer to where we stand by his own
+      moves since first seen (`FACTION_CLOSING`); else he is watched ("watching <name> [<faction>] at N
+      tiles (faction tag, alone)", once a trip). Scenario `faction_lone` (16 tiles: watched, the trip
+      stores; 3 tiles nearer: "closing in", home).
     - **a player saying a harmful spell's power words within 12 tiles** (`threats.HARMFUL_WORDS`:
       Magic Arrow … Earthquake, the fields, Paralyze; not heals, buffs or travel): a precast held for
       us. On run 16 "In Por Ylem" and "Vas Ort Flam" came 6.6 and 5.2 s before "… is attacking you!".
@@ -1158,8 +1167,13 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     (tome: its detail page's Cast Recall), spell after "no charges". Since 2026-10-06 (option E,
     `player_escape`), when one of the players is within spell range (12 tiles) it first cancels any
     target cursor and runs until each is 18 tiles off (`PLAYER_RECALL_GAP`) or out of view, then casts
-    once, and runs again after a disturbed cast; 3 failed casts, then the guard flight (docs/PLAN.md
-    "Leave on faction tags and on precasts").
+    once, and runs again after a disturbed cast. Since 2026-10-09 the same when none is that near: one
+    standing cast at once, and if it fails, run, then cast, never escape.escape's standing recasts
+    (live that day at witcher_193 red "mauna kea" came from 18 tiles and disturbed six standing casts in
+    8 s; user: "so we don't stand still getting wailed on"). After 3 failed casts the guard flight,
+    when a guarded place is known (`guard_goals`); with none (witcher_193: none within 250 tiles) it
+    runs and casts on until a recall lands or we die (docs/PLAN.md "Leave on faction tags and on
+    precasts"; `unit_run_and_recall`).
   - **Retries (since 2026-10-03, docs/research/SPELL_INTERRUPTS.md):** it recasts until the
     recall lands, the character dies, the spell can't be cast (heat of battle, no reagents or
     mana, unmarked, blocked) or 20 s after the first press (`escape.ESCAPE_BUDGET_S`); there is
@@ -1321,9 +1335,10 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     lumbers on. `--track off` disables all of it.
   - **React to hits:** a hit while hunting murderer players (the world model keeps the mode at
     hit time) is a red, possibly out of view. Its distance is Chebyshev from us to the arrow's x/y
-    (the "(N spaces to target)" line when there's no arrow). Within `--track-react-range` (60,
-    user decision 2026-10-08; 80 from 2026-10-03, and 40 until Bastet's third kill: tracked at 55
-    tiles at 19:07:50, logged only, striking 5.5 s later mounted) at a pvp spot while out at it (after the travel
+    (the "(N spaces to target)" line when there's no arrow). Within `--track-react-range` (80,
+    user decision 2026-10-03, after Bastet's third kill: tracked at 55 tiles at 19:07:50, logged only
+    with the old 40, striking 5.5 s later mounted; 60 for one day, 2026-10-08/09, until red "mauna kea",
+    tracked at 68 tiles and logged only, killed Dan 10 s later) at a pvp spot while out at it (after the travel
     out, until home), it is the red escape above: `recall_out` with why `tracking: <name> N spaces`,
     the guard flight if that fails, then stop. Each new hit is checked, so a red first found far
     that comes within range triggers then. A red already recalled from never triggers again in the

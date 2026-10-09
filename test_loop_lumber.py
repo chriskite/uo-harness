@@ -204,7 +204,7 @@ TRACK_MODES = ("criminal players", "innocent players", "friendly players", "aggr
                "passive creatures", "townsfolk", "all players", "all hostile players",
                "enemy players", "murderer players")
 RED, RED_NAME = 0x0009E217, "Lord Red"                    # a murderer the hunt finds, never in view
-RED_FAR, RED_NEAR = 100, 55                               # tiles from us at the two hits (react range 60; Bastet 10-03: 55)
+RED_FAR, RED_NEAR = 100, 55                               # tiles from us at the two hits (react range 80; Bastet 10-03: 55)
 # creature runs (LUMBER_LOOP.md §13 "Running from a creature"): a gazer (body 22, ranged) casts at us from 10
 # tiles at the library spot; a war-mode creature stands by the nearest tree on Shelter
 GAZER, GAZER_BODY, GAZER_DMG, GAZER_CAST_S = 0x0000CA5E, 22, 10, 2.5
@@ -595,6 +595,7 @@ class World:
         self.shelf_hatchets = {"room": 0, "landing": 0}   # fresh hatchets in each shelf's stock
         self.hatchet_clicks = []                      # (serial, uses) per single click on a hatchet
         self.broke = []                               # hatchets that broke
+        self.lone = None                  # faction_lone: 'stay' / 'close' (lone_foe) instead of the faction scene
         self.unseen_caster = False        # unseen_caster: instead of the gazer, a caster past the view range strikes once
         self.caster_hits = []             # unseen_caster: times its Flamestrike landed
         self.archer = False               # pacer: instead of the gazer, an archer that keeps its distance
@@ -1173,6 +1174,9 @@ class World:
         (his tag "[Cambria]", ours none: we don't take part), 4 tiles off; the faction waypost marker
         "FACTION WP 17" 9 tiles off. CALM_S later a Cambria faction player of another guild 10 tiles off
         (Bee Loga: still blue). The title lines come as the server's answer to the client's click on sight."""
+        if self.lone is not None:
+            self.lone_foe()
+            return
         x, y = self.pos
         self.calm_t = time.time()
         self.send(player_says(SELF, CHAR_NAME, "[Farm Around Find Out, DTF]", hue=690))
@@ -1190,6 +1194,21 @@ class World:
         self.red_t = time.time()
         self.send(player_says(FOE, "Bee Loga", "Elite Mercenary [Cambria]", hue=50))
         self.send(player_says(FOE, "Bee Loga", "[Officer, LoK]", hue=690))
+
+    def lone_foe(self):
+        """faction_lone (user 2026-10-09: 8 recalls from lone faction-tagged blues at 12-18 tiles, none attacked): no
+        guildmate, no waypost; a Cambria-tagged blue 16 tiles off. lone 'stay': he stays there; 'close': 2 s later he
+        stands 3 tiles nearer (13 off: still beyond FACTION_NEAR)."""
+        x, y = self.pos
+        self.calm_t = self.red_t = time.time()
+        self.foe_pos = (x + 16, y)
+        self.send(player_update(FOE, *self.foe_pos))
+        self.send(player_says(FOE, "Bee Loga", "Elite Mercenary [Cambria]", hue=50))
+        if self.lone == "close":
+            def nearer():
+                self.foe_pos = (self.foe_pos[0] - 3, self.foe_pos[1])
+                self.send(player_update(FOE, *self.foe_pos))
+            asyncio.get_running_loop().call_later(2.0, nearer)
 
     def precast_appears(self):
         """precast (live 2026-10-06 witcher_66: "Vas Ort Flam" 5.2 s before the attack): a blue healing
@@ -2414,7 +2433,7 @@ async def track_reds():
     far = [d for d in seen if d.get("source") == "tracking" and d.get("distance") == RED_FAR]
     near = [d for d in seen if d.get("source") == "tracking" and d.get("distance") == RED_NEAR]
     check("the far hit (100 tiles): a pk_seen event from tracking with the name, serial and arrow, logged only "
-          "(beyond the react range 60: no escape, not counted as hazard)",
+          "(beyond the react range 80: no escape, not counted as hazard)",
           len(far) == 1 and far[0]["serial"] == RED and far[0]["name"] == RED_NAME
           and far[0]["x"] == LIB_TREE["stand"][0] + RED_FAR and not far[0]["in_range"] and not far[0]["react"]
           and not far[0]["counted"] and far[0]["spaces"] == RED_FAR and far[0]["mode"] == "murderer players"
@@ -2978,6 +2997,44 @@ async def faction():
           and (row["data"].get("faction_zone") or {}).get("label") == "FACTION WP 17" and row["status"] == "active",
           f"{ev} {row}")
     store.close()
+
+
+async def faction_lone():
+    """User 2026-10-09 ("we're recalling away from blues too much"): a lone faction-tagged blue 16 tiles off, no
+    waypost, no group, isn't fled from: watched, the trip chops on and stores. The same blue coming 3 tiles nearer
+    is: home ("closing in")."""
+    print("\n== faction, lone: a tagged blue far off is watched; one closing in is fled from ==")
+
+    async def overseer(db):
+        """The title lines read as his speech here (no client clicks him on sight; live the client does): ack the
+        hold at once, as the overseer would for an innocent line."""
+        store = memory.Memory(db)
+        try:
+            while True:
+                await asyncio.sleep(0.3)
+                for (jid,) in store.con.execute("SELECT id FROM junctures WHERE kind='speech_nearby' "
+                                                "AND acked_t IS NULL").fetchall():
+                    store.juncture_ack(jid)
+        finally:
+            store.close()
+    for mode in ("stay", "close"):
+        world = World("faction")
+        world.lone = mode
+        text, code, store, _ = await run_scenario(world, f"faction_lone_{mode}", [LIB_TREE],
+                                                  ["--trips", "1", "--logs-per-trip", "100", "--human", "normal",
+                                                   "--seed", "5", "--regrow-min", "0.05"], spot_extra=LIB_SPOT,
+                                                  during=overseer)
+        rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall" and e["data"].get("threat")]
+        if mode == "stay":
+            check("a lone tagged blue at 16 tiles: watched (logged once), no recall from him, the trip stored (exit 0)",
+                  world.red_t is not None and "[Cambria] at 16 tiles (faction tag, alone)" in text and not rec
+                  and code == 0 and [e["outcome"] for e in store.episodes("lumber")] == ["stored"],
+                  f"exit {code} rec {str(rec)[:300]}\n{text[-900:]}")
+        else:
+            check("the same blue 3 tiles nearer by his own moves: recalled from, 'closing in'",
+                  rec and rec[-1]["ok"] and rec[-1]["threat"]["serial"] == FOE
+                  and "closing in" in rec[-1]["threat"]["reason"], f"exit {code} {str(rec)[:400]}\n{text[-900:]}")
+        store.close()
 
 
 async def precast():
@@ -3747,7 +3804,8 @@ def unit_run_and_recall():
         link=SimpleNamespace(state=lambda: {}, pos=lambda st: (5, 6, 0, 0)),
         watch=SimpleNamespace(update=lambda st, **kw: SimpleNamespace(dead=state["dead"])),
         memory=SimpleNamespace(juncture=lambda *a: juncs.append(a)), trip_n=1, k={"spot": {"id": "sim"}},
-        pacer=lambda st, a: None, flight_hit=lambda *a, **kw: None)
+        pacer=lambda st, a: None, flight_hit=lambda *a, **kw: None, guard_goals=lambda st, w: guards_known[:])
+    guards_known = [(1, 1)]
     fake.threat_name = loop_lumber.LumberLoop.threat_name
     fake.run_and_recall = types.MethodType(loop_lumber.LumberLoop.run_and_recall, fake)
     retry, look = loop_lumber.RECALL_RETRY_S, loop_lumber.KEEP_RUNNING_LOOK_S
@@ -3779,10 +3837,25 @@ def unit_run_and_recall():
         state["dead"] = False
         why = fake.run_and_recall({}, SimpleNamespace(dead=False), None, {}, None, players=True)
         check(f"players (option E): run, a pk cast, run again; after {loop_lumber.PLAYER_RECALL_TRIES} failed casts it "
-              "returns why (the guard flight follows), no keep_running juncture, the creature tally untouched",
+              "returns why (a guarded place is known: the guard flight follows), no keep_running juncture, the "
+              "creature tally untouched",
               log_ == ["run", "cast:1"] * loop_lumber.PLAYER_RECALL_TRIES and outcome["pk"] == [True] * 3
               and why and "disturbed" in why and juncs == [] and fake.creature["recall_fails"] == 0,
               f"{log_} {outcome} {why} {juncs}")
+        # live 2026-10-09 (witcher_193, mauna kea): no guarded place within 250 tiles; six standing casts disturbed
+        log_.clear()
+        guards_known.clear()
+        after_us[:] = [True, False, True, True, True]          # the second look finds nobody near: cast standing
+        outcome.update(casts=0, land_at=5, die_at=None, pk=[])
+        landed = False
+        try:
+            fake.run_and_recall({}, SimpleNamespace(dead=False), None, {}, None, players=True)
+        except loop_lumber.Unsafe:
+            landed = True
+        check("players, no guarded place known: never a standing multi-cast (one cast per try), a run before each "
+              "while he is near, and on past PLAYER_RECALL_TRIES until one lands",
+              landed and log_ == ["run", "cast:1", "look", "cast:1", "run", "cast:1", "run", "cast:1", "run", "cast:1"],
+              str(log_))
     finally:
         loop_lumber.RECALL_RETRY_S, loop_lumber.KEEP_RUNNING_LOOK_S = retry, look
 
@@ -4205,7 +4278,7 @@ if __name__ == "__main__":
     runs = [main, skirmish, leash, break_due, stop_after_trip, library, library_chased, track_reds, gazer_run,
             gazer_rehit, gazer_reflect, unseen_caster, pacer,
             wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, work_heal, work_spell, thief_keep_away,
-            pouch_pop,
+            pouch_pop, faction_lone,
             no_pouch,
             resupply,
             convert_stacks,

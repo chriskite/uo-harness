@@ -1311,7 +1311,7 @@ speech) and D (a hold timeout).
   aggressor, F or G) with one of them within spell range (12 tiles) first runs until every one is
   `PLAYER_RECALL_GAP` (18) tiles off or out of view (`gain_distance` toward the escape goals, at most
   60 steps), then casts once; a disturbed cast means run again, then cast again. After 3 failed casts the
-  guard flight follows as before. Nobody within 12 tiles: recall at once, standing, as before. The chop
+  guard flight follows as before. Nobody within 12 tiles: recall at once, standing, as before (since 2026-10-09 one cast, then run-then-cast: see "After the witcher_193 death"). The chop
   cursor is cancelled before the run. [INFERENCE: against a mounted mage holding a precast the gap
   buys little; it beats one who has to cast after closing in.] Scenarios `red_aim`, `faction`, `precast`
   check the first step away within 0.5 s and the book pressed 18+ tiles off.
@@ -1332,6 +1332,23 @@ User: "reduce the distance where we recall out when a red is tracked to 60 or le
 range went to 80 after Bastet, tracked at 55 tiles, struck mounted ~6.5 s later; 55 is still inside
 60, but a mounted red at 61–80 tiles is ~1–2 s from that point, and the in-view red rule (any red
 in view: recall) is the backstop. Reds beyond the range also stop counting as the spot's hazard.
+
+## After the witcher_193 death: red range back to 80, faction blues watched, run between player casts (decided and built 2026-10-09)
+
+Seer-13's shift ended in a death (`lumber-20261009-135029-f526`, 14:25): red "mauna kea" was tracked at
+68 tiles ("beyond 60: logged only"), came into view mounted at 18 tiles 10 s later, and disturbed six
+standing recall casts in 8 s (none within 12 tiles at sight, so no run first; no guarded place within
+250 tiles). User decisions:
+- **Tracked-red range back to 80.** The 60 of 2026-10-08 is undone; at 80 the recall would have begun at
+  the 68-tile hit.
+- **Faction-tagged blues watched, not fled from** (user: "we're recalling away from blues too much"): 8
+  recalls since 2026-10-06, each a lone blue at 12–18 tiles, none attacked. Now home only for two or more
+  tagged players, a faction zone, one within 12 tiles (the user's pick over 8) or one closing in by 3+
+  tiles. Kept: precast words within 12 tiles, attacks, reds.
+- **Run between player-escape casts.** No standing multi-cast against players: one cast at once, then
+  run-then-cast; past 3 casts the guard flight only when a guarded place is known, else run and cast on.
+  [INFERENCE] Against a mounted red that keeps pace the run may gain little; it moves Dan out of melee
+  reach between casts and lets potions work, which standing did not.
 
 ## Enough hatchet uses for every trip (decided and built 2026-10-08)
 

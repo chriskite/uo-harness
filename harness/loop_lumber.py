@@ -248,7 +248,12 @@ MOUNT_FOLLOW_S = 4.0          # after the recall out, how long a following mount
 # [INFERENCE]; after PLAYER_RECALL_TRIES failed casts the guard flight follows.
 PLAYER_RUN_RANGE = threats.SPELL_WORDS_RANGE
 PLAYER_RECALL_GAP = threats.SPELL_WORDS_RANGE + 6
-PLAYER_RECALL_TRIES = 3
+PLAYER_RECALL_TRIES = 3      # failed casts before the guard flight, when a guarded place is known
+# Faction-tagged players (faction_threat, user 2026-10-09): home only in a group, at a faction zone, within
+# FACTION_NEAR tiles (12: the user's pick after the 2026-10-09 death; a mounted player covers it in ~1.2 s), or
+# once he has come FACTION_CLOSING tiles nearer to us by his own moves
+FACTION_NEAR = 12
+FACTION_CLOSING = 3
 PACK_DEPTH_MAX = 16           # container nesting bound when looking for the hatchet
 FLEE_MAX_MOVES = 400          # a guard flight's step bound (guards.FLEE_MAX_DIST tiles and detours)
 FLEE_ARRIVAL_WAIT_S = 1.5     # after a flight arrives: how long its 500112 may still come (data.confirmed)
@@ -498,6 +503,8 @@ class LumberLoop:
         self._later = []             # store writes check_threats defers until after its escape (later)
         self._checking = 0           # check_threats nesting (an escape's walk checks again): flush at 0
         self.waypost_seen = False    # this trip: a faction waypost marker noted (note_waypost)
+        self.faction_first = {}      # this trip: faction-tagged serial -> its tile when first seen (faction_threat)
+        self.faction_watched = set() # this trip: faction-tagged players logged as watched, not fled from
         self.player_foes = set()     # serials player_escape runs from (gain_distance players=True)
         self._flee_mark = 0          # len(link.events) when the guard flight started
         self.facet = know["facet"]   # the spot's facet: tree records and candidates
@@ -1132,31 +1139,56 @@ class LumberLoop:
         """Out at a pvp spot (afield), players that send us home before any flag (user, 2026-10-06,
         after run 16's death at witcher_66): one who says a harmful spell's power words within
         threats.SPELL_WORDS_RANGE (a precast held for us: the words came 5-7 s before the attack),
-        and any player with an Outlands faction tag in view (2 of the 4 lumber trips with one in view
-        ended in an attack; 3 of the 5 players who ever attacked Dan carried one). Not one of our
-        guild or faction (threats.friendly). Each is marked hostile with the why (pk_seen, the
-        threat juncture) and recalled from at once like a red. The spell words are read every check,
-        so ones said at home don't count later. A faction waypost marker in view marks the spot
-        (note_waypost)."""
+        and a player with an Outlands faction tag (faction_threat: since 2026-10-08 only in a group,
+        at a faction zone, near or closing in). Not one of our guild or faction (threats.friendly).
+        Each is marked hostile with the why (pk_seen, the threat juncture) and recalled from at once
+        like a red. The spell words are read every check, so ones said at home don't count later. A
+        faction waypost marker in view marks the spot (note_waypost)."""
         casts = self.harmful_casts(st)
         if not (self.afield and self.k["pvp"]):
             return []
         self.note_waypost(st)
         me = st["world"].get("self") or {}
+        here = tuple(self.link.pos(st)[:2])
+        mobs = st["world"].get("mobiles") or {}
+        tagged = [t for t in a.threats if t.player and t.distance >= 0 and t.faction and not threats.friendly(t, me)]
         out = []
         for t in a.threats:
             if not t.player or t.distance < 0 or threats.friendly(t, me):
                 continue
             if t.serial in casts and t.distance <= threats.SPELL_WORDS_RANGE:
                 t.reason = f"said the words of {casts[t.serial]} {t.distance} tiles off (a precast)"
-            elif t.faction:
-                t.reason = f"faction tag [{t.faction}] at {t.distance} tiles"
+            elif t.faction and (why := self.faction_threat(t, tagged, mobs, here)):
+                t.reason = f"faction tag [{t.faction}] at {t.distance} tiles: {why}"
             else:
                 continue
             t.hostile, t.action = True, "flee"
             t.evidence.append(t.reason)
             out.append(t)
         return out
+
+    def faction_threat(self, t, tagged: list, mobs: dict, here) -> str | None:
+        """Why a faction-tagged player (not ours) sends us home, or None: we watch him (user,
+        2026-10-09: "we're recalling away from blues too much": 8 recalls since 2026-10-06, each a lone
+        blue at 12-18 tiles, none of them attacked). Home when two or more tagged players are in view
+        (the witcher_66 death: five tagged players by a faction waypost, one walked up to 2 tiles), the
+        spot is a faction zone (a waypost seen this trip or before), he is within FACTION_NEAR tiles, or
+        he has come FACTION_CLOSING tiles nearer to where we stand since first seen (his own moves)."""
+        m = mobs.get(f"0x{t.serial:08X}") or {}
+        pos = (m["x"], m["y"]) if m.get("x") is not None else None
+        first = self.faction_first.setdefault(t.serial, pos)
+        if len(tagged) >= 2:
+            return f"{len(tagged)} faction-tagged players in view"
+        if self.waypost_seen or self.k["spot"].get("faction_zone"):
+            return "at a faction zone"
+        if t.distance <= FACTION_NEAR:
+            return f"within {FACTION_NEAR} tiles"
+        if first is not None and pos is not None and cheb(first, here) - cheb(pos, here) >= FACTION_CLOSING:
+            return f"closing in ({cheb(first, here)} -> {cheb(pos, here)} tiles)"
+        if t.serial not in self.faction_watched:
+            self.faction_watched.add(t.serial)
+            log(f"watching {t.name or f'0x{t.serial:08X}'} [{t.faction}] at {t.distance} tiles (faction tag, alone)")
+        return None
 
     def note_waypost(self, st):
         """A faction waypost marker in view (its click label, e.g. "FACTION WP 17", "1Frozen Ruin
@@ -1471,7 +1503,10 @@ class LumberLoop:
         `threat` juncture (action 'keep_running') asks the overseer to find out why; it stops
         the task when it must (ctl stop).
         `players` (player_escape): from the players in player_foes, PLAYER_RECALL_GAP, a pk
-        escape; after PLAYER_RECALL_TRIES failed casts it returns why (the guard flight follows).
+        escape; one cast per try (never escape.escape's standing recasts: live 2026-10-09 a mounted red
+        disturbed six standing casts in 8 s and Dan died), a run before each; after PLAYER_RECALL_TRIES
+        failed casts it returns why when a guarded place is known (the guard flight follows), else it
+        runs and recasts on until a recall lands or we die.
         A pacer (a ranged creature keeping its distance as we run: pacer) isn't run from: the book
         opens and the cast starts the moment its next shot lands (next_shot_gate), each recast
         too. Hits taken on the way and during the casts are monster_hit rows (flight_hit)."""
@@ -1494,7 +1529,8 @@ class LumberLoop:
                 a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
                 continue
             try:
-                fail = self.recall_out(st, a, worst, swung, pk=players, why=why, attempts=1 if ran else None,
+                fail = self.recall_out(st, a, worst, swung, pk=players, why=why,
+                                       attempts=1 if ran or players else None,
                                        gate=None if pace is None else self.next_shot_gate(st, *pace))
             except Unsafe:
                 if not players:
@@ -1510,7 +1546,7 @@ class LumberLoop:
                 gave_up = time.monotonic()
             fails += 1
             if players:
-                if fails >= PLAYER_RECALL_TRIES:
+                if fails >= PLAYER_RECALL_TRIES and self.guard_goals(st, worst):
                     return f"{fail} ({fails} tries, running between them)"
                 log(f"{fail}; running on")
                 st = self.link.state()
@@ -1534,15 +1570,35 @@ class LumberLoop:
         mage's Energy Bolts disturbed three standing recalls in a row, the first 1.26 s into the cast;
         you can't move while casting). One of them within PLAYER_RUN_RANGE (spell range): run
         PLAYER_RECALL_GAP tiles off or out of view first, then cast, and run again after a disturbed
-        cast (run_and_recall, players). None that near: recall at once, standing (recall_out). Returns
-        why it failed; died while running: that."""
+        cast (run_and_recall, players). None that near: one cast at once, standing (recall_out); if it
+        fails, the same run-then-cast (user 2026-10-09: "so we don't stand still getting wailed on",
+        after mauna kea came from 18 tiles and disturbed six standing casts). Returns why it failed;
+        died while running: that."""
         self.player_foes = {t.serial for t in players} | set(aggressors)
         near = [t for t in a.threats if t.serial in self.player_foes and 0 <= t.distance <= PLAYER_RUN_RANGE]
         if not near:
-            return self.recall_out(st, a, worst, swung)
-        log(f"{self.threat_name(near[0])} within {near[0].distance} tiles (spell range): running before the recall")
+            fail = self.recall_out(st, a, worst, swung, attempts=1)
+            st = self.link.state()
+            a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+            if a.dead:
+                return fail
+            log(f"{fail}; running before the next cast")
+        else:
+            log(f"{self.threat_name(near[0])} within {near[0].distance} tiles (spell range): running before the "
+                f"recall")
         self.drop_cursor()                       # no target answered after the threat, none up while we run
         return self.run_and_recall(st, a, worst, swung, None, players=True) or "died while running from players"
+
+    def guard_goals(self, st, worst) -> list:
+        """The guarded places a guard flight could run to from here (guards.flee_goals), away from `worst`."""
+        me = tuple(self.link.pos(st)[:2])
+        facet = st["world"]["self"].get("map") or 0
+        attacker = None
+        if worst is not None:
+            m = st["world"]["mobiles"].get(f"0x{worst.serial:08X}")
+            if m and m.get("x") is not None:
+                attacker = (m["x"], m["y"])
+        return guards.flee_goals(self.memory.guard_points(facet), guards.bank_markers(), facet, me, attacker)
 
     @staticmethod
     def threat_name(t) -> str:
@@ -1680,14 +1736,7 @@ class LumberLoop:
         Returns (after logging why) only when the flight failed; the caller then
         stops the plain way."""
         self.drop_cursor()
-        me = tuple(self.link.pos(st)[:2])
-        facet = st["world"]["self"].get("map") or 0
-        attacker = None
-        if worst is not None:
-            m = st["world"]["mobiles"].get(f"0x{worst.serial:08X}")
-            if m and m.get("x") is not None:
-                attacker = (m["x"], m["y"])
-        goals = guards.flee_goals(self.memory.guard_points(facet), guards.bank_markers(), facet, me, attacker)
+        goals = self.guard_goals(st, worst)
         if not goals:
             log(f"guard flight: no guarded place known within {guards.FLEE_MAX_DIST} tiles")
             return
@@ -3874,6 +3923,7 @@ class LumberLoop:
         self.run_arrived, self.creature, self.avoided = None, self.new_creature_tally(), set()
         self.recent_guards, self.dropped_trees, self.no_route, self.switch_tree = {}, {}, set(), None
         self.recalled_home, self.waypost_seen = False, False
+        self.faction_first, self.faction_watched = {}, set()
         self.hops_done = hops
         # the trip began with resupply_home (run): its time and steps are the trip's overhead too
         t0, s0, b0 = self.pre_trip or (time.time(), self.mover.steps, self.mover.blocked_count)
@@ -4048,6 +4098,7 @@ class LumberLoop:
         self.deadline = max(self.deadline, time.monotonic() + hop["timeout_s"])
         self.afield = False
         self.escaped, self.counted, self.sighted = set(), set(), {}
+        self.faction_first, self.faction_watched, self.waypost_seen = {}, set(), False
         self.doing("hop", f"Going on to {spot.get('name') or hop['spot']} with {hop['carried']} logs")
 
     def settle_at_home(self):
@@ -4313,11 +4364,11 @@ def main():
     ap.add_argument("--track", choices=("reds", "off"), default="reds",
                     help="keep Tracking's Hunting mode on murderer players all run (tracking.py); murderer hits "
                          "within --track-react-range at a pvp spot send us home like a red in view")
-    ap.add_argument("--track-react-range", type=int, default=60,
+    ap.add_argument("--track-react-range", type=int, default=80,
                     help="tiles (Chebyshev to the tracking arrow) within which a tracked red triggers the escape; "
-                         "farther ones (reds in their houses) are logged only. 60 (user decision 2026-10-08; 80 "
-                         "since 2026-10-03, after a mounted red covered 55 tiles in ~5.5 s and killed us when the old "
-                         "40 only logged him; 11 of the 24 tracked-red recalls by then were at 61-80 tiles)")
+                         "farther ones (reds in their houses) are logged only. 80 (user decision 2026-10-03, after a "
+                         "mounted red covered 55 tiles in ~5.5 s; back to 80 on 2026-10-09 after a day at 60: red "
+                         "'mauna kea' was tracked at 68 tiles, logged only, and killed Dan 10 s later)")
     ap.add_argument("--track-retry-s", type=float, default=30.0,
                     help="at most one try to turn Hunting back on per this many seconds")
     ap.add_argument("--creature-recall-at", type=float, default=0.6,
