@@ -70,6 +70,8 @@ interface Scene {
   goalKind: string | null;
   /** The running lumber job's grove (/api/lumber/grove) when on this facet, else null. */
   grove: GroveResponse | null;
+  /** On facet 0, the only one with a facet picture and walk memory; elsewhere (rental rooms: facet 3) the map is blank. */
+  mainFacet: boolean;
 }
 
 function buildScene(viz: VizSnapshot, layer: WalkLayer, grove: GroveResponse | null): Scene {
@@ -133,6 +135,7 @@ function buildScene(viz: VizSnapshot, layer: WalkLayer, grove: GroveResponse | n
     goal: intentGoal(st?.intent, world),
     goalKind: st?.intent && intentGoal(st.intent, world) ? (st.intent.kind ?? "target") : null,
     grove: grove?.spot && (grove.spot.facet ?? 0) === (self?.map ?? 0) ? grove : null,
+    mainFacet: (self?.map ?? 0) === 0,
   };
 }
 
@@ -224,7 +227,11 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
     };
   }, [groveKey]);
 
-  const layer = useMemo(() => buildWalkLayer(viz.walkmem, viz.agg.live), [viz.walkmem, viz.agg.live]);
+  const mainFacet = (self?.map ?? 0) === 0;
+  const layer = useMemo(
+    () => (mainFacet ? buildWalkLayer(viz.walkmem, viz.agg.live) : buildWalkLayer(null, { steps: [], blocked: [] })),
+    [mainFacet, viz.walkmem, viz.agg.live],
+  );
   const scene = useMemo(() => buildScene(viz, layer, groveOn ? grove : null), [viz, layer, groveOn, grove]);
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
@@ -256,7 +263,7 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
     ctx.fillRect(0, 0, W, H);
 
     // Underlay: the client's own 1 px/tile facet picture (/api/facet), chunk by chunk.
-    if (terrainOn.current && chunks.current && facet.current.chunk) {
+    if (s.mainFacet && terrainOn.current && chunks.current && facet.current.chunk) {
       const c = facet.current.chunk;
       ctx.imageSmoothingEnabled = false;
       for (const [cx, cy] of chunksInView(facet.current, { x0, x1, y0, y1 })) {

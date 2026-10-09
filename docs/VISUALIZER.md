@@ -907,6 +907,10 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
     - Tests: `harness/test_facet.py` (synthetic file) and `viz/src/facet.test.ts`.
   - **Underlay: walk memory** (`/api/walkmem`, plus live `step`/`blocked` events): known-walkable
     tiles shaded, confirmed edges faint, blocked moves as red ticks. It shows the planner's world directly.
+  - **Off facet 0 the map is blank** (2026-10-08, `world.self.map != 0`, e.g. rental rooms on facet 3):
+    the facet picture and the walk-memory/live-step layer are facet-0 data and are not drawn, so the
+    room's coordinates don't show the unrelated facet-0 terrain at the same x/y. Self, mobiles, items and
+    the trail still draw on the black background.
   - **Player houses** (2026-10-02): a ground item with `data_type` 2 is a multi. The map draws its
     footprint, not an item dot: walls on the ground storey solid tan, and foundation, steps and
     upper floors faint tan. The footprint comes from `GET /api/multi/<id>`, the house's pieces from the client's
