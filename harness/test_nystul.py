@@ -10,6 +10,12 @@
   ask while running 409, cancel, a failing run kept as error with its stderr, MAX_RUNS,
   a `running` row left by a dead viz marked interrupted
 - HTTP: POST /api/nystul/ask, GET /api/nystul and /api/nystul/<id>, 400/404 errors
+- Codex proposals: normalize() refuses malformed ones; uo_propose checks the target entry and
+  writes nothing; a finished answer stores only its successful uo_propose calls with the
+  entry as it was; POST /api/nystul/approve applies one (new version, source user), posts a
+  `system` memory chat row, leaves the Seer's heartbeat alone, and refuses a second approval
+  (409), an unknown id (404) and one the store rejects (400, kept as failed); the next
+  prompt carries the outcome
 """
 import json
 import os
@@ -25,8 +31,10 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import knowledge  # noqa: E402
 import memory  # noqa: E402
 import nystul  # noqa: E402
+import nystul_memory  # noqa: E402
 import nystul_tools as nt  # noqa: E402
 import test_viz as tv  # noqa: E402
 import viz_feed  # noqa: E402
@@ -51,6 +59,12 @@ FAKE_OMP = textwrap.dedent(r'''
     out({"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": "looking"}})
     out({"type": "tool_execution_start", "toolCallId": "t1", "toolName": "uo_read", "args": {"path": "README.md"}})
     out({"type": "tool_execution_end", "toolCallId": "t1", "toolName": "uo_read", "isError": False})
+    # "PROPOSE {json}" lines: a successful uo_propose call; "PROPOSE! {json}": a failed one
+    for i, line in enumerate(question.splitlines()):
+        if line.startswith("PROPOSE"):
+            bad, args = line.startswith("PROPOSE!"), json.loads(line.split(" ", 1)[1])
+            out({"type": "tool_execution_start", "toolCallId": f"p{i}", "toolName": "uo_propose", "args": args})
+            out({"type": "tool_execution_end", "toolCallId": f"p{i}", "toolName": "uo_propose", "isError": bad})
     out({"type": "message_end", "message": {"role": "assistant", "model": "fake", "stopReason": "stop",
          "content": [{"type": "text", "text": "echo: " + body}],
          "usage": {"input": 10, "cacheRead": 5, "cacheWrite": 0, "output": 7, "cost": {"total": 0.01}}}})
@@ -293,12 +307,160 @@ def test_http(omp, logdir):
         srv.server_close()
 
 
+# ---------------------------------------------------------------------------- Codex proposals
+
+def refused(p) -> bool:
+    try:
+        nystul_memory.normalize(p)
+    except nystul_memory.ProposalError:
+        return True
+    return False
+
+
+def test_normalize():
+    print("== proposal validation (nystul_memory.normalize) ==")
+    for name, p in (("unknown op", {"op": "delete", "id": 1, "why": "x"}),
+                    ("no why", {"op": "retract", "id": 1}),
+                    ("add without content", {"op": "add", "kind": "fact", "topic": "t", "why": "w"}),
+                    ("add with a bad kind", {"op": "add", "kind": "rumour", "topic": "t", "content": "c", "why": "w"}),
+                    ("update changing nothing", {"op": "update", "id": 1, "why": "w", "ref": "x"}),
+                    ("update changing only the source", {"op": "update", "id": 1, "why": "w", "source": "doc"}),
+                    ("importance out of range", {"op": "update", "id": 1, "why": "w", "importance": 11}),
+                    ("bad source", {"op": "add", "kind": "fact", "topic": "t", "content": "c", "why": "w",
+                                    "source": "rumour"})):
+        check(f"refused: {name}", refused(p))
+    add = nystul_memory.normalize({"op": "add", "kind": "fact", "topic": " t ", "content": "c", "why": "w",
+                                   "tags": "a, b"})
+    check("add defaults: source user, importance 5, tags split",
+          (add["source"], add["importance"], add["tags"], add["topic"]) == ("user", 5, ["a", "b"], "t"), str(add))
+    upd = nystul_memory.normalize({"op": "update", "id": 3, "why": "w", "content": "new"})
+    check("a reworded update is the operator's (source user)", upd["source"] == "user", str(upd))
+    imp = nystul_memory.normalize({"op": "update", "id": 3, "why": "w", "importance": 7})
+    check("a metadata-only update keeps the entry's source", imp["source"] is None, str(imp))
+
+
+def seeded_store() -> tuple[str, int, int]:
+    """A temp memory store with an active entry and a superseded one: (path, active id, old id)."""
+    path = os.path.join(tempfile.mkdtemp(), "harness.db")
+    m = memory.Memory(path)
+    k = knowledge.Knowledge(m.con)
+    old = k.add("fact", "flamehound team", "Five flamehounds make a summoner team.", source="community")["id"]
+    new = k.update(old, content="Five flamehounds make a popular summoner team, as of July 2026.")["id"]
+    m.close()
+    return path, new, old
+
+
+def test_propose_tool():
+    print("== uo_propose: checks the target, writes nothing ==")
+    path, active, old = seeded_store()
+    os.environ["NYSTUL_MEMORY_DB"] = path
+    try:
+        before = sqlite3.connect(path).execute("SELECT count(*), max(updated_t) FROM knowledge").fetchone()
+        ok, text = nt.run("uo_propose", {"op": "update", "id": active, "why": "tamer, not summoner",
+                                         "content": "Five flamehounds are a tamer team."})
+        check("a valid update is reported with the current entry", ok and f"Current #{active}" in text
+              and "Nothing is written yet" in text, text)
+        after = sqlite3.connect(path).execute("SELECT count(*), max(updated_t) FROM knowledge").fetchone()
+        check("uo_propose writes nothing", before == after, f"{before} {after}")
+        ok, text = nt.run("uo_propose", {"op": "retract", "id": old, "why": "w"})
+        check("a superseded target is refused", not ok and "isn't an active entry" in text, text)
+        ok, text = nt.run("uo_propose", {"op": "retract", "id": 99999, "why": "w"})
+        check("an unknown target is refused", not ok and "isn't an active entry" in text, text)
+        ok, text = nt.run("uo_propose", {"op": "add", "kind": "fact", "why": "w"})
+        check("a malformed proposal is refused", not ok and "bad proposal" in text, text)
+    finally:
+        os.environ.pop("NYSTUL_MEMORY_DB", None)
+
+
+def wait_conv(base, conv) -> dict:
+    end = time.monotonic() + 20
+    while True:
+        code, c = http("GET", f"{base}/api/nystul/{conv}")
+        if c["messages"][-1]["status"] != "running" or time.monotonic() > end:
+            return c
+        time.sleep(0.05)
+
+
+def test_approve(omp, logdir):
+    print("== Codex proposals: stored, approved over HTTP, applied ==")
+    path, active, old = seeded_store()
+    tmp = tempfile.mkdtemp()
+    port = tv._free_ports(1)[0]
+    srv = viz_server.VizServer(("127.0.0.1", port), viz_feed.ReplayDriver(tv.TAG, logdir),
+                               os.path.join(tv.ROOT, "viz", "dist"), path, nystul_db=os.path.join(tmp, "nystul.db"))
+    srv.nystul.close()
+    srv.nystul = nystul.Nystul(os.path.join(tmp, "nystul.db"), omp_cmd=omp, lookup=srv.overseer.knowledge_entry,
+                               apply=srv.overseer.apply_proposal)
+    threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
+    base = f"http://127.0.0.1:{port}"
+    good = {"op": "update", "id": active, "why": "the chat shows a taming team",
+            "content": "Five flamehounds are a cheap tamer team for 100-or-lower Taming.", "ref": "https://x/1",
+            "entities": ["flamehound"]}
+    stale = {"op": "retract", "id": active, "why": "applied after the update, so the store refuses it"}
+    failed = {"op": "retract", "id": active, "why": "this call failed, so it is no proposal"}
+    try:
+        q = "fix it\nPROPOSE " + json.dumps(good) + "\nPROPOSE " + json.dumps(stale) + "\nPROPOSE! " + json.dumps(failed)
+        code, r = http("POST", base + "/api/nystul/ask", {"conversation": None, "text": q})
+        conv = r["conversation"]
+        props = wait_conv(base, conv)["messages"][-1]["proposals"]
+        check("only successful uo_propose calls become proposals, pending",
+              [(p["params"]["op"], p["status"]) for p in props] == [("update", "pending"), ("retract", "pending")],
+              str(props)[:300])
+        snap = props[0]["before"].get(str(active)) or {}
+        check("the proposal keeps the entry as it was",
+              snap.get("content", "").startswith("Five flamehounds make a popular") and snap.get("status") == "active",
+              str(snap))
+        con = sqlite3.connect(path)
+        hb_q = "SELECT key, value FROM meta WHERE key LIKE '%heartbeat%'"
+        hb_before = con.execute(hb_q).fetchall()
+
+        code, a = http("POST", base + "/api/nystul/approve", {"proposal": props[0]["id"]})
+        new_id = (a.get("result") or {}).get("id")
+        check("approve applies it", code == 200 and a["ok"] and a["result"]["action"] == "superseded", str(a))
+        row = con.execute("SELECT content, source_type, source_ref, status, supersedes, entities FROM knowledge "
+                          "WHERE id=?", (new_id,)).fetchone()
+        check("a new active version with every proposed field, source user, superseding the old",
+              row == (good["content"], "user", "https://x/1", "active", active, '["flamehound"]'), str(row))
+        check("the old version is superseded",
+              con.execute("SELECT status FROM knowledge WHERE id=?", (active,)).fetchone()[0] == "superseded")
+        chat = con.execute("SELECT role, kind, text, data FROM chat ORDER BY id DESC LIMIT 1").fetchone()
+        data = json.loads(chat[3] or "{}")
+        check("the Seer's chat gets a system memory row", chat[:2] == ("system", "memory")
+              and "approved by the operator" in chat[2] and data.get("cmd") == "nystul" and data.get("id") == new_id,
+              str(chat)[:300])
+        check("the Seer's heartbeat is untouched", con.execute(hb_q).fetchall() == hb_before)
+        con.close()
+
+        code, a = http("POST", base + "/api/nystul/approve", {"proposal": props[0]["id"]})
+        check("a second approval is 409", code == 409 and not a["ok"], str(a))
+        code, a = http("POST", base + "/api/nystul/approve", {"proposal": 4242})
+        check("an unknown proposal is 404", code == 404, str(a))
+        code, a = http("POST", base + "/api/nystul/approve", {"proposal": "1"})
+        check("a non-integer proposal is 400", code == 400, str(a))
+        code, a = http("POST", base + "/api/nystul/approve", {"proposal": props[1]["id"]})
+        p2 = wait_conv(base, conv)["messages"][-1]["proposals"][1]
+        check("a proposal the store refuses is 400 and kept as failed", code == 400 and p2["status"] == "failed"
+              and "isn't an active entry" in (p2["error"] or ""), f"{code} {p2}")
+
+        http("POST", base + "/api/nystul/ask", {"conversation": conv, "text": "and now?"})
+        echoed = wait_conv(base, conv)["messages"][-1]["text"]
+        check("the next prompt carries each proposal's outcome", f"approved and applied as #{new_id}" in echoed
+              and "approval failed" in echoed, echoed[:400])
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
 def main():
     omp = fake_omp()
     test_tools()
     test_parse_event()
     test_runs(omp)
-    test_http(omp, tv.pinned_capture())
+    logdir = tv.pinned_capture()
+    test_http(omp, logdir)
+    test_normalize()
+    test_propose_tool()
+    test_approve(omp, logdir)
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)
 

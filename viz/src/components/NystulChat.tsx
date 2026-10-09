@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { fetchNystulConversation, fetchNystulList, postNystulAsk, postNystulCancel } from "../api.ts";
+import { fetchNystulConversation, fetchNystulList, postNystulApprove, postNystulAsk, postNystulCancel } from "../api.ts";
 import { fmtClock } from "../format.ts";
 import {
   NYSTUL_MAX_CHARS,
   askError,
   isRunning,
+  proposalView,
   runSummary,
   stepLabel,
   type NystulConversation,
   type NystulList,
   type NystulMessage,
+  type NystulProposal,
 } from "../nystul.ts";
 import { Markdown } from "./Markdown.tsx";
 
@@ -28,6 +30,8 @@ export interface NystulFeed {
   /** Resolves true once the question is accepted. */
   ask: (text: string) => Promise<boolean>;
   cancel: () => void;
+  /** Apply a Codex change Nystul proposed; resolves true once the server applied it. */
+  approve: (proposal: number) => Promise<boolean>;
 }
 
 function storedActive(): number | null {
@@ -161,10 +165,72 @@ export function useNystul(): NystulFeed {
     );
   }, [loadConv]);
 
-  return { list, activeId, conv, error, sending, select, ask, cancel };
+  const approve = useCallback(
+    async (proposal: number) => {
+      try {
+        await postNystulApprove(proposal);
+        setError(null);
+        return true;
+      } catch (e) {
+        setError(String(e));
+        return false;
+      } finally {
+        loadConv(false);
+      }
+    },
+    [loadConv],
+  );
+
+  return { list, activeId, conv, error, sending, select, ask, cancel, approve };
 }
 
-function WizardMessage({ msg }: { msg: NystulMessage }) {
+function ProposalCard({ p, onApprove }: { p: NystulProposal; onApprove: (id: number) => Promise<boolean> }) {
+  const v = proposalView(p);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className={`ny-proposal ny-proposal-${p.status}`}>
+      <div className="ny-proposal-head">
+        <span className="ny-proposal-title">Codex change: {v.title}</span>
+      </div>
+      {v.why && <div className="ny-proposal-why">{v.why}</div>}
+      {v.before && (
+        <div className="ny-proposal-before" title="the entry as it was when Nystul proposed this">
+          <span className="dim">now #{v.before.id}:</span> [{v.before.topic}] {v.before.content}
+        </div>
+      )}
+      {v.fields.length > 0 && (
+        <dl className="ny-proposal-fields">
+          {v.fields.map((f) => (
+            <div key={f.label}>
+              <dt>{f.label}</dt>
+              <dd>{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      <div className="ny-proposal-actions">
+        {v.outcome !== null ? (
+          <span className={p.status === "failed" ? "error" : "dim"}>{v.outcome}</span>
+        ) : (
+          <button
+            type="button"
+            className="ny-approve"
+            disabled={busy}
+            title="write this change into the Codex (the memory store the Seer recalls)"
+            onClick={() => {
+              setBusy(true);
+              void onApprove(p.id).finally(() => setBusy(false));
+            }}
+          >
+            {busy ? "approving…" : "Approve"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WizardMessage({ msg, onApprove }: { msg: NystulMessage; onApprove: (id: number) => Promise<boolean> }) {
   const running = msg.status === "running";
   return (
     <div className="ny-msg ny-wizard">
@@ -187,6 +253,9 @@ function WizardMessage({ msg }: { msg: NystulMessage }) {
         </details>
       )}
       {running && msg.text === "" ? <p className="dim ny-ponder">Nystul ponders…</p> : <Markdown text={msg.text} />}
+      {msg.proposals.map((p) => (
+        <ProposalCard key={p.id} p={p} onApprove={onApprove} />
+      ))}
       {!running && <div className="mono dim ny-summary">{runSummary(msg)}</div>}
       {msg.status === "error" && msg.error && <div className="error">{msg.error}</div>}
     </div>
@@ -219,7 +288,7 @@ export function NystulChat({ feed, compact }: { feed: NystulFeed; compact?: bool
   useLayoutEffect(() => {
     const el = body.current;
     if (el && pinned.current) el.scrollTop = el.scrollHeight;
-  }, [messages.length, last?.text.length, last?.steps.length]);
+  }, [messages.length, last?.text.length, last?.steps.length, last?.proposals?.length]);
 
   const send = () => {
     if (invalid || sending || running || !available) return;
@@ -247,9 +316,14 @@ export function NystulChat({ feed, compact }: { feed: NystulFeed; compact?: bool
         }}
       >
         {messages.length === 0 && (
-          <p className="dim pad">Ask Nystul about the character, the jobs, the Codex or the harness. He only looks things up; he never acts in game.</p>
+          <p className="dim pad">
+            Ask Nystul about the character, the jobs, the Codex or the harness. He only looks things up, never acts in game, and
+            changes the Codex only when you approve his proposal.
+          </p>
         )}
-        {messages.map((m) => (m.role === "user" ? <UserMessage key={m.id} msg={m} /> : <WizardMessage key={m.id} msg={m} />))}
+        {messages.map((m) =>
+          m.role === "user" ? <UserMessage key={m.id} msg={m} /> : <WizardMessage key={m.id} msg={m} onApprove={feed.approve} />,
+        )}
       </div>
       <div className="ov-compose">
         {!available && <div className="ov-hint">Nystul cannot be summoned: omp is not on this computer's PATH.</div>}

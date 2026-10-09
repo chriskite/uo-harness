@@ -20,6 +20,8 @@ import tempfile
 import threading
 import time
 
+import nystul_memory
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DB = os.path.join(ROOT, "harness", "data", "nystul.db")
 PROMPT_PATH = os.path.join(ROOT, "harness", "nystul_prompt.md")
@@ -32,7 +34,8 @@ TRANSCRIPT_MAX_CHARS = 24_000
 TRANSCRIPT_MAX_MESSAGES = 12
 LIST_MAX = 100
 STDERR_TAIL = 2048
-TOOL_NAMES = ("uo_api", "uo_ctl", "uo_sql", "uo_knowledge", "uo_discord", "uo_read", "uo_grep", "uo_list")
+TOOL_NAMES = ("uo_api", "uo_ctl", "uo_sql", "uo_knowledge", "uo_discord", "uo_read", "uo_grep", "uo_list",
+              "uo_propose")
 
 # omp --mode json event shape (probed 2026-10-08, omp 18.8.3; docs/NOTES.md "Nystul")
 EV_TOOL_START = "tool_execution_start"
@@ -49,6 +52,12 @@ CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY, conv INTEGER NOT NUL
   t REAL NOT NULL, role TEXT NOT NULL, text TEXT NOT NULL, status TEXT NOT NULL, steps TEXT NOT NULL DEFAULT '[]',
   model TEXT, cost REAL, tokens_in INTEGER, tokens_out INTEGER, seconds REAL, error TEXT);
 CREATE INDEX IF NOT EXISTS messages_conv ON messages(conv, id);
+-- memory-store changes Nystul proposed (uo_propose) in a finished answer; status pending ->
+-- applying -> applied | failed, only through approve() (the operator's click)
+CREATE TABLE IF NOT EXISTS proposals(id INTEGER PRIMARY KEY, conv INTEGER NOT NULL, msg INTEGER NOT NULL,
+  t REAL NOT NULL, params TEXT NOT NULL, before TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL,
+  t_decided REAL, result TEXT, error TEXT);
+CREATE INDEX IF NOT EXISTS proposals_msg ON proposals(conv, msg);
 """
 MSG_COLS = ("id", "role", "t", "text", "status", "steps", "model", "cost", "tokens_in", "tokens_out", "seconds",
             "error")
@@ -152,7 +161,7 @@ def _now_header() -> str:
 
 class Nystul:
     def __init__(self, db_path=DEFAULT_DB, *, model="sonnet", thinking="medium", omp_cmd=None, env=None,
-                 context=None):
+                 context=None, lookup=None, apply=None):
         self.db_path = db_path
         self.model, self.thinking = model, thinking
         self.omp_cmd = list(omp_cmd) if omp_cmd else [shutil.which("omp")]
@@ -160,6 +169,11 @@ class Nystul:
         # the extension runs nystul_tools.py with this interpreter from this checkout
         self.env = {"NYSTUL_PY": sys.executable, "NYSTUL_ROOT": ROOT, **(env or {})}
         self.context = context
+        # memory store access, for proposals only: lookup(id) -> compact entry | None (the
+        # "before" an Approve card shows), apply(normalized proposal) -> {id, action}
+        # (raises knowledge.KnowledgeError, or LookupError without a store)
+        self.lookup = lookup
+        self.apply = apply
         self._lock = threading.Lock()
         self._con = None
         self._live = {}               # conv id -> Run
@@ -177,6 +191,8 @@ class Nystul:
             con.executescript(SCHEMA)
             con.execute("UPDATE messages SET status='error', error='interrupted: the viz restarted' "
                         "WHERE status='running'")
+            # an approval cut off by a restart: offer it again (re-applying an add confirms the entry)
+            con.execute("UPDATE proposals SET status='pending' WHERE status='applying'")
             con.commit()
             self._con = con
         return self._con
@@ -204,6 +220,14 @@ class Nystul:
             rows = self._con.execute(f"SELECT {', '.join(MSG_COLS)} FROM messages WHERE conv=? ORDER BY id",
                                      (conv_id,)).fetchall()
             run = self._live.get(conv_id)
+            props = {}
+            for pid, msg, t, params, before, pstatus, td, result, perr in self._con.execute(
+                    "SELECT id, msg, t, params, before, status, t_decided, result, error FROM proposals "
+                    "WHERE conv=? ORDER BY id", (conv_id,)):
+                props.setdefault(msg, []).append({
+                    "id": pid, "t": t, "params": json.loads(params), "before": json.loads(before),
+                    "status": pstatus, "t_decided": td, "result": json.loads(result) if result else None,
+                    "error": perr})
             msgs = []
             for r in rows:
                 m = dict(zip(MSG_COLS, r))
@@ -213,6 +237,7 @@ class Nystul:
                     m["steps"] = [dict(s) for s in run.steps]
                     m["seconds"] = round(time.time() - run.t0, 1)
                     m["cost"] = run.cost
+                m["proposals"] = props.get(m["id"], [])
                 msgs.append(m)
         return {"conversation": dict(zip(("id", "title", "t_created", "t_updated"), c)), "messages": msgs}
 
@@ -253,6 +278,40 @@ class Nystul:
         th.start()
         return {"conversation": conv_id, "message": msg_id}
 
+    def approve(self, prop_id: int) -> dict:
+        """Apply a pending proposal to the memory store (the operator clicked Approve)."""
+        with self._lock:
+            if self._open(create=False) is None:
+                raise NystulError(404, "no such proposal")
+            row = self._con.execute("SELECT params, status FROM proposals WHERE id=?", (prop_id,)).fetchone()
+            if row is None:
+                raise NystulError(404, "no such proposal")
+            if row[1] != "pending":
+                raise NystulError(409, f"the proposal is {row[1]}")
+            if self.apply is None:
+                raise NystulError(503, "no memory store to apply it to")
+            self._con.execute("UPDATE proposals SET status='applying' WHERE id=?", (prop_id,))
+            self._con.commit()
+        status, result, error = "failed", None, None
+        try:
+            result = self.apply(nystul_memory.normalize(json.loads(row[0])))
+            status = "applied"
+        except LookupError as e:                    # no store: leave it pending
+            status, error = "pending", str(e)
+        except ValueError as e:                     # KnowledgeError / ProposalError: the store refused
+            error = str(e)
+        with self._lock:
+            if self._con is not None:
+                self._con.execute("UPDATE proposals SET status=?, t_decided=?, result=?, error=? WHERE id=?",
+                                  (status, None if status == "pending" else time.time(),
+                                   None if result is None else json.dumps(result), error, prop_id))
+                self._con.commit()
+        if status == "pending":
+            raise NystulError(503, error)
+        if status == "failed":
+            raise NystulError(400, error)
+        return result
+
     def cancel(self, conv_id: int) -> bool:
         with self._lock:
             run = self._live.get(conv_id)
@@ -280,11 +339,21 @@ class Nystul:
 
     def _prompt(self, run: Run) -> str:
         with self._lock:
-            rows = self._con.execute("SELECT role, text, status FROM messages WHERE conv=? AND id<? "
+            rows = self._con.execute("SELECT id, role, text, status FROM messages WHERE conv=? AND id<? "
                                      "ORDER BY id DESC LIMIT ?",
                                      (run.conv, run.user_id, TRANSCRIPT_MAX_MESSAGES)).fetchall()
+            props = {}
+            for msg, params, pstatus, result, perr in self._con.execute(
+                    "SELECT msg, params, status, result, error FROM proposals WHERE conv=? ORDER BY id", (run.conv,)):
+                p = json.loads(params)
+                res = json.loads(result) if result else {}
+                what = f"{p.get('op')}" + (f" #{p['id']}" if p.get("id") else "") + (
+                    f" [{p['topic']}]" if p.get("topic") else "")
+                outcome = {"applied": f"approved and applied as #{res.get('id')}",
+                           "failed": f"approval failed: {perr}"}.get(pstatus, "awaiting the operator's approval")
+                props.setdefault(msg, []).append(f"(Codex proposal {what}: {outcome})")
         lines = []
-        for role, text, status in reversed(rows):
+        for mid, role, text, status in reversed(rows):
             if role == "user":
                 lines.append(f"**Operator:** {text}")
             else:
@@ -293,6 +362,7 @@ class Nystul:
                     body += "\n(cancelled by the operator)"
                 elif status == "error":
                     body += "\n(the answer failed)"
+                body += "".join("\n" + x for x in props.get(mid, []))
                 lines.append(f"**Nystul:** {body}")
         while lines and sum(len(x) + 2 for x in lines) > TRANSCRIPT_MAX_CHARS:
             lines.pop(0)
@@ -367,6 +437,23 @@ class Nystul:
             status, text = "error", run.partial or run.final
             error = f"exit {rc} stop {run.stop}: {run.stderr_tail.strip()[-300:]}"
         now = time.time()
+        props = []
+        if status == "done":
+            for s in run.steps:
+                if s["tool"] != "uo_propose" or s["ok"] is not True:
+                    continue
+                try:
+                    p = nystul_memory.normalize(s["args"])
+                except nystul_memory.ProposalError:
+                    continue
+                before = {}
+                if self.lookup is not None:
+                    for kid in nystul_memory.targets(p):
+                        try:
+                            before[str(kid)] = self.lookup(kid)
+                        except Exception:
+                            before[str(kid)] = None
+                props.append((s["args"], before))
         with self._lock:
             try:
                 if self._con is not None:
@@ -375,6 +462,9 @@ class Nystul:
                         "seconds=?, error=? WHERE id=?",
                         (text, status, json.dumps(run.steps), run.model, run.cost, run.tokens_in, run.tokens_out,
                          round(now - run.t0, 1), error, run.msg_id))
+                    self._con.executemany(
+                        "INSERT INTO proposals(conv, msg, t, params, before, status) VALUES (?, ?, ?, ?, ?, 'pending')",
+                        [(run.conv, run.msg_id, now, json.dumps(a), json.dumps(b)) for a, b in props])
                     self._con.execute("UPDATE conversations SET t_updated=? WHERE id=?", (now, run.conv))
                     self._con.commit()
             finally:

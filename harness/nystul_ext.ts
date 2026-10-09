@@ -156,6 +156,36 @@ export default function (pi: ExtensionApi) {
 				glob: z.string().optional(),
 			}),
 		},
+		{
+			name: "uo_propose",
+			label: "Propose a Codex change",
+			description:
+				"Propose one change to the Codex (the harness memory store's knowledge) for the operator to approve. " +
+				"It writes NOTHING: it checks the proposal and the operator gets an Approve button under your answer; " +
+				"only their click applies it. One call per change. op add: kind (fact, procedure, episode, preference, " +
+				"insight), topic, content (a standalone statement with dates and sources), tags, entities, source " +
+				"(default user: the operator vouches for it), ref (evidence, e.g. a Discord message link), importance " +
+				"1-10 (default 5), confidence 0-1, supersedes (an active entry id it replaces). op update: id plus any of " +
+				"content, topic (either makes a new version superseding id), tags, importance, confidence, source, ref. " +
+				"op retract: id. why (required): one line the operator reads on the Approve card. " +
+				"Example: {\"op\": \"add\", \"kind\": \"fact\", \"topic\": \"five flamehound team\", \"content\": \"...\", " +
+				"\"tags\": [\"discord\", \"taming\"], \"ref\": \"https://discord.com/channels/...\", \"why\": \"The Discord KB calls it a summoner team; the raw chat shows a taming team\"}",
+			parameters: z.object({
+				op: z.enum(["add", "update", "retract"]),
+				why: z.string(),
+				id: z.number().int().optional(),
+				kind: z.enum(["fact", "procedure", "episode", "preference", "insight"]).optional(),
+				topic: z.string().optional(),
+				content: z.string().optional(),
+				tags: z.array(z.string()).optional(),
+				entities: z.array(z.string()).optional(),
+				source: z.enum(["observed", "user", "doc", "wiki", "community", "inferred"]).optional(),
+				ref: z.string().optional(),
+				importance: z.number().int().optional(),
+				confidence: z.number().optional(),
+				supersedes: z.number().int().optional(),
+			}),
+		},
 	];
 
 	for (const t of TOOLS) {

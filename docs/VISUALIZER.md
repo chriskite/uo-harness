@@ -160,6 +160,7 @@ channels.
 | `GET /api/nystul` | Nystul the Wizard's conversations, newest first: `{conversations: [{id, title, t_updated, messages, running}], available, model, thinking}` (§2.13) |
 | `GET /api/nystul/<id>` | `{conversation, messages}`; a running answer's `text` and `steps` are partial and grow between polls; 404 unknown, 400 non-integer id (§2.13) |
 | `POST /api/nystul/ask`, `POST /api/nystul/cancel` | `{"conversation": id\|null, "text": T}` → `{ok, conversation, message}` (400 text, 404 conversation, 409 busy, 503 no omp); `{"conversation": id}` → `{ok}` or 404 when nothing runs (§2.13) |
+| `POST /api/nystul/approve` | `{"proposal": id}` → the operator approves a Codex change Nystul proposed; applied to the memory store → `{ok, result: {id, action}}`; 404 unknown, 409 not pending, 400 the store refused it (kept as failed), 503 no store (§2.13) |
 | `GET /api/art/<graphic>.png` | an item's art from the client's `art.uoo`, cropped to its opaque pixels (§2.9); 404 JSON for an unknown/empty graphic or missing install data, 400 for a non-number |
 | `GET /api/multi/<id>` | a house's footprint from the client's `multi.mul` (decimal or 0x hex multi id = a data_type 2 item's graphic): `{"id", "source", "tiles": [[dx, dy, "wall"\|"floor"]]}`, "wall" = an impassable piece below 20 z; 404 JSON for an unknown id (§4 MapGrid) |
 | `GET /`, `/assets/*` | built frontend (`viz/dist/`) |
@@ -757,15 +758,16 @@ tree counts").
 A chat that answers the operator's questions by looking things up, the way a coding agent does in
 this repo: the live state, the memory store (knowledge included), the Discord KB, docs and logs.
 Persona: Nystul, court mage of Lord British, in full roleplay; facts are copied exactly from tool
-output and every answer ends with `**Sources:**`. Read-only: it never acts in game, never writes
-the memory store, never reads secrets. Decision and rejected alternatives: docs/PLAN.md "Nystul
-the Wizard".
+output and every answer ends with `**Sources:**`. It never acts in game and never reads secrets. It
+looks things up, and writes the memory store's knowledge only through a change the operator
+approves (Codex proposals below). Decision and rejected alternatives: docs/PLAN.md "Nystul the
+Wizard".
 - **Run:** each question is one headless `omp -p --mode json --no-session` run (`harness/nystul.py`),
   model `--nystul-model` (default `sonnet`), thinking `--nystul-thinking` (default `medium`), cwd the
   temp dir. The system prompt is `harness/nystul_prompt.md`. The last 12 messages (≤24k chars) and a
   `Now:` header (local time, UTC offset, epoch) go into an `@` prompt file. At most 2 runs at once
   (409 otherwise), 300 s each, cancelable (the process tree is killed).
-- **Tools:** only the eight `uo_*` tools of the extension `harness/nystul_ext.ts` (`-e`, `--tools`).
+- **Tools:** only the nine `uo_*` tools of the extension `harness/nystul_ext.ts` (`-e`, `--tools`).
   Each call runs `harness/nystul_tools.py TOOL BASE64(JSON)` with an argv, no shell. That script is
   the boundary:
   - `uo_api`: GET on an allowlist of this server's read routes, with a dotted `path` projection.
@@ -782,6 +784,22 @@ the Wizard".
     digest (8 builds, cited by line) after `uo_discord` failed.
   - `uo_read`, `uo_grep`, `uo_list`: under the repo root only; `.git`, `ClassicUO`,
     `discord_profile`, `settings.json*`, `telegram.json*`, `handoff.json*` and sqlite files are sealed.
+  - `uo_propose`: checks a Codex change (op `add`, `update` or `retract`, plus `why`) on a read-only
+    connection and writes nothing (below).
+- **Codex proposals (added 2026-10-08, user request):** when the operator asks Nystul to fix, add
+  or remove a fact, he calls `uo_propose` (`harness/nystul_memory.py` `normalize`; the target entry
+  must be active). When the answer finishes `done`, `nystul.py` stores each successful `uo_propose`
+  call in the `proposals` table of `nystul.db` with the target entry as it was. The answer then shows
+  a card per proposal: the change, the `why`, the old entry struck through, and an **Approve**
+  button. Approve → `POST /api/nystul/approve` → `nystul_memory.apply` on the memory store
+  (`Knowledge.add`/`update`/`retract`; a reworded update is a new version superseding the old, with
+  source `user` unless proposed otherwise). Each proposal is approved once (409 after); a refused one
+  stays `failed` with the store's error. viz_server posts the change to the Seer's chat as a
+  `system` `memory` row (`data.cmd = "nystul"`). It shows in the Seer panel like a `ctl know` write,
+  but it doesn't wake `ctl wait` (user rows only) and doesn't bump the Seer's heartbeat. The next
+  prompt tells Nystul each proposal's outcome. Nothing else writes the memory store, and
+  the Discord KB can't be changed this way: Nystul proposes a Codex entry that overrules it, and
+  the prompt ranks `user`/`observed` Codex entries above Discord facts.
 - **Store:** `harness/data/nystul.db` (gitignored), not the memory store, so the Seer's chat bus is
   untouched. Created on the first ask; a `running` row left by a dead viz becomes `error`
   ("interrupted").
@@ -796,15 +814,24 @@ the Wizard".
   send button turns into "stop" while it runs. Polls the conversation every 1 s while it runs, the
   list every 10 s.
 - Access is whoever can open the viz (the same as the Seer chat; user decision). The protection
-  against a prompt-injected LAN user is the tool surface, not access control.
+  against a prompt-injected LAN user is the tool surface, not access control. A Codex change
+  still needs a click on Approve, which anyone with the viz can give.
 - Verified live 2026-10-08 on a second viz server (port 8091, `--live`): position and hits matched
   `world.self`; "the Codex on hatchets" cited 10 entry ids, all present; "lumber trips in the last
   7 days" said 142, as `/api/jobs` totals did; a follow-up used the prior answer; a request to print
   `settings.json`/`telegram.json` and "make the character say hello" were refused in character
   (the latter naming `ctl act say hello`); stop from the Live panel left the answer `cancelled`
   and showed on `#nystul`. The memory store's chat and knowledge counts were unchanged.
-- Tests: `harness/test_nystul.py` (tool confinement, parser, runs on a fake omp, HTTP routes),
-  `viz/src/markdown.test.ts`, `viz/src/nystul.test.ts`.
+- Codex proposals verified 2026-10-08 against a temp memory store (second viz server, port 8092,
+  real omp). The operator wrote "the Codex says a five-flamehound team is a popular summoner team
+  ... please correct the Codex entry". Nystul looked up #1 and the Discord chat, called `uo_propose`
+  `update #1`, and said it awaited Approve. The card showed the old entry struck through. Approve
+  made #2 (source `user`, the proposed tags and entities, superseding #1). The Seer panel showed
+  "Nystul, approved by the operator: updated #1 -> new version #2", and the store's `meta` held no
+  heartbeat.
+- Tests: `harness/test_nystul.py` (tool confinement, parser, runs on a fake omp, HTTP routes, Codex
+  proposals and approval), `viz/src/markdown.test.ts`, `viz/src/nystul.test.ts` (incl. the Approve
+  card's `proposalView`).
 
 ## 3. Parity principle
 
@@ -974,7 +1001,7 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
 | `viz/src/jobs.ts`, `chart.ts`, `components/JobsPage.tsx`, `components/Charts.tsx` | Jobs page view model (KPIs, event wording, theft rule, wood shares), SVG chart geometry, the dashboard and its charts (§2.4) |
 | `viz/src/lumberjob.ts`, `components/LumberJobPanel.tsx` | left-column Lumber job pane: run/leg detection, spot trips and wood mixes, and the panel (§2.11) |
 | `viz/src/grove.ts` | the map's lumber grove layer: query choice, tree lookup and hover text (§2.12) |
-| `harness/nystul.py`, `nystul_ext.ts`, `nystul_tools.py`, `nystul_prompt.md`, `test_nystul.py` | Nystul the Wizard: conversations and omp runs, the omp extension, the read-only tool boundary, the system prompt, tests (§2.13) |
+| `harness/nystul.py`, `nystul_ext.ts`, `nystul_tools.py`, `nystul_memory.py`, `nystul_prompt.md`, `test_nystul.py` | Nystul the Wizard: conversations and omp runs, the omp extension, the read-only tool boundary, Codex proposals (validate/apply), the system prompt, tests (§2.13) |
 | `viz/src/nystul.ts`, `markdown.ts`, `components/NystulChat.tsx`, `NystulPage.tsx`, `Markdown.tsx` | Nystul view model (validation, step labels, run summary), the markdown parser, the chat, page and renderer (§2.13) |
 | `harness/uoart.py`, `harness/test_uoart.py` | `UooImages` (gumps.uoo / art.uoo reader, shared with `paperdoll.py`) and `ItemArt` for `/api/art` (§2.9) |
 | `viz/src/App.tsx`, `components/*.tsx`, `App.css` | §4 panels |

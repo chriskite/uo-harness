@@ -123,6 +123,17 @@ export async function postNystulCancel(conversation: number): Promise<void> {
   if (!r.ok || !body?.ok) throw new Error(`nystul: ${body?.error ?? `HTTP ${r.status}`}`);
 }
 
+/** Approve a Codex change Nystul proposed: the server applies it to the memory store. */
+export async function postNystulApprove(proposal: number): Promise<void> {
+  const r = await fetch("/api/nystul/approve", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ proposal }),
+  });
+  const body = (await r.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+  if (!r.ok || !body?.ok) throw new Error(`nystul: ${body?.error ?? `HTTP ${r.status}`}`);
+}
+
 export type CaptchaMode = "human" | "auto";
 
 /** `body.mode` when it is a captcha mode, else null. */

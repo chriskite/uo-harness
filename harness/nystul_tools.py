@@ -13,7 +13,9 @@ It prints the result text (capped at OUT_MAX chars) and exits 0, or prints
 - sqlite: opened read-only, query_only, and an authorizer that permits reads only;
 - ctl: a read-only subset. `know`, `lumber` and every acting command are excluded: they
   write, inject game input, or bump the Seer's heartbeat (ctl.py `heartbeat(mem)`);
-- viz: GET on an allowlist of read routes.
+- viz: GET on an allowlist of read routes;
+- uo_propose: checks a memory-store change on a read-only connection and writes nothing;
+  only the operator's Approve click in the viz applies it (harness/nystul_memory.py).
 
 Env (set by harness/nystul.py; fallbacks for a manual run): NYSTUL_ROOT, NYSTUL_MEMORY_DB,
 NYSTUL_VIZ, NYSTUL_STATE_PORT, NYSTUL_DATA (tests only).
@@ -379,6 +381,42 @@ def uo_discord(p) -> str:
     raise ToolError("source must be facts or messages")
 
 
+# ---------------------------------------------------------------------------- uo_propose
+
+def uo_propose(p) -> str:
+    """Check a memory-store change for the operator to approve. Writes nothing: nystul.py
+    keeps the proposal and only the operator's Approve click applies it (nystul_memory)."""
+    import knowledge
+    import nystul_memory
+    try:
+        prop = nystul_memory.normalize(p)
+    except nystul_memory.ProposalError as e:
+        raise ToolError(f"bad proposal: {e}")
+    path = memory_db()
+    if not os.path.exists(path):
+        raise ToolError("harness database is not on this computer")
+    con = _ro(path)
+    try:
+        k = knowledge.Knowledge(con)
+        before = {}
+        for kid in nystul_memory.targets(prop):
+            e = k.get(kid)
+            if e is None or e["status"] != "active":
+                raise ToolError(f"#{kid} isn't an active entry" + (f" (it is {e['status']})" if e else ""))
+            before[kid] = e
+    finally:
+        con.close()
+    lines = [f"Proposal ready: {prop['op']}" + (f" #{prop['id']}" if prop.get("id") else "") + f". Why: {prop['why']}"]
+    for kid, e in before.items():
+        lines.append(f"Current #{kid} {e['kind']} [{e['topic']}]: {e['content']}")
+    if prop["op"] != "retract":
+        shown = {k: v for k, v in prop.items() if k not in ("op", "why", "id") and v not in (None, [])}
+        lines.append("Proposed: " + json.dumps(shown, ensure_ascii=False))
+    lines.append("Nothing is written yet. The operator sees an Approve button under your answer; "
+                 "tell them it waits for their approval.")
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------- uo_read / uo_grep / uo_list
 
 def uo_read(p) -> str:
@@ -495,7 +533,8 @@ def uo_list(p) -> str:
 # ---------------------------------------------------------------------------- entry points
 
 TOOLS = {"uo_api": uo_api, "uo_ctl": uo_ctl, "uo_sql": uo_sql, "uo_knowledge": uo_knowledge,
-         "uo_discord": uo_discord, "uo_read": uo_read, "uo_grep": uo_grep, "uo_list": uo_list}
+         "uo_discord": uo_discord, "uo_read": uo_read, "uo_grep": uo_grep, "uo_list": uo_list,
+         "uo_propose": uo_propose}
 
 
 def run(tool: str, params) -> tuple[bool, str]:

@@ -1465,6 +1465,16 @@ renderer; full roleplay with exact, sourced facts. As built: docs/VISUALIZER.md 
   prompt file instead. Web search: user decision.
 - **Risk:** the boundary is `nystul_tools.py`; any tool added to the extension must stay read-only
   (omp's `--tools` doesn't filter extension tools, docs/NOTES.md "Nystul").
+- **Codex changes with an Approve button (decided and built 2026-10-08, user request):** a wrong
+  Discord fact came up in a chat (a five-flamehound "summoner" team that the raw chat shows is a
+  taming team), and the user wanted Nystul to fix it. Adopted: Nystul's `uo_propose` only checks a
+  change and writes nothing. The viz shows it as a card with an Approve button, and only that click
+  makes viz_server apply it (`harness/nystul_memory.py`), with a `system` memory row in the Seer's
+  chat. The model never holds a write path, so a prompt-injected run can at most produce a card
+  someone must approve. Rejected: a write tool for Nystul (any run, injected or not, could change
+  what the Seer recalls); `ctl know` from viz_server (it bumps the Seer's heartbeat); editing the
+  Discord KB (its facts are rebuilt by `discord_kb.py run` and it has no override; a `user` Codex
+  entry that overrules the fact does the job).
 
 ## Risks
 

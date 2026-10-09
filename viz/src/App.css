@@ -1670,6 +1670,64 @@ ol.lines {
   font-size: 11px;
   margin-top: 4px;
 }
+/* a Codex change Nystul proposed: a sealed scroll awaiting the operator's Approve */
+.ny-proposal {
+  margin: 6px 0 2px;
+  padding: 6px 8px;
+  border: 1px dashed var(--frame-hi);
+  border-radius: 2px;
+  background: #231c10;
+  font-size: 12.5px;
+}
+.ny-proposal-applied {
+  border-style: solid;
+  border-color: var(--ok);
+}
+.ny-proposal-failed {
+  border-color: var(--bad);
+}
+.ny-proposal-title {
+  font-family: var(--display);
+  color: var(--gold);
+}
+.ny-proposal-why {
+  margin: 2px 0 4px;
+  font-style: italic;
+}
+.ny-proposal-before {
+  margin: 0 0 4px;
+  color: var(--dim);
+  text-decoration: line-through;
+  text-decoration-color: rgba(210, 58, 48, 0.6);
+}
+.ny-proposal-applied .ny-proposal-before {
+  text-decoration: none;
+}
+.ny-proposal-fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 1px 8px;
+}
+.ny-proposal-fields > div {
+  display: contents;
+}
+.ny-proposal-fields dt {
+  color: var(--dim);
+}
+.ny-proposal-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ny-proposal-actions {
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+}
+button.ny-approve {
+  border-color: var(--ok);
+  color: #cfeec5;
+}
 .ny-compact .ny-body {
   padding: 6px;
   gap: 6px;

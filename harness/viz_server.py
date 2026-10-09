@@ -62,6 +62,10 @@ Routes:
   POST /api/nystul/ask  {"conversation": id|null, "text": T} -> {"ok": true, "conversation",
                       "message"}; 400 bad text, 404 unknown conversation, 409 busy, 503 no omp
   POST /api/nystul/cancel  {"conversation": id} -> {"ok": true}; 404 when nothing runs
+  POST /api/nystul/approve  {"proposal": id} -> the operator approves a memory-store change
+                      Nystul proposed: applied (harness/nystul_memory.py) and shown in the
+                      Seer's chat as a system memory row -> {"ok": true, "result": {id, action}};
+                      404 unknown, 409 not pending, 400 the store refused it, 503 no store
   GET  /, /assets/*   the built frontend (viz/dist)
 
 Live mode only ever opens the proxy's state port (JSON lines). It never connects
@@ -71,7 +75,9 @@ flip the proxy's gate, which only decides whether agent injections on the contro
 port are rejected. Its writes to the memory store are a user chat row (POST
 /api/chat) for the overseer AI to read and the captcha mode (POST /api/captcha).
 Nystul runs headless `omp` subprocesses whose only tools are read-only lookups
-(harness/nystul_tools.py); it writes only its own harness/data/nystul.db.
+(harness/nystul_tools.py); it writes its own harness/data/nystul.db, and the memory
+store's knowledge only when the operator approves one of its proposals (POST
+/api/nystul/approve), with a `system` memory row in the chat.
 Everything else is observation.
 """
 import argparse
@@ -93,6 +99,7 @@ import facet as facet_mod  # noqa: E402
 import jobs as jobs_mod  # noqa: E402
 import memory as memory_mod  # noqa: E402
 import nystul as nystul_mod  # noqa: E402
+import nystul_memory  # noqa: E402
 from uo import cliloc  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -245,6 +252,26 @@ class OverseerDB:
     def set_captcha_mode(self, mode: str):
         with self.lock:
             self._open(True).set_captcha_mode(mode)
+
+    def knowledge_entry(self, kid: int) -> dict | None:
+        """A knowledge entry as Nystul's Approve card shows it (None: no such entry or store)."""
+        import knowledge
+        with self.lock:
+            mem = self._open(False)
+            return None if mem is None else nystul_memory.compact(knowledge.Knowledge(mem.con).get(kid))
+
+    def apply_proposal(self, p: dict) -> dict:
+        """Apply a Nystul proposal the operator approved (nystul_memory.apply) and show it in the
+        Seer's chat as a `system` memory row: visible in the Seer panel, but it doesn't wake
+        `ctl wait` (user rows only) or touch the Seer's heartbeat."""
+        import knowledge
+        with self.lock:
+            mem = self._open(False)
+            if mem is None:
+                raise LookupError(f"no harness memory store at {self.path}")
+            result, text, data = nystul_memory.apply(knowledge.Knowledge(mem.con), p)
+            mem.chat_post("system", text[:500], "memory", data={"cmd": "nystul", "op": p["op"], **data})
+            return result
 
     def grove(self, spot_id: str | None, facet: int, x: int | None, y: int | None) -> dict:
         """lumber_opt.grove_view of spot `spot_id`, else of the spot whose area holds
@@ -589,6 +616,18 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._json(200, {"ok": True, **out})
 
+    def _nystul_approve(self, req: dict):
+        pid = req.get("proposal")
+        if isinstance(pid, bool) or not isinstance(pid, int):
+            self._json(400, {"ok": False, "error": "proposal must be an integer"})
+            return
+        try:
+            result = self.server.nystul.approve(pid)
+        except nystul_mod.NystulError as e:
+            self._json(e.code, {"ok": False, "error": str(e)})
+            return
+        self._json(200, {"ok": True, "result": result})
+
     def _nystul_cancel(self, req: dict):
         conv = req.get("conversation")
         if isinstance(conv, bool) or not isinstance(conv, int):
@@ -601,7 +640,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         url = urlsplit(self.path)
         if url.path not in ("/api/playback", "/api/gate", "/api/chat", "/api/captcha", "/api/nystul/ask",
-                            "/api/nystul/cancel"):
+                            "/api/nystul/cancel", "/api/nystul/approve"):
             self._json(404, {"error": f"unknown route {url.path}"})
             return
         n = int(self.headers.get("Content-Length") or 0)
@@ -627,6 +666,8 @@ class Handler(BaseHTTPRequestHandler):
             self._nystul_ask(req)
         elif url.path == "/api/nystul/cancel":
             self._nystul_cancel(req)
+        elif url.path == "/api/nystul/approve":
+            self._nystul_approve(req)
         else:
             self._playback(req)
 
@@ -798,7 +839,8 @@ class VizServer(ThreadingHTTPServer):
             env={"NYSTUL_MEMORY_DB": os.path.abspath(memory_db),
                  "NYSTUL_VIZ": f"http://{host}:{self.server_address[1]}",
                  "NYSTUL_STATE_PORT": str(state_port)},
-            context=lambda: {k: feed.health().get(k) for k in ("mode", "session")})
+            context=lambda: {k: feed.health().get(k) for k in ("mode", "session")},
+            lookup=self.overseer.knowledge_entry, apply=self.overseer.apply_proposal)
 
     def handle_error(self, request, client_address):
         # A browser or phone dropping a keep-alive connection is routine on a LAN; its traceback
