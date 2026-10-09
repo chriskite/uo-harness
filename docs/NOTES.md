@@ -1282,7 +1282,14 @@ t 1791153675; gump fixtures `harness/testdata/aspect_gumps.json`. Wiki: Aspect_M
   - `threats.identify` called the orc hunters **grey players** and the soldiers innocent players
     (no player flag; "human body, assumed player"). Fixed (0add311): a human body with a
     creature-style name ("a"/"an") and no player flag is a monster at notoriety 3 and an NPC at 1–2;
-    4–6 stay players. Their corpses ("an orc hunter corpse") are monster corpses.
+    4–6 stay players. Their corpses ("an orc hunter corpse") are monster corpses. **Since
+    2026-10-08 (user: "we're frequently treating human-bodied monsters as players"):** 4 and 5 are
+    monsters too, and a name of two or more all-lowercase words counts as creature-style ("ghostly
+    footman", no article). Evidence: every named player sighting on record (20 `pk_seen` rows,
+    2026-10-02..08, e.g. Bastet, Bee Loga, khiizriel) carried the 0x20 flag, while all 6 threat
+    junctures from an assumed player were spawns: "a rime spirit soldier" (4, body 401, ended a
+    witcher_146 trip with 2 260 logs), "a brigand hedge mage" (4), "ghostly footman" (3). Reds (6)
+    stay players whatever their name. `test_threats.py` `test_npcs_and_players`.
   - **Death by a manual overseer fight, 20:29:56:** the recall in (a tome charge, "Kal Ort Por")
     put the arcane staff in the pack; the overseer walked ~85 steps into a room with goblins, orc
     mages, an orc lord and a cave bear and attacked one orc with fists (-2 per hit); it took
@@ -2040,7 +2047,7 @@ Code: `harness/outlands_web.py` (capture), `harness/web_kb.py` (wiki + news → 
 `harness/forum_kb.py` (forums → the Discord KB pipeline). Tests: `test_web_kb.py`, `test_forum_kb.py`.
 
 - **Run (system Python, from the repo root):**
-  - `python harness/outlands_web.py crawl wiki|news|forums|all [--limit N] [--nodes 14,16]`; `stats`;
+  - `python harness/outlands_web.py crawl wiki|news|forums|all [--limit N] [--nodes 3,16]`; `stats`;
     `text wiki:<pageid>|news:<postid>|thread:<id>` prints a stored doc as the pipelines read it. Log:
     `logs/outlands_web.log`. A first full crawl takes hours: launch it detached (`Start-Process`
     with `-RedirectStandardOutput`, as for discord_kb), one process per host is fine; re-runs fetch

@@ -158,10 +158,21 @@ def test_npcs_and_players():
                  now=NOW + 1)
     eq("a spawned creature seen as a monster stays one when it turns grey (4) to attack",
        (one(a, 0x214).kind, one(a, 0x214).player, one(a, 0x214).hostile), ("monster", None, True))
-    a = assess(state([mob(0x215, 5, 0, noto=4, flags=0)], labels={0x215: "a norse bear rider"}),
+    a = assess(state([mob(0x215, 5, 0, noto=4, flags=0), mob(0x216, 6, 0, noto=4, flags=0),
+                      mob(0x217, 7, 0, noto=3, flags=0), mob(0x218, 8, 0, noto=4, flags=0x20),
+                      mob(0x219, 9, 0, noto=3, flags=0)],
+                     labels={0x215: "a norse bear rider", 0x216: "a rime spirit soldier", 0x217: "ghostly footman",
+                             0x218: "a rime spirit soldier", 0x219: "Roy Rina"}),
                recall_s=4.0, margin_s=1.0, now=NOW)
-    eq("first seen already grey: a player, as before (never attackable by mistake)",
-       (one(a, 0x215).kind, one(a, 0x215).player), ("grey", True))
+    eq("first seen already grey (4) with a creature label and no player flag: a monster (live 2026-10-08: "
+       "'a rime spirit soldier' sent a trip home as a grey player)",
+       [(one(a, s).kind, one(a, s).player) for s in (0x215, 0x216)], [("monster", None)] * 2)
+    eq("a lowercase name with no article ('ghostly footman', grey, no flag): a monster",
+       (one(a, 0x217).kind, one(a, 0x217).player), ("monster", None))
+    eq("the player flag still makes a criminal named like a creature a player",
+       (one(a, 0x218).kind, one(a, 0x218).player), ("grey", True))
+    eq("a capitalised name without the flag is still assumed a player",
+       (one(a, 0x219).kind, one(a, 0x219).player), ("grey", True))
 
 
 def test_monsters():

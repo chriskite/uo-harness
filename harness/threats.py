@@ -232,6 +232,8 @@ FLAG_WARMODE = 0x40              # EntityFlags.WarMode (EntityFlags.cs:18)
 _TITLE = re.compile(r"^\S.* the [A-Za-z][A-Za-z' -]*$")
 ASSUMED_PLAYER = "human body, no npc evidence (assumed player)"
 _CREATURE = re.compile(r"^(a|an) ", re.IGNORECASE)
+# a server-spawned name without an article: two or more all-lowercase words ("ghostly footman", live 2026-10-08)
+_LOWER_NAME = re.compile(r"^[a-z][a-z'-]*( [a-z][a-z'-]*)+$")
 _YOUNG = re.compile(r"\(Young\)\s*$")
 
 ACTIONS = ("flee", "thief", "watch", "ignore")
@@ -465,21 +467,19 @@ def identify(mob: dict, label: str | None, monster_before: bool = False) -> tupl
                                  else "body unknown"]
     if text and _TITLE.match(text):
         return "npc", False, [f"title label {text!r} (heuristic)"]
-    if text and _CREATURE.match(text):
-        # A human body named like a creature ("an orc hunter", "a prevalian footman") with no
-        # player flag is a server-spawned mobile, not a player (live 2026-10-03 Urukton Bluffs:
-        # orc hunters, body 400, notoriety 3, flags 0, came out as grey players). Attackable (3)
-        # ones are monsters; innocent ones (soldiers, guards) are NPCs. Criminals, enemies and
-        # reds (4-6) stay players whatever their name: calling a player a monster would let us
-        # attack him, and the flag heuristic is only a heuristic.
-        if noto == 3:
-            return "monster", None, [f"creature label {text!r} on a human body, no player flag"]
-        if monster_before and noto in (4, 5):
-            # live 2026-10-05 (witcher_268): "a norse bear rider" (body 400, flags 0) went from 3 to 4
-            # as it attacked; read as a grey player, the runner recalled on the spot instead of running,
-            # the cast was disturbed and Dan died. The same spawned creature stays a monster.
-            return "monster", None, [f"creature label {text!r} on a human body, no player flag, "
-                                     f"a monster before notoriety {noto}"]
+    if text and (_CREATURE.match(text) or _LOWER_NAME.match(text)):
+        # A human body named like a creature ("an orc hunter", "a prevalian footman", "ghostly
+        # footman") with no player flag is a server-spawned mobile, not a player (live 2026-10-03
+        # Urukton Bluffs: orc hunters, body 400, notoriety 3, flags 0, came out as grey players).
+        # Attackable (3), criminal (4) and enemy (5) ones are monsters: live 2026-10-05 "a norse
+        # bear rider" went 3 -> 4 as it attacked and Dan died recalling from a "grey player";
+        # 2026-10-08 "a rime spirit soldier" (4, body 401) and "a brigand hedge mage" (4, body 400)
+        # were first seen at 4 and sent trips home as players. Every named player sighting on
+        # record (20, 2026-10-02..08) carried the 0x20 flag, which wins above. Innocent ones
+        # (soldiers, guards) are NPCs; reds (6) stay players whatever their name.
+        if noto in (3, 4, 5):
+            why = f"creature label {text!r} on a human body, no player flag"
+            return "monster", None, [why + (f", a monster before notoriety {noto}" if monster_before else "")]
         if noto in (1, 2):
             return "npc", False, [f"creature label {text!r} on a human body, no player flag"]
     return KIND_BY_NOTORIETY.get(noto, "unknown"), True, [ASSUMED_PLAYER]
