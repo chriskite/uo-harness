@@ -21,6 +21,9 @@ Conventions
   - a trip belongs to the day (at `utc_offset_s`) its t_start falls on; an event
     to the day of its t
   - deaths by cause: data.cause 'pk' | 'mob', anything else (or none) -> 'other'
+  - `store` events (`ctl act stockpile`: boards the overseer put into the Resource Stockpile by
+    hand, data.boards) add to stored, stockpiled and stored_ctl of the totals and their day;
+    no trip row holds them
   - theft loss: data.amount when numeric, else the item counts summed; data.items
     may be {name: n}, [{name|graphic, amount}] or [name, ...]
   - value: each log of a wood at the price that wood's boards had when the trip
@@ -148,8 +151,8 @@ def theft_loss(data: dict) -> tuple[int, dict]:
 
 # ------------------------------------------------------------------ folding
 def _blank():
-    return {"trips": 0, "logs": 0, "stored": 0, "stockpiled": 0, "active_s": 0.0, "captchas": 0, "captcha_wait_s": 0.0,
-            "attempts": 0, "successes": 0, "woods": {},
+    return {"trips": 0, "logs": 0, "stored": 0, "stockpiled": 0, "stored_ctl": 0, "active_s": 0.0,
+            "captchas": 0, "captcha_wait_s": 0.0, "attempts": 0, "successes": 0, "woods": {},
             "deaths": {c: 0 for c in DEATH_CAUSES}, "thefts": {"count": 0, "amount": 0, "items": {}},
             "pk_seen": 0, "flees": 0, "value_gp": None, "value_unpriced_logs": 0}
 
@@ -187,6 +190,13 @@ def _add_event(agg, ev):
         agg["pk_seen"] += 1
     elif kind == "flee":
         agg["flees"] += 1
+    elif kind == "store":
+        # boards the overseer put into the Resource Stockpile by hand (`ctl act stockpile`, also via
+        # `convert --store`): the logs are in the trip rows of the trips that chopped them
+        n = int(_num(data.get("boards")))
+        agg["stored"] += n
+        agg["stockpiled"] += n
+        agg["stored_ctl"] += n
 
 
 def _finish(agg):

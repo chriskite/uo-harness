@@ -7,6 +7,7 @@ function totals(p: Partial<JobTotals> = {}): JobTotals {
     logs: 0,
     stored: 0,
     stockpiled: 0,
+    stored_ctl: 0,
     active_s: 0,
     active_hours: 0,
     logs_per_hour: null,

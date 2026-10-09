@@ -241,7 +241,10 @@ export interface JobAgg {
   trips: number;
   logs: number;
   stored: number;
+  /** boards the Resource Stockpile confirmed taking: the trips' plus the overseer's by hand (stored_ctl) */
   stockpiled: number;
+  /** boards the overseer put in the stockpile by hand (`ctl act stockpile`; lumber `store` job events) */
+  stored_ctl: number;
   active_s: number;
   active_hours: number;
   logs_per_hour: number | null;
@@ -441,8 +444,10 @@ export function kpis(t: JobTotals): Kpi[] {
       hint: "Mean logs per trip, aborted trips included. Below: the share of chop attempts that gave logs (success / (success + fail)).",
     },
     {
-      key: "stored", label: "boards stored", value: fmtInt(t.stockpiled), sub: "in the resource stockpile", tone: "info",
-      hint: "Boards the Resource Stockpile confirmed taking (\"You add … to the Resource Stockpile.\"). Boards put in the chest don't count.",
+      key: "stored", label: "boards stored", value: fmtInt(t.stockpiled),
+      sub: t.stored_ctl ? `in the resource stockpile · ${fmtInt(t.stored_ctl)} by hand` : "in the resource stockpile", tone: "info",
+      hint: "Boards the Resource Stockpile confirmed taking (\"You add … to the Resource Stockpile.\"): the trips' and the ones the " +
+        "overseer put there by hand (an aborted trip's boards, `ctl act stockpile`). Boards put in the chest don't count.",
     },
     {
       key: "bph", label: "boards / hr", value: fmtNum(boardsPerHour, 0), sub: "per active hour", tone: "info",

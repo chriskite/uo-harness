@@ -335,6 +335,15 @@ def test_jobs():
     check("price_history keeps every observation, oldest first",
           [(r["item"], r["price_gp"]) for r in m.price_history("board:")]
           == [("board:ordinary", 20.0), ("board:ordinary", 30.0), ("board:ordinary", 25.0), ("board:goldenwood", 50.0)])
+    # the overseer's `ctl act stockpile` after an aborted trip (live 2026-10-08: 2 715 boards booked nowhere)
+    m.job_event("lumber", "store", {"boards": 30, "woods": {"ordinary": 30}, "via": "ctl"}, t=DAY + 800)
+    s = jobs.analytics(m, "lumber", 0, woods=WOODS)
+    st, d2 = s["totals"], s["days"][-1]
+    check("a hand store counts as stored and stockpiled (totals and its day), not in any trip, logs unchanged",
+          (st["stored"], st["stockpiled"], st["stored_ctl"], st["logs"], d2["stockpiled"], d2["stored_ctl"])
+          == (87, 42, 30, 62, 42, 30) and [r["stockpiled"] for r in s["trips"]] == [0, 0, 12]
+          and s["trips"][2]["events"] == {"theft": 1, "pk_seen": 1},
+          str((st["stored"], st["stockpiled"], st["stored_ctl"], d2)))
     m.close()
 
 

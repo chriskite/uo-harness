@@ -978,7 +978,7 @@ def _act(a, mem) -> dict:
     if a.name == "resupply":
         return _act_resupply(a, mem)
     if a.name == "stockpile":
-        return _act_stockpile(a)
+        return _act_stockpile(a, mem)
     if a.name == "convert":
         return _act_convert(a, mem)
     if a.name == "mount":
@@ -1943,13 +1943,16 @@ def _act_resupply(a, mem) -> dict:
         stc.close()
 
 
-def _act_stockpile(a) -> dict:
+def _act_stockpile(a, mem) -> dict:
     """stockpile [STACK SERIAL ...]: add board stacks (default: every one in the pack, at any depth)
     to your home's Resource Stockpile (homes.json `stockpile`; harness/stockpile.py, the flow the
     lumber runner stores with): its menu, Add Items and one target per pouch holding boards (all
     its stacks at once) or per loose stack, the menu closed. Stand within 2 tiles of it (in Logan
     Wolf's room the arrival tile is). Never targets you (that would add every valid item in the
-    pack, reagents and tools too)."""
+    pack, reagents and tools too). The boards that left the pack are booked as a lumber `store`
+    job event ({boards, woods, via: "ctl"}): the Jobs page counts them as stored like a trip's,
+    so boards an aborted trip left in the pack still count once the overseer puts them away."""
+    import ledger
     import home as home_mod
     human = Human(a.human, seed=a.seed)
     ctl, stc = _connect(a)
@@ -1973,12 +1976,18 @@ def _act_stockpile(a) -> dict:
             raise CtlError("no board stack in your pack")
         stc.intent("Adding boards to the resource stockpile", "store")
         world = st["world"]
-        amount = {s: (world["items"].get(f"0x{s:08X}") or {}).get("amount") or 1 for s in stacks}
+        items = {s: world["items"].get(f"0x{s:08X}") or {} for s in stacks}
+        amount = {s: it.get("amount") or 1 for s, it in items.items()}
         aims = stockpile_mod.targets(world, stacks, combat.backpack(world["items"], st["movement"].get("self_serial")))
         out = stockpile_mod.deposit(io, human, pile, aims)
         stc.intent(None)
         after = stc.state()["world"]["items"]
         n = sum(v for s, v in amount.items() if f"0x{s:08X}" not in after)
+        if n:
+            gone = [items[s] for s in stacks if f"0x{s:08X}" not in after]
+            mem.job_event("lumber", "store", {"boards": n, "woods": ledger.woods_summary(gone, kind="board"),
+                                              "via": "ctl", "ok": out["ok"]},
+                          (world.get("self") or {}).get("map"), pos[0], pos[1])
         return {**out, "boards": n, "heard": [journal_view(e) for e in out["heard"]],
                 "reply": f"added {n} boards ({len(out['added'])} target(s))" if out["ok"] else out["error"]}
     except stockpile_mod.StockpileError as e:
@@ -2049,7 +2058,7 @@ def _act_convert(a, mem) -> dict:
             return fn(argparse.Namespace(**{**vars(a), "args": [], "restock": True}), *args)
         except CtlError as e:
             return {"ok": False, "error": str(e), "reply": str(e)}
-    pile = step(_act_stockpile)
+    pile = step(_act_stockpile, mem)
     restock = step(_act_resupply, mem) if pile["ok"] else None
     ok = pile["ok"] and restock["ok"]
     return {**out, "ok": ok, "stockpile": pile, "restock": restock,

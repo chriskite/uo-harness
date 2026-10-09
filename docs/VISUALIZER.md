@@ -349,7 +349,10 @@ indexes of docs/MEMORY.md "Indexes for time-range reads".
   successes, phase times, the `woods: {name: n}` breakdown when the row has one, estimated value,
   and the job events that fell inside the trip.
 - **Totals and per day** (a trip counts on the day its start falls on): trips, logs, stored,
-  stockpiled,
+  stockpiled, `stored_ctl` (since 2026-10-08: boards the overseer put into the Resource Stockpile
+  by hand, `ctl act stockpile` / `convert --store`, from the lumber `store` job events; they are
+  added to `stored` and `stockpiled` on the day of the event and belong to no trip row, so the
+  Trips table's `stored` column sums to less than the totals),
   active hours, logs/hr, logs/trip, captchas, deaths by cause (`death` events, `data.cause` `pk` /
   `mob` / anything else → `other`), thefts (`theft` events: `data.amount` when numeric, else the
   summed `data.items`, which may be `{name: n}`, `[{name|graphic, amount}]` or `[name]`), PK
@@ -456,7 +459,8 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
   The lumber dashboard:
   - KPI tiles: logs/hr (sub: logs and boards **put away**, the rows' `stored`: chest, bank or
     stockpile), logs/trip (with the chop success rate), **boards stored** (2026-10-05, user
-    request: only boards the Resource Stockpile confirmed taking, the trip rows' `stockpiled`; the
+    request: only boards the Resource Stockpile confirmed taking, the trip rows' `stockpiled` plus,
+    since 2026-10-08, the overseer's hand stores, shown as "N by hand" under the number; the
     chest's don't count), **boards / hr** (2026-10-08, user request: `stockpiled` per active hour, "—"
     with no active time), trips, active hours, deaths to PKs (with PK sightings), deaths to mobs,
     loss to thieves. The captchas tile was removed 2026-10-08 (the Trips and Per day tables keep their
