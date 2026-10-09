@@ -4,8 +4,8 @@
      today's posts wait, empty posts are skipped, an over-long post is read whole in pieces;
      a truncated reply splits a window into halves that keep the thread title.
   2. Grounding: a quote of text that only appears inside a quoted earlier post is dropped.
-  3. Official: a staff post in Patches gives an official claim; a staff post in General
-     Discussion or a player's post in Patches doesn't.
+  3. Official: a staff post in Announcements gives an official claim; a staff post in General
+     Discussion or a player's post in Announcements doesn't.
   4. Promotion: entries are tagged `forum` with a `forum-kb:` ref carrying the date span;
      facts last seen before PROMOTE_SINCE are not promoted, and are retracted when they go
      stale after promotion; entries the Discord corpus promoted are never touched.
@@ -32,7 +32,7 @@ from knowledge import Knowledge  # noqa: E402
 
 FAILURES = []
 TODAY = "2026-10-01"
-GENERAL, PATCHES = 3, 14
+GENERAL, ANNOUNCEMENTS = 3, 6
 QUIET = lambda *_: None  # noqa: E731
 QUOTE = ('<blockquote data-attributes="member: 8" data-quote="ann" class="bbCodeBlock bbCodeBlock--expandable '
          'bbCodeBlock--quote js-expandWatch"><div class="bbCodeBlock-content"><div class="bbCodeBlock-expandContent '
@@ -164,10 +164,10 @@ def test_grounding():
 def test_official():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
         path, con = web_db(td)
-        add_thread(con, 30, PATCHES, "Patch Notes for May 1, 2024")
-        add_post(con, 300, 30, PATCHES, 0, "<p>Cedar now needs 65 lumberjacking.</p>", "2024-05-01",
+        add_thread(con, 30, ANNOUNCEMENTS, "Patch Notes for May 1, 2024")
+        add_post(con, 300, 30, ANNOUNCEMENTS, 0, "<p>Cedar now needs 65 lumberjacking.</p>", "2024-05-01",
                  author="Luthius", author_id=6, staff=1)
-        add_post(con, 301, 30, PATCHES, 1, "<p>Oak still needs 30 lumberjacking.</p>", "2024-05-02")
+        add_post(con, 301, 30, ANNOUNCEMENTS, 1, "<p>Oak still needs 30 lumberjacking.</p>", "2024-05-02")
         add_thread(con, 31, GENERAL, "Yew")
         add_post(con, 310, 31, GENERAL, 0, "<p>Yew needs 80 lumberjacking.</p>", "2024-05-03",
                  author="Owyn", author_id=1, staff=1)
@@ -181,10 +181,10 @@ def test_official():
                       for mid, text in re.findall(r"^\[(\d+)\] \S+ [^:]+: (.+)$", prompt, re.M)]
             return {"claims": claims}, {"model": "fake"}
         kbm.llm_json = fake
-        kbm.extract(kb, fkb.Forum(path), kbm.Budget(1.0), names=("14", "3"), today=TODAY, log=QUIET)
+        kbm.extract(kb, fkb.Forum(path), kbm.Budget(1.0), names=("6", "3"), today=TODAY, log=QUIET)
         off = {json.loads(m)[0]: o for m, o in kb.execute("SELECT message_ids, official FROM claims")}
         check(off == {300: 1, 301: 0, 310: 0},
-              f"official = staff post in an official section; not staff elsewhere, not players in Patches ({off})")
+              f"official = staff post in an official section; not staff elsewhere, not players there ({off})")
         check(any("Luthius (staff): Cedar" in p for p in prompts), "staff authors are marked in the prompt")
         con.close()
 

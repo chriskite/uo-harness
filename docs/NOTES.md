@@ -2065,8 +2065,11 @@ Code: `harness/outlands_web.py` (capture), `harness/web_kb.py` (wiki + news → 
     the patch notes" (the notes were on the forum).
   - Forum: XenForo 2 at `https://forums.uooutlands.com/index.php?…` (no public API, readable
     logged out, 20 posts per thread page). 19 sections, 5 007 threads / 27 850 posts in total on
-    2026-10-08; the game-info subset crawled is `outlands_web.FORUM_NODES`. Patch notes are posted
-    in Patches (432 threads, 2017-09 →) by staff, most by Luthius.
+    2026-10-08; crawled: the six sections in `outlands_web.FORUM_NODES` (docs/PLAN.md). Patch notes
+    are posted in Patches (432 threads, 2017-09-02 → 2026-09-17; 3 225 posts, 572 by staff, most by
+    Luthius; ~3.5M characters of text, extrapolated from 2.74M in 294 of the threads) and mostly
+    duplicate the news posts (260 of the 370 threads since 2018-11 have a news PATCH post within 2
+    days), so Patches isn't crawled.
   - **Staff markup:** a post is staff when its name carries `username--staff|admin|moderator` or
     its user cell has the "Staff Member" `message-userBanner`. Developers such as Luthius have only
     `username--moderator username--admin` and the banner, no `username--staff`; the first crawl

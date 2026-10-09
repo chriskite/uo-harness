@@ -15,7 +15,7 @@ discord_kb's; this module only supplies the forum corpus (Forum) and its CLI:
             outlands_web.to_text(strip_quotes=True), so a quoted earlier post is never
             attributed to the replier (a quote of quoted text fails grounding).
   official  a post by staff (posts.staff) in an official section (outlands_web.FORUM_NODES:
-            Announcements, Patches, Active Development); a claim citing one is official.
+            Announcements, Active Development); a claim citing one is official.
   promote   like Discord (tag `forum`, ref `forum-kb:<fact id> <post link> (<first>..<last>)`),
             except that a fact whose newest supporting claim predates PROMOTE_SINCE is not
             promoted (and retracted if the pipeline added it and nobody confirmed it): the
@@ -25,8 +25,8 @@ discord_kb's; this module only supplies the forum corpus (Forum) and its CLI:
 Forum claims cluster only among themselves: state lives in harness/data/forum_kb.db, not in
 discord_kb.db. The capture DB is opened read-only.
 
-  python harness/forum_kb.py run [--nodes 14,16] [--max-cost 40] [--db harness/data/harness.db]
-  python harness/forum_kb.py extract [--nodes 14,16] [--limit N]
+  python harness/forum_kb.py run [--nodes 3,16] [--max-cost 40] [--db harness/data/harness.db]
+  python harness/forum_kb.py extract [--nodes 3,16] [--limit N]
   python harness/forum_kb.py consolidate [--recluster]
   python harness/forum_kb.py promote [--db harness/data/harness.db] [--dry-run]
   python harness/forum_kb.py digest [--out docs/research/FORUM_KB.md]

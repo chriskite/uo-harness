@@ -1489,7 +1489,14 @@ renderer; full roleplay with exact, sourced facts. As built: docs/VISUALIZER.md 
 
 User request: the Outlands wiki, the forums and the patch notes in the knowledge base (the
 `knowledge` table behind `ctl know search`). User decisions: **hybrid** ingestion, and the forums'
-**game-info sections** only. Operation and numbers: docs/NOTES.md "Outlands wiki, news and forums".
+**game-info sections** only; then, when the measured forum volume put the LLM pass at ~$60–90 list
+price for all ten of them (~10M characters, 3.5M in Patches alone), **six sections**:
+Announcements, Active Development, General Discussion, Player Guides & Macros, New Player
+Questions, Corpse Creek. Dropped: Patches (the same staff patch notes as the news posts, already
+in as written: of its 370 threads since 2018-11, 260 have a news PATCH post within 2 days; only
+the 62 pre-launch threads before 2018-11 are forum-only), Suggestions & Ideas, Bug Reports,
+Client & Launcher Support (low factual yield). Operation and numbers: docs/NOTES.md "Outlands
+wiki, news and forums".
 
 - **Capture: `harness/outlands_web.py` → `harness/data/outlands_web.db`** (gitignored; not backed up,
   a recrawl rebuilds it). Each site through its cheapest stable interface: the wiki's MediaWiki API
@@ -1510,8 +1517,8 @@ User request: the Outlands wiki, the forums and the patch notes in the knowledge
 - **Forums go through the Discord KB pipeline (`harness/forum_kb.py`).** Forum posts are player
   chatter of mixed age (2017–2026), like Discord, so only official/consensus facts reach the store.
   `discord_kb.py` got a pluggable corpus (window building, official test, refs, digest header), and
-  forum_kb supplies the forum one: one thread per window (long patch posts split, not cut), official
-  = a staff post in Announcements / Patches / Active Development, tag `forum`, ref
+  forum_kb supplies the forum one: one thread per window (long posts split, not cut), official
+  = a staff post in Announcements / Active Development, tag `forum`, ref
   `forum-kb:<fact> <post link> (<first>..<last>)`. **Facts last seen before 2023-01-01 aren't
   promoted**: Outlands overhauled dungeons, PvP, harvesting and more in 2022–2024, and an old
   forum consensus has no newer claim to mark it outdated. They stay in the digest

@@ -55,14 +55,16 @@ PACE = {"wiki.uooutlands.com": (1.0, 2.0), "uooutlands.com": (1.0, 2.0), "forums
 RETRIES = 4
 TIMEOUT = 60
 
-# Game-info sections (user decision 2026-10-08): node id -> (name, official). Skipped: roleplay,
-# media, off-topic, trade / price check / real estate (prices deferred, as for Discord), guild
-# discussion, events. Staff posts in an official section count as official claims (forum_kb).
+# Crawled and run through forum_kb (user decisions 2026-10-08): node id -> (name, official).
+# Game-info sections only; then, on the LLM cost (~10M characters for all ten game-info
+# sections), also not Patches (the same staff patch notes as the news posts, already in the
+# store as written), Suggestions & Ideas, Bug Reports, Client & Launcher Support (low yield).
+# Never: roleplay, media, off-topic, trade / price check / real estate (prices deferred, as for
+# Discord), guild discussion, events. Staff posts in an official section are official claims.
 FORUM_NODES = {
-    6: ("Announcements", True), 14: ("Patches", True), 36: ("Active Development", True),
+    6: ("Announcements", True), 36: ("Active Development", True),
     3: ("General Discussion", False), 16: ("Player Guides & Macros", False),
-    31: ("New Player Questions", False), 37: ("Corpse Creek", False), 33: ("Bug Reports", False),
-    32: ("Client & Launcher Support", False), 4: ("Suggestions & Ideas", False),
+    31: ("New Player Questions", False), 37: ("Corpse Creek", False),
 }
 POSTS_PER_PAGE = 20
 
