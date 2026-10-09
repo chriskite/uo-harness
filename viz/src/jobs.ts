@@ -428,6 +428,7 @@ export interface Kpi {
 /** The KPI tile row, in display order. */
 export function kpis(t: JobTotals): Kpi[] {
   const hours = fmtHours(t.active_s);
+  const boardsPerHour = t.active_s > 0 ? t.stockpiled / (t.active_s / 3600) : null;
   const lost = t.thefts.amount;
   return [
     {
@@ -443,6 +444,10 @@ export function kpis(t: JobTotals): Kpi[] {
       key: "stored", label: "boards stored", value: fmtInt(t.stockpiled), sub: "in the resource stockpile", tone: "info",
       hint: "Boards the Resource Stockpile confirmed taking (\"You add … to the Resource Stockpile.\"). Boards put in the chest don't count.",
     },
+    {
+      key: "bph", label: "boards / hr", value: fmtNum(boardsPerHour, 0), sub: "per active hour", tone: "info",
+      hint: "Boards the Resource Stockpile confirmed taking, per active hour (the sum of trip durations; idle time between runs doesn't count).",
+    },
     { key: "trips", label: "trips", value: String(t.trips), tone: "dim", hint: "Trips that started in the date range, aborted ones included." },
     { key: "active", label: "active hours", value: hours.value, sub: hours.sub, tone: "dim", hint: "The sum of trip durations, start to end." },
     {
@@ -456,10 +461,6 @@ export function kpis(t: JobTotals): Kpi[] {
     {
       key: "theft", label: "loss to thieves", value: String(lost), sub: `${t.thefts.count} theft${t.thefts.count === 1 ? "" : "s"}`, tone: lost || t.thefts.count ? "warn" : "ok",
       hint: "Logs, boards and items lost to suspected thefts: the pack count dropped with no action of ours.",
-    },
-    {
-      key: "captcha", label: "captchas", value: String(t.captchas), sub: t.captchas ? `${fmtDuration(t.captcha_wait_s)} waiting` : undefined, tone: t.captchas ? "warn" : "ok",
-      hint: "Real harvest captchas met (decoy captcha gumps aren't counted). Below: time spent waiting for the answer.",
     },
   ];
 }

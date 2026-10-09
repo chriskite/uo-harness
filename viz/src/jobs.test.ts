@@ -54,8 +54,10 @@ describe("kpis", () => {
   test("today's shape: 5 trips, no deaths -> safety tiles are ok-toned zeros", () => {
     const k = kpis(totals({ trips: 5, logs: 89, stored: 118, stockpiled: 2410, active_s: 851.9, logs_per_hour: 376.1, logs_per_trip: 17.8, success_rate: 0.29, captchas: 1, captcha_wait_s: 10 }));
     const by = Object.fromEntries(k.map((x) => [x.key, x]));
-    expect(k.map((x) => x.key)).toEqual(["lph", "lpt", "stored", "trips", "active", "pk", "mob", "theft", "captcha"]);
+    expect(k.map((x) => x.key)).toEqual(["lph", "lpt", "stored", "bph", "trips", "active", "pk", "mob", "theft"]);
     expect(by.stored!.value).toBe("2,410");
+    expect(by.bph!.value).toBe("10184");
+    expect(by.bph!.sub).toBe("per active hour");
     expect(by.lph!.value).toBe("376");
     expect(by.lph!.sub).toBe("89 logs · 118 put away");
     expect(by.lpt!.value).toBe("17.8");
@@ -63,12 +65,12 @@ describe("kpis", () => {
     expect(by.pk!.value).toBe("0");
     expect(by.pk!.tone).toBe("ok");
     expect(by.theft!.tone).toBe("ok");
-    expect(by.captcha!.tone).toBe("warn");
-    expect(by.captcha!.sub).toBe("0:10 waiting");
+    expect(by.captcha).toBeUndefined();
   });
   test("empty data: rates are dashes, not NaN or 0", () => {
     const by = Object.fromEntries(kpis(totals()).map((x) => [x.key, x]));
     expect(by.lph!.value).toBe("—");
+    expect(by.bph!.value).toBe("—");
     expect(by.lpt!.value).toBe("—");
     expect(by.lpt!.sub).toBeUndefined();
     expect(by.trips!.value).toBe("0");

@@ -457,8 +457,10 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
   - KPI tiles: logs/hr (sub: logs and boards **put away**, the rows' `stored`: chest, bank or
     stockpile), logs/trip (with the chop success rate), **boards stored** (2026-10-05, user
     request: only boards the Resource Stockpile confirmed taking, the trip rows' `stockpiled`; the
-    chest's don't count), trips, active hours, deaths to PKs (with PK sightings), deaths to mobs,
-    loss to thieves, captchas (with the wait time). Safety tiles are green at 0, red or amber
+    chest's don't count), **boards / hr** (2026-10-08, user request: `stockpiled` per active hour, "—"
+    with no active time), trips, active hours, deaths to PKs (with PK sightings), deaths to mobs,
+    loss to thieves. The captchas tile was removed 2026-10-08 (the Trips and Per day tables keep their
+    captchas columns). Safety tiles are green at 0, red or amber
     otherwise. The Trips table has `put away` and `stored` columns, the Per day table `stored`.
   - A line under the tiles: the estimated value (and how many logs are unpriced) and the chop
     outcomes from `harvest_attempts`.
