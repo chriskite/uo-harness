@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
-import { entityCaption, labelOf } from "../events.ts";
+import { entityCaption, labelOf, type LiveWalk } from "../events.ts";
 import { DIR_NAMES, NOTORIETY, UNKNOWN_NOTORIETY_COLOR } from "../format.ts";
 import { FacetChunks, chunksInView, fetchFacetMeta, type FacetMeta } from "../facet.ts";
 import { cellOutline, fetchGrove, groveQuery, treeAt, treeText, type GroveResponse, type TreeState } from "../grove.ts";
@@ -20,6 +20,7 @@ const PROJECTION_KEY = "viz.mapProjection";
 const TERRAIN_KEY = "viz.mapTerrain";
 const GROVE_KEY = "viz.mapGrove";
 const GROVE_POLL_MS = 15_000;
+const NO_LIVE: LiveWalk = { steps: [], blocked: [] };
 
 /** Grove layer tree colours per harvest-memory state (legend: .lg-tree-*). */
 const TREE_COLORS: Record<TreeState, string> = {
@@ -58,7 +59,9 @@ interface Scene {
   selfHp: number | null;
   /** world.self position when it disagrees with the truth. */
   ghost: Tile | null;
-  layer: WalkLayer;
+  /** Walk memory (built once per file) and the live steps/blocks since; drawn together, not merged, so a
+   *  live event doesn't re-dedupe the file's tens of thousands of tiles. */
+  layers: WalkLayer[];
   trail: Tile[];
   mobiles: MobileDot[];
   items: Dot[];
@@ -74,7 +77,7 @@ interface Scene {
   mainFacet: boolean;
 }
 
-function buildScene(viz: VizSnapshot, layer: WalkLayer, grove: GroveResponse | null): Scene {
+function buildScene(viz: VizSnapshot, layers: WalkLayer[], grove: GroveResponse | null): Scene {
   const st = viz.state;
   const world = st?.world;
   const self = world?.self;
@@ -126,7 +129,7 @@ function buildScene(viz: VizSnapshot, layer: WalkLayer, grove: GroveResponse | n
     selfName: self?.name ?? null,
     selfHp: hpFraction(self?.hits, self?.hits_max),
     ghost: div.diverged && self ? [self.x, self.y] : null,
-    layer,
+    layers,
     trail: viz.agg.trail,
     mobiles,
     items,
@@ -156,7 +159,7 @@ interface View {
 /** Where to centre when following: truth, else any walk-memory tile, else origin. */
 function followTarget(s: Scene): Tile {
   if (s.truth) return s.truth;
-  const t = s.layer.tiles[0];
+  const t = s.layers.find((l) => l.tiles.length > 0)?.tiles[0];
   return t ?? [0, 0];
 }
 
@@ -228,11 +231,10 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
   }, [groveKey]);
 
   const mainFacet = (self?.map ?? 0) === 0;
-  const layer = useMemo(
-    () => (mainFacet ? buildWalkLayer(viz.walkmem, viz.agg.live) : buildWalkLayer(null, { steps: [], blocked: [] })),
-    [mainFacet, viz.walkmem, viz.agg.live],
-  );
-  const scene = useMemo(() => buildScene(viz, layer, groveOn ? grove : null), [viz, layer, groveOn, grove]);
+  const memLayer = useMemo(() => buildWalkLayer(mainFacet ? viz.walkmem : null, NO_LIVE), [mainFacet, viz.walkmem]);
+  const liveLayer = useMemo(() => buildWalkLayer(null, mainFacet ? viz.agg.live : NO_LIVE), [mainFacet, viz.agg.live]);
+  const layers = useMemo(() => [memLayer, liveLayer], [memLayer, liveLayer]);
+  const scene = useMemo(() => buildScene(viz, layers, groveOn ? grove : null), [viz, layers, groveOn, grove]);
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
 
@@ -302,32 +304,38 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
     // Underlay: walk memory (tiles shaded, edges faint, blocked red ticks).
     ctx.fillStyle = "rgba(45, 212, 191, 0.14)";
     ctx.beginPath();
-    for (const [x, y] of s.layer.tiles) {
-      if (!visible(x, y)) continue;
-      ctx.moveTo(...P(x, y));
-      ctx.lineTo(...P(x + 1, y));
-      ctx.lineTo(...P(x + 1, y + 1));
-      ctx.lineTo(...P(x, y + 1));
-      ctx.closePath();
+    for (const layer of s.layers) {
+      for (const [x, y] of layer.tiles) {
+        if (!visible(x, y)) continue;
+        ctx.moveTo(...P(x, y));
+        ctx.lineTo(...P(x + 1, y));
+        ctx.lineTo(...P(x + 1, y + 1));
+        ctx.lineTo(...P(x, y + 1));
+        ctx.closePath();
+      }
     }
     ctx.fill();
     ctx.strokeStyle = "rgba(45, 212, 191, 0.35)";
     ctx.lineWidth = Math.max(1, z / 16);
     ctx.beginPath();
-    for (const [ax, ay, bx, by] of s.layer.edges) {
-      if (!visible(ax, ay) && !visible(bx, by)) continue;
-      ctx.moveTo(...C(ax, ay));
-      ctx.lineTo(...C(bx, by));
+    for (const layer of s.layers) {
+      for (const [ax, ay, bx, by] of layer.edges) {
+        if (!visible(ax, ay) && !visible(bx, by)) continue;
+        ctx.moveTo(...C(ax, ay));
+        ctx.lineTo(...C(bx, by));
+      }
     }
     ctx.stroke();
     ctx.strokeStyle = "#ef4444";
     ctx.lineWidth = Math.max(1.5, z / 8);
     ctx.beginPath();
-    for (const [x, y, d] of s.layer.blocked) {
-      if (!visible(x, y)) continue;
-      const [dx, dy] = DIR_DELTAS[d & 7] ?? [0, 0];
-      ctx.moveTo(...C(x + dx * 0.2, y + dy * 0.2));
-      ctx.lineTo(...C(x + dx * 0.5, y + dy * 0.5));
+    for (const layer of s.layers) {
+      for (const [x, y, d] of layer.blocked) {
+        if (!visible(x, y)) continue;
+        const [dx, dy] = DIR_DELTAS[d & 7] ?? [0, 0];
+        ctx.moveTo(...C(x + dx * 0.2, y + dy * 0.2));
+        ctx.lineTo(...C(x + dx * 0.5, y + dy * 0.5));
+      }
     }
     ctx.stroke();
 
