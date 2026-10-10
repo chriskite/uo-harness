@@ -2167,6 +2167,27 @@ Code: `harness/outlands_web.py` (capture), `harness/web_kb.py` (wiki + news → 
   embedded the 381 new entries); later ones ~0.2 s. "how do I become a thief and what can I
   steal" `--tag forum` → the 2026-07-09 staff notes on the thief's target.
 
+## A "thief" who killed: gorilkaenjoyer at witcher_105 (live 2026-10-10, Seer-17)
+
+Log: `logs/tasks/lumber-20261010-141818-e65c.log`. Junctures 780 (death), 781 (threat), 782 (task_failed). Store
+events 14:59:04–14:59:23.
+- **The approach.** The blue gorilkaenjoyer (0x00006A2E, mounted, notoriety 1) played lumberjack animations (action
+  29) beside Dan's stands. On 2026-10-07 he had already come to 1 tile at witcher_178, and Dan recalled. Here he
+  came to 2 tiles at 14:59:05 and KeepAway stepped Dan off. At 14:59:13 he closed again and the thief rule recalled
+  standing.
+- **The kill.** He attacked 0.6 s into the cast: "gorilkaenjoyer is attacking you!" over Dan (hue 34) at
+  14:59:14.68. He hit about every 2 s: -23, then -24 ("Your reactive armor spell has been nullified."), then
+  -29, and so on. He disturbed all five standing casts: two book charges and three Recall-on-book casts,
+  disturbed 0.56–1.77 s in. A heal potion (+23) didn't help. Dan was dead at 14:59:23.
+- **The 0x2F swings** showed Dan → him (auto-defence), as with Bastet. Again no swing named him as the attacker.
+- **What changed (PLAN "Known PKs fled on sight"):**
+  - Every attacker is now a known PK, fled on sight.
+  - The thief recall runs from the suspect after one standing cast.
+  - `record_death` reads attack lines heard inside the escape, so the death is "pk", not "unknown".
+  - The Report Murder gump is always declined.
+- **After the death:** no healer within ~865 tiles that Dan knew. Seer-17 waited for the server's ghost move. The
+  corpse held the hatchet, the pouches, ~1200 logs and the Harvest armor.
+
 ## Nystul, the viz assistant: headless omp with extension tools (probed 2026-10-08, omp 18.8.3)
 
 Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".

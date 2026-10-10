@@ -1038,8 +1038,10 @@ pouch went into the chest. No thief came, so the keep-away and the pop alarm are
      steal cooldown, where a 2 s recall would still leave them in reach.
    - Post an attention juncture and log the player as a suspected thief.
    - If they close to ≤ 2 tiles again: recall, and keep off the spot for `THIEF_COOLDOWN` (THREATS T4).
+     Since 2026-10-10 that recall is one standing cast, then run-then-cast from the suspect ("Known PKs
+     fled on sight; thief recall runs" below: a "thief" who closed again attacked and killed Dan).
    - `threats.py` changes from `watch` to this response for players in steal range during a harvest job.
-   - Friends or guildmates, if we ever have any, would need an explicit allowlist; there is none today.
+   - Friends and guildmates: since 2026-10-09 greens (guild/alliance) are never thieves.
 4. **Getting pouches:** buy them from a provisioner. Errol sells "Trapped Pouch" at 25 gp
    (measured 2026-10-04); they arrive as hue-38 pouches. The trip plan carries two or three, like
    hatchets and reagents, and tops up at the provisioner. Casting Magic Trap ourselves isn't needed
@@ -1357,6 +1359,29 @@ used up (docs/LUMBER_LOOP.md §13 "Wards"). Both always keep Recall's mana and r
 right after the landing. The arrival is when a camper strikes, and the landing's cast slot belongs to the
 escape recall. Dan has Magery 80.2, so Magic Reflection (100 % at 70) can't fizzle and Reactive Armor
 absorbs 20 physical damage.
+
+## Known PKs fled on sight; thief recall runs; Report Murder declined (decided and built 2026-10-10)
+
+Dan died at witcher_105 (14:59:23, `lumber-20261010-141818-e65c`). The blue **gorilkaenjoyer** (0x00006A2E,
+mounted, who had crowded Dan as a "thief" at witcher_178 on 2026-10-07) came to 2 tiles at 14:59:05; KeepAway
+stepped Dan off. He closed to 2 tiles again at 14:59:13 and the thief rule recalled standing. He attacked 0.6 s
+into the cast ("gorilkaenjoyer is attacking you!" 14:59:14.68) and disturbed all five standing casts in 9 s
+(-23, -24, -29, …; Reactive Armor absorbed its 20). Dan died at 77 → 0.
+
+- **Known PKs (user: "Do we flee known PKs on sight? If not we should"):** we did not. Only reds, hostile
+  (grey) players, faction-tagged players at PvP spots, precasters and current attackers were fled. Now any
+  player who ever attacked one of our characters, or whom the user or the overseer names, is a known PK
+  (`harness/known_pks.py`, `ctl pk`): fled on sight at any distance in view, whatever his notoriety. Greens
+  are exempt, because the ally rule of 2026-10-09 is explicit. The 11 attackers on record were backfilled.
+  Rejected: matching by serial only. The server's attack line names the player without a serial, and
+  names were all the backfill had.
+- **The thief recall (user picked "fix it too"):** one standing cast, then the player escape's
+  run-then-cast from the suspect (`run_and_recall(players)`), never escape.escape's standing recasts. This
+  is the same lesson as option E (2026-10-06) and mauna kea (2026-10-09), which the thief path had missed.
+- **Death cause:** `record_death` now reads "… is attacking you!" lines heard inside the escape. The
+  10-10 death had said "unknown"; job_event 8812 was corrected to "pk".
+- **Report Murder gump: always decline** (user). `act gump` refuses Accept on gump 0x1F3940C6;
+  OVERSEER.md §5 says to decline each one.
 
 ## Roaming creatures boxing a grove out (decided and built 2026-10-09)
 

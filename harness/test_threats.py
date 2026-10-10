@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from threats import (CREATURE_SPELL_RANGE, Params, Watch, assess, flee_radius, friendly, hit_attackers,  # noqa: E402
-                     spell_on_us, unseen_attackers)
+                     pk_key, spell_on_us, unseen_attackers)
 
 FAILURES = []
 ME = 0x00094375
@@ -507,9 +507,30 @@ def test_unseen_attackers():
     eq("two of them: both, nearest first", blamed([gone(0x708, 22), gone(0x709, 19)]), [0x709, 0x708])
 
 
+def test_known_pks():
+    print("== known PKs (user 2026-10-10): fled on sight at any distance, by name (no title) or serial; not greens ==")
+    mobs = [mob(0x600, 15, 0),                  # a blue 15 tiles off: watch radius is less
+            mob(0x601, 16, 2),                  # "Lord Saisho Hakai" on his label; known as "Saisho Hakai"
+            mob(0x602, 3, 3),                   # known by serial only (a new name)
+            mob(0x603, 4, 0, noto=2),           # known, but green now (guild/alliance)
+            mob(0x604, 5, 0)]                   # an unknown blue
+    labels = {0x600: "gorilkaenjoyer", 0x601: "Lord Saisho Hakai", 0x602: "someone new", 0x603: "Old Friend",
+              0x604: "Passerby"}
+    known = frozenset({"gorilkaenjoyer", "saisho hakai", 0x602, "old friend"})
+    a = assess(state(mobs, labels=labels), recall_s=2.0, margin_s=1.0, now=NOW, params=Params(known_pks=known))
+    eq("gorilkaenjoyer at 15, Lord Saisho Hakai at 16, a known serial at 3: flee, hostile; the green and the "
+       "unknown blue not",
+       [(t.serial, t.action, t.hostile) for t in sorted(a.threats, key=lambda t: t.serial)],
+       [(0x600, "flee", True), (0x601, "flee", True), (0x602, "flee", True), (0x603, "watch", False),
+        (0x604, "watch", False)])
+    eq("the reason names him", one(a, 0x601).reason, "known PK Lord Saisho Hakai (attacked us before)")
+    eq("pk_key: lowercase, no Lord/Lady title", [pk_key(n) for n in ("Lord Saisho Hakai", "Lady X", " Bob ", None)],
+       ["saisho hakai", "x", "bob", ""])
+
+
 TESTS = [test_reds, test_npcs_and_players, test_monsters, test_pets, test_damage, test_label_grace,
          test_fighting_others, test_acknowledge, test_steal_guard, test_hit_attackers, test_spells,
-         test_unseen_attackers]
+         test_unseen_attackers, test_known_pks]
 
 
 def main():

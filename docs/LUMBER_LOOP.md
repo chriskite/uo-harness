@@ -1147,7 +1147,25 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     2026-10-04 that book is also the way home of every trip, so it is required at every spot (the
     old `--recall off` is gone).
   - **Trigger:** a red anywhere in view (no ETA test), a hostile player in flee range, a
-    non-creature swinging at us, or a player named in "… is attacking you!". Since 2026-10-06
+    non-creature swinging at us, a player named in "… is attacking you!", or a **known PK** anywhere
+    in view, whatever his notoriety (since 2026-10-10, user: "Do we flee known PKs on sight? If not we
+    should", after the blue gorilkaenjoyer killed Dan at witcher_105; `harness/known_pks.py`,
+    `threats.Params.known_pks`, `threats.pk_key`, `LumberLoop.mark_pk`, `ctl pk list|add|rm`):
+    - **Who is known:** every player who attacked one of our characters. The runner marks him itself
+      when he is named in "… is attacking you!" or swings at us (in the threat check, and in
+      `record_death` for a line heard inside the escape: the 10-10 death read "unknown" without it).
+      Players the user or the overseer names are added with `ctl pk add NAME [--serial S] [--why W]`.
+      The 11 attackers on record on 2026-10-10 were backfilled (Bastet … gorilkaenjoyer).
+    - **Storage:** `pk` job events (`mark`/`clear`) in the memory store, read at each run start. A
+      mark made during a run counts at once.
+    - **Matching:** by serial, or by name without the "Lord "/"Lady " title the click label adds (the
+      server's line says "Saisho Hakai", the label "Lord Saisho Hakai"). The same normalisation now
+      applies to "… is attacking you!" against labels, so titled attackers are matched.
+    - **Allies:** a known PK the server shows green (guild or alliance) is not fled from (user
+      2026-10-09).
+    - **Tests:** scenario `known_pk` (faction_lone's blue at 16 tiles, marked as "Lord Bee Loga", is
+      recalled from on sight), `test_threats.py` `test_known_pks`.
+    Since 2026-10-06
     (user, after the run-16 death at witcher_66, docs/NOTES.md), out at a pvp spot (`afield`) also:
     - **a player with an Outlands faction tag** (`field_players`, `faction_threat`): the title line
       under its click label, "Elite Mercenary [Cambria]" or a bare "Cambria", in that faction's hue

@@ -101,6 +101,7 @@ import os
 import re
 import sys
 import time
+from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -132,6 +133,7 @@ import healing  # noqa: E402
 import tracking  # noqa: E402
 import pouch  # noqa: E402
 import aspects  # noqa: E402
+import known_pks  # noqa: E402
 import shelf as shelf_mod  # noqa: E402
 import convert as convert_mod  # noqa: E402
 import stockpile as stockpile_mod  # noqa: E402
@@ -472,6 +474,8 @@ class LumberLoop:
         # (threats.Params, plus every body the store has seen hostile: travel_guard.learned_params);
         # a wandering goat isn't. A player within STEAL_GUARD tiles is `thief` (acted on while harvesting)
         self.watch = threats.Watch(travel_guard.learned_params(memory, threats.Params(steal_guard=STEAL_GUARD)))
+        # players who attacked or killed us before are fled on sight (known_pks; user 2026-10-10)
+        self.watch.params = replace(self.watch.params, known_pks=known_pks.keys(known_pks.load(memory)))
         self.last_threats = None
         self.seen_hostiles = set()
         self.ledger = ledger_mod.Ledger()
@@ -1017,6 +1021,8 @@ class LumberLoop:
                      and s not in {t.serial for t in monsters}]
         for s in [*aggressors, *(t.serial for t in named)]:    # died's cause: players who went for us
             self.attacked[s] = (time.time(), True)
+        for t in [*named, *(by_serial[s] for s in aggressors if s in by_serial and by_serial[s].player)]:
+            self.mark_pk(st, t, "attacked us")
         if players or aggressors:
             worst = players[0] if players else None
             if self.on_home_rune(st):
@@ -1220,7 +1226,30 @@ class LumberLoop:
             if ev[i].get("ev") == "speech_heard" and text.endswith(" is attacking you!"):
                 names.add(text[: -len(" is attacking you!")])
         self._attack_scan = len(ev)
-        return [t for t in a.threats if t.player and t.name in names]
+        if not names:
+            return []
+        keys = {threats.pk_key(n) for n in names}
+        return [t for t in a.threats if t.player and threats.pk_key(t.name) in keys]
+
+    def mark_pk(self, st, t, why: str):
+        """A player who went for us is a known PK from now on (known_pks; user 2026-10-10): fled on sight in this
+        run (threats.Params.known_pks) and in every later one (a `pk` mark in the store, by name)."""
+        key = threats.pk_key(t.name)
+        have = self.watch.params.known_pks
+        if (not key or key in have) and t.serial in have:
+            return
+        self.watch.params = replace(self.watch.params, known_pks=have | {t.serial} | ({key} if key else set()))
+        if not key:
+            return
+        log(f"known PK from now on: {t.name} ({why})")
+        data = {"name": t.name, "serial": t.serial, "why": f"{why} ({self.k['spot']['id']}, trip {self.trip_n})"}
+
+        def write(data=data, where=self._where(st)):
+            known_pks.mark(self.memory, data["name"], data["serial"], data["why"], "runner", **where)
+        if self._checking:
+            self.later(write)
+        else:
+            write()
 
     def harmful_casts(self, st) -> dict:
         """{caster serial: spell} for each harmful spell's power words (threats.harmful_spell) said
@@ -2007,9 +2036,12 @@ class LumberLoop:
     def thief_out(self, st, a, worst, trigger: str, why: str, extra: dict | None = None):
         """Leave a thief at our logs: away from home with a recall book, recall to its default
         rune (recall_out: the threat + pk_escape junctures), else stop where we are (Unsafe).
-        Either way a `thief` job event (trigger 'pouch_pop' or 'closed_again', action
-        'recall' or 'abort') keeps the spot out of `lumber plan` for THIEF_COOLDOWN_S
-        (lumber_opt; THREATS.md §7 T3/T4)."""
+        With a suspect in view: one standing cast; if it doesn't land, run from him and cast
+        between runs (run_and_recall, players), as player_escape does (user 2026-10-10: the blue
+        gorilkaenjoyer closed to 2 tiles again at witcher_105, attacked 0.6 s into the recall, and
+        disturbed five standing casts in 9 s: Dan died). Either way a `thief` job event (trigger
+        'pouch_pop' or 'closed_again', action 'recall' or 'abort') keeps the spot out of
+        `lumber plan` for THIEF_COOLDOWN_S (lumber_opt; THREATS.md §7 T3/T4)."""
         recall = self.afield and self.recall_book is not None
         data = {"trigger": trigger, "action": "recall" if recall else "abort", "why": why,
                 "suspect": worst.to_dict() if worst else None, "trip": self.trip_n,
@@ -2019,7 +2051,15 @@ class LumberLoop:
         log(f"THIEF: {why}")
         what = None if worst else "a thief at our trapped pouch"
         if recall:
-            why = f"{why}; {self.recall_out(st, a, worst, {}, why=why, what=what)}"
+            fail = self.recall_out(st, a, worst, {}, why=why, what=what, attempts=1 if worst else None)
+            st = self.link.state()
+            a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+            if worst is not None and not a.dead:
+                log(f"{fail}; running from {self.threat_name(worst)} before the next cast")
+                self.player_foes = {worst.serial}
+                self.drop_cursor()
+                fail = self.run_and_recall(st, a, worst, {}, why, players=True) or "died while running from a thief"
+            why = f"{why}; {fail}"
         self.threat_stop(st, a, worst, {}, Unsafe, why, what=what)
 
     def keep_away(self, e: KeepAway):
@@ -2190,6 +2230,9 @@ class LumberLoop:
         tiles made it "pk"); with no hit blamed, a hostile player in view still makes it "pk"."""
         a = self.last_threats
         now = time.time()
+        for t in self.attacked_by_players(st, a) if a else []:   # "… is attacking you!" heard inside the escape
+            self.attacked[t.serial] = (now, True)
+            self.mark_pk(st, t, "killed us")
         recent = [p for t, p in self.attacked.values() if now - t <= DEATH_BLAME_S]
         players = [t for t in (a.threats if a else []) if t.hostile and t.player]
         cause = ("pk" if any(recent) else "mob" if recent else

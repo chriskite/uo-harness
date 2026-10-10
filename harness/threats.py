@@ -136,6 +136,9 @@ striking range keeps the flee path, and damage to us is under_attack as
 before. Captures older than world.swings have no such key: read as no swings.
 
 Other actions:
+  - a known PK (Params.known_pks: his name or serial; harness/known_pks.py, user
+    2026-10-10) in view: `flee` at any distance and hostile, whatever his notoriety,
+    unless the server shows him green (an ally).
   - non-hostile players (blue) within watch_radius: `watch`. They could be
     thieves; harness/ledger.py catches actual theft.
   - any player that isn't hostile or an ally (notoriety 2, green: our guild or alliance; user 2026-10-09)
@@ -271,6 +274,16 @@ def harmful_spell(text: str | None) -> str | None:
     return HARMFUL_WORDS.get(" ".join((text or "").lower().split()))
 
 
+def pk_key(name: str | None) -> str:
+    """A player's name as known_pks matches it: lowercase, without the "Lord "/"Lady " the click label adds for
+    fame and karma (the server's "<name> is attacking you!" has "Saisho Hakai", the label "Lord Saisho Hakai")."""
+    key = (name or "").strip().lower()
+    for title in ("lord ", "lady "):
+        if key.startswith(title):
+            return key[len(title):]
+    return key
+
+
 def friendly(t, me: dict) -> bool:
     """A player of our guild or alliance: notoriety 2 (the server shows them green to us), or their guild
     tag is ours, or their faction tag is ours (their tags against world.self's). User 2026-10-09: guild and
@@ -315,6 +328,8 @@ class Params:
     label_grace_s: float = 1.0
     # players (not hostile) this close are suspected thieves (`thief`); 0 = off (module docstring)
     steal_guard: int = 0
+    # known PKs (harness/known_pks.py; user 2026-10-10): lowercase names and serials, fled on sight
+    known_pks: frozenset = frozenset()
     # self damage
     damage_window_s: float = 10.0
     damage_threshold: int = 1
@@ -662,6 +677,10 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
             th.action, th.reason = "ignore", f"beyond max_range {params.max_range} (stale?)"
         elif kind in ("npc", "ghost"):
             th.action, th.reason = "ignore", kind
+        elif player and th.notoriety != ALLY_NOTORIETY and (
+                serial in params.known_pks or pk_key(th.name) in params.known_pks):
+            th.hostile = True
+            th.action, th.reason = "flee", f"known PK {th.name or f'0x{serial:08X}'} (attacked us before)"
         elif (th.hostile and label is None and ASSUMED_PLAYER in evidence
               and first_seen is not None
               and now - first_seen.get(serial, now) < params.label_grace_s):

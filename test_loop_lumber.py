@@ -103,6 +103,7 @@ sys.path.insert(0, f"{ROOT}/harness")
 import actions  # noqa: E402
 import escape  # noqa: E402
 import healing  # noqa: E402
+import known_pks  # noqa: E402
 import combat  # noqa: E402
 import task_wrap  # noqa: E402
 import memory  # noqa: E402
@@ -3045,31 +3046,32 @@ async def faction():
     store.close()
 
 
+async def ack_speech_holds(db):
+    """A test overseer for the faction scenarios: the title lines read as speech here (no client clicks the player on
+    sight; live the client does), so ack each speech hold at once, as the overseer would for an innocent line."""
+    store = memory.Memory(db)
+    try:
+        while True:
+            await asyncio.sleep(0.3)
+            for (jid,) in store.con.execute("SELECT id FROM junctures WHERE kind='speech_nearby' "
+                                            "AND acked_t IS NULL").fetchall():
+                store.juncture_ack(jid)
+    finally:
+        store.close()
+
+
 async def faction_lone():
     """User 2026-10-09 ("we're recalling away from blues too much"): a lone faction-tagged blue 16 tiles off, no
     waypost, no group, isn't fled from: watched, the trip chops on and stores. The same blue coming 3 tiles nearer
     is: home ("closing in")."""
     print("\n== faction, lone: a tagged blue far off is watched; one closing in is fled from ==")
-
-    async def overseer(db):
-        """The title lines read as his speech here (no client clicks him on sight; live the client does): ack the
-        hold at once, as the overseer would for an innocent line."""
-        store = memory.Memory(db)
-        try:
-            while True:
-                await asyncio.sleep(0.3)
-                for (jid,) in store.con.execute("SELECT id FROM junctures WHERE kind='speech_nearby' "
-                                                "AND acked_t IS NULL").fetchall():
-                    store.juncture_ack(jid)
-        finally:
-            store.close()
     for mode in ("stay", "close"):
         world = World("faction")
         world.lone = mode
         text, code, store, _ = await run_scenario(world, f"faction_lone_{mode}", [LIB_TREE],
                                                   ["--trips", "1", "--logs-per-trip", "100", "--human", "normal",
                                                    "--seed", "5", "--regrow-min", "0.05"], spot_extra=LIB_SPOT,
-                                                  during=overseer)
+                                                  during=ack_speech_holds)
         rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall" and e["data"].get("threat")]
         if mode == "stay":
             check("a lone tagged blue at 16 tiles: watched (logged once), no recall from him, the trip stored (exit 0)",
@@ -3081,6 +3083,30 @@ async def faction_lone():
                   rec and rec[-1]["ok"] and rec[-1]["threat"]["serial"] == FOE
                   and "closing in" in rec[-1]["threat"]["reason"], f"exit {code} {str(rec)[:400]}\n{text[-900:]}")
         store.close()
+
+
+async def known_pk():
+    """User 2026-10-10 (after the blue gorilkaenjoyer killed Dan): known PKs are fled on sight. faction_lone 'stay''s
+    blue, 16 tiles off and only watched there, was marked by an earlier run with his serial (the simulator sends his
+    name only as speech, no click label; name matching is test_threats' test_known_pks): recalled from on sight,
+    the reason "known PK"."""
+    print("\n== known PK: a blue who attacked us before is recalled from on sight, 16 tiles off ==")
+
+    def marked(db):
+        store = memory.Memory(db)
+        known_pks.mark(store, "Bee Loga", FOE, "attacked us (an earlier run)")
+        store.close()
+    world = World("faction")
+    world.lone = "stay"
+    text, code, store, _ = await run_scenario(world, "known_pk", [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "normal",
+                                               "--seed", "5", "--regrow-min", "0.05"], spot_extra=LIB_SPOT,
+                                              during=ack_speech_holds, prepare=marked)
+    rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall" and e["data"].get("threat")]
+    check("recalled from Bee Loga at 16 tiles as a known PK",
+          rec and rec[-1]["ok"] and rec[-1]["threat"]["serial"] == FOE and "known PK" in rec[-1]["threat"]["reason"]
+          and rec[-1]["threat"]["distance"] >= 15, f"exit {code} {str(rec)[:400]}\n{text[-900:]}")
+    store.close()
 
 
 async def precast():
@@ -3272,13 +3298,16 @@ async def thief_keep_away():
           and any(s["anchor"] == [LIB_FAR_TREE["x"], LIB_FAR_TREE["y"]] for s in stand_events(store)),
           f"him {him} -> {to}")
     rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
-    check("he followed and stood next to us again: recalled home with our book, a `thief` event "
+    check("he followed and stood next to us again: one standing cast (disturbed here), then a run from him and a "
+          "cast that landed home (user 2026-10-10: never standing recasts next to him); a `thief` event "
           "(closed_again, recall), an urgent pk_escape juncture; exit 1",
           code == 1 and world.thief_followed and len(ev) == 2 and ev[1]["data"]["trigger"] == "closed_again"
           and ev[1]["data"]["action"] == "recall" and world.recalls_home == [HOME_RUNE_POS]
-          and len(rec) == 1 and rec[0]["ok"] and rec[0]["threat"]["serial"] == THIEF
+          and [r["attempts"] for r in rec] == [1, 1] and not rec[0]["ok"] and rec[1]["ok"]
+          and rec[1]["threat"]["serial"] == THIEF and "running from 0x0073C056 before the next cast" in text
           and any(j["kind"] == "pk_escape" for j in store.junctures()) and "escaped by recall" in text,
-          f"exit {code} {[e['data'].get('trigger') for e in ev]} home {world.recalls_home}\n{text[-600:]}")
+          f"exit {code} {[e['data'].get('trigger') for e in ev]} home {world.recalls_home} "
+          f"rec {[(r['attempts'], r['ok']) for r in rec]}\n{text[-600:]}")
     check("the logs stayed in the trapped pouch (never set off in the field); home by the recall, into the room, "
           "converted and stored there",
           world.stashed and world.room_entries == 1 and world.logs == 0 and world.chest_stack is not None
@@ -3875,20 +3904,23 @@ def unit_death_cause():
     print("\n== death cause: who hit us, not who was in view ==")
     grey = SimpleNamespace(serial=0x7196E8, hostile=True, player=True)
 
-    def fake_loop(attacked, rows, ghost=False):
+    def fake_loop(attacked, rows, ghost=False, seen=(grey,), events=(), marks=None):
         fake = SimpleNamespace(attacked=attacked, last_threats=SimpleNamespace(
-            threats=[grey], under_attack=True, to_dict=lambda: {}), death_recorded=False,
-            memory=SimpleNamespace(juncture=lambda *a: None, job_event=lambda job, kind, data, **kw: rows.append(data)),
-            _where=lambda st: {}, post_threat=lambda *a, **kw: "red X at 18 tiles")
+            threats=list(seen), under_attack=True, to_dict=lambda: {}), death_recorded=False,
+            memory=SimpleNamespace(juncture=lambda *a: None, job_event=lambda job, kind, data, **kw:
+                                   (rows if job == "lumber" else marks if marks is not None else []).append(data)),
+            _where=lambda st: {}, post_threat=lambda *a, **kw: "red X at 18 tiles", _attack_scan=0, _checking=0,
+            watch=SimpleNamespace(params=threats.Params()), k={"spot": {"id": "sim"}}, trip_n=1)
         last = {"world": {"self": {"stats": {"graphic": 0x192 if ghost else 0x190}}}, "movement": {}}
-        fake.link = SimpleNamespace(state=lambda: last, last=last)
-        fake.record_death = types.MethodType(loop_lumber.LumberLoop.record_death, fake)
+        fake.link = SimpleNamespace(state=lambda: last, last=last, events=list(events))
+        for m in ("record_death", "attacked_by_players", "mark_pk"):
+            setattr(fake, m, types.MethodType(getattr(loop_lumber.LumberLoop, m), fake))
         return fake
 
-    def cause(attacked):
+    def cause(attacked, **kw):
         rows = []
         try:
-            loop_lumber.LumberLoop.died(fake_loop(attacked, rows), {}, "ghost body")
+            loop_lumber.LumberLoop.died(fake_loop(attacked, rows, **kw), {}, "ghost body")
         except loop_lumber.Unsafe:
             pass
         return rows[0]["cause"]
@@ -3897,6 +3929,14 @@ def unit_death_cause():
     check("a player hit us: pk", cause({0x71F989: (now - 1, False), 0x1234: (now - 2, True)}) == "pk")
     check("the creature's hit was long ago: the player in view makes it pk",
           cause({0x71F989: (now - loop_lumber.DEATH_BLAME_S - 1, False)}) == "pk")
+    # live 2026-10-10 (witcher_105): the blue gorilkaenjoyer attacked inside the thief recall; no threat check ran
+    # between his "… is attacking you!" and the death, and it said 'unknown'
+    blue = threats.Threat(serial=0x6A2E, name="gorilkaenjoyer", body=400, notoriety=1, kind="blue", player=True)
+    marks = []
+    check("a player named in '… is attacking you!' heard inside the escape: pk, and he is a known PK from now on",
+          cause({}, seen=(blue,), events=[{"ev": "speech_heard", "text": "gorilkaenjoyer is attacking you!"}],
+                marks=marks) == "pk"
+          and [(m["name"], m["serial"]) for m in marks] == [("gorilkaenjoyer", 0x6A2E)], str(marks))
     # live 2026-10-09 (witcher_193): the escape's six casts ended 'dead' and threat_stop stopped the run with no
     # death event, so the jobs page counted 0 deaths to PKs
     rows = []
@@ -4000,6 +4040,56 @@ def unit_run_and_recall():
               str(log_))
     finally:
         loop_lumber.RECALL_RETRY_S, loop_lumber.KEEP_RUNNING_LOOK_S = retry, look
+
+
+def unit_thief_out():
+    """thief_out (live 2026-10-10 witcher_105: the blue gorilkaenjoyer closed to 2 tiles again, attacked 0.6 s into the
+    recall and disturbed five standing casts; Dan died): one standing cast; one that doesn't land is followed by the
+    player escape's run-then-cast (run_and_recall, players) away from the suspect, never by standing recasts. A
+    pouch going off with nobody in view keeps escape.escape's own recasting."""
+    print("\n== thief_out: one standing cast, then run from the suspect and cast between runs ==")
+    import types
+    import loop_lumber
+    calls = []
+    landed = {"first": False}
+
+    def recall_out(st, a, worst, swung, pk=True, why=None, what=None, attempts=None, gate=None):
+        calls.append(("cast", attempts))
+        if landed["first"]:
+            raise loop_lumber.Unsafe("escaped by recall")
+        return "recall failed after 1 cast(s): disturbed"
+
+    def run_and_recall(st, a, worst, swung, why, players=False):
+        calls.append(("run_and_recall", players, sorted(fake.player_foes)))
+        raise loop_lumber.Unsafe("escaped by recall")
+
+    def threat_stop(st, a, worst, swung, exc, why, what=None):
+        calls.append(("stop", why))
+        raise exc(why)
+    fake = SimpleNamespace(
+        afield=True, recall_book=1, trip_n=1, k={"spot": {"id": "sim"}}, stats={}, player_foes=set(),
+        memory=SimpleNamespace(job_event=lambda *a, **kw: None), _where=lambda st: {},
+        link=SimpleNamespace(state=lambda: {}), watch=SimpleNamespace(update=lambda st, **kw: SimpleNamespace(dead=False)),
+        recall_out=recall_out, run_and_recall=run_and_recall, threat_stop=threat_stop, drop_cursor=lambda: None,
+        threat_name=loop_lumber.LumberLoop.threat_name)
+    fake.thief_out = types.MethodType(loop_lumber.LumberLoop.thief_out, fake)
+    thief = threats.Threat(serial=0x6A2E, name="gorilkaenjoyer", body=400, notoriety=1, kind="blue", player=True)
+    for first, want in ((False, [("cast", 1), ("run_and_recall", True, [0x6A2E])]), (True, [("cast", 1)])):
+        calls.clear()
+        landed["first"] = first
+        try:
+            fake.thief_out({}, SimpleNamespace(dead=False), thief, "closed_again", "closed to 2 tiles again")
+        except loop_lumber.Unsafe:
+            pass
+        check(f"suspect in view, first cast {'lands' if first else 'disturbed'}: {want}", calls == want, str(calls))
+    calls.clear()
+    landed["first"] = False
+    try:
+        fake.thief_out({}, SimpleNamespace(dead=False), None, "pouch_pop", "our pouch went off")
+    except loop_lumber.Unsafe:
+        pass
+    check("nobody in view (a pouch went off): escape.escape's own recasting, no run, then the stop",
+          [c[0] for c in calls] == ["cast", "stop"] and calls[0] == ("cast", None), str(calls))
 
 
 def unit_hatchet():
@@ -4420,7 +4510,7 @@ if __name__ == "__main__":
     runs = [main, skirmish, leash, break_due, stop_after_trip, library, library_chased, track_reds, gazer_run,
             gazer_rehit, gazer_reflect, unseen_caster, pacer,
             wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, work_heal, work_spell, thief_keep_away,
-            pouch_pop, faction_lone, wards,
+            pouch_pop, faction_lone, known_pk, wards,
             no_pouch,
             resupply,
             convert_stacks,
@@ -4429,7 +4519,7 @@ if __name__ == "__main__":
             staff_in_view,
             hop,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_smart_range,
-            unit_run_and_recall, unit_boxed_in,
+            unit_run_and_recall, unit_thief_out, unit_boxed_in,
             unit_death_cause, unit_zone_stall,
             unit_zone_view_edge, unit_home_on_abort,
             unit_capture_spell_witcher, unit_capture_juncture_222,

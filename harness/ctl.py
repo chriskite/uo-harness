@@ -800,6 +800,28 @@ def cmd_break(a, mem):
     return {"ok": True, "gate": gate, "break_until": until}
 
 
+def cmd_pk(a, mem):
+    """Known PKs (harness/known_pks.py; user 2026-10-10): players the lumber runner flees on sight whatever their
+    notoriety. `list`; `add NAME… [--serial S] [--why W]` (a player the user or the overseer knows); `rm NAME…`.
+    Runs started afterwards read it; the runner adds every player who attacks us by itself."""
+    import known_pks
+    import threats
+    if a.pk_op == "add":
+        name = " ".join(a.name)
+        known_pks.mark(mem, name, _parse_serial(a.serial) if a.serial else None, a.why or "named by the overseer",
+                       "ctl")
+    elif a.pk_op == "rm":
+        name = " ".join(a.name)
+        if threats.pk_key(name) not in known_pks.load(mem):
+            raise CtlError(f"{name!r} is not a known PK")
+        known_pks.clear(mem, name, a.why or "")
+    pks = known_pks.load(mem)
+    return {"ok": True, "known_pks": [{"name": d["name"], "serial": f"0x{d['serial']:08X}" if d.get("serial") else None,
+                                       "why": d.get("why"), "source": d.get("source"),
+                                       "since": time.strftime("%Y-%m-%d %H:%M", time.localtime(d["t"]))}
+                                      for d in sorted(pks.values(), key=lambda d: d["t"])]}
+
+
 def cmd_wait(a, mem):
     jkey = charsel.meta_key(JUNCTURE_CURSOR_KEY, mem.char_serial)
     ckey = charsel.meta_key(CHAT_CURSOR_KEY, mem.char_serial)
@@ -3289,6 +3311,16 @@ def build_parser() -> argparse.ArgumentParser:
                         "(returns at once; task_done follows). Without it the task is killed where it stands")
     p.set_defaults(fn=cmd_stop)
     sub.add_parser("break").set_defaults(fn=cmd_break)
+    p = sub.add_parser("pk", help="known PKs: fled on sight by the lumber runner")
+    ps = p.add_subparsers(dest="pk_op", required=True)
+    ps.add_parser("list")
+    for name in ("add", "rm"):
+        q = ps.add_parser(name)
+        q.add_argument("name", nargs="+")
+        q.add_argument("--why", default=None)
+        if name == "add":
+            q.add_argument("--serial", default=None)
+    p.set_defaults(fn=cmd_pk)
     p = sub.add_parser("alert")
     p.add_argument("reason", nargs="+")
     p.add_argument("--serial", default=None)
