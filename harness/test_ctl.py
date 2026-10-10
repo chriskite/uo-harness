@@ -1089,17 +1089,23 @@ def test_overseer_acts(proxy):
         gump_row(0x106, 0x8EAEFBDB, "".join(f"{{ button 10 {10 * b} 1 2 1 0 {b} }}" for b in (3, 4, 6, 7)),
                  ["Rental Room", "End Rental Contract", "Expand", "Exit to Town", "Exit to House Steward"]),
         gump_row(0x107, 0xC0B1026D, _shelf_gumps()["dtf"]["layout"], _shelf_gumps()["dtf"]["lines"]),
+        gump_row(0x108, ctl.REPORT_MURDER_GUMP_ID, "{ button 10 10 1 2 1 0 2 }{ button 10 30 1 2 1 0 3 }",
+                 ["Report Murder", "Accept", "Decline"]),
     ]
     for serial, button, why in ((0x100, 2, "captcha"), (0x101, 0, "no reply buttons"), (0x102, 1, "renounce"),
                                 (0x103, 0, "noclose"), (0x103, 9, "not in the gump's reply buttons"),
                                 (0x104, 1, "no open gump"), (0x106, 3, "rental room: End Rental Contract"),
                                 (0x106, 7, "rental room: Expand"), (0x107, 1000, "storage shelf: Restock"),
-                                (0x107, 16, "storage shelf: Clear")):
+                                (0x107, 16, "storage shelf: Clear"), (0x108, 2, "Report Murder: Accept")):
         code, out = c("act", "gump", f"0x{serial:X}", str(button))
         check(f"gump refused: {why}", code == 1 and proxy.take() == [], str(out))
     code, out = c("act", "gump", "0x107", "9")
     check("storage shelf: the loadout page arrow (9) is sent",
           code == 0 and len([p for _, p in proxy.take()]) == 1, str(out))
+    code, out = c("act", "gump", "0x108", "3")
+    check("Report Murder: Decline (3) is sent",
+          code == 0 and [p for _, p in proxy.take()] == [actions.gump_response(0x108, ctl.REPORT_MURDER_GUMP_ID, 3)],
+          str(out))
     code, out = c("act", "gump", "0x102", "0")
     check("renounce prompt: closing it (button 0) is allowed",
           code == 0 and [p for _, p in proxy.take()] == [actions.gump_response(0x102, 0x22, 0)], str(out))

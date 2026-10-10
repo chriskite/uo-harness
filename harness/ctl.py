@@ -155,6 +155,9 @@ RESURRECT_GUMP_ID, RESURRECT_ACCEPT = 0xB04C9A31, 1
 DEATH_ROBES = (0x1F03, 0x204E)        # "death robe" (live 2026-10-05, layer robe 0x16); RunUO DeathRobe 0x204E
 LAYER_ROBE = 0x16
 RESURRECT_WAIT_S = 8.0               # Accept -> the body is a living one again
+# The "Report Murder" gump after a death by players (live 2026-10-03 and 2026-10-10: id 0x1F3940C6, Accept 2 /
+# Decline 3). User 2026-10-10: always decline; `act gump` sends only Decline or a close.
+REPORT_MURDER_GUMP_ID, REPORT_MURDER_DECLINE = 0x1F3940C6, 3
 # What `journal` shows: what a player reads on screen (messages, gumps, menus).
 JOURNAL_EVS = ("speech_heard", "cliloc", "gump_open", "gump_response", "popup", "buy_list",
                "menu", "quest_arrow", "quest_arrow_set", "target", "map_change")
@@ -2661,6 +2664,9 @@ def gump_reply(state: dict, serial_arg: str, button_arg: str, texts=()) -> bytes
     if _serial(g.get("gump_id")) == SHELF_GUMP_ID and SHELF_REFUSED.get(button) in view["texts"]:
         raise CtlError(f"storage shelf: button {button} is '{SHELF_REFUSED[button]}', which changes the shelf or the "
                        "loadout: the human's decision (`act resupply` only takes what the loadout says)")
+    if _serial(g.get("gump_id")) == REPORT_MURDER_GUMP_ID and button not in (0, REPORT_MURDER_DECLINE):
+        raise CtlError(f"Report Murder: only Decline ({REPORT_MURDER_DECLINE}) or a close is allowed "
+                       "(user 2026-10-10: always decline)")
     if button == 0 and not view["closable"]:
         raise CtlError("gump is noclose; button 0 isn't available")
     if button != 0 and button not in view["buttons"]:

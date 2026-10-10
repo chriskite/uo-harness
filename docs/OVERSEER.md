@@ -404,6 +404,10 @@ Paste this (or point the session at this section) to start an overseer.
 >      otherwise fix the situation with small `ctl act` steps or call the human.
 >    - `threat`, `theft_suspected`, `death`, `low_supplies`: follow the runner's data. When in
 >      doubt, stop the task and call the human.
+>    - **After a death: always decline the "Report Murder" gump** (user 2026-10-10). It is gump id
+>      `0x1F3940C6` (Accept 2 / Decline 3) and may come more than once (one per killer). Answer each
+>      one with `ctl act gump <serial> 3` as soon as it shows in `status.gumps_open`; never Accept,
+>      never leave it open. `act gump` refuses Accept.
 >    - `break_due`: the break starts by itself at `starts_at`, wherever the character is (a
 >      motionless character in the field is what a GM looks for). If it's out in the field,
 >      `ctl stop` the task (or let a trip that ends in the rental room finish if it will in time),
@@ -560,7 +564,8 @@ Paste this (or point the session at this section) to start an overseer.
 >
 > **Safety.** One task at a time; never `act` while a task runs (ctl refuses anyway).  Gump replies only through
 > `act gump`, whose guards you must not try to work around: the captcha is refused (the human or the runner's solver answers it),
-> never reply to button-less gumps, and a renounce-Young prompt may only be closed. **Never
+> never reply to button-less gumps, a renounce-Young prompt may only be closed, and a Report Murder gump is
+> always declined (button 3). **Never
 > attack players, their pets or NPCs (except trainers)**. **Never fight by hand in a dungeon**
 > (user decision 2026-10-03): an LLM reacts far too slowly for combat (Shackleworth died at
 > Urukton Bluffs 15 s after one manual `act attack`, in a room with an orc lord, orc mages and a
