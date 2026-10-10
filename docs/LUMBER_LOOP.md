@@ -1301,11 +1301,18 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
       - "already in effect" (the clilocs and the 2026-10-03 text "That spell is already currently in
         effect.", meaning our state lost the buff, e.g. after a proxy restart) waits
         `WARD_IN_EFFECT_RETRY_S` 600 s.
+      - The server's cooldown, "You must wait another N seconds before you may cast that again."
+        (`WARD_COOLDOWN_RE`), waits N + 1 s. Live 2026-10-10 13:59:15 (`lumber-20261010-135304-8929`):
+        Magic Reflection had just reflected a rime spirit's spell, and the home cast got "14 seconds"
+        back at once. Before this fix the runner read that as "no buff", waited out the full 4 s and
+        retried 60 s later, between chops (landed 14:00:33). This also covers the PvP cooldown (60 s
+        while flagged, patch 2026-02-25), which gives the same answer [INFERENCE: its wording is
+        unseen].
       - Anything else (a fizzle 502632, a disturbed cast, silence) waits `WARD_RETRY_S` 60 s.
     - One log line (`ward (where): … up | not up (why); mana a -> b`) and a deferred `ward` job event
       (spell, where, ok, why, mana, mana_after, mode, trip, spot).
-  - **Not covered:** the PvP Magic Reflect cooldown (60 s while flagged; patch 2026-02-25) is read as "no
-    buff" and retried after 60 s. Scenario `wards` (both cast before the first chop; Reactive Armor
+  - **Tests:** scenario `wards` (Magic Reflection meets a 2 s cooldown at home and lands at the first
+    chop; Reactive Armor
     used up at the third chop and recast between chops; mana and reagents spent exactly, no
     `theft_suspected`); `work_spell` starts with both wards up; `test_healing.py` `wards`.
 - **Blind waits: every wait watches (since 2026-10-03; `LumberLoop.pause` / `wait_for` /

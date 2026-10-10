@@ -642,6 +642,7 @@ class World:
                      if scenario in ("work_spell", "wards") else {})
         self.wards = set(healing.WARDS.values()) if scenario == "work_spell" else set()
         self.ward_casts = []              # (time, spell id, landed) per ward cast
+        self.ward_cooldown = scenario == "wards"   # the first Magic Reflection meets its cooldown (live 2026-10-10)
         self.casts = []                   # (time, spell id) per cast request
         self.spell_cursor = None          # (cursor id, spell id) while a spell's cursor is up
         self.spells_landed = []           # (time, spell id) per spell answered with ourselves
@@ -1180,10 +1181,17 @@ class World:
             self.send(contained(s, g, self.regs[s][1], self.potion_box))
 
     def ward_lands(self, sid):
-        """A ward cast: up already, the server's refusal at no cost (live 2026-10-03); else spent and its buff on us."""
+        """A ward cast: up already, the server's refusal at no cost (live 2026-10-03); wards' first Magic Reflection
+        meets the cooldown left from a reflect, refused at no cost (live 2026-10-10 13:59:15); else spent and its
+        buff on us."""
         icon = healing.WARDS[sid]
-        landed = icon not in self.wards
+        cooling = self.ward_cooldown and sid == combat.spell_id("magic reflection")
+        landed = icon not in self.wards and not cooling
         self.ward_casts.append((time.time(), sid, landed))
+        if cooling:
+            self.ward_cooldown = False
+            self.send(sys_text("You must wait another 2 seconds before you may cast that again."))
+            return
         if not landed:
             self.send(sys_text("That spell is already currently in effect."))
             return
@@ -3200,33 +3208,36 @@ async def work_spell():
 
 async def wards():
     """LUMBER_LOOP.md §13 "Wards" (user 2026-10-09): Magic Reflection and Reactive Armor kept up while lumbering.
-    Dan with neither ward, reagents and mana 100: both are cast at home before the recall out; the third chop's
-    hit uses up the Reactive Armor, and it is cast again between chops; Magic Reflection, still up, is never
-    recast; the reagents read as spent, not stolen; the trip stores."""
+    Dan with neither ward, reagents and mana 100. At home before the recall out: Magic Reflection meets the server's
+    cooldown ("You must wait another 2 seconds…", live 2026-10-10 after a reflect), Reactive Armor lands; the
+    first chop's self care casts Magic Reflection once the cooldown is over (not WARD_RETRY_S later); the third
+    chop's hit uses up the Reactive Armor, and it is cast again between chops; the reagents read as spent, not
+    stolen; the trip stores."""
     print("\n== wards: Magic Reflection + Reactive Armor before heading out, Reactive Armor again once it's gone ==")
     world = World("wards")
     text, code, store, _ = await run_scenario(world, "wards", [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
     mr, ra = combat.spell_id("magic reflection"), combat.spell_id("reactive armor")
     casts = [(sid, landed) for _, sid, landed in world.ward_casts]
-    check("Magic Reflection, then Reactive Armor, landed before the first chop; Reactive Armor once more after the "
-          "third chop; nothing refused",
-          casts == [(mr, True), (ra, True), (ra, True)]
-          and all(t < world.chopped[0][1] for t, _, _ in world.ward_casts[:2])
-          and world.ward_casts[2][0] > world.chopped[2][1],
+    check("Magic Reflection refused (cooldown), Reactive Armor landed, Magic Reflection landed, all before the first "
+          "chop; Reactive Armor once more after the third chop",
+          casts == [(mr, False), (ra, True), (mr, True), (ra, True)]
+          and all(t < world.chopped[0][1] for t, _, _ in world.ward_casts[:3])
+          and world.ward_casts[3][0] > world.chopped[2][1],
           f"{casts} casts {[round(t, 2) for t, _, _ in world.ward_casts]} "
           f"chops {[round(t, 2) for _, t in world.chopped[:3]]}")
-    check("mana spent on the three casts only (14 + 4 + 4); one of each reagent per cast",
+    check("mana spent on the three casts that landed only (14 + 4 + 4); one of each reagent per landed cast",
           world.mana == 100 - 14 - 4 - 4
           and {combat.REAGENTS[g]: n for g, n in world.regs.values()}
           == {"garlic": 7, "spiders' silk": 7, "sulfurous ash": 8, "mandrake root": 9, "black pearl": 10,
               "blood moss": 10, "ginseng": 10, "nightshade": 10}, f"mana {world.mana} regs {world.regs}")
     ev = [e["data"] for e in store.job_events("lumber") if e["kind"] == "ward"]
     junc = [j["kind"] for j in store.junctures()]
-    check("ward events heading out, heading out, between chops, all up; no theft_suspected for the reagents",
-          [(e["spell"], e["where"], e["ok"]) for e in ev]
-          == [("Magic Reflection", "heading out", True), ("Reactive Armor", "heading out", True),
-              ("Reactive Armor", "between chops", True)] and "theft_suspected" not in junc, f"{ev} {junc}")
+    check("ward events: the cooldown read as 'cooldown 2 s' heading out, then up; no theft_suspected for the reagents",
+          [(e["spell"], e["where"], e["ok"], e["why"]) for e in ev]
+          == [("Magic Reflection", "heading out", False, "cooldown 2 s"),
+              ("Reactive Armor", "heading out", True, None), ("Magic Reflection", "between chops", True, None),
+              ("Reactive Armor", "between chops", True, None)] and "theft_suspected" not in junc, f"{ev} {junc}")
     eps = store.episodes("lumber")
     check("stored, exit 0", code == 0 and [e.get("outcome") for e in eps] == ["stored"], f"exit {code}\n{text[-600:]}")
     store.close()

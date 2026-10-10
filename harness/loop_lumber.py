@@ -199,6 +199,8 @@ WARD_IN_EFFECT_RETRY_S = 600.0     # the server says it's in effect though our s
 WARD_IN_EFFECT_CLILOCS = (501775, 1005417, 1005559, 502173)   # "This spell is already in effect." and kin
 WARD_IN_EFFECT_TEXT = "already currently in effect"           # live 2026-10-03: "That spell is already currently in effect."
 WARD_NO_SPELL_CLILOCS = (500015, 500016)                      # "You do not have that spell!": not again this run
+# the server's cooldown, e.g. Magic Reflection after it reflected a spell (live 2026-10-10 13:59:15, 14 s left)
+WARD_COOLDOWN_RE = re.compile(r"You must wait another (\d+) seconds? before you may cast that again")
 # Waits stay watchful (LUMBER_LOOP.md §13 "Blind waits"; live 2026-10-03, Bastet: the red came into
 # view during the chop's 2.1 s aim pause and the recall went out 2.5 s after sight): every human pause
 # and every wait for a server result reads the state and runs the threat checks at least this often.
@@ -897,8 +899,9 @@ class LumberLoop:
         """Cast the ward `c.spell` (0xFF sub 4, no target cursor) and wait for its buff. Its reagents are
         declared to the ledger first (spent, not stolen; none with a spellstone). No buff: 'more reagents'
         or 'You do not have that spell!' stop it for the run, 'already in effect' (our state lost the buff)
-        waits WARD_IN_EFFECT_RETRY_S, anything else (a fizzle, a disturbed cast) WARD_RETRY_S. The cast puts the
-        hatchet in the pack: use_hatchet's double-click equips it again. Each cast is a `ward` job event."""
+        waits WARD_IN_EFFECT_RETRY_S, the server's cooldown ("You must wait another N seconds before you may
+        cast that again.") N s and a second, anything else (a fizzle, a disturbed cast) WARD_RETRY_S. The cast
+        puts the hatchet in the pack: use_hatchet's double-click equips it again. Each cast is a `ward` job event."""
         sid, me = c.spell, self.self_serial(st)
         name, mana0 = combat.MAGERY_SPELLS[sid - 1], st["world"]["self"].get("mana")
 
@@ -913,6 +916,8 @@ class LumberLoop:
                     return "already in effect"
                 if e.get("ev") == "cliloc" and e.get("cliloc") == 502632:          # "The spell fizzles."
                     return "fizzled"
+                if m := WARD_COOLDOWN_RE.search(t):
+                    return f"cooldown {m.group(1)} s"
             return None
 
         self._acting = True
@@ -928,6 +933,8 @@ class LumberLoop:
             why = None if up else (answer(self.link.events[mark:]) or "no buff")
             if why in ("no reagents", "not in the spellbook"):
                 self.ward_next[sid] = math.inf
+            elif why is not None and (m := re.fullmatch(r"cooldown (\d+) s", why)):
+                self.ward_next[sid] = time.monotonic() + int(m.group(1)) + 1
             elif why is not None:
                 self.ward_next[sid] = time.monotonic() + (WARD_IN_EFFECT_RETRY_S if why == "already in effect"
                                                           else WARD_RETRY_S)
