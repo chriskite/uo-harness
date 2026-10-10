@@ -205,6 +205,47 @@ def care_spell(world: dict, me: int, reserve: int = 0, blocked=()) -> Choice:
     return choose(world, me, False, blocked=blocked, reserve=reserve)
 
 
+# ------------------------------------------------------------ wards
+# Kept up while lumbering (user 2026-10-09: Magic Reflection, and Reactive Armor added), in this order, with the
+# buff icon each shows on us. Live 2026-10-10 (Outland Dan, Magery 80.2, in the rental room): "Magic Reflection"
+# icon 138 and "Reactive Armor" icon 139, both landed on the first cast with no target cursor and no journal
+# line, neither with an end on the server's clock; 12 mana for the two. Magic Reflection goes when it reflects
+# a spell ("Magic reflect removed."), Reactive Armor once it has absorbed (25 x Magery/100) physical damage
+# (wiki Magery: 20 at Dan's 80).
+WARDS = {combat.spell_id("magic reflection"): 138, combat.spell_id("reactive armor"): 139}
+RECALL = combat.spell_id("recall")
+
+
+def ward_up(world: dict, me: int, sid: int, now: float) -> bool:
+    """The ward's buff on us (WARDS icon) and not past an end the server gave it."""
+    buffs = (world.get("buffs") or {}).get(f"0x{me:08X}") or {}
+    b = buffs.get(str(WARDS[sid])) or buffs.get(WARDS[sid])
+    return b is not None and (b.get("ends_t") is None or b["ends_t"] > now)
+
+
+def ward_due(world: dict, me: int, now: float, reserve: int = 0, blocked=()) -> Choice:
+    """The first ward (WARDS order) that isn't up and can be cast with `reserve` mana left over and Recall's
+    reagents kept: a reagent Recall shares (mandrake root, for Magic Reflection) needs 2 in the pack, unless a
+    spellstone pays. `blocked`: wards not to try now (the caller's retry clock, the server's refusals).
+    Choice("spell", ...) or Choice(None, why the wards that are down can't go)."""
+    mana = ((world.get("self") or {}).get("mana") or 0) - reserve
+    counts, stone = combat.reagents(world, me)
+    why = []
+    for sid in WARDS:
+        name = combat.MAGERY_SPELLS[sid - 1]
+        if ward_up(world, me, sid, now) or sid in blocked:
+            continue
+        lack = [] if stone else [combat.REAGENTS[g] for g in combat.SPELL_REAGENTS[sid]
+                                 if counts.get(g, 0) < 1 + (g in combat.SPELL_REAGENTS[RECALL])]
+        if mana < combat.spell_mana(sid):
+            why.append(f"{name}: mana {mana}")
+        elif lack:
+            why.append(f"{name}: too few {', '.join(lack)}")
+        else:
+            return Choice("spell", f"{name} is down", 0, spell=sid)
+    return Choice(None, "; ".join(why) or "wards up", 0)
+
+
 class SelfCare:
     """Which potion to use now, anywhere (running from a threat, before or between recall casts, walking,
     between chops): the user's Razor 'PK Getaway' script (2026-10-06/07) without its moongates (we recall

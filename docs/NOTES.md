@@ -1546,6 +1546,13 @@ Task logs: `logs/tasks/lumber-20261003-214343-7dee.log` (Horseshoe Bay), `…-22
   cast writes no journal line; a fizzle writes "The spell fizzles." (cliloc 502632). At Magery 60,
   2 of 4 casts landed. So the open "how long, how to see it" questions in PLAN.md "PK survival"
   have answers: it lasts until it absorbs a spell, and `status.buffs` icon 138 shows it.
+- **Reactive Armor and Outland Dan's book (live 2026-10-10, rental room, `ctl act cast`):** Dan's
+  "exceptional spellbook" holds both Magic Reflection and Reactive Armor. Both landed on the first try at
+  Magery 80.2. Reactive Armor ("Flam Sanct") is buff icon **139**: title "Reactive Armor", timer value 0.0,
+  no end, no target cursor and no journal line. With Magic Reflection the pair took 12 mana (100 → 88).
+  `status.buffs` also keeps long-expired buffs (Protection, Hamstring) with `expired: true`, and trip rows
+  list them: read `expired` before calling a buff up. The lumber runner keeps both wards up since
+  2026-10-10 (docs/LUMBER_LOOP.md §13 "Wards").
 - **Escape recalls landed on the first try both times** (2.2 s and 2.29 s, tome charges). At Corpse
   Creek the flight started 0.45 s after the grey player was first seen, and the runner cancelled
   its open target cursor first.

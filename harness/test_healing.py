@@ -172,6 +172,35 @@ def flight_aid():
           healing.care_spell(flight(poisoned=True), ME, recall, blocked={healing.CURE}).kind is None)
 
 
+def wards():
+    print("== wards (user 2026-10-09): the first one down that leaves Recall's mana and reagents ==")
+    mr, ra = combat.spell_id("magic reflection"), combat.spell_id("reactive armor")
+    recall, t = 11, 1000.0
+    up = {"138": {"ends_t": None}}
+
+    def due(w, **kw):
+        c = healing.ward_due(w, ME, t, recall, **kw)
+        return c.spell if c.kind == "spell" else None
+    check("both down: Magic Reflection first", due(flight()) == mr)
+    check("Magic Reflection up: Reactive Armor", due(flight(buffs=up)) == ra)
+    both = flight(buffs={**up, "139": {"ends_t": None}})
+    check("both up: nothing ('wards up')", healing.ward_due(both, ME, t, recall).why == "wards up")
+    check("a ward whose end has passed is down", due(flight(buffs={**up, "139": {"ends_t": t - 1}})) == ra)
+    c = healing.ward_due(flight(mana=24), ME, t, recall)
+    check("24 mana, Recall's 11 kept: Magic Reflection (14) can't go, Reactive Armor (4) does", c.spell == ra, str(c))
+    one = flight()
+    for it in one["items"].values():
+        if it["graphic"] == 0x0F86:
+            it["amount"] = 1
+    c = healing.ward_due(one, ME, t, recall, blocked={ra})
+    check("one mandrake root, the one Recall needs: no Magic Reflection", c.kind is None
+          and c.why == "Magic Reflection: too few mandrake root", str(c))
+    stone = flight(regs=())
+    stone["items"][h(STONE)] = {"graphic": 0x3F1F, "container": h(PACK), "name": "arielle's bauble"}
+    check("no reagents but a spellstone: Magic Reflection", due(stone) == mr)
+    check("a ward the caller holds back (retry clock, refusal) is passed over", due(flight(), blocked={mr}) == ra)
+
+
 def main():
     print("== potion first ==")
     c = healing.choose(world(50), ME, potion_ready=True)
@@ -254,6 +283,7 @@ def main():
     check("10 s after: ready", clock.ready(110.0))
 
     flight_aid()
+    wards()
 
     print("ALL PASS" if not FAILURES else f"{len(FAILURES)} FAILURES")
     return 1 if FAILURES else 0

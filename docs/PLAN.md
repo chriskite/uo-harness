@@ -861,6 +861,7 @@ disturb recovery; a reflected opener would have saved Nusero; flight and healing
   spells and stays after the first only with a 35 % × Inscription/100 chance (#215, wiki Magery).
   Open: how long it lasts on Outlands,
   how to see it's up (buff icon), and recasting it at the start of each trip and after each reflect.
+  **Built 2026-10-10** (with Reactive Armor, user 2026-10-09; see "Wards kept up" below).
 
 ## Smart Harvest for lumber: built offline 2026-10-04, first live trip 2026-10-04 22:06
 
@@ -1343,6 +1344,19 @@ in view: recall) is the backstop. Reds beyond the range also stop counting as th
 - **witcher_59 disabled (user):** its grove borders Prevalia's guard zone; at (1917,1749) the server said
   "Harvesting is not allowed in this area." four times and the run aborted (`lumber-20261009-222948-0e46`).
   The outcome itself is still unknown to the runner (proposal in the incident log, not built).
+- **witcher_211 disabled (user, 2026-10-10):** its landing rune (3939,1159) met a brigand swarm on all
+  three visits of 2026-10-09/10.
+
+## Wards kept up: Magic Reflection and Reactive Armor (decided 2026-10-09, built 2026-10-10)
+
+The user believed Magic Reflection was already a required step of the lumber loop, but it never was: only the
+overseer had cast it by hand on Hackworth (2026-10-03), and none of Outland Dan's trip rows show the buff. The
+user asked for Reactive Armor too ("cast it to keep it active when we're lumbering"). The runner now casts
+every ward that's down at home before the recall out, and recasts one per chop between chops once a ward is
+used up (docs/LUMBER_LOOP.md §13 "Wards"). Both always keep Recall's mana and reagents. Rejected: casting
+right after the landing. The arrival is when a camper strikes, and the landing's cast slot belongs to the
+escape recall. Dan has Magery 80.2, so Magic Reflection (100 % at 70) can't fizzle and Reactive Armor
+absorbs 20 physical damage.
 
 ## Roaming creatures boxing a grove out (decided and built 2026-10-09)
 

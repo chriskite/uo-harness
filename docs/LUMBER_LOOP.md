@@ -1271,6 +1271,43 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     `work_heal` (poisoned at 70, potions in a bag: cure, heal), `work_spell` (poisoned at 50, no
     potions: Cure, Greater Heal, Heal); `test_healing.py` (`flight_aid`, `care_spell`),
     `test_escape.py` (`test_escape_between`).
+- **Wards: Magic Reflection and Reactive Armor kept up (since 2026-10-10; user 2026-10-09; `healing.WARDS`,
+  `healing.ward_due`, `LumberLoop.ward_ensure` / `ward_cast`):** until now no code cast Magic Reflection.
+  The 2026-10-03 casts were the overseer's `ctl act cast` on Hackworth, and PLAN "PK survival" left
+  "recasting it at the start of each trip" open. None of Outland Dan's trip rows had shown the buff. The
+  user then asked for both wards to be kept up.
+  - **Live capture (2026-10-10, Dan in the rental room, `ctl act cast`):** Magic Reflection ("In Jux
+    Sanct") gives buff icon 138 and Reactive Armor ("Flam Sanct") gives icon 139. Both landed on the
+    first cast with no target cursor and no journal line. Neither has an end on the server's clock, and
+    the pair cost 12 mana. Magic Reflection goes when it reflects a spell ("Magic reflect removed.").
+    Reactive Armor goes once it has absorbed 25 × Magery/100 physical damage (wiki: 20 at Dan's 80.2;
+    Inscription adds more).
+  - **When:**
+    - Heading out, in `harvest_trip` after `aspect_ensure` and before `go_out`: every ward that is
+      down is cast, at home.
+    - Between chops, in `self_care` when no potion or heal spell went: one ward per chop. A ward used up
+      in the field (Reactive Armor after a creature's hits) comes back at the next quiet chop.
+    - Getaways never cast a ward: the recall comes first.
+  - **What may go:** `ward_due` picks the first ward that is down (in `WARDS` order) and can be cast
+    with Recall's 11 mana kept. A reagent that Recall also uses (mandrake root, for Magic Reflection)
+    needs 2 in the pack, unless a spellstone pays. Why a ward can't go is logged when the reason
+    changes (`wards (where): not cast: …`).
+  - **The cast (`ward_cast`):**
+    - Sends 0xFF sub 4 and waits up to `WARD_WAIT_S` 4 s for the buff. The reagents are declared spent to
+      the ledger first. The cast puts the hatchet in the pack; the next chop's double-click equips it
+      again.
+    - With no buff, the outcome depends on the server's answer:
+      - "More reagents" or "You do not have that spell!" (500015/500016) stop that ward for the run.
+      - "already in effect" (the clilocs and the 2026-10-03 text "That spell is already currently in
+        effect.", meaning our state lost the buff, e.g. after a proxy restart) waits
+        `WARD_IN_EFFECT_RETRY_S` 600 s.
+      - Anything else (a fizzle 502632, a disturbed cast, silence) waits `WARD_RETRY_S` 60 s.
+    - One log line (`ward (where): … up | not up (why); mana a -> b`) and a deferred `ward` job event
+      (spell, where, ok, why, mana, mana_after, mode, trip, spot).
+  - **Not covered:** the PvP Magic Reflect cooldown (60 s while flagged; patch 2026-02-25) is read as "no
+    buff" and retried after 60 s. Scenario `wards` (both cast before the first chop; Reactive Armor
+    used up at the third chop and recast between chops; mana and reagents spent exactly, no
+    `theft_suspected`); `work_spell` starts with both wards up; `test_healing.py` `wards`.
 - **Blind waits: every wait watches (since 2026-10-03; `LumberLoop.pause` / `wait_for` /
   `drop_cursor`):**
   - **The death that showed it (Hackworth, Terran wilds, 2026-10-03, store events):** the runner

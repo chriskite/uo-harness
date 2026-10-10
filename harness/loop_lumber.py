@@ -192,6 +192,13 @@ THREAT_MARGIN_S = 1.0         # reaction + packet latency on top of the cast
 # circle 4 casting delay]), then the heal or cure taking effect after our target answer
 CARE_CURSOR_WAIT_S = 4.0
 CARE_RESULT_WAIT_S = 2.5
+# Wards (healing.WARDS, user 2026-10-09): their buff comes with the spell, no target cursor (live 2026-10-10)
+WARD_WAIT_S = 4.0
+WARD_RETRY_S = 60.0                # a ward that didn't come up (a fizzle, an unknown refusal): tried again after this
+WARD_IN_EFFECT_RETRY_S = 600.0     # the server says it's in effect though our state lacks its buff (a proxy restart)
+WARD_IN_EFFECT_CLILOCS = (501775, 1005417, 1005559, 502173)   # "This spell is already in effect." and kin
+WARD_IN_EFFECT_TEXT = "already currently in effect"           # live 2026-10-03: "That spell is already currently in effect."
+WARD_NO_SPELL_CLILOCS = (500015, 500016)                      # "You do not have that spell!": not again this run
 # Waits stay watchful (LUMBER_LOOP.md §13 "Blind waits"; live 2026-10-03, Bastet: the red came into
 # view during the chop's 2.1 s aim pause and the recall went out 2.5 s after sight): every human pause
 # and every wait for a server result reads the state and runs the threat checks at least this often.
@@ -543,6 +550,8 @@ class LumberLoop:
         self.aid = healing.SelfCare()  # potions / a trapped pouch at any moment (flee_aid, self_care)
         self._acting = False         # a chop attempt or a self-care cast in flight: no potion in between
         self.no_reagents = set()     # spell ids the server refused for reagents this run (care_cast)
+        self.ward_next: dict[int, float] = {}   # ward spell id -> monotonic time it may be tried again (ward_cast)
+        self._ward_why = None        # why the wards that are down couldn't be cast, last logged (ward_ensure)
         self._pop_scan = 0           # link.events index folded into self.pops
         self._pop_since = time.time()  # pops before this run started are another run's (its own set-off)
         self._stash_due = None       # monotonic: when the last chop's stash may lift (attempt, stash_now)
@@ -812,6 +821,8 @@ class LumberLoop:
                                self.no_reagents)
         if c.kind == "spell":
             self.care_cast(st, c)
+        else:
+            self.ward_ensure("between chops", st, once=True)
 
     def care_cast(self, st, c) -> bool:
         """Cast `c.spell` (Cure, Heal or Greater Heal) on ourselves: 0xFF sub 4, then the cursor answered
@@ -857,6 +868,75 @@ class LumberLoop:
             self.later(lambda data=data, where=self._where(st):
                        self.memory.job_event("lumber", "flee_aid", data, **where))
             return True
+        finally:
+            self._acting = False
+
+    def ward_ensure(self, where: str, st=None, once: bool = False):
+        """Keep the wards up (healing.WARDS; user 2026-10-09: Magic Reflection, which bounces a player's opening
+        spell, and Reactive Armor): a ward that's down is cast (ward_cast) when Recall's mana and reagents stay
+        (healing.ward_due). Heading out (in the room, before go_out): every ward that's down; between chops
+        (self_care, when no heal is due; `once`): one per chop. Why a ward can't go is logged when it changes."""
+        st = st or self.link.state()
+        while True:
+            now = time.monotonic()
+            blocked = {sid for sid, t in self.ward_next.items() if t > now} | self.no_reagents
+            c = healing.ward_due(st["world"], self.self_serial(st), time.time(),
+                                 combat.spell_mana(escape_mod.RECALL), blocked)
+            if c.kind != "spell":
+                if c.why != self._ward_why and c.why != "wards up":
+                    log(f"wards ({where}): not cast: {c.why}")
+                self._ward_why = c.why
+                return
+            self._ward_why = None
+            self.ward_cast(st, c, where)
+            if once:
+                return
+            st = self.link.state()
+
+    def ward_cast(self, st, c, where: str) -> bool:
+        """Cast the ward `c.spell` (0xFF sub 4, no target cursor) and wait for its buff. Its reagents are
+        declared to the ledger first (spent, not stolen; none with a spellstone). No buff: 'more reagents'
+        or 'You do not have that spell!' stop it for the run, 'already in effect' (our state lost the buff)
+        waits WARD_IN_EFFECT_RETRY_S, anything else (a fizzle, a disturbed cast) WARD_RETRY_S. The cast puts the
+        hatchet in the pack: use_hatchet's double-click equips it again. Each cast is a `ward` job event."""
+        sid, me = c.spell, self.self_serial(st)
+        name, mana0 = combat.MAGERY_SPELLS[sid - 1], st["world"]["self"].get("mana")
+
+        def answer(events) -> str | None:
+            for e in events:
+                t = e.get("text") or ""
+                if combat.no_reagents_answer([e]):
+                    return "no reagents"
+                if e.get("ev") == "cliloc" and e.get("cliloc") in WARD_NO_SPELL_CLILOCS:
+                    return "not in the spellbook"
+                if (e.get("ev") == "cliloc" and e.get("cliloc") in WARD_IN_EFFECT_CLILOCS) or WARD_IN_EFFECT_TEXT in t:
+                    return "already in effect"
+                if e.get("ev") == "cliloc" and e.get("cliloc") == 502632:          # "The spell fizzles."
+                    return "fizzled"
+            return None
+
+        self._acting = True
+        try:
+            if not combat.reagents(st["world"], me)[1]:
+                self.ledger.expect(*[("spent", g, 1) for g in combat.SPELL_REAGENTS[sid]])
+            mark = len(self.link.events)
+            self.link.act(actions.cast_spell(sid))
+            self.wait_for(lambda s: healing.ward_up(s["world"], me, sid, time.time())
+                          or answer(self.link.events[mark:]) is not None, WARD_WAIT_S)
+            st = self.link.last or self.link.state()
+            up = healing.ward_up(st["world"], me, sid, time.time())
+            why = None if up else (answer(self.link.events[mark:]) or "no buff")
+            if why in ("no reagents", "not in the spellbook"):
+                self.ward_next[sid] = math.inf
+            elif why is not None:
+                self.ward_next[sid] = time.monotonic() + (WARD_IN_EFFECT_RETRY_S if why == "already in effect"
+                                                          else WARD_RETRY_S)
+            mana = st["world"]["self"].get("mana")
+            log(f"ward ({where}): {name} {'up' if up else f'not up ({why})'}; mana {mana0} -> {mana}")
+            data = {"spell": name, "where": where, "ok": up, "why": why, "mana": mana0, "mana_after": mana,
+                    "mode": self.mode, "trip": self.trip_n, "spot": self.k["spot"]["id"]}
+            self.later(lambda data=data, at=self._where(st): self.memory.job_event("lumber", "ward", data, **at))
+            return up
         finally:
             self._acting = False
 
@@ -2605,6 +2685,7 @@ class LumberLoop:
                 log(f"{self.ending}: no harvesting this trip")
                 return 0
             self.aspect_ensure("heading out")
+            self.ward_ensure("heading out")
             self.go_out()
             self.afield = True
             self.track_ensure("at the spot")

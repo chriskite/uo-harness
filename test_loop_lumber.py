@@ -102,6 +102,7 @@ sys.path.insert(0, f"{ROOT}/harness")
 
 import actions  # noqa: E402
 import escape  # noqa: E402
+import healing  # noqa: E402
 import combat  # noqa: E402
 import task_wrap  # noqa: E402
 import memory  # noqa: E402
@@ -435,6 +436,16 @@ def hunting_buff(on):
     return bytes.fromhex("ff000d00000009") + u32(SELF) + bytes.fromhex("00ad")
 
 
+def ward_buff(icon, on):
+    """0xFF sub 8 / 9: a ward's buff (healing.WARDS icon) on / off self, laid out as the Hunting buff above, titled
+    (live 2026-10-10 Magic Reflection / Reactive Armor came with an empty title and a cliloc; status names both)."""
+    if not on:
+        return bytes.fromhex("ff000d00000009") + u32(SELF) + u16(icon)
+    body = (u32(8) + u32(SELF) + u16(icon) + u16(0x7559) + bytes.fromhex("000200000000") + u16(1) + bytes(12)
+            + bytes.fromhex("0000000cadf5e333") + f"ward {icon}".encode() + b"\x00" + bytes(9))
+    return b"\xff" + u16(3 + len(body)) + body
+
+
 def arrow_set(arrow_id, serial, x, y, z, text):
     """0xFF sub 0x1A mode 0, the hunt's arrow (live: `ff 0034 0000001a 00 0000 00 03 0000 <serial> <x> <y>
     <z> "[Hunting] <name>"`)."""
@@ -623,11 +634,14 @@ class World:
         self.frozen, self.poisoned = False, scenario in ("work_heal", "work_spell")
         self.hurt_t = self.unfrozen_t = None
         self.aid_clicks = []              # (time, "cure" | "heal" | "refresh" | "pouch", frozen then)
-        # work_spell: Magery 80.2 and mana 100 (Outland Dan), reagents in the bag; the casts and their targets
-        self.magery = 802 if scenario == "work_spell" else 0
+        # work_spell / wards: Magery 80.2 and mana 100 (Outland Dan), reagents (in the bag for work_spell); the casts
+        # and their targets; the wards up on us (work_spell: both, from the start)
+        self.magery = 802 if scenario in ("work_spell", "wards") else 0
         self.mana = 100
         self.regs = ({SPELL_REGS + i: [g, 10] for i, g in enumerate(sorted(combat.REAGENTS))}
-                     if scenario == "work_spell" else {})
+                     if scenario in ("work_spell", "wards") else {})
+        self.wards = set(healing.WARDS.values()) if scenario == "work_spell" else set()
+        self.ward_casts = []              # (time, spell id, landed) per ward cast
         self.casts = []                   # (time, spell id) per cast request
         self.spell_cursor = None          # (cursor id, spell id) while a spell's cursor is up
         self.spells_landed = []           # (time, spell id) per spell answered with ourselves
@@ -988,6 +1002,9 @@ class World:
             tree = near[0][1]
             self.good_left -= 1
             self.chopped.append((tree, time.time()))
+            if self.scenario == "wards" and len(self.chopped) == 3:   # a hit used up the Reactive Armor
+                self.wards.discard(healing.WARDS[combat.spell_id("reactive armor")])
+                self.send(ward_buff(healing.WARDS[combat.spell_id("reactive armor")], False))
             if tree == (FAR_TREE["x"], FAR_TREE["y"]):
                 self.far_attempts += 1
             then = self.result
@@ -1140,8 +1157,11 @@ class World:
 
     def cast_spell(self, sid):
         """A cast request (0xFF sub 4): the spell's target cursor SPELL_CAST_S later [INFERENCE: RunUO casts the
-        spell, then sends its target]."""
+        spell, then sends its target]; a ward (healing.WARDS) lands then without one (ward_lands)."""
         self.casts.append((time.time(), sid))
+        if sid in healing.WARDS:
+            asyncio.get_running_loop().call_later(SPELL_CAST_S, self.ward_lands, sid)
+            return
         self.cid += 1
         cid = self.cid
 
@@ -1150,16 +1170,32 @@ class World:
             self.send(cursor(cid, 0))
         asyncio.get_running_loop().call_later(SPELL_CAST_S, up)
 
-    def spell_lands(self, sid):
-        """The cursor answered with ourselves: its mana and one of each reagent spent (combat.SPELL_REAGENTS), then
-        Cure clears the poison, Heal / Greater Heal give SPELL_HP (nothing while poisoned: RunUO, cliloc 1005000)."""
-        self.spells_landed.append((time.time(), sid))
+    def spend(self, sid):
+        """The spell's mana and one of each of its reagents (combat.SPELL_REAGENTS)."""
         self.mana -= combat.spell_mana(sid)
         self.send(mana_pkt(self.mana))
         for g in combat.SPELL_REAGENTS[sid]:
             s = next(s for s, (rg, _) in self.regs.items() if rg == g)
             self.regs[s][1] -= 1
             self.send(contained(s, g, self.regs[s][1], self.potion_box))
+
+    def ward_lands(self, sid):
+        """A ward cast: up already, the server's refusal at no cost (live 2026-10-03); else spent and its buff on us."""
+        icon = healing.WARDS[sid]
+        landed = icon not in self.wards
+        self.ward_casts.append((time.time(), sid, landed))
+        if not landed:
+            self.send(sys_text("That spell is already currently in effect."))
+            return
+        self.spend(sid)
+        self.wards.add(icon)
+        self.send(ward_buff(icon, True))
+
+    def spell_lands(self, sid):
+        """The cursor answered with ourselves: its mana and reagents spent (spend), then Cure clears the poison,
+        Heal / Greater Heal give SPELL_HP (nothing while poisoned: RunUO, cliloc 1005000)."""
+        self.spells_landed.append((time.time(), sid))
+        self.spend(sid)
         if sid == combat.spell_id("cure"):
             self.poisoned = False
             self.send(poison_pkt(False))
@@ -1615,6 +1651,8 @@ class World:
         self.send(equip(BACKPACK, 0x0E75, 0x15))
         self.send(skills_pkt(600 if self.tracking else 0, self.magery))   # Tracking 60 (Hackworth's) or none
         self.send(mana_pkt(self.mana))
+        for icon in sorted(self.wards):                         # work_spell: the wards up from the start
+            self.send(ward_buff(icon, True))
         if self.scenario == "skirmish":                         # the hatchet is in a bag in the pack
             self.send(contained(BAG, 0x0E76, 1, BACKPACK))
             self.send(contained(HATCHET, 0x0F44, 1, BAG))
@@ -3160,6 +3198,40 @@ async def work_spell():
     store.close()
 
 
+async def wards():
+    """LUMBER_LOOP.md §13 "Wards" (user 2026-10-09): Magic Reflection and Reactive Armor kept up while lumbering.
+    Dan with neither ward, reagents and mana 100: both are cast at home before the recall out; the third chop's
+    hit uses up the Reactive Armor, and it is cast again between chops; Magic Reflection, still up, is never
+    recast; the reagents read as spent, not stolen; the trip stores."""
+    print("\n== wards: Magic Reflection + Reactive Armor before heading out, Reactive Armor again once it's gone ==")
+    world = World("wards")
+    text, code, store, _ = await run_scenario(world, "wards", [GOOD_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
+    mr, ra = combat.spell_id("magic reflection"), combat.spell_id("reactive armor")
+    casts = [(sid, landed) for _, sid, landed in world.ward_casts]
+    check("Magic Reflection, then Reactive Armor, landed before the first chop; Reactive Armor once more after the "
+          "third chop; nothing refused",
+          casts == [(mr, True), (ra, True), (ra, True)]
+          and all(t < world.chopped[0][1] for t, _, _ in world.ward_casts[:2])
+          and world.ward_casts[2][0] > world.chopped[2][1],
+          f"{casts} casts {[round(t, 2) for t, _, _ in world.ward_casts]} "
+          f"chops {[round(t, 2) for _, t in world.chopped[:3]]}")
+    check("mana spent on the three casts only (14 + 4 + 4); one of each reagent per cast",
+          world.mana == 100 - 14 - 4 - 4
+          and {combat.REAGENTS[g]: n for g, n in world.regs.values()}
+          == {"garlic": 7, "spiders' silk": 7, "sulfurous ash": 8, "mandrake root": 9, "black pearl": 10,
+              "blood moss": 10, "ginseng": 10, "nightshade": 10}, f"mana {world.mana} regs {world.regs}")
+    ev = [e["data"] for e in store.job_events("lumber") if e["kind"] == "ward"]
+    junc = [j["kind"] for j in store.junctures()]
+    check("ward events heading out, heading out, between chops, all up; no theft_suspected for the reagents",
+          [(e["spell"], e["where"], e["ok"]) for e in ev]
+          == [("Magic Reflection", "heading out", True), ("Reactive Armor", "heading out", True),
+              ("Reactive Armor", "between chops", True)] and "theft_suspected" not in junc, f"{ev} {junc}")
+    eps = store.episodes("lumber")
+    check("stored, exit 0", code == 0 and [e.get("outcome") for e in eps] == ["stored"], f"exit {code}\n{text[-600:]}")
+    store.close()
+
+
 async def thief_keep_away():
     """docs/PLAN.md "Keep thieves off the logs" (THREATS.md §7 T3): at the library spot a blue player
     (Caputo Wood, live 2026-10-03) steps next to us while we chop: the runner steps out of his reach after a
@@ -4337,7 +4409,7 @@ if __name__ == "__main__":
     runs = [main, skirmish, leash, break_due, stop_after_trip, library, library_chased, track_reds, gazer_run,
             gazer_rehit, gazer_reflect, unseen_caster, pacer,
             wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, work_heal, work_spell, thief_keep_away,
-            pouch_pop, faction_lone,
+            pouch_pop, faction_lone, wards,
             no_pouch,
             resupply,
             convert_stacks,
