@@ -954,6 +954,11 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
     - **Perf (2026-10-09):** the store has ~52k tiles / ~60k edges (2.9 MB). The file layer is built once per
       `/api/walkmem` load (`memLayer`) and the live steps/blocks are a separate small layer (`liveLayer`);
       `draw` walks both. Before, every events batch re-deduped all of it (~50 ms of JS per batch).
+    - **Today only (2026-10-09, user request):** the viz asks `/api/walkmem?since=<local midnight, unix s>`
+      (`Memory.walk_memory(facet, since)` filters `walk_moves.last_t >= since`), so the map shows the
+      current day's walking: on the live store 6.6k tiles / 327 KB instead of 52.7k / 2.9 MB (0.09 s vs
+      0.55 s to build). The planner's `walk_memory()` calls still use all history. A blocked mark whose
+      older confirm fell outside the window stays blocked.
   - **Off facet 0 the map is blank** (2026-10-08, `world.self.map != 0`, e.g. rental rooms on facet 3):
     the facet picture and the walk-memory/live-step layer are facet-0 data and are not drawn, so the
     room's coordinates don't show the unrelated facet-0 terrain at the same x/y. Self, mobiles, items and

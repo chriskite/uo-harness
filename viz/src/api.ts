@@ -3,7 +3,7 @@
 // periodic walk-memory refresh, playback and agent-gate control, job analytics
 // and the overseer chat (§2.4), and the Nystul assistant chat.
 import { getChar, type Session, withChar } from "./character.ts";
-import type { HuntResponse, JobsResponse, PlanResponse, RangeBounds } from "./jobs.ts";
+import { localDay, presetRange, rangeBounds, type HuntResponse, type JobsResponse, type PlanResponse, type RangeBounds } from "./jobs.ts";
 import type { NystulConversation, NystulList } from "./nystul.ts";
 import type { OverseerResponse } from "./overseer.ts";
 import { supersede, type SseMessage } from "./sse.ts";
@@ -19,9 +19,11 @@ export async function fetchState(): Promise<StateResponse> {
   return (await r.json()) as StateResponse;
 }
 
-/** Raw file text too, so an unchanged file is not re-parsed into a new object. */
+/** Today's walk memory only (local midnight on): the whole history is ~50k tiles and slows the map.
+ *  Raw file text too, so an unchanged file is not re-parsed into a new object. */
 async function fetchWalkmem(): Promise<{ text: string; data: WalkMemoryFile } | null> {
-  const r = await fetch("/api/walkmem", { cache: "no-store" });
+  const since = rangeBounds(presetRange("today", localDay(Date.now() / 1000))).since;
+  const r = await fetch(`/api/walkmem?since=${since}`, { cache: "no-store" });
   if (!r.ok) return null;
   const text = await r.text();
   return { text, data: JSON.parse(text) as WalkMemoryFile };

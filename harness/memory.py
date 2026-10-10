@@ -310,15 +310,16 @@ class Memory:
         self.con.close()
 
     # -- walking -----------------------------------------------------------
-    def walk_memory(self, facet: int = 0) -> nav.WalkMemory:
+    def walk_memory(self, facet: int = 0, since: float | None = None) -> nav.WalkMemory:
         """2D projection for nav.plan / the viz walk layer: every confirmed move
         is an edge; a move is blocked when its latest deny is newer than its
-        latest confirm (doors and mobiles block only for a while)."""
+        latest confirm (doors and mobiles block only for a while). `since` (unix
+        seconds) keeps only moves last seen at or after it; None = all history."""
         mem = nav.WalkMemory()
         ok_last, deny_last = {}, {}
         for x, y, d, ok, last in self.con.execute(
-                "SELECT x, y, dir, ok, MAX(last_t) FROM walk_moves WHERE facet = ? "
-                "GROUP BY x, y, dir, ok", (facet,)):
+                "SELECT x, y, dir, ok, MAX(last_t) FROM walk_moves WHERE facet = ? AND last_t >= ? "
+                "GROUP BY x, y, dir, ok", (facet, since or 0.0)):
             (ok_last if ok else deny_last)[(x, y, d)] = last or 0.0
         for (x, y, d) in ok_last:
             mem.add_step((x, y), nav.step((x, y), d))
@@ -327,9 +328,9 @@ class Memory:
                 mem.add_blocked(key[:2], key[2])
         return mem
 
-    def walkmem_json(self, facet: int = 0) -> bytes:
+    def walkmem_json(self, facet: int = 0, since: float | None = None) -> bytes:
         """The visualizer's walk layer file format (nav.WalkMemory.to_json)."""
-        return self.walk_memory(facet).to_json().encode()
+        return self.walk_memory(facet, since).to_json().encode()
 
     # -- harvesting ----------------------------------------------------------
     def harvest_node(self, facet, x, y, z) -> dict | None:

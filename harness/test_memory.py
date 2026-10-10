@@ -85,6 +85,10 @@ def test_projection():
     check("confirmed moves are edges", nav.step((10, 10), 2) in w0.tiles and (20, 21) in w0.tiles)
     check("facets are isolated", (39, 66) not in w0.tiles and (39, 66) in w3.tiles and len(w3.tiles) == 2,
           str(sorted(w3.tiles)))
+    recent = m.walk_memory(0, since=4.0)
+    check("since keeps only moves last seen then or later",
+          (20, 21) in recent.tiles and nav.step((10, 10), 2) not in recent.tiles and ((10, 10), 2) in recent.blocked,
+          str((sorted(recent.tiles), recent.blocked)))
     m.close()
 
 

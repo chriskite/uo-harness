@@ -15,7 +15,8 @@ live only, replay ignores it; without one the proxy serves its only session or e
                       changed); a slow reader gets the newest state, never a backlog of old
                       ones (viz_feed.Subscriber). Resume with the Last-Event-ID header
                       (seq > id) or ?since=N (seq >= N).
-  GET  /api/walkmem   walk memory (facet 0) from the harness memory store, in the
+  GET  /api/walkmem   (?since=unix seconds: only moves last seen then or later) walk memory
+                      (facet 0) from the harness memory store, in the
                       nav.WalkMemory JSON format (docs/MEMORY.md)
   GET  /api/paperdoll.png  (?char=) the player's paperdoll from the current state (body, skin hue,
                       worn items), drawn from the client's gump art (harness/paperdoll.py);
@@ -131,7 +132,9 @@ SERIAL_ONLY = "char must be a serial (0x...)"
 
 class WalkMemDB:
     """Walk memory projection from the harness memory store (read-only use),
-    rebuilt at most every CACHE_S seconds."""
+    rebuilt at most every CACHE_S seconds. `since` (unix seconds) limits it to moves
+    last seen then or later (the viz asks for the current local day); the cache
+    holds the newest request's `since` only."""
 
     CACHE_S = 2.0
 
@@ -140,18 +143,20 @@ class WalkMemDB:
         self.lock = threading.Lock()
         self.at = 0.0
         self.body = None
+        self.body_since = None
 
-    def get(self) -> bytes | None:
+    def get(self, since: float | None = None) -> bytes | None:
         if not os.path.exists(self.path):
             return None
         with self.lock:
             now = time.monotonic()
-            if self.body is None or now - self.at >= self.CACHE_S:
+            if self.body is None or since != self.body_since or now - self.at >= self.CACHE_S:
                 mem = memory_mod.Memory(self.path)
                 try:
-                    self.body = mem.walkmem_json(0)
+                    self.body = mem.walkmem_json(0, since)
                 finally:
                     mem.close()
+                self.body_since = since
                 self.at = now
             return self.body
 
@@ -492,7 +497,13 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/api/events":
             self._sse(url)
         elif url.path == "/api/walkmem":
-            body = self.server.walkmem.get()
+            qs = parse_qs(url.query)
+            try:
+                since = float(qs["since"][0]) if "since" in qs else None
+            except ValueError:
+                self._json(400, {"error": "since must be unix seconds"})
+                return
+            body = self.server.walkmem.get(since)
             if body is None:
                 self._json(404, {"error": f"no harness memory store at {self.server.walkmem.path}"})
             else:
