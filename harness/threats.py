@@ -138,7 +138,8 @@ before. Captures older than world.swings have no such key: read as no swings.
 Other actions:
   - non-hostile players (blue) within watch_radius: `watch`. They could be
     thieves; harness/ledger.py catches actual theft.
-  - any player that isn't hostile within Params.steal_guard tiles (0 = off, the
+  - any player that isn't hostile or an ally (notoriety 2, green: our guild or alliance; user 2026-10-09)
+    within Params.steal_guard tiles (0 = off, the
     default; the lumber runner sets 2 while harvesting): `thief`. Thieves look blue
     until the steal turns them grey (live 2026-10-03, docs/NOTES.md "A pickpocket,
     not an attack"; user 2026-10-04), the steal needs 1 tile, and nobody else has a
@@ -229,6 +230,7 @@ LAYER_MOUNT = 0x19               # ClassicUO Game/Data/Layers.cs:32
 FLAG_PLAYER_HINT = 0x20          # EntityFlags.Movable; players only in captures
 FLAG_WARMODE = 0x40              # EntityFlags.WarMode (EntityFlags.cs:18)
 
+ALLY_NOTORIETY = 2               # green: our guild or alliance (friendly; never a thief, never fled from)
 _TITLE = re.compile(r"^\S.* the [A-Za-z][A-Za-z' -]*$")
 ASSUMED_PLAYER = "human body, no npc evidence (assumed player)"
 _CREATURE = re.compile(r"^(a|an) ", re.IGNORECASE)
@@ -270,8 +272,11 @@ def harmful_spell(text: str | None) -> str | None:
 
 
 def friendly(t, me: dict) -> bool:
-    """A player of our guild or our faction (their tags against world.self's)."""
-    return bool((t.guild and t.guild == me.get("guild")) or (t.faction and t.faction == me.get("faction")))
+    """A player of our guild or alliance: notoriety 2 (the server shows them green to us), or their guild
+    tag is ours, or their faction tag is ours (their tags against world.self's). User 2026-10-09: guild and
+    alliance members are always allies and never run from."""
+    return bool(t.notoriety == ALLY_NOTORIETY or (t.guild and t.guild == me.get("guild"))
+                or (t.faction and t.faction == me.get("faction")))
 
 
 @dataclass(frozen=True)
@@ -673,7 +678,7 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
             th.reason = f"{kind} eta {th.eta_s:.1f}s > {budget:.1f}s"
         elif kind == "monster":
             th.action, th.reason = "ignore", f"passive creature ({th.aggression})"
-        elif player and th.distance <= params.steal_guard:
+        elif player and th.distance <= params.steal_guard and th.notoriety != ALLY_NOTORIETY:
             th.action = "thief"
             th.reason = (f"{kind} player within {params.steal_guard} tiles (steal range; "
                          f"thieves look blue until the steal)")

@@ -1333,6 +1333,17 @@ range went to 80 after Bastet, tracked at 55 tiles, struck mounted ~6.5 s later;
 60, but a mounted red at 61–80 tiles is ~1–2 s from that point, and the in-view red rule (any red
 in view: recall) is the backstop. Reds beyond the range also stop counting as the spot's hazard.
 
+## Allies are never fled from; witcher_59 disabled (decided 2026-10-09)
+
+- **Allies (user: "Guild and alliance members should always be green to us and we shouldn't run from
+  them"):** a player at notoriety 2 (green) is `threats.friendly` whatever tags he shows, so the faction
+  and precast rules skip him, and he is never a `thief` at the steal guard. Reds stay reds (a murderer in
+  our guild shows red, not green [INFERENCE: RunUO Notoriety.Compute checks murderers first]), and an
+  actual attack (a swing at us, "… is attacking you!") still counts.
+- **witcher_59 disabled (user):** its grove borders Prevalia's guard zone; at (1917,1749) the server said
+  "Harvesting is not allowed in this area." four times and the run aborted (`lumber-20261009-222948-0e46`).
+  The outcome itself is still unknown to the runner (proposal in the incident log, not built).
+
 ## Roaming creatures boxing a grove out (decided and built 2026-10-09)
 
 Seer-14's witcher_181 leg: ~30 trees dropped for roaming ants' and a cougar's zones on 40–150-step walks,

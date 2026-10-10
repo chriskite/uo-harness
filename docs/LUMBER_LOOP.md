@@ -1167,8 +1167,10 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
       Magic Arrow … Earthquake, the fields, Paralyze; not heals, buffs or travel): a precast held for
       us. On run 16 "In Por Ylem" and "Vas Ort Flam" came 6.6 and 5.2 s before "… is attacking you!".
       Over 75 trips 6 had such words from players and 3 of those were followed by an attack.
-    - Not a player of our guild or our faction (`threats.friendly`; our own tags come from our own
-      click echo). The player gets `hostile`, its reason in the threat juncture and `recall` event,
+    - Not a player of our guild, alliance or faction (`threats.friendly`: notoriety 2, the green the
+      server shows guild and alliance members, since 2026-10-09, user: "Guild and alliance members
+      should always be green to us and we shouldn't run from them"; or our own guild or faction tag,
+      which come from our own click echo). Greens are never `thief` either. The player gets `hostile`, its reason in the threat juncture and `recall` event,
       and a `pk_seen` sighting. A **faction waypost marker** in view ("FACTION WP 17", "… Waypost")
       marks the spot `faction_zone` in its lumber_spots row (a `faction_waypost` job event);
       lumber_opt then assumes at least `FACTION_ZONE_PRIOR` (2.0) hostile sightings per field hour
