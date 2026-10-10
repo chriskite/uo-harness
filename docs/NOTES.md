@@ -884,6 +884,20 @@ stopped, as designed. Run 2 (task `lumber-20261005-104549-6355`, `witcher_196`, 
   "Banner Captain [Cambria]", guild "[Officer, LoK]") from 14:08:32.5, and precasts ("In Por Ylem"
   14:08:43.9, "Vas Ort Flam" 14:08:45.4). Since then the runner leaves on both (docs/PLAN.md "Leave on
   faction tags and on precasts").
+- **Attackers by faction; guild title hidden as a test (user, 2026-10-09 ~22:35):** Dan's guild DTF is
+  aligned with **Terran**, but Dan doesn't participate (his click echo carries only "[Farm Around Find
+  Out, DTF]", no faction tag), so to faction players he is a plain blue and attacking him makes them
+  criminal (wiki Factions: only opposing-faction participants are free targets). Yet every
+  faction-tagged attacker so far came from the **other three** factions: Bastet [Prevalia] (3 kills,
+  10-02/03), Bee Loga and Soshuto Nakakata [Cambria] (witcher_66 death, 10-06, by "FACTION WP 17"),
+  mauna kea [Cambria] (witcher_193 death, 10-09), Lola the Butcher [Andaria] (witcher_211, 10-09,
+  Dan at 36/100). None of the other attacks happened near a known waypost (5 known of 18) or the
+  Purification Pyre (Daemon Keep, ~1306,1750). [INFERENCE] The "DTF" guild tag over Dan may mark him as a
+  Terran guild's member to their enemies. The user turned Dan's guild title display off to test it; no
+  code change. Compare attacks by faction-tagged players before and after. Side effect to watch:
+  `threats.friendly` knows guildmates by our own guild tag (world.self.guild, from our click echo); after a
+  proxy restart with the title hidden it stays unset, so tagged DTF guildmates (Terran) would count as
+  faction-tagged strangers (watched alone, recalled from in a group or within 12 tiles).
 - **PK death by a lone mage at witcher_162 (lumber-20261006-160011-d152, Seer8 run 5, 16:33:30):** "Lord
   Saisho Hakai" (red, guild tag "[BJV]", no faction tag) came into view at 17 tiles at 16:33:23.0 with no
   Tracking hit before. The book was double-clicked 0.49 s later and Kal Ort Por began at 16:33:23.8.
