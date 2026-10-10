@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { addDays, eventView, legText, localDay, parseRange, presetRange, rangeBounds, rangeQuery, routeQuery, routeRange, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, outcomeKind, phaseList, theftLoss, tripHome, woodShares, type HuntTotals, type JobEvent, type JobTotals } from "./jobs.ts";
+import { addDays, boardsRateSeries, eventView, legText, localDay, parseRange, presetRange, rangeBounds, rangeQuery, routeQuery, routeRange, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, outcomeKind, phaseList, theftLoss, tripHome, woodShares, type HuntTotals, type JobEvent, type JobTotals, type JobTrip } from "./jobs.ts";
 
 function totals(p: Partial<JobTotals> = {}): JobTotals {
   return {
@@ -33,6 +33,25 @@ function totals(p: Partial<JobTotals> = {}): JobTotals {
 function ev(kind: string, data: Record<string, unknown> = {}, x: number | null = null, y: number | null = null): JobEvent {
   return { id: 1, t: 100, kind, facet: 0, x, y, data };
 }
+
+describe("boardsRateSeries", () => {
+  const trip = (n: number, t_end: number, duration_s: number, stockpiled: number) =>
+    ({ n, t_end, duration_s, stockpiled }) as JobTrip;
+  test("starts at the first trip with stockpile rows; rolling window and cumulative are boards per active hour", () => {
+    const s = boardsRateSeries(
+      [trip(1, 1000, 3600, 0), trip(2, 5000, 3600, 100), trip(3, 9000, 3600, 300), trip(4, 20000, 1800, 0)],
+      5000,
+    );
+    expect(s.map((p) => p.n)).toEqual([2, 3, 4]);
+    expect(s.map((p) => p.cum)).toEqual([100, 200, 400 / 2.5]);
+    // window 5000 s: trip 3 sees trips 2+3 (ended after 4000); trip 4 only itself (0 boards in 0.5 h)
+    expect(s.map((p) => p.rolling)).toEqual([100, 200, 0]);
+  });
+  test("no stockpiled boards, untimed or unfinished trips: no points", () => {
+    expect(boardsRateSeries([trip(1, 1000, 3600, 0)], 5000)).toEqual([]);
+    expect(boardsRateSeries([{ ...trip(1, 1000, 3600, 50), t_end: null }, { ...trip(2, 2000, 0, 50) }], 5000)).toEqual([]);
+  });
+});
 
 describe("number formatting", () => {
   test("unknown is an em dash, trailing zeros dropped", () => {

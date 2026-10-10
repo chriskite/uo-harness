@@ -370,9 +370,6 @@ def compute(episodes: list[dict], events: list[dict], attempts: list[tuple] | No
         "supplies": supplies_total(trips),
         "time_split": {k: round(sum((t["time_split"] or {}).get(k, 0.0) for t in trips), 1)
                        for k in ("travel", "lockout", "field", "other")},
-        "skill": [{"t": t, "skill": s, "n": tr["n"]} for tr in trips
-                  for t, s in ((tr["t_start"], tr["skill"]), (tr["t_end"], tr["skill_end"]))
-                  if t is not None and s is not None],
     }
 
 

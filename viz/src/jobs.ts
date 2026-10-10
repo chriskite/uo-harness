@@ -340,7 +340,6 @@ export interface JobsResponse {
   travel: { legs: LegStats[]; books: BookStats[] };
   supplies: SuppliesTotal;
   time_split: TimeSplit;
-  skill: { t: number; skill: number; n: number }[];
 }
 
 /** /api/jobs/plan: the lumber_opt plan at the server's clock over all history (null without a store). */
@@ -416,6 +415,43 @@ export function fmtHours(s: number): { value: string; sub: string } {
   const m = Math.floor(Math.max(0, s) / 60);
   const sub = m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m` : `${m}m`;
   return { value: `${fmtNum(s / 3600, 2)} h`, sub };
+}
+
+export interface BoardsRatePoint {
+  t: number;
+  n: number;
+  /** boards per active hour over the trips that ended within the window; null with no active time */
+  rolling: number | null;
+  /** all boards so far over all active time so far */
+  cum: number | null;
+}
+
+/** One point per timed trip, at its end: stockpiled boards per active hour over the trips that
+ *  ended in the last `windowS` seconds, and cumulative. `stockpiled` is 0 on rows before 2026-10-05
+ *  (not recorded), so the series starts at the first trip that stockpiled anything. */
+export function boardsRateSeries(trips: readonly JobTrip[], windowS: number): BoardsRatePoint[] {
+  const timed = trips
+    .filter((r): r is JobTrip & { t_end: number; duration_s: number } => r.t_end !== null && (r.duration_s ?? 0) > 0)
+    .sort((a, b) => a.t_end - b.t_end);
+  const first = timed.findIndex((r) => r.stockpiled > 0);
+  if (first < 0) return [];
+  const rate = (boards: number, s: number) => (s > 0 ? boards / (s / 3600) : null);
+  const out: BoardsRatePoint[] = [];
+  let cumBoards = 0;
+  let cumS = 0;
+  for (let i = first; i < timed.length; i++) {
+    const t = timed[i]!;
+    cumBoards += t.stockpiled;
+    cumS += t.duration_s;
+    const win = timed.slice(first, i + 1).filter((u) => u.t_end > t.t_end - windowS);
+    out.push({
+      t: t.t_end,
+      n: t.n,
+      rolling: rate(win.reduce((a, u) => a + u.stockpiled, 0), win.reduce((a, u) => a + u.duration_s, 0)),
+      cum: rate(cumBoards, cumS),
+    });
+  }
+  return out;
 }
 
 export interface Kpi {

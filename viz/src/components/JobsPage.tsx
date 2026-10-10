@@ -1,5 +1,6 @@
 import { fmtDuration } from "../format.ts";
 import {
+  boardsRateSeries,
   EVENT_HELP,
   eventName,
   eventView,
@@ -362,6 +363,8 @@ function OptimizerPanels({ data, plan: planState }: { data: JobsResponse; plan: 
   const sup = data.supplies;
   const shares = splitShares(data.time_split);
   const splitTotal = shares.reduce((a, s) => a + s.s, 0);
+  const windowMin = Math.round(data.window_s / 60);
+  const boardsRate = boardsRateSeries(data.trips, data.window_s);
   return (
     <>
       <Panel
@@ -671,18 +674,22 @@ function OptimizerPanels({ data, plan: planState }: { data: JobsResponse; plan: 
       </Panel>
 
       <div className="jobs-charts">
-        <Panel title="Lumberjacking skill">
+        <Panel title="Boards stored / hr over time">
           <RateChart
-            points={data.skill.map((p) => ({ t: p.t, n: p.n }))}
+            points={boardsRate}
             series={[
               {
-                label: "skill at trip start / end", cls: "skill", values: data.skill.map((p) => p.skill), dots: true,
-                hint: "Lumberjacking as each trip row recorded it, at its start and (since 2026-10-03) its end",
+                label: `rolling ${windowMin} min`, cls: "roll", values: boardsRate.map((p) => p.rolling), dots: true,
+                hint: `At each trip's end: boards the Resource Stockpile took per active hour over the trips that ended in the last ${windowMin} min of wall time`,
+              },
+              {
+                label: "cumulative", cls: "cum", values: boardsRate.map((p) => p.cum),
+                hint: "At each trip's end: all stockpiled boards so far over all active time so far",
               },
             ]}
             what="trip"
-            unit="skill"
-            note="from the trip rows (start; end since 2026-10-03). Harvest Aspect: not observable yet"
+            unit="boards/hr"
+            note="active time only; one point per trip end, from the first trip with stockpile rows (2026-10-05)"
           />
         </Panel>
         <Panel title="Travel and supplies">

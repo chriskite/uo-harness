@@ -493,7 +493,10 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     P(death) per trip on hover), PK escapes, place failures, supplies per trip, the last trip
     (hours ago, outcome, why on hover), P(best) and why it can't be picked. The pick's row is
     highlighted, ineligible rows dimmed.
-  - **Lumberjacking skill** over time (trip start and end) and **Travel and supplies**: the time
+  - **Boards stored / hr over time** (2026-10-10, user request; replaced the Lumberjacking skill chart and
+    its `skill` series in `/api/jobs`): stockpiled boards per active hour at each trip end, rolling
+    (`window_s`) and cumulative (`boardsRateSeries` in `jobs.ts`, from the trip rows). It starts at the first trip
+    with `stockpiled > 0` (rows before 2026-10-05 have none recorded). Next to it **Travel and supplies**: the time
     split of all trips as one bar, the supplies used, the legs table and the books table (library
     tomes' charges over time on hover).
   - Charts, plain SVG with no chart library (`viz/src/chart.ts`):
