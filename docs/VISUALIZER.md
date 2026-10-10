@@ -146,7 +146,7 @@ channels.
 |---|---|
 | `GET /api/state` | the latest state-port response, verbatim (movement + world + recent events + diagnostics); `?char=` that character's (§2.14) |
 | `GET /api/events` | SSE, per write: `event: world_events` (a JSON array of the new envelopes, verbatim; `id:` = its last seq), then `event: state` (the newest full response, dirty-checked, ≤4 Hz). A slow reader gets fewer, newer states, never a backlog (§2.10). `Last-Event-ID` resume from a 2000-entry ring; `?char=` as `/api/state` |
-| `GET /api/walkmem` | walk memory (facet 0) projected from the harness memory store (docs/MEMORY.md), in the `nav.WalkMemory` JSON format (tiles, edges, blocked), cached 2 s |
+| `GET /api/walkmem` | walk memory (facet 0) projected from the harness memory store (docs/MEMORY.md), in the `nav.WalkMemory` JSON format (tiles, edges, blocked), cached 2 s; `?since=<unix s>` keeps only moves last seen then or later (the viz sends local midnight) |
 | `GET /api/health` | viz_server mode (live/replay + session tag + order quality), poll lag, connection status, proxy diagnostics; `?char=` as `/api/state` |
 | `GET /api/sessions` | live: the proxy's logged-in characters, `{"ok": true, "sessions": [{tag, serial: "0x%08X"\|null, name}]}` (`{"op":"sessions"}` on the state port); replay: `[]`; 502 when the state port is unreachable (§2.14) |
 | `POST /api/playback` | replay only: `{play,pause,rate,step}` |
