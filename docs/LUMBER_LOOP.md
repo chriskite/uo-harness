@@ -383,7 +383,10 @@ patches show up within weeks):
     before it; else a creature death. Since 2026-10-08 the runner's cause is whoever hit us within
     15 s (`died`, `DEATH_BLAME_S`: a player among them `pk`, else `mob`); only with no hit blamed
     does a hostile player in view make it `pk` (live that day an unlabelled grey body 18 tiles off
-    made a gloomwood hunter's kill a `pk`).
+    made a gloomwood hunter's kill a `pk`; that row was corrected to `mob` on 2026-10-09). A death inside
+    an escape (the recall loop ends "dead", no threat check after it) is recorded by `threat_stop` since
+    2026-10-09: the witcher_193 PK death had no `death` job event, so the Jobs page showed 0 deaths to
+    PKs that day (the row was backfilled from the proxy's `death` event).
   - **sent home h_S**: trips a threat ended without killing us: the row's `why` starts `threat:`
     (recall escape, guard flight, a creature or damage stop), or a `recall`/`guard_flight` job event
     falls in the trip, or the row's `creature.recalled` (the CreatureRun field, when present). A

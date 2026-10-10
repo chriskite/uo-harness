@@ -3788,17 +3788,24 @@ def unit_death_cause():
     gloomwood hunter's arrows killed Dan while an unlabelled grey body stood 18 tiles off, and it said 'pk'.
     Whoever hit us within DEATH_BLAME_S decides; only with no hit blamed does a hostile player in view."""
     import loop_lumber
+    import types
     print("\n== death cause: who hit us, not who was in view ==")
     grey = SimpleNamespace(serial=0x7196E8, hostile=True, player=True)
 
+    def fake_loop(attacked, rows, ghost=False):
+        fake = SimpleNamespace(attacked=attacked, last_threats=SimpleNamespace(
+            threats=[grey], under_attack=True, to_dict=lambda: {}), death_recorded=False,
+            memory=SimpleNamespace(juncture=lambda *a: None, job_event=lambda job, kind, data, **kw: rows.append(data)),
+            _where=lambda st: {}, post_threat=lambda *a, **kw: "red X at 18 tiles")
+        last = {"world": {"self": {"stats": {"graphic": 0x192 if ghost else 0x190}}}, "movement": {}}
+        fake.link = SimpleNamespace(state=lambda: last, last=last)
+        fake.record_death = types.MethodType(loop_lumber.LumberLoop.record_death, fake)
+        return fake
+
     def cause(attacked):
         rows = []
-        fake = SimpleNamespace(attacked=attacked, last_threats=SimpleNamespace(
-            threats=[grey], under_attack=True, to_dict=lambda: {}),
-            memory=SimpleNamespace(juncture=lambda *a: None, job_event=lambda job, kind, data, **kw: rows.append(data)),
-            _where=lambda st: {})
         try:
-            loop_lumber.LumberLoop.died(fake, {}, "ghost body")
+            loop_lumber.LumberLoop.died(fake_loop(attacked, rows), {}, "ghost body")
         except loop_lumber.Unsafe:
             pass
         return rows[0]["cause"]
@@ -3807,6 +3814,21 @@ def unit_death_cause():
     check("a player hit us: pk", cause({0x71F989: (now - 1, False), 0x1234: (now - 2, True)}) == "pk")
     check("the creature's hit was long ago: the player in view makes it pk",
           cause({0x71F989: (now - loop_lumber.DEATH_BLAME_S - 1, False)}) == "pk")
+    # live 2026-10-09 (witcher_193): the escape's six casts ended 'dead' and threat_stop stopped the run with no
+    # death event, so the jobs page counted 0 deaths to PKs
+    rows = []
+    fake = fake_loop({}, rows, ghost=True)
+    try:
+        loop_lumber.LumberLoop.threat_stop(fake, {}, None, None, {}, loop_lumber.Unsafe, "recall failed: dead")
+    except loop_lumber.Unsafe:
+        pass
+    check("a threat stop as a ghost records the death itself (pk: a red in view)", [r["cause"] for r in rows] == ["pk"],
+          str(rows))
+    try:
+        loop_lumber.LumberLoop.died(fake, {}, "ghost body")
+    except loop_lumber.Unsafe:
+        pass
+    check("... once: died() after it adds no second record", len(rows) == 1, str(rows))
 
 
 def unit_run_and_recall():

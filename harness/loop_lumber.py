@@ -517,6 +517,7 @@ class LumberLoop:
         self.zone_drops = []         # this harvest: when trees were dropped for a creature's zone since the last logs
         self.last_gain_t = time.monotonic()   # this harvest: when the last logs came (zone_stalled)
         self.far_passed = 0          # far trees by a creature next_stand last passed over (its log line)
+        self.death_recorded = False  # this run's death has its juncture and job event (record_death)
         self.player_foes = set()     # serials player_escape runs from (gain_distance players=True)
         self._flee_mark = 0          # len(link.events) when the guard flight started
         self.facet = know["facet"]   # the spot's facet: tree records and candidates
@@ -1825,6 +1826,11 @@ class LumberLoop:
         return summary
 
     def threat_stop(self, st, a, worst, swung, cls, why=None, what=None):
+        """Stop on a threat: the `threat` juncture (post_threat), then `cls`. A death inside the escape
+        (escape.escape ends with 'dead', no threat check after it) is recorded first (live 2026-10-09
+        witcher_193: six disturbed casts, dead, and no `death` event: the jobs page said 0 deaths to PKs)."""
+        if threats.is_dead(self.link.state()):
+            self.record_death(self.link.last, "ghost body (died while escaping)")
         summary = self.post_threat(st, a, worst, swung, "abort", why, what=what)
         raise cls(f"threat: {summary}" + (f" ({why})" if why else "") + "; stopping")
 
@@ -2086,20 +2092,28 @@ class LumberLoop:
         return bool(alerts.open_gm(self.memory))
 
     def died(self, st, reason):
-        """A death: the `death` juncture and job event with its cause. Whoever hit us within
-        DEATH_BLAME_S says it (`attacked`: a player among them "pk", else "mob"; live 2026-10-08 a
-        gloomwood hunter's arrows killed Dan and an unlabelled grey body at 18 tiles made it "pk");
-        with no hit blamed, a hostile player in view still makes it "pk"."""
+        """A death: record_death, then stop (Unsafe)."""
+        cause = self.record_death(st, reason)
+        raise Unsafe(f"died ({cause}): {reason}")
+
+    def record_death(self, st, reason) -> str:
+        """The `death` juncture and job event with its cause, once a run (the jobs page counts deaths from
+        these). Whoever hit us within DEATH_BLAME_S says it (`attacked`: a player among them "pk", else
+        "mob"; live 2026-10-08 a gloomwood hunter's arrows killed Dan and an unlabelled grey body at 18
+        tiles made it "pk"); with no hit blamed, a hostile player in view still makes it "pk"."""
         a = self.last_threats
         now = time.time()
         recent = [p for t, p in self.attacked.values() if now - t <= DEATH_BLAME_S]
         players = [t for t in (a.threats if a else []) if t.hostile and t.player]
         cause = ("pk" if any(recent) else "mob" if recent else
                  "pk" if players else "mob" if a and a.under_attack else "unknown")
+        if self.death_recorded:
+            return cause
+        self.death_recorded = True
         data = {"reason": reason, "cause": cause, "threats": a.to_dict() if a else None}
         self.memory.juncture("lumber", "death", f"Died ({cause}): {reason}", "urgent", data)
         self.memory.job_event("lumber", "death", data, **self._where(st))
-        raise Unsafe(f"died ({cause}): {reason}")
+        return cause
 
     def state(self):
         st = self.link.state()
