@@ -181,3 +181,24 @@ export function proposalView(p: NystulProposal): ProposalView {
           : null;
   return { title, why: String(p.params.why ?? ""), before, fields, outcome };
 }
+
+/** GET /api/nystul/models: what `omp models --json` lists (chat kind) and every level omp's --thinking takes. */
+export interface NystulModels {
+  models: { selector: string; name: string; /** the levels the model supports; null = it can't think */ thinking: string[] | null }[];
+  levels: string[];
+}
+
+/** The thinking levels to offer for `model`: its own (plus off) when omp lists it, else every level
+ *  (a fuzzy name such as "sonnet" that omp resolves itself). */
+export function thinkingChoices(m: NystulModels, model: string): string[] {
+  const entry = m.models.find((x) => x.selector === model);
+  if (!entry) return m.levels;
+  return entry.thinking ? ["off", ...entry.thinking.filter((l) => l !== "off")] : ["off"];
+}
+
+/** The level to keep after switching models: the current one when still offered, else the
+ *  nearest to medium that is, else the first offered. */
+export function thinkingAfterSwitch(current: string, choices: readonly string[]): string {
+  if (choices.includes(current)) return current;
+  return ["medium", "low", "high", "minimal", "xhigh", "max"].find((l) => choices.includes(l)) ?? choices[0] ?? "off";
+}

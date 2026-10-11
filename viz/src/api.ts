@@ -4,7 +4,7 @@
 // and the overseer chat (§2.4), and the Nystul assistant chat.
 import { getChar, type Session, withChar } from "./character.ts";
 import { localDay, presetRange, rangeBounds, type HuntResponse, type JobsResponse, type PlanResponse, type RangeBounds } from "./jobs.ts";
-import type { NystulConversation, NystulList } from "./nystul.ts";
+import type { NystulConversation, NystulList, NystulModels } from "./nystul.ts";
 import type { OverseerResponse } from "./overseer.ts";
 import { supersede, type SseMessage } from "./sse.ts";
 import type { VizStore } from "./store.ts";
@@ -135,6 +135,35 @@ export async function postNystulApprove(proposal: number): Promise<void> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ proposal }),
+  });
+  const body = (await r.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+  if (!r.ok || !body?.ok) throw new Error(`nystul: ${body?.error ?? `HTTP ${r.status}`}`);
+}
+
+/** The models omp can use and the thinking levels (cached server-side for 10 min). */
+export async function fetchNystulModels(): Promise<NystulModels> {
+  const body = await getNystul("/api/nystul/models");
+  if (!body) throw new Error("nystul: HTTP 404");
+  return body as NystulModels;
+}
+
+/** Change the model and/or thinking level for the questions asked from now on. */
+export async function postNystulSettings(settings: { model?: string; thinking?: string }): Promise<void> {
+  const r = await fetch("/api/nystul/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  const body = (await r.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+  if (!r.ok || !body?.ok) throw new Error(`nystul: ${body?.error ?? `HTTP ${r.status}`}`);
+}
+
+/** Delete a conversation with its messages (not while it is answering). */
+export async function postNystulDelete(conversation: number): Promise<void> {
+  const r = await fetch("/api/nystul/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ conversation }),
   });
   const body = (await r.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
   if (!r.ok || !body?.ok) throw new Error(`nystul: ${body?.error ?? `HTTP ${r.status}`}`);

@@ -34,6 +34,9 @@ TRANSCRIPT_MAX_CHARS = 24_000
 TRANSCRIPT_MAX_MESSAGES = 12
 LIST_MAX = 100
 STDERR_TAIL = 2048
+THINKING_LEVELS = ("off", "minimal", "low", "medium", "high", "xhigh", "max", "auto")   # omp --thinking
+MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,79}$")   # an omp --model pattern or provider/id selector
+MODELS_CACHE_S = 600
 TOOL_NAMES = ("uo_api", "uo_ctl", "uo_sql", "uo_knowledge", "uo_discord", "uo_read", "uo_grep", "uo_list",
               "uo_propose")
 
@@ -58,6 +61,8 @@ CREATE TABLE IF NOT EXISTS proposals(id INTEGER PRIMARY KEY, conv INTEGER NOT NU
   t REAL NOT NULL, params TEXT NOT NULL, before TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL,
   t_decided REAL, result TEXT, error TEXT);
 CREATE INDEX IF NOT EXISTS proposals_msg ON proposals(conv, msg);
+-- the operator's model / thinking choice (Nystul.set_settings); beats the viz_server flags once set
+CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 MSG_COLS = ("id", "role", "t", "text", "status", "steps", "model", "cost", "tokens_in", "tokens_out", "seconds",
             "error")
@@ -180,6 +185,7 @@ class Nystul:
         self._live = {}               # conv id -> Run
         self._threads = []
         self._closed = False
+        self._models = None           # (monotonic time, [model dicts]) from `omp models --json`
 
     # ------------------------------------------------------------------ store
     def _open(self, create=True):
@@ -195,8 +201,64 @@ class Nystul:
             # an approval cut off by a restart: offer it again (re-applying an add confirms the entry)
             con.execute("UPDATE proposals SET status='pending' WHERE status='applying'")
             con.commit()
+            saved = dict(con.execute("SELECT key, value FROM settings"))
+            self.model = saved.get("model", self.model)
+            self.thinking = saved.get("thinking", self.thinking)
             self._con = con
         return self._con
+
+    def set_settings(self, model: str | None = None, thinking: str | None = None) -> dict:
+        """Change the model and/or thinking level for the questions asked from now on (a run
+        in flight keeps its own); saved in the db so it survives a restart."""
+        if model is not None:
+            model = model.strip()
+            if not MODEL_RE.match(model):
+                raise NystulError(400, "model must be an omp model pattern or provider/id selector")
+        if thinking is not None and thinking not in THINKING_LEVELS:
+            raise NystulError(400, f"thinking must be one of {', '.join(THINKING_LEVELS)}")
+        with self._lock:
+            con = self._open()
+            for key, value in (("model", model), ("thinking", thinking)):
+                if value is not None:
+                    con.execute("INSERT INTO settings(key, value) VALUES (?, ?) "
+                                "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
+                    setattr(self, key, value)
+            con.commit()
+            return {"model": self.model, "thinking": self.thinking}
+
+    def list_models(self) -> list[dict]:
+        """The models omp can use: [{selector, name, thinking: [levels] | None}] (chat kind),
+        from `omp models --json`, cached for MODELS_CACHE_S."""
+        with self._lock:
+            cached = self._models
+        if cached is not None and time.monotonic() - cached[0] < MODELS_CACHE_S:
+            return cached[1]
+        if not self.available:
+            raise NystulError(503, "omp is not on this computer's PATH")
+        try:
+            out = subprocess.run(self.omp_cmd + ["models", "--json"], stdin=subprocess.DEVNULL, capture_output=True,
+                                 text=True, encoding="utf-8", errors="replace", timeout=30, cwd=tempfile.gettempdir())
+            rows = json.loads(out.stdout)["models"]
+        except (OSError, subprocess.SubprocessError, ValueError, KeyError) as e:
+            raise NystulError(502, f"could not list omp's models: {type(e).__name__}: {e}")
+        models = [{"selector": m["selector"], "name": m.get("name") or m["selector"], "thinking": m.get("thinking")}
+                  for m in rows if isinstance(m, dict) and m.get("kind") == "chat" and m.get("selector")]
+        with self._lock:
+            self._models = (time.monotonic(), models)
+        return models
+
+    def delete(self, conv_id: int) -> None:
+        """Remove a conversation with its messages and proposals; not while it is answering."""
+        with self._lock:
+            if self._open(create=False) is None or self._con.execute(
+                    "SELECT 1 FROM conversations WHERE id=?", (conv_id,)).fetchone() is None:
+                raise NystulError(404, "no such conversation")
+            if conv_id in self._live:
+                raise NystulError(409, "Nystul is still answering: stop him first")
+            for table in ("proposals", "messages"):
+                self._con.execute(f"DELETE FROM {table} WHERE conv=?", (conv_id,))
+            self._con.execute("DELETE FROM conversations WHERE id=?", (conv_id,))
+            self._con.commit()
 
     def list(self) -> dict:
         convs = []

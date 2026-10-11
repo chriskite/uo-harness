@@ -6,6 +6,8 @@ import {
   proposalView,
   runSummary,
   stepLabel,
+  thinkingAfterSwitch,
+  thinkingChoices,
   type NystulConversation,
   type NystulMessage,
   type NystulProposal,
@@ -147,5 +149,26 @@ describe("proposalView", () => {
       "failed: #12 isn't an active entry",
     );
     expect(proposalView(prop({ op: "retract", id: 12, why: "w" }, { status: "applying" })).outcome).toBe("applying…");
+  });
+});
+
+describe("thinking levels per model", () => {
+  const m = {
+    levels: ["off", "low", "medium", "high", "max", "auto"],
+    models: [
+      { selector: "a/two-level", name: "A", thinking: ["low", "high"] },
+      { selector: "a/plain", name: "B", thinking: null },
+    ],
+  };
+  test("a listed model offers its own levels plus off; one that can't think only off; a name omp resolves, all", () => {
+    expect(thinkingChoices(m, "a/two-level")).toEqual(["off", "low", "high"]);
+    expect(thinkingChoices(m, "a/plain")).toEqual(["off"]);
+    expect(thinkingChoices(m, "sonnet")).toEqual(m.levels);
+  });
+  test("switching keeps the level when offered, else the nearest to medium, else the first", () => {
+    expect(thinkingAfterSwitch("low", ["off", "low", "high"])).toBe("low");
+    expect(thinkingAfterSwitch("medium", ["off", "low", "high"])).toBe("low");
+    expect(thinkingAfterSwitch("medium", ["off", "high", "max"])).toBe("high");
+    expect(thinkingAfterSwitch("high", ["off"])).toBe("off");
   });
 });

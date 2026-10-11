@@ -74,6 +74,13 @@ live only, replay ignores it; without one the proxy serves its only session or e
                       Nystul proposed: applied (harness/nystul_memory.py) and shown in the
                       Seer's chat as a system memory row -> {"ok": true, "result": {id, action}};
                       404 unknown, 409 not pending, 400 the store refused it, 503 no store
+  GET  /api/nystul/models  {models: [{selector, name, thinking: [levels]|null}], levels: [...]}: what
+                      `omp models --json` lists (chat kind), cached 10 min; 502 omp failed, 503 no omp
+  POST /api/nystul/settings  {"model": M, "thinking": L} (either optional) -> {"ok": true, model,
+                      thinking}: used by the questions asked from now on, saved in nystul.db (beats
+                      the --nystul-model/--nystul-thinking flags); 400 bad value
+  POST /api/nystul/delete  {"conversation": id} -> {"ok": true}: the conversation, its messages and
+                      proposals; 404 unknown, 409 still answering
   GET  /, /assets/*   the built frontend (viz/dist)
 
 Live mode only ever opens the proxy's state port (JSON lines). It never connects
@@ -545,6 +552,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, self.server.overseer.captcha_mode())
         elif url.path == "/api/nystul":
             self._json(200, self.server.nystul.list())
+        elif url.path == "/api/nystul/models":
+            self._nystul_models()
         elif url.path.startswith("/api/nystul/"):
             self._nystul_get(url.path[len("/api/nystul/"):])
         elif url.path.startswith("/api/"):
@@ -639,6 +648,36 @@ class Handler(BaseHTTPRequestHandler):
         self.server.overseer.set_captcha_mode(mode)
         self._json(200, {"ok": True, "mode": mode})
 
+    def _nystul_models(self):
+        try:
+            self._json(200, {"models": self.server.nystul.list_models(), "levels": list(nystul_mod.THINKING_LEVELS)})
+        except nystul_mod.NystulError as e:
+            self._json(e.code, {"error": str(e)})
+
+    def _nystul_settings(self, req: dict):
+        model, thinking = req.get("model"), req.get("thinking")
+        if any(v is not None and not isinstance(v, str) for v in (model, thinking)):
+            self._json(400, {"ok": False, "error": "model and thinking must be strings"})
+            return
+        try:
+            out = self.server.nystul.set_settings(model, thinking)
+        except nystul_mod.NystulError as e:
+            self._json(e.code, {"ok": False, "error": str(e)})
+            return
+        self._json(200, {"ok": True, **out})
+
+    def _nystul_delete(self, req: dict):
+        conv = req.get("conversation")
+        if isinstance(conv, bool) or not isinstance(conv, int):
+            self._json(400, {"ok": False, "error": "conversation must be an integer"})
+            return
+        try:
+            self.server.nystul.delete(conv)
+        except nystul_mod.NystulError as e:
+            self._json(e.code, {"ok": False, "error": str(e)})
+            return
+        self._json(200, {"ok": True})
+
     def _nystul_get(self, spec: str):
         try:
             conv = int(spec)
@@ -693,7 +732,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         url = urlsplit(self.path)
         if url.path not in ("/api/playback", "/api/gate", "/api/chat", "/api/captcha", "/api/nystul/ask",
-                            "/api/nystul/cancel", "/api/nystul/approve"):
+                            "/api/nystul/cancel", "/api/nystul/approve", "/api/nystul/settings",
+                            "/api/nystul/delete"):
             self._json(404, {"error": f"unknown route {url.path}"})
             return
         n = int(self.headers.get("Content-Length") or 0)
@@ -721,6 +761,10 @@ class Handler(BaseHTTPRequestHandler):
             self._nystul_cancel(req)
         elif url.path == "/api/nystul/approve":
             self._nystul_approve(req)
+        elif url.path == "/api/nystul/settings":
+            self._nystul_settings(req)
+        elif url.path == "/api/nystul/delete":
+            self._nystul_delete(req)
         else:
             self._playback(req)
 

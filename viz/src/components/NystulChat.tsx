@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { fetchNystulConversation, fetchNystulList, postNystulApprove, postNystulAsk, postNystulCancel } from "../api.ts";
+import {
+  fetchNystulConversation,
+  fetchNystulList,
+  postNystulApprove,
+  postNystulAsk,
+  postNystulCancel,
+  postNystulDelete,
+  postNystulSettings,
+} from "../api.ts";
 import { fmtClock } from "../format.ts";
 import {
   NYSTUL_MAX_CHARS,
@@ -27,6 +35,12 @@ export interface NystulFeed {
   error: string | null;
   sending: boolean;
   select: (id: number | null) => void;
+  /** Bumped each time a new conversation is started: the compose box takes focus. */
+  focusSeq: number;
+  /** Delete a conversation; resolves true once the server has. Leaves the open one for a new chat. */
+  remove: (id: number) => Promise<boolean>;
+  /** Change the model and/or thinking level of the questions asked from now on. */
+  setSettings: (s: { model?: string; thinking?: string }) => Promise<boolean>;
   /** Resolves true once the question is accepted. */
   ask: (text: string) => Promise<boolean>;
   cancel: () => void;
@@ -48,6 +62,7 @@ export function useNystul(): NystulFeed {
   const [conv, setConv] = useState<NystulConversation | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [focusSeq, setFocusSeq] = useState(0);
   const active = useRef(activeId);
   const listBusy = useRef(false);
   const convBusy = useRef(false);
@@ -132,8 +147,46 @@ export function useNystul(): NystulFeed {
   const select = useCallback(
     (id: number | null) => {
       if (id !== active.current) choose(id);
+      if (id === null) setFocusSeq((n) => n + 1);
     },
     [choose],
+  );
+
+  const remove = useCallback(
+    async (id: number) => {
+      try {
+        await postNystulDelete(id);
+        setError(null);
+        if (active.current === id) {
+          setConv(null);
+          choose(null);
+          setFocusSeq((n) => n + 1);
+        }
+        return true;
+      } catch (e) {
+        setError(String(e));
+        return false;
+      } finally {
+        refreshList();
+      }
+    },
+    [choose, refreshList],
+  );
+
+  const setSettings = useCallback(
+    async (s: { model?: string; thinking?: string }) => {
+      try {
+        await postNystulSettings(s);
+        setError(null);
+        return true;
+      } catch (e) {
+        setError(String(e));
+        return false;
+      } finally {
+        refreshList();
+      }
+    },
+    [refreshList],
   );
 
   const ask = useCallback(
@@ -181,7 +234,7 @@ export function useNystul(): NystulFeed {
     [loadConv],
   );
 
-  return { list, activeId, conv, error, sending, select, ask, cancel, approve };
+  return { list, activeId, conv, error, sending, select, focusSeq, remove, setSettings, ask, cancel, approve };
 }
 
 function ProposalCard({ p, onApprove }: { p: NystulProposal; onApprove: (id: number) => Promise<boolean> }) {
@@ -283,12 +336,23 @@ export function NystulChat({ feed, compact }: { feed: NystulFeed; compact?: bool
   const messages = conv?.messages ?? [];
   const last = messages[messages.length - 1];
   const body = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
   const pinned = useRef(true);
 
   useLayoutEffect(() => {
     const el = body.current;
     if (el && pinned.current) el.scrollTop = el.scrollHeight;
   }, [messages.length, last?.text.length, last?.steps.length, last?.proposals?.length]);
+
+  // A new conversation (the button, or the open one deleted): ready to type. Not on mount, so the
+  // Live-page panel doesn't grab focus when the page loads.
+  const seen = useRef(feed.focusSeq);
+  useEffect(() => {
+    if (feed.focusSeq !== seen.current) {
+      seen.current = feed.focusSeq;
+      box.current?.focus();
+    }
+  }, [feed.focusSeq]);
 
   const send = () => {
     if (invalid || sending || running || !available) return;
@@ -328,6 +392,7 @@ export function NystulChat({ feed, compact }: { feed: NystulFeed; compact?: bool
       <div className="ov-compose">
         {!available && <div className="ov-hint">Nystul cannot be summoned: omp is not on this computer's PATH.</div>}
         <textarea
+          ref={box}
           value={text}
           placeholder="Ask Nystul… (Enter sends, Shift+Enter new line)"
           rows={2}

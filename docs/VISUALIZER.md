@@ -162,6 +162,7 @@ channels.
 | `GET /api/nystul/<id>` | `{conversation, messages}`; a running answer's `text` and `steps` are partial and grow between polls; 404 unknown, 400 non-integer id (§2.13) |
 | `POST /api/nystul/ask`, `POST /api/nystul/cancel` | `{"conversation": id\|null, "text": T[, "char": C]}` → `{ok, conversation, message}` (400 text, 404 conversation, 409 busy, 503 no omp); `{"conversation": id}` → `{ok}` or 404 when nothing runs (§2.13, §2.14) |
 | `POST /api/nystul/approve` | `{"proposal": id}` → the operator approves a Codex change Nystul proposed; applied to the memory store → `{ok, result: {id, action}}`; 404 unknown, 409 not pending, 400 the store refused it (kept as failed), 503 no store (§2.13) |
+| `GET /api/nystul/models`, `POST /api/nystul/settings`, `POST /api/nystul/delete` | `{models: [{selector, name, thinking}], levels}` (omp's chat models, cached 10 min; 502/503 omp); `{"model"?, "thinking"?}` → `{ok, model, thinking}` (400 bad value; saved in nystul.db); `{"conversation": id}` → `{ok}` (404 unknown, 409 answering) (§2.13) |
 | `GET /api/art/<graphic>.png` | an item's art from the client's `art.uoo`, cropped to its opaque pixels (§2.9); 404 JSON for an unknown/empty graphic or missing install data, 400 for a non-number |
 | `GET /api/multi/<id>` | a house's footprint from the client's `multi.mul` (decimal or 0x hex multi id = a data_type 2 item's graphic): `{"id", "source", "tiles": [[dx, dy, "wall"\|"floor"]]}`, "wall" = an impassable piece below 20 z; 404 JSON for an unknown id (§4 MapGrid) |
 | `GET /`, `/assets/*` | built frontend (`viz/dist/`) |
@@ -832,6 +833,19 @@ Wizard".
   `http(s)://` and `#`). Each answer shows its lookups (`stepLabel`, ✓/✗), time, count and cost; the
   send button turns into "stop" while it runs. Polls the conversation every 1 s while it runs, the
   list every 10 s.
+- **Delete, model, thinking, autofocus (2026-10-11, user request):**
+  - Each conversation in the `#nystul` list has a × (confirm dialog; disabled while it answers).
+    `POST /api/nystul/delete` removes the conversation, its messages and proposals (409 while it runs, 404
+    unknown). Deleting the open one starts a new chat.
+  - The page head has model and thinking selects. The models come from `GET /api/nystul/models` (`omp
+    models --json`, chat kind, cached 10 min); the thinking choices are that model's own levels plus `off`
+    (`thinkingChoices`), all levels for a name omp resolves itself (the `sonnet` default shows as "not a
+    listed model"). Switching model keeps the level if still offered, else the nearest to medium
+    (`thinkingAfterSwitch`). `POST /api/nystul/settings` applies to the questions asked from then on and is
+    saved in `nystul.db` (`settings` table), so it beats `--nystul-model/--nystul-thinking` after the first
+    change and survives a restart.
+  - Starting a new conversation (the button, or deleting the open one) focuses the "Ask Nystul" box
+    (`feed.focusSeq`). Not on page load, so the Live-page panel doesn't grab focus.
 - Access is whoever can open the viz (the same as the Seer chat; user decision). The protection
   against a prompt-injected LAN user is the tool surface, not access control. A Codex change
   still needs a click on Approve, which anyone with the viz can give.

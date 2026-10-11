@@ -1580,6 +1580,36 @@ ol.lines {
   flex-direction: column;
   gap: 3px;
 }
+.ny-row {
+  display: flex;
+  gap: 3px;
+  align-items: stretch;
+}
+.ny-row .ny-conv {
+  flex: 1;
+  min-width: 0;
+}
+button.ny-del {
+  flex: none;
+  padding: 0 8px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--dim);
+}
+button.ny-del:hover:not(:disabled) {
+  color: #f0a090;
+  border-color: var(--bad);
+}
+.ny-settings {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  color: var(--dim);
+}
+.ny-settings select {
+  max-width: 280px;
+}
 .ny-conv {
   width: 100%;
   display: flex;

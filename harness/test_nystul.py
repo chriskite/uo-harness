@@ -44,6 +44,12 @@ check, FAILURES = tv.check, tv.FAILURES
 
 FAKE_OMP = textwrap.dedent(r'''
     import json, sys, time
+    if sys.argv[1:2] == ["models"]:
+        print(json.dumps({"models": [
+            {"kind": "chat", "selector": "anthropic/m-one", "name": "Model One", "thinking": ["low", "high"]},
+            {"kind": "chat", "selector": "kimi-code/m-two", "name": "Model Two", "thinking": None},
+            {"kind": "embedding", "selector": "x/embed", "name": "Embed", "thinking": None}]}))
+        sys.exit(0)
     path = next(a[1:] for a in sys.argv[1:] if a.startswith("@"))
     body = open(path, encoding="utf-8").read()
     question = body.split("## Question", 1)[1]
@@ -65,8 +71,9 @@ FAKE_OMP = textwrap.dedent(r'''
             bad, args = line.startswith("PROPOSE!"), json.loads(line.split(" ", 1)[1])
             out({"type": "tool_execution_start", "toolCallId": f"p{i}", "toolName": "uo_propose", "args": args})
             out({"type": "tool_execution_end", "toolCallId": f"p{i}", "toolName": "uo_propose", "isError": bad})
+    flags = {k: sys.argv[sys.argv.index(k) + 1] for k in ("--model", "--thinking")}
     out({"type": "message_end", "message": {"role": "assistant", "model": "fake", "stopReason": "stop",
-         "content": [{"type": "text", "text": "echo: " + body}],
+         "content": [{"type": "text", "text": "echo: " + body + "\n[flags] " + json.dumps(flags)}],
          "usage": {"input": 10, "cacheRead": 5, "cacheWrite": 0, "output": 7, "cost": {"total": 0.01}}}})
 ''')
 
@@ -250,6 +257,55 @@ def test_runs(omp):
         n2.close()
 
 
+def test_settings_and_delete(omp):
+    print("== model / thinking settings, deleting conversations ==")
+    db = os.path.join(tempfile.mkdtemp(), "nystul.db")
+    n = nystul.Nystul(db, omp_cmd=omp, model="sonnet", thinking="medium")
+    try:
+        def flags(question):
+            r = n.ask(None, question)
+            return r["conversation"], json.loads(wait_done(n, r["conversation"])["text"].split("[flags] ")[1])
+        c1, f = flags("first")
+        check("a run uses the flag defaults", f == {"--model": "sonnet", "--thinking": "medium"}, str(f))
+        check("set_settings returns both", n.set_settings("anthropic/m-one", "high") == {"model": "anthropic/m-one", "thinking": "high"})
+        check("list reports them", (n.list()["model"], n.list()["thinking"]) == ("anthropic/m-one", "high"))
+        c2, f = flags("second")
+        check("the next run uses the new model and thinking", f == {"--model": "anthropic/m-one", "--thinking": "high"}, str(f))
+        check("thinking alone leaves the model", n.set_settings(thinking="off")["model"] == "anthropic/m-one")
+        check("bad values 400 and change nothing",
+              status_of(lambda: n.set_settings(thinking="ludicrous")) == 400
+              and status_of(lambda: n.set_settings(model="--evil flag")) == 400
+              and status_of(lambda: n.set_settings(model="")) == 400
+              and (n.model, n.thinking) == ("anthropic/m-one", "off"))
+        ms = n.list_models()
+        check("models: chat kind only, with thinking levels", [m["selector"] for m in ms] == ["anthropic/m-one", "kimi-code/m-two"]
+              and ms[0]["thinking"] == ["low", "high"] and ms[1]["thinking"] is None, str(ms))
+
+        s = n.ask(None, "SLOW one")
+        check("deleting a conversation that is answering is 409", status_of(lambda: n.delete(s["conversation"])) == 409)
+        n.cancel(s["conversation"])
+        wait_done(n, s["conversation"])
+        con = sqlite3.connect(db)
+        con.execute("INSERT INTO proposals(conv, msg, t, params, before, status) VALUES (?, 1, 0, '{}', '{}', 'pending')", (c1,))
+        con.commit()
+        con.close()
+        n.delete(c1)
+        gone = sqlite3.connect(db)
+        left = [gone.execute(f"SELECT count(*) FROM {t} WHERE conv=?", (c1,)).fetchone()[0] for t in ("messages", "proposals")]
+        kept = gone.execute("SELECT count(*) FROM messages WHERE conv=?", (c2,)).fetchone()[0]
+        gone.close()
+        check("delete removes the conversation, its messages and proposals, and only those",
+              n.get(c1) is None and left == [0, 0] and kept == 2 and c1 not in [x["id"] for x in n.list()["conversations"]], str((left, kept)))
+        check("deleting it again is 404", status_of(lambda: n.delete(c1)) == 404)
+    finally:
+        n.close()
+    n2 = nystul.Nystul(db, omp_cmd=omp, model="sonnet", thinking="medium")
+    try:
+        check("the choice survives a restart and beats the flags", (n2.list()["model"], n2.list()["thinking"]) == ("anthropic/m-one", "off"))
+    finally:
+        n2.close()
+
+
 # ---------------------------------------------------------------------------- HTTP
 
 def http(method, url, body=None) -> tuple[int, dict]:
@@ -302,6 +358,23 @@ def test_http(omp, logdir):
         check("unknown id 404", code == 404, str(e))
         code, e = http("POST", base + "/api/nystul/cancel", {"conversation": conv})
         check("cancel with nothing running 404", code == 404 and not e["ok"], str(e))
+        code, ms = http("GET", base + "/api/nystul/models")
+        check("GET /api/nystul/models", code == 200 and [m["selector"] for m in ms["models"]] == ["anthropic/m-one", "kimi-code/m-two"]
+              and "max" in ms["levels"], str(ms))
+        code, s = http("POST", base + "/api/nystul/settings", {"model": "kimi-code/m-two", "thinking": "low"})
+        check("POST settings", code == 200 and s == {"ok": True, "model": "kimi-code/m-two", "thinking": "low"}, str(s))
+        code, e = http("POST", base + "/api/nystul/settings", {"thinking": "bogus"})
+        check("settings 400 on a bad level", code == 400 and not e["ok"], str(e))
+        code, e = http("POST", base + "/api/nystul/settings", {"model": 5})
+        check("settings 400 on a non-string", code == 400, str(e))
+        code, e = http("POST", base + "/api/nystul/delete", {"conversation": "x"})
+        check("delete 400 on a non-integer", code == 400, str(e))
+        code, e = http("POST", base + "/api/nystul/delete", {"conversation": conv})
+        check("delete 200", code == 200 and e["ok"], str(e))
+        code, e = http("GET", f"{base}/api/nystul/{conv}")
+        check("deleted conversation is 404", code == 404, str(e))
+        code, e = http("POST", base + "/api/nystul/delete", {"conversation": conv})
+        check("delete again 404", code == 404 and not e["ok"], str(e))
     finally:
         srv.shutdown()
         srv.server_close()
@@ -456,6 +529,7 @@ def main():
     test_tools()
     test_parse_event()
     test_runs(omp)
+    test_settings_and_delete(omp)
     logdir = tv.pinned_capture()
     test_http(omp, logdir)
     test_normalize()
