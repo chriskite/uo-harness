@@ -1311,7 +1311,10 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     needs 2 in the pack, unless a spellstone pays. Why a ward can't go is logged when the reason
     changes (`wards (where): not cast: …`).
   - **The cast (`ward_cast`):**
-    - Sends 0xFF sub 4 and waits up to `WARD_WAIT_S` 4 s for the buff. The reagents are declared spent to
+    - Sends 0xFF sub 4 and waits up to `WARD_WAIT_S` 4 s for the buff. Two wards in a row are
+      `WARD_RECOVER_S` 1.5 s apart (live 2026-10-10 15:34:35: Reactive Armor sent the moment Magic
+      Reflection landed drew "You have not yet recovered from casting a spell.", 502644, which now waits
+      the same 1.5 s instead of 60 s). The reagents are declared spent to
       the ledger first. The cast puts the hatchet in the pack; the next chop's double-click equips it
       again.
     - With no buff, the outcome depends on the server's answer:

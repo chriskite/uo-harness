@@ -249,6 +249,7 @@ PK_HURT_S, PK_HITS, HEAL_POT_HP = 0.3, 55, 30
 # Heal / Greater Heal give these hits (Magery 80.2: Heal 8-10, Greater Heal 32-40 by the wiki's per-100 rates)
 SPELL_REGS, SPELL_CAST_S = 0x44ADF001, 0.3
 SPELL_HP = {combat.spell_id("heal"): 9, combat.spell_id("greater heal"): 30}
+SIM_CAST_RECOVER_S = 1.0          # a cast request this soon after the last one: 502644, refused [INFERENCE: the length]
 # every tree of the simulated world, whichever the scenario's spot lists (they stand far apart)
 SIM_TREES = [(t["x"], t["y"]) for t in (GOOD_TREE, DRY_TREE, FAR_TREE, LIB_TREE, LIB_FAR_TREE, WEST_TREE)]
 
@@ -1162,6 +1163,10 @@ class World:
         spell, then sends its target]; a ward (healing.WARDS) lands then without one (ward_lands)."""
         self.casts.append((time.time(), sid))
         if sid in healing.WARDS:
+            if len(self.casts) > 1 and self.casts[-1][0] - self.casts[-2][0] < SIM_CAST_RECOVER_S:
+                self.ward_casts.append((time.time(), sid, False))    # live 2026-10-10 15:34:35, back to back
+                self.send(cliloc(502644))                             # "You have not yet recovered from casting a spell."
+                return
             asyncio.get_running_loop().call_later(SPELL_CAST_S, self.ward_lands, sid)
             return
         self.cid += 1
@@ -3235,7 +3240,8 @@ async def work_spell():
 async def wards():
     """LUMBER_LOOP.md §13 "Wards" (user 2026-10-09): Magic Reflection and Reactive Armor kept up while lumbering.
     Dan with neither ward, reagents and mana 100. At home before the recall out: Magic Reflection meets the server's
-    cooldown ("You must wait another 2 seconds…", live 2026-10-10 after a reflect), Reactive Armor lands; the
+    cooldown ("You must wait another 2 seconds…", live 2026-10-10 after a reflect), Reactive Armor lands after the
+    cast recovery pause (the simulator refuses a cast within SIM_CAST_RECOVER_S of the last, as 502644 live); the
     first chop's self care casts Magic Reflection once the cooldown is over (not WARD_RETRY_S later); the third
     chop's hit uses up the Reactive Armor, and it is cast again between chops; the reagents read as spent, not
     stolen; the trip stores."""

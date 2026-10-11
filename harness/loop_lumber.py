@@ -201,6 +201,9 @@ WARD_IN_EFFECT_RETRY_S = 600.0     # the server says it's in effect though our s
 WARD_IN_EFFECT_CLILOCS = (501775, 1005417, 1005559, 502173)   # "This spell is already in effect." and kin
 WARD_IN_EFFECT_TEXT = "already currently in effect"           # live 2026-10-03: "That spell is already currently in effect."
 WARD_NO_SPELL_CLILOCS = (500015, 500016)                      # "You do not have that spell!": not again this run
+WARD_NOT_RECOVERED_CLILOC = 502644   # "You have not yet recovered from casting a spell."
+WARD_RECOVER_S = 1.5                 # between two ward casts (live 2026-10-10 15:34:35: back to back drew 502644;
+#                                      the room capture's 3 s gap landed both)
 # the server's cooldown, e.g. Magic Reflection after it reflected a spell (live 2026-10-10 13:59:15, 14 s left)
 WARD_COOLDOWN_RE = re.compile(r"You must wait another (\d+) seconds? before you may cast that again")
 # Waits stay watchful (LUMBER_LOOP.md §13 "Blind waits"; live 2026-10-03, Bastet: the red came into
@@ -883,6 +886,7 @@ class LumberLoop:
         (healing.ward_due). Heading out (in the room, before go_out): every ward that's down; between chops
         (self_care, when no heal is due; `once`): one per chop. Why a ward can't go is logged when it changes."""
         st = st or self.link.state()
+        cast = False
         while True:
             now = time.monotonic()
             blocked = {sid for sid, t in self.ward_next.items() if t > now} | self.no_reagents
@@ -894,7 +898,11 @@ class LumberLoop:
                 self._ward_why = c.why
                 return
             self._ward_why = None
+            if cast:                     # the server's cast recovery after the last one (live 2026-10-10 15:34:35:
+                self.pause(WARD_RECOVER_S, "ward")                    # 502644 when the second came at once)
+                st = self.link.state()
             self.ward_cast(st, c, where)
+            cast = True
             if once:
                 return
             st = self.link.state()
@@ -904,7 +912,8 @@ class LumberLoop:
         declared to the ledger first (spent, not stolen; none with a spellstone). No buff: 'more reagents'
         or 'You do not have that spell!' stop it for the run, 'already in effect' (our state lost the buff)
         waits WARD_IN_EFFECT_RETRY_S, the server's cooldown ("You must wait another N seconds before you may
-        cast that again.") N s and a second, anything else (a fizzle, a disturbed cast) WARD_RETRY_S. The cast
+        cast that again.") N s and a second, "You have not yet recovered from casting a spell." (502644)
+        WARD_RECOVER_S, anything else (a fizzle, a disturbed cast) WARD_RETRY_S. The cast
         puts the hatchet in the pack: use_hatchet's double-click equips it again. Each cast is a `ward` job event."""
         sid, me = c.spell, self.self_serial(st)
         name, mana0 = combat.MAGERY_SPELLS[sid - 1], st["world"]["self"].get("mana")
@@ -920,6 +929,8 @@ class LumberLoop:
                     return "already in effect"
                 if e.get("ev") == "cliloc" and e.get("cliloc") == 502632:          # "The spell fizzles."
                     return "fizzled"
+                if e.get("ev") == "cliloc" and e.get("cliloc") == WARD_NOT_RECOVERED_CLILOC:
+                    return "not recovered"
                 if m := WARD_COOLDOWN_RE.search(t):
                     return f"cooldown {m.group(1)} s"
             return None
@@ -939,6 +950,8 @@ class LumberLoop:
                 self.ward_next[sid] = math.inf
             elif why is not None and (m := re.fullmatch(r"cooldown (\d+) s", why)):
                 self.ward_next[sid] = time.monotonic() + int(m.group(1)) + 1
+            elif why == "not recovered":
+                self.ward_next[sid] = time.monotonic() + WARD_RECOVER_S
             elif why is not None:
                 self.ward_next[sid] = time.monotonic() + (WARD_IN_EFFECT_RETRY_S if why == "already in effect"
                                                           else WARD_RETRY_S)
