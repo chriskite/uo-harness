@@ -599,6 +599,13 @@ Wiki: [Storage Shelf](https://wiki.uooutlands.com/Storage_Shelf). Fixtures:
   a resupply is right, not stale: the shelf tops the book up to 10 from its recall scrolls (the
   Discord KB's "storage shelf runebook recharging"; ROADMAP row 8). A low count only matters between
   resupplies (the runner resupplies before every trip).
+- **The book stopped being recharged (live 2026-10-11, Seer-21):** the runebook read 5 charges at
+  the start of run 1 (12:42), 1 at run 2, and 0 at runs 3–5. Every room-shelf resupply answered
+  "resupplied (room) from 0x6CEB65CD: nothing". Since a full pack makes the runner skip the landing's DTF
+  shelf, nothing topped the book up. [INFERENCE] The room shelf holds no recall scrolls. The runner then
+  recalls by spell (`escape`: spell on the book, 2.1–5.6 s, 11 mana + black pearl, blood moss,
+  mandrake), and every recall landed; mana never fell below 80. Restocking the room shelf with recall
+  scrolls brings the charges back.
 
 ## Resource Stockpile and GM coloured hatchets (live 2026-10-05, Outland Dan)
 
