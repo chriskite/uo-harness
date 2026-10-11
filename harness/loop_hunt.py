@@ -884,22 +884,26 @@ class HuntLoop:
 
     def drink(self, st, serial: int) -> bool:
         """Drink the heal potion `serial` like `ctl act use` (open its containers first,
-        stock double-click). True when it healed; a 'wait' refusal (cliloc 500235)
-        restarts the potion clock and returns False so the caller casts instead."""
+        stock double-click). True when it healed; a 'wait' refusal (healing.potion_wait: the wait
+        Outlands names, or cliloc 500235) sets the potion clock to it and returns False so the caller
+        casts instead."""
         me = st["world"]["self"]
         self.doing("heal", f"Drinking a heal potion ({me.get('hits')}/{me.get('hits_max')} hits)")
         self.open_for((serial, False))
         self.human.wait("use")
         mark = len(self.link.events)
         self.link.act(actions.dclick(serial))
-        answers = (healing.CLILOC_HEALED, healing.CLILOC_POTION_WAIT, healing.CLILOC_FULL_HEALTH)
-        self.wait_for(lambda s: any(e.get("ev") == "cliloc" and e.get("cliloc") in answers
-                                     for e in self.link.events[mark:]), 2.0)
+        answers = (healing.CLILOC_HEALED, healing.CLILOC_FULL_HEALTH)
+        self.wait_for(lambda s: any((e.get("ev") == "cliloc" and e.get("cliloc") in answers)
+                                    or healing.potion_wait(e) is not None for e in self.link.events[mark:]), 2.0)
         heard = {e.get("cliloc") for e in self.link.events[mark:] if e.get("ev") == "cliloc"}
-        self.potions.started(time.monotonic())
+        now = time.monotonic()
+        self.potions.started(now)
         hits = self.link.last["world"]["self"].get("hits")
-        if healing.CLILOC_POTION_WAIT in heard:
-            log(f"heal potion refused: still cooling down ({me.get('hits')}/{me.get('hits_max')} hits)")
+        wait = next((w for e in self.link.events[mark:] if (w := healing.potion_wait(e)) is not None), None)
+        if wait is not None:
+            self.potions.refused(now, wait)
+            log(f"heal potion refused: {wait:g} s to wait ({me.get('hits')}/{me.get('hits_max')} hits)")
             return False
         self.count("potions")
         log(f"heal potion: {me.get('hits')} -> {hits} hits")

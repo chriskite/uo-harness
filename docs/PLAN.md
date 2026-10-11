@@ -340,8 +340,13 @@ chatter, is skipped for now: every speaker still holds a harvest job.
 
 - **Healing subroutine (user decision 2026-10-02):** `harness/healing.py` makes the choice for
   both `ctl act heal` and the hunt runner, so the two can't drift.
-  - A heal potion whenever one can be drunk: not at full health, and 10 s since the last drink.
-    A server "wait" refusal (cliloc 500235) falls back to a spell in the same call.
+  - A heal potion whenever one can be drunk: not at full health, and 10 s since the last drink. A
+    server "wait" refusal sets the clock to the wait it names ("You must wait 1 second…", live
+    2026-10-11; a fresh 10 s had left Dan undrunk at 18/89 for his last 5 s) and falls back to a spell
+    in the same call. The lumber runner's self care (`SelfCare`) drinks one only once the hits it heals
+    are missing (user 2026-10-11: "we shouldn't drink a potion until we're missing as many HP as it will
+    heal"; `healing.potion_heal`: a Greater Heal Potion's 25–45, mean 35; 20–35, mean 28, while PvP
+    flagged). `ctl act heal` and the hunt runner keep the 2026-10-02 rule.
   - Otherwise Heal or Greater Heal by the missing hits. Greater Heal from the mana break-even
     (Heal's average × 11/4, from the wiki Magery formulas: 19 missing at Magery 60), else Heal.
     The threshold can be overridden with `--gheal-min-missing`.

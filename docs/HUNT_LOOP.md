@@ -73,7 +73,8 @@ Each tick re-reads the proxy state and decides, in this order:
      backpack at any bag depth, smallest stack first, its bags opened first, the stock
      double-click. "Can be drunk" means not at full health and 10 s since the last drink (the
      runner's own clock). If the server still refuses (cliloc 500235, e.g. after a drink in the
-     client), the clock restarts and a spell goes out in the same tick.
+     client, or Outlands' "You must wait N second(s) before using another healing potion."), the clock
+     is set to the wait it names (500235: a full cooldown) and a spell goes out in the same tick.
    - **Otherwise a spell by the missing hits**: Greater Heal ((40–50) × Magery/100 for 11 mana)
      once the missing hits reach `--gheal-min-missing`, else Heal ((10–12) × Magery/100 for 4
      mana; wiki Magery). The default threshold is the mana break-even, where Greater Heal

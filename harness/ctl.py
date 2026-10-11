@@ -1637,12 +1637,17 @@ def _act_heal(a, mem) -> dict:
             resp = ctl.send(actions.dclick(serial))
             if resp != "OK":
                 return {"ok": False, "reply": resp, **out}
-            answers = (healing.CLILOC_HEALED, healing.CLILOC_POTION_WAIT, healing.CLILOC_FULL_HEALTH)
-            got = stc.wait_events(mark, lambda evs: any(e.get("ev") == "cliloc" and e.get("cliloc") in answers
-                                                        for e in evs), timeout=2.0)
-            tw.meta_set(mem, charsel.meta_key(HEAL_POTION_KEY, mem.char_serial), f"{time.time():.2f}")
+            answers = (healing.CLILOC_HEALED, healing.CLILOC_FULL_HEALTH)
+            got = stc.wait_events(mark, lambda evs: any((e.get("ev") == "cliloc" and e.get("cliloc") in answers)
+                                                        or healing.potion_wait(e) is not None for e in evs),
+                                  timeout=2.0)
+            clock.started(time.time())
+            wait = next((w for e in got if (w := healing.potion_wait(e)) is not None), None)
+            if wait is not None:                 # the clock as the refusal says (Outlands names its wait)
+                clock.refused(time.time(), wait)
+            tw.meta_set(mem, charsel.meta_key(HEAL_POTION_KEY, mem.char_serial), f"{clock.last:.2f}")
             heard += [journal_view(e) for e in got if e.get("ev") in JOURNAL_EVS]
-            if healing.CLILOC_POTION_WAIT not in {e.get("cliloc") for e in got if e.get("ev") == "cliloc"}:
+            if wait is None:
                 return {"ok": True, "reply": resp, "used": "potion", "potion": choice.potion, "why": choice.why,
                         "hits": _self_hits(stc), **out, "heard": heard}
             out["potion_refused"] = choice.potion

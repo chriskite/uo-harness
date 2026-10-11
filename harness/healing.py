@@ -6,11 +6,15 @@ otherwise Magery, Heal or Greater Heal by how much health is missing.
 - Potions: any heal potion (graphic 0x0F0C; Lesser Heal, Heal and Greater Heal
   share it, the clicked name tells them apart) in the backpack at any bag
   depth, smallest stack first like `ctl act use`. "Can be drunk" = not at full
-  health and not within the potion cooldown: one healing potion about every 10 s
-  (cliloc 1049415; wiki Alchemy: 10 s). The server's own refusal, cliloc 500235
-  "You must wait a few seconds before using another healing potion.", restarts
-  the clock (a potion drunk in the client counts too). No free hand is needed on
-  Outlands (wiki Alchemy, PvM bonuses).
+  health and not within the potion cooldown: one healing potion about every 10 s (cliloc 1049415; wiki
+  Alchemy: 10 s). The server's refusal restarts the clock with the wait it names
+  ("You must wait 1 second before using another healing potion.", live
+  2026-10-11), or a full cooldown for cliloc 500235 "You must wait a few seconds…"
+  (potion_wait, PotionClock.refused; a potion drunk in the client counts too).
+  The lumber runner's SelfCare drinks one only when it is worth it (user
+  2026-10-11): at least as many hits missing as the potion heals (potion_heal: a
+  Greater Heal Potion's 25-45, 20-35 while PvP flagged; the means 35 / 28).
+  No free hand is needed on Outlands (wiki Alchemy, PvM bonuses).
 - Spells (wiki Magery, PvM): Heal (10..12) x Magery/100 for 4 mana, Greater Heal
   (40..50) x Magery/100 for 11 mana. Live 2026-10-01: Greater Heal +27 at Magery 60
   (in range). Greater Heal is chosen when the missing hits reach the mana
@@ -28,6 +32,7 @@ use at any moment (running from a threat, between recall casts, walking, between
 chops, the Magery spell when no potion was drunk (care_spell). See SelfCare's docstring.
 """
 import math
+import re
 from dataclasses import dataclass
 
 import combat
@@ -36,8 +41,17 @@ import pouch
 HEAL_POTION_GRAPHIC = 0x0F0C
 POTION_COOLDOWN_S = 10.0
 CLILOC_POTION_WAIT = 500235          # "You must wait a few seconds before using another healing potion."
+# Outlands' own refusal names the wait (live 2026-10-11 16:07:05.68, overhead on us, 10.06 s after the last drink)
+POTION_WAIT_RE = re.compile(r"You must wait (\d+) seconds? before using another healing potion")
 CLILOC_FULL_HEALTH = 1049547         # "You are already at full health."
 CLILOC_HEALED = 1008158              # "some damage has been healed : " + amount
+# What a Greater Heal Potion (Dan's loadout) heals on Outlands (patch 2025-06-06, knowledge #4910): 25-45, 20-35
+# while PvP flagged. A heal potion is drunk only once this many hits are missing (its mean; user 2026-10-11: "we
+# shouldn't drink a potion until we're missing as many HP as it will heal"), so the 10 s cooldown isn't spent on a
+# scratch (live 2026-10-11 16:06:55: +1 for 1 missing, then refused while the big hits came).
+HEAL_POTION_HEALS, HEAL_POTION_HEALS_PVP = (25, 45), (20, 35)
+# "PvM Bonus Deactivated Due To PvP": the buff the server puts on us once flagged (live 2026-10-09..11)
+PVP_FLAG_BUFF = 95
 MAGERY_SKILL_ID = 25
 HEAL = combat.spell_id("heal")
 GREATER_HEAL = combat.spell_id("greater heal")
@@ -72,8 +86,9 @@ def heal_potions(world: dict, me: int) -> list[tuple[str, dict]]:
 
 
 class PotionClock:
-    """When the next healing potion can be drunk: POTION_COOLDOWN_S after the
-    last drink, or after the server's 'wait' refusal (cliloc 500235)."""
+    """When the next healing potion can be drunk: POTION_COOLDOWN_S after the last drink; after the server's
+    refusal, the wait it names ("You must wait N second(s) …", potion_wait), or a full cooldown when it names
+    none (cliloc 500235)."""
 
     def __init__(self, last: float | None = None):
         self.last = last
@@ -83,6 +98,28 @@ class PotionClock:
 
     def started(self, now: float):
         self.last = now
+
+    def refused(self, now: float, wait_s: float):
+        """Ready again `wait_s` from now (live 2026-10-11: a fresh 10 s after "wait 1 second" left Dan undrunk at
+        18/89 for his last 5 s)."""
+        self.last = now - POTION_COOLDOWN_S + wait_s
+
+
+def potion_wait(e: dict) -> float | None:
+    """The wait a heal-potion refusal names, in seconds (POTION_WAIT_RE; cliloc 500235: a full cooldown), else None."""
+    if e.get("ev") == "speech_heard" and (m := POTION_WAIT_RE.search(e.get("text") or "")):
+        return float(m.group(1))
+    if e.get("ev") == "cliloc" and e.get("cliloc") == CLILOC_POTION_WAIT:
+        return POTION_COOLDOWN_S
+    return None
+
+
+def potion_heal(world: dict, me: int) -> int:
+    """The hits a heal potion restores now (HEAL_POTION_HEALS' mean, the PvP range's while flagged): the missing
+    hits from which one may be drunk."""
+    buffs = (world.get("buffs") or {}).get(f"0x{me:08X}") or {}
+    lo, hi = HEAL_POTION_HEALS_PVP if (str(PVP_FLAG_BUFF) in buffs or PVP_FLAG_BUFF in buffs) else HEAL_POTION_HEALS
+    return math.ceil((lo + hi) / 2)
 
 
 @dataclass
@@ -256,8 +293,8 @@ class SelfCare:
       2. poisoned (world.self.poisoned, the server's 0x16/0x17 about us) and a cure potion: cure.
          [INFERENCE: pre-AOS poison ticks disturb casting] and a heal potion does nothing while poisoned
          [INFERENCE: RunUO BaseHealPotion.Drink, cliloc 1005000].
-      3. not poisoned, hurt (any hit missing) and the heal potion clock ready (PotionClock): a heal
-         potion. The user: a potion whenever one is off cooldown, then spells (care_spell).
+      3. not poisoned, at least potion_heal hits missing (what the potion heals; user 2026-10-11) and the heal
+         potion clock ready (PotionClock): a heal potion. Then spells (care_spell).
       4. REFRESH_STAM_MISSING stamina missing and a refresh potion: refresh.
       5. Str below STRENGTH_BELOW, no Strength buff (strength_buff) and a strength potion: strength.
     Items anywhere in the backpack count, bags included (in_pack, as Razor's findtype). No two uses
@@ -279,6 +316,13 @@ class SelfCare:
         if aid.kind == "heal":
             self.clock.started(now)
 
+    def observe(self, events, now: float):
+        """The server's answers since the last look (the caller's event slice): a heal potion refused with the
+        wait it names makes the clock ready then (potion_wait, PotionClock.refused)."""
+        for e in events:
+            if (wait := potion_wait(e)) is not None:
+                self.clock.refused(now, wait)
+
     def _due(self, kind: str, now: float) -> bool:
         t = self.last_kind.get(kind)
         return t is None or now - t >= RETRY_S[kind]
@@ -297,7 +341,8 @@ class SelfCare:
             if pots := in_pack(world, me, CURE_POTION_GRAPHIC):
                 return Aid("cure", pots[0][0], CURE_POTION_GRAPHIC, "poisoned")
         hits, hmax = s.get("hits"), s.get("hits_max")
-        if not poisoned and hits is not None and hmax and hits < hmax and self.clock.ready(now):
+        if not poisoned and hits is not None and hmax and hmax - hits >= potion_heal(world, me) \
+                and self.clock.ready(now):
             if pots := in_pack(world, me, HEAL_POTION_GRAPHIC):
                 return Aid("heal", pots[0][0], HEAL_POTION_GRAPHIC, f"{hmax - hits} hits missing")
         stam, smax = s.get("stam"), s.get("stam_max")

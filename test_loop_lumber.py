@@ -64,7 +64,7 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
 - flee_aid (§13 "Healing on the run"): at the library spot a red's spells leave us at 55 hits, poisoned and
   paralyzed (steps refused): a trapped pouch pops the paralysis, a cure, then a heal potion on the run; the book's
   double-click never within 0.5 s of them; no potion read as stolen
-- work_heal (§13 "Self care between chops"): we set out poisoned at 70 hits with the potions in a bag in the pack
+- work_heal (§13 "Self care between chops"): we set out poisoned at 60 hits with the potions in a bag in the pack
   (Dan's, live 2026-10-07): a cure, then a heal potion between chops, drunk by serial from the bag (Razor's
   findtype/potion); the hatchet's double-click never within 0.5 s of a drink; no potion read as stolen
 - work_spell (§13 "Self care"): no potions, poisoned at 50 hits, Magery and reagents: Cure, Greater Heal, Heal
@@ -597,7 +597,7 @@ class World:
         self.red_hits = []                # (distance, sent while hunting murderers)
         # gazer: our hits (sent as 0xA1) and the creature's spell range in the simulation (12: what the runner
         # assumes; larger: it outranges the walk-away)
-        self.hits = {"work_heal": 70, "work_spell": 50}.get(scenario, 100)
+        self.hits = {"work_heal": 60, "work_spell": 50}.get(scenario, 100)
         self.gazer_pos, self.gazer_range = None, 12
         self.gazer_hits = []              # (time, our distance from it) per cast that hit
         self.reflect = False              # gazer_reflect: Magic Reflection is up and takes the next spell
@@ -3178,19 +3178,19 @@ async def flee_aid():
 
 async def work_heal():
     """LUMBER_LOOP.md §13 "Self care" (user 2026-10-07, after their Razor heal script and Dan's hit at witcher_20:
-    75/100 and never healed, his potions in a bag the flight aid couldn't see). We set out poisoned at 70 hits with
-    every potion in a bag in the pack: the runner drinks a cure, then a heal potion, by serial from the bag, at the
-    first state reads (any moment, not only in a getaway); the hatchet's double-click comes 0.5 s or more after each
-    drink; the trip stores, no theft. Later, our own trapped pouch's 1 hit in the room is another heal (any hit
-    missing, off cooldown: the user's rule)."""
-    print("\n== self care: poisoned at 70 hits, potions in a bag -> cure, then heal ==")
+    75/100 and never healed, his potions in a bag the flight aid couldn't see). We set out poisoned at 60 hits with
+    every potion in a bag in the pack: the runner drinks a cure, then a heal potion (40 missing: a potion heals ~35,
+    user 2026-10-11), by serial from the bag, at the first state reads (any moment, not only in a getaway); the
+    hatchet's double-click comes 0.5 s or more after each drink; the trip stores, no theft. No second heal potion
+    afterwards: 10 missing is below what a potion heals."""
+    print("\n== self care: poisoned at 60 hits, potions in a bag -> cure, then heal ==")
     world = World("work_heal")
     text, code, store, _ = await run_scenario(world, "work_heal", [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
     clicks = world.aid_clicks
     kinds = [k for _, k, _ in clicks]
-    check("a cure, then a heal potion (poisoned first; 70 + 30 = full), both from the bag; anything later a heal",
-          kinds[:2] == ["cure", "heal"] and set(kinds[2:]) <= {"heal"} and not world.poisoned and world.hits == 100,
+    check("a cure, then a heal potion (poisoned first; 60 + 30), both from the bag; no second one at 10 missing",
+          kinds == ["cure", "heal"] and not world.poisoned and world.hits == 90,
           f"{kinds} poisoned {world.poisoned} hits {world.hits}")
     hatchet = [t for p, t in zip(world.c2s, world.c2s_t) if p[0] == 0x06 and p[1:5] == u32(HATCHET)]
     gaps = [round(min(h - t for h in hatchet if h > t), 3) for t, _, _ in clicks if any(h > t for h in hatchet)]

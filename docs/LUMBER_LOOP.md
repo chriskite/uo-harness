@@ -1247,9 +1247,12 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     (hatchet, book, lift) clears the action delay.
   - **Potions, what, one at a time in order:** (1) paralyzed (self 0x20 flag 0x01, or the frozen
     refusal) and a live trapped pouch: double-click it (its explosion breaks paralysis; ~1 hit);
-    (2) poisoned (`world.self.poisoned`) and a cure potion (0x0F07); (3) not poisoned, any hit
-    missing and the heal potion clock ready (`PotionClock`, 10 s): a heal potion (0x0F0C) (the
-    user: a potion whenever one is off cooldown); (4) 5 or more stamina missing (`REFRESH_STAM_MISSING`,
+    (2) poisoned (`world.self.poisoned`) and a cure potion (0x0F07); (3) not poisoned, at least as many
+    hits missing as the potion heals (`healing.potion_heal`: a Greater Heal Potion's mean, 35, or 28
+    while PvP flagged, buff 95; user 2026-10-11 after the fenasiqareem death, where +1 for 1 missing
+    spent the cooldown just before the big hits) and the heal potion clock ready (`PotionClock`, 10 s;
+    a refusal "You must wait N second(s) before using another healing potion." makes it ready N s later,
+    `SelfCare.observe`, not a fresh 10 s): a heal potion (0x0F0C); (4) 5 or more stamina missing (`REFRESH_STAM_MISSING`,
     the script's `diffstam >= 5`): a refresh potion (0x0F0B); (5) Str below 100 (`STRENGTH_BELOW`)
     without a Strength buff: a strength potion (0x0F09). Items anywhere in the backpack, bags
     included (`healing.in_pack`): drunk by serial with one double-click and no bag opened, as

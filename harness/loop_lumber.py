@@ -551,6 +551,7 @@ class LumberLoop:
         self.counted = set()         # hostile serials whose sighting counts as the spot's hazard (lumber_opt)
         self.escaped = set()         # serials a tracking hit already recalled us away from
         self._looking = False        # in look(): a pause inside the threat checks sleeps plainly
+        self._aid_scan = 0           # link.events index SelfCare.observe has read (potion refusals)
         self._looked_t = -1e9        # monotonic time of the last threat check (check_threats)
         self._tool_sent = None       # (events mark, monotonic time) of a hatchet dclick whose cursor may still come
         self._cancelled = None       # cursor id of the last target cursor cancelled by drop_cursor
@@ -788,6 +789,9 @@ class LumberLoop:
         event is deferred (later). `standing`: before or between recall casts. True when something was used."""
         me = st["world"]["self"]
         now = time.monotonic()
+        ev = self.link.events
+        self.aid.observe(ev[self._aid_scan:], now)        # a refusal's own wait (live 2026-10-11: "wait 1 second")
+        self._aid_scan = len(ev)
         aid = self.aid.choose(st["world"], self.self_serial(st), now, frozen_hint)
         if aid is None:
             return False

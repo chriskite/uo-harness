@@ -124,9 +124,28 @@ def flight_aid():
           a.choose(flight(hits=55, stam=10), ME, t + 2.0) is None)
     check("10 s after the heal: heal again", kind(a.choose(flight(hits=55), ME, t + 10.0)) == ("heal", HEALP))
 
-    print("== the PK Getaway script's thresholds (user 2026-10-07): a heal potion whenever off cooldown ==")
+    print("== heal potion: only once the hits it heals are missing (user 2026-10-11); the refusal's own wait ==")
     a = healing.SelfCare()
-    check("1 hit missing: heal (`hp < maxhp`)", kind(a.choose(flight(hits=99), ME, t)) == ("heal", HEALP))
+    check("34 missing (a Greater Heal Potion heals 25-45, mean 35): no heal potion",
+          a.choose(flight(hits=66), ME, t) is None)
+    check("35 missing: heal", kind(a.choose(flight(hits=65), ME, t)) == ("heal", HEALP))
+    pvp = {str(healing.PVP_FLAG_BUFF): {"title": "PvM Bonus Deactivated Due To PvP"}}
+    check("PvP flagged (20-35, mean 28): heal from 28 missing, not 27",
+          kind(a.choose(flight(hits=72, buffs=pvp), ME, t)) == ("heal", HEALP)
+          and a.choose(flight(hits=73, buffs=pvp), ME, t) is None)
+    a.used(healing.Aid("heal", HEALP, healing.HEAL_POTION_GRAPHIC, "x"), t)
+    a.observe([{"ev": "speech_heard", "text": "You must wait 1 second before using another healing potion."}], t + 10.1)
+    check("live 2026-10-11: 'You must wait 1 second…' at 10.1 s: ready at 11.1 s, not a fresh 10 s",
+          a.choose(flight(hits=40), ME, t + 11.0) is None
+          and kind(a.choose(flight(hits=40), ME, t + 11.15)) == ("heal", HEALP))
+    a = healing.SelfCare()
+    a.used(healing.Aid("heal", HEALP, healing.HEAL_POTION_GRAPHIC, "x"), t)
+    a.observe([{"ev": "cliloc", "cliloc": healing.CLILOC_POTION_WAIT}], t + 3.0)
+    check("cliloc 500235 names no wait: a full cooldown from it",
+          a.choose(flight(hits=40), ME, t + 12.9) is None and kind(a.choose(flight(hits=40), ME, t + 13.0)) == ("heal", HEALP))
+
+    print("== the PK Getaway script's thresholds (user 2026-10-07) ==")
+    a = healing.SelfCare()
     check("full hits, full stamina, Str 100: nothing", a.choose(flight(), ME, t) is None)
     check("5 stamina missing: refresh (`diffstam >= 5`)", kind(a.choose(flight(stam=20), ME, t)) == ("refresh", REFRESH))
     check("4 stamina missing: nothing", a.choose(flight(stam=21), ME, t) is None)
@@ -207,8 +226,8 @@ def main():
     check("a potion when one can be drunk: the smallest stack, found in a bag in the pack",
           pick(c) == ("potion", h(POT_SMALL)), str(c))
     c = healing.choose(world(97), ME, potion_ready=True)
-    check("a potion even for 1 missing hit (the user's rule: a pot whenever possible)",
-          pick(c) == ("potion", h(POT_SMALL)), str(c))
+    check("ctl heal / the hunt runner: a potion even for 1 missing hit (the user's 2026-10-02 rule; the lumber "
+          "runner's SelfCare waits for a potion's worth)", pick(c) == ("potion", h(POT_SMALL)), str(c))
     c = healing.choose(world(98), ME, potion_ready=True)
     check("nothing at full health", c.kind is None and c.missing == 0, str(c))
     c = healing.choose(world(50, potions=()), ME, potion_ready=True)
