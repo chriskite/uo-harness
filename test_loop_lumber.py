@@ -4292,16 +4292,26 @@ class CastLink:
 
 
 def cast_fake(st, answer, **kw):
-    """A LumberLoop stand-in with the real cast methods bound (escape_heal, care_cast, dispel_field) over a CastLink."""
+    """A LumberLoop stand-in with the real cast methods bound (escape_heal, care_cast, dispel_field) over a CastLink.
+    `timeline`: its human pauses ("wait", kind), packets ("pkt", id) and cursor cancels ("cancel",) in order."""
     import types
     import loop_lumber
-    rows, expected = [], []
+    rows, expected, timeline = [], [], []
+    link = CastLink(st, answer)
+    act = link.act
+
+    def act_logged(pkt):
+        timeline.append(("pkt", pkt[0]))
+        act(pkt)
+    link.act = act_logged
     fake = SimpleNamespace(
-        link=CastLink(st, answer), aid=healing.SelfCare(), _aid_scan=0, watch=SimpleNamespace(hits=[]),
+        link=link, aid=healing.SelfCare(), _aid_scan=0, watch=SimpleNamespace(hits=[]),
         player_foes=set(), no_reagents=set(), mode="work", trip_n=1, k={"spot": {"id": "sim"}}, _acting=False,
         _later=[], _checking=0, ledger=SimpleNamespace(expect=lambda *a: expected.extend(a)),
         memory=SimpleNamespace(job_event=lambda job, kind, data, **w: rows.append((kind, data))),
-        _where=lambda st: {}, rows=rows, expected=expected, **kw)
+        human=SimpleNamespace(wait=lambda kind: timeline.append(("wait", kind))),
+        drop_cursor=lambda: timeline.append(("cancel",)),
+        _where=lambda st: {}, rows=rows, expected=expected, timeline=timeline, **kw)
     for m in ("escape_heal", "care_cast", "dispel_field", "cursor", "since", "self_serial", "later", "flush_later"):
         setattr(fake, m, types.MethodType(getattr(loop_lumber.LumberLoop, m), fake))
     return fake
@@ -4384,21 +4394,34 @@ def unit_escape_heal():
 def unit_dispel_field():
     """dispel_field, the Mover's `dispel` (user 2026-10-11: "PKs will also cast walls as Jimi Hendrix did (In Sanct
     Ylem) which we can dispel with the spell Dispel Field"): the cast (0xFF sub 4, spell 34), its cursor answered with
-    the field item (0x6C on its serial, tile and graphic), reagents declared, a `dispel` event; not cast when it would
-    eat into Recall's 11 mana or Recall's black pearl; a cast without a cursor reports False."""
-    print("\n== dispel_field: An Grav at the wall, Recall's mana and pearl kept ==")
+    the field item (0x6C on its serial, tile and graphic), reagents declared, a `dispel` event; paced by hand (user:
+    "that isn't something Razor could script"): a 'read' reaction before the cast, an 'aim' pause before the target;
+    a wall gone during the aim gets the cursor cancelled, no target; not cast when it would eat into Recall's 11 mana
+    or Recall's black pearl; a cast without a cursor reports False."""
+    print("\n== dispel_field: An Grav at the wall by hand, Recall's mana and pearl kept ==")
     import loop_lumber
     wall = {"x": 4187, "y": 799, "z": 0, "graphic": 0x4D1B}
     field = 0x40F00001
 
+    def walled(**kw):
+        st = dan_state(**kw)
+        st["world"]["items"][f"0x{field:08X}"] = dict(wall)
+        return st
+
     def server(pkt, link):
         return [{"ev": "target", "cursor_id": 0x5A1, "cursor_type": 0}] if pkt[0] == 0xFF else []
-    fake = cast_fake(dan_state(mana=40), server)
+    fake = cast_fake(walled(mana=40), server)
     ok = fake.dispel_field(field, wall)
     check("40 mana, 3 pearls: cast Dispel Field, target the wall item",
           ok and fake.link.sent == [actions.cast_spell(loop_lumber.DISPEL_FIELD),
                                     actions.target_object(0x5A1, field, 4187, 799, 0, 0x4D1B, 0)],
           str(fake.link.sent))
+    check("by hand: a 'read' reaction before the cast, an 'aim' pause before the target",
+          fake.timeline == [("wait", "read"), ("pkt", 0xFF), ("wait", "aim"), ("pkt", 0x6C)], str(fake.timeline))
+    gone = cast_fake(dan_state(mana=40), server)        # the wall's item isn't in view by the end of the aim
+    check("the wall went during the aim: the cursor cancelled, no target, True (the way is open)",
+          gone.dispel_field(field, wall) and gone.timeline == [("wait", "read"), ("pkt", 0xFF), ("wait", "aim"),
+                                                              ("cancel",)], str(gone.timeline))
     rows = [d for k, d in fake.rows if k == "dispel"]
     check("its reagents declared spent; a dispel event (ok, the field's serial and tile)",
           sorted(g for _, g, _ in fake.expected) == sorted(combat.SPELL_REAGENTS[loop_lumber.DISPEL_FIELD])

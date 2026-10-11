@@ -955,7 +955,10 @@ class LumberLoop:
         Sanct Ylem) which we can dispel with the spell Dispel Field"). Cast Dispel Field (DISPEL_FIELD, 5th
         circle, 14 mana, "An Grav") and answer its cursor with the field item (its tile and graphic), keeping
         Recall's mana and reagents (healing.recall_safe_lack: a second black pearl); its reagents are declared to
-        the ledger. A `dispel` job event. True when the target went out (the Mover then looks for the field to go)."""
+        the ledger. A `dispel` job event. True when the target went out (the Mover then looks for the field to go).
+        Paced by hand, not a script's tick (user 2026-10-11: "that isn't something Razor could script"): a 'read'
+        reaction (seeing the wall block the way) before the cast, an 'aim' pause (finding the wall's tile with the
+        cursor) before the target; a field gone meanwhile gets its cursor cancelled, no target."""
         st = self.link.last or self.link.state()
         world, me = st["world"], self.self_serial(st)
         mana = (world.get("self") or {}).get("mana") or 0
@@ -980,6 +983,7 @@ class LumberLoop:
             return False
         self._acting = True
         try:
+            self.human.wait("read")                  # noticing the wall in the way and deciding to dispel it
             mark = len(self.link.events)
             self.link.act(actions.cast_spell(DISPEL_FIELD))
             self.link.wait(lambda s: self.cursor(mark) is not None
@@ -993,6 +997,12 @@ class LumberLoop:
                 log(f"dispel field at {at}: no target cursor ({failure}; clilocs {heard})")
                 record(False, failure)
                 return False
+            self.human.wait("aim")                   # the cursor onto the wall's tile, by hand
+            if f"0x{serial:08X}" not in (self.link.state()["world"].get("items") or {}):
+                self.drop_cursor()
+                log(f"dispel field at {at}: the field went before the target; cursor cancelled")
+                record(False, "field gone before the target")
+                return True
             if not stone:
                 self.ledger.expect(*[("spent", g, 1) for g in combat.SPELL_REAGENTS[DISPEL_FIELD]])
             self.link.act(actions.target_object(cur["cursor_id"], serial, at[0], at[1], item.get("z") or 0,

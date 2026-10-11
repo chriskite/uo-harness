@@ -1318,7 +1318,10 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     Mover as `dispel`):** when spell fields cut a walk's route with no way round (agent_link.Mover, docs/NOTES.md),
     the runner casts Dispel Field (5th circle, 14 mana, "An Grav") and answers the cursor with the field item,
     keeping Recall's 11 mana and its black pearl; reagents declared spent; a `dispel` job event (field,
-    tile, ok, failure). `unit_dispel_field`.
+    tile, ok, failure). Paced by hand (user: "that isn't something Razor could script"): a `read` reaction
+    (median 0.8 s) before the cast and an `aim` pause (0.95 s) before the target, where the heals' cursor
+    goes straight to ourselves as a script's Target Self would; a wall gone during the aim gets its cursor
+    cancelled. `unit_dispel_field`.
   - **Spacing:** no two uses within `USE_GAP_S` 0.55 s; a kind used recently is skipped for its
     retry gap (`RETRY_S`: pouch 1.0 s, cure 1.5 s, refresh and strength 3 s) and the next kind may
     go. Before the runebook's double-click `recall_out` sleeps until `SelfCare.ready_at()` (the last
