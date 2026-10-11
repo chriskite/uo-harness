@@ -163,6 +163,9 @@ channels.
 | `POST /api/nystul/ask`, `POST /api/nystul/cancel` | `{"conversation": id\|null, "text": T[, "char": C]}` → `{ok, conversation, message}` (400 text, 404 conversation, 409 busy, 503 no omp); `{"conversation": id}` → `{ok}` or 404 when nothing runs (§2.13, §2.14) |
 | `POST /api/nystul/approve` | `{"proposal": id}` → the operator approves a Codex change Nystul proposed; applied to the memory store → `{ok, result: {id, action}}`; 404 unknown, 409 not pending, 400 the store refused it (kept as failed), 503 no store (§2.13) |
 | `GET /api/nystul/models`, `POST /api/nystul/settings`, `POST /api/nystul/delete` | `{models: [{selector, name, thinking}], levels}` (omp's chat models, cached 10 min; 502/503 omp); `{"model"?, "thinking"?}` → `{ok, model, thinking}` (400 bad value; saved in nystul.db); `{"conversation": id}` → `{ok}` (404 unknown, 409 answering) (§2.13) |
+| `GET /api/razor` | the Razor profiles: `{dir, writable, writable_error, clients, in_use: {known, reason}, profiles: [{name, version, bindings, characters, in_use_by, locked, lock_reason}]}`; 404 without a Profiles dir (§2.15) |
+| `GET /api/razor/profile?name=N` | one profile's bindings `{name, mod, key, send, label, known}` and action catalog `{name, label, path, confirmed}`, never the raw XML (it holds passwords); 404 unknown, 400 unreadable XML (§2.15) |
+| `POST /api/razor/profile` | `{name, version, bindings}` → rewrites that profile's `<hotkeys>` block after a backup → `{ok, version, backup}`; 400 bad bindings, 404 unknown, 409 locked (`locked`) or changed on disk (`stale`), 403 folder not writable (§2.15) |
 | `GET /api/art/<graphic>.png` | an item's art from the client's `art.uoo`, cropped to its opaque pixels (§2.9); 404 JSON for an unknown/empty graphic or missing install data, 400 for a non-number |
 | `GET /api/multi/<id>` | a house's footprint from the client's `multi.mul` (decimal or 0x hex multi id = a data_type 2 item's graphic): `{"id", "source", "tiles": [[dx, dy, "wall"\|"floor"]]}`, "wall" = an impassable piece below 20 z; 404 JSON for an unknown id (§4 MapGrid) |
 | `GET /`, `/assets/*` | built frontend (`viz/dist/`) |
@@ -893,6 +896,32 @@ shows one character at a time.
   store (`VizStore.reset`) and reconnects with the new `char`; the Overseer panel starts over from
   the newest rows and drops replies fetched for the previous character; the Paperdoll image URL
   carries `char`.
+
+### 2.15 Razor hotkeys page (added 2026-10-11, user request)
+
+`#razor`: the user's keyboard (TKL + a mouse panel) with the Razor hotkey on each key, per
+modifier layer, and Razor's "Hot Keys" assignments with a better UI. Razor facts it relies on:
+docs/NOTES.md "Razor profiles and hotkeys"; decision: docs/PLAN.md "Razor hotkeys page".
+- **Backend** `harness/razor.py` (stdlib + uomap + cliloc): parses `<hotkeys>`, and saves by
+  splicing a re-rendered block into the file so every byte outside it stays identical (BOM, CRLF,
+  tabs). A save checks the sha256 `version` the page loaded (else 409 stale), backs the old file
+  up to `logs/razor_backups/<profile>_<stamp>.xml`, then writes a temp file and `os.replace`s it.
+  `--razor-dir` points viz_server at another Assistant dir (the smoke tests use a copy).
+- **Catalog**: static groups in `harness/data/razor_hotkeys.json` (upstream Razor CE `HotKey.Add`
+  registrations by lang id; Outlands-only Necro/Chivalry/target strings marked `inferred` and
+  shown "unconfirmed" until some profile binds them) plus generated families: Magery circles 1-8
+  from spells.def, action skills, Outlands commands, scripts, macros, the profile's dress lists,
+  friends groups (unconfirmed) and agents. Bindings whose name isn't in the catalog are flagged
+  "not in catalog" (Razor may drop them).
+- **Locks**: a profile used by a logged-in character is read-only; every profile is when the
+  harness can't tell who's logged in (`razor.in_use`). The page also shows "Not writable" until
+  `grant_razor_profiles.ps1` has been run once from an elevated PowerShell.
+- **UI** (`components/RazorPage.tsx`, `RazorKeyboard.tsx`, logic in `viz/src/razor.ts`): layer
+  buttons (or hold Ctrl/Alt/Shift), click or press a key to select it, click an action to put it
+  there (a replace prompt names the action it displaces), "Set key…" captures a key, middle
+  button, X buttons or the wheel. Off-board bindings (numpad) are chips under the board. A
+  bindings table, Revert/Save (Ctrl+S), a stale banner with Reload when Razor saved the profile
+  meanwhile (polled every 10 s).
 
 ## 3. Parity principle
 

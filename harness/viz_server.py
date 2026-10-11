@@ -81,6 +81,16 @@ live only, replay ignores it; without one the proxy serves its only session or e
                       the --nystul-model/--nystul-thinking flags); 400 bad value
   POST /api/nystul/delete  {"conversation": id} -> {"ok": true}: the conversation, its messages and
                       proposals; 404 unknown, 409 still answering
+  GET  /api/razor     {dir, writable, writable_error, clients, in_use: {known, reason}, profiles:
+                      [{name, version, bindings, characters, in_use_by, locked, lock_reason}]}: the
+                      Razor profiles (harness/razor.py; --razor-dir); 404 without a Profiles dir
+  GET  /api/razor/profile?name=N  {name, version, locked, lock_reason, bindings: [{name, mod, key,
+                      send, label, known}], actions: [{name, label, path, confirmed}]}; never the
+                      raw XML (it holds passwords); 404 unknown profile, 400 unreadable XML
+  POST /api/razor/profile  {"name", "version", "bindings": [{name, mod, key, send}]} -> rewrites
+                      that profile's <hotkeys> block (backup in logs/razor_backups) -> {"ok": true,
+                      version, backup}; 400 bad bindings, 404 unknown, 409 locked/stale, 403 not
+                      writable (grant_razor_profiles.ps1)
   GET  /, /assets/*   the built frontend (viz/dist)
 
 Live mode only ever opens the proxy's state port (JSON lines). It never connects
@@ -92,7 +102,9 @@ port are rejected. Its writes to the memory store are a user chat row (POST
 Nystul runs headless `omp` subprocesses whose only tools are read-only lookups
 (harness/nystul_tools.py); it writes its own harness/data/nystul.db, and the memory
 store's knowledge only when the operator approves one of its proposals (POST
-/api/nystul/approve), with a `system` memory row in the chat.
+/api/nystul/approve), with a `system` memory row in the chat. The Razor page rewrites the
+<hotkeys> block of Razor profiles the game client hasn't loaded (user-approved exception to
+AGENTS.md Constraint 1, Profiles/*.xml only).
 Everything else is observation.
 """
 import argparse
@@ -104,6 +116,7 @@ import struct
 import sys
 import threading
 import time
+import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, parse_qs
 
@@ -117,6 +130,7 @@ import memory as memory_mod  # noqa: E402
 import nystul as nystul_mod  # noqa: E402
 import nystul_memory  # noqa: E402
 from uo import cliloc  # noqa: E402
+import razor  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SSE_KEEPALIVE_S = 15.0
@@ -556,6 +570,10 @@ class Handler(BaseHTTPRequestHandler):
             self._nystul_models()
         elif url.path.startswith("/api/nystul/"):
             self._nystul_get(url.path[len("/api/nystul/"):])
+        elif url.path == "/api/razor":
+            self._razor_summary()
+        elif url.path == "/api/razor/profile":
+            self._razor_profile(parse_qs(url.query))
         elif url.path.startswith("/api/"):
             self._json(404, {"error": f"unknown route {url.path}"})
         else:
@@ -733,7 +751,7 @@ class Handler(BaseHTTPRequestHandler):
         url = urlsplit(self.path)
         if url.path not in ("/api/playback", "/api/gate", "/api/chat", "/api/captcha", "/api/nystul/ask",
                             "/api/nystul/cancel", "/api/nystul/approve", "/api/nystul/settings",
-                            "/api/nystul/delete"):
+                            "/api/nystul/delete", "/api/razor/profile"):
             self._json(404, {"error": f"unknown route {url.path}"})
             return
         n = int(self.headers.get("Content-Length") or 0)
@@ -765,6 +783,8 @@ class Handler(BaseHTTPRequestHandler):
             self._nystul_settings(req)
         elif url.path == "/api/nystul/delete":
             self._nystul_delete(req)
+        elif url.path == "/api/razor/profile":
+            self._razor_save(req)
         else:
             self._playback(req)
 
@@ -830,6 +850,133 @@ class Handler(BaseHTTPRequestHandler):
             self._json(502, {"ok": False, "error": f"proxy: {resp.get('error')}"})
             return
         self._json(200, {"ok": True, "sessions": resp.get("sessions") or []})
+
+    # -- Razor profile hotkeys (harness/razor.py)
+
+    def _razor_sessions(self) -> list | None:
+        """The proxy's logged-in characters, or None when they can't be had (replay, proxy down)."""
+        feed = self.server.feed
+        if not isinstance(feed, viz_feed.StatePortPoller):
+            return None
+        try:
+            resp = state_request(feed.host, feed.port, {"op": "sessions"})
+        except (OSError, ValueError):
+            return None
+        if not resp.get("ok"):
+            return None
+        return resp.get("sessions") or []
+
+    def _razor_in_use(self) -> razor.InUse:
+        d = self.server.razor_dir
+        return razor.in_use(razor.chars(d), self.server.razor_clients(), self._razor_sessions())
+
+    def _razor_summary(self):
+        """GET /api/razor: the profiles, their lock state and whether the folder is writable."""
+        d = self.server.razor_dir
+        if not os.path.isdir(os.path.join(d, "Profiles")):
+            self._json(404, {"ok": False, "error": f"Razor data unavailable: no Profiles dir under {d}"})
+            return
+        char_map = razor.chars(d)
+        clients = self.server.razor_clients()
+        u = razor.in_use(char_map, clients, self._razor_sessions())
+        werr = razor.probe_writable(d)
+        profiles = []
+        for name in razor.profile_names(d):
+            try:
+                with open(razor.profile_path(d, name), "rb") as f:
+                    data = f.read()
+            except (OSError, razor.UnknownProfile):
+                continue
+            try:
+                n = len(razor.parse_bindings(data))
+            except ValueError:
+                n = 0
+            reason = razor.lock_reason(u, name)
+            profiles.append({"name": name, "version": razor.version(data), "bindings": n,
+                             "characters": [f"0x{s:08X}" for s, p in char_map.items() if p == name],
+                             "in_use_by": u.by.get(name, []), "locked": reason is not None,
+                             "lock_reason": reason})
+        self._json(200, {"ok": True, "dir": d, "writable": werr is None, "writable_error": werr,
+                         "clients": clients,
+                         "in_use": {"known": u.known, "reason": u.reason}, "profiles": profiles})
+
+    def _razor_profile(self, q: dict):
+        """GET /api/razor/profile?name=N: one profile's bindings (labelled) and its action catalog."""
+        name = (q.get("name") or [None])[0]
+        if not name:
+            self._json(400, {"ok": False, "error": "name is required"})
+            return
+        d = self.server.razor_dir
+        try:
+            with open(razor.profile_path(d, name), "rb") as f:
+                data = f.read()
+            bindings = razor.parse_bindings(data)
+            root = ET.fromstring(data)
+        except razor.UnknownProfile:
+            self._json(404, {"ok": False, "error": f"no Razor profile {name!r}"})
+            return
+        except (ValueError, ET.ParseError) as e:
+            self._json(400, {"ok": False, "error": f"profile XML unreadable: {e}"})
+            return
+        except OSError as e:
+            self._json(500, {"ok": False, "error": f"can't read the profile: {e}"})
+            return
+        actions = razor.catalog(d, root, razor.action_skills(), razor.bound_names(d))
+        labels = {a["name"]: a["label"] for a in actions}
+        tr = razor.lang(d)
+        out = []
+        for b in bindings:
+            label = labels.get(b.name)
+            if label is None and b.name.startswith("L:") and b.name[2:].isdigit():
+                n = int(b.name[2:])
+                label = tr.get(n)
+                if label is None:
+                    try:
+                        label = cliloc.load().get(n)
+                    except OSError:
+                        pass
+            out.append({**b.to_json(), "label": label or b.name, "known": b.name in labels})
+        reason = razor.lock_reason(self._razor_in_use(), name)
+        self._json(200, {"ok": True, "name": name, "version": razor.version(data),
+                         "locked": reason is not None, "lock_reason": reason,
+                         "bindings": out, "actions": actions})
+
+    def _razor_save(self, req: dict):
+        """POST /api/razor/profile: rewrite one profile's <hotkeys> block (razor.save)."""
+        name, ver = req.get("name"), req.get("version")
+        if not isinstance(name, str) or not isinstance(ver, str):
+            self._json(400, {"ok": False, "error": "name and version must be strings"})
+            return
+        try:
+            bindings = razor.validate(req.get("bindings"))
+        except ValueError as e:
+            self._json(400, {"ok": False, "error": str(e)})
+            return
+        d = self.server.razor_dir
+        if name not in razor.profile_names(d):
+            self._json(404, {"ok": False, "error": f"no Razor profile {name!r}"})
+            return
+        reason = razor.lock_reason(self._razor_in_use(), name)
+        if reason is not None:
+            self._json(409, {"ok": False, "error": reason, "locked": True})
+            return
+        try:
+            res = razor.save(d, name, ver, bindings, self.server.razor_backups)
+        except razor.UnknownProfile:
+            self._json(404, {"ok": False, "error": f"no Razor profile {name!r}"})
+        except razor.Stale:
+            self._json(409, {"ok": False, "stale": True,
+                             "error": "the profile changed on disk since it was loaded (Razor saved it); reload it"})
+        except PermissionError:
+            self._json(403, {"ok": False, "error": "Windows won't let the harness write the Razor Profiles "
+                                                   "folder: run grant_razor_profiles.ps1 once from an elevated "
+                                                   "PowerShell"})
+        except ValueError as e:
+            self._json(409, {"ok": False, "error": str(e)})
+        except OSError as e:
+            self._json(500, {"ok": False, "error": f"save failed: {e}"})
+        else:
+            self._json(200, {"ok": True, **res})
 
     def _sse(self, url):
         feed = self._feed(url)
@@ -926,7 +1073,9 @@ class VizServer(ThreadingHTTPServer):
 
     def __init__(self, addr, feed, dist: str, memory_db: str, facet_path: str | None = None,
                  live_factory=None, *, state_port: int = 25942, nystul_db: str = nystul_mod.DEFAULT_DB,
-                 nystul_model: str = "sonnet", nystul_thinking: str = "medium"):
+                 nystul_model: str = "sonnet", nystul_thinking: str = "medium",
+                 razor_dir: str = razor.ASSISTANT_DIR, razor_backups: str = razor.BACKUP_DIR,
+                 razor_clients=razor.client_count):
         super().__init__(addr, Handler)
         self.feed = feed
         self.char_feeds: dict = {}       # charsel.parse(char) -> StatePortPoller for ?char=
@@ -949,6 +1098,9 @@ class VizServer(ThreadingHTTPServer):
             except (OSError, ValueError, struct.error) as e:
                 self.facet_error = f"{facet_path}: {e}"
         self.stopping = False
+        self.razor_dir = razor_dir
+        self.razor_backups = razor_backups
+        self.razor_clients = razor_clients
         # Nystul's tools read the store, this server's read routes and ctl's read-only subset
         host = self.server_address[0]
         host = "127.0.0.1" if host in ("", "0.0.0.0", "::") else host
@@ -1045,6 +1197,8 @@ def main():
     p.add_argument("--nystul-db", default=nystul_mod.DEFAULT_DB, help="Nystul the Wizard's conversations")
     p.add_argument("--nystul-model", default="sonnet", help="omp model for Nystul the Wizard")
     p.add_argument("--nystul-thinking", default="medium", help="omp thinking level for Nystul the Wizard")
+    p.add_argument("--razor-dir", default=razor.ASSISTANT_DIR,
+                   help="Razor Assistant data dir (the Razor page reads its profiles and writes their hotkeys)")
     args = p.parse_args()
 
     feed = build_feed(args)
@@ -1055,7 +1209,8 @@ def main():
             return liveview.LiveCapture()
     srv = VizServer((args.host, args.port), feed, os.path.abspath(args.dist), args.memory_db,
                     None if args.no_facet else args.facet, live_factory=live_factory, state_port=args.state_port,
-                    nystul_db=args.nystul_db, nystul_model=args.nystul_model, nystul_thinking=args.nystul_thinking)
+                    nystul_db=args.nystul_db, nystul_model=args.nystul_model, nystul_thinking=args.nystul_thinking,
+                    razor_dir=args.razor_dir)
     what = (f"replay {args.replay} ({feed.order} order, {len(feed.items)} items)" if args.replay
             else f"live state port {args.state_host}:{args.state_port}")
     print(f"[viz] {what}; http://{args.host}:{args.port}/", flush=True)

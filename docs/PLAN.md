@@ -1556,6 +1556,26 @@ User request: a faster test suite with every existing check kept. Serial, the 46
   runner (it would hide flakes). The e2e files now take as long as their longest real-time
   scenario (`test_loop_lumber` `main` ~100 s), which sets the suite's floor.
 
+## Razor hotkeys page in the viz (decided and built 2026-10-11)
+
+User request: a viz page "Razor" that draws the keyboard and shows and edits the Razor hotkeys
+(scripts, macros, items, spells, skills, agents, dress lists, Outlands commands) like Razor's Hot
+Keys tab, with a better UI. User decisions: write the profiles in the install dir (an explicit
+exception to AGENTS.md Constraint 1, Profiles/*.xml only); a catalog from upstream Razor CE plus
+the Outlands files with a confirmed/unconfirmed flag per action; lock profiles in use, and all of
+them when that can't be told; TKL + mouse layout, numpad bindings listed under the board. As built:
+docs/VISUALIZER.md §2.15; Razor facts: docs/NOTES.md "Razor profiles and hotkeys".
+- **Adopted:** splice only the `<hotkeys>` block (byte-identical elsewhere), optimistic
+  concurrency on the file's sha256, a backup per save under `logs/razor_backups`, temp + replace.
+  Write access from a one-time elevated `grant_razor_profiles.ps1` (Modify on Profiles only).
+- **Rejected:** editing a profile Razor has loaded (Razor rewrites it from memory on logout/exit,
+  silently undoing the edit); re-serialising the whole XML with ElementTree (changes bytes outside
+  the hotkeys and risks the passwords element); running viz_server elevated (everything it serves
+  would run as admin); a hand-maintained full action list (spells, skills, scripts, macros, agents
+  and dress lists come from the install and the profile, so they can't go stale).
+- **Risk:** inferred/unconfirmed actions that this Razor build doesn't register are dropped by
+  Razor on load; if one vanishes, remove it from `harness/data/razor_hotkeys.json`.
+
 ## Nystul the Wizard: an AI assistant in the viz (decided and built 2026-10-08)
 
 User request: an "AI Assistant" chat in the viz that answers the operator's questions by looking

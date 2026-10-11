@@ -1,10 +1,12 @@
 // viz_server client (docs/VISUALIZER.md §2.1): initial REST fetch, SSE stream
 // with resume (event batches + newest state, coalesced per task, sse.ts),
 // periodic walk-memory refresh, playback and agent-gate control, job analytics
-// and the overseer chat (§2.4), and the Nystul assistant chat.
+// and the overseer chat (§2.4), the Nystul assistant chat, and the Razor
+// hotkeys page (profiles from the Razor Assistant dir, hotkey saves).
 import { getChar, type Session, withChar } from "./character.ts";
 import { localDay, presetRange, rangeBounds, type HuntResponse, type JobsResponse, type PlanResponse, type RangeBounds } from "./jobs.ts";
 import type { NystulConversation, NystulList, NystulModels } from "./nystul.ts";
+import type { Binding, ProfileDoc, RazorSummary } from "./razor.ts";
 import type { OverseerResponse } from "./overseer.ts";
 import { supersede, type SseMessage } from "./sse.ts";
 import type { VizStore } from "./store.ts";
@@ -156,6 +158,52 @@ export async function postNystulSettings(settings: { model?: string; thinking?: 
   });
   const body = (await r.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
   if (!r.ok || !body?.ok) throw new Error(`nystul: ${body?.error ?? `HTTP ${r.status}`}`);
+}
+
+/** GET a Razor route; throws `razor: <server error>` on failure. */
+async function getRazor<T>(path: string): Promise<T> {
+  const r = await fetch(path, { cache: "no-store" });
+  const body = (await r.json().catch(() => null)) as (T & { ok?: boolean; error?: string }) | null;
+  if (!r.ok || !body?.ok) throw new Error(`razor: ${body?.error ?? `HTTP ${r.status}`}`);
+  return body;
+}
+
+/** The Razor profiles, their lock state and whether the Profiles folder is writable. */
+export function fetchRazor(): Promise<RazorSummary> {
+  return getRazor<RazorSummary>("/api/razor");
+}
+
+/** One profile's hotkeys with labels, plus the action catalog for it. */
+export function fetchRazorProfile(name: string): Promise<ProfileDoc> {
+  return getRazor<ProfileDoc>(`/api/razor/profile?name=${encodeURIComponent(name)}`);
+}
+
+/** A failed Razor save: HTTP status, and whether the profile was stale (changed on disk) or locked (in use). */
+export class RazorSaveError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly stale?: boolean,
+    readonly locked?: boolean,
+  ) {
+    super(message);
+  }
+}
+
+/** Write `bindings` as the profile's hotkeys; `version` is the one loaded (the server refuses a stale one). */
+export async function saveRazorProfile(name: string, version: string, bindings: readonly Binding[]): Promise<{ version: string; backup: string | null }> {
+  const r = await fetch("/api/razor/profile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, version, bindings: bindings.map(({ name, mod, key, send }) => ({ name, mod, key, send })) }),
+  });
+  const body = (await r.json().catch(() => null)) as
+    | { ok?: boolean; error?: string; version?: string; backup?: string | null; stale?: boolean; locked?: boolean }
+    | null;
+  if (!r.ok || !body?.ok || typeof body.version !== "string") {
+    throw new RazorSaveError(`razor: ${body?.error ?? `HTTP ${r.status}`}`, r.status, body?.stale, body?.locked);
+  }
+  return { version: body.version, backup: body.backup ?? null };
 }
 
 /** Delete a conversation with its messages (not while it is answering). */

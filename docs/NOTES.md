@@ -1834,6 +1834,40 @@ Read from the memory-store `gump_open` events and the session capture
 - Outlands fork of Razor CE; extended script engine: `findtype`/`dclicktype`/`targettype`/`lifttype` by name-or-graphic with hue/src/qty/range, `findtypelist`, `findlayer`, `targetexists`, `followers`, `hue`, `name`, `paralyzed`, `invul`, `warmode`, `noto`, `dead`, `maxweight`/`diffweight`/`diffhits`/`diffmana`/`diffstam`, `counttype`, `gumpexists`, `ingump`, `{{var}}` interpolation, loop `index` variable, `ground` alias. Docs: wiki.uooutlands.com/Razor_Scripting.
 - Scripts live in `ClassicUO/Data/Plugins/Assistant/Scripts/` (empty at research time). Macros in `Macros/`, per-char profiles in `Profiles/`.
 
+## Razor profiles and hotkeys (verified 2026-10-11; the viz Razor page, docs/VISUALIZER.md §2.15)
+
+Dir: `ClassicUO/Data/Plugins/Assistant/` = `Profiles/*.xml` + `chars.lst`, `Scripts/**/*.razor`,
+`Macros/**/*.macro`, `Language/Razor_lang.enu`, `spells.def`, `outlandscommands.def`.
+- **Profile XML**: UTF-8 with BOM, CRLF, tab indent. One `<hotkeys>` block of
+  `<key mod="M" key="VK" send="True|False">NAME</key>`, or `<hotkeys />` when empty; an empty block
+  can also be `<hotkeys>` CRLF `</hotkeys>` (Logan Wolf Tribard Tamer.xml), which harness/razor.py
+  rewrites as `<hotkeys />` on a save. Profiles also hold `<passwords>`: never return or log raw
+  profile XML.
+- `mod` flags Alt=1, Ctrl=2, Shift=4. `key` = Win32 VK; mouse -1 Wheel Up, -2 Wheel Down, -3 Middle,
+  -4 X Button 1, -5 X Button 2 (left/right click can't be bound; mouse hotkeys ignore `send`).
+  `send` = also pass the key to the client.
+- NAME = `L:<id>` (a Razor_lang id or a client cliloc) or a plain string. One combo per action;
+  on load Razor silently drops names it doesn't register, and when two actions share a combo the
+  first wins.
+- Razor reads a profile only when it loads it and rewrites the whole file from memory on
+  disconnect, client exit and profile switch: an external edit to a loaded profile is lost. So the
+  viz locks the profile of every logged-in character (chars.lst `0xSERIAL=Profile`, serial without
+  zero padding, matched to `/api/sessions`), and every profile when it can't tell (more
+  `ClassicUO.exe` processes than proxy sessions, or no tasklist).
+- **Magery spell names**: `L:<3002010 + (circle - 1) * 8 + n>`, n = spells.def SpellNo, which runs
+  1-8 *within* each circle (not 1-64; upstream `Spell.GetID`). Checked against Cliloc.enu: 3002021
+  Cure (circle 2 n 3), 3002040 Lightning, 3002063 Mana Vampire, 3002074 Summon Water Elemental.
+- Skills: `L:<1044060 + skill index>` for skills whose skills.mul action flag is set (24 on this
+  install, `uomap.action_skills`). Outlands commands: `[Command | SubMenu | LangId` →
+  `L:<LangId>`, subcategory `lang[1249 + SubMenu]` (1000 → 2249 Menus).
+- Dynamic names: `Play Script: <rel>`, `Play: <rel>` (rel = path under Scripts/Macros without the
+  extension, `\` separators), `Dress: X` / `Undress: X` / `Toggle: X` per `<dresslists><list name>`,
+  `Organizer Agent-NN` / `Set Organizer HotBag-NN` and `Restock Agent-NN` / `Set Restock HotBag-NN`
+  per `<agents>` `Organizer-N` / `Restock-N` child.
+- **Permissions**: Profiles has `BUILTIN\Users:(RX)` only, so a non-elevated Python can't write it.
+  `grant_razor_profiles.ps1` (run once, elevated) gives the user Modify on that folder only
+  (user-approved exception to AGENTS.md Constraint 1, 2026-10-11).
+
 ## NativeAOT analysis methodology (worked well)
 
 - String triage: extract ASCII + UTF-16 separately (`extract_strings.py`); AC-relevant names are ASCII in the metadata heap, user-facing messages are UTF-16.
