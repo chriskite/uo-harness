@@ -2208,6 +2208,46 @@ Code: `harness/outlands_web.py` (capture), `harness/web_kb.py` (wiki + news → 
   embedded the 381 new entries); later ones ~0.2 s. "how do I become a thief and what can I
   steal" `--tag forum` → the 2026-07-09 staff notes on the thief's target.
 
+## Dead on the home rune: fenasiqareem at witcher_296 (live 2026-10-11 16:06–16:07, Seer-22)
+
+Log: `logs/tasks/lumber-20261011-154542-2883.log` (lines ~763–800). Junctures 857–860. Store events 16:06:52–16:07:11.
+
+**Before the escape**
+- **Arrival:** the blue "fenasiqareem" ([HOOK], 0x001D8C84) came into view at 16:06:52. Another [HOOK]
+  player, "Lord slaine.", was also around.
+- **First spell:** at 16:06:53.8 he said "Des Mani". Magic Reflection bounced it: "Magic reflect removed
+  (PvP)." at 55.37, with "fenasiqareem is attacking you!". Reactive Armor took his first hits (-1, -1).
+- **Self care:** at 16:06:55.5 the self care drank a heal potion for **1 hit missing** (+1).
+- **The runner's reaction:** at 16:06:54 it ran 18 tiles first ("within 7 tiles: running before the
+  recall").
+
+**The escape**
+- **Telekinesis and a potion:** at 16:06:56.7 "fenasiqareem has applied telekinesis to you". At 16:06:59.5
+  "An explosion potion has stuck to you!" (Greater Explosion, overhead count 5…1).
+- **First recall:** the run hit its 60-move cap at 16:07:03 and Dan recalled from there. His "Corp Por"
+  (-35 at 16:07:04.6) disturbed the cast 1.39 s in.
+- **Second heal refused:** at 16:07:05.6 the next heal potion got "You must wait 1 second before using
+  another healing potion." The runner's PotionClock then waited a fresh 10 s, so no potion was drunk
+  after that.
+- **More damage:** the stuck potion exploded (-36) at 16:07:06.2, leaving hits about 18/89. Weaken had
+  lowered his max hits.
+- **Second recall:** cast standing at 16:07:08.3 after "clear", landed home (4134,1429) at 16:07:10.39.
+
+**After landing**
+- **The kill:** -20 at 16:07:10.475, 0.09 s after arrival, and Dan was dead. [INFERENCE] The source was
+  his second Corp Por (16:07:07.5) or a damage tick; nothing hostile was in view at home.
+- **Known-PK mark:** the runner marked him: "known PK from now on: fenasiqareem (killed us)". Seer-22
+  declined the Report Murder gump.
+- **Stranded ghost:** Dan is a ghost in the guild house. The book has 0 charges (the room shelf stopped
+  recharging it), so a ghost can't recall to a healer. The nearest known healer is Bernadette (3020,3734)
+  by the corpse; Seer-22 found none near the guild house.
+
+**Gaps found**
+- **Potion refusal:** the refusal names its wait ("1 second"), but `healing.PotionClock` restarts a full 10 s
+  on any refusal.
+- **Cooldown spent at the start:** the first heal potion went at 1 hit missing (the 'PK Getaway' rule: a
+  potion whenever off cooldown), so its cooldown was running when the big hits came.
+
 ## A "thief" who killed: gorilkaenjoyer at witcher_105 (live 2026-10-10, Seer-17)
 
 Log: `logs/tasks/lumber-20261010-141818-e65c.log`. Junctures 780 (death), 781 (threat), 782 (task_failed). Store
