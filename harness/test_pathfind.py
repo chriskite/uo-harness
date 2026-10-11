@@ -140,15 +140,45 @@ def main():
     td = uomap.tiledata()
     door_g = next(g for g in range(0x0675, 0x0700) if td.item(g) and td.item(g).flags & uomap.DOOR)
     ground = house + [(*door_tile, door_g, 1, False)]
-    outside = walkers.get(0, ground, inside=(943, 781))
+    outside = walkers.get(0, ground, inside=(943, 781, 2))
     check("another player's house: its door is locked from outside (no step onto it)",
           door_tile in outside.locked and outside.can_walk(943, 780, 2, 0) is None, sorted(outside.locked))
-    inside = walkers.get(0, ground, inside=(943, 776))
-    check("standing inside the house (ours, or we got in): its door opens as usual",
-          not inside.locked, sorted(inside.locked))
+    yard = walkers.get(0, ground, inside=(943, 776, 11))
+    check("standing in a house we can walk out of without its door (this one is open east at 945,775): "
+          "not shut in, the door stays locked", door_tile in yard.locked, sorted(yard.locked))
     plain = walkers.get(0, ground)
     check("no walker tile given (z tracking, ctl): nothing locked, and the door tile is a step like any door",
           not plain.locked and plain.can_walk(943, 780, 2, 0) is not None, str(plain.can_walk(943, 780, 2, 0)))
+
+    print("== a house whose rect holds its yard and outside stairs (live 2026-10-11 16:43, session 20261011_124101) ==")
+    # Multi 0xE9 (1966 pieces) at (4235,802,z0) and its door items (serials 0x6B847EA5-0x6B847EB0,
+    # next to the multi's 0x6B847EA2), from a replay of the capture at 16:43:37. The escape route
+    # replanned at (4225,808) (in the old rect test: the rect's rim), climbed the outside stairs to
+    # (4235,804,z25) and met the metal doors (4235,803)/(4236,803): 500024 then 1061637 twice.
+    villa = [(4235, 802, 0xE9, 0, True), (4229, 809, 1765, 25, False), (4230, 809, 1767, 25, False),
+             (4232, 807, 1773, 45, False), (4235, 794, 1765, 45, False), (4236, 794, 1767, 45, False),
+             (4240, 809, 1765, 25, False), (4241, 809, 1767, 25, False), (4233, 796, 1765, 5, False),
+             (4238, 807, 1773, 45, False), (4235, 803, 1653, 25, False), (4236, 803, 1655, 25, False),
+             (4238, 796, 1767, 5, False)]
+    front = {(4235, 803), (4236, 803)}
+    rect = pathfind.house_rect(4235, 802, uomap.multi_components(0xE9, uomap.UoMap(0).root))
+    check("the old rect test counted both tiles as inside the house",
+          all(pathfind._in_rect(t, rect) for t in ((4225, 808), (4235, 804))), str(rect))
+    for where in ((4225, 808, 0), (4235, 804, 25)):
+        w = walkers.get(0, villa, inside=where)
+        check(f"at {where} (the route's rim tile, the outside stairs' top): not shut in, its doors locked",
+              front <= w.locked, sorted(w.locked))
+    w = walkers.get(0, villa)
+    old = pathfind.plan(w, (4235, 804, 25), nav.within((4240, 791), 1))
+    check("unlocked (the old behaviour), a goal by the north wall routes through the front door",
+          old is not None and any(t[:2] in front for t in old), str(old))
+    w = walkers.get(0, villa, inside=(4235, 804, 25))
+    new = pathfind.plan(w, (4235, 804, 25), nav.within((4240, 791), 1))
+    check("locked, the route goes down the stairs and round the house",
+          new is not None and not any(t[:2] in front for t in new), str(new))
+    inside = walkers.get(0, villa, inside=(4235, 800, 25))
+    check("standing inside it (shut in but for its doors: ours, or we got in): its doors open as usual",
+          not inside.locked, sorted(inside.locked))
 
     print("== a step bound fails a long way round fast; tick() runs during the search and may raise ==")
     # live 2026-10-05 (Norse Settlement, witcher_268): nine unbounded ~7 s searches from the landing, no

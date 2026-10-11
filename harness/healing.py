@@ -29,7 +29,9 @@ otherwise Magery, Heal or Greater Heal by how much health is missing.
 
 Self care (SelfCare, user requests 2026-10-06/07 after the Razor 'PK Getaway' script): the potions to
 use at any moment (running from a threat, between recall casts, walking, between chops) and, between
-chops, the Magery spell when no potion was drunk (care_spell). See SelfCare's docstring.
+chops, the Magery spell when no potion was drunk (care_spell). In a getaway (user 2026-10-11), before a
+recall cast at low hits with no heal potion to drink: Heal or Greater Heal (escape_spell). See SelfCare's
+docstring.
 """
 import math
 import re
@@ -260,11 +262,20 @@ def ward_up(world: dict, me: int, sid: int, now: float) -> bool:
     return b is not None and (b.get("ends_t") is None or b["ends_t"] > now)
 
 
+def recall_safe_lack(counts: dict, stone: bool, sid: int) -> list[str]:
+    """The reagents spell `sid` lacks once Recall's are kept (combat.reagents' `counts`, `stone`): a reagent the
+    two share (mandrake root for Magic Reflection and Greater Heal, black pearl for Dispel Field) needs 2 in the
+    pack; none with a spellstone."""
+    if stone:
+        return []
+    return [combat.REAGENTS[g] for g in combat.SPELL_REAGENTS[sid]
+            if counts.get(g, 0) < 1 + (g in combat.SPELL_REAGENTS[RECALL])]
+
+
 def ward_due(world: dict, me: int, now: float, reserve: int = 0, blocked=()) -> Choice:
     """The first ward (WARDS order) that isn't up and can be cast with `reserve` mana left over and Recall's
-    reagents kept: a reagent Recall shares (mandrake root, for Magic Reflection) needs 2 in the pack, unless a
-    spellstone pays. `blocked`: wards not to try now (the caller's retry clock, the server's refusals).
-    Choice("spell", ...) or Choice(None, why the wards that are down can't go)."""
+    reagents kept (recall_safe_lack). `blocked`: wards not to try now (the caller's retry clock, the server's
+    refusals). Choice("spell", ...) or Choice(None, why the wards that are down can't go)."""
     mana = ((world.get("self") or {}).get("mana") or 0) - reserve
     counts, stone = combat.reagents(world, me)
     why = []
@@ -272,8 +283,7 @@ def ward_due(world: dict, me: int, now: float, reserve: int = 0, blocked=()) -> 
         name = combat.MAGERY_SPELLS[sid - 1]
         if ward_up(world, me, sid, now) or sid in blocked:
             continue
-        lack = [] if stone else [combat.REAGENTS[g] for g in combat.SPELL_REAGENTS[sid]
-                                 if counts.get(g, 0) < 1 + (g in combat.SPELL_REAGENTS[RECALL])]
+        lack = recall_safe_lack(counts, stone, sid)
         if mana < combat.spell_mana(sid):
             why.append(f"{name}: mana {mana}")
         elif lack:
@@ -281,6 +291,61 @@ def ward_due(world: dict, me: int, now: float, reserve: int = 0, blocked=()) -> 
         else:
             return Choice("spell", f"{name} is down", 0, spell=sid)
     return Choice(None, "; ".join(why) or "wards up", 0)
+
+
+# ------------------------------------------------------------ a heal spell in a getaway
+# User 2026-10-11, after Outland Dan's death at witcher_180 (lumber-20261011-163321-38d5 16:43:10-16:44:17: hits
+# 63 -> 41 -> 24 -> 4 with 100 mana unused while 12 recall casts were disturbed): "GHeal takes longer to cast than
+# mini-heal (In Mani) so mini-heals are harder to interrupt. Up to you how to choose which to cast."
+# Outlands' cast times (wiki Magery, knowledge #11581 / #11588): 1st circle 0.50 s, 4th 1.25 s (live: Greater Heal's
+# words to effect 1.27 s median over 120 casts, docs/research/SPELL_INTERRUPTS.md). In PvP Heal heals (6..9) x
+# Magery/100 (knowledge #11580: 5-7 at Dan's 80.2); Greater Heal (40..50) x Magery/100 has no PvP line (32-40).
+# So: Heal while a hit can land inside a 1.25 s cast (a foe in spell range, or one hit us a moment ago), Greater
+# Heal when the gap is open (the getaway casts its recall at PLAYER_RECALL_GAP, past spell range).
+ESCAPE_HEAL_BELOW = 0.6       # hits under this share of hits_max before a getaway's recall cast: a heal spell first
+#                               [INFERENCE: each 16:43-16:44 exchange cost 17-22 hits; under 60 two of them kill]
+ESCAPE_HEAL_QUIET_S = 2.0     # a hits drop this recent counts as pressed (a PK's spells came 1.3-1.4 s apart,
+#                               SPELL_INTERRUPTS.md)
+
+
+def last_drop_t(history) -> float | None:
+    """The time of the latest hits drop in `history` ([(t, hits)] oldest first, threats.Watch.hits), else None."""
+    last = None
+    for (_, h0), (t1, h1) in zip(history, history[1:]):
+        if h0 is not None and h1 is not None and h1 < h0:
+            last = t1
+    return last
+
+
+def escape_spell(world: dict, me: int, *, pressed: bool, reserve: int = 0, blocked=()) -> Choice:
+    """The heal spell to cast before a getaway's recall (above): none above ESCAPE_HEAL_BELOW of max hits; `pressed`
+    (a foe within spell range, or a hits drop within ESCAPE_HEAL_QUIET_S): Heal, the 0.5 s cast; else Greater Heal,
+    Heal when it can't be paid. Either keeps `reserve` mana (Recall's) and Recall's reagents (recall_safe_lack);
+    `blocked`: spells the server refused for reagents this run."""
+    s = world.get("self") or {}
+    hits, top = s.get("hits"), s.get("hits_max")
+    if hits is None or not top:
+        return Choice(None, "hits unknown", 0)
+    missing = top - hits
+    if hits >= ESCAPE_HEAL_BELOW * top:
+        return Choice(None, f"hits {hits}/{top}: not below {ESCAPE_HEAL_BELOW:.0%}", missing)
+    mana = (s.get("mana") or 0) - reserve
+    counts, stone = combat.reagents(world, me)
+    order = (HEAL,) if pressed else (GREATER_HEAL, HEAL)
+    why_not = []
+    for sid in order:
+        name = combat.MAGERY_SPELLS[sid - 1]
+        if sid in blocked:
+            why_not.append(f"{name}: the server wants more reagents")
+        elif mana < combat.spell_mana(sid):
+            why_not.append(f"{name}: mana {mana} over Recall's")
+        elif lack := recall_safe_lack(counts, stone, sid):
+            why_not.append(f"{name}: too few {', '.join(lack)}")
+        else:
+            why = "pressed: the short cast" if pressed else "gap open"
+            return Choice("spell", f"hits {hits}/{top}, {why}: {name}" + (f" ({'; '.join(why_not)})" if why_not else ""),
+                          missing, spell=sid)
+    return Choice(None, f"hits {hits}/{top}; " + "; ".join(why_not), missing)
 
 
 class SelfCare:
@@ -299,7 +364,7 @@ class SelfCare:
       5. Str below STRENGTH_BELOW, no Strength buff (strength_buff) and a strength potion: strength.
     Items anywhere in the backpack count, bags included (in_pack, as Razor's findtype). No two uses
     within USE_GAP_S (the server's action delay); a kind used RETRY_S ago is skipped (the next kind may
-    go). Spells are the caller's: care_spell, and only where a cast can't cost a getaway."""
+    go). Spells are the caller's: care_spell between chops, escape_spell before a getaway's recall cast."""
 
     def __init__(self):
         self.clock = PotionClock()
@@ -340,11 +405,10 @@ class SelfCare:
         if poisoned and self._due("cure", now):
             if pots := in_pack(world, me, CURE_POTION_GRAPHIC):
                 return Aid("cure", pots[0][0], CURE_POTION_GRAPHIC, "poisoned")
-        hits, hmax = s.get("hits"), s.get("hits_max")
-        if not poisoned and hits is not None and hmax and hmax - hits >= potion_heal(world, me) \
-                and self.clock.ready(now):
-            if pots := in_pack(world, me, HEAL_POTION_GRAPHIC):
-                return Aid("heal", pots[0][0], HEAL_POTION_GRAPHIC, f"{hmax - hits} hits missing")
+        if self.heal_ready(world, me, now):
+            hits, hmax = s.get("hits"), s.get("hits_max")
+            pots = in_pack(world, me, HEAL_POTION_GRAPHIC)
+            return Aid("heal", pots[0][0], HEAL_POTION_GRAPHIC, f"{hmax - hits} hits missing")
         stam, smax = s.get("stam"), s.get("stam_max")
         if stam is not None and smax and smax - stam >= REFRESH_STAM_MISSING and self._due("refresh", now):
             if pots := in_pack(world, me, REFRESH_POTION_GRAPHIC):
@@ -354,3 +418,11 @@ class SelfCare:
                 and (pots := in_pack(world, me, STRENGTH_POTION_GRAPHIC)) and not strength_buff(world, me):
             return Aid("strength", pots[0][0], STRENGTH_POTION_GRAPHIC, f"Str {st}, no Strength buff")
         return None
+
+    def heal_ready(self, world: dict, me: int, now: float) -> bool:
+        """A heal potion would go now (choose's item 3, the use gap aside): not poisoned, at least potion_heal hits
+        missing, the potion clock ready and a heal potion in the pack. A getaway's heal spell is for when it won't."""
+        s = world.get("self") or {}
+        hits, hmax = s.get("hits"), s.get("hits_max")
+        return (not s.get("poisoned") and hits is not None and bool(hmax) and hmax - hits >= potion_heal(world, me)
+                and self.clock.ready(now) and bool(in_pack(world, me, HEAL_POTION_GRAPHIC)))

@@ -220,6 +220,46 @@ def wards():
     check("a ward the caller holds back (retry clock, refusal) is passed over", due(flight(), blocked={mr}) == ra)
 
 
+def escape_heals():
+    print("== a heal spell before a getaway's recall (user 2026-10-11): Heal when pressed, else Greater Heal ==")
+    recall, t = 11, 1000.0
+    heal, gheal = healing.HEAL, healing.GREATER_HEAL
+
+    def spell(w, pressed, **kw):
+        c = healing.escape_spell(w, ME, pressed=pressed, reserve=recall, **kw)
+        return c.spell if c.kind == "spell" else None
+    check("60/100 (not below 60 %): no spell", spell(flight(hits=60), False) is None)
+    check("41/100, the gap open: Greater Heal (the 16:43:51 moment: 100 mana)", spell(flight(hits=41), False) == gheal)
+    check("41/100, pressed (a foe in spell range, or a hit just now): Heal, the 0.5 s cast",
+          spell(flight(hits=41), True) == heal)
+    c = healing.escape_spell(flight(hits=24, mana=21), ME, pressed=False, reserve=recall)
+    check("21 mana, Recall's 11 kept: Greater Heal (11) can't go, Heal (4) does", c.spell == heal, str(c))
+    check("14 mana: Recall's 11 kept, no Heal (4) either",
+          healing.escape_spell(flight(hits=24, mana=14), ME, pressed=False, reserve=recall).kind is None)
+    one = flight(hits=30)
+    for it in one["items"].values():
+        if it["graphic"] == 0x0F86:
+            it["amount"] = 1
+    c = healing.escape_spell(one, ME, pressed=False, reserve=recall)
+    check("one mandrake root (Recall's): Greater Heal passed over, Heal", c.spell == heal
+          and "too few mandrake root" in c.why, str(c))
+    check("Heal refused for reagents this run, pressed: none",
+          healing.escape_spell(flight(hits=30), ME, pressed=True, reserve=recall, blocked={heal}).kind is None)
+    stone = flight(hits=30, regs=())
+    stone["items"][h(STONE)] = {"graphic": 0x3F1F, "container": h(PACK), "name": "arielle's bauble"}
+    check("no reagents but a spellstone: Greater Heal", spell(stone, False) == gheal)
+    a = healing.SelfCare()
+    check("heal_ready: 59 missing, a heal potion, the clock ready", a.heal_ready(flight(hits=41), ME, t))
+    a.used(healing.Aid("heal", HEALP, healing.HEAL_POTION_GRAPHIC, "x"), t)
+    check("heal_ready: not within the potion clock (the spell's case)", not a.heal_ready(flight(hits=41), ME, t + 5))
+    check("heal_ready: no heal potion in the pack", not healing.SelfCare().heal_ready(flight(hits=41, heal=False), ME, t))
+    check("heal_ready: poisoned (a heal potion does nothing)",
+          not healing.SelfCare().heal_ready(flight(hits=41, poisoned=True), ME, t))
+    check("last_drop_t: the latest drop (63 -> 41 at 3.0), not the heal after it",
+          healing.last_drop_t([(1.0, 79), (2.0, 63), (3.0, 41), (4.0, 76), (5.0, 76)]) == 3.0)
+    check("last_drop_t: none", healing.last_drop_t([(1.0, 100), (2.0, 100)]) is None)
+
+
 def main():
     print("== potion first ==")
     c = healing.choose(world(50), ME, potion_ready=True)
@@ -303,6 +343,7 @@ def main():
 
     flight_aid()
     wards()
+    escape_heals()
 
     print("ALL PASS" if not FAILURES else f"{len(FAILURES)} FAILURES")
     return 1 if FAILURES else 0

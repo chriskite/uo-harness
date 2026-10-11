@@ -64,6 +64,12 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
 - flee_aid (§13 "Healing on the run"): at the library spot a red's spells leave us at 55 hits, poisoned and
   paralyzed (steps refused): a trapped pouch pops the paralysis, a cure, then a heal potion on the run; the book's
   double-click never within 0.5 s of them; no potion read as stolen
+- escape_heal (§13 "Self care", user 2026-10-11): a red's spells leave us at 55, a heal potion on the run, his next at
+  40 with its clock running: a heal spell (Greater Heal with the gap open, Heal when pressed) after the run, then the
+  recall, which lands
+- guard_run (§13 "A player in view", user 2026-10-11): a red at our heels, a learned guard point 270 tiles off: the
+  run goes there in legs (no cast while he's within the gap), the town's 500112, "guards" called, guard_flight
+- pk_island: the same chase with no guarded place to run to: run away, then the recall, as before
 - work_heal (§13 "Self care between chops"): we set out poisoned at 60 hits with the potions in a bag in the pack
   (Dan's, live 2026-10-07): a cure, then a heal potion between chops, drunk by serial from the bag (Razor's
   findtype/potion); the hatchet's double-click never within 0.5 s of a drink; no potion read as stolen
@@ -103,6 +109,7 @@ sys.path.insert(0, f"{ROOT}/harness")
 import actions  # noqa: E402
 import escape  # noqa: E402
 import healing  # noqa: E402
+import guards  # noqa: E402
 import known_pks  # noqa: E402
 import combat  # noqa: E402
 import task_wrap  # noqa: E402
@@ -249,6 +256,15 @@ PK_HURT_S, PK_HITS, HEAL_POT_HP = 0.3, 55, 30
 # Heal / Greater Heal give these hits (Magery 80.2: Heal 8-10, Greater Heal 32-40 by the wiki's per-100 rates)
 SPELL_REGS, SPELL_CAST_S = 0x44ADF001, 0.3
 SPELL_HP = {combat.spell_id("heal"): 9, combat.spell_id("greater heal"): 30}
+# escape_heal (user 2026-10-11, after Dan's death at witcher_180: hits 63 -> 41 -> 24 -> 4 with 100 mana unused): at
+# the library spot the red's first spells leave us at PK_HITS, a heal potion goes on the run, and HURT_AGAIN_S after it
+# the next ones leave us at ESCAPE_HITS with the potion's clock running: a heal spell before the recall
+ESCAPE_HITS, HURT_AGAIN_S = 40, 0.5
+# guard_run / pk_island (user 2026-10-11: "run towards the nearest guard zone no matter how far away it is"): a red at
+# our heels from the library spot; a learned guard point GUARD_RUN_DIST tiles south of the landing (past the old
+# 250-tile cap), whose town's 500112 comes within GUARD_ZONE_R of it
+GUARD_RUN_DIST, GUARD_ZONE_R = 270, 4
+GUARD_PT = (RUNE_POS[0], RUNE_POS[1] + GUARD_RUN_DIST)
 SIM_CAST_RECOVER_S = 1.0          # a cast request this soon after the last one: 502644, refused [INFERENCE: the length]
 # every tree of the simulated world, whichever the scenario's spot lists (they stand far apart)
 SIM_TREES = [(t["x"], t["y"]) for t in (GOOD_TREE, DRY_TREE, FAR_TREE, LIB_TREE, LIB_FAR_TREE, WEST_TREE)]
@@ -499,7 +515,7 @@ class World:
         #                                   "staff" (a vendor next to us, then an invulnerable player in view)
         self.scripted = scenario == "home"  # captchas, the passer-by's speech, the pickpocket
         self.library = scenario in ("library", "tracking", "gazer", "red_aim", "thief", "pouch_pop", "landing_monster",
-                                    "ghost_horse", "faction", "precast", "flee_aid", "leash")
+                                    "ghost_horse", "faction", "precast", "flee_aid", "leash", "escape_heal", "pk_chase")
         #                                   the library spot (pvp), black pearls in the pack
         self.facet, self.pos = ROOM_FACET, list(ROOM_ARRIVAL)   # every run starts in the rental room
         self.facing = 0
@@ -631,25 +647,34 @@ class World:
         self.vendor_t = None              # staff: when the vendor's 0x20 went out
         self.gm_t = None                  # staff: when the invulnerable player's 0x20 went out
         # flee_aid: our potions (serial -> [graphic, amount]), the red's hit, and what the runner used
-        self.potions = {s: [g, 5] for s, g in POTIONS.items()} if scenario in ("flee_aid", "work_heal") else {}
+        self.potions = ({s: [g, 5] for s, g in POTIONS.items()} if scenario in ("flee_aid", "work_heal")
+                        else {0x44ADE002: [HEAL_G, 5]} if scenario == "escape_heal" else {})
         # work_heal / work_spell: Dan's potions and reagents sit in a bag
         self.potion_box = BAG if scenario in ("work_heal", "work_spell") else BACKPACK
         self.frozen, self.poisoned = False, scenario in ("work_heal", "work_spell")
         self.hurt_t = self.unfrozen_t = None
+        self.hurt_again_t = None          # escape_heal: when the red's second spells left us at ESCAPE_HITS
         self.aid_clicks = []              # (time, "cure" | "heal" | "refresh" | "pouch", frozen then)
-        # work_spell / wards: Magery 80.2 and mana 100 (Outland Dan), reagents (in the bag for work_spell); the casts
-        # and their targets; the wards up on us (work_spell: both, from the start)
-        self.magery = 802 if scenario in ("work_spell", "wards") else 0
+        # work_spell / wards / escape_heal: Magery 80.2 and mana 100 (Outland Dan), reagents (in the bag for
+        # work_spell); the casts and their targets; the wards up on us (work_spell, escape_heal: both, from the start)
+        self.magery = 802 if scenario in ("work_spell", "wards", "escape_heal") else 0
         self.mana = 100
         self.regs = ({SPELL_REGS + i: [g, 10] for i, g in enumerate(sorted(combat.REAGENTS))}
-                     if scenario in ("work_spell", "wards") else {})
-        self.wards = set(healing.WARDS.values()) if scenario == "work_spell" else set()
+                     if scenario in ("work_spell", "wards", "escape_heal") else {})
+        self.wards = set(healing.WARDS.values()) if scenario in ("work_spell", "escape_heal") else set()
         self.ward_casts = []              # (time, spell id, landed) per ward cast
         self.ward_cooldown = scenario == "wards"   # the first Magic Reflection meets its cooldown (live 2026-10-10)
         self.casts = []                   # (time, spell id) per cast request
         self.spell_cursor = None          # (cursor id, spell id) while a spell's cursor is up
         self.spells_landed = []           # (time, spell id) per spell answered with ourselves
         self.steps = []                   # (time, accepted) per walk request after the hit
+        # pk_chase: the red keeps at our heels (our last tile) from his sighting until a recall jumps us away; the
+        # guard zone (GUARD_PT, guard_run: set by the scenario) answers the step into it with 500112; "guards" said
+        self.pk_chase = False
+        self.chase_steps = 0              # our accepted steps while he chased
+        self.guard_zone = None
+        self.guard_entered = None         # (time, our tile) of the 500112
+        self.guards_called = []           # (time, our tile) per "guards" said
 
     # ---- the pack's wood and trapped pouches ----
     @property
@@ -823,6 +848,8 @@ class World:
         else:
             if self.chase:                             # a creature at our heels stays behind (a recall jumps)
                 handles.append(asyncio.get_running_loop().call_later(2.1, self.attacker_left))
+            if self.pk_chase:                          # ... and so does a chasing red
+                handles.append(asyncio.get_running_loop().call_later(2.1, self.pk_left))
             if self.late_blast:                        # red_aim: the PK's Explosion goes off on us at home
                 handles.append(asyncio.get_running_loop().call_later(2.5, self.blast))
             if self.mounted:                           # live: the guild house sends a ridden mount to rest
@@ -1137,6 +1164,30 @@ class World:
         self.send(poison_pkt(True))
         self.send(self_at(*self.pos, self.facing, flags=0x21))
 
+    def pk_strikes(self):
+        """escape_heal: the red comes into view (red_appears), PK_HURT_S later his spells leave us at PK_HITS (no
+        poison, no paralysis); our heal potion's drink brings his next ones (drink, hurt_again)."""
+        self.red_appears()
+
+        def hurt():
+            self.hurt_t, self.hits = time.time(), PK_HITS
+            self.send(hits_pkt(self.hits))
+        asyncio.get_running_loop().call_later(PK_HURT_S, hurt)
+
+    def hurt_again(self):
+        self.hurt_again_t, self.hits = time.time(), ESCAPE_HITS
+        self.send(hits_pkt(self.hits))
+
+    def pk_chases(self):
+        """pk_chase: the red comes into view (red_appears) and from then on stands on the tile we step off, at our
+        heels (the 16:43 run: Jimii Hendrix kept within 18 tiles for a minute); no damage."""
+        self.red_appears()
+        self.pk_chase = True
+
+    def pk_left(self):
+        self.pk_chase, self.foe_pos = False, None
+        self.send(delete(BASTET))
+
     def unfreeze(self):
         """Our 0x20 without the frozen flag: steps are taken again."""
         self.frozen, self.unfrozen_t = False, time.time()
@@ -1154,6 +1205,9 @@ class World:
         elif kind == "heal" and not self.poisoned and self.hits < 100:
             self.hits = min(100, self.hits + HEAL_POT_HP)
             self.send(hits_pkt(self.hits))
+            if self.scenario == "escape_heal" and self.hurt_again_t is None:   # his next spells, the clock running
+                self.hurt_again_t = -1.0
+                asyncio.get_running_loop().call_later(HURT_AGAIN_S, self.hurt_again)
         elif kind == "heal":
             self.send(cliloc(1005000))                  # "You can not heal yourself in your current state."
             return
@@ -1402,6 +1456,13 @@ class World:
             if self.chase:                               # the attacker keeps at the agent's heels
                 self.attacker_pos = old
                 self.send(creature_pkt(ATTACKER, 0x27, *old))
+            if self.pk_chase:                            # pk_chase: the red too
+                self.chase_steps += 1
+                self.foe_pos = old
+                self.send(player_update(BASTET, *old, noto=6))
+            if self.guard_zone is not None and self.guard_entered is None and self.cheb(self.guard_zone) <= GUARD_ZONE_R:
+                self.guard_entered = (time.time(), tuple(self.pos))
+                self.send(cliloc(500112))                # "You are now under the protection of the town guards."
         elif pid == 0x12 and p[3] == 0x58:
             self.open_door_reqs += 1
             if self.facet == 0 and self.cheb(DOOR) <= 1:
@@ -1427,6 +1488,8 @@ class World:
             elif int.from_bytes(p[5:9], "big") == HORSE and self.horse is not None and not self.mounted:
                 self.horse_menus += 1
                 self.later(0.06, [PET_POPUP])
+        elif p == actions.say_unicode("guards"):        # guard_run: the guards called on the red
+            self.guards_called.append((time.time(), tuple(self.pos)))
         elif p == actions.say_unicode("room"):          # "room" by the steward opens the room menu (within 2 tiles)
             if self.facet != 0 or self.cheb(STEWARD_POS) > 2:
                 self.keeper_far += 1
@@ -1456,11 +1519,12 @@ class World:
                     self.leash_pos, self.leash_chasing = LEASH_SPAWN, True
                     self.send(creature_pkt(LEASHER, 0x27, *LEASH_SPAWN))
                     asyncio.get_running_loop().create_task(self.leash_chase())
-                if self.scenario in ("red_aim", "faction", "precast", "flee_aid") and not self.red_due \
-                        and self.cheb(RUNE_POS) <= 5:
+                if self.scenario in ("red_aim", "faction", "precast", "flee_aid", "escape_heal", "pk_chase") \
+                        and not self.red_due and self.cheb(RUNE_POS) <= 5:
                     self.red_due = True
                     act = {"red_aim": self.red_appears, "faction": self.faction_appears,
-                           "precast": self.precast_appears, "flee_aid": self.pk_attacks}[self.scenario]
+                           "precast": self.precast_appears, "flee_aid": self.pk_attacks,
+                           "escape_heal": self.pk_strikes, "pk_chase": self.pk_chases}[self.scenario]
                     asyncio.get_running_loop().call_later(RED_AIM_S, act)
             elif serial == ROOM_DOOR and self.facet == ROOM_FACET:     # the door's menu (opened from 6 tiles live)
                 self.room_gump("door")
@@ -1771,16 +1835,21 @@ def write_homes(path, stockpile=False):
 
 
 def write_world_files(tmp, trees=(GOOD_TREE, DRY_TREE), spot_extra=None, stockpile=False, more_spots=(),
-                      routes=None) -> dict:
-    """The runner's simulated data files in `tmp`: spots, Witcher table, rune libraries, homes, memory db;
-    `routes` ({lumber_opt.route_key: tiles}) pre-seeds the db's landing-route cache (the planner's route
-    check plans on the real map otherwise, where the simulated landings mean nothing)."""
+                      routes=None, banks=()) -> dict:
+    """The runner's simulated data files in `tmp`: spots, Witcher table, rune libraries, homes, memory db, bank
+    markers (`banks`: [(x, y)] on facet 0, Banks_and_Healers.xml's format; none by default, so no run depends
+    on the install's file); `routes` ({lumber_opt.route_key: tiles}) pre-seeds the db's landing-route cache (the
+    planner's route check plans on the real map otherwise, where the simulated landings mean nothing)."""
     paths = {n: os.path.join(tmp, f"{n}.json") for n in ("spots", "witcher", "libraries", "homes")}
     paths["db"] = os.path.join(tmp, "harness.db")
+    paths["markers"] = os.path.join(tmp, "Banks_and_Healers.xml")
     write_spot(paths["spots"], trees, more_spots, **(spot_extra or {}))
     write_witcher(paths["witcher"])
     write_libraries(paths["libraries"])
     write_homes(paths["homes"], stockpile)
+    with open(paths["markers"], "w", encoding="utf-8") as f:
+        f.write("<Pack>" + "".join(f'<Marker Name="Sim Bank {i}" X="{x}" Y="{y}" Facet="0" Icon="BANK" />'
+                                   for i, (x, y) in enumerate(banks)) + "</Pack>")
     if routes:
         mem = memory.Memory(paths["db"])
         lumber_opt.save_landing_routes(mem, routes)
@@ -1790,7 +1859,8 @@ def write_world_files(tmp, trees=(GOOD_TREE, DRY_TREE), spot_extra=None, stockpi
 
 def runner_files(paths) -> list:
     return ["--spot", "sim", "--spots", paths["spots"], "--witcher", paths["witcher"],
-            "--libraries", paths["libraries"], "--homes", paths["homes"], "--memory", paths["db"]]
+            "--libraries", paths["libraries"], "--homes", paths["homes"], "--memory", paths["db"],
+            "--guard-markers", paths["markers"]]
 
 
 def free_ports(n) -> list:
@@ -2183,19 +2253,19 @@ async def main():
 
 
 async def run_scenario(world, tag, trees, runner_args, budget=None, spot_extra=None, during=None,
-                       more_spots=(), routes=None, prepare=None):
+                       more_spots=(), routes=None, prepare=None, banks=()):
     """The real proxy in front of `world` on free private ports (logdir
     LOGDIR/<tag>, an optional pre-written agent gate file), then the runner with
     runner_args; `during(db)`, a coroutine function, runs alongside it (a test
-    overseer); `prepare(db)` writes to the store before anything starts. Returns (runner output, exit code,
-    memory store, capture rows)."""
+    overseer); `prepare(db)` writes to the store before anything starts; `banks`: the bank markers the runner
+    reads (write_world_files). Returns (runner output, exit code, memory store, capture rows)."""
     logdir = os.path.join(LOGDIR, tag)
     os.makedirs(logdir, exist_ok=True)
     if budget is not None:
         with open(os.path.join(logdir, "agent_budget.json"), "w", encoding="utf-8") as f:
             json.dump(budget, f)
     paths = write_world_files(tempfile.mkdtemp(dir=LOGDIR), trees, spot_extra, stockpile=world.stockpile is not None,
-                              more_spots=more_spots, routes=routes)
+                              more_spots=more_spots, routes=routes, banks=banks)
     db = paths["db"]
     if prepare is not None:                             # the store as an earlier run left it
         prepare(db)
@@ -3181,6 +3251,115 @@ async def flee_aid():
     store.close()
 
 
+async def escape_heal():
+    """User 2026-10-11 (Dan's death at witcher_180: hits 63 -> 41 -> 24 -> 4 with 100 mana unused while 12 recall casts
+    were disturbed): at the library spot a red comes into view within spell range and his spells leave us at 55; a
+    heal potion goes on the run, and his next spells leave us at 40 with the potion's clock running. Before the recall
+    cast that follows the run: a heal spell (Greater Heal with the gap open, Heal when pressed: escape_heal), its
+    cursor answered with ourselves; then the recall, which lands; Recall's mana kept; the reagents read as spent."""
+    print("\n== escape heal: low hits, the heal potion cooling -> a heal spell after the run, then the recall ==")
+    world = World("escape_heal")
+    text, code, store, _ = await run_scenario(world, "escape_heal", [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "normal",
+                                               "--seed", "5", "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
+    heal, gheal = combat.spell_id("heal"), combat.spell_id("greater heal")
+    again = world.hurt_again_t
+    check("the red's spells landed twice: 55, the heal potion, then 40", world.hurt_t is not None and again
+          and again > 0 and [k for _, k, _ in world.aid_clicks][:1] == ["heal"]
+          and world.aid_clicks[0][0] < again, f"{world.aid_clicks} {again}\n{text[-800:]}")
+    books = [t for p, t in zip(world.c2s, world.c2s_t) if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)
+             and again and t >= again]
+    casts = [(t, s) for t, s in world.casts if s in (heal, gheal) and again and t >= again]
+    landed = [(t, s) for t, s in world.spells_landed if s in (heal, gheal)]
+    ran = [t for t, ok in world.steps if ok and again and again <= t and (not casts or t < casts[0][0])]
+    check("a heal spell cast after the run (steps after the second hit), before the book's double-click, and landed",
+          len(casts) == 1 and books and casts[0][0] < books[0] and len(ran) >= 3
+          and [s for _, s in landed] == [casts[0][1]], f"casts {casts} books {books} steps {len(ran)}")
+    rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
+    check("the recall still goes, and lands home (the red as the threat)", world.recalls_home == [HOME_RUNE_POS]
+          and rec and rec[-1]["ok"] and rec[-1]["threat"]["serial"] == BASTET, str(rec)[:600])
+    ev = [e["data"] for e in store.job_events("lumber") if e["kind"] == "flee_aid" and e["data"]["kind"] == "spell"]
+    rule = ev and (ev[0]["spell"] == "Greater Heal") == ("gap open" in ev[0]["why"]) \
+        and (ev[0]["spell"] == "Heal") == ("pressed" in ev[0]["why"])
+    check("a flee_aid 'spell' event: standing, mode 'gap', 40 hits -> healed, the spell the rule names",
+          len(ev) == 1 and ev[0]["standing"] and ev[0]["mode"] == "gap" and ev[0]["hits"] == ESCAPE_HITS
+          and ev[0]["hits_after"] > ESCAPE_HITS and ev[0]["failure"] is None and rule, str(ev))
+    check("Recall's mana kept: no more than one heal's mana spent", world.mana >= 100 - combat.spell_mana(gheal),
+          str(world.mana))
+    junc = [j["kind"] for j in store.junctures()]
+    check("no theft_suspected (the reagents were declared); the pk_escape juncture; exit 1 in the room",
+          "theft_suspected" not in junc and "pk_escape" in junc and code == 1 and world.room_entries == 1,
+          f"{junc} exit {code} room {world.room_log}")
+    print(f"  sim: second hit -> {[(round(t - again, 2), s) for t, s in casts] if again else None}, "
+          f"book {round(books[0] - again, 2) if books and again else None}; {ev[0]['why'] if ev else None}")
+    store.close()
+
+
+async def guard_run():
+    """User 2026-10-11: "ideally we'd run towards the nearest guard zone no matter how far away it is". At the library
+    spot a red comes into view 8 tiles off and stays at our heels; a guard point learned earlier lies GUARD_RUN_DIST
+    tiles south (past the old 250-tile cap; no map in the simulator: the straight line, as walk memory plans). The
+    runner runs there in legs, never casting while he's within the gap, until the town's 500112; "guards" on him;
+    a guard_flight event (its route, no casts), the pk_escape juncture, exit 1 there."""
+    print("\n== guard run: a red at our heels, a guarded place 270 tiles off -> run there, call the guards ==")
+    world = World("pk_chase")
+    world.guard_zone = GUARD_PT
+
+    def guard_point(db):
+        mem = memory.Memory(db)
+        mem.guard_point_record(0, *GUARD_PT)
+        mem.close()
+    text, code, store, _ = await run_scenario(world, "guard_run", [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=LIB_SPOT, prepare=guard_point)
+    seen = world.red_t
+    books = [t for p, t in zip(world.c2s, world.c2s_t) if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)
+             and seen and t >= seen]
+    check("the red came and chased; more than 250 steps run with him at our heels",
+          seen is not None and world.chase_steps > 250, f"steps {world.chase_steps}\n{text[-1500:]}")
+    check("the town's 500112 came at its edge", world.guard_entered is not None
+          and world.cheb(GUARD_PT) <= GUARD_ZONE_R + 1, f"{world.guard_entered} at {world.pos}")
+    check("no recall cast with him within the gap all the way", books == [], str(books))
+    check("'guards' called on him once, there", len(world.guards_called) == 1
+          and max(abs(world.guards_called[0][1][0] - GUARD_PT[0]),
+                  abs(world.guards_called[0][1][1] - GUARD_PT[1])) <= GUARD_ZONE_R + 1, str(world.guards_called))
+    gf = [e["data"] for e in store.job_events("lumber") if e["kind"] == "guard_flight"]
+    check("a guard_flight event: confirmed, guards called, the route (unmapped: no map here, past 250 steps), no casts",
+          len(gf) == 1 and gf[0]["confirmed"] and gf[0]["called_guards"] and gf[0]["route"]["status"] == "unmapped"
+          and gf[0]["route"]["steps"] > 250 and gf[0]["route"]["goal"] == list(GUARD_PT) and gf[0]["casts"] == 0,
+          str(gf)[:600])
+    junc = [j["kind"] for j in store.junctures()]
+    check("the pk_escape juncture; the run stopped there (exit 1), no recall home",
+          "pk_escape" in junc and code == 1 and world.recalls_home == [] and "fled into the guards" in text,
+          f"{junc} exit {code}")
+    store.close()
+
+
+async def pk_island():
+    """User 2026-10-11: "Unless we're trapped on an island in which case our only choice is to recall." The guard_run
+    scene with no guarded place to run to (none learned, no bank marker; the simulator has no map, so water can't be
+    modelled here: test_guards' plan_route checks and unit_guard_route cover the island answer itself): today's
+    run away and recall: a run with him at our heels, then the cast, which lands home."""
+    print("\n== pk island: a red at our heels, no guarded place -> run away, then recall ==")
+    world = World("pk_chase")
+    text, code, store, _ = await run_scenario(world, "pk_island", [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
+    seen = world.red_t
+    books = [t for p, t in zip(world.c2s, world.c2s_t) if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)
+             and seen and t >= seen]
+    check("the red came and chased; a run first (steps with him at our heels), then the book", seen is not None
+          and world.chase_steps >= 10 and books, f"steps {world.chase_steps} books {books}\n{text[-1500:]}")
+    rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
+    check("the recall lands home; its event says no guarded place was known", world.recalls_home == [HOME_RUNE_POS]
+          and rec and rec[-1]["ok"] and rec[-1].get("guards") == {"status": "none known"}, str(rec)[:600])
+    check("no guard flight, no 500112, nobody called", world.guard_entered is None and world.guards_called == []
+          and not any(e["kind"] == "guard_flight" for e in store.job_events("lumber"))
+          and "no guarded place known" in text, "")
+    check("exit 1 in the room", code == 1 and world.room_entries == 1, f"exit {code} room {world.room_log}")
+    store.close()
+
+
 async def work_heal():
     """LUMBER_LOOP.md §13 "Self care" (user 2026-10-07, after their Razor heal script and Dan's hit at witcher_20:
     75/100 and never healed, his potions in a bag the flight aid couldn't see). We set out poisoned at 60 hits with
@@ -3987,7 +4166,9 @@ def unit_run_and_recall():
     """run_and_recall never stops in the field (user, 2026-10-05: "If we fail to recall, we should just run away"):
     run, one cast, run again; with nothing after us, a stand-and-recast try, the next one RECALL_RETRY_S later
     unless something comes after us; the overseer hears of it after RECALL_ALERT_TRIES failures; only a recall that
-    lands or death ends it."""
+    lands or death ends it. From players (user 2026-10-11): legs toward the guards, a cast only with the gap open
+    and a heal spell's chance right before it; a leg that can't go is a run away and a cast; no route (an island):
+    run-then-cast as for creatures."""
     print("\n== run_and_recall: run, cast, run again until a recall lands; the overseer told after 2 failures ==")
     import types
     import loop_lumber
@@ -4012,11 +4193,13 @@ def unit_run_and_recall():
         return "recall failed after 1 cast(s): disturbed"
     fake = SimpleNamespace(
         gain_distance=gain_distance, recall_out=recall_out, creature={"recalled": False, "recall_fails": 0},
-        link=SimpleNamespace(state=lambda: {}, pos=lambda st: (5, 6, 0, 0)),
+        link=SimpleNamespace(state=lambda: {}, pos=lambda st: (5, 6, 0, 0), events=[]),
         watch=SimpleNamespace(update=lambda st, **kw: SimpleNamespace(dead=state["dead"])),
         memory=SimpleNamespace(juncture=lambda *a: juncs.append(a)), trip_n=1, k={"spot": {"id": "sim"}},
-        pacer=lambda st, a: None, flight_hit=lambda *a, **kw: None, guard_goals=lambda st, w: guards_known[:])
-    guards_known = [(1, 1)]
+        pacer=lambda st, a: None, flight_hit=lambda *a, **kw: None, guard_route=lambda st, w: route[0],
+        escape_heal=lambda st, a: log_.append("heal"), doing=lambda *a: None, _guard_run=False, _flee_mark=0,
+        guard_summary=None)
+    route = [None]
     fake.threat_name = loop_lumber.LumberLoop.threat_name
     fake.run_and_recall = types.MethodType(loop_lumber.LumberLoop.run_and_recall, fake)
     retry, look = loop_lumber.RECALL_RETRY_S, loop_lumber.KEEP_RUNNING_LOOK_S
@@ -4041,21 +4224,37 @@ def unit_run_and_recall():
         fake.run_and_recall({}, SimpleNamespace(dead=False), None, {}, "it followed us")
         check("death ends it (the caller then stops)", outcome["casts"] == 3 and not fake.creature["recalled"],
               str(log_))
+        # players, a guarded place reachable on foot: legs toward it; the gap (gap_clear) before each leg and after it
         log_.clear(), juncs.clear()
-        after_us[:] = [True, True, True, True]
-        outcome.update(casts=0, land_at=None, die_at=None, pk=[])
-        fake.creature.update(recalled=False, recall_fails=0)
         state["dead"] = False
-        why = fake.run_and_recall({}, SimpleNamespace(dead=False), None, {}, None, players=True)
-        check(f"players (option E): run, a pk cast, run again; after {loop_lumber.PLAYER_RECALL_TRIES} failed casts it "
-              "returns why (a guarded place is known: the guard flight follows), no keep_running juncture, the "
-              "creature tally untouched",
-              log_ == ["run", "cast:1"] * loop_lumber.PLAYER_RECALL_TRIES and outcome["pk"] == [True] * 3
-              and why and "disturbed" in why and juncs == [] and fake.creature["recall_fails"] == 0,
-              f"{log_} {outcome} {why} {juncs}")
-        # live 2026-10-09 (witcher_193, mauna kea): no guarded place within 250 tiles; six standing casts disturbed
+        fake.creature.update(recalled=False, recall_fails=0)
+        route[0] = guards.Route("reached", [(5, 6), (300, 6)], ((300, 6), 2))
+        gaps = [None, None, None, None, None, "clear", None, "clear", "clear"]   # he caught up again after cast 1
+        legs = [None, None, None, "0x00106357 at (9, 6) is nearer (45, 6) than we are", None]
+        fake.gap_clear = lambda s: gaps.pop(0) if gaps else "clear"
+
+        def guard_leg(st, worst, swung, rt, t0, why, fails, stop=None):
+            log_.append("leg:" + ("to the gap" if stop is not None else "whole"))
+            return legs.pop(0) if legs else None
+        fake.guard_leg = guard_leg
+        after_us[:] = [True]
+        outcome.update(casts=0, land_at=3, die_at=None, pk=[])
+        landed = False
+        try:
+            fake.run_and_recall({}, SimpleNamespace(dead=False), None, {}, None, players=True)
+        except loop_lumber.Unsafe:
+            landed = True
+        check("players, a guarded place reachable on foot: legs toward it, no cast while he is within the gap; once "
+              "it opens a heal spell's chance, then one pk cast; a leg he stands in the way of: a run away and a cast; "
+              "after a failed cast with the gap open a whole leg before the next; no keep_running juncture",
+              landed and log_ == ["leg:to the gap", "leg:to the gap", "leg:to the gap", "heal", "cast:1",
+                                  "leg:to the gap", "run", "heal", "cast:1", "leg:whole", "heal", "cast:1"]
+              and outcome["pk"] == [True] * 3 and juncs == [] and fake.creature["recall_fails"] == 0
+              and fake._guard_run is False, f"{log_} {outcome} {juncs}")
+        # live 2026-10-09 (witcher_193, mauna kea): no guarded place within 250 tiles; six standing casts disturbed.
+        # Now: none reachable on foot (an island), or none known
         log_.clear()
-        guards_known.clear()
+        route[0] = None
         after_us[:] = [True, False, True, True, True]          # the second look finds nobody near: cast standing
         outcome.update(casts=0, land_at=5, die_at=None, pk=[])
         landed = False
@@ -4063,12 +4262,216 @@ def unit_run_and_recall():
             fake.run_and_recall({}, SimpleNamespace(dead=False), None, {}, None, players=True)
         except loop_lumber.Unsafe:
             landed = True
-        check("players, no guarded place known: never a standing multi-cast (one cast per try), a run before each "
-              "while he is near, and on past PLAYER_RECALL_TRIES until one lands",
-              landed and log_ == ["run", "cast:1", "look", "cast:1", "run", "cast:1", "run", "cast:1", "run", "cast:1"],
-              str(log_))
+        check("players, no guarded place reachable (an island): never a standing multi-cast (one cast per try), a run "
+              "before each while he is near, a heal spell's chance before each cast, until one lands",
+              landed and log_ == ["run", "heal", "cast:1", "look", "heal", "cast:1", "run", "heal", "cast:1",
+                                  "run", "heal", "cast:1", "run", "heal", "cast:1"], str(log_))
     finally:
         loop_lumber.RECALL_RETRY_S, loop_lumber.KEEP_RUNNING_LOOK_S = retry, look
+
+
+class CastLink:
+    """A link for the cast methods' unit checks: `answer(pkt, link)` gives the server's events for each packet sent;
+    waits look once at the state (nothing sleeps)."""
+
+    def __init__(self, st, answer):
+        self.last, self.answer, self.events, self.sent = st, answer, [], []
+
+    def state(self):
+        return self.last
+
+    def pos(self, st=None):
+        return (st or self.last)["movement"]["pos"]
+
+    def act(self, pkt):
+        self.sent.append(pkt)
+        self.events += self.answer(pkt, self)
+
+    def wait(self, pred, timeout, poll=0.05, full=True):
+        return self.last if pred(self.last) else None
+
+
+def cast_fake(st, answer, **kw):
+    """A LumberLoop stand-in with the real cast methods bound (escape_heal, care_cast, dispel_field) over a CastLink."""
+    import types
+    import loop_lumber
+    rows, expected = [], []
+    fake = SimpleNamespace(
+        link=CastLink(st, answer), aid=healing.SelfCare(), _aid_scan=0, watch=SimpleNamespace(hits=[]),
+        player_foes=set(), no_reagents=set(), mode="work", trip_n=1, k={"spot": {"id": "sim"}}, _acting=False,
+        _later=[], _checking=0, ledger=SimpleNamespace(expect=lambda *a: expected.extend(a)),
+        memory=SimpleNamespace(job_event=lambda job, kind, data, **w: rows.append((kind, data))),
+        _where=lambda st: {}, rows=rows, expected=expected, **kw)
+    for m in ("escape_heal", "care_cast", "dispel_field", "cursor", "since", "self_serial", "later", "flush_later"):
+        setattr(fake, m, types.MethodType(getattr(loop_lumber.LumberLoop, m), fake))
+    return fake
+
+
+def dan_state(hits=41, mana=100, pearls=3, heal_potion=True):
+    """Outland Dan mid-getaway: Magery 80.2, reagents in the pack (3 of each, `pearls` black pearls), a heal potion."""
+    items = {f"0x{BACKPACK:08X}": {"graphic": 0x0E75, "layer": 0x15, "container": f"0x{SELF:08X}"}}
+    for i, g in enumerate(sorted(combat.REAGENTS)):
+        items[f"0x{SPELL_REGS + i:08X}"] = {"graphic": g, "amount": pearls if g == 0x0F7A else 3,
+                                            "container": f"0x{BACKPACK:08X}"}
+    if heal_potion:
+        items["0x44ADE002"] = {"graphic": HEAL_G, "amount": 5, "container": f"0x{BACKPACK:08X}"}
+    return {"world": {"self": {"hits": hits, "hits_max": 100, "mana": mana, "body": 0x190,
+                               "skills": {str(healing.MAGERY_SKILL_ID): {"value": 802}}},
+                      "items": items, "mobiles": {}, "buffs": {}},
+            "movement": {"self_serial": SELF, "pos": [4241, 812, 0, 0]}}
+
+
+def unit_escape_heal():
+    """escape_heal (user 2026-10-11: "GHeal takes longer to cast than mini-heal (In Mani) so mini-heals are harder to
+    interrupt"; Dan's hits 63 -> 41 -> 24 -> 4 with 100 mana unused): right before a getaway's recall cast, below 60 %
+    with the heal potion's clock running, Greater Heal when the gap is open, Heal when pressed (a foe within spell
+    range, a hit just now); a cast its cursor answered with ourselves, a flee_aid 'spell' event standing in mode 'gap';
+    a heal potion that can go now is left to recall_out's flee_aid; a disturbed cast returns at once."""
+    print("\n== escape_heal: Greater Heal with the gap open, Heal when pressed, the recall either way ==")
+    import loop_lumber
+    heal, gheal = healing.HEAL, healing.GREATER_HEAL
+
+    def server(pkt, link):
+        if pkt[0] == 0xFF:                                   # the cast: its cursor
+            return [{"ev": "target", "cursor_id": 0x5A0, "cursor_type": 0}]
+        if pkt[0] == 0x6C:                                   # answered with us: +30
+            link.last["world"]["self"]["hits"] += 30
+        return []
+    now = time.monotonic()
+    fake = cast_fake(dan_state(), server)
+    fake.aid.used(healing.Aid("heal", 0x44ADE002, HEAL_G, "x"), now - 2.0)          # the potion drunk 2 s ago
+    fake.watch.hits = [(time.time() - 5.0, 63), (time.time() - 4.9, 41)]             # the last hit 4.9 s ago
+    ok = fake.escape_heal(fake.link.last, SimpleNamespace(threats=[]))
+    cur = {"cursor_id": 0x5A0, "cursor_type": 0}
+    check("gap open, potion cooling: Greater Heal cast, its cursor answered with ourselves, +30",
+          ok and fake.link.sent == [actions.cast_spell(gheal), combat.target_self(cur, SELF, [4241, 812, 0, 0], 0x190)]
+          and fake.link.last["world"]["self"]["hits"] == 71, str(fake.link.sent))
+    fake.flush_later()                                       # care_cast's event is deferred (later), as in a threat check
+    ev = [d for k, d in fake.rows if k == "flee_aid"]
+    check("a flee_aid 'spell' event: standing, mode 'gap', Greater Heal, hits 41 -> 71, no failure; reagents spent",
+          len(ev) == 1 and ev[0]["kind"] == "spell" and ev[0]["spell"] == "Greater Heal" and ev[0]["standing"]
+          and ev[0]["mode"] == "gap" and ev[0]["hits"] == 41 and ev[0]["hits_after"] == 71 and ev[0]["failure"] is None
+          and len(fake.expected) == 4 and fake.mode == "work", str(ev))
+    fake = cast_fake(dan_state(), server)
+    fake.aid.used(healing.Aid("heal", 0x44ADE002, HEAL_G, "x"), now - 2.0)
+    fake.player_foes = {0x106357}
+    red = SimpleNamespace(serial=0x106357, distance=9)
+    fake.escape_heal(fake.link.last, SimpleNamespace(threats=[red]))
+    check("the red 9 tiles off (spell range): Heal, the 0.5 s cast", fake.link.sent[:1] == [actions.cast_spell(heal)],
+          str(fake.link.sent))
+    fake = cast_fake(dan_state(), server)
+    fake.aid.used(healing.Aid("heal", 0x44ADE002, HEAL_G, "x"), now - 2.0)
+    fake.watch.hits = [(time.time() - 1.0, 63), (time.time() - 0.5, 41)]
+    fake.escape_heal(fake.link.last, SimpleNamespace(threats=[]))
+    check("hit 0.5 s ago, nobody in view: Heal", fake.link.sent[:1] == [actions.cast_spell(heal)], str(fake.link.sent))
+    fake = cast_fake(dan_state(), server)
+    check("the heal potion can go now: no spell (recall_out's flee_aid drinks it)",
+          not fake.escape_heal(fake.link.last, SimpleNamespace(threats=[])) and fake.link.sent == [])
+    fake = cast_fake(dan_state(hits=70, heal_potion=False), server)
+    check("70/100: no spell", not fake.escape_heal(fake.link.last, SimpleNamespace(threats=[])) and fake.link.sent == [])
+    fake = cast_fake(dan_state(heal_potion=False),
+                     lambda pkt, link: [{"ev": "cliloc", "cliloc": 500641}] if pkt[0] == 0xFF else [])
+    t0 = time.monotonic()
+    ok = fake.escape_heal(fake.link.last, SimpleNamespace(threats=[]))
+    fake.flush_later()
+    ev = [d for k, d in fake.rows if k == "flee_aid"]
+    check("disturbed (500641): back at once, no target sent, the event says 'disturbed', no reagents expected",
+          not ok and len(fake.link.sent) == 1 and time.monotonic() - t0 < 0.5 and ev and ev[0]["failure"] == "disturbed"
+          and fake.expected == [], f"{fake.link.sent} {ev}")
+    check("ESCAPE_HEAL_CURSOR_WAIT_S covers Greater Heal's 1.25 s", loop_lumber.ESCAPE_HEAL_CURSOR_WAIT_S > 1.27)
+
+
+def unit_dispel_field():
+    """dispel_field, the Mover's `dispel` (user 2026-10-11: "PKs will also cast walls as Jimi Hendrix did (In Sanct
+    Ylem) which we can dispel with the spell Dispel Field"): the cast (0xFF sub 4, spell 34), its cursor answered with
+    the field item (0x6C on its serial, tile and graphic), reagents declared, a `dispel` event; not cast when it would
+    eat into Recall's 11 mana or Recall's black pearl; a cast without a cursor reports False."""
+    print("\n== dispel_field: An Grav at the wall, Recall's mana and pearl kept ==")
+    import loop_lumber
+    wall = {"x": 4187, "y": 799, "z": 0, "graphic": 0x4D1B}
+    field = 0x40F00001
+
+    def server(pkt, link):
+        return [{"ev": "target", "cursor_id": 0x5A1, "cursor_type": 0}] if pkt[0] == 0xFF else []
+    fake = cast_fake(dan_state(mana=40), server)
+    ok = fake.dispel_field(field, wall)
+    check("40 mana, 3 pearls: cast Dispel Field, target the wall item",
+          ok and fake.link.sent == [actions.cast_spell(loop_lumber.DISPEL_FIELD),
+                                    actions.target_object(0x5A1, field, 4187, 799, 0, 0x4D1B, 0)],
+          str(fake.link.sent))
+    rows = [d for k, d in fake.rows if k == "dispel"]
+    check("its reagents declared spent; a dispel event (ok, the field's serial and tile)",
+          sorted(g for _, g, _ in fake.expected) == sorted(combat.SPELL_REAGENTS[loop_lumber.DISPEL_FIELD])
+          and rows and rows[0]["ok"] and rows[0]["serial"] == f"0x{field:08X}" and rows[0]["at"] == [4187, 799],
+          f"{fake.expected} {rows}")
+    fake = cast_fake(dan_state(mana=24), server)
+    check("24 mana: Recall's 11 kept, Dispel Field's 14 don't fit: not cast",
+          not fake.dispel_field(field, wall) and fake.link.sent == [])
+    fake = cast_fake(dan_state(pearls=1), server)
+    check("one black pearl (Recall's): not cast",
+          not fake.dispel_field(field, wall) and fake.link.sent == []
+          and "black pearl" in [d for k, d in fake.rows if k == "dispel"][0]["failure"], str(fake.rows))
+    fake = cast_fake(dan_state(), lambda pkt, link: [{"ev": "cliloc", "cliloc": 500641}] if pkt[0] == 0xFF else [])
+    check("disturbed: no cursor, False, nothing targeted", not fake.dispel_field(field, wall)
+          and len(fake.link.sent) == 1 and fake.expected == [])
+
+
+def unit_guard_route():
+    """guard_route (user 2026-10-11: "run towards the nearest guard zone no matter how far away it is. Unless we're
+    trapped on an island"): near the spot the route planned before the trip answers at once (an island: None, so
+    run-and-recall); away from it a plan from where we stand on the Mover's map; no map: a straight line; none known:
+    None."""
+    print("\n== guard_route: the spot's route, an island, a plan from here, no map, none known ==")
+    import types
+    import loop_lumber
+
+    class Grid:
+        DX, DY = (0, 1, 1, 1, 0, -1, -1, -1), (-1, -1, 0, 1, 1, 1, 0, -1)
+
+        def can_walk(self, x, y, z, d):
+            n = (x + self.DX[d], y + self.DY[d])
+            return (*n, 0) if 0 <= n[0] < 400 and 0 <= n[1] < 60 else None
+    walk = [Grid()]
+    here = [(10, 10)]
+    fake = SimpleNamespace(
+        link=SimpleNamespace(pos=lambda st: (*here[0], 0, 0)), memory=SimpleNamespace(guard_points=lambda f: {(300, 20)}),
+        guard_banks=[], k={"spot": {"id": "sim"}, "harvest": {"area": {"center": [10, 10], "radius": 5}}},
+        spot_routes={}, mover=SimpleNamespace(walk_map=lambda st: walk[0]), guard_summary=None)
+    for m in ("guard_route", "guard_goals"):
+        setattr(fake, m, types.MethodType(getattr(loop_lumber.LumberLoop, m), fake))
+    st = {"world": {"self": {"map": 0}, "mobiles": {}}}
+    fake.spot_routes["sim"] = guards.Route("island", expanded=125046, source="spot")
+    check("by the spot, its route says island: None (run away and recall)", fake.guard_route(st, None) is None
+          and fake.guard_summary["status"] == "island" and fake.guard_summary["source"] == "spot", fake.guard_summary)
+    fake.spot_routes["sim"] = guards.Route("reached", [(10, 10), (300, 20)], ((300, 20), 0), source="spot")
+    r = fake.guard_route(st, None)
+    check("by the spot, its route: used as it is", r is fake.spot_routes["sim"], str(r))
+    here[0] = (100, 30)
+    r = fake.guard_route(st, None)
+    check("far from the spot: planned from here on the map, no distance cap (200 tiles)",
+          r is not None and r.source == "escape" and r.status == "reached" and r.path[0] == (100, 30)
+          and r.goal == ((300, 20), 0), str(r and r.summary()))
+    walk[0] = None
+    r = fake.guard_route(st, None)
+    check("no map data: the straight line ('unmapped')", r is not None and r.status == "unmapped", str(r and r.summary()))
+    fake.memory = SimpleNamespace(guard_points=lambda f: set())
+    check("no guarded place known: None", fake.guard_route(st, None) is None
+          and fake.guard_summary == {"status": "none known"}, fake.guard_summary)
+
+
+def unit_escape_direction():
+    """escape_tiles runs away from the players of a pk escape (run_from), not only from creature zones (live
+    2026-10-11: with a player alone it fell back to due east, whichever side he came from)."""
+    print("\n== escape_tiles: away from the player, whichever side he is on ==")
+    import types
+    import loop_lumber
+    fake = SimpleNamespace(danger={}, mover=SimpleNamespace(danger={}, mem_for=lambda f: SimpleNamespace(tiles=set())))
+    fake.escape_tiles = types.MethodType(loop_lumber.LumberLoop.escape_tiles, fake)
+    st = {"movement": {"pos": [100, 100, 0, 0]}, "world": {"self": {"map": 0}}}
+    east = fake.escape_tiles(st, [(104, 100)])
+    west = fake.escape_tiles(st, [(96, 100)])
+    check("a player 4 tiles east: the goals lie west; 4 tiles west: east",
+          east and all(g[0] < 100 for g in east) and west and all(g[0] > 100 for g in west), f"{east} {west}")
 
 
 def unit_thief_out():
@@ -4538,7 +4941,8 @@ async def run_async(fn):
 if __name__ == "__main__":
     runs = [main, skirmish, leash, break_due, stop_after_trip, library, library_chased, track_reds, gazer_run,
             gazer_rehit, gazer_reflect, unseen_caster, pacer,
-            wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, work_heal, work_spell, thief_keep_away,
+            wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, escape_heal, guard_run, pk_island,
+            work_heal, work_spell, thief_keep_away,
             pouch_pop, faction_lone, known_pk, wards,
             no_pouch,
             resupply, resupply_book,
@@ -4548,7 +4952,8 @@ if __name__ == "__main__":
             staff_in_view,
             hop,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_smart_range,
-            unit_run_and_recall, unit_thief_out, unit_boxed_in,
+            unit_run_and_recall, unit_escape_heal, unit_dispel_field, unit_guard_route, unit_escape_direction,
+            unit_thief_out, unit_boxed_in,
             unit_death_cause, unit_zone_stall,
             unit_zone_view_edge, unit_home_on_abort,
             unit_capture_spell_witcher, unit_capture_juncture_222,

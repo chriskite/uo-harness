@@ -109,6 +109,7 @@ import actions  # noqa: E402
 from agent_link import (Abort, Link, Mover, cheb, containers_to_open, label_since, log, look_at, reach_z,  # noqa: E402
                         same_floor, serial_of)
 import uomap  # noqa: E402
+import pathfind  # noqa: E402
 import nav  # noqa: E402
 import escape as escape_mod  # noqa: E402
 import guards  # noqa: E402
@@ -195,6 +196,15 @@ THREAT_MARGIN_S = 1.0         # reaction + packet latency on top of the cast
 # circle 4 casting delay]), then the heal or cure taking effect after our target answer
 CARE_CURSOR_WAIT_S = 4.0
 CARE_RESULT_WAIT_S = 2.5
+# The same cast in a getaway (escape_heal, standing): Greater Heal's 1.25 s (Heal's 0.5 s) plus slack for its cursor, a
+# moment for the hits; a disturbed cast answers with 500641 at once, so neither wait holds up the recall that follows
+ESCAPE_HEAL_CURSOR_WAIT_S = 2.0
+ESCAPE_HEAL_RESULT_WAIT_S = 0.6
+# Dispel Field (Magery 5th circle, "An Grav"; dispel_field): a field spell on our route (Mover `dispel`; user
+# 2026-10-11: "PKs will also cast walls as Jimi Hendrix did (In Sanct Ylem)"). 1.5 s cast (wiki Magery, knowledge
+# #11592: 5th circle), 100 % at Magery 70; it may target the field's tile (patch 2022-02-24, knowledge #6904)
+DISPEL_FIELD = combat.spell_id("dispel field")
+DISPEL_CURSOR_WAIT_S = 2.5
 # Wards (healing.WARDS, user 2026-10-09): their buff comes with the spell, no target cursor (live 2026-10-10)
 WARD_WAIT_S = 4.0
 WARD_RETRY_S = 60.0                # a ward that didn't come up (a fizzle, an unknown refusal): tried again after this
@@ -269,17 +279,20 @@ MOUNT_FOLLOW_S = 4.0          # after the recall out, how long a following mount
 # Players (option E, player_escape): one within spell range (12, threats.SPELL_WORDS_RANGE) is run from
 # until PLAYER_RECALL_GAP tiles off or out of view before the recall: a mounted PK then needs ~0.6 s to
 # be in range again plus his own cast, more than our 2 s Recall needs only when he has no spell held
-# [INFERENCE]; after PLAYER_RECALL_TRIES failed casts the guard flight follows.
+# [INFERENCE]. The running heads for the nearest guarded place reachable on foot (guard_route; user
+# 2026-10-11), legs of GUARD_LEG_STEPS route tiles, a recall cast whenever the gap is open.
 PLAYER_RUN_RANGE = threats.SPELL_WORDS_RANGE
 PLAYER_RECALL_GAP = threats.SPELL_WORDS_RANGE + 6
-PLAYER_RECALL_TRIES = 3      # failed casts before the guard flight, when a guarded place is known
+GUARD_LEG_STEPS = 40          # a guard run's leg: this many route tiles ahead (the Mover plans it like an escape leg)
+GUARD_LEG_RADIUS = 1          # ... arrived within this of its tile
+GUARD_ROUTE_NEAR = 30         # the spot's cached guard route serves an escape within the area's radius + this
+GUARD_ROUTES_META = "lumber_guard_routes"   # the store's cache of spot guard routes (guard_route_ready)
 # Faction-tagged players (faction_threat, user 2026-10-09): home only in a group, at a faction zone, within
 # FACTION_NEAR tiles (12: the user's pick after the 2026-10-09 death; a mounted player covers it in ~1.2 s), or
 # once he has come FACTION_CLOSING tiles nearer to us by his own moves
 FACTION_NEAR = 12
 FACTION_CLOSING = 3
 PACK_DEPTH_MAX = 16           # container nesting bound when looking for the hatchet
-FLEE_MAX_MOVES = 400          # a guard flight's step bound (guards.FLEE_MAX_DIST tiles and detours)
 FLEE_ARRIVAL_WAIT_S = 1.5     # after a flight arrives: how long its 500112 may still come (data.confirmed)
 TREE_DETOUR = 3              # a route to a tree may be this many times its Chebyshev distance ...
 TREE_ROUTE_MIN = 30          # ... or this many steps, whichever is more; longer: the next stand (work_stand)
@@ -469,7 +482,7 @@ class LumberLoop:
         self.start_hits = None
         self.human = Human(args.human, seed=args.seed, fast=args.human_fast, log=log, sleep=self.pause)
         self.mover = Mover(link, memory, self.human, max_blocked=args.max_blocked,
-                           guard=self.check_guards, doors=True, use_map=not args.no_map)
+                           guard=self.check_guards, doors=True, use_map=not args.no_map, dispel=self.dispel_field)
         self.still = stationary.Stationary(self.mover, self.human)
         self.memory = memory
         self.stats = {}
@@ -488,7 +501,7 @@ class LumberLoop:
         self.pending_staff = []      # invulnerable players come into view, held for at the next speech check
         self.triage = triage.Triage(args.triage_url, log=log)  # Laya verdict per line (shadow + escalate)
         self.mode = "work"           # "work" | "escape" (walking away) | "salvage" (converting before a stop)
-        #                              | "flee" (running to the guards)
+        #                              | "gap" (running from a threat before a recall, or to the guards)
         self.holding = False         # in a speech hold: the overseer has control
         self.escapes = 0             # monster escapes this trip
         self.danger = {}             # serial -> ((x, y), tiles): monsters escaped from this trip and their reach;
@@ -536,7 +549,11 @@ class LumberLoop:
         self.far_passed = 0          # far trees by a creature next_stand last passed over (its log line)
         self.death_recorded = False  # this run's death has its juncture and job event (record_death)
         self.player_foes = set()     # serials player_escape runs from (gain_distance players=True)
-        self._flee_mark = 0          # len(link.events) when the guard flight started
+        self._flee_mark = 0          # len(link.events) when the run to the guards started
+        self._guard_run = False      # running to the guards (guard_leg): their 500112 ends the run (InGuards)
+        self.guard_banks = guards.bank_markers(args.guard_markers)   # [((x, y), facet)] (guard_goals)
+        self.spot_routes = {}        # spot id -> guards.Route from the spot to the guards (guard_route_ready)
+        self.guard_summary = None    # this escape's guard route as its job events record it (guard_route)
         self.facet = know["facet"]   # the spot's facet: tree records and candidates
         self.hatchets = lumber_opt.load_hatchets()
         self.want_hatchet = lumber_opt.parse_hatchet_spec(args.hatchet)   # --hatchet material[+quality]
@@ -595,8 +612,8 @@ class LumberLoop:
 
     # ------------------------------------------------------------ guards
     def check_guards(self, st: dict):
-        relaxed = self.mode in ("salvage", "flee", "gap")
-        if self.mode in ("gap", "flee", "escape"):
+        relaxed = self.mode in ("salvage", "gap")
+        if self.mode in ("gap", "escape"):
             self.flee_aid(st)        # before the stalled check: a paralysis is popped before rejected steps end the run
         elif self.mode == "work" and self.care_ok(st) and self.flee_aid(st) \
                 and (hold := self.aid.ready_at() - time.monotonic()) > 0:
@@ -823,8 +840,8 @@ class LumberLoop:
         """Between chops (attempt, before the hatchet's use; the user's Razor 'PK Getaway' script without
         its moongates, 2026-10-07): a potion when one is due (flee_aid: cure, heal off cooldown, refresh,
         strength, from anywhere in the pack); else the spell healing.care_spell picks (Cure while poisoned,
-        Heal or Greater Heal from 15 missing), keeping Recall's mana for the way home. Getaways never cast:
-        the recall, or running, comes first. The hatchet's double-click waits out the action delay."""
+        Heal or Greater Heal from 15 missing), keeping Recall's mana for the way home. A getaway casts only
+        right before its recall casts (escape_heal). The hatchet's double-click waits out the action delay."""
         if not self.care_ok(st):
             return
         if self.flee_aid(st):
@@ -838,26 +855,46 @@ class LumberLoop:
         else:
             self.ward_ensure("between chops", st, once=True)
 
-    def care_cast(self, st, c) -> bool:
+    def care_cast(self, st, c, standing: bool = False) -> bool:
         """Cast `c.spell` (Cure, Heal or Greater Heal) on ourselves: 0xFF sub 4, then the cursor answered
         with us (combat.target_self), as the script's `cast` + `hotkey 'Target Self'`. Its reagents are
         declared to the ledger first (spent, not stolen; none with a spellstone). A cast that brings no
         cursor (fizzle, the server's refusal) is let go; 'more reagents needed' stops that spell for the
-        run. The cast puts the hatchet in the pack: use_hatchet's double-click equips it again."""
-        sid, me0 = c.spell, st["world"]["self"]
+        run. The cast puts the hatchet in the pack: use_hatchet's double-click equips it again.
+        `standing`: in a getaway, before its recall cast (escape_heal): plain waits (no threat checks: we are
+        inside the escape's), ESCAPE_HEAL_CURSOR_WAIT_S / ESCAPE_HEAL_RESULT_WAIT_S, and the `flee_aid` event
+        also for a cast that didn't land (`failure`: escape.FAIL_CLILOCS' name, e.g. 'disturbed')."""
+        sid, me0 = c.spell, dict(st["world"]["self"])      # before the cast: what it is judged by
         name = combat.MAGERY_SPELLS[sid - 1]
+        what = "flight aid" if standing else "self care"
+        wait = self.link.wait if standing else self.wait_for
         self._acting = True
+
+        def record(failure=None):
+            now = (self.link.last or st)["world"]["self"]
+            data = {"kind": "spell", "spell": name, "why": c.why, "hits": me0.get("hits"),
+                    "hits_after": now.get("hits"), "hits_max": now.get("hits_max"), "mana": me0.get("mana"),
+                    "poisoned": me0.get("poisoned"), "standing": standing, "mode": self.mode, "trip": self.trip_n,
+                    "spot": self.k["spot"]["id"]}
+            if standing:
+                data["failure"] = failure
+            self.later(lambda data=data, where=self._where(st):
+                       self.memory.job_event("lumber", "flee_aid", data, **where))
         try:
             mark = len(self.link.events)
             self.link.act(actions.cast_spell(sid))
-            self.wait_for(lambda s: self.cursor(mark) is not None
-                          or any(e.get("ev") == "cliloc" for e in self.link.events[mark:]), CARE_CURSOR_WAIT_S)
+            wait(lambda s: self.cursor(mark) is not None
+                 or any(e.get("ev") == "cliloc" for e in self.link.events[mark:]),
+                 ESCAPE_HEAL_CURSOR_WAIT_S if standing else CARE_CURSOR_WAIT_S)
             cur = self.cursor(mark)
             if cur is None:
                 if combat.no_reagents_answer(self.link.events[mark:]):
                     self.no_reagents.add(sid)
                 heard = [e.get("cliloc") for e in self.link.events[mark:] if e.get("ev") == "cliloc"]
-                log(f"self care: {name} brought no target cursor (clilocs {heard})")
+                log(f"{what}: {name} brought no target cursor (clilocs {heard})")
+                if standing:
+                    record(next((escape_mod.FAIL_CLILOCS[h] for h in heard if h in escape_mod.FAIL_CLILOCS),
+                                "no cursor"))
                 return False
             st = self.link.last or self.link.state()
             if not combat.reagents(st["world"], self.self_serial(st))[1]:
@@ -865,22 +902,103 @@ class LumberLoop:
             self.link.act(combat.target_self(cur, self.self_serial(st), self.link.pos(st),
                                              st["world"]["self"].get("body")))
             hits0 = me0.get("hits") or 0
-            self.wait_for(lambda s: (s["world"]["self"].get("hits") or 0) > hits0
-                          or (sid == healing.CURE and not s["world"]["self"].get("poisoned"))
-                          or combat.no_reagents_answer(self.link.events[mark:]), CARE_RESULT_WAIT_S)
+            wait(lambda s: (s["world"]["self"].get("hits") or 0) > hits0
+                 or (sid == healing.CURE and not s["world"]["self"].get("poisoned"))
+                 or combat.no_reagents_answer(self.link.events[mark:]),
+                 ESCAPE_HEAL_RESULT_WAIT_S if standing else CARE_RESULT_WAIT_S)
             if combat.no_reagents_answer(self.link.events[mark:]):
                 self.no_reagents.add(sid)
-                log(f"self care: the server wants more reagents for {name}; not casting it again this run")
+                log(f"{what}: the server wants more reagents for {name}; not casting it again this run")
+                if standing:
+                    record("reagents")
                 return False
             now = self.link.last["world"]["self"]
-            log(f"self care: {name} ({c.why}; hits {me0.get('hits')} -> {now.get('hits')}/{now.get('hits_max')}, "
-                f"mana {me0.get('mana')} -> {now.get('mana')})")
-            data = {"kind": "spell", "spell": name, "why": c.why, "hits": me0.get("hits"),
-                    "hits_after": now.get("hits"), "hits_max": now.get("hits_max"), "mana": me0.get("mana"),
-                    "poisoned": me0.get("poisoned"), "standing": False, "mode": self.mode, "trip": self.trip_n,
-                    "spot": self.k["spot"]["id"]}
-            self.later(lambda data=data, where=self._where(st):
-                       self.memory.job_event("lumber", "flee_aid", data, **where))
+            log(f"{what}: {name} ({c.why}; hits {me0.get('hits')} -> {now.get('hits')}/{now.get('hits_max')}, "
+                f"mana {me0.get('mana')} -> {now.get('mana')}{', standing' if standing else ''})")
+            record()
+            return True
+        finally:
+            self._acting = False
+
+    def escape_heal(self, st, a):
+        """Right before a getaway's recall cast (user 2026-10-11, after Dan's hits went 63 -> 41 -> 24 -> 4 with
+        100 mana unused while 12 recall casts were disturbed): below healing.ESCAPE_HEAL_BELOW of max hits with
+        no heal potion to drink now (SelfCare.heal_ready: none, or its clock running; one that can go is
+        recall_out's flee_aid), a heal spell first (healing.escape_spell): Heal, the 0.5 s cast, when pressed (a
+        player we run from within PLAYER_RUN_RANGE, or a hits drop within ESCAPE_HEAL_QUIET_S), else Greater
+        Heal; Recall's mana and reagents kept. One cast, standing (care_cast); disturbed or refused, the recall
+        goes all the same (escape.escape waits out a 502644). True when it healed."""
+        world, me = st["world"], self.self_serial(st)
+        now = time.monotonic()
+        self.aid.observe(self.link.events[self._aid_scan:], now)
+        self._aid_scan = len(self.link.events)
+        if self.aid.heal_ready(world, me, now):
+            return False
+        drop = healing.last_drop_t(self.watch.hits)
+        near = [t for t in a.threats if t.serial in self.player_foes and 0 <= t.distance <= PLAYER_RUN_RANGE]
+        pressed = bool(near) or (drop is not None and time.time() - drop <= healing.ESCAPE_HEAL_QUIET_S)
+        c = healing.escape_spell(world, me, pressed=pressed, reserve=combat.spell_mana(escape_mod.RECALL),
+                                 blocked=self.no_reagents)
+        if c.kind != "spell":
+            if c.missing and "not below" not in c.why:
+                log(f"flight aid: no heal spell ({c.why})")
+            return False
+        mode, self.mode = self.mode, "gap"
+        try:
+            return self.care_cast(st, c, standing=True)
+        finally:
+            self.mode = mode
+
+    def dispel_field(self, serial: int, item: dict) -> bool:
+        """The Mover's `dispel` (agent_link.Mover): a spell field (Wall of Stone, an energy / poison / fire field)
+        cuts the route with no way round (user 2026-10-11: "PKs will also cast walls as Jimi Hendrix did (In
+        Sanct Ylem) which we can dispel with the spell Dispel Field"). Cast Dispel Field (DISPEL_FIELD, 5th
+        circle, 14 mana, "An Grav") and answer its cursor with the field item (its tile and graphic), keeping
+        Recall's mana and reagents (healing.recall_safe_lack: a second black pearl); its reagents are declared to
+        the ledger. A `dispel` job event. True when the target went out (the Mover then looks for the field to go)."""
+        st = self.link.last or self.link.state()
+        world, me = st["world"], self.self_serial(st)
+        mana = (world.get("self") or {}).get("mana") or 0
+        reserve = combat.spell_mana(escape_mod.RECALL)
+        counts, stone = combat.reagents(world, me)
+        lack = healing.recall_safe_lack(counts, stone, DISPEL_FIELD)
+        at = (item.get("x"), item.get("y"))
+        why = ("the server wants more reagents" if DISPEL_FIELD in self.no_reagents
+               else f"mana {mana}, Recall keeps {reserve}" if mana - reserve < combat.spell_mana(DISPEL_FIELD)
+               else f"too few {', '.join(lack)}" if lack else None)
+        data = {"serial": f"0x{serial:08X}", "graphic": item.get("graphic"), "at": list(at), "mana": mana,
+                "mode": self.mode, "trip": self.trip_n, "spot": self.k["spot"]["id"]}
+
+        def record(ok, failure):
+            self.later(lambda: self.memory.job_event("lumber", "dispel", {**data, "ok": ok, "failure": failure},
+                                                     **self._where(st)))
+            if not self._checking:
+                self.flush_later()
+        if why is not None:
+            log(f"dispel field at {at}: not cast ({why})")
+            record(False, why)
+            return False
+        self._acting = True
+        try:
+            mark = len(self.link.events)
+            self.link.act(actions.cast_spell(DISPEL_FIELD))
+            self.link.wait(lambda s: self.cursor(mark) is not None
+                           or any(e.get("ev") == "cliloc" for e in self.link.events[mark:]), DISPEL_CURSOR_WAIT_S)
+            cur = self.cursor(mark)
+            if cur is None:
+                heard = [e.get("cliloc") for e in self.link.events[mark:] if e.get("ev") == "cliloc"]
+                if combat.no_reagents_answer(self.link.events[mark:]):
+                    self.no_reagents.add(DISPEL_FIELD)
+                failure = next((escape_mod.FAIL_CLILOCS[h] for h in heard if h in escape_mod.FAIL_CLILOCS), "no cursor")
+                log(f"dispel field at {at}: no target cursor ({failure}; clilocs {heard})")
+                record(False, failure)
+                return False
+            if not stone:
+                self.ledger.expect(*[("spent", g, 1) for g in combat.SPELL_REAGENTS[DISPEL_FIELD]])
+            self.link.act(actions.target_object(cur["cursor_id"], serial, at[0], at[1], item.get("z") or 0,
+                                                item.get("graphic") or 0, cur.get("cursor_type") or 0))
+            log(f"dispel field: An Grav at the field 0x{serial:08X} at {at} (mana {mana})")
+            record(True, None)
             return True
         finally:
             self._acting = False
@@ -990,9 +1108,10 @@ class LumberLoop:
             times a trip and never during a speech hold (escape=False); else 'abort'.
         While escaping, creatures are what we're walking away from (players still stop
         the run, damage only when creature_hit says so); while converting before a stop, only
-        players and death count. With no recall (no book, or it failed) a player
-        threat sends us running to the guards (flee_to_guards); during that flight
-        only death and the server's 500112 count. Tracking hits are read here too
+        players and death count. A player threat sends us running toward the nearest guarded place
+        reachable on foot with recall casts in between (player_escape), or, with no recall book, to
+        the guards only (flee_to_guards); while running (mode 'gap') only death, the hits on the way
+        (flight_hit) and the guards' 500112 count. Tracking hits are read here too
         (check_tracking): a near murderer hit is a red out of view."""
         self._looked_t = time.monotonic()
         self.hit_by = []
@@ -1003,12 +1122,10 @@ class LumberLoop:
         self.aggro_zones(st)
         if a.dead:
             self.died(st, "ghost body")
-        if self.mode == "flee":
-            if self.guards_entered(self._flee_mark):
-                raise InGuards()
-            return
-        if self.mode == "gap":                 # running out of reach before a recall (gain_distance)
+        if self.mode == "gap":                 # running before a recall (gain_distance) or to the guards (guard_leg)
             self.flight_hit(st, a, "gap")       # still booked on the trip row (live 2026-10-06: -72, row said 0)
+            if self._guard_run and self.guards_entered(self._flee_mark):
+                raise InGuards()
             return
         field = self.field_players(st, a)      # faction tags and precasts: hostile out at a pvp spot
         for t in a.threats:
@@ -1045,9 +1162,10 @@ class LumberLoop:
             worst = players[0] if players else None
             if self.on_home_rune(st):
                 why = "at home, on the way-home rune's tile: no recall"   # threat_stop stops here
+            elif self.recall_book is not None:  # toward the guards with recalls in between; back only dead
+                why = self.player_escape(st, a, worst, swung, players, aggressors)
             else:
-                why = (self.player_escape(st, a, worst, swung, players, aggressors) if self.recall_book is not None
-                       else "no recall book")
+                why = "no recall book"
                 if self.k["pvp"]:
                     self.flee_to_guards(st, a, worst, swung, why)
             self.threat_stop(st, a, worst, swung, Unsafe, why)
@@ -1651,79 +1769,117 @@ class LumberLoop:
         the task when it must (ctl stop).
         `players` (player_escape): from the players in player_foes, PLAYER_RECALL_GAP, a pk
         escape; one cast per try (never escape.escape's standing recasts: live 2026-10-09 a mounted red
-        disturbed six standing casts in 8 s and Dan died), a run before each; after PLAYER_RECALL_TRIES
-        failed casts it returns why when a guarded place is known (the guard flight follows), else it
-        runs and recasts on until a recall lands or we die.
+        disturbed six standing casts in 8 s and Dan died). The running heads for the nearest guarded place
+        reachable on foot (guard_route; user 2026-10-11: "ideally we'd run towards the nearest guard zone no
+        matter how far away it is. Unless we're trapped on an island in which case our only choice is to
+        recall"): legs along its route (guard_leg), a leg ending early when the gap opens (gap_clear), and a
+        cast only with the gap open; a failed cast is followed by a whole leg; arriving there ends it
+        (in_guards). A leg that can't go (a player we run from nearer its tile than we are, no short way)
+        is a run away (gain_distance) and a cast instead. No route (an island, no guarded place known, a
+        search undecided): a run before each cast, until a recall lands or we die. At low hits a heal spell
+        may go right before a cast (escape_heal).
         A pacer (a ranged creature keeping its distance as we run: pacer) isn't run from: the book
         opens and the cast starts the moment its next shot lands (next_shot_gate), each recast
         too. Hits taken on the way and during the casts are monster_hit rows (flight_hit)."""
         fails, gave_up = 0, None
-        while not a.dead:
-            pace = None if players else self.pacer(st, a)
-            if pace is None:
-                ran = self.gain_distance(st, a, swung, players=players)
-            else:
-                ran = False
-                log(f"{self.threat_name(pace[0])} keeps its distance ({pace[0].distance} tiles, a shot every "
-                    f"{pace[1]:.2f} s): no running; recalling the moment its next shot lands")
-            st = self.link.state()
-            a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
-            if a.dead:
-                return None
-            if pace is None and not ran and gave_up is not None and time.monotonic() - gave_up < RECALL_RETRY_S:
-                time.sleep(KEEP_RUNNING_LOOK_S)          # nothing after us: watch until the next try
+        route = self.guard_route(st, worst) if players else None
+        t0 = time.monotonic()
+        if route is not None:
+            self._guard_run, self._flee_mark = True, len(self.link.events)
+            self.doing("flee", f"Running to the guards from {self.threat_name(worst)}")
+        try:
+            while not a.dead:
+                pace = None if players else self.pacer(st, a)
+                blocked = None
+                if route is not None:
+                    blocked = self.guard_leg(st, worst, swung, route, t0, why or "ran to the guards between recalls",
+                                             fails, stop=None if self.gap_clear(st) else self.gap_clear)
+                    if blocked is not None:
+                        log(f"to the guards: {blocked}; running away before the cast instead")
+                    ran = blocked is None or self.gain_distance(st, a, swung, players=True)
+                elif pace is None:
+                    ran = self.gain_distance(st, a, swung, players=players)
+                else:
+                    ran = False
+                    log(f"{self.threat_name(pace[0])} keeps its distance ({pace[0].distance} tiles, a shot every "
+                        f"{pace[1]:.2f} s): no running; recalling the moment its next shot lands")
                 st = self.link.state()
                 a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
-                continue
-            try:
-                fail = self.recall_out(st, a, worst, swung, pk=players, why=why,
-                                       attempts=1 if ran or players else None,
-                                       gate=None if pace is None else self.next_shot_gate(st, *pace))
-            except Unsafe:
+                if a.dead:
+                    return None
+                if route is not None and blocked is None and not self.gap_clear(st):
+                    continue                                 # still within reach: on toward the guards, no cast
+                if route is None and pace is None and not ran and gave_up is not None \
+                        and time.monotonic() - gave_up < RECALL_RETRY_S:
+                    time.sleep(KEEP_RUNNING_LOOK_S)          # nothing after us: watch until the next try
+                    st = self.link.state()
+                    a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+                    continue
+                if players and self.escape_heal(st, a):
+                    st = self.link.state()
+                try:
+                    fail = self.recall_out(st, a, worst, swung, pk=players, why=why,
+                                           attempts=1 if ran or players else None,
+                                           gate=None if pace is None else self.next_shot_gate(st, *pace))
+                except Unsafe:
+                    if not players:
+                        self.creature["recalled"] = True
+                        home = self.link.state()           # the hits taken while it cast (the pacer's, waited for)
+                        self.flight_hit(home, self.watch.update(home, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S),
+                                        "recall", known=[pace[0]] if pace is not None else None, where_st=st)
+                    raise
                 if not players:
-                    self.creature["recalled"] = True
-                    home = self.link.state()           # the hits taken while it cast (the pacer's, waited for)
-                    self.flight_hit(home, self.watch.update(home, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S),
-                                    "recall", known=[pace[0]] if pace is not None else None, where_st=st)
-                raise
-            if not players:
-                st = self.link.state()
-                self.flight_hit(st, self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S), "recall")
-            if not ran:
-                gave_up = time.monotonic()
-            fails += 1
-            if players:
-                if fails >= PLAYER_RECALL_TRIES and self.guard_goals(st, worst):
-                    return f"{fail} ({fails} tries, running between them)"
-                log(f"{fail}; running on")
+                    st = self.link.state()
+                    self.flight_hit(st, self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S),
+                                    "recall")
+                if not ran:
+                    gave_up = time.monotonic()
+                fails += 1
+                log(f"{fail}; running on" + (" toward the guards" if route is not None else ""))
+                if not players:
+                    self.creature["recall_fails"] = fails
+                    if fails == RECALL_ALERT_TRIES:
+                        pos = tuple(self.link.pos(self.link.state())[:2])
+                        self.memory.juncture("lumber", "threat", f"Recall failing ({fail}) with "
+                                             f"{self.threat_name(worst)} after us at {pos}: still running from it",
+                                             "urgent",
+                                             {"action": "keep_running", "why": why, "failure": fail, "fails": fails,
+                                              "pos": list(pos), "trip": self.trip_n, "spot": self.k["spot"]["id"],
+                                              "threat": worst.to_dict() if worst else None})
                 st = self.link.state()
                 a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
-                continue
-            self.creature["recall_fails"] = fails
-            log(f"{fail}; running on")
-            if fails == RECALL_ALERT_TRIES:
-                pos = tuple(self.link.pos(self.link.state())[:2])
-                self.memory.juncture("lumber", "threat", f"Recall failing ({fail}) with {self.threat_name(worst)} "
-                                     f"after us at {pos}: still running from it", "urgent",
-                                     {"action": "keep_running", "why": why, "failure": fail, "fails": fails,
-                                      "pos": list(pos), "trip": self.trip_n, "spot": self.k["spot"]["id"],
-                                      "threat": worst.to_dict() if worst else None})
-            st = self.link.state()
-            a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
-        return None
+            return None
+        except InGuards:                                     # the guards' 500112 while running away instead
+            self.in_guards(worst, swung, why or "ran to the guards between recalls", t0, True,
+                           {"route": self.guard_summary, "casts": fails})
+        finally:
+            self._guard_run = False
+
+    def gap_clear(self, s) -> str | None:
+        """'clear' when every player we run from (player_foes) is PLAYER_RECALL_GAP tiles off or out of view in
+        state `s` (a guard leg's `stop`: the gap is open for a recall cast), else None."""
+        pos = self.link.pos(s)[:2]
+        ms = s["world"]["mobiles"]
+        return "clear" if all(cheb(pos, (m["x"], m["y"])) >= PLAYER_RECALL_GAP
+                              for m in (ms.get(f"0x{f:08X}") or {} for f in self.player_foes)
+                              if m.get("x") is not None) else None
 
     def player_escape(self, st, a, worst, swung, players: list, aggressors: list) -> str:
         """Away from players (option E, user 2026-10-06, after run 5's death at witcher_162: a red
         mage's Energy Bolts disturbed three standing recalls in a row, the first 1.26 s into the cast;
-        you can't move while casting). One of them within PLAYER_RUN_RANGE (spell range): run
-        PLAYER_RECALL_GAP tiles off or out of view first, then cast, and run again after a disturbed
-        cast (run_and_recall, players). None that near: one cast at once, standing (recall_out); if it
-        fails, the same run-then-cast (user 2026-10-09: "so we don't stand still getting wailed on",
-        after mauna kea came from 18 tiles and disturbed six standing casts). Returns why it failed;
-        died while running: that."""
+        you can't move while casting). One of them within PLAYER_RUN_RANGE (spell range): run first,
+        toward the nearest guarded place reachable on foot, and cast once PLAYER_RECALL_GAP tiles off or
+        out of view, and run on after a disturbed cast (run_and_recall, players). None that near: one
+        cast at once, standing (recall_out); if it fails, the same run-then-cast (user 2026-10-09: "so we
+        don't stand still getting wailed on", after mauna kea came from 18 tiles and disturbed six
+        standing casts). A recall that lands or the guards end it (Unsafe); returns only when we died
+        (why)."""
         self.player_foes = {t.serial for t in players} | set(aggressors)
+        self.guard_summary = None
         near = [t for t in a.threats if t.serial in self.player_foes and 0 <= t.distance <= PLAYER_RUN_RANGE]
         if not near:
+            if self.escape_heal(st, a):
+                st = self.link.state()
             fail = self.recall_out(st, a, worst, swung, attempts=1)
             st = self.link.state()
             a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
@@ -1737,7 +1893,8 @@ class LumberLoop:
         return self.run_and_recall(st, a, worst, swung, None, players=True) or "died while running from players"
 
     def guard_goals(self, st, worst) -> list:
-        """The guarded places a guard flight could run to from here (guards.flee_goals), away from `worst`."""
+        """The guarded places on our facet (guards.flee_goals: learned guard points, bank markers), nearest
+        first, steering away from `worst` when it is near."""
         me = tuple(self.link.pos(st)[:2])
         facet = st["world"]["self"].get("map") or 0
         attacker = None
@@ -1745,7 +1902,111 @@ class LumberLoop:
             m = st["world"]["mobiles"].get(f"0x{worst.serial:08X}")
             if m and m.get("x") is not None:
                 attacker = (m["x"], m["y"])
-        return guards.flee_goals(self.memory.guard_points(facet), guards.bank_markers(), facet, me, attacker)
+        return guards.flee_goals(self.memory.guard_points(facet), self.guard_banks, facet, me, attacker)
+
+    def guard_route(self, st, worst):
+        """The way on foot from here to the nearest guarded place for a run to the guards (guards.Route), or None:
+        none known (guard_goals), an island (every tile reachable on foot searched, none guarded: recall is the
+        only way out), or undecided within the search budget. Near the spot (its area's radius + GUARD_ROUTE_NEAR
+        from its centre) the route planned before the trip (guard_route_ready) answers at once; elsewhere
+        guards.plan_route plans from here on the Mover's map (ground items, locked doors) within
+        FLEE_ROUTE_ESCAPE_EXPAND (~1 s), or a straight line without map data (guards.straight_route). Logged;
+        `guard_summary` keeps it for the escape's job events (recall, guard_flight)."""
+        pos = self.link.pos(st)
+        here = tuple(pos[:2])
+        goals = self.guard_goals(st, worst)
+        if not goals:
+            self.guard_summary = {"status": "none known"}
+            log("to the guards: no guarded place known on this facet; running away and recalling")
+            return None
+        area = self.k["harvest"]["area"]
+        route = self.spot_routes.get(self.k["spot"]["id"])
+        if route is None or cheb(here, area["center"]) > int(area.get("radius") or 0) + GUARD_ROUTE_NEAR:
+            walk = self.mover.walk_map(st)
+            route = guards.plan_route(walk, pos[:3], goals) if walk is not None else guards.straight_route(here, goals)
+        self.guard_summary = route.summary()
+        if route.path:
+            log(f"to the guards: {route.steps} steps to {route.goal[0]} ({route.status}, {route.source}, "
+                f"{route.expanded} expansions in {route.elapsed_s:.2f} s); recalling whenever the gap opens")
+            return route
+        what = ("an island: no guarded place reachable on foot" if route.status == "island"
+                else f"no way found within {route.expanded} expansions")
+        log(f"to the guards: {what} ({route.source}, {route.elapsed_s:.2f} s); running away and recalling")
+        return None
+
+    def guard_route_ready(self):
+        """Before a trip leaves home (harvest_trip, with the wards; here nothing hunts us): the way from the spot's
+        centre (guards.stand_tile) to the nearest guarded place on foot (guards.plan_route, FLEE_ROUTE_PREP_EXPAND:
+        up to ~7 s cold, enough to call Nusero Island an island), from the store's cache (meta GUARD_ROUTES_META,
+        keyed by facet, spot, centre and the guarded places known: the map doesn't change) or planned and cached.
+        An escape near the spot then knows at once whether and where to run (guard_route). Not without map data."""
+        facet, spot = self.k["facet"], self.k["spot"]["id"]
+        if self.args.no_map or facet not in pathfind.MAP_FACETS:
+            return
+        center = tuple(self.k["harvest"]["area"]["center"])
+        goals = guards.flee_goals(self.memory.guard_points(facet), self.guard_banks, facet, center, None)
+        if not goals:
+            return
+        key = f"{facet}:{spot}:{center[0]},{center[1]}:{guards.goals_key(goals)}"
+        try:
+            cached = json.loads(task_wrap.meta_get(self.memory, GUARD_ROUTES_META) or "{}").get(key)
+        except ValueError:
+            cached = None
+        if cached is not None:
+            route = guards.Route.from_json(cached)
+        else:
+            walk = pathfind.Walk(uomap.UoMap(facet))
+            start = guards.stand_tile(walk, center)
+            route = guards.plan_route(walk, start, goals, guards.FLEE_ROUTE_PREP_EXPAND) if start \
+                else guards.Route("undecided")
+            route.source = "spot"
+            task_wrap.meta_update_json(self.memory, GUARD_ROUTES_META,
+                                       lambda cur: ({**(cur or {}), key: route.to_json()}, None), {})
+        self.spot_routes[spot] = route
+        log(f"guard route from {spot}: {route.status}"
+            + (f", {route.steps} steps to {route.goal[0]}" if route.path else "")
+            + (" (cached)" if cached is not None else f" ({route.expanded} expansions in {route.elapsed_s:.1f} s)"))
+
+    def guard_leg(self, st, worst, swung, route, t0, why: str, fails: int, stop=None) -> str | None:
+        """One leg of the run to the guards along `route` (guards.Route): to the route tile GUARD_LEG_STEPS past
+        the one to join from here (guards.join), the guarded place itself on the last leg; urgent, mode 'gap' (hits
+        on the way are flight_hit rows; the guards' 500112 ends the run), bounded like an escape route
+        (ESCAPE_DETOUR). `stop(state)` (gap_clear) ends it early. None when it ran; why not when it couldn't (a
+        player we run from within guards.ATTACKER_NEAR and nearer that tile than we are: steering away, as
+        guards.flee_goals does; no short way there; no step taken): the caller runs away instead. Arrived (the
+        place reached, or the 500112 on the way): in_guards (raises Unsafe)."""
+        here = tuple(self.link.pos(st)[:2])
+        path, last = route.path, len(route.path) - 1
+        k = guards.ahead(path, guards.join(path, here), GUARD_LEG_STEPS)
+        target = tuple(path[k])
+        ms = st["world"]["mobiles"]
+        for f in self.player_foes:
+            m = ms.get(f"0x{f:08X}") or {}
+            if m.get("x") is not None and cheb(here, (m["x"], m["y"])) <= guards.ATTACKER_NEAR \
+                    and cheb(target, (m["x"], m["y"])) < cheb(target, here):
+                return f"0x{f:08X} at ({m['x']}, {m['y']}) is nearer {target} than we are"
+        goal_fn = nav.any_of([route.goal]) if k == last else nav.within(target, GUARD_LEG_RADIUS)
+        how = {"route": self.guard_summary, "casts": fails}
+        mode, self.mode = self.mode, "gap"
+        before = self.mover.steps
+        try:
+            got = self.mover.walk_to(None, 0, "to the guards", goal_fn=goal_fn, urgent=True, stop=stop,
+                                     max_route=max(ESCAPE_ROUTE_MIN, ESCAPE_DETOUR * cheb(here, target)))
+        except InGuards:
+            self.mode = mode
+            self.in_guards(worst, swung, why, t0, True, how)
+        except Unsafe:
+            raise
+        except Abort as x:
+            return str(x).split(": ", 1)[-1]
+        finally:
+            self.mode = mode
+        if got is None and k == last:
+            confirmed = self.link.wait(lambda s: self.guards_entered(self._flee_mark), FLEE_ARRIVAL_WAIT_S) is not None
+            self.in_guards(worst, swung, why, t0, confirmed, how)
+        if got is None and self.mover.steps == before:
+            return f"no step toward {target}"
+        return None
 
     @staticmethod
     def threat_name(t) -> str:
@@ -1847,6 +2108,8 @@ class LumberLoop:
                 "cause": "player" if pk else "creature", "react_s": react, "cursor_cancelled": cancelled}
         if why:
             data["why"] = why
+        if pk and self.guard_summary is not None:
+            data["guards"] = self.guard_summary      # the way to the guards this escape found (guard_route)
         self.memory.job_event("lumber", "recall", data, **self._where(st))
         self.travel.append(leg_summary({"leg": "escape", "s": res["elapsed_s"], **data}))
         if not res["ok"]:
@@ -1874,44 +2137,41 @@ class LumberLoop:
                    for e in self.link.events[since:])
 
     def flee_to_guards(self, st, a, worst, swung, why):
-        """The recall escape failed (`why`): run to the nearest known guarded place
-        (guards.flee_goals: tiles where the server said we were under the guards'
-        protection, bank markers), urgent pacing, until we stand on one or the
-        server says we're under the guards' protection (cliloc 500112) on the way.
-        The notice lags and skips crossings (guards.py), so arriving counts without
-        it; `confirmed` says whether it came. There: "guards" once when a hostile
-        player is within 12 tiles, an urgent `pk_escape` juncture, then Unsafe.
-        Returns (after logging why) only when the flight failed; the caller then
-        stops the plain way."""
+        """No recall to make (`why`: no recall book, or a tracked red's recall failed): run to the nearest guarded
+        place reachable on foot, any distance (guard_route; legs of guard_leg, mode 'gap'), until we stand on it
+        or the server says we're under the guards' protection (cliloc 500112) on the way. The notice lags and
+        skips crossings (guards.py), so arriving counts without it; `confirmed` says whether it came. There:
+        "guards" once when a hostile player is within 12 tiles, an urgent `pk_escape` juncture, then Unsafe
+        (in_guards). Returns (after logging why) only when the flight failed or we died; the caller then stops
+        the plain way."""
         self.drop_cursor()
-        goals = self.guard_goals(st, worst)
-        if not goals:
-            log(f"guard flight: no guarded place known within {guards.FLEE_MAX_DIST} tiles")
+        if a.dead:
+            return
+        if worst is not None:
+            self.player_foes = self.player_foes | {worst.serial}
+        route = self.guard_route(st, worst)
+        if route is None:
             return
         t0 = time.monotonic()
-        self.mode = "flee"
-        self._flee_mark = len(self.link.events)
+        self._guard_run, self._flee_mark = True, len(self.link.events)
         self.doing("flee", f"Running to the guards from {worst.name if worst else 'an attacker'}")
-        log(f"guard flight ({why}): {len(goals)} guarded place(s) in range")
+        log(f"guard flight ({why})")
         try:
-            self.mover.walk_to(None, 0, "to the guards", max_moves=FLEE_MAX_MOVES,
-                               goal_fn=nav.any_of(goals), urgent=True)
-            confirmed = self.link.wait(lambda s: self.guards_entered(self._flee_mark),
-                                       FLEE_ARRIVAL_WAIT_S) is not None
-        except InGuards:
-            confirmed = True
-        except Unsafe:
-            raise
-        except Abort as e:
-            log(f"guard flight failed: {e}")
-            return
+            while True:
+                blocked = self.guard_leg(st, worst, swung, route, t0, why, 0)
+                if blocked is not None:
+                    log(f"guard flight failed: {blocked}")
+                    return
+                st = self.link.state()
+                if self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S).dead:
+                    return
         finally:
-            self.mode = "work"
-        self.in_guards(worst, swung, why, t0, confirmed)
+            self._guard_run = False
 
-    def in_guards(self, worst, swung, why, t0, confirmed: bool):
+    def in_guards(self, worst, swung, why, t0, confirmed: bool, extra: dict | None = None):
         """At a guarded place after a flight: call the guards on a hostile player
-        within 12 tiles, post `guard_flight` + `pk_escape`, raise Unsafe."""
+        within 12 tiles, post `guard_flight` + `pk_escape`, raise Unsafe. `extra`: more
+        `guard_flight` data (guard_leg: the route, the recall casts made on the way)."""
         st = self.link.state()
         a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
         pos = self.link.pos(st)
@@ -1922,7 +2182,7 @@ class LumberLoop:
         data = {"method": "guards", "recall_failure": why, "to": list(pos[:2]), "confirmed": confirmed,
                 "flight_s": round(time.monotonic() - t0, 2), "called_guards": bool(near),
                 "threat": worst.to_dict() if worst else None,
-                "attackers": self.attacker_list(swung)}
+                "attackers": self.attacker_list(swung), **(extra or {})}
         self.memory.job_event("lumber", "guard_flight", data, **self._where(st))
         summary = self.post_threat(st, a, worst, swung, "guards")
         self.memory.juncture("lumber", "pk_escape",
@@ -2020,7 +2280,7 @@ class LumberLoop:
                 log(f"our trapped pouch took {self.start_hits - hits} hit(s); not an attack")
                 self.start_hits = hits
         alarm = pouch.thief_pops(pops)
-        if alarm and self.mode != "flee":
+        if alarm and not self._guard_run:
             self.pouch_alarm(st, alarm)
 
     def pouch_alarm(self, st, pops):
@@ -2062,6 +2322,7 @@ class LumberLoop:
         'pouch_pop' or 'closed_again', action 'recall' or 'abort') keeps the spot out of
         `lumber plan` for THIEF_COOLDOWN_S (lumber_opt; THREATS.md §7 T3/T4)."""
         recall = self.afield and self.recall_book is not None
+        self.guard_summary = None
         data = {"trigger": trigger, "action": "recall" if recall else "abort", "why": why,
                 "suspect": worst.to_dict() if worst else None, "trip": self.trip_n,
                 "spot": self.k["spot"]["id"], **(extra or {})}
@@ -2755,6 +3016,7 @@ class LumberLoop:
                 return 0
             self.aspect_ensure("heading out")
             self.ward_ensure("heading out")
+            self.guard_route_ready()
             self.go_out()
             self.afield = True
             self.track_ensure("at the spot")
@@ -3398,7 +3660,10 @@ class LumberLoop:
         at least ESCAPE_RUN tiles from each of `run_from` and out of every zone (the
         runner's escaped-from monsters, the Mover's: aggro zones of the creatures in view,
         thieves), within 60 degrees of straight away from them, nearest first; then the
-        first such tile straight away and 45 degrees to either side."""
+        first such tile straight away and 45 degrees to either side. "Away" sums the unit
+        vectors from every zone centre and every `run_from` point (the players of a pk
+        escape: until 2026-10-11 only creature zones counted, so with a player alone the
+        direction fell back to due east whichever side he came from)."""
         pos = tuple(st["movement"]["pos"][:2])
         zones = list(self.danger.values())
         avoid = zones + [z for k, z in self.mover.danger.items() if isinstance(k, tuple) and k[0] == "seen"]
@@ -3406,7 +3671,7 @@ class LumberLoop:
         def clear(t):
             return all(cheb(t, z) > r for z, r in avoid) and all(cheb(t, p) >= ESCAPE_RUN for p in run_from)
         vx = vy = 0.0
-        for (zx, zy), _ in zones:
+        for zx, zy in [z for z, _ in zones] + [tuple(p[:2]) for p in run_from]:
             n = math.hypot(pos[0] - zx, pos[1] - zy) or 1.0
             vx, vy = vx + (pos[0] - zx) / n, vy + (pos[1] - zy) / n
         if vx == vy == 0.0:
@@ -4571,6 +4836,9 @@ def main():
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--no-map", action="store_true",
                     help="plan on walk memory only (offline tests against simulated worlds)")
+    ap.add_argument("--guard-markers", default=guards.MARKERS,
+                    help="the client's Banks_and_Healers.xml: its bank markers are guarded places for a run to the "
+                         "guards (offline tests point it at their own file)")
     ap.add_argument("--human-fast", type=float, default=1.0,
                     help="scale human delays (offline tests of the normal profile only)")
     ap.add_argument("--captcha-timeout", type=float, default=600.0)

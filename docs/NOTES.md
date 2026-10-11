@@ -2249,6 +2249,50 @@ Log: `logs/tasks/lumber-20261011-154542-2883.log` (lines ~763–800). Junctures 
 - **Cooldown spent at the start:** the first heal potion went at 1 hit missing (the 'PK Getaway' rule: a
   potion whenever off cooldown), so its cooldown was running when the big hits came.
 
+## Locked house doors and spell walls on an escape route (live 2026-10-11 16:43, Jimii Hendrix)
+
+Log: `logs/tasks/lumber-20261011-163321-38d5.log` (lines 432-444). Store events 16:43:28-16:43:47 (session 95);
+ground items from a replay of `logs/session_20261011_124101` (`replay.timed_packets` → `WorldRuntime`) at 16:43:37.
+- **What happened.** Fleeing from (4201,806), the 39-step route was planned before house multi 0x6B847EA2
+  (graphic 0xE9, 1966 multi.mul pieces) at (4235,802,z0) came into view (16:43:29.9, Dan 27 tiles off; its door
+  items 0x6B847EA5-EB0 at 16:43:31). At (4225,808) the per-step check refused a step into its wall and
+  replanned: 33 steps up the house's outside stairs (4236,810 z5 → 4235,805 z25) to its metal double door
+  0x0675/0x0677 at (4235,803)/(4236,803) z25. Each open request (0x12) got cliloc 500024 "Opening door..." and
+  1061637 "You are not allowed to access this." (16:43:37.277, 38.340, 39.346, 40.672), each step was denied,
+  and the second request per leaf waited a "read" pause: ~4 s at the door while Jimii hit Dan.
+- **Why the house wasn't treated as foreign.** It was recognised as a house (multi.mul has its pieces; the
+  doors were inside `house_rect` (4225,790)-(4246,813)), but "the house we're in" was the 2D rect test: the
+  replan tile (4225,808) is the rect's one-tile rim, and the stairs top (4235,804) is inside the pieces'
+  bounding box, so its doors counted as ours and stayed open to the planner. The rect of a big house holds its
+  yard, porch and outside stairs.
+- **Fix (pathfind.Walkers.get).** `inside` is now (x, y, z), and a house counts as ours only when we're shut
+  in it: no walk from where we stand leaves its pieces' bounding box without stepping onto a door tile
+  (`Walkers._enclosed`, a flood fill with can_walk, cached per house and door layout; 4-17 ms here). From
+  (4225,808,0) and (4235,804,25) all 12 doors of 0xE9 are locked; from its interior (4235,800,25) none.
+  The Corpse Creek multi 0x154 (live 2026-10-02) is open on its east side (945,775), so standing at
+  (943,776) no longer unlocks its door either. test_pathfind.py checks the 16:43 geometry.
+- **Doors that refuse us are walls at once (agent_link.Mover).** When an open request is answered with
+  1061637 (`DOOR_REFUSED_CLILOC`), or the step is still denied after the second open request, that door tile
+  and the door leaves next to it are walls for the rest of the walk_to (`Mover.walled`, used by every plan
+  as hard tiles), and the walk replans at once, without the second request and without a session-long deny.
+  Nothing is remembered past the walk (user, 2026-10-11). `_try_door` no longer waits a "read" pause in an
+  urgent walk.
+- **Spell walls.** Jimii Hendrix said "In Sanct Ylem" at 16:46:03.27 (after the death). 1.47 s later three
+  items of graphic **0x4D1B** (tiledata "wall of stone": Impassable, NoShoot, Wall, height 18) appeared in a
+  row at (4186-4188,799,z0), with particle effects 0x376A on the same tiles; all three were deleted at
+  16:46:20.654 (15.9 s). Not RunUO's 0x0080-0x0082 [INFERENCE: none seen]. The field spells' art by
+  tiledata name: "Field of Poison" 0x3914-0x3929, "field of energy" 0x3946-0x3964 (Impassable), "field of
+  paralysis" 0x3967-0x398A, "Field of fire" 0x398C-0x399F; fire, poison and paralysis fields aren't
+  Impassable in tiledata. Lasting decoration uses the art too: fire field items at (1176-1182,1340-1349)
+  were in view 12:54-13:29 the same day.
+- **Fields are walls; dispel when boxed in (agent_link.Mover).** `FIELD_GRAPHICS` items are hard tiles for
+  every plan (passable ones too), and a step whose tile got a field after the plan is replanned without
+  being sent (no lasting deny: fields go). `Mover(dispel=...)`: when no route exists within the walk's bound
+  (`max_route`; unbounded walks: no route at all) but one runs through fields, the first field on it is
+  handed to `dispel(serial, item)` once per serial per walk_to; after a cast that went out the walk looks
+  for the field's delete for up to `FIELD_GONE_WAIT_S` (1 s) and replans. Without a dispel callable, or
+  when it returns False, the walk fails "no route" as before. test_mover.py checks both.
+
 ## A "thief" who killed: gorilkaenjoyer at witcher_105 (live 2026-10-10, Seer-17)
 
 Log: `logs/tasks/lumber-20261010-141818-e65c.log`. Junctures 780 (death), 781 (threat), 782 (task_failed). Store

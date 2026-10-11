@@ -47,6 +47,22 @@ STATE_REUSE_S = 0.1
 # Classic UO door art (0x0675-0x06F4). Shelter's inn doors in the demonstration
 # capture (0x06A5, 0x06AD, 0x06ED, 0x06EF) and the rental-room door (0x06E5) are in it.
 DOOR_GRAPHICS = range(0x0675, 0x06F5)
+# The server's answer to an open-door request at a door we may not use (live 2026-10-11 16:43:37,
+# a foreign house's door on an escape route): 500024 "Opening door..." then 1061637 "You are not
+# allowed to access this.", and the step stays denied. The door is a wall for the rest of the walk.
+DOOR_REFUSED_CLILOC = 1061637
+# Spell fields on the ground: walls for the planner (Mover.plan), dispelled when they cut the route
+# (Mover dispel). Wall of Stone ("In Sanct Ylem") is art 0x4D1B on Outlands, tiledata "wall of stone"
+# (live 2026-10-11 16:46:04: three in a row at 4186-4188,799 1.5 s after Jimii Hendrix's words, all
+# deleted 15.9 s later); not RunUO's 0x0080-0x0082 [INFERENCE: none of those seen]. The field spells'
+# art by tiledata name: "Field of Poison" 0x3914-0x3929, "field of energy" 0x3946-0x3964 (Impassable),
+# "field of paralysis" 0x3967-0x398A, "Field of fire" 0x398C-0x399F (the server lets you walk into
+# fire, poison and paralysis fields; tiledata doesn't flag them). Some are lasting decoration (fire
+# field art at 1176-1182,1340-1349, seen 12:54-13:29 the same day): they count too.
+FIELD_GRAPHICS = frozenset([0x4D1B, *range(0x3914, 0x392A), *range(0x3946, 0x3965), *range(0x3967, 0x398B),
+                            *range(0x398C, 0x39A0)])
+# After a dispel went out: how long to look for the field's delete before replanning.
+FIELD_GONE_WAIT_S = 1.0
 # Mobiles: shoving through one needs stamina (UOO; threshold unknown, RunUO needs
 # full stamina [INFERENCE]). Plans prefer going around (entering a mobile's tile
 # costs MOBILE_COST_X normal steps); after a denied shove that tile is a wall for
@@ -412,10 +428,15 @@ class Mover:
     held-key step cadence, run/walk routes, pauses and sidesteps. Plans on
     map data when the facet has it (use_map), else on walk memory.
 
-    guard(st) is called after every step outcome (timeouts, HP, stalls...)."""
+    guard(st) is called after every step outcome (timeouts, HP, stalls...).
+
+    Spell fields (FIELD_GRAPHICS) are walls for every plan. `dispel(serial, item) -> bool`, when
+    given, is called when fields cut the route and no way round exists within the walk's bound
+    (max_route): once per field serial per walk_to, True when the cast went out (the walk then
+    looks briefly for the field to go and replans). Without it a cut route fails as before."""
 
     def __init__(self, link: Link, memory: nav.WalkMemory, human,
-                 max_blocked: int = 12, guard=None, doors: bool = False, use_map: bool = True):
+                 max_blocked: int = 12, guard=None, doors: bool = False, use_map: bool = True, dispel=None):
         self.link = link
         self._source = memory        # memory.Memory (per-facet projection) or a fixed nav.WalkMemory
         self._mems = {}
@@ -425,6 +446,7 @@ class Mover:
         self.guard = guard or (lambda st: None)
         self.doors = doors
         self.use_map = use_map
+        self.dispel = dispel
         self.walkers = pathfind.Walkers()
         self.denied = set()          # (x, y, d) server denies seen this session (map planner)
         self.shove_denied = {}       # (x, y) -> monotonic time a shove into it was denied
@@ -442,6 +464,7 @@ class Mover:
         self.sticky = set()          # tiles of the route a danger replan left: cost STICKY_X (walk_to)
         self.danger_tiles = set()    # (x, y) around remembered monster sightings (travel_guard.remembered)
         self.replan_requested = False   # set by a guard (new danger): replan after this step
+        self.walled = set()          # (x, y) walls for this walk_to only: doors that refused us (walk_to)
 
     def in_danger(self, tile) -> bool:
         return tile in self.danger_tiles or any(cheb(tile, c) <= r for c, r in self.danger.values())
@@ -565,15 +588,43 @@ class Mover:
                 if m.get("x") is not None and serial_of(key) != me}
 
     # ---------------------------------------------------------------- map
-    def walk_map(self, st):
+    def walk_map(self, st, skip=()):
         """pathfind.Walk for the player's facet, or None (no map data there).
-        Ground items from the world model are added as dynamic objects; the doors of
-        houses we're not standing in are locked (Walkers.get `inside`)."""
+        Ground items from the world model are added as dynamic objects (but those whose
+        world key is in `skip`); the doors of houses we're not shut in are locked
+        (Walkers.get `inside`)."""
         if not self.use_map:
             return None
+        items = st["world"]["items"]
         return self.walkers.get(st["world"]["self"].get("map"),
-                                pathfind.ground_items(st["world"]["items"].values()),
-                                inside=tuple(self.link.pos(st)[:2]))
+                                pathfind.ground_items(v for k, v in items.items() if k not in skip),
+                                inside=tuple(self.link.pos(st)[:3]))
+
+    @staticmethod
+    def fields(st) -> dict:
+        """Spell fields on the ground now (FIELD_GRAPHICS): world key -> item."""
+        return {k: it for k, it in st["world"]["items"].items()
+                if it.get("graphic") in FIELD_GRAPHICS and it.get("container") is None and it.get("x") is not None}
+
+    @staticmethod
+    def fields_on(path, fields: dict) -> list:
+        """[(key, item)] of the `fields` a route of (x, y) tiles runs into, in route order: on a
+        tile it steps onto, or on a corner tile of a diagonal step (an Impassable field there
+        refuses the diagonal, pathfind.Walk.can_walk)."""
+        at = {}
+        for k, it in fields.items():
+            at.setdefault((it["x"], it["y"]), []).append((k, it))
+        out, seen = [], set()
+        for a, b in zip(path, path[1:]):
+            tiles = [tuple(b)]
+            if a[0] != b[0] and a[1] != b[1]:
+                tiles += [(b[0], a[1]), (a[0], b[1])]
+            for t in tiles:
+                for k, it in at.get(t, ()):
+                    if k not in seen:
+                        seen.add(k)
+                        out.append((k, it))
+        return out
 
     def step_walkable(self, st, cur, z, d) -> bool:
         """The client's own check right before a step: walkable from (cur, z) in
@@ -643,18 +694,33 @@ class Mover:
             closed += 1
         return closed
 
-    def _open_ahead(self, tile, z, opened: set, label: str, st=None):
+    def _open_ahead(self, tile, z, opened: dict, label: str, st=None):
         """The client's auto-open: facing a door on the next tile (right after the
         turn or step that faces it), the stock open-door request, once per door per
         route (PlayerMobile.TryOpenDoors on direction/position change). The client's
         own Auto Open Doors must be off: it follows the character (per-step
-        re-anchor) and would send a second request that shuts the door again."""
+        re-anchor) and would send a second request that shuts the door again.
+        `opened`: door tile -> len(link.events) when its request went out (door_refused)."""
         if not self.doors or tile in opened or not self.door_at(tile, st, z):
             return
-        opened.add(tile)
+        opened[tile] = len(self.link.events)
         log(f"{label}: facing the door at {tile}; opening it")
         self.link.act(actions.open_door())
         self.doors_opened += 1
+
+    def door_refused(self, mark: int) -> bool:
+        """The server refused an open-door request since event `mark` (DOOR_REFUSED_CLILOC)."""
+        return any(ev.get("ev") == "cliloc" and ev.get("cliloc") == DOOR_REFUSED_CLILOC
+                   for ev in self.link.events[mark:])
+
+    def _wall_door(self, tile, label: str, why: str):
+        """A door we may not use: its tile, and the door leaves next to it (a double door; a
+        house's doors share its access rule [INFERENCE: RunUO BaseHouse.CheckAccess]), are walls
+        for the rest of this walk_to. Not remembered past it (user, 2026-10-11)."""
+        st = self.link.state()
+        leaves = {tile} | {n for n in (nav.step(tuple(tile), d) for d in range(8)) if self.door_at(n, st)}
+        self.walled |= leaves
+        log(f"{label}: the door at {tuple(tile)} {why}; a wall for this walk ({sorted(leaves)})")
 
     def pace(self, run: bool, st=None):
         """Wait until the next step is due at the stock held-key cadence, mounted or
@@ -663,12 +729,13 @@ class Mover:
         st = st or self.link.state()
         self.human.pace_step(run, self.sent_at, bool(st["movement"].get("mounted")))
 
-    def _try_door(self, cur, d, run) -> bool:
+    def _try_door(self, cur, d, run, urgent: bool = False) -> bool:
         """A door still denied the step (closed again, or unseen): after a player's
-        reaction time, send the open-door request once more and retry the move.
-        True if the retry moved."""
+        reaction time (none in an urgent walk), send the open-door request once more and
+        retry the move. True if the retry moved."""
         log(f"move {d} from {cur} blocked by a door; opening it")
-        self.human.wait("read")
+        if not urgent:
+            self.human.wait("read")
         self.link.act(actions.open_door())
         self.doors_opened += 1
         self.pace(run)
@@ -711,7 +778,7 @@ class Mover:
             self._mems[facet] = m
         return m
 
-    def plan(self, st, goal, mobiles: bool = True, max_steps: int | None = None):
+    def plan(self, st, goal, mobiles: bool = True, max_steps: int | None = None, through_fields: bool = False):
         """(path of (x, y) tiles including the start, walk or None). Also points
         self.mem at the current facet's walk memory. Mobiles' tiles cost
         MOBILE_COST_X (shove through them if going around is longer); tiles
@@ -720,7 +787,9 @@ class Mover:
         regrouped into straight runs (nav.straighten), as a player walks them.
         `max_steps`: the map planner looks only for routes that short (None when there's
         none). A long map search runs the guard every pathfind.TICK_EVERY expansions, so a
-        threat raises out of it instead of waiting for the search to end."""
+        threat raises out of it instead of waiting for the search to end. Spell fields
+        (fields) and doors that refused us (walled) are walls; `through_fields`: as if the
+        fields weren't there (would a dispel open the way?)."""
         pos = st["movement"]["pos"]
         cur = (pos[0], pos[1])
         occ = self.occupied(st) - {cur}
@@ -739,9 +808,12 @@ class Mover:
         self.mem = self.mem_for(facet)
         # never walk over a known teleporter tile by accident (only onto one as the goal)
         goal_tile = getattr(goal, "center", None) if getattr(goal, "radius", None) == 0 else None
-        hard = hard | (self.teleporter_tiles(facet) - {goal_tile})
+        hard = hard | (self.teleporter_tiles(facet) - {goal_tile}) | self.walled
+        fields = self.fields(st)
+        if not through_fields:
+            hard |= {(it["x"], it["y"]) for it in fields.values()}
         diagonal_first = lambda: self.human.choice((True, False))  # noqa: E731
-        walk = self.walk_map(st)
+        walk = self.walk_map(st, skip=fields if through_fields else ())
         if walk is not None:
             path = pathfind.plan(walk, (pos[0], pos[1], pos[2]), goal,
                                  blocked_moves=self.denied, occupied=hard, cost_scale=cost, max_steps=max_steps,
@@ -785,12 +857,46 @@ class Mover:
         this many steps raises Abort("... detour ...") before a step of it is taken (a walk-memory
         route keeps to tiles walked before, so its length says nothing about a detour). None when
         the walk arrived. A danger replan favours the route it leaves (sticky, STICKY_X); a walk
-        that keeps replanning round creatures without getting nearer is boxed in (Abort)."""
+        that keeps replanning round creatures without getting nearer is boxed in (Abort). A door
+        the server refuses (DOOR_REFUSED_CLILOC, or still denied after a second open request) is a
+        wall until the walk ends (walled); spell fields are walls, dispelled when they cut the
+        route and there's no way round (Mover `dispel`)."""
         self.sticky = set()
+        self.walled = set()
         try:
             return self._walk_to(center_fn, radius, label, max_moves, z_ok, gate, goal_fn, urgent, stop, max_route)
         finally:
             self.sticky = set()
+            self.walled = set()
+
+    def _clear_fields(self, st, goal, max_route, cur, label: str, dispelled: set) -> bool:
+        """No route (within max_route): if one runs through spell fields, dispel the first field on
+        it not tried in this walk_to (Mover `dispel`), then look for it to go (FIELD_GONE_WAIT_S).
+        True when a dispel went out (replan); False: fields aren't what cuts the route, none is left
+        to try, or the cast didn't go out."""
+        if self.dispel is None:
+            return False
+        fields = self.fields(st)
+        if not fields:
+            return False
+        path, _ = self.plan(st, goal, mobiles=False, max_steps=max_route, through_fields=True)
+        if path is None:
+            return False
+        todo = [(k, it) for k, it in self.fields_on(path, fields) if serial_of(k) not in dispelled]
+        if not todo:
+            return False
+        key, it = todo[0]
+        serial = serial_of(key)
+        dispelled.add(serial)
+        log(f"{label}: route from {cur} cut by a field at ({it['x']}, {it['y']}) (0x{serial:08X}, graphic "
+            f"0x{it['graphic']:04X}); {len(path) - 1} steps through it; dispelling it")
+        if not self.dispel(serial, it):
+            log(f"{label}: the dispel didn't go out")
+            return False
+        gone = self.link.wait(lambda s: key not in s["world"]["items"], timeout=FIELD_GONE_WAIT_S, poll=0.05)
+        log(f"{label}: the field at ({it['x']}, {it['y']}) {'is gone' if gone is not None else 'is still there'}; "
+            f"replanning")
+        return True
 
     def _walk_to(self, center_fn, radius, label, max_moves, z_ok, gate, goal_fn, urgent, stop, max_route):
         gate = tuple(gate) if gate is not None else None
@@ -798,8 +904,8 @@ class Mover:
         best_route, stalled = None, 0  # danger replans since the planned route last got shorter (boxed in)
         committed_until = 0            # self.steps up to which a danger replan's route is kept (DANGER_COMMIT_STEPS)
         start_steps = self.steps
-        tried_doors = set()          # doors that denied a step: one more open request each
-        opened = set()               # doors opened ahead on this route (the client's auto-open)
+        opened = {}                  # door tile -> event mark of its open request in this walk (_open_ahead)
+        dispelled = set()            # field serials a dispel was tried on in this walk (_clear_fields)
         run = True                   # the client's Always Run is on: a player never walks a route
         mobile_wait_until = None
         while True:
@@ -816,6 +922,8 @@ class Mover:
             path, walk = self.plan(st, goal, max_steps=max_route)
             if path is None:
                 if self.plan(st, goal, mobiles=False, max_steps=max_route)[0] is None:
+                    if self._clear_fields(st, goal, max_route, cur, label, dispelled):
+                        continue
                     if max_route is not None and walk is not None:
                         raise Abort(f"{label}: no route within {max_route} steps from {cur} (a longer detour, "
                                     f"if any)")
@@ -858,6 +966,16 @@ class Mover:
                         f"replanning without sending it")
                     replan = True
                     break
+                if nxt in {(it["x"], it["y"]) for it in self.fields(st).values()}:
+                    # a field cast on the route after the plan: it goes away, so no lasting deny
+                    self.refused_steps += 1
+                    log(f"{label}: a field lies on {nxt} now; replanning without stepping into it")
+                    replan = True
+                    break
+                if nxt in opened and self.door_refused(opened[nxt]):
+                    self._wall_door(nxt, label, "refused to open (cliloc 1061637)")
+                    replan = True
+                    break
                 if pos[3] == d:              # already facing it (e.g. at the start of a route)
                     self._open_ahead(nxt, z, opened, label, st)
                 if urgent:
@@ -868,11 +986,19 @@ class Mover:
                     self._open_ahead(nxt, z, opened, label)
                     self.pace(run, st)
                     outcome = self.step(d, run)
-                if outcome == "blocked" and self.doors and nxt not in tried_doors \
-                        and self.door_at(nxt):
-                    tried_doors.add(nxt)
-                    if self._try_door(cur, d, run):
-                        outcome = "moved"
+                walled = False               # the step was denied by a door we may not use
+                if outcome == "blocked" and self.doors and self.door_at(nxt):
+                    if nxt in opened and self.door_refused(opened[nxt]):
+                        self._wall_door(nxt, label, "refused to open (cliloc 1061637)")
+                        walled = True
+                    else:
+                        mark = len(self.link.events)
+                        if self._try_door(cur, d, run, urgent):
+                            outcome = "moved"
+                        else:
+                            self._wall_door(nxt, label, "refused to open (cliloc 1061637)" if self.door_refused(mark)
+                                            else "still denies the step after opening it")
+                            walled = True
                 if outcome == "teleported":
                     replan = True
                     break
@@ -922,7 +1048,7 @@ class Mover:
                     me = self.link.state()["world"]["self"]
                     log(f"{label}: shove into {nxt} denied (stamina {me.get('stam')}/{me.get('stam_max')}); "
                         f"replanning")
-                else:
+                elif not walled:
                     if walk is not None:
                         self.denied.add((cur[0], cur[1], d))   # z-aware plans; don't pollute 2D memory
                     else:

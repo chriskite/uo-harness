@@ -58,10 +58,14 @@ def check(name, cond, detail=""):
 
 
 class FakeLink:
-    """A grid server: walls deny, doors deny until opened (0x12 0x58 next to them)."""
+    """A grid server: walls deny, doors deny until opened (0x12 0x58 next to them); a `locked`
+    door answers the open request with 500024 + 1061637 and stays shut (live 2026-10-11 16:43:37).
+    `fields`: {serial: (x, y, graphic)} spell fields on the ground (walls here)."""
 
     def __init__(self, start, facing, walls=(), doors=(), mobiles=(), can_shove=True, z=0, z_walk=None,
-                 teleports=None, deny_teleports=None, gates=None):
+                 teleports=None, deny_teleports=None, gates=None, locked=(), fields=None):
+        self.locked = {tuple(d) for d in locked}
+        self.fields = dict(fields or {})
         # tile -> (gump serial, gump id, layout) a moongate there opens when stepped onto (sent
         # before the step's confirm, never closed by the server; captures 20260930_100200 ...)
         self.gates = dict(gates or {})
@@ -96,7 +100,7 @@ class FakeLink:
             if nxt in self.deny_teleports:
                 self.pending_jump, self.jump_armed = self.deny_teleports[nxt], False
                 return "OK"
-            if nxt in self.walls or self.doors.get(nxt) is False:
+            if nxt in self.walls or self.doors.get(nxt) is False or nxt in {f[:2] for f in self.fields.values()}:
                 self.denies.append(nxt)
                 return "OK"
             if any((m[0], m[1]) == nxt and m[2] > 0 for m in self.mobiles):
@@ -123,7 +127,10 @@ class FakeLink:
             self.door_reqs.append((tuple(self.here), self.facing))
             for door in self.doors:
                 if nav.chebyshev(door, tuple(self.here)) <= 1:
-                    self.doors[door] = True
+                    if door in self.locked:
+                        self.events += [{"ev": "cliloc", "cliloc": 500024}, {"ev": "cliloc", "cliloc": 1061637}]
+                    else:
+                        self.doors[door] = True
         return "OK"
 
     def act(self, pkt):
@@ -142,6 +149,7 @@ class FakeLink:
                  for i, d in enumerate(self.doors)}
         items.update({f"0x{0x40001000 + i:08X}": {"graphic": 0x0F6C, "x": g[0], "y": g[1], "z": 0}
                       for i, g in enumerate(self.gates)})
+        items.update({f"0x{s:08X}": {"graphic": g, "x": x, "y": y, "z": 0} for s, (x, y, g) in self.fields.items()})
         mobiles = {f"0x{0x100 + i:08X}": {"x": m[0], "y": m[1]} for i, m in enumerate(self.mobiles) if m[2] > 0}
         return {"movement": {"pos": [*self.here, self.z, self.facing], "inflight": 0, "self_serial": 1,
                              "stalled": False, "rejects_in_row": 0},
@@ -536,9 +544,108 @@ def test_moongate_gumps():
           f"{[r.hex() for r in link.replies]}")
 
 
+LOOP = {(1, 1), (1, 2), (2, 3), (3, 3), (4, 3), (5, 2), (5, 1)}     # a detour below HALLWAY's (3, 0)
+
+
+def test_locked_door():
+    print("== a door the server refuses (1061637): no second request, a wall for the walk, round it ==")
+    # live 2026-10-11 16:43:37-41: a foreign house's double door on an escape route took two open
+    # requests and two denies per leaf (~4 s) while a PK hit Dan
+    link = FakeLink((0, 0), facing=2, doors=[(3, 0)], locked=[(3, 0)])
+    mv = map_mover(link, HALLWAY | LOOP)
+    mv.doors = True
+    mv.walk_to(lambda: (6, 0), 0, "t", urgent=True)
+    check("arrived round the door", tuple(link.here) == (6, 0), str(link.here))
+    check("one open request (the auto-open ahead), no retry after the refusal",
+          link.door_reqs == [((2, 0), 2)], str(link.door_reqs))
+    check("at most one step sent into the door", link.denies.count((3, 0)) <= 1, str(link.denies))
+    check("the door's wall ends with the walk (nothing remembered)", mv.walled == set() and
+          not any(m[:2] == (2, 0) for m in mv.denied), f"{mv.walled} {mv.denied}")
+
+
+FIELD = 0x40002000
+
+
+def test_fields():
+    print("== spell fields: walls for the planner; dispelled once when one cuts the only route ==")
+    td = agent_link.uomap.tiledata()
+    names = {"wall of stone", "field of energy", "field of fire", "field of poison", "field of paralysis"}
+    bad = sorted(hex(g) for g in agent_link.FIELD_GRAPHICS
+                 if td.item(g) is None or (td.item(g).name or "").lower() not in names)
+    check("every FIELD_GRAPHICS art is a field or wall of stone in tiledata", not bad, str(bad))
+
+    def dispeller(link, vanish=True):
+        calls = []
+
+        def dispel(serial, item):
+            calls.append((serial, item["x"], item["y"]))
+            if vanish:
+                link.fields.pop(serial, None)
+            return True
+        return dispel, calls
+
+    # a Wall of Stone (0x4D1B, live 2026-10-11 16:46:04) across a one-tile corridor
+    link = FakeLink((0, 0), facing=2, fields={FIELD: (3, 0, 0x4D1B)})
+    mv = map_mover(link, HALLWAY)
+    mv.dispel, calls = dispeller(link)
+    msg = walk_msg(mv, (6, 0))
+    check("the field cutting the corridor is dispelled once and the walk goes on",
+          msg == "arrived" and calls == [(FIELD, 3, 0)] and link.denies == [], f"{msg} {calls} {link.denies}")
+
+    link = FakeLink((0, 0), facing=2, fields={FIELD: (3, 0, 0x4D1B)})
+    mv = map_mover(link, HALLWAY)
+    mv.dispel, calls = dispeller(link, vanish=False)
+    msg = walk_msg(mv, (6, 0))
+    check("a field still there after its dispel isn't tried again: no route",
+          "no route" in msg and calls == [(FIELD, 3, 0)], f"{msg} {calls}")
+
+    link = FakeLink((0, 0), facing=2, fields={FIELD: (3, 0, 0x4D1B)})
+    mv = map_mover(link, HALLWAY)
+    msg = walk_msg(mv, (6, 0))
+    check("no dispel callable: today's failure, nothing sent into the field",
+          "no route" in msg and link.denies == [] and tuple(link.here) == (0, 0), f"{msg} {link.denies} {link.here}")
+
+    # fire fields (0x398C) are passable to the server and tiledata; the planner still goes round
+    link = FakeLink((0, 0), facing=2, fields={FIELD: (2, 0, 0x398C), FIELD + 1: (2, 1, 0x398C)})
+    mv = map_mover(link, OPEN)
+    mv.dispel, calls = dispeller(link)
+    msg = walk_msg(mv, (4, 0))
+    check("a way round within the bound: walked round, no dispel",
+          msg == "arrived" and calls == [] and link.denies == [], f"{msg} {calls} {link.denies}")
+
+    # the bound decides: a way round longer than max_route (an escape's) is no way round
+    link = FakeLink((0, 0), facing=2, fields={FIELD: (3, 0, 0x4D1B)})
+    mv = map_mover(link, HALLWAY | LOOP)
+    mv.dispel, calls = dispeller(link)
+    mv.walk_to(lambda: (6, 0), 0, "t", max_route=6, urgent=True)
+    check("the 8-step way round exceeds max_route 6: dispelled, then straight through",
+          calls == [(FIELD, 3, 0)] and tuple(link.here) == (6, 0) and mv.steps == 6, f"{calls} {link.here} {mv.steps}")
+    link = FakeLink((0, 0), facing=2, fields={FIELD: (3, 0, 0x4D1B)})
+    mv = map_mover(link, HALLWAY | LOOP)
+    mv.dispel, calls = dispeller(link)
+    mv.walk_to(lambda: (6, 0), 0, "t", max_route=8)
+    check("within max_route 8: walked round, no dispel", calls == [] and tuple(link.here) == (6, 0), f"{calls}")
+
+    link = FakeLink((0, 0), facing=2)
+    mv = map_mover(link, HALLWAY | LOOP)
+    orig = link.state
+
+    def state():
+        if tuple(link.here) == (1, 0) and not link.fields:      # cast onto the route mid-walk
+            link.fields[FIELD] = (3, 0, 0x3946)
+        return orig()
+    link.state = state
+    msg = walk_msg(mv, (6, 0))
+    check("a field cast on the route after the plan: replanned round it without stepping in",
+          msg == "arrived" and link.denies == [] and mv.refused_steps == 1 and not mv.denied,
+          f"{msg} denies {link.denies} refused {mv.refused_steps} denied {mv.denied}")
+
+
 def main():
     test_no_walk_into_known_wall()
     test_door()
+    test_locked_door()
+    test_fields()
     test_shove_through()
     test_go_around_when_cheap()
     test_object_arrives_after_plan()

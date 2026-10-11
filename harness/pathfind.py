@@ -41,6 +41,7 @@ class Walkers:
 
     def __init__(self):
         self._walks = {}
+        self._shut = {}              # (facet, rect, doors) -> {(x, y, z): enclosed?} (_enclosed)
 
     def get(self, facet, ground=(), inside=None) -> "Walk | None":
         """The Walk for `facet` (None: no geometry there), with `ground` =
@@ -48,11 +49,15 @@ class Walkers:
         (ground_items builds it). A multi (a house) stands for its pieces from
         multi.mul, placed around its tile like the client does (Item.LoadMulti);
         the client's pathfinder never uses the multi's own graphic. `inside`: the
-        walker's (x, y); then the doors of every house it isn't standing in are
+        walker's (x, y, z); then the doors of every house it isn't shut in are
         `locked` (another player's house doesn't open to us: live 2026-10-05 an
         escape route through such a door stopped at it and Outland Dan died). A
         house's doors are separate door items (multi.mul pieces have none) on or
-        next to its footprint (house_rect)."""
+        next to its footprint (house_rect). Shut in = no walk from `inside` leaves the
+        house's pieces without stepping onto a door tile (_enclosed): standing on a
+        house's porch, yard or outside stairs is outside it (live 2026-10-11 16:43:35,
+        multi 0xE9 at 4235,802: its rect held the escape route's tile 4225,808 and its
+        outside stairs, so its doors counted as ours and Dan lost 4 s at a locked door)."""
         facet = 0 if facet is None else facet
         if facet not in MAP_FACETS:
             return None
@@ -75,17 +80,51 @@ class Walkers:
                 index.setdefault((x, y), []).append((g, z))
                 singles.append((x, y, g))
         w.dynamic = lambda x, y: index.get((x, y), ())
-        foreign = [r for r in houses if not _in_rect(inside, r)] if inside is not None else []
-        locked = set()
-        if foreign:
-            td = uomap.tiledata()
-            for x, y, g in singles:
-                it = td.item(g)
-                if it is not None and it.flags & uomap.DOOR and any(_in_rect((x, y), r) for r in foreign):
-                    locked.add((x, y))
-        w.locked = frozenset(locked)
+        w.locked = frozenset()
         w.clear()
+        if inside is None or not houses:
+            return w
+        td = uomap.tiledata()
+        doors = [(x, y) for x, y, g in singles if (it := td.item(g)) is not None and it.flags & uomap.DOOR]
+        start = (int(inside[0]), int(inside[1]), int(inside[2]))
+        locked = set()
+        for r in houses:
+            mine = frozenset(t for t in doors if _in_rect(t, r))
+            if mine and not self._enclosed(facet, w, r, mine, start):
+                locked |= mine
+        w.locked = frozenset(locked)
         return w
+
+    def _enclosed(self, facet, walk: "Walk", rect, doors: frozenset, start) -> bool:
+        """Whether `start` (x, y, z) is shut in by the house of `rect`: no walk from it reaches a
+        tile off the house's pieces (rect less its one-tile rim) without stepping onto a door
+        tile. Every node the search reaches gets the same answer (they connect), cached per
+        house and door layout, so a walk through or past a house searches it once."""
+        if not _in_rect(start, (rect[0] + 1, rect[1] + 1, rect[2] - 1, rect[3] - 1)):
+            return False
+        key = (facet, rect, doors)
+        known = self._shut.get(key)
+        if known is None:
+            if len(self._shut) > 64:
+                self._shut.clear()
+            known = self._shut[key] = {}
+        if start in known:
+            return known[start]
+        inner = (rect[0] + 1, rect[1] + 1, rect[2] - 1, rect[3] - 1)
+        seen, todo, shut = {start}, [start], True
+        while todo:
+            x, y, z = todo.pop()
+            if not _in_rect((x, y), inner) or known.get((x, y, z)) is False:
+                shut = False
+                break
+            for d in range(8):
+                n = walk.can_walk(x, y, z, d)
+                if n is not None and n not in seen and n[:2] not in doors:
+                    seen.add(n)
+                    todo.append(n)
+        for n in seen:
+            known[n] = shut
+        return shut
 
     def put(self, facet, walk: "Walk"):
         """Use `walk` for `facet` (tests with synthetic geometry)."""

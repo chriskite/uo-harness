@@ -1209,10 +1209,37 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     once, and runs again after a disturbed cast. Since 2026-10-09 the same when none is that near: one
     standing cast at once, and if it fails, run, then cast, never escape.escape's standing recasts
     (live that day at witcher_193 red "mauna kea" came from 18 tiles and disturbed six standing casts in
-    8 s; user: "so we don't stand still getting wailed on"). After 3 failed casts the guard flight,
-    when a guarded place is known (`guard_goals`); with none (witcher_193: none within 250 tiles) it
-    runs and casts on until a recall lands or we die (docs/PLAN.md "Leave on faction tags and on
-    precasts"; `unit_run_and_recall`).
+    8 s; user: "so we don't stand still getting wailed on"). Since 2026-10-11 the running heads for the
+    nearest guarded place reachable on foot, any distance (next item); with none reachable (an island,
+    none known, a search that couldn't decide) it runs away and casts on until a recall lands or we die
+    (docs/PLAN.md "After the witcher_180 death"; `unit_run_and_recall`).
+  - **Running to the guards (since 2026-10-11; user after Dan's 16:44 death at witcher_180: "ideally we'd
+    run towards the nearest guard zone no matter how far away it is. Unless we're trapped on an island in
+    which case our only choice is to recall"; `guard_route`, `guard_leg`, `harness/guards.py`):** the
+    guarded places are the learned guard points and the bank markers on our facet (`guards.flee_goals`,
+    no distance cap since FLEE_MAX_DIST 250 is gone; with an attacker within 12 tiles, places nearer to
+    him than to us are dropped). The way there is `guards.plan_route`: a weighted A* (heuristic × 3)
+    over the map's walkability, answering `reached` (a route), `island` (every tile reachable on foot
+    searched, none guarded) or `undecided` (budget spent). Before each trip leaves home
+    (`guard_route_ready`, with the wards) the route from the spot's centre is planned within 150 000
+    expansions (up to ~7 s, enough to call Nusero Island an island) and cached in the store
+    (meta `lumber_guard_routes`, keyed by facet, spot, centre and the set of guarded places); an escape
+    within the area's radius + 30 tiles uses it at once, elsewhere it plans from where it stands within
+    20 000 expansions (~1 s cold; measured: 33 of 40 random spots reached in 0.04–1.6 s). Without map
+    data (the simulator's `--no-map`) the route is the straight line (`unmapped`). The run goes in legs
+    of 40 route tiles (`GUARD_LEG_STEPS`), each planned by the Mover like an escape route (twice its
+    distance at most), urgent, mode `gap`. A leg ends early once every player we run from is 18 tiles
+    off or out of view (`gap_clear`): then the recall cast (a heal spell first at low hits, below); a
+    failed cast is followed by a whole leg; while he stays within the gap there is no cast at all. A leg
+    with one of them within 12 tiles and nearer its tile than we are, or no short way, is a run away and a
+    cast instead. Arriving (the place reached, or the town's 500112 on the way, also during a run away):
+    "guards" if a hostile player is within 12 tiles, a `guard_flight` job event (with `route`: status,
+    steps, goal, expansions, seconds, source; `casts` on the way) and an urgent `pk_escape`
+    (`method: guards`), then the run stops there. The `recall` job event carries the escape's `guards`
+    route summary (or `{"status": "none known"}`). Scenarios `guard_run` (270 tiles with a red at our
+    heels, no cast, 500112, "guards"), `pk_island` (none to run to: run away and recall), `unit_guard_route`;
+    `test_guards.py` `test_plan_route` (a synthetic island) and `test_plan_route_map` (the 16:44 death
+    spot reaches Anchor's Rest's bank, 688 steps in 0.3 s; Nusero is an island).
   - **Retries (since 2026-10-03, docs/research/SPELL_INTERRUPTS.md):** it recasts until the
     recall lands, the character dies, the spell can't be cast (heat of battle, no reagents or
     mana, unmarked, blocked) or 20 s after the first press (`escape.ESCAPE_BUDGET_S`); there is
@@ -1224,26 +1251,22 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     melee hit; the job event's `tries` now carry `cast_s` (how far each cast got) and `wait_s`.
   - **After landing:** the `threat` juncture (`action: recall`), an urgent `pk_escape` juncture
     and a `recall` job event, then the run stops without converting.
-  - **Guard flight when the recall fails (since 2026-10-02, docs/PLAN.md "Guard flight";
-    `harness/guards.py`):** a failed escape at a pvp spot (until 2026-10-04 also no book, `--recall off`): the runner
-    runs (`Mover.walk_to(..., goal_fn=nav.any_of(goals), urgent=True)`: no pauses, sidesteps or
-    reading waits; a walk at stamina ≤ 1 like the stock client) to the nearest learned guard
-    point or bank marker within 250 tiles, avoiding ones nearer the attacker. It stops on the
-    server's 500112 or on arrival. There it says "guards" if a hostile player is within 12
-    tiles, posts a `guard_flight` job event and an urgent `pk_escape` (`method: guards`) and
-    stops. Nothing in range, no route or a blocked way: it stops in place with `why: recall
-    failed …` / `no recall book`, as before. During the flight only death and the 500112 count:
-    no timeout, HP, creature or speech checks.
+  - **Guard flight without a recall (since 2026-10-02, docs/PLAN.md "Guard flight"; `flee_to_guards`):** at a
+    pvp spot with no recall book, and after a tracked red's standing recall failed, the runner runs to the
+    guards the same way (`guard_route`, `guard_leg` legs; any distance since 2026-10-11) with no casts; a
+    walk at stamina ≤ 1 like the stock client. No guarded place reachable, or a leg that can't go: it stops
+    in place with `why: recall failed …` / `no recall book`, as before. While running only death, the hits
+    on the way (`flight_hit`) and the 500112 count: no timeout, HP, creature or speech checks.
   - **Live check (TestWorth, Test Shard):** the runner's path with a fake red, 2.11 s from press
     to arrival. `test_escape.py` pins the gump parsing on the captured layouts.
-- **Self care: potions at any moment, spells between chops (since 2026-10-06/07; docs/PLAN.md "Healing
+- **Self care: potions at any moment, spells between chops and before a getaway's recall (since 2026-10-06/07; docs/PLAN.md "Healing
   on the run"; `healing.SelfCare`, `healing.care_spell`, `LumberLoop.flee_aid` / `self_care` /
   `care_cast`):** the user's Razor 'PK Getaway' script (Jaseowns) without its moongates: we recall
   instead. It began with the two PK deaths of 2026-10-06 (~100 hits lost in ~4 s while recall casts
   were disturbed, docs/NOTES.md, witcher_66 and witcher_162). On 2026-10-07 Dan took a ranged hit
   to 75/100 at witcher_20 (lumber-20261007-213615-1a70, 21:44:22) and chopped on hurt: the aid only
   ran during getaways, at 25 % missing, and couldn't see his potions in a bag.
-  - **Potions, when:** every guard check. In a getaway (`gap`, `flee`, `escape`) first thing,
+  - **Potions, when:** every guard check. In a getaway (`gap`, `escape`) first thing,
     before the `stalled` check, so a paralysis is popped before refused steps end the run. Standing:
     once in `recall_out` before `escape.escape`, and between its tries (`escape.escape(between=...)`,
     with `frozen_hint` when the server said "You cannot cast a spell while frozen."). In `work`
@@ -1264,7 +1287,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     included (`healing.in_pack`): drunk by serial with one double-click and no bag opened, as
     Razor's `findtype … backpack` / `potion "heal"` do (Razor CE `Item.FindItemsById(recurse:
     true)`, `PlayerData.UseItem`; ANTICHEAT.md "Exception: potions and the trapped pouch").
-  - **Spells, between chops only** (`self_care` at the start of `attempt()`, when no potion went):
+  - **Spells between chops** (`self_care` at the start of `attempt()`, when no potion went):
     `care_spell` with Magery ≥ 60 (`SPELL_MIN_MAGERY`, the script's branch) and Recall's 11 mana kept
     for the way home: poisoned → Cure; else from 15 hits missing (`SPELL_HEAL_MIN_MISSING`, the
     script's floor) Heal or Greater Heal by `healing.choose`'s mana break-even (Greater Heal from 25
@@ -1272,9 +1295,30 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     30–59, reads inverted). `care_cast`: 0xFF sub 4, the cursor answered with ourselves
     (`combat.target_self`), reagents declared spent to the ledger (none with a spellstone); no
     cursor (fizzle, refusal) is let go; "more reagents needed" stops that spell for the run. The
-    cast puts the hatchet in the pack; the next hatchet double-click equips it again. No spells in a
-    getaway: casting holds the run [INFERENCE: RunUO Spell.BlocksMovement] and the cast slot is the
-    recall's.
+    cast puts the hatchet in the pack; the next hatchet double-click equips it again.
+  - **A heal spell before a getaway's recall cast (since 2026-10-11; user after Dan's 16:44 death: hits
+    63 → 41 → 24 → 4 with 100 mana unused while 12 recall casts were disturbed, "GHeal takes longer to cast
+    than mini-heal (In Mani) so mini-heals are harder to interrupt. Up to you how to choose which to cast";
+    `escape_heal`, `healing.escape_spell`):** right before each player-escape recall cast (after a run leg,
+    and before the first standing cast), below 60 % of max hits (`ESCAPE_HEAL_BELOW`) with no heal potion
+    to drink now (`SelfCare.heal_ready`: none, or its clock running; one that can go is `recall_out`'s
+    flee_aid). Pressed (a player we run from within 12 tiles, or a hits drop within 2 s,
+    `ESCAPE_HEAL_QUIET_S`): Heal, the 0.5 s cast (wiki Magery: 1st circle 0.50 s, knowledge #11581;
+    PvP (6..9) × Magery/100, 5–7 hits at 80.2, #11580). Else (the usual case: the cast comes with the gap
+    open, 18 tiles): Greater Heal, 1.25 s (live words-to-effect 1.27 s over 120 casts,
+    docs/research/SPELL_INTERRUPTS.md), 32–40 hits, or Heal when it can't be paid. Either keeps Recall's
+    11 mana and reagents (`healing.recall_safe_lack`: a second mandrake root for Greater Heal). One
+    standing cast (`care_cast(standing=True)`: plain waits, `ESCAPE_HEAL_CURSOR_WAIT_S` 2.0 s for the
+    cursor, 0.6 s for the hits), then the recall either way: a disturbed heal answers 500641 at once and
+    `escape.escape` waits out the 502644 recovery without counting a cast. Recorded as a `flee_aid` event
+    (kind `spell`, standing, mode `gap`, `failure`: null or e.g. `disturbed`). Scenario `escape_heal`,
+    `unit_escape_heal`, `test_healing.py` `escape_heals`.
+  - **Dispel Field on a wall in the way (since 2026-10-11; user: "PKs will also cast walls as Jimi Hendrix
+    did (In Sanct Ylem) which we can dispel with the spell Dispel Field"; `dispel_field`, passed to the
+    Mover as `dispel`):** when spell fields cut a walk's route with no way round (agent_link.Mover, docs/NOTES.md),
+    the runner casts Dispel Field (5th circle, 14 mana, "An Grav") and answers the cursor with the field item,
+    keeping Recall's 11 mana and its black pearl; reagents declared spent; a `dispel` job event (field,
+    tile, ok, failure). `unit_dispel_field`.
   - **Spacing:** no two uses within `USE_GAP_S` 0.55 s; a kind used recently is skipped for its
     retry gap (`RETRY_S`: pouch 1.0 s, cure 1.5 s, refresh and strength 3 s) and the next kind may
     go. Before the runebook's double-click `recall_out` sleeps until `SelfCare.ready_at()` (the last
@@ -1515,7 +1559,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   `harness/data/lumber_spots.json` plus the store's `lumber_spots` rows
   (`lumber_opt.load_spots`); a disabled or unknown spot aborts at once. Its area, seed
   trees and `pvp` flag are merged over `loops/lumber.json`, which keeps the demonstration's texts,
-  captcha shape and conversion. `pvp: false` skips the tracking escape and the guard flight; the
+  captcha shape and conversion. `pvp: false` skips the tracking escape and the guard flight without a recall; the
   way home (our book) is required everywhere. The per-venue `loops/lumber_*.json` files are gone.
 - **Trees:** candidates are the spot's seed trees plus every tree static in its area, all of them
   by default (`--max-trees 0`; it was 8 per trip, which capped a trip at ~180 logs). Trees out of

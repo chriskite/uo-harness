@@ -1354,6 +1354,46 @@ in view: recall) is the backstop. Reds beyond the range also stop counting as th
 - **witcher_211 disabled (user, 2026-10-10):** its landing rune (3939,1159) met a brigand swarm on all
   three visits of 2026-10-09/10.
 
+## After the witcher_180 death: run to the guards, any distance; heal spells in a getaway; Dispel Field (decided and built offline 2026-10-11)
+
+Outland Dan died at witcher_180 (`lumber-20261011-163321-38d5`, 16:43:14-16:44:17): red Jimii Hendrix
+came into view, and over a minute all 12 recall casts were disturbed (0.12-1.88 s into the cast) while Dan's
+hits went 63 → 41 → 24 → 4 with 100 mana unused; the run toward 18 tiles ran into a player house's doors
+(4235,803)/(4236,803) ("You are not allowed to access this.", cliloc 1061637, ~4 s lost); the guard flight
+came only after the casts and found "no guarded place known within 250 tiles" (the nearest, Anchor's Rest's
+bank, lies 440 tiles off and is reachable on foot: 688 steps). User decisions (docs/LUMBER_LOOP.md §13):
+- **Run to the guards, any distance** (user: "ideally we'd run towards the nearest guard zone no matter how far
+  away it is. Unless we're trapped on an island in which case our only choice is to recall"). The player
+  escape's running now heads for the nearest guarded place reachable on foot from the start, in legs of 40
+  route tiles, casting only while the gap (18 tiles) is open; arriving calls the guards. FLEE_MAX_DIST,
+  FLEE_MAX_MOVES and PLAYER_RECALL_TRIES are gone. Reachability: a weighted A* (heuristic × 3) over the map
+  (`guards.plan_route`), planned per spot before each trip (cached in the store; up to 150 000 expansions, ~7 s
+  cold, which is enough to call Nusero Island an island) and from where we stand at escape time away from the
+  spot (20 000 expansions, ~1 s; it reached 33 of 40 random spots' guards in 0.04-1.6 s). No route (an island,
+  none known, undecided): run away and recall as before. Rejected: a whole-facet landmass map (29 M tiles at
+  ~20 000 walkability expansions/s in Python: ~25 min and gigabytes; the per-spot cache gives the same answer
+  where we work); the unweighted planner at escape time (300 000 expansions, 3.1 s for the death spot's route,
+  beyond the Mover's 30 000-expansion plans); keeping the guard flight behind N failed casts (Dan's 12 casts);
+  casting every 60 steps with him at our heels (each such cast was disturbed).
+- **Heal spells in a getaway** (user: "GHeal takes longer to cast than mini-heal (In Mani) so mini-heals are
+  harder to interrupt. Up to you how to choose which to cast"). Right before a player-escape recall cast, below
+  60 % hits with no heal potion to drink now: Heal (0.5 s cast) when pressed (a foe within spell range or a hit
+  within 2 s), else Greater Heal (1.25 s, 32-40 hits; Heal heals only 5-7 in PvP at Magery 80.2), Heal when
+  Greater Heal can't be paid; Recall's mana and reagents kept; one cast, the recall either way. Rejected: Heal
+  always (it can't keep up with 17-22 hits an exchange), Greater Heal always (its 1.25 s is where the casts
+  broke), a spell when a potion can go (the potion costs no cast).
+- **Dispel Field** (user: "PKs will also cast walls as Jimi Hendrix did (In Sanct Ylem) which we can dispel with
+  the spell Dispel Field if they block our path"): the Mover calls the runner's `dispel_field` when fields cut
+  its route with no way round; it keeps Recall's mana and black pearl. Doors and walls in the Mover itself:
+  docs/NOTES.md.
+- **Locked doors are walls at once** (user: "I don't think we need to remember that as long as the mover/world
+  state updates quickly and treats the locked doors as walls"). The house had been recognised. The 'are we
+  inside it' test was a 2D rectangle, and Dan's tile on its rim (and the outside stairs) counted as inside. It is
+  now a flood fill with the doors as walls. A door answering 1061637 is walled for the rest of that walk, and
+  nothing is kept afterwards (docs/NOTES.md "Locked house doors and spell walls").
+- **Running away from players:** `escape_tiles` took its direction from creature zones only. With a player
+  alone it ran due east whichever side he came from; the players' positions now count too.
+
 ## Wards kept up: Magic Reflection and Reactive Armor (decided 2026-10-09, built 2026-10-10)
 
 The user believed Magic Reflection was already a required step of the lumber loop, but it never was: only the
