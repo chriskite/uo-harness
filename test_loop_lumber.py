@@ -297,11 +297,11 @@ def label_pkt(serial, name, text):
                + name.encode().ljust(30, b"\x00") + text.encode() + b"\x00")
 
 
-def book_gump():
+def book_gump(charges=10):
     """Our runebook: the captured layout and texts with two runes, entry 0 'Sim Woods' (BOOK_RUNE_POS) and
-    the default entry 1 'Home' (the home landing), their sextant lines as the server prints them."""
+    the default entry 1 'Home' (the home landing), their sextant lines as the server prints them; `charges`."""
     lines = list(BOOK_GUMP["lines"])
-    lines[1], lines[4] = "10", "Sim Woods"
+    lines[1], lines[4] = str(charges), "Sim Woods"
     lines[6:10] = [*escape.tile_to_sextant(*BOOK_RUNE_POS), *escape.tile_to_sextant(*HOME_RUNE_POS)]
     lines.append("Home")
     return BOOK_GUMP["layout"].replace("{ croppedtext 305 60 115 17 81 4 }", "{ croppedtext 305 60 115 17 81 10 }"), lines
@@ -536,6 +536,7 @@ class World:
         self.room_log = []                # ("enter" | "exit", time) of every way into and out of the room
         self.keeper_far = 0               # the steward's menu picked from beyond 2 tiles (refused)
         self.shelf_stock = None           # {"room": n, "landing": n} trapped pouches per shelf; None: no shelves
+        self.book_charges = 10            # our runebook's charges as its gump shows them (resupply_book: 3)
         self.horse = None                 # our bonded horse off the mount: {"dead": bool}; None: no horse
         self.mounted = False              # riding it (the mount item on layer 0x19)
         self.mount_rested = 0             # times the guild house sent the ridden mount to rest
@@ -756,7 +757,8 @@ class World:
         for s in fresh:
             self.pouch_hue[s] = 38
             self.send(self.pouch_pkt(s))
-        axes = min(max(0, self.loadout_hatchets - len(self.hatchet_left)), self.shelf_hatchets[which])
+        want_axes = max(0, self.loadout_hatchets - len(self.hatchet_left))
+        axes = min(want_axes, self.shelf_hatchets[which])
         gone = set(self.broke) | {c for c, _ in self.chest_items}
         new = [s for s in SHELF_HATCHETS if s not in self.hatchet_left and s not in gone][:axes]
         for s in new:
@@ -764,7 +766,9 @@ class World:
             self.hatchet_left[s] = HATCHET_USES
             self.send(contained(s, 0x0F44, 1, BACKPACK))
         self.resupplies.append((which, len(fresh)))
-        if not fresh and not new:
+        if not need and not want_axes:                  # nothing wanted (live 2026-10-11: "resupplied (room): nothing")
+            self.send(sys_text("Resupply complete."))
+        elif not fresh and not new:
             self.send(sys_text("Unable to resupply: no items available."))
         elif len(fresh) < need:
             self.send(sys_text("No resupply: Trapped Pouch"))
@@ -1503,7 +1507,7 @@ class World:
                 if self.foe_pos is not None:                # faction/precast/red_aim: how far the foe was
                     self.book_dists.append(self.cheb(self.foe_pos))
                 self.book_gumps.add(self.next_gump())
-                self.send(gump(self.gump_serial, 0x5C7DB029, *book_gump()))
+                self.send(gump(self.gump_serial, 0x5C7DB029, *book_gump(self.book_charges)))
         elif pid == 0xFF and p[3:7] == u32(4):                 # a spell cast (0xFF sub 4)
             self.cast_spell(int.from_bytes(p[8:10], "big"))
         elif pid == 0x6C:
@@ -2648,7 +2652,8 @@ async def horse_follows():
     world = World("ghost_horse")
     world.horse = {"dead": False}
     world.no_ride_home = True
-    world.shelf_stock = {"room": 0, "landing": 0}
+    world.pouch_hue = {}                               # the room's shelf lacks the pouches: out to the landing's
+    world.shelf_stock = {"room": 0, "landing": 3}
 
     def remembered(db):                               # an earlier run knew the horse as ours (live: own_mounts)
         import mount as mount_mod
@@ -3474,6 +3479,24 @@ async def resupply():
           [r["where"] for r in res] == ["room", "landing"] and res[0]["none_available"] and res[0]["added"] == []
           and [(a["amount"], a["hue"]) for a in res[1]["added"]] == [(1, 38)] * 3 and res[1]["missing"] == [],
           str(res)[:600])
+    store.close()
+
+
+async def resupply_book():
+    """User 2026-10-11 ("Recalls should be available on the guild shelf"): the room shelf gives everything else but
+    holds no recall scrolls, so our book read 3 charges at the start: out of the room to the landing's shelf (it
+    recharges books), then the trip. With a full book (the `resupply` scenario's other runs) the room shelf is enough."""
+    print("\n== resupply: the book short of charges -> the landing's shelf too ==")
+    world = World("home")
+    world.scripted = False
+    world.book_charges = 3
+    world.shelf_stock = {"room": 3, "landing": 3}
+    text, code, store, _ = await run_scenario(world, "resupply_book", [GOOD_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "10", "--human", "off"])
+    check("the room's shelf, then the landing's for the book's 3 charges; the trip stored",
+          [w for w, _ in world.resupplies[:2]] == ["room", "landing"]
+          and "the way-home book holds 3 charge(s)" in text and code == 0,
+          f"{world.resupplies} exit {code}\n{text[-600:]}")
     store.close()
 
 
@@ -4518,7 +4541,7 @@ if __name__ == "__main__":
             wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, work_heal, work_spell, thief_keep_away,
             pouch_pop, faction_lone, known_pk, wards,
             no_pouch,
-            resupply,
+            resupply, resupply_book,
             convert_stacks,
             landing_escape, stockpile_store,
             ghost_horse, horse_follows, hatchet_swap, hatchet_breaks,

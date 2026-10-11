@@ -782,13 +782,19 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   1a. **Resupply** (since 2026-10-05, user; `resupply_home`, `--resupply on|off`, default on): before
      each trip at home, the loadout is topped up from the Storage Shelf (`harness/shelf.py`, the same
      flow as `ctl act resupply`; docs/NOTES.md "Storage shelves"): in the room its shelf first; when
-     that one lacks something ("No resupply: …", or "Unable to resupply: no items available."), out of
+     that one lacks something ("No resupply: …", or "Unable to resupply: no items available."), or our
+     way-home book holds fewer than `BOOK_FULL` (10) charges (since 2026-10-11, user: "Recalls should be
+     available on the guild shelf"; the room shelf has no recall scrolls, and the book had run down to 0
+     over five runs; `book_charges`, read at the run's start, less the charge each recall by it took,
+     `note_book_charge`), out of
      the room (the trip goes that way anyway) and the shelf by the landing (Outland Dan: the DTF guild
-     house's, the secured one on its tile skipped). A shelf that fails is logged and passed over; what
+     house's, the secured one on its tile skipped), which recharges the book from its scrolls. A shelf that
+     fails is logged and passed over; what
      each gave and lacked is the trip row's `resupply` [{where, shelf, s, added, missing,
      none_available}]. Then the trapped-pouch check (`pouch_ready`): still none, a `low_supplies`
      juncture, back into the room, exit 1. Offline: `test_loop_lumber.py` scenarios `resupply` (the
-     room's shelf empty, the landing's gives 3 pouches, the trip goes) and `no_pouch` (both empty).
+     room's shelf empty, the landing's gives 3 pouches, the trip goes), `resupply_book` (a full pack
+     but 3 charges: the landing's shelf too) and `no_pouch` (both empty).
   1a'. **Hatchet uses** (since 2026-10-08, user: "carry enough hatchets to complete the max chops the
      trip would require"; `hatchets_ready`, `hatchet_uses`, `uses_needed`): a hatchet loses one use per
      successful chop and breaks at 0 ("You broke your axe.", cliloc 500499, with that chop's logs;

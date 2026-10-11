@@ -604,8 +604,9 @@ Wiki: [Storage Shelf](https://wiki.uooutlands.com/Storage_Shelf). Fixtures:
   "resupplied (room) from 0x6CEB65CD: nothing". Since a full pack makes the runner skip the landing's DTF
   shelf, nothing topped the book up. [INFERENCE] The room shelf holds no recall scrolls. The runner then
   recalls by spell (`escape`: spell on the book, 2.1–5.6 s, 11 mana + black pearl, blood moss,
-  mandrake), and every recall landed; mana never fell below 80. Restocking the room shelf with recall
-  scrolls brings the charges back.
+  mandrake), and every recall landed; mana never fell below 80. The user: recall scrolls are stocked on
+  the guild shelf (0x40B84C55). Since 2026-10-11 the runner also goes to the landing's shelf when the
+  book holds fewer than 10 charges (LUMBER_LOOP §13 "Trip" 1a).
 
 ## Resource Stockpile and GM coloured hatchets (live 2026-10-05, Outland Dan)
 

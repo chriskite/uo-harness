@@ -182,6 +182,7 @@ HOP_MIN_HITS = 0.8            # a library hop needs at least this share of max h
 # the stash's lift waits this long after the chop's target (live 2026-10-05 10:09:30: a lift 0.47 s after the
 # hatchet's double-click got "You must wait to perform another action." and the logs stayed loose)
 STASH_AFTER_S = 0.8
+BOOK_FULL = 10               # a runebook's charges when full (docs/NOTES.md "Storage shelves": the shelf tops it up to 10)
 KEEPER_SEARCH = 18            # tiles around us whose human NPCs are clicked to find the house steward
 KEEPER_CLICKS = 12
 CHEST_REACH = 2               # tiles from the home chest to drop into it [INFERENCE: RunUO's 2-tile item reach]
@@ -1853,6 +1854,7 @@ class LumberLoop:
         # What the pack lost on the way out (a thief's grab arrives with his flag change and
         # the run ends here): casts spent their reagents, anything else is suspected theft.
         self.expect_casts(res)
+        self.note_book_charge(res)
         try:
             self.check_ledger(self.link.state())
         except Abort:
@@ -3575,8 +3577,10 @@ class LumberLoop:
         """Before each trip, at home (user, 2026-10-05; docs/NOTES.md "Storage shelves"): the
         loadout topped up from the Storage Shelf (shelf.resupply, the same flow as `ctl act
         resupply`). In the rental room its shelf first; when that leaves something out ("No
-        resupply: …" or nothing available), out of the room (the trip goes that way anyway) and
-        the shelf by the landing (Outland Dan: the DTF guild house's, 2 tiles off). A shelf that
+        resupply: …" or nothing available), or our way-home book holds fewer than BOOK_FULL charges
+        (the room shelf has no recall scrolls; the guild house's has: user 2026-10-11, after the book
+        ran down to 0 over five runs), out of the room (the trip goes that way anyway) and the shelf by
+        the landing (Outland Dan: the DTF guild house's, 2 tiles off), which recharges it. A shelf that
         fails is logged and passed over: pouch_ready still decides whether the trip can go.
         What each shelf gave and lacked goes into the trip row (`resupply`). The hatchets' uses
         are checked against the trip's quota (hatchets_ready: in the room, where a worn one can be
@@ -3593,18 +3597,39 @@ class LumberLoop:
             if res is not None:
                 done.append(res)
             self.hatchets_ready(in_room=True)
+            charges = self.book_charges()
             if res is not None and not res.get("error") and not res["missing"] and not res["partial"] \
-                    and not res["none_available"]:
+                    and not res["none_available"] and (charges is None or charges >= BOOK_FULL):
                 self.pre_stats["resupply"] = done
                 return
+            if charges is not None and charges < BOOK_FULL:
+                log(f"resupply: the way-home book holds {charges} charge(s); the landing's shelf recharges it")
             self.leave_room()
         else:
             self.hatchets_ready(in_room=False)
         res = self.resupply_here("landing")
         if res is not None:
             done.append(res)
+            for b in self.books:                   # the landing's shelf tops the book up from its scrolls
+                if self.recall_book is not None and int(b["serial"], 16) == self.recall_book:
+                    b["charges"] = max(b["charges"], BOOK_FULL)    # [INFERENCE: its scrolls didn't run out]
         if done:
             self.pre_stats["resupply"] = done
+
+    def book_charges(self) -> int | None:
+        """The way-home book's charges: as read at the run's start (read_books), less the charge each recall by
+        it took since (note_book_charge), BOOK_FULL after the landing's shelf; None when there's no such book."""
+        book = next((b for b in self.books if int(b["serial"], 16) == self.recall_book), None) \
+            if self.recall_book is not None else None
+        return None if book is None else book.get("charges")
+
+    def note_book_charge(self, res: dict):
+        """A recall by one of our book's charges landed: the book holds one fewer (the row's `charges` is the
+        count before the use)."""
+        if res.get("ok") and res.get("method") == "charge" and res.get("charges") is not None:
+            for b in self.books:
+                if self.recall_book is not None and int(b["serial"], 16) == self.recall_book:
+                    b["charges"] = max(0, res["charges"] - 1)
 
     def mount_home(self):
         """Ride out (user, 2026-10-05; docs/NOTES.md "Our mount"): at home before each trip, not
@@ -3868,6 +3893,7 @@ class LumberLoop:
             self.travel_leg(leg, t0, failure=f"recall: {e}")
             raise Abort(f"recall home not possible: {e}")
         self.travel_leg(leg, t0, res, before)
+        self.note_book_charge(res)
         if not res["ok"]:
             raise Abort(f"recall home failed: {res['failure']}")
         self.afield = False
