@@ -2329,6 +2329,12 @@ heals, no dispels, no locked doors and no heal potions.
   doesn't list a book recharge as an added item (rule above: scrolls + the enabled option).
 - **`lumber plan` NameError** `HOME_PRIOR` (`lumber_opt.py` 1389) at 21:47, gone about 60 s later. The
   cause was the optimizer edits in flight (4581ade/9586988), not the runner.
+- **Seer-25 (2026-10-12): the server went silent mid-trip.** Session `logs/session_20261012_102435`
+  had its last S2C at 12:45:06. The client kept sending for 90 s, then the connection closed at
+  12:46:36. Run `lumber-20261012-124420-6891` aborted "state port: no active session" with Dan chopping
+  at witcher_57 (1813,2163). The proxy and ClassicUO stayed up, and the internet answered right after,
+  so the drop was upstream (server or route). The harness can't log back in (Constraint 1): only the
+  user can. Runs 1-2 that day stored 6645 + 3258 boards.
 
 ## A "thief" who killed: gorilkaenjoyer at witcher_105 (live 2026-10-10, Seer-17)
 
