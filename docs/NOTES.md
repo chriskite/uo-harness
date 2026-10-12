@@ -2307,6 +2307,27 @@ ground items from a replay of `logs/session_20261011_124101` (`replay.timed_pack
   for the field's delete for up to `FIELD_GONE_WAIT_S` (1 s) and replans. Without a dispel callable, or
   when it returns False, the walk fails "no route" as before. test_mover.py checks both.
 
+## Seer-24 shift: a hatchetless trip, an empty guild shelf (live 2026-10-11 17:20–23:30)
+
+Nine runs, 23,337 boards, no deaths. The first live day of the guard flight (af2f4b0): every spot's
+`guard route from <spot>` came out "reached" except witcher_116, which was an island (59,025 expansions).
+The two "to the guards" flights were from faction-tag blues; both recalls landed. There were no escape
+heals, no dispels, no locked doors and no heal potions.
+- **Hatchetless trip (`lumber-20261011-194604-aa35.log` lines 6-13, juncture 887).**
+  - Dan carried one gold hatchet, 636 uses for 1464 needed. `hatchets_ready` put it in the room chest
+    "for a fresh one from the shelf". The shelf answered "Unable to resupply: no items available.", and
+    the loop broke on "the shelf gave none" with the hatchet left in the chest. The runner logged "only
+    0 uses carried … going anyway" and recalled out bare.
+  - Seer-24 stopped him at the landing, then took the chest's five spare hatchets (1595 uses).
+  - Gaps: the stow comes before we know the shelf can replace it; nothing takes a stowed hatchet back
+    or uses the chest's spares; 0 uses doesn't stop the trip. A fix was proposed and not yet approved.
+- **Guild shelf empty.** Every landing visit (17:44, 18:05, 18:46, 19:46, 19:48) answered "it had
+  nothing to give". The book still read 6 → 7 → 9 → 9 → 10 at the run starts. [INFERENCE] Either the
+  shelf's recharge isn't reported as an added item, or the user topped the book up during the pause
+  (20:55–21:16). The logs don't separate the two.
+- **`lumber plan` NameError** `HOME_PRIOR` (`lumber_opt.py` 1389) at 21:47, gone about 60 s later. The
+  cause was the optimizer edits in flight (4581ade/9586988), not the runner.
+
 ## A "thief" who killed: gorilkaenjoyer at witcher_105 (live 2026-10-10, Seer-17)
 
 Log: `logs/tasks/lumber-20261010-141818-e65c.log`. Junctures 780 (death), 781 (threat), 782 (task_failed). Store
