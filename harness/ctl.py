@@ -3177,8 +3177,12 @@ def cmd_lumber(a, mem):
                 + (f"; greedy {g['spot']} (~{g['expected_net_logs_h']} logs/h) -> {g['command']}"
                    if g and g["spot"] != p["spot"] else "")) if p \
             else f"lumber plan: {out.get('error')}"
+        if out.get("needs_prices"):
+            text += "; price needed (counted 0 gp on death): " + ", ".join(n["item"] for n in out["needs_prices"])
         mem.chat_post("overseer", text, "action", data={"cmd": "lumber plan", "pick": p, "greedy": g})
         return out
+    if op == "audit":
+        return lumber_opt.audit(mem, days=a.days)
     if op == "spots":
         spots = lumber_opt.load_spots(mem)
         return {"ok": True, "spots": [
@@ -3457,6 +3461,9 @@ def _lumber_parser(sub):
                    help="pick the greedy spot (best posterior-mean net logs/h) instead of the Thompson draw; "
                         "`greedy.command` is its run either way")
     ls.add_parser("spots", help="every spot with its status")
+    q = ls.add_parser("audit", help="how well the plan predicted each day's trips (logs, sent home, deaths) "
+                                    "and what exploring cost, planning on the store as of each day's start")
+    q.add_argument("--days", type=int, default=7)
     q = ls.add_parser("spot")
     ss = q.add_subparsers(dest="spot_op", required=True)
     r = ss.add_parser("add", help="a new spot: a tree area (trips reach it from home by the nearest landing rune)")

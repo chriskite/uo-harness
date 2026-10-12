@@ -341,8 +341,10 @@ speech holds excluded), `tree_walk_s`, `skill`, the `hatchet` (material by hue, 
 travel legs, the lockout waited, the supplies used, the skill at the end and the players seen (the
 full list and what's still missing: "What the optimizer learns from" below). Hostile-player sightings
 are the `pk_seen` job events inside a trip; deaths are the proxy's `death` events, blamed on a spot
-when they fall in a trip there or within 30 min after it (the Terran PK killed us 11 s after the
-runner stopped) and near its area, or, with no trip row around them, inside its area. Rows written
+when they fall in a trip there (up to 60 s after its end) wherever they fell (since 2026-10-11: an
+escape run or the home landing an escape recall reached; 3 of 12 deaths had been dropped for lying
+47–2 243 tiles away, OPTIMIZER.md F3), or within 30 min after it (the Terran PK killed us 11 s after
+the runner stopped) and near its area, or, with no trip row around them, inside its area. Rows written
 before 2026-10-02 count too: their walk out is
 taken equal to the walk to the bank, chops cost 9.5 s each, and they aren't skill-rescaled. Rows of
 the bank era (outcome `banked`, or none) stay history: their overhead is walk out + lockout +
@@ -356,16 +358,21 @@ library gave up) has no field time, so a travel failure doesn't count as a 0-log
 patches show up within weeks):
 - field rate λ (logs per field hour, walking between trees and interruptions included): Gamma
   posterior, quasi-Poisson with dispersion φ (Pearson over trips, ≥ 8 since logs come ~7.6 per
-  success; 14 on the data of 2026-10-02). Prior = the spread of the measured spots' rates
-  (empirical Bayes, CV ≥ 0.35): an unvisited spot is "a spot like the others", explored but not
-  trusted.
-- **Growing skill and better tools:** each trip's chopping time is rescaled by p_then/p_now, where
-  p = Σ_wood tree-colour chance × min(1, (skill − offset)/divisor × (1 + tool bonus)) (wiki
-  formulas in `woods.json`, colours above our skill counted as regular wood [INFERENCE]). Walking
-  isn't rescaled. So data measured at 69 skill is credited with what the spot yields at today's
-  skill, and spots don't need re-exploring as Lumberjacking rises. The formula gives 0.69 at 69.1
-  skill; Terran measured 44/63 = 0.70. Harvest Aspect isn't modelled explicitly (its buffs are
-  recorded): its double yield shows up through the recency weighting.
+  success; 14 on the data of 2026-10-02, 8.7 on 2026-10-11). Prior = the measured spots' mean rate
+  and their between-spot spread from a random-effects moment fit (the variance of the spot means less
+  their mean sampling variance φ·rate/hours; since 2026-10-11, CV ≥ 0.15, was ≥ 0.35: the measured
+  spread is 0.06–0.18, OPTIMIZER.md F4): an unvisited spot is "a spot like the others", explored but
+  not trusted.
+- **Growing skill, better tools, the Harvest aspect:** each trip's chopping time is rescaled by
+  p_then/p_now, where p = Σ_wood tree-colour chance × min(1, (skill − offset)/divisor × (1 + tool
+  bonus)) (wiki formulas in `woods.json`, colours above our skill counted as regular wood
+  [INFERENCE]). Walking isn't rescaled. Then (since 2026-10-11) the whole field time by the trip's
+  logs per success (`logs / successes`) over today's (the newest 1 000 successes,
+  `logs_per_success`): a node's quantity is fixed except for the Harvest aspect's procs, which double
+  it (k334, k155), and their share grows with the aspect (7.6 → 9.2 logs per success, 10-03 → 10-11;
+  within a spot the field rate rose 3.7 %/day, of which 2.4 %/day was logs per success: OPTIMIZER.md
+  F1). So data measured at lower skill or aspect is credited with what the spot yields today. The
+  formula gives 0.69 at 69.1 skill; Terran measured 44/63 = 0.70.
 - overhead T (since 2026-10-04: room exit, walk to the landing's rune, recall out, walk into the
   grove, lockout, recall home, into the room, convert, store): Normal posterior over the trips'
   overheads; prior `overhead_prior_s` = room exit 10 s + the walk from the home landing to the
@@ -373,8 +380,13 @@ patches show up within weeks):
   recalls of 4 s + the walk from the landing into the grove (its cached route, else the straight
   distance to the area's inner half) at 0.45 s/tile + the 60 s lockout + into the room 15 s +
   convert and store 40 s (room times [INFERENCE] until trips measure them).
-- **hazards (rewritten 2026-10-03, user decisions):** three competing hazards per field hour, each a
-  Gamma posterior per spot over recency-weighted field hours, shrunk to a pooled rate:
+- **hazards (rewritten 2026-10-03, user decisions; exposure and kinds 2026-10-11):** competing hazards
+  per exposed hour, each a Gamma posterior per spot over recency-weighted exposed hours, shrunk to a
+  pooled rate. Exposed = the walk from the landing into the grove (`walk_in_s`: the walk out less its
+  `out` travel leg) + the lockout waited there + the field time (deaths happen on the way in too).
+  The pooled death and sent-home rates are scaled by a time-of-day factor per 6-hour UTC block
+  (events per exposed hour there over the overall rate, shrunk by 5 pseudo events; `time_of_day` in
+  the plan):
   - **death h_D** (PK or creature): prior mean = the spot's hostile-player sightings per field hour
     (Gamma, prior `hazard_prior`, 2 h strong) × P(death | sighting) (Beta(1, 3), pooled; only PK
     deaths update it) + the pooled creature-death rate (prior 0.01/h worth 20 field hours
@@ -390,8 +402,12 @@ patches show up within weeks):
   - **sent home h_S**: trips a threat ended without killing us: the row's `why` starts `threat:`
     (recall escape, guard flight, a creature or damage stop), or a `recall`/`guard_flight` job event
     falls in the trip, or the row's `creature.recalled` (the CreatureRun field, when present). A
-    trip followed by a death within 30 min counts as a death, not as sent home. Pooled prior 0.5/h
-    worth 2 h [INFERENCE]; a spot's prior counts 2 field hours.
+    trip followed by a death within 30 min counts as a death, not as sent home. Since 2026-10-11 two
+    hazards that add up, each with its own pooled rate: a creature (`threat: monster`,
+    `creature.recalled`; pooled prior 0.2/h worth 2 h) and anything else, players mostly (0.3/h worth
+    2 h) [INFERENCE]; a spot's priors count 2 exposed hours each. Before the field the walk in is
+    exposed too (`trip_terms(t_in=)`: a death there loses what is carried and costs the recovery, a
+    threat there ends the trip with nothing chopped).
   - **theft h_T**: `theft` job events, plus `theft_suspected` junctures with no such event within
     10 s, inside a trip. Rare, so pooled heavily: prior 0.02/h worth 20 h [INFERENCE], and a spot's
     prior counts 20 field hours. The share of the load one theft takes, f, has a Beta(1, 1) prior
@@ -405,12 +421,17 @@ patches show up within weeks):
   $$B(Q) = e^{-h t_f} C(t_f) + h_S\int_0^{t_f} e^{-ht} C(t)\,dt, \qquad
   E[\text{time}] = T + \int_0^{t_f} e^{-ht}dt + R\,P_D, \qquad P_D = h_D\int_0^{t_f} e^{-ht}dt$$
 
-  A death stores nothing (the carried logs are lost) and costs R = 20 min of recovery [INFERENCE];
-  a trip sent home ends at τ and stores what it carries (the cycle just ends early); a theft lets
-  the trip run on. Net rate = (B − supplies − G·P_D) / E[time], in logs at the board price, where
-  G = **every unblessed item we carry at full replacement price**: all hatchets worn or packed (a
-  newbied/blessed one, by its name, stays), reagents at `reagent:<name>`; the rune tome is blessed;
-  nothing is lost when Young (the "(young)" name label; Hackworth isn't). Without a
+  A death stores nothing (the carried logs are lost) and costs R of recovery: since 2026-10-11 the
+  measured time from each linked death to the next lumber trip's start (gaps over 3 h left out),
+  shrunk to 20 min by 2 deaths (0.96 h on 14 deaths, 2026-10-11; it includes the overseer's
+  reaction); a trip sent home ends at τ and stores what it carries (the cycle just ends early); a
+  theft lets the trip run on. Net rate = (B − supplies − G·P_D) / E[time], in logs at the board
+  price, where G = **every unblessed item we carry at full replacement price**: all hatchets worn or
+  packed (a newbied/blessed one, by its name, stays; a quality one without its own price at its
+  material's), reagents at `reagent:<name>`, and the Harvest-aspect armor suit worn on every trip
+  (`armor:harvest_suit`, 1 000 gp, user 2026-10-11); the rune tome is blessed; nothing is lost when
+  Young (the "(young)" name label; Hackworth isn't). Unpriced items count 0 and are listed in the
+  plan's `needs_prices` (and the plan's chat line) with the `ctl lumber price` to fix it. Without a
   live character the newest trip row's hatchet stands in. All integrals are closed form
   (`trip_terms`), so P_D ≤ 1 and the rate stays defined for any Q. Q* maximises it over 200…10 000
   logs (user decision; a log-spaced grid, then a golden-section refine to 10 logs), capped by what
@@ -422,10 +443,18 @@ patches show up within weeks):
   trees plus the map's tree statics in the area square, minus trees depleted or unreachable within
   the regrowth window) and ends the trip `dry` when they're all chopped. So a trip at a spot holds
   at most `grove_logs` = trees available now × yielding share × logs per tree:
-  - logs per tree: pooled over every completed cycle in `harvest_attempts` (successes up to
-    `depleted`): 19.3 over 470 cycles, 17.7–20.2 per spot, so one pooled number;
-  - yielding share: per spot, Beta posterior of the tree tiles tried that ever gave logs, prior the
-    pooled share (0.67 on 2026-10-03) worth 10 tiles. It's what varies: 0.85 at Horseshoe Bay and
+  - logs per tree: successes per completed cycle in `harvest_attempts` (successes up to `depleted`,
+    2.55 over 471 cycles, before Smart Harvest) × today's logs per success (since 2026-10-11: a node
+    holds successes, aspect procs add logs; 19.3 logs then, 23.3 on 2026-10-11);
+  - yielding share: per spot, Beta posterior, prior the pooled share (0.67 on 2026-10-03) worth 10
+    tiles, from the tree tiles tried that ever gave logs (per-tree attempts, before Smart Harvest) and,
+    since 2026-10-11, from the spot's **dry trips**: each a share = its successes / (successes per
+    tree × the trees available when it started, `tree_yield(at=)`), worth min(trees, 30) tiles ×
+    its recency weight (one grove's trees are emptied by the same players, so not independent);
+    dry trips from before the area last grew (its forest's `built_t`) don't count. Since Smart
+    Harvest (2026-10-04) stand-tile attempts touch no tree tile, so before this the share stayed at
+    the prior for 85 of 91 spots visited (OPTIMIZER.md F2); on 2026-10-11 8 dry trips count (12 more
+    predate the forests). It varies: 0.85 at Horseshoe Bay and
     Terran, 0.46 at witcher_282 (statics that aren't choppable, other players' chopping). Checked
     against the dry trips: Horseshoe Bay 40 × 0.85 × 19.9 ≈ 677 (dry at 605 and 613), witcher_282
     138 × 0.46 × 19.3 ≈ 1225 (400 + 800 in two trips 16 min apart).
@@ -460,10 +489,21 @@ patches show up within weeks):
   its 0 logs, so a spot that can't be worked loses its optimistic prior instead of looking untried
   forever. Trips stopped by monsters or players aren't the place's fault in this sense; their time
   already counts.
-- **regrowth:** pairs (depleted, later attempt on the same tree) from `harvest_attempts`; an
-  isotonic fit of P(regrown | gap); the estimate is where it reaches 0.6. On the data of 2026-10-02
-  (137 pairs): 0/14 regrown at 15–30 min, 7/50 at 30–45, 12/25 at 45–60, 44/48 later → 65 min. The
-  old 20-min window sent the runner to depleted trees (docs/NOTES.md).
+- **regrowth:** (gap, regrown) pairs, an isotonic fit of P(regrown | gap); the estimate is where it
+  reaches 0.6. Pairs per tree from `harvest_attempts` (depleted, later attempt on the same tree;
+  before Smart Harvest) and, since 2026-10-11, per stand from the runner's `stand` job events (a
+  stand that ended "nothing nearby", later a stand on the same tile; regrown if that one gave logs:
+  what the runner acts on). On the data of 2026-10-02 (137 tree pairs): 0/14 regrown at 15–30 min,
+  7/50 at 30–45, 12/25 at 45–60, 44/48 later → 65 min. 2026-10-11: 277 tree + 972 stand pairs,
+  still 65 min; stand pairs start at 60 min (the runner skips a dry stand for the window in force),
+  76–86 % regrown from there, so the estimate can move down only as far as the shortest gaps seen.
+  The old 20-min window sent the runner to depleted trees (docs/NOTES.md).
+- **audit (since 2026-10-11, `ctl lumber audit [--days 7]`):** for each UTC day, the plan on the
+  store as it was at 00:00 that day, scored on that day's trips: logs actual/predicted, sent home and
+  deaths predicted vs actual (time-of-day factors included), the median pick/greedy posterior-mean
+  value of that day's recorded plans, logs per success at the cut and that day. First run
+  2026-10-11 (8 days, 47 h): logs 1.02–1.27 actual/predicted (was 1.07–1.29), sent home 131 vs 148,
+  deaths 8.2 vs 11 (P(≥ 11) = 0.21; was 7.5 vs 12, P = 0.08).
 - **hatchet:** for every owned hatchet (worn or packed; material by hue, quality by clicked name)
   and every buyable one with a known price (iron 25 gp at NPCs; `ctl lumber price hatchet:<material>
   <gp>` for the rest), the net logs/hour at the picked spot: λ rescaled to its tool bonus, minus wear
@@ -473,7 +513,10 @@ patches show up within weeks):
   bought one adds its full price to G (worth it where nobody can kill us, not where they can).
   Unknown price → not used, and a break-even price is reported (the highest price at which it still
   beats the best priced option). `use` = pass `--hatchet <material>`; `buy` = a better one we don't
-  own.
+  own. Prices since 2026-10-11 (user): verite 5 000 gp; the other materials priced by tier, 25 ×
+  200^(tool bonus / 0.14) between iron 25 and verite 5 000 (dull copper 50, shadow iron 110, copper
+  240, bronze 520, gold 1 100, agapite 2 350, valorite 10 660, avarite 22 720; source "tier
+  estimate"), so `buy` suggestions rest on those estimates.
 
 **On the live store (a read-only snapshot, `now` = last trip + 10 min = 1791068770 ≈ 2026-10-03
 23:06 UTC, no live character, seed 1).** 28 lumber trip rows, 12 counted sightings, 3 proxy deaths
@@ -539,7 +582,7 @@ walks (the proxy's `walk_moves` already has them).
 **Not built (data or decisions missing):** gold/hour with per-wood prices (the objective would
 become value per hour, ECONOMY §6; `board:<wood>` prices exist for all 10 woods since 2026-10-06),
 our own marked runes at good spots (needs a Mark capture), hiking to Atlas POIs,
-time-of-day hazard, per-spot regrowth, the Harvest Aspect tier (above).
+per-spot regrowth, the Harvest Aspect tier (above; its effect enters through logs per success).
 
 ## 7. Decisions (user, 2026-09-29)
 

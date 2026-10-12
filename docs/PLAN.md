@@ -1744,6 +1744,37 @@ character a row belonged to.
   aggregate); keying by account or name (an account has several characters, and names can be
   reused; the serial is what the server uses).
 
+## Lumber optimizer review fixes (decided and built 2026-10-11)
+
+User request: review the Bayesian optimizer for soundness against the recorded mechanics and whether
+more evidence leads to better outcomes (report: `OPTIMIZER.md`), then implement all six recommendations
+and bring the stored data in line. Built in `harness/lumber_opt.py` (docs/LUMBER_LOOP.md §6):
+
+1. **Logs per success rescale.** Each trip's field time × its logs/success ÷ today's (newest 1 000
+   successes). Rejected: a fitted time trend per character (log λ = spot + f(t)); the per-trip ratio is
+   observed directly, needs no model of the aspect, and leaves the 14-day half-life to competition.
+2. **Capacity from dry trips.** A dry trip's successes over (successes per tree × the trees available
+   when it started) updates the spot's yielding share, worth ≤ 30 tiles; logs per tree = successes per
+   tree × today's logs per success. Rejected: per-stand yield records (a runner change, and the server
+   still doesn't say which tree); censored non-dry trips (their lower bound adds little and needs a
+   censored likelihood).
+3. **Regrowth from stand pairs** (the runner's `stand` events) added to the per-tree pairs. Kept the
+   fit as is: the runner's own window censors gaps below it, which is accepted and documented.
+4. **Deaths:** a death inside a trip (≤ 60 s after its end) is the spot's wherever it fell; the walk in
+   from the landing and the lockout are exposed (`trip_terms(t_in=)`); the recovery is measured (death
+   → next trip, ≤ 3 h, shrunk to 20 min by 2 deaths); the armor suit (1 000 gp, user) and hatchet
+   prices (verite 5 000 gp, user; others by tier, user's choice) enter the gear at risk; unpriced gear
+   is listed in the plan (`needs_prices`) and its chat line.
+5. **Priors:** the λ prior's between-spot spread from a random-effects moment fit, CV floor 0.35 →
+   0.15; sent home split into player and creature hazards with their own pooled rates; a shrunk
+   time-of-day factor per 6-hour UTC block on the death and sent-home hazards.
+6. **`ctl lumber audit`:** the prequential calibration from the review, per day.
+
+Not changed: Thompson sampling itself (the user's decision on exploration vs. variety is open in
+OPTIMIZER.md). Data (2026-10-11): 10 prices recorded (`ctl lumber price`), 7 lumber deaths without a
+runner `death` job event backfilled from the proxy's `death` events (`backfilled` in their data); the
+store was copied to `harness/data/harness-pre-optimizer-20261011.db` first (gitignored).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

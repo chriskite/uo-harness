@@ -46,9 +46,10 @@ def landing(s, dist=20, **kw):
 
 
 def trip(sid, t1, logs, field_s, chop_share=0.7, skill=None, outcome="stored", dry=False, why=None,
-         walk_out=60.0, to_room=20.0, convert=10.0, store=5.0, to_bank=60.0):
+         walk_out=60.0, to_room=20.0, convert=10.0, store=5.0, to_bank=60.0, **extra):
     """A trip row as the runner writes it: home -> grove -> home ('stored': into the room's chest);
-    outcome 'banked' writes a bank-era row (to_bank instead of to_room)."""
+    outcome 'banked' writes a bank-era row (to_bank instead of to_room). extra: more row fields
+    (successes, travel, lockout_s, ...)."""
     phases = {"harvest": walk_out + field_s}
     if outcome == "stored":
         phases.update(to_room=to_room, convert=convert, store=store)
@@ -57,7 +58,7 @@ def trip(sid, t1, logs, field_s, chop_share=0.7, skill=None, outcome="stored", d
     t0 = t1 - sum(phases.values())
     return {"loop": "lumber", "spot": sid, "t_start": t0, "t_end": t1, "outcome": outcome, "why": why, "dry": dry,
             "logs": logs, "walk_out_s": walk_out, "chop_s": field_s * chop_share, "skill": skill,
-            "hatchet": {"tool_bonus": 0.0}, "phases_s": phases}
+            "hatchet": {"tool_bonus": 0.0}, "phases_s": phases, **extra}
 
 
 def series(sid, n, rate, field_s=1800.0, skill=None, start=NOW - 86400, gap=3600):
@@ -229,9 +230,12 @@ def test_capacity():
     att += [(t, 0, 24, 0, 0, "depleted", 0), (t + 10, 0, 25, 0, 0, "not_tree", 0),
             (NOW - 600, 0, 0, 0, 0, "depleted", 0)]       # 24: chopped out by someone else; 0: out again now
     ty = lo.tree_yield(att, {"a": (0, {(x, 0) for x in range(28)})}, NOW, 45.0)
+    keys = ("trees", "tried", "yielded", "out")
     check("harvest memory: logs per tree from completed cycles; trees less non-trees; tried, yielded, out now",
-          ty["logs_per_tree"] == 20.0 and ty["cycles"] == 24
-          and ty["spots"]["a"] == {"trees": 27, "tried": 25, "yielded": 24, "out": 1}, ty)
+          ty["logs_per_tree"] == 20.0 and ty["cycles"] == 24 and ty["successes_per_tree"] == 3.0
+          and {k: ty["spots"]["a"][k] for k in keys} == {"trees": 27, "tried": 25, "yielded": 24, "out": 1}, ty)
+    check("logs per tree follow today's logs per success (a node holds successes; aspect procs add logs)",
+          lo.tree_yield(att, {}, NOW, 45.0, lps_now=9.0)["logs_per_tree"] == 27.0)
     check("too few cycles: the default logs per tree",
           lo.tree_yield(att[:8], {}, NOW, 45.0)["logs_per_tree"] == lo.LOGS_PER_TREE)
     marks = att + [(NOW - 300, 0, 26, 0, 0, "nothing_near", 0), (NOW - 300, 0, 1, 0, 0, "nothing_near", 0),
@@ -239,7 +243,8 @@ def test_capacity():
     tm = lo.tree_yield(marks, {"a": (0, {(x, 0) for x in range(28)})}, NOW, 45.0)
     check("Smart Harvest 'nothing nearby' marks: the marked trees are out now, a mark alone isn't tried; "
           "a stand tile's attempts touch no tree tile",
-          tm["spots"]["a"] == {"trees": 27, "tried": 25, "yielded": 24, "out": 3} and tm["cycles"] == 24, tm)
+          {k: tm["spots"]["a"][k] for k in keys} == {"trees": 27, "tried": 25, "yielded": 24, "out": 3}
+          and tm["cycles"] == 24, tm)
     rg = lo.regrowth([r[:6] for r in sorted(marks)])
     check("marks make no regrowth pairs", rg["pairs"] == lo.regrowth([r[:6] for r in sorted(att)])["pairs"], rg)
 
@@ -330,24 +335,34 @@ def test_hazard_evidence():
 def test_gear_and_capacity():
     print("== a death loses every unblessed item at full price (nothing when Young); Q fits what we can carry ==")
     me = {**char(70.0, iron(), copper(), {**copper(), "newbied": True}), "reagents": {"black pearl": 20, "nightshade": 5}}
-    prices = {"hatchet:copper": {"price_gp": 300}, "reagent:black_pearl": {"price_gp": 3.0}}
+    prices = {"hatchet:copper": {"price_gp": 300}, "reagent:black_pearl": {"price_gp": 3.0},
+              lo.SUIT_ITEM: {"price_gp": 1000}}
     g = lo.gear_at_risk(me, TABLE, prices, young=False)
     check("all carried hatchets at full price (iron 25 + copper 300; the newbied one stays), priced reagents, "
-          "unpriced ones listed",
-          g["gp"] == 25 + 300 + 60 and g["unpriced"] == ["reagent:nightshade"], g)
+          "the worn armor suit, unpriced ones listed",
+          g["gp"] == 25 + 300 + 60 + 1000 and g["unpriced"] == ["reagent:nightshade"], g)
+    bare = lo.gear_at_risk(me, TABLE, {}, young=False)
+    check("no price for the suit: counted 0 and listed for pricing", lo.SUIT_ITEM in bare["unpriced"], bare)
+    vex = {**copper(), "material": "verite", "quality": "exceptional"}
+    ve = lo.gear_at_risk(char(100.0, vex), TABLE, {"hatchet:verite": {"price_gp": 5000}}, young=False)
+    check("a quality hatchet without its own price is lost at its material's price",
+          ve["items"][-1] == {"item": "hatchet:verite:exceptional", "n": 1, "gp": 5000}, ve)
+    opts = lo.hatchet_options(char(100.0, iron()), TABLE, {"hatchet:verite": {"price_gp": 5000}})
+    check("... but that fallback never makes a quality one buyable at the plain price",
+          not any(o["material"] == "verite" and o["quality"] for o in opts), opts)
     check("Young: nothing is lost", lo.gear_at_risk(me, TABLE, prices, young=True)["gp"] == 0)
     spots = [spot("a", hazard=1.0)]
     eps = series("a", 10, 1500, skill=70.0)
     adult = plan(spots, eps, char=me, prices=prices)
     young = plan(spots, eps, char={**me, "young": True}, prices=prices)
     check("the plan carries it: more lost per trip and fewer net logs/hour; Young (the name label) -> nothing at risk",
-          adult["gear_at_risk"]["gp"] == 385 and young["gear_at_risk"]["gp"] == 0 and young["young"]
+          adult["gear_at_risk"]["gp"] == 1385 and young["gear_at_risk"]["gp"] == 0 and young["young"]
           and row(adult, "a")["loss_logs_trip"] > row(young, "a")["loss_logs_trip"]
           and row(adult, "a")["net_logs_h"] < row(young, "a")["net_logs_h"],
           (row(adult, "a"), row(young, "a")))
     last = eps[:-1] + [{**eps[-1], "hatchet": {**copper(), "tool_bonus": 0.0}}]
     seen = plan(spots, last, prices=prices)["gear_at_risk"]
-    check("no live character: the newest trip row's hatchet is what's at risk", seen["gp"] == 300
+    check("no live character: the newest trip row's hatchet (and the suit) is what's at risk", seen["gp"] == 1300
           and seen["source"] == "last trip row", seen)
     calm = [spot("c", pvp=False)]
     free = plan(calm, series("c", 10, 1500), char={**char(70.0, iron()), "young": True})
@@ -377,8 +392,11 @@ def test_eligibility():
     check("a death 10 s after a trip there: counted for that spot, which is on cooldown",
           row(out, "a")["deaths"] == 1 and not row(out, "a")["eligible"] and "cooldown" in row(out, "a")["why_not"]
           and out["pick"]["spot"] == "b", row(out, "a"))
-    far = plan(spots, eps, deaths=[{"t": NOW - 590, "x": 4000, "y": 100}])
-    check("a death far from the spot isn't blamed on it", row(far, "a")["deaths"] == 0, row(far, "a"))
+    far = plan(spots, eps, deaths=[{"t": NOW - 500, "x": 4000, "y": 100}])
+    check("a death far from the spot after its trip isn't blamed on it", row(far, "a")["deaths"] == 0, row(far, "a"))
+    escape = plan(spots, eps, deaths=[{"t": NOW - 590, "x": 4000, "y": 100}])
+    check("a death within the trip (an escape run, the home landing) is the spot's wherever it fell",
+          row(escape, "a")["deaths"] == 1, row(escape, "a"))
     old = series("a", 5, 1500, start=NOW - 30 * 86400) + series("b", 5, 1000)
     lone = plan(spots, old, deaths=[{"t": NOW - 86400 * 2, "x": 1010, "y": 995},
                                     {"t": NOW - 86400 * 2, "x": 1200, "y": 1200}])
@@ -841,11 +859,102 @@ def test_no_go():
     check("one 201 tiles from its centre is", lo.eligibility(spot("far", 3654 + 201, 2957), [], [], NOW, 65.0) is None)
 
 
+def test_character_drift():
+    print("== a spot measured when each success gave fewer logs is credited with today's logs per success ==")
+    spots = [spot("old"), spot("new", 3000, 3000)]
+    # the same spot quality: 300 successes per field hour; old trips at 7.5 logs each, new at 9
+    old = [trip("old", NOW - 3 * 86400 + i * 3600, 2250, 3600, successes=300) for i in range(4)]
+    new = [trip("new", NOW - 86400 + i * 3600, 2700, 3600, successes=300) for i in range(4)]
+    out = plan(spots, old + new, logs_per_success=9.0)
+    a, b = row(out, "old")["rate_logs_h"], row(out, "new")["rate_logs_h"]
+    check("equal spots measured at 7.5 and 9 logs per success rate alike at today's 9", abs(a - b) / b < 0.03, (a, b))
+    raw = plan(spots, [{k: v for k, v in t.items() if k != "successes"} for t in old + new], logs_per_success=9.0)
+    check("rows without successes aren't rescaled (the old spot looks worse)",
+          row(raw, "old")["rate_logs_h"] < 0.9 * row(raw, "new")["rate_logs_h"])
+    obs = [lo.trip_obs(t) for t in new]
+    tight = lo.rate_prior({"a": obs[:2], "b": obs[2:]}, None, NOW, 8.0, 9.0)
+    check("similar spots: the rate prior's spread falls to its floor (random-effects fit)",
+          abs(1 / math.sqrt(tight[0]) - lo.PRIOR_CV_MIN) < 1e-6, tight)
+
+
+def test_capacity_from_dry_trips():
+    print("== a dry trip tells how much the grove held: the yielding share learns since Smart Harvest ==")
+    spots = [spot("a")]
+    tiles = {"a": (0, {(x, 0) for x in range(100)})}
+    dry = trip("a", NOW - 7200, 900, 1800, dry=True, outcome="aborted", successes=100)
+    trees = lo.tree_yield([], tiles, NOW, 65.0, 9.0, lo.dry_times({"a": spots[0]}, [dry]))
+    check("the trees available when the dry trip started", trees["spots"]["a"]["avail_at"] == {dry["t_start"]: 100},
+          trees["spots"]["a"])
+    base = plan(spots, series("a", 3, 2000), trees=trees, logs_per_success=9.0)
+    learned = plan(spots, series("a", 3, 2000) + [dry], trees=trees, logs_per_success=9.0)
+    # 100 successes from 100 trees at 2.5 successes per tree: share 0.4
+    check("a grove that ran dry early holds less: lower yielding share and grove logs",
+          row(learned, "a")["yield_share"] < row(base, "a")["yield_share"]
+          and row(learned, "a")["grove_logs"] < row(base, "a")["grove_logs"] and row(learned, "a")["dry_trips"] == 1,
+          (row(base, "a"), row(learned, "a")))
+    forest = plan([spot("a", forest={"built_t": NOW - 3600})], series("a", 3, 2000) + [dry], trees=trees,
+                  logs_per_success=9.0)
+    check("a dry trip from before the area last grew says nothing about it", row(forest, "a")["dry_trips"] == 0)
+
+
+def test_stand_regrowth():
+    print("== regrowth from stands since Smart Harvest: a dry stand revisited later ==")
+    stands = []
+    for i in range(30):
+        t = NOW - 86400 + i * 600
+        stands.append({"t": t, "facet": 0, "data": {"stand": [i, 0, 0], "logs": 9, "end": "nothing_near", "s": 30}})
+        gap = 40 if i % 2 else 80
+        stands.append({"t": t + gap * 60, "facet": 0,
+                       "data": {"stand": [i, 0, 0], "logs": 9 if gap == 80 else 0, "end": "nothing_near", "s": 1}})
+    rg = lo.regrowth([], stands)
+    check("stand pairs alone fit the window: dry at 40 min, wood again at 80",
+          rg["stand_pairs"] == 30 and rg["fitted"] and 40 < rg["minutes"] <= 85, rg)
+
+
+def test_exposure_and_recovery():
+    print("== the walk in from the landing is exposed; a death costs the measured recovery ==")
+    hz = (0.5, 2.0, 0.0, 0.5)
+    safe = lo.trip_terms(2000, 4000, 0.05, hz)
+    walk = lo.trip_terms(2000, 4000, 0.05, hz, t_in=0.05)
+    check("exposure before the first chop: more deaths, fewer logs stored",
+          walk["p_death"] > safe["p_death"] and walk["stored"] < safe["stored"], (safe, walk))
+    carried = lo.trip_terms(2000, 4000, 0.05, hz, load0=1000, t_in=0.05)
+    check("no thieves: a carried-in load and the chopped logs are either stored or lost to a death",
+          abs(carried["lost_theft"]) < 1e-6 and carried["lost_death"] > 0, carried)
+    trips = [lo.trip_obs(trip("a", NOW - 7200 * k, 1000, 1800)) for k in (1, 2, 3)]
+    deaths = [({"t": trips[0]["t1"] - 4000}, "a", None)]
+    rec = lo.recovery_h(deaths, trips)
+    check("recovery: the gap from a death to the next trip, shrunk to the prior",
+          rec["n"] == 1 and lo.RECOVERY_H < rec["h"], rec)
+    row_ = lo.trip_obs(trip("a", NOW, 1000, 1800, walk_out=90.0, lockout_s=50.0,
+                            travel=[{"leg": "out", "ok": True, "s": 30.0}]))
+    check("trip_obs: exposure = field + lockout + the walk in (walk out less the out leg)",
+          row_["walk_in_s"] == 60.0 and row_["exposure_s"] == row_["field_s"] + 110.0, row_)
+
+
+def test_hazard_kinds_and_time_of_day():
+    print("== sent home by players and by creatures pool apart; a busy time of day weighs more ==")
+    spots = [spot("a")]
+    eps = series("a", 12, 2000, field_s=1800, gap=6 * 3600, start=NOW - 4 * 86400)
+    eps += [trip("a", NOW - 86400 + k * 600, 200, 300, outcome="aborted", why="threat: monster an orc at 8 tiles")
+            for k in range(6)]
+    out = plan(spots, eps)
+    check("creature threats raise the creature sent-home rate, not the player one",
+          out["sent_home_pooled_per_h"]["monster"] > out["sent_home_pooled_per_h"]["player"],
+          out["sent_home_pooled_per_h"])
+    f = out["time_of_day"]["factors"]["home_m"]
+    b = lo.tod_block(NOW - 86400)
+    check("the block where they happened gets a factor above 1, the others below",
+          f[b] > 1.0 and all(x < 1.0 for i, x in enumerate(f) if i != b), f)
+
+
 if __name__ == "__main__":
     for fn in (test_explore_exploit, test_greedy_command, test_skill_rescaling, test_trip_size, test_hazard_evidence,
                test_gear_and_capacity, test_eligibility, test_regrowth, test_hatchets, test_spots_store,
                test_failed_places, test_landings, test_home_and_trips, test_libraries, test_discover_witcher,
-               test_travel_costs, test_capacity, test_forest_spots, test_library_hops, test_no_go):
+               test_travel_costs, test_capacity, test_forest_spots, test_library_hops, test_no_go,
+               test_character_drift, test_capacity_from_dry_trips, test_stand_regrowth, test_exposure_and_recovery,
+               test_hazard_kinds_and_time_of_day):
         fn()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

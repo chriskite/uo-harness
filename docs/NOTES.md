@@ -396,6 +396,20 @@ Read from `harvest_attempts` and the lumber `episodes` while building the optimi
   wood chance roll (woods.json base chances × skill), not from the tree's kind. So `board:<wood>`
   prices, trip `woods` breakdowns and any "X logs/boards" use the wood names only; heartwood,
   bloodwood and frostwood (stock UO woods) don't exist on Outlands at all.
+- **Update 2026-10-11 (Outland Dan, 233 trips 10-05..10-11; OPTIMIZER.md):**
+  - *Logs per success drift up with the Harvest aspect*: 7.4–8.0 (10-05) → 9.22 (10-11) as the
+    aspect grew (a node's quantity is fixed except for the aspect's doubling procs, k334/k155).
+    Within a spot the field rate rose 3.7 %/day, 2.4 %/day of it logs per success, 1.3 %/day
+    successes per field hour; attempts per field hour stayed flat. The optimizer rescales each
+    trip to today's logs per success since then.
+  - *Coloured wood doesn't vary by spot*: 8.4 % of 186 873 logs since 10-07 were coloured; across
+    46 spots the share's χ² is 441.6 on 45 dof, ≈ the ~9-log lump factor, so no spot effect.
+  - *Stand regrowth*: 972 (dry stand, later stand on the same tile) pairs from the runner's `stand`
+    events, all at gaps ≥ 60 min (the window censors shorter ones): 76–86 % regrown at 60–120 min,
+    84 % at 4–24 h (others' chopping keeps it below 1). The fit stays at 65 min.
+  - *Deaths to time*: 12 lumber deaths in 47 exposed hours (0.26/h); from a death to the next lumber
+    trip 9–156 min (median ~47; the overseer's reaction included). 3 of them fell 47–2 243 tiles from
+    their spot (escape runs, the home landing after an escape recall).
 
 ## Grove tree counts: what the runner counts (2026-10-07, viz grove layer)
 
