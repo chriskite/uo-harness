@@ -85,6 +85,16 @@ HALF_LIFE_DAYS = 14.0             # a trip's weight halves every two weeks: comp
 PRIOR_CV_MIN = 0.15               # a new spot's rate prior is at least this uncertain: the between-spot spread
                                   # measured 2026-10-11 (OPTIMIZER.md F4) is ~0.06-0.18, above it the fit decides
 PRIOR_MIN_FIELD_H = 0.5           # weighted field hours before a spot's rate shapes the prior
+# Character drift (OPTIMIZER.md "under-predicted logs per hour"): one shared level g(day) of the log field
+# rate on top of each spot's own, fitted from spots chopped on several days, smooth between days
+DRIFT_TRIP_SD = 0.10              # log-rate sd of one field hour within a spot (measured 2026-10-11: 0.10)
+DRIFT_BEND_SD = 0.02              # how much the level's daily change may change a day (a steady trend is free)
+DRIFT_MIN_FIELD_S = 600.0         # trips shorter than this don't inform the level
+DRIFT_PROJECT_DAYS = 1.0          # today's level is carried along the last daily change at most this far
+# Today's logs per success, projected from the recent trend (the newest-N mean lags a growing aspect)
+LPS_TREND_H = 72.0                # hours of successes the trend is fitted over
+LPS_TREND_MIN = 300               # successes needed for a trend (else the newest LPS_RECENT mean)
+LPS_PROJECT_MAX = 0.10            # the projection moves at most this far from that mean
 DEFAULT_RATE = 1200.0             # logs per field hour before any trip (live 2026-10-02 at 69 skill: 1200-2000)
 DEFAULT_CHOP_S = 9.5              # s per attempt for trips that didn't time their chops (LUMBER_LOOP §12)
 DEFAULT_CHOP_SHARE = 0.7          # share of field time spent chopping when no trip timed it
@@ -619,18 +629,86 @@ def adjusted_field_h(trip: dict, p_now, lps_now=None) -> float:
     p_then / p_now (fewer attempts per log at a higher success chance), its
     walking unchanged, then all of it by lps_then / lps_now (each success gives
     more logs as the Harvest aspect grows: OPTIMIZER.md F1; a trip without
-    successes isn't rescaled). A trip the place spoiled (place_fail: no tree we could
-    reach, harvesting refused) counts at least FAIL_EXPOSURE_H with its 0 logs,
-    so a spot that can't be worked loses its optimistic prior instead of
-    looking untried forever."""
+    successes isn't rescaled) and by the character's drift since then (`drift`,
+    drift_levels: what the runner, skill and gear gained beyond those). A trip the
+    place spoiled (place_fail: no tree we could reach, harvesting refused) counts at
+    least FAIL_EXPOSURE_H with its 0 logs, so a spot that can't be worked loses its
+    optimistic prior instead of looking untried forever."""
     f, c = trip["field_s"], trip["chop_s"]
     if trip["p"] and p_now:
         f = f - c + c * trip["p"] / p_now
     f = max(f, 0.1 * trip["field_s"])
     if trip.get("lps") and lps_now:
         f *= trip["lps"] / lps_now
+    f *= trip.get("drift", 1.0)
     h = f / 3600.0
     return max(h, FAIL_EXPOSURE_H) if trip.get("place_fail") else h
+
+
+def drift_levels(trips: list, p_now, lps_now, now: float) -> dict:
+    """The character's drift (OPTIMIZER.md, "under-predicted logs per hour"): log field rate
+    = spot effect + g(day) for the trips of spots chopped on at least two UTC days (≥
+    DRIFT_MIN_FIELD_S, logs), at their adjusted_field_h without drift (success chance and
+    logs per success already rescaled). g is smooth over the days between the first and the
+    last such trip: its day-to-day change may itself change by DRIFT_BEND_SD a day (a steady
+    trend costs nothing, a bend does; a day without data is interpolated), each trip a
+    measurement of sd DRIFT_TRIP_SD per field hour; weighted least squares, g = 0 on the last
+    day (held from there on, and carried along its last daily change up to now:
+    DRIFT_PROJECT_DAYS at most). -> {g: {day: g}, now: g(now), first, last, trips, spots};
+    drift_factor reads it."""
+    use = [tr for tr in trips if tr["field_s"] >= DRIFT_MIN_FIELD_S and tr["logs"] > 0 and not tr.get("place_fail")]
+    days_of = {}
+    for tr in use:
+        days_of.setdefault(tr["spot"], set()).add(int(tr["t0"] // 86400))
+    use = [tr for tr in use if len(days_of[tr["spot"]]) >= 2]
+    out = {"g": {}, "now": 0.0, "first": None, "last": None, "trips": len(use),
+           "spots": len({tr["spot"] for tr in use})}
+    if not use:
+        return out
+    import numpy as np
+    first = min(int(tr["t0"] // 86400) for tr in use)
+    last = max(int(tr["t0"] // 86400) for tr in use)
+    nd = last - first                                   # g columns for first..last-1 (g[last] = 0)
+    sids = sorted({tr["spot"] for tr in use})
+    col = {sid: nd + i for i, sid in enumerate(sids)}
+    rows, ys, ws = [], [], []
+    for tr in use:
+        r = np.zeros(nd + len(sids))
+        d = int(tr["t0"] // 86400) - first
+        if d < nd:
+            r[d] = 1.0
+        r[col[tr["spot"]]] = 1.0
+        h = adjusted_field_h({**tr, "drift": 1.0}, p_now, lps_now)
+        rows.append(r)
+        ys.append(math.log(tr["logs"] / h))
+        ws.append(tr["field_s"] / 3600.0 / DRIFT_TRIP_SD ** 2)
+    for d in range(2, nd + 1):                          # g[d] - 2 g[d-1] + g[d-2] ~ N(0, DRIFT_BEND_SD²)
+        r = np.zeros(nd + len(sids))
+        if d < nd:
+            r[d] = 1.0
+        r[d - 1] = -2.0
+        r[d - 2] = 1.0
+        rows.append(r)
+        ys.append(0.0)
+        ws.append(1.0 / DRIFT_BEND_SD ** 2)
+    a, y, w = np.array(rows), np.array(ys), np.sqrt(np.array(ws))
+    sol, *_ = np.linalg.lstsq(a * w[:, None], y * w, rcond=None)
+    g = {first + d: float(sol[d]) if d < nd else 0.0 for d in range(nd + 1)}
+    # today's level: the last day's, carried along its last daily change up to DRIFT_PROJECT_DAYS
+    # past that day's middle (a plan made the next day otherwise trails the trend by a day)
+    ahead = min(max(0.0, now / 86400.0 - (last + 0.5)), DRIFT_PROJECT_DAYS)
+    out.update(first=first, last=last, g=g, now=(g[last] - g.get(last - 1, 0.0)) * ahead)
+    return out
+
+
+def drift_factor(drift: dict, t: float) -> float:
+    """The hours factor exp(g(day of t) − g(now)) for a trip started at t: below 1 for a day
+    when the character got less per hour than now (its hours shrink to today's). Days before
+    the fit's first take its first level, after its last the last."""
+    if not drift["g"]:
+        return 1.0
+    d = min(max(int(t // 86400), drift["first"]), drift["last"])
+    return math.exp(drift["g"][d] - drift["now"])
 
 
 def weight(t: float, now: float) -> float:
@@ -1405,7 +1483,6 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
     for tr in (trip_obs(e, prices) for e in episodes):  # a merged spot's trips are its forest's
         if tr is not None and alias.get(tr["spot"], tr["spot"]) in spots:
             trips.append({**tr, "spot": alias.get(tr["spot"], tr["spot"])})
-    by_spot = {sid: [tr for tr in trips if tr["spot"] == sid] for sid in spots}
     hatchets = char.get("hatchets") or []
     worn = hatchets[0] if hatchets else None
     skill = char.get("skill")
@@ -1413,6 +1490,11 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
         known = [e for e in episodes if _num(e.get("skill")) is not None]
         skill = known[-1]["skill"] if known else None
     p_now = success_p(skill, worn["tool_bonus"] if worn else 0.0)
+    lps_now = logs_per_success
+    # the character's drift beyond skill and logs per success: each trip's hours to today's level
+    drift = drift_levels(trips, p_now, lps_now, now)
+    trips = [{**tr, "drift": drift_factor(drift, tr["t0"])} for tr in trips]
+    by_spot = {sid: [tr for tr in trips if tr["spot"] == sid] for sid in spots}
 
     # hazard evidence: sightings, deaths (and their cause), trips sent home (by a player or a
     # creature threat), thefts
@@ -1463,7 +1545,6 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
               "tod": {kind: f[tod["block"]] for kind, f in tod["factors"].items()}}
     recovery = recovery_h(linked, trips)
 
-    lps_now = logs_per_success
     phi = dispersion(by_spot, p_now, lps_now)
     prior = rate_prior(by_spot, p_now, now, phi, lps_now)
     landings = landings or {}
@@ -1550,6 +1631,9 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
            "gear_at_risk": gear, "capacity_logs": None if q_cap == Q_MAX else q_cap,
            "needs_prices": [{"item": it, "how": f"ctl lumber price {it} <gp>"} for it in gear["unpriced"]],
            "logs_per_success": round(lps_now, 2), "logs_per_tree": round(lpt, 1),
+           "drift": {"trips": drift["trips"], "spots": drift["spots"],
+                     "level_by_day": {time.strftime("%Y-%m-%d", time.gmtime(d * 86400)): round(math.exp(g - drift["now"]), 3)
+                                      for d, g in drift["g"].items()}},
            "successes_per_tree": round(spt, 2), "yield_share_pooled": round(share0, 2),
            "prior_rate_logs_h": round(prior[0] / prior[1]), "prior_cv": round(1 / math.sqrt(prior[0]), 2),
            "spots": sorted(rows, key=lambda r: (not r["eligible"], -r["net_logs_h"])), "pick": None}
@@ -1743,12 +1827,37 @@ def gamma_quantile(alpha, beta, q) -> float:
 
 
 # ------------------------------------------------------------------ the store
-def logs_per_success(memory, n: int = LPS_RECENT) -> float:
-    """Today's logs per success: the mean of the newest n successes (Harvest-aspect procs
-    double some, and their share grows with the aspect: OPTIMIZER.md F1)."""
-    rows = memory.con.execute("SELECT amount FROM harvest_attempts WHERE outcome='success' AND amount > 0 "
-                              "ORDER BY t DESC LIMIT ?", (n,)).fetchall()
-    return sum(r[0] for r in rows) / len(rows) if len(rows) >= 20 else LOGS_PER_SUCCESS
+def lps_estimate(succ: list, now: float) -> float:
+    """Today's logs per success from successes [(t, amount)] in time order, all before now
+    (Harvest-aspect procs double some, and their share grows with the aspect: OPTIMIZER.md
+    F1). The mean of the newest LPS_RECENT trails a growing aspect by hours, so it is
+    projected to now along a least-squares line over the last LPS_TREND_H hours (at least
+    LPS_TREND_MIN successes), moved at most LPS_PROJECT_MAX from that mean; a flat or
+    falling trend leaves it be. LOGS_PER_SUCCESS with fewer than 20 successes."""
+    recent = succ[-LPS_RECENT:]
+    if len(recent) < 20:
+        return LOGS_PER_SUCCESS
+    mean = sum(a for _, a in recent) / len(recent)
+    win = [(t, a) for t, a in succ if t >= now - LPS_TREND_H * 3600.0]
+    if len(win) < LPS_TREND_MIN:
+        return mean
+    tm = sum(t for t, _ in win) / len(win)
+    am = sum(a for _, a in win) / len(win)
+    sxx = sum((t - tm) ** 2 for t, _ in win)
+    if sxx <= 0:
+        return mean
+    slope = sum((t - tm) * (a - am) for t, a in win) / sxx
+    if slope <= 0:
+        return mean
+    return max(mean, min(am + slope * (now - tm), mean * (1.0 + LPS_PROJECT_MAX)))
+
+
+def logs_per_success(memory, now: float | None = None) -> float:
+    """lps_estimate over the store's successes (the newest few thousand)."""
+    now = time.time() if now is None else now
+    rows = memory.con.execute("SELECT t, amount FROM harvest_attempts WHERE outcome='success' AND amount > 0 "
+                              "AND t < ? ORDER BY t DESC LIMIT 20000", (now,)).fetchall()
+    return lps_estimate(rows[::-1], now)
 
 
 def gp_per_log(prices: dict) -> float:
@@ -2043,8 +2152,7 @@ def audit(memory, days: int = 7, now: float | None = None, seeds_path: str = SEE
         day = [tr for tr in trips if cut <= tr["t0"] < cut + 86400.0]
         if not day:
             continue
-        before = [s for s in succ if s[0] < cut][-LPS_RECENT:]
-        lps = sum(a for _, a in before) / len(before) if len(before) >= 20 else LOGS_PER_SUCCESS
+        lps = lps_estimate([s for s in succ if s[0] < cut], cut)
         eps = [e for e in inp["episodes"] if (_num(e.get("t_end")) or 0) < cut]
         att = [a for a in inp["attempts"] if a[0] < cut]
         rg = regrowth(att, [e for e in inp["stands"] if e["t"] < cut])

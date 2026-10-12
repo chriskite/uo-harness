@@ -36,9 +36,14 @@ The live store after the change (`ctl lumber audit --days 8`, then a plan with n
 | Effective arms (exp entropy of P(best)) | 32.6 | 43.5 |
 
 What remains:
-- **λ is still under-predicted by 2–19 %.** The logs per success at each day's cut lags that day's
-  (8.84 vs 9.22 on 10-11), and successes per field hour still drift about 1.3 %/day; neither is
-  modelled.
+- **λ under-prediction: addressed in a follow-up (same day).** The rescale alone left 2–19 %: the
+  newest-1 000 mean of logs per success trailed each day's (8.84 vs 9.22 on 10-11), and successes
+  per field hour drifted about 1.3 %/day. Built: logs per success projected along its 72-hour
+  trend (`lps_estimate`), and a shared character level per day fitted from spots chopped on
+  several days (`drift_levels`). Audit, actual/predicted for 10-06…10-12: 1.27, 1.18, 1.19, 1.13,
+  1.08, 1.04, 1.02 → 1.14, 1.06, 1.17, 1.10, 1.02, 1.03, 1.02. The 10-08 outlier follows the aspect
+  (re-activated that day [INFERENCE]). Since then the runner records the armor aspect's tier and xp
+  on every trip row (`harvest_aspect.armor`), so logs per success can later be modelled from them.
 - **Few dry trips inform capacity yet.** Only 8 count; 12 more are older than the forests. Capacity
   still sits on its prior for most spots, but it now learns with every dry trip.
 - **Exploration.** With the drift removed, spots look more alike: more arms are near-tied, so

@@ -948,13 +948,47 @@ def test_hazard_kinds_and_time_of_day():
           f[b] > 1.0 and all(x < 1.0 for i, x in enumerate(f) if i != b), f)
 
 
+def test_drift_and_lps_projection():
+    print("== the character's drift: a spot measured on a worse day is credited with today's level ==")
+    day = 86400.0
+    eps = []
+    for d in range(5):                                    # both spots chopped every day, 5 %/day better each day
+        for sid in ("a", "b"):
+            rate = 3000 * 1.05 ** d * (1.1 if sid == "b" else 1.0)
+            eps.append(trip(sid, NOW - (5 - d) * day + (3600 if sid == "b" else 0), round(rate), 3600,
+                            successes=round(rate / 9.0)))
+    eps.append(trip("old", NOW - 5 * day + 7200, 3000, 3600, successes=round(3000 / 9.0)))  # a's twin, day 0 only
+    spots = [spot("a"), spot("b", 3000, 3000), spot("old", 5000, 5000)]
+    out = plan(spots, eps, logs_per_success=9.0)
+    lv = list(out["drift"]["level_by_day"].values())
+    check("the level rises day by day at ~5 %, and today (a day past the last) is above the last day's",
+          all(1.03 < y / x < 1.07 for x, y in zip(lv, lv[1:])) and lv[-1] < 1.0, out["drift"])
+    a, old = row(out, "a")["rate_logs_h"], row(out, "old")["rate_logs_h"]
+    check("a spot seen only on the first day rates near its twin seen every day",
+          old > 3000 * 1.1 and abs(old - a) / a < 0.12, (a, old))
+    one = plan(spots, [t for t in eps if t["spot"] != "b"], logs_per_success=9.0)
+    check("one spot chopped on several days is enough to fit the level", one["drift"]["spots"] == 1, one["drift"])
+
+    print("== today's logs per success: projected along the recent trend, not the lagging mean ==")
+    rows = [(NOW - 72 * 3600 + i * 216, 8.0 + 1.0 * i / 1200) for i in range(1200)]   # 8 -> 9 over 3 days
+    est = lo.lps_estimate(rows, NOW)
+    mean = sum(a for _, a in rows[-lo.LPS_RECENT:]) / lo.LPS_RECENT
+    check("a rising trend: the estimate is above the newest-1000 mean and near today's 9",
+          est > mean and abs(est - 9.0) < 0.05, (est, mean))
+    check("a flat trend: the mean", lo.lps_estimate([(t, 9.0) for t, _ in rows], NOW) == 9.0)
+    steep = [(t, 5.0 + 10.0 * i / 1200) for i, (t, _) in enumerate(rows)]
+    m2 = sum(a for _, a in steep[-lo.LPS_RECENT:]) / lo.LPS_RECENT
+    check("the projection is capped at LPS_PROJECT_MAX above the mean",
+          abs(lo.lps_estimate(steep, NOW) - m2 * (1 + lo.LPS_PROJECT_MAX)) < 1e-9)
+
+
 if __name__ == "__main__":
     for fn in (test_explore_exploit, test_greedy_command, test_skill_rescaling, test_trip_size, test_hazard_evidence,
                test_gear_and_capacity, test_eligibility, test_regrowth, test_hatchets, test_spots_store,
                test_failed_places, test_landings, test_home_and_trips, test_libraries, test_discover_witcher,
                test_travel_costs, test_capacity, test_forest_spots, test_library_hops, test_no_go,
                test_character_drift, test_capacity_from_dry_trips, test_stand_regrowth, test_exposure_and_recovery,
-               test_hazard_kinds_and_time_of_day):
+               test_hazard_kinds_and_time_of_day, test_drift_and_lps_projection):
         fn()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

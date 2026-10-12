@@ -1688,6 +1688,7 @@ class LumberLoop:
         rec = {"ok": suit["ok"], "action": "none", "missing": suit["missing"], "plain": suit["plain"]}
         self.stats["harvest_aspect"] = rec
         if suit["ok"]:
+            self.aspect_read(rec)
             return
         if suit["missing"]:
             rec["action"] = "missing"
@@ -1718,11 +1719,36 @@ class LumberLoop:
             return
         log(f"harvest aspect: {'already on' if res.get('already') else 'activated'}; "
             f"{res.get('charges')} Arcane Essence charges")
+        self.aspect_read(rec)
         low = res.get("warn_below") or 50
         if res.get("charges") is not None and res["charges"] < low:
             self.aspect_problem(st, "essence", f"Arcane Essence low: {res['charges']} charges (warning below {low}); "
                                 "at 0 every aspect is lost", suit, item="arcane essence",
                                 have=res["charges"], need=low)
+
+    def aspect_read(self, rec: dict):
+        """Record the armor aspect's tier and experience in the trip row (`harvest_aspect.armor`
+        {aspect, tier, xp, xp_max, active_tier}, `charges`): the Aspect Mastery menu read and
+        closed like a player (aspects.read, ~6 s at home). Its procs double a success's logs and
+        grow with it, so lumber_opt can tie logs per success to it (OPTIMIZER.md). Only with the
+        suit worn in the aspect; a failed read is noted (`read_error`) and the trip goes on."""
+        if self.args.aspect_read == "off":
+            return
+        resume = self._intent
+        self.doing("aspect", "Checking the Harvest aspect's progress")
+        try:
+            menu = aspects.read(escape_mod.LinkIO(self.link), self.human)
+        except aspects.AspectError as e:
+            rec["read_error"] = str(e)
+            log(f"harvest aspect: menu not read ({e})")
+            return
+        finally:
+            if resume is not None:
+                self.doing(*resume)
+        sec = (menu.get("sections") or {}).get("armor") or {}
+        rec["armor"] = {k: sec.get(k) for k in ("aspect", "tier", "xp", "xp_max", "active_tier")}
+        rec["charges"] = menu.get("charges")
+        log(f"harvest aspect: armor {sec.get('aspect')} tier {sec.get('tier')}, {sec.get('xp')}/{sec.get('xp_max')} xp")
 
     def aspect_problem(self, st, key: str, text: str, suit: dict, item: str = "harvest aspect armor",
                        have=None, need=None):
@@ -4862,6 +4888,9 @@ def main():
                     help="before heading out each trip, make sure the six worn armor pieces carry the Harvest "
                          "aspect (its hue); activate it through the [aspect menu when one doesn't (5 Arcane "
                          "Essence); a missing piece or failure is a low_supplies juncture, the trip goes on")
+    ap.add_argument("--aspect-read", choices=("trip", "off"), default="trip",
+                    help="with the Harvest suit worn, read the [aspect menu before each trip and record the armor "
+                         "aspect's tier and xp in the trip row (lumber_opt ties logs per success to it)")
     ap.add_argument("--resupply", choices=("on", "off"), default="on",
                     help="before each trip at home, top up the loadout from the storage shelf (shelf.py): the "
                          "rental room's, then the one by the landing when the room's lacks something")

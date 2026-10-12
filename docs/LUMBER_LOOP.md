@@ -367,12 +367,25 @@ patches show up within weeks):
   p_then/p_now, where p = Σ_wood tree-colour chance × min(1, (skill − offset)/divisor × (1 + tool
   bonus)) (wiki formulas in `woods.json`, colours above our skill counted as regular wood
   [INFERENCE]). Walking isn't rescaled. Then (since 2026-10-11) the whole field time by the trip's
-  logs per success (`logs / successes`) over today's (the newest 1 000 successes,
-  `logs_per_success`): a node's quantity is fixed except for the Harvest aspect's procs, which double
-  it (k334, k155), and their share grows with the aspect (7.6 → 9.2 logs per success, 10-03 → 10-11;
-  within a spot the field rate rose 3.7 %/day, of which 2.4 %/day was logs per success: OPTIMIZER.md
-  F1). So data measured at lower skill or aspect is credited with what the spot yields today. The
-  formula gives 0.69 at 69.1 skill; Terran measured 44/63 = 0.70.
+  logs per success (`logs / successes`) over today's (`lps_estimate`: the newest 1 000 successes'
+  mean, projected to now along a least-squares line over the last 72 h when it rises, at most 10 %
+  above that mean; the plain mean trailed the day's own by 2–4 %): a node's quantity is fixed
+  except for the Harvest aspect's procs, which double it (k334, k155), and their share grows with
+  the aspect (7.6 → 9.2 logs per success, 10-03 → 10-11; within a spot the field rate rose
+  3.7 %/day, of which 2.4 %/day was logs per success: OPTIMIZER.md F1). Then by the **character's
+  drift** (`drift_levels`, since 2026-10-11): log rate = spot effect + a shared level g(day), fitted
+  by weighted least squares from the spots chopped on two or more days (trips ≥ 10 min; a trip's sd
+  0.10 per field hour; g smooth: its daily change may change by 0.02 a day, so a steady trend costs
+  nothing), g carried along its last daily change for up to a day past the last day's middle. It
+  catches what the runner, skill beyond the success chance and gear add (successes per field hour
+  +1.3 %/day on 10-05..10-11: Smart Harvest's reach 1 → 2 and stand choice [INFERENCE]); the plan
+  shows it as `drift.level_by_day`. So data measured at lower skill or aspect is credited with what
+  the spot yields today. The formula gives 0.69 at 69.1 skill; Terran measured 44/63 = 0.70. Audit
+  2026-10-11 (logs actual/predicted, 10-06..10-12): 1.27, 1.18, 1.19, 1.13, 1.08, 1.04, 1.02 with the
+  rescale alone → 1.14, 1.06, 1.17, 1.10, 1.02, 1.03, 1.02 with the projection and the drift. What
+  is left follows the aspect itself (10-08: logs per success at the cut 7.88 against the day's 8.21;
+  that day's first trip re-activated the suit's aspect [INFERENCE: lost with the armor in the 10-06
+  deaths]); the trip rows record its tier and xp since then.
 - overhead T (since 2026-10-04: room exit, walk to the landing's rune, recall out, walk into the
   grove, lockout, recall home, into the room, convert, store): Normal posterior over the trips'
   overheads; prior `overhead_prior_s` = room exit 10 s + the walk from the home landing to the
@@ -918,7 +931,12 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   activation or essence below the menu's warning level (50) is a `low_supplies` juncture once per
   run (`item` "harvest aspect armor" / "arcane essence") and the trip goes on without. The trip row
   carries `harvest_aspect` {ok, action none|already|activated|failed|missing|off, missing, plain,
-  charges}; activations are `aspect` job events. `--harvest-aspect off` skips it. Live 2026-10-04
+  charges}; activations are `aspect` job events. `--harvest-aspect off` skips it. Since 2026-10-11
+  (`aspect_read`, `--aspect-read trip|off`, default trip) the runner also reads the [aspect menu
+  once per trip with the suit worn (~6 s at home, opened and closed like a player) and records
+  `harvest_aspect.armor` {aspect, tier, xp, xp_max, active_tier} and `charges`, so logs per
+  success can be tied to the aspect's progress later (OPTIMIZER.md); a failed read is
+  `read_error` and the trip goes on. Live 2026-10-04
   (Outland Dan, the check run outside a trip): all six "plain" under a wrong hue on purpose →
   menu → "already" in 5.5 s, hue 2086 learned, the next check passive.
 - **Monsters fighting someone else (since 2026-10-01, knowledge #89):** runs had stopped for 'a

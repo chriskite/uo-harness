@@ -1775,6 +1775,19 @@ OPTIMIZER.md). Data (2026-10-11): 10 prices recorded (`ctl lumber price`), 7 lum
 runner `death` job event backfilled from the proxy's `death` events (`backfilled` in their data); the
 store was copied to `harness/data/harness-pre-optimizer-20261011.db` first (gitignored).
 
+**Follow-up, same day (user: "do #2 and the forward projection from #1 now, and start recording aspect
+tier and experience per trip"):** the field rate was still under-predicted 2–19 %.
+- *Character drift* (`drift_levels`): one shared level per UTC day on top of each spot's rate,
+  weighted least squares over the spots chopped on 2+ days, the level smooth (second-difference
+  penalty, so a steady trend is free) and carried along its last change for up to a day. Rejected:
+  a first-difference random walk (shrank a 5 %/day trend to ~1.5 %/day in the test), a plain
+  shorter half-life (forgets spot evidence to chase the character).
+- *Logs per success projected* to now along a 72-hour least-squares line (rising trends only, ≤ 10 %
+  over the newest-1 000 mean). Rejected: a shorter window (noisier, still lags).
+- *Aspect tier and xp per trip*: the runner reads the [aspect menu once per trip with the suit worn
+  (`--aspect-read`, ~6 s at home) into `harvest_aspect.armor`. Not yet used by the model: logs per
+  success from tier/xp needs days of rows first.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
