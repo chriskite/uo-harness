@@ -2339,7 +2339,9 @@ heals, no dispels, no locked doors and no heal potions.
   15:46:38, again 90 s of server silence, with Dan safe in the room. Run `lumber-20261012-154630-8ff9`
   aborted at its start because "the book's gump didn't open" (the server was already silent). Both drops
   came at ~:45 past the hour, 3 h apart. Every earlier session's close (10-11, 10-12) had ≤1 s of silence
-  before it. The proxy's `close` event doesn't say which side closed.
+  before it. The proxy's `close` event doesn't say which side closed. **Cause (user):** the server was
+  down for patching both times. A patch looks like this: S2C stops, about 90 s later the connection
+  closes, and the user logs back in once the server is up.
 
 ## A "thief" who killed: gorilkaenjoyer at witcher_105 (live 2026-10-10, Seer-17)
 
