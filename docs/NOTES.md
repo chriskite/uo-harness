@@ -2335,6 +2335,11 @@ heals, no dispels, no locked doors and no heal potions.
   at witcher_57 (1813,2163). The proxy and ClassicUO stayed up, and the internet answered right after,
   so the drop was upstream (server or route). The harness can't log back in (Constraint 1): only the
   user can. Runs 1-2 that day stored 6645 + 3258 boards.
+  A second drop came the same way: session `20261012_135452` had its last S2C at 15:45:08 and closed at
+  15:46:38, again 90 s of server silence, with Dan safe in the room. Run `lumber-20261012-154630-8ff9`
+  aborted at its start because "the book's gump didn't open" (the server was already silent). Both drops
+  came at ~:45 past the hour, 3 h apart. Every earlier session's close (10-11, 10-12) had ≤1 s of silence
+  before it. The proxy's `close` event doesn't say which side closed.
 
 ## A "thief" who killed: gorilkaenjoyer at witcher_105 (live 2026-10-10, Seer-17)
 
