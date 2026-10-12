@@ -840,11 +840,12 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
      flow as `ctl act resupply`; docs/NOTES.md "Storage shelves"): in the room its shelf first; when
      that one lacks something ("No resupply: …", or "Unable to resupply: no items available."), or our
      way-home book holds fewer than `BOOK_FULL` (10) charges (since 2026-10-11, user: "Recalls should be
-     available on the guild shelf"; the room shelf has no recall scrolls, and the book had run down to 0
-     over five runs; `book_charges`, read at the run's start, less the charge each recall by it took,
-     `note_book_charge`), out of
-     the room (the trip goes that way anyway) and the shelf by the landing (Outland Dan: the DTF guild
-     house's, the secured one on its tile skipped), which recharges the book from its scrolls. A shelf that
+     available on the guild shelf"; `book_charges`, read at the run's start, less the charge each recall by
+     it took, `note_book_charge`), out of the room (the trip goes that way anyway) and the shelf by the
+     landing (Outland Dan: the DTF guild house's, the secured one on its tile skipped). A shelf tops the
+     book up to 10 on its Resupply when it holds recall scrolls and the character's loadout has the shelf
+     option for it enabled (user, 2026-10-12: enabled for his characters); the shelf's reply doesn't list
+     the charges as an added item ("it had nothing to give" can still recharge). A shelf that
      fails is logged and passed over; what
      each gave and lacked is the trip row's `resupply` [{where, shelf, s, added, missing,
      none_available}]. Then the trapped-pouch check (`pouch_ready`): still none, a `low_supplies`
@@ -860,12 +861,19 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
      quota / 5 uses (`HATCHET_LOGS_MIN`: the fewest logs a success gave in 11 398 since 2026-10-06; mean
      8.2). Short, in the room: the most worn hatchet goes into the room's chest and the room's shelf
      resupplies the loadout's hatchet, until enough or the shelf gives none (a loadout of 2+ hatchets
-     keeps the worn one and tops up anyway; user, 2026-10-08: both). Still short: an attention
-     `low_supplies` juncture (item `hatchet uses`) and the trip goes on. A hatchet that breaks
+     keeps the worn one and tops up anyway; user, 2026-10-08: both). The shelf out of hatchets
+     (`hatchets_from_chest`, since 2026-10-12; live 2026-10-11 the lone hatchet stayed in the chest and
+     the trip recalled out without one): the chest's hatchets come into the pack, the most uses first
+     (the newest label on record, else the kind's full uses), each read by a click once carried, until
+     the quota is covered or the chest has none; the one just put away comes back that way. Still
+     short: an attention `low_supplies` juncture (item `hatchet uses`) and the trip goes on; no hatchet
+     at all: the juncture with 0 uses, back into the room, exit 1, no trip. A hatchet that breaks
      mid-trip hands the chopping to the next one (`hatchet()` picks among those left); a library hop
      whose quota the hatchets can't cover goes to the room first. The trip row's `hatchets` {need,
-     have, uses, how, swapped}. Scenarios `hatchet_swap` (10 uses for a 100-log trip: swapped for the
-     shelf's fresh one) and `hatchet_breaks` (the worn one breaks, the spare chops on, stored).
+     have, uses, how, swapped, from_chest}. Scenarios `hatchet_swap` (10 uses for a 100-log trip:
+     swapped for the shelf's fresh one), `hatchet_back` (the shelf has none: the worn one comes back
+     out, the trip goes short), `hatchet_chest` (the chest's spare covers the trip), `hatchet_none` (it
+     won't come back out: no trip) and `hatchet_breaks` (the worn one breaks, the spare chops on, stored).
   1b. **Mount** (since 2026-10-05, user; `mount_home`, `--mount on|off`, default on): at home and not
      riding, our pet within 3 tiles (the one remembered for this character, else the pet whose menu
      offers Release) gets the stock double-click (`harness/mount.py`; docs/NOTES.md "Our mount"). A

@@ -130,6 +130,7 @@ C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
 SELF, BACKPACK, HATCHET = 0x00094375, 0x44ADA059, 0x44ADB57A
 SPARE_HATCHET, SHELF_HATCHETS = 0x44ADB57B, (0x44ADB590, 0x44ADB591)   # a second hatchet in the pack; the shelf's
+CHEST_HATCHET = 0x44ADB5A0                               # a spare lying in the room's chest
 HATCHET_USES = 1375                                      # an exceptional gold one's (hatchets.json), as handed out
 START = (100, 200)                                       # the main run's trees around it; BOOK_RUNE_POS lands here
 GOOD_TREE = {"x": 111, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [110, 200]}
@@ -545,6 +546,8 @@ class World:
         self.pops = []                    # (pouch, time, 'us' | 'thief')
         self.stashed = []                 # (stack serial, amount, pouch) per drop of logs/boards into a pouch
         self.chest_items = []             # other items dropped into the chest (spent pouches): (serial, hue)
+        self.chest_axes = {}              # hatchets lying in the chest: serial -> uses left
+        self.chest_axes_locked = False    # hatchet_chest_refused: a hatchet lifted out of the chest won't drop
         self.chest_opens = 0              # the chest double-clicked (opened) within reach in the room
         self.room_gumps = {}              # rental room menu serial -> which live gump (room_gumps.json key), open
         self.room_serials = set()         # every room menu serial sent
@@ -1536,6 +1539,8 @@ class World:
                 self.send(b"\x24" + u32(CHEST) + bytes.fromhex("0000003c007d"))
                 if self.chest_stack:
                     self.send(contained(self.chest_stack[0], BOARD_G, self.chest_stack[1], CHEST))
+                for s in self.chest_axes:
+                    self.send(contained(s, 0x0F44, 1, CHEST))
             elif serial in (BACKPACK, BAG):
                 self.containers_opened.append(serial)
                 self.send(b"\x24" + u32(serial) + bytes.fromhex("0000003c007d"))   # as captured (204225)
@@ -1694,8 +1699,15 @@ class World:
                     self.send(contained(self.chest_stack[0], BOARD_G, self.chest_stack[1], CHEST))
                 return
             elif in_chest and s in self.hatchet_left:    # a worn hatchet put away
-                self.chest_items.append((s, self.hatchet_left.pop(s)))
+                self.chest_axes[s] = self.hatchet_left.pop(s)
+                self.chest_items.append((s, self.chest_axes[s]))
                 self.send(contained(s, 0x0F44, 1, CHEST))
+                return
+            elif (dest == BACKPACK and s in self.chest_axes and not self.chest_axes_locked
+                  and self.facet == ROOM_FACET and self.cheb(CHEST_POS) <= 2):   # a hatchet out of the chest
+                self.hatchet_left[s] = self.chest_axes.pop(s)
+                self.chest_items = [(c, v) for c, v in self.chest_items if c != s]
+                self.send(contained(s, 0x0F44, 1, BACKPACK))
                 return
             elif in_chest and s in self.pouch_hue:       # a spent pouch put away
                 self.chest_items.append((s, self.pouch_hue.pop(s)))
@@ -2803,6 +2815,78 @@ async def hatchet_swap():
               {"serial": f"0x{HATCHET:08X}", "uses": 10}] and world.hatchet_left[fresh] < HATCHET_USES
           and code == 0 and [e["outcome"] for e in eps] == ["stored"],
           f"exit {code} {hk} left {world.hatchet_left}\n{text[-700:]}")
+    store.close()
+
+
+async def hatchet_back():
+    """Live 2026-10-11 (lumber-20261011-194604-aa35): the lone hatchet, short of the trip's uses, went into the chest for
+    a fresh one; the shelf had none ("Unable to resupply: no items available.") and the trip went out without a
+    hatchet. Now the shelf out of hatchets brings the chest's back: the worn one returns to the pack and the trip goes
+    with it (a low_supplies juncture for the shortfall)."""
+    print("\n== hatchet back: the shelf has none -> the hatchet just put away comes back out of the chest ==")
+    world = World("library")
+    world.shelf_stock = {"room": 0, "landing": 0}
+    world.hatchet_left = {HATCHET: 10}
+    world.loadout_hatchets, world.shelf_hatchets = 1, {"room": 0, "landing": 0}
+    text, code, store, _ = await run_scenario(world, "hatchet_back", [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "200", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
+    eps = store.episodes("lumber")
+    hk = (eps[0].get("hatchets") or {}) if eps else {}
+    low = [j["data"] for j in store.junctures() if j["data"].get("item") == "hatchet uses"]
+    check("the worn one into the chest, the shelf had none, the worn one back out of the chest into the pack",
+          hk.get("swapped") == [{"serial": f"0x{HATCHET:08X}", "uses": 10}]
+          and hk.get("from_chest") == [{"serial": f"0x{HATCHET:08X}", "uses": 10}] and not world.chest_axes,
+          f"{hk} chest {world.chest_axes}\n{text[-700:]}")
+    check("the trip went with it: chopped (a use spent, or it broke)",
+          bool(eps) and (world.hatchet_left.get(HATCHET, 10) < 10 or HATCHET in world.broke),
+          f"left {world.hatchet_left} broke {world.broke}")
+    check("a low_supplies juncture: 10 uses carried for the 40 the trip may take",
+          [(d["have"], d["need"]) for d in low] == [(10, 40)], str(low))
+    store.close()
+
+
+async def hatchet_chest():
+    """The shelf out of hatchets, a spare in the room's chest: after the worn one went in for nothing, the chest's
+    hatchets come into the pack, the most uses first, until the trip's quota is covered; the trip chops and stores."""
+    print("\n== hatchet chest: the shelf has none -> a spare from the chest covers the trip ==")
+    world = World("library")
+    world.shelf_stock = {"room": 0, "landing": 0}
+    world.hatchet_left = {HATCHET: 10}
+    world.chest_axes = {CHEST_HATCHET: HATCHET_USES}
+    world.loadout_hatchets, world.shelf_hatchets = 1, {"room": 0, "landing": 0}
+    text, code, store, _ = await run_scenario(world, "hatchet_chest", [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
+    eps = store.episodes("lumber")
+    hk = (eps[0].get("hatchets") or {}) if eps else {}
+    check("the chest's spare (1375 uses) came into the pack and covered the 20; the trip stored (exit 0)",
+          CHEST_HATCHET in world.hatchet_left and {"serial": f"0x{CHEST_HATCHET:08X}", "uses": HATCHET_USES}
+          in (hk.get("from_chest") or []) and hk.get("have", 0) >= 20 and code == 0
+          and [e["outcome"] for e in eps] == ["stored"],
+          f"exit {code} {hk} chest {world.chest_axes}\n{text[-700:]}")
+    check("no low_supplies juncture about hatchets",
+          not any(j["data"].get("item") == "hatchet uses" for j in store.junctures()))
+    store.close()
+
+
+async def hatchet_none():
+    """No hatchet can be had (the shelf has none, the one put away won't come back out of the chest): no trip. The run
+    stops in the rental room (exit 1) with a low_supplies juncture instead of recalling out without a hatchet."""
+    print("\n== hatchet none: no hatchet anywhere -> no trip, the run ends in the room ==")
+    world = World("library")
+    world.shelf_stock = {"room": 0, "landing": 0}
+    world.hatchet_left = {HATCHET: 10}
+    world.chest_axes_locked = True
+    world.loadout_hatchets, world.shelf_hatchets = 1, {"room": 0, "landing": 0}
+    text, code, store, _ = await run_scenario(world, "hatchet_none", [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
+    low = [j["data"] for j in store.junctures() if j["data"].get("item") == "hatchet uses"]
+    check("no trip: exit 1 'no hatchet carried', still in the rental room, no episode",
+          code == 1 and "no hatchet carried" in text and world.facet == ROOM_FACET
+          and not store.episodes("lumber"), f"exit {code} facet {world.facet}\n{text[-700:]}")
+    check("a low_supplies juncture with 0 uses", [d["have"] for d in low] == [0], str(low))
     store.close()
 
 
@@ -4971,7 +5055,7 @@ if __name__ == "__main__":
             resupply, resupply_book,
             convert_stacks,
             landing_escape, stockpile_store,
-            ghost_horse, horse_follows, hatchet_swap, hatchet_breaks,
+            ghost_horse, horse_follows, hatchet_swap, hatchet_back, hatchet_chest, hatchet_none, hatchet_breaks,
             staff_in_view,
             hop,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_smart_range,

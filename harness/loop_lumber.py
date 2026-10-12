@@ -2641,13 +2641,15 @@ class LumberLoop:
                     out.append((serial_of(key), it, depth))
         return out
 
-    def hatchet_uses(self, st) -> dict:
-        """{serial: (uses, how)} for each carried hatchet: a single click on it (worn or in the backpack
-        itself, where a player sees it) brings the server's "(N uses remaining)" label ('label'); else the
-        newest such label on record ('seen'), else its kind's full uses ('assumed': the shelf hands out
-        full ones)."""
+    def hatchet_uses(self, st, only=None) -> dict:
+        """{serial: (uses, how)} for each carried hatchet (only those in `only`, when given): a single click
+        on it (worn or in the backpack itself, where a player sees it) brings the server's "(N uses
+        remaining)" label ('label'); else the newest such label on record ('seen'), else its kind's full
+        uses ('assumed': the shelf hands out full ones)."""
         out = {}
         for serial, it, depth in self.carried_hatchets(st):
+            if only is not None and serial not in only:
+                continue
             n, how = None, None
             if depth <= 1:
                 mark = len(self.link.events)
@@ -2677,9 +2679,12 @@ class LumberLoop:
         """Before a trip, at home (user, 2026-10-08): the hatchets we carry hold the uses the trip's quota
         may take (uses_needed). Short and in the rental room: the most worn one goes into the room's chest
         and the room's shelf resupplies the loadout's hatchet (a loadout of 2+ keeps the worn one and tops
-        up anyway: resupply_home), until enough or the shelf gives none. Still short: an attention
-        `low_supplies` juncture (item 'hatchet uses') and the trip goes on (a hatchet that breaks hands
-        the chopping to the next one). The trip row's `hatchets`."""
+        up anyway: resupply_home), until enough or the shelf gives none. The shelf out of hatchets: the
+        chest's hatchets come back into the pack, the one just put away among them (hatchets_from_chest;
+        live 2026-10-11 the lone hatchet stayed in the chest and the trip went out without one). Still
+        short: an attention `low_supplies` juncture (item 'hatchet uses') and the trip goes on (a hatchet
+        that breaks hands the chopping to the next one); none at all: Abort, no trip. The trip row's
+        `hatchets`."""
         need = self.uses_needed(self.args.logs_per_trip)
         uses = self.hatchet_uses(self.state())
         rec = {"need": need, "uses": {f"0x{s:08X}": n for s, (n, _) in uses.items()},
@@ -2698,6 +2703,10 @@ class LumberLoop:
             rec["how"].update({f"0x{s:08X}": how for s, (_, how) in uses.items()})
             if set(uses) <= before:                     # the shelf gave none
                 break
+        if sum(n for n, _ in uses.values()) < need and in_room:     # the shelf has none (or we carry none)
+            rec["from_chest"] = self.hatchets_from_chest(need, uses)
+            rec["uses"].update({f"0x{s:08X}": n for s, (n, _) in uses.items()})
+            rec["how"].update({f"0x{s:08X}": how for s, (_, how) in uses.items()})
         have = sum(n for n, _ in uses.values())
         rec["have"] = have
         self.pre_stats["hatchets"] = rec
@@ -2705,11 +2714,60 @@ class LumberLoop:
             log(f"hatchets: {have} uses carried for the {need} the trip may take "
                 f"({', '.join(f'0x{s:08X} {n} ({how})' for s, (n, how) in uses.items())})")
             return
+        how = "stock GM hatchets on the shelf, or raise the loadout's hatchet count"
+        if have <= 0:
+            self.memory.juncture("lumber", "low_supplies", "No hatchet carried, none on the shelf or in the chest: "
+                                 "no trip", "attention", {"item": "hatchet uses", "have": 0, "need": need,
+                                                          "trip": self.trip_n, "how": how})
+            raise Abort("no hatchet carried, and none on the shelf or in the chest: no trip")
         log(f"hatchets: only {have} uses carried for the {need} the trip may take; going anyway")
         self.memory.juncture("lumber", "low_supplies", f"Hatchets hold {have} uses, the trip may take {need}: "
                              "it goes on, and stops when the last one breaks", "attention",
-                             {"item": "hatchet uses", "have": have, "need": need, "trip": self.trip_n,
-                              "how": "stock GM hatchets on the shelf, or raise the loadout's hatchet count"})
+                             {"item": "hatchet uses", "have": have, "need": need, "trip": self.trip_n, "how": how})
+
+    def hatchets_from_chest(self, need: int, uses: dict) -> list:
+        """The room's chest's hatchets (--hatchet's kind) into the pack, the most uses first (the newest
+        "(N uses remaining)" label on record, else the kind's full uses), one at a time, each read by a
+        click once carried, until the carried ones (`uses`, updated in place) hold `need` or the chest has
+        none left. Returns [{serial, uses}] taken."""
+        chest, where = home_mod.chest_serial(self.home), tuple(self.home["chest"]["pos"][:2])
+        name = self.home["chest"].get("name") or "chest"
+        if self.wait_for(lambda s: self.item(s, chest) is not None, 3.0) is None:
+            log(f"hatchets: the {name} isn't in view; none taken from it")
+            return []
+        if cheb(self.link.pos(self.link.state()), where) > CHEST_REACH:
+            self.mover.walk_to(lambda: where, 1, f"to the {name}")
+        self.open_for((chest, True))
+        taken, tried = [], set()
+        while sum(n for n, _ in uses.values()) < need:
+            st = self.link.state()
+            spares = []
+            for key, it in st["world"]["items"].items():
+                s = serial_of(key)
+                if it.get("graphic") not in HATCHETS or s in tried or serial_of(it.get("container") or "0") != chest:
+                    continue
+                kind = lumber_opt.hatchet_kind(it, self.hatchets)
+                if self.want_hatchet is not None and not lumber_opt.matches(kind, self.want_hatchet):
+                    continue
+                seen = self.memory.uses_seen(s)
+                spares.append((seen["n"] if seen is not None else kind["uses"], s))
+            if not spares:
+                break
+            est, s = max(spares)
+            tried.add(s)
+            pack = self.backpack(st)
+            log(f"hatchets: {sum(n for n, _ in uses.values())} uses for the {need} the trip may take, the shelf "
+                f"has none: 0x{s:08X} (~{est} uses) out of the {name}")
+            self.human.wait("use")
+            self.link.act(actions.lift(s, 1))
+            self.human.wait("drag")
+            self.link.act(actions.drop(s, DROP_AUTO, DROP_AUTO, 0, 0, pack))
+            if self.wait_for(lambda st2: s in ledger_mod.pack_items(st2, pack), 4.0) is None:
+                log(f"hatchets: 0x{s:08X} did not come into the backpack")
+                continue
+            uses.update(self.hatchet_uses(self.state(), only={s}))
+            taken.append({"serial": f"0x{s:08X}", "uses": uses.get(s, (est,))[0]})
+        return taken
 
     def snapshot(self, st) -> dict:
         """Who works this trip and with what (lumber_opt.character): the optimizer
@@ -3879,9 +3937,10 @@ class LumberLoop:
         loadout topped up from the Storage Shelf (shelf.resupply, the same flow as `ctl act
         resupply`). In the rental room its shelf first; when that leaves something out ("No
         resupply: …" or nothing available), or our way-home book holds fewer than BOOK_FULL charges
-        (the room shelf has no recall scrolls; the guild house's has: user 2026-10-11, after the book
-        ran down to 0 over five runs), out of the room (the trip goes that way anyway) and the shelf by
-        the landing (Outland Dan: the DTF guild house's, 2 tiles off), which recharges it. A shelf that
+        (user 2026-10-11, after the book ran down to 0 over five runs: the guild house's shelf holds recall
+        scrolls), out of the room (the trip goes that way anyway) and the shelf by the landing (Outland
+        Dan: the DTF guild house's, 2 tiles off), which recharges it: a shelf tops a book up from its
+        recall scrolls when the character's loadout enables it (user 2026-10-12). A shelf that
         fails is logged and passed over: pouch_ready still decides whether the trip can go.
         What each shelf gave and lacked goes into the trip row (`resupply`). The hatchets' uses
         are checked against the trip's quota (hatchets_ready: in the room, where a worn one can be
@@ -4795,9 +4854,9 @@ class LumberLoop:
                 return
             self.trip_n = n                          # intents from here on are this trip's
             self.pre_trip = (time.time(), self.mover.steps, self.mover.blocked_count)
-            self.resupply_home()                    # the loadout from the storage shelf at home
-            self.mount_home()                       # ride out on our pet (its ghost revived in the room)
             try:
+                self.resupply_home()                # the loadout from the storage shelf at home; no hatchet: no trip
+                self.mount_home()                   # ride out on our pet (its ghost revived in the room)
                 self.pouch_ready(self.link.state())  # a trip uses a trapped pouch up: none left, no trip
             except Abort:
                 self.back_in_room()

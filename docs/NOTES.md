@@ -612,7 +612,9 @@ Wiki: [Storage Shelf](https://wiki.uooutlands.com/Storage_Shelf). Fixtures:
   2026-10-07 (9→10, 7→10, 8→10, 1→10) follows a resupply. So the overseer's `act recall --check` after
   a resupply is right, not stale: the shelf tops the book up to 10 from its recall scrolls (the
   Discord KB's "storage shelf runebook recharging"; ROADMAP row 8). A low count only matters between
-  resupplies (the runner resupplies before every trip).
+  resupplies (the runner resupplies before every trip). **The rule (user, 2026-10-12):** a shelf tops a
+  runebook up when it holds recall scrolls *and* the character's shelf option for it is enabled; it is
+  enabled for all of the user's characters, so only the shelf's scroll stock decides.
 - **The book stopped being recharged (live 2026-10-11, Seer-21):** the runebook read 5 charges at
   the start of run 1 (12:42), 1 at run 2, and 0 at runs 3–5. Every room-shelf resupply answered
   "resupplied (room) from 0x6CEB65CD: nothing". Since a full pack makes the runner skip the landing's DTF
@@ -2320,11 +2322,11 @@ heals, no dispels, no locked doors and no heal potions.
     0 uses carried … going anyway" and recalled out bare.
   - Seer-24 stopped him at the landing, then took the chest's five spare hatchets (1595 uses).
   - Gaps: the stow comes before we know the shelf can replace it; nothing takes a stowed hatchet back
-    or uses the chest's spares; 0 uses doesn't stop the trip. A fix was proposed and not yet approved.
-- **Guild shelf empty.** Every landing visit (17:44, 18:05, 18:46, 19:46, 19:48) answered "it had
-  nothing to give". The book still read 6 → 7 → 9 → 9 → 10 at the run starts. [INFERENCE] Either the
-  shelf's recharge isn't reported as an added item, or the user topped the book up during the pause
-  (20:55–21:16). The logs don't separate the two.
+    or uses the chest's spares; 0 uses doesn't stop the trip. Fixed 2026-10-12 (`hatchets_from_chest`,
+    no trip with 0 uses; LUMBER_LOOP §13 "Trip" 1a'). The user stocked the room shelf with verite hatchets.
+- **Guild shelf "nothing to give".** Every landing visit (17:44, 18:05, 18:46, 19:46, 19:48) answered
+  "it had nothing to give", yet the book read 6 → 7 → 9 → 9 → 10 at the run starts. The shelf's reply
+  doesn't list a book recharge as an added item (rule above: scrolls + the enabled option).
 - **`lumber plan` NameError** `HOME_PRIOR` (`lumber_opt.py` 1389) at 21:47, gone about 60 s later. The
   cause was the optimizer edits in flight (4581ade/9586988), not the runner.
 
