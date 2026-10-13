@@ -2569,6 +2569,65 @@ timestamped per packet. Facts:
 - **Barding skill**: the trip's 47 ok/fail answers fit the wiki formula `max(S/100 - difficulty/100,
   0.33 S/100)` best at S = 149 (printed 80 + bonuses).
 
+## Logan Wolf's second Mausoleum trip (capture 20261013_173449, analysed 2026-10-13)
+
+The user went in to fight the vampire countess again (docs/SIM.md "Captures wanted"), sang the barding
+songs partway, and left 3 minutes later chased by two reds. In the region 17:36:54-17:40:38. Read with
+`calibrate.Session` and ad-hoc replays (`replay.timed_packets` + `WorldRuntime`). The phoenix and the
+gravebug were his; two bonded black widows in view belonged to someone else (notoriety 2, no command).
+
+- **One countess fight, 17:39:03-17:39:31** (with a vampire bat and a corpsebride), 27 s: ~9,500 damage
+  in the "-N" numbers over her.
+  - `*attempts to transfix*` at :09.4, :14.6, :19.8, :25.3, :30.8 (5.2-5.5 s apart, as the first trip).
+    One worked (:14.6): a copy named GraveRobber (graphic 387, notoriety 3) on the gravebug's tile.
+  - **The transfixed pet is out of the fight**: the gravebug made no step and no attack animation
+    from :14.6 until the copy's 0x1D at :25.6 (11.0 s); its 0xA1 share stayed 50. The first trip's three
+    copies show the same: no animation of their originals from appearing to 0x1D, 9.9-10.8 s each. Their
+    originals could still be healed (21:27:18-23: 56 -> 81 %).
+  - **At most one copy at a time**: over both fights 4 of 8 attempts with no copy of hers up worked, 0 of
+    4 with one up (the first trip's next copies appeared right after the previous 0x1D, 21:27:28.7 and
+    21:27:39.5-39.7).
+  - The copy went to war mode 0-2.5 s after it appeared (n=4), then walked 6 tiles to the phoenix
+    rather than to Logan at 8. The simulator's copy never picks its original.
+- **Corpsebride wail**: `*wails*` every 7.5-7.8 s while it fights (25 wails over 4 fights in both
+  captures), with -13..-25 at once on the pets beside it (about 18 of 24 chances at 1 tile) and on Logan
+  2 of 11 times at 2-3 tiles (-25, -19). Logan acting on the bride made no difference (he had targeted
+  0x613c5 2.6 s before a wail that missed him at 2 tiles). Modelled as an area hit on each of us, 75 %
+  within a tile and 20 % at 2-3 [INFERENCE].
+- **Shadowguard on the gravebug** (17:38:12-17:38:43, alone): -21, -41, -32, -31, -18, -34 (n=6), a
+  successful discord from 17:38:27.7.
+- **Barding songs** (knowledge #11226/#11233/#11234): the bard skill answered at the ground (0x6C
+  type 1, serial 0, a land tile 1-3 from us, graphic 0; `actions.target_xyz` reproduces the live bytes
+  exactly) plays a song on us and the followers for 15 minutes:
+  - 17:39:22.2 "You are now under the effect of a Song of Discordance (15.0% reduced damage from
+    creatures for 15 minutes)."
+  - 17:39:51.0 "... a Song of Peacemaking (15.0% healing amounts for 15 minutes)."
+  - 17:40:12.5 "... a Song of Provocation (+15.0% damage against creatures for 15 minutes)."
+  - 15.0 % = 5 % x effective barding 300 / 100 (#11234). A second song 3.8 s after the first:
+    "You must wait a few moments before performing another barding song." (the wiki: 10 s between
+    songs, apart from the skill timer). The skill cursor itself came 3.6 s after a song, under the 5 s
+    skill gap of a targeted use.
+  - The first trip had none: the user forgot them. `loop_hunt --songs` (default on) keeps them up.
+- **Two reds**: KalVasKikUrAss and Jimii Hendrix (notoriety 6, [BJV]) came into view together at
+  17:40:14.5 18 tiles east, in the doorway (5200, 682) between the countess' room and the gate's.
+  - Logan started running 2 s later, south through the nightstalker room (5175, 684 -> 5181, 721),
+    the only other way to the gate, with both chasing at 1-6 tiles. A nightstalker and a reanimated
+    knight charged on the way. Spells: Corp Por (energy bolt), Des Mani (weaken) twice, Rel Por, Ort Por
+    Ylem ("KalVasKikUrAss has applied telekinesis to you."); "X is attacking you!" for each.
+  - `[Rope` (an Adventurer's Rope, knowledge #13325: a Teleport, 5 s cooldown) at 17:40:30.4:
+    "Where do you wish to traverse to?", a ground target 7 tiles on, (5198, 723) -> (5205, 721). An
+    earlier `[Rope` at 17:40:19.0 got no prompt.
+  - On the crimson gate at 17:40:36.4; Travel at :37.9; Totem 17:40:38; the rune tome home 4.5 s later.
+  - **The pets stayed behind**: the gravebug was fighting shade wolves in the nightstalker room ("You
+    are too far away from any of your followers to heal them." at 17:40:28.8); neither was in view at
+    Totem or at home. Pets follow a Teleport or rope only on Follow (patch 2025-01-25, #5141).
+- **The gate menu opens with the last destination selected**: its radio button is drawn 9724/9721, the
+  others 9721/9724 (Prevalia on the first trip's first menu, Totem on this one). With the wanted one
+  already selected, Travel (button 2) works on the first menu: Logan pressed it 1.5 s after the menu
+  opened. `moongate.travel` now does the same.
+- At Totem: "A stationary penalty is in effect (must move 5 tiles to remove)." right after the drink,
+  as after every moongate.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

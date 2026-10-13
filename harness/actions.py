@@ -69,7 +69,10 @@ version at settings+0x68 is >= 10 (live server: 12).
                           00000001 00000190` (session_20260928_141253)
   target_xyz    0x6C  27B  id, 01, cursor_id, cursor_type, 00000000, x u32,
                           y u32, z i32, graphic u32 (0 = land)
-                          (Send_TargetXYZ @ 0x14015d120 V10+; no capture)
+                          (Send_TargetXYZ @ 0x14015d120 V10+; ground truth: the
+                          barding songs' ground targets in session_20261013_173449,
+                          e.g. `6c 01 0018bdaa 01 00000000 00001442 000002aa
+                          00000019 00000000`)
   target_cancel 0x6C  27B  id, target_type, cursor_id, cursor_type, 00000000,
                           7fffffff x3, 00000000
                           (Send_TargetCancel @ 0x14015e400 V10+; no capture)

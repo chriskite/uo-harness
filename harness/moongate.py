@@ -5,7 +5,10 @@ Stepping onto a public, red or gold moongate only opens its menu (gump 0xE0E675B
 step's confirm, never closed by the server). As Logan Wolf left the Mausoleum at 21:31:00 (capture
 20261012_210013): the destination's button (by its label, e.g. "Totem" = 17 there), the menu comes
 back with a new serial, then "Travel to Destination" (button 2) on it. The arrival is a position
-jump; the pets within range come along.
+jump; the pets within range come along. The menu opens with the character's last destination
+already selected (its radio button drawn 9724/9721, the others 9721/9724: Prevalia there, Totem at
+17:40:36 in 20261013_173449, where Logan pressed Travel at once, 1.5 s after the menu, chased by two
+reds): then Travel goes on the first menu.
 
 `travel(link, human, dest)` does that from a gate we stand on, its menu already up or about to be.
 `link` is an agent_link.Link (events, state, act, wait), `human` a humanize.Human (a reading pause
@@ -13,6 +16,7 @@ before each click).
 """
 from __future__ import annotations
 
+import re
 import time
 
 import actions
@@ -25,10 +29,17 @@ MENU_WAIT_S = 3.0                    # the menu after the step onto the gate (li
 RESEND_WAIT_S = 3.0                  # the menu re-sent after a destination pick (live 0.05 s)
 ARRIVAL_WAIT_S = 5.0                 # Travel -> the position jump (live 0.75 s)
 JUMP_TILES = 10
+SELECTED_ART = 9724                  # a radio button's normal art when selected (live, both captures)
 
 
 class GateError(Exception):
     pass
+
+
+def selected(g: dict, button: int) -> bool:
+    """Whether radio button `button` of gump `g` is drawn selected."""
+    m = re.search(rf"\{{\s*button\s+-?\d+\s+-?\d+\s+(\d+)\s+\d+\s+1\s+0\s+{button}\s*\}}", g.get("layout") or "")
+    return m is not None and int(m.group(1)) == SELECTED_ART
 
 
 def _menus(link, since: int) -> list[dict]:
@@ -52,8 +63,9 @@ def _press(link, human, g: dict, button: int):
 
 def travel(link, human, dest: str, since: int = 0, log=print) -> dict:
     """Pick `dest` on the destinations menu opened since event `since` (waits MENU_WAIT_S for it),
-    then Travel on the re-sent menu; done when we jumped JUMP_TILES or more. -> {ok, from, to,
-    elapsed_s[, error]}; GateError when there's no menu or no such destination."""
+    then Travel on the re-sent menu (on this one when `dest` is already selected); done when we
+    jumped JUMP_TILES or more. -> {ok, from, to, elapsed_s[, error]}; GateError when there's no menu
+    or no such destination."""
     t0 = time.monotonic()
     start = tuple(link.state()["movement"]["pos"][:2])
     if link.wait(lambda s: _menus(link, since), MENU_WAIT_S) is None:
@@ -62,14 +74,15 @@ def travel(link, human, dest: str, since: int = 0, log=print) -> dict:
     pick = labelled_button(g, dest)
     if pick is None:
         raise GateError(f"no destination {dest!r} on the menu ({[t for t in g.get('lines') or [] if t][:14]})")
-    mark = len(link.events)
-    _press(link, human, g, pick)
-    if link.wait(lambda s: _menus(link, mark), RESEND_WAIT_S) is None:
-        raise GateError(f"the menu didn't come back after picking {dest!r}")
-    g = _menus(link, mark)[-1]
+    if not selected(g, pick):
+        mark = len(link.events)
+        _press(link, human, g, pick)
+        if link.wait(lambda s: _menus(link, mark), RESEND_WAIT_S) is None:
+            raise GateError(f"the menu didn't come back after picking {dest!r}")
+        g = _menus(link, mark)[-1]
     go = labelled_button(g, TRAVEL_LABEL)
     if go is None:
-        raise GateError("no 'Travel to Destination' button on the re-sent menu")
+        raise GateError("no 'Travel to Destination' button on the menu")
     _press(link, human, g, go)
     st = link.wait(lambda s: cheb(s["movement"]["pos"], start) >= JUMP_TILES, ARRIVAL_WAIT_S)
     to = link.state()["movement"]["pos"][:3]

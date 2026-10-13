@@ -66,8 +66,10 @@ TOME_ROW_BUTTON0 = 100    # the tome's rows: 100 + row index (test_loop_hunt's l
 GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
 ON_HIT = {"bleed", "bleed_area", "poison", "drain"}   # scenario specials rolled on a monster's hit
-TIMED = {"charge", "transfix", "vanish"}             # ...used on a cooldown while it fights
+TIMED = {"charge", "transfix", "vanish", "wail"}     # ...used on a cooldown while it fights
 GATE_GUMP = 0xE0E675B8    # "Moongate Destinations" (docs/NOTES.md "Moongate gumps")
+SONGS = ("discord", "peace", "provoke")
+TEXT_SONG_WAIT = "You must wait a few moments before performing another barding song."
 
 
 def cheb(a, b) -> int:
@@ -115,6 +117,7 @@ class Mob:
     bleed_next: float = 0.0
     bleed: tuple = ((8, 10), 3.0)  # (tick damage range, seconds between ticks) of the bleed running
     expires: float | None = None  # a summoned monster (transfixed copy) vanishes then
+    held_until: float = 0.0       # a transfixed pet stands still and doesn't fight until then
     hidden_until: float = 0.0     # stealthed (Vanish) until then: unseen, unhittable; 0: visible
     cd: dict = field(default_factory=dict)   # ability -> next time it is ready
     mode: str = "follow"          # pets: follow, guard, kill, stay
@@ -159,6 +162,8 @@ class World:
                         "fights": [], "hunt_s": 0.0}
         self.skill_ready = 0.0
         self.calm_ready = 0.0
+        self.song_ready = 0.0
+        self.songs = {}                       # barding song -> until
         self.last_use_t = -1e9
         self.potion_ready = 0.0
         self.vet_end = None                   # (finish time, moved during the channel?)
@@ -168,6 +173,7 @@ class World:
         self.gump_n = 0x7700
         self.gate_n = 0x7800                  # moongate menus' serials
         self.gate_gump = None                 # (serial, gate, picked destination) of the menu up
+        self.gate_last = scenario.get("player", {}).get("gate_last")   # the menu opens with it selected
         self.recall_at = None                 # (arrival time, destination row)
         self.spawn_due = []                   # (time, spawn index)
         self.player_log = []                  # (time, source, damage, hits after): the last 15 s
@@ -366,6 +372,10 @@ class World:
             amount *= self.sc["bard"].get("provoke_x", 1.0)
         if by is not None and by.discord_until > self.t:
             amount *= 1 - self.sc["bard"]["discord_dealt"]
+        if victim.kind in ("player", "pet") and (by is None or by.kind == "monster"):
+            amount *= 1 - self.song("discord")      # also on bleeds and area hits (patch 2022-08-26)
+        elif victim.kind == "monster" and by is not None and by.kind in ("player", "pet"):
+            amount *= 1 + self.song("provoke")
         n = max(1, int(round(amount)))
         victim.hits -= n
         victim.last_hurt_t = self.t
@@ -377,6 +387,7 @@ class World:
                 self.metrics["team_damage"] += n if by.kind in ("player", "pet") else 0
         if victim.kind == "player":
             self.metrics["player_damage_taken"] += n
+            self.count("player_damage_by", by.key if by is not None else kind, n)
             self.player_log.append((self.t, by.key if by is not None else kind, n, int(victim.hits)))
             self.player_log = [e for e in self.player_log if self.t - e[0] <= 15.0]
         elif victim.kind == "pet":
@@ -392,6 +403,8 @@ class World:
     def heal(self, m: Mob, amount: float):
         if not m.alive or m.ghost:
             return
+        if m.kind in ("player", "pet"):
+            amount *= 1 + self.song("peace")
         n = int(round(min(amount, m.hits_max - m.hits)))
         m.hits += n
         self._overhead(m, f"+{n}")
@@ -626,8 +639,10 @@ class World:
             m.target = m.provoke[0]
             return
         if m.spec.get("random_target"):
-            # a transfixed copy: live, its 10 attributed hits went 4 to Logan, 6 to the pets
-            near = [o for o in self.team() if cheb(o.pos, m.pos) <= 3] or self.team()
+            # a transfixed copy: live, its 10 attributed hits went 4 to Logan, 6 to the pets; never its
+            # original, which stands transfixed (2026-10-13: the copy walked 6 tiles to the phoenix)
+            team = [o for o in self.team() if o.serial != m.spec.get("copy_of")]
+            near = [o for o in team if cheb(o.pos, m.pos) <= 3] or team
             m.target = self.rng.choice(near).serial if near else None
             return
         cur = self.mobs.get(m.target) if m.target is not None else None
@@ -734,9 +749,21 @@ class World:
             elif kind == "transfix":
                 m.cd[kind] = t + sp["every_s"] * self.rng.uniform(0.9, 1.1)
                 self._overhead(m, "*attempts to transfix*")
+                if any(o.spec.get("summoner") == m.serial for o in self.mobs.values()):
+                    continue                             # live: 0 of 4 attempts with her copy still up worked
                 pets = [p for p in self.pets() if p.alive and not p.ghost and cheb(p.pos, m.pos) <= sp.get("range", 12)]
                 if pets and self.rng.random() < sp["chance"]:
-                    self._transfix(self.rng.choice(pets), sp)
+                    self._transfix(self.rng.choice(pets), sp, m)
+            elif kind == "wail":
+                # corpsebride: an area hit (docs/NOTES.md; scenario specials note)
+                m.cd[kind] = t + sp["every_s"] * self.rng.uniform(0.99, 1.01)
+                self._overhead(m, "*wails*")
+                near, far = sp.get("radius", 1), sp.get("far_r", 0)
+                for o in self.team():
+                    d = cheb(o.pos, m.pos)
+                    p = sp.get("near_chance", 1.0) if d <= near else sp.get("far_chance", 0.0) if d <= far else 0.0
+                    if p and self.rng.random() < p:
+                        self.hurt(o, self.roll(sp["damage"]), m, "wail")
             elif kind == "vanish":
                 if kind not in m.cd:                     # the first one comes a while into the fight
                     m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
@@ -765,23 +792,26 @@ class World:
             if cheb(o.pos, m.pos) <= 1:
                 self.hurt(o, self.roll(sp["damage"]), m, "charge")
 
-    def _transfix(self, pet: Mob, sp: dict):
+    def _transfix(self, pet: Mob, sp: dict, by: Mob):
         """The vampire countess' transfix: a hostile copy of one of our pets, named as the pet, on its
-        tile, that goes for us and vanishes after a few seconds (live 21:27:18-21:27:49: 3 copies of 7
-        attempts, 4-10 s each, their hits on Logan 28-37)."""
+        tile, while the pet itself stands transfixed (no step, no swing) until the copy vanishes. Live, 4
+        copies in 2 fights (21:27:18-21:27:49, 17:39:14-17:39:25): 9.9-11.0 s each, the copy in war mode
+        0-2.5 s after it appeared, at most one at a time; their hits on Logan 28-37."""
         spec = {"name": pet.name, "body": pet.body, "melee": sp["melee"], "swing_s": sp["swing_s"],
                 "hit_chance": sp.get("hit_chance", 0.9), "step_s": pet.spec.get("step_s", 0.21),
                 "aggro_range": 12, "gold": [0, 0], "difficulty": sp.get("difficulty", 100.0),
-                "specials": [], "random_target": True}
+                "specials": [], "random_target": True, "copy_of": pet.serial, "summoner": by.serial}
         x, y, z = pet.pos
         hp = sp["hits"]
         c = Mob(self._serial(), "monster", "transfixed copy", pet.name, pet.body, x, y, z, hits=hp, hits_max=hp,
                 noto=3, spec=spec, home=(x, y, z))
         c.expires = self.t + self.rng.uniform(*sp["lifetime_s"])
-        c.next_think = self.t
+        c.next_think = self.t + self.rng.uniform(*sp.get("wake_s", (0.0, 0.0)))
+        pet.held_until, pet.target = c.expires, None
         self.mobs[c.serial] = c
         self._view()
         self._overhead(c, "*transfixed*")
+        self.count("transfixed", pet.name)
 
     # ------------------------------------------------------------ pets
     def _pet(self, m: Mob):
@@ -792,6 +822,9 @@ class World:
             if t >= m.next_step and cheb(m.pos, owner.pos) > follow + 1:
                 m.next_step = self._due(m.next_step, m.spec["step_s"])
                 self._step_toward(m, owner.pos, follow + 1)
+            return
+        if m.held_until > t and any(o.spec.get("copy_of") == m.serial for o in self.mobs.values()):
+            m.target = None                      # transfixed: live, no step and no attack animation
             return
         if t >= m.next_think:
             m.next_think = t + THINK_S
@@ -987,11 +1020,34 @@ class World:
         self._sys(prompt)
         self._cursor({"kind": skill})
 
+    def _song(self, kind: str):
+        """A barding song: the bard skill at the ground (knowledge #11233/#11234: 15 min, 10 s between songs,
+        independent of the skill timer; live 2026-10-13, three of three played and printed 15.0 %)."""
+        t, b = self.t, self.sc["bard"]
+        if t < self.song_ready:
+            self._sys(TEXT_SONG_WAIT)
+            return
+        self.song_ready = t + b.get("song_gap_s", 10.0)
+        self.songs[kind] = t + b.get("song_s", 900.0)
+        self.count("songs", kind)
+        x = round(100 * b.get("song_x", 0.15), 1)
+        self._sys("You are now under the effect of a Song of " + {
+            "discord": f"Discordance ({x}% reduced damage from creatures for 15 minutes).",
+            "peace": f"Peacemaking ({x}% healing amounts for 15 minutes).",
+            "provoke": f"Provocation (+{x}% damage against creatures for 15 minutes)."}[kind])
+
+    def song(self, kind: str) -> float:
+        """The song's bonus share while it runs, else 0."""
+        return self.sc["bard"].get("song_x", 0.15) if self.songs.get(kind, 0.0) > self.t else 0.0
+
     def _target(self, p):
         from world.parsers import parse_packet
         f = parse_packet("c2s", p)
         pend, self.pending = self.pending, None
         if pend is None or f.get("cursor_id") != pend["cid"]:
+            return
+        if f.get("target_type") == 1 and pend["kind"] in SONGS and f.get("x") != 0x7FFFFFFF:
+            self._song(pend["kind"])
             return
         serial = f.get("serial") or 0
         tgt = self.mobs.get(serial)
@@ -1276,18 +1332,22 @@ class World:
         self._apply_penalty()
 
     # moongates: the "Moongate Destinations" menu (docs/NOTES.md "Moongate gumps"; live 21:31:00)
-    def _gate_layout(self, gate):
+    def _gate_layout(self, gate, picked=None):
         rows = gate["destinations"]
         parts = ["{ resizepic 20 23 11571 236 560 }{ gumppic 48 18 2446 }{ text 75 19 2655 0 18 0 1 0 0 0 }",
                  "{ button 53 546 4005 4007 1 0 2 }{ text 95 547 63 1 18 0 1 0 0 0 }"]
         for i in range(len(rows)):
             y = 52 + 35 * i
-            parts.append(f"{{ button 39 {y} 9721 9724 1 0 {10 + i} }}{{ text 75 {y + 3} 2603 {2 + i} 18 0 1 0 0 0 }}")
+            art = "9724 9721" if i == picked else "9721 9724"   # live: the selected row's radio art swapped
+            parts.append(f"{{ button 39 {y} {art} 1 0 {10 + i} }}{{ text 75 {y + 3} 2603 {2 + i} 18 0 1 0 0 0 }}")
         return "".join(parts), ["Moongate Destinations", "Travel to Destination"] + [r["name"] for r in rows]
 
     def _gate_menu(self, gate, picked=None):
+        """The menu; it opens with our last destination selected (live, both captures)."""
+        if picked is None:
+            picked = next((i for i, r in enumerate(gate["destinations"]) if r["name"] == self.gate_last), None)
         self.gate_n += 1
-        layout, lines = self._gate_layout(gate)
+        layout, lines = self._gate_layout(gate, picked)
         self.gate_gump = (self.gate_n, gate, picked)
         self.send(P.gump(self.gate_n, GATE_GUMP, layout, lines))
 
@@ -1301,6 +1361,7 @@ class World:
             to = rows[picked].get("at")
             if to is not None:
                 self.metrics["gate_travels"] = self.metrics.get("gate_travels", 0) + 1
+                self.gate_last = rows[picked]["name"]
                 self._move_party(to)
                 self._apply_penalty()                   # live: at once after a moongate (stationary.py)
 

@@ -31,6 +31,13 @@ turned war mode on or swung: the pets do the killing, he keeps them alive and ma
   the clock. A pacified or provoked creature may suffer a Barding Break (wiki Musicianship): immune
   to peace and provocation for a while ("That target is currently under a barding break effect.").
   "beyond your skill" stops that skill on that creature type for the run.
+- **Barding songs** (`--songs`, user 2026-10-13: "I forgot to buff us with our bard songs"): the same
+  skill at the ground plays a song on us and the pets for SONG_S (knowledge #11233/#11234; live
+  20261013_173449 all three printed 15.0 %): Discordance less damage taken from creatures, Peacemaking
+  more healing received, Provocation more damage against creatures. SONG_GAP_S between songs, apart
+  from the skill timer ("You must wait a few moments before performing another barding song." 3.8 s
+  after one, live). Kept up whenever no other care action is due (fights included, as the user sang
+  them), each again SONG_RENEW_S before it ends.
 - **Veterinary supplies** (graphic 0x6496, a stack in a bag; one double-click, no target): heals
   every friendly follower within VET_RANGE and the player at 25 % (patch 2023-08-14), a channel of
   5.0-5.3 s on the trip (43 uses) ended by "You finish using veterinary supplies."; the range check
@@ -134,6 +141,13 @@ OK_SKILL = {"disrupting": SKILL_DISCORD, "pacifying": SKILL_PEACE, "provoking": 
 FAIL_SKILL = {"discord": SKILL_DISCORD, "pacify": SKILL_PEACE, "incite": SKILL_PROVO}
 EFFECT = {SKILL_DISCORD: "discord", SKILL_PEACE: "calm", SKILL_PROVO: "calm"}
 DEFAULT_S = {SKILL_DISCORD: 60.0, SKILL_PEACE: 30.0, SKILL_PROVO: 30.0}   # when the answer names no duration
+SONG_ORDER = (SKILL_DISCORD, SKILL_PEACE, SKILL_PROVO)   # live order; damage taken first
+SONG_NAMES = {SKILL_DISCORD: "Discordance", SKILL_PEACE: "Peacemaking", SKILL_PROVO: "Provocation"}
+SONG_ON = re.compile(r"^You are now under the effect of a Song of (Discordance|Peacemaking|Provocation)\b")
+TEXT_SONG_WAIT = "You must wait a few moments before performing another barding song."
+SONG_S = 900.0                # 15 minutes (knowledge #9034, live "for 15 minutes")
+SONG_GAP_S = 10.0             # between songs (knowledge #11234)
+SONG_RENEW_S = 60.0
 
 
 def irreversible(text: str) -> str | None:
@@ -184,6 +198,23 @@ def bard_answer(e: dict):
         return None, "calm_wait", None
     if text == TEXT_IMMUNE:
         return None, "immune", None
+    return None
+
+
+def song_answer(e: dict):
+    """("on", skill id) for a song that started, ("wait", None) for the song cooldown, ("fail", skill id)
+    for a fail line, ("skill_wait", None) for the skill timer, else None."""
+    if e.get("ev") == "cliloc" and e.get("cliloc") == CLILOC_SKILL_WAIT:
+        return "skill_wait", None
+    if e.get("ev") != "speech_heard":
+        return None
+    text = e.get("text") or ""
+    if m := SONG_ON.match(text):
+        return "on", {v: k for k, v in SONG_NAMES.items()}[m.group(1)]
+    if text == TEXT_SONG_WAIT:
+        return "wait", None
+    if m := ANSWER_FAIL.match(text):
+        return "fail", FAIL_SKILL[m.group(1)]
     return None
 
 
@@ -270,6 +301,8 @@ class Team:
         self.fought = {}                 # serial -> (last-seen mob dict, monotonic): mobs the pets fought
         self.chargers = set(CHARGERS)    # creature types with an area Charge (known + seen this run)
         self.standoff_t = -1e9
+        self.songs = {}                  # song skill -> monotonic time it runs out
+        self.song_ready = 0.0
 
     # ------------------------------------------------------------ bookkeeping
     def count(self, what: str, n: int = 1):
@@ -506,10 +539,11 @@ class Team:
 
     # ------------------------------------------------------------ care: retreat, vet, guard
     def care(self, st) -> bool:
-        """One care action, True when something was done: retreat, vet supplies, guard, walk to a hurt pet."""
+        """One care action, True when something was done: retreat, vet supplies, guard, walk to a hurt pet,
+        a barding song due."""
         self.update(st)
         return self.retreat(st) or self.stand_off(st) or self.vet(st) or (self.guard_needed and self.guard()) \
-            or self.to_pet(st)
+            or self.to_pet(st) or self.song(st)
 
     def charge_zone(self, st) -> set:
         """Where a Charge would land its hit: every charger in war mode in view and each live pet beside
@@ -882,6 +916,54 @@ class Team:
             self.calm_ready = now + SKILL_GAP_S
         else:
             log(f"{what}: failed")
+
+    def song(self, st) -> bool:
+        """--songs: the next barding song due (SONG_ORDER; none running or ending within SONG_RENEW_S), the
+        skill at a ground tile beside us. True when the skill went out."""
+        now = time.monotonic()
+        if not getattr(self.a, "songs", False) or now < self.song_ready or now < self.skill_ready:
+            return False
+        sid = next((s for s in SONG_ORDER if self.songs.get(s, 0.0) - now < SONG_RENEW_S), None)
+        if sid is None:
+            return False
+        h = self.h
+        what = f"Song of {SONG_NAMES[sid]}"
+        h.doing("bard", what)
+        h.human.wait("use")
+        mark = len(h.link.events)
+        h.link.act(actions.use_skill(sid))
+        self.count("song")
+        self.song_ready = time.monotonic() + SONG_GAP_S          # whatever the answer: no retry storm
+        self.skill_ready = time.monotonic() + SKILL_RETRY_S
+        cur = self._cursor(mark)
+        if cur is None:
+            log(f"{what}: no target cursor")
+            return True
+        h.human.wait("aim")
+        st = h.state()
+        if not h.cursor_still(st, cur):
+            log(f"{what}: the cursor went away")
+            return True
+        if h.leave_reason(st):
+            h.cancel(cur)
+            return True
+        x, y, z = h.pos(st)[:3]
+        walk = h.mover.walk_map(st)
+        beside = [n for n in (walk.can_walk(x, y, z, d) for d in range(8)) if n] if walk is not None else []
+        gx, gy, gz = beside[0] if beside else (x, y, z)        # live: a tile 1-3 away, never our own
+        h.link.act(actions.target_xyz(cur["cursor_id"], gx, gy, gz, 0, cur.get("cursor_type") or 0))
+        h.wait_for(lambda s: any(song_answer(e) for e in h.link.events[mark:]), ANSWER_WAIT_S)
+        got = next((a for a in (song_answer(e) for e in h.link.events[mark:]) if a), None)
+        if got is None:
+            log(f"{what}: no answer")
+        elif got[0] == "on":
+            self.songs[got[1]] = time.monotonic() + SONG_S
+            self.count("song_on")
+            log(f"{what}: playing for {SONG_S / 60:.0f} min")
+        else:
+            log(f"{what}: {got[0]}")
+        h.human.wait("read")
+        return True
 
     def all_kill(self, serial: int):
         """'All Kill' and the target cursor answered with `serial` (a mob already on us)."""

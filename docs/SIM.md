@@ -100,11 +100,20 @@ What the capture and the wiki fixed:
     Logan beside it) [INFERENCE: area].
   - The vampire bat's bleed hits its target.
   - The nightstalker's Charge: a jump up to 12 tiles every ~8.5 s, 37-42 on up to 3 within a tile.
-  - The vampire countess' transfix: an attempt every ~5.3 s, 3 of 7 succeed. Each makes a hostile copy
-    of a pet, with the pet's name, that goes for any of us within 3 tiles (live, 4 of its 10 hits were
-    on Logan, 28-37 each) and vanishes after 4-10 s.
+  - The vampire countess' transfix (two fights, 20261012_210013 and 20261013_173449): an attempt every
+    ~5.3 s; with no copy of hers up half succeed, with one up none. Each makes a hostile copy of a pet,
+    with the pet's name, that wakes 0-2.5 s later, goes for any of us but its original within 3 tiles
+    (live, 4 of its 10 hits were on Logan, 28-37 each) and vanishes after 9.9-11 s. Until then the pet
+    itself stands transfixed: no step, no attack.
+  - The corpsebride's wail, every 7.6 s: 13-25 on each of us within a tile 75 % of the time (the pets
+    beside it live: about 18 of 24), 20 % at 2-3 tiles (Logan: 2 of 11) [INFERENCE: an area hit].
   - The shade wolf's Vanish: 4.3-15 s into a fight, then every 19-22 s, it is unseen and can't be hit
     for 3.5-6 s. It comes back on the target it had, with a swing at once.
+- **Barding songs** (2026-10-13, the second trip): a bard skill at the ground plays a song for 15
+  minutes, 10 s between songs: 15 % less damage to us and the pets from creatures (bleeds and area hits
+  too), 15 % more healing received, 15 % more damage by us and the pets. The first trip had none.
+- **Moongate menus** open with the last destination selected, as live; the runner then presses Travel
+  on the first menu.
 - **Pet pace**: one step per 0.21 s out of war mode (n=470 and 471, capture), the pace of our run;
   `calibrate.py` writes it as `step_interval_s_not_fighting` (2026-10-13; 0.3 s before, uncited).
   The world's step and swing timers keep their cadence across its 0.1 s ticks (`World._due`). Before
@@ -291,6 +300,26 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
     (user: banshees catch players on their way to the gate too).
 - **An unreachable corpse ended the run** (fixed, `loop_hunt` loot): the walk to it raised Abort("no
   route"). Now that corpse is left.
+- **The second trip's model, and the barding songs** (capture 20261013_173449; 2 x 49 x 60 min per
+  arm, seeds 0 and 1000, careers, `--pet-leave-at 0.35`, heal in place, out of the nightstalker room).
+  The transfixed pet now stands out of the fight for the copy's ~11 s, one copy at a time; the
+  corpsebride wails; `--songs` (default on) keeps the three songs up.
+
+  | measure | zone, songs | zone, no songs | loop, songs | loop, no songs |
+  |---|---|---|---|---|
+  | game hours | 78.3 | 80.8 | 40.7 | 33.6 |
+  | kills / hour on the level | 85 | 82 | 89 | 87 |
+  | gold / game hour | 78,400 | 75,700 | 67,300 | 69,400 |
+  | deaths / game hour | 0.33 | 0.31 | 1.70 | 2.11 |
+  | runs with a death / a pet death (of 98) | 26 / 7 | 25 / 13 | 69 / 38 | 71 / 46 |
+  | damage to us / hunting hour | 121 | 118 | 946 | 909 |
+  | damage to the pets / hunting hour | 8,479 | 11,027 | 18,628 | 20,294 |
+
+  - The songs spare the pets: about half the runs with a pet death in the zone crawl, a fifth fewer
+    deaths in the loop. Our own damage doesn't fall: most of it is now the corpsebride's wail, the
+    transfixed copies and, in the loop, the nightstalker (174 an hour, though the crawl stays out of
+    its room) [INFERENCE: its Charge reaches 12 tiles, onto us passing the room on the way to the gate].
+  - The loop still dies five times as often as the zone crawl.
 
 ## Limits
 
@@ -330,9 +359,10 @@ Each is a normal play session with the proxy capturing as always; tell the codin
 4. **Damage to us**: let one monster hit us for a while at full hits with potions ready (e.g. open with a
    discord on a lone shade wolf). The trip had only 23 hits on us; the sim's deaths hinge on this number.
 5. **Respawn**: clear a room and stay 20+ minutes nearby (one weak candidate, 123 s, on the trip).
-6. **The vampire countess, a few fights** (user offered, 2026-10-13): the transfix attempts and copies
-   (how often, how long, whom they hit and for how much), and her own melee/spells. 7 of the loop's
-   deaths and much of our damage are hers; the copy model rests on one fight (3 copies).
+6. **The vampire countess, a few more fights** (user offered, 2026-10-13; one more came in
+   20261013_173449, cut short by two reds): the copies' hits (whom and how much: the second fight's copy
+   reached the phoenix while the bat and the bride hit it too) and her own melee and spells. The
+   timing (attempts, one copy at a time, ~11 s, the pet frozen meanwhile) is now from 2 fights.
 7. **The rest of the level** (and the way back out): walk every room of the fight level once, and the
    teleporters from it. The sim has 42 spawns from where Logan happened to see monsters.
 8. If it happens anyway (don't force it): a pet death and its resurrection, and a full stable/claim at

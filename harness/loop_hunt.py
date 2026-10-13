@@ -2012,6 +2012,9 @@ def arg_parser() -> argparse.ArgumentParser:
                     help="--pets: Peacemaking on the target the pets fight (after the discord)")
     ap.add_argument("--provoke", action=argparse.BooleanOptionalAction, default=True,
                     help="--pets: Provocation of another mob in the fight")
+    ap.add_argument("--songs", action=argparse.BooleanOptionalAction, default=True,
+                    help="--pets: keep the three barding songs up (a bard skill at the ground: less damage taken, "
+                         "more healing, more damage for 15 min; user 2026-10-13)")
     ap.add_argument("--kills", type=int, default=0, help="stop after this many kills (0 = until --timeout)")
     ap.add_argument("--timeout", type=float, default=3600.0, help="then finish the fight and leave")
     ap.add_argument("--rest-to", type=float, default=0.95,

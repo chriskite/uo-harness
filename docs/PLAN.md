@@ -1807,6 +1807,11 @@ Mausoleum"; docs/HUNT_LOOP.md "Pets"). Decisions:
 - *Bard order* discord → provoke another → peace, all from the trip's sequences; a provoked target
   isn't pacified. Rejected: Area (self-targeted) discord/peace: Logan never used them here, and an
   area discord also pulls every creature in 8 tiles.
+- *Barding songs on by default* (`--songs`, 2026-10-13): the user sang all three on the second trip and
+  said he had forgotten them on the first. Ground-targeted songs aren't aggressive acts [INFERENCE: a
+  buff on us and the pets, knowledge #11226], so "guard,
+  never open" holds. They go out as a care action, fights included, as he did. In the simulator they
+  cut the pets' damage 8-23 % and pet-death runs by a fifth to a half (docs/SIM.md).
 - *Veterinary supplies over bandages*: one double-click heals every pet in range and the player; its
   range is a setting (`--vet-range`), since the Healer's Codex "Without Borders" perk is being
   levelled (user 2026-10-12).

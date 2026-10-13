@@ -19,7 +19,7 @@ import tamer  # noqa: E402
 from sim import clock as simclock  # noqa: E402
 from sim.link import SimLink  # noqa: E402
 from sim.scenario import bard_chance, load  # noqa: E402
-from sim.world import World  # noqa: E402
+from sim.world import Mob, World  # noqa: E402
 
 FAILURES = []
 WALL_FROM, WALL_TO = (5266, 648, 0), (5265, 657, 0)     # live: "Target cannot be seen." (a stone wall at 5265,656)
@@ -187,17 +187,23 @@ def test_specials():
     gb = next(p for p in w.pets() if p.name == "GraveRobber")
     m.target, m.threat = gb.serial, {gb.serial: 1e6}
     link, clock = link_for(w)
-    clock.advance(0.5)
+    clock.advance(3.0)                                  # past the copy's wake (live 0-2.5 s)
     copies = [c for c in w.mobs.values() if c.key == "transfixed copy"]
     seen = link.state()["world"]["mobiles"]
     c = copies[0] if copies else None
     ours = {p.name for p in w.pets()}
-    check("transfix: a hostile copy named as one of our pets, on its tile, going for one of us",
+    orig = next((p for p in w.pets() if c is not None and p.serial == c.spec.get("copy_of")), None)
+    check("transfix: a hostile copy named as one of our pets, on its tile, going for one of us but its original",
           c is not None and c.name in ours and seen.get(f"0x{c.serial:08X}", {}).get("notoriety") == 3
-          and c.target in {o.serial for o in w.team()}, str([(c.name, c.noto, c.target) for c in copies]))
+          and c.target in {o.serial for o in w.team()} and c.target != (orig.serial if orig else None),
+          str([(c.name, c.noto, c.target) for c in copies]))
     m.spec = {**m.spec, "specials": []}
-    clock.advance(10.5)
-    check("...and it vanishes within 10 s, leaving no corpse",
+    at = orig.pos if orig else None
+    clock.advance(1.5)
+    check("...while its original stands transfixed: no target, not a step",
+          orig is not None and orig.target is None and orig.pos == at, f"{orig and (orig.target, orig.pos, at)}")
+    clock.advance(9.0)
+    check("...and the copy vanishes after 9.9-11 s, leaving no corpse",
           c is not None and c.serial not in w.mobs
           and not any(it.get("owner") == c.serial for it in w.items.values()), "")
     w = world_with([{"key": "shade wolf", "at": [5266, 649, 0]}], seed=6)
@@ -366,6 +372,44 @@ def test_heal_in_place():
           args.heal_in_place and out[True] is None and out[False] and "GraveRobber" in out[False][0], str(out))
 
 
+def test_songs():
+    print("== --songs: the runner plays the three barding songs at the ground; they cut the damage we take ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    sc = load()
+    w = World(sc, seed=1)
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            end = clock.elapsed + 60
+            while len(w.songs) < 3 and clock.elapsed < end:
+                if not loop.team.song(loop.state()):
+                    clock.advance(0.5)
+            again = loop.team.song(loop.state())
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    starts = sorted(until - sc["bard"]["song_s"] for until in w.songs.values())
+    check("all three songs play, each 10 s or more after the last (the song cooldown)",
+          args.songs and set(w.songs) == {"discord", "peace", "provoke"}
+          and all(b - a >= 10.0 - 1e-6 for a, b in zip(starts, starts[1:])), f"{w.songs} {starts}")
+    check("...and none is played again while all run", again is False)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    m = Mob(10**6, "monster", "shade wolf", "a shade wolf", 23, gb.x + 1, gb.y, gb.z, hits=100, hits_max=100)
+    h0 = gb.hits
+    w.hurt(gb, 100, m)
+    check("Song of Discordance: a creature's 100 hits our pet for 85", h0 - gb.hits == 85, f"{h0 - gb.hits}")
+
+
 def test_rest_hurt_pet():
     print("== out of vet supplies, the rest waits for a hurt pet instead of going back in ==")
     import tempfile
@@ -403,7 +447,7 @@ def main():
         print("SKIP: no map files (install dir)")
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
-              test_standoff, test_heal_in_place, test_rest_hurt_pet):
+              test_standoff, test_heal_in_place, test_songs, test_rest_hurt_pet):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

@@ -272,6 +272,7 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
 | `--vet-range` | `2` | Tiles the supplies reach. The Healer's Codex perk "Without Borders" adds 1/2/3 tiles (knowledge #11343); the user is levelling it (2026-10-12), so raise this with its tier. |
 | `--retreat-at` | `0.55` | Below this share of hits with a mob next to us: run 7 tiles from every attacker and let the pets hold it. |
 | `--discord` / `--peace` / `--provoke` | on | Each bard skill (`--no-…` turns one off). |
+| `--songs` | on | Keep the three barding songs up (`--no-songs` turns them off). |
 | `--heal-at`, `--leave-at`, `--leave-multi-at`, `--pull-range`, `--target-name` | `0.80`, `0.35`, `0.55`, `8`, any monster | The pets style's own defaults (STYLE_DEFAULTS; the mage defaults are unchanged). |
 
 **The rules** (each from the capture or a user statement):
@@ -293,6 +294,12 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    (cliloc 500118) moves the clock; "beyond your skill" stops that skill on that creature type;
    a Barding Break or "That target is currently under a barding break effect." makes it immune to
    peace/provoke for 20 s [INFERENCE: difficulty / 10 s]; "Target cannot be seen." blocks it 10 s.
+   **Barding songs** (`--songs`; user 2026-10-13, capture 20261013_173449): the same skills at a
+   ground tile beside us play the Songs of Discordance, Peacemaking and Provocation on us and the
+   pets for 15 minutes (live 15.0 % each: less damage taken from creatures, more healing received,
+   more damage). One song every 10 s whenever nothing more urgent is due, fights included (a care
+   action after the retreat, vet supplies, guard and walk to a hurt pet), each again a minute before
+   it ends. The user sang them mid-fight too.
 3. **"All Kill" only at a mob already on us** that the pets leave alone for 4 s (its aggro is on us
    anyway), at most every 12 s per mob; the target cursor is answered after an aim pause and a
    fresh read (the monsters-only guard). Not re-guarded until the kill.
@@ -343,7 +350,9 @@ moongate, and never near a red one).
 - **Out:** `--leave-gate X Y --gate-dest NAME` (`moongate.py`).
   - The runner walks to the gate with the pets still guarding, says "All Follow Me" beside it, then
     steps on and picks the destination by its label.
-  - Then "Travel to Destination" on the re-sent menu, and `--leave-recall` home from the town.
+  - Then "Travel to Destination" on the re-sent menu, or on the first one when the menu opens with
+    that destination already selected (it remembers the last one, live), and `--leave-recall` home
+    from the town.
   - The leave margin's route steps are measured to the gate.
 - **For the Mausoleum:**
   `--enter-via 5554 701 --enter-via 5506 701 --enter-via 5507 697 --enter-via 5521 638

@@ -1638,7 +1638,7 @@ def pets_run():
               hits_pkt(PHOENIX, 100, 100),
               mobile20(W1, SPOT[0] + 5, SPOT[1], SHADE_WOLF), name_pkt(W1, "a shade wolf"))
     args = loop_hunt.arg_parser().parse_args(["--pets", "--pet", "GraveRobber", "--pet", "alaflambe", "--no-loot",
-                                              "--retreat-at", "0.3",
+                                              "--retreat-at", "0.3", "--no-songs",
                                               "--human", "off", "--quiet", "--triage-url", "", "--no-map",
                                               "--spot", str(SPOT[0]), str(SPOT[1]), "--memory", db])
     loop = loop_hunt.HuntLoop(link, store, args)
