@@ -4,7 +4,8 @@ A programmatic task like the lumber loop: fight monsters at one spot, heal, loot
 hurt. Built for New Player Dungeon mongbats (user decision 2026-10-01: the thresholds are task
 arguments). With `--crawl` it patrols the dungeon floor instead of standing on one spot ("Crawl"
 below). With `--enter-recall` / `--leave-recall` it hunts at a place reached and left by recall,
-banking its gold at home ("Recall in, recall out" below). Start it with `ctl run hunt [args…]`
+banking its gold at home ("Recall in, recall out" below). With `--pets` the character's pets do the
+fighting, a tamer's way ("Pets" below). Start it with `ctl run hunt [args…]`
 (docs/OVERSEER.md) or directly:
 
 ```
@@ -37,15 +38,15 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--recall-spot X Y` | the arrival / `--spot` | A recall home refused where we stand (dungeons: only near a golden gate) walks here and recalls again. The route margin is measured to it. |
 | `--bank-gold N` | `0` (off) | At home after a recall: with N gold or more in the pack, bank all of it. Needs `--leave-recall`. |
 | `--pk-wait S` | `600` | Recall mode: after leaving from a hostile player, stay home this long before going back in. |
-| `--heal-at` | `0.75` | Heal below this share of max hits (healing.py: a heal potion if one can be drunk, else a spell). |
+| `--heal-at` | `0.75` (`--pets` 0.80) | Heal below this share of max hits (healing.py: a heal potion if one can be drunk, else a spell). |
 | `--gheal-min-missing` | the mana break-even for your Magery (19 at 60) | Missing hits from which the heal spell is Greater Heal; below it, Heal. |
-| `--leave-at` | `0.60` | Leave below this share of max hits (plus the fight spot's route margin). |
+| `--leave-at` | `0.60` (`--pets` 0.35) | Leave below this share of max hits (plus the fight spot's route margin). |
 | `--leave-per-step` | `0.004` | The route margin: `--leave-at` + this × the steps of the route from the fight spot back to `--spot`, at most `--heal-at` − 0.05. |
-| `--leave-multi-at` | `0.80` | Leave below this share when two or more mobs are attacking. |
+| `--leave-multi-at` | `0.80` (`--pets` 0.55) | Leave below this share when two or more mobs are attacking. |
 | `--mana-reserve` | `22` | Mana kept for heals (two Greater Heals): the attack spell only while mana ≥ reserve + its cost. |
 | `--spell` | `lightning` | Attack spell (Magery name or 1-64). |
-| `--target-name` | `mongbat` | Words the monster's name (or click label) must contain. |
-| `--pull-range` | `3` | Engage mobs within this many tiles of the spot. At most 10 (the spell range): a larger value is capped, with a log line. |
+| `--target-name` | `mongbat` (`--pets`: any monster) | Words the monster's name (or click label) must contain. |
+| `--pull-range` | `3` (`--pets` 8) | Engage mobs within this many tiles of the spot. At most 10 (the spell range): a larger value is capped, with a log line. |
 | `--kills N` | `0` | Stop after N kills (0: until `--timeout`). |
 | `--timeout S` | `3600` | Then finish the fights on us, loot, and leave. 180 s past it the runner aborts wherever it is. |
 | `--rest-to` | `0.95` | After leaving: Heal / Greater Heal when one can be cast (no potions; else natural regeneration) outside to this share of hits (and `--mana-reserve` mana), then go back in. `0`: stop after leaving. `--rest-timeout` (900 s) bounds the rest. |
@@ -246,6 +247,80 @@ disturb it. Overseer command:
 ```
 run hunt --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluffs" --leave-recall 0x57C3DEB6 --bank-gold 1 --target-name "" --pull-range 4 --heal-at 0.85 --leave-at 0.7 --leave-multi-at 0.9 --mana-reserve 999 --gheal-min-missing 1 --timeout 3600
 ```
+
+## Pets (`--pets`; `harness/tamer.py`; user request 2026-10-12)
+
+The user's tamer, **Logan Wolf**, fights with pets; this style is learned from his Mausoleum trip of
+2026-10-12 (capture `20261012_210013`, 21:16–21:31; analysis in docs/NOTES.md "Logan Wolf's tamer
+fighting at the Mausoleum"). He is a tribard tamer (Taming, Lore, Veterinary, Herding 120;
+Peacemaking, Discordance, Provocation 80; Tactics 18) with a bonded phoenix "AlaFlambe" (4 control
+slots) and a bonded gravebug "GraveRobber" (1 slot, the tank). On the trip he never turned war mode
+on nor swung, and killed 25 creatures in 14 minutes (his Society job "Kill 25,000 Gold Worth of
+Creatures" went 290 → 24,243).
+
+```
+run hunt --pets --leave-recall <TOME> --crawl              # standing on the hunting level, pets out
+run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-rune "Mausoleum Inside" --leave-recall <TOME>
+```
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `--pets` | off | The pet team fights; never war mode, an attack or a spell (not even a heal spell without Magery). |
+| `--pet NAME\|SERIAL` | remembered, else the tamed pets within 3 tiles | One of our pets (repeat). The roster is remembered per character (memory meta `own_pets`). The run won't start without one. |
+| `--pet-heal-at` | `0.95` | Veterinary supplies when a pet within `--vet-range` is below this share of hits (or poisoned). |
+| `--pet-leave-at` | `0.20` | Leave when a pet is below this. |
+| `--vet-range` | `2` | Tiles the supplies reach. The Healer's Codex perk "Without Borders" adds 1/2/3 tiles (knowledge #11343); the user is levelling it (2026-10-12), so raise this with its tier. |
+| `--retreat-at` | `0.55` | Below this share of hits with a mob next to us: run 7 tiles from every attacker and let the pets hold it. |
+| `--discord` / `--peace` / `--provoke` | on | Each bard skill (`--no-…` turns one off). |
+| `--heal-at`, `--leave-at`, `--leave-multi-at`, `--pull-range`, `--target-name` | `0.80`, `0.35`, `0.55`, `8`, any monster | The pets style's own defaults (STYLE_DEFAULTS; the mage defaults are unchanged). |
+
+**The rules** (each from the capture or a user statement):
+
+1. **Guard, don't pull.** "All Guard Me" at every arrival (guarding stops at a recall or a level
+   transition, wiki Animal Taming) and after every kill; Logan said it 26 times for 25 kills. The
+   user (2026-10-12): a mob aggroes on what comes into its aggro range and line of sight; pets on
+   guard engage it before it engages the character, while an aggressive act of ours (Discordance,
+   "All Kill") makes the mob aggro on the character. So a target the pets haven't engaged is only
+   approached to 6 tiles (`APPROACH_R`, [INFERENCE] aggro range) and waited for; one that neither
+   fights the pets nor us for 15 s is dropped for 60 s.
+2. **Bard skills only at a target the pets fight** (`engaged`: hurt within 10 s, a pet within 12
+   tiles, the phoenix's reach): Discordance first, then Provocation of another mob in the fight
+   (the other onto a second other, or onto our target), then Peacemaking on the target (it stops
+   hitting the pets while they kill it). A provoked target isn't pacified. 51 of Logan's 60
+   bard/"All Kill" target answers on the trip were at such a target by this rule; the other 9 were
+   openers the user now advises against. Cooldowns: one bard skill every 5 s, peace/provoke 10 s
+   after a success (wiki Peacemaking); "You must wait a few moments to use another skill."
+   (cliloc 500118) moves the clock; "beyond your skill" stops that skill on that creature type;
+   a Barding Break or "That target is currently under a barding break effect." makes it immune to
+   peace/provoke for 20 s [INFERENCE: difficulty / 10 s]; "Target cannot be seen." blocks it 10 s.
+3. **"All Kill" only at a mob already on us** that the pets leave alone for 4 s (its aggro is on us
+   anyway), at most every 12 s per mob; the target cursor is answered after an aim pause and a
+   fresh read (the monsters-only guard). Not re-guarded until the kill.
+4. **Vet supplies** (graphic `0x6496`, one double-click, no target): every pet within range and us
+   at 25 % (patch 2023-08-14); a 5.0–5.3 s channel (43 on the trip) with the range checked at the
+   finish, so no step during it. Used for a hurt or poisoned pet in range, or for us below
+   `--heal-at` with no heal potion ready; a hurt pet out of range is walked to (1 tile: bandaging
+   reaches 2 only after 5 s stationary) when nothing is on us. No supplies: a `low_supplies`
+   juncture (item `veterinary supplies`).
+5. **Self care**: heal potions as the mage style drinks them (Logan's sit in a potion satchel inside
+   a bag: every bag depth is searched); the retreat above (live 21:27:50 a bleed took Logan from 72
+   to 35 hits in 2 s; he ran 18 tiles while drinking and the pets held the mob).
+6. **Pets come along**: "All Follow Me" before every recall or walk out (user directive
+   2026-10-11, knowledge #17043), a planned leave waits up to 10 s for every live pet within 3
+   tiles; after a recall a missing pet is an urgent `pet_left_behind` juncture.
+7. **Leaving for the pets**: a pet dead (bonded ghost), below `--pet-leave-at`, or out of view for
+   30 s. With a pet dead or gone the run never goes back in (`pet_down` juncture).
+8. **Kills**: the engaged target, and any mob the pets fought (in war mode next to a pet that was
+   hurt, or engaged) that dies within 60 s; their corpses are looted like the mage's.
+9. **Never a pet's release or transfer** (user 2026-10-12: the pets are expensive): the commands
+   are a fixed list (`tamer.COMMANDS`: All Guard Me, All Follow Me, All Kill, All Stop, All Stay,
+   All Come), Razor-shaped (`actions.razor_say`), and anything matching `release`/`transfer` is
+   refused by the runner and by `ctl act say` / `ctl act menu_pick`.
+
+**Not built**: walking between dungeon levels (start on the hunting level, as the Mausoleum's
+teleporter chain from the rune to Logan's area 5190–5280, 640–740 isn't mapped), claiming or
+stabling the pets, resurrecting a pet, and Herding (Logan double-clicked his shepherd's crook
+once). Never run live yet.
 
 ## Stationary Penalty (user request 2026-10-03; `harness/stationary.py`)
 
@@ -498,7 +573,17 @@ before any open: the blue one gets no packet at all, the refused open gets one `
 the lift answered `27 05` + back in the corpse + `0x1D` isn't counted, the fourth is looted; totals
 kills 4 -> 2 (`lost_kills` 2), xp only from the two opened corpses, gold only the landed pile.
 
-`python test_loop_hunt.py [rights|default|staff|fight|crawl|recall]` (a few minutes for all, private ports): a
+Pets run (`python test_loop_hunt.py pets`, in process, ~10 s; tamer clocks shortened): a scripted
+server with our gravebug and phoenix beside us and an idle shade wolf W1 5 tiles off. The first
+packet is "All Guard Me" byte for byte as Logan's Razor sent it; no skill or "All Kill" before the
+pets engage W1; Discordance at W1, then W2 (fighting the phoenix) incited onto W1 with two cursors
+and no peace at the provoked W1; vet supplies for the hurt gravebug and later for us; "All Guard
+Me" after the kills; W3 hitting us gets "All Kill" only after 0.8 s, then Discordance and
+Peacemaking; three kills (W2 never our target); no `0x72`, `0x05` or menu pick; every speech a
+Razor-shaped pet command; the phoenix's ghost flag (`bf 0019`) is a leave reason, `go_back`
+refuses with a `pet_down` juncture; release/transfer phrases refused.
+
+`python test_loop_hunt.py [rights|pets|default|staff|fight|crawl|recall]` (a few minutes for all, private ports): a
 simulated NPD behind the real proxy. A mongbat
 that died to someone else (`0xDEAD` only) must never be touched; the first mongbat flies in and hits
 hard (heal path), dies to Lightning, its gold is looted; two more come in swinging and trigger the

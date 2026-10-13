@@ -105,8 +105,20 @@ cancelled first. A recall refused where we stand (dungeons: only near a golden g
 to --recall-spot and recalls from there. At home: deposit the pack's gold in the bank
 (--bank-gold), rest, wait out --pk-wait after a hostile player, recall back in.
 
+Pets (--pets, tamer.py; docs/HUNT_LOOP.md "Pets"; learned from Logan Wolf's Mausoleum trip
+2026-10-12): the pet team fights, the character never turns war mode on nor casts. Pets on
+"All Guard Me" (said at every arrival and after every kill) engage what comes into aggro range;
+a target they haven't engaged is approached and waited for, never pulled with an aggressive act
+(user 2026-10-12). At a target the pets fight: Discordance, Provocation of another mob in the
+fight, Peacemaking; "All Kill" only at a mob already on us that the pets leave alone. Veterinary
+supplies keep the pets (and us, at 25 %) up; heal potions as above, no heal spell without Magery;
+a retreat from a mob next to us below --retreat-at. "All Follow Me" before every recall or walk
+out; a pet dead, too hurt or gone leaves, and a run never goes back in with a pet down. Nothing
+ever releases or transfers a pet (tamer.irreversible).
+
 Run:  python harness/loop_hunt.py [--kills 5] [--enter] [--fight-spot X Y | --crawl] [--spell lightning]
       python harness/loop_hunt.py --enter-recall BOOK --enter-rune NAME --leave-recall BOOK --bank-gold 1
+      python harness/loop_hunt.py --pets --leave-recall BOOK --crawl      # standing in the hunting area
 """
 import argparse
 import os
@@ -125,6 +137,7 @@ import healing  # noqa: E402
 import nav  # noqa: E402
 import threats  # noqa: E402
 import stationary  # noqa: E402
+import tamer  # noqa: E402
 import triage  # noqa: E402
 from agent_link import (Abort, Link, Mover, bank_opened, cheb, containers_to_open, find_banker, log,  # noqa: E402
                         same_floor, serial_of)
@@ -194,6 +207,7 @@ def key_of(serial: int) -> str:
 
 class HuntLoop:
     def __init__(self, link: Link, memory: Memory, args):
+        style_defaults(args)
         self.link = link
         self.memory = memory
         self.args = args
@@ -259,6 +273,7 @@ class HuntLoop:
         self.fight_rec = None        # the engagement in progress: a `fight` job event when it ends
         self.patrolling = False      # a crawl patrol walk is under way (check_guards may stop it)
         self.crawl = None
+        self.team = tamer.Team(self) if args.pets else None   # --pets: the pet team fights (tamer.py)
 
     # ------------------------------------------------------------ reporting
     def doing(self, kind: str, text: str, target=None, serial=None):
@@ -272,7 +287,7 @@ class HuntLoop:
         return {"facet": st["world"]["self"].get("map"), "x": pos[0], "y": pos[1]}
 
     def count(self, what, n=1):
-        self.totals[what] += n
+        self.totals[what] = self.totals.get(what, 0) + n
         if self.visit is not None:
             self.visit[what] = self.visit.get(what, 0) + n
 
@@ -537,6 +552,8 @@ class HuntLoop:
         crawling, so is a creature type the crawl avoids (too strong or too slow for us)."""
         world, me, pos = st["world"], self.me(st), self.pos(st)
         attacking = {serial_of(a["serial"]) for a in self.attackers(st)}
+        if self.team is not None:
+            attacking |= self.team.pet_attackers(st)
         mono = time.monotonic()
         cands = []
         for key, mob in world["mobiles"].items():
@@ -659,6 +676,8 @@ class HuntLoop:
                     self.corpse_of[s] = serial_of(ev["corpse"])
                 if s == self.engaged:
                     self.on_kill(st, s)
+                elif self.team is not None and (mob := self.team.fought_mob(s)) is not None:
+                    self.on_kill(st, s, mob)
             elif kind in ("delete", "prune") and self.engaged is not None \
                     and serial_of(ev["serial"]) == self.engaged:
                 why = ev.get("why", "delete")
@@ -671,8 +690,11 @@ class HuntLoop:
                 self.hurt_t[serial_of(ev["serial"])] = time.monotonic()
         self.ev_upto = len(self.link.events)
 
-    def on_kill(self, st, serial):
-        mob = self.engaged_mob or {}
+    def on_kill(self, st, serial, mob=None):
+        """A kill of ours: the engaged target, or (--pets) another mob the pets were fighting (`mob`:
+        its last-seen world dict)."""
+        engaged = mob is None
+        mob = (self.engaged_mob or {}) if engaged else mob
         name = mob.get("name") or "a monster"
         self.count("kills")
         log(f"killed {name} 0x{serial:08X} (kill {self.totals['kills']}"
@@ -685,7 +707,10 @@ class HuntLoop:
                                  "t": time.monotonic()})
         if self.crawl is not None and mob.get("x") is not None:
             self.crawl.on_kill((mob["x"], mob["y"]))
-        self.disengage("kill")
+        if self.team is not None:
+            self.team.on_kill(serial)
+        if engaged:
+            self.disengage("kill")
 
     def disengage(self, outcome: str = "ended"):
         """Stop fighting the engaged target; its engagement ends with `outcome` (kill,
@@ -738,6 +763,13 @@ class HuntLoop:
         if self.engaged != serial:
             log(f"attacking {name} 0x{serial:08X} at {cheb(self.pos(st), (mob['x'], mob['y']))} tiles "
                 f"(hits {mob.get('hits')}/{mob.get('hits_max')})")
+        self.engage(st, serial, mob)
+        return True
+
+    def engage(self, st, serial, mob):
+        """`serial` is the engaged target from now; a new one starts its `fight` record."""
+        name = mob.get("name") or key_of(serial)
+        if self.engaged != serial:
             self.progress_t = time.monotonic()
         if self.fight_rec is None or self.fight_rec["serial"] != serial:
             if self.fight_rec is not None:
@@ -745,7 +777,6 @@ class HuntLoop:
             self.fight_rec = {"serial": serial, "name": name, "body": mob.get("graphic"), "t0": time.monotonic(),
                               "hits": 0, "at": tuple(self.pos(st)[:2])}
         self.engaged, self.engaged_mob = serial, mob
-        return True
 
     def await_cursor(self, mark):
         """The spell's target cursor (world.target) once a `target` event follows
@@ -861,6 +892,8 @@ class HuntLoop:
             st = self.state()
             world, me = st["world"], st["world"]["self"]
             choice = healing.choose(world, self.me(st), False, self.args.gheal_min_missing, self.no_reagents)
+        if self.team is not None and healing.magery(me) <= 0:
+            return False                          # no Magery: the vet supplies heal us too (Team.vet)
         if choice.kind == "spell" and self.at_hunt(st) and healing.heal_potions(world, self.me(st)) \
                 and (why := self.casting_disarms(st)):
             if not self.potion_wait_logged:
@@ -1091,11 +1124,13 @@ class HuntLoop:
         """(why, severity) when the rules say leave now, else None: a hostile player
         (player_threat; urgent: without --leave-recall no going back in), two or more
         attackers below --leave-multi-at, below --leave-at plus the fight spot's route
-        margin (leave_margin)."""
+        margin (leave_margin); --pets: a pet dead, too hurt or gone (tamer.Team.leave_reason)."""
         me = st["world"]["self"]
         pk = self.player_threat(st)
         if pk:
             return pk, "urgent"
+        if self.team is not None and (why := self.team.leave_reason(st)):
+            return why
         if me.get("hits") is None:
             return None
         f, att = self.frac(me), self.attackers(st)
@@ -1129,9 +1164,13 @@ class HuntLoop:
         self.doing("leave", f"Leaving: {why}", self.spot)
         if self.war_mode(st, False):
             self.human.wait("read")
+        if self.team is not None:
+            self.team.follow(urgent=severity != "info")
         self.mover.walk_to(lambda: self.spot, 0, "to the exit", max_moves=max(250, 3 * self.out_steps),
                            urgent=severity != "info" and (self.crawl is not None or self.fight_spot != self.spot))
         self.teleport(self.args.exit_dir, "the exit")
+        if self.team is not None:
+            self.team.landed(self.state(), "out")
         self.end_visit(why)
 
     def teleport(self, d, what):
@@ -1223,6 +1262,8 @@ class HuntLoop:
             self.doing("leave", f"Leaving by recall: {why}", self.recall_spot)
             if severity == "info" and self.war_mode(st, False):
                 self.human.wait("read")
+            if self.team is not None:
+                self.team.follow(urgent=severity != "info")
             data["react_s"] = round(time.monotonic() - t_fire, 2)
             res = self.recall_home(severity != "info")
         finally:
@@ -1244,6 +1285,8 @@ class HuntLoop:
             raise Abort(f"recall home failed ({res['failure']}) after: {why}")
         log(f"recalled home to {tuple(res['to'])} ({res['method']}, {res['elapsed_s']} s)")
         self.rearm(self.state())            # a recall knocks an arcane staff into the pack
+        if self.team is not None:
+            self.team.landed(self.state(), "home")
         if self.args.bank_gold:
             self.bank()
 
@@ -1251,6 +1294,8 @@ class HuntLoop:
         """Recall to --enter-recall's rune --enter-rune (its default without one). The
         first arrival is the hunt: --spot, --fight-spot and --recall-spot default to it."""
         book, rune = self.args.enter_recall, self.args.enter_rune
+        if self.team is not None:
+            self.team.follow(urgent=False)
         self.doing("enter", f"Recalling to {rune or 'the default rune'}")
         self.human.wait("use")
         res = self.recall(book, rune, False, "in")
@@ -1266,6 +1311,8 @@ class HuntLoop:
         if not self.at_hunt(self.state()):
             raise Abort(f"the recall put us at {arrival}, not near the spot {self.spot}")
         self.rearm(self.state())            # the recall knocked an arcane staff into the pack: before any attack
+        if self.team is not None:
+            self.team.landed(self.state(), "in")
 
     def wait_pk(self):
         """After leaving from a hostile player: stay home until --pk-wait has passed."""
@@ -1339,10 +1386,14 @@ class HuntLoop:
 
     def enter(self):
         ex, ey, ez = self.args.entry
+        if self.team is not None:
+            self.team.follow(urgent=False)
         self.doing("enter", f"Going to the entrance at {ex},{ey}", (ex, ey))
         self.mover.walk_to(lambda: (ex, ey), 0, "to the entrance", z_ok=lambda z: abs(z - ez) <= GOTO_Z_TOL)
         self.teleport(self.args.entry_dir, "the entrance")
         st = self.state()
+        if self.team is not None:
+            self.team.landed(st, "in")
         if not self.at_hunt(st):
             raise Abort(f"the entrance put us at {self.pos(st)[:2]}, not near the spot {self.spot}")
 
@@ -1350,24 +1401,29 @@ class HuntLoop:
         """Outside: heal with Heal / Greater Heal when one can be cast (healing.choose
         without potions: out of the fight regenerating mana is free, potions cost gold),
         else wait for natural regeneration, to --rest-to hits and --mana-reserve mana.
-        False when that takes longer than --rest-timeout."""
+        --pets: the pets too, to --pet-heal-at with the vet supplies (no heal spell without
+        Magery). False when that takes longer than --rest-timeout."""
         end = time.monotonic() + self.args.rest_timeout
         while True:
             st = self.state()
             me = st["world"]["self"]
             need_mana = min(self.args.mana_reserve, me.get("mana_max") or 0)
-            if self.frac(me) >= self.args.rest_to and (me.get("mana") or 0) >= need_mana:
+            pets_ok = self.team is None or self.team.rested(st)
+            if self.frac(me) >= self.args.rest_to and (me.get("mana") or 0) >= need_mana and pets_ok:
                 log(f"rested: hits {me.get('hits')}/{me.get('hits_max')}, mana {me.get('mana')}")
                 return True
             if time.monotonic() > end:
-                log(f"rest: still {me.get('hits')}/{me.get('hits_max')} hits, mana {me.get('mana')} "
-                    f"after {self.args.rest_timeout:.0f} s")
+                log(f"rest: still {me.get('hits')}/{me.get('hits_max')} hits, mana {me.get('mana')}"
+                    + ("" if pets_ok else ", pets hurt") + f" after {self.args.rest_timeout:.0f} s")
                 return False
             if self.pending_speech:
                 self.speech_hold(st)
                 continue
-            if self.frac(me) < self.args.rest_to and healing.choose(
-                    st["world"], self.me(st), False, self.args.gheal_min_missing, self.no_reagents).kind == "spell":
+            if self.team is not None and self.team.vet(st):
+                continue
+            if self.frac(me) < self.args.rest_to and not (self.team is not None and healing.magery(me) <= 0) \
+                    and healing.choose(st["world"], self.me(st), False, self.args.gheal_min_missing,
+                                       self.no_reagents).kind == "spell":
                 self.heal(st, potions=False)
                 self.human.wait("read")
                 continue
@@ -1442,12 +1498,12 @@ class HuntLoop:
         if self.args.leave_recall is None:
             # the step from the spot in --exit-dir is the exit teleporter: never route over it
             self.mover.teleporter_tiles(st["world"]["self"].get("map")).add(nav.step(self.spot, self.args.exit_dir))
-        lack = combat.missing_reagents(st["world"], self.me(st), self.spell)
-        if lack:
+        if self.team is None and (lack := combat.missing_reagents(st["world"], self.me(st), self.spell)):
             log(f"{combat.MAGERY_SPELLS[self.spell - 1]}: no {', '.join(lack)} and no spellstone: melee only")
         self.visit = {"loop": "hunt", "visit": self.visit_n, "t_start": round(time.time(), 1),
                       "spot": list(self.spot), "fight_spot": list(self.fight_spot),
-                      "spell": combat.MAGERY_SPELLS[self.spell - 1],
+                      **({"style": "pets"} if self.team is not None else
+                         {"spell": combat.MAGERY_SPELLS[self.spell - 1]}),
                       "hits_start": st["world"]["self"].get("hits"), "kills": 0, "lost_kills": 0, "gold": 0, "xp": 0,
                       "hits_lost": 0, "casts": 0, "heals": 0, "stationary_clears": 0, "repositions": 0}
 
@@ -1458,6 +1514,8 @@ class HuntLoop:
                "human_session": dict(self.human.stats)}
         if self.crawl is not None and self.crawl.floor is not None:
             row["crawl"] = self.crawl.summary()
+        if self.team is not None:
+            row["pets"] = self.team.summary()["pets"]
         self.memory.episode("hunt", row)
         log(f"visit {self.visit_n} done: {row}")
         self.visit = None
@@ -1473,6 +1531,9 @@ class HuntLoop:
         comes adjacent), then the attack spell while it can be cast with the mana
         reserve kept, else melee. A target pinned beyond reach (neither adjacent nor
         hurt for PIN_S) is dropped and skipped for SKIP_S."""
+        if self.team is not None:
+            self.team.fight(serial)
+            return
         st = self.state()
         mob, why = self.live_target(st, serial)
         if mob is None:
@@ -1513,6 +1574,10 @@ class HuntLoop:
         the time is up meanwhile (the run ends at home)."""
         why, severity = reason
         recall = self.args.leave_recall is not None
+        if self.team is not None and (down := self.team.down(self.state())):
+            self.memory.juncture("hunt", "pet_down", f"Not going back in: {down}", "attention",
+                                 {"why": down, "left": why, "pets": self.team.summary()["pets"]})
+            raise Abort(f"left the hunt ({why}); not going back in: {down}")
         if (severity == "urgent" and not recall) or self.args.rest_to <= 0 or not self.rest():
             raise Abort(f"left the hunt ({why}); not going back in")
         if not recall:
@@ -1625,6 +1690,8 @@ class HuntLoop:
         if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
             self.human.wait("read")
             return False
+        if self.team is not None and self.team.care(st):
+            return False
         if self.unstick(st, attackers):
             return False
         if self.corpses and not attackers:
@@ -1666,6 +1733,8 @@ class HuntLoop:
             d = self.casting_disarms(st)
             log(f"weapon: {w.get('name') or 'graphic ' + str(w.get('graphic'))} 0x{self.weapon:08X}"
                 + (f"; {d}: no attack spell, potions before heal spells inside" if d else ""))
+        if self.team is not None:
+            self.team.setup(st)
         if self.args.enter_recall is not None and not self.at_hunt(st):
             self.enter_by_recall()
             st = self.state()
@@ -1696,6 +1765,24 @@ def stop_intent(loop, text):
         loop.doing("stopped", text[:200])
     except (OSError, ValueError, Abort):
         pass
+
+
+# Thresholds that differ by fighting style; None on the command line means the style's own.
+# Mage (the NPD mongbat runs): as before. Pets (Logan Wolf's Mausoleum trip, 2026-10-12): he drank
+# at 58-81 % hits, fell to 35 % once (a bleed) and backed off; the pets engage what comes, so any
+# monster is a target and the pull reaches the bard range.
+STYLE_DEFAULTS = {
+    "mage": {"heal_at": 0.75, "leave_at": 0.60, "leave_multi_at": 0.80, "pull_range": 3, "target_name": "mongbat"},
+    "pets": {"heal_at": 0.80, "leave_at": 0.35, "leave_multi_at": 0.55, "pull_range": 8, "target_name": ""},
+}
+
+
+def style_defaults(args):
+    """Fill the style-dependent arguments left unset (None) with STYLE_DEFAULTS."""
+    for k, v in STYLE_DEFAULTS["pets" if getattr(args, "pets", False) else "mage"].items():
+        if getattr(args, k, None) is None:
+            setattr(args, k, v)
+
 
 
 def arg_parser() -> argparse.ArgumentParser:
@@ -1754,23 +1841,48 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--pk-wait", type=float, default=600.0,
                     help="recall mode: after leaving from a hostile player, stay home this many seconds "
                          "before recalling back in")
-    ap.add_argument("--heal-at", type=float, default=0.75,
-                    help="heal below this share of hits: a heal potion if one can be drunk, else a spell")
+    ap.add_argument("--heal-at", type=float, default=None,
+                    help="heal below this share of hits: a heal potion if one can be drunk, else a spell "
+                         "(default 0.75; --pets 0.80)")
     ap.add_argument("--gheal-min-missing", type=int, default=None,
                     help="missing hits from which the spell is Greater Heal, not Heal (default: the mana "
                          "break-even for your Magery, healing.gheal_break_even: 19 at Magery 60)")
-    ap.add_argument("--leave-at", type=float, default=0.60, help="leave below this share of hits")
+    ap.add_argument("--leave-at", type=float, default=None,
+                    help="leave below this share of hits (default 0.60; --pets 0.35)")
     ap.add_argument("--leave-per-step", type=float, default=0.004,
                     help="--leave-at is raised by this per step of the route from --fight-spot back to "
                          "--spot, at most to --heal-at - 0.05 (the walk out under attack)")
-    ap.add_argument("--leave-multi-at", type=float, default=0.80,
-                    help="leave below this share of hits when two or more mobs are attacking")
+    ap.add_argument("--leave-multi-at", type=float, default=None,
+                    help="leave below this share of hits when two or more mobs are attacking (default 0.80; "
+                         "--pets 0.55)")
     ap.add_argument("--mana-reserve", type=int, default=22,
                     help="mana kept for heals: the attack spell only above this plus its cost")
     ap.add_argument("--spell", default="lightning", help="attack spell (Magery name or 1-64)")
-    ap.add_argument("--target-name", default="mongbat", help="words the monster's name must contain")
-    ap.add_argument("--pull-range", type=int, default=3,
-                    help=f"engage mobs within this many tiles of the spot (at most {SPELL_RANGE})")
+    ap.add_argument("--target-name", default=None,
+                    help="words the monster's name must contain (default 'mongbat'; --pets: any monster)")
+    ap.add_argument("--pull-range", type=int, default=None,
+                    help=f"engage mobs within this many tiles of the spot (at most {SPELL_RANGE}; default 3, "
+                         f"--pets 8)")
+    ap.add_argument("--pets", action="store_true",
+                    help="fight with the pet team, never with war mode or spells (tamer.py; docs/HUNT_LOOP.md 'Pets')")
+    ap.add_argument("--pet", action="append", default=None, metavar="NAME|SERIAL",
+                    help="--pets: one of our pets (repeat for each); default: the ones remembered for this "
+                         "character, else the tamed pets next to us")
+    ap.add_argument("--pet-heal-at", type=float, default=0.95,
+                    help="--pets: veterinary supplies when a pet in range is below this share of hits")
+    ap.add_argument("--pet-leave-at", type=float, default=0.20,
+                    help="--pets: leave when a pet is below this share of hits")
+    ap.add_argument("--vet-range", type=int, default=tamer.VET_RANGE,
+                    help="--pets: tiles the veterinary supplies reach (2; the Healer's Codex 'Without Borders' "
+                         "perk adds 1/2/3)")
+    ap.add_argument("--retreat-at", type=float, default=0.55,
+                    help="--pets: below this share of hits with a mob next to us, back off and let the pets hold it")
+    ap.add_argument("--discord", action=argparse.BooleanOptionalAction, default=True,
+                    help="--pets: Discordance on the target the pets fight")
+    ap.add_argument("--peace", action=argparse.BooleanOptionalAction, default=True,
+                    help="--pets: Peacemaking on the target the pets fight (after the discord)")
+    ap.add_argument("--provoke", action=argparse.BooleanOptionalAction, default=True,
+                    help="--pets: Provocation of another mob in the fight")
     ap.add_argument("--kills", type=int, default=0, help="stop after this many kills (0 = until --timeout)")
     ap.add_argument("--timeout", type=float, default=3600.0, help="then finish the fight and leave")
     ap.add_argument("--rest-to", type=float, default=0.95,
@@ -1815,6 +1927,8 @@ def main():
         ap.error("--bank-gold banks at home after a recall: it needs --leave-recall")
     if args.enter_rune and args.enter_recall is None:
         ap.error("--enter-rune names a rune of --enter-recall's book")
+    if args.pet and not args.pets:
+        ap.error("--pet names a pet of the team: it needs --pets")
 
     memory = Memory(args.memory)
     link = Link(args.control_port, args.state_port, char=args.char)

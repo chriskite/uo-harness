@@ -224,6 +224,21 @@ def test_speech_keywords():
           yell[4:6] == bytes.fromhex("0035"), yell.hex())
 
 
+def test_razor_say():
+    print("== razor_say (pet commands as Logan Wolf's Razor hotkeys sent them) ==")
+    # session 20261012_210013, src=client: hue 0x03B1, keyword-encoded, double NUL
+    for text, cap in (("All Guard Me", "ad0020c003b10003454e550000300716b199416c6c204775617264204d650000"),
+                      ("All Kill", "ad001bc003b10003454e550000215d1680416c6c204b696c6c0000"),
+                      ("All Follow Me", "ad0021c003b10003454e55000030e816316c416c6c20466f6c6c6f77204d650000")):
+        got = actions.razor_say(text)
+        check(f"razor_say {text!r} matches capture", got == bytes.fromhex(cap), got.hex())
+    try:
+        actions.razor_say("howdy")
+        check("no keyword: refused (no captured Razor shape)", False)
+    except ValueError:
+        check("no keyword: refused (no captured Razor shape)", True)
+
+
 def test_cast_spell():
     print("== cast_spell ==")
     # capture: ff 000a 00000004 00 000f (spell 15)
@@ -732,6 +747,7 @@ def main():
     test_sequencer()
     test_dclick()
     test_say_unicode()
+    test_razor_say()
     test_speech_keywords()
     test_cast_spell()
     test_item_query()

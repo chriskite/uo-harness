@@ -546,7 +546,8 @@ class Crawl:
             tile = (mob["x"], mob["y"])
             kind, player, _ = threats.identify(mob, labels.get(key))
             i = self.cell_of.get(self.floor.nearest(tile) or tile)
-            if player or mob.get("pet"):
+            team = getattr(self.h, "team", None)
+            if (player or mob.get("pet")) and not (team is not None and s in team.roster):
                 if i is not None:
                     self.crowd_t[i] = now
                 continue

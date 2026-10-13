@@ -49,9 +49,10 @@ landing by a golden gate, out at once from a red in view and from "X is attackin
 recall walked to the arrival, gold banked at home, back in after --pk-wait (notes above RECALL_S).
 
 Then, in process (no proxy), the loot-rights run: a blue corpse skipped without a packet, a refused
-open with no lift, a rejected lift not counted (docs/HUNT_LOOP.md "Loot rights").
+open with no lift, a rejected lift not counted (docs/HUNT_LOOP.md "Loot rights"). And the pet team run
+(--pets, notes above GRAVEBUG; docs/HUNT_LOOP.md "Pets").
 
-Run: python test_loop_hunt.py [rights|default|staff|fight|crawl|recall]   (about a minute for all:
+Run: python test_loop_hunt.py [rights|pets|default|staff|fight|crawl|recall]   (about a minute for all:
      the proxy runs go in parallel child processes, output in this order; private ports and log
      dirs; safe while the live proxy runs)
 """
@@ -73,6 +74,7 @@ sys.path.insert(0, f"{ROOT}/harness")
 
 import actions  # noqa: E402
 import combat  # noqa: E402
+import tamer  # noqa: E402
 import escape as escape_mod  # noqa: E402
 import memory  # noqa: E402
 import nav  # noqa: E402
@@ -1452,6 +1454,268 @@ def rights():
     check("every corpse handled once (never retried)", loop.looted == set(RIGHTS) and not loop.corpses, str(loop.looted))
 
 
+# The pet team (--pets, tamer.py), in process: Logan Wolf's Mausoleum fighting (capture 20261012_210013)
+# against a scripted server. Our pets GraveRobber (gravebug) and AlaFlambe (phoenix) next to us; shade wolf
+# W1 5 tiles off, idle. Once the pets are told to guard, W1 comes on and fights the gravebug ("-N" over
+# both, the gravebug hurt). When W1 is discorded, W2 joins against the phoenix: W2 is incited onto W1 and
+# both die (W2 a kill of the pets though never our target). W3 then hits us and the pets leave it alone:
+# "All Kill" at it, then it is discorded and pacified, and dies. Then the phoenix dies: leave, never back in.
+GRAVEBUG, PHOENIX = 0x000DDEFE, 0x0026EF56
+W1, W2, W3 = 0x00061DAB, 0x000607BE, 0x00061D88
+VET_BAG, VET = 0x534B72E6, 0x41B5E844
+SHADE_WOLF = 739
+
+
+def mobile20(serial, x, y, body, noto=3, flags=0):
+    """0x20 for any mobile (notoriety, flags: 0x40 war mode), human_pkt's layout."""
+    return (b"\x20" + u32(serial) + u32(body) + bytes([noto]) + u16(0) + bytes([flags])
+            + u32(x) + u32(y) + b"\x00\x00\x02" + u32(0))
+
+
+class TamerLink(RightsLink):
+    """The server side of the pet fight: answers our pet commands, skills and vet supplies, and plays
+    the phases (module notes above GRAVEBUG) on its own clock."""
+
+    def __init__(self):
+        super().__init__()
+        self.t0, self.timers, self.log, self.cid = time.monotonic(), [], [], 0x500
+        self.phase, self.hp, self.pending_skill, self.provo_first = "idle", {SELF: 100, GRAVEBUG: 100}, None, None
+        self.dead_mobs, self.swing_t = set(), 0.0
+
+    def at(self, delay, fn):
+        self.timers.append((time.monotonic() + delay, fn))
+
+    def note(self, kind, *data):
+        self.log.append((time.monotonic() - self.t0, kind, *data))
+
+    def cursor(self):
+        self.cid += 1
+        self.feed(cursor(self.cid, 1))
+
+    def hurt(self, serial, name, n):
+        if serial in self.hp:
+            self.hp[serial] = max(1, self.hp[serial] - n)
+            self.feed(hits_pkt(serial, self.hp[serial], 100))
+        self.feed(says(serial, name, f"-{n}"))
+
+    def tick(self):
+        """Recurring damage of the phase (a round every 0.5 s), then due timers."""
+        now = time.monotonic()
+        if now - self.swing_t >= 0.5:
+            self.swing_t = now
+            if self.phase in ("fight", "pair"):
+                self.hurt(W1, "a shade wolf", 12)
+                self.hurt(GRAVEBUG, "GraveRobber", 4)
+            if self.phase == "pair":
+                self.hurt(W2, "a shade wolf", 9)
+                self.feed(says(PHOENIX, "AlaFlambe", "-6"))
+            if self.phase == "on_us":
+                self.hurt(SELF, "Logan Wolf", 8)
+            if self.phase == "kill":
+                self.hurt(W3, "a shade wolf", 15)
+                self.hurt(SELF, "Logan Wolf", 4)
+        now = time.monotonic()
+        due = [f for t, f in self.timers if t <= now]
+        self.timers = [(t, f) for t, f in self.timers if t > now]
+        for f in due:
+            f()
+
+    def die(self, serial, corpse):
+        self.dead_mobs.add(serial)
+        self.feed(display_death(serial, corpse), ground_item(corpse, combat.CORPSE_GRAPHIC, SHADE_WOLF, SPOT[0] + 2, SPOT[1]),
+                  delete(serial), corpse_flags(corpse, serial, "a shade wolf corpse"))
+
+    def engage_w1(self):
+        self.note("w1 engages")
+        self.phase = "fight"
+        self.feed(mobile20(W1, SPOT[0] + 2, SPOT[1], SHADE_WOLF, flags=0x40))
+        self.hurt(GRAVEBUG, "GraveRobber", 20)
+
+    def join_w2(self):
+        self.note("w2 joins")
+        self.phase = "pair"
+        self.feed(mobile20(W2, SPOT[0] + 1, SPOT[1] + 2, SHADE_WOLF, flags=0x40), name_pkt(W2, "a shade wolf"),
+                  says(PHOENIX, "AlaFlambe", "-6"))
+
+    def both_die(self):
+        self.note("w1 w2 die")
+        self.phase = "after"
+        self.die(W1, 0x4FE00101)
+        self.die(W2, 0x4FE00102)
+        self.at(1.0, self.w3_on_us)
+
+    def w3_on_us(self):
+        self.note("w3 on us")
+        self.phase = "on_us"
+        self.feed(mobile20(W3, SPOT[0], SPOT[1] - 1, SHADE_WOLF, flags=0x40), name_pkt(W3, "a shade wolf"))
+
+    def w3_dies(self):
+        self.note("w3 dies")
+        self.phase = "done"
+        self.die(W3, 0x4FE00103)
+
+    def act(self, p):
+        self.sent.append(p)
+        self.rt.feed_packet("c2s", p)
+        if p[0] == 0xAD:
+            text = p[12:].rstrip(b"\x00").decode("utf-8", "replace")
+            text = next((c for c in tamer.COMMANDS.values() if text.endswith(c)), text)
+            self.note("say", text, p)
+            if text == "All Guard Me" and self.phase == "idle":
+                self.at(1.0, self.engage_w1)
+            elif text == "All Kill":
+                self.pending_skill = "kill"
+                self.cursor()
+        elif p[0] == 0x12 and p[3] == 0x24:
+            sid = int(p[4:-1].decode().split()[0])
+            self.note("skill", sid)
+            self.pending_skill = sid
+            self.cursor()
+        elif p[0] == 0x6C:
+            target = int.from_bytes(p[7:11], "big")
+            self.note("target", self.pending_skill, target)
+            sid = self.pending_skill
+            if sid == tamer.SKILL_PROVO and self.provo_first is None:
+                self.provo_first = target
+                self.feed(system_text(tamer.TEXT_INCITE_SECOND))
+                self.cursor()
+                return
+            self.pending_skill, self.provo_first = None, None
+            if sid == tamer.SKILL_DISCORD:
+                self.feed(system_text("You play successfully, disrupting your opponent and weakening them "
+                                      "significantly. (1m)"))
+                if target == W1 and self.phase == "fight":
+                    self.join_w2()
+            elif sid == tamer.SKILL_PEACE:
+                self.feed(system_text("You play successfully, pacifying your target. (38s)"))
+                if target == W3:
+                    self.at(0.5, self.w3_dies)
+            elif sid == tamer.SKILL_PROVO:
+                self.feed(system_text("You play successfully, provoking your targets. (30s)"))
+                self.at(0.5, self.both_die)
+            elif sid == "kill" and target == W3:
+                self.phase = "kill"
+        elif p[0] == 0x06 and int.from_bytes(p[1:5], "big") == VET:
+            self.note("vet")
+            if self.hp[GRAVEBUG] >= 95 and self.hp[SELF] >= 80:
+                self.feed(system_text(tamer.TEXT_VET_NEEDLESS))
+                return
+            self.feed(system_text(tamer.TEXT_VET_BEGIN))
+
+            def finish():
+                self.hp[GRAVEBUG] = 100
+                self.hp[SELF] = min(100, self.hp[SELF] + 15)
+                self.feed(system_text(tamer.TEXT_VET_FINISH), hits_pkt(GRAVEBUG, 100, 100),
+                          hits_pkt(SELF, self.hp[SELF], 100))
+            self.at(0.4, finish)
+
+    def state(self):
+        self.tick()
+        return super().state()
+
+    movement = state
+
+
+def pets_run():
+    print("\n== pets (in process): guard first, bard skills only at what the pets fight, vet, All Kill, pet down ==")
+    import loop_hunt
+    from agent_link import Abort, Link
+    for name in ("wait", "pos", "open_containers"):
+        setattr(TamerLink, name, getattr(Link, name))
+    fast = {"SKILL_GAP_S": 0.3, "CALM_SUCCESS_S": 0.6, "KILL_AFTER_S": 0.8, "GUARD_REPEAT_S": 0.5,
+            "VET_BUSY_S": 1.0, "VET_IDLE_S": 0.3}
+    saved = {k: getattr(tamer, k) for k in fast}
+    for k, v in fast.items():
+        setattr(tamer, k, v)
+    db = os.path.join(tempfile.mkdtemp(), "harness.db")
+    store = memory.Memory(db)
+    link = TamerLink()
+    link.feed(login_pkt(), hits_pkt(SELF, 100, 100), equip(BACKPACK, 0x0E75, 0x15),
+              contained(VET_BAG, 0x0E76, 1, BACKPACK), contained(VET, tamer.VET_SUPPLIES_GRAPHIC, 59, VET_BAG),
+              mobile20(GRAVEBUG, SPOT[0] + 1, SPOT[1], 387, noto=2), name_pkt(GRAVEBUG, "GraveRobber"),
+              hits_pkt(GRAVEBUG, 100, 100),
+              mobile20(PHOENIX, SPOT[0], SPOT[1] + 1, 832, noto=2), name_pkt(PHOENIX, "AlaFlambe"),
+              hits_pkt(PHOENIX, 100, 100),
+              mobile20(W1, SPOT[0] + 5, SPOT[1], SHADE_WOLF), name_pkt(W1, "a shade wolf"))
+    args = loop_hunt.arg_parser().parse_args(["--pets", "--pet", "GraveRobber", "--pet", "alaflambe", "--no-loot",
+                                              "--retreat-at", "0.3",
+                                              "--human", "off", "--quiet", "--triage-url", "", "--no-map",
+                                              "--spot", str(SPOT[0]), str(SPOT[1]), "--memory", db])
+    loop = loop_hunt.HuntLoop(link, store, args)
+    try:
+        st = loop.state()
+        loop.team.setup(st)
+        loop.start_visit(st)
+        end = time.monotonic() + 40
+        while link.phase != "done" and time.monotonic() < end:
+            loop.tick()
+        for _ in range(6):                                  # W3's death and the guard after it
+            loop.tick()
+        link.feed(var(0xBF, u16(0x19) + b"\x00" + u32(PHOENIX) + b"\x01"))   # bf 000b 0019 00 <serial> 01
+        st = loop.state()
+        reason = loop.leave_reason(st)
+        try:
+            loop.go_back(reason or ("?", "attention"))
+            back = "went back"
+        except Abort as e:
+            back = str(e)
+    finally:
+        for k, v in saved.items():
+            setattr(tamer, k, v)
+    juncs = store.junctures(limit=50)
+    store.close()
+    log = link.log
+    t_of = {e[1]: e[0] for e in reversed(log) if e[1] in ("w1 engages", "w2 joins", "w1 w2 die", "w3 on us", "w3 dies")}
+    says_ = [(x[0], x[2], x[3]) for x in log if x[1] == "say"]
+    first_c2s = next((p for p in link.sent if p[0] in (0xAD, 0x12, 0x06, 0x05, 0x72)), None)
+    check("the first act is 'All Guard Me', Razor-shaped (hue 0x03B1, double NUL) as the capture",
+          first_c2s == bytes.fromhex("ad0020c003b10003454e550000300716b199416c6c204775617264204d650000"),
+          first_c2s.hex() if first_c2s else None)
+    aggressive = [x for x in log if (x[1] == "skill" or (x[1] == "say" and x[2] == "All Kill"))]
+    check("nothing aggressive before the pets engaged W1 (no skill, no 'All Kill'): W1 waited for, not pulled",
+          "w1 engages" in t_of and all(x[0] >= t_of["w1 engages"] for x in aggressive),
+          f"{t_of} {aggressive[:2]}")
+    skills = [(x[2], next((y[3] for y in log[i + 1:] if y[1] == "target"), None))
+              for i, x in enumerate(log) if x[1] == "skill"]
+    check("Discordance at W1 first, then Provocation; no Peacemaking at the provoked W1; W3 discorded, "
+          "then pacified",
+          skills[:2] == [(tamer.SKILL_DISCORD, W1), (tamer.SKILL_PROVO, W2)] and (tamer.SKILL_PEACE, W1) not in skills
+          and skills[2:] == [(tamer.SKILL_DISCORD, W3), (tamer.SKILL_PEACE, W3)], str(skills))
+    targets = [(x[2], x[3]) for x in log if x[1] == "target"]
+    i = next((k for k, (s, _) in enumerate(targets) if s == tamer.SKILL_PROVO), None)
+    check("Provocation: W2 (fighting the phoenix) incited onto W1 (two cursors)",
+          i is not None and targets[i:i + 2] == [(tamer.SKILL_PROVO, W2), (tamer.SKILL_PROVO, W1)], str(targets))
+    vets = [x[0] for x in log if x[1] == "vet"]
+    check("vet supplies for the hurt gravebug after W1 engaged, and for us while W3 hit us",
+          any(t_of["w1 engages"] <= t < t_of.get("w1 w2 die", 1e9) for t in vets)
+          and any(t_of.get("w3 on us", 1e9) <= t for t in vets), f"{vets} {t_of}")
+    guards = [t for t, text, _ in says_ if text == "All Guard Me"]
+    check("'All Guard Me' again after the kills", any(t > t_of.get("w1 w2 die", 1e9) for t in guards), str(guards))
+    kills_said = [t for t, text, _ in says_ if text == "All Kill"]
+    kill_target = next((x[3] for x in log if x[1] == "target" and x[2] == "kill"), None)
+    check(f"'All Kill' at W3 only after it hit us for {fast['KILL_AFTER_S']} s; its cursor answered with W3",
+          len(kills_said) == 1 and kills_said[0] >= t_of["w3 on us"] + fast["KILL_AFTER_S"] and kill_target == W3,
+          f"{kills_said} {t_of} {kill_target:#x}" if kill_target else str(kills_said))
+    check("three kills: W1 (target), W2 (the pets' fight, never our target), W3",
+          loop.totals["kills"] == 3, str(loop.totals))
+    sent_ids = {p[0] for p in link.sent}
+    check("never war mode, an attack or a context menu pick (0x72, 0x05, 0xBF sub 0x15)",
+          not sent_ids & {0x72, 0x05} and not any(p[0] == 0xBF and p[3:5] == b"\x00\x15" for p in link.sent),
+          str(sorted(hex(i) for i in sent_ids)))
+    check("every speech is a pet command, Razor-shaped",
+          all(p == tamer.command(text) for _, text, p in says_), str([t for _, t, _ in says_]))
+    check("the dead phoenix is a leave reason; no going back in, a pet_down juncture",
+          reason == ("AlaFlambe is dead", "attention") and "AlaFlambe is dead" in back
+          and any(j["kind"] == "pet_down" for j in juncs), f"{reason} {back!r}")
+    refused = []
+    for text in ("GraveRobber release", "all release", "All Transfer", "release"):
+        try:
+            tamer.command(text)
+        except ValueError:
+            refused.append(text)
+    check("pet commands that release or transfer are refused", len(refused) == 4 and tamer.irreversible("Release"),
+          str(refused))
+
 
 SCENARIOS = {"default": {}, "staff": {"staff": True}, "fight": {"fight": FIGHT}, "crawl": {"crawl": True},
              "recall": {"recall": True}}
@@ -1518,6 +1782,8 @@ if __name__ == "__main__":
     try:
         if not only or "rights" in only:
             rights()
+        if not only or "pets" in only:
+            pets_run()
     except BaseException:                             # serial: the runs after it never started
         reap(kids, tmp)
         raise

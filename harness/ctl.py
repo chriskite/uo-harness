@@ -1027,6 +1027,9 @@ def conversation_text(raw: str) -> str:
     m = REVEALING.search(raw)
     if m:
         raise CtlError(f"say refused: {m.group(0)!r} could reveal the harness (AGENTS.md constraint 4); rephrase")
+    import tamer
+    if why := tamer.irreversible(raw):
+        raise CtlError(f"say refused: {why} (never release or transfer a pet; user 2026-10-12)")
     return raw
 
 
@@ -1077,11 +1080,15 @@ def _act(a, mem) -> dict:
     pkt = None
     serial = None
     if a.name == "say":
+        import tamer
         raw = " ".join(a.args).strip()
         if raw.lower() in SPEECH_ALLOWLIST:
             pkt = actions.say_unicode(raw.lower())
+        elif " ".join(raw.split()).lower() in tamer.COMMANDS:
+            pkt = tamer.command(raw)      # a pet command, as the user's Razor hotkeys send it (tamer.py)
         elif hold is None:
-            raise CtlError(f"speech not allowlisted: {raw!r}; allowed: {list(SPEECH_ALLOWLIST)} (free text only "
+            raise CtlError(f"speech not allowlisted: {raw!r}; allowed: {list(SPEECH_ALLOWLIST)} and the pet "
+                           f"commands {sorted(tamer.COMMANDS.values())} (free text only "
                            f"to answer someone while a harvest job holds for speech)")
         else:
             pkt = actions.say_unicode(conversation_text(raw))
@@ -1327,6 +1334,13 @@ def _click_packets(name: str, serial: int, stc: "StateConn", index: int | None) 
     if index not in [e.get("index") for e in menu.get("entries") or []]:
         raise CtlError(f"entry {index} is not in {key}'s context menu: "
                        f"{[e.get('index') for e in menu.get('entries') or []]}")
+    import room
+    import tamer
+    entry = next(e for e in menu["entries"] if e.get("index") == index)
+    text = entry.get("text") or (room._cliloc(entry["cliloc"]) if entry.get("cliloc") is not None else "") or ""
+    if why := tamer.irreversible(text):
+        raise CtlError(f"menu_pick refused: entry {index} {text!r}: {why} (never release or transfer a pet; "
+                       f"user 2026-10-12)")
     return [actions.popup_selection(serial, index)]
 
 

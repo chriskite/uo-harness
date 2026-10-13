@@ -2374,6 +2374,80 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
 - **The model sees tool names with a leading underscore** (it called them `_uo_list` in its reply) while the events carry `uo_list` [INFERENCE: the provider's tool-name prefixing]. Harmless; the events and the prompt use the plain names.
 - **Cost:** a one-lookup answer (Sonnet, thinking medium) cost ~$0.01–0.03 and 4–6 s; a four-query SQL answer $0.02 and 10 s (live 2026-10-08).
 
+## Logan Wolf's tamer fighting at the Mausoleum (capture 20261012_210013, analysed 2026-10-12)
+
+The user played a Mausoleum trip on Logan Wolf (0x00104A60) by hand, 21:13–21:31, and asked for a
+combat runner learned from it (built: `loop_hunt.py --pets`, docs/HUNT_LOOP.md "Pets"). Read by
+replaying the capture through `world.runtime.WorldRuntime` with `replay.timed_packets`, events
+timestamped per packet. Facts:
+
+- **Template** (0x3A, skills.mul names): Animal Taming, Animal Lore, Veterinary, Herding 120;
+  Peacemaking, Discordance, Provocation 80; Tactics 18 (no Musicianship, no Magery). 100 str,
+  25 dex, 100 int; followers 5/5. Pets: **AlaFlambe** 0x0026EF56 (phoenix, body 832, 4 slots,
+  Epic Barrage to 12 tiles) and **GraveRobber** 0x000DDEFE (gravebug, body 387, 1 slot, the tank:
+  it took nearly all the damage, poisons, and `*devours corpse*` 33 times, each followed by two
+  `+18`). Both `(bonded)`, notoriety 2 to us; their hits come as a share of 100.
+- **Trip shape:** claimed both pets at home ("You claim your follower.", after a Healer's Codex /
+  class points session in a gump), "All Follow Me", a rune tome (graphic 29103) to a Society
+  quartermaster (Corrine, 4 jobs incl. "Kill 25,000 Gold Worth of Creatures"), the tome again to the
+  Mausoleum (5605,708), through its teleporter chain to 5190–5280 × 640–740, fought there
+  21:16–21:31, recalled out, "room", stabled the pets ("You stable your followers."). Society job
+  290 → 24,243 in 14 min, 25 kills; engagements 8–50 s (median ~22 s). Loot by hand: gold
+  (~600–1,500 a corpse), gems, arcane scrolls.
+- **He never fought himself:** war mode off the whole trip, no `0x05`, no spell. Actions: "All
+  Guard Me" 26×, "All Kill" 5×, Discordance 31 uses (18 ok / 12 fail of 30 answered), Peacemaking
+  16 (8 / 6), Provocation 9 (2 / 2 answered), veterinary supplies 43 channels, heal potions 6
+  drunk, one cure potion.
+- **Pet commands are Razor-shaped speech:** every pet command in his captures (56 in
+  20261010_204420, 20261011_115828, 20261012_210013) is `ad <len> c0 03b1 0003 "ENU\0" <keywords>
+  <utf8> 00 00`: hue 0x03B1 (Razor's default speech hue; his Razor profiles set none) and a
+  double NUL. His typed speech ("room", "[damage") is hue 0x0170 with one NUL, Outland Dan's client
+  0x02B2. `actions.razor_say` builds the Razor form (checked byte for byte); ANTICHEAT.md §8.20.
+- **Targeting is Razor-fast:** cursor to answer median 0.23 s after Discordance, 0.44 s after
+  Peacemaking, 0.11 s after "All Kill"; the server's cursor follows the skill use (0x12 type 0x24
+  "15 0", byte-identical to `actions.use_skill`) in 0.05–0.07 s. He presses hotkeys repeatedly:
+  early presses get cliloc 500118 "You must wait a few moments to use another skill." (16×) and
+  500119 "You must wait to perform another action." for item uses.
+- **Bard texts** (System `0xAE`): prompts "What do you wish to discord? (you may target yourself for
+  an area effect or the ground for a group effect)", "… to pacify? …", "What do you wish to
+  incite? …" then "Whom do you wish them to attack?" (a second cursor); success "You play
+  successfully, disrupting your opponent and weakening them significantly. (1m)" / "(1m 15s)",
+  "You play successfully, pacifying your target. (38s)" / "(30s)", "You play successfully,
+  provoking your targets. (30s)"; fail "You fail to discord your opponent. You estimate the task
+  to be fairly reasonable." (also "somewhat challenging", "beyond your skill"), "You fail to
+  pacify …", "You fail to incite anger amongst your opponents. …"; "You must wait a few moments
+  before you may provoke or pacify another creature."; "That target is currently under a barding
+  break effect."; "Barding break avoided for spare parts" (a Mastery Chain link). Bard targets at
+  1–9 tiles; "All Kill" at 9 tiles answered "Target cannot be seen." (cliloc 500237).
+- **Order per engagement:** walk in with the pets guarding, Discordance on the mob the pets fight,
+  then Peacemaking on it (it stops hitting the pets); Provocation when two more mobs were near;
+  "All Kill" at a mob the pets weren't on. 51 of 60 target answers were at a mob already hurt
+  with a pet within 12 tiles; the 9 others were openers. **User (2026-10-12):** aggression comes
+  from being in a mob's aggro range and line of sight; with pets guarding they engage it rather
+  than it engaging the character, while starting with an aggressive act (All Kill, a discord)
+  makes the mob aggro on the character. The runner never opens with one.
+- **Veterinary supplies** (graphic 0x6496 / 25750, a stack of 59 in a bag): one double-click, no
+  target; "You begin using veterinary supplies." → "You finish using veterinary supplies." 5.0–5.3
+  s later (43×). Pets healed at 0–2 tiles at the finish (+96/+113/+147 on the gravebug, +17–22 on
+  himself: they heal the player too since patch 2023-08-14); "You are too far away from any of
+  your followers to heal them." when both were 3–4 tiles off at the finish, so the range is
+  checked then. "You or your nearby followers do not require healing." (53×) when nothing needed
+  it. The Healer's Codex perk **Without Borders** (+1/2/3 patient range, knowledge #11343) was
+  added after this trip and is being levelled (user 2026-10-12): `--vet-range`.
+- **Self care:** heal potions (graphic 0x0F0C, 30 in an exceptional bronzehide potion satchel
+  inside a bag) at 58–81 % hits; "Potion satchel used." means it wasn't consumed. Refusals named
+  the wait ("You must wait 4 seconds before using another healing potion."). The worst moment:
+  21:27:50 "The creature strikes ferociously, causing you to bleed!" with a vampire countess and a
+  corpsebride on him, 72 → 35 hits in 2 s; he ran 18 tiles while spamming potions (9 clicks, 1
+  drunk) and the pets held the mobs. Vampires: "They begin to draw blood from you!".
+- **Damage numbers:** `-N` / `+N` overhead (0x1C from the mobile) on every creature, pet and us
+  throughout, without `[damage` (which only starts a tracker: "Damage tracker is now running.").
+  Poison over a creature or pet: `*looks violently ill*`.
+- **Never release a pet** (user 2026-10-12: "make sure we don't release my pets on accident
+  they're quite expensive"): pets are released by "<name> release" (patch 2019-06-04) or the
+  context menu's Release; Transfer gives one away. The runner says only `tamer.COMMANDS`;
+  `ctl act say` and `ctl act menu_pick` refuse anything matching release/transfer.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

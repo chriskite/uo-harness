@@ -193,7 +193,7 @@ class FakeProxy:
                                     self._gate_gump(*self.gate_gumps[nxt])
                     elif pkt[:5] == bytes.fromhex("bf00090013"):  # context menu request -> menu (mode 2)
                         s = int.from_bytes(pkt[5:9], "big")
-                        self.add_event({"ev": "popup", "serial": s, "entries": [
+                        self.add_event({"ev": "popup", "serial": s, "entries": getattr(self, "popup_entries", None) or [
                             {"cliloc": 3006123, "index": 0, "flags": 0}, {"cliloc": 3006103, "index": 1, "flags": 0}]})
                     elif pkt[:5] == bytes.fromhex("bf000b0015") and self.buy_list:   # menu pick -> 0x3C, 0x74
                         if self.buy_content is not None:
@@ -969,6 +969,13 @@ def test_run_act(proxy):
               code == 0 and [p for _, p in fr] == [actions.say_unicode("bank")], str(fr))
     else:
         print("  SKIP  say bank (speech.mul not installed)")
+    code, out = c("act", "say", "GraveRobber", "release")
+    check("say refuses a pet release, nothing sent", code == 1 and proxy.take() == [], str(out))
+    if os.path.exists("C:/Program Files (x86)/Ultima Online Outlands/speech.mul"):
+        code, out = c("act", "say", "all", "follow", "me")
+        fr = proxy.take()
+        check("a pet command goes out Razor-shaped (tamer.command)",
+              code == 0 and [p for _, p in fr] == [actions.razor_say("All Follow Me")], str(fr))
 
     proxy.pos = [100, 100, 0, 2]
     code, out = c("act", "walk", "2", "1", "--human", "off")
@@ -1078,6 +1085,15 @@ def test_overseer_acts(proxy):
     code, out = c("act", "menu_pick", "0x000001E5", "1")
     check("menu_pick sends the stock popup selection",
           code == 0 and [p for _, p in proxy.take()] == [actions.popup_selection(0x1E5, 1)], str(out))
+    # a pet's context menu (live: Animal Lore, Kill, … Release, Transfer): never Release or Transfer
+    proxy.popup_entries = [{"text": "Follow", "index": 4, "flags": 0}, {"text": "Release", "index": 9, "flags": 0},
+                           {"text": "Transfer", "index": 10, "flags": 0}]
+    c("act", "menu", "0x000001E5")
+    proxy.take()
+    refused = [c("act", "menu_pick", "0x000001E5", i)[0] for i in ("9", "10")]
+    check("menu_pick refuses a pet's Release and Transfer entries; nothing sent",
+          refused == [1, 1] and proxy.take() == [], str(refused))
+    proxy.popup_entries = None
     proxy.fixed_mobiles = {}
 
     btns = "{ button 10 10 1 2 1 0 1 }{ button 10 30 1 2 1 0 2 }"
