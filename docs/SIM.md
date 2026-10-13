@@ -268,6 +268,25 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
     learn from.
   - With the same rules, the zone crawl's death rate went 0.18 -> 0.66 a game hour (fresh memory)
     once recall-anywhere was gone.
+- **Heal in place, out of the nightstalker room** (user 2026-10-13; the scenario's `runner` block now
+  adds `--heal-in-place --crawl-avoid 5170 690 5188 718`; 49 x 60 min, careers, `--pet-leave-at 0.35`):
+
+  | measure | zone crawl | loop crawl |
+  |---|---|---|
+  | game hours | 35.4 | 18.1 |
+  | kills / hour on the level | 80 | 84 |
+  | gold / game hour | 74,000 | 66,600 |
+  | deaths / game hour | 0.39 | 2.10 |
+  | runs with a death / a pet death (of 49) | 14 / 7 | 38 / 22 |
+  | leaves / game hour | 1.0 | 2.1 |
+  | median run length (of 60 min) | 60 | 18 |
+
+  - The loop now reaches the east: 19 bound souls and 13 corpse purgers killed.
+  - It still dies too often. 25 of its 38 deaths are on the walk to the gate, clustered at
+    (5200-5210, 690-700), the banshee room around the gate, and in the countess' room.
+  - Before the loot fix (below), 19 runs ended on "to the corpse: no route".
+- **An unreachable corpse ended the run** (fixed, `loop_hunt` loot): the walk to it raised Abort("no
+  route"). Now that corpse is left.
 
 ## Limits
 

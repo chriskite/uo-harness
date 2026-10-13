@@ -334,6 +334,38 @@ def test_standoff():
           out[0.9][0] and min(out[0.9][1:]) >= 3 and out[0.5][0] is False, str(out))
 
 
+def test_heal_in_place():
+    print("== --heal-in-place: a pet below --pet-leave-at is no leave while vet supplies last ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    out = {}
+    for supplies in (True, False):
+        sc = load()
+        if not supplies:
+            sc["loadout"]["items"] = [it for it in sc["loadout"]["items"] if it.get("kind") != "vet"]
+        w = World(sc, seed=1)
+        gb = next(p for p in w.pets() if p.name == "GraveRobber")
+        gb.hits = int(gb.hits_max * 0.15)
+        link, clock = link_for(w)
+        db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+        args = loop_hunt.arg_parser().parse_args(simrun.runner_args(sc, ["--pet-leave-at", "0.35"], 10, at_hunt=True)
+                                                 + ["--memory", db, "--seed", "1"])
+        patched = simclock.install(clock)
+        store = memory.Memory(db)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                loop = loop_hunt.HuntLoop(link, store, args)
+                loop.team.setup(loop.state())
+                out[supplies] = loop.leave_reason(loop.state())
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    check("gravebug at 15 %: with vet supplies no leave (heal it), without them the pet leave",
+          args.heal_in_place and out[True] is None and out[False] and "GraveRobber" in out[False][0], str(out))
+
+
 def test_rest_hurt_pet():
     print("== out of vet supplies, the rest waits for a hurt pet instead of going back in ==")
     import tempfile
@@ -371,7 +403,7 @@ def main():
         print("SKIP: no map files (install dir)")
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
-              test_standoff, test_rest_hurt_pet):
+              test_standoff, test_heal_in_place, test_rest_hurt_pet):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

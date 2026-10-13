@@ -379,7 +379,8 @@ class Team:
 
     # ------------------------------------------------------------ rules
     def leave_reason(self, st):
-        """(why, severity) to leave for the pets' sake, else None."""
+        """(why, severity) to leave for the pets' sake, else None. --heal-in-place: a pet below
+        --pet-leave-at is healed where it stands while vet supplies last (user 2026-10-13)."""
         now = time.monotonic()
         seen = {p["serial"]: p for p in self.pets(st)}
         for s, name in self.roster.items():
@@ -390,7 +391,8 @@ class Team:
                 continue
             if p["dead"]:
                 return f"{name} is dead", "attention"
-            if p["frac"] < self.a.pet_leave_at:
+            if p["frac"] < self.a.pet_leave_at and not (
+                    self.a.heal_in_place and healing.in_pack(st["world"], self.h.me(st), VET_SUPPLIES_GRAPHIC)):
                 return f"{name} at {p['frac']:.0%} hits (below {self.a.pet_leave_at:.0%})", "attention"
         return None
 
@@ -652,14 +654,17 @@ class Team:
 
     def to_pet(self, st) -> bool:
         """A pet below --pet-heal-at beyond --vet-range: walk next to it (bandaging range is 1 after a
-        step) when nothing is on us, no channel runs and supplies are there."""
+        step) when nothing is on us, no channel runs and supplies are there. --heal-in-place: a pet
+        below --pet-leave-at is walked to even with something on us (healing it is the leave now)."""
         h, now = self.h, time.monotonic()
-        if now < self.vet_busy_until or now - self.walk_pet_t < WALK_TO_PET_S or h.attackers(st) \
+        if now < self.vet_busy_until or now - self.walk_pet_t < WALK_TO_PET_S \
                 or not healing.in_pack(st["world"], h.me(st), VET_SUPPLIES_GRAPHIC):
             return False
         zone = self.charge_zone(st)
+        busy = bool(h.attackers(st))
         far = [p for p in self.pets(st) if not p["dead"] and p["dist"] > self.a.vet_range
-               and p["dist"] <= combat.VIEW_RANGE and (p["frac"] < self.heal_at(p, zone) or p["poisoned"])]
+               and p["dist"] <= combat.VIEW_RANGE and (p["frac"] < self.heal_at(p, zone) or p["poisoned"])
+               and (not busy or (self.a.heal_in_place and p["frac"] < self.a.pet_leave_at))]
         if not far:
             return False
         p = min(far, key=lambda p: p["frac"])

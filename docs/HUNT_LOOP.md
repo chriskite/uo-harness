@@ -348,6 +348,17 @@ moongate, and never near a red one).
 - **For the Mausoleum:**
   `--enter-via 5554 701 --enter-via 5506 701 --enter-via 5507 697 --enter-via 5521 638
   --leave-gate 5203 703 --gate-dest Totem` (docs/NOTES.md "Getting in and out of the Mausoleum").
+- **`--heal-in-place`** (user 2026-10-13: "leave less and heal in place"). With a long walk out, a leave
+  is a last resort.
+  - The character leaves only below `--leave-at`, with no route margin. The two-attacker rule fires
+    only below `--leave-at` too.
+  - A pet below `--pet-leave-at` is healed, not left for, while vet supplies last. The runner walks to
+    it even with something on us.
+  - Until then: the vet supplies, potions and the retreat.
+  - Logan never left mid-trip: he vetted, drank and ran 18 tiles from the countess' copies.
+- **`--crawl-avoid X0 Y0 X1 Y1`** (repeat): no waypoint in the box, and its tiles cost routes
+  `DANGER_COST_X` (they keep out where they can). For the Mausoleum, `5170 690 5188 718` is the
+  nightstalker room Logan never went into (user 2026-10-13: stay out for now).
 
 **Not built**: claiming or stabling the pets, resurrecting a pet, and Herding (Logan double-clicked
 his shepherd's crook once). Never run live yet; run in the Mausoleum simulator (docs/SIM.md) since

@@ -1024,7 +1024,13 @@ class HuntLoop:
             return
         self.doing("loot", f"Looting {name}", spot, c["corpse"])
         if cheb(self.pos(st), spot) > combat.LOOT_RANGE:
-            self.mover.walk_to(lambda: spot, 1, "to the corpse")
+            try:
+                self.mover.walk_to(lambda: spot, 1, "to the corpse")
+            except Abort as e:
+                if not str(e).startswith("to the corpse"):
+                    raise
+                log(f"corpse of {name} at {spot}: {e}; leaving it")   # e.g. on a ledge (sim: 21 runs ended here)
+                return
             st = self.state()
         pack = self.backpack(st)
         gold0, sgold0 = self.pack_gold(st), st["world"]["self"].get("gold")
@@ -1128,7 +1134,9 @@ class HuntLoop:
         """(why, severity) when the rules say leave now, else None: a hostile player
         (player_threat; urgent: without --leave-recall no going back in), two or more
         attackers below --leave-multi-at, below --leave-at plus the fight spot's route
-        margin (leave_margin); --pets: a pet dead, too hurt or gone (tamer.Team.leave_reason)."""
+        margin (leave_margin); --pets: a pet dead, too hurt or gone (tamer.Team.leave_reason).
+        --heal-in-place (a long way out, user 2026-10-13: leave less, heal in place): the
+        two-attacker rule only below --leave-at too, and no route margin."""
         me = st["world"]["self"]
         pk = self.player_threat(st)
         if pk:
@@ -1138,9 +1146,10 @@ class HuntLoop:
         if me.get("hits") is None:
             return None
         f, att = self.frac(me), self.attackers(st)
-        if len(att) >= 2 and f < self.args.leave_multi_at:
+        multi = min(self.args.leave_multi_at, self.leave_at) if self.args.heal_in_place else self.args.leave_multi_at
+        if len(att) >= 2 and f < multi:
             return (f"{len(att)} attackers and hits {me['hits']}/{me['hits_max']} below "
-                    f"{self.args.leave_multi_at:.0%}"), "attention"
+                    f"{multi:.0%}"), "attention"
         if f < self.leave_at:
             out = f" (--leave-at + {self.out_steps} steps out)" if self.leave_at != self.args.leave_at else ""
             return f"hits {me['hits']}/{me['hits_max']} below {self.leave_at:.0%}{out}", "attention"
@@ -1698,7 +1707,7 @@ class HuntLoop:
             path, _ = self.mover.plan(st, nav.within(out, 0), mobiles=False)
             steps = len(path) - 1 if path else cheb(self.pos(st), out)
         a = self.args
-        raw = a.leave_at + a.leave_per_step * steps
+        raw = a.leave_at + (0.0 if a.heal_in_place else a.leave_per_step) * steps
         cap = max(a.leave_at, a.heal_at - LEAVE_HEAL_GAP)
         self.out_steps, self.leave_at = steps, min(raw, cap)
         if steps and self.crawl is None:
@@ -1871,6 +1880,10 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--crawl-loop", action="store_true",
                     help="crawl: every zone open; walk the floor's waypoints round in a loop (nearest next by "
                          "route), on to the next once an area is cleared (implies --crawl)")
+    ap.add_argument("--crawl-avoid", type=int, nargs=4, action="append", default=None,
+                    metavar=("X0", "Y0", "X1", "Y1"),
+                    help="crawl: never patrol into this box (repeat); routes keep out of it where they can "
+                         "(the Mausoleum's nightstalker room: 5170 690 5188 718, user 2026-10-13)")
     ap.add_argument("--crawl-band", type=int, default=40,
                     help="crawl: route steps from the exit per zone (zones: internal depth bands of the one "
                          "dungeon level entered, numbered from 1)")
@@ -1937,6 +1950,10 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--leave-per-step", type=float, default=0.004,
                     help="--leave-at is raised by this per step of the route from --fight-spot back to "
                          "--spot, at most to --heal-at - 0.05 (the walk out under attack)")
+    ap.add_argument("--heal-in-place", action="store_true",
+                    help="a long way out (a dungeon's moongate): leave only below --leave-at (no route margin; "
+                         "two attackers only below it too) and for a pet only when the vet supplies are out; "
+                         "until then heal where we stand (user 2026-10-13)")
     ap.add_argument("--leave-multi-at", type=float, default=None,
                     help="leave below this share of hits when two or more mobs are attacking (default 0.80; "
                          "--pets 0.55)")

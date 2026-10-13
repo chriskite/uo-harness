@@ -178,7 +178,9 @@
   "enter_via": [[5554, 701], [5506, 701], [5507, 697], [5521, 638]],
   "leave_gate": [5203, 703],
   "gate_dest": "Totem",
-  "note": "run.py's defaults for this scenario (the way Logan went in and out, capture)"
+  "heal_in_place": true,
+  "crawl_avoid": [[5170, 690, 5188, 718]],
+  "note": "run.py's defaults for this scenario: the way Logan went in and out (capture); with a long walk out, leave less and heal in place, and keep out of the nightstalker room for now (user 2026-10-13: Logan never went in; its spawns and the deaths there, docs/SIM.md). --no-heal-in-place / --no-crawl-avoid turn them off"
  },
  "bard": {
   "effective_skill": 149,

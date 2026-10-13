@@ -45,6 +45,12 @@ def runner_args(sc: dict, extra: list[str], minutes: float, at_hunt: bool = Fals
     if not at_hunt and "--enter-via" not in have:
         for x, y in rn.get("enter_via") or []:
             out += ["--enter-via", str(x), str(y)]
+    if rn.get("heal_in_place") and "--heal-in-place" not in have and "--no-heal-in-place" not in have:
+        out.append("--heal-in-place")
+    if "--crawl-avoid" not in have and "--no-crawl-avoid" not in have:
+        for box in rn.get("crawl_avoid") or []:
+            out += ["--crawl-avoid", *map(str, box)]
+    out = [a for a in out if a not in ("--no-heal-in-place", "--no-crawl-avoid")]
     if "--crawl" not in have and "--fight-spot" not in have and "--no-crawl" not in have:
         out.append("--crawl")
     return [a for a in out if a != "--no-crawl"]

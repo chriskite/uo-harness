@@ -475,7 +475,15 @@ class Crawl:
             self.floor = floor_from_memory(m.mem_for(facet), self.h.spot, self.h.spot, tele)
         if self.h.spot not in self.floor.dist_exit or len(self.floor) < 2:
             raise ValueError(f"no floor around the exit spot {self.h.spot} ({len(self.floor)} tiles)")
-        self.wps = waypoints(self.floor, self.a.pull_range, tele)
+        boxes = [tuple(b) for b in (self.a.crawl_avoid or [])]
+
+        def boxed(t):
+            return any(b[0] <= t[0] <= b[2] and b[1] <= t[1] <= b[3] for b in boxes)
+        self.wps = [w for w in waypoints(self.floor, self.a.pull_range, tele) if not boxed(w)]
+        if boxes:
+            keep_out = {t for t in self.floor.adj if boxed(t)}
+            m.danger_tiles |= keep_out                    # routes keep out where they can (Mover.danger_cost)
+            log(f"crawl: keeping out of {len(boxes)} box(es), {len(keep_out)} floor tiles")
         self.cell_of = cells(self.floor, self.wps)
         self.zone = [self.floor.dist_exit[w] // self.a.crawl_band + 1 for w in self.wps]
         top = max(self.zone)
