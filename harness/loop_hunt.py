@@ -1878,6 +1878,10 @@ def arg_parser() -> argparse.ArgumentParser:
                          "character, else the tamed pets next to us")
     ap.add_argument("--pet-heal-at", type=float, default=0.95,
                     help="--pets: veterinary supplies when a pet in range is below this share of hits")
+    ap.add_argument("--standoff-vet-at", type=float, default=0.7,
+                    help="--pets: a pet fighting a monster with an area Charge (nightstalker) gets the vet "
+                         "supplies only below this share of hits while --vet-range is under 3: we stand 3 tiles "
+                         "off that fight and step in to heal [INFERENCE: the threshold]")
     ap.add_argument("--pet-leave-at", type=float, default=0.20,
                     help="--pets: leave when a pet is below this share of hits")
     ap.add_argument("--vet-range", type=int, default=tamer.VET_RANGE,

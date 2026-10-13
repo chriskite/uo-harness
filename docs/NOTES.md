@@ -2441,6 +2441,23 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
   - Idle shade wolves 14-18 tiles off flicker out and back within 0.4 s: the view edge, not stealth.
   - The simulator models the observed Vanish: unseen 3.5-6 s, its target kept.
 
+- **Getting in and out of the Mausoleum** (user 2026-10-13; capture 20261012_210013).
+  - **Recall in a dungeon works only near a gold moongate**, into it and out of it, and never near a
+    red one. The user takes a gate out even where a recall would work.
+  - **In:** at 21:16:30 the rune tome (gump 0x09F5976B) landed Logan at (5626, 688, 0), 1 tile from
+    a moongate item 0x40001CCA, graphic 0x0F6C, hue 2822 [INFERENCE: the gold one], at (5626, 689,
+    0). Two more hue-2822 gates stand on that level 0, at (5618, 723) and (5588, 717). He walked
+    the teleporters (5554, 701) -> (5547, 696, 10), level 1, and (5521, 638) -> (5199, 738, 17),
+    the fight level.
+  - **Out:** at 21:31:00 he stepped onto the crimson moongate 0x4010E11F (0x0F6C, hue 2820) at
+    (5203, 703, 0), in the fight level's banshee room.
+    - "Moongate Destinations" (0xE0E675B8; Totem is button 17), then button 2 "Travel to
+      Destination" on the re-sent gump. Arrival (3859, 2890) at 21:31:04.
+    - Both pets came along: clicked there 0.1 s after the arrival.
+    - At 21:31:04.75 the rune tome from there: home at (4134, 1429) 2 s later.
+  - The simulator modelled neither until this note: its tome row put us on the fight level, and it
+    let the runner recall out from anywhere (docs/SIM.md "Limits").
+
 ## Logan Wolf's tamer fighting at the Mausoleum (capture 20261012_210013, analysed 2026-10-12)
 
 The user played a Mausoleum trip on Logan Wolf (0x00104A60) by hand, 21:13–21:31, and asked for a

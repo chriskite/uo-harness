@@ -307,6 +307,15 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
 5. **Self care**: heal potions as the mage style drinks them (Logan's sit in a potion satchel inside
    a bag: every bag depth is searched); the retreat above (live 21:27:50 a bleed took Logan from 72
    to 35 hits in 2 s; he ran 18 tiles while drinking and the pets held the mob).
+   **Out of a Charge's reach** (user 2026-10-13). A charger is a nightstalker (knowledge #14625:
+   it teleports up to 12 tiles next to its target and hits up to 3 within 1 tile), or any type seen
+   to say "*charges*". While one is in war mode, the runner keeps 3 tiles from it and from the pet
+   beside it (`tamer.Team.stand_off`, up to 6 steps, never mid-channel).
+   - It steps in only to heal that pet: below `--standoff-vet-at` (0.7) instead of `--pet-heal-at`.
+   - `--vet-range` 3+ (the Healer's Codex "Without Borders") heals from outside, so no step-in is
+     needed.
+   - The first Charge of a fight can't be dodged this way: it lands on the guarding pet, which
+     follows 1 tile from us. Live, Logan took exactly that one (-42 at 21:21:15) and none after.
 6. **Pets come along**: "All Follow Me" before every recall or walk out (user directive
    2026-10-11, knowledge #17043). A planned leave, or one for a pet while we aren't hurt, waits up
    to 10 s for every pet within 3 tiles; a leave because we are hurt falls back from the attackers
@@ -322,7 +331,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    All Come), Razor-shaped (`actions.razor_say`), and anything matching `release`/`transfer` is
    refused by the runner and by `ctl act say` / `ctl act menu_pick`.
 
-**Not built**: walking between dungeon levels (start on the hunting level, as the Mausoleum's
+**Not built**: leaving a dungeon the way the server allows. You can't recall out of a dungeon except
+near a gold moongate, and not at all near a red one (user 2026-10-13). The runner's `--leave-recall`
+recalls from where it stands, so in the Mausoleum it would have to walk to the crimson moongate
+(docs/NOTES.md "Getting in and out of the Mausoleum"). Also not built: walking between dungeon
+levels (start on the hunting level, as the Mausoleum's
 teleporter chain from the rune to Logan's area 5190–5280, 640–740 isn't mapped), claiming or
 stabling the pets, resurrecting a pet, and Herding (Logan double-clicked his shepherd's crook
 once). Never run live yet; run in the Mausoleum simulator (docs/SIM.md) since 2026-10-13.

@@ -298,6 +298,42 @@ def test_hunt():
     check("much faster than real time", (r["speed_x"] or 0) > 20, f"{r['speed_x']}x")
 
 
+def test_standoff():
+    print("== a charger fighting the gravebug: stand 3 tiles off, unless the gravebug needs the vet ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    out = {}
+    for frac in (0.9, 0.5):
+        w = world_with([{"key": "nightstalker", "at": [5268, 648, 0]}], seed=7)
+        m = next(m for m in w.mobs.values() if m.kind == "monster")
+        m.spec = {**m.spec, "specials": [], "melee": [1, 1]}       # no Charge in the test: only who stands where
+        gb = next(p for p in w.pets() if p.name == "GraveRobber")
+        gb.hits = gb.hits_max = 100000
+        gb.hits = int(gb.hits_max * frac)
+        m.target, m.threat = gb.serial, {gb.serial: 1e9}
+        link, clock = link_for(w)
+        link.send(tamer.command("all guard me"))
+        db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+        args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                                 + ["--memory", db, "--seed", "1", "--human", "off"])
+        patched = simclock.install(clock)
+        store = memory.Memory(db)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                loop = loop_hunt.HuntLoop(link, store, args)
+                loop.team.setup(loop.state())
+                clock.advance(1.0)
+                walked = loop.team.stand_off(loop.state())
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        out[frac] = (walked, cheb_(w.player, m), cheb_(w.player, gb))
+    check("gravebug at 90%: walk out to 3+ tiles from the nightstalker and the gravebug; at 50%: stay to heal it",
+          out[0.9][0] and min(out[0.9][1:]) >= 3 and out[0.5][0] is False, str(out))
+
+
 def test_rest_hurt_pet():
     print("== out of vet supplies, the rest waits for a hurt pet instead of going back in ==")
     import tempfile
@@ -335,7 +371,7 @@ def main():
         print("SKIP: no map files (install dir)")
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
-              test_rest_hurt_pet):
+              test_standoff, test_rest_hurt_pet):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

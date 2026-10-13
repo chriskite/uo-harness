@@ -252,7 +252,13 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   transfixed copies' hits (2000) and their pick among us within 3 tiles are [INFERENCE].
 - Not modelled: Frenzy, seen live as "*frenzies*" on a shade wolf and the nightstalker (+10 % attack
   speed, knowledge #14625). Nor the nightstalker's Vanish and Backstab: its one fight never showed them.
-- Where recall works inside the Mausoleum is unknown: allowed anywhere (`recall.allowed_from` null).
+- **Leaving and entering are wrong (user 2026-10-13).** Live, you can't recall in a dungeon except
+  near a gold moongate, and never near a red one. The simulator lets the runner recall out from
+  anywhere on the fight level (`recall.allowed_from` null), and its tome row lands on that level.
+  Logan landed on level 0 beside a gold gate and walked two teleporters in, then left by the
+  crimson moongate at (5203, 703) and recalled home from the town it took him to (docs/NOTES.md
+  "Getting in and out of the Mausoleum"). Every leave, death and stranded pet above comes from
+  instant recalls; walking out to the gate under attack isn't modelled yet.
 - Pet AI is a model: Follow ignores attackers, Guard takes whatever attacks us or the pets, Kill holds
   its target, pets within 3 tiles come along on a recall (ServUO's TeleportPets range [INFERENCE]).
 - The rune tome's charges aren't spent (36 on the trip); the ping-pong above would have emptied it.

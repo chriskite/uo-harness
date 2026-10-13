@@ -109,6 +109,14 @@ RETREAT_REPEAT_S = 15.0
 POISON_S = 10.0               # "*looks violently ill*" over a pet: poisoned for this long (vet supplies cure)
 OWN_PETS_KEY = "own_pets"     # memory-store meta: {character: [{serial, name}], ...}
 FOUGHT_S = 60.0              # a mob the pets fought that dies within this is our kill (its corpse looted)
+# Monsters with an area Charge (knowledge #14625: it teleports up to 12 tiles next to its target and hits
+# up to 3 within 1 tile; live 21:21:14 a nightstalker's Charge hit the gravebug -37 and Logan -42 at once).
+# More are learnt from a "*charges*" over a creature.
+CHARGERS = {"nightstalker"}
+TEXT_CHARGES = "*charges*"
+CHARGE_SAFE_R = 3             # tiles from a charger and from a pet beside it: clear of where its Charge lands
+STANDOFF_MOVES = 6
+STANDOFF_REPEAT_S = 2.0
 
 # The only phrases ever said to the pets, as Logan Wolf's hotkeys say them
 COMMANDS = {c.lower(): c for c in ("All Guard Me", "All Follow Me", "All Kill", "All Stop", "All Stay", "All Come")}
@@ -260,6 +268,8 @@ class Team:
         self.retreat_t = -1e9
         self.counts = {}
         self.fought = {}                 # serial -> (last-seen mob dict, monotonic): mobs the pets fought
+        self.chargers = set(CHARGERS)    # creature types with an area Charge (known + seen this run)
+        self.standoff_t = -1e9
 
     # ------------------------------------------------------------ bookkeeping
     def count(self, what: str, n: int = 1):
@@ -313,6 +323,12 @@ class Team:
             elif kind == "speech_heard" and s is not None:
                 if s in self.roster and text == TEXT_POISONED:
                     self.poisoned_t[s] = now
+                elif text == TEXT_CHARGES and s not in self.roster:
+                    m = st["world"]["mobiles"].get(f"0x{s:08X}") or {}
+                    kind = type_key((st["world"].get("labels") or {}).get(f"0x{s:08X}") or m.get("name"))
+                    if kind and kind not in self.chargers:
+                        self.chargers.add(kind)
+                        log(f"{kind} charges: standing {CHARGE_SAFE_R} tiles off it and the pet it fights")
                 elif "barding break" in text.lower() and s not in self.roster:
                     fx = self.effects.setdefault(s, {})
                     fx["calm"], fx["immune"] = 0.0, now + BREAK_IMMUNE_S
@@ -490,7 +506,64 @@ class Team:
     def care(self, st) -> bool:
         """One care action, True when something was done: retreat, vet supplies, guard, walk to a hurt pet."""
         self.update(st)
-        return self.retreat(st) or self.vet(st) or (self.guard_needed and self.guard()) or self.to_pet(st)
+        return self.retreat(st) or self.stand_off(st) or self.vet(st) or (self.guard_needed and self.guard()) \
+            or self.to_pet(st)
+
+    def charge_zone(self, st) -> set:
+        """Where a Charge would land its hit: every charger in war mode in view and each live pet beside
+        one (the one it fights)."""
+        import threats
+        world = st["world"]
+        labels = world.get("labels") or {}
+        pets = [p for p in self.pets(st) if not p["dead"]]
+        zone = set()
+        for key, mob in world["mobiles"].items():
+            s = serial_of(key)
+            if s in self.roster or s in self.h.dead or mob.get("x") is None \
+                    or not (mob.get("flags") or 0) & threats.FLAG_WARMODE \
+                    or type_key(labels.get(key) or mob.get("name")) not in self.chargers:
+                continue
+            c = (mob["x"], mob["y"])
+            zone.add(c)
+            zone.update((p["x"], p["y"]) for p in pets if cheb((p["x"], p["y"]), c) <= PET_NEAR)
+        return zone
+
+    def heal_at(self, p: dict, zone: set) -> float:
+        """The hits share below which pet `p` gets the vet supplies: --pet-heal-at, but only
+        --standoff-vet-at for a pet a charger fights while our supplies don't reach CHARGE_SAFE_R
+        (stepping in to heal it puts us in the Charge's reach: user 2026-10-13). --vet-range 3+ (the
+        Healer's Codex 'Without Borders') heals it from outside."""
+        if self.a.vet_range < CHARGE_SAFE_R and (p["x"], p["y"]) in zone:
+            return min(self.a.pet_heal_at, self.a.standoff_vet_at)
+        return self.a.pet_heal_at
+
+    def stand_off(self, st) -> bool:
+        """A charger in the fight: keep CHARGE_SAFE_R from it and the pet beside it (out of its Charge),
+        unless that pet needs healing (heal_at) and our supplies don't reach that far; never mid-channel."""
+        h, now = self.h, time.monotonic()
+        if now < self.vet_busy_until or now - self.standoff_t < STANDOFF_REPEAT_S:
+            return False
+        zone = self.charge_zone(st)
+        pos = h.pos(st)
+        if not zone or all(cheb(pos, t) >= CHARGE_SAFE_R for t in zone):
+            return False
+        if self.a.vet_range < CHARGE_SAFE_R \
+                and any(p["frac"] < self.heal_at(p, zone) or p["poisoned"] for p in self.pets(st)
+                        if not p["dead"] and (p["x"], p["y"]) in zone) \
+                and healing.in_pack(st["world"], h.me(st), VET_SUPPLIES_GRAPHIC):
+            return False                                  # step in (or stay) to heal the tank
+        self.standoff_t = now
+        label = "out of charge reach"
+        h.doing("standoff", f"Standing off a charger ({len(zone)} tile(s) in its reach)")
+        self.count("standoffs")
+        try:
+            h.mover.walk_to(None, 0, label, goal_fn=nav.beyond(sorted(zone), CHARGE_SAFE_R - 1),
+                            max_moves=STANDOFF_MOVES)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"stand-off cut short: {e}")
+        return True
 
     def retreat(self, st) -> bool:
         h, now = self.h, time.monotonic()
@@ -523,8 +596,9 @@ class Team:
 
     def vet_needed(self, st, pets) -> str | None:
         me = st["world"]["self"]
+        zone = self.charge_zone(st)
         hurt = [p for p in pets if not p["dead"] and p["dist"] <= self.a.vet_range
-                and (p["frac"] < self.a.pet_heal_at or p["poisoned"])]
+                and (p["frac"] < self.heal_at(p, zone) or p["poisoned"])]
         if hurt:
             p = min(hurt, key=lambda p: p["frac"])
             return f"{p['name']} at {p['frac']:.0%}" + (" (poisoned)" if p["poisoned"] else "")
@@ -583,8 +657,9 @@ class Team:
         if now < self.vet_busy_until or now - self.walk_pet_t < WALK_TO_PET_S or h.attackers(st) \
                 or not healing.in_pack(st["world"], h.me(st), VET_SUPPLIES_GRAPHIC):
             return False
+        zone = self.charge_zone(st)
         far = [p for p in self.pets(st) if not p["dead"] and p["dist"] > self.a.vet_range
-               and p["dist"] <= combat.VIEW_RANGE and (p["frac"] < self.a.pet_heal_at or p["poisoned"])]
+               and p["dist"] <= combat.VIEW_RANGE and (p["frac"] < self.heal_at(p, zone) or p["poisoned"])]
         if not far:
             return False
         p = min(far, key=lambda p: p["frac"])
