@@ -39,9 +39,16 @@ python harness/sim/calibrate.py --logs <logs dir> [--scan 20261010] [TAG...]   #
 ```
 
 - Defaults added to the runner's arguments: `--pets --leave-recall <tome> --enter-recall <tome>
-  --enter-rune Mausoleum --crawl --timeout <minutes> --quiet --triage-url ""`; a fresh temporary memory
-  store per run. The character starts at home (the DTF landing) with both pets, recalls in, hunts, and
-  goes home and back by the runner's own rules. `--at-hunt` starts on the level instead.
+  --enter-rune Mausoleum --crawl --timeout <minutes> --quiet --triage-url ""`, and the scenario's
+  `runner` block: `--enter-via` the four teleporters Logan took in (two of them short hops on the
+  second level) and `--leave-gate 5203 703 --gate-dest Totem`. The character starts at home (the DTF
+  landing) with both pets, recalls to the gold gate on the first level, walks in, hunts, leaves by the
+  crimson moongate to Totem and recalls home from there, by the runner's own rules. `--at-hunt` starts
+  on the fight level instead.
+- **Memory persists across runs** (user 2026-10-13). The runs are split into `--careers` (default
+  `--jobs`) careers. Each career runs one after another on one memory store, as the live runner keeps
+  its store between runs: crawl priors, fights, avoided types, learnt teleporters. `--fresh` gives
+  every run a new store. Summaries carry `career` and `career_run`.
 - Each run prints a row (kills, gold, damage taken, deaths, pet deaths, vet uses, potions, rule
   violations); `all:` aggregates (kills and gold per game hour, deaths per hour, runs with a death /
   a pet death / a pet left behind, crashes, violations); `--compare` sets the runs per hour on the level
@@ -241,29 +248,48 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   - Our damage in 8 x 30 min (1,736) was the nightstalker's Charge landing beside the pet it fought
     (867) and the countess' copies (772); the rest was under 40 a source. With guarding pets,
     monsters picked us almost only while the pets were following (the leave) or on "All Kill".
+- **With the real way out** (the crimson moongate; 49 x 60 min, `--pet-leave-at 0.35`, careers of 7
+  runs on one memory store):
+
+  | measure | zone crawl | loop crawl |
+  |---|---|---|
+  | game hours | 22.9 | 4.3 |
+  | kills / hour on the level (trip: 115) | 80 | 87 |
+  | deaths / game hour | 1.14 | 10.07 |
+  | runs with a death / a pet death (of 49) | 26 / 24 | 43 / 41 |
+  | median run length (of 60 min) | 19 | 3 |
+
+  - Most deaths happen on the walk out: 24 of the zone crawl's ended "moongate: died", 42 of the
+    loop's. They cluster in the countess' room (5175-5190, 680) and at the gate (5200-5205, 695-700).
+  - The gate is reachable from the west rooms only through the countess' room, 50-110 steps; from the
+    arrival, through the nightstalker room (114 steps from (5207, 721)).
+  - The loop reaches the nightstalker room 3 minutes in, takes the first leave there and dies on the
+    way out in almost every run. A career's memory doesn't save it: it dies before it has a fight to
+    learn from.
+  - With the same rules, the zone crawl's death rate went 0.18 -> 0.66 a game hour (fresh memory)
+    once recall-anywhere was gone.
 
 ## Limits
 
-- One level, as walked on the trip; other rooms, other levels and the teleporters between them aren't
-  modelled (the tome row lands on the level's entry).
+- The fight level is modelled whole, but the first two levels only along Logan's way in: his
+  teleporters and the monsters first seen near it.
 - No other players or tamers (the trip saw six players), no item loot beyond gold, no skill gain,
   no pet levels or xp, no Society job. The vampire's feeding heal isn't modelled and its drain and
   the poisons are generic; the bound soul's bleed as an area on everyone within a tile, the
   transfixed copies' hits (2000) and their pick among us within 3 tiles are [INFERENCE].
 - Not modelled: Frenzy, seen live as "*frenzies*" on a shade wolf and the nightstalker (+10 % attack
   speed, knowledge #14625). Nor the nightstalker's Vanish and Backstab: its one fight never showed them.
-- **Leaving and entering are wrong (user 2026-10-13).** Live, you can't recall in a dungeon except
-  near a gold moongate, and never near a red one. The simulator lets the runner recall out from
-  anywhere on the fight level (`recall.allowed_from` null), and its tome row lands on that level.
-  Logan landed on level 0 beside a gold gate and walked two teleporters in, then left by the
-  crimson moongate at (5203, 703) and recalled home from the town it took him to (docs/NOTES.md
-  "Getting in and out of the Mausoleum"). Every leave, death and stranded pet above comes from
-  instant recalls; walking out to the gate under attack isn't modelled yet.
+- **Entering and leaving the Mausoleum** (since 2026-10-13). Before that the simulator let the runner
+  recall out from anywhere, so every earlier leave, death and stranded-pet number above is too kind.
+  - Recall works only outside the dungeon or within 2 tiles of a gold gate (`dungeon`; user).
+  - The tome lands at (5626, 688) beside one.
+  - The four teleporters and the crimson moongate's menu are as captured (docs/NOTES.md "Getting in
+    and out of the Mausoleum").
+  - Not known: the gold gates' menus and the ways back up.
 - Pet AI is a model: Follow ignores attackers, Guard takes whatever attacks us or the pets, Kill holds
   its target, pets within 3 tiles come along on a recall (ServUO's TeleportPets range [INFERENCE]).
 - The rune tome's charges aren't spent (36 on the trip); the ping-pong above would have emptied it.
-- Each run starts with an empty memory database, so the crawl's learned avoidance (e.g. "fled from it
-  in 37% of fights") never carries over between runs as it would live.
+- Monster positions and respawns aren't carried across a career's runs: only the runner's memory is.
 
 ## Captures wanted (live, on Logan Wolf)
 

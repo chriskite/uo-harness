@@ -67,6 +67,7 @@ GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
 ON_HIT = {"bleed", "bleed_area", "poison", "drain"}   # scenario specials rolled on a monster's hit
 TIMED = {"charge", "transfix", "vanish"}             # ...used on a cooldown while it fights
+GATE_GUMP = 0xE0E675B8    # "Moongate Destinations" (docs/NOTES.md "Moongate gumps")
 
 
 def cheb(a, b) -> int:
@@ -165,6 +166,8 @@ class World:
         self.last_step_t = 0.0
         self.penalty = 0
         self.gump_n = 0x7700
+        self.gate_n = 0x7800                  # moongate menus' serials
+        self.gate_gump = None                 # (serial, gate, picked destination) of the menu up
         self.recall_at = None                 # (arrival time, destination row)
         self.spawn_due = []                   # (time, spawn index)
         self.player_log = []                  # (time, source, damage, hits after): the last 15 s
@@ -211,6 +214,13 @@ class World:
         self.gold_pile = lo.get("gold_serial", self._item_serial())
         self.items[self.gold_pile] = {"graphic": combat.GOLD_GRAPHIC, "amount": lo.get("gold", 0),
                                       "container": self.backpack, "kind": "gold"}
+        self.gates = {}                       # (x, y) -> the scenario's gate row: stepping on opens its menu
+        for g in sc.get("gates", []):
+            x, y = g["at"][:2]
+            s = g.get("serial") or self._item_serial()
+            self.items[s] = {"kind": "gate", "graphic": g.get("graphic", 0x0F6C), "x": x, "y": y,
+                             "z": self.stand_z(x, y, g["at"][2] if len(g["at"]) > 2 else 0), "name": g.get("name")}
+            self.gates[(x, y)] = g
         self.spawns = []
         for s in sc["spawns"]:
             self.spawns.append({**s, "mob": None})
@@ -287,12 +297,15 @@ class World:
             elif not near and s in self.viewing:
                 self.viewing.discard(s)          # the client drops it by range itself
         for s, it in self.items.items():
-            if it.get("kind") == "corpse":
+            if it.get("kind") in ("corpse", "gate"):
                 near = cheb((it["x"], it["y"]), self.player.pos) <= VIEW
                 if near and s not in self.viewing_items:
                     self.viewing_items.add(s)
-                    self.send(P.ground_item(s, combat.CORPSE_GRAPHIC, it["body"], it["x"], it["y"], it["z"]),
-                              P.corpse_flags(s, it["owner"], it["name"], it["noto"]))
+                    if it["kind"] == "gate":
+                        self.send(P.ground_item(s, it["graphic"], 1, it["x"], it["y"], it["z"]))
+                    else:
+                        self.send(P.ground_item(s, combat.CORPSE_GRAPHIC, it["body"], it["x"], it["y"], it["z"]),
+                                  P.corpse_flags(s, it["owner"], it["name"], it["noto"]))
                 elif not near:
                     self.viewing_items.discard(s)
 
@@ -918,7 +931,10 @@ class World:
             self.send(P.penalty_buff(pl.serial, self.penalty) if self.penalty else P.penalty_remove(pl.serial))
         tp = next((tp for tp in self.sc.get("teleporters", []) if tuple(tp["from"][:2]) == (pl.x, pl.y)), None)
         if tp is not None:
-            self._teleport(pl, tp["to"])
+            self._move_party(tp["to"])
+        gate = self.gates.get((pl.x, pl.y))
+        if gate is not None:
+            self._gate_menu(gate)
         self._view()
 
     # speech: pet commands
@@ -1203,6 +1219,9 @@ class World:
     def _gump_reply(self, p):
         from world.parsers import parse_packet
         f = parse_packet("c2s", p)
+        if self.gate_gump is not None and f.get("serial") == self.gate_gump[0]:
+            self._gate_reply(f.get("button_id", 0))
+            return
         if f.get("serial") != self.gump_n:
             return
         row = f.get("button_id", 0) - TOME_ROW_BUTTON0
@@ -1210,29 +1229,80 @@ class World:
         if not 0 <= row < len(rows) or self.recall_at is not None:
             return
         self._overhead(self.player, "Kal Ort Por", kind=10)
-        allowed = self.sc["recall"].get("allowed_from")
-        if allowed and not any(a[0] <= self.player.x <= a[2] and a[1] <= self.player.y <= a[3] for a in allowed):
-            self.send(P.cliloc(501802))
+        if not self.recall_allowed(self.player.pos):
+            self.send(P.cliloc(501802))     # [INFERENCE] the live refusal text in a dungeon is unrecorded
             return
         self.recall_at = (self.t + RECALL_S, rows[row])
 
-    def _land(self, dest):
+    def recall_allowed(self, pos) -> bool:
+        """Outside the dungeon, or within `recall_r` of one of its gold moongates (user 2026-10-13: a
+        dungeon allows recall only near a gold gate, never near a red one; the radius 2 is his
+        conservative guess)."""
+        d = self.sc.get("dungeon")
+        if not d:
+            return True
+        x0, y0, x1, y1 = d["box"]
+        if not (x0 <= pos[0] <= x1 and y0 <= pos[1] <= y1):
+            return True
+        return any(cheb(pos, g) <= d.get("recall_r", 2) for g in d.get("gold_gates", []))
+
+    def _move_party(self, to):
+        """Us to `to`, and our live pets within pet_range of us with us (a recall, a moongate, a
+        teleporter: ServUO TeleportPets [INFERENCE: the range]). They default to Follow: a
+        transition stops guarding (wiki, #11539/#11561). What fought us there stays behind."""
         pl = self.player
         came = [m for m in self.pets() if cheb(m.pos, pl.pos) <= self.sc["recall"].get("pet_range", 3)]
-        self.metrics["recalls"] += 1
-        self._teleport(pl, dest["at"])
+        self._teleport(pl, to)
+        def both_ways(t):                 # a tile we could step onto and the pet could step back from
+            back = t and self.walk.can_walk(t[0], t[1], t[2], nav.direction(t[:2], pl.pos[:2]))
+            return t if back and back[:2] == pl.pos[:2] and not self._occupied(t[0], t[1]) else None
+        spots = [t for d in (2, 4, 6, 0, 3, 5, 7, 1)
+                 if (t := both_ways(self.walk.can_walk(pl.x, pl.y, pl.z, d)))] or [pl.pos]
         for i, m in enumerate(came):
-            m.target, m.kill, m.mode = None, None, "follow"      # teleported pets default to Follow (wiki)
-            dx, dy = nav.DIR_DELTA[(2 + 2 * i) % 8]
-            self._teleport(m, (pl.x + dx, pl.y + dy, pl.z))
+            m.target, m.kill, m.mode = None, None, "follow"
+            m.x, m.y, m.z = spots[i % len(spots)]               # beside us, on ground we could step onto
+            m.path = []
         for o in self.mobs.values():
             if o.kind == "monster" and o.target in {pl.serial} | {m.serial for m in came}:
                 o.target, o.threat = None, {}
-        self._apply_penalty()
         self._view()
         for m in came:
             if m.serial in self.viewing:
                 self._show(m)
+
+    def _land(self, dest):
+        self.metrics["recalls"] += 1
+        self._move_party(dest["at"])
+        self._apply_penalty()
+
+    # moongates: the "Moongate Destinations" menu (docs/NOTES.md "Moongate gumps"; live 21:31:00)
+    def _gate_layout(self, gate):
+        rows = gate["destinations"]
+        parts = ["{ resizepic 20 23 11571 236 560 }{ gumppic 48 18 2446 }{ text 75 19 2655 0 18 0 1 0 0 0 }",
+                 "{ button 53 546 4005 4007 1 0 2 }{ text 95 547 63 1 18 0 1 0 0 0 }"]
+        for i in range(len(rows)):
+            y = 52 + 35 * i
+            parts.append(f"{{ button 39 {y} 9721 9724 1 0 {10 + i} }}{{ text 75 {y + 3} 2603 {2 + i} 18 0 1 0 0 0 }}")
+        return "".join(parts), ["Moongate Destinations", "Travel to Destination"] + [r["name"] for r in rows]
+
+    def _gate_menu(self, gate, picked=None):
+        self.gate_n += 1
+        layout, lines = self._gate_layout(gate)
+        self.gate_gump = (self.gate_n, gate, picked)
+        self.send(P.gump(self.gate_n, GATE_GUMP, layout, lines))
+
+    def _gate_reply(self, button: int):
+        _, gate, picked = self.gate_gump
+        self.gate_gump = None
+        rows = gate["destinations"]
+        if 10 <= button < 10 + len(rows):
+            self._gate_menu(gate, button - 10)          # live: the menu comes back with the pick
+        elif button == 2 and picked is not None and (self.player.x, self.player.y) == tuple(gate["at"][:2]):
+            to = rows[picked].get("at")
+            if to is not None:
+                self.metrics["gate_travels"] = self.metrics.get("gate_travels", 0) + 1
+                self._move_party(to)
+                self._apply_penalty()                   # live: at once after a moongate (stationary.py)
 
     def _apply_penalty(self):
         self.penalty = PENALTY_STEPS

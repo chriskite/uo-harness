@@ -2457,6 +2457,14 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
     - At 21:31:04.75 the rune tome from there: home at (4134, 1429) 2 s later.
   - The simulator modelled neither until this note: its tome row put us on the fight level, and it
     let the runner recall out from anywhere (docs/SIM.md "Limits").
+  - **Two short hops on the second level** that the map files don't show. At 21:17:37 a step onto
+    (5506, 701) was denied (0x21 at z -5), then a self 0x77 put Logan at (5507, 698). A step onto
+    (5507, 697) put him at (5507, 693). Without them the map's A* takes 468 steps round, against his
+    ~150. Both are in the scenario and in `--enter-via`.
+  - **The way out goes through the countess' room.** On the map the crimson gate's room is reached
+    from the west rooms only via (5190, 682), and from the arrival via the nightstalker room. In the
+    simulator, with the walk out modelled, most deaths are on that walk (docs/SIM.md "With the real
+    way out").
 
 ## Logan Wolf's tamer fighting at the Mausoleum (capture 20261012_210013, analysed 2026-10-12)
 

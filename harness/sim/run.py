@@ -34,21 +34,29 @@ def runner_args(sc: dict, extra: list[str], minutes: float, at_hunt: bool = Fals
     out = list(extra)
     defaults = [("--pets", []), ("--leave-recall", [tome]), ("--timeout", [str(minutes * 60)]), ("--quiet", []),
                 ("--triage-url", [""])]
+    rn = sc.get("runner") or {}
+    if rn.get("leave_gate"):
+        defaults += [("--leave-gate", [str(v) for v in rn["leave_gate"]]), ("--gate-dest", [rn["gate_dest"]])]
     if not at_hunt:
         defaults += [("--enter-recall", [tome]), ("--enter-rune", [hunt_row])]
     for flag, vals in defaults:
         if flag not in have:
             out += [flag, *vals]
+    if not at_hunt and "--enter-via" not in have:
+        for x, y in rn.get("enter_via") or []:
+            out += ["--enter-via", str(x), str(y)]
     if "--crawl" not in have and "--fight-spot" not in have and "--no-crawl" not in have:
         out.append("--crawl")
     return [a for a in out if a != "--no-crawl"]
 
 
 def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: float = 30.0,
-             at_hunt: bool = False, sets: tuple = ()) -> dict:
+             at_hunt: bool = False, sets: tuple = (), db: str | None = None) -> dict:
     """One simulated hunt; the summary dict. The runner starts at home and recalls in, or (at_hunt)
     on the hunting level. `sets`: "module.NAME=value" overrides of runner constants for this run
-    (experiments, e.g. "tamer.FALLBACK_S=0"; the value is a Python literal)."""
+    (experiments, e.g. "tamer.FALLBACK_S=0"; the value is a Python literal). `db`: the runner's
+    memory store (a career's, kept across its runs: crawl priors, fights, avoided types, learnt
+    teleporters), else a fresh one."""
     import ast
     import importlib
     import loop_hunt
@@ -75,8 +83,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     clock = simclock.SimClock(epoch=EPOCH)
     world = World(sc, seed=seed)
     link = SimLink(world, clock)
-    tmp = tempfile.mkdtemp(prefix="sim_")
-    db = os.path.join(tmp, "harness.db")
+    if db is None:
+        db = os.path.join(tempfile.mkdtemp(prefix="sim_"), "harness.db")
     args = loop_hunt.arg_parser().parse_args(runner_args(sc, extra, minutes, at_hunt)
                                              + ["--memory", db, "--seed", str(seed)])
     patched = simclock.install(clock)
@@ -125,16 +133,22 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
 
 
 def _pool_run(job):
-    """One run in a pool worker: its runner log to `log` (or nowhere), its summary returned."""
-    seed, extra, scenario, minutes, log, at_hunt, sets = job
-    out = open(log, "w", encoding="utf-8") if log else open(os.devnull, "w")
-    old = sys.stdout
-    sys.stdout = out
-    try:
-        return run_once(seed, extra, scenario, minutes, at_hunt, sets)
-    finally:
-        sys.stdout = old
-        out.close()
+    """One career in a pool worker: its runs one after another on one memory store (each run's
+    log to its `log`, or nowhere); their summaries, with `career` and `career_run`."""
+    career, runs = job
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_career_"), "harness.db")
+    out_all = []
+    for k, (seed, extra, scenario, minutes, log, at_hunt, sets) in enumerate(runs):
+        out = open(log, "w", encoding="utf-8") if log else open(os.devnull, "w")
+        old = sys.stdout
+        sys.stdout = out
+        try:
+            r = run_once(seed, extra, scenario, minutes, at_hunt, sets, db=db if career is not None else None)
+        finally:
+            sys.stdout = old
+            out.close()
+        out_all.append({**r, "career": career, "career_run": k})
+    return out_all
 
 
 def main(argv=None):
@@ -156,6 +170,10 @@ def main(argv=None):
                     help="also print the runs per hour on the hunting level beside the live trip's (scenario `trip`)")
     ap.add_argument("--set", action="append", default=[], metavar="MODULE.NAME=VALUE",
                     help="override a runner constant for the runs (an experiment), e.g. tamer.FALLBACK_S=0")
+    ap.add_argument("--careers", type=int, default=0,
+                    help="split the runs into this many careers (default: --jobs), each one after another on "
+                         "one memory store, as the live runner keeps its memory between runs")
+    ap.add_argument("--fresh", action="store_true", help="every run on a fresh memory store (no careers)")
     a = ap.parse_args(argv)
     seeds = list(range(a.seed, a.seed + a.runs))
     logdir = a.log if a.runs > 1 else None
@@ -163,12 +181,14 @@ def main(argv=None):
         os.makedirs(logdir, exist_ok=True)
     jobs = [(s, extra, a.scenario, a.minutes, os.path.join(logdir, f"run_{s}.log") if logdir else a.log, a.at_hunt,
              tuple(a.set)) for s in seeds]
-    if len(jobs) == 1 or a.jobs <= 1:
-        results = [_pool_run(j) for j in jobs]
+    n = len(jobs) if a.fresh else max(1, min(a.careers or a.jobs, len(jobs)))
+    careers = [(None if a.fresh else c, jobs[c::n]) for c in range(n)]
+    if len(careers) == 1 or a.jobs <= 1:
+        results = [r for c in careers for r in _pool_run(c)]
     else:
         from concurrent.futures import ProcessPoolExecutor
-        with ProcessPoolExecutor(max_workers=min(a.jobs, len(jobs))) as ex:
-            results = list(ex.map(_pool_run, jobs))
+        with ProcessPoolExecutor(max_workers=min(a.jobs, len(careers))) as ex:
+            results = [r for rs in ex.map(_pool_run, careers) for r in rs]
     results.sort(key=lambda r: r["seed"])
     if a.json:
         for r in results:

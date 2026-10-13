@@ -121,7 +121,7 @@ class FakeHunt:
 def args(**kw):
     a = dict(pull_range=4, crawl_band=10, crawl_zones=0, crawl_dwell=6.0, crawl_depleted_s=90.0,
              crawl_learn_s=600.0, crawl_max_dmg=30.0, crawl_depth_risk=1.5, crawl_max_leaves=2,
-             crawl_max_hits=0.5, crawl_max_fight_s=180.0, target_name="", crawl_loop=False)
+             crawl_max_hits=0.5, crawl_max_fight_s=180.0, target_name="", crawl_loop=False, leave_gate=None)
     a.update(kw)
     return types.SimpleNamespace(**a)
 

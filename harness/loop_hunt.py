@@ -135,6 +135,7 @@ import crawl  # noqa: E402
 import escape as escape_mod  # noqa: E402
 import healing  # noqa: E402
 import nav  # noqa: E402
+import moongate  # noqa: E402
 import threats  # noqa: E402
 import stationary  # noqa: E402
 import tamer  # noqa: E402
@@ -164,6 +165,7 @@ LOOT_REFUSED = re.compile(r"players cannot commit aggressive actions|you may not
 POLL_S = 0.4
 TELEPORT_TRIES = 3            # turn, step (+ one retry) onto a teleporter
 TELEPORT_WAIT_S = 1.0         # a confirmed step onto a teleporter: the move follows within this
+WALK_IN_PETS_S = 20.0         # --enter-via: after 'All Follow Me', how much longer to wait for the pets at a teleporter
 HARD_TIMEOUT_GRACE_S = 180.0  # past --timeout the runner leaves; past this too it aborts
 GOTO_Z_TOL = 10               # ctl.GOTO_Z_TOL
 # Arcane staves (wiki Arcane: "Players with at least 80 skill in Arcane, Wrestling, and
@@ -1246,28 +1248,63 @@ class HuntLoop:
         res["walked_first"] = walked_first
         return res
 
+    def leave_by_gate(self, severity: str) -> dict:
+        """--leave-gate: walk to the moongate with the pets still guarding (they fight what comes at
+        us on the way and follow: 'All Follow Me' first would leave us the target), then beside it
+        'All Follow Me' (tamer.follow: a hurt leave doesn't wait) so they come through, the step
+        onto it (its menu left for us) and the travel to --gate-dest (moongate.travel).
+        -> {ok, from, to, dest, elapsed_s[, error]}."""
+        gate = tuple(self.args.leave_gate)
+        urgent = severity != "info"
+        self.doing("leave", f"Walking to the moongate at {gate[0]},{gate[1]}", gate)
+        try:
+            if self.team is not None:
+                self.team.guard()
+                path, _ = self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False)
+                near = tuple(path[-2]) if path and len(path) >= 2 else None
+                if near is not None and cheb(self.pos(self.link.state()), gate) > 1:
+                    self.mover.walk_to(lambda: near, 0, "to the moongate", urgent=urgent,
+                                       max_moves=max(250, 3 * self.out_steps))
+                self.team.follow(severity)
+            mark = len(self.link.events)
+            self.mover.walk_to(lambda: gate, 0, "onto the moongate", gate=gate, urgent=urgent,
+                               max_moves=max(250, 3 * self.out_steps))
+            return moongate.travel(self.link, self.human, self.args.gate_dest, since=mark, log=log)
+        except (Abort, moongate.GateError) as e:
+            return {"ok": False, "from": list(self.pos(self.link.state())[:2]), "error": str(e),
+                    "dest": self.args.gate_dest}
+
     def leave_by_recall(self, st, why, severity):
         """Leave by recalling to --leave-recall's default rune (recall_home), at once and
         before any bookkeeping: a target cursor up is cancelled first (drop_cursor), no
-        war mode toggle or walk unless the planned end (severity info). Then the usual
-        `threat` juncture and `leave` event (with the recall), the visit row, and at home
-        the bank (--bank-gold). A recall that doesn't land stops the run."""
+        war mode toggle or walk unless the planned end (severity info). With --leave-gate the
+        moongate first (no recall in a dungeon but near a gold gate), then the recall from where
+        it took us. Then the usual `threat` juncture and `leave` event (with the recall), the
+        visit row, and at home the bank (--bank-gold). A gate or recall that doesn't land stops
+        the run."""
         t_fire, pos = time.monotonic(), self.pos(st)
         data = {"why": why, "hits": [st["world"]["self"].get("hits"), st["world"]["self"].get("hits_max")],
                 "attackers": self.attackers(st), "visit": self.visit_n, "kills": self.totals["kills"],
                 "route_steps": self.out_steps}
-        log(f"LEAVING by recall: {why}")
+        log(f"LEAVING by {'the moongate' if self.args.leave_gate else 'recall'}: {why}")
         self.fleeing = True
         try:
             cancelled = self.drop_cursor()
             self.disengage("fled" if severity != "info" else "ended")
-            self.doing("leave", f"Leaving by recall: {why}", self.recall_spot)
+            self.doing("leave", f"Leaving: {why}", tuple(self.args.leave_gate) if self.args.leave_gate
+                       else self.recall_spot)
             if severity == "info" and self.war_mode(st, False):
                 self.human.wait("read")
-            if self.team is not None:
+            if self.team is not None and not self.args.leave_gate:
                 self.team.follow(severity)
             data["react_s"] = round(time.monotonic() - t_fire, 2)
-            res = self.recall_home(severity != "info")
+            gate = None
+            if self.args.leave_gate:
+                gate = data["gate"] = self.leave_by_gate(severity)
+                if gate["ok"] and self.team is not None:
+                    self.team.landed(self.state(), "gate")
+            res = self.recall_home(severity != "info") if gate is None or gate["ok"] else \
+                {"ok": False, "failure": f"moongate: {gate.get('error')}"}
         finally:
             self.fleeing = False
         data.update(cursor_cancelled=cancelled,
@@ -1303,8 +1340,11 @@ class HuntLoop:
         res = self.recall(book, rune, False, "in")
         if not res["ok"]:
             raise Abort(f"recall to {rune or 'the default rune'} failed: {res['failure']} {res.get('error') or ''}")
+        log(f"recalled to {rune or 'the default rune'} at {tuple(self.pos(self.link.state())[:2])} "
+            f"({res['method']}, {res['elapsed_s']} s)")
+        if self.args.enter_via:
+            self.walk_in([tuple(t) for t in self.args.enter_via])
         arrival = tuple(self.pos(self.link.state())[:2])
-        log(f"recalled to {rune or 'the default rune'} at {arrival} ({res['method']}, {res['elapsed_s']} s)")
         if self.spot is None:
             self.spot = arrival
             self.fight_spot = self.fight_spot or arrival
@@ -1315,6 +1355,33 @@ class HuntLoop:
         self.rearm(self.state())            # the recall knocked an arcane staff into the pack: before any attack
         if self.team is not None:
             self.team.landed(self.state(), "in")
+
+    def walk_in(self, tiles):
+        """After the recall in (a dungeon lets us recall only beside a gold moongate: user 2026-10-13):
+        onto each --enter-via teleporter in order. Before each step onto one, 'All Follow Me' and the
+        pets within reach (they come through with us); after it they're guarded again (a level
+        transition stops guarding, wiki)."""
+        for tile in tiles:
+            label = f"to the teleporter at {tile[0]},{tile[1]}"
+            self.doing("enter", f"Walking to the teleporter at {tile[0]},{tile[1]}", tile)
+            if self.team is not None:
+                self.team.guard()
+            # the tile the route onto it steps from: a teleporter on stairs is entered from one side only
+            # (the Mausoleum's at 5554,701: from 5554,702 northwards)
+            path, _ = self.mover.plan(self.link.state(), nav.within(tile, 0), mobiles=False)
+            near = tuple(path[-2]) if path and len(path) >= 2 else None
+            if near is None:
+                raise Abort(f"{label}: no route onto it")
+            self.mover.walk_to(lambda: near, 0, label)
+            if self.team is not None:
+                self.team.follow()
+                if not self.link.wait(lambda s: self.team.together(s), WALK_IN_PETS_S):
+                    raise Abort(f"{label}: the pets aren't within {tamer.FOLLOW_R} tiles after "
+                                f"{WALK_IN_PETS_S:.0f} s more; not stepping through without them")
+            here = tuple(self.pos(self.link.state())[:2])
+            self.teleport(nav.direction(here, tile), f"the teleporter at {tile[0]},{tile[1]}")
+            if self.team is not None:
+                self.team.landed(self.state(), "in")
 
     def wait_pk(self):
         """After leaving from a hostile player: stay home until --pk-wait has passed."""
@@ -1619,11 +1686,12 @@ class HuntLoop:
     def leave_margin(self, st):
         """--leave-at raised by --leave-per-step per step of the planned route from the
         fight spot back to --spot (recall mode: to --recall-spot, where a refused recall
-        walks; Chebyshev distance when no route is planned), at most to --heal-at -
-        LEAVE_HEAL_GAP and never below --leave-at. 0 steps when the fight spot is that
-        tile. Crawling: the floor's route steps from where we stand, every tick."""
+        walks; --leave-gate: to that moongate; Chebyshev distance when no route is planned),
+        at most to --heal-at - LEAVE_HEAL_GAP and never below --leave-at. 0 steps when the
+        fight spot is that tile. Crawling: the floor's route steps from where we stand, every tick."""
         steps = 0
-        out = self.recall_spot if self.args.leave_recall is not None else self.spot
+        out = tuple(self.args.leave_gate) if self.args.leave_gate else \
+            self.recall_spot if self.args.leave_recall is not None else self.spot
         if self.crawl is not None:
             steps = self.crawl.route_steps(self.pos(st)) or 0
         elif self.fight_spot != out:
@@ -1844,6 +1912,15 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--recall-spot", type=int, nargs=2, default=None, metavar=("X", "Y"),
                     help="where to walk and recall from when the recall home is refused where we stand "
                          "(dungeons: near a golden gate; default: the arrival / --spot)")
+    ap.add_argument("--enter-via", type=int, nargs=2, action="append", default=None, metavar=("X", "Y"),
+                    help="after --enter-recall's arrival, step onto these teleporters in order (repeat) to reach "
+                         "the hunting level; the last arrival is the hunt (the Mausoleum: 5554 701, 5521 638)")
+    ap.add_argument("--leave-gate", type=int, nargs=2, default=None, metavar=("X", "Y"),
+                    help="leave by this moongate on the hunting level (dungeons allow no recall except near a "
+                         "gold gate, never near a red one: user 2026-10-13), to --gate-dest, then --leave-recall "
+                         "home from there")
+    ap.add_argument("--gate-dest", default=None, metavar="NAME",
+                    help="--leave-gate's destination on its 'Moongate Destinations' menu (e.g. Totem)")
     ap.add_argument("--bank-gold", type=int, default=0, metavar="N",
                     help="after recalling home: with N gold or more in the pack, bank it all (0 = off)")
     ap.add_argument("--pk-wait", type=float, default=600.0,
@@ -1943,6 +2020,10 @@ def main():
         ap.error("--enter-rune names a rune of --enter-recall's book")
     if args.pet and not args.pets:
         ap.error("--pet names a pet of the team: it needs --pets")
+    if args.leave_gate and (args.leave_recall is None or not args.gate_dest):
+        ap.error("--leave-gate travels to --gate-dest, then recalls home with --leave-recall: give both")
+    if args.enter_via and args.enter_recall is None:
+        ap.error("--enter-via walks the teleporters after --enter-recall's arrival")
 
     memory = Memory(args.memory)
     link = Link(args.control_port, args.state_port, char=args.char)

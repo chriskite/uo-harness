@@ -491,6 +491,12 @@ class Crawl:
             self.unlocked = top
             log(f"crawl: looping the floor, every zone open: {len(self.order)} waypoints, from "
                 f"{self.wps[self.order[0]]}")
+        gate = self.a.leave_gate
+        out = self.floor.nearest(tuple(gate)) if gate else None
+        self.dist_out = self.floor.bfs(out) if out is not None else self.floor.dist_exit
+        if gate:
+            log(f"crawl: the way out is the moongate at {tuple(gate)}" + ("" if out is not None else
+                                                                          " (off this floor: steps to the exit)"))
         self.update_zones()
 
     def zone_at(self, pos):
@@ -501,10 +507,11 @@ class Crawl:
         return self.zone[i] if i is not None else None
 
     def route_steps(self, pos) -> int | None:
+        """Route steps from `pos` to the way out: --leave-gate's moongate, else the exit spot."""
         if self.floor is None:
             return None
         t = self.floor.nearest(pos)
-        return self.floor.dist_exit.get(t) if t is not None else None
+        return self.dist_out.get(t) if t is not None else None
 
     # ---- zones
     def update_zones(self):

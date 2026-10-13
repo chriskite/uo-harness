@@ -331,14 +331,27 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    All Come), Razor-shaped (`actions.razor_say`), and anything matching `release`/`transfer` is
    refused by the runner and by `ctl act say` / `ctl act menu_pick`.
 
-**Not built**: leaving a dungeon the way the server allows. You can't recall out of a dungeon except
-near a gold moongate, and not at all near a red one (user 2026-10-13). The runner's `--leave-recall`
-recalls from where it stands, so in the Mausoleum it would have to walk to the crimson moongate
-(docs/NOTES.md "Getting in and out of the Mausoleum"). Also not built: walking between dungeon
-levels (start on the hunting level, as the Mausoleum's
-teleporter chain from the rune to Logan's area 5190–5280, 640–740 isn't mapped), claiming or
-stabling the pets, resurrecting a pet, and Herding (Logan double-clicked his shepherd's crook
-once). Never run live yet; run in the Mausoleum simulator (docs/SIM.md) since 2026-10-13.
+**In and out of a dungeon** (user 2026-10-13: you can't recall in a dungeon except near a gold
+moongate, and never near a red one).
+
+- **In:** `--enter-via X Y` (repeat) steps onto those teleporters in order after the recall in.
+  - The approach is the tile the route onto each one arrives from (a teleporter on stairs is entered
+    from one side only).
+  - Before each step: "All Follow Me", then up to 20 s more for every pet within 3 tiles, else Abort.
+    They come through only if near.
+  - "All Guard Me" again after each teleporter.
+- **Out:** `--leave-gate X Y --gate-dest NAME` (`moongate.py`).
+  - The runner walks to the gate with the pets still guarding, says "All Follow Me" beside it, then
+    steps on and picks the destination by its label.
+  - Then "Travel to Destination" on the re-sent menu, and `--leave-recall` home from the town.
+  - The leave margin's route steps are measured to the gate.
+- **For the Mausoleum:**
+  `--enter-via 5554 701 --enter-via 5506 701 --enter-via 5507 697 --enter-via 5521 638
+  --leave-gate 5203 703 --gate-dest Totem` (docs/NOTES.md "Getting in and out of the Mausoleum").
+
+**Not built**: claiming or stabling the pets, resurrecting a pet, and Herding (Logan double-clicked
+his shepherd's crook once). Never run live yet; run in the Mausoleum simulator (docs/SIM.md) since
+2026-10-13.
 
 ## Stationary Penalty (user request 2026-10-03; `harness/stationary.py`)
 

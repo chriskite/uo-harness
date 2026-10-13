@@ -144,15 +144,41 @@
    {
     "name": "Mausoleum",
     "at": [
-     5199,
-     738,
-     17
+     5626,
+     688,
+     0
     ]
    }
   ],
-  "allowed_from": null,
   "pet_range": 3,
-  "note": "where recall works inside the Mausoleum is unknown (Logan left via 3859,2890): allowed_from null = anywhere [INFERENCE]; pets within pet_range come along (knowledge #11547) and default to Follow (#11561)"
+  "note": "the Mausoleum row lands where Logan's did (21:16:30, capture): (5626, 688) on the first level, beside a gold moongate; recall in a dungeon works only near one (`dungeon`); pets within pet_range come along (knowledge #11547) and default to Follow (#11561)"
+ },
+ "dungeon": {
+  "box": [5150, 600, 5650, 760],
+  "gold_gates": [[5626, 689], [5618, 723], [5588, 717]],
+  "recall_r": 2,
+  "note": "user 2026-10-13: in a dungeon you can recall in or out only near a gold moongate (gold gates are on a dungeon's first level only), never near a red one; recall_r 2 is his conservative guess. box: the calibration region; gold gates: the hue-2822 moongates of the first level (capture) [INFERENCE: hue 2822 = gold]"
+ },
+ "gates": [
+  {
+   "name": "crimson moongate", "serial": 1074848031, "at": [5203, 703, 0], "hue": 2820,
+   "destinations": [{"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"},
+                    {"name": "Outpost"}, {"name": "Prevalia"}, {"name": "Terran"},
+                    {"name": "Totem", "at": [3859, 2890, 0]}, {"name": "Corpse Creek"}]
+  },
+  {"name": "gold moongate", "serial": 1073749194, "at": [5626, 689, 0], "hue": 2822,
+   "destinations": [{"name": "Totem", "at": [3859, 2890, 0]}]},
+  {"name": "gold moongate", "serial": 1073749192, "at": [5618, 723, 0], "hue": 2822,
+   "destinations": [{"name": "Totem", "at": [3859, 2890, 0]}]},
+  {"name": "gold moongate", "serial": 1073749193, "at": [5588, 717, 0], "hue": 2822,
+   "destinations": [{"name": "Totem", "at": [3859, 2890, 0]}]}
+ ],
+ "gates_note": "the crimson moongate 0x4010E11F on the fight level, the only red gate there (user): its 'Moongate Destinations' rows as live 21:31:00 (Totem = button 17; arrival (3859, 2890) 21:31:04). The gold gates' menus weren't opened live: one Totem row [INFERENCE]",
+ "runner": {
+  "enter_via": [[5554, 701], [5506, 701], [5507, 697], [5521, 638]],
+  "leave_gate": [5203, 703],
+  "gate_dest": "Totem",
+  "note": "run.py's defaults for this scenario (the way Logan went in and out, capture)"
  },
  "bard": {
   "effective_skill": 149,
@@ -659,10 +685,38 @@
     681,
     25
    ]
-  }
+  },
+  {"key": "spare parts", "at": [5619, 686, 0]},
+  {"key": "spare parts", "at": [5594, 711, 0]},
+  {"key": "spare parts", "at": [5590, 706, 0]},
+  {"key": "raw flesh", "at": [5617, 706, 2]},
+  {"key": "raw flesh", "at": [5625, 704, 0]},
+  {"key": "raw flesh", "at": [5594, 694, 0]},
+  {"key": "raw flesh", "at": [5593, 696, 0]},
+  {"key": "corpse eater", "at": [5600, 721, 0]},
+  {"key": "corpse eater", "at": [5599, 674, 0]},
+  {"key": "corpse eater", "at": [5618, 719, 0]},
+  {"key": "familiar", "at": [5602, 679, 0]},
+  {"key": "familiar", "at": [5641, 687, 20]},
+  {"key": "familiar", "at": [5642, 701, 20]},
+  {"key": "newly reanimated", "at": [5604, 679, 0]},
+  {"key": "newly reanimated", "at": [5609, 672, 0]},
+  {"key": "abomination", "at": [5533, 651, -10]},
+  {"key": "abomination", "at": [5531, 662, -10]},
+  {"key": "calamity", "at": [5508, 665, 2]},
+  {"key": "eldritch experiment", "at": [5533, 681, -10]},
+  {"key": "insane reanimator", "at": [5504, 654, 30]},
+  {"key": "insane reanimator", "at": [5531, 645, -10]},
+  {"key": "reanimator zealot", "at": [5530, 680, -10]}
  ],
- "spawn_note": "every first-seen position of a monster type on the fight level (calibration creatures.*.first_seen), one spawn each",
- "teleporters": [],
+ "spawn_note": "every first-seen position of a monster type (calibration creatures.*.first_seen), one spawn each: the fight level's, then the first two levels' on the way in (x 5500-5650)",
+ "teleporters": [
+  {"from": [5554, 701], "to": [5547, 696, 10]},
+  {"from": [5506, 701], "to": [5507, 698, -5]},
+  {"from": [5507, 697], "to": [5507, 693, -5]},
+  {"from": [5521, 638], "to": [5199, 738, 17]}
+ ],
+ "teleporters_note": "the ones Logan stepped onto on the way in (capture): 21:17:19 to the second level, 21:17:37 two short hops on it (a deny at (5506, 701) then a self move to (5507, 698), and (5507, 697) -> (5507, 693); the map has no walk across: A* takes 468 steps round, Logan ~150), 21:17:57 to the fight level. The ways back up aren't known",
  "area": [
   5170,
   640,
