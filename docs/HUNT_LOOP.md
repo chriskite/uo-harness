@@ -486,6 +486,17 @@ Everything hunted before the crawl is zone 1: all 386 floor tiles of the box the
   starts from them (`crawl.load_prior`), so a creature fled from stays avoided and a known zone
   doesn't have to be learnt again. Rows written before the rename (0-based `levels`) are read
   as zones from 1.
+- **`--crawl-loop`** (user 2026-10-13): fight the whole level the way a human does. A human clears
+  a pack, moves straight on to the next and keeps going, roughly in a loop. Respawns run on a
+  timer, so nothing comes back within seconds of a clear.
+  - Every zone is open from the start; there's no zone learning or closing.
+  - The waypoints form one tour: from the one nearest the exit, always on to the nearest unvisited
+    one by route (`crawl.tour`), and the last leads back to the first.
+  - The runner walks the tour in order, past areas it cleared within 10 min and areas of avoided
+    creatures.
+  - There's no hold at a waypoint: a cleared area is marked depleted and the walk goes on at once.
+  - Built for the Mausoleum `--pets` hunt: the zone gating never got the crawl past x 5224, short
+    of the bound souls and corpse purgers Logan fought (docs/SIM.md).
 - **Moving keeps the Stationary Penalty away**: patrol walks are steps; the longest stay is a
   depleted-area hold (90 s), well under the 240 s reposition.
 

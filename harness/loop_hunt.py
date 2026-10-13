@@ -1753,7 +1753,7 @@ class HuntLoop:
         if not self.at_hunt(st):
             raise Abort(f"not near the hunting spot {self.spot} (at {self.pos(st)[:2]}); use --enter"
                         + (" or --enter-recall" if self.args.leave_recall is not None else ""))
-        if self.args.crawl and self.crawl is None:
+        if (self.args.crawl or self.args.crawl_loop) and self.crawl is None:
             self.crawl = crawl.Crawl(self, crawl.load_prior(self.memory.con, self.spot, self.args.crawl_depth_risk))
         self.hunt()
         t = self.totals
@@ -1800,6 +1800,9 @@ def arg_parser() -> argparse.ArgumentParser:
                          "are measured from it")
     ap.add_argument("--crawl", action="store_true",
                     help="patrol the dungeon floor instead of one fight spot (crawl.py; docs/HUNT_LOOP.md 'Crawl')")
+    ap.add_argument("--crawl-loop", action="store_true",
+                    help="crawl: every zone open; walk the floor's waypoints round in a loop (nearest next by "
+                         "route), on to the next once an area is cleared (implies --crawl)")
     ap.add_argument("--crawl-band", type=int, default=40,
                     help="crawl: route steps from the exit per zone (zones: internal depth bands of the one "
                          "dungeon level entered, numbered from 1)")
@@ -1922,6 +1925,8 @@ def arg_parser() -> argparse.ArgumentParser:
 def main():
     ap = arg_parser()
     args = ap.parse_args()
+    if args.crawl_loop:
+        args.crawl = True
     if args.crawl and args.fight_spot:
         ap.error("--crawl patrols the floor: no --fight-spot with it")
     if args.enter_recall is not None and args.leave_recall is None:

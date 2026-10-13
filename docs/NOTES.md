@@ -2423,6 +2423,23 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
     `--pet-leave-at` 0.20 (2 of 48 at 0.35).
   - The sim runner meets no bound souls: its crawl never reaches x 5261-5277, y 645-661, where Logan's
     bleeds came from.
+- **Stealth mid-fight is the shade wolves', and they come back to the pet** (capture
+  20261012_210013, the user's question 2026-10-13: "their aggro is cleared when they stealth, so
+  they can attack the player if we don't put the pets back on guard").
+  - Two shade wolves (0x00061DAB, 0x000607BE), each fighting the gravebug next to Logan, dropped out
+    of view while alive (0x1D) 4 times: 4.3-15 s into the fight and 19-22 s apart. They came back
+    1-5 tiles from him.
+  - Each was gone 3.5-5.8 s and came back in the same 0x20 as a hit on the gravebug (21-28). Their
+    other hits ran 4-22. The first wolf's opening -40 on the gravebug came straight out of stealth.
+  - Every hit after they came back went on the gravebug; none on Logan. Logan's next "All Guard Me"
+    came 1.2-4.2 s after three of the returns and 26 s after the fourth, never before one. The pets
+    were on guard from the "All Guard Me" just before each fight (21:20:03, 21:28:43; no recall or
+    "All Kill" in between). The no-guard case never happened, so the hypothesis is neither
+    confirmed nor refuted.
+  - The capture's one nightstalker never stealthed: it died 22 s in. It charged 3 times (8.5 s
+    apart) and frenzied once. It came into view 18 tiles off, not out of stealth.
+  - Idle shade wolves 14-18 tiles off flicker out and back within 0.4 s: the view edge, not stealth.
+  - The simulator models the observed Vanish: unseen 3.5-6 s, its target kept.
 
 ## Logan Wolf's tamer fighting at the Mausoleum (capture 20261012_210013, analysed 2026-10-12)
 

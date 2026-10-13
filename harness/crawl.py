@@ -224,6 +224,23 @@ def cells(floor: Floor, wps: list) -> dict:
     return own
 
 
+def tour(floor: Floor, wps: list) -> list:
+    """A loop through every waypoint (`--crawl-loop`): from the one nearest the exit, always on to
+    the nearest unvisited one by route steps; the last leads back to the first. -> indices."""
+    if not wps:
+        return []
+    dist = [floor.bfs(w) for w in wps]
+    left = set(range(len(wps)))
+    cur = min(left, key=lambda i: (floor.dist_exit.get(wps[i], 1 << 30), i))
+    order = [cur]
+    left.discard(cur)
+    while left:
+        cur = min(left, key=lambda i: (dist[cur].get(wps[i], 1 << 30), i))
+        order.append(cur)
+        left.discard(cur)
+    return order
+
+
 # --------------------------------------------------------------------------- the model
 class Model:
     """Per creature type: fights [(fight_s or None, hits lost, outcome)], gold per kill.
@@ -438,6 +455,7 @@ class Crawl:
         self.tick_t = None
         self.visit_zones = collections.defaultdict(lambda: {"s": 0.0, "hits": 0, "gold": 0, "kills": 0, "leaves": 0})
         self.counts = collections.Counter()
+        self.order, self.tour_at = [], -1    # --crawl-loop: the tour (waypoint indices), our place in it
 
     # ---- setup
     def setup(self, st):
@@ -468,6 +486,11 @@ class Crawl:
             f"({'map' if walk is not None else 'walk memory'}, {time.monotonic() - t0:.1f} s), "
             f"{len(self.wps)} waypoints, zones 1-{top} ({self.a.crawl_band} route steps each; farthest "
             f"{max(self.floor.dist_exit.values())} steps from the exit)")
+        if self.a.crawl_loop:
+            self.order = [i for i in tour(self.floor, self.wps) if self.zone[i] <= top]
+            self.unlocked = top
+            log(f"crawl: looping the floor, every zone open: {len(self.order)} waypoints, from "
+                f"{self.wps[self.order[0]]}")
         self.update_zones()
 
     def zone_at(self, pos):
@@ -488,6 +511,8 @@ class Crawl:
         """Open the next zone when this one is known and the next one's predicted risk
         is acceptable; close the deepest when it proved worse (come back out)."""
         a, m = self.a, self.model
+        if a.crawl_loop:
+            return                       # every zone open from the start
         k = self.unlocked
         if k > 1:
             r = m.rates(k)
@@ -628,7 +653,10 @@ class Crawl:
 
     def choose(self, pos):
         """The next waypoint index (or None): open zones, not depleted, not near an
-        avoided creature, reachable; staleness x value x crowd x zone / distance."""
+        avoided creature, reachable; staleness x value x crowd x zone / distance.
+        --crawl-loop: the next waypoint of the tour after the last one set out for."""
+        if self.a.crawl_loop:
+            return self.next_in_tour(pos)
         now = time.monotonic()
         start = self.floor.nearest(pos)
         dist = self.floor.bfs(start) if start is not None else {}
@@ -650,9 +678,29 @@ class Crawl:
                 best, best_score = i, score
         return best
 
+    def next_in_tour(self, pos):
+        """--crawl-loop: on round the tour from our place in it, past areas cleared within
+        RESPAWN_S, near an avoided creature, unreachable, or where we stand (a human clearing
+        one pack after another, roughly in a loop: user 2026-10-13)."""
+        now = time.monotonic()
+        start = self.floor.nearest(pos)
+        dist = self.floor.bfs(start) if start is not None else {}
+        n = len(self.order)
+        for k in range(1, n + 1):
+            j = (self.tour_at + k) % n
+            i = self.order[j]
+            w = self.wps[i]
+            if w not in dist or cheb(pos, w) <= 1 or self.depleted.get(i, 0) > now or self.dangerous(i):
+                continue
+            self.tour_at = j
+            return i
+        return None
+
     def idle(self, st):
         """Nothing to fight or loot: hold at the waypoint (a glance, or while targets keep
-        coming), else walk to the next one; the walk stops when something comes up."""
+        coming), else walk to the next one; the walk stops when something comes up.
+        --crawl-loop: no hold; on at once (respawns run on a timer, nothing comes back within
+        seconds: user 2026-10-13)."""
         h, now = self.h, time.monotonic()
         pos = h.pos(st)
         if self.wp is not None and cheb(pos, self.wps[self.wp]) <= 1:
@@ -662,7 +710,10 @@ class Crawl:
                 self.glance_s = self.a.crawl_dwell * h.human.rng.uniform(0.6, 1.4)
                 self.counts["waypoints"] += 1
             productive = self.target_t.get(i, -1e9) >= self.leg_t
-            until = (self.target_t[i] + self.a.crawl_depleted_s) if productive else self.arrived_t + self.glance_s
+            if self.a.crawl_loop:
+                until = now
+            else:
+                until = (self.target_t[i] + self.a.crawl_depleted_s) if productive else self.arrived_t + self.glance_s
             self.visited[i] = now
             if now < until:
                 what = self.a.target_name.strip() or "monsters"
@@ -673,8 +724,10 @@ class Crawl:
             if productive:
                 self.depleted[i] = now + RESPAWN_S
                 self.counts["depleted"] += 1
-                log(f"crawl: area {self.wps[i]} depleted ({self.kills_at[i]} kill(s), no target for "
-                      f"{self.a.crawl_depleted_s:.0f} s); moving on")
+                log(f"crawl: area {self.wps[i]} " + (f"cleared ({self.kills_at[i]} kill(s)); moving on"
+                                                     if self.a.crawl_loop else
+                                                     f"depleted ({self.kills_at[i]} kill(s), no target for "
+                                                     f"{self.a.crawl_depleted_s:.0f} s); moving on"))
             self.wp, self.arrived_t = None, None
         if self.wp is None:
             self.update_zones()

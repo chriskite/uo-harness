@@ -94,9 +94,15 @@ What the capture and the wiki fixed:
   - The vampire bat's bleed hits its target.
   - The nightstalker's Charge: a jump up to 12 tiles every ~8.5 s, 37-42 on up to 3 within a tile.
   - The vampire countess' transfix: an attempt every ~5.3 s, 3 of 7 succeed. Each makes a hostile copy
-    of a pet, with the pet's name, that goes for us (28-37 a hit) and vanishes after 4-10 s.
+    of a pet, with the pet's name, that goes for any of us within 3 tiles (live, 4 of its 10 hits were
+    on Logan, 28-37 each) and vanishes after 4-10 s.
+  - The shade wolf's Vanish: 4.3-15 s into a fight, then every 19-22 s, it is unseen and can't be hit
+    for 3.5-6 s. It comes back on the target it had, with a swing at once.
 - **Pet pace**: one step per 0.21 s out of war mode (n=470 and 471, capture), the pace of our run;
   `calibrate.py` writes it as `step_interval_s_not_fighting` (2026-10-13; 0.3 s before, uncited).
+  The world's step and swing timers keep their cadence across its 0.1 s ticks (`World._due`). Before
+  that fix every 0.21 s step re-armed from the tick it fired on, so pets walked at 0.3 s anyway and
+  fell 9-10 tiles behind a runner leaving a room.
 
 `run.py --runs 24 --minutes 30 --compare`, per hour on the level (sim 8.7 h over 24 runs; the trip 13.1 min):
 
@@ -209,6 +215,32 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
     was in view vs 12 % live). It is the route: the crawl never reached the bound souls and corpse
     purgers (x 5261-5277, y 645-661) where Logan took two bleeds. His other damage was one countess
     fight, so the trip's 13 minutes are one sample, not a rate.
+- **The loop crawl** (`--crawl-loop`, 2026-10-13). This batch includes the pace-grid fix, the shade
+  wolf's Vanish and the copies picking any of us. 48 x 60 min, `--pet-leave-at 0.35`, 200 vet
+  supplies:
+
+  | measure | zone crawl | loop crawl |
+  |---|---|---|
+  | game hours | 37.7 | 25.1 |
+  | kills / hour on the level (trip: 115) | 78 | 107 |
+  | gold / game hour | 74,200 | 79,700 |
+  | damage to us / hour on the level (trip: 1,703) | 102 | 686 |
+  | heal potions / hour on the level (trip: 27.5) | 1.3 | 7.9 |
+  | deaths / game hour | 0.21 | 0.68 |
+  | runs with a pet death | 3 | 9 |
+  | runs that strand a pet | 3 | 6 |
+  | median run length (of 60 min) | 60 | 34 |
+
+  - Looping kills at about Logan's rate and dies three times as often. 7 deaths were to the countess'
+    copies (5184-5188, 681-682), where Logan fought and survived by running. 5 were in the
+    nightstalker room (5180-5182, 704-715), which Logan never entered: he only saw its wolves and its
+    nightstalker from 18 tiles. 3 were to shade wolves, 1 each to a banshee and a corpsebride.
+  - The tour (85 waypoints, nearest next from the exit) takes the nightstalker and countess rooms at
+    stops 7-11 and the east at 29-33 and 49-80. So no run reached the bound souls before it ended:
+    none killed one.
+  - Our damage in 8 x 30 min (1,736) was the nightstalker's Charge landing beside the pet it fought
+    (867) and the countess' copies (772); the rest was under 40 a source. With guarding pets,
+    monsters picked us almost only while the pets were following (the leave) or on "All Kill".
 
 ## Limits
 
@@ -217,9 +249,9 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
 - No other players or tamers (the trip saw six players), no item loot beyond gold, no skill gain,
   no pet levels or xp, no Society job. The vampire's feeding heal isn't modelled and its drain and
   the poisons are generic; the bound soul's bleed as an area on everyone within a tile, the
-  transfixed copies' hits (2000) and whom a copy goes for (us) are [INFERENCE].
-- The monsters' other follower-style abilities on the wiki (shade wolf Frenzy, nightstalker Vanish
-  and Backstab) aren't modelled: none showed on us live.
+  transfixed copies' hits (2000) and their pick among us within 3 tiles are [INFERENCE].
+- Not modelled: Frenzy, seen live as "*frenzies*" on a shade wolf and the nightstalker (+10 % attack
+  speed, knowledge #14625). Nor the nightstalker's Vanish and Backstab: its one fight never showed them.
 - Where recall works inside the Mausoleum is unknown: allowed anywhere (`recall.allowed_from` null).
 - Pet AI is a model: Follow ignores attackers, Guard takes whatever attacks us or the pets, Kill holds
   its target, pets within 3 tiles come along on a recall (ServUO's TeleportPets range [INFERENCE]).

@@ -121,7 +121,7 @@ class FakeHunt:
 def args(**kw):
     a = dict(pull_range=4, crawl_band=10, crawl_zones=0, crawl_dwell=6.0, crawl_depleted_s=90.0,
              crawl_learn_s=600.0, crawl_max_dmg=30.0, crawl_depth_risk=1.5, crawl_max_leaves=2,
-             crawl_max_hits=0.5, crawl_max_fight_s=180.0, target_name="")
+             crawl_max_hits=0.5, crawl_max_fight_s=180.0, target_name="", crawl_loop=False)
     a.update(kw)
     return types.SimpleNamespace(**a)
 
@@ -195,6 +195,29 @@ def test_choose():
     check("players or pets seen there: a crowded area loses to a less stale empty one", i1 not in picks, picks)
 
 
+def test_loop():
+    print("== --crawl-loop: every zone, round the floor ==")
+    c = make_crawl(crawl.Model(), crawl_loop=True)
+    c.order = crawl.tour(c.floor, c.wps)
+    c.unlocked = c.top
+    check("the tour holds every waypoint once, from the one nearest the exit",
+          sorted(c.order) == list(range(len(c.wps)))
+          and c.floor.dist_exit[c.wps[c.order[0]]] == min(c.floor.dist_exit[w] for w in c.wps), c.order)
+    pos, seen = EXIT, []
+    for _ in range(len(c.wps)):
+        i = c.choose(pos)
+        seen.append(i)
+        pos = c.wps[i]
+    check("with no zone data at all, one round reaches every waypoint (the far room's zones too)",
+          sorted(seen) == list(range(len(c.wps))) and max(c.zone[i] for i in seen) == c.top, (seen, c.zone))
+    now = time.monotonic()
+    nxt = c.order[(c.order.index(seen[-1]) + 1) % len(c.order)]
+    c.depleted[nxt] = now + 100
+    i = c.choose(pos)
+    check("an area cleared lately is passed over for the one after it", i is not None and i != nxt
+          and i == c.order[(c.order.index(nxt) + 1) % len(c.order)], (i, nxt))
+
+
 def test_prior():
     print("== store prior ==")
     db = os.path.join(tempfile.mkdtemp(), "harness.db")
@@ -233,6 +256,7 @@ if __name__ == "__main__":
     test_model()
     test_zones()
     test_choose()
+    test_loop()
     test_prior()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

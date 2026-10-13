@@ -66,7 +66,7 @@ TOME_ROW_BUTTON0 = 100    # the tome's rows: 100 + row index (test_loop_hunt's l
 GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
 ON_HIT = {"bleed", "bleed_area", "poison", "drain"}   # scenario specials rolled on a monster's hit
-TIMED = {"charge", "transfix"}                       # ...used on a cooldown while it fights
+TIMED = {"charge", "transfix", "vanish"}             # ...used on a cooldown while it fights
 
 
 def cheb(a, b) -> int:
@@ -114,6 +114,7 @@ class Mob:
     bleed_next: float = 0.0
     bleed: tuple = ((8, 10), 3.0)  # (tick damage range, seconds between ticks) of the bleed running
     expires: float | None = None  # a summoned monster (transfixed copy) vanishes then
+    hidden_until: float = 0.0     # stealthed (Vanish) until then: unseen, unhittable; 0: visible
     cd: dict = field(default_factory=dict)   # ability -> next time it is ready
     mode: str = "follow"          # pets: follow, guard, kill, stay
     kill: int | None = None
@@ -279,7 +280,7 @@ class World:
         for s, m in self.mobs.items():
             if s == self.player.serial:
                 continue
-            near = (m.alive or m.ghost) and self._in_view(m)
+            near = (m.alive or m.ghost) and self._in_view(m) and not m.hidden_until
             if near and s not in self.viewing:
                 self.viewing.add(s)
                 self._show(m)
@@ -321,6 +322,11 @@ class World:
 
     def team(self):
         return [self.player] + [p for p in self.pets() if p.alive and not p.ghost]
+
+    def _due(self, due: float, period: float) -> float:
+        """A timer's next fire time: `period` after the last one when that was due within a tick
+        (the cadence survives the TICK_S grid: a 0.21 s step stays 0.21 s), else after now."""
+        return max(due, self.t - TICK_S) + period
 
     def roll(self, r) -> float:
         """A value from (lo, hi) uniformly, or (lo, hi, mode) triangularly."""
@@ -559,6 +565,11 @@ class World:
         if m.expires is not None and t >= m.expires:
             self._vanish(m)
             return
+        if m.hidden_until:
+            if t < m.hidden_until:
+                return
+            m.hidden_until, m.next_swing = 0.0, t       # out of stealth: back on its target, a swing at once
+            self._view()
         if m.calm_until > t:
             self._warm(m, False)
             return
@@ -570,7 +581,7 @@ class World:
             m.target = None
             self._warm(m, False)
             if cheb(m.pos, m.home) > 2 and t >= m.next_step:
-                m.next_step = t + m.spec["step_s"] * 2
+                m.next_step = self._due(m.next_step, m.spec["step_s"] * 2)
                 self._step_toward(m, m.home, 1)
             elif m.hits < m.hits_max and int(t / TICK_S) % int(REGEN_S / TICK_S) == 0:
                 m.hits = min(m.hits_max, m.hits + max(1, m.hits_max * 0.01))
@@ -601,8 +612,10 @@ class World:
         if m.provoke and m.provoke[0] in self.mobs:
             m.target = m.provoke[0]
             return
-        if m.spec.get("hunts_player"):
-            m.target = self.player.serial if not self.player.ghost else None
+        if m.spec.get("random_target"):
+            # a transfixed copy: live, its 10 attributed hits went 4 to Logan, 6 to the pets
+            near = [o for o in self.team() if cheb(o.pos, m.pos) <= 3] or self.team()
+            m.target = self.rng.choice(near).serial if near else None
             return
         cur = self.mobs.get(m.target) if m.target is not None else None
         if cur is not None and (cheb(m.pos, m.home) > LEASH or (t - m.seen_target_t > LOST_S)):
@@ -639,21 +652,21 @@ class World:
         d = cheb(m.pos, tgt.pos)
         if ranged and d <= ranged["range"] and self.can_see(m, tgt):
             if t >= m.next_swing:
-                m.next_swing = t + ranged["every_s"] * self.rng.uniform(0.85, 1.15)
+                m.next_swing = self._due(m.next_swing, ranged["every_s"] * self.rng.uniform(0.85, 1.15))
                 self.hurt(tgt, self.roll(ranged["damage"]), m, "spell")
                 self._specials(m, tgt, spec)
             if d <= ranged.get("keep", ranged["range"]) or not spec.get("melee"):
                 return
         if d <= 1 and abs(m.z - tgt.z) <= 15:
             if t >= m.next_swing and spec.get("melee"):
-                m.next_swing = t + spec["swing_s"] * self.rng.uniform(0.9, 1.1)
+                m.next_swing = self._due(m.next_swing, spec["swing_s"] * self.rng.uniform(0.9, 1.1))
                 if self.rng.random() < spec.get("hit_chance", 0.8):
                     self.hurt(tgt, self.roll(spec["melee"]) * (self.sc["defaults"]["damage_to_player_x"]
                                                                if tgt.kind == "player" else 1.0), m)
                     self._specials(m, tgt, spec)
             return
         if t >= m.next_step:
-            m.next_step = t + spec["step_s"]
+            m.next_step = self._due(m.next_step, spec["step_s"])
             self._step_toward(m, tgt.pos, 1)
 
     def _specials(self, m: Mob, tgt: Mob, spec: dict):
@@ -693,7 +706,8 @@ class World:
         o.bleed_until, o.bleed_next = self.t + sp.get("seconds", 15.0), self.t + every
 
     def _abilities(self, m: Mob, tgt: Mob, spec: dict):
-        """Timed specials while fighting: the nightstalker's Charge, the vampire countess' transfix."""
+        """Timed specials while fighting: the nightstalker's Charge, the vampire countess' transfix,
+        the shade wolf's Vanish (live 4 times: 3.5-5.8 s unseen, then back on the gravebug it fought)."""
         t = self.t
         for sp in spec.get("specials", []):
             kind = sp["kind"]
@@ -710,6 +724,16 @@ class World:
                 pets = [p for p in self.pets() if p.alive and not p.ghost and cheb(p.pos, m.pos) <= sp.get("range", 12)]
                 if pets and self.rng.random() < sp["chance"]:
                     self._transfix(self.rng.choice(pets), sp)
+            elif kind == "vanish":
+                if kind not in m.cd:                     # the first one comes a while into the fight
+                    m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
+                    continue
+                m.cd[kind] = t + self.rng.uniform(*sp["cooldown_s"])
+                m.hidden_until = t + self.rng.uniform(*sp["hidden_s"])
+                if m.serial in self.viewing:
+                    self.send(P.delete(m.serial))
+                    self.viewing.discard(m.serial)
+                return
 
     def _charge(self, m: Mob, tgt: Mob, sp: dict):
         """Charge (knowledge #14625: teleports up to 12 tiles, hits up to 3 targets within 1 tile; live
@@ -735,13 +759,13 @@ class World:
         spec = {"name": pet.name, "body": pet.body, "melee": sp["melee"], "swing_s": sp["swing_s"],
                 "hit_chance": sp.get("hit_chance", 0.9), "step_s": pet.spec.get("step_s", 0.21),
                 "aggro_range": 12, "gold": [0, 0], "difficulty": sp.get("difficulty", 100.0),
-                "specials": [], "hunts_player": True}
+                "specials": [], "random_target": True}
         x, y, z = pet.pos
         hp = sp["hits"]
         c = Mob(self._serial(), "monster", "transfixed copy", pet.name, pet.body, x, y, z, hits=hp, hits_max=hp,
                 noto=3, spec=spec, home=(x, y, z))
         c.expires = self.t + self.rng.uniform(*sp["lifetime_s"])
-        c.target, c.seen_target_t = self.player.serial, self.t
+        c.next_think = self.t
         self.mobs[c.serial] = c
         self._view()
         self._overhead(c, "*transfixed*")
@@ -753,21 +777,21 @@ class World:
         follow = m.spec.get("follow", 1)
         if m.ghost or not m.alive:
             if t >= m.next_step and cheb(m.pos, owner.pos) > follow + 1:
-                m.next_step = t + m.spec["step_s"]
+                m.next_step = self._due(m.next_step, m.spec["step_s"])
                 self._step_toward(m, owner.pos, follow + 1)
             return
         if t >= m.next_think:
             m.next_think = t + THINK_S
             self._pet_think(m)
         tgt = self.mobs.get(m.target) if m.target is not None else None
-        if tgt is not None and tgt.alive and cheb(owner.pos, tgt.pos) <= m.spec.get("leash", 14):
+        if tgt is not None and tgt.alive and not tgt.hidden_until and cheb(owner.pos, tgt.pos) <= m.spec.get("leash", 14):
             self._warm(m, True)
             self._pet_attack(m, tgt)
         else:
             m.target = None
             self._warm(m, False)
             if m.mode != "stay" and t >= m.next_step and cheb(m.pos, owner.pos) > follow:
-                m.next_step = t + m.spec["step_s"]
+                m.next_step = self._due(m.next_step, m.spec["step_s"])
                 self._step_toward(m, owner.pos, follow)
             elif m.spec.get("devour") and m.hits < m.hits_max * 0.9 and t >= m.devour_t:
                 c = next((s for s, it in self.items.items() if it.get("kind") == "corpse"
@@ -788,7 +812,7 @@ class World:
             m.target = m.kill
             return
         team = {o.serial for o in self.team()}
-        on_us = [o for o in self.mobs.values() if o.kind == "monster" and o.alive
+        on_us = [o for o in self.mobs.values() if o.kind == "monster" and o.alive and not o.hidden_until
                  and (o.target in team or self.t - max(o.last_hurt_t, 0) < 5 and any(s in team for s in o.damage_by))
                  and cheb(o.pos, owner.pos) <= m.spec.get("leash", 14)]
         if m.mode == "guard" and on_us:
@@ -809,15 +833,15 @@ class World:
         d = cheb(m.pos, tgt.pos)
         if ranged and d <= ranged["range"] and self.can_see(m, tgt):
             if t >= m.next_swing:
-                m.next_swing = t + ranged["every_s"] * self.rng.uniform(0.85, 1.15)
+                m.next_swing = self._due(m.next_swing, ranged["every_s"] * self.rng.uniform(0.85, 1.15))
                 self.hurt(tgt, self.roll(ranged["damage"]), m, "spell")
             if cheb(m.pos, self.player.pos) > spec.get("follow", 2) + 1 and t >= m.next_step:
-                m.next_step = t + spec["step_s"]
+                m.next_step = self._due(m.next_step, spec["step_s"])
                 self._step_toward(m, self.player.pos, spec.get("follow", 2))
             return
         if d <= 1:
             if spec.get("melee") and t >= m.next_swing:
-                m.next_swing = t + spec["swing_s"] * self.rng.uniform(0.9, 1.1)
+                m.next_swing = self._due(m.next_swing, spec["swing_s"] * self.rng.uniform(0.9, 1.1))
                 if self.rng.random() < spec.get("hit_chance", 0.85):
                     self.hurt(tgt, self.roll(spec["melee"]), m)
                     for sp in spec.get("specials", []):
@@ -827,7 +851,7 @@ class World:
                             self._overhead(tgt, tamer.TEXT_POISONED)
             return
         if t >= m.next_step:
-            m.next_step = t + spec["step_s"]
+            m.next_step = self._due(m.next_step, spec["step_s"])
             self._step_toward(m, tgt.pos, 1)
 
     # ------------------------------------------------------------ client packets

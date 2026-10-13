@@ -192,14 +192,33 @@ def test_specials():
     seen = link.state()["world"]["mobiles"]
     c = copies[0] if copies else None
     ours = {p.name for p in w.pets()}
-    check("transfix: a hostile copy named as one of our pets, on its tile, going for us",
+    check("transfix: a hostile copy named as one of our pets, on its tile, going for one of us",
           c is not None and c.name in ours and seen.get(f"0x{c.serial:08X}", {}).get("notoriety") == 3
-          and c.target == w.player.serial, str([(c.name, c.noto, c.target) for c in copies]))
+          and c.target in {o.serial for o in w.team()}, str([(c.name, c.noto, c.target) for c in copies]))
     m.spec = {**m.spec, "specials": []}
     clock.advance(10.5)
     check("...and it vanishes within 10 s, leaving no corpse",
           c is not None and c.serial not in w.mobs
           and not any(it.get("owner") == c.serial for it in w.items.values()), "")
+    w = world_with([{"key": "shade wolf", "at": [5266, 649, 0]}], seed=6)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.hits = gb.hits_max = 100000
+    m.hits = m.hits_max = 1e7
+    m.target, m.threat = gb.serial, {gb.serial: 1e6}
+    link, clock = link_for(w)
+    gone = back = None
+    for _ in range(300):
+        clock.advance(0.1)
+        if gone is None and m.hidden_until:
+            gone = clock.elapsed
+            unseen = f"0x{m.serial:08X}" not in link.state()["world"]["mobiles"]
+        if gone is not None and not m.hidden_until:
+            back = clock.elapsed
+            break
+    check("a shade wolf vanishes from the client mid-fight and comes back 3.5-6 s later on the gravebug",
+          gone is not None and unseen and back is not None and 3.5 <= back - gone <= 6.2 and m.target == gb.serial,
+          f"gone {gone} back {back} target {m.target}")
 
 
 def cheb_(a, b):
