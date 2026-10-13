@@ -175,7 +175,7 @@
   "easy_below_difficulty": 50,
   "act_threat": 400,
   "break_threat": 200,
-  "note": "discord 16.67 % at 80 printed (knowledge #11224); durations as the trip's answers ('(1m)', '(1m 15s)' on spare parts, '(38s)', '(30s)'); act_threat: an aggressive act of ours draws the mob onto the character (user 2026-10-12) [INFERENCE: worth 400 damage of threat]; range 12 [INFERENCE] (successes at 1-9 tiles); provoke_x 4: the hue-2417 numbers while two provoked creatures fought, median 95 (n=29), vs their ~24 per hit on our pets",
+  "note": "discord 16.67 % at 80 printed (knowledge #11224); durations as the trip's answers ('(1m)', '(1m 15s)' on spare parts, '(38s)', '(30s)'); act_threat: an aggressive act of ours draws the mob onto the character (user 2026-10-12) [INFERENCE: worth 400 damage of threat], only while no pet has hurt it yet (the trip: our acts after the pets' first damage drew none of 14 monsters onto Logan; of 7 reached first, 3 hit him; docs/NOTES.md); break_threat likewise; range 12 [INFERENCE] (successes at 1-9 tiles); provoke_x 4: the hue-2417 numbers while two provoked creatures fought, median 95 (n=29), vs their ~24 per hit on our pets",
   "provoke_x": 4.0
  },
  "vet": {
@@ -208,6 +208,7 @@
  },
  "defaults": {
   "aggro_range": 10,
+  "guard_draw_r": 6,
   "hit_chance": 0.85,
   "swing_s": 3.0,
   "kb_melee_to_pet": 0.5,
@@ -226,14 +227,27 @@
    "Fast": 0.38,
    "VeryFast": 0.33
   },
-  "note": "aggro 10: the capture's 32 war-mode switches in view were 1-13 tiles from us (median 7) apart from those first seen at the view's edge (18) already fighting [INFERENCE: the wiki's flat 20-tile Perception Range, knowledge #4329, would put the sim's banshees on us from across the room: 6 of 9 simulated deaths with 20], sight required; swing 3.0 s (follower base, #7606; observed 2.96-3.36 for 5 types); melee for a type without an observed hit: the wiki melee x 0.5 (observed/wiki medians: shadowguard 0.49, shade wolf 0.50, purger 0.49, bat 0.44, nightstalker 0.64); step_s: observed 0.33-0.43 s per chase step (corpsebride VeryFast, bat Fast, bound soul Medium), others [INFERENCE]; respawn: one candidate 123 s [INFERENCE]"
+  "note": "aggro 10: the capture's 32 war-mode switches in view were 1-13 tiles from us (median 7) apart from those first seen at the view's edge (18) already fighting [INFERENCE: the wiki's flat 20-tile Perception Range, knowledge #4329, would put the sim's banshees on us from across the room: 6 of 9 simulated deaths with 20], sight required; guard_draw_r 6: once one of us is in its range, a monster goes for a guarding pet within this of us (the trip: all 11 monsters we hadn't acted on went to a pet first, user 2026-10-13) [INFERENCE: the radius]; swing 3.0 s (follower base, #7606; observed 2.96-3.36 for 5 types); melee for a type without an observed hit: the wiki melee x 0.5 (observed/wiki medians: shadowguard 0.49, shade wolf 0.50, purger 0.49, bat 0.44, nightstalker 0.64); step_s: observed 0.33-0.43 s per chase step (corpsebride VeryFast, bat Fast, bound soul Medium), others [INFERENCE]; respawn: one candidate 123 s [INFERENCE]"
  },
  "specials": {
+  "bound soul": [
+   {
+    "kind": "bleed_area",
+    "chance": 0.105,
+    "radius": 1,
+    "opener": [23, 32],
+    "tick": [8, 10],
+    "every_s": 3.0,
+    "seconds": 15.0
+   }
+  ],
   "vampire bat": [
    {
     "kind": "bleed",
     "chance": 0.15,
-    "seconds": 15
+    "tick": [8, 10],
+    "every_s": 3.0,
+    "seconds": 15.0
    }
   ],
   "vampire": [
@@ -247,12 +261,33 @@
    {
     "kind": "bleed",
     "chance": 0.15,
-    "seconds": 15
+    "tick": [8, 10],
+    "every_s": 3.0,
+    "seconds": 15.0
    },
    {
     "kind": "drain",
     "chance": 0.1,
     "damage": 10
+   },
+   {
+    "kind": "transfix",
+    "every_s": 5.3,
+    "chance": 0.43,
+    "range": 12,
+    "lifetime_s": [4.0, 10.0],
+    "hits": 2000,
+    "melee": [28, 37],
+    "swing_s": 1.91
+   }
+  ],
+  "nightstalker": [
+   {
+    "kind": "charge",
+    "cooldown_s": 8.5,
+    "range": 12,
+    "targets": 3,
+    "damage": [37, 42]
    }
   ],
   "elder vampire": [
@@ -278,7 +313,7 @@
     "seconds": 20
    }
   ],
-  "note": "bleed 15 % (follower Bleed, knowledge #14664) and the trip's 'causing you to bleed' / 'draw blood' texts near vampires; disease as poison 15 % (#2639); the countess' transfix (hostile copies of our pets) is not modelled"
+  "note": "all of Logan's 23 hits on the trip were bleeds, a Charge or transfixed copies (docs/NOTES.md). Bleeds: 8-10 every 3 s, 5 ticks over 15 s, then 'You are no longer bleeding.' (3 bleeds, capture). Bound soul: 'They begin to draw blood from you!' with an opener of -23/-32 on Logan a tile off while it meleed the gravebug, 2 in its 19 swings at a pet with Logan within 1 tile [INFERENCE: an area bleed on everyone within 1]. Vampire bat: 'The creature strikes ferociously, causing you to bleed!' on its target, 15 % (follower Bleed, knowledge #14664). Nightstalker Charge: teleports up to 12 tiles, hits up to 3 within 1 tile (knowledge #14625); live '*charges*' at 21:21:14/:23/:31 (8.5 s apart), -37 and -42 on the gravebug and Logan (n=2). Countess transfix: '*attempts to transfix*' every ~5.3 s while fighting, 3 of 7 made a hostile copy of a pet ('*transfixed*', the pet's name and body, on its tile) that hit Logan for 28-37 and vanished after 4-10 s [INFERENCE: copy hits 2000, one took 1436 in 6 s and lived; the copy goes for us]. Vampire drain and disease as poison 15 % (#2639) [INFERENCE]."
  },
  "spawns": [
   {

@@ -10,13 +10,16 @@ world model (sim.link.SimLink does both). Geometry is the server's truth: walkin
 Every number comes from the scenario (harness/data/sim/<name>.json), each with its evidence or an
 [INFERENCE] mark there. What is modelled:
 
-- **Monsters**: idle near their spawn; acquire the nearest of us and our live pets within their
-  aggro range and in sight (re-checked every THINK_S); chase by a greedy step toward the target with
-  an A* fallback; melee when adjacent (swing period, hit chance, damage) or ranged/spell when in
-  range and sight; threat decides whom they hit: damage taken from each attacker (x the pet's
-  `threat_x`, a tank's draw) plus our aggressive acts (a bard skill at it, "All Kill" at it: user
-  2026-10-12, aggro then goes to the character); a leash home when the target is far or unseen;
-  specials (bleed, poison, life drain) per type; respawn at the spawn after `respawn_s`.
+- **Monsters**: idle near their spawn; once one of us or our live pets is within their aggro range
+  and in sight (re-checked every THINK_S), go for a guarding pet near us, else the nearest of us (the
+  trip: every monster we hadn't acted on went to a pet first); chase by a greedy step toward the
+  target with an A* fallback; melee when adjacent (swing period, hit chance, damage) or ranged/spell
+  when in range and sight; threat decides whom they hit: damage taken from each attacker (x the
+  pet's `threat_x`, a tank's draw) plus our aggressive acts (a bard skill at it, "All Kill" at it:
+  user 2026-10-12, aggro then goes to the character) while no pet has hurt it yet; a leash home when
+  the target is far or unseen; specials per type, as they reached Logan live: bleeds (the bound
+  soul's on everyone within a tile), the nightstalker's Charge, the vampire countess' transfixed
+  copies of our pets; poison, life drain; respawn at the spawn after `respawn_s`.
 - **Pets**: follow / guard / kill / stay by our pet commands ("All Guard Me": attack what attacks us
   or the pets; "All Kill": the target, then back to following; guarding stops at a recall);
   melee (gravebug) or ranged (phoenix); bonded: a ghost at 0 hits (0xBF sub 0x19) that follows;
@@ -62,6 +65,8 @@ CORPSE_GUMP = 0x09
 TOME_ROW_BUTTON0 = 100    # the tome's rows: 100 + row index (test_loop_hunt's layout, escape parses it)
 GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
+ON_HIT = {"bleed", "bleed_area", "poison", "drain"}   # scenario specials rolled on a monster's hit
+TIMED = {"charge", "transfix"}                       # ...used on a cooldown while it fights
 
 
 def cheb(a, b) -> int:
@@ -105,8 +110,11 @@ class Mob:
     provoke: tuple | None = None  # (onto serial, until)
     poison_until: float = 0.0
     poison_next: float = 0.0
-    bleed_until: float = 0.0
+    bleed_until: float = 0.0      # 0: not bleeding
     bleed_next: float = 0.0
+    bleed: tuple = ((8, 10), 3.0)  # (tick damage range, seconds between ticks) of the bleed running
+    expires: float | None = None  # a summoned monster (transfixed copy) vanishes then
+    cd: dict = field(default_factory=dict)   # ability -> next time it is ready
     mode: str = "follow"          # pets: follow, guard, kill, stay
     kill: int | None = None
     devour_t: float = 0.0
@@ -414,7 +422,8 @@ class World:
         self.viewing_items.add(corpse)
         self.send(P.ground_item(corpse, combat.CORPSE_GRAPHIC, m.body, m.x, m.y, m.z),
                   P.corpse_flags(corpse, m.serial, f"{m.name} corpse", noto))
-        self.metrics["kills"] += 1
+        if m.expires is None:                       # a transfixed copy is no kill (kills_by still shows it)
+            self.metrics["kills"] += 1
         self.count("kills_by", m.key)
         self.metrics["fights"].append({"key": m.key, "t": round(self.t, 1), "hits": m.hits_max,
                                        "damage_by": {self.mobs[s].name if s in self.mobs else hex(s): v
@@ -526,11 +535,13 @@ class World:
         if m.poison_until > t and t >= m.poison_next:
             m.poison_next = t + 2.0
             self.hurt(m, m.spec.get("_poison_dmg", 4), None, "poison")
-        if m.bleed_until > t and t >= m.bleed_next:
-            m.bleed_next = t + 2.0
-            self.hurt(m, self.rng.randint(3, 6), None, "bleed")
-            if m.kind == "player" and m.bleed_until - t < 2.0:
-                self._sys("You are no longer bleeding.")
+        if m.bleed_until and t >= m.bleed_next:
+            self.hurt(m, self.roll(m.bleed[0]), None, "bleed")
+            m.bleed_next += m.bleed[1]
+            if m.bleed_next > m.bleed_until + 1e-6:
+                m.bleed_until = 0.0
+                if m.kind == "player":
+                    self._sys("You are no longer bleeding.")
         if (m.calm_until > t or m.provoke) and int(t / TICK_S) % int(1.0 / TICK_S) == 0:
             diff = m.spec.get("difficulty") or 100
             if self.rng.random() < diff / 100.0 / 100.0:     # (difficulty / 100) % per second (patch 2020-04-07)
@@ -538,13 +549,16 @@ class World:
                 m.provoke = None
                 m.immune_until = t + diff / 10.0
                 self._overhead(m, "*Barding Break*")
-                m.threat[self.player.serial] = m.threat.get(self.player.serial, 0) + self.sc["bard"]["break_threat"]
+                self._act(m, self.sc["bard"]["break_threat"], count=False)
         if m.provoke and m.provoke[1] <= t:
             m.provoke = None
 
     # ------------------------------------------------------------ monsters
     def _monster(self, m: Mob):
         t = self.t
+        if m.expires is not None and t >= m.expires:
+            self._vanish(m)
+            return
         if m.calm_until > t:
             self._warm(m, False)
             return
@@ -562,14 +576,33 @@ class World:
                 m.hits = min(m.hits_max, m.hits + max(1, m.hits_max * 0.01))
             return
         self._warm(m, True)
-        self._attack(m, tgt, m.spec)
+        self._abilities(m, tgt, m.spec)
+        if m.serial in self.mobs and tgt.alive and not tgt.ghost:
+            self._attack(m, tgt, m.spec)
+
+    def _vanish(self, m: Mob):
+        """A summoned monster's time is up (a transfixed copy): gone without a corpse."""
+        if m.serial in self.viewing:
+            self.send(P.delete(m.serial))
+        self.viewing.discard(m.serial)
+        for o in self.mobs.values():
+            if o.target == m.serial:
+                o.target = None
+            if o.kill == m.serial:
+                o.kill, o.mode = None, "follow"
+        del self.mobs[m.serial]
 
     def _think(self, m: Mob):
-        """Pick the target: a provoked monster's victim; else the highest threat in sight (damage taken,
-        our aggressive acts); else the nearest of us and our pets within aggro range and in sight."""
+        """Pick the target: a provoked monster's victim; a transfixed copy: us; else the highest threat in
+        sight (damage taken, our aggressive acts before the pets hurt it); else, once one of us is within
+        its aggro range and in sight, a guarding pet near us (the trip: all 11 monsters we hadn't acted
+        on went to a pet first, docs/NOTES.md), or the nearest of us when no pet guards nearby."""
         t = self.t
         if m.provoke and m.provoke[0] in self.mobs:
             m.target = m.provoke[0]
+            return
+        if m.spec.get("hunts_player"):
+            m.target = self.player.serial if not self.player.ghost else None
             return
         cur = self.mobs.get(m.target) if m.target is not None else None
         if cur is not None and (cheb(m.pos, m.home) > LEASH or (t - m.seen_target_t > LOST_S)):
@@ -588,13 +621,16 @@ class World:
         if cur is not None:
             return
         near = [o for o in cands if cheb(o.pos, m.pos) <= m.spec["aggro_range"] and self.can_see(m, o)]
-        guards = [o for o in near if o.kind == "pet" and o.mode in ("guard", "kill")]
-        if near:
-            # guarding pets within reach take the aggro (knowledge #2074: "guarding pets take aggro from mobs
-            # within about 10 tiles, though a mob still targets you if you are the only one in range")
-            o = min(guards or near, key=lambda o: (cheb(o.pos, m.pos), o.kind != "player"))
-            m.target, m.seen_target_t = o.serial, t
-            m.threat[o.serial] = m.threat.get(o.serial, 0) + 1
+        if not near:
+            return
+        pl = self.player
+        draw = self.sc["defaults"].get("guard_draw_r", 6)
+        guards = [p for p in self.pets() if p.alive and not p.ghost and p.mode in ("guard", "kill")
+                  and cheb(p.pos, pl.pos) <= draw]
+        o = min(guards, key=lambda p: (cheb(p.pos, m.pos), -p.spec.get("threat_x", 1.0))) if guards \
+            else min(near, key=lambda o: (cheb(o.pos, m.pos), o.kind != "player"))
+        m.target, m.seen_target_t = o.serial, t
+        m.threat[o.serial] = m.threat.get(o.serial, 0) + 1
 
     def _attack(self, m: Mob, tgt: Mob, spec: dict):
         """Swing or cast at `tgt` when in reach and sight, else close in."""
@@ -621,23 +657,94 @@ class World:
             self._step_toward(m, tgt.pos, 1)
 
     def _specials(self, m: Mob, tgt: Mob, spec: dict):
+        """On-hit specials (scenario `specials`; the timed ones are `_abilities`)."""
         for sp in spec.get("specials", []):
-            if self.rng.random() >= sp.get("chance", 0):
-                continue
             kind = sp["kind"]
-            if kind == "bleed" and tgt.bleed_until <= self.t:
-                tgt.bleed_until, tgt.bleed_next = self.t + sp.get("seconds", 10), self.t + 2
+            if kind not in ON_HIT or self.rng.random() >= sp.get("chance", 0):
+                continue
+            if kind == "bleed" and not tgt.bleed_until:
+                self._start_bleed(tgt, sp)
                 if tgt.kind == "player":
                     self._sys("The creature strikes ferociously, causing you to bleed!")
+            elif kind == "bleed_area":
+                # the trip's bound souls: meleeing the gravebug, they bled Logan a tile off too
+                # ("They begin to draw blood from you!" with an opening -23/-32) [INFERENCE: an area]
+                for o in self.team():
+                    if cheb(o.pos, m.pos) <= sp.get("radius", 1) and not o.bleed_until:
+                        if o.kind == "player":
+                            self._sys("They begin to draw blood from you!")
+                        self.hurt(o, self.roll(sp["opener"]), m, "bleed")
+                        self._start_bleed(o, sp)
             elif kind == "poison" and tgt.poison_until <= self.t:
                 tgt.poison_until, tgt.poison_next = self.t + sp.get("seconds", 12), self.t + 2
                 tgt.spec = {**tgt.spec, "_poison_dmg": sp.get("damage", 4)}
                 self._overhead(tgt, tamer.TEXT_POISONED)
             elif kind == "drain":
-                if tgt.kind == "player":
-                    self._sys("They begin to draw blood from you!")
                 self.hurt(tgt, sp.get("damage", 8), m, "drain")
                 self.heal(m, sp.get("damage", 8))
+
+    def _start_bleed(self, o: Mob, sp: dict):
+        """A bleed: `tick` damage every `every_s` for `seconds` (the trip: 8-10 every 3 s, 5 ticks, then
+        "You are no longer bleeding.")."""
+        if not o.alive or o.ghost:
+            return
+        every = sp.get("every_s", 3.0)
+        o.bleed = (sp.get("tick", [8, 10]), every)
+        o.bleed_until, o.bleed_next = self.t + sp.get("seconds", 15.0), self.t + every
+
+    def _abilities(self, m: Mob, tgt: Mob, spec: dict):
+        """Timed specials while fighting: the nightstalker's Charge, the vampire countess' transfix."""
+        t = self.t
+        for sp in spec.get("specials", []):
+            kind = sp["kind"]
+            if kind not in TIMED or t < m.cd.get(kind, 0.0):
+                continue
+            if kind == "charge":
+                if cheb(m.pos, tgt.pos) > sp.get("range", 12) or not self.can_see(m, tgt):
+                    continue
+                m.cd[kind] = t + sp["cooldown_s"] * self.rng.uniform(0.9, 1.1)
+                self._charge(m, tgt, sp)
+            elif kind == "transfix":
+                m.cd[kind] = t + sp["every_s"] * self.rng.uniform(0.9, 1.1)
+                self._overhead(m, "*attempts to transfix*")
+                pets = [p for p in self.pets() if p.alive and not p.ghost and cheb(p.pos, m.pos) <= sp.get("range", 12)]
+                if pets and self.rng.random() < sp["chance"]:
+                    self._transfix(self.rng.choice(pets), sp)
+
+    def _charge(self, m: Mob, tgt: Mob, sp: dict):
+        """Charge (knowledge #14625: teleports up to 12 tiles, hits up to 3 targets within 1 tile; live
+        21:21:14 a 4-tile jump and -37 on the gravebug with -42 on Logan at the same instant)."""
+        if cheb(m.pos, tgt.pos) > 1:
+            spots = [(tgt.x + dx, tgt.y + dy) for dx, dy in nav.DIR_DELTA
+                     if not self._occupied(tgt.x + dx, tgt.y + dy)
+                     and self.walk.can_walk(tgt.x, tgt.y, tgt.z, nav.direction((tgt.x, tgt.y), (tgt.x + dx, tgt.y + dy)))]
+            if not spots:
+                return
+            to = min(spots, key=lambda p: cheb(p, m.pos))
+            self._teleport(m, (to[0], to[1], tgt.z))
+        self._overhead(m, "*charges*")
+        hit = [tgt] + [o for o in self.team() if o is not tgt and cheb(o.pos, m.pos) <= 1]
+        for o in hit[:sp.get("targets", 3)]:
+            if cheb(o.pos, m.pos) <= 1:
+                self.hurt(o, self.roll(sp["damage"]), m, "charge")
+
+    def _transfix(self, pet: Mob, sp: dict):
+        """The vampire countess' transfix: a hostile copy of one of our pets, named as the pet, on its
+        tile, that goes for us and vanishes after a few seconds (live 21:27:18-21:27:49: 3 copies of 7
+        attempts, 4-10 s each, their hits on Logan 28-37)."""
+        spec = {"name": pet.name, "body": pet.body, "melee": sp["melee"], "swing_s": sp["swing_s"],
+                "hit_chance": sp.get("hit_chance", 0.9), "step_s": pet.spec.get("step_s", 0.21),
+                "aggro_range": 12, "gold": [0, 0], "difficulty": sp.get("difficulty", 100.0),
+                "specials": [], "hunts_player": True}
+        x, y, z = pet.pos
+        hp = sp["hits"]
+        c = Mob(self._serial(), "monster", "transfixed copy", pet.name, pet.body, x, y, z, hits=hp, hits_max=hp,
+                noto=3, spec=spec, home=(x, y, z))
+        c.expires = self.t + self.rng.uniform(*sp["lifetime_s"])
+        c.target, c.seen_target_t = self.player.serial, self.t
+        self.mobs[c.serial] = c
+        self._view()
+        self._overhead(c, "*transfixed*")
 
     # ------------------------------------------------------------ pets
     def _pet(self, m: Mob):
@@ -864,14 +971,23 @@ class World:
             for m in self.pets():
                 if m.alive and not m.ghost:
                     m.mode, m.kill, m.target = "kill", serial, serial
-            tgt.threat[pl.serial] = tgt.threat.get(pl.serial, 0) + self.sc["bard"]["act_threat"]
-            self.metrics["aggressive_acts"] += 1
+            self._act(tgt, self.sc["bard"]["act_threat"])
             return
         if kind == "provoke" and "first" not in pend:
             self._sys(tamer.TEXT_INCITE_SECOND)
             self._cursor({"kind": "provoke", "first": serial})
             return
         self._bard(kind, tgt, self.mobs.get(pend.get("first")) if kind == "provoke" else None)
+
+    def _act(self, m: Mob, amount: float, count=True):
+        """An aggressive act of ours at `m` (a bard skill, "All Kill", a Barding Break): threat on us,
+        but only while no pet has hurt it yet. The trip: of 14 monsters our act reached after the
+        pets had damaged them none hit Logan; of 7 it reached first, 3 did (docs/NOTES.md)."""
+        pets = {p.serial for p in self.pets()}
+        if not any(s in pets for s in m.damage_by):
+            m.threat[self.player.serial] = m.threat.get(self.player.serial, 0) + amount
+        if count:
+            self.metrics["aggressive_acts"] += 1
 
     def _bard(self, kind, tgt: Mob, first: Mob | None):
         t, b, pl = self.t, self.sc["bard"], self.player
@@ -882,8 +998,7 @@ class World:
             self._sys(tamer.TEXT_IMMUNE)
             self.skill_ready = t + tamer.SKILL_GAP_S
             return
-        target.threat[pl.serial] = target.threat.get(pl.serial, 0) + b["act_threat"]
-        self.metrics["aggressive_acts"] += 1
+        self._act(target, b["act_threat"])
         diff = target.spec.get("difficulty") or 100.0
         s = b["effective_skill"] + (25 if kind == "discord" and (target.calm_until > t or target.provoke) else 0)
         p = min(0.95, max(s / 100.0 - diff / 100.0, b["min_chance_factor"] * s / 100.0))   # knowledge #8530/#5239

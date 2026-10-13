@@ -104,6 +104,108 @@ def test_aggro():
           and sum(open_.metrics["pet_damage_taken"].values()) > 0, f"{m.hits}/{m.hits_max}")
 
 
+def discord(link, m):
+    """Discordance at `m` through the client: the skill, then the cursor answered with it."""
+    import combat
+    link.send(actions.use_skill(tamer.SKILL_DISCORD))
+    st = link.state()
+    link.send(combat.target_mobile(st["world"]["target"], m.serial, st["world"]["mobiles"][f"0x{m.serial:08X}"]))
+
+
+def test_aggro_rules():
+    print("== guarding pets draw a monster that sees only us; our act pulls it only before the pets hit ==")
+    results = {}
+    for guard in (True, False):
+        w = world_with([{"key": "shade wolf", "at": [5266, 654, 0]}])
+        m = next(m for m in w.mobs.values() if m.kind == "monster")
+        m.spec = {**m.spec, "aggro_range": 7}                   # we at 6, the pets at 8: out of its range
+        for p, x in zip(w.pets(), (5266, 5267)):
+            p.x, p.y = x, 646
+        link, clock = link_for(w)
+        if guard:
+            link.send(tamer.command("all guard me"))
+        clock.advance(0.6)
+        tgt = w.mobs.get(m.target)
+        results[guard] = tgt.kind if tgt else None
+    check("pets on guard 2 tiles behind us, out of its range: it goes for a pet; pets following: for us",
+          results == {True: "pet", False: "player"}, str(results))
+    pulled = {}
+    for hurt_first in (False, True):
+        w = world_with([{"key": "shade wolf", "at": [5266, 651, 0]}], seed=3)
+        m = next(m for m in w.mobs.values() if m.kind == "monster")
+        gb = next(p for p in w.pets() if p.name == "GraveRobber")
+        m.target, m.threat = gb.serial, {gb.serial: 1}
+        if hurt_first:
+            m.damage_by, m.threat = {gb.serial: 50}, {gb.serial: 200}
+        link, clock = link_for(w)
+        discord(link, m)
+        clock.advance(0.6)
+        pulled[hurt_first] = m.target == w.player.serial
+    check("Discordance before the pets hurt it turns it on us; after, it stays on the pet",
+          pulled == {False: True, True: False}, str(pulled))
+
+
+def test_specials():
+    print("== the specials that reached Logan live: bleeds, the Charge, transfixed copies ==")
+    w = world_with([{"key": "bound soul", "at": [5267, 649, 0]}], seed=2)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.spec = {**m.spec, "specials": [{**m.spec["specials"][0], "chance": 1.0}]}
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.hits = gb.hits_max = 100000
+    m.target, m.threat = gb.serial, {gb.serial: 1e6}
+    link, clock = link_for(w)
+    seen = []
+    for _ in range(200):                                    # 20 s: the opener, its 5 ticks, the next opener
+        clock.advance(0.1)
+        seen += [e for e in w.player_log if e not in seen]
+    link.state()                                            # the client takes the server's texts
+    texts = [e.get("text") for e in link.events]
+    t0, opener = next(((e[0], e[2]) for e in seen if e[1] == "bound soul"), (None, None))
+    ticks = [e for e in seen if e[1] == "bleed" and t0 is not None and t0 < e[0] <= t0 + 15.2]
+    check("a bound soul meleeing the gravebug bleeds us a tile off: the opener, then 8-10 every 3 s x5, "
+          "'You are no longer bleeding.'",
+          t0 is not None and 23 <= opener <= 32 and len(ticks) == 5 and all(8 <= e[2] <= 10 for e in ticks)
+          and all(abs(b[0] - a[0] - 3.0) < 0.15 for a, b in zip(ticks, ticks[1:]))
+          and "They begin to draw blood from you!" in texts and "You are no longer bleeding." in texts,
+          f"opener {t0} {opener} ticks {[(round(e[0], 1), e[2]) for e in ticks]}")
+    w = world_with([{"key": "nightstalker", "at": [5265, 654, 0]}], seed=4)   # 6 tiles, in sight of the gravebug
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    m.target, m.threat = gb.serial, {gb.serial: 1e6}
+    link, clock = link_for(w)
+    clock.advance(1.0)
+    link.state()
+    charged = [o for o in w.team() if cheb_(o, m) <= 1]
+    check("the nightstalker charges 6 tiles onto the gravebug and hits each of us within 1 tile of it",
+          any(e.get("text") == "*charges*" for e in link.events) and cheb_(gb, m) <= 1
+          and all(o.hits < o.hits_max for o in charged),
+          f"at {m.pos}, hit {[(o.name, o.hits) for o in charged]}")
+    w = world_with([{"key": "vampire countess", "at": [5266, 651, 0]}], seed=5)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.spec = {**m.spec, "specials": [{**sp, "chance": 1.0} if sp["kind"] == "transfix" else sp
+                                     for sp in m.spec["specials"]]}
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    m.target, m.threat = gb.serial, {gb.serial: 1e6}
+    link, clock = link_for(w)
+    clock.advance(0.5)
+    copies = [c for c in w.mobs.values() if c.key == "transfixed copy"]
+    seen = link.state()["world"]["mobiles"]
+    c = copies[0] if copies else None
+    ours = {p.name for p in w.pets()}
+    check("transfix: a hostile copy named as one of our pets, on its tile, going for us",
+          c is not None and c.name in ours and seen.get(f"0x{c.serial:08X}", {}).get("notoriety") == 3
+          and c.target == w.player.serial, str([(c.name, c.noto, c.target) for c in copies]))
+    m.spec = {**m.spec, "specials": []}
+    clock.advance(10.5)
+    check("...and it vanishes within 10 s, leaving no corpse",
+          c is not None and c.serial not in w.mobs
+          and not any(it.get("owner") == c.serial for it in w.items.values()), "")
+
+
+def cheb_(a, b):
+    return max(abs(a.x - b.x), abs(a.y - b.y))
+
+
 def test_bard_and_vet():
     print("== bard skills and vet supplies answer as the live server did ==")
     w = world_with([{"key": "shade wolf", "at": [5266, 651, 0]}], seed=3)
@@ -213,7 +315,8 @@ def main():
     if pathfind.Walkers().get(0) is None:
         print("SKIP: no map files (install dir)")
         return 0
-    for t in (test_clock, test_geometry, test_aggro, test_bard_and_vet, test_hunt, test_rest_hurt_pet):
+    for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
+              test_rest_hurt_pet):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

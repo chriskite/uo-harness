@@ -82,9 +82,19 @@ What the capture and the wiki fixed:
   maximum likelihood to the trip's 47 answered attempts; durations and refusal texts as the trip's.
 - **Aggro range 10** with sight: the capture's war-mode switches were 1-13 tiles from us (median 7). The
   wiki's flat 20-tile Perception Range put the sim's banshees on us from across the room (6 of 9 deaths).
-- **Threat**: guarding pets take a monster's aggro first (knowledge #2074); damage builds threat x 4.0
-  for the gravebug (Tank) and x 0.3 for the phoenix, fitted so the gravebug takes most of the damage as
-  live; our aggressive acts add 400.
+- **Threat** (revised 2026-10-13 from the trip, docs/NOTES.md "Guarding pets take a monster's aggro"):
+  once one of us is within its aggro range, a monster goes for a guarding pet within 6 tiles of us
+  (`guard_draw_r`), else the nearest of us. Damage builds threat x 4.0 for the gravebug (Tank) and x 0.3
+  for the phoenix, fitted so the gravebug takes most of the damage as live. Our aggressive acts add 400,
+  but only before any pet has hurt the monster.
+- **Specials, from what reached Logan** (all 23 of his hits were these):
+  - Bleeds: 8-10 every 3 s for 5 ticks, then "You are no longer bleeding.".
+  - The bound soul's bleed lands on everyone within a tile (an opener of 23-32, 2 per 19 swings with
+    Logan beside it) [INFERENCE: area].
+  - The vampire bat's bleed hits its target.
+  - The nightstalker's Charge: a jump up to 12 tiles every ~8.5 s, 37-42 on up to 3 within a tile.
+  - The vampire countess' transfix: an attempt every ~5.3 s, 3 of 7 succeed. Each makes a hostile copy
+    of a pet, with the pet's name, that goes for us (28-37 a hit) and vanishes after 4-10 s.
 - **Pet pace**: one step per 0.21 s out of war mode (n=470 and 471, capture), the pace of our run;
   `calibrate.py` writes it as `step_interval_s_not_fighting` (2026-10-13; 0.3 s before, uncited).
 
@@ -157,7 +167,8 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   apparitions dropped as unengaged). Deaths in the last batch (13): 4 to a nightstalker and 3 to shade
   wolves, mostly in the room at (5177-5182, 699-711); 3 under banshees (5207, 704-716); 3 to shadow
   minions (5207, 691-695, and one at home after a leave on 30-odd hits).
-- **How monsters get onto us instead of the pets** (13 seeds, 240 times a monster picked us):
+- **How monsters got onto us instead of the pets** (the first aggro rule, 13 seeds, 240 times a
+  monster picked us; replaced the same day, below):
   - 154: **the first sighting**. A monster picks the nearest of us within its 10-tile aggro range
     (guarding pets first, but only those in range and sight). The runner walks first and the pets
     follow 1-3 tiles behind (live too: within 3 tiles at the end of 16 of the trip's 22 10+ step walks),
@@ -175,14 +186,40 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
     13 minutes was an ordinary swing or spell from a monster that had picked him. They were bleed ticks
     and openers (bound souls, a vampire bat), one nightstalker Charge (an area hit, knowledge #14625:
     the -42 on him landed with a -37 on the gravebug) and the countess' transfixed copies.
+- **The revised aggro and specials** (2026-10-13; 48 x 60 min, defaults, 200 vet supplies):
+
+  | measure | old rule | revised | revised, `--pet-leave-at 0.35` |
+  |---|---|---|---|
+  | game hours | 36.6 | 41.6 | 44.9 |
+  | kills / hour on the level (trip: 115) | 72 | 78 | 79 |
+  | gold / game hour | 63,100 | 74,000 | 74,300 |
+  | damage to us / hour on the level (trip: 1,703) | 1,321 | 71 | - |
+  | heal potions / hour on the level (trip: 27.5) | 23.8 | 0.9 | - |
+  | deaths / game hour | 0.36 | 0.17 | 0.18 |
+  | runs that strand a pet | 6 | 0 | 1 |
+  | runs with a pet death (the gravebug in 10) | 0 | 10 | 2 |
+
+  The risk moved from us to the tank:
+  - Leaving at `--pet-leave-at` 0.20 (90 of 450 hits) is too late: in 6 of the 10 the run was already
+    leaving for the gravebug (below 20 %) when it died during the "All Follow Me" and the recall,
+    with monsters still on it; in 3 it died before the leave. At 0.35, 2 runs of 48 lose it
+    instead of 10, at no cost in kills.
+  - We take far less than Logan did: 71 an hour against his 1,703. That isn't distance: the runner
+    stood within a tile of a fighting monster as often as Logan (13 % of the time a war-mode monster
+    was in view vs 12 % live). It is the route: the crawl never reached the bound souls and corpse
+    purgers (x 5261-5277, y 645-661) where Logan took two bleeds. His other damage was one countess
+    fight, so the trip's 13 minutes are one sample, not a rate.
 
 ## Limits
 
 - One level, as walked on the trip; other rooms, other levels and the teleporters between them aren't
   modelled (the tome row lands on the level's entry).
 - No other players or tamers (the trip saw six players), no item loot beyond gold, no skill gain,
-  no pet levels or xp, no Society job. The vampire countess' transfix (hostile copies of our pets) and
-  the vampire's feeding heal aren't modelled; bleed/drain/poison are generic.
+  no pet levels or xp, no Society job. The vampire's feeding heal isn't modelled and its drain and
+  the poisons are generic; the bound soul's bleed as an area on everyone within a tile, the
+  transfixed copies' hits (2000) and whom a copy goes for (us) are [INFERENCE].
+- The monsters' other follower-style abilities on the wiki (shade wolf Frenzy, nightstalker Vanish
+  and Backstab) aren't modelled: none showed on us live.
 - Where recall works inside the Mausoleum is unknown: allowed anywhere (`recall.allowed_from` null).
 - Pet AI is a model: Follow ignores attackers, Guard takes whatever attacks us or the pets, Kill holds
   its target, pets within 3 tiles come along on a recall (ServUO's TeleportPets range [INFERENCE]).

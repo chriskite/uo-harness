@@ -2414,6 +2414,15 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
     lands within ~1 s of the monster turning to war mode.
   - The simulator's rule (nearest of us within 10 tiles; a bard act +400 threat on us whenever it
     happens) doesn't match this (docs/SIM.md).
+- The simulator now follows that (2026-10-13, docs/SIM.md "The revised aggro and specials").
+  - A monster goes for a guarding pet within 6 tiles of us. Our acts pull it only before any pet has
+    hurt it.
+  - The bleeds, the nightstalker's Charge and the countess' transfixed copies are modelled as they
+    hit Logan.
+  - Deaths per game hour fell 0.36 -> 0.17, but the gravebug died in 10 of 48 hours at
+    `--pet-leave-at` 0.20 (2 of 48 at 0.35).
+  - The sim runner meets no bound souls: its crawl never reaches x 5261-5277, y 645-661, where Logan's
+    bleeds came from.
 
 ## Logan Wolf's tamer fighting at the Mausoleum (capture 20261012_210013, analysed 2026-10-12)
 
