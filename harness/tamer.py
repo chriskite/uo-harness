@@ -93,7 +93,16 @@ APPROACH_R = 6                # [INFERENCE] aggro range: a target the pets haven
 APPROACH_MOVES = 10
 WALK_TO_PET_S = 5.0
 FOLLOW_R = 3                  # mount.PET_RANGE: a following pet stays this close
-FOLLOW_WAIT_S = 10.0
+# "All Follow Me" before a recall: how long to wait for the pets to come within FOLLOW_R, by the leave's
+# severity. A hostile player: not at all. Our own hits low: no standing wait (the simulator, docs/SIM.md:
+# a 3 s wait at ~45 % hits killed us in 8 of 16 runs, a bleed finishing us during the cast) but a fall back
+# (FALLBACK_*): run from the attackers while the pets come, as Logan Wolf did at 35 % (21:27:52), since a
+# recall without waiting left a pet behind in 12 of 16. Leaving for a pet while we are fine (follow()
+# upgrades "attention" to "info" then) and planned leaves: 10 s.
+FOLLOW_WAIT_S = {"urgent": 0.0, "attention": 0.0, "info": 10.0}
+FALLBACK_R = 4                # run until this far from every attacker...
+FALLBACK_MOVES = 10           # ...at most this many steps...
+FALLBACK_S = 4.0              # ...or this long, stopping as soon as every pet is within FOLLOW_R
 PET_MISSING_S = 30.0
 RETREAT_R = 7
 RETREAT_REPEAT_S = 15.0
@@ -207,8 +216,11 @@ def resolve(world: dict, pos, wanted, known) -> tuple[dict, str]:
             try:
                 s = int(w, 0)
             except ValueError:
+                # not a hostile namesake: the vampire countess makes attackable copies of our pets with
+                # their names (capture 20261012_210013, docs/NOTES.md); ours are notoriety 2
                 s = next((serial_of(k) for k, m in mobs.items() if (m.get("name") or "").lower() == w.lower()
-                          and serial_of(k) != me and m.get("graphic") not in mount.HUMAN_BODIES), None)
+                          and serial_of(k) != me and m.get("graphic") not in mount.HUMAN_BODIES
+                          and m.get("notoriety") not in combat.ATTACKABLE_NOTORIETY), None)
             if s is None or f"0x{s:08X}" not in mobs:
                 missing.append(w)
             else:
@@ -328,7 +340,8 @@ class Team:
         out = set()
         for key, mob in world["mobiles"].items():
             s = serial_of(key)
-            if s in self.roster or s in self.h.dead or mob.get("x") is None \
+            if s in self.roster or s in self.h.dead or mob.get("x") is None or mob.get("pet") \
+                    or mob.get("notoriety") not in combat.ATTACKABLE_NOTORIETY \
                     or not (mob.get("flags") or 0) & threats.FLAG_WARMODE:
                 continue
             if any(cheb((p["x"], p["y"]), (mob["x"], mob["y"])) <= PET_NEAR for p in hurt) \
@@ -416,22 +429,52 @@ class Team:
             return True
         return all(p["frac"] >= self.a.pet_heal_at for p in self.pets(st) if not p["dead"])
 
-    def follow(self, urgent: bool):
-        """'All Follow Me' before a recall or a walk out; a planned leave waits up to FOLLOW_WAIT_S for
-        every live pet to come within FOLLOW_R (user directive 2026-10-11)."""
+    def follow(self, severity: str = "info"):
+        """'All Follow Me' before a recall or a walk out, then up to FOLLOW_WAIT_S[severity] for every pet
+        (a ghost too: it comes along) to come within FOLLOW_R (user directive 2026-10-11); hurt
+        ("attention" below --heal-at): fall back from the attackers meanwhile instead of standing."""
         self.say("all follow me")
-        if urgent:
-            return
-        end = time.monotonic() + FOLLOW_WAIT_S
-        while time.monotonic() < end:
-            st = self.h.link.state()
-            far = [p for p in self.pets(st) if p["dist"] > FOLLOW_R and not p["dead"]]
-            lost = [n for s, n in self.roster.items() if s not in {p["serial"] for p in self.pets(st)}]
-            if not far and not lost:
-                return
+        st = self.h.link.state()
+        me = st["world"]["self"]
+        hurt = me.get("hits") is not None and self.h.frac(me) < self.a.heal_at
+        if severity == "attention" and not hurt:
+            severity = "info"                # leaving for a pet's sake, we aren't hurt: wait for it in full
+        if severity == "attention":
+            self.fall_back(st)
+        end = time.monotonic() + FOLLOW_WAIT_S.get(severity, FOLLOW_WAIT_S["info"])
+        while time.monotonic() < end and not self.together(self.h.link.state()):
             time.sleep(0.4)
-        log("pets not all within reach after 'All Follow Me': " + ", ".join(
-            f"{p['name']} at {p['dist']}" for p in self.pets(self.h.link.state()) if p["dist"] > FOLLOW_R))
+        far = [f"{p['name']} at {p['dist']}" for p in self.pets(self.h.link.state()) if p["dist"] > FOLLOW_R]
+        if far:
+            log("pets not all within reach after 'All Follow Me': " + ", ".join(far))
+
+    def together(self, st) -> bool:
+        """Every pet of the roster in view within FOLLOW_R."""
+        near = {p["serial"] for p in self.pets(st) if p["dist"] <= FOLLOW_R}
+        return all(s in near for s in self.roster)
+
+    def fall_back(self, st):
+        """Run from the attackers (FALLBACK_R) while the following pets come, stopping once they're
+        together, after FALLBACK_MOVES steps or FALLBACK_S."""
+        h = self.h
+        if self.together(st):
+            return
+        tiles = [(m["x"], m["y"]) for a in h.attackers(st) if (m := st["world"]["mobiles"].get(a["serial"]))
+                 and m.get("x") is not None]
+        end, label = time.monotonic() + FALLBACK_S, "falling back"
+        if not tiles:
+            while time.monotonic() < end and not self.together(h.link.state()):
+                time.sleep(0.3)
+            return
+        h.doing("leave", "Falling back while the pets come")
+        try:
+            h.mover.walk_to(None, 0, label, goal_fn=nav.beyond(tiles, FALLBACK_R), urgent=True,
+                            max_moves=FALLBACK_MOVES,
+                            stop=lambda s: self.together(s) or time.monotonic() > end)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"fall back: {e}")
 
     def landed(self, st, leg: str):
         """After a recall: every pet came along, else a `pet_left_behind` juncture."""

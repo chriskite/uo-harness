@@ -306,8 +306,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    a bag: every bag depth is searched); the retreat above (live 21:27:50 a bleed took Logan from 72
    to 35 hits in 2 s; he ran 18 tiles while drinking and the pets held the mob).
 6. **Pets come along**: "All Follow Me" before every recall or walk out (user directive
-   2026-10-11, knowledge #17043), a planned leave waits up to 10 s for every live pet within 3
-   tiles; after a recall a missing pet is an urgent `pet_left_behind` juncture.
+   2026-10-11, knowledge #17043). A planned leave, or one for a pet while we aren't hurt, waits up
+   to 10 s for every pet within 3 tiles; a leave because we are hurt falls back from the attackers
+   (up to 10 steps / 4 s, until the pets are near) instead of standing, and a hostile player
+   recalls at once (the simulator's trade-off: standing killed us, not waiting stranded pets,
+   docs/SIM.md). After a recall a missing pet is an urgent `pet_left_behind` juncture.
 7. **Leaving for the pets**: a pet dead (bonded ghost), below `--pet-leave-at`, or out of view for
    30 s. With a pet dead or gone the run never goes back in (`pet_down` juncture).
 8. **Kills**: the engaged target, and any mob the pets fought (in war mode next to a pet that was
@@ -320,7 +323,7 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
 **Not built**: walking between dungeon levels (start on the hunting level, as the Mausoleum's
 teleporter chain from the rune to Logan's area 5190–5280, 640–740 isn't mapped), claiming or
 stabling the pets, resurrecting a pet, and Herding (Logan double-clicked his shepherd's crook
-once). Never run live yet.
+once). Never run live yet; run in the Mausoleum simulator (docs/SIM.md) since 2026-10-13.
 
 ## Stationary Penalty (user request 2026-10-03; `harness/stationary.py`)
 

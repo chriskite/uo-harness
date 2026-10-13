@@ -530,8 +530,10 @@ class HuntLoop:
             for key, mob in world["mobiles"].items():
                 s = serial_of(key)
                 if s != me and mob.get("x") is not None and (mob.get("flags") or 0) & threats.FLAG_WARMODE \
-                        and cheb(pos, (mob["x"], mob["y"])) <= 1 \
+                        and cheb(pos, (mob["x"], mob["y"])) <= 1 and not mob.get("pet") \
+                        and mob.get("notoriety") in combat.ATTACKABLE_NOTORIETY \
                         and threats.identify(mob, labels.get(key))[0] == "monster":
+                    # a pet (ours or anyone's) in war mode beside us is fighting for someone, not at us
                     found.setdefault(s, ("war mode, adjacent while we take damage", time.monotonic() - hurt))
         out = []
         for s, (how, age) in found.items():
@@ -1165,7 +1167,7 @@ class HuntLoop:
         if self.war_mode(st, False):
             self.human.wait("read")
         if self.team is not None:
-            self.team.follow(urgent=severity != "info")
+            self.team.follow(severity)
         self.mover.walk_to(lambda: self.spot, 0, "to the exit", max_moves=max(250, 3 * self.out_steps),
                            urgent=severity != "info" and (self.crawl is not None or self.fight_spot != self.spot))
         self.teleport(self.args.exit_dir, "the exit")
@@ -1263,7 +1265,7 @@ class HuntLoop:
             if severity == "info" and self.war_mode(st, False):
                 self.human.wait("read")
             if self.team is not None:
-                self.team.follow(urgent=severity != "info")
+                self.team.follow(severity)
             data["react_s"] = round(time.monotonic() - t_fire, 2)
             res = self.recall_home(severity != "info")
         finally:
@@ -1295,7 +1297,7 @@ class HuntLoop:
         first arrival is the hunt: --spot, --fight-spot and --recall-spot default to it."""
         book, rune = self.args.enter_recall, self.args.enter_rune
         if self.team is not None:
-            self.team.follow(urgent=False)
+            self.team.follow()
         self.doing("enter", f"Recalling to {rune or 'the default rune'}")
         self.human.wait("use")
         res = self.recall(book, rune, False, "in")
@@ -1387,7 +1389,7 @@ class HuntLoop:
     def enter(self):
         ex, ey, ez = self.args.entry
         if self.team is not None:
-            self.team.follow(urgent=False)
+            self.team.follow()
         self.doing("enter", f"Going to the entrance at {ex},{ey}", (ex, ey))
         self.mover.walk_to(lambda: (ex, ey), 0, "to the entrance", z_ok=lambda z: abs(z - ez) <= GOTO_Z_TOL)
         self.teleport(self.args.entry_dir, "the entrance")
@@ -1578,6 +1580,9 @@ class HuntLoop:
             self.memory.juncture("hunt", "pet_down", f"Not going back in: {down}", "attention",
                                  {"why": down, "left": why, "pets": self.team.summary()["pets"]})
             raise Abort(f"left the hunt ({why}); not going back in: {down}")
+        if recall and (self.finished() or self.timed_out()):
+            log("the run is over (--kills / --timeout): not resting or going back in")
+            return False
         if (severity == "urgent" and not recall) or self.args.rest_to <= 0 or not self.rest():
             raise Abort(f"left the hunt ({why}); not going back in")
         if not recall:

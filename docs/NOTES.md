@@ -2374,6 +2374,14 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
 - **The model sees tool names with a leading underscore** (it called them `_uo_list` in its reply) while the events carry `uo_list` [INFERENCE: the provider's tool-name prefixing]. Harmless; the events and the prompt use the plain names.
 - **Cost:** a one-lookup answer (Sonnet, thinking medium) cost ~$0.01–0.03 and 4–6 s; a four-query SQL answer $0.02 and 10 s (live 2026-10-08).
 
+## Simulator runs found runner bugs (2026-10-13, docs/SIM.md)
+
+- With `--pets --crawl` the crawl never left its waypoint: our pets were counted as monsters in reach
+  (`crawl.observe`); and our war-mode pets next to us counted as attackers in `loop_hunt.attackers`
+  (the two-attacker leave rule). Both fixed.
+- A hurt leave that recalls at once strands a pet more than 3 tiles off; one that stands waiting dies to
+  bleeds. `tamer.follow` now falls back from the attackers while the pets come.
+
 ## Logan Wolf's tamer fighting at the Mausoleum (capture 20261012_210013, analysed 2026-10-12)
 
 The user played a Mausoleum trip on Logan Wolf (0x00104A60) by hand, 21:13–21:31, and asked for a
@@ -2447,6 +2455,35 @@ timestamped per packet. Facts:
   they're quite expensive"): pets are released by "<name> release" (patch 2019-06-04) or the
   context menu's Release; Transfer gives one away. The runner says only `tamer.COMMANDS`;
   `ctl act say` and `ctl act menu_pick` refuse anything matching release/transfer.
+
+## Mausoleum facts measured for the simulator (capture 20261012_210013, 2026-10-13)
+
+`harness/sim/calibrate.py` (rules in its output) and `harness/los.py`'s validation; docs/SIM.md uses them.
+
+- **Damage numbers add up to the wiki's hit points**: the "-N" numbers over every creature that died in
+  view sum to its wiki Hits + 1 (shadowguard 8001, shade wolf 5001, bound soul 8001, corpse purger 7001,
+  corpsebride 6001, spare parts 2501, ...). Corpse gold is the wiki Gold Value (lifted medians within
+  -5..+17 %). So the wiki creature pages (in `ctl know`) are the creatures' real stats.
+- **Damage-number hues** [INFERENCE]: 89 over creatures for our side's damage; 2417 while two provoked
+  creatures fight and on poison ticks; 946 over our pets and us.
+- **Outlands 0x77 carries no flags**: a mobile's war mode (0x40) arrives only in 0x20 updates.
+- **Our pets' real hits**: the gravebug loses ~4.5 hits per point of its 0xA1 share (450 hits), the phoenix
+  ~6.6 (660); levelled, about twice the wiki's tamed base (225 / 350). Attack animations (action 5 / 4)
+  every 1.91 s / 1.80 s.
+- **The vampire countess transfixes our pets**: after `*attempts to transfix*`, hostile copies named
+  GraveRobber / AlaFlambe (notoriety 3/4, `*transfixed*`) appear and fight us (the copy hit for ~32-60).
+  A runner must never take a mobile for our pet by name alone: ours are notoriety 2 with their own serial.
+- **Aggro**: monsters switched to war mode 1-13 tiles from us (median 7) when the switch was in view;
+  almost always closing on a pet. The wiki's flat 20-tile Perception Range (knowledge #4329) is when they
+  notice; sight decides.
+- **Line of sight**: ServUO's `Map.LineOfSight` rules (eye at z + 14) explain all 61 target answers on
+  mobiles (59 accepted, both "Target cannot be seen." blocked: a portcullis at 5244,662 and a stone wall
+  at 5265,656). The world model's own z is often stale (no per-step z): take z from the map surface.
+- **Levels**: the rune lands at x 5554-5626, y 688-709; a teleporter at (5554,701,20) -> (5547,696,10)
+  to x 5506-5547, y 638-706, z -18..10; another at (5521,638,-18) -> (5199,738,17) to the fight level x
+  5174-5278, y 646-738, z 0-25 (786 s of the trip).
+- **Barding skill**: the trip's 47 ok/fail answers fit the wiki formula `max(S/100 - difficulty/100,
+  0.33 S/100)` best at S = 149 (printed 80 + bonuses).
 
 ## Network observations
 

@@ -1819,6 +1819,28 @@ Mausoleum"; docs/HUNT_LOOP.md "Pets"). Decisions:
 - Not built: walking between dungeon levels (start on the hunting level), claiming/stabling, Herding.
   Verified offline only (`test_loop_hunt.py pets`); first live run pending.
 
+## A Mausoleum simulator for the combat runner (decided and built 2026-10-13)
+
+The user asked whether we could emulate the Outlands server and train the combat runner in it, then for
+"a thorough Mausoleum simulator" (docs/SIM.md). Decisions:
+
+- *Simulate the level, not the server.* The Outlands server is closed; a ModernUO/ServUO private server
+  would be standard UO rules on wall-clock timers in another protocol dialect. Instead `harness/sim/` is a
+  model of the one level Logan Wolf fought on, speaking the packets our world model reads, on the real
+  map (walking by `pathfind.Walk`, sight by the new `los.py`, 61/61 against the live server's answers).
+- *The runner is unmodified.* `sim.clock.install` points the harness modules' `time` at a virtual clock,
+  `SimLink` stands in for the proxy's Link; rejected: threading a clock argument through 100+ call sites
+  of live code. A state read costs game time, so polling loops progress.
+- *Evidence for every number.* Creature stats from the wiki (knowledge ids; the capture confirmed hits
+  and gold exactly), behaviour from the capture (`sim/calibrate.py`, sample sizes kept), the rest marked
+  [INFERENCE] in the scenario's notes; the barding skill and the pets' threat weights fitted to the trip.
+  `run.py --compare` sets the simulated rates beside the trip's.
+- *What it is for*: regression and edge cases (it found three runner bugs on its first runs, docs/SIM.md),
+  policy experiments (`--set`, runner arguments; e.g. the pet fall-back), and threshold sweeps whose
+  answers are starting points for live checks, not defaults: the monsters' damage to the player is
+  under-measured. Rejected for now: learning a policy from scratch (it would learn the sim's gaps).
+- Captures that would close the gaps are listed in docs/SIM.md "Captures wanted".
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
