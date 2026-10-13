@@ -170,12 +170,11 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
     same monster (the nearest one on us). Seed 2: a nightstalker took us at 9 tiles (pets 12), both
     pets fought the reanimated knight, and the nightstalker hit us 43 then 34 (the knight 23) and
     killed us from full hits in 3 s; the runner had just discorded the knight.
-  - Live, that rule looks harsher than the server: of the trip's 28 monsters that went to war in view
-    none clearly closed on Logan; when he stood 1-2 tiles nearer, 7 of 9 went for the pets (the other
-    two closed on no one), and he took 23 hits in 13 minutes. [INFERENCE] the live server prefers the
-    pets (the gravebug's Tank draw, or a pet's attack taking the monster over); the "closing on"
-    measure is confounded by the pets charging. A nightstalker's melee is measured (on the pets
-    21-79, median 35; on Logan once, 42).
+  - Live, that rule is harsher than the server (docs/NOTES.md "Guarding pets take a monster's aggro"):
+    on the trip all 11 monsters we hadn't acted on went to a pet first, and none of Logan's 23 hits in
+    13 minutes was an ordinary swing or spell from a monster that had picked him. They were bleed ticks
+    and openers (bound souls, a vampire bat), one nightstalker Charge (an area hit, knowledge #14625:
+    the -42 on him landed with a -37 on the gravebug) and the countess' transfixed copies.
 
 ## Limits
 

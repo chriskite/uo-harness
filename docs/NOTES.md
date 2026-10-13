@@ -2391,6 +2391,29 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
   uncited 0.3 s left them 9-22 tiles behind the runner, so monsters found only us in their 10-tile
   aggro range; at 0.21 s the deaths per game hour went 0.52 -> 0.28. Still most monster aggro on us
   comes from walking first (pets 1-3 tiles back) and from our bard acts (docs/SIM.md).
+- **Guarding pets take a monster's aggro; what reaches us is bleeds and area hits** (capture
+  20261012_210013, the user's claim checked 2026-10-13). This covers the 25 monsters that engaged in
+  view on Logan's trip, pets on "All Guard Me" every time.
+  - 11 had no target cursor of ours on them before they reached or hit someone. All 11 went to a pet
+    first.
+  - All 23 '-N' on Logan, by cause (texts over/to him at the same instant):
+    - 15 bleed ticks: 8-10 every 3 s for 15 s until "You are no longer bleeding."
+    - 3 bleed openers:
+      - a bound soul twice: -23 and -32 with "They begin to draw blood from you!". Both times it
+        had just reached the gravebug and kept meleeing the gravebug, with Logan one tile off.
+      - a vampire bat once: -22 with "The creature strikes ferociously, causing you to bleed!".
+    - 1 nightstalker Charge: "*charges*", a 4-tile jump, -42 on Logan and -37 on the gravebug at the
+      same instant. Knowledge #14625: it teleports up to 12 tiles and hits up to 3 targets within 1
+      tile.
+    - 4 from the vampire countess' transfixed copies of his own pets.
+  - None was an ordinary melee swing or spell from a monster that had picked Logan, apart from
+    possibly the bat's opener: that bat had our Discordance before the pets hit it, during the countess
+    fight. Whether the bound soul's bleed is an area effect or a swing at the nearest non-target is
+    [INFERENCE].
+  - Who chose whom can't be told apart from the pets striking first: the phoenix's barrage usually
+    lands within ~1 s of the monster turning to war mode.
+  - The simulator's rule (nearest of us within 10 tiles; a bard act +400 threat on us whenever it
+    happens) doesn't match this (docs/SIM.md).
 
 ## Logan Wolf's tamer fighting at the Mausoleum (capture 20261012_210013, analysed 2026-10-12)
 
