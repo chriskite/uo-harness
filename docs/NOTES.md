@@ -2385,6 +2385,12 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
   recalled in, left on arrival for that pet, and recalled out again: up to 436 recalls in a game hour
   (17 of 48 one-hour runs). Fixed: the rest waits for natural regeneration, bounded by
   `--rest-timeout`. Live this would also have burned the tome's charges in a pattern no player makes.
+- Live pets follow at our pace: Logan's gravebug and phoenix stepped every 0.21 s out of war mode
+  (n=470/471, capture 20261012_210013) and ended 16 of 22 walks of 10+ steps within 3 tiles of him
+  (the rest 4-8, and 18 on the retreat while they held a mob). The sim's
+  uncited 0.3 s left them 9-22 tiles behind the runner, so monsters found only us in their 10-tile
+  aggro range; at 0.21 s the deaths per game hour went 0.52 -> 0.28. Still most monster aggro on us
+  comes from walking first (pets 1-3 tiles back) and from our bard acts (docs/SIM.md).
 
 ## Logan Wolf's tamer fighting at the Mausoleum (capture 20261012_210013, analysed 2026-10-12)
 

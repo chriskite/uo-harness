@@ -633,7 +633,7 @@ def pets_section(sessions):
         for p, name in sorted(sess.pets.items()):
             o = out.setdefault(name, {"serials": [], "dmg": [], "war_s": 0.0, "heals": collections.defaultdict(list),
                                       "dist_war": [], "dist_peace": [], "dist_by_cmd": collections.defaultdict(list),
-                                      "attack_anim_war": [], "dealt": [], "body": None})
+                                      "attack_anim_war": [], "dealt": [], "body": None, "steps_peace": []})
             o["serials"].append(p)
             o["body"] = sorted(sess.info.get(p, {}).get("graphics", []))
             # time in war mode from consecutive observations
@@ -641,6 +641,10 @@ def pets_section(sessions):
             for a, b in zip(obs, obs[1:]):
                 if a[5] and b[0] - a[0] <= 10:
                     o["war_s"] += b[0] - a[0]
+            # one-tile moves out of war mode: the pace it follows us at (scenario pets' step_s)
+            o["steps_peace"].extend(b[0] - a[0] for a, b in zip(obs, obs[1:])
+                                    if not a[5] and not b[5] and cheb(a[2], a[3], b[2], b[3]) == 1
+                                    and 0 < b[0] - a[0] <= STEP_GAP_S)
             o["dmg"].extend(h["amount"] for h in sess.victim_hits if h["victim"] == p)
             devours = sorted(t for t, s, x in sess.overhead if s == p and x == TEXT_DEVOUR)
             for t, s, a in sess.heals:
@@ -702,6 +706,7 @@ def pets_section(sessions):
             "distance_from_us_fighting": histogram(o["dist_war"]),
             "distance_from_us_not_fighting": histogram(o["dist_peace"]),
             "distance_not_fighting_by_last_command": {k: histogram(v) for k, v in sorted(o["dist_by_cmd"].items())},
+            "step_interval_s_not_fighting": stats(o["steps_peace"], 3),
             "attack_animation": {"action": o.get("attack_action"), "n_total": o.get("attack_anims", 0),
                                  "period_s": stats(o["attack_anim_war"], 2)},
             "damage_dealt_attributed": stats(o["dealt"], 1),

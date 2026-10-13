@@ -4923,6 +4923,15 @@
      }
     }
    },
+   "step_interval_s_not_fighting": {
+    "n": 470,
+    "median": 0.21,
+    "p10": 0.19,
+    "p90": 0.411,
+    "min": 0.098,
+    "max": 1.923,
+    "mean": 0.276
+   },
    "attack_animation": {
     "action": 5,
     "n_total": 260,
@@ -5045,6 +5054,15 @@
       "2": 11
      }
     }
+   },
+   "step_interval_s_not_fighting": {
+    "n": 471,
+    "median": 0.21,
+    "p10": 0.191,
+    "p90": 0.398,
+    "min": 0.098,
+    "max": 1.646,
+    "mean": 0.263
    },
    "attack_animation": {
     "action": 4,

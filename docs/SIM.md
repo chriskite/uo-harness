@@ -85,6 +85,8 @@ What the capture and the wiki fixed:
 - **Threat**: guarding pets take a monster's aggro first (knowledge #2074); damage builds threat x 4.0
   for the gravebug (Tank) and x 0.3 for the phoenix, fitted so the gravebug takes most of the damage as
   live; our aggressive acts add 400.
+- **Pet pace**: one step per 0.21 s out of war mode (n=470 and 471, capture), the pace of our run;
+  `calibrate.py` writes it as `step_interval_s_not_fighting` (2026-10-13; 0.3 s before, uncited).
 
 `run.py --runs 24 --minutes 30 --compare`, per hour on the level (sim 8.7 h over 24 runs; the trip 13.1 min):
 
@@ -137,28 +139,43 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   counted every pet as rested, so a pet below `--pet-leave-at` made the run leave on arrival, rest,
   recall in and leave again, up to 436 recalls in a game hour (17 of 48 one-hour runs). The rest now
   waits for natural regeneration to `--pet-heal-at` and stops the run past `--rest-timeout`.
-- **One-hour runs** (48 x 60 min, defaults, after that fix; 28.8 game hours):
+- **One-hour runs** (48 x 60 min each, defaults, after that fix):
 
-  | measure | value |
-  |---|---|
-  | kills / hour on the level | 69 (trip: 115) |
-  | gold / game hour | 50,800 |
-  | deaths / game hour | 0.52 (15 of 48 runs die once) |
-  | runs that strand the gravebug on a hurt leave | 10 of 48 |
-  | vet supplies out (59 carried) | 27 of 48 runs, median ~30 min in |
-  | median run length | 38 game minutes of 60 |
+  | measure | pets step 0.3 s, 59 vet | pets 0.21 s (captured) | + 200 vet supplies |
+  |---|---|---|---|
+  | game hours | 28.8 | 32.3 | 36.6 |
+  | kills / hour on the level (trip: 115) | 69 | 71 | 72 |
+  | gold / game hour | 50,800 | 48,700 | 63,100 |
+  | deaths / game hour | 0.52 | 0.28 | 0.36 |
+  | runs that strand the gravebug on a hurt leave | 10 | 6 | 6 |
+  | runs out of vet supplies | 27 | 33 | 0 |
+  | median run length (of 60 min) | 38 | 45 | 60 |
 
-  Kills: banshee 610, shadow minion 371, apparition 220, vampire bat 82, shadowguard 73, shade wolf 60,
-  nightstalker 3, reanimated knight 2 (median time from target to kill: shadow minion 14 s, vampire
-  bat 15 s, shade wolf 18 s, banshee 22 s, shadowguard 30 s, apparition 32 s; 53 apparitions
-  dropped as unengaged). Deaths: 8 of 15 in the room at (5180-5182, 709-715), where a nightstalker
-  with a reanimated knight or shade wolf takes us from full hits in under 15 s (the pets killed only 3
-  nightstalkers and 2 knights in 28.8 hours); 4 under banshees (5206-5207, 704-705); 1 to vampire
-  bats at (5208, 694); 2 after the recall home (a bleed finishing a 30-odd-hits leave; the run, aborted
-  for the stranded pet, doesn't drink or bandage at home). How hard those melee monsters hit us is
-  the wiki's damage x 0.5, never measured (capture 1 and 4 below), so the death rate there is a
-  guess; the run lengths are set by the 59 vet supplies, which is a real constraint (the trip used
-  43 in 13 minutes).
+  Kills (first batch): banshee 610, shadow minion 371, apparition 220, vampire bat 82, shadowguard 73,
+  shade wolf 60, nightstalker 3, reanimated knight 2 (median time from target to kill: shadow minion
+  14 s, vampire bat 15 s, shade wolf 18 s, banshee 22 s, shadowguard 30 s, apparition 32 s; 53
+  apparitions dropped as unengaged). Deaths in the last batch (13): 4 to a nightstalker and 3 to shade
+  wolves, mostly in the room at (5177-5182, 699-711); 3 under banshees (5207, 704-716); 3 to shadow
+  minions (5207, 691-695, and one at home after a leave on 30-odd hits).
+- **How monsters get onto us instead of the pets** (13 seeds, 240 times a monster picked us):
+  - 154: **the first sighting**. A monster picks the nearest of us within its 10-tile aggro range
+    (guarding pets first, but only those in range and sight). The runner walks first and the pets
+    follow 1-3 tiles behind (live too: within 3 tiles at the end of 16 of the trip's 22 10+ step walks),
+    so a monster at 9 tiles sees only us. With the pets at 0.3 s a step they fell 9-22 tiles behind
+    the runner's 0.20 s run and this was most deaths; the capture's 0.21 s (n=470) halved them.
+  - 40: the pets were in range but out of the monster's sight (around a corner or a door).
+  - 46: **our aggressive acts**: Discordance/Peacemaking/"All Kill" at it adds 400 threat on us (user
+    2026-10-12: aggressive acts pull aggro); a pet must deal 100+ (gravebug, x4) to take it back.
+  - It then stays on us: it switches only to a pet with more threat, and both guarding pets go for the
+    same monster (the nearest one on us). Seed 2: a nightstalker took us at 9 tiles (pets 12), both
+    pets fought the reanimated knight, and the nightstalker hit us 43 then 34 (the knight 23) and
+    killed us from full hits in 3 s; the runner had just discorded the knight.
+  - Live, that rule looks harsher than the server: of the trip's 28 monsters that went to war in view
+    none clearly closed on Logan; when he stood 1-2 tiles nearer, 7 of 9 went for the pets (the other
+    two closed on no one), and he took 23 hits in 13 minutes. [INFERENCE] the live server prefers the
+    pets (the gravebug's Tank draw, or a pet's attack taking the monster over); the "closing on"
+    measure is confounded by the pets charging. A nightstalker's melee is measured (on the pets
+    21-79, median 35; on Logan once, 42).
 
 ## Limits
 
