@@ -285,6 +285,10 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   - It still dies too often. 25 of its 38 deaths are on the walk to the gate, clustered at
     (5200-5210, 690-700), the banshee room around the gate, and in the countess' room.
   - Before the loot fix (below), 19 runs ended on "to the corpse: no route".
+  - With heal potions between steps on the walk out (user: "I just run and heal and hope for the
+    best, with pets guarding"; `drink_on_the_run`), 49 more runs: 10.1 potions a hunting hour (was
+    6.9) but deaths 2.35 a game hour, no better. The walk out is as dangerous for a real player
+    (user: banshees catch players on their way to the gate too).
 - **An unreachable corpse ended the run** (fixed, `loop_hunt` loot): the walk to it raised Abort("no
   route"). Now that corpse is left.
 
@@ -326,8 +330,9 @@ Each is a normal play session with the proxy capturing as always; tell the codin
 4. **Damage to us**: let one monster hit us for a while at full hits with potions ready (e.g. open with a
    discord on a lone shade wolf). The trip had only 23 hits on us; the sim's deaths hinge on this number.
 5. **Respawn**: clear a room and stay 20+ minutes nearby (one weak candidate, 123 s, on the trip).
-6. **Recall inside the Mausoleum**: try the rune tome on the fight level, the middle level and the arrival;
-   note where it is refused.
+6. **The vampire countess, a few fights** (user offered, 2026-10-13): the transfix attempts and copies
+   (how often, how long, whom they hit and for how much), and her own melee/spells. 7 of the loop's
+   deaths and much of our damage are hers; the copy model rests on one fight (3 copies).
 7. **The rest of the level** (and the way back out): walk every room of the fight level once, and the
    teleporters from it. The sim has 42 spawns from where Logan happened to see monsters.
 8. If it happens anyway (don't force it): a pet death and its resurrection, and a full stable/claim at

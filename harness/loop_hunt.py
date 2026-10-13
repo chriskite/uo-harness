@@ -226,6 +226,8 @@ class HuntLoop:
         self.recall_spot = tuple(args.recall_spot) if args.recall_spot else self.spot
         self.refused_from = []                   # tiles where the recall home was refused (this run)
         self.fleeing = False                     # recall mode: leaving; the threat checks are off
+        self.walking_out = False                 # on the walk to --leave-gate: heal potions between steps
+        self._drinking = False
         self._looking = False                    # in look(): a pause inside the threat checks sleeps plainly
         self._looked_t = -1e9
         self.attack_scan = 0                     # "... is attacking you!" scan cursor into link.events
@@ -306,6 +308,24 @@ class HuntLoop:
         self.pending_speech += self.new_speakers(st)
         self.track(st)
         self.look(st)
+        self.drink_on_the_run(st)
+
+    def drink_on_the_run(self, st):
+        """On the walk out to --leave-gate (Mover guard, between steps): a heal potion when hurt below
+        --heal-at and one is ready (user 2026-10-13: banshees catch real players on the way to the
+        gate too; 'I just run and heal and hope for the best, with pets guarding'). No vet supplies:
+        their channel breaks on a step."""
+        if not self.walking_out or self._drinking:
+            return
+        me = st["world"]["self"]
+        if me.get("hits") is None or self.frac(me) >= self.args.heal_at \
+                or not self.potions.ready(time.monotonic()) or not healing.heal_potions(st["world"], self.me(st)):
+            return
+        self._drinking = True
+        try:
+            self.heal(st, potions=True)
+        finally:
+            self._drinking = False
 
     # ------------------------------------------------------------ recall mode: watchful waits
     def look(self, st=None):
@@ -1266,6 +1286,7 @@ class HuntLoop:
         gate = tuple(self.args.leave_gate)
         urgent = severity != "info"
         self.doing("leave", f"Walking to the moongate at {gate[0]},{gate[1]}", gate)
+        self.walking_out = True
         try:
             if self.team is not None:
                 self.team.guard()
@@ -1282,6 +1303,8 @@ class HuntLoop:
         except (Abort, moongate.GateError) as e:
             return {"ok": False, "from": list(self.pos(self.link.state())[:2]), "error": str(e),
                     "dest": self.args.gate_dest}
+        finally:
+            self.walking_out = False
 
     def leave_by_recall(self, st, why, severity):
         """Leave by recalling to --leave-recall's default rune (recall_home), at once and
