@@ -2342,6 +2342,11 @@ heals, no dispels, no locked doors and no heal potions.
   before it. The proxy's `close` event doesn't say which side closed. **Cause (user):** the server was
   down for patching both times. A patch looks like this: S2C stops, about 90 s later the connection
   closes, and the user logs back in once the server is up.
+- **2026-10-13 14:12:35, a different drop (Seer-28):** session `20261013_103242` closed 40 ms after normal
+  chopping traffic (chop lines, an equip, a container add), with no S2C silence and no server message,
+  while the same ClassicUO process stayed up. The user called it a server-side hiccup. Run
+  `lumber-20261013-134300-281d` aborted at witcher_177 with ~2500 logs in the pouch ("could not stash or
+  convert the carried logs: state port: no active session").
 
 ## A "thief" who killed: gorilkaenjoyer at witcher_105 (live 2026-10-10, Seer-17)
 
