@@ -277,7 +277,9 @@ below what the plan would risk. Now such a leg asks the plan, at home, whether t
   player too: user, "hop elsewhere with the load"). The runner recalls home first (`hop_home`
   phase) unless the escape already did. Not after: a break, a closed agent gate, possible staff, a
   speech hold, death, hits below 80 % (`HOP_MIN_HITS`, checked again after the plan: a spell cast
-  before the escape can land at home), no live trapped pouch, or `--hops` (default 3) used.
+  before the escape can land at home), no live trapped pouch, `--hops` (default 3) used, or a
+  creature the hop's hatchet check would run from (since 2026-10-13: that Escape, raised inside the
+  red's recall, crashed `lumber-20261013-161548-a508` at the landing; now the leg goes to the room).
 - **Where:** the spot a fresh plan would send a trip to (its Thompson pick; the greedy spot with
   `--exploit`), never the spot just left. `plan_from_store(carried=, hop_from=, home=)` asks
   `plan(carried=…)`; the answer is `hop` (or `hop_why`).
@@ -1106,7 +1108,12 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     unknown aggression that aren't known to be ranged aren't blamed (juncture 222: the war-mode
     larva at 10 plus a calm cougar at 8 made "2 creatures attacking" and a recall). Candidates are
     hostile creatures and creatures of unknown aggression; never pets or passive bodies
-    (threats.py; a calm creature's reason reads "passive creature (default)"). With
+    (threats.py; a calm creature's reason reads "passive creature (default)"), and never our own
+    pets at all (`threats.Params.own_pets`, every character's remembered mount, `mount.own_serials`:
+    they aren't threats; live 2026-10-13 Dan's horse resting at the guild-house landing was blamed
+    for a spell, five times since 2026-10-09, and had taught body 0xE4 aggressive for every horse;
+    `travel_guard.learned_params` now learns nothing from our pets' hits or a passive name's
+    sighting). With
     no candidate within its reach, a creature we walked away from this trip that is still in view
     is taken to outrange it (a sole attacker's distance is then learned as its body's reach).
   - **Run** when a single creature could have hit us, no hostile player is in view, hits are at or
@@ -1611,9 +1618,12 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - Outcomes: success text (gain measured from the backpack count), fail 500495, nothing nearby
     ("You do not see any harvestable resources nearby." / "You cannot produce any wood from that."
     over us: end the stay, mark the trees within `SMART_RANGE` of the stand `nothing_near`, next
-    stand), not enough wood 500488/500493 (end the stay, no marks), lockout text (wait the stated
-    seconds), or none (≤ 3 in a row, then abort). The not-a-tree outcome (500489) went with
-    per-tree targeting.
+    stand), no harvest here ("Harvesting is not allowed in this area.", lumber.json
+    `no_harvest_texts`, since 2026-10-13: end the stay, rule the trees within `SMART_RANGE` out for
+    good, `no_harvest` in harvest memory, which sets `not_tree`; next stand; live witcher_26 refused
+    one stand 3 tiles from one that gave 894 logs), not enough wood 500488/500493 (end the stay, no
+    marks), lockout text (wait the stated seconds), or none (≤ 3 in a row, then abort). The
+    not-a-tree outcome (500489) went with per-tree targeting.
   - A server-reported travel lockout (after a moongate, say) is waited out.
   - Every stand is a `stand` job event: the stand tile, the trees within 6 tiles (offset, distance,
     graphic), attempts, successes, logs, the direction the server turned us per chop (`faced`), how

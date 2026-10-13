@@ -353,9 +353,10 @@ class Memory:
     def harvest_record(self, facet, x, y, z, graphic, outcome, amount=0, t=None):
         """One outcome on a node: success/fail (an attempt; Smart Harvest records it on the
         stand tile), depleted/not_tree (a targeted tree, before Smart Harvest), unreachable,
-        or nothing_near (a tree within reach of a stand where the server said "You do not
+        nothing_near (a tree within reach of a stand where the server said "You do not
         see any harvestable resources nearby.": out of wood like depleted, for the regrowth
-        window)."""
+        window) or no_harvest (a tree within reach of a stand where the server said "Harvesting
+        is not allowed in this area.": ruled out for good, like not_tree)."""
         t = time.time() if t is None else t
         c = self.con
         c.execute("INSERT OR IGNORE INTO harvest_nodes(facet, x, y, z, graphic) VALUES(?,?,?,?,?)",
@@ -370,7 +371,7 @@ class Memory:
         elif outcome == "unreachable":
             c.execute("UPDATE harvest_nodes SET unreachable_at=? WHERE facet=? AND x=? AND y=? AND z=?",
                       (t, facet, x, y, z))
-        elif outcome == "not_tree":
+        elif outcome in ("not_tree", "no_harvest"):
             c.execute("UPDATE harvest_nodes SET not_tree=1 WHERE facet=? AND x=? AND y=? AND z=?",
                       (facet, x, y, z))
         c.execute("INSERT INTO harvest_attempts VALUES(?,?,?,?,?,?,?)", (t, facet, x, y, z, outcome, amount))

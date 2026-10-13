@@ -42,6 +42,7 @@ import dataclasses
 import json
 import time
 
+import mount
 import threats
 from agent_link import Abort, cheb
 
@@ -85,12 +86,29 @@ def learn_hit(params: threats.Params, body, distance, attackers) -> threats.Para
 
 def learned_params(memory, base: threats.Params = threats.Params()) -> threats.Params:
     """base with every body ever seen hostile added to aggressive_bodies, and every
-    monster_hit episode learned (learn_hit)."""
-    bodies = {s["body"] for s in sightings(memory, days=100_000) if isinstance(s.get("body"), int)}
+    monster_hit episode learned (learn_hit); our own pets (mount.own_serials) are `own_pets`, and
+    sightings or hits of them teach nothing (live 2026-10-13: five hits had been blamed on Dan's
+    resting horse, and its body 0xE4 had become aggressive for every horse). Nor does a sighting of
+    a passive name (base.passive_names): "a horse" seen hostile on 2026-10-10 was hostile only by
+    the body that horse had taught, and would have kept teaching it."""
+    own = mount.own_serials(memory)
+
+    def ours(serial) -> bool:
+        if isinstance(serial, str):
+            try:
+                serial = int(serial, 16)
+            except ValueError:
+                return False
+        return serial in own
+    bodies = {s["body"] for s in sightings(memory, days=100_000)
+              if isinstance(s.get("body"), int) and not ours(s.get("serial"))
+              and (s.get("name") or "").lower() not in base.passive_names}
     bodies -= set(base.passive_bodies)
-    p = dataclasses.replace(base, aggressive_bodies=frozenset(set(base.aggressive_bodies) | bodies))
+    p = dataclasses.replace(base, aggressive_bodies=frozenset(set(base.aggressive_bodies) | bodies),
+                            own_pets=frozenset(base.own_pets) | own)
     for h in hits(memory):
-        p = learn_hit(p, h.get("body"), h.get("distance"), h.get("attackers"))
+        if not ours(h.get("serial")):
+            p = learn_hit(p, h.get("body"), h.get("distance"), h.get("attackers"))
     return p
 
 

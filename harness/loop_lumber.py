@@ -2978,7 +2978,8 @@ class LumberLoop:
         (500495), depleted (500488/500493 not enough wood), nothing_near (Smart Harvest:
         "You do not see any harvestable resources nearby.", with "You cannot produce any
         wood from that." over our head: nothing within its reach has wood, move to the next
-        stand), lockout (travel lockout seconds); None while none came."""
+        stand), no_harvest ("Harvesting is not allowed in this area.": this stand is in a
+        no-harvest area), lockout (travel lockout seconds); None while none came."""
         hv, lock = self.k["harvest"], self.k["travel_lockout"]
         for ev in self.since(mark):
             e = ev.get("ev")
@@ -2988,6 +2989,8 @@ class LumberLoop:
                     return ("success", 0)
                 if t in hv["nothing_near_texts"]:
                     return ("nothing_near", 0)
+                if t in hv["no_harvest_texts"]:
+                    return ("no_harvest", 0)
                 if t.startswith(lock["text_prefix"]):
                     digits = [int(w) for w in t.split() if w.isdigit()]
                     return ("lockout", digits[0] if digits else lock["seconds"])
@@ -3504,18 +3507,24 @@ class LumberLoop:
                         c0, w0 = time.monotonic(), self.stats.get("speech_wait_s", 0.0)
                         self.stash_now()
                         self.chopped(c0, w0)
-                elif out in ("nothing_near", "depleted"):
+                elif out in ("nothing_near", "depleted", "no_harvest"):
                     rec["end"] = out
                     if out == "depleted":           # the server's pick ran out; which one it was is unknown
                         log(f"{where}: not enough wood here; next stand")
                         self.stash_now()
                         return
+                    # no_harvest (live 2026-10-13 witcher_26: a stand 3 tiles from one that gave 894 logs):
+                    # the trees in reach are ruled out for good, the run goes on at the next stand
                     for t in reach:
-                        self.memory.harvest_record(self.facet, t["x"], t["y"], t["z"], h(t["graphic"]), "nothing_near")
+                        self.memory.harvest_record(self.facet, t["x"], t["y"], t["z"], h(t["graphic"]), out)
                         if t in trees:
                             trees.remove(t)
-                    log(f"{where}: nothing nearby has wood after {rec['attempts']} attempt(s), {rec['logs']} logs; "
-                        f"{len(reach)} tree(s) within {SMART_RANGE} marked out of wood; next stand")
+                    if out == "no_harvest":
+                        log(f"{where}: harvesting is not allowed in this area; {len(reach)} tree(s) within "
+                            f"{SMART_RANGE} ruled out for good; next stand")
+                    else:
+                        log(f"{where}: nothing nearby has wood after {rec['attempts']} attempt(s), {rec['logs']} "
+                            f"logs; {len(reach)} tree(s) within {SMART_RANGE} marked out of wood; next stand")
                     self.stash_now()
                     return
                 elif out == "lockout":
@@ -4019,7 +4028,7 @@ class LumberLoop:
             return
         if found is not None and found[1].get("dead"):
             pet = found[0]
-            mount_mod.remember(self.memory, self.home_name, pet, found[1].get("name"))
+            self.own_pet(pet, found[1].get("name"))
             log(f"our mount 0x{pet:08X} is a ghost: into the rental room to revive it")
             if in_room:
                 self.leave_room()
@@ -4036,7 +4045,7 @@ class LumberLoop:
             self.pre_stats["mount"] = rec
             return
         pet, m = found
-        mount_mod.remember(self.memory, self.home_name, pet, m.get("name"))
+        self.own_pet(pet, m.get("name"))
         self.doing("mount", f"Mounting {m.get('name') or 'our pet'}")
         got = mount_mod.try_mount(io, self.human, pet)
         rec["mounted"] = got == "riding"
@@ -4046,6 +4055,12 @@ class LumberLoop:
         else:
             log(f"mount: {'riding' if rec['mounted'] else 'no mount after the double-click on'} 0x{pet:08X}")
         self.pre_stats["mount"] = rec
+
+    def own_pet(self, pet: int, name: str | None):
+        """Remember `pet` as this character's mount; from now on it is never a threat or an
+        attacker (threats.Params.own_pets; live 2026-10-13 the resting horse was blamed for a spell)."""
+        mount_mod.remember(self.memory, self.home_name, pet, name)
+        self.watch.params = replace(self.watch.params, own_pets=self.watch.params.own_pets | {pet})
 
     def mount_missing(self, pet: int, why: str):
         """A remembered mount we can't ride: an attention `low_supplies` juncture (item 'mount'), once a run."""
@@ -4642,7 +4657,10 @@ class LumberLoop:
         whether to go on to another spot from the rune library. The hop, or None: the room as before
         (hop_blocked, the recall home failed, or storing first is worth more). hop_blocked is asked
         again after the plan: a spell cast before an escape recall can land at home (live 2026-10-06,
-        -31 0.4 s after the landing), and the plan takes seconds. A `hop` job event either way."""
+        -31 0.4 s after the landing), and the plan takes seconds. A creature the threat checks in the
+        hatchets' clicks would run from (Escape) means no hop either: the room, where the escape
+        is handled on the way (live 2026-10-13, lumber-20261013-161548-a508: an Escape out of here,
+        inside the red's Unsafe, crashed the run at the landing). A `hop` job event either way."""
         why_not = self.hop_blocked(self.link.state())
         if why_not is None and recall:
             try:
@@ -4662,8 +4680,12 @@ class LumberLoop:
         hop = out.get("hop")
         why_not = self.hop_blocked(st) or (None if hop else (out.get("hop_why") or out.get("error")))
         if why_not is None:                         # the leg's quota in hatchet uses (hatchets_ready's rule)
-            have, need = sum(n for n, _ in self.hatchet_uses(st).values()), self.uses_needed(hop["logs_per_trip"])
-            if have < need:
+            try:
+                have = sum(n for n, _ in self.hatchet_uses(st).values())
+            except Escape as e:
+                have, why_not = None, f"a creature at home ({e})"
+            need = self.uses_needed(hop["logs_per_trip"])
+            if have is not None and have < need:
                 why_not = f"the hatchets hold {have} uses, the hop's quota may take {need}: the room first"
         data = {"trip": self.trip_n, "from": self.k["spot"]["id"], "reason": reason, "carried": carried,
                 "hop": hop if why_not is None else None, "why_not": why_not}

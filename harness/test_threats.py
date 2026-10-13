@@ -482,6 +482,28 @@ def test_spells():
        [t.serial for t in hit_attackers(a, Params(), {0x600: NOW - 1})[0]], [0x600])
 
 
+def test_own_pets():
+    print("== our own pet is never a threat or an attacker (live 2026-10-13: Dan's resting horse blamed for a spell) ==")
+    horse = mob(0x0154FE11, 0, 0, body=0xE4, noto=1, flags=0)        # Dan's horse at the landing, unlabeled
+    p = Params(aggressive_bodies=frozenset({0xE4}))                    # its body learned aggressive from the old blames
+    ev = [(NOW - 1, {"ev": "effect", "type": 0, "source": 0x0154FE11, "target": ME, "graphic": 0x36D4})]
+    a = assess(state([horse], events=ev), recall_s=2.0, margin_s=1.0, now=NOW, params=p)
+    eq("without own_pets: the horse on our tile with an aggressive body is a threat to run from",
+       (one(a, 0x0154FE11).hostile, hit_attackers(a, p, {0x0154FE11: NOW - 1})[0][0].serial), (True, 0x0154FE11))
+    own = Params(aggressive_bodies=frozenset({0xE4}), own_pets=frozenset({0x0154FE11}))
+    a = assess(state([horse], events=ev), recall_s=2.0, margin_s=1.0, now=NOW, params=own)
+    eq("own_pets: not in the threats at all, so never fled, never a thief and never blamed (even as the effect's "
+       "source)", ([t.serial for t in a.threats], hit_attackers(a, own, {0x0154FE11: NOW - 1})[0]), ([], []))
+    key, m = horse
+    left = state([])
+    left["world"]["self"]["map"] = 0
+    left["world"]["view_range"] = 18
+    left["world"]["last_seen"] = {key: {**m, "why": "delete", "t": NOW - 1, "facet": 0}}
+    eq("one that just left the view (the guild house rests it): an unseen attacker without own_pets, not with",
+       ([t.serial for t in unseen_attackers(left, p, now=NOW)], unseen_attackers(left, own, now=NOW)),
+       ([0x0154FE11], []))
+
+
 def test_unseen_attackers():
     print("== who hit us from out of view: a creature that just left it (live 2026-10-08, witcher_86) ==")
     calm = {"noto": 3, "flags": 0}
@@ -530,7 +552,7 @@ def test_known_pks():
 
 TESTS = [test_reds, test_npcs_and_players, test_monsters, test_pets, test_damage, test_label_grace,
          test_fighting_others, test_acknowledge, test_steal_guard, test_hit_attackers, test_spells,
-         test_unseen_attackers, test_known_pks]
+         test_own_pets, test_unseen_attackers, test_known_pks]
 
 
 def main():

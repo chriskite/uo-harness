@@ -150,12 +150,29 @@ def test_learned_from_hits():
     mem.close()
 
 
+def test_own_pet_teaches_nothing():
+    print("== our own mount's blamed hits and a passive name's sighting teach nothing (live 2026-10-13) ==")
+    import mount
+    mem = Memory(os.path.join(tempfile.mkdtemp(), "h.db"))
+    mount.remember(mem, "Outland Dan", 0x0154FE11, "a horse")
+    mem.job_event("lumber", "monster_hit", {"serial": "0x0154FE11", "body": 0xE4, "distance": 0, "attackers": 1})
+    mem.job_event("lumber", "monster_seen", {"serial": "0x006C89C1", "name": "a horse", "body": 0xE4})
+    mem.job_event("lumber", "monster_seen", {"serial": "0x00000123", "name": "a harpy", "body": 0x1E})
+    p = travel_guard.learned_params(mem)
+    check("the horse body stays unlearned (the hit was on our own mount, the sighting a passive name); the harpy's "
+          "is learned; our mount is own_pets",
+          0xE4 not in p.aggressive_bodies and 0x1E in p.aggressive_bodies and p.own_pets == frozenset({0x0154FE11}),
+          (sorted(p.aggressive_bodies), sorted(p.own_pets)))
+    mem.close()
+
+
 def main():
     test_routes_around_a_harpy()
     test_goal_in_reach_or_hostile_player()
     test_not_a_threat_to_us()
     test_remembered()
     test_learned_from_hits()
+    test_own_pet_teaches_nothing()
     print(f"\ntravel guard: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     return 0 if not FAILURES else 1
 

@@ -1350,7 +1350,8 @@ in view: recall) is the backstop. Reds beyond the range also stop counting as th
   actual attack (a swing at us, "… is attacking you!") still counts.
 - **witcher_59 disabled (user):** its grove borders Prevalia's guard zone; at (1917,1749) the server said
   "Harvesting is not allowed in this area." four times and the run aborted (`lumber-20261009-222948-0e46`).
-  The outcome itself is still unknown to the runner (proposal in the incident log, not built).
+  Since 2026-10-13 the runner knows the outcome: that stand's trees are ruled out for good and the run goes
+  on at the next stand (LUMBER_LOOP §13 "Outcomes"; user approved after witcher_26 the same way).
 - **witcher_211 disabled (user, 2026-10-10):** its landing rune (3939,1159) met a brigand swarm on all
   three visits of 2026-10-09/10.
 

@@ -33,6 +33,8 @@
     "depleted_clilocs": [500488, 500493],
     "nothing_near_texts": ["You do not see any harvestable resources nearby.", "You cannot produce any wood from that."],
     "nothing_near_source": "capture 20261001_214649 at 23:27 (Hackworth, self-target at 1918,2612): the system line, then the second one overhead from ourselves; pinned by test_loop_lumber.py unit_capture_smart_harvest",
+    "no_harvest_texts": ["Harvesting is not allowed in this area."],
+    "no_harvest_source": "live 2026-10-13 15:43 (Outland Dan, witcher_26, stand 2145,575; events DB session 107): a System line after the hatchet's target, four chops in a row; the stand 3 tiles away had given 894 logs",
     "demo_yield": {"attempts": 12, "successes": 2, "logs": [5, 7]},
     "area": {"center": [1935, 2605], "radius": 60,
              "note": "Shelter Island (Young may harvest in town). Candidates are tree statics from map0.uoo; harvest memory learns which ones answer, run dry or can't be reached."}

@@ -53,7 +53,7 @@ DEFAULT_WOOD = "ordinary"
 ROLLING_WINDOW_S = 3600.0
 DEATH_CAUSES = ("pk", "mob", "other")
 TIMELINE_KINDS = ("death", "theft", "pk_seen", "flee", "mob_attack", "resurrect")
-HARVEST_OUTCOMES = ("success", "fail", "depleted", "unreachable", "not_tree", "nothing_near")
+HARVEST_OUTCOMES = ("success", "fail", "depleted", "unreachable", "not_tree", "nothing_near", "no_harvest")
 
 
 # ------------------------------------------------------------------ inputs

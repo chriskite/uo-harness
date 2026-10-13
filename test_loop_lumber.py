@@ -588,6 +588,8 @@ class World:
         self.self_targets = []            # Smart Harvest answers: (our tile, the packet == the stock client's)
         self.location_answers = 0         # chop cursors answered with a location (per-tree targeting): none now
         self.nothing_near_at = []         # our tile at each 'nothing nearby'
+        self.no_harvest_trees = set()     # no_harvest: trees in a no-harvest area (the server refuses within reach)
+        self.no_harvest_at = []           # our tile at each refusal
         self.chopped = []                 # (tree tile, time) of every chop the server made
         self.doors_opened = 0
         self.containers_opened = []                          # 0x06 on the backpack (and the bag), in order
@@ -1033,6 +1035,10 @@ class World:
         self.decoys.add(self.next_gump())
         self.send(gump(self.gump_serial, 0x50000000 + self.gump_serial, DECOY_LAYOUT,
                        ["Captcha", "Guide", "Type the Value", "Click when complete"]))
+        if any(self.cheb(t) <= SIM_RANGE for t in self.no_harvest_trees):   # live 2026-10-13 witcher_26
+            self.no_harvest_at.append(tuple(self.pos))
+            self.later(0.3, [sys_text("Harvesting is not allowed in this area.")])
+            return
         near = sorted((self.cheb(t), t) for t in SIM_TREES
                       if t != (DRY_TREE["x"], DRY_TREE["y"]) and self.cheb(t) <= SIM_RANGE)
         if near and self.good_left > 0:
@@ -2472,6 +2478,28 @@ async def break_due():
           and world.logs == 0 and not world.pack_boards and world.room_log[-1][0] == "enter",
           f"chest {world.chest_stack}, harvested {world.harvested}")
     check("no threat juncture", not [j for j in store.junctures() if j["kind"] == "threat"])
+    store.close()
+
+
+async def no_harvest():
+    """User 2026-10-13 (witcher_26: "Harvesting is not allowed in this area." four times at one stand, and the run
+    aborted 3 tiles from a stand that had given 894 logs): the refusal rules that stand's trees out for good and the
+    trip goes on at the next stand; it chops there and stores (exit 0), and never comes back to the refused one."""
+    print("\n== no-harvest area: the refused stand's trees ruled out, the trip goes on and stores ==")
+    world = World("no_harvest")
+    world.no_harvest_trees = {(DRY_TREE["x"], DRY_TREE["y"])}
+    text, code, store, _ = await run_scenario(world, "no_harvest", [GOOD_TREE, DRY_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05"])
+    eps = store.episodes("lumber")
+    node = store.harvest_node(0, DRY_TREE["x"], DRY_TREE["y"], DRY_TREE["z"]) or {}
+    check("one refusal at the dry tree's stand; its tree ruled out for good (not_tree); never a 'no recognised "
+          "outcome'", len(world.no_harvest_at) == 1 and node.get("not_tree") == 1
+          and "harvesting is not allowed in this area" in text and "no recognised outcome" not in text,
+          f"refused at {world.no_harvest_at} node {node}\n{text[-600:]}")
+    check("the trip chopped on at the good tree and stored (exit 0)",
+          code == 0 and [e["outcome"] for e in eps] == ["stored"] and world.harvested > 0,
+          f"exit {code} {[(e['outcome'], e.get('why')) for e in eps]} harvested {world.harvested}")
     store.close()
 
 
@@ -4475,6 +4503,82 @@ def unit_escape_heal():
     check("ESCAPE_HEAL_CURSOR_WAIT_S covers Greater Heal's 1.25 s", loop_lumber.ESCAPE_HEAL_CURSOR_WAIT_S > 1.27)
 
 
+def unit_hop_creature_at_home():
+    """try_hop after an escape recall (live 2026-10-13, lumber-20261013-161548-a508): the threat checks in the hatchets'
+    clicks raised an Escape at the landing, inside the red's Unsafe, and the run crashed ('Crashed: Escape'). Now a
+    creature to run from there means no hop: None, a `hop` event saying why, and the leg goes to the room."""
+    print("\n== try_hop: a creature at home during the hop's hatchet check -> no hop, no crash ==")
+    import types
+    import loop_lumber
+    events, logged = [], []
+
+    def clicks(st):
+        raise loop_lumber.Escape([], "monster 0x0154FE11 at 0 tiles (ETA 0.0 s)")
+    st = {"world": {"self": {"hits": 100, "hits_max": 100}}, "movement": {"pos": [4134, 1429, 6, 0]}}
+    fake = SimpleNamespace(
+        link=SimpleNamespace(state=lambda: st, pos=lambda s: s["movement"]["pos"]), hop_blocked=lambda s: None,
+        count=lambda s, g: 2497, doing=lambda *a: None, self_serial=lambda s: 1, facet_now=lambda s: 0,
+        args=SimpleNamespace(spots=None), k={"spot": {"id": "witcher_20"}}, home={}, trip_n=1,
+        hatchet_uses=clicks, uses_needed=lambda logs: 1000, _where=lambda s: {},
+        memory=SimpleNamespace(job_event=lambda job, kind, data, **w: events.append((kind, data))),
+        settle_at_home=lambda: logged.append("settled"))
+    fake.try_hop = types.MethodType(loop_lumber.LumberLoop.try_hop, fake)
+    plan = loop_lumber.lumber_opt.plan_from_store
+    loop_lumber.lumber_opt.plan_from_store = lambda *a, **kw: {"hop": {"spot": "witcher_1", "logs_per_trip": 5000,
+                                                                       "gain_logs": 40}}
+    try:
+        out = fake.try_hop("threat: red Iesus Nazarenus at 18 tiles", None, recall=False)
+    finally:
+        loop_lumber.lumber_opt.plan_from_store = plan
+    hop = [d for k, d in events if k == "hop"]
+    check("no hop (None), not settled for one; the `hop` event names the creature at home",
+          out is None and not logged and hop and hop[0]["hop"] is None and "a creature at home" in hop[0]["why_not"],
+          f"{out} {logged} {hop}")
+
+
+def unit_no_harvest():
+    """User 2026-10-13 (witcher_26, lumber-20261013-152138-72a9): "Harvesting is not allowed in this area." at a stand
+    3 tiles from one that gave 894 logs ended the run after four 'no recognised outcome's. Now it is an outcome
+    (lumber.json no_harvest_texts): the trees within reach are ruled out for good (memory: no_harvest, like not_tree)
+    and leave the trip's list; the run goes on at the next stand."""
+    print("\n== 'Harvesting is not allowed in this area.': ruled out for good, the next stand ==")
+    import types
+    import loop_lumber
+    from memory import Memory
+    know = json.load(open(f"{ROOT}/harness/data/loops/lumber.json", encoding="utf-8"))
+    evs = [{"ev": "cliloc", "serial": 0xFFFFFFFF, "cliloc": 1010018},
+           {"ev": "speech_heard", "serial": 0xFFFFFFFF, "name": "System", "text": "Harvesting is not allowed in this area."}]
+    check("outcome(): the live lines -> no_harvest",
+          LumberLoop.outcome(SimpleNamespace(k=know, since=lambda m: evs[m:]), 0) == ("no_harvest", 0))
+    anchor = {"x": 2144, "y": 576, "z": 0, "graphic": "0x0CE0"}
+    near, far = {"x": 2146, "y": 577, "z": 0, "graphic": "0x0CE0"}, {"x": 2149, "y": 575, "z": 0, "graphic": "0x0CE0"}
+    mem = Memory(os.path.join(tempfile.mkdtemp(), "h.db"))
+    events = []
+    fake = SimpleNamespace(
+        doing=lambda *a: None, tree_z_ok=lambda t: None, tree_rethink=lambda *a: None,
+        link=SimpleNamespace(pos=lambda st: (2145, 575, 0), state=lambda: {}, last={}),
+        mover=SimpleNamespace(walk_to=lambda *a, **kw: None), timing={"walk_out_s": 1.0, "tree_walk_s": 0.0},
+        trip_n=1, k={"spot": {"id": "witcher_26"}}, harvesting=False, ending=None, break_due=False,
+        finish_requested=False, args=SimpleNamespace(max_attempts_per_stand=60, logs_per_trip=500),
+        track_ensure=lambda *a: None, unstick=lambda stand: False, stats={}, attempt=lambda: ("no_harvest", 0),
+        chopped=lambda *a: None, stash_now=lambda: None, facet=0,
+        memory=SimpleNamespace(harvest_record=mem.harvest_record,
+                               job_event=lambda job, kind, rec, **kw: events.append(rec)))
+    for name in ("work_stand", "tree_route_max"):
+        setattr(fake, name, types.MethodType(getattr(loop_lumber.LumberLoop, name), fake))
+    trees = [near, far]
+    tally = {"gained": 0, "attempts": 0, "successes": 0, "unknown": 0}
+    fake.work_stand(anchor, trees, tally)          # returns (next stand) instead of Abort
+    check("the stand ends 'no_harvest' at once; the trees within 2 leave the trip's list, the one 4 off stays",
+          events and events[0]["end"] == "no_harvest" and events[0]["attempts"] == 0 and trees == [far]
+          and tally["unknown"] == 0, f"{events} {trees} {tally}")
+    check("memory: both trees within 2 ruled out for good (not available even a year on); the far one untouched",
+          not mem.harvest_available(0, 2144, 576, 0, 60, time.time() + 365 * 86400)
+          and not mem.harvest_available(0, 2146, 577, 0, 60, time.time() + 365 * 86400)
+          and mem.harvest_available(0, 2149, 575, 0, 60, time.time()))
+    mem.close()
+
+
 def unit_dispel_field():
     """dispel_field, the Mover's `dispel` (user 2026-10-11: "PKs will also cast walls as Jimi Hendrix did (In Sanct
     Ylem) which we can dispel with the spell Dispel Field"): the cast (0xFF sub 4, spell 34), its cursor answered with
@@ -5046,8 +5150,8 @@ async def run_async(fn):
 
 
 if __name__ == "__main__":
-    runs = [main, skirmish, leash, break_due, stop_after_trip, library, library_chased, track_reds, gazer_run,
-            gazer_rehit, gazer_reflect, unseen_caster, pacer,
+    runs = [main, skirmish, leash, break_due, no_harvest, stop_after_trip, library, library_chased, track_reds,
+            gazer_run, gazer_rehit, gazer_reflect, unseen_caster, pacer,
             wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, escape_heal, guard_run, pk_island,
             work_heal, work_spell, thief_keep_away,
             pouch_pop, faction_lone, known_pk, wards,
@@ -5060,6 +5164,7 @@ if __name__ == "__main__":
             hop,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_smart_range,
             unit_run_and_recall, unit_escape_heal, unit_dispel_field, unit_guard_route, unit_escape_direction,
+            unit_hop_creature_at_home, unit_no_harvest,
             unit_thief_out, unit_boxed_in,
             unit_death_cause, unit_zone_stall,
             unit_zone_view_edge, unit_home_on_abort,

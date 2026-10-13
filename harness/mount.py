@@ -51,6 +51,15 @@ def remembered(mem, character: str | None) -> int | None:
     return _serial(got["serial"]) if got else None
 
 
+def own_serials(mem) -> frozenset:
+    """Every character's remembered mount (meta `own_mounts`): our own pets, never a threat
+    (threats.Params.own_pets)."""
+    import json
+    import task_wrap
+    return frozenset(_serial(v["serial"]) for v in json.loads(task_wrap.meta_get(mem, OWN_MOUNTS_KEY) or "{}").values()
+                     if v.get("serial"))
+
+
 def remember(mem, character: str | None, serial: int, name: str | None):
     """Keep `serial` as `character`'s mount (its menu said it's ours)."""
     import json

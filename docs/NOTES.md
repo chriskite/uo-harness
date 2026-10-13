@@ -2347,6 +2347,18 @@ heals, no dispels, no locked doors and no heal potions.
   while the same ClassicUO process stayed up. The user called it a server-side hiccup. Run
   `lumber-20261013-134300-281d` aborted at witcher_177 with ~2500 logs in the pouch ("could not stash or
   convert the carried logs: state port: no active session").
+- **Dan's own horse was blamed for hits (found 2026-10-13, Seer-28).** In `lumber-20261013-161548-a508`, a
+  red's first-sight recall landed Dan at the guild-house landing (16:47:38). A spell effect then counted
+  as a hit (0 hits lost), and the runner blamed 0x0154FE11, Dan's horse resting there (body 0xE4, no
+  label, 0 tiles). The resulting Escape came out of `try_hop`'s hatchet clicks, inside the red's Unsafe,
+  and crashed the run (job event 13592; traceback in the task log, lines 1271-1360).
+  - **Earlier blames.** The job events hold five `monster_hit` rows blaming the horse since 2026-10-09.
+  - **Every horse became aggressive.** The first row, a sole attacker, taught body 0xE4 aggressive.
+    That made a wild "a horse" (0x006C89C1) a hostile sighting on 2026-10-10, which kept teaching it.
+  - **Fixed 2026-10-13.** `threats.Params.own_pets` holds every remembered mount (`mount.own_serials`),
+    and such pets are never in the threats. `learned_params` skips their hits and sightings, and any
+    sighting with a passive name. `try_hop` treats an Escape as "no hop". On a copy of the live store,
+    0xE4 was aggressive before the fix and is not after it.
 
 ## A "thief" who killed: gorilkaenjoyer at witcher_105 (live 2026-10-10, Seer-17)
 

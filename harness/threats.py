@@ -330,6 +330,9 @@ class Params:
     steal_guard: int = 0
     # known PKs (harness/known_pks.py; user 2026-10-10): lowercase names and serials, fled on sight
     known_pks: frozenset = frozenset()
+    # our own pets' serials (mount.own_serials; live 2026-10-13 Dan's resting horse was blamed for a spell
+    # at the guild-house landing and its body learned aggressive): never a threat, a thief or an attacker
+    own_pets: frozenset = frozenset()
     # self damage
     damage_window_s: float = 10.0
     damage_threshold: int = 1
@@ -636,7 +639,7 @@ def assess(state: dict, *, recall_s: float, margin_s: float, now: float | None =
     threats = []
     for key, mob in (world.get("mobiles") or {}).items():
         serial = _serial(key)
-        if serial == me or mob.get("x") is None or mob.get("y") is None:
+        if serial == me or serial in params.own_pets or mob.get("x") is None or mob.get("y") is None:
             continue
         label = labels.get(key) or labels.get(f"0x{serial:08X}")
         kind, player, evidence = identify(mob, label, serial in monsters)

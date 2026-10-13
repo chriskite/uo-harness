@@ -871,7 +871,7 @@ def tree_yield(attempts, tiles_by_spot: dict, now: float, regrow_min: float, lps
     for t, facet, x, y, _z, outcome, amount in attempts:
         k = (facet, x, y)
         d = tiles.setdefault(k, {"tried": False, "yielded": False, "not_tree": False, "out_t": None, "outs": []})
-        if outcome != "nothing_near":
+        if outcome not in ("nothing_near", "no_harvest"):
             d["tried"] = True
         if outcome == "success":
             c = cur.setdefault(k, [0, 0])
@@ -887,7 +887,7 @@ def tree_yield(attempts, tiles_by_spot: dict, now: float, regrow_min: float, lps
         elif outcome in ("unreachable", "nothing_near"):
             d["out_t"] = t
             d["outs"].append(t)
-        elif outcome == "not_tree":
+        elif outcome in ("not_tree", "no_harvest"):      # no_harvest: in a no-harvest area, never again
             d["not_tree"] = True
     window = regrow_min * 60.0
     at = at or {}
