@@ -424,9 +424,9 @@ class Team:
         return got[0]
 
     def rested(self, st) -> bool:
-        """Resting: every pet with us at --pet-heal-at, or no veterinary supplies to get it there."""
-        if not healing.in_pack(st["world"], self.h.me(st), VET_SUPPLIES_GRAPHIC):
-            return True
+        """Resting: every pet with us at --pet-heal-at, by the vet supplies or, with none left, by
+        natural regeneration (--rest-timeout bounds the rest). Going back in with a hurt pet made the
+        simulator's runs recall in and out hundreds of times an hour (docs/SIM.md)."""
         return all(p["frac"] >= self.a.pet_heal_at for p in self.pets(st) if not p["dead"])
 
     def follow(self, severity: str = "info"):

@@ -2381,6 +2381,10 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
   (the two-attacker leave rule). Both fixed.
 - A hurt leave that recalls at once strands a pet more than 3 tiles off; one that stands waiting dies to
   bleeds. `tamer.follow` now falls back from the attackers while the pets come.
+- Out of vet supplies, `tamer.rested` counted a pet below `--pet-leave-at` as rested, so the run
+  recalled in, left on arrival for that pet, and recalled out again: up to 436 recalls in a game hour
+  (17 of 48 one-hour runs). Fixed: the rest waits for natural regeneration, bounded by
+  `--rest-timeout`. Live this would also have burned the tome's charges in a pattern no player makes.
 
 ## Logan Wolf's tamer fighting at the Mausoleum (capture 20261012_210013, analysed 2026-10-12)
 

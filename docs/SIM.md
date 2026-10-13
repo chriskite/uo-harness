@@ -133,6 +133,32 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   Deaths cluster in the shade wolf room at (5180, 710) (several melee mobs at once) and under banshees
   (5205-5210, 705-720). Nothing adopted as a default: the monsters' damage to the player is the least
   calibrated number (23 hits on the trip), see the captures wanted.
+- **Recall ping-pong once the vet supplies ran out** (fixed, `tamer.rested`): with no supplies the rest
+  counted every pet as rested, so a pet below `--pet-leave-at` made the run leave on arrival, rest,
+  recall in and leave again, up to 436 recalls in a game hour (17 of 48 one-hour runs). The rest now
+  waits for natural regeneration to `--pet-heal-at` and stops the run past `--rest-timeout`.
+- **One-hour runs** (48 x 60 min, defaults, after that fix; 28.8 game hours):
+
+  | measure | value |
+  |---|---|
+  | kills / hour on the level | 69 (trip: 115) |
+  | gold / game hour | 50,800 |
+  | deaths / game hour | 0.52 (15 of 48 runs die once) |
+  | runs that strand the gravebug on a hurt leave | 10 of 48 |
+  | vet supplies out (59 carried) | 27 of 48 runs, median ~30 min in |
+  | median run length | 38 game minutes of 60 |
+
+  Kills: banshee 610, shadow minion 371, apparition 220, vampire bat 82, shadowguard 73, shade wolf 60,
+  nightstalker 3, reanimated knight 2 (median time from target to kill: shadow minion 14 s, vampire
+  bat 15 s, shade wolf 18 s, banshee 22 s, shadowguard 30 s, apparition 32 s; 53 apparitions
+  dropped as unengaged). Deaths: 8 of 15 in the room at (5180-5182, 709-715), where a nightstalker
+  with a reanimated knight or shade wolf takes us from full hits in under 15 s (the pets killed only 3
+  nightstalkers and 2 knights in 28.8 hours); 4 under banshees (5206-5207, 704-705); 1 to vampire
+  bats at (5208, 694); 2 after the recall home (a bleed finishing a 30-odd-hits leave; the run, aborted
+  for the stranded pet, doesn't drink or bandage at home). How hard those melee monsters hit us is
+  the wiki's damage x 0.5, never measured (capture 1 and 4 below), so the death rate there is a
+  guess; the run lengths are set by the 59 vet supplies, which is a real constraint (the trip used
+  43 in 13 minutes).
 
 ## Limits
 
@@ -144,6 +170,9 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
 - Where recall works inside the Mausoleum is unknown: allowed anywhere (`recall.allowed_from` null).
 - Pet AI is a model: Follow ignores attackers, Guard takes whatever attacks us or the pets, Kill holds
   its target, pets within 3 tiles come along on a recall (ServUO's TeleportPets range [INFERENCE]).
+- The rune tome's charges aren't spent (36 on the trip); the ping-pong above would have emptied it.
+- Each run starts with an empty memory database, so the crawl's learned avoidance (e.g. "fled from it
+  in 37% of fights") never carries over between runs as it would live.
 
 ## Captures wanted (live, on Logan Wolf)
 

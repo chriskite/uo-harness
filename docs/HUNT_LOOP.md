@@ -301,7 +301,9 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    finish, so no step during it. Used for a hurt or poisoned pet in range, or for us below
    `--heal-at` with no heal potion ready; a hurt pet out of range is walked to (1 tile: bandaging
    reaches 2 only after 5 s stationary) when nothing is on us. No supplies: a `low_supplies`
-   juncture (item `veterinary supplies`).
+   juncture (item `veterinary supplies`). Resting outside waits for every pet to reach
+   `--pet-heal-at`, by the supplies or, with none, by natural regeneration; past `--rest-timeout`
+   the run stops rather than go back in with a hurt pet (that pet's leave rule would fire on arrival).
 5. **Self care**: heal potions as the mage style drinks them (Logan's sit in a potion satchel inside
    a bag: every bag depth is searched); the retreat above (live 21:27:50 a bleed took Logan from 72
    to 35 hits in 2 s; he ran 18 tiles while drinking and the pets held the mob).

@@ -177,11 +177,43 @@ def test_hunt():
     check("much faster than real time", (r["speed_x"] or 0) > 20, f"{r['speed_x']}x")
 
 
+def test_rest_hurt_pet():
+    print("== out of vet supplies, the rest waits for a hurt pet instead of going back in ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    sc = load()
+    sc["player"]["start"] = sc["recall"]["rows"][0]["at"]           # home
+    sc["loadout"]["items"] = [it for it in sc["loadout"]["items"] if it.get("kind") != "vet"]
+    w = World(sc, seed=1)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.hits = int(gb.hits_max * 0.15)                                # below --pet-leave-at 0.20
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(sc, ["--rest-timeout", "300"], 10)
+                                             + ["--memory", db, "--seed", "1"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            t0 = clock.elapsed
+            rested = loop.rest()
+            took = clock.elapsed - t0
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("no supplies, the gravebug at 15%: not rested until --rest-timeout (it regenerates meanwhile)",
+          not rested and took >= 300 and gb.hits > gb.hits_max * 0.15, f"{rested} {took:.0f} s {gb.hits}/{gb.hits_max}")
+
+
 def main():
     if pathfind.Walkers().get(0) is None:
         print("SKIP: no map files (install dir)")
         return 0
-    for t in (test_clock, test_geometry, test_aggro, test_bard_and_vet, test_hunt):
+    for t in (test_clock, test_geometry, test_aggro, test_bard_and_vet, test_hunt, test_rest_hurt_pet):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0
