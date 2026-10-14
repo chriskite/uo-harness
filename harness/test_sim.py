@@ -451,6 +451,35 @@ def test_pull_budget():
           out["consort in sight"] and "vampiric consort" in out["consort in sight"], str(out))
 
 
+def test_hold_first_sight():
+    print("== --hold-first-sight: nothing fighting, an idle monster sees us: hold up to 10 s, then pass it over ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    w = world_with([{"key": "shade wolf", "at": [5266, 658, 0]}])
+    wolf = next(m for m in w.mobs.values() if m.kind == "monster")
+    wolf.calm_until = 1e9                               # it stays idle: the expiry is what's tested
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            first = loop.team.hold_reason(loop.state())
+            clock.advance(tamer.HOLD_S + 1)
+            later = loop.team.hold_reason(loop.state())
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("a shade wolf in sight at 10 tiles: hold", first and "shade wolf" in first, str(first))
+    check("...and after HOLD_S without it coming, no longer", later is None, str(later))
+
+
 def test_rest_hurt_pet():
     print("== out of vet supplies, the rest waits for a hurt pet instead of going back in ==")
     import tempfile
@@ -488,7 +517,7 @@ def main():
         print("SKIP: no map files (install dir)")
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
-              test_standoff, test_heal_in_place, test_songs, test_pull_budget, test_rest_hurt_pet):
+              test_standoff, test_heal_in_place, test_songs, test_pull_budget, test_hold_first_sight, test_rest_hurt_pet):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

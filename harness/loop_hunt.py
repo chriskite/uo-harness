@@ -1827,6 +1827,10 @@ class HuntLoop:
         if self.war_mode(st, False):
             log("nothing near: war mode off")
             self.human.wait("read")
+        if self.team is not None and (why := self.team.hold_reason(st)):
+            self.doing("hold", f"Holding: {why}")
+            time.sleep(POLL_S)
+            return False
         if self.crawl is not None:
             self.crawl.idle(st)
             return False
@@ -2032,6 +2036,9 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--never-aggro", action="append", default=None, metavar="TYPE",
                     help="--pets: a creature type (no article) never to wake while alone: its sight is no-go and "
                          "one that comes for us is run from (repeat; default: vampiric consort, user 2026-10-13)")
+    ap.add_argument("--hold-first-sight", action=argparse.BooleanOptionalAction, default=True,
+                    help="--pets, nothing fighting: stop where an idle monster first sees us within its aggro "
+                         "range and let it come (up to 10 s each), as Logan at the nightstalker room's edge")
     ap.add_argument("--reposition", action=argparse.BooleanOptionalAction, default=True,
                     help="--pets: in a fight, step to a nearby tile that keeps the pets in vet range with fewer "
                          "idle monsters and casters able to see us (aggro.View.stand_score)")

@@ -347,10 +347,16 @@ live), monster z from the map surface, aggro range 10 (the simulator's) [INFEREN
 | `--pull-budget` | `3.0` | While the pets fight monsters worth E, an advance (patrol, approach) stops where more would wake (W, idle monsters that would see us within 12 tiles) when E + W is above it. 0 = off. |
 | `--never-aggro TYPE` | vampiric consort | Never wake it alone (repeat for more types). |
 | `--reposition` / `--no-reposition` | on | In a fight, step to a better tile for line of sight. |
+| `--hold-first-sight` / `--no-hold-first-sight` | on | Nothing fighting: stop where an idle monster first sees us within its aggro range, and let it come. |
 
 - **Weights** ("weighted by danger"): (wiki difficulty - 50) / 40, clamped to 0.25-3: a vampire bat
   0.43, a shadow minion 0.53, a shade wolf 0.92, a banshee 1.6, a nightstalker 1.8, a shadowguard 2.05,
-  the countess 2.4. With nothing fighting, a pack is pulled whole (it is fought alone then).
+  the countess 2.4.
+- **Hold at first sight** (Logan at the nightstalker room's north edge: the wolves and the stalker came
+  to him 5-10 s after first sight, the knight only when he moved on): with nothing fighting, the patrol,
+  an approach and the idle tick stop as soon as an idle monster sees us within 10 tiles, for up to 10 s
+  per monster; one that hasn't come by then is passed over. Packs come to us in stages instead of being
+  walked into (docs/SIM.md: a third fewer deaths).
 - **Never-aggro monsters**: their sight within 13 tiles is no-go: the patrol stops before it, the
   crawl skips waypoints within 15 of one and routes keep out (`crawl.Crawl.observe`); the runner never
   pulls one. One that comes for us in war mode is run from ("I run until the consort leashes and I'm

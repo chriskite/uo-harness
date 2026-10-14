@@ -373,6 +373,21 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
     from a small sample of early-death runs; on longer runs it is 5.9/s. The room's toll is more likely
     how the runner walks in: from the south past the stalker and the knight, waking both, where Logan
     held at the north edge and let them come in stages [INFERENCE].
+- **Hold at first sight** (`--hold-first-sight`, 2026-10-14; docs/HUNT_LOOP.md "Aggro"): with nothing
+  fighting, stop where an idle monster first sees us and let it come, as Logan did at the nightstalker
+  room. 98 x 60 min per arm, the other aggro rules on:
+
+  | measure | zone, hold | zone, no hold | loop, hold | loop, no hold |
+  |---|---|---|---|---|
+  | deaths / game hour | 0.51 | 0.81 | 2.23 | 3.54 |
+  | runs with a death / a pet death | 29 / 40 | 43 / 50 | 49 / 61 | 49 / 71 |
+  | kills / hunting hour | 82 | 84 | 97 | 101 |
+  | gold / game hour | 71,100 | 74,200 | 64,600 | 69,300 |
+  | median run (min) | 32 | 28 | 6 | 4 |
+
+  - A third fewer deaths in the zone crawl and over a third fewer in the loop, for 4-7 % less gold.
+  - The loop still dies four times as often as the zone crawl; the nightstalker still does most of its
+    pet damage (4,800 an hour).
 
 ## Limits
 

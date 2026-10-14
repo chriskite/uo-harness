@@ -132,6 +132,7 @@ EVADE_MOVES = 40
 REPOSITION_S = 3.0
 REPOSITION_STEPS = 2
 REPOSITION_GAIN = 1.0         # a caster's sight less, or a tenth of an idle monster's weight
+HOLD_S = 10.0                 # hold this long for an idle monster that sees us (live: 5-10 s to war mode)
 
 # The only phrases ever said to the pets, as Logan Wolf's hotkeys say them
 COMMANDS = {c.lower(): c for c in ("All Guard Me", "All Follow Me", "All Kill", "All Stop", "All Stay", "All Come")}
@@ -308,6 +309,7 @@ class Team:
         self.counts = {}
         self.fought = {}                 # serial -> (last-seen mob dict, monotonic): mobs the pets fought
         self.chargers = set(CHARGERS)    # creature types with an area Charge (known + seen this run)
+        self.hold_until = {}             # serial -> until when we hold for it to come (pull_check)
         self.standoff_t = -1e9
         self.songs = {}                  # song skill -> monotonic time it runs out
         self.song_ready = 0.0
@@ -568,16 +570,36 @@ class Team:
         return self._view
 
     def pull_check(self, st) -> str | None:
-        """Why an advance (a patrol walk, an approach) should stop here: aggro.View.overpull."""
+        """Why an advance (a patrol walk, an approach) should stop here: aggro.View.overpull, or
+        hold_reason."""
         budget = self.a.pull_budget
         v = self.view(st)
         why = v.overpull(budget) if budget > 0 else (f"a {v.never_near(v.pos)[0]['kind']} would see us"
                                                      if v.never_near(v.pos) else None)
+        why = why or self.hold_reason(st)
         if why and why != self.pull_why:
             self.count("pull_holds")
             log(f"holding here: {why}")
         self.pull_why = why
         return why
+
+    def hold_reason(self, st) -> str | None:
+        """--hold-first-sight, nothing fighting: an idle monster that sees us within its aggro range now;
+        hold up to HOLD_S and let it come (Logan at the nightstalker room's north edge, 20261013_204518:
+        the wolves and the stalker came 5-10 s after first sight, the knight only when he moved on). A
+        monster held for that long without coming is passed over."""
+        v = self.view(st)
+        if not self.a.hold_first_sight or v.engaged():
+            return None
+        now = time.monotonic()
+        seen = []
+        for m in v.wakes(v.pos, margin=0):
+            if self.hold_until.setdefault(m["serial"], now + HOLD_S) > now:
+                seen.append(m)
+        if not seen:
+            return None
+        m = min(seen, key=lambda m: cheb(m["pos"], v.pos))
+        return f"{m['kind']} sees us at {cheb(m['pos'], v.pos)} tiles: letting it come"
 
     def evade(self, st) -> bool:
         """A --never-aggro monster in war mode near (aggro.View.chasing): 'All Follow Me' and run from it,
@@ -870,7 +892,7 @@ class Team:
             self.all_kill(serial)
             return
         if not engaged:
-            if not on_us and cheb(h.pos(st), (mob["x"], mob["y"])) > APPROACH_R:
+            if not on_us and cheb(h.pos(st), (mob["x"], mob["y"])) > APPROACH_R and not self.hold_reason(st):
                 self.approach(serial, mob)
                 return
             h.doing("wait", f"Pets on guard; waiting for {name} to come on", (mob["x"], mob["y"]), serial)
