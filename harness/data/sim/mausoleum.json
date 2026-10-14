@@ -129,6 +129,13 @@
     "graphic": 29103,
     "kind": "tome",
     "charges": 36
+   },
+   {
+    "serial": 1190432323,
+    "graphic": 5370,
+    "amount": 15,
+    "kind": "rope",
+    "note": "adventurer's rope : 15 (0x46F48E43, graphic 0x14FA, 20261014_173858)"
    }
   ],
   "note": "Logan Wolf's pack at 21:25 (capture): vet supplies in a bag, heal and cure potions in an exceptional bronzehide potion satchel in a bag, the rune tome (graphic 29103); vet supplies 200, not the trip's 59 (user 2026-10-13: take more in; 59 ran out ~30 min into most simulated hours)"
@@ -333,6 +340,16 @@
     "range": 12,
     "targets": 3,
     "damage": [37, 42]
+   }
+  ],
+  "reanimated knight": [
+   {
+    "kind": "charge",
+    "cooldown_s": 8.5,
+    "range": 12,
+    "targets": 3,
+    "damage": [25, 35],
+    "note": "'*charges*' 3 times live (20261013_173449 17:40:23, 20261013_204518 20:50:09, 20261014_173858 17:41:15.6); only the last hit anyone: -32 on Logan 1.0 s after [INFERENCE: the nightstalker's Charge rules and cooldown, damage around the one number]"
    }
   ],
   "elder vampire": [

@@ -395,6 +395,13 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   (71,100); loop 2.14 deaths (2.23), 40 runs with a death (49), 62 with a pet death (61), 95 kills
   (97), 63,700 gold (64,600). More kills and gold in the zone crawl, fewer runs with a death in the
   loop; the pet deaths didn't move. The nightstalker still does 5,300 an hour on the pets in the loop.
+- **The 2026-10-14 runs** (docs/NOTES.md "Logan Wolf's Mausoleum runs of 2026-10-14"): the reanimated
+  knight now charges like the nightstalker (live -32 on Logan once in 3 charges) and the character
+  carries 15 Adventurer's Ropes (the simulator answers `[Rope` with the prompt and a cursor, jumps up to
+  10 tiles in sight, takes the following pets along, 5 s cooldown). Same arms: zone 0.40 deaths a game
+  hour, 24 runs with a death, 42 with a pet death, 87 kills a hunting hour, 77,100 gold; loop 2.47, 50,
+  59, 96, 65,500. The knight's charges do 69 (zone) and 216 (loop) an hour to us. The ropes don't run:
+  no players in the simulator, so no flight from one.
 
 ## Limits
 

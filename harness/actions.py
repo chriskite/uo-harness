@@ -232,6 +232,18 @@ def razor_say(text: str, hue: int = RAZOR_SPEECH_HUE) -> bytes:
     return pkt[:1] + struct.pack(">H", len(pkt)) + pkt[3:]
 
 
+ASCII_SPEECH_HUE = 0x0033      # 0x03 as Logan Wolf's client sent "[Rope" (20261013_173449, 20261014_173858)
+
+
+def say_ascii(text: str, hue: int = ASCII_SPEECH_HUE, font: int = 0, msg_type: int = 0) -> bytes:
+    """0x03 ASCII speech: `03 <len u16> <type u8> <hue u16> <font u16> <text> 00`. Live ground truth:
+    "[Rope" (an Adventurer's Rope, the server's "[" command) as `03 000e 00 0033 0000 5b526f706500`."""
+    _check_u8(msg_type, "msg_type")
+    _check_u16(hue, "hue")
+    _check_u16(font, "font")
+    return _var(0x03, struct.pack(">BHH", msg_type, hue, font) + _ascii(text, "text") + b"\x00")
+
+
 def single_click(serial: int) -> bytes:
     """0x09 single click (LookRequest): `09 <serial u32be>`."""
     _check_u32(serial, "serial")

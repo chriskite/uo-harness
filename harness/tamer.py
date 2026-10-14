@@ -120,7 +120,7 @@ FOUGHT_S = 60.0              # a mob the pets fought that dies within this is ou
 # Monsters with an area Charge (knowledge #14625: it teleports up to 12 tiles next to its target and hits
 # up to 3 within 1 tile; live 21:21:14 a nightstalker's Charge hit the gravebug -37 and Logan -42 at once).
 # More are learnt from a "*charges*" over a creature.
-CHARGERS = {"nightstalker"}
+CHARGERS = {"nightstalker", "reanimated knight"}   # the knight: '*charges*' 3 times live, once -32 on Logan (20261014_173858)
 TEXT_CHARGES = "*charges*"
 CHARGE_SAFE_R = 3             # tiles from a charger and from a pet beside it: clear of where its Charge lands
 STANDOFF_MOVES = 6
@@ -146,6 +146,7 @@ TEXT_CALM_WAIT = "You must wait a few moments before you may provoke or pacify a
 TEXT_IMMUNE = "That target is currently under a barding break effect."
 TEXT_BEYOND = "beyond your skill"
 TEXT_INCITE_SECOND = "Whom do you wish them to attack?"
+SONG_ENDS = re.compile(r"^Your Song of (Discordance|Peacemaking|Provocation) effect ends\.")   # live 20261014_170144
 TEXT_POISONED = "*looks violently ill*"
 OK_SKILL = {"disrupting": SKILL_DISCORD, "pacifying": SKILL_PEACE, "provoking": SKILL_PROVO}
 FAIL_SKILL = {"discord": SKILL_DISCORD, "pacify": SKILL_PEACE, "incite": SKILL_PROVO}
@@ -369,6 +370,9 @@ class Team:
                     self.vet_busy_until = min(self.vet_busy_until, now)
                     if text == TEXT_VET_FAR:
                         log("vet supplies: too far from every pet at the finish")
+                elif m := SONG_ENDS.match(text):
+                    sid = {v: k for k, v in SONG_NAMES.items()}[m.group(1)]
+                    self.songs[sid] = 0.0                   # live: 15 min 4 s after it started
             elif kind == "speech_heard" and s is not None:
                 if s in self.roster and text == TEXT_POISONED:
                     self.poisoned_t[s] = now

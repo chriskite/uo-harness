@@ -19,7 +19,7 @@ import tamer  # noqa: E402
 from sim import clock as simclock  # noqa: E402
 from sim.link import SimLink  # noqa: E402
 from sim.scenario import bard_chance, load  # noqa: E402
-from sim.world import Mob, World  # noqa: E402
+from sim.world import Mob, World, cheb as sim_cheb  # noqa: E402
 
 FAILURES = []
 WALL_FROM, WALL_TO = (5266, 648, 0), (5265, 657, 0)     # live: "Target cannot be seen." (a stone wall at 5265,656)
@@ -481,6 +481,39 @@ def test_hold_first_sight():
     check("...and after HOLD_S without it coming, no longer", later is None, str(later))
 
 
+def test_rope():
+    print("== --rope: an Adventurer's Rope jump along the route, the following pets along; 5 s cooldown ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    w = world_with([])
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1"])
+    rope = next(it for it in w.items.values() if it.get("kind") == "rope")
+    n0, start = rope["amount"], w.player.pos
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            first = loop.rope_jump((5266, 659))
+            landed = w.player.pos
+            again = loop.rope_jump((5266, 659))
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    d = sim_cheb(start, w.player.pos)
+    check("a jump of 4-9 tiles toward the goal, one rope used", first and 4 <= d <= 9 and rope["amount"] == n0 - 1,
+          f"{start} -> {landed}, ropes {n0} -> {rope['amount']}")
+    check("...the following pets beside us", all(sim_cheb(p.pos, w.player.pos) <= 1 for p in w.pets()),
+          str([p.pos for p in w.pets()]))
+    check("...and no second jump within the cooldown", again is False)
+
+
 def test_rest_hurt_pet():
     print("== out of vet supplies, the rest waits for a hurt pet instead of going back in ==")
     import tempfile
@@ -518,7 +551,8 @@ def main():
         print("SKIP: no map files (install dir)")
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
-              test_standoff, test_heal_in_place, test_songs, test_pull_budget, test_hold_first_sight, test_rest_hurt_pet):
+              test_standoff, test_heal_in_place, test_songs, test_pull_budget, test_hold_first_sight, test_rope,
+              test_rest_hurt_pet):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

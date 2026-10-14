@@ -135,6 +135,7 @@ import combat  # noqa: E402
 import crawl  # noqa: E402
 import escape as escape_mod  # noqa: E402
 import healing  # noqa: E402
+import los  # noqa: E402
 import nav  # noqa: E402
 import moongate  # noqa: E402
 import threats  # noqa: E402
@@ -148,6 +149,12 @@ from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 from speech_guard import SpeechGuard, staff_hints, what  # noqa: E402
 
+ROPE_GRAPHIC = 0x14FA         # an adventurer's rope (a stack of 15 in Logan's pack, 20261014_173858)
+ROPE_R = 9                    # live jumps 7, 9, 10 tiles; an 11-tile target was refused: one short
+ROPE_COOLDOWN_S = 5.3         # knowledge #13325: 5 s from the use (unless PvP flagged), a margin
+ROPE_RETRY_S = 2.0            # after a try that found no landing or got no cursor
+ROPE_WAIT_S = 1.5             # live: the cursor 0.1 s after "[Rope", the jump ~1 s after the answer
+ROPE_LEGS_MAX = 30
 SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is attacking us
 PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this long is dropped...
 SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
@@ -228,6 +235,7 @@ class HuntLoop:
         self.refused_from = []                   # tiles where the recall home was refused (this run)
         self.fleeing = False                     # recall mode: leaving; the threat checks are off
         self.walking_out = False                 # on the walk to --leave-gate: heal potions between steps
+        self.rope_next = 0.0                     # --rope: the next rope jump not before
         self._drinking = False
         self._looking = False                    # in look(): a pause inside the threat checks sleeps plainly
         self._looked_t = -1e9
@@ -1282,24 +1290,85 @@ class HuntLoop:
         res["walked_first"] = walked_first
         return res
 
+    def rope_ready_now(self, st) -> bool:
+        """--rope: an Adventurer's Rope in the pack and its cooldown over."""
+        return bool(self.args.rope) and time.monotonic() >= self.rope_next \
+            and bool(healing.in_pack(st["world"], self.me(st), ROPE_GRAPHIC))
+
+    def rope_jump(self, goal) -> bool:
+        """One Adventurer's Rope jump toward `goal` (Logan's escapes: '[Rope', then the ground target;
+        jumps of 7-10 tiles, an 11-tile target refused): the farthest tile of the route there within ROPE_R
+        that is in sight, 4 or more tiles off, its z walked along the route (a ledge's z beside it would
+        strand us). True when we landed. Knowledge #13325: a Teleport by the spell's rules, 5 s cooldown
+        from the use; followers on Follow come along (#5141)."""
+        st = self.link.state()
+        if not self.rope_ready_now(st):
+            return False
+        self.rope_next = time.monotonic() + ROPE_RETRY_S
+        path, walk = self.mover.plan(st, nav.within(goal, 0), mobiles=False)
+        sight = los.sight_for(self.mover.walkers, st["world"]["self"].get("map")) if walk is not None else None
+        if not path or sight is None:
+            return False
+        pos = tuple(self.pos(st)[:3])
+        best, cur = None, pos
+        for t in path[1:]:
+            if cheb(pos, t) > ROPE_R:
+                break
+            cur = walk.can_walk(cur[0], cur[1], cur[2], nav.direction(cur[:2], t[:2]))
+            if cur is None or cur[:2] != tuple(t[:2]):
+                break
+            if cheb(pos, cur) >= 4 and sight.can_see(pos, cur):
+                best = cur
+        if best is None:
+            return False
+        mark = len(self.link.events)
+        self.link.act(actions.say_ascii("[Rope"))
+        if self.link.wait(lambda s: any(e.get("ev") == "target" for e in self.link.events[mark:])
+                          and (s["world"].get("target") or {}).get("active"), ROPE_WAIT_S) is None:
+            log("rope: no target cursor")
+            return False
+        cur = self.link.state()["world"]["target"]
+        self.human.wait("aim")
+        self.link.act(actions.target_xyz(cur["cursor_id"], best[0], best[1], best[2], 0, cur.get("cursor_type") or 0))
+        landed = self.link.wait(lambda s: cheb(s["movement"]["pos"], best) <= 1, ROPE_WAIT_S) is not None
+        self.rope_next = time.monotonic() + ROPE_COOLDOWN_S
+        self.count("ropes" if landed else "rope_misses")
+        log(f"rope to {best[:2]} ({cheb(pos, best)} tiles): " + ("landed" if landed else "no jump"))
+        return landed
+
     def leave_by_gate(self, severity: str) -> dict:
         """--leave-gate: walk to the moongate with the pets still guarding (they fight what comes at
         us on the way and follow: 'All Follow Me' first would leave us the target), then beside it
         'All Follow Me' (tamer.follow: a hurt leave doesn't wait) so they come through, a double-click
         on the gate from that tile (live 20261013_204518; the step onto it when its item isn't in view)
-        and the travel to --gate-dest (moongate.travel). -> {ok, from, to, dest, elapsed_s[, error]}."""
+        and the travel to --gate-dest (moongate.travel). From a hostile player (severity urgent), as
+        Logan fled reds three times (20261013_173449, 20261014_170144, _173858): 'All Follow Me' at
+        once and Adventurer's Rope jumps along the way whenever one is ready (rope_jump).
+        -> {ok, from, to, dest, elapsed_s[, error]}."""
         gate = tuple(self.args.leave_gate)
         urgent = severity != "info"
+        flee = severity == "urgent"
         self.doing("leave", f"Walking to the moongate at {gate[0]},{gate[1]}", gate)
         self.walking_out = True
         try:
             if self.team is not None:
-                self.team.guard()
+                if flee:
+                    self.team.follow(severity)
+                else:
+                    self.team.guard()
                 path, _ = self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False)
                 near = tuple(path[-2]) if path and len(path) >= 2 else None
-                if near is not None and cheb(self.pos(self.link.state()), gate) > 1:
-                    self.mover.walk_to(lambda: near, 0, "to the moongate", urgent=urgent,
-                                       max_moves=max(250, 3 * self.out_steps))
+                for _ in range(ROPE_LEGS_MAX):
+                    if near is None or cheb(self.pos(self.link.state()), gate) <= 1:
+                        break
+                    if flee and self.rope_jump(near):
+                        continue
+                    why = self.mover.walk_to(lambda: near, 0, "to the moongate", urgent=urgent,
+                                             max_moves=max(250, 3 * self.out_steps),
+                                             stop=(lambda s: "a rope is ready" if self.rope_ready_now(s) else None)
+                                             if flee else None)
+                    if not why:
+                        break
                 self.team.follow(severity)
             mark = len(self.link.events)
             st = self.link.state()
@@ -2038,6 +2107,9 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--never-aggro", action="append", default=None, metavar="TYPE",
                     help="--pets: a creature type (no article) never to wake while alone: its sight is no-go and "
                          "one that comes for us is run from (repeat; default: vampiric consort, user 2026-10-13)")
+    ap.add_argument("--rope", action=argparse.BooleanOptionalAction, default=True,
+                    help="fleeing a hostile player by --leave-gate: 'All Follow Me' at once and an Adventurer's "
+                         "Rope jump toward the gate whenever one is ready, as Logan fled reds")
     ap.add_argument("--hold-first-sight", action=argparse.BooleanOptionalAction, default=True,
                     help="--pets, nothing fighting: stop where an idle monster first sees us within its aggro "
                          "range and let it come (up to 10 s each), as Logan at the nightstalker room's edge")

@@ -388,6 +388,11 @@ moongate, and never near a red one).
   - The runner walks to the gate with the pets still guarding and says "All Follow Me" beside it.
     Then it double-clicks the gate from that tile, as Logan did (the step onto it only when the gate
     item isn't in view), and picks the destination by its label.
+  - **Fleeing a hostile player** (an urgent leave; `--rope`, default on): "All Follow Me" at once, then
+    the run to the gate with an Adventurer's Rope jump whenever one is ready: `[Rope` (0x03 speech, as
+    Logan's client sends it), the farthest route tile within 9 in sight (live jumps 7-10, an 11-tile
+    target refused), its z walked along the route; 5 s cooldown. Logan fled reds this way three times
+    (docs/NOTES.md "Logan Wolf's Mausoleum runs of 2026-10-14").
   - Then "Travel to Destination" on the re-sent menu, or on the first one when the menu opens with
     that destination already selected (it remembers the last one, live), and `--leave-recall` home
     from the town.

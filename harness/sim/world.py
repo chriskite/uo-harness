@@ -70,6 +70,9 @@ TIMED = {"charge", "transfix", "vanish", "wail"}     # ...used on a cooldown whi
 GATE_GUMP = 0xE0E675B8    # "Moongate Destinations" (docs/NOTES.md "Moongate gumps")
 SONGS = ("discord", "peace", "provoke")
 TEXT_SONG_WAIT = "You must wait a few moments before performing another barding song."
+TEXT_ROPE_PROMPT = "Where do you wish to traverse to?"
+ROPE_R = 10
+ROPE_COOLDOWN_S = 5.0
 
 
 def cheb(a, b) -> int:
@@ -164,6 +167,7 @@ class World:
         self.calm_ready = 0.0
         self.song_ready = 0.0
         self.songs = {}                       # barding song -> until
+        self.rope_ready = 0.0
         self.last_use_t = -1e9
         self.potion_ready = 0.0
         self.vet_end = None                   # (finish time, moved during the channel?)
@@ -910,6 +914,8 @@ class World:
             self._walk(p)
         elif pid == 0xAD:
             self._speech(p)
+        elif pid == 0x03 and p[8:-1].decode("ascii", "replace").strip().lower() == "[rope":
+            self._rope()
         elif pid == 0x12 and len(p) > 4 and p[3] == 0x24:
             self._skill(int(p[4:-1].decode("ascii").split()[0]))
         elif pid == 0x6C:
@@ -1048,6 +1054,9 @@ class World:
         f = parse_packet("c2s", p)
         pend, self.pending = self.pending, None
         if pend is None or f.get("cursor_id") != pend["cid"]:
+            return
+        if pend["kind"] == "rope":
+            self._rope_target(pend, f)
             return
         if f.get("target_type") == 1 and pend["kind"] in SONGS and f.get("x") != 0x7FFFFFFF:
             self._song(pend["kind"])
@@ -1319,18 +1328,57 @@ class World:
         pl = self.player
         came = [m for m in self.pets() if cheb(m.pos, pl.pos) <= self.sc["recall"].get("pet_range", 3)]
         self._teleport(pl, to)
-        def both_ways(t):                 # a tile we could step onto and the pet could step back from
+        self._place_beside(came)
+        for m in came:
+            m.target, m.kill, m.mode = None, None, "follow"
+        for o in self.mobs.values():
+            if o.kind == "monster" and o.target in {pl.serial} | {m.serial for m in came}:
+                o.target, o.threat = None, {}
+        self._view()
+        for m in came:
+            if m.serial in self.viewing:
+                self._show(m)
+
+    def _place_beside(self, pets):
+        """Pets on tiles beside us that we could step onto and they could step back from."""
+        pl = self.player
+
+        def both_ways(t):
             back = t and self.walk.can_walk(t[0], t[1], t[2], nav.direction(t[:2], pl.pos[:2]))
             return t if back and back[:2] == pl.pos[:2] and not self._occupied(t[0], t[1]) else None
         spots = [t for d in (2, 4, 6, 0, 3, 5, 7, 1)
                  if (t := both_ways(self.walk.can_walk(pl.x, pl.y, pl.z, d)))] or [pl.pos]
-        for i, m in enumerate(came):
-            m.target, m.kill, m.mode = None, None, "follow"
-            m.x, m.y, m.z = spots[i % len(spots)]               # beside us, on ground we could step onto
+        for i, m in enumerate(pets):
+            m.x, m.y, m.z = spots[i % len(spots)]
             m.path = []
-        for o in self.mobs.values():
-            if o.kind == "monster" and o.target in {pl.serial} | {m.serial for m in came}:
-                o.target, o.threat = None, {}
+
+    # Adventurer's Rope ("[Rope"; knowledge #13325: a Teleport, 5 s cooldown; followers on Follow within
+    # 12 come along, patch 2025-01-25 #5141). Live: jumps of 7, 9 and 10 tiles, an 11-tile target refused
+    # (20261013_173449, 20261014_170144, _173858).
+    def _rope(self):
+        rope = next((s for s, it in self.items.items() if it.get("kind") == "rope" and it.get("amount", 0) > 0), None)
+        if rope is None or self.t < self.rope_ready:
+            return                                       # [INFERENCE] the server's answers then weren't captured
+        self._sys(TEXT_ROPE_PROMPT)
+        self._cursor({"kind": "rope", "item": rope})
+
+    def _rope_target(self, pend, f):
+        pl = self.player
+        x, y = f.get("x"), f.get("y")
+        self.rope_ready = self.t + ROPE_COOLDOWN_S
+        if x is None or x == 0x7FFFFFFF:
+            return
+        z = self.stand_z(x, y, f.get("z") or pl.z)
+        ok = (cheb(pl.pos, (x, y)) <= ROPE_R and self.walk.objects(x, y)
+              and not self._occupied(x, y) and self.sight.can_see(pl.pos, (x, y, z)))
+        if not ok:
+            return
+        came = [m for m in self.pets() if m.alive and m.mode == "follow" and cheb(m.pos, pl.pos) <= 12]
+        it = self.items[pend["item"]]
+        it["amount"] = it.get("amount", 1) - 1
+        self.count("ropes")
+        self._teleport(pl, (x, y, z))
+        self._place_beside(came)
         self._view()
         for m in came:
             if m.serial in self.viewing:

@@ -2717,6 +2717,51 @@ had added Effective Barding links to the mastery chain just before (user 2026-10
   no clear sign the simulator overrates piles (an earlier note here said it did: withdrawn). The live
   sample is thin.
 
+## Logan Wolf's Mausoleum runs of 2026-10-14 (captures 20261014_170144, 20261014_173858)
+
+Two runs, both ended by reds. In the region 17:02:50-17:23:52 (21 min) and 17:39:13-17:47:20 (8 min).
+
+- **Totals**: 43 kills (123 an hour), 30,680 gold, 25 hits (516) on Logan, 8 potions, 45 vet channels;
+  then 16 kills, 16,591 gold, 13 hits (272), 2 potions, 26 vet channels.
+- **Reds are common here.** Players with notoriety 6 seen in the region: none on 20261012_210013 (14.6
+  min) or 20261013_204518 (12.7 min); 3 on 20261013_173449; 4 on 20261014_170144 (two on the second
+  level at 17:03, one at the crimson gate at 17:10, Malito at 17:23); 2 on 20261014_173858. Three of the
+  five runs ended running from reds.
+- **Logan died to Malito** (20261014_170144) in the bound souls' room (5275, 653), ~75 route steps from
+  the gate: first seen 17:23:04.8 at 17 tiles; "Malito is attacking you!" 1.4 s later; "Malito has
+  applied telekinesis to you." 17:23:07.7; "An explosion potion has stuck to you!" 17:23:08.2; two
+  `[Rope` prompts (one jump, 10 tiles, at 17:23:10.4); hits -38 and -41 (the explosions), -31 from "a
+  daemon" (summoned), -12; dead by ~17:23:13 ("You decline to report the player." at 17:23:17.9), 8 s
+  after first sight. He ran to the gate as a ghost; the pets stayed behind (not in view at Totem or home).
+- **The second escape** (20261014_173858): DaRth VaDer VI and Niktiku at 17-18 tiles (17:46:54.5); a
+  `[Rope` 3.4 s later (no jump), "All Follow Me" at 17:46:59.4, then a run of ~50 tiles to the gate in
+  21 s with three hits on the way (-23, -20 by a shadow minion, -22); out at 17:47:20.
+- **Adventurer's Rope** (an item, "adventurer's rope : 15", graphic 0x14FA, used by the `[Rope` server
+  command, sent as 0x03 ASCII speech `03 000e 00 0033 0000 5b526f706500`; `actions.say_ascii`): the
+  server answers "Where do you wish to traverse to?" and a cursor (type byte 8); the ground target (0x6C
+  type 1) teleports us. Jumps of 7, 9, 10 tiles; an 11-tile target didn't jump (20261014_173858
+  17:39:56.6); "You are no longer hindered." ~1 s after each answer. Logan used it on all three red
+  escapes and once on the second level under fire from unseen casters (-24, -28, -19 at 17:39:58-17:40:03).
+  The runner now flees a hostile player with "All Follow Me" at once and rope jumps along the way
+  (`loop_hunt.rope_jump`, `--rope`); in the simulator (no players) it saves 0-2.6 s of a 16-28 s run to
+  the gate; its point live is breaking contact.
+- **The nightstalker room from the south** (20261014_173858): in via (5185, 722), held at its south edge
+  (5180, 713-714) ~35 s: two wolves first, then the knight (it charged: -32 on Logan at 17:41:16.6, the
+  first knight Charge seen to hit), the nightstalker, a wolf, the countess. The same entrance the
+  simulated loop uses; holding there worked live. The scenario now gives the knight a Charge and
+  `tamer.CHARGERS` has it.
+- **Buff potions**: "You increase your damage resistance to creature-casted spells." on arrival at the
+  fight level (17:40:28.4) and "Your magic resist potion has worn off." 120 s later; "You may now use a
+  strength potion." twice (17:42:27.7, 17:45:05.2).
+- **Songs end with a message**: "Your Song of Discordance effect ends." 904 s after it began
+  (17:03:14.2 -> 17:18:18.0), likewise Peacemaking and Provocation; `tamer.Team.update` now marks the
+  song over. The second run's songs printed 16.8 % (17.7 % in the first) [INFERENCE: a gear change].
+- **The elder vampire countess**: a contested boss ("A contested boss has spawned in The Mausoleum!",
+  17:45:36.9) fought in the north room (5201-5210, 640-650) with ~12 other players around; it also
+  transfixes ("*attempts to transfix*").
+- The countess transfixed both pets in turn on the first run: the gravebug at 17:18:25.1, the phoenix
+  at 17:18:35.8 (10.7 s later, the first copy just gone), as the one-copy-at-a-time model has it.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
