@@ -45,8 +45,11 @@
    "threat_x": 4.0,
    "devour": {
     "heal": 18,
-    "every_s": 14.0
+    "ticks": 3,
+    "every_s": 15.0,
+    "range": 2
    },
+   "devour_note": "3 captures (2026-10-12/13): '*devours corpse*' over the gravebug 67 times, 15.0-15.2 s apart at the shortest (median gap 15.2 s), 60 of them with it hurt within 5 s (mid-fight); then '+18' three times 0.5 s apart (19 times; '+21' x3 11 times under a 17.7 % Song of Peacemaking; less when nearly full): 54 a feed. Knowledge: Devour 'Can consume nearby corpses to heal 10% of maximum health' (45 of 450; 54 live [INFERENCE: its healing bonuses]). Before 2026-10-13 the simulator fed it twice, only out of a fight. range 2 [INFERENCE]",
    "specials": [
     {
      "kind": "poison",
@@ -55,7 +58,7 @@
      "seconds": 20
     }
    ],
-   "note": "hits 450: 4.5 hits per percent point (303 single '-N' vs the 0xA1 share drop, capture); melee p10/p90/median of its attributed hits (n=175) every 1.91 s (attack animation, n=240); step 0.21 s: its one-tile moves out of war mode (n=470, capture: it kept 1-3 tiles behind our 0.20 s run; 0.3 s left it 9-22 tiles behind in the sim); threat_x 4.0 [fitted: with the phoenix's 0.3 the simulated gravebug takes most of the pets' damage, as live: 796 vs 84 hits per war-minute; the Tank class draws aggro, knowledge #2074]; devour '+18' twice every ~14 s (n=89); disease [INFERENCE: tamed Disease 15 % (knowledge #14471), damage per tick scaled to its melee]"
+   "note": "hits 450: 4.5 hits per percent point (303 single '-N' vs the 0xA1 share drop, capture); melee p10/p90/median of its attributed hits (n=175) every 1.91 s (attack animation, n=240); step 0.21 s: its one-tile moves out of war mode (n=470, capture: it kept 1-3 tiles behind our 0.20 s run; 0.3 s left it 9-22 tiles behind in the sim); threat_x 4.0 [fitted: with the phoenix's 0.3 the simulated gravebug takes most of the pets' damage, as live: 796 vs 84 hits per war-minute; the Tank class draws aggro, knowledge #2074]; devour: devour_note; disease [INFERENCE: tamed Disease 15 % (knowledge #14471), damage per tick scaled to its melee]"
   },
   {
    "serial": 2551638,

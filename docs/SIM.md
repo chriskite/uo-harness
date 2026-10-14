@@ -354,9 +354,25 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   - With the room open both crawls die far more (the zone crawl had 0.34 deaths and 10 pet-death runs
     with it closed). Most pet damage in the loop is the nightstalker's (6,000 an hour).
   - The aggro rules keep the consort off (843 -> 108) and help the loop a little; the zone crawl is
-    within noise or worse. The room decides the outcome, and there the simulator is likely too hard:
-    two monsters on the gravebug do 19.6/s in it, 8.5/s in the captures (docs/NOTES.md "Aggro
-    management").
+    within noise or worse.
+- **The gravebug's Devour mid-fight** (fixed 2026-10-13 on the user's question; docs/NOTES.md "Aggro
+  management"): the simulator fed it 36 every 14 s and only out of a fight; live it feeds 54 every
+  15 s, mostly mid-fight. Same arms after the fix:
+
+  | measure | zone, aggro on | zone, off | loop, aggro on | loop, off |
+  |---|---|---|---|---|
+  | deaths / game hour | 0.81 | 0.88 | 3.54 | 3.90 |
+  | runs with a death / a pet death | 43 / 50 | 44 / 47 | 49 / 71 | 51 / 75 |
+  | kills / hunting hour | 84 | 82 | 101 | 83 |
+  | gold / game hour | 74,200 | 72,700 | 69,300 | 52,800 |
+  | median run (min) | 28 | 23 | 4 | 3 |
+
+  - The aggro rules now give the loop more kills and gold (+31 %) and slightly fewer deaths; the zone
+    crawl is even. Both still die far more than with the room closed.
+  - An earlier reading that the simulator overrates two monsters on the tank (19.6/s vs live 8.5/s) came
+    from a small sample of early-death runs; on longer runs it is 5.9/s. The room's toll is more likely
+    how the runner walks in: from the south past the stalker and the knight, waking both, where Logan
+    held at the north edge and let them come in stages [INFERENCE].
 
 ## Limits
 
@@ -385,9 +401,8 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
 Each is a normal play session with the proxy capturing as always; tell the coding agent the times.
 
 0. **Two or three monsters on the gravebug at once** (the nightstalker room as on the crawl is ideal,
-   barding as usual): the simulator's tank takes 2-2.3x the captures' damage under a pile, which makes
-   that room lethal there (docs/NOTES.md "Aggro management"). More such minutes say whether the
-   simulator or the 64 s of capture data is off.
+   barding as usual): the captures have 64 s with two on it and 10 s with three or more, too little to
+   check the simulator's piles (docs/NOTES.md "Aggro management").
 1. **One creature type at a time**, Peacemaking off, pets on guard: kill 3+ of each of shadowguard,
    nightstalker, shade wolf, banshee, bound soul, vampire. Gives monster swing period and damage per hit
    on pets and on us, and the casters' spell damage and cadence (none could be attributed: 2-4 types

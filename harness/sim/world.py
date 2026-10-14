@@ -826,6 +826,17 @@ class World:
         if m.held_until > t and any(o.spec.get("copy_of") == m.serial for o in self.mobs.values()):
             m.target = None                      # transfixed: live, no step and no attack animation
             return
+        dv = m.spec.get("devour")
+        if dv and m.hits < m.hits_max and t >= m.devour_t:
+            # live (3 captures): '*devours corpse*' every 15.0-15.2 s while a corpse is near, 60 of 67 times
+            # mid-fight, then '+18' three times 0.5 s apart (+21 under a Song of Peacemaking)
+            c = next((s for s, it in self.items.items() if it.get("kind") == "corpse"
+                      and cheb((it["x"], it["y"]), m.pos) <= dv.get("range", 2)), None)
+            if c is not None:
+                m.devour_t = t + dv.get("every_s", 15.0)
+                self._overhead(m, "*devours corpse*")
+                for _ in range(dv.get("ticks", 3)):
+                    self.heal(m, dv.get("heal", 18))
         if t >= m.next_think:
             m.next_think = t + THINK_S
             self._pet_think(m)
@@ -839,14 +850,6 @@ class World:
             if m.mode != "stay" and t >= m.next_step and cheb(m.pos, owner.pos) > follow:
                 m.next_step = self._due(m.next_step, m.spec["step_s"])
                 self._step_toward(m, owner.pos, follow)
-            elif m.spec.get("devour") and m.hits < m.hits_max * 0.9 and t >= m.devour_t:
-                c = next((s for s, it in self.items.items() if it.get("kind") == "corpse"
-                          and cheb((it["x"], it["y"]), m.pos) <= 2), None)
-                if c is not None:
-                    m.devour_t = t + m.spec["devour"].get("every_s", 14)
-                    self._overhead(m, "*devours corpse*")
-                    for _ in range(2):
-                        self.heal(m, m.spec["devour"].get("heal", 18))
             if m.hits < m.hits_max and t - m.last_hurt_t > 10 and int(t / TICK_S) % int(REGEN_S / TICK_S) == 0:
                 m.hits = min(m.hits_max, m.hits + 1)
 

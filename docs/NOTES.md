@@ -2700,13 +2700,22 @@ had added Effective Barding links to the mastery chain just before (user 2026-10
   went to war 5-10 s after first sight, a fourth wolf 50 s later, the reanimated knight (5176, 705) only
   at 20:50:08 when he walked south: everything came to him in stages. 8 vet channels in 2 min, 794
   damage on the gravebug (37 hits), one on him.
-- **Damage on the tank by the number of war monsters next to it** (all three captures, 0.5 s samples,
-  positions from the last update within 3 s): alone 7.5/s (253 s), two 8.5/s (64 s), three or four
-  ~18/s (10 s). The simulator's (4 zone runs): alone 7.3/s, two 19.6/s, three 24.2/s. So one attacker
-  matches, but the simulator's piles are 2-2.3x what the captures show [INFERENCE: the barding on
-  the extra ones, a monster beside the tank hitting the phoenix, or stale positions inflating live
-  adjacency; too little data to say]. That gap makes the simulated nightstalker room (the stalker
-  and the knight on the gravebug at once killed it in 27 s, 21:19 in a run) far deadlier than Logan's.
+- **The gravebug's Devour heals it mid-fight** (user 2026-10-13 asked whether the simulator counted it;
+  it didn't, properly): `*devours corpse*` over it 67 times in the three captures, every 15.0-15.2 s at
+  the shortest while a corpse was near, 60 of them with it hurt within 5 s; then "+18" three times 0.5 s
+  apart (19 times; "+21" x3 11 times under a 17.7 % Song of Peacemaking), 54 a feed, 2,942 in all
+  against the 7,854 damage it took. Knowledge: "Can consume nearby corpses to heal 10% of maximum
+  health" (45 of 450; 54 live [INFERENCE: its healing bonuses]), and it may feed on the same corpse
+  again. The simulator had it feed twice (36) every 14 s and only out of a fight; now three ticks every
+  15 s whenever it is hurt with a corpse within 2 tiles [INFERENCE: the range].
+- **Damage on the tank by the number of war monsters next to it** (gross "-N", 0.5 s samples, positions
+  from the last update within 3 s). Captures (all three): alone 7.5/s (253 s), two 8.5/s (64 s), three
+  or four ~18/s (10 s). Simulator, 4 zone runs of 30 min: first measured 7.3 / 19.6 / 24.2/s, which
+  looked like piles at 2.3x live; but those runs died early in a few deadly fights (184 s alone, 40 s
+  with two). With the in-fight Devour the same 4 runs lived longer: 3.2/s alone (2,219 s), 5.9/s with
+  two (399 s), 23.9/s with three (20 s). The rates depend on which fights the sample holds; there is
+  no clear sign the simulator overrates piles (an earlier note here said it did: withdrawn). The live
+  sample is thin.
 
 ## Network observations
 
