@@ -25,6 +25,8 @@ version at settings+0x68 is >= 10 (live server: 12).
                           518/523 clicks across captures)
   name_request  0x98  7B   id, len u16be=7, serial (capture `98 0007 000001e2`;
                           follows a click when the name is not known yet)
+  say_ascii     0x03  var  id, len u16be, type u8=0, hue u16be=0x0033, font u16be=0,
+                          ascii text, 00 (ground truth: "[Rope" in session_20261014_173858)
   say_unicode   0xAD  var  id, len u16be, type u8=0, hue u16be=0x02B2,
                           font u16be=0x0003, lang "ENU\\0", then either
                           utf16be text + 0x0000 (no speech.mul keyword), or
