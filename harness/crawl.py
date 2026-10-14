@@ -53,6 +53,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import aggro  # noqa: E402
 import nav  # noqa: E402
 import threats  # noqa: E402
 from agent_link import Abort, log  # noqa: E402
@@ -450,7 +451,7 @@ class Crawl:
         self.target_t = {}           # waypoint -> monotonic time a target was last in reach there
         self.kills_at = collections.Counter()
         self.crowd_t = {}            # waypoint -> monotonic time a player or pet was seen there
-        self.danger = {}             # serial -> (tile, monotonic time, type) of avoided creatures
+        self.danger = {}             # serial -> (tile, monotonic time, type, radius) of avoided creatures
         self.avoided = {}            # type -> why (logged once)
         self.tick_t = None
         self.visit_zones = collections.defaultdict(lambda: {"s": 0.0, "hits": 0, "gold": 0, "kills": 0, "leaves": 0})
@@ -579,6 +580,7 @@ class Crawl:
         me = st["movement"]["self_serial"]
         hits_max = world["self"].get("hits_max")
         danger_zones = {}
+        never = set(getattr(self.a, "never_aggro", None) or aggro.NEVER_AGGRO)
         for key, mob in world["mobiles"].items():
             s = int(key, 16) if isinstance(key, str) else key
             if s == me or mob.get("x") is None or s in self.h.dead:
@@ -594,19 +596,26 @@ class Crawl:
             if kind != "monster" or not self.h.wanted(world, key, mob):
                 continue
             name = labels.get(key) or mob.get("name")
+            if type_key(name) in never:
+                # --never-aggro (aggro.py): its sight is no-go for the patrol and the routes
+                if type_key(name) not in self.avoided:
+                    self.avoided[type_key(name)] = "never aggro it alone (user 2026-10-13)"
+                    log(f"crawl: keeping out of sight of the {type_key(name)} at {tile}")
+                self.danger[s] = (tile, now, type_key(name), aggro.AGGRO_R + aggro.NEVER_MARGIN)
+                continue
             why = self.model.avoid(name, hits_max, self.a.crawl_max_hits, self.a.crawl_max_fight_s)
             if why:
                 if type_key(name) not in self.avoided:
                     self.avoided[type_key(name)] = why
                     log(f"crawl: avoiding {type_key(name)}: {why}")
-                self.danger[s] = (tile, now, type_key(name))
+                self.danger[s] = (tile, now, type_key(name), AVOID_R)
             elif i is not None and cheb(pos, tile) <= self.a.pull_range:
                 self.target_t[i] = now
-        for s, (tile, t, name) in list(self.danger.items()):
+        for s, (tile, t, name, r) in list(self.danger.items()):
             if now - t > DANGER_S:
                 del self.danger[s]
                 continue
-            danger_zones[f"crawl:{s:08X}"] = (tile, AVOID_R)
+            danger_zones[f"crawl:{s:08X}"] = (tile, r)
         mv = self.h.mover
         stale = [k for k in mv.danger if k.startswith("crawl:") and k not in danger_zones]
         new = [k for k, z in danger_zones.items() if mv.danger.get(k) is None or cheb(mv.danger[k][0], z[0]) >= 3]
@@ -663,8 +672,8 @@ class Crawl:
 
     def dangerous(self, i) -> bool:
         w = self.wps[i]
-        return any(cheb(w, tile) <= AVOID_R + 2 or self.cell_of.get(tile) == i
-                   for tile, _, _ in self.danger.values())
+        return any(cheb(w, tile) <= r + 2 or self.cell_of.get(tile) == i
+                   for tile, _, _, r in self.danger.values())
 
     def choose(self, pos):
         """The next waypoint index (or None): open zones, not depleted, not near an
@@ -743,6 +752,9 @@ class Crawl:
                                                      if self.a.crawl_loop else
                                                      f"depleted ({self.kills_at[i]} kill(s), no target for "
                                                      f"{self.a.crawl_depleted_s:.0f} s); moving on"))
+            self.wp, self.arrived_t = None, None
+        if self.wp is not None and self.dangerous(self.wp):
+            log(f"crawl: {self.wps[self.wp]} is near a creature we avoid now; choosing another")
             self.wp, self.arrived_t = None, None
         if self.wp is None:
             self.update_zones()

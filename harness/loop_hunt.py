@@ -130,6 +130,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
 import alerts  # noqa: E402
+import aggro  # noqa: E402
 import combat  # noqa: E402
 import crawl  # noqa: E402
 import escape as escape_mod  # noqa: E402
@@ -418,9 +419,10 @@ class HuntLoop:
 
     def patrol_stop(self, st):
         """The crawl's patrol walk stops here (Mover.walk_to `stop`) when there is
-        something to do: crawl.Crawl.interrupt, on the deaths and damage seen so far."""
+        something to do: crawl.Crawl.interrupt, on the deaths and damage seen so far; --pets: an
+        advance that would pull too much (tamer.Team.pull_check)."""
         self.scan_events(st)
-        return self.crawl.interrupt(st)
+        return self.crawl.interrupt(st) or (self.team.pull_check(st) if self.team is not None else None)
 
     def track(self, st):
         """Hits lost (the visit's, the engagement's, the crawl zone's) and, crawling, the
@@ -588,6 +590,9 @@ class HuntLoop:
                 continue
             if self.crawl is not None and s not in attacking and s != self.engaged \
                     and self.crawl.avoid(st, key, mob):
+                continue
+            if s not in attacking and aggro.type_key((world.get("labels") or {}).get(key) or mob.get("name")) \
+                    in (self.args.never_aggro or aggro.NEVER_AGGRO):
                 continue
             if self.live_target(st, s)[0] is None:
                 continue
@@ -2020,6 +2025,16 @@ def arg_parser() -> argparse.ArgumentParser:
                     help="--pets: Peacemaking on the target the pets fight (after the discord)")
     ap.add_argument("--provoke", action=argparse.BooleanOptionalAction, default=True,
                     help="--pets: Provocation of another mob in the fight")
+    ap.add_argument("--pull-budget", type=float, default=3.0,
+                    help="--pets: while the pets fight monsters worth E, don't advance where more would wake "
+                         "(W) when E + W is above this; weights from the wiki difficulty (aggro.weight: a bat "
+                         "0.4, a nightstalker 1.8); 0 = off (user 2026-10-13: 'weighted by danger')")
+    ap.add_argument("--never-aggro", action="append", default=None, metavar="TYPE",
+                    help="--pets: a creature type (no article) never to wake while alone: its sight is no-go and "
+                         "one that comes for us is run from (repeat; default: vampiric consort, user 2026-10-13)")
+    ap.add_argument("--reposition", action=argparse.BooleanOptionalAction, default=True,
+                    help="--pets: in a fight, step to a nearby tile that keeps the pets in vet range with fewer "
+                         "idle monsters and casters able to see us (aggro.View.stand_score)")
     ap.add_argument("--songs", action=argparse.BooleanOptionalAction, default=True,
                     help="--pets: keep the three barding songs up (a bard skill at the ground: less damage taken, "
                          "more healing, more damage for 15 min; user 2026-10-13)")

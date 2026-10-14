@@ -2678,6 +2678,36 @@ had added Effective Barding links to the mastery chain just before (user 2026-10
   tile beside it (the step onto it only without the item in view); the simulator opens the menu on a
   double-click within a tile.
 
+## Aggro management: the user's rules and what the captures show (2026-10-13)
+
+- **User**: "positioning and managing aggro is the number one most important thing in dungeon PvM in
+  Outlands": don't pull too many mobs at once; never let a super dangerous mob like a vampiric consort
+  aggro while we're alone (not in a group of players); break line of sight strategically. His
+  answers: never-aggro list = the vampiric consort only; pull size "weighted by danger"; line of
+  sight is "situational" (between two rooms with the pets fighting in room A, stay out of sight of
+  room B's mobs so they don't aggro and cast on us; standing out of a caster's sight, e.g. a banshee's,
+  while still able to heal the pets is better, all else equal); a consort that aggroes anyway: "I run
+  until the consort leashes and I'm in an area that I can manage to fight the mobs without getting
+  overwhelmed. When all else fails and I'm getting beat up I will probably head for the gate."
+  Built as `aggro.py` (docs/HUNT_LOOP.md "Aggro").
+- **The consort on the crawl** (20261013_204518): first seen 20:57:51.6 at (5243, 633), 18 tiles north,
+  body 401, notoriety 4; in war mode at 12 tiles (20:57:55.5); at the gravebug 20:58:00, a -71 on it
+  at 20:58:08; Logan said "All Follow Me" at 20:58:10.8 and ran west, it chasing in war mode to (5230,
+  655), ~22 tiles from where it woke, then out of view; he left by the gate 26 s later. Wiki: 14,000
+  hits, melee 60-70, difficulty 168, stealth.
+- **The nightstalker room, Logan's way** (20:48:23-20:50:25): in from the north (5174, 685) and held at
+  its north edge (5175-5179, 687-692), ~10 tiles from the stalker's spot. Three wolves and the stalker
+  went to war 5-10 s after first sight, a fourth wolf 50 s later, the reanimated knight (5176, 705) only
+  at 20:50:08 when he walked south: everything came to him in stages. 8 vet channels in 2 min, 794
+  damage on the gravebug (37 hits), one on him.
+- **Damage on the tank by the number of war monsters next to it** (all three captures, 0.5 s samples,
+  positions from the last update within 3 s): alone 7.5/s (253 s), two 8.5/s (64 s), three or four
+  ~18/s (10 s). The simulator's (4 zone runs): alone 7.3/s, two 19.6/s, three 24.2/s. So one attacker
+  matches, but the simulator's piles are 2-2.3x what the captures show [INFERENCE: the barding on
+  the extra ones, a monster beside the tank hitting the phoenix, or stale positions inflating live
+  adjacency; too little data to say]. That gap makes the simulated nightstalker room (the stalker
+  and the knight on the gravebug at once killed it in 27 s, 21:19 in a run) far deadlier than Logan's.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

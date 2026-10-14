@@ -49,6 +49,10 @@ python harness/sim/calibrate.py --logs <logs dir> [--scan 20261010] [TAG...]   #
   `--jobs`) careers. Each career runs one after another on one memory store, as the live runner keeps
   its store between runs: crawl priors, fights, avoided types, learnt teleporters. `--fresh` gives
   every run a new store. Summaries carry `career` and `career_run`.
+- **Parallel runs**: one process per career (`--jobs` workers, default CPU threads - 1), so the
+  careers bound the parallelism. The desktop has 16 cores / 32 threads (user 2026-10-13): batches
+  since then use `--runs 98 --jobs 16 --careers 14` (careers of 7 runs, as the earlier `--runs 49
+  --jobs 7` ones).
 - Each run prints a row (kills, gold, damage taken, deaths, pet deaths, vet uses, potions, rule
   violations); `all:` aggregates (kills and gold per game hour, deaths per hour, runs with a death /
   a pet death / a pet left behind, crashes, violations); `--compare` sets the runs per hour on the level
@@ -281,8 +285,9 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
     learn from.
   - With the same rules, the zone crawl's death rate went 0.18 -> 0.66 a game hour (fresh memory)
     once recall-anywhere was gone.
-- **Heal in place, out of the nightstalker room** (user 2026-10-13; the scenario's `runner` block now
-  adds `--heal-in-place --crawl-avoid 5170 690 5188 718`; 49 x 60 min, careers, `--pet-leave-at 0.35`):
+- **Heal in place, out of the nightstalker room** (user 2026-10-13; the scenario's `runner` block then
+  added `--heal-in-place --crawl-avoid 5170 690 5188 718`, the room reopened later the same day, below;
+  49 x 60 min, careers, `--pet-leave-at 0.35`):
 
   | measure | zone crawl | loop crawl |
   |---|---|---|
@@ -334,6 +339,24 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
     much damage (961) but kills 40 % slower and dies. He fought nearly without a break (595 of 764 s,
     6 engagements, the longest 11 kills); the gap is in how fast the next fight starts and ends, not
     in the damage [INFERENCE].
+- **The nightstalker room open, and aggro management** (user 2026-10-13; `aggro.py`, docs/HUNT_LOOP.md
+  "Aggro"; the vampiric consort spawned where Logan met one; 98 x 60 min per arm, `--jobs 16 --careers
+  14`, `--pet-leave-at 0.35`; "off" = `--pull-budget 0 --no-reposition --never-aggro none`):
+
+  | measure | zone, aggro on | zone, off | loop, aggro on | loop, off |
+  |---|---|---|---|---|
+  | deaths / game hour | 1.10 | 0.81 | 3.19 | 3.85 |
+  | runs with a death / a pet death | 50 / 47 | 42 / 44 | 45 / 73 | 45 / 79 |
+  | kills / hunting hour | 79 | 80 | 89 | 91 |
+  | median run (min) | 21 | 26 | 3 | 3 |
+  | the consort's damage on the pets | 0 | 0 | 108 | 843 |
+
+  - With the room open both crawls die far more (the zone crawl had 0.34 deaths and 10 pet-death runs
+    with it closed). Most pet damage in the loop is the nightstalker's (6,000 an hour).
+  - The aggro rules keep the consort off (843 -> 108) and help the loop a little; the zone crawl is
+    within noise or worse. The room decides the outcome, and there the simulator is likely too hard:
+    two monsters on the gravebug do 19.6/s in it, 8.5/s in the captures (docs/NOTES.md "Aggro
+    management").
 
 ## Limits
 
@@ -361,6 +384,10 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
 
 Each is a normal play session with the proxy capturing as always; tell the coding agent the times.
 
+0. **Two or three monsters on the gravebug at once** (the nightstalker room as on the crawl is ideal,
+   barding as usual): the simulator's tank takes 2-2.3x the captures' damage under a pile, which makes
+   that room lethal there (docs/NOTES.md "Aggro management"). More such minutes say whether the
+   simulator or the 64 s of capture data is off.
 1. **One creature type at a time**, Peacemaking off, pets on guard: kill 3+ of each of shadowguard,
    nightstalker, shade wolf, banshee, bound soul, vampire. Gives monster swing period and damage per hit
    on pets and on us, and the casters' spell damage and cadence (none could be attributed: 2-4 types

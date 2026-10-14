@@ -129,6 +129,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "deaths": m["deaths"], "pet_deaths": m["pet_deaths"],
             "pets_end": {p.name: p.pct() for p in world.pets()},
             "pet_damage_taken": m["pet_damage_taken"], "player_damage_by": m.get("player_damage_by", {}),
+            "pet_damage_by": m.get("pet_damage_by", {}),
             "vet_uses": m["vet_uses"], "potions": m["potions"],
             "bard": m["bard"], "guard_commands": m["guard_commands"], "kill_commands": m["kill_commands"],
             "follow_commands": m["follow_commands"], "aggressive_acts": m["aggressive_acts"],

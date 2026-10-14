@@ -161,6 +161,16 @@ class Sight:
         return self.point_blocked((a[0], a[1], a[2] + EYE), (b[0], b[1], b[2] + EYE)) is None
 
 
+def surface_z(walk: "pathfind.Walk", x: int, y: int, near_z: int = 0) -> int:
+    """The walkable surface z at (x, y) nearest `near_z` (the world model's own mobile z is often
+    stale: no per-step z, docs/NOTES.md "Line of sight"); `near_z` where the tile has none."""
+    best = None
+    for z, h, flags, avg, kind in walk.objects(x, y):
+        if flags & pathfind.POF_SURFACE and (best is None or abs(avg - near_z) < abs(best - near_z)):
+            best = avg
+    return near_z if best is None else best
+
+
 def sight_for(walkers: "pathfind.Walkers", facet: int) -> "Sight | None":
     """A Sight on `facet` from `walkers`' Walk (None where Walkers.get has no geometry). An
     existing Walk is taken as is, so its current ground items (the last Walkers.get) stay; the

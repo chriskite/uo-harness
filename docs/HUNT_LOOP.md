@@ -338,6 +338,32 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    All Come), Razor-shaped (`actions.razor_say`), and anything matching `release`/`transfer` is
    refused by the runner and by `ctl act say` / `ctl act menu_pick`.
 
+**Aggro** (`aggro.py`; user 2026-10-13: "positioning and managing aggro is the number one most
+important thing in dungeon PvM in Outlands"). Line of sight is `los.Sight` (ServUO's rules, checked
+live), monster z from the map surface, aggro range 10 (the simulator's) [INFERENCE].
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `--pull-budget` | `3.0` | While the pets fight monsters worth E, an advance (patrol, approach) stops where more would wake (W, idle monsters that would see us within 12 tiles) when E + W is above it. 0 = off. |
+| `--never-aggro TYPE` | vampiric consort | Never wake it alone (repeat for more types). |
+| `--reposition` / `--no-reposition` | on | In a fight, step to a better tile for line of sight. |
+
+- **Weights** ("weighted by danger"): (wiki difficulty - 50) / 40, clamped to 0.25-3: a vampire bat
+  0.43, a shadow minion 0.53, a shade wolf 0.92, a banshee 1.6, a nightstalker 1.8, a shadowguard 2.05,
+  the countess 2.4. With nothing fighting, a pack is pulled whole (it is fought alone then).
+- **Never-aggro monsters**: their sight within 13 tiles is no-go: the patrol stops before it, the
+  crawl skips waypoints within 15 of one and routes keep out (`crawl.Crawl.observe`); the runner never
+  pulls one. One that comes for us in war mode is run from ("I run until the consort leashes and I'm
+  in an area that I can manage"): "All Follow Me", then to the gate when that is away from it, else 22
+  tiles beyond it, until it stops chasing. The leave rules take over when we're hurt ("when all else
+  fails ... I will probably head for the gate").
+- **Line of sight in a fight** ("situational": between two rooms, stay out of sight of the room the
+  pets aren't fighting in; "if it's easy to stand out of LoS of a caster like the banshee while still
+  being able to heal our pets ... it's better"): every 3 s, a tile within 2 steps that keeps the pets
+  near us within `--vet-range`, out of a Charge's reach, with a better score (idle monsters that would
+  see us x 10 by weight, a never-aggro one x 100, casters in war mode with sight of us x 1; 0.3 a step);
+  never mid-channel.
+
 **In and out of a dungeon** (user 2026-10-13: you can't recall in a dungeon except near a gold
 moongate, and never near a red one).
 

@@ -179,8 +179,7 @@
   "leave_gate": [5203, 703],
   "gate_dest": "Totem",
   "heal_in_place": true,
-  "crawl_avoid": [[5170, 690, 5188, 718]],
-  "note": "run.py's defaults for this scenario: the way Logan went in and out (capture); with a long walk out, leave less and heal in place, and keep out of the nightstalker room for now (user 2026-10-13: Logan never went in; its spawns and the deaths there, docs/SIM.md). --no-heal-in-place / --no-crawl-avoid turn them off"
+  "note": "run.py's defaults for this scenario: the way Logan went in and out (capture); with a long walk out, leave less and heal in place (--no-heal-in-place turns it off). The nightstalker room is no longer avoided (user 2026-10-13, after his crawl 20261013_204518 went through it; before that a crawl_avoid box [5170, 690, 5188, 718] kept it out: `--crawl-avoid 5170 690 5188 718` puts it back)"
  },
  "bard": {
   "effective_skill": 149,
@@ -370,6 +369,14 @@
   "note": "all of Logan's 23 hits on the trip were bleeds, a Charge or transfixed copies (docs/NOTES.md). Bleeds: 8-10 every 3 s, 5 ticks over 15 s, then 'You are no longer bleeding.' (3 bleeds, capture). Bound soul: 'They begin to draw blood from you!' with an opener of -23/-32 on Logan a tile off while it meleed the gravebug, 2 in its 19 swings at a pet with Logan within 1 tile [INFERENCE: an area bleed on everyone within 1]. Vampire bat: 'The creature strikes ferociously, causing you to bleed!' on its target, 15 % (follower Bleed, knowledge #14664). Nightstalker Charge: teleports up to 12 tiles, hits up to 3 within 1 tile (knowledge #14625); live '*charges*' at 21:21:14/:23/:31 (8.5 s apart), -37 and -42 on the gravebug and Logan (n=2); 20261013_204518: 5 charges 7.6-17 s apart, -10..-19 on the gravebug (3 of 5 hit); no Vanish seen. Shade wolf Vanish: two wolves in their fights left the view at 1 tile (0x1D) 4 times, 4.3-15 s into the fight and 19-22 s apart, for 3.5-5.8 s, and came back on the gravebug each time with a hit (21-28) before any re-guard. Countess transfix (3 fights over 20261012_210013, 20261013_173449 and 20261013_204518): '*attempts to transfix*' every 5.1-5.5 s while fighting; with no copy of hers up 6 of 12 made a hostile copy of a pet ('*transfixed*', the pet's name and body, on its tile), with one up 0 of 5; the pet took -36..-45 at that instant (n=5); the copy lasted 9.9-11.0 s to its 0x1D (n=6), in war mode 0-2.5 s after it appeared, and the pet itself made no step and no attack animation until then; the copies' 10 attributed hits on the first trip: 4 on Logan (28-37), 6 on the pets; the second walked 6 tiles to the phoenix rather than Logan at 8: a copy picks any of us but its original within 3 tiles, else any [INFERENCE: copy hits 2000, one took 1436 in 6 s and lived]. Corpsebride wail: '*wails*' every 7.5-7.8 s while it fights (25 in 4 fights), with a -13..-25 at once on the pets beside it (about 18 of 24 pet-tile-1 chances) and on Logan 2 of 11 times at 2-3 tiles [INFERENCE: an area hit on each of us, near_chance within radius 1, far_chance at 2-3]. Vampire drain and disease as poison 15 % (#2639) [INFERENCE]."
  },
  "spawns": [
+  {
+   "key": "vampiric consort",
+   "at": [
+    5243,
+    633,
+    0
+   ]
+  },
   {
    "key": "apparition",
    "at": [
@@ -729,7 +736,7 @@
   {"key": "insane reanimator", "at": [5531, 645, -10]},
   {"key": "reanimator zealot", "at": [5530, 680, -10]}
  ],
- "spawn_note": "every first-seen position of a monster type (calibration creatures.*.first_seen), one spawn each: the fight level's, then the first two levels' on the way in (x 5500-5650)",
+ "spawn_note": "every first-seen position of a monster type (calibration creatures.*.first_seen), one spawn each: the fight level's, then the first two levels' on the way in (x 5500-5650); the vampiric consort where Logan first saw one (20261013_204518, 20:57:51; it woke at 12 tiles, reached the gravebug and chased him ~25 tiles)",
  "teleporters": [
   {"from": [5554, 701], "to": [5547, 696, 10]},
   {"from": [5506, 701], "to": [5507, 698, -5]},

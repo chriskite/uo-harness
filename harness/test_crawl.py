@@ -179,7 +179,7 @@ def test_choose():
     nxt = c.choose(here)
     check("depleted areas skipped", nxt is not None and c.depleted.get(nxt, 0) <= now, nxt)
     deep = [i for i in range(len(c.wps)) if c.zone[i] >= 2]
-    c.danger[1] = (c.wps[deep[0]], now, "troll")
+    c.danger[1] = (c.wps[deep[0]], now, "troll", crawl.AVOID_R)
     picks = {c.choose(here) for _ in range(20)}
     check("an avoided creature's area is skipped", deep[0] not in picks, picks)
     c2 = make_crawl(crawl.Model())

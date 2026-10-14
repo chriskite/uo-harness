@@ -190,11 +190,7 @@ class World:
 
     def stand_z(self, x, y, near_z=0) -> int:
         """The surface z to stand on at (x, y) nearest `near_z` (the map's walkable surfaces)."""
-        best = None
-        for z, h, flags, avg, kind in self.walk.objects(x, y):
-            if flags & pathfind.POF_SURFACE and (best is None or abs(avg - near_z) < abs(best - near_z)):
-                best = avg
-        return near_z if best is None else best
+        return los.surface_z(self.walk, x, y, near_z)
 
     def _build(self):
         sc = self.sc
@@ -392,6 +388,7 @@ class World:
             self.player_log = [e for e in self.player_log if self.t - e[0] <= 15.0]
         elif victim.kind == "pet":
             self.count("pet_damage_taken", victim.name, n)
+            self.count("pet_damage_by", by.key if by is not None else kind, n)
         self._overhead(victim, f"-{n}")
         if victim.kind == "player":
             self.send(P.hits(victim.serial, max(0, int(victim.hits)), int(victim.hits_max)))

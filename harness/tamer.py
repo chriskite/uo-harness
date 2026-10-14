@@ -61,6 +61,7 @@ import re
 import time
 
 import actions
+import aggro
 import combat
 import healing
 import nav
@@ -124,6 +125,13 @@ TEXT_CHARGES = "*charges*"
 CHARGE_SAFE_R = 3             # tiles from a charger and from a pet beside it: clear of where its Charge lands
 STANDOFF_MOVES = 6
 STANDOFF_REPEAT_S = 2.0
+
+# Aggro (aggro.py): running from a --never-aggro monster in war mode, and a better tile in a fight
+EVADE_CLEAR_R = 22            # run this far beyond it (live: the consort chased Logan ~25 tiles from where it woke)
+EVADE_MOVES = 40
+REPOSITION_S = 3.0
+REPOSITION_STEPS = 2
+REPOSITION_GAIN = 1.0         # a caster's sight less, or a tenth of an idle monster's weight
 
 # The only phrases ever said to the pets, as Logan Wolf's hotkeys say them
 COMMANDS = {c.lower(): c for c in ("All Guard Me", "All Follow Me", "All Kill", "All Stop", "All Stay", "All Come")}
@@ -303,6 +311,10 @@ class Team:
         self.standoff_t = -1e9
         self.songs = {}                  # song skill -> monotonic time it runs out
         self.song_ready = 0.0
+        self._view = None                # aggro.View of the last state read
+        self.pull_why = None
+        self.evading = False
+        self.reposition_t = -1e9
 
     # ------------------------------------------------------------ bookkeeping
     def count(self, what: str, n: int = 1):
@@ -542,11 +554,113 @@ class Team:
 
     # ------------------------------------------------------------ care: retreat, vet, guard
     def care(self, st) -> bool:
-        """One care action, True when something was done: retreat, vet supplies, guard, walk to a hurt pet,
-        a barding song due."""
+        """One care action, True when something was done: evade a --never-aggro monster, retreat, stand off
+        a charger, vet supplies, guard, walk to a hurt pet, a better tile for line of sight, a barding song."""
         self.update(st)
-        return self.retreat(st) or self.stand_off(st) or self.vet(st) or (self.guard_needed and self.guard()) \
-            or self.to_pet(st) or self.song(st)
+        return self.evade(st) or self.retreat(st) or self.stand_off(st) or self.vet(st) \
+            or (self.guard_needed and self.guard()) or self.to_pet(st) or self.reposition(st) or self.song(st)
+
+    # ------------------------------------------------------------ aggro (aggro.py)
+    def view(self, st) -> aggro.View:
+        """An aggro.View of this state read (one per read: line of sight is cached in los.Sight)."""
+        if self._view is None or self._view.st is not st:
+            self._view = aggro.View(self.h, st)
+        return self._view
+
+    def pull_check(self, st) -> str | None:
+        """Why an advance (a patrol walk, an approach) should stop here: aggro.View.overpull."""
+        budget = self.a.pull_budget
+        v = self.view(st)
+        why = v.overpull(budget) if budget > 0 else (f"a {v.never_near(v.pos)[0]['kind']} would see us"
+                                                     if v.never_near(v.pos) else None)
+        if why and why != self.pull_why:
+            self.count("pull_holds")
+            log(f"holding here: {why}")
+        self.pull_why = why
+        return why
+
+    def evade(self, st) -> bool:
+        """A --never-aggro monster in war mode near (aggro.View.chasing): 'All Follow Me' and run from it,
+        to the gate when that is away from it, else EVADE_CLEAR_R beyond it, until it stops chasing (out
+        of war mode or of view) (user 2026-10-13: "I run until the consort leashes and I'm in an area
+        that I can manage"). The leave rules still send us to the gate when we're hurt."""
+        h = self.h
+        v = self.view(st)
+        chase = v.chasing()
+        if not chase:
+            if self.evading:
+                log("no longer chased: back to the hunt")
+                self.evading, self.guard_needed = False, True
+            return False
+        m = min(chase, key=lambda c: cheb(c["pos"], v.pos))
+        if not self.evading:
+            self.evading = True
+            self.count("evades")
+            log(f"a {m['kind']} is coming ({cheb(m['pos'], v.pos)} tiles, war mode): running until it gives up")
+            self.say("all follow me")
+        label = f"away from the {m['kind']}"
+        h.doing("evade", f"Running from a {m['kind']}", m["pos"][:2])
+
+        def stop(s):
+            return None if any(c["serial"] == m["serial"] for c in aggro.View(h, s).chasing()) else "it stopped chasing"
+        gate = tuple(self.a.leave_gate) if getattr(self.a, "leave_gate", None) else None
+        try:
+            if gate is not None and cheb(gate, m["pos"]) > cheb(v.pos, m["pos"]) + 3:
+                h.mover.walk_to(lambda: gate, 1, label, urgent=True, stop=stop, max_moves=EVADE_MOVES)
+            else:
+                h.mover.walk_to(None, 0, label, goal_fn=nav.beyond([m["pos"][:2]], EVADE_CLEAR_R), urgent=True,
+                                stop=stop, max_moves=EVADE_MOVES)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"evade: {e}")
+        return True
+
+    def reposition(self, st) -> bool:
+        """--reposition, in a fight: a tile within REPOSITION_STEPS that keeps the pets near us within
+        --vet-range, out of a Charge's reach, with a lower aggro.View.stand_score (fewer idle monsters
+        that would see us, fewer casters in war mode with sight of us) by REPOSITION_GAIN; never
+        mid-channel."""
+        h, now = self.h, time.monotonic()
+        if not self.a.reposition or now < self.vet_busy_until or now - self.reposition_t < REPOSITION_S:
+            return False
+        self.reposition_t = now
+        v = self.view(st)
+        if v.walk is None or not v.engaged():
+            return False
+        pos = v.pos
+        keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]
+        zone = self.charge_zone(st)
+        steps, frontier = {pos: 0}, [pos]
+        for k in range(1, REPOSITION_STEPS + 1):
+            nxt = []
+            for x, y, z in frontier:
+                for d in range(8):
+                    n = v.walk.can_walk(x, y, z, d)
+                    if n is not None and n not in steps:
+                        steps[n] = k
+                        nxt.append(n)
+            frontier = nxt
+        here = v.stand_score(pos)
+        best, best_s = None, here
+        for t, k in steps.items():
+            if k == 0 or t[:2] in zone or any(cheb(t, p) > self.a.vet_range for p in keep):
+                continue
+            s = v.stand_score(t) + 0.3 * k
+            if s < best_s:
+                best, best_s = t, s
+        if best is None or here - best_s < REPOSITION_GAIN:
+            return False
+        label = "to a better tile"
+        h.doing("reposition", f"Stepping to {best[0]},{best[1]}: fewer eyes on us ({here:.0f} -> {best_s:.0f})", best[:2])
+        self.count("los_moves")
+        try:
+            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * REPOSITION_STEPS)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"reposition: {e}")
+        return True
 
     def charge_zone(self, st) -> set:
         """Where a Charge would land its hit: every charger in war mode in view and each live pet beside
@@ -778,7 +892,8 @@ class Team:
             return m["x"], m["y"]
 
         def stop(st):
-            return self.engaged(st, serial) or serial in {serial_of(a["serial"]) for a in h.attackers(st)}
+            return self.engaged(st, serial) or serial in {serial_of(a["serial"]) for a in h.attackers(st)} \
+                or self.pull_check(st)
         try:
             h.mover.walk_to(where, APPROACH_R, label, max_moves=APPROACH_MOVES, stop=stop)
         except Abort as e:

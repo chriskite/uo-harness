@@ -411,6 +411,46 @@ def test_songs():
     check(f"Song of Discordance: a creature's 100 hits our pet for {want}", h0 - gb.hits == want, f"{h0 - gb.hits}")
 
 
+def test_pull_budget():
+    print("== aggro.py: the pull budget counts what would see us (line of sight); a consort in sight is no-go ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    out = {}
+    for case, spawns, budget in (
+            ("wolf in sight", [("nightstalker", (5266, 650)), ("shade wolf", (5266, 659))], 2.5),
+            ("wolf behind the wall", [("nightstalker", (5266, 650)), ("shade wolf", (5267, 659))], 2.5),
+            ("wolf in sight, budget 3", [("nightstalker", (5266, 650)), ("shade wolf", (5266, 659))], 3.0),
+            ("idle wolf alone", [("shade wolf", (5266, 659))], 2.5),
+            ("consort in sight", [("vampiric consort", (5266, 660))], 2.5)):
+        w = world_with([{"key": k, "at": [x, y, 0]} for k, (x, y) in spawns])
+        link, clock = link_for(w)
+        db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+        args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, ["--pull-budget", str(budget)], 10, at_hunt=True)
+                                                 + ["--memory", db, "--seed", "1"])
+        patched = simclock.install(clock)
+        store = memory.Memory(db)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                loop = loop_hunt.HuntLoop(link, store, args)
+                loop.team.setup(loop.state())
+                for m in w.mobs.values():
+                    if m.key == "nightstalker":
+                        w._warm(m, True)                 # the pets are fighting it
+                out[case] = loop.team.pull_check(loop.state())
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    check("fighting a nightstalker (1.8), a shade wolf (0.9) in sight at 11 tiles: hold (budget 2.5)",
+          out["wolf in sight"] and "would wake" in out["wolf in sight"], str(out))
+    check("...not when the wall hides it, nor with budget 3",
+          out["wolf behind the wall"] is None and out["wolf in sight, budget 3"] is None, str(out))
+    check("nothing fighting: a pack is pulled whole", out["idle wolf alone"] is None, str(out))
+    check("an idle vampiric consort in sight at 12 tiles: hold, whatever fights",
+          out["consort in sight"] and "vampiric consort" in out["consort in sight"], str(out))
+
+
 def test_rest_hurt_pet():
     print("== out of vet supplies, the rest waits for a hurt pet instead of going back in ==")
     import tempfile
@@ -448,7 +488,7 @@ def main():
         print("SKIP: no map files (install dir)")
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
-              test_standoff, test_heal_in_place, test_songs, test_rest_hurt_pet):
+              test_standoff, test_heal_in_place, test_songs, test_pull_budget, test_rest_hurt_pet):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0
