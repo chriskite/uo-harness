@@ -1789,6 +1789,22 @@ tier and experience per trip"):** the field rate was still under-predicted 2–1
   (`--aspect-read`, ~6 s at home) into `harvest_aspect.armor`. Not yet used by the model: logs per
   success from tier/xp needs days of rows first.
 
+## After the Thugnificent death: tracked reds within 100, known PKs at any range (decided and built 2026-10-14)
+
+Outland Dan died at witcher_52 (`lumber-20261014-141733-90b4`). Tracking had the known PK Thugnificent at
+97 tiles 14 s before sight; it was logged only (react range 80). Three recalls were then disturbed. The
+same day lxl's reflected spell stopped a run at the landing during the hop decision, and lxl went
+unmarked. The user approved four changes:
+1. **Range 100.** `--track-react-range` 80 → 100. In the store, 7 of the 75 hits beyond 80 were reds at
+   81-99 tiles who came into view within 2 min (two of them killed Dan). Expected cost: about 5 more
+   recalls a day.
+2. **Known PKs at any distance.** A known PK found by Tracking triggers the red escape however far away.
+   Rejected: a separate, larger range for known PKs. The user chose any distance.
+3. **Hop decision like the room.** `try_hop`'s plan and hatchet clicks run settled and in mode
+   'salvage'. This replaces the 2026-10-13 Escape catch there, which salvage makes unreachable.
+4. **Named attackers out of view.** `attacked_by_players` marks them as known PKs too, with the
+   serial from `players_seen` when one matches.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

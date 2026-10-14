@@ -214,7 +214,7 @@ TRACK_MODES = ("criminal players", "innocent players", "friendly players", "aggr
                "passive creatures", "townsfolk", "all players", "all hostile players",
                "enemy players", "murderer players")
 RED, RED_NAME = 0x0009E217, "Lord Red"                    # a murderer the hunt finds, never in view
-RED_FAR, RED_NEAR = 100, 55                               # tiles from us at the two hits (react range 80; Bastet 10-03: 55)
+RED_FAR, RED_NEAR = 130, 55                               # tiles from us at the two hits (react range 100; Bastet 10-03: 55)
 # creature runs (LUMBER_LOOP.md §13 "Running from a creature"): a gazer (body 22, ranged) casts at us from 10
 # tiles at the library spot; a war-mode creature stands by the nearest tree on Shelter
 GAZER, GAZER_BODY, GAZER_DMG, GAZER_CAST_S = 0x0000CA5E, 22, 10, 2.5
@@ -2571,7 +2571,7 @@ async def library():
 async def track_reds():
     """LUMBER_LOOP.md §13 "Tracking reds": the library trip with the Tracking gump, buff and arrows
     as captured live. Hunting murderers starts before going out; the recall out stops it (simulated)
-    and the runner turns it back on; mid-chop the hunt finds a red 100 tiles off (logged, no escape),
+    and the runner turns it back on; mid-chop the hunt finds a red 130 tiles off (logged, no escape),
     then 55 tiles off (the red escape: recall home with our runebook, stop)."""
     print("\n== tracking reds: hunt murderers all run; a far red is logged, a near one sends us home ==")
     import lumber_opt
@@ -2598,8 +2598,8 @@ async def track_reds():
     seen = [e["data"] for e in store.job_events("lumber") if e["kind"] == "pk_seen"]
     far = [d for d in seen if d.get("source") == "tracking" and d.get("distance") == RED_FAR]
     near = [d for d in seen if d.get("source") == "tracking" and d.get("distance") == RED_NEAR]
-    check("the far hit (100 tiles): a pk_seen event from tracking with the name, serial and arrow, logged only "
-          "(beyond the react range 80: no escape, not counted as hazard)",
+    check("the far hit (130 tiles): a pk_seen event from tracking with the name, serial and arrow, logged only "
+          "(beyond the react range 100: no escape, not counted as hazard)",
           len(far) == 1 and far[0]["serial"] == RED and far[0]["name"] == RED_NAME
           and far[0]["x"] == LIB_TREE["stand"][0] + RED_FAR and not far[0]["in_range"] and not far[0]["react"]
           and not far[0]["counted"] and far[0]["spaces"] == RED_FAR and far[0]["mode"] == "murderer players"
@@ -2637,6 +2637,35 @@ async def track_reds():
     check("lumber_opt's hazard counts the near tracked red once, not the far one",
           sightings == [t_near], str(sightings))
     store.close()
+
+
+async def track_known_pk():
+    """User 2026-10-14 (Thugnificent, a known PK since 10-10, was tracked at 97 tiles, logged only, and killed Dan
+    45 s later): a known PK found by the hunt triggers the red escape at any distance. The tracking trip with Lord
+    Red marked a known PK before the run: the first hit, 130 tiles off (beyond the react range), sends us home."""
+    print("\n== tracking a known PK: the far hit sends us home ==")
+    world = World("tracking")
+
+    def marked(db):
+        store = memory.Memory(db)
+        known_pks.mark(store, "Red", None, "attacked us (an earlier run)")    # by name: the label adds "Lord "
+        store.close()
+    text, code, store, _ = await run_scenario(world, "track_known_pk", [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
+                                               "--regrow-min", "0.05", "--track-retry-s", "1"], spot_extra=LIB_SPOT,
+                                              prepare=marked)
+    seen = [e["data"] for e in store.job_events("lumber") if e["kind"] == "pk_seen" and e["data"].get("source")
+            == "tracking"]
+    rec = [e["data"] for e in store.job_events("lumber") if e["kind"] == "recall"]
+    check("the far hit (130 tiles, beyond 100) reacted: out of range, not counted as hazard, but a known PK",
+          len(seen) == 1 and seen[0]["distance"] == RED_FAR and not seen[0]["in_range"] and seen[0]["react"]
+          and not seen[0]["counted"] and "(a known PK: escaping)" in text, str(seen))
+    check(f"one escape recall home, reason 'tracking: known PK {RED_NAME} {RED_FAR} spaces'; the run stopped (exit 1)",
+          world.recalls_home == [HOME_RUNE_POS] and rec and rec[-1]["ok"]
+          and rec[-1]["why"] == f"tracking: known PK {RED_NAME} {RED_FAR} spaces" and code == 1,
+          f"exit {code} {str(rec)[:400]}")
+    store.close()
+
 
 
 async def library_chased():
@@ -4503,37 +4532,79 @@ def unit_escape_heal():
     check("ESCAPE_HEAL_CURSOR_WAIT_S covers Greater Heal's 1.25 s", loop_lumber.ESCAPE_HEAL_CURSOR_WAIT_S > 1.27)
 
 
-def unit_hop_creature_at_home():
-    """try_hop after an escape recall (live 2026-10-13, lumber-20261013-161548-a508): the threat checks in the hatchets'
-    clicks raised an Escape at the landing, inside the red's Unsafe, and the run crashed ('Crashed: Escape'). Now a
-    creature to run from there means no hop: None, a `hop` event saying why, and the leg goes to the room."""
-    print("\n== try_hop: a creature at home during the hop's hatchet check -> no hop, no crash ==")
+def unit_hop_salvage():
+    """try_hop after an escape recall decides like the room (home_after_recall): settled first, in mode 'salvage'
+    (only players and death count). Live 2026-10-13 a resting horse blamed for a spell crashed
+    lumber-20261013-161548-a508 at the landing; 2026-10-14 lxl's reflected spell was counted as 'taking damage, no
+    creature in view' during the hop's hatchet clicks and stopped lumber-20261014-112045-b23a there with 1201 logs
+    carried. Here the hatchets' clicks stand for the threat check: outside 'salvage' they stop the run like that."""
+    print("\n== try_hop: the decision settled and in 'salvage': a leftover spell can't stop the run at the landing ==")
     import types
     import loop_lumber
-    events, logged = [], []
-
-    def clicks(st):
-        raise loop_lumber.Escape([], "monster 0x0154FE11 at 0 tiles (ETA 0.0 s)")
+    events, steps = [], []
     st = {"world": {"self": {"hits": 100, "hits_max": 100}}, "movement": {"pos": [4134, 1429, 6, 0]}}
-    fake = SimpleNamespace(
+    fake = SimpleNamespace(mode="work")
+
+    def clicks(s):
+        steps.append(("clicks", fake.mode))
+        if fake.mode != "salvage":                  # what _check_threats did with the reflected spell (work mode)
+            raise loop_lumber.Unsafe("threat: taking damage (taking damage, no creature in view or just out of it "
+                                     "that could have hit us); stopping")
+        return {0x41CAB6B7: (2481, "label")}
+
+    def plan(*a, **kw):
+        steps.append(("plan", fake.mode))
+        return {"hop": {"spot": "witcher_1", "logs_per_trip": 5000, "gain_logs": 40}}
+    fake.__dict__.update(
         link=SimpleNamespace(state=lambda: st, pos=lambda s: s["movement"]["pos"]), hop_blocked=lambda s: None,
-        count=lambda s, g: 2497, doing=lambda *a: None, self_serial=lambda s: 1, facet_now=lambda s: 0,
-        args=SimpleNamespace(spots=None), k={"spot": {"id": "witcher_20"}}, home={}, trip_n=1,
+        count=lambda s, g: 888, doing=lambda *a: None, self_serial=lambda s: 1, facet_now=lambda s: 0,
+        args=SimpleNamespace(spots=None), k={"spot": {"id": "witcher_256"}}, home={}, trip_n=1,
         hatchet_uses=clicks, uses_needed=lambda logs: 1000, _where=lambda s: {},
         memory=SimpleNamespace(job_event=lambda job, kind, data, **w: events.append((kind, data))),
-        settle_at_home=lambda: logged.append("settled"))
+        settle_at_home=lambda: steps.append(("settled", fake.mode)))
     fake.try_hop = types.MethodType(loop_lumber.LumberLoop.try_hop, fake)
-    plan = loop_lumber.lumber_opt.plan_from_store
-    loop_lumber.lumber_opt.plan_from_store = lambda *a, **kw: {"hop": {"spot": "witcher_1", "logs_per_trip": 5000,
-                                                                       "gain_logs": 40}}
+    saved = loop_lumber.lumber_opt.plan_from_store
+    loop_lumber.lumber_opt.plan_from_store = plan
     try:
-        out = fake.try_hop("threat: red Iesus Nazarenus at 18 tiles", None, recall=False)
+        out = fake.try_hop("threat: red lxl at 18 tiles", None, recall=False)
     finally:
-        loop_lumber.lumber_opt.plan_from_store = plan
-    hop = [d for k, d in events if k == "hop"]
-    check("no hop (None), not settled for one; the `hop` event names the creature at home",
-          out is None and not logged and hop and hop[0]["hop"] is None and "a creature at home" in hop[0]["why_not"],
-          f"{out} {logged} {hop}")
+        loop_lumber.lumber_opt.plan_from_store = saved
+    check("settled before the plan; the plan and the clicks in 'salvage'; the hop goes (settled again); 'work' after",
+          out is not None and out["spot"] == "witcher_1" and fake.mode == "work"
+          and steps == [("settled", "work"), ("plan", "salvage"), ("clicks", "salvage"), ("settled", "work")],
+          f"{out} {steps} mode {fake.mode}")
+
+
+def unit_named_attacker():
+    """'<name> is attacking you!' marks the player a known PK even when he isn't in view (live 2026-10-14: lxl's
+    line came as the escape recall landed; only players in view were marked, so he wasn't). His serial comes from
+    the players seen this run when one matches."""
+    print("\n== '<name> is attacking you!': a known PK, in view or not ==")
+    import types
+    import loop_lumber
+    marks = []
+    seen = threats.Threat(serial=0x500, name="Lord Saisho Hakai", body=0x190, notoriety=3, kind="blue", player=True,
+                          evidence=[], distance=5)
+    fake = SimpleNamespace(
+        link=SimpleNamespace(events=[{"ev": "speech_heard", "text": "lxl is attacking you!"},
+                                     {"ev": "speech_heard", "text": "Saisho Hakai is attacking you!"},
+                                     {"ev": "speech_heard", "text": "Thugnificent is attacking you!"}]),
+        _attack_scan=0, players_seen={0x001BCCFD: "lxl", 0x500: "Lord Saisho Hakai"},
+        watch=SimpleNamespace(params=threats.Params()), k={"spot": {"id": "witcher_256"}}, trip_n=1,
+        _where=lambda st: {}, _checking=0,
+        memory=SimpleNamespace(job_event=lambda job, kind, data, **w: marks.append((data["name"], data["serial"]))))
+    for m in ("attacked_by_players", "mark_pk"):
+        setattr(fake, m, types.MethodType(getattr(loop_lumber.LumberLoop, m), fake))
+    got = fake.attacked_by_players({}, SimpleNamespace(threats=[seen]), "attacked us")
+    check("returns the one in view; marks all three: the one in view with his serial, lxl out of view with the serial "
+          "seen earlier this run, Thugnificent (never seen) by name",
+          [t.serial for t in got] == [0x500] and sorted(marks, key=lambda m: m[0]) == sorted(
+              [("Lord Saisho Hakai", 0x500), ("lxl", 0x001BCCFD), ("Thugnificent", None)], key=lambda m: m[0])
+          and {"lxl", 0x001BCCFD, "thugnificent", "saisho hakai", 0x500} <= fake.watch.params.known_pks,
+          f"{got} {marks} {sorted(map(str, fake.watch.params.known_pks))}")
+    fake.link.events.append({"ev": "speech_heard", "text": "Bee Loga is attacking you!"})
+    check("record_death's call with no assessment (a=None): nobody returned, the name still marked",
+          fake.attacked_by_players({}, None, "killed us") == [] and marks[-1] == ("Bee Loga", None), str(marks))
 
 
 def unit_no_harvest():
@@ -5151,7 +5222,7 @@ async def run_async(fn):
 
 if __name__ == "__main__":
     runs = [main, skirmish, leash, break_due, no_harvest, stop_after_trip, library, library_chased, track_reds,
-            gazer_run, gazer_rehit, gazer_reflect, unseen_caster, pacer,
+            track_known_pk, gazer_run, gazer_rehit, gazer_reflect, unseen_caster, pacer,
             wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, escape_heal, guard_run, pk_island,
             work_heal, work_spell, thief_keep_away,
             pouch_pop, faction_lone, known_pk, wards,
@@ -5164,7 +5235,7 @@ if __name__ == "__main__":
             hop,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_smart_range,
             unit_run_and_recall, unit_escape_heal, unit_dispel_field, unit_guard_route, unit_escape_direction,
-            unit_hop_creature_at_home, unit_no_harvest,
+            unit_hop_salvage, unit_named_attacker, unit_no_harvest,
             unit_thief_out, unit_boxed_in,
             unit_death_cause, unit_zone_stall,
             unit_zone_view_edge, unit_home_on_abort,

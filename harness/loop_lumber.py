@@ -88,8 +88,8 @@ for `ctl break` in the rental room.
 Tracking (tracking.py; LUMBER_LOOP.md §13 "Tracking reds"): Hunting murderer
 players is kept on for the whole run (at the start, after travel, between chops
 whenever the server's lines or the buff say it's off; one try per --track-retry-s).
-A murderer hit within --track-react-range tiles at a pvp spot is a red sighting:
-recall home like for a red in view. Every murderer hit is a `pk_seen` event
+A murderer hit within --track-react-range tiles (a known PK's at any distance) at a pvp spot is a
+red sighting: recall home like for a red in view. Every murderer hit is a `pk_seen` event
 (source 'tracking'); only near ones count as the spot's hazard.
 
 Run:  python harness/loop_lumber.py --spot horseshoe_bay [--trips 1] [--logs-per-trip 15]
@@ -1154,7 +1154,7 @@ class LumberLoop:
         # Bastet's first hit came 4.6 s after sight, the straight-line ETA said 0.6 s).
         players += [t for t in a.threats if t.player and t.kind == "red" and t.distance >= 0
                     and t not in players]
-        named = self.attacked_by_players(st, a)
+        named = self.attacked_by_players(st, a, "attacked us")
         players += [t for t in named if t not in players]
         players += [t for t in field if t not in players]
         # a creature that swung at us and has left the view is still a creature, not a player
@@ -1166,8 +1166,8 @@ class LumberLoop:
                      and s not in {t.serial for t in monsters}]
         for s in [*aggressors, *(t.serial for t in named)]:    # died's cause: players who went for us
             self.attacked[s] = (time.time(), True)
-        for t in [*named, *(by_serial[s] for s in aggressors if s in by_serial and by_serial[s].player)]:
-            self.mark_pk(st, t, "attacked us")
+        for t in (by_serial[s] for s in aggressors if s in by_serial and by_serial[s].player):
+            self.mark_pk(st, t.name, t.serial, "attacked us")
         if players or aggressors:
             worst = players[0] if players else None
             if self.on_home_rune(st):
@@ -1361,10 +1361,12 @@ class LumberLoop:
                 if got is not None else f"no shot from {self.threat_name(pacer)} in {wait:.1f} s: casting anyway")
         return gate
 
-    def attacked_by_players(self, st, a) -> list:
+    def attacked_by_players(self, st, a, why: str) -> list:
         """Players named in a "<name> is attacking you!" since the last check: the
         server's notice that a player made us their target (live 2026-10-02, 1.8 s
-        before Bastet's first hit; the attacker sends no 0x2F swing)."""
+        before Bastet's first hit; the attacker sends no 0x2F swing). Returns those in view; every
+        one named is marked a known PK (`why`), in view or not (live 2026-10-14: lxl's line came as
+        the escape recall landed, he was out of view, and the mark was lost)."""
         ev = self.link.events
         names = set()
         for i in range(self._attack_scan, len(ev)):
@@ -1375,20 +1377,30 @@ class LumberLoop:
         if not names:
             return []
         keys = {threats.pk_key(n) for n in names}
-        return [t for t in a.threats if t.player and threats.pk_key(t.name) in keys]
+        seen = [t for t in a.threats if t.player and threats.pk_key(t.name) in keys] if a else []
+        for t in seen:
+            self.mark_pk(st, t.name, t.serial, why)
+        for name in names:
+            key = threats.pk_key(name)
+            if key and not any(threats.pk_key(t.name) == key for t in seen):
+                serial = next((s for s, n in self.players_seen.items() if threats.pk_key(n) == key), None)
+                self.mark_pk(st, name, serial, why)
+        return seen
 
-    def mark_pk(self, st, t, why: str):
+    def mark_pk(self, st, name: str | None, serial: int | None, why: str):
         """A player who went for us is a known PK from now on (known_pks; user 2026-10-10): fled on sight in this
-        run (threats.Params.known_pks) and in every later one (a `pk` mark in the store, by name)."""
-        key = threats.pk_key(t.name)
+        run (threats.Params.known_pks) and in every later one (a `pk` mark in the store, by name; the serial too
+        when known)."""
+        key = threats.pk_key(name)
         have = self.watch.params.known_pks
-        if (not key or key in have) and t.serial in have:
+        if (not key or key in have) and (serial is None or serial in have):
             return
-        self.watch.params = replace(self.watch.params, known_pks=have | {t.serial} | ({key} if key else set()))
+        add = ({serial} if serial is not None else set()) | ({key} if key else set())
+        self.watch.params = replace(self.watch.params, known_pks=have | add)
         if not key:
             return
-        log(f"known PK from now on: {t.name} ({why})")
-        data = {"name": t.name, "serial": t.serial, "why": f"{why} ({self.k['spot']['id']}, trip {self.trip_n})"}
+        log(f"known PK from now on: {name} ({why})")
+        data = {"name": name, "serial": serial, "why": f"{why} ({self.k['spot']['id']}, trip {self.trip_n})"}
 
         def write(data=data, where=self._where(st)):
             known_pks.mark(self.memory, data["name"], data["serial"], data["why"], "runner", **where)
@@ -1505,23 +1517,27 @@ class LumberLoop:
         hunting murderer players is a red within tracking range, maybe beyond the view:
         a `pk_seen` job event (source 'tracking'; per red: the first hit, and the first
         one within --track-react-range). Within that range (Chebyshev to the arrow, else
-        the "N spaces" line) at a pvp spot while out at it, the red escape: recall home
-        (recall_out, reason 'tracking: <name> N spaces'), else run to the guards, then
-        stop. Farther hits are logged only: at high skill Tracking finds reds sitting in
-        their houses far away. A red we already recalled away from doesn't trigger again."""
+        the "N spaces" line), or a known PK at any distance (user 2026-10-14, after Thugnificent,
+        known since 10-10, was tracked at 97 tiles, logged only, and killed Dan 45 s later), at a pvp
+        spot while out at it, the red escape: recall home (recall_out, reason 'tracking: <name> N
+        spaces'), else run to the guards, then stop. Farther hits are logged only: at high skill
+        Tracking finds reds sitting in their houses far away. A red we already recalled away from
+        doesn't trigger again."""
         pos = st["movement"].get("pos")
         for hit in self.trk.new_hits(st["world"], pos[:2] if pos else None):
             if not hit["murderer"]:
                 continue
             d, serial = hit["distance"], hit["serial"]
             near = d is not None and d <= self.args.track_react_range
-            react = near and self.k["pvp"] and self.afield and serial not in self.escaped
+            kp, key = self.watch.params.known_pks, threats.pk_key(hit["name"])
+            known = serial in kp or bool(key and key in kp)
+            react = (near or known) and self.k["pvp"] and self.afield and serial not in self.escaped
             self.track_sighting(st, hit, near, react)
             if not react:
                 continue
             self.escaped.add(serial)
             name = hit["name"] or f"0x{serial:08X}"
-            why = f"tracking: {name} {d} spaces"
+            why = f"tracking: {'known PK ' if known else ''}{name} {d} spaces"
             p = self.watch.params
             worst = threats.Threat(serial=serial, name=hit["name"], body=None, notoriety=6, kind="red", player=True,
                                    evidence=[f"Tracking hit while hunting {tracking.MURDERERS}"], hostile=True,
@@ -1553,7 +1569,8 @@ class LumberLoop:
         self.later(lambda data=data, where=self._where(st):
                    self.memory.job_event("lumber", "pk_seen", data, **where))
         log(f"tracking: red {hit['name'] or f'0x{serial:08X}'} {hit['distance']} tiles away"
-            + ("" if near else f" (beyond {self.args.track_react_range}: logged only)"))
+            + ("" if near else " (a known PK: escaping)" if react
+               else f" (beyond {self.args.track_react_range}: logged only)"))
 
     def track_ensure(self, where: str):
         """Keep Hunting murderer players on (--track reds): when the server's lines or
@@ -2546,9 +2563,8 @@ class LumberLoop:
         tiles made it "pk"); with no hit blamed, a hostile player in view still makes it "pk"."""
         a = self.last_threats
         now = time.time()
-        for t in self.attacked_by_players(st, a) if a else []:   # "… is attacking you!" heard inside the escape
+        for t in self.attacked_by_players(st, a, "killed us"):   # "… is attacking you!" heard inside the escape
             self.attacked[t.serial] = (now, True)
-            self.mark_pk(st, t, "killed us")
         recent = [p for t, p in self.attacked.values() if now - t <= DEATH_BLAME_S]
         players = [t for t in (a.threats if a else []) if t.hostile and t.player]
         cause = ("pk" if any(recent) else "mob" if recent else
@@ -4657,10 +4673,12 @@ class LumberLoop:
         whether to go on to another spot from the rune library. The hop, or None: the room as before
         (hop_blocked, the recall home failed, or storing first is worth more). hop_blocked is asked
         again after the plan: a spell cast before an escape recall can land at home (live 2026-10-06,
-        -31 0.4 s after the landing), and the plan takes seconds. A creature the threat checks in the
-        hatchets' clicks would run from (Escape) means no hop either: the room, where the escape
-        is handled on the way (live 2026-10-13, lumber-20261013-161548-a508: an Escape out of here,
-        inside the red's Unsafe, crashed the run at the landing). A `hop` job event either way."""
+        -31 0.4 s after the landing), and the plan takes seconds. The decision runs like the room
+        (home_after_recall): settled first and in mode 'salvage', where only players and death count,
+        so a creature or a spell that followed us home doesn't stop the run at the landing (live
+        2026-10-13 a resting horse blamed for a spell crashed `lumber-20261013-161548-a508`; 2026-10-14
+        lxl's reflected spell stopped `lumber-20261014-112045-b23a` there with 1201 logs carried). A
+        `hop` job event either way."""
         why_not = self.hop_blocked(self.link.state())
         if why_not is None and recall:
             try:
@@ -4670,23 +4688,24 @@ class LumberLoop:
         if why_not is not None:
             log(f"no library hop ({reason}): {why_not}")
             return None
-        st = self.link.state()
-        carried = self.count(st, LOGS)
-        self.doing("hop_plan", f"Home with {carried} logs: another spot, or the room?")
-        out = lumber_opt.plan_from_store(self.memory, st["world"], self.self_serial(st), self.link.pos(st),
-                                         self.facet_now(st), seeds_path=self.args.spots, carried=carried,
-                                         hop_from=self.k["spot"]["id"], home=self.home)
-        st = self.link.state()
-        hop = out.get("hop")
-        why_not = self.hop_blocked(st) or (None if hop else (out.get("hop_why") or out.get("error")))
-        if why_not is None:                         # the leg's quota in hatchet uses (hatchets_ready's rule)
-            try:
-                have = sum(n for n, _ in self.hatchet_uses(st).values())
-            except Escape as e:
-                have, why_not = None, f"a creature at home ({e})"
-            need = self.uses_needed(hop["logs_per_trip"])
-            if have is not None and have < need:
-                why_not = f"the hatchets hold {have} uses, the hop's quota may take {need}: the room first"
+        self.settle_at_home()
+        mode, self.mode = self.mode, "salvage"
+        try:
+            st = self.link.state()
+            carried = self.count(st, LOGS)
+            self.doing("hop_plan", f"Home with {carried} logs: another spot, or the room?")
+            out = lumber_opt.plan_from_store(self.memory, st["world"], self.self_serial(st), self.link.pos(st),
+                                             self.facet_now(st), seeds_path=self.args.spots, carried=carried,
+                                             hop_from=self.k["spot"]["id"], home=self.home)
+            st = self.link.state()
+            hop = out.get("hop")
+            why_not = self.hop_blocked(st) or (None if hop else (out.get("hop_why") or out.get("error")))
+            if why_not is None:                     # the leg's quota in hatchet uses (hatchets_ready's rule)
+                have, need = sum(n for n, _ in self.hatchet_uses(st).values()), self.uses_needed(hop["logs_per_trip"])
+                if have < need:
+                    why_not = f"the hatchets hold {have} uses, the hop's quota may take {need}: the room first"
+        finally:
+            self.mode = mode
         data = {"trip": self.trip_n, "from": self.k["spot"]["id"], "reason": reason, "carried": carried,
                 "hop": hop if why_not is None else None, "why_not": why_not}
         self.memory.job_event("lumber", "hop", data, **self._where(st))
@@ -4981,10 +5000,13 @@ def main():
     ap.add_argument("--track", choices=("reds", "off"), default="reds",
                     help="keep Tracking's Hunting mode on murderer players all run (tracking.py); murderer hits "
                          "within --track-react-range at a pvp spot send us home like a red in view")
-    ap.add_argument("--track-react-range", type=int, default=80,
-                    help="tiles (Chebyshev to the tracking arrow) within which a tracked red triggers the escape; "
-                         "farther ones (reds in their houses) are logged only. 80 (user decision 2026-10-03, after a "
-                         "mounted red covered 55 tiles in ~5.5 s; back to 80 on 2026-10-09 after a day at 60: red "
+    ap.add_argument("--track-react-range", type=int, default=100,
+                    help="tiles (Chebyshev to the tracking arrow) within which a tracked red triggers the escape "
+                         "(a known PK triggers it at any distance); farther ones (reds in their houses) are logged "
+                         "only. 100 since 2026-10-14 (user, after Thugnificent was tracked at 97 and killed Dan: of 75 "
+                         "hits beyond 80 on record, 7 at 81-99 tiles came into view within 2 min); 80 before (user "
+                         "decision 2026-10-03, after a mounted red covered 55 tiles in ~5.5 s; back to 80 on "
+                         "2026-10-09 after a day at 60: red "
                          "'mauna kea' was tracked at 68 tiles, logged only, and killed Dan 10 s later)")
     ap.add_argument("--track-retry-s", type=float, default=30.0,
                     help="at most one try to turn Hunting back on per this many seconds")

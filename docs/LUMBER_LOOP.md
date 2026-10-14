@@ -277,9 +277,12 @@ below what the plan would risk. Now such a leg asks the plan, at home, whether t
   player too: user, "hop elsewhere with the load"). The runner recalls home first (`hop_home`
   phase) unless the escape already did. Not after: a break, a closed agent gate, possible staff, a
   speech hold, death, hits below 80 % (`HOP_MIN_HITS`, checked again after the plan: a spell cast
-  before the escape can land at home), no live trapped pouch, `--hops` (default 3) used, or a
-  creature the hop's hatchet check would run from (since 2026-10-13: that Escape, raised inside the
-  red's recall, crashed `lumber-20261013-161548-a508` at the landing; now the leg goes to the room).
+  before the escape can land at home), no live trapped pouch, or `--hops` (default 3) used. The
+  decision runs like the room after a recall (`home_after_recall`): settled first and in mode
+  'salvage', where only players and death count (since 2026-10-14). Before, a creature or a spell
+  that followed us home stopped the run at the landing: a resting horse blamed for a spell crashed
+  `lumber-20261013-161548-a508`, and lxl's reflected spell stopped `lumber-20261014-112045-b23a`
+  with 1201 logs carried.
 - **Where:** the spot a fresh plan would send a trip to (its Thompson pick; the greedy spot with
   `--exploit`), never the spot just left. `plan_from_store(carried=, hop_from=, home=)` asks
   `plan(carried=…)`; the answer is `hop` (or `hop_why`).
@@ -1236,6 +1239,9 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     - **Who is known:** every player who attacked one of our characters. The runner marks him itself
       when he is named in "… is attacking you!" or swings at us (in the threat check, and in
       `record_death` for a line heard inside the escape: the 10-10 death read "unknown" without it).
+      A named attacker out of view is marked too, by name, with his serial when a player of that
+      name was seen this run (since 2026-10-14: lxl's line came as the escape recall landed, and he
+      was missed). A known PK found by Tracking is fled at any distance (see "Tracking reds").
       Players the user or the overseer names are added with `ctl pk add NAME [--serial S] [--why W]`.
       The 11 attackers on record on 2026-10-10 were backfilled (Bastet … gorilkaenjoyer).
     - **Storage:** `pk` job events (`mark`/`clear`) in the memory store, read at each run start. A
@@ -1547,10 +1553,14 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     lumbers on. `--track off` disables all of it.
   - **React to hits:** a hit while hunting murderer players (the world model keeps the mode at
     hit time) is a red, possibly out of view. Its distance is Chebyshev from us to the arrow's x/y
-    (the "(N spaces to target)" line when there's no arrow). Within `--track-react-range` (80,
-    user decision 2026-10-03, after Bastet's third kill: tracked at 55 tiles at 19:07:50, logged only
-    with the old 40, striking 5.5 s later mounted; 60 for one day, 2026-10-08/09, until red "mauna kea",
-    tracked at 68 tiles and logged only, killed Dan 10 s later) at a pvp spot while out at it (after the travel
+    (the "(N spaces to target)" line when there's no arrow). Within `--track-react-range` (100
+    since 2026-10-14, user, after Thugnificent was tracked at 97 tiles, logged only, and killed Dan
+    45 s later; of 75 hits beyond 80 on record, 10 had the red in view within 2 min, 7 of those from
+    81-99 tiles. 80 from 2026-10-03, after Bastet's third kill: tracked at 55 tiles at 19:07:50,
+    logged only with the old 40, striking 5.5 s later mounted; 60 for one day, 2026-10-08/09, until
+    red "mauna kea", tracked at 68 tiles and logged only, killed Dan 10 s later), or at any distance
+    for a known PK (why `tracking: known PK <name> N spaces`; scenario `track_known_pk`), at a pvp
+    spot while out at it (after the travel
     out, until home), it is the red escape above: `recall_out` with why `tracking: <name> N spaces`,
     the guard flight if that fails, then stop. Each new hit is checked, so a red first found far
     that comes within range triggers then. A red already recalled from never triggers again in the
