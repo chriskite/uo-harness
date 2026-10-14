@@ -2359,6 +2359,24 @@ heals, no dispels, no locked doors and no heal potions.
     and such pets are never in the threats. `learned_params` skips their hits and sightings, and any
     sighting with a passive name. `try_hop` treats an Escape as "no hop". On a copy of the live store,
     0xE4 was aggressive before the fix and is not after it.
+- **Dead to Thugnificent at witcher_52 (live 2026-10-14 14:31-14:32, Seer-30).** Log
+  `logs/tasks/lumber-20261014-141733-90b4.log` lines 488-546; juncture 1067.
+  - **Timeline.** Tracking logged the red, a known PK since 10-10, at 97 tiles at 14:31:23 ("beyond 80:
+    logged only"). He came into view 14 s later. Three recalls were disturbed 1.4-1.8 s into the cast,
+    with runs of 17 and 5 moves between them, two Heals (54 → 39, 6 → 12), and hits 100 → 0 in 31 s.
+    The Report Murder gump was declined.
+  - **Tracked reds beyond 80 do come.** Of 75 tracking hits beyond the react range in the store, 10
+    had the same red in view within 120 s. Seven of those were at 81-99 tiles: Dzho'gahr, SuperSkills,
+    Thugnificent twice, Jimii Hendrix (killed Dan 10-11), Iesus Nazarenus and lxl. 46 of the 75 hits
+    were at 80-99 tiles.
+  - **Also seen.** Stamina read 0/25 at the flight's first aid. The guard route was planned at 476
+    steps, then "no route within 470 steps" 3 s later.
+- **lxl, 2026-10-14 11:38 (Seer-30, `lumber-20261014-112045-b23a.log` lines 786-790).** The red's
+  spell was reflected as the escape recall landed. About 9 s later, try_hop's hatchet clicks counted
+  that reflect as "taking damage, no creature in view", and the run stopped at the landing with 1201
+  logs in the pouch. The room path runs in mode 'salvage' for exactly this (2026-10-06); the hop
+  decision doesn't. `attacked_by_players` keeps only named players in view, so lxl wasn't marked a
+  known PK.
 
 ## A "thief" who killed: gorilkaenjoyer at witcher_105 (live 2026-10-10, Seer-17)
 
