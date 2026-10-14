@@ -354,9 +354,12 @@ live), monster z from the map surface, aggro range 10 (the simulator's) [INFEREN
   the countess 2.4.
 - **Hold at first sight** (Logan at the nightstalker room's north edge: the wolves and the stalker came
   to him 5-10 s after first sight, the knight only when he moved on): with nothing fighting, the patrol,
-  an approach and the idle tick stop as soon as an idle monster sees us within 10 tiles, for up to 10 s
-  per monster; one that hasn't come by then is passed over. Packs come to us in stages instead of being
-  walked into (docs/SIM.md: a third fewer deaths).
+  an approach and the idle tick stop as soon as an idle monster would see us within 11 tiles (a step
+  outside its aggro range), for up to 10 s per monster; one that hasn't come by then is passed over.
+  **The pull spot**: before holding, once per group, the runner steps (up to 3) to the tile where the
+  fewest of them by weight, but at least one, would see us within their aggro range (10), not in a
+  Charge's reach or a never-aggro monster's sight; they come from there in stages instead of being
+  walked into.
 - **Never-aggro monsters**: their sight within 13 tiles is no-go: the patrol stops before it, the
   crawl skips waypoints within 15 of one and routes keep out (`crawl.Crawl.observe`); the runner never
   pulls one. One that comes for us in war mode is run from ("I run until the consort leashes and I'm

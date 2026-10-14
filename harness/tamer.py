@@ -133,6 +133,7 @@ REPOSITION_S = 3.0
 REPOSITION_STEPS = 2
 REPOSITION_GAIN = 1.0         # a caster's sight less, or a tenth of an idle monster's weight
 HOLD_S = 10.0                 # hold this long for an idle monster that sees us (live: 5-10 s to war mode)
+PULL_STEPS = 3                # a pull spot within this many steps
 
 # The only phrases ever said to the pets, as Logan Wolf's hotkeys say them
 COMMANDS = {c.lower(): c for c in ("All Guard Me", "All Follow Me", "All Kill", "All Stop", "All Stay", "All Come")}
@@ -310,6 +311,7 @@ class Team:
         self.fought = {}                 # serial -> (last-seen mob dict, monotonic): mobs the pets fought
         self.chargers = set(CHARGERS)    # creature types with an area Charge (known + seen this run)
         self.hold_until = {}             # serial -> until when we hold for it to come (pull_check)
+        self.spot_for = frozenset()      # the monsters the last pull spot was chosen for
         self.standoff_t = -1e9
         self.songs = {}                  # song skill -> monotonic time it runs out
         self.song_ready = 0.0
@@ -584,22 +586,82 @@ class Team:
         return why
 
     def hold_reason(self, st) -> str | None:
-        """--hold-first-sight, nothing fighting: an idle monster that sees us within its aggro range now;
-        hold up to HOLD_S and let it come (Logan at the nightstalker room's north edge, 20261013_204518:
-        the wolves and the stalker came 5-10 s after first sight, the knight only when he moved on). A
-        monster held for that long without coming is passed over."""
+        """--hold-first-sight, nothing fighting: an idle monster that sees us within one tile of its aggro
+        range; hold up to HOLD_S and let it come (Logan at the nightstalker room's north edge,
+        20261013_204518: the wolves and the stalker came 5-10 s after first sight, the knight only when he
+        moved on); pull_spot picks where to stand for it. A monster held for that long without coming is
+        passed over."""
         v = self.view(st)
         if not self.a.hold_first_sight or v.engaged():
             return None
         now = time.monotonic()
         seen = []
-        for m in v.wakes(v.pos, margin=0):
+        for m in v.wakes(v.pos, margin=1):
             if self.hold_until.setdefault(m["serial"], now + HOLD_S) > now:
                 seen.append(m)
         if not seen:
             return None
         m = min(seen, key=lambda m: cheb(m["pos"], v.pos))
         return f"{m['kind']} sees us at {cheb(m['pos'], v.pos)} tiles: letting it come"
+
+    def pull_spot(self, st) -> bool:
+        """Holding (hold_reason): once per group of monsters held for, the tile within PULL_STEPS where
+        the fewest of them (by aggro weight) would see us within their aggro range, but at least one, so
+        it comes alone or with the fewest (Logan held where the stalker room's wolves came in stages); not
+        in a Charge's reach or a --never-aggro monster's sight. True when we stepped there."""
+        h = self.h
+        v = self.view(st)
+        if v.walk is None:
+            return False
+        now = time.monotonic()
+        group = frozenset(m["serial"] for m in v.wakes(v.pos, margin=1) if self.hold_until.get(m["serial"], 0) > now)
+        if not group or group == self.spot_for:
+            return False
+        self.spot_for = group
+        zone = self.charge_zone(st)
+
+        def cost(t):
+            w = v.wakes(t, margin=0)
+            return (sum(m["weight"] for m in w), len(w))
+        here = cost(v.pos)
+        best, best_c = None, None
+        for t, k in self.tiles_within(v, PULL_STEPS).items():
+            if k == 0 or t[:2] in zone or v.never_near(t):
+                continue
+            c = cost(t)
+            if c[1] == 0:
+                continue
+            c = (round(c[0], 2), c[1], k)
+            if best_c is None or c < best_c:
+                best, best_c = t, c
+        if best is None or (here[1] > 0 and best_c[0] >= here[0] - 0.1):
+            return False
+        label = "to a pull spot"
+        h.doing("hold", f"Stepping to {best[0]},{best[1]} where {best_c[1]} would see us (weight {best_c[0]:g})", best[:2])
+        self.count("pull_spots")
+        log(f"pull spot {best[:2]}: {best_c[1]} would see us there (weight {best_c[0]:g}; here {here[1]}, {here[0]:.1f})")
+        try:
+            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * PULL_STEPS)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"pull spot: {e}")
+        return True
+
+    @staticmethod
+    def tiles_within(v: aggro.View, steps: int) -> dict:
+        """{(x, y, z): walking steps} from where we stand, up to `steps` (pathfind.Walk.can_walk)."""
+        out, frontier = {v.pos: 0}, [v.pos]
+        for k in range(1, steps + 1):
+            nxt = []
+            for x, y, z in frontier:
+                for d in range(8):
+                    n = v.walk.can_walk(x, y, z, d)
+                    if n is not None and n not in out:
+                        out[n] = k
+                        nxt.append(n)
+            frontier = nxt
+        return out
 
     def evade(self, st) -> bool:
         """A --never-aggro monster in war mode near (aggro.View.chasing): 'All Follow Me' and run from it,
@@ -653,16 +715,7 @@ class Team:
         pos = v.pos
         keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]
         zone = self.charge_zone(st)
-        steps, frontier = {pos: 0}, [pos]
-        for k in range(1, REPOSITION_STEPS + 1):
-            nxt = []
-            for x, y, z in frontier:
-                for d in range(8):
-                    n = v.walk.can_walk(x, y, z, d)
-                    if n is not None and n not in steps:
-                        steps[n] = k
-                        nxt.append(n)
-            frontier = nxt
+        steps = self.tiles_within(v, REPOSITION_STEPS)
         here = v.stand_score(pos)
         best, best_s = None, here
         for t, k in steps.items():

@@ -388,6 +388,13 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   - A third fewer deaths in the zone crawl and over a third fewer in the loop, for 4-7 % less gold.
   - The loop still dies four times as often as the zone crawl; the nightstalker still does most of its
     pet damage (4,800 an hour).
+- **The pull spot** (2026-10-14): holding now starts a tile outside the first monster's aggro range,
+  and the runner first steps (up to 3) to where the fewest of the waiting monsters (by weight, at least
+  one) would see it. Same arms, hold on: zone 0.47 deaths a game hour (0.51 without the spot), 28 runs
+  with a death, 46 with a pet death (40), 88 kills a hunting hour (82), 78,300 gold a game hour
+  (71,100); loop 2.14 deaths (2.23), 40 runs with a death (49), 62 with a pet death (61), 95 kills
+  (97), 63,700 gold (64,600). More kills and gold in the zone crawl, fewer runs with a death in the
+  loop; the pet deaths didn't move. The nightstalker still does 5,300 an hour on the pets in the loop.
 
 ## Limits
 

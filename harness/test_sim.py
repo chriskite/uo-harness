@@ -427,7 +427,8 @@ def test_pull_budget():
         w = world_with([{"key": k, "at": [x, y, 0]} for k, (x, y) in spawns])
         link, clock = link_for(w)
         db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
-        args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, ["--pull-budget", str(budget)], 10, at_hunt=True)
+        args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, ["--pull-budget", str(budget),
+                                                                           "--no-hold-first-sight"], 10, at_hunt=True)
                                                  + ["--memory", db, "--seed", "1"])
         patched = simclock.install(clock)
         store = memory.Memory(db)
