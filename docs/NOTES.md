@@ -2381,6 +2381,11 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
   (the two-attacker leave rule). Both fixed.
 - A hurt leave that recalls at once strands a pet more than 3 tiles off; one that stands waiting dies to
   bleeds. `tamer.follow` now falls back from the attackers while the pets come.
+- `walk_in` counted the pets within 3 tiles of us before stepping onto a teleporter, but in the
+  simulator they come along counted from the teleporter [INFERENCE live: ServUO TeleportPets from the
+  mover's tile]: a pet 3 tiles behind was 4 from it and stayed behind on the
+  second level's one-way hop (5507, 697), and the run aborted at the next teleporter. Songs on the way
+  in shifted the timing enough to show it (2 of 14 runs). Now counted from the teleporter tile.
 - Out of vet supplies, `tamer.rested` counted a pet below `--pet-leave-at` as rested, so the run
   recalled in, left on arrival for that pet, and recalled out again: up to 436 recalls in a game hour
   (17 of 48 one-hour runs). Fixed: the rest waits for natural regeneration, bounded by
@@ -2627,6 +2632,51 @@ gravebug were his; two bonded black widows in view belonged to someone else (not
   opened. `moongate.travel` now does the same.
 - At Totem: "A stationary penalty is in effect (must move 5 tiles to remove)." right after the drink,
   as after every moongate.
+
+## Logan Wolf's full Mausoleum crawl (capture 20261013_204518, analysed 2026-10-13)
+
+"A pretty good crawl" (user). In the region 20:46:00-20:58:44, 12.7 min on the fight level. The user
+had added Effective Barding links to the mastery chain just before (user 2026-10-13).
+
+- **Totals on the fight level**: 29 kills by our side (137 an hour; the first trip 115, the simulator's
+  crawls 85-89), 26,951 gold lifted, 4 heal potions, 29 vet supplies, no death. Only 5 hits on Logan
+  (-48 an apparition, -48 beside a nightstalker, -22, -23 in the countess fight, -24 "Their accursed
+  spell weakens you, reducing your melee and spell damage!" beside a shadow minion): 13 a minute. The
+  fighting was nearly continuous: 6 engagements, 595 of the 764 s, the longest 237 s and 11 kills.
+- **His route** (one loop, then the east): arrival (5199, 738) -> the apparitions south (5208, 716) ->
+  the banshee room (5208, 704) -> north (5209, 687) -> west into the countess' room (5188, 682) ->
+  **into the nightstalker room** (5174, 683 -> 5178, 691: 4 shade wolves, the nightstalker, a
+  reanimated knight, 2 min) -> south (5180, 718) -> east (5200, 723) -> the banshee room again ->
+  the countess' room again (a new countess) -> east (5206, 683) -> north-east (5220, 663) -> (5232, 651)
+  -> the bound souls' and corpse purgers' room (5258-5278, 653) -> back west (5230, 653) -> (5213, 667)
+  -> the gate. Kills per room came as he walked in; he never waited for a respawn.
+- **Barding after the links**: every number grew ~18 %, success didn't (fit_bard S 151 on 50 answers,
+  149 before). Songs 17.7 % (were 15.0), discord "(1m 11s)" 17 of 18 times (was "(1m)"; "(1m 26s)" on
+  a corpse purger just provoked), peace "(43s)" 6 of 7 (was "(38s)"), provoke "(36s)"/"(43s)" (was
+  "(30s)"). The scenario's bard block has the new numbers (`links_note`).
+- **Songs before the fight level**: Discordance at 20:46:06 on the first level, right after the
+  arrival, Peacemaking 14 s later on the way to the teleporter, Provocation at 20:46:54 on the second
+  level. A second Discordance at 20:49:36 mid-fight [INFERENCE: a ground target meant for a wolf].
+  `walk_in` now plays a due song before each leg.
+- **The countess again** (two fights with transfixes): copies at 20:52:51.0 and 20:53:12.5, 10.9 and
+  10.0 s to their 0x1D, war mode 2.4 and 2.3 s after appearing, the gravebug without an attack animation
+  meanwhile. The transfix itself hit the gravebug -36 at that instant, as on both earlier trips (-36,
+  -37, -45): modelled (`pet_damage`). Over 3 fights: 6 of 12 attempts with no copy up worked, 0 of 5
+  with one up. A countess also transfixed another player's pet (Broken Covenant) at 20:58:17.
+- **Respawns**: the countess at (5174-5176, 681) killed 20:48:10.6, a new one in view at 20:52:34.6
+  with Logan in the room since 20:51:35: 205-264 s. A shade wolf 148.5 s (calibrate). The simulator's
+  2-5 min fits both.
+- **Reanimated knights charge too** (`*charges*` at 20:50:09.6 and 17:40:23.1), with no damage number
+  within 0.8 s either time. The runner learns a charger from the overhead anyway (`tamer.chargers`).
+- **The nightstalker's charges**: 5 in its fight, 7.6-17 s apart, 3 with a -10..-19 on the gravebug
+  within 0.5 s.
+- **Out through the crimson gate without stepping on it**: "All Follow Me" at (5208, 685), a run of
+  18 tiles at 0.2 s a step, then a double-click on the gate 0x4010E11F from (5204, 702), a tile away.
+  The menu opened at once with Totem selected; Travel 0.1 s later; the jump came from that tile, to
+  Totem at (3848, 2867) (not the first trip's 3859, 2890: the arrival varies). The rune tome 1.4 s
+  later, home (a rental room), both pets along. `leave_by_gate` now double-clicks the gate from the
+  tile beside it (the step onto it only without the item in view); the simulator opens the menu on a
+  double-click within a tile.
 
 ## Network observations
 

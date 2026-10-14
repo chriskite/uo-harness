@@ -344,12 +344,15 @@ moongate, and never near a red one).
 - **In:** `--enter-via X Y` (repeat) steps onto those teleporters in order after the recall in.
   - The approach is the tile the route onto each one arrives from (a teleporter on stairs is entered
     from one side only).
-  - Before each step: "All Follow Me", then up to 20 s more for every pet within 3 tiles, else Abort.
-    They come through only if near.
-  - "All Guard Me" again after each teleporter.
+  - Before each step: "All Follow Me", then up to 20 s more for every pet within 3 tiles of the
+    teleporter, else Abort. They come through only if near it (a pet 3 tiles behind us is 4 from the
+    teleporter: in the simulator it stayed behind on the second level's one-way hops).
+  - "All Guard Me" again after each teleporter; `--songs`: a song due before each leg, as Logan
+    sang them on the first two levels.
 - **Out:** `--leave-gate X Y --gate-dest NAME` (`moongate.py`).
-  - The runner walks to the gate with the pets still guarding, says "All Follow Me" beside it, then
-    steps on and picks the destination by its label.
+  - The runner walks to the gate with the pets still guarding and says "All Follow Me" beside it.
+    Then it double-clicks the gate from that tile, as Logan did (the step onto it only when the gate
+    item isn't in view), and picks the destination by its label.
   - Then "Travel to Destination" on the re-sent menu, or on the first one when the menu opens with
     that destination already selected (it remembers the last one, live), and `--leave-recall` home
     from the town.

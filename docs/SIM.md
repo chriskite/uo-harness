@@ -100,20 +100,24 @@ What the capture and the wiki fixed:
     Logan beside it) [INFERENCE: area].
   - The vampire bat's bleed hits its target.
   - The nightstalker's Charge: a jump up to 12 tiles every ~8.5 s, 37-42 on up to 3 within a tile.
-  - The vampire countess' transfix (two fights, 20261012_210013 and 20261013_173449): an attempt every
-    ~5.3 s; with no copy of hers up half succeed, with one up none. Each makes a hostile copy of a pet,
-    with the pet's name, that wakes 0-2.5 s later, goes for any of us but its original within 3 tiles
-    (live, 4 of its 10 hits were on Logan, 28-37 each) and vanishes after 9.9-11 s. Until then the pet
-    itself stands transfixed: no step, no attack.
+  - The vampire countess' transfix (three fights over 20261012_210013, 20261013_173449 and _204518):
+    an attempt every ~5.3 s; with no copy of hers up half succeed (6 of 12), with one up none (0 of
+    5). Each hits the pet for 36-45 at once and makes a hostile copy of it, with the pet's name, that
+    wakes 0-2.5 s later, goes for any of us but its original within 3 tiles (live, 4 of its 10 hits
+    were on Logan, 28-37 each) and vanishes after 9.9-11 s (n=6). Until then the pet itself stands
+    transfixed: no step, no attack.
   - The corpsebride's wail, every 7.6 s: 13-25 on each of us within a tile 75 % of the time (the pets
     beside it live: about 18 of 24), 20 % at 2-3 tiles (Logan: 2 of 11) [INFERENCE: an area hit].
   - The shade wolf's Vanish: 4.3-15 s into a fight, then every 19-22 s, it is unseen and can't be hit
     for 3.5-6 s. It comes back on the target it had, with a swing at once.
 - **Barding songs** (2026-10-13, the second trip): a bard skill at the ground plays a song for 15
-  minutes, 10 s between songs: 15 % less damage to us and the pets from creatures (bleeds and area hits
-  too), 15 % more healing received, 15 % more damage by us and the pets. The first trip had none.
+  minutes, 10 s between songs: less damage to us and the pets from creatures (bleeds and area hits
+  too), more healing received, more damage by us and the pets. 15.0 % each on the second trip, 17.7 %
+  since the user's Effective Barding links (the crawl, 20261013_204518), which also lengthened the
+  bard skills' effects ~18 % (discord 71 s, peace 43 s, provoke 36 s); the scenario has the new values.
 - **Moongate menus** open with the last destination selected, as live; the runner then presses Travel
-  on the first menu.
+  on the first menu. A double-click on a gate within a tile opens its menu, and Travel works from
+  there, as Logan left on the crawl.
 - **Pet pace**: one step per 0.21 s out of war mode (n=470 and 471, capture), the pace of our run;
   `calibrate.py` writes it as `step_interval_s_not_fighting` (2026-10-13; 0.3 s before, uncited).
   The world's step and swing timers keep their cadence across its 0.1 s ticks (`World._due`). Before
@@ -320,6 +324,16 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
     transfixed copies and, in the loop, the nightstalker (174 an hour, though the crawl stays out of
     its room) [INFERENCE: its Charge reaches 12 tiles, onto us passing the room on the way to the gate].
   - The loop still dies five times as often as the zone crawl.
+- **With the crawl's updates** (20261013_204518: the barding after the links, the transfix hit on the
+  pet, the gate double-clicked from a tile, songs on the way in, the teleporter pet fix; same 2 x 49 x
+  60 min per crawl, songs on): zone 83 kills a hunting hour, 0.34 deaths a game hour, 10 runs of 98
+  with a pet death; loop 84 kills, 1.47 deaths, 35. No run failed at a teleporter (2 of 14 had before
+  the fix).
+  - Against Logan's crawl on the same level (12.7 min, his loop plus the nightstalker room and the
+    east): 137 kills an hour, ~780 damage an hour to him, no death. The simulated loop takes about as
+    much damage (961) but kills 40 % slower and dies. He fought nearly without a break (595 of 764 s,
+    6 engagements, the longest 11 kills); the gap is in how fast the next fight starts and ends, not
+    in the damage [INFERENCE].
 
 ## Limits
 

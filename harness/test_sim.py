@@ -407,7 +407,8 @@ def test_songs():
     m = Mob(10**6, "monster", "shade wolf", "a shade wolf", 23, gb.x + 1, gb.y, gb.z, hits=100, hits_max=100)
     h0 = gb.hits
     w.hurt(gb, 100, m)
-    check("Song of Discordance: a creature's 100 hits our pet for 85", h0 - gb.hits == 85, f"{h0 - gb.hits}")
+    want = round(100 * (1 - sc["bard"]["song_x"]))
+    check(f"Song of Discordance: a creature's 100 hits our pet for {want}", h0 - gb.hits == want, f"{h0 - gb.hits}")
 
 
 def test_rest_hurt_pet():

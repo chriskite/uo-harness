@@ -499,9 +499,12 @@ class Team:
         if far:
             log("pets not all within reach after 'All Follow Me': " + ", ".join(far))
 
-    def together(self, st) -> bool:
-        """Every pet of the roster in view within FOLLOW_R."""
-        near = {p["serial"] for p in self.pets(st) if p["dist"] <= FOLLOW_R}
+    def together(self, st, at=None) -> bool:
+        """Every pet of the roster in view within FOLLOW_R of us, or of tile `at` (a teleporter we step
+        onto next: the pets that come along are counted from it [INFERENCE: ServUO TeleportPets from the
+        mover's location]; a pet 3 tiles behind us was 4 from it and stayed behind in the simulator)."""
+        near = {p["serial"] for p in self.pets(st)
+                if (p["dist"] if at is None else cheb((p["x"], p["y"]), at)) <= FOLLOW_R}
         return all(s in near for s in self.roster)
 
     def fall_back(self, st):

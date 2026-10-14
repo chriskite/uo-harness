@@ -8,9 +8,11 @@ back with a new serial, then "Travel to Destination" (button 2) on it. The arriv
 jump; the pets within range come along. The menu opens with the character's last destination
 already selected (its radio button drawn 9724/9721, the others 9721/9724: Prevalia there, Totem at
 17:40:36 in 20261013_173449, where Logan pressed Travel at once, 1.5 s after the menu, chased by two
-reds): then Travel goes on the first menu.
+reds): then Travel goes on the first menu. The gate needn't be stepped on: at 20:58:44
+(20261013_204518) Logan double-clicked it from a tile away, Travel 0.1 s after the menu, and the jump
+came from that tile.
 
-`travel(link, human, dest)` does that from a gate we stand on, its menu already up or about to be.
+`travel(link, human, dest)` does that on or beside a gate, its menu already up or about to be.
 `link` is an agent_link.Link (events, state, act, wait), `human` a humanize.Human (a reading pause
 before each click).
 """
@@ -30,6 +32,16 @@ RESEND_WAIT_S = 3.0                  # the menu re-sent after a destination pick
 ARRIVAL_WAIT_S = 5.0                 # Travel -> the position jump (live 0.75 s)
 JUMP_TILES = 10
 SELECTED_ART = 9724                  # a radio button's normal art when selected (live, both captures)
+GATE_GRAPHICS = (0x0F6C, 0x0DDA)     # moongate art (the Mausoleum's red and gold gates: 0x0F6C)
+
+
+def gate_at(st: dict, tile) -> int | None:
+    """The serial of a moongate item on `tile` in the world model, else None."""
+    for key, it in (st["world"].get("items") or {}).items():
+        if it.get("graphic") in GATE_GRAPHICS and (it.get("x"), it.get("y")) == tuple(tile[:2]) \
+                and not it.get("container"):
+            return serial_of(key)
+    return None
 
 
 class GateError(Exception):

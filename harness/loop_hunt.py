@@ -1280,9 +1280,9 @@ class HuntLoop:
     def leave_by_gate(self, severity: str) -> dict:
         """--leave-gate: walk to the moongate with the pets still guarding (they fight what comes at
         us on the way and follow: 'All Follow Me' first would leave us the target), then beside it
-        'All Follow Me' (tamer.follow: a hurt leave doesn't wait) so they come through, the step
-        onto it (its menu left for us) and the travel to --gate-dest (moongate.travel).
-        -> {ok, from, to, dest, elapsed_s[, error]}."""
+        'All Follow Me' (tamer.follow: a hurt leave doesn't wait) so they come through, a double-click
+        on the gate from that tile (live 20261013_204518; the step onto it when its item isn't in view)
+        and the travel to --gate-dest (moongate.travel). -> {ok, from, to, dest, elapsed_s[, error]}."""
         gate = tuple(self.args.leave_gate)
         urgent = severity != "info"
         self.doing("leave", f"Walking to the moongate at {gate[0]},{gate[1]}", gate)
@@ -1297,8 +1297,14 @@ class HuntLoop:
                                        max_moves=max(250, 3 * self.out_steps))
                 self.team.follow(severity)
             mark = len(self.link.events)
-            self.mover.walk_to(lambda: gate, 0, "onto the moongate", gate=gate, urgent=urgent,
-                               max_moves=max(250, 3 * self.out_steps))
+            st = self.link.state()
+            serial = moongate.gate_at(st, gate)
+            if serial is not None and cheb(self.pos(st), gate) <= 1:
+                self.human.wait("use")
+                self.link.act(actions.dclick(serial))
+            else:
+                self.mover.walk_to(lambda: gate, 0, "onto the moongate", gate=gate, urgent=urgent,
+                                   max_moves=max(250, 3 * self.out_steps))
             return moongate.travel(self.link, self.human, self.args.gate_dest, since=mark, log=log)
         except (Abort, moongate.GateError) as e:
             return {"ok": False, "from": list(self.pos(self.link.state())[:2]), "error": str(e),
@@ -1392,11 +1398,13 @@ class HuntLoop:
         """After the recall in (a dungeon lets us recall only beside a gold moongate: user 2026-10-13):
         onto each --enter-via teleporter in order. Before each step onto one, 'All Follow Me' and the
         pets within reach (they come through with us); after it they're guarded again (a level
-        transition stops guarding, wiki)."""
+        transition stops guarding, wiki). --songs: a song due before each leg (live 20261013_204518:
+        all three went up on the first level and on the way in)."""
         for tile in tiles:
             label = f"to the teleporter at {tile[0]},{tile[1]}"
             self.doing("enter", f"Walking to the teleporter at {tile[0]},{tile[1]}", tile)
             if self.team is not None:
+                self.team.song(self.state())
                 self.team.guard()
             # the tile the route onto it steps from: a teleporter on stairs is entered from one side only
             # (the Mausoleum's at 5554,701: from 5554,702 northwards)
@@ -1407,8 +1415,8 @@ class HuntLoop:
             self.mover.walk_to(lambda: near, 0, label)
             if self.team is not None:
                 self.team.follow()
-                if not self.link.wait(lambda s: self.team.together(s), WALK_IN_PETS_S):
-                    raise Abort(f"{label}: the pets aren't within {tamer.FOLLOW_R} tiles after "
+                if not self.link.wait(lambda s: self.team.together(s, at=tile[:2]), WALK_IN_PETS_S):
+                    raise Abort(f"{label}: the pets aren't within {tamer.FOLLOW_R} tiles of it after "
                                 f"{WALK_IN_PETS_S:.0f} s more; not stepping through without them")
             here = tuple(self.pos(self.link.state())[:2])
             self.teleport(nav.direction(here, tile), f"the teleporter at {tile[0]},{tile[1]}")

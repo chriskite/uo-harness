@@ -794,9 +794,10 @@ class World:
 
     def _transfix(self, pet: Mob, sp: dict, by: Mob):
         """The vampire countess' transfix: a hostile copy of one of our pets, named as the pet, on its
-        tile, while the pet itself stands transfixed (no step, no swing) until the copy vanishes. Live, 4
-        copies in 2 fights (21:27:18-21:27:49, 17:39:14-17:39:25): 9.9-11.0 s each, the copy in war mode
-        0-2.5 s after it appeared, at most one at a time; their hits on Logan 28-37."""
+        tile, while the pet itself stands transfixed (no step, no swing) until the copy vanishes, after a
+        -36..-45 on it at once. Live, 6 copies in 3 fights (20261012_210013, 20261013_173449, _204518):
+        9.9-11.0 s each, the copy in war mode 0-2.5 s after it appeared, at most one at a time; their hits
+        on Logan 28-37."""
         spec = {"name": pet.name, "body": pet.body, "melee": sp["melee"], "swing_s": sp["swing_s"],
                 "hit_chance": sp.get("hit_chance", 0.9), "step_s": pet.spec.get("step_s", 0.21),
                 "aggro_range": 12, "gold": [0, 0], "difficulty": sp.get("difficulty", 100.0),
@@ -811,6 +812,8 @@ class World:
         self.mobs[c.serial] = c
         self._view()
         self._overhead(c, "*transfixed*")
+        if sp.get("pet_damage"):
+            self.hurt(pet, self.roll(sp["pet_damage"]), by, "transfix")   # live -36..-45 at once (n=5)
         self.count("transfixed", pet.name)
 
     # ------------------------------------------------------------ pets
@@ -1146,6 +1149,13 @@ class World:
         if kind == "bag":
             self._open(s, BAG_GUMP)
             return
+        if kind == "gate":
+            # live 20:58:44 (20261013_204518): double-clicked from a tile away, the menu at once
+            if cheb((it["x"], it["y"]), pl.pos) > 1:
+                self.send(P.cliloc(500446))
+                return
+            self._gate_menu(self.gates[(it["x"], it["y"])])
+            return
         if self.t - self.last_use_t < ACTION_DELAY_S:
             self.send(P.cliloc(tamer.CLILOC_ACTION_WAIT))
             return
@@ -1357,7 +1367,7 @@ class World:
         rows = gate["destinations"]
         if 10 <= button < 10 + len(rows):
             self._gate_menu(gate, button - 10)          # live: the menu comes back with the pick
-        elif button == 2 and picked is not None and (self.player.x, self.player.y) == tuple(gate["at"][:2]):
+        elif button == 2 and picked is not None and cheb(self.player.pos, tuple(gate["at"][:2])) <= 1:
             to = rows[picked].get("at")
             if to is not None:
                 self.metrics["gate_travels"] = self.metrics.get("gate_travels", 0) + 1
