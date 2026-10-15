@@ -159,6 +159,7 @@ SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is a
 PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this long is dropped...
 SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
 LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D, no death): its death this soon counts
+GATE_POTION_WAIT_S = 1.5      # hurt beside the leave gate: a heal potion due this soon is drunk before the click
 DAMAGE_TEXT = re.compile(r"^-\d+$")   # Outlands' overhead damage number ("-25"), no 0x0B live
 CAST_CURSOR_WAIT_S = 4.0      # a spell's cursor comes after its cast delay
 SPELL_RANGE = 10              # [INFERENCE] RunUO spell range (12 pre-ML, 10 ML)
@@ -1389,6 +1390,12 @@ class HuntLoop:
                 hurt = severity != "info" and me.get("hits") is not None and self.frac(me) < self.args.heal_at
                 self.team.follow(severity, wait=not hurt)    # hurt: through the gate now, pets or not
             mark = len(self.link.events)
+            st = self.link.state()
+            me = st["world"]["self"]
+            due = (self.potions.last or -1e9) + healing.POTION_COOLDOWN_S - time.monotonic()
+            if me.get("hits") is not None and self.frac(me) < self.args.heal_at and 0 < due <= GATE_POTION_WAIT_S \
+                    and healing.heal_potions(st["world"], self.me(st)):
+                time.sleep(due)    # live 20261015_115604 12:53:42-43.5: due 0.4 s after the gate's click, dead at 43/100
             st = self.state()                                # its guards: a potion if one is due
             serial = moongate.gate_at(st, gate)
             if serial is not None and cheb(self.pos(st), gate) <= 1:

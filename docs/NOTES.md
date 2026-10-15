@@ -2952,6 +2952,26 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
   (`harness/data/harness.db` there, 176 KB), not the main store. Start live runs with
   `python "<main checkout>/harness/ctl.py" run hunt ...`.
 
+## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
+
+Task hunt-20261015-125300-8e1f (main's ctl and store, `--vet-range 5`). 12:53:25 the runner held where an
+apparition saw it at 9 tiles; at 12:53:29.5 one apparition, at 12:53:33.3 a second from 9 tiles off, each came
+onto Logan's own tile and hit him -48 and -49 (potion between: 52 -> 89). The 50 % leave at 41, 23 steps to
+the crimson gate (hits 42 there), "All Follow Me" and the gate's click at 12:53:42.4, menu at once; -26 and
+-18 at 12:53:43.3-43.5 and dead, 0.4 s before his next potion was due.
+
+- **The user's aggro rules** (2026-10-15): "You just have to have the pets on guard if they're not
+  currently fighting something. If they're already fighting something, you position yourself so the pets
+  are between you and the mob, or you make sure you're out of LoS of the mobs. That way they only aggro on
+  the tank pet." "Aggro range I'm sure is longer than 9 tiles, I think its 12 or 13." "Any mob that 'sees'
+  Logan before it sees a pet is going to aggro on him directly and that's pretty much a death sentence
+  with this build since he can't tank or fight himself." The runner had been "positioning Logan poorly so
+  he was closer to mobs than his pets were".
+- Now: `aggro.AGGRO_R` 13; tiles scored by `View.first_on_us` (idle monsters in range and sight with no pet
+  nearer them); the pull spot puts the pets between; the simulator's monsters take whichever of us they
+  see first (the old "a guarding pet within 6 draws it" was too kind) with aggro range 13; a potion due
+  within 1.5 s is drunk before the gate's click.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

@@ -91,13 +91,15 @@ What the capture and the wiki fixed:
   Casters' spells are [INFERENCE] (the wiki's spell damage x 0.5 every 6 s): none was attributable.
 - **Barding**: the wiki formula `max(S/100 - difficulty/100, 0.33 x S/100)` with S = 149 fitted by
   maximum likelihood to the trip's 47 answered attempts; durations and refusal texts as the trip's.
-- **Aggro range 10** with sight: the capture's war-mode switches were 1-13 tiles from us (median 7). The
-  wiki's flat 20-tile Perception Range put the sim's banshees on us from across the room (6 of 9 deaths).
-- **Threat** (revised 2026-10-13 from the trip, docs/NOTES.md "Guarding pets take a monster's aggro"):
-  once one of us is within its aggro range, a monster goes for a guarding pet within 6 tiles of us
-  (`guard_draw_r`), else the nearest of us. Damage builds threat x 4.0 for the gravebug (Tank) and x 0.3
-  for the phoenix, fitted so the gravebug takes most of the damage as live. Our aggressive acts add 400,
-  but only before any pet has hurt the monster.
+- **Aggro range 13** with sight (user 2026-10-15: "longer than 9 tiles, I think its 12 or 13"; it was 10,
+  from the capture's war-mode switches 1-13 tiles from us, median 7). The wiki's flat 20-tile Perception
+  Range put the sim's banshees on us from across the room (6 of 9 deaths).
+- **Threat** (revised 2026-10-15 on the user's word: "Any mob that 'sees' Logan before it sees a pet is
+  going to aggro on him directly"): a monster goes for the nearest of us it sees within its aggro range,
+  a pet on a tie. (2026-10-13 to 10-15: any guarding pet within 6 tiles of us drew it, `guard_draw_r`,
+  seen or not: too kind to a player walking ahead of his pets.) Damage builds threat x 4.0 for the
+  gravebug (Tank) and x 0.3 for the phoenix, fitted so the gravebug takes most of the damage as live. Our
+  aggressive acts add 400, but only before any pet has hurt the monster.
 - **Specials, from what reached Logan** (all 23 of his hits were these):
   - Bleeds: 8-10 every 3 s for 5 ticks, then "You are no longer bleeding.".
   - The bound soul's bleed lands on everyone within a tile (an opener of 23-32, 2 per 19 swings with

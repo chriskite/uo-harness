@@ -37,7 +37,7 @@ import combat
 import los
 from agent_link import cheb, serial_of
 
-AGGRO_R = 10
+AGGRO_R = 13                  # user 2026-10-15: "Aggro range I'm sure is longer than 9 tiles, I think its 12 or 13"
 WAKE_MARGIN = 2               # the next steps, and the pets a tile or two behind us
 NEVER_MARGIN = 3
 WAR = 0x40
@@ -90,6 +90,7 @@ class View:
         if h.team is not None:
             self.attacking |= h.team.pet_attackers(st)
         self.mobs = []
+        self.pets = [(p["x"], p["y"]) for p in h.team.pets(st) if not p["dead"]] if h.team is not None else []
         for key, mob in world["mobiles"].items():
             s = serial_of(key)
             if s == me or s in pets or s in h.dead or mob.get("x") is None:
@@ -124,6 +125,16 @@ class View:
         """Idle monsters that would wake to us on `tile` (their aggro range and sight, plus `margin`)."""
         return [m for m in self.mobs if not m["war"] and not m["never"] and self.sees(m, tile, AGGRO_R + margin)]
 
+    def first_on_us(self, tile, margin: int = 1) -> list[dict]:
+        """Idle monsters that would see us on `tile` before a pet: in their aggro range and sight, and no
+        pet nearer them (user 2026-10-15: "Any mob that 'sees' Logan before it sees a pet is going to aggro
+        on him directly and that's pretty much a death sentence with this build"; stand out of the sight of
+        monsters that haven't aggroed on a pet, or with the tank between). [INFERENCE: nearer counts as seen
+        first; the pets follow us a tile or two behind on the move.]"""
+        return [m for m in self.wakes(tile, margin)
+                if not any(cheb(m["pos"], p) < cheb(m["pos"], tile) and self.sees(m, p, AGGRO_R + margin)
+                           for p in self.pets)]
+
     def never_near(self, tile, margin: int = NEVER_MARGIN) -> list[dict]:
         """--never-aggro monsters, idle, that would see us on `tile`."""
         return [m for m in self.mobs if m["never"] and not m["war"] and self.sees(m, tile, AGGRO_R + margin)]
@@ -133,9 +144,9 @@ class View:
         return [m for m in self.mobs if m["never"] and m["war"] and cheb(m["pos"], self.pos) <= r]
 
     def stand_score(self, tile) -> float:
-        """Lower is better: idle monsters that would see us there (by weight), a --never-aggro one
-        above all, then casters in war mode with sight of us."""
-        idle = sum(m["weight"] for m in self.wakes(tile, margin=1))
+        """Lower is better: idle monsters that would see us there before a pet (first_on_us, by weight), a
+        --never-aggro one above all, then casters in war mode with sight of us."""
+        idle = sum(m["weight"] for m in self.first_on_us(tile, margin=1))
         never = len(self.never_near(tile))
         casters = sum(1 for m in self.mobs if m["war"] and m["caster"] and self.sees(m, tile, los.MAX_DISTANCE))
         return 100.0 * never + 10.0 * idle + 1.0 * casters

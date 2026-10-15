@@ -763,10 +763,12 @@ class Team:
         return f"{m['kind']} sees us at {cheb(m['pos'], v.pos)} tiles: letting it come"
 
     def pull_spot(self, st) -> bool:
-        """Holding (hold_reason): once per group of monsters held for, the tile within PULL_STEPS where
-        the fewest of them (by aggro weight) would see us within their aggro range, but at least one, so
-        it comes alone or with the fewest (Logan held where the stalker room's wolves came in stages); not
-        in a Charge's reach or a --never-aggro monster's sight. True when we stepped there."""
+        """Holding (hold_reason): once per group of monsters held for, the tile within PULL_STEPS where the
+        fewest of them would see us before a pet (aggro.View.first_on_us: out of their sight, or the pets
+        nearer them; user 2026-10-15: "position yourself so the pets are between you and the mob, or ... out
+        of LoS"), then the fewest (by aggro weight) within their range, but at least one near enough to see
+        the pets beside us, so it comes, to the pets, alone or with the fewest; not in a Charge's reach or a
+        --never-aggro monster's sight. True when we stepped there."""
         h = self.h
         v = self.view(st)
         if v.walk is None:
@@ -779,25 +781,23 @@ class Team:
         zone, fire = self.charge_zone(st), self.fire_tiles(st)
 
         def cost(t):
-            w = v.wakes(t, margin=0)
-            return (sum(m["weight"] for m in w), len(w))
+            first, w = v.first_on_us(t, margin=0), v.wakes(t, margin=0)
+            return (round(sum(m["weight"] for m in first), 2), round(sum(m["weight"] for m in w), 2), len(w))
         here = cost(v.pos)
         best, best_c = None, None
         for t, k in self.tiles_within(v, PULL_STEPS).items():
-            if k == 0 or t[:2] in zone or t[:2] in fire or v.never_near(t):
+            if k == 0 or t[:2] in zone or t[:2] in fire or v.never_near(t) or not v.wakes(t, margin=aggro.WAKE_MARGIN):
                 continue
-            c = cost(t)
-            if c[1] == 0:
-                continue
-            c = (round(c[0], 2), c[1], k)
+            c = (*cost(t), k)
             if best_c is None or c < best_c:
                 best, best_c = t, c
-        if best is None or (here[1] > 0 and best_c[0] >= here[0] - 0.1):
+        if best is None or best_c[:2] >= (here[0], here[1] - 0.1):
             return False
         label = "to a pull spot"
-        h.doing("hold", f"Stepping to {best[0]},{best[1]} where {best_c[1]} would see us (weight {best_c[0]:g})", best[:2])
+        h.doing("hold", f"Stepping to {best[0]},{best[1]}: the pets between us and what comes", best[:2])
         self.count("pull_spots")
-        log(f"pull spot {best[:2]}: {best_c[1]} would see us there (weight {best_c[0]:g}; here {here[1]}, {here[0]:.1f})")
+        log(f"pull spot {best[:2]}: {best_c[2]} would see us there, weight {best_c[0]:g} before a pet "
+            f"(here {here[2]}, {here[0]:g} before a pet)")
         try:
             h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * PULL_STEPS)
         except Abort as e:

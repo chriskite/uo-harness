@@ -252,8 +252,8 @@
   "note": "heal: the trip's six drinks, median 32.5; cooldown 10 s (knowledge #4909); satchel 10 % + exceptional 5 % + bronzehide 15 % (knowledge #11445)"
  },
  "defaults": {
-  "aggro_range": 10,
-  "guard_draw_r": 6,
+  "aggro_range": 13,
+  "aggro_note": "2026-10-15, the user after the test-shard deaths: aggro range 12 or 13 (13 here; it was 10, the note below), and a monster aggroes on whichever of us it sees first (World._think: the nearest it sees, a pet on a tie); the guard_draw_r 6 rule below (any guarding pet near us drew it) is gone",
   "hit_chance": 0.85,
   "swing_s": 3.0,
   "kb_melee_to_pet": 0.5,

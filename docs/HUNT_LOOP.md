@@ -365,11 +365,17 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
 
 **Aggro** (`aggro.py`; user 2026-10-13: "positioning and managing aggro is the number one most
 important thing in dungeon PvM in Outlands"). Line of sight is `los.Sight` (ServUO's rules, checked
-live), monster z from the map surface, aggro range 10 (the simulator's) [INFERENCE].
+live), monster z from the map surface, aggro range 13 (user 2026-10-15: "12 or 13"). **Whoever it sees
+first** (user 2026-10-15: "Any mob that 'sees' Logan before it sees a pet is going to aggro on him
+directly and that's pretty much a death sentence with this build"): a tile is scored by the idle
+monsters that would see us there before a pet (`View.first_on_us`: in range and sight, no pet nearer
+them), so the reposition, the spacing off the tank and the retreat pick tiles out of their sight or with
+the pets between; the pull spot steps back so the pets, a tile or two behind us, end up between us and
+what comes.
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `--pull-budget` | `3.0` | While the pets fight monsters worth E, an advance (patrol, approach) stops where more would wake (W, idle monsters that would see us within 12 tiles) when E + W is above it. 0 = off. |
+| `--pull-budget` | `3.0` | While the pets fight monsters worth E, an advance (patrol, approach) stops where more would wake (W, idle monsters that would see us within 15 tiles) when E + W is above it. 0 = off. |
 | `--never-aggro TYPE` | vampiric consort | Never wake it alone (repeat for more types). |
 | `--reposition` / `--no-reposition` | on | In a fight, step to a better tile for line of sight. |
 | `--hold-first-sight` / `--no-hold-first-sight` | on | Nothing fighting: stop where an idle monster first sees us within its aggro range, and let it come. |
@@ -379,14 +385,14 @@ live), monster z from the map surface, aggro range 10 (the simulator's) [INFEREN
   the countess 2.4.
 - **Hold at first sight** (Logan at the nightstalker room's north edge: the wolves and the stalker came
   to him 5-10 s after first sight, the knight only when he moved on): with nothing fighting, the patrol,
-  an approach and the idle tick stop as soon as an idle monster would see us within 11 tiles (a step
+  an approach and the idle tick stop as soon as an idle monster would see us within 14 tiles (a step
   outside its aggro range), for up to 10 s per monster; one that hasn't come by then is passed over.
   **The pull spot**: before holding, once per group, the runner steps (up to 3) to the tile where the
-  fewest of them by weight, but at least one, would see us within their aggro range (10), not in a
-  Charge's reach or a never-aggro monster's sight; they come from there in stages instead of being
-  walked into.
-- **Never-aggro monsters**: their sight within 13 tiles is no-go: the patrol stops before it, the
-  crawl skips waypoints within 15 of one and routes keep out (`crawl.Crawl.observe`); the runner never
+  fewest of them would see us before a pet, then the fewest by weight within their range, but at least one
+  near enough to see the pets beside us; not in a Charge's reach or a never-aggro monster's sight; they
+  come to the pets from there in stages instead of being walked into.
+- **Never-aggro monsters**: their sight within 16 tiles is no-go: the patrol stops before it, the
+  crawl skips waypoints within 16 of one and routes keep out (`crawl.Crawl.observe`); the runner never
   pulls one. One that comes for us in war mode is run from ("I run until the consort leashes and I'm
   in an area that I can manage"): "All Follow Me", then to the gate when that is away from it, else 22
   tiles beyond it, until it stops chasing. The leave rules take over when we're hurt ("when all else

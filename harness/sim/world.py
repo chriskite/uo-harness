@@ -680,12 +680,10 @@ class World:
         near = [o for o in cands if cheb(o.pos, m.pos) <= m.spec["aggro_range"] and self.can_see(m, o)]
         if not near:
             return
-        pl = self.player
-        draw = self.sc["defaults"].get("guard_draw_r", 6)
-        guards = [p for p in self.pets() if p.alive and not p.ghost and p.mode in ("guard", "kill")
-                  and cheb(p.pos, pl.pos) <= draw]
-        o = min(guards, key=lambda p: (cheb(p.pos, m.pos), -p.spec.get("threat_x", 1.0))) if guards \
-            else min(near, key=lambda o: (cheb(o.pos, m.pos), o.kind != "player"))
+        # whichever of us it sees first, the nearest seen, a pet on a tie (user 2026-10-15: "Any mob that
+        # 'sees' Logan before it sees a pet is going to aggro on him directly"); before, any guarding pet
+        # within guard_draw_r 6 of the player drew it, seen or not
+        o = min(near, key=lambda o: (cheb(o.pos, m.pos), o.kind == "player", -o.spec.get("threat_x", 1.0)))
         m.target, m.seen_target_t = o.serial, t
         m.threat[o.serial] = m.threat.get(o.serial, 0) + 1
 
