@@ -129,6 +129,11 @@ FOUGHT_S = 60.0              # a mob the pets fought that dies within this is ou
 CHARGERS = {"nightstalker", "reanimated knight"}   # the knight: '*charges*' 3 times live, once -32 on Logan (20261014_173858)
 TEXT_CHARGES = "*charges*"
 CHARGE_SAFE_R = 3             # tiles from a charger and from a pet beside it: clear of where its Charge lands
+# Other monsters whose hit lands on everyone near them: tiles to keep from them and the pet beside them.
+# Apparition (live 20261015_090607, the test-shard death): it came next to Logan and hit him -46/-47 with the
+# phoenix or the gravebug at the same instant (-38/-36), 8.8 s apart, once from on his tile (-49): within 1.
+# Reanimated daemon (20261014_221341): its bone burst hit Logan at 5 tiles (-39/-49) and both pets (94-107).
+AREA_R = {"apparition": 2, "reanimated daemon": 6}
 STANDOFF_MOVES = 6
 STANDOFF_REPEAT_S = 2.0
 
@@ -296,6 +301,24 @@ def resolve(world: dict, pos, wanted, known) -> tuple[dict, str]:
         return seen, "remembered"
     near = mount.pets_near({"movement": {"pos": pos, "self_serial": me}, "world": world}, FOLLOW_R)
     return {s: name(s) for _, s, _ in near}, f"tamed pets within {FOLLOW_R} tiles"
+
+
+class ClearOf:
+    """Goal predicate for the Mover: at least its own distance from every tile of an area_zone
+    ({(x, y): r}); admissible heuristic as nav.beyond's."""
+
+    __slots__ = ("zone", "z_ok")
+
+    def __init__(self, zone: dict):
+        self.zone = dict(zone)
+        self.z_ok = None
+
+    def __call__(self, t) -> bool:
+        return all(cheb(t, c) >= r for c, r in self.zone.items())
+
+    def heuristic(self, t) -> int:
+        return max((max(0, r - cheb(t, c)) for c, r in self.zone.items()), default=0)
+
 
 
 class Team:
@@ -555,24 +578,30 @@ class Team:
         simulator's runs recall in and out hundreds of times an hour (docs/SIM.md)."""
         return all(p["frac"] >= self.a.pet_heal_at for p in self.pets(st) if not p["dead"])
 
-    def follow(self, severity: str = "info"):
+    def follow(self, severity: str = "info", wait: bool = True):
         """'All Follow Me' before a recall or a walk out, then up to FOLLOW_WAIT_S[severity] for every pet
         (a ghost too: it comes along) to come within FOLLOW_R (user directive 2026-10-11); hurt
-        ("attention" below --heal-at): fall back from the attackers meanwhile instead of standing."""
+        ("attention" below --heal-at): fall back from the attackers meanwhile instead of standing.
+        `wait` False: no wait and no fall back (hurt beside the gate: live 20261015_090607 Logan stood 7 s
+        beside it for pets fighting 20 tiles off and a banshee killed him; user 2026-10-15: "its fine if our
+        pets stay or die in the dungeon, we can easily retrieve them at the stablemaster"). The waits read
+        the state through the host (HuntLoop.state: its guards drink a potion on the way out)."""
         self.say("all follow me")
-        st = self.h.link.state()
+        st = self.h.state()
         me = st["world"]["self"]
         hurt = me.get("hits") is not None and self.h.frac(me) < self.a.heal_at
         if severity == "attention" and not hurt:
             severity = "info"                # leaving for a pet's sake, we aren't hurt: wait for it in full
-        if severity == "attention":
-            self.fall_back(st)
-        end = time.monotonic() + FOLLOW_WAIT_S.get(severity, FOLLOW_WAIT_S["info"])
-        while time.monotonic() < end and not self.together(self.h.link.state()):
-            time.sleep(0.4)
+        if wait:
+            if severity == "attention":
+                self.fall_back(st)
+            end = time.monotonic() + FOLLOW_WAIT_S.get(severity, FOLLOW_WAIT_S["info"])
+            while time.monotonic() < end and not self.together(self.h.state()):
+                time.sleep(0.4)
         far = [f"{p['name']} at {p['dist']}" for p in self.pets(self.h.link.state()) if p["dist"] > FOLLOW_R]
         if far:
-            log("pets not all within reach after 'All Follow Me': " + ", ".join(far))
+            log("pets not all within reach after 'All Follow Me': " + ", ".join(far)
+                + ("" if wait else "; not waiting (hurt)"))
 
     def together(self, st, at=None) -> bool:
         """Every pet of the roster in view within FOLLOW_R of us, or of tile `at` (a teleporter we step
@@ -592,7 +621,7 @@ class Team:
                  and m.get("x") is not None]
         end, label = time.monotonic() + FALLBACK_S, "falling back"
         if not tiles:
-            while time.monotonic() < end and not self.together(h.link.state()):
+            while time.monotonic() < end and not self.together(h.state()):
                 time.sleep(0.3)
             return
         h.doing("leave", "Falling back while the pets come")
@@ -834,24 +863,32 @@ class Team:
             log(f"reposition: {e}")
         return True
 
-    def charge_zone(self, st) -> set:
-        """Where a Charge would land its hit: every charger in war mode in view and each live pet beside
-        one (the one it fights)."""
+    def area_zone(self, st) -> dict:
+        """{(x, y): tiles to keep from it}: every monster in war mode in view whose hit lands on everyone
+        near it (a charger: CHARGE_SAFE_R; AREA_R's), and each live pet beside one (the one it fights:
+        a Charge lands next to it)."""
         import threats
         world = st["world"]
         labels = world.get("labels") or {}
         pets = [p for p in self.pets(st) if not p["dead"]]
-        zone = set()
+        zone = {}
         for key, mob in world["mobiles"].items():
             s = serial_of(key)
             if s in self.roster or s in self.h.dead or mob.get("x") is None \
-                    or not (mob.get("flags") or 0) & threats.FLAG_WARMODE \
-                    or type_key(labels.get(key) or mob.get("name")) not in self.chargers:
+                    or not (mob.get("flags") or 0) & threats.FLAG_WARMODE:
+                continue
+            kind = type_key(labels.get(key) or mob.get("name"))
+            r = CHARGE_SAFE_R if kind in self.chargers else AREA_R.get(kind)
+            if r is None:
                 continue
             c = (mob["x"], mob["y"])
-            zone.add(c)
-            zone.update((p["x"], p["y"]) for p in pets if cheb((p["x"], p["y"]), c) <= PET_NEAR)
+            for t in [c] + [(p["x"], p["y"]) for p in pets if cheb((p["x"], p["y"]), c) <= PET_NEAR]:
+                zone[t] = max(zone.get(t, 0), r)
         return zone
+
+    def charge_zone(self, st) -> set:
+        """The tiles of area_zone: where an area hit lands; no tile to step to."""
+        return set(self.area_zone(st))
 
     def heal_at(self, p: dict, zone: set) -> float:
         """The hits share below which pet `p` gets the vet supplies: --pet-heal-at, but only
@@ -863,27 +900,27 @@ class Team:
         return self.a.pet_heal_at
 
     def stand_off(self, st) -> bool:
-        """A charger in the fight: keep CHARGE_SAFE_R from it and the pet beside it (out of its Charge),
-        unless that pet needs healing (heal_at) and our supplies don't reach that far; never mid-channel."""
+        """A charger or another area hitter in the fight (area_zone): keep its distance from it and the pet
+        beside it, unless that pet needs healing (heal_at) and our supplies don't reach that far; never
+        mid-channel."""
         h, now = self.h, time.monotonic()
         if now < self.vet_busy_until or now - self.standoff_t < STANDOFF_REPEAT_S:
             return False
-        zone = self.charge_zone(st)
+        zone = self.area_zone(st)
         pos = h.pos(st)
-        if not zone or all(cheb(pos, t) >= CHARGE_SAFE_R for t in zone):
+        if not zone or all(cheb(pos, t) >= r for t, r in zone.items()):
             return False
-        if self.a.vet_range < CHARGE_SAFE_R \
-                and any(p["frac"] < self.heal_at(p, zone) or p["poisoned"] for p in self.pets(st)
+        if self.a.vet_range < max(zone.values()) \
+                and any(p["frac"] < self.heal_at(p, set(zone)) or p["poisoned"] for p in self.pets(st)
                         if not p["dead"] and (p["x"], p["y"]) in zone) \
                 and healing.in_pack(st["world"], h.me(st), VET_SUPPLIES_GRAPHIC):
             return False                                  # step in (or stay) to heal the tank
         self.standoff_t = now
         label = "out of charge reach"
-        h.doing("standoff", f"Standing off a charger ({len(zone)} tile(s) in its reach)")
+        h.doing("standoff", f"Standing off an area hitter ({len(zone)} tile(s) in its reach)")
         self.count("standoffs")
         try:
-            h.mover.walk_to(None, 0, label, goal_fn=nav.beyond(sorted(zone), CHARGE_SAFE_R - 1),
-                            max_moves=STANDOFF_MOVES)
+            h.mover.walk_to(None, 0, label, goal_fn=ClearOf(zone), max_moves=STANDOFF_MOVES)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -907,17 +944,42 @@ class Team:
         label = "retreat"
         h.doing("retreat", f"Backing off from {near[0]['name'] or near[0]['serial']} "
                            f"({me.get('hits')}/{me.get('hits_max')} hits)")
+        to = self.retreat_tile(st, tiles)
         log(f"retreating {RETREAT_R} tiles from {', '.join(str(a['name']) for a in near)} at "
-            f"{me.get('hits')}/{me.get('hits_max')} hits; the pets hold it")
+            f"{me.get('hits')}/{me.get('hits_max')} hits; the pets hold it"
+            + (f"; to {to[:2]}, out of sight of idle monsters where it can" if to else ""))
         self.count("retreats")
         try:
-            h.mover.walk_to(None, 0, label, goal_fn=nav.beyond(tiles, RETREAT_R - 1), urgent=True,
-                            max_moves=2 * RETREAT_R)
+            if to is not None:
+                h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=3 * RETREAT_R)
+            else:
+                h.mover.walk_to(None, 0, label, goal_fn=nav.beyond(tiles, RETREAT_R - 1), urgent=True,
+                                max_moves=2 * RETREAT_R)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
             log(f"retreat cut short: {e}")
         return True
+
+    def retreat_tile(self, st, attackers: list):
+        """Where to back off to: a tile RETREAT_R from every attacker within 2 x RETREAT_R steps that the
+        fewest idle monsters would see (aggro.View.stand_score, a --never-aggro one above all), out of area
+        hits and fire, the nearest of those; None without the map. Live 20261015_090607: backing off 7
+        tiles west from an apparition put Logan 10 tiles from a second one, in its sight, and it came
+        straight for him (-49) (user 2026-10-15: while the pets fight, a monster that sees us aggroes on us
+        directly)."""
+        v = self.view(st)
+        if v.walk is None:
+            return None
+        zone, fire = self.charge_zone(st), self.fire_tiles(st)
+        best, best_c = None, None
+        for t, k in self.tiles_within(v, 2 * RETREAT_R).items():
+            if min(cheb(t, a) for a in attackers) < RETREAT_R or t[:2] in zone or t[:2] in fire:
+                continue
+            c = (round(v.stand_score(t)), k)
+            if best_c is None or c < best_c:
+                best, best_c = t, c
+        return best
 
     def vet_needed(self, st, pets) -> str | None:
         me = st["world"]["self"]

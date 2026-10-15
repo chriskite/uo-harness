@@ -1384,9 +1384,11 @@ class HuntLoop:
                                              if flee else None)
                     if not why:
                         break
-                self.team.follow(severity)
+                me = self.link.state()["world"]["self"]
+                hurt = severity != "info" and me.get("hits") is not None and self.frac(me) < self.args.heal_at
+                self.team.follow(severity, wait=not hurt)    # hurt: through the gate now, pets or not
             mark = len(self.link.events)
-            st = self.link.state()
+            st = self.state()                                # its guards: a potion if one is due
             serial = moongate.gate_at(st, gate)
             if serial is not None and cheb(self.pos(st), gate) <= 1:
                 self.human.wait("use")

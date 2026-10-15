@@ -313,11 +313,17 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    the run stops rather than go back in with a hurt pet (that pet's leave rule would fire on arrival).
 5. **Self care**: heal potions as the mage style drinks them (Logan's sit in a potion satchel inside
    a bag: every bag depth is searched); the retreat above (live 21:27:50 a bleed took Logan from 72
-   to 35 hits in 2 s; he ran 18 tiles while drinking and the pets held the mob).
+   to 35 hits in 2 s; he ran 18 tiles while drinking and the pets held the mob). The retreat goes to
+   the tile 7+ from every attacker within 14 steps that the fewest idle monsters would see
+   (`Team.retreat_tile`; live 20261015_090607 the straight-away tile was in a second apparition's
+   sight and it came for Logan: user 2026-10-15, a monster that sees us while the pets fight aggroes
+   on us directly).
    **Out of a Charge's reach** (user 2026-10-13). A charger is a nightstalker (knowledge #14625:
    it teleports up to 12 tiles next to its target and hits up to 3 within 1 tile), or any type seen
    to say "*charges*". While one is in war mode, the runner keeps 3 tiles from it and from the pet
-   beside it (`tamer.Team.stand_off`, up to 6 steps, never mid-channel).
+   beside it (`tamer.Team.stand_off`, up to 6 steps, never mid-channel). Other area hitters likewise
+   (`tamer.AREA_R`): an apparition 2 (its hit lands on everyone within 1, 20261015_090607), a
+   reanimated daemon 6 (its bone burst reached Logan at 5, 20261014_221341).
    - It steps in only to heal that pet: below `--standoff-vet-at` (0.7) instead of `--pet-heal-at`.
    - `--vet-range` 3+ (the Healer's Codex "Without Borders") heals from outside, so no step-in is
      needed.
@@ -328,7 +334,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    to 10 s for every pet within 3 tiles; a leave because we are hurt falls back from the attackers
    (up to 10 steps / 4 s, until the pets are near) instead of standing, and a hostile player
    recalls at once (the simulator's trade-off: standing killed us, not waiting stranded pets,
-   docs/SIM.md). After a recall a missing pet is an urgent `pet_left_behind` juncture.
+   docs/SIM.md). Hurt beside the leave gate: "All Follow Me" and through at once, the pets with us or
+   not (live 20261015_090607 a banshee killed Logan in the 7 s he stood there; user 2026-10-15: pets left
+   in the dungeon are retrieved at the stablemaster, "Retrieve Lost Followers"). The waits read the
+   state through the runner's guards, so a due potion is drunk. After a recall a missing pet is an
+   urgent `pet_left_behind` juncture.
 7. **Leaving for the pets**: a pet below `--pet-leave-at`, or out of view for 30 s, or dead (a bonded
    ghost) for `RES_TRY_S` (30 s) with vet supplies in the pack (at once without). With a pet dead or
    gone the run never goes back in (`pet_down` juncture).

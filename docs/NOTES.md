@@ -2867,6 +2867,33 @@ three songs up the whole time (16.8 %).
 - Overweight: "You are carrying too much weight... (475/450)"; he dropped 1,999 and 1,000 gold.
 - A 0.3 s server teleport to Maus 4 and back at 22:33:47 with no step of ours [INFERENCE: a server glitch].
 
+## The pets runner's first live run: dead in 46 s (test shard, 2026-10-15, capture 20261015_090607)
+
+Task hunt-20261015-091609-dea7 (`run hunt --pets --crawl --heal-in-place --leave-recall <tome> --leave-gate
+5203 703 --gate-dest Totem --timeout 900`) from the fight level's arrival (5201, 737), full hits, both pets.
+The proxy had been restarted on 80ef85a (the door fix). `ctl --char "Logan Wolf"` answered "unknown
+character" though `status` listed the session; without `--char` it worked.
+
+- 09:16:21 it targeted an apparition 8 tiles off and walked 2 steps toward it; the apparition came next to
+  Logan: -46 on him and -38 on the phoenix at the same instant (action 6), and the same 8.8 s later (-47,
+  the gravebug -36): an area hit within 1. Potions at :25 and :38, a vet channel.
+- 09:16:32 at 53 % the retreat backed him 7 tiles west, to (5205, 726): 10 tiles from a second, idle
+  apparition in sight of it; it came straight for him and hit him -49 from on his tile (09:16:39.6).
+- 09:16:40 at 37 % the 50 % leave fired; 23 steps to the gate, the pets left guarding (fighting both
+  apparitions 20 tiles south). At the gate 61 hits; "All Follow Me" at :48, then `follow`'s fall-back
+  stood 4 s waiting for pets that didn't come (no attacker on us to back away from), reading the state
+  past the guards, so the potion ready since :48 (29 in the pack) was never drunk. A banshee 5 tiles off
+  (idle at 16 when the walk began) cast -25, -24, -14; dead at 09:16:55.5, 0.4 s before the runner's
+  Totem pick. The run ended "recall home failed (moongate: the menu didn't come back...)".
+- The apparitions blinked out of view twice (0x1D) at 1 tile; the runner rightly didn't count a kill.
+- Fixed (user 2026-10-15: "its fine if our pets stay or die in the dungeon, we can easily retrieve them at
+  the stablemaster"; "while our pets are fighting the apparition, another mob that sees us will aggro on
+  us directly"): hurt beside the gate, "All Follow Me" and through at once (`Team.follow(wait=False)`);
+  every wait in a leave reads the state through `HuntLoop.state` (its guards drink); the back-off tile is
+  the one the fewest idle monsters see (`Team.retreat_tile`, aggro.View.stand_score); apparitions and
+  reanimated daemons are area hitters to stand off (`tamer.AREA_R`: 2 and 6); the simulator's apparition
+  has the hit (`burst`, radius 1, 8.8 s).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

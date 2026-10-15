@@ -435,6 +435,12 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
 - **A target that left the view alive counted as a kill** (fixed, `HuntLoop.scan_events`): a 0x1D
   without the 0xAF of a death (a shade wolf's Vanish) was a kill, so the runner logged 4,967 kills for
   the simulator's 4,220 and walked off mid-fight; now 4,310 for 4,078.
+- **The first live run's death** (2026-10-15, docs/NOTES.md "The pets runner's first live run"): the
+  apparition's hit on everyone within 1 (`burst`, radius 1, every 8.8 s, 46-49 on us, 36-38 on a pet),
+  a retreat to the tile the fewest idle monsters see, apparitions and daemons stood off, no wait for the
+  pets beside the gate when hurt, potions drunk while waiting. Zone 98 x 60 min: 99 kills an hour, 88,500
+  gold a game hour, 0.38 deaths (25 runs; 0.48, 31 before), 4 of the 25 at the gate (13 of 54 at the
+  faster pace's start); loop 101, 70,200, 1.36 (1.51).
 - **New in the world** (captures 20261014_210020 and _221341, docs/NOTES.md): the forgotten souls (4 at
   the consort, their fire marks 0x6D70, no damage), the reanimated daemon (its bone burst on each of us
   within 5: pets 94-107, us 39-49, every ~15 s), the corpse purger's disease (2 of 3 barrage hits; -21

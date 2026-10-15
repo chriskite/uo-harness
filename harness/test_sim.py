@@ -415,6 +415,49 @@ def test_pet_res():
           f"follow {said} ghost {gb.ghost} hits {gb.hits:.0f} leaves {[l for l in leaves if l][:2]}")
 
 
+def test_retreat_sight():
+    print("== backing off: to a tile no idle monster sees; an apparition: stand 2 off it and its pet ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    # live 20261015_090607: the apparition on Logan at (5210, 726), a second one idle at (5195, 722)
+    w = world_with([{"key": "apparition", "at": [5210, 726, 0]}, {"key": "apparition", "at": [5195, 722, 0]}],
+                   seed=7, start=(5211, 725))
+    a, b = sorted((m for m in w.mobs.values() if m.kind == "monster"), key=lambda m: -m.x)
+    a.spec = {**a.spec, "specials": [], "melee": [1, 1], "step_s": 999.0}    # stays put: only where we stand matters
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.hits = gb.hits_max = 100000
+    a.target, a.threat = gb.serial, {gb.serial: 1e9}
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            for _ in range(20):
+                clock.advance(0.5)
+            st = loop.state()
+            seen = st["world"]["mobiles"][f"0x{a.serial:08X}"]
+            to = loop.team.retreat_tile(st, [(seen["x"], seen["y"])])
+            v = loop.team.view(st)
+            seen_by_b = to is not None and any(m["serial"] == b.serial for m in v.wakes(to, margin=0))
+            zone = loop.team.area_zone(st)
+            walked = loop.team.stand_off(st)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("the back-off tile is 7+ from the apparition on us and out of the idle one's sight",
+          to is not None and max(abs(to[0] - a.x), abs(to[1] - a.y)) >= tamer.RETREAT_R and not seen_by_b,
+          f"to {to} seen by B {seen_by_b} A {a.pos} B {b.pos}")
+    check("the apparition in war mode is an area hitter: we step 2+ off it", (a.x, a.y) in zone and walked
+          and cheb_(w.player, a) >= tamer.AREA_R["apparition"], f"zone {zone} walked {walked} at {w.player.pos}")
+
+
 def test_heal_in_place():
     print("== --heal-in-place: a pet below --pet-leave-at is no leave while vet supplies last ==")
     import tempfile
@@ -626,8 +669,8 @@ def main():
         print("SKIP: no map files (install dir)")
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
-              test_standoff, test_fire, test_pet_res, test_heal_in_place, test_songs, test_pull_budget,
-              test_hold_first_sight, test_rope,
+              test_standoff, test_fire, test_pet_res, test_retreat_sight, test_heal_in_place, test_songs,
+              test_pull_budget, test_hold_first_sight, test_rope,
               test_rest_hurt_pet):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
