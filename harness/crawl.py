@@ -511,7 +511,32 @@ class Crawl:
         if gate:
             log(f"crawl: the way out is the moongate at {tuple(gate)}" + ("" if out is not None else
                                                                           " (off this floor: steps to the exit)"))
+        self.recent_kills(st)
         self.update_zones()
+
+    def recent_kills(self, st):
+        """Areas where the store has kills from the last RESPAWN_S rest the rest of it (the user 2026-10-15:
+        "still just wandering around zone 1 where we know mobs we just killed take a while to respawn": each
+        run began with every area fresh)."""
+        mem = getattr(self.h, "memory", None)
+        if mem is None or not hasattr(mem, "job_events"):
+            return
+        now_t, now_m = time.time(), time.monotonic()
+        facet = (st["world"].get("self") or {}).get("map")
+        n = 0
+        for e in mem.job_events("hunt", since=now_t - RESPAWN_S):
+            if e["kind"] != "kill" or e.get("x") is None or (e.get("facet") or 0) != (facet or 0):
+                continue
+            t = self.floor.nearest((e["x"], e["y"]))
+            i = self.cell_of.get(t) if t is not None else None
+            if i is None:
+                continue
+            until = now_m + RESPAWN_S - (now_t - e["t"])
+            if until > self.depleted.get(i, 0):
+                self.depleted[i] = until
+                n += 1
+        if n:
+            log(f"crawl: {n} area(s) cleared in the last {RESPAWN_S / 60:.0f} min (the store's kills) rest first")
 
     def zone_at(self, pos):
         """The zone of the area we stand in; off the floor (the arrival tile is a
@@ -712,6 +737,7 @@ class Crawl:
             score = (max(stale, 1.0) * (1.0 + 0.5 * min(3, self.kills_at[i]))
                      * (CROWD_FACTOR if now - self.crowd_t.get(i, -1e9) < CROWD_S else 1.0)
                      * max(0.25, rates[self.zone[i]] / best_rate)
+                     * (getattr(self.a, "crawl_deep_x", 1.0) or 1.0) ** (self.zone[i] - 1)
                      / (1.0 + dist[w] / D0) * self.h.human.rng.uniform(0.85, 1.15))
             if score > best_score:
                 best, best_score = i, score

@@ -2051,10 +2051,10 @@ def stop_intent(loop, text):
 STYLE_DEFAULTS = {
     "mage": {"heal_at": 0.75, "leave_at": 0.60, "leave_multi_at": 0.80, "pull_range": 3, "target_name": "mongbat",
              "crawl_dwell": 6.0, "crawl_depleted_s": 90.0, "crawl_max_dmg": 30.0, "crawl_dry_s": 0.0,
-             "crawl_avoid_types": True, "loot_all": True},
+             "crawl_avoid_types": True, "loot_all": True, "crawl_deep_x": 1.0},
     "pets": {"heal_at": 0.80, "leave_at": 0.50, "leave_multi_at": 0.55, "pull_range": 8, "target_name": "",
              "crawl_dwell": 1.5, "crawl_depleted_s": 5.0, "crawl_max_dmg": 60.0, "crawl_dry_s": 45.0,
-             "crawl_avoid_types": False, "loot_all": False},
+             "crawl_avoid_types": False, "loot_all": False, "crawl_deep_x": 2.0},
 }
 
 
@@ -2095,6 +2095,9 @@ def arg_parser() -> argparse.ArgumentParser:
                          "(default 90, --pets 5)")
     ap.add_argument("--crawl-learn-s", type=float, default=600.0,
                     help="crawl: seconds observed in a zone (store history included) before going deeper")
+    ap.add_argument("--crawl-deep-x", type=float, default=None,
+                    help="crawl: a waypoint's score x this per zone deeper than the first (default 1, --pets 2: "
+                         "the user 2026-10-15 'go deeper'; the crawl kept to the near rooms by the gate)")
     ap.add_argument("--crawl-dry-s", type=float, default=None,
                     help="crawl: no target in reach anywhere in the open zones for this long: go deeper without "
                          "waiting out --crawl-learn-s (the risk rule still applies; 0 = off; default 0, --pets 45)")
