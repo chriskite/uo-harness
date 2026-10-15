@@ -25,6 +25,8 @@ version at settings+0x68 is >= 10 (live server: 12).
                           518/523 clicks across captures)
   name_request  0x98  7B   id, len u16be=7, serial (capture `98 0007 000001e2`;
                           follows a click when the name is not known yet)
+  say_ascii     0x03  var  id, len u16be, type u8=0, hue u16be=0x0033, font u16be=0,
+                          ascii text, 00 (ground truth: "[Rope" in session_20261014_173858)
   say_unicode   0xAD  var  id, len u16be, type u8=0, hue u16be=0x02B2,
                           font u16be=0x0003, lang "ENU\\0", then either
                           utf16be text + 0x0000 (no speech.mul keyword), or
@@ -69,7 +71,10 @@ version at settings+0x68 is >= 10 (live server: 12).
                           00000001 00000190` (session_20260928_141253)
   target_xyz    0x6C  27B  id, 01, cursor_id, cursor_type, 00000000, x u32,
                           y u32, z i32, graphic u32 (0 = land)
-                          (Send_TargetXYZ @ 0x14015d120 V10+; no capture)
+                          (Send_TargetXYZ @ 0x14015d120 V10+; ground truth: the
+                          barding songs' ground targets in session_20261013_173449,
+                          e.g. `6c 01 0018bdaa 01 00000000 00001442 000002aa
+                          00000019 00000000`)
   target_cancel 0x6C  27B  id, target_type, cursor_id, cursor_type, 00000000,
                           7fffffff x3, 00000000
                           (Send_TargetCancel @ 0x14015e400 V10+; no capture)
@@ -124,6 +129,13 @@ SPEECH_ENCODED = 0xC0  # MessageType.Encoded, OR'd in when keywords match
 SPEECH_HUE = 0x02B2
 SPEECH_FONT = 0x0003
 SPEECH_LANG = b"ENU\x00"
+# Razor's speech (its hotkeys' "Say", e.g. the pet commands) differs from the client's typed speech:
+# Razor's own speech hue (default 0x03B1; Logan Wolf's profiles set none) instead of the client
+# profile's, and the keyword-encoded body ends in two NULs, not one. Every pet command in Logan
+# Wolf's captures (56: sessions 20261010_204420, 20261011_115828, 20261012_210013) is
+# `ad <len> c0 03b1 0003 "ENU\0" <keywords> <utf8> 00 00`, while his typed speech in the same
+# sessions is hue 0x0170 with one NUL (docs/NOTES.md "Pet commands are Razor-shaped speech").
+RAZOR_SPEECH_HUE = 0x03B1
 
 
 class WalkSequencer:
@@ -210,6 +222,28 @@ def say_unicode(text: str, hue: int = SPEECH_HUE, font: int = SPEECH_FONT,
     length = 1 + 2 + 1 + 2 + 2 + 4 + len(body)
     return (struct.pack(">BHBHH", 0xAD, length, msg_type, hue, font)
             + lang + body)
+
+
+def razor_say(text: str, hue: int = RAZOR_SPEECH_HUE) -> bytes:
+    """0xAD as Razor's hotkey "Say" sends a keyword phrase (RAZOR_SPEECH_HUE note): the stock
+    encoded form with Razor's hue and a second trailing NUL. Only phrases with speech.mul
+    keywords (the pet commands): Razor's unencoded shape was never captured (ValueError)."""
+    if not speech.get_keywords(text):
+        raise ValueError(f"{text!r} has no speech.mul keyword: no captured Razor shape for it")
+    pkt = say_unicode(text, hue=hue) + b"\x00"
+    return pkt[:1] + struct.pack(">H", len(pkt)) + pkt[3:]
+
+
+ASCII_SPEECH_HUE = 0x0033      # 0x03 as Logan Wolf's client sent "[Rope" (20261013_173449, 20261014_173858)
+
+
+def say_ascii(text: str, hue: int = ASCII_SPEECH_HUE, font: int = 0, msg_type: int = 0) -> bytes:
+    """0x03 ASCII speech: `03 <len u16> <type u8> <hue u16> <font u16> <text> 00`. Live ground truth:
+    "[Rope" (an Adventurer's Rope, the server's "[" command) as `03 000e 00 0033 0000 5b526f706500`."""
+    _check_u8(msg_type, "msg_type")
+    _check_u16(hue, "hue")
+    _check_u16(font, "font")
+    return _var(0x03, struct.pack(">BHH", msg_type, hue, font) + _ascii(text, "text") + b"\x00")
 
 
 def single_click(serial: int) -> bytes:

@@ -2411,6 +2411,394 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
 - **The model sees tool names with a leading underscore** (it called them `_uo_list` in its reply) while the events carry `uo_list` [INFERENCE: the provider's tool-name prefixing]. Harmless; the events and the prompt use the plain names.
 - **Cost:** a one-lookup answer (Sonnet, thinking medium) cost ~$0.01–0.03 and 4–6 s; a four-query SQL answer $0.02 and 10 s (live 2026-10-08).
 
+## Simulator runs found runner bugs (2026-10-13, docs/SIM.md)
+
+- With `--pets --crawl` the crawl never left its waypoint: our pets were counted as monsters in reach
+  (`crawl.observe`); and our war-mode pets next to us counted as attackers in `loop_hunt.attackers`
+  (the two-attacker leave rule). Both fixed.
+- A hurt leave that recalls at once strands a pet more than 3 tiles off; one that stands waiting dies to
+  bleeds. `tamer.follow` now falls back from the attackers while the pets come.
+- `walk_in` counted the pets within 3 tiles of us before stepping onto a teleporter, but in the
+  simulator they come along counted from the teleporter [INFERENCE live: ServUO TeleportPets from the
+  mover's tile]: a pet 3 tiles behind was 4 from it and stayed behind on the
+  second level's one-way hop (5507, 697), and the run aborted at the next teleporter. Songs on the way
+  in shifted the timing enough to show it (2 of 14 runs). Now counted from the teleporter tile.
+- Out of vet supplies, `tamer.rested` counted a pet below `--pet-leave-at` as rested, so the run
+  recalled in, left on arrival for that pet, and recalled out again: up to 436 recalls in a game hour
+  (17 of 48 one-hour runs). Fixed: the rest waits for natural regeneration, bounded by
+  `--rest-timeout`. Live this would also have burned the tome's charges in a pattern no player makes.
+- Live pets follow at our pace: Logan's gravebug and phoenix stepped every 0.21 s out of war mode
+  (n=470/471, capture 20261012_210013) and ended 16 of 22 walks of 10+ steps within 3 tiles of him
+  (the rest 4-8, and 18 on the retreat while they held a mob). The sim's
+  uncited 0.3 s left them 9-22 tiles behind the runner, so monsters found only us in their 10-tile
+  aggro range; at 0.21 s the deaths per game hour went 0.52 -> 0.28. Still most monster aggro on us
+  comes from walking first (pets 1-3 tiles back) and from our bard acts (docs/SIM.md).
+- **Guarding pets take a monster's aggro; what reaches us is bleeds and area hits** (capture
+  20261012_210013, the user's claim checked 2026-10-13). This covers the 25 monsters that engaged in
+  view on Logan's trip, pets on "All Guard Me" every time.
+  - 11 had no target cursor of ours on them before they reached or hit someone. All 11 went to a pet
+    first.
+  - All 23 '-N' on Logan, by cause (texts over/to him at the same instant):
+    - 15 bleed ticks: 8-10 every 3 s for 15 s until "You are no longer bleeding."
+    - 3 bleed openers:
+      - a bound soul twice: -23 and -32 with "They begin to draw blood from you!". Both times it
+        had just reached the gravebug and kept meleeing the gravebug, with Logan one tile off.
+      - a vampire bat once: -22 with "The creature strikes ferociously, causing you to bleed!".
+    - 1 nightstalker Charge: "*charges*", a 4-tile jump, -42 on Logan and -37 on the gravebug at the
+      same instant. Knowledge #14625: it teleports up to 12 tiles and hits up to 3 targets within 1
+      tile.
+    - 4 from the vampire countess' transfixed copies of his own pets.
+  - None was an ordinary melee swing or spell from a monster that had picked Logan, apart from
+    possibly the bat's opener: that bat had our Discordance before the pets hit it, during the countess
+    fight. Whether the bound soul's bleed is an area effect or a swing at the nearest non-target is
+    [INFERENCE].
+  - Who chose whom can't be told apart from the pets striking first: the phoenix's barrage usually
+    lands within ~1 s of the monster turning to war mode.
+  - The simulator's rule (nearest of us within 10 tiles; a bard act +400 threat on us whenever it
+    happens) doesn't match this (docs/SIM.md).
+- The simulator now follows that (2026-10-13, docs/SIM.md "The revised aggro and specials").
+  - A monster goes for a guarding pet within 6 tiles of us. Our acts pull it only before any pet has
+    hurt it.
+  - The bleeds, the nightstalker's Charge and the countess' transfixed copies are modelled as they
+    hit Logan.
+  - Deaths per game hour fell 0.36 -> 0.17, but the gravebug died in 10 of 48 hours at
+    `--pet-leave-at` 0.20 (2 of 48 at 0.35).
+  - The sim runner meets no bound souls: its crawl never reaches x 5261-5277, y 645-661, where Logan's
+    bleeds came from.
+- **Stealth mid-fight is the shade wolves', and they come back to the pet** (capture
+  20261012_210013, the user's question 2026-10-13: "their aggro is cleared when they stealth, so
+  they can attack the player if we don't put the pets back on guard").
+  - Two shade wolves (0x00061DAB, 0x000607BE), each fighting the gravebug next to Logan, dropped out
+    of view while alive (0x1D) 4 times: 4.3-15 s into the fight and 19-22 s apart. They came back
+    1-5 tiles from him.
+  - Each was gone 3.5-5.8 s and came back in the same 0x20 as a hit on the gravebug (21-28). Their
+    other hits ran 4-22. The first wolf's opening -40 on the gravebug came straight out of stealth.
+  - Every hit after they came back went on the gravebug; none on Logan. Logan's next "All Guard Me"
+    came 1.2-4.2 s after three of the returns and 26 s after the fourth, never before one. The pets
+    were on guard from the "All Guard Me" just before each fight (21:20:03, 21:28:43; no recall or
+    "All Kill" in between). The no-guard case never happened, so the hypothesis is neither
+    confirmed nor refuted.
+  - The capture's one nightstalker never stealthed: it died 22 s in. It charged 3 times (8.5 s
+    apart) and frenzied once. It came into view 18 tiles off, not out of stealth.
+  - Idle shade wolves 14-18 tiles off flicker out and back within 0.4 s: the view edge, not stealth.
+  - The simulator models the observed Vanish: unseen 3.5-6 s, its target kept.
+
+- **Getting in and out of the Mausoleum** (user 2026-10-13; capture 20261012_210013).
+  - **Recall in a dungeon works only near a gold moongate**, into it and out of it, and never near a
+    red one. The user takes a gate out even where a recall would work.
+  - **In:** at 21:16:30 the rune tome (gump 0x09F5976B) landed Logan at (5626, 688, 0), 1 tile from
+    a moongate item 0x40001CCA, graphic 0x0F6C, hue 2822 [INFERENCE: the gold one], at (5626, 689,
+    0). Two more hue-2822 gates stand on that level 0, at (5618, 723) and (5588, 717). He walked
+    the teleporters (5554, 701) -> (5547, 696, 10), level 1, and (5521, 638) -> (5199, 738, 17),
+    the fight level.
+  - **Out:** at 21:31:00 he stepped onto the crimson moongate 0x4010E11F (0x0F6C, hue 2820) at
+    (5203, 703, 0), in the fight level's banshee room.
+    - "Moongate Destinations" (0xE0E675B8; Totem is button 17), then button 2 "Travel to
+      Destination" on the re-sent gump. Arrival (3859, 2890) at 21:31:04.
+    - Both pets came along: clicked there 0.1 s after the arrival.
+    - At 21:31:04.75 the rune tome from there: home at (4134, 1429) 2 s later.
+  - The simulator modelled neither until this note: its tome row put us on the fight level, and it
+    let the runner recall out from anywhere (docs/SIM.md "Limits").
+  - **Two short hops on the second level** that the map files don't show. At 21:17:37 a step onto
+    (5506, 701) was denied (0x21 at z -5), then a self 0x77 put Logan at (5507, 698). A step onto
+    (5507, 697) put him at (5507, 693). Without them the map's A* takes 468 steps round, against his
+    ~150. Both are in the scenario and in `--enter-via`.
+  - **The way out goes through the countess' room.** On the map the crimson gate's room is reached
+    from the west rooms only via (5190, 682), and from the arrival via the nightstalker room. In the
+    simulator, with the walk out modelled, most deaths are on that walk (docs/SIM.md "With the real
+    way out").
+
+## Logan Wolf's tamer fighting at the Mausoleum (capture 20261012_210013, analysed 2026-10-12)
+
+The user played a Mausoleum trip on Logan Wolf (0x00104A60) by hand, 21:13–21:31, and asked for a
+combat runner learned from it (built: `loop_hunt.py --pets`, docs/HUNT_LOOP.md "Pets"). Read by
+replaying the capture through `world.runtime.WorldRuntime` with `replay.timed_packets`, events
+timestamped per packet. Facts:
+
+- **Template** (0x3A, skills.mul names): Animal Taming, Animal Lore, Veterinary, Herding 120;
+  Peacemaking, Discordance, Provocation 80; Tactics 18 (no Musicianship, no Magery). 100 str,
+  25 dex, 100 int; followers 5/5. Pets: **AlaFlambe** 0x0026EF56 (phoenix, body 832, 4 slots,
+  Epic Barrage to 12 tiles) and **GraveRobber** 0x000DDEFE (gravebug, body 387, 1 slot, the tank:
+  it took nearly all the damage, poisons, and `*devours corpse*` 33 times, each followed by two
+  `+18`). Both `(bonded)`, notoriety 2 to us; their hits come as a share of 100.
+- **Trip shape:** claimed both pets at home ("You claim your follower.", after a Healer's Codex /
+  class points session in a gump), "All Follow Me", a rune tome (graphic 29103) to a Society
+  quartermaster (Corrine, 4 jobs incl. "Kill 25,000 Gold Worth of Creatures"), the tome again to the
+  Mausoleum (5605,708), through its teleporter chain to 5190–5280 × 640–740, fought there
+  21:16–21:31, recalled out, "room", stabled the pets ("You stable your followers."). Society job
+  290 → 24,243 in 14 min, 25 kills; engagements 8–50 s (median ~22 s). Loot by hand: gold
+  (~600–1,500 a corpse), gems, arcane scrolls.
+- **He never fought himself:** war mode off the whole trip, no `0x05`, no spell. Actions: "All
+  Guard Me" 26×, "All Kill" 5×, Discordance 31 uses (18 ok / 12 fail of 30 answered), Peacemaking
+  16 (8 / 6), Provocation 9 (2 / 2 answered), veterinary supplies 43 channels, heal potions 6
+  drunk, one cure potion.
+- **Pet commands are Razor-shaped speech:** every pet command in his captures (56 in
+  20261010_204420, 20261011_115828, 20261012_210013) is `ad <len> c0 03b1 0003 "ENU\0" <keywords>
+  <utf8> 00 00`: hue 0x03B1 (Razor's default speech hue; his Razor profiles set none) and a
+  double NUL. His typed speech ("room", "[damage") is hue 0x0170 with one NUL, Outland Dan's client
+  0x02B2. `actions.razor_say` builds the Razor form (checked byte for byte); ANTICHEAT.md §8.20.
+- **Targeting is Razor-fast:** cursor to answer median 0.23 s after Discordance, 0.44 s after
+  Peacemaking, 0.11 s after "All Kill"; the server's cursor follows the skill use (0x12 type 0x24
+  "15 0", byte-identical to `actions.use_skill`) in 0.05–0.07 s. He presses hotkeys repeatedly:
+  early presses get cliloc 500118 "You must wait a few moments to use another skill." (16×) and
+  500119 "You must wait to perform another action." for item uses.
+- **Bard texts** (System `0xAE`): prompts "What do you wish to discord? (you may target yourself for
+  an area effect or the ground for a group effect)", "… to pacify? …", "What do you wish to
+  incite? …" then "Whom do you wish them to attack?" (a second cursor); success "You play
+  successfully, disrupting your opponent and weakening them significantly. (1m)" / "(1m 15s)",
+  "You play successfully, pacifying your target. (38s)" / "(30s)", "You play successfully,
+  provoking your targets. (30s)"; fail "You fail to discord your opponent. You estimate the task
+  to be fairly reasonable." (also "somewhat challenging", "beyond your skill"), "You fail to
+  pacify …", "You fail to incite anger amongst your opponents. …"; "You must wait a few moments
+  before you may provoke or pacify another creature."; "That target is currently under a barding
+  break effect."; "Barding break avoided for spare parts" (a Mastery Chain link). Bard targets at
+  1–9 tiles; "All Kill" at 9 tiles answered "Target cannot be seen." (cliloc 500237).
+- **Order per engagement:** walk in with the pets guarding, Discordance on the mob the pets fight,
+  then Peacemaking on it (it stops hitting the pets); Provocation when two more mobs were near;
+  "All Kill" at a mob the pets weren't on. 51 of 60 target answers were at a mob already hurt
+  with a pet within 12 tiles; the 9 others were openers. **User (2026-10-12):** aggression comes
+  from being in a mob's aggro range and line of sight; with pets guarding they engage it rather
+  than it engaging the character, while starting with an aggressive act (All Kill, a discord)
+  makes the mob aggro on the character. The runner never opens with one.
+- **Veterinary supplies** (graphic 0x6496 / 25750, a stack of 59 in a bag): one double-click, no
+  target; "You begin using veterinary supplies." → "You finish using veterinary supplies." 5.0–5.3
+  s later (43×). Pets healed at 0–2 tiles at the finish (+96/+113/+147 on the gravebug, +17–22 on
+  himself: they heal the player too since patch 2023-08-14); "You are too far away from any of
+  your followers to heal them." when both were 3–4 tiles off at the finish, so the range is
+  checked then. "You or your nearby followers do not require healing." (53×) when nothing needed
+  it. The Healer's Codex perk **Without Borders** (+1/2/3 patient range, knowledge #11343) was
+  added after this trip and is being levelled (user 2026-10-12): `--vet-range`.
+- **Self care:** heal potions (graphic 0x0F0C, 30 in an exceptional bronzehide potion satchel
+  inside a bag) at 58–81 % hits; "Potion satchel used." means it wasn't consumed. Refusals named
+  the wait ("You must wait 4 seconds before using another healing potion."). The worst moment:
+  21:27:50 "The creature strikes ferociously, causing you to bleed!" with a vampire countess and a
+  corpsebride on him, 72 → 35 hits in 2 s; he ran 18 tiles while spamming potions (9 clicks, 1
+  drunk) and the pets held the mobs. Vampires: "They begin to draw blood from you!".
+- **Damage numbers:** `-N` / `+N` overhead (0x1C from the mobile) on every creature, pet and us
+  throughout, without `[damage` (which only starts a tracker: "Damage tracker is now running.").
+  Poison over a creature or pet: `*looks violently ill*`.
+- **Never release a pet** (user 2026-10-12: "make sure we don't release my pets on accident
+  they're quite expensive"): pets are released by "<name> release" (patch 2019-06-04) or the
+  context menu's Release; Transfer gives one away. The runner says only `tamer.COMMANDS`;
+  `ctl act say` and `ctl act menu_pick` refuse anything matching release/transfer.
+
+## Mausoleum facts measured for the simulator (capture 20261012_210013, 2026-10-13)
+
+`harness/sim/calibrate.py` (rules in its output) and `harness/los.py`'s validation; docs/SIM.md uses them.
+
+- **Damage numbers add up to the wiki's hit points**: the "-N" numbers over every creature that died in
+  view sum to its wiki Hits + 1 (shadowguard 8001, shade wolf 5001, bound soul 8001, corpse purger 7001,
+  corpsebride 6001, spare parts 2501, ...). Corpse gold is the wiki Gold Value (lifted medians within
+  -5..+17 %). So the wiki creature pages (in `ctl know`) are the creatures' real stats.
+- **Damage-number hues** [INFERENCE]: 89 over creatures for our side's damage; 2417 while two provoked
+  creatures fight and on poison ticks; 946 over our pets and us.
+- **Outlands 0x77 carries no flags**: a mobile's war mode (0x40) arrives only in 0x20 updates.
+- **Our pets' real hits**: the gravebug loses ~4.5 hits per point of its 0xA1 share (450 hits), the phoenix
+  ~6.6 (660); levelled, about twice the wiki's tamed base (225 / 350). Attack animations (action 5 / 4)
+  every 1.91 s / 1.80 s.
+- **The vampire countess transfixes our pets**: after `*attempts to transfix*`, hostile copies named
+  GraveRobber / AlaFlambe (notoriety 3/4, `*transfixed*`) appear and fight us (the copy hit for ~32-60).
+  A runner must never take a mobile for our pet by name alone: ours are notoriety 2 with their own serial.
+- **Aggro**: monsters switched to war mode 1-13 tiles from us (median 7) when the switch was in view;
+  almost always closing on a pet. The wiki's flat 20-tile Perception Range (knowledge #4329) is when they
+  notice; sight decides.
+- **Line of sight**: ServUO's `Map.LineOfSight` rules (eye at z + 14) explain all 61 target answers on
+  mobiles (59 accepted, both "Target cannot be seen." blocked: a portcullis at 5244,662 and a stone wall
+  at 5265,656). The world model's own z is often stale (no per-step z): take z from the map surface.
+- **Levels**: the rune lands at x 5554-5626, y 688-709; a teleporter at (5554,701,20) -> (5547,696,10)
+  to x 5506-5547, y 638-706, z -18..10; another at (5521,638,-18) -> (5199,738,17) to the fight level x
+  5174-5278, y 646-738, z 0-25 (786 s of the trip).
+- **Barding skill**: the trip's 47 ok/fail answers fit the wiki formula `max(S/100 - difficulty/100,
+  0.33 S/100)` best at S = 149 (printed 80 + bonuses).
+
+## Logan Wolf's second Mausoleum trip (capture 20261013_173449, analysed 2026-10-13)
+
+The user went in to fight the vampire countess again (docs/SIM.md "Captures wanted"), sang the barding
+songs partway, and left 3 minutes later chased by two reds. In the region 17:36:54-17:40:38. Read with
+`calibrate.Session` and ad-hoc replays (`replay.timed_packets` + `WorldRuntime`). The phoenix and the
+gravebug were his; two bonded black widows in view belonged to someone else (notoriety 2, no command).
+
+- **One countess fight, 17:39:03-17:39:31** (with a vampire bat and a corpsebride), 27 s: ~9,500 damage
+  in the "-N" numbers over her.
+  - `*attempts to transfix*` at :09.4, :14.6, :19.8, :25.3, :30.8 (5.2-5.5 s apart, as the first trip).
+    One worked (:14.6): a copy named GraveRobber (graphic 387, notoriety 3) on the gravebug's tile.
+  - **The transfixed pet is out of the fight**: the gravebug made no step and no attack animation
+    from :14.6 until the copy's 0x1D at :25.6 (11.0 s); its 0xA1 share stayed 50. The first trip's three
+    copies show the same: no animation of their originals from appearing to 0x1D, 9.9-10.8 s each. Their
+    originals could still be healed (21:27:18-23: 56 -> 81 %).
+  - **At most one copy at a time**: over both fights 4 of 8 attempts with no copy of hers up worked, 0 of
+    4 with one up (the first trip's next copies appeared right after the previous 0x1D, 21:27:28.7 and
+    21:27:39.5-39.7).
+  - The copy went to war mode 0-2.5 s after it appeared (n=4), then walked 6 tiles to the phoenix
+    rather than to Logan at 8. The simulator's copy never picks its original.
+- **Corpsebride wail**: `*wails*` every 7.5-7.8 s while it fights (25 wails over 4 fights in both
+  captures), with -13..-25 at once on the pets beside it (about 18 of 24 chances at 1 tile) and on Logan
+  2 of 11 times at 2-3 tiles (-25, -19). Logan acting on the bride made no difference (he had targeted
+  0x613c5 2.6 s before a wail that missed him at 2 tiles). Modelled as an area hit on each of us, 75 %
+  within a tile and 20 % at 2-3 [INFERENCE].
+- **Shadowguard on the gravebug** (17:38:12-17:38:43, alone): -21, -41, -32, -31, -18, -34 (n=6), a
+  successful discord from 17:38:27.7.
+- **Barding songs** (knowledge #11226/#11233/#11234): the bard skill answered at the ground (0x6C
+  type 1, serial 0, a land tile 1-3 from us, graphic 0; `actions.target_xyz` reproduces the live bytes
+  exactly) plays a song on us and the followers for 15 minutes:
+  - 17:39:22.2 "You are now under the effect of a Song of Discordance (15.0% reduced damage from
+    creatures for 15 minutes)."
+  - 17:39:51.0 "... a Song of Peacemaking (15.0% healing amounts for 15 minutes)."
+  - 17:40:12.5 "... a Song of Provocation (+15.0% damage against creatures for 15 minutes)."
+  - 15.0 % = 5 % x effective barding 300 / 100 (#11234). A second song 3.8 s after the first:
+    "You must wait a few moments before performing another barding song." (the wiki: 10 s between
+    songs, apart from the skill timer). The skill cursor itself came 3.6 s after a song, under the 5 s
+    skill gap of a targeted use.
+  - The first trip had none: the user forgot them. `loop_hunt --songs` (default on) keeps them up.
+- **Two reds**: KalVasKikUrAss and Jimii Hendrix (notoriety 6, [BJV]) came into view together at
+  17:40:14.5 18 tiles east, in the doorway (5200, 682) between the countess' room and the gate's.
+  - Logan started running 2 s later, south through the nightstalker room (5175, 684 -> 5181, 721),
+    the only other way to the gate, with both chasing at 1-6 tiles. A nightstalker and a reanimated
+    knight charged on the way. Spells: Corp Por (energy bolt), Des Mani (weaken) twice, Rel Por, Ort Por
+    Ylem ("KalVasKikUrAss has applied telekinesis to you."); "X is attacking you!" for each.
+  - `[Rope` (an Adventurer's Rope, knowledge #13325: a Teleport, 5 s cooldown) at 17:40:30.4:
+    "Where do you wish to traverse to?", a ground target 7 tiles on, (5198, 723) -> (5205, 721). An
+    earlier `[Rope` at 17:40:19.0 got no prompt.
+  - On the crimson gate at 17:40:36.4; Travel at :37.9; Totem 17:40:38; the rune tome home 4.5 s later.
+  - **The pets stayed behind**: the gravebug was fighting shade wolves in the nightstalker room ("You
+    are too far away from any of your followers to heal them." at 17:40:28.8); neither was in view at
+    Totem or at home. Pets follow a Teleport or rope only on Follow (patch 2025-01-25, #5141).
+- **The gate menu opens with the last destination selected**: its radio button is drawn 9724/9721, the
+  others 9721/9724 (Prevalia on the first trip's first menu, Totem on this one). With the wanted one
+  already selected, Travel (button 2) works on the first menu: Logan pressed it 1.5 s after the menu
+  opened. `moongate.travel` now does the same.
+- At Totem: "A stationary penalty is in effect (must move 5 tiles to remove)." right after the drink,
+  as after every moongate.
+
+## Logan Wolf's full Mausoleum crawl (capture 20261013_204518, analysed 2026-10-13)
+
+"A pretty good crawl" (user). In the region 20:46:00-20:58:44, 12.7 min on the fight level. The user
+had added Effective Barding links to the mastery chain just before (user 2026-10-13).
+
+- **Totals on the fight level**: 29 kills by our side (137 an hour; the first trip 115, the simulator's
+  crawls 85-89), 26,951 gold lifted, 4 heal potions, 29 vet supplies, no death. Only 5 hits on Logan
+  (-48 an apparition, -48 beside a nightstalker, -22, -23 in the countess fight, -24 "Their accursed
+  spell weakens you, reducing your melee and spell damage!" beside a shadow minion): 13 a minute. The
+  fighting was nearly continuous: 6 engagements, 595 of the 764 s, the longest 237 s and 11 kills.
+- **His route** (one loop, then the east): arrival (5199, 738) -> the apparitions south (5208, 716) ->
+  the banshee room (5208, 704) -> north (5209, 687) -> west into the countess' room (5188, 682) ->
+  **into the nightstalker room** (5174, 683 -> 5178, 691: 4 shade wolves, the nightstalker, a
+  reanimated knight, 2 min) -> south (5180, 718) -> east (5200, 723) -> the banshee room again ->
+  the countess' room again (a new countess) -> east (5206, 683) -> north-east (5220, 663) -> (5232, 651)
+  -> the bound souls' and corpse purgers' room (5258-5278, 653) -> back west (5230, 653) -> (5213, 667)
+  -> the gate. Kills per room came as he walked in; he never waited for a respawn.
+- **Barding after the links**: every number grew ~18 %, success didn't (fit_bard S 151 on 50 answers,
+  149 before). Songs 17.7 % (were 15.0), discord "(1m 11s)" 17 of 18 times (was "(1m)"; "(1m 26s)" on
+  a corpse purger just provoked), peace "(43s)" 6 of 7 (was "(38s)"), provoke "(36s)"/"(43s)" (was
+  "(30s)"). The scenario's bard block has the new numbers (`links_note`).
+- **Songs before the fight level**: Discordance at 20:46:06 on the first level, right after the
+  arrival, Peacemaking 14 s later on the way to the teleporter, Provocation at 20:46:54 on the second
+  level. A second Discordance at 20:49:36 mid-fight [INFERENCE: a ground target meant for a wolf].
+  `walk_in` now plays a due song before each leg.
+- **The countess again** (two fights with transfixes): copies at 20:52:51.0 and 20:53:12.5, 10.9 and
+  10.0 s to their 0x1D, war mode 2.4 and 2.3 s after appearing, the gravebug without an attack animation
+  meanwhile. The transfix itself hit the gravebug -36 at that instant, as on both earlier trips (-36,
+  -37, -45): modelled (`pet_damage`). Over 3 fights: 6 of 12 attempts with no copy up worked, 0 of 5
+  with one up. A countess also transfixed another player's pet (Broken Covenant) at 20:58:17.
+- **Respawns**: the countess at (5174-5176, 681) killed 20:48:10.6, a new one in view at 20:52:34.6
+  with Logan in the room since 20:51:35: 205-264 s. A shade wolf 148.5 s (calibrate). The simulator's
+  2-5 min fits both.
+- **Reanimated knights charge too** (`*charges*` at 20:50:09.6 and 17:40:23.1), with no damage number
+  within 0.8 s either time. The runner learns a charger from the overhead anyway (`tamer.chargers`).
+- **The nightstalker's charges**: 5 in its fight, 7.6-17 s apart, 3 with a -10..-19 on the gravebug
+  within 0.5 s.
+- **Out through the crimson gate without stepping on it**: "All Follow Me" at (5208, 685), a run of
+  18 tiles at 0.2 s a step, then a double-click on the gate 0x4010E11F from (5204, 702), a tile away.
+  The menu opened at once with Totem selected; Travel 0.1 s later; the jump came from that tile, to
+  Totem at (3848, 2867) (not the first trip's 3859, 2890: the arrival varies). The rune tome 1.4 s
+  later, home (a rental room), both pets along. `leave_by_gate` now double-clicks the gate from the
+  tile beside it (the step onto it only without the item in view); the simulator opens the menu on a
+  double-click within a tile.
+
+## Aggro management: the user's rules and what the captures show (2026-10-13)
+
+- **User**: "positioning and managing aggro is the number one most important thing in dungeon PvM in
+  Outlands": don't pull too many mobs at once; never let a super dangerous mob like a vampiric consort
+  aggro while we're alone (not in a group of players); break line of sight strategically. His
+  answers: never-aggro list = the vampiric consort only; pull size "weighted by danger"; line of
+  sight is "situational" (between two rooms with the pets fighting in room A, stay out of sight of
+  room B's mobs so they don't aggro and cast on us; standing out of a caster's sight, e.g. a banshee's,
+  while still able to heal the pets is better, all else equal); a consort that aggroes anyway: "I run
+  until the consort leashes and I'm in an area that I can manage to fight the mobs without getting
+  overwhelmed. When all else fails and I'm getting beat up I will probably head for the gate."
+  Built as `aggro.py` (docs/HUNT_LOOP.md "Aggro").
+- **The consort on the crawl** (20261013_204518): first seen 20:57:51.6 at (5243, 633), 18 tiles north,
+  body 401, notoriety 4; in war mode at 12 tiles (20:57:55.5); at the gravebug 20:58:00, a -71 on it
+  at 20:58:08; Logan said "All Follow Me" at 20:58:10.8 and ran west, it chasing in war mode to (5230,
+  655), ~22 tiles from where it woke, then out of view; he left by the gate 26 s later. Wiki: 14,000
+  hits, melee 60-70, difficulty 168, stealth.
+- **The nightstalker room, Logan's way** (20:48:23-20:50:25): in from the north (5174, 685) and held at
+  its north edge (5175-5179, 687-692), ~10 tiles from the stalker's spot. Three wolves and the stalker
+  went to war 5-10 s after first sight, a fourth wolf 50 s later, the reanimated knight (5176, 705) only
+  at 20:50:08 when he walked south: everything came to him in stages. 8 vet channels in 2 min, 794
+  damage on the gravebug (37 hits), one on him.
+- **The gravebug's Devour heals it mid-fight** (user 2026-10-13 asked whether the simulator counted it;
+  it didn't, properly): `*devours corpse*` over it 67 times in the three captures, every 15.0-15.2 s at
+  the shortest while a corpse was near, 60 of them with it hurt within 5 s; then "+18" three times 0.5 s
+  apart (19 times; "+21" x3 11 times under a 17.7 % Song of Peacemaking), 54 a feed, 2,942 in all
+  against the 7,854 damage it took. Knowledge: "Can consume nearby corpses to heal 10% of maximum
+  health" (45 of 450; 54 live [INFERENCE: its healing bonuses]), and it may feed on the same corpse
+  again. The simulator had it feed twice (36) every 14 s and only out of a fight; now three ticks every
+  15 s whenever it is hurt with a corpse within 2 tiles [INFERENCE: the range].
+- **Damage on the tank by the number of war monsters next to it** (gross "-N", 0.5 s samples, positions
+  from the last update within 3 s). Captures (all three): alone 7.5/s (253 s), two 8.5/s (64 s), three
+  or four ~18/s (10 s). Simulator, 4 zone runs of 30 min: first measured 7.3 / 19.6 / 24.2/s, which
+  looked like piles at 2.3x live; but those runs died early in a few deadly fights (184 s alone, 40 s
+  with two). With the in-fight Devour the same 4 runs lived longer: 3.2/s alone (2,219 s), 5.9/s with
+  two (399 s), 23.9/s with three (20 s). The rates depend on which fights the sample holds; there is
+  no clear sign the simulator overrates piles (an earlier note here said it did: withdrawn). The live
+  sample is thin.
+
+## Logan Wolf's Mausoleum runs of 2026-10-14 (captures 20261014_170144, 20261014_173858)
+
+Two runs, both ended by reds. In the region 17:02:50-17:23:52 (21 min) and 17:39:13-17:47:20 (8 min).
+
+- **Totals**: 43 kills (123 an hour), 30,680 gold, 25 hits (516) on Logan, 8 potions, 45 vet channels;
+  then 16 kills, 16,591 gold, 13 hits (272), 2 potions, 26 vet channels.
+- **Reds are common here.** Players with notoriety 6 seen in the region: none on 20261012_210013 (14.6
+  min) or 20261013_204518 (12.7 min); 3 on 20261013_173449; 4 on 20261014_170144 (two on the second
+  level at 17:03, one at the crimson gate at 17:10, Malito at 17:23); 2 on 20261014_173858. Three of the
+  five runs ended running from reds.
+- **Logan died to Malito** (20261014_170144) in the bound souls' room (5275, 653), ~75 route steps from
+  the gate: first seen 17:23:04.8 at 17 tiles; "Malito is attacking you!" 1.4 s later; "Malito has
+  applied telekinesis to you." 17:23:07.7; "An explosion potion has stuck to you!" 17:23:08.2; two
+  `[Rope` prompts (one jump, 10 tiles, at 17:23:10.4); hits -38 and -41 (the explosions), -31 from "a
+  daemon" (summoned), -12; dead by ~17:23:13 ("You decline to report the player." at 17:23:17.9), 8 s
+  after first sight. He ran to the gate as a ghost; the pets stayed behind (not in view at Totem or home).
+- **The second escape** (20261014_173858): DaRth VaDer VI and Niktiku at 17-18 tiles (17:46:54.5); a
+  `[Rope` 3.4 s later (no jump), "All Follow Me" at 17:46:59.4, then a run of ~50 tiles to the gate in
+  21 s with three hits on the way (-23, -20 by a shadow minion, -22); out at 17:47:20.
+- **Adventurer's Rope** (an item, "adventurer's rope : 15", graphic 0x14FA, used by the `[Rope` server
+  command, sent as 0x03 ASCII speech `03 000e 00 0033 0000 5b526f706500`; `actions.say_ascii`): the
+  server answers "Where do you wish to traverse to?" and a cursor (type byte 8); the ground target (0x6C
+  type 1) teleports us. Jumps of 7, 9, 10 tiles; an 11-tile target didn't jump (20261014_173858
+  17:39:56.6); "You are no longer hindered." ~1 s after each answer. Logan used it on all three red
+  escapes and once on the second level under fire from unseen casters (-24, -28, -19 at 17:39:58-17:40:03).
+  The runner now flees a hostile player with "All Follow Me" at once and rope jumps along the way
+  (`loop_hunt.rope_jump`, `--rope`); in the simulator (no players) it saves 0-2.6 s of a 16-28 s run to
+  the gate; its point live is breaking contact.
+- **The nightstalker room from the south** (20261014_173858): in via (5185, 722), held at its south edge
+  (5180, 713-714) ~35 s: two wolves first, then the knight (it charged: -32 on Logan at 17:41:16.6, the
+  first knight Charge seen to hit), the nightstalker, a wolf, the countess. The same entrance the
+  simulated loop uses; holding there worked live. The scenario now gives the knight a Charge and
+  `tamer.CHARGERS` has it.
+- **Buff potions**: "You increase your damage resistance to creature-casted spells." on arrival at the
+  fight level (17:40:28.4) and "Your magic resist potion has worn off." 120 s later; "You may now use a
+  strength potion." twice (17:42:27.7, 17:45:05.2).
+- **Songs end with a message**: "Your Song of Discordance effect ends." 904 s after it began
+  (17:03:14.2 -> 17:18:18.0), likewise Peacemaking and Provocation; `tamer.Team.update` now marks the
+  song over. The second run's songs printed 16.8 % (17.7 % in the first) [INFERENCE: a gear change].
+- **The elder vampire countess**: a contested boss ("A contested boss has spawned in The Mausoleum!",
+  17:45:36.9) fought in the north room (5201-5210, 640-650) with ~12 other players around; it also
+  transfixes ("*attempts to transfix*").
+- The countess transfixed both pets in turn on the first run: the gravebug at 17:18:25.1, the phoenix
+  at 17:18:35.8 (10.7 s later, the first copy just gone), as the one-copy-at-a-time model has it.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

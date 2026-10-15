@@ -1,0 +1,1653 @@
+{
+ "source": "ctl know search, 2026-10-13",
+ "creatures": {
+  "shade wolf": {
+   "name": "a shade wolf",
+   "difficulty": 86.7,
+   "gold_value": 868,
+   "hits": 5000,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "wrestling": 95,
+   "armor": 25,
+   "magic_resist": 25,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "Fast",
+   "unique_scaler": 1.35,
+   "stealth": true,
+   "attack_speed": null,
+   "specials": [
+    "[tamed-version follower ability, knowledge #14482; that the wild creature uses it is [INFERENCE]] Frenzy (Passive): Has a 15% chance on melee attack to increase attack speed by 10% for 30 seconds (cannot stack).",
+    "[tamed-version follower ability, knowledge #14475; that the wild creature uses it is [INFERENCE]] Vanish (Cooldown): Creature immediately enters stealth.",
+    "[tamed-version follower ability, knowledge #14468; that the wild creature uses it is [INFERENCE]] Backstab (Innate): If stealthed, creature's next melee attack gains +25% accuracy and deals +150% damage."
+   ],
+   "slayer": "Beastial",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10552,
+    14468,
+    14475,
+    14482,
+    14626,
+    14627
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 7,
+    "graphics": [
+     "0x2e3"
+    ],
+    "deaths": 8
+   }
+  },
+  "shadowguard": {
+   "name": "a shadowguard",
+   "difficulty": 131.8,
+   "gold_value": 1319,
+   "hits": 8000,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "wrestling": 120,
+   "armor": 0,
+   "magic_resist": 150,
+   "ai": "meleemage",
+   "spell_damage": [
+    25,
+    35
+   ],
+   "magery": 125,
+   "parry": 100,
+   "speed": "Medium",
+   "unique_scaler": 1.14,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Undead",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10837,
+    15348
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 5,
+    "graphics": [
+     "0x10"
+    ],
+    "deaths": 10
+   }
+  },
+  "vampire": {
+   "name": "a vampire",
+   "difficulty": 119.2,
+   "gold_value": 1192,
+   "hits": 8000,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "wrestling": 120,
+   "armor": 50,
+   "magic_resist": 100,
+   "ai": "meleemage",
+   "spell_damage": [
+    15,
+    25
+   ],
+   "magery": 75,
+   "parry": null,
+   "speed": "Fast",
+   "unique_scaler": 1.3,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Undead",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10815,
+    15352
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 1,
+    "graphics": [
+     "0x2d2"
+    ],
+    "deaths": 1
+   }
+  },
+  "vampire countess": {
+   "name": "a vampire countess",
+   "difficulty": 145.2,
+   "gold_value": 1452,
+   "hits": 8000,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "wrestling": 110,
+   "armor": 50,
+   "magic_resist": 175,
+   "ai": "meleemage",
+   "spell_damage": [
+    30,
+    40
+   ],
+   "magery": 150,
+   "parry": null,
+   "speed": "Fast",
+   "unique_scaler": 1.3,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Undead",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10826,
+    15353
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 3,
+    "graphics": [
+     "0x102"
+    ],
+    "deaths": 3
+   }
+  },
+  "vampire bat": {
+   "name": "a vampire bat",
+   "difficulty": 67.2,
+   "gold_value": 672,
+   "hits": 4000,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "wrestling": 140,
+   "armor": 25,
+   "magic_resist": 25,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "Fast",
+   "unique_scaler": 1.2,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [
+    "[tamed-version follower ability, knowledge #14664; that the wild creature uses it is [INFERENCE]] Devour (Cooldown): Can consume nearby corpses to heal 10% of maximum health",
+    "[tamed-version follower ability, knowledge #14664; that the wild creature uses it is [INFERENCE]] Bleed (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 1.0) bleed damage over 15 seconds."
+   ],
+   "slayer": "Beastial",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10584,
+    14662,
+    14663,
+    14664
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 3,
+    "graphics": [
+     "0x13d"
+    ],
+    "deaths": 6
+   }
+  },
+  "elder vampire": {
+   "name": "an elder vampire",
+   "difficulty": 132.8,
+   "gold_value": 1329,
+   "hits": 10000,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "wrestling": 130,
+   "armor": 50,
+   "magic_resist": 125,
+   "ai": "meleemage",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "magery": 100,
+   "parry": null,
+   "speed": "VeryFast",
+   "unique_scaler": 1.35,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Undead",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10822,
+    15323
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 1,
+    "graphics": [
+     "0x190"
+    ],
+    "deaths": 2
+   }
+  },
+  "elder vampire countess": {
+   "name": "an elder vampire countess",
+   "difficulty": 169.3,
+   "gold_value": 1693,
+   "hits": 10000,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "wrestling": 120,
+   "armor": 50,
+   "magic_resist": 200,
+   "ai": "meleemage",
+   "spell_damage": [
+    35,
+    45
+   ],
+   "magery": 175,
+   "parry": null,
+   "speed": "VeryFast",
+   "unique_scaler": 1.35,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Undead",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10846,
+    15324
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 1,
+    "graphics": [
+     "0x191"
+    ],
+    "deaths": 0
+   }
+  },
+  "vampiric consort": {
+   "name": "a vampiric consort",
+   "difficulty": 168.2,
+   "gold_value": 1682,
+   "hits": 14000,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "wrestling": 140,
+   "armor": 50,
+   "magic_resist": 150,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "Fast",
+   "unique_scaler": 2,
+   "stealth": true,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Undead",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10835,
+    11046
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 0,
+    "graphics": [],
+    "deaths": 1
+   }
+  },
+  "corpsebride": {
+   "name": "a corpsebride",
+   "difficulty": 87.7,
+   "gold_value": 877,
+   "hits": 6000,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "wrestling": 110,
+   "armor": 25,
+   "magic_resist": 25,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "VeryFast",
+   "unique_scaler": 1.5,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Undead",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10830,
+    15322
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 4,
+    "graphics": [
+     "0xfc"
+    ],
+    "deaths": 8
+   }
+  },
+  "bound soul": {
+   "name": "bound soul",
+   "difficulty": 121.5,
+   "gold_value": 1215,
+   "hits": 8000,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "wrestling": 120,
+   "armor": 25,
+   "magic_resist": 25,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "Medium",
+   "unique_scaler": 1.35,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Undead",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10819,
+    15320
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 5,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "deaths": 5
+   }
+  },
+  "corpse purger": {
+   "name": "a corpse purger",
+   "difficulty": 101.2,
+   "gold_value": 1012,
+   "hits": 7000,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "wrestling": 90,
+   "armor": 50,
+   "magic_resist": 25,
+   "ai": "ranged",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "Slow",
+   "unique_scaler": 1.4,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [
+    "[tamed-version follower ability, knowledge #14902; that the wild creature uses it is [INFERENCE]] Giant Corpse Barrage (Cooldown): Deals 2 melee hits on a target up to 12 tiles away with each hit having a 7.5% chance to inflict (DamageMax * 0.5) disease damage every 5 seconds for 20 seconds.",
+    "[tamed-version follower ability, knowledge #14902; that the wild creature uses it is [INFERENCE]] Corpse Barrage (Innate): Creature makes its normal melee attacks as ranged attacks up to 12 tiles away. Hits have a 15% chance to inflict (DamageMax * 0.5) disease damage every 5 seconds for 20 seconds.",
+    "[tamed-version follower ability, knowledge #14902; that the wild creature uses it is [INFERENCE]] Disease (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 0.5) disease damage every 5 seconds for 20 seconds."
+   ],
+   "slayer": "Beastial",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10578,
+    14900,
+    14901,
+    14902
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 2,
+    "graphics": [
+     "0x2d0"
+    ],
+    "deaths": 3
+   }
+  },
+  "nightstalker": {
+   "name": "a nightstalker",
+   "difficulty": 122,
+   "gold_value": 1221,
+   "hits": 8000,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "wrestling": 90,
+   "armor": 25,
+   "magic_resist": 25,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "Fast",
+   "unique_scaler": 1.3,
+   "stealth": true,
+   "attack_speed": null,
+   "specials": [
+    "[tamed-version follower ability, knowledge #14625; that the wild creature uses it is [INFERENCE]] Vanish (Cooldown): Creature immediately enters stealth.",
+    "[tamed-version follower ability, knowledge #14625; that the wild creature uses it is [INFERENCE]] Charge (Cooldown): Teleports to a location up to 12 tiles away, hitting up to 3 targets within 1 tile. Inflicts (DamageMax * 0.8) damage, with the first target hit taking +75% damage",
+    "[tamed-version follower ability, knowledge #14625; that the wild creature uses it is [INFERENCE]] Backstab (Innate): If stealthed, creature's next melee attack gains +25% accuracy and deals +150% damage.",
+    "[tamed-version follower ability, knowledge #14625; that the wild creature uses it is [INFERENCE]] Frenzy (Passive): Has a 15% chance on melee attack to increase attack speed by 10% for 30 seconds (cannot stack)."
+   ],
+   "slayer": "Beastial",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10592,
+    14623,
+    14624,
+    14625
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 2,
+    "graphics": [
+     "0x42d"
+    ],
+    "deaths": 1
+   }
+  },
+  "shadow minion": {
+   "name": "a shadow minion",
+   "difficulty": 71.2,
+   "gold_value": 712,
+   "hits": 4000,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "wrestling": 90,
+   "armor": 25,
+   "magic_resist": 125,
+   "ai": "mage",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "magery": 100,
+   "parry": null,
+   "speed": null,
+   "unique_scaler": null,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [
+    "[tamed-version follower ability, knowledge #14840; that the wild creature uses it is [INFERENCE]] Weaken (Passive): Has a 15% chance on attack to apply a weaken effect of (Control Slots * 4%) for 15 seconds."
+   ],
+   "slayer": "Daemonic",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    14838,
+    14839,
+    14840
+   ],
+   "missing": [
+    "speed",
+    "unique_scaler",
+    "attack_speed"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 3,
+    "graphics": [
+     "0x308"
+    ],
+    "deaths": 11
+   }
+  },
+  "spare parts": {
+   "name": "spare parts",
+   "difficulty": 28.9,
+   "gold_value": 290,
+   "hits": 2500,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "wrestling": 60,
+   "armor": 25,
+   "magic_resist": 25,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "Medium",
+   "unique_scaler": 1.25,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Construct",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10594,
+    15350
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 3,
+    "graphics": [
+     "0x1f"
+    ],
+    "deaths": 2
+   }
+  },
+  "banshee": {
+   "name": "a banshee",
+   "difficulty": 115.6,
+   "gold_value": 1156,
+   "hits": 6000,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "wrestling": 110,
+   "armor": 0,
+   "magic_resist": 150,
+   "ai": "mage",
+   "spell_damage": [
+    25,
+    35
+   ],
+   "magery": 125,
+   "parry": 50,
+   "speed": "VerySlow",
+   "unique_scaler": 1.2,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Undead",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10828,
+    15319
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 3,
+    "graphics": [
+     "0x136"
+    ],
+    "deaths": 11
+   }
+  },
+  "apparition": {
+   "name": "an apparition",
+   "difficulty": 117.2,
+   "gold_value": 1173,
+   "hits": 8000,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "wrestling": 100,
+   "armor": 0,
+   "magic_resist": 25,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": 50,
+   "speed": "Medium",
+   "unique_scaler": 1.4,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Undead",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10825,
+    15318
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "aliases": [
+    "apparation"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 1,
+    "graphics": [
+     "0x103"
+    ],
+    "deaths": 7
+   }
+  },
+  "tormented soul": {
+   "name": "tormented soul",
+   "difficulty": 121.5,
+   "gold_value": 1215,
+   "hits": 8000,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "wrestling": 120,
+   "armor": 25,
+   "magic_resist": 25,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "Medium",
+   "unique_scaler": 1.35,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Undead",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10845,
+    15351
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 3,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "deaths": 1
+   }
+  },
+  "forgotten soul": {
+   "name": "forgotten soul",
+   "difficulty": 132.7,
+   "gold_value": 1328,
+   "hits": 8000,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "wrestling": 120,
+   "armor": 0,
+   "magic_resist": 150,
+   "ai": "meleemage",
+   "spell_damage": [
+    25,
+    35
+   ],
+   "magery": 125,
+   "parry": 50,
+   "speed": "Medium",
+   "unique_scaler": 1.25,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Undead",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10829,
+    15327
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 1,
+    "graphics": [
+     "0x190"
+    ],
+    "deaths": 1
+   }
+  },
+  "blightmare": {
+   "name": "a blightmare",
+   "difficulty": 141.8,
+   "gold_value": 1418,
+   "hits": 8000,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "wrestling": 100,
+   "armor": 25,
+   "magic_resist": 150,
+   "ai": "mage",
+   "spell_damage": [
+    25,
+    35
+   ],
+   "magery": 125,
+   "parry": null,
+   "speed": "Fast",
+   "unique_scaler": 1.25,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [
+    "[tamed-version follower ability, knowledge #14647; that the wild creature uses it is [INFERENCE]] Spellblight (Passive): Has a 15% chance on spellcast to inflict (DamageMax * 0.5) disease damage every 5 seconds for 20 seconds."
+   ],
+   "slayer": "Undead",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10817,
+    14645,
+    14646,
+    14647
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 0,
+    "graphics": [],
+    "deaths": 1
+   }
+  },
+  "calamity": {
+   "name": "a calamity",
+   "difficulty": 69.9,
+   "gold_value": 699,
+   "hits": 5000,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "wrestling": 100,
+   "armor": 25,
+   "magic_resist": 25,
+   "ai": "ranged",
+   "spell_damage": null,
+   "magery": null,
+   "parry": 25,
+   "speed": "Slow",
+   "unique_scaler": 1.3,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Construct",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10604,
+    15321
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 1,
+    "graphics": [
+     "0x2d5"
+    ],
+    "deaths": 4
+   }
+  },
+  "abomination": {
+   "name": "an abomination",
+   "difficulty": 112.5,
+   "gold_value": 1125,
+   "hits": 8000,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "wrestling": 90,
+   "armor": 25,
+   "magic_resist": 25,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "Medium",
+   "unique_scaler": 1.4,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Construct",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10603,
+    15317
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 2,
+    "graphics": [
+     "0x139"
+    ],
+    "deaths": 3
+   }
+  },
+  "insane reanimator": {
+   "name": "an insane reanimator",
+   "difficulty": 105.3,
+   "gold_value": 1053,
+   "hits": 6000,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "wrestling": 90,
+   "armor": 25,
+   "magic_resist": 150,
+   "ai": "mage",
+   "spell_damage": [
+    25,
+    35
+   ],
+   "magery": 125,
+   "parry": null,
+   "speed": "Medium",
+   "unique_scaler": 1.1,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Humanoid",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10726,
+    15329
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 2,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "deaths": 3
+   }
+  },
+  "master reanimator": {
+   "name": "a master reanimator",
+   "difficulty": 153,
+   "gold_value": 1531,
+   "hits": 8000,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "wrestling": 100,
+   "armor": 25,
+   "magic_resist": 200,
+   "ai": "mage",
+   "spell_damage": [
+    35,
+    45
+   ],
+   "magery": 175,
+   "parry": null,
+   "speed": "Medium",
+   "unique_scaler": 1.1,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Humanoid",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10711,
+    15478
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 1,
+    "graphics": [
+     "0x191"
+    ],
+    "deaths": 1
+   }
+  },
+  "devourer beetle": {
+   "name": "a devourer beetle",
+   "difficulty": 113.3,
+   "gold_value": 1133,
+   "hits": 8000,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "wrestling": 95,
+   "armor": 75,
+   "magic_resist": 25,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "Fast",
+   "unique_scaler": 1.3,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [
+    "[tamed-version follower ability, knowledge #14767; that the wild creature uses it is [INFERENCE]] Devour (Cooldown): Can consume nearby corpses to heal 10% of maximum health",
+    "[tamed-version follower ability, knowledge #14767; that the wild creature uses it is [INFERENCE]] Disease (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 0.5) disease damage every 5 seconds for 20 seconds."
+   ],
+   "slayer": "Beastial",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10585,
+    14765,
+    14766,
+    14767
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 2,
+    "graphics": [
+     "0xa9"
+    ],
+    "deaths": 2
+   }
+  },
+  "corpse eater": {
+   "name": "a corpse eater",
+   "difficulty": 17.8,
+   "gold_value": 179,
+   "hits": 1500,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "wrestling": 65,
+   "armor": 50,
+   "magic_resist": 25,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "Fast",
+   "unique_scaler": 1.25,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [
+    "[tamed-version follower ability, knowledge #14471; that the wild creature uses it is [INFERENCE]] Disease (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 0.5) disease damage every 5 seconds for 20 seconds."
+   ],
+   "slayer": "Beastial",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10563,
+    14471,
+    14761,
+    14762
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 3,
+    "graphics": [
+     "0x12e"
+    ],
+    "deaths": 0
+   }
+  },
+  "familiar": {
+   "name": "a familiar",
+   "difficulty": 21.1,
+   "gold_value": 212,
+   "hits": 1500,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "wrestling": 60,
+   "armor": 25,
+   "magic_resist": 75,
+   "ai": "mage",
+   "spell_damage": [
+    10,
+    20
+   ],
+   "magery": 50,
+   "parry": null,
+   "speed": "Fast",
+   "unique_scaler": 1,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Daemonic",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10635,
+    14822,
+    14823
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 3,
+    "graphics": [
+     "0x27"
+    ],
+    "deaths": 0
+   }
+  },
+  "reanimated knight": {
+   "name": "a reanimated knight",
+   "difficulty": 61.5,
+   "gold_value": 615,
+   "hits": 6000,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "wrestling": 100,
+   "armor": 25,
+   "magic_resist": 25,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": 50,
+   "speed": "VeryFast",
+   "unique_scaler": 1.2,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Construct",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10608,
+    15339
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 1,
+    "graphics": [
+     "0x190"
+    ],
+    "deaths": 0
+   }
+  },
+  "reanimator zealot": {
+   "name": "a reanimator zealot",
+   "difficulty": 49.6,
+   "gold_value": 496,
+   "hits": 3000,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "wrestling": 75,
+   "armor": 25,
+   "magic_resist": 100,
+   "ai": "mage",
+   "spell_damage": [
+    15,
+    25
+   ],
+   "magery": 75,
+   "parry": null,
+   "speed": "Medium",
+   "unique_scaler": 1.1,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Humanoid",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10723,
+    15347
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 1,
+    "graphics": [
+     "0x190"
+    ],
+    "deaths": 0
+   }
+  },
+  "eldritch experiment": {
+   "name": "an eldritch experiment",
+   "difficulty": 48,
+   "gold_value": 480,
+   "hits": 4000,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "wrestling": 80,
+   "armor": 25,
+   "magic_resist": 25,
+   "ai": "ranged",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "Medium",
+   "unique_scaler": 1.25,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Construct",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10613,
+    15325
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 1,
+    "graphics": [
+     "0x30a"
+    ],
+    "deaths": 0
+   }
+  },
+  "newly reanimated": {
+   "name": "newly reanimated",
+   "difficulty": 20.9,
+   "gold_value": 209,
+   "hits": 2000,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "wrestling": 75,
+   "armor": 25,
+   "magic_resist": 25,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "Medium",
+   "unique_scaler": 1.05,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Construct",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10595,
+    15330
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 2,
+    "graphics": [
+     "0x190"
+    ],
+    "deaths": 0
+   }
+  },
+  "raw flesh": {
+   "name": "raw flesh",
+   "difficulty": 27.3,
+   "gold_value": 274,
+   "hits": 3000,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "wrestling": 65,
+   "armor": 25,
+   "magic_resist": 25,
+   "ai": "melee",
+   "spell_damage": null,
+   "magery": null,
+   "parry": null,
+   "speed": "Slow",
+   "unique_scaler": 1.1,
+   "stealth": false,
+   "attack_speed": null,
+   "specials": [],
+   "slayer": "Construct",
+   "location": "The Mausoleum",
+   "knowledge_ids": [
+    10616,
+    15331
+   ],
+   "missing": [
+    "attack_speed",
+    "specials"
+   ],
+   "capture": {
+    "tag": "session_20261012_210013",
+    "named_serials_in_area": 4,
+    "graphics": [
+     "0x3"
+    ],
+    "deaths": 0
+   }
+  }
+ },
+ "pets": {
+  "gravebug": {
+   "name": "gravebug",
+   "our_pet": {
+    "name": "GraveRobber",
+    "serial": "0x000DDEFE",
+    "capture": "session_20261012_210013"
+   },
+   "min_taming": 115,
+   "control_slots": 1,
+   "hits": 225,
+   "class": "tank",
+   "melee_damage": [
+    18,
+    22
+   ],
+   "spell_damage": null,
+   "armor": 75,
+   "wrestling": 75,
+   "attack_speed": null,
+   "magic_resist": 50,
+   "poison_resist_pct": 33,
+   "special_resist_pct": 33,
+   "underdog_scalar": 1.028,
+   "follower_abilities": [
+    "Devour (Cooldown): Can consume nearby corpses to heal 10% of maximum health",
+    "Disease (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 0.5) disease damage every 5 seconds for 20 seconds."
+   ],
+   "wild": {
+    "difficulty": 151,
+    "gold_value": 1511,
+    "hits": 9000,
+    "melee_damage": [
+     40,
+     50
+    ],
+    "wrestling": 100,
+    "armor": 75,
+    "magic_resist": 25,
+    "ai": "melee",
+    "slayer": "Nature",
+    "magery": null,
+    "spell_damage": null,
+    "location": "Shadowspire Cathedral"
+   },
+   "knowledge_ids": [
+    14471,
+    14480,
+    15727,
+    15728
+   ],
+   "missing": [
+    "attack_speed (wiki '?')",
+    "spell_damage (melee pet)"
+   ],
+   "note": "Tame-table second row has 8 headers (Attack Speed|Magic Resist|Poison Resist|Special Resist|Poison|Poisoning|Stealth|Underdog Scalar) but only 5 cells; blank cells (Poison/Poisoning/Stealth) were dropped by the wiki import, so values were mapped first-4 + last. Base stats only: our pets' levels/upgrades/traits are not in the wiki [INFERENCE: live stats higher]. Ability list built from follower-ability pages #14471/#14480 (gravebug has no own ability page in the KB; ability pages 1,4-9,20,23,25 of 26 were not returned by search, so the list may be incomplete)"
+  },
+  "phoenix": {
+   "name": "phoenix",
+   "our_pet": {
+    "name": "AlaFlambe",
+    "serial": "0x0026EF56",
+    "capture": "session_20261012_210013"
+   },
+   "min_taming": 120,
+   "control_slots": 4,
+   "hits": 350,
+   "class": "attack",
+   "melee_damage": null,
+   "spell_damage": [
+    42,
+    64
+   ],
+   "armor": 25,
+   "wrestling": 70,
+   "attack_speed": null,
+   "magic_resist": 125,
+   "poison_resist_pct": 0,
+   "special_resist_pct": 0,
+   "underdog_scalar": 1,
+   "follower_abilities": [
+    "Epic Barrage (Cooldown): Fires projectiles at a target up to 12 tiles away, dealing 3 hits that each inflict (DamageMax * 0.6) damage that ignores half of target's armor",
+    "Spellburn (Passive): Has a 15% chance on spellcast to inflict an additional (DamageMax * 1.0) damage that ignores half of target's armor",
+    "Spellsurge (Passive): Has a 15% chance on spellcast to increase Damage of the next spellcast within 10 seconds by 125%."
+   ],
+   "wild": {
+    "difficulty": 194.4,
+    "gold_value": 1944,
+    "hits": 8000,
+    "melee_damage": [
+     30,
+     40
+    ],
+    "wrestling": 90,
+    "armor": 25,
+    "magic_resist": 200,
+    "ai": "mage",
+    "slayer": "Beastial",
+    "magery": 175,
+    "spell_damage": [
+     35,
+     45
+    ],
+    "location": "Ossuary"
+   },
+   "knowledge_ids": [
+    14946,
+    14947,
+    14948
+   ],
+   "missing": [
+    "attack_speed (wiki '?')",
+    "melee_damage (tame page lists Spell Damage only)"
+   ],
+   "note": "Tame-table second row: 8 headers, 5 cells; mapped first-4 + last (blank Poison/Poisoning/Stealth dropped by wiki import). Base stats only; levels/upgrades not in wiki."
+  }
+ },
+ "mechanics": {
+  "aggro_perception_range": {
+   "fact": "Creatures have a flat 20-tile Perception Range (2026-08-12 patch; replaced the per-wave aggro range increase).",
+   "knowledge_ids": [
+    4329
+   ]
+  },
+  "creature_movement_speed": {
+   "fact": "Wiki Creatures List gives only a categorical Speed per creature (VerySlow/Slow/Medium/Fast/VeryFast; stored per creature as `speed`). No tiles-per-second or step-delay values for these categories were found in the knowledge base; any numeric mapping is [INFERENCE]. Tamed/summoned creatures in Attack/Patrol/Guard mode had their speed reduced to 'previous levels' (2018).",
+   "knowledge_ids": [
+    10552,
+    10130
+   ],
+   "missing": [
+    "seconds per step for each Speed category"
+   ]
+  },
+  "creature_attack_speed": {
+   "fact": "Every creature's AtkSpd on the wiki is '?'. A tamed/summoned creature's base Attack Speed is 3.0 seconds per attack (2021-04-09 taming overhaul), with a -5%..+5% spawn scalar for tamed creatures (other stats -10%..+10%); attack-speed upgrades are % scalars. Follower attack-speed bonuses above the cap become damage bonus (#4661); cap reported as 50% per pet, uncertain (#1957). Wild creature swing delay not documented; using 3.0 s for them is [INFERENCE].",
+   "knowledge_ids": [
+    7606,
+    4661,
+    1957
+   ],
+   "missing": [
+    "wild creature swing delay"
+   ]
+  },
+  "player_swing_speed_formula": {
+   "fact": "Player swing delay = Weapon Base Swing Speed * (1 - Swing Speed Increase); base speed formula 15000 / ((Current Stamina (max 100) + 100) * Weapon Speed). Excess swing speed over the cap converts 1:1 into damage bonus vs creatures.",
+   "knowledge_ids": [
+    11702,
+    11707
+   ]
+  },
+  "barding_success_chance": {
+   "fact": "Barding Success Chance = (Effective Barding Skill / 100) - (CreatureDifficulty * 1%). Minimum Success Chance = 33% * (Effective Barding Skill / 100) (2024-12-10; was 25% * skill/100 in the 2020 patch); the higher of the two is used. Barding skill is capped by Musicianship. Bonus +25 effective skill when Discording/Pacifying a creature already Provoked/Pacified/Discorded; +12.5 per already-barded creature for Provocation. With our 80 skill vs Mausoleum difficulties (17.8-169.3) the calculated chance is mostly <=0, so the 26.4% minimum (33% * 0.8) applies for difficulty >= ~53.6 [arithmetic from the formulas; Musicianship and instrument bonuses unknown].",
+   "knowledge_ids": [
+    8530,
+    8531,
+    5239,
+    11223,
+    11276,
+    11246,
+    11222,
+    11231
+   ]
+  },
+  "barding_break": {
+   "fact": "While a non-boss creature is Provoked or Pacified, each second there is a (CreatureDifficulty/100)*1% chance of a Barding Break lasting CreatureDifficulty/10 seconds: Provocation and Peacemaking (not Discordance) end at once, the creature is immune to Provoke/Peace during the break and suffers -50% Attack Speed, -50% Casting Speed, +50% delay between abilities. When the break ends the creature has a moderate aggro bonus toward the bard for 10 s. A bard who barded it in the last 60 s gets a Break Barrier (damage and damage-resistance bonus of 20% * highest printed barding skill [as written]) vs creatures in a break.",
+   "knowledge_ids": [
+    8533,
+    8534,
+    11235,
+    11236,
+    6503,
+    5240
+   ]
+  },
+  "discordance_effect": {
+   "fact": "Discorded debuff: +25% damage taken from all sources (multiplicative) and -25% damage dealt, scaled by (bard's printed Discordance / 120): 80 Discordance -> 16.67% (wiki example rounds to 16%). 50% effectiveness on mini-bosses, 40% on bosses. Discorded creatures that are Pacified or Provoked take an additional 15% damage. Provoked creatures do not suffer the damage-dealt penalty. Shows '*discorded Xs*' overhead on AllNames.",
+   "knowledge_ids": [
+    11224,
+    5878,
+    11227,
+    3906
+   ]
+  },
+  "discordance_duration_cooldown": {
+   "fact": "Discordance skill cooldown 5 s on success and failure (also applies a 5 s cooldown to Provocation/Peacemaking). Duration: patch 2020-04-07 says (Effective Barding Skill/100) * 60 s (x2 of Provoke/Peace); the wiki skill page says ((60 s - Creature Difficulty) * (Effective Barding Skill/100)) with minimum 15 * (Musicianship/100) s. The two sources conflict; the wiki page is the newer text [INFERENCE which applies]. Max 15 s against tamed creatures.",
+   "knowledge_ids": [
+    11221,
+    8532,
+    11222,
+    11227
+   ]
+  },
+  "peacemaking_duration_cooldown": {
+   "fact": "Peacemaking cooldown 10 s on success, 5 s on failure (may alternate with Discordance every 5 s). Pacified creatures cannot move, attack or use most abilities. Duration: wiki ((60 s - Creature Difficulty) * (Effective Barding Skill/100)), minimum 15 * (Musicianship/100) s; 2020 patch text says (Effective Barding Skill/100) * 30 s, no difficulty reduction. Pacifying a Provoked creature overrides the provoke. Area Peacemaking by targeting self (same cooldowns, separate check per creature).",
+   "knowledge_ids": [
+    11274,
+    11273,
+    11276,
+    8532,
+    11279
+   ]
+  },
+  "provocation_duration_cooldown": {
+   "fact": "Provocation cooldown 10 s on success, 5 s on failure. Duration: wiki ((60 s - highest creature difficulty) * (Effective Barding Skill/100)), minimum 15 * (Musicianship/100) s; 2020 patch: (Effective Barding Skill/100) * 30 s. Provoked creatures deal +500% damage to other creatures (damage 100% of normal per 2018 patch, superseded). Max range for keeping provocation is 40 tiles (2026-09-04; older: within 50 tiles / tether skill/2). Tamed creatures cannot be provoked.",
+   "knowledge_ids": [
+    11241,
+    11242,
+    8532,
+    4135,
+    11246,
+    10210
+   ]
+  },
+  "pet_commands_guard_kill": {
+   "fact": "All Guard: pets guard you and attack whatever attacks you; guarding stops on a transition (recall/dungeon level). Guarding pets take aggro from mobs within about 10 tiles, though a mob still targets you if you are the only one in range. All Kill: pets attack the selected target; if you are within range the monster attacks you first (counts as your aggression); after the kill pets return to Follow mode unless given another target. Other commands: All Patrol, All Stop, All Stay, All Follow (no attacking), All Come; 'All' can be replaced by a pet name.",
+   "knowledge_ids": [
+    11539,
+    2073,
+    2074,
+    10191
+   ]
+  },
+  "veterinary_supplies": {
+   "fact": "Double-clicking Veterinary Supplies heals all friendly followers within 2 tiles after the normal Veterinary bandage time (5 s for followers, healing speed always as 100 Dex), at 50% of bandage healing (75% if only one creature is affected); cure/resurrect chances scale the same; the player also gets 25% bandage effectiveness. Cancels/blocks bandages. Base bandage healing on creatures is 80-120 (2022-06-07). Followers get a damage bonus of 10% * (Effective Veterinary/100).",
+   "knowledge_ids": [
+    11331,
+    5833,
+    6705,
+    11328,
+    5832
+   ]
+  },
+  "stationary_bandaging": {
+   "fact": "After standing still 5 s players may bandage targets up to 2 tiles away; moving within 5 s of finishing the bandage reverts the range to 1 tile.",
+   "knowledge_ids": [
+    11329
+   ]
+  },
+  "heal_potions": {
+   "fact": "Heal Potion heals 20-35 (15-25 PvP-flagged); Lesser Heal Potion heals 15-25 (10-15 PvP). Heal potions have a 10 s cooldown; 'some damage has been healed' system message marks the drink. No Greater Heal potion amount was found (Greater Heal spell: 45-60).",
+   "knowledge_ids": [
+    4909,
+    4908,
+    16947,
+    4907
+   ],
+   "missing": [
+    "greater heal potion amount"
+   ]
+  },
+  "stationary_penalty": {
+   "fact": "After a Recall/Gate/Hike, or standing still for 5 minutes or more, a Stationary Damage Penalty reduces all damage dealt to creatures by the player AND their followers to 1; removed after walking or running 5 steps; a system message announces it. Not applied on ships or vs Battletrainers.",
+   "knowledge_ids": [
+    5138,
+    3124
+   ]
+  },
+  "mausoleum_layout": {
+   "fact": "The Mausoleum is one of the Outlands dungeons; Level 4 is the Darkscale Tomb (opened 2023-05-28; Vampire Primogen live there). No level-by-level layout or spawn table was found in the knowledge base; all creature pages listed here give Location 'The Mausoleum'. Capture evidence: arrival from the rune at 5605,708 and fighting at x 5180-5290, y 640-740 on facet 0 (session_20261012_210013).",
+   "knowledge_ids": [
+    15167,
+    6007,
+    15225,
+    3322,
+    5347
+   ],
+   "missing": [
+    "level map / spawn points"
+   ]
+  },
+  "bleed": {
+   "fact": "Follower Bleed (e.g. Vampire Bat): 15% chance on melee hit to inflict (DamageMax * 1.0) bleed damage over 15 s. Bleed resolves in ticks every 3 s for 15 s, each tick 20% of the total (swordsmanship page). Bleeds stack. Higher-level creatures may have Special Resistance giving a chance to ignore bleed/disease ticks. No bleed or life-drain special for the (wild) Vampire, Vampire Countess, Elder Vampire, Elder Vampire Countess or Vampiric Consort was found in the knowledge base.",
+   "knowledge_ids": [
+    14664,
+    14480,
+    13454,
+    367,
+    3457,
+    5433
+   ],
+   "missing": [
+    "vampire bleed / life-drain specials"
+   ]
+  },
+  "disease": {
+   "fact": "Disease effects tick every 5 s over 20 s (2023-05-22). Follower Disease: 15% chance on melee hit to inflict (DamageMax * 0.5) disease damage per tick. Disease stacks.",
+   "knowledge_ids": [
+    5965,
+    14471,
+    2639
+   ]
+  },
+  "creature_damage_resistance": {
+   "fact": "Since the 2026-08-11 patch non-follower creatures have a small Damage Resistance that varies by creature and largely scales with Difficulty Value; exact values not given.",
+   "knowledge_ids": [
+    932,
+    1150
+   ],
+   "missing": [
+    "resistance per difficulty"
+   ]
+  },
+  "creature_difficulty_meaning": {
+   "fact": "Creature Difficulty (shown by Animal Lore to everyone) determines loot, barding difficulty and other mechanics. [INFERENCE from the pages above] wiki Gold Value is about 10 x Difficulty for every creature listed.",
+   "knowledge_ids": [
+    7789,
+    11420
+   ]
+  },
+  "underdog_bonus": {
+   "fact": "Tamed followers get an Underdog Bonus to Wrestling, max +20%, scaled by the gap between the creature's Min Taming and 120 (wiki 'Underdog Scalar' column: gravebug 1.028, phoenix 1).",
+   "knowledge_ids": [
+    4234,
+    15728,
+    14947
+   ]
+  },
+  "player_regeneration": {
+   "fact": "Players regenerate 1 hit point every 4 s and 1 stamina every 2 s passively.",
+   "knowledge_ids": [
+    14742
+   ]
+  },
+  "data_notes": {
+   "fact": "Creature numbers come from the wiki creature page (knowledge id = first entry) and the wiki 'Creatures List' row (second id) which adds Parry, Magery, Spell Damage, AI, Speed and Unique Scaler; both agree on every shared field (checked). Extra per-creature fields beyond the requested schema: magery, parry, speed (wiki category), unique_scaler, stealth (wiki 'X'), attack_speed (always null: wiki '?'), location, capture (replay evidence). capture.named_serials_in_area: distinct serials with a known name, notoriety 3-6, inside x 5150-5650 y 600-760, facet 0 in session_20261012_210013; capture.deaths: mobile_death events whose corpse is named '<name> corpse' over the whole session. Names are not always known before death, so serial counts undercount (vampiric consort and blightmare were killed but never named while in view). In-game corpse name 'an apparation corpse' vs mobile name 'an apparition' (wiki: Apparition) -> key 'apparition' with alias. Captured mobile hits are a share of 100 for monsters and pets, so absolute hits come only from the wiki. Wild-creature special abilities are not in the knowledge base; specials listed are the tamed follower abilities of the same species, labelled [INFERENCE] for wild use.",
+   "knowledge_ids": []
+  }
+ }
+}

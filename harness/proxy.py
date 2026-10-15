@@ -137,6 +137,10 @@ class MoveAuthority:
       use). A walk with key 0 in that position gets it stamped in. The client
       then still holds its own copy (`stale_token`), which is zeroed once when
       the client presents it, so the server never sees a spent token.
+    - client walker resets: a client seq 0 after a client walk since the last
+      deny/seed/re-anchor (the client does this after a teleporter) goes out as
+      sent, the walks in flight become late confirms, and the client is
+      re-anchored to the server-true tile (docs/MOVEMENT.md, 20261014_210020).
     - confirms: the server confirms every accepted walk (S2C `22 <seq> ..`).
       The client treats a confirm for a step it never sent as a bad step
       (frozen walker), so agent confirms are hidden, and client confirms are
@@ -159,7 +163,7 @@ class MoveAuthority:
 
     __slots__ = ("next_seq", "armed_token", "stale_token", "inflight", "late", "late_until",
                  "resync_sent_at", "last_walk_at", "client_stale", "rejects_in_row", "self_serial",
-                 "pos", "z_fn", "z_misses")
+                 "pos", "z_fn", "z_misses", "client_seq")
 
     def __init__(self):
         self.next_seq = 0
@@ -176,16 +180,43 @@ class MoveAuthority:
         self.pos = None              # [x, y, z, facing 0-7], server truth
         self.z_fn = None             # (x, y, z, direction) -> z after the step, or None
         self.z_misses = 0            # confirmed moves the map rules couldn't place
+        self.client_seq = None       # the client's own seq on its last walk since the last deny/seed
 
     # ---- C2S ----
     def on_c2s_walk(self, pkt: bytearray, src: str, now: float) -> tuple[str, str] | None:
         """Rewrite a plaintext 7-byte walk in place (seq + key); record it in flight.
 
         Returns (log_event, note) when the key decision is worth logging.
+
+        A client walk with its own seq 0 after a client walk since the last deny/seed means the
+        client reset its walker on its own (live 20261014_210020 21:09:31.55: seq 0 twice 9 ms
+        apart right after a teleporter's 0x77/seed and the pets' 0x20s; the client dropped the first
+        step, the server had taken it, so the client stood a tile behind the server and couldn't walk
+        back through the door for a minute). A native client's server would see that seq 0 and judge
+        it (a deny re-syncs both), so it goes out as sent: seq 0, its own key, nothing in flight; and
+        the client is marked stale for the movement timer's re-anchor if no deny comes.
         """
+        if src == "client" and pkt[2] == 0 and self.client_seq is not None:
+            prev = self.client_seq
+            # the walks still in flight may yet be confirmed (the server took them; the client dropped
+            # them): late confirms, hidden from the client and counted in the tracked position
+            self.late.update(self.inflight)
+            self.late_until = now + LATE_CONFIRM_GRACE_S
+            self.inflight.clear()
+            self.armed_token = None
+            self.stale_token = None
+            self.next_seq = 1
+            self.inflight[0] = (src, 0, pkt[1] & 7, now)
+            self.last_walk_at = now
+            self.client_seq = 0
+            self.client_stale = True
+            return ("c2s_client_reset",
+                    f"client walker reset itself (seq 0 after its seq {prev}): sent as seq 0 with its own key")
         s = self.next_seq
         self.next_seq = s + 1 if s < 0xFF else 1
         self.inflight[s] = (src, pkt[2], pkt[1] & 7, now)
+        if src == "client":
+            self.client_seq = pkt[2]
         pkt[2] = s
         self.last_walk_at = now
         if src != "client":
@@ -216,6 +247,7 @@ class MoveAuthority:
 
     def on_c2s_resync(self, now: float):
         self.resync_sent_at = now
+        self.client_seq = None
 
     # ---- S2C ----
     def on_self_position(self, x: int, y: int, z: int, direction: int):
@@ -232,6 +264,7 @@ class MoveAuthority:
         self.resync_sent_at = None
         self.client_stale = False  # the seed arrives with the server's own re-anchor
         self.rejects_in_row = 0
+        self.client_seq = None
 
     def on_push(self, token: int):
         """0xBF sub2: one more token; the next walk must carry it."""
@@ -278,6 +311,7 @@ class MoveAuthority:
         self.inflight.clear()
         self.late.clear()
         self.client_stale = False
+        self.client_seq = None
 
     # ---- timers / gates ----
     def expire(self, now: float) -> list[tuple[str, str]]:
@@ -334,6 +368,7 @@ class MoveAuthority:
         if self.last_walk_at is not None and now - self.last_walk_at < quiet_s:
             return None
         self.client_stale = False
+        self.client_seq = None     # the fabricated deny resets the client's walker: its next walk is seq 0
         x, y, z, facing = self.pos
         return (b"\x21\x00" + (x & 0xFFFFFFFF).to_bytes(4, "big") + (y & 0xFFFFFFFF).to_bytes(4, "big")
                 + bytes([facing]) + z.to_bytes(4, "big", signed=True))

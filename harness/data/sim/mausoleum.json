@@ -1,0 +1,789 @@
+{
+ "name": "mausoleum",
+ "description": "The Mausoleum level Logan Wolf fought on 2026-10-12 21:17-21:31 (capture 20261012_210013): x 5174-5278, y 646-738, z 0-25, reached by two teleporters from the rune's arrival (5605,708). The sim's tome row 'Mausoleum' lands on this level's entry tile directly (the runner doesn't walk between levels). Merged at load time with mausoleum_kb.json (wiki stats) and mausoleum_observed.json (the capture), harness/sim/scenario.py.",
+ "facet": 0,
+ "evidence": {
+  "kb": "mausoleum_kb.json",
+  "observed": "mausoleum_observed.json"
+ },
+ "player": {
+  "serial": 1067616,
+  "name": "Logan Wolf",
+  "body": 400,
+  "start": [
+   5199,
+   738,
+   17
+  ],
+  "hits": 100,
+  "stam": 25,
+  "mana": 100,
+  "note": "100 str / 25 dex / 100 int, hits 100 (capture status); start: where the level's teleporter lands (calibration levels.teleports)"
+ },
+ "home": [
+  4134,
+  1429,
+  6
+ ],
+ "pets": [
+  {
+   "serial": 909054,
+   "key": "gravebug",
+   "name": "GraveRobber",
+   "body": 387,
+   "hits": 450,
+   "melee": [
+    57,
+    159,
+    76
+   ],
+   "swing_s": 1.91,
+   "hit_chance": 0.95,
+   "step_s": 0.21,
+   "follow": 1,
+   "leash": 14,
+   "threat_x": 4.0,
+   "devour": {
+    "heal": 18,
+    "ticks": 3,
+    "every_s": 15.0,
+    "range": 2
+   },
+   "devour_note": "3 captures (2026-10-12/13): '*devours corpse*' over the gravebug 67 times, 15.0-15.2 s apart at the shortest (median gap 15.2 s), 60 of them with it hurt within 5 s (mid-fight); then '+18' three times 0.5 s apart (19 times; '+21' x3 11 times under a 17.7 % Song of Peacemaking; less when nearly full): 54 a feed. Knowledge: Devour 'Can consume nearby corpses to heal 10% of maximum health' (45 of 450; 54 live [INFERENCE: its healing bonuses]). Before 2026-10-13 the simulator fed it twice, only out of a fight. range 2 [INFERENCE]",
+   "specials": [
+    {
+     "kind": "poison",
+     "chance": 0.15,
+     "damage": 40,
+     "seconds": 20
+    }
+   ],
+   "note": "hits 450: 4.5 hits per percent point (303 single '-N' vs the 0xA1 share drop, capture); melee p10/p90/median of its attributed hits (n=175) every 1.91 s (attack animation, n=240); step 0.21 s: its one-tile moves out of war mode (n=470, capture: it kept 1-3 tiles behind our 0.20 s run; 0.3 s left it 9-22 tiles behind in the sim); threat_x 4.0 [fitted: with the phoenix's 0.3 the simulated gravebug takes most of the pets' damage, as live: 796 vs 84 hits per war-minute; the Tank class draws aggro, knowledge #2074]; devour: devour_note; disease [INFERENCE: tamed Disease 15 % (knowledge #14471), damage per tick scaled to its melee]"
+  },
+  {
+   "serial": 2551638,
+   "key": "phoenix",
+   "name": "AlaFlambe",
+   "body": 832,
+   "hits": 660,
+   "ranged": {
+    "range": 10,
+    "damage": [
+     154,
+     565,
+     238
+    ],
+    "every_s": 1.8
+   },
+   "step_s": 0.21,
+   "follow": 1,
+   "leash": 14,
+   "threat_x": 0.3,
+   "note": "hits 660: 6.6 hits per percent point (n=24, capture); spell hits: p10/p90 of the phoenix-attributed numbers (n=30) with the median of the 428 ambiguous ones (237.5) as mode, every 1.80 s (attack animation n=254); range 10 [INFERENCE; Epic Barrage reaches 12, knowledge #6882]; step 0.21 s (one-tile moves out of war mode, n=471, capture); took little aggro on the trip (84 hits per war-minute vs the gravebug's 796): threat_x 0.3 [fitted with the gravebug's 4.0]"
+  }
+ ],
+ "loadout": {
+  "backpack": 1147051922,
+  "gold_serial": 1103658840,
+  "gold": 15592,
+  "items": [
+   {
+    "serial": 1397453542,
+    "graphic": 3702,
+    "kind": "bag"
+   },
+   {
+    "serial": 1102440516,
+    "graphic": 25750,
+    "amount": 200,
+    "kind": "vet",
+    "container": 1397453542
+   },
+   {
+    "serial": 2012394400,
+    "graphic": 3702,
+    "kind": "bag"
+   },
+   {
+    "serial": 2100524846,
+    "graphic": 31262,
+    "kind": "bag",
+    "container": 2012394400
+   },
+   {
+    "serial": 1102440509,
+    "graphic": 3852,
+    "amount": 30,
+    "kind": "heal_potion",
+    "container": 2100524846
+   },
+   {
+    "serial": 1102440510,
+    "graphic": 3847,
+    "amount": 15,
+    "kind": "cure_potion",
+    "container": 2100524846
+   },
+   {
+    "serial": 1145745907,
+    "graphic": 29103,
+    "kind": "tome",
+    "charges": 36
+   },
+   {
+    "serial": 1190432323,
+    "graphic": 5370,
+    "amount": 15,
+    "kind": "rope",
+    "note": "adventurer's rope : 15 (0x46F48E43, graphic 0x14FA, 20261014_173858)"
+   }
+  ],
+  "note": "Logan Wolf's pack at 21:25 (capture): vet supplies in a bag, heal and cure potions in an exceptional bronzehide potion satchel in a bag, the rune tome (graphic 29103); vet supplies 200, not the trip's 59 (user 2026-10-13: take more in; 59 ran out ~30 min into most simulated hours)"
+ },
+ "recall": {
+  "tome": 1145745907,
+  "rows": [
+   {
+    "name": "Home",
+    "at": [
+     4134,
+     1429,
+     6
+    ]
+   },
+   {
+    "name": "Mausoleum",
+    "at": [
+     5626,
+     688,
+     0
+    ]
+   }
+  ],
+  "pet_range": 3,
+  "note": "the Mausoleum row lands where Logan's did (21:16:30, capture): (5626, 688) on the first level, beside a gold moongate; recall in a dungeon works only near one (`dungeon`); pets within pet_range come along (knowledge #11547) and default to Follow (#11561)"
+ },
+ "dungeon": {
+  "box": [5150, 600, 5650, 760],
+  "gold_gates": [[5626, 689], [5618, 723], [5588, 717]],
+  "recall_r": 2,
+  "note": "user 2026-10-13: in a dungeon you can recall in or out only near a gold moongate (gold gates are on a dungeon's first level only), never near a red one; recall_r 2 is his conservative guess. box: the calibration region; gold gates: the hue-2822 moongates of the first level (capture) [INFERENCE: hue 2822 = gold]"
+ },
+ "gates": [
+  {
+   "name": "crimson moongate", "serial": 1074848031, "at": [5203, 703, 0], "hue": 2820,
+   "destinations": [{"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"},
+                    {"name": "Outpost"}, {"name": "Prevalia"}, {"name": "Terran"},
+                    {"name": "Totem", "at": [3859, 2890, 0]}, {"name": "Corpse Creek"}]
+  },
+  {"name": "gold moongate", "serial": 1073749194, "at": [5626, 689, 0], "hue": 2822,
+   "destinations": [{"name": "Totem", "at": [3859, 2890, 0]}]},
+  {"name": "gold moongate", "serial": 1073749192, "at": [5618, 723, 0], "hue": 2822,
+   "destinations": [{"name": "Totem", "at": [3859, 2890, 0]}]},
+  {"name": "gold moongate", "serial": 1073749193, "at": [5588, 717, 0], "hue": 2822,
+   "destinations": [{"name": "Totem", "at": [3859, 2890, 0]}]}
+ ],
+ "gates_note": "the crimson moongate 0x4010E11F on the fight level, the only red gate there (user): its 'Moongate Destinations' rows as live 21:31:00 (Totem = button 17; arrival (3859, 2890) 21:31:04). The gold gates' menus weren't opened live: one Totem row [INFERENCE]",
+ "runner": {
+  "enter_via": [[5554, 701], [5506, 701], [5507, 697], [5521, 638]],
+  "leave_gate": [5203, 703],
+  "gate_dest": "Totem",
+  "heal_in_place": true,
+  "note": "run.py's defaults for this scenario: the way Logan went in and out (capture); with a long walk out, leave less and heal in place (--no-heal-in-place turns it off). The nightstalker room is no longer avoided (user 2026-10-13, after his crawl 20261013_204518 went through it; before that a crawl_avoid box [5170, 690, 5188, 718] kept it out: `--crawl-avoid 5170 690 5188 718` puts it back)"
+ },
+ "bard": {
+  "effective_skill": 149,
+  "min_chance_factor": 0.33,
+  "range": 12,
+  "chance_note": "p = max(S/100 - difficulty/100, 0.33 x S/100) (knowledge #8530 #5239); S = 149 fitted (maximum likelihood, n=47) to the trip's 18/30 discord, 8/14 peace, 2/4 provoke at the difficulties of their targets (scenario.fit_bard)",
+  "discord_dealt": 0.1667,
+  "discord_taken": 0.1667,
+  "discord_bonus_calm": 0.25,
+  "seconds": {
+   "discord": 71,
+   "peace": 43,
+   "provoke": 36
+  },
+  "seconds_easy": {
+   "discord": 88,
+   "peace": 36,
+   "provoke": 36
+  },
+  "easy_below_difficulty": 50,
+  "act_threat": 400,
+  "break_threat": 200,
+  "note": "discord 16.67 % at 80 printed (knowledge #11224); durations as the trip's answers ('(1m)', '(1m 15s)' on spare parts, '(38s)', '(30s)'); act_threat: an aggressive act of ours draws the mob onto the character (user 2026-10-12) [INFERENCE: worth 400 damage of threat], only while no pet has hurt it yet (the trip: our acts after the pets' first damage drew none of 14 monsters onto Logan; of 7 reached first, 3 hit him; docs/NOTES.md); break_threat likewise; range 12 [INFERENCE] (successes at 1-9 tiles); provoke_x 4: the hue-2417 numbers while two provoked creatures fought, median 95 (n=29), vs their ~24 per hit on our pets",
+  "provoke_x": 4.0,
+  "song_x": 0.177,
+  "links_note": "user 2026-10-13: Effective Barding links added to the mastery chain before 20261013_204518. After them every barding number grew ~18 %: songs 15.0 -> 17.7 %, discord '(1m)' -> '(1m 11s)' (17 of 18; '(1m 26s)' on a corpse purger just provoked), peace '(38s)' -> '(43s)' (6 of 7, one '(36s)'), provoke '(30s)' -> '(36s)' and '(43s)'; success unchanged (fit_bard: S 151 on its 50 answers, 149 before). The seconds and song_x are the post-links ones (seconds_easy scaled by 1.18 [INFERENCE]); discord_dealt/taken are not re-measured [INFERENCE: they may have grown alike]",
+  "song_s": 900,
+  "song_gap_s": 10,
+  "song_note": "barding songs (a bard skill at the ground): live 2026-10-13 (20261013_173449) all three printed 15.0 % (5 % x effective barding / 100 each, knowledge #11234: Discordance less damage taken from creatures, Peacemaking more healing received, Provocation more damage against creatures) for 15 minutes, on us and the followers; 10 s between songs, apart from the skill timer (#11234; live a second song 3.8 s after the first: 'You must wait a few moments before performing another barding song.'); damage reduction also on area hits and bleeds (patch 2022-08-26, #6504)"
+ },
+ "vet": {
+  "range": 2,
+  "channel_s": [
+   5.0,
+   5.3
+  ],
+  "heal_pet": [
+   40,
+   120,
+   71.5
+  ],
+  "heal_self": [
+   12,
+   25,
+   17
+  ],
+  "multi_share": 1.0,
+  "note": "range 2 (+ Without Borders: --vet-range); channel 5.0-5.3 s (n=43); heals: pet median 71.5 (n=36), us 17 (n=11), capture"
+ },
+ "potions": {
+  "heal": [
+   25,
+   40
+  ],
+  "cooldown_s": 10,
+  "satchel_save": 0.3,
+  "note": "heal: the trip's six drinks, median 32.5; cooldown 10 s (knowledge #4909); satchel 10 % + exceptional 5 % + bronzehide 15 % (knowledge #11445)"
+ },
+ "defaults": {
+  "aggro_range": 10,
+  "guard_draw_r": 6,
+  "hit_chance": 0.85,
+  "swing_s": 3.0,
+  "kb_melee_to_pet": 0.5,
+  "ranged_every_s": 6.0,
+  "ranged_range": 10,
+  "ranged_kb_factor": 0.5,
+  "damage_to_player_x": 1.0,
+  "respawn_s": [
+   120,
+   300
+  ],
+  "speed_step_s": {
+   "VerySlow": 0.7,
+   "Slow": 0.55,
+   "Medium": 0.43,
+   "Fast": 0.38,
+   "VeryFast": 0.33
+  },
+  "note": "aggro 10: the capture's 32 war-mode switches in view were 1-13 tiles from us (median 7) apart from those first seen at the view's edge (18) already fighting [INFERENCE: the wiki's flat 20-tile Perception Range, knowledge #4329, would put the sim's banshees on us from across the room: 6 of 9 simulated deaths with 20], sight required; guard_draw_r 6: once one of us is in its range, a monster goes for a guarding pet within this of us (the trip: all 11 monsters we hadn't acted on went to a pet first, user 2026-10-13) [INFERENCE: the radius]; swing 3.0 s (follower base, #7606; observed 2.96-3.36 for 5 types); melee for a type without an observed hit: the wiki melee x 0.5 (observed/wiki medians: shadowguard 0.49, shade wolf 0.50, purger 0.49, bat 0.44, nightstalker 0.64); step_s: observed 0.33-0.43 s per chase step (corpsebride VeryFast, bat Fast, bound soul Medium), others [INFERENCE]; respawn: one candidate 123 s [INFERENCE]"
+ },
+ "specials": {
+  "shade wolf": [
+   {
+    "kind": "vanish",
+    "first_s": [4.0, 15.0],
+    "cooldown_s": [15.0, 22.0],
+    "hidden_s": [3.5, 6.0]
+   }
+  ],
+  "bound soul": [
+   {
+    "kind": "bleed_area",
+    "chance": 0.105,
+    "radius": 1,
+    "opener": [23, 32],
+    "tick": [8, 10],
+    "every_s": 3.0,
+    "seconds": 15.0
+   }
+  ],
+  "vampire bat": [
+   {
+    "kind": "bleed",
+    "chance": 0.15,
+    "tick": [8, 10],
+    "every_s": 3.0,
+    "seconds": 15.0
+   }
+  ],
+  "vampire": [
+   {
+    "kind": "drain",
+    "chance": 0.1,
+    "damage": 10
+   }
+  ],
+  "vampire countess": [
+   {
+    "kind": "bleed",
+    "chance": 0.15,
+    "tick": [8, 10],
+    "every_s": 3.0,
+    "seconds": 15.0
+   },
+   {
+    "kind": "drain",
+    "chance": 0.1,
+    "damage": 10
+   },
+   {
+    "kind": "transfix",
+    "every_s": 5.3,
+    "chance": 0.5,
+    "range": 12,
+    "lifetime_s": [9.9, 11.0],
+    "wake_s": [0.0, 2.5],
+    "pet_damage": [36, 45],
+    "hits": 2000,
+    "melee": [28, 37],
+    "swing_s": 1.91
+   }
+  ],
+  "nightstalker": [
+   {
+    "kind": "charge",
+    "cooldown_s": 8.5,
+    "range": 12,
+    "targets": 3,
+    "damage": [37, 42]
+   }
+  ],
+  "reanimated knight": [
+   {
+    "kind": "charge",
+    "cooldown_s": 8.5,
+    "range": 12,
+    "targets": 3,
+    "damage": [25, 35],
+    "note": "'*charges*' 3 times live (20261013_173449 17:40:23, 20261013_204518 20:50:09, 20261014_173858 17:41:15.6); only the last hit anyone: -32 on Logan 1.0 s after [INFERENCE: the nightstalker's Charge rules and cooldown, damage around the one number]"
+   }
+  ],
+  "elder vampire": [
+   {
+    "kind": "drain",
+    "chance": 0.1,
+    "damage": 12
+   }
+  ],
+  "corpse purger": [
+   {
+    "kind": "poison",
+    "chance": 0.15,
+    "damage": 12,
+    "seconds": 20
+   }
+  ],
+  "devourer beetle": [
+   {
+    "kind": "poison",
+    "chance": 0.15,
+    "damage": 12,
+    "seconds": 20
+   }
+  ],
+  "corpsebride": [
+   {
+    "kind": "wail",
+    "every_s": 7.6,
+    "damage": [13, 25, 18],
+    "radius": 1,
+    "near_chance": 0.75,
+    "far_r": 3,
+    "far_chance": 0.2
+   }
+  ],
+  "note": "all of Logan's 23 hits on the trip were bleeds, a Charge or transfixed copies (docs/NOTES.md). Bleeds: 8-10 every 3 s, 5 ticks over 15 s, then 'You are no longer bleeding.' (3 bleeds, capture). Bound soul: 'They begin to draw blood from you!' with an opener of -23/-32 on Logan a tile off while it meleed the gravebug, 2 in its 19 swings at a pet with Logan within 1 tile [INFERENCE: an area bleed on everyone within 1]. Vampire bat: 'The creature strikes ferociously, causing you to bleed!' on its target, 15 % (follower Bleed, knowledge #14664). Nightstalker Charge: teleports up to 12 tiles, hits up to 3 within 1 tile (knowledge #14625); live '*charges*' at 21:21:14/:23/:31 (8.5 s apart), -37 and -42 on the gravebug and Logan (n=2); 20261013_204518: 5 charges 7.6-17 s apart, -10..-19 on the gravebug (3 of 5 hit); no Vanish seen. Shade wolf Vanish: two wolves in their fights left the view at 1 tile (0x1D) 4 times, 4.3-15 s into the fight and 19-22 s apart, for 3.5-5.8 s, and came back on the gravebug each time with a hit (21-28) before any re-guard. Countess transfix (3 fights over 20261012_210013, 20261013_173449 and 20261013_204518): '*attempts to transfix*' every 5.1-5.5 s while fighting; with no copy of hers up 6 of 12 made a hostile copy of a pet ('*transfixed*', the pet's name and body, on its tile), with one up 0 of 5; the pet took -36..-45 at that instant (n=5); the copy lasted 9.9-11.0 s to its 0x1D (n=6), in war mode 0-2.5 s after it appeared, and the pet itself made no step and no attack animation until then; the copies' 10 attributed hits on the first trip: 4 on Logan (28-37), 6 on the pets; the second walked 6 tiles to the phoenix rather than Logan at 8: a copy picks any of us but its original within 3 tiles, else any [INFERENCE: copy hits 2000, one took 1436 in 6 s and lived]. Corpsebride wail: '*wails*' every 7.5-7.8 s while it fights (25 in 4 fights), with a -13..-25 at once on the pets beside it (about 18 of 24 pet-tile-1 chances) and on Logan 2 of 11 times at 2-3 tiles [INFERENCE: an area hit on each of us, near_chance within radius 1, far_chance at 2-3]. Vampire drain and disease as poison 15 % (#2639) [INFERENCE]."
+ },
+ "spawns": [
+  {
+   "key": "vampiric consort",
+   "at": [
+    5243,
+    633,
+    0
+   ]
+  },
+  {
+   "key": "apparition",
+   "at": [
+    5210,
+    717,
+    0
+   ]
+  },
+  {
+   "key": "banshee",
+   "at": [
+    5216,
+    701,
+    0
+   ]
+  },
+  {
+   "key": "banshee",
+   "at": [
+    5197,
+    705,
+    0
+   ]
+  },
+  {
+   "key": "banshee",
+   "at": [
+    5217,
+    705,
+    0
+   ]
+  },
+  {
+   "key": "bound soul",
+   "at": [
+    5261,
+    661,
+    0
+   ]
+  },
+  {
+   "key": "bound soul",
+   "at": [
+    5273,
+    658,
+    0
+   ]
+  },
+  {
+   "key": "bound soul",
+   "at": [
+    5266,
+    646,
+    0
+   ]
+  },
+  {
+   "key": "bound soul",
+   "at": [
+    5277,
+    645,
+    0
+   ]
+  },
+  {
+   "key": "bound soul",
+   "at": [
+    5267,
+    646,
+    0
+   ]
+  },
+  {
+   "key": "corpse purger",
+   "at": [
+    5266,
+    655,
+    0
+   ]
+  },
+  {
+   "key": "corpse purger",
+   "at": [
+    5274,
+    652,
+    0
+   ]
+  },
+  {
+   "key": "corpsebride",
+   "at": [
+    5187,
+    664,
+    24
+   ]
+  },
+  {
+   "key": "corpsebride",
+   "at": [
+    5199,
+    645,
+    25
+   ]
+  },
+  {
+   "key": "corpsebride",
+   "at": [
+    5172,
+    684,
+    25
+   ]
+  },
+  {
+   "key": "corpsebride",
+   "at": [
+    5229,
+    651,
+    12
+   ]
+  },
+  {
+   "key": "master reanimator",
+   "at": [
+    5229,
+    727,
+    0
+   ]
+  },
+  {
+   "key": "nightstalker",
+   "at": [
+    5182,
+    702,
+    -5
+   ]
+  },
+  {
+   "key": "nightstalker",
+   "at": [
+    5244,
+    666,
+    0
+   ]
+  },
+  {
+   "key": "reanimated knight",
+   "at": [
+    5176,
+    704,
+    -3
+   ]
+  },
+  {
+   "key": "shade wolf",
+   "at": [
+    5181,
+    694,
+    -5
+   ]
+  },
+  {
+   "key": "shade wolf",
+   "at": [
+    5180,
+    700,
+    -5
+   ]
+  },
+  {
+   "key": "shade wolf",
+   "at": [
+    5174,
+    695,
+    0
+   ]
+  },
+  {
+   "key": "shade wolf",
+   "at": [
+    5187,
+    665,
+    23
+   ]
+  },
+  {
+   "key": "shade wolf",
+   "at": [
+    5176,
+    695,
+    -3
+   ]
+  },
+  {
+   "key": "shade wolf",
+   "at": [
+    5208,
+    672,
+    25
+   ]
+  },
+  {
+   "key": "shade wolf",
+   "at": [
+    5210,
+    660,
+    25
+   ]
+  },
+  {
+   "key": "shadow minion",
+   "at": [
+    5210,
+    696,
+    7
+   ]
+  },
+  {
+   "key": "shadow minion",
+   "at": [
+    5204,
+    682,
+    15
+   ]
+  },
+  {
+   "key": "shadow minion",
+   "at": [
+    5211,
+    682,
+    15
+   ]
+  },
+  {
+   "key": "shadowguard",
+   "at": [
+    5193,
+    681,
+    25
+   ]
+  },
+  {
+   "key": "shadowguard",
+   "at": [
+    5227,
+    724,
+    0
+   ]
+  },
+  {
+   "key": "shadowguard",
+   "at": [
+    5242,
+    651,
+    0
+   ]
+  },
+  {
+   "key": "shadowguard",
+   "at": [
+    5194,
+    681,
+    25
+   ]
+  },
+  {
+   "key": "tormented soul",
+   "at": [
+    5235,
+    674,
+    0
+   ]
+  },
+  {
+   "key": "tormented soul",
+   "at": [
+    5250,
+    675,
+    0
+   ]
+  },
+  {
+   "key": "tormented soul",
+   "at": [
+    5250,
+    683,
+    0
+   ]
+  },
+  {
+   "key": "vampire",
+   "at": [
+    5186,
+    664,
+    24
+   ]
+  },
+  {
+   "key": "vampire bat",
+   "at": [
+    5207,
+    683,
+    15
+   ]
+  },
+  {
+   "key": "vampire bat",
+   "at": [
+    5174,
+    680,
+    25
+   ]
+  },
+  {
+   "key": "vampire bat",
+   "at": [
+    5211,
+    667,
+    25
+   ]
+  },
+  {
+   "key": "vampire countess",
+   "at": [
+    5198,
+    647,
+    45
+   ]
+  },
+  {
+   "key": "vampire countess",
+   "at": [
+    5177,
+    681,
+    25
+   ]
+  },
+  {"key": "spare parts", "at": [5619, 686, 0]},
+  {"key": "spare parts", "at": [5594, 711, 0]},
+  {"key": "spare parts", "at": [5590, 706, 0]},
+  {"key": "raw flesh", "at": [5617, 706, 2]},
+  {"key": "raw flesh", "at": [5625, 704, 0]},
+  {"key": "raw flesh", "at": [5594, 694, 0]},
+  {"key": "raw flesh", "at": [5593, 696, 0]},
+  {"key": "corpse eater", "at": [5600, 721, 0]},
+  {"key": "corpse eater", "at": [5599, 674, 0]},
+  {"key": "corpse eater", "at": [5618, 719, 0]},
+  {"key": "familiar", "at": [5602, 679, 0]},
+  {"key": "familiar", "at": [5641, 687, 20]},
+  {"key": "familiar", "at": [5642, 701, 20]},
+  {"key": "newly reanimated", "at": [5604, 679, 0]},
+  {"key": "newly reanimated", "at": [5609, 672, 0]},
+  {"key": "abomination", "at": [5533, 651, -10]},
+  {"key": "abomination", "at": [5531, 662, -10]},
+  {"key": "calamity", "at": [5508, 665, 2]},
+  {"key": "eldritch experiment", "at": [5533, 681, -10]},
+  {"key": "insane reanimator", "at": [5504, 654, 30]},
+  {"key": "insane reanimator", "at": [5531, 645, -10]},
+  {"key": "reanimator zealot", "at": [5530, 680, -10]}
+ ],
+ "spawn_note": "every first-seen position of a monster type (calibration creatures.*.first_seen), one spawn each: the fight level's, then the first two levels' on the way in (x 5500-5650); the vampiric consort where Logan first saw one (20261013_204518, 20:57:51; it woke at 12 tiles, reached the gravebug and chased him ~25 tiles)",
+ "teleporters": [
+  {"from": [5554, 701], "to": [5547, 696, 10]},
+  {"from": [5506, 701], "to": [5507, 698, -5]},
+  {"from": [5507, 697], "to": [5507, 693, -5]},
+  {"from": [5521, 638], "to": [5199, 738, 17]}
+ ],
+ "teleporters_note": "the ones Logan stepped onto on the way in (capture): 21:17:19 to the second level, 21:17:37 two short hops on it (a deny at (5506, 701) then a self move to (5507, 698), and (5507, 697) -> (5507, 693); the map has no walk across: A* takes 468 steps round, Logan ~150), 21:17:57 to the fight level. The ways back up aren't known",
+ "area": [
+  5170,
+  640,
+  5285,
+  742
+ ],
+ "area_note": "the fight level's box (calibration levels: x 5174-5278, y 646-738), a little wider: time here is the sim's hunting time",
+ "trip": {
+  "note": "Logan Wolf's trip on this level (capture 20261012_210013, calibration): per hour on the level (786 s there)",
+  "hunt_s": 786.2,
+  "kills": 25,
+  "player_damage": 372,
+  "vet_uses": 43,
+  "potions": 6,
+  "discord_ok": 18,
+  "discord_fail": 12,
+  "peace_ok": 8,
+  "peace_fail": 6,
+  "provoke": 4,
+  "gravebug_per_war_min": 796,
+  "phoenix_per_war_min": 84
+ }
+}

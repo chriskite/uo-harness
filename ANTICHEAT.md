@@ -272,6 +272,22 @@ Working rules, each tied to a detection surface above:
       parallel requests per host, and incremental re-runs (no scheduled crawler).
     - Nothing is posted; the tool has no code path that writes to a site.
 
+20. **Speech has a per-sender shape: the client's typed speech vs Razor's (2026-10-12, Logan Wolf's
+    captures; docs/NOTES.md "Logan Wolf's tamer fighting at the Mausoleum").** One client sends two
+    kinds of `0xAD`. Typed speech carries the ClassicUO profile's speech hue (Logan Wolf 0x0170,
+    Outland Dan the default 0x02B2) and ends in one NUL. Razor's hotkey "Say" (his pet commands,
+    56 of 56) carries Razor's own hue 0x03B1 and the keyword-encoded body ends in two NULs.
+    - The pet runner sends its commands Razor-shaped (`actions.razor_say`), matching what the
+      server has always seen from this player for those phrases (high confidence: byte-identical to
+      the captured packets).
+    - **Finding (medium confidence, not fixed):** every other agent `0xAD` (`say_unicode`: "room",
+      "bank", "[aspect", the overseer's replies) uses hue 0x02B2 for every character. On Logan Wolf
+      that differs from his typed 0x0170: capture 20261011_115828 has the agent's "room" at 0x02B2
+      beside his own "room"s at 0x0170. A server that logs speech hue per account could see a
+      third speech colour appear only when the agent talks [INFERENCE: whether Outlands logs it is
+      unknown]. Remedy when wanted: take the hue (and font) from the client's own latest typed
+      `0xAD` this session, per character, as the proxy already sees it.
+
 ## 9. Open questions
 
 - ~~What exactly does `Send_UOLive_HashResponse` hash?~~ **Answered: map-block CRC16s for UltimaLive world sync (upstream source).**

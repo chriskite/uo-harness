@@ -53,6 +53,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import aggro  # noqa: E402
 import nav  # noqa: E402
 import threats  # noqa: E402
 from agent_link import Abort, log  # noqa: E402
@@ -222,6 +223,23 @@ def cells(floor: Floor, wps: list) -> dict:
                 own[n] = own[c]
                 q.append(n)
     return own
+
+
+def tour(floor: Floor, wps: list) -> list:
+    """A loop through every waypoint (`--crawl-loop`): from the one nearest the exit, always on to
+    the nearest unvisited one by route steps; the last leads back to the first. -> indices."""
+    if not wps:
+        return []
+    dist = [floor.bfs(w) for w in wps]
+    left = set(range(len(wps)))
+    cur = min(left, key=lambda i: (floor.dist_exit.get(wps[i], 1 << 30), i))
+    order = [cur]
+    left.discard(cur)
+    while left:
+        cur = min(left, key=lambda i: (dist[cur].get(wps[i], 1 << 30), i))
+        order.append(cur)
+        left.discard(cur)
+    return order
 
 
 # --------------------------------------------------------------------------- the model
@@ -433,11 +451,12 @@ class Crawl:
         self.target_t = {}           # waypoint -> monotonic time a target was last in reach there
         self.kills_at = collections.Counter()
         self.crowd_t = {}            # waypoint -> monotonic time a player or pet was seen there
-        self.danger = {}             # serial -> (tile, monotonic time, type) of avoided creatures
+        self.danger = {}             # serial -> (tile, monotonic time, type, radius) of avoided creatures
         self.avoided = {}            # type -> why (logged once)
         self.tick_t = None
         self.visit_zones = collections.defaultdict(lambda: {"s": 0.0, "hits": 0, "gold": 0, "kills": 0, "leaves": 0})
         self.counts = collections.Counter()
+        self.order, self.tour_at = [], -1    # --crawl-loop: the tour (waypoint indices), our place in it
 
     # ---- setup
     def setup(self, st):
@@ -457,7 +476,15 @@ class Crawl:
             self.floor = floor_from_memory(m.mem_for(facet), self.h.spot, self.h.spot, tele)
         if self.h.spot not in self.floor.dist_exit or len(self.floor) < 2:
             raise ValueError(f"no floor around the exit spot {self.h.spot} ({len(self.floor)} tiles)")
-        self.wps = waypoints(self.floor, self.a.pull_range, tele)
+        boxes = [tuple(b) for b in (self.a.crawl_avoid or [])]
+
+        def boxed(t):
+            return any(b[0] <= t[0] <= b[2] and b[1] <= t[1] <= b[3] for b in boxes)
+        self.wps = [w for w in waypoints(self.floor, self.a.pull_range, tele) if not boxed(w)]
+        if boxes:
+            keep_out = {t for t in self.floor.adj if boxed(t)}
+            m.danger_tiles |= keep_out                    # routes keep out where they can (Mover.danger_cost)
+            log(f"crawl: keeping out of {len(boxes)} box(es), {len(keep_out)} floor tiles")
         self.cell_of = cells(self.floor, self.wps)
         self.zone = [self.floor.dist_exit[w] // self.a.crawl_band + 1 for w in self.wps]
         top = max(self.zone)
@@ -468,6 +495,17 @@ class Crawl:
             f"({'map' if walk is not None else 'walk memory'}, {time.monotonic() - t0:.1f} s), "
             f"{len(self.wps)} waypoints, zones 1-{top} ({self.a.crawl_band} route steps each; farthest "
             f"{max(self.floor.dist_exit.values())} steps from the exit)")
+        if self.a.crawl_loop:
+            self.order = [i for i in tour(self.floor, self.wps) if self.zone[i] <= top]
+            self.unlocked = top
+            log(f"crawl: looping the floor, every zone open: {len(self.order)} waypoints, from "
+                f"{self.wps[self.order[0]]}")
+        gate = self.a.leave_gate
+        out = self.floor.nearest(tuple(gate)) if gate else None
+        self.dist_out = self.floor.bfs(out) if out is not None else self.floor.dist_exit
+        if gate:
+            log(f"crawl: the way out is the moongate at {tuple(gate)}" + ("" if out is not None else
+                                                                          " (off this floor: steps to the exit)"))
         self.update_zones()
 
     def zone_at(self, pos):
@@ -478,16 +516,19 @@ class Crawl:
         return self.zone[i] if i is not None else None
 
     def route_steps(self, pos) -> int | None:
+        """Route steps from `pos` to the way out: --leave-gate's moongate, else the exit spot."""
         if self.floor is None:
             return None
         t = self.floor.nearest(pos)
-        return self.floor.dist_exit.get(t) if t is not None else None
+        return self.dist_out.get(t) if t is not None else None
 
     # ---- zones
     def update_zones(self):
         """Open the next zone when this one is known and the next one's predicted risk
         is acceptable; close the deepest when it proved worse (come back out)."""
         a, m = self.a, self.model
+        if a.crawl_loop:
+            return                       # every zone open from the start
         k = self.unlocked
         if k > 1:
             r = m.rates(k)
@@ -539,6 +580,7 @@ class Crawl:
         me = st["movement"]["self_serial"]
         hits_max = world["self"].get("hits_max")
         danger_zones = {}
+        never = set(getattr(self.a, "never_aggro", None) or aggro.NEVER_AGGRO)
         for key, mob in world["mobiles"].items():
             s = int(key, 16) if isinstance(key, str) else key
             if s == me or mob.get("x") is None or s in self.h.dead:
@@ -547,25 +589,33 @@ class Crawl:
             kind, player, _ = threats.identify(mob, labels.get(key))
             i = self.cell_of.get(self.floor.nearest(tile) or tile)
             if player or mob.get("pet"):
-                if i is not None:
+                team = getattr(self.h, "team", None)     # our own pets aren't a crowd (--pets)
+                if i is not None and not (team is not None and s in team.roster):
                     self.crowd_t[i] = now
                 continue
             if kind != "monster" or not self.h.wanted(world, key, mob):
                 continue
             name = labels.get(key) or mob.get("name")
+            if type_key(name) in never:
+                # --never-aggro (aggro.py): its sight is no-go for the patrol and the routes
+                if type_key(name) not in self.avoided:
+                    self.avoided[type_key(name)] = "never aggro it alone (user 2026-10-13)"
+                    log(f"crawl: keeping out of sight of the {type_key(name)} at {tile}")
+                self.danger[s] = (tile, now, type_key(name), aggro.AGGRO_R + aggro.NEVER_MARGIN)
+                continue
             why = self.model.avoid(name, hits_max, self.a.crawl_max_hits, self.a.crawl_max_fight_s)
             if why:
                 if type_key(name) not in self.avoided:
                     self.avoided[type_key(name)] = why
                     log(f"crawl: avoiding {type_key(name)}: {why}")
-                self.danger[s] = (tile, now, type_key(name))
+                self.danger[s] = (tile, now, type_key(name), AVOID_R)
             elif i is not None and cheb(pos, tile) <= self.a.pull_range:
                 self.target_t[i] = now
-        for s, (tile, t, name) in list(self.danger.items()):
+        for s, (tile, t, name, r) in list(self.danger.items()):
             if now - t > DANGER_S:
                 del self.danger[s]
                 continue
-            danger_zones[f"crawl:{s:08X}"] = (tile, AVOID_R)
+            danger_zones[f"crawl:{s:08X}"] = (tile, r)
         mv = self.h.mover
         stale = [k for k in mv.danger if k.startswith("crawl:") and k not in danger_zones]
         new = [k for k, z in danger_zones.items() if mv.danger.get(k) is None or cheb(mv.danger[k][0], z[0]) >= 3]
@@ -622,12 +672,15 @@ class Crawl:
 
     def dangerous(self, i) -> bool:
         w = self.wps[i]
-        return any(cheb(w, tile) <= AVOID_R + 2 or self.cell_of.get(tile) == i
-                   for tile, _, _ in self.danger.values())
+        return any(cheb(w, tile) <= r + 2 or self.cell_of.get(tile) == i
+                   for tile, _, _, r in self.danger.values())
 
     def choose(self, pos):
         """The next waypoint index (or None): open zones, not depleted, not near an
-        avoided creature, reachable; staleness x value x crowd x zone / distance."""
+        avoided creature, reachable; staleness x value x crowd x zone / distance.
+        --crawl-loop: the next waypoint of the tour after the last one set out for."""
+        if self.a.crawl_loop:
+            return self.next_in_tour(pos)
         now = time.monotonic()
         start = self.floor.nearest(pos)
         dist = self.floor.bfs(start) if start is not None else {}
@@ -649,9 +702,29 @@ class Crawl:
                 best, best_score = i, score
         return best
 
+    def next_in_tour(self, pos):
+        """--crawl-loop: on round the tour from our place in it, past areas cleared within
+        RESPAWN_S, near an avoided creature, unreachable, or where we stand (a human clearing
+        one pack after another, roughly in a loop: user 2026-10-13)."""
+        now = time.monotonic()
+        start = self.floor.nearest(pos)
+        dist = self.floor.bfs(start) if start is not None else {}
+        n = len(self.order)
+        for k in range(1, n + 1):
+            j = (self.tour_at + k) % n
+            i = self.order[j]
+            w = self.wps[i]
+            if w not in dist or cheb(pos, w) <= 1 or self.depleted.get(i, 0) > now or self.dangerous(i):
+                continue
+            self.tour_at = j
+            return i
+        return None
+
     def idle(self, st):
         """Nothing to fight or loot: hold at the waypoint (a glance, or while targets keep
-        coming), else walk to the next one; the walk stops when something comes up."""
+        coming), else walk to the next one; the walk stops when something comes up.
+        --crawl-loop: no hold; on at once (respawns run on a timer, nothing comes back within
+        seconds: user 2026-10-13)."""
         h, now = self.h, time.monotonic()
         pos = h.pos(st)
         if self.wp is not None and cheb(pos, self.wps[self.wp]) <= 1:
@@ -661,7 +734,10 @@ class Crawl:
                 self.glance_s = self.a.crawl_dwell * h.human.rng.uniform(0.6, 1.4)
                 self.counts["waypoints"] += 1
             productive = self.target_t.get(i, -1e9) >= self.leg_t
-            until = (self.target_t[i] + self.a.crawl_depleted_s) if productive else self.arrived_t + self.glance_s
+            if self.a.crawl_loop:
+                until = now
+            else:
+                until = (self.target_t[i] + self.a.crawl_depleted_s) if productive else self.arrived_t + self.glance_s
             self.visited[i] = now
             if now < until:
                 what = self.a.target_name.strip() or "monsters"
@@ -672,8 +748,13 @@ class Crawl:
             if productive:
                 self.depleted[i] = now + RESPAWN_S
                 self.counts["depleted"] += 1
-                log(f"crawl: area {self.wps[i]} depleted ({self.kills_at[i]} kill(s), no target for "
-                      f"{self.a.crawl_depleted_s:.0f} s); moving on")
+                log(f"crawl: area {self.wps[i]} " + (f"cleared ({self.kills_at[i]} kill(s)); moving on"
+                                                     if self.a.crawl_loop else
+                                                     f"depleted ({self.kills_at[i]} kill(s), no target for "
+                                                     f"{self.a.crawl_depleted_s:.0f} s); moving on"))
+            self.wp, self.arrived_t = None, None
+        if self.wp is not None and self.dangerous(self.wp):
+            log(f"crawl: {self.wps[self.wp]} is near a creature we avoid now; choosing another")
             self.wp, self.arrived_t = None, None
         if self.wp is None:
             self.update_zones()

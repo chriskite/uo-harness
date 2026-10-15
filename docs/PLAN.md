@@ -1805,6 +1805,64 @@ unmarked. The user approved four changes:
 4. **Named attackers out of view.** `attacked_by_players` marks them as known PKs too, with the
    serial from `players_seen` when one matches.
 
+## Fighting with pets: the hunt runner's `--pets` (decided and built offline 2026-10-12)
+
+The user played a Mausoleum trip on Logan Wolf (tamer: phoenix + gravebug) and asked for "a decent
+combat runner" learned from how he fought (docs/NOTES.md "Logan Wolf's tamer fighting at the
+Mausoleum"; docs/HUNT_LOOP.md "Pets"). Decisions:
+
+- *A fighting style of the hunt runner, not a new runner.* Everything around the fight (recall in and
+  out, leave rules, hostile players, speech hold, Stationary Penalty, crawl, loot rights, episodes)
+  is the same job; only the fight, the healing and the pet bookkeeping differ. They live in
+  `harness/tamer.py` (`Team`, hosted by `HuntLoop` like `crawl.Crawl`); `--pets` switches them in and
+  picks the style's own default thresholds (`STYLE_DEFAULTS`). Rejected: copying `loop_hunt.py`.
+- *Guard, never open.* The user (2026-10-12): pets on guard engage a mob that aggroes on us; an
+  aggressive act of ours (a discord, "All Kill") turns the mob on the character. So the bard skills
+  wait until the pets fight the target, and "All Kill" is kept for a mob already on us that the
+  pets ignore. Logan opened with a bard skill in 9 of 60 target answers; the runner copies the
+  advice, not that habit.
+- *Bard order* discord → provoke another → peace, all from the trip's sequences; a provoked target
+  isn't pacified. Rejected: Area (self-targeted) discord/peace: Logan never used them here, and an
+  area discord also pulls every creature in 8 tiles.
+- *Barding songs on by default* (`--songs`, 2026-10-13): the user sang all three on the second trip and
+  said he had forgotten them on the first. Ground-targeted songs aren't aggressive acts [INFERENCE: a
+  buff on us and the pets, knowledge #11226], so "guard,
+  never open" holds. They go out as a care action, fights included, as he did. In the simulator they
+  cut the pets' damage 8-23 % and pet-death runs by a fifth to a half (docs/SIM.md).
+- *Veterinary supplies over bandages*: one double-click heals every pet in range and the player; its
+  range is a setting (`--vet-range`), since the Healer's Codex "Without Borders" perk is being
+  levelled (user 2026-10-12).
+- *Pet commands Razor-shaped* (`actions.razor_say`): the server has only ever seen this player's pet
+  commands from Razor (hue 0x03B1, double NUL). The same capture showed the agent's other speech is
+  off-hue for Logan Wolf (ANTICHEAT.md §8.20, not fixed).
+- *No release, ever* (user 2026-10-12): a fixed command list, and `ctl act say` / `menu_pick` refuse
+  release/transfer.
+- *A pet down ends the run* (`pet_down`): no resurrection flow yet; the overseer or the user revives.
+- Not built: walking between dungeon levels (start on the hunting level), claiming/stabling, Herding.
+  Verified offline only (`test_loop_hunt.py pets`); first live run pending.
+
+## A Mausoleum simulator for the combat runner (decided and built 2026-10-13)
+
+The user asked whether we could emulate the Outlands server and train the combat runner in it, then for
+"a thorough Mausoleum simulator" (docs/SIM.md). Decisions:
+
+- *Simulate the level, not the server.* The Outlands server is closed; a ModernUO/ServUO private server
+  would be standard UO rules on wall-clock timers in another protocol dialect. Instead `harness/sim/` is a
+  model of the one level Logan Wolf fought on, speaking the packets our world model reads, on the real
+  map (walking by `pathfind.Walk`, sight by the new `los.py`, 61/61 against the live server's answers).
+- *The runner is unmodified.* `sim.clock.install` points the harness modules' `time` at a virtual clock,
+  `SimLink` stands in for the proxy's Link; rejected: threading a clock argument through 100+ call sites
+  of live code. A state read costs game time, so polling loops progress.
+- *Evidence for every number.* Creature stats from the wiki (knowledge ids; the capture confirmed hits
+  and gold exactly), behaviour from the capture (`sim/calibrate.py`, sample sizes kept), the rest marked
+  [INFERENCE] in the scenario's notes; the barding skill and the pets' threat weights fitted to the trip.
+  `run.py --compare` sets the simulated rates beside the trip's.
+- *What it is for*: regression and edge cases (it found three runner bugs on its first runs, docs/SIM.md),
+  policy experiments (`--set`, runner arguments; e.g. the pet fall-back), and threshold sweeps whose
+  answers are starting points for live checks, not defaults: the monsters' damage to the player is
+  under-measured. Rejected for now: learning a policy from scratch (it would learn the sim's gaps).
+- Captures that would close the gaps are listed in docs/SIM.md "Captures wanted".
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
