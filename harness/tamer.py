@@ -57,6 +57,7 @@ turned war mode on or swung: the pets do the killing, he keeps them alive and ma
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 
@@ -161,6 +162,8 @@ PULL_STEPS = 3                # a pull spot within this many steps
 # souls"): never a tile to step to, costly to route through, and stepped off when we stand on one.
 FIRE_GRAPHICS = frozenset([0x6D70])
 FIRE_STEPS = 2                # a tile out of the fire within this many steps
+BACKSPAWN_MERGE = 3           # stealther spawn spots closer than this are one (Team.backspawn)
+SPAWNS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "mausoleum.json")
 
 # The only phrases ever said to the pets, as Logan Wolf's hotkeys say them
 COMMANDS = {c.lower(): c for c in ("All Guard Me", "All Follow Me", "All Kill", "All Stop", "All Stay", "All Come")}
@@ -372,6 +375,8 @@ class Team:
         self.dead_since = {}             # pet serial -> monotonic time its ghost was first seen
         self.follow_needed = False       # a pet died: "All Follow Me" so the ghost stays in the vet's reach
         self.ghosts = set()              # pet serials seen dead (update: the "All Follow Me" once per death)
+        self.backspawn = {}              # (x, y) -> stealther type: its spawn spot (seed_backspawn, sightings)
+        self.sighted = set()             # mobiles already looked at for a first sighting
 
     # ------------------------------------------------------------ bookkeeping
     def count(self, what: str, n: int = 1):
@@ -393,6 +398,40 @@ class Team:
         now = time.monotonic()
         self.seen_t = {s: now for s in self.roster}
         self.ev_upto = len(self.h.link.events)
+        self.seed_backspawn(st)
+
+    def seed_backspawn(self, st):
+        """Stealthers' spawn spots (aggro.stealthy) on this facet: where the store saw us kill one (our tile then,
+        within the pull range of it) and the Mausoleum's observed first sightings (harness/data/sim/mausoleum.json
+        spawns: every first-seen position in the captures). One spot per BACKSPAWN_MERGE tiles."""
+        facet = (st["world"].get("self") or {}).get("map") or 0
+        pos = self.h.pos(st)
+        found = []
+        mem = getattr(self.h, "memory", None)
+        if mem is not None and hasattr(mem, "job_events"):
+            for e in mem.job_events("hunt", since=0.0):
+                if e["kind"] != "kill" or e.get("x") is None or (e.get("facet") or 0) != facet:
+                    continue
+                data = e["data"] if isinstance(e["data"], dict) else json.loads(e["data"] or "{}")
+                kind = type_key(data.get("name"))
+                if aggro.stealthy(kind):
+                    found.append(((e["x"], e["y"]), kind))
+        try:
+            with open(SPAWNS_PATH, encoding="utf-8") as f:
+                for s in json.load(f).get("spawns") or []:
+                    if aggro.stealthy(s["key"]):
+                        found.append((tuple(s["at"][:2]), s["key"]))
+        except OSError:
+            pass
+        for spot, kind in found:
+            if cheb(spot, pos) <= 200:
+                self.add_backspawn(spot, kind)
+        if self.backspawn:
+            log(f"backspawn: {len(self.backspawn)} stealther spawn spot(s) known here; standing out of their open ground")
+
+    def add_backspawn(self, spot, kind):
+        if not any(cheb(spot, s) <= BACKSPAWN_MERGE for s in self.backspawn):
+            self.backspawn[tuple(spot)] = kind
 
     def pets(self, st) -> list[dict]:
         """Our pets in view: serial, name, frac (hits share; pets' hits come as a share of 100),
@@ -462,6 +501,15 @@ class Team:
             del mv.danger[k]
         for t in fire:
             mv.danger.setdefault(f"fire:{t[0]},{t[1]}", (t, 0))   # routes step round it (Mover.danger_cost)
+        labels = st["world"].get("labels") or {}
+        for key, mob in st["world"]["mobiles"].items():
+            s = serial_of(key)
+            if s in self.sighted or s in self.roster or mob.get("x") is None or mob.get("pet"):
+                continue
+            self.sighted.add(s)
+            kind = type_key(labels.get(key) or mob.get("name"))
+            if kind and aggro.stealthy(kind) and not (mob.get("flags") or 0) & aggro.WAR:
+                self.add_backspawn((mob["x"], mob["y"]), kind)        # idle where we first saw it: its spawn
 
     @staticmethod
     def fire_tiles(st) -> set:
@@ -784,7 +832,8 @@ class Team:
 
         def cost(t):
             first, w = v.first_on_us(t, margin=0), v.wakes(t, margin=0)
-            return (round(sum(m["weight"] for m in first), 2), round(sum(m["weight"] for m in w), 2), len(w))
+            back = sum(aggro.weight(kind) for _, kind in v.backspawn_exposed(t))
+            return (round(sum(m["weight"] for m in first) + back, 2), round(sum(m["weight"] for m in w), 2), len(w))
         here = cost(v.pos)
         best, best_c = None, None
         for t, k in self.tiles_within(v, PULL_STEPS).items():
@@ -906,11 +955,13 @@ class Team:
         pos = v.pos
         keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]
         zone, fire = self.charge_zone(st), self.fire_tiles(st)
+        spaced = [m["pos"][:2] for m in v.mobs if m["war"]] + keep if self.a.vet_range >= SPACING_R + 1 else []
         steps = self.tiles_within(v, REPOSITION_STEPS)
         here = v.stand_score(pos)
         best, best_s = None, here
         for t, k in steps.items():
-            if k == 0 or t[:2] in zone or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in keep):
+            if k == 0 or t[:2] in zone or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in keep) \
+                    or any(cheb(t, n) < SPACING_R for n in spaced):       # spacing's rule: not onto the tank
                 continue
             s = v.stand_score(t) + 0.3 * k
             if s < best_s:

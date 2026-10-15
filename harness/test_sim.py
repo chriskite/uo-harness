@@ -534,6 +534,38 @@ def test_stairs():
           went_up[-1] >= 2 and abs(back[0] - 5199) <= 6 and abs(back[1] - 738) <= 6, f"at {back} {went_up}")
 
 
+def test_backspawn():
+    print("== backspawn: a tile in the open near a stealther's spawn scores worse than one with the pets between ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    # live 20261015_171928 18:40:10: Logan at (5176, 688), 3 south of the pets, the shade wolves' and the stalker's
+    # room behind him; a nightstalker unseen till then hit him from (5176, 690)
+    w = world_with([], seed=7, start=(5176, 688))
+    for p, xy in zip(w.pets(), ((5176, 685), (5177, 684))):
+        p.x, p.y = xy
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            clock.advance(0.5)
+            v = loop.team.view(loop.state())
+            open_, behind = v.stand_score((5176, 688)), v.stand_score((5176, 684))
+            kinds = set(loop.team.backspawn.values())
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("the scenario's stealthers seed spawn spots; south of the pets scores worse than beside them",
+          {"nightstalker", "shade wolf"} <= kinds and open_ > behind, f"{kinds} open {open_} behind {behind}")
+
+
 def test_heal_in_place():
     print("== --heal-in-place: a pet below --pet-leave-at is no leave while vet supplies last ==")
     import tempfile
@@ -745,7 +777,8 @@ def main():
         print("SKIP: no map files (install dir)")
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
-              test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_heal_in_place,
+              test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
+              test_heal_in_place,
               test_songs,
               test_pull_budget, test_hold_first_sight, test_rope,
               test_rest_hurt_pet):

@@ -410,6 +410,16 @@ what comes.
   in an area that I can manage"): "All Follow Me", then to the gate when that is away from it, else 22
   tiles beyond it, until it stops chasing. The leave rules take over when we're hurt ("when all else
   fails ... I will probably head for the gate").
+- **Backspawn** (user 2026-10-15: "We know nightstalkers spawn in that room though. When a mob respawns
+  behind you we call it backspawn. A human knows not to stand out in the open when stealth mobs are going to
+  respawn there"; live 20261015_171928 18:40:10 an unseen nightstalker hit Logan -58 from 2 tiles, the side
+  away from the pets, and killed him in 2.7 s): the spawn spots of stealthers (the wiki's stealth: the
+  nightstalker, the shade wolf, the vampiric consort) come from the store's kills of them, the Mausoleum's
+  observed first sightings (harness/data/sim/mausoleum.json spawns) and where one is first seen idle this
+  run (`Team.backspawn`). A tile within 7 of one, in its sight, with no pet nearer the spot than the tile
+  scores as that monster idle there (`aggro.View.backspawn_exposed`, in `stand_score` and the pull spot):
+  the spacing, reposition and retreat tiles keep the pets between Logan and the spawns. Repositioning
+  keeps spacing's 3 tiles off the tank.
 - **Line of sight in a fight** ("situational": between two rooms, stay out of sight of the room the
   pets aren't fighting in; "if it's easy to stand out of LoS of a caster like the banshee while still
   being able to heal our pets ... it's better"): every 3 s, a tile within 2 steps that keeps the pets

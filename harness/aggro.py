@@ -73,6 +73,19 @@ def caster(kind: str) -> bool:
     return (creatures().get(kind) or {}).get("ai") in CASTER_AI
 
 
+def stealthy(kind: str) -> bool:
+    """The wiki marks it a stealther (Vanish, Backstab): the Mausoleum's nightstalker, shade wolf, consort."""
+    return bool((creatures().get(kind) or {}).get("stealth"))
+
+
+# Backspawn (user 2026-10-15: "We know nightstalkers spawn in that room though. When a mob respawns behind you we
+# call it backspawn. A human knows not to stand out in the open when stealth mobs are going to respawn there";
+# live 20261015_171928 18:40:10 an unseen nightstalker hit Logan -58 from 2 tiles, the side away from the pets):
+# a tile within BACKSPAWN_R of a stealther's spawn spot, in its sight, with no pet nearer the spot than the tile,
+# scores as if that monster stood there idle.
+BACKSPAWN_R = 7
+
+
 class View:
     """The hostile monsters in view for one state read, with line of sight from tiles.
     `h` is the HuntLoop (mover, team roster, dead set, --never-aggro)."""
@@ -91,6 +104,7 @@ class View:
             self.attacking |= h.team.pet_attackers(st)
         self.mobs = []
         self.pets = [(p["x"], p["y"]) for p in h.team.pets(st) if not p["dead"]] if h.team is not None else []
+        self.spawns = list(getattr(h.team, "backspawn", {}).items()) if h.team is not None else []
         for key, mob in world["mobiles"].items():
             s = serial_of(key)
             if s == me or s in pets or s in h.dead or mob.get("x") is None:
@@ -149,7 +163,21 @@ class View:
         idle = sum(m["weight"] for m in self.first_on_us(tile, margin=1))
         never = len(self.never_near(tile))
         casters = sum(1 for m in self.mobs if m["war"] and m["caster"] and self.sees(m, tile, los.MAX_DISTANCE))
-        return 100.0 * never + 10.0 * idle + 1.0 * casters
+        back = sum(weight(kind) for _, kind in self.backspawn_exposed(tile))
+        return 100.0 * never + 10.0 * (idle + back) + 1.0 * casters
+
+    def backspawn_exposed(self, tile) -> list:
+        """[(spot, kind)]: stealthers' spawn spots (Team.backspawn) within BACKSPAWN_R of `tile` that see it, with
+        no pet nearer the spot than the tile."""
+        out = []
+        for spot, kind in self.spawns:
+            d = cheb(spot, tile)
+            if d > BACKSPAWN_R or any(cheb(spot, p) < d for p in self.pets):
+                continue
+            m = {"pos": (spot[0], spot[1], self.z_at(spot[:2]))}
+            if self.sees(m, tile, BACKSPAWN_R):
+                out.append((spot, kind))
+        return out
 
     def overpull(self, budget: float) -> str | None:
         """Why advancing from here pulls too much (module docstring), else None."""
