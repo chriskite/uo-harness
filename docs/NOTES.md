@@ -2894,6 +2894,26 @@ character" though `status` listed the session; without `--char` it worked.
   reanimated daemons are area hitters to stand off (`tamer.AREA_R`: 2 and 6); the simulator's apparition
   has the hit (`burst`, radius 1, 8.8 s).
 
+## The pets runner's second live run (test shard, 2026-10-15 11:58-12:02, capture 20261015_115604)
+
+Task hunt-20261015-115818-98a2, same command, on 1e6d467; stopped by hand at 12:02:44 (the user: Logan stood
+next to an apparition "getting blasted for no reason"). 7 kills logged (5 real: apparitions and banshees),
+no death, the lowest 52/100.
+
+- **The apparition's hit reaches 2 tiles**: Logan -39 at 2 tiles at 12:02:06.1 (the gravebug -37 beside
+  it), -48 at 0; no pet hit at 3-5. The runner stood off at 2 (`AREA_R` 2, from the first run's 0-1 hits);
+  now 3, and the simulator's burst radius 2.
+- **The songs were replayed though already up**: all three ran from before the run (Discordance 702 s
+  left); the runner knew only the songs it played itself. Our song buffs are icons 59 Discordance, 58
+  Peacemaking, 57 Provocation (status `buffs`, with ends); `Team.song_left` reads them. The user: the songs
+  are fine; discord/peace/provoke at a mob must target the mob, once the pets have its aggro (the runner
+  does that: 11:58:48, 11:59:19/:26, 11:59:51, 12:00:13, 12:02:03/:11 at mobs the pets fought).
+- **A kill counted twice** (12:00:22 and 12:02:18): a mob that left the view alive, then died, got its
+  0xAF kill and then its 0xDEAD one (`lost_alive` kept); fixed in `on_kill`.
+- The second apparition again came onto Logan's tile (12:01:58, -48) from 7 tiles as it woke.
+- The user then fixed Logan's Healer's Codex and taming bestiary setup (2026-10-15 12:05) [INFERENCE: the
+  vet range and pet perks may change: `--vet-range` follows the codex's "Without Borders" tier].
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

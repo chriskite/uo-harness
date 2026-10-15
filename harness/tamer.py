@@ -130,10 +130,11 @@ CHARGERS = {"nightstalker", "reanimated knight"}   # the knight: '*charges*' 3 t
 TEXT_CHARGES = "*charges*"
 CHARGE_SAFE_R = 3             # tiles from a charger and from a pet beside it: clear of where its Charge lands
 # Other monsters whose hit lands on everyone near them: tiles to keep from them and the pet beside them.
-# Apparition (live 20261015_090607, the test-shard death): it came next to Logan and hit him -46/-47 with the
-# phoenix or the gravebug at the same instant (-38/-36), 8.8 s apart, once from on his tile (-49): within 1.
+# Apparition (live 20261015_090607 and _115604, test shard): its hit lands on everyone within 2 of it at once
+# (action 6, ~8.8 s apart): Logan -46/-47/-48 at 0-1 and -39 at 2 (12:02:06, with the gravebug -37), the
+# pets -36/-38; none on a pet at 3-5. Stand 3 off.
 # Reanimated daemon (20261014_221341): its bone burst hit Logan at 5 tiles (-39/-49) and both pets (94-107).
-AREA_R = {"apparition": 2, "reanimated daemon": 6}
+AREA_R = {"apparition": 3, "reanimated daemon": 6}
 STANDOFF_MOVES = 6
 STANDOFF_REPEAT_S = 2.0
 
@@ -174,6 +175,7 @@ SONG_ORDER = (SKILL_DISCORD, SKILL_PEACE, SKILL_PROVO)   # live order; damage ta
 SONG_NAMES = {SKILL_DISCORD: "Discordance", SKILL_PEACE: "Peacemaking", SKILL_PROVO: "Provocation"}
 SONG_ON = re.compile(r"^You are now under the effect of a Song of (Discordance|Peacemaking|Provocation)\b")
 TEXT_SONG_WAIT = "You must wait a few moments before performing another barding song."
+SONG_BUFF_ICONS = {SKILL_DISCORD: 59, SKILL_PEACE: 58, SKILL_PROVO: 57}   # our buffs (live 20261015_115604 status)
 SONG_S = 900.0                # 15 minutes (knowledge #9034, live "for 15 minutes")
 SONG_GAP_S = 10.0             # between songs (knowledge #11234)
 SONG_RENEW_S = 60.0
@@ -1273,12 +1275,12 @@ class Team:
             log(f"{what}: failed")
 
     def song(self, st) -> bool:
-        """--songs: the next barding song due (SONG_ORDER; none running or ending within SONG_RENEW_S), the
-        skill at a ground tile beside us. True when the skill went out."""
+        """--songs: the next barding song due (SONG_ORDER; none running or ending within SONG_RENEW_S, by
+        song_left), the skill at a ground tile beside us. True when the skill went out."""
         now = time.monotonic()
         if not getattr(self.a, "songs", False) or now < self.song_ready or now < self.skill_ready:
             return False
-        sid = next((s for s in SONG_ORDER if self.songs.get(s, 0.0) - now < SONG_RENEW_S), None)
+        sid = next((s for s in SONG_ORDER if self.song_left(st, s, now) < SONG_RENEW_S), None)
         if sid is None:
             return False
         h = self.h
@@ -1319,6 +1321,20 @@ class Team:
             log(f"{what}: {got[0]}")
         h.human.wait("read")
         return True
+
+    def song_left(self, st, sid: int, now: float) -> float:
+        """Seconds the song still runs: the later of what we played (self.songs) and its buff on us
+        (SONG_BUFF_ICONS, by the end the server gave it; one without an end counts as just begun). Live
+        20261015_115604 the runner replayed all three songs on arrival though they ran from before it
+        started (Discordance 702 s left)."""
+        left = self.songs.get(sid, 0.0) - now
+        world = st["world"]
+        buffs = (world.get("buffs") or {}).get(f"0x{self.h.me(st):08X}") or {}
+        b = buffs.get(str(SONG_BUFF_ICONS[sid])) or buffs.get(SONG_BUFF_ICONS[sid])
+        if b is not None and not b.get("expired"):
+            ends = b.get("ends_t")
+            left = max(left, SONG_S if ends is None else ends - time.time())
+        return left
 
     def all_kill(self, serial: int):
         """'All Kill' and the target cursor answered with `serial` (a mob already on us)."""

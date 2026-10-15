@@ -748,6 +748,7 @@ class HuntLoop:
         engaged = mob is None
         mob = (self.engaged_mob or {}) if engaged else mob
         name = mob.get("name") or "a monster"
+        self.lost_alive.pop(serial, None)        # its 0xDEAD after this 0xAF is the same kill
         self.count("kills")
         log(f"killed {name} 0x{serial:08X} (kill {self.totals['kills']}"
             f"{'/' + str(self.args.kills) if self.args.kills else ''})")

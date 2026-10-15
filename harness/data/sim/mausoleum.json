@@ -367,10 +367,10 @@
     "kind": "burst",
     "first_s": [1.0, 4.0],
     "every_s": 8.8,
-    "radius": 1,
+    "radius": 2,
     "damage_pet": [36, 38],
     "damage_player": [46, 49],
-    "note": "live 20261015_090607 (test shard): an apparition next to Logan hit him -46 and the phoenix -38 at the same instant (09:16:23.5, action 6), 8.8 s later him -47 and the gravebug -36, then the phoenix -38 8.8 s after that; the second apparition -49 from on his tile; its other hits on a pet 13-20 (action 5); n=4 [INFERENCE: everyone within 1, every 8.8 s]"
+    "note": "live 20261015_090607 and _115604 (test shard): an apparition's action-6 hit lands at the same instant on everyone within 2: Logan -46/-47/-48 at 0-1 tiles and -39 at 2 (12:02:06.1, the gravebug -37 beside it), the pets -36/-38; no pet hit at 3-5 (09:16:23.5 the gravebug at 3, 12:01:58 and 12:02:06 the phoenix at 4-5); 8.8 s apart; its other hits on a pet 13-20 (action 5); n=6 [INFERENCE: radius 2, every 8.8 s]"
    }
   ],
   "devourer beetle": [
