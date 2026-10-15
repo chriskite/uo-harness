@@ -316,7 +316,8 @@ def loot_order(inside: dict) -> list:
 LOOT_VALUABLE = (
     "gold coin", "amber", "amethyst", "citrine", "diamond", "emerald", "ruby", "rubies", "sapphire",
     "tourmaline",                                                      # gems
-    "drum", "tambourine", "harp", "lute", "flute", "sackbut", "gemshorn",   # instruments (Barding)
+    "drum", "tambourine", "harp", "lute", "flute", "sackbut", "gemshorn", "hurdy gurdy", "mandolin", "fiddle",
+    "bagpipe", "trumpet",                                              # instruments (Barding; live: a hurdy gurdy left 18:31)
     "core", "phylactery", "distill", "distillation", "map", "orb", "essence", "deed")
 _MARKUP = re.compile(r"%[^%]*%")
 GOLD_WEIGHT_PER = 0.01        # [INFERENCE] stones per gold coin: live 36,231 gold put Logan at 475/450 (20261014_221341)
