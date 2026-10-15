@@ -251,7 +251,7 @@ def test_prior():
                          "crawl": {"spot": [9, 0], "levels": {"0": {"s": 600.0, "hits": 30, "gold": 50,
                                                                      "kills": 2, "leaves": 0}}}})
     mem.episode("hunt", {"t_start": t + 700, "t_end": t + 1300, "gold": 0, "hits_lost": 0,
-                         "crawl": {"spot": [1, 1], "zones": {"1": {"s": 900.0, "hits": 900}}}})
+                         "crawl": {"spot": [40, 1], "zones": {"1": {"s": 900.0, "hits": 900}}}})
     mem.episode("hunt", {"t_start": t + 1400, "t_end": t + 1400, "gold": 0, "hits_lost": 0,
                          "crawl": {"spot": [9, 0], "floor": 1, "zones": {"2": {"s": 120.0, "hits": 6}}}})
     m = crawl.load_prior(mem.con, (9, 0))
@@ -259,9 +259,13 @@ def test_prior():
     check("gold joined by mob serial; kills without a loot count 0 gold: 20 a kill (shrunk toward the pool)",
           m.gold["mongbat"] == [40, 40, 0, 0] and abs(e["gold"] - 20.0) < 1e-6, (m.gold["mongbat"], e))
     check("the fled ogre is avoided from the start of the next run", m.avoid("ogre", 94, 0.5, 180) is not None)
-    check("zone stats from earlier crawls from the same spot only; a pre-rename row's level 0 is zone 1",
+    check("zone stats from earlier crawls from starts within 20 tiles only; a pre-rename row's level 0 is zone 1",
           m.zones[1]["s"] == 600.0 and m.zones[1]["hits"] == 30 and m.zones[2]["s"] == 120.0
           and 0 not in m.zones, {k: dict(v) for k, v in m.zones.items()})
+    near = crawl.load_prior(mem.con, (15, 0))
+    check("a start 6 tiles off is the same floor (live: the Mausoleum arrival varies by a few tiles)",
+          dict(near.zones[1]) == dict(m.zones[1]) and dict(near.zones[2]) == dict(m.zones[2]),
+          {k: dict(v) for k, v in near.zones.items()})
     check("zone 1's base: the hunt episodes' gold and hits lost per minute (20 min: 5 and 10)",
           abs(m.base["gold_min"] - 5.0) < 1e-6 and abs(m.base["hits_min"] - 10.0) < 1e-6, m.base)
     mem.close()

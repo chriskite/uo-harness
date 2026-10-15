@@ -72,6 +72,7 @@ DANGER_S = 300.0        # an avoided creature's last sighting shapes routes this
 CROWD_S = 300.0         # players / pets seen at a waypoint lower its score this long
 CROWD_FACTOR = 0.3
 RESPAWN_S = 600.0       # a depleted area rests this long [INFERENCE: spawn timers unknown]
+SPOT_SAME_R = 20        # earlier crawl visits from a start this close count as the same floor (load_prior)
 STALE_CAP_S = 600.0     # staleness beyond this counts the same
 D0 = 20.0               # route steps that halve a waypoint's score
 TELEPORT_GAP = 2        # no waypoint within this many tiles of a teleporter
@@ -418,7 +419,9 @@ def load_prior(con, spot=None, depth_risk: float = 1.5) -> Model:
         g += row.get("gold") or 0
         h += row.get("hits_lost") or 0
         c = row.get("crawl") or {}
-        if spot is not None and c.get("spot") is not None and tuple(c["spot"]) != tuple(spot):
+        # the same floor from a start within SPOT_SAME_R: live 20261015 the Mausoleum runs started at (5200, 737),
+        # then (5207, 737), and the second crawl began from no zone history at all
+        if spot is not None and c.get("spot") is not None and cheb(tuple(c["spot"]), tuple(spot)) > SPOT_SAME_R:
             continue
         bands = [(int(k), v) for k, v in (c.get("zones") or {}).items()] \
             + [(int(k) + 1, v) for k, v in (c.get("levels") or {}).items()]
