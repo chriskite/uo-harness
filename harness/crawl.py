@@ -538,8 +538,12 @@ class Crawl:
         if k > 1:
             r = m.rates(k)
             leaves = self.counts[f"leaves{k}"]
-            if (r["minutes"] * 60 >= a.crawl_learn_s and r["hits_min"] > a.crawl_max_dmg) \
-                    or leaves >= a.crawl_max_leaves:
+            # --heal-in-place: the damage taken is healed where we stand (live 20261015_181036 18:15:26: zone 2
+            # closed at 40 hits lost/min right after the countess room was cleared without a leave); a zone
+            # closes on its survival leaves
+            costly = not getattr(a, "heal_in_place", False) and r["minutes"] * 60 >= a.crawl_learn_s \
+                and r["hits_min"] > a.crawl_max_dmg
+            if costly or leaves >= a.crawl_max_leaves:
                 self.closed.add(k)
                 self.unlocked = k - 1
                 why = (f"{leaves} survival leave(s)" if leaves >= a.crawl_max_leaves

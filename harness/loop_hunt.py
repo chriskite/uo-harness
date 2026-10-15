@@ -2030,7 +2030,7 @@ STYLE_DEFAULTS = {
              "crawl_dwell": 6.0, "crawl_depleted_s": 90.0, "crawl_max_dmg": 30.0, "crawl_dry_s": 0.0,
              "crawl_avoid_types": True},
     "pets": {"heal_at": 0.80, "leave_at": 0.50, "leave_multi_at": 0.55, "pull_range": 8, "target_name": "",
-             "crawl_dwell": 1.5, "crawl_depleted_s": 5.0, "crawl_max_dmg": 20.0, "crawl_dry_s": 45.0,
+             "crawl_dwell": 1.5, "crawl_depleted_s": 5.0, "crawl_max_dmg": 60.0, "crawl_dry_s": 45.0,
              "crawl_avoid_types": False},
 }
 
@@ -2077,7 +2077,7 @@ def arg_parser() -> argparse.ArgumentParser:
                          "waiting out --crawl-learn-s (the risk rule still applies; 0 = off; default 0, --pets 45)")
     ap.add_argument("--crawl-max-dmg", type=float, default=None,
                     help="crawl: the most hits lost per minute a zone may cost (estimated, or predicted for "
-                         "the next zone; default 30, --pets 20)")
+                         "the next zone; default 30, --pets 60: user 2026-10-15 'go deeper', healed in place)")
     ap.add_argument("--crawl-depth-risk", type=float, default=1.5,
                     help="crawl: a deeper zone's predicted hits lost per minute = the zone before's x this")
     ap.add_argument("--crawl-max-leaves", type=int, default=2,
