@@ -2914,6 +2914,21 @@ no death, the lowest 52/100.
 - The user then fixed Logan's Healer's Codex and taming bestiary setup (2026-10-15 12:05) [INFERENCE: the
   vet range and pet perks may change: `--vet-range` follows the codex's "Without Borders" tier].
 
+## The third live run: the apparition comes back on the tank (test shard, 2026-10-15 12:08-12:10)
+
+Task hunt-20261015-120822-42d7 with `--vet-range 5` (Logan's Healer's Codex "Without Borders" at tier 3:
++3 tiles, knowledge #11343), stopped by hand at 12:10 to change the spacing; no death, 2 kills.
+
+- An apparition that was attacking Logan came onto his tile from 7 tiles in one move (12:08:36.3 at
+  (5217, 723), 12:08:37.6 on (5210, 725)) and hit him -45 with the phoenix -38.
+- It blinked out (0x1D) twice for 0.6-1 s and came back on the gravebug's tile each time; the gravebug held
+  its tile meanwhile. At 12:08:53 the patrol walked Logan to 2 tiles from the gravebug the moment it blinked
+  out; 0.6 s later it was back there and hit him -46 (the gravebug -37, the phoenix -38).
+- The user: "The apparition is going to pop out and AOE next to our tank so we should not be standing right
+  next to GR"; "Since our healing distance is 5 now I don't see a good reason to be standing next to the
+  tank while it's fighting". Now `Team.spacing` (HUNT_LOOP "Off the tank") and the crawl holds after a
+  target leaves the view alive.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

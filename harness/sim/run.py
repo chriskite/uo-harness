@@ -86,6 +86,10 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     sc = load(scenario)
     if not at_hunt:
         sc["player"]["start"] = sc["recall"]["rows"][0]["at"]
+    if "--vet-range" in extra:
+        # the runner's --vet-range is the character's (the Healer's Codex "Without Borders" adds 1/2/3 tiles,
+        # knowledge #11343): the simulated supplies reach as far, else the runner stands where they don't
+        sc["vet"]["range"] = int(extra[extra.index("--vet-range") + 1])
     clock = simclock.SimClock(epoch=EPOCH)
     world = World(sc, seed=seed)
     link = SimLink(world, clock)

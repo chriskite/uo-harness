@@ -1924,6 +1924,13 @@ class HuntLoop:
             self.doing("vet", "Healing up before moving on")
             time.sleep(POLL_S)
             return False
+        if self.team is not None and self.crawl is not None \
+                and any(time.monotonic() - t < tamer.FIGHT_LINGER_S for _, t in self.lost_alive.values()):
+            # live 20261015_115604 12:08:53: the patrol walked on toward the gravebug the moment an apparition
+            # blinked out; it came back on the gravebug's tile 0.6 s later and hit Logan
+            self.doing("hold", "Waiting for a monster that blinked out to come back")
+            time.sleep(POLL_S)
+            return False
         if self.crawl is not None:
             self.crawl.idle(st)
             return False

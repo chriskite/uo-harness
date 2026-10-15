@@ -137,6 +137,14 @@ CHARGE_SAFE_R = 3             # tiles from a charger and from a pet beside it: c
 AREA_R = {"apparition": 3, "reanimated daemon": 6}
 STANDOFF_MOVES = 6
 STANDOFF_REPEAT_S = 2.0
+# A fight with --vet-range 4+ (the Healer's Codex "Without Borders"): stand SPACING_R from the pets and from
+# what fights them, every pet within --vet-range - 1 (user 2026-10-15: "Since our healing distance is 5 now I
+# don't see a good reason to be standing next to the tank while it's fighting"; live 20261015_115604 12:08:53
+# an apparition that had blinked out came back on the gravebug's tile and hit Logan 2 tiles off, -46).
+SPACING_R = 3
+SPACING_STEPS = 4
+SPACING_REPEAT_S = 1.5
+FIGHT_LINGER_S = 8.0          # a fight counts this long after its last monster left the view (one blinking back)
 
 # Aggro (aggro.py): running from a --never-aggro monster in war mode, and a better tile in a fight
 EVADE_CLEAR_R = 22            # run this far beyond it (live: the consort chased Logan ~25 tiles from where it woke)
@@ -358,6 +366,9 @@ class Team:
         self.pull_why = None
         self.evading = False
         self.reposition_t = -1e9
+        self.spacing_t = -1e9
+        self.fight_t = -1e9               # the last time the pets were seen fighting (spacing)
+        self.tank_t = {}                 # pet serial -> the last time it stood next to a monster in war mode
         self.dead_since = {}             # pet serial -> monotonic time its ghost was first seen
         self.follow_needed = False       # a pet died: "All Follow Me" so the ghost stays in the vet's reach
         self.ghosts = set()              # pet serials seen dead (update: the "All Follow Me" once per death)
@@ -650,12 +661,62 @@ class Team:
     def care(self, st) -> bool:
         """One care action, True when something was done: evade a --never-aggro monster, "All Follow Me" after
         a pet's death (its ghost stays near for the vet supplies), step out of fire, retreat, stand off a
-        charger, vet supplies, guard, walk to a hurt pet or a ghost, a better tile for line of sight, a
-        barding song."""
+        charger, keep off the tank, vet supplies, guard, walk to a hurt pet or a ghost, a better tile for line
+        of sight, a barding song."""
         self.update(st)
         return self.evade(st) or (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
-            or self.retreat(st) or self.stand_off(st) or self.vet(st) or (self.guard_needed and self.guard()) \
-            or self.to_pet(st) or self.reposition(st) or self.song(st)
+            or self.retreat(st) or self.stand_off(st) or self.spacing(st) or self.vet(st) \
+            or (self.guard_needed and self.guard()) or self.to_pet(st) or self.reposition(st) or self.song(st)
+
+    def spacing(self, st) -> bool:
+        """In a fight (aggro.View.engaged, or one within FIGHT_LINGER_S) with --vet-range SPACING_R + 1 or
+        more: when a pet or a monster in war mode is within SPACING_R - 1 of us, step (up to SPACING_STEPS)
+        to the tile the fewest idle monsters see that is SPACING_R from every pet and every monster in war
+        mode and within --vet-range - 1 of every pet, out of area hits and fire; never mid-channel."""
+        h, now = self.h, time.monotonic()
+        if self.a.vet_range < SPACING_R + 1 or now < self.vet_busy_until or now - self.spacing_t < SPACING_REPEAT_S:
+            return False
+        v = self.view(st)
+        if v.walk is None:
+            return False
+        war = [m["pos"][:2] for m in v.mobs if m["war"]]
+        if v.engaged():
+            self.fight_t = now
+        if now - self.fight_t > FIGHT_LINGER_S:
+            return False
+        pets = [p for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 2]
+        for p in pets:                                  # a tank: next to a monster in war mode lately
+            if any(cheb((p["x"], p["y"]), w) <= PET_NEAR + 1 for w in war):
+                self.tank_t[p["serial"]] = now
+        tanks = [(p["x"], p["y"]) for p in pets if now - self.tank_t.get(p["serial"], -1e9) <= FIGHT_LINGER_S]
+        pets = [(p["x"], p["y"]) for p in pets]
+        near = tanks + war
+        if not tanks or all(cheb(v.pos, t) >= SPACING_R for t in near):
+            return False
+        self.spacing_t = now
+        zone, fire = self.area_zone(st), self.fire_tiles(st)
+        clear = ClearOf(zone)
+        best, best_c = None, None
+        for t, k in self.tiles_within(v, SPACING_STEPS).items():
+            if k == 0 or t[:2] in fire or not clear(t) or any(cheb(t, n) < SPACING_R for n in near) \
+                    or any(cheb(t, p) > self.a.vet_range - 1 for p in pets):
+                continue
+            c = (round(v.stand_score(t)), k)
+            if best_c is None or c < best_c:
+                best, best_c = t, c
+        if best is None:
+            return False
+        label = "off the tank"
+        h.doing("reposition", f"Stepping off the tank to {best[0]},{best[1]}", best[:2])
+        self.count("spacing")
+        log(f"keeping off the tank: {best[:2]}, {SPACING_R}+ from the pets and what fights them")
+        try:
+            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * SPACING_STEPS)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"off the tank: {e}")
+        return True
 
     def ghost_follow(self) -> bool:
         self.follow_needed = False

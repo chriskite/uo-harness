@@ -322,8 +322,15 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    it teleports up to 12 tiles next to its target and hits up to 3 within 1 tile), or any type seen
    to say "*charges*". While one is in war mode, the runner keeps 3 tiles from it and from the pet
    beside it (`tamer.Team.stand_off`, up to 6 steps, never mid-channel). Other area hitters likewise
-   (`tamer.AREA_R`): an apparition 2 (its hit lands on everyone within 1, 20261015_090607), a
-   reanimated daemon 6 (its bone burst reached Logan at 5, 20261014_221341).
+   (`tamer.AREA_R`): an apparition 3 (its hit lands on everyone within 2: 20261015_090607 and _115604),
+   a reanimated daemon 6 (its bone burst reached Logan at 5, 20261014_221341).
+   **Off the tank** (user 2026-10-15: "Since our healing distance is 5 now I don't see a good reason to be
+   standing next to the tank while it's fighting"): with `--vet-range` 4+, in a fight and for 8 s after
+   (`FIGHT_LINGER_S`: an apparition blinks out and comes back on the tank's tile), a pet that stood next
+   to a monster in war mode, or the monster, within 2 of us sends us up to 4 steps to a tile 3 from both
+   and within `--vet-range` - 1 of every pet, the one the fewest idle monsters see (`Team.spacing`,
+   before the vet supplies, never mid-channel). The crawl doesn't walk on meanwhile after a target left
+   the view alive.
    - It steps in only to heal that pet: below `--standoff-vet-at` (0.7) instead of `--pet-heal-at`.
    - `--vet-range` 3+ (the Healer's Codex "Without Borders") heals from outside, so no step-in is
      needed.

@@ -416,7 +416,7 @@ def test_pet_res():
 
 
 def test_retreat_sight():
-    print("== backing off: to a tile no idle monster sees; an apparition: stand 2 off it and its pet ==")
+    print("== backing off: to a tile no idle monster sees; an apparition: stand off it and its pet ==")
     import tempfile
     import loop_hunt
     import memory
@@ -454,8 +454,44 @@ def test_retreat_sight():
     check("the back-off tile is 7+ from the apparition on us and out of the idle one's sight",
           to is not None and max(abs(to[0] - a.x), abs(to[1] - a.y)) >= tamer.RETREAT_R and not seen_by_b,
           f"to {to} seen by B {seen_by_b} A {a.pos} B {b.pos}")
-    check("the apparition in war mode is an area hitter: we step 2+ off it", (a.x, a.y) in zone and walked
+    check("the apparition in war mode is an area hitter: we step AREA_R off it", (a.x, a.y) in zone and walked
           and cheb_(w.player, a) >= tamer.AREA_R["apparition"], f"zone {zone} walked {walked} at {w.player.pos}")
+
+
+def test_spacing():
+    print("== --vet-range 5: a pet tanking: step 3 off it and its monster, every pet within 4 ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    out = {}
+    for vr in (2, 5):
+        w = world_with([{"key": "shade wolf", "at": [5212, 726, 0]}], seed=7, start=(5211, 724))
+        m = next(m for m in w.mobs.values() if m.kind == "monster")
+        m.spec = {**m.spec, "specials": [], "melee": [1, 1], "step_s": 999.0}
+        gb = next(p for p in w.pets() if p.name == "GraveRobber")
+        gb.hits = gb.hits_max = 100000
+        m.target, m.threat = gb.serial, {gb.serial: 1e9}
+        link, clock = link_for(w)
+        link.send(tamer.command("all guard me"))
+        db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+        args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                                 + ["--memory", db, "--seed", "1", "--human", "off", "--vet-range", str(vr)])
+        patched = simclock.install(clock)
+        store = memory.Memory(db)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                loop = loop_hunt.HuntLoop(link, store, args)
+                loop.team.setup(loop.state())
+                for _ in range(10):
+                    clock.advance(0.5)
+                walked = loop.team.spacing(loop.state())
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        out[vr] = (walked, cheb_(w.player, gb), cheb_(w.player, m), max(cheb_(w.player, p) for p in w.pets()))
+    check("vet range 2: no spacing; 5: 3+ from the gravebug and the wolf, every pet within 4",
+          out[2][0] is False and out[5][0] and min(out[5][1:3]) >= tamer.SPACING_R and out[5][3] <= 4, str(out))
 
 
 def test_heal_in_place():
@@ -669,7 +705,7 @@ def main():
         print("SKIP: no map files (install dir)")
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
-              test_standoff, test_fire, test_pet_res, test_retreat_sight, test_heal_in_place, test_songs,
+              test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_heal_in_place, test_songs,
               test_pull_budget, test_hold_first_sight, test_rope,
               test_rest_hurt_pet):
         t()

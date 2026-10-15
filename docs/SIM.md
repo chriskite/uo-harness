@@ -441,6 +441,21 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   pets beside the gate when hurt, potions drunk while waiting. Zone 98 x 60 min: 99 kills an hour, 88,500
   gold a game hour, 0.38 deaths (25 runs; 0.48, 31 before), 4 of the 25 at the gate (13 of 54 at the
   faster pace's start); loop 101, 70,200, 1.36 (1.51).
+- **Vet supplies at 5 tiles and keeping off the tank** (2026-10-15: the Healer's Codex at tier 3; the user
+  asked to stand off the tank). `run.py` now gives the simulated supplies the runner's `--vet-range`
+  (before, the world healed at 2 whatever the runner thought). 98 x 60 min zone:
+
+  | arm | kills/h | gold/game h | deaths/game h | runs with a death | runs with a pet death |
+  |---|---|---|---|---|---|
+  | range 2 | 99 | 88,500 | 0.38 | 25 | 29 |
+  | range 5, no spacing (`--set tamer.SPACING_R=99`) | 88 | 78,400 | 1.11 | 52 | 15 |
+  | range 5, spacing | 98 | 83,300 | 1.43 | 63 | 31 |
+
+  With the pets kept alive the runs last longer in the countess rooms (countess kills 5 -> 22, transfixed
+  copies' damage to us 56 -> 159 an hour): our deaths rise with range 5 alone. Spacing adds fight deaths
+  (36 against 17; nightstalkers, corpsebrides, banshees) [INFERENCE: stepping 3 off the tank leaves us
+  the monsters' nearest target and walks us into casters' sight more; not checked]. Kept on: the user's
+  call, and the simulator's targeting of a lone player is a model, not measured.
 - **New in the world** (captures 20261014_210020 and _221341, docs/NOTES.md): the forgotten souls (4 at
   the consort, their fire marks 0x6D70, no damage), the reanimated daemon (its bone burst on each of us
   within 5: pets 94-107, us 39-49, every ~15 s), the corpse purger's disease (2 of 3 barrage hits; -21
