@@ -19,6 +19,7 @@
   a stray: the Mover closes its gump like a player would (stock 0xB1, button 0).
 """
 import json
+import os
 import socket
 import time
 
@@ -82,6 +83,13 @@ DANGER_STALL_REPLANS = 10
 # a tile shouldn't flip the route to the other side of it and back (live 2026-10-05, witcher_36: a
 # wandering wisp swung the walk between routes of 31 and 93 steps every second or two).
 STICKY_X = 1.25
+# A teleport no walk aimed at (Mover._step_back): step back through a known teleporter within STEP_BACK_R
+# that leads within STEP_BACK_R of where we were; jumps under STEP_BACK_MIN tiles on the same facet are
+# short hops a walk just carries on from.
+STEP_BACK_R = 4
+STEP_BACK_MIN = 8
+TELEPORTER_SEEDS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "teleporters.json")
+_SEEDS = None
 # A creature's zone that moved asks for a replan only when it touches the next this many tiles of
 # the route; farther ahead the walk goes on and looks again as it gets there (live 2026-10-05,
 # witcher_46: wolves and a wolfhound moving round a reaper swung the walk between routes of 62 and
@@ -128,6 +136,18 @@ class Abort(Exception):
 
 def log(msg: str):
     print(time.strftime("%H:%M:%S"), msg, flush=True)
+
+
+def teleporter_seeds() -> list:
+    """harness/data/teleporters.json's known teleporters (loaded once)."""
+    global _SEEDS
+    if _SEEDS is None:
+        try:
+            with open(TELEPORTER_SEEDS, encoding="utf-8") as f:
+                _SEEDS = json.load(f)["teleporters"]
+        except OSError:
+            _SEEDS = []
+    return _SEEDS
 
 
 def cheb(a, b) -> int:
@@ -456,7 +476,8 @@ class Mover:
         self.sent_at = 0.0           # monotonic time the last walk went out (step cadence)
         self.refused_steps = 0       # steps not sent: the map with current objects refused them
         self.teleports = 0
-        self._teleporters = {}       # facet -> {(x, y)} known teleporter tiles (store + session)
+        self._teleporters = {}       # facet -> {(x, y)} known teleporter tiles (seeds + store + session)
+        self._tele_to = {}           # facet -> {(x, y): (to_facet, x, y, z)} where each one puts us
         self.gate_gumps_closed = 0
         self.step_mark = 0           # len(link.events) when the last walk went out
         self._after = None           # (full state, monotonic time) fetched at the end of the last step
@@ -565,20 +586,51 @@ class Mover:
         plans stop walking over it by accident."""
         self.teleports += 1
         self.teleporter_tiles(facet).add(tuple(tile))
+        self._tele_to.setdefault(0 if facet is None else facet, {})[tuple(tile)] = (to_facet, *after[:3])
         if hasattr(self._source, "teleporter_record"):
             self._source.teleporter_record(facet, tile[0], tile[1], to_facet, after[0], after[1], after[2])
         log(f"teleported: stepping onto {tuple(tile)} put us at {tuple(after[:3])} (facet {to_facet}); "
             f"remembered, replanning")
 
     def teleporter_tiles(self, facet) -> set:
-        """Known teleporter tiles on facet (memory store + this session)."""
+        """Known teleporter tiles on facet: TELEPORTER_SEEDS, the memory store's, this session's."""
         facet = 0 if facet is None else facet
         s = self._teleporters.get(facet)
         if s is None:
+            to = {tuple(t["from"]): tuple(t["to"]) for t in teleporter_seeds() if t["facet"] == facet}
             src = self._source
-            s = set(src.teleporters(facet)) if hasattr(src, "teleporters") else set()
-            self._teleporters[facet] = s
+            if hasattr(src, "teleporters"):
+                to.update({tuple(k): tuple(v) for k, v in src.teleporters(facet).items()})
+            self._tele_to[facet] = to
+            s = self._teleporters[facet] = set(to)
         return s
+
+    def _step_back(self, before, before_facet, label) -> bool:
+        """After a teleport the walk didn't aim at: a known teleporter within STEP_BACK_R of where it put us
+        whose destination is within STEP_BACK_R of where we were, stepped onto at once (live 20261015_115604:
+        a Stationary Penalty walk took Logan up the Mausoleum stairs; the walk found no route on level 2,
+        the run stopped there and an abomination killed him). True when we are back."""
+        st = self.link.state()
+        here, facet = self.link.pos(st), st["world"]["self"].get("map")
+        if facet == before_facet and cheb(here, before) < STEP_BACK_MIN:
+            return False
+        self.teleporter_tiles(facet)
+        back = [t for t, to in self._tele_to.get(0 if facet is None else facet, {}).items()
+                if cheb(t, here) <= STEP_BACK_R and to[0] == (before_facet or 0) and cheb(to[1:3], before) <= STEP_BACK_R]
+        if not back:
+            log(f"{label}: teleported to {tuple(here[:2])}; no known way back")
+            return False
+        t = min(back, key=lambda t: cheb(t, here))
+        log(f"{label}: an unplanned teleport to {tuple(here[:2])}; stepping back through {t}")
+        sticky, walled = self.sticky, self.walled
+        try:
+            self.walk_to(lambda: t, 0, f"{label}: back", max_moves=2 * STEP_BACK_R, urgent=True)
+        except Abort as e:
+            log(f"{label}: stepping back: {e}")
+        finally:
+            self.sticky, self.walled = sticky, walled
+        now = self.link.pos(self.link.state())
+        return cheb(now, before) <= STEP_BACK_R
 
     def occupied(self, st=None) -> set:
         """Tiles currently occupied by other mobiles."""
@@ -1000,6 +1052,10 @@ class Mover:
                                             else "still denies the step after opening it")
                             walled = True
                 if outcome == "teleported":
+                    aimed = goal_fn is None and radius == 0 and center_fn is not None \
+                        and tuple(center_fn()[:2]) == tuple(nxt)
+                    if not aimed:                       # the teleporter was the goal (a walk-in): no undo
+                        self._step_back(cur, st["world"]["self"].get("map"), label)
                     replan = True
                     break
                 if outcome == "moved":

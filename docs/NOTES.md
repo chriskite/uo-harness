@@ -2929,6 +2929,29 @@ Task hunt-20261015-120822-42d7 with `--vet-range 5` (Logan's Healer's Codex "Wit
   tank while it's fighting". Now `Team.spacing` (HUNT_LOOP "Off the tank") and the crawl holds after a
   target leaves the view alive.
 
+## The fourth live run: up the stairs and dead in 25 s (test shard, 2026-10-15 12:33, capture 20261015_115604)
+
+Task hunt-20261015-123341-2b22 from (5201, 741). Logan had stood there, so the runner walked off the
+Stationary Penalty first; its first step went onto (5199, 738), the Mausoleum fight level's stairs beside the
+arrival, up to level 2 at (5522, 638, -23) with both pets. "No route" on level 2 aborted the run; he stood
+there at 64/100 next to an abomination and died at 12:36:05 after the user's tries to get back down.
+
+- **The stairs are a band beside the arrival (5199, 737)**: steps onto (5199, 738), SE to (5200, 738) and NE to
+  (5200, 736) all went up; on level 2 (5522, 637) (S from 5522,636, N from 5522,638) comes down to
+  (5199, 737, 17). Four bounces at 12:35:40-42; the client restarted its step count each time (the proxy's
+  `c2s_client_reset`), asked for a resync (0x22) at 12:35:42.6, and then sent no walk at all, alive or dead,
+  until an agent step's re-anchor (fabricated 0x21, 12:37:24) [INFERENCE: the client's walker waited on the
+  resync; the user's client may have needed a relog].
+- The runner knew no teleporter there: it learns them only by stepping onto one, and Logan always walked in
+  by hand. Now `harness/data/teleporters.json` seeds the Mausoleum's (with the evidence for each tile),
+  `Mover.teleporter_tiles` adds them to the store's, and a walk that is teleported anyway steps back through
+  a known one beside it that leads where it came from (`Mover._step_back`).
+- **`./ctl.cmd` in the agent's shell ran the worktree's ctl** (the shell resolves `./ctl.cmd` against its
+  configured working directory, the logan-tamer worktree, whatever `cd` came before): all four live runs
+  today used the worktree's code (the same commits as main) and its own fresh memory store
+  (`harness/data/harness.db` there, 176 KB), not the main store. Start live runs with
+  `python "<main checkout>/harness/ctl.py" run hunt ...`.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

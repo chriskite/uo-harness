@@ -494,6 +494,47 @@ def test_spacing():
           out[2][0] is False and out[5][0] and min(out[5][1:3]) >= tamer.SPACING_R and out[5][3] <= 4, str(out))
 
 
+def test_stairs():
+    print("== the Mausoleum stairs beside the arrival: routes keep off them; an accidental trip up steps back ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    import nav
+    from sim import run as simrun
+    w = world_with([], seed=7, start=(5201, 739))      # SE of the stairs: the straight way to the landing crosses them
+    for m in [w.player, *w.pets()]:
+        m.z = 17                                                   # the fight level's arrival floor
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    stairs = {(5199, 738), (5200, 738), (5200, 736)}
+    went_up = []
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            mv = loop.mover
+            path, _ = mv.plan(loop.state(), nav.within((5199, 737), 0), mobiles=False)
+            known = stairs <= mv.teleporter_tiles(0)
+            mv.teleporter_tiles(0).difference_update(stairs)        # as before the seeds: walk over them
+            n0 = mv.teleports
+            try:
+                mv.walk_to(lambda: (5199, 737), 0, "test", max_moves=12)
+            except Exception as e:                                 # noqa: BLE001 - the end position is the check
+                went_up.append(str(e))
+            went_up.append(mv.teleports - n0)
+            back = w.player.pos
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("the seeded stairs are known and no route crosses them", known and path and not set(path) & stairs,
+          f"known {known} path {path}")
+    check("a walk over them went up and came straight back down to Maus 3",
+          went_up[-1] >= 2 and abs(back[0] - 5199) <= 6 and abs(back[1] - 738) <= 6, f"at {back} {went_up}")
+
+
 def test_heal_in_place():
     print("== --heal-in-place: a pet below --pet-leave-at is no leave while vet supplies last ==")
     import tempfile
@@ -705,7 +746,8 @@ def main():
         print("SKIP: no map files (install dir)")
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
-              test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_heal_in_place, test_songs,
+              test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_heal_in_place,
+              test_songs,
               test_pull_budget, test_hold_first_sight, test_rope,
               test_rest_hurt_pet):
         t()
