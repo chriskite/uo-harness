@@ -613,7 +613,8 @@ class Crawl:
                     log(f"crawl: keeping out of sight of the {type_key(name)} at {tile}")
                 self.danger[s] = (tile, now, type_key(name), aggro.AGGRO_R + aggro.NEVER_MARGIN)
                 continue
-            why = self.model.avoid(name, hits_max, self.a.crawl_max_hits, self.a.crawl_max_fight_s)
+            why = self.model.avoid(name, hits_max, self.a.crawl_max_hits, self.a.crawl_max_fight_s) \
+                if getattr(self.a, "crawl_avoid_types", True) is not False else None
             if why:
                 if type_key(name) not in self.avoided:
                     self.avoided[type_key(name)] = why

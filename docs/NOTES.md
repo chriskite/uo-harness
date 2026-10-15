@@ -2988,6 +2988,25 @@ banshees, shadow minions, a vampire bat, a shade wolf), 17,052 gold, 165 hits lo
 - Open: "toward a target" still walks Logan at a monster the pets haven't engaged; the hold at first sight
   and the patrol alternate every second or two near banshees 13-14 tiles off (they rarely come).
 
+## The seventh live run: zone 2, the countess room, a leave the user didn't want (test shard, 2026-10-15 17:48-17:54)
+
+Task hunt-20261015-174850-2166 (`--crawl-learn-s 180 --crawl-max-dmg 35`). The crawl began with no zone history
+(the start was 21 tiles from the last; fixed: earlier visits within 40 tiles count, 99996a1), opened zone 2 at
+17:52:54 and went west into the vampire countess' room (5179-5189, 681-685). 7 kills.
+
+- 17:53:26 "off the tank": a shove into (5182, 682) was denied, the replan found a 124-step route, and the walk
+  wandered 8 moves while the countess, a corpsebride and a copy hit Logan, 100 -> 20. Now every care walk
+  (spacing, pull spot, fire, reposition, stand-off, retreat) refuses a route longer than its few steps.
+- 17:53:31 the 50 % leave at 20/100 with a heal potion ready; through the gate at 92, the pets left behind
+  (retrieved at the stablemaster). The user: "Logan didn't need to run and leave there, he could have just
+  bandaged himself and positioned a little better." Now with `--heal-in-place` no hits leave while a heal is
+  coming, down to 15 %.
+- The crawl set the countess aside after the leave ("fled from it in 37% of fights (est.)"). The user: "we
+  don't need to avoid any mob specifically ... it's all doable": `--crawl-avoid-types` off and no
+  `--never-aggro` default for the pets style.
+- Logan carries 40 bandages (0x0E21); the runner has no bandage use (the live self-bandage is 0xBF sub 0x2C on
+  his own serial, ~16 s for +16, 20261014_221341); the vet supplies heal him too.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

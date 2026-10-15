@@ -711,7 +711,7 @@ class Team:
         self.count("spacing")
         log(f"keeping off the tank: {best[:2]}, {SPACING_R}+ from the pets and what fights them")
         try:
-            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * SPACING_STEPS)
+            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * SPACING_STEPS, max_route=2 * SPACING_STEPS)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -799,7 +799,7 @@ class Team:
         log(f"pull spot {best[:2]}: {best_c[2]} would see us there, weight {best_c[0]:g} before a pet "
             f"(here {here[2]}, {here[0]:g} before a pet)")
         try:
-            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * PULL_STEPS)
+            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * PULL_STEPS, max_route=2 * PULL_STEPS)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -882,7 +882,7 @@ class Team:
         self.count("fire_steps")
         log(f"standing in fire at {v.pos[:2]}: stepping to {best[:2]}")
         try:
-            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * FIRE_STEPS)
+            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * FIRE_STEPS, max_route=2 * FIRE_STEPS)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -919,7 +919,7 @@ class Team:
         h.doing("reposition", f"Stepping to {best[0]},{best[1]}: fewer eyes on us ({here:.0f} -> {best_s:.0f})", best[:2])
         self.count("los_moves")
         try:
-            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * REPOSITION_STEPS)
+            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * REPOSITION_STEPS, max_route=2 * REPOSITION_STEPS)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -983,7 +983,7 @@ class Team:
         h.doing("standoff", f"Standing off an area hitter ({len(zone)} tile(s) in its reach)")
         self.count("standoffs")
         try:
-            h.mover.walk_to(None, 0, label, goal_fn=ClearOf(zone), max_moves=STANDOFF_MOVES)
+            h.mover.walk_to(None, 0, label, goal_fn=ClearOf(zone), max_moves=STANDOFF_MOVES, max_route=STANDOFF_MOVES)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1014,7 +1014,7 @@ class Team:
         self.count("retreats")
         try:
             if to is not None:
-                h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=3 * RETREAT_R)
+                h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=3 * RETREAT_R, max_route=3 * RETREAT_R)
             else:
                 h.mover.walk_to(None, 0, label, goal_fn=nav.beyond(tiles, RETREAT_R - 1), urgent=True,
                                 max_moves=2 * RETREAT_R)

@@ -160,6 +160,8 @@ PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this
 SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
 LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D, no death): its death this soon counts
 GATE_POTION_WAIT_S = 1.5      # hurt beside the leave gate: a heal potion due this soon is drunk before the click
+HEAL_IN_PLACE_FLOOR = 0.15    # --heal-in-place: below this share the hits leave fires even with a heal coming
+HEAL_SOON_S = 3.0             # --heal-in-place: a heal potion ready this soon is a heal coming
 DAMAGE_TEXT = re.compile(r"^-\d+$")   # Outlands' overhead damage number ("-25"), no 0x0B live
 CAST_CURSOR_WAIT_S = 4.0      # a spell's cursor comes after its cast delay
 SPELL_RANGE = 10              # [INFERENCE] RunUO spell range (12 pre-ML, 10 ML)
@@ -1196,6 +1198,11 @@ class HuntLoop:
         if me.get("hits") is None:
             return None
         f, att = self.frac(me), self.attackers(st)
+        if self.args.heal_in_place and f >= HEAL_IN_PLACE_FLOOR and self.heal_coming(st):
+            # user 2026-10-15 (live 20261015_171928 17:53:31, out at 20/100 with a potion ready, pets left behind):
+            # "Logan didn't need to run and leave there, he could have just bandaged himself and positioned a
+            # little better": with a heal on its way, heal and reposition; leave when none is
+            return None
         multi = min(self.args.leave_multi_at, self.leave_at) if self.args.heal_in_place else self.args.leave_multi_at
         if len(att) >= 2 and f < multi:
             return (f"{len(att)} attackers and hits {me['hits']}/{me['hits_max']} below "
@@ -1204,6 +1211,16 @@ class HuntLoop:
             out = f" (--leave-at + {self.out_steps} steps out)" if self.leave_at != self.args.leave_at else ""
             return f"hits {me['hits']}/{me['hits_max']} below {self.leave_at:.0%}{out}", "attention"
         return None
+
+    def heal_coming(self, st) -> bool:
+        """--heal-in-place: a heal potion ready within HEAL_SOON_S, or (--pets) a vet channel running (its
+        finish heals us too)."""
+        world = st["world"]
+        if healing.heal_potions(world, self.me(st)):
+            due = (self.potions.last or -1e9) + healing.POTION_COOLDOWN_S - time.monotonic()
+            if due <= HEAL_SOON_S:
+                return True
+        return self.team is not None and time.monotonic() < self.team.vet_busy_until
 
     def leave(self, st, why, severity):
         """War mode off, back to the spot (running, Mover urgent, when it's a survival
@@ -2010,9 +2027,11 @@ def stop_intent(loop, text):
 # zone, cleared, was patrolled 75 times in 5 min while --crawl-learn-s 600 kept the next one shut.
 STYLE_DEFAULTS = {
     "mage": {"heal_at": 0.75, "leave_at": 0.60, "leave_multi_at": 0.80, "pull_range": 3, "target_name": "mongbat",
-             "crawl_dwell": 6.0, "crawl_depleted_s": 90.0, "crawl_max_dmg": 30.0, "crawl_dry_s": 0.0},
+             "crawl_dwell": 6.0, "crawl_depleted_s": 90.0, "crawl_max_dmg": 30.0, "crawl_dry_s": 0.0,
+             "crawl_avoid_types": True},
     "pets": {"heal_at": 0.80, "leave_at": 0.50, "leave_multi_at": 0.55, "pull_range": 8, "target_name": "",
-             "crawl_dwell": 1.5, "crawl_depleted_s": 5.0, "crawl_max_dmg": 20.0, "crawl_dry_s": 45.0},
+             "crawl_dwell": 1.5, "crawl_depleted_s": 5.0, "crawl_max_dmg": 20.0, "crawl_dry_s": 45.0,
+             "crawl_avoid_types": False},
 }
 
 
@@ -2156,7 +2175,10 @@ def arg_parser() -> argparse.ArgumentParser:
                          "0.4, a nightstalker 1.8); 0 = off (user 2026-10-13: 'weighted by danger')")
     ap.add_argument("--never-aggro", action="append", default=None, metavar="TYPE",
                     help="--pets: a creature type (no article) never to wake while alone: its sight is no-go and "
-                         "one that comes for us is run from (repeat; default: vampiric consort, user 2026-10-13)")
+                         "one that comes for us is run from (repeat; default none, user 2026-10-15)")
+    ap.add_argument("--crawl-avoid-types", action=argparse.BooleanOptionalAction, default=None,
+                    help="crawl: avoid creature types the store's fights say cost too much (--crawl-max-hits, "
+                         "--crawl-max-fight-s) or were fled from (default on, --pets off: user 2026-10-15)")
     ap.add_argument("--rope", action=argparse.BooleanOptionalAction, default=True,
                     help="fleeing a hostile player by --leave-gate: 'All Follow Me' at once and an Adventurer's "
                          "Rope jump toward the gate whenever one is ready, as Logan fled reds")

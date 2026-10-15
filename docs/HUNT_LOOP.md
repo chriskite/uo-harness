@@ -377,7 +377,8 @@ what comes.
 | Argument | Default | Meaning |
 |---|---|---|
 | `--pull-budget` | `3.0` | While the pets fight monsters worth E, an advance (patrol, approach) stops where more would wake (W, idle monsters that would see us within 15 tiles) when E + W is above it. 0 = off. |
-| `--never-aggro TYPE` | vampiric consort | Never wake it alone (repeat for more types). |
+| `--never-aggro TYPE` | none | Never wake it alone (repeat for more types). Until 2026-10-15 the vampiric consort; the user then: "we don't need to avoid any mob specifically, we should be able to handle everything on Maus 3 with enough care. The consort and elder vampires areas can get a little sketchy but it's all doable". |
+| `--crawl-avoid-types` / `--no-crawl-avoid-types` | on (`--pets` off) | The crawl avoids creature types the store's fights say cost too much or were fled from (live 20261015_171928 it set the vampire countess aside after one leave). |
 | `--reposition` / `--no-reposition` | on | In a fight, step to a better tile for line of sight. |
 | `--hold-first-sight` / `--no-hold-first-sight` | on | Nothing fighting: stop where an idle monster first sees us within its aggro range, and let it come. |
 
@@ -434,8 +435,10 @@ moongate, and never near a red one).
   --leave-gate 5203 703 --gate-dest Totem` (docs/NOTES.md "Getting in and out of the Mausoleum").
 - **`--heal-in-place`** (user 2026-10-13: "leave less and heal in place"). With a long walk out, a leave
   is a last resort.
-  - The character leaves only below `--leave-at`, with no route margin. The two-attacker rule fires
-    only below `--leave-at` too.
+  - The character leaves only below `--leave-at`, with no route margin, and only with no heal coming (a
+    heal potion ready within 3 s, or a vet channel running: `HuntLoop.heal_coming`) or below 15 %
+    (user 2026-10-15, after a leave at 20/100 with a potion ready: "he could have just bandaged himself
+    and positioned a little better"). The two-attacker rule fires only below `--leave-at` too.
   - A pet below `--pet-leave-at` is healed, not left for, while vet supplies last. The runner walks to
     it even with something on us.
   - Until then: the vet supplies, potions and the retreat.
