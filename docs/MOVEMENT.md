@@ -412,6 +412,21 @@ confirmed all 12 agent walks of a solo train in 142237 (▶ Current model; ANTIC
   - Continuations: agent keys forced to 0 (`c2s_agent_key_cleared`); a client key equal to `stale_token` is zeroed once (`c2s_stale_token_dropped`) so the server never sees a spent token re-presented; any other client key passes (`c2s_token_passthrough`) because genuine mid-cycle server pushes exist — session_20260928_223537 t=456.65 `02 84 04 00000001` with no resync since the previous token walk at t=417.45 (pre-proxy-rewrite capture, so client-native).
   - Login/resync clear `stale_token` (the server's seed overwrites the client's 5-slot stack, §3).
   - Residual ambiguity **[INFERENCE]**: if the server pushes a mid-cycle token with the same value as a stale one before the client presents its stale copy, the proxy zeroes the first and passes the second — the walk in between would lack the outstanding token. Can't be resolved without seeing S2C `0xBF` (decoder desync, §3).
+  - **The client resets its own walker after a teleport** (found 2026-10-14: Logan Wolf couldn't walk
+    back out through the Mausoleum level-4 door, session_20261014_210020 21:09:31-21:10:26). After a
+    teleporter's deny + self 0x77 + seed, the client sends its first two walks both as seq 0 (9-10 ms
+    apart): it dropped the first step itself, the server took both. The ladder used to number the
+    second 1 and rewrite the server's ack back to 0, so the server never saw the duplicate and the
+    client stood a tile behind the server for good: at that door the client's tile had west blocked
+    on the map, so it never sent the step back through. The same offset (`s2c_confirm_rewritten`
+    "seq N -> client seq N-1" with no agent walk) began right after a teleporter in
+    20261010_204420, 20261013_173449, _204518, 20261014_170144 and _210020. Now a client walk with
+    its own seq 0 after a client walk since the last deny/seed/re-anchor is `c2s_client_reset`: sent
+    as the client sent it (seq 0, its own key, as a native server would see it), the walks still in
+    flight moved to the late-confirm set (their acks are hidden and counted in the tracked position),
+    and the client marked stale, so after 0.5 s of quiet the movement timer re-anchors it to the
+    server-true tile. [INFERENCE: whether Outlands denies a duplicate seq 0 (then both resync
+    natively) or acks it; either way the client ends on the true tile.]
 
   Tools send seq 0 / key 0 always. Proven offline (`test_seq_rewrite.py` ALL PASS, 12 checks covering every branch above). Every c2s log row carries `src` (`client`/`agent`), shown as `AGENT` in `tail_log.py`.
 

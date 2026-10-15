@@ -111,6 +111,44 @@ def test_unit():
     rt.feed_packet(S2C, bytes.fromhex("1d530beeb0"))
     check("on foot again once the server deletes the mount item", not rt.state.mounted())
 
+    # the client resets its own walker (live 20261014_210020 21:09:31.55, a teleporter door): after the
+    # deny and the seed it walked seq 0, then seq 0 again; the ladder must not turn the second into
+    # seq 1 (the server took both, the client only one: a tile apart, stuck at the door)
+    door = P.MoveAuthority()
+    door.on_self_position(5253, 736, 0, 2)
+    door.on_deny()
+    door.on_seed(1)
+    p = walk(0x82, 0)
+    door.on_c2s_walk(p, "client", 10.0)
+    check("door case: first walk after the seed stamped as seq 0", p[2] == 0 and p[3:7] == b"\x00\x00\x00\x01", p.hex())
+    p = walk(0x82, 0, key=1)
+    ev = door.on_c2s_walk(p, "client", 10.01)
+    check("door case: the client's second seq 0 goes out as seq 0 with its own key",
+          p[2] == 0 and p[3:7] == b"\x00\x00\x00\x01", p.hex())
+    check("  ... logged as a client reset, the client marked stale",
+          ev and ev[0] == "c2s_client_reset" and door.client_stale, str(ev))
+    first = door.on_confirm(0)
+    second = door.on_confirm(0)
+    check("  ... the server's two acks of seq 0: the first forwarded, the second (the dropped step) hidden",
+          first == ("forward", None) and second == ("hide", None), f"{first} {second}")
+    check("  ... both steps in the tracked position (two tiles east)", door.pos[:2] == [5255, 736], str(door.pos))
+    pkt = door.reanchor_packet(11.0)
+    check("  ... and once walking is quiet the client is re-anchored there",
+          pkt is not None and deny_fields(pkt)[:2] == (5255, 736), pkt.hex() if pkt else None)
+    p = walk(0x82, 0)
+    ev = door.on_c2s_walk(p, "client", 11.2)
+    check("  ... after which its seq 0 is no reset", p[2] == 1 and (ev is None or ev[0] != "c2s_client_reset"), str(ev))
+    ma2 = P.MoveAuthority()
+    ma2.on_seed(8)
+    ma2.on_c2s_walk(walk(0x80, 5), "client", 1.0)
+    ma2.client_stale, ma2.pos = True, [1, 1, 0, 0]
+    ma2.inflight.clear()
+    ma2.reanchor_packet(5.0)
+    p = walk(0x80, 0)
+    ev = ma2.on_c2s_walk(p, "client", 5.5)
+    check("after the proxy's own re-anchor, the client's seq 0 is no reset (the ladder goes on)",
+          p[2] == 1 and (ev is None or ev[0] != "c2s_client_reset"), f"{p.hex()} {ev}")
+
     # re-anchor: client-only 0x21 with the tracked position, once walking is quiet
     check("no re-anchor while walking is fresh", ma.reanchor_packet(2.5) is None)
     pkt = ma.reanchor_packet(2.3 + P.REANCHOR_IDLE_S + 0.01)
