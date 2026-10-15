@@ -2799,6 +2799,74 @@ Two runs, both ended by reds. In the region 17:02:50-17:23:52 (21 min) and 17:39
 - The countess transfixed both pets in turn on the first run: the gravebug at 17:18:25.1, the phoenix
   at 17:18:35.8 (10.7 s later, the first copy just gone), as the one-copy-at-a-time model has it.
 
+## Logan Wolf's run through Maus 4 (capture 20261014_210020, analysed 2026-10-14)
+
+12 min 18 s in the dungeon (21:01:38-21:13:56), 22 kills, 7 hits (163) on Logan, 26,438 gold banked; all
+three songs up the whole time (16.8 %).
+
+- **Maus 4** (the dungeon's 4th level): in by stepping E at (5253, 736) on the fight level (21:09:31.5: a
+  0x21 deny there, then a self 0x77 at (5697, 713, 0)); he stood near the arrival 50 s, walked north
+  (z 0 -> -18 between y 673 and 669), then W along y 627 to (5700, 627), which put him back on the fight
+  level at **(5266, 627, 0)** (21:10:54.9; a deny, then 0x77). Box walked: x 5697-5719, y 627-715. No fight
+  there: other players were clearing it (darkscales, heralds of night, muddled vampire hunters, incubi,
+  fleshweavers, meat puppets, a manticore, two vampiric consorts). The walk back out through the door he
+  came in by failed: the proxy had left the client a tile off the server (docs/MOVEMENT.md "client resets
+  its own walker"); fixed 2026-10-14.
+- One more teleporter on the second level: (5512, 669, -10) -> (5515, 659, -10) at 21:02:19.6. The crimson
+  gate took him to (2212, 586, 30), not Totem.
+- **The consort and the forgotten souls** (5235-5252, 624-632, around (5250, 630); the bound souls' room's
+  west side): 4 forgotten souls (#15327: 8,000 hits, MeleeMage, Magery 125, spells 25-35) and the consort
+  (#11046: 14,000). Totals of our numbers to each death: 8,001 a soul, 14,001 the consort (the wiki's hits
+  exactly). The consort: discord 21:11:08, peace 21:11:22, "All Kill" twice, a provoke of a soul onto it
+  21:11:46.4 (after three fails and two "wait"s); dead 21:12:03 to the pets, the provoke adding nothing.
+  GraveRobber took 988 in 46 numbers there; the phoenix 14; Logan 20.
+- **The forgotten souls' fire**: 0x6D70 ground items (hue 0x08D8), 7 of them, each on the tile of whom a
+  soul's spell hit at that instant (13-20: the gravebug 6 times, the phoenix once), gone after 5.4-5.7 s.
+  One cast at 21:12:11.7 was a 3-target fireball (0xC0 gfx 0x36D4 from the soul to Logan, the phoenix and
+  the gravebug; -20, -14, -16). **No tick damage**: the phoenix stood on one 5.7 s, Logan beside it, and
+  neither took a further hit; the gravebug's numbers under one are its melee rate. The user's rule (don't
+  stand in fire) is in the runner anyway: never a tile to step to, costly to route through, stepped off
+  when under us (`tamer.FIRE_GRAPHICS`, `Team.out_of_fire`). Banshees cast the same 3-target fireball
+  (-19, -20 on Logan) and leave no fire.
+- Other short-lived ground items: blood 0x1645 / 0x122A-0x122F (~5.3-5.5 s); 0xB266 and 0xAC09 (1.0 s,
+  z+10 on the phoenix: its effects [INFERENCE]); 0xD2A4-0xD2AE an animated item.
+
+## Logan Wolf's death, corpse run and a pet's vet resurrection (capture 20261014_221341, analysed 2026-10-14)
+
+22:14-22:38, 38 kills, 40 hits (962) on Logan, 33,232 gold at the end.
+
+- **His death** (22:17:57.7, (5216, 663), the north vampire rooms): 100 -> 0 in 5.5 s while walking to
+  corpses with the elder vampire countess transfixing: a vampire bat -20 with a bleed, a bleed tick -6, a
+  shade wolf -46, the bat -15, -15. No potion in the last 30 s; a vet channel begun 1.8 s before the end.
+  The server: corpse 0xF3 + 0x89, 0x2C 00 then 02, self body 0x192 at 0 hits, 0xAA 0, a death shroud
+  (0x2E layer 0x16, 0x204E), cliloc 1019048.
+- **The corpse run**: as a ghost to the crimson gate (its gump opened by walking onto it), Totem, the
+  healer Jacinda's "Resurrection" gump (Accept, button 1) 22.4 s after the death: alive at 100/100 with
+  a robe, "Your mount returns.". Home by recall, then the stablemaster's "Retrieve Lost Followers": "You
+  retrieve 2 of your followers." (the pets had stayed in the Maus, alive, at 4 % and 10 %); vet; back in
+  and his own corpse looted (0x24 open, 0x07/0x08 drags; 4,360 gold) 22:20:38-22:20:48.
+- **The elder vampire countess copies both pets** ("*transfixed*", hostile notoriety-3 copies named as
+  the pets).
+- **A reanimated daemon** (body 0x9, #15334: 16,000 hits, MeleeMage, magic resist 200; two seen at (5239-
+  5242, 699-701)): its bone burst (action 10, ~50 0xC0 gfx 0x091D around it out to ~5 tiles) hits each of
+  us there once: the gravebug -94/-97, the phoenix -104/-107, Logan -39/-49 at 5 tiles (3 bursts, 15.4 s
+  apart in the second fight). The first died in 36 s under discord + peace (no burst after the peace),
+  +2,240 gold. The second killed the gravebug.
+- **The corpse purger's disease** (22:33:52-22:34:17.6): it picked Logan from 10 tiles (no pet on it),
+  its barrage hit him 22, 26 and 26, the 2nd and 3rd with "You have contracted a foul disease!"; each
+  infection ticked -21 four times ~5 s apart, the two side by side (168 in all, down to 21 hits); "You are
+  no longer diseased." at the last. No poison flag, no 0x17. He drank potions at the 10 s cooldown (+39,
+  +43, +50), the vet healed him (+28, +23), a bandage; no cure. The simulator now models it.
+- **GraveRobber died and the vet supplies brought it back** (22:35:53.1): 0xAF with a corpse, then the
+  server re-sent it (0x20, 0xA1 0, 0xBF sub 0x19 dead; its body stays 0x183) before the 0xFF sub 0xDEAD.
+  Logan said "All Follow Me" (the ghost followed); the channel he had begun 3.1 s before finished 2.0 s
+  after the death: "You are able to resurrect your follower.", 0xBF sub 0x19 alive, 31 %, then +166.
+  No gump. The world model used to drop the ghost at the 0xDEAD (and bring it back alive at the next 0x77);
+  it keeps it now (`WorldRuntime.mobile_death`), and the runner vets a ghost instead of leaving
+  (`tamer.RES_TRY_S`).
+- Overweight: "You are carrying too much weight... (475/450)"; he dropped 1,999 and 1,000 gold.
+- A 0.3 s server teleport to Maus 4 and back at 22:33:47 with no step of ours [INFERENCE: a server glitch].
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

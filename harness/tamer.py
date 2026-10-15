@@ -78,6 +78,12 @@ TEXT_VET_BEGIN = "You begin using veterinary supplies."
 TEXT_VET_FINISH = "You finish using veterinary supplies."
 TEXT_VET_NEEDLESS = "You or your nearby followers do not require healing."
 TEXT_VET_FAR = "You are too far away from any of your followers to heal them."
+# A bonded pet's ghost within reach at a channel's finish comes back (live 20261014_221341: GraveRobber died
+# 22:35:53.1, 3.1 s into a channel begun before; at its finish, 2.0 s later, this line, the 0xBF sub 0x19 alive
+# flag and 31 % hits, then the heal to 65 %; no gump; Logan ran with "All Follow Me" meanwhile, the ghost
+# following). Knowledge #11547: pets can be resurrected with 80 Veterinary skill.
+TEXT_VET_RES = "You are able to resurrect your follower."
+RES_TRY_S = 30.0              # a ghost in view is vetted this long after the death before the pet's death is a leave
 CLILOC_ACTION_WAIT = 500119
 CLILOC_SKILL_WAIT = 500118    # "You must wait a few moments to use another skill."
 NO_LOS_CLILOCS = (500446, 500237)   # "That is too far away." / "Target cannot be seen."
@@ -134,6 +140,13 @@ REPOSITION_STEPS = 2
 REPOSITION_GAIN = 1.0         # a caster's sight less, or a tenth of an idle monster's weight
 HOLD_S = 10.0                 # hold this long for an idle monster that sees us (live: 5-10 s to war mode)
 PULL_STEPS = 3                # a pull spot within this many steps
+# A forgotten soul's spell leaves fire (0x6D70, hue 0x08D8) on the tile it hit, 5.4-5.7 s (7 in capture
+# 20261014_210020: 6 under the gravebug it tanked, 1 under the phoenix, at the instant of a 13-20 hit).
+# None of them hurt anyone standing on or beside it (the phoenix 5.7 s on one, Logan beside it), but the
+# user doesn't stand in it (2026-10-14: "learning not to stand in fire cast by a mob like the forgotten
+# souls"): never a tile to step to, costly to route through, and stepped off when we stand on one.
+FIRE_GRAPHICS = frozenset([0x6D70])
+FIRE_STEPS = 2                # a tile out of the fire within this many steps
 
 # The only phrases ever said to the pets, as Logan Wolf's hotkeys say them
 COMMANDS = {c.lower(): c for c in ("All Guard Me", "All Follow Me", "All Kill", "All Stop", "All Stay", "All Come")}
@@ -320,6 +333,9 @@ class Team:
         self.pull_why = None
         self.evading = False
         self.reposition_t = -1e9
+        self.dead_since = {}             # pet serial -> monotonic time its ghost was first seen
+        self.follow_needed = False       # a pet died: "All Follow Me" so the ghost stays in the vet's reach
+        self.ghosts = set()              # pet serials seen dead (update: the "All Follow Me" once per death)
 
     # ------------------------------------------------------------ bookkeeping
     def count(self, what: str, n: int = 1):
@@ -390,6 +406,32 @@ class Team:
                 self.effects.pop(s, None)
                 self.attack_t.pop(s, None)
         self.ev_upto = len(evs)
+        for p in self.pets(st):
+            s = p["serial"]
+            if p["dead"] and s not in self.ghosts:
+                self.ghosts.add(s)
+                self.dead_since.setdefault(s, now)
+                self.follow_needed = True
+                log(f"{p['name']} is dead: its ghost follows us to be resurrected by the vet supplies")
+            elif not p["dead"] and s in self.dead_since:
+                self.ghosts.discard(s)
+                del self.dead_since[s]
+                self.guard_needed = True
+                self.count("pet_res")
+                log(f"{p['name']} is alive again ({p['frac']:.0%})")
+        fire = self.fire_tiles(st)
+        mv = self.h.mover
+        for k in [k for k in mv.danger if isinstance(k, str) and k.startswith("fire:")
+                  and mv.danger[k][0] not in fire]:
+            del mv.danger[k]
+        for t in fire:
+            mv.danger.setdefault(f"fire:{t[0]},{t[1]}", (t, 0))   # routes step round it (Mover.danger_cost)
+
+    @staticmethod
+    def fire_tiles(st) -> set:
+        """(x, y) of the fire on the ground (FIRE_GRAPHICS) now."""
+        return {(it["x"], it["y"]) for it in st["world"]["items"].values()
+                if it.get("graphic") in FIRE_GRAPHICS and it.get("container") is None and it.get("x") is not None}
 
     # ------------------------------------------------------------ what the pets are doing
     def engaged(self, st, serial: int) -> bool:
@@ -443,6 +485,9 @@ class Team:
                     return f"{name} out of view for {PET_MISSING_S:.0f} s", "attention"
                 continue
             if p["dead"]:
+                if now - self.dead_since.setdefault(s, now) <= RES_TRY_S \
+                        and healing.in_pack(st["world"], self.h.me(st), VET_SUPPLIES_GRAPHIC):
+                    continue                              # vet supplies resurrect its ghost (TEXT_VET_RES)
                 return f"{name} is dead", "attention"
             if p["frac"] < self.a.pet_leave_at and not (
                     self.a.heal_in_place and healing.in_pack(st["world"], self.h.me(st), VET_SUPPLIES_GRAPHIC)):
@@ -468,12 +513,13 @@ class Team:
         return True
 
     def busy_healing(self, st) -> bool:
-        """Don't walk on yet: a vet channel runs (a step shortens its reach to 1, wiki Veterinary) or a pet in
-        reach still needs one (vet_needed) and supplies are there. Moving on at once from a cleared area
-        (--crawl-depleted-s 5) otherwise left with a hurt gravebug and broke channels mid-way."""
+        """Don't walk on yet: a vet channel runs (a step shortens its reach to 1, wiki Veterinary), a pet in
+        reach still needs one (vet_needed) or a pet's ghost waits for one, and supplies are there. Moving on at
+        once from a cleared area (--crawl-depleted-s 5) otherwise left with a hurt gravebug and broke channels
+        mid-way."""
         if time.monotonic() < self.vet_busy_until:
             return True
-        return self.vet_needed(st, self.pets(st)) is not None \
+        return (self.vet_needed(st, self.pets(st)) is not None or bool(self.dead_since)) \
             and bool(healing.in_pack(st["world"], self.h.me(st), VET_SUPPLIES_GRAPHIC))
 
     def guard(self) -> bool:
@@ -571,11 +617,18 @@ class Team:
 
     # ------------------------------------------------------------ care: retreat, vet, guard
     def care(self, st) -> bool:
-        """One care action, True when something was done: evade a --never-aggro monster, retreat, stand off
-        a charger, vet supplies, guard, walk to a hurt pet, a better tile for line of sight, a barding song."""
+        """One care action, True when something was done: evade a --never-aggro monster, "All Follow Me" after
+        a pet's death (its ghost stays near for the vet supplies), step out of fire, retreat, stand off a
+        charger, vet supplies, guard, walk to a hurt pet or a ghost, a better tile for line of sight, a
+        barding song."""
         self.update(st)
-        return self.evade(st) or self.retreat(st) or self.stand_off(st) or self.vet(st) \
-            or (self.guard_needed and self.guard()) or self.to_pet(st) or self.reposition(st) or self.song(st)
+        return self.evade(st) or (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
+            or self.retreat(st) or self.stand_off(st) or self.vet(st) or (self.guard_needed and self.guard()) \
+            or self.to_pet(st) or self.reposition(st) or self.song(st)
+
+    def ghost_follow(self) -> bool:
+        self.follow_needed = False
+        return self.say("all follow me")
 
     # ------------------------------------------------------------ aggro (aggro.py)
     def view(self, st) -> aggro.View:
@@ -631,7 +684,7 @@ class Team:
         if not group or group == self.spot_for:
             return False
         self.spot_for = group
-        zone = self.charge_zone(st)
+        zone, fire = self.charge_zone(st), self.fire_tiles(st)
 
         def cost(t):
             w = v.wakes(t, margin=0)
@@ -639,7 +692,7 @@ class Team:
         here = cost(v.pos)
         best, best_c = None, None
         for t, k in self.tiles_within(v, PULL_STEPS).items():
-            if k == 0 or t[:2] in zone or v.never_near(t):
+            if k == 0 or t[:2] in zone or t[:2] in fire or v.never_near(t):
                 continue
             c = cost(t)
             if c[1] == 0:
@@ -713,6 +766,37 @@ class Team:
             log(f"evade: {e}")
         return True
 
+    def out_of_fire(self, st) -> bool:
+        """Standing on fire (FIRE_GRAPHICS): the nearest tile within FIRE_STEPS out of it and out of a
+        Charge's reach, keeping the pets within --vet-range where one does; never mid-channel (a step
+        breaks the channel's reach, and the fire hasn't been seen to hurt)."""
+        h = self.h
+        fire = self.fire_tiles(st)
+        if not fire or time.monotonic() < self.vet_busy_until:
+            return False
+        v = self.view(st)
+        if v.walk is None or v.pos[:2] not in fire:
+            return False
+        keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range]
+        zone = self.charge_zone(st)
+        ok = [(any(cheb(t, p) > self.a.vet_range for p in keep), k, t)
+              for t, k in self.tiles_within(v, FIRE_STEPS).items()
+              if k and t[:2] not in fire and t[:2] not in zone]
+        if not ok:
+            return False
+        best = min(ok)[2]
+        label = "out of the fire"
+        h.doing("reposition", f"Stepping out of the fire to {best[0]},{best[1]}", best[:2])
+        self.count("fire_steps")
+        log(f"standing in fire at {v.pos[:2]}: stepping to {best[:2]}")
+        try:
+            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * FIRE_STEPS)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"out of the fire: {e}")
+        return True
+
     def reposition(self, st) -> bool:
         """--reposition, in a fight: a tile within REPOSITION_STEPS that keeps the pets near us within
         --vet-range, out of a Charge's reach, with a lower aggro.View.stand_score (fewer idle monsters
@@ -727,12 +811,12 @@ class Team:
             return False
         pos = v.pos
         keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]
-        zone = self.charge_zone(st)
+        zone, fire = self.charge_zone(st), self.fire_tiles(st)
         steps = self.tiles_within(v, REPOSITION_STEPS)
         here = v.stand_score(pos)
         best, best_s = None, here
         for t, k in steps.items():
-            if k == 0 or t[:2] in zone or any(cheb(t, p) > self.a.vet_range for p in keep):
+            if k == 0 or t[:2] in zone or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in keep):
                 continue
             s = v.stand_score(t) + 0.3 * k
             if s < best_s:
@@ -838,6 +922,9 @@ class Team:
     def vet_needed(self, st, pets) -> str | None:
         me = st["world"]["self"]
         zone = self.charge_zone(st)
+        ghosts = [p for p in pets if p["dead"] and p["dist"] <= self.a.vet_range]
+        if ghosts:
+            return f"{ghosts[0]['name']} is dead (a channel resurrects it)"
         hurt = [p for p in pets if not p["dead"] and p["dist"] <= self.a.vet_range
                 and (p["frac"] < self.heal_at(p, zone) or p["poisoned"])]
         if hurt:
@@ -901,9 +988,9 @@ class Team:
             return False
         zone = self.charge_zone(st)
         busy = bool(h.attackers(st))
-        far = [p for p in self.pets(st) if not p["dead"] and p["dist"] > self.a.vet_range
-               and p["dist"] <= combat.VIEW_RANGE and (p["frac"] < self.heal_at(p, zone) or p["poisoned"])
-               and (not busy or (self.a.heal_in_place and p["frac"] < self.a.pet_leave_at))]
+        far = [p for p in self.pets(st) if p["dist"] > self.a.vet_range and p["dist"] <= combat.VIEW_RANGE
+               and (p["dead"] or ((p["frac"] < self.heal_at(p, zone) or p["poisoned"])
+                                  and (not busy or (self.a.heal_in_place and p["frac"] < self.a.pet_leave_at))))]
         if not far:
             return False
         p = min(far, key=lambda p: p["frac"])

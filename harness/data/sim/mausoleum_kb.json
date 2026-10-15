@@ -731,6 +731,51 @@
     "deaths": 1
    }
   },
+  "muddled vampire hunter": {
+   "name": "muddled vampire hunter", "difficulty": 96.3, "gold_value": 964, "hits": 10000,
+   "melee_damage": [40, 50], "wrestling": 140, "armor": 50, "magic_resist": 25, "ai": "ranged",
+   "speed": "Medium", "stealth": false, "specials": [], "slayer": "Humanoid", "location": "The Mausoleum",
+   "graphic": 400, "knowledge_ids": [12026], "missing": ["attack_speed", "speed", "specials"],
+   "capture": {"tag": "session_20261014_210020", "graphics": ["0x190"], "note": "added by hand 2026-10-14 (Maus 4); speed Medium assumed"}
+  },
+  "fleshweaver": {
+   "name": "fleshweaver", "difficulty": 187.6, "gold_value": 1876, "hits": 10000,
+   "melee_damage": [20, 30], "wrestling": 120, "armor": 25, "magic_resist": 200, "ai": "mage",
+   "spell_damage": [40, 50], "magery": 200, "speed": "Medium", "stealth": false, "specials": [],
+   "slayer": "Humanoid", "location": "The Mausoleum", "graphic": 400, "knowledge_ids": [11052],
+   "missing": ["attack_speed", "speed", "specials"],
+   "capture": {"tag": "session_20261014_210020", "graphics": ["0x190", "0x191"], "note": "added by hand 2026-10-14 (Maus 4); speed Medium assumed"}
+  },
+  "meat puppet": {
+   "name": "meat puppet", "difficulty": 183.7, "gold_value": 1837, "hits": 12000,
+   "melee_damage": [70, 80], "wrestling": 120, "armor": 25, "magic_resist": 25, "ai": "melee",
+   "speed": "Medium", "stealth": false, "specials": [], "slayer": "Construct", "location": "The Mausoleum",
+   "graphic": 136, "knowledge_ids": [12022], "missing": ["attack_speed", "speed", "specials"],
+   "capture": {"tag": "session_20261014_210020", "graphics": ["0x88"], "note": "added by hand 2026-10-14 (Maus 4); speed Medium assumed"}
+  },
+  "reanimated daemon": {
+   "name": "reanimated daemon",
+   "difficulty": 205.2,
+   "gold_value": 2052,
+   "hits": 16000,
+   "melee_damage": [60, 70],
+   "wrestling": 120,
+   "armor": 25,
+   "magic_resist": 200,
+   "ai": "meleemage",
+   "spell_damage": [35, 45],
+   "magery": 175,
+   "speed": "Medium",
+   "stealth": false,
+   "specials": [],
+   "slayer": "Construct",
+   "location": "The Mausoleum",
+   "graphic": 9,
+   "knowledge_ids": [15334],
+   "missing": ["attack_speed", "speed", "specials"],
+   "capture": {"tag": "session_20261014_221341", "graphics": ["0x9"], "deaths": 1,
+               "note": "added by hand 2026-10-14 from know search 'Reanimated Daemon' (#15334) and the capture's body 0x9; the wiki row has no speed (Medium assumed)"}
+  },
   "forgotten soul": {
    "name": "forgotten soul",
    "difficulty": 132.7,

@@ -164,7 +164,7 @@
   "note": "the Mausoleum row lands where Logan's did (21:16:30, capture): (5626, 688) on the first level, beside a gold moongate; recall in a dungeon works only near one (`dungeon`); pets within pet_range come along (knowledge #11547) and default to Follow (#11561)"
  },
  "dungeon": {
-  "box": [5150, 600, 5650, 760],
+  "box": [5150, 600, 5760, 760],
   "gold_gates": [[5626, 689], [5618, 723], [5588, 717]],
   "recall_r": 2,
   "note": "user 2026-10-13: in a dungeon you can recall in or out only near a gold moongate (gold gates are on a dungeon's first level only), never near a red one; recall_r 2 is his conservative guess. box: the calibration region; gold gates: the hue-2822 moongates of the first level (capture) [INFERENCE: hue 2822 = gold]"
@@ -222,6 +222,9 @@
  },
  "vet": {
   "range": 2,
+  "res_chance": 1.0,
+  "res_hits": 0.31,
+  "res_note": "a bonded pet's ghost within range at a channel's finish comes back at 31 % ('You are able to resurrect your follower.', 0xBF sub 0x19 alive; then the channel's heal); 1 of 1 tries, capture 20261014_221341 22:35:55.1 (knowledge #11547: 80 Veterinary) [INFERENCE: res_chance 1.0 from n=1]",
   "channel_s": [
    5.0,
    5.3
@@ -384,6 +387,35 @@
     "near_chance": 0.75,
     "far_r": 3,
     "far_chance": 0.2
+   }
+  ],
+  "forgotten soul": [
+   {
+    "kind": "fire_mark",
+    "graphic": 28016,
+    "lifetime_s": [5.4, 5.7],
+    "note": "capture 20261014_210020: fire 0x6D70 (hue 0x08D8) on the tile of whom a soul's spell hit, at the instant of a 13-20 hit; 7 of them, 5.4-5.7 s; 6 under the gravebug it fought, 1 under the phoenix; none hurt anyone on or beside it"
+   }
+  ],
+  "corpse purger": [
+   {
+    "kind": "disease",
+    "chance": 0.67,
+    "tick": 21,
+    "every_s": 5.0,
+    "ticks": 4,
+    "note": "capture 20261014_221341 22:33:53-22:34:17.6: its barrage from 10 tiles hit Logan 22, 26 and 26; the 2nd and 3rd each with 'You have contracted a foul disease!' (2 of 3 [INFERENCE: the wiki's 7.5 % a hit, knowledge #14902, is the tamed version's]); each infection ticked -21 every ~5 s 4 times (20 s, as the wiki's 'every 5 seconds for 20 seconds'), the two side by side, 168 in all, his hits down to 21; 'You are no longer diseased.' at the last; no poison flag; he cured nothing (potions, vet and a bandage only)"
+   }
+  ],
+  "reanimated daemon": [
+   {
+    "kind": "burst",
+    "first_s": [1.0, 8.0],
+    "every_s": 15.4,
+    "radius": 5,
+    "damage_pet": [94, 107],
+    "damage_player": [39, 49],
+    "note": "capture 20261014_221341: action 10, then ~50 bone effects 0x091D on the tiles around it out to ~5 and one hit on each of us there: the gravebug -94/-97, the phoenix -104/-107, Logan -39/-49 at up to 5 tiles (n=3 bursts in 2 fights); the first 0.9 s into fight 1 and 7 s after sight in fight 2, the next 15.4 s later (n=1) [INFERENCE: its cadence]; none after a peace (fight 1 died in 36 s under discord + peace)"
    }
   ],
   "note": "all of Logan's 23 hits on the trip were bleeds, a Charge or transfixed copies (docs/NOTES.md). Bleeds: 8-10 every 3 s, 5 ticks over 15 s, then 'You are no longer bleeding.' (3 bleeds, capture). Bound soul: 'They begin to draw blood from you!' with an opener of -23/-32 on Logan a tile off while it meleed the gravebug, 2 in its 19 swings at a pet with Logan within 1 tile [INFERENCE: an area bleed on everyone within 1]. Vampire bat: 'The creature strikes ferociously, causing you to bleed!' on its target, 15 % (follower Bleed, knowledge #14664). Nightstalker Charge: teleports up to 12 tiles, hits up to 3 within 1 tile (knowledge #14625); live '*charges*' at 21:21:14/:23/:31 (8.5 s apart), -37 and -42 on the gravebug and Logan (n=2); 20261013_204518: 5 charges 7.6-17 s apart, -10..-19 on the gravebug (3 of 5 hit); no Vanish seen. Shade wolf Vanish: two wolves in their fights left the view at 1 tile (0x1D) 4 times, 4.3-15 s into the fight and 19-22 s apart, for 3.5-5.8 s, and came back on the gravebug each time with a hit (21-28) before any re-guard. Countess transfix (3 fights over 20261012_210013, 20261013_173449 and 20261013_204518): '*attempts to transfix*' every 5.1-5.5 s while fighting; with no copy of hers up 6 of 12 made a hostile copy of a pet ('*transfixed*', the pet's name and body, on its tile), with one up 0 of 5; the pet took -36..-45 at that instant (n=5); the copy lasted 9.9-11.0 s to its 0x1D (n=6), in war mode 0-2.5 s after it appeared, and the pet itself made no step and no attack animation until then; the copies' 10 attributed hits on the first trip: 4 on Logan (28-37), 6 on the pets; the second walked 6 tiles to the phoenix rather than Logan at 8: a copy picks any of us but its original within 3 tiles, else any [INFERENCE: copy hits 2000, one took 1436 in 6 s and lived]. Corpsebride wail: '*wails*' every 7.5-7.8 s while it fights (25 in 4 fights), with a -13..-25 at once on the pets beside it (about 18 of 24 pet-tile-1 chances) and on Logan 2 of 11 times at 2-3 tiles [INFERENCE: an area hit on each of us, near_chance within radius 1, far_chance at 2-3]. Vampire drain and disease as poison 15 % (#2639) [INFERENCE]."
@@ -686,6 +718,42 @@
    ]
   },
   {
+   "key": "muddled vampire hunter",
+   "at": [5701, 658, -20]
+  },
+  {
+   "key": "fleshweaver",
+   "at": [5733, 659, -18]
+  },
+  {
+   "key": "fleshweaver",
+   "at": [5737, 680, 0]
+  },
+  {
+   "key": "meat puppet",
+   "at": [5734, 657, -15]
+  },
+  {
+   "key": "reanimated daemon",
+   "at": [5239, 700, 0]
+  },
+  {
+   "key": "forgotten soul",
+   "at": [5250, 632, 0]
+  },
+  {
+   "key": "forgotten soul",
+   "at": [5247, 626, 0]
+  },
+  {
+   "key": "forgotten soul",
+   "at": [5238, 628, 0]
+  },
+  {
+   "key": "forgotten soul",
+   "at": [5235, 624, 0]
+  },
+  {
    "key": "vampire",
    "at": [
     5186,
@@ -761,9 +829,12 @@
   {"from": [5554, 701], "to": [5547, 696, 10]},
   {"from": [5506, 701], "to": [5507, 698, -5]},
   {"from": [5507, 697], "to": [5507, 693, -5]},
-  {"from": [5521, 638], "to": [5199, 738, 17]}
+  {"from": [5521, 638], "to": [5199, 738, 17]},
+  {"from": [5512, 669], "to": [5515, 659, -10]},
+  {"from": [5253, 736], "to": [5697, 713, 0]},
+  {"from": [5700, 627], "to": [5266, 627, 0]}
  ],
- "teleporters_note": "the ones Logan stepped onto on the way in (capture): 21:17:19 to the second level, 21:17:37 two short hops on it (a deny at (5506, 701) then a self move to (5507, 698), and (5507, 697) -> (5507, 693); the map has no walk across: A* takes 468 steps round, Logan ~150), 21:17:57 to the fight level. The ways back up aren't known",
+ "teleporters_note": "the ones Logan stepped onto on the way in (capture): 21:17:19 to the second level, 21:17:37 two short hops on it (a deny at (5506, 701) then a self move to (5507, 698), and (5507, 697) -> (5507, 693); the map has no walk across: A* takes 468 steps round, Logan ~150), 21:17:57 to the fight level. 20261014_210020: a hop on the second level at 21:02:19.6; Maus 4 (the 4th level) in by a step E at (5253, 736) (21:09:31.5) and out at (5700, 627) walking W, back on the fight level at (5266, 627) (21:10:54.9). 'from' is where the deny reported us, as for the others. The door he came into Maus 4 by leads back too (user 2026-10-14), tile not known",
  "area": [
   5170,
   640,

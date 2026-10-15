@@ -124,7 +124,12 @@ class WorldRuntime:
             it.notoriety = notoriety
         if serial == self.state.self.serial:
             return
-        self.remove_dead(serial)
+        m = self.state.mobiles.get(serial)
+        if m is None or not m.dead:
+            self.remove_dead(serial)
+        # else a bonded pet's ghost: live 20261014_221341 22:35:53.2 GraveRobber's 0xAF, then the server
+        # re-sent it (0x20, 0xA1 0, 0xBF sub 0x19 dead) before this 0xDEAD; removing it here dropped the
+        # dead flag, and the next 0x77 brought it back as a live pet of unknown hits
         if corpse in self.corpses:
             return
         self.corpses[corpse] = None

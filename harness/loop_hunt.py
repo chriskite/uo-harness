@@ -158,6 +158,7 @@ ROPE_LEGS_MAX = 30
 SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is attacking us
 PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this long is dropped...
 SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
+LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D, no death): its death this soon counts
 DAMAGE_TEXT = re.compile(r"^-\d+$")   # Outlands' overhead damage number ("-25"), no 0x0B live
 CAST_CURSOR_WAIT_S = 4.0      # a spell's cursor comes after its cast delay
 SPELL_RANGE = 10              # [INFERENCE] RunUO spell range (12 pre-ML, 10 ML)
@@ -255,6 +256,7 @@ class HuntLoop:
         self.ev_upto = 0             # kill/death scan cursor into link.events
         self.dead = set()            # serials the server reported dead (0xFF sub 0xDEAD)
         self.corpse_of = {}          # dead mobile serial -> its corpse serial (0xDEAD)
+        self.lost_alive = {}         # serial -> (last-seen mob dict, monotonic time): engaged, then gone alive (0x1D)
         self.corpses = []            # [{mob, name, x, y, t}] kills to loot
         self.looted = set()          # corpse serials handled (looted or refused)
         self.engaged = None          # serial we last sent 0x05 for
@@ -701,27 +703,40 @@ class HuntLoop:
     # ------------------------------------------------------------ events
     def scan_events(self, st):
         """Deaths, and our target leaving the world model. On Outlands an in-view kill is
-        S2C 0xAF + 0x1D + 0xFF sub 0xDEAD at once (capture 20261001_214649): `prune`
-        (why dead) or `delete` of our target is the kill, and `mobile_death` names its
-        corpse, in either order. A serial in a mobile_death is never targeted again."""
-        for ev in self.link.events[self.ev_upto:]:
+        S2C 0xAF + 0x1D + 0xFF sub 0xDEAD at once (capture 20261001_214649): `prune` (why dead,
+        from the 0xAF) of our target is the kill, and `mobile_death` names its corpse; a 0x1D
+        (`delete`) of it with neither in the same batch is a live mobile leaving the view: a shade
+        wolf's stealth mid-fight comes back 3.5-6 s later (docs/NOTES.md, 20261012_210013), so it is
+        not a kill (counted as one, the simulator's runner logged 15 % more kills than it made); a
+        death of it that follows counts then. A serial in a mobile_death is never targeted again."""
+        new = self.link.events[self.ev_upto:]
+        died = {serial_of(e["serial"]) for e in new if e.get("ev") == "mobile_death"
+                or (e.get("ev") == "prune" and e.get("why") == "dead")}
+        for ev in new:
             kind = ev.get("ev")
             if kind == "mobile_death":
                 s = serial_of(ev["serial"])
                 self.dead.add(s)
                 if ev.get("corpse") is not None:
                     self.corpse_of[s] = serial_of(ev["corpse"])
+                lost = self.lost_alive.pop(s, None)
                 if s == self.engaged:
                     self.on_kill(st, s)
                 elif self.team is not None and (mob := self.team.fought_mob(s)) is not None:
                     self.on_kill(st, s, mob)
+                elif lost is not None and time.monotonic() - lost[1] <= LOST_ALIVE_S:
+                    self.on_kill(st, s, lost[0])
             elif kind in ("delete", "prune") and self.engaged is not None \
                     and serial_of(ev["serial"]) == self.engaged:
                 why = ev.get("why", "delete")
-                if why in ("delete", "dead"):
+                if why == "dead" or self.engaged in died or self.engaged in self.dead:
                     self.on_kill(st, self.engaged)
                 else:
                     log(f"target 0x{self.engaged:08X} left the client's world ({why}); not a kill")
+                    if why == "delete":
+                        self.lost_alive[self.engaged] = (self.engaged_mob or {}, time.monotonic())
+                        if self.team is not None:
+                            self.team.guard_needed = True   # its aggro cleared: the pets back on guard
                     self.disengage("lost")
             elif kind == "damage" or (kind == "speech_heard" and DAMAGE_TEXT.match(ev.get("text") or "")):
                 self.hurt_t[serial_of(ev["serial"])] = time.monotonic()
@@ -1970,12 +1985,15 @@ def stop_intent(loop, text):
 # monster is a target and the pull reaches the bard range. And no lingering in a cleared area
 # (user 2026-10-13: respawns run on a timer, humans move straight on to the next pack; his crawl
 # 20261013_204518 fought 595 of 764 s): the simulated zone crawl spent 30 % of its time on the
-# level waiting out --crawl-depleted-s 90 at cleared waypoints.
+# level waiting out --crawl-depleted-s 90 at cleared waypoints. Moving on at once took the crawl deeper and
+# into the countess rooms more often, and its deaths from 0.40 to 1.25 a game hour, 46 of 54 on the walk to
+# the gate after a leave at 35 %; leaving at 50 % and opening a zone only below 20 hits lost a minute
+# brought them to 0.54 with 89,000 gold a game hour against 77,000 before (docs/SIM.md, 98 x 60 min).
 STYLE_DEFAULTS = {
     "mage": {"heal_at": 0.75, "leave_at": 0.60, "leave_multi_at": 0.80, "pull_range": 3, "target_name": "mongbat",
-             "crawl_dwell": 6.0, "crawl_depleted_s": 90.0},
-    "pets": {"heal_at": 0.80, "leave_at": 0.35, "leave_multi_at": 0.55, "pull_range": 8, "target_name": "",
-             "crawl_dwell": 1.5, "crawl_depleted_s": 5.0},
+             "crawl_dwell": 6.0, "crawl_depleted_s": 90.0, "crawl_max_dmg": 30.0},
+    "pets": {"heal_at": 0.80, "leave_at": 0.50, "leave_multi_at": 0.55, "pull_range": 8, "target_name": "",
+             "crawl_dwell": 1.5, "crawl_depleted_s": 5.0, "crawl_max_dmg": 20.0},
 }
 
 
@@ -2016,9 +2034,9 @@ def arg_parser() -> argparse.ArgumentParser:
                          "(default 90, --pets 5)")
     ap.add_argument("--crawl-learn-s", type=float, default=600.0,
                     help="crawl: seconds observed in a zone (store history included) before going deeper")
-    ap.add_argument("--crawl-max-dmg", type=float, default=30.0,
+    ap.add_argument("--crawl-max-dmg", type=float, default=None,
                     help="crawl: the most hits lost per minute a zone may cost (estimated, or predicted for "
-                         "the next zone)")
+                         "the next zone; default 30, --pets 20)")
     ap.add_argument("--crawl-depth-risk", type=float, default=1.5,
                     help="crawl: a deeper zone's predicted hits lost per minute = the zone before's x this")
     ap.add_argument("--crawl-max-leaves", type=int, default=2,
@@ -2067,7 +2085,7 @@ def arg_parser() -> argparse.ArgumentParser:
                     help="missing hits from which the spell is Greater Heal, not Heal (default: the mana "
                          "break-even for your Magery, healing.gheal_break_even: 19 at Magery 60)")
     ap.add_argument("--leave-at", type=float, default=None,
-                    help="leave below this share of hits (default 0.60; --pets 0.35)")
+                    help="leave below this share of hits (default 0.60; --pets 0.50)")
     ap.add_argument("--leave-per-step", type=float, default=0.004,
                     help="--leave-at is raised by this per step of the route from --fight-spot back to "
                          "--spot, at most to --heal-at - 0.05 (the walk out under attack)")

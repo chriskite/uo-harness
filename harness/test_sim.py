@@ -340,6 +340,81 @@ def test_standoff():
           out[0.9][0] and min(out[0.9][1:]) >= 3 and out[0.5][0] is False, str(out))
 
 
+def test_fire():
+    print("== a forgotten soul's spell leaves fire under us: step off it, the pets kept in vet reach ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    w = world_with([{"key": "forgotten soul", "at": [5268, 648, 0]}], seed=7)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.spec = {**m.spec, "melee": None, "ranged": {**m.spec["ranged"], "damage": [1, 1], "every_s": 1.0, "keep": 10}}
+    m.target, m.threat = w.player.serial, {w.player.serial: 1e9}
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            for _ in range(40):
+                clock.advance(0.5)
+                if w.player.pos[:2] in tamer.Team.fire_tiles(loop.state()):
+                    break
+            under = w.player.pos[:2] in tamer.Team.fire_tiles(loop.state())
+            walked = loop.team.out_of_fire(loop.state())
+            st = loop.state()
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    fire = tamer.Team.fire_tiles(st)
+    pets = [p for p in w.pets() if p.alive]
+    check("fire under us, then a step off it with every pet within --vet-range",
+          under and walked and w.player.pos[:2] not in fire
+          and all(cheb_(w.player, p) <= args.vet_range for p in pets),
+          f"under {under} walked {walked} at {w.player.pos} fire {fire} pets {[cheb_(w.player, p) for p in pets]}")
+
+
+def test_pet_res():
+    print("== a pet dies: 'All Follow Me', the vet supplies resurrect its ghost; no leave meanwhile ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    w = world_with([], seed=7)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    leaves, said = [], []
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            mark = w.metrics["follow_commands"]
+            w.die(gb, None)
+            for _ in range(30):
+                clock.advance(0.5)
+                st = loop.state()
+                leaves.append(loop.leave_reason(st))
+                loop.team.care(st)
+                if not gb.ghost:
+                    break
+            said = w.metrics["follow_commands"] - mark
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("the ghost followed ('All Follow Me'), came back from a vet channel, and no leave was asked meanwhile",
+          said >= 1 and not gb.ghost and gb.hits > 0 and not any(leaves),
+          f"follow {said} ghost {gb.ghost} hits {gb.hits:.0f} leaves {[l for l in leaves if l][:2]}")
+
+
 def test_heal_in_place():
     print("== --heal-in-place: a pet below --pet-leave-at is no leave while vet supplies last ==")
     import tempfile
@@ -551,7 +626,8 @@ def main():
         print("SKIP: no map files (install dir)")
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
-              test_standoff, test_heal_in_place, test_songs, test_pull_budget, test_hold_first_sight, test_rope,
+              test_standoff, test_fire, test_pet_res, test_heal_in_place, test_songs, test_pull_budget,
+              test_hold_first_sight, test_rope,
               test_rest_hurt_pet):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))

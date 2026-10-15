@@ -1623,7 +1623,7 @@ def pets_run():
     for name in ("wait", "pos", "open_containers"):
         setattr(TamerLink, name, getattr(Link, name))
     fast = {"SKILL_GAP_S": 0.3, "CALM_SUCCESS_S": 0.6, "KILL_AFTER_S": 0.8, "GUARD_REPEAT_S": 0.5,
-            "VET_BUSY_S": 1.0, "VET_IDLE_S": 0.3}
+            "VET_BUSY_S": 1.0, "VET_IDLE_S": 0.3, "RES_TRY_S": 0.5}
     saved = {k: getattr(tamer, k) for k in fast}
     for k, v in fast.items():
         setattr(tamer, k, v)
@@ -1652,6 +1652,9 @@ def pets_run():
         for _ in range(6):                                  # W3's death and the guard after it
             loop.tick()
         link.feed(var(0xBF, u16(0x19) + b"\x00" + u32(PHOENIX) + b"\x01"))   # bf 000b 0019 00 <serial> 01
+        st = loop.state()
+        waiting = loop.leave_reason(st)                     # vet supplies in the pack: its ghost is vetted first
+        time.sleep(0.6)                                     # ...for RES_TRY_S
         st = loop.state()
         reason = loop.leave_reason(st)
         try:
@@ -1704,8 +1707,9 @@ def pets_run():
           str(sorted(hex(i) for i in sent_ids)))
     check("every speech is a pet command, Razor-shaped",
           all(p == tamer.command(text) for _, text, p in says_), str([t for _, t, _ in says_]))
-    check("the dead phoenix is a leave reason; no going back in, a pet_down juncture",
-          reason == ("AlaFlambe is dead", "attention") and "AlaFlambe is dead" in back
+    check("the dead phoenix: no leave while the vet supplies may resurrect it (RES_TRY_S), then a leave; "
+          "no going back in, a pet_down juncture",
+          waiting is None and reason == ("AlaFlambe is dead", "attention") and "AlaFlambe is dead" in back
           and any(j["kind"] == "pet_down" for j in juncs), f"{reason} {back!r}")
     refused = []
     for text in ("GraveRobber release", "all release", "All Transfer", "release"):

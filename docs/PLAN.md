@@ -1837,7 +1837,14 @@ Mausoleum"; docs/HUNT_LOOP.md "Pets"). Decisions:
   off-hue for Logan Wolf (ANTICHEAT.md §8.20, not fixed).
 - *No release, ever* (user 2026-10-12): a fixed command list, and `ctl act say` / `menu_pick` refuse
   release/transfer.
-- *A pet down ends the run* (`pet_down`): no resurrection flow yet; the overseer or the user revives.
+- *A pet down ends the run* (`pet_down`), unless the vet supplies bring its ghost back first (2026-10-14:
+  the user's vet loop resurrected GraveRobber on the run, capture 20261014_221341): "All Follow Me", vet
+  the ghost up to `RES_TRY_S` 30 s, then leave. Rejected: a healer trip or a stable claim by the runner
+  (the overseer or the user still does those).
+- *Leave at 50 %, zones below 20 hits a minute* (2026-10-14, with moving on at once from cleared areas):
+  the simulator's deaths rose 0.40 -> 1.25 a game hour with the faster pace, 46 of 54 on the walk to the
+  gate after a leave at 35 % from the deep rooms; these two together took them to 0.54 at the same gold.
+  It leaves more than "leave less, heal in place" (user 2026-10-13) asked; the trade is in docs/SIM.md.
 - Not built: walking between dungeon levels (start on the hunting level), claiming/stabling, Herding.
   Verified offline only (`test_loop_hunt.py pets`); first live run pending.
 

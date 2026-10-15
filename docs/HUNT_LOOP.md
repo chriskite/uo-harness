@@ -25,9 +25,9 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--fight-spot X Y` | `--spot` | The tile to fight on. Each visit walks there; the pull range, the corpse range and the idle return are measured from it. Candidates below ("Fight spots"). |
 | `--crawl` | off | Patrol the floor instead of one fight spot ("Crawl"); not with `--fight-spot`. The pull range, the corpse range and Stationary Penalty walks are measured from where we stand. |
 | `--crawl-band` / `--crawl-zones` | `40` / `0` | Route steps from the exit per zone (internal depth bands, numbered from 1; not dungeon levels); at most this many zones (0: all). |
-| `--crawl-dwell` / `--crawl-depleted-s` | `6` / `90` | A waypoint where nothing showed up is looked over for about this long (× 0.6–1.4); an area where targets came is left as depleted after this long without one. |
+| `--crawl-dwell` / `--crawl-depleted-s` | `6` / `90` (`--pets` 1.5 / 5) | A waypoint where nothing showed up is looked over for about this long (× 0.6–1.4); an area where targets came is left as depleted after this long without one. |
 | `--crawl-learn-s` | `600` | Seconds observed in a zone (store history included) before the next one may open. |
-| `--crawl-max-dmg` / `--crawl-depth-risk` | `30` / `1.5` | The most hits lost per minute a zone may cost (estimated; for an unvisited zone: the zone before's × the risk factor). |
+| `--crawl-max-dmg` / `--crawl-depth-risk` | `30` (`--pets` 20) / `1.5` | The most hits lost per minute a zone may cost (estimated; for an unvisited zone: the zone before's × the risk factor). |
 | `--crawl-max-leaves` | `2` | Survival leaves from a zone in one run that close it again. |
 | `--crawl-max-hits` / `--crawl-max-fight-s` | `0.5` / `180` | Avoid a creature type costing more than this share of our max hits per fight, or taking longer than this per kill (estimated). |
 | `--exit-dir D` | `4` (south) | The step from the spot onto the exit teleporter. |
@@ -40,7 +40,7 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--pk-wait S` | `600` | Recall mode: after leaving from a hostile player, stay home this long before going back in. |
 | `--heal-at` | `0.75` (`--pets` 0.80) | Heal below this share of max hits (healing.py: a heal potion if one can be drunk, else a spell). |
 | `--gheal-min-missing` | the mana break-even for your Magery (19 at 60) | Missing hits from which the heal spell is Greater Heal; below it, Heal. |
-| `--leave-at` | `0.60` (`--pets` 0.35) | Leave below this share of max hits (plus the fight spot's route margin). |
+| `--leave-at` | `0.60` (`--pets` 0.50) | Leave below this share of max hits (plus the fight spot's route margin). |
 | `--leave-per-step` | `0.004` | The route margin: `--leave-at` + this × the steps of the route from the fight spot back to `--spot`, at most `--heal-at` − 0.05. |
 | `--leave-multi-at` | `0.80` (`--pets` 0.55) | Leave below this share when two or more mobs are attacking. |
 | `--mana-reserve` | `22` | Mana kept for heals (two Greater Heals): the attack spell only while mana ≥ reserve + its cost. |
@@ -273,7 +273,7 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
 | `--retreat-at` | `0.55` | Below this share of hits with a mob next to us: run 7 tiles from every attacker and let the pets hold it. |
 | `--discord` / `--peace` / `--provoke` | on | Each bard skill (`--no-…` turns one off). |
 | `--songs` | on | Keep the three barding songs up (`--no-songs` turns them off). |
-| `--heal-at`, `--leave-at`, `--leave-multi-at`, `--pull-range`, `--target-name` | `0.80`, `0.35`, `0.55`, `8`, any monster | The pets style's own defaults (STYLE_DEFAULTS; the mage defaults are unchanged). |
+| `--heal-at`, `--leave-at`, `--leave-multi-at`, `--pull-range`, `--target-name`, `--crawl-dwell`, `--crawl-depleted-s`, `--crawl-max-dmg` | `0.80`, `0.50`, `0.55`, `8`, any monster, `1.5`, `5`, `20` | The pets style's own defaults (STYLE_DEFAULTS; the mage defaults are unchanged). The leave at 50 % and zones only below 20 hits lost a minute came with moving on at once from a cleared area (docs/SIM.md "Faster from one fight to the next"). |
 
 **The rules** (each from the capture or a user statement):
 
@@ -329,10 +329,18 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    (up to 10 steps / 4 s, until the pets are near) instead of standing, and a hostile player
    recalls at once (the simulator's trade-off: standing killed us, not waiting stranded pets,
    docs/SIM.md). After a recall a missing pet is an urgent `pet_left_behind` juncture.
-7. **Leaving for the pets**: a pet dead (bonded ghost), below `--pet-leave-at`, or out of view for
-   30 s. With a pet dead or gone the run never goes back in (`pet_down` juncture).
+7. **Leaving for the pets**: a pet below `--pet-leave-at`, or out of view for 30 s, or dead (a bonded
+   ghost) for `RES_TRY_S` (30 s) with vet supplies in the pack (at once without). With a pet dead or
+   gone the run never goes back in (`pet_down` juncture).
+   - **A dead pet is vetted back** (live 20261014_221341: GraveRobber died at 22:35:53.1 and the channel
+     Logan had begun finished 2.0 s later with "You are able to resurrect your follower.", 31 % hits,
+     no gump; knowledge #11547: 80 Veterinary). At its death: "All Follow Me" (the ghost follows), the
+     vet supplies for a ghost within `--vet-range`, a walk to one beyond it, no crawl walk meanwhile;
+     back alive: "All Guard Me".
 8. **Kills**: the engaged target, and any mob the pets fought (in war mode next to a pet that was
-   hurt, or engaged) that dies within 60 s; their corpses are looted like the mage's.
+   hurt, or engaged) that dies within 60 s; their corpses are looted like the mage's. A target that
+   leaves the view alive (0x1D without the 0xAF of a death) is no kill: a shade wolf's stealth
+   mid-fight; the pets are put back on guard, and its death within 30 s still counts.
 9. **Never a pet's release or transfer** (user 2026-10-12: the pets are expensive): the commands
    are a fixed list (`tamer.COMMANDS`: All Guard Me, All Follow Me, All Kill, All Stop, All Stay,
    All Come), Razor-shaped (`actions.razor_say`), and anything matching `release`/`transfer` is
@@ -408,11 +416,15 @@ moongate, and never near a red one).
     it even with something on us.
   - Until then: the vet supplies, potions and the retreat.
   - Logan never left mid-trip: he vetted, drank and ran 18 tiles from the countess' copies.
+- **Fire on the ground** (`tamer.FIRE_GRAPHICS`, the forgotten souls' 0x6D70; user 2026-10-14: "learning
+  not to stand in fire"): never a pull spot or a repositioning tile, a danger tile for routes, and stepped
+  off (`Team.out_of_fire`, within 2 steps, the pets kept within `--vet-range`) when under us, never
+  mid-channel. Live it hurt no one standing on or beside it (docs/NOTES.md "Logan Wolf's run through Maus 4").
 - **`--crawl-avoid X0 Y0 X1 Y1`** (repeat): no waypoint in the box, and its tiles cost routes
   `DANGER_COST_X` (they keep out where they can). For the Mausoleum, `5170 690 5188 718` is the
   nightstalker room Logan never went into (user 2026-10-13: stay out for now).
 
-**Not built**: claiming or stabling the pets, resurrecting a pet, and Herding (Logan double-clicked
+**Not built**: claiming or stabling the pets, a corpse run of our own, and Herding (Logan double-clicked
 his shepherd's crook once). Never run live yet; run in the Mausoleum simulator (docs/SIM.md) since
 2026-10-13.
 

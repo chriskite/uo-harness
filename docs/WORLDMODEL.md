@@ -936,7 +936,10 @@ the player and every item not carried by the player.
   house (reach 4) arrived at 22 tiles three times, was pruned at once each time, and was missing
   at all 12 denies it caused.
 - Deaths: `0xAF` and `0xFF` sub `0xDEAD` remove the owner (`prune` why `dead`); a mobile already
-  pruned gets `why: "dead"` and `dead_t` in last_seen.
+  pruned gets `why: "dead"` and `dead_t` in last_seen. Except a bonded pet's ghost: the server
+  re-sends it (0x20, 0xA1 0, 0xBF sub 0x19 dead) between its 0xAF and the 0xDEAD, and the 0xDEAD
+  leaves a mobile flagged dead in place (live 20261014_221341 22:35:53.2; it used to drop it, and the
+  next 0x77 brought it back without the flag).
 - `0x1D` removes the entity with everything under it (it used to leave the children).
 - Facet change: `StateStore.clear_facet`, mobiles go with why `facet`; self's equipment, backpack
   and bank box (layer 0x1D) with their contents stay.

@@ -408,8 +408,38 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   there (`--crawl-dwell` 1.5), and doesn't walk on while a vet channel runs or a pet in reach still
   needs one (`tamer.Team.busy_healing`). 98 x 60 min: zone 98 kills a hunting hour (87), 85,100 gold
   a game hour (77,100), 32 runs of 98 with a pet death (42), but 1.17 deaths a game hour (0.40);
-  loop 99 kills (96), 67,400 gold (65,500), 50 pet-death runs (59), 1.86 deaths (2.47). The zone
-  crawl's character deaths need a look.
+  loop 99 kills (96), 67,400 gold (65,500), 50 pet-death runs (59), 1.86 deaths (2.47).
+- **What killed us at the faster pace** (2026-10-14): the crawl opened its deep zones sooner and spent
+  more time there (zone 4 opened 28 times in the 98 runs against 16; 37 countess kills against 11), and 46
+  of the 54 deaths came after a leave at 35 %: about half 20-29 tiles from the gate in the countess and
+  corpsebride rooms 1-25 s after it, 13 at the gate itself waiting for the pets. Arms (98 x 60 min each,
+  same seeds; the runs are deterministic per seed):
+
+  | arm | kills/h | gold/game h | deaths/game h | runs with a death |
+  |---|---|---|---|---|
+  | fast pace, leave 35 %, zones <= 30 | 103 | 89,300 | 1.25 | 53 |
+  | old pace (90 s / 6 s), leave 35 % | 83 | 72,500 | 0.58 | 38 |
+  | fast, zones <= 15 | 91 | 84,700 | 0.64 | 38 |
+  | fast, leave 50 % | 106 | 89,900 | 0.79 | 37 |
+  | fast, leave 60 % | 103 | 86,000 | 0.93 | 43 |
+  | fast, leave 50 %, zones <= 20 | 100 | 89,100 | 0.54 | 29 |
+  | fast, leave 50 %, zones <= 15 | 92 | 84,700 | 0.65 | 36 |
+  | old pace, leave 50 % | 86 | 75,100 | 0.67 | 41 |
+
+  The pets style now leaves at 50 % and opens a zone only below 20 hits lost a minute (STYLE_DEFAULTS).
+  With everything below too (the vet resurrection, the daemon, the purger, the souls, Maus 4): zone 95
+  kills an hour, 86,600 gold a game hour, 0.48 deaths (31 runs), 24 runs with a pet death, 11 pets
+  vetted back; the old defaults in the same world: 104, 92,600, 0.82 (48). Loop: 100, 71,700, 1.51.
+  The same code without Maus 4's links (a different random draw) gave 0.62 deaths: differences of 0.1-0.15
+  a game hour are within the noise of 98 runs.
+- **A target that left the view alive counted as a kill** (fixed, `HuntLoop.scan_events`): a 0x1D
+  without the 0xAF of a death (a shade wolf's Vanish) was a kill, so the runner logged 4,967 kills for
+  the simulator's 4,220 and walked off mid-fight; now 4,310 for 4,078.
+- **New in the world** (captures 20261014_210020 and _221341, docs/NOTES.md): the forgotten souls (4 at
+  the consort, their fire marks 0x6D70, no damage), the reanimated daemon (its bone burst on each of us
+  within 5: pets 94-107, us 39-49, every ~15 s), the corpse purger's disease (2 of 3 barrage hits; -21
+  every 5 s, 4 ticks, stacking), the vet resurrection of a pet's ghost (31 %), Maus 4's two links and four
+  of its monsters (wiki stats; no fight there yet), the second level's hop at (5512, 669).
 
 ## Limits
 
@@ -458,5 +488,5 @@ Each is a normal play session with the proxy capturing as always; tell the codin
    timing (attempts, one copy at a time, ~11 s, the pet frozen meanwhile) is now from 2 fights.
 7. **The rest of the level** (and the way back out): walk every room of the fight level once, and the
    teleporters from it. The sim has 42 spawns from where Logan happened to see monsters.
-8. If it happens anyway (don't force it): a pet death and its resurrection, and a full stable/claim at
-   home, so the runner can learn both flows.
+8. If it happens anyway (don't force it): a full stable/claim at home (the pet death and its vet
+   resurrection came in 20261014_221341, one try).

@@ -65,8 +65,8 @@ CORPSE_GUMP = 0x09
 TOME_ROW_BUTTON0 = 100    # the tome's rows: 100 + row index (test_loop_hunt's layout, escape parses it)
 GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
-ON_HIT = {"bleed", "bleed_area", "poison", "drain"}   # scenario specials rolled on a monster's hit
-TIMED = {"charge", "transfix", "vanish", "wail"}     # ...used on a cooldown while it fights
+ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease"}   # scenario specials rolled on a monster's hit
+TIMED = {"charge", "transfix", "vanish", "wail", "burst"}     # ...used on a cooldown while it fights
 GATE_GUMP = 0xE0E675B8    # "Moongate Destinations" (docs/NOTES.md "Moongate gumps")
 SONGS = ("discord", "peace", "provoke")
 TEXT_SONG_WAIT = "You must wait a few moments before performing another barding song."
@@ -122,6 +122,7 @@ class Mob:
     expires: float | None = None  # a summoned monster (transfixed copy) vanishes then
     held_until: float = 0.0       # a transfixed pet stands still and doesn't fight until then
     hidden_until: float = 0.0     # stealthed (Vanish) until then: unseen, unhittable; 0: visible
+    diseases: list = field(default_factory=list)   # [[next tick time, ticks left, damage, every_s]]: they stack
     cd: dict = field(default_factory=dict)   # ability -> next time it is ready
     mode: str = "follow"          # pets: follow, guard, kill, stay
     kill: int | None = None
@@ -303,11 +304,11 @@ class World:
             elif not near and s in self.viewing:
                 self.viewing.discard(s)          # the client drops it by range itself
         for s, it in self.items.items():
-            if it.get("kind") in ("corpse", "gate"):
+            if it.get("kind") in ("corpse", "gate", "fire"):
                 near = cheb((it["x"], it["y"]), self.player.pos) <= VIEW
                 if near and s not in self.viewing_items:
                     self.viewing_items.add(s)
-                    if it["kind"] == "gate":
+                    if it["kind"] in ("gate", "fire"):
                         self.send(P.ground_item(s, it["graphic"], 1, it["x"], it["y"], it["z"]))
                     else:
                         self.send(P.ground_item(s, combat.CORPSE_GRAPHIC, it["body"], it["x"], it["y"], it["z"]),
@@ -415,6 +416,7 @@ class World:
             self.send(P.hits(m.serial, m.pct(), 100))
 
     def die(self, m: Mob, by: Mob | None):
+        m.diseases = []
         if m.kind == "player":
             m.hits, m.ghost = 0, True
             self.metrics["deaths"] += 1
@@ -544,6 +546,11 @@ class World:
         for s, it in list(self.items.items()):
             if it.get("kind") == "corpse" and t - it["t"] > CORPSE_DECAY_S:
                 self._remove_corpse(s)
+            elif it.get("kind") == "fire" and t >= it["until"]:
+                del self.items[s]
+                if s in self.viewing_items:
+                    self.viewing_items.discard(s)
+                    self.send(P.delete(s))
         if not self.penalty and t - self.last_step_t >= PENALTY_STILL_S:
             self._apply_penalty()
         pl = self.player
@@ -575,6 +582,14 @@ class World:
                 m.bleed_until = 0.0
                 if m.kind == "player":
                     self._sys("You are no longer bleeding.")
+        for dz in list(m.diseases):
+            if t >= dz[0]:
+                self.hurt(m, dz[2], None, "disease")
+                dz[0], dz[1] = dz[0] + dz[3], dz[1] - 1
+                if dz[1] <= 0:
+                    m.diseases.remove(dz)
+                    if not m.diseases and m.kind == "player":
+                        self._sys("You are no longer diseased.")
         if (m.calm_until > t or m.provoke) and int(t / TICK_S) % int(1.0 / TICK_S) == 0:
             diff = m.spec.get("difficulty") or 100
             if self.rng.random() < diff / 100.0 / 100.0:     # (difficulty / 100) % per second (patch 2020-04-07)
@@ -684,6 +699,9 @@ class World:
                 m.next_swing = self._due(m.next_swing, ranged["every_s"] * self.rng.uniform(0.85, 1.15))
                 self.hurt(tgt, self.roll(ranged["damage"]), m, "spell")
                 self._specials(m, tgt, spec)
+                for sp in spec.get("specials", []):
+                    if sp["kind"] == "fire_mark":
+                        self._fire_mark(tgt, sp)
             if d <= ranged.get("keep", ranged["range"]) or not spec.get("melee"):
                 return
         if d <= 1 and abs(m.z - tgt.z) <= 15:
@@ -724,6 +742,12 @@ class World:
             elif kind == "drain":
                 self.hurt(tgt, sp.get("damage", 8), m, "drain")
                 self.heal(m, sp.get("damage", 8))
+            elif kind == "disease":
+                # corpse purger (20261014_221341 22:33:53): "You have contracted a foul disease!", then -21
+                # every 5 s, 4 times; a second infection 4 s later ran beside the first
+                tgt.diseases.append([self.t + sp["every_s"], sp["ticks"], sp["tick"], sp["every_s"]])
+                if tgt.kind == "player":
+                    self._sys("You have contracted a foul disease!")
 
     def _start_bleed(self, o: Mob, sp: dict):
         """A bleed: `tick` damage every `every_s` for `seconds` (the trip: 8-10 every 3 s, 5 ticks, then
@@ -733,6 +757,18 @@ class World:
         every = sp.get("every_s", 3.0)
         o.bleed = (sp.get("tick", [8, 10]), every)
         o.bleed_until, o.bleed_next = self.t + sp.get("seconds", 15.0), self.t + every
+
+    def _fire_mark(self, tgt: Mob, sp: dict):
+        """A forgotten soul's spell hit: fire (0x6D70) on the tile of whom it hit, `lifetime_s` (capture
+        20261014_210020: 7 of them, 5.4-5.7 s, each at the instant of the hit; none hurt anyone on or beside
+        it, so no damage here)."""
+        s = self._item_serial()
+        self.items[s] = {"kind": "fire", "graphic": sp["graphic"], "x": tgt.x, "y": tgt.y, "z": tgt.z,
+                         "until": self.t + self.rng.uniform(*sp["lifetime_s"])}
+        if cheb(tgt.pos, self.player.pos) <= VIEW:
+            self.viewing_items.add(s)
+            self.send(P.ground_item(s, sp["graphic"], 1, tgt.x, tgt.y, tgt.z))
+        self.count("fire_marks", "on us" if tgt.kind == "player" else tgt.name)
 
     def _abilities(self, m: Mob, tgt: Mob, spec: dict):
         """Timed specials while fighting: the nightstalker's Charge, the vampire countess' transfix,
@@ -765,6 +801,15 @@ class World:
                     p = sp.get("near_chance", 1.0) if d <= near else sp.get("far_chance", 0.0) if d <= far else 0.0
                     if p and self.rng.random() < p:
                         self.hurt(o, self.roll(sp["damage"]), m, "wail")
+            elif kind == "burst":
+                # reanimated daemon (20261014_221341): bones around it out to ~5 tiles, one hit on each of us
+                if kind not in m.cd:
+                    m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
+                    continue
+                m.cd[kind] = t + sp["every_s"] * self.rng.uniform(0.9, 1.1)
+                for o in self.team():
+                    if cheb(o.pos, m.pos) <= sp["radius"]:
+                        self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "burst")
             elif kind == "vanish":
                 if kind not in m.cd:                     # the first one comes a while into the fight
                     m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
@@ -1207,8 +1252,8 @@ class World:
             self.send(P.cliloc(tamer.CLILOC_ACTION_WAIT))
             return
         rng = v["range"]
-        need = [m for m in self.pets() if m.alive and not m.ghost and cheb(m.pos, pl.pos) <= rng + 3
-                and (m.hits < m.hits_max or m.poison_until > self.t)]
+        need = [m for m in self.pets() if (m.ghost or (m.alive and (m.hits < m.hits_max or m.poison_until > self.t)))
+                and cheb(m.pos, pl.pos) <= rng + 3]
         if not need and pl.hits >= pl.hits_max and pl.poison_until <= self.t:
             self._sys(tamer.TEXT_VET_NEEDLESS)
             return
@@ -1221,12 +1266,21 @@ class World:
         pl, v = self.player, self.sc["vet"]
         self.vet_end = None
         rng = 1 if self.vet_moved else v["range"]
+        ghosts = [m for m in self.pets() if m.ghost and cheb(m.pos, pl.pos) <= rng]
         pets = [m for m in self.pets() if m.alive and not m.ghost and cheb(m.pos, pl.pos) <= rng
                 and (m.hits < m.hits_max or m.poison_until > self.t)]
         hurt_self = pl.hits < pl.hits_max or pl.poison_until > self.t
-        if not pets and not hurt_self:
+        if not pets and not hurt_self and not ghosts:
             self._sys(tamer.TEXT_VET_FAR)
             return
+        for m in ghosts:
+            if self.rng.random() < v["res_chance"]:
+                # live 20261014_221341 22:35:55.1: the line, 0xBF sub 0x19 alive, 31 %, then this channel's heal
+                m.ghost, m.mode, m.hits = False, "follow", m.hits_max * v["res_hits"]
+                self._sys(tamer.TEXT_VET_RES)
+                self.send(P.pet_dead(m.serial, False), P.hits(m.serial, m.pct(), 100))
+                self.count("pet_res", m.name)
+                pets.append(m)
         self._sys(tamer.TEXT_VET_FINISH)
         share = 1.0 if len(pets) <= 1 else v.get("multi_share", 0.67)
         for m in pets:

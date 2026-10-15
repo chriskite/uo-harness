@@ -1369,6 +1369,18 @@ def test_pruning():
               _dead(0x4F000001, B), t=151.0)
     eq("0xAF + 0x1D + 0xDEAD: one prune, one delete, one mobile_death",
        [e["ev"] for e in ev], ["prune", "delete", "mobile_death"])
+    # a bonded pet dies (live 20261014_221341 22:35:53.2): 0xAF, the server re-sends it (0x20, 0xA1 0,
+    # 0xBF sub 0x19 dead), then 0xDEAD; it is a ghost that follows until the 0x19 says alive (a vet res)
+    G = 0x00001F0D
+    feed(_mob20(G, 1002, 1000, noto=2), t=151.5)
+    feed(bytes.fromhex("af" f"{G:08x}" "4f000002" "00000000"), _mob20(G, 1002, 1000, noto=2),
+         bytes.fromhex("a1" f"{G:08x}" "0064" "0000"), _var(0xBF, "001900" f"{G:08x}" "01"),
+         _dead(0x4F000002, G, "a gravebug corpse", noto=2), t=151.6)
+    eq("a bonded pet's ghost stays through 0xDEAD, dead", (G in st.mobiles, st.mobiles.get(G) and st.mobiles[G].dead),
+       (True, True))
+    feed(_var(0xBF, "001900" f"{G:08x}" "00"), t=152.0)
+    eq("0xBF sub 0x19 alive: resurrected", st.mobiles[G].dead, None)
+    feed(bytes.fromhex("1d" f"{G:08x}"), t=152.1)
 
     # a mobile walking away is dropped by the server-paced World.ProcessDeletes (0xFF sub 5)
     feed(_mob20(C, 1005, 1000), t=152.0)
