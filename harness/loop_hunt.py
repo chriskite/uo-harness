@@ -328,19 +328,24 @@ class HuntLoop:
         self.drink_on_the_run(st)
 
     def drink_on_the_run(self, st):
-        """On the walk out to --leave-gate (Mover guard, between steps): a heal potion when hurt below
-        --heal-at and one is ready (user 2026-10-13: banshees catch real players on the way to the
-        gate too; 'I just run and heal and hope for the best, with pets guarding'). No vet supplies:
-        their channel breaks on a step."""
+        """On the walk out to --leave-gate, a red's flight included (Mover guard, between steps): a heal
+        potion when hurt below --heal-at and one is ready (user 2026-10-13: banshees catch real players on
+        the way to the gate too; 'I just run and heal and hope for the best, with pets guarding'), and
+        (--pets) the vet supplies on us when no channel runs (user 2026-10-15: "It needs to heal on the run
+        when fleeing a red"). A step doesn't stop the channel healing us: it only shortens the reach to the
+        pets to 1 (live 20261014_221341 22:35:50-55 Logan walked 2 tiles mid-channel and its finish still
+        healed him and resurrected GraveRobber)."""
         if not self.walking_out or self._drinking:
             return
         me = st["world"]["self"]
-        if me.get("hits") is None or self.frac(me) >= self.args.heal_at \
-                or not self.potions.ready(time.monotonic()) or not healing.heal_potions(st["world"], self.me(st)):
+        if me.get("hits") is None or self.frac(me) >= self.args.heal_at:
             return
         self._drinking = True
         try:
-            self.heal(st, potions=True)
+            if self.potions.ready(time.monotonic()) and healing.heal_potions(st["world"], self.me(st)):
+                self.heal(st, potions=True)
+            if self.team is not None and time.monotonic() >= self.team.vet_busy_until:
+                self.team.vet(self.link.state())
         finally:
             self._drinking = False
 

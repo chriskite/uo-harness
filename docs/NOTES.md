@@ -3007,6 +3007,22 @@ Task hunt-20261015-174850-2166 (`--crawl-learn-s 180 --crawl-max-dmg 35`). The c
 - Logan carries 40 bandages (0x0E21); the runner has no bandage use (the live self-bandage is 0xBF sub 0x2C on
   his own serial, ~16 s for +16, 20261014_221341); the vet supplies heal him too.
 
+## The ninth live run: a nightstalker from behind, dead in 2 s (test shard, 2026-10-15 18:31-18:40, capture 20261015_171928)
+
+Task hunt-20261015-183114-fbc4 on fb1250e: zones 2 and 3 open from the start, the valuables-only loot (it left
+scrolls, reagents, armour; weight 242 -> 327 on gold), 15 kills (shade wolves, banshees, apparitions, a shadowguard,
+shadow minions) in 9 min, then the countess room (5175-5178, 683-688).
+
+- 18:39:53-56 a corpsebride and the vampire countess on the pets; "keeping off the tank" put Logan at (5176, 688),
+  3 south of the pets; potions and the vet kept him at 71-100.
+- 18:40:10.0 **a nightstalker not seen before** (none in view at 18:40:09.6) hit Logan -58 from (5176, 690), 2
+  tiles south of him, the side away from the pets; 18:40:11.7 its Charge (action 24) -39 with the gravebug -28;
+  dead at 18:40:12.7 (93 -> 36 -> 0 in 2.7 s). Both pets died after him. [INFERENCE: the nightstalker's stealth
+  (the wiki's Vanish and Backstab); it came up the corridor from the stalker room.]
+- Healing on the flight from a red: the runner already drank heal potions on any walk out to the gate
+  (`drink_on_the_run`; I told the user it didn't); now it also starts the vet supplies on Logan there (a step
+  doesn't stop a channel healing him: 20261014_221341 22:35:50-55).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
