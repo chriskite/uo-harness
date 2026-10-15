@@ -449,6 +449,7 @@ class Crawl:
         self.visited = {}            # waypoint -> monotonic time of our last stay
         self.depleted = {}           # waypoint -> monotonic time it may be chosen again
         self.target_t = {}           # waypoint -> monotonic time a target was last in reach there
+        self.dry_from = time.monotonic()   # the open zones have had no target in reach since (update_zones)
         self.kills_at = collections.Counter()
         self.crowd_t = {}            # waypoint -> monotonic time a player or pet was seen there
         self.danger = {}             # serial -> (tile, monotonic time, type, radius) of avoided creatures
@@ -546,9 +547,14 @@ class Crawl:
         if k >= self.top or (k + 1) in self.closed:
             return
         here, nxt = m.rates(k), m.rates(k + 1)
-        if here["minutes"] * 60 >= a.crawl_learn_s and nxt["hits_min"] <= a.crawl_max_dmg:
+        now = time.monotonic()
+        last = max([t for i, t in self.target_t.items() if self.zone[i] <= k] + [self.dry_from])
+        dry = (getattr(a, "crawl_dry_s", 0) or 0) > 0 and now - last >= a.crawl_dry_s
+        if (here["minutes"] * 60 >= a.crawl_learn_s or dry) and nxt["hits_min"] <= a.crawl_max_dmg:
             self.unlocked = k + 1
-            log(f"crawl: going deeper to zone {k + 1}: zone {k} known ({here['minutes']:.1f} min, "
+            self.dry_from = now
+            known = f"no target for {now - last:.0f} s" if dry and here["minutes"] * 60 < a.crawl_learn_s else "known"
+            log(f"crawl: going deeper to zone {k + 1}: zone {k} {known} ({here['minutes']:.1f} min, "
                 f"{here['gold_min']:.1f} gold/min, {here['hits_min']:.1f} hits/min); zone {k + 1} "
                 f"predicted {nxt['hits_min']:.1f} hits/min <= {a.crawl_max_dmg:g}")
             self.h.memory.job_event("hunt", "crawl_zone", {"zone": k + 1, "floor": FLOOR, "open": True,

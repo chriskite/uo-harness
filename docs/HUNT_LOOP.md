@@ -27,6 +27,7 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--crawl-band` / `--crawl-zones` | `40` / `0` | Route steps from the exit per zone (internal depth bands, numbered from 1; not dungeon levels); at most this many zones (0: all). |
 | `--crawl-dwell` / `--crawl-depleted-s` | `6` / `90` (`--pets` 1.5 / 5) | A waypoint where nothing showed up is looked over for about this long (× 0.6–1.4); an area where targets came is left as depleted after this long without one. |
 | `--crawl-learn-s` | `600` | Seconds observed in a zone (store history included) before the next one may open. |
+| `--crawl-dry-s` | `0` (`--pets` 45) | No target in reach anywhere in the open zones for this long: the next zone may open before `--crawl-learn-s` (its predicted risk still has to pass `--crawl-max-dmg`). Live 20261015_172342 the first zone, cleared, was patrolled 75 times in 5 min (the user: "wandering aimlessly"). |
 | `--crawl-max-dmg` / `--crawl-depth-risk` | `30` (`--pets` 20) / `1.5` | The most hits lost per minute a zone may cost (estimated; for an unvisited zone: the zone before's × the risk factor). |
 | `--crawl-max-leaves` | `2` | Survival leaves from a zone in one run that close it again. |
 | `--crawl-max-hits` / `--crawl-max-fight-s` | `0.5` / `180` | Avoid a creature type costing more than this share of our max hits per fight, or taking longer than this per kill (estimated). |

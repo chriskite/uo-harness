@@ -122,7 +122,7 @@ def args(**kw):
     a = dict(pull_range=4, crawl_band=10, crawl_zones=0, crawl_dwell=6.0, crawl_depleted_s=90.0,
              crawl_learn_s=600.0, crawl_max_dmg=30.0, crawl_depth_risk=1.5, crawl_max_leaves=2,
              crawl_max_hits=0.5, crawl_max_fight_s=180.0, target_name="", crawl_loop=False, leave_gate=None,
-             crawl_avoid=None)
+             crawl_avoid=None, crawl_dry_s=0.0)
     a.update(kw)
     return types.SimpleNamespace(**a)
 
@@ -161,6 +161,21 @@ def test_zones():
           and 2 in c.closed, (c.unlocked, c.closed))
     c.update_zones()
     check("a closed zone isn't reopened this run", c.unlocked == 1)
+    c = make_crawl(crawl.Model(), crawl_dry_s=45.0)
+    c.model.add_zone(1, s=120.0, hits=10)           # 2 min observed: far from learn_s 600
+    z1 = next(i for i, z in enumerate(c.zone) if z == 1)
+    c.target_t[z1] = time.monotonic() - 10.0
+    c.update_zones()
+    shut = c.unlocked
+    c.target_t[z1] = c.dry_from = time.monotonic() - 50.0
+    c.update_zones()
+    check("--crawl-dry-s: a target 10 s ago keeps zone 2 shut; none for 50 s opens it before learn_s",
+          shut == 1 and c.unlocked == 2, (shut, c.unlocked))
+    c = make_crawl(crawl.Model(), crawl_dry_s=45.0)
+    c.model.add_zone(1, s=120.0, hits=120)          # 60 hits/min
+    c.target_t[z1] = c.dry_from = time.monotonic() - 50.0
+    c.update_zones()
+    check("dry but costly: the risk rule still keeps zone 2 shut", c.unlocked == 1, c.model.rates(2))
 
 
 def test_choose():
