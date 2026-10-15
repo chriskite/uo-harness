@@ -362,6 +362,14 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    hurt, or engaged) that dies within 60 s; their corpses are looted like the mage's. A target that
    leaves the view alive (0x1D without the 0xAF of a death) is no kill: a shade wolf's stealth
    mid-fight; the pets are put back on guard, and its death within 30 s still counts.
+   **What's looted** (user 2026-10-15: "only loot gold, gems, instruments, and high-value loot like cores,
+   maps, distills, etc. I wouldn't grab reagents or scrolls or heavy magic armor/weps"): with the pets
+   style (`--no-loot-all`) gold first, then items whose name (tooltip, else tiledata, singular) has a
+   word of `combat.LOOT_VALUABLE` (gems, instruments, core, phylactery, distill, map, orb, essence, deed;
+   `--loot-keep WORD` adds more); the rest stays in the corpse. **Weight**: an item that would bring us
+   within 10 stones of the limit (`LOOT_WEIGHT_MARGIN`; tiledata weight, gold ~0.01 a coin
+   [INFERENCE]) is left; at the limit looting stops until the weight drops. Live 20261015_181807 the
+   take-everything loot reached 471/450 and Logan couldn't move.
 9. **Never a pet's release or transfer** (user 2026-10-12: the pets are expensive): the commands
    are a fixed list (`tamer.COMMANDS`: All Guard Me, All Follow Me, All Kill, All Stop, All Stay,
    All Come), Razor-shaped (`actions.razor_say`), and anything matching `release`/`transfer` is

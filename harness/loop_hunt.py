@@ -160,6 +160,7 @@ PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this
 SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
 LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D, no death): its death this soon counts
 GATE_POTION_WAIT_S = 1.5      # hurt beside the leave gate: a heal potion due this soon is drunk before the click
+LOOT_WEIGHT_MARGIN = 10       # stones kept free below the weight limit: overloaded, we can't run (live 475/450)
 HEAL_IN_PLACE_FLOOR = 0.15    # --heal-in-place: below this share the hits leave fires even with a heal coming
 HEAL_SOON_S = 3.0             # --heal-in-place: a heal potion ready this soon is a heal coming
 DAMAGE_TEXT = re.compile(r"^-\d+$")   # Outlands' overhead damage number ("-25"), no 0x0B live
@@ -260,6 +261,8 @@ class HuntLoop:
         self.dead = set()            # serials the server reported dead (0xFF sub 0xDEAD)
         self.corpse_of = {}          # dead mobile serial -> its corpse serial (0xDEAD)
         self.lost_alive = {}         # serial -> (last-seen mob dict, monotonic time): engaged, then gone alive (0x1D)
+        self.overweight = False      # the last loot stopped at the weight limit: no more looting until it drops
+        self.loot_keep = tuple(combat.LOOT_VALUABLE) + tuple(w.lower() for w in (args.loot_keep or ()))
         self.corpses = []            # [{mob, name, x, y, t}] kills to loot
         self.looted = set()          # corpse serials handled (looted or refused)
         self.engaged = None          # serial we last sent 0x05 for
@@ -1044,6 +1047,15 @@ class HuntLoop:
                  if it.get("graphic") == combat.CORPSE_GRAPHIC and it.get("container") is None
                  and serial_of(k) not in self.looted
                  and c["x"] is not None and cheb((it["x"], it["y"]), (c["x"], c["y"])) <= 1), None)
+        me = st["world"]["self"]
+        if self.overweight and me.get("weight") is not None and me.get("weight_max") \
+                and me["weight"] >= me["weight_max"] - LOOT_WEIGHT_MARGIN:
+            self.corpses.remove(c)
+            if c.get("corpse") is not None:
+                self.looted.add(c["corpse"])
+            log(f"weight {me['weight']}/{me['weight_max']}: not looting the {c['name']}")
+            return
+        self.overweight = False
         corpse = st["world"]["items"].get(key_of(c["corpse"])) if c["corpse"] is not None else None
         if corpse is None:
             if time.monotonic() - c["t"] > CORPSE_WAIT_S:
@@ -1106,7 +1118,13 @@ class HuntLoop:
         xp = sum(it.get("amount") or 1 for it in inside.values() if it.get("graphic") == combat.GOLD_GRAPHIC)
         self.count("xp", xp)
         taken, rejects = [], 0
-        for k, it in combat.loot_order(inside)[: self.args.loot_max]:
+        items = combat.loot_order(inside)
+        if not self.args.loot_all:
+            skipped = [combat.item_name(it) for _, it in items if not combat.worth_looting(it, self.loot_keep)]
+            items = [(k, it) for k, it in items if combat.worth_looting(it, self.loot_keep)]
+            if skipped:
+                log(f"leaving {len(skipped)} item(s) of no value to us: {', '.join(sorted(set(skipped))[:6])}")
+        for k, it in items[: self.args.loot_max]:
             st = self.state()
             me = st["world"]["self"]
             if self.leave_reason(st):
@@ -1114,9 +1132,14 @@ class HuntLoop:
                 break
             if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
                 me = self.state()["world"]["self"]
-            if me.get("weight") is not None and me.get("weight_max") and me["weight"] >= me["weight_max"]:
-                log(f"weight {me['weight']}/{me['weight_max']}: leaving the rest")
-                break
+            if me.get("weight") is not None and me.get("weight_max") \
+                    and me["weight"] + combat.item_weight(it) > me["weight_max"] - LOOT_WEIGHT_MARGIN:
+                log(f"weight {me['weight']}/{me['weight_max']}: no room for {combat.item_name(it)} "
+                    f"(~{combat.item_weight(it):.0f} stones); leaving it")
+                if it.get("graphic") == combat.GOLD_GRAPHIC or me["weight"] >= me["weight_max"] - LOOT_WEIGHT_MARGIN:
+                    self.overweight = True
+                    break
+                continue
             self.human.wait("drag")
             s, graphic = serial_of(k), it.get("graphic")
             before, lift_mark = self.pack_amount(st, graphic), len(self.link.events)
@@ -2028,10 +2051,10 @@ def stop_intent(loop, text):
 STYLE_DEFAULTS = {
     "mage": {"heal_at": 0.75, "leave_at": 0.60, "leave_multi_at": 0.80, "pull_range": 3, "target_name": "mongbat",
              "crawl_dwell": 6.0, "crawl_depleted_s": 90.0, "crawl_max_dmg": 30.0, "crawl_dry_s": 0.0,
-             "crawl_avoid_types": True},
+             "crawl_avoid_types": True, "loot_all": True},
     "pets": {"heal_at": 0.80, "leave_at": 0.50, "leave_multi_at": 0.55, "pull_range": 8, "target_name": "",
              "crawl_dwell": 1.5, "crawl_depleted_s": 5.0, "crawl_max_dmg": 60.0, "crawl_dry_s": 45.0,
-             "crawl_avoid_types": False},
+             "crawl_avoid_types": False, "loot_all": False},
 }
 
 
@@ -2201,6 +2224,11 @@ def arg_parser() -> argparse.ArgumentParser:
                          "(applied after 300 s without a step); with nothing on us from 0.8-1x of it")
     ap.add_argument("--loot", action=argparse.BooleanOptionalAction, default=True)
     ap.add_argument("--loot-max", type=int, default=25, help="items taken per corpse")
+    ap.add_argument("--loot-all", action=argparse.BooleanOptionalAction, default=None,
+                    help="take every item (default on; --pets off: gold, gems, instruments and valuables only, "
+                         "combat.LOOT_VALUABLE; user 2026-10-15: no reagents, scrolls or heavy armour/weapons)")
+    ap.add_argument("--loot-keep", action="append", default=None, metavar="WORD",
+                    help="without --loot-all: also take items whose name has this word (repeat)")
     ap.add_argument("--human", choices=sorted(PROFILES), default="normal",
                     help="human-texture profile (humanize.py); 'off' for deterministic tests")
     ap.add_argument("--seed", type=int, default=None)

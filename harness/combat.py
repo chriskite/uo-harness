@@ -310,6 +310,49 @@ def loot_order(inside: dict) -> list:
     return sorted(inside.items(), key=lambda kv: (kv[1].get("graphic") != GOLD_GRAPHIC, kv[0]))
 
 
+# What's worth carrying out (user 2026-10-15, Logan Wolf: "I'd probably only loot gold, gems, instruments, and
+# high-value loot like cores, maps, distills, etc. I wouldn't grab reagents or scrolls or heavy magic
+# armor/weps"): whole words of an item's name (its tooltip name, else tiledata's; plural markup removed).
+LOOT_VALUABLE = (
+    "gold coin", "amber", "amethyst", "citrine", "diamond", "emerald", "ruby", "rubies", "sapphire",
+    "tourmaline",                                                      # gems
+    "drum", "tambourine", "harp", "lute", "flute", "sackbut", "gemshorn",   # instruments (Barding)
+    "core", "phylactery", "distill", "distillation", "map", "orb", "essence", "deed")
+_MARKUP = re.compile(r"%[^%]*%")
+GOLD_WEIGHT_PER = 0.01        # [INFERENCE] stones per gold coin: live 36,231 gold put Logan at 475/450 (20261014_221341)
+HEAVY_WEIGHT = 255            # tiledata's "heavy" mark, not stones (the phylactery 0x0240 has it): counted as 1
+
+
+def item_name(it: dict) -> str:
+    """The item's name in lower case: the world model's (tooltip) name, else the tiledata name."""
+    name = it.get("name")
+    if not name and it.get("graphic") is not None:
+        import uomap
+        t = uomap.tiledata().item(it["graphic"])
+        name = t.name if t is not None else ""
+    # tiledata plural markup, singular kept: "citrine%s%" -> "citrine", "rub%ies/y%" -> "ruby"
+    return _MARKUP.sub(lambda m: m.group(0).strip("%").split("/")[1] if "/" in m.group(0) else "", name or "").strip().lower()
+
+
+def worth_looting(it: dict, keep=LOOT_VALUABLE) -> bool:
+    """Gold and the LOOT_VALUABLE kinds (whole words of item_name); reagents, scrolls, armour, weapons not."""
+    if it.get("graphic") == GOLD_GRAPHIC:
+        return True
+    name = item_name(it)
+    return any(re.search(rf"\b{re.escape(w)}\b", name) for w in keep)
+
+
+def item_weight(it: dict) -> float:
+    """Stones the item adds to the pack: tiledata weight x amount (gold GOLD_WEIGHT_PER a coin)."""
+    amount = it.get("amount") or 1
+    if it.get("graphic") == GOLD_GRAPHIC:
+        return amount * GOLD_WEIGHT_PER
+    import uomap
+    t = uomap.tiledata().item(it.get("graphic") or 0)
+    w = t.weight if t is not None else 1
+    return (1 if w == HEAVY_WEIGHT else w) * amount
+
+
 def grab_packets(serial: int, amount: int, pack: int) -> list[bytes]:
     """The stock GrabItem (GameActions.cs:819-852): lift, then drop into the open
     backpack at the auto position, sent back to back."""
