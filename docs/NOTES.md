@@ -2972,6 +2972,22 @@ the crimson gate (hits 42 there), "All Follow Me" and the gate's click at 12:53:
   see first (the old "a guarding pet within 6 draws it" was too kind) with aggro range 13; a potion due
   within 1.5 s is drunk before the gate's click.
 
+## The sixth live run: the first complete one (test shard, 2026-10-15 17:23-17:39, capture 20261015_171928)
+
+Task hunt-20261015-172342-b8a0 on fe0247c (`--vet-range 5`, the aggro rules above), from (5200, 737). 15 min
+on the level, then "time is up": the gate to Totem and the tome home with both pets. 16 kills (apparitions,
+banshees, shadow minions, a vampire bat, a shade wolf), 17,052 gold, 165 hits lost, no death; the lowest 54.
+
+- Hits on Logan (6): an apparition on his tile as it woke, -46 (17:24:09.9, the runner had walked 2-5 steps
+  "toward a target" at it); an apparition back from a blink 2 tiles off, -39 (17:33:18); banshee spells -22,
+  -23, -18, -17 at 4-6 tiles.
+- The crawl stayed in zone 1 for 11.4 min (`--crawl-learn-s` 600 on the main store's empty history; the
+  user: "wandering aimlessly"; `--crawl-dry-s` since 75fe7d8), then opened zone 2 (predicted 19.7 hits/min
+  <= 20) and fought the shadow minions and a wolf north of the gate.
+- A patrol route crossed the crimson gate's tile (17:35:19, "closing gump 0xE0E675B8 ... passing through").
+- Open: "toward a target" still walks Logan at a monster the pets haven't engaged; the hold at first sight
+  and the patrol alternate every second or two near banshees 13-14 tiles off (they rarely come).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
