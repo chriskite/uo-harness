@@ -72,8 +72,8 @@ DANGER_S = 300.0        # an avoided creature's last sighting shapes routes this
 CROWD_S = 300.0         # players / pets seen at a waypoint lower its score this long
 CROWD_FACTOR = 0.3
 RESPAWN_S = 600.0       # a depleted area rests this long [INFERENCE: spawn timers unknown]
-SPOT_SAME_R = 40        # earlier crawl visits from a start this close count as the same floor (load_prior; live a
-#                         run started 21 tiles from the one before and again began with no zone history)
+SPOT_SAME_R = 80        # earlier crawl visits from a start this close count as the same floor (load_prior; live the
+#                         Mausoleum runs started 21, then 53 tiles from each other and twice began with no history)
 STALE_CAP_S = 600.0     # staleness beyond this counts the same
 D0 = 20.0               # route steps that halve a waypoint's score
 TELEPORT_GAP = 2        # no waypoint within this many tiles of a teleporter
