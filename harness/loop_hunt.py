@@ -1902,6 +1902,10 @@ class HuntLoop:
             self.doing("hold", f"Holding: {why}")
             time.sleep(POLL_S)
             return False
+        if self.team is not None and self.crawl is not None and self.team.busy_healing(st):
+            self.doing("vet", "Healing up before moving on")
+            time.sleep(POLL_S)
+            return False
         if self.crawl is not None:
             self.crawl.idle(st)
             return False
@@ -1963,10 +1967,15 @@ def stop_intent(loop, text):
 # Thresholds that differ by fighting style; None on the command line means the style's own.
 # Mage (the NPD mongbat runs): as before. Pets (Logan Wolf's Mausoleum trip, 2026-10-12): he drank
 # at 58-81 % hits, fell to 35 % once (a bleed) and backed off; the pets engage what comes, so any
-# monster is a target and the pull reaches the bard range.
+# monster is a target and the pull reaches the bard range. And no lingering in a cleared area
+# (user 2026-10-13: respawns run on a timer, humans move straight on to the next pack; his crawl
+# 20261013_204518 fought 595 of 764 s): the simulated zone crawl spent 30 % of its time on the
+# level waiting out --crawl-depleted-s 90 at cleared waypoints.
 STYLE_DEFAULTS = {
-    "mage": {"heal_at": 0.75, "leave_at": 0.60, "leave_multi_at": 0.80, "pull_range": 3, "target_name": "mongbat"},
-    "pets": {"heal_at": 0.80, "leave_at": 0.35, "leave_multi_at": 0.55, "pull_range": 8, "target_name": ""},
+    "mage": {"heal_at": 0.75, "leave_at": 0.60, "leave_multi_at": 0.80, "pull_range": 3, "target_name": "mongbat",
+             "crawl_dwell": 6.0, "crawl_depleted_s": 90.0},
+    "pets": {"heal_at": 0.80, "leave_at": 0.35, "leave_multi_at": 0.55, "pull_range": 8, "target_name": "",
+             "crawl_dwell": 1.5, "crawl_depleted_s": 5.0},
 }
 
 
@@ -2000,10 +2009,11 @@ def arg_parser() -> argparse.ArgumentParser:
                          "dungeon level entered, numbered from 1)")
     ap.add_argument("--crawl-zones", type=int, default=0,
                     help="crawl: at most this many zones (0: all the floor has)")
-    ap.add_argument("--crawl-dwell", type=float, default=6.0,
-                    help="crawl: seconds a waypoint is looked over when nothing shows up (x 0.6-1.4)")
-    ap.add_argument("--crawl-depleted-s", type=float, default=90.0,
-                    help="crawl: an area where targets came is depleted after this long without one: move on")
+    ap.add_argument("--crawl-dwell", type=float, default=None,
+                    help="crawl: seconds a waypoint is looked over when nothing shows up (x 0.6-1.4; default 6, --pets 1.5)")
+    ap.add_argument("--crawl-depleted-s", type=float, default=None,
+                    help="crawl: an area where targets came is depleted after this long without one: move on "
+                         "(default 90, --pets 5)")
     ap.add_argument("--crawl-learn-s", type=float, default=600.0,
                     help="crawl: seconds observed in a zone (store history included) before going deeper")
     ap.add_argument("--crawl-max-dmg", type=float, default=30.0,

@@ -467,6 +467,15 @@ class Team:
         log(f'said "{COMMANDS[text.lower()]}"')
         return True
 
+    def busy_healing(self, st) -> bool:
+        """Don't walk on yet: a vet channel runs (a step shortens its reach to 1, wiki Veterinary) or a pet in
+        reach still needs one (vet_needed) and supplies are there. Moving on at once from a cleared area
+        (--crawl-depleted-s 5) otherwise left with a hurt gravebug and broke channels mid-way."""
+        if time.monotonic() < self.vet_busy_until:
+            return True
+        return self.vet_needed(st, self.pets(st)) is not None \
+            and bool(healing.in_pack(st["world"], self.h.me(st), VET_SUPPLIES_GRAPHIC))
+
     def guard(self) -> bool:
         if time.monotonic() - self.guard_t < GUARD_REPEAT_S:
             return False

@@ -402,6 +402,14 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   hour, 24 runs with a death, 42 with a pet death, 87 kills a hunting hour, 77,100 gold; loop 2.47, 50,
   59, 96, 65,500. The knight's charges do 69 (zone) and 216 (loop) an hour to us. The ropes don't run:
   no players in the simulator, so no flight from one.
+- **Faster from one fight to the next** (2026-10-14, user: "can you make it move from one fight to the
+  next faster?"). The zone crawl spent 30 % of its time on the level holding at cleared waypoints
+  (`--crawl-depleted-s` 90 s, a virtual-time profile of the runner); the pets style now waits 5 s
+  there (`--crawl-dwell` 1.5), and doesn't walk on while a vet channel runs or a pet in reach still
+  needs one (`tamer.Team.busy_healing`). 98 x 60 min: zone 98 kills a hunting hour (87), 85,100 gold
+  a game hour (77,100), 32 runs of 98 with a pet death (42), but 1.17 deaths a game hour (0.40);
+  loop 99 kills (96), 67,400 gold (65,500), 50 pet-death runs (59), 1.86 deaths (2.47). The zone
+  crawl's character deaths need a look.
 
 ## Limits
 
