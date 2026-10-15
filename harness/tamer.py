@@ -660,12 +660,14 @@ class Team:
     # ------------------------------------------------------------ care: retreat, vet, guard
     def care(self, st) -> bool:
         """One care action, True when something was done: evade a --never-aggro monster, "All Follow Me" after
-        a pet's death (its ghost stays near for the vet supplies), step out of fire, retreat, stand off a
-        charger, keep off the tank, vet supplies, guard, walk to a hurt pet or a ghost, a better tile for line
-        of sight, a barding song."""
+        a pet's death (its ghost stays near for the vet supplies), step out of fire, retreat, vet supplies on us
+        when we are below --heal-at, stand off a charger, keep off the tank, vet supplies, guard, walk to a hurt
+        pet or a ghost, a better tile for line of sight, a barding song."""
         self.update(st)
+        me = st["world"]["self"]
+        low = me.get("hits") is not None and self.h.frac(me) < self.a.heal_at
         return self.evade(st) or (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
-            or self.retreat(st) or self.stand_off(st) or self.spacing(st) or self.vet(st) \
+            or self.retreat(st) or (low and self.vet(st)) or self.stand_off(st) or self.spacing(st) or self.vet(st) \
             or (self.guard_needed and self.guard()) or self.to_pet(st) or self.reposition(st) or self.song(st)
 
     def spacing(self, st) -> bool:
@@ -1055,9 +1057,12 @@ class Team:
         if hurt:
             p = min(hurt, key=lambda p: p["frac"])
             return f"{p['name']} at {p['frac']:.0%}" + (" (poisoned)" if p["poisoned"] else "")
-        if me.get("hits") is not None and self.h.frac(me) < self.a.heal_at \
-                and not (healing.heal_potions(st["world"], self.h.me(st)) and self.h.potions.ready(time.monotonic())):
-            return f"us at {me.get('hits')}/{me.get('hits_max')} (no heal potion ready)"
+        if me.get("hits") is not None and self.h.frac(me) < self.a.heal_at:
+            # they heal us with no pet in reach: live 20261015_090607 09:16:36-41, the pets 4-5 tiles off at
+            # --vet-range 2, "You finish using veterinary supplies." and +22 on Logan; the user 2026-10-15: "Logan
+            # should have vet supply-bandaged himself when he got low even though he wasn't close enough to heal
+            # the pets" (17:53, 100 -> 20 with no channel started)
+            return f"us at {me.get('hits')}/{me.get('hits_max')}"
         return None
 
     def vet(self, st) -> bool:

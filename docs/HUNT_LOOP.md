@@ -307,7 +307,10 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
 4. **Vet supplies** (graphic `0x6496`, one double-click, no target): every pet within range and us
    at 25 % (patch 2023-08-14); a 5.0–5.3 s channel (43 on the trip) with the range checked at the
    finish, so no step during it. Used for a hurt or poisoned pet in range, or for us below
-   `--heal-at` with no heal potion ready; a hurt pet out of range is walked to (1 tile: bandaging
+   `--heal-at` whatever the potions and the pets' distance (they heal us with no pet in reach: live
+   09:16:36-41 on 2026-10-15, +22; the user: "Logan should have vet supply-bandaged himself when he got
+   low even though he wasn't close enough to heal the pets"), ahead of the stand-off and spacing steps;
+   a hurt pet out of range is walked to (1 tile: bandaging
    reaches 2 only after 5 s stationary) when nothing is on us. No supplies: a `low_supplies`
    juncture (item `veterinary supplies`). Resting outside waits for every pet to reach
    `--pet-heal-at`, by the supplies or, with none, by natural regeneration; past `--rest-timeout`
