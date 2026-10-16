@@ -17,15 +17,15 @@
       "chest": {"serial": "0x4AE0DD2C", "name": "paragon chest (drake)", "pos": [404, 922, 2]},
       "stockpile": {"serial": "0x62645C82", "pos": [403, 921, 2]},
       "dropoff": {
-        "_doc": "harness/dropoff.py, `ctl act dropoff`: the user's Razor script 'New Drop Off' (Scripts/New Drop Off.razor, F5), step for step; entries are clilocs (1095566 Add All In Backpack, 1095568 Add All Unidentified Items From Backpack, 3006349 Restock, 3006348 Resupply). Names: click labels in capture 20261015_210709; [INFERENCE] where only the server's first reply words were captured. Then `to_chest` from the pack's top level into `chest` (user 2026-10-15: research materials and resource maps, 'chest for now, we'll buy tomes later'; resource maps by name, their graphic not seen yet).",
+        "_doc": "harness/dropoff.py, `ctl act dropoff`: the user's Razor script 'New Drop Off' (Scripts/New Drop Off.razor, F5), step for step; entries are clilocs (1095566 Add All In Backpack, 1095568 Add All Unidentified Items From Backpack, 3006349 Restock, 3006348 Resupply). Names: the items' labels (ctl status ground_items, 2026-10-16). Then `to_chest` from the pack's top level into `chest` (user 2026-10-15: research materials and resource maps, 'chest for now, we'll buy tomes later'; resource maps by name, their graphic not seen yet).",
         "steps": [
           {"serial": "0x62659A52", "name": "a treasure map tome", "entry": 1095566},
-          {"serial": "0x431E6BAA", "name": "mastery tome [INFERENCE: 'No maste…']", "entry": 1095566},
-          {"serial": "0x62658F0D", "name": "skill scroll tome [INFERENCE: 'No skill…', '1 skill…']", "entry": 1095566},
+          {"serial": "0x431E6BAA", "name": "a mastery chain link tome", "entry": 1095566},
+          {"serial": "0x62658F0D", "name": "a skill mastery tome", "entry": 1095566},
           {"serial": "0x62657BB3", "name": "an aspect item tome", "entry": 1095566},
           {"serial": "0x62645C82", "name": "a resource stockpile", "entry": 3006349, "target": "pack"},
           {"serial": "0x431E86F5", "name": "a bank deposit safe", "entry": 1095566},
-          {"serial": "0x6264BB54", "name": "unidentified item recycler [INFERENCE: 'N recycl…']", "entry": 1095568},
+          {"serial": "0x6264BB54", "name": "magic item recycler", "entry": 1095568},
           {"serial": "0x6CEB65CD", "name": "a storage shelf", "entry": 3006348}
         ],
         "chest": {"serial": "0x4AE0DD2C"},

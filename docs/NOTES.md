@@ -3186,7 +3186,13 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
   ("You depo…": 28,981 gold at 21:29:49), 0x6264BB54 ("Add All Unidentified Items From Backpack" 1095568, the
   2nd entry: "7 recycl…"), storage shelf 0x6CEB65CD (Resupply 3006348). It left research materials (graphic 0x5F72,
   "research materials : 2"). `ctl act dropoff` does the same, picking entries by cliloc, then research materials
-  and resource maps into the room chest (homes.json "Logan Wolf" `dropoff`; test_dropoff.py). Not run live yet.
+  and resource maps into the room chest (homes.json "Logan Wolf" `dropoff`; test_dropoff.py). Live 2026-10-16 with an
+  empty pack (twice, 25 s each with the walk to the arrival tile): every step answered, "No undecoded treasure
+  maps found in backpack.", "No mastery chain links …", "No skill mastery scrolls …", "No aspect items …", "You do
+  not find any items that could be added to a Resource Stockpile.", the safe nothing (no gold), "0 recyclable
+  items found and added.", the shelf "Unable to resupply: no items available." (the pack held the loadout: 30 heal,
+  15 cure, 15 refresh potions, 180 vet supplies). Labels in the room: "a skill mastery tome" 0x62658F0D, "magic
+  item recycler" 0x6264BB54 (the user confirmed), "resource container" for the stockpile, the chest "wooden chest".
 
 ## Network observations
 
