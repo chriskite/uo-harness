@@ -3103,6 +3103,28 @@ playing for 15 min" 19:49:30).
   apparition's blink, the banshee's observed spells and a wake delay; the fight replay is in docs/SIM.md
   "The 19:49 live fight".
 
+## The thirteenth live run: 41 kills, 35,926 gold in 20 min (test shard, 2026-10-15 20:46-21:06, capture 20261015_204514)
+
+Task hunt-20261015-204605-d465 on 35e7f83, the live arguments: no death, no leave until "time is up", 41 kills,
+35,926 gold (the first 16 min: 28,023 gold, ~104,000 an hour on the level), 771 hits lost, the songs and
+discords working. The user: "Good run overall".
+
+- 20:55:18 the valuables-only loot left research materials; the user: "quite valuable", then "it's probably
+  better to just _not_ take the regs scrolls and armor/weapons" (combat.worth_looting since 98dd9b6).
+- 21:02:02 a nightstalker unseen till then beside Logan; the stand-off went 3 tiles to (5185, 703), 3 from an
+  idle reanimated knight (the log: "seen by 1.2 idle before a pet"; every clear tile in the pets' reach was
+  in its sight or a stalker spawn's); it woke at 21:02:07 and hit him -46. Now `Team.standoff_tile` weighs
+  nearness to the idle monster and stays rather than step nearer one.
+- 20:49:52 and 21:04:29 "toward a target" walked Logan at monsters the pets hadn't engaged (27 and 2 steps):
+  still open.
+- Weight: 327/450 at 28,023 gold (gold ~0.01 stone a coin); the 10-stone margin stops the loot at ~37,000 gold
+  carried.
+- Home: the moongate to Totem, then the tome's recall twice: "disturbed" and "That location is blocked."
+  (501942) on the DTF Loot Chest rune, as in the twelfth run; the runner then tried to walk from Totem to the
+  Mausoleum recall spot ("no route") and stopped. Now a blocked rune, or a recall spot more than 60 tiles off,
+  is no walk: the run stops in town with the recall's failure. [INFERENCE: on the test shard something stands
+  on that rune's landing tile.]
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

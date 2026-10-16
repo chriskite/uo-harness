@@ -340,9 +340,14 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    in each decision, mid-channel too, after only a heal potion that is ready (it goes at once) (live
    20261015_171928 18:57:09-19.5: an apparition came onto Logan's tile, -59; he stood there through the
    potion and a vet channel and took -60 more; a step doesn't stop a channel healing us, it only shortens
-   its reach to a pet to 1). It goes to the clear tile within 6 steps, within `--vet-range` of the pets,
-   that the fewest idle monsters would see before a pet (`Team.standoff_tile`; live 19:49:40 the nearest
-   clear tile was 10 from a second apparition in its sight, and it came onto Logan 5 s later).
+   its reach to a pet to 1). It goes to the clear tile within 6 steps that the fewest idle monsters would
+   see before a pet, then the one farthest from the nearest of them (`Team.standoff_tile`), within
+   `--vet-range` of the pets when such a tile is out of their sight, else beyond it; when every clear tile
+   is seen by more of them, or nearer one, than here, it stays (live 19:49:40 the nearest clear tile was 10
+   from a second apparition in its sight, and it came onto Logan 5 s later; 20261015_204514 21:02:02 it
+   went 3 tiles from an idle reanimated knight, which woke and hit him -46: the user, "Logan went and stood
+   right in front of a reanimated knight while the pets were fighting another mob"; test_sim
+   test_standoff_sight: 35e7f83 went from 8 to 6 tiles of it, now 8 to 13).
    **A caster on us**: a caster in war mode within 10 while we take damage, nothing swinging at us, is
    an attacker (`HuntLoop.attackers`; live 19:49:58-50:22 a banshee 5 tiles off, -21..-28 every 3.3 s, never
    a swing); with no pet within `--vet-range` + 2 the runner goes back to the pets (`Team.rejoin`), and

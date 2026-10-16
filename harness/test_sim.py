@@ -625,6 +625,38 @@ def test_area_first():
           and out[False][0][1] >= r, str(out))
 
 
+def test_standoff_sight():
+    print("== the stand-off never goes nearer an idle monster that would see us first: it stays ==")
+    import aggro
+    from agent_link import cheb
+    # live 20261015_204514 21:02:02: the only clear tiles in the pets' reach were 3 from an idle reanimated knight;
+    # it woke and hit Logan -46. Here every tile is in its first sight (stand_score patched), so only nearness differs.
+    w = world_with([{"key": "nightstalker", "at": [5268, 649, 0]}, {"key": "reanimated knight", "at": [5268, 640, 0]}],
+                   seed=7, start=(5268, 648))
+    ns = next(m for m in w.mobs.values() if m.key == "nightstalker")
+    kn = next(m for m in w.mobs.values() if m.key == "reanimated knight")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    ns.target, ns.threat = gb.serial, {gb.serial: 1e9}
+    w._warm(ns, True)
+    knight = {"kind": "reanimated knight", "pos": kn.pos, "weight": 1.2}
+    score, first = aggro.View.stand_score, aggro.View.first_on_us
+    aggro.View.stand_score = lambda self, t: 12.0
+    aggro.View.first_on_us = lambda self, t, margin=1: [knight]
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            clock.advance(0.3)
+            here = cheb(w.player.pos, kn.pos)
+            walked = loop.team.stand_off(loop.state())
+    finally:
+        aggro.View.stand_score, aggro.View.first_on_us = score, first
+        store.close()
+        simclock.uninstall(patched)
+    after = cheb(w.player.pos, kn.pos)
+    check("no tile farther from it than here: no stand-off, or one no nearer it",
+          (not walked and after == here) or (walked and after >= here), f"walked {walked}, {here} -> {after} tiles")
+
+
 def test_leave_called_off():
     print("== a hurt leave healed on the way out is called off; one still hurt goes through ==")
     from agent_link import Abort, cheb
@@ -897,7 +929,7 @@ def main():
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
-              test_area_first, test_leave_called_off, test_instrument, test_heal_in_place,
+              test_area_first, test_leave_called_off, test_instrument, test_standoff_sight, test_heal_in_place,
               test_songs,
               test_pull_budget, test_hold_first_sight, test_rope,
               test_rest_hurt_pet):

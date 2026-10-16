@@ -200,6 +200,7 @@ BLIND_PAUSES = frozenset({"drag"})
 # 2026-10-02/03, 4 of 4 in the store from Bastet / Rasta Brazil, overhead from our own serial;
 # never from a monster in all the NPD hunts), before the first hit and even when hidden.
 ATTACKED_BY = " is attacking you!"
+RECALL_WALK_MAX = 60          # a recall refused farther than this from --recall-spot doesn't walk there
 RECALL_SPOT_RANGE = 1         # walk this close to --recall-spot before recalling from there
 REFUSED_NEAR = 2              # a recall refused within this many tiles of here: walk first
 BANK_RANGE = 3                # say "bank" this close to the banker (RunUO speech range 12)
@@ -1373,8 +1374,11 @@ class HuntLoop:
             walked_first = True
         res = self.recall(self.args.leave_recall, None, urgent, "home")
         here = tuple(self.pos(self.link.state())[:2])
-        if not res["ok"] and res["failure"] not in NO_WALK_FAILURES + ("unusable",) \
-                and self.recall_spot is not None and cheb(here, self.recall_spot) > RECALL_SPOT_RANGE:
+        # "That location is blocked." is the rune's landing, not where we stand; from another region (the town
+        # the moongate took us to) the recall spot is no walk at all (live 20261015_204514 21:06:26 at Totem:
+        # "to the recall spot: no route")
+        if not res["ok"] and res["failure"] not in NO_WALK_FAILURES + ("unusable", "blocked") \
+                and self.recall_spot is not None and RECALL_SPOT_RANGE < cheb(here, self.recall_spot) <= RECALL_WALK_MAX:
             self.refused_from.append(here)
             log(f"recall home from {here} failed ({res['failure']}): walking to the recall spot {self.recall_spot}")
             first = res

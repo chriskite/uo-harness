@@ -371,6 +371,7 @@ class Team:
         self.hold_until = {}             # serial -> until when we hold for it to come (pull_check)
         self.spot_for = frozenset()      # the monsters the last pull spot was chosen for
         self.standoff_t = -1e9
+        self.standoff_stay = None        # why the last stand-off stayed put (logged once)
         self.songs = {}                  # song skill -> monotonic time it runs out
         self.at_once_w = 0.0             # idle weight in sight at the last pull_check (its "at once" rule)
         self.song_ready = 0.0
@@ -1068,11 +1069,17 @@ class Team:
                         if not p["dead"] and (p["x"], p["y"]) in zone) \
                 and healing.in_pack(st["world"], h.me(st), VET_SUPPLIES_GRAPHIC):
             return False                                  # step in (or stay) to heal the tank
+        to, stay = self.standoff_tile(st, zone)
+        if stay:
+            if stay != self.standoff_stay:
+                log(f"stand-off: {stay}")
+            self.standoff_stay = stay
+            return False
+        self.standoff_stay = None
         self.standoff_t = now
         label = "out of charge reach"
         h.doing("standoff", f"Standing off an area hitter ({len(zone)} tile(s) in its reach)")
         self.count("standoffs")
-        to = self.standoff_tile(st, zone)
         try:
             if to is not None:
                 h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=2 * STANDOFF_MOVES,
@@ -1087,26 +1094,43 @@ class Team:
         return True
 
     def standoff_tile(self, st, zone: dict):
-        """Where to stand off to: a tile within STANDOFF_MOVES steps clear of `zone` and fire, within
-        --vet-range of every live pet near, that the fewest idle monsters would see before a pet
-        (aggro.View.stand_score), the nearest of those; None without the map or such a tile. Live
-        20261015_171928 19:49:40: the stand-off took Logan 2 tiles west, 10 from a second apparition in its
-        sight; it came onto his tile 5 s later (-46)."""
+        """Where to stand off to -> (tile, None), or (None, why) to stay: a tile within STANDOFF_MOVES steps
+        clear of `zone` and fire that the fewest idle monsters would see before a pet (aggro.View.stand_score),
+        the nearest of those, within --vet-range of every live pet near when one such is out of their sight,
+        else beyond it. One that more idle monsters would see first than see us here is no stand-off: we stay
+        (an area hit on us is better than a fresh monster on us). Live 20261015_171928 19:49:40 the nearest clear
+        tile was 10 from a second apparition in its sight (it came onto Logan 5 s later, -46); 20261015_204514
+        21:02:02 the only clear tiles in reach of the pets were 3 from an idle reanimated knight: it woke and
+        hit Logan -46 (user: "Logan went and stood right in front of a reanimated knight while the pets were
+        fighting another mob")."""
         v = self.view(st)
         if v.walk is None:
-            return None
+            return None, None
         fire, clear = self.fire_tiles(st), ClearOf(zone)
         keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 2]
-        best, best_c = None, None
+        def closest(t):
+            # the nearest idle monster that would see us there first: nearer is likelier to wake (live 21:02:02-07
+            # the knight stayed idle 5 s at 6 tiles and woke 5 s after Logan stood 3 from it)
+            return min((cheb(m["pos"], t) for m in v.first_on_us(t, margin=1)), default=99)
+        near, far = None, None
         for t, k in self.tiles_within(v, STANDOFF_MOVES).items():
-            if not clear(t) or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in keep):
+            if not clear(t) or t[:2] in fire:
                 continue
-            c = (round(v.stand_score(t)), k)
-            if best_c is None or c < best_c:
-                best, best_c = t, c
-        if best is not None:
-            log(f"stand-off to {best[:2]}: {best_c[1]} step(s), seen by {best_c[0] / 10:g} idle before a pet")
-        return best
+            c = (round(v.stand_score(t)), -closest(t), k, t)
+            if not any(cheb(t, p) > self.a.vet_range for p in keep):
+                near = c if near is None or c < near else near
+            far = c if far is None or c < far else far
+        here = (round(v.stand_score(v.pos)), -closest(v.pos))
+        pick = near if near is not None and near[0] == 0 else far if far is not None and far[0] == 0 else \
+            min((c for c in (near, far) if c is not None), default=None)
+        if pick is None:
+            return None, None
+        if pick[:2] > here:
+            return None, (f"every clear tile is nearer an idle monster that would see us before a pet "
+                          f"({pick[0] / 10:g} by weight at {-pick[1]} tiles; here {here[0] / 10:g} at {-here[1]}); staying")
+        log(f"stand-off to {pick[3][:2]}: {pick[2]} step(s), seen by {pick[0] / 10:g} idle before a pet"
+            + ("" if pick is near else ", beyond the vet supplies' reach of the pets"))
+        return pick[3], None
 
     def retreat(self, st) -> bool:
         h, now = self.h, time.monotonic()
