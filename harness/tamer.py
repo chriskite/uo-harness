@@ -825,27 +825,25 @@ class Team:
         return why
 
     def hold_reason(self, st) -> str | None:
-        """--hold-first-sight, nothing fighting: an idle monster that sees us within one tile of its aggro
-        range; hold up to HOLD_S and let it come (Logan at the nightstalker room's north edge,
-        20261013_204518: the wolves and the stalker came 5-10 s after first sight, the knight only when he
+        """--hold-first-sight, nothing fighting: an idle monster that sees us within its aggro range (AGGRO_R
+        13, the user's "12 or 13"); hold up to HOLD_S and let it come (Logan at the nightstalker room's north
+        edge, 20261013_204518: the wolves and the stalker came 5-10 s after first sight, the knight only when he
         moved on); pull_spot picks where to stand for it. A monster held for that long without coming is
-        passed over."""
+        passed over. Live 20261015_210709 21:34:05-15 a shadowguard 14 tiles off (a tile beyond the aggro range,
+        the old margin) held the patrol 10 s and never woke (the user: "I'm pretty sure aggro range smaller
+        than 14 tiles")."""
         v = self.view(st)
         if not self.a.hold_first_sight or v.engaged():
             return None
         now = time.monotonic()
         seen = []
-        held = {m["serial"] for m in v.wakes(v.pos, margin=aggro.WAKE_MARGIN) if self.hold_until.get(m["serial"], 0) > now}
-        for m in v.wakes(v.pos, margin=1):
+        for m in v.wakes(v.pos, margin=0):
             if self.hold_until.setdefault(m["serial"], now + HOLD_S) > now:
                 seen.append(m)
-        # one already held for (and the pull spot is out of its sight by a tile or two): still held, not walked
-        # back into its sight by the patrol (sim fight1949: pull spot, then the patrol on at once, both woke)
-        seen += [m for m in v.wakes(v.pos, margin=aggro.WAKE_MARGIN) if m["serial"] in held and m not in seen]
         if not seen:
             return None
         m = min(seen, key=lambda m: cheb(m["pos"], v.pos))
-        return f"{m['kind']} sees us at {cheb(m['pos'], v.pos)} tiles: letting it come"
+        return f"{m['kind']} in sight at {cheb(m['pos'], v.pos)} tiles: letting it come"
 
     def pull_spot(self, st) -> bool:
         """Holding (hold_reason): once per group of monsters held for, the tile within PULL_STEPS where the
@@ -859,7 +857,7 @@ class Team:
         if v.walk is None:
             return False
         now = time.monotonic()
-        group = frozenset(m["serial"] for m in v.wakes(v.pos, margin=1) if self.hold_until.get(m["serial"], 0) > now)
+        group = frozenset(m["serial"] for m in v.wakes(v.pos, margin=0) if self.hold_until.get(m["serial"], 0) > now)
         if not group or group == self.spot_for:
             return False
         self.spot_for = group
@@ -878,7 +876,8 @@ class Team:
         here = cost(v.pos)
         best, best_c = None, None
         for t, k in self.tiles_within(v, PULL_STEPS).items():
-            if k == 0 or t[:2] in zone or t[:2] in fire or v.never_near(t) or not v.wakes(t, margin=aggro.WAKE_MARGIN):
+            if k == 0 or t[:2] in zone or t[:2] in fire or v.never_near(t) \
+                    or not any(m["serial"] in group for m in v.wakes(t, margin=0)):     # it must still see us there
                 continue
             c = (*cost(t), k)
             if best_c is None or c < best_c:

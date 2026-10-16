@@ -418,15 +418,15 @@ class HuntLoop:
         return names
 
     def player_threat(self, st) -> str | None:
-        """Why a hostile player makes us leave now, else None: a hostile player (red,
-        grey, orange) within spell range; recall mode also a red anywhere in view (Bastet
-        struck 4.6 s after sight, docs/PLAN.md "Red sighting") and a player named in
-        "... is attacking you!" (seen or not: Bastet attacked hidden)."""
+        """Why a hostile player makes us leave now, else None: a red player within spell range; recall mode also a
+        red anywhere in view (Bastet struck 4.6 s after sight, docs/PLAN.md "Red sighting") and a player named in
+        "... is attacking you!" (seen or not: Bastet attacked hidden). Greys and oranges are no leave (user
+        2026-10-15: "I don't think we need to escape from a gray player. Only reds.")."""
         a = self.watch.update(st, recall_s=0.0, margin_s=0.0)
         # one first seen unlabeled waits the label grace (threats.Params.label_grace_s, Watch's "awaiting label"):
         # live 20261015_210709 21:28:21 a tormented soul (human body, notoriety 3) came into view 12 tiles off
         # before its name, was taken for a grey player and the run left; its name came the same second
-        pk = [t for t in a.threats if t.player and t.hostile and 0 <= t.distance <= self.watch.params.player_strike_range
+        pk = [t for t in a.threats if t.player and t.kind == "red" and 0 <= t.distance <= self.watch.params.player_strike_range
               and "awaiting label" not in (t.reason or "")]
         if pk:
             t = pk[0]

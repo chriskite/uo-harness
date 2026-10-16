@@ -60,7 +60,10 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 Each tick re-reads the proxy state and decides, in this order:
 
 1. **Leave** when a rule fires (`threat` juncture, job event `leave`):
-   - a hostile player (threats.py: red/grey/orange) within 12 tiles: urgent; the run stops outside;
+   - a red player (threats.py) within 12 tiles: urgent; the run stops outside (greys and oranges no leave
+     since 2026-10-15, the user: "I don't think we need to escape from a gray player. Only reds."; one first
+     seen without its name waits the 1 s label grace: a tormented soul, human body, notoriety 3, sent a live
+     run home as a "grey player" at 21:28:21);
    - two or more attackers and hits below `--leave-multi-at`;
    - hits below `--leave-at`, raised for a fight spot away from the exit (below).
    Leaving is war mode off (if on), the walk back to `--spot`, then the step in `--exit-dir`. The
@@ -421,7 +424,7 @@ what comes.
 | `--never-aggro TYPE` | the elder vampire, the elder vampire countess | Never wake it alone (repeat for other types; any given replaces the default). The vampiric consort until 2026-10-15; the user then: "we don't need to avoid any mob specifically, we should be able to handle everything on Maus 3 with enough care. The consort and elder vampires areas can get a little sketchy but it's all doable" (the code still avoided the consort by default until the next change); after the eleventh live run (an elder vampire countess froze both pets and killed Logan): "I suppose the runner can avoid the elder vampires for now". |
 | `--crawl-avoid-types` / `--no-crawl-avoid-types` | on (`--pets` off) | The crawl avoids creature types the store's fights say cost too much or were fled from (live 20261015_171928 it set the vampire countess aside after one leave). |
 | `--reposition` / `--no-reposition` | on | In a fight, step to a better tile for line of sight. |
-| `--hold-first-sight` / `--no-hold-first-sight` | on | Nothing fighting: stop where an idle monster first sees us within its aggro range, and let it come. |
+| `--hold-first-sight` / `--no-hold-first-sight` | on | Nothing fighting: stop where an idle monster sees us within its aggro range (13; it was 14, a tile of margin: live 21:34:05 a shadowguard 14 tiles off held the patrol 10 s and never woke), and let it come; the pull spot must stay in its sight. |
 
 - **Weights** ("weighted by danger"): (wiki difficulty - 50) / 40, clamped to 0.25-3: a vampire bat
   0.43, a shadow minion 0.53, a shade wolf 0.92, a banshee 1.6, a nightstalker 1.8, a shadowguard 2.05,
