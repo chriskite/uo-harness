@@ -381,12 +381,15 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    hurt, or engaged) that dies within 60 s; their corpses are looted like the mage's. A target that
    leaves the view alive (0x1D without the 0xAF of a death) is no kill: a shade wolf's stealth
    mid-fight; the pets are put back on guard, and its death within 30 s still counts.
-   **What's looted** (user 2026-10-15: "only loot gold, gems, instruments, and high-value loot like cores,
-   maps, distills, etc. I wouldn't grab reagents or scrolls or heavy magic armor/weps"): with the pets
-   style (`--no-loot-all`) gold first, then items whose name (tooltip, else tiledata, singular) has a
-   word of `combat.LOOT_VALUABLE` (gems, instruments, core, phylactery, distill, map, orb, essence, deed,
-   research materials: the user 2026-10-15 "quite valuable", left in a corpse at 20:55:18;
-   `--loot-keep WORD` adds more); the rest stays in the corpse. **Weight**: an item that would bring us
+   **What's looted** (user 2026-10-15, first "only loot gold, gems, instruments, and high-value loot like
+   cores, maps, distills, etc. I wouldn't grab reagents or scrolls or heavy magic armor/weps"; then, after
+   that whitelist left research materials, "quite valuable", in a corpse at 20:55:18: "it's probably better
+   to just _not_ take the regs scrolls and armor/weapons"): with the pets style (`--no-loot-all`) gold
+   first, then everything but reagents (graphics 0x0F78-0x0F91), spell scrolls (0x1F2D-0x1F72,
+   0x2260-0x227C, or "scroll" in the name) and anything worn other than jewellery (a tiledata layer
+   outside ring, talisman, necklace, bracelet, earrings: weapons, shields, spellbooks, armour, clothing)
+   (`combat.worth_looting`; `--loot-keep WORD` takes an item with that word anyway); the rest stays in
+   the corpse. **Weight**: an item that would bring us
    within 10 stones of the limit (`LOOT_WEIGHT_MARGIN`; tiledata weight, gold ~0.01 a coin
    [INFERENCE]) is left; at the limit looting stops until the weight drops. Live 20261015_181807 the
    take-everything loot reached 471/450 and Logan couldn't move.

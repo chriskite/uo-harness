@@ -263,7 +263,7 @@ class HuntLoop:
         self.corpse_of = {}          # dead mobile serial -> its corpse serial (0xDEAD)
         self.lost_alive = {}         # serial -> (last-seen mob dict, monotonic time): engaged, then gone alive (0x1D)
         self.overweight = False      # the last loot stopped at the weight limit: no more looting until it drops
-        self.loot_keep = tuple(combat.LOOT_VALUABLE) + tuple(w.lower() for w in (args.loot_keep or ()))
+        self.loot_keep = tuple(w.lower() for w in (args.loot_keep or ()))
         self.corpses = []            # [{mob, name, x, y, t}] kills to loot
         self.looted = set()          # corpse serials handled (looted or refused)
         self.engaged = None          # serial we last sent 0x05 for
@@ -2285,10 +2285,10 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--loot", action=argparse.BooleanOptionalAction, default=True)
     ap.add_argument("--loot-max", type=int, default=25, help="items taken per corpse")
     ap.add_argument("--loot-all", action=argparse.BooleanOptionalAction, default=None,
-                    help="take every item (default on; --pets off: gold, gems, instruments and valuables only, "
-                         "combat.LOOT_VALUABLE; user 2026-10-15: no reagents, scrolls or heavy armour/weapons)")
+                    help="take every item (default on; --pets off: all but reagents, spell scrolls and worn items "
+                         "other than jewellery, combat.worth_looting; user 2026-10-15)")
     ap.add_argument("--loot-keep", action="append", default=None, metavar="WORD",
-                    help="without --loot-all: also take items whose name has this word (repeat)")
+                    help="without --loot-all: also take items whose name has this word, whatever they are (repeat)")
     ap.add_argument("--human", choices=sorted(PROFILES), default="normal",
                     help="human-texture profile (humanize.py); 'off' for deterministic tests")
     ap.add_argument("--seed", type=int, default=None)

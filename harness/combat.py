@@ -310,16 +310,13 @@ def loot_order(inside: dict) -> list:
     return sorted(inside.items(), key=lambda kv: (kv[1].get("graphic") != GOLD_GRAPHIC, kv[0]))
 
 
-# What's worth carrying out (user 2026-10-15, Logan Wolf: "I'd probably only loot gold, gems, instruments, and
-# high-value loot like cores, maps, distills, etc. I wouldn't grab reagents or scrolls or heavy magic
-# armor/weps"): whole words of an item's name (its tooltip name, else tiledata's; plural markup removed).
-LOOT_VALUABLE = (
-    "gold coin", "amber", "amethyst", "citrine", "diamond", "emerald", "ruby", "rubies", "sapphire",
-    "tourmaline",                                                      # gems
-    "drum", "tambourine", "harp", "lute", "flute", "sackbut", "gemshorn", "hurdy gurdy", "mandolin", "fiddle",
-    "bagpipe", "trumpet",                                              # instruments (Barding; live: a hurdy gurdy left 18:31)
-    "core", "phylactery", "distill", "distillation", "map", "orb", "essence", "deed",
-    "research materials")                                             # user 2026-10-15: "quite valuable" (left 20:55:18)
+# What's left in a corpse (user 2026-10-15, Logan Wolf: "it's probably better to just _not_ take the regs scrolls
+# and armor/weapons", after a whitelist of gold, gems, instruments and valuables passed up research materials,
+# "quite valuable", at 20:55:18): reagents, spell scrolls, and anything worn but jewellery (weapons, shields and
+# spellbooks on the hand layers, armour and clothing); everything else comes out.
+REAGENT_GRAPHICS = range(0x0F78, 0x0F92)      # bat wing .. wyrm's heart: the 8 Magery, the necromancy and rare ones
+SCROLL_GRAPHICS = (range(0x1F2D, 0x1F73), range(0x2260, 0x227D))   # Magery circles 1-8; necromancy / chivalry
+JEWELRY_LAYERS = frozenset((8, 9, 10, 14, 18))  # ring, talisman, necklace, bracelet, earrings: kept
 _MARKUP = re.compile(r"%[^%]*%")
 GOLD_WEIGHT_PER = 0.01        # [INFERENCE] stones per gold coin: live 36,231 gold put Logan at 475/450 (20261014_221341)
 HEAVY_WEIGHT = 255            # tiledata's "heavy" mark, not stones (the phylactery 0x0240 has it): counted as 1
@@ -336,12 +333,23 @@ def item_name(it: dict) -> str:
     return _MARKUP.sub(lambda m: m.group(0).strip("%").split("/")[1] if "/" in m.group(0) else "", name or "").strip().lower()
 
 
-def worth_looting(it: dict, keep=LOOT_VALUABLE) -> bool:
-    """Gold and the LOOT_VALUABLE kinds (whole words of item_name); reagents, scrolls, armour, weapons not."""
-    if it.get("graphic") == GOLD_GRAPHIC:
+def worth_looting(it: dict, keep=()) -> bool:
+    """Everything but reagents, spell scrolls and what's worn other than jewellery (REAGENT_GRAPHICS,
+    SCROLL_GRAPHICS or "scroll" in the name, a tiledata layer outside JEWELRY_LAYERS); `keep`: whole words
+    of item_name taken regardless (--loot-keep)."""
+    g = it.get("graphic")
+    if g == GOLD_GRAPHIC:
         return True
     name = item_name(it)
-    return any(re.search(rf"\b{re.escape(w)}\b", name) for w in keep)
+    if any(re.search(rf"\b{re.escape(w)}\b", name) for w in keep):
+        return True
+    if g is None:
+        return True
+    if g in REAGENT_GRAPHICS or any(g in r for r in SCROLL_GRAPHICS) or re.search(r"\bscroll\b", name):
+        return False
+    import uomap
+    t = uomap.tiledata().item(g)
+    return not (t is not None and t.layer and t.layer not in JEWELRY_LAYERS)
 
 
 def item_weight(it: dict) -> float:
