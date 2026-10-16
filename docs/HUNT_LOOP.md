@@ -313,6 +313,14 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    is not a musical instrument.", 54 times): two runs without one bard skill or song.
    A bard skill's cursor is cancelled when Logan is below `--heal-at` with a heal potion ready
    (`Team.potion_first`; live 19:19:30.9-35.2 a Discordance answered at 42 hits, the potion 3.6 s later).
+   **Area Peacemaking in a jam** (user 2026-10-15: "in a jam you can peace the area around you by
+   activating Peacemaking and targeting yourself. It puts a short duration peace on mobs close to you. Good
+   if you are walking through a group of mobs or get ganged up on"; wiki: a check per non-tamed creature
+   within 8 tiles, 2 s pacified each, the usual cooldowns; live 20261015_171928 17:22:01 the user's own
+   answered "You play successfully, briefly pacifying one or more nearby creatures."): `Team.area_peace`
+   when two or more attack us within 3, or one while we're below `--retreat-at`, or on the walk out to the
+   gate past anything in war mode within 3 (first in the care order; on the walk out between steps).
+   fight1949, 24 seeds: deaths 1 -> 0, damage on Logan 147 -> 83, lowest hits 0 -> 39.
 3. **"All Kill" only at a mob already on us** that the pets leave alone for 4 s (its aggro is on us
    anyway), or at the pets' target when a live pet within 12 of it stands out of war mode for 5 s
    (`Team.idle_pet`; live 20261015_210709 21:19:51-20:43 the phoenix came out of a countess' transfix and

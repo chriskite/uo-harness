@@ -340,10 +340,12 @@ class HuntLoop:
         if not self.walking_out or self._drinking:
             return
         me = st["world"]["self"]
-        if me.get("hits") is None or self.frac(me) >= self.args.heal_at:
-            return
         self._drinking = True
         try:
+            if self.team is not None and self.team.area_peace(st, walking_out=True):
+                return                    # through monsters on the way out: a 2 s peace on them (Team.area_peace)
+            if me.get("hits") is None or self.frac(me) >= self.args.heal_at:
+                return
             if self.potions.ready(time.monotonic()) and healing.heal_potions(st["world"], self.me(st)):
                 self.heal(st, potions=True)
             if self.team is not None and time.monotonic() >= self.team.vet_busy_until:

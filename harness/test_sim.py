@@ -657,6 +657,33 @@ def test_standoff_sight():
           (not walked and after == here) or (walked and after >= here), f"walked {walked}, {here} -> {after} tiles")
 
 
+def test_area_peace():
+    print("== two monsters on us within 3: Peacemaking on ourselves, the area pacified for 2 s ==")
+    # user 2026-10-15: "in a jam you can peace the area around you by activating Peacemaking and targeting yourself";
+    # live 20261015_171928 17:22:01 the user's own answered "You play successfully, briefly pacifying ..."
+    w = world_with([{"key": "shade wolf", "at": [5268, 649, 0]}, {"key": "shade wolf", "at": [5269, 648, 0]}],
+                   seed=7, start=(5268, 648))
+    wolves = [m for m in w.mobs.values() if m.kind == "monster"]
+    loop, clock, store, patched = hurt_loop(w, 100)
+    for m in wolves:
+        m.spec = {**m.spec, "difficulty": 20.0}            # a sure check, to test the action itself
+        m.target, m.threat = w.player.serial, {w.player.serial: 1e9}
+        w._warm(m, True)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            for _ in range(12):
+                clock.advance(0.5)
+                loop.tick()
+                if w.metrics["bard"].get("area_peace_ok"):
+                    break
+            calmed = [m.calm_until > w.t for m in wolves]
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("the area peace went out and pacified both", w.metrics["bard"].get("area_peace_ok") and all(calmed),
+          f"{w.metrics['bard']} calmed {calmed}")
+
+
 def test_idle_pet():
     print("== a pet standing idle beside the other pet's fight gets 'All Kill' and joins it ==")
     # live 20261015_210709 21:19:51-20:43: AlaFlambe out of a transfix stood 45 s out of war mode while GraveRobber
@@ -962,6 +989,7 @@ def main():
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_instrument, test_standoff_sight, test_idle_pet,
+              test_area_peace,
               test_heal_in_place,
               test_songs,
               test_pull_budget, test_hold_first_sight, test_rope,

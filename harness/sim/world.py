@@ -11,15 +11,18 @@ Every number comes from the scenario (harness/data/sim/<name>.json), each with i
 [INFERENCE] mark there. What is modelled:
 
 - **Monsters**: idle near their spawn; once one of us or our live pets is within their aggro range
-  and in sight (re-checked every THINK_S), go for a guarding pet near us, else the nearest of us (the
-  trip: every monster we hadn't acted on went to a pet first); chase by a greedy step toward the
+  and in sight (re-checked every THINK_S), after a wake delay, go for the nearest of us they see (a
+  pet on a tie); chase by a greedy step toward the
   target with an A* fallback; melee when adjacent (swing period, hit chance, damage) or ranged/spell
-  when in range and sight; threat decides whom they hit: damage taken from each attacker (x the
+  when in range and sight, the numbers the gravebug's and Logan's and the phoenix's scaled from them
+  (`_taken_x`); threat decides whom they hit: damage taken from each attacker (x the
   pet's `threat_x`, a tank's draw) plus our aggressive acts (a bard skill at it, "All Kill" at it:
   user 2026-10-12, aggro then goes to the character) while no pet has hurt it yet; a leash home when
-  the target is far or unseen; specials per type, as they reached Logan live: bleeds (the bound
-  soul's on everyone within a tile), the nightstalker's Charge, the vampire countess' transfixed
-  copies of our pets; poison, life drain; respawn at the spawn after `respawn_s`.
+  the target is far or unseen; specials per type as measured live (docs/SIM.md "Monster mechanics
+  audit"): bleeds (the bound soul's on everyone within a tile), the Charge (called, then the jump),
+  the vampire countess' transfixed copies of our pets, the apparition's blink with its area hit, the
+  banshee's dematerialize, the shade wolf's and nightstalker's Vanish, the corpsebride's wail, the
+  vampires' feed, the daemon's bone burst, disease, poison, life drain; respawn after `respawn_s`.
 - **Pets**: follow / guard / kill / stay by our pet commands ("All Guard Me": attack what attacks us
   or the pets; "All Kill": the target, then back to following; guarding stops at a recall);
   melee (gravebug) or ranged (phoenix); bonded: a ghost at 0 hits (0xBF sub 0x19) that follows;
@@ -67,7 +70,8 @@ TOME_ROW_BUTTON0 = 100    # the tome's rows: 100 + row index (test_loop_hunt's l
 GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
 ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease"}   # scenario specials rolled on a monster's hit
-TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink"}     # ...used on a cooldown while it fights
+TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink", "feed"}   # ...used on a cooldown while it fights
+# ("dematerialize" fires from `hurt`: a banshee hit with it ready)
 GATE_GUMP = 0xE0E675B8    # "Moongate Destinations" (docs/NOTES.md "Moongate gumps")
 SONGS = ("discord", "peace", "provoke")
 TEXT_SONG_WAIT = "You must wait a few moments before performing another barding song."
@@ -124,6 +128,9 @@ class Mob:
     held_until: float = 0.0       # a transfixed pet stands still and doesn't fight until then
     hidden_until: float = 0.0     # stealthed (Vanish) until then: unseen, unhittable; 0: visible
     blink_to: int | None = None   # an apparition's blink: back on this mobile's tile when hidden_until ends
+    relocate: tuple | None = None  # a banshee's dematerialize: (min, max) tiles from here when hidden_until ends
+    charge_at: tuple | None = None  # a Charge called ('*charges*'): (landing time, target serial, the special)
+    feed: list | None = None      # a vampire's feed: [next time, ticks left (None: still attempting), target, special]
     seen_since: float | None = None   # idle with one of us in its range and sight: it takes a target at this time
     diseases: list = field(default_factory=list)   # [[next tick time, ticks left, damage, every_s]]: they stack
     cd: dict = field(default_factory=dict)   # ability -> next time it is ready
@@ -367,7 +374,7 @@ class World:
             d[sub] = d.get(sub, 0) + n
 
     # ------------------------------------------------------------ damage
-    def hurt(self, victim: Mob, amount: float, by: Mob | None, kind="melee"):
+    def hurt(self, victim: Mob, amount: float, by: Mob | None, kind="melee", song_pets=True):
         if not victim.alive or victim.ghost or amount <= 0:
             return
         if by is not None and by.kind in ("player", "pet") and self.penalty:
@@ -378,7 +385,8 @@ class World:
             amount *= self.sc["bard"].get("provoke_x", 1.0)
         if by is not None and by.discord_until > self.t:
             amount *= 1 - self.sc["bard"]["discord_dealt"]
-        if victim.kind in ("player", "pet") and (by is None or by.kind == "monster"):
+        if victim.kind in ("player", "pet") and (by is None or by.kind == "monster") \
+                and (song_pets or victim.kind == "player"):
             amount *= 1 - self.song("discord")      # also on bleeds and area hits (patch 2022-08-26)
         elif victim.kind == "monster" and by is not None and by.kind in ("player", "pet"):
             amount *= 1 + self.song("provoke")
@@ -406,6 +414,10 @@ class World:
             self.send(P.hits(victim.serial, victim.pct(), 100))
         if victim.hits <= 0:
             self.die(victim, by)
+        elif victim.kind == "monster" and by is not None and by.kind in ("player", "pet"):
+            sp = next((s for s in victim.spec.get("specials", []) if s["kind"] == "dematerialize"), None)
+            if sp is not None and not victim.hidden_until and self.t >= victim.cd.get("dematerialize", 0.0):
+                self._dematerialize(victim, sp)
 
     def heal(self, m: Mob, amount: float):
         if not m.alive or m.ghost:
@@ -620,9 +632,21 @@ class World:
             m.blink_to = None
             if to is not None and to.alive and not to.ghost:
                 self._teleport(m, to.pos)                # live: onto its target's own tile ...
-                if "burst" in m.cd:
-                    m.cd["burst"] = t                    # ... and its area hit at that instant
+                for sp in m.spec.get("specials", []):
+                    if sp["kind"] == "burst" and sp.get("on_blink"):
+                        self._burst(m, sp)               # ... and its area hit at that instant
+            elif m.relocate is not None:
+                self._teleport(m, self._relocate_tile(m, m.relocate))
+            m.relocate = None
             self._view()
+        if m.charge_at is not None and t >= m.charge_at[0]:
+            _, s, sp = m.charge_at
+            m.charge_at = None
+            to = self.mobs.get(s)
+            if to is not None and to.alive and not to.ghost and cheb(m.pos, to.pos) <= sp.get("range", 12):
+                self._charge(m, to, sp)
+        if m.feed is not None and t >= m.feed[0]:
+            self._feed_step(m)
         if m.calm_until > t:
             self._warm(m, False)
             return
@@ -715,7 +739,7 @@ class World:
         if ranged and d <= ranged["range"] and self.can_see(m, tgt):
             if t >= m.next_swing:
                 m.next_swing = self._due(m.next_swing, ranged["every_s"] * self.rng.uniform(0.85, 1.15))
-                self.hurt(tgt, self.roll(ranged["damage"]), m, "spell")
+                self.hurt(tgt, self.roll(ranged["damage"]) * self._taken_x(tgt, "spell"), m, "spell")
                 self._specials(m, tgt, spec)
                 for sp in spec.get("specials", []):
                     if sp["kind"] == "fire_mark":
@@ -726,13 +750,21 @@ class World:
             if t >= m.next_swing and spec.get("melee"):
                 m.next_swing = self._due(m.next_swing, spec["swing_s"] * self.rng.uniform(0.9, 1.1))
                 if self.rng.random() < spec.get("hit_chance", 0.8):
-                    self.hurt(tgt, self.roll(spec["melee"]) * (self.sc["defaults"]["damage_to_player_x"]
-                                                               if tgt.kind == "player" else 1.0), m)
+                    self.hurt(tgt, self.roll(spec["melee"]) * self._taken_x(tgt, "melee"), m)
                     self._specials(m, tgt, spec)
             return
         if t >= m.next_step:
             m.next_step = self._due(m.next_step, spec["step_s"])
             self._step_toward(m, tgt.pos, 1)
+
+    def _taken_x(self, tgt: Mob, kind: str) -> float:
+        """A monster's melee and spell numbers are the gravebug's (it takes most hits); the others take more:
+        Logan `damage_to_player_x` of them, the phoenix its `melee_taken_x` of a melee hit (scenario notes)."""
+        if tgt.kind == "player":
+            return self.sc["defaults"]["damage_to_player_x"]
+        if tgt.kind == "pet" and kind == "melee":
+            return tgt.spec.get("melee_taken_x", 1.0)
+        return 1.0
 
     def _specials(self, m: Mob, tgt: Mob, spec: dict):
         """On-hit specials (scenario `specials`; the timed ones are `_abilities`)."""
@@ -789,28 +821,29 @@ class World:
         self.count("fire_marks", "on us" if tgt.kind == "player" else tgt.name)
 
     def _abilities(self, m: Mob, tgt: Mob, spec: dict):
-        """Timed specials while fighting: the nightstalker's Charge, the vampire countess' transfix,
-        the shade wolf's Vanish (live 4 times: 3.5-5.8 s unseen, then back on the gravebug it fought)."""
+        """Timed specials while fighting (scenario `specials`, each with its evidence): the Charge, the
+        transfix, the wail, the bursts, the Vanish, the apparition's blink, the vampires' feed."""
         t = self.t
         for sp in spec.get("specials", []):
             kind = sp["kind"]
             if kind not in TIMED or t < m.cd.get(kind, 0.0):
                 continue
             if kind == "charge":
-                if cheb(m.pos, tgt.pos) > sp.get("range", 12) or not self.can_see(m, tgt):
+                if m.charge_at is not None or cheb(m.pos, tgt.pos) > sp.get("range", 12) or not self.can_see(m, tgt):
                     continue
+                # live: '*charges*', then the jump and its hit 0.8-1.1 s later (scenario note)
                 m.cd[kind] = t + sp["cooldown_s"] * self.rng.uniform(0.9, 1.1)
-                self._charge(m, tgt, sp)
+                self._overhead(m, "*charges*")
+                m.charge_at = (t + self.rng.uniform(*sp.get("delay_s", (0.0, 0.0))), tgt.serial, sp)
             elif kind == "transfix":
                 m.cd[kind] = t + sp["every_s"] * self.rng.uniform(0.9, 1.1)
                 self._overhead(m, "*attempts to transfix*")
-                if any(o.spec.get("summoner") == m.serial for o in self.mobs.values()):
-                    continue                             # live: 0 of 4 attempts with her copy still up worked
-                pets = [p for p in self.pets() if p.alive and not p.ghost and cheb(p.pos, m.pos) <= sp.get("range", 12)]
+                pets = [p for p in self.pets() if p.alive and not p.ghost and p.held_until <= t
+                        and cheb(p.pos, m.pos) <= sp.get("range", 12)]
                 if pets and self.rng.random() < sp["chance"]:
                     self._transfix(self.rng.choice(pets), sp, m)
             elif kind == "wail":
-                # corpsebride: an area hit (docs/NOTES.md; scenario specials note)
+                # corpsebride: an area hit 0.4 s after the emote (scenario note)
                 m.cd[kind] = t + sp["every_s"] * self.rng.uniform(0.99, 1.01)
                 self._overhead(m, "*wails*")
                 near, far = sp.get("radius", 1), sp.get("far_r", 0)
@@ -818,16 +851,17 @@ class World:
                     d = cheb(o.pos, m.pos)
                     p = sp.get("near_chance", 1.0) if d <= near else sp.get("far_chance", 0.0) if d <= far else 0.0
                     if p and self.rng.random() < p:
-                        self.hurt(o, self.roll(sp["damage"]), m, "wail")
+                        dmg = sp.get("damage_player" if o.kind == "player" else "damage_pet", sp.get("damage"))
+                        self.hurt(o, self.roll(dmg), m, "wail")
             elif kind == "burst":
+                if sp.get("on_blink"):
+                    continue                             # the apparition's: only where its blink lands
                 # reanimated daemon (20261014_221341): bones around it out to ~5 tiles, one hit on each of us
                 if kind not in m.cd:
                     m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
                     continue
                 m.cd[kind] = t + sp["every_s"] * self.rng.uniform(0.9, 1.1)
-                for o in self.team():
-                    if cheb(o.pos, m.pos) <= sp["radius"]:
-                        self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "burst")
+                self._burst(m, sp)
             elif kind == "vanish":
                 if kind not in m.cd:                     # the first one comes a while into the fight
                     m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
@@ -839,21 +873,84 @@ class World:
                     self.viewing.discard(m.serial)
                 return
             elif kind == "blink":
-                # an apparition (scenario note): gone for a moment when its target is out of reach, back on it
-                if cheb(m.pos, tgt.pos) <= 1 or cheb(m.pos, tgt.pos) > sp.get("range", 12):
+                # an apparition (scenario note): every ~8 s from its waking, gone a moment, back on its target's
+                # tile with its area hit, whether the target was beside it or across the room
+                if kind not in m.cd:
+                    m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
                     continue
-                m.cd[kind] = t + sp["cooldown_s"]
-                m.cd.setdefault("burst", t)
+                if cheb(m.pos, tgt.pos) > sp.get("range", 12):
+                    continue
+                m.cd[kind] = t + self.rng.uniform(*sp["cooldown_s"])
                 self._overhead(m, "*phases*")
                 m.hidden_until, m.blink_to = t + self.rng.uniform(*sp["hidden_s"]), tgt.serial
                 if m.serial in self.viewing:
                     self.send(P.delete(m.serial))
                     self.viewing.discard(m.serial)
                 return
+            elif kind == "feed":
+                # a vampire beside its target: '*attempts to feed*', then maybe '*feeds*' and quick ticks on it
+                if m.feed is not None or cheb(m.pos, tgt.pos) > 1:
+                    continue
+                m.cd[kind] = t + self.rng.uniform(*sp["every_s"])
+                self._overhead(m, "*attempts to feed*")
+                m.feed = [t + self.rng.uniform(*sp["delay_s"]), None, tgt.serial, sp]
+
+    def _burst(self, m: Mob, sp: dict):
+        """One area hit on each of us within `radius` (`song_pets` false: the pets' share isn't cut by the
+        Song of Discordance, as the apparition's live)."""
+        for o in self.team():
+            if cheb(o.pos, m.pos) <= sp["radius"]:
+                self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "burst",
+                          song_pets=sp.get("song_pets", True))
+
+    def _dematerialize(self, m: Mob, sp: dict):
+        """A banshee hurt with the ability ready: '*dematerializes*', gone for a moment, back `jump` tiles
+        from where it was, its target kept (scenario note)."""
+        t = self.t
+        m.cd["dematerialize"] = t + self.rng.uniform(*sp["cooldown_s"])
+        self._overhead(m, "*dematerializes*")
+        m.hidden_until, m.relocate = t + self.rng.uniform(*sp["hidden_s"]), tuple(sp["jump"])
+        if m.serial in self.viewing:
+            self.send(P.delete(m.serial))
+            self.viewing.discard(m.serial)
+
+    def _relocate_tile(self, m: Mob, jump) -> tuple:
+        """A free floor tile `jump` (lo, hi) tiles from `m` in its sight, else where it stands [INFERENCE: random]."""
+        lo, hi = jump
+        for _ in range(60):
+            dx, dy = self.rng.randint(-hi, hi), self.rng.randint(-hi, hi)
+            if max(abs(dx), abs(dy)) < lo:
+                continue
+            x, y = m.x + dx, m.y + dy
+            z = self.stand_z(x, y, m.z)
+            if abs(z - m.z) > 20 or self._occupied(x, y, m.serial) \
+                    or not any(self.walk.can_walk(x, y, z, d) for d in TELEPORT_DIRS) \
+                    or not self.sight.can_see(m.pos, (x, y, z)):
+                continue
+            return (x, y, z)
+        return m.pos
+
+    def _feed_step(self, m: Mob):
+        """A feed under way: the attempt's outcome, then its ticks 0.5 s apart on the target."""
+        t = self.t
+        when, left, s, sp = m.feed
+        tgt = self.mobs.get(s)
+        if tgt is None or not tgt.alive or tgt.ghost or cheb(m.pos, tgt.pos) > 1:
+            m.feed = None
+            return
+        if left is None:
+            if self.rng.random() >= sp["chance"]:
+                m.feed = None
+                return
+            self._overhead(m, "*feeds*")
+            m.feed = [t + sp.get("first_tick_s", 0.7), self.rng.randint(*sp["ticks"]), s, sp]
+            return
+        self.hurt(tgt, self.roll(sp["tick"]) * self._taken_x(tgt, "melee"), m, "feed")
+        m.feed = [self._due(when, sp.get("tick_s", 0.5)), left - 1, s, sp] if left > 1 else None
 
     def _charge(self, m: Mob, tgt: Mob, sp: dict):
-        """Charge (knowledge #14625: teleports up to 12 tiles, hits up to 3 targets within 1 tile; live
-        21:21:14 a 4-tile jump and -37 on the gravebug with -42 on Logan at the same instant)."""
+        """Charge (knowledge #14625: teleports up to 12 tiles, hits up to 3 targets within 1 tile; live the
+        jump onto or beside its target 1.0 s after '*charges*', each of us within a tile hit at once)."""
         if cheb(m.pos, tgt.pos) > 1:
             spots = [(tgt.x + dx, tgt.y + dy) for dx, dy in nav.DIR_DELTA
                      if not self._occupied(tgt.x + dx, tgt.y + dy)
@@ -862,20 +959,21 @@ class World:
                 return
             to = min(spots, key=lambda p: cheb(p, m.pos))
             self._teleport(m, (to[0], to[1], tgt.z))
-        self._overhead(m, "*charges*")
+            self._moved(m)
         hit = [tgt] + [o for o in self.team() if o is not tgt and cheb(o.pos, m.pos) <= 1]
         for o in hit[:sp.get("targets", 3)]:
             if cheb(o.pos, m.pos) <= 1:
-                self.hurt(o, self.roll(sp["damage"]), m, "charge")
+                dmg = sp.get("damage_player", sp["damage"]) if o.kind == "player" else sp["damage"]
+                self.hurt(o, self.roll(dmg), m, "charge")
 
     def _transfix(self, pet: Mob, sp: dict, by: Mob):
         """The vampire countess' transfix: a hostile copy of one of our pets, named as the pet, on its
         tile, while the pet itself stands transfixed (no step, no swing) until the copy vanishes, after a
-        -36..-45 on it at once. Live, 6 copies in 3 fights (20261012_210013, 20261013_173449, _204518):
-        9.9-11.0 s each, the copy in war mode 0-2.5 s after it appeared, at most one at a time; their hits
-        on Logan 28-37."""
+        hit on it at once. Live (scenario note): 9.9-11.0 s each; a copy walks and swings at the monsters'
+        pace (`copy_step_s`, `swing_s`), not its pet's; a second one can come while the first is up (on
+        the other pet)."""
         spec = {"name": pet.name, "body": pet.body, "melee": sp["melee"], "swing_s": sp["swing_s"],
-                "hit_chance": sp.get("hit_chance", 0.9), "step_s": pet.spec.get("step_s", 0.21),
+                "hit_chance": sp.get("hit_chance", 0.9), "step_s": sp.get("copy_step_s", pet.spec.get("step_s", 0.21)),
                 "aggro_range": 12, "gold": [0, 0], "difficulty": sp.get("difficulty", 100.0),
                 "specials": [], "random_target": True, "copy_of": pet.serial, "summoner": by.serial}
         x, y, z = pet.pos
@@ -889,7 +987,7 @@ class World:
         self._view()
         self._overhead(c, "*transfixed*")
         if sp.get("pet_damage"):
-            self.hurt(pet, self.roll(sp["pet_damage"]), by, "transfix")   # live -36..-45 at once (n=5)
+            self.hurt(pet, self.roll(sp["pet_damage"]), by, "transfix")
         self.count("transfixed", pet.name)
 
     # ------------------------------------------------------------ pets
@@ -1151,6 +1249,9 @@ class World:
             self._song(pend["kind"])
             return
         serial = f.get("serial") or 0
+        if pend["kind"] == "peace" and serial == self.player.serial:
+            self._area_peace()
+            return
         tgt = self.mobs.get(serial)
         if tgt is not None and tgt.kind == "pet":
             self.metrics["violations"].append({"t": round(self.t, 1), "what": f"{pend['kind']} at our pet"})
@@ -1185,6 +1286,29 @@ class World:
             m.threat[self.player.serial] = m.threat.get(self.player.serial, 0) + amount
         if count:
             self.metrics["aggressive_acts"] += 1
+
+    def _area_peace(self):
+        """Peacemaking targeted on ourselves (wiki Peacemaking "Area Peacemaking"): a check per non-tamed
+        creature within 8 tiles, 2 s pacified each; the usual cooldowns (live 20261015_171928 17:22:01: the text
+        below, then the calm wait)."""
+        t, b, pl = self.t, self.sc["bard"], self.player
+        self.skill_ready = t + tamer.SKILL_GAP_S
+        hit = 0
+        for m in self.mobs.values():
+            if m.kind != "monster" or not m.alive or m.hidden_until or cheb(m.pos, pl.pos) > tamer.AREA_PEACE_R \
+                    or m.immune_until > t:
+                continue
+            diff = m.spec.get("difficulty") or 100.0
+            s = b["effective_skill"]
+            if self.rng.random() < min(0.95, max(s / 100.0 - diff / 100.0, b["min_chance_factor"] * s / 100.0)):
+                m.calm_until = max(m.calm_until, t + 2.0)
+                hit += 1
+        self.count("bard", "area_peace_ok" if hit else "area_peace_fail")
+        if hit:
+            self.calm_ready = t + tamer.CALM_SUCCESS_S
+            self._sys(tamer.TEXT_AREA_PEACE_OK)
+        else:
+            self._sys("You fail to pacify your opponent. You estimate the task to be fairly reasonable.")
 
     def _bard(self, kind, tgt: Mob, first: Mob | None):
         t, b, pl = self.t, self.sc["bard"], self.player

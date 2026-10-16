@@ -182,6 +182,13 @@ ANSWER_OK = re.compile(r"^You play successfully, (disrupting|pacifying|provoking
 ANSWER_FAIL = re.compile(r"^You fail to (discord|pacify|incite)")
 DURATION = re.compile(r"\((?:(\d+)m)?\s*(?:(\d+)s)?\)\s*$")
 TEXT_CALM_WAIT = "You must wait a few moments before you may provoke or pacify another creature."
+# Area Peacemaking: the skill's cursor answered with ourselves (user 2026-10-15: "in a jam you can peace the area
+# around you by activating Peacemaking and targeting yourself ... Good if you are walking through a group of mobs or
+# get ganged up on"; wiki Peacemaking "Area Peacemaking": a check per non-tamed creature within 8 tiles, 2 s
+# pacified each, the usual cooldowns; live 20261015_171928 17:22:01 the user's own: this text, then the calm wait)
+TEXT_AREA_PEACE_OK = "You play successfully, briefly pacifying one or more nearby creatures."
+AREA_PEACE_R = 8
+JAM_R = 3                     # monsters in war mode this close: a jam (two on us, or one on us when we're low)
 TEXT_IMMUNE = "That target is currently under a barding break effect."
 TEXT_BEYOND = "beyond your skill"
 TEXT_INCITE_SECOND = "Whom do you wish them to attack?"
@@ -733,7 +740,7 @@ class Team:
         me = st["world"]["self"]
         low = me.get("hits") is not None and self.h.frac(me) < self.a.heal_at
         return self.evade(st) or (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
-            or self.retreat(st) or (low and self.vet(st)) or self.spacing(st) or self.vet(st) \
+            or self.area_peace(st) or self.retreat(st) or (low and self.vet(st)) or self.spacing(st) or self.vet(st) \
             or (self.guard_needed and self.guard()) or self.to_pet(st) or self.reposition(st) or self.song(st)
 
     def spacing(self, st) -> bool:
@@ -1596,6 +1603,60 @@ class Team:
             self.calm_ready = now + SKILL_GAP_S
         else:
             log(f"{what}: failed")
+
+    def jam(self, st, walking_out: bool = False) -> str | None:
+        """Why we're in a jam, else None: two or more monsters attacking us within JAM_R, one when we're below
+        --retreat-at, or (walking out to the gate) any monster in war mode within JAM_R of us."""
+        me = st["world"]["self"]
+        near = [a for a in self.h.attackers(st) if a["dist"] <= JAM_R]
+        if len(near) >= 2:
+            return f"{len(near)} on us within {JAM_R}"
+        if near and me.get("hits") is not None and self.h.frac(me) < self.a.retreat_at:
+            return f"{near[0]['name'] or 'one'} on us at {me['hits']}/{me.get('hits_max')} hits"
+        if walking_out:
+            v = self.view(st)
+            war = [m for m in v.mobs if m["war"] and cheb(m["pos"], v.pos) <= JAM_R]
+            if war:
+                return f"walking out past {len(war)} in war mode within {JAM_R}"
+        return None
+
+    def area_peace(self, st, walking_out: bool = False) -> bool:
+        """--peace, in a jam (Team.jam): Peacemaking with its cursor answered with ourselves, a 2 s pacify on each
+        creature within AREA_PEACE_R that passes its check (TEXT_AREA_PEACE_OK). True when the skill went out."""
+        now = time.monotonic()
+        if not self.a.peace or self.no_instrument or now < self.skill_ready or now < self.calm_ready:
+            return False
+        why = self.jam(st, walking_out)
+        if why is None:
+            return False
+        h = self.h
+        h.doing("bard", f"Peacemaking around us: {why}")
+        h.human.wait("use")
+        mark = len(h.link.events)
+        h.link.act(actions.use_skill(SKILL_PEACE))
+        self.count("area_peace")
+        self.skill_ready = time.monotonic() + SKILL_RETRY_S
+        cur = self._cursor(mark)
+        if cur is not None and (cur := self._instrument(mark, cur)) is None:
+            return True
+        if cur is None:
+            log(f"area peace ({why}): no target cursor")
+            return True
+        h.human.wait("aim")
+        st = h.state()
+        if not h.cursor_still(st, cur):
+            return True
+        me = st["world"]["self"]
+        mark2 = len(h.link.events)
+        h.link.act(combat.target_self(cur, h.me(st), h.pos(st)[:3], me.get("body") or me.get("graphic")))
+        h.wait_for(lambda s: any(e.get("ev") == "speech_heard" and (e.get("text") == TEXT_AREA_PEACE_OK or bard_answer(e))
+                                 for e in h.link.events[mark2:]), ANSWER_WAIT_S)
+        now = time.monotonic()
+        ok = any(e.get("ev") == "speech_heard" and e.get("text") == TEXT_AREA_PEACE_OK for e in h.link.events[mark2:])
+        self.skill_ready = now + SKILL_GAP_S
+        self.calm_ready = now + (CALM_SUCCESS_S if ok else SKILL_GAP_S)
+        log(f"area peace ({why}): " + ("some pacified for 2 s" if ok else "none pacified"))
+        return True
 
     def song(self, st) -> bool:
         """--songs: the next barding song due (SONG_ORDER; none running or ending within SONG_RENEW_S, by
