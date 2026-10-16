@@ -3137,6 +3137,11 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
   with war mode off while GraveRobber fought her alone (the user: "AF was not fighting mobs, GR was fighting
   alone"). GraveRobber, transfixed five times, was back in war mode each time (her target). Now an idle pet
   beside the fight gets "All Kill" at the target (`Team.idle_pet`).
+- 21:28:21 "LEAVING by the moongate: hostile player 0xd1df6 (grey) at 12 tiles": a tormented soul (body 401, a
+  human body, notoriety 3, no 0x20 flag) first seen unlabeled; its name came the same second. `threats.Watch`
+  already held such a sighting as "awaiting label" for 1 s, but `HuntLoop.player_threat` read only `player` and
+  `hostile`; now it skips the awaiting-label ones (reds in view still leave at once). Gate, Totem, the tome
+  home at 21:28:44: 41 kills, 28,981 gold in 18 min, no death. The user: "pleasantly surprised by that run".
 
 ## Network observations
 

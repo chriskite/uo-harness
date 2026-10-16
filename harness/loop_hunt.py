@@ -423,8 +423,11 @@ class HuntLoop:
         struck 4.6 s after sight, docs/PLAN.md "Red sighting") and a player named in
         "... is attacking you!" (seen or not: Bastet attacked hidden)."""
         a = self.watch.update(st, recall_s=0.0, margin_s=0.0)
-        pk = [t for t in a.threats
-              if t.player and t.hostile and 0 <= t.distance <= self.watch.params.player_strike_range]
+        # one first seen unlabeled waits the label grace (threats.Params.label_grace_s, Watch's "awaiting label"):
+        # live 20261015_210709 21:28:21 a tormented soul (human body, notoriety 3) came into view 12 tiles off
+        # before its name, was taken for a grey player and the run left; its name came the same second
+        pk = [t for t in a.threats if t.player and t.hostile and 0 <= t.distance <= self.watch.params.player_strike_range
+              and "awaiting label" not in (t.reason or "")]
         if pk:
             t = pk[0]
             return f"hostile player {t.name or hex(t.serial)} ({t.kind}) at {t.distance} tiles"
