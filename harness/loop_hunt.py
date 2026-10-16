@@ -508,8 +508,11 @@ class HuntLoop:
 
     def anchor(self, st):
         """Where the pull range, the corpse range and Stationary Penalty walks are measured
-        from: where we stand when crawling, else the fight spot."""
-        return tuple(self.pos(st)[:2]) if self.crawl is not None else self.fight_spot
+        from: where we stand when crawling or before the first arrival (walk_in_fight: no
+        fight spot yet), else the fight spot."""
+        if self.crawl is not None or self.fight_spot is None:
+            return tuple(self.pos(st)[:2])
+        return self.fight_spot
 
     def wanted(self, world, key, mob) -> bool:
         text = ((world.get("labels") or {}).get(key) or mob.get("name") or "").lower()
@@ -613,11 +616,11 @@ class HuntLoop:
             if any(s == self.engaged for s, _ in att):
                 return self.engaged
             return min(att, key=lambda sm: (self.frac(sm[1]), cheb(pos, (sm[1]["x"], sm[1]["y"]))))[0]
+        if not pull:
+            return None
         anchor = self.anchor(st)
         near = [(s, m) for s, m in cands if cheb(anchor, (m["x"], m["y"])) <= self.args.pull_range]
-        if pull and near:
-            return min(near, key=lambda sm: cheb(pos, (sm[1]["x"], sm[1]["y"])))[0]
-        return None
+        return min(near, key=lambda sm: cheb(pos, (sm[1]["x"], sm[1]["y"])))[0] if near else None
 
     def worn(self, st, serial) -> bool:
         it = st["world"]["items"].get(key_of(serial)) or {}
@@ -1586,7 +1589,7 @@ class HuntLoop:
             if self.team is not None:
                 self.team.song(self.state())
             # the tile the route onto it steps from: a teleporter on stairs is entered from one side only
-            # (the Mausoleum's at 5554,701: from 5554,702 northwards)
+            # (the Mausoleum's at 5554,700: from 5554,701 northwards, the step denied and then the move)
             path, _ = self.mover.plan(self.link.state(), nav.within(tile, 0), mobiles=False)
             near = tuple(path[-2]) if path and len(path) >= 2 else None
             if near is None:
@@ -1647,10 +1650,12 @@ class HuntLoop:
                         f"{'of it' if at else 'of us'} after {WALK_IN_PETS_S:.0f} s; not going on without them")
 
     def walk_in_fight(self, label):
-        """Attacked on the way in: 'All Guard Me' and stand while the pets take it (the team's care:
-        potions, vet supplies, stand-off) until nothing attacks us and no hit came for WALK_IN_CALM_S, up to
-        WALK_IN_FIGHT_S; then 'All Follow Me' and walk on. On follow the pets would let it hit us all the
-        way to the next teleporter."""
+        """Attacked on the way in: 'All Guard Me' and the fight tick's order until nothing attacks us and
+        no hit came for WALK_IN_CALM_S (up to WALK_IN_FIGHT_S): out of an area hit, a potion below
+        --heal-at, the team's care (vet supplies, retreat, off the tank), the pets at what's on us
+        (Team.fight: bard skills, "All Kill" on one they leave alone), then our kills looted; then
+        'All Follow Me' and walk on. Live 22:33:39 the care alone left Logan standing among the mobs,
+        dying (the user took over); on follow the pets would let it hit us all the way."""
         log(f"{label}: attacked on the way in; the pets guard")
         self.doing("enter", "Attacked on the way in: the pets take it")
         self.team.guard_t = -1e9
@@ -1659,10 +1664,26 @@ class HuntLoop:
         while time.monotonic() < end:
             st = self.state()
             self.walk_hurt(st)
-            if not self.attackers(st) and time.monotonic() - self.walk_hurt_t > WALK_IN_CALM_S:
+            attackers = self.attackers(st)
+            me = st["world"]["self"]
+            if not self.team.potion_first(st) and self.team.stand_off(st):
+                continue
+            if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
+                self.human.wait("read")
+                continue
+            if self.team.care(st):
+                continue
+            target = self.pick_target(st, pull=False)
+            if target is not None:
+                self.fight(target)
+                continue
+            if not attackers and time.monotonic() - self.walk_hurt_t > WALK_IN_CALM_S:
+                if self.corpses:
+                    self.loot(self.corpses[0])
+                    continue
                 break
-            if not self.team.care(st):
-                time.sleep(0.3)
+            time.sleep(0.3)
+        self.disengage("ended")
         self.team.follow()
 
     def wait_pk(self):
@@ -2174,7 +2195,7 @@ def arg_parser() -> argparse.ArgumentParser:
                          "(dungeons: near a golden gate; default: the arrival / --spot)")
     ap.add_argument("--enter-via", type=int, nargs=2, action="append", default=None, metavar=("X", "Y"),
                     help="after --enter-recall's arrival, step onto these teleporters in order (repeat) to reach "
-                         "the hunting level; the last arrival is the hunt (the Mausoleum: 5554 701, 5521 638)")
+                         "the hunting level; the last arrival is the hunt (the Mausoleum: 5554 700, 5506 701, 5507 697, 5522 637)")
     ap.add_argument("--leave-gate", type=int, nargs=2, default=None, metavar=("X", "Y"),
                     help="leave by this moongate on the hunting level (dungeons allow no recall except near a "
                          "gold gate, never near a red one: user 2026-10-13), to --gate-dest, then --leave-recall "

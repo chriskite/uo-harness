@@ -2489,8 +2489,12 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
   - **In:** at 21:16:30 the rune tome (gump 0x09F5976B) landed Logan at (5626, 688, 0), 1 tile from
     a moongate item 0x40001CCA, graphic 0x0F6C, hue 2822 [INFERENCE: the gold one], at (5626, 689,
     0). Two more hue-2822 gates stand on that level 0, at (5618, 723) and (5588, 717). He walked
-    the teleporters (5554, 701) -> (5547, 696, 10), level 1, and (5521, 638) -> (5199, 738, 17),
-    the fight level.
+    the teleporters (5554, 700) -> (5547, 696, 10), level 1, and (5522, 637) -> (5199, 737, 17),
+    the fight level. **Corrected 2026-10-15:** this note first gave (5554, 701) and (5521, 638), the
+    tiles he stood on; the teleporter is the next tile, whose step is denied (0x21 reports where we
+    stand) before the move (captures 20261012_210013 and 20261013_204518: the step N from (5554, 701),
+    the step E from (5521, 637)). Live 22:33:53 `--enter-via 5554 701` stepped onto 5554,701 and
+    stopped there; the user stepped one more north and went through.
   - **Out:** at 21:31:00 he stepped onto the crimson moongate 0x4010E11F (0x0F6C, hue 2820) at
     (5203, 703, 0), in the fight level's banshee room.
     - "Moongate Destinations" (0xE0E675B8; Totem is button 17), then button 2 "Travel to

@@ -505,7 +505,7 @@ moongate, and never near a red one).
     from the town.
   - The leave margin's route steps are measured to the gate.
 - **For the Mausoleum:**
-  `--enter-via 5554 701 --enter-via 5506 701 --enter-via 5507 697 --enter-via 5521 638
+  `--enter-via 5554 700 --enter-via 5506 701 --enter-via 5507 697 --enter-via 5522 637
   --leave-gate 5203 703 --gate-dest Totem` (docs/NOTES.md "Getting in and out of the Mausoleum").
 - **`--heal-in-place`** (user 2026-10-13: "leave less and heal in place"). With a long walk out, a leave
   is a last resort.

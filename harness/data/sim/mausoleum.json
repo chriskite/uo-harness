@@ -193,7 +193,7 @@
  ],
  "gates_note": "the crimson moongate 0x4010E11F on the fight level, the only red gate there (user): its 'Moongate Destinations' rows as live 21:31:00 (Totem = button 17; arrival (3859, 2890) 21:31:04). The gold gates' menus weren't opened live: one Totem row [INFERENCE]",
  "runner": {
-  "enter_via": [[5554, 701], [5506, 701], [5507, 697], [5521, 638]],
+  "enter_via": [[5554, 700], [5506, 701], [5507, 697], [5522, 637]],
   "leave_gate": [5203, 703],
   "gate_dest": "Totem",
   "heal_in_place": true,
@@ -965,10 +965,9 @@
  ],
  "spawn_note": "every first-seen position of a monster type (calibration creatures.*.first_seen), one spawn each: the fight level's, then the first two levels' on the way in (x 5500-5650); the vampiric consort where Logan first saw one (20261013_204518, 20:57:51; it woke at 12 tiles, reached the gravebug and chased him ~25 tiles)",
  "teleporters": [
-  {"from": [5554, 701], "to": [5547, 696, 10]},
+  {"from": [5554, 700], "to": [5547, 696, 10]},
   {"from": [5506, 701], "to": [5507, 698, -5]},
   {"from": [5507, 697], "to": [5507, 693, -5]},
-  {"from": [5521, 638], "to": [5199, 737, 17]},
   {"from": [5199, 738], "to": [5522, 638, -23]},
   {"from": [5200, 738], "to": [5522, 638, -23]},
   {"from": [5200, 736], "to": [5522, 636, -23]},
