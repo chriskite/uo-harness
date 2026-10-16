@@ -816,6 +816,17 @@ class Crawl:
                                   max_moves=max(250, 2 * max(self.floor.dist_exit.values())))
             if why:
                 log(f"patrol to {w}: stopped ({why})")
+                if "at once" in why:
+                    # this way in shows us to more than the pull budget together (aggro.View.overpull): the
+                    # waypoints around here rest, the patrol goes elsewhere (sim fight1949: the next one chosen
+                    # was in the same banshee room, and both woke)
+                    here = tuple(h.pos(h.link.state())[:2])
+                    r = aggro.AGGRO_R + aggro.WAKE_MARGIN
+                    for i, p in enumerate(self.wps):
+                        if cheb(p, here) <= r:
+                            self.depleted[i] = now + RESPAWN_S
+                    self.wp = None
+                    log(f"crawl: more than the pull budget would see us together near {here}; patrolling elsewhere")
         except Abort as e:
             if "no route" not in str(e) and "cut by mobiles" not in str(e):
                 raise

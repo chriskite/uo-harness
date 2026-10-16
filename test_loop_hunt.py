@@ -1258,8 +1258,8 @@ async def main(staff=False, fight=None, crawl=False, recall=False):
         check("in the fight, the first heal after A's 30-point hit is a potion (+25), not a spell",
               world.drinks and world.exits and world.drinks[0] < world.exits[0]
               and (first_cast is None or world.drinks[0] < first_cast), f"drinks {world.drinks} heals {heals[:1]}")
-        check("its bag was opened (stock dclick) before the potion's double-click",
-              POT_BAG in world.dclicks and world.dclicks.index(POT_BAG) < world.dclicks.index(POTION),
+        check("the potion double-clicked where it sits, its bag never opened (the user's Razor 'Drink Heal Potion')",
+              POTION in world.dclicks and POT_BAG not in world.dclicks,
               str([hex(s) for s in world.dclicks]))
         lt_, la = world.loot_hit_t, world.loot_a_t
         check("hit below --heal-at while looting A: a heal (potion or spell) before the gold is taken",

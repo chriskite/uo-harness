@@ -183,15 +183,19 @@ class View:
         return out
 
     def overpull(self, budget: float) -> str | None:
-        """Why advancing from here pulls too much (module docstring), else None."""
+        """Why advancing from here pulls too much (module docstring), else None. Nothing fighting: idle
+        monsters worth more than the budget that would all wake to us here ("at once": the crawl then
+        patrols elsewhere; sim fight1949: two apparitions, or two banshees, seeing the same tile woke together
+        and the second cast at or blinked onto Logan while the pets held the first)."""
         never = self.never_near(self.pos)
         if never:
             return f"a {never[0]['kind']} would see us"
         fighting = self.engaged()
-        if not fighting:
-            return None
-        e = sum(m["weight"] for m in fighting)
         w = sum(m["weight"] for m in self.wakes(self.pos))
+        if not fighting:
+            n = len(self.wakes(self.pos))
+            return f"would wake {n} worth {w:.1f} at once (budget {budget:g})" if n > 1 and w > budget else None
+        e = sum(m["weight"] for m in fighting)
         if w > 0 and e + w > budget:
             return f"would wake {w:.1f} more onto {e:.1f} (budget {budget:g})"
         return None

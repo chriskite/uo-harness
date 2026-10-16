@@ -55,6 +55,8 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
         ranged = {"range": df["ranged_range"], "damage": [lo * f, hi * f], "every_s": df["ranged_every_s"], "keep": 1}
     elif ai == "ranged" and melee:
         ranged = {"range": df["ranged_range"] - 2, "damage": melee[:2], "every_s": swing, "keep": 4}
+    if (seen := sc.get("ranged_observed", {}).get(key)) is not None:
+        ranged = {**(ranged or {"range": df["ranged_range"], "keep": 1}), **{k: v for k, v in seen.items() if k != "note"}}
     gold = kb.get("gold_value") or 0
     noto = 3
     graphics = (obs.get("graphics") or [kb.get("graphic")])

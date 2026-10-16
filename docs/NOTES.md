@@ -3075,6 +3075,34 @@ a shade wolf), 7,910 gold in 7 min, dead at 19:19:41.4.
   `--never-aggro` default but the code fell back to `NEVER_AGGRO`, so the consort was still being avoided
   against the user's 2026-10-15 "we don't need to avoid any mob specifically".
 
+## The twelfth live run: a second apparition, then 20 s at the gate in a banshee's fire (test shard, 2026-10-15 19:49-19:50, capture 20261015_171928)
+
+Task hunt-20261015-194924-eeab on 0f55eb8. The songs played at last (the instrument fix: "Song of Discordance:
+playing for 15 min" 19:49:30).
+
+- Apparition A idle at (5218, 722), B at (5195, 724), the hold at (5208, 726). 19:49:39.5 A on Logan's tile, -46;
+  the stand-off went 2 tiles west to (5206, 726), 10 from B in its sight; the potion only at 19:49:44 (the
+  satchel opened first, 41 -> 44); 19:49:45.3 B on Logan's tile, -46.
+- 19:49:47 the two-attacker leave at 37/100, 1 s before the vet channel; 98 by the gate, "leave called off" at
+  19:49:55 (the new rule worked), but the pets were out of view in the apparition fight and `rejoin` only knew
+  pets in view: Logan stood at (5202, 704) while a banshee 5 tiles off cast at him (-22 -25 -28 -22 -27 -28 -21
+  -24, 3.3 s apart; no swing, so not an "attacker"); the 8/100 leave at 19:50:16; through the gate with both
+  pets (they came on "All Follow Me").
+- At Totem the tome's recall: "That location is blocked." (cliloc 501942) on the DTF Loot Chest rune; the runner
+  then tried to walk to the Mausoleum recall spot from Totem ("no route") and aborted. Logan alive at Totem.
+- The user: "he stood where a 2nd apparition aggrod him and then went and stood by the gate getting hit just
+  standing there"; then "Please prove that the runner can handle that same fight correctly before we try
+  again in game", and "I don't click potions in a satchel I use a Razor hotkey for 'Drink Heal Potion'".
+- Fixes (HUNT_LOOP "Self care", `--pull-budget`): potions by serial, no bag opened; the stand-off to the clear
+  tile the fewest idle monsters see; a ready potion before the stand-off; a caster in war mode in reach is an
+  attacker; `rejoin` to the pets' last-seen spot, also when something is on us with no pet near; the
+  reposition out of a caster's sight mid-channel; a held monster still held at the pull spot; the pull spot
+  in the fight path too; "at once": two idle monsters worth more than the budget seeing the next tile stop the
+  patrol and rest the waypoints near; heal_coming counts a vet channel that can start; no attack while the
+  Stationary Penalty is on (a race the faster potion exposed in test_loop_hunt). The simulator now has the
+  apparition's blink, the banshee's observed spells and a wake delay; the fight replay is in docs/SIM.md
+  "The 19:49 live fight".
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

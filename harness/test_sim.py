@@ -95,7 +95,7 @@ def test_aggro():
     open_ = world_with([{"key": "shade wolf", "at": [5266, 654, 0]}])
     link, clock = link_for(open_)
     link.send(tamer.command("all guard me"))
-    clock.advance(3.0)
+    clock.advance(4.0)                         # the scenario's wake delay, 1.5-3 s after first sight
     m = next(m for m in open_.mobs.values() if m.kind == "monster")
     pets = {p.serial for p in open_.pets()}
     check("one 6 tiles off in the open aggroes, on a guarding pet", m.target in pets, str(m.target))
@@ -119,6 +119,7 @@ def test_aggro_rules():
         w = world_with([{"key": "shade wolf", "at": [5266, 654, 0]}])
         m = next(m for m in w.mobs.values() if m.kind == "monster")
         m.spec = {**m.spec, "aggro_range": 7}                   # we at 6; the pets at 8 (behind) or 4 (between)
+        w.sc["defaults"]["wake_s"] = None                       # who it picks, at once: no wake delay here
         for p, x in zip(w.pets(), (5266, 5267)):
             p.x, p.y = x, ys
         link, clock = link_for(w)
@@ -592,27 +593,36 @@ def hurt_loop(w, hits, extra=()):
 
 
 def test_area_first():
-    print("== an apparition on our tile: out of its reach first, mid-channel, before the potion ==")
+    print("== an apparition on our tile: a ready potion at once, then out of its reach, mid-channel ==")
     import time
     from agent_link import cheb
-    # live 20261015_171928 18:57:09-19.5: on Logan's tile, -59; a potion and a vet channel there, then -60 more
-    w = world_with([{"key": "apparition", "at": [5207, 726, 0]}], seed=7, start=(5207, 726))
-    m = next(m for m in w.mobs.values() if m.kind == "monster")
-    m.spec = {**m.spec, "step_s": 999.0}
-    m.target, m.threat = w.player.serial, {w.player.serial: 1e9}
-    loop, clock, store, patched = hurt_loop(w, 41)
-    try:
-        with contextlib.redirect_stdout(io.StringIO()):
-            clock.advance(0.5)
-            loop.team.vet_busy_until = time.monotonic() + 5.0            # a channel running
-            loop.tick()
-            potions = loop.visit.get("potions", 0)
-    finally:
-        store.close()
-        simclock.uninstall(patched)
-    d = cheb(w.player.pos, m.pos)
-    check("one tick: 3+ tiles off it, no potion first", d >= tamer.AREA_R["apparition"] and not potions,
-          f"{d} tiles, potions {potions}")
+    # live 20261015_171928 18:57:09-19.5: on Logan's tile, -59; 4 s on a potion (its satchel opened first) and a
+    # vet channel there, then -60 more
+    out = {}
+    for ready in (True, False):
+        w = world_with([{"key": "apparition", "at": [5207, 726, 0]}], seed=7, start=(5207, 726))
+        m = next(m for m in w.mobs.values() if m.kind == "monster")
+        m.spec = {**m.spec, "step_s": 999.0}
+        loop, clock, store, patched = hurt_loop(w, 41)
+        gb = next(p for p in w.pets() if p.name == "GraveRobber")
+        m.target, m.threat = gb.serial, {gb.serial: 1e9}         # it fights the gravebug beside us
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                clock.advance(0.5)
+                loop.team.vet_busy_until = time.monotonic() + 5.0            # a channel running
+                if not ready:
+                    loop.potions.started(time.monotonic())                   # one drunk just now
+                loop.tick()
+                first = (loop.visit.get("potions", 0), cheb(w.player.pos, m.pos))
+                loop.tick()
+                out[ready] = (first, (loop.visit.get("potions", 0), cheb(w.player.pos, m.pos)))
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    r = tamer.AREA_R["apparition"]
+    check("a potion ready: drunk on the first tick, 3+ tiles off it on the second; none: off it on the first",
+          out[True][0][0] == 1 and out[True][1][1] >= r and out[False][0] == (0, out[False][0][1])
+          and out[False][0][1] >= r, str(out))
 
 
 def test_leave_called_off():

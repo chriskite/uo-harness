@@ -157,6 +157,8 @@ EVADE_MOVES = 40
 REPOSITION_S = 3.0
 REPOSITION_STEPS = 2
 REPOSITION_GAIN = 1.0         # a caster's sight less, or a tenth of an idle monster's weight
+CASTER_R = 10                 # a caster in war mode this close in sight is casting at us (loop_hunt.CASTER_REACH)
+CASTER_STEPS = 4              # ...and a reposition out of its sight goes this far
 HOLD_S = 10.0                 # hold this long for an idle monster that sees us (live: 5-10 s to war mode)
 PULL_STEPS = 3                # a pull spot within this many steps
 # A forgotten soul's spell leaves fire (0x6D70, hue 0x08D8) on the tile it hit, 5.4-5.7 s (7 in capture
@@ -360,6 +362,7 @@ class Team:
         self.attack_t = {}               # serial -> first seen attacking us (this engagement)
         self.poisoned_t = {}             # pet serial -> "*looks violently ill*" over it
         self.seen_t = {}                 # pet serial -> last seen in view
+        self.seen_at = {}                # pet serial -> (x, y) where last seen alive (rejoin)
         self.walk_pet_t = 0.0
         self.retreat_t = -1e9
         self.counts = {}
@@ -369,6 +372,7 @@ class Team:
         self.spot_for = frozenset()      # the monsters the last pull spot was chosen for
         self.standoff_t = -1e9
         self.songs = {}                  # song skill -> monotonic time it runs out
+        self.at_once_w = 0.0             # idle weight in sight at the last pull_check (its "at once" rule)
         self.song_ready = 0.0
         self._view = None                # aggro.View of the last state read
         self.pull_why = None
@@ -448,6 +452,8 @@ class Team:
             if m is None or m.get("x") is None:
                 continue
             self.seen_t[s] = now
+            if not m.get("dead"):
+                self.seen_at[s] = (m["x"], m["y"])
             out.append({"serial": s, "name": name, "frac": self.h.frac(m), "dist": cheb(pos, (m["x"], m["y"])),
                         "dead": bool(m.get("dead")), "x": m["x"], "y": m["y"],
                         "poisoned": bool(m.get("poisoned")) or now - self.poisoned_t.get(s, -1e9) < POISON_S})
@@ -787,11 +793,16 @@ class Team:
 
     def pull_check(self, st) -> str | None:
         """Why an advance (a patrol walk, an approach) should stop here: aggro.View.overpull, or
-        hold_reason."""
+        hold_reason. Its "at once" (more than the budget idle in sight together) only on a step that adds to
+        what sees us: walking out of such a spot goes on (sim fight1949: stopped at every step out, stuck)."""
         budget = self.a.pull_budget
         v = self.view(st)
         why = v.overpull(budget) if budget > 0 else (f"a {v.never_near(v.pos)[0]['kind']} would see us"
                                                      if v.never_near(v.pos) else None)
+        w = sum(m["weight"] for m in v.wakes(v.pos))
+        if why and "at once" in why and w <= self.at_once_w + 1e-6:
+            why = None
+        self.at_once_w = w
         why = why or self.hold_reason(st)
         if why and why != self.pull_why:
             self.count("pull_holds")
@@ -810,9 +821,13 @@ class Team:
             return None
         now = time.monotonic()
         seen = []
+        held = {m["serial"] for m in v.wakes(v.pos, margin=aggro.WAKE_MARGIN) if self.hold_until.get(m["serial"], 0) > now}
         for m in v.wakes(v.pos, margin=1):
             if self.hold_until.setdefault(m["serial"], now + HOLD_S) > now:
                 seen.append(m)
+        # one already held for (and the pull spot is out of its sight by a tile or two): still held, not walked
+        # back into its sight by the patrol (sim fight1949: pull spot, then the patrol on at once, both woke)
+        seen += [m for m in v.wakes(v.pos, margin=aggro.WAKE_MARGIN) if m["serial"] in held and m not in seen]
         if not seen:
             return None
         m = min(seen, key=lambda m: cheb(m["pos"], v.pos))
@@ -836,10 +851,16 @@ class Team:
         self.spot_for = group
         zone, fire = self.charge_zone(st), self.fire_tiles(st)
 
+        budget = self.a.pull_budget if self.a.pull_budget > 0 else 1e9
+
         def cost(t):
+            # more than the pull budget waking together first (aggro.View.overpull "at once"), then who would see
+            # us before a pet, then how many would wake
             first, w = v.first_on_us(t, margin=0), v.wakes(t, margin=0)
+            ww = [m for m in v.wakes(t) if len(v.wakes(t)) > 1]
+            over = round(max(0.0, sum(m["weight"] for m in ww) - budget), 2)
             back = sum(aggro.weight(kind) for _, kind in v.backspawn_exposed(t))
-            return (round(sum(m["weight"] for m in first) + back, 2), round(sum(m["weight"] for m in w), 2), len(w))
+            return (over, round(sum(m["weight"] for m in first) + back, 2), round(sum(m["weight"] for m in w), 2), len(w))
         here = cost(v.pos)
         best, best_c = None, None
         for t, k in self.tiles_within(v, PULL_STEPS).items():
@@ -848,13 +869,14 @@ class Team:
             c = (*cost(t), k)
             if best_c is None or c < best_c:
                 best, best_c = t, c
-        if best is None or best_c[:2] >= (here[0], here[1] - 0.1):
+        if best is None or best_c[:3] >= (here[0], here[1], here[2] - 0.1):
             return False
         label = "to a pull spot"
         h.doing("hold", f"Stepping to {best[0]},{best[1]}: the pets between us and what comes", best[:2])
         self.count("pull_spots")
-        log(f"pull spot {best[:2]}: {best_c[2]} would see us there, weight {best_c[0]:g} before a pet "
-            f"(here {here[2]}, {here[0]:g} before a pet)")
+        log(f"pull spot {best[:2]}: {best_c[3]} would see us there, weight {best_c[1]:g} before a pet"
+            + (f", {best_c[0]:g} over the pull budget together" if best_c[0] else "")
+            + f" (here {here[3]}, {here[1]:g} before a pet" + (f", {here[0]:g} over" if here[0] else "") + ")")
         try:
             h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * PULL_STEPS, max_route=2 * PULL_STEPS)
         except Abort as e:
@@ -950,19 +972,24 @@ class Team:
         """--reposition, in a fight: a tile within REPOSITION_STEPS that keeps the pets near us within
         --vet-range, out of a Charge's reach, with a lower aggro.View.stand_score (fewer idle monsters
         that would see us, fewer casters in war mode with sight of us) by REPOSITION_GAIN; never
-        mid-channel."""
+        mid-channel, unless a caster in war mode sees us within its spell reach: then mid-channel too and
+        up to CASTER_STEPS (sim fight1949: a second banshee cast at Logan for 20 s, -20 every 3.4 s, while the
+        pets killed the first and the vet channels kept him from stepping out of its sight)."""
         h, now = self.h, time.monotonic()
-        if not self.a.reposition or now < self.vet_busy_until or now - self.reposition_t < REPOSITION_S:
+        if not self.a.reposition or now - self.reposition_t < REPOSITION_S:
+            return False
+        v = self.view(st)
+        casting = any(m["war"] and m["caster"] and v.sees(m, v.pos, CASTER_R) for m in v.mobs)
+        if now < self.vet_busy_until and not casting:
             return False
         self.reposition_t = now
-        v = self.view(st)
         if v.walk is None or not v.engaged():
             return False
         pos = v.pos
         keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]
         zone, fire = self.charge_zone(st), self.fire_tiles(st)
         spaced = [m["pos"][:2] for m in v.mobs if m["war"]] + keep if self.a.vet_range >= SPACING_R + 1 else []
-        steps = self.tiles_within(v, REPOSITION_STEPS)
+        steps = self.tiles_within(v, CASTER_STEPS if casting else REPOSITION_STEPS)
         here = v.stand_score(pos)
         best, best_s = None, here
         for t, k in steps.items():
@@ -978,7 +1005,8 @@ class Team:
         h.doing("reposition", f"Stepping to {best[0]},{best[1]}: fewer eyes on us ({here:.0f} -> {best_s:.0f})", best[:2])
         self.count("los_moves")
         try:
-            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * REPOSITION_STEPS, max_route=2 * REPOSITION_STEPS)
+            n = 2 * (CASTER_STEPS if casting else REPOSITION_STEPS)
+            h.mover.walk_to(lambda: best[:2], 0, label, urgent=casting, max_moves=n, max_route=n)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1044,14 +1072,41 @@ class Team:
         label = "out of charge reach"
         h.doing("standoff", f"Standing off an area hitter ({len(zone)} tile(s) in its reach)")
         self.count("standoffs")
+        to = self.standoff_tile(st, zone)
         try:
-            h.mover.walk_to(None, 0, label, goal_fn=ClearOf(zone), urgent=True, max_moves=STANDOFF_MOVES,
-                            max_route=STANDOFF_MOVES)
+            if to is not None:
+                h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=2 * STANDOFF_MOVES,
+                                max_route=2 * STANDOFF_MOVES)
+            else:
+                h.mover.walk_to(None, 0, label, goal_fn=ClearOf(zone), urgent=True, max_moves=STANDOFF_MOVES,
+                                max_route=STANDOFF_MOVES)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
             log(f"stand-off cut short: {e}")
         return True
+
+    def standoff_tile(self, st, zone: dict):
+        """Where to stand off to: a tile within STANDOFF_MOVES steps clear of `zone` and fire, within
+        --vet-range of every live pet near, that the fewest idle monsters would see before a pet
+        (aggro.View.stand_score), the nearest of those; None without the map or such a tile. Live
+        20261015_171928 19:49:40: the stand-off took Logan 2 tiles west, 10 from a second apparition in its
+        sight; it came onto his tile 5 s later (-46)."""
+        v = self.view(st)
+        if v.walk is None:
+            return None
+        fire, clear = self.fire_tiles(st), ClearOf(zone)
+        keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 2]
+        best, best_c = None, None
+        for t, k in self.tiles_within(v, STANDOFF_MOVES).items():
+            if not clear(t) or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in keep):
+                continue
+            c = (round(v.stand_score(t)), k)
+            if best_c is None or c < best_c:
+                best, best_c = t, c
+        if best is not None:
+            log(f"stand-off to {best[:2]}: {best_c[1]} step(s), seen by {best_c[0] / 10:g} idle before a pet")
+        return best
 
     def retreat(self, st) -> bool:
         h, now = self.h, time.monotonic()
@@ -1201,24 +1256,37 @@ class Team:
         return True
 
     def rejoin(self, st) -> bool:
-        """After a leave called off on the way out (HuntLoop.leave_called_off): back to within --vet-range - 1
-        of the nearest live pet, where the fight is, unless a leave rule fires on the way."""
+        """Back to within --vet-range - 1 of the nearest live pet, in view or where it was last seen alive (a
+        fight 20 tiles off), unless a leave rule fires on the way: after a leave called off on the way out
+        (HuntLoop.leave_called_off), or a monster on us with no pet near (fight). Live 20261015_171928
+        19:49:55-50:16: called off at the gate with the pets out of view in the apparition fight, Logan stood
+        there 20 s while a banshee 5 tiles off took him 100 -> 8."""
         h = self.h
-        pets = [p for p in self.pets(st) if not p["dead"]]
-        if not pets:
+        pos = h.pos(st)
+        seen = {p["serial"]: p for p in self.pets(st)}
+        spots = []
+        for s, name in self.roster.items():
+            p = seen.get(s)
+            if p is not None:
+                if not p["dead"]:
+                    spots.append((p["dist"], s, name, (p["x"], p["y"])))
+            elif s in self.seen_at and s not in self.dead_since:
+                spots.append((cheb(pos, self.seen_at[s]), s, name, self.seen_at[s]))
+        if not spots:
             return False
-        p = min(pets, key=lambda p: p["dist"])
+        dist, serial, name, at = min(spots)
         r = max(SPACING_R, self.a.vet_range - 1)
-        if p["dist"] <= r:
+        if dist <= r:
             return False
         label = "back to the pets"
-        h.doing("vet", f"Back to {p['name']}", (p["x"], p["y"]))
+        h.doing("vet", f"Back to {name}", at)
+        log(f"back to {name} at {at} ({dist} tiles{'' if serial in seen else ', last seen there'})")
 
         def where():
-            m = h.link.last["world"]["mobiles"].get(f"0x{p['serial']:08X}") or p
-            return m["x"], m["y"]
+            m = h.link.last["world"]["mobiles"].get(f"0x{serial:08X}")
+            return (m["x"], m["y"]) if m is not None and m.get("x") is not None else at
         try:
-            h.mover.walk_to(where, r, label, max_moves=2 * combat.VIEW_RANGE,
+            h.mover.walk_to(where, r, label, max_moves=3 * combat.VIEW_RANGE, urgent=True,
                             stop=lambda s: (why := h.leave_reason(s)) and why[0])
         except Abort as e:
             if not str(e).startswith(label):
@@ -1256,6 +1324,9 @@ class Team:
         engaged = self.engaged(st, serial)
         if engaged or on_us:
             self.fought[serial] = (mob, now)
+        if on_us and not engaged and not any(not p["dead"] and p["dist"] <= self.a.vet_range + 2 for p in self.pets(st)) \
+                and self.rejoin(st):
+            return                        # nothing between it and us here: to the pets (rejoin)
         if on_us and not engaged and now - self.attack_t[serial] >= KILL_AFTER_S \
                 and now - self.kill_t.get(serial, -1e9) >= KILL_REPEAT_S \
                 and self.effects.get(serial, {}).get("los", 0) < now:
@@ -1265,6 +1336,8 @@ class Team:
             if not on_us and cheb(h.pos(st), (mob["x"], mob["y"])) > APPROACH_R and not self.hold_reason(st):
                 self.approach(serial, mob)
                 return
+            if not on_us and self.hold_reason(st) and self.pull_spot(st):
+                return                    # where it comes to the pets, out of the others' sight (sim fight1949)
             h.doing("wait", f"Pets on guard; waiting for {name} to come on", (mob["x"], mob["y"]), serial)
             time.sleep(0.4)
             return

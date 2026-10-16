@@ -446,6 +446,9 @@ CE `master`, Scripts/Commands.cs `Potion`, Core/Player.cs `UseItem`, read 2026-1
 heal script does it. The harness's world model only holds items the server sent this client, so
 the server has shown these items to it. Every other reach into a container (lift, drop, target,
 `ctl act use`) still opens the container first.
+The hunt runner's heal potions likewise since 2026-10-15 (`HuntLoop.drink`; the user: "I don't click potions
+in a satchel I use a Razor hotkey for 'Drink Heal Potion'"); before, it opened the satchel's bags first,
+3 s at 41-54 hits live (20261015_171928).
 
 **Live audit (session 20261001_191355, 2026-10-01, 97 min, lumber runner on Shelter, captcha mode
 `auto`).** Replayed offline through `viz_feed.ReplayDriver`: exact interleave, every jsonl row

@@ -67,7 +67,7 @@ TOME_ROW_BUTTON0 = 100    # the tome's rows: 100 + row index (test_loop_hunt's l
 GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
 ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease"}   # scenario specials rolled on a monster's hit
-TIMED = {"charge", "transfix", "vanish", "wail", "burst"}     # ...used on a cooldown while it fights
+TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink"}     # ...used on a cooldown while it fights
 GATE_GUMP = 0xE0E675B8    # "Moongate Destinations" (docs/NOTES.md "Moongate gumps")
 SONGS = ("discord", "peace", "provoke")
 TEXT_SONG_WAIT = "You must wait a few moments before performing another barding song."
@@ -123,6 +123,8 @@ class Mob:
     expires: float | None = None  # a summoned monster (transfixed copy) vanishes then
     held_until: float = 0.0       # a transfixed pet stands still and doesn't fight until then
     hidden_until: float = 0.0     # stealthed (Vanish) until then: unseen, unhittable; 0: visible
+    blink_to: int | None = None   # an apparition's blink: back on this mobile's tile when hidden_until ends
+    seen_since: float | None = None   # idle with one of us in its range and sight: it takes a target at this time
     diseases: list = field(default_factory=list)   # [[next tick time, ticks left, damage, every_s]]: they stack
     cd: dict = field(default_factory=dict)   # ability -> next time it is ready
     mode: str = "follow"          # pets: follow, guard, kill, stay
@@ -614,6 +616,12 @@ class World:
             if t < m.hidden_until:
                 return
             m.hidden_until, m.next_swing = 0.0, t       # out of stealth: back on its target, a swing at once
+            to = self.mobs.get(m.blink_to) if m.blink_to is not None else None
+            m.blink_to = None
+            if to is not None and to.alive and not to.ghost:
+                self._teleport(m, to.pos)                # live: onto its target's own tile ...
+                if "burst" in m.cd:
+                    m.cd["burst"] = t                    # ... and its area hit at that instant
             self._view()
         if m.calm_until > t:
             self._warm(m, False)
@@ -682,7 +690,16 @@ class World:
             return
         near = [o for o in cands if cheb(o.pos, m.pos) <= m.spec["aggro_range"] and self.can_see(m, o)]
         if not near:
+            m.seen_since = None
             return
+        wake = self.sc["defaults"].get("wake_s")
+        if wake:
+            # live: war mode 1.8-2.7 s after one of us came into its sight (scenario defaults note)
+            if m.seen_since is None:
+                m.seen_since = t + self.rng.uniform(*wake)
+            if t < m.seen_since:
+                return
+        m.seen_since = None
         # whichever of us it sees first, the nearest seen, a pet on a tie (user 2026-10-15: "Any mob that
         # 'sees' Logan before it sees a pet is going to aggro on him directly"); before, any guarding pet
         # within guard_draw_r 6 of the player drew it, seen or not
@@ -817,6 +834,18 @@ class World:
                     continue
                 m.cd[kind] = t + self.rng.uniform(*sp["cooldown_s"])
                 m.hidden_until = t + self.rng.uniform(*sp["hidden_s"])
+                if m.serial in self.viewing:
+                    self.send(P.delete(m.serial))
+                    self.viewing.discard(m.serial)
+                return
+            elif kind == "blink":
+                # an apparition (scenario note): gone for a moment when its target is out of reach, back on it
+                if cheb(m.pos, tgt.pos) <= 1 or cheb(m.pos, tgt.pos) > sp.get("range", 12):
+                    continue
+                m.cd[kind] = t + sp["cooldown_s"]
+                m.cd.setdefault("burst", t)
+                self._overhead(m, "*phases*")
+                m.hidden_until, m.blink_to = t + self.rng.uniform(*sp["hidden_s"]), tgt.serial
                 if m.serial in self.viewing:
                     self.send(P.delete(m.serial))
                     self.viewing.discard(m.serial)

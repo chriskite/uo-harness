@@ -156,6 +156,7 @@ ROPE_RETRY_S = 2.0            # after a try that found no landing or got no curs
 ROPE_WAIT_S = 1.5             # live: the cursor 0.1 s after "[Rope", the jump ~1 s after the answer
 ROPE_LEGS_MAX = 30
 SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is attacking us
+CASTER_REACH = 10            # a caster in war mode this close while we take damage is attacking us (SPELL_RANGE)
 PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this long is dropped...
 SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
 LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D, no death): its death this soon counts
@@ -580,6 +581,18 @@ class HuntLoop:
                         and threats.identify(mob, labels.get(key))[0] == "monster":
                     # a pet (ours or anyone's) in war mode beside us is fighting for someone, not at us
                     found.setdefault(s, ("war mode, adjacent while we take damage", time.monotonic() - hurt))
+            if not found:
+                # nothing swinging at us or beside us: a caster in war mode in its spell reach is (live
+                # 20261015_171928 19:49:58-50:22 a banshee 5 tiles off, -21..-28 every 3.3 s, never a swing)
+                for key, mob in world["mobiles"].items():
+                    s = serial_of(key)
+                    if s != me and mob.get("x") is not None and (mob.get("flags") or 0) & threats.FLAG_WARMODE \
+                            and cheb(pos, (mob["x"], mob["y"])) <= CASTER_REACH and not mob.get("pet") \
+                            and mob.get("notoriety") in combat.ATTACKABLE_NOTORIETY \
+                            and aggro.caster(aggro.type_key(labels.get(key) or mob.get("name"))) \
+                            and threats.identify(mob, labels.get(key))[0] == "monster":
+                        found.setdefault(s, ("a caster in war mode in reach while we take damage",
+                                             time.monotonic() - hurt))
         out = []
         for s, (how, age) in found.items():
             key = key_of(s)
@@ -820,6 +833,10 @@ class HuntLoop:
             if mob is None:
                 log(f"not attacking 0x{serial:08X}: {why}")
                 return False
+        if stationary.steps_left(st["world"]):
+            # it came on during the wait (we first hurt the target): the next tick walks it off first (unstick)
+            log(f"not attacking 0x{serial:08X}: the Stationary Penalty is on")
+            return False
         name = mob.get("name") or key_of(serial)
         self.doing("attack", f"Attacking {name}", (mob["x"], mob["y"]), serial)
         for pkt in combat.attack_packets(st["world"], serial):
@@ -980,13 +997,14 @@ class HuntLoop:
         return False
 
     def drink(self, st, serial: int) -> bool:
-        """Drink the heal potion `serial` like `ctl act use` (open its containers first,
-        stock double-click). True when it healed; a 'wait' refusal (healing.potion_wait: the wait
-        Outlands names, or cliloc 500235) sets the potion clock to it and returns False so the caller
+        """Drink the heal potion `serial` as the user's Razor "Drink Heal Potion" hotkey does: one double-click
+        on it wherever it sits in the pack, no bag opened (ANTICHEAT.md "Exception: potions ... like Razor";
+        user 2026-10-15: "I don't click potions in a satchel I use a Razor hotkey"; live 20261015_171928 the
+        satchel's opening cost 3 s at 41-54 hits). True when it healed; a 'wait' refusal (healing.potion_wait:
+        the wait Outlands names, or cliloc 500235) sets the potion clock to it and returns False so the caller
         casts instead."""
         me = st["world"]["self"]
         self.doing("heal", f"Drinking a heal potion ({me.get('hits')}/{me.get('hits_max')} hits)")
-        self.open_for((serial, False))
         self.human.wait("use")
         mark = len(self.link.events)
         self.link.act(actions.dclick(serial))
@@ -1241,14 +1259,18 @@ class HuntLoop:
         return None
 
     def heal_coming(self, st) -> bool:
-        """--heal-in-place: a heal potion ready within HEAL_SOON_S, or (--pets) a vet channel running (its
-        finish heals us too)."""
+        """--heal-in-place: a heal potion ready within HEAL_SOON_S, or (--pets) a vet channel running or one
+        that can start now, supplies in the pack (its finish heals us too: live 20261015_171928 19:49:47 the
+        two-attacker leave at 37/100 went 1 s before the vet channel that took him to 100 on the way out)."""
         world = st["world"]
         if healing.heal_potions(world, self.me(st)):
             due = (self.potions.last or -1e9) + healing.POTION_COOLDOWN_S - time.monotonic()
             if due <= HEAL_SOON_S:
                 return True
-        return self.team is not None and time.monotonic() < self.team.vet_busy_until
+        if self.team is None:
+            return False
+        return time.monotonic() < self.team.vet_busy_until \
+            or bool(healing.in_pack(world, self.me(st), tamer.VET_SUPPLIES_GRAPHIC))
 
     def leave_called_off(self, st, severity) -> str | None:
         """On the way out after a hurt leave (severity attention): why to call it off, Logan back at
@@ -1835,6 +1857,8 @@ class HuntLoop:
             self.human.wait("read")
             self.attack(serial)
             return
+        if stationary.steps_left(st["world"]):
+            return                        # the penalty is on: unstick walks it off before any attack
         if dist <= SPELL_RANGE and self.spell_block.get(serial, 0) < now and not self.casting_disarms(st) \
                 and self.spell_ok(st, self.spell, reserve=self.args.mana_reserve):
             done = self.cast_at(serial)
@@ -1969,8 +1993,8 @@ class HuntLoop:
         me = st["world"]["self"]
         if self.rearm(st):
             return False
-        if self.team is not None and self.team.stand_off(st):     # out of an area hit first, then the potion
-            return False
+        if self.team is not None and not self.team.potion_first(st) and self.team.stand_off(st):
+            return False                  # out of an area hit first, unless a potion is ready: it goes at once
         if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
             self.human.wait("read")
             return False

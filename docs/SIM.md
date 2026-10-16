@@ -463,6 +463,36 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   within 5: pets 94-107, us 39-49, every ~15 s), the corpse purger's disease (2 of 3 barrage hits; -21
   every 5 s, 4 ticks, stacking), the vet resurrection of a pet's ghost (31 %), Maus 4's two links and four
   of its monsters (wiki stats; no fight there yet), the second level's hop at (5512, 669).
+- **The 19:49 live fight** (20261015_171928, 2026-10-15; the user: "prove that the runner can handle that
+  same fight correctly before we try again"). Three new rules from that capture, each with its evidence in
+  the scenario's notes:
+  - the apparition's **blink**: "*phases*", gone 0.5-1.3 s, back on its target's own tile with its area hit at
+    once, when its target is beyond reach (cooldown 6 s [INFERENCE]);
+  - the banshee's **spells** as seen (`ranged_observed`): 21-28 every 3.4 s at 5 tiles (n=8), about three
+    times the wiki-derived 12.5-17.5 every 6 s;
+  - a **wake delay** (`defaults.wake_s` 1.5-3 s): an idle monster takes a target that long after one of us
+    came into its range and sight (live 1.8 and 2.7 s for apparitions; a second one 12 tiles off, out of
+    sight by the map, idle 6 s).
+  The fight replayed from the arrival (5207, 737) with both apparitions, two banshees and no respawns
+  (`python harness/sim/fight1949.py 1,2,...,24`, `--harness <snapshot>` for the deployed runner; 24 seeds,
+  4 game minutes each):
+
+  | measure | deployed runner (0f55eb8) | after the fixes |
+  |---|---|---|
+  | deaths | 2 | 0 |
+  | leaves before the time was up | 2 | 0 |
+  | Logan's lowest hits, median / worst | 41 / 0 | 42 / 12 |
+  | damage on Logan, mean | 173 | 159 |
+  | from banshees, mean | 74 | 29 |
+  | from apparitions, mean | 99 | 129 |
+  | kills, mean (of 4) | 3.7 | 2.9 |
+
+  The apparition damage rose: the phoenix, a ranged pet that follows Logan, draws the second apparition's
+  blink onto itself within 2 of him. Kills fell: two banshees seeing one tile are now passed by.
+  The whole level for 30 min (8 seeds, the live arguments) died in 5 of 8 runs with either runner (deployed:
+  shade wolves, a banshee, corpsebrides; new: tormented souls twice, a corpse purger, a reanimated knight
+  with an apparition, a banshee with a bat): with the new calibration the simulator is far harsher than its
+  0.17 deaths per game hour of 2026-10-13, nearer the live runs of 2026-10-15.
 
 ## Limits
 

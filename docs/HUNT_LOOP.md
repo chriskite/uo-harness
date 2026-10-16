@@ -324,8 +324,8 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    juncture (item `veterinary supplies`). Resting outside waits for every pet to reach
    `--pet-heal-at`, by the supplies or, with none, by natural regeneration; past `--rest-timeout`
    the run stops rather than go back in with a hurt pet (that pet's leave rule would fire on arrival).
-5. **Self care**: heal potions as the mage style drinks them (Logan's sit in a potion satchel inside
-   a bag: every bag depth is searched); the retreat above (live 21:27:50 a bleed took Logan from 72
+5. **Self care**: heal potions double-clicked where they sit in the pack, no bag opened, as the user's
+   Razor "Drink Heal Potion" hotkey does (2026-10-15; ANTICHEAT.md "Exception: potions ... like Razor"); the retreat above (live 21:27:50 a bleed took Logan from 72
    to 35 hits in 2 s; he ran 18 tiles while drinking and the pets held the mob). The retreat goes to
    the tile 7+ from every attacker within 14 steps that the fewest idle monsters would see
    (`Team.retreat_tile`; live 20261015_090607 the straight-away tile was in a second apparition's
@@ -337,9 +337,16 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    beside it (`tamer.Team.stand_off`, up to 6 steps, running). Other area hitters likewise
    (`tamer.AREA_R`): an apparition 3 (its hit lands on everyone within 2: 20261015_090607 and _115604),
    a reanimated daemon 6 (its bone burst reached Logan at 5, 20261014_221341). The stand-off comes first
-   in each decision, before the potion and mid-channel (live 20261015_171928 18:57:09-19.5: an apparition
-   came onto Logan's tile, -59; he stood there through the potion and a vet channel and took -60 more;
-   a step doesn't stop a channel healing us, it only shortens its reach to a pet to 1).
+   in each decision, mid-channel too, after only a heal potion that is ready (it goes at once) (live
+   20261015_171928 18:57:09-19.5: an apparition came onto Logan's tile, -59; he stood there through the
+   potion and a vet channel and took -60 more; a step doesn't stop a channel healing us, it only shortens
+   its reach to a pet to 1). It goes to the clear tile within 6 steps, within `--vet-range` of the pets,
+   that the fewest idle monsters would see before a pet (`Team.standoff_tile`; live 19:49:40 the nearest
+   clear tile was 10 from a second apparition in its sight, and it came onto Logan 5 s later).
+   **A caster on us**: a caster in war mode within 10 while we take damage, nothing swinging at us, is
+   an attacker (`HuntLoop.attackers`; live 19:49:58-50:22 a banshee 5 tiles off, -21..-28 every 3.3 s, never
+   a swing); with no pet within `--vet-range` + 2 the runner goes back to the pets (`Team.rejoin`), and
+   the reposition out of a war caster's sight runs mid-channel too, up to 4 steps.
    **Off the tank** (user 2026-10-15: "Since our healing distance is 5 now I don't see a good reason to be
    standing next to the tank while it's fighting"): with `--vet-range` 4+, in a fight and for 8 s after
    (`FIGHT_LINGER_S`: an apparition blinks out and comes back on the tank's tile), a pet that stood next
@@ -399,7 +406,7 @@ what comes.
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `--pull-budget` | `3.0` | While the pets fight monsters worth E, an advance (patrol, approach) stops where more would wake (W, idle monsters that would see us within 15 tiles) when E + W is above it. 0 = off. |
+| `--pull-budget` | `3.0` | While the pets fight monsters worth E, an advance (patrol, approach) stops where more would wake (W, idle monsters that would see us within 15 tiles) when E + W is above it. With nothing fighting, a step that shows us to two or more idle monsters worth more than it together stops the patrol and rests the waypoints within 15 tiles (`crawl`: "patrolling elsewhere"); walking out of such a spot goes on. The pull spot puts us where they don't all wake together. 0 = off. |
 | `--never-aggro TYPE` | the elder vampire, the elder vampire countess | Never wake it alone (repeat for other types; any given replaces the default). The vampiric consort until 2026-10-15; the user then: "we don't need to avoid any mob specifically, we should be able to handle everything on Maus 3 with enough care. The consort and elder vampires areas can get a little sketchy but it's all doable" (the code still avoided the consort by default until the next change); after the eleventh live run (an elder vampire countess froze both pets and killed Logan): "I suppose the runner can avoid the elder vampires for now". |
 | `--crawl-avoid-types` / `--no-crawl-avoid-types` | on (`--pets` off) | The crawl avoids creature types the store's fights say cost too much or were fled from (live 20261015_171928 it set the vampire countess aside after one leave). |
 | `--reposition` / `--no-reposition` | on | In a fight, step to a better tile for line of sight. |
