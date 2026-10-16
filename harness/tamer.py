@@ -87,6 +87,10 @@ TEXT_VET_RES = "You are able to resurrect your follower."
 RES_TRY_S = 30.0              # a ghost in view is vetted this long after the death before the pet's death is a leave
 CLILOC_ACTION_WAIT = 500119
 CLILOC_SKILL_WAIT = 500118    # "You must wait a few moments to use another skill."
+CLILOC_PICK_INSTRUMENT = 500617   # "What instrument shall you play?": the one last played is gone
+# lute, lap harp, standing harp, drum, tambourines (Logan's pack, live 20261015_171928: 0xEB3 his lute, 0xE9C,
+# 0xE9E, 0xEB2 the lap harp after the 18:40 death)
+INSTRUMENT_GRAPHICS = (0x0EB3, 0x0EB4, 0x0EB2, 0x0EB1, 0x0E9C, 0x0E9D, 0x0E9E)
 NO_LOS_CLILOCS = (500446, 500237)   # "That is too far away." / "Target cannot be seen."
 BARD_RANGE = 10               # [INFERENCE] successes seen at 1-9 tiles
 SKILL_GAP_S = 5.0             # wiki Peacemaking; live: the next cursor came 5 s after the last use
@@ -347,6 +351,7 @@ class Team:
         self.vet_busy_until = 0.0        # a channel is running (or a refusal asks us to wait) until then
         self.vet_t = 0.0                 # the last channel's start
         self.no_vet_posted = False
+        self.no_instrument = False       # the instrument prompt came and none is in the pack: no bard skills
         self.skill_ready = 0.0           # any bard skill
         self.calm_ready = 0.0            # peace / provoke
         self.effects = {}                # serial -> {"discord": until, "calm": until, "immune": until, "los": until}
@@ -1292,7 +1297,7 @@ class Team:
         """The next bard skill at a target the pets fight: discord, provoke another, peace. True when
         one went out."""
         now = time.monotonic()
-        if now < self.skill_ready:
+        if now < self.skill_ready or self.no_instrument:
             return False
         fx = self.effects.setdefault(serial, {})
         if fx.get("los", 0) > now or cheb(self.h.pos(st), (mob["x"], mob["y"])) > BARD_RANGE:
@@ -1314,6 +1319,32 @@ class Team:
             return self.use(SKILL_PEACE, serial)
         return False
 
+    def _instrument(self, mark: int, cur):
+        """When `cur` is the server's instrument prompt (CLILOC_PICK_INSTRUMENT: the one last played is gone;
+        live 20261015_171928 after the 18:40 death 54 prompts, each answered with the skill's target, "That
+        is not a musical instrument.", every bard skill and song lost): one from the pack (INSTRUMENT_GRAPHICS),
+        then the skill's own cursor. -> the cursor to answer, or None (none in the pack: cancelled and the bard
+        skills stopped, a juncture posted)."""
+        h = self.h
+        if not any(e.get("ev") == "cliloc" and e.get("cliloc") == CLILOC_PICK_INSTRUMENT for e in h.link.events[mark:]):
+            return cur
+        st = h.state()
+        found = next((kv for g in INSTRUMENT_GRAPHICS for kv in healing.in_pack(st["world"], h.me(st), g)), None)
+        if found is None:
+            h.cancel(cur)
+            self.no_instrument = True
+            h.memory.juncture("hunt", "low_supplies", "No instrument in the pack: no bard skills or songs", "attention",
+                              {"item": "instrument"})
+            log("no instrument in the pack: the bard skills and songs are off")
+            return None
+        serial, it = found
+        h.human.wait("aim")
+        mark2 = len(h.link.events)
+        h.link.act(actions.target_object(cur["cursor_id"], serial, it.get("x") or 0, it.get("y") or 0, it.get("z") or 0,
+                                         it.get("graphic") or 0, cur.get("cursor_type") or 0))
+        log(f"instrument: {it.get('name') or 'graphic 0x%04X' % (it.get('graphic') or 0)} 0x{serial:08X}")
+        return self._cursor(mark2)
+
     def _cursor(self, mark: int, not_id=None):
         """The target cursor once a `target` event follows `mark` (and isn't `not_id`), else None (a
         skill-wait cliloc or the timeout)."""
@@ -1332,9 +1363,10 @@ class Team:
             time.sleep(0.05)
         return None
 
-    def _aim(self, cur, serial: int, rng: int) -> bool:
+    def _aim(self, cur, serial: int, rng: int, bard: bool = False) -> bool:
         """Answer the cursor `cur` with `serial` after a human aim pause and a fresh read: the target
-        still live (the monsters-only guard) and no leave rule firing; else the stock Esc."""
+        still live (the monsters-only guard) and no leave rule firing, and for a bard skill no potion to
+        drink first (potion_first); else the stock Esc."""
         h = self.h
         h.human.wait("aim")
         st = h.state()
@@ -1342,12 +1374,23 @@ class Team:
             log("the cursor went away before the target answer")
             return False
         mob, why = h.live_target(st, serial, rng)
-        if mob is None or h.leave_reason(st):
-            log(f"not answering the cursor with 0x{serial:08X}: {why or 'a leave rule fired'}; cancelling")
+        if mob is None or h.leave_reason(st) or (bard and self.potion_first(st)):
+            log(f"not answering the cursor with 0x{serial:08X}: {why or 'a leave rule fired or a potion is due'}; "
+                f"cancelling")
             h.cancel(cur)
             return False
         h.link.act(combat.target_mobile(cur, serial, mob))
         return True
+
+    def potion_first(self, st) -> bool:
+        """Below --heal-at with a heal potion ready now: drink before a bard skill goes out (live 20261015_171928
+        19:19:30.9-35.2: a Discordance started at 100 hits, -58 meanwhile, its cursor answered at 42, the
+        potion 3.6 s later)."""
+        me = st["world"]["self"]
+        if me.get("hits") is None or self.h.frac(me) >= self.a.heal_at:
+            return False
+        due = (self.h.potions.last or -1e9) + healing.POTION_COOLDOWN_S - time.monotonic()
+        return due <= 0 and bool(healing.heal_potions(st["world"], self.h.me(st)))
 
     def use(self, sid: int, serial: int, second: int | None = None) -> bool:
         """A bard skill at `serial` (Provocation: `serial` incited onto `second`); the answer sets the
@@ -1367,6 +1410,8 @@ class Team:
         self.skill_ready = now + SKILL_GAP_S
         self.count("bard")
         cur = self._cursor(mark)
+        if cur is not None and (cur := self._instrument(mark, cur)) is None:
+            return True
         if cur is None:
             refused = [bard_answer(e) for e in h.link.events[mark:] if bard_answer(e)]
             if any(r[1] == "calm_wait" for r in refused):
@@ -1375,12 +1420,12 @@ class Team:
                 self.skill_ready = time.monotonic() + SKILL_RETRY_S
             log(f"{what}: no target cursor ({[r[1] for r in refused] or 'no answer'})")
             return True
-        if not self._aim(cur, serial, BARD_RANGE):
+        if not self._aim(cur, serial, BARD_RANGE, bard=True):
             return True
         if second is not None:
             mark2 = len(h.link.events)
             cur2 = self._cursor(mark2, not_id=None)
-            if cur2 is None or not self._aim(cur2, second, BARD_RANGE):
+            if cur2 is None or not self._aim(cur2, second, BARD_RANGE, bard=True):
                 log(f"{what}: no second target")
                 return True
         ans = mark
@@ -1426,7 +1471,7 @@ class Team:
         """--songs: the next barding song due (SONG_ORDER; none running or ending within SONG_RENEW_S, by
         song_left), the skill at a ground tile beside us. True when the skill went out."""
         now = time.monotonic()
-        if not getattr(self.a, "songs", False) or now < self.song_ready or now < self.skill_ready:
+        if not getattr(self.a, "songs", False) or self.no_instrument or now < self.song_ready or now < self.skill_ready:
             return False
         sid = next((s for s in SONG_ORDER if self.song_left(st, s, now) < SONG_RENEW_S), None)
         if sid is None:
@@ -1441,6 +1486,8 @@ class Team:
         self.song_ready = time.monotonic() + SONG_GAP_S          # whatever the answer: no retry storm
         self.skill_ready = time.monotonic() + SKILL_RETRY_S
         cur = self._cursor(mark)
+        if cur is not None and (cur := self._instrument(mark, cur)) is None:
+            return True
         if cur is None:
             log(f"{what}: no target cursor")
             return True
@@ -1449,7 +1496,7 @@ class Team:
         if not h.cursor_still(st, cur):
             log(f"{what}: the cursor went away")
             return True
-        if h.leave_reason(st):
+        if h.leave_reason(st) or self.potion_first(st):
             h.cancel(cur)
             return True
         x, y, z = h.pos(st)[:3]

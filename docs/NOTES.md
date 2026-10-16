@@ -3044,6 +3044,31 @@ Task hunt-20261015-185652-4514 on 3b062e5 (backspawn) from the arrival (5207, 73
   The Mover now replans from wherever it finds itself. Logan died at 18:57:44.6 at (5207, 724), the apparition's
   area hit and the banshees.
 
+## The eleventh live run: the elder vampire countess, and no instrument since the ninth death (test shard, 2026-10-15 19:12-19:19, capture 20261015_171928)
+
+Task hunt-20261015-191213-47a3 on ab3a5b2 from (5201, 741): 10 kills (apparitions, shadow minions, corpsebrides,
+a shade wolf), 7,910 gold in 7 min, dead at 19:19:41.4.
+
+- **The stand-off worked**: 19:12:35 an apparition on Logan (-56), "out of charge reach" 2 steps at once, then
+  the potion; it died to the pets without another hit on him.
+- **No bard skill or song has worked since the ninth run's death**: Logan's pack had the indestructible
+  supremely melodious lute (0x415FFCA8, 0xEB3), a drum (0xE9C) and a tambourine (0xE9E) at 18:30; after the
+  18:40 death a lap harp (0xEB2) was in it. Every skill then got cliloc 500617 "What instrument shall you
+  play?" with a cursor, which the runner answered with the skill's target: 500619 "That is not a musical
+  instrument." (3 times in the tenth run, 51 in this one; logged as "no answer" / "out of sight or reach").
+  The runner now picks an instrument from the pack for that prompt (`Team._instrument`), and the simulator
+  asks it when the instrument last played is gone.
+- **The elder vampire countess** (5216, 638), the contested boss: 19:19:00 "toward a target" walked Logan 2 steps
+  to 6 tiles of it; she took the gravebug at 19:19:03.7 (-64) and transfixed it (19:19:04.8 a hostile
+  "GraveRobber" copy), then the phoenix (19:19:22.9 an "AlaFlambe" copy). With both pets frozen she and the copies
+  came onto Logan: -41 (19:19:05.9), -44 (14.1, the gravebug copy beside him), -31 -27 (31.0-31.1, the phoenix
+  copy and the countess beside him), -27 (32.8), -35 (36.5).
+- 19:19:30.9 a Discordance went out at 100 hits; -58 meanwhile; its cursor answered at 42 (19:19:31.6, the
+  instrument prompt again); the potion only at 19:19:35.2 (+34). Now a bard cursor is cancelled when a potion is
+  due (`Team.potion_first`).
+- 19:19:35 the retreat from the copy (7 tiles), 19:19:37 the leave at 15/100 (50 steps to the gate), the vet on
+  the run; the countess' spell from 15 tiles (-17) killed him at 19:19:41.4.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

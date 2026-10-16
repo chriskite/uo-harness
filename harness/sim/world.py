@@ -24,7 +24,8 @@ Every number comes from the scenario (harness/data/sim/<name>.json), each with i
   or the pets; "All Kill": the target, then back to following; guarding stops at a recall);
   melee (gravebug) or ranged (phoenix); bonded: a ghost at 0 hits (0xBF sub 0x19) that follows;
   the gravebug devours a corpse nearby to heal.
-- **Bard skills**: use -> prompt + cursor; the target in range and sight, else cliloc 500446/500237;
+- **Bard skills**: use -> prompt + cursor (first "What instrument shall you play?" and a cursor for one
+  when the instrument last played is gone from the pack, `World.played`); the target in range and sight, else cliloc 500446/500237;
   success by the scenario's rates; discord (damage dealt down, taken up), peace (no move, no attack;
   a Barding Break chance each second, then immunity), provoke (two monsters fight); the cooldowns
   and refusal texts the live server sends.
@@ -218,6 +219,8 @@ class World:
         for it in lo["items"]:
             self.items[it["serial"]] = {"graphic": it["graphic"], "amount": it.get("amount", 1),
                                         "container": it.get("container", self.backpack), "kind": it.get("kind")}
+        # the instrument last played (the server's): a bard skill without it in the pack asks for one first
+        self.played = next((s for s, it in self.items.items() if it.get("kind") == "instrument"), None)
         self.gold_pile = lo.get("gold_serial", self._item_serial())
         self.items[self.gold_pile] = {"graphic": combat.GOLD_GRAPHIC, "amount": lo.get("gold", 0),
                                       "container": self.backpack, "kind": "gold"}
@@ -1068,6 +1071,12 @@ class World:
                   "peace": "What do you wish to pacify? (you may target yourself for an area effect or the ground "
                            "for a group effect)",
                   "provoke": "What do you wish to incite? (you may target the ground for a group effect)"}[skill]
+        if self.played not in self.items:
+            # live 20261015_171928 after the 18:40 death (the lute left on the corpse): "What instrument shall
+            # you play?" and a cursor before every skill; the skill's own prompt only after one is picked
+            self.send(P.cliloc(tamer.CLILOC_PICK_INSTRUMENT))
+            self._cursor({"kind": "instrument", "sid": sid})
+            return
         self.skill_ready = t + 1.0
         self._sys(prompt)
         self._cursor({"kind": skill})
@@ -1100,6 +1109,14 @@ class World:
             return
         if pend["kind"] == "rope":
             self._rope_target(pend, f)
+            return
+        if pend["kind"] == "instrument":
+            it = self.items.get(f.get("serial") or 0)
+            if it is None or it.get("graphic") not in tamer.INSTRUMENT_GRAPHICS:
+                self.send(P.cliloc(500619))            # "That is not a musical instrument."
+                return
+            self.played = f["serial"]
+            self._skill(pend["sid"])
             return
         if f.get("target_type") == 1 and pend["kind"] in SONGS and f.get("x") != 0x7FFFFFFF:
             self._song(pend["kind"])

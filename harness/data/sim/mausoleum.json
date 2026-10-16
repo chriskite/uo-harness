@@ -136,6 +136,12 @@
     "amount": 15,
     "kind": "rope",
     "note": "adventurer's rope : 15 (0x46F48E43, graphic 0x14FA, 20261014_173858)"
+   },
+   {
+    "serial": 1096809640,
+    "graphic": 3763,
+    "kind": "instrument",
+    "note": "indestructible supremely melodious lute (0x415FFCA8, graphic 0xEB3, 20261015_171928 18:30)"
    }
   ],
   "note": "Logan Wolf's pack at 21:25 (capture): vet supplies in a bag, heal and cure potions in an exceptional bronzehide potion satchel in a bag, the rune tome (graphic 29103); vet supplies 200, not the trip's 59 (user 2026-10-13: take more in; 59 ran out ~30 min into most simulated hours)"

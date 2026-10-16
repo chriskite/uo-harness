@@ -645,6 +645,34 @@ def test_leave_called_off():
           out[True][0] and out[True][1] > 1 and not out[False][0], str(out))
 
 
+def test_instrument():
+    print("== the instrument last played is gone: the prompt answered with one from the pack; none: skills off ==")
+    # live 20261015_171928 after the 18:40 death: 54 "What instrument shall you play?" answered with the
+    # skill's target ("That is not a musical instrument."), every bard skill and song lost for two runs
+    out = {}
+    for harp in (True, False):
+        w = world_with([{"key": "shade wolf", "at": [5268, 648, 0]}], seed=7)
+        m = next(m for m in w.mobs.values() if m.kind == "monster")
+        lute = w.played
+        del w.items[lute]
+        if harp:
+            w.items[0x416ACB89] = {"graphic": 0x0EB2, "amount": 1, "container": w.backpack, "kind": "instrument"}
+        loop, clock, store, patched = hurt_loop(w, 100)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                clock.advance(0.5)
+                mark = len(loop.link.events)
+                loop.team.use(tamer.SKILL_DISCORD, m.serial)
+                answers = [tamer.bard_answer(e) for e in loop.link.events[mark:] if tamer.bard_answer(e)]
+                out[harp] = (w.played == (0x416ACB89 if harp else lute), any(a[1] in ("ok", "fail") for a in answers),
+                             loop.team.no_instrument)
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    check("the lap harp picked and the discord answered; with none, the bard skills off",
+          out[True] == (True, True, False) and out[False] == (True, False, True), str(out))
+
+
 def test_heal_in_place():
     print("== --heal-in-place: a pet below --pet-leave-at is no leave while vet supplies last ==")
     import tempfile
@@ -857,7 +885,7 @@ def main():
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
-              test_area_first, test_leave_called_off, test_heal_in_place,
+              test_area_first, test_leave_called_off, test_instrument, test_heal_in_place,
               test_songs,
               test_pull_budget, test_hold_first_sight, test_rope,
               test_rest_hurt_pet):
