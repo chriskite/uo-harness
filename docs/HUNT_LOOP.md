@@ -473,14 +473,23 @@ what comes.
 **In and out of a dungeon** (user 2026-10-13: you can't recall in a dungeon except near a gold
 moongate, and never near a red one).
 
-- **In:** `--enter-via X Y` (repeat) steps onto those teleporters in order after the recall in.
+- **In:** `--enter-via X Y` (repeat) steps onto those teleporters in order after the recall in. The tile
+  is the teleporter itself, the one whose step the server refuses before it moves you, not the tile
+  you stand on when it does (live 2026-10-15 three of the four were one tile off; NOTES "Getting in
+  and out of the Mausoleum").
   - The approach is the tile the route onto each one arrives from (a teleporter on stairs is entered
     from one side only).
-  - Before each step: "All Follow Me", then up to 20 s more for every pet within 3 tiles of the
-    teleporter, else Abort. They come through only if near it (a pet 3 tiles behind us is 4 from the
-    teleporter: in the simulator it stayed behind on the second level's one-way hops).
-  - "All Guard Me" again after each teleporter; `--songs`: a song due before each leg, as Logan
-    sang them on the first two levels.
+  - **The pets follow the whole way** (since 2026-10-15, as the user does it, capture 20261013_204518: one
+    "All Follow Me" after the landing for all four teleporters, the first "All Guard Me" on the fight
+    level; live 22:20:56 the runner's "All Guard Me" at the landing set the pets fighting there and Logan
+    walked 75 steps to the first teleporter alone). A pet farther than 8 tiles or out of view stops the
+    walk: 5 s for it to catch up, then "All Follow Me" again and 20 s more, else Abort.
+  - **Attacked on the way** (something swinging at us, or our hits falling: a calamity casts from 13
+    tiles): "All Guard Me" and the fight tick's order (stand-off, a potion, the pets' care, the pets at
+    what is on us, our kills looted) until nothing attacks us for 4 s (at most 90 s), then "All Follow Me"
+    and walk on. Live 22:33:39, with only the pets' care, Logan stood among the mobs dying.
+  - Before each step onto a teleporter, every pet within 3 tiles of it (they come through only if
+    near it), else the waits above. `--songs`: a song due before each leg.
 - **Out:** `--leave-gate X Y --gate-dest NAME` (`moongate.py`).
   - The runner walks to the gate with the pets still guarding and says "All Follow Me" beside it.
     Then it double-clicks the gate from that tile, as Logan did (the step onto it only when the gate

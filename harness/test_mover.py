@@ -435,6 +435,17 @@ def test_shove_denied():
     link = FakeLink((0, 0), facing=2, mobiles=[(3, 0, 10 ** 9)])
     msg = walk_msg(map_mover(link, HALLWAY), (8, 0))
     check("a goal walls cut off is still 'no route' (mobiles or not)", "no route" in msg, msg)
+    link = FakeLink((0, 0), facing=2, mobiles=[(3, 0, 10 ** 9)], can_shove=False)
+    mv, drank = map_mover(link, HALLWAY), []
+
+    def refresh():                   # the host's stamina potion: full stamina, so the server lets us shove
+        drank.append(tuple(link.here))
+        link.can_shove = True
+        return True
+    mv.refresh = refresh
+    msg = walk_msg(mv, (6, 0))
+    check("short of stamina before an NPC that never moves: one stamina potion, then through it (live 22:57:56)",
+          msg == "arrived" and len(drank) == 1 and link.shoved == [(3, 0)], f"{msg} {drank} {link.shoved}")
 
 
 class LayeredWalk:

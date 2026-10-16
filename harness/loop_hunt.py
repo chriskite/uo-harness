@@ -277,6 +277,8 @@ class HuntLoop:
         self.prev_hits = None
         self.low_posted = False
         self.potions = healing.PotionClock()
+        self.refresh_t = -1e9        # monotonic time of our last stamina potion (refresh_potion)
+        self.mover.refresh = self.refresh_potion
         self.visit_n = 0
         self.visit = None            # this visit's counters (episode row)
         self.totals = {"kills": 0, "lost_kills": 0, "gold": 0, "xp": 0, "hits_lost": 0, "casts": 0, "heals": 0,
@@ -1000,6 +1002,26 @@ class HuntLoop:
         self.count("potions")
         log(f"heal potion: {me.get('hits')} -> {hits} hits")
         return healing.CLILOC_HEALED in heard or (hits or 0) > (me.get("hits") or 0)
+
+    def refresh_potion(self) -> bool:
+        """A stamina potion (healing.REFRESH_POTION_GRAPHIC, Total Refresh) for a shove the server refused at
+        low stamina (Mover.refresh; user 2026-10-15: "We carry stamina potions so if we get stamina limited and
+        need to shove we can drink a pot"): one double-click wherever it sits, as drink(). Not within
+        healing.RETRY_S["refresh"] of the last. True when stamina rose."""
+        now = time.monotonic()
+        st = self.link.state()
+        me = st["world"]["self"]
+        pots = healing.in_pack(st["world"], self.me(st), healing.REFRESH_POTION_GRAPHIC)
+        if not pots or now - self.refresh_t < healing.RETRY_S["refresh"]:
+            return False
+        self.refresh_t = now
+        stam = me.get("stam") or 0
+        self.human.wait("use")
+        self.link.act(actions.dclick(pots[0][0]))
+        got = self.link.wait(lambda s: (s["world"]["self"].get("stam") or 0) > stam, 1.5)
+        if got is not None:
+            self.count("potions")
+        return got is not None
 
     def heal_spell(self, st, sid: int) -> bool:
         """Heal or Greater Heal on self: cast, then answer the cursor with self."""

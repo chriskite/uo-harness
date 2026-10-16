@@ -74,6 +74,7 @@ from room import ROOM_GUMP_ID, ROOM_REFUSED  # noqa: E402  (rental room menu; `a
 import shelf  # noqa: E402
 from shelf import SHELF_GUMP_ID, SHELF_REFUSED  # noqa: E402  (storage shelf; `act gump` refuses Restock/Clear)
 import stockpile as stockpile_mod  # noqa: E402
+import dropoff as dropoff_mod  # noqa: E402
 import mount as mount_mod  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
@@ -124,7 +125,7 @@ LAYER_NAMES = {1: "one_handed", 2: "two_handed", 3: "shoes", 4: "pants", 5: "shi
 ACTS = ("walk", "say", "dclick", "single_click", "open_door", "target_cancel",
         "goto", "menu", "menu_pick", "gump", "unequip", "equip", "warmode", "attack", "loot",
         "target", "cast", "heal", "buy", "use", "drop", "track", "recall", "read_tomes", "room", "aspect",
-        "resupply", "mount", "stockpile", "convert")
+        "resupply", "mount", "stockpile", "convert", "dropoff")
 # meta key: epoch seconds of ctl's last heal-potion drink (healing.PotionClock across ctl calls)
 HEAL_POTION_KEY = "heal_potion_t"
 PACK_ITEMS_MAX = 60                  # status.backpack.items
@@ -1084,6 +1085,8 @@ def _act(a, mem) -> dict:
         return _act_stockpile(a, mem)
     if a.name == "convert":
         return _act_convert(a, mem)
+    if a.name == "dropoff":
+        return _act_dropoff(a, mem)
     if a.name == "mount":
         return _act_mount(a, mem)
     pkt = None
@@ -2110,6 +2113,50 @@ def _act_stockpile(a, mem) -> dict:
         return {**out, "boards": n, "heard": [journal_view(e) for e in out["heard"]],
                 "reply": f"added {n} boards ({len(out['added'])} target(s))" if out["ok"] else out["error"]}
     except stockpile_mod.StockpileError as e:
+        raise CtlError(str(e))
+    finally:
+        io.ctl.close()
+        stc.close()
+
+
+def _act_dropoff(a, mem) -> dict:
+    """dropoff: the rental room drop-off as one act (harness/dropoff.py; homes.json `dropoff`): the
+    user's Razor script 'New Drop Off' step for step (treasure maps, mastery and skill scrolls,
+    aspect items into their tomes, gems and the like into the resource stockpile, gold into the bank
+    deposit safe, unidentified items into the recycler, Resupply at the shelf), then research
+    materials and resource maps from the pack's top level into the room chest. In the rental room
+    (`act room enter`); off the arrival tile it walks there first (every item is within 2 of it)."""
+    import contextlib
+    import home as home_mod
+    human = Human(a.human, seed=a.seed)
+    ctl, stc = _connect(a)
+    io = _CtlIO(ctl, stc, dropoff_mod.DropoffError)
+    try:
+        st = stc.state()
+        home = home_mod.for_character((st["world"].get("self") or {}).get("name"))
+        if not home or not home.get("dropoff"):
+            raise CtlError("no drop-off for this character (harness/data/homes.json `dropoff`)")
+        if not home_mod.in_room((st["world"].get("self") or {}).get("map"), home):
+            raise CtlError("not in the rental room: `act room enter` first")
+        arrival, pos = home["room"]["arrival"], st["movement"].get("pos") or [None, None]
+        if tuple(pos[:2]) != tuple(arrival[:2]):
+            io.ctl.close()                # the walk opens its own control connection (agent_link.Link)
+            try:
+                with contextlib.redirect_stdout(sys.stderr):
+                    res = _act_goto(argparse.Namespace(**{**vars(a), "args": [str(arrival[0]), str(arrival[1])],
+                                                          "range": 0, "z": None, "max_moves": None}), mem)
+            finally:
+                io.ctl = Control(a.control_port, char=a.char)
+            if not res["ok"]:
+                raise CtlError(f"walking to the arrival tile {tuple(arrival[:2])}: {res.get('error') or res['reply']}")
+        stc.intent("Dropping off the loot in the room", "store")
+        out = dropoff_mod.run(io, human, home["dropoff"])
+        stc.intent(None)
+        lines = "; ".join(f"{s['name'].split(' [')[0]}: {' / '.join(s['lines']) or '-'}" for s in out["steps"])
+        chest = ", ".join(f"{c['amount']} {c['name']}" for c in out["chest"]) or "nothing"
+        return {**out, "heard": [journal_view(e) for e in out["heard"]],
+                "reply": (f"{lines}; into the chest: {chest}" if out["ok"] else out["error"])}
+    except dropoff_mod.DropoffError as e:
         raise CtlError(str(e))
     finally:
         io.ctl.close()

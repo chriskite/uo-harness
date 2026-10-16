@@ -126,6 +126,7 @@ Whitelist, built with the existing `harness/actions.py` builders and framed exac
 | `resupply` | `[shelf serial]` | **Resupply from a Storage Shelf in one act** (since 2026-10-05, ~5 s; `harness/shelf.py`; docs/NOTES.md "Storage shelves"). The shelf given, else the nearest storage shelf in view this character may use (a secured one answers "That is secure." and the next is tried; `secure` lists them), walked to within 2 tiles (guarded goto), double-clicked, **Resupply** (button 7, found by its label) pressed after a reading pause, the shelf's answer read and the shelf closed. Your loadout (one per character, the same at every shelf; the user sets it, this act never edits it) says what you get: missing gear is equipped, pack quantities are topped up to the loadout amounts. What the shelf lacks isn't given: `missing` from "No resupply: <item>" (one per item), `none_available` from "Unable to resupply: no items available.". Returns `added` [{serial, graphic, hue, name, amount, worn}], `missing`, `none_available`, `lines`, `secure`. Outland Dan: the DTF guild house shelf 0x40B84C55 (2 tiles from the home landing; the other shelf on its tile, 0x40050A3B, is secured) is stocked; the rental room's 0x6CEB65CD is nearly empty for now |
 | `resupply --restock` | `[shelf serial]` | **The user's shelf routine** (since 2026-10-05): the shelf's **Restock** answered with your backpack (the shelf takes everything in the pack it may hold: spent pouches, reagents, potions, trapped pouches; "N items were added."), then Resupply as above, so you keep exactly the loadout. Extra fields: `restocked` (the shelf's line), `gone` (what left the pack). The runner does it at the room shelf after storing the boards. Resupply may also say "Partial resupply: <item>" (`partial`: some given, short of the loadout amount) |
 | `stockpile` | `[stack serial …]` | **Add board stacks to your home's Resource Stockpile** (since 2026-10-05, user: all boards go there now; `harness/stockpile.py`, the runner's flow; docs/NOTES.md "Resource Stockpile and GM coloured hatchets"). Stand within 2 tiles of it (Logan Wolf's room: the arrival tile is). Default: every board stack in your pack at any depth; stacks in the open room chest can be given by serial too. Opens its menu, per stack **Add Items** (button 2) and a target on the stack ("You add 1 item(s) to the Resource Stockpile."), then closes the menu. Returns `added` [{serial, amount}], `boards`, `left`, `error`. Never targets you (that would add reagents and tools too). Since 2026-10-08 the boards that left the pack are booked as a lumber `store` job event (`{boards, woods, via: "ctl", ok}`): the Jobs page's "boards stored" counts them, so the boards of a trip that ended with its logs still in the pack (no hatchet, a lost connection, a failed recall) count once you put them away. After converting by hand (`act convert`): this, then `resupply --restock` at the room shelf (spent pouches go into the shelf); `act convert --store` does all three. |
+| `dropoff` | (none) | **The rental room drop-off in one act** (since 2026-10-15, user; `harness/dropoff.py`, the steps in `harness/data/homes.json` `dropoff`; Logan Wolf has one). The user's Razor script "New Drop Off" (F5) step for step: each room item's context menu entry, picked by its cliloc: undecoded treasure maps, mastery chain links, skill scrolls and aspect items into their tomes ("Add All In Backpack"), gems, bottles and the like into the resource stockpile ("Restock", the cursor answered with the backpack), gold into the bank deposit safe, unidentified items into the recycler, then **Resupply** at the storage shelf. Then research materials (graphic `0x5F72`) and resource maps (by name) from the pack's top level into the room chest (user: "chest for now, we'll buy tomes later"); the user's own bags are never touched. In the rental room only (`act room enter`); it walks to the arrival tile first. Returns `steps` [{serial, name, lines: the server's answers}], `chest` [{serial, name, amount}], `left`, `reply` (one line per step). |
 | `convert` | `[--store]` | **Logs into boards by hand** (since 2026-10-06; `harness/convert.py`, the lumber runner's own convert: one implementation). Every log stack in your pack at any bag depth: each live trapped pouch holding logs is set off first by your own double-click (1 hit, no alarm, nothing to ack) and opened like a bag, then per stack the hatchet's double-click (worn first, else the best in the pack) and a target on the stack ("You shape the logs into boards."; the boards land where the logs were). A use that brings no cursor is tried again (one try per stack plus 3). A captcha stops it (answer it in the client, then convert again). Returns `converted` [{serial, graphic, hue, logs, boards}], `boards` (added), `logs_left`, `pouches` (set off), `tries`, `no_cursor`, `hatchet`, `error`. Refused without logs or a hatchet. Do it in the rental room, like the runner. **`--store`**: once every log is converted, the runner's store too: `stockpile` (every board stack, as the act) and, when that worked, `resupply --restock` at the shelf in view; their results are in `stockpile` / `restock`, and `ok` needs both |
 | `mount` | (none) | **Ride our pet** (since 2026-10-05, user; `harness/mount.py`; docs/NOTES.md "Our mount"). Already riding: nothing sent (`already`). Else our pet within 3 tiles (the one remembered for this character, else the nearby pet whose context menu offers **Release**: ours, then remembered) gets the stock double-click; `ok` once the mount layer shows. **A ghost pet** (it died with you: `status` mobiles show `dead`) can't be ridden: `dead: true`. It is not revived by the healer who raised you (live: no gump for it); going into the rental room through the steward revived it (`act room enter`, live 2026-10-05), then `act mount`. The lumber runner does all this itself before each trip (`--mount on`) |
 | `target` | `self` or `<serial>` | Answers the target cursor that's up (after a spell, a bandage or an item use) with `0x6C` on an entity. Allowed: yourself, a hostile monster (the `attack` rule), or an item in your backpack (container-local x/y). Refuses players, their pets and NPCs, and refuses when no cursor is up |
@@ -545,6 +546,50 @@ Paste this (or point the session at this section) to start an overseer.
 > `stockpile`/`restock` results; on an error fix that step alone (`act convert`, `act stockpile`,
 > `act resupply --restock`).
 >
+> **Mausoleum crawl shifts (Logan Wolf, a bard tamer; docs/HUNT_LOOP.md "Pets", "Recall in, recall
+> out", "Crawl").** The pets (GraveRobber `0x000DDEFE`, a gravebug, and AlaFlambe `0x0026EF56`, a
+> phoenix) fight; the runner never does by hand what it does itself. **Shifts are continuous**
+> (user 2026-10-15): run after run until the user says stop.
+> 1. **Start in the rental room** (the inn room, facet 3, arrival (403, 923); a recall out of it works) or
+>    at the DTF guild hall landing (4134, 1429), **with both pets beside thee** (`status.mobiles`,
+>    within 3 tiles). Not inside the Mausoleum: there a recall works only beside a gold moongate, so the
+>    runner can't start there.
+> 2. **In the room before every run: `act dropoff`** (the user's drop-off: gold into the bank deposit safe,
+>    loot into its tomes, research materials and resource maps into the chest, then the shelf's Resupply).
+>    Read its `reply`. From the DTF landing, `act room enter` first (Logan's own room, no owner words).
+>    Then check `status`: heal potions (`0x0F0C`), vet supplies (`0x6496`), Total Refresh (`0x0F0B`) and
+>    the rune tome `0x444AB1F3` in the pack. Short of potions or vet supplies after the Resupply: tell
+>    the user and don't start.
+> 3. **Run it verbatim:**
+>    `ctl run hunt --pets --crawl --heal-in-place --vet-range 5 --crawl-learn-s 180 --leave-recall
+>    0x444AB1F3 --leave-gate 5203 703 --gate-dest Totem --enter-recall 0x444AB1F3 --enter-rune "Maus Near 2"
+>    --enter-via 5554 700 --enter-via 5507 701 --enter-via 5507 696 --enter-via 5522 637 --timeout 1500`.
+>    It recalls to "Maus Near 2", walks the four teleporters with the pets on "All Follow Me" (a fight on
+>    the way is the pets' to take), crawls the fight level, and leaves when the user's rules say so:
+>    hurt, a pet hurt or lost, time up, or **a red** (out by the crimson moongate at (5203, 703) to
+>    Totem, then the tome home). Greys and oranges are no reason to leave, and nobody speaking is
+>    (no speech hold on hunts). Between visits it recalls home, rests and goes back in by itself until
+>    `--timeout`; it ends at home (the DTF landing).
+> 4. **While it runs:** `ctl wait --timeout 150` and glance at `status` and the task log (`hits`, `intent`).
+>    Nothing to act on: ctl refuses acts while the run is on, and **never fight by hand** in the dungeon.
+> 5. **`task_done`** (home): `act room enter`, `act dropoff`, check pets and supplies (step 2), start the next
+>    run. Say one progress line every few runs (kills, gold, deaths).
+> 6. **`task_failed` with Logan still in the Mausoleum** (a walk-in that couldn't go on, a runner error),
+>    **`death`**, **`pet_left_behind`** or **`pet_down`**: `ctl say "@user …"` at once with the position and
+>    the log line, and start nothing until the user answers. A ghost can't recall out, and walking out of
+>    the Mausoleum by hand is the user's call. After a death, decline every Report Murder gump (button
+>    3). Pets left in the dungeon are fine (user): the stablemaster PizzaParty in the DTF guild hall
+>    (4134, 1435) brings them back with "Retrieve Lost Followers". That isn't automated yet, so ask the
+>    user; never go back in without both pets.
+> 7. **Ending the shift or stopping a run:** there is no `--after-trip` for hunts, and `ctl stop` stops
+>    Logan wherever he stands, in the dungeon too. Stop only while he is home between visits (the
+>    intent reads "Resting …" or "Waiting before going back …", facet 0 at the DTF landing), or wait for
+>    the run's `task_done`. For a possible GM or a server restriction stop at once and call the user.
+> 8. **The user's play rules** (docs/HUNT_LOOP.md "Pets"; the runner keeps them, don't overrule them): pets
+>    on guard and between Logan and the monsters, Logan never next to the tank, heal in place with vet
+>    supplies and potions, go deeper, never pull the elder vampire or the elder vampire countess, loot
+>    everything but reagents, spell scrolls and worn items (jewellery is kept), area Peacemaking in a jam.
+>
 > **Travelling somewhere new.** Your own book first (`act recall <book> --check`, or open it). Else
 > a rune library: `ctl runes near X Y` (or `runes find WORDS`) names the rune that lands nearest,
 > its library and tome, and the exact `act recall` command. Outland Dan lives in the DTF guild house
@@ -593,7 +638,9 @@ Paste this (or point the session at this section) to start an overseer.
 1. Make sure the proxy and client are running and logged in (`ctl --char <name> status` returns
    `ok:true`), and no task is running for that character unless you want the overseer to adopt it.
 2. Open omp in the repo checkout and send: *"Act as the Seer for <character name>: follow
-   docs/OVERSEER.md §5."* (optionally add the goal, e.g. "run lumber trips until 500 boards").
+   docs/OVERSEER.md §5."* (optionally add the goal, e.g. "run lumber trips until 500 boards"). For the
+   Mausoleum: *"Act as the Seer for Logan Wolf: follow docs/OVERSEER.md §5. Goal: Mausoleum crawl shifts
+   (§5 'Mausoleum crawl shifts'), starting from the inn room, until I say stop."*
    **One overseer per character**: with several characters logged in, start one session (or
    dispatch one subagent) per character, each with its character's name in the task.
    **As a subagent** (an omp session that starts the overseer for you): dispatch the project agent

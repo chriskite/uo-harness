@@ -3151,6 +3151,43 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
   `hostile`; now it skips the awaiting-label ones (reds in view still leave at once). Gate, Totem, the tome
   home at 21:28:44: 41 kills, 28,981 gold in 18 min, no death. The user: "pleasantly surprised by that run".
 
+## Live runs 2-3 and the first trips from the inn room (live server, 2026-10-15 21:33-22:58, capture 20261015_210709)
+
+- **Run 2** (hunt-20261015-213328-0b4a): 5 kills, ended 21:37 by the grey player Hallik at 3 tiles. Since ef30477
+  only reds end a hunt.
+- **Run 3** (hunt-20261015-214603-14bd): 23 kills, then a red, "Back Problems", at 18 tiles (21:57:07): "All Follow
+  Me", rope jumps at 21:57:10 (8 tiles) and 21:57:18 (6), at the gate 21:57:21, a second follow 21:57:22, "Back
+  Problems is attacking you!" 23.2, the gate's double-click 23.4, Travel 25.4, Totem, the tome home 21:57:27. The
+  user: "Holy shit that escape from reds actually worked!". Since f630e69 the double-click comes at a macro's pace
+  (0.7 s from the gate's tile in the simulator) and a flight skips the second follow.
+- **From the inn room** (Logan Wolf's rental room, facet 3, (403, 923)): a recall out of it works (user; four trips).
+  1. 22:20:47: "All Guard Me" at the Maus Near 2 landing set the pets fighting there, and Logan walked to the first
+     teleporter alone (stopped by hand). The walk-in now goes on follow (HUNT_LOOP "In and out of a dungeon").
+  2. 22:32:50: attacked on the way, the runner only ran the pets' care; Logan stood among the mobs, dying. The user
+     took over. The walk-in fight now runs the fight tick's order. Then the step onto (5554, 701) "moved without a
+     teleport".
+  3. 22:42:44 and 22:45:58: two more teleporter tiles were wrong, (5506, 701) and (5507, 697).
+  4. 22:48:36: all four teleporters with both pets (22:49:46-22:50:32), 15 kills on the fight level.
+  The corrected tiles: 5554,700 / 5507,701 / 5507,696 / 5522,637, each the denied step's target read from the
+  0x02 direction byte in 20261013_204518.
+- **Dead at 22:57:57 (run 4).** 22:57:45 a vampire countess transfixed GraveRobber, at 22:57:52 AlaFlambe; their
+  copies and she took Logan from 100 (a potion at 22:57:47) to 0 in 13 s (-28, -17, -7, -13, -7, -7, -21, -18, -7,
+  -6). The retreat at 22:57:54 (50/100) was cut by mobiles: "shove into (5184, 682) denied (stamina 15/25)", then
+  "cut by mobiles we couldn't shove; waiting", dead a second later. The user: "We carry stamina potions so if we get
+  stamina limited and need to shove we can drink a pot". Since then `Mover.refresh` (HuntLoop.refresh_potion: the
+  Total Refresh potion, one double-click) drinks before a denied shove and before waiting on a route cut by
+  mobiles, and the denied tiles are tried again (test_mover `test_shove_denied`).
+- **The user's drop-off** (Razor "New Drop Off", Scripts/New Drop Off.razor, hotkey F5 in "Logan Wolf Tribard
+  Tamer"): eight `menu <serial> <index>` lines and one `target` of the backpack. Razor sends each context menu
+  request and its pick back to back (the same 0.1 s), without waiting for the menu. The items (click labels):
+  treasure map tome 0x62659A52, mastery chain link tome 0x431E6BAA, 0x62658F0D (skill scrolls [INFERENCE: "No
+  skill …", "1 skill …"; the capture keeps only 64 bytes of a packet]), aspect item tome 0x62657BB3, resource
+  stockpile 0x62645C82 ("Restock" 3006349 + the pack: gems and empty bottles went in), bank deposit safe 0x431E86F5
+  ("You depo…": 28,981 gold at 21:29:49), 0x6264BB54 ("Add All Unidentified Items From Backpack" 1095568, the
+  2nd entry: "7 recycl…"), storage shelf 0x6CEB65CD (Resupply 3006348). It left research materials (graphic 0x5F72,
+  "research materials : 2"). `ctl act dropoff` does the same, picking entries by cliloc, then research materials
+  and resource maps into the room chest (homes.json "Logan Wolf" `dropoff`; test_dropoff.py). Not run live yet.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

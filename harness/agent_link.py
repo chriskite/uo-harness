@@ -470,6 +470,7 @@ class Mover:
         self.walkers = pathfind.Walkers()
         self.denied = set()          # (x, y, d) server denies seen this session (map planner)
         self.shove_denied = {}       # (x, y) -> monotonic time a shove into it was denied
+        self.refresh = None          # host's stamina potion: () -> True when it drank (walk_to, a denied shove)
         self.steps = 0
         self.blocked_count = 0
         self.doors_opened = 0
@@ -981,6 +982,8 @@ class Mover:
                                     f"if any)")
                     raise Abort(f"{label}: no route from {cur}")
                 now = time.monotonic()
+                if self._refreshed(label):
+                    continue                 # full stamina: the denied tiles are tried again
                 if mobile_wait_until is None:
                     mobile_wait_until = now + MOBILE_WAIT_S
                     log(f"{label}: route from {cur} cut by mobiles we couldn't shove; waiting")
@@ -1110,6 +1113,7 @@ class Mover:
                     me = self.link.state()["world"]["self"]
                     log(f"{label}: shove into {nxt} denied (stamina {me.get('stam')}/{me.get('stam_max')}); "
                         f"replanning")
+                    self._refreshed(label)
                 elif not walled:
                     if walk is not None:
                         self.denied.add((cur[0], cur[1], d))   # z-aware plans; don't pollute 2D memory
@@ -1131,3 +1135,17 @@ class Mover:
                                 f"nearer than {best_route - 1} steps)")
             if replans > 30:
                 raise Abort(f"{label}: too many replans")
+
+    def _refreshed(self, label) -> bool:
+        """Short of stamina to shove (live 22:57:56: a retreat denied at 15/25, 'cut by mobiles … waiting',
+        dead a second later; user: "We carry stamina potions so if we get stamina limited and need to shove
+        we can drink a pot"): the host's `refresh` (a stamina potion) when stamina is below max. True when
+        it drank: the tiles a shove was denied into are tried again."""
+        me = self.link.state()["world"]["self"]
+        stam, top = me.get("stam"), me.get("stam_max")
+        if self.refresh is None or stam is None or not top or stam >= top or not self.refresh():
+            return False
+        self.shove_denied.clear()
+        log(f"{label}: drank for stamina to shove ({stam}/{top} -> "
+            f"{self.link.state()['world']['self'].get('stam')})")
+        return True
