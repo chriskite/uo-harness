@@ -56,6 +56,9 @@ REACTION_MEDIAN = {
 SCRIPT_MEDIAN = {
     "chop_use": 0.2,    # "Use item in hand" ~0.2 s after the harvest reply (Jaseowns' scripts)
     "chop_aim": 0.1,    # waitfortarget -> "Target Self" on the script's next tick [INFERENCE: ~0.1 s]
+    # the user's escape macro through a moongate (2026-10-15: "My macro gets me out basically instantly"): the
+    # gate's double-click and its menu's buttons at a macro's pace, not a reader's (live 21:57:21-25.4: 4.2 s)
+    "gate_macro": 0.15,
 }
 SCRIPT_SIGMA = 0.2
 # the stock client's step cadence for a held key (ClassicUO MovementSpeed): on foot, and mounted

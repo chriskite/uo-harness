@@ -493,6 +493,11 @@ moongate, and never near a red one).
     Logan's client sends it), the farthest route tile within 9 in sight (live jumps 7-10, an 11-tile
     target refused), its z walked along the route; 5 s cooldown. Logan fled reds this way three times
     (docs/NOTES.md "Logan Wolf's Mausoleum runs of 2026-10-14").
+    At the gate: no second "All Follow Me", the gate's double-click and its menu's buttons at a macro's pace
+    (humanize `gate_macro`, ~0.15 s; every leave but the planned end) (user 2026-10-15: "We do need to greatly
+    speedup our activation of the red moongate though. My macro gets me out basically instantly"; live
+    20261015_210709 21:57:21-25.4 the flight from Back Problems took 4.2 s from the gate's tile to Totem, while
+    he hit Logan; in the simulator now 0.7 s).
   - Then "Travel to Destination" on the re-sent menu, or on the first one when the menu opens with
     that destination already selected (it remembers the last one, live), and `--leave-recall` home
     from the town.

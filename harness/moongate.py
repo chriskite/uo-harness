@@ -67,16 +67,17 @@ def _menus(link, since: int) -> list[dict]:
     return out
 
 
-def _press(link, human, g: dict, button: int):
-    human.wait("menu")
+def _press(link, human, g: dict, button: int, urgent: bool = False):
+    human.wait("gate_macro" if urgent else "menu")
     link.act(actions.gump_reply(serial_of(g["serial"]), DESTINATIONS_GUMP, button, g.get("layout") or "",
                                 g.get("lines") or []))
 
 
-def travel(link, human, dest: str, since: int = 0, log=print) -> dict:
+def travel(link, human, dest: str, since: int = 0, log=print, urgent: bool = False) -> dict:
     """Pick `dest` on the destinations menu opened since event `since` (waits MENU_WAIT_S for it),
     then Travel on the re-sent menu (on this one when `dest` is already selected); done when we
-    jumped JUMP_TILES or more. -> {ok, from, to, elapsed_s[, error]}; GateError when there's no menu
+    jumped JUMP_TILES or more. `urgent` (a leave to survive): the buttons at a macro's pace (the user's escape
+    macro, humanize "gate_macro"). -> {ok, from, to, elapsed_s[, error]}; GateError when there's no menu
     or no such destination."""
     t0 = time.monotonic()
     start = tuple(link.state()["movement"]["pos"][:2])
@@ -88,14 +89,14 @@ def travel(link, human, dest: str, since: int = 0, log=print) -> dict:
         raise GateError(f"no destination {dest!r} on the menu ({[t for t in g.get('lines') or [] if t][:14]})")
     if not selected(g, pick):
         mark = len(link.events)
-        _press(link, human, g, pick)
+        _press(link, human, g, pick, urgent)
         if link.wait(lambda s: _menus(link, mark), RESEND_WAIT_S) is None:
             raise GateError(f"the menu didn't come back after picking {dest!r}")
         g = _menus(link, mark)[-1]
     go = labelled_button(g, TRAVEL_LABEL)
     if go is None:
         raise GateError("no 'Travel to Destination' button on the menu")
-    _press(link, human, g, go)
+    _press(link, human, g, go, urgent)
     st = link.wait(lambda s: cheb(s["movement"]["pos"], start) >= JUMP_TILES, ARRIVAL_WAIT_S)
     to = link.state()["movement"]["pos"][:3]
     out = {"ok": st is not None, "from": list(start), "to": list(to), "dest": dest,

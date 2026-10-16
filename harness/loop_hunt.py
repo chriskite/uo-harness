@@ -1480,7 +1480,8 @@ class HuntLoop:
                             "dest": self.args.gate_dest}
                 me = self.link.state()["world"]["self"]
                 hurt = severity != "info" and me.get("hits") is not None and self.frac(me) < self.args.heal_at
-                self.team.follow(severity, wait=not hurt)    # hurt: through the gate now, pets or not
+                if not flee:          # fleeing: "All Follow Me" went out at the start of the run here
+                    self.team.follow(severity, wait=not hurt)    # hurt: through the gate now, pets or not
             mark = len(self.link.events)
             st = self.link.state()
             me = st["world"]["self"]
@@ -1491,12 +1492,15 @@ class HuntLoop:
             st = self.state()                                # its guards: a potion if one is due
             serial = moongate.gate_at(st, gate)
             if serial is not None and cheb(self.pos(st), gate) <= 1:
-                self.human.wait("use")
+                self.human.wait("gate_macro" if urgent else "use")
                 self.link.act(actions.dclick(serial))
             else:
                 self.mover.walk_to(lambda: gate, 0, "onto the moongate", gate=gate, urgent=urgent,
                                    max_moves=max(250, 3 * self.out_steps))
-            return moongate.travel(self.link, self.human, self.args.gate_dest, since=mark, log=log)
+            # a leave to survive: the gate's menu at the user's macro pace (live 20261015_210709 21:57:21-25.4 the red's
+            # flight took 4.2 s from the gate's tile to Totem: a second "All Follow Me", the reader's pauses; the user:
+            # "My macro gets me out basically instantly")
+            return moongate.travel(self.link, self.human, self.args.gate_dest, since=mark, log=log, urgent=urgent)
         except (Abort, moongate.GateError) as e:
             return {"ok": False, "from": list(self.pos(self.link.state())[:2]), "error": str(e),
                     "dest": self.args.gate_dest}
