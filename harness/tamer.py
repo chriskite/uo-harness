@@ -160,6 +160,8 @@ REPOSITION_GAIN = 1.0         # a caster's sight less, or a tenth of an idle mon
 CASTER_R = 10                 # a caster in war mode this close in sight is casting at us (loop_hunt.CASTER_REACH)
 CASTER_STEPS = 4              # ...and a reposition out of its sight goes this far
 HOLD_S = 10.0                 # hold this long for an idle monster that sees us (live: 5-10 s to war mode)
+AT_ONCE_NEAR = 6              # an "at once" stop within this of one in the last AT_ONCE_S: the way on, go
+AT_ONCE_S = 120.0
 PULL_STEPS = 3                # a pull spot within this many steps
 # A forgotten soul's spell leaves fire (0x6D70, hue 0x08D8) on the tile it hit, 5.4-5.7 s (7 in capture
 # 20261014_210020: 6 under the gravebug it tanked, 1 under the phoenix, at the instant of a 13-20 hit).
@@ -374,6 +376,7 @@ class Team:
         self.standoff_stay = None        # why the last stand-off stayed put (logged once)
         self.songs = {}                  # song skill -> monotonic time it runs out
         self.at_once_w = 0.0             # idle weight in sight at the last pull_check (its "at once" rule)
+        self.at_once_at = []             # [((x, y), monotonic)] where "at once" stopped a patrol lately
         self.song_ready = 0.0
         self._view = None                # aggro.View of the last state read
         self.pull_why = None
@@ -801,8 +804,16 @@ class Team:
         why = v.overpull(budget) if budget > 0 else (f"a {v.never_near(v.pos)[0]['kind']} would see us"
                                                      if v.never_near(v.pos) else None)
         w = sum(m["weight"] for m in v.wakes(v.pos))
+        now = time.monotonic()
         if why and "at once" in why and w <= self.at_once_w + 1e-6:
             why = None
+        elif why and "at once" in why and any(cheb(v.pos, p) <= AT_ONCE_NEAR and now - t < AT_ONCE_S
+                                              for p, t in self.at_once_at):
+            # stopped here already and the patrol came back this way: no other way on; go (live 20261015_210709
+            # 21:11:13-19: stop, "patrolling elsewhere", the next waypoint's route through the same spot, stop...)
+            why = None
+        elif why and "at once" in why:
+            self.at_once_at = [(p, t) for p, t in self.at_once_at if now - t < AT_ONCE_S] + [(v.pos[:2], now)]
         self.at_once_w = w
         why = why or self.hold_reason(st)
         if why and why != self.pull_why:
