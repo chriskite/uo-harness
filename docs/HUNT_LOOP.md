@@ -384,7 +384,8 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    **What's looted** (user 2026-10-15: "only loot gold, gems, instruments, and high-value loot like cores,
    maps, distills, etc. I wouldn't grab reagents or scrolls or heavy magic armor/weps"): with the pets
    style (`--no-loot-all`) gold first, then items whose name (tooltip, else tiledata, singular) has a
-   word of `combat.LOOT_VALUABLE` (gems, instruments, core, phylactery, distill, map, orb, essence, deed;
+   word of `combat.LOOT_VALUABLE` (gems, instruments, core, phylactery, distill, map, orb, essence, deed,
+   research materials: the user 2026-10-15 "quite valuable", left in a corpse at 20:55:18;
    `--loot-keep WORD` adds more); the rest stays in the corpse. **Weight**: an item that would bring us
    within 10 stones of the limit (`LOOT_WEIGHT_MARGIN`; tiledata weight, gold ~0.01 a coin
    [INFERENCE]) is left; at the limit looting stops until the weight drops. Live 20261015_181807 the
