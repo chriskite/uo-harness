@@ -53,7 +53,7 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--rest-to` | `0.95` | After leaving: Heal / Greater Heal when one can be cast (no potions; else natural regeneration) outside to this share of hits (and `--mana-reserve` mana), then go back in. `0`: stop after leaving. `--rest-timeout` (900 s) bounds the rest. |
 | `--reposition-s` | `240` | No step for this long: walk 2–4 steps out and back to the fight spot before the Stationary Penalty comes (300 s); with nothing on us already from a draw in 0.8–1 × it. |
 | `--loot` / `--no-loot`, `--loot-max` | on, 25 | Loot our kills' corpses (items per corpse). |
-| `--human`, `--seed`, `--human-fast`, `--no-map`, `--quiet`, `--triage-url`, ports, `--memory` | | As in the lumber runner. |
+| `--human`, `--seed`, `--human-fast`, `--no-map`, ports, `--memory` | | As in the lumber runner. |
 
 ## What it does
 
@@ -559,7 +559,7 @@ of them, and the memory store):
   0.48 / 0.40 (10-03); looted gold per minute 6.2 / 5.5 (10-02). Whether it bites only in PvP or
   on harvesting is unknown [INFERENCE]; the runner clears it anyway, 6 steps are cheap.
 
-**The rule** (tick order: after the leave rules, the speech hold, the re-equip and the heal;
+**The rule** (tick order: after the leave rules, the re-equip and the heal;
 before loot and fight):
 - **On:** walk it off at once, mid-fight too: the steps it asks for + 1, out to a tile
   ⌈(steps + 1) / 2⌉ (else one more) from the fight spot and straight back (Mover routes, human
@@ -726,7 +726,13 @@ area hunted so far) and opens zone 2 only when the numbers allow it; watch the l
 
 Overall timeout, movement stall, the agent gate (actions wait out a pause or break), server
 restriction text (`server_restriction` juncture, stop), death (`death` juncture with the attackers
-and threats, stop: no corpse runs), the speech hold above.
+and threats, stop: no corpse runs).
+
+**No speech hold** (removed 2026-10-15; user: "GMs don't check attendance for dungeon crawling and
+stopping because a player speaks will definitely get us killed"). The hunt doesn't read nearby speech
+or invulnerable players in view: no `speech_nearby`, no `gm_suspected` from the runner, no Laya
+triage, and `--quiet` / `--triage-url` are gone. The lumber runner keeps its hold. Store rows from
+before still carry `speech_hold` / `speech_clear` events, and the Jobs page still counts them.
 
 ## Memory
 
@@ -737,7 +743,7 @@ rights), `gold`, `xp`, `hits_lost`, `casts`, `heals`, `leaves`,
 `stationary_clears`, `repositions` (Stationary Penalty walks), `ended` (the leave reason, `done`,
 `time is up` or `stopped`). Job events `kill`, `loot` (`mob`, `name`, `gold`, `xp`, items,
 `lift_rejects`; `refused` = `blue` or the server's refusal text for a corpse not ours), `leave`,
-`death`, `speech_hold`, `speech_clear`, and **`fight`** per engagement, both modes (`serial`, `name`,
+`death`, `speech_hold`, `speech_clear` (until 2026-10-15), and **`fight`** per engagement, both modes (`serial`, `name`,
 `body`, `fight_s` from the first attack, `hits_lost` meanwhile, `outcome` kill / fled / dropped /
 lost / switched / ended, `mode`, crawling also `zone`); `leave` has `route_steps`. Crawling:
 `crawl_zone` (a zone opened or closed, with `floor` and the rates) and the visit row's `crawl`
@@ -878,7 +884,7 @@ outside and re-entering all worked; no deaths. Heal potions were drunk live (hea
   lacks it ("You do not have that spell!"). Workaround `--gheal-min-missing 1`. Fix needed: choose
   only spells the book holds.
 - **A speech hold sends nothing, even mid-fight**: no heals and no swings. Hits fell 99 → 48 until
-  the survival leave overrode the hold. Combat and heals should continue during a hold.
+  the survival leave overrode the hold. (The hunt has had no speech hold since 2026-10-15; see Guards.)
 - **The rest ends at the mana reserve.** With the default 22 it re-entered with ~24 mana, cast it
   away and bounced out in 25 s. `--mana-reserve 70` made visits last.
 - **The arrival tile (5536,530) is also an exit teleporter.** Walking back from a corpse over it

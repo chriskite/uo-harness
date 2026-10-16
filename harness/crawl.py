@@ -704,8 +704,6 @@ class Crawl:
             return "under attack"
         if h.leave_reason(st):
             return "a leave rule"
-        if h.pending_speech:
-            return "speech nearby"
         if h.pick_target(st) is not None:
             return "a target in reach"
         return None

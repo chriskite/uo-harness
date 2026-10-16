@@ -1176,8 +1176,7 @@ async def main(staff=False, fight=None, crawl=False, recall=False):
                 "--gheal-min-missing", str(GHEAL_MIN),
                 "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--memory", db,
                 "--entry", str(ENTRY[0]), str(ENTRY[1]), "0",
-                "--human", "normal", "--seed", "7", "--human-fast", "0.2", "--quiet", "--no-map",
-                "--triage-url", "",
+                "--human", "normal", "--seed", "7", "--human-fast", "0.2", "--no-map",
                 stdout=fh, stderr=asyncio.subprocess.STDOUT)
             try:
                 await asyncio.wait_for(runner.wait(), timeout=300 if crawl or recall else 200)
@@ -1418,7 +1417,7 @@ def rights():
         link.feed(mob_pkt(mob, SPOT[0], SPOT[1] - 1), ground_item(corpse, combat.CORPSE_GRAPHIC, MONGBAT, SPOT[0], SPOT[1] - 1),
                   display_death(mob, corpse), delete(mob), corpse_flags(corpse, mob, noto=noto),
                   contained(g, combat.GOLD_GRAPHIC, n, corpse))
-    args = loop_hunt.arg_parser().parse_args(["--human", "off", "--quiet", "--triage-url", "", "--no-map",
+    args = loop_hunt.arg_parser().parse_args(["--human", "off", "--no-map",
                                               "--memory", db])
     loop = loop_hunt.HuntLoop(link, store, args)
     loop.state()
@@ -1639,7 +1638,7 @@ def pets_run():
               mobile20(W1, SPOT[0] + 5, SPOT[1], SHADE_WOLF), name_pkt(W1, "a shade wolf"))
     args = loop_hunt.arg_parser().parse_args(["--pets", "--pet", "GraveRobber", "--pet", "alaflambe", "--no-loot",
                                               "--retreat-at", "0.3", "--no-songs",
-                                              "--human", "off", "--quiet", "--triage-url", "", "--no-map",
+                                              "--human", "off", "--no-map",
                                               "--spot", str(SPOT[0]), str(SPOT[1]), "--memory", db])
     loop = loop_hunt.HuntLoop(link, store, args)
     try:

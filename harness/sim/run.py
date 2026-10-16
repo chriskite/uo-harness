@@ -9,7 +9,7 @@ a fresh temporary SQLite file. The character starts at home with its pets (the s
 row) and recalls in, as a live trip does; `--at-hunt` starts on the hunting level instead (then the run
 ends at the first leave). Defaults added to the runner's arguments unless given: `--pets
 --leave-recall <the scenario's tome> --enter-recall <it> --enter-rune <the hunting row> --crawl
---timeout <minutes x 60> --quiet --triage-url ""`. Several runs (`--runs N`, seeds seed..seed+N-1) go to
+--timeout <minutes x 60>`. Several runs (`--runs N`, seeds seed..seed+N-1) go to
 a pool of `--jobs` processes; the table (or `--json` lines) lists one summary per run.
 """
 from __future__ import annotations
@@ -32,8 +32,7 @@ def runner_args(sc: dict, extra: list[str], minutes: float, at_hunt: bool = Fals
     hunt_row = sc["recall"]["rows"][1]["name"]
     have = set(a for a in extra if a.startswith("--"))
     out = list(extra)
-    defaults = [("--pets", []), ("--leave-recall", [tome]), ("--timeout", [str(minutes * 60)]), ("--quiet", []),
-                ("--triage-url", [""])]
+    defaults = [("--pets", []), ("--leave-recall", [tome]), ("--timeout", [str(minutes * 60)])]
     rn = sc.get("runner") or {}
     if rn.get("leave_gate"):
         defaults += [("--leave-gate", [str(v) for v in rn["leave_gate"]]), ("--gate-dest", [rn["gate_dest"]])]

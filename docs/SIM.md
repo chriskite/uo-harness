@@ -39,7 +39,7 @@ python harness/sim/calibrate.py --logs <logs dir> [--scan 20261010] [TAG...]   #
 ```
 
 - Defaults added to the runner's arguments: `--pets --leave-recall <tome> --enter-recall <tome>
-  --enter-rune Mausoleum --crawl --timeout <minutes> --quiet --triage-url ""`, and the scenario's
+  --enter-rune Mausoleum --crawl --timeout <minutes>`, and the scenario's
   `runner` block: `--enter-via` the four teleporters Logan took in (two of them short hops on the
   second level) and `--leave-gate 5203 703 --gate-dest Totem`. The character starts at home (the DTF
   landing) with both pets, recalls to the gold gate on the first level, walks in, hunts, leaves by the

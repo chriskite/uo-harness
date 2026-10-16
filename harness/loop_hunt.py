@@ -75,11 +75,9 @@ before it comes it repositions 2-4 steps out and back (--reposition-s). Leaving 
 survive comes first. Episode rows count `stationary_clears` and `repositions`.
 
 Guards: overall timeout, movement stall, the agent gate (Link.act waits it out),
-server restriction text, death (`death` juncture, stop; no corpse runs), a character
-speaking nearby (speech_guard.py: `speech_nearby` hold, deferred until no fight is
-on; leaving to survive overrides the hold; an invulnerable player coming into view,
-notoriety 7 + player flag 0x20, raises `gm_suspected` at once, logs a
-`staff_sighting` and is held for the same way). Junctures: `threat` when leaving,
+server restriction text, death (`death` juncture, stop; no corpse runs). No speech
+hold (user 2026-10-15: "GMs don't check attendance for dungeon crawling and stopping
+because a player speaks will definitely get us killed"). Junctures: `threat` when leaving,
 `low_supplies` when neither a potion nor a castable heal spell (mana, reagents) is
 there, `death`. Job events and one episode row per visit (kills, gold, xp, hits
 lost) go to the memory store.
@@ -129,7 +127,6 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
-import alerts  # noqa: E402
 import aggro  # noqa: E402
 import combat  # noqa: E402
 import crawl  # noqa: E402
@@ -141,13 +138,11 @@ import moongate  # noqa: E402
 import threats  # noqa: E402
 import stationary  # noqa: E402
 import tamer  # noqa: E402
-import triage  # noqa: E402
 from agent_link import (Abort, Link, Mover, bank_opened, cheb, containers_to_open, find_banker, log,  # noqa: E402
                         same_floor, serial_of)
 from errand_bank import GATING_WORDS  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
-from speech_guard import SpeechGuard, staff_hints, what  # noqa: E402
 
 ROPE_GRAPHIC = 0x14FA         # an adventurer's rope (a stack of 15 in Logan's pack, 20261014_173858)
 ROPE_R = 9                    # live jumps 7, 9, 10 tiles; an 11-tile target was refused: one short
@@ -255,9 +250,6 @@ class HuntLoop:
             raise Abort(f"unknown spell {args.spell!r}")
         self.words = args.target_name.lower().split()
         self.watch = threats.Watch(threats.Params(flee_on_attack=False))
-        self.speech = SpeechGuard()
-        self.triage = triage.Triage(args.triage_url, log=log)
-        self.pending_speech = []
         self.heard_upto = None       # restriction-text scan cursor into link.events
         self.ev_upto = 0             # kill/death scan cursor into link.events
         self.dead = set()            # serials the server reported dead (0xFF sub 0xDEAD)
@@ -287,7 +279,6 @@ class HuntLoop:
                        "potions": 0, "leaves": 0, "visits": 0, "stationary_clears": 0, "repositions": 0,
                        "banked": 0}
         self.still = stationary.Stationary(self.mover, self.human, args.reposition_s)
-        self._intent = None
         self.left_why = None         # (why, severity) of the last leave
         self.weapon = None           # the item on layer 1/2 at the start: kept in hand (rearm)
         self.cast_disarms = False    # a cast of ours put the weapon in the pack (seen this run)
@@ -301,7 +292,6 @@ class HuntLoop:
     # ------------------------------------------------------------ reporting
     def doing(self, kind: str, text: str, target=None, serial=None):
         """Tell the visualizer what the agent is trying to do (proxy-side only)."""
-        self._intent = (kind, text, target, serial)
         self.link.intent(text, kind, target, loop="hunt",
                          target_serial=key_of(serial) if serial is not None else None)
 
@@ -324,7 +314,6 @@ class HuntLoop:
         if threats.is_dead(st) or st["world"]["self"].get("dead"):
             self.died(st, "ghost body")
         self.check_restriction()
-        self.pending_speech += self.new_speakers(st)
         self.track(st)
         self.look(st)
         self.drink_on_the_run(st)
@@ -479,31 +468,6 @@ class HuntLoop:
                                          {"text": ev.get("text")})
                     raise Abort(f"server restriction message: {ev.get('text')!r}")
         self.heard_upto = len(self.link.events)
-
-    def new_speakers(self, st):
-        """New speakers (with Laya's verdict), then the invulnerable players come into
-        view (staff_in_view)."""
-        who = self.speech.scan(st["world"], self.link.events, self.link.event_t)
-        for w in who:
-            v = self.triage.judge(w, st["world"], names=self.speech.names)
-            if v and "error" not in v:
-                log(f"laya: {w['label'] or w['name'] or w['serial']}: {w['text']!r} "
-                    f"check {v['check']:.2f} direct {v['direct']:.2f} ({v['ms']} ms)")
-        return who + self.staff_in_view(st)
-
-    def staff_in_view(self, st):
-        """Invulnerable players come into view (SpeechGuard.sightings), as loop_lumber: a
-        `staff_sighting` job event on each first sighting this run and gm_suspected with
-        the staff alarm at once (suspect_staff); the hold follows with the speech hold."""
-        seen = self.speech.sightings(st["world"])
-        for w in seen:
-            log(f"STAFF IN VIEW: {w['label'] or w['name'] or w['serial']} (body {w['body']}, hue {w['hue']}, "
-                f"at {w['x']},{w['y']})")
-            if w.pop("first"):
-                self.memory.job_event("hunt", "staff_sighting", {**w, "visit": self.visit_n}, **self._where(st))
-        if seen:
-            self.suspect_staff(seen, st)
-        return seen
 
     def died(self, st, reason):
         a = self.watch.update(st, recall_s=0.0, margin_s=0.0)
@@ -1634,10 +1598,7 @@ class HuntLoop:
         if time.monotonic() < end:
             log(f"a hostile player at the hunt: waiting {end - time.monotonic():.0f} s more before going back")
         while time.monotonic() < end:
-            st = self.state()
-            if self.pending_speech:
-                self.speech_hold(st)
-                continue
+            self.state()
             self.doing("wait", f"Waiting before going back ({end - time.monotonic():.0f} s; a hostile player "
                                f"was at the hunt)")
             time.sleep(min(2.0, max(0.0, end - time.monotonic())))
@@ -1728,9 +1689,6 @@ class HuntLoop:
                 log(f"rest: still {me.get('hits')}/{me.get('hits_max')} hits, mana {me.get('mana')}"
                     + ("" if pets_ok else ", pets hurt") + f" after {self.args.rest_timeout:.0f} s")
                 return False
-            if self.pending_speech:
-                self.speech_hold(st)
-                continue
             if self.team is not None and self.team.vet(st):
                 continue
             if self.frac(me) < self.args.rest_to and not (self.team is not None and healing.magery(me) <= 0) \
@@ -1741,64 +1699,6 @@ class HuntLoop:
                 continue
             self.doing("rest", f"Resting ({me.get('hits')}/{me.get('hits_max')} hits, mana {me.get('mana')})")
             time.sleep(2.0)
-
-    # ------------------------------------------------------------ speech hold
-    def speech_hold(self, st):
-        """Send nothing until the overseer acks `speech_nearby` and no gm_suspected
-        is open (speech_guard.py), as loop_lumber does. Leaving to survive overrides
-        the hold (a held character in the NPD dies)."""
-        who, self.pending_speech = self.pending_speech, []
-        first = who[0]
-        name = first["label"] or first["name"] or first["serial"]
-        log(f"SPEECH: {name} {what(first)}; pausing for the overseer")
-        resume = self._intent
-        self.doing("speech", f"Paused: {name} " + ("in view" if first["text"] is None else "spoke nearby")
-                   + "; waiting for the overseer")
-        data = {"hold": True, "task": "hunt", "visit": self.visit_n, "speakers": who, **self._where(st)}
-        jid = self.memory.juncture("hunt", "speech_nearby",
-                                   f"{name} {what(first)} nearby; hunting paused until the "
-                                   f"all-clear (ack)"[:300], "urgent", data)
-        self.memory.job_event("hunt", "speech_hold", data, **self._where(st))
-        if not self.suspect_staff(who, st):
-            alerts.handoff(not self.args.quiet)
-        t0, heard, lines = time.monotonic(), {w["serial"] for w in who}, list(who)
-        while True:
-            time.sleep(1.0)
-            st = self.state()
-            new, self.pending_speech = self.pending_speech, []
-            for w in new:
-                log(f"SPEECH (paused): {w['label'] or w['name'] or w['serial']} {what(w)}")
-                heard.add(w["serial"])
-            lines += new
-            self.suspect_staff(new, st)
-            alerts.staff_alarm_due(self.memory, not self.args.quiet)
-            if self.visit is not None and self.at_hunt(st):
-                why = self.leave_reason(st)
-                if why:
-                    log("leaving despite the speech hold (survival)")
-                    self.leave(st, *why)
-            j = self.memory.junctures(after_id=jid - 1, limit=1)
-            if j and j[0]["acked_t"] is not None and not alerts.open_gm(self.memory):
-                break
-        waited = time.monotonic() - t0
-        self.t0 += waited                        # the pause isn't the job's time
-        self.memory.job_event("hunt", "speech_clear", {"juncture": jid, "waited_s": round(waited, 1),
-                                                       "lines": lines}, **self._where(st))
-        self.speech.clear(heard)
-        log(f"all-clear after {waited:.0f} s; resuming")
-        self.human.wait("read")
-        if resume is not None:
-            self.doing(*resume)
-
-    def suspect_staff(self, who, st) -> bool:
-        hinted = [w for w in who if staff_hints(w)]
-        if hinted and not alerts.open_gm(self.memory):
-            w = hinted[0]
-            name = w["label"] or w["name"] or w["serial"]
-            log(f"POSSIBLE STAFF: {name} ({', '.join(staff_hints(w))}); staff alarm")
-            alerts.post_gm(self.memory, "hunt", f"{name}: {', '.join(staff_hints(w))}",
-                           {"task": "hunt", "speakers": hinted, **self._where(st)}, not self.args.quiet)
-        return bool(alerts.open_gm(self.memory))
 
     # ------------------------------------------------------------ visits
     def start_visit(self, st):
@@ -1985,7 +1885,7 @@ class HuntLoop:
     def tick(self) -> bool:
         """One decision (docs/HUNT_LOOP.md "What it does"); True when the run is over."""
         st = self.state()
-        if self.visit is None:                      # left to survive (speech hold, recall mode)
+        if self.visit is None:                      # left to survive (recall mode)
             return not self.go_back(self.left_why)
         if self.crawl is not None:
             self.leave_margin(st)
@@ -2000,9 +1900,6 @@ class HuntLoop:
             if reason[1] == "info":
                 return True
             return not self.go_back(reason)
-        if self.pending_speech and not attackers and self.engaged is None:
-            self.speech_hold(st)
-            return False
         me = st["world"]["self"]
         if self.rearm(st):
             return False
@@ -2310,9 +2207,6 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--no-map", action="store_true",
                     help="plan on walk memory only (offline tests against simulated worlds)")
     ap.add_argument("--max-blocked", type=int, default=20)
-    ap.add_argument("--quiet", action="store_true", help="no handoff sound (tests)")
-    ap.add_argument("--triage-url", default=triage.DEFAULT_URL,
-                    help="laya-serve for speech triage (triage.py); empty = off")
     ap.add_argument("--control-port", type=int, default=25941)
     ap.add_argument("--state-port", type=int, default=25942)
     ap.add_argument("--char", default=None,

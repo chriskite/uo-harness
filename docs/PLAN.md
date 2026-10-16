@@ -1181,8 +1181,9 @@ as a test over the committed captures). THREATS.md §1 and OVERSEER.md describe 
   `staff_sighting` and raises `gm_suspected` at once (`suspect_staff`: one per open alarm). The
   sighting is queued (`pending_staff`), and the next work-mode speech check holds for it
   (`speech_hold`; the summary reads "… is in view (invulnerable player …)").
-- `loop_hunt` shares the plumbing: `new_speakers` adds the sightings, so the hold follows the hunt's
-  rules (deferred while fighting, survival overrides). The alarm and `staff_sighting` come at once.
+- `loop_hunt` shared the plumbing until 2026-10-15, when the hunt's speech hold went entirely (user:
+  "GMs don't check attendance for dungeon crawling and stopping because a player speaks will definitely
+  get us killed"): no speech reading, sightings or Laya in the hunt runner (docs/HUNT_LOOP.md "Guards").
 - Tests: `test_speech_guard.py` `test_sightings`; `test_loop_lumber.py staff_in_view` (a vendor at
   1 tile raises nothing; then a robed notoriety-7 + `0x20` mobile gives one `gm_suspected`, one
   hold, one `staff_sighting` with the robe, nothing sent until both acks, then the trip banks);
