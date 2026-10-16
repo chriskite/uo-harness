@@ -2195,7 +2195,7 @@ def arg_parser() -> argparse.ArgumentParser:
                          "(dungeons: near a golden gate; default: the arrival / --spot)")
     ap.add_argument("--enter-via", type=int, nargs=2, action="append", default=None, metavar=("X", "Y"),
                     help="after --enter-recall's arrival, step onto these teleporters in order (repeat) to reach "
-                         "the hunting level; the last arrival is the hunt (the Mausoleum: 5554 700, 5506 701, 5507 697, 5522 637)")
+                         "the hunting level; the last arrival is the hunt (the Mausoleum: 5554 700, 5507 701, 5507 697, 5522 637)")
     ap.add_argument("--leave-gate", type=int, nargs=2, default=None, metavar=("X", "Y"),
                     help="leave by this moongate on the hunting level (dungeons allow no recall except near a "
                          "gold gate, never near a red one: user 2026-10-13), to --gate-dest, then --leave-recall "
