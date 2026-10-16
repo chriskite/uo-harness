@@ -17,7 +17,8 @@ Usage: ./ctl.cmd [--db P] [--state-port N] [--control-port N] <cmd> ...
   break                       start the agent gate's break now (e.g. once home)
   alert <why> [--serial S]    possible staff (GM): gm_suspected juncture + staff alarm for
                               the human; repeats (runner hold, `wait`) until acked
-  ack <juncture_id>           close a juncture (acking gm_suspected stops the alarm)
+  ack <juncture_id> | ack all close a juncture (acking gm_suspected stops the alarm); `all`: every open
+                              one (of --char's character, and those without one; all of them without --char)
   junctures [--open] [--after N] [--limit N]
   chat [--after N] [--limit N] [--role R]
   say <text> | think <text> | note-action <text>
@@ -878,8 +879,16 @@ def cmd_alert(a, mem):
 
 def cmd_ack(a, mem):
     heartbeat(mem)
-    ok = mem.juncture_ack(a.juncture_id)
-    return {"ok": ok, "id": a.juncture_id, **({} if ok else {"error": "no such open juncture"})}
+    if a.juncture_id == "all":
+        ids = [j["id"] for j in mem.junctures(open_only=True, limit=1_000_000)]
+        acked = [j for j in ids if mem.juncture_ack(j)]
+        return {"ok": True, "acked": acked, "count": len(acked)}
+    try:
+        jid = int(a.juncture_id)
+    except ValueError:
+        raise CtlError(f"bad juncture id {a.juncture_id!r} (a number, or 'all')")
+    ok = mem.juncture_ack(jid)
+    return {"ok": ok, "id": jid, **({} if ok else {"error": "no such open juncture"})}
 
 
 def cmd_junctures(a, mem):
@@ -3354,7 +3363,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--poll", type=float, default=1.0, help=argparse.SUPPRESS)
     p.set_defaults(fn=cmd_wait)
     p = sub.add_parser("ack")
-    p.add_argument("juncture_id", type=int)
+    p.add_argument("juncture_id", help="a juncture id, or 'all': every open one (scoped by --char)")
     p.set_defaults(fn=cmd_ack)
     p = sub.add_parser("junctures")
     p.add_argument("--open", action="store_true")
