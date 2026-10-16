@@ -418,7 +418,9 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
 
 **Aggro** (`aggro.py`; user 2026-10-13: "positioning and managing aggro is the number one most
 important thing in dungeon PvM in Outlands"). Line of sight is `los.Sight` (ServUO's rules, checked
-live), monster z from the map surface, aggro range 13 (user 2026-10-15: "12 or 13"). **Whoever it sees
+live), monster z from the map surface, aggro range per type as the captures measured it (`aggro.aggro_range`,
+mausoleum.json `aggro_observed`: 10, the shadow minion and the calamity 13; 210 of 211 wakes at 10 or less, 102
+idle monsters in our sight at 11-13 for over 5 s; the user first "12 or 13", then "smaller than 14"). **Whoever it sees
 first** (user 2026-10-15: "Any mob that 'sees' Logan before it sees a pet is going to aggro on him
 directly and that's pretty much a death sentence with this build"): a tile is scored by the idle
 monsters that would see us there before a pet (`View.first_on_us`: in range and sight, no pet nearer
@@ -432,7 +434,7 @@ what comes.
 | `--never-aggro TYPE` | the elder vampire, the elder vampire countess | Never wake it alone (repeat for other types; any given replaces the default). The vampiric consort until 2026-10-15; the user then: "we don't need to avoid any mob specifically, we should be able to handle everything on Maus 3 with enough care. The consort and elder vampires areas can get a little sketchy but it's all doable" (the code still avoided the consort by default until the next change); after the eleventh live run (an elder vampire countess froze both pets and killed Logan): "I suppose the runner can avoid the elder vampires for now". |
 | `--crawl-avoid-types` / `--no-crawl-avoid-types` | on (`--pets` off) | The crawl avoids creature types the store's fights say cost too much or were fled from (live 20261015_171928 it set the vampire countess aside after one leave). |
 | `--reposition` / `--no-reposition` | on | In a fight, step to a better tile for line of sight. |
-| `--hold-first-sight` / `--no-hold-first-sight` | on | Nothing fighting: stop where an idle monster sees us within its aggro range (13; it was 14, a tile of margin: live 21:34:05 a shadowguard 14 tiles off held the patrol 10 s and never woke), and let it come; the pull spot must stay in its sight. |
+| `--hold-first-sight` / `--no-hold-first-sight` | on | Nothing fighting: stop where an idle monster sees us within its aggro range (its type's, 10 or 13; it was 14, the user's 13 plus a tile: live 21:34:05 a shadowguard 14 tiles off held the patrol 10 s and never woke), and let it come; the pull spot must stay in its sight. |
 
 - **Weights** ("weighted by danger"): (wiki difficulty - 50) / 40, clamped to 0.25-3: a vampire bat
   0.43, a shadow minion 0.53, a shade wolf 0.92, a banshee 1.6, a nightstalker 1.8, a shadowguard 2.05,

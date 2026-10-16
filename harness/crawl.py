@@ -640,7 +640,7 @@ class Crawl:
                 if type_key(name) not in self.avoided:
                     self.avoided[type_key(name)] = "never aggro it alone (user 2026-10-13)"
                     log(f"crawl: keeping out of sight of the {type_key(name)} at {tile}")
-                self.danger[s] = (tile, now, type_key(name), aggro.AGGRO_R + aggro.NEVER_MARGIN)
+                self.danger[s] = (tile, now, type_key(name), aggro.AGGRO_MAX + aggro.NEVER_MARGIN)
                 continue
             why = self.model.avoid(name, hits_max, self.a.crawl_max_hits, self.a.crawl_max_fight_s) \
                 if getattr(self.a, "crawl_avoid_types", True) is not False else None
@@ -821,7 +821,7 @@ class Crawl:
                     # waypoints around here rest, the patrol goes elsewhere (sim fight1949: the next one chosen
                     # was in the same banshee room, and both woke)
                     here = tuple(h.pos(h.link.state())[:2])
-                    r = aggro.AGGRO_R + aggro.WAKE_MARGIN
+                    r = aggro.AGGRO_MAX + aggro.WAKE_MARGIN
                     for i, p in enumerate(self.wps):
                         if cheb(p, here) <= r:
                             self.depleted[i] = now + RESPAWN_S

@@ -79,6 +79,8 @@
    "follow": 1,
    "leash": 14,
    "threat_x": 0.3,
+   "melee_taken_x": 1.7,
+   "melee_taken_note": "the phoenix takes 1.7x the gravebug's number from the same monster's melee (World._taken_x): medians AF/GR on today's captures (20261015_171928, _204514, _210709), one attributed attacker each: shadowguard 1.75 (n=9 AF / 36 GR), vampire bat 1.92 (7/26), corpsebride 1.65 (6/45), shadow minion 1.75 (5/32), vampire countess 1.35 (7/28); not on spells (banshee 0.79, 9/17) nor the area hits (wail 16 vs 16, apparition burst 37 vs 37), which carry their own numbers",
    "note": "hits 660: 6.6 hits per percent point (n=24, capture); spell hits: p10/p90 of the phoenix-attributed numbers (n=30) with the median of the 428 ambiguous ones (237.5) as mode, every 1.80 s (attack animation n=254); range 10 [INFERENCE; Epic Barrage reaches 12, knowledge #6882]; step 0.21 s (one-tile moves out of war mode, n=471, capture); took little aggro on the trip (84 hits per war-minute vs the gravebug's 796): threat_x 0.3 [fitted with the gravebug's 4.0]"
   }
  ],
@@ -258,17 +260,19 @@
   "note": "heal: the trip's six drinks, median 32.5; cooldown 10 s (knowledge #4909); satchel 10 % + exceptional 5 % + bronzehide 15 % (knowledge #11445)"
  },
  "defaults": {
-  "aggro_range": 13,
+  "aggro_range": 10,
   "wake_s": [1.5, 3.0],
-  "wake_note": "an idle monster takes a target this long after one of us came into its range and sight, the nearest then: live 20261015_171928 18:57:06 an apparition seeing Logan at 10 tiles in war mode 1.8 s later; 19:49:35 one at 8 tiles 2.7 s later; 19:49:35-41 the second at 12 tiles, no line of sight by the map, idle 6 s, at 10 in sight in war mode within ~2 s; 20261013_204518 the wolves and the stalker came 5-10 s after first sight (n=3 timed) [INFERENCE: the range]",
-  "aggro_note": "2026-10-15, the user after the test-shard deaths: aggro range 12 or 13 (13 here; it was 10, the note below), and a monster aggroes on whichever of us it sees first (World._think: the nearest it sees, a pet on a tie); the guard_draw_r 6 rule below (any guarding pet near us drew it) is gone",
+  "wake_note": "an idle monster takes a target this long after one of us came within its aggro range and sight, the nearest then: the 10-tile crossing to war mode on today's captures (20261015_090607 to _210709), 1.4-2.6 s (p10 1.6, median 2.2, n=188; 20 slower ones were idle monsters left alone longer); before: 20261015_171928 18:57:06 one apparition 1.8 s, 19:49:35 one 2.7 s",
+  "aggro_note": "aggro 10 (2026-10-15 audit, docs/SIM.md 'Monster mechanics audit'; per type in aggro_observed, 13 for the shadow minion and the calamity): of 252 idle monsters that woke on today's captures none had kept one of us in sight within 10 tiles for over 5 s (102 had within 13); at the flip the nearest of us stood at a median 7 (p90 10), 2.2 s before it at a median 10. It was 13 from the user's guess (2026-10-15, 'I think its 12 or 13'; runner aggro.AGGRO_R stays 13 as a margin), 10 before that. The pick: the nearest it sees, a pet on a tie (World._think); live the gravebug took the first contact in 61 of the 99 wakes where Logan was the nearest seen: the guard and its Tank threat (threat_x) take it over in the sim too",
   "hit_chance": 0.85,
   "swing_s": 3.0,
   "kb_melee_to_pet": 0.5,
   "ranged_every_s": 6.0,
-  "ranged_range": 10,
+  "ranged_range": 12,
+  "ranged_range_note": "spells landed at 11-14 tiles: banshee 5 of 25 attributed hits, shadow minion 6 of 19, the countess 1 of 21 at 12 (today's captures); 10 before [INFERENCE]",
   "ranged_kb_factor": 0.5,
-  "damage_to_player_x": 1.0,
+  "damage_to_player_x": 1.6,
+  "victim_note": "a monster's melee and spell numbers are the gravebug's (they come from the attributed hits, mostly on it); Logan takes damage_to_player_x of them (World._taken_x): medians Logan/gravebug, same monster type and attack, today's captures, song-corrected: banshee spells 1.74 (n=11 Logan / 17 GR), corpsebride 1.70 (9/45), vampire countess 1.95 (7/28), shade wolf 1.40 (3/130); the specials 1.25-1.65 (wail 1.4, charges 1.6, burst 1.25) have their own numbers. 1.0 before. Every observed number is divided by (1 - the Song of Discordance up then: 15.8-18.4 %), as the sim cuts it again",
   "respawn_s": [
    120,
    300
@@ -313,9 +317,15 @@
   ],
   "vampire": [
    {
-    "kind": "drain",
-    "chance": 0.1,
-    "damage": 10
+    "kind": "feed",
+    "every_s": [6.0, 14.0],
+    "delay_s": [5.0, 5.9],
+    "chance": 0.5,
+    "ticks": [4, 5],
+    "tick": [13, 18, 16],
+    "tick_s": 0.5,
+    "first_tick_s": 0.7,
+    "note": "replaces the wiki's drain (no '+N' over a vampire after any of 24 feeds): beside its target '*attempts to feed*', 5.0-5.9 s later '*feeds*' (4 of 9 attempts, n=9 vampire, 2 of 3 elder), then 4-5 ticks 0.5 s apart on it (n=12 feeds), song-corrected 13-18 (median 16, n=47 ticks, all on the gravebug): 20261015_210709 21:17:26-34 and 21:17:39-48, 20261015_171928 19:17:06-13 (elder), earlier captures; attempts 5.9-30.7 s apart (median 13, n=5) [INFERENCE: every_s]"
    }
   ],
   "vampire countess": [
@@ -333,59 +343,95 @@
    },
    {
     "kind": "transfix",
-    "every_s": 5.3,
-    "chance": 0.5,
+    "every_s": 5.5,
+    "chance": 0.27,
     "range": 12,
     "lifetime_s": [9.9, 11.0],
     "wake_s": [0.0, 2.5],
-    "pet_damage": [36, 45],
+    "pet_damage": [40, 55],
     "hits": 2000,
-    "melee": [28, 37],
-    "swing_s": 1.91
+    "melee": [15, 21, 18],
+    "swing_s": 3.38,
+    "copy_step_s": 0.4,
+    "note": "all 10 captures (2026-10-12 to 10-15): '*attempts to transfix*' 5.0-13.7 s apart (median 5.5, n=83); a copy at the instant in 27 of 100 attempts: 20 of 76 with no copy up, 7 of 24 with one up (on the other pet; 0.5 and 'never with her copy up' before, from n=12 and n=4); copies last 9.9-11.1 s (n=31); the hit on the pet at once 40-55 song-corrected (act 15: the gravebug median 44, the phoenix 49-55); a copy steps every 0.36-0.41 s (n=101 steps; the pet's 0.21 before) and swings every 3.38 s (n=24; the pet's 1.91 before); its hits on Logan 24-34 (n=11) and on the phoenix 31-36 (n=7) song-corrected, i.e. 15-21 gravebug-referenced (damage_to_player_x 1.6, melee_taken_x 1.7). After the copy goes the pet fights again within 0.3-2.7 s (25 of 27 releases, attack animations); once (20261015_210709 21:20:02.8) the phoenix stood idle 46.7 s until 'All Guard Me' after an 'All Kill' said while it was transfixed: n=1, not modelled"
    }
   ],
   "nightstalker": [
    {
     "kind": "charge",
-    "cooldown_s": 8.5,
+    "cooldown_s": 8.0,
     "range": 12,
     "targets": 3,
-    "damage": [37, 42]
+    "delay_s": [0.8, 1.0],
+    "damage": [31, 43, 35],
+    "note": "today's captures: '*charges*' (action 24) 7.5-17.4 s apart (median 8.0, n=32); the jump onto or beside its target 0.8-1.0 s after the emote (n=25; at once before), each of us within a tile hit at the landing: the gravebug 11-39 (median 29, n=23), the phoenix 37-42 (n=4), Logan 46 (n=1), song-corrected the gravebug's 31-43"
+   },
+   {
+    "kind": "vanish",
+    "first_s": [2.0, 30.0],
+    "cooldown_s": [15.0, 30.0],
+    "hidden_s": [3.2, 4.4],
+    "note": "in a fight it left the view alive and came back 3.2-4.4 s later 2 tiles off with a hit at once (n=5: 20261015_171928 18:37:08.5, 20261015_204514 20:48:25.4 and 20:58:37.8, 20261015_210709 21:13:16.2 and 21:22:37.6; its hits then 24-42 on the gravebug; 18:40:10 one unseen before hit Logan -58); the first 1.7-32 s into a fight (n=6) [INFERENCE: first_s, cooldown_s]"
    }
   ],
   "reanimated knight": [
    {
     "kind": "charge",
-    "cooldown_s": 8.5,
+    "cooldown_s": 15.2,
     "range": 12,
     "targets": 3,
-    "damage": [25, 35],
-    "note": "'*charges*' 3 times live (20261013_173449 17:40:23, 20261013_204518 20:50:09, 20261014_173858 17:41:15.6); only the last hit anyone: -32 on Logan 1.0 s after [INFERENCE: the nightstalker's Charge rules and cooldown, damage around the one number]"
+    "delay_s": [1.0, 1.1],
+    "damage": [25, 37],
+    "damage_player": [44, 56],
+    "note": "today's captures: '*charges*' 15.1-15.8 s apart (n=6; 8.5 before); the jump 1.0-1.1 s after the emote (n=13), 1-8 tiles, onto or beside its target; the gravebug 20-30 (median 23, n=8), Logan 36-46 (n=3: 20261015_204514 20:48:00.5 -36 ...), song-corrected"
    }
   ],
   "elder vampire": [
    {
-    "kind": "drain",
-    "chance": 0.1,
-    "damage": 12
+    "kind": "feed",
+    "every_s": [6.0, 14.0],
+    "delay_s": [5.0, 5.3],
+    "chance": 0.5,
+    "ticks": [4, 5],
+    "tick": [19, 23, 20],
+    "tick_s": 0.5,
+    "first_tick_s": 0.7,
+    "note": "as the vampire's (its note): '*attempts to feed*' then '*feeds*' 5.0-5.3 s later (n=2 of 3), 12 feeds in all with 4-5 ticks 0.5 s apart on the gravebug, song-corrected 19-23 (median 20, n=51 ticks); 20261015_171928 19:17:06-13 [INFERENCE: the cadence and chance, the vampire's]"
+   }
+  ],
+  "elder vampire countess": [
+   {
+    "kind": "transfix",
+    "every_s": 5.5,
+    "chance": 0.27,
+    "range": 12,
+    "lifetime_s": [9.9, 11.0],
+    "wake_s": [0.0, 2.5],
+    "pet_damage": [40, 55],
+    "hits": 2000,
+    "melee": [15, 21, 18],
+    "swing_s": 3.38,
+    "copy_step_s": 0.4,
+    "note": "'*attempts to transfix*' 12 times (6 on 20261015_171928, where she made copies of the gravebug at 19:19:04.0 and the phoenix at 19:19:22.2 and her copies and she put Logan down at 19:19:41.4) [INFERENCE: the vampire countess' numbers]"
    }
   ],
   "apparition": [
    {
     "kind": "burst",
-    "first_s": [1.0, 4.0],
-    "every_s": 8.8,
+    "on_blink": true,
     "radius": 2,
     "damage_pet": [36, 38],
-    "damage_player": [46, 49],
-    "note": "live 20261015_090607 and _115604 (test shard): an apparition's action-6 hit lands at the same instant on everyone within 2: Logan -46/-47/-48 at 0-1 tiles and -39 at 2 (12:02:06.1, the gravebug -37 beside it), the pets -36/-38; no pet hit at 3-5 (09:16:23.5 the gravebug at 3, 12:01:58 and 12:02:06 the phoenix at 4-5); 8.8 s apart; its other hits on a pet 13-20 (action 5); n=6 [INFERENCE: radius 2, every 8.8 s]"
+    "damage_player": [55, 60],
+    "song_pets": false,
+    "note": "its area hit lands only where its blink lands (56 of 56 hits of 33+ on a pet or 39+ on Logan came 0.8-2.0 s after a '*phases*'; an own 8.8 s timer before), on everyone within 2 (34 hits at 2 tiles, none at 3+, today's captures); Logan 56/59/60 with no song (20261015_171928, n=3) and 45-49 under the 18.4 % Song of Discordance (n=16): 55-60 here; the pets 37-38 with the song (n=12) and without (n=6): not cut by it (song_pets false); earlier 20261015_090607/_115604: Logan -46/-47/-48, the pets -36/-38"
    },
    {
     "kind": "blink",
     "range": 12,
-    "cooldown_s": 6.0,
-    "hidden_s": [0.5, 1.3],
-    "note": "live 20261015_171928 (test shard): '*phases*' as it wakes, gone (0x1D), back on its target's own tile and its area hit at once: 18:57:07.8 war mode at 9 tiles, 08.3 gone, 09.0 on Logan's tile (-59); 19:49:41.7 idle at 10 tiles, 19:49:45.3 on Logan's tile (-46); 20261015_115604 12:08:36.3-37.6 from 7 tiles; mid-fight it blinked out 0.6-1 s and came back on the gravebug's tile (n=2) [INFERENCE: only when its target is beyond reach; the 6 s cooldown]"
+    "first_s": [0.6, 2.4],
+    "cooldown_s": [7.8, 8.6],
+    "hidden_s": [1.1, 1.6],
+    "note": "today's captures: '*phases*' 0.6-3.3 s after it woke (median 1.1, n=30), then every 7.8-16.5 s (median 8.1, p10 7.9, p90 9.0, n=48) whether its target stood beside it (39 of 72 at 1 tile) or away; gone (0x1D), its next hit 1.1-1.6 s after the emote (n=56) from its target's own tile (moved 1 tile onto the gravebug when beside it, 3-10 onto Logan from across the room); before: only when its target was beyond reach, every 6 s"
    }
   ],
   "devourer beetle": [
@@ -399,12 +445,23 @@
   "corpsebride": [
    {
     "kind": "wail",
-    "every_s": 7.6,
-    "damage": [13, 25, 18],
-    "radius": 1,
-    "near_chance": 0.75,
-    "far_r": 3,
-    "far_chance": 0.2
+    "every_s": 7.7,
+    "damage_player": [23, 33, 27],
+    "damage_pet": [15, 26, 20],
+    "radius": 2,
+    "near_chance": 0.9,
+    "far_r": 4,
+    "far_chance": 0.75,
+    "note": "today's captures: '*wails*' 7.5-7.8 s apart (n=57), the hits 0.4 s after; who was hit by distance: within 2 tiles 82 of 94 (Logan 18 of 18), 3-4 tiles 47 of 61, 5+ 2 of 73 (1 within, 75 % at 2-3 before); song-corrected Logan 23-33 (median 27, n=37), the pets 15-26 (median 20, n=102: the gravebug and the phoenix alike); 13-25 for everyone before"
+   }
+  ],
+  "banshee": [
+   {
+    "kind": "dematerialize",
+    "cooldown_s": [7.5, 7.7],
+    "hidden_s": [1.4, 1.6],
+    "jump": [3, 12],
+    "note": "new (today's captures): every '*dematerializes*' (action 12) came at the instant it took a hit (63 of 63), 7.5-14.8 s apart (median 8.45, n=42: the 7.5 s cooldown, then the next hit); gone 0.5 s later (0x1D), back 1.5 s after the emote (n=61) 3-12 tiles from where it stood (median 7; the gravebug had been beside it in 41 of 61, after it a median 6 tiles off), '*evasive*' then for 5.1 s and '*materializes*' 6.7 s after the emote (still hit and casting meanwhile: not modelled) [INFERENCE: the tile at random]"
    }
   ],
   "forgotten soul": [
@@ -440,13 +497,69 @@
  },
  "ranged_observed": {
   "banshee": {
-   "range": 10,
-   "damage": [21, 28],
+   "range": 12,
+   "damage": [16, 23, 19],
    "every_s": 3.4,
-   "note": "live 20261015_171928 19:49:58-19:50:22: one banshee in war mode 5 tiles from Logan, nothing else on him: -22 -25 -28 -22 -27 -28 -21 -24, 2.7-4.1 s apart (median 3.3), with the Song of Discordance up (n=8); the wiki's spell damage x 0.5 every 6 s (12.5-17.5) was about a third of that"
+   "note": "gravebug-referenced (defaults victim_note): its spells on the gravebug song-corrected 16-23 (median 19, n=17, today's captures; Logan 1.74x that); every 3.4 s: live 20261015_171928 19:49:58-19:50:22, one banshee in war mode 5 tiles from Logan, nothing else on him: -22 -25 -28 -22 -27 -28 -21 -24 under an 18.4 % Song of Discordance, 2.7-4.1 s apart (median 3.3, n=8); hits at 2-14 tiles (n=25). [21, 28] on everyone before"
+  },
+  "shadow minion": {
+   "range": 12,
+   "damage": [11, 23, 15],
+   "every_s": 3.4,
+   "note": "today's captures: its hits on the gravebug at 1-13 tiles (action 5), song-corrected 11-23 (median 15, n=32), 3.2-6.7 s apart at the shortest (median 3.34 at range, n=10); the wiki's spell x 0.5 every 6 s (10-15) before"
   }
  },
+ "melee_observed": {
+  "corpsebride": {
+   "melee": [7, 13, 10],
+   "note": "today's captures: its swings on the gravebug, song-corrected 7-13 (median 10, n=44; Logan 11-17, n=8 raw); the earlier capture's 20-24 had its wail in it"
+  },
+  "nightstalker": {
+   "melee": [18, 29, 25],
+   "note": "today's captures: its swings (action 5) on the gravebug, song-corrected 18-29 (median 25, n=30), every 3.39 s (n=13); 21-79 before (its Charge in it)"
+  },
+  "reanimated knight": {
+   "melee": [12, 21, 18.5],
+   "swing_s": 3.39,
+   "note": "today's captures: its swings (action 26) on the gravebug, song-corrected 12-21 (n=6), 3.33-7.31 s apart (median 3.39, n=25 animations); the wiki's 25-30 before"
+  }
+ },
+ "aggro_observed": {
+  "note": "per creature type, the idle monsters' wakes on 2026-10-15's captures (20261015_090607 to _210709 up to 21:57; 3 woken by our hits left out): flip_d = the nearest of us at the war-mode flip (in sight or not); onset_d = the nearest of us in sight 2.2 s before the flip (the median wake delay); los_false_at_flip = flips with that nearest one out of sight by harness/los.py; idle_5s_in_sight.rN = monsters that had one of us in sight (harness/los.py) within N tiles for over 5 s and stayed idle; no_idle_seen_up_to = the largest N (to 16) with none. range = World._think's aggro range for the type (scenario.creature_spec), else defaults.aggro_range: 10, as no monster of any type stayed idle 5 s with one of us in sight within 10 (0 of 252) while 102 did within 13; 13 for the shadow minion (onsets median 13, none idle in sight within 13, n=20) and the calamity (onsets median 12, p90 13, none idle within 16, n=15). Live 20261015_210709 21:49:57-21:50:09: the reanimated knight at (5179, 707) had Logan in sight at 13 tiles for 10 s and stayed idle; at 10 (21:50:07.5) it went to war 2 s later",
+  "shade wolf": {"range": 10, "wakes": 41, "flip_d": {"n": 41, "median": 8, "p90": 10, "max": 15}, "onset_d": {"n": 32, "median": 10.0, "p90": 12, "max": 13}, "los_false_at_flip": 3, "idle_5s_in_sight": {"r10": 0, "r11": 3, "r12": 7, "r13": 12}, "no_idle_seen_up_to": 10},
+  "apparition": {"range": 10, "wakes": 32, "flip_d": {"n": 32, "median": 9.0, "p90": 10, "max": 15}, "onset_d": {"n": 24, "median": 10.0, "p90": 11, "max": 16}, "los_false_at_flip": 3, "idle_5s_in_sight": {"r10": 0, "r11": 3, "r12": 5, "r13": 7}, "no_idle_seen_up_to": 10},
+  "banshee": {"range": 10, "wakes": 30, "flip_d": {"n": 30, "median": 7.0, "p90": 11, "max": 18}, "onset_d": {"n": 25, "median": 10, "p90": 11, "max": 11}, "los_false_at_flip": 4, "idle_5s_in_sight": {"r10": 0, "r11": 3, "r12": 4, "r13": 8}, "no_idle_seen_up_to": 10},
+  "shadow minion": {"range": 13, "wakes": 20, "flip_d": {"n": 20, "median": 7.5, "p90": 15, "max": 18}, "onset_d": {"n": 11, "median": 13, "p90": 18, "max": 18}, "los_false_at_flip": 2, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 0, "r13": 0}, "no_idle_seen_up_to": 13},
+  "vampire bat": {"range": 10, "wakes": 18, "flip_d": {"n": 18, "median": 7.0, "p90": 10, "max": 10}, "onset_d": {"n": 10, "median": 10.0, "p90": 11, "max": 13}, "los_false_at_flip": 0, "idle_5s_in_sight": {"r10": 0, "r11": 2, "r12": 3, "r13": 4}, "no_idle_seen_up_to": 10},
+  "corpsebride": {"range": 10, "wakes": 16, "flip_d": {"n": 16, "median": 7.5, "p90": 10, "max": 10}, "onset_d": {"n": 12, "median": 8.0, "p90": 10, "max": 10}, "los_false_at_flip": 1, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 1, "r13": 3}, "no_idle_seen_up_to": 11},
+  "calamity": {"range": 13, "wakes": 15, "flip_d": {"n": 15, "median": 7, "p90": 9, "max": 10}, "onset_d": {"n": 12, "median": 12.0, "p90": 13, "max": 14}, "los_false_at_flip": 0, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 0, "r13": 0}, "no_idle_seen_up_to": 16},
+  "nightstalker": {"range": 10, "wakes": 13, "flip_d": {"n": 13, "median": 6, "p90": 10, "max": 12}, "onset_d": {"n": 10, "median": 10.0, "p90": 12, "max": 14}, "los_false_at_flip": 2, "idle_5s_in_sight": {"r10": 0, "r11": 1, "r12": 1, "r13": 1}, "no_idle_seen_up_to": 10},
+  "shadowguard": {"range": 10, "wakes": 12, "flip_d": {"n": 12, "median": 8.0, "p90": 10, "max": 13}, "onset_d": {"n": 7, "median": 9, "p90": 11, "max": 11}, "los_false_at_flip": 3, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 0, "r13": 0}, "no_idle_seen_up_to": 13},
+  "reanimated knight": {"range": 10, "wakes": 12, "flip_d": {"n": 12, "median": 6.0, "p90": 8, "max": 9}, "onset_d": {"n": 9, "median": 9, "p90": 11, "max": 11}, "los_false_at_flip": 1, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 0, "r13": 3}, "no_idle_seen_up_to": 12},
+  "vampire countess": {"range": 10, "wakes": 10, "flip_d": {"n": 10, "median": 6.0, "p90": 9, "max": 10}, "onset_d": {"n": 5, "median": 10, "p90": 11, "max": 11}, "los_false_at_flip": 1, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 0, "r13": 2}, "no_idle_seen_up_to": 12},
+  "spare parts": {"range": 10, "wakes": 7, "flip_d": {"n": 7, "median": 2, "p90": 8, "max": 8}, "onset_d": {"n": 7, "median": 7, "p90": 9, "max": 9}, "los_false_at_flip": 0, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 0, "r13": 0}, "no_idle_seen_up_to": 16},
+  "newly reanimated": {"range": 10, "wakes": 6, "flip_d": {"n": 6, "median": 3.0, "p90": 6, "max": 6}, "onset_d": {"n": 4, "median": 9.0, "p90": 10, "max": 10}, "los_false_at_flip": 0, "idle_5s_in_sight": {"r10": 0, "r11": 1, "r12": 1, "r13": 1}, "no_idle_seen_up_to": 10},
+  "insane reanimator": {"range": 10, "wakes": 4, "flip_d": {"n": 4, "median": 8.5, "p90": 9, "max": 9}, "onset_d": {"n": 2, "median": 7.5, "p90": 10, "max": 10}, "los_false_at_flip": 0, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 0, "r13": 0}, "no_idle_seen_up_to": 16},
+  "abomination": {"range": 10, "wakes": 3, "flip_d": {"n": 3, "median": 2, "p90": 3, "max": 3}, "onset_d": {"n": 3, "median": 11, "p90": 12, "max": 12}, "los_false_at_flip": 0, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 0, "r13": 0}, "no_idle_seen_up_to": 16},
+  "elder vampire": {"range": 10, "wakes": 3, "flip_d": {"n": 3, "median": 8, "p90": 10, "max": 10}, "onset_d": {"n": 3, "median": 10, "p90": 11, "max": 11}, "los_false_at_flip": 0, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 1, "r13": 1}, "no_idle_seen_up_to": 11},
+  "vampire": {"range": 10, "wakes": 3, "flip_d": {"n": 3, "median": 8, "p90": 12, "max": 12}, "onset_d": {"n": 0}, "los_false_at_flip": 1, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 0, "r13": 0}, "no_idle_seen_up_to": 16},
+  "corpse eater": {"range": 10, "wakes": 2, "flip_d": {"n": 2, "median": 4.5, "p90": 5, "max": 5}, "onset_d": {"n": 2, "median": 12.5, "p90": 13, "max": 13}, "los_false_at_flip": 0, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 0, "r13": 0}, "no_idle_seen_up_to": 16},
+  "elder vampire countess": {"range": 10, "wakes": 2, "flip_d": {"n": 2, "median": 8.0, "p90": 10, "max": 10}, "onset_d": {"n": 2, "median": 10.5, "p90": 11, "max": 11}, "los_false_at_flip": 0, "idle_5s_in_sight": {"r10": 0, "r11": 2, "r12": 2, "r13": 2}, "no_idle_seen_up_to": 10},
+  "forgotten soul": {"range": 10, "wakes": 1, "flip_d": {"n": 1, "median": 6, "p90": 6, "max": 6}, "onset_d": {"n": 0}, "los_false_at_flip": 1, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 0, "r13": 0}, "no_idle_seen_up_to": 16},
+  "familiar": {"range": 10, "wakes": 1, "flip_d": {"n": 1, "median": 5, "p90": 5, "max": 5}, "onset_d": {"n": 0}, "los_false_at_flip": 0, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 0, "r13": 0}, "no_idle_seen_up_to": 16},
+  "tormented soul": {"range": 10, "wakes": 1, "flip_d": {"n": 1, "median": 5, "p90": 5, "max": 5}, "onset_d": {"n": 1, "median": 4, "p90": 4, "max": 4}, "los_false_at_flip": 0, "idle_5s_in_sight": {"r10": 0, "r11": 0, "r12": 0, "r13": 0}, "no_idle_seen_up_to": 16}
+ },
  "spawns": [
+  {
+   "key": "elder vampire",
+   "at": [5214, 640, 15],
+   "note": "first seen idle at (5213-5217, 639-640) in 5 captures (20261013_204518 20:54:45, 20261014_221341 22:16:10 and 22:21:12, 20261015_171928 19:16:24, 20261015_210709 21:28:24)"
+  },
+  {
+   "key": "elder vampire countess",
+   "at": [5217, 639, 15],
+   "note": "first seen idle at (5216-5218, 638-640) in 6 captures (20261012_210013 21:20:57, 20261013_204518 20:58:11, 20261014_210020 21:07:41, 20261014_221341 22:17:20 and 22:36:03, 20261015_171928 19:16:45); the runner never pulls her (aggro.NEVER_AGGRO)"
+  },
   {
    "key": "vampiric consort",
    "at": [

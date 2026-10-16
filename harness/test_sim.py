@@ -173,13 +173,21 @@ def test_specials():
     gb = next(p for p in w.pets() if p.name == "GraveRobber")
     m.target, m.threat = gb.serial, {gb.serial: 1e6}
     link, clock = link_for(w)
-    clock.advance(1.0)
+    called = landed = None
+    for _ in range(20):
+        clock.advance(0.1)
+        if called is None and m.charge_at is not None:
+            called = clock.elapsed
+        if landed is None and any(o.hits < o.hits_max for o in w.team()):
+            landed = clock.elapsed
     link.state()
     charged = [o for o in w.team() if cheb_(o, m) <= 1]
-    check("the nightstalker charges 6 tiles onto the gravebug and hits each of us within 1 tile of it",
+    check("the nightstalker calls its Charge, then 0.8-1.0 s later jumps 6 tiles onto the gravebug and hits each "
+          "of us within 1 tile of it (live n=25)",
           any(e.get("text") == "*charges*" for e in link.events) and cheb_(gb, m) <= 1
+          and called is not None and landed is not None and 0.7 <= landed - called <= 1.15
           and all(o.hits < o.hits_max for o in charged),
-          f"at {m.pos}, hit {[(o.name, o.hits) for o in charged]}")
+          f"called {called} landed {landed} at {m.pos}, hit {[(o.name, o.hits) for o in charged]}")
     w = world_with([{"key": "vampire countess", "at": [5266, 651, 0]}], seed=5)
     m = next(m for m in w.mobs.values() if m.kind == "monster")
     m.spec = {**m.spec, "specials": [{**sp, "chance": 1.0} if sp["kind"] == "transfix" else sp
@@ -982,6 +990,174 @@ def test_rest_hurt_pet():
           not rested and took >= 300 and gb.hits > gb.hits_max * 0.15, f"{rested} {took:.0f} s {gb.hits}/{gb.hits_max}")
 
 
+def _log_hurts(w):
+    """Wrap w.hurt to record (time, victim, kind, hits lost)."""
+    log, orig = [], w.hurt
+
+    def hurt(victim, amount, by, kind="melee", song_pets=True):
+        before = victim.hits
+        orig(victim, amount, by, kind, song_pets)
+        log.append((round(w.t, 2), victim, kind, before - victim.hits))
+    w.hurt = hurt
+    return log
+
+
+def _log_overhead(w):
+    log, orig = [], w._overhead
+
+    def overhead(m, text, kind=0):
+        log.append((round(w.t, 2), m.serial, text))
+        orig(m, text, kind)
+    w._overhead = overhead
+    return log
+
+
+def _tile_at(w, d):
+    """A floor tile whose nearest of us is exactly `d` tiles off, Logan in its sight."""
+    pl = w.player
+    for dy in range(-d - 2, d + 3):
+        for dx in range(-d - 2, d + 3):
+            x, y = pl.x + dx, pl.y + dy
+            z = w.stand_z(x, y, pl.z)
+            if abs(z - pl.z) > 5 or not any(w.walk.can_walk(x, y, z, k) for k in range(8)):
+                continue
+            near = min(max(abs(o.x - x), abs(o.y - y)) for o in w.team())
+            probe = Mob(0, "monster", "probe", "probe", 400, x, y, z)
+            if near == d and w.can_see(probe, pl):
+                return (x, y, z)
+    return None
+
+
+def test_audit_mechanics():
+    print("== the monster mechanics measured on 2026-10-15's captures (docs/SIM.md 'Monster mechanics audit') ==")
+    # aggro range 10: one of us seen at 11 tiles for 6 s wakes nothing; at 9 it wakes 1.5-3 s later
+    woke = {}
+    for d in (11, 9):
+        w = world_with([{"key": "shade wolf", "at": [5203, 717, 0]}], seed=11, start=(5207, 726))   # an open room
+        m = next(m for m in w.mobs.values() if m.kind == "monster")
+        spot = _tile_at(w, d)
+        if spot is None:
+            woke[d] = "no tile"
+            continue
+        m.x, m.y, m.z = spot
+        m.home = spot
+        link, clock = link_for(w)
+        when = None
+        for _ in range(60):
+            clock.advance(0.1)
+            if when is None and m.target is not None:
+                when = clock.elapsed
+        woke[d] = when
+    check("aggro 10: seen at 11 tiles, no wake in 6 s; at 9, war 1.5-3 s after (+ the 0.5 s think; live n=211)",
+          woke.get(11) is None and isinstance(woke.get(9), float) and 1.4 <= woke[9] <= 4.1, str(woke))
+    # the victims: the numbers are the gravebug's; Logan x1.6, the phoenix x1.7 on melee
+    w = world_with([])
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    af = next(p for p in w.pets() if p.name == "AlaFlambe")
+    check("a monster's hit: the gravebug x1, Logan x1.6 (melee and spells), the phoenix x1.7 on melee only",
+          (w._taken_x(gb, "melee"), w._taken_x(w.player, "melee"), w._taken_x(w.player, "spell"),
+           w._taken_x(af, "melee"), w._taken_x(af, "spell")) == (1.0, 1.6, 1.6, 1.7, 1.0))
+    # apparition: a blink every ~8 s though its target stands beside it, onto the target's tile, the area hit
+    # only at the landing; the song cuts Logan's share, not the pets'
+    w = world_with([{"key": "apparition", "at": [5268, 649, 0]}], seed=12)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    for o in w.team():
+        o.hits = o.hits_max = 10 ** 6
+    m.hits = m.hits_max = 10 ** 7
+    m.target, m.threat = gb.serial, {gb.serial: 1e9}
+    w.songs["discord"] = 1e9
+    hurts, said = _log_hurts(w), _log_overhead(w)
+    link, clock = link_for(w)
+    phases, landings = [], []
+    hidden = False
+    for _ in range(200):
+        clock.advance(0.1)
+        if m.hidden_until and not hidden:
+            phases.append(round(w.t, 2))
+        if hidden and not m.hidden_until:
+            landings.append((round(w.t, 2), (m.x, m.y) == (gb.x, gb.y)))
+        hidden = bool(m.hidden_until)
+    bursts = [h for h in hurts if h[2] == "burst"]
+    gaps = [round(b - a, 2) for a, b in zip(phases, phases[1:])]
+    on_landing = all(any(abs(b[0] - t) < 0.05 for t, _ in landings) for b in bursts)
+    pet_burst = [h[3] for h in bursts if h[1].kind == "pet"]
+    pl_burst = [h[3] for h in bursts if h[1].kind == "player"]
+    check("apparition: '*phases*' 0.6-2.5 s in, then every 7.8-8.7 s beside its target, back on its tile 1.1-1.7 s "
+          "later with the area hit there only (live n=48/56)",
+          phases and 0.6 <= phases[0] <= 2.7 and len(gaps) >= 1 and all(7.8 <= g <= 8.7 for g in gaps)
+          and landings and all(ok for _, ok in landings) and bursts and on_landing
+          and sum(1 for t, _, x in said if x == "*phases*") == len(phases),
+          f"phases {phases} landings {landings} bursts {[(b[0], b[1].name, b[3]) for b in bursts]}")
+    check("...the pets' share 36-38 under the Song of Discordance too, Logan's 55-60 cut by it",
+          pet_burst and all(36 <= n <= 38 for n in pet_burst) and pl_burst
+          and all(44 <= n <= 50 for n in pl_burst), f"pets {pet_burst} Logan {pl_burst}")
+    # banshee: a hit with the ability ready dematerializes it, back 3-12 tiles off 1.4-1.6 s later; 7.5 s cooldown
+    w = world_with([{"key": "banshee", "at": [5266, 652, 0]}], seed=13)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    for o in w.team():
+        o.hits = o.hits_max = 10 ** 6
+    m.hits = m.hits_max = 10 ** 7
+    m.target, m.threat = gb.serial, {gb.serial: 1e9}
+    said = _log_overhead(w)
+    link, clock = link_for(w)
+    clock.advance(0.2)
+    at = m.pos
+    w.hurt(m, 50, gb)
+    gone = bool(m.hidden_until) and f"0x{m.serial:08X}" not in link.state()["world"]["mobiles"]
+    back = None
+    for _ in range(25):
+        clock.advance(0.1)
+        if back is None and not m.hidden_until:
+            back = round(clock.elapsed - 0.2, 2)
+    moved = max(abs(m.x - at[0]), abs(m.y - at[1]))
+    w.hurt(m, 50, gb)
+    again_soon = bool(m.hidden_until)
+    clock.advance(6.5)
+    w.hurt(m, 50, gb)
+    again_later = bool(m.hidden_until)
+    check("banshee: hit, '*dematerializes*' and gone; back 3-12 tiles off 1.4-1.6 s later; not again within 7.5 s "
+          "(live n=63/61)",
+          gone and back is not None and 1.3 <= back <= 1.7 and 3 <= moved <= 12 and not again_soon and again_later
+          and any(x == "*dematerializes*" for _, _, x in said), f"gone {gone} back {back} moved {moved} "
+          f"again soon {again_soon} later {again_later}")
+    # vampire: '*attempts to feed*', 5.0-5.9 s later '*feeds*', then 4-5 ticks 0.5 s apart on its target
+    w = world_with([{"key": "vampire", "at": [5268, 648, 0]}], seed=14)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.spec = {**m.spec, "specials": [{**sp, "chance": 1.0} for sp in m.spec["specials"]]}
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    for o in w.team():
+        o.hits = o.hits_max = 10 ** 6
+    m.hits = m.hits_max = 10 ** 7
+    m.target, m.threat = gb.serial, {gb.serial: 1e9}
+    hurts, said = _log_hurts(w), _log_overhead(w)
+    link, clock = link_for(w)
+    clock.advance(9.5)
+    tried = next((t for t, s, x in said if x == "*attempts to feed*"), None)
+    fed = next((t for t, s, x in said if x == "*feeds*"), None)
+    ticks = [h for h in hurts if h[2] == "feed"]
+    check("vampire: '*attempts to feed*', '*feeds*' 5.0-5.9 s later, 4-5 ticks 0.5 s apart on its target (live n=12)",
+          tried is not None and fed is not None and 4.9 <= fed - tried <= 6.0 and 4 <= len(ticks) <= 5
+          and all(h[1] is gb for h in ticks) and all(abs(b[0] - a[0] - 0.5) < 0.06 for a, b in zip(ticks, ticks[1:])),
+          f"tried {tried} fed {fed} ticks {[(h[0], h[3]) for h in ticks]}")
+    # a transfixed copy walks and swings at the monsters' pace; a second transfix takes the other pet
+    w = world_with([{"key": "vampire countess", "at": [5266, 651, 0]}], seed=15)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    sp = next(s for s in m.spec["specials"] if s["kind"] == "transfix")
+    w._transfix(w.pets()[0], sp, m)
+    m.spec = {**m.spec, "specials": [{**sp, "chance": 1.0}]}
+    m.target = w.pets()[0].serial
+    link, clock = link_for(w)
+    clock.advance(6.0)
+    copies = [c for c in w.mobs.values() if c.key == "transfixed copy"]
+    check("transfix: copies step every 0.4 s and swing every 3.38 s (live n=101/24); one up, the other pet is next",
+          len(copies) == 2 and {c.spec["copy_of"] for c in copies} == {p.serial for p in w.pets()}
+          and all(c.spec["step_s"] == 0.4 and c.spec["swing_s"] == 3.38 for c in copies),
+          str([(c.name, c.spec["step_s"], c.spec["swing_s"]) for c in copies]))
+
+
+
 def main():
     if pathfind.Walkers().get(0) is None:
         print("SKIP: no map files (install dir)")
@@ -989,7 +1165,7 @@ def main():
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_instrument, test_standoff_sight, test_idle_pet,
-              test_area_peace,
+              test_area_peace, test_audit_mechanics,
               test_heal_in_place,
               test_songs,
               test_pull_budget, test_hold_first_sight, test_rope,

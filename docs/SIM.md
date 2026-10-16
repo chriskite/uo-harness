@@ -91,8 +91,9 @@ What the capture and the wiki fixed:
   Casters' spells are [INFERENCE] (the wiki's spell damage x 0.5 every 6 s): none was attributable.
 - **Barding**: the wiki formula `max(S/100 - difficulty/100, 0.33 x S/100)` with S = 149 fitted by
   maximum likelihood to the trip's 47 answered attempts; durations and refusal texts as the trip's.
-- **Aggro range 13** with sight (user 2026-10-15: "longer than 9 tiles, I think its 12 or 13"; it was 10,
-  from the capture's war-mode switches 1-13 tiles from us, median 7). The wiki's flat 20-tile Perception
+- **Aggro range 10** with sight (2026-10-15 audit below: 210 of 211 war-mode flips with the nearest of us
+  seen at 1-10 tiles). It was 13 for a day on the user's guess ("I think its 12 or 13"), 10 before that,
+  from the capture's war-mode switches 1-13 tiles from us, median 7. The wiki's flat 20-tile Perception
   Range put the sim's banshees on us from across the room (6 of 9 deaths).
 - **Threat** (revised 2026-10-15 on the user's word: "Any mob that 'sees' Logan before it sees a pet is
   going to aggro on him directly"): a monster goes for the nearest of us it sees within its aggro range,
@@ -100,7 +101,8 @@ What the capture and the wiki fixed:
   seen or not: too kind to a player walking ahead of his pets.) Damage builds threat x 4.0 for the
   gravebug (Tank) and x 0.3 for the phoenix, fitted so the gravebug takes most of the damage as live. Our
   aggressive acts add 400, but only before any pet has hurt the monster.
-- **Specials, from what reached Logan** (all 23 of his hits were these):
+- **Specials, from what reached Logan** (all 23 of his hits were these; the cadences, chances and
+  numbers below are the 2026-10-13 calibration, revised where the "Monster mechanics audit" says so):
   - Bleeds: 8-10 every 3 s for 5 ticks, then "You are no longer bleeding.".
   - The bound soul's bleed lands on everyone within a tile (an opener of 23-32, 2 per 19 swings with
     Logan beside it) [INFERENCE: area].
@@ -494,16 +496,116 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   with an apparition, a banshee with a bat): with the new calibration the simulator is far harsher than its
   0.17 deaths per game hour of 2026-10-13, nearer the live runs of 2026-10-15.
 
+## Monster mechanics audit (2026-10-15)
+
+Every creature type fought on 2026-10-15 (test shard 20261015_090607, _115604, _171928, _204514; the live
+server 20261015_210709 as it stood at 21:32; _195157 never reached the Mausoleum), with the earlier
+Mausoleum captures (20261012_210013 to 20261014_221341) where a rate needed more n. Each capture replayed
+through `WorldRuntime`; a "-N" on one of us is a monster's when that monster's animation came within 0.15 s
+of it (the number and the animation arrive together: lag 0.0 s in 244 of 357 unambiguous cases) and no
+other did. Observed numbers are divided by (1 - the Song of Discordance then up, 15.8-18.4 %): the sim
+cuts them again (Logan's apparition hit: 56/59/60 without the song, 45-49 with it). Each change carries
+its evidence in `mausoleum.json`'s notes.
+
+| creature | mechanic | observed (n) | modelled before | now |
+|---|---|---|---|---|
+| all | wake range | 252 idle monsters woke (3 more were woken by our hits); none had kept one of us in sight within 10 tiles for 5+ s idle, 102 had within 13; the onset (2.2 s before the flip) median 10 | 13 | **10; 13 for the shadow minion and the calamity** (`aggro_observed`) |
+| all | wake delay | 10-tile crossing to war 1.4-2.6 s, median 2.2 (188) | 1.5-3 s | same |
+| all | whom first | nearest seen at the crossing; the gravebug got the first contact in 61 of the 99 wakes where Logan was nearest (guard + Tank threat) | nearest seen, pet on a tie; threat | same |
+| all | Logan's and the phoenix's share | Logan 1.4-1.95x the gravebug's number (4 types, 30 hits); the phoenix 1.35-1.92x on melee (5 types, 34 hits), ~1x on spells and area hits | everyone x1 | **Logan x1.6 (melee and spells), phoenix x1.7 melee** (`_taken_x`) |
+| all | chase pace | one tile per 0.33-0.54 s by type (14 types, 12-157 steps) | wiki speed 0.33-0.55 | same (within 10 %) |
+| all | swing | 3.36-3.43 s (shade wolf 61, apparition 55, shadowguard 22, bat 16, nightstalker 13) | 2.96-3.36 s | same (<15 % off) |
+| all | spell range | hits at 11-14 tiles: 12 of 65 | 10 | **12** |
+| all | leash, fleeing | none of 136 monsters at 20 % hits or less fled (banshees aside; an apparition's blink and one shadowguard at the view's edge moved 5+ off); no chase out to a give-up seen | leash 24 / 8 s unseen | same, unmeasured |
+| apparition | blink | "*phases*" 0.6-3.3 s after waking (30), then every 7.8-16.5 s, median 8.1 (48), beside its target or not; back on the target's own tile 1.1-1.6 s later (56) | only when the target was out of reach, every 6 s | **every ~8 s from waking** |
+| apparition | area hit | only at a blink's landing (56 of 56), radius 2 (34 hits at 2, none at 3+); Logan 55-60 song-free, the pets 37-38 with or without the song (12/6) | own 8.8 s timer; Logan 46-49 | **at the landing only; Logan 55-60; pets uncut by the song** |
+| apparition | melee | gravebug 15-26, median 20.5 (44) | 20-25 | same |
+| banshee | spells | gravebug 16-23, median 19 (17); Logan 1.74x; every 3.4 s (8) | 21-28 on everyone | **16-23 gravebug-referenced** |
+| banshee | dematerialize | at the instant it is hit (63 of 63), 7.5-14.8 s apart (42); gone 0.5 s after the emote, back 1.5 s after it, 3-12 tiles off (61); "*evasive*" 5.1 s, "*materializes*" 6.7 s after | none | **new** |
+| corpsebride | melee | gravebug 7-13, median 10 (44) | 20-24 (the wail mixed in) | **7-13** |
+| corpsebride | wail | every 7.5-7.8 s (57); hit within 2 tiles 82 of 94, at 3-4 47 of 61, 5+ 2 of 73; Logan 23-33, pets 15-26 | 75 % within 1, 20 % at 2-3; 13-25 | **90 % within 2, 75 % at 3-4; split** |
+| nightstalker | melee | gravebug 18-29, median 25 (30) | 21-79 | **18-29** |
+| nightstalker | Charge | "*charges*" every 8.0 s (32); the jump and its hit 0.8-1.0 s after the emote (25); gravebug 31-43 | at once, every 8.5 s, 37-42 | **called 0.8-1.0 s ahead**, 31-43 |
+| nightstalker | Vanish | gone 3.2-4.4 s mid-fight, back 2 tiles off with a hit (5) | none | **new** [INFERENCE: how often] |
+| reanimated knight | melee | gravebug 12-21 (6), 3.39 s (25) | 25-30 | **12-21** |
+| reanimated knight | Charge | every 15.1-15.8 s (6), 1.0-1.1 s after the emote (13); gravebug 25-37, Logan 44-56 (3) | every 8.5 s, 25-35 | **15.2 s, called, Logan 44-56** |
+| shade wolf | melee | gravebug 13-33, median 20 (128) | 18-37, 22.5 | same |
+| shade wolf | Vanish | gone 3.2-10.1 s, median 4.4 (43); first 2.7-31 s in (23), then every 18.6-26.1 s (21) | 4-15 s, 15-22 s, 3.5-6 s | same |
+| shade wolf, nightstalker | Frenzy | "*frenzies*" 31: no change in damage or cadence (27) | none | none |
+| shadow minion | spells | gravebug 11-23, median 15 (32), 3.3 s apart (10) | 10-15 every 6 s | **11-23 every 3.4 s** |
+| shadowguard | melee | gravebug 19-32, median 23 (33) | 20-44, 27 | same |
+| vampire bat | melee | gravebug 9-17, median 12 (26) | 13-22, 15.5 | same (23 % off) |
+| vampire bat | bleed | none reached Logan; on pets invisible | 15 % | same, unmeasurable |
+| vampire countess | melee, spells | gravebug melee 13-23 (20), spells 5-27 (8) | 15-20, 15-20 | same |
+| vampire countess | transfix | attempts every 5.5 s (83); a copy in 27 of 100: 20 of 76 with none up, 7 of 24 with one up (the other pet); the hit on the pet 40-55 | 50 %, never with a copy up; 36-45 | **27 % either way; 40-55** |
+| transfixed copy | pace, hits | steps 0.36-0.41 s (101), swings 3.38 s (24); Logan 24-34 (11), phoenix 31-36 (7) | the pet's 0.21 s and 1.91 s; 28-37 | **0.4 s, 3.38 s, 15-21 gravebug-referenced** |
+| transfixed pet | after release | attacks again within 0.3-2.7 s in 25 of 27 releases (attack animations); once (21:20:02.8 live) the phoenix stood 46.7 s until "All Guard Me", an "All Kill" having come while it was transfixed | resumes at once | same; the one idle case is n=1, not modelled |
+| guarding pets | the other pet's fight | the phoenix on guard attacked within 2 s in 99 % of 2,414 half-second samples where a monster fought only the gravebug | guard takes whatever attacks us or the pets | same |
+| vampire | feed | "*attempts to feed*", "*feeds*" 5.0-5.9 s later (4 of 9), 4-5 ticks 0.5 s apart on its target, 13-18 (47 ticks); no heal seen after 24 feeds | drain 10 % of hits, 10, with a heal | **feed** [INFERENCE: every 6-14 s] |
+| elder vampire | feed, spawn | as the vampire's, ticks 19-23 (51); idle at (5213-5217, 639-640) in 5 captures | not spawned | **spawned, feed** |
+| elder vampire countess | transfix, spawn | 12 attempts; copies of both pets 19:19:04/22 (171928); idle at (5216-5218, 638-640) in 6 captures | not spawned | **spawned, the countess' transfix** [INFERENCE] |
+| abomination, newly reanimated, tormented soul, spare parts | melee | 1-4 hits each | wiki x 0.5 | same, n < 3 |
+
+**Wake distances per type** (`mausoleum.json` `aggro_observed`, which the runner can read: flip = the nearest of
+us at the war-mode flip; onset = the nearest of us in sight 2.2 s before it, the median delay; idle = monsters
+that had one of us in sight within 10 / 13 tiles for over 5 s and stayed idle):
+
+| type | wakes | flip median / p90 / max | onset median / p90 / max | idle in sight ≤10 / ≤13 | range |
+|---|---|---|---|---|---|
+| shade wolf | 41 | 8 / 10 / 15 | 10 / 12 / 13 | 0 / 12 | 10 |
+| apparition | 32 | 9 / 10 / 15 | 10 / 11 / 16 | 0 / 7 | 10 |
+| banshee | 30 | 7 / 11 / 18 | 10 / 11 / 11 | 0 / 8 | 10 |
+| shadow minion | 20 | 7.5 / 15 / 18 | 13 / 18 / 18 | 0 / 0 | **13** |
+| vampire bat | 18 | 7 / 10 / 10 | 10 / 11 / 13 | 0 / 4 | 10 |
+| corpsebride | 16 | 7.5 / 10 / 10 | 8 / 10 / 10 | 0 / 3 | 10 |
+| calamity | 15 | 7 / 9 / 10 | 12 / 13 / 14 | 0 / 0 | **13** |
+| nightstalker | 13 | 6 / 10 / 12 | 10 / 12 / 14 | 0 / 1 | 10 |
+| shadowguard | 12 | 8 / 10 / 13 | 9 / 11 / 11 | 0 / 0 | 10 |
+| reanimated knight | 12 | 6 / 8 / 9 | 9 / 11 / 11 | 0 / 3 | 10 |
+| vampire countess | 10 | 6 / 9 / 10 | 10 / 11 / 11 | 0 / 2 | 10 |
+| spare parts, newly reanimated, insane reanimator, abomination, elder vampire(s), vampire, corpse eater, others | 1-7 each | 2-8.5 medians | 7-12.5 medians | 0 / 0-2 | 10 |
+
+**Our line of sight (`harness/los.py`) is not too permissive** at this level: within 10 tiles nothing it called
+"in sight" stayed idle, so the long idle sightings are range, not sight. The user's column case (20261015_210709,
+the reanimated knight at (5179, 707), Logan coming up x=5182): our LoS said in sight from 13 tiles at 21:49:57;
+he stood at 13 for 10 s with the knight idle, reached 10 at 21:50:07.5, and it went to war at 21:50:09.5 at 6.
+That is the 10-tile range plus the ~2 s delay; the columns didn't need to block anything. If anything our LoS is
+a little strict: in 25 of 252 flips the nearest of us was out of sight by it (the monster may have seen another
+of us, or the line was a near thing) [INFERENCE].
+
+Not measurable from the captures: bleeds and poison on the pets (no message for them; none reached Logan
+on 2026-10-15), the leash distance, the dematerialize's landing rule (it looks random), how often a
+nightstalker vanishes, the elder vampires' own numbers (one fight each), and whom a monster picks before
+the pets' threat takes it (the first hit is after the guard has engaged).
+
+The 19:49 fight replayed on this calibration (`fight1949.py 1,...,8`): no deaths in 8; Logan's lowest
+hits median 38, worst 23; damage on him mean 272 (apparitions 240: every blink now lands its hit, beside
+the gravebug too; banshees 32); kills 3.0 of 4.
+
+The whole level from home, 8 game minutes (`run.py`, seeds 1-8, the current runner): Logan died in 5 of 8
+(shadow minions' spells at 13 tiles on the walk out, transfixed copies with a corpsebride, apparitions);
+with every aggro range at 10, 3 of seeds 1-6. Live on 2026-10-15 the runner died in at least 6 of the 13
+test-shard runs (1, 4, 5, 9, 10, 11) and in neither of the two longest (run 13, 20 min; the first live-server
+run): near the test shard's rate, harsher than the latest runs.
+
+Then the runner took the same per-type ranges (`aggro.aggro_range`, holding for a monster only within its own
+range): the whole level, seeds 1-8, 8 minutes: 1 death in 8 (seed 8), 273-617 damage on Logan, 8-14 kills;
+test_hunt is back on seed 1. The 19:49 fight, 24 seeds: 1 death, Logan's lowest hits median 34.5, 378 damage
+(342 from apparitions: the second one on Logan in 22 of 24). Holding a tile beyond each range instead: no
+death in 24, median 28.5, 371; within noise, so the hold stays at the range itself (the user: no holding for
+a monster that can't wake).
+
 ## Limits
 
 - The fight level is modelled whole, but the first two levels only along Logan's way in: his
   teleporters and the monsters first seen near it.
 - No other players or tamers (the trip saw six players), no item loot beyond gold, no skill gain,
-  no pet levels or xp, no Society job. The vampire's feeding heal isn't modelled and its drain and
-  the poisons are generic; the bound soul's bleed as an area on everyone within a tile, the
+  no pet levels or xp, no Society job. The countess' drain and the poisons are generic (the wiki's; no
+  drain heal was ever seen); the bound soul's bleed as an area on everyone within a tile, the
   transfixed copies' hits (2000) and their pick among us within 3 tiles are [INFERENCE].
-- Not modelled: Frenzy, seen live as "*frenzies*" on a shade wolf and the nightstalker (+10 % attack
-  speed, knowledge #14625). Nor the nightstalker's Vanish and Backstab: its one fight never showed them.
+- Not modelled: Frenzy ("*frenzies*" 31 times on shade wolves and nightstalkers on 2026-10-15: their
+  next 10 s of hits 10-32, median 16, against 17.5 otherwise, 3.38 s apart as always, n=27: no effect
+  measurable); the banshee's "*evasive*" after a dematerialize (it was still hit and still cast).
 - **Entering and leaving the Mausoleum** (since 2026-10-13). Before that the simulator let the runner
   recall out from anywhere, so every earlier leave, death and stranded-pet number above is too kind.
   - Recall works only outside the dungeon or within 2 tiles of a gold gate (`dungeon`; user).

@@ -12,7 +12,10 @@ Per creature type, in this order of evidence:
 - spells (AI mage/meleemage, or ranged): the wiki spell damage x `ranged_kb_factor` every
   `ranged_every_s` within `ranged_range` [INFERENCE: none attributable on the trip];
 - gold: the wiki gold value x 0.9-1.15 (the trip's lifted medians sat within that);
-- specials: the scenario's `specials` table.
+- specials: the scenario's `specials` table;
+- `melee_observed` / `ranged_observed`: the scenario's own measured overrides (each with its note),
+  over all of the above; `aggro_observed.<type>.range`: the type's measured aggro range (else
+  `defaults.aggro_range`).
 
 `fit_bard(observed, kb)` re-derives the effective barding skill from the capture's outcomes.
 """
@@ -47,6 +50,9 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
     period = (sw.get("period_s") or {})
     swing = period["median"] if (period.get("n") or 0) >= MIN_N and period["median"] >= MIN_SWING_S else df["swing_s"]
     src["swing_s"] = "capture" if swing != df["swing_s"] else "default"
+    if (mo := sc.get("melee_observed", {}).get(key)) is not None:
+        melee, swing = mo.get("melee", melee), mo.get("swing_s", swing)
+        src["melee"] = "melee_observed"
     ai = kb.get("ai") or "melee"
     ranged = None
     if ai in ("mage", "meleemage") and kb.get("spell_damage"):
@@ -64,7 +70,8 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
             "notoriety": noto, "hits": kb.get("hits") or 1000, "difficulty": kb.get("difficulty"),
             "melee": melee if ai != "mage" else None, "swing_s": swing, "hit_chance": df["hit_chance"],
             "step_s": df["speed_step_s"].get(kb.get("speed") or "Medium", df["speed_step_s"]["Medium"]),
-            "aggro_range": df["aggro_range"], "ranged": ranged, "gold": [round(gold * 0.9), round(gold * 1.15)],
+            "aggro_range": (sc.get("aggro_observed", {}).get(key) or {}).get("range", df["aggro_range"]),
+            "ranged": ranged, "gold": [round(gold * 0.9), round(gold * 1.15)],
             "specials": sc.get("specials", {}).get(key, []), "source": src}
 
 

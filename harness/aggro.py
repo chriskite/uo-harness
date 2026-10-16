@@ -37,7 +37,30 @@ import combat
 import los
 from agent_link import cheb, serial_of
 
-AGGRO_R = 13                  # user 2026-10-15: "Aggro range I'm sure is longer than 9 tiles, I think its 12 or 13"
+# The aggro range, per creature type, as the captures measured it (harness/data/sim/mausoleum.json `aggro_observed`,
+# docs/SIM.md "Monster mechanics audit"): 210 of 211 war-mode flips came with the nearest of us 1-10 tiles off, and
+# 102 idle monsters had one of us in our line of sight at 11-13 tiles for over 5 s without waking (none within
+# 10); the shadow minion and the calamity wake at 13. The user first put it at "12 or 13", then (2026-10-15,
+# a shadowguard at 14 and a reanimated knight idle at 7-13 tiles): "aggro range smaller than 14 tiles".
+AGGRO_R = 10                  # a type the captures don't list
+AGGRO_MAX = 13                # the farthest measured (shadow minion, calamity): --never-aggro sight is kept beyond it
+SCENARIO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "mausoleum.json")
+_RANGES = None
+
+
+def aggro_range(kind: str) -> int:
+    """Tiles within which an idle monster of `kind` wakes to one of us it sees (`aggro_observed`), else AGGRO_R."""
+    global _RANGES
+    if _RANGES is None:
+        try:
+            with open(SCENARIO_PATH, encoding="utf-8") as f:
+                obs = json.load(f).get("aggro_observed") or {}
+            _RANGES = {k: int(v["range"]) for k, v in obs.items() if isinstance(v, dict) and v.get("range")}
+        except (OSError, ValueError):
+            _RANGES = {}
+    return _RANGES.get(kind, AGGRO_R)
+
+
 WAKE_MARGIN = 2               # the next steps, and the pets a tile or two behind us
 NEVER_MARGIN = 3
 WAR = 0x40
@@ -119,7 +142,8 @@ class View:
             x, y = mob["x"], mob["y"]
             z = los.surface_z(self.walk, x, y, mob.get("z") or 0) if self.walk is not None else (mob.get("z") or 0)
             self.mobs.append({"serial": s, "kind": kind, "pos": (x, y, z), "war": bool((mob.get("flags") or 0) & WAR),
-                              "weight": weight(kind), "caster": caster(kind), "never": kind in never})
+                              "weight": weight(kind), "caster": caster(kind), "never": kind in never,
+                              "r": aggro_range(kind)})
 
     def z_at(self, tile) -> int:
         if len(tile) > 2:
@@ -140,7 +164,7 @@ class View:
 
     def wakes(self, tile, margin: int = WAKE_MARGIN) -> list[dict]:
         """Idle monsters that would wake to us on `tile` (their aggro range and sight, plus `margin`)."""
-        return [m for m in self.mobs if not m["war"] and not m["never"] and self.sees(m, tile, AGGRO_R + margin)]
+        return [m for m in self.mobs if not m["war"] and not m["never"] and self.sees(m, tile, m["r"] + margin)]
 
     def first_on_us(self, tile, margin: int = 1) -> list[dict]:
         """Idle monsters that would see us on `tile` before a pet: in their aggro range and sight, and no
@@ -149,12 +173,12 @@ class View:
         monsters that haven't aggroed on a pet, or with the tank between). [INFERENCE: nearer counts as seen
         first; the pets follow us a tile or two behind on the move.]"""
         return [m for m in self.wakes(tile, margin)
-                if not any(cheb(m["pos"], p) < cheb(m["pos"], tile) and self.sees(m, p, AGGRO_R + margin)
+                if not any(cheb(m["pos"], p) < cheb(m["pos"], tile) and self.sees(m, p, m["r"] + margin)
                            for p in self.pets)]
 
     def never_near(self, tile, margin: int = NEVER_MARGIN) -> list[dict]:
         """--never-aggro monsters, idle, that would see us on `tile`."""
-        return [m for m in self.mobs if m["never"] and not m["war"] and self.sees(m, tile, AGGRO_R + margin)]
+        return [m for m in self.mobs if m["never"] and not m["war"] and self.sees(m, tile, AGGRO_MAX + margin)]
 
     def chasing(self, r: int = 18) -> list[dict]:
         """--never-aggro monsters in war mode within `r`: coming for us or the pets."""
