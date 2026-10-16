@@ -566,6 +566,85 @@ def test_backspawn():
           {"nightstalker", "shade wolf"} <= kinds and open_ > behind, f"{kinds} open {open_} behind {behind}")
 
 
+def hurt_loop(w, hits, extra=()):
+    """A HuntLoop at the hunt with a visit started, Logan at `hits`, the pets beside him on guard."""
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    for p, xy in zip(w.pets(), ((w.player.x - 1, w.player.y), (w.player.x, w.player.y + 1))):
+        p.x, p.y = xy
+    w.player.hits = hits
+    link, clock = link_for(w)
+    link.send(tamer.command("all guard me"))
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1", "--human", "off", "--vet-range", "5",
+                                                "--heal-in-place", *extra])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    with contextlib.redirect_stdout(io.StringIO()):
+        loop = loop_hunt.HuntLoop(link, store, args)
+        loop.team.setup(loop.state())
+        loop.spot = loop.fight_spot = tuple(w.player.pos[:2])
+        loop.start_visit(loop.state())
+    return loop, clock, store, patched
+
+
+def test_area_first():
+    print("== an apparition on our tile: out of its reach first, mid-channel, before the potion ==")
+    import time
+    from agent_link import cheb
+    # live 20261015_171928 18:57:09-19.5: on Logan's tile, -59; a potion and a vet channel there, then -60 more
+    w = world_with([{"key": "apparition", "at": [5207, 726, 0]}], seed=7, start=(5207, 726))
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.spec = {**m.spec, "step_s": 999.0}
+    m.target, m.threat = w.player.serial, {w.player.serial: 1e9}
+    loop, clock, store, patched = hurt_loop(w, 41)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            clock.advance(0.5)
+            loop.team.vet_busy_until = time.monotonic() + 5.0            # a channel running
+            loop.tick()
+            potions = loop.visit.get("potions", 0)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    d = cheb(w.player.pos, m.pos)
+    check("one tick: 3+ tiles off it, no potion first", d >= tamer.AREA_R["apparition"] and not potions,
+          f"{d} tiles, potions {potions}")
+
+
+def test_leave_called_off():
+    print("== a hurt leave healed on the way out is called off; one still hurt goes through ==")
+    from agent_link import Abort, cheb
+    # live 20261015_171928 18:57:20-40: out at 8/100, 98 by the gate, then waited there in a banshee's sight
+    out = {}
+    for healed in (True, False):
+        w = world_with([], seed=7, start=(5207, 726))
+        loop, clock, store, patched = hurt_loop(w, 8)
+        world_tick, t0 = clock.on_advance, []
+
+        def heal_up(now, world_tick=world_tick, t0=t0, w=w, healed=healed):
+            world_tick(now)
+            t0.append(now)
+            if now - t0[0] > 3:
+                w.player.hits = 98 if healed else min(w.player.hits, 40)
+        clock.on_advance = heal_up
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                try:
+                    loop.tick()
+                except Abort:
+                    pass                                   # gone: no --enter-recall in the test
+            out[healed] = (loop.visit is not None, cheb(w.player.pos, tuple(loop.args.leave_gate)))
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    check("healed: still on the visit, short of the gate; hurt: through it",
+          out[True][0] and out[True][1] > 1 and not out[False][0], str(out))
+
+
 def test_heal_in_place():
     print("== --heal-in-place: a pet below --pet-leave-at is no leave while vet supplies last ==")
     import tempfile
@@ -778,7 +857,7 @@ def main():
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
-              test_heal_in_place,
+              test_area_first, test_leave_called_off, test_heal_in_place,
               test_songs,
               test_pull_budget, test_hold_first_sight, test_rope,
               test_rest_hurt_pet):

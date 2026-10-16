@@ -325,9 +325,12 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    **Out of a Charge's reach** (user 2026-10-13). A charger is a nightstalker (knowledge #14625:
    it teleports up to 12 tiles next to its target and hits up to 3 within 1 tile), or any type seen
    to say "*charges*". While one is in war mode, the runner keeps 3 tiles from it and from the pet
-   beside it (`tamer.Team.stand_off`, up to 6 steps, never mid-channel). Other area hitters likewise
+   beside it (`tamer.Team.stand_off`, up to 6 steps, running). Other area hitters likewise
    (`tamer.AREA_R`): an apparition 3 (its hit lands on everyone within 2: 20261015_090607 and _115604),
-   a reanimated daemon 6 (its bone burst reached Logan at 5, 20261014_221341).
+   a reanimated daemon 6 (its bone burst reached Logan at 5, 20261014_221341). The stand-off comes first
+   in each decision, before the potion and mid-channel (live 20261015_171928 18:57:09-19.5: an apparition
+   came onto Logan's tile, -59; he stood there through the potion and a vet channel and took -60 more;
+   a step doesn't stop a channel healing us, it only shortens its reach to a pet to 1).
    **Off the tank** (user 2026-10-15: "Since our healing distance is 5 now I don't see a good reason to be
    standing next to the tank while it's fighting"): with `--vet-range` 4+, in a fight and for 8 s after
    (`FIGHT_LINGER_S`: an apparition blinks out and comes back on the tank's tile), a pet that stood next
@@ -442,6 +445,11 @@ moongate, and never near a red one).
   - The runner walks to the gate with the pets still guarding and says "All Follow Me" beside it.
     Then it double-clicks the gate from that tile, as Logan did (the step onto it only when the gate
     item isn't in view), and picks the destination by its label.
+  - **A hurt leave is called off** once Logan is back at `--heal-at` on the way out and no leave rule
+    fires any more (`HuntLoop.leave_called_off`; user 2026-10-15, live 20261015_171928 18:57:20-40: out
+    at 8/100, 98 by the gate, then 10 s there waiting for the pets in a banshee's sight: "There's no point
+    in running to the gate when he's fully healed"). He walks back to within `--vet-range` - 1 of the
+    nearest pet (`Team.rejoin`) and the hunt goes on.
   - **Fleeing a hostile player** (an urgent leave; `--rope`, default on): "All Follow Me" at once, then
     the run to the gate with an Adventurer's Rope jump whenever one is ready: `[Rope` (0x03 speech, as
     Logan's client sends it), the farthest route tile within 9 in sight (live jumps 7-10, an 11-tile

@@ -709,13 +709,14 @@ class Team:
     def care(self, st) -> bool:
         """One care action, True when something was done: evade a --never-aggro monster, "All Follow Me" after
         a pet's death (its ghost stays near for the vet supplies), step out of fire, retreat, vet supplies on us
-        when we are below --heal-at, stand off a charger, keep off the tank, vet supplies, guard, walk to a hurt
-        pet or a ghost, a better tile for line of sight, a barding song."""
+        when we are below --heal-at, keep off the tank, vet supplies, guard, walk to a hurt pet or a ghost, a
+        better tile for line of sight, a barding song. Standing off an area hitter comes before this and the
+        potion (HuntLoop.tick)."""
         self.update(st)
         me = st["world"]["self"]
         low = me.get("hits") is not None and self.h.frac(me) < self.a.heal_at
         return self.evade(st) or (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
-            or self.retreat(st) or (low and self.vet(st)) or self.stand_off(st) or self.spacing(st) or self.vet(st) \
+            or self.retreat(st) or (low and self.vet(st)) or self.spacing(st) or self.vet(st) \
             or (self.guard_needed and self.guard()) or self.to_pet(st) or self.reposition(st) or self.song(st)
 
     def spacing(self, st) -> bool:
@@ -1017,10 +1018,13 @@ class Team:
 
     def stand_off(self, st) -> bool:
         """A charger or another area hitter in the fight (area_zone): keep its distance from it and the pet
-        beside it, unless that pet needs healing (heal_at) and our supplies don't reach that far; never
-        mid-channel."""
+        beside it, unless that pet needs healing (heal_at) and our supplies don't reach that far. Mid-channel
+        too, and before a potion (HuntLoop.tick): live 20261015_171928 18:57:09-19.5 an apparition came onto
+        Logan's tile and hit him -59; he stood there through a potion and a vet channel and its next hit
+        took -60 more (8/100). A step doesn't stop a channel healing us (20261014_221341 22:35:50-55); it
+        shortens the reach to a pet to 1 (wiki Veterinary)."""
         h, now = self.h, time.monotonic()
-        if now < self.vet_busy_until or now - self.standoff_t < STANDOFF_REPEAT_S:
+        if now - self.standoff_t < STANDOFF_REPEAT_S:
             return False
         zone = self.area_zone(st)
         pos = h.pos(st)
@@ -1036,7 +1040,8 @@ class Team:
         h.doing("standoff", f"Standing off an area hitter ({len(zone)} tile(s) in its reach)")
         self.count("standoffs")
         try:
-            h.mover.walk_to(None, 0, label, goal_fn=ClearOf(zone), max_moves=STANDOFF_MOVES, max_route=STANDOFF_MOVES)
+            h.mover.walk_to(None, 0, label, goal_fn=ClearOf(zone), urgent=True, max_moves=STANDOFF_MOVES,
+                            max_route=STANDOFF_MOVES)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1188,6 +1193,32 @@ class Team:
             if not str(e).startswith(label):
                 raise
             log(f"walk to {p['name']}: {e}")
+        return True
+
+    def rejoin(self, st) -> bool:
+        """After a leave called off on the way out (HuntLoop.leave_called_off): back to within --vet-range - 1
+        of the nearest live pet, where the fight is, unless a leave rule fires on the way."""
+        h = self.h
+        pets = [p for p in self.pets(st) if not p["dead"]]
+        if not pets:
+            return False
+        p = min(pets, key=lambda p: p["dist"])
+        r = max(SPACING_R, self.a.vet_range - 1)
+        if p["dist"] <= r:
+            return False
+        label = "back to the pets"
+        h.doing("vet", f"Back to {p['name']}", (p["x"], p["y"]))
+
+        def where():
+            m = h.link.last["world"]["mobiles"].get(f"0x{p['serial']:08X}") or p
+            return m["x"], m["y"]
+        try:
+            h.mover.walk_to(where, r, label, max_moves=2 * combat.VIEW_RANGE,
+                            stop=lambda s: (why := h.leave_reason(s)) and why[0])
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"back to the pets: {e}")
         return True
 
     # ------------------------------------------------------------ the fight

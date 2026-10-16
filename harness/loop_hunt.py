@@ -1250,14 +1250,24 @@ class HuntLoop:
                 return True
         return self.team is not None and time.monotonic() < self.team.vet_busy_until
 
-    def leave(self, st, why, severity):
+    def leave_called_off(self, st, severity) -> str | None:
+        """On the way out after a hurt leave (severity attention): why to call it off, Logan back at
+        --heal-at with no leave rule firing any more (user 2026-10-15, live 20261015_171928 18:57:20-40:
+        out at 8/100, healed on the run to 98 by the gate, and then he waited there for the pets in a
+        banshee's sight: "There's no point in running to the gate when he's fully healed")."""
+        me = st["world"]["self"]
+        if severity != "attention" or me.get("hits") is None or self.frac(me) < self.args.heal_at:
+            return None
+        return None if self.leave_reason(st) else f"healed to {me['hits']}/{me['hits_max']}"
+
+    def leave(self, st, why, severity) -> str | None:
         """War mode off, back to the spot (running, Mover urgent, when it's a survival
         leave from a separate fight spot), the step onto the exit teleporter. A
-        `threat` juncture unless it's the planned end (severity info)."""
+        `threat` juncture unless it's the planned end (severity info). "called off" when
+        leave_called_off stopped it on the way to the moongate."""
         self.left_why = (why, severity)
         if self.args.leave_recall is not None:
-            self.leave_by_recall(st, why, severity)
-            return
+            return self.leave_by_recall(st, why, severity)
         data = {"why": why, "hits": [st["world"]["self"].get("hits"), st["world"]["self"].get("hits_max")],
                 "attackers": self.attackers(st), "visit": self.visit_n, "kills": self.totals["kills"],
                 "route_steps": self.out_steps}
@@ -1420,17 +1430,23 @@ class HuntLoop:
                     self.team.guard()
                 path, _ = self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False)
                 near = tuple(path[-2]) if path and len(path) >= 2 else None
+                stop = (lambda s: "a rope is ready" if self.rope_ready_now(s) else None) if flee \
+                    else (lambda s: self.leave_called_off(s, severity))
                 for _ in range(ROPE_LEGS_MAX):
                     if near is None or cheb(self.pos(self.link.state()), gate) <= 1:
                         break
                     if flee and self.rope_jump(near):
                         continue
                     why = self.mover.walk_to(lambda: near, 0, "to the moongate", urgent=urgent,
-                                             max_moves=max(250, 3 * self.out_steps),
-                                             stop=(lambda s: "a rope is ready" if self.rope_ready_now(s) else None)
-                                             if flee else None)
+                                             max_moves=max(250, 3 * self.out_steps), stop=stop)
+                    if why and not flee:
+                        return {"ok": False, "called_off": why, "from": list(self.pos(self.link.state())[:2]),
+                                "dest": self.args.gate_dest}
                     if not why:
                         break
+                if (why := self.leave_called_off(self.link.state(), severity)):
+                    return {"ok": False, "called_off": why, "from": list(self.pos(self.link.state())[:2]),
+                            "dest": self.args.gate_dest}
                 me = self.link.state()["world"]["self"]
                 hurt = severity != "info" and me.get("hits") is not None and self.frac(me) < self.args.heal_at
                 self.team.follow(severity, wait=not hurt)    # hurt: through the gate now, pets or not
@@ -1483,6 +1499,14 @@ class HuntLoop:
             gate = None
             if self.args.leave_gate:
                 gate = data["gate"] = self.leave_by_gate(severity)
+                if gate.get("called_off"):
+                    log(f"leave called off at {tuple(gate['from'])}: {gate['called_off']}; back to the pets")
+                    self.memory.job_event("hunt", "leave_called_off", {**data, "called_off": gate["called_off"]},
+                                          **self._where(self.state()))
+                    self.left_why = None
+                    if self.team is not None:
+                        self.team.rejoin(self.state())
+                    return "called off"
                 if gate["ok"] and self.team is not None:
                     self.team.landed(self.state(), "gate")
             res = self.recall_home(severity != "info") if gate is None or gate["ok"] else \
@@ -1934,7 +1958,8 @@ class HuntLoop:
         if reason is None and winding and ((not attackers and not self.corpses) or self.timed_out(60.0)):
             reason = ("done" if self.finished() else "time is up", "info")
         if reason is not None:
-            self.leave(st, *reason)
+            if self.leave(st, *reason) == "called off":
+                return False
             if reason[1] == "info":
                 return True
             return not self.go_back(reason)
@@ -1943,6 +1968,8 @@ class HuntLoop:
             return False
         me = st["world"]["self"]
         if self.rearm(st):
+            return False
+        if self.team is not None and self.team.stand_off(st):     # out of an area hit first, then the potion
             return False
         if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
             self.human.wait("read")

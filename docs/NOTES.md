@@ -3023,6 +3023,27 @@ shadow minions) in 9 min, then the countess room (5175-5178, 683-688).
   (`drink_on_the_run`; I told the user it didn't); now it also starts the vet supplies on Logan there (a step
   doesn't stop a channel healing him: 20261014_221341 22:35:50-55).
 
+## The tenth live run: an apparition on Logan's tile, a leave he no longer needed (test shard, 2026-10-15 18:56-18:58, capture 20261015_171928)
+
+Task hunt-20261015-185652-4514 on 3b062e5 (backspawn) from the arrival (5207, 737).
+
+- 18:57:06 held at (5207, 726), "apparition sees us at 10 tiles: letting it come", the pets beside him (the
+  phoenix a tile nearer it). 18:57:07.8 it went to war mode, "*phases*", gone; 18:57:09.0 back **on Logan's
+  tile**, -59 (the phoenix -37). It came for Logan although a pet was nearer it [INFERENCE: waking apparitions
+  go for the player: also the fifth and sixth runs].
+- He stood on its tile for 10 s: the potion first (`heal`: the satchel opened 11.0, drunk 13.3), then a vet
+  channel (15.2) during which the stand-off never ran ("never mid-channel"); 18:57:19.5 its next hit -60 (8/100).
+  Now the stand-off comes first in `HuntLoop.tick`, mid-channel too, running.
+- 18:57:20 the leave (8/100, below the heal-in-place floor) to the gate 23 steps away: potions and the vet on the
+  run, 98 by 18:57:27.6 near the gate. There he said "All Follow Me" and waited 10 s for the pets 18 tiles back
+  in the apparition fight while a banshee 4 tiles off cast at him (-34, -32, -34). The user: "There's no point in
+  running to the gate when he's fully healed". Now a hurt leave is called off at `--heal-at` with no leave rule
+  firing (`HuntLoop.leave_called_off`) and he walks back to the pets (`Team.rejoin`).
+- 18:57:39.5 the user's own client walked Logan back toward the pets (0x02 from `client`); the runner's gate
+  walk read a position 2 tiles off its next route step and crashed (`nav.direction`: "not a single step").
+  The Mover now replans from wherever it finds itself. Logan died at 18:57:44.6 at (5207, 724), the apparition's
+  area hit and the banshees.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

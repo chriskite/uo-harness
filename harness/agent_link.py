@@ -1007,6 +1007,12 @@ class Mover:
                     return why
                 pos = self.link.pos(st)
                 cur, z = (pos[0], pos[1]), pos[2]
+                if cheb(cur, nxt) != 1:
+                    # moved off the plan by something other than this walk (live 20261015_171928
+                    # 18:57:40: the user's own client steps mid-walk); plan again from here
+                    log(f"{label}: at {cur}, off the planned route (next {nxt}); replanning")
+                    replan = True
+                    break
                 d = nav.direction(cur, nxt)
                 occupied_at_step = self.occupied(st)       # who stood there when we tried (a shove)
                 if walk is not None and not self.step_walkable(st, cur, z, d):
