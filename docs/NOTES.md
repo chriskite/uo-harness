@@ -2506,7 +2506,9 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
   - **Two short hops on the second level** that the map files don't show. At 21:17:37 a step onto
     (5506, 701) was denied (0x21 at z -5), then a self 0x77 put Logan at (5507, 698). **Corrected
     2026-10-15:** the step was north, onto (5507, 701) (0x02 direction byte 0x80, running north, in
-    20261013_204518 at 20:46:41); live 22:44:06 a step NW onto (5506, 701) was taken and went nowhere. A step onto
+    20261013_204518 at 20:46:41); live 22:44:06 a step NW onto (5506, 701) was taken and went nowhere. The second hop is
+    (5507, 696): there he sent two steps north at once, the first to (5507, 697) taken, the 0x21 deny of
+    the second reporting (5507, 697); live 22:47:03 a step onto (5507, 697) went nowhere. A step onto
     (5507, 697) put him at (5507, 693). Without them the map's A* takes 468 steps round, against his
     ~150. Both are in the scenario and in `--enter-via`.
   - **The way out goes through the countess' room.** On the map the crimson gate's room is reached
