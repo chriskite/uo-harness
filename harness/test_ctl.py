@@ -733,6 +733,25 @@ def test_wait(proxy):
           and jid in [j["id"] for j in out["junctures"]], str(out)[:200])
     code, out = c("chat", "--after", str(cid))
     check("chat --after", [r["id"] for r in out["chat"]][0] > cid, str(out)[:200])
+    dan, logan = 0x0014683F, 0x00104A60
+    jd = m.juncture("lumber", "threat", "dan's", "urgent", char_serial=dan)
+    jl = [m.juncture("hunt", "speech_nearby", "logan's", "urgent", char_serial=logan),
+          m.juncture("hunt", "death", "logan's", "urgent", char_serial=logan)]
+    jn = m.juncture("supervisor", "service_down", "everyone's", "attention", char_serial=None)
+    seen = {j["id"] for j in m.junctures(open_only=True, limit=1000, char_serial=logan)}   # his and the unscoped
+    code, out = c("--char", f"0x{logan:08X}", "ack", "all")
+    still = {j["id"] for j in m.junctures(open_only=True, limit=1000, char_serial=None)}
+    check("ack all --char: that character's open ones and the unscoped ones, not another character's",
+          code == 0 and set(out["acked"]) == seen and (set(jl) | {jn}) <= seen and jd not in seen
+          and out["count"] == len(seen) and still == {jd}, f"{out} seen {sorted(seen)} still {sorted(still)}")
+    code, out = c("ack", "all")
+    check("ack all without --char: every open juncture; none left",
+          code == 0 and jd in out["acked"] and not m.junctures(open_only=True, limit=1000, char_serial=None),
+          str(out))
+    code, out = c("ack", "all")
+    check("ack all with nothing open: ok, none acked", code == 0 and out["acked"] == [] and out["count"] == 0)
+    code, out = c("ack", "every")
+    check("ack with neither a number nor 'all' -> an error", code == 1 and "bad juncture id" in out.get("error", ""))
     code, out = c("frobnicate")
     check("usage error is one JSON object too", code == 1 and out.get("ok") is False
           and "usage" in out.get("error", ""), str(out))
