@@ -105,6 +105,7 @@ PET_REACH = 12                # the phoenix's Epic Barrage reaches 12 tiles (pat
 PET_NEAR = 1                  # a war-mode monster this close to a pet that took damage is fighting it
 KILL_AFTER_S = 4.0            # a mob attacking us that the pets haven't hurt for this long: "All Kill"
 KILL_REPEAT_S = 12.0
+IDLE_PET_S = 5.0              # a live pet out of war mode this long near a fight the other pet is in: "All Kill"
 PIN_S = 15.0                  # loop_hunt's rule: a target neither fighting the pets nor us this long is dropped...
 SKIP_S = 60.0                 # ...and passed over this long
 GUARD_REPEAT_S = 8.0
@@ -377,6 +378,7 @@ class Team:
         self.songs = {}                  # song skill -> monotonic time it runs out
         self.at_once_w = 0.0             # idle weight in sight at the last pull_check (its "at once" rule)
         self.at_once_at = []             # [((x, y), monotonic)] where "at once" stopped a patrol lately
+        self.idle_since = {}             # pet serial -> monotonic time first seen out of war mode near a fight
         self.song_ready = 0.0
         self._view = None                # aggro.View of the last state read
         self.pull_why = None
@@ -459,7 +461,7 @@ class Team:
             if not m.get("dead"):
                 self.seen_at[s] = (m["x"], m["y"])
             out.append({"serial": s, "name": name, "frac": self.h.frac(m), "dist": cheb(pos, (m["x"], m["y"])),
-                        "dead": bool(m.get("dead")), "x": m["x"], "y": m["y"],
+                        "dead": bool(m.get("dead")), "x": m["x"], "y": m["y"], "war": bool((m.get("flags") or 0) & aggro.WAR),
                         "poisoned": bool(m.get("poisoned")) or now - self.poisoned_t.get(s, -1e9) < POISON_S})
         return out
 
@@ -1290,6 +1292,22 @@ class Team:
             log(f"walk to {p['name']}: {e}")
         return True
 
+    def idle_pet(self, st, mob: dict, now: float) -> str | None:
+        """The name of a live pet within PET_REACH of `mob` (the pets' fight) out of war mode for IDLE_PET_S,
+        else None. Live 20261015_210709 21:19:51-20:43: AlaFlambe came out of a vampire countess' transfix
+        and stood 45 s with war mode off while GraveRobber fought her alone (user: "AF was not fighting
+        mobs, GR was fighting alone ... when it came back it didn't resume attacking"). [INFERENCE: a pet on
+        guard fights what attacks us or itself, not what fights the other pet; the transfix cleared its target.]"""
+        out = None
+        for p in self.pets(st):
+            s = p["serial"]
+            if p["dead"] or p["war"] or cheb((p["x"], p["y"]), (mob["x"], mob["y"])) > PET_REACH:
+                self.idle_since.pop(s, None)
+                continue
+            if now - self.idle_since.setdefault(s, now) >= IDLE_PET_S:
+                out = p["name"]
+        return out
+
     def rejoin(self, st) -> bool:
         """Back to within --vet-range - 1 of the nearest live pet, in view or where it was last seen alive (a
         fight 20 tiles off), unless a leave rule fires on the way: after a leave called off on the way out
@@ -1359,6 +1377,11 @@ class Team:
         engaged = self.engaged(st, serial)
         if engaged or on_us:
             self.fought[serial] = (mob, now)
+        if engaged and (idle := self.idle_pet(st, mob, now)) \
+                and now - self.kill_t.get(serial, -1e9) >= KILL_REPEAT_S and self.effects.get(serial, {}).get("los", 0) < now:
+            log(f"{idle} stands idle beside the fight with {name}: 'All Kill' at it")
+            self.all_kill(serial)
+            return
         if on_us and not engaged and not any(not p["dead"] and p["dist"] <= self.a.vet_range + 2 for p in self.pets(st)) \
                 and self.rejoin(st):
             return                        # nothing between it and us here: to the pets (rejoin)

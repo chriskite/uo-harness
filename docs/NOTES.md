@@ -3125,6 +3125,19 @@ discords working. The user: "Good run overall".
   is no walk: the run stops in town with the recall's failure. [INFERENCE: on the test shard something stands
   on that rune's landing tile.]
 
+## The first run on the live server (2026-10-15 21:10-, capture 20261015_210709, upstream 52.223.17.219)
+
+Task hunt-20261015-211040-f9c6 on b4340ab, the test-shard arguments unchanged: the live character's serials are
+the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 kills by 21:23:56, no leave.
+
+- 21:11:13-19 the "at once" rule stopped the patrol every 2 s by the gate's banshee room: stop, "patrolling
+  elsewhere", the next waypoint's route through the same spot, stop again. Now it stops once per spot per
+  2 minutes (f244c86).
+- 21:19:38 and 21:19:51 a vampire countess transfixed AlaFlambe; from 21:19:58 to ~21:20:43 the phoenix stood
+  with war mode off while GraveRobber fought her alone (the user: "AF was not fighting mobs, GR was fighting
+  alone"). GraveRobber, transfixed five times, was back in war mode each time (her target). Now an idle pet
+  beside the fight gets "All Kill" at the target (`Team.idle_pet`).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

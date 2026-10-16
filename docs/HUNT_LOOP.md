@@ -311,8 +311,10 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    A bard skill's cursor is cancelled when Logan is below `--heal-at` with a heal potion ready
    (`Team.potion_first`; live 19:19:30.9-35.2 a Discordance answered at 42 hits, the potion 3.6 s later).
 3. **"All Kill" only at a mob already on us** that the pets leave alone for 4 s (its aggro is on us
-   anyway), at most every 12 s per mob; the target cursor is answered after an aim pause and a
-   fresh read (the monsters-only guard). Not re-guarded until the kill.
+   anyway), or at the pets' target when a live pet within 12 of it stands out of war mode for 5 s
+   (`Team.idle_pet`; live 20261015_210709 21:19:51-20:43 the phoenix came out of a countess' transfix and
+   stood 45 s while the gravebug fought her alone), at most every 12 s per mob; the target cursor is
+   answered after an aim pause and a fresh read (the monsters-only guard). Not re-guarded until the kill.
 4. **Vet supplies** (graphic `0x6496`, one double-click, no target): every pet within range and us
    at 25 % (patch 2023-08-14); a 5.0–5.3 s channel (43 on the trip) with the range checked at the
    finish, so no step during it. Used for a hurt or poisoned pet in range, or for us below

@@ -657,6 +657,38 @@ def test_standoff_sight():
           (not walked and after == here) or (walked and after >= here), f"walked {walked}, {here} -> {after} tiles")
 
 
+def test_idle_pet():
+    print("== a pet standing idle beside the other pet's fight gets 'All Kill' and joins it ==")
+    # live 20261015_210709 21:19:51-20:43: AlaFlambe out of a transfix stood 45 s out of war mode while GraveRobber
+    # fought the vampire countess alone
+    w = world_with([{"key": "shade wolf", "at": [5268, 651, 0]}], seed=7, start=(5268, 648))
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.hits = m.hits_max = 10 ** 6
+    loop, clock, store, patched = hurt_loop(w, 100)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    af = next(p for p in w.pets() if p.name == "AlaFlambe")
+    m.target, m.threat = gb.serial, {gb.serial: 1e9}
+    gb.mode, gb.kill, gb.target = "kill", m.serial, m.serial
+    af.mode, af.target = "stay", None                 # out of the fight, as the transfix left it
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            mark = w.metrics["kill_commands"]
+            for _ in range(40):
+                clock.advance(0.5)
+                if w.metrics["kill_commands"] == mark:
+                    af.mode, af.target = "stay", None   # the sim's guard would join on its own; live it didn't
+                    w._warm(af, False)
+                loop.tick()
+                if w.metrics["kill_commands"] > mark and af.target == m.serial:
+                    break
+            said = w.metrics["kill_commands"] - mark
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("'All Kill' at the gravebug's target, the phoenix on it", said >= 1 and af.target == m.serial,
+          f"kill commands {said}, phoenix target {af.target}")
+
+
 def test_leave_called_off():
     print("== a hurt leave healed on the way out is called off; one still hurt goes through ==")
     from agent_link import Abort, cheb
@@ -929,7 +961,8 @@ def main():
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
-              test_area_first, test_leave_called_off, test_instrument, test_standoff_sight, test_heal_in_place,
+              test_area_first, test_leave_called_off, test_instrument, test_standoff_sight, test_idle_pet,
+              test_heal_in_place,
               test_songs,
               test_pull_budget, test_hold_first_sight, test_rope,
               test_rest_hurt_pet):
