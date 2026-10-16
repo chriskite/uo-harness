@@ -41,7 +41,10 @@ AGGRO_R = 13                  # user 2026-10-15: "Aggro range I'm sure is longer
 WAKE_MARGIN = 2               # the next steps, and the pets a tile or two behind us
 NEVER_MARGIN = 3
 WAR = 0x40
-NEVER_AGGRO = ("vampiric consort",)                  # user 2026-10-13
+# user 2026-10-15 after the eleventh live run (the elder vampire countess froze both pets and killed Logan): "I
+# suppose the runner can avoid the elder vampires for now". The consort, avoided from 2026-10-13, no longer
+# ("we don't need to avoid any mob specifically", 2026-10-15)
+NEVER_AGGRO = ("elder vampire", "elder vampire countess")
 CASTER_AI = frozenset(("mage", "meleemage"))
 KB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "mausoleum_kb.json")
 _KB = None

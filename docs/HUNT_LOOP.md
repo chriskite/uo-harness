@@ -400,7 +400,7 @@ what comes.
 | Argument | Default | Meaning |
 |---|---|---|
 | `--pull-budget` | `3.0` | While the pets fight monsters worth E, an advance (patrol, approach) stops where more would wake (W, idle monsters that would see us within 15 tiles) when E + W is above it. 0 = off. |
-| `--never-aggro TYPE` | none | Never wake it alone (repeat for more types). Until 2026-10-15 the vampiric consort; the user then: "we don't need to avoid any mob specifically, we should be able to handle everything on Maus 3 with enough care. The consort and elder vampires areas can get a little sketchy but it's all doable". |
+| `--never-aggro TYPE` | the elder vampire, the elder vampire countess | Never wake it alone (repeat for other types; any given replaces the default). The vampiric consort until 2026-10-15; the user then: "we don't need to avoid any mob specifically, we should be able to handle everything on Maus 3 with enough care. The consort and elder vampires areas can get a little sketchy but it's all doable" (the code still avoided the consort by default until the next change); after the eleventh live run (an elder vampire countess froze both pets and killed Logan): "I suppose the runner can avoid the elder vampires for now". |
 | `--crawl-avoid-types` / `--no-crawl-avoid-types` | on (`--pets` off) | The crawl avoids creature types the store's fights say cost too much or were fled from (live 20261015_171928 it set the vampire countess aside after one leave). |
 | `--reposition` / `--no-reposition` | on | In a fight, step to a better tile for line of sight. |
 | `--hold-first-sight` / `--no-hold-first-sight` | on | Nothing fighting: stop where an idle monster first sees us within its aggro range, and let it come. |

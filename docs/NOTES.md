@@ -2793,9 +2793,10 @@ Two runs, both ended by reds. In the region 17:02:50-17:23:52 (21 min) and 17:39
 - **Songs end with a message**: "Your Song of Discordance effect ends." 904 s after it began
   (17:03:14.2 -> 17:18:18.0), likewise Peacemaking and Provocation; `tamer.Team.update` now marks the
   song over. The second run's songs printed 16.8 % (17.7 % in the first) [INFERENCE: a gear change].
-- **The elder vampire countess**: a contested boss ("A contested boss has spawned in The Mausoleum!",
-  17:45:36.9) fought in the north room (5201-5210, 640-650) with ~12 other players around; it also
-  transfixes ("*attempts to transfix*").
+- **The elder vampire countess**: fought in the north room (5201-5210, 640-650) with ~12 other players around;
+  it also transfixes ("*attempts to transfix*"). A "A contested boss has spawned in The Mausoleum!" notice came
+  at 17:45:36.9 during that fight, but the elder vampire countess is a regular mob, not the contested boss (user
+  2026-10-15; this note had taken it for the boss).
 - The countess transfixed both pets in turn on the first run: the gravebug at 17:18:25.1, the phoenix
   at 17:18:35.8 (10.7 s later, the first copy just gone), as the one-copy-at-a-time model has it.
 
@@ -3058,7 +3059,7 @@ a shade wolf), 7,910 gold in 7 min, dead at 19:19:41.4.
   instrument." (3 times in the tenth run, 51 in this one; logged as "no answer" / "out of sight or reach").
   The runner now picks an instrument from the pack for that prompt (`Team._instrument`), and the simulator
   asks it when the instrument last played is gone.
-- **The elder vampire countess** (5216, 638), the contested boss: 19:19:00 "toward a target" walked Logan 2 steps
+- **The elder vampire countess** (5216, 638), a regular mob: 19:19:00 "toward a target" walked Logan 2 steps
   to 6 tiles of it; she took the gravebug at 19:19:03.7 (-64) and transfixed it (19:19:04.8 a hostile
   "GraveRobber" copy), then the phoenix (19:19:22.9 an "AlaFlambe" copy). With both pets frozen she and the copies
   came onto Logan: -41 (19:19:05.9), -44 (14.1, the gravebug copy beside him), -31 -27 (31.0-31.1, the phoenix
@@ -3068,6 +3069,11 @@ a shade wolf), 7,910 gold in 7 min, dead at 19:19:41.4.
   due (`Team.potion_first`).
 - 19:19:35 the retreat from the copy (7 tiles), 19:19:37 the leave at 15/100 (50 steps to the gate), the vet on
   the run; the countess' spell from 15 tiles (-17) killed him at 19:19:41.4.
+- The user then: "I suppose the runner can avoid the elder vampires for now, but they're not contested bosses,
+  they're regular mobs". `aggro.NEVER_AGGRO` is now the elder vampire and the elder vampire countess (their sight
+  no-go, never pulled, run from when one comes). It had still been the vampiric consort: 1c1ab51 dropped the
+  `--never-aggro` default but the code fell back to `NEVER_AGGRO`, so the consort was still being avoided
+  against the user's 2026-10-15 "we don't need to avoid any mob specifically".
 
 ## Network observations
 

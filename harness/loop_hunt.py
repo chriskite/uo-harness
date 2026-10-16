@@ -2233,7 +2233,8 @@ def arg_parser() -> argparse.ArgumentParser:
                          "0.4, a nightstalker 1.8); 0 = off (user 2026-10-13: 'weighted by danger')")
     ap.add_argument("--never-aggro", action="append", default=None, metavar="TYPE",
                     help="--pets: a creature type (no article) never to wake while alone: its sight is no-go and "
-                         "one that comes for us is run from (repeat; default none, user 2026-10-15)")
+                         "one that comes for us is run from (repeat; default aggro.NEVER_AGGRO: the elder vampire "
+                         "and the elder vampire countess, user 2026-10-15)")
     ap.add_argument("--crawl-avoid-types", action=argparse.BooleanOptionalAction, default=None,
                     help="crawl: avoid creature types the store's fights say cost too much (--crawl-max-hits, "
                          "--crawl-max-fight-s) or were fled from (default on, --pets off: user 2026-10-15)")

@@ -745,7 +745,8 @@ def test_songs():
 
 
 def test_pull_budget():
-    print("== aggro.py: the pull budget counts what would see us (line of sight); a consort in sight is no-go ==")
+    print("== aggro.py: the pull budget counts what would see us (line of sight); a --never-aggro type in sight is "
+          "no-go ==")
     import tempfile
     import loop_hunt
     import memory
@@ -762,7 +763,8 @@ def test_pull_budget():
         db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
         args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, ["--pull-budget", str(budget),
                                                                            "--no-hold-first-sight"], 10, at_hunt=True)
-                                                 + ["--memory", db, "--seed", "1"])
+                                                 + ["--memory", db, "--seed", "1"]
+                                                 + (["--never-aggro", "vampiric consort"] if "consort" in case else []))
         patched = simclock.install(clock)
         store = memory.Memory(db)
         try:
@@ -781,7 +783,7 @@ def test_pull_budget():
     check("...not when the wall hides it, nor with budget 3",
           out["wolf behind the wall"] is None and out["wolf in sight, budget 3"] is None, str(out))
     check("nothing fighting: a pack is pulled whole", out["idle wolf alone"] is None, str(out))
-    check("an idle vampiric consort in sight at 12 tiles: hold, whatever fights",
+    check("an idle vampiric consort (--never-aggro) in sight at 12 tiles: hold, whatever fights",
           out["consort in sight"] and "vampiric consort" in out["consort in sight"], str(out))
 
 
