@@ -174,7 +174,11 @@ LOOT_REFUSED = re.compile(r"players cannot commit aggressive actions|you may not
 POLL_S = 0.4
 TELEPORT_TRIES = 3            # turn, step (+ one retry) onto a teleporter
 TELEPORT_WAIT_S = 1.0         # a confirmed step onto a teleporter: the move follows within this
-WALK_IN_PETS_S = 20.0         # --enter-via: after 'All Follow Me', how much longer to wait for the pets at a teleporter
+WALK_IN_PETS_S = 20.0         # --enter-via: after 'All Follow Me', how much longer to wait for the pets (a teleporter, a lag)
+WALK_IN_LAG_R = 8             # --enter-via: a pet farther than this (or out of view) stops the walk until it catches up
+WALK_IN_QUIET_S = 5.0         # --enter-via: first wait this long for a lagging pet without a word (it is on follow)
+WALK_IN_FIGHT_S = 90.0        # --enter-via: attacked on the way, stand this long at most while the guarding pets take it
+WALK_IN_CALM_S = 4.0          # ...until nothing attacks us and no hit has come for this long
 HARD_TIMEOUT_GRACE_S = 180.0  # past --timeout the runner leaves; past this too it aborts
 GOTO_Z_TOL = 10               # ctl.GOTO_Z_TOL
 # Arcane staves (wiki Arcane: "Players with at least 80 skill in Arcane, Wrestling, and
@@ -1563,32 +1567,103 @@ class HuntLoop:
 
     def walk_in(self, tiles):
         """After the recall in (a dungeon lets us recall only beside a gold moongate: user 2026-10-13):
-        onto each --enter-via teleporter in order. Before each step onto one, 'All Follow Me' and the
-        pets within reach (they come through with us); after it they're guarded again (a level
-        transition stops guarding, wiki). --songs: a song due before each leg (live 20261013_204518:
-        all three went up on the first level and on the way in)."""
+        onto each --enter-via teleporter in order, the pets on 'All Follow Me' the whole way, said once
+        before the first leg, as the user does (capture 20261013_204518: "All Guard Me" before the recall,
+        "All Follow Me" 8 s after landing, four teleporters, the next "All Guard Me" on the fight level;
+        live 22:20:56 a guard said at the landing set them fighting there while Logan walked off alone).
+        A pet falling behind (WALK_IN_LAG_R, or out of view) stops the walk: 'All Follow Me' again and
+        WALK_IN_PETS_S for it to come; something attacking us or our hits falling stops it too, and the
+        pets guard until it's over (walk_in_fight). Before each step onto a teleporter, every pet within
+        reach of it (they come through with us). The guard comes on the fight level (landed, then care).
+        --songs: a song due before each leg (live 20261013_204518: all three went up on the first level
+        and on the way in)."""
+        self.walk_hits, self.walk_hurt_t = None, -1e9
+        if self.team is not None:
+            self.team.follow()
         for tile in tiles:
             label = f"to the teleporter at {tile[0]},{tile[1]}"
             self.doing("enter", f"Walking to the teleporter at {tile[0]},{tile[1]}", tile)
             if self.team is not None:
                 self.team.song(self.state())
-                self.team.guard()
             # the tile the route onto it steps from: a teleporter on stairs is entered from one side only
             # (the Mausoleum's at 5554,701: from 5554,702 northwards)
             path, _ = self.mover.plan(self.link.state(), nav.within(tile, 0), mobiles=False)
             near = tuple(path[-2]) if path and len(path) >= 2 else None
             if near is None:
                 raise Abort(f"{label}: no route onto it")
-            self.mover.walk_to(lambda: near, 0, label)
-            if self.team is not None:
-                self.team.follow()
-                if not self.link.wait(lambda s: self.team.together(s, at=tile[:2]), WALK_IN_PETS_S):
-                    raise Abort(f"{label}: the pets aren't within {tamer.FOLLOW_R} tiles of it after "
-                                f"{WALK_IN_PETS_S:.0f} s more; not stepping through without them")
+            while why := self.mover.walk_to(lambda: near, 0, label, stop=self.walk_in_stop):
+                if why == "under attack":
+                    self.walk_in_fight(label)
+                else:
+                    self.wait_pets(label, None)
+            if self.team is not None and not self.team.together(self.link.state(), at=tile[:2]):
+                self.wait_pets(label, tile[:2])
             here = tuple(self.pos(self.link.state())[:2])
             self.teleport(nav.direction(here, tile), f"the teleporter at {tile[0]},{tile[1]}")
             if self.team is not None:
                 self.team.landed(self.state(), "in")
+
+    def walk_in_stop(self, st) -> str | None:
+        """walk_in's stop: something attacking us or our hits falling (a calamity casts from 13 tiles,
+        beyond CASTER_REACH: simulator seeds 15 and 16 died to one walking on), else a lagging pet."""
+        if self.team is not None and (self.walk_hurt(st) or self.attackers(st)):
+            return "under attack"
+        return self.pets_lagging(st)
+
+    def walk_hurt(self, st) -> bool:
+        """Our hits fell since the last look (walk_in: `walk_hits`, `walk_hurt_t`)."""
+        hits = st["world"]["self"].get("hits")
+        fell = hits is not None and self.walk_hits is not None and hits < self.walk_hits
+        self.walk_hits = hits
+        if fell:
+            self.walk_hurt_t = time.monotonic()
+        return fell
+
+    def pets_lagging(self, st) -> str | None:
+        """A pet of the roster out of view or farther than WALK_IN_LAG_R."""
+        if self.team is None:
+            return None
+        pets = {p["serial"]: p for p in self.team.pets(st)}
+        for s, name in self.team.roster.items():
+            p = pets.get(s)
+            if p is None:
+                return f"{name} out of view"
+            if p["dist"] > WALK_IN_LAG_R:
+                return f"{name} at {p['dist']}"
+        return None
+
+    def wait_pets(self, label, at):
+        """Up to WALK_IN_QUIET_S for every pet within FOLLOW_R of us (of the teleporter `at` when given):
+        on follow they catch up by themselves (the user said 'All Follow Me' once for four teleporters);
+        then 'All Follow Me' again and WALK_IN_PETS_S more, else Abort: never through a teleporter
+        without them."""
+        log(f"{label}: waiting for the pets ({self.pets_lagging(self.link.state()) or 'not all beside it'})")
+        self.doing("enter", "Waiting for the pets to catch up")
+        if self.link.wait(lambda s: self.team.together(s, at=at), WALK_IN_QUIET_S):
+            return
+        self.team.follow(wait=False)
+        if not self.link.wait(lambda s: self.team.together(s, at=at), WALK_IN_PETS_S):
+            raise Abort(f"{label}: the pets aren't within {tamer.FOLLOW_R} tiles "
+                        f"{'of it' if at else 'of us'} after {WALK_IN_PETS_S:.0f} s; not going on without them")
+
+    def walk_in_fight(self, label):
+        """Attacked on the way in: 'All Guard Me' and stand while the pets take it (the team's care:
+        potions, vet supplies, stand-off) until nothing attacks us and no hit came for WALK_IN_CALM_S, up to
+        WALK_IN_FIGHT_S; then 'All Follow Me' and walk on. On follow the pets would let it hit us all the
+        way to the next teleporter."""
+        log(f"{label}: attacked on the way in; the pets guard")
+        self.doing("enter", "Attacked on the way in: the pets take it")
+        self.team.guard_t = -1e9
+        self.team.guard()
+        end = time.monotonic() + WALK_IN_FIGHT_S
+        while time.monotonic() < end:
+            st = self.state()
+            self.walk_hurt(st)
+            if not self.attackers(st) and time.monotonic() - self.walk_hurt_t > WALK_IN_CALM_S:
+                break
+            if not self.team.care(st):
+                time.sleep(0.3)
+        self.team.follow()
 
     def wait_pk(self):
         """After leaving from a hostile player: stay home until --pk-wait has passed."""

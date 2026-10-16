@@ -304,8 +304,10 @@ def test_hunt():
     with contextlib.redirect_stdout(buf):
         r = simrun.run_once(1, [], minutes=8)
     check("the run ends without a crash", r["outcome"] in ("done", "aborted"), f"{r['outcome']} {r['error']}")
-    check("it recalled in and out, killed and looted", r["recalls"] >= 2 and r["kills"] >= 1 and r["gold_looted"] > 0,
-          f"recalls {r['recalls']} kills {r['kills']} gold {r['gold_looted']}")
+    # survival is the batch numbers' business (docs/SIM.md), not this plumbing check: out by recall or by a death
+    check("it recalled in, killed and looted, and left (a recall out, or died trying)",
+          r["recalls"] >= 1 and r["kills"] >= 1 and r["gold_looted"] > 0 and (r["recalls"] >= 2 or r["deaths"] >= 1),
+          f"recalls {r['recalls']} deaths {r['deaths']} kills {r['kills']} gold {r['gold_looted']}")
     check("no war mode, attack, spell, menu pick or release", r["violations"] == [], str(r["violations"]))
     check("'All Guard Me' after arriving; vet supplies used", r["guard_commands"] >= 1 and r["vet_uses"] >= 1,
           f"guard {r['guard_commands']} vet {r['vet_uses']}")
@@ -1157,6 +1159,54 @@ def test_audit_mechanics():
           str([(c.name, c.spec["step_s"], c.spec["swing_s"]) for c in copies]))
 
 
+def test_walk_in():
+    print("== --enter-via: the pets on 'All Follow Me' the whole way in; a slow pet stops the walk until it comes ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    # live 22:20:56: "All Guard Me" at the Maus Near 2 landing set the pets fighting there and Logan walked the
+    # 75 steps to the first teleporter alone. A gravebug at a quarter of Logan's pace stands in for a pet held back.
+    w = world_with([], start=(5626, 688))
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.spec = {**gb.spec, "step_s": 0.8}
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, ["--no-songs"], 10)
+                                             + ["--memory", db, "--seed", "1"])
+    first = tuple(w.sc["runner"]["enter_via"][0])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    lag, err = [], None
+    run_until = clock.on_advance
+
+    def advance(now):
+        run_until(now)
+        lag.append(sim_cheb(gb.pos, w.player.pos))
+    clock.on_advance = advance
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            g0 = w.metrics["guard_commands"]
+            try:
+                loop.walk_in([first])
+            except Exception as e:  # noqa: BLE001
+                err = e
+    finally:
+        clock.on_advance = run_until
+        store.close()
+        simclock.uninstall(patched)
+    check("through the first teleporter, no abort", err is None and sim_cheb(w.player.pos, first) > 3,
+          f"{err} at {w.player.pos}")
+    check("...no 'All Guard Me' on the way", w.metrics["guard_commands"] == g0, str(w.metrics["guard_commands"] - g0))
+    check("...both pets came through with us", all(sim_cheb(p.pos, w.player.pos) <= tamer.FOLLOW_R + 1 for p in w.pets()),
+          str([(p.name, p.pos) for p in w.pets()]))
+    check("...the slow one never more than a few tiles past the lag limit, the walk waiting for it",
+          lag and max(lag) <= loop_hunt.WALK_IN_LAG_R + 3 and "waiting for the pets" in buf.getvalue(),
+          f"max {max(lag) if lag else None}")
+
 
 def main():
     if pathfind.Walkers().get(0) is None:
@@ -1169,7 +1219,7 @@ def main():
               test_heal_in_place,
               test_songs,
               test_pull_budget, test_hold_first_sight, test_rope,
-              test_rest_hurt_pet):
+              test_rest_hurt_pet, test_walk_in):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0
