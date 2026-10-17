@@ -1920,6 +1920,15 @@ Souls"; docs/HUNT_LOOP.md "Soul jars"). Decisions:
   sighting, 43 ms after it comes into view. Per session in the proxy (each character has its own spirit), once per
   field session, a chime unlike the wail. Rejected: matching the name in the world model's mobiles on every packet
   (the label event already carries it; the mobiles are scanned only when the name arrives with the spirit in view).
+- *The reaper heatmap shows rates per hour watched, not counts* (user request, the same evening: "map the reaper
+  spawns ... a reaper spawn heatmap"; docs/VISUALIZER.md §2.17). We only see what comes within 18 tiles of us, so
+  raw counts would map our own route. The map divides by our dwell time near each cell, from the `step` events
+  the store already has. A spawn is a reaper first seen inside the view (≤ 14 tiles), not one walking in at its
+  edge. Both instances share one frame, the Hard island being the Normal one shifted (874, −32). A cell pools its
+  8 neighbours, because one run puts a spawn or two in a cell.
+  - Rejected: corpse positions alone. They are 3–4 times as many, but most are reapers that died out of view.
+  - Rejected: a new store table. Proxy events reuse the event log and its `ev, t` index.
+  - Rejected: backfilling by `memory.py ingest`. It only replays captures not yet in the store.
 
 ## Risks
 

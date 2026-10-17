@@ -3472,6 +3472,30 @@ share and Logan's first run: `ctl know search "Field of Souls" --tag fos`. Code:
   store. `Mover.step` then gave up after 40 gate polls (200 s): "ABORTED: walk gated too long", with Logan in the
   Mausoleum. Now a walk waits out a closed gate like `Link.act` does, logging the close and the reopening once.
 
+## Field of Souls: the field map (reaper spawns, 2026-10-17)
+
+Code: `harness/fos_field.py`. The viz overlay: docs/VISUALIZER.md §2.17. User: "map the reaper spawns".
+- **The field is one island, two instances.** Normal: x 6200–6395, y 600–803 (map0); its entry at (6314, 783).
+  Hard: the same island shifted by (+874, −32), entry at (7192, 747). All 2,350 land tiles sampled on a 3-tile grid
+  over the island are equal at that shift; the neighbouring shifts match ≤ 20 %. So both runs map onto one frame.
+- **Reapers look like players.** Bodies 400/401 (players and eerie spirits too); hayman 400, roaming terror 63,
+  roaming nightmare 780. Only the click label ("a reaper of souls") tells them apart. The stock client clicks each
+  mobile on sight, so the label's moment is the sighting.
+- **First-sight distances** (102 reapers, both runs): 63 exactly 18 tiles off (they walked into the view's edge),
+  18 at 15–17, 21 at ≤ 14 = appeared inside the view = spawns (`SPAWN_R` 14). None of the 21 came in the first
+  3 s after a jump of ours (entering fills the whole view at once, `ARRIVAL_S`).
+- **Corpses:** ~190 field-monster corpses came into view per run (172 and 173 reapers), but only 27 and 33
+  reapers died *in view* (0xAF prunes the mobile as dead, its 0xDEAD comes ≤ 2 s later). The rest died elsewhere
+  and their corpse came into view later. Only in-view deaths count on the map (they match the time watched).
+- **What the proxy records** (since 2026-10-17 evening; proxy events, so in the store): `fos_session` at the
+  spirit's naming, `fos_mob` per field monster first labelled (with `dist` and `spawn`), `fos_corpse` per corpse
+  (with `in_view`). `python harness/fos_field.py backfill` replays the captures of field sessions without them
+  (events seq ≥ 1,000,000,000 so they never collide with a live session's). It was run for 20261017_155426 and
+  _172358: 70 + 68 `fos_mob`, 191 + 189 `fos_corpse`. `python harness/fos_field.py map` prints the totals.
+- **What two runs show** (30 min watched): 21 spawns and 60 in-view deaths, too few for spawn points. The
+  densest so far: the east shore around (6370, 660) (Hard 7244, 628), 3 spawns in ~1.5 min watched. Deaths are
+  densest at (6294, 710) (Hard 7168, 678) and on the east shore. Each run adds ~10 spawns and ~30 deaths.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

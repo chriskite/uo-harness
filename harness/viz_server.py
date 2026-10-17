@@ -52,6 +52,8 @@ live only, replay ignores it; without one the proxy serves its only session or e
                       UTC for the per-day split, default the server's local offset), cached 2 s
   GET  /api/jobs/plan  {plan, store}: the lumber optimizer's plan (jobs.lumber_plan, all
                       history), recomputed once a minute; the Jobs page loads it on its own
+  GET  /api/fos/reapers  the Field of Souls reaper heatmap (fos_field.reaper_map: field geometry,
+                      per-cell time watched / spawns / in-view deaths, spawn points), cached 30 s
   GET  /api/overseer?after_chat=N&after_juncture=M[&char=0xS]  {chat, junctures, open, open_ids,
                       heartbeat}: rows with id above the cursors (the newest 200 when 0),
                       the open-juncture count and ids, the overseer's last heartbeat; char
@@ -192,6 +194,7 @@ class OverseerDB:
 
     JOBS_CACHE_S = 2.0
     PLAN_CACHE_S = 60          # the plan's draws are seeded by the minute (jobs.lumber_plan)
+    FOS_CACHE_S = 30.0         # the reaper map changes only while someone is in the Field of Souls
     PAGE = 200
 
     def __init__(self, path: str):
@@ -202,6 +205,7 @@ class OverseerDB:
         self.plan_lock = threading.Lock()
         self.plan_mem = None
         self.plan_cache = None     # (minute, body): ~3 s to compute on the 2026-10-05 store
+        self.fos_cache = None      # (monotonic, body) of fos_reapers
 
     def _open(self, create: bool):
         if self.mem is None and (create or os.path.exists(self.path)):
@@ -332,6 +336,20 @@ class OverseerDB:
             if view is None:
                 return {"spot": None, "store": True, "error": f"no map files for facet {spot.get('facet') or 0}"}
             return {**view, "store": True}
+
+    def fos_reapers(self) -> bytes:
+        """fos_field.reaper_map over the store (the Field of Souls reaper heatmap, docs/VISUALIZER.md §2.17),
+        cached FOS_CACHE_S; empty without a store."""
+        import fos_field
+        with self.lock:
+            now = time.monotonic()
+            if self.fos_cache is not None and now - self.fos_cache[0] < self.FOS_CACHE_S:
+                return self.fos_cache[1]
+            mem = self._open(False)
+            out = fos_field.reaper_map(mem.con) if mem is not None else {"cells": [], "spawns": [], "runs": 0}
+            body = json.dumps({**out, "store": mem is not None}).encode()
+            self.fos_cache = (now, body)
+            return body
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -560,6 +578,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, self.server.overseer.plan())
         elif url.path == "/api/lumber/grove":
             self._grove(parse_qs(url.query))
+        elif url.path == "/api/fos/reapers":
+            self._send(200, self.server.overseer.fos_reapers())
         elif url.path == "/api/overseer":
             self._overseer(parse_qs(url.query))
         elif url.path == "/api/captcha":

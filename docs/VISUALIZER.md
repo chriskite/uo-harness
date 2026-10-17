@@ -155,6 +155,7 @@ channels.
 | `GET /api/jobs?job=lumber[&since=T][&until=T][&tz=M]` | job analytics over [since, until) from the memory store (`harness/jobs.py`, §2.4), cached 2 s |
 | `GET /api/jobs/plan` | the lumber optimizer's plan over all history, recomputed once a minute on its own connection and lock (§2.4) |
 | `GET /api/lumber/grove?spot=ID` or `?facet=F&x=X&y=Y` | a lumber spot's area and its trees with their harvest-memory states (`lumber_opt.grove_view`, §2.12); by position: the spot whose area holds the tile, else `spot` null; 400 without either |
+| `GET /api/fos/reapers` | the Field of Souls reaper heatmap (`fos_field.reaper_map`, §2.17): `{box, cell, view_r, spawn_r, instances: [{name, offset}], runs, watched_s, cells: [[ix, iy, watched_view_s, watched_spawn_s, deaths, spawns]], spawns: [[x, y]], store}` in the field frame; cached 30 s |
 | `GET /api/overseer?after_chat=N&after_juncture=M[&char=0xS]` | overseer chat rows and junctures above the cursors, open junctures, heartbeat (§2.4); `char` (a serial) scopes them to one character (§2.14) |
 | `POST /api/chat` | `{"text": T[, "char": "0xS"]}` → a `user` chat row for the overseer (of that character) (§2.4, §2.14) |
 | `GET /api/captcha`, `POST /api/captcha` | who answers the harvest captcha, `{"mode": "human"\|"auto"}` (§2.2a) |
@@ -968,6 +969,38 @@ shows while a hunt run is going: the current intent has `loop: "hunt"` and a kin
   kill/loot events implied: 70,332 gold/hr over 5:00 (the visit's row: 72,296); 60-400 dmg/s
   dealt and 0.5-12 taken during fights, 0 between them; after a reload gold/hr showed at once
   over 1:31 from the intent history.
+
+### 2.17 Field of Souls reaper heatmap (added 2026-10-17, user request)
+
+User: "map the reaper spawns. It would be cool if that could be an overlay on the map in the viz UI, like
+reaper spawn heatmap". The field, its two instances and what the proxy records: docs/NOTES.md "Field of Souls:
+the field map" and `harness/fos_field.py`.
+- **Button:** `reapers` among the map buttons while the true position is within 40 tiles of a field
+  instance (facet 0), on by default (`localStorage["viz.mapReapers"]`).
+- **Cells:** the island in 4 x 4-tile cells, drawn on both instances (the Hard island is the Normal one shifted
+  by (874, -32), so all runs share one frame). Each cell is coloured by its area's rate: the spawns or deaths in
+  it and its 8 neighbours (12 x 12 tiles) per hour of their mean time watched. Dark red is low, yellow is
+  the 95th percentile of the rates or more. Faint grey: watched for at least a minute, none seen. Blank:
+  watched for less than a minute (no rate).
+- **Modes** (legend buttons, `viz.mapReaperMode`):
+  - `spawns/h`: reapers that appeared within 14 tiles of us. They didn't walk in at the view's edge (18), and
+    we hadn't just arrived. The spawn points are green rings.
+  - `deaths/h`: reapers that died in our view.
+  - "Watched" is our dwell time within 14 tiles of the cell (spawns) or 18 tiles (deaths), from our `step`
+    events during each field session. Raw counts would only show where we went.
+- **Hover:** the area's spawns and deaths with the minutes watched and the rates.
+- **Source:** `GET /api/fos/reapers` (§2.1). It is loaded once on mount for the geometry, then polled every
+  60 s while the overlay shows in a field. The proxy writes the data as you play (proxy events `fos_session`,
+  `fos_mob`, `fos_corpse`). Runs from before the proxy recorded them come in with
+  `python harness/fos_field.py backfill`.
+- `viz/src/reapers.ts` is the pure model (bun tests); `MapGrid.tsx` draws it. Python: `harness/test_fos_field.py`.
+- Verified in headless Chromium against a second viz server (port 8091) replaying 20261017_172358, paused
+  at 7140,613 in the Hard field, with the two runs backfilled (2 runs, 30 min watched, 21 spawns, 60 in-view
+  deaths):
+  - both modes drew over the island;
+  - hovering (7194,655) read "reapers around 6320,687 (hard 7194,655), 12x12 tiles: 0 spawns in 0.4 min · 0
+    deaths in 0.8 min";
+  - no console errors.
 
 ## 3. Parity principle
 

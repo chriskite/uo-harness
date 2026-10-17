@@ -6,6 +6,19 @@ import { cellOutline, fetchGrove, groveQuery, treeAt, treeText, type GroveRespon
 import { runningLumber } from "../lumberjob.ts";
 import { MultiFootprints, houseAt, houseOf, type FootprintTile, type House } from "../multis.ts";
 import { hex } from "../serial.ts";
+import {
+  NEAR_FIELD,
+  POOL,
+  REAPER_POLL_MS,
+  cellText,
+  fetchReapers,
+  heatCells,
+  heatColor,
+  instanceAt,
+  type HeatCell,
+  type ReaperMap,
+  type ReaperMode,
+} from "../reapers.ts";
 import { screenDeltaToWorld, toScreen, toWorld, worldBounds, type Projection } from "../projection.ts";
 import { hpColor, hpFraction, intentGoal } from "../intent.ts";
 import { vizStore, type VizSnapshot } from "../store.ts";
@@ -20,6 +33,8 @@ const PROJECTION_KEY = "viz.mapProjection";
 const TERRAIN_KEY = "viz.mapTerrain";
 const GROVE_KEY = "viz.mapGrove";
 const GROVE_POLL_MS = 15_000;
+const REAPERS_KEY = "viz.mapReapers";
+const REAPER_MODE_KEY = "viz.mapReaperMode";
 const NO_LIVE: LiveWalk = { steps: [], blocked: [] };
 
 /** Grove layer tree colours per harvest-memory state (legend: .lg-tree-*). */
@@ -51,6 +66,17 @@ const GOAL_COLORS: Record<string, { ring: string; line: string; text: string }> 
 };
 const DEFAULT_GOAL_COLOR = { ring: "#60a5fa", line: "rgba(96, 165, 250, 0.8)", text: "#93c5fd" };
 
+/** The Field of Souls reaper heatmap as drawn: its cells, the instances' offsets and (spawns mode) the spawns. */
+interface ReaperLayer {
+  map: ReaperMap;
+  mode: ReaperMode;
+  cells: HeatCell[];
+  /** The scale's top, per hour. */
+  top: number;
+  offsets: [number, number][];
+  spawns: [number, number][];
+}
+
 interface Scene {
   truth: Tile | null;
   facing: number | null;
@@ -75,9 +101,11 @@ interface Scene {
   grove: GroveResponse | null;
   /** On facet 0, the only one with a facet picture and walk memory; elsewhere (rental rooms: facet 3) the map is blank. */
   mainFacet: boolean;
+  /** The Field of Souls reaper heatmap (/api/fos/reapers) while shown in or near the field, else null. */
+  reapers: ReaperLayer | null;
 }
 
-function buildScene(viz: VizSnapshot, layers: WalkLayer[], grove: GroveResponse | null): Scene {
+function buildScene(viz: VizSnapshot, layers: WalkLayer[], grove: GroveResponse | null, reapers: ReaperLayer | null): Scene {
   const st = viz.state;
   const world = st?.world;
   const self = world?.self;
@@ -139,6 +167,7 @@ function buildScene(viz: VizSnapshot, layers: WalkLayer[], grove: GroveResponse 
     goalKind: st?.intent && intentGoal(st.intent, world) ? (st.intent.kind ?? "target") : null,
     grove: grove?.spot && (grove.spot.facet ?? 0) === (self?.map ?? 0) ? grove : null,
     mainFacet: (self?.map ?? 0) === 0,
+    reapers,
   };
 }
 
@@ -234,7 +263,47 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
   const memLayer = useMemo(() => buildWalkLayer(mainFacet ? viz.walkmem : null, NO_LIVE), [mainFacet, viz.walkmem]);
   const liveLayer = useMemo(() => buildWalkLayer(null, mainFacet ? viz.agg.live : NO_LIVE), [mainFacet, viz.agg.live]);
   const layers = useMemo(() => [memLayer, liveLayer], [memLayer, liveLayer]);
-  const scene = useMemo(() => buildScene(viz, layers, groveOn ? grove : null), [viz, layers, groveOn, grove]);
+
+  // Field of Souls reaper heatmap (§2.17): loaded once for the field's geometry, then polled while shown there.
+  const [reaperMap, setReaperMap] = useState<ReaperMap | null>(null);
+  const [reaperError, setReaperError] = useState<string | null>(null);
+  const [reapersOn, setReapersOn] = useState(localStorage.getItem(REAPERS_KEY) !== "off");
+  const [reaperMode, setReaperMode] = useState<ReaperMode>(localStorage.getItem(REAPER_MODE_KEY) === "deaths" ? "deaths" : "spawns");
+  const truthNow = truePosition(viz.state?.movement, self);
+  const inField = mainFacet && truthNow !== null && instanceAt(reaperMap, truthNow[0], truthNow[1], NEAR_FIELD) !== null;
+  useEffect(() => {
+    let live = true;
+    const load = () =>
+      fetchReapers().then(
+        (m) => {
+          if (!live) return;
+          setReaperMap(m);
+          setReaperError(null);
+        },
+        (e: unknown) => live && setReaperError(String(e)),
+      );
+    void load();
+    const t = reapersOn && inField ? setInterval(load, REAPER_POLL_MS) : undefined;
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
+  }, [reapersOn, inField]);
+  const reaperLayer = useMemo<ReaperLayer | null>(() => {
+    if (!reapersOn || !inField || !reaperMap) return null;
+    return {
+      map: reaperMap,
+      mode: reaperMode,
+      ...heatCells(reaperMap, reaperMode),
+      offsets: (reaperMap.instances ?? []).map((i) => i.offset),
+      spawns: reaperMode === "spawns" ? reaperMap.spawns : [],
+    };
+  }, [reapersOn, inField, reaperMap, reaperMode]);
+
+  const scene = useMemo(
+    () => buildScene(viz, layers, groveOn ? grove : null, reaperLayer),
+    [viz, layers, groveOn, grove, reaperLayer],
+  );
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
 
@@ -357,6 +426,36 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
           ctx.closePath();
         }
         ctx.fill();
+      }
+    }
+
+    // Field of Souls reaper heatmap: per cell, spawns or deaths per hour we watched it, drawn on every
+    // instance of the island (one shared field frame); the spawn points as green rings.
+    const rp = s.reapers;
+    if (rp) {
+      for (const [dx, dy] of rp.offsets) {
+        for (const c of rp.cells) {
+          const col = heatColor(c);
+          const x = c.x + dx;
+          const y = c.y + dy;
+          if (!col || x + c.size - 1 < x0 || x > x1 || y + c.size - 1 < y0 || y > y1) continue;
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.moveTo(...P(x, y));
+          ctx.lineTo(...P(x + c.size, y));
+          ctx.lineTo(...P(x + c.size, y + c.size));
+          ctx.lineTo(...P(x, y + c.size));
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.strokeStyle = "#4ade80";
+        ctx.lineWidth = Math.max(1.5, z / 10);
+        for (const [sx, sy] of rp.spawns) {
+          if (!visible(sx + dx, sy + dy)) continue;
+          ctx.beginPath();
+          ctx.arc(...C(sx + dx, sy + dy), Math.max(3, z * 0.35), 0, Math.PI * 2);
+          ctx.stroke();
+        }
       }
     }
 
@@ -611,11 +710,13 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
       const [hx, hy] = toWorld(v.proj, v, v.hover.mx, v.hover.my);
       hud.push(`cursor ${Math.floor(hx)},${Math.floor(hy)}`);
     }
-    let treeLine: string | null = null;
-    if (v.hover && s.grove) {
+    const extra: string[] = [];
+    if (v.hover && (s.grove || s.reapers)) {
       const [hx, hy] = toWorld(v.proj, v, v.hover.mx, v.hover.my);
-      const t = treeAt(s.grove, Math.floor(hx), Math.floor(hy));
-      if (t) treeLine = treeText(t, Date.now() / 1000);
+      const t = s.grove ? treeAt(s.grove, Math.floor(hx), Math.floor(hy)) : null;
+      if (t) extra.push(treeText(t, Date.now() / 1000));
+      const r = s.reapers ? cellText(s.reapers.map, Math.floor(hx), Math.floor(hy)) : null;
+      if (r) extra.push(r);
     }
     if (hovered) {
       const m = s.mobiles.find((mm) => mm.serial === hovered);
@@ -623,17 +724,13 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
       hud.push(m ? `${m.caption} ${hovered}` : h ? `house (multi ${hex(h.id, 4)}) ${hovered}` : hovered);
     }
     ctx.font = "12px ui-monospace, Consolas, monospace";
-    ctx.fillStyle = "rgba(12, 8, 5, 0.8)";
-    const text = hud.join("  ·  ");
-    ctx.fillRect(6, 6, ctx.measureText(text).width + 12, 20);
-    ctx.fillStyle = "#e8dcc0";
-    ctx.fillText(text, 12, 20);
-    if (treeLine) {
+    extra.unshift(hud.join("  ·  "));
+    extra.forEach((line, i) => {
       ctx.fillStyle = "rgba(12, 8, 5, 0.8)";
-      ctx.fillRect(6, 28, ctx.measureText(treeLine).width + 12, 20);
+      ctx.fillRect(6, 6 + 22 * i, ctx.measureText(line).width + 12, 20);
       ctx.fillStyle = "#e8dcc0";
-      ctx.fillText(treeLine, 12, 42);
-    }
+      ctx.fillText(line, 12, 20 + 22 * i);
+    });
   }, [footprint]);
 
   useEffect(() => {
@@ -857,6 +954,19 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
             grove
           </button>
         )}
+        {inField && (
+          <button
+            type="button"
+            className={reapersOn ? "active" : ""}
+            title="Field of Souls: where reapers spawn or die per hour we watched each part of the field (all our runs, both instances)"
+            onClick={() => {
+              localStorage.setItem(REAPERS_KEY, reapersOn ? "off" : "on");
+              setReapersOn(!reapersOn);
+            }}
+          >
+            reapers
+          </button>
+        )}
         {onSwap && (
           <button type="button" title="swap the map and the live view" onClick={onSwap}>
             ⇄ swap
@@ -873,6 +983,62 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
         <span className="lg lg-house" /> house
       </div>
       {lumber && groveOn && <GroveLegend grove={scene.grove} error={groveError} loaded={grove !== null} />}
+      {inField && reapersOn && (
+        <ReaperLegend
+          layer={scene.reapers}
+          error={reaperError}
+          onMode={(m) => {
+            localStorage.setItem(REAPER_MODE_KEY, m);
+            setReaperMode(m);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** The reaper heatmap's mode switch, colour scale and how much it rests on. */
+function ReaperLegend({ layer, error, onMode }: { layer: ReaperLayer | null; error: string | null; onMode: (m: ReaperMode) => void }) {
+  if (!layer) {
+    return (
+      <div className="map-legend reaper-legend">
+        <span className="dim">reapers: {error ?? "loading"}</span>
+      </div>
+    );
+  }
+  const { map, mode, top } = layer;
+  const total = map.cells.reduce((n, row) => n + (mode === "spawns" ? row[5] : row[4]), 0);
+  const r = mode === "spawns" ? map.spawn_r : map.view_r;
+  const span = (2 * POOL + 1) * (map.cell ?? 0);
+  return (
+    <div className="map-legend reaper-legend">
+      <b>reapers</b>
+      {(["spawns", "deaths"] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          className={m === mode ? "active" : ""}
+          title={
+            m === "spawns"
+              ? `reapers that appeared within ${map.spawn_r} tiles of us (not walking in at the view's edge), per hour we watched each ${span}x${span}-tile area`
+              : `reapers that died within our view (${map.view_r} tiles), per hour we watched each ${span}x${span}-tile area`
+          }
+          onClick={() => onMode(m)}
+        >
+          {m}/h
+        </button>
+      ))}
+      <span className="lg lg-heat" /> 0–{top.toFixed(top < 10 ? 1 : 0)}+/h
+      <span className="lg lg-heat-none" /> watched, none
+      {mode === "spawns" && (
+        <>
+          <span className="lg lg-spawn" /> spawn
+        </>
+      )}
+      <span className="dim">
+        · {total} {mode} over {map.runs} {map.runs === 1 ? "run" : "runs"}, {((map.watched_s ?? 0) / 60).toFixed(0)} min watched{" "}
+        (within {r} tiles); per {span}x{span}-tile area; blank: watched under a minute
+      </span>
     </div>
   );
 }

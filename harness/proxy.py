@@ -54,6 +54,8 @@ never sound), each on its own thread:
   plays alerts.eerie (a ghostly wail) and emits proxy event `eerie_corpse` {serial, map, x, y, z};
 - the first time this session's name-match eerie spirit comes into view in the Field of
   Souls it plays alerts.spirit (a rising chime) and emits `spirit_seen` {serial, name, x, y, z}.
+The field map's record (fos_field.FieldLog, per live session, silent; the viz's reaper heatmap):
+proxy events `fos_session`, `fos_mob` and `fos_corpse` (fos_field.py docstring).
 
 Usage:
   python proxy.py [--listen-host 127.0.0.1] [--listen-port 2593]
@@ -79,6 +81,7 @@ import charsel
 import cuo_profile
 from memory import MemoryWriter
 import pathfind
+import fos_field
 import soul_jar
 from world.runtime import WorldRuntime, C2S, S2C
 
@@ -586,6 +589,7 @@ class SessionTap:
         self.profile_hue = None
         self.eerie = None                # live sessions: soul_jar.EerieSeen shared by all (eerie corpse alarm)
         self.spirit = None               # live sessions: this character's soul_jar.SpiritWatch (spirit alarm)
+        self.field = None                # live sessions: this character's fos_field.FieldLog (field map record)
 
     def _log(self, **kw):
         kw["t"] = round(self.wall(), 3)
@@ -706,15 +710,16 @@ class SessionTap:
         new = self.world.drain_events()
         if new:
             self._append("world", new, t)
-            if self.eerie is not None or self.spirit is not None:
+            if self.eerie is not None or self.spirit is not None or self.field is not None:
                 try:
-                    self._alarms(new, t)
+                    self._field_of_souls(new, t)
                 except Exception as e:  # noqa: BLE001 - nor an alarm bug
                     self._log(ev="alarm_error", note=f"{type(e).__name__}: {e}")
 
-    def _alarms(self, new, t):
+    def _field_of_souls(self, new, t):
         """Field of Souls: an eerie corpse first seen (soul_jar.EerieSeen): proxy event `eerie_corpse` and the
-        wail; our name-match spirit first in view (soul_jar.SpiritWatch): `spirit_seen` and the chime."""
+        wail; our name-match spirit first in view (soul_jar.SpiritWatch): `spirit_seen` and the chime; the field
+        map's record (fos_field.FieldLog): `fos_session` / `fos_mob` / `fos_corpse`."""
         st = self.world.state
         who = st.self.name or f"session {self.tag}"
         for serial in self.eerie.new(new) if self.eerie is not None else ():
@@ -729,6 +734,8 @@ class SessionTap:
             self._proxy_event("spirit_seen", serial=f"0x{serial:08X}", name=self.spirit.name, x=m.x, y=m.y, z=m.z)
             print(f"[proxy] {who}: our spirit {self.spirit.name} (0x{serial:08X}) in view at {m.x},{m.y}", flush=True)
             alerts.spirit()
+        for e in self.field.feed(new, t, st) if self.field is not None else ():
+            self._proxy_event(e.pop("ev"), **e)
 
     def diagnostics(self) -> dict:
         """World-model coverage counters (meta-information, not world state)."""
@@ -1147,6 +1154,7 @@ async def handle_client(client_reader, client_writer, args):
         tap.sink = lambda env, facet: args.memory_writer.record(tag, env, facet)
     tap.eerie = args.eerie
     tap.spirit = soul_jar.SpiritWatch()
+    tap.field = fos_field.FieldLog()
     print(f"[proxy] {peer} connected -> {upstream_host}:{args.upstream_port} (log session_{tag}.jsonl)")
 
     timer = asyncio.create_task(_movement_timer(tap, client_writer))
