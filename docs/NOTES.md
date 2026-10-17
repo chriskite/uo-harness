@@ -3259,6 +3259,16 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
   sighting. [INFERENCE] four reds together can't be outrun on a 70-step way out; but the escape went toward
   them. Open: plan the flight's route (and the rope's landing) away from the reds' side, or an escape that
   doesn't need the gate (no recall works there but beside a gold moongate).
+- **2026-10-17 13:35 (hunt-20261017-133459-6175): dead to the red Tugarin zmey at 13:40:58**, 8 s after the sighting
+  (18 tiles; "Legendary Serial Killer", [Zmeishche Tugarishche, RUS], a tamer: "ALL KILL" to a primordial whelp,
+  an earth elemental and a daemon). The store's `events` hold the full lines (the capture keeps 64 bytes a
+  packet). 13:40:51.8 "All Follow Me"; 13:40:52.1 "Tugarin zmey is attacking you!"; the rope's target answered
+  13:40:52.9 "That location is blocked." (501942: a summon on the tile [INFERENCE]) but the runner waited out the
+  1.5 s landing wait, so the first step came at 13:40:54.4; Explosions (Corp Por) -27, -31; 13:40:56.1 an **area
+  Peacemaking on the way out** (the summons in war mode within 3), "You fail to pacify", 1.5 s standing; -32;
+  dead after 2 steps in 7 s. The user: "we died to a red again while we just stood still". Since then: no bard
+  skill while walking out from a hostile player (`HuntLoop.pk_flight`), the rope's landing wait ends on the
+  server's refusal (`ROPE_REFUSED`), and the rope never aims at a tile a mobile stands on.
 
 ## Network observations
 

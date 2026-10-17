@@ -151,6 +151,7 @@ FINISH_CHECK_S = 2.0          # how often the run looks for a `ctl stop --after-
 ROPE_COOLDOWN_S = 5.3         # knowledge #13325: 5 s from the use (unless PvP flagged), a margin
 ROPE_RETRY_S = 2.0            # after a try that found no landing or got no cursor
 ROPE_WAIT_S = 1.5             # live: the cursor 0.1 s after "[Rope", the jump ~1 s after the answer
+ROPE_REFUSED = (501942, 500237, 500446)   # "That location is blocked." (live 13:40:52.9), "Target cannot be seen.", too far
 ROPE_LEGS_MAX = 30
 SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is attacking us
 CASTER_REACH = 10            # a caster in war mode this close while we take damage is attacking us (SPELL_RANGE)
@@ -244,6 +245,7 @@ class HuntLoop:
         self.refused_from = []                   # tiles where the recall home was refused (this run)
         self.fleeing = False                     # recall mode: leaving; the threat checks are off
         self.walking_out = False                 # on the walk to --leave-gate: heal potions between steps
+        self.pk_flight = False                   # walking out from a hostile player: no bard skill on the way
         self.rope_next = 0.0                     # --rope: the next rope jump not before
         self._drinking = False
         self._looking = False                    # in look(): a pause inside the threat checks sleeps plainly
@@ -345,8 +347,10 @@ class HuntLoop:
         me = st["world"]["self"]
         self._drinking = True
         try:
-            if self.team is not None and self.team.area_peace(st, walking_out=True):
+            if self.team is not None and not self.pk_flight and self.team.area_peace(st, walking_out=True):
                 return                    # through monsters on the way out: a 2 s peace on them (Team.area_peace)
+            #                               (not from a red: live 20261017_133304 13:40:56 it stopped 1.5 s to play
+            #                               while Tugarin zmey's Explosions landed, -32 more, dead 2 s later)
             if me.get("hits") is None or self.frac(me) >= self.args.heal_at:
                 return
             if self.potions.ready(time.monotonic()) and healing.heal_potions(st["world"], self.me(st)):
@@ -1414,6 +1418,7 @@ class HuntLoop:
         if not path or sight is None:
             return False
         pos = tuple(self.pos(st)[:3])
+        occupied = self.mover.occupied(st)      # live 13:40:52.9 "That location is blocked." (a summon on it)
         best, cur = None, pos
         for t in path[1:]:
             if cheb(pos, t) > ROPE_R:
@@ -1421,7 +1426,7 @@ class HuntLoop:
             cur = walk.can_walk(cur[0], cur[1], cur[2], nav.direction(cur[:2], t[:2]))
             if cur is None or cur[:2] != tuple(t[:2]):
                 break
-            if cheb(pos, cur) >= 4 and sight.can_see(pos, cur):
+            if cheb(pos, cur) >= 4 and sight.can_see(pos, cur) and cur[:2] not in occupied:
                 best = cur
         if best is None:
             return False
@@ -1434,7 +1439,11 @@ class HuntLoop:
         cur = self.link.state()["world"]["target"]
         self.human.wait("aim")
         self.link.act(actions.target_xyz(cur["cursor_id"], best[0], best[1], best[2], 0, cur.get("cursor_type") or 0))
-        landed = self.link.wait(lambda s: cheb(s["movement"]["pos"], best) <= 1, ROPE_WAIT_S) is not None
+        mark = len(self.link.events)
+        landed = self.link.wait(lambda s: cheb(s["movement"]["pos"], best) <= 1
+                                or any(e.get("ev") == "cliloc" and e.get("cliloc") in ROPE_REFUSED
+                                       for e in self.link.events[mark:]), ROPE_WAIT_S) is not None \
+            and cheb(self.pos(self.link.state()), best) <= 1
         self.rope_next = time.monotonic() + ROPE_COOLDOWN_S
         self.count("ropes" if landed else "rope_misses")
         log(f"rope to {best[:2]} ({cheb(pos, best)} tiles): " + ("landed" if landed else "no jump"))
@@ -1453,7 +1462,7 @@ class HuntLoop:
         urgent = severity != "info"
         flee = severity == "urgent"
         self.doing("leave", f"Walking to the moongate at {gate[0]},{gate[1]}", gate)
-        self.walking_out = True
+        self.walking_out, self.pk_flight = True, flee
         try:
             if self.team is not None:
                 if flee:
@@ -1506,7 +1515,7 @@ class HuntLoop:
             return {"ok": False, "from": list(self.pos(self.link.state())[:2]), "error": str(e),
                     "dest": self.args.gate_dest}
         finally:
-            self.walking_out = False
+            self.walking_out = self.pk_flight = False
 
     def leave_by_recall(self, st, why, severity):
         """Leave by recalling to --leave-recall's default rune (recall_home), at once and
