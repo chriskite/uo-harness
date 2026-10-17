@@ -3248,6 +3248,17 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
     (`pathfind.plan` with the move denied: no route), so every waypoint came out "no route … skipping it for 600 s"
     until the user moved him. Since then a refusal on a map-walkable step expires after `DENY_RETRY_S` (30 s), and a
     plan with no route tries those steps again at once (test_mover `test_shove_denied`).
+- **2026-10-17 11:43 (hunt-20261017-114313-9ad6)**, the first run on 4e7091e: the songs played from the
+  tambourine in the user's locked wooden box (no instrument prompt). 30 kills. 12:01:06 a leave at 6/100 hits was
+  called off on the way out (a potion to 100). **Dead to a group of reds at 12:06:03.** 12:05:52 "LEAVING by the
+  moongate: red player 0x20df0e in view at 18 tiles": NewbieMurderer ("Legendary Alchemist", [MILK]) at (5226, 653),
+  Logan at (5244, 671). "All Follow Me", then the rope 9 tiles **north** to (5243, 662), along the route to the
+  gate (70 steps from there: the map's way west runs along the north side), so nearer the red, not away. Within
+  2 s: "Copium is attacking you", "NewbieMurderer is attacking you", "Eatbrain …", "BerpziD …" (four players),
+  "Corp Por" (Explosion) from NewbieMurderer; -28, -24, -31, a potion (+29), -26, -21, dead in 11 s from the
+  sighting. [INFERENCE] four reds together can't be outrun on a 70-step way out; but the escape went toward
+  them. Open: plan the flight's route (and the rope's landing) away from the reds' side, or an escape that
+  doesn't need the gate (no recall works there but beside a gold moongate).
 
 ## Network observations
 
