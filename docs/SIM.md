@@ -595,6 +595,24 @@ test_hunt is back on seed 1. The 19:49 fight, 24 seeds: 1 death, Logan's lowest 
 death in 24, median 28.5, 371; within noise, so the hold stays at the range itself (the user: no holding for
 a monster that can't wake).
 
+**A pet holds while its target blinks (2026-10-17).** Live 20261017_110506 the gravebug moved 0-1 tiles in the
+1.6 s after 15 of 20 apparition "*phases*"; the simulator's pets went back to following Logan the moment their
+target vanished, so they came onto him and the landing hit both (a step off the tank could never work there).
+Now a pet whose target blinked (`blink_to` set; not a banshee's dematerialize, not on "All Follow Me") holds
+until it lands. The runner's step-off on the "*phases*" (`Team.blink_tiles`, HUNT_LOOP "Out of a Charge's
+reach"), the whole level, seeds 17-64, 8 minutes:
+
+| | deaths | of them at the gate on the way out | damage on Logan | from apparitions | kills |
+|---|---|---|---|---|---|
+| before both | 10 | 6 | 494 | 292 | 9.6 |
+| the step-off, old pets | 7 | 5 | 455 | 291 | 7.7 |
+| the pet hold, no step-off | 18 | 14 | 371 | 107 | 10.3 |
+| both | 17 | 14 | 351 | 70 | 11.6 |
+
+The step-off takes a third off the apparitions' share. The pet hold itself moved the deaths to the walk out at
+time up (14 of 48 dead between the fight and the crimson gate): more kills, deeper zones open [INFERENCE], and a
+long way out through the countess room. That walk is the open problem now, not the apparitions.
+
 ## Limits
 
 - The fight level is modelled whole, but the first two levels only along Logan's way in: his

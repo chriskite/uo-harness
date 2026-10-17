@@ -716,14 +716,16 @@ def cmd_stop(a, mem):
     tid = e["task_id"]
     if a.after_trip:
         # the graceful stop: the task ends itself at home (the lumber runner: LumberLoop.ending, like a break
-        # due: stop harvesting, home, convert, store, exit 0); task_done wakes `wait` when it has
-        if e.get("task") != "lumber":
-            raise CtlError(f"--after-trip is honoured by lumber runs only ({tid} is {e.get('task')}); plain stop")
+        # due: stop harvesting, home, convert, store, exit 0; the hunt runner: HuntLoop.finished, as at time up:
+        # the fights on us, the loot, out with the pets, home, exit 0); task_done wakes `wait` when it has
+        if e.get("task") not in ("lumber", "hunt"):
+            raise CtlError(f"--after-trip is honoured by lumber and hunt runs only ({tid} is {e.get('task')}); plain stop")
         tw.meta_set(mem, tw.finish_key(tid), json.dumps({"task_id": tid, "t": time.time()}))
         mem.chat_post("overseer", f"stop --after-trip {tid}", "action",
                       data={"cmd": "stop", "task_id": tid, "after_trip": True})
-        return {"ok": True, "task_id": tid, "after_trip": True,
-                "next": "the run ends its trip at home (convert, store) and exits 0: wait for its task_done"}
+        how = ("the run ends its trip at home (convert, store) and exits 0" if e.get("task") == "lumber" else
+               "the hunt finishes the fight on us and its loot, leaves the way it leaves at time up and exits 0 at home")
+        return {"ok": True, "task_id": tid, "after_trip": True, "next": f"{how}: wait for its task_done"}
     tw.meta_set(mem, tw.stop_key(tid), json.dumps({"task_id": tid, "t": time.time()}))
     mem.chat_post("overseer", f"stop {tid}", "action", data={"cmd": "stop", "task_id": tid})
     end = time.monotonic() + a.grace

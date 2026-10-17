@@ -1018,6 +1018,9 @@ class World:
             m.next_think = t + THINK_S
             self._pet_think(m)
         tgt = self.mobs.get(m.target) if m.target is not None else None
+        if tgt is not None and tgt.alive and tgt.hidden_until and tgt.blink_to is not None and m.mode != "follow":
+            return                               # its target blinked: it holds (live 20261017_110506: the gravebug
+            #                                      moved 0-1 tiles in the 1.6 s after 15 of 20 '*phases*')
         if tgt is not None and tgt.alive and not tgt.hidden_until and cheb(owner.pos, tgt.pos) <= m.spec.get("leash", 14):
             self._warm(m, True)
             self._pet_attack(m, tgt)

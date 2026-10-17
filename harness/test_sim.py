@@ -635,6 +635,41 @@ def test_area_first():
           and out[False][0][1] >= r, str(out))
 
 
+def test_blink_stepoff():
+    print("== an apparition phases beside the tank we stand next to: off it at once, before the landing ==")
+    import time
+    from agent_link import cheb
+    # live 20261017_110506 11:10:32: an apparition on the gravebug phased with Logan 1 from the gravebug, -40 at the
+    # landing (user: "when an apparition vanishes we know its going to pop out on the player/pet it was aggro'd on ...
+    # right now we just wait there to get hit for like -47"). Here the stand-off has just moved (its 2 s repeat gap).
+    w = world_with([{"key": "apparition", "at": [5205, 726, 0]}], seed=7, start=(5207, 726))
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.spec = {**m.spec, "step_s": 999.0}
+    loop, clock, store, patched = hurt_loop(w, 100)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")         # at (5206, 726): between us and it
+    m.target, m.threat = gb.serial, {gb.serial: 1e9}
+    m.cd = {"blink": w.t + 0.05}
+    loop.team.standoff_t = time.monotonic()
+    hurts = []
+    orig = w.hurt
+    w.hurt = lambda victim, amount, by, kind="melee", song_pets=True: (
+        hurts.append((victim.name, kind, round(cheb(victim.pos, gb.pos)))), orig(victim, amount, by, kind, song_pets))
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            for _ in range(40):
+                clock.advance(0.1)
+                loop.tick()
+                if any(k == "burst" for _, k, _ in hurts):
+                    break
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    bursts = [(n, d) for n, k, d in hurts if k == "burst"]
+    check("it landed on the gravebug with its area hit, and Logan was 3+ off it by then, unhurt",
+          bursts and all(n != "Logan Wolf" for n, _ in bursts) and cheb(w.player.pos, gb.pos) >= tamer.AREA_R["apparition"],
+          f"bursts {bursts} Logan {cheb(w.player.pos, gb.pos)} from the gravebug")
+
+
 def test_standoff_sight():
     print("== the stand-off never goes nearer an idle monster that would see us first: it stays ==")
     import aggro
@@ -1215,7 +1250,7 @@ def main():
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_instrument, test_standoff_sight, test_idle_pet,
-              test_area_peace, test_audit_mechanics,
+              test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
               test_songs,
               test_pull_budget, test_hold_first_sight, test_rope,

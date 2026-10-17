@@ -138,6 +138,7 @@ import moongate  # noqa: E402
 import threats  # noqa: E402
 import stationary  # noqa: E402
 import tamer  # noqa: E402
+import task_wrap  # noqa: E402
 from agent_link import (Abort, Link, Mover, bank_opened, cheb, containers_to_open, find_banker, log,  # noqa: E402
                         same_floor, serial_of)
 from errand_bank import GATING_WORDS  # noqa: E402
@@ -146,6 +147,7 @@ from memory import DEFAULT_DB, Memory  # noqa: E402
 
 ROPE_GRAPHIC = 0x14FA         # an adventurer's rope (a stack of 15 in Logan's pack, 20261014_173858)
 ROPE_R = 9                    # live jumps 7, 9, 10 tiles; an 11-tile target was refused: one short
+FINISH_CHECK_S = 2.0          # how often the run looks for a `ctl stop --after-trip` request (a meta read)
 ROPE_COOLDOWN_S = 5.3         # knowledge #13325: 5 s from the use (unless PvP flagged), a margin
 ROPE_RETRY_S = 2.0            # after a try that found no landing or got no cursor
 ROPE_WAIT_S = 1.5             # live: the cursor 0.1 s after "[Rope", the jump ~1 s after the answer
@@ -289,6 +291,8 @@ class HuntLoop:
         self.weapon = None           # the item on layer 1/2 at the start: kept in hand (rearm)
         self.cast_disarms = False    # a cast of ours put the weapon in the pack (seen this run)
         self.potion_wait_logged = False
+        self.finish_requested = False  # ctl stop --after-trip asked this run to end at home (finished)
+        self._finish_checked = 0.0     # monotonic: the last look at that request
         self.rearm_failed = None     # why the last re-equip couldn't be planned (logged once)
         self.fight_rec = None        # the engagement in progress: a `fight` job event when it ends
         self.patrolling = False      # a crawl patrol walk is under way (check_guards may stop it)
@@ -1851,7 +1855,21 @@ class HuntLoop:
         self.visit = None
 
     def finished(self) -> bool:
-        return bool(self.args.kills and self.totals["kills"] >= self.args.kills)
+        """--kills reached, or `ctl stop --after-trip` (task_wrap.finish_requested for our UO_TASK_ID, read every
+        FINISH_CHECK_S; user 2026-10-17, loot piling up: "didn't know there wasn't a way to finish gracefully"):
+        the run then winds down as at time up (the fights on us, our kills looted, the way out with the pets, no
+        going back in) and exits 0 at home."""
+        if self.args.kills and self.totals["kills"] >= self.args.kills:
+            return True
+        if self.finish_requested:
+            return True
+        task_id = os.environ.get("UO_TASK_ID")
+        if task_id and time.monotonic() - self._finish_checked >= FINISH_CHECK_S:
+            self._finish_checked = time.monotonic()
+            if task_wrap.finish_requested(self.memory, task_id):
+                self.finish_requested = True
+                log("stop requested: winding down, out with the pets, home, then done")
+        return self.finish_requested
 
     def timed_out(self, extra: float = 0.0) -> bool:
         return time.monotonic() - self.t0 > self.args.timeout + extra

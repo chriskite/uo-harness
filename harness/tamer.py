@@ -143,6 +143,15 @@ CHARGE_SAFE_R = 3             # tiles from a charger and from a pet beside it: c
 AREA_R = {"apparition": 3, "reanimated daemon": 6}
 STANDOFF_MOVES = 6
 STANDOFF_REPEAT_S = 2.0
+# An apparition's blink (docs/SIM.md audit, n=56): "*phases*" over it, gone (0x1D), then back 1.1-1.6 s later on its
+# target's own tile with its area hit (radius 2). So on the emote, a pet it was fighting is where the hit lands: step
+# AREA_R off that pet at once (user 2026-10-17: "when an apparition vanishes we know its going to pop out on the
+# player/pet it was aggro'd on ... right now we just wait there to get hit for like -47"). One on us lands on us
+# wherever we go: nothing to step from.
+TEXT_BLINK = "*phases*"
+BLINK_S = 2.0                 # the landing's tile stays a zone this long after the emote (lands 1.1-1.6 s later)
+BLINK_TARGET_R = 2            # its target when no swing names it: the nearest pet or us within this of it
+SWING_FRESH_S = 10.0          # a swing this recent names its target (world.swings)
 # A fight with --vet-range 4+ (the Healer's Codex "Without Borders"): stand SPACING_R from the pets and from
 # what fights them, every pet within --vet-range - 1 (user 2026-10-15: "Since our healing distance is 5 now I
 # don't see a good reason to be standing next to the tank while it's fighting"; live 20261015_115604 12:08:53
@@ -370,6 +379,7 @@ class Team:
         self.beyond = set()              # (skill, creature type) failed "beyond your skill"
         self.kill_t = {}                 # serial -> our last "All Kill" at it
         self.attack_t = {}               # serial -> first seen attacking us (this engagement)
+        self.blinks = {}                 # apparition serial -> (monotonic time of its "*phases*", target serial)
         self.poisoned_t = {}             # pet serial -> "*looks violently ill*" over it
         self.seen_t = {}                 # pet serial -> last seen in view
         self.seen_at = {}                # pet serial -> (x, y) where last seen alive (rejoin)
@@ -497,6 +507,11 @@ class Team:
                     if kind and kind not in self.chargers:
                         self.chargers.add(kind)
                         log(f"{kind} charges: standing {CHARGE_SAFE_R} tiles off it and the pet it fights")
+                elif text == TEXT_BLINK and s not in self.roster:
+                    target = self.blink_target(st, s)
+                    self.blinks[s] = (now, target)
+                    if target in self.roster:
+                        log(f"0x{s:08X} phases: it lands on {self.roster[target]} in ~1.5 s")
                 elif "barding break" in text.lower() and s not in self.roster:
                     fx = self.effects.setdefault(s, {})
                     fx["calm"], fx["immune"] = 0.0, now + BREAK_IMMUNE_S
@@ -505,6 +520,8 @@ class Team:
                 self.effects.pop(s, None)
                 self.attack_t.pop(s, None)
         self.ev_upto = len(evs)
+        for s in [s for s, (t, _) in self.blinks.items() if now - t > BLINK_S]:
+            del self.blinks[s]
         for p in self.pets(st):
             s = p["serial"]
             if p["dead"] and s not in self.ghosts:
@@ -1054,7 +1071,46 @@ class Team:
             c = (mob["x"], mob["y"])
             for t in [c] + [(p["x"], p["y"]) for p in pets if cheb((p["x"], p["y"]), c) <= PET_NEAR]:
                 zone[t] = max(zone.get(t, 0), r)
+        for tile, r in self.blink_tiles(st).items():
+            zone[tile] = max(zone.get(tile, 0), r)
         return zone
+
+    def blink_target(self, st, s: int) -> int | None:
+        """Whom apparition `s` blinks onto: the defender of its latest swing, or the pet whose latest swing is at it
+        (world.swings, within SWING_FRESH_S), else the nearest live pet or us within BLINK_TARGET_R of where it stood
+        (in view or last seen), else None: unknown (live 20261017_110506 no 0x2F came from or at an apparition)."""
+        world = st["world"]
+        swings, now = world.get("swings") or {}, time.time()
+        sw = swings.get(f"0x{s:08X}")
+        if sw and now - (sw.get("t") or 0) <= SWING_FRESH_S and sw.get("defender") is not None:
+            return serial_of(sw["defender"])
+        for p in self.pets(st):
+            w = swings.get(f"0x{p['serial']:08X}")
+            if w and now - (w.get("t") or 0) <= SWING_FRESH_S and w.get("defender") is not None \
+                    and serial_of(w["defender"]) == s:
+                return p["serial"]
+        mob = world["mobiles"].get(f"0x{s:08X}") or (world.get("last_seen") or {}).get(f"0x{s:08X}") or {}
+        if mob.get("x") is None:
+            return None
+        c, me = (mob["x"], mob["y"]), self.h.me(st)
+        near = [(cheb((p["x"], p["y"]), c), p["serial"]) for p in self.pets(st) if not p["dead"]]
+        near.append((cheb(tuple(self.h.pos(st)[:2]), c), me))
+        d, who = min(near)
+        return who if d <= BLINK_TARGET_R else None
+
+    def blink_tiles(self, st) -> dict:
+        """{pet tile: AREA_R['apparition']} for each apparition that phased within BLINK_S onto a pet of ours: its hit
+        lands there. One blinking onto us comes onto us wherever we stand, and one whose target we can't tell gives no
+        tile: stepping off pets that follow us gets nowhere (simulator), and live 20261017_110506 the hits on Logan
+        (7 of 40-48 in 20 blinks) came on an apparition's first blink from 6-16 tiles off the pets, onto him, or with
+        him 1 from the tank it fought (11:10:32, -40): the case this covers."""
+        now, out = time.monotonic(), {}
+        pets = {p["serial"]: p for p in self.pets(st) if not p["dead"]}
+        for t, target in self.blinks.values():
+            p = pets.get(target)
+            if p is not None and now - t <= BLINK_S:
+                out[(p["x"], p["y"])] = AREA_R["apparition"]
+        return out
 
     def charge_zone(self, st) -> set:
         """The tiles of area_zone: where an area hit lands; no tile to step to."""
@@ -1075,15 +1131,18 @@ class Team:
         too, and before a potion (HuntLoop.tick): live 20261015_171928 18:57:09-19.5 an apparition came onto
         Logan's tile and hit him -59; he stood there through a potion and a vet channel and its next hit
         took -60 more (8/100). A step doesn't stop a channel healing us (20261014_221341 22:35:50-55); it
-        shortens the reach to a pet to 1 (wiki Veterinary)."""
+        shortens the reach to a pet to 1 (wiki Veterinary). An apparition's "*phases*" onto a pet (blink_tiles):
+        off that pet at once, past the repeat gap and the tank's heal, before the landing 1.1-1.6 s later."""
         h, now = self.h, time.monotonic()
-        if now - self.standoff_t < STANDOFF_REPEAT_S:
+        self.update(st)                   # a "*phases*" just heard: act on it in this tick, before a song or a channel
+        pos = h.pos(st)
+        landing = any(cheb(pos, t) < r for t, r in self.blink_tiles(st).items())
+        if now - self.standoff_t < STANDOFF_REPEAT_S and not landing:
             return False
         zone = self.area_zone(st)
-        pos = h.pos(st)
         if not zone or all(cheb(pos, t) >= r for t, r in zone.items()):
             return False
-        if self.a.vet_range < max(zone.values()) \
+        if not landing and self.a.vet_range < max(zone.values()) \
                 and any(p["frac"] < self.heal_at(p, set(zone)) or p["poisoned"] for p in self.pets(st)
                         if not p["dead"] and (p["x"], p["y"]) in zone) \
                 and healing.in_pack(st["world"], h.me(st), VET_SUPPLIES_GRAPHIC):

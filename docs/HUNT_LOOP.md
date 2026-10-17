@@ -349,7 +349,13 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    to say "*charges*". While one is in war mode, the runner keeps 3 tiles from it and from the pet
    beside it (`tamer.Team.stand_off`, up to 6 steps, running). Other area hitters likewise
    (`tamer.AREA_R`): an apparition 3 (its hit lands on everyone within 2: 20261015_090607 and _115604),
-   a reanimated daemon 6 (its bone burst reached Logan at 5, 20261014_221341). The stand-off comes first
+   a reanimated daemon 6 (its bone burst reached Logan at 5, 20261014_221341). **An apparition's blink**
+   (since 2026-10-17; user: "when an apparition vanishes we know its going to pop out on the player/pet it
+   was aggro'd on ... right now we just wait there to get hit for like -47"): on its "*phases*" the pet it
+   fights (its latest swing's defender, else the nearest pet within 2 of it) is where it lands 1.1-1.6 s
+   later with the hit, so that pet's tile is in the zone for 2 s (`Team.blink_tiles`) and the stand-off goes at
+   once, past its 2 s repeat gap and the tank's heal; one blinking onto Logan follows him, so nothing to step
+   from. The stand-off comes first
    in each decision, mid-channel too, after only a heal potion that is ready (it goes at once) (live
    20261015_171928 18:57:09-19.5: an apparition came onto Logan's tile, -59; he stood there through the
    potion and a vet channel and took -60 more; a step doesn't stop a channel healing us, it only shortens
@@ -407,9 +413,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    0x2260-0x227C, or "scroll" in the name) and anything worn other than jewellery (a tiledata layer
    outside ring, talisman, necklace, bracelet, earrings: weapons, shields, spellbooks, armour, clothing)
    (`combat.worth_looting`; `--loot-keep WORD` takes an item with that word anyway); the rest stays in
-   the corpse. **Arcane scrolls are taken** (user 2026-10-17, "valuable loot": pink blank scrolls, live a
-   0x0EF3 in hue 2609 left in a banshee's corpse at 11:11:05): a blank scroll graphic in any hue but 0, or
-   "arcane scroll" in the name. **Weight**: an item that would bring us
+   the corpse. **Outlands' hued valuables on those graphics are taken** (user 2026-10-17, all three left live
+   in 20261017_110506): an arcane scroll (a pink blank scroll, 0x0EF3 in hue 2609), a blood aspect core (0x0F91,
+   the wyrm's heart graphic, in hue 2087), a skill scroll (0x227A "scroll of calling" in hue 2291): any hue but
+   0 on a reagent, spell-scroll or blank-scroll graphic, or "arcane scroll" / "aspect core" in the name
+   (`combat.worth_looting`, test_combat.py). **Weight**: an item that would bring us
    within 10 stones of the limit (`LOOT_WEIGHT_MARGIN`; tiledata weight, gold ~0.01 a coin
    [INFERENCE]) is left; at the limit looting stops until the weight drops. Live 20261015_181807 the
    take-everything loot reached 471/450 and Logan couldn't move.

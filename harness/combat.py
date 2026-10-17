@@ -317,9 +317,11 @@ def loot_order(inside: dict) -> list:
 REAGENT_GRAPHICS = range(0x0F78, 0x0F92)      # bat wing .. wyrm's heart: the 8 Magery, the necromancy and rare ones
 SCROLL_GRAPHICS = (range(0x1F2D, 0x1F73), range(0x2260, 0x227D))   # Magery circles 1-8; necromancy / chivalry
 JEWELRY_LAYERS = frozenset((8, 9, 10, 14, 18))  # ring, talisman, necklace, bracelet, earrings: kept
-# Arcane scrolls are kept (user 2026-10-17: "We just passed up looting an arcane scroll which is valuable loot"; "They're
-# pink blank scroll graphics"): live 20261017_110506 11:11:05 a blank scroll 0x0EF3 in hue 2609 among a banshee's spell
-# scrolls. A blank scroll graphic in any hue but 0 counts [INFERENCE: the hue marks it; plain blank scrolls are hue 0].
+# A hued item on a reagent or scroll graphic is one of Outlands' own valuables, not a reagent or spell scroll (user
+# 2026-10-17, all three passed up live in 20261017_110506): an arcane scroll ("pink blank scroll graphics": 0x0EF3 in
+# hue 2609, 11:11:05), a blood aspect core (0x0F91, the wyrm's heart graphic, in hue 2087, 11:26:05: "we should also
+# loot aspect cores"), a skill scroll (0x227A "scroll of calling" in hue 2291, 11:26:31: "also valuable"). Plain
+# reagents and spell scrolls come in hue 0 [INFERENCE from today's corpses: every left one was hue 0].
 BLANK_SCROLL_GRAPHICS = frozenset((0x0E34, 0x0EF3))
 _MARKUP = re.compile(r"%[^%]*%")
 GOLD_WEIGHT_PER = 0.01        # [INFERENCE] stones per gold coin: live 36,231 gold put Logan at 475/450 (20261014_221341)
@@ -339,9 +341,10 @@ def item_name(it: dict) -> str:
 
 def worth_looting(it: dict, keep=()) -> bool:
     """Everything but reagents, spell scrolls and what's worn other than jewellery (REAGENT_GRAPHICS,
-    SCROLL_GRAPHICS or "scroll" in the name, a tiledata layer outside JEWELRY_LAYERS); an arcane scroll (a
-    hued blank scroll, or "arcane" in the name) is taken; `keep`: whole words of item_name taken regardless
-    (--loot-keep)."""
+    SCROLL_GRAPHICS or "scroll" in the name, a tiledata layer outside JEWELRY_LAYERS); a hued item on one
+    of those graphics (an arcane scroll, an aspect core, a skill scroll) or "arcane scroll" / "aspect core"
+    by name is taken; `keep`: whole words of item_name taken regardless (--loot-keep). The weight cap
+    (LOOT_WEIGHT_MARGIN, loop_hunt) still applies."""
     g = it.get("graphic")
     if g == GOLD_GRAPHIC:
         return True
@@ -350,9 +353,11 @@ def worth_looting(it: dict, keep=()) -> bool:
         return True
     if g is None:
         return True
-    if (g in BLANK_SCROLL_GRAPHICS and it.get("hue")) or re.search(r"\barcane scroll", name):
+    unwanted = g in REAGENT_GRAPHICS or any(g in r for r in SCROLL_GRAPHICS) or g in BLANK_SCROLL_GRAPHICS \
+        or re.search(r"\bscroll\b", name)
+    if unwanted and (it.get("hue") or re.search(r"\b(arcane scroll|aspect core)", name)):
         return True
-    if g in REAGENT_GRAPHICS or any(g in r for r in SCROLL_GRAPHICS) or re.search(r"\bscroll\b", name):
+    if unwanted:
         return False
     import uomap
     t = uomap.tiledata().item(g)

@@ -924,8 +924,8 @@ def test_run_act(proxy):
     m.close()
 
     code, out = c("stop", "--after-trip")
-    check("stop --after-trip refused for a task that isn't a lumber run; nothing asked, the task runs on",
-          code == 1 and "lumber runs only" in out.get("error", "") and meta(db, tw.finish_key(slow_id)) is None
+    check("stop --after-trip refused for a task that isn't a lumber or hunt run; nothing asked, the task runs on",
+          code == 1 and "lumber and hunt runs only" in out.get("error", "") and meta(db, tw.finish_key(slow_id)) is None
           and json.loads(meta(db, tw.TASKS_KEY) or "[]"), str(out))
     t0 = time.time()
     code, out = c("stop")
