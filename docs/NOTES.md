@@ -3114,6 +3114,37 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
   SIGINT in the process. `signal.raise_signal` wakes a `time.sleep` on Windows; `_thread.interrupt_main`
   doesn't, a smoke waited out the whole 30 s sleep. The KeyboardInterrupt runs the finally. The wrapper waits
   `SELF_STOP_S` 5 s for the child before terminating it.
+- **Targets behind walls** (18:15 run, `hunt-20261017-181520-e0ca`, capture 20261017_181210; user: "The runner is
+  still 'waiting for <mob> to come on' when the mob can't see Logan through walls"). The 16:12 fix covered the
+  patrol's hold ("letting it come"), not the fight's wait: `Team.fight` approached a picked target to
+  `APPROACH_R` 6 by distance alone, then waited `PIN_S` 15 s and dropped it. Replaying the capture (a throwaway
+  script, `los.Sight` from the target to us at 3 s steps):
+  - 18:17:02 a shade wolf, 18:19:44 a vampire bat (z 25 over us at z 0), 18:24:48 a tormented soul: each
+    idle 6 tiles off for the whole 15 s, out of sight by the server's rule too (blocked at (5183, 711),
+    (5178, 686, 28), (5246, 666)).
+  - 18:17:17 a reanimated knight: 6 tiles, out of sight, then in war mode at 4 tiles in sight from 18:17:25
+    without hurting anyone; dropped at 18:17:33. Not this fault.
+  - Now an idle target within `APPROACH_R` that doesn't see us with Wall blocking too (`Team.unseen`) is
+    passed over at once for `SKIP_S` 60 s; the patrol meets it later through the hold and the pull spot.
+  - Simulator, 48 seeds (17-64), 20 min, with the gate fix below in every row but the first:
+
+    | Variant | Runs with a death | Deaths/h | Gold/h | Kills/h |
+    |---|---|---|---|---|
+    | Before | 31 | 2.57 | 74.3k | 84.8 |
+    | Gate fix only | 32 | 2.60 | 74.2k | 84.2 |
+    | Walk on into its sight (walk_to 1, stop once it sees us within 6) | 41 | 4.17 | 66.7k | 77.6 |
+    | Pass it over (shipped) | 31 | 2.46 | 71.8k | 81.3 |
+
+    [INFERENCE] Walking round the wall shows Logan to the target, and to whatever is in its room, before the
+    pets: the "whoever it sees first" death.
+- **A leave from far off the gate was "through it" before a step** (same run, 18:28:22-45). The hits leave fired
+  at (5261, 652), 9/100, 58 tiles from the leave gate. The 16:38 fix's `GATE_THROUGH_R` read any position more
+  than 30 tiles from the gate as having come out of it, so the walk's first stop said "through the gate"
+  without a step, and the runner recalled inside the dungeon four times ("no arrival"), gave up after the 20 s
+  escape budget and aborted with Logan at 9/100 there. Now only a jump between two reads from within 2 tiles
+  of the gate to beyond 30 counts (`leave_by_gate`'s `through`). test_sim `test_leave_from_far` (failing
+  before). The simulator had the same fault on every time-up leave from zone 3 ("recall home failed
+  (restricted)").
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

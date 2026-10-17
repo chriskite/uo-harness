@@ -369,7 +369,12 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    guard engage it before it engages the character, while an aggressive act of ours (Discordance,
    "All Kill") makes the mob aggro on the character. So a target the pets haven't engaged is only
    approached to 6 tiles (`APPROACH_R`, [INFERENCE] aggro range) and waited for; one that neither
-   fights the pets nor us for 15 s is dropped for 60 s.
+   fights the pets nor us for 15 s is dropped for 60 s. An idle target within 6 tiles that can't see
+   us there (a Wall-flagged static blocks too, as for the hold) is passed over at once for those 60 s
+   (`Team.unseen`; live 20261017_181210: three targets 6 tiles off behind walls were waited for 15 s
+   each and dropped; user: "waiting for <mob> to come on when the mob can't see Logan through walls").
+   The patrol meets it later the usual way (the hold, the pull spot). Walking on into its sight instead
+   cost the simulator 9 more runs with a death in 48 (NOTES "Targets behind walls").
 2. **Bard skills only at a target the pets fight** (`engaged`: hurt within 10 s, a pet within 12
    tiles, the phoenix's reach): Discordance first, then Provocation of another mob in the fight
    (the other onto a second other, or onto our target), then Peacemaking on the target (it stops
@@ -612,10 +617,12 @@ moongate, and never near a red one).
     at 8/100, 98 by the gate, then 10 s there waiting for the pets in a banshee's sight: "There's no point
     in running to the gate when he's fully healed"). He walks back to within `--vet-range` - 1 of the
     nearest pet (`Team.rejoin`) and the hunt goes on.
-  - **Through the gate on the way** (`HuntLoop.through_gate`): a walk to the gate that lands more than 30 tiles
-    from it went through it and counts as the gate taken. Live 16:38:56 a hurt walk stepped onto the gate's tile
-    and came out at Totem; its stop then read "healed" there, called the leave off, and the run hunted at Totem
-    with the pets left in the Mausoleum.
+  - **Through the gate on the way** (`HuntLoop.through_gate`): a jump from within 2 tiles of the gate to more
+    than 30 tiles from it between two reads went through it and counts as the gate taken. Live 16:38:56 a hurt
+    walk stepped onto the gate's tile and came out at Totem; its stop then read "healed" there, called the leave
+    off, and the run hunted at Totem with the pets left in the Mausoleum. Until 2026-10-17 18:28 the distance
+    alone counted, so a leave fired more than 30 tiles from the gate (most of zone 3) was "through" before a
+    step and recalled inside the dungeon (live 18:28:22, the hits leave at 9/100: four recalls, then aborted).
   - **Fleeing a hostile player** (an urgent leave; `--rope`, default on): "All Follow Me" at once, then
     the run to the gate. An Adventurer's Rope jump only when one is ready **and no player is on us**
     (`rope_worth`, since 2026-10-17; user: "ropes are useful for getting through groups of mobs or getting a

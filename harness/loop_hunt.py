@@ -175,7 +175,7 @@ PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this
 SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
 LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D, no death): its death this soon counts
 GATE_POTION_WAIT_S = 1.5      # hurt beside the leave gate: a heal potion due this soon is drunk before the click
-GATE_THROUGH_R = 30          # the walk to the leave gate put us this far from it: through the gate (live 20261017 16:38:56)
+GATE_THROUGH_R = 30          # a jump from beside the leave gate to this far from it: through the gate (live 20261017 16:38:56)
 LOOT_WEIGHT_MARGIN = 10       # stones kept free below the weight limit: overloaded, we can't run (live 475/450)
 HEAL_IN_PLACE_FLOOR = 0.15    # --heal-in-place: below this share the hits leave fires even with a heal coming
 HEAL_SOON_S = 3.0             # --heal-in-place: a heal potion ready this soon is a heal coming
@@ -1635,6 +1635,17 @@ class HuntLoop:
         self.doing("leave", f"Walking to the moongate at {gate[0]},{gate[1]}", gate)
         self.walking_out, self.pk_flight = True, flee
         t_walk = time.monotonic()
+        jump = {"last": tuple(self.pos(self.link.state())[:2]), "through": False}
+
+        def through(s) -> bool:
+            """From within 2 of the gate to more than GATE_THROUGH_R from it between two reads: through it (a
+            step moves one tile). Not the distance alone: a leave from deep in the level starts farther than
+            that (live 18:28:24, the hits leave at (5261, 652), 58 tiles off, read as through at once and
+            recalled in the dungeon until the escape budget ran out)."""
+            here = tuple(self.pos(s)[:2])
+            jump["through"] |= cheb(jump["last"], gate) <= 2 and cheb(here, gate) > GATE_THROUGH_R
+            jump["last"] = here
+            return jump["through"]
         try:
             if self.team is not None:
                 self.team.follow(severity, wait=flee)
@@ -1644,7 +1655,7 @@ class HuntLoop:
                 lag = {"wait": severity in PLANNED}
 
                 def stop(s):
-                    if cheb(self.pos(s), gate) > GATE_THROUGH_R:
+                    if through(s):
                         return "through the gate"
                     if flee:
                         return "a rope is worth it" if self.rope_worth(s) else None
@@ -1660,7 +1671,7 @@ class HuntLoop:
                         continue
                     why = self.mover.walk_to(lambda: near, 0, "to the moongate", urgent=urgent,
                                              max_moves=max(250, 3 * self.out_steps), stop=stop)
-                    if why == "through the gate" or cheb(self.pos(self.link.state()), gate) > GATE_THROUGH_R:
+                    if why == "through the gate" or through(self.link.state()):
                         break
                     if why and severity in PLANNED:
                         if why == "under attack":
@@ -1673,8 +1684,8 @@ class HuntLoop:
                                 "dest": self.args.gate_dest}
                     if not why:
                         break
-                if (through := self.through_gate(gate, t_walk)) is not None:
-                    return through
+                if (out := self.through_gate(gate, t_walk, through)) is not None:
+                    return out
                 if (why := self.leave_called_off(self.link.state(), severity)):
                     return {"ok": False, "called_off": why, "from": list(self.pos(self.link.state())[:2]),
                             "dest": self.args.gate_dest}
@@ -1702,20 +1713,22 @@ class HuntLoop:
             # "My macro gets me out basically instantly")
             return moongate.travel(self.link, self.human, self.args.gate_dest, since=mark, log=log, urgent=urgent)
         except (Abort, moongate.GateError) as e:
-            if (through := self.through_gate(gate, t_walk)) is not None:
-                return through
+            if (out := self.through_gate(gate, t_walk, through)) is not None:
+                return out
             return {"ok": False, "from": list(self.pos(self.link.state())[:2]), "error": str(e),
                     "dest": self.args.gate_dest}
         finally:
             self.walking_out = self.pk_flight = False
 
-    def through_gate(self, gate, t_walk: float) -> dict | None:
-        """The walk to the leave gate went through it (more than GATE_THROUGH_R from it): moongate.travel's
-        success, else None. Live 20261017 16:38:56.8 the hurt walk stepped onto the gate's tile (5203, 703) and
-        came out at Totem; the walk's stop then read "healed to 93/100" there, called the leave off, and the
-        run went back to hunting at Totem, the pets in the Mausoleum."""
-        here = self.pos(self.link.state())
-        if cheb(here, gate) <= GATE_THROUGH_R:
+    def through_gate(self, gate, t_walk: float, through) -> dict | None:
+        """The walk to the leave gate went through it (`through`: a jump from beside it to more than
+        GATE_THROUGH_R away): moongate.travel's success, else None. Live 20261017 16:38:56.8 the hurt walk
+        stepped onto the gate's tile (5203, 703) and came out at Totem; the walk's stop then read "healed to
+        93/100" there, called the leave off, and the run went back to hunting at Totem, the pets in the
+        Mausoleum."""
+        st = self.link.state()
+        here = self.pos(st)
+        if not through(st):
             return None
         log(f"to the moongate: through it on the way, at {tuple(here[:2])}")
         return {"ok": True, "from": list(gate), "to": list(here[:3]), "dest": self.args.gate_dest,

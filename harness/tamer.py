@@ -9,9 +9,10 @@ turned war mode on or swung: the pets do the killing, he keeps them alive and ma
 - **Pets guard, the character never starts the fight** (user, 2026-10-12): a mob aggroes on what
   comes into its aggro range and line of sight; pets on "All Guard Me" engage it before it engages
   us. An aggressive act of ours (Discordance, "All Kill") makes the mob aggro on the character. So
-  a target the pets haven't engaged is only approached (to APPROACH_R) and waited for; the bard
-  skills go only at a target the pets are already fighting (`engaged`), and "All Kill" only at a mob
-  already attacking us that the pets leave alone for KILL_AFTER_S (its aggro is on us anyway).
+  a target the pets haven't engaged is only approached (to APPROACH_R) and waited for, and passed over
+  when it can't see us there (`unseen`); the bard skills go only at a target the pets are already
+  fighting (`engaged`), and "All Kill" only at a mob already attacking us that the pets leave alone for
+  KILL_AFTER_S (its aggro is on us anyway).
 - **"All Guard Me"** at every arrival (guarding stops at a recall or dungeon level transition:
   wiki Animal Taming, Pet Commands) and after every kill (26 times for 25 kills on the trip; pets
   told "All Kill" go back to the owner after the kill, knowledge #2073). "All Follow Me" before
@@ -1465,6 +1466,12 @@ class Team:
             if not on_us and cheb(h.pos(st), (mob["x"], mob["y"])) > APPROACH_R and not self.hold_reason(st):
                 self.approach(serial, mob)
                 return
+            if not on_us and self.unseen(st, serial):
+                log(f"passing over {name} 0x{serial:08X}: it can't see us from "
+                    f"{cheb(h.pos(st), (mob['x'], mob['y']))} tiles; skipping it for {SKIP_S:.0f} s")
+                h.skip[serial] = now + SKIP_S
+                h.disengage("dropped")
+                return
             if not on_us and self.hold_reason(st) and self.pull_spot(st):
                 return                    # where it comes to the pets, out of the others' sight (sim fight1949)
             h.doing("wait", f"Pets on guard; waiting for {name} to come on", (mob["x"], mob["y"]), serial)
@@ -1474,6 +1481,17 @@ class Team:
             return
         h.doing("fight", f"The pets are fighting {name}", (mob["x"], mob["y"]), serial)
         time.sleep(0.4)
+
+    def unseen(self, st, serial: int) -> bool:
+        """`serial` is idle and wouldn't see us here within APPROACH_R, a Wall-flagged static blocking too
+        (aggro.View.sees strict, as the hold): fight passes it over. Live 20261017_181210: three targets dropped
+        after 15 s of "waiting for ... to come on" 6 tiles off, idle, out of sight even by the server's rule (a
+        shade wolf 18:17:02, a vampire bat 18:19:44, a tormented soul 18:24:48; user: "waiting for <mob> to come
+        on when the mob can't see Logan through walls"). Walking on into its sight cost the simulator more
+        deaths (docs/NOTES.md "Targets behind walls")."""
+        v = self.view(st)
+        m = next((m for m in v.mobs if m["serial"] == serial), None)
+        return m is not None and not m["war"] and not v.sees(m, v.pos, APPROACH_R, strict=True)
 
     def approach(self, serial: int, mob: dict):
         """Walk toward a target the pets haven't engaged until APPROACH_R (its aggro range): the

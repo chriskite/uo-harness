@@ -791,6 +791,32 @@ def test_leave_called_off():
           out[True][0] and out[True][1] > 1 and not out[False][0], str(out))
 
 
+def test_leave_from_far():
+    print("== a leave from more than GATE_THROUGH_R tiles off the gate walks to it and through ==")
+    from agent_link import Abort, cheb
+    # live 18:28:22-45 (hunt-20261017-181520-e0ca): the hits leave at (5261, 652), 58 tiles from the gate, read
+    # as through it before a step; four recalls in the dungeon, then aborted at 9/100
+    w = world_with([], seed=7, start=(5261, 652))
+    loop, clock, store, patched = hurt_loop(w, 8)
+    world_tick = clock.on_advance
+
+    def stay_hurt(now):
+        world_tick(now)
+        w.player.hits = min(w.player.hits, 30)          # no heal calls the leave off (test_leave_called_off)
+    clock.on_advance = stay_hurt
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            try:
+                loop.tick()
+            except Abort:
+                pass                                   # gone: no --enter-recall in the test
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("out of the Mausoleum (through the gate), not standing where the leave fired",
+          cheb(w.player.pos, (5261, 652)) > 100, str(w.player.pos))
+
+
 def test_instrument():
     print("== the instrument last played is gone: the prompt answered with one from the pack; none: skills off ==")
     # live 20261015_171928 after the 18:40 death: 54 "What instrument shall you play?" answered with the
@@ -960,6 +986,41 @@ def test_hold_first_sight():
         simclock.uninstall(patched)
     check("a shade wolf in sight at 10 tiles: hold", first and "shade wolf" in first, str(first))
     check("...and after HOLD_S without it coming, no longer", later is None, str(later))
+
+
+def test_unseen_target_passed_over():
+    print("== an idle target within APPROACH_R that can't see us (a wall between): passed over, not waited for ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    # live 20261017_181210 18:17:02-17: Logan stopped at (5182, 712) 6 tiles from an idle shade wolf at
+    # (5186, 706) that couldn't see him (sight blocked at (5183, 711)), "waiting for a shade wolf to come on"
+    w = world_with([{"key": "shade wolf", "at": [5186, 706, 0]}], start=(5182, 712))
+    wolf = next(m for m in w.mobs.values() if m.kind == "monster")
+    wolf.calm_until = 1e9                               # stays idle
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            start = w.player.pos
+            t0 = loop_hunt.time.monotonic()
+            loop.team.fight(wolf.serial)
+            skipped = loop.skip.get(wolf.serial, 0) > loop_hunt.time.monotonic()
+            took = loop_hunt.time.monotonic() - t0
+            picked = loop.pick_target(loop.state())
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("passed over at once (skipped, not picked again), Logan where he was",
+          skipped and took < 1.0 and picked != wolf.serial and w.player.pos == start,
+          f"skipped {skipped} in {took:.1f} s, picked {picked}, at {w.player.pos}")
 
 
 def test_rope():
@@ -1307,11 +1368,12 @@ def main():
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
-              test_area_first, test_leave_called_off, test_instrument, test_standoff_sight, test_idle_pet,
+              test_area_first, test_leave_called_off, test_leave_from_far, test_instrument, test_standoff_sight,
+              test_idle_pet,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
               test_songs,
-              test_pull_budget, test_hold_first_sight, test_rope,
+              test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_rope,
               test_rest_hurt_pet, test_walk_in, test_soul_jar):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
