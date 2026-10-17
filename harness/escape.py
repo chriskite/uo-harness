@@ -37,7 +37,9 @@ poll). LinkIO wraps a runner's agent_link.Link; ctl has its own.
 
 from __future__ import annotations
 
+import json
 import math
+import os
 import re
 import time
 
@@ -110,6 +112,37 @@ FAIL_TEXTS = {
     "Thy spell doth not appear to work...": "restricted",
     "You are not allowed to travel there.": "restricted",
 }
+
+
+# Dungeons where a recall is only allowed beside a gold moongate (user 2026-10-13: "never near a red one"):
+# the Mausoleum's box and gold gates, shared with the simulator (World.recall_allowed).
+DUNGEON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "mausoleum.json")
+_DUNGEONS = None
+
+
+def recall_forbidden(pos, facet) -> str | None:
+    """Why a recall from `pos` on `facet` breaks the dungeon rule (inside a known dungeon box, farther than
+    its recall_r from every gold moongate), or None. The user 2026-10-17: "The runner is also trying to recall
+    out of the dungeon for some reason, which is not allowed" (live 18:28:29-45, four tries at (5261, 652))."""
+    global _DUNGEONS
+    if _DUNGEONS is None:
+        try:
+            with open(DUNGEON_PATH, encoding="utf-8") as f:
+                d = json.load(f).get("dungeon")
+            _DUNGEONS = [d] if d else []
+        except (OSError, ValueError):
+            _DUNGEONS = []
+    if pos is None:
+        return None
+    for d in _DUNGEONS:
+        x0, y0, x1, y1 = d["box"]
+        if d.get("facet", 0) != (facet or 0) or not (x0 <= pos[0] <= x1 and y0 <= pos[1] <= y1):
+            continue
+        r = d.get("recall_r", 2)
+        if not any(cheb(pos[:2], g) <= r for g in d.get("gold_gates", [])):
+            return (f"no recall from ({pos[0]}, {pos[1]}): inside {d.get('name', 'a dungeon')}, more than {r} tiles "
+                    f"from a gold moongate")
+    return None
 
 
 class RecallError(Exception):
@@ -567,6 +600,8 @@ def recall(io, book: int, *, prefer: str = "charge", rune: str | None = None, en
     mana = (world.get("self") or {}).get("mana")
     start = tuple(st["movement"]["pos"][:2])
     facet = (world.get("self") or {}).get("map")
+    if (why := recall_forbidden(start, facet)) is not None:
+        raise RecallError(why)
     t0 = time.monotonic()
     name = None
     if kind == "runebook":

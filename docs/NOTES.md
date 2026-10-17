@@ -3145,6 +3145,13 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
   of the gate to beyond 30 counts (`leave_by_gate`'s `through`). test_sim `test_leave_from_far` (failing
   before). The simulator had the same fault on every time-up leave from zone 3 ("recall home failed
   (restricted)").
+- **No recall inside the dungeon, whatever asks for it** (user 2026-10-17, after the 18:28 run: "The runner is
+  also trying to recall out of the dungeon for some reason, which is not allowed"). The gate fix above removes
+  the cause seen live; as a backstop `escape.recall` now raises RecallError before the book opens when we stand
+  in a known dungeon box more than `recall_r` 2 from a gold moongate (`escape.recall_forbidden`, reading the
+  Mausoleum's `dungeon` block in harness/data/sim/mausoleum.json, now with `name` and `facet` 0). It covers
+  loop_hunt, loop_lumber and `ctl recall`. Only the Mausoleum is known (box 5150-5760 x 600-760: all four
+  levels walked so far); other dungeons need their own block. test_escape `test_no_recall_in_dungeon`.
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

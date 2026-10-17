@@ -172,10 +172,12 @@
   "note": "the Mausoleum row lands where Logan's did (21:16:30, capture): (5626, 688) on the first level, beside a gold moongate; recall in a dungeon works only near one (`dungeon`); pets within pet_range come along (knowledge #11547) and default to Follow (#11561)"
  },
  "dungeon": {
+  "name": "the Mausoleum",
+  "facet": 0,
   "box": [5150, 600, 5760, 760],
   "gold_gates": [[5626, 689], [5618, 723], [5588, 717]],
   "recall_r": 2,
-  "note": "user 2026-10-13: in a dungeon you can recall in or out only near a gold moongate (gold gates are on a dungeon's first level only), never near a red one; recall_r 2 is his conservative guess. box: the calibration region; gold gates: the hue-2822 moongates of the first level (capture) [INFERENCE: hue 2822 = gold]"
+  "note": "user 2026-10-13: in a dungeon you can recall in or out only near a gold moongate (gold gates are on a dungeon's first level only), never near a red one; recall_r 2 is his conservative guess. box: the calibration region (all four levels: level 1 5554-5626, level 2 5507-5522, the fight level 5170-5280, Maus 4 5697-5719); gold gates: the hue-2822 moongates of the first level (capture) [INFERENCE: hue 2822 = gold]. facet: live state map 0. The live runner refuses a recall here too (escape.recall_forbidden; user 2026-10-17)"
  },
  "gates": [
   {

@@ -555,12 +555,30 @@ def test_escape_between():
           (seen, r["tries"], plain["tries"]))
 
 
+def test_no_recall_in_dungeon():
+    # live 2026-10-17 18:28:29-45: four recalls at (5261, 652) on the Mausoleum's fight level, 9/100 hits
+    out = {}
+    for where, pos in (("fight level", [5261, 652, 0]), ("beside a gold gate", [5627, 688, 0]),
+                       ("Cambria", [1706, 3181, 0])):
+        s = BookServer()
+        s.pos = pos
+        try:
+            r = escape.escape(s, s.BOOK, attempts=1, log=lambda m: None)
+            out[where] = ("ok" if r["ok"] else r["failure"], s.pressed)
+        except escape.RecallError as e:
+            out[where] = (str(e), s.pressed)
+    check("inside the Mausoleum away from a gold gate: refused before the book opens, nothing pressed",
+          out["fight level"][0].startswith("no recall from (5261, 652)") and out["fight level"][1] == [], out)
+    check("...beside a gold gate and outside the dungeon: the recall goes",
+          out["beside a gold gate"][0] == "ok" and out["Cambria"][0] == "ok", out)
+
+
 if __name__ == "__main__":
     for t in (test_runebook, test_sextant, test_runebook_entries, test_runebook_read_and_recall_by_name,
               test_recharging_book,
               test_runetome, test_library_tome_read, test_failures, test_can_cast, test_find_books,
               test_disturb_recovery_fits_live_retries, test_escape_nusero_replay, test_escape_early_disturb,
-              test_escape_stops, test_escape_late_arrival, test_escape_between):
+              test_escape_stops, test_escape_late_arrival, test_escape_between, test_no_recall_in_dungeon):
         print(t.__name__)
         t()
     print("FAILED: " + ", ".join(FAILURES) if FAILURES else "ALL PASS")

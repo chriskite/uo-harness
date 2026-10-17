@@ -623,6 +623,11 @@ moongate, and never near a red one).
     off, and the run hunted at Totem with the pets left in the Mausoleum. Until 2026-10-17 18:28 the distance
     alone counted, so a leave fired more than 30 tiles from the gate (most of zone 3) was "through" before a
     step and recalled inside the dungeon (live 18:28:22, the hits leave at 9/100: four recalls, then aborted).
+  - **No recall inside the dungeon** (user 2026-10-17: "trying to recall out of the dungeon ... which is not
+    allowed"): `escape.recall` refuses (RecallError, before the book opens) anywhere in a known dungeon box
+    more than its `recall_r` from a gold moongate (`escape.recall_forbidden`, the Mausoleum's `dungeon` block
+    in harness/data/sim/mausoleum.json, the simulator's rule too). Every recall goes through it: the hunt and
+    lumber runners and `ctl recall`. The leave then fails as "unusable" and the run stops where it is.
   - **Fleeing a hostile player** (an urgent leave; `--rope`, default on): "All Follow Me" at once, then
     the run to the gate. An Adventurer's Rope jump only when one is ready **and no player is on us**
     (`rope_worth`, since 2026-10-17; user: "ropes are useful for getting through groups of mobs or getting a
