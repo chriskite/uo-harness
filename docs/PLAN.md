@@ -1915,6 +1915,11 @@ Souls"; docs/HUNT_LOOP.md "Soul jars"). Decisions:
   said and not retried.
 - *Not built*: taking the filled jar to an Occult Merchant (60 minutes to do it). The overseer tells the user
   (docs/OVERSEER.md).
+- *The name-match spirit alert keys on the click label* (user request, the same evening): the server names our
+  spirit on entry, and the stock client single-clicks every mobile on sight, so the label with that name is the
+  sighting, 43 ms after it comes into view. Per session in the proxy (each character has its own spirit), once per
+  field session, a chime unlike the wail. Rejected: matching the name in the world model's mobiles on every packet
+  (the label event already carries it; the mobiles are scanned only when the name arrives with the spirit in view).
 
 ## Risks
 

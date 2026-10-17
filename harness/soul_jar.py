@@ -17,7 +17,8 @@ Live 2026-10-17, Logan Wolf (the store's item_seen; captures 20261017_151814 and
   saying "'My name was <spirit>....'", and the system lines FILLED_TEXT and "You increase your [EventScore by 30.
   ...". A filled jar decays in 60 minutes unless taken to an Occult Merchant (Prevalia or Corpse Creek).
 
-Used by the proxy (EerieSeen: alerts.eerie once per corpse) and the hunt runner (loop_hunt fill_soul_jar).
+Used by the proxy (EerieSeen: alerts.eerie once per corpse; SpiritWatch: alerts.spirit when our name-match spirit
+comes into view) and the hunt runner (loop_hunt fill_soul_jar).
 """
 from __future__ import annotations
 
@@ -37,7 +38,12 @@ FILL_WAIT_S = 3.0        # the filled jar came 44 ms after the click
 FILLED_TEXT = "You should visit the Occult Merchant in Prevalia or Corpse Creek with this filled soul jar " \
               "to put this spirit to rest."
 SYSTEM_SERIAL = 0xFFFFFFFF
+MOBILE_SERIAL_MAX = 0x3FFFFFFF
 _SPIRIT = re.compile(r"My name was (.+?)\.*'?$")
+# on entering the Field of Souls (live 17:27:09, 3 s after the entry; 15:55:50 for Karin Winckel)
+_MATCH = re.compile(r"^If you put the spirit of (.+?) to rest, you will receive")
+EJECTED_TEXT = "Your body can no longer sustain itself within the Field of Souls."
+FIELD_S = 16 * 60.0     # a session lasts 15 minutes: the spirit is forgotten after this
 
 
 def eerie_corpses(world: dict) -> list[tuple[int, dict]]:
@@ -111,3 +117,43 @@ class EerieSeen:
                 self.seen.add(hit)
                 out.append(hit)
         return out
+
+
+class SpiritWatch:
+    """One character's name-match eerie spirit in the Field of Souls (user request 2026-10-17: "add an alert for
+    our named spirit coming into view"). The server names it on entry ("If you put the spirit of <name> to rest,
+    you will receive a 33.0% bonus ..."). The stock client single-clicks each mobile as it comes into view and the
+    server's click label carries its name (live 17:28:32.18: the spirit's 0x09, its label 43 ms later), so the
+    label is the sighting. Once per field session; forgotten at the ejection text or FIELD_S after the entry."""
+
+    def __init__(self):
+        self.name: str | None = None
+        self.until = 0.0
+        self.found = False
+
+    def feed(self, events, now: float, state) -> int | None:
+        """The spirit's serial when it first comes into view in `events` (world events; `state` the world model's
+        StateStore: its click labels and mobiles), else None."""
+        named = False
+        for e in events:
+            if e.get("ev") == "speech_heard" and e.get("serial") == SYSTEM_SERIAL:
+                if m := _MATCH.match(e.get("text") or ""):
+                    self.name, self.until, self.found, named = m.group(1), now + FIELD_S, False, True
+                elif e.get("text") == EJECTED_TEXT:
+                    self.name = None
+        if self.name is None or self.found:
+            return None
+        if now > self.until:
+            self.name = None
+            return None
+        cands = [e["serial"] for e in events if e.get("ev") == "speech_heard" and self.name in (e.get("name"), e.get("text"))]
+        cands += [n["serial"] for e in events if e.get("ev") == "names" for n in e.get("entries") or ()
+                  if n.get("name") == self.name]
+        if named:            # already in view when the server named it
+            cands += [s for s, label in state.labels.items() if label == self.name]
+            cands += [s for s, m in state.mobiles.items() if m.name == self.name]
+        for s in cands:
+            if 0 < s <= MOBILE_SERIAL_MAX and s in state.mobiles:
+                self.found = True
+                return s
+        return None

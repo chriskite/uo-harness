@@ -48,10 +48,12 @@ agent answered gets a fabricated 0xBF sub 4 close; a target cursor the agent
 answered gets a fabricated 0x6C cancel, and the client's reply to that spent
 cursor is dropped (the only client packet the proxy ever drops).
 
-Eerie corpses (Field of Souls, soul_jar.py; user request 2026-10-17): the first time
-an eerie corpse comes into view (any session; once per corpse serial) the proxy plays
-alerts.eerie (a ghostly wail, on its own thread) and emits proxy event `eerie_corpse`
-{serial, map, x, y, z}. Live sessions only: replays never sound.
+Field of Souls alarms (soul_jar.py; user requests 2026-10-17), live sessions only (replays
+never sound), each on its own thread:
+- the first time an eerie corpse comes into view (any session; once per corpse) the proxy
+  plays alerts.eerie (a ghostly wail) and emits proxy event `eerie_corpse` {serial, map, x, y, z};
+- the first time this session's name-match eerie spirit comes into view in the Field of
+  Souls it plays alerts.spirit (a rising chime) and emits `spirit_seen` {serial, name, x, y, z}.
 
 Usage:
   python proxy.py [--listen-host 127.0.0.1] [--listen-port 2593]
@@ -583,6 +585,7 @@ class SessionTap:
         self.profile_hue_key = None      # (account, name) the profile hue was read for
         self.profile_hue = None
         self.eerie = None                # live sessions: soul_jar.EerieSeen shared by all (eerie corpse alarm)
+        self.spirit = None               # live sessions: this character's soul_jar.SpiritWatch (spirit alarm)
 
     def _log(self, **kw):
         kw["t"] = round(self.wall(), 3)
@@ -703,22 +706,29 @@ class SessionTap:
         new = self.world.drain_events()
         if new:
             self._append("world", new, t)
-            if self.eerie is not None:
+            if self.eerie is not None or self.spirit is not None:
                 try:
-                    self._eerie_alarm(new)
+                    self._alarms(new, t)
                 except Exception as e:  # noqa: BLE001 - nor an alarm bug
-                    self._log(ev="eerie_alarm_error", note=f"{type(e).__name__}: {e}")
+                    self._log(ev="alarm_error", note=f"{type(e).__name__}: {e}")
 
-    def _eerie_alarm(self, new):
-        """An eerie corpse first seen (soul_jar.EerieSeen): proxy event `eerie_corpse` and the wail."""
-        for serial in self.eerie.new(new):
-            st = self.world.state
+    def _alarms(self, new, t):
+        """Field of Souls: an eerie corpse first seen (soul_jar.EerieSeen): proxy event `eerie_corpse` and the
+        wail; our name-match spirit first in view (soul_jar.SpiritWatch): `spirit_seen` and the chime."""
+        st = self.world.state
+        who = st.self.name or f"session {self.tag}"
+        for serial in self.eerie.new(new) if self.eerie is not None else ():
             it = st.items.get(serial)
             where = {"x": it.x, "y": it.y, "z": it.z} if it is not None else {}
             self._proxy_event("eerie_corpse", serial=f"0x{serial:08X}", map=st.self.map, **where)
-            print(f"[proxy] {st.self.name or 'session ' + str(self.tag)}: an eerie corpse 0x{serial:08X} at "
-                  f"{where.get('x')},{where.get('y')} (map {st.self.map})", flush=True)
+            print(f"[proxy] {who}: an eerie corpse 0x{serial:08X} at {where.get('x')},{where.get('y')} "
+                  f"(map {st.self.map})", flush=True)
             alerts.eerie()
+        if self.spirit is not None and (serial := self.spirit.feed(new, t, st)) is not None:
+            m = st.mobiles[serial]
+            self._proxy_event("spirit_seen", serial=f"0x{serial:08X}", name=self.spirit.name, x=m.x, y=m.y, z=m.z)
+            print(f"[proxy] {who}: our spirit {self.spirit.name} (0x{serial:08X}) in view at {m.x},{m.y}", flush=True)
+            alerts.spirit()
 
     def diagnostics(self) -> dict:
         """World-model coverage counters (meta-information, not world state)."""
@@ -1136,6 +1146,7 @@ async def handle_client(client_reader, client_writer, args):
         args.memory_writer.open_session(tag)
         tap.sink = lambda env, facet: args.memory_writer.record(tag, env, facet)
     tap.eerie = args.eerie
+    tap.spirit = soul_jar.SpiritWatch()
     print(f"[proxy] {peer} connected -> {upstream_host}:{args.upstream_port} (log session_{tag}.jsonl)")
 
     timer = asyncio.create_task(_movement_timer(tap, client_writer))

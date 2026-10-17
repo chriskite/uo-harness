@@ -3452,6 +3452,19 @@ share and Logan's first run: `ctl know search "Field of Souls" --tag fos`. Code:
   it. Preview: `python -c "import sys; sys.path.insert(0, 'harness'); import alerts; alerts.eerie().join()"`.
   Replaying Logan's four captures of 2026-10-17 through SessionTaps sharing one `EerieSeen` gave exactly the 5
   alarms above, and `soul_jar.eerie_corpses` found each corpse in the world state at its alarm.
+- **The spirit alert** (user request 2026-10-17: "add an alert for our named spirit coming into view"): on entering
+  the field the server names our spirit: "If you put the spirit of Remon Stace to rest, you will receive a 33.0%
+  bonus to all further points earned this session." (live 17:27:09, 3 s after entering; 15:55:50 for Karin Winckel).
+  Eerie spirits are human-bodied mobiles named like players. The stock client single-clicks every mobile as it
+  comes into view (`0x09`), and the server's click label (`0x1C` type 6) carries the name 43 ms later: Remon
+  Stace at 17:28:32.18 → .22, Karin Winckel at 15:57:02.02 → .06. So the label is the sighting.
+  `soul_jar.SpiritWatch` (one per session, in the proxy) remembers the name. On the first label, `0x98` name or
+  speech from a mobile of that name that is in view, it plays `alerts.spirit` and emits the proxy event
+  `spirit_seen` {serial, name, x, y, z}. `alerts.spirit` is a 1.4 s rising bell chime (A5 C6 E6 A6), distinct from
+  the wail. It fires once per field session, also when the spirit was already in view when named. It forgets the
+  name at "Your body can no longer sustain itself within the Field of Souls." or 16 minutes after the naming.
+  Replaying both of Logan's runs gave one chime each, at 15:57:02 and 17:28:32. Preview:
+  `python -c "import sys; sys.path.insert(0, 'harness'); import alerts; alerts.spirit().join()"`.
 - **The hunt runner fills jars** (`--soul-jars`, default on; docs/HUNT_LOOP.md "Soul jars").
 
 ## Network observations
