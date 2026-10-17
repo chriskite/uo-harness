@@ -308,13 +308,14 @@ loot exceeds the risk/reward of being killed by reds or mobs, like the lumber ru
 
 Outlands' Field of Souls event (2026-10-17 to 10-24, docs/NOTES.md "Field of Souls"): an empty soul jar
 double-clicked within 4 tiles of an eerie corpse becomes a filled jar, the ticket into the event (+30 score).
-Eerie corpses are rare and players race for them: in about four hours of play on 2026-10-17 Logan came by one (the
-store's `item_seen`). The user:
+Eerie corpses are rare and players race for them: in about 4.5 hours of play on 2026-10-17, 5 came into Logan's view
+in the Mausoleum area and he used 2 (the store's `item_seen`). The user:
 "I'd like the hunt runner to be able to fill soul jars on its own when we have a jar and an eerie corpse is found".
 
 - **When**: each tick, after the heal, the pets' care and the Stationary Penalty and before looting, when nothing is
   attacking us, an empty soul jar (`0xA99F`) is in the pack at any bag depth (the runner loots the ones monsters drop:
-  `combat.worth_looting` takes them) and an eerie corpse (ground item `0xB1F3`) is in the world model (in view) on
+  `combat.worth_looting` takes them) and an eerie corpse (`soul_jar.eerie_corpses`: "dead" corpse art with its eerie
+  whispers a few serials on, docs/NOTES.md "Field of Souls") is in the world model (in view) on
   our floor (`same_floor`) and not tried yet: the nearest. While a target is engaged (the pets mid-fight) only a
   corpse within 2 tiles counts, so the runner never walks away from a fight for one. A crawl's patrol walk stops
   for one (`patrol_stop`).

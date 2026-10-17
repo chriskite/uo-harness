@@ -1,10 +1,15 @@
 """Field of Souls (Outlands' Halloween event, 2026-10-17 to 10-24): eerie corpses and soul jars
 (docs/NOTES.md "Field of Souls"; user request 2026-10-17).
 
-Live 2026-10-17, Logan Wolf (capture 20261017_151814, 15:42:56-15:47:17, map0):
-- An eerie corpse is a ground item, graphic 0xB1F3 (45555, tiledata "dead"), click label "an eerie corpse".
-  Blood (0x122A-0x122F), bones (0x1D09, 0x1D0B) and "eerie whispers" (0x6C6F, a spell effect) lie around it as
-  items of their own. The one Logan used lay at (5243,667,0) and came into view 18 tiles off.
+Live 2026-10-17, Logan Wolf (the store's item_seen; captures 20261017_151814 and 20261017_172358):
+- An eerie corpse is a ground item of human-corpse art, a random one of tiledata's "dead" range CORPSE_ART
+  (seen: 0xB1C5, 0xB1F3, 0xB201, 0xB202, 0xB20B), click label "an eerie corpse". It spawns with its pieces, each
+  an item of its own with the next serials: blood 0x122A/0x122F/0x122D, bones 0x1D0B/0x1D09 and last "eerie
+  whispers" (WHISPERS_GRAPHIC 0x6C6F, a spell effect) at serial +6..+8. Neither the art nor the whispers is
+  unique (64 "dead"-art and 321 whispers ground items in the store since September, decor and spells), but a
+  "dead"-art item followed within WHISPERS_GAP serials by a whispers item is: all 5 such pairs in the store are
+  that day's (13:38, 15:22, 15:42, 17:05, 17:26), 5 times the template above. The one Logan used first lay at
+  (5243,667,0) and came into view 18 tiles off.
 - An empty soul jar (0xA99F, "an empty soul jar", stackable; monster loot, or 1,000 gp from an Occult Merchant)
   double-clicked within FILL_RANGE of an eerie corpse (the event post) fills at once. Logan stood 2 tiles off and
   everything came in one flush 44 ms after the click: the empty jar and the corpse with its pieces deleted, a
@@ -20,7 +25,10 @@ import re
 
 import healing
 
-EERIE_CORPSE_GRAPHIC = 0xB1F3
+CORPSE_ART = range(0xB1C0, 0xB21D)   # tiledata "dead": the eerie corpse's art is one of these
+WHISPERS_GRAPHIC = 0x6C6F            # "eerie whispers", the corpse's last piece
+WHISPERS_GAP = 10                    # its serial is the corpse's + 1..this (seen +6..+8)
+EERIE_NAME = "an eerie corpse"
 EMPTY_JAR_GRAPHIC = 0xA99F
 FILLED_JAR_GRAPHIC = 0xA9A3
 FILL_RANGE = 4           # the event post: "within 4 tiles of an Eerie Corpse"
@@ -33,9 +41,18 @@ _SPIRIT = re.compile(r"My name was (.+?)\.*'?$")
 
 
 def eerie_corpses(world: dict) -> list[tuple[int, dict]]:
-    """(serial, item) of the eerie corpses on the ground in the world model (in view)."""
-    return [(int(k, 16), it) for k, it in (world.get("items") or {}).items()
-            if it.get("graphic") == EERIE_CORPSE_GRAPHIC and it.get("container") is None and it.get("x") is not None]
+    """(serial, item) of the eerie corpses on the ground in the world model (in view): "dead" art with its eerie
+    whispers among the next WHISPERS_GAP serials, or the click label "an eerie corpse"."""
+    items = world.get("items") or {}
+    out = []
+    for k, it in items.items():
+        if it.get("container") is not None or it.get("x") is None or it.get("graphic") not in CORPSE_ART:
+            continue
+        s = int(k, 16)
+        if (it.get("name") or "").lower() == EERIE_NAME or any(
+                (items.get(f"0x{s + i:08X}") or {}).get("graphic") == WHISPERS_GRAPHIC for i in range(1, WHISPERS_GAP + 1)):
+            out.append((s, it))
+    return out
 
 
 def empty_jars(world: dict, me: int) -> list[tuple[int, dict]]:
@@ -67,18 +84,30 @@ def system_lines(events) -> list[str]:
 
 
 class EerieSeen:
-    """The eerie corpses seen so far, by serial (the proxy keeps one for all its sessions, so a corpse two of our
-    characters see sounds once)."""
+    """The eerie corpses seen so far, by serial, from world `item_seen` events alone (either piece may come
+    first). The proxy keeps one for all its sessions, so a corpse two of our characters see sounds once."""
 
     def __init__(self):
         self.seen: set[int] = set()
+        self.art: set[int] = set()        # ground "dead"-art serials seen
+        self.whispers: set[int] = set()   # ground eerie-whispers serials seen
 
     def new(self, events) -> list[int]:
-        """Serials of eerie corpses that first came into view in `events` (world `item_seen` on the ground)."""
+        """Serials of eerie corpses first recognised in `events`."""
         out = []
         for e in events:
-            if e.get("ev") == "item_seen" and e.get("graphic") == EERIE_CORPSE_GRAPHIC \
-                    and e.get("container") is None and e["serial"] not in self.seen:
-                self.seen.add(e["serial"])
-                out.append(e["serial"])
+            if e.get("ev") != "item_seen" or e.get("container") is not None:
+                continue
+            s, g = e["serial"], e.get("graphic")
+            if g in CORPSE_ART:
+                self.art.add(s)
+                hit = s if any(s + i in self.whispers for i in range(1, WHISPERS_GAP + 1)) else None
+            elif g == WHISPERS_GRAPHIC:
+                self.whispers.add(s)
+                hit = next((s - i for i in range(1, WHISPERS_GAP + 1) if s - i in self.art), None)
+            else:
+                continue
+            if hit is not None and hit not in self.seen:
+                self.seen.add(hit)
+                out.append(hit)
         return out

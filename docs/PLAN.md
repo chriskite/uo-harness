@@ -1899,10 +1899,13 @@ be able to fill soul jars on its own when we have a jar and an eerie corpse is f
 Souls"; docs/HUNT_LOOP.md "Soul jars"). Decisions:
 
 - *The alarm lives in the proxy*, the one process that sees every live session whether a runner, the overseer or
-  the user is playing. Rejected: in the runners (silent during manual play, as on the day the only eerie corpse came
-  by), and `ctl wait` (only while an overseer waits). It keys on the first `item_seen` of a ground `0xB1F3` serial, one
-  set for all sessions, and plays on a thread so the relay never waits for the 2 s sound. Replays (viz_feed) build
-  their taps without it, so they stay silent.
+  the user is playing. Rejected: in the runners (silent during manual play), and `ctl wait` (only while an overseer
+  waits). It fires on the first recognition of each eerie corpse, one set for all sessions, and plays on a thread so
+  the relay never waits for the 2 s sound. Replays (viz_feed) build their taps without it, so they stay silent.
+- *An eerie corpse is "dead" art plus its eerie whispers a few serials on*, not one graphic: the corpse art is
+  random (5 different ones in 5 corpses) and both pieces also occur alone (decor, spells), while the pair occurred
+  only for the 5 eerie corpses in the store. The first version keyed on `0xB1F3` (the only one seen then) and was
+  fixed the same evening, when the second corpse Logan used was `0xB202`.
 - *A synthesized wail, not a file*: no asset to ship or lose, the same sound on both computers, and its shape is set
   in `alerts.EERIE_*`.
 - *The runner fills before it loots but never leaves a fight for it*: players race for an eerie corpse and the fill

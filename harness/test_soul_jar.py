@@ -14,7 +14,8 @@ import viz_feed  # noqa: E402
 from sim import packets as P  # noqa: E402
 
 FAILURES = []
-CORPSE, OTHER, JAR, PACK = 0x407F9312, 0x407F9313, 0x40897AE1, 0x445E9F92
+CORPSE, OTHER, DECOR, JAR, PACK = 0x41194AF0, 0x407F9312, 0x40B8C1A3, 0x40897AE1, 0x445E9F92
+WHISPERS = soul_jar.WHISPERS_GRAPHIC
 
 
 def check(name, cond, extra=""):
@@ -41,23 +42,34 @@ def test_alarm():
     try:
         seen = soul_jar.EerieSeen()
         a, b = tap(seen), tap(seen)
-        corpse = P.ground_item(CORPSE, soul_jar.EERIE_CORPSE_GRAPHIC, 1, 5243, 667, 0)
-        a._world(proxy.S2C, corpse)
-        check("first sight: the wail and an eerie_corpse event with its tile",
-              len(sounds) == 1 and [(s["serial"], s["x"], s["y"]) for s in sightings(a)] == [("0x407F9312", 5243, 667)],
+        # live 20261017_172358 17:26:17.9: the corpse 0x41194AF0, art 0xB202, its eerie whispers at serial +7
+        corpse = [P.ground_item(CORPSE, 0xB202, 1, 1778, 1503, 60), P.ground_item(CORPSE + 1, 0x122D, 1, 1778, 1503, 60),
+                  P.ground_item(CORPSE + 7, WHISPERS, 1, 1779, 1503, 60)]
+        a._world(proxy.S2C, corpse[0])
+        check("the corpse's art alone: nothing yet (decor uses it too)", not sounds)
+        for pkt in corpse[1:]:
+            a._world(proxy.S2C, pkt)
+        check("its whispers a few serials on: the wail and an eerie_corpse event with the corpse's tile",
+              len(sounds) == 1 and [(s["serial"], s["x"], s["y"]) for s in sightings(a)] == [("0x41194AF0", 1778, 1503)],
               str(sightings(a)))
-        a._world(proxy.S2C, P.delete(CORPSE))                 # out of range: the client drops it...
-        a._world(proxy.S2C, corpse)                           # ...and the server shows it again on the way back
-        b._world(proxy.S2C, corpse)                           # our other character comes by
-        check("seen again, or by another session: no second wail", len(sounds) == 1 and len(sightings(b)) == 0,
+        for pkt in corpse:                                    # out of range and back...
+            a._world(proxy.S2C, P.delete(int.from_bytes(pkt[4:8], "big")))
+        for pkt in corpse:
+            a._world(proxy.S2C, pkt)
+            b._world(proxy.S2C, pkt)                          # ...and our other character comes by
+        check("seen again, or by another session: no second wail", len(sounds) == 1 and not sightings(b),
               f"{len(sounds)} sounds")
-        a._world(proxy.S2C, P.ground_item(OTHER, soul_jar.EERIE_CORPSE_GRAPHIC, 1, 5250, 670, 0))
-        check("another eerie corpse: its own wail", len(sounds) == 2)
-        a._world(proxy.S2C, P.ground_item(OTHER + 10, 0x6C6F, 1, 5243, 668, 0))        # its "eerie whispers"
-        a._world(proxy.S2C, P.contained(JAR, soul_jar.EERIE_CORPSE_GRAPHIC, 1, PACK))   # the graphic, not on the ground
-        check("its pieces and the graphic inside a container: nothing", len(sounds) == 2)
+        a._world(proxy.S2C, P.ground_item(OTHER + 6, WHISPERS, 1, 5244, 667, 0))      # whispers first this time
+        a._world(proxy.S2C, P.ground_item(OTHER, 0xB1F3, 1, 5243, 667, 0))
+        check("another one, its pieces in the other order: its own wail", len(sounds) == 2)
+        a._world(proxy.S2C, P.ground_item(DECOR, 0xB214, 1, 1500, 1600, 0))           # a decor body
+        a._world(proxy.S2C, P.ground_item(DECOR + 40, WHISPERS, 1, 1500, 1601, 0))    # a spell's whispers, unrelated
+        a._world(proxy.S2C, P.contained(JAR, 0xB1C5, 1, PACK))
+        a._world(proxy.S2C, P.contained(JAR + 3, WHISPERS, 1, PACK))
+        check("decor art, unrelated whispers, the pair inside a container: nothing", len(sounds) == 2)
         replay = tap(None)                                    # viz_feed / replays: no EerieSeen
-        replay._world(proxy.S2C, P.ground_item(CORPSE + 100, soul_jar.EERIE_CORPSE_GRAPHIC, 1, 1, 1, 0))
+        for pkt in corpse:
+            replay._world(proxy.S2C, pkt)
         check("a tap without an EerieSeen (a replay) never sounds", len(sounds) == 2 and not sightings(replay))
     finally:
         alerts.eerie = orig
