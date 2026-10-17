@@ -507,6 +507,13 @@ what comes.
   the Mausoleum's 0x00D1/0x00D9/0x00DA wall pieces carry Wall alone, no NoShoot (user 2026-10-17: "Logan is
   waiting for mobs that can't see him through walls to 'come on'"; NOTES "16:12 run's holds"). Targeting, the
   pull budget and the stand-off keep the server's rule.
+- **No patrol without the pets** (user 2026-10-17, after Logan set out on a 101-step patrol at 17:11:55 while the
+  pets fought a tormented soul: "he should check that his pets are not currently fighting something before
+  starting a patrol, and check during a patrol that his pets are still near him"). `HuntLoop.patrol_hold`: a pet
+  fighting (a monster on a pet, or a pet in war mode within 2 of a monster in war mode) or a pet more than 8 tiles
+  off or out of view. Before a patrol leg the crawl waits while they fight, or walks back to a pet left behind
+  (`Team.rejoin`). During a leg the walk stops on either. Simulator, 48 seeds: deaths 32 to 29, pet deaths 35 to
+  30, damage on Logan 40957 to 35624. Holds: 31 for a pet fighting, 18 for a pet 9-12 tiles off.
   **The pull spot**: before holding, once per group, the runner steps (up to 3) to the tile where the
   fewest of them would see us before a pet, then the fewest by weight within their range, but at least one
   near enough to see the pets beside us; not in a Charge's reach or a never-aggro monster's sight; they

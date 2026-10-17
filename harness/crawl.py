@@ -450,6 +450,7 @@ class Crawl:
         self.arrived_t = None        # when we got to it
         self.leg_t = 0.0             # when we set out for it (targets met on the way count for it)
         self.glance_s = 0.0
+        self.pets_held = None        # why the last patrol waited for the pets (HuntLoop.patrol_hold), logged once
         self.visited = {}            # waypoint -> monotonic time of our last stay
         self.depleted = {}           # waypoint -> monotonic time it may be chosen again
         self.target_t = {}           # waypoint -> monotonic time a target was last in reach there
@@ -807,6 +808,18 @@ class Crawl:
                 return
             self.leg_t = now
         w = self.wps[self.wp]
+        if (why := h.patrol_hold(st)) is not None:
+            # the pets fighting or left behind: no patrol (user 2026-10-17, Logan off on 101 steps at 17:11:55 while
+            # they fought a tormented soul); left behind, back to them (Team.rejoin), else wait while they fight
+            if why != self.pets_held:
+                log(f"crawl: not patrolling yet: {why}")
+            self.pets_held = why
+            if h.pets_busy(st) is None and h.team.rejoin(st):
+                return
+            h.doing("wait", f"Waiting for the pets ({why})", tuple(pos[:2]))
+            time.sleep(0.4)
+            return
+        self.pets_held = None
         h.doing("patrol", f"Patrolling to {w[0]},{w[1]} (zone {self.zone[self.wp]})", w)
         h.patrolling = True
         try:

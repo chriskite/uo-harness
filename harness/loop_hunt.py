@@ -193,6 +193,7 @@ WALK_IN_LAG_R = 8             # --enter-via: a pet farther than this (or out of 
 WALK_IN_QUIET_S = 5.0         # --enter-via: first wait this long for a lagging pet without a word (it is on follow)
 WALK_IN_FIGHT_S = 90.0        # --enter-via: attacked on the way, stand this long at most while the guarding pets take it
 WALK_IN_CALM_S = 4.0          # ...until nothing attacks us and no hit has come for this long
+PET_BUSY_R = 2                # a pet in war mode this close to a monster in war mode is fighting it (patrol_hold)
 HARD_TIMEOUT_GRACE_S = 180.0  # past --timeout the runner leaves; past this too it aborts
 GOTO_Z_TOL = 10               # ctl.GOTO_Z_TOL
 # Arcane staves (wiki Arcane: "Players with at least 80 skill in Arcane, Wrestling, and
@@ -477,9 +478,38 @@ class HuntLoop:
     def patrol_stop(self, st):
         """The crawl's patrol walk stops here (Mover.walk_to `stop`) when there is
         something to do: crawl.Crawl.interrupt, on the deaths and damage seen so far; --pets: an
-        advance that would pull too much (tamer.Team.pull_check)."""
+        advance that would pull too much (tamer.Team.pull_check), or the pets fighting or left behind
+        (patrol_hold)."""
         self.scan_events(st)
-        return self.crawl.interrupt(st) or (self.team.pull_check(st) if self.team is not None else None)
+        return self.crawl.interrupt(st) or (self.team.pull_check(st) or self.patrol_hold(st)
+                                            if self.team is not None else None)
+
+    def patrol_hold(self, st) -> str | None:
+        """--pets: why not to patrol now (the crawl waits, or goes back to the pets): a pet fighting (pets_busy)
+        or one more than WALK_IN_LAG_R off or out of view (pets_lagging). User 2026-10-17, after Logan walked
+        off on a 101-step patrol at 17:11:55 while the pets fought a tormented soul: "he should check that his
+        pets are not currently fighting something before starting a patrol, and check during a patrol that his
+        pets are still near him"."""
+        if self.team is None:
+            return None
+        return self.pets_busy(st) or self.pets_lagging(st)
+
+    def pets_busy(self, st) -> str | None:
+        """A live pet fighting: a monster on a pet (Team.pet_attackers: in war mode beside a pet hurt lately),
+        or a pet in war mode within PET_BUSY_R of a monster in war mode."""
+        if self.team is None:
+            return None
+        if self.team.pet_attackers(st):
+            return "the pets are fighting"
+        world = st["world"]
+        foes = [(m["x"], m["y"]) for k, m in world["mobiles"].items()
+                if m.get("x") is not None and not m.get("pet") and serial_of(k) not in self.team.roster
+                and serial_of(k) not in self.dead and (m.get("flags") or 0) & threats.FLAG_WARMODE
+                and m.get("notoriety") in combat.ATTACKABLE_NOTORIETY]
+        for p in self.team.pets(st):
+            if not p["dead"] and p["war"] and any(cheb((p["x"], p["y"]), f) <= PET_BUSY_R for f in foes):
+                return f"{p['name']} is fighting"
+        return None
 
     def track(self, st):
         """Hits lost (the visit's, the engagement's, the crawl zone's) and, crawling, the
