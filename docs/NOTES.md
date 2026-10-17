@@ -3466,6 +3466,11 @@ share and Logan's first run: `ctl know search "Field of Souls" --tag fos`. Code:
   Replaying both of Logan's runs gave one chime each, at 15:57:02 and 17:28:32. Preview:
   `python -c "import sys; sys.path.insert(0, 'harness'); import alerts; alerts.spirit().join()"`.
 - **The hunt runner fills jars** (`--soul-jars`, default on; docs/HUNT_LOOP.md "Soul jars").
+- **A takeover mid-walk ended the run** (`hunt-20261017-172523-bbe2`, 17:26:28-17:29:48). The user took over on
+  the walk-in to fill a jar at the 17:26 corpse. The step the runner sent as the gate closed came back 3 tiles off,
+  (5615, 691) → (5618, 692), and was saved as a teleporter; the user had moved Logan. The row is deleted from the
+  store. `Mover.step` then gave up after 40 gate polls (200 s): "ABORTED: walk gated too long", with Logan in the
+  Mausoleum. Now a walk waits out a closed gate like `Link.act` does, logging the close and the reopening once.
 
 ## Network observations
 
