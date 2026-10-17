@@ -8,11 +8,21 @@
   staff_alarm_due() is called by a holding runner and by `ctl wait`, and the
   last sound time is shared through the store's meta table, so the two don't
   double up. Acking the juncture (`ctl ack <id>`) stops it.
+- eerie(): a ghostly wail (a theremin-like glide with vibrato and a tritone
+  shadow, synthesized as a WAV). An eerie corpse of the Field of Souls event came
+  into view (user request 2026-10-17; the proxy sounds it once per corpse,
+  soul_jar.EerieSeen). It returns at once: the sound plays on its own thread, so
+  the proxy's relay never waits for it.
 """
 from __future__ import annotations
 
+import io
+import math
 import os
+import struct
+import threading
 import time
+import wave
 
 import task_wrap as tw
 
@@ -20,6 +30,16 @@ STAFF_REPEAT_S = 30.0
 GM_KIND = "gm_suspected"
 LAST_STAFF_KEY = "gm_alarm_t"
 QUIET_ENV = "UO_QUIET"          # tests: no sound from any process
+# eerie(): the wail. Legs (seconds, from Hz, to Hz), glided exponentially: up, a held wobble, a long fall
+EERIE_RATE = 22050
+EERIE_LEGS = ((0.45, 330.0, 494.0), (0.35, 494.0, 494.0), (1.2, 494.0, 196.0))
+EERIE_VIBRATO = (5.5, 0.025)     # Hz, depth (share of the pitch)
+EERIE_SHADOW = (math.sqrt(2.0), 0.3)   # a second voice a tritone up, at this share of the first's loudness
+EERIE_ATTACK_S, EERIE_RELEASE_S = 0.12, 0.6
+EERIE_LEVEL = 0.6                 # of full scale
+
+_eerie_wav: bytes | None = None
+_sound_lock = threading.Lock()   # one eerie() at a time: a second waits for the first to finish
 
 
 def _beep(tones):
@@ -41,6 +61,56 @@ def handoff(sound: bool = True):
 def staff(sound: bool = True):
     if sound:
         _beep([(1320, 180), (660, 180)] * 4)
+
+
+def eerie_wav() -> bytes:
+    """The eerie() wail as a 16-bit mono WAV (EERIE_* above), built on first use."""
+    global _eerie_wav
+    if _eerie_wav is None:
+        total = sum(leg[0] for leg in EERIE_LEGS)
+        n = int(total * EERIE_RATE)
+        (vib_hz, vib_depth), (ratio, share) = EERIE_VIBRATO, EERIE_SHADOW
+        frames, phase, phase2 = bytearray(), 0.0, 0.0
+        for i in range(n):
+            t = i / EERIE_RATE
+            start = 0.0
+            for secs, f0, f1 in EERIE_LEGS:
+                if t < start + secs or (secs, f0, f1) == EERIE_LEGS[-1]:
+                    hz = f0 * (f1 / f0) ** min(1.0, (t - start) / secs)
+                    break
+                start += secs
+            hz *= 1.0 + vib_depth * math.sin(2 * math.pi * vib_hz * t)
+            phase += 2 * math.pi * hz / EERIE_RATE
+            phase2 += 2 * math.pi * hz * ratio / EERIE_RATE
+            env = min(1.0, t / EERIE_ATTACK_S, (total - t) / EERIE_RELEASE_S)
+            v = EERIE_LEVEL * env * (math.sin(phase) + share * math.sin(phase2)) / (1.0 + share)
+            frames += struct.pack("<h", int(v * 32767))
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(EERIE_RATE)
+            w.writeframes(bytes(frames))
+        _eerie_wav = buf.getvalue()
+    return _eerie_wav
+
+
+def _play_eerie():
+    with _sound_lock:
+        try:
+            import winsound
+            winsound.PlaySound(eerie_wav(), winsound.SND_MEMORY)   # SND_MEMORY can't be async: this thread waits
+        except (ImportError, RuntimeError):
+            print("\a", end="", flush=True)
+
+
+def eerie(sound: bool = True) -> threading.Thread | None:
+    """The eerie-corpse wail, on its own daemon thread (returned; None when quiet)."""
+    if not sound or os.environ.get(QUIET_ENV):
+        return None
+    th = threading.Thread(target=_play_eerie, name="eerie-alarm", daemon=True)
+    th.start()
+    return th
 
 
 def open_gm(mem) -> list[int]:

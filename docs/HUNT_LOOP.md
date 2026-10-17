@@ -55,6 +55,7 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--rest-to` | `0.95` | After leaving: Heal / Greater Heal when one can be cast (no potions; else natural regeneration) outside to this share of hits (and `--mana-reserve` mana), then go back in. `0`: stop after leaving. `--rest-timeout` (900 s) bounds the rest. |
 | `--reposition-s` | `240` | No step for this long: walk 2–4 steps out and back to the fight spot before the Stationary Penalty comes (300 s); with nothing on us already from a draw in 0.8–1 × it. |
 | `--loot` / `--no-loot`, `--loot-max` | on, 25 | Loot our kills' corpses (items per corpse). |
+| `--soul-jars` / `--no-soul-jars` | on | Field of Souls: with an empty soul jar in the pack, walk to an eerie corpse in view and fill the jar there ("Soul jars" below). |
 | `--human`, `--seed`, `--human-fast`, `--no-map`, ports, `--memory` | | As in the lumber runner. |
 
 ## What it does
@@ -99,11 +100,14 @@ Each tick re-reads the proxy state and decides, in this order:
      our count): that spell isn't cast again until the next visit (heals and the attack spell).
 4. **Stationary Penalty** (below): when it is on, walk it off at once (mid-fight too); when no
    step was taken for `--reposition-s`, reposition.
-5. **Loot** our kills' corpses when nothing is attacking us, like `ctl act loot`: human corpses
+5. **Soul jar** (`--soul-jars`, "Soul jars" below) when nothing is attacking us: an empty soul jar in the pack
+   and an eerie corpse in view: walk within 2 tiles of it and double-click the jar. Mid-fight only one that
+   needs no step.
+6. **Loot** our kills' corpses when nothing is attacking us, like `ctl act loot`: human corpses
    refused, walk within 2 tiles, open the backpack (stock dclick) and the corpse, then lift + drop
    each item into the backpack, gold first, up to the weight limit. See "Loot rights" below:
    blue corpses are skipped, a refused open stops at once, only items that reach the pack count.
-6. **Fight** the target:
+7. **Fight** the target:
    - Targets come only from the live world model (`world.mobiles` holds what the stock client still
      has; docs/WORLDMODEL.md) and pass the `ctl act attack` guard (`combat.attackable`: threats.py
      monster, notoriety 3-6, on screen). Serials the server reported dead (`mobile_death`) are never
@@ -128,7 +132,7 @@ Each tick re-reads the proxy state and decides, in this order:
    - **A pinned target is dropped:** one that is neither adjacent nor took damage for 15 s
      (`PIN_S`) is disengaged and passed over for 60 s (`SKIP_S`) unless it attacks us. The runner
      never walks to melee.
-7. **Idle**: war mode off when nothing is near, back to the fight spot, wait.
+8. **Idle**: war mode off when nothing is near, back to the fight spot, wait.
 
 **A fight spot away from the exit** (`--fight-spot`, user request 2026-10-03: the exit tile is
 crowded). Each visit (at the start and after every re-entry) walks from the arrival to the
@@ -299,6 +303,35 @@ loot exceeds the risk/reward of being killed by reds or mobs, like the lumber ru
   chest); the run then rests there and recalls back in from the room. A failure is logged (`dropoff` job event) and
   the run goes on with the load. The simulator has no room (`--no-drop-off` in run.py's defaults).
 - `--return-at auto` (default) | `off` | `GOLD` (a fixed value).
+
+## Soul jars (`--soul-jars`; `harness/soul_jar.py`; user request 2026-10-17)
+
+Outlands' Field of Souls event (2026-10-17 to 10-24, docs/NOTES.md "Field of Souls"): an empty soul jar
+double-clicked within 4 tiles of an eerie corpse becomes a filled jar, the ticket into the event (+30 score).
+Eerie corpses are rare and players race for them: in about four hours of play on 2026-10-17 Logan came by one (the
+store's `item_seen`). The user:
+"I'd like the hunt runner to be able to fill soul jars on its own when we have a jar and an eerie corpse is found".
+
+- **When**: each tick, after the heal, the pets' care and the Stationary Penalty and before looting, when nothing is
+  attacking us, an empty soul jar (`0xA99F`) is in the pack at any bag depth (the runner loots the ones monsters drop:
+  `combat.worth_looting` takes them) and an eerie corpse (ground item `0xB1F3`) is in the world model (in view) on
+  our floor (`same_floor`) and not tried yet: the nearest. While a target is engaged (the pets mid-fight) only a
+  corpse within 2 tiles counts, so the runner never walks away from a fight for one. A crawl's patrol walk stops
+  for one (`patrol_stop`).
+- **How**: the Mover walks within `soul_jar.FILL_WALK_R` = 2 tiles (Logan filled from 2; the event post says 4).
+  The walk stops when something attacks us, a leave rule fires or the corpse goes, and the next tick decides
+  again; a walk that can't get there gives the corpse up. Then the jar's bags are opened like a player
+  (`containers_to_open`), the jar double-clicked, and the runner waits up to 3 s for a filled jar (`0xA9A3`) in
+  the pack (live it came 44 ms after the click).
+- **One try per corpse** (`jar_tried`), filled or not. Live, nothing was ever seen of a fill that failed, so a miss
+  logs whatever the server said and moves on.
+- **Memory**: a `soul_jar` job event: `corpse`, `at` (x, y, z), `jar`, `spirit` (from "spirit energy"'s "'My name
+  was …'"), `filled`, `filled_jar` or `heard` (the server's lines on a miss); the run's tally counts `soul_jars`.
+- **Not done by the runner**: taking the filled jar to an Occult Merchant (Prevalia or Corpse Creek). It decays 60
+  minutes after the fill; the log line says so.
+- **The sound**: the proxy plays a ghostly wail the first time any of our characters sees each eerie corpse,
+  runner or not (`alerts.eerie`; docs/NOTES.md "Field of Souls").
+- Test: `test_sim.py` `test_soul_jar` (the simulator's eerie corpse and jar: walk, fill, no jar no walk, mid-fight).
 
 ## Pets (`--pets`; `harness/tamer.py`; user request 2026-10-12)
 
@@ -840,7 +873,8 @@ margin), `spell`, `hits_start`, `kills`, `lost_kills` (kills taken back: someone
 rights), `gold`, `xp`, `hits_lost`, `casts`, `heals`, `leaves`,
 `stationary_clears`, `repositions` (Stationary Penalty walks), `ended` (the leave reason, `done`,
 `time is up` or `stopped`). Job events `kill`, `loot` (`mob`, `name`, `gold`, `xp`, items,
-`lift_rejects`; `refused` = `blue` or the server's refusal text for a corpse not ours), `leave`,
+`lift_rejects`; `refused` = `blue` or the server's refusal text for a corpse not ours), `leave`, `soul_jar`
+("Soul jars"),
 `death`, `speech_hold`, `speech_clear` (until 2026-10-15), and **`fight`** per engagement, both modes (`serial`, `name`,
 `body`, `fight_s` from the first attack, `hits_lost` meanwhile, `outcome` kill / fled / dropped /
 lost / switched / ended, `mode`, crawling also `zone`); `leave` has `route_steps`. Crawling:

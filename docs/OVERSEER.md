@@ -574,6 +574,9 @@ Paste this (or point the session at this section) to start an overseer.
 >    `--timeout`, user 2026-10-17); end it with `ctl stop --after-trip` (out with the pets, home, exit 0).
 > 4. **While it runs:** `ctl wait --timeout 150` and glance at `status` and the task log (`hits`, `intent`).
 >    Nothing to act on: ctl refuses acts while the run is on, and **never fight by hand** in the dungeon.
+>    Field of Souls (until 2026-10-24): with an empty soul jar in the pack the runner fills it at any eerie corpse
+>    it sees (task log "soul jar filled", job event `soul_jar`; docs/HUNT_LOOP.md "Soul jars"). A filled jar
+>    decays 60 minutes after the fill, so `ctl say "@user …"` at once with the spirit's name and the time.
 > 5. **`task_done`** (home): `act room enter`, `act dropoff` (the runner drops off between visits itself, not at
 >    the end), check pets and supplies (step 2), start the next run. A new loot type the user prices:
 >    `ctl lumber price "loot:<the client's name>" <gp> --source user` (the carried value reads them). Say one progress line every few runs (kills, gold, deaths).

@@ -1243,6 +1243,64 @@ def test_walk_in():
           f"max {max(lag) if lag else None}")
 
 
+def test_soul_jar():
+    print("== Field of Souls: with an empty soul jar, walk to an eerie corpse and fill it there; no jar, no walk ==")
+    import json
+    import soul_jar
+    from sim.scenario import load as load_sc
+    corpse_at = (5266, 654)                                   # 6 route steps south of FLOOR
+    out = {}
+    for jar in (True, False):
+        sc = load_sc()
+        sc["spawns"] = []
+        sc["player"]["start"] = [FLOOR[0], FLOOR[1], 0]
+        if jar:
+            sc["loadout"]["items"].append({"serial": 0x6FFF0001, "graphic": soul_jar.EMPTY_JAR_GRAPHIC, "amount": 2,
+                                           "kind": "soul_jar"})
+        w = World(sc, seed=1)
+        corpse = w.eerie_corpse(*corpse_at)
+        loop, clock, store, patched = hurt_loop(w, w.player.hits_max)
+        filled_at = None
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                for _ in range(12):
+                    loop.tick()
+                    clock.advance(0.5)
+                    if w.metrics.get("soul_jars") and filled_at is None:
+                        filled_at = sim_cheb(w.player.pos, corpse_at)
+                st = loop.state()
+                me = loop.me(st)
+                out[jar] = {"filled": [s for s, _ in soul_jar.filled_jars(st["world"], me)],
+                            "empty": sum(it.get("amount") or 1 for _, it in soul_jar.empty_jars(st["world"], me)),
+                            "corpse_seen": f"0x{corpse:08X}" in st["world"]["items"], "at": filled_at,
+                            "dist": sim_cheb(w.player.pos, corpse_at),
+                            "events": [json.loads(r[0]) for r in store.con.execute(
+                                "SELECT data FROM job_events WHERE kind='soul_jar'")]}
+                if jar:                                                         # a fight on (the pets engaged),
+                    loop.engaged = 0x00300099                                   # back at the fight spot:
+                    w.eerie_corpse(*corpse_at)                                  # one 6 tiles off...
+                    far = loop.soul_corpse(loop.state(), walk=False)
+                    near = w.eerie_corpse(*w.player.pos[:2])                    # ...and one on our tile
+                    pick = loop.soul_corpse(loop.state(), walk=False)
+                    out["fight"] = (far, pick[0] if pick else None, near, sim_cheb(w.player.pos, corpse_at))
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    got = out[True]
+    ev = got["events"][0] if got["events"] else {}
+    check("with a jar: one filled jar in the pack, one empty left, the corpse gone, filled within the fill range",
+          len(got["filled"]) == 1 and got["empty"] == 1 and not got["corpse_seen"]
+          and got["at"] is not None and got["at"] <= soul_jar.FILL_RANGE, str({k: got[k] for k in got if k != "events"}))
+    check("...a soul_jar job event: filled, the spirit's name, the corpse's tile",
+          len(got["events"]) == 1 and ev.get("filled") is True and ev.get("spirit") == "Karin Winckel"
+          and ev.get("at", [])[:2] == list(corpse_at), str(got["events"]))
+    check("no jar: no walk to the corpse, it stays", out[False]["dist"] >= 6 and out[False]["corpse_seen"]
+          and not out[False]["events"], str(out[False]["dist"]))
+    f = out["fight"]
+    check("a fight on: only an eerie corpse within reach without a step", f[0] is None and f[1] == f[2] and f[3] > 2,
+          str(f))
+
+
 def main():
     if pathfind.Walkers().get(0) is None:
         print("SKIP: no map files (install dir)")
@@ -1254,7 +1312,7 @@ def main():
               test_heal_in_place,
               test_songs,
               test_pull_budget, test_hold_first_sight, test_rope,
-              test_rest_hurt_pet, test_walk_in):
+              test_rest_hurt_pet, test_walk_in, test_soul_jar):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

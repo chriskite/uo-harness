@@ -48,6 +48,11 @@ agent answered gets a fabricated 0xBF sub 4 close; a target cursor the agent
 answered gets a fabricated 0x6C cancel, and the client's reply to that spent
 cursor is dropped (the only client packet the proxy ever drops).
 
+Eerie corpses (Field of Souls, soul_jar.py; user request 2026-10-17): the first time
+an eerie corpse comes into view (any session; once per corpse serial) the proxy plays
+alerts.eerie (a ghostly wail, on its own thread) and emits proxy event `eerie_corpse`
+{serial, map, x, y, z}. Live sessions only: replays never sound.
+
 Usage:
   python proxy.py [--listen-host 127.0.0.1] [--listen-port 2593]
                   [--upstream-host play.uooutlands.com] [--upstream-port 2593]
@@ -67,10 +72,12 @@ from uo.packets import packet_length, C2S_OVERRIDES
 from uo.s2c import PRELUDE_LEN, S2CStream, encode_packet, prelude_keys
 from agent_gate import AgentGate
 import actions
+import alerts
 import charsel
 import cuo_profile
 from memory import MemoryWriter
 import pathfind
+import soul_jar
 from world.runtime import WorldRuntime, C2S, S2C
 
 CONTROL_MAX_FRAME = 4096
@@ -575,6 +582,7 @@ class SessionTap:
         self.client_speech_hue = None
         self.profile_hue_key = None      # (account, name) the profile hue was read for
         self.profile_hue = None
+        self.eerie = None                # live sessions: soul_jar.EerieSeen shared by all (eerie corpse alarm)
 
     def _log(self, **kw):
         kw["t"] = round(self.wall(), 3)
@@ -695,6 +703,22 @@ class SessionTap:
         new = self.world.drain_events()
         if new:
             self._append("world", new, t)
+            if self.eerie is not None:
+                try:
+                    self._eerie_alarm(new)
+                except Exception as e:  # noqa: BLE001 - nor an alarm bug
+                    self._log(ev="eerie_alarm_error", note=f"{type(e).__name__}: {e}")
+
+    def _eerie_alarm(self, new):
+        """An eerie corpse first seen (soul_jar.EerieSeen): proxy event `eerie_corpse` and the wail."""
+        for serial in self.eerie.new(new):
+            st = self.world.state
+            it = st.items.get(serial)
+            where = {"x": it.x, "y": it.y, "z": it.z} if it is not None else {}
+            self._proxy_event("eerie_corpse", serial=f"0x{serial:08X}", map=st.self.map, **where)
+            print(f"[proxy] {st.self.name or 'session ' + str(self.tag)}: an eerie corpse 0x{serial:08X} at "
+                  f"{where.get('x')},{where.get('y')} (map {st.self.map})", flush=True)
+            alerts.eerie()
 
     def diagnostics(self) -> dict:
         """World-model coverage counters (meta-information, not world state)."""
@@ -1111,6 +1135,7 @@ async def handle_client(client_reader, client_writer, args):
     if args.memory_writer is not None:
         args.memory_writer.open_session(tag)
         tap.sink = lambda env, facet: args.memory_writer.record(tag, env, facet)
+    tap.eerie = args.eerie
     print(f"[proxy] {peer} connected -> {upstream_host}:{args.upstream_port} (log session_{tag}.jsonl)")
 
     timer = asyncio.create_task(_movement_timer(tap, client_writer))
@@ -1202,6 +1227,7 @@ async def amain(args):
     args.hub = InjectionHub(AgentGate(args.budget_file or os.path.join(args.logdir, "agent_budget.json")))
     args.tags_used = set()
     args.memory_writer = MemoryWriter(args.memory_db) if args.memory_db else None
+    args.eerie = soul_jar.EerieSeen()
     args.walkers = None if args.no_map_z else pathfind.Walkers()
     print(f"[proxy] agent gate: {args.hub.gate.status()['state']} ({args.hub.gate.path}); "
           f"memory: {args.memory_db or 'off'}; map z: {'off' if args.no_map_z else 'on'}")
