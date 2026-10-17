@@ -407,7 +407,9 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    0x2260-0x227C, or "scroll" in the name) and anything worn other than jewellery (a tiledata layer
    outside ring, talisman, necklace, bracelet, earrings: weapons, shields, spellbooks, armour, clothing)
    (`combat.worth_looting`; `--loot-keep WORD` takes an item with that word anyway); the rest stays in
-   the corpse. **Weight**: an item that would bring us
+   the corpse. **Arcane scrolls are taken** (user 2026-10-17, "valuable loot": pink blank scrolls, live a
+   0x0EF3 in hue 2609 left in a banshee's corpse at 11:11:05): a blank scroll graphic in any hue but 0, or
+   "arcane scroll" in the name. **Weight**: an item that would bring us
    within 10 stones of the limit (`LOOT_WEIGHT_MARGIN`; tiledata weight, gold ~0.01 a coin
    [INFERENCE]) is left; at the limit looting stops until the weight drops. Live 20261015_181807 the
    take-everything loot reached 471/450 and Logan couldn't move.
