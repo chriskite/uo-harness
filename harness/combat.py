@@ -323,6 +323,8 @@ JEWELRY_LAYERS = frozenset((8, 9, 10, 14, 18))  # ring, talisman, necklace, brac
 # loot aspect cores"), a skill scroll (0x227A "scroll of calling" in hue 2291, 11:26:31: "also valuable"). Plain
 # reagents and spell scrolls come in hue 0 [INFERENCE from today's corpses: every left one was hue 0].
 BLANK_SCROLL_GRAPHICS = frozenset((0x0E34, 0x0EF3))
+TILE_WEARABLE = 0x00400000    # tiledata flag (UO TileFlag.Wearable)
+JEWELRY_NAME = re.compile(r"\b(ring|bracelet|necklace|earrings?|talisman|amulet|beads)\b")
 _MARKUP = re.compile(r"%[^%]*%")
 GOLD_WEIGHT_PER = 0.01        # [INFERENCE] stones per gold coin: live 36,231 gold put Logan at 475/450 (20261014_221341)
 HEAVY_WEIGHT = 255            # tiledata's "heavy" mark, not stones (the phylactery 0x0240 has it): counted as 1
@@ -361,7 +363,14 @@ def worth_looting(it: dict, keep=()) -> bool:
         return False
     import uomap
     t = uomap.tiledata().item(g)
-    return not (t is not None and t.layer and t.layer not in JEWELRY_LAYERS)
+    if t is None:
+        return True
+    if t.layer:
+        return t.layer in JEWELRY_LAYERS
+    # Outlands' own weapon and armour art carries the Wearable flag but layer 0 (live 2026-10-15..17 the runner took
+    # caesti, dual wield sabres, hurlbats, a bone skirt, a bone shield ...: "unidentified cestus" in the client). The
+    # user: "I don't really loot unidentified items much since they're heavy" (instruments yes: not Wearable)
+    return not (t.flags & TILE_WEARABLE) or bool(JEWELRY_NAME.search(name))
 
 
 def item_weight(it: dict) -> float:

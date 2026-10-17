@@ -39,6 +39,8 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--recall-spot X Y` | the arrival / `--spot` | A recall home refused where we stand (dungeons: only near a golden gate) walks here and recalls again. The route margin is measured to it. |
 | `--bank-gold N` | `0` (off) | At home after a recall: with N gold or more in the pack, bank all of it. Needs `--leave-recall`. |
 | `--pk-wait S` | `600` | Recall mode: after leaving from a hostile player, stay home this long before going back in. |
+| `--return-at` | `auto` | Recall mode: take the loot home once this visit's carried value reaches V\* = r·sqrt(2T/h) (`auto`), a fixed gold value, or never (`off`); a full pack always ("Taking the loot home"). |
+| `--drop-off` / `--no-drop-off` | on | Home after a recall: into the rental room and its drop-off (homes.json `dropoff`), then back in from there. |
 | `--heal-at` | `0.75` (`--pets` 0.80) | Heal below this share of max hits (healing.py: a heal potion if one can be drunk, else a spell). |
 | `--gheal-min-missing` | the mana break-even for your Magery (19 at 60) | Missing hits from which the heal spell is Greater Heal; below it, Heal. |
 | `--leave-at` | `0.60` (`--pets` 0.50) | Leave below this share of max hits (plus the fight spot's route margin). |
@@ -252,6 +254,35 @@ disturb it. Overseer command:
 run hunt --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluffs" --leave-recall 0x57C3DEB6 --bank-gold 1 --target-name "" --pull-range 4 --heal-at 0.85 --leave-at 0.7 --leave-multi-at 0.9 --mana-reserve 999 --gheal-min-missing 1 --timeout 3600
 ```
 
+### Taking the loot home (`--return-at`, `--drop-off`; user request 2026-10-17)
+
+User, after two deaths to reds with a full pack: "modify the runner to leave and drop off loot once the value of our
+loot exceeds the risk/reward of being killed by reds or mobs, like the lumber runner does" (`harness/hunt_return.py`).
+
+- **The rule** (the lumber runner's, LUMBER_LOOP §6 "Return trigger"): the carried value grows at `r` gold a minute
+  on the level, a death (reds or monsters, `h` a minute) loses all of it, a round trip costs `T` minutes; the cost
+  per gold banked, rT/V + hV/(2r), is least at **V\* = r·sqrt(2T/h)**. A visit leaves once what it added reaches
+  V\* (the value carried at the visit's start is a load a drop-off didn't take: it doesn't count), or when the pack
+  is within `LOOT_WEIGHT_MARGIN` of full. Only between fights: nothing on us, nothing engaged, no corpse to loot.
+  The leave is planned (severity `return`: no `threat` juncture, the walk to the gate at a normal pace with the
+  pets guarding, the crawl doesn't mark the place) and the run goes back in.
+- **The inputs**, from the store at each visit's start: `r` from this character's visit rows within 120 tiles of
+  the spot since the first live-server run (2026-10-15 21:07; the test shard had no player killers), gold only;
+  `h` Gamma-Poisson, (1 + deaths) / (60 + minutes); `T` 6 min [INFERENCE]. Live 2026-10-17: 1342 gold/min, 3 deaths
+  in 70 min: **V\* ≈ 26,500**, about 20 minutes of gold.
+- **The carried value**: the pack's top level (where loot lands; our bags of supplies aside): its gold plus every item
+  priced in the store under `loot:<name>` (the client's name, lower case, no " : N" or article), else a kind's row
+  (`loot:aspect core` 10k for an unseen core, `loot:skill scroll`). Priced 2026-10-17: the user's (research materials
+  25k, plant chemicals 1k, chromatic core 35k, gold ore map 12k, avarhide skinning map 15k, blood aspect core 14k,
+  arcane scroll 1k, other cores 10k), the wiki's gem prices (citrine 20 ... diamond 100), the Discord #buy ladders
+  for the other ore, skinning and lumber maps (2026-10-04), distillations 1k, phylacteries 1.5k, skill scrolls 5k.
+  `ctl lumber price "loot:<name>" <gp>` adds one.
+- **The drop-off** (`--drop-off`, default on; homes.json `dropoff`): home after any recall, into the rental room
+  through the house steward (`room.look_for_keeper`, `room.enter`) and `dropoff.run` (the user's Razor drop-off and the
+  chest); the run then rests there and recalls back in from the room. A failure is logged (`dropoff` job event) and
+  the run goes on with the load. The simulator has no room (`--no-drop-off` in run.py's defaults).
+- `--return-at auto` (default) | `off` | `GOLD` (a fixed value).
+
 ## Pets (`--pets`; `harness/tamer.py`; user request 2026-10-12)
 
 The user's tamer, **Logan Wolf**, fights with pets; this style is learned from his Mausoleum trip of
@@ -412,6 +443,9 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    first, then everything but reagents (graphics 0x0F78-0x0F91), spell scrolls (0x1F2D-0x1F72,
    0x2260-0x227C, or "scroll" in the name) and anything worn other than jewellery (a tiledata layer
    outside ring, talisman, necklace, bracelet, earrings: weapons, shields, spellbooks, armour, clothing)
+   and Outlands' own weapon and armour art, which tiledata marks Wearable on layer 0 ("unidentified cestus" in the
+   client; since 2026-10-17, the user: "I don't really loot unidentified items much since they're heavy. I just loot
+   the instruments")
    (`combat.worth_looting`; `--loot-keep WORD` takes an item with that word anyway); the rest stays in
    the corpse. **Outlands' hued valuables on those graphics are taken** (user 2026-10-17, all three left live
    in 20261017_110506): an arcane scroll (a pink blank scroll, 0x0EF3 in hue 2609), a blood aspect core (0x0F91,

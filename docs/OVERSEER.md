@@ -566,14 +566,17 @@ Paste this (or point the session at this section) to start an overseer.
 >    --enter-via 5554 700 --enter-via 5507 701 --enter-via 5507 696 --enter-via 5522 637 --timeout 1500`.
 >    It recalls to "Maus Near 2", walks the four teleporters with the pets on "All Follow Me" (a fight on
 >    the way is the pets' to take), crawls the fight level, and leaves when the user's rules say so:
->    hurt, a pet hurt or lost, time up, or **a red** (out by the crimson moongate at (5203, 703) to
->    Totem, then the tome home). Greys and oranges are no reason to leave, and nobody speaking is
+>    hurt, a pet hurt or lost, time up, **a red** (out by the crimson moongate at (5203, 703) to
+>    Totem, then the tome home), or (since 2026-10-17) **the loot it carries reaching V\*** (docs/HUNT_LOOP.md
+>    "Taking the loot home": the gold rate against the death rate there; ~26k gold live), after which it goes
+>    into the room, runs the drop-off itself and recalls back in. Greys and oranges are no reason to leave, and nobody speaking is
 >    (no speech hold on hunts). Between visits it recalls home, rests and goes back in by itself until
 >    `--timeout`; it ends at home (the DTF landing).
 > 4. **While it runs:** `ctl wait --timeout 150` and glance at `status` and the task log (`hits`, `intent`).
 >    Nothing to act on: ctl refuses acts while the run is on, and **never fight by hand** in the dungeon.
-> 5. **`task_done`** (home): `act room enter`, `act dropoff`, check pets and supplies (step 2), start the next
->    run. Say one progress line every few runs (kills, gold, deaths).
+> 5. **`task_done`** (home): `act room enter`, `act dropoff` (the runner drops off between visits itself, not at
+>    the end), check pets and supplies (step 2), start the next run. A new loot type the user prices:
+>    `ctl lumber price "loot:<the client's name>" <gp> --source user` (the carried value reads them). Say one progress line every few runs (kills, gold, deaths).
 > 6. **`task_failed` with Logan still in the Mausoleum** (a walk-in that couldn't go on, a runner error),
 >    **`death`**, **`pet_left_behind`** or **`pet_down`**: `ctl say "@user …"` at once with the position and
 >    the log line, and start nothing until the user answers. A ghost can't recall out, and walking out of

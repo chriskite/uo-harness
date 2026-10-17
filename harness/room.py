@@ -106,6 +106,41 @@ def find_keeper(state: dict) -> tuple[int, str] | None:
     return (_serial(keepers[0][1]), keepers[0][2]) if keepers else None
 
 
+KEEPER_SEARCH = 18            # tiles around us whose human NPCs are clicked to find the house steward
+KEEPER_CLICKS = 12
+
+
+def look_for_keeper(link, human, wait=None, log=print) -> tuple[int, str]:
+    """The house steward (or innkeeper) `enter` goes through, on a runner's agent_link.Link: one whose click label
+    is known (find_keeper), else single-click the invulnerable human NPCs within KEEPER_SEARCH tiles, nearest first
+    at a player's pace (agent_link.look_at, the stock click), until one's label names a keeper. RoomError when none
+    does. `wait(pred, timeout)`: the runner's guarded wait (default link.wait). The lumber runner's search, shared
+    with the hunt runner's drop-off."""
+    import threats
+    from agent_link import label_since, look_at, serial_of
+    st = link.state()
+    found = find_keeper(st)
+    if found is not None:
+        return found
+    me, my = tuple(link.pos(st)[:2]), st["movement"].get("self_serial")
+    cands = sorted((cheb(me, (m["x"], m["y"])), serial_of(key), m.get("name"))
+                   for key, m in st["world"]["mobiles"].items()
+                   if m.get("x") is not None and m.get("graphic") in threats.HUMAN_BODIES
+                   and m.get("notoriety") == 7 and serial_of(key) != my)
+    cands = [c for c in cands if c[0] <= KEEPER_SEARCH][:KEEPER_CLICKS]
+    log(f"house steward search: {len(cands)} NPC(s) nearby to look at")
+    for dist, serial, name in cands:
+        human.wait("use")
+        mark = len(link.events)
+        look_at(link, serial, known_name=bool(name))
+        (wait or link.wait)(lambda s: label_since(link, serial, mark) is not None, 1.5)
+        label = label_since(link, serial, mark)
+        log(f"  looked at {name or f'0x{serial:08X}'} ({dist} tiles): {label!r}")
+        if keeper_kind(label):
+            return serial, label
+    raise RoomError(f"no house steward or innkeeper by home ({len(cands)} NPC(s) looked at)")
+
+
 def _texts(g: dict) -> list[str]:
     return [t for t in g.get("lines") or [] if t]
 

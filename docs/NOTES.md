@@ -3270,6 +3270,27 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
   skill while walking out from a hostile player (`HuntLoop.pk_flight`), the rope's landing wait ends on the
   server's refusal (`ROPE_REFUSED`), and the rope never aims at a tile a mobile stands on.
 
+## Loot prices for the return rule (2026-10-17, the store's prices table, items `loot:<name>`)
+
+The client's names differ from tiledata's (`combat.item_name` falls back to tiledata): 0x0FB9 is "a chromatic core"
+(tiledata "chroma core"), 0x1120A "gold ore map" (tiledata "ore map": the metal is in the name only), 0x1120D
+"avarhide skinning map", 0x7166 "plant chemicals" (tiledata "bottle"), 0x79A5 "unidentified cestus" (tiledata
+"caesti"). Loot events keep graphic and amount only, so names came from the captures' 0xFF sub 0x15 name replies.
+- **The user's**: research materials 25k, plant chemicals 1k, chromatic core 35k, gold ore map 12k, avarhide skinning
+  map 15k, blood aspect core 14k, arcane scroll 1k; other aspect cores 10k "for now". Gems "at their vendor price":
+  the wiki's Tinkering table (knowledge #13200-13202, "Gem $"): citrine 20, tourmaline 30, amber 40, amethyst 50, ruby
+  60, sapphire 70, emerald 80, star sapphire 90, diamond 100.
+- **Discord** (harness/data/discord.db, #buy/#sell/#pricecheck; a throwaway regex over the messages): one buyer's
+  ladder on 2026-10-04 for every map tier (dull copper / shadow iron / copper ore 4k, bronze 6k, gold 13-16k, agapite
+  20k, verite 32k, valorite 40k, avarite 75k; skinning dullhide-copperhide 100, bronzehide 200, goldenhide 300,
+  rosehide 2.5k, verehide 5k, valehide 7k, avarhide 20k; lumber dullwood-copperwood 200 ... valewood 9k, avarwood 35k);
+  "any distillation" 1k, "any phylactery" 1.5-2.5k, junk skill scrolls 5-6k on sale and 3k wanted, arcane scrolls
+  ~1-1.1k, chromatic cores 28-32k, aspect cores by kind (arcane 7-9k, blood 9k wanted, air 8-11k, frost 14k, shadow
+  20k, madness 20-25k, void 28k, command 32-38k, temporal 3-3.5k, eldritch 5k). Recorded at the WTB ladder for maps,
+  1k for distillations, 1.5k for phylacteries, 5k for skill scrolls; the user's numbers where given.
+- Unidentified magic weapons and armour are no longer looted (their tiledata art is Wearable on layer 0; the user:
+  "heavy"); instruments still are (an identify may show "supremely melodious").
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

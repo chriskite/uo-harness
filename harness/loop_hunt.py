@@ -130,12 +130,16 @@ import actions  # noqa: E402
 import aggro  # noqa: E402
 import combat  # noqa: E402
 import crawl  # noqa: E402
+import dropoff  # noqa: E402
+import home as home_mod  # noqa: E402
+import hunt_return  # noqa: E402
 import escape as escape_mod  # noqa: E402
 import healing  # noqa: E402
 import los  # noqa: E402
 import nav  # noqa: E402
 import moongate  # noqa: E402
 import threats  # noqa: E402
+import room as room_mod  # noqa: E402
 import stationary  # noqa: E402
 import tamer  # noqa: E402
 import task_wrap  # noqa: E402
@@ -147,6 +151,7 @@ from memory import DEFAULT_DB, Memory  # noqa: E402
 
 ROPE_GRAPHIC = 0x14FA         # an adventurer's rope (a stack of 15 in Logan's pack, 20261014_173858)
 ROPE_R = 9                    # live jumps 7, 9, 10 tiles; an 11-tile target was refused: one short
+PLANNED = ("info", "return")   # leaves with no threat behind them: the planned end, taking the loot home
 FINISH_CHECK_S = 2.0          # how often the run looks for a `ctl stop --after-trip` request (a meta read)
 ROPE_COOLDOWN_S = 5.3         # knowledge #13325: 5 s from the use (unless PvP flagged), a margin
 ROPE_RETRY_S = 2.0            # after a try that found no landing or got no cursor
@@ -281,6 +286,9 @@ class HuntLoop:
             log(f"--pull-range {args.pull_range} is beyond spell range: using {SPELL_RANGE}")
             args.pull_range = SPELL_RANGE
         self.prev_hits = None
+        self.prices = memory.prices()   # loot:<name> rows: the carried value (hunt_return)
+        self.return_model = None        # hunt_return.model for this visit (start_visit)
+        self.return_floor = 0           # gp carried when the visit started (what a drop-off didn't take: return_reason)
         self.low_posted = False
         self.potions = healing.PotionClock()
         self.refresh_t = -1e9        # monotonic time of our last stamina potion (refresh_potion)
@@ -1488,7 +1496,7 @@ class HuntLoop:
         once and Adventurer's Rope jumps along the way whenever one is ready (rope_jump).
         -> {ok, from, to, dest, elapsed_s[, error]}."""
         gate = tuple(self.args.leave_gate)
-        urgent = severity != "info"
+        urgent = severity not in PLANNED
         flee = severity == "urgent"
         self.doing("leave", f"Walking to the moongate at {gate[0]},{gate[1]}", gate)
         self.walking_out, self.pk_flight = True, flee
@@ -1518,7 +1526,7 @@ class HuntLoop:
                     return {"ok": False, "called_off": why, "from": list(self.pos(self.link.state())[:2]),
                             "dest": self.args.gate_dest}
                 me = self.link.state()["world"]["self"]
-                hurt = severity != "info" and me.get("hits") is not None and self.frac(me) < self.args.heal_at
+                hurt = severity not in PLANNED and me.get("hits") is not None and self.frac(me) < self.args.heal_at
                 if not flee:          # fleeing: "All Follow Me" went out at the start of the run here
                     self.team.follow(severity, wait=not hurt)    # hurt: through the gate now, pets or not
             mark = len(self.link.events)
@@ -1562,10 +1570,10 @@ class HuntLoop:
         self.fleeing = True
         try:
             cancelled = self.drop_cursor()
-            self.disengage("fled" if severity != "info" else "ended")
+            self.disengage("fled" if severity not in PLANNED else "ended")
             self.doing("leave", f"Leaving: {why}", tuple(self.args.leave_gate) if self.args.leave_gate
                        else self.recall_spot)
-            if severity == "info" and self.war_mode(st, False):
+            if severity in PLANNED and self.war_mode(st, False):
                 self.human.wait("read")
             if self.team is not None and not self.args.leave_gate:
                 self.team.follow(severity)
@@ -1583,20 +1591,20 @@ class HuntLoop:
                     return "called off"
                 if gate["ok"] and self.team is not None:
                     self.team.landed(self.state(), "gate")
-            res = self.recall_home(severity != "info") if gate is None or gate["ok"] else \
+            res = self.recall_home(severity not in PLANNED) if gate is None or gate["ok"] else \
                 {"ok": False, "failure": f"moongate: {gate.get('error')}"}
         finally:
             self.fleeing = False
         data.update(cursor_cancelled=cancelled,
                     recall={k: res.get(k) for k in ("ok", "method", "from", "to", "elapsed_s", "attempts",
                                                     "failure", "refused", "walked_first")})
-        if severity != "info":
+        if severity not in PLANNED:
             self.memory.juncture("hunt", "threat", f"Leaving the hunt by recall: {why}"
                                  + ("" if res["ok"] else f" (recall failed: {res['failure']})"), severity, data)
         self.memory.job_event("hunt", "leave", data, **self._where(st))
         self.count("leaves")
         if self.crawl is not None:
-            self.crawl.on_leave(pos, severity != "info")
+            self.crawl.on_leave(pos, severity not in PLANNED)
         if severity == "urgent":
             self.pk_left_t = time.monotonic()
         self.end_visit(why)
@@ -1608,6 +1616,74 @@ class HuntLoop:
             self.team.landed(self.state(), "home")
         if self.args.bank_gold:
             self.bank()
+        if self.args.drop_off:
+            self.drop_off()
+
+    def drop_off(self):
+        """--drop-off, home after a recall: into the rental room through the house steward (room.enter) and the
+        room's drop-off (dropoff.run: the user's Razor 'New Drop Off', then research materials and resource maps into
+        the chest; homes.json `dropoff`). The run goes back in from the room (a recall out of it works: user
+        2026-10-14). Anything that goes wrong is logged and the run goes on with the load (a `dropoff` job event
+        either way)."""
+        st = self.state()
+        home = home_mod.for_character((st["world"].get("self") or {}).get("name"))
+        if not home or not home.get("dropoff"):
+            return
+        before = hunt_return.carried(st, self.prices)
+        self.doing("store", "Dropping off the loot in the rental room")
+        try:
+            if not home_mod.in_room((st["world"].get("self") or {}).get("map"), home):
+                serial, label = room_mod.look_for_keeper(self.link, self.human, wait=self.wait_for, log=log)
+                res = room_mod.enter(escape_mod.LinkIO(self.link), self.human,
+                                     (home["room"].get("owner") or "").split(), walk=self.walk_to_keeper)
+                if not res["ok"]:
+                    raise room_mod.RoomError(res.get("error") or "not in the room")
+                log(f"in the rental room ({res['room']}) via {label}")
+            arrival = tuple(home["room"]["arrival"][:2])
+            if tuple(self.pos(self.state())[:2]) != arrival:
+                self.mover.walk_to(lambda: arrival, 0, "to the room's arrival tile")
+            out = dropoff.run(escape_mod.LinkIO(self.link), self.human, home["dropoff"])
+        except (room_mod.RoomError, dropoff.DropoffError, Abort) as e:
+            log(f"drop-off: {e}; going on with the load")
+            self.memory.job_event("hunt", "dropoff", {"ok": False, "error": str(e), "carried": before},
+                                  **self._where(self.state()))
+            return
+        after = hunt_return.carried(self.state(), self.prices)
+        log(f"drop-off: {before['total']} gp carried -> {after['total']} (" + "; ".join(
+            f"{s['name'].split(' [')[0]}: {' / '.join(s['lines']) or '-'}" for s in out["steps"]) + ")"
+            + (f"; into the chest: {', '.join(str(c['name']) for c in out['chest'])}" if out["chest"] else ""))
+        self.memory.job_event("hunt", "dropoff", {"ok": out["ok"], "error": out.get("error"), "carried": before,
+                                                  "left": after, "chest": out["chest"]}, **self._where(self.state()))
+
+    def walk_to_keeper(self, serial: int, rng: int):
+        """room.enter's walker: up to where the house steward stands now (guarded Mover)."""
+        def where():
+            m = self.link.state()["world"]["mobiles"].get(f"0x{serial:08X}") or {}
+            return (m["x"], m["y"]) if m.get("x") is not None else self.pos(self.link.state())[:2]
+        self.mover.walk_to(where, rng, "to the house steward")
+
+    def return_reason(self, st):
+        """(why, "return") when the carried value reaches V* (hunt_return: r, h and the trip from this place's visits,
+        --return-at auto) or --return-at N gold, or the pack is within LOOT_WEIGHT_MARGIN of full; else None. Only
+        between fights (tick)."""
+        if self.args.leave_recall is None or self.args.return_at == "off":
+            return None
+        me = st["world"]["self"]
+        wmax = (me.get("stats") or {}).get("weight_max")
+        if wmax and (me.get("weight") or 0) >= wmax - LOOT_WEIGHT_MARGIN:
+            return f"taking the loot home: the pack is full ({me.get('weight')}/{wmax} stones)", "return"
+        c = hunt_return.carried(st, self.prices)
+        m = self.return_model or {}
+        target = m.get("v_star") if self.args.return_at == "auto" else int(self.args.return_at)
+        # what this visit added: a load the drop-off couldn't take (no room, an error, --no-drop-off) would send us
+        # home again at once, every visit (simulator: the 16k the scenario starts with)
+        if not target or c["total"] - self.return_floor < target:
+            return None
+        how = (f"V* {target} from {m['r']:.0f} gold/min, a death every {1 / m['h']:.0f} min on the level, "
+               f"{m['trip_min']:g} min out and back" if self.args.return_at == "auto" else f"--return-at {target}")
+        floor = f", {self.return_floor} of it from before this visit" if self.return_floor else ""
+        return (f"taking the loot home: {c['total']} gp carried (gold {c['gold']}, items {c['items_gp']}{floor}) "
+                f">= {how}", "return")
 
     def enter_by_recall(self):
         """Recall to --enter-recall's rune --enter-rune (its default without one). The
@@ -1882,6 +1958,15 @@ class HuntLoop:
                          {"spell": combat.MAGERY_SPELLS[self.spell - 1]}),
                       "hits_start": st["world"]["self"].get("hits"), "kills": 0, "lost_kills": 0, "gold": 0, "xp": 0,
                       "hits_lost": 0, "casts": 0, "heals": 0, "stationary_clears": 0, "repositions": 0}
+        if self.args.leave_recall is not None and self.args.return_at != "off":
+            self.return_floor = hunt_return.carried(st, self.prices)["total"]
+            since = hunt_return.LIVE_SINCE
+            deaths = [e for e in self.memory.job_events("hunt", since, char_serial=self.me(st)) if e.get("kind") == "death"]
+            self.return_model = m = hunt_return.model(self.memory.episodes("hunt", since=since), deaths, self.spot,
+                                                      st["world"]["self"].get("map"))
+            log(f"taking the loot home at {m['v_star']} gp carried (V* = r sqrt(2T/h): {m['r']:.0f} gold/min, "
+                f"{m['deaths']} death(s) in {m['minutes']:.0f} min here, {m['trip_min']:g} min out and back)"
+                if self.args.return_at == "auto" else f"taking the loot home at {self.args.return_at} gp carried")
 
     def end_visit(self, why):
         if self.visit is None:
@@ -2072,6 +2157,8 @@ class HuntLoop:
         reason = self.leave_reason(st)
         if reason is None and winding and ((not attackers and not self.corpses) or self.timed_out(60.0)):
             reason = ("done" if self.finished() else "time is up", "info")
+        if reason is None and not winding and not attackers and self.engaged is None and not self.corpses:
+            reason = self.return_reason(st)
         if reason is not None:
             if self.leave(st, *reason) == "called off":
                 return False
@@ -2286,6 +2373,12 @@ def arg_parser() -> argparse.ArgumentParser:
                     help="--leave-gate's destination on its 'Moongate Destinations' menu (e.g. Totem)")
     ap.add_argument("--bank-gold", type=int, default=0, metavar="N",
                     help="after recalling home: with N gold or more in the pack, bank it all (0 = off)")
+    ap.add_argument("--return-at", default="auto", metavar="auto|off|GOLD",
+                    help="recall mode: take the loot home once the carried value (gold + loot:<name> prices) reaches "
+                         "V* = r sqrt(2T/h) (auto; hunt_return), a fixed gold value, or never (off); a full pack always")
+    ap.add_argument("--drop-off", action=argparse.BooleanOptionalAction, default=True,
+                    help="home after a recall: into the rental room and its drop-off (homes.json dropoff), then back in "
+                         "from there")
     ap.add_argument("--pk-wait", type=float, default=600.0,
                     help="recall mode: after leaving from a hostile player, stay home this many seconds "
                          "before recalling back in")

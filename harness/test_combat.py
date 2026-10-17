@@ -28,7 +28,10 @@ def test_worth_looting():
     left = {"an explosion scroll": {"graphic": 0x1F57, "hue": 0},
             "a plain blank scroll": {"graphic": 0x0EF3, "hue": 0},
             "nightshade": {"graphic": 0x0F88, "hue": 0},
-            "a spellbook (hand layer)": {"graphic": 0x0EFA, "hue": 2606}}
+            "a spellbook (hand layer)": {"graphic": 0x0EFA, "hue": 2606},
+            "an unidentified cestus (Outlands weapon art: Wearable, layer 0)": {"graphic": 0x79A5, "hue": 0},
+            "a bone shield (Outlands armour art)": {"graphic": 0x799A, "hue": 0}}
+    taken["a shawm (an instrument: maybe supremely melodious)"] = {"graphic": 0x4E2E, "hue": 0}
     for name, it in taken.items():
         check(f"taken: {name}", combat.worth_looting(it))
     for name, it in left.items():

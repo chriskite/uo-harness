@@ -106,7 +106,7 @@ from dataclasses import replace
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
-from agent_link import (Abort, Link, Mover, cheb, containers_to_open, label_since, log, look_at, reach_z,  # noqa: E402
+from agent_link import (Abort, Link, Mover, cheb, containers_to_open, log, reach_z,  # noqa: E402
                         same_floor, serial_of)
 import uomap  # noqa: E402
 import pathfind  # noqa: E402
@@ -184,8 +184,6 @@ HOP_MIN_HITS = 0.8            # a library hop needs at least this share of max h
 # hatchet's double-click got "You must wait to perform another action." and the logs stayed loose)
 STASH_AFTER_S = 0.8
 BOOK_FULL = 10               # a runebook's charges when full (docs/NOTES.md "Storage shelves": the shelf tops it up to 10)
-KEEPER_SEARCH = 18            # tiles around us whose human NPCs are clicked to find the house steward
-KEEPER_CLICKS = 12
 CHEST_REACH = 2               # tiles from the home chest to drop into it [INFERENCE: RunUO's 2-tile item reach]
 # Coloured-wood success, e.g. "You chop some dullwood logs and put them in your backpack."
 # (live 2026-10-02, Terran; unmatched it counted as an unknown outcome and aborted the trip)
@@ -4367,31 +4365,12 @@ class LumberLoop:
         return (m["x"], m["y"]) if m.get("x") is not None else None
 
     def find_keeper(self) -> tuple[int, str]:
-        """The house steward (or innkeeper) room.enter goes through: one whose click label is
-        known (room.find_keeper), else single-click the invulnerable human NPCs within
-        KEEPER_SEARCH tiles, nearest first at a player's pace (agent_link.look_at, the stock
-        click), until one's label names a keeper."""
-        st = self.state()
-        found = room_mod.find_keeper(st)
-        if found is not None:
-            return found
-        me, my = tuple(self.link.pos(st)[:2]), self.self_serial(st)
-        cands = sorted((cheb(me, (m["x"], m["y"])), serial_of(key), m.get("name"))
-                       for key, m in st["world"]["mobiles"].items()
-                       if m.get("x") is not None and m.get("graphic") in threats.HUMAN_BODIES
-                       and m.get("notoriety") == 7 and serial_of(key) != my)
-        cands = [c for c in cands if c[0] <= KEEPER_SEARCH][:KEEPER_CLICKS]
-        log(f"house steward search: {len(cands)} NPC(s) nearby to look at")
-        for dist, serial, name in cands:
-            self.human.wait("use")
-            mark = len(self.link.events)
-            look_at(self.link, serial, known_name=bool(name))
-            self.wait_for(lambda s: label_since(self.link, serial, mark) is not None, 1.5)
-            label = label_since(self.link, serial, mark)
-            log(f"  looked at {name or f'0x{serial:08X}'} ({dist} tiles): {label!r}")
-            if room_mod.keeper_kind(label):
-                return serial, label
-        raise Abort(f"no house steward or innkeeper by home ({len(cands)} NPC(s) looked at)")
+        """The house steward (or innkeeper) room.enter goes through (room.look_for_keeper: a known click
+        label, else single-clicks on the invulnerable human NPCs nearby), our guarded waits in between."""
+        try:
+            return room_mod.look_for_keeper(self.link, self.human, wait=self.wait_for, log=log)
+        except room_mod.RoomError as e:
+            raise Abort(str(e))
 
     def walk_to_keeper(self, serial: int, rng: int):
         """room.enter's walker: up to where the keeper stands now, on his floor (guarded Mover)."""
