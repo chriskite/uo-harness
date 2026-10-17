@@ -599,10 +599,11 @@ Paste this (or point the session at this section) to start an overseer.
 >    - **"Nothing to patrol to; waiting"** with Logan outside the Mausoleum: a confused run. `ctl stop` it and
 >      tell the user.
 > 5. **Field of Souls (soul jars, until 2026-10-24; docs/HUNT_LOOP.md "Soul jars", NOTES "Field of Souls").**
->    An empty soul jar (`0xA99F`) filled at an eerie corpse (ground item `0xB1F3`) is the event's ticket
->    (+30 score). Eerie corpses are rare and players race for them: one in about four hours of play on
->    2026-10-17. The proxy plays a wail the first time it sees each one, runner or not (proxy event
->    `eerie_corpse`, in the store's events).
+>    An empty soul jar (`0xA99F`) filled at an eerie corpse is the event's ticket (+30 score). The corpse is a
+>    ground item of random "dead" art (`0xB1C0`-`0xB21C`), followed within 10 serials by an "eerie whispers"
+>    item (`0x6C6F`) (`soul_jar.eerie_corpses`). Eerie corpses are rare and players race for them: 5 in about
+>    4.5 h of Logan's play on 2026-10-17, all around the Mausoleum. The proxy plays a wail the first time it
+>    sees each one, runner or not (proxy event `eerie_corpse`, in the store's events).
 >    - **The runner** (`--soul-jars`, default on), with an empty jar in the pack at any bag depth and nothing
 >      on Logan, walks within 2 tiles of an eerie corpse in view on his floor and double-clicks the jar. The
 >      patrol stops for one; mid-fight only one within 2 tiles counts. It loots the empty jars monsters drop.
@@ -613,7 +614,12 @@ Paste this (or point the session at this section) to start an overseer.
 >      say "@user …"` at once with the spirit's name and the time. Taking it in, and buying empty jars
 >      (1,000 gp from the Occult Merchant), is the user's call.
 >    - The user often takes over to fill a jar by hand (the gate closes; item 4). Afterwards the run picks up
->      where it was.
+>      where it was: a walk waits out the closed gate (since 2026-10-17; before, a pause over ~3 min mid-walk
+>      aborted the run with "walk gated too long").
+>    - **The Field of Souls itself is the user's** (the rules: `ctl know search "Field of Souls" --tag news`). On
+>      entering, the server names a spirit ("If you put the spirit of <name> to rest, you will receive a …%
+>      bonus …"), and the proxy chimes when that spirit comes into view (`alerts.spirit`, proxy event
+>      `spirit_seen`). Don't run the hunt while Logan is in the field.
 > 6. **`task_done`** (home): `act room enter` if not in the room, `act dropoff` (the runner drops off between
 >    visits itself, not at the end), check pets and supplies (step 2), start the next run. A new loot type the
 >    user prices: `ctl lumber price "loot:<the client's name>" <gp> --source user` (the carried value reads

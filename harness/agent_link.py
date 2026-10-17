@@ -523,11 +523,13 @@ class Mover:
         pkt = actions.walk(d, run=run)
         self.step_mark = len(self.link.events)
         deadline = time.monotonic() + MOVE_GATE_WAIT_S
-        gate_waits = 0
+        gated = False
         while True:
             resp = self.link.send(pkt)
             if resp == "OK":
                 self.sent_at = time.monotonic()
+                if gated:
+                    log("agent gate open again; resuming")
                 break
             if resp.startswith(MOVE_GATE) and "stalled" not in resp:
                 if time.monotonic() > deadline:
@@ -535,11 +537,13 @@ class Mover:
                 time.sleep(0.02 if "pacing" in resp else 0.1)
                 continue
             if resp.startswith(GATE_WAIT):
-                gate_waits += 1
-                if gate_waits > 40:
-                    raise Abort("walk gated too long")
-                log(f"agent gate closed ({resp[4:]}); waiting")
+                # paused or on a break: wait it out, as Link.act does (live 2026-10-17 17:26:28-17:29:48 the user
+                # took over mid-walk to fill a soul jar; the old 40-poll cap aborted the run in the Mausoleum)
+                if not gated:
+                    log(f"agent gate closed ({resp[4:]}); waiting")
+                    gated = True
                 time.sleep(GATE_POLL_S)
+                deadline = time.monotonic() + MOVE_GATE_WAIT_S
                 continue
             raise Abort(f"walk refused: {resp}")
         mv = self.link.wait(lambda s: s["movement"]["inflight"] == 0, timeout=OUTCOME_WAIT_S,
