@@ -59,7 +59,10 @@ class Stationary:
         self.mover = mover
         self.human = human
         self.reposition_s = reposition_s
-        self._seen = None                # the Mover's real-step count last looked at
+        # the Mover's real-step count last looked at: from construction, so the steps of a walk before the first
+        # look count (live 20261017 14:27:22: the hunt's first look came after a 210 s walk-in, "no step for 211 s",
+        # and the reposition off the arrival stepped onto the teleporter back up and aborted the run)
+        self._seen = mover.steps - mover.teleports
         self.last_step_t = time.monotonic()
         self.lull_at = None              # drawn once still >= LULL_FRAC x reposition_s, per still spell
         self.retry_t = 0.0
@@ -69,9 +72,8 @@ class Stationary:
         the start of the run counts as one)."""
         n = self.mover.steps - self.mover.teleports
         if n != self._seen:
-            if self._seen is not None:
-                self.last_step_t = self.mover.sent_at or time.monotonic()
-                self.lull_at = None
+            self.last_step_t = self.mover.sent_at or time.monotonic()
+            self.lull_at = None
             self._seen = n
         return time.monotonic() - self.last_step_t
 
@@ -129,13 +131,18 @@ class Stationary:
             log(f"{what}: no tile to walk out to around {tuple(home)}; again in {RETRY_S:.0f} s")
             self.retry_t = time.monotonic() + RETRY_S
             return 0
-        n0 = self.mover.steps - self.mover.teleports
+        n0, t0 = self.mover.steps - self.mover.teleports, self.mover.teleports
+        facet = st["world"]["self"].get("map")
         try:
             self.mover.walk_to(lambda: out, 0, f"{what}: out")
         except Abort as e:               # the way out got cut (mobiles, a wall): come back anyway
             if "no route" not in str(e) and "cut by mobiles" not in str(e):
                 raise
             log(f"{what}: {e}; going back")
+        if self.mover.teleports > t0:
+            # the out tile was an unknown teleporter (the walk aimed at it, so the Mover didn't undo it; live
+            # 20261017 14:27:23: Maus 3's up-stairs at (5199, 736), then "back: no route" on level 2)
+            self.mover.step_back(tuple(home), facet, f"{what}: out")
         self.mover.walk_to(lambda: tuple(home), 0, f"{what}: back")
         return self.mover.steps - self.mover.teleports - n0
 

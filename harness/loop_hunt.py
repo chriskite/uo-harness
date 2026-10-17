@@ -1964,9 +1964,9 @@ class HuntLoop:
             deaths = [e for e in self.memory.job_events("hunt", since, char_serial=self.me(st)) if e.get("kind") == "death"]
             self.return_model = m = hunt_return.model(self.memory.episodes("hunt", since=since), deaths, self.spot,
                                                       st["world"]["self"].get("map"))
-            log(f"taking the loot home at {m['v_star']} gp carried (V* = r sqrt(2T/h): {m['r']:.0f} gold/min, "
+            log(f"return threshold: home once this visit adds {m['v_star']} gp (V* = r sqrt(2T/h): {m['r']:.0f} gold/min, "
                 f"{m['deaths']} death(s) in {m['minutes']:.0f} min here, {m['trip_min']:g} min out and back)"
-                if self.args.return_at == "auto" else f"taking the loot home at {self.args.return_at} gp carried")
+                if self.args.return_at == "auto" else f"return threshold: home once this visit adds {self.args.return_at} gp")
 
     def end_visit(self, why):
         if self.visit is None:

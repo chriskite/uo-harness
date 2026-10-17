@@ -1,5 +1,5 @@
 {
-  "note": "Teleporter tiles every Mover avoids from the first run on (agent_link.Mover.teleporter_tiles: these plus the memory store's, learnt by stepping onto one). 'from' is the tile stepped onto (the step's target: the 0x21 deny reports the tile we stood on, and the move to 'to' follows); 'to' is [facet, x, y, z] where it put us. A run that is teleported anyway steps back through a known one beside it whose 'to' is where it came from (Mover._step_back).",
+  "note": "Teleporter tiles every Mover avoids from the first run on (agent_link.Mover.teleporter_tiles: these plus the memory store's, learnt by stepping onto one). 'from' is the tile stepped onto (the step's target: the 0x21 deny reports the tile we stood on, and the move to 'to' follows); 'to' is [facet, x, y, z] where it put us. A run that is teleported anyway steps back through a known one beside it whose 'to' is where it came from (Mover.step_back).",
   "teleporters": [
     {"facet": 0, "from": [5199, 738], "to": [0, 5522, 638, -23],
      "note": "Mausoleum fight level (Maus 3) up-stairs beside the arrival: the runner's Stationary Penalty walk stepped onto it (live 20261015_115604 12:33:47, then dead on level 2)"},
@@ -7,6 +7,8 @@
      "note": "Maus 3 up-stairs: a step SE from (5199, 737) put Logan on level 2 (20261015_115604 12:35:42.5)"},
     {"facet": 0, "from": [5200, 736], "to": [0, 5522, 636, -23],
      "note": "Maus 3 up-stairs: a step NE from (5199, 737) put Logan on level 2 (20261015_115604 12:35:41.4) [INFERENCE: the destination tile, the 0x77 after the deny]"},
+    {"facet": 0, "from": [5199, 736], "to": [0, 5522, 636, -23],
+     "note": "Maus 3 up-stairs, N of the arrival: a reposition off (5199, 737) stepped onto it (live 20261017 14:27:23)"},
     {"facet": 0, "from": [5522, 637], "to": [0, 5199, 737, 17],
      "note": "Mausoleum level 2 down-stairs to Maus 3: steps S from (5522, 636) and N from (5522, 638) onto it put Logan at (5199, 737, 17) (20261015_115604 12:35:41.6, 12:35:42.6)"},
     {"facet": 0, "from": [5254, 736], "to": [0, 5697, 713, 0],

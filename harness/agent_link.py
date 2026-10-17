@@ -86,7 +86,7 @@ DANGER_STALL_REPLANS = 10
 # a tile shouldn't flip the route to the other side of it and back (live 2026-10-05, witcher_36: a
 # wandering wisp swung the walk between routes of 31 and 93 steps every second or two).
 STICKY_X = 1.25
-# A teleport no walk aimed at (Mover._step_back): step back through a known teleporter within STEP_BACK_R
+# A teleport no walk aimed at (Mover.step_back): step back through a known teleporter within STEP_BACK_R
 # that leads within STEP_BACK_R of where we were; jumps under STEP_BACK_MIN tiles on the same facet are
 # short hops a walk just carries on from.
 STEP_BACK_R = 4
@@ -610,7 +610,7 @@ class Mover:
             s = self._teleporters[facet] = set(to)
         return s
 
-    def _step_back(self, before, before_facet, label) -> bool:
+    def step_back(self, before, before_facet, label) -> bool:
         """After a teleport the walk didn't aim at: a known teleporter within STEP_BACK_R of where it put us
         whose destination is within STEP_BACK_R of where we were, stepped onto at once (live 20261015_115604:
         a Stationary Penalty walk took Logan up the Mausoleum stairs; the walk found no route on level 2,
@@ -1082,7 +1082,7 @@ class Mover:
                     aimed = goal_fn is None and radius == 0 and center_fn is not None \
                         and tuple(center_fn()[:2]) == tuple(nxt)
                     if not aimed:                       # the teleporter was the goal (a walk-in): no undo
-                        self._step_back(cur, st["world"]["self"].get("map"), label)
+                        self.step_back(cur, st["world"]["self"].get("map"), label)
                     replan = True
                     break
                 if outcome == "moved":

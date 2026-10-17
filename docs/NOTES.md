@@ -2991,12 +2991,22 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
 - The runner knew no teleporter there: it learns them only by stepping onto one, and Logan always walked in
   by hand. Now `harness/data/teleporters.json` seeds the Mausoleum's (with the evidence for each tile),
   `Mover.teleporter_tiles` adds them to the store's, and a walk that is teleported anyway steps back through
-  a known one beside it that leads where it came from (`Mover._step_back`).
+  a known one beside it that leads where it came from (`Mover.step_back`).
 - **`./ctl.cmd` in the agent's shell ran the worktree's ctl** (the shell resolves `./ctl.cmd` against its
   configured working directory, the logan-tamer worktree, whatever `cd` came before): all four live runs
   today used the worktree's code (the same commits as main) and its own fresh memory store
   (`harness/data/harness.db` there, 176 KB), not the main store. Start live runs with
   `python "<main checkout>/harness/ctl.py" run hunt ...`.
+- **2026-10-17 14:27 (live, `hunt-20261017-142351-97c8`): the same stairs again, a fourth tile.** The first
+  live walk-in that ended on Maus 3 (the runner's own, 3.5 min with eight kills on the way) logged "no step for
+  211 s: repositioning" on arrival: `Stationary.still_s` counted from the runner's start because its first
+  look, the first `tick`, came only after the walk-in, and the first look set the baseline without taking
+  the walk's steps. The reposition's out tile (5199, 736), one N of the arrival, was a teleporter nobody
+  knew (now in teleporters.json). A walk *aimed* at a tile doesn't step back from a teleport, because a
+  walk-in aims at teleporters, so the run aborted on level 2 with "back: no route". Fixed: the clock counts
+  from the Stationary's construction, and `walk_off` calls `Mover.step_back` after a teleport on the way out
+  (`harness/test_stationary.py`, failing before). The user put Logan back on Maus 3 by hand. A run started
+  there with `--spot 5199 737` (the arrival every visit row there is keyed by) hunts without a walk-in.
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 
