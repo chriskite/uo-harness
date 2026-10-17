@@ -3007,6 +3007,13 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
   from the Stationary's construction, and `walk_off` calls `Mover.step_back` after a teleport on the way out
   (`harness/test_stationary.py`, failing before). The user put Logan back on Maus 3 by hand. A run started
   there with `--spot 5199 737` (the arrival every visit row there is keyed by) hunts without a walk-in.
+- **The resumed run's red escape and the first automatic drop-off (14:37, `hunt-20261017-142916-e70e`,
+  user: "Beautiful escape from that red!").** Red Chaos Agent came into view at 17 tiles at 14:37:18 (10 kills,
+  8785 gold that visit). "All Follow Me", then a rope 9 tiles towards the gate: he wasn't hitting yet, so
+  `rope_worth` allowed it. Eight steps to the moongate at 14:37:23, Totem, the tome home at 14:37:26, both pets
+  along. Home, the steward let him into the room at 14:37:31 and `dropoff.run` took the 10607 gp carried to 0
+  by 14:37:56, with both pets beside him. Then the runner waited out --pk-wait before going back in. Eight
+  seconds from sighting to the gate.
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 
