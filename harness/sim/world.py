@@ -48,6 +48,7 @@ import escape
 import los
 import nav
 import pathfind
+import soul_jar
 import tamer
 from sim import packets as P
 
@@ -316,11 +317,11 @@ class World:
             elif not near and s in self.viewing:
                 self.viewing.discard(s)          # the client drops it by range itself
         for s, it in self.items.items():
-            if it.get("kind") in ("corpse", "gate", "fire"):
+            if it.get("kind") in ("corpse", "gate", "fire", "eerie"):
                 near = cheb((it["x"], it["y"]), self.player.pos) <= VIEW
                 if near and s not in self.viewing_items:
                     self.viewing_items.add(s)
-                    if it["kind"] in ("gate", "fire"):
+                    if it["kind"] in ("gate", "fire", "eerie"):
                         self.send(P.ground_item(s, it["graphic"], 1, it["x"], it["y"], it["z"]))
                     else:
                         self.send(P.ground_item(s, combat.CORPSE_GRAPHIC, it["body"], it["x"], it["y"], it["z"]),
@@ -1389,6 +1390,8 @@ class World:
             self._vet(s)
         elif kind == "heal_potion":
             self._drink(s)
+        elif kind == "soul_jar":
+            self._fill_jar(s)
         elif kind == "tome":
             self.gump_n += 1
             rows = self.sc["recall"]["rows"]
@@ -1401,6 +1404,34 @@ class World:
                            f"{{ text 133 {y - 1} {ROW_HUES[0] if i == 0 else ROW_HUES[1]} {3 + i} 18 0 1 0 0 0 }}")
             lines = ["A rune tome", "Manage Runes", f"{it.get('charges', 30)}/50"] + [r["name"] for r in rows]
             self.send(P.gump(self.gump_n, escape.RUNETOME_GUMP, layout, lines))
+
+    def eerie_corpse(self, x, y, spirit="Karin Winckel") -> int:
+        """An eerie corpse on the ground at (x, y) (soul_jar.py); its serial."""
+        s = self._item_serial()
+        self.items[s] = {"kind": "eerie", "graphic": soul_jar.EERIE_CORPSE_GRAPHIC, "x": x, "y": y,
+                         "z": self.stand_z(x, y, self.player.z), "spirit": spirit}
+        self._view()
+        return s
+
+    def _fill_jar(self, s):
+        """An empty soul jar double-clicked (live 20261017_151814 15:47:16.9, one flush): within
+        soul_jar.FILL_RANGE of an eerie corpse the jar and the corpse go, "spirit energy" names the soul, the
+        server's line, a filled jar (a new serial) in the pack. Out of range: no answer here (the live one unseen)."""
+        pl = self.player
+        corpse = next((c for c, it in self.items.items() if it.get("kind") == "eerie"
+                       and cheb((it["x"], it["y"]), pl.pos) <= soul_jar.FILL_RANGE), None)
+        if corpse is None:
+            return
+        spirit = self.items.pop(corpse)["spirit"]
+        self.viewing_items.discard(corpse)
+        self._consume(s)
+        filled = self._item_serial()
+        self.items[filled] = {"graphic": soul_jar.FILLED_JAR_GRAPHIC, "amount": 1, "container": self.backpack,
+                              "kind": "filled_jar"}
+        self.send(P.says(self._item_serial(), "spirit energy", f"'My name was {spirit}....'", hue=946, body=0xA428),
+                  P.system_text(soul_jar.FILLED_TEXT), P.delete(corpse),
+                  P.contained(filled, soul_jar.FILLED_JAR_GRAPHIC, 1, self.backpack))
+        self.count("soul_jars")
 
     def _open(self, s, gump):
         self.send(P.open_container(s, gump))

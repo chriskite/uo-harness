@@ -114,6 +114,11 @@ a retreat from a mob next to us below --retreat-at. "All Follow Me" before every
 out; a pet dead, too hurt or gone leaves, and a run never goes back in with a pet down. Nothing
 ever releases or transfers a pet (tamer.irreversible).
 
+Soul jars (--soul-jars, default on; soul_jar.py; docs/HUNT_LOOP.md "Soul jars"; user request 2026-10-17): with
+an empty soul jar in the pack and an eerie corpse of the Field of Souls event in view, nothing attacking us, walk
+within 2 tiles and double-click the jar (its bags opened first); mid-fight only a corpse that needs no step. One
+try per corpse; a `soul_jar` job event.
+
 Run:  python harness/loop_hunt.py [--kills 5] [--enter] [--fight-spot X Y | --crawl] [--spell lightning]
       python harness/loop_hunt.py --enter-recall BOOK --enter-rune NAME --leave-recall BOOK --bank-gold 1
       python harness/loop_hunt.py --pets --leave-recall BOOK --crawl      # standing in the hunting area
@@ -142,6 +147,7 @@ import nav  # noqa: E402
 import moongate  # noqa: E402
 import threats  # noqa: E402
 import room as room_mod  # noqa: E402
+import soul_jar  # noqa: E402
 import stationary  # noqa: E402
 import tamer  # noqa: E402
 import task_wrap  # noqa: E402
@@ -279,6 +285,7 @@ class HuntLoop:
         self.loot_keep = tuple(w.lower() for w in (args.loot_keep or ()))
         self.corpses = []            # [{mob, name, x, y, t}] kills to loot
         self.looted = set()          # corpse serials handled (looted or refused)
+        self.jar_tried = set()       # eerie corpse serials a soul jar was tried at (fill_soul_jar): never again
         self.engaged = None          # serial we last sent 0x05 for
         self.engaged_mob = None      # its latest world dict
         self.resent_adjacent = False
@@ -477,9 +484,11 @@ class HuntLoop:
     def patrol_stop(self, st):
         """The crawl's patrol walk stops here (Mover.walk_to `stop`) when there is
         something to do: crawl.Crawl.interrupt, on the deaths and damage seen so far; --pets: an
-        advance that would pull too much (tamer.Team.pull_check)."""
+        advance that would pull too much (tamer.Team.pull_check); an eerie corpse to fill a soul jar at."""
         self.scan_events(st)
-        return self.crawl.interrupt(st) or (self.team.pull_check(st) if self.team is not None else None)
+        if why := self.crawl.interrupt(st) or (self.team.pull_check(st) if self.team is not None else None):
+            return why
+        return "an eerie corpse to fill a soul jar at" if self.soul_corpse(st) is not None else None
 
     def track(self, st):
         """Hits lost (the visit's, the engagement's, the crawl zone's) and, crawling, the
@@ -1262,6 +1271,83 @@ class HuntLoop:
         self.crawl.model.add_gold(c["name"], gold)
         if at is not None or c.get("x") is not None:
             self.crawl.on_gold(at or (c["x"], c["y"]), gold)
+
+    # ------------------------------------------------------------ soul jars (Field of Souls)
+    def soul_corpse(self, st, walk: bool = True):
+        """(serial, item) of the eerie corpse to fill a soul jar at now, or None (--soul-jars; soul_jar.py): an
+        empty soul jar in the pack and an eerie corpse in view on our floor that we haven't tried, the nearest.
+        Without `walk` (a fight is on) only one within soul_jar.FILL_WALK_R, where no step is needed."""
+        if not self.args.soul_jars:
+            return None
+        world = st["world"]
+        found = [(s, it) for s, it in soul_jar.eerie_corpses(world) if s not in self.jar_tried]
+        if not found or not soul_jar.empty_jars(world, self.me(st)):
+            return None
+        pos = self.pos(st)
+        found = [(s, it) for s, it in found if same_floor(it.get("z") or 0)(pos[2])
+                 and (walk or cheb(pos, (it["x"], it["y"])) <= soul_jar.FILL_WALK_R)]
+        return min(found, key=lambda f: cheb(pos, (f[1]["x"], f[1]["y"])), default=None)
+
+    def fill_soul_jar(self, serial: int, it: dict) -> None:
+        """Fill an empty soul jar at the eerie corpse `serial` (user request 2026-10-17): walk within
+        soul_jar.FILL_WALK_R of it (the walk stops when something attacks us, a leave rule fires or the corpse
+        goes: the next tick decides again), open the jar's bags like a player, double-click the jar and wait for a
+        filled jar in the pack. One try per corpse (jar_tried), filled or not. A `soul_jar` job event."""
+        spot = (it["x"], it["y"])
+        st = self.state()
+        self.doing("soul_jar", f"Filling a soul jar at the eerie corpse at {spot[0]},{spot[1]}", spot, serial)
+        if cheb(self.pos(st), spot) > soul_jar.FILL_WALK_R:
+            log(f"an eerie corpse at {spot}, {cheb(self.pos(st), spot)} tiles off: walking over to fill a soul jar")
+
+            def stop(s):
+                if key_of(serial) not in s["world"]["items"]:
+                    return "the eerie corpse is gone"
+                if self.attackers(s):
+                    return "under attack"
+                return "a leave rule" if self.leave_reason(s) else None
+            try:
+                why = self.mover.walk_to(lambda: spot, soul_jar.FILL_WALK_R, "to the eerie corpse",
+                                         z_ok=same_floor(it.get("z") or 0), stop=stop)
+            except Abort as e:
+                if not str(e).startswith("to the eerie corpse"):
+                    raise
+                log(f"eerie corpse at {spot}: {e}; leaving it")
+                self.jar_tried.add(serial)
+                return
+            if why:
+                log(f"walk to the eerie corpse stopped: {why}")
+                return
+            st = self.state()
+        me = self.me(st)
+        jars = soul_jar.empty_jars(st["world"], me)
+        if key_of(serial) not in st["world"]["items"] or not jars:
+            log("the eerie corpse is gone" if jars else "no empty soul jar left")
+            return
+        jar = jars[0][0]
+        self.open_for((jar, False))
+        self.human.wait("use")
+        before = {s for s, _ in soul_jar.filled_jars(self.state()["world"], me)}
+        mark = len(self.link.events)
+        self.jar_tried.add(serial)
+        self.link.act(actions.dclick(jar))
+        st2 = self.wait_for(lambda s: any(f not in before for f, _ in soul_jar.filled_jars(s["world"], me)),
+                            soul_jar.FILL_WAIT_S)
+        heard = self.link.events[mark:]
+        data = {"corpse": key_of(serial), "at": [spot[0], spot[1], it.get("z")], "jar": key_of(jar),
+                "spirit": soul_jar.spirit_name(heard), "visit": self.visit_n}
+        if st2 is None:
+            said = soul_jar.system_lines(heard)
+            log(f"no filled soul jar at the eerie corpse at {spot}"
+                + (f"; the server: {' | '.join(said[:3])}" if said else ""))
+            self.memory.job_event("hunt", "soul_jar", {**data, "filled": False, "heard": said[:3]},
+                                  **self._where(self.state()))
+            return
+        new = next(f for f, _ in soul_jar.filled_jars(st2["world"], me) if f not in before)
+        self.count("soul_jars")
+        log(f"soul jar filled (0x{new:08X}, the spirit of {data['spirit'] or 'an unknown soul'}): it decays in 60 "
+            "minutes unless taken to an Occult Merchant (Prevalia or Corpse Creek)")
+        self.memory.job_event("hunt", "soul_jar", {**data, "filled": True, "filled_jar": key_of(new)},
+                              **self._where(st2))
 
     # ------------------------------------------------------------ leaving / entering
     def leave_reason(self, st):
@@ -2247,6 +2333,9 @@ class HuntLoop:
             return False
         if self.unstick(st, attackers):
             return False
+        if not attackers and (eerie := self.soul_corpse(st, walk=self.engaged is None)) is not None:
+            self.fill_soul_jar(*eerie)     # before looting: other players race us to an eerie corpse
+            return False
         if self.corpses and not attackers:
             self.loot(self.corpses[0])
             return False
@@ -2543,6 +2632,9 @@ def arg_parser() -> argparse.ArgumentParser:
                          "other than jewellery, combat.worth_looting; user 2026-10-15)")
     ap.add_argument("--loot-keep", action="append", default=None, metavar="WORD",
                     help="without --loot-all: also take items whose name has this word, whatever they are (repeat)")
+    ap.add_argument("--soul-jars", action=argparse.BooleanOptionalAction, default=True,
+                    help="Field of Souls: with an empty soul jar in the pack, walk to an eerie corpse in view and "
+                         "fill the jar there (soul_jar.py; user 2026-10-17)")
     ap.add_argument("--human", choices=sorted(PROFILES), default="normal",
                     help="human-texture profile (humanize.py); 'off' for deterministic tests")
     ap.add_argument("--seed", type=int, default=None)

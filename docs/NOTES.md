@@ -3413,6 +3413,36 @@ The client's names differ from tiledata's (`combat.item_name` falls back to tile
 - Unidentified magic weapons and armour are no longer looted (their tiledata art is Wearable on layer 0; the user:
   "heavy"); instruments still are (an identify may show "supremely melodious").
 
+## Field of Souls: eerie corpses and soul jars (Halloween event 2026-10-17 to 10-24)
+
+Event rules: the 2026-10-17 news post (`ctl know search "Field of Souls" --tag news`); tactics, scoring by damage
+share and Logan's first run: `ctl know search "Field of Souls" --tag fos`. Code: `harness/soul_jar.py`.
+
+- **Eerie corpse** (live 2026-10-17, Logan, capture `20261017_151814` 15:42:56–15:47:17, map0): a ground item,
+  graphic `0xB1F3` (45555, tiledata "dead"), click label "an eerie corpse", at (5243,667,0). Around it lie separate
+  items: blood `0x122A`–`0x122F`, bones `0x1D09`/`0x1D0B` and "eerie whispers" `0x6C6F` (a spell effect). It came
+  into view 18 tiles off and left the world model 5 s later (out of range) while Logan fought on; he filled his jar
+  at it 4 minutes later. It was the only one in about four hours of Logan's play that day.
+- **Soul jars**: empty `0xA99F` ("an empty soul jar", stackable, tiledata "soul jar"; monster loot or 1,000 gp from
+  an Occult Merchant), filled `0xA9A3` ("a filled soul jar captured by <name>", single-click: "(contains the soul of
+  <spirit>)", "[will expire in 59m 57s]").
+- **A fill** (Logan 2 tiles from the corpse, the jar in a pouch in the pack): one flush 44 ms after the jar's
+  double-click: the empty jar deleted, two effect items (`0xAB42`, and `0xA428` "spirit energy" saying "'My name was
+  Karin Winckel....'"), the system lines "You should visit the Occult Merchant in Prevalia or Corpse Creek with this
+  filled soul jar to put this spirit to rest." and "You increase your [EventScore by 30. Current score is 30", the
+  corpse and its pieces deleted, then the filled jar (a new serial) in the backpack. What the server says when no
+  corpse is in range wasn't seen.
+- **The alarm** (user request 2026-10-17: "a spoooky alert sound when an eerie corpse is seen (once per corpse)"):
+  the proxy watches every live session's world events. The first `item_seen` of a ground `0xB1F3` serial plays
+  `alerts.eerie`, a 2 s synthesized wail: a glide 330 → 494 → 196 Hz with 5.5 Hz vibrato and a voice a tritone up.
+  It plays on its own thread (`winsound.PlaySound` with `SND_MEMORY` can't be asynchronous, and the relay must not
+  wait). The proxy also emits the proxy event `eerie_corpse` {serial, map, x, y, z}, which goes to the store's
+  events, and prints a console line. The seen serials are shared by all sessions and kept for the proxy's life,
+  so a corpse that leaves the view and comes back, or that a second character sees, sounds once. `UO_QUIET` mutes
+  it. Preview: `python -c "import sys; sys.path.insert(0, 'harness'); import alerts; alerts.eerie().join()"`.
+  Replaying the three Logan captures of 2026-10-17 through a SessionTap gave exactly one alarm, at 15:42:56.
+- **The hunt runner fills jars** (`--soul-jars`, default on; docs/HUNT_LOOP.md "Soul jars").
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

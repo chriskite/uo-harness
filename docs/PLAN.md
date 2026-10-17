@@ -1892,6 +1892,27 @@ instantaneous rates (docs/VISUALIZER.md §2.16). Decisions:
 - The proxy needs a restart to pass the new fields; until then the pane shows DPS and says the tally is
   missing.
 
+## Field of Souls: the eerie-corpse alarm and soul jars in the hunt runner (decided and built 2026-10-17)
+
+User request: "a spoooky alert sound when an eerie corpse is seen (once per corpse)", and "the hunt runner to
+be able to fill soul jars on its own when we have a jar and an eerie corpse is found" (docs/NOTES.md "Field of
+Souls"; docs/HUNT_LOOP.md "Soul jars"). Decisions:
+
+- *The alarm lives in the proxy*, the one process that sees every live session whether a runner, the overseer or
+  the user is playing. Rejected: in the runners (silent during manual play, as on the day the only eerie corpse came
+  by), and `ctl wait` (only while an overseer waits). It keys on the first `item_seen` of a ground `0xB1F3` serial, one
+  set for all sessions, and plays on a thread so the relay never waits for the 2 s sound. Replays (viz_feed) build
+  their taps without it, so they stay silent.
+- *A synthesized wail, not a file*: no asset to ship or lose, the same sound on both computers, and its shape is set
+  in `alerts.EERIE_*`.
+- *The runner fills before it loots but never leaves a fight for it*: players race for an eerie corpse and the fill
+  is one double-click, so with nothing attacking us it goes before looting. While the pets are engaged only a corpse
+  within 2 tiles counts: walking up to 18 tiles off would pull Logan away from his pets mid-fight.
+- *One try per corpse*: what the server says to a failed fill was never seen, so a miss is logged with whatever it
+  said and not retried.
+- *Not built*: taking the filled jar to an Occult Merchant (60 minutes to do it). The overseer tells the user
+  (docs/OVERSEER.md).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
