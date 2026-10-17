@@ -3020,6 +3020,25 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
   15:38:52 and the drop-off to 0 by 15:39:18, then the recall back in at 15:39:23, the run fighting on the walk-in
   by 15:39:37. The trip home took 26 s and the drop-off 30 s, against the 6 min the first model assumed. That is why
   `T` is now measured (`out_s`, `elapsed_s`, `in_s`; docs/HUNT_LOOP.md "Taking the loot home").
+- **The 15:43 disease and the user's takeover (same run).** Zone 3, around (5250, 653). Other players were
+  fighting corpse purgers there (Immunize, Combat Medic and Triage buffs on three player serials).
+  - 15:43:10: the runner held for a purger in sight at 10 tiles ("letting it come").
+  - 15:43:13.5: it gave up the hold and set out on an 82-step patrol west.
+  - 15:43:14: the purger's barrage hit Logan -23 and -28, and "You have contracted a foul disease!". The disease
+    ticked -20 at :19, :24, :29 and :34, and "You are no longer diseased." came at 15:43:34.4, the 20 s running out.
+  - The patrol walked on for 5 s, until the first tick, because `HuntLoop.attackers` counted no ranged monster.
+    It knew only swings, war-mode monsters beside us and casters within 10. The wiki marks the purger "ranged"
+    (Corpse Barrage up to 12 tiles), and the calamity and eldritch experiment too.
+  - The heals: a potion at 30/100 (15:43:19.8). A flight from an elder vampire coming at 16 tiles
+    (15:43:21-24, "All Follow Me"). The vet supplies on Logan (15:43:24, +23 at :29.96, and again at :30.6).
+    Another potion at :33.7.
+  - The user took control at 15:43:32 (the agent gate closed). By 15:43:42 he was at full health ("You are
+    already at full health.").
+  - 15:43:52: the run's --timeout 1500 came up, and its planned leave set out for the gate with the pets on
+    guard (leave_by_gate: "All Follow Me" only beside the gate). The user took over again at 15:44:02, and the
+    run sat paused in that walk until `ctl stop`.
+  - Fixed: a ranged monster (`aggro.ranged`) in war mode within RANGED_REACH 13 while we take damage is an
+    attacker, so the patrol stops at the first hit (`harness/test_attackers.py`).
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

@@ -99,6 +99,12 @@ def caster(kind: str) -> bool:
     return (creatures().get(kind) or {}).get("ai") in CASTER_AI
 
 
+def ranged(kind: str) -> bool:
+    """The wiki's ranged AI (corpse purger, calamity, eldritch experiment, muddled vampire hunter): its melee is a
+    ranged attack (the purger's Corpse Barrage up to 12 tiles; a calamity cast from 13)."""
+    return (creatures().get(kind) or {}).get("ai") == "ranged"
+
+
 def stealthy(kind: str) -> bool:
     """The wiki marks it a stealther (Vanish, Backstab): the Mausoleum's nightstalker, shade wolf, consort."""
     return bool((creatures().get(kind) or {}).get("stealth"))

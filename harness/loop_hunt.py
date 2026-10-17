@@ -161,6 +161,7 @@ ROPE_CALM_S = 3.0             # a flight's rope only when no player has hit or a
 ROPE_LEGS_MAX = 30
 SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is attacking us
 CASTER_REACH = 10            # a caster in war mode this close while we take damage is attacking us (SPELL_RANGE)
+RANGED_REACH = 13            # ...a ranged one (aggro.ranged): the purger's barrage reaches 12, a calamity cast from 13
 PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this long is dropped...
 SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
 LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D, no death): its death this soon counts
@@ -584,16 +585,19 @@ class HuntLoop:
                     found.setdefault(s, ("war mode, adjacent while we take damage", time.monotonic() - hurt))
             if not found:
                 # nothing swinging at us or beside us: a caster in war mode in its spell reach is (live
-                # 20261015_171928 19:49:58-50:22 a banshee 5 tiles off, -21..-28 every 3.3 s, never a swing)
+                # 20261015_171928 19:49:58-50:22 a banshee 5 tiles off, -21..-28 every 3.3 s, never a swing), and a
+                # ranged monster in its reach (live 20261017 15:43:14: a corpse purger's barrage from 10 tiles, -23
+                # -28 and a disease, and the patrol walked on for 5 s, its 82 steps, until the first disease tick)
                 for key, mob in world["mobiles"].items():
                     s = serial_of(key)
-                    if s != me and mob.get("x") is not None and (mob.get("flags") or 0) & threats.FLAG_WARMODE \
-                            and cheb(pos, (mob["x"], mob["y"])) <= CASTER_REACH and not mob.get("pet") \
-                            and mob.get("notoriety") in combat.ATTACKABLE_NOTORIETY \
-                            and aggro.caster(aggro.type_key(labels.get(key) or mob.get("name"))) \
-                            and threats.identify(mob, labels.get(key))[0] == "monster":
-                        found.setdefault(s, ("a caster in war mode in reach while we take damage",
-                                             time.monotonic() - hurt))
+                    if s == me or mob.get("x") is None or not (mob.get("flags") or 0) & threats.FLAG_WARMODE \
+                            or mob.get("pet") or mob.get("notoriety") not in combat.ATTACKABLE_NOTORIETY:
+                        continue
+                    kind = aggro.type_key(labels.get(key) or mob.get("name"))
+                    reach = RANGED_REACH if aggro.ranged(kind) else CASTER_REACH if aggro.caster(kind) else -1
+                    if cheb(pos, (mob["x"], mob["y"])) <= reach and threats.identify(mob, labels.get(key))[0] == "monster":
+                        found.setdefault(s, (f"a {'ranged monster' if reach == RANGED_REACH else 'caster'} in war mode "
+                                             f"in reach while we take damage", time.monotonic() - hurt))
         out = []
         for s, (how, age) in found.items():
             key = key_of(s)
