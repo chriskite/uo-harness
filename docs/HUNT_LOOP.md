@@ -276,6 +276,7 @@ loot exceeds the risk/reward of being killed by reds or mobs, like the lumber ru
   25k, plant chemicals 1k, chromatic core 35k, gold ore map 12k, avarhide skinning map 15k, blood aspect core 14k,
   arcane scroll 1k, other cores 10k), the wiki's gem prices (citrine 20 ... diamond 100), the Discord #buy ladders
   for the other ore, skinning and lumber maps (2026-10-04), distillations 1k, phylacteries 1.5k, skill scrolls 5k.
+  Aspect cores by kind from the Discord posts since September (NOTES "Loot prices for the return rule").
   `ctl lumber price "loot:<name>" <gp>` adds one.
 - **The drop-off** (`--drop-off`, default on; homes.json `dropoff`): home after any recall, into the rental room
   through the house steward (`room.look_for_keeper`, `room.enter`) and `dropoff.run` (the user's Razor drop-off and the

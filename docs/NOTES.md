@@ -3288,6 +3288,11 @@ The client's names differ from tiledata's (`combat.item_name` falls back to tile
   ~1-1.1k, chromatic cores 28-32k, aspect cores by kind (arcane 7-9k, blood 9k wanted, air 8-11k, frost 14k, shadow
   20k, madness 20-25k, void 28k, command 32-38k, temporal 3-3.5k, eldritch 5k). Recorded at the WTB ladder for maps,
   1k for distillations, 1.5k for phylacteries, 5k for skill scrolls; the user's numbers where given.
+- **Aspect cores by kind** (user: "add the Discord prices"), the median of the posts since 2026-09-01 (struck-through
+  ones left out), `loot:<kind> aspect core`: command 32.5k, harvest 30k, fortune 25k, lightning 25k, shadow 24k,
+  madness 22.5k, poison 15k, air 9.5k, arcane 8k (WTB 7k, sales 8-9k), temporal 3k; void 28k, frost 14k, eldritch 5k
+  from August sales only. Blood stays the user's 14k (Discord WTB 9k). Gadget left at the 10k default (only WTB
+  ranges, "100-300k"); any other kind 10k.
 - Unidentified magic weapons and armour are no longer looted (their tiledata art is Wearable on layer 0; the user:
   "heavy"); instruments still are (an identify may show "supremely melodious").
 
