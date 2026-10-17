@@ -4051,6 +4051,59 @@ def unit_tree_rethink():
         loop_lumber.TREE_RECHECK_S = recheck
 
 
+def unit_local_trees_spin():
+    """Live 2026-10-16 (witcher_48, lumber-20261016-113013-5c88, 11:43:31-11:53:11): every tree left lay within the
+    reach of a creature escaped from; harvest_trip skipped them (next_stand drops each), the list ran empty and
+    add_local_trees put the same 4 back, ~12 000 times in 10 min with Dan standing still. Now the trees in an escaped
+    creature's reach don't rejoin: the harvest ends as 'creature_blocked' (a hop or home), the 4 trees tried once."""
+    print("\n== add_local_trees: trees in an escaped creature's reach don't rejoin (no busy loop) ==")
+    import types
+    import loop_lumber
+    covered = [(1783, 1066), (1782, 1070), (1782, 1065), (1784, 1067)]          # the live ones, near the bear
+    trees = lambda: [{"x": x, "y": y, "z": 0, "graphic": "0x0CD8"} for x, y in covered]  # noqa: E731
+    tries, adds = [], [0]
+    st = {"movement": {"pos": [1772, 1072, 0, 0]}, "world": {"mobiles": {}}}
+
+    class Walk:
+        class m:
+            @staticmethod
+            def find_trees(x0, y0, x1, y1):
+                return [(x, y, 0, 0x0CD8) for x, y in covered]
+    fake = SimpleNamespace(
+        ending=None, harvesting=True, stats={}, afield=False, facet=0, no_route=set(), switch_tree=None,
+        # 1763,1070: dropped a moment ago when a zone covered it (live L2812), waiting its cooldown in the list
+        dropped_trees={(1763, 1070): time.monotonic()}, avoided=set(), creature={"avoided_trees": 0}, far_passed=0,
+        danger={0x00ABCDEF: ((1781, 1068), 6)},                 # a black bear escaped from: zone 6 at its last tile
+        args=SimpleNamespace(logs_per_trip=10000, regrow_min=70, max_trees=0),
+        link=SimpleNamespace(state=lambda: st, pos=lambda s=None: st["movement"]["pos"], last=st),
+        mover=SimpleNamespace(walk_map=lambda s: Walk,
+                              plan=lambda s, goal, max_steps=None: ([(1772, 1072), (1781, 1066)], None)),
+        human=SimpleNamespace(rng=__import__("random").Random(1)),
+        memory=SimpleNamespace(harvest_available=lambda *a: True),
+        tree_guards=lambda s, recent=True: [], tree_z_ok=lambda t: None, state=lambda: st,
+        aspect_ensure=lambda w: None, ward_ensure=lambda w: None, guard_route_ready=lambda: None,
+        go_out=lambda: None, track_ensure=lambda w: None,
+        candidate_trees=lambda s: [*trees(), {"x": 1763, "y": 1070, "z": 0, "graphic": "0x0CD8"}],
+        work_stand=lambda tree, ts, tally: tries.append(("chopped", tree["x"], tree["y"])))
+    for m in ("harvest_trip", "next_stand", "out_of_reach", "zone_stalled", "tree_route_max", "no_route_tree"):
+        setattr(fake, m, types.MethodType(getattr(loop_lumber.LumberLoop, m), fake))
+    real_add = types.MethodType(loop_lumber.LumberLoop.add_local_trees, fake)
+
+    def add(ts):
+        adds[0] += 1
+        if adds[0] > 50:
+            raise RuntimeError("busy loop: add_local_trees called 50 times without a chop")
+        return real_add(ts)
+    fake.add_local_trees = add
+    try:
+        gained, err = fake.harvest_trip(), None
+    except RuntimeError as e:
+        gained, err = None, str(e)
+    check("the harvest ends at once as creature_blocked: nothing chopped, the 4 covered trees never rejoin",
+          err is None and gained == 0 and fake.stats.get("creature_blocked") and not tries and adds[0] == 1,
+          f"err {err} gained {gained} stats {fake.stats} adds {adds[0]} tries {tries}")
+
+
 def unit_zone_stall():
     """User 2026-10-09 (witcher_181, lumber-20261009-164104-18ea 16:58:39-17:01:28: ~30 trees dropped for roaming ants'
     and a cougar's zones on 40-150-step walks, no logs for 2 min 50 s). zone_stalled ends the harvest after ZONE_STALL_S
@@ -5237,7 +5290,7 @@ if __name__ == "__main__":
             unit_run_and_recall, unit_escape_heal, unit_dispel_field, unit_guard_route, unit_escape_direction,
             unit_hop_salvage, unit_named_attacker, unit_no_harvest,
             unit_thief_out, unit_boxed_in,
-            unit_death_cause, unit_zone_stall,
+            unit_death_cause, unit_local_trees_spin, unit_zone_stall,
             unit_zone_view_edge, unit_home_on_abort,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]

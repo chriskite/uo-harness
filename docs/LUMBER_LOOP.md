@@ -1019,8 +1019,11 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     tree is the next stand (`switch_tree`). A tree no route reaches (`no_route_tree`) leaves the
     candidates for the trip (live witcher_98: a tree 5 tiles off up a cliff was "nearer" 13 times in
     2 min by straight line while next_stand, finding no route, sent Dan back to the far trees each
-    time). Trees around us also join after every escape and when
-    every candidate waits on a creature. A creature that leaves the view keeps its zone at its last
+    time). Trees around us also join after every escape and when every candidate waits on a
+    creature, but not those within the reach of a creature escaped from this trip (`out_of_reach`;
+    since 2026-10-17: harvest_trip skips those, and re-adding them looped at witcher_48 on
+    2026-10-16, ~12 000 add-and-skip rounds in 10 min with Dan standing still; scenario
+    `unit_local_trees_spin`). With none left the harvest ends `creature_blocked`. A creature that leaves the view keeps its zone at its last
     tile for `RECENT_ZONE_S` (60 s) for choosing trees, and since 2026-10-05 for `ROUTE_ZONE_S`
     (10 s) for routes too when it was `VIEW_EDGE_R` (15) or more tiles off (the view edge moves
     with us: at witcher_253 a giant rat 19 tiles off came into view three tiles west and left it

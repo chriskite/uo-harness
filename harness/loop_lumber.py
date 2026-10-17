@@ -3095,7 +3095,11 @@ class LumberLoop:
         (harvest memory still allows them) join `trees`: after an escape we stand somewhere
         else, and when every tree of the spot waits on a creature, the ones around us may
         not (user, 2026-10-05: "he ran away from the mob and ended up right next to some
-        other trees but wasn't chopping them"). Returns how many joined."""
+        other trees but wasn't chopping them"). Not those within the reach of a creature we
+        escaped from this trip (out_of_reach): harvest_trip skips them for the rest of the
+        trip, and re-adding them looped (live 2026-10-16 witcher_48,
+        lumber-20261016-113013-5c88: the same 4 trees added and skipped ~12 000 times in 10
+        min while Dan stood still). Returns how many joined."""
         st = self.state()
         walk = self.mover.walk_map(st)
         if walk is None:
@@ -3106,7 +3110,7 @@ class LumberLoop:
         now = time.time()
         new = [{"x": tx, "y": ty, "z": tz, "graphic": f"0x{g:04X}"}
                for tx, ty, tz, g in walk.m.find_trees(x - r, y - r, x + r, y + r)
-               if (tx, ty) not in have and (tx, ty) not in self.no_route
+               if (tx, ty) not in have and (tx, ty) not in self.no_route and self.out_of_reach(tx, ty)
                and self.memory.harvest_available(self.facet, tx, ty, tz, self.args.regrow_min * 60, now)]
         if new:
             trees.extend(new)

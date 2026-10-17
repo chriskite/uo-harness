@@ -2379,6 +2379,18 @@ heals, no dispels, no locked doors and no heal potions.
   logs in the pouch. The room path runs in mode 'salvage' for exactly this (2026-10-06); the hop
   decision doesn't. `attacked_by_players` keeps only named players in view, so lxl wasn't marked a
   known PK.
+- **The harvest spun in place at witcher_48 (live 2026-10-16 11:43:31-11:53:11, Seer-34).** Log
+  `lumber-20261016-113013-5c88.log` lines 2812-15603. A black bear had been escaped from, and
+  tree 1763,1070 was dropped for a zone and waited its 120 s cooldown in the list.
+  - **The loop.** `next_stand` handed out the 4 trees at 1782-1784, each inside the bear's zone.
+    harvest_trip skipped them (`out_of_reach`), and next_stand dropped each from the list. The list
+    was then down to the waiting tree, `next_stand` returned None, and `add_local_trees` put the same
+    4 back. That ran ~12 000 times with no pause and no chop, and Dan stood still until the
+    overseer's stop. `zone_stalled` never fired, since it needs 5 trees dropped for zones and only 1
+    was.
+  - **Earlier runs.** The same spin ran in `lumber-20261008-140452-1f74` (~4.5 min) and
+    `lumber-20261009-225707-3ed7` (~10 min), and each ended on its own.
+  - **Fixed 2026-10-17.** `add_local_trees` leaves out trees within an escaped creature's reach.
 
 ## A "thief" who killed: gorilkaenjoyer at witcher_105 (live 2026-10-10, Seer-17)
 
