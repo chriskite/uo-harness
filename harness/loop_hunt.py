@@ -333,7 +333,7 @@ class HuntLoop:
 
     # ------------------------------------------------------------ guards
     def check_guards(self, st: dict):
-        if time.monotonic() - self.t0 > self.args.timeout + HARD_TIMEOUT_GRACE_S:
+        if self.args.timeout > 0 and time.monotonic() - self.t0 > self.args.timeout + HARD_TIMEOUT_GRACE_S:
             raise Abort(f"overall timeout ({self.args.timeout:.0f}s + {HARD_TIMEOUT_GRACE_S:.0f}s to leave)")
         mv = st["movement"]
         if mv["stalled"]:
@@ -1492,13 +1492,15 @@ class HuntLoop:
         return landed
 
     def leave_by_gate(self, severity: str) -> dict:
-        """--leave-gate: walk to the moongate with the pets still guarding (they fight what comes at
-        us on the way and follow: 'All Follow Me' first would leave us the target), then beside it
-        'All Follow Me' (tamer.follow: a hurt leave doesn't wait) so they come through, a double-click
-        on the gate from that tile (live 20261013_204518; the step onto it when its item isn't in view)
-        and the travel to --gate-dest (moongate.travel). From a hostile player (severity urgent), as
-        Logan fled reds three times (20261013_173449, 20261014_170144, _173858): 'All Follow Me' at
-        once and Adventurer's Rope jumps along the way whenever one is ready (rope_jump).
+        """--leave-gate: walk to the moongate with the pets on 'All Follow Me' (user 2026-10-17, after the
+        time-up walk out of 15:43:52 left them fighting behind on guard: "all follow me to run out, not all
+        guard"), then beside it 'All Follow Me' again (tamer.follow: a hurt leave doesn't wait) so they come
+        through, a double-click on the gate from that tile (live 20261013_204518; the step onto it when its
+        item isn't in view) and the travel to --gate-dest (moongate.travel). A planned leave (PLANNED) walks
+        as the walk-in does (walk_in_stop): attacked, the pets guard until it's over (walk_in_fight); a pet
+        lagging, a wait for it (wait_pets; once it doesn't come, the walk goes on and waits beside the gate).
+        From a hostile player (severity urgent), as Logan fled reds three times (20261013_173449,
+        20261014_170144, _173858): Adventurer's Rope jumps along the way whenever one is ready (rope_jump).
         -> {ok, from, to, dest, elapsed_s[, error]}."""
         gate = tuple(self.args.leave_gate)
         urgent = severity not in PLANNED
@@ -1507,14 +1509,20 @@ class HuntLoop:
         self.walking_out, self.pk_flight = True, flee
         try:
             if self.team is not None:
-                if flee:
-                    self.team.follow(severity)
-                else:
-                    self.team.guard()
+                self.team.follow(severity, wait=flee)
+                self.walk_hits, self.walk_hurt_t = None, -1e9
                 path, _ = self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False)
                 near = tuple(path[-2]) if path and len(path) >= 2 else None
-                stop = (lambda s: "a rope is worth it" if self.rope_worth(s) else None) if flee \
-                    else (lambda s: self.leave_called_off(s, severity))
+                lag = {"wait": severity in PLANNED}
+
+                def stop(s):
+                    if flee:
+                        return "a rope is worth it" if self.rope_worth(s) else None
+                    if severity not in PLANNED:
+                        return self.leave_called_off(s, severity)
+                    if self.walk_hurt(s) or self.attackers(s):
+                        return "under attack"
+                    return self.pets_lagging(s) if lag["wait"] else None
                 for _ in range(ROPE_LEGS_MAX):
                     if near is None or cheb(self.pos(self.link.state()), gate) <= 1:
                         break
@@ -1522,6 +1530,12 @@ class HuntLoop:
                         continue
                     why = self.mover.walk_to(lambda: near, 0, "to the moongate", urgent=urgent,
                                              max_moves=max(250, 3 * self.out_steps), stop=stop)
+                    if why and severity in PLANNED:
+                        if why == "under attack":
+                            self.walk_in_fight("to the moongate", "out")
+                        elif not self.wait_pets("to the moongate", None, required=False):
+                            lag["wait"] = False
+                        continue
                     if why and not flee:
                         return {"ok": False, "called_off": why, "from": list(self.pos(self.link.state())[:2]),
                                 "dest": self.args.gate_dest}
@@ -1790,29 +1804,34 @@ class HuntLoop:
                 return f"{name} at {p['dist']}"
         return None
 
-    def wait_pets(self, label, at):
+    def wait_pets(self, label, at, required: bool = True) -> bool:
         """Up to WALK_IN_QUIET_S for every pet within FOLLOW_R of us (of the teleporter `at` when given):
         on follow they catch up by themselves (the user said 'All Follow Me' once for four teleporters);
         then 'All Follow Me' again and WALK_IN_PETS_S more, else Abort: never through a teleporter
-        without them."""
+        without them. `required` False (the walk out to the gate, which waits for them again beside it):
+        False instead, go on without them. True when they came."""
         log(f"{label}: waiting for the pets ({self.pets_lagging(self.link.state()) or 'not all beside it'})")
-        self.doing("enter", "Waiting for the pets to catch up")
+        self.doing("enter" if required else "leave", "Waiting for the pets to catch up")
         if self.link.wait(lambda s: self.team.together(s, at=at), WALK_IN_QUIET_S):
-            return
+            return True
         self.team.follow(wait=False)
         if not self.link.wait(lambda s: self.team.together(s, at=at), WALK_IN_PETS_S):
+            if not required:
+                log(f"{label}: the pets aren't within {tamer.FOLLOW_R} tiles after {WALK_IN_PETS_S:.0f} s; going on")
+                return False
             raise Abort(f"{label}: the pets aren't within {tamer.FOLLOW_R} tiles "
                         f"{'of it' if at else 'of us'} after {WALK_IN_PETS_S:.0f} s; not going on without them")
+        return True
 
-    def walk_in_fight(self, label):
-        """Attacked on the way in: 'All Guard Me' and the fight tick's order until nothing attacks us and
-        no hit came for WALK_IN_CALM_S (up to WALK_IN_FIGHT_S): out of an area hit, a potion below
-        --heal-at, the team's care (vet supplies, retreat, off the tank), the pets at what's on us
-        (Team.fight: bard skills, "All Kill" on one they leave alone), then our kills looted; then
-        'All Follow Me' and walk on. Live 22:33:39 the care alone left Logan standing among the mobs,
-        dying (the user took over); on follow the pets would let it hit us all the way."""
-        log(f"{label}: attacked on the way in; the pets guard")
-        self.doing("enter", "Attacked on the way in: the pets take it")
+    def walk_in_fight(self, label, way: str = "in"):
+        """Attacked on the way in (or out, `way`, a planned walk to the gate): 'All Guard Me' and the fight
+        tick's order until nothing attacks us and no hit came for WALK_IN_CALM_S (up to WALK_IN_FIGHT_S): out
+        of an area hit, a potion below --heal-at, the team's care (vet supplies, retreat, off the tank), the
+        pets at what's on us (Team.fight: bard skills, "All Kill" on one they leave alone), then our kills
+        looted; then 'All Follow Me' and walk on. Live 22:33:39 the care alone left Logan standing among the
+        mobs, dying (the user took over); on follow the pets would let it hit us all the way."""
+        log(f"{label}: attacked on the way {way}; the pets guard")
+        self.doing("enter" if way == "in" else "leave", f"Attacked on the way {way}: the pets take it")
         self.team.guard_t = -1e9
         self.team.guard()
         end = time.monotonic() + WALK_IN_FIGHT_S
@@ -1845,7 +1864,9 @@ class HuntLoop:
         """After leaving from a hostile player: stay home until --pk-wait has passed."""
         if self.pk_left_t is None:
             return
-        end = min(self.pk_left_t + self.args.pk_wait, self.t0 + self.args.timeout)   # never past --timeout
+        end = self.pk_left_t + self.args.pk_wait
+        if self.args.timeout > 0:
+            end = min(end, self.t0 + self.args.timeout)               # never past --timeout
         if time.monotonic() < end:
             log(f"a hostile player at the hunt: waiting {end - time.monotonic():.0f} s more before going back")
         while time.monotonic() < end:
@@ -2015,7 +2036,8 @@ class HuntLoop:
         return self.finish_requested
 
     def timed_out(self, extra: float = 0.0) -> bool:
-        return time.monotonic() - self.t0 > self.args.timeout + extra
+        """Past --timeout (the whole run's, from its start, every visit together); never without one."""
+        return self.args.timeout > 0 and time.monotonic() - self.t0 > self.args.timeout + extra
 
     def fight(self, serial):
         """One round against `serial`: attack it (once, and once more when it first
@@ -2471,8 +2493,11 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--songs", action=argparse.BooleanOptionalAction, default=True,
                     help="--pets: keep the three barding songs up (a bard skill at the ground: less damage taken, "
                          "more healing, more damage for 15 min; user 2026-10-13)")
-    ap.add_argument("--kills", type=int, default=0, help="stop after this many kills (0 = until --timeout)")
-    ap.add_argument("--timeout", type=float, default=3600.0, help="then finish the fight and leave")
+    ap.add_argument("--kills", type=int, default=0, help="stop after this many kills (0 = no limit)")
+    ap.add_argument("--timeout", type=float, default=0.0,
+                    help="seconds from the run's start (all its visits): then finish the fight and leave; 0 (the "
+                         "default, user 2026-10-17: the return rule takes the loot home) = no limit, the run ends "
+                         "by --kills, `ctl stop --after-trip` or a leave rule that doesn't go back in")
     ap.add_argument("--rest-to", type=float, default=0.95,
                     help="after leaving, rest to this share of hits and go back in (0 = stop after leaving)")
     ap.add_argument("--rest-timeout", type=float, default=900.0)

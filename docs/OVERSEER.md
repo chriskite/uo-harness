@@ -563,15 +563,15 @@ Paste this (or point the session at this section) to start an overseer.
 > 3. **Run it verbatim:**
 >    `ctl run hunt --pets --crawl --heal-in-place --vet-range 5 --crawl-learn-s 180 --leave-recall
 >    0x444AB1F3 --leave-gate 5203 703 --gate-dest Totem --enter-recall 0x444AB1F3 --enter-rune "Maus Near 2"
->    --enter-via 5554 700 --enter-via 5507 701 --enter-via 5507 696 --enter-via 5522 637 --timeout 1500`.
+>    --enter-via 5554 700 --enter-via 5507 701 --enter-via 5507 696 --enter-via 5522 637`.
 >    It recalls to "Maus Near 2", walks the four teleporters with the pets on "All Follow Me" (a fight on
 >    the way is the pets' to take), crawls the fight level, and leaves when the user's rules say so:
->    hurt, a pet hurt or lost, time up, **a red** (out by the crimson moongate at (5203, 703) to
+>    hurt, a pet hurt or lost, **a red** (out by the crimson moongate at (5203, 703) to
 >    Totem, then the tome home), or (since 2026-10-17) **the loot it carries reaching V\*** (docs/HUNT_LOOP.md
 >    "Taking the loot home": the gold rate against the death rate there; ~26k gold live), after which it goes
 >    into the room, runs the drop-off itself and recalls back in. Greys and oranges are no reason to leave, and nobody speaking is
->    (no speech hold on hunts). Between visits it recalls home, rests and goes back in by itself until
->    `--timeout`; it ends at home (the DTF landing).
+>    (no speech hold on hunts). Between visits it recalls home, rests and goes back in by itself with no time limit (no
+>    `--timeout`, user 2026-10-17); end it with `ctl stop --after-trip` (out with the pets, home, exit 0).
 > 4. **While it runs:** `ctl wait --timeout 150` and glance at `status` and the task log (`hits`, `intent`).
 >    Nothing to act on: ctl refuses acts while the run is on, and **never fight by hand** in the dungeon.
 > 5. **`task_done`** (home): `act room enter`, `act dropoff` (the runner drops off between visits itself, not at

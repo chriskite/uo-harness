@@ -3039,6 +3039,29 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     run sat paused in that walk until `ctl stop`.
   - Fixed: a ranged monster (`aggro.ranged`) in war mode within RANGED_REACH 13 while we take damage is an
     attacker, so the patrol stops at the first hit (`harness/test_attackers.py`).
+- **The user's answers (2026-10-17).**
+  - "Yes all follow me to run out, not all guard." `leave_by_gate` now says "All Follow Me" at the start of
+    every walk out. A planned leave walks like the walk-in: attacked, the pets guard and Logan stands until
+    it's over (`walk_in_fight`, "on the way out"); a pet over 8 tiles off is waited for (`wait_pets`
+    `required=False`: after 25 s the walk goes on and waits beside the gate).
+  - "I don't think it was 25 minutes into that trip": right, `--timeout` counted from the run's start, every
+    visit together. The run started 15:18:52, the first visit took 17 min, the trip home 1 min, and the second
+    visit had been on Maus 3 2.5 min. "I don't think we need a timeout in general now that we have the rules to
+    leave when loot accrues": `--timeout` now defaults to 0, no limit, and the OVERSEER Maus command dropped
+    `--timeout 1500`.
+  - Simulator, 48 seeds (17-64), 20 min each, fresh stores:
+
+    | Walk out | Deaths | Deaths on a planned leave | Pet deaths | Damage on Logan | Gold |
+    |---|---|---|---|---|---|
+    | Guard (before) | 31 | 6 | 39 | 29701 | 922k |
+    | Follow, stand and fight when attacked (shipped) | 34 | 11 | 42 | 31580 | 957k |
+    | Follow, "All Guard Me" and walk on when attacked | 35 | 9 | 40 | 30674 | 931k |
+
+    A planned leave counts as one whose why is time up or the return rule. In the shipped variant three of the
+    runs ended on the simulator's hard timeout (1200 + 180 s) mid-fight on the way out, which a live run without
+    `--timeout` doesn't have. [INFERENCE] Follow costs the simulator a few deaths on the walk out, because the
+    attackers chase Logan instead of the guarding pets. That is within the noise of 48 runs, and it is the
+    user's call.
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

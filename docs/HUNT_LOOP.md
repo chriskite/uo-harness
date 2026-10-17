@@ -50,8 +50,8 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--spell` | `lightning` | Attack spell (Magery name or 1-64). |
 | `--target-name` | `mongbat` (`--pets`: any monster) | Words the monster's name (or click label) must contain. |
 | `--pull-range` | `3` (`--pets` 8) | Engage mobs within this many tiles of the spot. At most 10 (the spell range): a larger value is capped, with a log line. |
-| `--kills N` | `0` | Stop after N kills (0: until `--timeout`). |
-| `--timeout S` | `3600` | Then finish the fights on us, loot, and leave. 180 s past it the runner aborts wherever it is. |
+| `--kills N` | `0` | Stop after N kills (0: no limit). |
+| `--timeout S` | `0` | Seconds from the run's start, all its visits together: then finish the fights on us, loot, and leave; 180 s past it the runner aborts wherever it is. 0 = no limit (user 2026-10-17: the return rule takes the loot home); the run ends by `--kills`, `ctl stop --after-trip` or a leave that doesn't go back in. |
 | `--rest-to` | `0.95` | After leaving: Heal / Greater Heal when one can be cast (no potions; else natural regeneration) outside to this share of hits (and `--mana-reserve` mana), then go back in. `0`: stop after leaving. `--rest-timeout` (900 s) bounds the rest. |
 | `--reposition-s` | `240` | No step for this long: walk 2–4 steps out and back to the fight spot before the Stationary Penalty comes (300 s); with nothing on us already from a draw in 0.8–1 × it. |
 | `--loot` / `--no-loot`, `--loot-max` | on, 25 | Loot our kills' corpses (items per corpse). |
@@ -265,7 +265,7 @@ loot exceeds the risk/reward of being killed by reds or mobs, like the lumber ru
   V\* (the value carried at the visit's start is a load a drop-off didn't take: it doesn't count), or when the pack
   is within `LOOT_WEIGHT_MARGIN` of full. Only between fights: nothing on us, nothing engaged, no corpse to loot.
   The leave is planned (severity `return`: no `threat` juncture, the walk to the gate at a normal pace with the
-  pets guarding, the crawl doesn't mark the place) and the run goes back in.
+  pets following and waited for, the crawl doesn't mark the place) and the run goes back in.
 - **The inputs**, from the store at each visit's start, this character's within 120 tiles of the spot since the first
   live-server run (2026-10-15 21:07; the test shard had no player killers):
   - `r`: gold a minute from the visit rows, gold only.
@@ -552,8 +552,11 @@ moongate, and never near a red one).
   - Before each step onto a teleporter, every pet within 3 tiles of it (they come through only if
     near it), else the waits above. `--songs`: a song due before each leg.
 - **Out:** `--leave-gate X Y --gate-dest NAME` (`moongate.py`).
-  - The runner walks to the gate with the pets still guarding and says "All Follow Me" beside it.
-    Then it double-clicks the gate from that tile, as Logan did (the step onto it only when the gate
+  - The runner says "All Follow Me" and walks to the gate (user 2026-10-17, after a time-up walk out on
+    "All Guard Me" left the pets fighting behind: "all follow me to run out, not all guard"), and says it
+    again beside the gate. A planned leave (time up, `--kills`, the return rule) walks like the walk-in: attacked,
+    the pets guard until it's over; a pet more than 8 tiles off or out of view, a wait for it (once it doesn't
+    come in 25 s the walk goes on and waits beside the gate). Then it double-clicks the gate from that tile, as Logan did (the step onto it only when the gate
     item isn't in view), and picks the destination by its label.
   - **A hurt leave is called off** once Logan is back at `--heal-at` on the way out and no leave rule
     fires any more (`HuntLoop.leave_called_off`; user 2026-10-15, live 20261015_171928 18:57:20-40: out
