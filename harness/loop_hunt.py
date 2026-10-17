@@ -152,6 +152,7 @@ ROPE_COOLDOWN_S = 5.3         # knowledge #13325: 5 s from the use (unless PvP f
 ROPE_RETRY_S = 2.0            # after a try that found no landing or got no cursor
 ROPE_WAIT_S = 1.5             # live: the cursor 0.1 s after "[Rope", the jump ~1 s after the answer
 ROPE_REFUSED = (501942, 500237, 500446)   # "That location is blocked." (live 13:40:52.9), "Target cannot be seen.", too far
+ROPE_CALM_S = 3.0             # a flight's rope only when no player has hit or attacked us this long (rope_worth)
 ROPE_LEGS_MAX = 30
 SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is attacking us
 CASTER_REACH = 10            # a caster in war mode this close while we take damage is attacking us (SPELL_RANGE)
@@ -1403,6 +1404,34 @@ class HuntLoop:
         return bool(self.args.rope) and time.monotonic() >= self.rope_next \
             and bool(healing.in_pack(st["world"], self.me(st), ROPE_GRAPHIC))
 
+    def rope_worth(self, st) -> bool:
+        """A flight's rope (rope_ready_now) only while no player is on us: the cast stands us ~1 s (user
+        2026-10-17: "ropes are useful for getting through groups of mobs or getting a lead on a red while they're
+        not currently hitting us ... if a red is already on top of us its not good to just stand there and wait
+        for the rope cast to resolve"). On us: '<name> is attacking you!' from a player, or a damage number over
+        us while a red stands within spell range, in the last ROPE_CALM_S."""
+        if not self.rope_ready_now(st):
+            return False
+        a = self.watch.update(st, recall_s=0.0, margin_s=0.0)
+        players = [t for t in a.threats if t.player]
+        names = {(t.name or "").lower() for t in players}
+        red_near = any(t.kind == "red" and 0 <= t.distance <= self.watch.params.player_strike_range for t in players)
+        me, now = self.me(st), time.time()
+        ev, et = self.link.events, self.link.event_t
+        for i in range(len(ev) - 1, -1, -1):
+            if now - et[i] > ROPE_CALM_S:
+                break
+            e = ev[i]
+            if e.get("ev") != "speech_heard" or serial_of(e.get("serial") or 0) != me:
+                continue
+            text = e.get("text") or ""
+            if text.endswith(ATTACKED_BY) and (text[: -len(ATTACKED_BY)].lower() in names
+                                               or not text[0].islower()):   # a player, seen or not ("a shade wolf" isn't)
+                return False
+            if red_near and DAMAGE_TEXT.match(text):
+                return False
+        return True
+
     def rope_jump(self, goal) -> bool:
         """One Adventurer's Rope jump toward `goal` (Logan's escapes: '[Rope', then the ground target;
         jumps of 7-10 tiles, an 11-tile target refused): the farthest tile of the route there within ROPE_R
@@ -1471,12 +1500,12 @@ class HuntLoop:
                     self.team.guard()
                 path, _ = self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False)
                 near = tuple(path[-2]) if path and len(path) >= 2 else None
-                stop = (lambda s: "a rope is ready" if self.rope_ready_now(s) else None) if flee \
+                stop = (lambda s: "a rope is worth it" if self.rope_worth(s) else None) if flee \
                     else (lambda s: self.leave_called_off(s, severity))
                 for _ in range(ROPE_LEGS_MAX):
                     if near is None or cheb(self.pos(self.link.state()), gate) <= 1:
                         break
-                    if flee and self.rope_jump(near):
+                    if flee and self.rope_worth(self.link.state()) and self.rope_jump(near):
                         continue
                     why = self.mover.walk_to(lambda: near, 0, "to the moongate", urgent=urgent,
                                              max_moves=max(250, 3 * self.out_steps), stop=stop)

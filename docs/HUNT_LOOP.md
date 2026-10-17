@@ -510,10 +510,16 @@ moongate, and never near a red one).
     in running to the gate when he's fully healed"). He walks back to within `--vet-range` - 1 of the
     nearest pet (`Team.rejoin`) and the hunt goes on.
   - **Fleeing a hostile player** (an urgent leave; `--rope`, default on): "All Follow Me" at once, then
-    the run to the gate with an Adventurer's Rope jump whenever one is ready: `[Rope` (0x03 speech, as
-    Logan's client sends it), the farthest route tile within 9 in sight (live jumps 7-10, an 11-tile
-    target refused), its z walked along the route; 5 s cooldown. Logan fled reds this way three times
-    (docs/NOTES.md "Logan Wolf's Mausoleum runs of 2026-10-14").
+    the run to the gate. An Adventurer's Rope jump only when one is ready **and no player is on us**
+    (`rope_worth`, since 2026-10-17; user: "ropes are useful for getting through groups of mobs or getting a
+    lead on a red while they're not currently hitting us ... its not good to just stand there and wait for the
+    rope cast to resolve"): no player's "… is attacking you!" and no damage on us with a red within 12, in the
+    last 3 s (`ROPE_CALM_S`); otherwise run. `[Rope` (0x03 speech, as Logan's client sends it), the farthest
+    route tile within 9 in sight with no mobile on it (live jumps 7-10, an 11-tile target refused), its z walked
+    along the route; a refusal ("That location is blocked.") ends the wait at once; 5 s cooldown. No bard skill
+    on that walk (`pk_flight`). Logan fled reds this way three times (docs/NOTES.md "Logan Wolf's Mausoleum
+    runs of 2026-10-14"); live 2026-10-17 13:40 the rope and a Peacemaking stood him 3 s under a red's
+    Explosions (NOTES "Inn-room runs").
     At the gate: no second "All Follow Me", the gate's double-click and its menu's buttons at a macro's pace
     (humanize `gate_macro`, ~0.15 s; every leave but the planned end) (user 2026-10-15: "We do need to greatly
     speedup our activation of the red moongate though. My macro gets me out basically instantly"; live
