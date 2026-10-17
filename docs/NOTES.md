@@ -3231,6 +3231,24 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
   15 cure, 15 refresh potions, 180 vet supplies). Labels in the room: "a skill mastery tome" 0x62658F0D, "magic
   item recycler" 0x6264BB54 (the user confirmed), "resource container" for the stockpile, the chest "wooden chest".
 
+## Inn-room runs of 2026-10-16/17 (live server, captures 20261016_*, 20261017_110506)
+
+- **2026-10-16 09:25 (hunt-20261016-092542-b56c)** from the DTF landing: all four teleporters with both pets, three
+  fights on the way in (a calamity, a devourer beetle, an abomination), the fight level at 09:28:46. Ended 09:32:52 by
+  the user's pause ("walk gated too long"): a player had reported reds. The visit row counts 0 kills: the walk-in's
+  kills and gold come before the visit starts.
+- **2026-10-17 11:06 (hunt-20261017-110657-c26b)** from the room after `act dropoff`: the fight level by ~11:09.
+  - 11:11:05 it left an **arcane scroll** in a banshee's corpse: a blank scroll 0x0EF3 in hue 2609, which the "scroll
+    in the name" rule threw out. The user: "valuable loot", "They're pink blank scroll graphics". Since 006cdac a blank
+    scroll graphic in any hue but 0 is taken.
+  - 11:12:45 **stuck on a walkable tile for a minute**: (5192, 671, 25), on the fight level's north side, where the
+    floor is z 25 all along y 667-683 (not a ledge; the user stepped him south with no trouble). One step south was
+    refused: the player King Vitaman (0x00397F8E) showed on (5192, 672) 0.4 s later. The map planner kept the
+    refusal as a wall for the session, and from (5192, 671) that one-tile passage is the only way south on the map
+    (`pathfind.plan` with the move denied: no route), so every waypoint came out "no route … skipping it for 600 s"
+    until the user moved him. Since then a refusal on a map-walkable step expires after `DENY_RETRY_S` (30 s), and a
+    plan with no route tries those steps again at once (test_mover `test_shove_denied`).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

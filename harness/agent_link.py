@@ -71,6 +71,9 @@ FIELD_GONE_WAIT_S = 1.0
 MOBILE_COST_X = 4.0
 SHOVE_RETRY_S = 15.0
 MOBILE_WAIT_S = 90.0
+# A step the server refused where the map has it walkable (a mobile we didn't see in time: live 2026-10-17 11:12:45 a
+# player, King Vitaman, showed on the tile 0.4 s after the refusal) blocks that move only for DENY_RETRY_S, and is tried again at once when nothing else gets through.
+DENY_RETRY_S = 30.0
 # Danger zones (Mover.danger, set by guards: creatures we must not walk past): entering a
 # tile inside one costs DANGER_COST_X normal steps, so routes bend around monster groups
 # when a way around exists (live 2026-10-03: a straight map route through a harpy nest).
@@ -469,6 +472,7 @@ class Mover:
         self.dispel = dispel
         self.walkers = pathfind.Walkers()
         self.denied = set()          # (x, y, d) server denies seen this session (map planner)
+        self.denied_t = {}           # the ones of them on map-walkable steps -> monotonic time (expire: DENY_RETRY_S)
         self.shove_denied = {}       # (x, y) -> monotonic time a shove into it was denied
         self.refresh = None          # host's stamina potion: () -> True when it drank (walk_to, a denied shove)
         self.steps = 0
@@ -868,9 +872,23 @@ class Mover:
         diagonal_first = lambda: self.human.choice((True, False))  # noqa: E731
         walk = self.walk_map(st, skip=fields if through_fields else ())
         if walk is not None:
-            path = pathfind.plan(walk, (pos[0], pos[1], pos[2]), goal,
+            for edge in [e for e, t in self.denied_t.items() if now - t > DENY_RETRY_S]:
+                self.denied.discard(edge)
+                del self.denied_t[edge]
+            start = (pos[0], pos[1], pos[2])
+            path = pathfind.plan(walk, start, goal,
                                  blocked_moves=self.denied, occupied=hard, cost_scale=cost, max_steps=max_steps,
                                  tick=lambda: self.guard(self.link.state()))
+            if path is None and self.denied_t:
+                # live 2026-10-17 11:12:45: one step south refused at a one-tile passage (a player stepped onto it),
+                # kept as a wall, and no route anywhere for minutes; the map says those steps go: try them again
+                log(f"no route from {cur} past {len(self.denied_t)} step(s) the server refused on walkable "
+                    f"tiles; trying them again")
+                self.denied.difference_update(self.denied_t)
+                self.denied_t.clear()
+                path = pathfind.plan(walk, start, goal,
+                                     blocked_moves=self.denied, occupied=hard, cost_scale=cost, max_steps=max_steps,
+                                     tick=lambda: self.guard(self.link.state()))
             if path is None:
                 return None, walk
             path = nav.straighten(
@@ -1116,7 +1134,9 @@ class Mover:
                     self._refreshed(label)
                 elif not walled:
                     if walk is not None:
-                        self.denied.add((cur[0], cur[1], d))   # z-aware plans; don't pollute 2D memory
+                        edge = (cur[0], cur[1], d)               # z-aware plans; don't pollute 2D memory
+                        self.denied.add(edge)
+                        self.denied_t[edge] = time.monotonic()   # the map has it walkable: a mobile, likely (DENY_RETRY_S)
                     else:
                         self.mem.add_blocked(cur, d)
                     log(f"{label}: move {d} from {cur} blocked ({self.blocked_count} total); replanning")

@@ -446,6 +446,17 @@ def test_shove_denied():
     msg = walk_msg(mv, (6, 0))
     check("short of stamina before an NPC that never moves: one stamina potion, then through it (live 22:57:56)",
           msg == "arrived" and len(drank) == 1 and link.shoved == [(3, 0)], f"{msg} {drank} {link.shoved}")
+    class PetOnce(FakeLink):           # the server refuses the step once (a mobile on the tile the world model didn't have yet)
+        def send(self, pkt):
+            out = super().send(pkt)
+            if self.denies:
+                self.walls.clear()
+            return out
+    link = PetOnce((0, 0), facing=2, walls=[(3, 0)])
+    msg = walk_msg(map_mover(link, HALLWAY), (6, 0))
+    check("a step refused once in the only passage, the map has it walkable: tried again, not a wall for good "
+          "(live 2026-10-17 11:12:45, no route anywhere for minutes)",
+          msg == "arrived" and link.denies == [(3, 0)] and tuple(link.here) == (6, 0), f"{msg} {link.denies}")
 
 
 class LayeredWalk:
