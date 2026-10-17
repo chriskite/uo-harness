@@ -280,19 +280,24 @@ Working rules, each tied to a detection surface above:
     - The pet runner sends its commands Razor-shaped (`actions.razor_say`), matching what the
       server has always seen from this player for those phrases (high confidence: byte-identical to
       the captured packets).
-    - **Finding (medium confidence, not fixed):** every other agent `0xAD` (`say_unicode`: "room",
-      "bank", "[aspect", the overseer's replies) uses hue 0x02B2 for every character. On Logan Wolf
-      that differs from his typed 0x0170: capture 20261011_115828 has the agent's "room" at 0x02B2
-      beside his own "room"s at 0x0170. A server that logs speech hue per account could see a
-      third speech colour appear only when the agent talks [INFERENCE: whether Outlands logs it is
-      unknown]. Remedy when wanted: take the hue (and font) from the client's own latest typed
-      `0xAD` this session, per character, as the proxy already sees it.
+    - **Finding (medium confidence, fixed 2026-10-17):** every other agent `0xAD` (`say_unicode`:
+      "room", "bank", "[aspect", the overseer's replies) used hue 0x02B2 for every character. On
+      Logan Wolf that differs from his typed 0x0170: capture 20261011_115828 has the agent's "room"
+      at 0x02B2 beside his own "room"s at 0x0170. A server that logs speech hue per account could
+      see a third speech colour appear only when the agent talks [INFERENCE: whether Outlands logs
+      it is unknown]. Fix: `say_unicode` leaves a placeholder hue (`SPEECH_HUE_OWN`) and the proxy
+      stamps the character's own (`SessionTap.speech_hue`): the hue of the client's last typed
+      say this session, else the ClassicUO profile's `speech_hue` (`cuo_profile.py`), else
+      ClassicUO's default 0x02B2. Razor-shaped client lines (encoded + double NUL, hues 0x03B1 /
+      0x0044) and other message types don't count as typing. Font stays 3 (every capture).
+      Verified on a replay of 20261011_115828: agent "room" now goes out at 0x0170, both from the
+      learned hue and from the profile alone.
     - **Razor macros are not Razor-hued (2026-10-17, Razor CE source; docs/NOTES.md "Razor's three
       speech paths").** A recorded macro's speech replays in the hue Razor last saw the client type
       (else the recorded one, i.e. the ClassicUO profile's `speech_hue`), so "room" from the user's
       `DTF Room.macro` is byte-identical to typing it. Only Razor's built-in "Say" hotkeys (the pet
       commands) use 0x03B1. Sending "room"/"bank"/"[aspect" via `razor_say` would therefore put
-      them in a colour neither the user's typing nor his macros ever produce: the remedy above is
+      them in a colour neither the user's typing nor his macros ever produce: the fix above is
       the Razor-faithful one too.
 
 ## 9. Open questions

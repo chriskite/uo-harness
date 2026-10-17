@@ -2577,6 +2577,11 @@ timestamped per packet. Facts:
     client `0xAD` in logs/ (2026-10-17 tally): unencoded lines only in those profile hues
     ("room", "[aspect", "[go"); encoded lines ("bank", "withdraw N") in the profile hue with one
     NUL (typed; no bank macro exists); 0x03B1 only on the pet commands.
+- **Agent speech hue is stamped by the proxy** (2026-10-17, ANTICHEAT.md §8.20): `say_unicode`
+  defaults to the placeholder hue 0 (`actions.SPEECH_HUE_OWN`); `proxy.SessionTap.speech_hue`
+  fills in the client's last typed hue, else `cuo_profile.speech_hue` (account from 0x91, name
+  from 0x5D), else 0x02B2; a new learned or profile hue is logged as `ev: speech_hue`. A proxy older than this
+  change would forward hue 0: restart the proxy whenever harness code with this change runs.
 - **Targeting is Razor-fast:** cursor to answer median 0.23 s after Discordance, 0.44 s after
   Peacemaking, 0.11 s after "All Kill"; the server's cursor follows the skill use (0x12 type 0x24
   "15 0", byte-identical to `actions.use_skill`) in 0.05–0.07 s. He presses hotkeys repeatedly:

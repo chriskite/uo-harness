@@ -1497,9 +1497,9 @@ class World:
             elif int.from_bytes(p[5:9], "big") == HORSE and self.horse is not None and not self.mounted:
                 self.horse_menus += 1
                 self.later(0.06, [PET_POPUP])
-        elif p == actions.say_unicode("guards"):        # guard_run: the guards called on the red
+        elif p == actions.say_unicode("guards", hue=actions.CUO_SPEECH_HUE):   # guard_run: the guards called on the red
             self.guards_called.append((time.time(), tuple(self.pos)))
-        elif p == actions.say_unicode("room"):          # "room" by the steward opens the room menu (within 2 tiles)
+        elif p == actions.say_unicode("room", hue=actions.CUO_SPEECH_HUE):     # "room" by the steward opens the room menu
             if self.facet != 0 or self.cheb(STEWARD_POS) > 2:
                 self.keeper_far += 1
                 return
@@ -2206,7 +2206,7 @@ async def main():
               and text.count(f"opening container 0x{BACKPACK:08X}") == 1 and world.chest_opens == 2,
               f"{world.containers_opened} chest opens {world.chest_opens}")
         check("the only speech is 'room' by the steward, once per trip (no 'bank')",
-              speech == [actions.say_unicode("room")] * 2, str([p.hex() for p in speech]))
+              speech == [actions.say_unicode("room", hue=actions.CUO_SPEECH_HUE)] * 2, str([p.hex() for p in speech]))
         check("two episode rows with logs and stored boards, none stockpiled (this home has only the chest); a dry "
               "trip asked about a library hop first (the `hop_home` phase, docs/LUMBER_LOOP.md §6: no other spot here)",
               len(rows) == 2 and all(r.get("logs", 0) >= 6 and r.get("stored", 0) >= 6 and "stockpiled" not in r

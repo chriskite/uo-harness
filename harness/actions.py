@@ -27,7 +27,8 @@ version at settings+0x68 is >= 10 (live server: 12).
                           follows a click when the name is not known yet)
   say_ascii     0x03  var  id, len u16be, type u8=0, hue u16be=0x0033, font u16be=0,
                           ascii text, 00 (ground truth: "[Rope" in session_20261014_173858)
-  say_unicode   0xAD  var  id, len u16be, type u8=0, hue u16be=0x02B2,
+  say_unicode   0xAD  var  id, len u16be, type u8=0, hue u16be=0 (SPEECH_HUE_OWN: the
+                          proxy stamps the character's own speech hue),
                           font u16be=0x0003, lang "ENU\\0", then either
                           utf16be text + 0x0000 (no speech.mul keyword), or
                           (type|0xC0) packed keyword ids + utf8 text + 0x00
@@ -126,16 +127,23 @@ RUN_FLAG = 0x80
 # say_unicode defaults, taken from the captured live session
 SPEECH_TYPE = 0x00
 SPEECH_ENCODED = 0xC0  # MessageType.Encoded, OR'd in when keywords match
-SPEECH_HUE = 0x02B2
+# Ordinary agent speech goes out in the character's own speech hue, as its typed lines and its
+# Razor macros do (a macro replays in the hue Razor last saw the client type; docs/NOTES.md
+# "Razor's three speech paths"). The hue is per character (ClassicUO profile `speech_hue`: Logan
+# Wolf 0x0170, Outland Dan 0x02B2), so builders leave this placeholder and the proxy stamps it
+# (proxy.SessionTap.speech_hue), as it stamps walk seqs.
+SPEECH_HUE_OWN = 0x0000
+CUO_SPEECH_HUE = 0x02B2   # ClassicUO's default profile speech_hue (690)
 SPEECH_FONT = 0x0003
 SPEECH_LANG = b"ENU\x00"
-# Razor's speech (its hotkeys' "Say", e.g. the pet commands) differs from the client's typed speech:
-# Razor's own speech hue (default 0x03B1; Logan Wolf's profiles set none) instead of the client
+# Razor's built-in "Say" hotkeys (the pet commands) differ from the client's typed speech: Razor's
+# own speech hue (default 0x03B1; Logan Wolf's profiles set none) instead of the client
 # profile's, and the keyword-encoded body ends in two NULs, not one. Every pet command in Logan
 # Wolf's captures (56: sessions 20261010_204420, 20261011_115828, 20261012_210013) is
 # `ad <len> c0 03b1 0003 "ENU\0" <keywords> <utf8> 00 00`, while his typed speech in the same
 # sessions is hue 0x0170 with one NUL (docs/NOTES.md "Pet commands are Razor-shaped speech").
 RAZOR_SPEECH_HUE = 0x03B1
+RAZOR_SYS_HUE = 0x0044    # Razor's SysColor: a Razor script's `say` (upstream source, never captured)
 
 
 class WalkSequencer:
@@ -202,11 +210,12 @@ def dclick(serial: int) -> bytes:
     return struct.pack(">BI", 0x06, serial)
 
 
-def say_unicode(text: str, hue: int = SPEECH_HUE, font: int = SPEECH_FONT,
+def say_unicode(text: str, hue: int = SPEECH_HUE_OWN, font: int = SPEECH_FONT,
                 lang: bytes = SPEECH_LANG, msg_type: int = SPEECH_TYPE) -> bytes:
     """0xAD unicode speech, byte-identical to the stock client's
     Send_UnicodeSpeechRequest: if speech.mul keywords match `text`, the
     encoded form (type|0xC0, keyword ids, UTF-8 + NUL); else UTF-16BE + NUL16.
+    The default hue is the SPEECH_HUE_OWN placeholder, stamped by the proxy.
     """
     _check_u8(msg_type, "msg_type")
     _check_u16(hue, "hue")

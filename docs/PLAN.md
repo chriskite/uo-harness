@@ -1834,8 +1834,10 @@ Mausoleum"; docs/HUNT_LOOP.md "Pets"). Decisions:
   range is a setting (`--vet-range`), since the Healer's Codex "Without Borders" perk is being
   levelled (user 2026-10-12).
 - *Pet commands Razor-shaped* (`actions.razor_say`): the server has only ever seen this player's pet
-  commands from Razor (hue 0x03B1, double NUL). The same capture showed the agent's other speech is
-  off-hue for Logan Wolf (ANTICHEAT.md §8.20, not fixed).
+  commands from Razor (hue 0x03B1, double NUL). The same capture showed the agent's other speech
+  off-hue for Logan Wolf; since 2026-10-17 the proxy stamps each character's own speech hue into
+  it (ANTICHEAT.md §8.20). Rejected: sending "room"/"bank"/"[aspect" via `razor_say`, because
+  Razor macros replay in the client's own hue and only its Say hotkeys use 0x03B1.
 - *No release, ever* (user 2026-10-12): a fixed command list, and `ctl act say` / `menu_pick` refuse
   release/transfer.
 - *A pet down ends the run* (`pet_down`), unless the vet supplies bring its ghost back first (2026-10-14:

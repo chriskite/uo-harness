@@ -223,8 +223,8 @@ async def main():
         check("errand reported complete", "errand complete" in text)
         check("server ended with the player back at the start", tuple(world.pos) == START, str(world.pos))
         check("bank opened exactly once", world.bank_opened == 1, str(world.bank_opened))
-        check("bank speech byte-identical to the stock client's",
-              speech == [actions.say_unicode("bank")], str([p.hex() for p in speech]))
+        check("bank speech byte-identical to the stock client's (the proxy's default hue: no profile here)",
+              speech == [actions.say_unicode("bank", hue=actions.CUO_SPEECH_HUE)], str([p.hex() for p in speech]))
         check("looked at nearest NPC first, then found the banker",
               [int.from_bytes(p[1:5], "big") for p in clicks] == [DUSTY, LEN],
               str([p.hex() for p in clicks]))

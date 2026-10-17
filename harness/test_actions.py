@@ -133,19 +133,22 @@ def test_dclick():
 
 def test_say_unicode():
     print("== say_unicode ==")
+    H = actions.CUO_SPEECH_HUE   # Outland Dan's client, whose speech these captures are
+    check("default hue is the placeholder the proxy stamps",
+          actions.say_unicode("howdy")[4:6] == bytes(2))
     # capture: ad 0018 00 02b2 0003 "ENU\0" <utf16be "howdy"> 0000
     expect = bytes.fromhex("ad00180002b20003454e55000068006f0077006400790000")
-    got = actions.say_unicode("howdy")
+    got = actions.say_unicode("howdy", hue=H)
     check('say "howdy" matches capture byte-for-byte', got == expect,
           got.hex())
     # second captured sample: "[aspect" (28 bytes)
     expect2 = bytes.fromhex("ad001c0002b20003454e5500005b0061007300700065006300740000")
     check('say "[aspect" matches capture',
-          actions.say_unicode("[aspect") == expect2)
+          actions.say_unicode("[aspect", hue=H) == expect2)
     # "[pouch" as sent by the stock client (session_20260929_161433, src=client)
     expect3 = bytes.fromhex("ad001a0002b20003454e5500005b0070006f0075006300680000")
     check('say "[pouch" matches capture',
-          actions.say_unicode("[pouch") == expect3)
+          actions.say_unicode("[pouch", hue=H) == expect3)
     # the stock client sent these UNENCODED, so no speech.mul keyword matches
     for t in ("howdy", "[aspect", "[pouch"):
         kw = speech.get_keywords(t)
@@ -157,9 +160,9 @@ def test_say_unicode():
     # count 1 -> 00 | (1<<4 | 0x03B>>8)=10 | 3b; then utf8 "hello" 00
     check('"hello" keywords == [59]', speech.get_keywords("hello") == [59])
     check('say "hello" is encoded',
-          actions.say_unicode("hello") == bytes.fromhex(
+          actions.say_unicode("hello", hue=H) == bytes.fromhex(
               "ad0015c002b20003454e550000103b") + b"hello\x00",
-          actions.say_unicode("hello").hex())
+          actions.say_unicode("hello", hue=H).hex())
     check('"hello there" does not match exact-only entry 59',
           59 not in speech.get_keywords("hello there"))
     try:
@@ -204,8 +207,8 @@ def test_speech_keywords():
     check("encode count >= 16 uses the high count byte",
           speech.encode_keywords([0] * 17)[:2] == bytes.fromhex("0110"))
 
-    # encoded "bank" packet, default hue/font/lang
-    pkt = actions.say_unicode("bank")
+    # encoded "bank" packet, Outland Dan's hue, default font/lang
+    pkt = actions.say_unicode("bank", hue=actions.CUO_SPEECH_HUE)
     print(f"    'bank' -> {pkt.hex()}")
     check("bank: length field == len(pkt)",
           int.from_bytes(pkt[1:3], "big") == len(pkt) == 0x16, pkt.hex())
@@ -237,6 +240,61 @@ def test_razor_say():
         check("no keyword: refused (no captured Razor shape)", False)
     except ValueError:
         check("no keyword: refused (no captured Razor shape)", True)
+
+
+def test_speech_hue_stamp():
+    print("== agent speech hue (proxy.SessionTap.speech_hue) ==")
+    import cuo_profile
+    import proxy
+    import viz_feed
+
+    def tap():
+        t = proxy.SessionTap(viz_feed._Null(), viz_feed._Null(), viz_feed._Null())
+        t.key = 0                                     # XOR 0: wire bytes == plaintext
+        return t
+
+    def hue(pkt):
+        return int.from_bytes(pkt[4:6], "big")
+
+    room = actions.say_unicode("room")
+    t = tap()
+    check("character unknown: ClassicUO's default 0x02B2", hue(t.inject_c2s(room, "agent")) == 0x02B2)
+
+    root = tempfile.mkdtemp(prefix="cuo_profiles_")
+    try:
+        d = os.path.join(root, "Acct", "UO Outlands", "Logan Wolf")
+        os.makedirs(d)
+        with open(os.path.join(d, "profile.json"), "w") as f:
+            json.dump({"speech_hue": 368, "emote_hue": 33}, f)
+        orig = cuo_profile.PROFILES
+        cuo_profile.PROFILES = root
+        try:
+            t = tap()
+            t.world.state.self.account, t.world.state.self.name = "Acct", "Logan Wolf"
+            out = t.inject_c2s(room, "agent")
+            check("before the client speaks: the profile's speech_hue (Logan Wolf 0x0170)",
+                  out == actions.say_unicode("room", hue=0x0170), out.hex())
+            # Razor's pet hotkeys (0x03B1, double NUL) are not the character's typing
+            t.inject_c2s(actions.razor_say("All Guard Me"), "client")
+            check("a Razor pet command from the client teaches nothing",
+                  hue(t.inject_c2s(room, "agent")) == 0x0170)
+            t.inject_c2s(actions.say_unicode("vendor buy", hue=0x0239), "client")
+            check("the client's typed (encoded, one NUL) hue wins over the profile",
+                  hue(t.inject_c2s(room, "agent")) == 0x0239)
+            t.inject_c2s(actions.say_unicode("hi", hue=0x0035, msg_type=0x09), "client")
+            check("a yell (its own hue) teaches nothing", hue(t.inject_c2s(room, "agent")) == 0x0239)
+            check("agent pet commands keep Razor's hue",
+                  t.inject_c2s(actions.razor_say("All Kill"), "agent") == actions.razor_say("All Kill"))
+            check("an explicit agent hue is left alone",
+                  hue(t.inject_c2s(actions.say_unicode("x", hue=0x0021), "agent")) == 0x0021)
+            t.inject_c2s(bytes.fromhex("5dedededed") + b"Other".ljust(30, b"\0") + bytes(38), "client")
+            t.world.state.self.name = "Other"
+            check("another character: back to defaults (no profile for it)",
+                  hue(t.inject_c2s(room, "agent")) == 0x02B2)
+        finally:
+            cuo_profile.PROFILES = orig
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def test_cast_spell():
@@ -634,8 +692,10 @@ async def injection_test():
         await game_writer.drain()
         await asyncio.sleep(0.5)
         # the proxy's MoveAuthority stamps the seed token (8) into the first
-        # walk of the session; everything else relays byte-for-byte
-        relayed = [payloads[0][:3] + (8).to_bytes(4, "big")] + payloads[1:]
+        # walk of the session, and the character's speech hue into speech (ClassicUO's
+        # default here: the test session has no profile); everything else relays byte-for-byte
+        relayed = ([payloads[0][:3] + (8).to_bytes(4, "big"), payloads[1],
+                    actions.say_unicode("howdy", hue=actions.CUO_SPEECH_HUE)] + payloads[3:])
         expected = b"".join(
             bytes(b ^ SESSION_KEY for b in p) for p in relayed
         ) + bytes(b ^ SESSION_KEY for b in keepalive_plain)
@@ -714,7 +774,7 @@ def test_replay_actions():
     rt.feed_packet(C2S, actions.cast_spell(15))
     rt.feed_packet(C2S, actions.item_query(0x40000D54))
     rt.feed_packet(C2S, actions.dclick(0x40005913))
-    rt.feed_packet(C2S, actions.say_unicode("howdy"))
+    rt.feed_packet(C2S, actions.say_unicode("howdy", hue=actions.CUO_SPEECH_HUE))
 
     check("confirmed walks moved self (+1, 0)",
           (s.x, s.y) == (x0 + 1, y0), f"({x0},{y0}) -> ({s.x},{s.y})")
@@ -748,6 +808,7 @@ def main():
     test_dclick()
     test_say_unicode()
     test_razor_say()
+    test_speech_hue_stamp()
     test_speech_keywords()
     test_cast_spell()
     test_item_query()

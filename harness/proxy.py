@@ -4,7 +4,8 @@ TCP relay between the stock Outlands ClassicUO client and the game server:
 
   client preamble (5B, cleartext)    -> logged, relayed
   server prelude (13B, cleartext)    -> byte 11 = S2C XOR key, byte 12 = C2S XOR key
-  C2S (XOR c2s_key)                  -> decrypted, framed, walks rewritten, logged
+  C2S (XOR c2s_key)                  -> decrypted, framed, walks rewritten, agent speech hue
+                                        stamped, logged
   S2C (XOR s2c_key + per-packet      -> split into packets (uo/s2c.py), logged;
        Huffman, one flush = 1 packet)   movement packets filtered/rewritten
 
@@ -39,6 +40,9 @@ Each hidden agent confirm is replaced, toward the client, by a fabricated S2C
 character step by step (and, after quiet, once more if a rejection or late
 confirm left it behind). It never sends a packet of its own to the server.
 
+Speech: agent 0xAD built with actions.SPEECH_HUE_OWN gets the character's own
+speech hue (`speech_hue`), so it matches the client's typing and Razor macros.
+
 Client-only fixes after an agent answer (ANTICHEAT.md §8.11, §8.18): a gump the
 agent answered gets a fabricated 0xBF sub 4 close; a target cursor the agent
 answered gets a fabricated 0x6C cancel, and the client's reply to that spent
@@ -61,7 +65,9 @@ import time
 from uo.packets import packet_length, C2S_OVERRIDES
 from uo.s2c import PRELUDE_LEN, S2CStream, encode_packet, prelude_keys
 from agent_gate import AgentGate
+import actions
 import charsel
+import cuo_profile
 from memory import MemoryWriter
 import pathfind
 from world.runtime import WorldRuntime, C2S, S2C
@@ -555,6 +561,10 @@ class SessionTap:
         # captures made before that switch it off to reproduce what the proxy did then
         self.reanchor_on_confirm = True
         self.tag = None                  # session log tag (handle_client), for the `sessions` op
+        # agent speech hue (speech_hue): the client's last typed hue, else its ClassicUO profile's
+        self.client_speech_hue = None
+        self.profile_hue_key = None      # (account, name) the profile hue was read for
+        self.profile_hue = None
 
     def _log(self, **kw):
         kw["t"] = round(self.wall(), 3)
@@ -715,8 +725,43 @@ class SessionTap:
         return out
 
     # ---- client -> server ----
+    def _learn_speech_hue(self, pkt: bytearray):
+        """Remember the hue of the client's own say. Skipped: other message types (own hues),
+        Razor's encoded shape (double NUL: its Say hotkeys in Razor's hue, or a macro already in
+        the learned hue) and Razor's default hues (its unencoded Say hotkeys / script `say`)."""
+        if pkt[3] & ~actions.SPEECH_ENCODED & 0xFF:
+            return
+        if pkt[3] & actions.SPEECH_ENCODED and pkt.endswith(b"\x00\x00"):
+            return
+        hue = int.from_bytes(pkt[4:6], "big")
+        if hue in (actions.SPEECH_HUE_OWN, actions.RAZOR_SPEECH_HUE, actions.RAZOR_SYS_HUE):
+            return
+        if hue != self.client_speech_hue:
+            self.client_speech_hue = hue
+            self._log(ev="speech_hue", hue=hue, source="client")
+
+    def speech_hue(self) -> int:
+        """The character's own speech hue: what the client last typed in, else its ClassicUO
+        profile `speech_hue` (read once per account and character), else ClassicUO's default."""
+        if self.client_speech_hue is not None:
+            return self.client_speech_hue
+        me = self.world.state.self
+        key = (me.account, me.name)
+        if key != self.profile_hue_key and None not in key:
+            self.profile_hue_key = key
+            self.profile_hue = cuo_profile.speech_hue(*key)
+            self._log(ev="speech_hue", hue=self.profile_hue, source="profile")
+        return self.profile_hue or actions.CUO_SPEECH_HUE
+
     def _c2s_packet(self, pkt: bytearray, src: str, now: float) -> bytes:
         """Rewrite/log one plaintext C2S packet; return its encrypted wire bytes."""
+        if pkt[0] == 0xAD and len(pkt) >= 12:
+            if src == "client":
+                self._learn_speech_hue(pkt)
+            elif pkt[4:6] == actions.SPEECH_HUE_OWN.to_bytes(2, "big"):
+                pkt[4:6] = self.speech_hue().to_bytes(2, "big")
+        elif pkt[0] == 0x5D:
+            self.client_speech_hue = None      # another character: its own hue
         if pkt[0] == 0x02 and len(pkt) == 7:
             note = self.moveauth.on_c2s_walk(pkt, src, now)
             if note is not None:
