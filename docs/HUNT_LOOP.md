@@ -266,10 +266,26 @@ loot exceeds the risk/reward of being killed by reds or mobs, like the lumber ru
   is within `LOOT_WEIGHT_MARGIN` of full. Only between fights: nothing on us, nothing engaged, no corpse to loot.
   The leave is planned (severity `return`: no `threat` juncture, the walk to the gate at a normal pace with the
   pets guarding, the crawl doesn't mark the place) and the run goes back in.
-- **The inputs**, from the store at each visit's start: `r` from this character's visit rows within 120 tiles of
-  the spot since the first live-server run (2026-10-15 21:07; the test shard had no player killers), gold only;
-  `h` Gamma-Poisson, (1 + deaths) / (60 + minutes); `T` 6 min [INFERENCE]. Live 2026-10-17: 1342 gold/min, 3 deaths
-  in 70 min: **V\* ≈ 26,500**, about 20 minutes of gold.
+- **The inputs**, from the store at each visit's start, this character's within 120 tiles of the spot since the first
+  live-server run (2026-10-15 21:07; the test shard had no player killers):
+  - `r`: gold a minute from the visit rows, gold only.
+  - `h` (user 2026-10-17: "count red escapes as part of the risk"), split as the lumber runner splits it: player
+    encounters a minute × P(death | encounter), plus monster deaths a minute. An encounter is a `leave` for a player
+    (red in view, hostile grey, "… is attacking you!"), or a PK death with no such leave. The encounter rate is
+    Gamma-Poisson, (1 + encounters) / (60 + minutes); P(death) is Beta(1, 3) with PK deaths against escapes. A
+    death is a PK death by its cause, or a player leave within 300 s of it: both of 2026-10-17's were logged
+    "unknown"/"pk" with the leave for the red a moment after. Monster deaths: (0.5 + deaths) / (60 + minutes).
+    Priors [INFERENCE].
+  - `T`, measured since 2026-10-17 and in three parts, each the mean of its samples with a prior worth one sample:
+    - the way out: the `leave` event's `out_s`, from the leave firing to home; prior 1 min;
+    - the drop-off: the `dropoff` event's `elapsed_s`; prior 0.5 min;
+    - the way in: the visit row's `in_s`, from the recall in to the arrival; prior 3 min.
+
+    The priors come from that day's logs: a red leave home in 9 s, the steward and the drop-off 29 s, walk-ins of
+    3.5 and 2.2 min. Waiting out `--pk-wait` and resting to heal aren't a return's cost, so they aren't counted.
+  - Live 2026-10-17 15:40: 1314 gold/min. 6 player encounters, 2 fatal (P(death) 0.30), and 1 monster death in
+    78 min: h 0.026, a death every 38 min. T 4.5 min, all priors so far. **V\* ≈ 24,400**; the deaths-only
+    model with T 6 min gave 26,700.
 - **The carried value**: the pack's top level (where loot lands; our bags of supplies aside): its gold plus every item
   priced in the store under `loot:<name>` (the client's name, lower case, no " : N" or article), else a kind's row
   (`loot:aspect core` 10k for an unseen core, `loot:skill scroll`). Priced 2026-10-17: the user's (research materials

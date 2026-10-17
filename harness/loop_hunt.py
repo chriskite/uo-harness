@@ -289,6 +289,7 @@ class HuntLoop:
         self.prices = memory.prices()   # loot:<name> rows: the carried value (hunt_return)
         self.return_model = None        # hunt_return.model for this visit (start_visit)
         self.return_floor = 0           # gp carried when the visit started (what a drop-off didn't take: return_reason)
+        self.in_t = None                # monotonic start of the recall in (enter_by_recall): the next visit's in_s
         self.low_posted = False
         self.potions = healing.PotionClock()
         self.refresh_t = -1e9        # monotonic time of our last stamina potion (refresh_potion)
@@ -1598,6 +1599,8 @@ class HuntLoop:
         data.update(cursor_cancelled=cancelled,
                     recall={k: res.get(k) for k in ("ok", "method", "from", "to", "elapsed_s", "attempts",
                                                     "failure", "refused", "walked_first")})
+        if res["ok"]:
+            data["out_s"] = round(time.monotonic() - t_fire, 1)     # the way out: the return's T (hunt_return)
         if severity not in PLANNED:
             self.memory.juncture("hunt", "threat", f"Leaving the hunt by recall: {why}"
                                  + ("" if res["ok"] else f" (recall failed: {res['failure']})"), severity, data)
@@ -1629,7 +1632,7 @@ class HuntLoop:
         home = home_mod.for_character((st["world"].get("self") or {}).get("name"))
         if not home or not home.get("dropoff"):
             return
-        before = hunt_return.carried(st, self.prices)
+        before, t0 = hunt_return.carried(st, self.prices), time.monotonic()
         self.doing("store", "Dropping off the loot in the rental room")
         try:
             if not home_mod.in_room((st["world"].get("self") or {}).get("map"), home):
@@ -1645,7 +1648,8 @@ class HuntLoop:
             out = dropoff.run(escape_mod.LinkIO(self.link), self.human, home["dropoff"])
         except (room_mod.RoomError, dropoff.DropoffError, Abort) as e:
             log(f"drop-off: {e}; going on with the load")
-            self.memory.job_event("hunt", "dropoff", {"ok": False, "error": str(e), "carried": before},
+            self.memory.job_event("hunt", "dropoff", {"ok": False, "error": str(e), "carried": before,
+                                                      "elapsed_s": round(time.monotonic() - t0, 1)},
                                   **self._where(self.state()))
             return
         after = hunt_return.carried(self.state(), self.prices)
@@ -1653,7 +1657,9 @@ class HuntLoop:
             f"{s['name'].split(' [')[0]}: {' / '.join(s['lines']) or '-'}" for s in out["steps"]) + ")"
             + (f"; into the chest: {', '.join(str(c['name']) for c in out['chest'])}" if out["chest"] else ""))
         self.memory.job_event("hunt", "dropoff", {"ok": out["ok"], "error": out.get("error"), "carried": before,
-                                                  "left": after, "chest": out["chest"]}, **self._where(self.state()))
+                                                  "left": after, "chest": out["chest"],
+                                                  "elapsed_s": round(time.monotonic() - t0, 1)},
+                              **self._where(self.state()))
 
     def walk_to_keeper(self, serial: int, rng: int):
         """room.enter's walker: up to where the house steward stands now (guarded Mover)."""
@@ -1692,6 +1698,7 @@ class HuntLoop:
         if self.team is not None:
             self.team.follow()
         self.doing("enter", f"Recalling to {rune or 'the default rune'}")
+        self.in_t = time.monotonic()        # the way in: the return's T (hunt_return), the visit row's in_s
         self.human.wait("use")
         res = self.recall(book, rune, False, "in")
         if not res["ok"]:
@@ -1958,14 +1965,19 @@ class HuntLoop:
                          {"spell": combat.MAGERY_SPELLS[self.spell - 1]}),
                       "hits_start": st["world"]["self"].get("hits"), "kills": 0, "lost_kills": 0, "gold": 0, "xp": 0,
                       "hits_lost": 0, "casts": 0, "heals": 0, "stationary_clears": 0, "repositions": 0}
+        if self.in_t is not None:
+            self.visit["in_s"] = round(time.monotonic() - self.in_t, 1)
+            self.in_t = None
         if self.args.leave_recall is not None and self.args.return_at != "off":
             self.return_floor = hunt_return.carried(st, self.prices)["total"]
             since = hunt_return.LIVE_SINCE
-            deaths = [e for e in self.memory.job_events("hunt", since, char_serial=self.me(st)) if e.get("kind") == "death"]
-            self.return_model = m = hunt_return.model(self.memory.episodes("hunt", since=since), deaths, self.spot,
-                                                      st["world"]["self"].get("map"))
-            log(f"return threshold: home once this visit adds {m['v_star']} gp (V* = r sqrt(2T/h): {m['r']:.0f} gold/min, "
-                f"{m['deaths']} death(s) in {m['minutes']:.0f} min here, {m['trip_min']:g} min out and back)"
+            self.return_model = m = hunt_return.model(
+                self.memory.episodes("hunt", since=since), self.memory.job_events("hunt", since, char_serial=self.me(st)),
+                self.spot, st["world"]["self"].get("map"))
+            log(f"return threshold: home once this visit adds {m['v_star']} gp (V* = r sqrt(2T/h): {m['r']:.0f} gold/min; "
+                f"a death every {1 / m['h']:.0f} min here: {m['encounters']} player encounter(s), {m['pk_deaths']} fatal, "
+                f"{m['deaths'] - m['pk_deaths']} monster death(s) in {m['minutes']:.0f} min; trip {m['trip_min']:.1f} min: "
+                f"out {m['trip']['out']:.1f}, drop-off {m['trip']['dropoff']:.1f}, in {m['trip']['in']:.1f})"
                 if self.args.return_at == "auto" else f"return threshold: home once this visit adds {self.args.return_at} gp")
 
     def end_visit(self, why):

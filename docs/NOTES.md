@@ -3014,6 +3014,12 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
   along. Home, the steward let him into the room at 14:37:31 and `dropoff.run` took the 10607 gp carried to 0
   by 14:37:56, with both pets beside him. Then the runner waited out --pk-wait before going back in. Eight
   seconds from sighting to the gate.
+- **The first live planned return (15:38, `hunt-20261017-151852-2301`).** At 15:38:22, between fights, the
+  runner left with 28287 gp carried (gold 15587, items 12700; 1144 of it from before the visit) against V* 26710:
+  17 kills in 17 min. 47 steps to the gate at a walk in 20 s, Totem, the tome home at 15:38:48. Into the room at
+  15:38:52 and the drop-off to 0 by 15:39:18, then the recall back in at 15:39:23, the run fighting on the walk-in
+  by 15:39:37. The trip home took 26 s and the drop-off 30 s, against the 6 min the first model assumed. That is why
+  `T` is now measured (`out_s`, `elapsed_s`, `in_s`; docs/HUNT_LOOP.md "Taking the loot home").
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 
