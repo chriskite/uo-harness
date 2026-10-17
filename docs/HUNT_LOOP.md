@@ -514,6 +514,11 @@ what comes.
   in an area that I can manage"): "All Follow Me", then to the gate when that is away from it, else 22
   tiles beyond it, until it stops chasing. The leave rules take over when we're hurt ("when all else
   fails ... I will probably head for the gate").
+  - **Healing on the run** (user 2026-10-17: "We absolutely must vet while fleeing"). Between the steps of
+    every flight (a monster's, a red's, a walk out to the gate), the vet supplies start whenever we're hurt
+    at all and no channel runs. A heal potion is drunk below `--heal-at` (`HuntLoop.drink_on_the_run`). A
+    step doesn't stop the channel healing us. Live 16:38:32-41 a flight from an elder vampire countess had
+    none of it: diseased, 87 to 11 hits in 9 s. No area peace while running from a monster.
 - **Backspawn** (user 2026-10-15: "We know nightstalkers spawn in that room though. When a mob respawns
   behind you we call it backspawn. A human knows not to stand out in the open when stealth mobs are going to
   respawn there"; live 20261015_171928 18:40:10 an unseen nightstalker hit Logan -58 from 2 tiles, the side
@@ -563,6 +568,10 @@ moongate, and never near a red one).
     at 8/100, 98 by the gate, then 10 s there waiting for the pets in a banshee's sight: "There's no point
     in running to the gate when he's fully healed"). He walks back to within `--vet-range` - 1 of the
     nearest pet (`Team.rejoin`) and the hunt goes on.
+  - **Through the gate on the way** (`HuntLoop.through_gate`): a walk to the gate that lands more than 30 tiles
+    from it went through it and counts as the gate taken. Live 16:38:56 a hurt walk stepped onto the gate's tile
+    and came out at Totem; its stop then read "healed" there, called the leave off, and the run hunted at Totem
+    with the pets left in the Mausoleum.
   - **Fleeing a hostile player** (an urgent leave; `--rope`, default on): "All Follow Me" at once, then
     the run to the gate. An Adventurer's Rope jump only when one is ready **and no player is on us**
     (`rope_worth`, since 2026-10-17; user: "ropes are useful for getting through groups of mobs or getting a

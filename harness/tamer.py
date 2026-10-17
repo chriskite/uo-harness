@@ -1264,7 +1264,7 @@ class Team:
                 best, best_c = t, c
         return best
 
-    def vet_needed(self, st, pets) -> str | None:
+    def vet_needed(self, st, pets, us_below: float | None = None) -> str | None:
         me = st["world"]["self"]
         zone = self.charge_zone(st)
         ghosts = [p for p in pets if p["dead"] and p["dist"] <= self.a.vet_range]
@@ -1275,7 +1275,7 @@ class Team:
         if hurt:
             p = min(hurt, key=lambda p: p["frac"])
             return f"{p['name']} at {p['frac']:.0%}" + (" (poisoned)" if p["poisoned"] else "")
-        if me.get("hits") is not None and self.h.frac(me) < self.a.heal_at:
+        if me.get("hits") is not None and self.h.frac(me) < (self.a.heal_at if us_below is None else us_below):
             # they heal us with no pet in reach: live 20261015_090607 09:16:36-41, the pets 4-5 tiles off at
             # --vet-range 2, "You finish using veterinary supplies." and +22 on Logan; the user 2026-10-15: "Logan
             # should have vet supply-bandaged himself when he got low even though he wasn't close enough to heal
@@ -1283,13 +1283,14 @@ class Team:
             return f"us at {me.get('hits')}/{me.get('hits_max')}"
         return None
 
-    def vet(self, st) -> bool:
+    def vet(self, st, us_below: float | None = None) -> bool:
         """Veterinary supplies when vet_needed and no channel runs: the stock double-click on the
-        smallest stack (healing.in_pack: any bag depth, no bag opened), its answer read."""
+        smallest stack (healing.in_pack: any bag depth, no bag opened), its answer read. `us_below`: our
+        own share of hits that calls for it instead of --heal-at (on the run: 1.0, any damage)."""
         h, now = self.h, time.monotonic()
         if now < self.vet_busy_until:
             return False
-        why = self.vet_needed(st, self.pets(st))
+        why = self.vet_needed(st, self.pets(st), us_below)
         if why is None:
             return False
         stacks = healing.in_pack(st["world"], h.me(st), VET_SUPPLIES_GRAPHIC)

@@ -3062,6 +3062,27 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     `--timeout` doesn't have. [INFERENCE] Follow costs the simulator a few deaths on the walk out, because the
     attackers chase Logan instead of the guarding pets. That is within the noise of 48 runs, and it is the
     user's call.
+- **16:38, `hunt-20261017-161210-a590`: diseased, a flight with no heal, through the gate by foot.** The user: "I
+  took control, Logan was standing still and slowly walking while dying", then "We absolutely must vet while
+  fleeing".
+  - 16:38:24-32: he stood, the pets on guard, "waiting for a shadowguard to come on", Discordance up.
+    "You have been ensnared and diseased!" at 16:38:25.2, -24 every ~5 s until 16:38:45.4. One potion at 76/100.
+  - 16:38:32.9: an elder vampire countess came at 11 tiles in war mode: "All Follow Me" and a run of 9 s, steps
+    every 0.2 s. Hits went 86 to 11 (-24, -30, -24) with no potion (cooldown) and no vet channel.
+    `drink_on_the_run` acted only on walks out (`walking_out`), not in `Team.evade`.
+  - 16:38:41.8: the hits leave at 11/100. A potion (+53), then the vet (begun 16:38:43.97, +32 at 16:38:49.21
+    after 25 running steps: a step doesn't stop the channel).
+  - 16:38:56.8: the walk to the gate's approach tile stepped onto the gate's tile (5203, 703). At 16:38:57.1 he
+    was at Totem (3848, 2867). The walk's stop then read "healed to 93/100", the leave was called off, and the
+    run went back to hunting at Totem ("Nothing to patrol to; waiting") with the pets in the Mausoleum. The user
+    recalled home (16:39:03 "Kal Ort Por") and brought him into the room, and the pets came along. The run idled
+    there until `ctl stop`.
+  - Fixed:
+    - Heal on the run in every flight, a monster's included: the vet supplies whenever we're hurt at all
+      (`Team.vet(us_below=1.0)`), a potion below --heal-at, no area peace while running from a monster.
+    - A walk to the gate that ends more than 30 tiles from it is the gate taken (`HuntLoop.through_gate`).
+  - Simulator, 48 seeds, 20 min: deaths 34 to 33, deaths on a planned leave 11 to 8. No run evaded a monster, so
+    the evade change isn't exercised there [INFERENCE: the simulator's elder vampires don't chase like this one].
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

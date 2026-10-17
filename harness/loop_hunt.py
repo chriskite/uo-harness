@@ -166,6 +166,7 @@ PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this
 SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
 LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D, no death): its death this soon counts
 GATE_POTION_WAIT_S = 1.5      # hurt beside the leave gate: a heal potion due this soon is drunk before the click
+GATE_THROUGH_R = 30          # the walk to the leave gate put us this far from it: through the gate (live 20261017 16:38:56)
 LOOT_WEIGHT_MARGIN = 10       # stones kept free below the weight limit: overloaded, we can't run (live 475/450)
 HEAL_IN_PLACE_FLOOR = 0.15    # --heal-in-place: below this share the hits leave fires even with a heal coming
 HEAL_SOON_S = 3.0             # --heal-in-place: a heal potion ready this soon is a heal coming
@@ -346,28 +347,35 @@ class HuntLoop:
         self.drink_on_the_run(st)
 
     def drink_on_the_run(self, st):
-        """On the walk out to --leave-gate, a red's flight included (Mover guard, between steps): a heal
-        potion when hurt below --heal-at and one is ready (user 2026-10-13: banshees catch real players on
-        the way to the gate too; 'I just run and heal and hope for the best, with pets guarding'), and
-        (--pets) the vet supplies on us when no channel runs (user 2026-10-15: "It needs to heal on the run
-        when fleeing a red"). A step doesn't stop the channel healing us: it only shortens the reach to the
-        pets to 1 (live 20261014_221341 22:35:50-55 Logan walked 2 tiles mid-channel and its finish still
-        healed him and resurrected GraveRobber)."""
-        if not self.walking_out or self._drinking:
+        """On the walk out to --leave-gate, a red's flight included, and (--pets) running from a monster
+        (Team.evade) (Mover guard, between steps): a heal potion when hurt below --heal-at and one is ready
+        (user 2026-10-13: banshees catch real players on the way to the gate too; 'I just run and heal and
+        hope for the best, with pets guarding'), and (--pets) the vet supplies on us when no channel runs
+        (user 2026-10-15: "It needs to heal on the run when fleeing a red"; 2026-10-17, after an evade from an
+        elder vampire countess took Logan from 87 to 11 diseased with no heal: "We absolutely must vet while
+        fleeing": a channel whenever we are hurt at all, not only below --heal-at). A step doesn't stop the
+        channel healing us: it only shortens the reach to the pets to 1 (live 20261014_221341 22:35:50-55 Logan
+        walked 2 tiles mid-channel and its finish still healed him and resurrected GraveRobber; 20261017
+        16:38:43.97-49.21 begun, 25 steps, +32)."""
+        evading = self.team is not None and self.team.evading
+        if not (self.walking_out or evading) or self._drinking:
             return
         me = st["world"]["self"]
         self._drinking = True
         try:
-            if self.team is not None and not self.pk_flight and self.team.area_peace(st, walking_out=True):
+            if self.team is not None and not self.pk_flight and not evading \
+                    and self.team.area_peace(st, walking_out=True):
                 return                    # through monsters on the way out: a 2 s peace on them (Team.area_peace)
             #                               (not from a red: live 20261017_133304 13:40:56 it stopped 1.5 s to play
-            #                               while Tugarin zmey's Explosions landed, -32 more, dead 2 s later)
-            if me.get("hits") is None or self.frac(me) >= self.args.heal_at:
+            #                               while Tugarin zmey's Explosions landed, -32 more, dead 2 s later; nor
+            #                               running from a monster)
+            if me.get("hits") is None or me.get("hits_max") is None or me["hits"] >= me["hits_max"]:
                 return
-            if self.potions.ready(time.monotonic()) and healing.heal_potions(st["world"], self.me(st)):
+            if self.frac(me) < self.args.heal_at and self.potions.ready(time.monotonic()) \
+                    and healing.heal_potions(st["world"], self.me(st)):
                 self.heal(st, potions=True)
             if self.team is not None and time.monotonic() >= self.team.vet_busy_until:
-                self.team.vet(self.link.state())
+                self.team.vet(self.link.state(), us_below=1.0)
         finally:
             self._drinking = False
 
@@ -1507,6 +1515,7 @@ class HuntLoop:
         flee = severity == "urgent"
         self.doing("leave", f"Walking to the moongate at {gate[0]},{gate[1]}", gate)
         self.walking_out, self.pk_flight = True, flee
+        t_walk = time.monotonic()
         try:
             if self.team is not None:
                 self.team.follow(severity, wait=flee)
@@ -1516,6 +1525,8 @@ class HuntLoop:
                 lag = {"wait": severity in PLANNED}
 
                 def stop(s):
+                    if cheb(self.pos(s), gate) > GATE_THROUGH_R:
+                        return "through the gate"
                     if flee:
                         return "a rope is worth it" if self.rope_worth(s) else None
                     if severity not in PLANNED:
@@ -1530,6 +1541,8 @@ class HuntLoop:
                         continue
                     why = self.mover.walk_to(lambda: near, 0, "to the moongate", urgent=urgent,
                                              max_moves=max(250, 3 * self.out_steps), stop=stop)
+                    if why == "through the gate" or cheb(self.pos(self.link.state()), gate) > GATE_THROUGH_R:
+                        break
                     if why and severity in PLANNED:
                         if why == "under attack":
                             self.walk_in_fight("to the moongate", "out")
@@ -1541,6 +1554,8 @@ class HuntLoop:
                                 "dest": self.args.gate_dest}
                     if not why:
                         break
+                if (through := self.through_gate(gate, t_walk)) is not None:
+                    return through
                 if (why := self.leave_called_off(self.link.state(), severity)):
                     return {"ok": False, "called_off": why, "from": list(self.pos(self.link.state())[:2]),
                             "dest": self.args.gate_dest}
@@ -1568,10 +1583,24 @@ class HuntLoop:
             # "My macro gets me out basically instantly")
             return moongate.travel(self.link, self.human, self.args.gate_dest, since=mark, log=log, urgent=urgent)
         except (Abort, moongate.GateError) as e:
+            if (through := self.through_gate(gate, t_walk)) is not None:
+                return through
             return {"ok": False, "from": list(self.pos(self.link.state())[:2]), "error": str(e),
                     "dest": self.args.gate_dest}
         finally:
             self.walking_out = self.pk_flight = False
+
+    def through_gate(self, gate, t_walk: float) -> dict | None:
+        """The walk to the leave gate went through it (more than GATE_THROUGH_R from it): moongate.travel's
+        success, else None. Live 20261017 16:38:56.8 the hurt walk stepped onto the gate's tile (5203, 703) and
+        came out at Totem; the walk's stop then read "healed to 93/100" there, called the leave off, and the
+        run went back to hunting at Totem, the pets in the Mausoleum."""
+        here = self.pos(self.link.state())
+        if cheb(here, gate) <= GATE_THROUGH_R:
+            return None
+        log(f"to the moongate: through it on the way, at {tuple(here[:2])}")
+        return {"ok": True, "from": list(gate), "to": list(here[:3]), "dest": self.args.gate_dest,
+                "elapsed_s": round(time.monotonic() - t_walk, 2), "walked_through": True}
 
     def leave_by_recall(self, st, why, severity):
         """Leave by recalling to --leave-recall's default rune (recall_home), at once and
